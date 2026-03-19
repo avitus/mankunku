@@ -10,36 +10,45 @@ export interface OnsetDetectorHandle {
 	getOnsets: () => number[];
 	/** Clear collected onsets */
 	clear: () => void;
+	/** Clear onsets and set a new recording start time */
+	reset: (recordingStartTime: number) => void;
 	/** Disconnect and clean up */
 	dispose: () => void;
 }
 
+let moduleRegistered = false;
+
 /**
  * Create and connect the onset detector worklet.
  *
+ * Call `reset(startTime)` before each recording pass to synchronise
+ * the onset timestamps with the pitch detector's reference clock.
+ *
  * @param context - AudioContext (must be running)
  * @param source - MediaStreamAudioSourceNode from mic
- * @param onOnset - Callback fired when an onset is detected
- * @param recordingStartTime - AudioContext.currentTime when recording started
+ * @param onOnset - Optional callback fired when an onset is detected
  */
 export async function createOnsetDetector(
 	context: AudioContext,
 	source: MediaStreamAudioSourceNode,
-	onOnset: (time: number) => void,
-	recordingStartTime: number
+	onOnset?: (time: number) => void
 ): Promise<OnsetDetectorHandle> {
-	// Register the worklet processor
-	const workletUrl = new URL('./onset-worklet.ts', import.meta.url);
-	await context.audioWorklet.addModule(workletUrl);
+	// Register the worklet processor (once per AudioContext lifetime)
+	if (!moduleRegistered) {
+		const workletUrl = new URL('./onset-worklet.ts', import.meta.url);
+		await context.audioWorklet.addModule(workletUrl);
+		moduleRegistered = true;
+	}
 
 	const node = new AudioWorkletNode(context, 'onset-detector');
 	const onsets: number[] = [];
+	let startTime = 0;
 
 	node.port.onmessage = (event: MessageEvent) => {
 		if (event.data.type === 'onset') {
-			const relativeTime = event.data.time - recordingStartTime;
+			const relativeTime = event.data.time - startTime;
 			onsets.push(relativeTime);
-			onOnset(relativeTime);
+			onOnset?.(relativeTime);
 		}
 	};
 
@@ -47,12 +56,20 @@ export async function createOnsetDetector(
 	// Worklet not connected to destination — processing only
 
 	return {
-		getOnsets: () => onsets,
+		getOnsets: () => [...onsets],
 		clear() {
 			onsets.length = 0;
 		},
+		reset(recordingStartTime: number) {
+			onsets.length = 0;
+			startTime = recordingStartTime;
+		},
 		dispose() {
-			source.disconnect(node);
+			try {
+				source.disconnect(node);
+			} catch {
+				// source may already be disconnected
+			}
 			node.disconnect();
 			node.port.close();
 		}

@@ -18,10 +18,12 @@
 	import type { PlaybackOptions } from '$lib/types/audio.ts';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
 	import type { MicCapture } from '$lib/audio/capture.ts';
+	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector.ts';
 
 	let playback: typeof import('$lib/audio/playback.ts') | null = null;
 	let captureModule: typeof import('$lib/audio/capture.ts') | null = null;
 	let pitchModule: typeof import('$lib/audio/pitch-detector.ts') | null = null;
+	let onsetModule: typeof import('$lib/audio/onset-detector.ts') | null = null;
 
 	// Daily tonality
 	const xp = $derived(progress.adaptive.xp);
@@ -34,6 +36,7 @@
 	let phraseIndex = $state(0);
 	let micCapture: MicCapture | null = null;
 	let pitchDetector: PitchDetectorHandle | null = null;
+	let onsetDetector: OnsetDetectorHandle | null = null;
 	let levelInterval: ReturnType<typeof setInterval> | null = null;
 	let recordingTimeout: ReturnType<typeof setTimeout> | null = null;
 	let silenceTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -62,6 +65,7 @@
 		playback = await import('$lib/audio/playback.ts');
 		captureModule = await import('$lib/audio/capture.ts');
 		pitchModule = await import('$lib/audio/pitch-detector.ts');
+		onsetModule = await import('$lib/audio/onset-detector.ts');
 
 		// Check mic permission on mount
 		session.micPermission = await captureModule.checkMicPermission();
@@ -71,6 +75,8 @@
 		stopDetection();
 		stopRecording();
 		if (levelInterval) clearInterval(levelInterval);
+		onsetDetector?.dispose();
+		onsetDetector = null;
 	});
 
 	// ─── Mic Setup ───────────────────────────────────────────
@@ -85,6 +91,19 @@
 			levelInterval = setInterval(() => {
 				session.inputLevel = captureModule!.getInputLevel();
 			}, 50);
+
+			// Connect AudioWorklet onset detector (runs on audio thread at ~2.7ms resolution)
+			if (onsetModule && !onsetDetector) {
+				try {
+					onsetDetector = await onsetModule.createOnsetDetector(
+						micCapture.context,
+						micCapture.source
+					);
+				} catch (err) {
+					console.warn('AudioWorklet onset detector unavailable, using fallback:', err);
+				}
+			}
+
 			return true;
 		} catch (err) {
 			console.error('Mic error:', err);
@@ -252,6 +271,11 @@
 		session.isRecording = true;
 		session.recordedNotes = [];
 
+		// Reset onset detector to the same time reference as the pitch detector.
+		// Must happen before pitchDetector.start() so both share the same epoch.
+		const recordingStartTime = micCapture?.context.currentTime ?? 0;
+		onsetDetector?.reset(recordingStartTime);
+
 		// Stop then restart so recordingStartTime resets to now.
 		// Just calling start() while already running is a no-op.
 		pitchDetector.stop();
@@ -289,8 +313,12 @@
 		// Stop the transport + metronome now that recording is done
 		playback?.stopPlayback();
 
-		// Segment pitch readings into notes
-		const onsets = extractOnsetsFromReadings(readings);
+		// Use AudioWorklet onsets (~2.7ms resolution) when available,
+		// fall back to pitch-based onset extraction (~16.7ms resolution)
+		const workletOnsets = onsetDetector?.getOnsets() ?? [];
+		const onsets = workletOnsets.length > 0
+			? workletOnsets
+			: extractOnsetsFromReadings(readings);
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 		const detected = segmentNotes(readings, onsets, phraseDuration);
 
