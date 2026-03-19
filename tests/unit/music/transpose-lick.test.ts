@@ -22,7 +22,7 @@ function makePhrase(pitches: (number | null)[]): Phrase {
 				duration: [1, 1]
 			}
 		],
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
 		category: 'blues',
 		tags: [],
 		source: 'curated'

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Phrase } from '$lib/types/music.ts';
 	import { GRADE_COLORS } from '$lib/scoring/grades.ts';
+	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display.ts';
 
 	interface Props {
 		lick: Phrase;
@@ -22,12 +23,7 @@
 		'rhythm-changes': 'Rhythm Changes'
 	};
 
-	const difficultyColor = (level: number) => {
-		if (level <= 2) return 'var(--color-success, #22c55e)';
-		if (level <= 4) return 'var(--color-accent, #3b82f6)';
-		if (level <= 6) return 'var(--color-warning, #f59e0b)';
-		return 'var(--color-error, #ef4444)';
-	};
+	const diff = $derived(difficultyDisplay(lick.difficulty.level));
 </script>
 
 <button
@@ -43,9 +39,9 @@
 				</span>
 				<span
 					class="rounded px-1.5 py-0.5"
-					style="background: {difficultyColor(lick.difficulty.level)}20; color: {difficultyColor(lick.difficulty.level)}"
+					style="background: {diff.color}20; color: {diff.color}"
 				>
-					Lvl {lick.difficulty.level}
+					{diff.name} ({lick.difficulty.level})
 				</span>
 				<span class="text-[var(--color-text-secondary)]">
 					{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}

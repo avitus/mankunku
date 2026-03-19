@@ -21,7 +21,8 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Audio Pipeline](./architecture/audio-pipeline.md) | Playback, capture, detection, segmentation |
 | [Scoring Algorithm](./architecture/scoring-algorithm.md) | DTW alignment, pitch/rhythm scoring, grading |
 | [Phrase System](./architecture/phrase-system.md) | Library, generation, mutation, validation |
-| [Adaptive Difficulty](./architecture/adaptive-difficulty.md) | Algorithm, XP, leveling, difficulty profiles |
+| [Adaptive Difficulty](./architecture/adaptive-difficulty.md) | Algorithm, XP, leveling (1-100), difficulty profiles |
+| [Tonality System](./architecture/tonality-system.md) | Daily key/scale selection, progressive unlocking |
 | [State Management](./architecture/state-management.md) | Svelte 5 runes, state modules, persistence |
 
 ### API Reference
@@ -52,4 +53,4 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Glossary](./reference/glossary.md) | Jazz, audio, and technical terminology |
 | [Algorithm Details](./reference/algorithm-details.md) | DTW math, spectral flux, McLeod pitch method |
 | [Browser Compatibility](./reference/browser-compatibility.md) | Web Audio API support, PWA, mobile caveats |
-| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 35 scales + all 62 licks with metadata |
+| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 35 scales + curated lick library with metadata |

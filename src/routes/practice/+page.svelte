@@ -7,13 +7,14 @@
 	import PitchMeter from '$lib/components/audio/PitchMeter.svelte';
 	import FeedbackPanel from '$lib/components/practice/FeedbackPanel.svelte';
 	import { TEST_PHRASES } from '$lib/data/test-phrases.ts';
-	import { getAllLicks, pickRandomLick } from '$lib/phrases/library-loader.ts';
+	import { getAllLicks, pickRandomLick, transposeLick } from '$lib/phrases/library-loader.ts';
 	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
 	import { session } from '$lib/state/session.svelte.ts';
 	import { progress, recordAttempt } from '$lib/state/progress.svelte.ts';
-	import { xpToDisplayLevel } from '$lib/difficulty/adaptive.ts';
+	import { xpToDisplayLevel, xpProgress, xpForLevel } from '$lib/difficulty/adaptive.ts';
 	import { scoreAttempt } from '$lib/scoring/scorer.ts';
 	import { segmentNotes } from '$lib/audio/note-segmenter.ts';
+	import { getTodaysTonality, formatTonality } from '$lib/tonality/tonality.ts';
 	import type { PlaybackOptions } from '$lib/types/audio.ts';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
 	import type { MicCapture } from '$lib/audio/capture.ts';
@@ -22,7 +23,14 @@
 	let captureModule: typeof import('$lib/audio/capture.ts') | null = null;
 	let pitchModule: typeof import('$lib/audio/pitch-detector.ts') | null = null;
 
-	const allLicks = getAllLicks();
+	// Daily tonality
+	const xp = $derived(progress.adaptive.xp);
+	const dailyTonality = $derived(getTodaysTonality(xp));
+	const activeTonality = $derived(settings.tonalityOverride ?? dailyTonality);
+
+	const allLicksRaw = getAllLicks();
+	// Transpose all licks to the active tonality's key
+	const allLicks = $derived(allLicksRaw.map(lick => transposeLick(lick, activeTonality.key)));
 	let phraseIndex = $state(0);
 	let micCapture: MicCapture | null = null;
 	let pitchDetector: PitchDetectorHandle | null = null;
@@ -36,10 +44,18 @@
 	// Transport position (seconds) when recording begins — anchors to the beat grid
 	let recordingTransportSeconds = 0;
 
-	// Set initial phrase (use session phrase if already set from settings, otherwise first lick)
+	// Set initial phrase (use session phrase if already set from settings, otherwise first lick transposed to daily key)
 	if (!session.phrase) {
 		session.phrase = allLicks[0] ?? TEST_PHRASES[0];
 	}
+
+	// When tonality changes, re-transpose the current phrase
+	$effect(() => {
+		const key = activeTonality.key;
+		if (phraseIndex >= 0 && phraseIndex < allLicks.length) {
+			session.phrase = allLicks[phraseIndex];
+		}
+	});
 	session.tempo = settings.defaultTempo;
 
 	onMount(async () => {
@@ -299,9 +315,13 @@
 	}
 
 	/**
-	 * Simple onset extraction from pitch readings.
+	 * Onset extraction from pitch readings.
 	 * A new onset is detected when there's a gap > 100ms between readings
 	 * or when the MIDI note changes.
+	 *
+	 * Gap-based onsets (after silence/breath) are back-dated by ATTACK_LATENCY
+	 * to compensate for the pitch detector needing several frames to rebuild
+	 * clarity after the AnalyserNode buffer clears during silence.
 	 */
 	function extractOnsetsFromReadings(
 		readings: import('$lib/audio/pitch-detector.ts').PitchReading[]
@@ -311,6 +331,7 @@
 		const onsets: number[] = [readings[0].time];
 		const GAP_THRESHOLD = 0.1; // 100ms gap = new note
 		const MIN_ONSET_INTERVAL = 0.08; // minimum 80ms between onsets
+		const ATTACK_LATENCY = 0.05; // 50ms detector re-lock delay after silence
 
 		for (let i = 1; i < readings.length; i++) {
 			const timeSinceLastOnset = readings[i].time - onsets[onsets.length - 1];
@@ -319,7 +340,11 @@
 			const gap = readings[i].time - readings[i - 1].time;
 			const noteChanged = readings[i].midi !== readings[i - 1].midi;
 
-			if (gap > GAP_THRESHOLD || noteChanged) {
+			if (gap > GAP_THRESHOLD) {
+				// After a silence gap, the detector needs time to rebuild clarity.
+				// Back-date the onset to better approximate the true attack time.
+				onsets.push(readings[i].time - ATTACK_LATENCY);
+			} else if (noteChanged) {
 				onsets.push(readings[i].time);
 			}
 		}
@@ -356,8 +381,11 @@
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold">Practice</h1>
 		<div class="flex items-center gap-3">
+			<span class="rounded bg-[var(--color-accent)]/20 px-2 py-0.5 text-sm font-medium text-[var(--color-accent)]">
+				{formatTonality(activeTonality)}
+			</span>
 			<div class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-				<span>Lvl {progress.adaptive.currentLevel}</span>
+				<span>Diff {progress.adaptive.currentLevel}</span>
 				<span class="tabular-nums">{progress.adaptive.xp} XP</span>
 			</div>
 			<a

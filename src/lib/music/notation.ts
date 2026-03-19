@@ -17,18 +17,69 @@ const ABC_NOTE_NAMES_FLAT = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A
 const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
 
 /**
- * Convert a MIDI note to ABC notation pitch string.
- * ABC octave convention: C, = middle C (C4), c = C5, c' = C6, C, = C3
+ * Key signature accidentals: maps each key to the set of pitch classes (0-11)
+ * that are sharped or flatted in that key signature.
+ *
+ * The value for each pitch class is the ABC accidental prefix applied by the key
+ * signature: '^' for sharp, '_' for flat. Notes matching the key signature should
+ * be written without an explicit accidental; notes that differ need an explicit
+ * accidental (including '=' for naturals that cancel a key-sig accidental).
  */
-function midiToAbcPitch(midi: number, useFlats: boolean): string {
+const KEY_SIG_ACCIDENTALS: Record<string, Record<number, string>> = {
+	// Sharp keys
+	'C':  {},
+	'G':  { 6: '^' },                                         // F#
+	'D':  { 6: '^', 1: '^' },                                 // F#, C#
+	'A':  { 6: '^', 1: '^', 8: '^' },                         // F#, C#, G#
+	'E':  { 6: '^', 1: '^', 8: '^', 3: '^' },                 // F#, C#, G#, D#
+	'B':  { 6: '^', 1: '^', 8: '^', 3: '^', 10: '^' },        // F#, C#, G#, D#, A#
+
+	// Flat keys
+	'F':  { 10: '_' },                                         // Bb
+	'Bb': { 10: '_', 3: '_' },                                 // Bb, Eb
+	'Eb': { 10: '_', 3: '_', 8: '_' },                         // Bb, Eb, Ab
+	'Ab': { 10: '_', 3: '_', 8: '_', 1: '_' },                 // Bb, Eb, Ab, Db
+	'Db': { 10: '_', 3: '_', 8: '_', 1: '_', 6: '_' },         // Bb, Eb, Ab, Db, Gb
+	'Gb': { 10: '_', 3: '_', 8: '_', 1: '_', 6: '_', 11: '_' }, // Bb, Eb, Ab, Db, Gb, Cb
+};
+
+/**
+ * Convert a MIDI note to ABC notation pitch string, respecting key signature.
+ *
+ * ABC notation rule: when a key signature is active, notes that belong to the
+ * key are written without accidentals. Accidentals are only written for
+ * chromatic alterations (notes outside the key), including naturals that cancel
+ * a key-signature sharp/flat.
+ *
+ * ABC octave convention: C = middle C (C4), c = C5, c' = C6, C, = C3
+ */
+function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: Record<number, string>): string {
 	const pc = midiToPitchClass(midi);
 	const octave = midiToOctave(midi);
 	const noteNames = useFlats ? ABC_NOTE_NAMES_FLAT : ABC_NOTE_NAMES_SHARP;
 	const name = noteNames[pc];
 
-	// Extract the base letter (without accidental prefix)
-	const accidental = name.startsWith('^') || name.startsWith('_') ? name[0] : '';
+	// Extract the raw accidental and letter from the chromatic note name
+	const rawAccidental = name.startsWith('^') || name.startsWith('_') ? name[0] : '';
 	const letter = name.replace(/[\^_=]/, '');
+
+	// Determine what accidental (if any) the key signature applies to this pitch class
+	const keySigAcc = keySigAccidentals[pc] || '';
+
+	let accidental: string;
+	if (rawAccidental === keySigAcc) {
+		// Note matches key signature exactly — no explicit accidental needed.
+		// This covers both: note has sharp/flat matching key sig, AND natural
+		// note with no key sig accidental (both are '').
+		accidental = '';
+	} else if (rawAccidental === '' && keySigAcc !== '') {
+		// Note is natural but key sig has a sharp/flat on this letter —
+		// we need an explicit natural sign to cancel the key signature.
+		accidental = '=';
+	} else {
+		// Chromatic alteration: note has an accidental different from key sig
+		accidental = rawAccidental;
+	}
 
 	if (octave >= 5) {
 		// Lowercase + apostrophes for octave 5+
@@ -91,6 +142,7 @@ export function phraseToAbc(
 		: phrase.key;
 
 	const useFlats = FLAT_KEYS.includes(displayKey);
+	const keySigAccidentals = KEY_SIG_ACCIDENTALS[displayKey] || {};
 
 	const beatsPerBar = phrase.timeSignature[0];
 	const beatUnit = phrase.timeSignature[1];
@@ -141,7 +193,7 @@ export function phraseToAbc(
 			tokens.push(`z${durationToAbc(note.duration, defaultLength)}`);
 		} else {
 			const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-			const pitch = midiToAbcPitch(midi, useFlats);
+			const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals);
 			const dur = durationToAbc(note.duration, defaultLength);
 			tokens.push(`${pitch}${dur}`);
 		}

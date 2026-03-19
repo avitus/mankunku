@@ -58,7 +58,7 @@ export function generatePhrase(options: GeneratorOptions): Phrase {
 			difficulty: {
 				level: options.difficulty,
 				pitchComplexity: options.difficulty,
-				rhythmComplexity: Math.min(options.difficulty, 6),
+				rhythmComplexity: Math.min(options.difficulty, 80),
 				lengthBars: options.bars
 			},
 			category: options.category,
@@ -425,8 +425,8 @@ function generateScaleFragment(
 		harmony: options.harmony,
 		difficulty: {
 			level: options.difficulty,
-			pitchComplexity: 1,
-			rhythmComplexity: 1,
+			pitchComplexity: 5,
+			rhythmComplexity: 5,
 			lengthBars: options.bars
 		},
 		category: options.category,

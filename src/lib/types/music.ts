@@ -13,7 +13,7 @@ export type ChordQuality =
 export type PhraseCategory =
 	| 'ii-V-I-major' | 'ii-V-I-minor' | 'blues' | 'bebop-lines'
 	| 'pentatonic' | 'enclosures' | 'digital-patterns' | 'approach-notes'
-	| 'turnarounds' | 'rhythm-changes';
+	| 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal';
 
 export type Articulation = 'normal' | 'accent' | 'ghost' | 'bend-up' | 'staccato' | 'legato';
 
@@ -46,8 +46,11 @@ export interface HarmonicSegment {
 }
 
 export interface DifficultyMetadata {
+	/** Overall difficulty rating from 1 (easiest) to 100 (hardest) */
 	level: number;
+	/** Pitch complexity from 1-100 */
 	pitchComplexity: number;
+	/** Rhythm complexity from 1-100 */
 	rhythmComplexity: number;
 	lengthBars: number;
 }

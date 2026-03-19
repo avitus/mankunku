@@ -14,18 +14,18 @@ The adaptive difficulty system automatically adjusts musical complexity based on
 | Advance threshold | >= 85% average |
 | Retreat threshold | < 50% average |
 | Min attempts between changes | 5 |
-| Max level (MVP) | 7 |
+| Max level | 100 |
 
 ### State
 
 The `AdaptiveState` tracks:
-- `currentLevel` — Overall difficulty (1-7)
-- `pitchComplexity` — Pitch difficulty, adjusted independently (1-7)
-- `rhythmComplexity` — Rhythm difficulty, adjusted independently (1-7)
+- `currentLevel` — Content difficulty tier (1-10, maps to difficulty profiles)
+- `pitchComplexity` — Pitch difficulty, adjusted independently (1-10)
+- `rhythmComplexity` — Rhythm difficulty, adjusted independently (1-10)
 - `recentScores` — Circular buffer of last 10 overall scores
 - `attemptsAtLevel` — Total attempts at current level
 - `attemptsSinceChange` — Attempts since last difficulty change
-- `xp` — Total experience points
+- `xp` — Total experience points (drives the 1-100 display level)
 
 ### Adjustment Logic
 
@@ -54,12 +54,13 @@ XP is awarded per attempt based on grade:
 | Fair | 25 |
 | Try Again | 10 |
 
-Display level is computed from total XP:
-- Level N requires `N * 500` XP
-- `xpToDisplayLevel(xp)` — Cumulative levels
+Display level is computed from total XP using a quadratic curve:
+- Level N requires `50 + 0.5 * N²` XP (early levels need ~50 XP, level 100 needs ~5050 XP)
+- `xpToDisplayLevel(xp)` — Player level 1-100 from total XP
 - `xpProgress(xp)` — Progress within current level (0-1)
+- `totalXpForLevel(level)` — Cumulative XP needed to reach a given level
 
-Note: Display level (cosmetic, based on total XP) is separate from difficulty level (functional, based on performance).
+Note: Display level (1-100, cosmetic, based on total XP) is separate from content difficulty tier (1-10, functional, based on performance). The `levelToContentTier()` function maps player levels 1-100 to the 10 content tiers (levels 1-5 = tier 1, levels 91-100 = tier 10).
 
 ## Difficulty Profiles (`params.ts`)
 
@@ -112,8 +113,15 @@ Each level defines what musical elements are available:
 - Rhythm: + sixteenths
 - 2-4 bars, tempo 120-180 BPM
 
-### Levels 8-10 (Deferred)
-Defined in code but capped at level 7 for MVP. Include symmetric scales, wider intervals, and faster tempos up to 300 BPM.
+### Levels 8-10
+Include symmetric scales, wider intervals, and faster tempos up to 300 BPM.
+
+### Player Levels vs Content Tiers
+
+The system has two separate level concepts:
+
+- **Player Level (1-100)**: Cosmetic, earned via XP. Displayed in the UI as "Lvl 42". Drives tonality unlocking.
+- **Content Tier (1-10)**: Functional, based on performance. Determines which musical elements (scales, rhythms, tempos) appear in generated phrases. Player levels map to content tiers via `levelToContentTier()` (e.g., player level 35 → content tier 4).
 
 ## How Profiles Affect Generation
 

@@ -36,7 +36,7 @@
 
 	<!-- Stats row -->
 	{#if progress.sessions.length > 0}
-		<div class="grid grid-cols-4 gap-3">
+		<div class="grid grid-cols-3 gap-3">
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
 				<div class="text-xl font-bold">{progress.sessions.length}</div>
 				<div class="text-xs text-[var(--color-text-secondary)]">Sessions</div>
@@ -46,11 +46,7 @@
 				<div class="text-xs text-[var(--color-text-secondary)]">Streak</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
-				<div class="text-xl font-bold">Lvl {displayLevel}</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Player</div>
-			</div>
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
-				<div class="text-xl font-bold">Lvl {progress.adaptive.currentLevel}</div>
+				<div class="text-xl font-bold">{progress.adaptive.currentLevel}</div>
 				<div class="text-xs text-[var(--color-text-secondary)]">Difficulty</div>
 			</div>
 		</div>

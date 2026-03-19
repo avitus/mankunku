@@ -158,7 +158,7 @@ interface LibraryQuery {
 
 | Function | Signature | Description |
 |---|---|---|
-| `getAllLicks` | `() → Phrase[]` | All 62 curated licks |
+| `getAllLicks` | `() → Phrase[]` | All 113 curated licks |
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) lookup by ID |
 | `getLicksByCategory` | `(category) → Phrase[]` | Pre-built category index |
 | `getCategories` | `() → { category, count }[]` | Categories sorted by count (descending) |
@@ -167,7 +167,9 @@ interface LibraryQuery {
 
 ### `transposeLick(lick, targetKey): Phrase`
 
-Transpose a lick from concert C to a target key. Shifts all MIDI pitches and harmony roots by the interval from C to the target key.
+Transpose a lick from concert C to a target key. Shifts all MIDI pitches and harmony roots by the interval from C to the target key, then applies an **octave adjustment** via `bestOctaveShift()` to keep notes within the central instrument range (MIDI 60–84, C4–C6).
+
+The octave shift algorithm evaluates -3 to +3 octave shifts, maximizing notes in range and using proximity to the midpoint (72) as a tiebreaker. Returns the original phrase for `targetKey === 'C'`.
 
 ### `queryLicks(query): Phrase[]`
 

@@ -32,7 +32,11 @@ Phrase playback using Tone.js Transport and smplr SoundFont samples.
 
 ### `loadInstrument(instrumentId?: string): Promise<void>`
 
-Load a SoundFont instrument. Defaults to `'tenor-sax'`. Cached after first load via smplr's `CacheStorage`.
+Load a SoundFont instrument. Defaults to `'tenor-sax'`. Uses the **MusyngKite** soundfont for richer wind samples, with `loadLoopData: true` for natural sustain. Cached after first load via smplr's `CacheStorage`. Previous instruments are disconnected on switch.
+
+On load, sets up jazz expression effects:
+- **Warmth filter**: Low-pass BiquadFilterNode (4500 Hz sax / 6000 Hz trumpet)
+- **Vibrato LFO**: 4.8 Hz oscillator modulating filter detune (12 cents sax / 6 cents trumpet)
 
 **Supported instruments:**
 
@@ -59,6 +63,10 @@ Play a phrase through the loaded instrument.
 Returns a promise that resolves when the phrase finishes. If `keepMetronome` is `true`, call `stopPlayback()` to stop everything.
 
 **Note conversion:** Phrase note offsets (fractions of a whole note) are converted to quarter-note beats (`* 4`), then to Tone.js ticks (`* PPQ`), then scheduled as `"${ticks}i"` time strings.
+
+**Expression per note:** Each note gets breath-scoop detune (first note: -15 cents, low notes: -8 cents), humanized velocity (+/-8), and humanized timing (~+/-15ms jitter).
+
+**Swing:** Maps `options.swing` (0.5–0.75) to `transport.swing` (0–0.5) with `swingSubdivision: '8n'`.
 
 ### `stopPlayback(): Promise<void>`
 

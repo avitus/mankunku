@@ -55,7 +55,7 @@
 			<div class="text-xs text-[var(--color-text-secondary)]">Day Streak</div>
 		</div>
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-			<div class="text-2xl font-bold">Lvl {progress.adaptive.currentLevel}</div>
+			<div class="text-2xl font-bold">{progress.adaptive.currentLevel}</div>
 			<div class="text-xs text-[var(--color-text-secondary)]">Difficulty</div>
 		</div>
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
@@ -67,7 +67,7 @@
 	<!-- XP / Level bar -->
 	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
 		<div class="flex items-center justify-between text-sm">
-			<span class="font-medium">Player Level {displayLevel}</span>
+			<span class="font-medium">Level {displayLevel}</span>
 			<span class="text-[var(--color-text-secondary)]">
 				{Math.round(levelProgress * xpForLevel(displayLevel))} / {xpForLevel(displayLevel)} XP
 			</span>
@@ -90,10 +90,10 @@
 					<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 						<div
 							class="h-full rounded-full bg-blue-500"
-							style="width: {pct(progress.adaptive.pitchComplexity / 7)}%"
+							style="width: {pct(progress.adaptive.pitchComplexity / 100)}%"
 						></div>
 					</div>
-					<span class="font-medium">{progress.adaptive.pitchComplexity}/7</span>
+					<span class="font-medium">{progress.adaptive.pitchComplexity}/100</span>
 				</div>
 			</div>
 			<div>
@@ -102,10 +102,10 @@
 					<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 						<div
 							class="h-full rounded-full bg-green-500"
-							style="width: {pct(progress.adaptive.rhythmComplexity / 7)}%"
+							style="width: {pct(progress.adaptive.rhythmComplexity / 100)}%"
 						></div>
 					</div>
-					<span class="font-medium">{progress.adaptive.rhythmComplexity}/7</span>
+					<span class="font-medium">{progress.adaptive.rhythmComplexity}/100</span>
 				</div>
 			</div>
 		</div>

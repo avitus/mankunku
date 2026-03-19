@@ -50,7 +50,7 @@ const II_V_I_HALF_BAR: HarmonicSegment[] = [
 ];
 
 export const II_V_I_MAJOR_LICKS: Phrase[] = [
-	// ── Level 1-2: Simple quarter note patterns ─────────────
+	// ── Difficulty 5-15: Simple quarter note patterns ───────
 	{
 		id: 'ii-V-I-maj-001',
 		name: 'Arpeggio Walk',
@@ -71,7 +71,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 3 },
+		difficulty: { level: 15, pitchComplexity: 18, rhythmComplexity: 5, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['arpeggio', 'beginner'],
 		source: 'curated'
@@ -93,7 +93,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4 (3rd of C)
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 3 },
+		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 5, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['scale', 'beginner'],
 		source: 'curated'
@@ -118,13 +118,13 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 3 },
+		difficulty: { level: 12, pitchComplexity: 15, rhythmComplexity: 5, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['guide-tones', 'voice-leading'],
 		source: 'curated'
 	},
 
-	// ── Level 3: Swing 8ths ─────────────────────────────────
+	// ── Difficulty 20-30: Swing 8ths ────────────────────────
 	{
 		id: 'ii-V-I-maj-004',
 		name: 'Dorian Run',
@@ -149,7 +149,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 3 },
+		difficulty: { level: 22, pitchComplexity: 18, rhythmComplexity: 20, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['dorian', 'scale-run', 'swing'],
 		source: 'curated'
@@ -177,7 +177,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 3 },
+		difficulty: { level: 26, pitchComplexity: 28, rhythmComplexity: 20, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['digital-pattern', 'swing'],
 		source: 'curated'
@@ -205,13 +205,13 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 3 },
+		difficulty: { level: 25, pitchComplexity: 28, rhythmComplexity: 18, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['arpeggio', 'descending', 'swing'],
 		source: 'curated'
 	},
 
-	// ── Level 4: Diatonic, syncopation ──────────────────────
+	// ── Difficulty 30-40: Diatonic, syncopation ─────────────
 	{
 		id: 'ii-V-I-maj-007',
 		name: 'Syncopated Resolution',
@@ -236,7 +236,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 35, pitchComplexity: 30, rhythmComplexity: 32, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['syncopation', 'diatonic'],
 		source: 'curated'
@@ -265,13 +265,13 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 34, pitchComplexity: 28, rhythmComplexity: 30, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['classic', 'melodic'],
 		source: 'curated'
 	},
 
-	// ── Level 5: Approach notes ─────────────────────────────
+	// ── Difficulty 45-55: Approach notes ────────────────────
 	{
 		id: 'ii-V-I-maj-009',
 		name: 'Chromatic Approach',
@@ -298,7 +298,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 48, pitchComplexity: 42, rhythmComplexity: 32, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['chromatic', 'approach-notes'],
 		source: 'curated'
@@ -327,13 +327,13 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 50, pitchComplexity: 45, rhythmComplexity: 32, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['enclosure', 'approach-notes'],
 		source: 'curated'
 	},
 
-	// ── Level 5-6: More approach / bebop ────────────────────
+	// ── Difficulty 50-65: More approach / bebop ─────────────
 	{
 		id: 'ii-V-I-maj-011',
 		name: 'Bebop Scale Descent',
@@ -361,7 +361,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 52, pitchComplexity: 45, rhythmComplexity: 35, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['bebop-scale', 'descending'],
 		source: 'curated'
@@ -393,7 +393,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 55, pitchComplexity: 48, rhythmComplexity: 35, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['digital-pattern', 'coltrane'],
 		source: 'curated'
@@ -420,7 +420,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
 		],
 		harmony: II_V_I_HALF_BAR,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 38, pitchComplexity: 30, rhythmComplexity: 32, lengthBars: 2 },
 		category: 'ii-V-I-major',
 		tags: ['compact', 'descending'],
 		source: 'curated'
@@ -445,13 +445,13 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 1], offset: [1, 1] }      // C5
 		],
 		harmony: II_V_I_HALF_BAR,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 37, pitchComplexity: 30, rhythmComplexity: 30, lengthBars: 2 },
 		category: 'ii-V-I-major',
 		tags: ['compact', 'ascending'],
 		source: 'curated'
 	},
 
-	// ── Level 6: Enclosures and chromatic ───────────────────
+	// ── Difficulty 60-70: Enclosures and chromatic ──────────
 	{
 		id: 'ii-V-I-maj-015',
 		name: 'Double Enclosure',
@@ -478,7 +478,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 65, pitchComplexity: 58, rhythmComplexity: 35, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['enclosure', 'chromatic'],
 		source: 'curated'
@@ -510,13 +510,13 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 68, pitchComplexity: 60, rhythmComplexity: 38, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['parker', 'bebop', 'chromatic'],
 		source: 'curated'
 	},
 
-	// ── Level 6-7: Bebop vocabulary ─────────────────────────
+	// ── Difficulty 65-80: Bebop vocabulary ──────────────────
 	{
 		id: 'ii-V-I-maj-017',
 		name: 'Bebop Turnaround',
@@ -543,7 +543,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 7, pitchComplexity: 6, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 78, pitchComplexity: 72, rhythmComplexity: 40, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['bebop', 'chromatic', 'turnaround'],
 		source: 'curated'
@@ -575,7 +575,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 1], offset: [2, 1] }      // G4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 62, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['upper-structure', 'extensions'],
 		source: 'curated'
@@ -602,7 +602,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 3 },
+		difficulty: { level: 24, pitchComplexity: 25, rhythmComplexity: 18, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['melodic', 'ballad'],
 		source: 'curated'
@@ -624,9 +624,137 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 3 },
+		difficulty: { level: 10, pitchComplexity: 15, rhythmComplexity: 5, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['beginner', 'root-motion'],
+		source: 'curated'
+	},
+
+	// ── Difficulty 55-70: More ii-V-I vocabulary ────────────
+	{
+		id: 'ii-V-I-maj-021',
+		name: 'Dexter Gordon Line',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Dexter-style: relaxed behind-the-beat feel
+			{ pitch: 69, duration: [1, 8], offset: [0, 1] },     // A4
+			{ pitch: 72, duration: [1, 8], offset: [1, 8] },     // C5
+			{ pitch: 74, duration: [1, 8], offset: [1, 4] },     // D5
+			{ pitch: 72, duration: [1, 8], offset: [3, 8] },     // C5
+			{ pitch: 69, duration: [1, 8], offset: [1, 2] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [5, 8] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [3, 4] },     // F4
+			{ pitch: 62, duration: [1, 8], offset: [7, 8] },     // D4
+			// G7
+			{ pitch: 71, duration: [1, 8], offset: [1, 1] },     // B4
+			{ pitch: 69, duration: [1, 8], offset: [9, 8] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [5, 4] },     // G4
+			{ pitch: 66, duration: [1, 8], offset: [11, 8] },    // F#4 (chromatic)
+			{ pitch: 65, duration: [1, 8], offset: [3, 2] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [13, 8] },    // E4
+			{ pitch: 62, duration: [1, 4], offset: [7, 4] },     // D4
+			// Cmaj7
+			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
+		],
+		harmony: II_V_I_HARMONY,
+		difficulty: { level: 55, pitchComplexity: 48, rhythmComplexity: 35, lengthBars: 3 },
+		category: 'ii-V-I-major',
+		tags: ['dexter-gordon', 'relaxed', 'chromatic'],
+		source: 'curated'
+	},
+	{
+		id: 'ii-V-I-maj-022',
+		name: 'Cannonball Adderley Lick',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Cannonball-style: bluesy ii-V-I
+			{ pitch: 62, duration: [1, 8], offset: [0, 1] },     // D4
+			{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
+			{ pitch: 67, duration: [1, 8], offset: [1, 4] },     // G4
+			{ pitch: 69, duration: [1, 8], offset: [3, 8] },     // A4
+			{ pitch: 70, duration: [1, 8], offset: [1, 2] },     // Bb4 (bluesy b7)
+			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4
+			{ pitch: 67, duration: [1, 4], offset: [3, 4] },     // G4
+			// G7
+			{ pitch: 65, duration: [1, 8], offset: [1, 1] },     // F4
+			{ pitch: 67, duration: [1, 8], offset: [9, 8] },     // G4
+			{ pitch: 71, duration: [1, 8], offset: [5, 4] },     // B4
+			{ pitch: 69, duration: [1, 8], offset: [11, 8] },    // A4
+			{ pitch: 67, duration: [1, 8], offset: [3, 2] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [13, 8] },    // F4
+			{ pitch: 64, duration: [1, 4], offset: [7, 4] },     // E4
+			// Cmaj7
+			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
+		],
+		harmony: II_V_I_HARMONY,
+		difficulty: { level: 48, pitchComplexity: 42, rhythmComplexity: 30, lengthBars: 3 },
+		category: 'ii-V-I-major',
+		tags: ['cannonball', 'bluesy', 'swing'],
+		source: 'curated'
+	},
+	{
+		id: 'ii-V-I-maj-023',
+		name: 'Delayed Resolution',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Dm7
+			{ pitch: 65, duration: [1, 8], offset: [0, 1] },     // F4
+			{ pitch: 69, duration: [1, 8], offset: [1, 8] },     // A4
+			{ pitch: 72, duration: [1, 4], offset: [1, 4] },     // C5
+			{ pitch: 74, duration: [1, 8], offset: [1, 2] },     // D5
+			{ pitch: 72, duration: [1, 8], offset: [5, 8] },     // C5
+			{ pitch: 69, duration: [1, 4], offset: [3, 4] },     // A4
+			// G7: delayed resolution via upper neighbor
+			{ pitch: 71, duration: [1, 8], offset: [1, 1] },     // B4
+			{ pitch: 74, duration: [1, 8], offset: [9, 8] },     // D5
+			{ pitch: 72, duration: [1, 8], offset: [5, 4] },     // C5
+			{ pitch: 71, duration: [1, 8], offset: [11, 8] },    // B4
+			{ pitch: 69, duration: [1, 8], offset: [3, 2] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [13, 8] },    // G4
+			{ pitch: 66, duration: [1, 8], offset: [7, 4] },     // F#4 (chromatic)
+			{ pitch: 65, duration: [1, 8], offset: [15, 8] },    // F4
+			// Cmaj7: resolve to 3rd
+			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
+		],
+		harmony: II_V_I_HARMONY,
+		difficulty: { level: 60, pitchComplexity: 50, rhythmComplexity: 35, lengthBars: 3 },
+		category: 'ii-V-I-major',
+		tags: ['delayed-resolution', 'chromatic', 'tension'],
+		source: 'curated'
+	},
+	{
+		id: 'ii-V-I-maj-024',
+		name: 'Sonny Stitt Pattern',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Stitt-style: clean bebop vocabulary
+			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
+			{ pitch: 69, duration: [1, 8], offset: [1, 8] },     // A4
+			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [3, 8] },     // E4
+			{ pitch: 62, duration: [1, 8], offset: [1, 2] },     // D4
+			{ pitch: 64, duration: [1, 8], offset: [5, 8] },     // E4
+			{ pitch: 65, duration: [1, 8], offset: [3, 4] },     // F4
+			{ pitch: 67, duration: [1, 8], offset: [7, 8] },     // G4
+			// G7
+			{ pitch: 69, duration: [1, 8], offset: [1, 1] },     // A4
+			{ pitch: 71, duration: [1, 8], offset: [9, 8] },     // B4
+			{ pitch: 72, duration: [1, 8], offset: [5, 4] },     // C5
+			{ pitch: 71, duration: [1, 8], offset: [11, 8] },    // B4
+			{ pitch: 69, duration: [1, 8], offset: [3, 2] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [13, 8] },    // G4
+			{ pitch: 65, duration: [1, 4], offset: [7, 4] },     // F4
+			// Cmaj7
+			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
+		],
+		harmony: II_V_I_HARMONY,
+		difficulty: { level: 52, pitchComplexity: 45, rhythmComplexity: 35, lengthBars: 3 },
+		category: 'ii-V-I-major',
+		tags: ['sonny-stitt', 'clean', 'bebop'],
 		source: 'curated'
 	}
 ];

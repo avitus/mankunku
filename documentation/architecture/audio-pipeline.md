@@ -57,12 +57,26 @@ Tone.js wraps the `AudioContext` in a `standardized-audio-context`. The raw cont
 Plays phrases through SoundFont instrument samples using the Tone.js Transport for scheduling.
 
 **Flow:**
-1. `loadInstrument(instrumentId)` — Creates a `smplr.Soundfont` instance with the GM instrument name (e.g., `'tenor_sax'`). Cached via smplr's `CacheStorage`.
-2. `playPhrase(phrase, options, keepMetronome)` — Converts phrase notes to Tone.js `Part` events using PPQ (Pulses Per Quarter) ticks for exact timing. Schedules metronome if enabled.
+1. `loadInstrument(instrumentId)` — Creates a `smplr.Soundfont` instance using the **MusyngKite** soundfont (richer wind samples than FluidR3_GM) with `loadLoopData: true` for natural sustained notes. Cached via smplr's `CacheStorage`. Previous instruments are disconnected on switch.
+2. `playPhrase(phrase, options, keepMetronome)` — Converts phrase notes to Tone.js `Part` events using PPQ (Pulses Per Quarter) ticks for exact timing. Schedules metronome if enabled. Applies swing feel from settings.
 3. When `keepMetronome=true` (used during call-and-response), the Transport keeps running after the phrase ends so the metronome continues during recording.
 4. `stopPlayback()` — Stops Transport, disposes Part, stops all ringing notes.
 
 **Note conversion:** Phrase note offsets are fractions of a whole note (e.g., `[1, 4]` = quarter note). These are converted to quarter-note beats (`* 4`), then to Tone.js ticks (`* PPQ`), then scheduled as `"${ticks}i"` time strings.
+
+### Jazz Expression
+
+The playback engine adds several layers of expression for authentic jazz sound:
+
+- **Warmth filter**: A low-pass `BiquadFilterNode` at 4500 Hz (sax) / 6000 Hz (trumpet) with Q 0.7, inserted via smplr's `addInsert`. Rolls off harsh digital highs.
+- **Vibrato**: A Web Audio `OscillatorNode` LFO at 4.8 Hz modulating the filter's detune at 12 cents depth (sax) / 6 cents (trumpet). Simulates jaw/airstream vibrato.
+- **Breath-scoop detune**: Per-note `detune` values — the first note of a phrase gets -15 cents, lower notes get -8 cents, higher notes stay on pitch. Simulates a saxophonist's initial attack.
+- **Humanized velocity**: Random +/-8 velocity deviation per note, avoiding robotic dynamics.
+- **Humanized timing**: Micro-timing jitter of ~+/-15ms per note for organic feel.
+
+### Swing Feel
+
+The `swing` setting from `PlaybackOptions` (0.5 = straight, 0.67 = triplet, 0.75 = heavy) is mapped to Tone.js `transport.swing` (0–0.5) with `swingSubdivision` set to `'8n'`, giving authentic jazz eighth-note swing.
 
 ## 3. Capture (`src/lib/audio/capture.ts`)
 
@@ -142,7 +156,7 @@ The practice page (`src/routes/practice/+page.svelte`) orchestrates the full rec
 1. **Play**: Load instrument if needed, play phrase via `playPhrase()` with `keepMetronome=true`.
 2. **Await input**: After phrase ends, pitch detection runs. The first detected pitch triggers recording.
 3. **Record**: Pitch detector collects readings. Silence timeout (2s) or max duration triggers finish.
-4. **Segment**: `extractOnsetsFromReadings()` detects onsets from pitch data (gap > 100ms or MIDI change). `segmentNotes()` produces `DetectedNote[]`.
+4. **Segment**: `extractOnsetsFromReadings()` detects onsets from pitch data (gap > 100ms or MIDI change). Gap-based onsets are **back-dated by 50ms** to compensate for pitch detector re-lock delay after silence (see Scoring Algorithm docs). `segmentNotes()` produces `DetectedNote[]`.
 5. **Score**: `scoreAttempt()` produces a `Score` with per-note results.
 
 Note: The practice page uses a simpler onset detection from pitch readings rather than the AudioWorklet-based onset detector. The worklet-based detector is available for future use or more precise onset detection needs.

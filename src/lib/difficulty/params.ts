@@ -1,8 +1,11 @@
 import type { PitchClass, ScaleFamily } from '$lib/types/music.ts';
 
 /**
- * Difficulty level parameters.
- * Levels 1-7 ship at MVP; 8-10 deferred.
+ * Difficulty content profiles.
+ *
+ * There are 10 content tiers that define what musical elements are available.
+ * The player-facing level system spans 1-100; levels are mapped to content
+ * tiers via levelToContentTier().
  */
 export interface DifficultyProfile {
 	level: number;
@@ -154,8 +157,43 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 	}
 ];
 
+/**
+ * Map a player-facing level (1-100) to a content tier (1-10).
+ *
+ * Tiers are spread across the 1-100 range:
+ *   Level  1-5  → Tier 1
+ *   Level  6-12 → Tier 2
+ *   Level 13-20 → Tier 3
+ *   Level 21-30 → Tier 4
+ *   Level 31-40 → Tier 5
+ *   Level 41-52 → Tier 6
+ *   Level 53-65 → Tier 7
+ *   Level 66-78 → Tier 8
+ *   Level 79-90 → Tier 9
+ *   Level 91-100→ Tier 10
+ */
+export function levelToContentTier(level: number): number {
+	if (level <= 5) return 1;
+	if (level <= 12) return 2;
+	if (level <= 20) return 3;
+	if (level <= 30) return 4;
+	if (level <= 40) return 5;
+	if (level <= 52) return 6;
+	if (level <= 65) return 7;
+	if (level <= 78) return 8;
+	if (level <= 90) return 9;
+	return 10;
+}
+
+/**
+ * Get the difficulty profile for a given level.
+ * Accepts either a content tier (1-10) directly or a player level (1-100)
+ * which is mapped to a content tier.
+ */
 export function getProfile(level: number): DifficultyProfile {
-	const profile = DIFFICULTY_PROFILES.find((p) => p.level === level);
-	if (!profile) throw new Error(`Invalid difficulty level: ${level}`);
+	// If the level is > 10, map it to a content tier
+	const tier = level > 10 ? levelToContentTier(level) : level;
+	const profile = DIFFICULTY_PROFILES.find((p) => p.level === tier);
+	if (!profile) throw new Error(`Invalid difficulty level: ${level} (tier ${tier})`);
 	return profile;
 }

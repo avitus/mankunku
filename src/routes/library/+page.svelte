@@ -53,8 +53,8 @@
 	<!-- Difficulty filter -->
 	<div class="flex items-center gap-3">
 		<span class="text-sm text-[var(--color-text-secondary)]">Max difficulty:</span>
-		<div class="flex gap-1">
-			{#each [null, 2, 4, 6, 7] as level}
+		<div class="flex flex-wrap gap-1">
+			{#each [null, 20, 40, 60, 80, 100] as level}
 				<button
 					onclick={() => { library.difficultyFilter = level; }}
 					class="rounded px-2 py-0.5 text-xs transition-colors
@@ -62,7 +62,7 @@
 							? 'bg-[var(--color-accent)] text-white'
 							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
 				>
-					{level === null ? 'All' : `Lvl ${level}`}
+					{level === null ? 'All' : `1-${level}`}
 				</button>
 			{/each}
 		</div>

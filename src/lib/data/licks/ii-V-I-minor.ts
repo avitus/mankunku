@@ -66,7 +66,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 3 },
+		difficulty: { level: 24, pitchComplexity: 28, rhythmComplexity: 8, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['arpeggio', 'minor'],
 		source: 'curated'
@@ -92,7 +92,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 3 },
+		difficulty: { level: 28, pitchComplexity: 28, rhythmComplexity: 20, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['natural-minor', 'descending'],
 		source: 'curated'
@@ -119,7 +119,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 4, rhythmComplexity: 2, lengthBars: 3 },
+		difficulty: { level: 38, pitchComplexity: 42, rhythmComplexity: 20, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['harmonic-minor', 'altered'],
 		source: 'curated'
@@ -147,7 +147,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 52, pitchComplexity: 55, rhythmComplexity: 32, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['altered', 'scale-run'],
 		source: 'curated'
@@ -175,7 +175,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 55, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['enclosure', 'minor'],
 		source: 'curated'
@@ -200,7 +200,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 1], offset: [1, 1] }      // G4
 		],
 		harmony: II_V_I_MINOR_HALF,
-		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 50, pitchComplexity: 55, rhythmComplexity: 32, lengthBars: 2 },
 		category: 'ii-V-I-minor',
 		tags: ['compact', 'altered'],
 		source: 'curated'
@@ -229,7 +229,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 62, pitchComplexity: 58, rhythmComplexity: 35, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['melodic-minor', 'approach'],
 		source: 'curated'
@@ -259,7 +259,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 6, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 68, pitchComplexity: 70, rhythmComplexity: 38, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['diminished', 'passing-tones'],
 		source: 'curated'
@@ -281,7 +281,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 3 },
+		difficulty: { level: 16, pitchComplexity: 22, rhythmComplexity: 5, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['guide-tones', 'beginner', 'minor'],
 		source: 'curated'
@@ -310,7 +310,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 6, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 66, pitchComplexity: 68, rhythmComplexity: 38, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['chromatic', 'minor', 'bebop'],
 		source: 'curated'
@@ -334,7 +334,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 22, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'ii-V-I-minor',
 		tags: ['pentatonic', 'minor', 'swing'],
 		source: 'curated'
@@ -363,9 +363,97 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 7, pitchComplexity: 6, rhythmComplexity: 3, lengthBars: 3 },
+		difficulty: { level: 80, pitchComplexity: 75, rhythmComplexity: 40, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['tritone-sub', 'advanced', 'minor'],
+		source: 'curated'
+	},
+
+	// ── Difficulty 45-60: More minor ii-V-I vocabulary ──────
+	{
+		id: 'ii-V-I-min-013',
+		name: 'Woody Shaw Minor',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Woody Shaw style: wide intervals over minor
+			{ pitch: 62, duration: [1, 8], offset: [0, 1] },     // D4
+			{ pitch: 68, duration: [1, 8], offset: [1, 8] },     // Ab4 (wide leap)
+			{ pitch: 67, duration: [1, 8], offset: [1, 4] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [3, 8] },     // F4
+			{ pitch: 63, duration: [1, 8], offset: [1, 2] },     // Eb4
+			{ pitch: 62, duration: [1, 8], offset: [5, 8] },     // D4
+			{ pitch: 60, duration: [1, 4], offset: [3, 4] },     // C4
+			// G7alt
+			{ pitch: 71, duration: [1, 8], offset: [1, 1] },     // B4
+			{ pitch: 68, duration: [1, 8], offset: [9, 8] },     // Ab4
+			{ pitch: 66, duration: [1, 8], offset: [5, 4] },     // F#4
+			{ pitch: 63, duration: [1, 8], offset: [11, 8] },    // Eb4
+			{ pitch: 62, duration: [1, 8], offset: [3, 2] },     // D4
+			{ pitch: 60, duration: [1, 8], offset: [13, 8] },    // C4
+			{ pitch: 59, duration: [1, 4], offset: [7, 4] },     // B3
+			// Cm
+			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
+		],
+		harmony: II_V_I_MINOR_HARMONY,
+		difficulty: { level: 58, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 3 },
+		category: 'ii-V-I-minor',
+		tags: ['woody-shaw', 'wide-intervals', 'altered'],
+		source: 'curated'
+	},
+	{
+		id: 'ii-V-I-min-014',
+		name: 'Joe Henderson Minor',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Joe Henderson style: angular, intervallic
+			{ pitch: 68, duration: [1, 8], offset: [0, 1] },     // Ab4
+			{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
+			{ pitch: 72, duration: [1, 8], offset: [1, 4] },     // C5
+			{ pitch: 68, duration: [1, 8], offset: [3, 8] },     // Ab4
+			{ pitch: 62, duration: [1, 8], offset: [1, 2] },     // D4
+			{ pitch: 65, duration: [1, 8], offset: [5, 8] },     // F4
+			{ pitch: 67, duration: [1, 4], offset: [3, 4] },     // G4
+			// G7alt
+			{ pitch: 68, duration: [1, 8], offset: [1, 1] },     // Ab4
+			{ pitch: 71, duration: [1, 8], offset: [9, 8] },     // B4
+			{ pitch: 66, duration: [1, 8], offset: [5, 4] },     // F#4
+			{ pitch: 63, duration: [1, 8], offset: [11, 8] },    // Eb4
+			{ pitch: 60, duration: [1, 4], offset: [3, 2] },     // C4
+			{ pitch: 59, duration: [1, 4], offset: [7, 4] },     // B3
+			// Cm
+			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
+		],
+		harmony: II_V_I_MINOR_HARMONY,
+		difficulty: { level: 65, pitchComplexity: 62, rhythmComplexity: 35, lengthBars: 3 },
+		category: 'ii-V-I-minor',
+		tags: ['joe-henderson', 'angular', 'intervallic'],
+		source: 'curated'
+	},
+	{
+		id: 'ii-V-I-min-015',
+		name: 'Quick Minor Chromatic',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Dm7b5 (2 beats)
+			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
+			{ pitch: 68, duration: [1, 8], offset: [1, 8] },     // Ab4
+			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [3, 8] },     // E4 (chromatic)
+			// G7alt (2 beats)
+			{ pitch: 63, duration: [1, 8], offset: [1, 2] },     // Eb4
+			{ pitch: 66, duration: [1, 8], offset: [5, 8] },     // F#4
+			{ pitch: 68, duration: [1, 8], offset: [3, 4] },     // Ab4
+			{ pitch: 71, duration: [1, 8], offset: [7, 8] },     // B4
+			// Cm resolution
+			{ pitch: 72, duration: [1, 1], offset: [1, 1] }      // C5
+		],
+		harmony: II_V_I_MINOR_HALF,
+		difficulty: { level: 55, pitchComplexity: 58, rhythmComplexity: 32, lengthBars: 2 },
+		category: 'ii-V-I-minor',
+		tags: ['compact', 'chromatic', 'altered'],
 		source: 'curated'
 	}
 ];

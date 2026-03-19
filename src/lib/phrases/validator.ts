@@ -151,10 +151,10 @@ export function isInRange(notes: Note[], low: number, high: number): boolean {
 }
 
 /**
- * Get rules appropriate for a difficulty level.
+ * Get rules appropriate for a difficulty level (1-100).
  */
 export function rulesForDifficulty(level: number): Partial<ValidationRules> {
-	if (level <= 2) {
+	if (level <= 20) {
 		return {
 			maxInterval: 5,
 			maxConsecutiveLeaps: 1,
@@ -163,7 +163,7 @@ export function rulesForDifficulty(level: number): Partial<ValidationRules> {
 			minDirectionChanges: 1
 		};
 	}
-	if (level <= 4) {
+	if (level <= 40) {
 		return {
 			maxInterval: 7,
 			maxConsecutiveLeaps: 2,
@@ -172,7 +172,16 @@ export function rulesForDifficulty(level: number): Partial<ValidationRules> {
 			minDirectionChanges: 2
 		};
 	}
-	if (level <= 6) {
+	if (level <= 60) {
+		return {
+			maxInterval: 10,
+			maxConsecutiveLeaps: 2,
+			minStepRatio: 0.35,
+			leapRecoveryThreshold: 7,
+			minDirectionChanges: 2
+		};
+	}
+	if (level <= 80) {
 		return {
 			maxInterval: 12,
 			maxConsecutiveLeaps: 3,

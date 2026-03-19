@@ -16,6 +16,19 @@ graph TD
     Composite --> Grade["6. Grade Assignment"]
 ```
 
+## 0. Onset Time Compensation (Practice Page)
+
+Before notes reach the scoring pipeline, the practice page's `extractOnsetsFromReadings()` function detects note onsets from pitch readings. When a gap > 100ms is detected (indicating silence, e.g., a breath between bars), the onset is **back-dated by 50ms** (`ATTACK_LATENCY`) to compensate for the pitch detector's re-lock delay.
+
+**Why:** After silence, the AnalyserNode buffer clears and the pitch detector needs several frames to rebuild clarity above the 0.80 threshold. This introduces a systematic delay on the first note after any breath, which disproportionately penalizes bar-boundary notes (e.g., the first note of bar 2). The compensation corrects this at the source.
+
+```
+if (gap > GAP_THRESHOLD):
+    onset = reading.time - ATTACK_LATENCY  // 50ms back-date
+else if (noteChanged):
+    onset = reading.time                    // no compensation needed
+```
+
 ## 1. Grid Anchoring (`scorer.ts:anchorToGrid`)
 
 Detected notes have `onsetTime` relative to when the pitch detector started. To compare against expected notes (which have offsets relative to the phrase start), detected notes must be anchored to the Transport's beat grid.

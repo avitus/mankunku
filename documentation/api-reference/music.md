@@ -162,9 +162,11 @@ Generate an ABC notation string.
 **Output includes:**
 - ABC header: `X:`, `T:`, `M:`, `L:`, `K:` fields
 - Notes with proper ABC octave conventions (uppercase C4, lowercase c5, apostrophes/commas)
-- Accidentals (`^` for sharp, `_` for flat) based on key convention
+- **Key-signature-aware accidentals**: Notes matching the key signature (e.g., F# in D major) omit the accidental symbol. Natural signs (`=`) are emitted when a note cancels a key signature accidental. Chromatic alterations outside the key signature display as before.
 - Duration modifiers relative to `L:` value
 - Final barline `|]`
+
+Uses `KEY_SIG_ACCIDENTALS` lookup table (maps each key to its altered pitch classes) to determine which accidentals are implicit vs. explicit.
 
 ### `midiToDisplayName(midi, useFlats?): string`
 

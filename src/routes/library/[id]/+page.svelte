@@ -9,6 +9,7 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
 	import type { Phrase } from '$lib/types/music.ts';
+	import { difficultyDisplay } from '$lib/difficulty/display.ts';
 
 	let selectedKey: PitchClass = $state('C');
 
@@ -37,7 +38,7 @@
 			<div>
 				<h1 class="text-2xl font-bold">{baseLick?.name}</h1>
 				<div class="mt-1 flex flex-wrap gap-2 text-sm text-[var(--color-text-secondary)]">
-					<span>Level {lick.difficulty.level}</span>
+					<span style="color: {difficultyDisplay(lick.difficulty.level).color}">{difficultyDisplay(lick.difficulty.level).name} ({lick.difficulty.level})</span>
 					<span>&middot;</span>
 					<span>{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}</span>
 					<span>&middot;</span>

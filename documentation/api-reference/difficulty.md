@@ -18,7 +18,7 @@ Adaptive difficulty algorithm that adjusts musical complexity based on performan
 | `ADVANCE_THRESHOLD` | 0.85 | Average score to advance |
 | `RETREAT_THRESHOLD` | 0.50 | Average score to retreat |
 | `MIN_ATTEMPTS_BETWEEN_CHANGES` | 5 | Cooldown between difficulty adjustments |
-| `MAX_LEVEL` | 7 | MVP difficulty cap |
+| `MAX_LEVEL` | 100 | Maximum player level |
 
 ### `createInitialAdaptiveState(): AdaptiveState`
 
@@ -26,13 +26,13 @@ Returns a fresh state with all values at their defaults (level 1, no scores, 0 X
 
 ```typescript
 interface AdaptiveState {
-  currentLevel: number;        // Overall difficulty (1-7)
-  pitchComplexity: number;     // Pitch difficulty, adjusted independently
-  rhythmComplexity: number;    // Rhythm difficulty, adjusted independently
+  currentLevel: number;        // Content difficulty tier (1-10)
+  pitchComplexity: number;     // Pitch difficulty, adjusted independently (1-10)
+  rhythmComplexity: number;    // Rhythm difficulty, adjusted independently (1-10)
   recentScores: number[];      // Circular buffer of last 10 overall scores
   attemptsAtLevel: number;     // Total attempts at current level
   attemptsSinceChange: number; // Attempts since last difficulty change
-  xp: number;                  // Total experience points
+  xp: number;                  // Total experience points (drives 1-100 display level)
 }
 ```
 
@@ -55,9 +55,10 @@ Process a new attempt and return updated state.
 
 | Function | Signature | Description |
 |---|---|---|
-| `xpForLevel` | `(level) → number` | XP needed: `level * 500` |
-| `xpToDisplayLevel` | `(xp) → number` | Cumulative level from total XP (1-based, max 50) |
-| `xpProgress` | `(xp) → number` | Progress within current level (0–1) |
+| `xpForLevel` | `(level) → number` | XP needed for a single level: `50 + 0.5 * level²` |
+| `totalXpForLevel` | `(level) → number` | Cumulative XP needed to reach a given level |
+| `xpToDisplayLevel` | `(xp) → number` | Player level 1-100 from total XP |
+| `xpProgress` | `(xp) → number` | Progress within current level (0–1, returns 1 at max) |
 
 **XP per grade:**
 
@@ -111,6 +112,41 @@ interface DifficultyProfile {
 | 7 | Bebop Lines | +harmonic-minor | +sixteenth | 120–180 | all 12 |
 | 8–10 | (Deferred) | all families | all | up to 300 | all 12 |
 
+### `levelToContentTier(playerLevel): number`
+
+Maps player levels 1-100 to content tiers 1-10. E.g., levels 1-5 → tier 1, levels 91-100 → tier 10.
+
 ### `getProfile(level): DifficultyProfile`
 
-Returns the profile for a level. Throws if the level is invalid.
+Returns the profile for a level. Accepts both content tiers (1-10) and player levels (1-100, auto-mapped via `levelToContentTier`). Throws if the level is invalid.
+
+---
+
+## display.ts
+
+Difficulty display utilities — maps 1-100 values to 10 color-coded bands.
+
+### `difficultyBand(level): string`
+
+Returns the band name for a difficulty level.
+
+| Range | Name |
+|---|---|
+| 1–10 | Beginner |
+| 11–20 | Elementary |
+| 21–30 | Intermediate |
+| 31–40 | Upper Intermediate |
+| 41–50 | Advanced |
+| 51–60 | Upper Advanced |
+| 61–70 | Pre-Professional |
+| 71–80 | Professional |
+| 81–90 | Expert |
+| 91–100 | Virtuoso |
+
+### `difficultyColor(level): string`
+
+Returns a CSS color string for the difficulty level. Colors range from green (Beginner) through teal, blue, indigo, purple, magenta, orange to deep red (Virtuoso).
+
+### `difficultyDisplay(level): { band: string, color: string }`
+
+Convenience function returning both band name and color.

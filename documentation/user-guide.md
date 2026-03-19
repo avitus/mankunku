@@ -25,7 +25,7 @@ The home page shows:
 
 ### How It Works
 
-1. **Configure** — Before your first session, visit Practice Settings to choose a key, category, difficulty, and tempo. You can also select phrase source (curated licks, generated phrases, or mixed).
+1. **Configure** — Before your first session, visit Practice Settings to choose a category, difficulty, and tempo. The app automatically selects a **daily tonality** (key + scale) based on your level and the date. You can override this in settings.
 
 2. **Listen** — Press the play button. The app plays a phrase through your speakers with an optional metronome. Follow along on the sheet music display.
 
@@ -44,12 +44,24 @@ Access via the gear icon on the practice page.
 
 | Setting | Options | Description |
 |---|---|---|
-| Key | All 12 keys | Key for the phrase. Curated licks are transposed from C. |
+| Daily Tonality | Auto / Override | Today's key + scale. Auto-selected from unlocked tonalities; overridable. |
 | Category | ii-V-I Major, Blues, Bebop, etc. | Musical style/context |
-| Difficulty | 1–7 | Controls pitch complexity, rhythm, tempo range, and available keys |
+| Difficulty | 1–100 | Controls pitch complexity, rhythm, tempo range. Displayed as 10 color-coded bands (Beginner → Virtuoso). |
 | Tempo | 40–300 BPM | Playback speed |
 | Source | Curated / Generated / Mixed | Where phrases come from |
 | Bars | 1–4 | Phrase length (generated only) |
+
+### Daily Tonality System
+
+Each day, the app selects a tonality (key + scale type) for your practice session. All licks are transposed to the daily key.
+
+**Progressive unlocking:**
+- **Keys** unlock in circle-of-fifths order: C → G → F → D → Bb → A → Eb → E → Ab → B → Db → Gb
+- **Scale types** unlock progressively: Major → Blues (both free) → Dorian → Mixolydian → Minor → Lydian → Melodic Minor → Altered → Lydian Dominant → Bebop Dominant
+- Unlocking is driven by XP — earning more XP unlocks more tonalities
+- New keys combine with all unlocked scale types (cross-product)
+
+**Override:** In settings, you can pick any unlocked tonality. Locked tonalities show a lock icon with the XP needed. A "Reset to daily" button restores the automatic selection.
 
 ### Transport Controls
 
@@ -65,13 +77,13 @@ While the mic is active, you see:
 
 ## Library
 
-Browse the collection of 62 curated jazz licks.
+Browse the collection of 113 curated jazz licks across 8 categories.
 
 ### Browsing
 
 - **Search** — Type to filter by name or tags
-- **Category filter** — Pill buttons for each category (ii-V-I Major, Blues, Bebop, ii-V-I Minor)
-- **Difficulty filter** — Filter by level range
+- **Category filter** — Pill buttons for each category (ii-V-I Major, ii-V-I Minor, Blues, Bebop, Pentatonic, Modal, Rhythm Changes, Ballad)
+- **Difficulty filter** — Filter by difficulty band (Beginner through Virtuoso)
 
 ### Lick Detail
 
@@ -89,7 +101,7 @@ Track your improvement over time.
 
 - **Total sessions** and **average score**
 - **Streak** — consecutive days practiced
-- **XP and level** — XP earned from each attempt (10–100 per attempt based on grade). Level up every N * 500 XP.
+- **XP and level** — XP earned from each attempt (10–100 per attempt based on grade). Levels 1-100 with a quadratic XP curve (early levels are quick, later levels take more effort).
 
 ### Adaptive Difficulty
 

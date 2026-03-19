@@ -31,7 +31,7 @@ const BLUES_I_IV: HarmonicSegment[] = [
 ];
 
 export const BLUES_LICKS: Phrase[] = [
-	// ── Level 2-3: Basic blues vocabulary ───────────────────
+	// ── Difficulty 10-25: Basic blues vocabulary ────────────
 	{
 		id: 'blues-001',
 		name: 'Blues Call',
@@ -46,7 +46,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [3, 2] }      // G4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 12, pitchComplexity: 15, rhythmComplexity: 5, lengthBars: 2 },
 		category: 'blues',
 		tags: ['beginner', 'pentatonic'],
 		source: 'curated'
@@ -65,7 +65,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [3, 4], offset: [5, 4] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 14, pitchComplexity: 15, rhythmComplexity: 8, lengthBars: 2 },
 		category: 'blues',
 		tags: ['pentatonic', 'descending'],
 		source: 'curated'
@@ -87,7 +87,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 58, duration: [1, 2], offset: [5, 4] }      // Bb3
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 25, pitchComplexity: 28, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['shuffle', 'blue-note', 'swing'],
 		source: 'curated'
@@ -108,7 +108,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 2], offset: [5, 4] }      // Eb4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 22, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['bb-king', 'melodic'],
 		source: 'curated'
@@ -129,13 +129,13 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 26, pitchComplexity: 28, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['turnaround', 'descending'],
 		source: 'curated'
 	},
 
-	// ── Level 3-4: Swing 8ths blues ─────────────────────────
+	// ── Difficulty 25-40: Swing 8ths blues ──────────────────
 	{
 		id: 'blues-006',
 		name: 'Blue Note Climb',
@@ -155,7 +155,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 28, pitchComplexity: 28, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['blue-note', 'ascending', 'swing'],
 		source: 'curated'
@@ -178,7 +178,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [3, 2] }      // G4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 35, pitchComplexity: 30, rhythmComplexity: 20, lengthBars: 2 },
 		category: 'blues',
 		tags: ['mixolydian', 'major-minor'],
 		source: 'curated'
@@ -203,13 +203,13 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 24, pitchComplexity: 18, rhythmComplexity: 20, lengthBars: 2 },
 		category: 'blues',
 		tags: ['call-response', 'swing'],
 		source: 'curated'
 	},
 
-	// ── Level 4-5: Chromatic blues ──────────────────────────
+	// ── Difficulty 40-55: Chromatic blues ───────────────────
 	{
 		id: 'blues-009',
 		name: 'Chromatic Blues Approach',
@@ -230,7 +230,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 48, pitchComplexity: 42, rhythmComplexity: 30, lengthBars: 2 },
 		category: 'blues',
 		tags: ['chromatic', 'blues-scale'],
 		source: 'curated'
@@ -256,7 +256,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 62, pitchComplexity: 58, rhythmComplexity: 35, lengthBars: 2 },
 		category: 'blues',
 		tags: ['parker', 'bebop-blues', 'chromatic'],
 		source: 'curated'
@@ -278,13 +278,13 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 3, rhythmComplexity: 4, lengthBars: 2 },
+		difficulty: { level: 50, pitchComplexity: 30, rhythmComplexity: 45, lengthBars: 2 },
 		category: 'blues',
 		tags: ['triplet', 'blues-scale'],
 		source: 'curated'
 	},
 
-	// ── Level 5-6: Advanced blues ───────────────────────────
+	// ── Difficulty 50-65: Advanced blues ────────────────────
 	{
 		id: 'blues-012',
 		name: 'Major Blues Scale',
@@ -305,7 +305,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 38, pitchComplexity: 40, rhythmComplexity: 30, lengthBars: 2 },
 		category: 'blues',
 		tags: ['major-blues', 'scale-run'],
 		source: 'curated'
@@ -328,7 +328,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 22, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 2 },
 		category: 'blues',
 		tags: ['melodic', 'vocal'],
 		source: 'curated'
@@ -350,7 +350,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 52, pitchComplexity: 55, rhythmComplexity: 32, lengthBars: 2 },
 		category: 'blues',
 		tags: ['bebop', 'dominant', 'descending'],
 		source: 'curated'
@@ -374,9 +374,134 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: BLUES_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 36, pitchComplexity: 30, rhythmComplexity: 30, lengthBars: 2 },
 		category: 'blues',
 		tags: ['funky', 'blue-note'],
+		source: 'curated'
+	},
+
+	// ── Difficulty 25-35: More classic blues vocabulary ──────
+	{
+		id: 'blues-016',
+		name: 'T-Bone Walker Lick',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 63, duration: [1, 8], offset: [0, 1] },     // Eb4
+			{ pitch: 64, duration: [1, 8], offset: [1, 8] },     // E4 (major/minor ambiguity)
+			{ pitch: 67, duration: [1, 4], offset: [1, 4] },     // G4
+			{ pitch: 72, duration: [1, 8], offset: [1, 2] },     // C5
+			{ pitch: 70, duration: [1, 8], offset: [5, 8] },     // Bb4
+			{ pitch: 67, duration: [1, 4], offset: [3, 4] },     // G4
+			{ pitch: 64, duration: [1, 8], offset: [1, 1] },     // E4
+			{ pitch: 60, duration: [1, 8], offset: [9, 8] },     // C4
+			{ pitch: 58, duration: [1, 4], offset: [5, 4] },     // Bb3
+			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
+		],
+		harmony: BLUES_HARMONY,
+		difficulty: { level: 25, pitchComplexity: 25, rhythmComplexity: 20, lengthBars: 2 },
+		category: 'blues',
+		tags: ['t-bone-walker', 'classic', 'major-minor'],
+		source: 'curated'
+	},
+	{
+		id: 'blues-017',
+		name: 'Blues Turnaround Classic',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Classic descending turnaround: chromatic voice leading
+			{ pitch: 64, duration: [1, 8], offset: [0, 1] },     // E4
+			{ pitch: 70, duration: [1, 8], offset: [1, 8] },     // Bb4
+			{ pitch: 63, duration: [1, 8], offset: [1, 4] },     // Eb4
+			{ pitch: 69, duration: [1, 8], offset: [3, 8] },     // A4
+			{ pitch: 62, duration: [1, 8], offset: [1, 2] },     // D4
+			{ pitch: 68, duration: [1, 8], offset: [5, 8] },     // Ab4
+			{ pitch: 62, duration: [1, 8], offset: [3, 4] },     // D4
+			{ pitch: 67, duration: [1, 8], offset: [7, 8] },     // G4
+			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
+		],
+		harmony: BLUES_HARMONY,
+		difficulty: { level: 35, pitchComplexity: 40, rhythmComplexity: 20, lengthBars: 2 },
+		category: 'blues',
+		tags: ['turnaround', 'chromatic', 'classic'],
+		source: 'curated'
+	},
+	{
+		id: 'blues-018',
+		name: 'Grant Green Blues',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, duration: [1, 4], offset: [0, 1] },     // G4
+			{ pitch: 63, duration: [1, 8], offset: [1, 4] },     // Eb4
+			{ pitch: 60, duration: [1, 8], offset: [3, 8] },     // C4
+			{ pitch: 63, duration: [1, 4], offset: [1, 2] },     // Eb4
+			{ pitch: 65, duration: [1, 4], offset: [3, 4] },     // F4
+			{ pitch: 67, duration: [1, 8], offset: [1, 1] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [9, 8] },     // F4
+			{ pitch: 63, duration: [1, 4], offset: [5, 4] },     // Eb4
+			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
+		],
+		harmony: BLUES_HARMONY,
+		difficulty: { level: 22, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 2 },
+		category: 'blues',
+		tags: ['grant-green', 'soulful', 'simple'],
+		source: 'curated'
+	},
+
+	// ── Difficulty 40-55: Jazz blues vocabulary ─────────────
+	{
+		id: 'blues-019',
+		name: 'Freddie Hubbard Blues',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
+			{ pitch: 75, duration: [1, 8], offset: [1, 8] },     // Eb5
+			{ pitch: 77, duration: [1, 8], offset: [1, 4] },     // F5
+			{ pitch: 79, duration: [1, 8], offset: [3, 8] },     // G5
+			{ pitch: 77, duration: [1, 8], offset: [1, 2] },     // F5
+			{ pitch: 75, duration: [1, 8], offset: [5, 8] },     // Eb5
+			{ pitch: 72, duration: [1, 8], offset: [3, 4] },     // C5
+			{ pitch: 70, duration: [1, 8], offset: [7, 8] },     // Bb4
+			{ pitch: 67, duration: [1, 8], offset: [1, 1] },     // G4
+			{ pitch: 63, duration: [1, 8], offset: [9, 8] },     // Eb4
+			{ pitch: 60, duration: [1, 4], offset: [5, 4] },     // C4
+			{ pitch: 58, duration: [1, 4], offset: [3, 2] },     // Bb3
+			{ pitch: 60, duration: [1, 4], offset: [7, 4] }      // C4
+		],
+		harmony: BLUES_HARMONY,
+		difficulty: { level: 45, pitchComplexity: 40, rhythmComplexity: 30, lengthBars: 2 },
+		category: 'blues',
+		tags: ['freddie-hubbard', 'trumpet', 'wide-range'],
+		source: 'curated'
+	},
+	{
+		id: 'blues-020',
+		name: 'IV Chord Approach',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, duration: [1, 8], offset: [0, 1] },     // G4
+			{ pitch: 64, duration: [1, 8], offset: [1, 8] },     // E4
+			{ pitch: 63, duration: [1, 8], offset: [1, 4] },     // Eb4
+			{ pitch: 60, duration: [1, 8], offset: [3, 8] },     // C4
+			{ pitch: 58, duration: [1, 8], offset: [1, 2] },     // Bb3
+			{ pitch: 60, duration: [1, 8], offset: [5, 8] },     // C4
+			{ pitch: 63, duration: [1, 4], offset: [3, 4] },     // Eb4
+			// IV chord (F7)
+			{ pitch: 65, duration: [1, 8], offset: [1, 1] },     // F4
+			{ pitch: 68, duration: [1, 8], offset: [9, 8] },     // Ab4
+			{ pitch: 69, duration: [1, 8], offset: [5, 4] },     // A4
+			{ pitch: 72, duration: [1, 8], offset: [11, 8] },    // C5
+			{ pitch: 70, duration: [1, 4], offset: [3, 2] },     // Bb4
+			{ pitch: 65, duration: [1, 4], offset: [7, 4] }      // F4
+		],
+		harmony: BLUES_I_IV,
+		difficulty: { level: 42, pitchComplexity: 38, rhythmComplexity: 28, lengthBars: 2 },
+		category: 'blues',
+		tags: ['IV-chord', 'blues-form', 'swing'],
 		source: 'curated'
 	}
 ];

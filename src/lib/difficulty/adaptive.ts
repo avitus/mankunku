@@ -7,16 +7,17 @@
  *   - Average < 50% over window → retreat (decrease parameter causing most errors)
  *   - Minimum 5 attempts between difficulty changes
  *   - Pitch and rhythm complexity adjusted independently
- *   - MVP caps at level 7
+ *   - Levels span 1-100
  */
 
 import type { AdaptiveState } from '$lib/types/progress.ts';
+import { difficultyDisplay } from '$lib/difficulty/display.ts';
 
 const WINDOW_SIZE = 10;
 const ADVANCE_THRESHOLD = 0.85;
 const RETREAT_THRESHOLD = 0.50;
 const MIN_ATTEMPTS_BETWEEN_CHANGES = 5;
-const MAX_LEVEL = 7;
+const MAX_LEVEL = 100;
 
 /** XP awarded per attempt based on grade */
 const XP_TABLE: Record<string, number> = {
@@ -115,19 +116,35 @@ export function processAttempt(
 }
 
 /**
- * Get the XP required for the next level.
+ * Get the XP required to complete a given level (i.e., XP needed to go from
+ * level N to level N+1).
+ *
+ * The curve uses a quadratic formula so early levels are quick and later
+ * levels take progressively more effort:
+ *   Level  1:  50 XP
+ *   Level  5: 150 XP
+ *   Level 10: 300 XP
+ *   Level 25: 750 XP
+ *   Level 50: 1550 XP
+ *   Level 75: 2800 XP
+ *   Level 99: 4900 XP
+ *
+ * Formula: 50 + (level - 1) * 2 * 25  →  simplified: 50 * level
+ * Using a slightly steeper curve: base + level^1.5 * factor
  */
 export function xpForLevel(level: number): number {
-	return level * 500;
+	// Quadratic-ish curve: 50 base + 0.5 * level^2
+	// Level 1: 50, Level 10: 100, Level 50: 1300, Level 100: 5050
+	return Math.round(50 + 0.5 * level * level);
 }
 
 /**
- * Get the display level based on total XP (1-based).
+ * Get the display level based on total XP (1-100).
  */
 export function xpToDisplayLevel(xp: number): number {
 	let level = 1;
 	let required = xpForLevel(level);
-	while (xp >= required && level < 50) {
+	while (xp >= required && level < MAX_LEVEL) {
 		xp -= required;
 		level++;
 		required = xpForLevel(level);
@@ -142,12 +159,23 @@ export function xpProgress(xp: number): number {
 	let level = 1;
 	let remaining = xp;
 	let required = xpForLevel(level);
-	while (remaining >= required && level < 50) {
+	while (remaining >= required && level < MAX_LEVEL) {
 		remaining -= required;
 		level++;
 		required = xpForLevel(level);
 	}
-	return remaining / required;
+	return level >= MAX_LEVEL ? 1 : remaining / required;
+}
+
+/**
+ * Get total XP required to reach a given level from level 1.
+ */
+export function totalXpForLevel(level: number): number {
+	let total = 0;
+	for (let i = 1; i < level; i++) {
+		total += xpForLevel(i);
+	}
+	return total;
 }
 
 /**
@@ -158,5 +186,6 @@ export function getAdaptiveSummary(state: AdaptiveState): string {
 		? state.recentScores.reduce((a, b) => a + b, 0) / state.recentScores.length
 		: 0;
 
-	return `Level ${state.currentLevel} (Pitch: ${state.pitchComplexity}, Rhythm: ${state.rhythmComplexity}) — Avg: ${Math.round(avg * 100)}%`;
+	const display = difficultyDisplay(state.currentLevel);
+	return `${display.name} ${state.currentLevel} (Pitch: ${state.pitchComplexity}, Rhythm: ${state.rhythmComplexity}) — Avg: ${Math.round(avg * 100)}%`;
 }

@@ -1,6 +1,6 @@
 # Phrase System
 
-The phrase system provides two sources of musical content: a curated library of 62 hand-written licks and an algorithmic generator for infinite variety.
+The phrase system provides two sources of musical content: a curated library of 113 hand-written licks across 8 categories and an algorithmic generator for infinite variety.
 
 **Source files:** `src/lib/phrases/`, `src/lib/data/licks/`
 
@@ -12,11 +12,15 @@ All curated licks are stored in **concert C** as TypeScript arrays in `src/lib/d
 
 | File | Category | Count |
 |---|---|---|
-| `ii-V-I-major.ts` | ii-V-I Major | 20 |
-| `blues.ts` | Blues | 15 |
-| `bebop-lines.ts` | Bebop Lines | 15 |
-| `ii-V-I-minor.ts` | ii-V-I Minor | 12 |
-| **Total** | | **62** |
+| `ii-V-I-major.ts` | ii-V-I Major | 24 |
+| `blues.ts` | Blues | 20 |
+| `bebop-lines.ts` | Bebop Lines | 20 |
+| `ii-V-I-minor.ts` | ii-V-I Minor | 15 |
+| `pentatonic.ts` | Pentatonic | 10 |
+| `modal.ts` | Modal | 10 |
+| `rhythm-changes.ts` | Rhythm Changes | 7 |
+| `ballad.ts` | Ballad | 7 |
+| **Total** | | **113** |
 
 `index.ts` re-exports all arrays as `ALL_CURATED_LICKS`.
 
@@ -32,15 +36,25 @@ Indexes licks on module load with `Map` data structures for fast querying:
 - **`transposeLick(lick, targetKey)`** — Shifts all MIDI pitches and harmony roots by the interval from C to the target key
 - **`pickRandomLick(query, key)`** — Random selection with optional transposition
 
-### Transposition
+### Transposition with Octave Centering
 
-Since all licks are stored in C, transposition is a simple semitone shift:
+Since all licks are stored in C, transposition shifts MIDI pitches by the interval to the target key, then applies an **octave adjustment** to keep notes within the central instrument range (MIDI 60–84, C4–C6).
 
 ```typescript
 semitones = PITCH_CLASSES.indexOf(targetKey)
-note.pitch = note.pitch + semitones
+pitchedNotes = lick.notes.map(n => n.pitch + semitones).filter(nonNull)
+octaveShift = bestOctaveShift(pitchedNotes)  // -3 to +3
+totalShift = semitones + octaveShift * 12
+
+note.pitch = note.pitch + totalShift
 chord.root = PITCH_CLASSES[(indexOf(chord.root) + semitones) % 12]
 ```
+
+**`bestOctaveShift()`** evaluates shifts from -3 to +3 octaves:
+1. **Primary criterion:** Maximize notes within MIDI 60–84
+2. **Tiebreaker:** Minimize distance of average pitch from the range midpoint (72)
+
+This prevents licks from ending up too high or too low when transposed to distant keys (e.g., transposing a G4-G5 lick to B would push notes to 78-90 without octave correction).
 
 ## Algorithmic Generator (`generator.ts`)
 

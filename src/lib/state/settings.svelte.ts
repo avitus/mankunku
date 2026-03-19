@@ -1,4 +1,5 @@
 import type { InstrumentConfig } from '$lib/types/instruments.ts';
+import type { Tonality } from '$lib/tonality/tonality.ts';
 import { INSTRUMENTS } from '$lib/types/instruments.ts';
 import { save, load } from '$lib/persistence/storage.ts';
 
@@ -16,7 +17,9 @@ const defaultSettings = {
 	metronomeVolume: 0.7,
 	swing: 0.5,
 	theme: 'dark' as 'dark' | 'light',
-	onboardingComplete: false
+	onboardingComplete: false,
+	/** User override for daily tonality. null = use auto-selected daily tonality. */
+	tonalityOverride: null as Tonality | null
 };
 
 export const settings = $state(loadSettings());
