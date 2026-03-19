@@ -1,5 +1,6 @@
 import type { Phrase } from '$lib/types/music.ts';
-import type { AudioEngineState, MicPermissionState } from '$lib/types/audio.ts';
+import type { AudioEngineState, MicPermissionState, DetectedNote } from '$lib/types/audio.ts';
+import type { Score } from '$lib/types/scoring.ts';
 
 export const session = $state<{
 	phrase: Phrase | null;
@@ -12,6 +13,9 @@ export const session = $state<{
 	currentPitchCents: number;
 	currentClarity: number;
 	isDetecting: boolean;
+	isRecording: boolean;
+	recordedNotes: DetectedNote[];
+	lastScore: Score | null;
 }>({
 	phrase: null,
 	engineState: 'uninitialized',
@@ -22,5 +26,8 @@ export const session = $state<{
 	currentPitchMidi: null,
 	currentPitchCents: 0,
 	currentClarity: 0,
-	isDetecting: false
+	isDetecting: false,
+	isRecording: false,
+	recordedNotes: [],
+	lastScore: null
 });

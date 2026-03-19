@@ -13,6 +13,19 @@
 	--color-error: #ef4444;
 }
 
+:root.light {
+	--color-bg: #f8fafc;
+	--color-bg-secondary: #e2e8f0;
+	--color-bg-tertiary: #cbd5e1;
+	--color-text: #0f172a;
+	--color-text-secondary: #475569;
+	--color-accent: #2563eb;
+	--color-accent-hover: #1d4ed8;
+	--color-success: #16a34a;
+	--color-warning: #ca8a04;
+	--color-error: #dc2626;
+}
+
 html {
 	background-color: var(--color-bg);
 	color: var(--color-text);

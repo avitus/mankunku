@@ -59,10 +59,11 @@ export async function startMicCapture(): Promise<MicCapture> {
 	const source = audioCtx.createMediaStreamSource(stream);
 
 	// AnalyserNode for pitch detection (time-domain data)
-	const analyser = new AnalyserNode(audioCtx, {
-		fftSize: 4096,
-		smoothingTimeConstant: 0
-	});
+	// Use factory method — Tone.js v15 returns a standardized-audio-context
+	// wrapper, not a native AudioContext, so the AnalyserNode constructor rejects it.
+	const analyser = audioCtx.createAnalyser();
+	analyser.fftSize = 4096;
+	analyser.smoothingTimeConstant = 0;
 
 	source.connect(analyser);
 	// Deliberately NOT connecting to destination — no feedback loop

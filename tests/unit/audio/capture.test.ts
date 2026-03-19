@@ -17,12 +17,13 @@ function createMockAnalyser(fftSize = 4096) {
 	};
 }
 
-function createMockAudioContext() {
+function createMockAudioContext(analyserFactory: () => ReturnType<typeof createMockAnalyser>) {
 	return {
 		createMediaStreamSource: vi.fn(() => ({
 			connect: vi.fn(),
 			disconnect: vi.fn()
 		})),
+		createAnalyser: vi.fn(() => analyserFactory()),
 		sampleRate: 48000,
 		currentTime: 0
 	};
@@ -36,26 +37,22 @@ function createMockStream() {
 	};
 }
 
+// We need to re-import after mocks are set up, and reset module state between tests
+let captureModule: typeof import('$lib/audio/capture.ts');
+let mockAnalyserInstance: ReturnType<typeof createMockAnalyser>;
+let mockAudioCtx: ReturnType<typeof createMockAudioContext>;
+
 // Mock initAudio before importing capture
-const mockAudioCtx = createMockAudioContext();
 vi.mock('$lib/audio/audio-context.ts', () => ({
 	initAudio: vi.fn(async () => mockAudioCtx)
 }));
 
-// We need to re-import after mocks are set up, and reset module state between tests
-let captureModule: typeof import('$lib/audio/capture.ts');
-let mockAnalyserInstance: ReturnType<typeof createMockAnalyser>;
-let MockAnalyserNode: ReturnType<typeof vi.fn>;
-
 beforeEach(async () => {
 	vi.resetModules();
 
-	// Re-create mock analyser and constructor each test
+	// Re-create mock analyser each test
 	mockAnalyserInstance = createMockAnalyser();
-	MockAnalyserNode = vi.fn(function (this: any) {
-		Object.assign(this, mockAnalyserInstance);
-	});
-	vi.stubGlobal('AnalyserNode', MockAnalyserNode);
+	mockAudioCtx = createMockAudioContext(() => mockAnalyserInstance);
 
 	const mockStream = createMockStream();
 	vi.stubGlobal('navigator', {
@@ -115,12 +112,11 @@ describe('startMicCapture', () => {
 	});
 
 	it('creates AnalyserNode with fftSize 4096', async () => {
-		await captureModule.startMicCapture();
+		const capture = await captureModule.startMicCapture();
 
-		expect(MockAnalyserNode).toHaveBeenCalledWith(mockAudioCtx, {
-			fftSize: 4096,
-			smoothingTimeConstant: 0
-		});
+		expect(mockAudioCtx.createAnalyser).toHaveBeenCalled();
+		expect(capture.analyser.fftSize).toBe(4096);
+		expect(capture.analyser.smoothingTimeConstant).toBe(0);
 	});
 
 	it('connects source to analyser', async () => {

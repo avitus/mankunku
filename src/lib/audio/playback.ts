@@ -102,11 +102,16 @@ function getPhraseBars(phrase: Phrase): number {
 
 /**
  * Play a phrase through the loaded instrument.
- * Returns a promise that resolves when playback finishes.
+ * Returns a promise that resolves when phrase playback finishes.
+ *
+ * If keepMetronome is true, the transport and metronome keep running
+ * after the phrase ends (for the recording phase). Call stopPlayback()
+ * to stop everything.
  */
 export async function playPhrase(
 	phrase: Phrase,
-	options: PlaybackOptions
+	options: PlaybackOptions,
+	keepMetronome = false
 ): Promise<void> {
 	if (!instrument) {
 		throw new Error('Instrument not loaded. Call loadInstrument() first.');
@@ -138,21 +143,39 @@ export async function playPhrase(
 
 	// Schedule metronome if enabled
 	if (options.metronomeEnabled) {
-		const bars = getPhraseBars(phrase);
-		await scheduleMetronome(phrase.timeSignature[0], bars);
+		if (keepMetronome) {
+			// Loop indefinitely — will keep playing during recording
+			await scheduleMetronome(phrase.timeSignature[0], null);
+		} else {
+			const bars = getPhraseBars(phrase);
+			await scheduleMetronome(phrase.timeSignature[0], bars);
+		}
 	}
 
-	// Schedule auto-stop after phrase ends
+	// Schedule end-of-phrase notification
 	const totalDuration = getPhraseDuration(phrase, options.tempo);
 	const totalTicks = Math.round((totalDuration / (60 / options.tempo)) * ppq);
 
 	return new Promise<void>((resolve) => {
 		isPlaying = true;
 
-		transport.schedule(() => {
-			stopPlayback();
-			resolve();
-		}, `${totalTicks + ppq}i`); // One extra beat of silence
+		if (keepMetronome) {
+			// Resolve when phrase ends but keep transport + metronome alive
+			transport.schedule(() => {
+				if (currentPart) {
+					currentPart.dispose();
+					currentPart = null;
+				}
+				instrument?.stop();
+				resolve();
+			}, `${totalTicks + ppq}i`);
+		} else {
+			// Full stop after phrase ends
+			transport.schedule(() => {
+				stopPlayback();
+				resolve();
+			}, `${totalTicks + ppq}i`);
+		}
 
 		onStopCallback = resolve;
 		transport.start();
@@ -160,7 +183,7 @@ export async function playPhrase(
 }
 
 /**
- * Stop current playback immediately.
+ * Stop current playback immediately (transport, metronome, everything).
  */
 export async function stopPlayback(): Promise<void> {
 	const Tone = await getTone();
@@ -190,4 +213,13 @@ export async function stopPlayback(): Promise<void> {
 /** Whether playback is currently active */
 export function getIsPlaying(): boolean {
 	return isPlaying;
+}
+
+/**
+ * Get the Transport's current position in seconds.
+ * Returns 0 if Tone hasn't been loaded yet.
+ */
+export function getTransportSeconds(): number {
+	if (!tone) return 0;
+	return tone.getTransport().seconds;
 }

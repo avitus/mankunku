@@ -1,0 +1,458 @@
+/**
+ * Curated bebop lines — all in concert C.
+ * Various harmonic contexts.
+ *
+ * Transposed at runtime to any key.
+ */
+import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+
+const CMAJ7_HARMONY: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: 'maj7' },
+		scaleId: 'major.ionian',
+		startOffset: [0, 1],
+		duration: [2, 1]
+	}
+];
+
+const DOM7_HARMONY: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: '7' },
+		scaleId: 'bebop.dominant',
+		startOffset: [0, 1],
+		duration: [2, 1]
+	}
+];
+
+const II_V_HARMONY: HarmonicSegment[] = [
+	{
+		chord: { root: 'D', quality: 'min7' },
+		scaleId: 'major.dorian',
+		startOffset: [0, 1],
+		duration: [1, 1]
+	},
+	{
+		chord: { root: 'G', quality: '7' },
+		scaleId: 'bebop.dominant',
+		startOffset: [1, 1],
+		duration: [1, 1]
+	}
+];
+
+export const BEBOP_LICKS: Phrase[] = [
+	// ── Level 4-5: Basic bebop vocabulary ───────────────────
+	{
+		id: 'bebop-001',
+		name: 'Bebop Scale Down',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
+			{ pitch: 71, duration: [1, 8], offset: [1, 8] },     // B4
+			{ pitch: 70, duration: [1, 8], offset: [1, 4] },     // Bb4 (passing)
+			{ pitch: 69, duration: [1, 8], offset: [3, 8] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [5, 8] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [3, 4] },     // E4
+			{ pitch: 62, duration: [1, 8], offset: [7, 8] },     // D4
+			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
+		],
+		harmony: DOM7_HARMONY,
+		difficulty: { level: 4, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['bebop-scale', 'descending'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-002',
+		name: 'Bebop Scale Up',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] },     // C4
+			{ pitch: 62, duration: [1, 8], offset: [1, 8] },     // D4
+			{ pitch: 64, duration: [1, 8], offset: [1, 4] },     // E4
+			{ pitch: 65, duration: [1, 8], offset: [3, 8] },     // F4
+			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
+			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4
+			{ pitch: 70, duration: [1, 8], offset: [3, 4] },     // Bb4 (passing)
+			{ pitch: 71, duration: [1, 8], offset: [7, 8] },     // B4
+			{ pitch: 72, duration: [1, 1], offset: [1, 1] }      // C5
+		],
+		harmony: DOM7_HARMONY,
+		difficulty: { level: 4, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['bebop-scale', 'ascending'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-003',
+		name: 'Arpeggio Cascade',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// Dm7 arpeggio up, shift down, repeat
+			{ pitch: 62, duration: [1, 8], offset: [0, 1] },     // D4
+			{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
+			{ pitch: 69, duration: [1, 8], offset: [1, 4] },     // A4
+			{ pitch: 72, duration: [1, 8], offset: [3, 8] },     // C5
+			// Step down, arpeggio from C
+			{ pitch: 71, duration: [1, 8], offset: [1, 2] },     // B4
+			{ pitch: 67, duration: [1, 8], offset: [5, 8] },     // G4
+			{ pitch: 64, duration: [1, 8], offset: [3, 4] },     // E4
+			{ pitch: 60, duration: [1, 8], offset: [7, 8] },     // C4
+			// G7 resolve
+			{ pitch: 62, duration: [1, 8], offset: [1, 1] },     // D4
+			{ pitch: 65, duration: [1, 8], offset: [9, 8] },     // F4
+			{ pitch: 67, duration: [1, 8], offset: [5, 4] },     // G4
+			{ pitch: 71, duration: [1, 8], offset: [11, 8] },    // B4
+			{ pitch: 69, duration: [1, 8], offset: [3, 2] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [13, 8] },    // G4
+			{ pitch: 65, duration: [1, 4], offset: [7, 4] }      // F4
+		],
+		harmony: II_V_HARMONY,
+		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['arpeggio', 'cascade'],
+		source: 'curated'
+	},
+
+	// ── Level 5-6: Chromatic bebop ──────────────────────────
+	{
+		id: 'bebop-004',
+		name: 'Chromatic Enclosure Run',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 71, duration: [1, 8], offset: [0, 1] },     // B4
+			{ pitch: 72, duration: [1, 8], offset: [1, 8] },     // C5
+			{ pitch: 70, duration: [1, 8], offset: [1, 4] },     // Bb4
+			{ pitch: 69, duration: [1, 8], offset: [3, 8] },     // A4
+			{ pitch: 68, duration: [1, 8], offset: [1, 2] },     // Ab4 (chromatic)
+			{ pitch: 67, duration: [1, 8], offset: [5, 8] },     // G4
+			{ pitch: 66, duration: [1, 8], offset: [3, 4] },     // F#4 (chromatic)
+			{ pitch: 65, duration: [1, 8], offset: [7, 8] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [1, 1] },     // E4
+			{ pitch: 62, duration: [1, 8], offset: [9, 8] },     // D4
+			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['chromatic', 'enclosure', 'descending'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-005',
+		name: 'Dizzy Leap',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] },     // C4
+			{ pitch: 67, duration: [1, 8], offset: [1, 8] },     // G4 (leap)
+			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [3, 8] },     // E4
+			{ pitch: 62, duration: [1, 8], offset: [1, 2] },     // D4
+			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4 (leap)
+			{ pitch: 67, duration: [1, 8], offset: [3, 4] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [7, 8] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [1, 1] },     // E4
+			{ pitch: 71, duration: [1, 8], offset: [9, 8] },     // B4 (leap)
+			{ pitch: 69, duration: [1, 8], offset: [5, 4] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [11, 8] },    // G4
+			{ pitch: 65, duration: [1, 4], offset: [3, 2] },     // F4
+			{ pitch: 64, duration: [1, 4], offset: [7, 4] }      // E4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['dizzy', 'leaps', 'bebop'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-006',
+		name: 'Dominant Approach',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, duration: [1, 8], offset: [0, 1] },     // G4
+			{ pitch: 69, duration: [1, 8], offset: [1, 8] },     // A4
+			{ pitch: 70, duration: [1, 8], offset: [1, 4] },     // Bb4
+			{ pitch: 71, duration: [1, 8], offset: [3, 8] },     // B4
+			{ pitch: 72, duration: [1, 8], offset: [1, 2] },     // C5
+			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [3, 4] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [7, 8] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [1, 1] },     // E4
+			{ pitch: 63, duration: [1, 8], offset: [9, 8] },     // Eb4 (chromatic)
+			{ pitch: 62, duration: [1, 8], offset: [5, 4] },     // D4
+			{ pitch: 60, duration: [1, 8], offset: [11, 8] },    // C4
+			{ pitch: 59, duration: [1, 2], offset: [3, 2] }      // B3
+		],
+		harmony: DOM7_HARMONY,
+		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['dominant', 'chromatic', 'approach'],
+		source: 'curated'
+	},
+
+	// ── Level 6-7: Advanced bebop ───────────────────────────
+	{
+		id: 'bebop-007',
+		name: 'Bird Blues Lick',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, duration: [1, 8], offset: [0, 1] },     // G4
+			{ pitch: 64, duration: [1, 8], offset: [1, 8] },     // E4
+			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4
+			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
+			{ pitch: 70, duration: [1, 8], offset: [5, 8] },     // Bb4
+			{ pitch: 69, duration: [1, 8], offset: [3, 4] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [7, 8] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [1, 1] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [9, 8] },     // E4
+			{ pitch: 62, duration: [1, 8], offset: [5, 4] },     // D4
+			{ pitch: 61, duration: [1, 8], offset: [11, 8] },    // Db4
+			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
+		],
+		harmony: DOM7_HARMONY,
+		difficulty: { level: 7, pitchComplexity: 6, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['parker', 'blues', 'chromatic'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-008',
+		name: 'Honeysuckle Run',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
+			{ pitch: 74, duration: [1, 8], offset: [1, 8] },     // D5
+			{ pitch: 72, duration: [1, 8], offset: [1, 4] },     // C5
+			{ pitch: 69, duration: [1, 8], offset: [3, 8] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
+			{ pitch: 66, duration: [1, 8], offset: [5, 8] },     // F#4
+			{ pitch: 67, duration: [1, 8], offset: [3, 4] },     // G4
+			{ pitch: 64, duration: [1, 8], offset: [7, 8] },     // E4
+			{ pitch: 65, duration: [1, 8], offset: [1, 1] },     // F4
+			{ pitch: 62, duration: [1, 8], offset: [9, 8] },     // D4
+			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['honeysuckle', 'standard', 'bebop'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-009',
+		name: 'Confirmation Motif',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 64, duration: [1, 8], offset: [0, 1] },     // E4
+			{ pitch: 67, duration: [1, 8], offset: [1, 8] },     // G4
+			{ pitch: 72, duration: [1, 8], offset: [1, 4] },     // C5
+			{ pitch: 71, duration: [1, 8], offset: [3, 8] },     // B4
+			{ pitch: 69, duration: [1, 8], offset: [1, 2] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [5, 8] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [3, 4] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [7, 8] },     // E4
+			{ pitch: 62, duration: [1, 4], offset: [1, 1] },     // D4
+			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['confirmation', 'standard', 'arpeggio'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-010',
+		name: 'Donna Lee Opening',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 69, duration: [1, 8], offset: [0, 1] },     // A4
+			{ pitch: 71, duration: [1, 8], offset: [1, 8] },     // B4
+			{ pitch: 72, duration: [1, 8], offset: [1, 4] },     // C5
+			{ pitch: 74, duration: [1, 8], offset: [3, 8] },     // D5
+			{ pitch: 76, duration: [1, 8], offset: [1, 2] },     // E5
+			{ pitch: 74, duration: [1, 8], offset: [5, 8] },     // D5
+			{ pitch: 72, duration: [1, 8], offset: [3, 4] },     // C5
+			{ pitch: 71, duration: [1, 8], offset: [7, 8] },     // B4
+			{ pitch: 69, duration: [1, 8], offset: [1, 1] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [9, 8] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [5, 4] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [11, 8] },    // E4
+			{ pitch: 62, duration: [1, 4], offset: [3, 2] },     // D4
+			{ pitch: 60, duration: [1, 4], offset: [7, 4] }      // C4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['donna-lee', 'ascending', 'bebop'],
+		source: 'curated'
+	},
+
+	// ── Level 7: Advanced ───────────────────────────────────
+	{
+		id: 'bebop-011',
+		name: 'Altered Dominant Run',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 70, duration: [1, 8], offset: [0, 1] },     // Bb4
+			{ pitch: 68, duration: [1, 8], offset: [1, 8] },     // Ab4
+			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // F#4
+			{ pitch: 64, duration: [1, 8], offset: [3, 8] },     // E4
+			{ pitch: 63, duration: [1, 8], offset: [1, 2] },     // Eb4
+			{ pitch: 61, duration: [1, 8], offset: [5, 8] },     // Db4
+			{ pitch: 60, duration: [1, 4], offset: [3, 4] },     // C4
+			{ pitch: 62, duration: [1, 8], offset: [1, 1] },     // D4
+			{ pitch: 64, duration: [1, 8], offset: [9, 8] },     // E4
+			{ pitch: 65, duration: [1, 8], offset: [5, 4] },     // F4
+			{ pitch: 67, duration: [1, 8], offset: [11, 8] },    // G4
+			{ pitch: 69, duration: [1, 2], offset: [3, 2] }      // A4
+		],
+		harmony: [
+			{
+				chord: { root: 'G', quality: '7alt' },
+				scaleId: 'melodic-minor.altered',
+				startOffset: [0, 1],
+				duration: [1, 1]
+			},
+			{
+				chord: { root: 'C', quality: 'maj7' },
+				scaleId: 'major.ionian',
+				startOffset: [1, 1],
+				duration: [1, 1]
+			}
+		],
+		difficulty: { level: 7, pitchComplexity: 6, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['altered', 'dominant', 'advanced'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-012',
+		name: 'Rhythm Changes Bridge',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// D7
+			{ pitch: 66, duration: [1, 8], offset: [0, 1] },     // F#4
+			{ pitch: 69, duration: [1, 8], offset: [1, 8] },     // A4
+			{ pitch: 72, duration: [1, 8], offset: [1, 4] },     // C5 (b7)
+			{ pitch: 74, duration: [1, 8], offset: [3, 8] },     // D5
+			{ pitch: 72, duration: [1, 8], offset: [1, 2] },     // C5
+			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [3, 4] },     // G4
+			{ pitch: 66, duration: [1, 8], offset: [7, 8] },     // F#4
+			// G7
+			{ pitch: 67, duration: [1, 8], offset: [1, 1] },     // G4
+			{ pitch: 71, duration: [1, 8], offset: [9, 8] },     // B4
+			{ pitch: 69, duration: [1, 8], offset: [5, 4] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [11, 8] },    // G4
+			{ pitch: 65, duration: [1, 8], offset: [3, 2] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [13, 8] },    // E4
+			{ pitch: 62, duration: [1, 4], offset: [7, 4] }      // D4
+		],
+		harmony: [
+			{
+				chord: { root: 'D', quality: '7' },
+				scaleId: 'major.mixolydian',
+				startOffset: [0, 1],
+				duration: [1, 1]
+			},
+			{
+				chord: { root: 'G', quality: '7' },
+				scaleId: 'major.mixolydian',
+				startOffset: [1, 1],
+				duration: [1, 1]
+			}
+		],
+		difficulty: { level: 7, pitchComplexity: 6, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['rhythm-changes', 'bridge'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-013',
+		name: 'Pentatonic Bop',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, duration: [1, 8], offset: [0, 1] },     // G4
+			{ pitch: 69, duration: [1, 8], offset: [1, 8] },     // A4
+			{ pitch: 72, duration: [1, 8], offset: [1, 4] },     // C5
+			{ pitch: 74, duration: [1, 8], offset: [3, 8] },     // D5
+			{ pitch: 72, duration: [1, 8], offset: [1, 2] },     // C5
+			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4
+			{ pitch: 67, duration: [1, 4], offset: [3, 4] },     // G4
+			{ pitch: 64, duration: [1, 8], offset: [1, 1] },     // E4
+			{ pitch: 62, duration: [1, 8], offset: [9, 8] },     // D4
+			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['pentatonic', 'bebop'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-014',
+		name: 'Double-Time Feel',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 16], offset: [0, 1] },    // C4
+			{ pitch: 62, duration: [1, 16], offset: [1, 16] },   // D4
+			{ pitch: 64, duration: [1, 16], offset: [1, 8] },    // E4
+			{ pitch: 65, duration: [1, 16], offset: [3, 16] },   // F4
+			{ pitch: 67, duration: [1, 16], offset: [1, 4] },    // G4
+			{ pitch: 69, duration: [1, 16], offset: [5, 16] },   // A4
+			{ pitch: 71, duration: [1, 16], offset: [3, 8] },    // B4
+			{ pitch: 72, duration: [1, 16], offset: [7, 16] },   // C5
+			{ pitch: 71, duration: [1, 8], offset: [1, 2] },     // B4
+			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [3, 4] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [7, 8] },     // F4
+			{ pitch: 64, duration: [1, 1], offset: [1, 1] }      // E4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 7, pitchComplexity: 4, rhythmComplexity: 6, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['double-time', 'sixteenth'],
+		source: 'curated'
+	},
+	{
+		id: 'bebop-015',
+		name: 'Three-Note Grouping',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			// 3-note groups over 8th notes (creates rhythmic tension)
+			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
+			{ pitch: 71, duration: [1, 8], offset: [1, 8] },     // B4
+			{ pitch: 69, duration: [1, 8], offset: [1, 4] },     // A4
+			{ pitch: 67, duration: [1, 8], offset: [3, 8] },     // G4
+			{ pitch: 65, duration: [1, 8], offset: [1, 2] },     // F4
+			{ pitch: 64, duration: [1, 8], offset: [5, 8] },     // E4
+			{ pitch: 62, duration: [1, 8], offset: [3, 4] },     // D4
+			{ pitch: 60, duration: [1, 8], offset: [7, 8] },     // C4
+			{ pitch: 59, duration: [1, 8], offset: [1, 1] },     // B3
+			{ pitch: 60, duration: [1, 8], offset: [9, 8] },     // C4
+			{ pitch: 62, duration: [1, 8], offset: [5, 4] },     // D4
+			{ pitch: 64, duration: [1, 2], offset: [11, 8] }     // E4
+		],
+		harmony: CMAJ7_HARMONY,
+		difficulty: { level: 6, pitchComplexity: 4, rhythmComplexity: 4, lengthBars: 2 },
+		category: 'bebop-lines',
+		tags: ['grouping', 'metric-modulation'],
+		source: 'curated'
+	}
+];

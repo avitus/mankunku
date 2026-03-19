@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#0f172a"/>
+  <!-- Stylized saxophone -->
+  <g transform="translate(256,256) scale(2.6)">
+    <!-- Saxophone bell curve -->
+    <path d="M-20,-50 C-20,-50 -30,-20 -30,10 C-30,35 -15,50 10,55 C35,60 45,40 45,20 C45,0 35,-15 25,-15"
+          fill="none" stroke="#3b82f6" stroke-width="8" stroke-linecap="round"/>
+    <!-- Mouthpiece -->
+    <path d="M-20,-50 L-15,-65 L-5,-60 L-10,-45"
+          fill="#3b82f6" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Keys (dots) -->
+    <circle cx="-25" cy="-10" r="4" fill="#60a5fa"/>
+    <circle cx="-28" cy="8" r="4" fill="#60a5fa"/>
+    <circle cx="-25" cy="26" r="4" fill="#60a5fa"/>
+    <!-- Bell opening -->
+    <ellipse cx="25" cy="38" rx="22" ry="18" fill="none" stroke="#3b82f6" stroke-width="4"/>
+    <!-- Sound waves -->
+    <path d="M50,25 C55,20 55,40 50,35" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+    <path d="M58,20 C65,12 65,48 58,40" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+  </g>
+</svg>
