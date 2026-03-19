@@ -86,17 +86,70 @@ export function queryLicks(query: LibraryQuery): Phrase[] {
 	return results;
 }
 
+/** Middle C (C4) */
+const CENTRAL_RANGE_LOW = 60;
+/** C6 — two octaves above middle C */
+const CENTRAL_RANGE_HIGH = 84;
+
+/**
+ * Find the octave shift that places the most notes within the central range
+ * (MIDI 60–84). When two shifts tie, prefer the one whose average pitch is
+ * closest to the midpoint of the range.
+ */
+function bestOctaveShift(midiNotes: number[]): number {
+	if (midiNotes.length === 0) return 0;
+
+	const mid = (CENTRAL_RANGE_LOW + CENTRAL_RANGE_HIGH) / 2;
+	let bestShift = 0;
+	let bestInRange = -1;
+	let bestDistance = Infinity;
+
+	// Check shifts from -3 to +3 octaves — more than enough for any instrument
+	for (let shift = -3; shift <= 3; shift++) {
+		const offset = shift * 12;
+		let inRange = 0;
+		let sum = 0;
+		for (const note of midiNotes) {
+			const shifted = note + offset;
+			if (shifted >= CENTRAL_RANGE_LOW && shifted <= CENTRAL_RANGE_HIGH) {
+				inRange++;
+			}
+			sum += shifted;
+		}
+		const dist = Math.abs(sum / midiNotes.length - mid);
+
+		if (inRange > bestInRange || (inRange === bestInRange && dist < bestDistance)) {
+			bestShift = shift;
+			bestInRange = inRange;
+			bestDistance = dist;
+		}
+	}
+
+	return bestShift;
+}
+
 /**
  * Transpose a phrase to a target key.
  *
  * All licks are stored in concert C. This shifts every pitched note
- * and harmony root by the interval from C to the target key.
+ * and harmony root by the interval from C to the target key, then
+ * applies an octave adjustment to keep notes as close to the central
+ * instrument range (C4–C6) as possible.
  */
 export function transposeLick(lick: Phrase, targetKey: PitchClass): Phrase {
 	if (targetKey === 'C') return lick;
 
 	const semitones = PITCH_CLASSES.indexOf(targetKey);
 	if (semitones === 0) return lick;
+
+	// Collect pitched notes to determine optimal octave placement
+	const pitchedNotes = lick.notes
+		.map((n) => n.pitch)
+		.filter((p): p is number => p !== null)
+		.map((p) => p + semitones);
+
+	const octaveShift = bestOctaveShift(pitchedNotes);
+	const totalShift = semitones + octaveShift * 12;
 
 	const transposePC = (pc: PitchClass): PitchClass =>
 		PITCH_CLASSES[(PITCH_CLASSES.indexOf(pc) + semitones) % 12];
@@ -107,7 +160,7 @@ export function transposeLick(lick: Phrase, targetKey: PitchClass): Phrase {
 		key: targetKey,
 		notes: lick.notes.map((n) => ({
 			...n,
-			pitch: n.pitch !== null ? n.pitch + semitones : null
+			pitch: n.pitch !== null ? n.pitch + totalShift : null
 		})),
 		harmony: lick.harmony.map((h) => ({
 			...h,
