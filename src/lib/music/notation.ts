@@ -74,6 +74,9 @@ function durationToAbc(duration: [number, number], defaultLength: [number, numbe
 /**
  * Generate an ABC notation string from a Phrase.
  *
+ * Inserts barlines at bar boundaries and groups notes within beats
+ * for proper beam grouping (eighth notes paired, etc.).
+ *
  * @param phrase - The phrase to render
  * @param instrument - If provided, transposes to written pitch
  * @param defaultLength - ABC L: field value, default [1, 8] (eighth note)
@@ -89,6 +92,13 @@ export function phraseToAbc(
 
 	const useFlats = FLAT_KEYS.includes(displayKey);
 
+	const beatsPerBar = phrase.timeSignature[0];
+	const beatUnit = phrase.timeSignature[1];
+	// Duration of one bar in whole notes (e.g. 4/4 = 1.0)
+	const barDuration = beatsPerBar / beatUnit;
+	// Duration of one beat in whole notes (e.g. quarter = 0.25)
+	const beatDuration = 1 / beatUnit;
+
 	// ABC header
 	const lines: string[] = [
 		`X:1`,
@@ -98,21 +108,50 @@ export function phraseToAbc(
 		`K:${displayKey}`,
 	];
 
-	// Add chord symbols if harmony is present
-	let noteStr = '';
-	for (const note of phrase.notes) {
+	// Generate notes with barlines and beam grouping
+	const tokens: string[] = [];
+	let prevBar = 0;
+	let prevBeat = 0;
+
+	for (let i = 0; i < phrase.notes.length; i++) {
+		const note = phrase.notes[i];
+		const offset = fractionToFloat(note.offset);
+
+		// Determine bar and beat position (small epsilon for floating-point)
+		const bar = Math.floor(offset / barDuration + 1e-9);
+		const posInBar = offset - bar * barDuration;
+		const beat = Math.floor(posInBar / beatDuration + 1e-9);
+
+		if (i > 0) {
+			// Insert barlines for any bars that ended between the previous note and this one
+			if (bar > prevBar) {
+				for (let b = prevBar; b < bar; b++) {
+					tokens.push(' |');
+				}
+				tokens.push(' ');
+			} else if (beat !== prevBeat) {
+				// Different beat within the same bar: space for beam break
+				tokens.push(' ');
+			}
+			// Same beat: no space — notes are beamed together
+		}
+
+		// Generate ABC for this note
 		if (note.pitch === null) {
-			// Rest
-			noteStr += `z${durationToAbc(note.duration, defaultLength)} `;
+			tokens.push(`z${durationToAbc(note.duration, defaultLength)}`);
 		} else {
 			const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
 			const pitch = midiToAbcPitch(midi, useFlats);
 			const dur = durationToAbc(note.duration, defaultLength);
-			noteStr += `${pitch}${dur} `;
+			tokens.push(`${pitch}${dur}`);
 		}
+
+		prevBar = bar;
+		prevBeat = beat;
 	}
 
-	lines.push(noteStr.trim() + ' |]');
+	tokens.push(' |]');
+	lines.push(tokens.join(''));
 	return lines.join('\n');
 }
 
