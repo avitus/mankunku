@@ -21,10 +21,20 @@ import { scoreToGrade } from './grades.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
 
 /**
- * Compute the onset time in seconds of an expected note.
+ * Compute the onset time in seconds of an expected note,
+ * applying swing to off-beat 8th notes.
  */
-function expectedOnsetSeconds(note: Note, tempo: number): number {
-	return fractionToFloat(note.offset) * 4 * (60 / tempo);
+function expectedOnsetSeconds(note: Note, tempo: number, swing = 0.5): number {
+	const beats = fractionToFloat(note.offset) * 4;
+	const beatDuration = 60 / tempo;
+	let onset = beats * beatDuration;
+
+	const fractionalBeat = beats % 1;
+	if (swing > 0.5 && Math.abs(fractionalBeat - 0.5) < 0.001) {
+		onset += (swing - 0.5) * beatDuration;
+	}
+
+	return onset;
 }
 
 /**
@@ -76,13 +86,15 @@ function median(values: number[]): number {
  * @param detected - Detected notes from mic recording
  * @param tempo - BPM used during the attempt
  * @param transportSeconds - Transport position (seconds) when recording started
+ * @param swing - Swing ratio (0.5 = straight, 0.67 ≈ triplet, 0.8 = heavy)
  * @returns Full score breakdown
  */
 export function scoreAttempt(
 	phrase: Phrase,
 	detected: DetectedNote[],
 	tempo: number,
-	transportSeconds = 0
+	transportSeconds = 0,
+	swing = 0.5
 ): Score {
 	const expected = phrase.notes.filter((n) => n.pitch !== null);
 
@@ -90,14 +102,14 @@ export function scoreAttempt(
 	const gridAligned = anchorToGrid(detected, transportSeconds, phrase, tempo);
 
 	// Step 2: DTW alignment (robust enough with a constant offset)
-	const pairs = alignNotes(phrase.notes, gridAligned, tempo);
+	const pairs = alignNotes(phrase.notes, gridAligned, tempo, swing);
 
 	// Step 3: Compute median timing offset of matched pairs to absorb
 	// constant human latency (reaction time, detection delay)
 	const offsets: number[] = [];
 	for (const pair of pairs) {
 		if (pair.expectedIndex !== null && pair.detectedIndex !== null) {
-			const expOnset = expectedOnsetSeconds(expected[pair.expectedIndex], tempo);
+			const expOnset = expectedOnsetSeconds(expected[pair.expectedIndex], tempo, swing);
 			const detOnset = gridAligned[pair.detectedIndex].onsetTime;
 			offsets.push(detOnset - expOnset);
 		}
@@ -121,7 +133,7 @@ export function scoreAttempt(
 			const exp = expected[pair.expectedIndex];
 			const det = corrected[pair.detectedIndex];
 			const pitch = Math.min(1.0, scorePitch(exp, det));
-			const rhythm = scoreRhythm(exp, det, tempo);
+			const rhythm = scoreRhythm(exp, det, tempo, swing);
 
 			if (exp.pitch === det.midi) notesHit++;
 			pitchSum += pitch;

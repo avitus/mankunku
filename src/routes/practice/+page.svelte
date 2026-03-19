@@ -29,10 +29,14 @@
 	const xp = $derived(progress.adaptive.xp);
 	const dailyTonality = $derived(getTodaysTonality(xp));
 	const activeTonality = $derived(settings.tonalityOverride ?? dailyTonality);
+	const adaptiveLevel = $derived(progress.adaptive.currentLevel);
 
 	const allLicksRaw = getAllLicks();
-	// Transpose all licks to the active tonality's key
-	const allLicks = $derived(allLicksRaw.map(lick => transposeLick(lick, activeTonality.key)));
+	// Filter licks by adaptive difficulty, then transpose to active key
+	const filteredLicks = $derived(
+		allLicksRaw.filter(lick => lick.difficulty.level <= adaptiveLevel)
+	);
+	const allLicks = $derived(filteredLicks.map(lick => transposeLick(lick, activeTonality.key)));
 	let phraseIndex = $state(0);
 	let micCapture: MicCapture | null = null;
 	let pitchDetector: PitchDetectorHandle | null = null;
@@ -57,6 +61,9 @@
 		const key = activeTonality.key;
 		if (phraseIndex >= 0 && phraseIndex < allLicks.length) {
 			session.phrase = allLicks[phraseIndex];
+		} else if (allLicks.length > 0) {
+			phraseIndex = 0;
+			session.phrase = allLicks[0];
 		}
 	});
 	session.tempo = settings.defaultTempo;
@@ -324,7 +331,7 @@
 
 		session.recordedNotes = detected;
 		session.lastScore = scoreAttempt(
-			session.phrase, detected, session.tempo, recordingTransportSeconds
+			session.phrase, detected, session.tempo, recordingTransportSeconds, settings.swing
 		);
 
 		// Record attempt in progress tracking

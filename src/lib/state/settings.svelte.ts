@@ -7,7 +7,10 @@ const STORAGE_KEY = 'settings';
 
 function loadSettings() {
 	const saved = load<typeof defaultSettings>(STORAGE_KEY);
-	return saved ? { ...defaultSettings, ...saved } : { ...defaultSettings };
+	const result = saved ? { ...defaultSettings, ...saved } : { ...defaultSettings };
+	// Clamp swing to valid range (0.5 straight → 0.8 heavy swing)
+	result.swing = Math.max(0.5, Math.min(0.8, result.swing));
+	return result;
 }
 
 const defaultSettings = {

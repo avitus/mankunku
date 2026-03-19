@@ -31,7 +31,7 @@ export interface AudioState {
 export interface PlaybackOptions {
 	/** BPM */
 	tempo: number;
-	/** Swing ratio (0.5 = straight, 0.67 = triplet swing) */
+	/** Swing ratio: 0.5 = straight, 0.67 = triplet, 0.8 = heavy */
 	swing: number;
 	/** Count-in beats before recording */
 	countInBeats: number;

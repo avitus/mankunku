@@ -38,12 +38,23 @@ function rhythmDistance(
 }
 
 /**
- * Convert a note's fractional offset to seconds given a tempo.
- * Offset is fraction of whole note; multiply by 4 to get quarter-note beats.
+ * Convert a note's fractional offset to seconds given a tempo,
+ * applying swing to off-beat 8th notes.
+ *
+ * @param swing - Swing ratio (0.5 = straight, 0.67 ≈ triplet, 0.8 = heavy)
  */
-function noteOnsetSeconds(note: Note, tempo: number): number {
+function noteOnsetSeconds(note: Note, tempo: number, swing = 0.5): number {
 	const beats = (note.offset[0] / note.offset[1]) * 4;
-	return beats * (60 / tempo);
+	const beatDuration = 60 / tempo;
+	let onset = beats * beatDuration;
+
+	// Shift off-beat 8ths to match Tone.js swing playback
+	const fractionalBeat = beats % 1;
+	if (swing > 0.5 && Math.abs(fractionalBeat - 0.5) < 0.001) {
+		onset += (swing - 0.5) * beatDuration;
+	}
+
+	return onset;
 }
 
 /**
@@ -52,12 +63,14 @@ function noteOnsetSeconds(note: Note, tempo: number): number {
  * @param expected - Notes from the phrase (may include rests which are filtered)
  * @param detected - Notes captured from microphone
  * @param tempo - BPM for converting offsets to time
+ * @param swing - Swing ratio (0.5 = straight, 0.67 ≈ triplet, 0.8 = heavy)
  * @returns Alignment pairs with cost for each match
  */
 export function alignNotes(
 	expected: Note[],
 	detected: DetectedNote[],
-	tempo: number
+	tempo: number,
+	swing = 0.5
 ): AlignmentPair[] {
 	// Filter out rests
 	const exp = expected.filter((n) => n.pitch !== null);
@@ -81,7 +94,7 @@ export function alignNotes(
 	// Fill cost matrix
 	for (let i = 1; i <= N; i++) {
 		for (let j = 1; j <= M; j++) {
-			const expOnset = noteOnsetSeconds(exp[i - 1], tempo);
+			const expOnset = noteOnsetSeconds(exp[i - 1], tempo, swing);
 			const detOnset = detected[j - 1].onsetTime;
 
 			const matchCost =
@@ -103,7 +116,7 @@ export function alignNotes(
 
 	while (i > 0 || j > 0) {
 		if (i > 0 && j > 0) {
-			const expOnset = noteOnsetSeconds(exp[i - 1], tempo);
+			const expOnset = noteOnsetSeconds(exp[i - 1], tempo, swing);
 			const detOnset = detected[j - 1].onsetTime;
 			const matchCost =
 				pitchDistance(exp[i - 1], detected[j - 1]) +

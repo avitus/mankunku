@@ -290,10 +290,11 @@ export async function playPhrase(
 
 	// Apply swing feel to the Transport.
 	// Tone.js swing ranges from 0 (straight) to 1 (dotted-8th + 16th).
-	// The PlaybackOptions.swing ranges from 0.5 (straight) to ~0.75.
-	// Convert: when options.swing = 0.5 -> transport swing = 0;
-	//          when options.swing = 0.67 (triplet) -> transport swing ~= 0.34
-	//          when options.swing = 0.75 (heavy) -> transport swing = 0.5
+	// The PlaybackOptions.swing ranges from 0.5 (straight) to 0.8 (heavy).
+	// Convert: when options.swing = 0.5  -> transport swing = 0
+	//          when options.swing = 0.67 -> transport swing ≈ 0.34 (triplet feel)
+	//          when options.swing = 0.75 -> transport swing = 0.5
+	//          when options.swing = 0.8  -> transport swing = 0.6 (heavy)
 	if (options.swing > 0.5) {
 		transport.swing = (options.swing - 0.5) * 2;
 		transport.swingSubdivision = '8n';

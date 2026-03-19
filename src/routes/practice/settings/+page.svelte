@@ -45,6 +45,7 @@
 	let selectedSource: 'curated' | 'generated' | 'mixed' = $state('mixed');
 	let tempo = $state(settings.defaultTempo);
 	let bars = $state(2);
+	const diffDisp = $derived(difficultyDisplay(selectedDifficulty));
 
 	// Tonality state
 	const xp = $derived(progress.adaptive.xp);
@@ -60,13 +61,11 @@
 	}
 
 	function selectTonalityKey(key: PitchClass) {
-		if (!isKeyUnlocked(key, xp)) return;
 		const currentScale = settings.tonalityOverride?.scaleType ?? dailyTonality.scaleType;
 		setTonalityOverride({ key, scaleType: currentScale });
 	}
 
 	function selectTonalityScale(scaleType: ScaleType) {
-		if (!isScaleTypeUnlocked(scaleType, xp)) return;
 		const currentKey = settings.tonalityOverride?.key ?? dailyTonality.key;
 		setTonalityOverride({ key: currentKey, scaleType });
 	}
@@ -168,13 +167,12 @@
 					{@const isActive = activeTonality.key === key}
 					<button
 						onclick={() => selectTonalityKey(key)}
-						disabled={!unlocked}
 						class="relative rounded px-2.5 py-1 text-sm transition-colors
 							{isActive
 								? 'bg-[var(--color-accent)] text-white'
 								: unlocked
 									? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
-									: 'bg-[var(--color-bg-tertiary)] opacity-40 cursor-not-allowed'}"
+									: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
 						title={unlocked ? key : `Unlocks at ${xpRequiredForKey(key)} XP`}
 					>
 						{key}
@@ -195,13 +193,12 @@
 					{@const isActive = activeTonality.scaleType === scaleType}
 					<button
 						onclick={() => selectTonalityScale(scaleType)}
-						disabled={!unlocked}
 						class="relative rounded-full px-3 py-1 text-sm transition-colors
 							{isActive
 								? 'bg-[var(--color-accent)] text-white'
 								: unlocked
 									? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
-									: 'bg-[var(--color-bg-tertiary)] opacity-40 cursor-not-allowed'}"
+									: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
 						title={unlocked ? SCALE_TYPE_NAMES[scaleType] : `Unlocks at ${xpRequiredForScaleType(scaleType)} XP`}
 					>
 						{SCALE_TYPE_NAMES[scaleType]}
@@ -242,7 +239,6 @@
 
 		<!-- Difficulty -->
 		<div>
-			{@const diffDisp = difficultyDisplay(selectedDifficulty)}
 			<label class="mb-2 block text-sm font-medium">
 				Difficulty: <span style="color: {diffDisp.color}">{diffDisp.name}</span> ({selectedDifficulty})
 			</label>

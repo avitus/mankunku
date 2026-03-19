@@ -12,6 +12,7 @@ import type { PitchClass } from '$lib/types/music.ts';
 // ── Types ────────────────────────────────────────────────────────────
 
 export type ScaleType =
+	| 'major-pentatonic'
 	| 'major'
 	| 'blues'
 	| 'dorian'
@@ -39,6 +40,7 @@ export interface TonalityUnlockInfo {
 // ── Scale type display names ─────────────────────────────────────────
 
 export const SCALE_TYPE_NAMES: Record<ScaleType, string> = {
+	'major-pentatonic': 'Major Pentatonic',
 	'major': 'Major',
 	'blues': 'Blues',
 	'dorian': 'Dorian',
@@ -53,6 +55,7 @@ export const SCALE_TYPE_NAMES: Record<ScaleType, string> = {
 
 /** Maps ScaleType to the scale IDs used in the lick/scale catalog */
 export const SCALE_TYPE_TO_SCALE_ID: Record<ScaleType, string> = {
+	'major-pentatonic': 'pentatonic.major',
 	'major': 'major.ionian',
 	'blues': 'blues.minor',
 	'dorian': 'major.dorian',
@@ -74,6 +77,7 @@ export const KEY_UNLOCK_ORDER: PitchClass[] = [
 // ── Scale type unlock order ─────────────────────────────────────────
 
 export const SCALE_UNLOCK_ORDER: ScaleType[] = [
+	'major-pentatonic',
 	'major',
 	'blues',
 	'dorian',
@@ -113,6 +117,7 @@ const KEY_XP_THRESHOLDS: number[] = [
  * Index corresponds to SCALE_UNLOCK_ORDER.
  */
 const SCALE_XP_THRESHOLDS: number[] = [
+	0,      // major-pentatonic — always unlocked
 	0,      // major — always unlocked
 	0,      // blues — always unlocked
 	300,    // dorian

@@ -17,11 +17,11 @@ import {
 } from '$lib/tonality/tonality.ts';
 
 describe('tonality unlock system', () => {
-	it('unlocks C major and C blues at 0 XP', () => {
+	it('unlocks C major-pentatonic, C major, and C blues at 0 XP', () => {
 		const keys = getUnlockedKeys(0);
 		const scales = getUnlockedScaleTypes(0);
 		expect(keys).toEqual(['C']);
-		expect(scales).toEqual(['major', 'blues']);
+		expect(scales).toEqual(['major-pentatonic', 'major', 'blues']);
 	});
 
 	it('unlocks more keys as XP increases', () => {
@@ -76,10 +76,10 @@ describe('tonality unlock system', () => {
 });
 
 describe('daily tonality selection', () => {
-	it('returns C major or C blues at 0 XP', () => {
+	it('returns C major-pentatonic, C major, or C blues at 0 XP', () => {
 		const t = getDailyTonality('2026-03-19', 0);
 		expect(t.key).toBe('C');
-		expect(['major', 'blues']).toContain(t.scaleType);
+		expect(['major-pentatonic', 'major', 'blues']).toContain(t.scaleType);
 	});
 
 	it('is deterministic for the same date and XP', () => {
@@ -107,17 +107,18 @@ describe('daily tonality selection', () => {
 });
 
 describe('getUnlockedTonalities', () => {
-	it('returns 2 tonalities at 0 XP (C major, C blues)', () => {
+	it('returns 3 tonalities at 0 XP (C major-pentatonic, C major, C blues)', () => {
 		const t = getUnlockedTonalities(0);
-		expect(t).toHaveLength(2);
-		expect(t[0]).toEqual({ key: 'C', scaleType: 'major' });
-		expect(t[1]).toEqual({ key: 'C', scaleType: 'blues' });
+		expect(t).toHaveLength(3);
+		expect(t[0]).toEqual({ key: 'C', scaleType: 'major-pentatonic' });
+		expect(t[1]).toEqual({ key: 'C', scaleType: 'major' });
+		expect(t[2]).toEqual({ key: 'C', scaleType: 'blues' });
 	});
 
 	it('returns cross-product of unlocked keys and scales', () => {
-		// At 300 XP: keys=[C, G], scales=[major, blues, dorian] => 6 tonalities
+		// At 300 XP: keys=[C, G], scales=[major-pentatonic, major, blues, dorian] => 8 tonalities
 		const t = getUnlockedTonalities(300);
-		expect(t).toHaveLength(6);
+		expect(t).toHaveLength(8);
 	});
 });
 
