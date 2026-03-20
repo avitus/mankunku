@@ -10,10 +10,12 @@ import { MODAL_LICKS } from './modal.ts';
 import { RHYTHM_CHANGES_LICKS } from './rhythm-changes.ts';
 import { BALLAD_LICKS } from './ballad.ts';
 import { BEGINNER_CELL_LICKS } from './beginner-cells.ts';
+import { COMBINED_LICKS } from '$lib/phrases/combiner.ts';
 import type { Phrase } from '$lib/types/music.ts';
 
 export const ALL_CURATED_LICKS: Phrase[] = [
 	...BEGINNER_CELL_LICKS,
+	...COMBINED_LICKS,
 	...II_V_I_MAJOR_LICKS,
 	...BLUES_LICKS,
 	...BEBOP_LICKS,
