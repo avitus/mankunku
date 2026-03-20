@@ -37,7 +37,7 @@ const DEFAULT_RULES: ValidationRules = {
 	maxInterval: 14,
 	maxConsecutiveLeaps: 3,
 	minStepRatio: 0.3,
-	range: [44, 84], // covers tenor sax, alto sax, trumpet
+	range: [44, 75], // tenor sax range (concert Ab2–Eb5)
 	leapRecovery: true,
 	leapRecoveryThreshold: 7,
 	minDirectionChanges: 1,

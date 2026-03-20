@@ -105,7 +105,7 @@ export const RHYTHM_CHANGES_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 4], offset: [7, 4] }      // E4
 		],
 		harmony: RHYTHM_A_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 50, pitchComplexity: 43, rhythmComplexity: 60, lengthBars: 2 },
 		category: 'rhythm-changes',
 		tags: ['a-section', 'arpeggio', 'rhythm-changes'],
 		source: 'curated'
@@ -135,7 +135,7 @@ export const RHYTHM_CHANGES_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [3, 2] }      // C5
 		],
 		harmony: RHYTHM_A_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 52, pitchComplexity: 47, rhythmComplexity: 59, lengthBars: 2 },
 		category: 'rhythm-changes',
 		tags: ['a-section', 'bebop', 'chromatic'],
 		source: 'curated'
@@ -167,7 +167,7 @@ export const RHYTHM_CHANGES_LICKS: Phrase[] = [
 			{ pitch: 62, duration: [1, 4], offset: [7, 4] }      // D4
 		],
 		harmony: RHYTHM_BRIDGE_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 55, pitchComplexity: 48, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'rhythm-changes',
 		tags: ['bridge', 'dominant-cycle', 'rhythm-changes'],
 		source: 'curated'
@@ -197,7 +197,7 @@ export const RHYTHM_CHANGES_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [7, 4] }      // G4
 		],
 		harmony: RHYTHM_BRIDGE_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 63, pitchComplexity: 62, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'rhythm-changes',
 		tags: ['bridge', 'chromatic', 'approach-notes'],
 		source: 'curated'
@@ -231,7 +231,7 @@ export const RHYTHM_CHANGES_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 4], offset: [7, 4] }      // F4
 		],
 		harmony: RHYTHM_TURNAROUND,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 55, pitchComplexity: 48, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'rhythm-changes',
 		tags: ['turnaround', 'rhythm-changes'],
 		source: 'curated'
@@ -263,7 +263,7 @@ export const RHYTHM_CHANGES_LICKS: Phrase[] = [
 			{ pitch: 74, duration: [1, 4], offset: [7, 4] }      // D5
 		],
 		harmony: RHYTHM_A_HARMONY,
-		difficulty: { level: 6, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 54, pitchComplexity: 47, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'rhythm-changes',
 		tags: ['oleo', 'a-section', 'classic'],
 		source: 'curated'
@@ -290,7 +290,7 @@ export const RHYTHM_CHANGES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: RHYTHM_A_HARMONY,
-		difficulty: { level: 7, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 52, pitchComplexity: 46, rhythmComplexity: 59, lengthBars: 2 },
 		category: 'rhythm-changes',
 		tags: ['anthropology', 'parker', 'gillespie'],
 		source: 'curated'

@@ -71,7 +71,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 15, pitchComplexity: 18, rhythmComplexity: 5, lengthBars: 3 },
+		difficulty: { level: 23, pitchComplexity: 29, rhythmComplexity: 15, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['arpeggio', 'beginner'],
 		source: 'curated'
@@ -93,7 +93,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4 (3rd of C)
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 8, rhythmComplexity: 5, lengthBars: 3 },
+		difficulty: { level: 20, pitchComplexity: 24, rhythmComplexity: 15, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['scale', 'beginner'],
 		source: 'curated'
@@ -118,7 +118,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 12, pitchComplexity: 15, rhythmComplexity: 5, lengthBars: 3 },
+		difficulty: { level: 27, pitchComplexity: 38, rhythmComplexity: 15, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['guide-tones', 'voice-leading'],
 		source: 'curated'
@@ -149,7 +149,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 22, pitchComplexity: 18, rhythmComplexity: 20, lengthBars: 3 },
+		difficulty: { level: 50, pitchComplexity: 44, rhythmComplexity: 57, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['dorian', 'scale-run', 'swing'],
 		source: 'curated'
@@ -177,7 +177,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 26, pitchComplexity: 28, rhythmComplexity: 20, lengthBars: 3 },
+		difficulty: { level: 44, pitchComplexity: 37, rhythmComplexity: 54, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['digital-pattern', 'swing'],
 		source: 'curated'
@@ -205,7 +205,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 25, pitchComplexity: 28, rhythmComplexity: 18, lengthBars: 3 },
+		difficulty: { level: 45, pitchComplexity: 38, rhythmComplexity: 54, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['arpeggio', 'descending', 'swing'],
 		source: 'curated'
@@ -236,7 +236,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 35, pitchComplexity: 30, rhythmComplexity: 32, lengthBars: 3 },
+		difficulty: { level: 46, pitchComplexity: 42, rhythmComplexity: 52, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['syncopation', 'diatonic'],
 		source: 'curated'
@@ -265,7 +265,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 34, pitchComplexity: 28, rhythmComplexity: 30, lengthBars: 3 },
+		difficulty: { level: 46, pitchComplexity: 44, rhythmComplexity: 49, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['classic', 'melodic'],
 		source: 'curated'
@@ -298,7 +298,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 48, pitchComplexity: 42, rhythmComplexity: 32, lengthBars: 3 },
+		difficulty: { level: 52, pitchComplexity: 50, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['chromatic', 'approach-notes'],
 		source: 'curated'
@@ -327,7 +327,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 50, pitchComplexity: 45, rhythmComplexity: 32, lengthBars: 3 },
+		difficulty: { level: 42, pitchComplexity: 37, rhythmComplexity: 49, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['enclosure', 'approach-notes'],
 		source: 'curated'
@@ -361,7 +361,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 52, pitchComplexity: 45, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 59, pitchComplexity: 60, rhythmComplexity: 58, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['bebop-scale', 'descending'],
 		source: 'curated'
@@ -393,7 +393,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 55, pitchComplexity: 48, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 50, pitchComplexity: 44, rhythmComplexity: 58, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['digital-pattern', 'coltrane'],
 		source: 'curated'
@@ -420,7 +420,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
 		],
 		harmony: II_V_I_HALF_BAR,
-		difficulty: { level: 38, pitchComplexity: 30, rhythmComplexity: 32, lengthBars: 2 },
+		difficulty: { level: 37, pitchComplexity: 27, rhythmComplexity: 49, lengthBars: 2 },
 		category: 'ii-V-I-major',
 		tags: ['compact', 'descending'],
 		source: 'curated'
@@ -445,7 +445,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 1], offset: [1, 1] }      // C5
 		],
 		harmony: II_V_I_HALF_BAR,
-		difficulty: { level: 37, pitchComplexity: 30, rhythmComplexity: 30, lengthBars: 2 },
+		difficulty: { level: 37, pitchComplexity: 27, rhythmComplexity: 49, lengthBars: 2 },
 		category: 'ii-V-I-major',
 		tags: ['compact', 'ascending'],
 		source: 'curated'
@@ -478,7 +478,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 65, pitchComplexity: 58, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 52, pitchComplexity: 48, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['enclosure', 'chromatic'],
 		source: 'curated'
@@ -510,7 +510,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 68, pitchComplexity: 60, rhythmComplexity: 38, lengthBars: 3 },
+		difficulty: { level: 57, pitchComplexity: 56, rhythmComplexity: 58, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['parker', 'bebop', 'chromatic'],
 		source: 'curated'
@@ -543,7 +543,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 78, pitchComplexity: 72, rhythmComplexity: 40, lengthBars: 3 },
+		difficulty: { level: 61, pitchComplexity: 63, rhythmComplexity: 58, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['bebop', 'chromatic', 'turnaround'],
 		source: 'curated'
@@ -575,7 +575,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 1], offset: [2, 1] }      // G4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 62, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 53, pitchComplexity: 50, rhythmComplexity: 58, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['upper-structure', 'extensions'],
 		source: 'curated'
@@ -602,7 +602,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 24, pitchComplexity: 25, rhythmComplexity: 18, lengthBars: 3 },
+		difficulty: { level: 36, pitchComplexity: 32, rhythmComplexity: 41, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['melodic', 'ballad'],
 		source: 'curated'
@@ -624,7 +624,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 10, pitchComplexity: 15, rhythmComplexity: 5, lengthBars: 3 },
+		difficulty: { level: 24, pitchComplexity: 31, rhythmComplexity: 15, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['beginner', 'root-motion'],
 		source: 'curated'
@@ -658,7 +658,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 55, pitchComplexity: 48, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 60, pitchComplexity: 62, rhythmComplexity: 58, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['dexter-gordon', 'relaxed', 'chromatic'],
 		source: 'curated'
@@ -689,7 +689,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 48, pitchComplexity: 42, rhythmComplexity: 30, lengthBars: 3 },
+		difficulty: { level: 51, pitchComplexity: 48, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['cannonball', 'bluesy', 'swing'],
 		source: 'curated'
@@ -720,7 +720,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 60, pitchComplexity: 50, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 53, pitchComplexity: 52, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['delayed-resolution', 'chromatic', 'tension'],
 		source: 'curated'
@@ -752,7 +752,7 @@ export const II_V_I_MAJOR_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }      // E4
 		],
 		harmony: II_V_I_HARMONY,
-		difficulty: { level: 52, pitchComplexity: 45, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 52, pitchComplexity: 48, rhythmComplexity: 58, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['sonny-stitt', 'clean', 'bebop'],
 		source: 'curated'

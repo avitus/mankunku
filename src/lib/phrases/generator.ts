@@ -32,7 +32,7 @@ export interface GeneratorOptions {
 }
 
 const TENOR_SAX_LOW = 44;
-const TENOR_SAX_HIGH = 76;
+const TENOR_SAX_HIGH = 75;
 
 /** Counter for generating unique IDs */
 let idCounter = 0;

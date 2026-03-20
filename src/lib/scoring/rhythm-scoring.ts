@@ -2,9 +2,9 @@
  * Rhythm accuracy scoring for a single aligned note pair.
  *
  * timingError = |detected.onset - expected.onset| / beatDuration
- * rhythmScore = max(0, 1.0 - timingError * 2)
+ * rhythmScore = max(0, 1.0 - timingError * 1.5)
  *
- * Full marks within ~15% of a beat, zero at half a beat off.
+ * Full marks within ~11% of a beat, zero at two-thirds of a beat off.
  */
 
 import type { Note } from '$lib/types/music.ts';
@@ -34,5 +34,5 @@ export function scoreRhythm(expected: Note, detected: DetectedNote, tempo: numbe
 
 	const timingError = Math.abs(detected.onsetTime - expectedOnset) / beatDuration;
 
-	return Math.max(0, 1.0 - timingError * 2);
+	return Math.max(0, 1.0 - timingError * 1.5);
 }

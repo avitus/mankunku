@@ -228,6 +228,13 @@ function dateHash(dateStr: string): number {
  * The selection is deterministic: same date + same unlocked set = same tonality.
  * If no tonalities are unlocked (shouldn't happen), falls back to C Major.
  *
+ * At early levels (few unlocked tonalities), each tonality persists for
+ * multiple days so the player has time to internalize the key and scale
+ * before rotating:
+ *   - 1-3 tonalities: 3 days each
+ *   - 4-6 tonalities: 2 days each
+ *   - 7+  tonalities: 1 day each (daily rotation)
+ *
  * @param date - ISO date string (YYYY-MM-DD) or Date object
  * @param xp - User's current XP
  * @returns The tonality for that day
@@ -240,7 +247,20 @@ export function getDailyTonality(date: string | Date, xp: number): Tonality {
 		return { key: 'C', scaleType: 'major' };
 	}
 
-	const hash = dateHash(dateStr);
+	const daysPerTonality = unlocked.length <= 3 ? 3
+		: unlocked.length <= 6 ? 2
+		: 1;
+
+	if (daysPerTonality === 1) {
+		// Daily rotation for experienced players
+		const hash = dateHash(dateStr);
+		return unlocked[hash % unlocked.length];
+	}
+
+	// Multi-day blocks for early levels
+	const epochDay = Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 86400000);
+	const block = Math.floor(epochDay / daysPerTonality);
+	const hash = dateHash(String(block));
 	return unlocked[hash % unlocked.length];
 }
 

@@ -56,7 +56,7 @@
 	</div>
 
 	<!-- Per-note comparison -->
-	<NoteComparison noteResults={score.noteResults} />
+	<NoteComparison noteResults={score.noteResults} timing={score.timing} />
 
 	<!-- Actions -->
 	<div class="flex gap-2">

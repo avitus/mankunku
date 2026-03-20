@@ -8,6 +8,7 @@
 import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState } from '$lib/types/progress.ts';
 import type { Score } from '$lib/types/scoring.ts';
 import type { PhraseCategory, PitchClass } from '$lib/types/music.ts';
+import type { ScaleType } from '$lib/tonality/tonality.ts';
 import { createInitialAdaptiveState, processAttempt } from '$lib/difficulty/adaptive.ts';
 import { save, load } from '$lib/persistence/storage.ts';
 
@@ -56,24 +57,32 @@ export function saveProgress(): void {
  */
 export function recordAttempt(
 	phraseId: string,
+	phraseName: string,
 	category: PhraseCategory,
 	key: PitchClass,
 	tempo: number,
 	difficultyLevel: number,
-	score: Score
+	score: Score,
+	scaleType?: ScaleType
 ): void {
 	const session: SessionResult = {
 		id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
 		timestamp: Date.now(),
 		phraseId,
+		phraseName,
 		category,
 		key,
+		scaleType,
 		tempo,
 		difficultyLevel,
 		pitchAccuracy: score.pitchAccuracy,
 		rhythmAccuracy: score.rhythmAccuracy,
 		overall: score.overall,
-		grade: score.grade
+		grade: score.grade,
+		notesHit: score.notesHit,
+		notesTotal: score.notesTotal,
+		noteResults: score.noteResults,
+		timing: score.timing
 	};
 
 	// Add session (keep bounded)

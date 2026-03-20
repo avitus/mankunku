@@ -16,7 +16,7 @@ import type { Phrase } from '$lib/types/music.ts';
 import type { PlaybackOptions } from '$lib/types/audio.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
 import { initAudio } from './audio-context.ts';
-import { scheduleMetronome, disposeMetronome } from './metronome.ts';
+import { scheduleMetronome, disposeMetronome, warmUpMetronome } from './metronome.ts';
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
@@ -149,6 +149,11 @@ export async function loadInstrument(instrumentId: string = 'tenor-sax'): Promis
 
 	// Apply jazz expression effects to the loaded instrument
 	setupJazzExpression(audioCtx, instrumentId);
+
+	// Pre-create metronome synths so the audio graph is fully settled
+	// before the first Transport.start(). Without this, synth creation
+	// during playPhrase() destabilises timing on the first few beats.
+	await warmUpMetronome();
 }
 
 /**
@@ -179,12 +184,18 @@ function humanizeVelocity(baseVelocity: number, range: number = 8): number {
  *
  * @param ticks - Exact grid position in ticks
  * @param ppq - Pulses per quarter note (for scaling)
+ * @param tempo - Current tempo in BPM (jitter scales inversely with tempo)
  * @returns Humanized tick value (never negative)
  */
-function humanizeTiming(ticks: number, ppq: number): number {
-	// Max deviation of ~15ms worth of ticks at the current PPQ.
-	// At 480 PPQ / 120 BPM, one tick = ~1ms, so this is ~15 ticks.
-	const maxDeviationTicks = Math.round(ppq * 0.03);
+function humanizeTiming(ticks: number, ppq: number, tempo: number): number {
+	// Base jitter of ~7ms, scaled by tempo: less jitter at fast tempos,
+	// more room at slow tempos. Reference tempo is 120 BPM.
+	const baseMs = 6;
+	const tempoScale = 120 / tempo; // 1.0 at 120, 0.5 at 240, 2.0 at 60
+	const maxDeviationMs = baseMs * tempoScale;
+	// Convert ms to ticks: at `tempo` BPM, one beat = 60/tempo seconds = ppq ticks
+	const msPerTick = (60 / tempo / ppq) * 1000;
+	const maxDeviationTicks = Math.round(maxDeviationMs / msPerTick);
 	const deviation = (Math.random() - 0.5) * 2 * maxDeviationTicks;
 	return Math.max(0, Math.round(ticks + deviation));
 }
@@ -215,7 +226,7 @@ function phraseToEvents(phrase: Phrase, tempo: number, ppq: number) {
 	return pitched.map((note, index) => {
 		const quarterNotesFromStart = fractionToFloat(note.offset) * 4;
 		const rawTicks = Math.round(quarterNotesFromStart * ppq);
-		const ticks = humanizeTiming(rawTicks, ppq);
+		const ticks = humanizeTiming(rawTicks, ppq, tempo);
 		const durationBeats = fractionToFloat(note.duration) * 4;
 		const durationSeconds = durationBeats * (60 / tempo);
 
@@ -281,6 +292,10 @@ export async function playPhrase(
 	const Tone = await getTone();
 	const transport = Tone.getTransport();
 
+	// Ensure AudioContext is active — the browser may have suspended it
+	// between loadInstrument() and this call if no audio was playing.
+	await Tone.start();
+
 	// Clean up any previous playback
 	await stopPlayback();
 
@@ -303,9 +318,14 @@ export async function playPhrase(
 	}
 
 	const ppq = transport.PPQ;
+	const beatsPerBar = phrase.timeSignature[0];
+	const barTicks = beatsPerBar * ppq;
 	const events = phraseToEvents(phrase, options.tempo, ppq);
 
-	// Schedule phrase notes with jazz expression
+	// Schedule phrase notes with jazz expression.
+	// Offset by 1 bar so the metronome plays a count-in first — this lets
+	// the Transport's audio scheduling stabilise before the melody starts,
+	// preventing the perceived tempo glitch on the first phrase.
 	currentPart = new Tone.Part((time, event) => {
 		instrument!.start({
 			note: event.midi,
@@ -316,22 +336,23 @@ export async function playPhrase(
 			detune: event.detune
 		});
 	}, events);
-	currentPart.start(0);
+	currentPart.start(`${barTicks}i`);
 
 	// Schedule metronome if enabled
 	if (options.metronomeEnabled) {
 		if (keepMetronome) {
 			// Loop indefinitely — will keep playing during recording
-			await scheduleMetronome(phrase.timeSignature[0], null);
+			await scheduleMetronome(beatsPerBar, null);
 		} else {
-			const bars = getPhraseBars(phrase);
-			await scheduleMetronome(phrase.timeSignature[0], bars);
+			const bars = getPhraseBars(phrase) + 1; // +1 for count-in bar
+			await scheduleMetronome(beatsPerBar, bars);
 		}
 	}
 
-	// Schedule end-of-phrase notification
+	// Schedule end-of-phrase notification (account for count-in offset)
 	const totalDuration = getPhraseDuration(phrase, options.tempo);
 	const totalTicks = Math.round((totalDuration / (60 / options.tempo)) * ppq);
+	const endTick = barTicks + totalTicks + ppq;
 
 	return new Promise<void>((resolve) => {
 		isPlaying = true;
@@ -345,17 +366,22 @@ export async function playPhrase(
 				}
 				instrument?.stop();
 				resolve();
-			}, `${totalTicks + ppq}i`);
+			}, `${endTick}i`);
 		} else {
 			// Full stop after phrase ends
 			transport.schedule(() => {
 				stopPlayback();
 				resolve();
-			}, `${totalTicks + ppq}i`);
+			}, `${endTick}i`);
 		}
 
 		onStopCallback = resolve;
-		transport.start();
+
+		// Start with a small lookahead so the Web Audio scheduler has time
+		// to buffer the first events. Without this, the first few beats
+		// can jitter — especially on the very first play when the audio
+		// system is still settling after mic capture opens full-duplex mode.
+		transport.start('+0.1');
 	});
 }
 
@@ -385,6 +411,74 @@ export async function stopPlayback(): Promise<void> {
 		onStopCallback = null;
 	}
 	isPlaying = false;
+}
+
+/**
+ * Schedule a phrase on an already-running transport (metronome keeps ticking).
+ * Aligns to the next bar downbeat so the phrase starts on a natural boundary.
+ * Returns a promise that resolves when the phrase finishes playing.
+ */
+export async function scheduleNextPhrase(
+	phrase: Phrase,
+	options: PlaybackOptions
+): Promise<void> {
+	if (!instrument) {
+		throw new Error('Instrument not loaded. Call loadInstrument() first.');
+	}
+
+	const Tone = await getTone();
+	const transport = Tone.getTransport();
+	const ppq = transport.PPQ;
+
+	// Ensure BPM stays correct on the running transport
+	transport.bpm.value = options.tempo;
+
+	// Dispose previous phrase part (metronome sequence is untouched)
+	if (currentPart) {
+		currentPart.dispose();
+		currentPart = null;
+	}
+	instrument.stop();
+
+	// Find the next bar downbeat with at least 1 beat of lead time
+	const beatsPerBar = phrase.timeSignature[0];
+	const ticksPerBar = beatsPerBar * ppq;
+	const currentTicks = transport.ticks;
+	let nextBarTicks = Math.ceil(currentTicks / ticksPerBar) * ticksPerBar;
+	if (nextBarTicks - currentTicks < ppq) {
+		nextBarTicks += ticksPerBar;
+	}
+
+	// Apply swing (transport already has swing configured from initial playPhrase)
+	const events = phraseToEvents(phrase, options.tempo, ppq);
+
+	currentPart = new Tone.Part((time, event) => {
+		instrument!.start({
+			note: event.midi,
+			velocity: event.velocity,
+			duration: event.duration,
+			time,
+			detune: event.detune
+		});
+	}, events);
+	currentPart.start(`${nextBarTicks}i`);
+
+	// Schedule end-of-phrase notification
+	const totalDuration = getPhraseDuration(phrase, options.tempo);
+	const phraseTicks = Math.round((totalDuration / (60 / options.tempo)) * ppq);
+	const endTicks = nextBarTicks + phraseTicks + ppq;
+
+	return new Promise<void>((resolve) => {
+		transport.schedule(() => {
+			if (currentPart) {
+				currentPart.dispose();
+				currentPart = null;
+			}
+			instrument?.stop();
+			resolve();
+		}, `${endTicks}i`);
+		onStopCallback = resolve;
+	});
 }
 
 /** Whether playback is currently active */

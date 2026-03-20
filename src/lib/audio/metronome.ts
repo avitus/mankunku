@@ -10,6 +10,7 @@ type ToneModule = typeof import('tone');
 let tone: ToneModule | null = null;
 let rideSynth: InstanceType<ToneModule['NoiseSynth']> | null = null;
 let hihatSynth: InstanceType<ToneModule['NoiseSynth']> | null = null;
+let kickSynth: InstanceType<ToneModule['MembraneSynth']> | null = null;
 let rideFilter: InstanceType<ToneModule['Filter']> | null = null;
 let hihatFilter: InstanceType<ToneModule['Filter']> | null = null;
 let gainNode: InstanceType<ToneModule['Gain']> | null = null;
@@ -39,6 +40,22 @@ async function ensureSynths(): Promise<void> {
 		noise: { type: 'pink' },
 		envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.02 }
 	}).connect(hihatFilter);
+
+	// Kick drum on beat 1: short membrane thump to mark the downbeat
+	kickSynth = new Tone.MembraneSynth({
+		pitchDecay: 0.04,
+		octaves: 6,
+		envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 }
+	}).connect(gainNode);
+}
+
+/**
+ * Pre-create metronome synths so the audio graph is stable before the
+ * first beat needs to fire. Call this during instrument loading, well
+ * before the first playPhrase().
+ */
+export async function warmUpMetronome(): Promise<void> {
+	await ensureSynths();
 }
 
 /**
@@ -72,8 +89,13 @@ export async function scheduleMetronome(
 
 		sequence = new Tone.Sequence(
 			(time, beat) => {
-				// Ride on every beat — accent beat 1
-				rideSynth!.triggerAttackRelease('16n', time, beat === 0 ? 0.7 : 0.4);
+				if (beat === 0) {
+					// Kick drum on the downbeat
+					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.7);
+				} else {
+					// Ride cymbal on beats 2, 3, 4
+					rideSynth!.triggerAttackRelease('16n', time, 0.4);
+				}
 				// Hi-hat chick on 2 & 4
 				if (beat === 1 || beat === 3) {
 					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
@@ -88,7 +110,14 @@ export async function scheduleMetronome(
 		// Infinite loop for recording phase
 		sequence = new Tone.Sequence(
 			(time, beat) => {
-				rideSynth!.triggerAttackRelease('16n', time, beat === 0 ? 0.7 : 0.4);
+				if (beat === 0) {
+					// Kick drum on the downbeat
+					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.7);
+				} else {
+					// Ride cymbal on beats 2, 3, 4
+					rideSynth!.triggerAttackRelease('16n', time, 0.4);
+				}
+				// Hi-hat chick on 2 & 4
 				if (beat === 1 || beat === 3) {
 					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
 				}

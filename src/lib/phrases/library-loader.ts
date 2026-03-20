@@ -8,6 +8,9 @@
 import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music.ts';
 import { PITCH_CLASSES } from '$lib/types/music.ts';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index.ts';
+import { getUserLicks } from '$lib/persistence/user-licks.ts';
+import { getScale } from '$lib/music/scales.ts';
+import { realizeScale } from '$lib/music/keys.ts';
 
 export interface LibraryQuery {
 	category?: PhraseCategory;
@@ -30,31 +33,38 @@ for (const lick of ALL_CURATED_LICKS) {
 	byCategory.set(lick.category, arr);
 }
 
-/** Get all licks in the library */
+/** Get all licks in the library (curated + user-recorded) */
 export function getAllLicks(): Phrase[] {
-	return ALL_CURATED_LICKS;
+	return [...ALL_CURATED_LICKS, ...getUserLicks()];
 }
 
 /** Get a single lick by ID */
 export function getLickById(id: string): Phrase | undefined {
-	return byId.get(id);
+	return byId.get(id) ?? getUserLicks().find((l) => l.id === id);
 }
 
 /** Get all licks in a category */
 export function getLicksByCategory(category: PhraseCategory): Phrase[] {
-	return byCategory.get(category) ?? [];
+	const curated = byCategory.get(category) ?? [];
+	if (category === 'user') return getUserLicks();
+	return curated;
 }
 
 /** Get all available categories with their lick counts */
 export function getCategories(): { category: PhraseCategory; count: number }[] {
-	return Array.from(byCategory.entries())
-		.map(([category, licks]) => ({ category, count: licks.length }))
+	const all = getAllLicks();
+	const counts = new Map<PhraseCategory, number>();
+	for (const lick of all) {
+		counts.set(lick.category, (counts.get(lick.category) ?? 0) + 1);
+	}
+	return Array.from(counts.entries())
+		.map(([category, count]) => ({ category, count }))
 		.sort((a, b) => b.count - a.count);
 }
 
 /** Query licks with multiple filters */
 export function queryLicks(query: LibraryQuery): Phrase[] {
-	let results = ALL_CURATED_LICKS;
+	let results = getAllLicks();
 
 	if (query.category) {
 		results = results.filter((l) => l.category === query.category);
@@ -88,12 +98,12 @@ export function queryLicks(query: LibraryQuery): Phrase[] {
 
 /** Middle C (C4) */
 const CENTRAL_RANGE_LOW = 60;
-/** C6 — two octaves above middle C */
-const CENTRAL_RANGE_HIGH = 84;
+/** Concert Eb5 — tenor sax high F (written) */
+const CENTRAL_RANGE_HIGH = 75;
 
 /**
- * Find the octave shift that places the most notes within the central range
- * (MIDI 60–84). When two shifts tie, prefer the one whose average pitch is
+ * Find the octave shift that places the most notes within the tenor sax range
+ * (MIDI 60–75). When two shifts tie, prefer the one whose average pitch is
  * closest to the midpoint of the range.
  */
 function bestOctaveShift(midiNotes: number[]): number {
@@ -133,8 +143,8 @@ function bestOctaveShift(midiNotes: number[]): number {
  *
  * All licks are stored in concert C. This shifts every pitched note
  * and harmony root by the interval from C to the target key, then
- * applies an octave adjustment to keep notes as close to the central
- * instrument range (C4–C6) as possible.
+ * applies an octave adjustment to keep notes within tenor sax range
+ * (C4–Eb5, MIDI 60–75) as much as possible.
  */
 export function transposeLick(lick: Phrase, targetKey: PitchClass): Phrase {
 	if (targetKey === 'C') return lick;
@@ -169,6 +179,85 @@ export function transposeLick(lick: Phrase, targetKey: PitchClass): Phrase {
 				root: transposePC(h.chord.root),
 				bass: h.chord.bass ? transposePC(h.chord.bass) : undefined
 			}
+		}))
+	};
+}
+
+/**
+ * Cumulative semitone offsets for each mode of the major scale.
+ * Mode 1 (Ionian) = 0, Mode 2 (Dorian) = 2, etc.
+ * Used to find the parent major key: parentKey = modalRoot - offset.
+ */
+const MAJOR_MODE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
+
+/**
+ * Transpose a lick for a given tonality (key + scale).
+ *
+ * For major-family modes, this transposes to the parent major key so the
+ * pitch classes are correct by construction. A Dorian (mode 2 of G major)
+ * transposes to G, producing G A B C D E F# — exactly the A Dorian notes.
+ *
+ * For non-major scales (blues, melodic minor, etc.), transposes to the key
+ * then snaps out-of-scale notes to the nearest scale tone.
+ */
+export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId: string): Phrase {
+	const scaleDef = getScale(scaleId);
+
+	if (scaleDef?.family === 'major' && scaleDef.mode !== null) {
+		// Compute parent major key from mode number.
+		// e.g. A Dorian: A(9) - modeOffset(2) = G(7)
+		const keyIdx = PITCH_CLASSES.indexOf(key);
+		const parentIdx = ((keyIdx - MAJOR_MODE_OFFSETS[scaleDef.mode - 1]) % 12 + 12) % 12;
+		const parentKey = PITCH_CLASSES[parentIdx];
+
+		const transposed = transposeLick(lick, parentKey);
+		// Set key to modal root (not parent) for display and progress tracking
+		return { ...transposed, id: `${lick.id}_${key}`, key };
+	}
+
+	// Non-major scales: transpose to key, then snap to scale
+	const transposed = transposeLick(lick, key);
+	return snapLickToScale(transposed, key, scaleId);
+}
+
+/**
+ * Snap a MIDI pitch to the nearest scale tone, preferring downward (flat)
+ * when equidistant. Returns the adjusted MIDI value.
+ */
+function snapMidiToScale(midi: number, scalePCs: Set<number>): number {
+	const pc = midi % 12;
+	if (scalePCs.has(pc)) return midi;
+
+	for (let offset = 1; offset <= 6; offset++) {
+		const below = ((pc - offset) % 12 + 12) % 12;
+		const above = (pc + offset) % 12;
+		if (scalePCs.has(below)) return midi - offset;
+		if (scalePCs.has(above)) return midi + offset;
+	}
+	return midi;
+}
+
+/**
+ * Snap a transposed lick to fit a target scale.
+ *
+ * Used for non-major-family scales (blues, melodic minor, etc.) where the
+ * pitch classes genuinely differ from any major mode.
+ */
+export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string): Phrase {
+	const scaleDef = getScale(scaleId);
+	if (!scaleDef) return lick;
+
+	const scalePCs = new Set(realizeScale(key, scaleDef.intervals));
+
+	const pitchedNotes = lick.notes.filter(n => n.pitch !== null);
+	const allInScale = pitchedNotes.every(n => scalePCs.has(n.pitch! % 12));
+	if (allInScale) return lick;
+
+	return {
+		...lick,
+		notes: lick.notes.map(n => ({
+			...n,
+			pitch: n.pitch !== null ? snapMidiToScale(n.pitch, scalePCs) : null
 		}))
 	};
 }

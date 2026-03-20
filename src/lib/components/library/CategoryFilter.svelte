@@ -24,7 +24,8 @@
 		'digital-patterns': 'Digital',
 		'approach-notes': 'Approach',
 		'turnarounds': 'Turnarounds',
-		'rhythm-changes': 'Rhythm Changes'
+		'rhythm-changes': 'Rhythm Changes',
+		'user': 'My Licks'
 	};
 
 	const total = $derived(categories.reduce((sum, c) => sum + c.count, 0));

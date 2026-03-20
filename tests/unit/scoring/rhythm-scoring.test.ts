@@ -51,11 +51,20 @@ describe('scoreRhythm — unit', () => {
 		expect(scoreRhythm(note, det, 120)).toBeCloseTo(1.0, 5);
 	});
 
-	it('gives 0 when half a beat off', () => {
+	it('gives 0.25 when half a beat off', () => {
 		const note: Note = { pitch: 60, duration: [1, 4], offset: [1, 4] };
 		const det: DetectedNote = { midi: 60, cents: 0, onsetTime: 0.75, duration: 0.4, clarity: 0.95 };
 		// Expected onset = 0.5s, detected = 0.75s, error = 0.25s / 0.5s = 0.5 beats
-		expect(scoreRhythm(note, det, 120)).toBeCloseTo(0.0, 5);
+		// Score = max(0, 1.0 - 0.5 * 1.5) = 0.25
+		expect(scoreRhythm(note, det, 120)).toBeCloseTo(0.25, 5);
+	});
+
+	it('gives 0 when two-thirds of a beat off', () => {
+		const note: Note = { pitch: 60, duration: [1, 4], offset: [1, 4] };
+		// Expected onset = 0.5s, 2/3 beat = 0.333s offset → detected at 0.833s
+		const det: DetectedNote = { midi: 60, cents: 0, onsetTime: 0.5 + (2 / 3) * 0.5, duration: 0.4, clarity: 0.95 };
+		// Error = 0.333s / 0.5s = 0.667 beats → score = max(0, 1.0 - 0.667 * 1.5) = 0
+		expect(scoreRhythm(note, det, 120)).toBeCloseTo(0.0, 3);
 	});
 
 	it('scores bar-2 note the same as bar-1 note for identical timing error', () => {

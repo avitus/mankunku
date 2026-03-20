@@ -90,7 +90,7 @@ export function multiplyFraction(f: [number, number], scalar: number): [number, 
 	return [num / g, f[1] / g];
 }
 
-function gcd(a: number, b: number): number {
+export function gcd(a: number, b: number): number {
 	while (b) { [a, b] = [b, a % b]; }
 	return a;
 }

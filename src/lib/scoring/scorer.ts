@@ -13,7 +13,7 @@
 
 import type { Phrase, Note } from '$lib/types/music.ts';
 import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Score, NoteResult } from '$lib/types/scoring.ts';
+import type { Score, NoteResult, TimingDiagnostics } from '$lib/types/scoring.ts';
 import { alignNotes } from './alignment.ts';
 import { scorePitch } from './pitch-scoring.ts';
 import { scoreRhythm } from './rhythm-scoring.ts';
@@ -123,6 +123,8 @@ export function scoreAttempt(
 	}));
 
 	const noteResults: NoteResult[] = [];
+	const perNoteOffsetMs: (number | null)[] = [];
+	const signedOffsets: number[] = [];
 	let pitchSum = 0;
 	let rhythmSum = 0;
 	let notesHit = 0;
@@ -134,6 +136,12 @@ export function scoreAttempt(
 			const det = corrected[pair.detectedIndex];
 			const pitch = Math.min(1.0, scorePitch(exp, det));
 			const rhythm = scoreRhythm(exp, det, tempo, swing);
+
+			// Signed offset: positive = late, negative = early
+			const expOnset = expectedOnsetSeconds(exp, tempo, swing);
+			const offsetMs = (det.onsetTime - expOnset) * 1000;
+			perNoteOffsetMs.push(offsetMs);
+			signedOffsets.push(offsetMs);
 
 			if (exp.pitch === det.midi) notesHit++;
 			pitchSum += pitch;
@@ -151,6 +159,7 @@ export function scoreAttempt(
 		} else if (pair.expectedIndex !== null) {
 			const exp = expected[pair.expectedIndex];
 			scoredCount++;
+			perNoteOffsetMs.push(null);
 
 			noteResults.push({
 				expected: exp,
@@ -161,6 +170,8 @@ export function scoreAttempt(
 				extra: false
 			});
 		} else if (pair.detectedIndex !== null) {
+			perNoteOffsetMs.push(null);
+
 			noteResults.push({
 				expected: expected[0],
 				detected: corrected[pair.detectedIndex],
@@ -176,6 +187,22 @@ export function scoreAttempt(
 	const rhythmAccuracy = scoredCount > 0 ? rhythmSum / scoredCount : 0;
 	const overall = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4;
 
+	// Timing diagnostics (computed on latency-corrected offsets)
+	const meanOffsetMs = signedOffsets.length > 0
+		? signedOffsets.reduce((a, b) => a + b, 0) / signedOffsets.length
+		: 0;
+	const medianOffsetMs = median(signedOffsets);
+	const variance = signedOffsets.length > 0
+		? signedOffsets.reduce((sum, o) => sum + (o - meanOffsetMs) ** 2, 0) / signedOffsets.length
+		: 0;
+	const timing: TimingDiagnostics = {
+		meanOffsetMs,
+		medianOffsetMs,
+		stdDevMs: Math.sqrt(variance),
+		latencyCorrectionMs: latencyCorrection * 1000,
+		perNoteOffsetMs
+	};
+
 	return {
 		pitchAccuracy,
 		rhythmAccuracy,
@@ -183,6 +210,7 @@ export function scoreAttempt(
 		grade: scoreToGrade(overall),
 		noteResults,
 		notesHit,
-		notesTotal: expected.length
+		notesTotal: expected.length,
+		timing
 	};
 }

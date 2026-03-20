@@ -66,7 +66,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 24, pitchComplexity: 28, rhythmComplexity: 8, lengthBars: 3 },
+		difficulty: { level: 28, pitchComplexity: 39, rhythmComplexity: 15, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['arpeggio', 'minor'],
 		source: 'curated'
@@ -92,7 +92,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 28, pitchComplexity: 28, rhythmComplexity: 20, lengthBars: 3 },
+		difficulty: { level: 49, pitchComplexity: 50, rhythmComplexity: 49, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['natural-minor', 'descending'],
 		source: 'curated'
@@ -119,7 +119,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 38, pitchComplexity: 42, rhythmComplexity: 20, lengthBars: 3 },
+		difficulty: { level: 48, pitchComplexity: 47, rhythmComplexity: 49, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['harmonic-minor', 'altered'],
 		source: 'curated'
@@ -147,7 +147,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 52, pitchComplexity: 55, rhythmComplexity: 32, lengthBars: 3 },
+		difficulty: { level: 56, pitchComplexity: 60, rhythmComplexity: 52, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['altered', 'scale-run'],
 		source: 'curated'
@@ -175,7 +175,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 55, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 53, pitchComplexity: 57, rhythmComplexity: 49, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['enclosure', 'minor'],
 		source: 'curated'
@@ -200,7 +200,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 1], offset: [1, 1] }      // G4
 		],
 		harmony: II_V_I_MINOR_HALF,
-		difficulty: { level: 50, pitchComplexity: 55, rhythmComplexity: 32, lengthBars: 2 },
+		difficulty: { level: 42, pitchComplexity: 36, rhythmComplexity: 49, lengthBars: 2 },
 		category: 'ii-V-I-minor',
 		tags: ['compact', 'altered'],
 		source: 'curated'
@@ -229,7 +229,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 62, pitchComplexity: 58, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 53, pitchComplexity: 50, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['melodic-minor', 'approach'],
 		source: 'curated'
@@ -259,7 +259,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 68, pitchComplexity: 70, rhythmComplexity: 38, lengthBars: 3 },
+		difficulty: { level: 53, pitchComplexity: 52, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['diminished', 'passing-tones'],
 		source: 'curated'
@@ -281,7 +281,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 16, pitchComplexity: 22, rhythmComplexity: 5, lengthBars: 3 },
+		difficulty: { level: 22, pitchComplexity: 28, rhythmComplexity: 15, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['guide-tones', 'beginner', 'minor'],
 		source: 'curated'
@@ -310,7 +310,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 66, pitchComplexity: 68, rhythmComplexity: 38, lengthBars: 3 },
+		difficulty: { level: 59, pitchComplexity: 62, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['chromatic', 'minor', 'bebop'],
 		source: 'curated'
@@ -334,7 +334,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 22, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 2 },
+		difficulty: { level: 47, pitchComplexity: 39, rhythmComplexity: 56, lengthBars: 2 },
 		category: 'ii-V-I-minor',
 		tags: ['pentatonic', 'minor', 'swing'],
 		source: 'curated'
@@ -363,7 +363,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 80, pitchComplexity: 75, rhythmComplexity: 40, lengthBars: 3 },
+		difficulty: { level: 56, pitchComplexity: 57, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['tritone-sub', 'advanced', 'minor'],
 		source: 'curated'
@@ -396,7 +396,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 58, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 61, pitchComplexity: 66, rhythmComplexity: 55, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['woody-shaw', 'wide-intervals', 'altered'],
 		source: 'curated'
@@ -426,7 +426,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }      // C4
 		],
 		harmony: II_V_I_MINOR_HARMONY,
-		difficulty: { level: 65, pitchComplexity: 62, rhythmComplexity: 35, lengthBars: 3 },
+		difficulty: { level: 58, pitchComplexity: 62, rhythmComplexity: 52, lengthBars: 3 },
 		category: 'ii-V-I-minor',
 		tags: ['joe-henderson', 'angular', 'intervallic'],
 		source: 'curated'
@@ -451,7 +451,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 1], offset: [1, 1] }      // C5
 		],
 		harmony: II_V_I_MINOR_HALF,
-		difficulty: { level: 55, pitchComplexity: 58, rhythmComplexity: 32, lengthBars: 2 },
+		difficulty: { level: 45, pitchComplexity: 41, rhythmComplexity: 49, lengthBars: 2 },
 		category: 'ii-V-I-minor',
 		tags: ['compact', 'chromatic', 'altered'],
 		source: 'curated'

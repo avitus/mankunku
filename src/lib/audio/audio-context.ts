@@ -26,6 +26,14 @@ export async function initAudio(): Promise<AudioContext> {
 	const Tone = await getTone();
 	if (!initialized) {
 		await Tone.start();
+
+		// Make the scheduling worker tick more frequently (every 25 ms
+		// instead of the default 50 ms). This gives the scheduler twice
+		// as many chances to pre-schedule events within the lookAhead
+		// window, reducing beat jitter without the side-effect of firing
+		// Transport.schedule callbacks too far ahead of time.
+		Tone.getContext().updateInterval = 0.025;
+
 		initialized = true;
 	}
 	return Tone.getContext().rawContext as AudioContext;

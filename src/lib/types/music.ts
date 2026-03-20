@@ -13,7 +13,8 @@ export type ChordQuality =
 export type PhraseCategory =
 	| 'ii-V-I-major' | 'ii-V-I-minor' | 'blues' | 'bebop-lines'
 	| 'pentatonic' | 'enclosures' | 'digital-patterns' | 'approach-notes'
-	| 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal';
+	| 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal'
+	| 'user';
 
 export type Articulation = 'normal' | 'accent' | 'ghost' | 'bend-up' | 'staccato' | 'legato';
 

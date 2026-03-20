@@ -65,7 +65,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 2] }   // E4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 2, pitchComplexity: 4, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -80,7 +80,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 10, pitchComplexity: 19, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -95,7 +95,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 7, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -125,7 +125,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [3, 4], offset: [1, 4] }   // E4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'interval', 'descending'],
 		source: 'curated'
@@ -155,7 +155,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -170,7 +170,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [3, 4], offset: [1, 4] }   // G4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 9, pitchComplexity: 7, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -204,7 +204,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 2], offset: [1, 2] }   // Eb4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 6, pitchComplexity: 11, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -219,7 +219,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 6, pitchComplexity: 11, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -234,7 +234,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [3, 4], offset: [1, 4] }   // G4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 5, pitchComplexity: 1, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -249,7 +249,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 2], offset: [1, 2] }   // Bb4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 6, pitchComplexity: 11, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -264,7 +264,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] }   // C5
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 11, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -279,7 +279,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 2], offset: [1, 2] }   // Bb4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 6, pitchComplexity: 11, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'descending'],
 		source: 'curated'
@@ -294,7 +294,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [3, 4], offset: [1, 4] }   // G4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 11, pitchComplexity: 11, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'descending'],
 		source: 'curated'
@@ -324,7 +324,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] }   // G4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 15, pitchComplexity: 19, rhythmComplexity: 10, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -339,7 +339,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 15, rhythmComplexity: 1, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
 		source: 'curated'
@@ -359,7 +359,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 2] }   // E4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -375,7 +375,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -391,7 +391,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 2], offset: [1, 2] }   // A4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -407,7 +407,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [1, 2] }   // C5
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -423,7 +423,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [1, 2] }   // C4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'descending'],
 		source: 'curated'
@@ -439,7 +439,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 62, duration: [1, 4], offset: [3, 4] }   // D4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'descending'],
 		source: 'curated'
@@ -455,7 +455,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 2] }   // E4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'descending'],
 		source: 'curated'
@@ -471,7 +471,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 10, pitchComplexity: 7, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'arpeggio', 'ascending'],
 		source: 'curated'
@@ -487,7 +487,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] }   // C4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 10, pitchComplexity: 7, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'arpeggio', 'descending'],
 		source: 'curated'
@@ -503,7 +503,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 2] }   // E4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'cell', 'approach'],
 		source: 'curated'
@@ -523,7 +523,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -539,7 +539,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -555,7 +555,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 2], offset: [1, 2] }   // Bb4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -571,7 +571,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [1, 2] }   // C5
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'ascending'],
 		source: 'curated'
@@ -587,7 +587,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'descending'],
 		source: 'curated'
@@ -603,7 +603,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [3, 4] }   // Eb4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'descending'],
 		source: 'curated'
@@ -619,7 +619,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'descending'],
 		source: 'curated'
@@ -635,7 +635,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 15, pitchComplexity: 14, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'arpeggio', 'ascending'],
 		source: 'curated'
@@ -651,7 +651,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [1, 2] }   // C4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 15, pitchComplexity: 14, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'arpeggio', 'descending'],
 		source: 'curated'
@@ -667,7 +667,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [1, 2] }   // C4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'cell', 'descending'],
 		source: 'curated'
@@ -687,7 +687,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 2] }   // E4
 		],
 		harmony: CBLUES_1BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'blues',
 		tags: ['beginner', 'blues-scale', 'cell', 'blue-note'],
 		source: 'curated'
@@ -703,7 +703,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [1, 2] }   // C4
 		],
 		harmony: CBLUES_1BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'blues',
 		tags: ['beginner', 'blues-scale', 'cell', 'blue-note'],
 		source: 'curated'
@@ -719,7 +719,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CBLUES_1BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'blues',
 		tags: ['beginner', 'blues-scale', 'cell', 'blue-note'],
 		source: 'curated'
@@ -735,7 +735,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
 		],
 		harmony: CBLUES_1BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 15, pitchComplexity: 16, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'blues',
 		tags: ['beginner', 'blues-scale', 'cell', 'chromatic'],
 		source: 'curated'
@@ -751,7 +751,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CBLUES_1BAR,
-		difficulty: { level: 2, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 15, pitchComplexity: 16, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'blues',
 		tags: ['beginner', 'blues-scale', 'cell', 'chromatic'],
 		source: 'curated'
@@ -771,7 +771,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [1, 2] }   // C4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'neighbor-tone', 'cell', 'ornament'],
 		source: 'curated'
@@ -787,7 +787,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [1, 2] }   // E4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'neighbor-tone', 'cell', 'ornament'],
 		source: 'curated'
@@ -803,7 +803,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 8, pitchComplexity: 3, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'neighbor-tone', 'cell', 'ornament'],
 		source: 'curated'
@@ -819,7 +819,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 2], offset: [1, 2] }   // Bb4
 		],
 		harmony: CMIN_1BAR,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 17, pitchComplexity: 18, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'minor-pentatonic', 'neighbor-tone', 'cell'],
 		source: 'curated'
@@ -835,7 +835,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [1, 2] }   // C5
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 1 },
+		difficulty: { level: 12, pitchComplexity: 10, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'arpeggio', 'ascending'],
 		source: 'curated'

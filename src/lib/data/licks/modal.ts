@@ -60,7 +60,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 4], offset: [7, 4] }      // G4
 		],
 		harmony: DORIAN_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 24, pitchComplexity: 29, rhythmComplexity: 17, lengthBars: 2 },
 		category: 'modal',
 		tags: ['miles-davis', 'dorian', 'so-what'],
 		source: 'curated'
@@ -85,7 +85,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: DORIAN_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 47, pitchComplexity: 39, rhythmComplexity: 56, lengthBars: 2 },
 		category: 'modal',
 		tags: ['dorian', 'characteristic-note', 'swing'],
 		source: 'curated'
@@ -112,7 +112,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [7, 4] }      // C4
 		],
 		harmony: DORIAN_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 53, pitchComplexity: 50, rhythmComplexity: 56, lengthBars: 2 },
 		category: 'modal',
 		tags: ['coltrane', 'dorian', 'pentatonic'],
 		source: 'curated'
@@ -136,7 +136,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 4], offset: [7, 4] }      // E4
 		],
 		harmony: LYDIAN_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 23, pitchComplexity: 30, rhythmComplexity: 14, lengthBars: 2 },
 		category: 'modal',
 		tags: ['lydian', 'characteristic-note', 'floating'],
 		source: 'curated'
@@ -161,7 +161,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [3, 2] }      // C5
 		],
 		harmony: LYDIAN_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 4, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 50, pitchComplexity: 42, rhythmComplexity: 61, lengthBars: 2 },
 		category: 'modal',
 		tags: ['lydian', 'descending', 'ascending'],
 		source: 'curated'
@@ -187,7 +187,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [7, 4] }      // C4
 		],
 		harmony: MIXOLYDIAN_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 42, pitchComplexity: 37, rhythmComplexity: 47, lengthBars: 2 },
 		category: 'modal',
 		tags: ['mixolydian', 'groove', 'dominant'],
 		source: 'curated'
@@ -211,7 +211,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 2], offset: [3, 2] }      // Eb4
 		],
 		harmony: DORIAN_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 4, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 44, pitchComplexity: 36, rhythmComplexity: 55, lengthBars: 2 },
 		category: 'modal',
 		tags: ['wayne-shorter', 'angular', 'dorian'],
 		source: 'curated'
@@ -241,7 +241,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 4], offset: [7, 4] }      // Eb4
 		],
 		harmony: DORIAN_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 57, pitchComplexity: 55, rhythmComplexity: 60, lengthBars: 2 },
 		category: 'modal',
 		tags: ['coltrane', 'impressions', 'dorian'],
 		source: 'curated'
@@ -266,7 +266,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [7, 4] }      // C4
 		],
 		harmony: PHRYGIAN_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 4, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 47, pitchComplexity: 46, rhythmComplexity: 47, lengthBars: 2 },
 		category: 'modal',
 		tags: ['phrygian', 'characteristic-note', 'mysterious'],
 		source: 'curated'
@@ -292,7 +292,7 @@ export const MODAL_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: DORIAN_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 52, pitchComplexity: 43, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'modal',
 		tags: ['herbie-hancock', 'dorian', 'vamp'],
 		source: 'curated'

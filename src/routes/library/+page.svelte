@@ -1,10 +1,15 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import CategoryFilter from '$lib/components/library/CategoryFilter.svelte';
 	import LickCard from '$lib/components/library/LickCard.svelte';
 	import { library } from '$lib/state/library.svelte.ts';
 	import { getAllLicks, getCategories, queryLicks } from '$lib/phrases/library-loader.ts';
-	import type { PhraseCategory } from '$lib/types/music.ts';
+	import { settings } from '$lib/state/settings.svelte.ts';
+	import type { Phrase, PhraseCategory } from '$lib/types/music.ts';
 	import { goto } from '$app/navigation';
+
+	let playbackModule: typeof import('$lib/audio/playback.ts') | null = null;
+	let playingId: string | null = $state(null);
 
 	const categories = getCategories();
 
@@ -23,6 +28,44 @@
 	function handleLickClick(id: string) {
 		goto(`/library/${id}`);
 	}
+
+	async function handlePlay(lick: Phrase) {
+		if (!playbackModule) {
+			playbackModule = await import('$lib/audio/playback.ts');
+		}
+
+		// Toggle off if already playing this lick
+		if (playingId === lick.id) {
+			await playbackModule.stopPlayback();
+			playingId = null;
+			return;
+		}
+
+		// Stop any current playback
+		if (playingId) {
+			await playbackModule.stopPlayback();
+		}
+
+		if (!playbackModule.isInstrumentLoaded()) {
+			await playbackModule.loadInstrument(settings.instrumentId);
+		}
+
+		playingId = lick.id;
+		await playbackModule.playPhrase(lick, {
+			tempo: settings.defaultTempo,
+			swing: settings.swing,
+			countInBeats: 0,
+			metronomeEnabled: false,
+			metronomeVolume: 0
+		});
+		playingId = null;
+	}
+
+	onDestroy(() => {
+		if (playbackModule && playingId) {
+			playbackModule.stopPlayback();
+		}
+	});
 </script>
 
 <div class="space-y-6">
@@ -72,7 +115,12 @@
 	{#if filteredLicks.length > 0}
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 			{#each filteredLicks as lick (lick.id)}
-				<LickCard {lick} onclick={() => handleLickClick(lick.id)} />
+				<LickCard
+				{lick}
+				onclick={() => handleLickClick(lick.id)}
+				onplay={() => handlePlay(lick)}
+				isPlaying={playingId === lick.id}
+			/>
 			{/each}
 		</div>
 	{:else}

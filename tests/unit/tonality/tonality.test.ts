@@ -104,6 +104,32 @@ describe('daily tonality selection', () => {
 			expect(isTonalityUnlocked(t, 0)).toBe(true);
 		}
 	});
+
+	it('holds tonality for multiple days at early levels', () => {
+		// At 0 XP: 3 unlocked tonalities → daysPerTonality = 3
+		// 9 consecutive days should have far fewer changes than daily rotation
+		const results = Array.from({ length: 9 }, (_, i) => {
+			const day = String(i + 1).padStart(2, '0');
+			return getDailyTonality(`2026-06-${day}`, 0);
+		});
+		let changes = 0;
+		for (let i = 1; i < results.length; i++) {
+			if (!tonalitiesEqual(results[i], results[i - 1])) changes++;
+		}
+		// 9 days / 3-day blocks = ~3 blocks → at most 3-4 changes
+		expect(changes).toBeLessThanOrEqual(4);
+		expect(changes).toBeLessThan(results.length - 1);
+	});
+
+	it('rotates daily at high XP (many unlocked tonalities)', () => {
+		// At 5000 XP: many tonalities → daysPerTonality = 1 → daily rotation
+		const results = Array.from({ length: 10 }, (_, i) => {
+			const day = String(i + 1).padStart(2, '0');
+			return getDailyTonality(`2026-06-${day}`, 5000);
+		});
+		const unique = new Set(results.map(t => `${t.key}-${t.scaleType}`));
+		expect(unique.size).toBeGreaterThan(3);
+	});
 });
 
 describe('getUnlockedTonalities', () => {

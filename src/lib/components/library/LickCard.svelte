@@ -6,9 +6,11 @@
 	interface Props {
 		lick: Phrase;
 		onclick?: () => void;
+		onplay?: () => void;
+		isPlaying?: boolean;
 	}
 
-	let { lick, onclick }: Props = $props();
+	let { lick, onclick, onplay, isPlaying = false }: Props = $props();
 
 	const CATEGORY_LABELS: Record<string, string> = {
 		'ii-V-I-major': 'ii-V-I Major',
@@ -20,7 +22,8 @@
 		'digital-patterns': 'Digital',
 		'approach-notes': 'Approach',
 		'turnarounds': 'Turnarounds',
-		'rhythm-changes': 'Rhythm Changes'
+		'rhythm-changes': 'Rhythm Changes',
+		'user': 'My Licks'
 	};
 
 	const diff = $derived(difficultyDisplay(lick.difficulty.level));
@@ -48,8 +51,31 @@
 				</span>
 			</div>
 		</div>
-		<div class="shrink-0 text-sm text-[var(--color-text-secondary)]">
-			{lick.notes.filter(n => n.pitch !== null).length} notes
+		<div class="flex shrink-0 items-center gap-2">
+			<span class="text-sm text-[var(--color-text-secondary)]">
+				{lick.notes.filter(n => n.pitch !== null).length} notes
+			</span>
+			{#if onplay}
+				<button
+					onclick={(e) => { e.stopPropagation(); onplay!(); }}
+					class="flex h-8 w-8 items-center justify-center rounded-full transition-colors
+						   {isPlaying
+							? 'bg-[var(--color-error)] hover:bg-red-600'
+							: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
+					aria-label={isPlaying ? 'Stop' : 'Play'}
+				>
+					{#if isPlaying}
+						<svg class="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+							<rect x="6" y="5" width="4" height="14" rx="1" />
+							<rect x="14" y="5" width="4" height="14" rx="1" />
+						</svg>
+					{:else}
+						<svg class="h-3.5 w-3.5 ml-0.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+							<path d="M8 5v14l11-7z" />
+						</svg>
+					{/if}
+				</button>
+			{/if}
 		</div>
 	</div>
 	{#if lick.tags.length > 0}

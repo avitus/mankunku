@@ -1,18 +1,28 @@
-import type { Grade } from './scoring.ts';
+import type { Grade, NoteResult, TimingDiagnostics } from './scoring.ts';
 import type { PhraseCategory, PitchClass } from './music.ts';
+import type { ScaleType } from '$lib/tonality/tonality.ts';
 
 export interface SessionResult {
 	id: string;
 	timestamp: number;
 	phraseId: string;
+	phraseName: string;
 	category: PhraseCategory;
 	key: PitchClass;
+	/** Scale type for the session (e.g. 'dorian', 'major'). Optional for backward compat. */
+	scaleType?: ScaleType;
 	tempo: number;
 	difficultyLevel: number;
 	pitchAccuracy: number;
 	rhythmAccuracy: number;
 	overall: number;
 	grade: Grade;
+	notesHit: number;
+	notesTotal: number;
+	/** Per-note scoring breakdown for detail view */
+	noteResults: NoteResult[];
+	/** Timing diagnostics (early/late bias, spread). Optional for backward compat. */
+	timing?: TimingDiagnostics;
 }
 
 export interface CategoryProgress {

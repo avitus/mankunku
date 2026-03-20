@@ -2,8 +2,13 @@
 	import { progress, getRecentSessions, getCategoryStats, resetProgress } from '$lib/state/progress.svelte.ts';
 	import { xpToDisplayLevel, xpProgress, xpForLevel } from '$lib/difficulty/adaptive.ts';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
+	import { SCALE_TYPE_NAMES } from '$lib/tonality/tonality.ts';
+	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
+	import { getInstrument } from '$lib/state/settings.svelte.ts';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
 	import type { Grade } from '$lib/types/scoring.ts';
+
+	const instrument = $derived(getInstrument());
 
 	const CATEGORY_LABELS: Record<string, string> = {
 		'ii-V-I-major': 'ii-V-I Major',
@@ -15,7 +20,8 @@
 		'digital-patterns': 'Digital',
 		'approach-notes': 'Approach',
 		'turnarounds': 'Turnarounds',
-		'rhythm-changes': 'Rhythm Changes'
+		'rhythm-changes': 'Rhythm Changes',
+		'user': 'My Licks'
 	};
 
 	const recentSessions = $derived(getRecentSessions(20));
@@ -39,6 +45,11 @@
 	}
 
 	let showResetConfirm = $state(false);
+	let expandedSessionId: string | null = $state(null);
+
+	function toggleSession(id: string) {
+		expandedSessionId = expandedSessionId === id ? null : id;
+	}
 </script>
 
 <div class="space-y-6">
@@ -207,20 +218,74 @@
 			<h2 class="mb-3 text-lg font-semibold">Recent Sessions</h2>
 			<div class="space-y-2">
 				{#each recentSessions as s}
-					<div class="flex items-center gap-3 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
-						<span
-							class="w-16 shrink-0 text-center font-bold"
-							style="color: {GRADE_COLORS[s.grade]}"
+					<div class="rounded bg-[var(--color-bg-tertiary)] overflow-hidden">
+						<!-- Session row (clickable) -->
+						<button
+							onclick={() => toggleSession(s.id)}
+							class="flex w-full items-center gap-3 px-3 py-2 text-sm text-left hover:bg-[var(--color-bg-secondary)] transition-colors"
 						>
-							{GRADE_LABELS[s.grade]}
-						</span>
-						<span class="flex-1 truncate text-[var(--color-text-secondary)]">
-							{CATEGORY_LABELS[s.category] ?? s.category} in {s.key}
-						</span>
-						<span class="tabular-nums">{pct(s.overall)}%</span>
-						<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">
-							{formatDate(s.timestamp)}
-						</span>
+							<span
+								class="w-16 shrink-0 text-center font-bold"
+								style="color: {GRADE_COLORS[s.grade]}"
+							>
+								{GRADE_LABELS[s.grade]}
+							</span>
+							<span class="flex-1 truncate text-[var(--color-text-secondary)]">
+								{s.phraseName ?? (CATEGORY_LABELS[s.category] ?? s.category)} in {s.key}{s.scaleType ? ` ${SCALE_TYPE_NAMES[s.scaleType]}` : ''}
+							</span>
+							<span class="tabular-nums">{pct(s.overall)}%</span>
+							<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">
+								{formatDate(s.timestamp)}
+							</span>
+							<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">
+								{expandedSessionId === s.id ? '▲' : '▼'}
+							</span>
+						</button>
+
+						<!-- Expanded detail view -->
+						{#if expandedSessionId === s.id}
+							<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
+								<!-- Score breakdown -->
+								<div class="grid grid-cols-2 gap-3">
+									<div class="rounded bg-[var(--color-bg-secondary)] p-3 text-center">
+										<div class="text-xs text-[var(--color-text-secondary)]">Pitch</div>
+										<div class="text-xl font-bold tabular-nums">{pct(s.pitchAccuracy)}%</div>
+										<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+											<div
+												class="h-full rounded-full bg-[var(--color-accent)] transition-all"
+												style="width: {pct(s.pitchAccuracy)}%"
+											></div>
+										</div>
+									</div>
+									<div class="rounded bg-[var(--color-bg-secondary)] p-3 text-center">
+										<div class="text-xs text-[var(--color-text-secondary)]">Rhythm</div>
+										<div class="text-xl font-bold tabular-nums">{pct(s.rhythmAccuracy)}%</div>
+										<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+											<div
+												class="h-full rounded-full bg-[var(--color-accent)] transition-all"
+												style="width: {pct(s.rhythmAccuracy)}%"
+											></div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Meta info -->
+								<div class="flex flex-wrap gap-3 text-xs text-[var(--color-text-secondary)]">
+									{#if s.notesHit != null}
+										<span>{s.notesHit}/{s.notesTotal} notes hit</span>
+									{/if}
+									<span>{s.tempo} BPM</span>
+									<span>Diff {s.difficultyLevel}</span>
+									<span>{CATEGORY_LABELS[s.category] ?? s.category}</span>
+									<span>Key: {s.key}</span>
+								</div>
+
+								<!-- Per-note comparison -->
+								{#if s.noteResults && s.noteResults.length > 0}
+									<NoteComparison noteResults={s.noteResults} transpositionSemitones={instrument.transpositionSemitones} timing={s.timing} />
+								{/if}
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>

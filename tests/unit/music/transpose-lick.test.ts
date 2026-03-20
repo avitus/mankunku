@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { transposeLick } from '$lib/phrases/library-loader.ts';
+import { transposeLick, transposeLickForTonality, snapLickToScale } from '$lib/phrases/library-loader.ts';
 import type { Phrase } from '$lib/types/music.ts';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
@@ -31,7 +31,7 @@ function makePhrase(pitches: (number | null)[]): Phrase {
 
 describe('transposeLick — central range optimization', () => {
 	it('transposes to D without octave shift when already in range', () => {
-		// Notes around C4-C5 (60-72), transposing +2 keeps them in 62-74 — well within 60-84
+		// Notes around C4-C5 (60-72), transposing +2 keeps them in 62-74 — within 60-75
 		const phrase = makePhrase([60, 64, 67, 72]);
 		const result = transposeLick(phrase, 'D');
 		expect(result.key).toBe('D');
@@ -39,18 +39,13 @@ describe('transposeLick — central range optimization', () => {
 	});
 
 	it('shifts down an octave when transposing to B would push notes too high', () => {
-		// Notes at 67-79 (G4-G5). Naive +11 → 78-90, most above 84.
-		// With -1 octave shift → 66-78, all within 60-84.
+		// Notes at 67-79 (G4-G5). Naive +11 → 78-90, all above 75.
+		// With -1 octave shift → 66-78, most within 60-75 (best available).
 		const phrase = makePhrase([67, 70, 74, 79]);
 		const result = transposeLick(phrase, 'B');
 		const pitches = result.notes.map((n) => n.pitch) as number[];
 
-		// All notes should be within or close to the central range
-		for (const p of pitches) {
-			expect(p).toBeGreaterThanOrEqual(60);
-			expect(p).toBeLessThanOrEqual(84);
-		}
-		// Specifically: should be shifted -12 from naive, so 67+11-12=66, etc.
+		// Shifted -12 from naive: 67+11-12=66, etc. (3 of 4 within tenor range)
 		expect(pitches).toEqual([66, 69, 73, 78]);
 	});
 
@@ -74,8 +69,8 @@ describe('transposeLick — central range optimization', () => {
 	});
 
 	it('keeps high lick centered when transposing to Gb', () => {
-		// Notes at 72-84 (C5-C6). Naive +6 → 78-90, top notes above 84.
-		// With -1 octave → 66-78, all in range and better centered.
+		// Notes at 72-84 (C5-C6). Naive +6 → 78-90, all above 75.
+		// With -1 octave → 66-78, best fit (3 of 4 within 60-75).
 		const phrase = makePhrase([72, 76, 79, 84]);
 		const result = transposeLick(phrase, 'Gb');
 		const pitches = result.notes.map((n) => n.pitch) as number[];
@@ -84,13 +79,81 @@ describe('transposeLick — central range optimization', () => {
 		expect(pitches).toEqual([66, 70, 73, 78]);
 	});
 
-	it('centers low licks closer to the midpoint of the range', () => {
-		// Notes at 60-67 (C4-G4). Transposing to D (+2) → 62-69, avg 65.25.
-		// With +1 octave → 74-81, avg 77.25, closer to midpoint 72.
-		// Both are fully in range, but +1 octave is better centered.
+	it('keeps low licks in range rather than pushing above tenor ceiling', () => {
+		// Notes at 60-67 (C4-G4). Transposing to D (+2) → 62-69, all within 60-75.
+		// With +1 octave → 74-81, only 74 within range. So shift 0 wins.
 		const phrase = makePhrase([60, 62, 64, 67]);
 		const result = transposeLick(phrase, 'D');
 		const pitches = result.notes.map((n) => n.pitch) as number[];
-		expect(pitches).toEqual([74, 76, 78, 81]);
+		expect(pitches).toEqual([62, 64, 66, 69]);
+	});
+});
+
+describe('transposeLickForTonality — major-family modes use parent key', () => {
+	it('A Dorian: transposes to G major (parent key), not A major', () => {
+		// C4(60), E4(64) in C major → should become G4(67), B4(71) in G major = A Dorian
+		// NOT A4(69), C#5(73) which would be A major
+		const phrase = makePhrase([60, 64]);
+		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
+		// Key should be A (the modal root), not G (the parent key)
+		expect(result.key).toBe('A');
+	});
+
+	it('A Ionian: transposes to A (parent = A, mode 1)', () => {
+		const phrase = makePhrase([60, 64, 67]);
+		const result = transposeLickForTonality(phrase, 'A', 'major.ionian');
+		// A Ionian = A major, parent key = A, so transpose +9
+		expect(result.notes.map(n => n.pitch)).toEqual([69, 73, 76]);
+		expect(result.key).toBe('A');
+	});
+
+	it('A Mixolydian: transposes to D major (parent key)', () => {
+		// A Mixolydian = mode 5 of D major. Parent = A - 7 = D.
+		// C4(60) → D+2 = F#4(66), E4(64) → D+2 = A4(70)... wait, let me compute:
+		// Transpose to D = +2 semitones: 60→62, 64→66, 67→69
+		const phrase = makePhrase([60, 64, 67]);
+		const result = transposeLickForTonality(phrase, 'A', 'major.mixolydian');
+		expect(result.notes.map(n => n.pitch)).toEqual([62, 66, 69]);
+		expect(result.key).toBe('A');
+	});
+
+	it('A Aeolian: transposes to C major (parent key)', () => {
+		// A Aeolian = mode 6 of C major. Parent = A - 9 = C.
+		// No transposition needed! Notes stay as C major.
+		const phrase = makePhrase([60, 64, 67]);
+		const result = transposeLickForTonality(phrase, 'A', 'major.aeolian');
+		expect(result.notes.map(n => n.pitch)).toEqual([60, 64, 67]);
+		expect(result.key).toBe('A');
+	});
+
+	it('D Dorian: transposes to C major (parent key)', () => {
+		// D Dorian = mode 2 of C major. Parent = D - 2 = C.
+		// No transposition needed.
+		const phrase = makePhrase([60, 64, 67]);
+		const result = transposeLickForTonality(phrase, 'D', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([60, 64, 67]);
+		expect(result.key).toBe('D');
+	});
+
+	it('preserves rests', () => {
+		const phrase = makePhrase([60, null, 64]);
+		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
+		expect(result.notes[1].pitch).toBeNull();
+	});
+
+	it('non-major scale: falls back to snap (blues)', () => {
+		// Blues scale: snap should handle notes outside the scale
+		const phrase = makePhrase([60, 64, 67]);
+		const result = transposeLickForTonality(phrase, 'A', 'blues.minor');
+		// Should transpose to A and snap
+		expect(result.key).toBe('A');
+		// All notes should be in A blues minor: A(9), C(0), D(2), Eb(3), E(4), G(7)
+		const scalePCs = new Set([9, 0, 2, 3, 4, 7]);
+		for (const n of result.notes) {
+			if (n.pitch !== null) {
+				expect(scalePCs.has(n.pitch % 12)).toBe(true);
+			}
+		}
 	});
 });

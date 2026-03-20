@@ -58,7 +58,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }      // C4
 		],
 		harmony: DOM7_HARMONY,
-		difficulty: { level: 38, pitchComplexity: 40, rhythmComplexity: 30, lengthBars: 2 },
+		difficulty: { level: 43, pitchComplexity: 39, rhythmComplexity: 49, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['bebop-scale', 'descending'],
 		source: 'curated'
@@ -80,7 +80,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 1], offset: [1, 1] }      // C5
 		],
 		harmony: DOM7_HARMONY,
-		difficulty: { level: 36, pitchComplexity: 40, rhythmComplexity: 30, lengthBars: 2 },
+		difficulty: { level: 43, pitchComplexity: 39, rhythmComplexity: 49, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['bebop-scale', 'ascending'],
 		source: 'curated'
@@ -111,7 +111,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 65, duration: [1, 4], offset: [7, 4] }      // F4
 		],
 		harmony: II_V_HARMONY,
-		difficulty: { level: 48, pitchComplexity: 42, rhythmComplexity: 32, lengthBars: 2 },
+		difficulty: { level: 53, pitchComplexity: 45, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['arpeggio', 'cascade'],
 		source: 'curated'
@@ -137,7 +137,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 62, pitchComplexity: 58, rhythmComplexity: 35, lengthBars: 2 },
+		difficulty: { level: 55, pitchComplexity: 56, rhythmComplexity: 54, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['chromatic', 'enclosure', 'descending'],
 		source: 'curated'
@@ -164,7 +164,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 4], offset: [7, 4] }      // E4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 64, pitchComplexity: 60, rhythmComplexity: 35, lengthBars: 2 },
+		difficulty: { level: 52, pitchComplexity: 46, rhythmComplexity: 60, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['dizzy', 'leaps', 'bebop'],
 		source: 'curated'
@@ -190,7 +190,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 59, duration: [1, 2], offset: [3, 2] }      // B3
 		],
 		harmony: DOM7_HARMONY,
-		difficulty: { level: 52, pitchComplexity: 55, rhythmComplexity: 32, lengthBars: 2 },
+		difficulty: { level: 60, pitchComplexity: 61, rhythmComplexity: 59, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['dominant', 'chromatic', 'approach'],
 		source: 'curated'
@@ -218,7 +218,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: DOM7_HARMONY,
-		difficulty: { level: 76, pitchComplexity: 72, rhythmComplexity: 40, lengthBars: 2 },
+		difficulty: { level: 58, pitchComplexity: 57, rhythmComplexity: 59, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['parker', 'blues', 'chromatic'],
 		source: 'curated'
@@ -242,7 +242,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 60, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 2 },
+		difficulty: { level: 49, pitchComplexity: 44, rhythmComplexity: 54, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['honeysuckle', 'standard', 'bebop'],
 		source: 'curated'
@@ -265,7 +265,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 48, pitchComplexity: 42, rhythmComplexity: 30, lengthBars: 2 },
+		difficulty: { level: 42, pitchComplexity: 32, rhythmComplexity: 55, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['confirmation', 'standard', 'arpeggio'],
 		source: 'curated'
@@ -292,7 +292,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [7, 4] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 65, pitchComplexity: 58, rhythmComplexity: 38, lengthBars: 2 },
+		difficulty: { level: 54, pitchComplexity: 49, rhythmComplexity: 60, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['donna-lee', 'ascending', 'bebop'],
 		source: 'curated'
@@ -332,7 +332,7 @@ export const BEBOP_LICKS: Phrase[] = [
 				duration: [1, 1]
 			}
 		],
-		difficulty: { level: 78, pitchComplexity: 72, rhythmComplexity: 42, lengthBars: 2 },
+		difficulty: { level: 52, pitchComplexity: 46, rhythmComplexity: 61, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['altered', 'dominant', 'advanced'],
 		source: 'curated'
@@ -375,7 +375,7 @@ export const BEBOP_LICKS: Phrase[] = [
 				duration: [1, 1]
 			}
 		],
-		difficulty: { level: 80, pitchComplexity: 72, rhythmComplexity: 40, lengthBars: 2 },
+		difficulty: { level: 58, pitchComplexity: 53, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['rhythm-changes', 'bridge'],
 		source: 'curated'
@@ -398,7 +398,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [5, 4] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 34, pitchComplexity: 30, rhythmComplexity: 28, lengthBars: 2 },
+		difficulty: { level: 44, pitchComplexity: 34, rhythmComplexity: 55, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['pentatonic', 'bebop'],
 		source: 'curated'
@@ -424,7 +424,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [1, 1] }      // E4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 82, pitchComplexity: 45, rhythmComplexity: 78, lengthBars: 2 },
+		difficulty: { level: 71, pitchComplexity: 46, rhythmComplexity: 100, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['double-time', 'sixteenth'],
 		source: 'curated'
@@ -450,7 +450,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [11, 8] }     // E4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 66, pitchComplexity: 45, rhythmComplexity: 50, lengthBars: 2 },
+		difficulty: { level: 50, pitchComplexity: 44, rhythmComplexity: 58, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['grouping', 'metric-modulation'],
 		source: 'curated'
@@ -479,7 +479,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 58, pitchComplexity: 48, rhythmComplexity: 35, lengthBars: 2 },
+		difficulty: { level: 49, pitchComplexity: 41, rhythmComplexity: 59, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['parker', 'turnaround', 'classic'],
 		source: 'curated'
@@ -505,7 +505,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [3, 2] }      // C5
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 62, pitchComplexity: 55, rhythmComplexity: 35, lengthBars: 2 },
+		difficulty: { level: 54, pitchComplexity: 48, rhythmComplexity: 61, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['dizzy', 'high-register', 'chromatic'],
 		source: 'curated'
@@ -531,7 +531,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 55, pitchComplexity: 45, rhythmComplexity: 35, lengthBars: 2 },
+		difficulty: { level: 52, pitchComplexity: 45, rhythmComplexity: 61, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['ornithology', 'parker', 'standard'],
 		source: 'curated'
@@ -569,7 +569,7 @@ export const BEBOP_LICKS: Phrase[] = [
 				duration: [1, 1]
 			}
 		],
-		difficulty: { level: 72, pitchComplexity: 65, rhythmComplexity: 35, lengthBars: 2 },
+		difficulty: { level: 47, pitchComplexity: 46, rhythmComplexity: 49, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['tritone-sub', 'advanced', 'chromatic'],
 		source: 'curated'
@@ -597,7 +597,7 @@ export const BEBOP_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 4], offset: [7, 4] }      // C4
 		],
 		harmony: CMAJ7_HARMONY,
-		difficulty: { level: 75, pitchComplexity: 60, rhythmComplexity: 40, lengthBars: 2 },
+		difficulty: { level: 56, pitchComplexity: 52, rhythmComplexity: 60, lengthBars: 2 },
 		category: 'bebop-lines',
 		tags: ['bud-powell', 'piano', 'chromatic'],
 		source: 'curated'

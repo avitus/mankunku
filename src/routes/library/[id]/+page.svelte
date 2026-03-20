@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
 	import { getLickById, transposeLick } from '$lib/phrases/library-loader.ts';
@@ -10,6 +10,9 @@
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
 	import type { Phrase } from '$lib/types/music.ts';
 	import { difficultyDisplay } from '$lib/difficulty/display.ts';
+
+	let playbackModule: typeof import('$lib/audio/playback.ts') | null = null;
+	let isPlaying = $state(false);
 
 	let selectedKey: PitchClass = $state('C');
 
@@ -22,6 +25,40 @@
 		session.tempo = settings.defaultTempo;
 		goto('/practice');
 	}
+
+	async function togglePlay() {
+		if (!lick) return;
+
+		if (!playbackModule) {
+			playbackModule = await import('$lib/audio/playback.ts');
+		}
+
+		if (isPlaying) {
+			await playbackModule.stopPlayback();
+			isPlaying = false;
+			return;
+		}
+
+		if (!playbackModule.isInstrumentLoaded()) {
+			await playbackModule.loadInstrument(settings.instrumentId);
+		}
+
+		isPlaying = true;
+		await playbackModule.playPhrase(lick, {
+			tempo: settings.defaultTempo,
+			swing: settings.swing,
+			countInBeats: 0,
+			metronomeEnabled: false,
+			metronomeVolume: 0
+		});
+		isPlaying = false;
+	}
+
+	onDestroy(() => {
+		if (playbackModule && isPlaying) {
+			playbackModule.stopPlayback();
+		}
+	});
 </script>
 
 <div class="space-y-6">
@@ -45,12 +82,35 @@
 					<span>{lick.notes.filter(n => n.pitch !== null).length} notes</span>
 				</div>
 			</div>
-			<button
-				onclick={practiceThis}
-				class="shrink-0 rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
-			>
-				Practice
-			</button>
+			<div class="flex shrink-0 gap-2">
+				<button
+					onclick={togglePlay}
+					class="flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium transition-colors
+						{isPlaying
+							? 'bg-[var(--color-error)] hover:bg-red-600'
+							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+					aria-label={isPlaying ? 'Stop' : 'Play'}
+				>
+					{#if isPlaying}
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+							<rect x="6" y="5" width="4" height="14" rx="1" />
+							<rect x="14" y="5" width="4" height="14" rx="1" />
+						</svg>
+						Stop
+					{:else}
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+							<path d="M8 5v14l11-7z" />
+						</svg>
+						Play
+					{/if}
+				</button>
+				<button
+					onclick={practiceThis}
+					class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+				>
+					Practice
+				</button>
+			</div>
 		</div>
 
 		<!-- Key selector -->

@@ -12,7 +12,8 @@
 		'ii-V-I-major': 'ii-V-I Maj',
 		'ii-V-I-minor': 'ii-V-I Min',
 		'blues': 'Blues',
-		'bebop-lines': 'Bebop'
+		'bebop-lines': 'Bebop',
+		'user': 'My Licks'
 	};
 </script>
 

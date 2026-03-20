@@ -49,7 +49,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [3, 4], offset: [5, 4] }      // C5
 		],
 		harmony: CMAJ_PENT_HARMONY,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 17, pitchComplexity: 20, rhythmComplexity: 15, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['major-pentatonic', 'ascending', 'beginner'],
 		source: 'curated'
@@ -68,7 +68,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [3, 4], offset: [5, 4] }      // C4
 		],
 		harmony: CMIN_PENT_HARMONY,
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 2 },
+		difficulty: { level: 22, pitchComplexity: 27, rhythmComplexity: 15, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['minor-pentatonic', 'descending', 'beginner'],
 		source: 'curated'
@@ -96,7 +96,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [11, 8] }     // C5
 		],
 		harmony: CMAJ_PENT_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 47, pitchComplexity: 38, rhythmComplexity: 58, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['sequence', 'groups-of-three', 'major-pentatonic'],
 		source: 'curated'
@@ -121,7 +121,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: CMIN_PENT_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 3, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 54, pitchComplexity: 52, rhythmComplexity: 56, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['skip-pattern', 'minor-pentatonic', 'intervals'],
 		source: 'curated'
@@ -146,7 +146,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: CMIN_PENT_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 4, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 53, pitchComplexity: 50, rhythmComplexity: 56, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['fourths', 'mccoy-tyner', 'modern'],
 		source: 'curated'
@@ -172,7 +172,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 2], offset: [11, 8] }     // C5
 		],
 		harmony: CMAJ_PENT_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 47, pitchComplexity: 38, rhythmComplexity: 58, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['digital-pattern', 'cells', 'major-pentatonic'],
 		source: 'curated'
@@ -198,7 +198,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 62, duration: [1, 2], offset: [3, 2] }      // D4
 		],
 		harmony: DOM7_PENT_HARMONY,
-		difficulty: { level: 3, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 46, pitchComplexity: 37, rhythmComplexity: 56, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['dominant', 'riff', 'major-pentatonic'],
 		source: 'curated'
@@ -221,7 +221,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: CMAJ_PENT_HARMONY,
-		difficulty: { level: 2, pitchComplexity: 2, rhythmComplexity: 2, lengthBars: 2 },
+		difficulty: { level: 37, pitchComplexity: 29, rhythmComplexity: 46, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['wes-montgomery', 'melodic', 'major-pentatonic'],
 		source: 'curated'
@@ -249,7 +249,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: CMIN_PENT_HARMONY,
-		difficulty: { level: 4, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 51, pitchComplexity: 41, rhythmComplexity: 64, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['herbie-hancock', 'funky', 'syncopation'],
 		source: 'curated'
@@ -275,7 +275,7 @@ export const PENTATONIC_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
 		harmony: CMAJ_PENT_HARMONY,
-		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 3, lengthBars: 2 },
+		difficulty: { level: 50, pitchComplexity: 42, rhythmComplexity: 61, lengthBars: 2 },
 		category: 'pentatonic',
 		tags: ['superimposition', 'lydian', 'advanced'],
 		source: 'curated'
