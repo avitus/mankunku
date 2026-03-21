@@ -8,11 +8,13 @@
  */
 
 import type { PitchClass } from '$lib/types/music.ts';
+import type { UnlockContext } from '$lib/types/progress.ts';
 
 // ── Types ────────────────────────────────────────────────────────────
 
 export type ScaleType =
 	| 'major-pentatonic'
+	| 'minor-pentatonic'
 	| 'major'
 	| 'blues'
 	| 'dorian'
@@ -31,8 +33,6 @@ export interface Tonality {
 
 export interface TonalityUnlockInfo {
 	tonality: Tonality;
-	/** XP threshold to unlock this tonality */
-	xpRequired: number;
 	/** Whether this tonality is currently unlocked */
 	unlocked: boolean;
 }
@@ -41,6 +41,7 @@ export interface TonalityUnlockInfo {
 
 export const SCALE_TYPE_NAMES: Record<ScaleType, string> = {
 	'major-pentatonic': 'Major Pentatonic',
+	'minor-pentatonic': 'Minor Pentatonic',
 	'major': 'Major',
 	'blues': 'Blues',
 	'dorian': 'Dorian',
@@ -56,6 +57,7 @@ export const SCALE_TYPE_NAMES: Record<ScaleType, string> = {
 /** Maps ScaleType to the scale IDs used in the lick/scale catalog */
 export const SCALE_TYPE_TO_SCALE_ID: Record<ScaleType, string> = {
 	'major-pentatonic': 'pentatonic.major',
+	'minor-pentatonic': 'pentatonic.minor',
 	'major': 'major.ionian',
 	'blues': 'blues.minor',
 	'dorian': 'major.dorian',
@@ -78,6 +80,7 @@ export const KEY_UNLOCK_ORDER: PitchClass[] = [
 
 export const SCALE_UNLOCK_ORDER: ScaleType[] = [
 	'major-pentatonic',
+	'minor-pentatonic',
 	'major',
 	'blues',
 	'dorian',
@@ -90,104 +93,104 @@ export const SCALE_UNLOCK_ORDER: ScaleType[] = [
 	'bebop-dominant'
 ];
 
-// ── XP thresholds ───────────────────────────────────────────────────
+// ── Scale prerequisite graph ─────────────────────────────────────────
 
 /**
- * XP thresholds for unlocking keys.
- * Index corresponds to KEY_UNLOCK_ORDER.
- * C (index 0) starts unlocked at 0 XP.
+ * Scale unlock prerequisites.
+ * Each entry lists prerequisite scales and the proficiency level required in each.
+ * All prerequisites must be met to unlock.
  */
-const KEY_XP_THRESHOLDS: number[] = [
-	0,      // C — always unlocked
-	200,    // G
-	400,    // F
-	700,    // D
-	1000,   // Bb
-	1500,   // A
-	2000,   // Eb
-	2700,   // E
-	3500,   // Ab
-	4500,   // B
-	5500,   // Db
-	7000    // Gb
-];
+export const SCALE_PREREQUISITES: Record<ScaleType, { scales: ScaleType[]; level: number }[]> = {
+	'major-pentatonic': [],
+	'minor-pentatonic': [{ scales: ['major-pentatonic'], level: 15 }],
+	'major':            [{ scales: ['major-pentatonic'], level: 15 }],
+	'blues':            [{ scales: ['minor-pentatonic'], level: 15 }],
+	'dorian':           [{ scales: ['minor-pentatonic'], level: 20 }],
+	'mixolydian':       [{ scales: ['major'],            level: 20 }],
+	'minor':            [{ scales: ['dorian'],           level: 25 }],
+	'lydian':           [{ scales: ['major'],            level: 25 }],
+	'melodic-minor':    [{ scales: ['major'], level: 30 }, { scales: ['minor'], level: 25 }],
+	'altered':          [{ scales: ['melodic-minor'],    level: 40 }],
+	'lydian-dominant':  [{ scales: ['melodic-minor'],    level: 40 }],
+	'bebop-dominant':   [{ scales: ['mixolydian'],       level: 35 }],
+};
+
+// ── Key prerequisite graph ──────────────────────────────────────────
 
 /**
- * XP thresholds for unlocking scale types.
- * Index corresponds to SCALE_UNLOCK_ORDER.
+ * Key unlock prerequisites.
+ * Each entry is: { key: prerequisite key, level: required proficiency }.
+ * Empty array = always unlocked.
  */
-const SCALE_XP_THRESHOLDS: number[] = [
-	0,      // major-pentatonic — always unlocked
-	0,      // major — always unlocked
-	0,      // blues — always unlocked
-	300,    // dorian
-	600,    // mixolydian
-	1000,   // minor
-	1800,   // lydian
-	2500,   // melodic-minor
-	3500,   // altered
-	4500,   // lydian-dominant
-	6000    // bebop-dominant
-];
+export const KEY_UNLOCK_PREREQUISITES: Record<PitchClass, { key: PitchClass; level: number }[]> = {
+	'C':  [],
+	'G':  [{ key: 'C',  level: 10 }],
+	'F':  [{ key: 'C',  level: 10 }],
+	'D':  [{ key: 'G',  level: 10 }],
+	'Bb': [{ key: 'F',  level: 10 }],
+	'A':  [{ key: 'D',  level: 10 }],
+	'Eb': [{ key: 'Bb', level: 10 }],
+	'E':  [{ key: 'A',  level: 15 }],
+	'Ab': [{ key: 'Eb', level: 15 }],
+	'B':  [{ key: 'E',  level: 15 }],
+	'Db': [{ key: 'Ab', level: 15 }],
+	'Gb': [{ key: 'B',  level: 15 }],
+};
 
 // ── Unlock queries ──────────────────────────────────────────────────
 
-/** Get all keys unlocked at the given XP */
-export function getUnlockedKeys(xp: number): PitchClass[] {
-	return KEY_UNLOCK_ORDER.filter((_, i) => xp >= KEY_XP_THRESHOLDS[i]);
+/** Get all keys unlocked with the given proficiency context */
+export function getUnlockedKeys(ctx: UnlockContext): PitchClass[] {
+	return KEY_UNLOCK_ORDER.filter(key => isKeyUnlocked(key, ctx));
 }
 
-/** Get all scale types unlocked at the given XP */
-export function getUnlockedScaleTypes(xp: number): ScaleType[] {
-	return SCALE_UNLOCK_ORDER.filter((_, i) => xp >= SCALE_XP_THRESHOLDS[i]);
+/** Get all scale types unlocked with the given proficiency context */
+export function getUnlockedScaleTypes(ctx: UnlockContext): ScaleType[] {
+	return SCALE_UNLOCK_ORDER.filter(st => isScaleTypeUnlocked(st, ctx));
 }
 
 /** Check whether a specific key is unlocked */
-export function isKeyUnlocked(key: PitchClass, xp: number): boolean {
-	const idx = KEY_UNLOCK_ORDER.indexOf(key);
-	return idx >= 0 && xp >= KEY_XP_THRESHOLDS[idx];
+export function isKeyUnlocked(key: PitchClass, ctx: UnlockContext): boolean {
+	const prereqs = KEY_UNLOCK_PREREQUISITES[key];
+	if (!prereqs || prereqs.length === 0) return true;
+	return prereqs.every(p => (ctx.keyProficiency[p.key]?.level ?? 0) >= p.level);
 }
 
 /** Check whether a specific scale type is unlocked */
-export function isScaleTypeUnlocked(scaleType: ScaleType, xp: number): boolean {
-	const idx = SCALE_UNLOCK_ORDER.indexOf(scaleType);
-	return idx >= 0 && xp >= SCALE_XP_THRESHOLDS[idx];
+export function isScaleTypeUnlocked(scaleType: ScaleType, ctx: UnlockContext): boolean {
+	const prereqs = SCALE_PREREQUISITES[scaleType];
+	if (!prereqs || prereqs.length === 0) return true;
+	return prereqs.every(p =>
+		p.scales.every(s => (ctx.scaleProficiency[s]?.level ?? 0) >= p.level)
+	);
 }
 
 /** Check whether a specific tonality is unlocked */
-export function isTonalityUnlocked(tonality: Tonality, xp: number): boolean {
-	return isKeyUnlocked(tonality.key, xp) && isScaleTypeUnlocked(tonality.scaleType, xp);
+export function isTonalityUnlocked(tonality: Tonality, ctx: UnlockContext): boolean {
+	return isKeyUnlocked(tonality.key, ctx) && isScaleTypeUnlocked(tonality.scaleType, ctx);
 }
 
-/** Get XP required to unlock a key */
-export function xpRequiredForKey(key: PitchClass): number {
-	const idx = KEY_UNLOCK_ORDER.indexOf(key);
-	return idx >= 0 ? KEY_XP_THRESHOLDS[idx] : Infinity;
+/** Get scale unlock requirements for display */
+export function getScaleUnlockRequirements(scaleType: ScaleType): { scales: ScaleType[]; level: number }[] {
+	return SCALE_PREREQUISITES[scaleType];
 }
 
-/** Get XP required to unlock a scale type */
-export function xpRequiredForScaleType(scaleType: ScaleType): number {
-	const idx = SCALE_UNLOCK_ORDER.indexOf(scaleType);
-	return idx >= 0 ? SCALE_XP_THRESHOLDS[idx] : Infinity;
-}
-
-/** Get XP required to unlock a tonality (max of key + scale requirement) */
-export function xpRequiredForTonality(tonality: Tonality): number {
-	return Math.max(xpRequiredForKey(tonality.key), xpRequiredForScaleType(tonality.scaleType));
+/** Get key unlock requirements for display */
+export function getKeyUnlockRequirements(key: PitchClass): { key: PitchClass; level: number }[] {
+	return KEY_UNLOCK_PREREQUISITES[key];
 }
 
 // ── All tonalities with unlock info ─────────────────────────────────
 
 /** Build the full list of tonalities with their unlock status */
-export function getAllTonalitiesWithUnlockInfo(xp: number): TonalityUnlockInfo[] {
+export function getAllTonalitiesWithUnlockInfo(ctx: UnlockContext): TonalityUnlockInfo[] {
 	const results: TonalityUnlockInfo[] = [];
 	for (const scaleType of SCALE_UNLOCK_ORDER) {
 		for (const key of KEY_UNLOCK_ORDER) {
 			const tonality: Tonality = { key, scaleType };
 			results.push({
 				tonality,
-				xpRequired: xpRequiredForTonality(tonality),
-				unlocked: isTonalityUnlocked(tonality, xp)
+				unlocked: isTonalityUnlocked(tonality, ctx)
 			});
 		}
 	}
@@ -195,9 +198,9 @@ export function getAllTonalitiesWithUnlockInfo(xp: number): TonalityUnlockInfo[]
 }
 
 /** Get only unlocked tonalities */
-export function getUnlockedTonalities(xp: number): Tonality[] {
-	const keys = getUnlockedKeys(xp);
-	const scales = getUnlockedScaleTypes(xp);
+export function getUnlockedTonalities(ctx: UnlockContext): Tonality[] {
+	const keys = getUnlockedKeys(ctx);
+	const scales = getUnlockedScaleTypes(ctx);
 	const results: Tonality[] = [];
 	for (const scaleType of scales) {
 		for (const key of keys) {
@@ -226,7 +229,7 @@ function dateHash(dateStr: string): number {
  * Get the daily tonality for a given date, based on unlocked tonalities.
  *
  * The selection is deterministic: same date + same unlocked set = same tonality.
- * If no tonalities are unlocked (shouldn't happen), falls back to C Major.
+ * If no tonalities are unlocked (shouldn't happen), falls back to C Major Pentatonic.
  *
  * At early levels (few unlocked tonalities), each tonality persists for
  * multiple days so the player has time to internalize the key and scale
@@ -236,15 +239,15 @@ function dateHash(dateStr: string): number {
  *   - 7+  tonalities: 1 day each (daily rotation)
  *
  * @param date - ISO date string (YYYY-MM-DD) or Date object
- * @param xp - User's current XP
+ * @param ctx - User's unlock context (proficiency levels)
  * @returns The tonality for that day
  */
-export function getDailyTonality(date: string | Date, xp: number): Tonality {
+export function getDailyTonality(date: string | Date, ctx: UnlockContext): Tonality {
 	const dateStr = typeof date === 'string' ? date : date.toISOString().slice(0, 10);
-	const unlocked = getUnlockedTonalities(xp);
+	const unlocked = getUnlockedTonalities(ctx);
 
 	if (unlocked.length === 0) {
-		return { key: 'C', scaleType: 'major' };
+		return { key: 'C', scaleType: 'major-pentatonic' };
 	}
 
 	const daysPerTonality = unlocked.length <= 3 ? 3
@@ -267,9 +270,9 @@ export function getDailyTonality(date: string | Date, xp: number): Tonality {
 /**
  * Get today's tonality.
  */
-export function getTodaysTonality(xp: number): Tonality {
+export function getTodaysTonality(ctx: UnlockContext): Tonality {
 	const today = new Date().toISOString().slice(0, 10);
-	return getDailyTonality(today, xp);
+	return getDailyTonality(today, ctx);
 }
 
 // ── Display helpers ─────────────────────────────────────────────────

@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { progress, getRecentSessions } from '$lib/state/progress.svelte.ts';
-	import { xpToDisplayLevel, xpProgress, xpForLevel } from '$lib/difficulty/adaptive.ts';
+	import { progress, getRecentSessions, getPrimaryLevel } from '$lib/state/progress.svelte.ts';
+	import { difficultyDisplay } from '$lib/difficulty/display.ts';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
 
 	const recentSessions = $derived(getRecentSessions(5));
-	const displayLevel = $derived(xpToDisplayLevel(progress.adaptive.xp));
-	const levelProg = $derived(xpProgress(progress.adaptive.xp));
+	const primaryLevel = $derived(getPrimaryLevel());
+	const levelDisp = $derived(difficultyDisplay(primaryLevel));
 	const pct = (n: number) => Math.round(n * 100);
 
 	const CATEGORY_LABELS: Record<string, string> = {
@@ -47,24 +47,18 @@
 				<div class="text-xs text-[var(--color-text-secondary)]">Streak</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
-				<div class="text-xl font-bold">{progress.adaptive.currentLevel}</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Difficulty</div>
+				<div class="text-xl font-bold" style="color: {levelDisp.color}">{primaryLevel}</div>
+				<div class="text-xs text-[var(--color-text-secondary)]">Proficiency</div>
 			</div>
 		</div>
 
-		<!-- XP bar -->
+		<!-- Proficiency level -->
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3">
 			<div class="flex items-center justify-between text-sm">
-				<span class="font-medium">Level {displayLevel}</span>
+				<span class="font-medium" style="color: {levelDisp.color}">{levelDisp.name}</span>
 				<span class="text-xs text-[var(--color-text-secondary)]">
-					{progress.adaptive.xp} XP
+					Level {primaryLevel} &middot; {progress.adaptive.xp} XP
 				</span>
-			</div>
-			<div class="mt-1.5 h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
-				<div
-					class="h-full rounded-full bg-[var(--color-accent)] transition-all duration-700"
-					style="width: {pct(levelProg)}%"
-				></div>
 			</div>
 		</div>
 	{/if}

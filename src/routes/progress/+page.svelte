@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { progress, getRecentSessions, getCategoryStats, resetProgress } from '$lib/state/progress.svelte.ts';
-	import { xpToDisplayLevel, xpProgress, xpForLevel } from '$lib/difficulty/adaptive.ts';
+	import { progress, getRecentSessions, getCategoryStats, resetProgress, getPrimaryLevel } from '$lib/state/progress.svelte.ts';
+	import { difficultyDisplay } from '$lib/difficulty/display.ts';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
-	import { SCALE_TYPE_NAMES } from '$lib/tonality/tonality.ts';
+	import { SCALE_TYPE_NAMES, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality.ts';
+	import type { ScaleType } from '$lib/tonality/tonality.ts';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
-	import { getInstrument } from '$lib/state/settings.svelte.ts';
+	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte.ts';
+	import { concertKeyToWritten } from '$lib/music/transposition.ts';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
 	import type { Grade } from '$lib/types/scoring.ts';
 
@@ -28,9 +30,17 @@
 	const categoryStats = $derived(getCategoryStats());
 	const chartData = $derived(progress.sessions.slice(0, 30).reverse());
 	const chartW = $derived(400 / Math.max(chartData.length - 1, 1));
-	const displayLevel = $derived(xpToDisplayLevel(progress.adaptive.xp));
-	const levelProgress = $derived(xpProgress(progress.adaptive.xp));
+	const primaryLevel = $derived(getPrimaryLevel());
+	const levelDisp = $derived(difficultyDisplay(primaryLevel));
 	const pct = (n: number) => Math.round(n * 100);
+
+	// Per-scale proficiency entries (only scales with data)
+	const scaleProfEntries = $derived(
+		SCALE_UNLOCK_ORDER
+			.filter(st => progress.scaleProficiency[st])
+			.map(st => ({ scaleType: st, prof: progress.scaleProficiency[st]! }))
+			.sort((a, b) => b.prof.level - a.prof.level)
+	);
 
 	const keyEntries = $derived(
 		(Object.entries(progress.keyProgress) as [PitchClass, { attempts: number; averageScore: number }][])
@@ -66,8 +76,8 @@
 			<div class="text-xs text-[var(--color-text-secondary)]">Day Streak</div>
 		</div>
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-			<div class="text-2xl font-bold">{progress.adaptive.currentLevel}</div>
-			<div class="text-xs text-[var(--color-text-secondary)]">Difficulty</div>
+			<div class="text-2xl font-bold" style="color: {levelDisp.color}">{primaryLevel}</div>
+			<div class="text-xs text-[var(--color-text-secondary)]">Proficiency</div>
 		</div>
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
 			<div class="text-2xl font-bold">{progress.adaptive.xp}</div>
@@ -75,21 +85,44 @@
 		</div>
 	</div>
 
-	<!-- XP / Level bar -->
+	<!-- Proficiency level -->
 	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
 		<div class="flex items-center justify-between text-sm">
-			<span class="font-medium">Level {displayLevel}</span>
+			<span class="font-medium" style="color: {levelDisp.color}">{levelDisp.name} — Level {primaryLevel}</span>
 			<span class="text-[var(--color-text-secondary)]">
-				{Math.round(levelProgress * xpForLevel(displayLevel))} / {xpForLevel(displayLevel)} XP
+				{progress.adaptive.xp} XP
 			</span>
 		</div>
-		<div class="mt-2 h-3 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
-			<div
-				class="h-full rounded-full bg-[var(--color-accent)] transition-all duration-700"
-				style="width: {pct(levelProgress)}%"
-			></div>
-		</div>
 	</div>
+
+	<!-- Scale Proficiency breakdown -->
+	{#if scaleProfEntries.length > 0}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 text-lg font-semibold">Scale Proficiency</h2>
+			<div class="space-y-3">
+				{#each scaleProfEntries as { scaleType, prof }}
+					{@const disp = difficultyDisplay(prof.level)}
+					<div>
+						<div class="flex items-center justify-between text-sm">
+							<span>{SCALE_TYPE_NAMES[scaleType]}</span>
+							<span class="tabular-nums font-medium" style="color: {disp.color}">
+								Lv {prof.level}
+							</span>
+						</div>
+						<div class="mt-1 h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+							<div
+								class="h-full rounded-full transition-all"
+								style="width: {prof.level}%; background-color: {disp.color}"
+							></div>
+						</div>
+						<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+							{prof.totalAttempts} attempts
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
 
 	<!-- Adaptive difficulty detail -->
 	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
@@ -195,7 +228,7 @@
 				{#each PITCH_CLASSES as pc}
 					{@const kp = progress.keyProgress[pc]}
 					<div class="rounded bg-[var(--color-bg-tertiary)] p-2 text-center text-sm">
-						<div class="font-medium">{pc}</div>
+						<div class="font-medium">{concertKeyToWritten(pc, instrument)}</div>
 						{#if kp && kp.attempts > 0}
 							<div class="text-xs text-[var(--color-text-secondary)]">
 								{pct(kp.averageScore)}%
@@ -231,7 +264,7 @@
 								{GRADE_LABELS[s.grade]}
 							</span>
 							<span class="flex-1 truncate text-[var(--color-text-secondary)]">
-								{s.phraseName ?? (CATEGORY_LABELS[s.category] ?? s.category)} in {s.key}{s.scaleType ? ` ${SCALE_TYPE_NAMES[s.scaleType]}` : ''}
+								{s.phraseName ?? (CATEGORY_LABELS[s.category] ?? s.category)} in {concertKeyToWritten(s.key as PitchClass, instrument)}{s.scaleType ? ` ${SCALE_TYPE_NAMES[s.scaleType]}` : ''}
 							</span>
 							<span class="tabular-nums">{pct(s.overall)}%</span>
 							<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">
@@ -277,7 +310,7 @@
 									<span>{s.tempo} BPM</span>
 									<span>Diff {s.difficultyLevel}</span>
 									<span>{CATEGORY_LABELS[s.category] ?? s.category}</span>
-									<span>Key: {s.key}</span>
+									<span>Key: {concertKeyToWritten(s.key as PitchClass, instrument)}</span>
 								</div>
 
 								<!-- Per-note comparison -->
@@ -312,7 +345,7 @@
 			</p>
 			<div class="flex justify-center gap-2">
 				<button
-					onclick={() => { resetProgress(); showResetConfirm = false; }}
+					onclick={() => { resetProgress(); settings.tonalityOverride = null; saveSettings(); showResetConfirm = false; }}
 					class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 				>
 					Yes, Reset

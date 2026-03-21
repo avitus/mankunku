@@ -2,6 +2,27 @@ import type { Grade, NoteResult, TimingDiagnostics } from './scoring.ts';
 import type { PhraseCategory, PitchClass } from './music.ts';
 import type { ScaleType } from '$lib/tonality/tonality.ts';
 
+export interface ScaleProficiency {
+	level: number;              // 1-100 — the user's proficiency in this scale
+	recentScores: number[];     // circular buffer, last 10 scores at current level
+	attemptsAtLevel: number;
+	attemptsSinceChange: number;
+	totalAttempts: number;
+}
+
+export interface KeyProficiency {
+	level: number;              // 1-100
+	recentScores: number[];     // last 10 scores in this key
+	attemptsAtLevel: number;
+	attemptsSinceChange: number;
+	totalAttempts: number;
+}
+
+export interface UnlockContext {
+	scaleProficiency: Partial<Record<ScaleType, { level: number }>>;
+	keyProficiency: Partial<Record<PitchClass, { level: number }>>;
+}
+
 export interface SessionResult {
 	id: string;
 	timestamp: number;
@@ -52,6 +73,10 @@ export interface UserProgress {
 	categoryProgress: Record<string, CategoryProgress>;
 	/** Per-key accuracy tracking */
 	keyProgress: Partial<Record<PitchClass, { attempts: number; averageScore: number }>>;
+	/** Per-scale proficiency levels (1-100) */
+	scaleProficiency: Partial<Record<ScaleType, ScaleProficiency>>;
+	/** Per-key proficiency levels (1-100) */
+	keyProficiency: Partial<Record<PitchClass, KeyProficiency>>;
 	totalPracticeTime: number;
 	streakDays: number;
 	lastPracticeDate: string;

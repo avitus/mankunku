@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { INSTRUMENTS } from '$lib/types/instruments.ts';
-	import { settings, saveSettings, applyTheme } from '$lib/state/settings.svelte.ts';
-	import { progress, resetProgress } from '$lib/state/progress.svelte.ts';
+	import { settings, saveSettings, applyTheme, getInstrument } from '$lib/state/settings.svelte.ts';
+	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte.ts';
+	import { concertKeyToWritten } from '$lib/music/transposition.ts';
 	import type { PitchClass } from '$lib/types/music.ts';
 	import {
 		type ScaleType,
@@ -13,20 +14,32 @@
 		isKeyUnlocked,
 		isScaleTypeUnlocked,
 		getTodaysTonality,
-		formatTonality,
-		xpRequiredForKey,
-		xpRequiredForScaleType
+		getScaleUnlockRequirements,
+		getKeyUnlockRequirements
 	} from '$lib/tonality/tonality.ts';
 
 	const instruments = Object.entries(INSTRUMENTS);
+	const instrument = $derived(getInstrument());
 
 	// Tonality state
-	const xp = $derived(progress.adaptive.xp);
-	const dailyTonality = $derived(getTodaysTonality(xp));
+	const unlockCtx = $derived(getUnlockContext());
+	const dailyTonality = $derived(getTodaysTonality(unlockCtx));
 	const activeTonality = $derived(settings.tonalityOverride ?? dailyTonality);
-	const unlockedKeys = $derived(getUnlockedKeys(xp));
-	const unlockedScaleTypes = $derived(getUnlockedScaleTypes(xp));
+	const unlockedKeys = $derived(getUnlockedKeys(unlockCtx));
+	const unlockedScaleTypes = $derived(getUnlockedScaleTypes(unlockCtx));
 	const useOverride = $derived(settings.tonalityOverride !== null);
+
+	function scaleUnlockTooltip(scaleType: ScaleType): string {
+		const reqs = getScaleUnlockRequirements(scaleType);
+		if (reqs.length === 0) return SCALE_TYPE_NAMES[scaleType];
+		return reqs.map(r => `Requires ${r.scales.map(s => SCALE_TYPE_NAMES[s]).join(' + ')} level ${r.level}`).join('; ');
+	}
+
+	function keyUnlockTooltip(key: PitchClass): string {
+		const reqs = getKeyUnlockRequirements(key);
+		if (reqs.length === 0) return key;
+		return reqs.map(r => `Requires ${r.key} proficiency level ${r.level}`).join('; ');
+	}
 
 	function selectKey(key: PitchClass) {
 		const currentScale = settings.tonalityOverride?.scaleType ?? dailyTonality.scaleType;
@@ -72,6 +85,10 @@
 	}
 
 	let showResetConfirm = $state(false);
+
+	function scrollIntoView(node: HTMLElement) {
+		node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+	}
 </script>
 
 <div class="space-y-6">
@@ -128,7 +145,7 @@
 			<!-- Current tonality -->
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="font-medium">{formatTonality(activeTonality)}</p>
+					<p class="font-medium">{concertKeyToWritten(activeTonality.key, instrument)} {SCALE_TYPE_NAMES[activeTonality.scaleType]}</p>
 					<p class="text-xs text-[var(--color-text-secondary)]">
 						{useOverride ? 'Custom override' : 'Daily tonality'}
 					</p>
@@ -148,19 +165,21 @@
 				<label class="mb-2 block text-sm">Key Center</label>
 				<div class="flex flex-wrap gap-1">
 					{#each KEY_UNLOCK_ORDER as key}
-						{@const unlocked = isKeyUnlocked(key, xp)}
+						{@const unlocked = isKeyUnlocked(key, unlockCtx)}
 						{@const isActive = activeTonality.key === key}
+						{@const writtenKey = concertKeyToWritten(key, instrument)}
 						<button
 							onclick={() => selectKey(key)}
+							disabled={!unlocked}
 							class="relative rounded px-2.5 py-1 text-sm transition-colors
 								{isActive
 									? 'bg-[var(--color-accent)] text-white'
 									: unlocked
 										? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
-										: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
-							title={unlocked ? key : `Unlocks at ${xpRequiredForKey(key)} XP`}
+										: 'bg-[var(--color-bg-tertiary)] opacity-50 cursor-not-allowed'}"
+							title={unlocked ? writtenKey : keyUnlockTooltip(key)}
 						>
-							{key}
+							{writtenKey}
 							{#if !unlocked}
 								<span class="absolute -right-0.5 -top-0.5 text-[8px]">&#x1f512;</span>
 							{/if}
@@ -174,17 +193,18 @@
 				<label class="mb-2 block text-sm">Scale Type</label>
 				<div class="flex flex-wrap gap-1.5">
 					{#each SCALE_UNLOCK_ORDER as scaleType}
-						{@const unlocked = isScaleTypeUnlocked(scaleType, xp)}
+						{@const unlocked = isScaleTypeUnlocked(scaleType, unlockCtx)}
 						{@const isActive = activeTonality.scaleType === scaleType}
 						<button
 							onclick={() => selectScale(scaleType)}
+							disabled={!unlocked}
 							class="relative rounded-full px-3 py-1 text-sm transition-colors
 								{isActive
 									? 'bg-[var(--color-accent)] text-white'
 									: unlocked
 										? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
-										: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
-							title={unlocked ? SCALE_TYPE_NAMES[scaleType] : `Unlocks at ${xpRequiredForScaleType(scaleType)} XP`}
+										: 'bg-[var(--color-bg-tertiary)] opacity-50 cursor-not-allowed'}"
+							title={unlocked ? SCALE_TYPE_NAMES[scaleType] : scaleUnlockTooltip(scaleType)}
 						>
 							{SCALE_TYPE_NAMES[scaleType]}
 							{#if !unlocked}
@@ -199,7 +219,6 @@
 			<div class="text-xs text-[var(--color-text-secondary)]">
 				{unlockedKeys.length} / {KEY_UNLOCK_ORDER.length} keys and
 				{unlockedScaleTypes.length} / {SCALE_UNLOCK_ORDER.length} scales unlocked
-				({xp} XP)
 			</div>
 		</div>
 	</section>
@@ -285,12 +304,13 @@
 		<h2 class="text-lg font-semibold">Data</h2>
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
 			{#if showResetConfirm}
+				<div use:scrollIntoView>
 				<p class="mb-3 text-sm text-[var(--color-error)]">
 					This will erase all progress, scores, and session history. This cannot be undone.
 				</p>
 				<div class="flex gap-2">
 					<button
-						onclick={() => { resetProgress(); showResetConfirm = false; }}
+						onclick={() => { resetProgress(); settings.tonalityOverride = null; saveSettings(); showResetConfirm = false; }}
 						class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 					>
 						Yes, Reset Everything
@@ -301,6 +321,7 @@
 					>
 						Cancel
 					</button>
+				</div>
 				</div>
 			{:else}
 				<button

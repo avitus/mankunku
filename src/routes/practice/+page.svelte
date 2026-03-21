@@ -3,13 +3,16 @@
 	import { GRADE_COLORS } from '$lib/scoring/grades.ts';
 	import { TEST_PHRASES } from '$lib/data/test-phrases.ts';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader.ts';
-	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
+	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte.ts';
 	import { concertKeyToWritten } from '$lib/music/transposition.ts';
 	import { session } from '$lib/state/session.svelte.ts';
-	import { progress, recordAttempt } from '$lib/state/progress.svelte.ts';
+	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte.ts';
 	import { scoreAttempt } from '$lib/scoring/scorer.ts';
 	import { segmentNotes } from '$lib/audio/note-segmenter.ts';
-	import { getTodaysTonality, formatTonality, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality.ts';
+	import { getTodaysTonality, isTonalityUnlocked, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality.ts';
+	import { isLickCompatible } from '$lib/tonality/scale-compatibility.ts';
+	import { getScale } from '$lib/music/scales.ts';
+	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive.ts';
 	import type { PlaybackOptions } from '$lib/types/audio.ts';
 	import type { Score } from '$lib/types/scoring.ts';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
@@ -21,18 +24,39 @@
 	let pitchModule: typeof import('$lib/audio/pitch-detector.ts') | null = null;
 	let onsetModule: typeof import('$lib/audio/onset-detector.ts') | null = null;
 
-	// Pin daily tonality at page load so XP earned mid-session won't shift key
-	const sessionDailyTonality = getTodaysTonality(progress.adaptive.xp);
+	// Pin daily tonality at page load so proficiency gains mid-session won't shift key
+	const sessionUnlockCtx = getUnlockContext();
+	const sessionDailyTonality = getTodaysTonality(sessionUnlockCtx);
+
+	// Clear stale overrides that reference locked content (e.g. after a reset)
+	if (settings.tonalityOverride && !isTonalityUnlocked(settings.tonalityOverride, sessionUnlockCtx)) {
+		settings.tonalityOverride = null;
+		saveSettings();
+	}
+
 	const activeTonality = $derived(settings.tonalityOverride ?? sessionDailyTonality);
 	const instrument = $derived(getInstrument());
 	const writtenKey = $derived(concertKeyToWritten(activeTonality.key, instrument));
-	const adaptiveLevel = $derived(progress.adaptive.currentLevel);
+	// Use per-scale proficiency level for lick filtering
+	const scaleProfLevel = $derived(
+		(progress.scaleProficiency[activeTonality.scaleType] ?? createInitialScaleProficiency()).level
+	);
 
 	const allLicksRaw = getAllLicks();
+	const difficultyFiltered = $derived(
+		allLicksRaw.filter(lick => lick.difficulty.level <= scaleProfLevel)
+	);
+	const scaleFilteredLicks = $derived(
+		difficultyFiltered.filter(lick => isLickCompatible(lick, activeTonality.scaleType))
+	);
+	// Fallback: if scale filtering leaves < 3 licks, widen to all at difficulty level
 	const filteredLicks = $derived(
-		allLicksRaw.filter(lick => lick.difficulty.level <= adaptiveLevel)
+		scaleFilteredLicks.length >= 3 ? scaleFilteredLicks : difficultyFiltered
 	);
 	const scaleId = $derived(SCALE_TYPE_TO_SCALE_ID[activeTonality.scaleType]);
+	const scaleNoteCount = $derived(
+		getScale(scaleId)?.intervals.length ?? 7
+	);
 	const allLicks = $derived(filteredLicks.map(lick =>
 		transposeLickForTonality(lick, activeTonality.key, scaleId)
 	));
@@ -371,6 +395,9 @@
 		</div>
 		<div class="mt-1 text-lg text-[var(--color-text-secondary)]">
 			{SCALE_TYPE_NAMES[activeTonality.scaleType]}
+		</div>
+		<div class="text-sm text-[var(--color-text-secondary)] opacity-60">
+			{scaleNoteCount} notes
 		</div>
 		{#if session.phrase && isActive}
 			<div class="mt-3 text-sm text-[var(--color-text-secondary)]">

@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { settings, saveSettings } from '$lib/state/settings.svelte.ts';
 	import { session } from '$lib/state/session.svelte.ts';
-	import { progress } from '$lib/state/progress.svelte.ts';
+	import { progress, getUnlockContext } from '$lib/state/progress.svelte.ts';
 	import { PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music.ts';
 	import { INSTRUMENTS } from '$lib/types/instruments.ts';
 	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader.ts';
@@ -22,8 +22,8 @@
 		getTodaysTonality,
 		formatTonality,
 		tonalitiesEqual,
-		xpRequiredForKey,
-		xpRequiredForScaleType
+		getScaleUnlockRequirements,
+		getKeyUnlockRequirements
 	} from '$lib/tonality/tonality.ts';
 
 	const CATEGORIES: { value: PhraseCategory | 'random'; label: string }[] = [
@@ -48,12 +48,24 @@
 	const diffDisp = $derived(difficultyDisplay(selectedDifficulty));
 
 	// Tonality state
-	const xp = $derived(progress.adaptive.xp);
-	const dailyTonality = $derived(getTodaysTonality(xp));
+	const unlockCtx = $derived(getUnlockContext());
+	const dailyTonality = $derived(getTodaysTonality(unlockCtx));
 	const activeTonality = $derived(settings.tonalityOverride ?? dailyTonality);
-	const unlockedKeys = $derived(getUnlockedKeys(xp));
-	const unlockedScaleTypes = $derived(getUnlockedScaleTypes(xp));
+	const unlockedKeys = $derived(getUnlockedKeys(unlockCtx));
+	const unlockedScaleTypes = $derived(getUnlockedScaleTypes(unlockCtx));
 	const useOverride = $derived(settings.tonalityOverride !== null);
+
+	function scaleUnlockTooltip(scaleType: ScaleType): string {
+		const reqs = getScaleUnlockRequirements(scaleType);
+		if (reqs.length === 0) return SCALE_TYPE_NAMES[scaleType];
+		return reqs.map(r => `Requires ${r.scales.map(s => SCALE_TYPE_NAMES[s]).join(' + ')} level ${r.level}`).join('; ');
+	}
+
+	function keyUnlockTooltip(key: PitchClass): string {
+		const reqs = getKeyUnlockRequirements(key);
+		if (reqs.length === 0) return key;
+		return reqs.map(r => `Requires ${r.key} proficiency level ${r.level}`).join('; ');
+	}
 
 	function setTonalityOverride(tonality: Tonality | null) {
 		settings.tonalityOverride = tonality;
@@ -163,7 +175,7 @@
 			<label class="mb-2 block text-sm font-medium">Key Center</label>
 			<div class="flex flex-wrap gap-1">
 				{#each KEY_UNLOCK_ORDER as key}
-					{@const unlocked = isKeyUnlocked(key, xp)}
+					{@const unlocked = isKeyUnlocked(key, unlockCtx)}
 					{@const isActive = activeTonality.key === key}
 					<button
 						onclick={() => selectTonalityKey(key)}
@@ -173,7 +185,7 @@
 								: unlocked
 									? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
 									: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
-						title={unlocked ? key : `Unlocks at ${xpRequiredForKey(key)} XP`}
+						title={unlocked ? key : keyUnlockTooltip(key)}
 					>
 						{key}
 						{#if !unlocked}
@@ -189,7 +201,7 @@
 			<label class="mb-2 block text-sm font-medium">Scale Type</label>
 			<div class="flex flex-wrap gap-1.5">
 				{#each SCALE_UNLOCK_ORDER as scaleType}
-					{@const unlocked = isScaleTypeUnlocked(scaleType, xp)}
+					{@const unlocked = isScaleTypeUnlocked(scaleType, unlockCtx)}
 					{@const isActive = activeTonality.scaleType === scaleType}
 					<button
 						onclick={() => selectTonalityScale(scaleType)}
@@ -199,7 +211,7 @@
 								: unlocked
 									? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
 									: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
-						title={unlocked ? SCALE_TYPE_NAMES[scaleType] : `Unlocks at ${xpRequiredForScaleType(scaleType)} XP`}
+						title={unlocked ? SCALE_TYPE_NAMES[scaleType] : scaleUnlockTooltip(scaleType)}
 					>
 						{SCALE_TYPE_NAMES[scaleType]}
 						{#if !unlocked}
@@ -214,7 +226,6 @@
 		<div class="text-xs text-[var(--color-text-secondary)]">
 			{unlockedKeys.length} / {KEY_UNLOCK_ORDER.length} keys and
 			{unlockedScaleTypes.length} / {SCALE_UNLOCK_ORDER.length} scale types unlocked
-			({xp} XP)
 		</div>
 	</div>
 

@@ -5,11 +5,11 @@
  * Auto-saves on every mutation via $effect.
  */
 
-import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState } from '$lib/types/progress.ts';
+import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress.ts';
 import type { Score } from '$lib/types/scoring.ts';
 import type { PhraseCategory, PitchClass } from '$lib/types/music.ts';
 import type { ScaleType } from '$lib/tonality/tonality.ts';
-import { createInitialAdaptiveState, processAttempt } from '$lib/difficulty/adaptive.ts';
+import { createInitialAdaptiveState, processAttempt, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive.ts';
 import { save, load } from '$lib/persistence/storage.ts';
 
 const STORAGE_KEY = 'progress';
@@ -21,6 +21,8 @@ function createInitialProgress(): UserProgress {
 		sessions: [],
 		categoryProgress: {},
 		keyProgress: {},
+		scaleProficiency: {},
+		keyProficiency: {},
 		totalPracticeTime: 0,
 		streakDays: 0,
 		lastPracticeDate: ''
@@ -32,7 +34,7 @@ function loadProgress(): UserProgress {
 	if (!saved) return createInitialProgress();
 
 	// Merge with defaults for forward compatibility
-	return {
+	const merged: UserProgress = {
 		...createInitialProgress(),
 		...saved,
 		adaptive: {
@@ -40,6 +42,40 @@ function loadProgress(): UserProgress {
 			...saved.adaptive
 		}
 	};
+
+	// Migrate: build scaleProficiency and keyProficiency from session history
+	if (!saved.scaleProficiency || Object.keys(saved.scaleProficiency).length === 0) {
+		merged.scaleProficiency = migrateScaleProficiency(merged.sessions);
+	}
+	if (!saved.keyProficiency || Object.keys(saved.keyProficiency).length === 0) {
+		merged.keyProficiency = migrateKeyProficiency(merged.sessions);
+	}
+
+	return merged;
+}
+
+/** Replay session history to build per-scale proficiency */
+function migrateScaleProficiency(sessions: SessionResult[]): Partial<Record<ScaleType, ScaleProficiency>> {
+	const result: Partial<Record<ScaleType, ScaleProficiency>> = {};
+	// Walk oldest-first
+	const ordered = [...sessions].reverse();
+	for (const s of ordered) {
+		if (!s.scaleType) continue;
+		const current = result[s.scaleType] ?? createInitialScaleProficiency();
+		result[s.scaleType] = processScaleAttempt(current, s.overall);
+	}
+	return result;
+}
+
+/** Replay session history to build per-key proficiency */
+function migrateKeyProficiency(sessions: SessionResult[]): Partial<Record<PitchClass, KeyProficiency>> {
+	const result: Partial<Record<PitchClass, KeyProficiency>> = {};
+	const ordered = [...sessions].reverse();
+	for (const s of ordered) {
+		const current = result[s.key] ?? createInitialKeyProficiency();
+		result[s.key] = processKeyAttempt(current, s.overall);
+	}
+	return result;
 }
 
 export const progress = $state<UserProgress>(loadProgress());
@@ -97,6 +133,14 @@ export function recordAttempt(
 		score.grade
 	);
 
+	// Update per-scale proficiency
+	if (scaleType) {
+		updateScaleProficiency(scaleType, score);
+	}
+
+	// Update per-key proficiency
+	updateKeyProficiency(key, score);
+
 	// Update category progress
 	updateCategoryProgress(category, score);
 
@@ -148,6 +192,39 @@ function updateKeyProgress(key: PitchClass, score: Score): void {
 			averageScore: score.overall
 		};
 	}
+}
+
+function updateScaleProficiency(scaleType: ScaleType, score: Score): void {
+	const current = progress.scaleProficiency[scaleType] ?? createInitialScaleProficiency();
+	progress.scaleProficiency[scaleType] = processScaleAttempt(current, score.overall);
+}
+
+function updateKeyProficiency(key: PitchClass, score: Score): void {
+	const current = progress.keyProficiency[key] ?? createInitialKeyProficiency();
+	progress.keyProficiency[key] = processKeyAttempt(current, score.overall);
+}
+
+/**
+ * Build an UnlockContext from current progress state.
+ */
+export function getUnlockContext(): UnlockContext {
+	const scaleProficiency: Partial<Record<ScaleType, { level: number }>> = {};
+	for (const [k, v] of Object.entries(progress.scaleProficiency) as [ScaleType, ScaleProficiency][]) {
+		scaleProficiency[k] = { level: v.level };
+	}
+	const keyProficiency: Partial<Record<PitchClass, { level: number }>> = {};
+	for (const [k, v] of Object.entries(progress.keyProficiency) as [PitchClass, KeyProficiency][]) {
+		keyProficiency[k] = { level: v.level };
+	}
+	return { scaleProficiency, keyProficiency };
+}
+
+/**
+ * Get the primary display level: max of all per-scale proficiency levels.
+ */
+export function getPrimaryLevel(): number {
+	const levels = Object.values(progress.scaleProficiency).map(sp => sp.level);
+	return levels.length > 0 ? Math.max(...levels) : 1;
 }
 
 function updateStreak(): void {
