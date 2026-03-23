@@ -3,10 +3,11 @@
 	import { midiToNoteName } from '$lib/music/intervals.ts';
 	import { PITCH_CLASSES, type Phrase, type PitchClass } from '$lib/types/music.ts';
 	import { quantizeNotes, detectKey } from '$lib/audio/quantizer.ts';
-	import { segmentNotes } from '$lib/audio/note-segmenter.ts';
+	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
 	import { calculateDifficulty } from '$lib/difficulty/calculate.ts';
 	import { saveUserLick, getUserLicks } from '$lib/persistence/user-licks.ts';
 	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
+	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 
 	const instrument = $derived(getInstrument());
@@ -105,8 +106,9 @@
 
 		// Load instrument if needed for playback later
 		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId);
+			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 		}
+		setMasterVolume(settings.masterVolume);
 
 		recordState = 'counting-in';
 
@@ -170,8 +172,9 @@
 		// Collect data
 		const readings = pitchDetector?.getReadings() ?? [];
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
-		const onsets = workletOnsets.length > 0
-			? workletOnsets
+		const validatedOnsets = validateOnsets(workletOnsets, readings);
+		const onsets = validatedOnsets.length > 0
+			? validatedOnsets
 			: extractOnsetsFromReadings(readings);
 
 		// Stop transport + metronome

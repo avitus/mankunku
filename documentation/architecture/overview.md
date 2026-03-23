@@ -52,7 +52,13 @@ graph TD
         Generator["generator.ts"]
         Mutator["mutator.ts"]
         Validator["validator.ts"]
+        Combiner["combiner.ts"]
         LibLoader["library-loader.ts"]
+    end
+
+    subgraph Tonality ["Tonality System"]
+        TonalityMod["tonality.ts"]
+        ScaleCompat["scale-compatibility.ts"]
     end
 
     subgraph Persistence
@@ -87,6 +93,11 @@ graph TD
     Generator --> Keys
     Generator --> Validator
     LibLoader --> Transposition
+    LibLoader --> ScaleCompat
+
+    Practice --> TonalityMod
+    Practice --> ScaleCompat
+    TonalityMod --> SettingsState
 
     Notation --> Transposition
 ```
@@ -110,6 +121,7 @@ The codebase follows clear module boundaries:
 - **Audio** (`src/lib/audio/`): Manages the Web Audio API graph. The only modules that touch `AudioContext`, `MediaStream`, and `AudioWorklet`.
 - **Scoring** (`src/lib/scoring/`): Pure functions that take expected notes + detected notes and produce scores. No audio or UI dependencies.
 - **Phrases** (`src/lib/phrases/`): Generates, mutates, validates, and queries phrases. Depends on music theory but not on audio or UI.
+- **Tonality** (`src/lib/tonality/`): Daily tonality selection, progressive unlocking, and scale-aware lick filtering. Pure functions, no UI dependencies.
 - **Difficulty** (`src/lib/difficulty/`): Pure algorithm for adjusting difficulty based on performance. No UI dependencies.
 - **State** (`src/lib/state/`): Svelte 5 rune-based reactive state. The bridge between UI and logic.
 - **Components** (`src/lib/components/`): Reusable Svelte components. Each accepts props and emits events.

@@ -16,6 +16,7 @@ function loadSettings() {
 const defaultSettings = {
 	instrumentId: 'tenor-sax',
 	defaultTempo: 100,
+	masterVolume: 0.8,
 	metronomeEnabled: true,
 	metronomeVolume: 0.7,
 	swing: 0.5,

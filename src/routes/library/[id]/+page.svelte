@@ -7,6 +7,7 @@
 	import { getLickById, transposeLick } from '$lib/phrases/library-loader.ts';
 	import { session } from '$lib/state/session.svelte.ts';
 	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
+	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
 	import type { Phrase } from '$lib/types/music.ts';
 	import { difficultyDisplay } from '$lib/difficulty/display.ts';
@@ -40,8 +41,9 @@
 		}
 
 		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId);
+			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 		}
+		setMasterVolume(settings.masterVolume);
 
 		isPlaying = true;
 		await playbackModule.playPhrase(lick, {

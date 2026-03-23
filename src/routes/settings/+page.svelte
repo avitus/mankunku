@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { INSTRUMENTS } from '$lib/types/instruments.ts';
 	import { settings, saveSettings, applyTheme, getInstrument } from '$lib/state/settings.svelte.ts';
+	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte.ts';
 	import { concertKeyToWritten } from '$lib/music/transposition.ts';
 	import type { PitchClass } from '$lib/types/music.ts';
@@ -71,6 +72,12 @@
 
 	function handleTempoChange(e: Event) {
 		settings.defaultTempo = parseInt((e.target as HTMLInputElement).value);
+		saveSettings();
+	}
+
+	function handleMasterVolumeChange(e: Event) {
+		settings.masterVolume = parseFloat((e.target as HTMLInputElement).value);
+		setMasterVolume(settings.masterVolume);
 		saveSettings();
 	}
 
@@ -227,6 +234,23 @@
 	<section class="space-y-3">
 		<h2 class="text-lg font-semibold">Audio</h2>
 		<div class="space-y-4 rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<!-- Master volume -->
+			<div>
+				<div class="flex items-center justify-between text-sm">
+					<span>Volume</span>
+					<span class="font-medium tabular-nums">{Math.round(settings.masterVolume * 100)}%</span>
+				</div>
+				<input
+					type="range"
+					min="0"
+					max="1"
+					step="0.05"
+					value={settings.masterVolume}
+					oninput={handleMasterVolumeChange}
+					class="mt-1 w-full accent-[var(--color-accent)]"
+				/>
+			</div>
+
 			<!-- Default tempo -->
 			<div>
 				<div class="flex items-center justify-between text-sm">

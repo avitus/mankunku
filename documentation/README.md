@@ -53,4 +53,4 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Glossary](./reference/glossary.md) | Jazz, audio, and technical terminology |
 | [Algorithm Details](./reference/algorithm-details.md) | DTW math, spectral flux, McLeod pitch method |
 | [Browser Compatibility](./reference/browser-compatibility.md) | Web Audio API support, PWA, mobile caveats |
-| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 35 scales + curated lick library with metadata |
+| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 35 scales + ~250 lick library (curated + combinatorial) with metadata |

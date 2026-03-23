@@ -9,6 +9,36 @@ import type { DetectedNote } from '$lib/types/audio.ts';
 import type { PitchReading } from './pitch-detector.ts';
 
 /**
+ * Validate worklet onsets against pitch readings.
+ *
+ * An onset is only valid if there's a pitch reading within a short window
+ * after it. This filters out false onsets from metronome bleed (percussion
+ * sounds have low clarity and don't produce pitch readings) or other
+ * environmental noise picked up by the mic.
+ *
+ * @param onsets - Raw onset timestamps (seconds, relative to recording start)
+ * @param readings - Pitch readings (sorted by time)
+ * @param window - Max time after onset to look for a pitch reading (seconds)
+ * @returns Filtered onsets confirmed by pitch data
+ */
+export function validateOnsets(
+	onsets: number[],
+	readings: PitchReading[],
+	window: number = 0.15
+): number[] {
+	if (readings.length === 0) return [];
+
+	return onsets.filter(onset => {
+		// Check if any pitch reading falls within [onset, onset + window]
+		for (const r of readings) {
+			if (r.time >= onset && r.time <= onset + window) return true;
+			if (r.time > onset + window) break; // readings are sorted
+		}
+		return false;
+	});
+}
+
+/**
  * Segment pitch readings into discrete notes using onset boundaries.
  *
  * @param readings - Pitch readings from the pitch detector (sorted by time)

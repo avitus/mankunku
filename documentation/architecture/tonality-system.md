@@ -2,7 +2,7 @@
 
 The tonality system manages daily key/scale selection and progressive unlocking of tonalities as the player advances.
 
-**Source file:** `src/lib/tonality/tonality.ts`
+**Source files:** `src/lib/tonality/tonality.ts`, `src/lib/tonality/scale-compatibility.ts`
 
 ## Concepts
 
@@ -33,20 +33,21 @@ Tonalities unlock based on the player's XP, with keys and scale types unlocking 
 
 | Order | Scale Type | XP Threshold |
 |---|---|---|
-| 1 | Major | 0 (free) |
-| 2 | Blues | 0 (free) |
-| 3 | Dorian | varies |
-| 4 | Mixolydian | varies |
-| 5 | Minor (Aeolian) | varies |
-| 6 | Lydian | varies |
-| 7 | Melodic Minor | varies |
-| 8 | Altered | varies |
-| 9 | Lydian Dominant | varies |
-| 10 | Bebop Dominant | varies |
+| 1 | Major Pentatonic | 0 (free) |
+| 2 | Major | 0 (free) |
+| 3 | Blues | 0 (free) |
+| 4 | Dorian | 300 |
+| 5 | Mixolydian | 600 |
+| 6 | Minor (Aeolian) | 1000 |
+| 7 | Lydian | 1800 |
+| 8 | Melodic Minor | 2500 |
+| 9 | Altered | 3500 |
+| 10 | Lydian Dominant | 4500 |
+| 11 | Bebop Dominant | 6000 |
 
 ### Cross-Product
 
-Available tonalities = unlocked keys × unlocked scale types. At 0 XP, the player has 2 tonalities (C Major, C Blues). As they progress, the combinatorial space grows quickly.
+Available tonalities = unlocked keys × unlocked scale types. At 0 XP, the player has 3 tonalities (C Major Pentatonic, C Major, C Blues). As they progress, the combinatorial space grows quickly.
 
 ## Daily Tonality Selection
 
@@ -81,7 +82,58 @@ The practice page derives the active tonality from either the override or the da
 const activeTonality = settings.tonalityOverride ?? getDailyTonality(today, xp)
 ```
 
-All licks in a session are transposed to `activeTonality.key` using `transposeLick()`. When the tonality changes (e.g., override selected), the current phrase is re-transposed via a `$effect`.
+All licks in a session are transposed to `activeTonality.key` using `transposeLickForTonality()`. When the tonality changes (e.g., override selected), the current phrase is re-transposed via a `$derived`.
+
+The practice page also displays the note count for the active scale (e.g., "5 notes" for pentatonic, "7 notes" for major) to help beginners understand what scale they're working with.
+
+## Scale-Aware Lick Filtering
+
+**Source file:** `src/lib/tonality/scale-compatibility.ts`
+
+Not all licks are appropriate for every scale type. A 7-note major lick that gets snapped down to 5 notes sounds awkward in a pentatonic session. The scale compatibility system filters licks by their native scale before presenting them to the player.
+
+### Design Decision
+
+Pentatonic and blues scales are treated as **first-class scales**, not subsets of major. A pentatonic lick CAN appear in a major session (since pentatonic pitch classes are a subset of major), but a 7-note major lick should NOT appear in a pentatonic session.
+
+### Compatibility Rules
+
+The rules are based on pitch-class subset relationships:
+
+| Lick's Native Scale | Compatible ScaleTypes |
+|---|---|
+| `pentatonic.major` (C D E G A) | `major-pentatonic`, `major`, `lydian`, `mixolydian` |
+| `pentatonic.minor` (C Eb F G Bb) | `minor`, `dorian` |
+| `blues.minor` (C Eb F Gb G Bb) | `blues`, `dorian`, `minor` |
+| `major.ionian` (7-note major) | `major`, `lydian`, `mixolydian`, `bebop-dominant` |
+| `major.dorian` | `dorian`, `minor` |
+| `major.mixolydian` | `mixolydian`, `major`, `bebop-dominant` |
+| `major.lydian` | `lydian`, `major` |
+| `major.aeolian` | `minor`, `dorian` |
+| `bebop.dominant` | `bebop-dominant`, `mixolydian`, `major` |
+| `melodic-minor.*` | `melodic-minor`, `altered`, `lydian-dominant` |
+
+For multi-chord progression categories (`ii-V-I-major`, `ii-V-I-minor`, `turnarounds`, `rhythm-changes`), compatibility is broader because the lick uses parent-key transposition:
+
+| Category | Compatible ScaleTypes |
+|---|---|
+| `ii-V-I-major` | `major`, `dorian`, `mixolydian`, `lydian` |
+| `ii-V-I-minor` | `minor`, `dorian`, `melodic-minor`, `altered` |
+| `turnarounds` | `major`, `mixolydian` |
+| `rhythm-changes` | `major`, `mixolydian` |
+
+### Resolution Order
+
+`getCompatibleScaleTypes(lick)` resolves compatibility in this order:
+
+1. If `lick.source === 'user'` → compatible with all ScaleTypes (user-recorded licks always pass)
+2. Check `lick.category` for progression categories → use category-level mapping
+3. Inspect `lick.harmony[0]?.scaleId` → use scale-level mapping
+4. Fallback → compatible with all ScaleTypes (safe for unknown licks)
+
+### Fallback Behavior
+
+If scale filtering leaves fewer than 3 licks at the player's difficulty level, the practice page widens to all licks at that difficulty level. This prevents empty sessions for rare scale type / difficulty level combinations.
 
 ## API
 
@@ -103,3 +155,10 @@ interface Tonality {
 | `getUnlockedScaleTypes` | `(xp) → string[]` | Scale types unlocked at given XP |
 | `getUnlockedTonalities` | `(xp) → Tonality[]` | All unlocked key × scale combinations |
 | `formatTonality` | `(tonality) → string` | Display string, e.g., "D Dorian" |
+
+### Scale Compatibility Functions (`scale-compatibility.ts`)
+
+| Function | Signature | Description |
+|---|---|---|
+| `getCompatibleScaleTypes` | `(lick: Phrase) → ScaleType[]` | Derive which ScaleTypes a lick works with |
+| `isLickCompatible` | `(lick: Phrase, scaleType: ScaleType) → boolean` | Check if a lick is compatible with a given ScaleType |

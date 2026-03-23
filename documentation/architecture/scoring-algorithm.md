@@ -103,12 +103,16 @@ The bonus is clamped to 1.0 at the composite level.
 
 ```
 timingError = |detectedOnset - expectedOnset| / beatDuration
-rhythmScore = max(0, 1.0 - timingError * 2)
+rhythmScore = max(0, 1.0 - timingError * 1.5)
 ```
 
-- Within ~15% of a beat → full marks (~1.0)
-- Half a beat off → 0.0
+- Within ~11% of a beat → full marks (~1.0)
+- Two-thirds of a beat off → 0.0
 - Rests score 1.0 automatically
+
+The `× 1.5` multiplier (rather than `× 2`) provides more forgiving scoring — a design decision reflecting the inherent timing imprecision of live instrument detection combined with human reaction time.
+
+**Swing-aware scoring:** When `swing > 0.5` and the expected note falls on an off-beat eighth note (the "&" of a beat), the expected onset is shifted to match Tone.js swing playback: `expectedOnset += (swing - 0.5) * beatDuration`. This prevents swing timing from being penalized as rhythmically inaccurate.
 
 ## 6. Composite Score
 

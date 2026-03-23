@@ -62,19 +62,28 @@ The bonus is clamped to 1.0 at the composite score level.
 
 Per-note rhythm accuracy scoring.
 
-### `scoreRhythm(expected, detected, tempo): number`
+### `scoreRhythm(expected, detected, tempo, swing?): number`
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `expected` | `Note` | — | Expected note from phrase |
+| `detected` | `DetectedNote` | — | Detected note from mic |
+| `tempo` | `number` | — | BPM for timing conversion |
+| `swing` | `number` | `0.5` | Swing ratio (0.5 = straight, 0.67 = triplet, 0.8 = heavy) |
 
 ```
 timingError = |detectedOnset - expectedOnset| / beatDuration
-rhythmScore = max(0, 1.0 - timingError * 2)
+rhythmScore = max(0, 1.0 - timingError * 1.5)
 ```
 
 | Timing | Score |
 |---|---|
-| Within ~15% of a beat | ~1.0 |
-| Quarter beat off | ~0.5 |
-| Half beat off | 0.0 |
+| Within ~11% of a beat | ~1.0 |
+| One-third of a beat off | ~0.5 |
+| Two-thirds of a beat off | 0.0 |
 | Rest | 1.0 |
+
+**Swing awareness:** When `swing > 0.5` and the expected note falls on an off-beat eighth, the expected onset is adjusted to match swing playback timing.
 
 ---
 
@@ -82,7 +91,7 @@ rhythmScore = max(0, 1.0 - timingError * 2)
 
 Orchestrates the full scoring pipeline.
 
-### `scoreAttempt(phrase, detected, tempo, transportSeconds?): Score`
+### `scoreAttempt(phrase, detected, tempo, transportSeconds?, swing?): Score`
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -90,6 +99,7 @@ Orchestrates the full scoring pipeline.
 | `detected` | `DetectedNote[]` | — | Detected notes from mic |
 | `tempo` | `number` | — | BPM used during the attempt |
 | `transportSeconds` | `number` | `0` | Transport position when recording started |
+| `swing` | `number` | `0.5` | Swing ratio for rhythm scoring adjustment |
 
 **Pipeline:**
 

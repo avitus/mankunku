@@ -70,6 +70,15 @@ Components reference these variables inline: `bg-[var(--color-bg-secondary)]`. T
 - **`tsconfig.json`** — Extends SvelteKit's generated config. Strict mode enabled with bundler module resolution.
 - **`vite.config.ts`** — Registers Tailwind, SvelteKit, and PWA plugins. Test config points to `tests/unit/**/*.test.ts` with `node` environment.
 
+## Architecture Summary
+
+Mankunku is a **client-side SPA/PWA** with no backend or server-side data processing:
+
+- **State persistence** — All user progress, settings, and session history are stored in `localStorage`. There is no database, authentication, or server API.
+- **Audio pipeline** — Built entirely on Web Audio APIs. An `AudioWorklet` handles onset detection, an `AnalyserNode` feeds the pitch detector, and Tone.js manages transport scheduling for metronome and phrase playback.
+- **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 35-scale catalog and ~250 lick library are defined as typed data structures.
+- **Deployment** — The `adapter-auto` configuration allows deployment to any static hosting platform (Vercel, Netlify, GitHub Pages). The PWA service worker enables full offline functionality after initial load.
+
 ## Why These Choices
 
 - **Svelte 5 runes** over stores: Fine-grained reactivity without boilerplate. `$state` and `$derived` replace writable/derived stores with simpler semantics.

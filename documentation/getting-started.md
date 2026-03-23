@@ -65,11 +65,12 @@ mankunku/
 │   │   │   ├── intervals.ts         # MIDI/frequency math, fractions
 │   │   │   ├── notation.ts          # ABC notation generation
 │   │   │   └── transposition.ts     # Concert ↔ written pitch
-│   │   ├── phrases/                 # Phrase system (4 files)
+│   │   ├── phrases/                 # Phrase system (5 files)
 │   │   │   ├── generator.ts         # 5-stage algorithmic generator
 │   │   │   ├── mutator.ts           # Lick mutation system
 │   │   │   ├── validator.ts         # Contour/range validation
-│   │   │   └── library-loader.ts    # Curated lick indexing + query
+│   │   │   ├── combiner.ts          # Combinatorial scale × rhythm lick generation
+│   │   │   └── library-loader.ts    # Lick indexing, query, transposition
 │   │   ├── difficulty/              # Adaptive difficulty (2 files)
 │   │   │   ├── adaptive.ts          # Difficulty adjustment algorithm
 │   │   │   └── params.ts            # 10-level difficulty profiles
@@ -92,14 +93,22 @@ mankunku/
 │   │   │   ├── practice/            # PhraseInfo, FeedbackPanel, NoteComparison
 │   │   │   ├── library/             # LickCard, CategoryFilter
 │   │   │   └── onboarding/          # Onboarding
+│   │   ├── tonality/                # Tonality system (2 files)
+│   │   │   ├── tonality.ts          # Daily key/scale selection, unlocking
+│   │   │   └── scale-compatibility.ts # Scale-aware lick filtering
 │   │   └── data/
 │   │       ├── test-phrases.ts      # Dev/test phrase data
-│   │       └── licks/               # 62 curated licks across 4 categories
+│   │       └── licks/               # ~250 licks across 9 categories
 │   │           ├── index.ts         # Re-exports all lick arrays
-│   │           ├── ii-V-I-major.ts  # 20 licks
-│   │           ├── ii-V-I-minor.ts  # 12 licks
-│   │           ├── blues.ts         # 15 licks
-│   │           └── bebop-lines.ts   # 15 licks
+│   │           ├── beginner-cells.ts # 50 beginner 2-3 note cells
+│   │           ├── ii-V-I-major.ts  # 24 licks
+│   │           ├── ii-V-I-minor.ts  # 15 licks
+│   │           ├── blues.ts         # 20 licks
+│   │           ├── bebop-lines.ts   # 20 licks
+│   │           ├── pentatonic.ts    # 10 licks
+│   │           ├── modal.ts         # 10 licks
+│   │           ├── rhythm-changes.ts # 7 licks
+│   │           └── ballad.ts        # 7 licks
 │   └── routes/                      # SvelteKit pages (9 files)
 │       ├── +layout.svelte           # App shell, nav, onboarding gate
 │       ├── +page.svelte             # Dashboard / home

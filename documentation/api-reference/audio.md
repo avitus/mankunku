@@ -187,20 +187,24 @@ Main-thread coordinator for the AudioWorklet-based onset detector.
 interface OnsetDetectorHandle {
   getOnsets: () => number[];   // Timestamps relative to recording start (seconds)
   clear: () => void;
+  reset: (recordingStartTime: number) => void;
   dispose: () => void;
 }
 ```
 
-### `createOnsetDetector(context, source, onOnset, recordingStartTime): Promise<OnsetDetectorHandle>`
+### `createOnsetDetector(context, source, onOnset?): Promise<OnsetDetectorHandle>`
 
-Create and connect the onset detector worklet.
+Create and connect the onset detector worklet. The worklet is registered once per `AudioContext` lifetime.
 
 | Parameter | Type | Description |
 |---|---|---|
 | `context` | `AudioContext` | Must be running |
 | `source` | `MediaStreamAudioSourceNode` | From mic |
-| `onOnset` | `(time: number) => void` | Callback on each onset |
-| `recordingStartTime` | `number` | `AudioContext.currentTime` when recording started |
+| `onOnset` | `(time: number) => void` | Optional callback on each onset |
+
+### `handle.reset(recordingStartTime)`
+
+Clear collected onsets and synchronize the timestamp reference with the pitch detector's recording start time. Must be called before each recording pass.
 
 ---
 
@@ -243,7 +247,7 @@ Combines pitch readings and onset timestamps into `DetectedNote[]`.
 
 ## metronome.ts
 
-Synthesized jazz metronome using Tone.js `NoiseSynth`.
+Synthesized jazz metronome using Tone.js synths.
 
 ### `scheduleMetronome(beatsPerBar, bars): Promise<void>`
 
@@ -255,8 +259,9 @@ Schedule a jazz metronome pattern.
 | `bars` | `number \| null` | Number of bars, or `null` for infinite loop |
 
 **Pattern:**
-- **Ride cymbal** (white noise, 8kHz highpass): Every beat, accented on beat 1
-- **Hi-hat chick** (pink noise, 6kHz highpass): Beats 2 and 4
+- **Kick drum** (beat 1): `MembraneSynth` at C1 for a short membrane thump marking the downbeat
+- **Ride cymbal** (all beats): White noise through 8kHz highpass filter
+- **Hi-hat chick** (beats 2 and 4): Pink noise through 6kHz highpass filter
 
 Must be called before `Transport.start()`.
 

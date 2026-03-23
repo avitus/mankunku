@@ -151,6 +151,7 @@ interface LibraryQuery {
   minDifficulty?: number;
   tags?: string[];
   search?: string;
+  scaleType?: ScaleType;
 }
 ```
 
@@ -158,7 +159,7 @@ interface LibraryQuery {
 
 | Function | Signature | Description |
 |---|---|---|
-| `getAllLicks` | `() → Phrase[]` | All 113 curated licks |
+| `getAllLicks` | `() → Phrase[]` | All ~250 licks (curated + combinatorial + user-recorded) |
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) lookup by ID |
 | `getLicksByCategory` | `(category) → Phrase[]` | Pre-built category index |
 | `getCategories` | `() → { category, count }[]` | Categories sorted by count (descending) |
@@ -167,9 +168,17 @@ interface LibraryQuery {
 
 ### `transposeLick(lick, targetKey): Phrase`
 
-Transpose a lick from concert C to a target key. Shifts all MIDI pitches and harmony roots by the interval from C to the target key, then applies an **octave adjustment** via `bestOctaveShift()` to keep notes within the central instrument range (MIDI 60–84, C4–C6).
+Transpose a lick from concert C to a target key. Shifts all MIDI pitches and harmony roots by the interval from C to the target key, then applies an **octave adjustment** via `bestOctaveShift()` to keep notes within the tenor sax range (MIDI 60–75, C4–Eb5).
 
-The octave shift algorithm evaluates -3 to +3 octave shifts, maximizing notes in range and using proximity to the midpoint (72) as a tiebreaker. Returns the original phrase for `targetKey === 'C'`.
+The octave shift algorithm evaluates -3 to +3 octave shifts, maximizing notes in range and using proximity to the midpoint (67.5) as a tiebreaker. Returns the original phrase for `targetKey === 'C'`.
+
+### `transposeLickForTonality(lick, key, scaleId): Phrase`
+
+Transpose a lick for a specific tonality (key + scale). Handles three cases:
+
+1. **Major-family progressions** (ii-V-I, turnarounds, rhythm changes): Transposes to the parent major key to preserve chord relationships
+2. **Major-family single-chord licks**: Transposes to the modal root, snaps to scale
+3. **Non-major scales** (blues, pentatonic, melodic minor): Transposes to key, snaps out-of-scale notes to nearest scale tone
 
 ### `queryLicks(query): Phrase[]`
 
@@ -179,3 +188,4 @@ Filters are applied in order:
 3. Min difficulty
 4. Tag overlap (any tag matches)
 5. Text search (name or tags, case-insensitive)
+6. Scale type compatibility (via `isLickCompatible` from `scale-compatibility.ts`)

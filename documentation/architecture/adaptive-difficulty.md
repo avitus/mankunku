@@ -113,8 +113,23 @@ Each level defines what musical elements are available:
 - Rhythm: + sixteenths
 - 2-4 bars, tempo 120-180 BPM
 
-### Levels 8-10
-Include symmetric scales, wider intervals, and faster tempos up to 300 BPM.
+### Level 8: Altered Harmony
+- Scales: + symmetric scales
+- Max interval: 16 semitones
+- Rhythm: Q, 8th, Triplet, 16th
+- 2-4 bars, tempo 140-200 BPM
+
+### Level 9: Complex Rhythm
+- Same scales as Level 8
+- Max interval: 19 semitones
+- Rhythm: Q, 8th, Triplet, 16th
+- 2-4 bars, tempo 160-240 BPM
+
+### Level 10: No Limits
+- Same scales as Level 8
+- Max interval: 24 semitones
+- Rhythm: All (whole through 16th)
+- 4 bars, tempo 180-300 BPM
 
 ### Player Levels vs Content Tiers
 

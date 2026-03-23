@@ -40,7 +40,8 @@ const defaultSettings = {
   metronomeVolume: 0.7,
   swing: 0.5,
   theme: 'dark' as 'dark' | 'light',
-  onboardingComplete: false
+  onboardingComplete: false,
+  tonalityOverride: null             // Tonality | null
 };
 export const settings = $state(loadSettings());
 ```
@@ -61,7 +62,7 @@ export const progress = $state<UserProgress>(loadProgress());
 ```
 
 **Key functions:**
-- `recordAttempt(phraseId, category, key, tempo, level, score)` — Records a session, updates adaptive state, category/key progress, and streak. Auto-saves.
+- `recordAttempt(phraseId, phraseName, category, key, tempo, level, score, scaleType)` — Records a session, updates adaptive state, category/key progress, and streak. Auto-saves.
 - `getRecentSessions(count)` — Returns most recent sessions
 - `getCategoryStats()` — Returns category progress sorted by attempt count
 - `resetProgress()` — Destructive reset to initial state

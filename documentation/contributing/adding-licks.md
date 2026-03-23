@@ -12,12 +12,17 @@ Existing files:
 
 | File | Category | Count |
 |---|---|---|
-| `ii-V-I-major.ts` | ii-V-I Major | 20 |
-| `blues.ts` | Blues | 15 |
-| `bebop-lines.ts` | Bebop Lines | 15 |
-| `ii-V-I-minor.ts` | ii-V-I Minor | 12 |
+| `beginner-cells.ts` | Beginner Cells | 50 |
+| `ii-V-I-major.ts` | ii-V-I Major | 24 |
+| `blues.ts` | Blues | 20 |
+| `bebop-lines.ts` | Bebop Lines | 20 |
+| `ii-V-I-minor.ts` | ii-V-I Minor | 15 |
+| `pentatonic.ts` | Pentatonic | 10 |
+| `modal.ts` | Modal | 10 |
+| `rhythm-changes.ts` | Rhythm Changes | 7 |
+| `ballad.ts` | Ballad | 7 |
 
-Add to an existing file for existing categories, or create a new file for a new category.
+Add to an existing file for existing categories, or create a new file for a new category. Note: `combiner.ts` generates ~86 additional licks algorithmically from scale pattern × rhythm template pairs — you don't need to add licks there manually.
 
 ## Step 2: Define the Lick
 

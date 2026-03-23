@@ -51,19 +51,21 @@ describe('scoreRhythm — unit', () => {
 		expect(scoreRhythm(note, det, 120)).toBeCloseTo(1.0, 5);
 	});
 
-	it('gives 0.25 when half a beat off', () => {
+	it('gives ~0.55 when half a beat off at 120 BPM', () => {
 		const note: Note = { pitch: 60, duration: [1, 4], offset: [1, 4] };
 		const det: DetectedNote = { midi: 60, cents: 0, onsetTime: 0.75, duration: 0.4, clarity: 0.95 };
 		// Expected onset = 0.5s, detected = 0.75s, error = 0.25s / 0.5s = 0.5 beats
-		// Score = max(0, 1.0 - 0.5 * 1.5) = 0.25
-		expect(scoreRhythm(note, det, 120)).toBeCloseTo(0.25, 5);
+		// penalty at 120 BPM = min(1.0, 0.5 + 120/300) = 0.9
+		// Score = max(0, 1.0 - 0.5 * 0.9) = 0.55
+		expect(scoreRhythm(note, det, 120)).toBeCloseTo(0.55, 5);
 	});
 
-	it('gives 0 when two-thirds of a beat off', () => {
+	it('gives 0 when more than 1 beat off at 120 BPM', () => {
 		const note: Note = { pitch: 60, duration: [1, 4], offset: [1, 4] };
-		// Expected onset = 0.5s, 2/3 beat = 0.333s offset → detected at 0.833s
-		const det: DetectedNote = { midi: 60, cents: 0, onsetTime: 0.5 + (2 / 3) * 0.5, duration: 0.4, clarity: 0.95 };
-		// Error = 0.333s / 0.5s = 0.667 beats → score = max(0, 1.0 - 0.667 * 1.5) = 0
+		// Expected onset = 0.5s, ~1.2 beats off → detected at 0.5 + 1.2*0.5 = 1.1s
+		const det: DetectedNote = { midi: 60, cents: 0, onsetTime: 1.1, duration: 0.4, clarity: 0.95 };
+		// Error = 0.6s / 0.5s = 1.2 beats, penalty = 0.9
+		// Score = max(0, 1.0 - 1.2 * 0.9) = max(0, -0.08) = 0
 		expect(scoreRhythm(note, det, 120)).toBeCloseTo(0.0, 3);
 	});
 

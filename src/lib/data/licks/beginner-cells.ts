@@ -1,5 +1,5 @@
 /**
- * 50 beginner melodic cells — all in concert C, single bar (4/4).
+ * 55 beginner melodic cells — all in concert C, single bar (4/4).
  * 2- and 3-note patterns covering major pentatonic, minor pentatonic,
  * blues, and neighbor-tone vocabulary.
  *
@@ -838,6 +838,85 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 		difficulty: { level: 12, pitchComplexity: 10, rhythmComplexity: 15, lengthBars: 1 },
 		category: 'pentatonic',
 		tags: ['beginner', 'major-pentatonic', 'arpeggio', 'ascending'],
+		source: 'curated'
+	},
+
+	/* ================================================================
+	 *  BLUES — 2-note beginner intervals  (bc-051 → bc-055)
+	 * ================================================================ */
+	{
+		id: 'bc-051',
+		name: 'Root–Flat Third',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 2], offset: [0, 1] },  // C4
+			{ pitch: 63, duration: [1, 2], offset: [1, 2] }   // Eb4
+		],
+		harmony: CBLUES_1BAR,
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['beginner', 'blues-scale', 'interval', 'ascending'],
+		source: 'curated'
+	},
+	{
+		id: 'bc-052',
+		name: 'Flat Third–Fourth',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 63, duration: [1, 2], offset: [0, 1] },  // Eb4
+			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
+		],
+		harmony: CBLUES_1BAR,
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['beginner', 'blues-scale', 'interval', 'ascending'],
+		source: 'curated'
+	},
+	{
+		id: 'bc-053',
+		name: 'Fourth–Fifth',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 65, duration: [1, 2], offset: [0, 1] },  // F4
+			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
+		],
+		harmony: CBLUES_1BAR,
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['beginner', 'blues-scale', 'interval', 'ascending'],
+		source: 'curated'
+	},
+	{
+		id: 'bc-054',
+		name: 'Fifth–Flat Seven',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, duration: [1, 2], offset: [0, 1] },  // G4
+			{ pitch: 70, duration: [1, 2], offset: [1, 2] }   // Bb4
+		],
+		harmony: CBLUES_1BAR,
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['beginner', 'blues-scale', 'interval', 'ascending'],
+		source: 'curated'
+	},
+	{
+		id: 'bc-055',
+		name: 'Flat Seven–Root',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 70, duration: [1, 2], offset: [0, 1] },  // Bb4
+			{ pitch: 72, duration: [1, 2], offset: [1, 2] }   // C5
+		],
+		harmony: CBLUES_1BAR,
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['beginner', 'blues-scale', 'interval', 'ascending'],
 		source: 'curated'
 	}
 ];

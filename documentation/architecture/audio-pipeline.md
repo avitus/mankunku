@@ -142,10 +142,11 @@ Combines pitch readings and onset timestamps into `DetectedNote[]`:
 
 ## 7. Metronome (`src/lib/audio/metronome.ts`)
 
-A synthesized jazz metronome using Tone.js `NoiseSynth`:
+A synthesized jazz metronome using Tone.js synths:
 
-- **Ride cymbal**: White noise through an 8kHz highpass filter. Sounds on every beat, accented on beat 1.
-- **Hi-hat chick**: Pink noise through a 6kHz highpass filter, very short envelope. Sounds on beats 2 and 4.
+- **Kick drum** (beat 1): `MembraneSynth` tuned to C1 for a short membrane thump marking the downbeat.
+- **Ride cymbal** (all beats): White noise through an 8kHz highpass filter.
+- **Hi-hat chick** (beats 2 and 4): Pink noise through a 6kHz highpass filter, very short envelope.
 - Uses `Tone.Sequence` for pattern scheduling.
 - Can run for a finite number of bars (during playback) or loop indefinitely (during recording).
 
@@ -159,4 +160,4 @@ The practice page (`src/routes/practice/+page.svelte`) orchestrates the full rec
 4. **Segment**: `extractOnsetsFromReadings()` detects onsets from pitch data (gap > 100ms or MIDI change). Gap-based onsets are **back-dated by 50ms** to compensate for pitch detector re-lock delay after silence (see Scoring Algorithm docs). `segmentNotes()` produces `DetectedNote[]`.
 5. **Score**: `scoreAttempt()` produces a `Score` with per-note results.
 
-Note: The practice page uses a simpler onset detection from pitch readings rather than the AudioWorklet-based onset detector. The worklet-based detector is available for future use or more precise onset detection needs.
+The practice page prefers the AudioWorklet onset detector when available. It creates the worklet on first mic capture (`ensureMicCapture()`) and calls `reset(recordingStartTime)` before each recording pass to synchronize timestamps with the pitch detector. If the AudioWorklet is unavailable (e.g., unsupported browser), it falls back to `extractOnsetsFromReadings()` which derives onsets from pitch data gaps and MIDI changes.

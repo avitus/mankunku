@@ -99,7 +99,7 @@ interface DifficultyProfile {
 
 ### `DIFFICULTY_PROFILES: DifficultyProfile[]`
 
-10 profiles (levels 1–10), with levels 8–10 deferred for post-MVP.
+10 profiles (levels 1–10).
 
 | Level | Name | Scale Families | Rhythm | Tempo | Keys |
 |---|---|---|---|---|---|
@@ -110,7 +110,9 @@ interface DifficultyProfile {
 | 5 | Approach Notes | +bebop | +triplet | 90–140 | all 12 |
 | 6 | Enclosures | +melodic-minor | +triplet | 100–160 | all 12 |
 | 7 | Bebop Lines | +harmonic-minor | +sixteenth | 120–180 | all 12 |
-| 8–10 | (Deferred) | all families | all | up to 300 | all 12 |
+| 8 | Altered Harmony | +symmetric | +sixteenth | 140–200 | all 12 |
+| 9 | Complex Rhythm | same as 8 | all | 160–240 | all 12 |
+| 10 | No Limits | same as 8 | all | 180–300 | all 12 |
 
 ### `levelToContentTier(playerLevel): number`
 

@@ -3,7 +3,7 @@ import { transposeLick, transposeLickForTonality, snapLickToScale } from '$lib/p
 import type { Phrase } from '$lib/types/music.ts';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
-function makePhrase(pitches: (number | null)[]): Phrase {
+function makePhrase(pitches: (number | null)[], category: string = 'pentatonic'): Phrase {
 	return {
 		id: 'test-001',
 		name: 'Test Lick',
@@ -23,10 +23,10 @@ function makePhrase(pitches: (number | null)[]): Phrase {
 			}
 		],
 		difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
-		category: 'blues',
+		category,
 		tags: [],
 		source: 'curated'
-	};
+	} as Phrase;
 }
 
 describe('transposeLick — central range optimization', () => {
@@ -89,51 +89,51 @@ describe('transposeLick — central range optimization', () => {
 	});
 });
 
-describe('transposeLickForTonality — major-family modes use parent key', () => {
-	it('A Dorian: transposes to G major (parent key), not A major', () => {
-		// C4(60), E4(64) in C major → should become G4(67), B4(71) in G major = A Dorian
-		// NOT A4(69), C#5(73) which would be A major
+describe('transposeLickForTonality — single-chord modal licks use modal root', () => {
+	it('G Dorian root-second: transposes to G and snaps to G Dorian', () => {
+		// C4(60), D4(62) → transpose to G(+7) → G4(67), A4(69)
+		// G Dorian PCs: {7,9,10,0,2,4,5} — both 67%12=7 and 69%12=9 are in scale
+		const phrase = makePhrase([60, 62]);
+		const result = transposeLickForTonality(phrase, 'G', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([67, 69]);
+		expect(result.key).toBe('G');
+	});
+
+	it('A Dorian: transposes to A and snaps', () => {
+		// C4(60), E4(64) → transpose to A(+9) → A4(69), C#5(73)
+		// A Dorian PCs: {9,11,0,2,4,6,7} — 73%12=1(C#) not in scale, snaps down to 72(C)
 		const phrase = makePhrase([60, 64]);
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
-		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
-		// Key should be A (the modal root), not G (the parent key)
+		expect(result.notes.map(n => n.pitch)).toEqual([69, 72]);
 		expect(result.key).toBe('A');
 	});
 
-	it('A Ionian: transposes to A (parent = A, mode 1)', () => {
+	it('D Dorian: transposes to D and snaps', () => {
+		// C4(60), E4(64), G4(67) → transpose to D(+2) → D4(62), F#4(66), A4(69)
+		// D Dorian PCs: {2,4,5,7,9,11,0} — 66%12=6(F#) not in scale, snaps down to 65(F)
+		const phrase = makePhrase([60, 64, 67]);
+		const result = transposeLickForTonality(phrase, 'D', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([62, 65, 69]);
+		expect(result.key).toBe('D');
+	});
+
+	it('A Ionian: transposes to A (snap is no-op for Ionian)', () => {
+		// Ionian = major scale, so snap should leave all diatonic notes intact
 		const phrase = makePhrase([60, 64, 67]);
 		const result = transposeLickForTonality(phrase, 'A', 'major.ionian');
-		// A Ionian = A major, parent key = A, so transpose +9
 		expect(result.notes.map(n => n.pitch)).toEqual([69, 73, 76]);
 		expect(result.key).toBe('A');
 	});
 
-	it('A Mixolydian: transposes to D major (parent key)', () => {
-		// A Mixolydian = mode 5 of D major. Parent = A - 7 = D.
-		// C4(60) → D+2 = F#4(66), E4(64) → D+2 = A4(70)... wait, let me compute:
-		// Transpose to D = +2 semitones: 60→62, 64→66, 67→69
+	it('A Mixolydian: transposes to A and snaps', () => {
+		// C4(60), E4(64), G4(67) → transpose to A(+9) → A4(69), C#5(73), E5(76)
+		// A Mixolydian PCs: {9,11,1,2,4,5,7} — 73%12=1(Db) IS in A Mixolydian (natural 3rd = C#/Db)
+		// Wait — A Mixolydian = A B C# D E F# G, PCs: {9,11,1,2,4,6,7}
+		// 73%12=1(C#) is in scale, 76%12=4(E) is in scale → no snapping needed
 		const phrase = makePhrase([60, 64, 67]);
 		const result = transposeLickForTonality(phrase, 'A', 'major.mixolydian');
-		expect(result.notes.map(n => n.pitch)).toEqual([62, 66, 69]);
+		expect(result.notes.map(n => n.pitch)).toEqual([69, 73, 76]);
 		expect(result.key).toBe('A');
-	});
-
-	it('A Aeolian: transposes to C major (parent key)', () => {
-		// A Aeolian = mode 6 of C major. Parent = A - 9 = C.
-		// No transposition needed! Notes stay as C major.
-		const phrase = makePhrase([60, 64, 67]);
-		const result = transposeLickForTonality(phrase, 'A', 'major.aeolian');
-		expect(result.notes.map(n => n.pitch)).toEqual([60, 64, 67]);
-		expect(result.key).toBe('A');
-	});
-
-	it('D Dorian: transposes to C major (parent key)', () => {
-		// D Dorian = mode 2 of C major. Parent = D - 2 = C.
-		// No transposition needed.
-		const phrase = makePhrase([60, 64, 67]);
-		const result = transposeLickForTonality(phrase, 'D', 'major.dorian');
-		expect(result.notes.map(n => n.pitch)).toEqual([60, 64, 67]);
-		expect(result.key).toBe('D');
 	});
 
 	it('preserves rests', () => {
@@ -143,10 +143,8 @@ describe('transposeLickForTonality — major-family modes use parent key', () =>
 	});
 
 	it('non-major scale: falls back to snap (blues)', () => {
-		// Blues scale: snap should handle notes outside the scale
 		const phrase = makePhrase([60, 64, 67]);
 		const result = transposeLickForTonality(phrase, 'A', 'blues.minor');
-		// Should transpose to A and snap
 		expect(result.key).toBe('A');
 		// All notes should be in A blues minor: A(9), C(0), D(2), Eb(3), E(4), G(7)
 		const scalePCs = new Set([9, 0, 2, 3, 4, 7]);
@@ -155,5 +153,45 @@ describe('transposeLickForTonality — major-family modes use parent key', () =>
 				expect(scalePCs.has(n.pitch % 12)).toBe(true);
 			}
 		}
+	});
+});
+
+describe('transposeLickForTonality — progression licks use parent key', () => {
+	it('A Dorian ii-V-I: transposes to G major (parent key)', () => {
+		// ii-V-I lick in A Dorian → parent key is G major
+		// C4(60), E4(64) → transpose to G(+7) → G4(67), B4(71)
+		const phrase = makePhrase([60, 64], 'ii-V-I-major');
+		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
+		expect(result.key).toBe('A');
+	});
+
+	it('D Dorian ii-V-I: transposes to C major (parent key)', () => {
+		// D Dorian = mode 2 of C major. Parent = C → no transposition.
+		const phrase = makePhrase([60, 64, 67], 'ii-V-I-major');
+		const result = transposeLickForTonality(phrase, 'D', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([60, 64, 67]);
+		expect(result.key).toBe('D');
+	});
+
+	it('A Dorian ii-V-I minor: also uses parent key', () => {
+		const phrase = makePhrase([60, 64], 'ii-V-I-minor');
+		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
+		expect(result.key).toBe('A');
+	});
+
+	it('turnaround lick uses parent key', () => {
+		const phrase = makePhrase([60, 64], 'turnarounds');
+		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
+		expect(result.key).toBe('A');
+	});
+
+	it('rhythm-changes lick uses parent key', () => {
+		const phrase = makePhrase([60, 64], 'rhythm-changes');
+		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
+		expect(result.key).toBe('A');
 	});
 });

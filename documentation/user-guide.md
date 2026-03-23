@@ -57,11 +57,19 @@ Each day, the app selects a tonality (key + scale type) for your practice sessio
 
 **Progressive unlocking:**
 - **Keys** unlock in circle-of-fifths order: C → G → F → D → Bb → A → Eb → E → Ab → B → Db → Gb
-- **Scale types** unlock progressively: Major → Blues (both free) → Dorian → Mixolydian → Minor → Lydian → Melodic Minor → Altered → Lydian Dominant → Bebop Dominant
+- **Scale types** unlock progressively: Major Pentatonic → Major → Blues (all three free) → Dorian → Mixolydian → Minor → Lydian → Melodic Minor → Altered → Lydian Dominant → Bebop Dominant
 - Unlocking is driven by XP — earning more XP unlocks more tonalities
 - New keys combine with all unlocked scale types (cross-product)
 
 **Override:** In settings, you can pick any unlocked tonality. Locked tonalities show a lock icon with the XP needed. A "Reset to daily" button restores the automatic selection.
+
+### Scale-Aware Lick Filtering
+
+The practice session only shows licks that are compatible with the current scale type. A pentatonic lick can appear in a major session (pentatonic notes are a subset of major), but a 7-note major lick won't appear in a pentatonic session where it would get awkwardly snapped down to 5 notes.
+
+The practice page displays the **note count** below the scale name (e.g., "5 notes" for pentatonic) to make the active scale's size clear, especially for beginners.
+
+If scale filtering leaves very few licks at your difficulty level, the app automatically widens to all licks at that difficulty as a fallback.
 
 ### Transport Controls
 
@@ -77,12 +85,12 @@ While the mic is active, you see:
 
 ## Library
 
-Browse the collection of 113 curated jazz licks across 8 categories.
+Browse the collection of ~250 jazz licks across 9 categories (163 hand-curated + ~86 combinatorial).
 
 ### Browsing
 
 - **Search** — Type to filter by name or tags
-- **Category filter** — Pill buttons for each category (ii-V-I Major, ii-V-I Minor, Blues, Bebop, Pentatonic, Modal, Rhythm Changes, Ballad)
+- **Category filter** — Pill buttons for each category (Beginner Cells, ii-V-I Major, ii-V-I Minor, Blues, Bebop, Pentatonic, Modal, Rhythm Changes, Ballad)
 - **Difficulty filter** — Filter by difficulty band (Beginner through Virtuoso)
 
 ### Lick Detail

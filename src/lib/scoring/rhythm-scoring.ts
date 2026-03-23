@@ -2,9 +2,17 @@
  * Rhythm accuracy scoring for a single aligned note pair.
  *
  * timingError = |detected.onset - expected.onset| / beatDuration
- * rhythmScore = max(0, 1.0 - timingError * 1.5)
+ * rhythmScore = max(0, 1.0 - timingError * PENALTY)
  *
- * Full marks within ~11% of a beat, zero at two-thirds of a beat off.
+ * PENALTY scales with tempo: at slow tempos (60 BPM) beats are long, so
+ * the same absolute timing error is a smaller fraction of a beat — we use
+ * a gentler curve. At fast tempos the beats are short, and the same
+ * fraction-of-a-beat represents a tighter absolute window, so we can
+ * afford a steeper penalty without being unfair.
+ *
+ * Base penalty 0.8 gives 0% at 1.25 beats off (750 ms at 100 BPM).
+ * At 60 BPM → penalty 0.65, 0% at ~1.5 beats (1500 ms).
+ * At 200 BPM → penalty 1.0, 0% at 1 beat (300 ms).
  */
 
 import type { Note } from '$lib/types/music.ts';
@@ -34,5 +42,8 @@ export function scoreRhythm(expected: Note, detected: DetectedNote, tempo: numbe
 
 	const timingError = Math.abs(detected.onsetTime - expectedOnset) / beatDuration;
 
-	return Math.max(0, 1.0 - timingError * 1.5);
+	// Tempo-scaled penalty: gentler at slow tempos, tighter at fast tempos
+	const penalty = Math.min(1.0, 0.5 + tempo / 300);
+
+	return Math.max(0, 1.0 - timingError * penalty);
 }

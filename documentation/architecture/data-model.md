@@ -30,10 +30,11 @@ type ChordQuality =
 type PhraseCategory =
   | 'ii-V-I-major' | 'ii-V-I-minor' | 'blues' | 'bebop-lines'
   | 'pentatonic' | 'enclosures' | 'digital-patterns' | 'approach-notes'
-  | 'turnarounds' | 'rhythm-changes';
+  | 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal'
+  | 'user';
 ```
 
-Categories for organizing phrases. The four categories with curated licks are: `ii-V-I-major` (20), `blues` (15), `bebop-lines` (15), `ii-V-I-minor` (12).
+Categories for organizing phrases. Nine categories have curated/combinatorial licks totaling ~250 licks. The `'user'` category is for user-recorded licks.
 
 ### Fraction
 

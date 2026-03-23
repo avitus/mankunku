@@ -5,6 +5,8 @@
  * Synthesized from filtered noise bursts — no samples needed.
  */
 
+import { getMasterGain } from './audio-context.ts';
+
 type ToneModule = typeof import('tone');
 
 let tone: ToneModule | null = null;
@@ -25,7 +27,10 @@ async function ensureSynths(): Promise<void> {
 	if (rideSynth) return;
 	const Tone = await getTone();
 
-	gainNode = new Tone.Gain(0.6).toDestination();
+	// Route metronome through master gain for global volume control
+	const master = getMasterGain();
+	gainNode = new Tone.Gain(0.6);
+	gainNode.connect(master);
 
 	// Ride cymbal: bright filtered noise, longer decay
 	rideFilter = new Tone.Filter({ frequency: 8000, type: 'highpass' }).connect(gainNode);

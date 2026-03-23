@@ -5,6 +5,7 @@
 	import { library } from '$lib/state/library.svelte.ts';
 	import { getAllLicks, getCategories, queryLicks } from '$lib/phrases/library-loader.ts';
 	import { settings } from '$lib/state/settings.svelte.ts';
+	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import type { Phrase, PhraseCategory } from '$lib/types/music.ts';
 	import { goto } from '$app/navigation';
 
@@ -47,8 +48,9 @@
 		}
 
 		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId);
+			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 		}
+		setMasterVolume(settings.masterVolume);
 
 		playingId = lick.id;
 		await playbackModule.playPhrase(lick, {

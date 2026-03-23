@@ -10,6 +10,7 @@ type ToneModule = typeof import('tone');
 
 let tone: ToneModule | null = null;
 let initialized = false;
+let masterGain: GainNode | null = null;
 
 async function getTone(): Promise<ToneModule> {
 	if (!tone) {
@@ -34,9 +35,33 @@ export async function initAudio(): Promise<AudioContext> {
 		// Transport.schedule callbacks too far ahead of time.
 		Tone.getContext().updateInterval = 0.025;
 
+		// Create master gain node for global volume control
+		const ctx = Tone.getContext().rawContext as AudioContext;
+		masterGain = ctx.createGain();
+		masterGain.connect(ctx.destination);
+
 		initialized = true;
 	}
 	return Tone.getContext().rawContext as AudioContext;
+}
+
+/**
+ * Get the master gain node. All audio output (instrument + metronome)
+ * should route through this node for global volume control.
+ * Must call initAudio() first.
+ */
+export function getMasterGain(): GainNode {
+	if (!masterGain) {
+		throw new Error('Audio not initialized. Call initAudio() first.');
+	}
+	return masterGain;
+}
+
+/** Set master volume (0-1). */
+export function setMasterVolume(volume: number): void {
+	if (masterGain) {
+		masterGain.gain.value = Math.max(0, Math.min(1, volume));
+	}
 }
 
 /**

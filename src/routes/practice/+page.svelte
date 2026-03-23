@@ -4,11 +4,12 @@
 	import { TEST_PHRASES } from '$lib/data/test-phrases.ts';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader.ts';
 	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte.ts';
+	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import { concertKeyToWritten } from '$lib/music/transposition.ts';
 	import { session } from '$lib/state/session.svelte.ts';
 	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte.ts';
 	import { scoreAttempt } from '$lib/scoring/scorer.ts';
-	import { segmentNotes } from '$lib/audio/note-segmenter.ts';
+	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
 	import { getTodaysTonality, isTonalityUnlocked, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality.ts';
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility.ts';
 	import { getScale } from '$lib/music/scales.ts';
@@ -217,9 +218,12 @@
 			if (!playback.isInstrumentLoaded()) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
-				await playback.loadInstrument(settings.instrumentId);
+				await playback.loadInstrument(settings.instrumentId, settings.masterVolume);
 				session.isLoadingInstrument = false;
 			}
+
+			// Apply master volume (audio context is now initialized)
+			setMasterVolume(settings.masterVolume);
 
 			session.engineState = 'playing';
 			const hasMic = session.micPermission === 'granted';
@@ -291,8 +295,9 @@
 		stopRecording();
 
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
-		const onsets = workletOnsets.length > 0
-			? workletOnsets
+		const validatedOnsets = validateOnsets(workletOnsets, readings);
+		const onsets = validatedOnsets.length > 0
+			? validatedOnsets
 			: extractOnsetsFromReadings(readings);
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 		const detected = segmentNotes(readings, onsets, phraseDuration);

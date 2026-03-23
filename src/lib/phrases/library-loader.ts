@@ -6,6 +6,8 @@
  */
 
 import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music.ts';
+import type { ScaleType } from '$lib/tonality/tonality.ts';
+import { isLickCompatible } from '$lib/tonality/scale-compatibility.ts';
 import { PITCH_CLASSES } from '$lib/types/music.ts';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index.ts';
 import { getUserLicks } from '$lib/persistence/user-licks.ts';
@@ -18,6 +20,7 @@ export interface LibraryQuery {
 	minDifficulty?: number;
 	tags?: string[];
 	search?: string;
+	scaleType?: ScaleType;
 }
 
 /** Pre-built indexes for fast querying */
@@ -91,6 +94,10 @@ export function queryLicks(query: LibraryQuery): Phrase[] {
 				l.name.toLowerCase().includes(term) ||
 				l.tags.some((t) => t.includes(term))
 		);
+	}
+
+	if (query.scaleType) {
+		results = results.filter((l) => isLickCompatible(l, query.scaleType!));
 	}
 
 	return results;
@@ -190,12 +197,21 @@ export function transposeLick(lick: Phrase, targetKey: PitchClass): Phrase {
  */
 const MAJOR_MODE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 
+/** Categories where licks span multi-chord progressions — use parent-key transposition */
+const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
+	'ii-V-I-major', 'ii-V-I-minor', 'turnarounds', 'rhythm-changes'
+]);
+
 /**
  * Transpose a lick for a given tonality (key + scale).
  *
- * For major-family modes, this transposes to the parent major key so the
- * pitch classes are correct by construction. A Dorian (mode 2 of G major)
- * transposes to G, producing G A B C D E F# — exactly the A Dorian notes.
+ * For major-family modes with multi-chord progressions (ii-V-I, turnarounds,
+ * rhythm changes), transposes to the parent major key so chord relationships
+ * are preserved. E.g. A Dorian ii-V-I → parent G major.
+ *
+ * For single-chord modal licks (pentatonic, blues category, etc.),
+ * transposes directly to the modal root and snaps to the scale.
+ * E.g. G Dorian root-second → G as root, notes snapped to G Dorian.
  *
  * For non-major scales (blues, melodic minor, etc.), transposes to the key
  * then snaps out-of-scale notes to the nearest scale tone.
@@ -204,15 +220,17 @@ export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId:
 	const scaleDef = getScale(scaleId);
 
 	if (scaleDef?.family === 'major' && scaleDef.mode !== null) {
-		// Compute parent major key from mode number.
-		// e.g. A Dorian: A(9) - modeOffset(2) = G(7)
-		const keyIdx = PITCH_CLASSES.indexOf(key);
-		const parentIdx = ((keyIdx - MAJOR_MODE_OFFSETS[scaleDef.mode - 1]) % 12 + 12) % 12;
-		const parentKey = PITCH_CLASSES[parentIdx];
-
-		const transposed = transposeLick(lick, parentKey);
-		// Set key to modal root (not parent) for display and progress tracking
-		return { ...transposed, id: `${lick.id}_${key}`, key };
+		if (PROGRESSION_CATEGORIES.has(lick.category)) {
+			// Multi-chord progressions: transpose to parent major key
+			const keyIdx = PITCH_CLASSES.indexOf(key);
+			const parentIdx = ((keyIdx - MAJOR_MODE_OFFSETS[scaleDef.mode - 1]) % 12 + 12) % 12;
+			const parentKey = PITCH_CLASSES[parentIdx];
+			const transposed = transposeLick(lick, parentKey);
+			return { ...transposed, id: `${lick.id}_${key}`, key };
+		}
+		// Single-chord modal licks: transpose to modal root, snap to scale
+		const transposed = transposeLick(lick, key);
+		return snapLickToScale(transposed, key, scaleId);
 	}
 
 	// Non-major scales: transpose to key, then snap to scale

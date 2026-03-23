@@ -15,8 +15,8 @@
 import type { Phrase } from '$lib/types/music.ts';
 import type { PlaybackOptions } from '$lib/types/audio.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
-import { initAudio } from './audio-context.ts';
-import { scheduleMetronome, disposeMetronome, warmUpMetronome } from './metronome.ts';
+import { initAudio, getMasterGain, setMasterVolume } from './audio-context.ts';
+import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome.ts';
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
@@ -124,8 +124,11 @@ function cleanupJazzExpression(): void {
  * Uses MusyngKite soundfont for warmer, more expressive samples.
  * Cached after first load (smplr uses CacheStorage).
  */
-export async function loadInstrument(instrumentId: string = 'tenor-sax'): Promise<void> {
+export async function loadInstrument(instrumentId: string = 'tenor-sax', masterVolume?: number): Promise<void> {
 	const audioCtx = await initAudio();
+	if (masterVolume !== undefined) {
+		setMasterVolume(masterVolume);
+	}
 	const { Soundfont } = await import('smplr');
 
 	// Disconnect previous instrument if switching
@@ -143,7 +146,9 @@ export async function loadInstrument(instrumentId: string = 'tenor-sax'): Promis
 		instrument: gmName,
 		kit: 'MusyngKite',
 		// Load loop data so sustained notes can ring naturally
-		loadLoopData: true
+		loadLoopData: true,
+		// Route through master gain for global volume control
+		destination: getMasterGain()
 	});
 	await instrument.loaded();
 
@@ -340,6 +345,7 @@ export async function playPhrase(
 
 	// Schedule metronome if enabled
 	if (options.metronomeEnabled) {
+		await setMetronomeVolume(options.metronomeVolume);
 		if (keepMetronome) {
 			// Loop indefinitely — will keep playing during recording
 			await scheduleMetronome(beatsPerBar, null);

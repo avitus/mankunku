@@ -15,7 +15,7 @@ Current practice session state. **Not persisted** — resets on page reload.
 ```typescript
 export const session = $state<{
   phrase: Phrase | null;              // Current phrase being practiced
-  engineState: AudioEngineState;     // 'uninitialized' | 'ready' | 'playing' | 'recording'
+  engineState: AudioEngineState;     // 'uninitialized' | 'ready' | 'loading' | 'playing' | 'recording' | 'error'
   tempo: number;                      // Current BPM
   isLoadingInstrument: boolean;       // SoundFont loading in progress
   micPermission: MicPermissionState;  // 'prompt' | 'granted' | 'denied' | 'unavailable'
@@ -46,9 +46,10 @@ export const settings = $state({
   defaultTempo: 100,               // BPM
   metronomeEnabled: true,
   metronomeVolume: 0.7,            // 0-1
-  swing: 0.5,                      // Swing ratio
+  swing: 0.5,                      // Swing ratio (0.5 = straight, 0.8 = heavy)
   theme: 'dark' as 'dark' | 'light',
-  onboardingComplete: false
+  onboardingComplete: false,
+  tonalityOverride: null            // Tonality | null — override for daily tonality
 });
 ```
 
@@ -84,7 +85,7 @@ export const progress = $state<UserProgress>({
 });
 ```
 
-### `recordAttempt(phraseId, category, key, tempo, difficultyLevel, score): void`
+### `recordAttempt(phraseId, phraseName, category, key, tempo, difficultyLevel, score, scaleType): void`
 
 Record a completed attempt. This single function:
 1. Creates a `SessionResult` and prepends to `sessions` (bounded to 200)
