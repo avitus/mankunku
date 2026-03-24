@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { progress, getRecentSessions, getCategoryStats, resetProgress, getPrimaryLevel } from '$lib/state/progress.svelte.ts';
 	import { difficultyDisplay } from '$lib/difficulty/display.ts';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
@@ -11,6 +12,68 @@
 	import type { Grade } from '$lib/types/scoring.ts';
 
 	const instrument = $derived(getInstrument());
+
+	// ─── Audio playback state ────────────────────────────────
+	let recordingIds = $state<Set<string>>(new Set());
+	let playingSessionId: string | null = $state(null);
+	let audioElement: HTMLAudioElement | null = null;
+	let audioUrl: string | null = null;
+
+	onMount(async () => {
+		try {
+			const { getRecordingIds } = await import('$lib/persistence/audio-store.ts');
+			recordingIds = await getRecordingIds();
+		} catch { /* IndexedDB unavailable */ }
+	});
+
+	onDestroy(() => {
+		if (audioElement) {
+			audioElement.pause();
+			audioElement = null;
+		}
+		if (audioUrl) {
+			URL.revokeObjectURL(audioUrl);
+			audioUrl = null;
+		}
+	});
+
+	async function toggleAudio(sessionId: string) {
+		// Stop current playback
+		if (audioElement) {
+			audioElement.pause();
+			audioElement = null;
+		}
+		if (audioUrl) {
+			URL.revokeObjectURL(audioUrl);
+			audioUrl = null;
+		}
+
+		if (playingSessionId === sessionId) {
+			playingSessionId = null;
+			return;
+		}
+
+		try {
+			const { getRecording } = await import('$lib/persistence/audio-store.ts');
+			const blob = await getRecording(sessionId);
+			if (!blob || blob.size === 0) return;
+
+			audioUrl = URL.createObjectURL(blob);
+			audioElement = new Audio(audioUrl);
+			audioElement.onended = () => {
+				playingSessionId = null;
+				if (audioUrl) {
+					URL.revokeObjectURL(audioUrl);
+					audioUrl = null;
+				}
+			};
+			await audioElement.play();
+			playingSessionId = sessionId;
+		} catch (err) {
+			console.error('Failed to play recording:', err);
+			playingSessionId = null;
+		}
+	}
 
 	const CATEGORY_LABELS: Record<string, string> = {
 		'ii-V-I-major': 'ii-V-I Major',
@@ -278,6 +341,26 @@
 						<!-- Expanded detail view -->
 						{#if expandedSessionId === s.id}
 							<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
+								<!-- Audio playback -->
+								{#if recordingIds.has(s.id)}
+									<button
+										onclick={() => toggleAudio(s.id)}
+										class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
+									>
+										{#if playingSessionId === s.id}
+											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+												<rect x="6" y="6" width="12" height="12" rx="1" />
+											</svg>
+											<span>Stop</span>
+										{:else}
+											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+												<path d="M8 5v14l11-7z" />
+											</svg>
+											<span>Play Recording</span>
+										{/if}
+									</button>
+								{/if}
+
 								<!-- Score breakdown -->
 								<div class="grid grid-cols-2 gap-3">
 									<div class="rounded bg-[var(--color-bg-secondary)] p-3 text-center">
@@ -345,7 +428,7 @@
 			</p>
 			<div class="flex justify-center gap-2">
 				<button
-					onclick={() => { resetProgress(); settings.tonalityOverride = null; saveSettings(); showResetConfirm = false; }}
+					onclick={() => { resetProgress(); settings.tonalityOverride = null; saveSettings(); showResetConfirm = false; import('$lib/persistence/audio-store.ts').then(m => m.clearAllRecordings()).catch(() => {}); recordingIds = new Set(); }}
 					class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 				>
 					Yes, Reset

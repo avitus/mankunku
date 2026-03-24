@@ -50,7 +50,8 @@ export function segmentNotes(
 	readings: PitchReading[],
 	onsets: number[],
 	recordingDuration: number,
-	minNoteDuration: number = 0.05
+	minNoteDuration: number = 0.05,
+	onsetGuard: number = 0.08
 ): DetectedNote[] {
 	if (readings.length === 0) return [];
 
@@ -70,10 +71,22 @@ export function segmentNotes(
 		const duration = segEnd - segStart;
 		if (duration < minNoteDuration) continue;
 
-		// Collect pitch readings within this segment
-		const segReadings = readings.filter(
-			(r) => r.time >= segStart && r.time < segEnd
+		// Collect pitch readings within this segment.
+		// For segments after the first, skip readings within the onset guard
+		// window — the FFT buffer still contains audio from the previous note,
+		// so early readings report stale pitch values.
+		const guarded = i > 0;
+		const effectiveStart = guarded ? segStart + onsetGuard : segStart;
+		let segReadings = readings.filter(
+			(r) => r.time >= effectiveStart && r.time < segEnd
 		);
+		// Fallback: if the guard window ate all readings (very short note),
+		// use the unguarded range so the note isn't silently dropped.
+		if (segReadings.length === 0 && guarded) {
+			segReadings = readings.filter(
+				(r) => r.time >= segStart && r.time < segEnd
+			);
+		}
 
 		if (segReadings.length === 0) continue;
 

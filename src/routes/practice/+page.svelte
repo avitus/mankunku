@@ -4,7 +4,8 @@
 	import { TEST_PHRASES } from '$lib/data/test-phrases.ts';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader.ts';
 	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte.ts';
-	import { setMasterVolume } from '$lib/audio/audio-context.ts';
+	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context.ts';
+	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder.ts';
 	import { concertKeyToWritten } from '$lib/music/transposition.ts';
 	import { session } from '$lib/state/session.svelte.ts';
 	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte.ts';
@@ -69,6 +70,7 @@
 	let levelInterval: ReturnType<typeof setInterval> | null = null;
 	let recordingTimeout: ReturnType<typeof setTimeout> | null = null;
 	let silenceTimeout: ReturnType<typeof setTimeout> | null = null;
+	let recorderHandle: RecorderHandle | null = null;
 	let awaitingInput = $state(false);
 	let recordingTransportSeconds = 0;
 
@@ -121,6 +123,8 @@
 		if (levelInterval) clearInterval(levelInterval);
 		onsetDetector?.dispose();
 		onsetDetector = null;
+		recorderHandle?.dispose();
+		recorderHandle = null;
 	});
 
 	// ─── Mic + Detection ─────────────────────────────────────
@@ -250,6 +254,8 @@
 		scoreFlash = null;
 		await playback.stopPlayback();
 		stopRecording();
+		recorderHandle?.dispose();
+		recorderHandle = null;
 		awaitingInput = false;
 		session.engineState = 'ready';
 	}
@@ -277,6 +283,16 @@
 		onsetDetector?.reset(recordingStartTime);
 		pitchDetector.stop();
 		pitchDetector.start();
+
+		// Start recording mic + metronome mix
+		if (micCapture) {
+			try {
+				recorderHandle = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
+				recorderHandle.start();
+			} catch (err) {
+				console.warn('Audio recording unavailable:', err);
+			}
+		}
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 		const graceTime = 2 * (60 / session.tempo);
 		recordingTimeout = setTimeout(finishRecording, (phraseDuration + graceTime) * 1000);
@@ -319,6 +335,20 @@
 				session.lastScore,
 				activeTonality.scaleType
 			);
+		}
+
+		// Save audio recording in the background
+		if (recorderHandle) {
+			const handle = recorderHandle;
+			const sessionId = progress.sessions[0]?.id;
+			recorderHandle = null;
+			handle.stop().then(async (blob) => {
+				handle.dispose();
+				if (blob.size > 0 && sessionId) {
+					const { saveRecording } = await import('$lib/persistence/audio-store.ts');
+					await saveRecording(sessionId, blob);
+				}
+			}).catch(console.error);
 		}
 
 		if (looping && session.lastScore) {
