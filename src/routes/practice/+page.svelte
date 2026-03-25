@@ -214,10 +214,11 @@
 		failCount = 0;
 
 		try {
-			// Auto-request mic on first play
-			if (session.micPermission !== 'granted') {
-				await ensureMicCapture();
-			}
+			// Always capture mic before playback — even when permissions.query()
+			// reports 'granted', the actual getUserMedia() stream may not exist yet
+			// (fresh page load). Calling getUserMedia() mid-Transport forces a
+			// full-duplex mode switch that disrupts metronome timing.
+			await ensureMicCapture();
 
 			if (!playback.isInstrumentLoaded()) {
 				session.isLoadingInstrument = true;
