@@ -77,3 +77,14 @@ export async function getAudioContext(): Promise<AudioContext> {
 export function isAudioInitialized(): boolean {
 	return initialized;
 }
+
+/**
+ * Get the native AudioContext, unwrapping Tone.js's standardized-audio-context
+ * wrapper if present. Needed for APIs that check `instanceof BaseAudioContext`
+ * (e.g. the native AudioWorkletNode constructor).
+ */
+export async function getNativeAudioContext(): Promise<AudioContext> {
+	const ctx = await getAudioContext();
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return (ctx as any)._nativeAudioContext ?? ctx;
+}

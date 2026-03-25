@@ -33,14 +33,20 @@ export async function createOnsetDetector(
 	source: MediaStreamAudioSourceNode,
 	onOnset?: (time: number) => void
 ): Promise<OnsetDetectorHandle> {
+	// Tone.js wraps AudioContext with standardized-audio-context (SAC).
+	// The native AudioWorkletNode constructor requires a real BaseAudioContext,
+	// so unwrap the SAC wrapper if present.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const nativeCtx: AudioContext = (context as any)._nativeAudioContext ?? context;
+
 	// Register the worklet processor (once per AudioContext lifetime)
 	if (!moduleRegistered) {
 		const workletUrl = new URL('./onset-worklet.ts', import.meta.url);
-		await context.audioWorklet.addModule(workletUrl);
+		await nativeCtx.audioWorklet.addModule(workletUrl);
 		moduleRegistered = true;
 	}
 
-	const node = new AudioWorkletNode(context, 'onset-detector');
+	const node = new AudioWorkletNode(nativeCtx, 'onset-detector');
 	const onsets: number[] = [];
 	let startTime = 0;
 
