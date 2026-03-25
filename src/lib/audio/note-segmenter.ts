@@ -51,7 +51,8 @@ export function segmentNotes(
 	onsets: number[],
 	recordingDuration: number,
 	minNoteDuration: number = 0.05,
-	onsetGuard: number = 0.08
+	onsetGuard: number = 0.08,
+	minReadings: number = 3
 ): DetectedNote[] {
 	if (readings.length === 0) return [];
 
@@ -89,6 +90,7 @@ export function segmentNotes(
 		}
 
 		if (segReadings.length === 0) continue;
+		if (segReadings.length < minReadings) continue;
 
 		// Use median MIDI note (robust to outliers)
 		const midis = segReadings.map((r) => r.midi).sort((a, b) => a - b);

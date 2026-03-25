@@ -14,7 +14,8 @@ describe('segmentNotes', () => {
 			makeReading(60, 0.2),
 			makeReading(64, 0.5),
 			makeReading(64, 0.6),
-			makeReading(64, 0.7)
+			makeReading(64, 0.7),
+			makeReading(64, 0.8)
 		];
 		const onsets = [0.0, 0.5];
 		const notes = segmentNotes(readings, onsets, 1.0);
@@ -57,10 +58,12 @@ describe('segmentNotes', () => {
 	it('filters notes shorter than minNoteDuration', () => {
 		const readings: PitchReading[] = [
 			makeReading(60, 0.0),
+			makeReading(60, 0.03),
 			makeReading(60, 0.05),
 			makeReading(64, 0.11), // short segment
-			makeReading(67, 0.15),
-			makeReading(67, 0.25)
+			makeReading(67, 0.25),
+			makeReading(67, 0.30),
+			makeReading(67, 0.35)
 		];
 		const onsets = [0.0, 0.1, 0.15];
 		const notes = segmentNotes(readings, onsets, 0.4, 0.08);
@@ -110,16 +113,51 @@ describe('segmentNotes', () => {
 		const readings: PitchReading[] = [
 			makeReading(60, 0.0),
 			makeReading(60, 0.1),
+			makeReading(60, 0.2),
 			makeReading(65, 0.50),
-			makeReading(65, 0.53)
+			makeReading(65, 0.53),
+			makeReading(65, 0.56)
 		];
 		const onsets = [0.0, 0.5];
-		// Second segment: 0.5–0.6, all readings at 0.50 and 0.53 are within
+		// Second segment: 0.5–0.6, all readings at 0.50–0.56 are within
 		// the 80ms guard, but fallback preserves them.
 		const notes = segmentNotes(readings, onsets, 0.6);
 
 		expect(notes).toHaveLength(2);
 		expect(notes[1].midi).toBe(65);
+	});
+
+	it('drops segments with fewer readings than minReadings', () => {
+		// Two segments: first has 4 readings (kept), second has only 2 (dropped)
+		const readings: PitchReading[] = [
+			makeReading(60, 0.0),
+			makeReading(60, 0.1),
+			makeReading(60, 0.2),
+			makeReading(60, 0.3),
+			makeReading(64, 0.60),
+			makeReading(64, 0.65)
+		];
+		const onsets = [0.0, 0.5];
+		// Default minReadings=3: second segment has 2 post-guard readings → dropped
+		const notes = segmentNotes(readings, onsets, 1.0);
+
+		expect(notes).toHaveLength(1);
+		expect(notes[0].midi).toBe(60);
+	});
+
+	it('keeps segments with few readings when minReadings is lowered', () => {
+		const readings: PitchReading[] = [
+			makeReading(60, 0.0),
+			makeReading(60, 0.1),
+			makeReading(60, 0.2),
+			makeReading(64, 0.60),
+			makeReading(64, 0.65)
+		];
+		const onsets = [0.0, 0.5];
+		const notes = segmentNotes(readings, onsets, 1.0, 0.05, 0.08, 1);
+
+		expect(notes).toHaveLength(2);
+		expect(notes[1].midi).toBe(64);
 	});
 
 	it('includes cents deviation from median matching readings', () => {

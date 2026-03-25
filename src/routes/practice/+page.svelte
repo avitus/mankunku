@@ -267,10 +267,15 @@
 		if (!(await ensureMicCapture())) return;
 		if (!session.isDetecting) {
 			await startDetection();
-		} else {
-			pitchDetector?.clear();
 		}
+		// Stop detector during cooldown so playback decay isn't captured
+		pitchDetector?.stop();
 		session.engineState = 'recording';
+		// Wait for acoustic decay + AnalyserNode buffer to flush (~85ms buffer + margin)
+		await new Promise(resolve => setTimeout(resolve, 150));
+		if (session.engineState !== 'recording') return; // bail if user stopped
+		// Restart fresh — buffer now has only ambient/user audio
+		pitchDetector?.start();
 		awaitingInput = true;
 	}
 
@@ -312,9 +317,16 @@
 
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
 		const validatedOnsets = validateOnsets(workletOnsets, readings);
-		const onsets = validatedOnsets.length > 0
+		let onsets = validatedOnsets.length > 0
 			? validatedOnsets
 			: extractOnsetsFromReadings(readings);
+
+		// Ensure first note has an onset — the worklet may lose it
+		// due to the MessagePort race condition in beginRecording()
+		if (readings.length > 0 && (onsets.length === 0 || onsets[0] - readings[0].time > 0.1)) {
+			onsets = [readings[0].time, ...onsets];
+		}
+
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 		const detected = segmentNotes(readings, onsets, phraseDuration);
 
