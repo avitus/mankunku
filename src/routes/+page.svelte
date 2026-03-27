@@ -2,6 +2,7 @@
 	import { progress, getRecentSessions, getPrimaryLevel } from '$lib/state/progress.svelte.ts';
 	import { difficultyDisplay } from '$lib/difficulty/display.ts';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
+	import { page } from '$app/state';
 
 	const recentSessions = $derived(getRecentSessions(5));
 	const primaryLevel = $derived(getPrimaryLevel());
@@ -15,13 +16,21 @@
 		'bebop-lines': 'Bebop',
 		'user': 'My Licks'
 	};
+
+	const session = $derived(page.data?.session ?? null);
+	const user = $derived(page.data?.user ?? null);
+	const isAuthenticated = $derived(!!session);
 </script>
 
 <div class="space-y-6">
 	<!-- Header -->
 	<div class="space-y-1">
 		<h1 class="text-3xl font-bold">Mankunku</h1>
-		<p class="text-[var(--color-text-secondary)]">Jazz ear training — call and response</p>
+		{#if isAuthenticated && user}
+			<p class="text-[var(--color-text-secondary)]">Welcome back, {user.email ?? 'musician'}!</p>
+		{:else}
+			<p class="text-[var(--color-text-secondary)]">Jazz ear training — call and response</p>
+		{/if}
 	</div>
 
 	<!-- Quick start -->
@@ -34,6 +43,19 @@
 			Call and response ear training
 		</div>
 	</a>
+
+	<!-- Sign-in CTA for anonymous visitors -->
+	{#if !isAuthenticated}
+		<a
+			href="/auth"
+			class="block rounded-xl bg-[var(--color-bg-secondary)] p-4 text-center transition-colors hover:bg-[var(--color-bg-tertiary)]"
+		>
+			<div class="font-semibold">Sign In to Sync Progress</div>
+			<div class="mt-1 text-xs text-[var(--color-text-secondary)]">
+				Practice across all your devices
+			</div>
+		</a>
+	{/if}
 
 	<!-- Stats row -->
 	{#if progress.sessions.length > 0}
