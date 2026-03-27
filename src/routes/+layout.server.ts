@@ -13,11 +13,12 @@ import type { LayoutServerLoad } from './$types';
  * - `+layout.ts` via its `data` parameter
  * - All descendant routes via `$page.data`
  */
-export const load: LayoutServerLoad = async ({ locals }) => {
+export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 	const { session, user } = await locals.safeGetSession();
 
 	return {
 		session,
-		user
+		user,
+		cookies: cookies.getAll()
 	};
 };
