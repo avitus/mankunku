@@ -22,6 +22,7 @@ export default defineConfig({
 				]
 			},
 			workbox: {
+				navigateFallbackDenylist: [/^\/auth/],
 				globPatterns: ['**/*.{js,css,html,svg,woff2}'],
 				runtimeCaching: [
 					{
@@ -30,6 +31,18 @@ export default defineConfig({
 						options: {
 							cacheName: 'soundfonts',
 							expiration: { maxEntries: 5, maxAgeSeconds: 30 * 24 * 60 * 60 }
+						}
+					},
+					{
+						urlPattern: /^https:\/\/.*\.supabase\.co\/.*/,
+						handler: 'NetworkFirst',
+						options: {
+							cacheName: 'supabase-api',
+							expiration: {
+								maxEntries: 50,
+								maxAgeSeconds: 5 * 60
+							},
+							networkTimeoutSeconds: 10
 						}
 					}
 				]
