@@ -3,6 +3,15 @@
 	import { settings, saveSettings } from '$lib/state/settings.svelte.ts';
 	import { checkMicPermission, startMicCapture, stopMicCapture } from '$lib/audio/capture.ts';
 
+	/* Optional auth props passed from +layout.svelte for cloud data restore flow */
+	interface Props {
+		supabase?: import('@supabase/supabase-js').SupabaseClient;
+		session?: import('@supabase/supabase-js').Session | null;
+		user?: import('@supabase/supabase-js').User | null;
+	}
+
+	let { supabase, session, user }: Props = $props();
+
 	let step = $state<'instrument' | 'mic' | 'ready'>('instrument');
 	let micStatus = $state<'idle' | 'requesting' | 'granted' | 'denied'>('idle');
 
