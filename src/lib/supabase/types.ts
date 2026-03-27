@@ -93,9 +93,7 @@ export type Database = {
        */
       user_settings: {
         Row: {
-          /** UUID primary key, auto-generated */
-          id: string
-          /** UUID foreign key to auth.users.id, unique per user */
+          /** UUID primary key, references auth.users.id (1:1 relationship) */
           user_id: string
           /** Instrument identifier, e.g. 'tenor-sax', 'alto-sax', 'trumpet' */
           instrument_id: string
@@ -115,15 +113,11 @@ export type Database = {
           onboarding_complete: boolean
           /** Optional tonality override as JSONB (Tonality object or null) */
           tonality_override: Json | null
-          /** Timestamp of settings creation (ISO 8601) */
-          created_at: string
           /** Timestamp of last settings update (ISO 8601) */
           updated_at: string
         }
         Insert: {
-          /** Auto-generated UUID — optional on insert */
-          id?: string
-          /** UUID foreign key to auth.users.id — required */
+          /** UUID primary key, references auth.users.id — required */
           user_id: string
           /** Defaults to 'tenor-sax' in database */
           instrument_id?: string
@@ -142,11 +136,9 @@ export type Database = {
           /** Defaults to false in database */
           onboarding_complete?: boolean
           tonality_override?: Json | null
-          created_at?: string
           updated_at?: string
         }
         Update: {
-          id?: string
           user_id?: string
           instrument_id?: string
           default_tempo?: number
@@ -157,7 +149,6 @@ export type Database = {
           theme?: string
           onboarding_complete?: boolean
           tonality_override?: Json | null
-          created_at?: string
           updated_at?: string
         }
         Relationships: [
@@ -179,9 +170,7 @@ export type Database = {
        */
       user_progress: {
         Row: {
-          /** UUID primary key */
-          id: string
-          /** UUID foreign key to auth.users.id, unique per user */
+          /** UUID primary key, references auth.users.id (1:1 relationship) */
           user_id: string
           /** JSONB storing AdaptiveState: currentLevel, pitchComplexity, rhythmComplexity, recentScores, attemptsAtLevel, attemptsSinceChange, xp */
           adaptive_state: Json
@@ -193,17 +182,13 @@ export type Database = {
           total_practice_time: number
           /** Current practice streak in days */
           streak_days: number
-          /** ISO date string of last practice session, null if never practiced */
-          last_practice_date: string | null
-          /** Timestamp of progress record creation (ISO 8601) */
-          created_at: string
+          /** ISO date string of last practice session, empty string if never practiced */
+          last_practice_date: string
           /** Timestamp of last progress update (ISO 8601) */
           updated_at: string
         }
         Insert: {
-          /** Auto-generated UUID — optional on insert */
-          id?: string
-          /** UUID foreign key to auth.users.id — required */
+          /** UUID primary key, references auth.users.id — required */
           user_id: string
           /** JSONB — required on first insert to initialize adaptive state */
           adaptive_state: Json
@@ -215,20 +200,18 @@ export type Database = {
           total_practice_time?: number
           /** Defaults to 0 in database */
           streak_days?: number
-          last_practice_date?: string | null
-          created_at?: string
+          /** Defaults to '' in database */
+          last_practice_date?: string
           updated_at?: string
         }
         Update: {
-          id?: string
           user_id?: string
           adaptive_state?: Json
           category_progress?: Json
           key_progress?: Json
           total_practice_time?: number
           streak_days?: number
-          last_practice_date?: string | null
-          created_at?: string
+          last_practice_date?: string
           updated_at?: string
         }
         Relationships: [
@@ -285,12 +268,10 @@ export type Database = {
           timing: Json | null
           /** Unix timestamp in milliseconds from original SessionResult.timestamp */
           timestamp: number
-          /** Server-set timestamp of record creation (ISO 8601) */
-          created_at: string
         }
         Insert: {
-          /** Auto-generated UUID — optional on insert */
-          id?: string
+          /** TEXT primary key — generated client-side as ${Date.now()}-${random}, required on insert */
+          id: string
           /** UUID foreign key to auth.users.id — required */
           user_id: string
           phrase_id: string
@@ -312,8 +293,6 @@ export type Database = {
           /** JSONB — optional, stores TimingDiagnostics */
           timing?: Json | null
           timestamp: number
-          /** Auto-set by database default (now()) */
-          created_at?: string
         }
         Update: {
           id?: string
@@ -334,7 +313,6 @@ export type Database = {
           note_results?: Json
           timing?: Json | null
           timestamp?: number
-          created_at?: string
         }
         Relationships: [
           {
@@ -354,54 +332,41 @@ export type Database = {
        */
       scale_proficiency: {
         Row: {
-          /** UUID primary key */
-          id: string
-          /** UUID foreign key to auth.users.id */
+          /** UUID foreign key to auth.users.id — part of composite PK (user_id, scale_id) */
           user_id: string
-          /** ScaleType identifier (e.g. 'dorian', 'major', 'mixolydian') */
+          /** ScaleType identifier (e.g. 'dorian', 'major', 'mixolydian') — part of composite PK */
           scale_id: string
           /** Proficiency level (1–100) */
           level: number
-          /** JSONB storing integer array of last 10 scores at current level */
-          recent_scores: Json
+          /** PostgreSQL INTEGER[] — circular buffer of last 10 scores at current level */
+          recent_scores: number[]
           /** Number of attempts at the current proficiency level */
           attempts_at_level: number
           /** Number of attempts since last difficulty change */
           attempts_since_change: number
           /** Total number of attempts for this scale */
           total_attempts: number
-          /** Timestamp of record creation (ISO 8601) */
-          created_at: string
-          /** Timestamp of last update (ISO 8601) */
-          updated_at: string
         }
         Insert: {
-          /** Auto-generated UUID — optional on insert */
-          id?: string
-          /** UUID foreign key to auth.users.id — required */
+          /** UUID foreign key to auth.users.id — required, part of composite PK */
           user_id: string
-          /** ScaleType identifier — required */
+          /** ScaleType identifier — required, part of composite PK */
           scale_id: string
           level: number
-          /** JSONB integer array — required */
-          recent_scores: Json
+          /** PostgreSQL INTEGER[] — required */
+          recent_scores: number[]
           attempts_at_level: number
           attempts_since_change: number
           total_attempts: number
-          created_at?: string
-          updated_at?: string
         }
         Update: {
-          id?: string
           user_id?: string
           scale_id?: string
           level?: number
-          recent_scores?: Json
+          recent_scores?: number[]
           attempts_at_level?: number
           attempts_since_change?: number
           total_attempts?: number
-          created_at?: string
-          updated_at?: string
         }
         Relationships: [
           {
@@ -421,54 +386,41 @@ export type Database = {
        */
       key_proficiency: {
         Row: {
-          /** UUID primary key */
-          id: string
-          /** UUID foreign key to auth.users.id */
+          /** UUID foreign key to auth.users.id — part of composite PK (user_id, key) */
           user_id: string
-          /** PitchClass value: 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B' */
+          /** PitchClass value: 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B' — part of composite PK */
           key: string
           /** Proficiency level (1–100) */
           level: number
-          /** JSONB storing integer array of last 10 scores at current level */
-          recent_scores: Json
+          /** PostgreSQL INTEGER[] — circular buffer of last 10 scores at current level */
+          recent_scores: number[]
           /** Number of attempts at the current proficiency level */
           attempts_at_level: number
           /** Number of attempts since last difficulty change */
           attempts_since_change: number
           /** Total number of attempts for this key */
           total_attempts: number
-          /** Timestamp of record creation (ISO 8601) */
-          created_at: string
-          /** Timestamp of last update (ISO 8601) */
-          updated_at: string
         }
         Insert: {
-          /** Auto-generated UUID — optional on insert */
-          id?: string
-          /** UUID foreign key to auth.users.id — required */
+          /** UUID foreign key to auth.users.id — required, part of composite PK */
           user_id: string
-          /** PitchClass value — required */
+          /** PitchClass value — required, part of composite PK */
           key: string
           level: number
-          /** JSONB integer array — required */
-          recent_scores: Json
+          /** PostgreSQL INTEGER[] — required */
+          recent_scores: number[]
           attempts_at_level: number
           attempts_since_change: number
           total_attempts: number
-          created_at?: string
-          updated_at?: string
         }
         Update: {
-          id?: string
           user_id?: string
           key?: string
           level?: number
-          recent_scores?: Json
+          recent_scores?: number[]
           attempts_at_level?: number
           attempts_since_change?: number
           total_attempts?: number
-          created_at?: string
-          updated_at?: string
         }
         Relationships: [
           {
@@ -488,7 +440,7 @@ export type Database = {
        */
       user_licks: {
         Row: {
-          /** UUID primary key */
+          /** TEXT primary key — generated client-side as user-{timestamp}-{random} */
           id: string
           /** UUID foreign key to auth.users.id */
           user_id: string
@@ -496,8 +448,8 @@ export type Database = {
           name: string
           /** Concert pitch key as PitchClass value */
           key: string
-          /** JSONB storing [number, number] time signature tuple (e.g. [4, 4]) */
-          time_signature: Json
+          /** PostgreSQL INTEGER[2] storing time signature tuple (e.g. [4, 4]) */
+          time_signature: number[]
           /** JSONB storing Note[] array — the lick's note sequence */
           notes: Json
           /** JSONB storing HarmonicSegment[] array — chord/scale context */
@@ -518,14 +470,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          /** Auto-generated UUID — optional on insert */
-          id?: string
+          /** TEXT primary key — generated client-side as user-{timestamp}-{random}, required on insert */
+          id: string
           /** UUID foreign key to auth.users.id — required */
           user_id: string
           name: string
           key: string
-          /** JSONB — required, stores time signature tuple */
-          time_signature: Json
+          /** PostgreSQL INTEGER[2] — required, stores time signature tuple */
+          time_signature: number[]
           /** JSONB — required, stores Note[] */
           notes: Json
           /** JSONB — required, stores HarmonicSegment[] */
@@ -547,7 +499,7 @@ export type Database = {
           user_id?: string
           name?: string
           key?: string
-          time_signature?: Json
+          time_signature?: number[]
           notes?: Json
           harmony?: Json
           difficulty?: Json
