@@ -149,7 +149,8 @@ export function saveUserLick(
 					category: toSave.category,
 					tags: toSave.tags,
 					source: toSave.source,
-					audio_url: null
+					audio_url: null,
+					updated_at: new Date().toISOString()
 				});
 			})
 			.then((result) => {

@@ -7,14 +7,12 @@
 	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
 	import { calculateDifficulty } from '$lib/difficulty/calculate.ts';
 	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks.ts';
-	import { saveRecording } from '$lib/persistence/audio-store.ts';
 	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
 	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 
 	const instrument = $derived(getInstrument());
 	const supabase = $derived(page.data?.supabase ?? null);
-	const user = $derived(page.data?.user ?? null);
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
 	import type { MicCapture } from '$lib/audio/capture.ts';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector.ts';

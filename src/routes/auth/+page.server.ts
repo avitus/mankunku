@@ -58,6 +58,16 @@ export const actions: Actions = {
 			});
 		}
 
+		// Validate email format — defense-in-depth before sending to Supabase.
+		// Supabase Auth also validates server-side, but client-side validation
+		// provides faster user feedback and avoids unnecessary network round trips.
+		if (!/\S+@\S+\.\S+/.test(email)) {
+			return fail(400, {
+				error: 'Please enter a valid email address.',
+				email
+			});
+		}
+
 		// Attempt to sign in with Supabase Auth using email/password credentials.
 		// The server client automatically manages session cookies on success.
 		const { error } = await supabase.auth.signInWithPassword({
@@ -101,6 +111,16 @@ export const actions: Actions = {
 		if (!email || !password) {
 			return fail(400, {
 				error: 'Email and password are required.',
+				email
+			});
+		}
+
+		// Validate email format — defense-in-depth before sending to Supabase.
+		// Supabase Auth also validates server-side, but client-side validation
+		// provides faster user feedback and avoids unnecessary network round trips.
+		if (!/\S+@\S+\.\S+/.test(email)) {
+			return fail(400, {
+				error: 'Please enter a valid email address.',
 				email
 			});
 		}
