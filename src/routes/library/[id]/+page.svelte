@@ -4,14 +4,14 @@
 	import { onDestroy } from 'svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
-	import { getLickById, transposeLick } from '$lib/phrases/library-loader.ts';
-	import { session } from '$lib/state/session.svelte.ts';
-	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
-	import { setMasterVolume } from '$lib/audio/audio-context.ts';
-	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
-	import type { Phrase } from '$lib/types/music.ts';
-	import { difficultyDisplay } from '$lib/difficulty/display.ts';
-	import { getUserLicks } from '$lib/persistence/user-licks.ts';
+	import { getLickById, transposeLick } from '$lib/phrases/library-loader';
+	import { session } from '$lib/state/session.svelte';
+	import { settings, getInstrument } from '$lib/state/settings.svelte';
+	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import type { Phrase } from '$lib/types/music';
+	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { getUserLicks } from '$lib/persistence/user-licks';
 
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -45,7 +45,7 @@
 		}
 	});
 
-	let playbackModule: typeof import('$lib/audio/playback.ts') | null = null;
+	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
 
 	let selectedKey: PitchClass = $state('C');
@@ -64,7 +64,7 @@
 		if (!lick) return;
 
 		if (!playbackModule) {
-			playbackModule = await import('$lib/audio/playback.ts');
+			playbackModule = await import('$lib/audio/playback');
 		}
 
 		if (isPlaying) {

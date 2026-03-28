@@ -21,7 +21,7 @@ import {
 	syncSettingsToCloud,
 	loadSettingsFromCloud,
 	syncUserLicksToCloud
-} from '$lib/persistence/sync.ts';
+} from '$lib/persistence/sync';
 import type {
 	UserProgress,
 	SessionResult,
@@ -29,8 +29,8 @@ import type {
 	KeyProficiency,
 	AdaptiveState,
 	CategoryProgress
-} from '$lib/types/progress.ts';
-import type { Phrase } from '$lib/types/music.ts';
+} from '$lib/types/progress';
+import type { Phrase } from '$lib/types/music';
 
 // ═════════════════════════════════════════════════════════════════════
 //  Mock Supabase Client Factory
@@ -495,7 +495,7 @@ describe('loadProgressFromCloud', () => {
 			expect(result.sessions[0].difficultyLevel).toBe(15);
 
 			// Scale proficiency mapped from snake_case
-			const bluesMinor = result.scaleProficiency?.['blues.minor' as any];
+			const bluesMinor = (result.scaleProficiency as Record<string, ScaleProficiency | undefined>)?.['blues.minor'];
 			expect(bluesMinor).toBeDefined();
 			if (bluesMinor) {
 				expect(bluesMinor.level).toBe(25);
@@ -506,7 +506,7 @@ describe('loadProgressFromCloud', () => {
 			}
 
 			// Key proficiency mapped from snake_case
-			const cKey = result.keyProficiency?.['C' as any];
+			const cKey = (result.keyProficiency as Record<string, KeyProficiency | undefined>)?.['C'];
 			expect(cKey).toBeDefined();
 			if (cKey) {
 				expect(cKey.level).toBe(30);

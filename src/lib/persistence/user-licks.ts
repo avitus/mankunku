@@ -17,10 +17,10 @@ import type {
 	HarmonicSegment,
 	DifficultyMetadata,
 	PhraseCategory
-} from '$lib/types/music.ts';
+} from '$lib/types/music';
 import { save, load } from './storage.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Json } from '$lib/supabase/types.ts';
+import type { Database, Json } from '$lib/supabase/types';
 
 const STORAGE_KEY = 'user-licks';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { progress, getRecentSessions, getPrimaryLevel } from '$lib/state/progress.svelte.ts';
-	import { difficultyDisplay } from '$lib/difficulty/display.ts';
-	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
+	import { progress, getRecentSessions, getPrimaryLevel } from '$lib/state/progress.svelte';
+	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
 	import { page } from '$app/state';
 
 	const recentSessions = $derived(getRecentSessions(5));

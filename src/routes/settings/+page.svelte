@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { INSTRUMENTS } from '$lib/types/instruments.ts';
-	import { settings, saveSettings, applyTheme, getInstrument } from '$lib/state/settings.svelte.ts';
-	import { setMasterVolume } from '$lib/audio/audio-context.ts';
-	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
-	import type { PitchClass } from '$lib/types/music.ts';
+	import { INSTRUMENTS } from '$lib/types/instruments';
+	import { settings, saveSettings, applyTheme, getInstrument } from '$lib/state/settings.svelte';
+	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import type { PitchClass } from '$lib/types/music';
 	import {
 		type ScaleType,
 		SCALE_TYPE_NAMES,
@@ -17,9 +17,9 @@
 		getTodaysTonality,
 		getScaleUnlockRequirements,
 		getKeyUnlockRequirements
-	} from '$lib/tonality/tonality.ts';
+	} from '$lib/tonality/tonality';
 	import { page } from '$app/state';
-	import { loadSettingsFromCloud } from '$lib/state/settings.svelte.ts';
+	import { loadSettingsFromCloud } from '$lib/state/settings.svelte';
 
 	const instruments = Object.entries(INSTRUMENTS);
 	const instrument = $derived(getInstrument());

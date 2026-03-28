@@ -5,15 +5,15 @@
  * Auto-saves on every mutation via $effect.
  */
 
-import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress.ts';
-import type { Score } from '$lib/types/scoring.ts';
-import type { PhraseCategory, PitchClass } from '$lib/types/music.ts';
-import type { ScaleType } from '$lib/tonality/tonality.ts';
-import { createInitialAdaptiveState, processAttempt, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive.ts';
-import { save, load } from '$lib/persistence/storage.ts';
+import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress';
+import type { Score } from '$lib/types/scoring';
+import type { PhraseCategory, PitchClass } from '$lib/types/music';
+import type { ScaleType } from '$lib/tonality/tonality';
+import { createInitialAdaptiveState, processAttempt, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive';
+import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/supabase/types.ts';
-import { syncProgressToCloud, loadProgressFromCloud } from '$lib/persistence/sync.ts';
+import type { Database } from '$lib/supabase/types';
+import { syncProgressToCloud, loadProgressFromCloud } from '$lib/persistence/sync';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 200; // keep last 200 sessions

@@ -1,34 +1,34 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { GRADE_COLORS } from '$lib/scoring/grades.ts';
-	import { TEST_PHRASES } from '$lib/data/test-phrases.ts';
-	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader.ts';
-	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte.ts';
-	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context.ts';
-	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
-	import { session } from '$lib/state/session.svelte.ts';
-	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte.ts';
-	import { scoreAttempt } from '$lib/scoring/scorer.ts';
-	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
-	import { getTodaysTonality, isTonalityUnlocked, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality.ts';
-	import { isLickCompatible } from '$lib/tonality/scale-compatibility.ts';
-	import { getScale } from '$lib/music/scales.ts';
-	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive.ts';
-	import type { PlaybackOptions } from '$lib/types/audio.ts';
-	import type { Score } from '$lib/types/scoring.ts';
-	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
-	import type { MicCapture } from '$lib/audio/capture.ts';
-	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector.ts';
+	import { GRADE_COLORS } from '$lib/scoring/grades';
+	import { TEST_PHRASES } from '$lib/data/test-phrases';
+	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
+	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
+	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
+	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { session } from '$lib/state/session.svelte';
+	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte';
+	import { scoreAttempt } from '$lib/scoring/scorer';
+	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
+	import { getTodaysTonality, isTonalityUnlocked, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
+	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
+	import { getScale } from '$lib/music/scales';
+	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
+	import type { PlaybackOptions } from '$lib/types/audio';
+	import type { Score } from '$lib/types/scoring';
+	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
+	import type { MicCapture } from '$lib/audio/capture';
+	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
 	import { page } from '$app/state';
 
 	// Auth state from layout load chain — derive supabase client for cloud sync
 	const supabase = $derived(page.data?.supabase ?? null);
 
-	let playback: typeof import('$lib/audio/playback.ts') | null = null;
-	let captureModule: typeof import('$lib/audio/capture.ts') | null = null;
-	let pitchModule: typeof import('$lib/audio/pitch-detector.ts') | null = null;
-	let onsetModule: typeof import('$lib/audio/onset-detector.ts') | null = null;
+	let playback: typeof import('$lib/audio/playback') | null = null;
+	let captureModule: typeof import('$lib/audio/capture') | null = null;
+	let pitchModule: typeof import('$lib/audio/pitch-detector') | null = null;
+	let onsetModule: typeof import('$lib/audio/onset-detector') | null = null;
 
 	// Pin daily tonality at page load so proficiency gains mid-session won't shift key
 	const sessionUnlockCtx = getUnlockContext();
@@ -115,10 +115,10 @@
 	session.tempo = settings.defaultTempo;
 
 	onMount(async () => {
-		playback = await import('$lib/audio/playback.ts');
-		captureModule = await import('$lib/audio/capture.ts');
-		pitchModule = await import('$lib/audio/pitch-detector.ts');
-		onsetModule = await import('$lib/audio/onset-detector.ts');
+		playback = await import('$lib/audio/playback');
+		captureModule = await import('$lib/audio/capture');
+		pitchModule = await import('$lib/audio/pitch-detector');
+		onsetModule = await import('$lib/audio/onset-detector');
 		session.micPermission = await captureModule.checkMicPermission();
 	});
 
@@ -365,7 +365,7 @@
 			handle.stop().then(async (blob) => {
 				handle.dispose();
 				if (blob.size > 0 && sessionId) {
-					const { saveRecording } = await import('$lib/persistence/audio-store.ts');
+					const { saveRecording } = await import('$lib/persistence/audio-store');
 					await saveRecording(sessionId, blob);
 				}
 			}).catch(console.error);
@@ -412,7 +412,7 @@
 	}
 
 	function extractOnsetsFromReadings(
-		readings: import('$lib/audio/pitch-detector.ts').PitchReading[]
+		readings: import('$lib/audio/pitch-detector').PitchReading[]
 	): number[] {
 		if (readings.length === 0) return [];
 		const onsets: number[] = [readings[0].time];

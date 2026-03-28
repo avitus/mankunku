@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { INSTRUMENTS } from '$lib/types/instruments.ts';
-	import { settings, saveSettings } from '$lib/state/settings.svelte.ts';
-	import { checkMicPermission, startMicCapture, stopMicCapture } from '$lib/audio/capture.ts';
+	import { INSTRUMENTS } from '$lib/types/instruments';
+	import { settings, saveSettings } from '$lib/state/settings.svelte';
+	import { checkMicPermission, startMicCapture, stopMicCapture } from '$lib/audio/capture';
 	import type { SupabaseClient, Session, User } from '@supabase/supabase-js';
 	import type { Database } from '$lib/supabase/types';
 	import { loadProgressFromCloud } from '$lib/persistence/sync';
@@ -61,8 +61,8 @@
 	 */
 	async function restoreData() {
 		try {
-			const { initFromCloud } = await import('$lib/state/progress.svelte.ts');
-			const { loadSettingsFromCloud: loadCloudSettings } = await import('$lib/state/settings.svelte.ts');
+			const { initFromCloud } = await import('$lib/state/progress.svelte');
+			const { loadSettingsFromCloud: loadCloudSettings } = await import('$lib/state/settings.svelte');
 			if (supabase) {
 				await initFromCloud(supabase);
 				await loadCloudSettings(supabase);

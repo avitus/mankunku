@@ -20,7 +20,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ── Internal type imports ────────────────────────────────────────────
-import type { Database, Json } from '$lib/supabase/types.ts';
+import type { Database, Json } from '$lib/supabase/types';
 import type {
 	UserProgress,
 	SessionResult,
@@ -28,10 +28,10 @@ import type {
 	KeyProficiency,
 	AdaptiveState,
 	CategoryProgress
-} from '$lib/types/progress.ts';
-import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music.ts';
-import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring.ts';
-import type { ScaleType } from '$lib/tonality/tonality.ts';
+} from '$lib/types/progress';
+import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
+import type { ScaleType } from '$lib/tonality/tonality';
 
 // ── Type alias for convenience ───────────────────────────────────────
 

@@ -1,27 +1,27 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
-	import { midiToNoteName } from '$lib/music/intervals.ts';
-	import { PITCH_CLASSES, type Phrase, type PitchClass } from '$lib/types/music.ts';
-	import { quantizeNotes, detectKey } from '$lib/audio/quantizer.ts';
-	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
-	import { calculateDifficulty } from '$lib/difficulty/calculate.ts';
-	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks.ts';
-	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
-	import { setMasterVolume } from '$lib/audio/audio-context.ts';
+	import { midiToNoteName } from '$lib/music/intervals';
+	import { PITCH_CLASSES, type Phrase, type PitchClass } from '$lib/types/music';
+	import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
+	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
+	import { calculateDifficulty } from '$lib/difficulty/calculate';
+	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks';
+	import { settings, getInstrument } from '$lib/state/settings.svelte';
+	import { setMasterVolume } from '$lib/audio/audio-context';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 
 	const instrument = $derived(getInstrument());
 	const supabase = $derived(page.data?.supabase ?? null);
-	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
-	import type { MicCapture } from '$lib/audio/capture.ts';
-	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector.ts';
-	import type { DetectedNote } from '$lib/types/audio.ts';
+	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
+	import type { MicCapture } from '$lib/audio/capture';
+	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
+	import type { DetectedNote } from '$lib/types/audio';
 
-	let playbackModule: typeof import('$lib/audio/playback.ts') | null = null;
-	let captureModule: typeof import('$lib/audio/capture.ts') | null = null;
-	let pitchModule: typeof import('$lib/audio/pitch-detector.ts') | null = null;
-	let onsetModule: typeof import('$lib/audio/onset-detector.ts') | null = null;
+	let playbackModule: typeof import('$lib/audio/playback') | null = null;
+	let captureModule: typeof import('$lib/audio/capture') | null = null;
+	let pitchModule: typeof import('$lib/audio/pitch-detector') | null = null;
+	let onsetModule: typeof import('$lib/audio/onset-detector') | null = null;
 
 	// State machine
 	type RecordState = 'idle' | 'counting-in' | 'recording' | 'processing' | 'review';
@@ -55,10 +55,10 @@
 		: null);
 
 	onMount(async () => {
-		playbackModule = await import('$lib/audio/playback.ts');
-		captureModule = await import('$lib/audio/capture.ts');
-		pitchModule = await import('$lib/audio/pitch-detector.ts');
-		onsetModule = await import('$lib/audio/onset-detector.ts');
+		playbackModule = await import('$lib/audio/playback');
+		captureModule = await import('$lib/audio/capture');
+		pitchModule = await import('$lib/audio/pitch-detector');
+		onsetModule = await import('$lib/audio/onset-detector');
 	});
 
 	onDestroy(() => {
@@ -123,7 +123,7 @@
 		transport.bpm.value = tempo;
 
 		// Schedule metronome AFTER transport reset so it isn't cancelled
-		const { scheduleMetronome } = await import('$lib/audio/metronome.ts');
+		const { scheduleMetronome } = await import('$lib/audio/metronome');
 		await scheduleMetronome(4, null);
 
 		// Warm up pitch detector during count-in
@@ -186,7 +186,7 @@
 		transport.position = 0;
 		transport.cancel();
 
-		const { disposeMetronome } = await import('$lib/audio/metronome.ts');
+		const { disposeMetronome } = await import('$lib/audio/metronome');
 		disposeMetronome();
 
 		pitchDetector?.stop();
@@ -246,7 +246,7 @@
 	}
 
 	function extractOnsetsFromReadings(
-		readings: import('$lib/audio/pitch-detector.ts').PitchReading[]
+		readings: import('$lib/audio/pitch-detector').PitchReading[]
 	): number[] {
 		if (readings.length === 0) return [];
 		const onsets: number[] = [readings[0].time];

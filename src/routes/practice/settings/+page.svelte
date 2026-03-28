@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { settings, saveSettings } from '$lib/state/settings.svelte.ts';
-	import { session } from '$lib/state/session.svelte.ts';
-	import { progress, getUnlockContext } from '$lib/state/progress.svelte.ts';
-	import { PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music.ts';
-	import { INSTRUMENTS } from '$lib/types/instruments.ts';
-	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader.ts';
-	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator.ts';
-	import { difficultyDisplay } from '$lib/difficulty/display.ts';
+	import { settings, saveSettings } from '$lib/state/settings.svelte';
+	import { session } from '$lib/state/session.svelte';
+	import { progress, getUnlockContext } from '$lib/state/progress.svelte';
+	import { PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music';
+	import { INSTRUMENTS } from '$lib/types/instruments';
+	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader';
+	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
+	import { difficultyDisplay } from '$lib/difficulty/display';
 	import {
 		type Tonality,
 		type ScaleType,
@@ -24,7 +24,7 @@
 		tonalitiesEqual,
 		getScaleUnlockRequirements,
 		getKeyUnlockRequirements
-	} from '$lib/tonality/tonality.ts';
+	} from '$lib/tonality/tonality';
 
 	const CATEGORIES: { value: PhraseCategory | 'random'; label: string }[] = [
 		{ value: 'random', label: 'Random' },
