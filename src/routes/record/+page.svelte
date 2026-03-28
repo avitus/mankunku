@@ -1,16 +1,20 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { page } from '$app/state';
 	import { midiToNoteName } from '$lib/music/intervals.ts';
 	import { PITCH_CLASSES, type Phrase, type PitchClass } from '$lib/types/music.ts';
 	import { quantizeNotes, detectKey } from '$lib/audio/quantizer.ts';
 	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
 	import { calculateDifficulty } from '$lib/difficulty/calculate.ts';
 	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks.ts';
+	import { saveRecording } from '$lib/persistence/audio-store.ts';
 	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
 	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 
 	const instrument = $derived(getInstrument());
+	const supabase = $derived(page.data?.supabase ?? null);
+	const user = $derived(page.data?.user ?? null);
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
 	import type { MicCapture } from '$lib/audio/capture.ts';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector.ts';
@@ -281,7 +285,10 @@
 	function handleSave() {
 		if (!reviewPhrase) return;
 		reviewPhrase.name = lickName || reviewPhrase.name;
-		saveUserLick(reviewPhrase);
+
+		// Local-first: save lick to localStorage, with optional cloud sync for authenticated users
+		saveUserLick(reviewPhrase, supabase ?? undefined);
+
 		savedConfirmation = true;
 		setTimeout(() => {
 			recordState = 'idle';
