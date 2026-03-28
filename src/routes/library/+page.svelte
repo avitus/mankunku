@@ -8,19 +8,95 @@
 	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import type { Phrase, PhraseCategory } from '$lib/types/music.ts';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { getUserLicks } from '$lib/persistence/user-licks.ts';
+
+	/** Supabase browser client from layout data (null when not available) */
+	const supabase = $derived(page.data?.supabase ?? null);
+	/** Auth session from layout data (null when anonymous/unauthenticated) */
+	const session = $derived(page.data?.session ?? null);
 
 	let playbackModule: typeof import('$lib/audio/playback.ts') | null = null;
 	let playingId: string | null = $state(null);
 
+	/** User-recorded licks loaded from localStorage and/or Supabase cloud */
+	let userLicks: Phrase[] = $state([]);
+
+	/**
+	 * Reactively load user licks when auth state changes.
+	 * Authenticated users get merged local + cloud licks for cross-device access.
+	 * Anonymous users get localStorage-only licks.
+	 */
+	$effect(() => {
+		// Read derived values synchronously so Svelte tracks them as dependencies
+		const sb = supabase;
+		const sess = session;
+
+		if (sess && sb) {
+			// Authenticated: fetch merged local + cloud licks
+			getUserLicks(sb)
+				.then((licks) => {
+					userLicks = licks;
+				})
+				.catch(() => {
+					// Fallback to local-only on cloud error
+					getUserLicks()
+						.then((licks) => {
+							userLicks = licks;
+						})
+						.catch(() => {
+							userLicks = [];
+						});
+				});
+		} else {
+			// Anonymous: load from localStorage only
+			getUserLicks()
+				.then((licks) => {
+					userLicks = licks;
+				})
+				.catch(() => {
+					userLicks = [];
+				});
+		}
+	});
+
 	const categories = getCategories();
 
-	const filteredLicks = $derived(
+	/** Curated licks filtered by current library query parameters */
+	const curatedLicks = $derived(
 		queryLicks({
 			category: library.categoryFilter ?? undefined,
 			maxDifficulty: library.difficultyFilter ?? undefined,
 			search: library.searchQuery || undefined
 		})
 	);
+
+	/**
+	 * Combined filtered licks: user-recorded licks (filtered by same criteria)
+	 * appear first, followed by curated licks from the phrase library.
+	 */
+	const filteredLicks = $derived.by(() => {
+		// Apply the same search/filter criteria to user licks
+		let filtered = userLicks;
+
+		if (library.categoryFilter) {
+			filtered = filtered.filter((l) => l.category === library.categoryFilter);
+		}
+		if (library.difficultyFilter) {
+			filtered = filtered.filter((l) => l.difficulty.level <= library.difficultyFilter!);
+		}
+		if (library.searchQuery) {
+			const q = library.searchQuery.toLowerCase();
+			filtered = filtered.filter(
+				(l) =>
+					l.name.toLowerCase().includes(q) ||
+					l.tags.some((t) => t.toLowerCase().includes(q))
+			);
+		}
+
+		// User licks first, then curated licks
+		return [...filtered, ...curatedLicks];
+	});
 
 	function handleCategorySelect(category: PhraseCategory | null) {
 		library.categoryFilter = category;
