@@ -2,6 +2,9 @@ import type { InstrumentConfig } from '$lib/types/instruments.ts';
 import type { Tonality } from '$lib/tonality/tonality.ts';
 import { INSTRUMENTS } from '$lib/types/instruments.ts';
 import { save, load } from '$lib/persistence/storage.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '$lib/supabase/types';
+import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } from '$lib/persistence/sync';
 
 const STORAGE_KEY = 'settings';
 
@@ -28,8 +31,42 @@ const defaultSettings = {
 
 export const settings = $state(loadSettings());
 
-export function saveSettings(): void {
+export function saveSettings(supabase?: SupabaseClient<Database>): void {
 	save(STORAGE_KEY, settings);
+
+	// Fire-and-forget cloud sync for authenticated users
+	if (supabase) {
+		syncSettingsToCloud(supabase, settings as Record<string, unknown>).catch((err) => {
+			console.warn('Failed to sync settings to cloud:', err);
+		});
+	}
+}
+
+/**
+ * Load settings from cloud for authenticated users.
+ * Merges cloud settings with local, preferring cloud data when session exists.
+ */
+export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	try {
+		const cloudSettings = await fetchSettingsFromCloud(supabase);
+		if (!cloudSettings) return; // No cloud data or not authenticated
+
+		// Merge cloud settings with defaults, preferring cloud values
+		const merged = { ...defaultSettings, ...cloudSettings };
+		// Clamp swing to valid range (same as loadSettings)
+		merged.swing = Math.max(0.5, Math.min(0.8, merged.swing as number));
+
+		// Update the reactive state in place (preserves Svelte 5 $state reactivity)
+		Object.assign(settings, merged);
+
+		// Persist merged state locally for offline cache
+		save(STORAGE_KEY, settings);
+
+		// Re-apply theme in case it changed from cloud data
+		applyTheme();
+	} catch (err) {
+		console.warn('Failed to load settings from cloud:', err);
+	}
 }
 
 export function getInstrument(): InstrumentConfig {
