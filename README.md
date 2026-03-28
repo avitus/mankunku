@@ -1,6 +1,6 @@
-# sv
+# Mankunku
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Jazz ear training progressive web application with call-and-response practice, powered by [SvelteKit](https://svelte.dev) and [Supabase](https://supabase.com).
 
 ## Creating a project
 
@@ -39,7 +39,7 @@ npm run build
 
 You can preview the production build with `npm run preview`.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+> This project uses [`@sveltejs/adapter-node`](https://svelte.dev/docs/kit/adapters) for server-side rendering, which is required for authentication and session management. See the [SvelteKit adapters documentation](https://svelte.dev/docs/kit/adapters) if you need to deploy to a different target environment.
 
 ## Authentication
 
@@ -67,7 +67,7 @@ After applying migrations, you can generate TypeScript types for the database sc
 npm run db:types
 ```
 
-This runs `supabase gen types typescript` and writes the output to `src/lib/supabase/types.ts`.
+This runs `supabase gen types typescript --local` and writes the output to `src/lib/supabase/types.ts`. If you are generating types against a remote Supabase project instead of a local instance, remove the `--local` flag or update the script in `package.json`.
 
 ## Environment Variables
 
@@ -114,3 +114,18 @@ Mankunku supports multiple users with isolated, per-user data. Key behaviors:
 - **Local-first data strategy** — All writes go to `localStorage` and `IndexedDB` first for instant feedback and offline resilience, then sync to the Supabase cloud database in the background. This means the app feels fast regardless of network conditions.
 - **Offline practice** — You can practice, record licks, and complete sessions while fully offline. Results are stored locally and automatically sync to the cloud when connectivity returns.
 - **Anonymous fallback** — If you choose not to sign in, the app works exactly as a single-device client-only PWA. No data leaves your browser.
+- **Account management** — Authenticated users can manage their account from the Settings page. This includes requesting a password change (sent via email) and deactivating their account.
+
+## Testing
+
+Run the unit test suite with [Vitest](https://vitest.dev):
+
+```sh
+npm test
+```
+
+Run the SvelteKit type checker (includes `svelte-check` and TypeScript validation):
+
+```sh
+npm run check
+```
