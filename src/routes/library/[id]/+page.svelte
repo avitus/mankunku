@@ -11,13 +11,46 @@
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
 	import type { Phrase } from '$lib/types/music.ts';
 	import { difficultyDisplay } from '$lib/difficulty/display.ts';
+	import { getUserLicks } from '$lib/persistence/user-licks.ts';
+
+	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
+	const supabase = $derived(page.data?.supabase ?? null);
+	const authSession = $derived(page.data?.session ?? null);
+
+	// Async state for user-recorded lick resolution (fallback when curated lookup fails)
+	let userLick: Phrase | null = $state(null);
+
+	$effect(() => {
+		const id = page.params.id ?? '';
+		const sb = supabase;
+		const sess = authSession;
+
+		// Only search user licks if the curated lookup fails
+		if (!getLickById(id)) {
+			if (sess && sb) {
+				getUserLicks(sb).then((licks) => {
+					userLick = licks.find(l => l.id === id) ?? null;
+				}).catch(() => {
+					getUserLicks().then((licks) => {
+						userLick = licks.find(l => l.id === id) ?? null;
+					});
+				});
+			} else {
+				getUserLicks().then((licks) => {
+					userLick = licks.find(l => l.id === id) ?? null;
+				});
+			}
+		} else {
+			userLick = null;
+		}
+	});
 
 	let playbackModule: typeof import('$lib/audio/playback.ts') | null = null;
 	let isPlaying = $state(false);
 
 	let selectedKey: PitchClass = $state('C');
 
-	const baseLick = $derived(getLickById(page.params.id ?? ''));
+	const baseLick = $derived(getLickById(page.params.id ?? '') ?? userLick);
 	const lick = $derived(baseLick ? transposeLick(baseLick, selectedKey) : null);
 
 	function practiceThis() {
