@@ -2,20 +2,74 @@
 	import { INSTRUMENTS } from '$lib/types/instruments.ts';
 	import { settings, saveSettings } from '$lib/state/settings.svelte.ts';
 	import { checkMicPermission, startMicCapture, stopMicCapture } from '$lib/audio/capture.ts';
+	import type { SupabaseClient, Session, User } from '@supabase/supabase-js';
+	import type { Database } from '$lib/supabase/types';
+	import { loadProgressFromCloud } from '$lib/persistence/sync';
 
-	/* Optional auth props passed from +layout.svelte for cloud data restore flow */
-	interface Props {
-		supabase?: import('@supabase/supabase-js').SupabaseClient;
-		session?: import('@supabase/supabase-js').Session | null;
-		user?: import('@supabase/supabase-js').User | null;
-	}
+	/** Optional auth props — when all three are provided, cloud data detection is enabled. */
+	let { supabase = undefined, session = undefined, user = undefined }: {
+		supabase?: SupabaseClient<Database>;
+		session?: Session | null;
+		user?: User | null;
+	} = $props();
 
-	let { supabase, session, user }: Props = $props();
-
-	let step = $state<'instrument' | 'mic' | 'ready'>('instrument');
+	let step = $state<'restore' | 'instrument' | 'mic' | 'ready'>('instrument');
 	let micStatus = $state<'idle' | 'requesting' | 'granted' | 'denied'>('idle');
+	let hasCloudData = $state(false);
+	let checkingCloud = $state(false);
+	let cloudRestored = $state(false);
 
 	const instruments = Object.entries(INSTRUMENTS);
+
+	/**
+	 * Reactively detect cloud data when an authenticated user arrives.
+	 * Only fires when supabase, session, and user are all truthy and data
+	 * has not already been restored.
+	 */
+	$effect(() => {
+		if (supabase && session && user && !cloudRestored) {
+			checkCloudData();
+		}
+	});
+
+	/**
+	 * Check Supabase for existing progress data from another device.
+	 * On success with >0 sessions, set `hasCloudData` and jump to the
+	 * 'restore' step. Errors are silently swallowed to preserve the
+	 * normal onboarding flow.
+	 */
+	async function checkCloudData() {
+		if (!supabase) return;
+		checkingCloud = true;
+		try {
+			const cloudProgress = await loadProgressFromCloud(supabase);
+			if (cloudProgress && cloudProgress.sessions.length > 0) {
+				hasCloudData = true;
+				step = 'restore';
+			}
+		} catch {
+			// Silently fail — proceed with normal onboarding
+		} finally {
+			checkingCloud = false;
+		}
+	}
+
+	/**
+	 * Restore cloud progress and settings into local state.
+	 * Uses dynamic imports to avoid circular dependencies with
+	 * the state modules. Marks onboarding complete after restore.
+	 */
+	async function restoreData() {
+		const { initFromCloud } = await import('$lib/state/progress.svelte.ts');
+		const { loadSettingsFromCloud: loadCloudSettings } = await import('$lib/state/settings.svelte.ts');
+		if (supabase) {
+			await initFromCloud(supabase);
+			await loadCloudSettings(supabase);
+		}
+		cloudRestored = true;
+		settings.onboardingComplete = true;
+		saveSettings();
+	}
 
 	function selectInstrument(id: string) {
 		settings.instrumentId = id;
@@ -47,9 +101,9 @@
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)] p-4">
 	<div class="w-full max-w-md space-y-6">
-		<!-- Progress dots -->
+		<!-- Progress dots — 4 dots when cloud data detected, 3 otherwise -->
 		<div class="flex justify-center gap-2">
-			{#each ['instrument', 'mic', 'ready'] as s}
+			{#each hasCloudData ? ['restore', 'instrument', 'mic', 'ready'] : ['instrument', 'mic', 'ready'] as s}
 				<div
 					class="h-2 w-2 rounded-full transition-colors {s === step
 						? 'bg-[var(--color-accent)]'
@@ -58,7 +112,30 @@
 			{/each}
 		</div>
 
-		{#if step === 'instrument'}
+		{#if step === 'restore'}
+			<div class="space-y-4 text-center">
+				<div class="text-5xl">☁️</div>
+				<h1 class="text-2xl font-bold">Welcome Back!</h1>
+				<p class="text-[var(--color-text-secondary)]">
+					We found your existing practice data from another device. Would you like to restore it?
+				</p>
+			</div>
+			<div class="space-y-3">
+				<button
+					onclick={restoreData}
+					class="w-full rounded-lg bg-[var(--color-accent)] p-4 font-medium transition-opacity hover:opacity-90"
+				>
+					Restore My Progress
+				</button>
+				<button
+					onclick={() => { step = 'instrument'; }}
+					class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-3 text-sm transition-colors hover:bg-[var(--color-bg-tertiary)]"
+				>
+					Start Fresh Instead
+				</button>
+			</div>
+
+		{:else if step === 'instrument'}
 			<div class="space-y-4 text-center">
 				<h1 class="text-3xl font-bold">Welcome to Mankunku</h1>
 				<p class="text-[var(--color-text-secondary)]">
