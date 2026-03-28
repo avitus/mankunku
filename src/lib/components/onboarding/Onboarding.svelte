@@ -60,20 +60,28 @@
 	 * the state modules. Marks onboarding complete after restore.
 	 */
 	async function restoreData() {
-		const { initFromCloud } = await import('$lib/state/progress.svelte.ts');
-		const { loadSettingsFromCloud: loadCloudSettings } = await import('$lib/state/settings.svelte.ts');
-		if (supabase) {
-			await initFromCloud(supabase);
-			await loadCloudSettings(supabase);
+		try {
+			const { initFromCloud } = await import('$lib/state/progress.svelte.ts');
+			const { loadSettingsFromCloud: loadCloudSettings } = await import('$lib/state/settings.svelte.ts');
+			if (supabase) {
+				await initFromCloud(supabase);
+				await loadCloudSettings(supabase);
+			}
+			cloudRestored = true;
+			settings.onboardingComplete = true;
+			saveSettings(supabase);
+		} catch (err) {
+			console.warn('Failed to restore cloud data:', err);
+			// Graceful fallback — proceed with normal onboarding
+			cloudRestored = true;
+			settings.onboardingComplete = true;
+			saveSettings(supabase);
 		}
-		cloudRestored = true;
-		settings.onboardingComplete = true;
-		saveSettings();
 	}
 
 	function selectInstrument(id: string) {
 		settings.instrumentId = id;
-		saveSettings();
+		saveSettings(supabase);
 		step = 'mic';
 	}
 
@@ -95,7 +103,7 @@
 
 	function finish() {
 		settings.onboardingComplete = true;
-		saveSettings();
+		saveSettings(supabase);
 	}
 </script>
 
@@ -112,7 +120,15 @@
 			{/each}
 		</div>
 
-		{#if step === 'restore'}
+		{#if checkingCloud}
+			<div class="flex flex-col items-center gap-3 py-8">
+				<svg class="h-8 w-8 animate-spin text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none">
+					<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
+					<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"></path>
+				</svg>
+				<p class="text-sm text-[var(--color-text-secondary)]">Checking for existing data...</p>
+			</div>
+		{:else if step === 'restore'}
 			<div class="space-y-4 text-center">
 				<div class="text-5xl">☁️</div>
 				<h1 class="text-2xl font-bold">Welcome Back!</h1>

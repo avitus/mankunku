@@ -97,8 +97,15 @@ export function saveProgress(): void {
  * Called from the layout/page level after authentication — never on module import.
  *
  * Merge strategy:
- *  - If cloud has >= sessions as local → cloud data takes precedence (practiced on another device)
- *  - If local has more sessions → keep local sessions (offline practice not yet synced)
+ *  - If cloud has >= sessions as local → cloud data takes full precedence (practiced on another device)
+ *  - If local has more sessions → keep entire local state (offline practice not yet synced)
+ *
+ * Note on aggregate fields (totalPracticeTime, streakDays, categoryProgress, keyProgress,
+ * scaleProficiency, keyProficiency): When local has more sessions than cloud, these aggregate
+ * fields are NOT merged from the cloud. This is intentional — aggregate fields are derived from
+ * session history, so the local values (computed from the longer session list) are already more
+ * complete. Merging partial cloud aggregates could introduce inconsistencies. The next cloud sync
+ * after connectivity is restored will push the full local state to the server, reconciling both.
  *
  * Errors are caught and logged as warnings — the app remains fully functional offline.
  */
@@ -123,8 +130,8 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 				}
 			});
 		} else {
-			// Local has more sessions — merge cloud aggregate fields but keep local sessions
-			// This handles the case where practice happened offline and hasn't synced yet
+			// Local has more sessions — keep local state intact (offline practice not yet synced)
+			// Only re-merge adaptive state with defaults for forward compatibility of new fields
 			progress.adaptive = {
 				...createInitialAdaptiveState(),
 				...progress.adaptive

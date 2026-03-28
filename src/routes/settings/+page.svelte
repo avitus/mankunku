@@ -128,15 +128,18 @@
 	async function handleDeleteAccount() {
 		if (!supabase) return;
 		try {
-			// Sign out the user (actual account deletion requires server-side admin API)
+			// Sign out and deactivate — full account data deletion requires
+			// a server-side admin API endpoint using the service_role key,
+			// which is beyond the current scope. User data remains in the
+			// database but is inaccessible after sign-out due to RLS policies.
 			const { error } = await supabase.auth.signOut();
 			if (error) {
-				console.warn('Failed to sign out during account deletion:', error);
+				console.warn('Failed to sign out during account deactivation:', error);
 			}
 			// Redirect to auth page
 			window.location.href = '/auth';
 		} catch (err) {
-			console.warn('Account deletion error:', err);
+			console.warn('Account deactivation error:', err);
 		}
 		showDeleteConfirm = false;
 	}
@@ -180,14 +183,14 @@
 				{#if showDeleteConfirm}
 					<div use:scrollIntoView>
 						<p class="mb-3 text-sm text-[var(--color-error)]">
-							This will permanently delete your account and all associated data. This cannot be undone.
+							This will sign you out and deactivate your account. Your data will no longer be accessible. To fully delete your account data, please contact support.
 						</p>
 						<div class="flex gap-2">
 							<button
 								onclick={handleDeleteAccount}
 								class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 							>
-								Yes, Delete Account
+								Yes, Sign Out &amp; Deactivate
 							</button>
 							<button
 								onclick={() => { showDeleteConfirm = false; }}

@@ -437,7 +437,7 @@
 			</p>
 			<div class="flex justify-center gap-2">
 				<button
-					onclick={() => { resetProgress(supabase); settings.tonalityOverride = null; saveSettings(); showResetConfirm = false; import('$lib/persistence/audio-store.ts').then(m => m.clearAllRecordings()).catch(() => {}); recordingIds = new Set(); }}
+					onclick={() => { resetProgress(supabase); settings.tonalityOverride = null; saveSettings(supabase); showResetConfirm = false; import('$lib/persistence/audio-store.ts').then(m => m.clearAllRecordings()).catch(() => {}); recordingIds = new Set(); }}
 					class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 				>
 					Yes, Reset

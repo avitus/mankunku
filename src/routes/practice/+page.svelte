@@ -20,6 +20,10 @@
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector.ts';
 	import type { MicCapture } from '$lib/audio/capture.ts';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector.ts';
+	import { page } from '$app/state';
+
+	// Auth state from layout load chain — derive supabase client for cloud sync
+	const supabase = $derived(page.data?.supabase ?? null);
 
 	let playback: typeof import('$lib/audio/playback.ts') | null = null;
 	let captureModule: typeof import('$lib/audio/capture.ts') | null = null;
@@ -31,6 +35,8 @@
 	const sessionDailyTonality = getTodaysTonality(sessionUnlockCtx);
 
 	// Clear stale overrides that reference locked content (e.g. after a reset)
+	// Uses localStorage-only save here — this is one-time init cleanup, cloud sync
+	// happens through subsequent user interactions (recordAttempt, settings changes)
 	if (settings.tonalityOverride && !isTonalityUnlocked(settings.tonalityOverride, sessionUnlockCtx)) {
 		settings.tonalityOverride = null;
 		saveSettings();
@@ -346,7 +352,8 @@
 				session.tempo,
 				session.phrase.difficulty.level,
 				session.lastScore,
-				activeTonality.scaleType
+				activeTonality.scaleType,
+				supabase
 			);
 		}
 

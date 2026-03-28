@@ -1,7 +1,7 @@
-import type { InstrumentConfig } from '$lib/types/instruments.ts';
-import type { Tonality } from '$lib/tonality/tonality.ts';
-import { INSTRUMENTS } from '$lib/types/instruments.ts';
-import { save, load } from '$lib/persistence/storage.ts';
+import type { InstrumentConfig } from '$lib/types/instruments';
+import type { Tonality } from '$lib/tonality/tonality';
+import { INSTRUMENTS } from '$lib/types/instruments';
+import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } from '$lib/persistence/sync';
