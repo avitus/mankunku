@@ -5,7 +5,7 @@
 	import { quantizeNotes, detectKey } from '$lib/audio/quantizer.ts';
 	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
 	import { calculateDifficulty } from '$lib/difficulty/calculate.ts';
-	import { saveUserLick, getUserLicks } from '$lib/persistence/user-licks.ts';
+	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks.ts';
 	import { settings, getInstrument } from '$lib/state/settings.svelte.ts';
 	import { setMasterVolume } from '$lib/audio/audio-context.ts';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
@@ -218,7 +218,7 @@
 			pitch: n.pitch !== null ? n.pitch + shift : null
 		}));
 
-		const userLickCount = getUserLicks().length;
+		const userLickCount = getUserLicksLocal().length;
 		const defaultName = `My Lick #${userLickCount + 1}`;
 		lickName = defaultName;
 

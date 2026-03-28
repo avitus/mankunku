@@ -35,7 +35,21 @@ function generateId(): string {
 }
 
 /**
- * Get all user-recorded licks.
+ * Get user-recorded licks from localStorage only (synchronous).
+ *
+ * This function provides direct, synchronous access to user licks stored
+ * in localStorage. It is used by modules that require a synchronous return
+ * (e.g., library-loader.ts for search indexing and filtering) and as the
+ * local-first data source for the async `getUserLicks` function.
+ *
+ * @returns Array of user-recorded Phrase objects from localStorage
+ */
+export function getUserLicksLocal(): Phrase[] {
+	return load<Phrase[]>(STORAGE_KEY) ?? [];
+}
+
+/**
+ * Get all user-recorded licks with optional cloud merge.
  *
  * When called without a Supabase client, returns only local licks from
  * localStorage (preserving backward-compatible behavior for anonymous users).

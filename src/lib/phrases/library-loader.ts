@@ -10,7 +10,7 @@ import type { ScaleType } from '$lib/tonality/tonality.ts';
 import { isLickCompatible } from '$lib/tonality/scale-compatibility.ts';
 import { PITCH_CLASSES } from '$lib/types/music.ts';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index.ts';
-import { getUserLicks } from '$lib/persistence/user-licks.ts';
+import { getUserLicksLocal } from '$lib/persistence/user-licks.ts';
 import { getScale } from '$lib/music/scales.ts';
 import { realizeScale } from '$lib/music/keys.ts';
 
@@ -38,18 +38,18 @@ for (const lick of ALL_CURATED_LICKS) {
 
 /** Get all licks in the library (curated + user-recorded) */
 export function getAllLicks(): Phrase[] {
-	return [...ALL_CURATED_LICKS, ...getUserLicks()];
+	return [...ALL_CURATED_LICKS, ...getUserLicksLocal()];
 }
 
 /** Get a single lick by ID */
 export function getLickById(id: string): Phrase | undefined {
-	return byId.get(id) ?? getUserLicks().find((l) => l.id === id);
+	return byId.get(id) ?? getUserLicksLocal().find((l) => l.id === id);
 }
 
 /** Get all licks in a category */
 export function getLicksByCategory(category: PhraseCategory): Phrase[] {
 	const curated = byCategory.get(category) ?? [];
-	if (category === 'user') return getUserLicks();
+	if (category === 'user') return getUserLicksLocal();
 	return curated;
 }
 
