@@ -121,14 +121,20 @@ export async function getRecording(
 	supabase?: SupabaseClient<Database>,
 	userId?: string
 ): Promise<Blob | null> {
-	const db = await openDb();
 	let localResult: Blob | null = null;
+	let db: IDBDatabase | null = null;
 	try {
+		db = await openDb();
 		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
 		const result = await idbReq(store.get(sessionId));
 		localResult = result?.blob ?? null;
+	} catch (err) {
+		console.warn('Failed to read recording from local storage:', err);
+		localResult = null;
 	} finally {
-		db.close();
+		if (db) {
+			db.close();
+		}
 	}
 
 	if (localResult !== null) {
