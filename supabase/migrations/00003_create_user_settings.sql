@@ -32,7 +32,13 @@ CREATE TABLE public.user_settings (
   onboarding_complete BOOLEAN       NOT NULL DEFAULT false,
   tonality_override   JSONB,
   updated_at          TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  CONSTRAINT user_settings_default_tempo_chk CHECK (default_tempo > 0),
+  CONSTRAINT user_settings_master_volume_chk CHECK (master_volume BETWEEN 0 AND 1),
+  CONSTRAINT user_settings_metronome_volume_chk CHECK (metronome_volume BETWEEN 0 AND 1),
+  CONSTRAINT user_settings_swing_chk CHECK (swing BETWEEN 0.5 AND 0.8),
+  CONSTRAINT user_settings_theme_chk CHECK (theme IN ('dark', 'light')),
   PRIMARY KEY (user_id)
+);
 );
 
 -- Add a comment on the table for documentation
