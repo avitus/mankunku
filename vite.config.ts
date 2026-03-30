@@ -1,7 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [
@@ -22,6 +22,7 @@ export default defineConfig({
 				]
 			},
 			workbox: {
+				navigateFallbackDenylist: [/^\/auth/],
 				globPatterns: ['**/*.{js,css,html,svg,woff2}'],
 				runtimeCaching: [
 					{
@@ -31,13 +32,25 @@ export default defineConfig({
 							cacheName: 'soundfonts',
 							expiration: { maxEntries: 5, maxAgeSeconds: 30 * 24 * 60 * 60 }
 						}
+					},
+					{
+						urlPattern: /^https:\/\/.*\.supabase\.co\/.*/,
+						handler: 'NetworkFirst',
+						options: {
+							cacheName: 'supabase-api',
+							expiration: {
+								maxEntries: 50,
+								maxAgeSeconds: 5 * 60
+							},
+							networkTimeoutSeconds: 10
+						}
 					}
 				]
 			}
 		})
 	],
 	test: {
-		include: ['tests/unit/**/*.test.ts'],
+		include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
 		environment: 'node'
 	}
 });

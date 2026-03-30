@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SCALE_CATALOG, getMvpScales } from '$lib/music/scales.ts';
+	import { SCALE_CATALOG, getMvpScales } from '$lib/music/scales';
 
 	const mvpScales = getMvpScales();
 	const families = [...new Set(mvpScales.map((s) => s.family))];

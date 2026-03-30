@@ -5,12 +5,15 @@
  * Auto-saves on every mutation via $effect.
  */
 
-import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress.ts';
-import type { Score } from '$lib/types/scoring.ts';
-import type { PhraseCategory, PitchClass } from '$lib/types/music.ts';
-import type { ScaleType } from '$lib/tonality/tonality.ts';
-import { createInitialAdaptiveState, processAttempt, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive.ts';
-import { save, load } from '$lib/persistence/storage.ts';
+import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress';
+import type { Score } from '$lib/types/scoring';
+import type { PhraseCategory, PitchClass } from '$lib/types/music';
+import type { ScaleType } from '$lib/tonality/tonality';
+import { createInitialAdaptiveState, processAttempt, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive';
+import { save, load } from '$lib/persistence/storage';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '$lib/supabase/types';
+import { syncProgressToCloud, loadProgressFromCloud } from '$lib/persistence/sync';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 200; // keep last 200 sessions
@@ -89,6 +92,60 @@ export function saveProgress(): void {
 }
 
 /**
+ * Initialize progress from cloud data for authenticated users.
+ * Merges cloud data with local state, preferring cloud when more recent.
+ * Called from the layout/page level after authentication — never on module import.
+ *
+ * Merge strategy:
+ *  - If cloud has >= sessions as local → cloud data takes full precedence (practiced on another device)
+ *  - If local has more sessions → keep entire local state (offline practice not yet synced)
+ *
+ * Note on aggregate fields (totalPracticeTime, streakDays, categoryProgress, keyProgress,
+ * scaleProficiency, keyProficiency): When local has more sessions than cloud, these aggregate
+ * fields are NOT merged from the cloud. This is intentional — aggregate fields are derived from
+ * session history, so the local values (computed from the longer session list) are already more
+ * complete. Merging partial cloud aggregates could introduce inconsistencies. The next cloud sync
+ * after connectivity is restored will push the full local state to the server, reconciling both.
+ *
+ * Errors are caught and logged as warnings — the app remains fully functional offline.
+ */
+export async function initFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	try {
+		const cloudProgress = await loadProgressFromCloud(supabase);
+		if (!cloudProgress) return; // No cloud data or not authenticated
+
+		// Merge cloud data with local state
+		// Cloud data takes precedence for aggregate fields
+		const localSessionCount = progress.sessions.length;
+		const cloudSessionCount = cloudProgress.sessions.length;
+
+		if (cloudSessionCount >= localSessionCount) {
+			// Cloud has same or more sessions — use cloud data as base
+			Object.assign(progress, {
+				...cloudProgress,
+				// Re-merge adaptive state with defaults for forward compatibility
+				adaptive: {
+					...createInitialAdaptiveState(),
+					...cloudProgress.adaptive
+				}
+			});
+		} else {
+			// Local has more sessions — keep local state intact (offline practice not yet synced)
+			// Only re-merge adaptive state with defaults for forward compatibility of new fields
+			progress.adaptive = {
+				...createInitialAdaptiveState(),
+				...progress.adaptive
+			};
+		}
+
+		// Persist merged state locally for offline cache
+		saveProgress();
+	} catch (err) {
+		console.warn('Failed to initialize progress from cloud:', err);
+	}
+}
+
+/**
  * Record a completed attempt.
  */
 export function recordAttempt(
@@ -99,7 +156,8 @@ export function recordAttempt(
 	tempo: number,
 	difficultyLevel: number,
 	score: Score,
-	scaleType?: ScaleType
+	scaleType?: ScaleType,
+	supabase?: SupabaseClient<Database>
 ): void {
 	const session: SessionResult = {
 		id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -152,6 +210,13 @@ export function recordAttempt(
 
 	// Persist
 	saveProgress();
+
+	// Fire-and-forget cloud sync (does not block UI)
+	if (supabase) {
+		syncProgressToCloud(supabase, progress).catch((err) => {
+			console.warn('Failed to sync progress to cloud:', err);
+		});
+	}
 }
 
 function updateCategoryProgress(category: PhraseCategory, score: Score): void {
@@ -260,8 +325,15 @@ export function getCategoryStats(): CategoryProgress[] {
 /**
  * Reset all progress (destructive).
  */
-export function resetProgress(): void {
+export function resetProgress(supabase?: SupabaseClient<Database>): void {
 	const fresh = createInitialProgress();
 	Object.assign(progress, fresh);
 	saveProgress();
+
+	// Fire-and-forget cloud reset
+	if (supabase) {
+		syncProgressToCloud(supabase, progress).catch((err) => {
+			console.warn('Failed to sync progress reset to cloud:', err);
+		});
+	}
 }

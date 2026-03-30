@@ -12,11 +12,12 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:e2e": "playwright test"
+		"test:e2e": "playwright test",
+		"db:types": "npx supabase gen types typescript --local > ./src/lib/supabase/types.ts"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.58.2",
-		"@sveltejs/adapter-auto": "^7.0.0",
+		"@sveltejs/adapter-node": "^5.2.0",
 		"@sveltejs/kit": "^2.50.2",
 		"@sveltejs/vite-plugin-svelte": "^6.2.4",
 		"@tailwindcss/vite": "^4.2.2",
@@ -31,6 +32,8 @@
 		"vitest": "^4.1.0"
 	},
 	"dependencies": {
+		"@supabase/ssr": "^0.9.0",
+		"@supabase/supabase-js": "^2.99.3",
 		"abcjs": "^6.6.2",
 		"pitchy": "^4.1.0",
 		"smplr": "^0.19.0",

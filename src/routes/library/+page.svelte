@@ -2,25 +2,101 @@
 	import { onDestroy } from 'svelte';
 	import CategoryFilter from '$lib/components/library/CategoryFilter.svelte';
 	import LickCard from '$lib/components/library/LickCard.svelte';
-	import { library } from '$lib/state/library.svelte.ts';
-	import { getAllLicks, getCategories, queryLicks } from '$lib/phrases/library-loader.ts';
-	import { settings } from '$lib/state/settings.svelte.ts';
-	import { setMasterVolume } from '$lib/audio/audio-context.ts';
-	import type { Phrase, PhraseCategory } from '$lib/types/music.ts';
+	import { library } from '$lib/state/library.svelte';
+	import { getAllLicks, getCategories, queryLicks } from '$lib/phrases/library-loader';
+	import { settings } from '$lib/state/settings.svelte';
+	import { setMasterVolume } from '$lib/audio/audio-context';
+	import type { Phrase, PhraseCategory } from '$lib/types/music';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { getUserLicks } from '$lib/persistence/user-licks';
 
-	let playbackModule: typeof import('$lib/audio/playback.ts') | null = null;
+	/** Supabase browser client from layout data (null when not available) */
+	const supabase = $derived(page.data?.supabase ?? null);
+	/** Auth session from layout data (null when anonymous/unauthenticated) */
+	const session = $derived(page.data?.session ?? null);
+
+	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let playingId: string | null = $state(null);
+
+	/** User-recorded licks loaded from localStorage and/or Supabase cloud */
+	let userLicks: Phrase[] = $state([]);
+
+	/**
+	 * Reactively load user licks when auth state changes.
+	 * Authenticated users get merged local + cloud licks for cross-device access.
+	 * Anonymous users get localStorage-only licks.
+	 */
+	$effect(() => {
+		// Read derived values synchronously so Svelte tracks them as dependencies
+		const sb = supabase;
+		const sess = session;
+
+		if (sess && sb) {
+			// Authenticated: fetch merged local + cloud licks
+			getUserLicks(sb)
+				.then((licks) => {
+					userLicks = licks;
+				})
+				.catch(() => {
+					// Fallback to local-only on cloud error
+					getUserLicks()
+						.then((licks) => {
+							userLicks = licks;
+						})
+						.catch(() => {
+							userLicks = [];
+						});
+				});
+		} else {
+			// Anonymous: load from localStorage only
+			getUserLicks()
+				.then((licks) => {
+					userLicks = licks;
+				})
+				.catch(() => {
+					userLicks = [];
+				});
+		}
+	});
 
 	const categories = getCategories();
 
-	const filteredLicks = $derived(
+	/** Curated licks filtered by current library query parameters */
+	const curatedLicks = $derived(
 		queryLicks({
 			category: library.categoryFilter ?? undefined,
 			maxDifficulty: library.difficultyFilter ?? undefined,
 			search: library.searchQuery || undefined
 		})
 	);
+
+	/**
+	 * Combined filtered licks: user-recorded licks (filtered by same criteria)
+	 * appear first, followed by curated licks from the phrase library.
+	 */
+	const filteredLicks = $derived.by(() => {
+		// Apply the same search/filter criteria to user licks
+		let filtered = userLicks;
+
+		if (library.categoryFilter) {
+			filtered = filtered.filter((l) => l.category === library.categoryFilter);
+		}
+		if (library.difficultyFilter) {
+			filtered = filtered.filter((l) => l.difficulty.level <= library.difficultyFilter!);
+		}
+		if (library.searchQuery) {
+			const q = library.searchQuery.toLowerCase();
+			filtered = filtered.filter(
+				(l) =>
+					l.name.toLowerCase().includes(q) ||
+					l.tags.some((t) => t.toLowerCase().includes(q))
+			);
+		}
+
+		// User licks first, then curated licks
+		return [...filtered, ...curatedLicks];
+	});
 
 	function handleCategorySelect(category: PhraseCategory | null) {
 		library.categoryFilter = category;
@@ -32,7 +108,7 @@
 
 	async function handlePlay(lick: Phrase) {
 		if (!playbackModule) {
-			playbackModule = await import('$lib/audio/playback.ts');
+			playbackModule = await import('$lib/audio/playback');
 		}
 
 		// Toggle off if already playing this lick

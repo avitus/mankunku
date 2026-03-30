@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { progress, getRecentSessions, getCategoryStats, resetProgress, getPrimaryLevel } from '$lib/state/progress.svelte.ts';
-	import { difficultyDisplay } from '$lib/difficulty/display.ts';
-	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
-	import { SCALE_TYPE_NAMES, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality.ts';
-	import type { ScaleType } from '$lib/tonality/tonality.ts';
+	import { progress, getRecentSessions, getCategoryStats, resetProgress, getPrimaryLevel, initFromCloud } from '$lib/state/progress.svelte';
+	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
+	import { SCALE_TYPE_NAMES, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
+	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
-	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
-	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
-	import type { Grade } from '$lib/types/scoring.ts';
+	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import type { Grade } from '$lib/types/scoring';
+	import { page } from '$app/state';
 
 	const instrument = $derived(getInstrument());
+	const supabase = $derived(page.data?.supabase ?? null);
+	const session = $derived(page.data?.session ?? null);
 
 	// ─── Audio playback state ────────────────────────────────
 	let recordingIds = $state<Set<string>>(new Set());
@@ -21,9 +24,15 @@
 
 	onMount(async () => {
 		try {
-			const { getRecordingIds } = await import('$lib/persistence/audio-store.ts');
+			const { getRecordingIds } = await import('$lib/persistence/audio-store');
 			recordingIds = await getRecordingIds();
 		} catch { /* IndexedDB unavailable */ }
+	});
+
+	$effect(() => {
+		if (supabase && session) {
+			initFromCloud(supabase);
+		}
 	});
 
 	onDestroy(() => {
@@ -54,7 +63,7 @@
 		}
 
 		try {
-			const { getRecording } = await import('$lib/persistence/audio-store.ts');
+			const { getRecording } = await import('$lib/persistence/audio-store');
 			const blob = await getRecording(sessionId);
 			if (!blob || blob.size === 0) return;
 
@@ -428,7 +437,7 @@
 			</p>
 			<div class="flex justify-center gap-2">
 				<button
-					onclick={() => { resetProgress(); settings.tonalityOverride = null; saveSettings(); showResetConfirm = false; import('$lib/persistence/audio-store.ts').then(m => m.clearAllRecordings()).catch(() => {}); recordingIds = new Set(); }}
+					onclick={() => { resetProgress(supabase); settings.tonalityOverride = null; saveSettings(supabase); showResetConfirm = false; import('$lib/persistence/audio-store').then(m => m.clearAllRecordings()).catch(() => {}); recordingIds = new Set(); }}
 					class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 				>
 					Yes, Reset

@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { INSTRUMENTS } from '$lib/types/instruments.ts';
-	import { settings, saveSettings, applyTheme, getInstrument } from '$lib/state/settings.svelte.ts';
-	import { setMasterVolume } from '$lib/audio/audio-context.ts';
-	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
-	import type { PitchClass } from '$lib/types/music.ts';
+	import { INSTRUMENTS } from '$lib/types/instruments';
+	import { settings, saveSettings, applyTheme, getInstrument } from '$lib/state/settings.svelte';
+	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import type { PitchClass } from '$lib/types/music';
 	import {
 		type ScaleType,
 		SCALE_TYPE_NAMES,
@@ -17,7 +17,9 @@
 		getTodaysTonality,
 		getScaleUnlockRequirements,
 		getKeyUnlockRequirements
-	} from '$lib/tonality/tonality.ts';
+	} from '$lib/tonality/tonality';
+	import { page } from '$app/state';
+	import { loadSettingsFromCloud } from '$lib/state/settings.svelte';
 
 	const instruments = Object.entries(INSTRUMENTS);
 	const instrument = $derived(getInstrument());
@@ -29,6 +31,18 @@
 	const unlockedKeys = $derived(getUnlockedKeys(unlockCtx));
 	const unlockedScaleTypes = $derived(getUnlockedScaleTypes(unlockCtx));
 	const useOverride = $derived(settings.tonalityOverride !== null);
+
+	// Auth state from layout load chain
+	const supabase = $derived(page.data?.supabase ?? null);
+	const session = $derived(page.data?.session ?? null);
+	const user = $derived(page.data?.user ?? null);
+
+	// Load settings from cloud when authenticated
+	$effect(() => {
+		if (supabase && session) {
+			loadSettingsFromCloud(supabase);
+		}
+	});
 
 	function scaleUnlockTooltip(scaleType: ScaleType): string {
 		const reqs = getScaleUnlockRequirements(scaleType);
@@ -45,53 +59,90 @@
 	function selectKey(key: PitchClass) {
 		const currentScale = settings.tonalityOverride?.scaleType ?? dailyTonality.scaleType;
 		settings.tonalityOverride = { key, scaleType: currentScale };
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function selectScale(scaleType: ScaleType) {
 		const currentKey = settings.tonalityOverride?.key ?? dailyTonality.key;
 		settings.tonalityOverride = { key: currentKey, scaleType };
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function resetToDaily() {
 		settings.tonalityOverride = null;
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function selectInstrument(id: string) {
 		settings.instrumentId = id;
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function toggleTheme() {
 		settings.theme = settings.theme === 'dark' ? 'light' : 'dark';
 		applyTheme();
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function handleTempoChange(e: Event) {
 		settings.defaultTempo = parseInt((e.target as HTMLInputElement).value);
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function handleMasterVolumeChange(e: Event) {
 		settings.masterVolume = parseFloat((e.target as HTMLInputElement).value);
 		setMasterVolume(settings.masterVolume);
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function handleVolumeChange(e: Event) {
 		settings.metronomeVolume = parseFloat((e.target as HTMLInputElement).value);
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	function handleSwingChange(e: Event) {
 		settings.swing = parseFloat((e.target as HTMLInputElement).value);
-		saveSettings();
+		saveSettings(supabase);
 	}
 
 	let showResetConfirm = $state(false);
+	let showDeleteConfirm = $state(false);
+
+	async function handleChangePassword() {
+		if (!supabase || !user?.email) return;
+		try {
+			const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+				redirectTo: `${window.location.origin}/auth`
+			});
+			if (error) {
+				console.warn('Failed to send password reset email:', error);
+				alert('Failed to send password reset email. Please try again.');
+			} else {
+				alert('Password reset email sent. Check your inbox.');
+			}
+		} catch (err) {
+			console.warn('Password reset error:', err);
+		}
+	}
+
+	async function handleDeleteAccount() {
+		if (!supabase) return;
+		try {
+			// Sign out and deactivate — full account data deletion requires
+			// a server-side admin API endpoint using the service_role key,
+			// which is beyond the current scope. User data remains in the
+			// database but is inaccessible after sign-out due to RLS policies.
+			const { error } = await supabase.auth.signOut();
+			if (error) {
+				console.warn('Failed to sign out during account deactivation:', error);
+			}
+			// Redirect to auth page
+			window.location.href = '/auth';
+		} catch (err) {
+			console.warn('Account deactivation error:', err);
+		}
+		showDeleteConfirm = false;
+	}
 
 	function scrollIntoView(node: HTMLElement) {
 		node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -100,6 +151,66 @@
 
 <div class="space-y-6">
 	<h1 class="text-2xl font-bold">Settings</h1>
+
+	<!-- Account (authenticated only) -->
+	{#if session && user}
+		<section class="space-y-3">
+			<h2 class="text-lg font-semibold">Account</h2>
+			<div class="space-y-4 rounded-lg bg-[var(--color-bg-secondary)] p-4">
+				<!-- Email display -->
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm text-[var(--color-text-secondary)]">Email</p>
+						<p class="font-medium">{user.email}</p>
+					</div>
+				</div>
+
+				<!-- Change Password -->
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="font-medium">Password</p>
+						<p class="text-xs text-[var(--color-text-secondary)]">Update your password</p>
+					</div>
+					<button
+						onclick={handleChangePassword}
+						class="text-sm text-[var(--color-accent)] hover:underline"
+					>
+						Change Password
+					</button>
+				</div>
+
+				<!-- Delete Account -->
+				{#if showDeleteConfirm}
+					<div use:scrollIntoView>
+						<p class="mb-3 text-sm text-[var(--color-error)]">
+							This will sign you out and deactivate your account. Your data will no longer be accessible. To fully delete your account data, please contact support.
+						</p>
+						<div class="flex gap-2">
+							<button
+								onclick={handleDeleteAccount}
+								class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
+							>
+								Yes, Sign Out &amp; Deactivate
+							</button>
+							<button
+								onclick={() => { showDeleteConfirm = false; }}
+								class="rounded bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg)]"
+							>
+								Cancel
+							</button>
+						</div>
+					</div>
+				{:else}
+					<button
+						onclick={() => { showDeleteConfirm = true; }}
+						class="text-sm text-[var(--color-error)] hover:underline"
+					>
+						Delete Account
+					</button>
+				{/if}
+			</div>
+		</section>
+	{/if}
 
 	<!-- Instrument selection -->
 	<section class="space-y-3">
@@ -310,7 +421,7 @@
 			<div class="flex items-center justify-between">
 				<span class="text-sm">Metronome Enabled</span>
 				<button
-					onclick={() => { settings.metronomeEnabled = !settings.metronomeEnabled; saveSettings(); }}
+					onclick={() => { settings.metronomeEnabled = !settings.metronomeEnabled; saveSettings(supabase); }}
 					class="relative h-7 w-12 rounded-full transition-colors
 						{settings.metronomeEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
 				>
@@ -334,7 +445,7 @@
 				</p>
 				<div class="flex gap-2">
 					<button
-						onclick={() => { resetProgress(); settings.tonalityOverride = null; saveSettings(); showResetConfirm = false; }}
+						onclick={() => { resetProgress(supabase); settings.tonalityOverride = null; saveSettings(supabase); showResetConfirm = false; }}
 						class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 					>
 						Yes, Reset Everything
