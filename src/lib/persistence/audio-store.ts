@@ -94,7 +94,11 @@ export async function saveRecording(
 			})
 			.then(({ error }) => {
 				if (error) console.warn('Failed to upload recording to cloud:', error);
+			})
+			.catch((error) => {
+				console.warn('Failed to upload recording to cloud:', error);
 			});
+	}
 	}
 }
 
