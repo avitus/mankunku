@@ -99,7 +99,6 @@ export async function saveRecording(
 				console.warn('Failed to upload recording to cloud:', error);
 			});
 	}
-	}
 }
 
 /**
