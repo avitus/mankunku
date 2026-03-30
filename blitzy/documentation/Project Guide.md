@@ -311,8 +311,7 @@ The application is **code-complete and validation-passing** but requires infrast
 # 1. Clone the repository and switch to the feature branch
 git clone <repository-url>
 cd mankunku
-git checkout blitzy-333b7f0c-1de9-47bb-a6d4-9f5990c8e56a
-
+git checkout blitzy
 # 2. Create environment file from template
 cp .env.example .env
 
