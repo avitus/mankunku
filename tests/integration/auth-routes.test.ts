@@ -56,10 +56,10 @@ vi.mock('@sveltejs/kit/hooks', () => ({
 // ─── Imports ─────────────────────────────────────────────────────────
 // These run AFTER vi.mock() hoisting, so mocked modules are in effect.
 
-import { actions } from '../../src/routes/auth/+page.server.ts';
-import { GET as callbackGET } from '../../src/routes/auth/callback/+server.ts';
-import { POST as logoutPOST } from '../../src/routes/auth/logout/+server.ts';
-import { handle } from '../../src/hooks.server.ts';
+import { actions } from '../../src/routes/auth/+page.server';
+import { GET as callbackGET } from '../../src/routes/auth/callback/+server';
+import { POST as logoutPOST } from '../../src/routes/auth/logout/+server';
+import { handle } from '../../src/hooks.server';
 import { createServerClient } from '@supabase/ssr';
 
 // ─── Mock Helpers ────────────────────────────────────────────────────
