@@ -1,131 +1,126 @@
 # Mankunku
 
-Jazz ear training progressive web application with call-and-response practice, powered by [SvelteKit](https://svelte.dev) and [Supabase](https://supabase.com).
+Jazz ear training progressive web app with call-and-response practice. The app plays a jazz phrase, you play it back on your instrument via microphone, and it scores your pitch and rhythm accuracy in real time.
 
-## Creating a project
+Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.wikipedia.org/wiki/Yakhal%27_Inkomo) — one of the greatest South African jazz recordings. Under the hood: real-time pitch detection at 60fps, Dynamic Time Warping for score alignment, a custom AudioWorklet for onset detection, adaptive difficulty that grows with you, and a local-first architecture that works offline.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Features
 
-```sh
-# create a new project
-npx sv create my-app
-```
+- Call-and-response practice with automatic scoring
+- Real-time pitch detection (McLeod method via Pitchy, 60fps)
+- Note onset detection via custom AudioWorklet (HFC algorithm)
+- DTW alignment-based scoring (pitch 60% + rhythm 40%, with latency correction)
+- 35+ scales and ~250 curated jazz licks (ii-V-I, blues, bebop, modal, and more)
+- Combinatorial phrase generation from scale patterns and rhythm templates
+- Adaptive difficulty: XP system, levels 1-100, 10 content tiers
+- Concert pitch canonical — transposition to written pitch at display time only
+- Fraction-based rhythm representation (no floating-point drift with triplets or dotted notes)
+- Local-first: writes to localStorage/IndexedDB, optional Supabase cloud sync
+- Offline-capable installable PWA with cached SoundFont samples
+- Cross-device progress sync via Supabase auth (optional)
+- Dark and light themes
 
-To recreate this project with the same configuration:
+## Tech Stack
 
-```sh
-# recreate this project
-npx sv@0.12.8 create --template minimal --types ts --no-install .
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> This project uses [`@sveltejs/adapter-node`](https://svelte.dev/docs/kit/adapters) for server-side rendering, which is required for authentication and session management. See the [SvelteKit adapters documentation](https://svelte.dev/docs/kit/adapters) if you need to deploy to a different target environment.
-
-## Authentication
-
-Mankunku uses [Supabase](https://supabase.com) for authentication and backend persistence. Two authentication methods are supported:
-
-- **Email / Password** — Register with an email address and password.
-- **Google OAuth** — Sign in with a Google account for one-click access.
-
-To sign in or create an account, visit the `/auth` route in the application. Once authenticated, your practice progress, settings, recorded licks, and audio recordings sync across all your devices automatically.
-
-Users who prefer not to sign in can continue using Mankunku as a fully client-only application — all data is stored locally in the browser, exactly as before. Authentication is optional but unlocks cross-device progress synchronization.
-
-## Supabase Configuration
-
-To run Mankunku with authentication and cloud sync, you need a Supabase project:
-
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Copy your project's **URL** and **anon (public) key** from the Supabase Dashboard under **Settings → API**.
-3. Apply the database migration files located in `supabase/migrations/` to your project (see [Database Migrations](#database-migrations) below).
-4. Enable the authentication providers you want to support (Email and/or Google OAuth) in the Supabase Dashboard under **Authentication → Providers**.
-
-After applying migrations, you can generate TypeScript types for the database schema:
-
-```sh
-npm run db:types
-```
-
-This runs `supabase gen types typescript --local` and writes the output to `src/lib/supabase/types.ts`. If you are generating types against a remote Supabase project instead of a local instance, remove the `--local` flag or update the script in `package.json`.
-
-## Environment Variables
-
-Mankunku requires the following environment variables for Supabase integration:
-
-| Variable | Description |
+| Technology | Role |
 |---|---|
-| `PUBLIC_SUPABASE_URL` | Your Supabase project URL (e.g. `https://abc123.supabase.co`) |
-| `PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous/public API key |
+| SvelteKit 2 + Svelte 5 (runes) | Framework, SSR, file-based routing |
+| TypeScript (strict mode) | Type safety throughout |
+| Tailwind CSS 4 | Utility-first styling, dark/light theming |
+| Tone.js + smplr | Audio scheduling, SoundFont sample playback |
+| Pitchy | McLeod pitch detection |
+| Custom AudioWorklet | Real-time onset detection |
+| abcjs | Sheet music notation rendering |
+| Supabase | Auth + PostgreSQL cloud sync (optional) |
+| Vitest + Playwright | Unit and E2E testing |
+| @vite-pwa/sveltekit | PWA with Workbox service worker |
 
-A `.env.example` file is included in the repository as a template. Copy it to `.env` and fill in your values:
+## Quick Start
 
-```sh
-cp .env.example .env
-```
-
-> **Security reminder:** Never commit your `.env` file to version control. The `service_role` key (found in your Supabase Dashboard) must **never** be exposed in client-side code or committed to the repository. Only the `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` variables (prefixed with `PUBLIC_`) are safe for browser use.
-
-## Database Migrations
-
-The `supabase/migrations/` directory contains SQL migration files that set up the required database tables. Apply them in order:
-
-| # | File | Description |
-|---|---|---|
-| 1 | `00001_create_users_profile.sql` | User profiles table (display name, avatar, timestamps) |
-| 2 | `00002_create_user_progress.sql` | Progress tracking and session results tables |
-| 3 | `00003_create_user_settings.sql` | User settings table (instrument, theme, audio preferences) |
-| 4 | `00004_create_user_licks.sql` | User-recorded licks table |
-| 5 | `00005_enable_rls.sql` | Row Level Security policies for all user-scoped tables |
-
-You can apply these migrations using the **Supabase CLI**:
+**Prerequisites:** Node.js >= 18, a modern browser with Web Audio API support
 
 ```sh
-supabase db push
+git clone https://github.com/avitus/mankunku.git
+cd mankunku
+npm install
+npm run dev
 ```
 
-Alternatively, paste each file's SQL into the **Supabase Dashboard → SQL Editor** and run them in sequence.
+The app opens at `http://localhost:5173`. The onboarding flow will prompt for instrument selection and microphone access. A microphone is needed for full functionality but not required to explore the codebase.
 
-## Multi-User Features
+**Optional — Supabase cloud sync:** Copy `.env.example` to `.env` and add your Supabase project URL and anon key. See [Getting Started](documentation/getting-started.md) for full setup including database migrations.
 
-Mankunku supports multiple users with isolated, per-user data. Key behaviors:
+## Project Structure
 
-- **Cross-device progress sync** — Sign in on any device to pick up exactly where you left off. Your practice sessions, adaptive difficulty state, streaks, scale/key proficiency scores, settings, and recorded licks are all synchronized.
-- **Local-first data strategy** — All writes go to `localStorage` and `IndexedDB` first for instant feedback and offline resilience, then sync to the Supabase cloud database in the background. This means the app feels fast regardless of network conditions.
-- **Offline practice** — You can practice, record licks, and complete sessions while fully offline. Results are stored locally and automatically sync to the cloud when connectivity returns.
-- **Anonymous fallback** — If you choose not to sign in, the app works exactly as a single-device client-only PWA. No data leaves your browser.
-- **Account management** — Authenticated users can manage their account from the Settings page. This includes requesting a password change (sent via email) and deactivating their account.
+```
+src/
+  lib/
+    audio/          Audio pipeline: playback, capture, pitch detection, onset detection
+    scoring/        DTW alignment and scoring engine
+    music/          Music theory: scales, keys, intervals, transposition, chords
+    phrases/        Phrase generation, mutation, validation, library loading
+    difficulty/     Adaptive difficulty algorithm and 10-tier profiles
+    tonality/       Daily key/scale selection, progressive unlocking
+    state/          Svelte 5 runes state modules (.svelte.ts)
+    persistence/    localStorage/IndexedDB storage + Supabase sync
+    components/     UI components (audio, practice, library, notation, onboarding)
+    supabase/       Client setup and generated DB types
+    types/          TypeScript interfaces grouped by domain
+    data/           Curated lick library and static data
+  routes/           SvelteKit pages: practice, library, progress, settings, auth
+tests/
+  unit/             Unit tests across 8 domains (audio, scoring, music, phrases, ...)
+  integration/      Integration tests (auth route chain, etc.)
+  e2e/              Playwright browser tests
+supabase/
+  migrations/       5 SQL migration files (profiles, progress, settings, licks, RLS)
+documentation/      Architecture docs, API reference, contributing guides
+```
+
+## Architecture Highlights
+
+**Concert pitch canonical** — All MIDI note numbers, scale data, and lick data use concert pitch. Transposition to written pitch (Bb/Eb instruments) happens only at display time in two functions: `phraseToAbc()` and `concertToWritten()`. This eliminates an entire class of transposition bugs.
+
+**Fraction-based rhythm** — Note durations use `[numerator, denominator]` tuples (e.g., `[1, 8]` = eighth note, `[1, 12]` = triplet eighth). No floating-point drift with triplets or dotted rhythms. Conversion to seconds happens only when computing audio timing.
+
+**DTW scoring with latency correction** — Dynamic Time Warping aligns expected and detected note sequences, handling extra notes, missed notes, and tempo drift. The scorer computes the median timing offset across matched pairs and subtracts it, absorbing constant human and detection latency without affecting relative timing accuracy.
+
+**AudioWorklet onset detection** — A custom AudioWorklet processor runs on the audio thread for low-latency onset detection using High-Frequency Content weighting with an adaptive threshold. Falls back to pitch-gap detection in browsers without AudioWorklet support.
+
+**Local-first with optional cloud** — All writes go to localStorage and IndexedDB first for instant feedback and offline resilience. Supabase sync runs in the background when the user opts in. The app is fully functional without any backend.
+
+See [Architecture Overview](documentation/architecture/overview.md) for detailed system design documentation.
+
+## Contributing
+
+Contributions are welcome — whether that is adding jazz licks, improving the scoring algorithm, fixing bugs, or improving documentation.
+
+**Good first contributions:**
+
+- Add curated licks to the library ([guide](documentation/contributing/adding-licks.md))
+- Add scales to the catalog ([guide](documentation/contributing/adding-scales.md))
+- Improve test coverage across any of the 8 test domains
+- Report bugs or suggest features via issues
+
+See the full [Contributing Guide](documentation/contributing/contributing.md) for code style, branch naming, commit conventions, and PR process. In short: Svelte 5 runes only, TypeScript strict mode, Conventional Commits.
 
 ## Testing
 
-Run the unit test suite with [Vitest](https://vitest.dev):
-
 ```sh
-npm test
+npm test              # Run unit + integration tests (Vitest)
+npm run test:watch    # Watch mode
+npm run test:e2e      # Playwright E2E tests
+npm run check         # TypeScript + svelte-check
 ```
 
-Run the SvelteKit type checker (includes `svelte-check` and TypeScript validation):
+See the [Testing Guide](documentation/contributing/testing-guide.md) for patterns, audio mocking strategies, and conventions.
 
-```sh
-npm run check
-```
+## License
+
+License pending. This project does not yet have a license file — one will be added before the first public release.
+
+## Acknowledgments
+
+Named after [Winston "Mankunku" Ngozi](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) (1943-2009), South African jazz tenor saxophonist whose 1968 album *Yakhal' Inkomo* ("Cry of the Bull") remains a landmark of South African jazz.
+
+Built with [SvelteKit](https://svelte.dev), [Tone.js](https://tonejs.github.io), [Pitchy](https://github.com/ianprime0509/pitchy), [smplr](https://github.com/danigb/smplr), [abcjs](https://www.abcjs.net), and [Supabase](https://supabase.com).
