@@ -37,6 +37,8 @@ let mixNode: GainNode | null = null;
 let currentPart: InstanceType<ToneModule['Part']> | null = null;
 let isPlaying = false;
 let onStopCallback: (() => void) | null = null;
+/** Monotonically increasing ID for cancelling stale loadInstrument calls. */
+let currentLoadId = 0;
 
 /** Web Audio nodes for jazz expression effects */
 let vibratoLfo: OscillatorNode | null = null;
@@ -166,39 +168,55 @@ function cleanupInstruments(): void {
  */
 async function loadCustomSamples(
 	audioCtx: AudioContext,
-	sampleMap: SampleMap
+	sampleMap: SampleMap,
+	loadId: number
 ): Promise<boolean> {
 	const { Sampler } = await import('smplr');
+	if (loadId !== currentLoadId) return false;
 
 	// Mix node: both velocity layers feed into this, then through effects to master gain
-	mixNode = audioCtx.createGain();
-	mixNode.connect(getMasterGain());
+	const newMixNode = audioCtx.createGain();
+	newMixNode.connect(getMasterGain());
+
+	let newPiano: SmplrSampler | null = null;
+	let newForte: SmplrSampler | null = null;
 
 	try {
 		// Explicit defaults required — smplr's samplerToSmplrJson puts
 		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
 		// undefined values clobber PARAM_DEFAULTS via object spread.
 		const samplerDefaults = { detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
-		samplerPiano = new Sampler(audioCtx, {
+		newPiano = new Sampler(audioCtx, {
 			buffers: layerToBuffers(sampleMap.piano),
-			destination: mixNode,
+			destination: newMixNode,
 			...samplerDefaults
 		});
-		samplerForte = new Sampler(audioCtx, {
+		newForte = new Sampler(audioCtx, {
 			buffers: layerToBuffers(sampleMap.forte),
-			destination: mixNode,
+			destination: newMixNode,
 			...samplerDefaults
 		});
-		await Promise.all([samplerPiano.load, samplerForte.load]);
+		await Promise.all([newPiano.load, newForte.load]);
+
+		// A newer load started while we were awaiting — discard our work
+		if (loadId !== currentLoadId) {
+			newPiano.disconnect();
+			newForte.disconnect();
+			newMixNode.disconnect();
+			return false;
+		}
+
+		samplerPiano = newPiano;
+		samplerForte = newForte;
+		mixNode = newMixNode;
 		activeSampleMap = sampleMap;
 		return true;
 	} catch (err) {
 		console.warn('Custom samples failed to load, falling back to SoundFont:', err);
-		// Clean up partial load
-		if (samplerPiano) { samplerPiano.disconnect(); samplerPiano = null; }
-		if (samplerForte) { samplerForte.disconnect(); samplerForte = null; }
-		if (mixNode) { mixNode.disconnect(); mixNode = null; }
-		activeSampleMap = null;
+		// Clean up locally-created nodes (never touch globals — a newer load may own them)
+		newPiano?.disconnect();
+		newForte?.disconnect();
+		newMixNode.disconnect();
 		return false;
 	}
 }
@@ -206,17 +224,26 @@ async function loadCustomSamples(
 /**
  * Load a SoundFont instrument (fallback when no custom samples available).
  */
-async function loadSoundfont(audioCtx: AudioContext, instrumentId: string): Promise<void> {
+async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadId: number): Promise<void> {
 	const { Soundfont } = await import('smplr');
+	if (loadId !== currentLoadId) return;
+
 	const gmName = GM_INSTRUMENT_NAMES[instrumentId] ?? 'tenor_sax';
 
-	instrument = new Soundfont(audioCtx, {
+	const newInstrument = new Soundfont(audioCtx, {
 		instrument: gmName,
 		kit: 'MusyngKite',
 		loadLoopData: true,
 		destination: getMasterGain()
 	});
-	await instrument.loaded();
+	await newInstrument.loaded();
+
+	if (loadId !== currentLoadId) {
+		newInstrument.disconnect();
+		return;
+	}
+
+	instrument = newInstrument;
 }
 
 /**
@@ -226,7 +253,10 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string): Prom
  * falling back to MusyngKite SoundFont for other instruments or on load error.
  */
 export async function loadInstrument(instrumentId: string = 'tenor-sax', masterVolume?: number): Promise<void> {
+	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
+	if (loadId !== currentLoadId) return;
+
 	if (masterVolume !== undefined) {
 		setMasterVolume(masterVolume);
 	}
@@ -236,12 +266,15 @@ export async function loadInstrument(instrumentId: string = 'tenor-sax', masterV
 	// Try custom samples first, fall back to SoundFont
 	const sampleMap = SAMPLE_MAPS[instrumentId];
 	if (sampleMap) {
-		const loaded = await loadCustomSamples(audioCtx, sampleMap);
+		const loaded = await loadCustomSamples(audioCtx, sampleMap, loadId);
+		if (loadId !== currentLoadId) return;
 		if (!loaded) {
-			await loadSoundfont(audioCtx, instrumentId);
+			await loadSoundfont(audioCtx, instrumentId, loadId);
+			if (loadId !== currentLoadId) return;
 		}
 	} else {
-		await loadSoundfont(audioCtx, instrumentId);
+		await loadSoundfont(audioCtx, instrumentId, loadId);
+		if (loadId !== currentLoadId) return;
 	}
 
 	setupJazzExpression(audioCtx, instrumentId);
