@@ -77,7 +77,8 @@ function createMockSupabase(overrides: {
 		builder.limit = vi.fn(() => builder);
 		builder.single = vi.fn().mockResolvedValue(result);
 		builder.upsert = upsertFn;
-		builder.delete = vi.fn().mockResolvedValue({ data: null, error: null });
+		builder.not = vi.fn(() => builder);
+		builder.delete = vi.fn(() => builder);
 
 		// Make the builder itself thenable so `await ...eq(...)` resolves
 		// to the per-table result without requiring a terminal method.

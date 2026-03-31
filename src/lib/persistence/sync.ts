@@ -146,6 +146,18 @@ export async function syncProgressToCloud(
 
 			if (sessionsError) {
 				console.warn('Failed to sync session results to cloud:', sessionsError);
+			} else {
+				// Prune orphaned rows beyond the retained set
+				const retainedIds = sessionRows.map((r) => r.id);
+				const { error: pruneError } = await supabase
+					.from('session_results')
+					.delete()
+					.eq('user_id', userId)
+					.not('id', 'in', `(${retainedIds.join(',')})`);
+
+				if (pruneError) {
+					console.warn('Failed to prune old session results:', pruneError);
+				}
 			}
 		}
 
@@ -246,24 +258,39 @@ export async function loadProgressFromCloud(
 		if (progressError || !progressRow) return null;
 
 		// Fetch session results (newest first, capped at MAX_SESSIONS)
-		const { data: sessions } = await supabase
+		const { data: sessions, error: sessionsError } = await supabase
 			.from('session_results')
 			.select('*')
 			.eq('user_id', userId)
 			.order('timestamp', { ascending: false })
 			.limit(MAX_SESSIONS);
 
+		if (sessionsError) {
+			console.warn('Failed to load session results from cloud:', sessionsError);
+			return null;
+		}
+
 		// Fetch per-scale proficiency rows
-		const { data: scales } = await supabase
+		const { data: scales, error: scalesError } = await supabase
 			.from('scale_proficiency')
 			.select('*')
 			.eq('user_id', userId);
 
+		if (scalesError) {
+			console.warn('Failed to load scale proficiency from cloud:', scalesError);
+			return null;
+		}
+
 		// Fetch per-key proficiency rows
-		const { data: keys } = await supabase
+		const { data: keys, error: keysError } = await supabase
 			.from('key_proficiency')
 			.select('*')
 			.eq('user_id', userId);
+
+		if (keysError) {
+			console.warn('Failed to load key proficiency from cloud:', keysError);
+			return null;
+		}
 
 		// ── Map session_results rows → SessionResult[] ──
 		const mappedSessions: SessionResult[] = (sessions ?? []).map((row) => ({

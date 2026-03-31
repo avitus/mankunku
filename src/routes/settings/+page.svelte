@@ -137,6 +137,16 @@
 				console.warn('Failed to sign out during account deactivation:', error);
 				return;
 			}
+			// Clear all local state so no data leaks to the next session
+			try {
+				localStorage.removeItem('settings');
+				localStorage.removeItem('progress');
+				localStorage.removeItem('user-licks');
+				const { clearAllRecordings } = await import('$lib/persistence/audio-store');
+				await clearAllRecordings();
+			} catch {
+				// Best-effort cleanup — proceed to redirect regardless
+			}
 			window.location.href = '/auth';
 		} catch (err) {
 			console.warn('Account deactivation error:', err);

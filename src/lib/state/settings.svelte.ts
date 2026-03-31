@@ -31,6 +31,9 @@ const defaultSettings = {
 
 export const settings = $state(loadSettings());
 
+/** Guard to prevent repeated cloud hydration within the same page lifecycle. */
+let cloudHydrated = false;
+
 export function saveSettings(supabase?: SupabaseClient<Database>): void {
 	save(STORAGE_KEY, settings);
 
@@ -47,6 +50,9 @@ export function saveSettings(supabase?: SupabaseClient<Database>): void {
  * Merges cloud settings with local, preferring cloud data when session exists.
  */
 export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	if (cloudHydrated) return;
+	cloudHydrated = true;
+
 	try {
 		const cloudSettings = await fetchSettingsFromCloud(supabase);
 		if (!cloudSettings) return; // No cloud data or not authenticated

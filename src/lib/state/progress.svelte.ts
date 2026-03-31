@@ -83,6 +83,9 @@ function migrateKeyProficiency(sessions: SessionResult[]): Partial<Record<PitchC
 
 export const progress = $state<UserProgress>(loadProgress());
 
+/** Guard to prevent repeated cloud hydration within the same page lifecycle. */
+let cloudHydrated = false;
+
 /**
  * Save current progress to localStorage.
  * Call this after mutations — or use the auto-save effect in a component.
@@ -110,6 +113,9 @@ export function saveProgress(): void {
  * Errors are caught and logged as warnings — the app remains fully functional offline.
  */
 export async function initFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	if (cloudHydrated) return;
+	cloudHydrated = true;
+
 	try {
 		const cloudProgress = await loadProgressFromCloud(supabase);
 		if (!cloudProgress) return; // No cloud data or not authenticated
