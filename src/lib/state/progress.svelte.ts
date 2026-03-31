@@ -14,6 +14,7 @@ import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud } from '$lib/persistence/sync';
+import { aggregateSession, clearHistory } from '$lib/state/history.svelte';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 200; // keep last 200 sessions
@@ -214,6 +215,9 @@ export function recordAttempt(
 	// Update streak
 	updateStreak();
 
+	// Aggregate into daily summary for long-term tracking
+	aggregateSession(session);
+
 	// Persist
 	saveProgress();
 
@@ -339,6 +343,7 @@ export function resetProgress(supabase?: SupabaseClient<Database>): void {
 	const fresh = createInitialProgress();
 	Object.assign(progress, fresh);
 	saveProgress();
+	clearHistory();
 
 	// Fire-and-forget cloud reset
 	if (supabase) {

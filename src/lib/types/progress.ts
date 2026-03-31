@@ -81,3 +81,61 @@ export interface UserProgress {
 	streakDays: number;
 	lastPracticeDate: string;
 }
+
+// ── Long-term tracking types ─────────────────────────────────────
+
+export interface GradeDistribution {
+	perfect: number;
+	great: number;
+	good: number;
+	fair: number;
+	tryAgain: number;
+}
+
+/** Compact daily summary — persists indefinitely, never pruned */
+export interface DailySummary {
+	date: string;                          // "YYYY-MM-DD"
+	sessionCount: number;
+	practiceMinutes: number;               // estimated ~2 min per session
+	avgOverall: number;                    // 0-1
+	avgPitch: number;                      // 0-1
+	avgRhythm: number;                     // 0-1
+	bestScore: number;                     // 0-1
+	notesTotal: number;
+	notesHit: number;
+	grades: GradeDistribution;
+	categories: Record<string, number>;    // category → session count
+	xpEarned: number;
+}
+
+export interface ProgressMeta {
+	version: number;
+	lastAggregationTimestamp: number;
+	longestStreak: number;
+	longestStreakEndDate: string;
+	allTimeSessionCount: number;
+}
+
+export interface PeriodStats {
+	sessionCount: number;
+	avgOverall: number;
+	avgPitch: number;
+	avgRhythm: number;
+	practiceMinutes: number;
+	practiceDays: number;
+}
+
+export interface PeriodComparison {
+	current: PeriodStats;
+	previous: PeriodStats;
+	delta: PeriodDelta;
+}
+
+export interface PeriodDelta {
+	sessionCount: number;
+	avgOverall: number;
+	avgPitch: number;
+	avgRhythm: number;
+	practiceMinutes: number;
+	practiceDays: number;
+}

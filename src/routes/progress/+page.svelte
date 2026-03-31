@@ -6,6 +6,11 @@
 	import { SCALE_TYPE_NAMES, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
+	import PracticeCalendar from '$lib/components/progress/PracticeCalendar.svelte';
+	import TrendChart from '$lib/components/progress/TrendChart.svelte';
+	import PeriodCompare from '$lib/components/progress/PeriodCompare.svelte';
+	import StreakDisplay from '$lib/components/progress/StreakDisplay.svelte';
+	import { dailySummaries, progressMeta } from '$lib/state/history.svelte';
 	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
@@ -140,7 +145,7 @@
 	<!-- Top stats row -->
 	<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-			<div class="text-2xl font-bold">{progress.sessions.length}</div>
+			<div class="text-2xl font-bold">{progressMeta.allTimeSessionCount || progress.sessions.length}</div>
 			<div class="text-xs text-[var(--color-text-secondary)]">Sessions</div>
 		</div>
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
@@ -156,6 +161,29 @@
 			<div class="text-xs text-[var(--color-text-secondary)]">XP</div>
 		</div>
 	</div>
+
+	<!-- Streak & Practice Calendar -->
+	{#if dailySummaries.length > 0}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 text-lg font-semibold">Streak</h2>
+			<StreakDisplay />
+		</div>
+
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 text-lg font-semibold">Practice Calendar</h2>
+			<PracticeCalendar />
+		</div>
+
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 text-lg font-semibold">This Period</h2>
+			<PeriodCompare />
+		</div>
+
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 text-lg font-semibold">Trends</h2>
+			<TrendChart summaries={dailySummaries} />
+		</div>
+	{/if}
 
 	<!-- Proficiency level -->
 	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
