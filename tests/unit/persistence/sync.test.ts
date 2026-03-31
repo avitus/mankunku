@@ -76,6 +76,7 @@ function createMockSupabase(overrides: {
 		builder.order = vi.fn(() => builder);
 		builder.limit = vi.fn(() => builder);
 		builder.single = vi.fn().mockResolvedValue(result);
+		builder.maybeSingle = vi.fn().mockResolvedValue(result);
 		builder.upsert = upsertFn;
 		builder.not = vi.fn(() => builder);
 		builder.delete = vi.fn(() => builder);

@@ -265,9 +265,13 @@ export async function loadProgressFromCloud(
 			.from('user_progress')
 			.select('*')
 			.eq('user_id', userId)
-			.single();
+			.maybeSingle();
 
-		if (progressError || !progressRow) return null;
+		if (progressError) {
+			console.warn('Failed to load progress from cloud:', progressError);
+			return null;
+		}
+		if (!progressRow) return null;
 
 		// Fetch session results (newest first, capped at MAX_SESSIONS)
 		const { data: sessions, error: sessionsError } = await supabase
@@ -434,9 +438,13 @@ export async function loadSettingsFromCloud(
 			.from('user_settings')
 			.select('*')
 			.eq('user_id', userId)
-			.single();
+			.maybeSingle();
 
-		if (error || !data) return null;
+		if (error) {
+			console.warn('Failed to load settings from cloud:', error);
+			return null;
+		}
+		if (!data) return null;
 
 		return {
 			instrumentId: data.instrument_id,
