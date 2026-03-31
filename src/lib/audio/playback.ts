@@ -1,15 +1,17 @@
 /**
  * Phrase playback engine.
  *
- * Uses Tone.js Transport for scheduling and smplr Soundfont for instrument samples.
+ * Uses Tone.js Transport for scheduling and either custom multi-sampled
+ * instruments (via smplr Sampler) or GM SoundFont fallback (via smplr Soundfont).
  * Both share the same AudioContext (via audio-context.ts).
  *
  * Jazz expression features:
- * - MusyngKite soundfont for warmer, more expressive samples
+ * - Custom tenor sax samples (MTG Solo Sax, CC-BY 4.0) with velocity layers
  * - Subtle vibrato via LFO-driven detune
  * - Warm low-pass filtering to tame harsh digital edges
  * - Swing feel via Tone.js Transport swing
  * - Humanized velocity and timing for authentic jazz phrasing
+ * - Per-note tuning corrections from SFZ mappings
  */
 
 import type { Phrase } from '$lib/types/music.ts';
@@ -17,15 +19,26 @@ import type { PlaybackOptions } from '$lib/types/audio.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context.ts';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome.ts';
+import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps.ts';
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
+type SmplrSampler = import('smplr').Sampler;
 
 let tone: ToneModule | null = null;
+/** SoundFont instrument (used when no custom samples available) */
 let instrument: SmplrSoundfont | null = null;
+/** Custom sample layers for velocity switching */
+let samplerPiano: SmplrSampler | null = null;
+let samplerForte: SmplrSampler | null = null;
+let activeSampleMap: SampleMap | null = null;
+/** Shared mix node for routing both velocity layers through one effect chain */
+let mixNode: GainNode | null = null;
 let currentPart: InstanceType<ToneModule['Part']> | null = null;
 let isPlaying = false;
 let onStopCallback: (() => void) | null = null;
+/** Monotonically increasing ID for cancelling stale loadInstrument calls. */
+let currentLoadId = 0;
 
 /** Web Audio nodes for jazz expression effects */
 let vibratoLfo: OscillatorNode | null = null;
@@ -45,16 +58,20 @@ const GM_INSTRUMENT_NAMES: Record<string, string> = {
 };
 
 /**
- * Set up jazz expression effects on the instrument's output channel.
+ * Set up jazz expression effects.
  *
  * Creates a subtle vibrato (LFO modulating detune) and a warmth filter
- * that rolls off harsh high frequencies, giving the soundfont samples
- * a more natural, breath-driven saxophone character.
+ * that rolls off harsh high frequencies, giving the samples a more
+ * natural, breath-driven saxophone character.
+ *
+ * For custom samples: effects are inserted between the mix node and master gain.
+ * For SoundFont: effects are added as inserts on the instrument's output channel.
  */
 function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void {
 	cleanupJazzExpression();
 
-	if (!instrument) return;
+	const hasCustomSamples = mixNode !== null;
+	if (!hasCustomSamples && !instrument) return;
 
 	// Only apply saxophone-specific expression to sax instruments
 	const isSax = instrumentId.includes('sax');
@@ -84,19 +101,21 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 	vibratoLfo.connect(vibratoGain);
 	vibratoLfo.start();
 
-	// Connect the warmth filter as an insert on the instrument output.
-	// smplr's Channel.addInsert expects { input, output } for two-node chains.
-	instrument.output.addInsert({
-		input: warmthFilter,
-		output: warmthFilter
-	});
+	if (hasCustomSamples) {
+		// Custom samples: insert effects between mix node and master gain.
+		// Both velocity-layer samplers route to mixNode, so one effect
+		// chain covers all notes regardless of which layer triggered.
+		mixNode!.disconnect();
+		mixNode!.connect(warmthFilter);
+		warmthFilter.connect(getMasterGain());
+	} else {
+		// SoundFont: add as insert on the instrument's output channel.
+		instrument!.output.addInsert({
+			input: warmthFilter,
+			output: warmthFilter
+		});
+	}
 
-	// The vibrato LFO modulates the detune of the warmth filter node.
-	// BiquadFilterNode.detune is an AudioParam that shifts the filter
-	// frequency in cents — but when placed in the signal chain, this
-	// creates a subtle pitch-shifting effect on the signal passing through.
-	// For a more direct approach, we'll use the filter's detune param
-	// which creates micro pitch modulation on the filtered signal.
 	vibratoGain.connect(warmthFilter.detune);
 }
 
@@ -120,44 +139,145 @@ function cleanupJazzExpression(): void {
 }
 
 /**
- * Load a SoundFont instrument with jazz expression processing.
- * Uses MusyngKite soundfont for warmer, more expressive samples.
- * Cached after first load (smplr uses CacheStorage).
+ * Clean up all instrument state (samplers and SoundFont).
  */
-export async function loadInstrument(instrumentId: string = 'tenor-sax', masterVolume?: number): Promise<void> {
-	const audioCtx = await initAudio();
-	if (masterVolume !== undefined) {
-		setMasterVolume(masterVolume);
+function cleanupInstruments(): void {
+	cleanupJazzExpression();
+	if (samplerPiano) {
+		samplerPiano.disconnect();
+		samplerPiano = null;
 	}
-	const { Soundfont } = await import('smplr');
-
-	// Disconnect previous instrument if switching
+	if (samplerForte) {
+		samplerForte.disconnect();
+		samplerForte = null;
+	}
+	if (mixNode) {
+		mixNode.disconnect();
+		mixNode = null;
+	}
+	activeSampleMap = null;
 	if (instrument) {
-		cleanupJazzExpression();
 		instrument.disconnect();
+		instrument = null;
 	}
+}
+
+/**
+ * Load a custom multi-sampled instrument with velocity layers.
+ * Returns true if samples loaded successfully, false to trigger fallback.
+ */
+async function loadCustomSamples(
+	audioCtx: AudioContext,
+	sampleMap: SampleMap,
+	loadId: number
+): Promise<boolean> {
+	const { Sampler } = await import('smplr');
+	if (loadId !== currentLoadId) return false;
+
+	// Mix node: both velocity layers feed into this, then through effects to master gain
+	const newMixNode = audioCtx.createGain();
+	newMixNode.connect(getMasterGain());
+
+	let newPiano: SmplrSampler | null = null;
+	let newForte: SmplrSampler | null = null;
+
+	try {
+		// Explicit defaults required — smplr's samplerToSmplrJson puts
+		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
+		// undefined values clobber PARAM_DEFAULTS via object spread.
+		const samplerDefaults = { detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
+		newPiano = new Sampler(audioCtx, {
+			buffers: layerToBuffers(sampleMap.piano),
+			destination: newMixNode,
+			...samplerDefaults
+		});
+		newForte = new Sampler(audioCtx, {
+			buffers: layerToBuffers(sampleMap.forte),
+			destination: newMixNode,
+			...samplerDefaults
+		});
+		await Promise.all([newPiano.load, newForte.load]);
+
+		// A newer load started while we were awaiting — discard our work
+		if (loadId !== currentLoadId) {
+			newPiano.disconnect();
+			newForte.disconnect();
+			newMixNode.disconnect();
+			return false;
+		}
+
+		samplerPiano = newPiano;
+		samplerForte = newForte;
+		mixNode = newMixNode;
+		activeSampleMap = sampleMap;
+		return true;
+	} catch (err) {
+		console.warn('Custom samples failed to load, falling back to SoundFont:', err);
+		// Clean up locally-created nodes (never touch globals — a newer load may own them)
+		newPiano?.disconnect();
+		newForte?.disconnect();
+		newMixNode.disconnect();
+		return false;
+	}
+}
+
+/**
+ * Load a SoundFont instrument (fallback when no custom samples available).
+ */
+async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadId: number): Promise<void> {
+	const { Soundfont } = await import('smplr');
+	if (loadId !== currentLoadId) return;
 
 	const gmName = GM_INSTRUMENT_NAMES[instrumentId] ?? 'tenor_sax';
 
-	// MusyngKite has richer, more expressive samples than FluidR3_GM,
-	// particularly for wind instruments. The tenor sax samples have
-	// more natural breath and tonal variation across the velocity range.
-	instrument = new Soundfont(audioCtx, {
+	const newInstrument = new Soundfont(audioCtx, {
 		instrument: gmName,
 		kit: 'MusyngKite',
-		// Load loop data so sustained notes can ring naturally
 		loadLoopData: true,
-		// Route through master gain for global volume control
 		destination: getMasterGain()
 	});
-	await instrument.loaded();
+	await newInstrument.loaded();
 
-	// Apply jazz expression effects to the loaded instrument
+	if (loadId !== currentLoadId) {
+		newInstrument.disconnect();
+		return;
+	}
+
+	instrument = newInstrument;
+}
+
+/**
+ * Load an instrument with jazz expression processing.
+ *
+ * Uses custom multi-sampled recordings when available (tenor sax),
+ * falling back to MusyngKite SoundFont for other instruments or on load error.
+ */
+export async function loadInstrument(instrumentId: string = 'tenor-sax', masterVolume?: number): Promise<void> {
+	const loadId = ++currentLoadId;
+	const audioCtx = await initAudio();
+	if (loadId !== currentLoadId) return;
+
+	if (masterVolume !== undefined) {
+		setMasterVolume(masterVolume);
+	}
+
+	cleanupInstruments();
+
+	// Try custom samples first, fall back to SoundFont
+	const sampleMap = SAMPLE_MAPS[instrumentId];
+	if (sampleMap) {
+		const loaded = await loadCustomSamples(audioCtx, sampleMap, loadId);
+		if (loadId !== currentLoadId) return;
+		if (!loaded) {
+			await loadSoundfont(audioCtx, instrumentId, loadId);
+			if (loadId !== currentLoadId) return;
+		}
+	} else {
+		await loadSoundfont(audioCtx, instrumentId, loadId);
+		if (loadId !== currentLoadId) return;
+	}
+
 	setupJazzExpression(audioCtx, instrumentId);
-
-	// Pre-create metronome synths so the audio graph is fully settled
-	// before the first Transport.start(). Without this, synth creation
-	// during playPhrase() destabilises timing on the first few beats.
 	await warmUpMetronome();
 }
 
@@ -165,7 +285,47 @@ export async function loadInstrument(instrumentId: string = 'tenor-sax', masterV
  * Check if an instrument is loaded and ready.
  */
 export function isInstrumentLoaded(): boolean {
-	return instrument !== null;
+	return instrument !== null || (samplerPiano !== null && samplerForte !== null);
+}
+
+/**
+ * Trigger a note on the active instrument.
+ * Routes to the correct velocity layer when using custom samples,
+ * and applies per-note tuning corrections from the SFZ mapping.
+ */
+function startNote(event: {
+	midi: number;
+	velocity: number;
+	duration: number;
+	time: number;
+	detune: number;
+}): void {
+	if (activeSampleMap && samplerPiano && samplerForte) {
+		const sampler = event.velocity > activeSampleMap.velocitySplit ? samplerForte : samplerPiano;
+		const tuneCorrection = getTuneCorrection(activeSampleMap, event.midi, event.velocity);
+		sampler.start({
+			note: event.midi,
+			velocity: event.velocity,
+			duration: event.duration,
+			time: event.time,
+			detune: event.detune + tuneCorrection
+		});
+	} else if (instrument) {
+		instrument.start({
+			note: event.midi,
+			velocity: event.velocity,
+			duration: event.duration,
+			time: event.time,
+			detune: event.detune
+		});
+	}
+}
+
+/** Stop all ringing notes on the active instrument. */
+function stopNotes(): void {
+	samplerPiano?.stop();
+	samplerForte?.stop();
+	instrument?.stop();
 }
 
 /**
@@ -290,7 +450,7 @@ export async function playPhrase(
 	options: PlaybackOptions,
 	keepMetronome = false
 ): Promise<void> {
-	if (!instrument) {
+	if (!isInstrumentLoaded()) {
 		throw new Error('Instrument not loaded. Call loadInstrument() first.');
 	}
 
@@ -332,14 +492,7 @@ export async function playPhrase(
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
 	currentPart = new Tone.Part((time, event) => {
-		instrument!.start({
-			note: event.midi,
-			velocity: event.velocity,
-			duration: event.duration,
-			time,
-			// Apply breath-scoop detune per note
-			detune: event.detune
-		});
+		startNote({ ...event, time });
 	}, events);
 	currentPart.start(`${barTicks}i`);
 
@@ -370,7 +523,7 @@ export async function playPhrase(
 					currentPart.dispose();
 					currentPart = null;
 				}
-				instrument?.stop();
+				stopNotes();
 				resolve();
 			}, `${endTick}i`);
 		} else {
@@ -410,7 +563,7 @@ export async function stopPlayback(): Promise<void> {
 	disposeMetronome();
 
 	// Stop all ringing notes
-	instrument?.stop();
+	stopNotes();
 
 	if (isPlaying && onStopCallback) {
 		onStopCallback();
@@ -428,7 +581,7 @@ export async function scheduleNextPhrase(
 	phrase: Phrase,
 	options: PlaybackOptions
 ): Promise<void> {
-	if (!instrument) {
+	if (!isInstrumentLoaded()) {
 		throw new Error('Instrument not loaded. Call loadInstrument() first.');
 	}
 
@@ -444,7 +597,7 @@ export async function scheduleNextPhrase(
 		currentPart.dispose();
 		currentPart = null;
 	}
-	instrument.stop();
+	stopNotes();
 
 	// Find the next bar downbeat with at least 1 beat of lead time
 	const beatsPerBar = phrase.timeSignature[0];
@@ -459,13 +612,7 @@ export async function scheduleNextPhrase(
 	const events = phraseToEvents(phrase, options.tempo, ppq);
 
 	currentPart = new Tone.Part((time, event) => {
-		instrument!.start({
-			note: event.midi,
-			velocity: event.velocity,
-			duration: event.duration,
-			time,
-			detune: event.detune
-		});
+		startNote({ ...event, time });
 	}, events);
 	currentPart.start(`${nextBarTicks}i`);
 
@@ -480,7 +627,7 @@ export async function scheduleNextPhrase(
 				currentPart.dispose();
 				currentPart = null;
 			}
-			instrument?.stop();
+			stopNotes();
 			resolve();
 		}, `${endTicks}i`);
 		onStopCallback = resolve;

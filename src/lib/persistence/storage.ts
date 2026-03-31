@@ -9,9 +9,17 @@ const PREFIX = 'mankunku:';
 /**
  * Save a value to localStorage as JSON.
  */
-export function save<T>(key: string, value: T): void {
+export function save<T>(key: string, value: T, syncCallback?: () => void): void {
 	try {
 		localStorage.setItem(PREFIX + key, JSON.stringify(value));
+		// Trigger cloud sync callback after successful local save
+		if (syncCallback) {
+			try {
+				syncCallback();
+			} catch (err) {
+				console.warn(`Sync callback failed for ${key}:`, err);
+			}
+		}
 	} catch (err) {
 		console.warn(`Failed to save ${key}:`, err);
 	}

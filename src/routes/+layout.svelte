@@ -2,15 +2,22 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { settings, applyTheme } from '$lib/state/settings.svelte.ts';
+	import { settings, applyTheme } from '$lib/state/settings.svelte';
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
+	import { invalidate } from '$app/navigation';
 
 	interface Props {
 		children: import('svelte').Snippet;
+		data: {
+			supabase: import('@supabase/supabase-js').SupabaseClient;
+			session: import('@supabase/supabase-js').Session | null;
+			user: import('@supabase/supabase-js').User | null;
+		};
 	}
 
-	let { children }: Props = $props();
+	let { children, data }: Props = $props();
 	let mobileMenuOpen = $state(false);
+	let { supabase, session, user } = $derived(data);
 
 	const navItems = [
 		{ href: '/', label: 'Home' },
@@ -24,6 +31,18 @@
 
 	onMount(() => {
 		applyTheme();
+
+		const {
+			data: { subscription }
+		} = data.supabase.auth.onAuthStateChange((event, newSession) => {
+			if (newSession?.expires_at !== data.session?.expires_at) {
+				invalidate('supabase:auth');
+			}
+		});
+
+		return () => {
+			subscription.unsubscribe();
+		};
 	});
 
 	function isActive(href: string): boolean {
@@ -33,7 +52,7 @@
 </script>
 
 {#if !settings.onboardingComplete}
-	<Onboarding />
+	<Onboarding {supabase} {session} {user} />
 {/if}
 
 <div class="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -42,7 +61,7 @@
 			<a href="/" class="text-xl font-bold tracking-tight">Mankunku</a>
 
 			<!-- Desktop nav -->
-			<div class="hidden gap-4 text-sm sm:flex">
+			<div class="hidden gap-4 text-sm sm:flex items-center">
 				{#each navItems as { href, label }}
 					<a
 						{href}
@@ -53,6 +72,33 @@
 						{label}
 					</a>
 				{/each}
+
+				<!-- Auth controls (desktop) -->
+				<span class="ml-2 border-l border-[var(--color-bg-tertiary)] pl-3">
+					{#if session && user}
+						<span class="flex items-center gap-2">
+							<span
+								class="max-w-[120px] truncate text-xs text-[var(--color-text-secondary)]"
+								>{user.email}</span
+							>
+							<form method="POST" action="/auth/logout">
+								<button
+									type="submit"
+									class="text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
+								>
+									Sign Out
+								</button>
+							</form>
+						</span>
+					{:else}
+						<a
+							href="/auth"
+							class="text-xs font-medium text-[var(--color-accent)] transition-opacity hover:opacity-80"
+						>
+							Sign In
+						</a>
+					{/if}
+				</span>
 			</div>
 
 			<!-- Mobile hamburger -->
@@ -85,6 +131,36 @@
 						{label}
 					</a>
 				{/each}
+
+				<!-- Mobile auth controls -->
+				<div class="mt-2 border-t border-[var(--color-bg-tertiary)] pt-2">
+					{#if session && user}
+						<div class="truncate px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+							{user.email}
+						</div>
+						<form method="POST" action="/auth/logout">
+							<button
+								type="submit"
+								class="block w-full rounded px-3 py-2 text-left text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
+								onclick={() => {
+									mobileMenuOpen = false;
+								}}
+							>
+								Sign Out
+							</button>
+						</form>
+					{:else}
+						<a
+							href="/auth"
+							onclick={() => {
+								mobileMenuOpen = false;
+							}}
+							class="block rounded px-3 py-2 text-sm font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-bg-tertiary)]"
+						>
+							Sign In
+						</a>
+					{/if}
+				</div>
 			</div>
 		{/if}
 	</nav>

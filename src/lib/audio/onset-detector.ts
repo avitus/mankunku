@@ -5,6 +5,8 @@
  * to the mic source, and collects onset timestamps.
  */
 
+import { getNativeAudioContext } from './audio-context';
+
 export interface OnsetDetectorHandle {
 	/** Onset timestamps relative to recording start (seconds) */
 	getOnsets: () => number[];
@@ -33,14 +35,19 @@ export async function createOnsetDetector(
 	source: MediaStreamAudioSourceNode,
 	onOnset?: (time: number) => void
 ): Promise<OnsetDetectorHandle> {
+	// Tone.js wraps AudioContext with standardized-audio-context (SAC).
+	// The native AudioWorkletNode constructor requires a real BaseAudioContext,
+	// so unwrap the SAC wrapper via the centralized helper.
+	const nativeCtx: AudioContext = await getNativeAudioContext();
+
 	// Register the worklet processor (once per AudioContext lifetime)
 	if (!moduleRegistered) {
 		const workletUrl = new URL('./onset-worklet.ts', import.meta.url);
-		await context.audioWorklet.addModule(workletUrl);
+		await nativeCtx.audioWorklet.addModule(workletUrl);
 		moduleRegistered = true;
 	}
 
-	const node = new AudioWorkletNode(context, 'onset-detector');
+	const node = new AudioWorkletNode(nativeCtx, 'onset-detector');
 	const onsets: number[] = [];
 	let startTime = 0;
 
