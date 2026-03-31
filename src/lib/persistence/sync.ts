@@ -29,9 +29,9 @@ import type {
 	AdaptiveState,
 	CategoryProgress
 } from '$lib/types/progress';
-import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
+import { PITCH_CLASSES, type Phrase, type PhraseCategory, type PitchClass } from '$lib/types/music';
 import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
-import type { ScaleType } from '$lib/tonality/tonality';
+import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
 
 // ── Type alias for convenience ───────────────────────────────────────
 
@@ -58,6 +58,18 @@ const MAX_SESSIONS = 200;
 
 /** Pattern for allowed session ID characters (alphanumeric, hyphen, underscore). */
 const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+/** Runtime sets for validating tonality values from the database. */
+const VALID_KEYS = new Set<string>(PITCH_CLASSES);
+const VALID_SCALE_TYPES = new Set<string>(SCALE_UNLOCK_ORDER);
+
+/** Validate that a value has the expected Tonality shape ({ key, scaleType }). */
+function isValidTonality(value: unknown): boolean {
+	if (value == null || typeof value !== 'object') return false;
+	const obj = value as Record<string, unknown>;
+	return typeof obj.key === 'string' && VALID_KEYS.has(obj.key)
+		&& typeof obj.scaleType === 'string' && VALID_SCALE_TYPES.has(obj.scaleType);
+}
 
 // ── Helper ───────────────────────────────────────────────────────────
 
@@ -435,7 +447,7 @@ export async function loadSettingsFromCloud(
 			swing: data.swing,
 			theme: data.theme,
 			onboardingComplete: data.onboarding_complete,
-			tonalityOverride: data.tonality_override
+			tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null
 		};
 	} catch (error) {
 		console.warn('Failed to load settings from cloud:', error);
