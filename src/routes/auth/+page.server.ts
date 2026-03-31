@@ -102,7 +102,7 @@ export const actions: Actions = {
 	 * @param event.locals.supabase — The per-request Supabase server client
 	 * @returns fail(400) with error message on validation/signup failure, or redirect(303, '/') on success
 	 */
-	register: async ({ request, locals: { supabase } }) => {
+	register: async ({ request, locals: { supabase }, url }) => {
 		const formData = await request.formData();
 		const email = formData.get('email') as string;
 		const password = formData.get('password') as string;
@@ -137,7 +137,10 @@ export const actions: Actions = {
 		// The server client automatically manages session cookies on success.
 		const { error } = await supabase.auth.signUp({
 			email,
-			password
+			password,
+			options: {
+				emailRedirectTo: `${url.origin}/auth/callback`
+			}
 		});
 
 		if (error) {
