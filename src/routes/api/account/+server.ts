@@ -24,23 +24,35 @@ export const DELETE: RequestHandler = async ({ locals }) => {
 	const userId = user.id;
 	const admin = createAdminClient();
 
-	// 1. Delete storage objects (recordings bucket) — best-effort
+	// 1. Delete storage objects (recordings bucket) — best-effort, paginated
 	try {
-		const { data: files, error: listError } = await admin.storage
-			.from('recordings')
-			.list(userId);
+		const PAGE_SIZE = 100;
+		let offset = 0;
+		let hasMore = true;
 
-		if (listError) {
-			console.warn('Failed to list recordings for deletion:', listError);
-		} else if (files && files.length > 0) {
-			const paths = files.map((f) => `${userId}/${f.name}`);
-			const { error: removeError } = await admin.storage
+		while (hasMore) {
+			const { data: files, error: listError } = await admin.storage
 				.from('recordings')
-				.remove(paths);
+				.list(userId, { limit: PAGE_SIZE, offset });
 
-			if (removeError) {
-				console.warn('Failed to remove recordings from storage:', removeError);
+			if (listError) {
+				console.warn('Failed to list recordings for deletion:', listError);
+				break;
 			}
+
+			if (files && files.length > 0) {
+				const paths = files.map((f) => `${userId}/${f.name}`);
+				const { error: removeError } = await admin.storage
+					.from('recordings')
+					.remove(paths);
+
+				if (removeError) {
+					console.warn('Failed to remove recordings from storage:', removeError);
+				}
+			}
+
+			hasMore = files !== null && files.length === PAGE_SIZE;
+			offset += PAGE_SIZE;
 		}
 	} catch (err) {
 		console.warn('Storage cleanup error during account deletion:', err);
