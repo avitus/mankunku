@@ -186,7 +186,8 @@ const TEST_SETTINGS = {
 	swing: 0.5,
 	theme: 'dark',
 	onboardingComplete: false,
-	tonalityOverride: null
+	tonalityOverride: null,
+	highestNote: null
 };
 
 const TEST_LICK: Phrase = {

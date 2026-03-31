@@ -289,10 +289,13 @@ describe('transposition', () => {
 		const bbTenorSax = {
 			id: 'tenor-sax',
 			name: 'Tenor Sax',
+			key: 'Bb' as const,
 			transpositionSemitones: 2,
 			concertRangeLow: 44,
 			concertRangeHigh: 75,
-			clef: 'treble' as const
+			clef: 'treble' as const,
+			gmProgram: 66,
+			highNotePresets: [78, 77, 76, 75, 74, 72]
 		};
 
 		// Concert C4 → Written D4 (tenor sax is in Bb, written is 2 semitones higher)
@@ -307,10 +310,13 @@ describe('transposition', () => {
 		const bbInstrument = {
 			id: 'bb-instrument',
 			name: 'Bb',
+			key: 'Bb' as const,
 			transpositionSemitones: 2,
 			concertRangeLow: 44,
 			concertRangeHigh: 75,
-			clef: 'treble' as const
+			clef: 'treble' as const,
+			gmProgram: 56,
+			highNotePresets: [78, 77, 76, 75, 74, 72]
 		};
 
 		const writtenKey = concertKeyToWritten('C', bbInstrument);

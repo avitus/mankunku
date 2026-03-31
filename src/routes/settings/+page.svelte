@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { INSTRUMENTS } from '$lib/types/instruments';
-	import { settings, saveSettings, applyTheme, getInstrument } from '$lib/state/settings.svelte';
+	import { settings, saveSettings, applyTheme, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte';
-	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { concertKeyToWritten, concertToWritten } from '$lib/music/transposition';
+	import { midiToDisplayName } from '$lib/music/notation';
 	import type { PitchClass } from '$lib/types/music';
 	import {
 		type ScaleType,
@@ -75,6 +76,7 @@
 
 	function selectInstrument(id: string) {
 		settings.instrumentId = id;
+		settings.highestNote = null;
 		saveSettings(supabase);
 	}
 
@@ -236,6 +238,32 @@
 					</p>
 				</button>
 			{/each}
+		</div>
+
+		<!-- Highest note setting -->
+		<div class="mt-3 rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<label for="highest-note" class="mb-1 block text-sm font-medium">Highest Note</label>
+			<p class="mb-2 text-xs text-[var(--color-text-secondary)]">
+				Set the highest note you're comfortable playing. Lower for beginners, raise for altissimo.
+			</p>
+			<select
+				id="highest-note"
+				value={settings.highestNote ?? ''}
+				onchange={(e) => {
+					const val = (e.target as HTMLSelectElement).value;
+					settings.highestNote = val === '' ? null : Number(val);
+					saveSettings(supabase);
+				}}
+				class="w-full rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm"
+			>
+				{#each instrument.highNotePresets as midi}
+					{@const writtenMidi = concertToWritten(midi, instrument)}
+					{@const isDefault = midi === instrument.concertRangeHigh - 1}
+					<option value={midi}>
+						{midiToDisplayName(writtenMidi)}{isDefault ? ' (standard)' : ''}
+					</option>
+				{/each}
+			</select>
 		</div>
 	</section>
 

@@ -16,12 +16,13 @@ import { validatePhrase, rulesForDifficulty } from './validator.ts';
  * Apply a random mutation to a lick.
  * Returns null if the mutation produces an invalid phrase.
  */
-export function mutateLick(lick: Phrase): Phrase | null {
+export function mutateLick(lick: Phrase, rangeHigh?: number): Phrase | null {
+	const rh = rangeHigh ?? 84;
 	const mutations = [
-		rhythmicDisplacement,
-		octaveDisplacement,
-		truncate,
-		retrograde
+		(l: Phrase) => rhythmicDisplacement(l),
+		(l: Phrase) => octaveDisplacement(l, rh),
+		(l: Phrase) => truncate(l),
+		(l: Phrase) => retrograde(l)
 	];
 
 	const mutation = mutations[Math.floor(Math.random() * mutations.length)];
@@ -29,7 +30,8 @@ export function mutateLick(lick: Phrase): Phrase | null {
 
 	// Validate the mutation
 	const rules = rulesForDifficulty(lick.difficulty.level);
-	const validation = validatePhrase(result, rules);
+	const mergedRules = { ...rules, range: [44, rh] as [number, number] };
+	const validation = validatePhrase(result, mergedRules);
 
 	return validation.valid ? result : null;
 }
@@ -57,7 +59,7 @@ export function rhythmicDisplacement(lick: Phrase): Phrase {
  * Randomly shift some notes up or down an octave.
  * Applies to ~25% of notes, skipping the first and last.
  */
-export function octaveDisplacement(lick: Phrase): Phrase {
+export function octaveDisplacement(lick: Phrase, rangeHigh = 84): Phrase {
 	const pitched = lick.notes.filter((n) => n.pitch !== null);
 	if (pitched.length < 4) return lick;
 
@@ -72,7 +74,7 @@ export function octaveDisplacement(lick: Phrase): Phrase {
 		const newPitch = n.pitch + direction;
 
 		// Keep in playable range
-		if (newPitch < 44 || newPitch > 84) return n;
+		if (newPitch < 44 || newPitch > rangeHigh) return n;
 
 		return { ...n, pitch: newPitch };
 	});

@@ -26,7 +26,9 @@ const defaultSettings = {
 	theme: 'dark' as 'dark' | 'light',
 	onboardingComplete: false,
 	/** User override for daily tonality. null = use auto-selected daily tonality. */
-	tonalityOverride: null as Tonality | null
+	tonalityOverride: null as Tonality | null,
+	/** User-configured highest concert pitch MIDI. null = instrument default. */
+	highestNote: null as number | null
 };
 
 export const settings = $state(loadSettings());
@@ -77,6 +79,16 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 
 export function getInstrument(): InstrumentConfig {
 	return INSTRUMENTS[settings.instrumentId] ?? INSTRUMENTS['tenor-sax'];
+}
+
+/**
+ * Return the effective highest concert MIDI note.
+ * If the user hasn't set one, default to instrument's concertRangeHigh - 1
+ * (e.g. tenor sax: 76 - 1 = 75, concert Eb5 = written F6).
+ */
+export function getEffectiveHighestNote(): number {
+	const inst = getInstrument();
+	return settings.highestNote ?? (inst.concertRangeHigh - 1);
 }
 
 /**
