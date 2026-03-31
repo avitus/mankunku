@@ -126,18 +126,14 @@
 	}
 
 	async function handleDeleteAccount() {
-		if (!supabase) return;
 		try {
-			// Sign out and deactivate — full account data deletion requires
-			// a server-side admin API endpoint using the service_role key,
-			// which is beyond the current scope. User data remains in the
-			// database but is inaccessible after sign-out due to RLS policies.
-			const { error } = await supabase.auth.signOut();
-			if (error) {
-				console.warn('Failed to sign out during account deactivation:', error);
+			const response = await fetch('/api/account', { method: 'DELETE' });
+			if (!response.ok) {
+				const data = await response.json();
+				alert(data.error || 'Failed to delete account. Please try again.');
 				return;
 			}
-			// Clear all local state so no data leaks to the next session
+			// Clear all local state
 			try {
 				localStorage.removeItem('settings');
 				localStorage.removeItem('progress');
@@ -149,7 +145,8 @@
 			}
 			window.location.href = '/auth';
 		} catch (err) {
-			console.warn('Account deactivation error:', err);
+			console.warn('Account deletion error:', err);
+			alert('Failed to delete account. Please try again.');
 		}
 	}
 
@@ -192,14 +189,14 @@
 				{#if showDeleteConfirm}
 					<div use:scrollIntoView>
 						<p class="mb-3 text-sm text-[var(--color-error)]">
-							This will sign you out and deactivate your account. Your data will no longer be accessible. To fully delete your account data, please contact support.
+							This will permanently delete your account and all associated data including progress, recordings, and settings. This action cannot be undone.
 						</p>
 						<div class="flex gap-2">
 							<button
 								onclick={handleDeleteAccount}
 								class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 							>
-								Yes, Sign Out &amp; Deactivate
+								Yes, Delete My Account
 							</button>
 							<button
 								onclick={() => { showDeleteConfirm = false; }}
@@ -214,7 +211,7 @@
 						onclick={() => { showDeleteConfirm = true; }}
 						class="text-sm text-[var(--color-error)] hover:underline"
 					>
-						Sign Out &amp; Deactivate
+						Delete Account
 					</button>
 				{/if}
 			</div>
