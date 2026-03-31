@@ -10,15 +10,20 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
-import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { env } from '$env/dynamic/private';
 
 export function createAdminClient() {
+	const supabaseUrl = env.PUBLIC_SUPABASE_URL;
 	const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+
+	if (!supabaseUrl) {
+		throw new Error('PUBLIC_SUPABASE_URL is not set');
+	}
 	if (!serviceRoleKey) {
 		throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
 	}
-	return createClient<Database>(PUBLIC_SUPABASE_URL, serviceRoleKey, {
+
+	return createClient<Database>(supabaseUrl, serviceRoleKey, {
 		auth: {
 			autoRefreshToken: false,
 			persistSession: false

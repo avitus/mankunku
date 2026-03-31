@@ -251,6 +251,7 @@ export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId:
 				if (n.pitch !== null && n.pitch > rangeHigh) {
 					let p = n.pitch;
 					while (p > rangeHigh) p -= 12;
+					p = Math.max(p, 0);
 					return { ...n, pitch: p };
 				}
 				return n;
@@ -272,12 +273,12 @@ function snapMidiToScale(midi: number, scalePCs: Set<number>, rangeHigh?: number
 	for (let offset = 1; offset <= 6; offset++) {
 		const below = ((pc - offset) % 12 + 12) % 12;
 		const above = (pc + offset) % 12;
-		if (scalePCs.has(below)) return midi - offset;
+		if (scalePCs.has(below)) return Math.max(midi - offset, 0);
 		if (scalePCs.has(above)) {
-			const snapped = midi + offset;
+			let snapped = midi + offset;
 			// If snapping up pushes past the ceiling, shift down an octave
-			if (rangeHigh != null && snapped > rangeHigh) return snapped - 12;
-			return snapped;
+			if (rangeHigh != null && snapped > rangeHigh) snapped -= 12;
+			return Math.max(snapped, 0);
 		}
 	}
 	return midi;
