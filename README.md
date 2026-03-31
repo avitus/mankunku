@@ -52,7 +52,7 @@ The app opens at `http://localhost:5173`. The onboarding flow will prompt for in
 
 ## Project Structure
 
-```
+```text
 src/
   lib/
     audio/          Audio pipeline: playback, capture, pitch detection, onset detection
