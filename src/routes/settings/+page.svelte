@@ -256,6 +256,7 @@
 				}}
 				class="w-full rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm"
 			>
+				<option value="">Instrument default</option>
 				{#each instrument.highNotePresets as midi}
 					{@const writtenMidi = concertToWritten(midi, instrument)}
 					{@const isDefault = midi === instrument.concertRangeHigh - 1}

@@ -155,10 +155,10 @@ function bestOctaveShift(midiNotes: number[], rangeHigh?: number): number {
  * (C4–Eb5, MIDI 60–75) as much as possible.
  */
 export function transposeLick(lick: Phrase, targetKey: PitchClass, rangeHigh?: number): Phrase {
-	if (targetKey === 'C') return lick;
-
 	const semitones = PITCH_CLASSES.indexOf(targetKey);
-	if (semitones === 0) return lick;
+
+	// No transposition and no custom range — return as-is
+	if (semitones === 0 && rangeHigh == null) return lick;
 
 	// Collect pitched notes to determine optimal octave placement
 	const pitchedNotes = lick.notes
@@ -168,6 +168,9 @@ export function transposeLick(lick: Phrase, targetKey: PitchClass, rangeHigh?: n
 
 	const octaveShift = bestOctaveShift(pitchedNotes, rangeHigh);
 	const totalShift = semitones + octaveShift * 12;
+
+	// Key is C and octave shift is 0 — no change needed
+	if (semitones === 0 && octaveShift === 0) return lick;
 
 	const transposePC = (pc: PitchClass): PitchClass =>
 		PITCH_CLASSES[(PITCH_CLASSES.indexOf(pc) + semitones) % 12];
@@ -240,13 +243,15 @@ export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId:
 		result = snapLickToScale(transposed, key, scaleId, rangeHigh);
 	}
 
-	// Final safety clamp: any note above rangeHigh is shifted down an octave
+	// Final safety clamp: shift notes down as many octaves as needed
 	if (rangeHigh != null) {
 		result = {
 			...result,
 			notes: result.notes.map(n => {
 				if (n.pitch !== null && n.pitch > rangeHigh) {
-					return { ...n, pitch: n.pitch - 12 };
+					let p = n.pitch;
+					while (p > rangeHigh) p -= 12;
+					return { ...n, pitch: p };
 				}
 				return n;
 			})

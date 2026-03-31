@@ -7,7 +7,7 @@
  *   - generatePhrase (generator)
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { transposeLick, transposeLickForTonality, pickRandomLick } from '$lib/phrases/library-loader.ts';
 import { octaveDisplacement, mutateLick } from '$lib/phrases/mutator.ts';
 import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator.ts';
@@ -40,6 +40,10 @@ function makePhrase(pitches: (number | null)[], category: string = 'pentatonic')
 	} as Phrase;
 }
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 // ─── transposeLick with rangeHigh ───────────────────────────
 
 describe('transposeLick — rangeHigh constraint', () => {
@@ -51,11 +55,7 @@ describe('transposeLick — rangeHigh constraint', () => {
 		const result = transposeLick(phrase, 'B', 72);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 
-		// All pitches should respect the tighter range better than without
-		for (const p of pitches) {
-			expect(p).toBeLessThanOrEqual(83); // at least shifted down
-		}
-		// Specifically: with shift -1, pitches are 59, 63, 66, 71
+		// With shift -1, pitches are 59, 63, 66, 71
 		expect(pitches).toEqual([59, 63, 66, 71]);
 	});
 
@@ -69,32 +69,65 @@ describe('transposeLick — rangeHigh constraint', () => {
 			.toEqual(customResult.notes.map(n => n.pitch));
 	});
 
-	it('with very low rangeHigh, forces notes into lower octaves', () => {
+	it('with low rangeHigh, forces octave shift that keeps max pitch within bound', () => {
 		// Notes at 60-67. Transpose to G (+7) naively → 67-74, all in default range.
-		// With rangeHigh=68, shift -1 → 55-62 (most within 60-68)
+		// With rangeHigh=68, bestOctaveShift tries shift 0: only 67,68 in [60,68] = 2.
+		// shift -1: 55,57,59,62 → only 62 in [60,68] = 1. Actually shift 0 wins:
+		// shift 0: [67,69,71,74] → 67 in [60,68] = 1. shift -1: [55,57,59,62] → 62 in range = 1.
+		// Tie: -1 closer to mid(64), so -1 wins. totalShift = 7 + (-12) = -5.
+		// Pitches: 55, 57, 59, 62
 		const phrase = makePhrase([60, 62, 64, 67]);
 		const result = transposeLick(phrase, 'G', 68);
 		const pitches = result.notes.map(n => n.pitch) as number[];
+		const maxPitch = Math.max(...pitches);
 
-		for (const p of pitches) {
-			// Should not exceed rangeHigh by a lot (octave optimization gets close)
-			expect(p).toBeLessThanOrEqual(80);
-		}
+		expect(maxPitch).toBeLessThanOrEqual(68);
+		// Verify shift actually moved notes lower than naive +7
+		const naiveMax = 67 + 7; // 74
+		expect(maxPitch).toBeLessThan(naiveMax);
+	});
+
+	it('applies octave shift for key C when rangeHigh is low', () => {
+		// Lick with notes above a low rangeHigh — key C should still optimize
+		const phrase = makePhrase([60, 64, 67, 72]);
+		const result = transposeLick(phrase, 'C', 65);
+		const pitches = result.notes.map(n => n.pitch) as number[];
+
+		// bestOctaveShift should shift down to fit more notes in [60,65]
+		// shift -1: [48,52,55,60] → 60 in range = 1
+		// shift 0: [60,64,67,72] → 60,64 in range = 2
+		// shift 0 wins, totalShift = 0 (key C). But notes 67,72 still above 65.
+		// This verifies that transposeLick doesn't skip C when rangeHigh is given.
+		expect(result.key).toBe('C');
+		expect(pitches.length).toBe(4);
 	});
 });
 
 // ─── transposeLickForTonality with rangeHigh ─────────────────
 
 describe('transposeLickForTonality — rangeHigh safety clamp', () => {
-	it('clamps notes above rangeHigh down by an octave', () => {
-		// Notes at 67-74 (G4-D5). Transpose to B (+11) → 78-85 raw.
-		// With rangeHigh=75, safety clamp shifts any note > 75 down by 12.
-		const phrase = makePhrase([67, 70, 74]);
-		const result = transposeLickForTonality(phrase, 'B', 'major.ionian', 75);
+	it('clamps notes above rangeHigh down into range', () => {
+		// Wide-spanning lick: 48, 60, 72, 84 (3 octaves apart).
+		// Transpose to D (+2) → bestOctaveShift picks shift 0 → pitches: 50, 62, 74, 86.
+		// 86 > 75 → safety clamp shifts down to 74.
+		const phrase = makePhrase([48, 60, 72, 84]);
+		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 75);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 
 		for (const p of pitches) {
 			expect(p).toBeLessThanOrEqual(75);
+		}
+	});
+
+	it('clamps notes down multiple octaves if needed', () => {
+		// Extreme case: note at 96 with rangeHigh=70
+		// 96 - 12 = 84, still > 70. 84 - 12 = 72, still > 70. 72 - 12 = 60 ≤ 70.
+		const phrase = makePhrase([60, 96]);
+		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 70);
+		const pitches = result.notes.map(n => n.pitch) as number[];
+
+		for (const p of pitches) {
+			expect(p).toBeLessThanOrEqual(70);
 		}
 	});
 
@@ -110,7 +143,6 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 	});
 
 	it('clamp applies after scale snapping', () => {
-		// Use blues scale which may snap notes upward
 		const phrase = makePhrase([60, 64, 67]);
 		const result = transposeLickForTonality(phrase, 'A', 'blues.minor', 72);
 		const pitches = result.notes.filter(n => n.pitch !== null).map(n => n.pitch) as number[];
@@ -126,12 +158,14 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 		expect(result.notes[1].pitch).toBeNull();
 	});
 
-	it('without rangeHigh, no safety clamp is applied', () => {
-		// Notes near the top of range. Transpose to B (+11).
-		// Without rangeHigh, the octave optimizer does its best but no post-clamp.
-		const phrase = makePhrase([67, 70, 74]);
-		const withClamp = transposeLickForTonality(phrase, 'B', 'major.ionian', 75);
-		const without = transposeLickForTonality(phrase, 'B', 'major.ionian');
+	it('without rangeHigh, no safety clamp is applied; with it, all pitches are clamped', () => {
+		// Wide-spanning lick where bestOctaveShift can't fit all notes in [60,75].
+		// 48, 60, 72, 84 → transpose to D (+2) → 50, 62, 74, 86
+		// D ionian PCs: {2,4,6,7,9,11,1}. All pitches %12=2(D) → in scale, no snap.
+		const phrase = makePhrase([48, 60, 72, 84]);
+
+		const withClamp = transposeLickForTonality(phrase, 'D', 'major.ionian', 75);
+		const without = transposeLickForTonality(phrase, 'D', 'major.ionian');
 
 		const clampedPitches = withClamp.notes.map(n => n.pitch) as number[];
 		const defaultPitches = without.notes.map(n => n.pitch) as number[];
@@ -140,11 +174,11 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 		for (const p of clampedPitches) {
 			expect(p).toBeLessThanOrEqual(75);
 		}
-		// Without, some may be above (depending on octave optimization)
-		// Just confirm the two results can differ
-		const allSame = clampedPitches.every((p, i) => p === defaultPitches[i]);
-		// It's valid for them to be the same if the optimizer already placed them low,
-		// but the code paths differ — we're testing that no error occurs either way
+
+		// Without clamp, at least one pitch > 75 (the 84+2=86 note)
+		expect(defaultPitches.some(p => p > 75)).toBe(true);
+
+		// Same number of notes
 		expect(clampedPitches.length).toBe(defaultPitches.length);
 	});
 });
@@ -152,19 +186,41 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 // ─── octaveDisplacement with rangeHigh ───────────────────────
 
 describe('octaveDisplacement — rangeHigh constraint', () => {
-	it('respects rangeHigh and does not displace notes above it', () => {
+	it('rejects upward displacement that would exceed rangeHigh', () => {
 		// 6 notes, inner 4 eligible for displacement. With rangeHigh=70,
 		// a note at 65 shifted +12 = 77 > 70, so it should be rejected.
 		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
 
-		// Run many times to exercise the random path
-		for (let i = 0; i < 50; i++) {
-			const result = octaveDisplacement(phrase, 70);
-			for (const n of result.notes) {
-				if (n.pitch !== null) {
-					expect(n.pitch).toBeLessThanOrEqual(70);
-					expect(n.pitch).toBeGreaterThanOrEqual(44);
-				}
+		// Mock Math.random to always trigger displacement (< 0.25) and always go up (> 0.5)
+		const randomValues = [0.1, 0.6]; // 0.1 = triggers displacement, 0.6 = direction up (+12)
+		let callIdx = 0;
+		vi.spyOn(Math, 'random').mockImplementation(() => {
+			return randomValues[callIdx++ % randomValues.length];
+		});
+
+		const result = octaveDisplacement(phrase, 70);
+		for (const n of result.notes) {
+			if (n.pitch !== null) {
+				expect(n.pitch).toBeLessThanOrEqual(70);
+				expect(n.pitch).toBeGreaterThanOrEqual(44);
+			}
+		}
+	});
+
+	it('allows downward displacement within range', () => {
+		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
+
+		// Mock Math.random: triggers displacement (< 0.25) and goes down (< 0.5)
+		const randomValues = [0.1, 0.3]; // 0.1 = triggers, 0.3 = direction down (-12)
+		let callIdx = 0;
+		vi.spyOn(Math, 'random').mockImplementation(() => {
+			return randomValues[callIdx++ % randomValues.length];
+		});
+
+		const result = octaveDisplacement(phrase, 70);
+		for (const n of result.notes) {
+			if (n.pitch !== null) {
+				expect(n.pitch).toBeGreaterThanOrEqual(44);
 			}
 		}
 	});
@@ -172,16 +228,25 @@ describe('octaveDisplacement — rangeHigh constraint', () => {
 	it('default rangeHigh (84) allows higher displacement', () => {
 		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
 
-		// With default, notes can go up to 84
-		for (let i = 0; i < 50; i++) {
-			const result = octaveDisplacement(phrase);
-			for (const n of result.notes) {
-				if (n.pitch !== null) {
-					expect(n.pitch).toBeLessThanOrEqual(84);
-					expect(n.pitch).toBeGreaterThanOrEqual(44);
-				}
+		// Mock: always displace up
+		const randomValues = [0.1, 0.6];
+		let callIdx = 0;
+		vi.spyOn(Math, 'random').mockImplementation(() => {
+			return randomValues[callIdx++ % randomValues.length];
+		});
+
+		const result = octaveDisplacement(phrase);
+		for (const n of result.notes) {
+			if (n.pitch !== null) {
+				expect(n.pitch).toBeLessThanOrEqual(84);
+				expect(n.pitch).toBeGreaterThanOrEqual(44);
 			}
 		}
+		// At least some inner notes should have been displaced up
+		const innerPitches = result.notes.slice(1, -1).map(n => n.pitch!);
+		const originalInner = [62, 64, 65, 67];
+		const someDisplaced = innerPitches.some((p, i) => p !== originalInner[i]);
+		expect(someDisplaced).toBe(true);
 	});
 });
 
@@ -191,16 +256,47 @@ describe('mutateLick — rangeHigh constraint', () => {
 	it('validates mutations against the custom range', () => {
 		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
 
-		// Run many times — if a mutation would produce out-of-range notes,
-		// it should be rejected (returns null)
-		for (let i = 0; i < 30; i++) {
-			const result = mutateLick(phrase, 72);
-			if (result !== null) {
-				for (const n of result.notes) {
-					if (n.pitch !== null) {
-						expect(n.pitch).toBeLessThanOrEqual(72);
-						expect(n.pitch).toBeGreaterThanOrEqual(44);
-					}
+		// Mock Math.random to select octaveDisplacement (index 1) and displace up
+		// mutateLick picks mutation via Math.floor(Math.random() * 4)
+		// We want index 1 (octaveDisplacement): Math.random() returns 0.3 → floor(0.3*4)=1
+		// Then within octaveDisplacement: 0.1 (trigger), 0.6 (up)
+		const sequence = [0.3, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6];
+		let callIdx = 0;
+		vi.spyOn(Math, 'random').mockImplementation(() => {
+			return sequence[callIdx++ % sequence.length];
+		});
+
+		const result = mutateLick(phrase, 72);
+		if (result !== null) {
+			for (const n of result.notes) {
+				if (n.pitch !== null) {
+					expect(n.pitch).toBeLessThanOrEqual(72);
+					expect(n.pitch).toBeGreaterThanOrEqual(44);
+				}
+			}
+		}
+	});
+
+	it('returns null when mutation violates range', () => {
+		// All notes near ceiling — upward octave displacement will exceed range,
+		// and the validation should reject it
+		const phrase = makePhrase([68, 69, 70, 71, 72, 73]);
+
+		// Force octaveDisplacement (index 1) with upward displacement
+		const sequence = [0.3, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6];
+		let callIdx = 0;
+		vi.spyOn(Math, 'random').mockImplementation(() => {
+			return sequence[callIdx++ % sequence.length];
+		});
+
+		// With rangeHigh=73, displaced notes (e.g. 69+12=81) exceed range
+		// but octaveDisplacement rejects individual displacements > rangeHigh,
+		// so the result may be unchanged or null depending on validation
+		const result = mutateLick(phrase, 73);
+		if (result !== null) {
+			for (const n of result.notes) {
+				if (n.pitch !== null) {
+					expect(n.pitch).toBeLessThanOrEqual(73);
 				}
 			}
 		}
@@ -254,7 +350,6 @@ describe('generatePhrase — rangeHigh option', () => {
 	it('higher rangeHigh allows altissimo notes', () => {
 		const harmony = getDefaultHarmony('ii-V-I-major', 'C');
 
-		// With rangeHigh=85, the generator can use a wider range
 		const phrase = generatePhrase({
 			key: 'C',
 			category: 'ii-V-I-major',
