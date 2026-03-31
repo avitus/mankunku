@@ -43,6 +43,9 @@ type SupabaseDB = SupabaseClient<Database>;
 /** Maximum session results to sync — matches MAX_SESSIONS in progress.svelte.ts. */
 const MAX_SESSIONS = 200;
 
+/** Pattern for allowed session ID characters (alphanumeric, hyphen, underscore). */
+const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
 // ── Helper ───────────────────────────────────────────────────────────
 
 /**
@@ -180,6 +183,30 @@ export async function syncProgressToCloud(
 		}
 	} catch (error) {
 		console.warn('Failed to sync progress to cloud:', error);
+	}
+}
+
+/**
+ * Delete all detail rows (session_results, scale_proficiency, key_proficiency)
+ * for the authenticated user. Called during progress reset to remove orphaned
+ * rows that `syncProgressToCloud` would skip when the arrays are empty.
+ */
+export async function deleteProgressDetailsFromCloud(
+	supabase: SupabaseDB
+): Promise<void> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const tables = ['session_results', 'scale_proficiency', 'key_proficiency'] as const;
+		for (const table of tables) {
+			const { error } = await supabase.from(table).delete().eq('user_id', userId);
+			if (error) {
+				console.warn(`Failed to delete ${table} from cloud:`, error);
+			}
+		}
+	} catch (error) {
+		console.warn('Failed to delete progress details from cloud:', error);
 	}
 }
 
@@ -448,6 +475,11 @@ export async function uploadRecording(
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return;
 
+		if (!SAFE_ID_RE.test(sessionId)) {
+			console.warn('Invalid sessionId for upload — rejected:', sessionId);
+			return;
+		}
+
 		const path = `${userId}/${sessionId}.webm`;
 		const { error } = await supabase.storage
 			.from('recordings')
@@ -475,6 +507,11 @@ export async function downloadRecording(
 	try {
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return null;
+
+		if (!SAFE_ID_RE.test(sessionId)) {
+			console.warn('Invalid sessionId for download — rejected:', sessionId);
+			return null;
+		}
 
 		const path = `${userId}/${sessionId}.webm`;
 		const { data, error } = await supabase.storage

@@ -15,9 +15,15 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const code = url.searchParams.get('code');
 
 	if (code) {
-		const { error } = await supabase.auth.exchangeCodeForSession(code);
-		if (!error) {
-			redirect(303, '/');
+		try {
+			const { error } = await supabase.auth.exchangeCodeForSession(code);
+			if (!error) {
+				redirect(303, '/');
+			}
+		} catch (err) {
+			// Re-throw SvelteKit redirect (it throws by design)
+			if (err && typeof err === 'object' && 'status' in err) throw err;
+			console.warn('OAuth code exchange failed:', err);
 		}
 	}
 

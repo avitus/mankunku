@@ -123,12 +123,10 @@ describe('uploadRecording', () => {
 		// Should NOT throw
 		await expect(
 			uploadRecording(mock as any, 'session-1', blob)
-		).resolves.not.toThrow();
+		).resolves.toBeUndefined();
 
 		// Should log warning
 		expect(warnSpy).toHaveBeenCalled();
-
-		warnSpy.mockRestore();
 	});
 
 	it('uses contentType audio/webm and upsert true', async () => {
@@ -151,10 +149,9 @@ describe('uploadRecording', () => {
 
 		await expect(
 			uploadRecording(mock as any, 'session-1', new Blob(['test']))
-		).resolves.not.toThrow();
+		).resolves.toBeUndefined();
 
 		expect(warnSpy).toHaveBeenCalled();
-		warnSpy.mockRestore();
 	});
 });
 

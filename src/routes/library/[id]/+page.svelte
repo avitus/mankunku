@@ -19,29 +19,30 @@
 
 	// Async state for user-recorded lick resolution (fallback when curated lookup fails)
 	let userLick: Phrase | null = $state(null);
+	let effectRunId = 0;
 
 	$effect(() => {
 		const id = page.params.id ?? '';
 		const sb = supabase;
 		const sess = authSession;
 
+		userLick = null;
+		const runId = ++effectRunId;
+
 		// Only search user licks if the curated lookup fails
 		if (!getLickById(id)) {
-			if (sess && sb) {
-				getUserLicks(sb).then((licks) => {
+			const assign = (licks: Phrase[]) => {
+				if (runId === effectRunId) {
 					userLick = licks.find(l => l.id === id) ?? null;
-				}).catch(() => {
-					getUserLicks().then((licks) => {
-						userLick = licks.find(l => l.id === id) ?? null;
-					});
+				}
+			};
+			if (sess && sb) {
+				getUserLicks(sb).then(assign).catch(() => {
+					getUserLicks().then(assign);
 				});
 			} else {
-				getUserLicks().then((licks) => {
-					userLick = licks.find(l => l.id === id) ?? null;
-				});
+				getUserLicks().then(assign);
 			}
-		} else {
-			userLick = null;
 		}
 	});
 

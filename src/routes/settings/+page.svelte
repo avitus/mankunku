@@ -205,7 +205,7 @@
 						onclick={() => { showDeleteConfirm = true; }}
 						class="text-sm text-[var(--color-error)] hover:underline"
 					>
-						Delete Account
+						Sign Out &amp; Deactivate
 					</button>
 				{/if}
 			</div>

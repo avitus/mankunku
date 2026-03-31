@@ -88,8 +88,10 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
 			error
 		} = await event.locals.supabase.auth.getUser();
 
-		// If JWT validation fails (expired, revoked, tampered), discard the session
-		if (error) {
+		// If JWT validation fails (expired, revoked, tampered) or user is null,
+		// discard the session — both a valid error and a missing user indicate
+		// an invalid auth state.
+		if (error || !user) {
 			return { session: null, user: null };
 		}
 

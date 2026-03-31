@@ -437,7 +437,19 @@
 			</p>
 			<div class="flex justify-center gap-2">
 				<button
-					onclick={() => { resetProgress(supabase); settings.tonalityOverride = null; saveSettings(supabase); showResetConfirm = false; import('$lib/persistence/audio-store').then(m => m.clearAllRecordings()).catch(() => {}); recordingIds = new Set(); }}
+					onclick={async () => {
+						try {
+							resetProgress(supabase);
+							settings.tonalityOverride = null;
+							saveSettings(supabase);
+							const m = await import('$lib/persistence/audio-store');
+							await m.clearAllRecordings();
+							recordingIds = new Set();
+						} catch (err) {
+							console.warn('Failed to fully reset progress:', err);
+						}
+						showResetConfirm = false;
+					}}
 					class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 				>
 					Yes, Reset

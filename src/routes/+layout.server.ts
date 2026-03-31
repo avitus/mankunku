@@ -19,6 +19,8 @@ export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 	return {
 		session,
 		user,
-		cookies: cookies.getAll()
+		cookies: cookies.getAll().filter(
+			(c) => c.name.startsWith('sb-') || c.name.startsWith('supabase-')
+		)
 	};
 };

@@ -21,42 +21,35 @@
 
 	/** User-recorded licks loaded from localStorage and/or Supabase cloud */
 	let userLicks: Phrase[] = $state([]);
+	let effectRunId = 0;
 
 	/**
 	 * Reactively load user licks when auth state changes.
 	 * Authenticated users get merged local + cloud licks for cross-device access.
 	 * Anonymous users get localStorage-only licks.
+	 * Uses a run ID to discard stale responses from previous effect runs.
 	 */
 	$effect(() => {
 		// Read derived values synchronously so Svelte tracks them as dependencies
 		const sb = supabase;
 		const sess = session;
+		const runId = ++effectRunId;
+
+		const assign = (licks: Phrase[]) => {
+			if (runId === effectRunId) userLicks = licks;
+		};
 
 		if (sess && sb) {
 			// Authenticated: fetch merged local + cloud licks
 			getUserLicks(sb)
-				.then((licks) => {
-					userLicks = licks;
-				})
+				.then(assign)
 				.catch(() => {
 					// Fallback to local-only on cloud error
-					getUserLicks()
-						.then((licks) => {
-							userLicks = licks;
-						})
-						.catch(() => {
-							userLicks = [];
-						});
+					getUserLicks().then(assign).catch(() => assign([]));
 				});
 		} else {
 			// Anonymous: load from localStorage only
-			getUserLicks()
-				.then((licks) => {
-					userLicks = licks;
-				})
-				.catch(() => {
-					userLicks = [];
-				});
+			getUserLicks().then(assign).catch(() => assign([]));
 		}
 	});
 

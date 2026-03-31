@@ -13,7 +13,7 @@ import { createInitialAdaptiveState, processAttempt, createInitialScaleProficien
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
-import { syncProgressToCloud, loadProgressFromCloud } from '$lib/persistence/sync';
+import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud } from '$lib/persistence/sync';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 200; // keep last 200 sessions
@@ -324,6 +324,10 @@ export function getCategoryStats(): CategoryProgress[] {
 
 /**
  * Reset all progress (destructive).
+ *
+ * Clears local state and syncs the empty state to cloud. Also deletes
+ * orphaned detail rows (session_results, scale_proficiency, key_proficiency)
+ * that syncProgressToCloud would skip because the arrays are empty.
  */
 export function resetProgress(supabase?: SupabaseClient<Database>): void {
 	const fresh = createInitialProgress();
@@ -334,6 +338,10 @@ export function resetProgress(supabase?: SupabaseClient<Database>): void {
 	if (supabase) {
 		syncProgressToCloud(supabase, progress).catch((err) => {
 			console.warn('Failed to sync progress reset to cloud:', err);
+		});
+		// Delete orphaned detail rows that syncProgressToCloud skips when empty
+		deleteProgressDetailsFromCloud(supabase).catch((err) => {
+			console.warn('Failed to delete progress details from cloud:', err);
 		});
 	}
 }

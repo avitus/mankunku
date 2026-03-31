@@ -279,7 +279,7 @@ describe('syncProgressToCloud', () => {
 
 		await expect(
 			syncProgressToCloud(mock as any, TEST_PROGRESS)
-		).resolves.not.toThrow();
+		).resolves.toBeUndefined();
 
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
@@ -371,7 +371,7 @@ describe('syncProgressToCloud', () => {
 
 		await expect(
 			syncProgressToCloud(mock as any, emptyProgress)
-		).resolves.not.toThrow();
+		).resolves.toBeUndefined();
 
 		// user_progress should still be upserted
 		expect(mock._fromFn).toHaveBeenCalledWith('user_progress');
@@ -560,7 +560,7 @@ describe('loadProgressFromCloud', () => {
 
 		await expect(
 			loadProgressFromCloud(mock as any)
-		).resolves.not.toThrow();
+		).resolves.toBeNull();
 		const result = await loadProgressFromCloud(mock as any);
 		expect(result).toBeNull();
 
@@ -647,7 +647,7 @@ describe('syncSettingsToCloud', () => {
 
 		await expect(
 			syncSettingsToCloud(mock as any, TEST_SETTINGS)
-		).resolves.not.toThrow();
+		).resolves.toBeUndefined();
 
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
@@ -766,7 +766,7 @@ describe('loadSettingsFromCloud', () => {
 
 		await expect(
 			loadSettingsFromCloud(mock as any)
-		).resolves.not.toThrow();
+		).resolves.toBeNull();
 		const result = await loadSettingsFromCloud(mock as any);
 		expect(result).toBeNull();
 
@@ -836,7 +836,7 @@ describe('syncUserLicksToCloud', () => {
 
 		await expect(
 			syncUserLicksToCloud(mock as any, [])
-		).resolves.not.toThrow();
+		).resolves.toBeUndefined();
 	});
 
 	it('catches errors and does not throw', async () => {
@@ -847,7 +847,7 @@ describe('syncUserLicksToCloud', () => {
 
 		await expect(
 			syncUserLicksToCloud(mock as any, [TEST_LICK])
-		).resolves.not.toThrow();
+		).resolves.toBeUndefined();
 
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();

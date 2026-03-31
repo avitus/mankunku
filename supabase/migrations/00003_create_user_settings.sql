@@ -39,7 +39,6 @@ CREATE TABLE public.user_settings (
   CONSTRAINT user_settings_theme_chk CHECK (theme IN ('dark', 'light')),
   PRIMARY KEY (user_id)
 );
-);
 
 -- Add a comment on the table for documentation
 COMMENT ON TABLE public.user_settings IS

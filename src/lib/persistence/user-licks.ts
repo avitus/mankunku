@@ -18,7 +18,7 @@ import type {
 	DifficultyMetadata,
 	PhraseCategory
 } from '$lib/types/music';
-import { save, load } from './storage.ts';
+import { save, load } from './storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
 
@@ -155,6 +155,9 @@ export function saveUserLick(
 			})
 			.then((result) => {
 				if (result?.error) console.warn('Failed to save lick to cloud:', result.error);
+			})
+			.catch((err) => {
+				console.warn('Failed to save lick to cloud (unexpected):', err);
 			});
 	}
 }
@@ -179,12 +182,17 @@ export function deleteUserLick(
 
 	// Fire-and-forget cloud delete — RLS ensures user can only delete own licks
 	if (supabase) {
-		supabase
-			.from('user_licks')
-			.delete()
-			.eq('id', id)
+		Promise.resolve(
+			supabase
+				.from('user_licks')
+				.delete()
+				.eq('id', id)
+		)
 			.then(({ error }) => {
 				if (error) console.warn('Failed to delete lick from cloud:', error);
+			})
+			.catch((err: unknown) => {
+				console.warn('Failed to delete lick from cloud (unexpected):', err);
 			});
 	}
 }

@@ -123,7 +123,7 @@ async function safeGetSession(supabase: ReturnType<typeof createMockSupabaseClie
 		error
 	} = await supabase.auth.getUser();
 
-	if (error) {
+	if (error || !user) {
 		return { session: null, user: null };
 	}
 
@@ -202,7 +202,7 @@ async function performLogout(
 ): Promise<{ error: string | null }> {
 	const { error } = await supabase.auth.signOut();
 	if (error) {
-		return { error: (error as { message: string }).message ?? 'Sign out failed.' };
+		return { error: (error as Record<string, unknown>)?.message as string ?? 'Sign out failed.' };
 	}
 	return { error: null };
 }
@@ -294,10 +294,8 @@ describe('safeGetSession logic', () => {
 			error: null
 		});
 		// Edge case: getUser returns null user but no explicit error object.
-		// The safeGetSession pattern checks the error field; with no error
-		// but a null user, the function returns the null user alongside the session.
-		// However, the implementation in hooks.server.ts checks `error` not `user`,
-		// so it would return { session, user: null }. Let's verify this behavior.
+		// Both the local recreation and hooks.server.ts now treat a null user
+		// as an invalid auth state — the session is discarded for defense-in-depth.
 		mockClient.auth.getUser.mockResolvedValue({
 			data: { user: null },
 			error: null
@@ -305,10 +303,8 @@ describe('safeGetSession logic', () => {
 
 		const result = await safeGetSession(mockClient);
 
-		// When getUser returns no error but null user, the session is still returned
-		// because the error check passes. This matches the hooks.server.ts implementation
-		// which only checks the `error` field, not the `user` field separately.
-		expect(result.session).toBe(mockSession);
+		// A null user (even without an error) means the auth state is invalid.
+		expect(result.session).toBeNull();
 		expect(result.user).toBeNull();
 	});
 });
