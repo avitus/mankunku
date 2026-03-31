@@ -175,7 +175,7 @@ const TEST_PROGRESS: UserProgress = {
 	lastPracticeDate: '2024-01-15'
 };
 
-const TEST_SETTINGS: Record<string, unknown> = {
+const TEST_SETTINGS = {
 	instrumentId: 'tenor-sax',
 	defaultTempo: 100,
 	masterVolume: 0.8,
@@ -558,9 +558,6 @@ describe('loadProgressFromCloud', () => {
 		const mock = createMockSupabase();
 		mock.auth.getUser.mockRejectedValue(new Error('Auth service down'));
 
-		await expect(
-			loadProgressFromCloud(mock as any)
-		).resolves.toBeNull();
 		const result = await loadProgressFromCloud(mock as any);
 		expect(result).toBeNull();
 
@@ -764,9 +761,6 @@ describe('loadSettingsFromCloud', () => {
 		const mock = createMockSupabase();
 		mock.auth.getUser.mockRejectedValue(new Error('Auth service down'));
 
-		await expect(
-			loadSettingsFromCloud(mock as any)
-		).resolves.toBeNull();
 		const result = await loadSettingsFromCloud(mock as any);
 		expect(result).toBeNull();
 

@@ -86,22 +86,22 @@
 
 	function handleTempoChange(e: Event) {
 		settings.defaultTempo = parseInt((e.target as HTMLInputElement).value);
-		saveSettings(supabase);
 	}
 
 	function handleMasterVolumeChange(e: Event) {
 		settings.masterVolume = parseFloat((e.target as HTMLInputElement).value);
 		setMasterVolume(settings.masterVolume);
-		saveSettings(supabase);
 	}
 
 	function handleVolumeChange(e: Event) {
 		settings.metronomeVolume = parseFloat((e.target as HTMLInputElement).value);
-		saveSettings(supabase);
 	}
 
 	function handleSwingChange(e: Event) {
 		settings.swing = parseFloat((e.target as HTMLInputElement).value);
+	}
+
+	function syncSettingsToCloud() {
 		saveSettings(supabase);
 	}
 
@@ -135,13 +135,12 @@
 			const { error } = await supabase.auth.signOut();
 			if (error) {
 				console.warn('Failed to sign out during account deactivation:', error);
+				return;
 			}
-			// Redirect to auth page
 			window.location.href = '/auth';
 		} catch (err) {
 			console.warn('Account deactivation error:', err);
 		}
-		showDeleteConfirm = false;
 	}
 
 	function scrollIntoView(node: HTMLElement) {
@@ -358,6 +357,7 @@
 					step="0.05"
 					value={settings.masterVolume}
 					oninput={handleMasterVolumeChange}
+					onchange={syncSettingsToCloud}
 					class="mt-1 w-full accent-[var(--color-accent)]"
 				/>
 			</div>
@@ -375,6 +375,7 @@
 					step="5"
 					value={settings.defaultTempo}
 					oninput={handleTempoChange}
+					onchange={syncSettingsToCloud}
 					class="mt-1 w-full accent-[var(--color-accent)]"
 				/>
 			</div>
@@ -392,6 +393,7 @@
 					step="0.05"
 					value={settings.metronomeVolume}
 					oninput={handleVolumeChange}
+					onchange={syncSettingsToCloud}
 					class="mt-1 w-full accent-[var(--color-accent)]"
 				/>
 			</div>
@@ -409,6 +411,7 @@
 					step="0.05"
 					value={settings.swing}
 					oninput={handleSwingChange}
+					onchange={syncSettingsToCloud}
 					class="mt-1 w-full accent-[var(--color-accent)]"
 				/>
 				<div class="flex justify-between text-xs text-[var(--color-text-secondary)]">
@@ -445,7 +448,18 @@
 				</p>
 				<div class="flex gap-2">
 					<button
-						onclick={() => { resetProgress(supabase); settings.tonalityOverride = null; saveSettings(supabase); showResetConfirm = false; }}
+						onclick={async () => {
+							try {
+								resetProgress(supabase);
+								settings.tonalityOverride = null;
+								saveSettings(supabase);
+								const { clearAllRecordings } = await import('$lib/persistence/audio-store');
+								await clearAllRecordings();
+								showResetConfirm = false;
+							} catch (err) {
+								console.warn('Failed to fully reset progress:', err);
+							}
+						}}
 						class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 					>
 						Yes, Reset Everything

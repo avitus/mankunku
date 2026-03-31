@@ -38,6 +38,19 @@ import type { ScaleType } from '$lib/tonality/tonality';
 /** Supabase client parameterized with the Mankunku database schema. */
 type SupabaseDB = SupabaseClient<Database>;
 
+/** Minimal typed interface for settings passed to syncSettingsToCloud. */
+interface SyncableSettings {
+	instrumentId: string;
+	defaultTempo: number;
+	masterVolume: number;
+	metronomeEnabled: boolean;
+	metronomeVolume: number;
+	swing: number;
+	theme: string;
+	onboardingComplete: boolean;
+	tonalityOverride: unknown;
+}
+
 // ── Constants ────────────────────────────────────────────────────────
 
 /** Maximum session results to sync — matches MAX_SESSIONS in progress.svelte.ts. */
@@ -328,15 +341,12 @@ export async function loadProgressFromCloud(
 /**
  * Upsert user settings to the `user_settings` table.
  *
- * The `settings` parameter is typed as `Record<string, unknown>` to keep
- * this module decoupled from the Svelte state layer's internal type.
- * Expected keys match `settings.svelte.ts` defaults: instrumentId,
- * defaultTempo, masterVolume, metronomeEnabled, metronomeVolume, swing,
- * theme, onboardingComplete, tonalityOverride.
+ * The `settings` parameter is typed via the `SyncableSettings` interface
+ * which mirrors the fields from `settings.svelte.ts` defaults.
  */
 export async function syncSettingsToCloud(
 	supabase: SupabaseDB,
-	settings: Record<string, unknown>
+	settings: SyncableSettings
 ): Promise<void> {
 	try {
 		const userId = await getAuthUserId(supabase);
@@ -345,15 +355,15 @@ export async function syncSettingsToCloud(
 		const { error } = await supabase.from('user_settings').upsert(
 			{
 				user_id: userId,
-				instrument_id: settings.instrumentId as string,
-				default_tempo: settings.defaultTempo as number,
-				master_volume: settings.masterVolume as number,
-				metronome_enabled: settings.metronomeEnabled as boolean,
-				metronome_volume: settings.metronomeVolume as number,
-				swing: settings.swing as number,
-				theme: settings.theme as string,
-				onboarding_complete: settings.onboardingComplete as boolean,
-				tonality_override: (settings.tonalityOverride ?? null) as unknown as Json,
+				instrument_id: settings.instrumentId,
+				default_tempo: settings.defaultTempo,
+				master_volume: settings.masterVolume,
+				metronome_enabled: settings.metronomeEnabled,
+				metronome_volume: settings.metronomeVolume,
+				swing: settings.swing,
+				theme: settings.theme,
+				onboarding_complete: settings.onboardingComplete,
+				tonality_override: (settings.tonalityOverride ?? null) as Json,
 				updated_at: new Date().toISOString()
 			},
 			{ onConflict: 'user_id' }

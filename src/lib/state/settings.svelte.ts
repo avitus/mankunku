@@ -36,7 +36,7 @@ export function saveSettings(supabase?: SupabaseClient<Database>): void {
 
 	// Fire-and-forget cloud sync for authenticated users
 	if (supabase) {
-		syncSettingsToCloud(supabase, settings as Record<string, unknown>).catch((err) => {
+		syncSettingsToCloud(supabase, settings).catch((err) => {
 			console.warn('Failed to sync settings to cloud:', err);
 		});
 	}

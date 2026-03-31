@@ -445,10 +445,10 @@
 							const m = await import('$lib/persistence/audio-store');
 							await m.clearAllRecordings();
 							recordingIds = new Set();
+							showResetConfirm = false;
 						} catch (err) {
 							console.warn('Failed to fully reset progress:', err);
 						}
-						showResetConfirm = false;
 					}}
 					class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 				>

@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, isRedirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 /**
@@ -21,8 +21,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 				redirect(303, '/');
 			}
 		} catch (err) {
-			// Re-throw SvelteKit redirect (it throws by design)
-			if (err && typeof err === 'object' && 'status' in err) throw err;
+			if (isRedirect(err)) throw err;
 			console.warn('OAuth code exchange failed:', err);
 		}
 	}

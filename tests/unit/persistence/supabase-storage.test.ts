@@ -201,8 +201,6 @@ describe('downloadRecording', () => {
 
 		expect(result).toBeNull();
 		expect(warnSpy).toHaveBeenCalled();
-
-		warnSpy.mockRestore();
 	});
 
 	it('catches thrown exceptions and returns null', async () => {
@@ -214,8 +212,6 @@ describe('downloadRecording', () => {
 
 		expect(result).toBeNull();
 		expect(warnSpy).toHaveBeenCalled();
-
-		warnSpy.mockRestore();
 	});
 
 	it('constructs download path as {userId}/{sessionId}.webm', async () => {
