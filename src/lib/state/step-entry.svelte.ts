@@ -4,7 +4,7 @@ import { getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
 
-/** Concert pitch range for step entry: Bb3 to F6 */
+/** Concert pitch range for lick entry: Bb3 to F6 */
 const ENTRY_RANGE_LOW = 58;  // Bb below middle C
 const ENTRY_RANGE_HIGH = 89; // F6, one octave above the top staff line
 
@@ -96,7 +96,7 @@ export function getCurrentPhrase(): Phrase {
 
 /**
  * Pick the octave that places `pitchClass` closest to `referenceMidi`,
- * preferring candidates within the step-entry range.
+ * preferring candidates within the lick entry range.
  */
 function nearestOctave(pitchClass: number, referenceMidi: number): number {
 	const refOctave = Math.floor(referenceMidi / 12) - 1;

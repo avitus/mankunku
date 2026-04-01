@@ -154,9 +154,9 @@
 <div class="mx-auto max-w-2xl space-y-6">
 	<!-- Header -->
 	<div class="text-center">
-		<h1 class="text-2xl font-bold">Step Entry</h1>
+		<h1 class="text-2xl font-bold">Lick Entry</h1>
 		<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
-			Compose a phrase note by note
+			Compose a lick note by note
 		</p>
 	</div>
 
