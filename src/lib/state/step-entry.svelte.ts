@@ -181,11 +181,22 @@ export function adjustLastNotePitch(semitones: number): void {
 	if (notes.length === 0) return;
 	const lastNote = notes[notes.length - 1];
 	if (lastNote.pitch === null) return;
-	lastNote.pitch += semitones;
+	const newPitch = lastNote.pitch + semitones;
+	if (!isInEntryRange(newPitch)) return;
+	lastNote.pitch = newPitch;
 }
 
 export function setBarCount(n: number): void {
 	stepEntry.barCount = Math.max(1, Math.min(4, n));
+	const maxCapacity = getMaxCapacity();
+	while (stepEntry.enteredNotes.length > 0) {
+		const last = stepEntry.enteredNotes[stepEntry.enteredNotes.length - 1];
+		if (compareFractions(addFractions(last.offset, last.duration), maxCapacity) > 0) {
+			stepEntry.enteredNotes.pop();
+		} else {
+			break;
+		}
+	}
 }
 
 export function setDuration(id: BaseDurationId): void {

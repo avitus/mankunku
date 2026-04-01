@@ -23,16 +23,18 @@
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let savedConfirmation = $state(false);
 	let isPlaying = $state(false);
+	let saveResetTimer: ReturnType<typeof setTimeout> | undefined;
 
 	onMount(async () => {
-		playbackModule = await import('$lib/audio/playback');
 		window.addEventListener('keydown', handleKeydown);
+		playbackModule = await import('$lib/audio/playback');
 	});
 
 	onDestroy(() => {
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('keydown', handleKeydown);
 		}
+		clearTimeout(saveResetTimer);
 		playbackModule?.stopPlayback();
 	});
 
@@ -112,12 +114,11 @@
 	async function handlePlayBack() {
 		if (!playbackModule || currentPhrase.notes.length === 0 || isPlaying) return;
 
-		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-		}
-
 		isPlaying = true;
 		try {
+			if (!playbackModule.isInstrumentLoaded()) {
+				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+			}
 			await playbackModule.playPhrase(currentPhrase, {
 				tempo: settings.defaultTempo,
 				swing: 0.5,
@@ -137,11 +138,12 @@
 		phrase.difficulty = calculateDifficulty(phrase);
 
 		saveUserLick(phrase, supabase ?? undefined);
+		reset();
 
 		savedConfirmation = true;
-		setTimeout(() => {
+		clearTimeout(saveResetTimer);
+		saveResetTimer = setTimeout(() => {
 			savedConfirmation = false;
-			reset();
 		}, 1500);
 	}
 
