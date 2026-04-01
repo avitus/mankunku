@@ -141,12 +141,117 @@ function sameDuration(a: [number, number], b: [number, number]): boolean {
 	return a[0] === b[0] && a[1] === b[1];
 }
 
+/** Standard rest durations in descending order (whole notes) */
+const REST_DURATIONS: [number, number][] = [[1, 2], [1, 4], [1, 8], [1, 16]];
+
+/** Convert a float to the nearest standard musical fraction */
+function approxToFraction(f: number): [number, number] {
+	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
+		const num = Math.round(f * den);
+		if (Math.abs(num / den - f) < 1e-9) return [num, den];
+	}
+	return [Math.round(f * 24), 24];
+}
+
+/**
+ * Merge consecutive non-triplet rests into standard notation groupings.
+ *
+ * Rules (standard practice for 4/4 and duple meters):
+ *  - Rests never cross barlines
+ *  - A rest spanning an entire bar becomes a single whole-bar rest
+ *  - Rests don't cross the bar midpoint (beat 3 in 4/4) — this keeps
+ *    the two halves of the bar visually distinct
+ *  - Within each segment, use the largest standard duration that fits
+ *  - Triplet rests are left untouched (they belong to a triplet group)
+ */
+function mergeConsecutiveRests(
+	notes: readonly Note[],
+	timeSignature: [number, number]
+): Note[] {
+	const barDur = timeSignature[0] / timeSignature[1];
+	const midDur = barDur / 2;
+	const useMidpoint = timeSignature[0] >= 4 && timeSignature[0] % 2 === 0;
+	const result: Note[] = [];
+	let i = 0;
+
+	while (i < notes.length) {
+		if (notes[i].pitch !== null || getTripletBase(notes[i].duration) !== null) {
+			result.push(notes[i]);
+			i++;
+			continue;
+		}
+
+		// Collect contiguous non-triplet rests
+		let spanEnd = fractionToFloat(notes[i].offset) + fractionToFloat(notes[i].duration);
+		let j = i + 1;
+		while (j < notes.length && notes[j].pitch === null && getTripletBase(notes[j].duration) === null) {
+			const nextStart = fractionToFloat(notes[j].offset);
+			if (Math.abs(spanEnd - nextStart) > 1e-9) break;
+			spanEnd = nextStart + fractionToFloat(notes[j].duration);
+			j++;
+		}
+
+		fillRests(result, fractionToFloat(notes[i].offset), spanEnd, barDur, midDur, useMidpoint, timeSignature);
+		i = j;
+	}
+
+	return result;
+}
+
+/** Recursively decompose a rest span into properly grouped rests */
+function fillRests(
+	result: Note[], start: number, end: number,
+	barDur: number, midDur: number, useMidpoint: boolean,
+	timeSignature: [number, number]
+): void {
+	if (end - start < 1e-9) return;
+
+	const barIndex = Math.floor(start / barDur + 1e-9);
+	const barStart = barIndex * barDur;
+	const barEnd = barStart + barDur;
+
+	// Split at barline
+	if (end > barEnd + 1e-9) {
+		fillRests(result, start, barEnd, barDur, midDur, useMidpoint, timeSignature);
+		fillRests(result, barEnd, end, barDur, midDur, useMidpoint, timeSignature);
+		return;
+	}
+
+	// Whole-bar rest
+	if (Math.abs(start - barStart) < 1e-9 && Math.abs(end - barEnd) < 1e-9) {
+		result.push({ pitch: null, duration: [timeSignature[0], timeSignature[1]], offset: approxToFraction(start) });
+		return;
+	}
+
+	// Split at midpoint (e.g. beat 3 in 4/4)
+	if (useMidpoint) {
+		const mid = barStart + midDur;
+		if (start < mid - 1e-9 && end > mid + 1e-9) {
+			fillRests(result, start, mid, barDur, midDur, useMidpoint, timeSignature);
+			fillRests(result, mid, end, barDur, midDur, useMidpoint, timeSignature);
+			return;
+		}
+	}
+
+	// Greedy: largest standard duration first
+	let cursor = start;
+	while (cursor < end - 1e-9) {
+		const remaining = end - cursor;
+		let dur: [number, number] = approxToFraction(remaining);
+		for (const std of REST_DURATIONS) {
+			if (std[0] / std[1] <= remaining + 1e-9) { dur = std; break; }
+		}
+		result.push({ pitch: null, duration: dur, offset: approxToFraction(cursor) });
+		cursor += dur[0] / dur[1];
+	}
+}
+
 /**
  * Generate an ABC notation string from a Phrase.
  *
  * Inserts barlines at bar boundaries, groups notes within beats
- * for proper beam grouping, and emits ABC (3 triplet groups for
- * consecutive triplet notes.
+ * for proper beam grouping, merges consecutive rests, and emits
+ * ABC (3 triplet groups for consecutive triplet notes.
  *
  * @param phrase - The phrase to render
  * @param instrument - If provided, transposes to written pitch
@@ -171,6 +276,9 @@ export function phraseToAbc(
 	// Duration of one beat in whole notes (e.g. quarter = 0.25)
 	const beatDuration = 1 / beatUnit;
 
+	// Preprocess: merge consecutive rests into standard groupings
+	const displayNotes = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
+
 	function renderNote(note: Note, duration: [number, number]): string {
 		if (note.pitch === null) {
 			return `z${durationToAbc(duration, defaultLength)}`;
@@ -194,8 +302,8 @@ export function phraseToAbc(
 	let prevBar = 0;
 	let prevBeat = 0;
 
-	for (let i = 0; i < phrase.notes.length; /* increment varies */) {
-		const note = phrase.notes[i];
+	for (let i = 0; i < displayNotes.length; /* increment varies */) {
+		const note = displayNotes[i];
 		const offset = fractionToFloat(note.offset);
 
 		// Determine bar and beat position (small epsilon for floating-point)
@@ -219,16 +327,16 @@ export function phraseToAbc(
 
 		// Check for a complete triplet group (3 consecutive same-duration triplet notes)
 		const tripBase = getTripletBase(note.duration);
-		if (tripBase !== null && i + 2 < phrase.notes.length &&
-			sameDuration(phrase.notes[i + 1].duration, note.duration) &&
-			sameDuration(phrase.notes[i + 2].duration, note.duration)) {
+		if (tripBase !== null && i + 2 < displayNotes.length &&
+			sameDuration(displayNotes[i + 1].duration, note.duration) &&
+			sameDuration(displayNotes[i + 2].duration, note.duration)) {
 
 			tokens.push('(3');
 			for (let j = 0; j < 3; j++) {
-				tokens.push(renderNote(phrase.notes[i + j], tripBase));
+				tokens.push(renderNote(displayNotes[i + j], tripBase));
 			}
 
-			const lastOffset = fractionToFloat(phrase.notes[i + 2].offset);
+			const lastOffset = fractionToFloat(displayNotes[i + 2].offset);
 			prevBar = Math.floor(lastOffset / barDuration + 1e-9);
 			prevBeat = Math.floor((lastOffset - prevBar * barDuration) / beatDuration + 1e-9);
 			i += 3;
