@@ -77,7 +77,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	 * No additional client-side validation is needed here; the server has already
 	 * confirmed these are legitimate, non-expired credentials.
 	 */
-	const { session, user } = data;
+	const { session, user, isAdmin } = data;
 
-	return { supabase, session, user };
+	return { supabase, session, user, isAdmin };
 };

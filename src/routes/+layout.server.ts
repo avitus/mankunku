@@ -16,9 +16,20 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 	const { session, user } = await locals.safeGetSession();
 
+	let isAdmin = false;
+	if (user) {
+		const { data } = await locals.supabase
+			.from('user_profiles')
+			.select('is_admin')
+			.eq('id', user.id)
+			.single();
+		isAdmin = data?.is_admin ?? false;
+	}
+
 	return {
 		session,
 		user,
+		isAdmin,
 		cookies: cookies.getAll().filter(
 			(c) => c.name.startsWith('sb-') || c.name.startsWith('supabase-')
 		)
