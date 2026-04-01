@@ -53,6 +53,8 @@ export type Database = {
           display_name: string | null
           /** URL to user's avatar image */
           avatar_url: string | null
+          /** Admin flag — admins can delete any user lick */
+          is_admin: boolean
           /** Timestamp of profile creation (ISO 8601) */
           created_at: string
           /** Timestamp of last profile update (ISO 8601) */
@@ -63,6 +65,8 @@ export type Database = {
           id: string
           display_name?: string | null
           avatar_url?: string | null
+          /** Defaults to false */
+          is_admin?: boolean
           /** Auto-set by database default (now()) */
           created_at?: string
           /** Auto-set by database default (now()) */
@@ -72,6 +76,7 @@ export type Database = {
           id?: string
           display_name?: string | null
           avatar_url?: string | null
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }

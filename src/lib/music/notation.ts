@@ -3,6 +3,15 @@ import type { InstrumentConfig } from '$lib/types/instruments.ts';
 import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals.ts';
 import { concertToWritten, concertKeyToWritten } from './transposition.ts';
 
+/** Note letter names A–G */
+type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
+
+/** ABC accidental prefix applied by a key signature */
+type KeySigAccidental = '^' | '_';
+
+/** Map of note letters to their key-signature accidentals */
+type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
+
 /**
  * ABC notation generation from Phrase data.
  *
@@ -17,30 +26,41 @@ const ABC_NOTE_NAMES_FLAT = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A
 const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
 
 /**
- * Key signature accidentals: maps each key to the set of pitch classes (0-11)
+ * Key signature accidentals: maps each key to the set of note letters ('A'–'G')
  * that are sharped or flatted in that key signature.
  *
- * The value for each pitch class is the ABC accidental prefix applied by the key
- * signature: '^' for sharp, '_' for flat. Notes matching the key signature should
- * be written without an explicit accidental; notes that differ need an explicit
- * accidental (including '=' for naturals that cancel a key-sig accidental).
+ * The value for each letter name is the ABC accidental prefix applied by the key
+ * signature: '^' for sharp, '_' for flat, '=' for natural. Notes matching the
+ * key signature should be written without an explicit accidental; notes that
+ * differ require an explicit accidental (including '=' for naturals that cancel
+ * a key-sig sharp or flat).
  */
-const KEY_SIG_ACCIDENTALS: Record<string, Record<number, string>> = {
-	// Sharp keys
+const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
+	// Sharp keys — keyed by letter name that the key signature alters
 	'C':  {},
-	'G':  { 6: '^' },                                         // F#
-	'D':  { 6: '^', 1: '^' },                                 // F#, C#
-	'A':  { 6: '^', 1: '^', 8: '^' },                         // F#, C#, G#
-	'E':  { 6: '^', 1: '^', 8: '^', 3: '^' },                 // F#, C#, G#, D#
-	'B':  { 6: '^', 1: '^', 8: '^', 3: '^', 10: '^' },        // F#, C#, G#, D#, A#
+	'G':  { F: '^' },
+	'D':  { F: '^', C: '^' },
+	'A':  { F: '^', C: '^', G: '^' },
+	'E':  { F: '^', C: '^', G: '^', D: '^' },
+	'B':  { F: '^', C: '^', G: '^', D: '^', A: '^' },
 
 	// Flat keys
-	'F':  { 10: '_' },                                         // Bb
-	'Bb': { 10: '_', 3: '_' },                                 // Bb, Eb
-	'Eb': { 10: '_', 3: '_', 8: '_' },                         // Bb, Eb, Ab
-	'Ab': { 10: '_', 3: '_', 8: '_', 1: '_' },                 // Bb, Eb, Ab, Db
-	'Db': { 10: '_', 3: '_', 8: '_', 1: '_', 6: '_' },         // Bb, Eb, Ab, Db, Gb
-	'Gb': { 10: '_', 3: '_', 8: '_', 1: '_', 6: '_', 11: '_' }, // Bb, Eb, Ab, Db, Gb, Cb
+	'F':  { B: '_' },
+	'Bb': { B: '_', E: '_' },
+	'Eb': { B: '_', E: '_', A: '_' },
+	'Ab': { B: '_', E: '_', A: '_', D: '_' },
+	'Db': { B: '_', E: '_', A: '_', D: '_', G: '_' },
+	'Gb': { B: '_', E: '_', A: '_', D: '_', G: '_', C: '_' },
+};
+
+/**
+ * When a natural note from the chromatic table conflicts with the key signature,
+ * this maps the letter to its enharmonic flat-above spelling.
+ * E.g., in K:Gb (6 flats), B (pc 11) should be Cb since the key sig flats C.
+ */
+const ENHARMONIC_FLAT_RESPELL: Partial<Record<NoteLetter, NoteLetter>> = {
+	B: 'C',  // B natural → Cb
+	E: 'F',  // E natural → Fb
 };
 
 /**
@@ -53,18 +73,29 @@ const KEY_SIG_ACCIDENTALS: Record<string, Record<number, string>> = {
  *
  * ABC octave convention: C = middle C (C4), c = C5, c' = C6, C, = C3
  */
-function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: Record<number, string>): string {
+function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: KeySigMap): string {
 	const pc = midiToPitchClass(midi);
-	const octave = midiToOctave(midi);
+	let octave = midiToOctave(midi);
 	const noteNames = useFlats ? ABC_NOTE_NAMES_FLAT : ABC_NOTE_NAMES_SHARP;
 	const name = noteNames[pc];
 
 	// Extract the raw accidental and letter from the chromatic note name
-	const rawAccidental = name.startsWith('^') || name.startsWith('_') ? name[0] : '';
-	const letter = name.replace(/[\^_=]/, '');
+	let rawAccidental = name.startsWith('^') || name.startsWith('_') ? name[0] : '';
+	let letter = name.replace(/[\^_=]/, '');
+	let keySigAcc = keySigAccidentals[letter as NoteLetter] ?? '';
 
-	// Determine what accidental (if any) the key signature applies to this pitch class
-	const keySigAcc = keySigAccidentals[pc] || '';
+	// Enharmonic respelling: when a natural note's letter is flatted by the key
+	// sig, check if the note should be spelled as the next-letter-flat instead.
+	// E.g., in K:Gb (6 flats), B (pc 11) → Cb since the key sig flats C.
+	if (rawAccidental === '' && keySigAcc === '_') {
+		const above = ENHARMONIC_FLAT_RESPELL[letter as NoteLetter];
+		if (above && (keySigAccidentals[above] ?? '') === '_') {
+			letter = above;
+			rawAccidental = '_';
+			keySigAcc = '_';
+			if (above === 'C') octave += 1; // B→C crosses octave boundary
+		}
+	}
 
 	let accidental: string;
 	if (rawAccidental === keySigAcc) {
@@ -122,11 +153,161 @@ function durationToAbc(duration: [number, number], defaultLength: [number, numbe
 	return `${num}/${den}`;
 }
 
+/** Map triplet durations to their base (non-triplet) equivalents */
+const TRIPLET_BASE: Array<{ triplet: [number, number]; base: [number, number] }> = [
+	{ triplet: [2, 3], base: [1, 1] },   // whole-triplet → whole
+	{ triplet: [1, 3], base: [1, 2] },   // half-triplet → half
+	{ triplet: [1, 6], base: [1, 4] },   // quarter-triplet → quarter
+	{ triplet: [1, 12], base: [1, 8] },  // eighth-triplet → eighth
+];
+
+function getTripletBase(d: [number, number]): [number, number] | null {
+	for (const entry of TRIPLET_BASE) {
+		if (d[0] * entry.triplet[1] === entry.triplet[0] * d[1]) return entry.base;
+	}
+	return null;
+}
+
+function sameDuration(a: [number, number], b: [number, number]): boolean {
+	return a[0] * b[1] === b[0] * a[1];
+}
+
+/** Standard rest durations in descending order (whole notes) */
+const REST_DURATIONS: [number, number][] = [[1, 2], [1, 4], [1, 8], [1, 16]];
+
+/** Convert a float to the nearest standard musical fraction */
+function approxToFraction(f: number): [number, number] {
+	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
+		const num = Math.round(f * den);
+		if (Math.abs(num / den - f) < 1e-9) return [num, den];
+	}
+	return [Math.round(f * 24), 24];
+}
+
+/** Detect compound meters (6/8, 9/8, 12/8, 6/4, etc.) */
+function isCompoundMeter(ts: [number, number]): boolean {
+	return ts[0] % 3 === 0 && ts[0] / 3 >= 2;
+}
+
+/**
+ * Merge consecutive non-triplet rests into standard notation groupings.
+ *
+ * Rules:
+ *  - Rests never cross barlines
+ *  - A rest spanning an entire bar becomes a single whole-bar rest
+ *  - Duple meters: rests don't cross the bar midpoint (beat 3 in 4/4)
+ *  - Compound meters: rests don't cross compound-beat boundaries (every
+ *    3 sub-beats, e.g. every dotted quarter in 6/8)
+ *  - Within each segment, use the largest standard duration that fits
+ *  - Triplet rests are left untouched (they belong to a triplet group)
+ */
+function mergeConsecutiveRests(
+	notes: readonly Note[],
+	timeSignature: [number, number]
+): Note[] {
+	const barDur = timeSignature[0] / timeSignature[1];
+	const compound = isCompoundMeter(timeSignature);
+
+	let splitDur: number;
+	let useSplit: boolean;
+	let restPalette: [number, number][];
+
+	if (compound) {
+		// Compound meters split at each compound-beat boundary (e.g. every 3/8 in 6/8)
+		splitDur = 3 / timeSignature[1];
+		useSplit = true;
+		const compoundBeat: [number, number] = [3, timeSignature[1]];
+		restPalette = [compoundBeat, ...REST_DURATIONS.filter(d => d[0] / d[1] < splitDur - 1e-9)];
+	} else {
+		// Duple meters split at the bar midpoint
+		splitDur = barDur / 2;
+		useSplit = timeSignature[0] % 2 === 0;
+		restPalette = REST_DURATIONS;
+	}
+
+	const result: Note[] = [];
+	let i = 0;
+
+	while (i < notes.length) {
+		if (notes[i].pitch !== null || getTripletBase(notes[i].duration) !== null) {
+			result.push(notes[i]);
+			i++;
+			continue;
+		}
+
+		// Collect contiguous non-triplet rests
+		let spanEnd = fractionToFloat(notes[i].offset) + fractionToFloat(notes[i].duration);
+		let j = i + 1;
+		while (j < notes.length && notes[j].pitch === null && getTripletBase(notes[j].duration) === null) {
+			const nextStart = fractionToFloat(notes[j].offset);
+			if (Math.abs(spanEnd - nextStart) > 1e-9) break;
+			spanEnd = nextStart + fractionToFloat(notes[j].duration);
+			j++;
+		}
+
+		fillRests(result, fractionToFloat(notes[i].offset), spanEnd, barDur, splitDur, useSplit, restPalette, timeSignature);
+		i = j;
+	}
+
+	return result;
+}
+
+/** Recursively decompose a rest span into properly grouped rests */
+function fillRests(
+	result: Note[], start: number, end: number,
+	barDur: number, splitDur: number, useSplit: boolean,
+	restDurations: readonly [number, number][], timeSignature: [number, number]
+): void {
+	if (end - start < 1e-9) return;
+
+	const barIndex = Math.floor(start / barDur + 1e-9);
+	const barStart = barIndex * barDur;
+	const barEnd = barStart + barDur;
+
+	// Split at barline
+	if (end > barEnd + 1e-9) {
+		fillRests(result, start, barEnd, barDur, splitDur, useSplit, restDurations, timeSignature);
+		fillRests(result, barEnd, end, barDur, splitDur, useSplit, restDurations, timeSignature);
+		return;
+	}
+
+	// Whole-bar rest
+	if (Math.abs(start - barStart) < 1e-9 && Math.abs(end - barEnd) < 1e-9) {
+		result.push({ pitch: null, duration: [timeSignature[0], timeSignature[1]], offset: approxToFraction(start) });
+		return;
+	}
+
+	// Split at beat-group boundary (bar midpoint for duple, compound beat for compound)
+	if (useSplit) {
+		const posInBar = start - barStart;
+		const splitIndex = Math.floor(posInBar / splitDur + 1e-9);
+		const nextSplit = barStart + (splitIndex + 1) * splitDur;
+		if (nextSplit < barEnd - 1e-9 && end > nextSplit + 1e-9) {
+			fillRests(result, start, nextSplit, barDur, splitDur, useSplit, restDurations, timeSignature);
+			fillRests(result, nextSplit, end, barDur, splitDur, useSplit, restDurations, timeSignature);
+			return;
+		}
+	}
+
+	// Greedy: largest fitting rest duration first
+	let cursor = start;
+	while (cursor < end - 1e-9) {
+		const remaining = end - cursor;
+		let dur: [number, number] = approxToFraction(remaining);
+		for (const std of restDurations) {
+			if (std[0] / std[1] <= remaining + 1e-9) { dur = std; break; }
+		}
+		result.push({ pitch: null, duration: dur, offset: approxToFraction(cursor) });
+		cursor += dur[0] / dur[1];
+	}
+}
+
 /**
  * Generate an ABC notation string from a Phrase.
  *
- * Inserts barlines at bar boundaries and groups notes within beats
- * for proper beam grouping (eighth notes paired, etc.).
+ * Inserts barlines at bar boundaries, groups notes within beats
+ * for proper beam grouping, merges consecutive rests, and emits
+ * ABC (3 triplet groups for consecutive triplet notes.
  *
  * @param phrase - The phrase to render
  * @param instrument - If provided, transposes to written pitch
@@ -142,7 +323,7 @@ export function phraseToAbc(
 		: phrase.key;
 
 	const useFlats = FLAT_KEYS.includes(displayKey);
-	const keySigAccidentals = KEY_SIG_ACCIDENTALS[displayKey] || {};
+	const keySigAccidentals: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
 
 	const beatsPerBar = phrase.timeSignature[0];
 	const beatUnit = phrase.timeSignature[1];
@@ -150,6 +331,18 @@ export function phraseToAbc(
 	const barDuration = beatsPerBar / beatUnit;
 	// Duration of one beat in whole notes (e.g. quarter = 0.25)
 	const beatDuration = 1 / beatUnit;
+
+	// Preprocess: merge consecutive rests into standard groupings
+	const displayNotes = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
+
+	function renderNote(note: Note, duration: [number, number]): string {
+		if (note.pitch === null) {
+			return `z${durationToAbc(duration, defaultLength)}`;
+		}
+		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
+		const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals);
+		return `${pitch}${durationToAbc(duration, defaultLength)}`;
+	}
 
 	// ABC header
 	const lines: string[] = [
@@ -160,13 +353,13 @@ export function phraseToAbc(
 		`K:${displayKey}`,
 	];
 
-	// Generate notes with barlines and beam grouping
+	// Generate notes with barlines, beam grouping, and triplet groups
 	const tokens: string[] = [];
 	let prevBar = 0;
 	let prevBeat = 0;
 
-	for (let i = 0; i < phrase.notes.length; i++) {
-		const note = phrase.notes[i];
+	for (let i = 0; i < displayNotes.length; /* increment varies */) {
+		const note = displayNotes[i];
 		const offset = fractionToFloat(note.offset);
 
 		// Determine bar and beat position (small epsilon for floating-point)
@@ -188,18 +381,41 @@ export function phraseToAbc(
 			// Same beat: no space — notes are beamed together
 		}
 
-		// Generate ABC for this note
-		if (note.pitch === null) {
-			tokens.push(`z${durationToAbc(note.duration, defaultLength)}`);
-		} else {
-			const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-			const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals);
-			const dur = durationToAbc(note.duration, defaultLength);
-			tokens.push(`${pitch}${dur}`);
+		// Check for a complete triplet group (3 consecutive same-duration pitched triplet notes
+		// with rhythmically contiguous offsets)
+		const tripBase = getTripletBase(note.duration);
+		if (tripBase !== null && i + 2 < displayNotes.length &&
+			sameDuration(displayNotes[i + 1].duration, note.duration) &&
+			sameDuration(displayNotes[i + 2].duration, note.duration) &&
+			displayNotes[i].pitch !== null &&
+			displayNotes[i + 1].pitch !== null &&
+			displayNotes[i + 2].pitch !== null) {
+
+			const tripDur = fractionToFloat(note.duration);
+			const off0 = fractionToFloat(displayNotes[i].offset);
+			const off1 = fractionToFloat(displayNotes[i + 1].offset);
+			const off2 = fractionToFloat(displayNotes[i + 2].offset);
+
+			if (Math.abs(off1 - off0 - tripDur) < 1e-9 &&
+				Math.abs(off2 - off1 - tripDur) < 1e-9) {
+
+				tokens.push('(3');
+				for (let j = 0; j < 3; j++) {
+					tokens.push(renderNote(displayNotes[i + j], tripBase));
+				}
+
+				prevBar = Math.floor(off2 / barDuration + 1e-9);
+				prevBeat = Math.floor((off2 - prevBar * barDuration) / beatDuration + 1e-9);
+				i += 3;
+				continue;
+			}
 		}
 
+		// Single note
+		tokens.push(renderNote(note, note.duration));
 		prevBar = bar;
 		prevBeat = beat;
+		i += 1;
 	}
 
 	tokens.push(' |]');

@@ -23,6 +23,7 @@
 		{ href: '/', label: 'Home' },
 		{ href: '/practice', label: 'Practice' },
 		{ href: '/record', label: 'Record' },
+		{ href: '/entry', label: 'Entry' },
 		{ href: '/library', label: 'Library' },
 		{ href: '/scales', label: 'Scales' },
 		{ href: '/progress', label: 'Progress' },

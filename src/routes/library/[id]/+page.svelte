@@ -11,12 +11,11 @@
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
-	import { getUserLicks } from '$lib/persistence/user-licks';
+	import { getUserLicks, deleteUserLick } from '$lib/persistence/user-licks';
 
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
 	const supabase = $derived(page.data?.supabase ?? null);
 	const authSession = $derived(page.data?.session ?? null);
-
 	// Async state for user-recorded lick resolution (fallback when curated lookup fails)
 	let userLick: Phrase | null = $state(null);
 	let effectRunId = 0;
@@ -48,6 +47,7 @@
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
+	let confirmingDelete = $state(false);
 
 	let selectedKey: PitchClass = $state('C');
 
@@ -88,6 +88,20 @@
 			metronomeVolume: 0
 		});
 		isPlaying = false;
+	}
+
+	const canDelete = $derived(
+		baseLick != null && baseLick.category === 'user'
+	);
+
+	function handleDelete() {
+		if (!baseLick) return;
+		if (!confirmingDelete) {
+			confirmingDelete = true;
+			return;
+		}
+		deleteUserLick(baseLick.id, supabase ?? undefined);
+		goto('/library');
 	}
 
 	onDestroy(() => {
@@ -146,6 +160,17 @@
 				>
 					Practice
 				</button>
+				{#if canDelete}
+					<button
+						onclick={handleDelete}
+						class="rounded px-3 py-2 text-sm font-medium transition-colors
+							{confirmingDelete
+								? 'bg-[var(--color-error)] text-white hover:bg-red-600'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					>
+						{confirmingDelete ? 'Confirm Delete' : 'Delete'}
+					</button>
+				{/if}
 			</div>
 		</div>
 

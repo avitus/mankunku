@@ -90,6 +90,18 @@ export function multiplyFraction(f: [number, number], scalar: number): [number, 
 	return [num / g, f[1] / g];
 }
 
+export function compareFractions(a: [number, number], b: [number, number]): number {
+	const diff = a[0] * b[1] - b[0] * a[1];
+	return diff === 0 ? 0 : diff > 0 ? 1 : -1;
+}
+
+export function subtractFractions(a: [number, number], b: [number, number]): [number, number] {
+	const num = a[0] * b[1] - b[0] * a[1];
+	const den = a[1] * b[1];
+	const g = gcd(Math.abs(num), den);
+	return [num / g, den / g];
+}
+
 export function gcd(a: number, b: number): number {
 	while (b) { [a, b] = [b, a % b]; }
 	return a;
