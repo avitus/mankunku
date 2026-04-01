@@ -54,6 +54,16 @@ const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 };
 
 /**
+ * When a natural note from the chromatic table conflicts with the key signature,
+ * this maps the letter to its enharmonic flat-above spelling.
+ * E.g., in K:Gb (6 flats), B (pc 11) should be Cb since the key sig flats C.
+ */
+const ENHARMONIC_FLAT_RESPELL: Partial<Record<NoteLetter, NoteLetter>> = {
+	B: 'C',  // B natural → Cb
+	E: 'F',  // E natural → Fb
+};
+
+/**
  * Convert a MIDI note to ABC notation pitch string, respecting key signature.
  *
  * ABC notation rule: when a key signature is active, notes that belong to the
@@ -65,16 +75,27 @@ const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
  */
 function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: KeySigMap): string {
 	const pc = midiToPitchClass(midi);
-	const octave = midiToOctave(midi);
+	let octave = midiToOctave(midi);
 	const noteNames = useFlats ? ABC_NOTE_NAMES_FLAT : ABC_NOTE_NAMES_SHARP;
 	const name = noteNames[pc];
 
 	// Extract the raw accidental and letter from the chromatic note name
-	const rawAccidental = name.startsWith('^') || name.startsWith('_') ? name[0] : '';
-	const letter = name.replace(/[\^_=]/, '');
+	let rawAccidental = name.startsWith('^') || name.startsWith('_') ? name[0] : '';
+	let letter = name.replace(/[\^_=]/, '');
+	let keySigAcc = keySigAccidentals[letter as NoteLetter] ?? '';
 
-	// Determine what accidental (if any) the key signature applies to this letter
-	const keySigAcc = keySigAccidentals[letter as NoteLetter] ?? '';
+	// Enharmonic respelling: when a natural note's letter is flatted by the key
+	// sig, check if the note should be spelled as the next-letter-flat instead.
+	// E.g., in K:Gb (6 flats), B (pc 11) → Cb since the key sig flats C.
+	if (rawAccidental === '' && keySigAcc === '_') {
+		const above = ENHARMONIC_FLAT_RESPELL[letter as NoteLetter];
+		if (above && (keySigAccidentals[above] ?? '') === '_') {
+			letter = above;
+			rawAccidental = '_';
+			keySigAcc = '_';
+			if (above === 'C') octave += 1; // B→C crosses octave boundary
+		}
+	}
 
 	let accidental: string;
 	if (rawAccidental === keySigAcc) {
@@ -142,13 +163,13 @@ const TRIPLET_BASE: Array<{ triplet: [number, number]; base: [number, number] }>
 
 function getTripletBase(d: [number, number]): [number, number] | null {
 	for (const entry of TRIPLET_BASE) {
-		if (d[0] === entry.triplet[0] && d[1] === entry.triplet[1]) return entry.base;
+		if (d[0] * entry.triplet[1] === entry.triplet[0] * d[1]) return entry.base;
 	}
 	return null;
 }
 
 function sameDuration(a: [number, number], b: [number, number]): boolean {
-	return a[0] === b[0] && a[1] === b[1];
+	return a[0] * b[1] === b[0] * a[1];
 }
 
 /** Standard rest durations in descending order (whole notes) */
@@ -200,7 +221,7 @@ function mergeConsecutiveRests(
 	} else {
 		// Duple meters split at the bar midpoint
 		splitDur = barDur / 2;
-		useSplit = timeSignature[0] >= 4 && timeSignature[0] % 2 === 0;
+		useSplit = timeSignature[0] % 2 === 0;
 		restPalette = REST_DURATIONS;
 	}
 
