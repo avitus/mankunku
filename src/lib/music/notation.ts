@@ -122,11 +122,31 @@ function durationToAbc(duration: [number, number], defaultLength: [number, numbe
 	return `${num}/${den}`;
 }
 
+/** Map triplet durations to their base (non-triplet) equivalents */
+const TRIPLET_BASE: Array<{ triplet: [number, number]; base: [number, number] }> = [
+	{ triplet: [2, 3], base: [1, 1] },   // whole-triplet → whole
+	{ triplet: [1, 3], base: [1, 2] },   // half-triplet → half
+	{ triplet: [1, 6], base: [1, 4] },   // quarter-triplet → quarter
+	{ triplet: [1, 12], base: [1, 8] },  // eighth-triplet → eighth
+];
+
+function getTripletBase(d: [number, number]): [number, number] | null {
+	for (const entry of TRIPLET_BASE) {
+		if (d[0] === entry.triplet[0] && d[1] === entry.triplet[1]) return entry.base;
+	}
+	return null;
+}
+
+function sameDuration(a: [number, number], b: [number, number]): boolean {
+	return a[0] === b[0] && a[1] === b[1];
+}
+
 /**
  * Generate an ABC notation string from a Phrase.
  *
- * Inserts barlines at bar boundaries and groups notes within beats
- * for proper beam grouping (eighth notes paired, etc.).
+ * Inserts barlines at bar boundaries, groups notes within beats
+ * for proper beam grouping, and emits ABC (3 triplet groups for
+ * consecutive triplet notes.
  *
  * @param phrase - The phrase to render
  * @param instrument - If provided, transposes to written pitch
@@ -151,6 +171,15 @@ export function phraseToAbc(
 	// Duration of one beat in whole notes (e.g. quarter = 0.25)
 	const beatDuration = 1 / beatUnit;
 
+	function renderNote(note: Note, duration: [number, number]): string {
+		if (note.pitch === null) {
+			return `z${durationToAbc(duration, defaultLength)}`;
+		}
+		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
+		const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals);
+		return `${pitch}${durationToAbc(duration, defaultLength)}`;
+	}
+
 	// ABC header
 	const lines: string[] = [
 		`X:1`,
@@ -160,12 +189,12 @@ export function phraseToAbc(
 		`K:${displayKey}`,
 	];
 
-	// Generate notes with barlines and beam grouping
+	// Generate notes with barlines, beam grouping, and triplet groups
 	const tokens: string[] = [];
 	let prevBar = 0;
 	let prevBeat = 0;
 
-	for (let i = 0; i < phrase.notes.length; i++) {
+	for (let i = 0; i < phrase.notes.length; /* increment varies */) {
 		const note = phrase.notes[i];
 		const offset = fractionToFloat(note.offset);
 
@@ -188,18 +217,29 @@ export function phraseToAbc(
 			// Same beat: no space — notes are beamed together
 		}
 
-		// Generate ABC for this note
-		if (note.pitch === null) {
-			tokens.push(`z${durationToAbc(note.duration, defaultLength)}`);
-		} else {
-			const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-			const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals);
-			const dur = durationToAbc(note.duration, defaultLength);
-			tokens.push(`${pitch}${dur}`);
+		// Check for a complete triplet group (3 consecutive same-duration triplet notes)
+		const tripBase = getTripletBase(note.duration);
+		if (tripBase !== null && i + 2 < phrase.notes.length &&
+			sameDuration(phrase.notes[i + 1].duration, note.duration) &&
+			sameDuration(phrase.notes[i + 2].duration, note.duration)) {
+
+			tokens.push('(3');
+			for (let j = 0; j < 3; j++) {
+				tokens.push(renderNote(phrase.notes[i + j], tripBase));
+			}
+
+			const lastOffset = fractionToFloat(phrase.notes[i + 2].offset);
+			prevBar = Math.floor(lastOffset / barDuration + 1e-9);
+			prevBeat = Math.floor((lastOffset - prevBar * barDuration) / beatDuration + 1e-9);
+			i += 3;
+			continue;
 		}
 
+		// Single note
+		tokens.push(renderNote(note, note.duration));
 		prevBar = bar;
 		prevBeat = beat;
+		i += 1;
 	}
 
 	tokens.push(' |]');
