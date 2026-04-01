@@ -138,10 +138,10 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 			});
 
 			// Migrate: rebuild proficiency from sessions if cloud detail tables were empty
-			if (Object.keys(progress.scaleProficiency).length === 0 && progress.sessions.length > 0) {
+			if (!progress.scaleProficiency || Object.keys(progress.scaleProficiency).length === 0) {
 				progress.scaleProficiency = migrateScaleProficiency(progress.sessions);
 			}
-			if (Object.keys(progress.keyProficiency).length === 0 && progress.sessions.length > 0) {
+			if (!progress.keyProficiency || Object.keys(progress.keyProficiency).length === 0) {
 				progress.keyProficiency = migrateKeyProficiency(progress.sessions);
 			}
 		} else {
