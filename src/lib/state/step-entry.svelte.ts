@@ -79,6 +79,15 @@ export function getCurrentBarAndBeat(): { bar: number; beat: number } {
 	return { bar, beat };
 }
 
+export function getPaddedNotes(): Note[] {
+	const notes: Note[] = [...stepEntry.enteredNotes];
+	const remaining = getRemainingCapacity();
+	if (compareFractions(remaining, [0, 1]) > 0) {
+		notes.push({ pitch: null, duration: remaining, offset: getCurrentCursorOffset() });
+	}
+	return notes;
+}
+
 export function getCurrentPhrase(): Phrase {
 	return {
 		id: '',

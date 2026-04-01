@@ -5,7 +5,7 @@
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
 		setDuration, toggleTriplet, setAccidental, adjustOctave,
-		adjustLastNotePitch, getCurrentPhrase
+		adjustLastNotePitch, getCurrentPhrase, getPaddedNotes
 	} from '$lib/state/step-entry.svelte';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
 	import { keyToPitchClass, isValidPitchKey } from '$lib/step-entry/pitch-input';
@@ -135,6 +135,7 @@
 		if (currentPhrase.notes.length === 0) return;
 
 		const phrase = getCurrentPhrase();
+		phrase.notes = getPaddedNotes();
 		phrase.difficulty = calculateDifficulty(phrase);
 
 		saveUserLick(phrase, supabase ?? undefined);
