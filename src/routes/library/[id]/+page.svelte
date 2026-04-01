@@ -6,7 +6,7 @@
 	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
 	import { getLickById, transposeLick } from '$lib/phrases/library-loader';
 	import { session } from '$lib/state/session.svelte';
-	import { settings, getInstrument } from '$lib/state/settings.svelte';
+	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { Phrase } from '$lib/types/music';
@@ -52,7 +52,7 @@
 	let selectedKey: PitchClass = $state('C');
 
 	const baseLick = $derived(getLickById(page.params.id ?? '') ?? userLick);
-	const lick = $derived(baseLick ? transposeLick(baseLick, selectedKey) : null);
+	const lick = $derived(baseLick ? transposeLick(baseLick, selectedKey, getEffectiveHighestNote()) : null);
 
 	function practiceThis() {
 		if (!lick) return;

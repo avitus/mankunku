@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { settings, saveSettings } from '$lib/state/settings.svelte';
+	import { settings, saveSettings, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { progress, getUnlockContext } from '$lib/state/progress.svelte';
 	import { PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music';
@@ -101,10 +101,13 @@
 
 		let phrase = null;
 
+		const rangeHigh = getEffectiveHighestNote();
+
 		if (selectedSource === 'curated' || selectedSource === 'mixed') {
 			phrase = pickRandomLick(
 				{ category, maxDifficulty: selectedDifficulty },
-				sessionKey
+				sessionKey,
+				rangeHigh
 			);
 		}
 
@@ -115,7 +118,8 @@
 				category,
 				difficulty: selectedDifficulty,
 				harmony,
-				bars
+				bars,
+				rangeHigh
 			});
 		}
 

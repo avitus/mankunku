@@ -3,7 +3,7 @@
 	import { GRADE_COLORS } from '$lib/scoring/grades';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
-	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
+	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -66,7 +66,7 @@
 		getScale(scaleId)?.intervals.length ?? 7
 	);
 	const allLicks = $derived(filteredLicks.map(lick =>
-		transposeLickForTonality(lick, activeTonality.key, scaleId)
+		transposeLickForTonality(lick, activeTonality.key, scaleId, getEffectiveHighestNote())
 	));
 
 	let phraseIndex = $state(0);

@@ -14,6 +14,8 @@ export interface InstrumentConfig {
 	clef: Clef;
 	/** General MIDI program number for SoundFont playback */
 	gmProgram: number;
+	/** Concert MIDI values for the "highest note" dropdown, highest first */
+	highNotePresets: number[];
 }
 
 export const INSTRUMENTS: Record<string, InstrumentConfig> = {
@@ -24,7 +26,8 @@ export const INSTRUMENTS: Record<string, InstrumentConfig> = {
 		concertRangeLow: 44,
 		concertRangeHigh: 76,
 		clef: 'treble',
-		gmProgram: 66
+		gmProgram: 66,
+		highNotePresets: [78, 77, 76, 75, 74, 72]
 	},
 	'alto-sax': {
 		name: 'Alto Saxophone',
@@ -33,7 +36,8 @@ export const INSTRUMENTS: Record<string, InstrumentConfig> = {
 		concertRangeLow: 49,
 		concertRangeHigh: 80,
 		clef: 'treble',
-		gmProgram: 65
+		gmProgram: 65,
+		highNotePresets: [82, 81, 80, 79, 78, 76]
 	},
 	trumpet: {
 		name: 'Trumpet',
@@ -42,6 +46,7 @@ export const INSTRUMENTS: Record<string, InstrumentConfig> = {
 		concertRangeLow: 52,
 		concertRangeHigh: 82,
 		clef: 'treble',
-		gmProgram: 56
+		gmProgram: 56,
+		highNotePresets: [84, 83, 82, 81, 80, 77]
 	}
 };

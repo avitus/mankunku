@@ -456,7 +456,8 @@ describe('sync error resilience', () => {
 		await expect(syncSettingsToCloud(supabase as any, {
 			instrumentId: 'sax', defaultTempo: 120, masterVolume: 0.8,
 			metronomeEnabled: true, metronomeVolume: 0.6, swing: 0.5,
-			theme: 'dark', onboardingComplete: true, tonalityOverride: null
+			theme: 'dark', onboardingComplete: true, tonalityOverride: null,
+			highestNote: null
 		})).resolves.toBeUndefined();
 		await expect(loadSettingsFromCloud(supabase as any)).resolves.toBeNull();
 		await expect(syncUserLicksToCloud(supabase as any, [])).resolves.toBeUndefined();

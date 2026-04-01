@@ -113,10 +113,11 @@ const CENTRAL_RANGE_HIGH = 75;
  * (MIDI 60–75). When two shifts tie, prefer the one whose average pitch is
  * closest to the midpoint of the range.
  */
-function bestOctaveShift(midiNotes: number[]): number {
+function bestOctaveShift(midiNotes: number[], rangeHigh?: number): number {
 	if (midiNotes.length === 0) return 0;
 
-	const mid = (CENTRAL_RANGE_LOW + CENTRAL_RANGE_HIGH) / 2;
+	const high = rangeHigh ?? CENTRAL_RANGE_HIGH;
+	const mid = (CENTRAL_RANGE_LOW + high) / 2;
 	let bestShift = 0;
 	let bestInRange = -1;
 	let bestDistance = Infinity;
@@ -128,7 +129,7 @@ function bestOctaveShift(midiNotes: number[]): number {
 		let sum = 0;
 		for (const note of midiNotes) {
 			const shifted = note + offset;
-			if (shifted >= CENTRAL_RANGE_LOW && shifted <= CENTRAL_RANGE_HIGH) {
+			if (shifted >= CENTRAL_RANGE_LOW && shifted <= high) {
 				inRange++;
 			}
 			sum += shifted;
@@ -153,11 +154,11 @@ function bestOctaveShift(midiNotes: number[]): number {
  * applies an octave adjustment to keep notes within tenor sax range
  * (C4–Eb5, MIDI 60–75) as much as possible.
  */
-export function transposeLick(lick: Phrase, targetKey: PitchClass): Phrase {
-	if (targetKey === 'C') return lick;
-
+export function transposeLick(lick: Phrase, targetKey: PitchClass, rangeHigh?: number): Phrase {
 	const semitones = PITCH_CLASSES.indexOf(targetKey);
-	if (semitones === 0) return lick;
+
+	// No transposition and no custom range — return as-is
+	if (semitones === 0 && rangeHigh == null) return lick;
 
 	// Collect pitched notes to determine optimal octave placement
 	const pitchedNotes = lick.notes
@@ -165,8 +166,11 @@ export function transposeLick(lick: Phrase, targetKey: PitchClass): Phrase {
 		.filter((p): p is number => p !== null)
 		.map((p) => p + semitones);
 
-	const octaveShift = bestOctaveShift(pitchedNotes);
+	const octaveShift = bestOctaveShift(pitchedNotes, rangeHigh);
 	const totalShift = semitones + octaveShift * 12;
+
+	// Key is C and octave shift is 0 — no change needed
+	if (semitones === 0 && octaveShift === 0) return lick;
 
 	const transposePC = (pc: PitchClass): PitchClass =>
 		PITCH_CLASSES[(PITCH_CLASSES.indexOf(pc) + semitones) % 12];
@@ -216,8 +220,9 @@ const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
  * For non-major scales (blues, melodic minor, etc.), transposes to the key
  * then snaps out-of-scale notes to the nearest scale tone.
  */
-export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId: string): Phrase {
+export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId: string, rangeHigh?: number): Phrase {
 	const scaleDef = getScale(scaleId);
+	let result: Phrase;
 
 	if (scaleDef?.family === 'major' && scaleDef.mode !== null) {
 		if (PROGRESSION_CATEGORIES.has(lick.category)) {
@@ -225,32 +230,56 @@ export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId:
 			const keyIdx = PITCH_CLASSES.indexOf(key);
 			const parentIdx = ((keyIdx - MAJOR_MODE_OFFSETS[scaleDef.mode - 1]) % 12 + 12) % 12;
 			const parentKey = PITCH_CLASSES[parentIdx];
-			const transposed = transposeLick(lick, parentKey);
-			return { ...transposed, id: `${lick.id}_${key}`, key };
+			const transposed = transposeLick(lick, parentKey, rangeHigh);
+			result = { ...transposed, id: `${lick.id}_${key}`, key };
+		} else {
+			// Single-chord modal licks: transpose to modal root, snap to scale
+			const transposed = transposeLick(lick, key, rangeHigh);
+			result = snapLickToScale(transposed, key, scaleId, rangeHigh);
 		}
-		// Single-chord modal licks: transpose to modal root, snap to scale
-		const transposed = transposeLick(lick, key);
-		return snapLickToScale(transposed, key, scaleId);
+	} else {
+		// Non-major scales: transpose to key, then snap to scale
+		const transposed = transposeLick(lick, key, rangeHigh);
+		result = snapLickToScale(transposed, key, scaleId, rangeHigh);
 	}
 
-	// Non-major scales: transpose to key, then snap to scale
-	const transposed = transposeLick(lick, key);
-	return snapLickToScale(transposed, key, scaleId);
+	// Final safety clamp: shift notes down as many octaves as needed
+	if (rangeHigh != null) {
+		result = {
+			...result,
+			notes: result.notes.map(n => {
+				if (n.pitch !== null && n.pitch > rangeHigh) {
+					let p = n.pitch;
+					while (p > rangeHigh) p -= 12;
+					p = Math.max(p, 0);
+					return { ...n, pitch: p };
+				}
+				return n;
+			})
+		};
+	}
+
+	return result;
 }
 
 /**
  * Snap a MIDI pitch to the nearest scale tone, preferring downward (flat)
  * when equidistant. Returns the adjusted MIDI value.
  */
-function snapMidiToScale(midi: number, scalePCs: Set<number>): number {
+function snapMidiToScale(midi: number, scalePCs: Set<number>, rangeHigh?: number): number {
 	const pc = midi % 12;
 	if (scalePCs.has(pc)) return midi;
 
 	for (let offset = 1; offset <= 6; offset++) {
 		const below = ((pc - offset) % 12 + 12) % 12;
 		const above = (pc + offset) % 12;
-		if (scalePCs.has(below)) return midi - offset;
-		if (scalePCs.has(above)) return midi + offset;
+		if (scalePCs.has(below)) return Math.max(midi - offset, 0);
+		if (scalePCs.has(above)) {
+			let snapped = midi + offset;
+			// If snapping up pushes past the ceiling, shift down an octave
+			if (rangeHigh != null && snapped > rangeHigh) snapped -= 12;
+			return Math.max(snapped, 0);
+		}
 	}
 	return midi;
 }
@@ -261,7 +290,7 @@ function snapMidiToScale(midi: number, scalePCs: Set<number>): number {
  * Used for non-major-family scales (blues, melodic minor, etc.) where the
  * pitch classes genuinely differ from any major mode.
  */
-export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string): Phrase {
+export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string, rangeHigh?: number): Phrase {
 	const scaleDef = getScale(scaleId);
 	if (!scaleDef) return lick;
 
@@ -275,7 +304,7 @@ export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string):
 		...lick,
 		notes: lick.notes.map(n => ({
 			...n,
-			pitch: n.pitch !== null ? snapMidiToScale(n.pitch, scalePCs) : null
+			pitch: n.pitch !== null ? snapMidiToScale(n.pitch, scalePCs, rangeHigh) : null
 		}))
 	};
 }
@@ -285,11 +314,12 @@ export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string):
  */
 export function pickRandomLick(
 	query: LibraryQuery = {},
-	key: PitchClass = 'C'
+	key: PitchClass = 'C',
+	rangeHigh?: number
 ): Phrase | null {
 	const matches = queryLicks(query);
 	if (matches.length === 0) return null;
 
 	const pick = matches[Math.floor(Math.random() * matches.length)];
-	return transposeLick(pick, key);
+	return transposeLick(pick, key, rangeHigh);
 }

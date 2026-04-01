@@ -49,6 +49,7 @@ interface SyncableSettings {
 	theme: string;
 	onboardingComplete: boolean;
 	tonalityOverride: unknown;
+	highestNote: number | null;
 }
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -407,6 +408,7 @@ export async function syncSettingsToCloud(
 				theme: settings.theme,
 				onboarding_complete: settings.onboardingComplete,
 				tonality_override: (settings.tonalityOverride ?? null) as Json,
+				highest_note: settings.highestNote ?? null,
 				updated_at: new Date().toISOString()
 			},
 			{ onConflict: 'user_id' }
@@ -455,7 +457,8 @@ export async function loadSettingsFromCloud(
 			swing: data.swing,
 			theme: data.theme,
 			onboardingComplete: data.onboarding_complete,
-			tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null
+			tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null,
+			highestNote: data.highest_note ?? null
 		};
 	} catch (error) {
 		console.warn('Failed to load settings from cloud:', error);

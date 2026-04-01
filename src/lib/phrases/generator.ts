@@ -29,6 +29,7 @@ export interface GeneratorOptions {
 	harmony: HarmonicSegment[];
 	bars: number;
 	timeSignature?: [number, number];
+	rangeHigh?: number;
 }
 
 const TENOR_SAX_LOW = 44;
@@ -66,7 +67,10 @@ export function generatePhrase(options: GeneratorOptions): Phrase {
 			source: 'generated'
 		};
 
-		const result = validatePhrase(phrase, rules);
+		const mergedRules = options.rangeHigh != null
+			? { ...rules, range: [TENOR_SAX_LOW, options.rangeHigh] as [number, number] }
+			: rules;
+		const result = validatePhrase(phrase, mergedRules);
 		if (result.valid) return phrase;
 	}
 
@@ -124,7 +128,7 @@ function selectTargets(
 
 		// Pick a chord tone, voice-led from previous target
 		const prev = targets.length > 0 ? targets[targets.length - 1].midi : rootMidi;
-		const tone = pickClosest(tones, prev, TENOR_SAX_LOW, TENOR_SAX_HIGH);
+		const tone = pickClosest(tones, prev, TENOR_SAX_LOW, options.rangeHigh ?? TENOR_SAX_HIGH);
 
 		targets.push({
 			midi: tone,
@@ -218,7 +222,7 @@ function generateFill(
 	const scale = getScale(segment.scaleId);
 	if (!scale) return [];
 
-	const scaleMidi = realizeScaleMidi(options.key, scale.intervals, TENOR_SAX_LOW, TENOR_SAX_HIGH);
+	const scaleMidi = realizeScaleMidi(options.key, scale.intervals, TENOR_SAX_LOW, options.rangeHigh ?? TENOR_SAX_HIGH);
 	const direction = to > from ? 1 : -1;
 
 	// Decide fill type based on difficulty
@@ -395,7 +399,7 @@ function generateScaleFragment(
 	const scale = getScale(scaleId);
 	const intervals = scale?.intervals ?? [2, 2, 1, 2, 2, 2, 1];
 
-	const scaleMidi = realizeScaleMidi(options.key, intervals, TENOR_SAX_LOW, TENOR_SAX_HIGH);
+	const scaleMidi = realizeScaleMidi(options.key, intervals, TENOR_SAX_LOW, options.rangeHigh ?? TENOR_SAX_HIGH);
 	const rootMidi = PITCH_CLASSES.indexOf(options.key) + 60;
 
 	// Find the root in the scale

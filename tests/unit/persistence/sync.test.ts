@@ -186,7 +186,8 @@ const TEST_SETTINGS = {
 	swing: 0.5,
 	theme: 'dark',
 	onboardingComplete: false,
-	tonalityOverride: null
+	tonalityOverride: null,
+	highestNote: null
 };
 
 const TEST_LICK: Phrase = {
@@ -675,6 +676,28 @@ describe('syncSettingsToCloud', () => {
 			expect.objectContaining({ onConflict: 'user_id' })
 		);
 	});
+
+	it('maps highestNote null to highest_note null', async () => {
+		const mock = createMockSupabase();
+
+		await syncSettingsToCloud(mock as any, { ...TEST_SETTINGS, highestNote: null });
+
+		expect(mock._upsertFn).toHaveBeenCalledWith(
+			expect.objectContaining({ highest_note: null }),
+			expect.any(Object)
+		);
+	});
+
+	it('maps highestNote number to highest_note number', async () => {
+		const mock = createMockSupabase();
+
+		await syncSettingsToCloud(mock as any, { ...TEST_SETTINGS, highestNote: 72 });
+
+		expect(mock._upsertFn).toHaveBeenCalledWith(
+			expect.objectContaining({ highest_note: 72 }),
+			expect.any(Object)
+		);
+	});
 });
 
 // ═════════════════════════════════════════════════════════════════════
@@ -701,6 +724,7 @@ describe('loadSettingsFromCloud', () => {
 						theme: 'light',
 						onboarding_complete: true,
 						tonality_override: null,
+						highest_note: null,
 						updated_at: '2024-01-15T12:00:00Z'
 					},
 					error: null
@@ -721,7 +745,37 @@ describe('loadSettingsFromCloud', () => {
 			expect(result.theme).toBe('light');
 			expect(result.onboardingComplete).toBe(true);
 			expect(result.tonalityOverride).toBeNull();
+			expect(result.highestNote).toBeNull();
 		}
+	});
+
+	it('maps highest_note number to highestNote', async () => {
+		const mock = createMockSupabase({
+			tableResults: {
+				user_settings: {
+					data: {
+						user_id: 'test-user-id',
+						instrument_id: 'tenor-sax',
+						default_tempo: 100,
+						master_volume: 0.8,
+						metronome_enabled: true,
+						metronome_volume: 0.7,
+						swing: 0.5,
+						theme: 'dark',
+						onboarding_complete: false,
+						tonality_override: null,
+						highest_note: 72,
+						updated_at: '2024-01-15T12:00:00Z'
+					},
+					error: null
+				}
+			}
+		});
+
+		const result = await loadSettingsFromCloud(mock as any);
+
+		expect(result).not.toBeNull();
+		expect(result!.highestNote).toBe(72);
 	});
 
 	it('returns null when not authenticated', async () => {
