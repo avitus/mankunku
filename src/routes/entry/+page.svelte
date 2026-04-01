@@ -39,6 +39,7 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		const target = e.target as HTMLElement;
 		if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return;
 
