@@ -136,6 +136,14 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 					...cloudProgress.adaptive
 				}
 			});
+
+			// Migrate: rebuild proficiency from sessions if cloud detail tables were empty
+			if (Object.keys(progress.scaleProficiency).length === 0 && progress.sessions.length > 0) {
+				progress.scaleProficiency = migrateScaleProficiency(progress.sessions);
+			}
+			if (Object.keys(progress.keyProficiency).length === 0 && progress.sessions.length > 0) {
+				progress.keyProficiency = migrateKeyProficiency(progress.sessions);
+			}
 		} else {
 			// Local has more sessions — keep local state intact (offline practice not yet synced)
 			// Only re-merge adaptive state with defaults for forward compatibility of new fields
