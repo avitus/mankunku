@@ -16,8 +16,6 @@
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
 	const supabase = $derived(page.data?.supabase ?? null);
 	const authSession = $derived(page.data?.session ?? null);
-	const isAdmin = $derived(page.data?.isAdmin ?? false);
-
 	// Async state for user-recorded lick resolution (fallback when curated lookup fails)
 	let userLick: Phrase | null = $state(null);
 	let effectRunId = 0;
@@ -93,7 +91,7 @@
 	}
 
 	const canDelete = $derived(
-		baseLick != null && (baseLick.category === 'user' || isAdmin)
+		baseLick != null && baseLick.category === 'user'
 	);
 
 	function handleDelete() {
