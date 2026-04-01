@@ -17,13 +17,14 @@ const ABC_NOTE_NAMES_FLAT = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A
 const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
 
 /**
- * Key signature accidentals: maps each key to the set of pitch classes (0-11)
+ * Key signature accidentals: maps each key to the set of note letters ('A'–'G')
  * that are sharped or flatted in that key signature.
  *
- * The value for each pitch class is the ABC accidental prefix applied by the key
- * signature: '^' for sharp, '_' for flat. Notes matching the key signature should
- * be written without an explicit accidental; notes that differ need an explicit
- * accidental (including '=' for naturals that cancel a key-sig accidental).
+ * The value for each letter name is the ABC accidental prefix applied by the key
+ * signature: '^' for sharp, '_' for flat, '=' for natural. Notes matching the
+ * key signature should be written without an explicit accidental; notes that
+ * differ require an explicit accidental (including '=' for naturals that cancel
+ * a key-sig sharp or flat).
  */
 const KEY_SIG_ACCIDENTALS: Record<string, Record<string, string>> = {
 	// Sharp keys — keyed by letter name that the key signature alters
@@ -325,22 +326,34 @@ export function phraseToAbc(
 			// Same beat: no space — notes are beamed together
 		}
 
-		// Check for a complete triplet group (3 consecutive same-duration triplet notes)
+		// Check for a complete triplet group (3 consecutive same-duration pitched triplet notes
+		// with rhythmically contiguous offsets)
 		const tripBase = getTripletBase(note.duration);
 		if (tripBase !== null && i + 2 < displayNotes.length &&
 			sameDuration(displayNotes[i + 1].duration, note.duration) &&
-			sameDuration(displayNotes[i + 2].duration, note.duration)) {
+			sameDuration(displayNotes[i + 2].duration, note.duration) &&
+			displayNotes[i].pitch !== null &&
+			displayNotes[i + 1].pitch !== null &&
+			displayNotes[i + 2].pitch !== null) {
 
-			tokens.push('(3');
-			for (let j = 0; j < 3; j++) {
-				tokens.push(renderNote(displayNotes[i + j], tripBase));
+			const tripDur = fractionToFloat(note.duration);
+			const off0 = fractionToFloat(displayNotes[i].offset);
+			const off1 = fractionToFloat(displayNotes[i + 1].offset);
+			const off2 = fractionToFloat(displayNotes[i + 2].offset);
+
+			if (Math.abs(off1 - off0 - tripDur) < 1e-9 &&
+				Math.abs(off2 - off1 - tripDur) < 1e-9) {
+
+				tokens.push('(3');
+				for (let j = 0; j < 3; j++) {
+					tokens.push(renderNote(displayNotes[i + j], tripBase));
+				}
+
+				prevBar = Math.floor(off2 / barDuration + 1e-9);
+				prevBeat = Math.floor((off2 - prevBar * barDuration) / beatDuration + 1e-9);
+				i += 3;
+				continue;
 			}
-
-			const lastOffset = fractionToFloat(displayNotes[i + 2].offset);
-			prevBar = Math.floor(lastOffset / barDuration + 1e-9);
-			prevBeat = Math.floor((lastOffset - prevBar * barDuration) / beatDuration + 1e-9);
-			i += 3;
-			continue;
 		}
 
 		// Single note
