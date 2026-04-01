@@ -22,7 +22,14 @@ export const DELETE: RequestHandler = async ({ locals }) => {
 	}
 
 	const userId = user.id;
-	const admin = createAdminClient();
+
+	let admin;
+	try {
+		admin = createAdminClient();
+	} catch (err) {
+		console.error('Failed to create admin client:', err);
+		return json({ error: 'Failed to delete account. Please try again.' }, { status: 500 });
+	}
 
 	// 1. Delete storage objects (recordings bucket) — best-effort, paginated
 	try {
