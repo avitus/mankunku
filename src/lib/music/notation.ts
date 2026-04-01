@@ -3,6 +3,15 @@ import type { InstrumentConfig } from '$lib/types/instruments.ts';
 import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals.ts';
 import { concertToWritten, concertKeyToWritten } from './transposition.ts';
 
+/** Note letter names A–G */
+type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
+
+/** ABC accidental prefix applied by a key signature */
+type KeySigAccidental = '^' | '_';
+
+/** Map of note letters to their key-signature accidentals */
+type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
+
 /**
  * ABC notation generation from Phrase data.
  *
@@ -26,7 +35,7 @@ const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
  * differ require an explicit accidental (including '=' for naturals that cancel
  * a key-sig sharp or flat).
  */
-const KEY_SIG_ACCIDENTALS: Record<string, Record<string, string>> = {
+const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	// Sharp keys — keyed by letter name that the key signature alters
 	'C':  {},
 	'G':  { F: '^' },
@@ -54,7 +63,7 @@ const KEY_SIG_ACCIDENTALS: Record<string, Record<string, string>> = {
  *
  * ABC octave convention: C = middle C (C4), c = C5, c' = C6, C, = C3
  */
-function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: Record<string, string>): string {
+function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: KeySigMap): string {
 	const pc = midiToPitchClass(midi);
 	const octave = midiToOctave(midi);
 	const noteNames = useFlats ? ABC_NOTE_NAMES_FLAT : ABC_NOTE_NAMES_SHARP;
@@ -65,7 +74,7 @@ function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: Reco
 	const letter = name.replace(/[\^_=]/, '');
 
 	// Determine what accidental (if any) the key signature applies to this letter
-	const keySigAcc = keySigAccidentals[letter] || '';
+	const keySigAcc = keySigAccidentals[letter as NoteLetter] ?? '';
 
 	let accidental: string;
 	if (rawAccidental === keySigAcc) {
@@ -154,14 +163,20 @@ function approxToFraction(f: number): [number, number] {
 	return [Math.round(f * 24), 24];
 }
 
+/** Detect compound meters (6/8, 9/8, 12/8, 6/4, etc.) */
+function isCompoundMeter(ts: [number, number]): boolean {
+	return ts[0] % 3 === 0 && ts[0] / 3 >= 2;
+}
+
 /**
  * Merge consecutive non-triplet rests into standard notation groupings.
  *
- * Rules (standard practice for 4/4 and duple meters):
+ * Rules:
  *  - Rests never cross barlines
  *  - A rest spanning an entire bar becomes a single whole-bar rest
- *  - Rests don't cross the bar midpoint (beat 3 in 4/4) — this keeps
- *    the two halves of the bar visually distinct
+ *  - Duple meters: rests don't cross the bar midpoint (beat 3 in 4/4)
+ *  - Compound meters: rests don't cross compound-beat boundaries (every
+ *    3 sub-beats, e.g. every dotted quarter in 6/8)
  *  - Within each segment, use the largest standard duration that fits
  *  - Triplet rests are left untouched (they belong to a triplet group)
  */
@@ -170,8 +185,25 @@ function mergeConsecutiveRests(
 	timeSignature: [number, number]
 ): Note[] {
 	const barDur = timeSignature[0] / timeSignature[1];
-	const midDur = barDur / 2;
-	const useMidpoint = timeSignature[0] >= 4 && timeSignature[0] % 2 === 0;
+	const compound = isCompoundMeter(timeSignature);
+
+	let splitDur: number;
+	let useSplit: boolean;
+	let restPalette: [number, number][];
+
+	if (compound) {
+		// Compound meters split at each compound-beat boundary (e.g. every 3/8 in 6/8)
+		splitDur = 3 / timeSignature[1];
+		useSplit = true;
+		const compoundBeat: [number, number] = [3, timeSignature[1]];
+		restPalette = [compoundBeat, ...REST_DURATIONS.filter(d => d[0] / d[1] < splitDur - 1e-9)];
+	} else {
+		// Duple meters split at the bar midpoint
+		splitDur = barDur / 2;
+		useSplit = timeSignature[0] >= 4 && timeSignature[0] % 2 === 0;
+		restPalette = REST_DURATIONS;
+	}
+
 	const result: Note[] = [];
 	let i = 0;
 
@@ -192,7 +224,7 @@ function mergeConsecutiveRests(
 			j++;
 		}
 
-		fillRests(result, fractionToFloat(notes[i].offset), spanEnd, barDur, midDur, useMidpoint, timeSignature);
+		fillRests(result, fractionToFloat(notes[i].offset), spanEnd, barDur, splitDur, useSplit, restPalette, timeSignature);
 		i = j;
 	}
 
@@ -202,8 +234,8 @@ function mergeConsecutiveRests(
 /** Recursively decompose a rest span into properly grouped rests */
 function fillRests(
 	result: Note[], start: number, end: number,
-	barDur: number, midDur: number, useMidpoint: boolean,
-	timeSignature: [number, number]
+	barDur: number, splitDur: number, useSplit: boolean,
+	restDurations: readonly [number, number][], timeSignature: [number, number]
 ): void {
 	if (end - start < 1e-9) return;
 
@@ -213,8 +245,8 @@ function fillRests(
 
 	// Split at barline
 	if (end > barEnd + 1e-9) {
-		fillRests(result, start, barEnd, barDur, midDur, useMidpoint, timeSignature);
-		fillRests(result, barEnd, end, barDur, midDur, useMidpoint, timeSignature);
+		fillRests(result, start, barEnd, barDur, splitDur, useSplit, restDurations, timeSignature);
+		fillRests(result, barEnd, end, barDur, splitDur, useSplit, restDurations, timeSignature);
 		return;
 	}
 
@@ -224,22 +256,24 @@ function fillRests(
 		return;
 	}
 
-	// Split at midpoint (e.g. beat 3 in 4/4)
-	if (useMidpoint) {
-		const mid = barStart + midDur;
-		if (start < mid - 1e-9 && end > mid + 1e-9) {
-			fillRests(result, start, mid, barDur, midDur, useMidpoint, timeSignature);
-			fillRests(result, mid, end, barDur, midDur, useMidpoint, timeSignature);
+	// Split at beat-group boundary (bar midpoint for duple, compound beat for compound)
+	if (useSplit) {
+		const posInBar = start - barStart;
+		const splitIndex = Math.floor(posInBar / splitDur + 1e-9);
+		const nextSplit = barStart + (splitIndex + 1) * splitDur;
+		if (nextSplit < barEnd - 1e-9 && end > nextSplit + 1e-9) {
+			fillRests(result, start, nextSplit, barDur, splitDur, useSplit, restDurations, timeSignature);
+			fillRests(result, nextSplit, end, barDur, splitDur, useSplit, restDurations, timeSignature);
 			return;
 		}
 	}
 
-	// Greedy: largest standard duration first
+	// Greedy: largest fitting rest duration first
 	let cursor = start;
 	while (cursor < end - 1e-9) {
 		const remaining = end - cursor;
 		let dur: [number, number] = approxToFraction(remaining);
-		for (const std of REST_DURATIONS) {
+		for (const std of restDurations) {
 			if (std[0] / std[1] <= remaining + 1e-9) { dur = std; break; }
 		}
 		result.push({ pitch: null, duration: dur, offset: approxToFraction(cursor) });
@@ -268,7 +302,7 @@ export function phraseToAbc(
 		: phrase.key;
 
 	const useFlats = FLAT_KEYS.includes(displayKey);
-	const keySigAccidentals = KEY_SIG_ACCIDENTALS[displayKey] || {};
+	const keySigAccidentals: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
 
 	const beatsPerBar = phrase.timeSignature[0];
 	const beatUnit = phrase.timeSignature[1];
