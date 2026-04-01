@@ -261,7 +261,7 @@
 					{@const writtenMidi = concertToWritten(midi, instrument)}
 					{@const isDefault = midi === instrument.concertRangeHigh - 1}
 					<option value={midi}>
-						{midiToDisplayName(writtenMidi)}{isDefault ? ' (standard)' : ''}
+						{midiToDisplayName(writtenMidi, false)}{isDefault ? ' (standard)' : ''}
 					</option>
 				{/each}
 			</select>
