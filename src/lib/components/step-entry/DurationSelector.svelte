@@ -3,7 +3,7 @@
 	import { BASE_DURATION_IDS, DURATION_DISPLAY_NAMES, getDurationFraction, type BaseDurationId, type DurationId } from '$lib/step-entry/durations';
 
 	const labels: Record<BaseDurationId, string> = {
-		whole: '𝅝', half: '𝅗𝅥', quarter: '♩', eighth: '♪'
+		whole: '1', half: '\u00BD', quarter: '\u00BC', eighth: '\u215B'
 	};
 
 	const shortcuts: Record<BaseDurationId, string> = {

@@ -25,22 +25,22 @@ const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
  * be written without an explicit accidental; notes that differ need an explicit
  * accidental (including '=' for naturals that cancel a key-sig accidental).
  */
-const KEY_SIG_ACCIDENTALS: Record<string, Record<number, string>> = {
-	// Sharp keys
+const KEY_SIG_ACCIDENTALS: Record<string, Record<string, string>> = {
+	// Sharp keys — keyed by letter name that the key signature alters
 	'C':  {},
-	'G':  { 6: '^' },                                         // F#
-	'D':  { 6: '^', 1: '^' },                                 // F#, C#
-	'A':  { 6: '^', 1: '^', 8: '^' },                         // F#, C#, G#
-	'E':  { 6: '^', 1: '^', 8: '^', 3: '^' },                 // F#, C#, G#, D#
-	'B':  { 6: '^', 1: '^', 8: '^', 3: '^', 10: '^' },        // F#, C#, G#, D#, A#
+	'G':  { F: '^' },
+	'D':  { F: '^', C: '^' },
+	'A':  { F: '^', C: '^', G: '^' },
+	'E':  { F: '^', C: '^', G: '^', D: '^' },
+	'B':  { F: '^', C: '^', G: '^', D: '^', A: '^' },
 
 	// Flat keys
-	'F':  { 10: '_' },                                         // Bb
-	'Bb': { 10: '_', 3: '_' },                                 // Bb, Eb
-	'Eb': { 10: '_', 3: '_', 8: '_' },                         // Bb, Eb, Ab
-	'Ab': { 10: '_', 3: '_', 8: '_', 1: '_' },                 // Bb, Eb, Ab, Db
-	'Db': { 10: '_', 3: '_', 8: '_', 1: '_', 6: '_' },         // Bb, Eb, Ab, Db, Gb
-	'Gb': { 10: '_', 3: '_', 8: '_', 1: '_', 6: '_', 11: '_' }, // Bb, Eb, Ab, Db, Gb, Cb
+	'F':  { B: '_' },
+	'Bb': { B: '_', E: '_' },
+	'Eb': { B: '_', E: '_', A: '_' },
+	'Ab': { B: '_', E: '_', A: '_', D: '_' },
+	'Db': { B: '_', E: '_', A: '_', D: '_', G: '_' },
+	'Gb': { B: '_', E: '_', A: '_', D: '_', G: '_', C: '_' },
 };
 
 /**
@@ -53,7 +53,7 @@ const KEY_SIG_ACCIDENTALS: Record<string, Record<number, string>> = {
  *
  * ABC octave convention: C = middle C (C4), c = C5, c' = C6, C, = C3
  */
-function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: Record<number, string>): string {
+function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: Record<string, string>): string {
 	const pc = midiToPitchClass(midi);
 	const octave = midiToOctave(midi);
 	const noteNames = useFlats ? ABC_NOTE_NAMES_FLAT : ABC_NOTE_NAMES_SHARP;
@@ -63,8 +63,8 @@ function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: Reco
 	const rawAccidental = name.startsWith('^') || name.startsWith('_') ? name[0] : '';
 	const letter = name.replace(/[\^_=]/, '');
 
-	// Determine what accidental (if any) the key signature applies to this pitch class
-	const keySigAcc = keySigAccidentals[pc] || '';
+	// Determine what accidental (if any) the key signature applies to this letter
+	const keySigAcc = keySigAccidentals[letter] || '';
 
 	let accidental: string;
 	if (rawAccidental === keySigAcc) {

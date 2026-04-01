@@ -1,9 +1,45 @@
 import type { Note, Fraction, PitchClass, Phrase } from '$lib/types/music';
-import type { InstrumentConfig } from '$lib/types/instruments';
 import type { BaseDurationId } from '$lib/step-entry/durations';
 import { getDurationFraction } from '$lib/step-entry/durations';
-import { addFractions, compareFractions, subtractFractions, fractionToFloat } from '$lib/music/intervals';
-import { buildMidiFromInput, applyAccidental, isInInstrumentRange } from '$lib/step-entry/pitch-input';
+import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
+import { applyAccidental } from '$lib/step-entry/pitch-input';
+
+/** Concert pitch range for step entry: Bb3 to F6 */
+const ENTRY_RANGE_LOW = 58;  // Bb below middle C
+const ENTRY_RANGE_HIGH = 89; // F6, one octave above the top staff line
+
+/** Reverse map from natural pitch class to letter name */
+const PC_TO_LETTER: Record<number, string> = {
+	0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B'
+};
+
+/** Key signature adjustments: key → letter → semitone delta */
+const KEY_SIG_ADJUSTMENTS: Record<string, Record<string, number>> = {
+	'C': {},
+	'G': { F: 1 },
+	'D': { F: 1, C: 1 },
+	'A': { F: 1, C: 1, G: 1 },
+	'E': { F: 1, C: 1, G: 1, D: 1 },
+	'B': { F: 1, C: 1, G: 1, D: 1, A: 1 },
+	'F': { B: -1 },
+	'Bb': { B: -1, E: -1 },
+	'Eb': { B: -1, E: -1, A: -1 },
+	'Ab': { B: -1, E: -1, A: -1, D: -1 },
+	'Db': { B: -1, E: -1, A: -1, D: -1, G: -1 },
+	'Gb': { B: -1, E: -1, A: -1, D: -1, G: -1, C: -1 },
+};
+
+/** Apply key signature to a natural pitch class (e.g. F→F# in G major) */
+function applyKeySig(pitchClass: number, key: PitchClass): number {
+	const letter = PC_TO_LETTER[pitchClass];
+	if (!letter) return pitchClass;
+	const delta = KEY_SIG_ADJUSTMENTS[key]?.[letter] ?? 0;
+	return ((pitchClass + delta) % 12 + 12) % 12;
+}
+
+function isInEntryRange(midi: number): boolean {
+	return midi >= ENTRY_RANGE_LOW && midi <= ENTRY_RANGE_HIGH;
+}
 
 export const stepEntry = $state({
 	currentDuration: 'quarter' as BaseDurationId,
@@ -12,7 +48,6 @@ export const stepEntry = $state({
 	accidental: 'natural' as 'sharp' | 'flat' | 'natural',
 	enteredNotes: [] as Note[],
 	barCount: 2,
-	keyMode: 'concert' as 'concert' | 'written',
 	phraseKey: 'C' as PitchClass,
 	phraseName: ''
 });
@@ -59,19 +94,45 @@ export function getCurrentPhrase(): Phrase {
 	};
 }
 
+/**
+ * Pick the octave that places `pitchClass` closest to `referenceMidi`,
+ * preferring candidates within the step-entry range.
+ */
+function nearestOctave(pitchClass: number, referenceMidi: number): number {
+	const refOctave = Math.floor(referenceMidi / 12) - 1;
+	const candidates: { midi: number; dist: number }[] = [];
+	for (const delta of [-1, 0, 1]) {
+		const midi = pitchClassToMidi(pitchClass, refOctave + delta);
+		candidates.push({ midi, dist: Math.abs(midi - referenceMidi) });
+	}
+	candidates.sort((a, b) => a.dist - b.dist);
+
+	const inRange = candidates.find(c => isInEntryRange(c.midi));
+	return inRange ? inRange.midi : candidates[0].midi;
+}
+
 export function addNote(
 	pitchClass: number, octave: number,
-	accidental: 'sharp' | 'flat' | 'natural',
-	keyMode: 'concert' | 'written',
-	instrument: InstrumentConfig
+	accidental: 'sharp' | 'flat' | 'natural'
 ): boolean {
 	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode);
 	if (!canAddDuration(duration)) return false;
 
-	const adjustedPc = applyAccidental(pitchClass, accidental);
-	const concertMidi = buildMidiFromInput(adjustedPc, octave, keyMode, instrument);
+	// When no explicit accidental is set, apply the key signature
+	const adjustedPc = accidental === 'natural'
+		? applyKeySig(pitchClass, stepEntry.phraseKey)
+		: applyAccidental(pitchClass, accidental);
 
-	if (!isInInstrumentRange(concertMidi, instrument)) return false;
+	// Find the last pitched note to use as reference for nearest-octave placement
+	let concertMidi: number;
+	const lastPitched = findLastPitchedNote();
+	if (lastPitched !== null) {
+		concertMidi = nearestOctave(adjustedPc, lastPitched);
+	} else {
+		concertMidi = pitchClassToMidi(adjustedPc, octave);
+	}
+
+	if (!isInEntryRange(concertMidi)) return false;
 
 	const offset = getCurrentCursorOffset();
 	stepEntry.enteredNotes.push({
@@ -81,6 +142,15 @@ export function addNote(
 	});
 	stepEntry.accidental = 'natural';
 	return true;
+}
+
+function findLastPitchedNote(): number | null {
+	for (let i = stepEntry.enteredNotes.length - 1; i >= 0; i--) {
+		if (stepEntry.enteredNotes[i].pitch !== null) {
+			return stepEntry.enteredNotes[i].pitch;
+		}
+	}
+	return null;
 }
 
 export function addRest(): boolean {
@@ -106,12 +176,16 @@ export function reset(): void {
 	stepEntry.accidental = 'natural';
 }
 
-export function setBarCount(n: number): void {
-	stepEntry.barCount = Math.max(1, Math.min(4, n));
+export function adjustLastNotePitch(semitones: number): void {
+	const notes = stepEntry.enteredNotes;
+	if (notes.length === 0) return;
+	const lastNote = notes[notes.length - 1];
+	if (lastNote.pitch === null) return;
+	lastNote.pitch += semitones;
 }
 
-export function setKeyMode(mode: 'concert' | 'written'): void {
-	stepEntry.keyMode = mode;
+export function setBarCount(n: number): void {
+	stepEntry.barCount = Math.max(1, Math.min(4, n));
 }
 
 export function setDuration(id: BaseDurationId): void {

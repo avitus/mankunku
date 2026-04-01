@@ -1,16 +1,9 @@
 <script lang="ts">
-	import type { InstrumentConfig } from '$lib/types/instruments';
 	import {
 		stepEntry, addNote, addRest, deleteLastNote,
 		setAccidental, adjustOctave
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
-
-	interface Props {
-		instrument: InstrumentConfig;
-	}
-
-	let { instrument }: Props = $props();
 
 	const noteNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 	let lastPressed = $state<string | null>(null);
@@ -20,7 +13,7 @@
 		const pc = keyToPitchClass(noteName);
 		if (pc === null) return;
 
-		const ok = addNote(pc, stepEntry.selectedOctave, stepEntry.accidental, stepEntry.keyMode, instrument);
+		const ok = addNote(pc, stepEntry.selectedOctave, stepEntry.accidental);
 		if (ok) {
 			lastPressed = noteName;
 			setTimeout(() => { lastPressed = null; }, 150);

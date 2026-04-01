@@ -5,7 +5,7 @@
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
 		setDuration, toggleTriplet, setAccidental, adjustOctave,
-		getCurrentPhrase
+		adjustLastNotePitch, getCurrentPhrase
 	} from '$lib/state/step-entry.svelte';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
 	import { keyToPitchClass, isValidPitchKey } from '$lib/step-entry/pitch-input';
@@ -58,7 +58,7 @@
 		if (isValidPitchKey(key)) {
 			const pc = keyToPitchClass(key);
 			if (pc !== null) {
-				addNote(pc, stepEntry.selectedOctave, stepEntry.accidental, stepEntry.keyMode, instrument);
+				addNote(pc, stepEntry.selectedOctave, stepEntry.accidental);
 			}
 			return;
 		}
@@ -86,6 +86,18 @@
 		}
 		if (key === '-') {
 			adjustOctave(-1);
+			return;
+		}
+
+		// Arrow keys: adjust last note pitch
+		if (key === 'ArrowUp') {
+			e.preventDefault();
+			adjustLastNotePitch(e.shiftKey ? 12 : 1);
+			return;
+		}
+		if (key === 'ArrowDown') {
+			e.preventDefault();
+			adjustLastNotePitch(e.shiftKey ? -12 : -1);
 			return;
 		}
 
@@ -151,7 +163,6 @@
 	<!-- Notation preview -->
 	<NotationDisplay
 		phrase={currentPhrase.notes.length > 0 ? currentPhrase : null}
-		{instrument}
 	/>
 
 	<!-- Config: key mode, key, bars, position, name -->
@@ -161,7 +172,7 @@
 	<DurationSelector />
 
 	<!-- Pitch entry -->
-	<PitchEntryPanel {instrument} />
+	<PitchEntryPanel />
 
 	<!-- Action buttons -->
 	<div class="flex justify-center gap-3 pt-2">
@@ -201,6 +212,7 @@
 			<span><kbd>T</kbd> Triplet toggle</span>
 			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp</span>
 			<span><kbd>+</kbd>/<kbd>-</kbd> Octave</span>
+			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
 			<span><kbd>Backspace</kbd> Delete last</span>
 		</div>
 	</details>

@@ -2,7 +2,7 @@
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import {
-		stepEntry, setBarCount, setKeyMode,
+		stepEntry, setBarCount,
 		getCurrentBarAndBeat, getRemainingCapacity
 	} from '$lib/state/step-entry.svelte';
 	import { fractionToFloat } from '$lib/music/intervals';
@@ -20,25 +20,8 @@
 </script>
 
 <div class="space-y-3">
-	<!-- Key mode + Key selector row -->
+	<!-- Key selector row -->
 	<div class="flex flex-wrap items-center gap-3">
-		<div class="flex rounded border border-[var(--color-bg-tertiary)]">
-			<button
-				onclick={() => setKeyMode('concert')}
-				class="rounded-l px-3 py-1.5 text-sm transition-colors
-					{stepEntry.keyMode === 'concert'
-						? 'bg-[var(--color-accent)] text-white'
-						: 'hover:bg-[var(--color-bg-tertiary)]'}"
-			>Concert</button>
-			<button
-				onclick={() => setKeyMode('written')}
-				class="rounded-r px-3 py-1.5 text-sm transition-colors
-					{stepEntry.keyMode === 'written'
-						? 'bg-[var(--color-accent)] text-white'
-						: 'hover:bg-[var(--color-bg-tertiary)]'}"
-			>Written{stepEntry.keyMode === 'written' ? ` (${instrument.name})` : ''}</button>
-		</div>
-
 		<div class="flex items-center gap-2">
 			<label for="phrase-key" class="text-sm text-[var(--color-text-secondary)]">Key</label>
 			<select
