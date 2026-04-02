@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, initFromCloud } from '$lib/state/progress.svelte';
 	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
 	import { SCALE_TYPE_NAMES, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
@@ -141,11 +142,14 @@
 	<h1 class="text-2xl font-bold">Progress</h1>
 
 	<!-- Tab bar -->
-	<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1">
+	<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1" role="tablist">
 		<button
 			onclick={() => { tab = 'sessions'; }}
 			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
 			style={tab === 'sessions' ? 'background-color: var(--color-accent); color: white' : ''}
+			role="tab"
+			aria-selected={tab === 'sessions'}
+			aria-controls="panel-sessions"
 		>
 			Sessions
 		</button>
@@ -153,12 +157,16 @@
 			onclick={() => { tab = 'progress'; }}
 			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
 			style={tab === 'progress' ? 'background-color: var(--color-accent); color: white' : ''}
+			role="tab"
+			aria-selected={tab === 'progress'}
+			aria-controls="panel-progress"
 		>
 			Progress
 		</button>
 	</div>
 
 	{#if tab === 'sessions'}
+	<div id="panel-sessions" role="tabpanel">
 		<!-- Summary bar: 3 compact stat cards -->
 		<div class="grid grid-cols-3 gap-3">
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
@@ -185,6 +193,7 @@
 							<!-- Session row (clickable) -->
 							<button
 								onclick={() => toggleSession(s.id)}
+								aria-expanded={expandedSessionId === s.id}
 								class="flex w-full items-center gap-3 px-3 py-2 text-sm text-left hover:bg-[var(--color-bg-secondary)] transition-colors"
 							>
 								<span
@@ -286,7 +295,9 @@
 				</a>
 			</div>
 		{/if}
+	</div>
 	{:else}
+	<div id="panel-progress" role="tabpanel">
 		<!-- Progress tab -->
 
 		{#if dailySummaries.length > 0}
@@ -299,12 +310,12 @@
 				<h2 class="mb-3 text-lg font-semibold">Trends</h2>
 				<TrendChart summaries={dailySummaries} />
 			</div>
-
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 text-lg font-semibold">Practice Calendar</h2>
-				<PracticeCalendar />
-			</div>
 		{/if}
+
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 text-lg font-semibold">Practice Calendar</h2>
+			<PracticeCalendar />
+		</div>
 
 		<!-- Scale Proficiency breakdown -->
 		{#if scaleProfEntries.length > 0}
@@ -345,7 +356,7 @@
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
 								class="h-full rounded-full bg-blue-500"
-								style="width: {pct(progress.adaptive.pitchComplexity / 100)}%"
+								style="width: {Math.round(progress.adaptive.pitchComplexity)}%"
 							></div>
 						</div>
 						<span class="font-medium">{progress.adaptive.pitchComplexity}/100</span>
@@ -357,7 +368,7 @@
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
 								class="h-full rounded-full bg-green-500"
-								style="width: {pct(progress.adaptive.rhythmComplexity / 100)}%"
+								style="width: {Math.round(progress.adaptive.rhythmComplexity)}%"
 							></div>
 						</div>
 						<span class="font-medium">{progress.adaptive.rhythmComplexity}/100</span>
@@ -367,7 +378,7 @@
 			{#if progress.adaptive.recentScores.length > 0}
 				<div class="mt-3 text-xs text-[var(--color-text-secondary)]">
 					Recent avg: {pct(progress.adaptive.recentScores.reduce((a, b) => a + b, 0) / progress.adaptive.recentScores.length)}%
-					({progress.adaptive.recentScores.length}/{10} window)
+					({progress.adaptive.recentScores.length}/{WINDOW_SIZE} window)
 				</div>
 			{/if}
 		</div>
@@ -438,5 +449,6 @@
 				</button>
 			{/if}
 		</div>
+	</div>
 	{/if}
 </div>
