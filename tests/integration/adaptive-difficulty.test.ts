@@ -114,8 +114,8 @@ describe('adaptive difficulty — level advancement', () => {
 	it('does NOT advance before minimum 10 attempts', () => {
 		let state = createInitialAdaptiveState();
 
-		// Only 8 attempts — not enough
-		for (let i = 0; i < 8; i++) {
+		// Only 9 attempts — one short of minimum 10
+		for (let i = 0; i < 9; i++) {
 			state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
 		}
 
@@ -187,17 +187,13 @@ describe('adaptive difficulty — level advancement', () => {
 			state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
 		}
 
-		// If it advanced, attemptsSinceChange was reset to 0 on that attempt
-		if (state.currentLevel > 1) {
-			expect(state.attemptsSinceChange).toBe(0);
-		}
+		// Must have advanced and reset the counter
+		expect(state.currentLevel).toBeGreaterThan(1);
+		expect(state.attemptsSinceChange).toBe(0);
 
 		// One more attempt — now attemptsSinceChange is 1
 		state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
-		if (state.attemptsSinceChange > 0) {
-			// This proves it was reset and is now counting up again
-			expect(state.attemptsSinceChange).toBeLessThanOrEqual(1);
-		}
+		expect(state.attemptsSinceChange).toBe(1);
 	});
 });
 
