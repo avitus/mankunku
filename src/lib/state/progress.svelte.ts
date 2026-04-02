@@ -303,11 +303,15 @@ export function getUnlockContext(): UnlockContext {
 }
 
 /**
- * Get the primary display level: max of all per-scale proficiency levels.
+ * Get the primary display level: average of all per-scale proficiency levels.
  */
 export function getPrimaryLevel(): number {
-	const levels = Object.values(progress.scaleProficiency).map(sp => sp.level);
-	return levels.length > 0 ? Math.max(...levels) : 1;
+	const levels = Object.values(progress.scaleProficiency)
+		.map(sp => Number(sp.level))
+		.filter(n => !Number.isNaN(n))
+		.map(n => Math.max(1, Math.min(100, n)));
+	if (levels.length === 0) return 1;
+	return Math.round(levels.reduce((a, b) => a + b, 0) / levels.length);
 }
 
 function updateStreak(): void {
