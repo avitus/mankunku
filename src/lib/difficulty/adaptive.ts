@@ -2,10 +2,10 @@
  * Adaptive difficulty algorithm.
  *
  * Rules:
- *   - Window of last 10 attempts
+ *   - Window of last 25 attempts
  *   - Average > 85% over window → advance (increase weakest parameter first)
  *   - Average < 50% over window → retreat (decrease parameter causing most errors)
- *   - Minimum 5 attempts between difficulty changes
+ *   - Minimum 10 attempts between difficulty changes
  *   - Pitch and rhythm complexity adjusted independently
  *   - Levels span 1-100
  */
@@ -13,10 +13,10 @@
 import type { AdaptiveState, ScaleProficiency, KeyProficiency } from '$lib/types/progress.ts';
 import { difficultyDisplay } from '$lib/difficulty/display.ts';
 
-const WINDOW_SIZE = 10;
+const WINDOW_SIZE = 25;
 const ADVANCE_THRESHOLD = 0.85;
 const RETREAT_THRESHOLD = 0.50;
-const MIN_ATTEMPTS_BETWEEN_CHANGES = 5;
+const MIN_ATTEMPTS_BETWEEN_CHANGES = 10;
 const MAX_LEVEL = 100;
 
 /** XP awarded per attempt based on grade */

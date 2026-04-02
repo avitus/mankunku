@@ -69,30 +69,30 @@ describe('adaptive difficulty — score window', () => {
 		expect(state.recentScores).toHaveLength(2);
 	});
 
-	it('caps window at 10 scores', () => {
+	it('caps window at 25 scores', () => {
 		let state = createInitialAdaptiveState();
 
-		for (let i = 0; i < 15; i++) {
+		for (let i = 0; i < 30; i++) {
 			state = processAttempt(state, 0.7, 0.8, 0.6, 'good');
 		}
 
-		expect(state.recentScores).toHaveLength(10);
+		expect(state.recentScores).toHaveLength(25);
 	});
 
 	it('oldest score is removed when window is full', () => {
 		let state = createInitialAdaptiveState();
 
 		// Fill with 0.5 scores
-		for (let i = 0; i < 10; i++) {
+		for (let i = 0; i < 25; i++) {
 			state = processAttempt(state, 0.5, 0.5, 0.5, 'fair');
 		}
 
 		// Add a 0.9 score
 		state = processAttempt(state, 0.9, 0.9, 0.9, 'great');
 
-		// Window should contain nine 0.5s and one 0.9
-		expect(state.recentScores).toHaveLength(10);
-		expect(state.recentScores[9]).toBe(0.9);
+		// Window should contain twenty-four 0.5s and one 0.9
+		expect(state.recentScores).toHaveLength(25);
+		expect(state.recentScores[24]).toBe(0.9);
 		expect(state.recentScores[0]).toBe(0.5);
 	});
 });
@@ -103,19 +103,19 @@ describe('adaptive difficulty — level advancement', () => {
 	it('advances when average > 85% with enough attempts', () => {
 		let state = createInitialAdaptiveState();
 
-		// Submit 5+ high scores (minimum before change)
-		for (let i = 0; i < 6; i++) {
+		// Submit 10+ high scores (minimum before change)
+		for (let i = 0; i < 11; i++) {
 			state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
 		}
 
 		expect(state.currentLevel).toBeGreaterThan(1);
 	});
 
-	it('does NOT advance before minimum 5 attempts', () => {
+	it('does NOT advance before minimum 10 attempts', () => {
 		let state = createInitialAdaptiveState();
 
-		// Only 3 attempts — not enough
-		for (let i = 0; i < 3; i++) {
+		// Only 9 attempts — one short of minimum 10
+		for (let i = 0; i < 9; i++) {
 			state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
 		}
 
@@ -127,7 +127,7 @@ describe('adaptive difficulty — level advancement', () => {
 		// Manually set pitch lower than rhythm
 		state = { ...state, pitchComplexity: 2, rhythmComplexity: 5, currentLevel: 5 };
 
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 11; i++) {
 			state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
 		}
 
@@ -145,8 +145,8 @@ describe('adaptive difficulty — level advancement', () => {
 			currentLevel: 5,
 			pitchComplexity: 5,
 			rhythmComplexity: 3,
-			attemptsSinceChange: 4,
-			recentScores: [0.3, 0.3, 0.3, 0.3, 0.3]
+			attemptsSinceChange: 9,
+			recentScores: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
 		};
 
 		state = processAttempt(state, 0.3, 0.2, 0.4, 'try-again');
@@ -169,10 +169,10 @@ describe('adaptive difficulty — level advancement', () => {
 
 	it('retreats the parameter causing more errors', () => {
 		let state = createInitialAdaptiveState();
-		state = { ...state, currentLevel: 5, pitchComplexity: 5, rhythmComplexity: 5, attemptsSinceChange: 4 };
+		state = { ...state, currentLevel: 5, pitchComplexity: 5, rhythmComplexity: 5, attemptsSinceChange: 9 };
 
 		// Low pitch accuracy, decent rhythm → should retreat pitch
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 11; i++) {
 			state = processAttempt(state, 0.3, 0.2, 0.5, 'try-again');
 		}
 
@@ -182,22 +182,18 @@ describe('adaptive difficulty — level advancement', () => {
 	it('resets attemptsSinceChange after a level change', () => {
 		let state = createInitialAdaptiveState();
 
-		// Submit exactly 5 high scores — should trigger advance on 5th
-		for (let i = 0; i < 5; i++) {
+		// Submit exactly 10 high scores — should trigger advance on 10th
+		for (let i = 0; i < 10; i++) {
 			state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
 		}
 
-		// If it advanced, attemptsSinceChange was reset to 0 on that attempt
-		if (state.currentLevel > 1) {
-			expect(state.attemptsSinceChange).toBe(0);
-		}
+		// Must have advanced and reset the counter
+		expect(state.currentLevel).toBeGreaterThan(1);
+		expect(state.attemptsSinceChange).toBe(0);
 
 		// One more attempt — now attemptsSinceChange is 1
 		state = processAttempt(state, 0.95, 0.95, 0.95, 'perfect');
-		if (state.attemptsSinceChange > 0) {
-			// This proves it was reset and is now counting up again
-			expect(state.attemptsSinceChange).toBeLessThanOrEqual(1);
-		}
+		expect(state.attemptsSinceChange).toBe(1);
 	});
 });
 
@@ -272,19 +268,19 @@ describe('scale proficiency tracking', () => {
 	it('advances scale proficiency with consistently high scores', () => {
 		let prof = createInitialScaleProficiency();
 
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 11; i++) {
 			prof = processScaleAttempt(prof, 0.95);
 		}
 
 		expect(prof.level).toBe(2);
-		expect(prof.totalAttempts).toBe(6);
+		expect(prof.totalAttempts).toBe(11);
 	});
 
 	it('retreats scale proficiency with consistently low scores', () => {
 		let prof = createInitialScaleProficiency();
 		prof = { ...prof, level: 5, attemptsSinceChange: 0 };
 
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 11; i++) {
 			prof = processScaleAttempt(prof, 0.3);
 		}
 
@@ -308,7 +304,7 @@ describe('key proficiency tracking', () => {
 	it('advances key proficiency with consistently high scores', () => {
 		let prof = createInitialKeyProficiency();
 
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 11; i++) {
 			prof = processKeyAttempt(prof, 0.95);
 		}
 
@@ -320,12 +316,12 @@ describe('key proficiency tracking', () => {
 		let gProf = createInitialKeyProficiency();
 
 		// Simulate C key: high scores → advance
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 11; i++) {
 			cProf = processKeyAttempt(cProf, 0.95);
 		}
 
 		// G key stays low
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 11; i++) {
 			gProf = processKeyAttempt(gProf, 0.4);
 		}
 
@@ -403,10 +399,10 @@ describe('full session → adaptive state loop', () => {
 		let state = createInitialAdaptiveState();
 		const grades: string[] = [];
 
-		// Simulate 30 practice sessions with improving scores
-		for (let i = 0; i < 30; i++) {
+		// Simulate 50 practice sessions with improving scores
+		for (let i = 0; i < 50; i++) {
 			// Score improves over time: 0.7 → 0.95
-			const progress = i / 30;
+			const progress = i / 50;
 			const overall = 0.7 + progress * 0.25;
 			const grade = scoreToGrade(overall);
 			grades.push(grade);
@@ -417,7 +413,7 @@ describe('full session → adaptive state loop', () => {
 		// After consistently high scores, level should have advanced
 		expect(state.currentLevel).toBeGreaterThan(1);
 		expect(state.xp).toBeGreaterThan(0);
-		expect(state.recentScores).toHaveLength(10);
+		expect(state.recentScores).toHaveLength(25);
 	});
 
 	it('getAdaptiveSummary returns human-readable text', () => {
