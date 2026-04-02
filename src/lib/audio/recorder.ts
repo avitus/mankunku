@@ -37,7 +37,10 @@ export function createRecorder(
 	audioCtx: AudioContext
 ): RecorderHandle {
 	const dest = audioCtx.createMediaStreamDestination();
-	micSource.connect(dest);
+	const micGain = audioCtx.createGain();
+	micGain.gain.value = 0.4;
+	micSource.connect(micGain);
+	micGain.connect(dest);
 	masterGain.connect(dest);
 
 	let mediaRecorder: MediaRecorder | null = null;
@@ -78,7 +81,8 @@ export function createRecorder(
 		dispose() {
 			if (disposed) return;
 			disposed = true;
-			try { micSource.disconnect(dest); } catch { /* already disconnected */ }
+			try { micSource.disconnect(micGain); } catch { /* already disconnected */ }
+			try { micGain.disconnect(dest); } catch { /* already disconnected */ }
 			try { masterGain.disconnect(dest); } catch { /* already disconnected */ }
 		}
 	};

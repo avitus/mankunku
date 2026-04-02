@@ -41,6 +41,14 @@ const MIN_FREQUENCY = 80;
 /** Maximum frequency to consider (above tenor sax range) */
 const MAX_FREQUENCY = 1200;
 
+/**
+ * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
+ * must persist before it is accepted as a genuine pitch change.
+ * At ~60fps this equals ~50ms — long enough to filter subharmonic glitches
+ * from the McLeod Pitch Method, short enough for genuine octave changes.
+ */
+export const OCTAVE_CONFIRM_FRAMES = 3;
+
 export interface PitchDetectorHandle {
 	/** Start the detection loop */
 	start: () => void;
@@ -75,6 +83,65 @@ export async function createPitchDetector(
 	let animFrameId: number | null = null;
 	let recordingStartTime = 0;
 
+	// ─── Octave stabilization state ──────────────────────────
+	// Suppresses brief octave-jump glitches from the McLeod detector
+	// locking onto a subharmonic. Requires octave-only jumps to
+	// persist for OCTAVE_CONFIRM_FRAMES before accepting them.
+	let stableMidi: number | null = null;
+	let confirmMidi: number | null = null;
+	let confirmCount = 0;
+
+	function resetOctaveState() {
+		stableMidi = null;
+		confirmMidi = null;
+		confirmCount = 0;
+	}
+
+	/**
+	 * Filter octave-jump glitches. Returns the stabilized MIDI note,
+	 * which equals rawMidi unless an unconfirmed octave jump is in progress.
+	 */
+	function stabilizeOctave(rawMidi: number): number {
+		if (stableMidi === null) {
+			stableMidi = rawMidi;
+			return rawMidi;
+		}
+
+		if (rawMidi === stableMidi) {
+			confirmMidi = null;
+			confirmCount = 0;
+			return rawMidi;
+		}
+
+		const diff = Math.abs(rawMidi - stableMidi);
+		if (diff === 12 || diff === 24) {
+			// Octave-only jump — require confirmation
+			if (confirmMidi === rawMidi) {
+				confirmCount++;
+			} else {
+				confirmMidi = rawMidi;
+				confirmCount = 1;
+			}
+
+			if (confirmCount >= OCTAVE_CONFIRM_FRAMES) {
+				// Genuine octave change confirmed
+				stableMidi = rawMidi;
+				confirmMidi = null;
+				confirmCount = 0;
+				return rawMidi;
+			}
+
+			// Not yet confirmed — correct to stable octave
+			return stableMidi;
+		}
+
+		// Different pitch class — accept immediately
+		stableMidi = rawMidi;
+		confirmMidi = null;
+		confirmCount = 0;
+		return rawMidi;
+	}
+
 	function detect() {
 		if (!running) return;
 
@@ -82,8 +149,11 @@ export async function createPitchDetector(
 		const [frequency, clarity] = detector.findPitch(buffer, sampleRate);
 
 		if (clarity >= CLARITY_THRESHOLD && frequency >= MIN_FREQUENCY && frequency <= MAX_FREQUENCY) {
-			const midiFloat = frequencyToMidi(frequency);
-			const { midi, cents } = quantizePitch(midiFloat);
+			const rawMidiFloat = frequencyToMidi(frequency);
+			const { midi: rawMidi, cents } = quantizePitch(rawMidiFloat);
+			const midi = stabilizeOctave(rawMidi);
+			const octaveCorrection = midi - rawMidi;
+			const midiFloat = rawMidiFloat + octaveCorrection;
 			const time = (analyser.context.currentTime - recordingStartTime);
 
 			const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency };
@@ -102,6 +172,7 @@ export async function createPitchDetector(
 			running = true;
 			recordingStartTime = analyser.context.currentTime;
 			readings.length = 0;
+			resetOctaveState();
 			detect();
 		},
 		stop() {
