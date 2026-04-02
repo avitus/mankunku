@@ -19,6 +19,7 @@ import type { PlaybackOptions } from '$lib/types/audio.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context.ts';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome.ts';
+import { startBackingTrack, disposeBackingTrack } from './backing-track.ts';
 import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps.ts';
 
 type ToneModule = typeof import('tone');
@@ -508,6 +509,11 @@ export async function playPhrase(
 		}
 	}
 
+	// Schedule backing track if enabled
+	if (options.backingTrackEnabled) {
+		await startBackingTrack(phrase, options, keepMetronome);
+	}
+
 	// Schedule end-of-phrase notification (account for count-in offset)
 	const totalDuration = getPhraseDuration(phrase, options.tempo);
 	const totalTicks = Math.round((totalDuration / (60 / options.tempo)) * ppq);
@@ -561,6 +567,7 @@ export async function stopPlayback(): Promise<void> {
 	}
 
 	disposeMetronome();
+	disposeBackingTrack();
 
 	// Stop all ringing notes
 	stopNotes();

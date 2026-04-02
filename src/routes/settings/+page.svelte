@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { INSTRUMENTS } from '$lib/types/instruments';
+	import { INSTRUMENTS, type BackingInstrument } from '$lib/types/instruments';
 	import { settings, saveSettings, applyTheme, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte';
@@ -101,6 +101,15 @@
 
 	function handleSwingChange(e: Event) {
 		settings.swing = parseFloat((e.target as HTMLInputElement).value);
+	}
+
+	function handleBackingVolumeChange(e: Event) {
+		settings.backingTrackVolume = parseFloat((e.target as HTMLInputElement).value);
+	}
+
+	function selectBackingInstrument(instrument: BackingInstrument) {
+		settings.backingInstrument = instrument;
+		saveSettings(supabase);
 	}
 
 	function syncSettingsToCloud() {
@@ -469,6 +478,59 @@
 							{settings.metronomeEnabled ? 'left-[22px]' : 'left-0.5'}"
 					></span>
 				</button>
+			</div>
+
+			<!-- Backing Track -->
+			<div class="border-t border-[var(--color-bg-tertiary)] pt-4 space-y-4">
+				<div class="flex items-center justify-between">
+					<span class="text-sm">Backing Track</span>
+					<button
+						onclick={() => { settings.backingTrackEnabled = !settings.backingTrackEnabled; saveSettings(supabase); }}
+						class="relative h-7 w-12 rounded-full transition-colors
+							{settings.backingTrackEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
+					>
+						<span
+							class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform shadow-sm
+								{settings.backingTrackEnabled ? 'left-[22px]' : 'left-0.5'}"
+						></span>
+					</button>
+				</div>
+
+				{#if settings.backingTrackEnabled}
+					<div class="flex items-center justify-between">
+						<span class="text-sm">Instrument</span>
+						<div class="flex gap-1">
+							{#each /** @type {const} */ (['piano', 'organ'] as BackingInstrument[]) as inst}
+								<button
+									onclick={() => selectBackingInstrument(inst)}
+									class="rounded-full px-3 py-1 text-sm transition-colors
+										{settings.backingInstrument === inst
+											? 'bg-[var(--color-accent)] text-white'
+											: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
+								>
+									{inst === 'piano' ? 'Piano' : 'Organ'}
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<div>
+						<div class="flex items-center justify-between text-sm">
+							<span>Backing Track Volume</span>
+							<span class="font-medium tabular-nums">{Math.round(settings.backingTrackVolume * 100)}%</span>
+						</div>
+						<input
+							type="range"
+							min="0"
+							max="1"
+							step="0.05"
+							value={settings.backingTrackVolume}
+							oninput={handleBackingVolumeChange}
+							onchange={syncSettingsToCloud}
+							class="mt-1 w-full accent-[var(--color-accent)]"
+						/>
+					</div>
+				{/if}
 			</div>
 		</div>
 	</section>

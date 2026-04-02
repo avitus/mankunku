@@ -208,7 +208,10 @@
 			swing: settings.swing,
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
-			metronomeVolume: settings.metronomeVolume
+			metronomeVolume: settings.metronomeVolume,
+			backingTrackEnabled: settings.backingTrackEnabled,
+			backingInstrument: settings.backingInstrument,
+			backingTrackVolume: settings.backingTrackVolume
 		};
 	}
 

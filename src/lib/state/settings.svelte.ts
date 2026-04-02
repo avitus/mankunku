@@ -1,4 +1,4 @@
-import type { InstrumentConfig } from '$lib/types/instruments';
+import type { InstrumentConfig, BackingInstrument } from '$lib/types/instruments';
 import type { Tonality } from '$lib/tonality/tonality';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { save, load } from '$lib/persistence/storage';
@@ -22,6 +22,9 @@ const defaultSettings = {
 	masterVolume: 0.8,
 	metronomeEnabled: true,
 	metronomeVolume: 0.7,
+	backingTrackEnabled: true,
+	backingInstrument: 'piano' as BackingInstrument,
+	backingTrackVolume: 0.6,
 	swing: 0.5,
 	theme: 'dark' as 'dark' | 'light',
 	onboardingComplete: false,
