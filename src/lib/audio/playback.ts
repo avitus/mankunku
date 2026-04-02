@@ -16,10 +16,18 @@
 
 import type { Phrase } from '$lib/types/music.ts';
 import type { PlaybackOptions } from '$lib/types/audio.ts';
+import type { BackingInstrument } from '$lib/types/instruments.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context.ts';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome.ts';
-import { startBackingTrack, disposeBackingTrack } from './backing-track.ts';
+import {
+	loadBackingInstruments,
+	startBackingTrack,
+	scheduleBackingTrack,
+	disposeBackingParts,
+	disposeBackingTrack,
+	isBackingLoaded
+} from './backing-track.ts';
 import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps.ts';
 
 type ToneModule = typeof import('tone');
@@ -253,7 +261,11 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
  * Uses custom multi-sampled recordings when available (tenor sax),
  * falling back to MusyngKite SoundFont for other instruments or on load error.
  */
-export async function loadInstrument(instrumentId: string = 'tenor-sax', masterVolume?: number): Promise<void> {
+export async function loadInstrument(
+	instrumentId: string = 'tenor-sax',
+	masterVolume?: number,
+	backingInstrument?: BackingInstrument
+): Promise<void> {
 	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
 	if (loadId !== currentLoadId) return;
@@ -279,7 +291,12 @@ export async function loadInstrument(instrumentId: string = 'tenor-sax', masterV
 	}
 
 	setupJazzExpression(audioCtx, instrumentId);
-	await warmUpMetronome();
+
+	// Load backing track instruments in parallel with metronome warmup
+	await Promise.all([
+		warmUpMetronome(),
+		loadBackingInstruments(backingInstrument ?? 'piano')
+	]);
 }
 
 /**
@@ -510,8 +527,8 @@ export async function playPhrase(
 	}
 
 	// Schedule backing track if enabled
-	if (options.backingTrackEnabled) {
-		await startBackingTrack(phrase, options, keepMetronome);
+	if (options.backingTrackEnabled && isBackingLoaded()) {
+		await scheduleBackingTrack(phrase, options, barTicks, keepMetronome);
 	}
 
 	// Schedule end-of-phrase notification (account for count-in offset)
@@ -567,7 +584,7 @@ export async function stopPlayback(): Promise<void> {
 	}
 
 	disposeMetronome();
-	disposeBackingTrack();
+	disposeBackingParts();
 
 	// Stop all ringing notes
 	stopNotes();
@@ -604,6 +621,7 @@ export async function scheduleNextPhrase(
 		currentPart.dispose();
 		currentPart = null;
 	}
+	disposeBackingParts();
 	stopNotes();
 
 	// Find the next bar downbeat with at least 1 beat of lead time
@@ -622,6 +640,11 @@ export async function scheduleNextPhrase(
 		startNote({ ...event, time });
 	}, events);
 	currentPart.start(`${nextBarTicks}i`);
+
+	// Schedule backing track for the new phrase
+	if (options.backingTrackEnabled && isBackingLoaded()) {
+		await scheduleBackingTrack(phrase, options, nextBarTicks, true);
+	}
 
 	// Schedule end-of-phrase notification
 	const totalDuration = getPhraseDuration(phrase, options.tempo);

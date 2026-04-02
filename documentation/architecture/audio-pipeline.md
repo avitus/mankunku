@@ -161,3 +161,17 @@ The practice page (`src/routes/practice/+page.svelte`) orchestrates the full rec
 5. **Score**: `scoreAttempt()` produces a `Score` with per-note results.
 
 The practice page prefers the AudioWorklet onset detector when available. It creates the worklet on first mic capture (`ensureMicCapture()`) and calls `reset(recordingStartTime)` before each recording pass to synchronize timestamps with the pitch detector. If the AudioWorklet is unavailable (e.g., unsupported browser), it falls back to `extractOnsetsFromReadings()` which derives onsets from pitch data gaps and MIDI changes.
+
+### Known Issue: Backing Track False Onset
+
+When the backing track is enabled, its audio (piano/organ comping, walking bass) plays through speakers and is picked up by the microphone. Since `echoCancellation` is disabled (to preserve saxophone pitch accuracy), the pitch detector can register backing track notes as valid readings (clarity >= 0.80, frequency within 80–1200 Hz range).
+
+This falsely triggers `beginRecording()` during the `awaitingInput` phase, starting the recording timer before the user plays. Consequences:
+
+- A phantom note (e.g. Db4 from a comp voicing) appears as the first detected note
+- The recording timeout (`phraseDuration + 2 beats`) starts early, potentially cutting off the user's last note
+- The silence timeout (2s) can terminate recording before the user starts playing
+
+The 150ms decay pause in `enterAwaitingInput()` was designed for the melody instrument's sustain tail, but does not help against the continuously-looping backing track.
+
+**Proposed fix**: Mute the backing track gain node during the `awaitingInput` phase (after the melody finishes, before the user starts playing), then restore volume in `beginRecording()`. The backing track Parts continue playing silently in sync with the transport, so no rescheduling is needed. The metronome remains audible as a timing reference.

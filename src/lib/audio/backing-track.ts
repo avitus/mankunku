@@ -1,17 +1,82 @@
 /**
- * Jazz backing track module.
+ * Jazz backing track engine.
  *
- * Generates and schedules piano/organ comping, walking bass, and a drum
- * pattern synchronized to phrase harmony via the Tone.js Transport.
- * Module structure mirrors metronome.ts.
+ * Generates and schedules walking bass, piano/organ comping, and a
+ * drum pattern synchronized to phrase harmony via the Tone.js Transport.
+ *
+ * Instruments:
+ * - Upright bass (acoustic_bass GM SoundFont)
+ * - Piano or organ (acoustic_grand_piano / drawbar_organ, configurable)
+ * - Drums: synthesized kick, ride, hi-hat (same approach as metronome.ts)
  */
 
-import type { Phrase, HarmonicSegment, PitchClass, ChordQuality } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
 import type { PlaybackOptions } from '$lib/types/audio.ts';
 import type { BackingInstrument } from '$lib/types/instruments.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
-import { getMasterGain, getAudioContext } from './audio-context.ts';
+import { initAudio, getMasterGain, getAudioContext } from './audio-context.ts';
+import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings.ts';
+import { chordSymbol } from '$lib/music/chords.ts';
+
+// ── Diagnostics log ──────────────────────────────────────────
+
+export interface BackingTrackBeat {
+	beat: number;
+	bassMidi: number;
+	compMidi: number[] | null;
+	compVelocity: number | null;
+	drumParts: string[];
+	melodyMidi: number | null;
+}
+
+export interface BackingTrackSegmentLog {
+	chord: string;
+	startBeat: number;
+	durationBeats: number;
+	beats: BackingTrackBeat[];
+}
+
+export interface BackingTrackLog {
+	timestamp: number;
+	phraseId: string;
+	phraseName: string;
+	key: string;
+	tempo: number;
+	timeSignature: [number, number];
+	segments: BackingTrackSegmentLog[];
+}
+
+const MAX_LOG_ENTRIES = 30;
+const LOG_STORAGE_KEY = 'backing-track-log';
+
+function loadLog(): BackingTrackLog[] {
+	if (typeof sessionStorage === 'undefined') return [];
+	try {
+		const raw = sessionStorage.getItem(LOG_STORAGE_KEY);
+		return raw ? JSON.parse(raw) : [];
+	} catch {
+		return [];
+	}
+}
+
+function saveLog(log: BackingTrackLog[]): void {
+	if (typeof sessionStorage === 'undefined') return;
+	try {
+		sessionStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(log));
+	} catch { /* quota exceeded — ignore */ }
+}
+
+const backingTrackLog: BackingTrackLog[] = loadLog();
+
+/** Get the backing track diagnostics log (newest first). */
+export function getBackingTrackLog(count = 20): BackingTrackLog[] {
+	// Re-read from storage to handle SSR/hydration boundary
+	if (backingTrackLog.length === 0 && typeof sessionStorage !== 'undefined') {
+		const fresh = loadLog();
+		backingTrackLog.push(...fresh);
+	}
+	return backingTrackLog.slice(0, count);
+}
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
@@ -26,8 +91,7 @@ let bassInstrument: SmplrSoundfont | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
 
 // Gain nodes for independent volume control
-let compGainNode: GainNode | null = null;
-let bassGainNode: GainNode | null = null;
+let backingGain: GainNode | null = null;
 
 // Drums: synthesized (same approach as metronome.ts)
 let rideSynth: InstanceType<ToneModule['NoiseSynth']> | null = null;
@@ -41,6 +105,9 @@ let drumGainNode: InstanceType<ToneModule['Gain']> | null = null;
 let bassPart: InstanceType<ToneModule['Part']> | null = null;
 let compPart: InstanceType<ToneModule['Part']> | null = null;
 let drumSequence: InstanceType<ToneModule['Sequence']> | null = null;
+
+/** Monotonically increasing ID for cancelling stale loads. */
+let currentLoadId = 0;
 
 // ── Lazy initialisation ──────────────────────────────────────
 
@@ -84,151 +151,240 @@ const COMP_INSTRUMENT_NAMES: Record<BackingInstrument, string> = {
 	organ: 'drawbar_organ'
 };
 
-async function loadBackingInstruments(instrumentType: BackingInstrument): Promise<void> {
-	const audioCtx = await getAudioContext();
-	const { Soundfont } = await import('smplr');
-	const master = getMasterGain();
+/**
+ * Load backing track instruments (bass + chord instrument).
+ * Idempotent for the same chord instrument type.
+ */
+export async function loadBackingInstruments(
+	instrumentType: BackingInstrument = 'piano'
+): Promise<void> {
+	const loadId = ++currentLoadId;
+	const audioCtx = await initAudio();
+	if (loadId !== currentLoadId) return;
 
-	// Create gain nodes if needed
-	if (!compGainNode) {
-		compGainNode = audioCtx.createGain();
-		compGainNode.connect(master);
+	// Create shared gain node if needed
+	if (!backingGain) {
+		backingGain = audioCtx.createGain();
+		backingGain.gain.value = 0.5;
+		backingGain.connect(getMasterGain());
 	}
-	if (!bassGainNode) {
-		bassGainNode = audioCtx.createGain();
-		bassGainNode.connect(master);
+
+	const { Soundfont } = await import('smplr');
+	if (loadId !== currentLoadId) return;
+
+	// Load bass if not already loaded
+	if (!bassInstrument) {
+		const bass = new Soundfont(audioCtx, {
+			instrument: 'acoustic_bass',
+			kit: 'MusyngKite',
+			destination: backingGain
+		});
+		await bass.load;
+		if (loadId !== currentLoadId) {
+			bass.disconnect();
+			return;
+		}
+		bassInstrument = bass;
 	}
 
 	// Reload comp instrument only when type changes
-	if (currentInstrumentType !== instrumentType) {
+	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		if (compInstrument) {
 			compInstrument.stop();
 			compInstrument.disconnect();
 		}
-		compInstrument = new Soundfont(audioCtx, {
+		const comp = new Soundfont(audioCtx, {
 			instrument: COMP_INSTRUMENT_NAMES[instrumentType],
 			kit: 'MusyngKite',
-			destination: compGainNode
+			destination: backingGain
 		});
-		await compInstrument.load;
+		await comp.load;
+		if (loadId !== currentLoadId) {
+			comp.disconnect();
+			return;
+		}
+		compInstrument = comp;
 		currentInstrumentType = instrumentType;
 	}
-
-	// Load bass once
-	if (!bassInstrument) {
-		bassInstrument = new Soundfont(audioCtx, {
-			instrument: 'acoustic_bass',
-			kit: 'MusyngKite',
-			destination: bassGainNode
-		});
-		await bassInstrument.load;
-	}
 }
 
-// ── Helpers ──────────────────────────────────────────────────
-
-/** Convert a PitchClass + octave to a MIDI note number. */
-function pitchClassToMidi(root: PitchClass, octave: number): number {
-	return PITCH_CLASSES.indexOf(root) + (octave + 1) * 12;
+/** Check if backing instruments are loaded and ready. */
+export function isBackingLoaded(): boolean {
+	return bassInstrument !== null && compInstrument !== null;
 }
 
-/** Interval (in semitones) from root to the 3rd for a given chord quality. */
-function thirdInterval(quality: ChordQuality): number {
-	switch (quality) {
-		case 'min7':
-		case 'min7b5':
-		case 'dim7':
-		case 'min6':
-		case 'minMaj7':
-			return 3;
-		default:
-			return 4;
-	}
+// ── Bass generation ──────────────────────────────────────────
+
+const BASS_REGISTER = 40; // E2 — center of upright bass range
+
+/** Find nearest bass-register MIDI note for a pitch class. */
+function nearestBassNote(pc: number, center: number): number {
+	const centerPc = ((center % 12) + 12) % 12;
+	let midi = center + ((pc - centerPc + 6 + 12) % 12 - 6);
+	// Clamp to reasonable bass range (E1=28 to G3=55)
+	if (midi < 28) midi += 12;
+	if (midi > 55) midi -= 12;
+	return midi;
 }
 
-/** Interval (in semitones) from root to the 7th for a given chord quality. */
-function seventhInterval(quality: ChordQuality): number {
-	switch (quality) {
-		case 'maj7':
-		case 'minMaj7':
-			return 11;
-		case 'dim7':
-			return 9;
-		case 'maj6':
-		case 'min6':
-			return 9; // 6th instead of 7th
-		default:
-			return 10; // dominant / minor 7th
-	}
+/** Pick a chord tone for bass on a given beat index. */
+function chordToneForBass(rootPc: number, quality: string, center: number, beatIndex: number): number {
+	// Common chord tones: root, 3rd, 5th
+	const offsets = beatIndex % 2 === 1 ? [7, 4, 3] : [5, 7, 3];
+	const offset = offsets[beatIndex % offsets.length];
+	const pc = (rootPc + offset) % 12;
+	return nearestBassNote(pc, center);
 }
 
-/**
- * Generate a shell voicing for a chord segment.
- * Returns MIDI note numbers: root (octave 3) + 3rd + 7th in mid register.
- */
-function generatePianoVoicing(segment: HarmonicSegment): number[] {
-	const root = pitchClassToMidi(segment.chord.root, 3);
-	const third = root + thirdInterval(segment.chord.quality);
-	const seventh = root + seventhInterval(segment.chord.quality);
-	return [root, third, seventh];
+/** Chromatic approach note (half step below or above target). */
+function approachNote(targetMidi: number): number {
+	return Math.random() < 0.6 ? targetMidi - 1 : targetMidi + 1;
+}
+
+/** Subtle timing humanization for backing track (tighter than melody). */
+function humanizeBeatTicks(ticks: number, ppq: number, tempo: number): number {
+	const baseMs = 3;
+	const tempoScale = 120 / tempo;
+	const maxDeviationMs = baseMs * tempoScale;
+	const msPerTick = (60 / tempo / ppq) * 1000;
+	const maxDeviationTicks = Math.round(maxDeviationMs / msPerTick);
+	const deviation = (Math.random() - 0.5) * 2 * maxDeviationTicks;
+	return Math.max(0, Math.round(ticks + deviation));
 }
 
 interface BassEvent {
 	time: string;
 	midi: number;
 	duration: number;
+	velocity: number;
 }
 
 /**
- * Generate bass notes for a harmonic segment.
- * Root on beat 1 of the segment, fifth on beat 3 (if segment is long enough).
+ * Generate walking bass notes for the chord progression.
+ * Uses chord tones on interior beats and chromatic approach notes
+ * on the last beat of each segment to lead into the next root.
  */
-function generateBassNotes(
-	segment: HarmonicSegment,
-	segStartTick: number,
+function generateWalkingBass(
+	harmony: HarmonicSegment[],
 	beatsPerBar: number,
-	ppq: number,
-	tempo: number
+	tempo: number,
+	ppq: number
 ): BassEvent[] {
-	const rootMidi = pitchClassToMidi(segment.chord.root, 2);
-	const fifthMidi = rootMidi + 7;
-	const halfNoteSec = 2 * (60 / tempo);
-	const segDurationBeats = fractionToFloat(segment.duration) * 4;
+	const events: BassEvent[] = [];
+	const beatDuration = 60 / tempo;
 
-	const events: BassEvent[] = [
-		{ time: `${segStartTick}i`, midi: rootMidi, duration: halfNoteSec }
-	];
+	for (let segIdx = 0; segIdx < harmony.length; segIdx++) {
+		const seg = harmony[segIdx];
+		const rootPc = pitchClassToNumber(seg.chord.root);
+		const rootMidi = nearestBassNote(rootPc, BASS_REGISTER);
 
-	// Add fifth on beat 3 if segment spans at least 3 beats
-	if (segDurationBeats >= beatsPerBar / 2 + 1) {
-		const fifthTick = segStartTick + Math.round((beatsPerBar / 2) * ppq);
-		events.push({ time: `${fifthTick}i`, midi: fifthMidi, duration: halfNoteSec });
+		const segStartBeats = fractionToFloat(seg.startOffset) * 4;
+		const segDurationBeats = fractionToFloat(seg.duration) * 4;
+		const totalBeats = Math.round(segDurationBeats);
+
+		// Next segment's root for approach notes
+		const nextSeg = harmony[(segIdx + 1) % harmony.length];
+		const nextRootPc = pitchClassToNumber(nextSeg.chord.root);
+		const nextRootMidi = nearestBassNote(nextRootPc, BASS_REGISTER);
+
+		for (let beat = 0; beat < totalBeats; beat++) {
+			const beatOffset = segStartBeats + beat;
+			const ticks = Math.round(beatOffset * ppq);
+			let midi: number;
+
+			if (beat === 0) {
+				// Beat 1: always the root
+				midi = rootMidi;
+			} else if (beat === totalBeats - 1 && totalBeats > 1) {
+				// Last beat: chromatic approach to next root
+				midi = approachNote(nextRootMidi);
+			} else if (beat === 1) {
+				// Beat 2: chord tone (3rd or 5th)
+				midi = chordToneForBass(rootPc, seg.chord.quality, BASS_REGISTER, 1);
+			} else {
+				// Beat 3+: alternate chord tones
+				midi = chordToneForBass(rootPc, seg.chord.quality, BASS_REGISTER, beat);
+			}
+
+			// Subtle velocity humanization
+			const velocity = 80 + Math.round((Math.random() - 0.5) * 10);
+
+			events.push({
+				time: `${humanizeBeatTicks(ticks, ppq, tempo)}i`,
+				midi,
+				duration: beatDuration * 0.85, // Slightly detached
+				velocity
+			});
+		}
 	}
 
 	return events;
 }
 
+// ── Comping generation ───────────────────────────────────────
+
 interface CompEvent {
 	time: string;
 	notes: number[];
 	duration: number;
+	velocity: number;
 }
 
 /**
- * Generate comp (chord) events for a harmonic segment.
- * Places the voicing at the segment start.
+ * Generate comp (chord) events with voice-led voicings.
+ * Hits primarily on beats 2 & 4 with occasional extras on 1 & 3.
  */
-function generateCompEvents(
-	segment: HarmonicSegment,
-	segStartTick: number,
-	tempo: number
+function generateComping(
+	harmony: HarmonicSegment[],
+	beatsPerBar: number,
+	tempo: number,
+	ppq: number
 ): CompEvent[] {
-	const voicing = generatePianoVoicing(segment);
-	const durationBeats = fractionToFloat(segment.duration) * 4;
-	const durationSec = durationBeats * (60 / tempo);
+	const events: CompEvent[] = [];
+	const beatDuration = 60 / tempo;
 
-	return [{ time: `${segStartTick}i`, notes: voicing, duration: durationSec }];
+	// Voice-lead the chord sequence
+	const chords = harmony.map(seg => ({ root: seg.chord.root, quality: seg.chord.quality }));
+	const voicings = voiceLead(chords, shellVoicing, 54);
+
+	for (let segIdx = 0; segIdx < harmony.length; segIdx++) {
+		const seg = harmony[segIdx];
+		const voicing = voicings[segIdx];
+		if (!voicing || voicing.length === 0) continue;
+
+		const segStartBeats = fractionToFloat(seg.startOffset) * 4;
+		const segDurationBeats = fractionToFloat(seg.duration) * 4;
+		const totalBeats = Math.round(segDurationBeats);
+
+		for (let beat = 0; beat < totalBeats; beat++) {
+			const beatInBar = Math.round(segStartBeats + beat) % beatsPerBar;
+			// Comp on beats 2 and 4 (indices 1 and 3 in 0-based)
+			const isCompBeat = beatInBar === 1 || beatInBar === 3;
+			// Occasional extra hit on 1 or 3 for variety (~25% chance)
+			const extraHit = (beatInBar === 0 || beatInBar === 2) && Math.random() < 0.25;
+
+			if (!isCompBeat && !extraHit) continue;
+
+			const beatOffset = segStartBeats + beat;
+			const ticks = Math.round(beatOffset * ppq);
+
+			// Staccato on 2 & 4, slightly longer on extra hits
+			const noteDuration = isCompBeat ? beatDuration * 0.4 : beatDuration * 0.6;
+			const velocity = isCompBeat ? 60 + Math.round(Math.random() * 10) : 50;
+
+			events.push({
+				time: `${humanizeBeatTicks(ticks, ppq, tempo)}i`,
+				notes: voicing,
+				duration: noteDuration,
+				velocity
+			});
+		}
+	}
+
+	return events;
 }
+
+// ── Harmony fallback ─────────────────────────────────────────
 
 /**
  * When phrase.harmony is empty, infer a tonic chord spanning the full phrase.
@@ -251,9 +407,109 @@ function inferTonicChord(phrase: Phrase): HarmonicSegment[] {
 	];
 }
 
+/** Get total harmony duration in quarter-note beats. */
+function getHarmonyDurationBeats(harmony: HarmonicSegment[]): number {
+	let maxEnd = 0;
+	for (const seg of harmony) {
+		const start = fractionToFloat(seg.startOffset) * 4;
+		const dur = fractionToFloat(seg.duration) * 4;
+		maxEnd = Math.max(maxEnd, start + dur);
+	}
+	return maxEnd;
+}
+
+// ── Log capture ──────────────────────────────────────────────
+
+function captureLog(
+	phrase: Phrase,
+	harmony: HarmonicSegment[],
+	bassEvents: BassEvent[],
+	compEvents: CompEvent[],
+	beatsPerBar: number,
+	ppq: number,
+	tempo: number
+): void {
+	// Index bass events by their beat position
+	const bassByBeat = new Map<number, BassEvent>();
+	for (const e of bassEvents) {
+		const ticks = parseInt(e.time);
+		const beat = Math.round(ticks / ppq);
+		bassByBeat.set(beat, e);
+	}
+
+	// Index comp events by their beat position
+	const compByBeat = new Map<number, CompEvent>();
+	for (const e of compEvents) {
+		const ticks = parseInt(e.time);
+		const beat = Math.round(ticks / ppq);
+		compByBeat.set(beat, e);
+	}
+
+	// Index melody notes by beat position
+	const melodyByBeat = new Map<number, number>();
+	for (const note of phrase.notes) {
+		if (note.pitch === null) continue;
+		const beat = Math.round(fractionToFloat(note.offset) * 4);
+		melodyByBeat.set(beat, note.pitch);
+	}
+
+	const segments: BackingTrackSegmentLog[] = [];
+	for (const seg of harmony) {
+		const startBeat = Math.round(fractionToFloat(seg.startOffset) * 4);
+		const durationBeats = Math.round(fractionToFloat(seg.duration) * 4);
+		const beats: BackingTrackBeat[] = [];
+
+		for (let b = 0; b < durationBeats; b++) {
+			const globalBeat = startBeat + b;
+			const beatInBar = globalBeat % beatsPerBar;
+
+			const bassEvent = bassByBeat.get(globalBeat);
+			const compEvent = compByBeat.get(globalBeat);
+
+			const drumParts: string[] = [];
+			if (beatInBar === 0) drumParts.push('Kick');
+			drumParts.push('Ride');
+			if (beatInBar === 1 || beatInBar === 3) drumParts.push('HH');
+
+			beats.push({
+				beat: globalBeat + 1, // 1-based for display
+				bassMidi: bassEvent?.midi ?? -1,
+				compMidi: compEvent?.notes ?? null,
+				compVelocity: compEvent?.velocity ?? null,
+				drumParts,
+				melodyMidi: melodyByBeat.get(globalBeat) ?? null
+			});
+		}
+
+		segments.push({
+			chord: chordSymbol(seg.chord.root, seg.chord.quality),
+			startBeat: startBeat + 1,
+			durationBeats,
+			beats
+		});
+	}
+
+	backingTrackLog.unshift({
+		timestamp: Date.now(),
+		phraseId: phrase.id,
+		phraseName: phrase.name ?? phrase.id,
+		key: phrase.key,
+		tempo,
+		timeSignature: phrase.timeSignature,
+		segments
+	});
+
+	// Trim and persist
+	if (backingTrackLog.length > MAX_LOG_ENTRIES) {
+		backingTrackLog.length = MAX_LOG_ENTRIES;
+	}
+	saveLog(backingTrackLog);
+}
+
 // ── Scheduling ───────────────────────────────────────────────
 
-function disposeParts(): void {
+/** Dispose only the scheduled parts (not the instruments). */
+export function disposeBackingParts(): void {
 	if (bassPart) {
 		bassPart.dispose();
 		bassPart = null;
@@ -266,14 +522,26 @@ function disposeParts(): void {
 		drumSequence.dispose();
 		drumSequence = null;
 	}
+	bassInstrument?.stop();
+	compInstrument?.stop();
 }
 
-async function scheduleBackingTrack(
+/**
+ * Schedule the backing track on the Tone.js Transport.
+ *
+ * @param phrase - The phrase whose harmony drives the backing track
+ * @param options - Playback options (tempo, backing track settings)
+ * @param tickOffset - Transport tick offset (e.g. count-in bar)
+ * @param loop - If true, backing track loops for recording phase
+ */
+export async function scheduleBackingTrack(
 	phrase: Phrase,
 	options: PlaybackOptions,
-	barTicks: number,
-	bars: number | null
+	tickOffset: number,
+	loop: boolean = false
 ): Promise<void> {
+	if (!isBackingLoaded()) return;
+
 	const Tone = await getTone();
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
@@ -281,60 +549,67 @@ async function scheduleBackingTrack(
 
 	const harmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
 
+	setBackingTrackVolume(options.backingTrackVolume);
+	disposeBackingParts();
+
 	// ── Bass + Comp events ──────────────────────────────────
-	const allBassEvents: BassEvent[] = [];
-	const allCompEvents: CompEvent[] = [];
+	const bassEvents = generateWalkingBass(harmony, beatsPerBar, options.tempo, ppq);
+	const compEvents = generateComping(harmony, beatsPerBar, options.tempo, ppq);
 
-	for (const seg of harmony) {
-		const segOffsetTicks = Math.round(fractionToFloat(seg.startOffset) * 4 * ppq);
-		const segStartTick = barTicks + segOffsetTicks;
+	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
+	const harmonyTicks = Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
 
-		allBassEvents.push(...generateBassNotes(seg, segStartTick, beatsPerBar, ppq, options.tempo));
-		allCompEvents.push(...generateCompEvents(seg, segStartTick, options.tempo));
+	// ── Capture diagnostics log ─────────────────────────────
+	captureLog(phrase, harmony, bassEvents, compEvents, beatsPerBar, ppq, options.tempo);
+
+	// Schedule bass — offset events by tickOffset (count-in bar)
+	bassPart = new Tone.Part((time: number, event: BassEvent) => {
+		bassInstrument?.start({
+			note: event.midi,
+			velocity: event.velocity,
+			duration: event.duration,
+			time
+		});
+	}, bassEvents.map(e => ({
+		...e,
+		time: `${parseInt(e.time) + tickOffset}i`
+	})));
+	bassPart.start(0);
+	bassPart.loop = loop;
+	if (loop) {
+		bassPart.loopStart = `${tickOffset}i`;
+		bassPart.loopEnd = `${tickOffset + harmonyTicks}i`;
 	}
 
-	// Schedule bass
-	bassPart = new Tone.Part((time, event: BassEvent) => {
-		bassInstrument?.start({ note: event.midi, velocity: 90, duration: event.duration, time });
-	}, allBassEvents);
-	bassPart.start(0);
-	bassPart.loop = false;
-
-	// Schedule comp
-	compPart = new Tone.Part((time, event: CompEvent) => {
+	// Schedule comp — offset events by tickOffset
+	compPart = new Tone.Part((time: number, event: CompEvent) => {
 		for (const midi of event.notes) {
-			compInstrument?.start({ note: midi, velocity: 70, duration: event.duration, time });
+			compInstrument?.start({
+				note: midi,
+				velocity: event.velocity,
+				duration: event.duration,
+				time
+			});
 		}
-	}, allCompEvents);
+	}, compEvents.map(e => ({
+		...e,
+		time: `${parseInt(e.time) + tickOffset}i`
+	})));
 	compPart.start(0);
-	compPart.loop = false;
-
-	// If looping, set up Part looping over the phrase duration
-	if (bars === null) {
-		// Calculate phrase duration in ticks for loop length
-		let maxEndBeat = 0;
-		for (const note of phrase.notes) {
-			const start = fractionToFloat(note.offset) * 4;
-			const dur = fractionToFloat(note.duration) * 4;
-			maxEndBeat = Math.max(maxEndBeat, start + dur);
-		}
-		const phraseTicks = Math.ceil(maxEndBeat / beatsPerBar) * beatsPerBar * ppq;
-		const loopEnd = barTicks + phraseTicks;
-
-		bassPart.loop = true;
-		bassPart.loopStart = `${barTicks}i`;
-		bassPart.loopEnd = `${loopEnd}i`;
-
-		compPart.loop = true;
-		compPart.loopStart = `${barTicks}i`;
-		compPart.loopEnd = `${loopEnd}i`;
+	compPart.loop = loop;
+	if (loop) {
+		compPart.loopStart = `${tickOffset}i`;
+		compPart.loopEnd = `${tickOffset + harmonyTicks}i`;
 	}
 
 	// ── Drums ───────────────────────────────────────────────
+	await ensureDrums();
 	const pattern = Array.from({ length: beatsPerBar }, (_, i) => i);
 
-	if (bars !== null) {
-		const totalBeats = beatsPerBar * bars;
+	if (!loop) {
+		// Finite: calculate total beats including count-in
+		const phraseBars = Math.ceil(harmonyDurationBeats / beatsPerBar);
+		const totalBeats = beatsPerBar * (phraseBars + 1); // +1 for count-in
 		const allBeats = Array.from({ length: totalBeats }, (_, i) => i % beatsPerBar);
 
 		drumSequence = new Tone.Sequence(
@@ -386,45 +661,33 @@ export async function startBackingTrack(
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
 	const beatsPerBar = phrase.timeSignature[0];
-
-	await loadBackingInstruments(options.backingInstrument);
-	await ensureDrums();
-
-	// Set volumes
-	setBackingTrackVolume(options.backingTrackVolume);
-
-	// Dispose previous parts
-	disposeParts();
-
 	const barTicks = beatsPerBar * ppq;
 
-	if (keepLooping) {
-		await scheduleBackingTrack(phrase, options, barTicks, null);
-	} else {
-		// Calculate phrase bars (same logic as playback.ts getPhraseBars)
-		let maxEndBeat = 0;
-		for (const note of phrase.notes) {
-			const start = fractionToFloat(note.offset) * 4;
-			const dur = fractionToFloat(note.duration) * 4;
-			maxEndBeat = Math.max(maxEndBeat, start + dur);
-		}
-		const phraseBars = Math.ceil(maxEndBeat / beatsPerBar);
-		await scheduleBackingTrack(phrase, options, barTicks, phraseBars + 1);
-	}
+	await loadBackingInstruments(options.backingInstrument);
+	await scheduleBackingTrack(phrase, options, barTicks, keepLooping);
 }
 
-/** Stop and dispose all backing track Parts/Sequences. */
+/** Full cleanup: dispose parts and instruments. */
 export function disposeBackingTrack(): void {
-	disposeParts();
-	// Stop ringing notes on instruments
-	compInstrument?.stop();
-	bassInstrument?.stop();
+	disposeBackingParts();
+	if (bassInstrument) {
+		bassInstrument.disconnect();
+		bassInstrument = null;
+	}
+	if (compInstrument) {
+		compInstrument.disconnect();
+		compInstrument = null;
+		currentInstrumentType = null;
+	}
+	if (backingGain) {
+		backingGain.disconnect();
+		backingGain = null;
+	}
 }
 
 /** Adjust backing track volume at runtime. */
 export function setBackingTrackVolume(volume: number): void {
 	const v = Math.max(0, Math.min(1, volume));
-	if (compGainNode) compGainNode.gain.value = v;
-	if (bassGainNode) bassGainNode.gain.value = v;
+	if (backingGain) backingGain.gain.value = v;
 	if (drumGainNode) drumGainNode.gain.value = v * 0.6; // drums sit back in the mix
 }

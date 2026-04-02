@@ -232,7 +232,7 @@
 			if (!playback.isInstrumentLoaded()) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
-				await playback.loadInstrument(settings.instrumentId, settings.masterVolume);
+				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, settings.backingInstrument);
 				session.isLoadingInstrument = false;
 			}
 

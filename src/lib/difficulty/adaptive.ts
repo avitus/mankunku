@@ -13,7 +13,7 @@
 import type { AdaptiveState, ScaleProficiency, KeyProficiency } from '$lib/types/progress.ts';
 import { difficultyDisplay } from '$lib/difficulty/display.ts';
 
-const WINDOW_SIZE = 25;
+export const WINDOW_SIZE = 25;
 const ADVANCE_THRESHOLD = 0.85;
 const RETREAT_THRESHOLD = 0.50;
 const MIN_ATTEMPTS_BETWEEN_CHANGES = 10;
