@@ -74,6 +74,7 @@
 
 			audioUrl = URL.createObjectURL(blob);
 			audioElement = new Audio(audioUrl);
+			audioElement.volume = 0.25;
 			audioElement.onended = () => {
 				playingSessionId = null;
 				if (audioUrl) {

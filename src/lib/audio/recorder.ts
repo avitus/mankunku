@@ -4,6 +4,9 @@
  * MediaStreamDestination + MediaRecorder.
  */
 
+/** Attenuate raw mic signal (~-8 dB) so it balances with the metronome/playback mix. */
+const MIC_RECORDING_GAIN = 0.4;
+
 export interface RecorderHandle {
 	/** Begin capturing audio. */
 	start(): void;
@@ -37,7 +40,10 @@ export function createRecorder(
 	audioCtx: AudioContext
 ): RecorderHandle {
 	const dest = audioCtx.createMediaStreamDestination();
-	micSource.connect(dest);
+	const micGain = audioCtx.createGain();
+	micGain.gain.value = MIC_RECORDING_GAIN;
+	micSource.connect(micGain);
+	micGain.connect(dest);
 	masterGain.connect(dest);
 
 	let mediaRecorder: MediaRecorder | null = null;
@@ -78,7 +84,8 @@ export function createRecorder(
 		dispose() {
 			if (disposed) return;
 			disposed = true;
-			try { micSource.disconnect(dest); } catch { /* already disconnected */ }
+			try { micSource.disconnect(micGain); } catch { /* already disconnected */ }
+			try { micGain.disconnect(dest); } catch { /* already disconnected */ }
 			try { masterGain.disconnect(dest); } catch { /* already disconnected */ }
 		}
 	};
