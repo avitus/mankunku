@@ -136,6 +136,15 @@
 	function toggleSession(id: string) {
 		expandedSessionId = expandedSessionId === id ? null : id;
 	}
+
+	function handleTabKeydown(e: KeyboardEvent) {
+		if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+			e.preventDefault();
+			tab = tab === 'sessions' ? 'progress' : 'sessions';
+			const next = document.getElementById(`tab-${tab}`) as HTMLElement | null;
+			next?.focus();
+		}
+	}
 </script>
 
 <div class="space-y-6">
@@ -144,29 +153,35 @@
 	<!-- Tab bar -->
 	<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1" role="tablist">
 		<button
+			id="tab-sessions"
 			onclick={() => { tab = 'sessions'; }}
+			onkeydown={handleTabKeydown}
 			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
 			style={tab === 'sessions' ? 'background-color: var(--color-accent); color: white' : ''}
 			role="tab"
 			aria-selected={tab === 'sessions'}
 			aria-controls="panel-sessions"
+			tabindex={tab === 'sessions' ? 0 : -1}
 		>
 			Sessions
 		</button>
 		<button
+			id="tab-progress"
 			onclick={() => { tab = 'progress'; }}
+			onkeydown={handleTabKeydown}
 			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
 			style={tab === 'progress' ? 'background-color: var(--color-accent); color: white' : ''}
 			role="tab"
 			aria-selected={tab === 'progress'}
 			aria-controls="panel-progress"
+			tabindex={tab === 'progress' ? 0 : -1}
 		>
 			Progress
 		</button>
 	</div>
 
 	{#if tab === 'sessions'}
-	<div id="panel-sessions" role="tabpanel">
+	<div id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
 		<!-- Summary bar: 3 compact stat cards -->
 		<div class="grid grid-cols-3 gap-3">
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
@@ -297,7 +312,7 @@
 		{/if}
 	</div>
 	{:else}
-	<div id="panel-progress" role="tabpanel">
+	<div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress">
 		<!-- Progress tab -->
 
 		{#if dailySummaries.length > 0}
