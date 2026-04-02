@@ -28,7 +28,13 @@ const defaultSettings = {
 	/** User override for daily tonality. null = use auto-selected daily tonality. */
 	tonalityOverride: null as Tonality | null,
 	/** User-configured highest concert pitch MIDI. null = instrument default. */
-	highestNote: null as number | null
+	highestNote: null as number | null,
+	/** Enable jazz backing track (walking bass + piano/organ comping) */
+	backingTrackEnabled: true,
+	/** Backing track volume (0-1) */
+	backingTrackVolume: 0.5,
+	/** Chord comping instrument for backing track */
+	backingChordInstrument: 'piano' as 'piano' | 'organ'
 };
 
 export const settings = $state(loadSettings());

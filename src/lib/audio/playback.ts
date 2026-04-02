@@ -20,6 +20,14 @@ import { fractionToFloat } from '$lib/music/intervals.ts';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context.ts';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome.ts';
 import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps.ts';
+import {
+	loadBackingInstruments,
+	scheduleBackingTrack,
+	disposeBackingParts,
+	disposeBackingTrack,
+	isBackingLoaded,
+	setBackingVolume
+} from './backing-track.ts';
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
@@ -252,7 +260,11 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
  * Uses custom multi-sampled recordings when available (tenor sax),
  * falling back to MusyngKite SoundFont for other instruments or on load error.
  */
-export async function loadInstrument(instrumentId: string = 'tenor-sax', masterVolume?: number): Promise<void> {
+export async function loadInstrument(
+	instrumentId: string = 'tenor-sax',
+	masterVolume?: number,
+	backingChordInstrument?: 'piano' | 'organ'
+): Promise<void> {
 	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
 	if (loadId !== currentLoadId) return;
@@ -278,7 +290,12 @@ export async function loadInstrument(instrumentId: string = 'tenor-sax', masterV
 	}
 
 	setupJazzExpression(audioCtx, instrumentId);
-	await warmUpMetronome();
+
+	// Load backing track instruments in parallel with metronome warmup
+	await Promise.all([
+		warmUpMetronome(),
+		loadBackingInstruments(backingChordInstrument ?? 'piano')
+	]);
 }
 
 /**
@@ -508,6 +525,11 @@ export async function playPhrase(
 		}
 	}
 
+	// Schedule backing track if enabled
+	if (options.backingTrackEnabled && isBackingLoaded()) {
+		await scheduleBackingTrack(phrase, options, barTicks, keepMetronome);
+	}
+
 	// Schedule end-of-phrase notification (account for count-in offset)
 	const totalDuration = getPhraseDuration(phrase, options.tempo);
 	const totalTicks = Math.round((totalDuration / (60 / options.tempo)) * ppq);
@@ -561,6 +583,7 @@ export async function stopPlayback(): Promise<void> {
 	}
 
 	disposeMetronome();
+	disposeBackingParts();
 
 	// Stop all ringing notes
 	stopNotes();
@@ -597,6 +620,7 @@ export async function scheduleNextPhrase(
 		currentPart.dispose();
 		currentPart = null;
 	}
+	disposeBackingParts();
 	stopNotes();
 
 	// Find the next bar downbeat with at least 1 beat of lead time
@@ -615,6 +639,11 @@ export async function scheduleNextPhrase(
 		startNote({ ...event, time });
 	}, events);
 	currentPart.start(`${nextBarTicks}i`);
+
+	// Schedule backing track for the new phrase
+	if (options.backingTrackEnabled && isBackingLoaded()) {
+		await scheduleBackingTrack(phrase, options, nextBarTicks, true);
+	}
 
 	// Schedule end-of-phrase notification
 	const totalDuration = getPhraseDuration(phrase, options.tempo);

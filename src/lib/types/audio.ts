@@ -39,4 +39,10 @@ export interface PlaybackOptions {
 	metronomeEnabled: boolean;
 	/** Metronome volume (0-1) */
 	metronomeVolume: number;
+	/** Enable jazz backing track (bass + piano/organ) */
+	backingTrackEnabled: boolean;
+	/** Backing track volume (0-1) */
+	backingTrackVolume: number;
+	/** Chord comping instrument */
+	backingChordInstrument: 'piano' | 'organ';
 }

@@ -326,6 +326,64 @@
 		{/if}
 	</div>
 
+	<!-- Backing Track -->
+	<div class="space-y-4 rounded-lg bg-[var(--color-bg-secondary)] p-5">
+		<div class="flex items-center justify-between">
+			<div>
+				<h2 class="text-lg font-semibold">Backing Track</h2>
+				<p class="text-sm text-[var(--color-text-secondary)]">
+					Walking bass + comping during practice
+				</p>
+			</div>
+			<button
+				onclick={() => { settings.backingTrackEnabled = !settings.backingTrackEnabled; saveSettings(); }}
+				class="relative h-7 w-12 rounded-full transition-colors
+					{settings.backingTrackEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
+			>
+				<span
+					class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform
+						{settings.backingTrackEnabled ? 'translate-x-5' : 'translate-x-0.5'}"
+				></span>
+			</button>
+		</div>
+
+		{#if settings.backingTrackEnabled}
+			<!-- Volume -->
+			<div>
+				<label class="mb-2 block text-sm font-medium">
+					Volume: {Math.round(settings.backingTrackVolume * 100)}%
+				</label>
+				<input
+					type="range"
+					min="0"
+					max="100"
+					step="5"
+					value={settings.backingTrackVolume * 100}
+					oninput={(e) => { settings.backingTrackVolume = parseInt(e.currentTarget.value) / 100; saveSettings(); }}
+					class="w-full accent-[var(--color-accent)]"
+				/>
+			</div>
+
+			<!-- Chord Instrument -->
+			<div>
+				<label class="mb-2 block text-sm font-medium">Comping Instrument</label>
+				<div class="flex gap-2">
+					{#each [{ value: 'piano', label: 'Piano' }, { value: 'organ', label: 'Organ' }] as { value, label }}
+						<button
+							onclick={() => { settings.backingChordInstrument = value as 'piano' | 'organ'; saveSettings(); }}
+							class="rounded-full px-3 py-1 text-sm transition-colors
+								{settings.backingChordInstrument === value
+									? 'bg-[var(--color-accent)] text-white'
+									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
+						>
+							{label}
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
+
 	<!-- Start button -->
 	<button
 		onclick={startSession}
