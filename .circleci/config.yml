@@ -61,8 +61,8 @@ jobs:
           name: Add server to known_hosts
           command: ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
       - run:
-          name: Debug SSH connection
-          command: ssh -vvv $DEPLOY_USER@$DEPLOY_HOST 'echo connected' 2>&1 || true
+          name: Install rsync
+          command: sudo apt-get update && sudo apt-get install -y rsync
       - run:
           name: Deploy to server
           command: |
