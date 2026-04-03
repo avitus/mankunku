@@ -61,6 +61,9 @@ jobs:
           name: Add server to known_hosts
           command: ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
       - run:
+          name: Debug SSH connection
+          command: ssh -vvv $DEPLOY_USER@$DEPLOY_HOST 'echo connected' 2>&1 || true
+      - run:
           name: Deploy to server
           command: |
             # Backup current release for rollback
