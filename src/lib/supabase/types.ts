@@ -110,6 +110,12 @@ export type Database = {
           metronome_enabled: boolean
           /** Metronome volume level (0.0–1.0) */
           metronome_volume: number
+          /** Whether the backing track is enabled during practice */
+          backing_track_enabled: boolean
+          /** Comping instrument for the backing track: 'piano' or 'organ' */
+          backing_instrument: string
+          /** Backing track volume level (0.0–1.0) */
+          backing_track_volume: number
           /** Swing amount (0.5 = straight, up to 0.8 = heavy swing) */
           swing: number
           /** UI theme: 'dark' or 'light' */
@@ -136,6 +142,12 @@ export type Database = {
           metronome_enabled?: boolean
           /** Defaults to 0.7 in database */
           metronome_volume?: number
+          /** Defaults to true in database */
+          backing_track_enabled?: boolean
+          /** Defaults to 'piano' in database */
+          backing_instrument?: string
+          /** Defaults to 0.6 in database */
+          backing_track_volume?: number
           /** Defaults to 0.5 in database */
           swing?: number
           /** Defaults to 'dark' in database */
@@ -154,6 +166,9 @@ export type Database = {
           master_volume?: number
           metronome_enabled?: boolean
           metronome_volume?: number
+          backing_track_enabled?: boolean
+          backing_instrument?: string
+          backing_track_volume?: number
           swing?: number
           theme?: string
           onboarding_complete?: boolean

@@ -293,9 +293,14 @@ export async function loadInstrument(
 	setupJazzExpression(audioCtx, instrumentId);
 
 	// Load backing track instruments in parallel with metronome warmup
+	// Backing track load is best-effort — failures must not block playback
 	await Promise.all([
 		warmUpMetronome(),
-		loadBackingInstruments(backingInstrument ?? 'piano')
+		...(backingInstrument
+			? [loadBackingInstruments(backingInstrument).catch(err => {
+				console.warn('Backing track preload failed (non-blocking):', err);
+			})]
+			: [])
 	]);
 }
 

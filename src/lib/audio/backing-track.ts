@@ -189,22 +189,23 @@ export async function loadBackingInstruments(
 
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
-		if (compInstrument) {
-			compInstrument.stop();
-			compInstrument.disconnect();
-		}
-		const comp = new Soundfont(audioCtx, {
+		const newComp = new Soundfont(audioCtx, {
 			instrument: COMP_INSTRUMENT_NAMES[instrumentType],
 			kit: 'MusyngKite',
 			destination: backingGain
 		});
-		await comp.load;
+		await newComp.load;
 		if (loadId !== currentLoadId) {
-			comp.disconnect();
+			newComp.disconnect();
 			return;
 		}
-		compInstrument = comp;
+		const oldComp = compInstrument;
+		compInstrument = newComp;
 		currentInstrumentType = instrumentType;
+		if (oldComp) {
+			oldComp.stop();
+			oldComp.disconnect();
+		}
 	}
 }
 
@@ -229,9 +230,19 @@ function nearestBassNote(pc: number, center: number): number {
 
 /** Pick a chord tone for bass on a given beat index. */
 function chordToneForBass(rootPc: number, quality: string, center: number, beatIndex: number): number {
-	// Common chord tones: root, 3rd, 5th
-	const offsets = beatIndex % 2 === 1 ? [7, 4, 3] : [5, 7, 3];
-	const offset = offsets[beatIndex % offsets.length];
+	// Compute chord-tone intervals from quality
+	const hasMinor3rd = quality.startsWith('min') || quality.includes('dim');
+	const hasDim5th = quality.includes('dim') || quality.includes('b5');
+	const hasAug5th = quality.includes('aug');
+
+	const thirdInterval = hasMinor3rd ? 3 : 4;
+	const fifthInterval = hasDim5th ? 6 : hasAug5th ? 8 : 7;
+
+	// Chord tones ordered for melodic variety by beat position
+	const tones = beatIndex % 2 === 1
+		? [fifthInterval, thirdInterval, 0]
+		: [thirdInterval, fifthInterval, 0];
+	const offset = tones[beatIndex % tones.length];
 	const pc = (rootPc + offset) % 12;
 	return nearestBassNote(pc, center);
 }
@@ -282,10 +293,10 @@ function generateWalkingBass(
 		const segDurationBeats = fractionToFloat(seg.duration) * 4;
 		const totalBeats = Math.round(segDurationBeats);
 
-		// Next segment's root for approach notes
-		const nextSeg = harmony[(segIdx + 1) % harmony.length];
-		const nextRootPc = pitchClassToNumber(nextSeg.chord.root);
-		const nextRootMidi = nearestBassNote(nextRootPc, BASS_REGISTER);
+		// Next segment's root for approach notes (no wrapping on last segment)
+		const hasNext = segIdx + 1 < harmony.length;
+		const nextRootPc = hasNext ? pitchClassToNumber(harmony[segIdx + 1].chord.root) : rootPc;
+		const nextRootMidi = hasNext ? nearestBassNote(nextRootPc, BASS_REGISTER) : rootMidi;
 
 		for (let beat = 0; beat < totalBeats; beat++) {
 			const beatOffset = segStartBeats + beat;
@@ -396,13 +407,14 @@ function inferTonicChord(phrase: Phrase): HarmonicSegment[] {
 		const dur = fractionToFloat(note.duration) * 4;
 		maxEndBeat = Math.max(maxEndBeat, start + dur);
 	}
-	const wholeNotes = Math.ceil(maxEndBeat / 4);
+	// Express exact beat count as a whole-note fraction [beats, 4]
+	const beats = Math.max(1, Math.ceil(maxEndBeat));
 	return [
 		{
 			chord: { root: phrase.key, quality: 'maj7' },
 			scaleId: 'major.ionian',
 			startOffset: [0, 1],
-			duration: [wholeNotes, 1]
+			duration: [beats, 4]
 		}
 	];
 }
@@ -549,7 +561,6 @@ export async function scheduleBackingTrack(
 
 	const harmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
 
-	setBackingTrackVolume(options.backingTrackVolume);
 	disposeBackingParts();
 
 	// ── Bass + Comp events ──────────────────────────────────
@@ -604,44 +615,32 @@ export async function scheduleBackingTrack(
 
 	// ── Drums ───────────────────────────────────────────────
 	await ensureDrums();
+	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
+
+	const drumCallback = (time: number, beat: number) => {
+		if (beat === 0) {
+			kickSynth!.triggerAttackRelease('C1', '16n', time, 0.5);
+		}
+		rideSynth!.triggerAttackRelease('16n', time, 0.4);
+		if (beat === 1 || beat === 3) {
+			hihatSynth!.triggerAttackRelease('32n', time, 0.5);
+		}
+	};
+
 	const pattern = Array.from({ length: beatsPerBar }, (_, i) => i);
 
 	if (!loop) {
-		// Finite: calculate total beats including count-in
+		// Finite: phrase-length beats, aligned with pitched backing
 		const phraseBars = Math.ceil(harmonyDurationBeats / beatsPerBar);
-		const totalBeats = beatsPerBar * (phraseBars + 1); // +1 for count-in
+		const totalBeats = beatsPerBar * phraseBars;
 		const allBeats = Array.from({ length: totalBeats }, (_, i) => i % beatsPerBar);
 
-		drumSequence = new Tone.Sequence(
-			(time, beat) => {
-				if (beat === 0) {
-					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.5);
-				}
-				rideSynth!.triggerAttackRelease('16n', time, 0.4);
-				if (beat === 1 || beat === 3) {
-					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
-				}
-			},
-			allBeats,
-			'4n'
-		);
-		drumSequence.start(0);
+		drumSequence = new Tone.Sequence(drumCallback, allBeats, '4n');
+		drumSequence.start(`${tickOffset}i`);
 		drumSequence.loop = false;
 	} else {
-		drumSequence = new Tone.Sequence(
-			(time, beat) => {
-				if (beat === 0) {
-					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.5);
-				}
-				rideSynth!.triggerAttackRelease('16n', time, 0.4);
-				if (beat === 1 || beat === 3) {
-					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
-				}
-			},
-			pattern,
-			'4n'
-		);
-		drumSequence.start(0);
+		drumSequence = new Tone.Sequence(drumCallback, pattern, '4n');
+		drumSequence.start(`${tickOffset}i`);
 		drumSequence.loop = true;
 	}
 }

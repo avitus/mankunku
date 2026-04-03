@@ -42,9 +42,9 @@ export interface PlaybackOptions {
 	/** Metronome volume (0-1) */
 	metronomeVolume: number;
 	/** Enable backing track accompaniment */
-	backingTrackEnabled: boolean;
+	backingTrackEnabled?: boolean;
 	/** Comping instrument: piano or organ */
-	backingInstrument: BackingInstrument;
+	backingInstrument?: BackingInstrument;
 	/** Backing track volume (0-1) */
-	backingTrackVolume: number;
+	backingTrackVolume?: number;
 }

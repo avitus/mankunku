@@ -483,9 +483,12 @@
 			<!-- Backing Track -->
 			<div class="border-t border-[var(--color-bg-tertiary)] pt-4 space-y-4">
 				<div class="flex items-center justify-between">
-					<span class="text-sm">Backing Track</span>
+					<span id="backing-track-label" class="text-sm">Backing Track</span>
 					<button
 						onclick={() => { settings.backingTrackEnabled = !settings.backingTrackEnabled; saveSettings(supabase); }}
+						role="switch"
+						aria-checked={settings.backingTrackEnabled}
+						aria-labelledby="backing-track-label"
 						class="relative h-7 w-12 rounded-full transition-colors
 							{settings.backingTrackEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
 					>
@@ -498,11 +501,13 @@
 
 				{#if settings.backingTrackEnabled}
 					<div class="flex items-center justify-between">
-						<span class="text-sm">Instrument</span>
-						<div class="flex gap-1">
+						<span id="backing-instrument-label" class="text-sm">Instrument</span>
+						<div class="flex gap-1" role="radiogroup" aria-labelledby="backing-instrument-label">
 							{#each /** @type {const} */ (['piano', 'organ'] as BackingInstrument[]) as inst}
 								<button
 									onclick={() => selectBackingInstrument(inst)}
+									role="radio"
+									aria-checked={settings.backingInstrument === inst}
 									class="rounded-full px-3 py-1 text-sm transition-colors
 										{settings.backingInstrument === inst
 											? 'bg-[var(--color-accent)] text-white'

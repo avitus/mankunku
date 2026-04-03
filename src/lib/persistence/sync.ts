@@ -45,6 +45,9 @@ interface SyncableSettings {
 	masterVolume: number;
 	metronomeEnabled: boolean;
 	metronomeVolume: number;
+	backingTrackEnabled: boolean;
+	backingInstrument: string;
+	backingTrackVolume: number;
 	swing: number;
 	theme: string;
 	onboardingComplete: boolean;
@@ -404,6 +407,9 @@ export async function syncSettingsToCloud(
 				master_volume: settings.masterVolume,
 				metronome_enabled: settings.metronomeEnabled,
 				metronome_volume: settings.metronomeVolume,
+				backing_track_enabled: settings.backingTrackEnabled,
+				backing_instrument: settings.backingInstrument,
+				backing_track_volume: settings.backingTrackVolume,
 				swing: settings.swing,
 				theme: settings.theme,
 				onboarding_complete: settings.onboardingComplete,
@@ -454,6 +460,9 @@ export async function loadSettingsFromCloud(
 			masterVolume: data.master_volume,
 			metronomeEnabled: data.metronome_enabled,
 			metronomeVolume: data.metronome_volume,
+			backingTrackEnabled: data.backing_track_enabled ?? true,
+			backingInstrument: data.backing_instrument ?? 'piano',
+			backingTrackVolume: data.backing_track_volume ?? 0.6,
 			swing: data.swing,
 			theme: data.theme,
 			onboardingComplete: data.onboarding_complete,
