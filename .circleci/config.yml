@@ -56,7 +56,7 @@ jobs:
           at: /tmp/workspace
       - add_ssh_keys:
           fingerprints:
-            - "SHA256:Ihr+0abLLRwgOuGASn7jCw9jdB4nhZiInP2gUmJ13Dk"
+            - "SHA256:EE3+mp97fBRW+P32GUizJAnsX9lPkEeRrmuGudIFDqU"
       - run:
           name: Add server to known_hosts
           command: ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
