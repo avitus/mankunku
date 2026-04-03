@@ -1,3 +1,5 @@
+import type { BackingInstrument } from './instruments.ts';
+
 export interface DetectedNote {
 	/** MIDI note number (concert pitch) */
 	midi: number;
@@ -39,4 +41,10 @@ export interface PlaybackOptions {
 	metronomeEnabled: boolean;
 	/** Metronome volume (0-1) */
 	metronomeVolume: number;
+	/** Enable backing track accompaniment */
+	backingTrackEnabled?: boolean;
+	/** Comping instrument: piano or organ */
+	backingInstrument?: BackingInstrument;
+	/** Backing track volume (0-1) */
+	backingTrackVolume?: number;
 }

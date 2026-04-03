@@ -15,6 +15,7 @@
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
+	import { loadBackingInstruments } from '$lib/audio/backing-track';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
@@ -208,7 +209,10 @@
 			swing: settings.swing,
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
-			metronomeVolume: settings.metronomeVolume
+			metronomeVolume: settings.metronomeVolume,
+			backingTrackEnabled: settings.backingTrackEnabled,
+			backingInstrument: settings.backingInstrument,
+			backingTrackVolume: settings.backingTrackVolume
 		};
 	}
 
@@ -229,8 +233,11 @@
 			if (!playback.isInstrumentLoaded()) {
 				session.isLoadingInstrument = true;
 				session.engineState = 'loading';
-				await playback.loadInstrument(settings.instrumentId, settings.masterVolume);
+				await playback.loadInstrument(settings.instrumentId, settings.masterVolume, settings.backingInstrument);
 				session.isLoadingInstrument = false;
+			} else {
+				// Ensure backing instrument matches current setting (idempotent)
+				await loadBackingInstruments(settings.backingInstrument);
 			}
 
 			// Apply master volume (audio context is now initialized)

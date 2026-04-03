@@ -1,5 +1,6 @@
 export type TransposingKey = 'Bb' | 'Eb' | 'C' | 'F';
 export type Clef = 'treble' | 'bass';
+export type BackingInstrument = 'piano' | 'organ';
 
 export interface InstrumentConfig {
 	name: string;
