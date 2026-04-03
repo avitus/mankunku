@@ -79,7 +79,7 @@ jobs:
               $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/
 
             # Install production deps and restart
-            ssh $DEPLOY_USER@$DEPLOY_HOST << 'ENDSSH'
+            ssh $DEPLOY_USER@$DEPLOY_HOST \<< 'ENDSSH'
               cd ~/mankunku
               npm ci --omit=dev
               pm2 startOrRestart ecosystem.config.cjs --env production
