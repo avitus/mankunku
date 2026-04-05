@@ -13,7 +13,8 @@ module.exports = {
 			env_production: {
 				NODE_ENV: 'production',
 				PORT: 3000,
-				ORIGIN: 'http://107.170.227.53'
+				ORIGIN: 'https://mankunkujazz.com',
+				PROTOCOL_HEADER: 'x-forwarded-proto'
 			}
 		}
 	]
