@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, initFromCloud } from '$lib/state/progress.svelte';
+	import { progress, getRecentSessions, resetProgress, getPrimaryLevel } from '$lib/state/progress.svelte';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
@@ -32,12 +32,6 @@
 			const { getRecordingIds } = await import('$lib/persistence/audio-store');
 			recordingIds = await getRecordingIds();
 		} catch { /* IndexedDB unavailable */ }
-	});
-
-	$effect(() => {
-		if (supabase && session) {
-			initFromCloud(supabase);
-		}
 	});
 
 	onDestroy(() => {

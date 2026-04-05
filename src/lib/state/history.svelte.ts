@@ -254,6 +254,30 @@ export function clearHistory(): void {
 	remove(META_KEY);
 }
 
+/**
+ * Rebuild daily summaries from progress session history if history is empty.
+ *
+ * Called after cloud hydration writes progress to localStorage. On a new device
+ * the history module initializes with empty state (no localStorage data), but
+ * once initFromCloud() saves the cloud-hydrated sessions locally, this function
+ * re-derives daily summaries from those sessions.
+ *
+ * Limited to the 200-session sync window — history beyond that is not preserved
+ * cross-device.
+ */
+export function rebuildHistoryIfNeeded(): void {
+	if (dailySummaries.length > 0) return;
+
+	const progressState = load<UserProgress>('progress');
+	if (!progressState || progressState.sessions.length === 0) return;
+
+	const result = runMigration(progressState);
+	dailySummaries.length = 0;
+	dailySummaries.push(...result.summaries);
+	summaryMap = new Map(result.summaries.map(s => [s.date, s]));
+	Object.assign(progressMeta, result.meta);
+}
+
 // ── Query functions ──────────────────────────────────────────────
 
 /**
