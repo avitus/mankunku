@@ -2,9 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { settings, applyTheme, loadSettingsFromCloud } from '$lib/state/settings.svelte';
-	import { initFromCloud } from '$lib/state/progress.svelte';
-	import { rebuildHistoryIfNeeded } from '$lib/state/history.svelte';
+	import { settings, applyTheme } from '$lib/state/settings.svelte';
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
 	import { invalidate } from '$app/navigation';
 
@@ -46,15 +44,6 @@
 		return () => {
 			subscription.unsubscribe();
 		};
-	});
-
-	// Hydrate settings + progress from cloud for authenticated users.
-	// Both functions have module-level cloudHydrated guards preventing duplicate fetches.
-	$effect(() => {
-		if (supabase && session) {
-			initFromCloud(supabase).then(() => rebuildHistoryIfNeeded());
-			loadSettingsFromCloud(supabase);
-		}
 	});
 
 	function isActive(href: string): boolean {
