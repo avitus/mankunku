@@ -56,10 +56,13 @@ jobs:
           at: /tmp/workspace
       - add_ssh_keys:
           fingerprints:
-            - "SHA256:Ihr+0abLLRwgOuGASn7jCw9jdB4nhZiInP2gUmJ13Dk"
+            - "SHA256:EE3+mp97fBRW+P32GUizJAnsX9lPkEeRrmuGudIFDqU"
       - run:
           name: Add server to known_hosts
           command: ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
+      - run:
+          name: Install rsync
+          command: sudo apt-get update && sudo apt-get install -y rsync
       - run:
           name: Deploy to server
           command: |
@@ -79,7 +82,7 @@ jobs:
               $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/
 
             # Install production deps and restart
-            ssh $DEPLOY_USER@$DEPLOY_HOST 'cd ~/mankunku && npm ci --omit=dev && pm2 startOrRestart ecosystem.config.cjs --env production && pm2 save'
+            ssh $DEPLOY_USER@$DEPLOY_HOST 'bash -l -c "cd ~/mankunku && npm ci --omit=dev && pm2 startOrRestart ecosystem.config.cjs --env production && pm2 save"'
 
 workflows:
   ci:
