@@ -270,8 +270,8 @@ export function clearHistory(): void {
  *
  * Called after cloud hydration writes progress to localStorage. Computes the
  * expected summaries from the (now cloud-hydrated) sessions and compares them
- * against the existing in-memory summaries. If they differ — different count,
- * different latest date — the existing data is replaced.
+ * against the existing in-memory summaries. If they differ — different length,
+ * or any day's date or sessionCount doesn't match — the existing data is replaced.
  *
  * Limited to the 200-session sync window — history beyond that is not preserved
  * cross-device.
