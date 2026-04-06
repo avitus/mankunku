@@ -79,5 +79,31 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	 */
 	const { session, user, isAdmin } = data;
 
+	// Hydrate settings + progress from cloud before any component renders.
+	// Runs in the load function so child routes (e.g. practice page) snapshot
+	// hydrated state, not stale localStorage defaults.
+	// Dynamic imports keep .svelte.ts modules off the server (no localStorage in SSR).
+	// cloudHydrated guards in each module prevent re-fetching on subsequent load re-runs.
+	if (isBrowser() && session) {
+		const { initFromCloud } = await import('$lib/state/progress.svelte');
+		const { loadSettingsFromCloud } = await import('$lib/state/settings.svelte');
+		const { rebuildHistoryIfNeeded } = await import('$lib/state/history.svelte');
+
+		const hydration = Promise.all([
+			initFromCloud(supabase),
+			loadSettingsFromCloud(supabase)
+		]).then(() => rebuildHistoryIfNeeded());
+
+		// Don't block rendering for more than 2s (offline / slow connections).
+		// The hydration promise continues in the background if the timeout wins.
+		await Promise.race([hydration, new Promise<void>(r => setTimeout(r, 2000))]);
+
+		// If initFromCloud finished but loadSettingsFromCloud is still pending,
+		// the .then() above hasn't fired yet. Catch that partial-completion case
+		// by rebuilding with whatever progress data is in localStorage now.
+		// The staleness check inside returns early when summaries are already current.
+		rebuildHistoryIfNeeded();
+	}
+
 	return { supabase, session, user, isAdmin };
 };

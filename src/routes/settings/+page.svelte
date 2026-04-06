@@ -20,7 +20,6 @@
 		getKeyUnlockRequirements
 	} from '$lib/tonality/tonality';
 	import { page } from '$app/state';
-	import { loadSettingsFromCloud } from '$lib/state/settings.svelte';
 
 	const instruments = Object.entries(INSTRUMENTS);
 	const instrument = $derived(getInstrument());
@@ -37,13 +36,6 @@
 	const supabase = $derived(page.data?.supabase ?? null);
 	const session = $derived(page.data?.session ?? null);
 	const user = $derived(page.data?.user ?? null);
-
-	// Load settings from cloud when authenticated
-	$effect(() => {
-		if (supabase && session) {
-			loadSettingsFromCloud(supabase);
-		}
-	});
 
 	function scaleUnlockTooltip(scaleType: ScaleType): string {
 		const reqs = getScaleUnlockRequirements(scaleType);

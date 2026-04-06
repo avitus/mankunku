@@ -132,6 +132,42 @@ function computeStreakInfo(dates: string[]): { longest: number; longestEndDate: 
 	return { longest, longestEndDate: longestEnd };
 }
 
+/** Pure computation: derive daily summaries from session history (no side effects). */
+function deriveSummaries(sessions: SessionResult[]): {
+	summaries: DailySummary[];
+	meta: ProgressMeta;
+} {
+	if (sessions.length === 0) {
+		return { summaries: [], meta: createDefaultMeta() };
+	}
+
+	const byDate = new Map<string, SessionResult[]>();
+	for (const s of sessions) {
+		const dk = dateKey(s.timestamp);
+		const group = byDate.get(dk) ?? [];
+		group.push(s);
+		byDate.set(dk, group);
+	}
+
+	const summaries: DailySummary[] = [];
+	for (const [date, group] of byDate) {
+		summaries.push(aggregateSessionGroup(date, group));
+	}
+	summaries.sort((a, b) => a.date.localeCompare(b.date));
+
+	const streakInfo = computeStreakInfo(summaries.map(s => s.date));
+	return {
+		summaries,
+		meta: {
+			version: 2,
+			lastAggregationTimestamp: Date.now(),
+			longestStreak: streakInfo.longest,
+			longestStreakEndDate: streakInfo.longestEndDate,
+			allTimeSessionCount: sessions.length
+		}
+	};
+}
+
 function runMigration(existingProgress: UserProgress | null): {
 	summaries: DailySummary[];
 	meta: ProgressMeta;
@@ -139,35 +175,10 @@ function runMigration(existingProgress: UserProgress | null): {
 	if (!existingProgress || existingProgress.sessions.length === 0) {
 		return { summaries: [], meta: createDefaultMeta() };
 	}
-
-	// Group sessions by date
-	const byDate = new Map<string, SessionResult[]>();
-	for (const session of existingProgress.sessions) {
-		const dk = dateKey(session.timestamp);
-		const group = byDate.get(dk) ?? [];
-		group.push(session);
-		byDate.set(dk, group);
-	}
-
-	const summaries: DailySummary[] = [];
-	for (const [date, sessions] of byDate) {
-		summaries.push(aggregateSessionGroup(date, sessions));
-	}
-	summaries.sort((a, b) => a.date.localeCompare(b.date));
-
-	const streakInfo = computeStreakInfo(summaries.map(s => s.date));
-	const meta: ProgressMeta = {
-		version: 2,
-		lastAggregationTimestamp: Date.now(),
-		longestStreak: streakInfo.longest,
-		longestStreakEndDate: streakInfo.longestEndDate,
-		allTimeSessionCount: existingProgress.sessions.length
-	};
-
-	save(SUMMARIES_KEY, summaries);
-	save(META_KEY, meta);
-
-	return { summaries, meta };
+	const result = deriveSummaries(existingProgress.sessions);
+	save(SUMMARIES_KEY, result.summaries);
+	save(META_KEY, result.meta);
+	return result;
 }
 
 // ── Load ─────────────────────────────────────────────────────────
@@ -259,6 +270,47 @@ export function clearHistory(): void {
 	Object.assign(progressMeta, createDefaultMeta());
 	remove(SUMMARIES_KEY);
 	remove(META_KEY);
+}
+
+/**
+ * Re-derive daily summaries from current progress session history when stale.
+ *
+ * Called after cloud hydration writes progress to localStorage. Computes the
+ * expected summaries from the (now cloud-hydrated) sessions and compares them
+ * against the existing in-memory summaries. If they differ — different length,
+ * or any day's date or sessionCount doesn't match — the existing data is replaced.
+ *
+ * Limited to the 200-session sync window — history beyond that is not preserved
+ * cross-device.
+ */
+export function rebuildHistoryIfNeeded(): void {
+	const progressState = load<UserProgress>('progress');
+	if (!progressState || progressState.sessions.length === 0) return;
+
+	const derived = deriveSummaries(progressState.sessions);
+	if (derived.summaries.length === 0) return;
+
+	// Check if existing summaries already match the derived data.
+	// Compare per-day date + sessionCount to catch mid-range differences
+	// (length + latest date alone can miss changed counts on existing dates).
+	if (dailySummaries.length === derived.summaries.length) {
+		let match = true;
+		for (let i = 0; i < dailySummaries.length; i++) {
+			if (dailySummaries[i].date !== derived.summaries[i].date
+				|| dailySummaries[i].sessionCount !== derived.summaries[i].sessionCount) {
+				match = false;
+				break;
+			}
+		}
+		if (match) return;
+	}
+
+	// Summaries are stale — replace with recomputed data
+	dailySummaries.length = 0;
+	dailySummaries.push(...derived.summaries);
+	summaryMap = new Map(derived.summaries.map(s => [s.date, s]));
+	Object.assign(progressMeta, derived.meta);
+	saveAll();
 }
 
 // ── Query functions ──────────────────────────────────────────────
