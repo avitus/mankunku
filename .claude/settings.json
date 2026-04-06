@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "if": "Bash(git push *)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/fetch-coderabbit-review.sh",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}
