@@ -14,7 +14,7 @@ import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud } from '$lib/persistence/sync';
-import { aggregateSession, clearHistory } from '$lib/state/history.svelte';
+import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 200; // keep last 200 sessions
@@ -315,11 +315,11 @@ export function getPrimaryLevel(): number {
 }
 
 function updateStreak(): void {
-	const today = new Date().toISOString().slice(0, 10);
+	const today = localDateStr(new Date());
 
 	if (progress.lastPracticeDate === today) return;
 
-	const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+	const yesterday = localDateStr(new Date(Date.now() - 86400000));
 	if (progress.lastPracticeDate === yesterday) {
 		progress.streakDays++;
 	} else if (progress.lastPracticeDate !== today) {

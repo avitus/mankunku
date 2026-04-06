@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DailySummary } from '$lib/types/progress.ts';
-	import { getSummariesInRange } from '$lib/state/history.svelte.ts';
+	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte.ts';
 
 	type Period = '1w' | '1m' | '3m' | '6m' | '1y' | 'all';
 
@@ -25,10 +25,10 @@
 			case '1y': d.setFullYear(d.getFullYear() - 1); break;
 			case 'all': return '2000-01-01';
 		}
-		return d.toISOString().slice(0, 10);
+		return localDateStr(d);
 	}
 
-	const todayStr = new Date().toISOString().slice(0, 10);
+	const todayStr = localDateStr(new Date());
 
 	// Aggregate data points based on period
 	interface DataPoint {
@@ -69,7 +69,7 @@
 				const day = d.getDay();
 				const diff = day === 0 ? -6 : 1 - day;
 				d.setDate(d.getDate() + diff);
-				key = d.toISOString().slice(0, 10);
+				key = localDateStr(d);
 			}
 			const group = groups.get(key) ?? [];
 			group.push(s);

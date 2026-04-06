@@ -9,6 +9,7 @@
 
 import type { PitchClass } from '$lib/types/music.ts';
 import type { UnlockContext } from '$lib/types/progress.ts';
+import { localDateStr } from '$lib/state/history.svelte.ts';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -243,7 +244,7 @@ function dateHash(dateStr: string): number {
  * @returns The tonality for that day
  */
 export function getDailyTonality(date: string | Date, ctx: UnlockContext): Tonality {
-	const dateStr = typeof date === 'string' ? date : date.toISOString().slice(0, 10);
+	const dateStr = typeof date === 'string' ? date : localDateStr(date);
 	const unlocked = getUnlockedTonalities(ctx);
 
 	if (unlocked.length === 0) {
@@ -271,7 +272,7 @@ export function getDailyTonality(date: string | Date, ctx: UnlockContext): Tonal
  * Get today's tonality.
  */
 export function getTodaysTonality(ctx: UnlockContext): Tonality {
-	const today = new Date().toISOString().slice(0, 10);
+	const today = localDateStr(new Date());
 	return getDailyTonality(today, ctx);
 }
 

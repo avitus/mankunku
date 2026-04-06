@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { progress } from '$lib/state/progress.svelte.ts';
-	import { progressMeta, getLast30Days } from '$lib/state/history.svelte.ts';
+	import { progressMeta, getLast30Days, localDateStr } from '$lib/state/history.svelte.ts';
 
 	const currentStreak = $derived(progress.streakDays);
 	const longestStreak = $derived(progressMeta.longestStreak);
@@ -13,7 +13,7 @@
 		for (let i = 29; i >= 0; i--) {
 			const d = new Date(now);
 			d.setDate(d.getDate() - i);
-			const dateStr = d.toISOString().slice(0, 10);
+			const dateStr = localDateStr(d);
 			result.push({
 				date: dateStr,
 				practiced: last30.get(dateStr) ?? false,
