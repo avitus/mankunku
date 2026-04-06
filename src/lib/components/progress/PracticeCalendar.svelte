@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DailySummary } from '$lib/types/progress.ts';
-	import { getSummariesInRange } from '$lib/state/history.svelte.ts';
+	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte.ts';
 
 	const CELL_SIZE = 11;
 	const GAP = 2;
@@ -15,14 +15,14 @@
 
 	// Build calendar grid: 53 weeks x 7 days, ending today
 	const today = new Date();
-	const todayStr = today.toISOString().slice(0, 10);
+	const todayStr = localDateStr(today);
 
 	// Find the start: go back ~1 year to the nearest Sunday
 	const startDate = new Date(today);
 	startDate.setDate(startDate.getDate() - (WEEKS * 7 - 1) - startDate.getDay());
 
 	// Get all summaries in range
-	const startStr = startDate.toISOString().slice(0, 10);
+	const startStr = localDateStr(startDate);
 	const summaries = $derived(getSummariesInRange(startStr, todayStr));
 	const summaryMap = $derived(new Map(summaries.map(s => [s.date, s])));
 
@@ -40,7 +40,7 @@
 		const d = new Date(startDate);
 		for (let week = 0; week < WEEKS; week++) {
 			for (let day = 0; day < DAYS; day++) {
-				const dateStr = d.toISOString().slice(0, 10);
+				const dateStr = localDateStr(d);
 				result.push({
 					date: dateStr,
 					week,

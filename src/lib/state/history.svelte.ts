@@ -42,13 +42,20 @@ function gradeKey(grade: Grade): keyof GradeDistribution {
 	return grade as keyof GradeDistribution;
 }
 
+export function localDateStr(d: Date): string {
+	const year = d.getFullYear();
+	const month = String(d.getMonth() + 1).padStart(2, '0');
+	const day = String(d.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
 function dateKey(timestamp: number): string {
-	return new Date(timestamp).toISOString().slice(0, 10);
+	return localDateStr(new Date(timestamp));
 }
 
 function createDefaultMeta(): ProgressMeta {
 	return {
-		version: 1,
+		version: 2,
 		lastAggregationTimestamp: 0,
 		longestStreak: 0,
 		longestStreakEndDate: '',
@@ -152,7 +159,7 @@ function deriveSummaries(sessions: SessionResult[]): {
 	return {
 		summaries,
 		meta: {
-			version: 1,
+			version: 2,
 			lastAggregationTimestamp: Date.now(),
 			longestStreak: streakInfo.longest,
 			longestStreakEndDate: streakInfo.longestEndDate,
@@ -180,7 +187,7 @@ function loadHistory(): { summaries: DailySummary[]; meta: ProgressMeta } {
 	const savedMeta = load<ProgressMeta>(META_KEY);
 	const savedSummaries = load<DailySummary[]>(SUMMARIES_KEY);
 
-	if (savedMeta && savedMeta.version >= 1 && savedSummaries) {
+	if (savedMeta && savedMeta.version >= 2 && savedSummaries) {
 		return { summaries: savedSummaries, meta: savedMeta };
 	}
 
@@ -379,8 +386,8 @@ export function getYearHeatmap(): Map<string, { sessionCount: number; avgOverall
 	const now = new Date();
 	const yearAgo = new Date(now);
 	yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-	const start = yearAgo.toISOString().slice(0, 10);
-	const end = now.toISOString().slice(0, 10);
+	const start = localDateStr(yearAgo);
+	const end = localDateStr(now);
 
 	const result = new Map<string, { sessionCount: number; avgOverall: number }>();
 	for (const s of getSummariesInRange(start, end)) {
@@ -398,7 +405,7 @@ export function getLast30Days(): Map<string, boolean> {
 	for (let i = 0; i < 30; i++) {
 		const d = new Date(now);
 		d.setDate(d.getDate() - i);
-		const dk = d.toISOString().slice(0, 10);
+		const dk = localDateStr(d);
 		result.set(dk, summaryMap.has(dk));
 	}
 	return result;
@@ -416,9 +423,9 @@ function getWeekStart(date: Date): Date {
 	return d;
 }
 
-/** Get "YYYY-MM-DD" for a Date */
+/** Get "YYYY-MM-DD" for a Date (local time) */
 function toDateStr(d: Date): string {
-	return d.toISOString().slice(0, 10);
+	return localDateStr(d);
 }
 
 /**

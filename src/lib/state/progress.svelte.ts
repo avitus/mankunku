@@ -14,7 +14,7 @@ import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud } from '$lib/persistence/sync';
-import { aggregateSession, clearHistory } from '$lib/state/history.svelte';
+import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 200; // keep last 200 sessions
@@ -46,6 +46,15 @@ function loadProgress(): UserProgress {
 			...saved.adaptive
 		}
 	};
+
+	// Migrate: normalize lastPracticeDate from UTC to local format
+	if (merged.lastPracticeDate) {
+		const parsed = new Date(merged.lastPracticeDate + 'T00:00:00Z');
+		const normalized = localDateStr(parsed);
+		if (normalized !== merged.lastPracticeDate) {
+			merged.lastPracticeDate = normalized;
+		}
+	}
 
 	// Migrate: build scaleProficiency and keyProficiency from session history
 	if (!saved.scaleProficiency || Object.keys(saved.scaleProficiency).length === 0) {
@@ -315,11 +324,11 @@ export function getPrimaryLevel(): number {
 }
 
 function updateStreak(): void {
-	const today = new Date().toISOString().slice(0, 10);
+	const today = localDateStr(new Date());
 
 	if (progress.lastPracticeDate === today) return;
 
-	const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+	const yesterday = localDateStr(new Date(Date.now() - 86400000));
 	if (progress.lastPracticeDate === yesterday) {
 		progress.streakDays++;
 	} else if (progress.lastPracticeDate !== today) {
