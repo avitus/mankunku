@@ -7,7 +7,7 @@ function makeNote(pitch: number | null): Note {
 	return { pitch, offset: [0, 1], duration: [1, 4] };
 }
 
-function makeDetected(midi: number, cents = 0): DetectedNote {
+function makeDetected(midi: number, cents: number = 0): DetectedNote {
 	return { midi, cents, onsetTime: 0, duration: 0.3, clarity: 0.9 };
 }
 

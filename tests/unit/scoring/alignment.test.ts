@@ -7,7 +7,7 @@ function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [
 	return { pitch, offset, duration };
 }
 
-function makeDetected(midi: number, onsetTime: number, cents = 0): DetectedNote {
+function makeDetected(midi: number, onsetTime: number, cents: number = 0): DetectedNote {
 	return { midi, cents, onsetTime, duration: 0.3, clarity: 0.9 };
 }
 

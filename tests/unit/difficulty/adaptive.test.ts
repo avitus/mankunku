@@ -116,9 +116,9 @@ describe('xpForLevel', () => {
 		expect(xpForLevel(100)).toBeGreaterThan(xpForLevel(50));
 	});
 
-	it('formula: 50 + 0.5 * level^2', () => {
-		expect(xpForLevel(10)).toBe(Math.round(50 + 0.5 * 100));
-		expect(xpForLevel(20)).toBe(Math.round(50 + 0.5 * 400));
+	it('returns expected values (formula: 50 + 0.5 * level^2)', () => {
+		expect(xpForLevel(10)).toBe(100);
+		expect(xpForLevel(20)).toBe(250);
 	});
 });
 

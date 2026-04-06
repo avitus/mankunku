@@ -7,7 +7,7 @@ function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [
 }
 
 const defaultHarmony: HarmonicSegment[] = [
-	{ chord: { root: 'C', quality: 'maj7' }, startOffset: [0, 1], duration: [4, 1] }
+	{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'C-major', startOffset: [0, 1], duration: [4, 1] }
 ];
 
 function makePhrase(notes: Note[]): Phrase {
@@ -124,7 +124,7 @@ describe('calculateDifficulty', () => {
 			makeNote(64, [1, 1], [1, 4])      // bar 2
 		]);
 		const diff = calculateDifficulty(phrase);
-		expect(diff.lengthBars).toBeGreaterThanOrEqual(1);
+		expect(diff.lengthBars).toBe(2);
 	});
 
 	it('handles single-note phrase without crashing', () => {

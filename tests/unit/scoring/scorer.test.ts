@@ -7,12 +7,12 @@ function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [
 	return { pitch, offset, duration };
 }
 
-function makeDetected(midi: number, onsetTime: number, cents = 0): DetectedNote {
+function makeDetected(midi: number, onsetTime: number, cents: number = 0): DetectedNote {
 	return { midi, cents, onsetTime, duration: 0.3, clarity: 0.9 };
 }
 
 const defaultHarmony: HarmonicSegment[] = [
-	{ chord: { root: 'C', quality: 'maj7' }, startOffset: [0, 1], duration: [2, 1] }
+	{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'C-major', startOffset: [0, 1], duration: [2, 1] }
 ];
 
 function makePhrase(notes: Note[]): Phrase {

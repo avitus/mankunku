@@ -7,7 +7,7 @@ function makeNote(pitch: number | null, offset: Fraction = [0, 1], duration: Fra
 }
 
 const defaultHarmony: HarmonicSegment[] = [
-	{ chord: { root: 'C', quality: 'maj7' }, startOffset: [0, 1], duration: [2, 1] }
+	{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'C-major', startOffset: [0, 1], duration: [2, 1] }
 ];
 
 function makePhrase(notes: Note[]): Phrase {
