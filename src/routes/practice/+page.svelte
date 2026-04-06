@@ -25,6 +25,7 @@
 
 	// Auth state from layout load chain — derive supabase client for cloud sync
 	const supabase = $derived(page.data?.supabase ?? null);
+	const user = $derived(page.data?.user ?? null);
 
 	let playback: typeof import('$lib/audio/playback') | null = null;
 	let captureModule: typeof import('$lib/audio/capture') | null = null;
@@ -373,7 +374,7 @@
 				handle.dispose();
 				if (blob.size > 0 && sessionId) {
 					const { saveRecording } = await import('$lib/persistence/audio-store');
-					await saveRecording(sessionId, blob);
+					await saveRecording(sessionId, blob, supabase, user?.id);
 				}
 			}).catch(console.error);
 		}
