@@ -47,6 +47,15 @@ function loadProgress(): UserProgress {
 		}
 	};
 
+	// Migrate: normalize lastPracticeDate from UTC to local format
+	if (merged.lastPracticeDate) {
+		const parsed = new Date(merged.lastPracticeDate + 'T00:00:00Z');
+		const normalized = localDateStr(parsed);
+		if (normalized !== merged.lastPracticeDate) {
+			merged.lastPracticeDate = normalized;
+		}
+	}
+
 	// Migrate: build scaleProficiency and keyProficiency from session history
 	if (!saved.scaleProficiency || Object.keys(saved.scaleProficiency).length === 0) {
 		merged.scaleProficiency = migrateScaleProficiency(merged.sessions);
