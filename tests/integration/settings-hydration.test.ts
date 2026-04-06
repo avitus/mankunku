@@ -131,6 +131,26 @@ describe('loadSettingsFromCloud', () => {
 		expect(settingsModule.settings.swing).toBe(0.8);
 	});
 
+	it('clamps swing below minimum to 0.5', async () => {
+		mockFetchSettings.mockResolvedValue({
+			swing: 0.3, // below min 0.5
+			instrumentId: 'tenor-sax',
+			defaultTempo: 100,
+			masterVolume: 0.8,
+			metronomeEnabled: true,
+			metronomeVolume: 0.7,
+			backingTrackEnabled: true,
+			backingInstrument: 'piano',
+			backingTrackVolume: 0.6,
+			theme: 'dark',
+			onboardingComplete: false,
+			tonalityOverride: null,
+			highestNote: null
+		});
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.swing).toBe(0.5);
+	});
+
 	it('does nothing when cloud returns null', async () => {
 		mockFetchSettings.mockResolvedValue(null);
 		const swingBefore = settingsModule.settings.swing;

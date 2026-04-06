@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+PUSH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
 BRANCH=$(git branch --show-current 2>/dev/null)
 if [ -z "$BRANCH" ]; then
   exit 0
@@ -17,7 +19,6 @@ if [ -z "$PR_NUMBER" ]; then
 fi
 
 REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
-PUSH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 CR_USER="coderabbitai[bot]"
 
@@ -25,18 +26,21 @@ CR_USER="coderabbitai[bot]"
 for i in $(seq 1 10); do
   sleep 15
 
-  # Check for a CodeRabbit review submitted after the push
-  REVIEW_BODY=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-    --jq '[.[] | select(.user.login == "'"$CR_USER"'" and .submitted_at > "'"$PUSH_TIME"'")] | last | .body // empty' 2>/dev/null || true)
+  # Check for a CodeRabbit review submitted after the push (detect by id, not body)
+  REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+    --jq '[.[] | select(.user.login == "'"$CR_USER"'" and .submitted_at >= "'"$PUSH_TIME"'")] | last | .id // empty' 2>/dev/null || true)
 
-  if [ -n "$REVIEW_BODY" ]; then
+  if [ -n "$REVIEW_ID" ]; then
+    REVIEW_BODY=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+      --jq '[.[] | select(.user.login == "'"$CR_USER"'" and .submitted_at >= "'"$PUSH_TIME"'")] | last | .body // empty' 2>/dev/null || true)
+
     # Fetch inline review comments posted after the push
     INLINE=$(gh api "repos/$REPO/pulls/$PR_NUMBER/comments" \
-      --jq '[.[] | select(.user.login == "'"$CR_USER"'" and .created_at > "'"$PUSH_TIME"'")] | .[] | "In `" + .path + "`:\n- Around line " + (.line // .original_line // "?" | tostring) + ": " + .body + "\n"' 2>/dev/null || true)
+      --jq '[.[] | select(.user.login == "'"$CR_USER"'" and .created_at >= "'"$PUSH_TIME"'")] | .[] | "In `" + .path + "`:\n- Around line " + (.line // .original_line // "?" | tostring) + ": " + .body + "\n"' 2>/dev/null || true)
 
     # Fetch the issue-level summary comment (CodeRabbit's walkthrough)
     SUMMARY=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
-      --jq '[.[] | select(.user.login == "'"$CR_USER"'" and .created_at > "'"$PUSH_TIME"'")] | last | .body // empty' 2>/dev/null || true)
+      --jq '[.[] | select(.user.login == "'"$CR_USER"'" and .created_at >= "'"$PUSH_TIME"'")] | last | .body // empty' 2>/dev/null || true)
 
     echo "CodeRabbit review for PR #$PR_NUMBER on branch $BRANCH:"
     echo ""

@@ -43,7 +43,7 @@ vi.mock('$lib/state/history.svelte', () => ({
 
 let progressModule: typeof import('$lib/state/progress.svelte');
 
-function makeSession(id: string, overall = 0.8): SessionResult {
+function makeSession(id: string, overall: number = 0.8): SessionResult {
 	return {
 		id,
 		timestamp: Date.now(),
