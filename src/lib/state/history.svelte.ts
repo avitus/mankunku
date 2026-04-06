@@ -283,12 +283,19 @@ export function rebuildHistoryIfNeeded(): void {
 	const derived = deriveSummaries(progressState.sessions);
 	if (derived.summaries.length === 0) return;
 
-	// Check if existing summaries already match the derived data
-	const existingLatest = dailySummaries.length > 0
-		? dailySummaries[dailySummaries.length - 1].date : '';
-	const derivedLatest = derived.summaries[derived.summaries.length - 1].date;
-	if (dailySummaries.length === derived.summaries.length && existingLatest === derivedLatest) {
-		return;
+	// Check if existing summaries already match the derived data.
+	// Compare per-day date + sessionCount to catch mid-range differences
+	// (length + latest date alone can miss changed counts on existing dates).
+	if (dailySummaries.length === derived.summaries.length) {
+		let match = true;
+		for (let i = 0; i < dailySummaries.length; i++) {
+			if (dailySummaries[i].date !== derived.summaries[i].date
+				|| dailySummaries[i].sessionCount !== derived.summaries[i].sessionCount) {
+				match = false;
+				break;
+			}
+		}
+		if (match) return;
 	}
 
 	// Summaries are stale — replace with recomputed data

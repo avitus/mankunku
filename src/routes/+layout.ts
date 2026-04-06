@@ -94,8 +94,15 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			loadSettingsFromCloud(supabase)
 		]).then(() => rebuildHistoryIfNeeded());
 
-		// Don't block rendering for more than 2s (offline / slow connections)
+		// Don't block rendering for more than 2s (offline / slow connections).
+		// The hydration promise continues in the background if the timeout wins.
 		await Promise.race([hydration, new Promise<void>(r => setTimeout(r, 2000))]);
+
+		// If initFromCloud finished but loadSettingsFromCloud is still pending,
+		// the .then() above hasn't fired yet. Catch that partial-completion case
+		// by rebuilding with whatever progress data is in localStorage now.
+		// The staleness check inside returns early when summaries are already current.
+		rebuildHistoryIfNeeded();
 	}
 
 	return { supabase, session, user, isAdmin };
