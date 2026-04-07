@@ -98,6 +98,14 @@ describe('adaptive difficulty — score window', () => {
 		expect(state.recentScores).toHaveLength(25);
 		expect(state.recentScores[24]).toBe(0.9);
 		expect(state.recentScores[0]).toBe(0.5);
+
+		expect(state.recentPitchScores).toHaveLength(25);
+		expect(state.recentPitchScores[24]).toBe(0.9);
+		expect(state.recentPitchScores[0]).toBe(0.5);
+
+		expect(state.recentRhythmScores).toHaveLength(25);
+		expect(state.recentRhythmScores[24]).toBe(0.9);
+		expect(state.recentRhythmScores[0]).toBe(0.5);
 	});
 });
 
@@ -190,6 +198,22 @@ describe('adaptive difficulty — level advancement', () => {
 		expect(state.currentLevel).toBe(
 			Math.round((state.pitchComplexity + state.rhythmComplexity) / 2)
 		);
+	});
+
+	it('resets only the advancing dimension cooldown', () => {
+		let state = createInitialAdaptiveState();
+
+		// High pitch, mediocre rhythm (overall = 0.95*0.6 + 0.60*0.4 = 0.81)
+		// Advance fires on attempt 10 (cooldown hits 10), resetting pitch cooldown to 0
+		for (let i = 0; i < 10; i++) {
+			state = processAttempt(state, 0.81, 0.95, 0.60);
+		}
+
+		expect(state.pitchComplexity).toBeGreaterThan(1);
+		expect(state.pitchAttemptsSinceChange).toBe(0);
+		// Rhythm never changed, cooldown keeps counting
+		expect(state.rhythmComplexity).toBe(1);
+		expect(state.rhythmAttemptsSinceChange).toBe(10);
 	});
 
 	it('resets per-dimension cooldown after a level change', () => {
