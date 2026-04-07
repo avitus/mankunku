@@ -10,44 +10,44 @@ A **tonality** is a combination of a key (pitch class) and a scale type (e.g., "
 
 ## Progressive Unlocking
 
-Tonalities unlock based on the player's XP, with keys and scale types unlocking independently.
+Tonalities unlock based on the player's proficiency levels, with keys and scale types unlocking independently.
 
 ### Key Unlock Order (Circle of Fifths)
 
-| Order | Key | XP Threshold |
+| Order | Key | Unlock Condition |
 |---|---|---|
 | 1 | C | 0 (free) |
-| 2 | G | varies |
-| 3 | F | varies |
-| 4 | D | varies |
-| 5 | Bb | varies |
-| 6 | A | varies |
-| 7 | Eb | varies |
-| 8 | E | varies |
-| 9 | Ab | varies |
-| 10 | B | varies |
-| 11 | Db | varies |
-| 12 | Gb | varies |
+| 2 | G | Key proficiency prerequisites met |
+| 3 | F | Key proficiency prerequisites met |
+| 4 | D | Key proficiency prerequisites met |
+| 5 | Bb | Key proficiency prerequisites met |
+| 6 | A | Key proficiency prerequisites met |
+| 7 | Eb | Key proficiency prerequisites met |
+| 8 | E | Key proficiency prerequisites met |
+| 9 | Ab | Key proficiency prerequisites met |
+| 10 | B | Key proficiency prerequisites met |
+| 11 | Db | Key proficiency prerequisites met |
+| 12 | Gb | Key proficiency prerequisites met |
 
 ### Scale Type Unlock Order
 
-| Order | Scale Type | XP Threshold |
+| Order | Scale Type | Unlock Condition |
 |---|---|---|
 | 1 | Major Pentatonic | 0 (free) |
 | 2 | Major | 0 (free) |
 | 3 | Blues | 0 (free) |
-| 4 | Dorian | 300 |
-| 5 | Mixolydian | 600 |
-| 6 | Minor (Aeolian) | 1000 |
-| 7 | Lydian | 1800 |
-| 8 | Melodic Minor | 2500 |
-| 9 | Altered | 3500 |
-| 10 | Lydian Dominant | 4500 |
-| 11 | Bebop Dominant | 6000 |
+| 4 | Dorian | Scale proficiency prerequisites met |
+| 5 | Mixolydian | Scale proficiency prerequisites met |
+| 6 | Minor (Aeolian) | Scale proficiency prerequisites met |
+| 7 | Lydian | Scale proficiency prerequisites met |
+| 8 | Melodic Minor | Scale proficiency prerequisites met |
+| 9 | Altered | Scale proficiency prerequisites met |
+| 10 | Lydian Dominant | Scale proficiency prerequisites met |
+| 11 | Bebop Dominant | Scale proficiency prerequisites met |
 
 ### Cross-Product
 
-Available tonalities = unlocked keys × unlocked scale types. At 0 XP, the player has 3 tonalities (C Major Pentatonic, C Major, C Blues). As they progress, the combinatorial space grows quickly.
+Available tonalities = unlocked keys × unlocked scale types. Initially, the player has 3 tonalities (C Major Pentatonic, C Major, C Blues). As they build proficiency, the combinatorial space grows quickly.
 
 ## Daily Tonality Selection
 
@@ -68,7 +68,7 @@ dailyTonality = unlockedTonalities[index]
 
 Players can override the daily tonality in Practice Settings:
 
-- **Key selector**: Circle-of-fifths layout. Locked keys shown disabled with lock icon and XP tooltip.
+- **Key selector**: Circle-of-fifths layout. Locked keys shown disabled with lock icon and proficiency requirements tooltip.
 - **Scale type selector**: Locked scales shown similarly.
 - **Reset to daily**: Button to restore automatic selection.
 
@@ -79,7 +79,7 @@ The override persists to `localStorage` via the settings state module (`tonality
 The practice page derives the active tonality from either the override or the daily pick:
 
 ```typescript
-const activeTonality = settings.tonalityOverride ?? getDailyTonality(today, xp)
+const activeTonality = settings.tonalityOverride ?? getDailyTonality(today, unlockContext)
 ```
 
 All licks in a session are transposed to `activeTonality.key` using `transposeLickForTonality()`. When the tonality changes (e.g., override selected), the current phrase is re-transposed via a `$derived`.
@@ -150,10 +150,10 @@ interface Tonality {
 
 | Function | Signature | Description |
 |---|---|---|
-| `getDailyTonality` | `(date, xp) → Tonality` | Deterministic daily pick from unlocked set |
-| `getUnlockedKeys` | `(xp) → PitchClass[]` | Keys unlocked at given XP |
-| `getUnlockedScaleTypes` | `(xp) → string[]` | Scale types unlocked at given XP |
-| `getUnlockedTonalities` | `(xp) → Tonality[]` | All unlocked key × scale combinations |
+| `getDailyTonality` | `(date, ctx: UnlockContext) → Tonality` | Deterministic daily pick from unlocked set |
+| `getUnlockedKeys` | `(ctx: UnlockContext) → PitchClass[]` | Keys unlocked at given proficiency |
+| `getUnlockedScaleTypes` | `(ctx: UnlockContext) → ScaleType[]` | Scale types unlocked at given proficiency |
+| `getUnlockedTonalities` | `(ctx: UnlockContext) → Tonality[]` | All unlocked key × scale combinations |
 | `formatTonality` | `(tonality) → string` | Display string, e.g., "D Dorian" |
 
 ### Scale Compatibility Functions (`scale-compatibility.ts`)

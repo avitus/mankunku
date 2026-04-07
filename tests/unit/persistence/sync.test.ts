@@ -114,9 +114,12 @@ const TEST_ADAPTIVE_STATE: AdaptiveState = {
 	pitchComplexity: 12,
 	rhythmComplexity: 8,
 	recentScores: [75, 80, 85],
+	recentPitchScores: [80, 85, 90],
+	recentRhythmScores: [70, 75, 80],
 	attemptsAtLevel: 5,
 	attemptsSinceChange: 3,
-	xp: 1200
+	pitchAttemptsSinceChange: 3,
+	rhythmAttemptsSinceChange: 3
 };
 
 const TEST_SESSION: SessionResult = {

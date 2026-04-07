@@ -31,28 +31,31 @@
 	const todayStr = localDateStr(new Date());
 
 	// Aggregate data points based on period
+	// Shows pitch/rhythm complexity (1-100) and their average
 	interface DataPoint {
 		label: string;
-		overall: number;
-		pitch: number;
-		rhythm: number;
-		sessions: number;
+		pitch: number;       // pitchComplexity (1-100)
+		rhythm: number;      // rhythmComplexity (1-100)
+		average: number;     // avg of pitch + rhythm
 	}
 
 	const dataPoints = $derived.by(() => {
 		const start = getStartDate(period);
-		const filtered = getSummariesInRange(start, todayStr);
+		const filtered = getSummariesInRange(start, todayStr)
+			.filter(s => s.pitchComplexity != null && s.rhythmComplexity != null);
 		if (filtered.length === 0) return [];
 
-		// For short periods, use daily; for longer, aggregate by week/month
+		function toPoint(label: string, pitch: number, rhythm: number): DataPoint {
+			return { label, pitch, rhythm, average: (pitch + rhythm) / 2 };
+		}
+
+		// For short periods, use daily; for longer, take last value per group
 		if (period === '1w' || period === '1m') {
-			return filtered.map(s => ({
-				label: s.date.slice(5), // "MM-DD"
-				overall: s.avgOverall,
-				pitch: s.avgPitch,
-				rhythm: s.avgRhythm,
-				sessions: s.sessionCount
-			}));
+			return filtered.map(s => toPoint(
+				s.date.slice(5),
+				s.pitchComplexity!,
+				s.rhythmComplexity!
+			));
 		}
 
 		// Group by week for 3m/6m, by month for 1y/all
@@ -78,21 +81,13 @@
 
 		const points: DataPoint[] = [];
 		for (const [key, group] of groups) {
-			let totalSessions = 0;
-			let wOverall = 0, wPitch = 0, wRhythm = 0;
-			for (const s of group) {
-				totalSessions += s.sessionCount;
-				wOverall += s.avgOverall * s.sessionCount;
-				wPitch += s.avgPitch * s.sessionCount;
-				wRhythm += s.avgRhythm * s.sessionCount;
-			}
-			points.push({
-				label: groupByMonth ? key.slice(2) : key.slice(5), // "YY-MM" or "MM-DD"
-				overall: wOverall / totalSessions,
-				pitch: wPitch / totalSessions,
-				rhythm: wRhythm / totalSessions,
-				sessions: totalSessions
-			});
+			// Use the last day's snapshot in each group (most recent complexity)
+			const last = group[group.length - 1];
+			points.push(toPoint(
+				groupByMonth ? key.slice(2) : key.slice(5),
+				last.pitchComplexity!,
+				last.rhythmComplexity!
+			));
 		}
 
 		return points;
@@ -108,12 +103,19 @@
 	const chartW = W - PAD_LEFT - PAD_RIGHT;
 	const chartH = H - PAD_TOP - PAD_BOTTOM;
 
+	// Compute Y range from data (1-100 scale, with some padding)
+	const yMax = $derived(
+		dataPoints.length > 0
+			? Math.max(...dataPoints.flatMap(d => [d.pitch, d.rhythm, d.average]), 10)
+			: 100
+	);
+
 	function toPoints(data: DataPoint[], accessor: (d: DataPoint) => number): string {
 		if (data.length === 0) return '';
 		const step = data.length > 1 ? chartW / (data.length - 1) : 0;
 		return data.map((d, i) => {
 			const x = PAD_LEFT + i * step;
-			const y = PAD_TOP + chartH - accessor(d) * chartH;
+			const y = PAD_TOP + chartH - (accessor(d) / yMax) * chartH;
 			return `${x},${y}`;
 		}).join(' ');
 	}
@@ -170,11 +172,11 @@
 				{@const y = PAD_TOP + chartH - pct * chartH}
 				<line x1={PAD_LEFT} y1={y} x2={W - PAD_RIGHT} y2={y} stroke="var(--color-bg-tertiary)" stroke-width="0.5" />
 				<text x={PAD_LEFT - 3} y={y + 3} text-anchor="end" font-size="8" class="fill-[var(--color-text-secondary)]">
-					{Math.round(pct * 100)}
+					{Math.round(pct * yMax)}
 				</text>
 			{/each}
 
-			<!-- Rhythm line -->
+			<!-- Rhythm line (dotted) -->
 			{#if showRhythm}
 				<polyline
 					fill="none"
@@ -182,11 +184,12 @@
 					stroke-width="1.5"
 					stroke-linejoin="round"
 					stroke-opacity="0.7"
+					stroke-dasharray="4 3"
 					points={toPoints(dataPoints, d => d.rhythm)}
 				/>
 			{/if}
 
-			<!-- Pitch line -->
+			<!-- Pitch line (dotted) -->
 			{#if showPitch}
 				<polyline
 					fill="none"
@@ -194,17 +197,18 @@
 					stroke-width="1.5"
 					stroke-linejoin="round"
 					stroke-opacity="0.7"
+					stroke-dasharray="4 3"
 					points={toPoints(dataPoints, d => d.pitch)}
 				/>
 			{/if}
 
-			<!-- Overall line (always shown, on top) -->
+			<!-- Average line (solid, always shown, on top) -->
 			<polyline
 				fill="none"
 				stroke="var(--color-accent)"
 				stroke-width="2"
 				stroke-linejoin="round"
-				points={toPoints(dataPoints, d => d.overall)}
+				points={toPoints(dataPoints, d => d.average)}
 			/>
 		</svg>
 

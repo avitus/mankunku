@@ -198,7 +198,7 @@ import { createInitialAdaptiveState, processAttempt } from '$lib/difficulty/adap
 it('advances after consistent high scores', () => {
   let state = createInitialAdaptiveState();
   for (let i = 0; i < 10; i++) {
-    state = processAttempt(state, 0.90, 0.90, 0.90, 'great');
+    state = processAttempt(state, 0.90, 0.90, 0.90);
   }
   expect(state.currentLevel).toBeGreaterThan(1);
 });
@@ -221,7 +221,7 @@ it('rejects phrases with intervals too large for the level', () => {
 
 ### High Priority
 - **Scoring pipeline** — DTW alignment, pitch/rhythm scoring, grade assignment
-- **Adaptive difficulty** — State transitions, XP calculation, level changes
+- **Adaptive difficulty** — State transitions, level changes
 - **Note segmentation** — Median robustness, onset boundaries, edge cases
 - **Music theory** — Interval math, transposition, scale realization
 - **Validation** — Contour rules, range checks

@@ -44,8 +44,7 @@ CREATE TABLE public.user_progress (
     "rhythmComplexity": 1,
     "recentScores": [],
     "attemptsAtLevel": 0,
-    "attemptsSinceChange": 0,
-    "xp": 0
+    "attemptsSinceChange": 0
   }'::jsonb,
   total_practice_time INTEGER    NOT NULL DEFAULT 0,
   streak_days         INTEGER    NOT NULL DEFAULT 0,
@@ -62,7 +61,7 @@ COMMENT ON TABLE public.user_progress IS
 COMMENT ON COLUMN public.user_progress.user_id IS
   'Primary key — same UUID as auth.users.id (1:1 relationship).';
 COMMENT ON COLUMN public.user_progress.adaptive_state IS
-  'JSONB blob mirroring AdaptiveState interface: currentLevel, pitchComplexity, rhythmComplexity, recentScores[], attemptsAtLevel, attemptsSinceChange, xp.';
+  'JSONB blob mirroring AdaptiveState interface: currentLevel, pitchComplexity, rhythmComplexity, recentScores[], attemptsAtLevel, attemptsSinceChange.';
 COMMENT ON COLUMN public.user_progress.total_practice_time IS
   'Cumulative practice time in seconds.';
 COMMENT ON COLUMN public.user_progress.streak_days IS

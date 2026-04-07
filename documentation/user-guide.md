@@ -17,7 +17,7 @@ On your first visit, Mankunku walks you through three setup steps:
 The home page shows:
 - **Quick Start** button to jump into practice
 - **Stats row** — total sessions, average score, streak days
-- **XP bar** — your experience level and progress
+- **Level bar** — your proficiency level and progress
 - **Recent sessions** — last few attempts with scores
 - **Navigation grid** — links to Practice, Library, Progress, Settings, Scales
 
@@ -58,10 +58,10 @@ Each day, the app selects a tonality (key + scale type) for your practice sessio
 **Progressive unlocking:**
 - **Keys** unlock in circle-of-fifths order: C → G → F → D → Bb → A → Eb → E → Ab → B → Db → Gb
 - **Scale types** unlock progressively: Major Pentatonic → Major → Blues (all three free) → Dorian → Mixolydian → Minor → Lydian → Melodic Minor → Altered → Lydian Dominant → Bebop Dominant
-- Unlocking is driven by XP — earning more XP unlocks more tonalities
+- Unlocking is driven by proficiency — improving your per-scale and per-key proficiency levels unlocks more tonalities
 - New keys combine with all unlocked scale types (cross-product)
 
-**Override:** In settings, you can pick any unlocked tonality. Locked tonalities show a lock icon with the XP needed. A "Reset to daily" button restores the automatic selection.
+**Override:** In settings, you can pick any unlocked tonality. Locked tonalities show a lock icon with the proficiency requirements needed. A "Reset to daily" button restores the automatic selection.
 
 ### Scale-Aware Lick Filtering
 
@@ -109,7 +109,7 @@ Track your improvement over time.
 
 - **Total sessions** and **average score**
 - **Streak** — consecutive days practiced
-- **XP and level** — XP earned from each attempt (10–100 per attempt based on grade). Levels 1-100 with a quadratic XP curve (early levels are quick, later levels take more effort).
+- **Level** — Your proficiency level (1-100), derived from average per-scale proficiency. Levels advance as you build proficiency across different scales and keys.
 
 ### Adaptive Difficulty
 

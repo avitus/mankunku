@@ -205,8 +205,7 @@ export function recordAttempt(
 		progress.adaptive,
 		score.overall,
 		score.pitchAccuracy,
-		score.rhythmAccuracy,
-		score.grade
+		score.rhythmAccuracy
 	);
 
 	// Update per-scale proficiency
@@ -227,7 +226,11 @@ export function recordAttempt(
 	updateStreak();
 
 	// Aggregate into daily summary for long-term tracking
-	aggregateSession(session);
+	aggregateSession(
+		session,
+		progress.adaptive.pitchComplexity,
+		progress.adaptive.rhythmComplexity
+	);
 
 	// Persist
 	saveProgress();
@@ -306,15 +309,11 @@ export function getUnlockContext(): UnlockContext {
 }
 
 /**
- * Get the primary display level: average of all per-scale proficiency levels.
+ * Get the primary display level from the adaptive difficulty state.
+ * This is the average of pitchComplexity and rhythmComplexity.
  */
 export function getPrimaryLevel(): number {
-	const levels = Object.values(progress.scaleProficiency)
-		.map(sp => Number(sp.level))
-		.filter(n => !Number.isNaN(n))
-		.map(n => Math.max(1, Math.min(100, n)));
-	if (levels.length === 0) return 1;
-	return Math.round(levels.reduce((a, b) => a + b, 0) / levels.length);
+	return progress.adaptive.currentLevel;
 }
 
 function updateStreak(): void {

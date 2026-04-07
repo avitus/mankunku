@@ -121,7 +121,7 @@ myState.count++;  // triggers reactivity
 Components use `$derived` for computed values:
 
 ```typescript
-const displayLevel = $derived(xpToDisplayLevel(progress.adaptive.xp));
+const displayLevel = $derived(averageProficiencyLevel(progress));
 ```
 
 And `$props` for component inputs:

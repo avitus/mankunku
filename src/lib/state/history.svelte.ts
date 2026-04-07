@@ -22,15 +22,6 @@ const SUMMARIES_KEY = 'daily-summaries';
 const META_KEY = 'progress-meta';
 const ESTIMATED_MINUTES_PER_SESSION = 2;
 
-/** XP per grade (mirrors adaptive.ts XP_TABLE) */
-const XP_TABLE: Record<string, number> = {
-	perfect: 100,
-	great: 75,
-	good: 50,
-	fair: 25,
-	'try-again': 10
-};
-
 // ── Helpers ──────────────────────────────────────────────────────
 
 function emptyGrades(): GradeDistribution {
@@ -75,7 +66,6 @@ function aggregateSessionGroup(date: string, sessions: SessionResult[]): DailySu
 	let bestScore = 0;
 	let notesTotal = 0;
 	let notesHit = 0;
-	let xpEarned = 0;
 
 	for (const s of sessions) {
 		totalOverall += s.overall;
@@ -86,7 +76,6 @@ function aggregateSessionGroup(date: string, sessions: SessionResult[]): DailySu
 		notesHit += s.notesHit;
 		grades[gradeKey(s.grade)]++;
 		categories[s.category] = (categories[s.category] ?? 0) + 1;
-		xpEarned += XP_TABLE[s.grade] ?? 10;
 	}
 
 	return {
@@ -100,8 +89,7 @@ function aggregateSessionGroup(date: string, sessions: SessionResult[]): DailySu
 		notesTotal,
 		notesHit,
 		grades,
-		categories,
-		xpEarned
+		categories
 	};
 }
 
@@ -219,7 +207,11 @@ function saveAll(): void {
  * Aggregate a new session into today's daily summary.
  * Called from recordAttempt() in progress.svelte.ts.
  */
-export function aggregateSession(session: SessionResult): void {
+export function aggregateSession(
+	session: SessionResult,
+	pitchComplexity?: number,
+	rhythmComplexity?: number
+): void {
 	const dk = dateKey(session.timestamp);
 	const existing = summaryMap.get(dk);
 
@@ -235,9 +227,12 @@ export function aggregateSession(session: SessionResult): void {
 		existing.practiceMinutes += ESTIMATED_MINUTES_PER_SESSION;
 		existing.grades[gradeKey(session.grade)]++;
 		existing.categories[session.category] = (existing.categories[session.category] ?? 0) + 1;
-		existing.xpEarned += XP_TABLE[session.grade] ?? 10;
+		if (pitchComplexity !== undefined) existing.pitchComplexity = pitchComplexity;
+		if (rhythmComplexity !== undefined) existing.rhythmComplexity = rhythmComplexity;
 	} else {
 		const summary = aggregateSessionGroup(dk, [session]);
+		if (pitchComplexity !== undefined) summary.pitchComplexity = pitchComplexity;
+		if (rhythmComplexity !== undefined) summary.rhythmComplexity = rhythmComplexity;
 		dailySummaries.push(summary);
 		summaryMap.set(dk, summary);
 	}

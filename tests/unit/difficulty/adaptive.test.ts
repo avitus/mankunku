@@ -2,10 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
 	createInitialAdaptiveState,
 	processAttempt,
-	xpForLevel,
-	xpToDisplayLevel,
-	xpProgress,
-	totalXpForLevel,
 	getAdaptiveSummary,
 	createInitialScaleProficiency,
 	createInitialKeyProficiency,
@@ -15,10 +11,26 @@ import {
 } from '$lib/difficulty/adaptive.ts';
 import type { AdaptiveState } from '$lib/types/progress.ts';
 
-function feedAttempts(count: number, score: number, grade = 'good'): AdaptiveState {
+/** Feed N attempts with the same score for all dimensions. */
+function feedAttempts(count: number, score: number): AdaptiveState {
 	let state = createInitialAdaptiveState();
 	for (let i = 0; i < count; i++) {
-		state = processAttempt(state, score, score, score, grade);
+		state = processAttempt(state, score, score, score);
+	}
+	return state;
+}
+
+/** Feed N attempts with different pitch and rhythm scores. */
+function feedSplitAttempts(
+	count: number,
+	pitchScore: number,
+	rhythmScore: number,
+	initial?: AdaptiveState
+): AdaptiveState {
+	const overall = pitchScore * 0.6 + rhythmScore * 0.4;
+	let state = initial ?? createInitialAdaptiveState();
+	for (let i = 0; i < count; i++) {
+		state = processAttempt(state, overall, pitchScore, rhythmScore);
 	}
 	return state;
 }
@@ -30,141 +42,102 @@ describe('createInitialAdaptiveState', () => {
 		expect(state.pitchComplexity).toBe(1);
 		expect(state.rhythmComplexity).toBe(1);
 		expect(state.recentScores).toEqual([]);
-		expect(state.xp).toBe(0);
+		expect(state.recentPitchScores).toEqual([]);
+		expect(state.recentRhythmScores).toEqual([]);
+		expect(state.pitchAttemptsSinceChange).toBe(0);
+		expect(state.rhythmAttemptsSinceChange).toBe(0);
 	});
 });
 
 describe('processAttempt', () => {
-	it('adds score to recentScores', () => {
+	it('adds scores to all three windows', () => {
 		const state = createInitialAdaptiveState();
-		const next = processAttempt(state, 0.8, 0.8, 0.8, 'good');
+		const next = processAttempt(state, 0.8, 0.85, 0.75);
 		expect(next.recentScores).toEqual([0.8]);
+		expect(next.recentPitchScores).toEqual([0.85]);
+		expect(next.recentRhythmScores).toEqual([0.75]);
 	});
 
-	it('caps recentScores at WINDOW_SIZE', () => {
+	it('caps all windows at WINDOW_SIZE', () => {
 		const state = feedAttempts(WINDOW_SIZE + 5, 0.7);
 		expect(state.recentScores).toHaveLength(WINDOW_SIZE);
-	});
-
-	it('awards XP based on grade', () => {
-		let state = createInitialAdaptiveState();
-		state = processAttempt(state, 1.0, 1.0, 1.0, 'perfect');
-		expect(state.xp).toBe(100);
-		state = processAttempt(state, 0.9, 0.9, 0.9, 'great');
-		expect(state.xp).toBe(175);
-		state = processAttempt(state, 0.7, 0.7, 0.7, 'good');
-		expect(state.xp).toBe(225);
-		state = processAttempt(state, 0.5, 0.5, 0.5, 'fair');
-		expect(state.xp).toBe(250);
-		state = processAttempt(state, 0.3, 0.3, 0.3, 'try-again');
-		expect(state.xp).toBe(260);
+		expect(state.recentPitchScores).toHaveLength(WINDOW_SIZE);
+		expect(state.recentRhythmScores).toHaveLength(WINDOW_SIZE);
 	});
 
 	it('advances when avg >= 85% after enough attempts', () => {
-		// Feed 10 high-scoring attempts to trigger advancement
-		const state = feedAttempts(11, 0.95, 'perfect');
+		const state = feedAttempts(11, 0.95);
 		expect(state.currentLevel).toBeGreaterThan(1);
 	});
 
 	it('does not advance before MIN_ATTEMPTS_BETWEEN_CHANGES', () => {
-		const state = feedAttempts(9, 0.95, 'perfect');
+		const state = feedAttempts(9, 0.95);
 		expect(state.currentLevel).toBe(1);
 	});
 
 	it('retreats when avg < 50% after enough attempts', () => {
-		// Start at a higher level, then feed bad scores
-		let state = feedAttempts(11, 0.95, 'perfect'); // advance first
+		let state = feedAttempts(11, 0.95);
 		const levelBefore = state.currentLevel;
-		// Feed enough bad scores to flush the window (25) and pass min attempts (10)
 		for (let i = 0; i < 30; i++) {
-			state = processAttempt(state, 0.3, 0.3, 0.3, 'try-again');
+			state = processAttempt(state, 0.3, 0.3, 0.3);
 		}
 		expect(state.currentLevel).toBeLessThan(levelBefore);
 	});
 
-	it('increases weakest parameter on advance', () => {
-		const state = createInitialAdaptiveState();
-		// Both start at 1; pitch <= rhythm so pitch advances first
-		const advanced = feedAttempts(11, 0.95, 'perfect');
-		// One of the parameters should have increased
-		expect(advanced.pitchComplexity + advanced.rhythmComplexity).toBeGreaterThan(2);
+	it('pitch advances independently when pitch scores are high', () => {
+		const state = feedSplitAttempts(11, 0.95, 0.60);
+		expect(state.pitchComplexity).toBeGreaterThan(1);
+		expect(state.rhythmComplexity).toBe(1);
 	});
 
-	it('level equals max of pitch and rhythm complexity', () => {
-		const state = feedAttempts(11, 0.95, 'perfect');
+	it('rhythm advances independently when rhythm scores are high', () => {
+		const state = feedSplitAttempts(11, 0.60, 0.95);
+		expect(state.rhythmComplexity).toBeGreaterThan(1);
+		expect(state.pitchComplexity).toBe(1);
+	});
+
+	it('both advance when both dimensions score high', () => {
+		const state = feedAttempts(11, 0.95);
+		expect(state.pitchComplexity).toBeGreaterThan(1);
+		expect(state.rhythmComplexity).toBeGreaterThan(1);
+	});
+
+	it('pitch retreats while rhythm stays when only pitch is weak', () => {
+		let state: AdaptiveState = {
+			...createInitialAdaptiveState(),
+			pitchComplexity: 5,
+			rhythmComplexity: 5,
+			currentLevel: 5
+		};
+		state = feedSplitAttempts(11, 0.30, 0.70, state);
+		expect(state.pitchComplexity).toBeLessThan(5);
+		expect(state.rhythmComplexity).toBe(5);
+	});
+
+	it('dimensions can diverge significantly', () => {
+		const state = feedSplitAttempts(30, 0.95, 0.60);
+		expect(state.pitchComplexity).toBeGreaterThan(2);
+		expect(state.rhythmComplexity).toBe(1);
+	});
+
+	it('currentLevel equals round of average of pitch and rhythm', () => {
+		const state = feedSplitAttempts(30, 0.95, 0.60);
 		expect(state.currentLevel).toBe(
-			Math.max(state.pitchComplexity, state.rhythmComplexity)
+			Math.round((state.pitchComplexity + state.rhythmComplexity) / 2)
 		);
 	});
 
-	it('resets attemptsSinceChange after level change', () => {
-		const state = feedAttempts(11, 0.95, 'perfect');
-		// After advancing, attemptsSinceChange should be small
-		// (only the attempts after the last change)
-		expect(state.attemptsSinceChange).toBeLessThan(11);
-	});
-});
-
-describe('xpForLevel', () => {
-	it('level 1 requires ~51 XP', () => {
-		expect(xpForLevel(1)).toBe(Math.round(50 + 0.5));
+	it('each dimension has independent cooldown', () => {
+		const state = feedSplitAttempts(11, 0.95, 0.60);
+		expect(state.pitchAttemptsSinceChange).toBeLessThan(11);
+		expect(state.rhythmAttemptsSinceChange).toBe(11);
 	});
 
-	it('higher levels require more XP', () => {
-		expect(xpForLevel(10)).toBeGreaterThan(xpForLevel(1));
-		expect(xpForLevel(50)).toBeGreaterThan(xpForLevel(10));
-		expect(xpForLevel(100)).toBeGreaterThan(xpForLevel(50));
-	});
-
-	it('returns expected values (formula: 50 + 0.5 * level^2)', () => {
-		expect(xpForLevel(10)).toBe(100);
-		expect(xpForLevel(20)).toBe(250);
-	});
-});
-
-describe('xpToDisplayLevel', () => {
-	it('0 XP → level 1', () => {
-		expect(xpToDisplayLevel(0)).toBe(1);
-	});
-
-	it('enough XP advances past level 1', () => {
-		const lvl1Cost = xpForLevel(1);
-		expect(xpToDisplayLevel(lvl1Cost)).toBe(2);
-	});
-
-	it('very large XP caps at 100', () => {
-		expect(xpToDisplayLevel(999999999)).toBe(100);
-	});
-});
-
-describe('xpProgress', () => {
-	it('0 XP → 0 progress', () => {
-		expect(xpProgress(0)).toBe(0);
-	});
-
-	it('halfway through level 1 → ~0.5', () => {
-		const half = Math.floor(xpForLevel(1) / 2);
-		const progress = xpProgress(half);
-		expect(progress).toBeGreaterThan(0.3);
-		expect(progress).toBeLessThan(0.7);
-	});
-
-	it('max level → 1', () => {
-		expect(xpProgress(999999999)).toBe(1);
-	});
-});
-
-describe('totalXpForLevel', () => {
-	it('level 1 requires 0 cumulative XP', () => {
-		expect(totalXpForLevel(1)).toBe(0);
-	});
-
-	it('level 2 requires xpForLevel(1) cumulative XP', () => {
-		expect(totalXpForLevel(2)).toBe(xpForLevel(1));
-	});
-
-	it('level 3 = xpForLevel(1) + xpForLevel(2)', () => {
-		expect(totalXpForLevel(3)).toBe(xpForLevel(1) + xpForLevel(2));
+	it('resets attemptsSinceChange to min of dimension cooldowns', () => {
+		const state = feedAttempts(11, 0.95);
+		expect(state.attemptsSinceChange).toBe(
+			Math.min(state.pitchAttemptsSinceChange, state.rhythmAttemptsSinceChange)
+		);
 	});
 });
 
@@ -200,12 +173,10 @@ describe('processScaleAttempt', () => {
 
 	it('retreats after sustained low scores', () => {
 		let state = createInitialScaleProficiency();
-		// Advance first
 		for (let i = 0; i < 11; i++) {
 			state = processScaleAttempt(state, 0.95);
 		}
 		const levelBefore = state.level;
-		// Feed enough bad scores to flush the window and trigger retreat
 		for (let i = 0; i < 30; i++) {
 			state = processScaleAttempt(state, 0.3);
 		}

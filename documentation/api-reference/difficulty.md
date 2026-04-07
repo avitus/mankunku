@@ -22,7 +22,7 @@ Adaptive difficulty algorithm that adjusts musical complexity based on performan
 
 ### `createInitialAdaptiveState(): AdaptiveState`
 
-Returns a fresh state with all values at their defaults (level 1, no scores, 0 XP).
+Returns a fresh state with all values at their defaults (level 1, no scores).
 
 ```typescript
 interface AdaptiveState {
@@ -32,11 +32,10 @@ interface AdaptiveState {
   recentScores: number[];      // Circular buffer of last 10 overall scores
   attemptsAtLevel: number;     // Total attempts at current level
   attemptsSinceChange: number; // Attempts since last difficulty change
-  xp: number;                  // Total experience points (drives 1-100 display level)
 }
 ```
 
-### `processAttempt(state, overall, pitchAccuracy, rhythmAccuracy, grade): AdaptiveState`
+### `processAttempt(state, overall, pitchAccuracy, rhythmAccuracy): AdaptiveState`
 
 Process a new attempt and return updated state.
 
@@ -50,25 +49,6 @@ Process a new attempt and return updated state.
    - Otherwise → decrease rhythm
 3. **Hold** (50–85%): No change
 4. `currentLevel = max(pitchComplexity, rhythmComplexity)`
-
-### XP functions
-
-| Function | Signature | Description |
-|---|---|---|
-| `xpForLevel` | `(level) → number` | XP needed for a single level: `50 + 0.5 * level²` |
-| `totalXpForLevel` | `(level) → number` | Cumulative XP needed to reach a given level |
-| `xpToDisplayLevel` | `(xp) → number` | Player level 1-100 from total XP |
-| `xpProgress` | `(xp) → number` | Progress within current level (0–1, returns 1 at max) |
-
-**XP per grade:**
-
-| Grade | XP |
-|---|---|
-| `perfect` | 100 |
-| `great` | 75 |
-| `good` | 50 |
-| `fair` | 25 |
-| `try-again` | 10 |
 
 ### `getAdaptiveSummary(state): string`
 

@@ -53,7 +53,7 @@ PracticePage
   SessionControls
     RepeatButton          -- hear phrase again
     NextButton            -- new phrase
-    DifficultyIndicator   -- current level, XP bar
+    DifficultyIndicator   -- current level
   MicStatus               -- permission state, input level meter
 ```
 
@@ -446,7 +446,7 @@ mankunku/
 - Implement localStorage persistence with $state sync
 - Build progress dashboard (use lightweight chart library)
 - Implement per-category and per-key progress tracking
-- Add XP system and level display
+- Add proficiency level display
 
 ### Phase 7: Polish
 - Onboarding flow (instrument selection, mic permission, calibration)

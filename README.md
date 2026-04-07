@@ -12,7 +12,7 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 - DTW alignment-based scoring (pitch 60% + rhythm 40%, with latency correction)
 - 35+ scales and ~250 curated jazz licks (ii-V-I, blues, bebop, modal, and more)
 - Combinatorial phrase generation from scale patterns and rhythm templates
-- Adaptive difficulty: XP system, levels 1-100, 10 content tiers
+- Adaptive difficulty: proficiency levels 1-100, 10 content tiers
 - Concert pitch canonical — transposition to written pitch at display time only
 - Fraction-based rhythm representation (no floating-point drift with triplets or dotted notes)
 - Local-first: writes to localStorage/IndexedDB, optional Supabase cloud sync

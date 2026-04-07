@@ -25,7 +25,6 @@ The `AdaptiveState` tracks:
 - `recentScores` — Circular buffer of last 10 overall scores
 - `attemptsAtLevel` — Total attempts at current level
 - `attemptsSinceChange` — Attempts since last difficulty change
-- `xp` — Total experience points (drives the 1-100 display level)
 
 ### Adjustment Logic
 
@@ -42,25 +41,7 @@ On each attempt, after at least 5 attempts since the last change:
    - `currentLevel = max(pitchComplexity, rhythmComplexity)`
 4. **Hold** (50-85%): No change, keep practicing
 
-### XP System
-
-XP is awarded per attempt based on grade:
-
-| Grade | XP |
-|---|---|
-| Perfect | 100 |
-| Great | 75 |
-| Good | 50 |
-| Fair | 25 |
-| Try Again | 10 |
-
-Display level is computed from total XP using a quadratic curve:
-- Level N requires `50 + 0.5 * N²` XP (early levels need ~50 XP, level 100 needs ~5050 XP)
-- `xpToDisplayLevel(xp)` — Player level 1-100 from total XP
-- `xpProgress(xp)` — Progress within current level (0-1)
-- `totalXpForLevel(level)` — Cumulative XP needed to reach a given level
-
-Note: Display level (1-100, cosmetic, based on total XP) is separate from content difficulty tier (1-10, functional, based on performance). The `levelToContentTier()` function maps player levels 1-100 to the 10 content tiers (levels 1-5 = tier 1, levels 91-100 = tier 10).
+Note: Display level (1-100, cosmetic, derived from average per-scale proficiency) is separate from content difficulty tier (1-10, functional, based on performance). The `levelToContentTier()` function maps player levels 1-100 to the 10 content tiers (levels 1-5 = tier 1, levels 91-100 = tier 10).
 
 ## Difficulty Profiles (`params.ts`)
 
@@ -135,7 +116,7 @@ Each level defines what musical elements are available:
 
 The system has two separate level concepts:
 
-- **Player Level (1-100)**: Cosmetic, earned via XP. Displayed in the UI as "Lvl 42". Drives tonality unlocking.
+- **Player Level (1-100)**: Cosmetic, derived from average per-scale proficiency. Displayed in the UI as "Lvl 42". Drives tonality unlocking.
 - **Content Tier (1-10)**: Functional, based on performance. Determines which musical elements (scales, rhythms, tempos) appear in generated phrases. Player levels map to content tiers via `levelToContentTier()` (e.g., player level 35 → content tier 4).
 
 ## How Profiles Affect Generation

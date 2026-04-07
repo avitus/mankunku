@@ -53,9 +53,9 @@ Terminology used throughout Mankunku's codebase and documentation.
 | Term | Definition |
 |---|---|
 | **ABC notation** | A text-based music notation format. Mankunku converts phrases to ABC strings, which abcjs renders to SVG. |
-| **Adaptive state** | The algorithm's internal tracking of difficulty level, pitch/rhythm complexity, recent scores, and XP. |
+| **Adaptive state** | The algorithm's internal tracking of difficulty level, pitch/rhythm complexity, and recent scores. |
 | **DetectedNote** | A note captured from the microphone: MIDI pitch, cents deviation, onset time, duration, clarity. |
-| **Display level** | Cosmetic level based on total XP (separate from difficulty level). Computed as cumulative XP thresholds. |
+| **Display level** | Cosmetic level derived from average per-scale proficiency (separate from content difficulty tier). |
 | **Difficulty level** | Functional level (1–7) that controls what musical elements appear. Adjusted by the adaptive algorithm. |
 | **DTW** | Dynamic Time Warping. An algorithm for aligning two sequences of different lengths. Used to match detected notes to expected notes. |
 | **Fraction** | A `[numerator, denominator]` tuple representing note durations and offsets. Avoids floating-point errors. |
@@ -66,4 +66,3 @@ Terminology used throughout Mankunku's codebase and documentation.
 | **Rune** | Svelte 5's reactivity primitive. `$state`, `$derived`, `$effect`, `$props` are runes. |
 | **Score** | The output of scoring an attempt: pitch/rhythm accuracy, overall percentage, grade, per-note results. |
 | **Session** | A single practice attempt: play a phrase, record the response, get scored. |
-| **XP** | Experience points earned per attempt (10–100 based on grade). Determines display level. |

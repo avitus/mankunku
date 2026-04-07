@@ -214,7 +214,6 @@ interface AdaptiveState {
   recentScores: number[];        // Circular buffer of last 10 scores
   attemptsAtLevel: number;
   attemptsSinceChange: number;
-  xp: number;                   // Total XP earned
 }
 ```
 

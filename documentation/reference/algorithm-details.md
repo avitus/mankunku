@@ -180,15 +180,3 @@ Pitch and rhythm complexity are adjusted independently:
 
 This allows a player who is strong in rhythm but weak in pitch to get easier pitch material while maintaining their rhythm challenge.
 
-### XP Accumulation
-
-XP is purely additive and never decreases. Display level thresholds are linear: level N requires N * 500 XP. This means:
-
-| Display Level | Cumulative XP |
-|---|---|
-| 1 → 2 | 500 |
-| 2 → 3 | 1,500 |
-| 3 → 4 | 3,000 |
-| 4 → 5 | 5,000 |
-
-At the maximum per-attempt XP (100 for "Perfect"), reaching display level 5 requires at least 50 perfect attempts.

@@ -197,7 +197,7 @@ export type Database = {
         Row: {
           /** UUID primary key, references auth.users.id (1:1 relationship) */
           user_id: string
-          /** JSONB storing AdaptiveState: currentLevel, pitchComplexity, rhythmComplexity, recentScores, attemptsAtLevel, attemptsSinceChange, xp */
+          /** JSONB storing AdaptiveState: currentLevel, pitchComplexity, rhythmComplexity, recentScores, attemptsAtLevel, attemptsSinceChange */
           adaptive_state: Json
           /** JSONB storing Record<string, CategoryProgress> with per-category attempt and score tracking */
           category_progress: Json
