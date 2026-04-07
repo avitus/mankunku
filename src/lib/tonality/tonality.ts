@@ -217,7 +217,7 @@ export function getUnlockedTonalities(ctx: UnlockContext): Tonality[] {
  * Simple deterministic hash from a date string to an integer.
  * Uses a basic FNV-1a-like hash for even distribution.
  */
-function dateHash(dateStr: string): number {
+export function dateHash(dateStr: string): number {
 	let hash = 2166136261;
 	for (let i = 0; i < dateStr.length; i++) {
 		hash ^= dateStr.charCodeAt(i);
