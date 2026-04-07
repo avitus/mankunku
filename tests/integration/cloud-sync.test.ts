@@ -86,9 +86,12 @@ function makeProgress(): UserProgress {
 			pitchComplexity: 4,
 			rhythmComplexity: 5,
 			recentScores: [0.8, 0.85, 0.9],
+			recentPitchScores: [0.85, 0.9, 0.92],
+			recentRhythmScores: [0.75, 0.8, 0.85],
 			attemptsAtLevel: 10,
 			attemptsSinceChange: 3,
-			xp: 500
+			pitchAttemptsSinceChange: 3,
+			rhythmAttemptsSinceChange: 3
 		},
 		sessions: [{
 			id: 'session-1',
