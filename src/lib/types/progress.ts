@@ -58,13 +58,20 @@ export interface AdaptiveState {
 	currentLevel: number;
 	pitchComplexity: number;
 	rhythmComplexity: number;
-	/** Circular buffer of last 10 scores */
+	/** Circular buffer of last 25 overall scores (for display) */
 	recentScores: number[];
+	/** Circular buffer of last 25 pitch accuracy scores */
+	recentPitchScores: number[];
+	/** Circular buffer of last 25 rhythm accuracy scores */
+	recentRhythmScores: number[];
 	/** Total attempts at current level */
 	attemptsAtLevel: number;
-	/** Attempts since last difficulty change */
+	/** Attempts since last difficulty change (min of pitch/rhythm cooldowns) */
 	attemptsSinceChange: number;
-	xp: number;
+	/** Independent cooldown for pitch complexity changes */
+	pitchAttemptsSinceChange: number;
+	/** Independent cooldown for rhythm complexity changes */
+	rhythmAttemptsSinceChange: number;
 }
 
 export interface UserProgress {
@@ -105,7 +112,10 @@ export interface DailySummary {
 	notesHit: number;
 	grades: GradeDistribution;
 	categories: Record<string, number>;    // category → session count
-	xpEarned: number;
+	/** Snapshot of adaptive pitchComplexity at end of day */
+	pitchComplexity?: number;
+	/** Snapshot of adaptive rhythmComplexity at end of day */
+	rhythmComplexity?: number;
 }
 
 export interface ProgressMeta {
