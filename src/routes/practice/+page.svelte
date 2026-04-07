@@ -11,7 +11,8 @@
 	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte';
 	import { scoreAttempt } from '$lib/scoring/scorer';
 	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
-	import { getTodaysTonality, isTonalityUnlocked, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
+	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
+	import { seededShuffle } from '$lib/util/seeded-shuffle';
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
@@ -32,9 +33,12 @@
 	let pitchModule: typeof import('$lib/audio/pitch-detector') | null = null;
 	let onsetModule: typeof import('$lib/audio/onset-detector') | null = null;
 
-	// Pin daily tonality at page load so proficiency gains mid-session won't shift key
+	// Pin daily tonality and shuffle seed at page load so mid-session changes don't shift order
 	const sessionUnlockCtx = getUnlockContext();
 	const sessionDailyTonality = getTodaysTonality(sessionUnlockCtx);
+	const sessionShuffleSeed = dateHash(
+		`${new Date().toISOString().slice(0, 10)}:${sessionDailyTonality.key}:${sessionDailyTonality.scaleType}`
+	);
 
 	// Clear stale overrides that reference locked content (e.g. after a reset)
 	// Uses localStorage-only save here — this is one-time init cleanup, cloud sync
@@ -67,7 +71,8 @@
 	const scaleNoteCount = $derived(
 		getScale(scaleId)?.intervals.length ?? 7
 	);
-	const allLicks = $derived(filteredLicks.map(lick =>
+	const shuffledLicks = $derived(seededShuffle(filteredLicks, sessionShuffleSeed));
+	const allLicks = $derived(shuffledLicks.map(lick =>
 		transposeLickForTonality(lick, activeTonality.key, scaleId, getEffectiveHighestNote())
 	));
 
