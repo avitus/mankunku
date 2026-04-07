@@ -178,6 +178,32 @@ describe('initFromCloud', () => {
 		).resolves.toBeUndefined();
 	});
 
+	it('hydrates legacy adaptive state missing per-dimension fields', async () => {
+		// Legacy shape: no recentPitchScores, recentRhythmScores, or per-dimension cooldowns
+		const legacyAdaptive = {
+			currentLevel: 5,
+			pitchComplexity: 4,
+			rhythmComplexity: 5,
+			recentScores: [0.8],
+			attemptsAtLevel: 3,
+			attemptsSinceChange: 3
+		};
+		const cloud = makeCloudProgress([makeSession('s1'), makeSession('s2')]);
+		cloud.adaptive = legacyAdaptive as any;
+		mockLoadProgress.mockResolvedValue(cloud);
+
+		await progressModule.initFromCloud(mockSupabase() as any);
+
+		// Spread-merge should fill in defaults for missing fields
+		expect(progressModule.progress.adaptive.recentPitchScores).toEqual([]);
+		expect(progressModule.progress.adaptive.recentRhythmScores).toEqual([]);
+		expect(progressModule.progress.adaptive.pitchAttemptsSinceChange).toBe(0);
+		expect(progressModule.progress.adaptive.rhythmAttemptsSinceChange).toBe(0);
+		// Existing fields should be preserved from cloud
+		expect(progressModule.progress.adaptive.currentLevel).toBe(5);
+		expect(progressModule.progress.adaptive.recentScores).toEqual([0.8]);
+	});
+
 	it('merges scale and key proficiency from cloud', async () => {
 		const cloud = makeCloudProgress([makeSession('s1'), makeSession('s2')]);
 		cloud.scaleProficiency = {

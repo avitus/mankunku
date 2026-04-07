@@ -188,7 +188,7 @@
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
 				<div class="text-2xl font-bold">{progress.sessions.length}</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Sessions</div>
+				<div class="text-xs text-[var(--color-text-secondary)]">Recent Sessions</div>
 			</div>
 		</div>
 
@@ -389,7 +389,7 @@
 				{@const pitchScores = progress.adaptive.recentPitchScores ?? []}
 				{@const rhythmScores = progress.adaptive.recentRhythmScores ?? []}
 				<div class="mt-3 text-xs text-[var(--color-text-secondary)]">
-					{#if pitchScores.length > 0 && rhythmScores.length > 0}
+					{#if pitchScores.length === windowLen && rhythmScores.length === windowLen}
 						Pitch avg: {pct(pitchScores.reduce((a: number, b: number) => a + b, 0) / pitchScores.length)}%
 						| Rhythm avg: {pct(rhythmScores.reduce((a: number, b: number) => a + b, 0) / rhythmScores.length)}%
 						| Overall: {pct(progress.adaptive.recentScores.reduce((a, b) => a + b, 0) / windowLen)}%

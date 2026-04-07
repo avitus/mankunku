@@ -60,12 +60,12 @@ describe('adaptive difficulty — score window', () => {
 	it('accumulates scores in all three windows', () => {
 		let state = createInitialAdaptiveState();
 
-		state = processAttempt(state, 0.7, 0.8, 0.6);
+		state = processAttempt(state, 0.72, 0.8, 0.6);
 		expect(state.recentScores).toHaveLength(1);
 		expect(state.recentPitchScores).toHaveLength(1);
 		expect(state.recentRhythmScores).toHaveLength(1);
 
-		state = processAttempt(state, 0.8, 0.9, 0.7);
+		state = processAttempt(state, 0.82, 0.9, 0.7);
 		expect(state.recentScores).toHaveLength(2);
 		expect(state.recentPitchScores).toHaveLength(2);
 		expect(state.recentRhythmScores).toHaveLength(2);
@@ -75,7 +75,7 @@ describe('adaptive difficulty — score window', () => {
 		let state = createInitialAdaptiveState();
 
 		for (let i = 0; i < 30; i++) {
-			state = processAttempt(state, 0.7, 0.8, 0.6);
+			state = processAttempt(state, 0.72, 0.8, 0.6);
 		}
 
 		expect(state.recentScores).toHaveLength(25);
@@ -158,9 +158,9 @@ describe('adaptive difficulty — level advancement', () => {
 			rhythmComplexity: 5,
 		};
 
-		// Low pitch accuracy, decent rhythm
+		// Low pitch accuracy, decent rhythm (overall = 0.2*0.6 + 0.7*0.4 = 0.40)
 		for (let i = 0; i < 11; i++) {
-			state = processAttempt(state, 0.3, 0.2, 0.7);
+			state = processAttempt(state, 0.40, 0.2, 0.7);
 		}
 
 		expect(state.pitchComplexity).toBeLessThan(5);
