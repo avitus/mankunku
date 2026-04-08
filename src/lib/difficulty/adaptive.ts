@@ -65,10 +65,10 @@ export function processAttempt(
 	const recentRhythmScores = pushWindow(state.recentRhythmScores ?? [], rhythmAccuracy);
 
 	let { pitchComplexity, rhythmComplexity } = state;
-	const prevLevel = Math.round((state.pitchComplexity + state.rhythmComplexity) / 2);
 	let attemptsAtLevel = state.attemptsAtLevel + 1;
 	let pitchAttemptsSinceChange = (state.pitchAttemptsSinceChange ?? 0) + 1;
 	let rhythmAttemptsSinceChange = (state.rhythmAttemptsSinceChange ?? 0) + 1;
+	let changed = false;
 
 	// Pitch decision (independent)
 	if (pitchAttemptsSinceChange >= MIN_ATTEMPTS_BETWEEN_CHANGES && recentPitchScores.length >= MIN_ATTEMPTS_BETWEEN_CHANGES) {
@@ -76,9 +76,11 @@ export function processAttempt(
 		if (pitchAvg >= ADVANCE_THRESHOLD && pitchComplexity < MAX_LEVEL) {
 			pitchComplexity++;
 			pitchAttemptsSinceChange = 0;
+			changed = true;
 		} else if (pitchAvg < RETREAT_THRESHOLD && pitchComplexity > 1) {
 			pitchComplexity--;
 			pitchAttemptsSinceChange = 0;
+			changed = true;
 		}
 	}
 
@@ -88,14 +90,17 @@ export function processAttempt(
 		if (rhythmAvg >= ADVANCE_THRESHOLD && rhythmComplexity < MAX_LEVEL) {
 			rhythmComplexity++;
 			rhythmAttemptsSinceChange = 0;
+			changed = true;
 		} else if (rhythmAvg < RETREAT_THRESHOLD && rhythmComplexity > 1) {
 			rhythmComplexity--;
 			rhythmAttemptsSinceChange = 0;
+			changed = true;
 		}
 	}
 
+	if (changed) attemptsAtLevel = 0;
+
 	const currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2);
-	if (currentLevel !== prevLevel) attemptsAtLevel = 0;
 
 	return {
 		currentLevel,

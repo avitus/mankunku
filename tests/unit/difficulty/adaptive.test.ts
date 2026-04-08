@@ -85,12 +85,14 @@ describe('processAttempt', () => {
 	});
 
 	it('pitch advances independently when pitch scores are high', () => {
+		// High pitch, mediocre rhythm
 		const state = feedSplitAttempts(11, 0.95, 0.60);
 		expect(state.pitchComplexity).toBeGreaterThan(1);
 		expect(state.rhythmComplexity).toBe(1);
 	});
 
 	it('rhythm advances independently when rhythm scores are high', () => {
+		// Mediocre pitch, high rhythm
 		const state = feedSplitAttempts(11, 0.60, 0.95);
 		expect(state.rhythmComplexity).toBeGreaterThan(1);
 		expect(state.pitchComplexity).toBe(1);
@@ -103,19 +105,23 @@ describe('processAttempt', () => {
 	});
 
 	it('pitch retreats while rhythm stays when only pitch is weak', () => {
+		// Start at elevated levels
 		let state: AdaptiveState = {
 			...createInitialAdaptiveState(),
 			pitchComplexity: 5,
 			rhythmComplexity: 5,
 			currentLevel: 5
 		};
+		// Feed weak pitch, decent rhythm
 		state = feedSplitAttempts(11, 0.30, 0.70, state);
 		expect(state.pitchComplexity).toBeLessThan(5);
 		expect(state.rhythmComplexity).toBe(5);
 	});
 
 	it('dimensions can diverge significantly', () => {
+		// 30 attempts: great pitch, mediocre rhythm
 		const state = feedSplitAttempts(30, 0.95, 0.60);
+		// Pitch should have advanced multiple times, rhythm should not
 		expect(state.pitchComplexity).toBeGreaterThan(2);
 		expect(state.rhythmComplexity).toBe(1);
 	});
@@ -129,12 +135,15 @@ describe('processAttempt', () => {
 
 	it('each dimension has independent cooldown', () => {
 		const state = feedSplitAttempts(11, 0.95, 0.60);
+		// Pitch just advanced, so its cooldown is reset
 		expect(state.pitchAttemptsSinceChange).toBeLessThan(11);
+		// Rhythm never changed, so its cooldown keeps counting
 		expect(state.rhythmAttemptsSinceChange).toBe(11);
 	});
 
 	it('resets attemptsSinceChange to min of dimension cooldowns', () => {
 		const state = feedAttempts(11, 0.95);
+		// Both advanced, so attemptsSinceChange should reflect the most recent change
 		expect(state.attemptsSinceChange).toBe(
 			Math.min(state.pitchAttemptsSinceChange, state.rhythmAttemptsSinceChange)
 		);

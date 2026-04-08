@@ -1,5 +1,6 @@
 -- Add per-dimension score windows and cooldowns to adaptive_state default.
--- Remove xp field from adaptive_state default.
+-- Existing rows keep their old-shape JSONB; the TypeScript spread-merge
+-- in loadProgress() fills in missing fields at runtime.
 
 ALTER TABLE public.user_progress
   ALTER COLUMN adaptive_state SET DEFAULT '{
