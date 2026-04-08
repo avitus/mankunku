@@ -42,7 +42,11 @@
 	const dataPoints = $derived.by(() => {
 		const start = getStartDate(period);
 		const filtered = getSummariesInRange(start, todayStr)
-			.filter(s => s.pitchComplexity != null && s.rhythmComplexity != null);
+			.map(s => ({
+				...s,
+				pitchComplexity: s.pitchComplexity ?? Math.round(s.avgPitch * 100),
+				rhythmComplexity: s.rhythmComplexity ?? Math.round(s.avgRhythm * 100)
+			}));
 		if (filtered.length === 0) return [];
 
 		function toPoint(label: string, pitch: number, rhythm: number): DataPoint {

@@ -26,12 +26,16 @@ Returns a fresh state with all values at their defaults (level 1, no scores).
 
 ```typescript
 interface AdaptiveState {
-  currentLevel: number;        // Content difficulty tier (1-10)
-  pitchComplexity: number;     // Pitch difficulty, adjusted independently (1-10)
-  rhythmComplexity: number;    // Rhythm difficulty, adjusted independently (1-10)
-  recentScores: number[];      // Circular buffer of last 10 overall scores
-  attemptsAtLevel: number;     // Total attempts at current level
-  attemptsSinceChange: number; // Attempts since last difficulty change
+  currentLevel: number;                // Average of pitch + rhythm complexity (1-100)
+  pitchComplexity: number;             // Pitch difficulty (1-100)
+  rhythmComplexity: number;            // Rhythm difficulty (1-100)
+  recentScores: number[];              // Circular buffer of last 25 overall scores
+  recentPitchScores: number[];         // Circular buffer of last 25 pitch accuracy scores
+  recentRhythmScores: number[];        // Circular buffer of last 25 rhythm accuracy scores
+  attemptsAtLevel: number;             // Total attempts at current level
+  attemptsSinceChange: number;         // Min of pitch/rhythm cooldowns
+  pitchAttemptsSinceChange: number;    // Attempts since last pitch complexity change
+  rhythmAttemptsSinceChange: number;   // Attempts since last rhythm complexity change
 }
 ```
 
@@ -39,16 +43,12 @@ interface AdaptiveState {
 
 Process a new attempt and return updated state.
 
-**Adjustment logic** (requires >= 5 attempts since last change and >= 5 scores in window):
+Pitch and rhythm are adjusted **independently** — each dimension has its own score window and cooldown (minimum 10 attempts between changes per dimension):
 
-1. **Advance** (average >= 85%): Increase the *weaker* parameter first
-   - `pitchComplexity <= rhythmComplexity` → increase pitch
-   - Otherwise → increase rhythm
-2. **Retreat** (average < 50%): Decrease the parameter with lower accuracy
-   - `pitchAccuracy <= rhythmAccuracy` → decrease pitch
-   - Otherwise → decrease rhythm
-3. **Hold** (50–85%): No change
-4. `currentLevel = max(pitchComplexity, rhythmComplexity)`
+1. **Pitch**: If pitch accuracy window average ≥ 85% → `pitchComplexity++`; if < 50% → `pitchComplexity--`
+2. **Rhythm**: If rhythm accuracy window average ≥ 85% → `rhythmComplexity++`; if < 50% → `rhythmComplexity--`
+3. **Hold** (50–85%): No change for that dimension
+4. `currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2)`
 
 ### `getAdaptiveSummary(state): string`
 

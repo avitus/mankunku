@@ -65,10 +65,10 @@ export function processAttempt(
 	const recentRhythmScores = pushWindow(state.recentRhythmScores ?? [], rhythmAccuracy);
 
 	let { pitchComplexity, rhythmComplexity } = state;
+	const prevLevel = Math.round((state.pitchComplexity + state.rhythmComplexity) / 2);
 	let attemptsAtLevel = state.attemptsAtLevel + 1;
 	let pitchAttemptsSinceChange = (state.pitchAttemptsSinceChange ?? 0) + 1;
 	let rhythmAttemptsSinceChange = (state.rhythmAttemptsSinceChange ?? 0) + 1;
-	let changed = false;
 
 	// Pitch decision (independent)
 	if (pitchAttemptsSinceChange >= MIN_ATTEMPTS_BETWEEN_CHANGES && recentPitchScores.length >= MIN_ATTEMPTS_BETWEEN_CHANGES) {
@@ -76,11 +76,9 @@ export function processAttempt(
 		if (pitchAvg >= ADVANCE_THRESHOLD && pitchComplexity < MAX_LEVEL) {
 			pitchComplexity++;
 			pitchAttemptsSinceChange = 0;
-			changed = true;
 		} else if (pitchAvg < RETREAT_THRESHOLD && pitchComplexity > 1) {
 			pitchComplexity--;
 			pitchAttemptsSinceChange = 0;
-			changed = true;
 		}
 	}
 
@@ -90,17 +88,14 @@ export function processAttempt(
 		if (rhythmAvg >= ADVANCE_THRESHOLD && rhythmComplexity < MAX_LEVEL) {
 			rhythmComplexity++;
 			rhythmAttemptsSinceChange = 0;
-			changed = true;
 		} else if (rhythmAvg < RETREAT_THRESHOLD && rhythmComplexity > 1) {
 			rhythmComplexity--;
 			rhythmAttemptsSinceChange = 0;
-			changed = true;
 		}
 	}
 
-	if (changed) attemptsAtLevel = 0;
-
 	const currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2);
+	if (currentLevel !== prevLevel) attemptsAtLevel = 0;
 
 	return {
 		currentLevel,
@@ -154,20 +149,19 @@ export function createInitialKeyProficiency(): KeyProficiency {
  * Process a scale-specific attempt and return updated proficiency.
  * Uses the same advancement algorithm as the global adaptive state.
  */
-export function processScaleAttempt(state: ScaleProficiency, overall: number): ScaleProficiency {
-	const recentScores = [...state.recentScores, overall];
-	if (recentScores.length > WINDOW_SIZE) {
-		recentScores.shift();
-	}
-
+/** Shared single-dimension advancement logic for scale and key proficiency. */
+function advanceSingleDimension(
+	state: { level: number; recentScores: number[]; attemptsAtLevel: number; attemptsSinceChange: number; totalAttempts: number },
+	overall: number
+): { level: number; recentScores: number[]; attemptsAtLevel: number; attemptsSinceChange: number; totalAttempts: number } {
+	const recentScores = pushWindow(state.recentScores, overall);
 	let { level } = state;
 	let attemptsAtLevel = state.attemptsAtLevel + 1;
 	let attemptsSinceChange = state.attemptsSinceChange + 1;
 	const totalAttempts = state.totalAttempts + 1;
 
 	if (attemptsSinceChange >= MIN_ATTEMPTS_BETWEEN_CHANGES && recentScores.length >= MIN_ATTEMPTS_BETWEEN_CHANGES) {
-		const a = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
-
+		const a = avg(recentScores);
 		if (a >= ADVANCE_THRESHOLD && level < MAX_LEVEL) {
 			level++;
 			attemptsAtLevel = 0;
@@ -182,34 +176,14 @@ export function processScaleAttempt(state: ScaleProficiency, overall: number): S
 	return { level, recentScores, attemptsAtLevel, attemptsSinceChange, totalAttempts };
 }
 
+export function processScaleAttempt(state: ScaleProficiency, overall: number): ScaleProficiency {
+	return advanceSingleDimension(state, overall);
+}
+
 /**
  * Process a key-specific attempt and return updated proficiency.
  * Same algorithm as scale proficiency.
  */
 export function processKeyAttempt(state: KeyProficiency, overall: number): KeyProficiency {
-	const recentScores = [...state.recentScores, overall];
-	if (recentScores.length > WINDOW_SIZE) {
-		recentScores.shift();
-	}
-
-	let { level } = state;
-	let attemptsAtLevel = state.attemptsAtLevel + 1;
-	let attemptsSinceChange = state.attemptsSinceChange + 1;
-	const totalAttempts = state.totalAttempts + 1;
-
-	if (attemptsSinceChange >= MIN_ATTEMPTS_BETWEEN_CHANGES && recentScores.length >= MIN_ATTEMPTS_BETWEEN_CHANGES) {
-		const a = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
-
-		if (a >= ADVANCE_THRESHOLD && level < MAX_LEVEL) {
-			level++;
-			attemptsAtLevel = 0;
-			attemptsSinceChange = 0;
-		} else if (a < RETREAT_THRESHOLD && level > 1) {
-			level--;
-			attemptsAtLevel = 0;
-			attemptsSinceChange = 0;
-		}
-	}
-
-	return { level, recentScores, attemptsAtLevel, attemptsSinceChange, totalAttempts };
+	return advanceSingleDimension(state, overall);
 }
