@@ -120,12 +120,10 @@ export function processAttempt(
  * Get a human-readable summary of the adaptive state.
  */
 export function getAdaptiveSummary(state: AdaptiveState): string {
-	const a = state.recentScores.length > 0
-		? state.recentScores.reduce((a, b) => a + b, 0) / state.recentScores.length
-		: 0;
+	const avgScore = avg(state.recentScores);
 
 	const display = difficultyDisplay(state.currentLevel);
-	return `${display.name} ${state.currentLevel} (Pitch: ${state.pitchComplexity}, Rhythm: ${state.rhythmComplexity}) — Avg: ${Math.round(a * 100)}%`;
+	return `${display.name} ${state.currentLevel} (Pitch: ${state.pitchComplexity}, Rhythm: ${state.rhythmComplexity}) — Avg: ${Math.round(avgScore * 100)}%`;
 }
 
 // ── Per-scale / per-key proficiency ──────────────────────────────
