@@ -31,7 +31,9 @@ const defaultSettings = {
 	/** User override for daily tonality. null = use auto-selected daily tonality. */
 	tonalityOverride: null as Tonality | null,
 	/** User-configured highest concert pitch MIDI. null = instrument default. */
-	highestNote: null as number | null
+	highestNote: null as number | null,
+	/** When true, use bleed-filtered notes as the primary score (A/B testing toggle). */
+	bleedFilterEnabled: false
 };
 
 export const settings = $state(loadSettings());

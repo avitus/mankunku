@@ -16,7 +16,8 @@
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
-	import { loadBackingInstruments } from '$lib/audio/backing-track';
+	import { loadBackingInstruments, getActiveSchedule } from '$lib/audio/backing-track';
+	import { filterBleed } from '$lib/audio/bleed-filter';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
@@ -350,10 +351,37 @@
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 		const detected = segmentNotes(readings, onsets, phraseDuration);
 
-		session.recordedNotes = detected;
-		session.lastScore = scoreAttempt(
+		// Always score unfiltered (current behavior)
+		const unfilteredScore = scoreAttempt(
 			session.phrase, detected, session.tempo, recordingTransportSeconds, settings.swing
 		);
+
+		// Score filtered path when backing track schedule is available
+		let filteredScore: Score | null = null;
+		let filteredNotes = detected;
+		const schedule = getActiveSchedule();
+		if (schedule) {
+			const result = filterBleed(detected, schedule, recordingTransportSeconds);
+			filteredNotes = result.kept;
+			filteredScore = scoreAttempt(
+				session.phrase, filteredNotes, session.tempo, recordingTransportSeconds, settings.swing
+			);
+			console.log('[bleed-filter]', {
+				total: detected.length,
+				kept: result.kept.length,
+				filtered: result.filtered.length,
+				filteredNotes: result.filtered.map(n => ({
+					midi: n.midi, clarity: n.clarity.toFixed(2), onset: n.onsetTime.toFixed(2)
+				})),
+				unfilteredScore: unfilteredScore?.overall,
+				filteredScore: filteredScore?.overall
+			});
+		}
+
+		// Toggle picks which score is primary
+		const useFiltered = settings.bleedFilterEnabled && filteredScore != null;
+		session.recordedNotes = useFiltered ? filteredNotes : detected;
+		session.lastScore = useFiltered ? filteredScore : unfilteredScore;
 
 		if (session.lastScore) {
 			persistentScore = session.lastScore;

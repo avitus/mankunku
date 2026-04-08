@@ -17,6 +17,7 @@ import { fractionToFloat } from '$lib/music/intervals.ts';
 import { initAudio, getMasterGain, getAudioContext } from './audio-context.ts';
 import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings.ts';
 import { chordSymbol } from '$lib/music/chords.ts';
+import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule.ts';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -105,6 +106,7 @@ let drumGainNode: InstanceType<ToneModule['Gain']> | null = null;
 let bassPart: InstanceType<ToneModule['Part']> | null = null;
 let compPart: InstanceType<ToneModule['Part']> | null = null;
 let drumSequence: InstanceType<ToneModule['Sequence']> | null = null;
+let activeSchedule: BackingTrackSchedule | null = null;
 
 /** Monotonically increasing ID for cancelling stale loads. */
 let currentLoadId = 0;
@@ -536,6 +538,12 @@ export function disposeBackingParts(): void {
 	}
 	bassInstrument?.stop();
 	compInstrument?.stop();
+	activeSchedule = null;
+}
+
+/** Return the backing track schedule built during the last scheduleBackingTrack() call. */
+export function getActiveSchedule(): BackingTrackSchedule | null {
+	return activeSchedule;
 }
 
 /**
@@ -572,6 +580,9 @@ export async function scheduleBackingTrack(
 
 	// ── Capture diagnostics log ─────────────────────────────
 	captureLog(phrase, harmony, bassEvents, compEvents, beatsPerBar, ppq, options.tempo);
+
+	// ── Build queryable schedule for bleed filter ───────────
+	activeSchedule = buildSchedule(bassEvents, compEvents, tickOffset, ppq, options.tempo);
 
 	// Schedule bass — offset events by tickOffset (count-in bar)
 	bassPart = new Tone.Part((time: number, event: BassEvent) => {
