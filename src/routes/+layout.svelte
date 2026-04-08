@@ -22,10 +22,8 @@
 	const navItems = [
 		{ href: '/', label: 'Home' },
 		{ href: '/practice', label: 'Practice' },
-		{ href: '/record', label: 'Record' },
-		{ href: '/entry', label: 'Entry' },
 		{ href: '/library', label: 'Library' },
-		{ href: '/scales', label: 'Scales' },
+		{ href: '/add-licks', label: 'Add Licks' },
 		{ href: '/progress', label: 'Progress' },
 		{ href: '/settings', label: 'Settings' }
 	];
@@ -48,6 +46,11 @@
 
 	function isActive(href: string): boolean {
 		if (href === '/') return page.url?.pathname === '/';
+		if (href === '/add-licks') {
+			return ['/add-licks', '/record', '/entry'].some(
+				(p) => page.url?.pathname?.startsWith(p) ?? false
+			);
+		}
 		return page.url?.pathname?.startsWith(href) ?? false;
 	}
 </script>

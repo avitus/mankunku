@@ -142,9 +142,17 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold">Lick Library</h1>
-		<span class="text-sm text-[var(--color-text-secondary)]">
-			{filteredLicks.length} lick{filteredLicks.length !== 1 ? 's' : ''}
-		</span>
+		<div class="flex items-center gap-4">
+			<a
+				href="/scales"
+				class="text-sm text-[var(--color-accent)] transition-opacity hover:opacity-80"
+			>
+				Scale Reference
+			</a>
+			<span class="text-sm text-[var(--color-text-secondary)]">
+				{filteredLicks.length} lick{filteredLicks.length !== 1 ? 's' : ''}
+			</span>
+		</div>
 	</div>
 
 	<!-- Search -->
