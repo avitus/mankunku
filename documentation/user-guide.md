@@ -109,14 +109,14 @@ Track your improvement over time.
 
 - **Total sessions** and **average score**
 - **Streak** — consecutive days practiced
-- **Level** — Your proficiency level (1-100), derived from average per-scale proficiency. Levels advance as you build proficiency across different scales and keys.
+- **Level** — The adaptive level (1-100), calculated as the rounded average of pitch complexity and rhythm complexity.
 
 ### Adaptive Difficulty
 
 The app shows your current difficulty level and its components:
 - **Pitch complexity** and **rhythm complexity** are adjusted independently
-- Each dimension advances independently when its accuracy window averages ≥ 85%
-- Below 50%, that dimension retreats
+- Each dimension advances when its accuracy window (last 25 attempts) averages ≥ 85%
+- Below 50% over that window, the dimension retreats
 - Minimum 10 attempts between changes per dimension
 
 ### Category Progress
