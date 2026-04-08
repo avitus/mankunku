@@ -14,10 +14,10 @@ Adaptive difficulty algorithm that adjusts musical complexity based on performan
 
 | Constant | Value | Description |
 |---|---|---|
-| `WINDOW_SIZE` | 10 | Number of recent scores to consider |
+| `WINDOW_SIZE` | 25 | Number of recent scores per dimension |
 | `ADVANCE_THRESHOLD` | 0.85 | Average score to advance |
 | `RETREAT_THRESHOLD` | 0.50 | Average score to retreat |
-| `MIN_ATTEMPTS_BETWEEN_CHANGES` | 5 | Cooldown between difficulty adjustments |
+| `MIN_ATTEMPTS_BETWEEN_CHANGES` | 10 | Cooldown between difficulty adjustments (per dimension) |
 | `MAX_LEVEL` | 100 | Maximum player level |
 
 ### `createInitialAdaptiveState(): AdaptiveState`

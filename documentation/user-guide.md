@@ -115,9 +115,9 @@ Track your improvement over time.
 
 The app shows your current difficulty level and its components:
 - **Pitch complexity** and **rhythm complexity** are adjusted independently
-- When your average score exceeds 85% over 10 attempts, the weaker skill advances
-- Below 50%, the skill causing more errors retreats
-- Minimum 5 attempts between changes
+- Each dimension advances independently when its accuracy window averages ≥ 85%
+- Below 50%, that dimension retreats
+- Minimum 10 attempts between changes per dimension
 
 ### Category Progress
 

@@ -208,12 +208,16 @@ interface UserProgress {
 
 ```typescript
 interface AdaptiveState {
-  currentLevel: number;          // 1-7
-  pitchComplexity: number;       // 1-7 (adjusted independently)
-  rhythmComplexity: number;      // 1-7 (adjusted independently)
-  recentScores: number[];        // Circular buffer of last 10 scores
+  currentLevel: number;                // Rounded avg of pitch + rhythm (1-100)
+  pitchComplexity: number;             // 1-100, adjusted independently
+  rhythmComplexity: number;            // 1-100, adjusted independently
+  recentScores: number[];              // Circular buffer of last 25 overall scores
+  recentPitchScores: number[];         // Circular buffer of last 25 pitch accuracy scores
+  recentRhythmScores: number[];        // Circular buffer of last 25 rhythm accuracy scores
   attemptsAtLevel: number;
-  attemptsSinceChange: number;
+  attemptsSinceChange: number;         // Min of pitch/rhythm cooldowns
+  pitchAttemptsSinceChange: number;    // Per-dimension cooldown for pitch
+  rhythmAttemptsSinceChange: number;   // Per-dimension cooldown for rhythm
 }
 ```
 

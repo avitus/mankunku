@@ -10,38 +10,36 @@ The adaptive difficulty system automatically adjusts musical complexity based on
 
 | Parameter | Value |
 |---|---|
-| Window size | 10 attempts |
+| Window size | 25 attempts (per dimension) |
 | Advance threshold | >= 85% average |
 | Retreat threshold | < 50% average |
-| Min attempts between changes | 5 |
+| Min attempts between changes | 10 (per dimension) |
 | Max level | 100 |
 
 ### State
 
 The `AdaptiveState` tracks:
-- `currentLevel` — Content difficulty tier (1-10, maps to difficulty profiles)
-- `pitchComplexity` — Pitch difficulty, adjusted independently (1-10)
-- `rhythmComplexity` — Rhythm difficulty, adjusted independently (1-10)
-- `recentScores` — Circular buffer of last 10 overall scores
-- `attemptsAtLevel` — Total attempts at current level
-- `attemptsSinceChange` — Attempts since last difficulty change
+- `currentLevel` — Rounded average of pitchComplexity and rhythmComplexity (1-100)
+- `pitchComplexity` — Pitch difficulty (1-100), adjusted independently
+- `rhythmComplexity` — Rhythm difficulty (1-100), adjusted independently
+- `recentScores` — Circular buffer of last 25 overall scores (for display)
+- `recentPitchScores` — Circular buffer of last 25 pitch accuracy scores
+- `recentRhythmScores` — Circular buffer of last 25 rhythm accuracy scores
+- `attemptsAtLevel` — Total attempts at current rounded level
+- `attemptsSinceChange` — Min of pitch/rhythm cooldowns
+- `pitchAttemptsSinceChange` — Attempts since last pitch complexity change
+- `rhythmAttemptsSinceChange` — Attempts since last rhythm complexity change
 
 ### Adjustment Logic
 
-On each attempt, after at least 5 attempts since the last change:
+Pitch and rhythm are adjusted **independently** — each dimension has its own score window and cooldown counter. On each attempt, for each dimension (after at least 10 attempts since that dimension's last change):
 
-1. **Compute window average** from the last 10 scores
-2. **Advance** (average >= 85%): Increase the *weaker* parameter first
-   - If `pitchComplexity <= rhythmComplexity` → increase pitch
-   - Otherwise → increase rhythm
-   - `currentLevel = max(pitchComplexity, rhythmComplexity)`
-3. **Retreat** (average < 50%): Decrease the parameter causing more errors
-   - If latest `pitchAccuracy <= rhythmAccuracy` → decrease pitch
-   - Otherwise → decrease rhythm
-   - `currentLevel = max(pitchComplexity, rhythmComplexity)`
-4. **Hold** (50-85%): No change, keep practicing
+1. **Pitch**: If pitch accuracy window average ≥ 85% → `pitchComplexity++`; if < 50% → `pitchComplexity--`
+2. **Rhythm**: If rhythm accuracy window average ≥ 85% → `rhythmComplexity++`; if < 50% → `rhythmComplexity--`
+3. **Hold** (50-85%): No change for that dimension
+4. `currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2)`
 
-Note: Display level (1-100, cosmetic, derived from average per-scale proficiency) is separate from content difficulty tier (1-10, functional, based on performance). The `levelToContentTier()` function maps player levels 1-100 to the 10 content tiers (levels 1-5 = tier 1, levels 91-100 = tier 10).
+Note: `currentLevel` maps to content tiers via `levelToContentTier()` (levels 1-5 = tier 1, levels 91-100 = tier 10).
 
 ## Difficulty Profiles (`params.ts`)
 
