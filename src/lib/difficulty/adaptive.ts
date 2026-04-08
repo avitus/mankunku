@@ -120,12 +120,10 @@ export function processAttempt(
  * Get a human-readable summary of the adaptive state.
  */
 export function getAdaptiveSummary(state: AdaptiveState): string {
-	const avg = state.recentScores.length > 0
-		? state.recentScores.reduce((a, b) => a + b, 0) / state.recentScores.length
-		: 0;
+	const avgScore = avg(state.recentScores);
 
 	const display = difficultyDisplay(state.currentLevel);
-	return `${display.name} ${state.currentLevel} (Pitch: ${state.pitchComplexity}, Rhythm: ${state.rhythmComplexity}) — Avg: ${Math.round(avg * 100)}%`;
+	return `${display.name} ${state.currentLevel} (Pitch: ${state.pitchComplexity}, Rhythm: ${state.rhythmComplexity}) — Avg: ${Math.round(avgScore * 100)}%`;
 }
 
 // ── Per-scale / per-key proficiency ──────────────────────────────
@@ -154,25 +152,24 @@ export function createInitialKeyProficiency(): KeyProficiency {
  * Process a scale-specific attempt and return updated proficiency.
  * Uses the same advancement algorithm as the global adaptive state.
  */
-export function processScaleAttempt(state: ScaleProficiency, overall: number): ScaleProficiency {
-	const recentScores = [...state.recentScores, overall];
-	if (recentScores.length > WINDOW_SIZE) {
-		recentScores.shift();
-	}
-
+/** Shared single-dimension advancement logic for scale and key proficiency. */
+function advanceSingleDimension(
+	state: { level: number; recentScores: number[]; attemptsAtLevel: number; attemptsSinceChange: number; totalAttempts: number },
+	overall: number
+): { level: number; recentScores: number[]; attemptsAtLevel: number; attemptsSinceChange: number; totalAttempts: number } {
+	const recentScores = pushWindow(state.recentScores, overall);
 	let { level } = state;
 	let attemptsAtLevel = state.attemptsAtLevel + 1;
 	let attemptsSinceChange = state.attemptsSinceChange + 1;
 	const totalAttempts = state.totalAttempts + 1;
 
 	if (attemptsSinceChange >= MIN_ATTEMPTS_BETWEEN_CHANGES && recentScores.length >= MIN_ATTEMPTS_BETWEEN_CHANGES) {
-		const avg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
-
-		if (avg >= ADVANCE_THRESHOLD && level < MAX_LEVEL) {
+		const a = avg(recentScores);
+		if (a >= ADVANCE_THRESHOLD && level < MAX_LEVEL) {
 			level++;
 			attemptsAtLevel = 0;
 			attemptsSinceChange = 0;
-		} else if (avg < RETREAT_THRESHOLD && level > 1) {
+		} else if (a < RETREAT_THRESHOLD && level > 1) {
 			level--;
 			attemptsAtLevel = 0;
 			attemptsSinceChange = 0;
@@ -182,34 +179,14 @@ export function processScaleAttempt(state: ScaleProficiency, overall: number): S
 	return { level, recentScores, attemptsAtLevel, attemptsSinceChange, totalAttempts };
 }
 
+export function processScaleAttempt(state: ScaleProficiency, overall: number): ScaleProficiency {
+	return advanceSingleDimension(state, overall);
+}
+
 /**
  * Process a key-specific attempt and return updated proficiency.
  * Same algorithm as scale proficiency.
  */
 export function processKeyAttempt(state: KeyProficiency, overall: number): KeyProficiency {
-	const recentScores = [...state.recentScores, overall];
-	if (recentScores.length > WINDOW_SIZE) {
-		recentScores.shift();
-	}
-
-	let { level } = state;
-	let attemptsAtLevel = state.attemptsAtLevel + 1;
-	let attemptsSinceChange = state.attemptsSinceChange + 1;
-	const totalAttempts = state.totalAttempts + 1;
-
-	if (attemptsSinceChange >= MIN_ATTEMPTS_BETWEEN_CHANGES && recentScores.length >= MIN_ATTEMPTS_BETWEEN_CHANGES) {
-		const avg = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
-
-		if (avg >= ADVANCE_THRESHOLD && level < MAX_LEVEL) {
-			level++;
-			attemptsAtLevel = 0;
-			attemptsSinceChange = 0;
-		} else if (avg < RETREAT_THRESHOLD && level > 1) {
-			level--;
-			attemptsAtLevel = 0;
-			attemptsSinceChange = 0;
-		}
-	}
-
-	return { level, recentScores, attemptsAtLevel, attemptsSinceChange, totalAttempts };
+	return advanceSingleDimension(state, overall);
 }

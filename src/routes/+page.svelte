@@ -79,7 +79,7 @@
 			<div class="flex items-center justify-between text-sm">
 				<span class="font-medium" style="color: {levelDisp.color}">{levelDisp.name}</span>
 				<span class="text-xs text-[var(--color-text-secondary)]">
-					Level {primaryLevel} &middot; {progress.adaptive.xp} XP
+					Level {primaryLevel}
 				</span>
 			</div>
 		</div>

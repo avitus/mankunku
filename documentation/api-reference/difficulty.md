@@ -14,61 +14,41 @@ Adaptive difficulty algorithm that adjusts musical complexity based on performan
 
 | Constant | Value | Description |
 |---|---|---|
-| `WINDOW_SIZE` | 10 | Number of recent scores to consider |
+| `WINDOW_SIZE` | 25 | Number of recent scores per dimension |
 | `ADVANCE_THRESHOLD` | 0.85 | Average score to advance |
 | `RETREAT_THRESHOLD` | 0.50 | Average score to retreat |
-| `MIN_ATTEMPTS_BETWEEN_CHANGES` | 5 | Cooldown between difficulty adjustments |
+| `MIN_ATTEMPTS_BETWEEN_CHANGES` | 10 | Cooldown between difficulty adjustments (per dimension) |
 | `MAX_LEVEL` | 100 | Maximum player level |
 
 ### `createInitialAdaptiveState(): AdaptiveState`
 
-Returns a fresh state with all values at their defaults (level 1, no scores, 0 XP).
+Returns a fresh state with all values at their defaults (level 1, no scores).
 
 ```typescript
 interface AdaptiveState {
-  currentLevel: number;        // Content difficulty tier (1-10)
-  pitchComplexity: number;     // Pitch difficulty, adjusted independently (1-10)
-  rhythmComplexity: number;    // Rhythm difficulty, adjusted independently (1-10)
-  recentScores: number[];      // Circular buffer of last 10 overall scores
-  attemptsAtLevel: number;     // Total attempts at current level
-  attemptsSinceChange: number; // Attempts since last difficulty change
-  xp: number;                  // Total experience points (drives 1-100 display level)
+  currentLevel: number;                // Average of pitch + rhythm complexity (1-100)
+  pitchComplexity: number;             // Pitch difficulty (1-100)
+  rhythmComplexity: number;            // Rhythm difficulty (1-100)
+  recentScores: number[];              // Circular buffer of last 25 overall scores
+  recentPitchScores: number[];         // Circular buffer of last 25 pitch accuracy scores
+  recentRhythmScores: number[];        // Circular buffer of last 25 rhythm accuracy scores
+  attemptsAtLevel: number;             // Total attempts at current level
+  attemptsSinceChange: number;         // Min of pitch/rhythm cooldowns
+  pitchAttemptsSinceChange: number;    // Attempts since last pitch complexity change
+  rhythmAttemptsSinceChange: number;   // Attempts since last rhythm complexity change
 }
 ```
 
-### `processAttempt(state, overall, pitchAccuracy, rhythmAccuracy, grade): AdaptiveState`
+### `processAttempt(state, overall, pitchAccuracy, rhythmAccuracy): AdaptiveState`
 
 Process a new attempt and return updated state.
 
-**Adjustment logic** (requires >= 5 attempts since last change and >= 5 scores in window):
+Pitch and rhythm are adjusted **independently** — each dimension has its own score window and cooldown (minimum 10 attempts between changes per dimension):
 
-1. **Advance** (average >= 85%): Increase the *weaker* parameter first
-   - `pitchComplexity <= rhythmComplexity` → increase pitch
-   - Otherwise → increase rhythm
-2. **Retreat** (average < 50%): Decrease the parameter with lower accuracy
-   - `pitchAccuracy <= rhythmAccuracy` → decrease pitch
-   - Otherwise → decrease rhythm
-3. **Hold** (50–85%): No change
-4. `currentLevel = max(pitchComplexity, rhythmComplexity)`
-
-### XP functions
-
-| Function | Signature | Description |
-|---|---|---|
-| `xpForLevel` | `(level) → number` | XP needed for a single level: `50 + 0.5 * level²` |
-| `totalXpForLevel` | `(level) → number` | Cumulative XP needed to reach a given level |
-| `xpToDisplayLevel` | `(xp) → number` | Player level 1-100 from total XP |
-| `xpProgress` | `(xp) → number` | Progress within current level (0–1, returns 1 at max) |
-
-**XP per grade:**
-
-| Grade | XP |
-|---|---|
-| `perfect` | 100 |
-| `great` | 75 |
-| `good` | 50 |
-| `fair` | 25 |
-| `try-again` | 10 |
+1. **Pitch**: If pitch accuracy window average ≥ 85% → `pitchComplexity++`; if < 50% → `pitchComplexity--`
+2. **Rhythm**: If rhythm accuracy window average ≥ 85% → `rhythmComplexity++`; if < 50% → `rhythmComplexity--`
+3. **Hold** (50–85%): No change for that dimension
+4. `currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2)`
 
 ### `getAdaptiveSummary(state): string`
 

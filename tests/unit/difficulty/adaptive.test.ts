@@ -182,12 +182,10 @@ describe('processScaleAttempt', () => {
 
 	it('retreats after sustained low scores', () => {
 		let state = createInitialScaleProficiency();
-		// Advance first
 		for (let i = 0; i < 11; i++) {
 			state = processScaleAttempt(state, 0.95);
 		}
 		const levelBefore = state.level;
-		// Feed enough bad scores to flush the window and trigger retreat
 		for (let i = 0; i < 30; i++) {
 			state = processScaleAttempt(state, 0.3);
 		}

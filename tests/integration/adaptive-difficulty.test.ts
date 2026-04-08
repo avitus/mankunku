@@ -288,12 +288,10 @@ describe('key proficiency tracking', () => {
 		let cProf = createInitialKeyProficiency();
 		let gProf = createInitialKeyProficiency();
 
-		// Simulate C key: high scores → advance
 		for (let i = 0; i < 11; i++) {
 			cProf = processKeyAttempt(cProf, 0.95);
 		}
 
-		// G key stays low
 		for (let i = 0; i < 11; i++) {
 			gProf = processKeyAttempt(gProf, 0.4);
 		}

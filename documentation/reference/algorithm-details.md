@@ -169,26 +169,15 @@ The cents deviation is also the median, but only from readings matching the medi
                 RETREAT
 ```
 
-Transitions require at least 5 attempts since the last change, preventing oscillation.
+Transitions require at least 10 attempts since the last change per dimension, preventing oscillation.
 
 ### Independent Axis Adjustment
 
-Pitch and rhythm complexity are adjusted independently:
+Pitch and rhythm complexity are adjusted independently — each has its own 25-score accuracy window and its own 10-attempt cooldown counter:
 
-- **Advance** increases the *weaker* parameter (bringing it up to match the stronger one)
-- **Retreat** decreases the parameter causing more errors (uses the latest attempt's pitch vs rhythm accuracy as proxy)
+- **Pitch**: advances when pitch accuracy window average ≥ 85%, retreats when < 50%
+- **Rhythm**: advances when rhythm accuracy window average ≥ 85%, retreats when < 50%
+- `currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2)`
 
-This allows a player who is strong in rhythm but weak in pitch to get easier pitch material while maintaining their rhythm challenge.
+This allows a player who is strong in rhythm but weak in pitch to progress their rhythm complexity while pitch stays at a comfortable level.
 
-### XP Accumulation
-
-XP is purely additive and never decreases. Display level thresholds are linear: level N requires N * 500 XP. This means:
-
-| Display Level | Cumulative XP |
-|---|---|
-| 1 → 2 | 500 |
-| 2 → 3 | 1,500 |
-| 3 → 4 | 3,000 |
-| 4 → 5 | 5,000 |
-
-At the maximum per-attempt XP (100 for "Perfect"), reaching display level 5 requires at least 50 perfect attempts.
