@@ -366,16 +366,15 @@
 			filteredScore = scoreAttempt(
 				session.phrase, filteredNotes, session.tempo, recordingTransportSeconds, settings.swing
 			);
-			console.log('[bleed-filter]', {
-				total: detected.length,
-				kept: result.kept.length,
-				filtered: result.filtered.length,
-				filteredNotes: result.filtered.map(n => ({
-					midi: n.midi, clarity: n.clarity.toFixed(2), onset: n.onsetTime.toFixed(2)
-				})),
-				unfilteredScore: unfilteredScore?.overall,
-				filteredScore: filteredScore?.overall
-			});
+			session.bleedFilterLog = {
+				totalNotes: detected.length,
+				keptNotes: result.kept.length,
+				filteredNotes: result.filtered,
+				unfilteredScore,
+				filteredScore
+			};
+		} else {
+			session.bleedFilterLog = null;
 		}
 
 		// Toggle picks which score is primary
