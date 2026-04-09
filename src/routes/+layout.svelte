@@ -22,6 +22,7 @@
 	const navItems = [
 		{ href: '/', label: 'Home' },
 		{ href: '/practice', label: 'Practice' },
+		{ href: '/lick-practice', label: 'Licks' },
 		{ href: '/record', label: 'Record' },
 		{ href: '/entry', label: 'Entry' },
 		{ href: '/library', label: 'Library' },

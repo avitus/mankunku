@@ -2,6 +2,8 @@
 	import type { Phrase } from '$lib/types/music.ts';
 	import { GRADE_COLORS } from '$lib/scoring/grades.ts';
 	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display.ts';
+	import { hasPracticeTag, getProgressionTags } from '$lib/persistence/lick-practice-store.ts';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions.ts';
 
 	interface Props {
 		lick: Phrase;
@@ -11,6 +13,9 @@
 	}
 
 	let { lick, onclick, onplay, isPlaying = false }: Props = $props();
+
+	const isPracticeTagged = $derived(hasPracticeTag(lick.id));
+	const progTags = $derived(getProgressionTags(lick.id));
 
 	const CATEGORY_LABELS: Record<string, string> = {
 		'ii-V-I-major': 'ii-V-I Major',
@@ -78,11 +83,17 @@
 			{/if}
 		</div>
 	</div>
-	{#if lick.tags.length > 0}
-		<div class="mt-2 flex flex-wrap gap-1">
-			{#each lick.tags.slice(0, 4) as tag}
-				<span class="text-xs text-[var(--color-text-secondary)]">#{tag}</span>
-			{/each}
-		</div>
-	{/if}
+	<div class="mt-2 flex flex-wrap gap-1">
+		{#if isPracticeTagged}
+			<span class="text-xs text-green-400">★ practice</span>
+		{/if}
+		{#each progTags as pt}
+			<span class="rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-xs text-[var(--color-accent)]">
+				{PROGRESSION_TEMPLATES[pt].shortName}
+			</span>
+		{/each}
+		{#each lick.tags.slice(0, 4) as tag}
+			<span class="text-xs text-[var(--color-text-secondary)]">#{tag}</span>
+		{/each}
+	</div>
 </button>

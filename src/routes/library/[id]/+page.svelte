@@ -12,6 +12,14 @@
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { getUserLicks, deleteUserLick } from '$lib/persistence/user-licks';
+	import {
+		hasPracticeTag,
+		togglePracticeTag,
+		getProgressionTags,
+		toggleProgressionTag
+	} from '$lib/persistence/lick-practice-store';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -48,6 +56,27 @@
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
 	let confirmingDelete = $state(false);
+	let isPracticeTagged = $state(false);
+	let progressionTags = $state<ChordProgressionType[]>([]);
+
+	$effect(() => {
+		const id = page.params.id ?? '';
+		isPracticeTagged = hasPracticeTag(id);
+		progressionTags = getProgressionTags(id);
+	});
+
+	function handleTogglePracticeTag() {
+		const id = page.params.id ?? '';
+		isPracticeTagged = togglePracticeTag(id);
+	}
+
+	function handleToggleProgressionTag(type: ChordProgressionType) {
+		const id = page.params.id ?? '';
+		toggleProgressionTag(id, type);
+		progressionTags = getProgressionTags(id);
+	}
+
+	const allProgressionTypes = Object.values(PROGRESSION_TEMPLATES);
 
 	let selectedKey: PitchClass = $state('C');
 
@@ -160,6 +189,16 @@
 				>
 					Practice
 				</button>
+				<button
+					onclick={handleTogglePracticeTag}
+					class="rounded px-3 py-2 text-sm font-medium transition-colors
+						{isPracticeTagged
+							? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					title={isPracticeTagged ? 'Remove from lick practice' : 'Add to lick practice'}
+				>
+					{isPracticeTagged ? '★ Practice Set' : '☆ Add to Practice'}
+				</button>
 				{#if canDelete}
 					<button
 						onclick={handleDelete}
@@ -187,6 +226,25 @@
 								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
 					>
 						{pc}
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Progression tags -->
+		<div>
+			<span class="text-sm text-[var(--color-text-secondary)]">Practice over:</span>
+			<div class="mt-1.5 flex flex-wrap gap-1.5">
+				{#each allProgressionTypes as prog (prog.type)}
+					{@const isTagged = progressionTags.includes(prog.type)}
+					<button
+						onclick={() => handleToggleProgressionTag(prog.type)}
+						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
+							{isTagged
+								? 'bg-[var(--color-accent)] text-white'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					>
+						{prog.shortName}
 					</button>
 				{/each}
 			</div>
