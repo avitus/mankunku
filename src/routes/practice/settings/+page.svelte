@@ -90,6 +90,8 @@
 		session.tempo = tempo;
 		settings.defaultTempo = tempo;
 
+		// Categories with enough curated phrases for reliable random selection.
+		// Excludes long variants, niche categories, and 'user'.
 		const randomPool: PhraseCategory[] = [
 			'ii-V-I-major', 'blues', 'bebop-lines', 'ii-V-I-minor',
 			'short-ii-V-I-major', 'short-ii-V-I-minor'
