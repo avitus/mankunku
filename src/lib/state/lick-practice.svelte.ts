@@ -37,8 +37,11 @@ import {
 	updateKeyProgress,
 	getPracticeTaggedIds,
 	isTaggedForProgression,
-	backfillPracticeTags
+	backfillPracticeTags,
+	initLickMetadataFromCloud
 } from '$lib/persistence/lick-practice-store.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '$lib/supabase/types.ts';
 import { PROGRESSION_LICK_CATEGORIES, PROGRESSION_TEMPLATES, transposeProgression } from '$lib/data/progressions.ts';
 import { getAllLicks, transposeLick } from '$lib/phrases/library-loader.ts';
 import { getLickTagOverrides } from '$lib/persistence/user-licks.ts';
@@ -98,8 +101,22 @@ export const lickPractice = $state<{
 	progress: {}
 });
 
-/** Load persisted progress into state and backfill legacy practice tags */
-export function hydrateLickPracticeProgress(): void {
+/**
+ * Load persisted progress into state and backfill legacy practice tags.
+ *
+ * When a Supabase client is provided, also hydrates lick metadata from
+ * the cloud (practice tags, progression tags, per-key progress, curated
+ * lick overrides). This ensures cross-device sync on first visit.
+ */
+export async function hydrateLickPracticeProgress(
+	supabase?: SupabaseClient<Database> | null
+): Promise<void> {
+	// Hydrate cloud metadata first so localStorage is populated before
+	// we read from it below.
+	if (supabase) {
+		await initLickMetadataFromCloud(supabase);
+	}
+
 	lickPractice.progress = loadLickPracticeProgress();
 	// Migrate legacy 'practice' markers from lick.tags + tag overrides
 	// into the new user-lick-tags store so getPracticeLicks can find them.

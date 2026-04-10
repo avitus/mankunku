@@ -19,6 +19,7 @@ import type {
 	PhraseCategory
 } from '$lib/types/music';
 import { save, load } from './storage';
+import { syncLickMetadataToCloud } from './sync';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -205,7 +206,14 @@ export async function getUserLicks(
 		for (const lick of localLicks) {
 			if (!merged.has(lick.id)) merged.set(lick.id, lick);
 		}
-		return Array.from(merged.values());
+		const result = Array.from(merged.values());
+
+		// Persist merged licks to localStorage so getUserLicksLocal() — used by
+		// getAllLicks(), getPracticeLicks(), and backfillPracticeTags — includes
+		// cloud-only licks that haven't been entered on this device.
+		save(STORAGE_KEY, result);
+
+		return result;
 	} catch (err) {
 		console.warn('Failed to fetch cloud licks:', err);
 		return localLicks;
@@ -311,6 +319,11 @@ export function updateUserLickTags(
 	const overrides = load<Record<string, string[]>>(TAGS_OVERRIDE_KEY) ?? {};
 	overrides[id] = tags;
 	save(TAGS_OVERRIDE_KEY, overrides);
+
+	// Fire-and-forget sync tag overrides to cloud
+	if (supabase) {
+		syncLickMetadataToCloud(supabase, { tagOverrides: overrides }).catch(() => {});
+	}
 }
 
 /** Get tag overrides for curated licks */
@@ -357,6 +370,11 @@ export function updateLickCategory(
 	const overrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDE_KEY) ?? {};
 	overrides[id] = category;
 	save(CATEGORY_OVERRIDE_KEY, overrides);
+
+	// Fire-and-forget sync category overrides to cloud
+	if (supabase) {
+		syncLickMetadataToCloud(supabase, { categoryOverrides: overrides }).catch(() => {});
+	}
 }
 
 /** Get category overrides for curated licks */

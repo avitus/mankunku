@@ -463,6 +463,63 @@ export type Database = {
        * Mirrors the Phrase interface from music.ts with user-specific fields.
        * Source is always 'user-recorded', category is always 'user'.
        */
+      /**
+       * Per-user lick practice metadata for cross-device sync.
+       * Stores practice tags, progression tags, per-key tempo/pass history,
+       * and curated lick overrides as JSONB blobs. One row per user.
+       */
+      user_lick_metadata: {
+        Row: {
+          /** UUID primary key, references auth.users.id (1:1 relationship) */
+          user_id: string
+          /** JSONB storing Record<phraseId, string[]> — practice + progression tags */
+          lick_tags: Json
+          /** JSONB storing LickPracticeProgress — per-lick per-key tempo/pass data */
+          practice_progress: Json
+          /** JSONB storing Record<lickId, string[]> — tag overrides for curated licks */
+          tag_overrides: Json
+          /** JSONB storing Record<lickId, PhraseCategory> — category overrides for curated licks */
+          category_overrides: Json
+          /** Timestamp of last update (ISO 8601) */
+          updated_at: string
+        }
+        Insert: {
+          /** UUID primary key, references auth.users.id — required */
+          user_id: string
+          /** Defaults to '{}' in database */
+          lick_tags?: Json
+          /** Defaults to '{}' in database */
+          practice_progress?: Json
+          /** Defaults to '{}' in database */
+          tag_overrides?: Json
+          /** Defaults to '{}' in database */
+          category_overrides?: Json
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          lick_tags?: Json
+          practice_progress?: Json
+          tag_overrides?: Json
+          category_overrides?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_lick_metadata_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+
+      /**
+       * User-recorded licks/phrases.
+       * Mirrors the Phrase interface from music.ts with user-specific fields.
+       * Source is always 'user-recorded', category is always 'user'.
+       */
       user_licks: {
         Row: {
           /** TEXT primary key — generated client-side as user-{timestamp}-{random} */

@@ -1,11 +1,85 @@
-import type { PitchClass } from '$lib/types/music.ts';
+import type { PitchClass, PhraseCategory } from '$lib/types/music.ts';
 import type { LickPracticeProgress, LickPracticeKeyProgress, ChordProgressionType } from '$lib/types/lick-practice.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '$lib/supabase/types.ts';
 import { save, load } from './storage.ts';
+import { syncLickMetadataToCloud, loadLickMetadataFromCloud } from './sync.ts';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
 const DEFAULT_TEMPO = 100;
 const PROG_TAG_PREFIX = 'prog:';
+
+/**
+ * Module-level Supabase reference, set during cloud hydration.
+ * Used by write functions that don't receive a client parameter directly
+ * (e.g. saveLickPracticeProgress called from session state).
+ */
+let _supabase: SupabaseClient<Database> | null = null;
+
+/**
+ * Hydrate all four lick metadata stores from the cloud.
+ *
+ * Called once during app startup (layout.ts). For each store, cloud data
+ * populates localStorage only when the local store is empty (new device).
+ * Sets the module-level `_supabase` reference for fire-and-forget sync
+ * in subsequent write operations.
+ */
+export async function initLickMetadataFromCloud(
+	supabase: SupabaseClient<Database>
+): Promise<void> {
+	_supabase = supabase;
+	try {
+		const cloud = await loadLickMetadataFromCloud(supabase);
+		if (!cloud) return;
+
+		const localTags = load<Record<string, string[]>>(TAGS_KEY);
+		if (!localTags || Object.keys(localTags).length === 0) {
+			if (Object.keys(cloud.lickTags).length > 0) {
+				save(TAGS_KEY, cloud.lickTags);
+			}
+		}
+
+		const localProgress = load<LickPracticeProgress>(STORAGE_KEY);
+		if (!localProgress || Object.keys(localProgress).length === 0) {
+			if (Object.keys(cloud.practiceProgress).length > 0) {
+				save(STORAGE_KEY, cloud.practiceProgress);
+			}
+		}
+
+		const TAG_OVERRIDES_KEY = 'lick-tag-overrides';
+		const localTagOverrides = load<Record<string, string[]>>(TAG_OVERRIDES_KEY);
+		if (!localTagOverrides || Object.keys(localTagOverrides).length === 0) {
+			if (Object.keys(cloud.tagOverrides).length > 0) {
+				save(TAG_OVERRIDES_KEY, cloud.tagOverrides);
+			}
+		}
+
+		const CATEGORY_OVERRIDES_KEY = 'lick-category-overrides';
+		const localCatOverrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDES_KEY);
+		if (!localCatOverrides || Object.keys(localCatOverrides).length === 0) {
+			if (Object.keys(cloud.categoryOverrides).length > 0) {
+				save(CATEGORY_OVERRIDES_KEY, cloud.categoryOverrides);
+			}
+		}
+	} catch (error) {
+		console.warn('Failed to hydrate lick metadata from cloud:', error);
+	}
+}
+
+/** Fire-and-forget sync of the lick_tags column to cloud. */
+function syncLickTagsToCloud(): void {
+	if (!_supabase) return;
+	const tags = loadUserLickTags();
+	syncLickMetadataToCloud(_supabase, { lickTags: tags }).catch(() => {});
+}
+
+/** Fire-and-forget sync of the practice_progress column to cloud. */
+function syncPracticeProgressToCloud(): void {
+	if (!_supabase) return;
+	const progress = loadLickPracticeProgress();
+	syncLickMetadataToCloud(_supabase, { practiceProgress: progress }).catch(() => {});
+}
 
 export function loadLickPracticeProgress(): LickPracticeProgress {
 	return load<LickPracticeProgress>(STORAGE_KEY) ?? {};
@@ -13,6 +87,7 @@ export function loadLickPracticeProgress(): LickPracticeProgress {
 
 export function saveLickPracticeProgress(progress: LickPracticeProgress): void {
 	save(STORAGE_KEY, progress);
+	syncPracticeProgressToCloud();
 }
 
 export function getKeyProgress(
@@ -81,6 +156,7 @@ export function togglePracticeTag(phraseId: string): boolean {
 	}
 
 	saveUserLickTags(tags);
+	syncLickTagsToCloud();
 	return !hasPractice;
 }
 
@@ -96,10 +172,12 @@ export function setPracticeTag(phraseId: string, tagged: boolean): void {
 	if (tagged && !has) {
 		tags[phraseId] = [...current, 'practice'];
 		saveUserLickTags(tags);
+		syncLickTagsToCloud();
 	} else if (!tagged && has) {
 		tags[phraseId] = current.filter(t => t !== 'practice');
 		if (tags[phraseId].length === 0) delete tags[phraseId];
 		saveUserLickTags(tags);
+		syncLickTagsToCloud();
 	}
 }
 
@@ -143,7 +221,10 @@ export function backfillPracticeTags(
 		if (overrideTags.includes('practice')) ensure(id);
 	}
 
-	if (added > 0) saveUserLickTags(tags);
+	if (added > 0) {
+		saveUserLickTags(tags);
+		syncLickTagsToCloud();
+	}
 	return added;
 }
 
@@ -168,6 +249,7 @@ export function toggleProgressionTag(phraseId: string, type: ChordProgressionTyp
 	}
 
 	saveUserLickTags(tags);
+	syncLickTagsToCloud();
 	return !has;
 }
 
