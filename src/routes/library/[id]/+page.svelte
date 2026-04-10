@@ -11,7 +11,16 @@
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { getUserLicks, deleteUserLick } from '$lib/persistence/user-licks';
+	import {
+		hasPracticeTag as storeHasPracticeTag,
+		setPracticeTag as storeSetPracticeTag,
+		getProgressionTags,
+		toggleProgressionTag
+	} from '$lib/persistence/lick-practice-store';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -49,10 +58,63 @@
 	let isPlaying = $state(false);
 	let confirmingDelete = $state(false);
 
-	let selectedKey: PitchClass = $state('C');
+	/**
+	 * Key selector state is in WRITTEN pitch (what the user sees on their
+	 * instrument's sheet music). Stored here, converted to concert at the
+	 * `transposeLick()` boundary. Null means "use the lick's original key"
+	 * and is resolved to the written equivalent once baseLick loads.
+	 */
+	let selectedWrittenKey: PitchClass | null = $state(null);
 
+	let isPracticeTagged = $state(false);
+	let progressionTags = $state<ChordProgressionType[]>([]);
 	const baseLick = $derived(getLickById(page.params.id ?? '') ?? userLick);
-	const lick = $derived(baseLick ? transposeLick(baseLick, selectedKey, getEffectiveHighestNote()) : null);
+
+	$effect(() => {
+		if (!baseLick) {
+			isPracticeTagged = false;
+			progressionTags = [];
+			return;
+		}
+		// Check new store OR lick's own tags for the practice flag
+		isPracticeTagged = storeHasPracticeTag(baseLick.id) || baseLick.tags.includes('practice');
+		progressionTags = getProgressionTags(baseLick.id);
+	});
+
+	// Reset the key selector to the lick's own (written) key whenever
+	// baseLick changes — so the user sees it in its original key and the selector
+	// button matches the displayed key signature.
+	$effect(() => {
+		if (baseLick) {
+			selectedWrittenKey = concertKeyToWritten(baseLick.key, getInstrument());
+		}
+	});
+
+	// Resolved written key for display purposes (falls back to C before baseLick loads)
+	const writtenKey = $derived(selectedWrittenKey ?? 'C');
+	// Concert key passed to transposeLick
+	const concertKey = $derived(writtenKeyToConcert(writtenKey, getInstrument()));
+
+	const lick = $derived(
+		baseLick
+			? transposeLick(baseLick, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote())
+			: null
+	);
+
+	const ALL_PROGRESSION_TYPES = Object.values(PROGRESSION_TEMPLATES);
+
+	function handleTogglePracticeTag() {
+		if (!baseLick) return;
+		const newVal = !isPracticeTagged;
+		storeSetPracticeTag(baseLick.id, newVal);
+		isPracticeTagged = newVal;
+	}
+
+	function handleToggleProgressionTag(type: ChordProgressionType) {
+		if (!baseLick) return;
+		toggleProgressionTag(baseLick.id, type);
+		progressionTags = getProgressionTags(baseLick.id);
+	}
 
 	function practiceThis() {
 		if (!lick) return;
@@ -91,7 +153,7 @@
 	}
 
 	const canDelete = $derived(
-		baseLick != null && baseLick.category === 'user'
+		baseLick != null && (baseLick.source === 'user-recorded' || baseLick.source === 'user-entered')
 	);
 
 	function handleDelete() {
@@ -160,6 +222,16 @@
 				>
 					Practice
 				</button>
+				<button
+					onclick={handleTogglePracticeTag}
+					class="rounded px-3 py-2 text-sm font-medium transition-colors
+						{isPracticeTagged
+							? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					title={isPracticeTagged ? 'Remove from lick practice' : 'Add to lick practice'}
+				>
+					{isPracticeTagged ? '★ Practice Set' : '☆ Add to Practice'}
+				</button>
 				{#if canDelete}
 					<button
 						onclick={handleDelete}
@@ -174,19 +246,40 @@
 			</div>
 		</div>
 
-		<!-- Key selector -->
+		<!-- Key selector — displayed in the user's WRITTEN pitch (what they
+		     see on sheet music and finger on their horn). Matches the key
+		     signature shown on the notation below. -->
 		<div class="flex items-center gap-3">
 			<span class="text-sm text-[var(--color-text-secondary)]">Key:</span>
 			<div class="flex flex-wrap gap-1">
 				{#each PITCH_CLASSES as pc}
 					<button
-						onclick={() => { selectedKey = pc; }}
+						onclick={() => { selectedWrittenKey = pc; }}
 						class="rounded px-2 py-0.5 text-xs transition-colors
-							{selectedKey === pc
+							{writtenKey === pc
 								? 'bg-[var(--color-accent)] text-white'
 								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
 					>
 						{pc}
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Practice over: progression tags -->
+		<div>
+			<span class="text-sm text-[var(--color-text-secondary)]">Practice over:</span>
+			<div class="mt-1.5 flex flex-wrap gap-1.5">
+				{#each ALL_PROGRESSION_TYPES as prog (prog.type)}
+					{@const isTagged = progressionTags.includes(prog.type)}
+					<button
+						onclick={() => handleToggleProgressionTag(prog.type)}
+						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
+							{isTagged
+								? 'bg-[var(--color-accent)] text-white'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					>
+						{prog.shortName}
 					</button>
 				{/each}
 			</div>
@@ -199,9 +292,9 @@
 		<PhraseInfo phrase={lick} />
 
 		<!-- Tags -->
-		{#if lick.tags.length > 0}
+		{#if baseLick && baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered').length > 0}
 			<div class="flex flex-wrap gap-2">
-				{#each lick.tags as tag}
+				{#each baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag}
 					<span class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">
 						#{tag}
 					</span>

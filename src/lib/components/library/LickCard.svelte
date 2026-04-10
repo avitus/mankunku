@@ -1,7 +1,9 @@
 <script lang="ts">
-	import type { Phrase } from '$lib/types/music.ts';
+	import { CATEGORY_LABELS, type Phrase } from '$lib/types/music.ts';
 	import { GRADE_COLORS } from '$lib/scoring/grades.ts';
 	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display.ts';
+	import { hasPracticeTag, getProgressionTags } from '$lib/persistence/lick-practice-store.ts';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions.ts';
 
 	interface Props {
 		lick: Phrase;
@@ -12,21 +14,9 @@
 
 	let { lick, onclick, onplay, isPlaying = false }: Props = $props();
 
-	const CATEGORY_LABELS: Record<string, string> = {
-		'ii-V-I-major': 'ii-V-I Major',
-		'ii-V-I-minor': 'ii-V-I Minor',
-		'blues': 'Blues',
-		'bebop-lines': 'Bebop',
-		'pentatonic': 'Pentatonic',
-		'enclosures': 'Enclosures',
-		'digital-patterns': 'Digital',
-		'approach-notes': 'Approach',
-		'turnarounds': 'Turnarounds',
-		'rhythm-changes': 'Rhythm Changes',
-		'user': 'My Licks'
-	};
-
 	const diff = $derived(difficultyDisplay(lick.difficulty.level));
+	const isPracticeTagged = $derived(hasPracticeTag(lick.id) || lick.tags.includes('practice'));
+	const progTags = $derived(getProgressionTags(lick.id));
 </script>
 
 <button
@@ -78,11 +68,23 @@
 			{/if}
 		</div>
 	</div>
-	{#if lick.tags.length > 0}
-		<div class="mt-2 flex flex-wrap gap-1">
-			{#each lick.tags.slice(0, 4) as tag}
-				<span class="text-xs text-[var(--color-text-secondary)]">#{tag}</span>
-			{/each}
-		</div>
-	{/if}
+	<div class="mt-2 flex flex-wrap items-center gap-1.5">
+		{#if isPracticeTagged}
+			<span class="inline-flex items-center gap-0.5 text-xs font-medium text-green-500">
+				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+				</svg>
+				practice
+			</span>
+		{/if}
+		{#each progTags as pt}
+			{@const template = PROGRESSION_TEMPLATES[pt]}
+			<span class="rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-xs text-[var(--color-accent)]">
+				{template?.shortName ?? pt}
+			</span>
+		{/each}
+		{#each lick.tags.filter(t => t !== 'practice' && t !== 'user-entered').slice(0, 4) as tag}
+			<span class="text-xs text-[var(--color-text-secondary)]">#{tag}</span>
+		{/each}
+	</div>
 </button>

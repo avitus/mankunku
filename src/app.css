@@ -1,16 +1,45 @@
 @import 'tailwindcss';
 
+/*
+ * Three-domain color identity (see documentation/architecture/design-system.md):
+ *
+ * - Default :root keeps the historical blue accent — that IS the
+ *   ear-training identity color, so /practice, /scales, /progress, etc.
+ *   inherit it without any override.
+ * - [data-domain='lick-practice'] overrides the accent to green for the
+ *   /lick-practice routes.
+ * - [data-domain='neutral'] overrides the accent to slate for shared
+ *   pages (Library, Add Licks, Settings, Home, Auth, Diagnostics).
+ *
+ * Every component already uses var(--color-accent) for interactive
+ * surfaces, so flipping this single variable per route changes the
+ * identity of the entire page with no component-level edits.
+ */
+
 :root {
 	--color-bg: #0f172a;
 	--color-bg-secondary: #1e293b;
 	--color-bg-tertiary: #334155;
 	--color-text: #f8fafc;
 	--color-text-secondary: #94a3b8;
+	/* Ear Training (default) */
 	--color-accent: #3b82f6;
 	--color-accent-hover: #2563eb;
 	--color-success: #22c55e;
 	--color-warning: #eab308;
 	--color-error: #ef4444;
+}
+
+[data-domain='lick-practice'] {
+	/* Lick Practice — green (matches the practice tag and --color-success) */
+	--color-accent: #22c55e;
+	--color-accent-hover: #16a34a;
+}
+
+[data-domain='neutral'] {
+	/* Neutral — desaturated slate, no strong accent */
+	--color-accent: #94a3b8;
+	--color-accent-hover: #cbd5e1;
 }
 
 :root.light {
@@ -19,11 +48,22 @@
 	--color-bg-tertiary: #cbd5e1;
 	--color-text: #0f172a;
 	--color-text-secondary: #475569;
+	/* Ear Training (default) */
 	--color-accent: #2563eb;
 	--color-accent-hover: #1d4ed8;
 	--color-success: #16a34a;
 	--color-warning: #ca8a04;
 	--color-error: #dc2626;
+}
+
+:root.light [data-domain='lick-practice'] {
+	--color-accent: #16a34a;
+	--color-accent-hover: #15803d;
+}
+
+:root.light [data-domain='neutral'] {
+	--color-accent: #475569;
+	--color-accent-hover: #334155;
 }
 
 html {

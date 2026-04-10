@@ -1,4 +1,4 @@
-import type { InstrumentConfig, BackingInstrument } from '$lib/types/instruments';
+import type { InstrumentConfig, BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import type { Tonality } from '$lib/tonality/tonality';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { save, load } from '$lib/persistence/storage';
@@ -7,12 +7,16 @@ import type { Database } from '$lib/supabase/types';
 import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } from '$lib/persistence/sync';
 
 const STORAGE_KEY = 'settings';
+const VALID_BACKING_STYLES = new Set<string>(['swing', 'bossa-nova', 'ballad', 'straight']);
 
 function loadSettings() {
 	const saved = load<typeof defaultSettings>(STORAGE_KEY);
 	const result = saved ? { ...defaultSettings, ...saved } : { ...defaultSettings };
 	// Clamp swing to valid range (0.5 straight → 0.8 heavy swing)
 	result.swing = Math.max(0.5, Math.min(0.8, result.swing));
+	if (!VALID_BACKING_STYLES.has(result.backingStyle)) {
+		result.backingStyle = 'swing';
+	}
 	return result;
 }
 
@@ -25,6 +29,7 @@ const defaultSettings = {
 	backingTrackEnabled: true,
 	backingInstrument: 'piano' as BackingInstrument,
 	backingTrackVolume: 0.6,
+	backingStyle: 'swing' as BackingStyle,
 	swing: 0.5,
 	theme: 'dark' as 'dark' | 'light',
 	onboardingComplete: false,
@@ -62,6 +67,9 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		const merged = { ...defaultSettings, ...cloudSettings };
 		// Clamp swing to valid range (same as loadSettings)
 		merged.swing = Math.max(0.5, Math.min(0.8, merged.swing as number));
+		if (!VALID_BACKING_STYLES.has(merged.backingStyle as string)) {
+			merged.backingStyle = 'swing';
+		}
 
 		// Update the reactive state in place (preserves Svelte 5 $state reactivity)
 		Object.assign(settings, merged);

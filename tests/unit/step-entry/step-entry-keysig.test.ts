@@ -3,6 +3,7 @@ import {
 	stepEntry, addNote, adjustLastNotePitch, reset,
 	getCurrentPhrase
 } from '$lib/state/step-entry.svelte';
+import { settings } from '$lib/state/settings.svelte';
 import { phraseToAbc } from '$lib/music/notation';
 
 /** Get the ABC note tokens line (last line) from the current phrase. */
@@ -13,6 +14,9 @@ function noteLine(): string {
 }
 
 beforeEach(() => {
+	// Use concert-pitch instrument so stored MIDI matches typed pitch directly
+	// (no written-to-concert transposition). Exercising the key-sig logic only.
+	settings.instrumentId = 'concert';
 	reset();
 	stepEntry.phraseKey = 'C';
 	stepEntry.selectedOctave = 4;
@@ -178,5 +182,96 @@ describe('key signature applied on note entry', () => {
 			addNote(5, 4, 'flat');
 			expect(stepEntry.enteredNotes[0].pitch).toBe(64); // E4
 		});
+	});
+});
+
+describe('written-to-concert conversion for transposing instruments', () => {
+	it('tenor sax: typing F4 stores concert Eb3 (MIDI 51)', () => {
+		settings.instrumentId = 'tenor-sax';
+		reset();
+		stepEntry.phraseKey = 'C';
+		// User fingers written F on tenor sax; we store the concert equivalent
+		addNote(5, 4, 'natural');
+		expect(stepEntry.enteredNotes[0].pitch).toBe(51); // F4 written - 14 = Eb3
+	});
+
+	it('tenor sax: typing D4 stores concert C3 (MIDI 48)', () => {
+		settings.instrumentId = 'tenor-sax';
+		reset();
+		stepEntry.phraseKey = 'C';
+		// Written D on tenor = concert C (user's tonic)
+		addNote(2, 4, 'natural');
+		expect(stepEntry.enteredNotes[0].pitch).toBe(48); // D4 written - 14 = C3
+	});
+
+	it('alto sax: typing A4 stores concert C4 (MIDI 60)', () => {
+		settings.instrumentId = 'alto-sax';
+		reset();
+		stepEntry.phraseKey = 'C';
+		// Alto sax transposes 9 semitones
+		addNote(9, 4, 'natural');
+		expect(stepEntry.enteredNotes[0].pitch).toBe(60); // A4 written - 9 = C4
+	});
+
+	it('trumpet: typing D4 stores concert C4 (MIDI 60)', () => {
+		settings.instrumentId = 'trumpet';
+		reset();
+		stepEntry.phraseKey = 'C';
+		// Trumpet transposes 2 semitones
+		addNote(2, 4, 'natural');
+		expect(stepEntry.enteredNotes[0].pitch).toBe(60); // D4 written - 2 = C4
+	});
+
+	it('nearestOctave picks in written space, not concert', () => {
+		settings.instrumentId = 'tenor-sax';
+		reset();
+		stepEntry.phraseKey = 'C';
+		// First note: written F4 (concert Eb3 = 51)
+		addNote(5, 4, 'natural');
+		// Second note: A. User wants it near the previous F4 → written A4 (concert G3 = 55)
+		addNote(9, 4, 'natural');
+		expect(stepEntry.enteredNotes[1].pitch).toBe(55); // A4 written - 14 = G3
+	});
+});
+
+describe('getCurrentPhrase written-to-concert key conversion', () => {
+	it('tenor sax: selecting D major stores concert key C', async () => {
+		const { getCurrentPhrase } = await import('$lib/state/step-entry.svelte');
+		settings.instrumentId = 'tenor-sax';
+		reset();
+		stepEntry.phraseKey = 'D';
+		const phrase = getCurrentPhrase();
+		// Written D on tenor = concert C
+		expect(phrase.key).toBe('C');
+	});
+
+	it('tenor sax: selecting Bb major stores concert key Ab', async () => {
+		const { getCurrentPhrase } = await import('$lib/state/step-entry.svelte');
+		settings.instrumentId = 'tenor-sax';
+		reset();
+		stepEntry.phraseKey = 'Bb';
+		const phrase = getCurrentPhrase();
+		// Written Bb on tenor = concert Ab
+		expect(phrase.key).toBe('Ab');
+	});
+
+	it('alto sax: selecting C major stores concert key Eb', async () => {
+		const { getCurrentPhrase } = await import('$lib/state/step-entry.svelte');
+		settings.instrumentId = 'alto-sax';
+		reset();
+		stepEntry.phraseKey = 'C';
+		const phrase = getCurrentPhrase();
+		// Written C on alto = concert Eb
+		expect(phrase.key).toBe('Eb');
+	});
+
+	it('concert instrument: phrase.key equals stepEntry.phraseKey', async () => {
+		const { getCurrentPhrase } = await import('$lib/state/step-entry.svelte');
+		settings.instrumentId = 'concert';
+		reset();
+		stepEntry.phraseKey = 'D';
+		const phrase = getCurrentPhrase();
+		// No transposition
+		expect(phrase.key).toBe('D');
 	});
 });

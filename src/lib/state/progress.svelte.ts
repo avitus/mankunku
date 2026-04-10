@@ -5,7 +5,7 @@
  * Auto-saves on every mutation via $effect.
  */
 
-import type { UserProgress, SessionResult, CategoryProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress';
+import type { UserProgress, SessionResult, CategoryProgress, LickProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress';
 import type { Score } from '$lib/types/scoring';
 import type { PhraseCategory, PitchClass } from '$lib/types/music';
 import type { ScaleType } from '$lib/tonality/tonality';
@@ -27,6 +27,7 @@ function createInitialProgress(): UserProgress {
 		keyProgress: {},
 		scaleProficiency: {},
 		keyProficiency: {},
+		lickProgress: {},
 		totalPracticeTime: 0,
 		streakDays: 0,
 		lastPracticeDate: ''
@@ -133,6 +134,8 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 			// Cloud has same or more sessions — use cloud data as base
 			Object.assign(progress, {
 				...cloudProgress,
+				// Preserve local lickProgress — cloud doesn't store it
+				lickProgress: progress.lickProgress,
 				// Re-merge adaptive state with defaults for forward compatibility
 				adaptive: {
 					...createInitialAdaptiveState(),
@@ -219,6 +222,9 @@ export function recordAttempt(
 	// Update category progress
 	updateCategoryProgress(category, score);
 
+	// Update per-lick progress
+	updateLickProgress(phraseId, score, tempo);
+
 	// Update key progress
 	updateKeyProgress(key, score);
 
@@ -262,6 +268,29 @@ function updateCategoryProgress(category: PhraseCategory, score: Score): void {
 			averageScore: score.overall,
 			bestScore: score.overall,
 			lastAttempt: Date.now()
+		};
+	}
+}
+
+function updateLickProgress(phraseId: string, score: Score, tempo?: number): void {
+	const existing = progress.lickProgress[phraseId];
+
+	if (existing) {
+		const newTotal = existing.attempts + 1;
+		progress.lickProgress[phraseId] = {
+			attempts: newTotal,
+			averageScore: (existing.averageScore * existing.attempts + score.overall) / newTotal,
+			bestScore: Math.max(existing.bestScore, score.overall),
+			lastAttempt: Date.now(),
+			lastTempo: tempo ?? existing.lastTempo
+		};
+	} else {
+		progress.lickProgress[phraseId] = {
+			attempts: 1,
+			averageScore: score.overall,
+			bestScore: score.overall,
+			lastAttempt: Date.now(),
+			lastTempo: tempo
 		};
 	}
 }

@@ -46,6 +46,16 @@ export interface SessionResult {
 	timing?: TimingDiagnostics;
 }
 
+export interface LickProgress {
+	attempts: number;
+	averageScore: number;
+	bestScore: number;
+	/** Unix ms timestamp of last attempt */
+	lastAttempt: number;
+	/** Last tempo (BPM) used for this lick, so users can resume where they left off */
+	lastTempo?: number;
+}
+
 export interface CategoryProgress {
 	category: PhraseCategory;
 	attemptsTotal: number;
@@ -84,6 +94,8 @@ export interface UserProgress {
 	scaleProficiency: Partial<Record<ScaleType, ScaleProficiency>>;
 	/** Per-key proficiency levels (1-100) */
 	keyProficiency: Partial<Record<PitchClass, KeyProficiency>>;
+	/** Per-lick progress tracking, keyed by phraseId */
+	lickProgress: Partial<Record<string, LickProgress>>;
 	totalPracticeTime: number;
 	streakDays: number;
 	lastPracticeDate: string;

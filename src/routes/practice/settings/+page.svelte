@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { settings, saveSettings, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+	import { settings, saveSettings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { progress, getUnlockContext } from '$lib/state/progress.svelte';
-	import { PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music';
+	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music';
 	import { INSTRUMENTS } from '$lib/types/instruments';
+	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader';
 	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
 	import { difficultyDisplay } from '$lib/difficulty/display';
@@ -28,10 +29,9 @@
 
 	const CATEGORIES: { value: PhraseCategory | 'random'; label: string }[] = [
 		{ value: 'random', label: 'Random' },
-		{ value: 'ii-V-I-major', label: 'ii-V-I Major' },
-		{ value: 'ii-V-I-minor', label: 'ii-V-I Minor' },
-		{ value: 'blues', label: 'Blues' },
-		{ value: 'bebop-lines', label: 'Bebop Lines' }
+		...Object.entries(CATEGORY_LABELS)
+			.filter(([k]) => k !== 'user')
+			.map(([value, label]) => ({ value: value as PhraseCategory, label }))
 	];
 
 	const PHRASE_SOURCES = [
@@ -63,8 +63,8 @@
 
 	function keyUnlockTooltip(key: PitchClass): string {
 		const reqs = getKeyUnlockRequirements(key);
-		if (reqs.length === 0) return key;
-		return reqs.map(r => `Requires ${r.key} proficiency level ${r.level}`).join('; ');
+		if (reqs.length === 0) return concertKeyToWritten(key, getInstrument());
+		return reqs.map(r => `Requires ${concertKeyToWritten(r.key, getInstrument())} proficiency level ${r.level}`).join('; ');
 	}
 
 	function setTonalityOverride(tonality: Tonality | null) {
@@ -90,10 +90,14 @@
 		session.tempo = tempo;
 		settings.defaultTempo = tempo;
 
+		// Categories with enough curated phrases for reliable random selection.
+		// Excludes long variants, niche categories, and 'user'.
+		const randomPool: PhraseCategory[] = [
+			'ii-V-I-major', 'blues', 'bebop-lines', 'ii-V-I-minor',
+			'short-ii-V-I-major', 'short-ii-V-I-minor'
+		];
 		const category: PhraseCategory = selectedCategory === 'random'
-			? (['ii-V-I-major', 'blues', 'bebop-lines', 'ii-V-I-minor'] as PhraseCategory[])[
-				Math.floor(Math.random() * 4)
-			]
+			? randomPool[Math.floor(Math.random() * randomPool.length)]
 			: selectedCategory;
 
 		// Use the active tonality's key for transposition
@@ -102,11 +106,13 @@
 		let phrase = null;
 
 		const rangeHigh = getEffectiveHighestNote();
+		const rangeLow = getInstrument().concertRangeLow;
 
 		if (selectedSource === 'curated' || selectedSource === 'mixed') {
 			phrase = pickRandomLick(
 				{ category, maxDifficulty: selectedDifficulty },
 				sessionKey,
+				rangeLow,
 				rangeHigh
 			);
 		}
@@ -119,6 +125,7 @@
 				difficulty: selectedDifficulty,
 				harmony,
 				bars,
+				rangeLow,
 				rangeHigh
 			});
 		}
@@ -154,7 +161,7 @@
 			</div>
 			<div class="rounded-lg bg-[var(--color-accent)]/20 px-4 py-2 text-center">
 				<span class="text-lg font-bold text-[var(--color-accent)]">
-					{formatTonality(activeTonality)}
+					{formatTonality(activeTonality, getInstrument())}
 				</span>
 				{#if useOverride}
 					<div class="text-xs text-[var(--color-text-secondary)]">override</div>
@@ -170,7 +177,7 @@
 				onclick={resetToDaily}
 				class="text-sm text-[var(--color-accent)] hover:underline"
 			>
-				Reset to daily tonality ({formatTonality(dailyTonality)})
+				Reset to daily tonality ({formatTonality(dailyTonality, getInstrument())})
 			</button>
 		{/if}
 
@@ -189,9 +196,9 @@
 								: unlocked
 									? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
 									: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
-						title={unlocked ? key : keyUnlockTooltip(key)}
+						title={unlocked ? concertKeyToWritten(key, getInstrument()) : keyUnlockTooltip(key)}
 					>
-						{key}
+						{concertKeyToWritten(key, getInstrument())}
 						{#if !unlocked}
 							<span class="absolute -right-0.5 -top-0.5 text-[8px]">&#x1f512;</span>
 						{/if}
@@ -331,6 +338,6 @@
 		onclick={startSession}
 		class="w-full rounded-lg bg-[var(--color-accent)] py-3 text-lg font-bold hover:opacity-80 transition-opacity"
 	>
-		Start Practice in {formatTonality(activeTonality)}
+		Start Practice in {formatTonality(activeTonality, getInstrument())}
 	</button>
 </div>

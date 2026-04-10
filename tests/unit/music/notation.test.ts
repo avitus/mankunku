@@ -182,3 +182,115 @@ describe('phraseToAbc key signature accidentals', () => {
 		});
 	});
 });
+
+/** Build a phrase with multiple notes for bar-persistence testing. */
+function multiNotePhrase(midis: number[], key: PitchClass, timeSignature: [number, number] = [4, 4]): Phrase {
+	const barDurationBeats = timeSignature[0];
+	return {
+		id: 'test',
+		name: 'test',
+		timeSignature,
+		key,
+		notes: midis.map((midi, i) => ({
+			pitch: midi,
+			// Quarter notes so each bar holds 4 notes in 4/4
+			duration: [1, 4] as [number, number],
+			offset: [i, 4] as [number, number]
+		})),
+		harmony: [],
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: Math.ceil(midis.length / barDurationBeats) },
+		category: 'user',
+		tags: [],
+		source: 'test'
+	};
+}
+
+describe('phraseToAbc bar-persistent accidentals', () => {
+	it('in D major, F natural followed by F# in the same bar re-emits the sharp', () => {
+		// F4 natural (65), then F#4 (66), both in bar 1
+		const phrase = multiNotePhrase([65, 66, 67, 69], 'D');
+		const line = noteLine(phraseToAbc(phrase));
+		// Should emit =F for natural, then ^F (not bare F) for the sharp
+		expect(line).toMatch(/=F.*\^F/);
+	});
+
+	it('in D major, F natural then F natural again omits the natural sign the second time', () => {
+		const phrase = multiNotePhrase([65, 65, 67, 69], 'D');
+		const line = noteLine(phraseToAbc(phrase));
+		// First F natural has =F, second does not (persistent natural)
+		const firstF = line.indexOf('=F');
+		expect(firstF).toBeGreaterThanOrEqual(0);
+		const afterFirst = line.slice(firstF + 2);
+		expect(afterFirst).not.toContain('=F');
+	});
+
+	it('accidental resets at the bar line', () => {
+		// Bar 1: F natural, F natural. Bar 2: F# (back to key sig).
+		// F# in bar 2 should NOT need an explicit accidental since the bar-level
+		// natural from bar 1 no longer applies.
+		const phrase = multiNotePhrase([65, 65, 65, 65, 66, 66, 66, 66], 'D');
+		const line = noteLine(phraseToAbc(phrase));
+		// After the barline, the F should be bare (key sig sharp applies)
+		const parts = line.split('|');
+		expect(parts.length).toBeGreaterThan(1);
+		const bar2 = parts[1];
+		// bar 2 should have plain 'F' tokens, not '^F' or '=F'
+		expect(bar2).toMatch(/ F[^#=^_]/);
+		expect(bar2).not.toContain('^F');
+	});
+
+	it('in Bb major, B natural followed by Bb in same bar re-emits the flat', () => {
+		// Bb4 is the key, B4 natural (71), Bb4 (70)
+		const phrase = multiNotePhrase([70, 71, 70, 72], 'Bb');
+		const line = noteLine(phraseToAbc(phrase));
+		// First note: bare B (matches flat key sig)
+		// Second: =B (natural override)
+		// Third: _B (re-apply flat)
+		expect(line).toMatch(/=B.*_B/);
+	});
+
+	it('F# followed by F natural in key of C shows explicit natural', () => {
+		const phrase = multiNotePhrase([66, 65, 67, 69], 'C');
+		const line = noteLine(phraseToAbc(phrase));
+		// ^F then =F (to cancel the persistent sharp within the bar)
+		expect(line).toMatch(/\^F.*=F/);
+	});
+
+	it('chromatic sequence F F# F in same bar: =F, ^F (bare F if C), =F', () => {
+		// Starting in C (no key sig): F (bare), F# (^F), F natural (=F)
+		const phrase = multiNotePhrase([65, 66, 65, 67], 'C');
+		const line = noteLine(phraseToAbc(phrase));
+		// Parse: first F bare, then ^F, then =F
+		expect(line).toContain('^F');
+		expect(line).toContain('=F');
+	});
+});
+
+describe('phraseToAbc flat/sharp preference by key', () => {
+	it('in Bb major, chromatic Ab spells as _A (flat, not ^G)', () => {
+		// Ab4 = MIDI 68 — chromatic flat 7 of Bb (A is natural in Bb key sig)
+		const line = noteLine(phraseToAbc(singleNotePhrase(68, 'Bb')));
+		expect(line).toContain('_A');
+		expect(line).not.toContain('^G');
+	});
+
+	it('in D major, chromatic D# spells as ^D (sharp)', () => {
+		// D#4 = MIDI 63
+		const line = noteLine(phraseToAbc(singleNotePhrase(63, 'D')));
+		expect(line).toContain('^D');
+		expect(line).not.toContain('_E');
+	});
+
+	it('in Eb major, chromatic Ab spells as A (covered by key sig)', () => {
+		// Ab4 = MIDI 68, Eb key sig already has Ab
+		const line = noteLine(phraseToAbc(singleNotePhrase(68, 'Eb')));
+		expect(line).not.toContain('_A');
+		expect(line).not.toContain('^G');
+	});
+
+	it('in A major, chromatic G# is covered by key sig (no accidental)', () => {
+		const line = noteLine(phraseToAbc(singleNotePhrase(68, 'A')));
+		expect(line).not.toContain('^G');
+		expect(line).not.toContain('_A');
+	});
+});

@@ -371,6 +371,7 @@ export async function loadProgressFromCloud(
 			>,
 			scaleProficiency,
 			keyProficiency,
+			lickProgress: {},
 			totalPracticeTime: progressRow.total_practice_time,
 			streakDays: progressRow.streak_days,
 			lastPracticeDate: progressRow.last_practice_date

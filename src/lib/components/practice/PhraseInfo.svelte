@@ -17,12 +17,6 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-3 text-sm">
-	<span class="rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5">
-		Key: {phrase.key}
-	</span>
-	<span class="rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5">
-		{phrase.timeSignature[0]}/{phrase.timeSignature[1]}
-	</span>
 	<span
 		class="rounded px-2 py-0.5"
 		style="background: {diff.color}20; color: {diff.color}"

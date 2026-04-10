@@ -64,16 +64,48 @@ const ENHARMONIC_FLAT_RESPELL: Partial<Record<NoteLetter, NoteLetter>> = {
 };
 
 /**
- * Convert a MIDI note to ABC notation pitch string, respecting key signature.
+ * Per-bar accidental state. Tracks the "currently displayed" accidental for
+ * each letter name in the current bar. Initialized from the key signature at
+ * the start of each bar; updated as explicit accidentals are emitted.
+ *
+ * Classical notation rule: once an accidental is shown on a letter name in a
+ * bar, it persists to the end of that bar for subsequent notes on the same
+ * letter. We use this state to decide whether an explicit accidental is
+ * needed on each note.
+ */
+type BarAccidentalState = Record<NoteLetter, '^' | '_' | '=' | ''>;
+
+function initBarState(keySigAccidentals: KeySigMap): BarAccidentalState {
+	const letters: NoteLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+	const state = {} as BarAccidentalState;
+	for (const l of letters) state[l] = keySigAccidentals[l] ?? '';
+	return state;
+}
+
+/**
+ * Convert a MIDI note to ABC notation pitch string, respecting key signature
+ * and bar-level accidental persistence.
  *
  * ABC notation rule: when a key signature is active, notes that belong to the
  * key are written without accidentals. Accidentals are only written for
  * chromatic alterations (notes outside the key), including naturals that cancel
- * a key-signature sharp/flat.
+ * a key-signature sharp/flat. Additionally, once an accidental is displayed
+ * on a letter within a bar, it persists to subsequent notes on that letter
+ * until the bar line — so if a later note on the same letter reverts to the
+ * key-sig value, we must emit an explicit accidental to cancel the persisting
+ * one.
+ *
+ * Mutates `barState` to reflect the accidental that will be "in effect" on the
+ * returned letter after this note is rendered.
  *
  * ABC octave convention: C = middle C (C4), c = C5, c' = C6, C, = C3
  */
-function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: KeySigMap): string {
+function midiToAbcPitch(
+	midi: number,
+	useFlats: boolean,
+	keySigAccidentals: KeySigMap,
+	barState: BarAccidentalState
+): string {
 	const pc = midiToPitchClass(midi);
 	let octave = midiToOctave(midi);
 	const noteNames = useFlats ? ABC_NOTE_NAMES_FLAT : ABC_NOTE_NAMES_SHARP;
@@ -97,19 +129,27 @@ function midiToAbcPitch(midi: number, useFlats: boolean, keySigAccidentals: KeyS
 		}
 	}
 
+	// The "target accidental" is what this note actually sounds as:
+	// - If rawAccidental is non-empty, that's explicit.
+	// - Otherwise the note is natural ('').
+	// A natural that cancels a key-sig sharp/flat is represented as '=' here.
+	const target: '^' | '_' | '=' | '' =
+		rawAccidental !== ''
+			? (rawAccidental as '^' | '_')
+			: keySigAcc !== ''
+				? '='
+				: '';
+
+	// Compare against the currently-displayed accidental for this letter.
+	const current = barState[letter as NoteLetter];
 	let accidental: string;
-	if (rawAccidental === keySigAcc) {
-		// Note matches key signature exactly — no explicit accidental needed.
-		// This covers both: note has sharp/flat matching key sig, AND natural
-		// note with no key sig accidental (both are '').
+	if (target === current) {
+		// No change — no explicit accidental needed.
 		accidental = '';
-	} else if (rawAccidental === '' && keySigAcc !== '') {
-		// Note is natural but key sig has a sharp/flat on this letter —
-		// we need an explicit natural sign to cancel the key signature.
-		accidental = '=';
 	} else {
-		// Chromatic alteration: note has an accidental different from key sig
-		accidental = rawAccidental;
+		// Emit the explicit mark. '=' is ABC's natural sign.
+		accidental = target === '' ? '=' : target;
+		barState[letter as NoteLetter] = target;
 	}
 
 	if (octave >= 5) {
@@ -335,12 +375,15 @@ export function phraseToAbc(
 	// Preprocess: merge consecutive rests into standard groupings
 	const displayNotes = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
 
+	// Per-bar accidental state — reset when crossing a barline below
+	let barState: BarAccidentalState = initBarState(keySigAccidentals);
+
 	function renderNote(note: Note, duration: [number, number]): string {
 		if (note.pitch === null) {
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-		const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals);
+		const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals, barState);
 		return `${pitch}${durationToAbc(duration, defaultLength)}`;
 	}
 
@@ -374,6 +417,9 @@ export function phraseToAbc(
 					tokens.push(' |');
 				}
 				tokens.push(' ');
+				// Reset accidental state at each new bar — classical rule:
+				// accidentals persist only until the bar line.
+				barState = initBarState(keySigAccidentals);
 			} else if (beat !== prevBeat) {
 				// Different beat within the same bar: space for beam break
 				tokens.push(' ');

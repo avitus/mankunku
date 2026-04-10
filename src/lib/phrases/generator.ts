@@ -29,11 +29,12 @@ export interface GeneratorOptions {
 	harmony: HarmonicSegment[];
 	bars: number;
 	timeSignature?: [number, number];
+	rangeLow?: number;
 	rangeHigh?: number;
 }
 
-const TENOR_SAX_LOW = 44;
-const TENOR_SAX_HIGH = 75;
+const DEFAULT_RANGE_LOW = 44;
+const DEFAULT_RANGE_HIGH = 75;
 
 /** Counter for generating unique IDs */
 let idCounter = 0;
@@ -67,8 +68,9 @@ export function generatePhrase(options: GeneratorOptions): Phrase {
 			source: 'generated'
 		};
 
-		const mergedRules = options.rangeHigh != null
-			? { ...rules, range: [TENOR_SAX_LOW, options.rangeHigh] as [number, number] }
+		const low = options.rangeLow ?? DEFAULT_RANGE_LOW;
+		const mergedRules = options.rangeHigh != null || options.rangeLow != null
+			? { ...rules, range: [low, options.rangeHigh ?? DEFAULT_RANGE_HIGH] as [number, number] }
 			: rules;
 		const result = validatePhrase(phrase, mergedRules);
 		if (result.valid) return phrase;
@@ -128,7 +130,7 @@ function selectTargets(
 
 		// Pick a chord tone, voice-led from previous target
 		const prev = targets.length > 0 ? targets[targets.length - 1].midi : rootMidi;
-		const tone = pickClosest(tones, prev, TENOR_SAX_LOW, options.rangeHigh ?? TENOR_SAX_HIGH);
+		const tone = pickClosest(tones, prev, options.rangeLow ?? DEFAULT_RANGE_LOW, options.rangeHigh ?? DEFAULT_RANGE_HIGH);
 
 		targets.push({
 			midi: tone,
@@ -222,7 +224,7 @@ function generateFill(
 	const scale = getScale(segment.scaleId);
 	if (!scale) return [];
 
-	const scaleMidi = realizeScaleMidi(options.key, scale.intervals, TENOR_SAX_LOW, options.rangeHigh ?? TENOR_SAX_HIGH);
+	const scaleMidi = realizeScaleMidi(options.key, scale.intervals, options.rangeLow ?? DEFAULT_RANGE_LOW, options.rangeHigh ?? DEFAULT_RANGE_HIGH);
 	const direction = to > from ? 1 : -1;
 
 	// Decide fill type based on difficulty
@@ -399,7 +401,7 @@ function generateScaleFragment(
 	const scale = getScale(scaleId);
 	const intervals = scale?.intervals ?? [2, 2, 1, 2, 2, 2, 1];
 
-	const scaleMidi = realizeScaleMidi(options.key, intervals, TENOR_SAX_LOW, options.rangeHigh ?? TENOR_SAX_HIGH);
+	const scaleMidi = realizeScaleMidi(options.key, intervals, options.rangeLow ?? DEFAULT_RANGE_LOW, options.rangeHigh ?? DEFAULT_RANGE_HIGH);
 	const rootMidi = PITCH_CLASSES.indexOf(options.key) + 60;
 
 	// Find the root in the scale
@@ -470,6 +472,19 @@ export function getDefaultHarmony(
 					startOffset: [2, 1], duration: [1, 1]
 				}
 			];
+		case 'short-ii-V-I-major':
+			return [
+				{
+					chord: { root: pc(2), quality: 'min7' },
+					scaleId: 'major.dorian',
+					startOffset: [0, 1], duration: [1, 2]
+				},
+				{
+					chord: { root: pc(7), quality: '7' },
+					scaleId: 'major.mixolydian',
+					startOffset: [1, 2], duration: [1, 2]
+				}
+			];
 		case 'ii-V-I-minor':
 			return [
 				{
@@ -486,6 +501,19 @@ export function getDefaultHarmony(
 					chord: { root: key, quality: 'min7' },
 					scaleId: 'major.aeolian',
 					startOffset: [2, 1], duration: [1, 1]
+				}
+			];
+		case 'short-ii-V-I-minor':
+			return [
+				{
+					chord: { root: pc(2), quality: 'min7b5' },
+					scaleId: 'melodic-minor.locrian-nat2',
+					startOffset: [0, 1], duration: [1, 2]
+				},
+				{
+					chord: { root: pc(7), quality: '7alt' },
+					scaleId: 'melodic-minor.altered',
+					startOffset: [1, 2], duration: [1, 2]
 				}
 			];
 		case 'blues':

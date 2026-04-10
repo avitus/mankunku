@@ -19,10 +19,16 @@ import type {
 	PhraseCategory
 } from '$lib/types/music';
 import { save, load } from './storage';
+import { writtenKeyToConcert } from '$lib/music/transposition';
+import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
 
 const STORAGE_KEY = 'user-licks';
+const TAGS_OVERRIDE_KEY = 'lick-tag-overrides';
+const CATEGORY_OVERRIDE_KEY = 'lick-category-overrides';
+const WRITTEN_TO_CONCERT_MIGRATION_KEY = 'user-licks-migration-written-to-concert-v1';
+const KEY_WRITTEN_TO_CONCERT_MIGRATION_KEY = 'user-licks-migration-key-written-to-concert-v1';
 
 /** Generate a unique ID for a user lick */
 function generateId(): string {
@@ -46,6 +52,106 @@ function generateId(): string {
  */
 export function getUserLicksLocal(): Phrase[] {
 	return load<Phrase[]>(STORAGE_KEY) ?? [];
+}
+
+/**
+ * One-time migration that shifts step-entered user licks from written-pitch
+ * MIDI to concert-pitch MIDI.
+ *
+ * Licks entered before the step-entry page was made instrument-aware were
+ * stored with raw MIDI values that actually represented the user's written
+ * pitch (what they fingered on their horn), not concert pitch. This function
+ * shifts every pitched note down by `transpositionSemitones` so the stored
+ * values align with the rest of the app, which expects concert-pitch MIDI.
+ *
+ * Only licks that look step-entered are migrated — identified by
+ * `source === 'user-entered'` or a `user-entered` tag. Recorded licks (from
+ * the mic-based record page) are already in concert pitch and are left alone.
+ *
+ * Runs at most once per device (guarded by a flag in localStorage).
+ * Safe to call on every app start.
+ *
+ * @returns Number of licks that were shifted.
+ */
+export function migrateUserLicksWrittenToConcert(transpositionSemitones: number): number {
+	const done = load<boolean>(WRITTEN_TO_CONCERT_MIGRATION_KEY);
+	if (done) return 0;
+	if (transpositionSemitones === 0) {
+		// Nothing to shift — still mark as done so we don't re-check.
+		save(WRITTEN_TO_CONCERT_MIGRATION_KEY, true);
+		return 0;
+	}
+
+	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
+	let migrated = 0;
+
+	const updated = licks.map((lick) => {
+		const isStepEntered =
+			lick.source === 'user-entered' || lick.tags?.includes('user-entered');
+		if (!isStepEntered) return lick;
+		migrated++;
+		return {
+			...lick,
+			// Stamp the source so future code can reliably tell these licks apart
+			source: 'user-entered',
+			notes: lick.notes.map((n) => ({
+				...n,
+				pitch: n.pitch !== null ? n.pitch - transpositionSemitones : null
+			}))
+		};
+	});
+
+	save(STORAGE_KEY, updated);
+	save(WRITTEN_TO_CONCERT_MIGRATION_KEY, true);
+	return migrated;
+}
+
+/**
+ * One-time migration that converts `phrase.key` from the user's WRITTEN key
+ * to concert pitch for step-entered user licks.
+ *
+ * Licks saved before `getCurrentPhrase()` was updated to convert the key
+ * (via `writtenKeyToConcert`) stored `phrase.key = stepEntry.phraseKey`
+ * directly. That value is the written key the user selected on the step-entry
+ * dropdown. The rest of the app expects `phrase.key` in concert pitch — the
+ * notation renderer transposes it back to written for display, and the
+ * lick-practice transposition uses it as the source key.
+ *
+ * This migration fixes that by running `writtenKeyToConcert` on the stored
+ * key. Only applies to step-entered licks (identified by
+ * `source === 'user-entered'` or the `user-entered` tag). Recorded licks
+ * from the mic are left alone — they were always in concert.
+ *
+ * Runs at most once per device (guarded by a separate flag from the notes
+ * migration). Safe to call on every app start.
+ *
+ * @returns Number of licks whose keys were converted.
+ */
+export function migrateUserLicksKeyWrittenToConcert(instrument: InstrumentConfig): number {
+	const done = load<boolean>(KEY_WRITTEN_TO_CONCERT_MIGRATION_KEY);
+	if (done) return 0;
+	if (instrument.transpositionSemitones === 0) {
+		// Concert instrument — written and concert are the same. Still mark done.
+		save(KEY_WRITTEN_TO_CONCERT_MIGRATION_KEY, true);
+		return 0;
+	}
+
+	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
+	let migrated = 0;
+
+	const updated = licks.map((lick) => {
+		const isStepEntered =
+			lick.source === 'user-entered' || lick.tags?.includes('user-entered');
+		if (!isStepEntered) return lick;
+		const concertKey = writtenKeyToConcert(lick.key, instrument);
+		if (concertKey === lick.key) return lick; // no change
+		migrated++;
+		return { ...lick, source: 'user-entered', key: concertKey };
+	});
+
+	save(STORAGE_KEY, updated);
+	save(KEY_WRITTEN_TO_CONCERT_MIGRATION_KEY, true);
+	return migrated;
 }
 
 /**
@@ -119,14 +225,16 @@ export async function getUserLicks(
 export function saveUserLick(
 	lick: Phrase,
 	supabase?: SupabaseClient<Database>
-): void {
+): Phrase {
 	// Read current licks directly from localStorage (not the async getUserLicks)
 	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const toSave: Phrase = {
 		...lick,
 		id: lick.id || generateId(),
-		source: 'user-recorded',
-		category: 'user'
+		// Preserve the incoming source ('user-entered' from step-entry,
+		// 'user-recorded' from the record page). Default to 'user-recorded'
+		// for any lick that doesn't specify one.
+		source: lick.source || 'user-recorded'
 	};
 	licks.push(toSave);
 	save(STORAGE_KEY, licks);
@@ -160,6 +268,100 @@ export function saveUserLick(
 				console.warn('Failed to save lick to cloud (unexpected):', err);
 			});
 	}
+	return toSave;
+}
+
+/**
+ * Update tags for a lick (curated or user-recorded).
+ *
+ * For curated licks, stores tag overrides in a separate localStorage key.
+ * For user licks, updates the lick's tags array in-place.
+ * Fire-and-forget cloud sync when a Supabase client is provided.
+ */
+export function updateUserLickTags(
+	id: string,
+	tags: string[],
+	supabase?: SupabaseClient<Database>
+): void {
+	// Try updating in user licks first
+	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
+	const idx = licks.findIndex((l) => l.id === id);
+	if (idx !== -1) {
+		licks[idx] = { ...licks[idx], tags };
+		save(STORAGE_KEY, licks);
+
+		// Fire-and-forget cloud sync for user licks
+		if (supabase) {
+			Promise.resolve(
+				supabase.from('user_licks')
+					.update({ tags, updated_at: new Date().toISOString() })
+					.eq('id', id)
+			)
+				.then(({ error }) => {
+					if (error) console.warn('Failed to sync lick tags to cloud:', error);
+				})
+				.catch((err: unknown) => {
+					console.warn('Failed to sync lick tags to cloud (unexpected):', err);
+				});
+		}
+		return;
+	}
+
+	// For curated licks, store tag overrides separately
+	const overrides = load<Record<string, string[]>>(TAGS_OVERRIDE_KEY) ?? {};
+	overrides[id] = tags;
+	save(TAGS_OVERRIDE_KEY, overrides);
+}
+
+/** Get tag overrides for curated licks */
+export function getLickTagOverrides(): Record<string, string[]> {
+	return load<Record<string, string[]>>(TAGS_OVERRIDE_KEY) ?? {};
+}
+
+/**
+ * Update the category for a lick (curated or user-recorded).
+ *
+ * For user licks, updates the category in-place in localStorage.
+ * For curated licks, stores category overrides in a separate key.
+ * Fire-and-forget cloud sync when a Supabase client is provided.
+ */
+export function updateLickCategory(
+	id: string,
+	category: PhraseCategory,
+	supabase?: SupabaseClient<Database>
+): void {
+	// Try updating in user licks first
+	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
+	const idx = licks.findIndex((l) => l.id === id);
+	if (idx !== -1) {
+		licks[idx] = { ...licks[idx], category };
+		save(STORAGE_KEY, licks);
+
+		if (supabase) {
+			Promise.resolve(
+				supabase.from('user_licks')
+					.update({ category, updated_at: new Date().toISOString() })
+					.eq('id', id)
+			)
+				.then(({ error }) => {
+					if (error) console.warn('Failed to sync lick category to cloud:', error);
+				})
+				.catch((err: unknown) => {
+					console.warn('Failed to sync lick category to cloud (unexpected):', err);
+				});
+		}
+		return;
+	}
+
+	// For curated licks, store category overrides separately
+	const overrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDE_KEY) ?? {};
+	overrides[id] = category;
+	save(CATEGORY_OVERRIDE_KEY, overrides);
+}
+
+/** Get category overrides for curated licks */
+export function getLickCategoryOverrides(): Record<string, PhraseCategory> {
+	return load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDE_KEY) ?? {};
 }
 
 /**
