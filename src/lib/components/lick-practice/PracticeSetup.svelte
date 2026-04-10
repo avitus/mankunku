@@ -14,7 +14,7 @@
 	let { config, availableLickCount, onstart, onupdate }: Props = $props();
 
 	const progressionTypes = Object.values(PROGRESSION_TEMPLATES);
-	const backingStyles: BackingStyle[] = ['swing', 'bossa-nova', 'ballad', 'straight'];
+	const backingStyles = Object.keys(BACKING_STYLE_NAMES) as BackingStyle[];
 	const modes: { value: LickPracticeMode; label: string; description: string }[] = [
 		{
 			value: 'continuous',

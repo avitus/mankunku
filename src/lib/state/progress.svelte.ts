@@ -134,6 +134,8 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 			// Cloud has same or more sessions — use cloud data as base
 			Object.assign(progress, {
 				...cloudProgress,
+				// Preserve local lickProgress — cloud doesn't store it
+				lickProgress: progress.lickProgress,
 				// Re-merge adaptive state with defaults for forward compatibility
 				adaptive: {
 					...createInitialAdaptiveState(),

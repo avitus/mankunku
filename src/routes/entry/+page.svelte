@@ -196,6 +196,7 @@
 						? 'bg-[var(--color-accent)] text-white'
 						: 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'}"
 				title={stepEntry.practiceTag ? 'Remove from practice queue' : 'Add to practice queue'}
+				aria-pressed={stepEntry.practiceTag}
 			>
 				<svg class="h-4 w-4" viewBox="0 0 24 24" fill={stepEntry.practiceTag ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
 					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -213,6 +214,7 @@
 						{stepEntry.category === value
 							? 'bg-[var(--color-accent)] text-white'
 							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+					aria-pressed={stepEntry.category === value}
 				>
 					{label}
 				</button>

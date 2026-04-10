@@ -438,7 +438,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
  * Number of bars each key occupies for the given lick + current mode.
  * Continuous: progression bars. Call-response: 2 × progression bars.
  */
-export function getKeyBars(_lickIdx: number): number {
+export function getKeyBars(): number {
 	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 	const progressionBars = template.bars;
 	return lickPractice.config.practiceMode === 'call-response'

@@ -9,11 +9,14 @@
 	import { getTodaysTonality, formatTonality } from '$lib/tonality/tonality';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import { page } from '$app/state';
+	import { browser } from '$app/environment';
 
 	// Make sure lick-practice progress is loaded — the /lick-practice page
 	// also calls this on its own mount, but the home page needs the data
 	// for its stat lines.
-	hydrateLickPracticeProgress();
+	if (browser) {
+		hydrateLickPracticeProgress();
+	}
 
 	const session = $derived(page.data?.session ?? null);
 	const user = $derived(page.data?.user ?? null);

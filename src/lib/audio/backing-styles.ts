@@ -25,8 +25,10 @@ export interface StyleDefinition {
 	defaultSwing: number;
 	/** Drum pattern: maps beat index (0-based within bar) to drum hits */
 	drumPattern: (beat: number, beatsPerBar: number) => DrumHit;
-	/** Comping pattern: returns true if this beat should get a comp hit */
-	compPattern: (beat: number, beatsPerBar: number) => { hit: boolean; velocity: number; duration: number };
+	/** Comping pattern: returns true if this beat should get a comp hit.
+	 *  Duration is a [numerator, denominator] tuple representing a fraction
+	 *  of one beat (quarter note). Converted to seconds at scheduling time. */
+	compPattern: (beat: number, beatsPerBar: number) => { hit: boolean; velocity: number; duration: [number, number] };
 	/** Bass style: 'walking' = chord-tone walking, 'pedal' = root pedal, 'pattern' = rhythmic pattern */
 	bassStyle: 'walking' | 'pedal' | 'pattern';
 }
@@ -45,9 +47,9 @@ const swing: StyleDefinition = {
 	compPattern: (beat: number) => {
 		const isCompBeat = beat % 4 === 1 || beat % 4 === 3;
 		const extraHit = (beat % 4 === 0 || beat % 4 === 2) && Math.random() < 0.25;
-		if (isCompBeat) return { hit: true, velocity: 60 + Math.round(Math.random() * 10), duration: 0.4 };
-		if (extraHit) return { hit: true, velocity: 50, duration: 0.6 };
-		return { hit: false, velocity: 0, duration: 0 };
+		if (isCompBeat) return { hit: true, velocity: 60 + Math.round(Math.random() * 10), duration: [2, 5] };
+		if (extraHit) return { hit: true, velocity: 50, duration: [3, 5] };
+		return { hit: false, velocity: 0, duration: [0, 1] };
 	},
 	bassStyle: 'walking'
 };
@@ -70,7 +72,7 @@ const bossaNova: StyleDefinition = {
 		// Syncopated guitar-style pattern: hits on 1, off of 2, 3, off of 4
 		const bossaHits = [true, false, true, true];
 		const hit = bossaHits[beat % 4] ?? false;
-		return { hit, velocity: hit ? 55 + Math.round(Math.random() * 8) : 0, duration: 0.5 };
+		return { hit, velocity: hit ? 55 + Math.round(Math.random() * 8) : 0, duration: [1, 2] };
 	},
 	bassStyle: 'pattern'
 };
@@ -88,9 +90,9 @@ const ballad: StyleDefinition = {
 	}),
 	compPattern: (beat: number) => {
 		// Whole-note / half-note sustains: hit on beat 1, occasionally on 3
-		if (beat % 4 === 0) return { hit: true, velocity: 45 + Math.round(Math.random() * 8), duration: 1.5 };
-		if (beat % 4 === 2 && Math.random() < 0.3) return { hit: true, velocity: 40, duration: 1.0 };
-		return { hit: false, velocity: 0, duration: 0 };
+		if (beat % 4 === 0) return { hit: true, velocity: 45 + Math.round(Math.random() * 8), duration: [3, 2] };
+		if (beat % 4 === 2 && Math.random() < 0.3) return { hit: true, velocity: 40, duration: [1, 1] };
+		return { hit: false, velocity: 0, duration: [0, 1] };
 	},
 	bassStyle: 'walking'
 };
@@ -109,7 +111,7 @@ const straight: StyleDefinition = {
 	}),
 	compPattern: (beat: number) => {
 		// Even quarter-note comping
-		return { hit: true, velocity: 55 + Math.round(Math.random() * 8), duration: 0.35 };
+		return { hit: true, velocity: 55 + Math.round(Math.random() * 8), duration: [1, 3] };
 	},
 	bassStyle: 'walking'
 };

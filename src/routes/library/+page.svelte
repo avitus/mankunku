@@ -55,13 +55,11 @@
 	});
 
 	const categories = getCategories();
-	const tagOverrides = getLickTagOverrides();
-	const practiceTaggedIds = getPracticeTaggedIds();
 
 	/** Check if a lick has the 'practice' tag (from new store OR legacy overrides) */
 	function hasPracticeTag(lick: Phrase): boolean {
-		if (practiceTaggedIds.has(lick.id)) return true;
-		const overrides = tagOverrides[lick.id];
+		if (getPracticeTaggedIds().has(lick.id)) return true;
+		const overrides = getLickTagOverrides()[lick.id];
 		const tags = overrides ?? lick.tags;
 		return tags.includes('practice');
 	}
@@ -201,6 +199,7 @@
 				{library.practiceOnly
 					? 'bg-[var(--color-accent)] text-white'
 					: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+			aria-pressed={library.practiceOnly}
 		>
 			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill={library.practiceOnly ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
 				<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />

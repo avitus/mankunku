@@ -127,14 +127,14 @@ describe('getKeyBars and getProgressionBars', () => {
 		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C'] });
 		// ii-V-I-major progression is 2 bars
 		expect(getProgressionBars()).toBe(2);
-		expect(getKeyBars(0)).toBe(2);
+		expect(getKeyBars()).toBe(2);
 	});
 
 	it('call-response mode: keyBars equals 2 × progressionBars', () => {
 		lickPractice.config.practiceMode = 'call-response';
 		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C'] });
 		expect(getProgressionBars()).toBe(2);
-		expect(getKeyBars(0)).toBe(4);
+		expect(getKeyBars()).toBe(4);
 	});
 });
 

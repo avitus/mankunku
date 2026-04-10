@@ -36,7 +36,7 @@ export interface LickPracticeKeyProgress {
 }
 
 /** Per-lick, per-key progress stored in localStorage */
-export type LickPracticeProgress = Record<string, Record<string, LickPracticeKeyProgress>>;
+export type LickPracticeProgress = Record<string, Partial<Record<PitchClass, LickPracticeKeyProgress>>>;
 
 export interface LickPracticePlanItem {
 	phraseId: string;

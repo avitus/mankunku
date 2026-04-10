@@ -121,8 +121,14 @@ describe('transposeProgression', () => {
 
 describe('PROGRESSION_LICK_CATEGORIES', () => {
 	it('every progression type has at least one compatible lick category', () => {
-		for (const [type, cats] of Object.entries(PROGRESSION_LICK_CATEGORIES)) {
-			expect(cats.length, `${type} should have compatible categories`).toBeGreaterThan(0);
+		const allTypes: ChordProgressionType[] = [
+			'ii-V-I-major', 'ii-V-I-minor',
+			'ii-V-I-major-long', 'ii-V-I-minor-long',
+			'turnaround', 'blues'
+		];
+		for (const type of allTypes) {
+			expect(PROGRESSION_LICK_CATEGORIES[type], `${type} should be defined`).toBeDefined();
+			expect(PROGRESSION_LICK_CATEGORIES[type].length, `${type} should have compatible categories`).toBeGreaterThan(0);
 		}
 	});
 });

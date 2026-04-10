@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import PracticeSetup from '$lib/components/lick-practice/PracticeSetup.svelte';
 	import {
 		lickPractice,
@@ -9,7 +10,9 @@
 	} from '$lib/state/lick-practice.svelte';
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
 
-	hydrateLickPracticeProgress();
+	onMount(() => {
+		hydrateLickPracticeProgress();
+	});
 
 	// Trigger reactivity on config changes to update the lick count
 	const availableLickCount = $derived.by(() => {

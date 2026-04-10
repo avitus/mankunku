@@ -81,11 +81,11 @@
 		progressionTags = getProgressionTags(baseLick.id);
 	});
 
-	// Default the key selector to the lick's own (written) key the first time
-	// a lick loads — so the user sees it in its original key and the selector
+	// Reset the key selector to the lick's own (written) key whenever
+	// baseLick changes — so the user sees it in its original key and the selector
 	// button matches the displayed key signature.
 	$effect(() => {
-		if (baseLick && selectedWrittenKey === null) {
+		if (baseLick) {
 			selectedWrittenKey = concertKeyToWritten(baseLick.key, getInstrument());
 		}
 	});

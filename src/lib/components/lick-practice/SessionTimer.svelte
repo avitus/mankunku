@@ -6,8 +6,8 @@
 
 	let { elapsedSeconds, totalSeconds }: Props = $props();
 
-	const progress = $derived(Math.min(1, elapsedSeconds / totalSeconds));
-	const remainingSeconds = $derived(Math.max(0, totalSeconds - elapsedSeconds));
+	const progress = $derived(totalSeconds <= 0 ? 0 : Math.min(1, elapsedSeconds / totalSeconds));
+	const remainingSeconds = $derived(totalSeconds <= 0 ? 0 : Math.max(0, totalSeconds - elapsedSeconds));
 
 	const formatTime = (seconds: number): string => {
 		const m = Math.floor(seconds / 60);

@@ -133,10 +133,6 @@
 
 	onDestroy(() => {
 		stopAll();
-		if (timerInterval) clearInterval(timerInterval);
-		if (levelInterval) clearInterval(levelInterval);
-		onsetDetector?.dispose();
-		onsetDetector = null;
 	});
 
 	function getPlaybackOptions(): PlaybackOptions {
@@ -211,7 +207,11 @@
 		if (!playback) return;
 
 		isLoading = true;
-		await ensureMicCapture();
+		const micOk = await ensureMicCapture();
+		if (!micOk) {
+			isLoading = false;
+			return;
+		}
 
 		if (!playback.isInstrumentLoaded()) {
 			await playback.loadInstrument(
@@ -254,7 +254,7 @@
 		const ppq = transport.PPQ;
 		const beatsPerBar = superPhrase.timeSignature[0];
 		const ticksPerBar = beatsPerBar * ppq;
-		const keyBars = getKeyBars(lickIdx);
+		const keyBars = getKeyBars();
 		const progressionBars = getProgressionBars();
 		// In continuous mode, the lick's audio begins with a demo cycle of
 		// `progressionBars` bars (the app plays the lick once in keys[0]).
@@ -649,6 +649,17 @@
 		}
 		scheduledEventIds = [];
 		playback?.stopPlayback();
+		// Clear polling intervals
+		if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+		if (levelInterval) { clearInterval(levelInterval); levelInterval = null; }
+		// Dispose onset detector
+		onsetDetector?.dispose();
+		onsetDetector = null;
+		// Release microphone
+		if (micCapture) {
+			micCapture.stream.getTracks().forEach(t => t.stop());
+			micCapture = null;
+		}
 	}
 
 	function finishSession() {

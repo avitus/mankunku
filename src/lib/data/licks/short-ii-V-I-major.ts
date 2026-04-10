@@ -45,7 +45,7 @@ export const SHORT_II_V_I_MAJOR_LICKS: Phrase[] = [
 	},
 	{
 		id: 'short-ii-V-maj-002',
-		name: 'Root-Third Motion',
+		name: 'Root-Fifth / Root-Third Motion',
 		timeSignature: [4, 4],
 		key: 'C',
 		notes: [

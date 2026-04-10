@@ -78,11 +78,12 @@
 			</span>
 		{/if}
 		{#each progTags as pt}
+			{@const template = PROGRESSION_TEMPLATES[pt]}
 			<span class="rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-xs text-[var(--color-accent)]">
-				{PROGRESSION_TEMPLATES[pt].shortName}
+				{template?.shortName ?? pt}
 			</span>
 		{/each}
-		{#each lick.tags.slice(0, 4).filter(t => t !== 'practice' && t !== 'user-entered') as tag}
+		{#each lick.tags.filter(t => t !== 'practice' && t !== 'user-entered').slice(0, 4) as tag}
 			<span class="text-xs text-[var(--color-text-secondary)]">#{tag}</span>
 		{/each}
 	</div>

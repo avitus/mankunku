@@ -380,10 +380,11 @@ function generateComping(
 			const beatOffset = segStartBeats + beat;
 			const ticks = Math.round(beatOffset * ppq);
 
+			const compDurationBeats = compResult.duration[0] / compResult.duration[1];
 			events.push({
 				time: `${humanizeBeatTicks(ticks, ppq, tempo)}i`,
 				notes: voicing,
-				duration: beatDuration * compResult.duration,
+				duration: beatDuration * compDurationBeats,
 				velocity: compResult.velocity
 			});
 		}
