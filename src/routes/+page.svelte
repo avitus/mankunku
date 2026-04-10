@@ -2,20 +2,13 @@
 	import { progress, getRecentSessions, getPrimaryLevel } from '$lib/state/progress.svelte';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
+	import { CATEGORY_LABELS } from '$lib/types/music';
 	import { page } from '$app/state';
 
 	const recentSessions = $derived(getRecentSessions(5));
 	const primaryLevel = $derived(getPrimaryLevel());
 	const levelDisp = $derived(difficultyDisplay(primaryLevel));
 	const pct = (n: number) => Math.round(n * 100);
-
-	const CATEGORY_LABELS: Record<string, string> = {
-		'ii-V-I-major': 'ii-V-I Maj',
-		'ii-V-I-minor': 'ii-V-I Min',
-		'blues': 'Blues',
-		'bebop-lines': 'Bebop',
-		'user': 'My Licks'
-	};
 
 	const session = $derived(page.data?.session ?? null);
 	const user = $derived(page.data?.user ?? null);
@@ -115,6 +108,15 @@
 			<h2 class="font-semibold">Configure</h2>
 			<p class="mt-1 text-xs text-[var(--color-text-secondary)]">
 				Key, category, difficulty
+			</p>
+		</a>
+		<a
+			href="/lick-practice"
+			class="rounded-lg bg-[var(--color-bg-secondary)] p-5 transition-colors hover:bg-[var(--color-bg-tertiary)]"
+		>
+			<h2 class="font-semibold">Lick Practice</h2>
+			<p class="mt-1 text-xs text-[var(--color-text-secondary)]">
+				Drill licks through all keys
 			</p>
 		</a>
 		<a

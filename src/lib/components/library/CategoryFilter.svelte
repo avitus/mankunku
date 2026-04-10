@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PhraseCategory } from '$lib/types/music.ts';
+	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music.ts';
 
 	interface CategoryInfo {
 		category: PhraseCategory;
@@ -13,20 +13,6 @@
 	}
 
 	let { categories, selected, onselect }: Props = $props();
-
-	const CATEGORY_LABELS: Record<string, string> = {
-		'ii-V-I-major': 'ii-V-I Major',
-		'ii-V-I-minor': 'ii-V-I Minor',
-		'blues': 'Blues',
-		'bebop-lines': 'Bebop',
-		'pentatonic': 'Pentatonic',
-		'enclosures': 'Enclosures',
-		'digital-patterns': 'Digital',
-		'approach-notes': 'Approach',
-		'turnarounds': 'Turnarounds',
-		'rhythm-changes': 'Rhythm Changes',
-		'user': 'My Licks'
-	};
 
 	const total = $derived(categories.reduce((sum, c) => sum + c.count, 0));
 </script>

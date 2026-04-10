@@ -89,6 +89,7 @@ function makeCloudProgress(sessions: SessionResult[]): UserProgress {
 		keyProgress: {},
 		scaleProficiency: {},
 		keyProficiency: {},
+		lickProgress: {},
 		totalPracticeTime: 100,
 		streakDays: 3,
 		lastPracticeDate: '2026-04-06'

@@ -9,7 +9,8 @@
 	import type { Phrase, PhraseCategory } from '$lib/types/music';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getUserLicks } from '$lib/persistence/user-licks';
+	import { getUserLicks, getLickTagOverrides } from '$lib/persistence/user-licks';
+	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
 
 	/** Supabase browser client from layout data (null when not available) */
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -54,6 +55,16 @@
 	});
 
 	const categories = getCategories();
+	const tagOverrides = getLickTagOverrides();
+	const practiceTaggedIds = getPracticeTaggedIds();
+
+	/** Check if a lick has the 'practice' tag (from new store OR legacy overrides) */
+	function hasPracticeTag(lick: Phrase): boolean {
+		if (practiceTaggedIds.has(lick.id)) return true;
+		const overrides = tagOverrides[lick.id];
+		const tags = overrides ?? lick.tags;
+		return tags.includes('practice');
+	}
 
 	/** Curated licks filtered by current library query parameters */
 	const curatedLicks = $derived(
@@ -87,8 +98,17 @@
 			);
 		}
 
-		// User licks first, then curated licks
-		return [...filtered, ...curatedLicks];
+		// User licks first, then curated licks (deduplicate by ID since
+		// queryLicks/getAllLicks already includes getUserLicksLocal())
+		const userIds = new Set(filtered.map((l) => l.id));
+		let combined = [...filtered, ...curatedLicks.filter((l) => !userIds.has(l.id))];
+
+		// Practice-only filter
+		if (library.practiceOnly) {
+			combined = combined.filter(hasPracticeTag);
+		}
+
+		return combined;
 	});
 
 	function handleCategorySelect(category: PhraseCategory | null) {
@@ -172,21 +192,38 @@
 		onselect={handleCategorySelect}
 	/>
 
-	<!-- Difficulty filter -->
-	<div class="flex items-center gap-3">
-		<span class="text-sm text-[var(--color-text-secondary)]">Max difficulty:</span>
-		<div class="flex flex-wrap gap-1">
-			{#each [null, 20, 40, 60, 80, 100] as level}
-				<button
-					onclick={() => { library.difficultyFilter = level; }}
-					class="rounded px-2 py-0.5 text-xs transition-colors
-						{library.difficultyFilter === level
-							? 'bg-[var(--color-accent)] text-white'
-							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-				>
-					{level === null ? 'All' : `1-${level}`}
-				</button>
-			{/each}
+	<!-- Filters row -->
+	<div class="flex flex-wrap items-center gap-4">
+		<!-- Practice filter -->
+		<button
+			onclick={() => { library.practiceOnly = !library.practiceOnly; }}
+			class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
+				{library.practiceOnly
+					? 'bg-[var(--color-accent)] text-white'
+					: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+		>
+			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill={library.practiceOnly ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
+				<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+			</svg>
+			Practice
+		</button>
+
+		<!-- Difficulty filter -->
+		<div class="flex items-center gap-2">
+			<span class="text-sm text-[var(--color-text-secondary)]">Max difficulty:</span>
+			<div class="flex flex-wrap gap-1">
+				{#each [null, 20, 40, 60, 80, 100] as level}
+					<button
+						onclick={() => { library.difficultyFilter = level; }}
+						class="rounded px-2 py-0.5 text-xs transition-colors
+							{library.difficultyFilter === level
+								? 'bg-[var(--color-accent)] text-white'
+								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+					>
+						{level === null ? 'All' : `1-${level}`}
+					</button>
+				{/each}
+			</div>
 		</div>
 	</div>
 

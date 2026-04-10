@@ -147,6 +147,7 @@ function makeProgress(): UserProgress {
 				totalAttempts: 15
 			}
 		},
+		lickProgress: {},
 		totalPracticeTime: 3600,
 		streakDays: 5,
 		lastPracticeDate: '2024-06-15'

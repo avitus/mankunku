@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
-	import { settings } from '$lib/state/settings.svelte';
+	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
 		setDuration, toggleTriplet, setAccidental, adjustOctave,
@@ -13,7 +13,13 @@
 	import { keyToPitchClass, isValidPitchKey } from '$lib/step-entry/pitch-input';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { saveUserLick } from '$lib/persistence/user-licks';
+	import { setPracticeTag } from '$lib/persistence/lick-practice-store';
+	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+
+	const ENTRY_CATEGORIES = Object.entries(CATEGORY_LABELS).map(
+		([value, label]) => ({ value: value as PhraseCategory, label })
+	);
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import EntryConfig from '$lib/components/step-entry/EntryConfig.svelte';
@@ -115,8 +121,15 @@
 		const phrase = getCurrentPhrase();
 		phrase.notes = getPaddedNotes();
 		phrase.difficulty = calculateDifficulty(phrase);
+		const wasPracticeTagged = stepEntry.practiceTag;
 
-		saveUserLick(phrase, supabase ?? undefined);
+		const saved = saveUserLick(phrase, supabase ?? undefined);
+
+		// Write practice tag to the new store so lick practice mode can find it
+		if (wasPracticeTagged && saved.id) {
+			setPracticeTag(saved.id, true);
+		}
+
 		reset();
 
 		savedConfirmation = true;
@@ -136,9 +149,10 @@
 	<!-- Header -->
 	<h1 class="text-xl font-bold">Lick Entry</h1>
 
-	<!-- Notation preview -->
+	<!-- Notation preview (written pitch for the user's instrument) -->
 	<NotationDisplay
 		phrase={hasNotes ? currentPhrase : null}
+		instrument={getInstrument()}
 	/>
 
 	<!-- Status bar -->
@@ -166,14 +180,44 @@
 
 	<!-- Name + actions -->
 	<div class="space-y-3">
-		<input
-			type="text"
-			bind:value={stepEntry.phraseName}
-			placeholder="Name this lick..."
-			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2.5 text-sm
-				border border-transparent focus:border-[var(--color-accent)] focus:outline-none
-				placeholder:text-[var(--color-text-secondary)]"
-		/>
+		<div class="flex gap-2">
+			<input
+				type="text"
+				bind:value={stepEntry.phraseName}
+				placeholder="Name this lick..."
+				class="flex-1 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2.5 text-sm
+					border border-transparent focus:border-[var(--color-accent)] focus:outline-none
+					placeholder:text-[var(--color-text-secondary)]"
+			/>
+			<button
+				onclick={() => { stepEntry.practiceTag = !stepEntry.practiceTag; }}
+				class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+					{stepEntry.practiceTag
+						? 'bg-[var(--color-accent)] text-white'
+						: 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'}"
+				title={stepEntry.practiceTag ? 'Remove from practice queue' : 'Add to practice queue'}
+			>
+				<svg class="h-4 w-4" viewBox="0 0 24 24" fill={stepEntry.practiceTag ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
+					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+				</svg>
+				Practice
+			</button>
+		</div>
+
+		<!-- Category -->
+		<div class="flex flex-wrap gap-1.5">
+			{#each ENTRY_CATEGORIES as { value, label }}
+				<button
+					onclick={() => { stepEntry.category = value; }}
+					class="rounded-full px-2.5 py-0.5 text-xs transition-colors
+						{stepEntry.category === value
+							? 'bg-[var(--color-accent)] text-white'
+							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+				>
+					{label}
+				</button>
+			{/each}
+		</div>
 
 		<div class="flex justify-center gap-3">
 			<button

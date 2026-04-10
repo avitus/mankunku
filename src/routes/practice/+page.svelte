@@ -74,7 +74,7 @@
 	);
 	const shuffledLicks = $derived(seededShuffle(filteredLicks, sessionShuffleSeed));
 	const allLicks = $derived(shuffledLicks.map(lick =>
-		transposeLickForTonality(lick, activeTonality.key, scaleId, getEffectiveHighestNote())
+		transposeLickForTonality(lick, activeTonality.key, scaleId, instrument.concertRangeLow, getEffectiveHighestNote())
 	));
 
 	let phraseIndex = $state(0);

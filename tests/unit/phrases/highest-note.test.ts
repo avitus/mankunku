@@ -49,35 +49,29 @@ afterEach(() => {
 describe('transposeLick — rangeHigh constraint', () => {
 	it('uses rangeHigh to optimize octave placement', () => {
 		// Notes at 60-72. Transposing to B (+11) naively → 71-83.
-		// With rangeHigh=72, bestOctaveShift should prefer shift -1 → 59-71
+		// With rangeLow=60, rangeHigh=72, bestOctaveShift should prefer shift -1 → 59-71
 		// (3 of 4 in range 60-72) over shift 0 → 71-83 (2 of 4 in range)
 		const phrase = makePhrase([60, 64, 67, 72]);
-		const result = transposeLick(phrase, 'B', 72);
+		const result = transposeLick(phrase, 'B', 60, 72);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 
 		// With shift -1, pitches are 59, 63, 66, 71
 		expect(pitches).toEqual([59, 63, 66, 71]);
 	});
 
-	it('without rangeHigh, uses default range (75)', () => {
+	it('without range, uses fallback range', () => {
 		const phrase = makePhrase([60, 64, 67, 72]);
 		const defaultResult = transposeLick(phrase, 'D');
-		const customResult = transposeLick(phrase, 'D', 75);
+		const customResult = transposeLick(phrase, 'D', 60, 75);
 
-		// Same behavior — rangeHigh=75 matches default
+		// Fallback matches (60, 75)
 		expect(defaultResult.notes.map(n => n.pitch))
 			.toEqual(customResult.notes.map(n => n.pitch));
 	});
 
 	it('with low rangeHigh, forces octave shift that keeps max pitch within bound', () => {
-		// Notes at 60-67. Transpose to G (+7) naively → 67-74, all in default range.
-		// With rangeHigh=68, bestOctaveShift tries shift 0: only 67,68 in [60,68] = 2.
-		// shift -1: 55,57,59,62 → only 62 in [60,68] = 1. Actually shift 0 wins:
-		// shift 0: [67,69,71,74] → 67 in [60,68] = 1. shift -1: [55,57,59,62] → 62 in range = 1.
-		// Tie: -1 closer to mid(64), so -1 wins. totalShift = 7 + (-12) = -5.
-		// Pitches: 55, 57, 59, 62
 		const phrase = makePhrase([60, 62, 64, 67]);
-		const result = transposeLick(phrase, 'G', 68);
+		const result = transposeLick(phrase, 'G', 60, 68);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 		const maxPitch = Math.max(...pitches);
 
@@ -90,14 +84,9 @@ describe('transposeLick — rangeHigh constraint', () => {
 	it('applies octave shift for key C when rangeHigh is low', () => {
 		// Lick with notes above a low rangeHigh — key C should still optimize
 		const phrase = makePhrase([60, 64, 67, 72]);
-		const result = transposeLick(phrase, 'C', 65);
+		const result = transposeLick(phrase, 'C', 60, 65);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 
-		// bestOctaveShift should shift down to fit more notes in [60,65]
-		// shift -1: [48,52,55,60] → 60 in range = 1
-		// shift 0: [60,64,67,72] → 60,64 in range = 2
-		// shift 0 wins, totalShift = 0 (key C). But notes 67,72 still above 65.
-		// This verifies that transposeLick doesn't skip C when rangeHigh is given.
 		expect(result.key).toBe('C');
 		expect(pitches.length).toBe(4);
 	});
@@ -111,7 +100,7 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 		// Transpose to D (+2) → bestOctaveShift picks shift 0 → pitches: 50, 62, 74, 86.
 		// 86 > 75 → safety clamp shifts down to 74.
 		const phrase = makePhrase([48, 60, 72, 84]);
-		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 75);
+		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 60, 75);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 
 		for (const p of pitches) {
@@ -123,7 +112,7 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 		// Extreme case: note at 96 with rangeHigh=70
 		// 96 - 12 = 84, still > 70. 84 - 12 = 72, still > 70. 72 - 12 = 60 ≤ 70.
 		const phrase = makePhrase([60, 96]);
-		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 70);
+		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 60, 70);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 
 		for (const p of pitches) {
@@ -133,7 +122,7 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 
 	it('does not clamp when notes are already in range', () => {
 		const phrase = makePhrase([60, 64, 67]);
-		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 80);
+		const result = transposeLickForTonality(phrase, 'D', 'major.ionian', 60, 80);
 		const pitches = result.notes.map(n => n.pitch) as number[];
 
 		// D transposition: +2 → 62, 66, 69 — all below 80
@@ -144,7 +133,7 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 
 	it('clamp applies after scale snapping', () => {
 		const phrase = makePhrase([60, 64, 67]);
-		const result = transposeLickForTonality(phrase, 'A', 'blues.minor', 72);
+		const result = transposeLickForTonality(phrase, 'A', 'blues.minor', 60, 72);
 		const pitches = result.notes.filter(n => n.pitch !== null).map(n => n.pitch) as number[];
 
 		for (const p of pitches) {
@@ -154,7 +143,7 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 
 	it('preserves rests through clamping', () => {
 		const phrase = makePhrase([60, null, 67]);
-		const result = transposeLickForTonality(phrase, 'B', 'major.ionian', 75);
+		const result = transposeLickForTonality(phrase, 'B', 'major.ionian', 60, 75);
 		expect(result.notes[1].pitch).toBeNull();
 	});
 
@@ -164,7 +153,7 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 		// D ionian PCs: {2,4,6,7,9,11,1}. All pitches %12=2(D) → in scale, no snap.
 		const phrase = makePhrase([48, 60, 72, 84]);
 
-		const withClamp = transposeLickForTonality(phrase, 'D', 'major.ionian', 75);
+		const withClamp = transposeLickForTonality(phrase, 'D', 'major.ionian', 60, 75);
 		const without = transposeLickForTonality(phrase, 'D', 'major.ionian');
 
 		const clampedPitches = withClamp.notes.map(n => n.pitch) as number[];

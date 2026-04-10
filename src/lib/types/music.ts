@@ -12,9 +12,32 @@ export type ChordQuality =
 
 export type PhraseCategory =
 	| 'ii-V-I-major' | 'ii-V-I-minor' | 'blues' | 'bebop-lines'
+	| 'short-ii-V-I-major' | 'short-ii-V-I-minor'
+	| 'long-ii-V-I-major' | 'long-ii-V-I-minor'
 	| 'pentatonic' | 'enclosures' | 'digital-patterns' | 'approach-notes'
 	| 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal'
 	| 'user';
+
+/** Canonical display labels for every PhraseCategory value */
+export const CATEGORY_LABELS: Record<PhraseCategory, string> = {
+	'ii-V-I-major': 'ii-V-I (Maj)',
+	'ii-V-I-minor': 'ii-V-I (Min)',
+	'short-ii-V-I-major': 'Short ii-V-I (Maj)',
+	'short-ii-V-I-minor': 'Short ii-V-I (Min)',
+	'long-ii-V-I-major': 'Long ii-V-I (Maj)',
+	'long-ii-V-I-minor': 'Long ii-V-I (Min)',
+	'blues': 'Blues',
+	'bebop-lines': 'Bebop',
+	'pentatonic': 'Pentatonic',
+	'enclosures': 'Enclosures',
+	'digital-patterns': 'Digital Patterns',
+	'approach-notes': 'Approach Notes',
+	'turnarounds': 'Turnarounds',
+	'rhythm-changes': 'Rhythm Changes',
+	'ballad': 'Ballad',
+	'modal': 'Modal',
+	'user': 'Uncategorized'
+};
 
 export type Articulation = 'normal' | 'accent' | 'ghost' | 'bend-up' | 'staccato' | 'legato';
 

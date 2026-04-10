@@ -13,7 +13,7 @@
 	import { dailySummaries } from '$lib/state/history.svelte';
 	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { Grade } from '$lib/types/scoring';
 	import { page } from '$app/state';
 
@@ -84,19 +84,6 @@
 		}
 	}
 
-	const CATEGORY_LABELS: Record<string, string> = {
-		'ii-V-I-major': 'ii-V-I Major',
-		'ii-V-I-minor': 'ii-V-I Minor',
-		'blues': 'Blues',
-		'bebop-lines': 'Bebop',
-		'pentatonic': 'Pentatonic',
-		'enclosures': 'Enclosures',
-		'digital-patterns': 'Digital',
-		'approach-notes': 'Approach',
-		'turnarounds': 'Turnarounds',
-		'rhythm-changes': 'Rhythm Changes',
-		'user': 'My Licks'
-	};
 
 	let tab = $state<'sessions' | 'progress'>('sessions');
 	const recentSessions = $derived(getRecentSessions(20));

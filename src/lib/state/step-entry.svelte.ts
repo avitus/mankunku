@@ -1,12 +1,22 @@
-import type { Note, Fraction, PitchClass, Phrase } from '$lib/types/music';
+import type { Note, Fraction, PitchClass, Phrase, PhraseCategory } from '$lib/types/music';
 import type { BaseDurationId } from '$lib/step-entry/durations';
 import { getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
+import { writtenKeyToConcert } from '$lib/music/transposition';
+import { getInstrument } from '$lib/state/settings.svelte';
 
-/** Concert pitch range for lick entry: Bb3 to F6 */
-const ENTRY_RANGE_LOW = 58;  // Bb below middle C
-const ENTRY_RANGE_HIGH = 89; // F6, one octave above the top staff line
+/**
+ * Written-pitch range for lick entry: Bb3 to F6.
+ *
+ * The user types note letters thinking in their instrument's WRITTEN pitch
+ * (what they'd finger on their horn and see on their sheet music). These
+ * bounds apply in written space. After validation, the value is converted
+ * to concert pitch (`written - instrument.transpositionSemitones`) for
+ * storage, so every lick is stored canonically in concert pitch.
+ */
+const ENTRY_RANGE_LOW = 58;  // Bb3 written
+const ENTRY_RANGE_HIGH = 89; // F6 written
 
 /** Reverse map from natural pitch class to letter name */
 const PC_TO_LETTER: Record<number, string> = {
@@ -49,7 +59,9 @@ export const stepEntry = $state({
 	enteredNotes: [] as Note[],
 	barCount: 2,
 	phraseKey: 'C' as PitchClass,
-	phraseName: ''
+	phraseName: '',
+	category: 'user' as PhraseCategory,
+	practiceTag: false
 });
 
 export function getCurrentCursorOffset(): Fraction {
@@ -89,16 +101,20 @@ export function getPaddedNotes(): Note[] {
 }
 
 export function getCurrentPhrase(): Phrase {
+	// stepEntry.phraseKey is what the user selected in the dropdown — the WRITTEN
+	// key for their instrument. The rest of the app (notation, playback, scoring)
+	// expects phrase.key in CONCERT pitch, so convert here.
+	const concertKey = writtenKeyToConcert(stepEntry.phraseKey, getInstrument());
 	return {
 		id: '',
 		name: stepEntry.phraseName || 'Untitled',
 		timeSignature: [4, 4],
-		key: stepEntry.phraseKey,
+		key: concertKey,
 		notes: [...stepEntry.enteredNotes],
 		harmony: [],
 		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: stepEntry.barCount },
-		category: 'user',
-		tags: ['user-entered'],
+		category: stepEntry.category,
+		tags: stepEntry.practiceTag ? ['user-entered', 'practice'] : ['user-entered'],
 		source: 'user-entered'
 	};
 }
@@ -127,21 +143,30 @@ export function addNote(
 	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode);
 	if (!canAddDuration(duration)) return false;
 
-	// When no explicit accidental is set, apply the key signature
+	// When no explicit accidental is set, apply the key signature.
+	// The user types note letters as they appear on their sheet music,
+	// so these adjustments happen in written-pitch space.
 	const adjustedPc = accidental === 'natural'
 		? applyKeySig(pitchClass, stepEntry.phraseKey)
 		: applyAccidental(pitchClass, accidental);
 
-	// Find the last pitched note to use as reference for nearest-octave placement
-	let concertMidi: number;
+	const trans = getInstrument().transpositionSemitones;
+
+	// Find the last pitched note as a reference. Stored notes are in concert
+	// pitch, so convert to written space for nearest-octave comparison.
+	let writtenMidi: number;
 	const lastPitched = findLastPitchedNote();
 	if (lastPitched !== null) {
-		concertMidi = nearestOctave(adjustedPc, lastPitched);
+		const lastWritten = lastPitched + trans;
+		writtenMidi = nearestOctave(adjustedPc, lastWritten);
 	} else {
-		concertMidi = pitchClassToMidi(adjustedPc, octave);
+		writtenMidi = pitchClassToMidi(adjustedPc, octave);
 	}
 
-	if (!isInEntryRange(concertMidi)) return false;
+	if (!isInEntryRange(writtenMidi)) return false;
+
+	// Convert written → concert for canonical storage.
+	const concertMidi = writtenMidi - trans;
 
 	const offset = getCurrentCursorOffset();
 	stepEntry.enteredNotes.push({
@@ -183,6 +208,8 @@ export function reset(): void {
 	stepEntry.enteredNotes = [];
 	stepEntry.phraseName = '';
 	stepEntry.accidental = 'natural';
+	stepEntry.category = 'user';
+	stepEntry.practiceTag = false;
 }
 
 export function adjustLastNotePitch(semitones: number): void {
@@ -190,9 +217,11 @@ export function adjustLastNotePitch(semitones: number): void {
 	if (notes.length === 0) return;
 	const lastNote = notes[notes.length - 1];
 	if (lastNote.pitch === null) return;
-	const newPitch = lastNote.pitch + semitones;
-	if (!isInEntryRange(newPitch)) return;
-	lastNote.pitch = newPitch;
+	const newConcert = lastNote.pitch + semitones;
+	// Validate in written space — that's the user's mental range
+	const trans = getInstrument().transpositionSemitones;
+	if (!isInEntryRange(newConcert + trans)) return;
+	lastNote.pitch = newConcert;
 }
 
 export function setBarCount(n: number): void {

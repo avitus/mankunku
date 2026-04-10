@@ -8,9 +8,11 @@ export const library = $state<{
 	difficultyFilter: number | null;
 	searchQuery: string;
 	selectedKey: PitchClass;
+	practiceOnly: boolean;
 }>({
 	categoryFilter: null,
 	difficultyFilter: null,
 	searchQuery: '',
-	selectedKey: 'C'
+	selectedKey: 'C',
+	practiceOnly: false
 });

@@ -1,4 +1,4 @@
-import type { BackingInstrument } from './instruments.ts';
+import type { BackingInstrument, BackingStyle } from './instruments.ts';
 
 export interface DetectedNote {
 	/** MIDI note number (concert pitch) */
@@ -47,4 +47,6 @@ export interface PlaybackOptions {
 	backingInstrument?: BackingInstrument;
 	/** Backing track volume (0-1) */
 	backingTrackVolume?: number;
+	/** Backing track musical style */
+	backingStyle?: BackingStyle;
 }

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { settings, saveSettings, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+	import { settings, saveSettings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { progress, getUnlockContext } from '$lib/state/progress.svelte';
-	import { PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music';
+	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music';
 	import { INSTRUMENTS } from '$lib/types/instruments';
 	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader';
 	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
@@ -28,10 +28,9 @@
 
 	const CATEGORIES: { value: PhraseCategory | 'random'; label: string }[] = [
 		{ value: 'random', label: 'Random' },
-		{ value: 'ii-V-I-major', label: 'ii-V-I Major' },
-		{ value: 'ii-V-I-minor', label: 'ii-V-I Minor' },
-		{ value: 'blues', label: 'Blues' },
-		{ value: 'bebop-lines', label: 'Bebop Lines' }
+		...Object.entries(CATEGORY_LABELS)
+			.filter(([k]) => k !== 'user')
+			.map(([value, label]) => ({ value: value as PhraseCategory, label }))
 	];
 
 	const PHRASE_SOURCES = [
@@ -90,10 +89,12 @@
 		session.tempo = tempo;
 		settings.defaultTempo = tempo;
 
+		const randomPool: PhraseCategory[] = [
+			'ii-V-I-major', 'blues', 'bebop-lines', 'ii-V-I-minor',
+			'short-ii-V-I-major', 'short-ii-V-I-minor'
+		];
 		const category: PhraseCategory = selectedCategory === 'random'
-			? (['ii-V-I-major', 'blues', 'bebop-lines', 'ii-V-I-minor'] as PhraseCategory[])[
-				Math.floor(Math.random() * 4)
-			]
+			? randomPool[Math.floor(Math.random() * randomPool.length)]
 			: selectedCategory;
 
 		// Use the active tonality's key for transposition
@@ -102,11 +103,13 @@
 		let phrase = null;
 
 		const rangeHigh = getEffectiveHighestNote();
+		const rangeLow = getInstrument().concertRangeLow;
 
 		if (selectedSource === 'curated' || selectedSource === 'mixed') {
 			phrase = pickRandomLick(
 				{ category, maxDifficulty: selectedDifficulty },
 				sessionKey,
+				rangeLow,
 				rangeHigh
 			);
 		}
@@ -119,6 +122,7 @@
 				difficulty: selectedDifficulty,
 				harmony,
 				bars,
+				rangeLow,
 				rangeHigh
 			});
 		}

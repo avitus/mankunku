@@ -12,12 +12,13 @@
 
 import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
 import type { PlaybackOptions } from '$lib/types/audio.ts';
-import type { BackingInstrument } from '$lib/types/instruments.ts';
+import type { BackingInstrument, BackingStyle } from '$lib/types/instruments.ts';
 import { fractionToFloat } from '$lib/music/intervals.ts';
 import { initAudio, getMasterGain, getAudioContext } from './audio-context.ts';
 import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings.ts';
 import { chordSymbol } from '$lib/music/chords.ts';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule.ts';
+import { BACKING_STYLES, type StyleDefinition } from './backing-styles.ts';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -345,13 +346,14 @@ interface CompEvent {
 
 /**
  * Generate comp (chord) events with voice-led voicings.
- * Hits primarily on beats 2 & 4 with occasional extras on 1 & 3.
+ * Uses style definition to determine comping pattern.
  */
 function generateComping(
 	harmony: HarmonicSegment[],
 	beatsPerBar: number,
 	tempo: number,
-	ppq: number
+	ppq: number,
+	style: StyleDefinition
 ): CompEvent[] {
 	const events: CompEvent[] = [];
 	const beatDuration = 60 / tempo;
@@ -371,25 +373,18 @@ function generateComping(
 
 		for (let beat = 0; beat < totalBeats; beat++) {
 			const beatInBar = Math.round(segStartBeats + beat) % beatsPerBar;
-			// Comp on beats 2 and 4 (indices 1 and 3 in 0-based)
-			const isCompBeat = beatInBar === 1 || beatInBar === 3;
-			// Occasional extra hit on 1 or 3 for variety (~25% chance)
-			const extraHit = (beatInBar === 0 || beatInBar === 2) && Math.random() < 0.25;
+			const compResult = style.compPattern(beatInBar, beatsPerBar);
 
-			if (!isCompBeat && !extraHit) continue;
+			if (!compResult.hit) continue;
 
 			const beatOffset = segStartBeats + beat;
 			const ticks = Math.round(beatOffset * ppq);
 
-			// Staccato on 2 & 4, slightly longer on extra hits
-			const noteDuration = isCompBeat ? beatDuration * 0.4 : beatDuration * 0.6;
-			const velocity = isCompBeat ? 60 + Math.round(Math.random() * 10) : 50;
-
 			events.push({
 				time: `${humanizeBeatTicks(ticks, ppq, tempo)}i`,
 				notes: voicing,
-				duration: noteDuration,
-				velocity
+				duration: beatDuration * compResult.duration,
+				velocity: compResult.velocity
 			});
 		}
 	}
@@ -568,12 +563,13 @@ export async function scheduleBackingTrack(
 	const beatsPerBar = phrase.timeSignature[0];
 
 	const harmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
+	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 
 	disposeBackingParts();
 
 	// ── Bass + Comp events ──────────────────────────────────
 	const bassEvents = generateWalkingBass(harmony, beatsPerBar, options.tempo, ppq);
-	const compEvents = generateComping(harmony, beatsPerBar, options.tempo, ppq);
+	const compEvents = generateComping(harmony, beatsPerBar, options.tempo, ppq, style);
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
 	const harmonyTicks = Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
@@ -629,12 +625,15 @@ export async function scheduleBackingTrack(
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
 	const drumCallback = (time: number, beat: number) => {
-		if (beat === 0) {
-			kickSynth!.triggerAttackRelease('C1', '16n', time, 0.5);
+		const hits = style.drumPattern(beat, beatsPerBar);
+		if (hits.kick) {
+			kickSynth!.triggerAttackRelease('C1', '16n', time, hits.kickVelocity ?? 0.5);
 		}
-		rideSynth!.triggerAttackRelease('16n', time, 0.4);
-		if (beat === 1 || beat === 3) {
-			hihatSynth!.triggerAttackRelease('32n', time, 0.5);
+		if (hits.ride) {
+			rideSynth!.triggerAttackRelease('16n', time, hits.rideVelocity ?? 0.4);
+		}
+		if (hits.hihat) {
+			hihatSynth!.triggerAttackRelease('32n', time, hits.hihatVelocity ?? 0.5);
 		}
 	};
 

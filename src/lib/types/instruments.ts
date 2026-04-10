@@ -1,6 +1,7 @@
 export type TransposingKey = 'Bb' | 'Eb' | 'C' | 'F';
 export type Clef = 'treble' | 'bass';
 export type BackingInstrument = 'piano' | 'organ';
+export type BackingStyle = 'swing' | 'bossa-nova' | 'ballad' | 'straight';
 
 export interface InstrumentConfig {
 	name: string;
@@ -20,6 +21,16 @@ export interface InstrumentConfig {
 }
 
 export const INSTRUMENTS: Record<string, InstrumentConfig> = {
+	concert: {
+		name: 'Concert Pitch',
+		key: 'C',
+		transpositionSemitones: 0,
+		concertRangeLow: 36,
+		concertRangeHigh: 96,
+		clef: 'treble',
+		gmProgram: 0,
+		highNotePresets: [96, 90, 84, 79, 72, 65]
+	},
 	'tenor-sax': {
 		name: 'Tenor Saxophone',
 		key: 'Bb',

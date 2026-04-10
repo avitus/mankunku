@@ -175,6 +175,7 @@ const TEST_PROGRESS: UserProgress = {
 			totalAttempts: 15
 		} as KeyProficiency
 	} as any,
+	lickProgress: {},
 	totalPracticeTime: 3600,
 	streakDays: 5,
 	lastPracticeDate: '2024-01-15'

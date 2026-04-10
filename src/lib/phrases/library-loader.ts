@@ -103,21 +103,20 @@ export function queryLicks(query: LibraryQuery): Phrase[] {
 	return results;
 }
 
-/** Middle C (C4) */
-const CENTRAL_RANGE_LOW = 60;
-/** Concert Eb5 — tenor sax high F (written) */
-const CENTRAL_RANGE_HIGH = 75;
+/** Fallback low range when caller doesn't specify (preserves legacy central-range behavior) */
+const FALLBACK_RANGE_LOW = 60;
+/** Fallback high range — tenor sax concert Eb5 (written F6) */
+const FALLBACK_RANGE_HIGH = 75;
 
 /**
- * Find the octave shift that places the most notes within the tenor sax range
- * (MIDI 60–75). When two shifts tie, prefer the one whose average pitch is
+ * Find the octave shift that places the most notes within the instrument's
+ * playable range. When two shifts tie, prefer the one whose average pitch is
  * closest to the midpoint of the range.
  */
-function bestOctaveShift(midiNotes: number[], rangeHigh?: number): number {
+function bestOctaveShift(midiNotes: number[], rangeLow: number, rangeHigh: number): number {
 	if (midiNotes.length === 0) return 0;
 
-	const high = rangeHigh ?? CENTRAL_RANGE_HIGH;
-	const mid = (CENTRAL_RANGE_LOW + high) / 2;
+	const mid = (rangeLow + rangeHigh) / 2;
 	let bestShift = 0;
 	let bestInRange = -1;
 	let bestDistance = Infinity;
@@ -129,7 +128,7 @@ function bestOctaveShift(midiNotes: number[], rangeHigh?: number): number {
 		let sum = 0;
 		for (const note of midiNotes) {
 			const shifted = note + offset;
-			if (shifted >= CENTRAL_RANGE_LOW && shifted <= high) {
+			if (shifted >= rangeLow && shifted <= rangeHigh) {
 				inRange++;
 			}
 			sum += shifted;
@@ -149,16 +148,22 @@ function bestOctaveShift(midiNotes: number[], rangeHigh?: number): number {
 /**
  * Transpose a phrase to a target key.
  *
- * All licks are stored in concert C. This shifts every pitched note
- * and harmony root by the interval from C to the target key, then
- * applies an octave adjustment to keep notes within tenor sax range
- * (C4–Eb5, MIDI 60–75) as much as possible.
+ * Computes the interval from the lick's current key to the target key
+ * and shifts every pitched note and harmony root by that interval,
+ * then applies an octave adjustment to keep notes within instrument range.
  */
-export function transposeLick(lick: Phrase, targetKey: PitchClass, rangeHigh?: number): Phrase {
-	const semitones = PITCH_CLASSES.indexOf(targetKey);
+export function transposeLick(
+	lick: Phrase,
+	targetKey: PitchClass,
+	rangeLow?: number,
+	rangeHigh?: number
+): Phrase {
+	const sourceIdx = PITCH_CLASSES.indexOf(lick.key);
+	const targetIdx = PITCH_CLASSES.indexOf(targetKey);
+	const semitones = ((targetIdx - sourceIdx) % 12 + 12) % 12;
 
 	// No transposition and no custom range — return as-is
-	if (semitones === 0 && rangeHigh == null) return lick;
+	if (semitones === 0 && rangeLow == null && rangeHigh == null) return lick;
 
 	// Collect pitched notes to determine optimal octave placement
 	const pitchedNotes = lick.notes
@@ -166,10 +171,12 @@ export function transposeLick(lick: Phrase, targetKey: PitchClass, rangeHigh?: n
 		.filter((p): p is number => p !== null)
 		.map((p) => p + semitones);
 
-	const octaveShift = bestOctaveShift(pitchedNotes, rangeHigh);
+	const low = rangeLow ?? FALLBACK_RANGE_LOW;
+	const high = rangeHigh ?? FALLBACK_RANGE_HIGH;
+	const octaveShift = bestOctaveShift(pitchedNotes, low, high);
 	const totalShift = semitones + octaveShift * 12;
 
-	// Key is C and octave shift is 0 — no change needed
+	// No pitch change needed
 	if (semitones === 0 && octaveShift === 0) return lick;
 
 	const transposePC = (pc: PitchClass): PitchClass =>
@@ -203,7 +210,8 @@ const MAJOR_MODE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 
 /** Categories where licks span multi-chord progressions — use parent-key transposition */
 const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
-	'ii-V-I-major', 'ii-V-I-minor', 'turnarounds', 'rhythm-changes'
+	'ii-V-I-major', 'ii-V-I-minor', 'short-ii-V-I-major', 'short-ii-V-I-minor',
+	'turnarounds', 'rhythm-changes'
 ]);
 
 /**
@@ -220,7 +228,13 @@ const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
  * For non-major scales (blues, melodic minor, etc.), transposes to the key
  * then snaps out-of-scale notes to the nearest scale tone.
  */
-export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId: string, rangeHigh?: number): Phrase {
+export function transposeLickForTonality(
+	lick: Phrase,
+	key: PitchClass,
+	scaleId: string,
+	rangeLow?: number,
+	rangeHigh?: number
+): Phrase {
 	const scaleDef = getScale(scaleId);
 	let result: Phrase;
 
@@ -230,16 +244,16 @@ export function transposeLickForTonality(lick: Phrase, key: PitchClass, scaleId:
 			const keyIdx = PITCH_CLASSES.indexOf(key);
 			const parentIdx = ((keyIdx - MAJOR_MODE_OFFSETS[scaleDef.mode - 1]) % 12 + 12) % 12;
 			const parentKey = PITCH_CLASSES[parentIdx];
-			const transposed = transposeLick(lick, parentKey, rangeHigh);
+			const transposed = transposeLick(lick, parentKey, rangeLow, rangeHigh);
 			result = { ...transposed, id: `${lick.id}_${key}`, key };
 		} else {
 			// Single-chord modal licks: transpose to modal root, snap to scale
-			const transposed = transposeLick(lick, key, rangeHigh);
+			const transposed = transposeLick(lick, key, rangeLow, rangeHigh);
 			result = snapLickToScale(transposed, key, scaleId, rangeHigh);
 		}
 	} else {
 		// Non-major scales: transpose to key, then snap to scale
-		const transposed = transposeLick(lick, key, rangeHigh);
+		const transposed = transposeLick(lick, key, rangeLow, rangeHigh);
 		result = snapLickToScale(transposed, key, scaleId, rangeHigh);
 	}
 
@@ -315,11 +329,12 @@ export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string, 
 export function pickRandomLick(
 	query: LibraryQuery = {},
 	key: PitchClass = 'C',
+	rangeLow?: number,
 	rangeHigh?: number
 ): Phrase | null {
 	const matches = queryLicks(query);
 	if (matches.length === 0) return null;
 
 	const pick = matches[Math.floor(Math.random() * matches.length)];
-	return transposeLick(pick, key, rangeHigh);
+	return transposeLick(pick, key, rangeLow, rangeHigh);
 }

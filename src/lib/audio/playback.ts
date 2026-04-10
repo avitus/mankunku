@@ -443,6 +443,9 @@ export function getPhraseDuration(phrase: Phrase, tempo: number): number {
 
 /**
  * Calculate total phrase length in bars.
+ * Considers both the melody notes and the harmony segments — a phrase
+ * intended for `skipMelody` playback may carry only harmony, so we can't
+ * rely on note durations alone.
  */
 function getPhraseBars(phrase: Phrase): number {
 	const beatsPerBar = phrase.timeSignature[0];
@@ -452,7 +455,38 @@ function getPhraseBars(phrase: Phrase): number {
 		const durationBeat = fractionToFloat(note.duration) * 4;
 		maxEndBeat = Math.max(maxEndBeat, startBeat + durationBeat);
 	}
+	for (const seg of phrase.harmony) {
+		const startBeat = fractionToFloat(seg.startOffset) * 4;
+		const durationBeat = fractionToFloat(seg.duration) * 4;
+		maxEndBeat = Math.max(maxEndBeat, startBeat + durationBeat);
+	}
 	return Math.ceil(maxEndBeat / beatsPerBar);
+}
+
+/**
+ * Options for fine-grained control of phrase scheduling.
+ *
+ * `skipMelody` — Skip creating the melody Tone.Part. Use when only the
+ * backing track and metronome should sound (e.g. continuous lick-practice
+ * mode where the app never plays the melody). Count-in, metronome, and
+ * backing are still scheduled normally.
+ *
+ * `loopBacking` — Override whether the backing track's bass/comp/drums
+ * loop after the phrase ends. Defaults to the caller's sensible default
+ * (keepMetronome for playPhrase, true for scheduleNextPhrase). Pass
+ * `false` when the caller plans to manually reschedule the next key's
+ * backing at the next bar downbeat.
+ *
+ * `onStarted` — Fired synchronously after `transport.start()` is called.
+ * Use this hook to register additional `transport.scheduleOnce` callbacks
+ * that must survive `playPhrase`'s internal `stopPlayback()` (which cancels
+ * any events queued before its setup runs). Anything scheduled inside
+ * `onStarted` is added to the freshly-started transport and will fire.
+ */
+export interface PhrasePlaybackOpts {
+	skipMelody?: boolean;
+	loopBacking?: boolean;
+	onStarted?: () => void;
 }
 
 /**
@@ -471,7 +505,8 @@ function getPhraseBars(phrase: Phrase): number {
 export async function playPhrase(
 	phrase: Phrase,
 	options: PlaybackOptions,
-	keepMetronome = false
+	keepMetronome = false,
+	opts: PhrasePlaybackOpts = {}
 ): Promise<void> {
 	if (!isInstrumentLoaded()) {
 		throw new Error('Instrument not loaded. Call loadInstrument() first.');
@@ -508,16 +543,20 @@ export async function playPhrase(
 	const ppq = transport.PPQ;
 	const beatsPerBar = phrase.timeSignature[0];
 	const barTicks = beatsPerBar * ppq;
-	const events = phraseToEvents(phrase, options.tempo, ppq);
+	const skipMelody = opts.skipMelody ?? false;
+	const loopBacking = opts.loopBacking ?? keepMetronome;
 
 	// Schedule phrase notes with jazz expression.
 	// Offset by 1 bar so the metronome plays a count-in first — this lets
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
-	currentPart = new Tone.Part((time, event) => {
-		startNote({ ...event, time });
-	}, events);
-	currentPart.start(`${barTicks}i`);
+	if (!skipMelody) {
+		const events = phraseToEvents(phrase, options.tempo, ppq);
+		currentPart = new Tone.Part((time, event) => {
+			startNote({ ...event, time });
+		}, events);
+		currentPart.start(`${barTicks}i`);
+	}
 
 	// Schedule metronome if enabled
 	if (options.metronomeEnabled) {
@@ -533,13 +572,20 @@ export async function playPhrase(
 
 	// Schedule backing track if enabled
 	if (options.backingTrackEnabled && isBackingLoaded()) {
-		await scheduleBackingTrack(phrase, options, barTicks, keepMetronome);
+		await scheduleBackingTrack(phrase, options, barTicks, loopBacking);
 	}
 
-	// Schedule end-of-phrase notification (account for count-in offset)
-	const totalDuration = getPhraseDuration(phrase, options.tempo);
-	const totalTicks = Math.round((totalDuration / (60 / options.tempo)) * ppq);
-	const endTick = barTicks + totalTicks + ppq;
+	// Schedule end-of-phrase notification. We always derive phrase length from
+	// `getPhraseBars`, which considers both melody notes and harmony segments
+	// (max of the two, rounded up to a whole bar). This is the right choice
+	// for both:
+	//   1. Phrases whose notes and harmony cover the same bar range — same
+	//      result as the old getPhraseDuration-based math.
+	//   2. Super phrases (continuous lick-practice mode with demo) where the
+	//      notes cover only the demo cycle but the harmony spans 13 cycles —
+	//      we need the endTick to cover the full harmony.
+	const phraseTicks = getPhraseBars(phrase) * barTicks;
+	const endTick = barTicks + phraseTicks + ppq;
 
 	return new Promise<void>((resolve) => {
 		isPlaying = true;
@@ -569,6 +615,11 @@ export async function playPhrase(
 		// can jitter — especially on the very first play when the audio
 		// system is still settling after mic capture opens full-duplex mode.
 		transport.start('+0.1');
+
+		// Fire onStarted hook now that transport is running and the
+		// internal stopPlayback() (which calls transport.cancel()) is
+		// behind us. Callers can safely schedule additional events here.
+		opts.onStarted?.();
 	});
 }
 
@@ -605,10 +656,16 @@ export async function stopPlayback(): Promise<void> {
  * Schedule a phrase on an already-running transport (metronome keeps ticking).
  * Aligns to the next bar downbeat so the phrase starts on a natural boundary.
  * Returns a promise that resolves when the phrase finishes playing.
+ *
+ * Pass `opts.skipMelody` to reschedule only the backing track for a new
+ * phrase's harmony (used by continuous lick-practice mode so the app never
+ * plays the melody). Pass `opts.loopBacking: false` when the caller plans
+ * to reschedule again before the backing would run out.
  */
 export async function scheduleNextPhrase(
 	phrase: Phrase,
-	options: PlaybackOptions
+	options: PlaybackOptions,
+	opts: PhrasePlaybackOpts = {}
 ): Promise<void> {
 	if (!isInstrumentLoaded()) {
 		throw new Error('Instrument not loaded. Call loadInstrument() first.');
@@ -617,6 +674,8 @@ export async function scheduleNextPhrase(
 	const Tone = await getTone();
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
+	const skipMelody = opts.skipMelody ?? false;
+	const loopBacking = opts.loopBacking ?? true;
 
 	// Ensure BPM stays correct on the running transport
 	transport.bpm.value = options.tempo;
@@ -639,21 +698,22 @@ export async function scheduleNextPhrase(
 	}
 
 	// Apply swing (transport already has swing configured from initial playPhrase)
-	const events = phraseToEvents(phrase, options.tempo, ppq);
-
-	currentPart = new Tone.Part((time, event) => {
-		startNote({ ...event, time });
-	}, events);
-	currentPart.start(`${nextBarTicks}i`);
+	if (!skipMelody) {
+		const events = phraseToEvents(phrase, options.tempo, ppq);
+		currentPart = new Tone.Part((time, event) => {
+			startNote({ ...event, time });
+		}, events);
+		currentPart.start(`${nextBarTicks}i`);
+	}
 
 	// Schedule backing track for the new phrase
 	if (options.backingTrackEnabled && isBackingLoaded()) {
-		await scheduleBackingTrack(phrase, options, nextBarTicks, true);
+		await scheduleBackingTrack(phrase, options, nextBarTicks, loopBacking);
 	}
 
-	// Schedule end-of-phrase notification
-	const totalDuration = getPhraseDuration(phrase, options.tempo);
-	const phraseTicks = Math.round((totalDuration / (60 / options.tempo)) * ppq);
+	// Schedule end-of-phrase notification. See playPhrase for the rationale
+	// behind always deriving the length from getPhraseBars.
+	const phraseTicks = getPhraseBars(phrase) * ticksPerBar;
 	const endTicks = nextBarTicks + phraseTicks + ppq;
 
 	return new Promise<void>((resolve) => {

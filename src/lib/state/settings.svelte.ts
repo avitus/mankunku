@@ -1,4 +1,4 @@
-import type { InstrumentConfig, BackingInstrument } from '$lib/types/instruments';
+import type { InstrumentConfig, BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import type { Tonality } from '$lib/tonality/tonality';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { save, load } from '$lib/persistence/storage';
@@ -25,6 +25,7 @@ const defaultSettings = {
 	backingTrackEnabled: true,
 	backingInstrument: 'piano' as BackingInstrument,
 	backingTrackVolume: 0.6,
+	backingStyle: 'swing' as BackingStyle,
 	swing: 0.5,
 	theme: 'dark' as 'dark' | 'light',
 	onboardingComplete: false,
