@@ -9,6 +9,8 @@
 
 import type { PitchClass } from '$lib/types/music.ts';
 import type { UnlockContext } from '$lib/types/progress.ts';
+import type { InstrumentConfig } from '$lib/types/instruments';
+import { concertKeyToWritten } from '$lib/music/transposition';
 import { localDateStr } from '$lib/state/history.svelte.ts';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -278,9 +280,11 @@ export function getTodaysTonality(ctx: UnlockContext): Tonality {
 
 // ── Display helpers ─────────────────────────────────────────────────
 
-/** Format a tonality for display, e.g. "D Dorian" or "Bb Blues" */
-export function formatTonality(tonality: Tonality): string {
-	return `${tonality.key} ${SCALE_TYPE_NAMES[tonality.scaleType]}`;
+/** Format a tonality for display, e.g. "D Dorian" or "Bb Blues".
+ *  When an instrument is provided, the key is transposed to written pitch. */
+export function formatTonality(tonality: Tonality, instrument?: InstrumentConfig): string {
+	const displayKey = instrument ? concertKeyToWritten(tonality.key, instrument) : tonality.key;
+	return `${displayKey} ${SCALE_TYPE_NAMES[tonality.scaleType]}`;
 }
 
 /** Compare two tonalities for equality */

@@ -5,6 +5,7 @@
 	import { progress, getUnlockContext } from '$lib/state/progress.svelte';
 	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass, type PhraseCategory } from '$lib/types/music';
 	import { INSTRUMENTS } from '$lib/types/instruments';
+	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader';
 	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
 	import { difficultyDisplay } from '$lib/difficulty/display';
@@ -62,8 +63,8 @@
 
 	function keyUnlockTooltip(key: PitchClass): string {
 		const reqs = getKeyUnlockRequirements(key);
-		if (reqs.length === 0) return key;
-		return reqs.map(r => `Requires ${r.key} proficiency level ${r.level}`).join('; ');
+		if (reqs.length === 0) return concertKeyToWritten(key, getInstrument());
+		return reqs.map(r => `Requires ${concertKeyToWritten(r.key, getInstrument())} proficiency level ${r.level}`).join('; ');
 	}
 
 	function setTonalityOverride(tonality: Tonality | null) {
@@ -158,7 +159,7 @@
 			</div>
 			<div class="rounded-lg bg-[var(--color-accent)]/20 px-4 py-2 text-center">
 				<span class="text-lg font-bold text-[var(--color-accent)]">
-					{formatTonality(activeTonality)}
+					{formatTonality(activeTonality, getInstrument())}
 				</span>
 				{#if useOverride}
 					<div class="text-xs text-[var(--color-text-secondary)]">override</div>
@@ -174,7 +175,7 @@
 				onclick={resetToDaily}
 				class="text-sm text-[var(--color-accent)] hover:underline"
 			>
-				Reset to daily tonality ({formatTonality(dailyTonality)})
+				Reset to daily tonality ({formatTonality(dailyTonality, getInstrument())})
 			</button>
 		{/if}
 
@@ -193,9 +194,9 @@
 								: unlocked
 									? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
 									: 'bg-[var(--color-bg-tertiary)] opacity-50 hover:opacity-75'}"
-						title={unlocked ? key : keyUnlockTooltip(key)}
+						title={unlocked ? concertKeyToWritten(key, getInstrument()) : keyUnlockTooltip(key)}
 					>
-						{key}
+						{concertKeyToWritten(key, getInstrument())}
 						{#if !unlocked}
 							<span class="absolute -right-0.5 -top-0.5 text-[8px]">&#x1f512;</span>
 						{/if}
@@ -335,6 +336,6 @@
 		onclick={startSession}
 		class="w-full rounded-lg bg-[var(--color-accent)] py-3 text-lg font-bold hover:opacity-80 transition-opacity"
 	>
-		Start Practice in {formatTonality(activeTonality)}
+		Start Practice in {formatTonality(activeTonality, getInstrument())}
 	</button>
 </div>

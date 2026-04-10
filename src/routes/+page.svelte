@@ -6,6 +6,8 @@
 	} from '$lib/state/lick-practice.svelte';
 	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
 	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { getInstrument } from '$lib/state/settings.svelte';
+	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getTodaysTonality, formatTonality } from '$lib/tonality/tonality';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import { page } from '$app/state';
@@ -53,7 +55,7 @@
 		}
 	});
 	const todaysTonalityLabel = $derived(
-		todaysTonality ? formatTonality(todaysTonality) : ''
+		todaysTonality ? formatTonality(todaysTonality, getInstrument()) : ''
 	);
 
 	const hasEarTrainingHistory = $derived(progress.sessions.length > 0);
@@ -162,7 +164,7 @@
 						</div>
 						{#if lastSession}
 							<div>
-								Last: <span class="font-medium text-[var(--color-text)]">{lastSession.key}</span>
+								Last: <span class="font-medium text-[var(--color-text)]">{concertKeyToWritten(lastSession.key, getInstrument())}</span>
 								&middot;
 								<span class="font-medium tabular-nums text-[var(--color-text)]"
 									>{pct(lastSession.overall)}%</span
