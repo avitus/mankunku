@@ -625,6 +625,10 @@ export async function syncLickMetadataToCloud(
 	data: Partial<LickMetadata>
 ): Promise<void> {
 	try {
+		const hasData = data.lickTags !== undefined || data.practiceProgress !== undefined ||
+			data.tagOverrides !== undefined || data.categoryOverrides !== undefined;
+		if (!hasData) return;
+
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return;
 

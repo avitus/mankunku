@@ -67,18 +67,40 @@ export async function initLickMetadataFromCloud(
 	}
 }
 
-/** Fire-and-forget sync of the lick_tags column to cloud. */
+/** Debounce timers — prevents rapid writes from racing in the cloud. */
+let syncTagsTimer: ReturnType<typeof setTimeout> | null = null;
+let syncProgressTimer: ReturnType<typeof setTimeout> | null = null;
+const SYNC_DEBOUNCE_MS = 500;
+
+/**
+ * Debounced sync of the lick_tags column to cloud.
+ *
+ * Reads the current state at sync time (not call time) so rapid calls
+ * coalesce into a single request carrying the latest data.
+ */
 function syncLickTagsToCloud(): void {
 	if (!_supabase) return;
-	const tags = loadUserLickTags();
-	syncLickMetadataToCloud(_supabase, { lickTags: tags }).catch(() => {});
+	if (syncTagsTimer) clearTimeout(syncTagsTimer);
+	syncTagsTimer = setTimeout(() => {
+		syncTagsTimer = null;
+		const tags = loadUserLickTags();
+		syncLickMetadataToCloud(_supabase!, { lickTags: tags }).catch(() => {});
+	}, SYNC_DEBOUNCE_MS);
 }
 
-/** Fire-and-forget sync of the practice_progress column to cloud. */
+/**
+ * Debounced sync of the practice_progress column to cloud.
+ *
+ * Same coalescing strategy as syncLickTagsToCloud.
+ */
 function syncPracticeProgressToCloud(): void {
 	if (!_supabase) return;
-	const progress = loadLickPracticeProgress();
-	syncLickMetadataToCloud(_supabase, { practiceProgress: progress }).catch(() => {});
+	if (syncProgressTimer) clearTimeout(syncProgressTimer);
+	syncProgressTimer = setTimeout(() => {
+		syncProgressTimer = null;
+		const progress = loadLickPracticeProgress();
+		syncLickMetadataToCloud(_supabase!, { practiceProgress: progress }).catch(() => {});
+	}, SYNC_DEBOUNCE_MS);
 }
 
 export function loadLickPracticeProgress(): LickPracticeProgress {
