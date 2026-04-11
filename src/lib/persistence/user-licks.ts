@@ -352,14 +352,15 @@ export function updateUserLickTags(
 	// Try updating in user licks first
 	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const idx = licks.findIndex((l) => l.id === id);
+	const sb = supabase ?? _supabase;
 	if (idx !== -1) {
 		licks[idx] = { ...licks[idx], tags };
 		save(STORAGE_KEY, licks);
 
 		// Fire-and-forget cloud sync for user licks
-		if (supabase) {
+		if (sb) {
 			Promise.resolve(
-				supabase.from('user_licks')
+				sb.from('user_licks')
 					.update({ tags, updated_at: new Date().toISOString() })
 					.eq('id', id)
 			)
@@ -379,8 +380,8 @@ export function updateUserLickTags(
 	save(TAGS_OVERRIDE_KEY, overrides);
 
 	// Fire-and-forget sync tag overrides to cloud
-	if (supabase) {
-		syncLickMetadataToCloud(supabase, { tagOverrides: overrides }).catch(() => {});
+	if (sb) {
+		syncLickMetadataToCloud(sb, { tagOverrides: overrides }).catch(() => {});
 	}
 }
 
@@ -404,13 +405,14 @@ export function updateLickCategory(
 	// Try updating in user licks first
 	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const idx = licks.findIndex((l) => l.id === id);
+	const sb = supabase ?? _supabase;
 	if (idx !== -1) {
 		licks[idx] = { ...licks[idx], category };
 		save(STORAGE_KEY, licks);
 
-		if (supabase) {
+		if (sb) {
 			Promise.resolve(
-				supabase.from('user_licks')
+				sb.from('user_licks')
 					.update({ category, updated_at: new Date().toISOString() })
 					.eq('id', id)
 			)
@@ -430,8 +432,8 @@ export function updateLickCategory(
 	save(CATEGORY_OVERRIDE_KEY, overrides);
 
 	// Fire-and-forget sync category overrides to cloud
-	if (supabase) {
-		syncLickMetadataToCloud(supabase, { categoryOverrides: overrides }).catch(() => {});
+	if (sb) {
+		syncLickMetadataToCloud(sb, { categoryOverrides: overrides }).catch(() => {});
 	}
 }
 
