@@ -153,9 +153,11 @@ export function getPracticeLicks(): Phrase[] {
 /** Resolve the starting tempo for a lick, respecting auto-adjust mode. */
 function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): number {
 	if (!hasLickProgress(progress, phraseId)) {
-		return lickPractice.config.autoAdjustTempo
-			? AUTO_ADJUST_DEFAULT_TEMPO
-			: settings.defaultTempo;
+		return clampTempo(
+			lickPractice.config.autoAdjustTempo
+				? AUTO_ADJUST_DEFAULT_TEMPO
+				: settings.defaultTempo
+		);
 	}
 	return clampTempo(getLickTempo(progress, phraseId));
 }
