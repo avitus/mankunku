@@ -276,7 +276,14 @@ export async function initUserLicksFromCloud(
 			source: row.source
 		}));
 
-		save(STORAGE_KEY, cloudLicks);
+		// Merge rather than replace: any licks added locally during the
+		// push+pull awaits (e.g. user saved while hydration ran in background
+		// after the 2s layout timeout) must not be dropped.
+		const cloudById = new Map(cloudLicks.map((l) => [l.id, l]));
+		for (const l of getUserLicksLocal()) {
+			if (!cloudById.has(l.id)) cloudById.set(l.id, l);
+		}
+		save(STORAGE_KEY, Array.from(cloudById.values()));
 	} catch (error) {
 		console.warn('Failed to sync user licks from cloud:', error);
 	}

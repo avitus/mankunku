@@ -396,12 +396,13 @@ describe('initUserLicksFromCloud', () => {
 		expect(local.map(l => l.id)).toEqual(['device-b-1', 'device-b-2']);
 	});
 
-	it('removes licks deleted on another device', async () => {
+	it('preserves local licks not yet in cloud (race protection)', async () => {
 		saveUserLick(makePhrase({ id: 'lick-a' }));
 		saveUserLick(makePhrase({ id: 'lick-b' }));
 		saveUserLick(makePhrase({ id: 'lick-c' }));
 
-		// Cloud only has A and B — C was deleted on another device
+		// Cloud only has A and B — C was added locally during the await
+		// (or the push hasn't propagated yet). Merge must keep it.
 		const supabase = createMockSupabase([
 			{ id: 'lick-a' },
 			{ id: 'lick-b' }
@@ -409,7 +410,9 @@ describe('initUserLicksFromCloud', () => {
 		await initUserLicksFromCloud(supabase);
 
 		const local = getUserLicksLocal();
-		expect(local.map(l => l.id)).toEqual(['lick-a', 'lick-b']);
+		expect(local.map(l => l.id)).toContain('lick-a');
+		expect(local.map(l => l.id)).toContain('lick-b');
+		expect(local.map(l => l.id)).toContain('lick-c');
 	});
 
 	it('preserves local licks when cloud fetch fails', async () => {
