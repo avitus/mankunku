@@ -8,6 +8,9 @@ import { syncLickMetadataToCloud, loadLickMetadataFromCloud } from './sync.ts';
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
 const DEFAULT_TEMPO = 100;
+export const AUTO_ADJUST_DEFAULT_TEMPO = 60;
+const MIN_TEMPO = 40;
+const MAX_TEMPO = 300;
 const PROG_TAG_PREFIX = 'prog:';
 
 /**
@@ -154,6 +157,27 @@ export function getLickLastPracticed(progress: LickPracticeProgress, phraseId: s
 	if (!keyProgress) return 0;
 	const times = Object.values(keyProgress).map(kp => kp.lastPracticedAt);
 	return times.length > 0 ? Math.max(...times) : 0;
+}
+
+/** Check if a lick has any stored per-key progress */
+export function hasLickProgress(progress: LickPracticeProgress, phraseId: string): boolean {
+	return !!progress[phraseId] && Object.keys(progress[phraseId]!).length > 0;
+}
+
+/**
+ * Compute the tempo adjustment based on average score across 12 keys.
+ * Returns the signed BPM delta.
+ */
+export function computeAutoTempoAdjustment(averageScore: number): number {
+	if (averageScore >= 0.95) return 5;
+	if (averageScore >= 0.85) return 2;
+	if (averageScore >= 0.70) return -1;
+	return -3;
+}
+
+/** Clamp a tempo to the allowed range (40–300 BPM). */
+export function clampTempo(tempo: number): number {
+	return Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, tempo));
 }
 
 /** User-managed practice tags — stored separately from curated lick tags */

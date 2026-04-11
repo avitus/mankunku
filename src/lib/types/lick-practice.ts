@@ -27,6 +27,8 @@ export interface LickPracticeConfig {
 	practiceMode: LickPracticeMode;
 	/** Backing track musical style */
 	backingStyle: import('./instruments.ts').BackingStyle;
+	/** When true, tempo starts at 60 BPM and adjusts based on average score across 12 keys */
+	autoAdjustTempo: boolean;
 }
 
 export interface LickPracticeKeyProgress {

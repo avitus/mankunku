@@ -34,11 +34,15 @@ import {
 	saveLickPracticeProgress,
 	getLickTempo,
 	getLickLastPracticed,
+	hasLickProgress,
 	updateKeyProgress,
 	getPracticeTaggedIds,
 	isTaggedForProgression,
 	backfillPracticeTags,
-	initLickMetadataFromCloud
+	initLickMetadataFromCloud,
+	AUTO_ADJUST_DEFAULT_TEMPO,
+	computeAutoTempoAdjustment,
+	clampTempo
 } from '$lib/persistence/lick-practice-store.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types.ts';
@@ -87,7 +91,8 @@ export const lickPractice = $state<{
 		durationMinutes: 15,
 		tempoIncrement: 5,
 		practiceMode: 'continuous',
-		backingStyle: 'swing'
+		backingStyle: 'swing',
+		autoAdjustTempo: false
 	},
 	phase: 'setup',
 	plan: [],
@@ -145,6 +150,16 @@ export function getPracticeLicks(): Phrase[] {
 	});
 }
 
+/** Resolve the starting tempo for a lick, respecting auto-adjust mode. */
+function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): number {
+	if (lickPractice.config.autoAdjustTempo) {
+		return hasLickProgress(progress, phraseId)
+			? getLickTempo(progress, phraseId)
+			: AUTO_ADJUST_DEFAULT_TEMPO;
+	}
+	return getLickTempo(progress, phraseId) || settings.defaultTempo;
+}
+
 /** Build a session plan sorted by least-recently-practiced, filling the time budget */
 export function buildSessionPlan(): void {
 	const licks = getPracticeLicks();
@@ -170,7 +185,7 @@ export function buildSessionPlan(): void {
 			category: lick.category,
 			keys
 		});
-		const tempo = getLickTempo(progress, lick.id) || settings.defaultTempo;
+		const tempo = resolveLickTempo(progress, lick.id);
 		const barsPerKey = PROGRESSION_TEMPLATES[lickPractice.config.progressionType].bars;
 		const secondsPerKey = (barsPerKey * 4 * 60) / tempo + 5;
 		estimatedTime += secondsPerKey * 12;
@@ -192,8 +207,7 @@ export function startSession(): void {
 	lickPractice.elapsedSeconds = 0;
 
 	const firstItem = lickPractice.plan[0];
-	lickPractice.currentTempo = getLickTempo(lickPractice.progress, firstItem.phraseId)
-		|| settings.defaultTempo;
+	lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, firstItem.phraseId);
 
 	lickPractice.phase = 'count-in';
 }
@@ -539,10 +553,15 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 		// Archive results for session report
 		lickPractice.allAttempts.push([...lickPractice.keyResults]);
 
-		const allPassed = lickPractice.keyResults.length === item.keys.length
-			&& lickPractice.keyResults.every(r => r.passed);
-		if (allPassed) {
-			const newTempo = lickPractice.currentTempo + lickPractice.config.tempoIncrement;
+		if (lickPractice.config.autoAdjustTempo) {
+			// Auto-adjust: compute average score and adjust tempo accordingly.
+			// Always persists the new tempo (even on poor performance).
+			const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
+			const avgScore = lickPractice.keyResults.length > 0
+				? totalScore / lickPractice.keyResults.length
+				: 0;
+			const delta = computeAutoTempoAdjustment(avgScore);
+			const newTempo = clampTempo(lickPractice.currentTempo + delta);
 			for (const key of item.keys) {
 				lickPractice.progress = updateKeyProgress(
 					lickPractice.progress,
@@ -552,6 +571,22 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				);
 			}
 			saveLickPracticeProgress(lickPractice.progress);
+		} else {
+			// Fixed increment: bump only if ALL 12 keys passed
+			const allPassed = lickPractice.keyResults.length === item.keys.length
+				&& lickPractice.keyResults.every(r => r.passed);
+			if (allPassed) {
+				const newTempo = lickPractice.currentTempo + lickPractice.config.tempoIncrement;
+				for (const key of item.keys) {
+					lickPractice.progress = updateKeyProgress(
+						lickPractice.progress,
+						item.phraseId,
+						key,
+						{ currentTempo: newTempo }
+					);
+				}
+				saveLickPracticeProgress(lickPractice.progress);
+			}
 		}
 	}
 
@@ -564,8 +599,7 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 
 		const nextItem = getCurrentPlanItem();
 		if (nextItem) {
-			lickPractice.currentTempo = getLickTempo(lickPractice.progress, nextItem.phraseId)
-				|| settings.defaultTempo;
+			lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, nextItem.phraseId);
 		}
 		lickPractice.phase = 'inter-lick-rest';
 		return 'next-lick';
