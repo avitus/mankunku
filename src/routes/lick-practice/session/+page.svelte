@@ -335,7 +335,8 @@
 
 			void playback.scheduleNextPhrase(superPhrase, opts, {
 				skipMelody,
-				loopBacking: false
+				loopBacking: false,
+				startTick: audioStartTick
 			});
 
 			scheduleLickWindows(lickIdx, audioStartTick, keyBars, progressionBars, ticksPerBar);
