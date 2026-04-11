@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import PracticeSetup from '$lib/components/lick-practice/PracticeSetup.svelte';
 	import {
 		lickPractice,
@@ -11,13 +12,15 @@
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
 
 	onMount(() => {
-		hydrateLickPracticeProgress();
+		hydrateLickPracticeProgress(page.data?.supabase ?? null);
 	});
 
-	// Trigger reactivity on config changes to update the lick count
+	// Trigger reactivity on config/progress changes to update the lick count.
+	// getPracticeLicks() reads from localStorage (non-reactive), so we must
+	// track progress as a dependency to re-derive after cloud hydration.
 	const availableLickCount = $derived.by(() => {
-		// Read dependency so changes re-run the derivation
 		lickPractice.config.progressionType;
+		void lickPractice.progress;
 		return getPracticeLicks().length;
 	});
 

@@ -30,6 +30,7 @@ import type {
 	CategoryProgress
 } from '$lib/types/progress';
 import { PITCH_CLASSES, type Phrase, type PhraseCategory, type PitchClass } from '$lib/types/music';
+import type { LickPracticeProgress } from '$lib/types/lick-practice';
 import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
 
@@ -596,6 +597,94 @@ export async function downloadRecording(
 		return data;
 	} catch (error) {
 		console.warn('Failed to download recording from cloud:', error);
+		return null;
+	}
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  Lick practice metadata sync
+// ═════════════════════════════════════════════════════════════════════
+
+/** Shape of the four JSONB columns in user_lick_metadata. */
+export interface LickMetadata {
+	lickTags: Record<string, string[]>;
+	practiceProgress: LickPracticeProgress;
+	tagOverrides: Record<string, string[]>;
+	categoryOverrides: Record<string, PhraseCategory>;
+}
+
+/**
+ * Upsert lick practice metadata to the `user_lick_metadata` table.
+ *
+ * Accepts a partial payload so callers can sync a single column
+ * without reading the others. All provided fields are upserted;
+ * omitted fields are left unchanged in the database row.
+ */
+export async function syncLickMetadataToCloud(
+	supabase: SupabaseDB,
+	data: Partial<LickMetadata>
+): Promise<void> {
+	try {
+		const hasData = data.lickTags !== undefined || data.practiceProgress !== undefined ||
+			data.tagOverrides !== undefined || data.categoryOverrides !== undefined;
+		if (!hasData) return;
+
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const row: Database['public']['Tables']['user_lick_metadata']['Insert'] = {
+			user_id: userId,
+			updated_at: new Date().toISOString(),
+			...(data.lickTags !== undefined && { lick_tags: data.lickTags as unknown as Json }),
+			...(data.practiceProgress !== undefined && { practice_progress: data.practiceProgress as unknown as Json }),
+			...(data.tagOverrides !== undefined && { tag_overrides: data.tagOverrides as unknown as Json }),
+			...(data.categoryOverrides !== undefined && { category_overrides: data.categoryOverrides as unknown as Json })
+		};
+
+		const { error } = await supabase
+			.from('user_lick_metadata')
+			.upsert(row, { onConflict: 'user_id' });
+
+		if (error) {
+			console.warn('Failed to sync lick metadata to cloud:', error);
+		}
+	} catch (error) {
+		console.warn('Failed to sync lick metadata to cloud:', error);
+	}
+}
+
+/**
+ * Fetch lick practice metadata from the `user_lick_metadata` table.
+ *
+ * Returns `null` when the user is unauthenticated or no cloud data exists.
+ */
+export async function loadLickMetadataFromCloud(
+	supabase: SupabaseDB
+): Promise<LickMetadata | null> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return null;
+
+		const { data, error } = await supabase
+			.from('user_lick_metadata')
+			.select('*')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (error) {
+			console.warn('Failed to load lick metadata from cloud:', error);
+			return null;
+		}
+		if (!data) return null;
+
+		return {
+			lickTags: (data.lick_tags ?? {}) as unknown as Record<string, string[]>,
+			practiceProgress: (data.practice_progress ?? {}) as unknown as LickPracticeProgress,
+			tagOverrides: (data.tag_overrides ?? {}) as unknown as Record<string, string[]>,
+			categoryOverrides: (data.category_overrides ?? {}) as unknown as Record<string, PhraseCategory>
+		};
+	} catch (error) {
+		console.warn('Failed to load lick metadata from cloud:', error);
 		return null;
 	}
 }

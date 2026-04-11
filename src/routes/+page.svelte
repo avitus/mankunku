@@ -15,9 +15,9 @@
 
 	// Make sure lick-practice progress is loaded — the /lick-practice page
 	// also calls this on its own mount, but the home page needs the data
-	// for its stat lines.
+	// for its stat lines. Pass supabase for cross-device sync.
 	if (browser) {
-		hydrateLickPracticeProgress();
+		hydrateLickPracticeProgress(page.data?.supabase ?? null);
 	}
 
 	const session = $derived(page.data?.session ?? null);

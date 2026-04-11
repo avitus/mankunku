@@ -5,8 +5,16 @@ import {
 	saveUserLick,
 	getUserLicksLocal,
 	migrateUserLicksWrittenToConcert,
-	migrateUserLicksKeyWrittenToConcert
+	migrateUserLicksKeyWrittenToConcert,
+	initUserLicksFromCloud
 } from '$lib/persistence/user-licks';
+
+// ─── Mock sync module ────────────────────────────────────────
+const mockSyncUserLicksToCloud = vi.fn().mockResolvedValue(undefined);
+vi.mock('$lib/persistence/sync', () => ({
+	syncLickMetadataToCloud: vi.fn().mockResolvedValue(undefined),
+	syncUserLicksToCloud: (...args: unknown[]) => mockSyncUserLicksToCloud(...args)
+}));
 
 // ─── Mock localStorage ────────────────────────────────────────
 const store: Record<string, string> = {};
@@ -318,5 +326,147 @@ describe('migrateUserLicksKeyWrittenToConcert', () => {
 		const saved = getUserLicksLocal()[0];
 		expect(saved.key).toBe('C');
 		expect(saved.notes[0].pitch).toBe(51); // notes stayed shifted
+	});
+});
+
+// ─── initUserLicksFromCloud ──────────────────────────────────
+describe('initUserLicksFromCloud', () => {
+	function createMockSupabase(cloudLicks: Partial<Phrase>[] = []) {
+		const rows = cloudLicks.map((l) => ({
+			id: l.id ?? 'cloud-1',
+			name: l.name ?? 'Cloud Lick',
+			key: l.key ?? 'C',
+			time_signature: l.timeSignature ?? [4, 4],
+			notes: l.notes ?? [],
+			harmony: l.harmony ?? [],
+			difficulty: l.difficulty ?? { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
+			category: l.category ?? 'user',
+			tags: l.tags ?? [],
+			source: l.source ?? 'user-entered'
+		}));
+
+		return {
+			auth: {
+				getUser: vi.fn().mockResolvedValue({
+					data: { user: { id: 'user-123' } },
+					error: null
+				})
+			},
+			from: vi.fn().mockReturnValue({
+				select: vi.fn().mockReturnValue({
+					data: rows,
+					error: null,
+					then: undefined
+				}),
+				upsert: vi.fn().mockResolvedValue({ error: null })
+			})
+		} as any;
+	}
+
+	beforeEach(() => {
+		mockSyncUserLicksToCloud.mockResolvedValue(undefined);
+	});
+
+	it('pushes local licks to cloud then pulls cloud set', async () => {
+		const local = makePhrase({ id: 'local-1', name: 'Local' });
+		saveUserLick(local);
+
+		const supabase = createMockSupabase([{ id: 'local-1', name: 'Local' }]);
+		await initUserLicksFromCloud(supabase);
+
+		expect(mockSyncUserLicksToCloud).toHaveBeenCalledWith(
+			supabase,
+			expect.arrayContaining([expect.objectContaining({ id: 'local-1' })])
+		);
+		expect(getUserLicksLocal()).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: 'local-1' })])
+		);
+	});
+
+	it('pulls cloud-only licks from other devices', async () => {
+		// No local licks
+		const supabase = createMockSupabase([
+			{ id: 'device-b-1', name: 'From Device B' },
+			{ id: 'device-b-2', name: 'Also Device B' }
+		]);
+		await initUserLicksFromCloud(supabase);
+
+		const local = getUserLicksLocal();
+		expect(local).toHaveLength(2);
+		expect(local.map(l => l.id)).toEqual(['device-b-1', 'device-b-2']);
+	});
+
+	it('preserves local licks not yet in cloud (race protection)', async () => {
+		saveUserLick(makePhrase({ id: 'lick-a' }));
+		saveUserLick(makePhrase({ id: 'lick-b' }));
+		saveUserLick(makePhrase({ id: 'lick-c' }));
+
+		// Cloud only has A and B — C was added locally during the await
+		// (or the push hasn't propagated yet). Merge must keep it.
+		const supabase = createMockSupabase([
+			{ id: 'lick-a' },
+			{ id: 'lick-b' }
+		]);
+		await initUserLicksFromCloud(supabase);
+
+		const local = getUserLicksLocal();
+		expect(local.map(l => l.id)).toContain('lick-a');
+		expect(local.map(l => l.id)).toContain('lick-b');
+		expect(local.map(l => l.id)).toContain('lick-c');
+	});
+
+	it('preserves local licks when cloud fetch fails', async () => {
+		saveUserLick(makePhrase({ id: 'offline-lick' }));
+
+		const supabase = {
+			auth: {
+				getUser: vi.fn().mockResolvedValue({
+					data: { user: { id: 'user-123' } },
+					error: null
+				})
+			},
+			from: vi.fn().mockReturnValue({
+				select: vi.fn().mockReturnValue({
+					data: null,
+					error: { message: 'network error' },
+					then: undefined
+				}),
+				upsert: vi.fn().mockResolvedValue({ error: null })
+			})
+		} as any;
+
+		await initUserLicksFromCloud(supabase);
+
+		const local = getUserLicksLocal();
+		expect(local).toHaveLength(1);
+		expect(local[0].id).toBe('offline-lick');
+	});
+
+	it('skips push when no local licks exist', async () => {
+		const supabase = createMockSupabase([{ id: 'cloud-1' }]);
+		await initUserLicksFromCloud(supabase);
+
+		expect(mockSyncUserLicksToCloud).not.toHaveBeenCalled();
+		expect(getUserLicksLocal()).toHaveLength(1);
+	});
+
+	it('preserves local licks when auth is expired', async () => {
+		saveUserLick(makePhrase({ id: 'my-lick' }));
+
+		const supabase = {
+			auth: {
+				getUser: vi.fn().mockResolvedValue({
+					data: { user: null },
+					error: null
+				})
+			},
+			from: vi.fn()
+		} as any;
+
+		await initUserLicksFromCloud(supabase);
+
+		expect(getUserLicksLocal()).toHaveLength(1);
+		expect(getUserLicksLocal()[0].id).toBe('my-lick');
+		expect(supabase.from).not.toHaveBeenCalled();
 	});
 });
