@@ -576,7 +576,7 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 			const allPassed = lickPractice.keyResults.length === item.keys.length
 				&& lickPractice.keyResults.every(r => r.passed);
 			if (allPassed) {
-				const newTempo = lickPractice.currentTempo + lickPractice.config.tempoIncrement;
+				const newTempo = clampTempo(lickPractice.currentTempo + lickPractice.config.tempoIncrement);
 				for (const key of item.keys) {
 					lickPractice.progress = updateKeyProgress(
 						lickPractice.progress,
