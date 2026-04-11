@@ -446,4 +446,24 @@ describe('initUserLicksFromCloud', () => {
 		expect(mockSyncUserLicksToCloud).not.toHaveBeenCalled();
 		expect(getUserLicksLocal()).toHaveLength(1);
 	});
+
+	it('preserves local licks when auth is expired', async () => {
+		saveUserLick(makePhrase({ id: 'my-lick' }));
+
+		const supabase = {
+			auth: {
+				getUser: vi.fn().mockResolvedValue({
+					data: { user: null },
+					error: null
+				})
+			},
+			from: vi.fn()
+		} as any;
+
+		await initUserLicksFromCloud(supabase);
+
+		expect(getUserLicksLocal()).toHaveLength(1);
+		expect(getUserLicksLocal()[0].id).toBe('my-lick');
+		expect(supabase.from).not.toHaveBeenCalled();
+	});
 });

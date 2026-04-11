@@ -244,6 +244,11 @@ export async function initUserLicksFromCloud(
 ): Promise<void> {
 	_supabase = supabase;
 	try {
+		// Verify auth before touching localStorage — an expired session would
+		// return zero rows from the RLS-filtered select, wiping local licks.
+		const { data: { user } } = await supabase.auth.getUser();
+		if (!user) return;
+
 		const localLicks = getUserLicksLocal();
 
 		// Push local licks to cloud (bulk upsert, idempotent)
