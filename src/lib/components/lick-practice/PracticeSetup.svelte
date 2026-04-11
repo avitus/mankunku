@@ -85,6 +85,26 @@
 	</div>
 
 	<div class="flex items-center gap-3">
+		<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Auto Tempo:</span>
+		<button
+			onclick={() => onupdate({ autoAdjustTempo: !config.autoAdjustTempo })}
+			class="relative h-5 w-9 shrink-0 rounded-full transition-colors
+				{config.autoAdjustTempo
+					? 'bg-[var(--color-accent)]'
+					: 'bg-[var(--color-bg-tertiary)]'}"
+		>
+			<span
+				class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform
+					{config.autoAdjustTempo ? 'translate-x-4' : ''}"
+			/>
+		</button>
+		<span class="text-xs text-[var(--color-text-secondary)]">
+			{config.autoAdjustTempo ? 'Starts at 60 BPM, adjusts by score' : 'Off'}
+		</span>
+	</div>
+
+	{#if !config.autoAdjustTempo}
+	<div class="flex items-center gap-3">
 		<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Tempo +:</span>
 		<input
 			type="range"
@@ -97,6 +117,7 @@
 		/>
 		<span class="w-16 shrink-0 text-right text-xs tabular-nums">+{config.tempoIncrement} BPM</span>
 	</div>
+	{/if}
 
 	<!-- Practice mode selector -->
 	<div>
