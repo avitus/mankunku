@@ -659,10 +659,15 @@ export function getSessionReport(): SessionReport {
 		// Tempo is the one used for the first attempt (all keys share it within a lick)
 		const tempo = results[0]?.tempo ?? lickPractice.currentTempo;
 
+		// Read the persisted tempo to detect if it was adjusted
+		const persistedTempo = getLickTempo(lickPractice.progress, item.phraseId);
+		const newTempo = persistedTempo !== tempo ? persistedTempo : null;
+
 		licks.push({
 			lickId: item.phraseId,
 			lickName: item.phraseName,
 			tempo,
+			newTempo,
 			keys,
 			averageScore,
 			passedCount

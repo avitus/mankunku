@@ -717,7 +717,15 @@
 					<div>
 						<span class="font-medium">{lick.lickName}</span>
 						<span class="ml-2 text-xs text-[var(--color-text-secondary)]">
-							{lick.tempo} BPM
+							{#if lick.newTempo != null}
+								{@const delta = lick.newTempo - lick.tempo}
+								{lick.newTempo} BPM
+								<span class={delta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}>
+									({delta > 0 ? '+' : ''}{delta})
+								</span>
+							{:else}
+								{lick.tempo} BPM
+							{/if}
 						</span>
 					</div>
 					<span class="text-sm font-bold tabular-nums">
