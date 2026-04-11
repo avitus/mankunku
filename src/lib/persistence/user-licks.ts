@@ -19,13 +19,19 @@ import type {
 	PhraseCategory
 } from '$lib/types/music';
 import { save, load } from './storage';
-import { syncLickMetadataToCloud } from './sync';
+import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
 
 const STORAGE_KEY = 'user-licks';
+
+/**
+ * Module-level Supabase reference, set during cloud hydration.
+ * Used by write functions as a fallback when no client is passed directly.
+ */
+let _supabase: SupabaseClient<Database> | null = null;
 const TAGS_OVERRIDE_KEY = 'lick-tag-overrides';
 const CATEGORY_OVERRIDE_KEY = 'lick-category-overrides';
 const WRITTEN_TO_CONCERT_MIGRATION_KEY = 'user-licks-migration-written-to-concert-v1';
@@ -221,6 +227,57 @@ export async function getUserLicks(
 }
 
 /**
+ * Bidirectional startup sync: push local-only licks to cloud, pull the
+ * authoritative cloud set back to localStorage.
+ *
+ * Called once from +layout.ts during app startup hydration. Sets the
+ * module-level `_supabase` reference for fire-and-forget sync in
+ * subsequent write operations.
+ *
+ * Strategy:
+ *  1. Push all local licks to cloud (upsert — safe for duplicates)
+ *  2. Fetch all cloud licks (now includes anything just pushed)
+ *  3. Replace localStorage with cloud set (cloud is truth after push)
+ */
+export async function initUserLicksFromCloud(
+	supabase: SupabaseClient<Database>
+): Promise<void> {
+	_supabase = supabase;
+	try {
+		const localLicks = getUserLicksLocal();
+
+		// Push local licks to cloud (bulk upsert, idempotent)
+		if (localLicks.length > 0) {
+			await syncUserLicksToCloud(supabase, localLicks);
+		}
+
+		// Pull cloud licks — now the complete set
+		const { data, error } = await supabase.from('user_licks').select('*');
+		if (error) {
+			console.warn('Failed to fetch cloud licks during startup sync:', error);
+			return;
+		}
+
+		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({
+			id: row.id,
+			name: row.name,
+			key: row.key as PitchClass,
+			timeSignature: row.time_signature as [number, number],
+			notes: row.notes as unknown as Note[],
+			harmony: row.harmony as unknown as HarmonicSegment[],
+			difficulty: row.difficulty as unknown as DifficultyMetadata,
+			category: row.category as PhraseCategory,
+			tags: row.tags ?? [],
+			source: row.source
+		}));
+
+		save(STORAGE_KEY, cloudLicks);
+	} catch (error) {
+		console.warn('Failed to sync user licks from cloud:', error);
+	}
+}
+
+/**
  * Save a new user lick (assigns ID and source).
  *
  * Saves to localStorage first (local-first), then fires a non-blocking
@@ -248,12 +305,13 @@ export function saveUserLick(
 	save(STORAGE_KEY, licks);
 
 	// Fire-and-forget cloud sync — fetch user ID then upsert to user_licks table
-	if (supabase) {
-		supabase.auth
+	const sb = supabase ?? _supabase;
+	if (sb) {
+		sb.auth
 			.getUser()
 			.then(({ data: { user } }) => {
 				if (!user) return;
-				return supabase.from('user_licks').upsert({
+				return sb.from('user_licks').upsert({
 					id: toSave.id,
 					user_id: user.id,
 					name: toSave.name,
@@ -401,9 +459,10 @@ export function deleteUserLick(
 	save(STORAGE_KEY, licks);
 
 	// Fire-and-forget cloud delete — RLS ensures user can only delete own licks
-	if (supabase) {
+	const sb = supabase ?? _supabase;
+	if (sb) {
 		Promise.resolve(
-			supabase
+			sb
 				.from('user_licks')
 				.delete()
 				.eq('id', id)

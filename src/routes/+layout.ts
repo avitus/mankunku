@@ -89,11 +89,13 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		const { loadSettingsFromCloud } = await import('$lib/state/settings.svelte');
 		const { rebuildHistoryIfNeeded } = await import('$lib/state/history.svelte');
 		const { initLickMetadataFromCloud } = await import('$lib/persistence/lick-practice-store');
+		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
 
 		const hydration = Promise.all([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
-			initLickMetadataFromCloud(supabase)
+			initLickMetadataFromCloud(supabase),
+			initUserLicksFromCloud(supabase)
 		]).then(() => rebuildHistoryIfNeeded());
 
 		// Don't block rendering for more than 2s (offline / slow connections).
