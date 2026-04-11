@@ -562,12 +562,13 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				: 0;
 			const delta = computeAutoTempoAdjustment(avgScore);
 			const newTempo = clampTempo(lickPractice.currentTempo + delta);
+			const now = Date.now();
 			for (const key of item.keys) {
 				lickPractice.progress = updateKeyProgress(
 					lickPractice.progress,
 					item.phraseId,
 					key,
-					{ currentTempo: newTempo }
+					{ currentTempo: newTempo, lastPracticedAt: now }
 				);
 			}
 			saveLickPracticeProgress(lickPractice.progress);
