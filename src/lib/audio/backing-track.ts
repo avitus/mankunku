@@ -630,9 +630,12 @@ export async function scheduleBackingTrack(
 	// ── Drums ───────────────────────────────────────────────
 	await ensureDrums();
 	if (!isStillCurrent()) {
-		// A newer schedule has taken over — clean up the parts we just
-		// created so they don't leak onto the transport.
-		disposeBackingParts();
+		// A newer schedule has taken over. Do NOT touch module-level
+		// state here: the `bassPart` / `compPart` / `activeSchedule`
+		// references may already belong to the superseding invocation
+		// (its own scheduleNextPhrase → disposeBackingParts cleared our
+		// orphans and it installed its own parts).  Disposing them here
+		// would silence the newer phrase.  Just bail out.
 		return;
 	}
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
