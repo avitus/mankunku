@@ -212,6 +212,41 @@ function sameDuration(a: [number, number], b: [number, number]): boolean {
 	return a[0] * b[1] === b[0] * a[1];
 }
 
+/** Return whichever of two fractions represents the shorter duration. */
+function shorterFraction(
+	a: [number, number],
+	b: [number, number]
+): [number, number] {
+	// a < b  ⇔  a.num * b.den < b.num * a.den  (positive denominators)
+	return a[0] * b[1] < b[0] * a[1] ? a : b;
+}
+
+/**
+ * Duration (in whole notes) of a beam group for the given time signature and
+ * the shortest note duration that would fall inside it.
+ *
+ * In 4/4 and 2/4, runs of eighth-or-longer notes beam in groups of four
+ * (half-bar in 4/4, full bar in 2/4) — the traditional lead-sheet convention.
+ * Any 16th (or shorter) note anywhere in the span reverts that span to
+ * per-beat beaming, since 16ths are conventionally grouped by beat.
+ * All other time signatures keep per-beat beaming.
+ */
+function getBeamGroupDuration(
+	timeSignature: [number, number],
+	minDurationInGroup: [number, number]
+): number {
+	const [num, unit] = timeSignature;
+	const beatDuration = 1 / unit;
+	const EIGHTH = 1 / 8;
+	const minDur = fractionToFloat(minDurationInGroup);
+
+	// Only 4/4 and 2/4, and only when everything in the span is >= an eighth.
+	if (unit === 4 && (num === 4 || num === 2) && minDur >= EIGHTH - 1e-9) {
+		return 2 * beatDuration; // half-bar in 4/4 = 0.5; full bar in 2/4 = 0.5
+	}
+	return beatDuration;
+}
+
 /** Standard rest durations in descending order (whole notes) */
 const REST_DURATIONS: [number, number][] = [[1, 2], [1, 4], [1, 8], [1, 16]];
 
@@ -369,8 +404,6 @@ export function phraseToAbc(
 	const beatUnit = phrase.timeSignature[1];
 	// Duration of one bar in whole notes (e.g. 4/4 = 1.0)
 	const barDuration = beatsPerBar / beatUnit;
-	// Duration of one beat in whole notes (e.g. quarter = 0.25)
-	const beatDuration = 1 / beatUnit;
 
 	// Preprocess: merge consecutive rests into standard groupings
 	const displayNotes = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
@@ -399,16 +432,17 @@ export function phraseToAbc(
 	// Generate notes with barlines, beam grouping, and triplet groups
 	const tokens: string[] = [];
 	let prevBar = 0;
-	let prevBeat = 0;
+	let prevPosInBar = 0;
+	// Only read when i > 0; initial value is a placeholder.
+	let prevDuration: [number, number] = [1, 8];
 
 	for (let i = 0; i < displayNotes.length; /* increment varies */) {
 		const note = displayNotes[i];
 		const offset = fractionToFloat(note.offset);
 
-		// Determine bar and beat position (small epsilon for floating-point)
+		// Determine bar and position within the bar (small epsilon for floating-point)
 		const bar = Math.floor(offset / barDuration + 1e-9);
 		const posInBar = offset - bar * barDuration;
-		const beat = Math.floor(posInBar / beatDuration + 1e-9);
 
 		if (i > 0) {
 			// Insert barlines for any bars that ended between the previous note and this one
@@ -420,11 +454,21 @@ export function phraseToAbc(
 				// Reset accidental state at each new bar — classical rule:
 				// accidentals persist only until the bar line.
 				barState = initBarState(keySigAccidentals);
-			} else if (beat !== prevBeat) {
-				// Different beat within the same bar: space for beam break
-				tokens.push(' ');
+			} else {
+				// Beam grouping: break the beam when the current and previous
+				// note fall in different beam groups. Beam-group size depends
+				// on the shorter of the two durations — a 16th anywhere in
+				// the span forces per-beat grouping (traditional rule), while
+				// a run of eighths-or-longer in 4/4 or 2/4 groups by four.
+				const minDur = shorterFraction(note.duration, prevDuration);
+				const groupDur = getBeamGroupDuration(phrase.timeSignature, minDur);
+				const group = Math.floor(posInBar / groupDur + 1e-9);
+				const prevGroup = Math.floor(prevPosInBar / groupDur + 1e-9);
+				if (group !== prevGroup) {
+					tokens.push(' ');
+				}
+				// Same group: no space — notes are beamed together
 			}
-			// Same beat: no space — notes are beamed together
 		}
 
 		// Check for a complete triplet group (3 consecutive same-duration pitched triplet notes
@@ -451,7 +495,8 @@ export function phraseToAbc(
 				}
 
 				prevBar = Math.floor(off2 / barDuration + 1e-9);
-				prevBeat = Math.floor((off2 - prevBar * barDuration) / beatDuration + 1e-9);
+				prevPosInBar = off2 - prevBar * barDuration;
+				prevDuration = displayNotes[i + 2].duration;
 				i += 3;
 				continue;
 			}
@@ -460,7 +505,8 @@ export function phraseToAbc(
 		// Single note
 		tokens.push(renderNote(note, note.duration));
 		prevBar = bar;
-		prevBeat = beat;
+		prevPosInBar = posInBar;
+		prevDuration = note.duration;
 		i += 1;
 	}
 
