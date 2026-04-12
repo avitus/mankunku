@@ -294,3 +294,169 @@ describe('phraseToAbc flat/sharp preference by key', () => {
 		expect(line).not.toContain('_A');
 	});
 });
+
+/** Build a phrase of `count` eighth notes starting at offset 0. */
+function eighthsPhrase(
+	count: number,
+	timeSignature: [number, number] = [4, 4],
+	midi = 60,
+	key: PitchClass = 'C'
+): Phrase {
+	return {
+		id: 'test',
+		name: 'test',
+		timeSignature,
+		key,
+		notes: Array.from({ length: count }, (_, i) => ({
+			pitch: midi,
+			duration: [1, 8] as [number, number],
+			offset: [i, 8] as [number, number]
+		})),
+		harmony: [],
+		difficulty: {
+			level: 1,
+			pitchComplexity: 1,
+			rhythmComplexity: 1,
+			lengthBars: Math.max(1, Math.ceil(count / (timeSignature[0] * 2)))
+		},
+		category: 'user',
+		tags: [],
+		source: 'test'
+	};
+}
+
+/** Extract the token groups within the last bar (before the final `|]`). */
+function beamGroups(abc: string): string[] {
+	// Drop any trailing closing barline (' |]'), split on whitespace runs.
+	return noteLine(abc)
+		.replace(/\s*\|]\s*$/, '')
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean);
+}
+
+describe('phraseToAbc beam grouping', () => {
+	it('beams 8 eighths in 4/4 as two groups of 4', () => {
+		const groups = beamGroups(phraseToAbc(eighthsPhrase(8, [4, 4])));
+		expect(groups).toEqual(['CCCC', 'CCCC']);
+	});
+
+	it('never beams across the half-bar midpoint in 4/4', () => {
+		const line = noteLine(phraseToAbc(eighthsPhrase(8, [4, 4])));
+		// Five consecutive Cs would imply a beam spanning the middle of the bar.
+		expect(line).not.toMatch(/CCCCC/);
+		// Must contain a beam break between the fourth and fifth eighth.
+		expect(line).toMatch(/CCCC\s+CCCC/);
+	});
+
+	it('beams 4 eighths in 2/4 (full bar) as a single group', () => {
+		const groups = beamGroups(phraseToAbc(eighthsPhrase(4, [2, 4])));
+		expect(groups).toEqual(['CCCC']);
+	});
+
+	it('beams 8 eighths in 2/4 across two bars as 4+4', () => {
+		const line = noteLine(phraseToAbc(eighthsPhrase(8, [2, 4])));
+		// Split on the internal bar line (ignoring the closing '|]').
+		const bars = line
+			.replace(/\s*\|]\s*$/, '')
+			.split('|')
+			.map((s) => s.trim())
+			.filter(Boolean);
+		expect(bars).toEqual(['CCCC', 'CCCC']);
+	});
+
+	it('keeps per-beat grouping in 3/4 (6 eighths as 3 pairs)', () => {
+		const groups = beamGroups(phraseToAbc(eighthsPhrase(6, [3, 4])));
+		expect(groups).toEqual(['CC', 'CC', 'CC']);
+	});
+
+	it('breaks at the half-bar boundary when the run starts on beat 2', () => {
+		// 4 eighths starting at offset 2/8 — span beats 2 → 3.
+		const phrase: Phrase = {
+			...eighthsPhrase(4, [4, 4]),
+			notes: [2, 3, 4, 5].map((i) => ({
+				pitch: 60,
+				duration: [1, 8] as [number, number],
+				offset: [i, 8] as [number, number]
+			}))
+		};
+		const groups = beamGroups(phraseToAbc(phrase));
+		// Two beat-2 eighths + two beat-3 eighths, broken at the bar midpoint.
+		expect(groups).toEqual(['CC', 'CC']);
+	});
+
+	it('falls back to per-beat grouping in a half-bar that contains 16ths', () => {
+		// Bar 1 layout in 4/4:
+		//   beat 1: four 16th notes
+		//   beat 2: two eighths
+		//   beats 3-4: four eighths (pure-eighth half-bar — still beams as 4)
+		const notes: Phrase['notes'] = [];
+		for (let i = 0; i < 4; i++) {
+			notes.push({ pitch: 60, duration: [1, 16], offset: [i, 16] });
+		}
+		notes.push({ pitch: 60, duration: [1, 8], offset: [2, 8] });
+		notes.push({ pitch: 60, duration: [1, 8], offset: [3, 8] });
+		for (let i = 4; i < 8; i++) {
+			notes.push({ pitch: 60, duration: [1, 8], offset: [i, 8] });
+		}
+
+		const phrase: Phrase = { ...eighthsPhrase(0, [4, 4]), notes };
+		const groups = beamGroups(phraseToAbc(phrase));
+
+		// Expect three beam groups:
+		//   [0] beat-1 sixteenths (4 note tokens, no internal space)
+		//   [1] beat-2 eighths ('CC')
+		//   [2] beats 3-4 eighths ('CCCC')
+		expect(groups).toHaveLength(3);
+		// First group is the four 16ths — four 'C' heads with 16th duration suffixes.
+		expect(groups[0].replace(/[^C]/g, '')).toBe('CCCC');
+		expect(groups[1]).toBe('CC');
+		expect(groups[2]).toBe('CCCC');
+	});
+
+	it('quarter note between eighths yields two separate beam groups', () => {
+		// Beat 1: two eighths. Beat 2: quarter. Beats 3-4: four eighths.
+		const notes: Phrase['notes'] = [
+			{ pitch: 60, duration: [1, 8], offset: [0, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [1, 8] },
+			{ pitch: 60, duration: [1, 4], offset: [1, 4] },
+			{ pitch: 60, duration: [1, 8], offset: [4, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [5, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [6, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [7, 8] }
+		];
+		const phrase: Phrase = { ...eighthsPhrase(0, [4, 4]), notes };
+		const line = noteLine(phraseToAbc(phrase));
+		// The four eighths on beats 3-4 must still beam as one group.
+		expect(line).toMatch(/CCCC\s*\|]/);
+		// And the first half-bar (two eighths + quarter) must not run into
+		// beats 3-4 without a break.
+		expect(line).not.toMatch(/C2CCCC/);
+	});
+
+	it('eighth-note triplet still renders as a (3 group and does not break half-bar beaming', () => {
+		// Bar layout in 4/4:
+		//   beat 1: three eighth-note triplets (duration [1,12])
+		//   beats 2-4: six eighths
+		// The triplet group is self-contained; the following eighths should
+		// still beam as 4 across the half-bar up to beat 4 (or as 2 groups of
+		// varying size depending on the half-bar boundary).
+		const notes: Phrase['notes'] = [
+			{ pitch: 60, duration: [1, 12], offset: [0, 12] },
+			{ pitch: 60, duration: [1, 12], offset: [1, 12] },
+			{ pitch: 60, duration: [1, 12], offset: [2, 12] },
+			{ pitch: 60, duration: [1, 8], offset: [2, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [3, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [4, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [5, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [6, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [7, 8] }
+		];
+		const phrase: Phrase = { ...eighthsPhrase(0, [4, 4]), notes };
+		const line = noteLine(phraseToAbc(phrase));
+		// Triplet is emitted with '(3' marker.
+		expect(line).toContain('(3');
+		// The four eighths on beats 3-4 still beam as a single group of 4.
+		expect(line).toMatch(/CCCC\s*\|]/);
+	});
+});
