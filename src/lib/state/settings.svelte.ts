@@ -71,6 +71,7 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		const merged = { ...defaultSettings, ...cloudSettings };
 		// Clamp swing to valid range (same as loadSettings)
 		merged.swing = Math.max(0.5, Math.min(0.8, merged.swing as number));
+		merged.newLickStartingTempo = Math.max(40, Math.min(200, merged.newLickStartingTempo as number));
 		if (!VALID_BACKING_STYLES.has(merged.backingStyle as string)) {
 			merged.backingStyle = 'swing';
 		}

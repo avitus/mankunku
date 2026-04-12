@@ -223,8 +223,8 @@ export function recordAttempt(
 		score.rhythmAccuracy
 	);
 
-	// Update per-scale proficiency
-	if (scaleType) {
+	// Update per-scale proficiency (ear-training only, matching migration logic)
+	if (scaleType && source === 'ear-training') {
 		updateScaleProficiency(scaleType, score);
 	}
 

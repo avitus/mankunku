@@ -24,6 +24,7 @@
 	let { harmony, currentBeat, timeSignature, isPlaying, instrument, key }: Props = $props();
 
 	const beatsPerBar = $derived(timeSignature[0]);
+	const beatUnit = $derived(timeSignature[1]);
 
 	function displayRoot(root: PitchClass): string {
 		const written = instrument ? concertKeyToWritten(root, instrument) : root;
@@ -55,8 +56,8 @@
 	const cells = $derived.by(() => {
 		const result: CellInfo[] = [];
 		for (const seg of harmony) {
-			const startBeat = fractionToFloat(seg.startOffset) * beatsPerBar;
-			const durationBeats = fractionToFloat(seg.duration) * beatsPerBar;
+			const startBeat = fractionToFloat(seg.startOffset) * beatUnit;
+			const durationBeats = fractionToFloat(seg.duration) * beatUnit;
 			const symbol = chordSymbol(displayRoot(seg.chord.root), seg.chord.quality);
 
 			if (durationBeats > beatsPerBar) {

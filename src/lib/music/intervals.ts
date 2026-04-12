@@ -33,13 +33,14 @@ export function noteNameToMidi(name: string): number {
 	const [, notePart, octaveStr] = match;
 	let pc = NOTE_NAMES.indexOf(notePart as (typeof NOTE_NAMES)[number]);
 	if (pc === -1) {
-		// Handle sharps by converting to flat equivalent
-		const sharpMap: Record<string, string> = {
-			'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb', 'E#': 'F', 'B#': 'C'
+		// Handle enharmonic aliases not in NOTE_NAMES
+		const aliasMap: Record<string, string> = {
+			'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb', 'E#': 'F', 'B#': 'C',
+			'Gb': 'F#', 'Cb': 'B', 'Fb': 'E'
 		};
-		const flat = sharpMap[notePart];
-		if (!flat) throw new Error(`Invalid note: ${notePart}`);
-		pc = NOTE_NAMES.indexOf(flat as (typeof NOTE_NAMES)[number]);
+		const canonical = aliasMap[notePart];
+		if (!canonical) throw new Error(`Invalid note: ${notePart}`);
+		pc = NOTE_NAMES.indexOf(canonical as (typeof NOTE_NAMES)[number]);
 	}
 
 	return pitchClassToMidi(pc, parseInt(octaveStr));

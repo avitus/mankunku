@@ -260,12 +260,14 @@
 				</div>
 				<button
 					onclick={toggleTheme}
+					role="switch"
+					aria-checked={settings.theme === 'dark'}
+					aria-label="Toggle dark mode"
 					class="relative h-7 w-12 rounded-full transition-colors
 						{settings.theme === 'dark' ? 'bg-[var(--color-text-secondary)]' : 'bg-[var(--color-bg-tertiary)]'}"
-					aria-label="Toggle theme"
 				>
 					<span
-						class="absolute top-0.5 h-6 w-6 rounded-full bg-[var(--color-text-secondary)] transition-transform shadow-sm
+						class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform shadow-sm
 							{settings.theme === 'dark' ? 'left-[22px]' : 'left-0.5'}"
 					></span>
 				</button>

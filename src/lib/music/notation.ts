@@ -484,7 +484,7 @@ export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): strin
  * Returns e.g. "C4", "Bb3", "F#5"
  */
 export function midiToDisplayName(midi: number, useFlats = true): string {
-	const NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+	const NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 	const NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 	const names = useFlats ? NAMES_FLAT : NAMES_SHARP;
 	return `${names[midiToPitchClass(midi)]}${midiToOctave(midi)}`;
