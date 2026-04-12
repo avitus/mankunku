@@ -46,6 +46,10 @@ let mixNode: GainNode | null = null;
 let currentPart: InstanceType<ToneModule['Part']> | null = null;
 let isPlaying = false;
 let onStopCallback: (() => void) | null = null;
+/** Transport event ID for the end-of-phrase cleanup callback.
+ *  Cleared when a new phrase is scheduled so a stale callback from
+ *  a previous playPhrase/scheduleNextPhrase can't dispose the new Part. */
+let endPhraseEventId: number | null = null;
 /** Monotonically increasing ID for cancelling stale loadInstrument calls. */
 let currentLoadId = 0;
 
@@ -595,7 +599,8 @@ export async function playPhrase(
 
 		if (keepMetronome) {
 			// Resolve when phrase ends but keep transport + metronome alive
-			transport.schedule(() => {
+			endPhraseEventId = transport.scheduleOnce(() => {
+				endPhraseEventId = null;
 				if (currentPart) {
 					currentPart.dispose();
 					currentPart = null;
@@ -605,7 +610,8 @@ export async function playPhrase(
 			}, `${endTick}i`);
 		} else {
 			// Full stop after phrase ends
-			transport.schedule(() => {
+			endPhraseEventId = transport.scheduleOnce(() => {
+				endPhraseEventId = null;
 				stopPlayback();
 				resolve();
 			}, `${endTick}i`);
@@ -637,6 +643,7 @@ export async function stopPlayback(): Promise<void> {
 	transport.position = 0;
 	transport.cancel();
 
+	endPhraseEventId = null; // transport.cancel() already removed it
 	if (currentPart) {
 		currentPart.dispose();
 		currentPart = null;
@@ -683,6 +690,14 @@ export async function scheduleNextPhrase(
 	// Ensure BPM stays correct on the running transport
 	transport.bpm.value = options.tempo;
 
+	// Cancel the stale end-of-phrase callback from the previous
+	// playPhrase / scheduleNextPhrase so it can't dispose the new Part
+	// we're about to create.
+	if (endPhraseEventId != null) {
+		transport.clear(endPhraseEventId);
+		endPhraseEventId = null;
+	}
+
 	// Dispose previous phrase part (metronome sequence is untouched)
 	if (currentPart) {
 		currentPart.dispose();
@@ -728,7 +743,8 @@ export async function scheduleNextPhrase(
 	const endTicks = nextBarTicks + phraseTicks + ppq;
 
 	return new Promise<void>((resolve) => {
-		transport.schedule(() => {
+		endPhraseEventId = transport.scheduleOnce(() => {
+			endPhraseEventId = null;
 			if (currentPart) {
 				currentPart.dispose();
 				currentPart = null;

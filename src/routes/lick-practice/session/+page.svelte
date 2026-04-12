@@ -237,7 +237,13 @@
 	 * running, so it calls scheduleNextPhrase instead, aligned to the end
 	 * of the inter-lick rest.
 	 */
-	async function startLick(lickIdx: number, isFirstLick: boolean): Promise<void> {
+	async function startLick(
+		lickIdx: number,
+		isFirstLick: boolean,
+		/** Pre-computed tick where the new lick's audio should begin.
+		 *  Only used for non-first licks (passed from scheduleLickWindows). */
+		nextAudioStartTick?: number
+	): Promise<void> {
 		if (!playback || !toneModule || !backingTrack) return;
 
 		const superPhrase = buildLickSuperPhrase(lickIdx);
@@ -315,22 +321,17 @@
 				}
 			});
 		} else {
-			// Transport is already running. scheduleNextPhrase aligns to the
-			// next bar downbeat with ≥1 beat lead time. We call it 1 bar
-			// before the target start so it lands exactly there — see the
-			// "nextBarTicks" math in scheduleNextPhrase.
-			const currentTicks = transport.ticks;
-			const nextBarTicks = Math.ceil(currentTicks / ticksPerBar) * ticksPerBar;
-			const audioStartTick =
-				nextBarTicks - currentTicks < ppq
-					? nextBarTicks + ticksPerBar
-					: nextBarTicks;
+			// Use the pre-computed audioStartTick from scheduleLickWindows so
+			// the visual update (which fires at lickEndTick) and the audio
+			// scheduling agree on the exact bar boundary.
+			const audioStartTick = nextAudioStartTick!;
 
-			// We're 1 bar before the new lick's audio (the demo) starts. The
-			// first user window opens demoBars bars later. Use the new tempo
-			// (already in lickPractice.currentTempo after
-			// startInterLickTransition).
-			lickStartSeconds = transport.seconds + (1 + demoBars) * oneBarSeconds;
+			// Convert rest + demo bars to seconds for the scroll anchor.
+			// audioStartTick is the tick where the new lick's audio begins;
+			// the first user window opens demoBars later.
+			const audioStartSeconds = (audioStartTick / ppq) * (60 / tempo);
+			const demoSeconds = demoBars * oneBarSeconds;
+			lickStartSeconds = audioStartSeconds + demoSeconds;
 			scrollFraction = 0;
 
 			void playback.scheduleNextPhrase(superPhrase, opts, {
@@ -396,34 +397,39 @@
 			scheduledEventIds.push(closeId);
 		}
 
-		// End of lick: transition to the next one after a 2-bar rest.
-		// Schedule the NEXT lick's audio 1 bar before its start tick so
-		// scheduleNextPhrase lands on the correct bar boundary.
+		// End of lick: fire the transition callback at lickEndTick (not
+		// later) so the visual display updates immediately — no phantom
+		// key scrolling during the rest.  The pre-computed nextLickStartTick
+		// is passed through so scheduleNextPhrase can land the audio on
+		// the correct bar boundary regardless of when the callback fires.
 		const lickEndTick = lickStartTick + item.keys.length * keyTicks;
 		const nextLickStartTick = lickEndTick + INTER_LICK_REST_BARS * ticksPerBar;
-		const rescheduleAtTick = nextLickStartTick - ticksPerBar;
 
 		const restId = transport.scheduleOnce(() => {
-			handleLickComplete();
-		}, `${rescheduleAtTick}i`);
+			handleLickComplete(nextLickStartTick);
+		}, `${lickEndTick}i`);
 		scheduledEventIds.push(restId);
 	}
 
 	/**
-	 * Called at "end of lick" — archives results, bumps tempo if all 12
+	 * Called at lickEndTick — archives results, bumps tempo if all 12
 	 * keys passed, and either transitions to the next lick or completes
-	 * the session. Called 1 bar before the next lick's start tick so
-	 * scheduleNextPhrase lands correctly.
+	 * the session. Fires immediately when the last key ends so the
+	 * visual display updates without a gap; the pre-computed
+	 * nextLickStartTick ensures the audio still lands on the correct
+	 * bar boundary after the inter-lick rest.
 	 */
-	async function handleLickComplete(): Promise<void> {
+	async function handleLickComplete(nextLickStartTick: number): Promise<void> {
 		const result = startInterLickTransition();
 		if (result === 'complete') {
 			finishSession();
 			return;
 		}
-		// Start the next lick. Transport stays running; the 1-bar lead time
-		// is baked into startLick's scheduleNextPhrase call.
-		await startLick(lickPractice.currentLickIndex, /* isFirstLick */ false);
+		// Start the next lick.  nextLickStartTick tells startLick exactly
+		// where to place the audio so the 2-bar inter-lick rest is preserved
+		// even though this callback now fires at lickEndTick (earlier than
+		// before) for immediate visual feedback.
+		await startLick(lickPractice.currentLickIndex, false, nextLickStartTick);
 	}
 
 	/**
@@ -451,11 +457,14 @@
 				currentBeat = phrasePos < 0 ? 0 : phrasePos % loopBeats;
 
 				// Continuous scroll position for the upcoming-keys preview.
+				// Clamped to the number of planned keys so the display
+				// never scrolls past the last key into phantom rows.
 				const elapsedInLick = seconds - lickStartSeconds;
-				scrollFraction =
+				const rawScroll =
 					elapsedInLick > 0 && secondsPerKey > 0
 						? elapsedInLick / secondsPerKey
 						: 0;
+				scrollFraction = Math.min(rawScroll, plannedKeysForLick.length);
 			}
 			beatAnimFrame = requestAnimationFrame(tick);
 		}
@@ -809,21 +818,6 @@
 				keyResults={lickPractice.keyResults}
 				tempo={lickPractice.currentTempo}
 			/>
-		</div>
-
-		<!-- Status -->
-		<div class="h-6 text-center text-sm">
-			{#if isLoading}
-				<span class="text-[var(--color-text-secondary)]">Loading...</span>
-			{:else if isDemoing}
-				<span class="text-[var(--color-text-secondary)]">Listen…</span>
-			{:else if isRecording}
-				<span class="font-medium text-[var(--color-accent)]">Play!</span>
-			{:else if lickPractice.phase === 'inter-lick-rest'}
-				<span class="text-[var(--color-text-secondary)]">Next lick coming up...</span>
-			{:else if lickPractice.phase === 'count-in'}
-				<span class="text-[var(--color-text-secondary)]">Count in...</span>
-			{/if}
 		</div>
 
 		<!-- Controls -->
