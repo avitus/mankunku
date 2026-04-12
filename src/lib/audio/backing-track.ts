@@ -549,16 +549,22 @@ export function getActiveSchedule(): BackingTrackSchedule | null {
  * @param options - Playback options (tempo, backing track settings)
  * @param tickOffset - Transport tick offset (e.g. count-in bar)
  * @param loop - If true, backing track loops for recording phase
+ * @param isStillCurrent - Optional predicate called after each internal
+ *   await.  Returning false short-circuits setup so a superseded
+ *   invocation can't install stale `activeSchedule` / Tone.Parts over
+ *   a newer phrase's backing.
  */
 export async function scheduleBackingTrack(
 	phrase: Phrase,
 	options: PlaybackOptions,
 	tickOffset: number,
-	loop: boolean = false
+	loop: boolean = false,
+	isStillCurrent: () => boolean = () => true
 ): Promise<void> {
 	if (!isBackingLoaded()) return;
 
 	const Tone = await getTone();
+	if (!isStillCurrent()) return;
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
 	const beatsPerBar = phrase.timeSignature[0];
@@ -623,6 +629,15 @@ export async function scheduleBackingTrack(
 
 	// ── Drums ───────────────────────────────────────────────
 	await ensureDrums();
+	if (!isStillCurrent()) {
+		// A newer schedule has taken over. Do NOT touch module-level
+		// state here: the `bassPart` / `compPart` / `activeSchedule`
+		// references may already belong to the superseding invocation
+		// (its own scheduleNextPhrase → disposeBackingParts cleared our
+		// orphans and it installed its own parts).  Disposing them here
+		// would silence the newer phrase.  Just bail out.
+		return;
+	}
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
 	const drumCallback = (time: number, beat: number) => {
