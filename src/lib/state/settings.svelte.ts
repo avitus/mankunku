@@ -17,6 +17,8 @@ function loadSettings() {
 	if (!VALID_BACKING_STYLES.has(result.backingStyle)) {
 		result.backingStyle = 'swing';
 	}
+	// Clamp newLickStartingTempo to valid range (40–200 BPM)
+	result.newLickStartingTempo = Math.max(40, Math.min(200, result.newLickStartingTempo));
 	return result;
 }
 
@@ -38,7 +40,9 @@ const defaultSettings = {
 	/** User-configured highest concert pitch MIDI. null = instrument default. */
 	highestNote: null as number | null,
 	/** When true, use bleed-filtered notes as the primary score (A/B testing toggle). */
-	bleedFilterEnabled: false
+	bleedFilterEnabled: false,
+	/** Starting BPM for licks with no prior practice history. */
+	newLickStartingTempo: 60
 };
 
 export const settings = $state(loadSettings());

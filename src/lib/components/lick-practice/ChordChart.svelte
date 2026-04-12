@@ -3,6 +3,7 @@
 	import type { InstrumentConfig } from '$lib/types/instruments.ts';
 	import { chordSymbol } from '$lib/music/chords.ts';
 	import { concertKeyToWritten } from '$lib/music/transposition.ts';
+	import { displayPitchClass } from '$lib/music/notation.ts';
 	import { fractionToFloat } from '$lib/music/intervals.ts';
 
 	interface Props {
@@ -16,14 +17,18 @@
 		 * header and key ring, which both display in written pitch.
 		 */
 		instrument?: InstrumentConfig;
+		/** Concert-pitch key of the phrase, used to choose sharp/flat chord spelling */
+		key?: PitchClass;
 	}
 
-	let { harmony, currentBeat, timeSignature, isPlaying, instrument }: Props = $props();
+	let { harmony, currentBeat, timeSignature, isPlaying, instrument, key }: Props = $props();
 
 	const beatsPerBar = $derived(timeSignature[0]);
 
-	function displayRoot(root: PitchClass): PitchClass {
-		return instrument ? concertKeyToWritten(root, instrument) : root;
+	function displayRoot(root: PitchClass): string {
+		const written = instrument ? concertKeyToWritten(root, instrument) : root;
+		const keyContext = key && instrument ? concertKeyToWritten(key, instrument) : (key ?? written);
+		return displayPitchClass(written, keyContext);
 	}
 
 	interface CellInfo {
@@ -38,11 +43,20 @@
 		cells: CellInfo[];
 	}
 
+	/**
+	 * Maximum bars shown per row. All cell widths are expressed as a fraction
+	 * of this constant so that a given beat duration always maps to the same
+	 * visual width, even when comparing rows across different chord charts
+	 * (e.g. a 1-bar lick vs a 3-bar lick in the UpcomingKeysDisplay scroll).
+	 * A 2-beat chord is always half as wide as a 4-beat chord.
+	 */
+	const MAX_BARS_PER_ROW = 4;
+
 	const cells = $derived.by(() => {
 		const result: CellInfo[] = [];
 		for (const seg of harmony) {
-			const startBeat = fractionToFloat(seg.startOffset) * 4;
-			const durationBeats = fractionToFloat(seg.duration) * 4;
+			const startBeat = fractionToFloat(seg.startOffset) * beatsPerBar;
+			const durationBeats = fractionToFloat(seg.duration) * beatsPerBar;
 			const symbol = chordSymbol(displayRoot(seg.chord.root), seg.chord.quality);
 
 			if (durationBeats > beatsPerBar) {
@@ -71,7 +85,7 @@
 		cells.reduce((sum, c) => Math.max(sum, c.startBeat + c.durationBeats), 0)
 	);
 	const totalBars = $derived(Math.ceil(totalBeats / beatsPerBar));
-	const barsPerRow = $derived(Math.min(4, totalBars));
+	const barsPerRow = $derived(Math.min(MAX_BARS_PER_ROW, totalBars));
 
 	const rows = $derived.by(() => {
 		const result: RowInfo[] = [];
@@ -126,7 +140,7 @@
 					class="relative flex flex-col items-center justify-center border border-[var(--color-bg-tertiary)] px-3 py-5
 						   {isActive ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]' : ''}
 						   {isPast ? 'opacity-40' : ''}"
-					style="flex: {cell.widthWeight}"
+					style="flex: 0 0 {(cell.widthWeight / MAX_BARS_PER_ROW) * 100}%"
 				>
 					<span
 						class="text-xl font-bold tracking-tight transition-colors

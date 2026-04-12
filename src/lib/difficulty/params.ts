@@ -31,7 +31,7 @@ export interface DifficultyProfile {
 const EASY_KEYS: PitchClass[] = ['C', 'F', 'G'];
 const MEDIUM_KEYS: PitchClass[] = ['C', 'D', 'F', 'G', 'Bb'];
 const SEVEN_KEYS: PitchClass[] = ['C', 'D', 'Eb', 'F', 'G', 'A', 'Bb'];
-const ALL_KEYS: PitchClass[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const ALL_KEYS: PitchClass[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 	{

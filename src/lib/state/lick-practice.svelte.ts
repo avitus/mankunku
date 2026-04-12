@@ -156,7 +156,7 @@ function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): num
 		return clampTempo(
 			lickPractice.config.autoAdjustTempo
 				? AUTO_ADJUST_DEFAULT_TEMPO
-				: settings.defaultTempo
+				: settings.newLickStartingTempo
 		);
 	}
 	return clampTempo(getLickTempo(progress, phraseId));

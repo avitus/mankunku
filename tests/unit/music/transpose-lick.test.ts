@@ -68,11 +68,11 @@ describe('transposeLick — central range optimization', () => {
 		expect(result).toBe(phrase);
 	});
 
-	it('keeps high lick centered when transposing to Gb', () => {
+	it('keeps high lick centered when transposing to F#', () => {
 		// Notes at 72-84 (C5-C6). Naive +6 → 78-90, all above 75.
 		// With -1 octave → 66-78, best fit (3 of 4 within 60-75).
 		const phrase = makePhrase([72, 76, 79, 84]);
-		const result = transposeLick(phrase, 'Gb');
+		const result = transposeLick(phrase, 'F#');
 		const pitches = result.notes.map((n) => n.pitch) as number[];
 
 		// Should shift down an octave: 72+6-12=66, 76+6-12=70, 79+6-12=73, 84+6-12=78

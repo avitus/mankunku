@@ -105,7 +105,7 @@ describe('detectKey', () => {
 		const detected = [
 			note(62, 0, 0.3),   // D
 			note(64, 0.3, 0.3), // E
-			note(66, 0.6, 0.3), // F#→Gb
+			note(66, 0.6, 0.3), // F#
 			note(67, 0.9, 0.3), // G
 			note(69, 1.2, 0.3), // A
 			note(62, 1.5, 0.3), // D again

@@ -3,7 +3,7 @@
  * All MIDI note numbers are concert pitch.
  */
 
-const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
 /** Convert MIDI note number to pitch class index (0-11) */
 export function midiToPitchClass(midi: number): number {
@@ -35,7 +35,7 @@ export function noteNameToMidi(name: string): number {
 	if (pc === -1) {
 		// Handle sharps by converting to flat equivalent
 		const sharpMap: Record<string, string> = {
-			'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb', 'E#': 'F', 'B#': 'C'
+			'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb', 'E#': 'F', 'B#': 'C'
 		};
 		const flat = sharpMap[notePart];
 		if (!flat) throw new Error(`Invalid note: ${notePart}`);

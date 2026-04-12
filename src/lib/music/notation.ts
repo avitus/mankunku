@@ -23,7 +23,7 @@ const ABC_NOTE_NAMES_SHARP = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', '
 const ABC_NOTE_NAMES_FLAT = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A', '_B', 'B'];
 
 /** Keys that conventionally use flats */
-const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb'];
+const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
 
 /**
  * Key signature accidentals: maps each key to the set of note letters ('A'–'G')
@@ -43,6 +43,7 @@ const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	'A':  { F: '^', C: '^', G: '^' },
 	'E':  { F: '^', C: '^', G: '^', D: '^' },
 	'B':  { F: '^', C: '^', G: '^', D: '^', A: '^' },
+	'F#': { F: '^', C: '^', G: '^', D: '^', A: '^', E: '^' },
 
 	// Flat keys
 	'F':  { B: '_' },
@@ -50,7 +51,6 @@ const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	'Eb': { B: '_', E: '_', A: '_' },
 	'Ab': { B: '_', E: '_', A: '_', D: '_' },
 	'Db': { B: '_', E: '_', A: '_', D: '_', G: '_' },
-	'Gb': { B: '_', E: '_', A: '_', D: '_', G: '_', C: '_' },
 };
 
 /**
@@ -470,11 +470,21 @@ export function phraseToAbc(
 }
 
 /**
+ * Respell a pitch class for chord display in a given key context.
+ * In flat keys, F# displays as Gb so chord roots stay consistent
+ * (e.g. Dbmaj7 → Gbmaj7 → Ab7 rather than Dbmaj7 → F#maj7 → Ab7).
+ */
+export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): string {
+	if (pc === 'F#' && FLAT_KEYS.includes(keyContext)) return 'Gb';
+	return pc;
+}
+
+/**
  * Convert a single MIDI note to a display-friendly note name.
  * Returns e.g. "C4", "Bb3", "F#5"
  */
 export function midiToDisplayName(midi: number, useFlats = true): string {
-	const NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+	const NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 	const NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 	const names = useFlats ? NAMES_FLAT : NAMES_SHARP;
 	return `${names[midiToPitchClass(midi)]}${midiToOctave(midi)}`;

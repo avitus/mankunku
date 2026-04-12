@@ -413,7 +413,7 @@ export type Database = {
         Row: {
           /** UUID foreign key to auth.users.id — part of composite PK (user_id, key) */
           user_id: string
-          /** PitchClass value: 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B' — part of composite PK */
+          /** PitchClass value: 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'F#' | 'G' | 'Ab' | 'A' | 'Bb' | 'B' — part of composite PK */
           key: string
           /** Proficiency level (1–100) */
           level: number
