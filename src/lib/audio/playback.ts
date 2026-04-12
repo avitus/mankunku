@@ -692,10 +692,15 @@ export async function scheduleNextPhrase(
 
 	// Cancel the stale end-of-phrase callback from the previous
 	// playPhrase / scheduleNextPhrase so it can't dispose the new Part
-	// we're about to create.
+	// we're about to create.  Also settle the previous promise — its
+	// only resolver was the callback we just cleared, so without this
+	// the earlier playPhrase/scheduleNextPhrase would stay pending
+	// forever once a new phrase is queued.
 	if (endPhraseEventId != null) {
 		transport.clear(endPhraseEventId);
 		endPhraseEventId = null;
+		onStopCallback?.();
+		onStopCallback = null;
 	}
 
 	// Dispose previous phrase part (metronome sequence is untouched)

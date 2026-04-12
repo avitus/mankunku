@@ -71,6 +71,11 @@
 	// Non-reactive timing anchors. Updated only at lick start, then read
 	// each animation frame to compute scrollFraction.
 	let lickStartSeconds = 0;
+	// Transport seconds at which the current lick's audio first sounds
+	// (demo in continuous mode, first app-phrase in call-response).  Used
+	// to freeze the beat indicator during the inter-lick rest so the newly
+	// shown first row doesn't animate before its demo starts.
+	let lickAudioStartSeconds = 0;
 	let secondsPerKey = 0;
 
 	// Inter-lick rest: 2 bars of backing-only between licks.
@@ -291,6 +296,7 @@
 			// count-in, the demo plays for `demoBars` bars (continuous only).
 			// The first user recording window therefore opens at transport
 			// seconds (1 + demoBars) × oneBarSeconds.
+			lickAudioStartSeconds = oneBarSeconds;
 			lickStartSeconds = (1 + demoBars) * oneBarSeconds;
 			startBeatTracking(keyBars);
 
@@ -331,6 +337,7 @@
 			// the first user window opens demoBars later.
 			const audioStartSeconds = (audioStartTick / ppq) * (60 / tempo);
 			const demoSeconds = demoBars * oneBarSeconds;
+			lickAudioStartSeconds = audioStartSeconds;
 			lickStartSeconds = audioStartSeconds + demoSeconds;
 			scrollFraction = 0;
 
@@ -450,10 +457,12 @@
 				const transport = toneModule.getTransport();
 				const seconds = transport.seconds;
 				const beatsPerSecond = lickPractice.currentTempo / 60;
-				// Transport includes the 1-bar count-in; subtract it for
-				// the display so beat 0 aligns with key 1's downbeat.
-				const countInBeats = 4;
-				const phrasePos = seconds * beatsPerSecond - countInBeats;
+				// Anchor the beat indicator to when the current lick's audio
+				// actually starts (count-in end for lick 1, audioStartTick for
+				// subsequent licks).  This freezes currentBeat at 0 during the
+				// inter-lick rest so the newly shown first row doesn't animate
+				// through beats before its demo plays.
+				const phrasePos = (seconds - lickAudioStartSeconds) * beatsPerSecond;
 				currentBeat = phrasePos < 0 ? 0 : phrasePos % loopBeats;
 
 				// Continuous scroll position for the upcoming-keys preview.
