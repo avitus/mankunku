@@ -82,6 +82,7 @@
 						currentBeat={isCurrent ? currentBeat : 0}
 						timeSignature={[4, 4]}
 						isPlaying={isCurrent && isPlaying}
+						key={pk.key}
 						{instrument}
 					/>
 				</div>

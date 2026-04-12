@@ -17,6 +17,8 @@ function loadSettings() {
 	if (!VALID_BACKING_STYLES.has(result.backingStyle)) {
 		result.backingStyle = 'swing';
 	}
+	// Clamp newLickStartingTempo to valid range (40–200 BPM)
+	result.newLickStartingTempo = Math.max(40, Math.min(200, result.newLickStartingTempo));
 	return result;
 }
 
@@ -38,7 +40,9 @@ const defaultSettings = {
 	/** User-configured highest concert pitch MIDI. null = instrument default. */
 	highestNote: null as number | null,
 	/** When true, use bleed-filtered notes as the primary score (A/B testing toggle). */
-	bleedFilterEnabled: false
+	bleedFilterEnabled: false,
+	/** Starting BPM for licks with no prior practice history. */
+	newLickStartingTempo: 60
 };
 
 export const settings = $state(loadSettings());
@@ -67,6 +71,7 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		const merged = { ...defaultSettings, ...cloudSettings };
 		// Clamp swing to valid range (same as loadSettings)
 		merged.swing = Math.max(0.5, Math.min(0.8, merged.swing as number));
+		merged.newLickStartingTempo = Math.max(40, Math.min(200, merged.newLickStartingTempo as number));
 		if (!VALID_BACKING_STYLES.has(merged.backingStyle as string)) {
 			merged.backingStyle = 'swing';
 		}

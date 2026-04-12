@@ -393,7 +393,8 @@
 				session.phrase.difficulty.level,
 				session.lastScore,
 				activeTonality.scaleType,
-				supabase
+				supabase,
+				'ear-training'
 			);
 		}
 
@@ -494,11 +495,6 @@
 		<div class="text-sm text-[var(--color-text-secondary)] opacity-60">
 			{scaleNoteCount} notes
 		</div>
-		{#if session.phrase && isActive}
-			<div class="mt-3 text-sm text-[var(--color-text-secondary)]">
-				{session.phrase.name}
-			</div>
-		{/if}
 	</div>
 
 	<!-- Button + persistent score strip row -->

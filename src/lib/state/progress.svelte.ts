@@ -71,9 +71,11 @@ function loadProgress(): UserProgress {
 /** Replay session history to build per-scale proficiency */
 function migrateScaleProficiency(sessions: SessionResult[]): Partial<Record<ScaleType, ScaleProficiency>> {
 	const result: Partial<Record<ScaleType, ScaleProficiency>> = {};
-	// Walk oldest-first
+	// Walk oldest-first; skip non-ear-training sessions.
+	// Sessions without a `source` field pre-date lick practice and are ear-training by definition.
 	const ordered = [...sessions].reverse();
 	for (const s of ordered) {
+		if (s.source === 'lick-practice') continue;
 		if (!s.scaleType) continue;
 		const current = result[s.scaleType] ?? createInitialScaleProficiency();
 		result[s.scaleType] = processScaleAttempt(current, s.overall);
@@ -84,8 +86,11 @@ function migrateScaleProficiency(sessions: SessionResult[]): Partial<Record<Scal
 /** Replay session history to build per-key proficiency */
 function migrateKeyProficiency(sessions: SessionResult[]): Partial<Record<PitchClass, KeyProficiency>> {
 	const result: Partial<Record<PitchClass, KeyProficiency>> = {};
+	// Skip lick-practice sessions — only ear-training drives key proficiency.
+	// Sessions without a `source` field pre-date lick practice and are ear-training by definition.
 	const ordered = [...sessions].reverse();
 	for (const s of ordered) {
+		if (s.source === 'lick-practice') continue;
 		const current = result[s.key] ?? createInitialKeyProficiency();
 		result[s.key] = processKeyAttempt(current, s.overall);
 	}
@@ -168,6 +173,11 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 
 /**
  * Record a completed attempt.
+ *
+ * Only ear-training sessions (source === 'ear-training', the default) update
+ * the "By Key" aggregate (`keyProgress`) and the key-proficiency unlock model
+ * (`keyProficiency`).  Lick-practice sessions are recorded to the session log
+ * and per-lick progress, but must not pollute the ear-training key statistics.
  */
 export function recordAttempt(
 	phraseId: string,
@@ -178,7 +188,8 @@ export function recordAttempt(
 	difficultyLevel: number,
 	score: Score,
 	scaleType?: ScaleType,
-	supabase?: SupabaseClient<Database>
+	supabase?: SupabaseClient<Database>,
+	source: 'ear-training' | 'lick-practice' = 'ear-training'
 ): void {
 	const session: SessionResult = {
 		id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -188,6 +199,7 @@ export function recordAttempt(
 		category,
 		key,
 		scaleType,
+		source,
 		tempo,
 		difficultyLevel,
 		pitchAccuracy: score.pitchAccuracy,
@@ -211,13 +223,10 @@ export function recordAttempt(
 		score.rhythmAccuracy
 	);
 
-	// Update per-scale proficiency
-	if (scaleType) {
+	// Update per-scale proficiency (ear-training only, matching migration logic)
+	if (scaleType && source === 'ear-training') {
 		updateScaleProficiency(scaleType, score);
 	}
-
-	// Update per-key proficiency
-	updateKeyProficiency(key, score);
 
 	// Update category progress
 	updateCategoryProgress(category, score);
@@ -225,8 +234,13 @@ export function recordAttempt(
 	// Update per-lick progress
 	updateLickProgress(phraseId, score, tempo);
 
-	// Update key progress
-	updateKeyProgress(key, score);
+	// Only ear-training sessions contribute to the "By Key" display and the
+	// key-proficiency unlock model.  Lick-practice sessions track their own
+	// per-key progress in the isolated lick-practice store.
+	if (source === 'ear-training') {
+		updateKeyProficiency(key, score);
+		updateKeyProgress(key, score);
+	}
 
 	// Update streak
 	updateStreak();

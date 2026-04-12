@@ -90,7 +90,7 @@ export const BLUES_LICK: Phrase = {
 	notes: [
 		{ pitch: 63, duration: [1, 8], offset: [0, 1] },     // Eb4
 		{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
-		{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // Gb4
+		{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // F#4
 		{ pitch: 67, duration: [1, 8], offset: [3, 8] },     // G4
 		{ pitch: 70, duration: [1, 4], offset: [1, 2] },     // Bb4
 		{ pitch: 67, duration: [1, 8], offset: [3, 4] },     // G4

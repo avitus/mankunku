@@ -24,9 +24,9 @@ describe('realizeScalePattern', () => {
 	});
 
 	it('produces correct MIDI for blues scale', () => {
-		// Minor blues: C(0) Eb(1) F(2) Gb(3) G(4) Bb(5) — root at C4=60
+		// Minor blues: C(0) Eb(1) F(2) F#(3) G(4) Bb(5) — root at C4=60
 		const pitches = realizeScalePattern([0, 1, 2, 3, 4], 'blues.minor', 'C');
-		expect(pitches).toEqual([60, 63, 65, 66, 67]); // C4 Eb4 F4 Gb4 G4
+		expect(pitches).toEqual([60, 63, 65, 66, 67]); // C4 Eb4 F4 F#4 G4
 	});
 
 	it('handles negative degrees (below root)', () => {

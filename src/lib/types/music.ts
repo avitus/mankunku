@@ -1,8 +1,8 @@
 /** Pitch classes in chromatic order (concert pitch) */
-export type PitchClass = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
+export type PitchClass = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'F#' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
 
 /** All 12 pitch classes in order */
-export const PITCH_CLASSES: PitchClass[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+export const PITCH_CLASSES: PitchClass[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export type ChordQuality =
 	| 'maj7' | 'min7' | '7' | 'min7b5' | 'dim7'

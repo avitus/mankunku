@@ -426,7 +426,7 @@ describe('difficulty calculation integration', () => {
 			makeNote(60, [0, 1]),  // C
 			makeNote(61, [1, 4]),  // Db
 			makeNote(63, [1, 2]),  // Eb
-			makeNote(66, [3, 4]),  // Gb
+			makeNote(66, [3, 4]),  // F#
 			makeNote(68, [1, 1]),  // Ab
 		]);
 

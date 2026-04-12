@@ -126,6 +126,8 @@ export type Database = {
           tonality_override: Json | null
           /** User-configured highest concert pitch MIDI. NULL = instrument default. */
           highest_note: number | null
+          /** Starting BPM for licks with no prior practice history (40–200) */
+          new_lick_starting_tempo: number
           /** Timestamp of last settings update (ISO 8601) */
           updated_at: string
         }
@@ -157,6 +159,8 @@ export type Database = {
           tonality_override?: Json | null
           /** NULL = instrument default */
           highest_note?: number | null
+          /** Defaults to 60 in database */
+          new_lick_starting_tempo?: number
           updated_at?: string
         }
         Update: {
@@ -174,6 +178,7 @@ export type Database = {
           onboarding_complete?: boolean
           tonality_override?: Json | null
           highest_note?: number | null
+          new_lick_starting_tempo?: number
           updated_at?: string
         }
         Relationships: [
@@ -413,7 +418,7 @@ export type Database = {
         Row: {
           /** UUID foreign key to auth.users.id — part of composite PK (user_id, key) */
           user_id: string
-          /** PitchClass value: 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B' — part of composite PK */
+          /** PitchClass value: 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'F#' | 'G' | 'Ab' | 'A' | 'Bb' | 'B' — part of composite PK */
           key: string
           /** Proficiency level (1–100) */
           level: number

@@ -79,7 +79,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [0, 1] },     // C4
 			{ pitch: 63, duration: [1, 8], offset: [1, 8] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4 (blue note)
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4 (blue note)
 			{ pitch: 67, duration: [1, 4], offset: [1, 2] },     // G4
 			{ pitch: 60, duration: [1, 4], offset: [3, 4] },     // C4
 			{ pitch: 63, duration: [1, 8], offset: [1, 1] },     // Eb4
@@ -145,7 +145,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [0, 1] },     // C4
 			{ pitch: 63, duration: [1, 8], offset: [1, 8] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4 (blue note)
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4 (blue note)
 			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
 			{ pitch: 70, duration: [1, 8], offset: [5, 8] },     // Bb4
 			{ pitch: 72, duration: [1, 4], offset: [3, 4] },     // C5
@@ -219,7 +219,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 63, duration: [1, 8], offset: [0, 1] },     // Eb4
 			{ pitch: 64, duration: [1, 8], offset: [1, 8] },     // E4 (chromatic)
 			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4 (blue note)
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4 (blue note)
 			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
 			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4 (chromatic)
 			{ pitch: 70, duration: [1, 8], offset: [3, 4] },     // Bb4
@@ -249,7 +249,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 69, duration: [1, 8], offset: [5, 8] },     // A4
 			{ pitch: 68, duration: [1, 8], offset: [3, 4] },     // Ab4
 			{ pitch: 67, duration: [1, 8], offset: [7, 8] },     // G4
-			{ pitch: 66, duration: [1, 8], offset: [1, 1] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 1] },     // F#4
 			{ pitch: 65, duration: [1, 8], offset: [9, 8] },     // F4
 			{ pitch: 64, duration: [1, 8], offset: [5, 4] },     // E4
 			{ pitch: 63, duration: [1, 8], offset: [11, 8] },    // Eb4
@@ -369,7 +369,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 70, duration: [1, 8], offset: [3, 4] },     // Bb4
 			{ pitch: 67, duration: [1, 8], offset: [7, 8] },     // G4
 			{ pitch: 65, duration: [1, 8], offset: [1, 1] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [9, 8] },     // Gb4 (blue note)
+			{ pitch: 66, duration: [1, 8], offset: [9, 8] },     // F#4 (blue note)
 			{ pitch: 67, duration: [1, 4], offset: [5, 4] },     // G4
 			{ pitch: 60, duration: [1, 2], offset: [3, 2] }      // C4
 		],
@@ -865,7 +865,7 @@ export const BLUES_LICKS: Phrase[] = [
 		notes: [
 			{ pitch: 63, duration: [1, 4], offset: [0, 1] },     // Eb4
 			{ pitch: 65, duration: [1, 4], offset: [1, 4] },     // F4
-			{ pitch: 66, duration: [1, 4], offset: [1, 2] },     // Gb4
+			{ pitch: 66, duration: [1, 4], offset: [1, 2] },     // F#4
 			{ pitch: 67, duration: [5, 4], offset: [3, 4] }      // G4
 		],
 		harmony: BLUES_HARMONY,
@@ -881,7 +881,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 67, duration: [1, 4], offset: [0, 1] },     // G4
-			{ pitch: 66, duration: [1, 4], offset: [1, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 4], offset: [1, 4] },     // F#4
 			{ pitch: 65, duration: [1, 4], offset: [1, 2] },     // F4
 			{ pitch: 63, duration: [5, 4], offset: [3, 4] }      // Eb4
 		],
@@ -898,7 +898,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 65, duration: [1, 8], offset: [0, 1] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // F#4
 			{ pitch: 67, duration: [1, 4], offset: [1, 4] },     // G4
 			{ pitch: 72, duration: [3, 2], offset: [1, 2] }      // C5
 		],
@@ -915,7 +915,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 67, duration: [1, 8], offset: [0, 1] },     // G4
-			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // F#4
 			{ pitch: 65, duration: [1, 4], offset: [1, 4] },     // F4
 			{ pitch: 67, duration: [3, 2], offset: [1, 2] }      // G4
 		],
@@ -934,7 +934,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [0, 1] },     // C4
 			{ pitch: 63, duration: [1, 8], offset: [1, 8] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4
 			{ pitch: 67, duration: [3, 2], offset: [1, 2] }      // G4
 		],
 		harmony: BLUES_HARMONY,
@@ -950,7 +950,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 67, duration: [1, 8], offset: [0, 1] },     // G4
-			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // F#4
 			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
 			{ pitch: 63, duration: [1, 8], offset: [3, 8] },     // Eb4
 			{ pitch: 60, duration: [3, 2], offset: [1, 2] }      // C4
@@ -969,7 +969,7 @@ export const BLUES_LICKS: Phrase[] = [
 		notes: [
 			{ pitch: 70, duration: [1, 8], offset: [0, 1] },     // Bb4
 			{ pitch: 67, duration: [1, 8], offset: [1, 8] },     // G4
-			{ pitch: 66, duration: [1, 4], offset: [1, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 4], offset: [1, 4] },     // F#4
 			{ pitch: 65, duration: [1, 4], offset: [1, 2] },     // F4
 			{ pitch: 63, duration: [5, 4], offset: [3, 4] }      // Eb4
 		],
@@ -986,7 +986,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 65, duration: [1, 8], offset: [0, 1] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // F#4
 			{ pitch: 67, duration: [1, 4], offset: [1, 4] },     // G4
 			{ pitch: 70, duration: [1, 4], offset: [1, 2] },     // Bb4
 			{ pitch: 67, duration: [5, 4], offset: [3, 4] }      // G4
@@ -1006,7 +1006,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [0, 1] },     // C4
 			{ pitch: 63, duration: [1, 8], offset: [1, 8] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
 			{ pitch: 70, duration: [11, 8], offset: [5, 8] }     // Bb4
 		],
@@ -1024,7 +1024,7 @@ export const BLUES_LICKS: Phrase[] = [
 		notes: [
 			{ pitch: 70, duration: [1, 8], offset: [0, 1] },     // Bb4
 			{ pitch: 67, duration: [1, 8], offset: [1, 8] },     // G4
-			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // F#4
 			{ pitch: 65, duration: [1, 8], offset: [3, 8] },     // F4
 			{ pitch: 63, duration: [1, 8], offset: [1, 2] },     // Eb4
 			{ pitch: 60, duration: [11, 8], offset: [5, 8] }     // C4
@@ -1042,9 +1042,9 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 65, duration: [1, 8], offset: [0, 1] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [1, 4] },     // G4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4
 			{ pitch: 65, duration: [1, 4], offset: [1, 2] },     // F4
 			{ pitch: 63, duration: [5, 4], offset: [3, 4] }      // Eb4
 		],
@@ -1062,7 +1062,7 @@ export const BLUES_LICKS: Phrase[] = [
 		notes: [
 			{ pitch: 60, duration: [1, 4], offset: [0, 1] },     // C4
 			{ pitch: 63, duration: [1, 4], offset: [1, 4] },     // Eb4
-			{ pitch: 66, duration: [1, 4], offset: [1, 2] },     // Gb4
+			{ pitch: 66, duration: [1, 4], offset: [1, 2] },     // F#4
 			{ pitch: 67, duration: [1, 4], offset: [3, 4] },     // G4
 			{ pitch: 72, duration: [1, 1], offset: [1, 1] }      // C5
 		],
@@ -1078,11 +1078,11 @@ export const BLUES_LICKS: Phrase[] = [
 		timeSignature: [4, 4],
 		key: 'C',
 		notes: [
-			{ pitch: 66, duration: [1, 8], offset: [0, 1] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [0, 1] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [1, 8] },     // G4
-			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [3, 8] },     // G4
-			{ pitch: 66, duration: [3, 2], offset: [1, 2] }      // Gb4
+			{ pitch: 66, duration: [3, 2], offset: [1, 2] }      // F#4
 		],
 		harmony: BLUES_HARMONY,
 		difficulty: { level: 26, pitchComplexity: 30, rhythmComplexity: 28, lengthBars: 2 },
@@ -1098,7 +1098,7 @@ export const BLUES_LICKS: Phrase[] = [
 		notes: [
 			{ pitch: 63, duration: [1, 8], offset: [0, 1] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [3, 8] },     // G4
 			{ pitch: 70, duration: [1, 8], offset: [1, 2] },     // Bb4
 			{ pitch: 72, duration: [11, 8], offset: [5, 8] }     // C5
@@ -1118,7 +1118,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
 			{ pitch: 70, duration: [1, 8], offset: [1, 8] },     // Bb4
 			{ pitch: 67, duration: [1, 8], offset: [1, 4] },     // G4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4
 			{ pitch: 65, duration: [1, 8], offset: [1, 2] },     // F4
 			{ pitch: 63, duration: [1, 8], offset: [5, 8] },     // Eb4
 			{ pitch: 60, duration: [5, 4], offset: [3, 4] }      // C4
@@ -1555,7 +1555,7 @@ export const BLUES_LICKS: Phrase[] = [
 		notes: [
 			{ pitch: 63, duration: [1, 8], offset: [0, 1] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [3, 8] },     // G4
 			{ pitch: 70, duration: [1, 8], offset: [1, 2] },     // Bb4
 			{ pitch: 67, duration: [11, 8], offset: [5, 8] }     // G4
@@ -1614,7 +1614,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [0, 1] },     // C4
 			{ pitch: 63, duration: [1, 8], offset: [1, 8] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 4] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [3, 8] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [1, 2] },     // G4
 			{ pitch: 70, duration: [1, 8], offset: [5, 8] },     // Bb4
 			{ pitch: 72, duration: [5, 4], offset: [3, 4] }      // C5
@@ -1708,7 +1708,7 @@ export const BLUES_LICKS: Phrase[] = [
 		timeSignature: [4, 4],
 		key: 'C',
 		notes: [
-			{ pitch: 66, duration: [1, 8], offset: [0, 1] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [0, 1] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [1, 8] },     // G4
 			{ pitch: 70, duration: [1, 4], offset: [1, 4] },     // Bb4
 			{ pitch: 72, duration: [3, 2], offset: [1, 2] }      // C5
@@ -1744,7 +1744,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 68, duration: [1, 8], offset: [0, 1] },     // Ab4
-			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // F#4
 			{ pitch: 67, duration: [1, 4], offset: [1, 4] },     // G4
 			{ pitch: 70, duration: [3, 2], offset: [1, 2] }      // Bb4
 		],
@@ -1888,7 +1888,7 @@ export const BLUES_LICKS: Phrase[] = [
 		notes: [
 			{ pitch: 59, duration: [1, 8], offset: [0, 1] },     // B3
 			{ pitch: 60, duration: [1, 8], offset: [1, 8] },     // C4
-			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 4] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [3, 8] },     // G4
 			{ pitch: 72, duration: [3, 2], offset: [1, 2] }      // C5
 		],
@@ -1993,7 +1993,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 65, duration: [1, 12], offset: [0, 1] },    // F4
-			{ pitch: 66, duration: [1, 12], offset: [1, 12] },   // Gb4
+			{ pitch: 66, duration: [1, 12], offset: [1, 12] },   // F#4
 			{ pitch: 67, duration: [1, 12], offset: [1, 6] },    // G4
 			{ pitch: 72, duration: [7, 4], offset: [1, 4] }      // C5
 		],
@@ -2232,7 +2232,7 @@ export const BLUES_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 68, duration: [1, 8], offset: [0, 1] },     // Ab4
-			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [1, 8] },     // F#4
 			{ pitch: 67, duration: [1, 8], offset: [1, 4] },     // G4
 			{ pitch: 64, duration: [1, 8], offset: [3, 8] },     // E4
 			{ pitch: 62, duration: [1, 8], offset: [1, 2] },     // D4
@@ -2312,7 +2312,7 @@ export const BLUES_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 8], offset: [1, 4] },     // G4
 			{ pitch: 63, duration: [1, 8], offset: [3, 8] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 2] },     // F4
-			{ pitch: 66, duration: [1, 8], offset: [5, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [5, 8] },     // F#4
 			{ pitch: 67, duration: [5, 4], offset: [3, 4] }      // G4
 		],
 		harmony: BLUES_HARMONY,
