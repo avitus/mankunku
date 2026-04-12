@@ -464,11 +464,6 @@ export type Database = {
       }
 
       /**
-       * User-recorded licks/phrases.
-       * Mirrors the Phrase interface from music.ts with user-specific fields.
-       * Source is always 'user-recorded', category is always 'user'.
-       */
-      /**
        * Per-user lick practice metadata for cross-device sync.
        * Stores practice tags, progression tags, per-key tempo/pass history,
        * and curated lick overrides as JSONB blobs. One row per user.

@@ -10,6 +10,7 @@
 		getCurrentPlanItem,
 		getCurrentKey,
 		getCurrentPhrase,
+		getPhraseFor,
 		getPlannedKeysForLick,
 		buildLickSuperPhrase,
 		getKeyBars,
@@ -627,14 +628,10 @@
 	 * lick/key index, not just the current one.
 	 */
 	function currentPhraseForKey(lickIdx: number, keyIdx: number): Phrase | null {
-		const savedLick = lickPractice.currentLickIndex;
-		const savedKey = lickPractice.currentKeyIndex;
-		lickPractice.currentLickIndex = lickIdx;
-		lickPractice.currentKeyIndex = keyIdx;
-		const phrase = getCurrentPhrase();
-		lickPractice.currentLickIndex = savedLick;
-		lickPractice.currentKeyIndex = savedKey;
-		return phrase;
+		// Delegates to the pure getPhraseFor helper — no reactive state
+		// mutation, so derived/effect observers don't flicker when the
+		// scorer peeks at a non-current key.
+		return getPhraseFor(lickIdx, keyIdx);
 	}
 
 	function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
@@ -655,19 +652,27 @@
 	}
 
 	function stopAll() {
+		// Capture whether the session was actually running.  Resources
+		// created during initializeSession() (mic, detectors, timers)
+		// can exist while isSessionRunning is still false, so we always
+		// run their cleanup — only the transport/playback teardown is
+		// guarded, since that's the call whose double-invocation (from
+		// both finishSession() and the phase==='complete' effect) this
+		// function is trying to make safe.
+		const wasRunning = isSessionRunning;
 		isSessionRunning = false;
 		isRecording = false;
 		currentWindow = null;
 		stopBeatTracking();
 		pitchDetector?.stop();
 		pitchDetector = null;
-		// Cancel any remaining scheduled transport callbacks, then
-		// stopPlayback() to tear down the transport + parts.
-		if (toneModule) {
-			toneModule.getTransport().cancel();
-		}
 		scheduledEventIds = [];
-		playback?.stopPlayback();
+		if (wasRunning) {
+			// stopPlayback() internally stops + cancels the transport and
+			// disposes backing/melody parts.  Only meaningful when a
+			// session was actually running.
+			playback?.stopPlayback();
+		}
 		// Clear polling intervals
 		if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 		if (levelInterval) { clearInterval(levelInterval); levelInterval = null; }
