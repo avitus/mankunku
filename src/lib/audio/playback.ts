@@ -50,6 +50,11 @@ let onStopCallback: (() => void) | null = null;
  *  Cleared when a new phrase is scheduled so a stale callback from
  *  a previous playPhrase/scheduleNextPhrase can't dispose the new Part. */
 let endPhraseEventId: number | null = null;
+/** Monotonically increasing generation token.  Bumped at the start of
+ *  playPhrase / scheduleNextPhrase / stopPlayback so async setup in a
+ *  superseded invocation can detect it was replaced and bail out before
+ *  installing stale callbacks or overwriting newer state. */
+let currentScheduleId = 0;
 /** Monotonically increasing ID for cancelling stale loadInstrument calls. */
 let currentLoadId = 0;
 
@@ -526,8 +531,14 @@ export async function playPhrase(
 	// between loadInstrument() and this call if no audio was playing.
 	await Tone.start();
 
-	// Clean up any previous playback
+	// Clean up any previous playback (this bumps currentScheduleId so
+	// any in-flight scheduleNextPhrase from the prior session bails out).
 	await stopPlayback();
+
+	// Acquire our own generation token AFTER stopPlayback so subsequent
+	// awaits in this invocation can detect if a newer playPhrase /
+	// scheduleNextPhrase supersedes us mid-setup.
+	const scheduleId = ++currentScheduleId;
 
 	// Configure transport
 	transport.bpm.value = options.tempo;
@@ -568,6 +579,7 @@ export async function playPhrase(
 	// Schedule metronome if enabled
 	if (options.metronomeEnabled) {
 		await setMetronomeVolume(options.metronomeVolume);
+		if (scheduleId !== currentScheduleId) return;
 		if (keepMetronome) {
 			// Loop indefinitely — will keep playing during recording
 			await scheduleMetronome(beatsPerBar, null);
@@ -575,11 +587,13 @@ export async function playPhrase(
 			const bars = getPhraseBars(phrase) + 1; // +1 for count-in bar
 			await scheduleMetronome(beatsPerBar, bars);
 		}
+		if (scheduleId !== currentScheduleId) return;
 	}
 
 	// Schedule backing track if enabled
 	if (options.backingTrackEnabled && isBackingLoaded()) {
 		await scheduleBackingTrack(phrase, options, barTicks, loopBacking);
+		if (scheduleId !== currentScheduleId) return;
 	}
 
 	// Schedule end-of-phrase notification. We always derive phrase length from
@@ -595,11 +609,16 @@ export async function playPhrase(
 	const endTick = barTicks + phraseTicks + ppq;
 
 	return new Promise<void>((resolve) => {
+		if (scheduleId !== currentScheduleId) {
+			resolve();
+			return;
+		}
 		isPlaying = true;
 
 		if (keepMetronome) {
 			// Resolve when phrase ends but keep transport + metronome alive
 			endPhraseEventId = transport.scheduleOnce(() => {
+				if (scheduleId !== currentScheduleId) return;
 				endPhraseEventId = null;
 				if (currentPart) {
 					currentPart.dispose();
@@ -611,6 +630,7 @@ export async function playPhrase(
 		} else {
 			// Full stop after phrase ends
 			endPhraseEventId = transport.scheduleOnce(() => {
+				if (scheduleId !== currentScheduleId) return;
 				endPhraseEventId = null;
 				stopPlayback();
 				resolve();
@@ -638,6 +658,11 @@ export async function playPhrase(
 export async function stopPlayback(): Promise<void> {
 	const Tone = await getTone();
 	const transport = Tone.getTransport();
+
+	// Bump the generation token so any in-flight playPhrase /
+	// scheduleNextPhrase setup bails out and can't re-arm callbacks
+	// after we've torn everything down.
+	++currentScheduleId;
 
 	transport.stop();
 	transport.position = 0;
@@ -681,7 +706,13 @@ export async function scheduleNextPhrase(
 		throw new Error('Instrument not loaded. Call loadInstrument() first.');
 	}
 
+	// Bump the generation token before any await.  If a newer invocation
+	// supersedes us, our `scheduleId` will no longer match and we bail
+	// out before installing stale callbacks.
+	const scheduleId = ++currentScheduleId;
+
 	const Tone = await getTone();
+	if (scheduleId !== currentScheduleId) return;
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
 	const skipMelody = opts.skipMelody ?? false;
@@ -740,6 +771,7 @@ export async function scheduleNextPhrase(
 	// Schedule backing track for the new phrase
 	if (options.backingTrackEnabled && isBackingLoaded()) {
 		await scheduleBackingTrack(phrase, options, nextBarTicks, loopBacking);
+		if (scheduleId !== currentScheduleId) return;
 	}
 
 	// Schedule end-of-phrase notification. See playPhrase for the rationale
@@ -748,7 +780,14 @@ export async function scheduleNextPhrase(
 	const endTicks = nextBarTicks + phraseTicks + ppq;
 
 	return new Promise<void>((resolve) => {
+		if (scheduleId !== currentScheduleId) {
+			resolve();
+			return;
+		}
 		endPhraseEventId = transport.scheduleOnce(() => {
+			// If a newer phrase has been queued since we scheduled this
+			// callback, bail out so we don't dispose its Part.
+			if (scheduleId !== currentScheduleId) return;
 			endPhraseEventId = null;
 			if (currentPart) {
 				currentPart.dispose();
