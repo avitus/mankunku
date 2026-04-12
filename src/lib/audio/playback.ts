@@ -592,7 +592,13 @@ export async function playPhrase(
 
 	// Schedule backing track if enabled
 	if (options.backingTrackEnabled && isBackingLoaded()) {
-		await scheduleBackingTrack(phrase, options, barTicks, loopBacking);
+		await scheduleBackingTrack(
+			phrase,
+			options,
+			barTicks,
+			loopBacking,
+			() => scheduleId === currentScheduleId
+		);
 		if (scheduleId !== currentScheduleId) return;
 	}
 
@@ -770,7 +776,13 @@ export async function scheduleNextPhrase(
 
 	// Schedule backing track for the new phrase
 	if (options.backingTrackEnabled && isBackingLoaded()) {
-		await scheduleBackingTrack(phrase, options, nextBarTicks, loopBacking);
+		await scheduleBackingTrack(
+			phrase,
+			options,
+			nextBarTicks,
+			loopBacking,
+			() => scheduleId === currentScheduleId
+		);
 		if (scheduleId !== currentScheduleId) return;
 	}
 
