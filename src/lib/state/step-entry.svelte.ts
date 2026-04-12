@@ -31,12 +31,12 @@ const KEY_SIG_ADJUSTMENTS: Record<string, Record<string, number>> = {
 	'A': { F: 1, C: 1, G: 1 },
 	'E': { F: 1, C: 1, G: 1, D: 1 },
 	'B': { F: 1, C: 1, G: 1, D: 1, A: 1 },
+	'F#': { F: 1, C: 1, G: 1, D: 1, A: 1, E: 1 },
 	'F': { B: -1 },
 	'Bb': { B: -1, E: -1 },
 	'Eb': { B: -1, E: -1, A: -1 },
 	'Ab': { B: -1, E: -1, A: -1, D: -1 },
 	'Db': { B: -1, E: -1, A: -1, D: -1, G: -1 },
-	'F#': { B: -1, E: -1, A: -1, D: -1, G: -1, C: -1 },
 };
 
 /** Apply key signature to a natural pitch class (e.g. F→F# in G major) */
