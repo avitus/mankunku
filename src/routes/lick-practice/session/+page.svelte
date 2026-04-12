@@ -652,24 +652,28 @@
 	}
 
 	function stopAll() {
-		// Guard against double-call: both finishSession() and the
-		// phase==='complete' effect can trigger stopAll in quick
-		// succession.  Using isSessionRunning as the sentinel keeps the
-		// function idempotent without a separate flag.
-		if (!isSessionRunning) return;
+		// Capture whether the session was actually running.  Resources
+		// created during initializeSession() (mic, detectors, timers)
+		// can exist while isSessionRunning is still false, so we always
+		// run their cleanup — only the transport/playback teardown is
+		// guarded, since that's the call whose double-invocation (from
+		// both finishSession() and the phase==='complete' effect) this
+		// function is trying to make safe.
+		const wasRunning = isSessionRunning;
 		isSessionRunning = false;
 		isRecording = false;
 		currentWindow = null;
 		stopBeatTracking();
 		pitchDetector?.stop();
 		pitchDetector = null;
-		// Cancel any remaining scheduled transport callbacks, then
-		// stopPlayback() to tear down the transport + parts.
-		if (toneModule) {
-			toneModule.getTransport().cancel();
-		}
 		scheduledEventIds = [];
-		playback?.stopPlayback();
+		if (wasRunning) {
+			// Cancel any remaining scheduled transport callbacks, then
+			// stopPlayback() to tear down the transport + parts.  Only
+			// meaningful when a session was actually running.
+			toneModule?.getTransport().cancel();
+			playback?.stopPlayback();
+		}
 		// Clear polling intervals
 		if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 		if (levelInterval) { clearInterval(levelInterval); levelInterval = null; }
