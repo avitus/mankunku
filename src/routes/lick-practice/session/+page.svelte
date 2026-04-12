@@ -10,6 +10,7 @@
 		getCurrentPlanItem,
 		getCurrentKey,
 		getCurrentPhrase,
+		getPhraseFor,
 		getPlannedKeysForLick,
 		buildLickSuperPhrase,
 		getKeyBars,
@@ -627,14 +628,10 @@
 	 * lick/key index, not just the current one.
 	 */
 	function currentPhraseForKey(lickIdx: number, keyIdx: number): Phrase | null {
-		const savedLick = lickPractice.currentLickIndex;
-		const savedKey = lickPractice.currentKeyIndex;
-		lickPractice.currentLickIndex = lickIdx;
-		lickPractice.currentKeyIndex = keyIdx;
-		const phrase = getCurrentPhrase();
-		lickPractice.currentLickIndex = savedLick;
-		lickPractice.currentKeyIndex = savedKey;
-		return phrase;
+		// Delegates to the pure getPhraseFor helper — no reactive state
+		// mutation, so derived/effect observers don't flicker when the
+		// scorer peeks at a non-current key.
+		return getPhraseFor(lickIdx, keyIdx);
 	}
 
 	function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
@@ -655,6 +652,11 @@
 	}
 
 	function stopAll() {
+		// Guard against double-call: both finishSession() and the
+		// phase==='complete' effect can trigger stopAll in quick
+		// succession.  Using isSessionRunning as the sentinel keeps the
+		// function idempotent without a separate flag.
+		if (!isSessionRunning) return;
 		isSessionRunning = false;
 		isRecording = false;
 		currentWindow = null;

@@ -20,7 +20,11 @@
 	const CENTER = 110;
 
 	function getKeyPosition(index: number): { x: number; y: number } {
-		const angle = (index / 12) * Math.PI * 2 - Math.PI / 2;
+		// Distribute dots evenly around the ring based on the actual key
+		// count rather than the usual 12, so this works if the plan ever
+		// uses fewer/more keys (partial cycles, custom progressions).
+		const count = keys.length || 1;
+		const angle = (index / count) * Math.PI * 2 - Math.PI / 2;
 		return {
 			x: CENTER + RING_RADIUS * Math.cos(angle),
 			y: CENTER + RING_RADIUS * Math.sin(angle)
