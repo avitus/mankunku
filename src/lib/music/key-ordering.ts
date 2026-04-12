@@ -72,7 +72,7 @@ export function unlockedStages(tempo: number, minBpm: number): KeyOrderingStage[
 	const stages: KeyOrderingStage[] = [0];
 	if (tempo >= unlockStage1) stages.push(1);
 	if (tempo >= unlockStage2) stages.push(2);
-	if (tempo >= 150) stages.push(3, 4);
+	if (tempo >= Math.max(150, unlockStage2)) stages.push(3, 4);
 	return stages;
 }
 
