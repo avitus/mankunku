@@ -731,7 +731,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 67, duration: [1, 4], offset: [0, 1] },  // G4
-			{ pitch: 66, duration: [1, 4], offset: [1, 4] },  // Gb4 (b5 blue note)
+			{ pitch: 66, duration: [1, 4], offset: [1, 4] },  // F#4 (b5 blue note)
 			{ pitch: 65, duration: [1, 2], offset: [1, 2] }   // F4
 		],
 		harmony: CBLUES_1BAR,
@@ -747,7 +747,7 @@ export const BEGINNER_CELL_LICKS: Phrase[] = [
 		key: 'C',
 		notes: [
 			{ pitch: 65, duration: [1, 4], offset: [0, 1] },  // F4
-			{ pitch: 66, duration: [1, 4], offset: [1, 4] },  // Gb4 (b5)
+			{ pitch: 66, duration: [1, 4], offset: [1, 4] },  // F#4 (b5)
 			{ pitch: 67, duration: [1, 2], offset: [1, 2] }   // G4
 		],
 		harmony: CBLUES_1BAR,

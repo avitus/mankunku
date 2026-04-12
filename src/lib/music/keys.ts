@@ -3,7 +3,7 @@ import { PITCH_CLASSES } from '$lib/types/music.ts';
 
 /** Number of sharps (positive) or flats (negative) for each key in major */
 const KEY_SIGNATURES: Record<PitchClass, number> = {
-	C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, Gb: -6,
+	C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F#': 6,
 	Db: -5, Ab: -4, Eb: -3, Bb: -2, F: -1
 };
 
@@ -14,11 +14,11 @@ export function keySignatureAccidentals(key: PitchClass): number {
 
 /** Get circle-of-fifths ordering of all keys */
 export function circleOfFifths(): PitchClass[] {
-	return ['C', 'G', 'D', 'A', 'E', 'B', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F'];
+	return ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'];
 }
 
 /** Circle of fourths (counterclockwise circle of fifths) */
-const CIRCLE_OF_FOURTHS: PitchClass[] = ['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G'];
+const CIRCLE_OF_FOURTHS: PitchClass[] = ['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G'];
 
 /** Get circle-of-fourths ordering of all keys */
 export function circleOfFourths(): PitchClass[] {

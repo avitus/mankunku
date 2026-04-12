@@ -487,6 +487,9 @@ export interface PhrasePlaybackOpts {
 	skipMelody?: boolean;
 	loopBacking?: boolean;
 	onStarted?: () => void;
+	/** Override the computed start tick for scheduleNextPhrase (ensures
+	 *  caller and playback agree on the exact bar boundary). */
+	startTick?: number;
 }
 
 /**
@@ -688,13 +691,21 @@ export async function scheduleNextPhrase(
 	disposeBackingParts();
 	stopNotes();
 
-	// Find the next bar downbeat with at least 1 beat of lead time
+	// Find the next bar downbeat with at least 1 beat of lead time.
+	// When the caller supplies startTick, use it directly so the backing
+	// track lands on the exact same bar boundary the caller computed
+	// synchronously (before the await introduced by this async function).
 	const beatsPerBar = phrase.timeSignature[0];
 	const ticksPerBar = beatsPerBar * ppq;
-	const currentTicks = transport.ticks;
-	let nextBarTicks = Math.ceil(currentTicks / ticksPerBar) * ticksPerBar;
-	if (nextBarTicks - currentTicks < ppq) {
-		nextBarTicks += ticksPerBar;
+	let nextBarTicks: number;
+	if (opts.startTick != null) {
+		nextBarTicks = opts.startTick;
+	} else {
+		const currentTicks = transport.ticks;
+		nextBarTicks = Math.ceil(currentTicks / ticksPerBar) * ticksPerBar;
+		if (nextBarTicks - currentTicks < ppq) {
+			nextBarTicks += ticksPerBar;
+		}
 	}
 
 	// Apply swing (transport already has swing configured from initial playPhrase)

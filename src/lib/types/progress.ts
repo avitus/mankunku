@@ -32,6 +32,13 @@ export interface SessionResult {
 	key: PitchClass;
 	/** Scale type for the session (e.g. 'dorian', 'major'). Optional for backward compat. */
 	scaleType?: ScaleType;
+	/**
+	 * Which practice mode produced this session.
+	 * Optional for backward compatibility — old records without this field
+	 * are treated as 'ear-training' (the only mode that existed before lick
+	 * practice was introduced).
+	 */
+	source?: 'ear-training' | 'lick-practice';
 	tempo: number;
 	difficultyLevel: number;
 	pitchAccuracy: number;

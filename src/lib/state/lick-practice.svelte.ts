@@ -156,7 +156,7 @@ function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): num
 		return clampTempo(
 			lickPractice.config.autoAdjustTempo
 				? AUTO_ADJUST_DEFAULT_TEMPO
-				: settings.defaultTempo
+				: settings.newLickStartingTempo
 		);
 	}
 	return clampTempo(getLickTempo(progress, phraseId));
@@ -659,10 +659,18 @@ export function getSessionReport(): SessionReport {
 		// Tempo is the one used for the first attempt (all keys share it within a lick)
 		const tempo = results[0]?.tempo ?? lickPractice.currentTempo;
 
+		// Read the persisted tempo to detect if it was adjusted.
+		// Only compare when progress exists — getLickTempo returns a store
+		// default for brand-new licks which would produce a bogus delta.
+		const hasProgress = hasLickProgress(lickPractice.progress, item.phraseId);
+		const persistedTempo = hasProgress ? getLickTempo(lickPractice.progress, item.phraseId) : tempo;
+		const newTempo = persistedTempo !== tempo ? persistedTempo : null;
+
 		licks.push({
 			lickId: item.phraseId,
 			lickName: item.phraseName,
 			tempo,
+			newTempo,
 			keys,
 			averageScore,
 			passedCount

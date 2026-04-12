@@ -130,7 +130,7 @@ describe('proficiency-based key unlock', () => {
 
 	it('unlocks sharper keys at higher proficiency', () => {
 		const c = ctx({}, { 'C': 15, 'G': 15, 'D': 15, 'A': 15, 'E': 15, 'B': 15 });
-		expect(isKeyUnlocked('Gb', c)).toBe(true);
+		expect(isKeyUnlocked('F#', c)).toBe(true);
 	});
 
 	it('unlocks flat keys progressively', () => {

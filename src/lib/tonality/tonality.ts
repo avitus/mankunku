@@ -76,7 +76,7 @@ export const SCALE_TYPE_TO_SCALE_ID: Record<ScaleType, string> = {
 // ── Key unlock order (circle of fifths) ─────────────────────────────
 
 export const KEY_UNLOCK_ORDER: PitchClass[] = [
-	'C', 'G', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db', 'Gb'
+	'C', 'G', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db', 'F#'
 ];
 
 // ── Scale type unlock order ─────────────────────────────────────────
@@ -137,7 +137,7 @@ export const KEY_UNLOCK_PREREQUISITES: Record<PitchClass, { key: PitchClass; lev
 	'Ab': [{ key: 'Eb', level: 15 }],
 	'B':  [{ key: 'E',  level: 15 }],
 	'Db': [{ key: 'Ab', level: 15 }],
-	'Gb': [{ key: 'B',  level: 15 }],
+	'F#': [{ key: 'B',  level: 15 }],
 };
 
 // ── Unlock queries ──────────────────────────────────────────────────

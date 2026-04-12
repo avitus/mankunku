@@ -3,7 +3,7 @@
  * All MIDI note numbers are concert pitch.
  */
 
-const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
 /** Convert MIDI note number to pitch class index (0-11) */
 export function midiToPitchClass(midi: number): number {
@@ -32,17 +32,22 @@ export function noteNameToMidi(name: string): number {
 
 	const [, notePart, octaveStr] = match;
 	let pc = NOTE_NAMES.indexOf(notePart as (typeof NOTE_NAMES)[number]);
+	let octave = parseInt(octaveStr);
 	if (pc === -1) {
-		// Handle sharps by converting to flat equivalent
-		const sharpMap: Record<string, string> = {
-			'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb', 'E#': 'F', 'B#': 'C'
+		// Handle enharmonic aliases not in NOTE_NAMES
+		const aliasMap: Record<string, string> = {
+			'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb', 'E#': 'F', 'B#': 'C',
+			'Gb': 'F#', 'Cb': 'B', 'Fb': 'E'
 		};
-		const flat = sharpMap[notePart];
-		if (!flat) throw new Error(`Invalid note: ${notePart}`);
-		pc = NOTE_NAMES.indexOf(flat as (typeof NOTE_NAMES)[number]);
+		const canonical = aliasMap[notePart];
+		if (!canonical) throw new Error(`Invalid note: ${notePart}`);
+		pc = NOTE_NAMES.indexOf(canonical as (typeof NOTE_NAMES)[number]);
+		// Adjust octave for aliases that cross the B/C octave boundary
+		if (notePart === 'Cb') octave--;  // Cb4 = B3
+		if (notePart === 'B#') octave++;  // B#3 = C4
 	}
 
-	return pitchClassToMidi(pc, parseInt(octaveStr));
+	return pitchClassToMidi(pc, octave);
 }
 
 /** Interval in semitones between two MIDI notes */

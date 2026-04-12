@@ -168,7 +168,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			// G7alt
 			{ pitch: 71, duration: [1, 8], offset: [1, 1] },     // B4
 			{ pitch: 68, duration: [1, 8], offset: [9, 8] },     // Ab4
-			{ pitch: 66, duration: [1, 8], offset: [5, 4] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [5, 4] },     // F#4
 			{ pitch: 65, duration: [1, 8], offset: [11, 8] },    // F4
 			{ pitch: 63, duration: [1, 4], offset: [3, 2] },     // Eb4
 			{ pitch: 60, duration: [1, 4], offset: [7, 4] },     // C4
@@ -220,7 +220,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 			{ pitch: 62, duration: [1, 4], offset: [3, 4] },     // D4
 			// G7: melodic minor a half-step up
 			{ pitch: 68, duration: [1, 8], offset: [1, 1] },     // Ab4
-			{ pitch: 66, duration: [1, 8], offset: [9, 8] },     // Gb4
+			{ pitch: 66, duration: [1, 8], offset: [9, 8] },     // F#4
 			{ pitch: 65, duration: [1, 8], offset: [5, 4] },     // F4
 			{ pitch: 63, duration: [1, 8], offset: [11, 8] },    // Eb4
 			{ pitch: 62, duration: [1, 8], offset: [3, 2] },     // D4

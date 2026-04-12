@@ -71,6 +71,8 @@ export interface LickReport {
 	lickId: string;
 	lickName: string;
 	tempo: number;
+	/** Tempo after auto-adjust/increment (null if no change was applied) */
+	newTempo: number | null;
 	keys: {
 		key: PitchClass;
 		score: number;
