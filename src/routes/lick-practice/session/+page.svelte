@@ -668,10 +668,9 @@
 		pitchDetector = null;
 		scheduledEventIds = [];
 		if (wasRunning) {
-			// Cancel any remaining scheduled transport callbacks, then
-			// stopPlayback() to tear down the transport + parts.  Only
-			// meaningful when a session was actually running.
-			toneModule?.getTransport().cancel();
+			// stopPlayback() internally stops + cancels the transport and
+			// disposes backing/melody parts.  Only meaningful when a
+			// session was actually running.
 			playback?.stopPlayback();
 		}
 		// Clear polling intervals
