@@ -27,8 +27,8 @@ import type {
 	SessionReport
 } from '$lib/types/lick-practice.ts';
 import type { Score } from '$lib/types/scoring.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
 import { addFractions } from '$lib/music/intervals.ts';
+import { planLickKeys } from '$lib/music/key-ordering.ts';
 import {
 	loadLickPracticeProgress,
 	saveLickPracticeProgress,
@@ -62,15 +62,6 @@ export interface PlannedKey {
 	harmony: HarmonicSegment[];
 	lickName: string;
 	lickId: string;
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-	const result = [...arr];
-	for (let i = result.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[result[i], result[j]] = [result[j], result[i]];
-	}
-	return result;
 }
 
 export const lickPractice = $state<{
@@ -185,7 +176,12 @@ export function buildSessionPlan(): void {
 
 	for (let i = 0; i < sorted.length && estimatedTime < totalSeconds; i++) {
 		const lick = sorted[i];
-		const keys = shuffleArray([...PITCH_CLASSES]);
+		const tempo = resolveLickTempo(progress, lick.id);
+		const keys = planLickKeys({
+			tempo,
+			minBpm: settings.newLickStartingTempo,
+			instrument: getInstrument()
+		});
 		plan.push({
 			phraseId: lick.id,
 			phraseName: lick.name,
@@ -193,7 +189,6 @@ export function buildSessionPlan(): void {
 			category: lick.category,
 			keys
 		});
-		const tempo = resolveLickTempo(progress, lick.id);
 		const barsPerKey = PROGRESSION_TEMPLATES[lickPractice.config.progressionType].bars;
 		const secondsPerKey = (barsPerKey * 4 * 60) / tempo + 5;
 		estimatedTime += secondsPerKey * 12;
