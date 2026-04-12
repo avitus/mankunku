@@ -1,6 +1,5 @@
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
 	import type { InstrumentConfig } from '$lib/types/instruments.ts';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte.ts';
 
@@ -39,8 +38,8 @@
 	}: Props = $props();
 
 	// Each row is a fixed pixel height so the scroll math is simple.
-	// Tuned to fit a single chord-chart row + label + padding.
-	const ROW_HEIGHT = 130;
+	// Tuned to fit a single chord-chart row + padding.
+	const ROW_HEIGHT = 105;
 	const VISIBLE_ROWS = 3;
 
 	// One-row offset so the current key starts at viewport row 1 (one row
@@ -66,21 +65,14 @@
 				class:current={isCurrent}
 				style="height: {ROW_HEIGHT}px;"
 			>
+				{#if i === 0}
 				<div class="row-label">
-					<span class="chip" class:chip-current={isCurrent}>
-						{#if isCurrent}
-							{isDemoing ? 'Listen' : 'Now'}
-						{:else if i < visualCurrentRow}
-							Done
-						{:else}
-							Up next
-						{/if}
-					</span>
-					<span class="key-text">{concertKeyToWritten(pk.key, instrument)}</span>
-					{#if i === 0}
-						<span class="lick-name">{pk.lickName}</span>
+					{#if isCurrent && isDemoing}
+						<span class="listen-tag">Listen</span>
 					{/if}
+					<span class="lick-name">{pk.lickName}</span>
 				</div>
+				{/if}
 				<!-- Recording ring wraps just the chord chart, not the row
 				     label, so the blue border sits below the label rather
 				     than above it. -->
@@ -111,7 +103,8 @@
 		will-change: transform;
 	}
 	.row {
-		padding: 0.5rem 0.5rem 0.75rem;
+		position: relative;
+		padding: 0.25rem 0.5rem 0.5rem;
 		opacity: 0.35;
 		transition: opacity 250ms ease;
 	}
@@ -125,30 +118,19 @@
 		box-shadow: 0 0 0 2px var(--color-accent);
 	}
 	.row-label {
+		position: absolute;
+		top: -1rem;
+		left: 0.5rem;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		margin-bottom: 0.25rem;
 	}
-	.chip {
-		display: inline-block;
-		padding: 0.15rem 0.5rem;
-		border-radius: 9999px;
+	.listen-tag {
 		font-size: 0.65rem;
-		font-weight: 700;
+		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		background: var(--color-bg-tertiary);
 		color: var(--color-text-secondary);
-	}
-	.chip.chip-current {
-		background: var(--color-accent);
-		color: white;
-	}
-	.key-text {
-		font-size: 1.125rem;
-		font-weight: 800;
-		font-variant-numeric: tabular-nums;
 	}
 	.lick-name {
 		font-size: 0.75rem;
