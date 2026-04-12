@@ -32,6 +32,7 @@ export function noteNameToMidi(name: string): number {
 
 	const [, notePart, octaveStr] = match;
 	let pc = NOTE_NAMES.indexOf(notePart as (typeof NOTE_NAMES)[number]);
+	let octave = parseInt(octaveStr);
 	if (pc === -1) {
 		// Handle enharmonic aliases not in NOTE_NAMES
 		const aliasMap: Record<string, string> = {
@@ -41,9 +42,12 @@ export function noteNameToMidi(name: string): number {
 		const canonical = aliasMap[notePart];
 		if (!canonical) throw new Error(`Invalid note: ${notePart}`);
 		pc = NOTE_NAMES.indexOf(canonical as (typeof NOTE_NAMES)[number]);
+		// Adjust octave for aliases that cross the B/C octave boundary
+		if (notePart === 'Cb') octave--;  // Cb4 = B3
+		if (notePart === 'B#') octave++;  // B#3 = C4
 	}
 
-	return pitchClassToMidi(pc, parseInt(octaveStr));
+	return pitchClassToMidi(pc, octave);
 }
 
 /** Interval in semitones between two MIDI notes */

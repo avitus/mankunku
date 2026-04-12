@@ -83,7 +83,8 @@
 	}
 
 	function handleNewLickTempoChange(e: Event) {
-		settings.newLickStartingTempo = parseInt((e.target as HTMLInputElement).value);
+		const v = parseInt((e.target as HTMLInputElement).value);
+		settings.newLickStartingTempo = Math.min(200, Math.max(40, Number.isNaN(v) ? 60 : v));
 	}
 
 	function handleMasterVolumeChange(e: Event) {
