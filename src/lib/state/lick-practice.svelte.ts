@@ -115,9 +115,15 @@ export async function hydrateLickPracticeProgress(
 	supabase?: SupabaseClient<Database> | null
 ): Promise<void> {
 	// Hydrate cloud metadata first so localStorage is populated before
-	// we read from it below.
+	// we read from it below.  Swallow errors (network/auth failure) so
+	// the session can still proceed with local-only data — the app is
+	// local-first, cloud sync is best-effort.
 	if (supabase) {
-		await initLickMetadataFromCloud(supabase);
+		try {
+			await initLickMetadataFromCloud(supabase);
+		} catch (err) {
+			console.warn('Cloud hydration failed, proceeding with local data:', err);
+		}
 	}
 
 	lickPractice.progress = loadLickPracticeProgress();
@@ -237,6 +243,20 @@ export function getCurrentPhrase(): Phrase | null {
 	const item = getCurrentPlanItem();
 	const key = getCurrentKey();
 	if (!item || !key) return null;
+	return buildPhraseFor(item.phraseId, key);
+}
+
+/**
+ * Pure variant of getCurrentPhrase that takes explicit indices instead
+ * of reading currentLickIndex/currentKeyIndex.  Use this when scoring
+ * a key that has just finished — the "current" indices may have already
+ * advanced to the next key by the time scoring runs.
+ */
+export function getPhraseFor(lickIdx: number, keyIdx: number): Phrase | null {
+	const item = lickPractice.plan[lickIdx];
+	if (!item) return null;
+	const key = item.keys[keyIdx];
+	if (!key) return null;
 	return buildPhraseFor(item.phraseId, key);
 }
 

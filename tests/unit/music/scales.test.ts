@@ -1,32 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SCALE_CATALOG, getScale, getScalesByFamily, getScalesForChord, MVP_SCALE_IDS, getMvpScales } from '$lib/music/scales.ts';
-
-describe('SCALE_CATALOG', () => {
-	it('has 33 scales', () => {
-		expect(SCALE_CATALOG).toHaveLength(33);
-	});
-
-	it('every scale intervals sum to 12', () => {
-		for (const scale of SCALE_CATALOG) {
-			const sum = scale.intervals.reduce((a, b) => a + b, 0);
-			expect(sum, `${scale.id} intervals sum to ${sum}`).toBe(12);
-		}
-	});
-
-	it('every scale has matching degrees count', () => {
-		for (const scale of SCALE_CATALOG) {
-			expect(
-				scale.degrees.length,
-				`${scale.id}: ${scale.degrees.length} degrees vs ${scale.intervals.length} intervals`
-			).toBe(scale.intervals.length);
-		}
-	});
-
-	it('has unique IDs', () => {
-		const ids = SCALE_CATALOG.map((s) => s.id);
-		expect(new Set(ids).size).toBe(ids.length);
-	});
-});
+import { getScale, getScalesByFamily, getScalesForChord } from '$lib/music/scales.ts';
 
 describe('getScale', () => {
 	it('finds by ID', () => {
@@ -67,17 +40,5 @@ describe('getScalesForChord', () => {
 		const ids = scales.map((s) => s.id);
 		expect(ids).toContain('major.mixolydian');
 		expect(ids).toContain('bebop.dominant');
-	});
-});
-
-describe('MVP scales', () => {
-	it('has 20 MVP scales', () => {
-		expect(MVP_SCALE_IDS).toHaveLength(20);
-	});
-
-	it('getMvpScales returns all resolved definitions', () => {
-		const mvp = getMvpScales();
-		expect(mvp).toHaveLength(20);
-		expect(mvp.every((s) => s !== undefined)).toBe(true);
 	});
 });

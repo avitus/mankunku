@@ -3,6 +3,14 @@
  *
  * Each style specifies drum, comping, and bass behavior patterns
  * that the backing track engine dispatches on.
+ *
+ * Velocity scales differ by destination instrument:
+ *   - Drum velocities (DrumHit.*Velocity) are 0–1 because drum hits are
+ *     triggered through Tone.js synths (triggerAttackRelease) which expect
+ *     normalized gain.
+ *   - Comp and bass velocities are MIDI 0–127 because those notes are
+ *     played through smplr samplers which follow the MIDI convention.
+ *     This matches the scale used by walking-bass events and melody notes.
  */
 
 import type { BackingStyle } from '$lib/types/instruments.ts';
@@ -11,11 +19,11 @@ export interface DrumHit {
 	kick?: boolean;
 	ride?: boolean;
 	hihat?: boolean;
-	/** Ride velocity override (0-1) */
+	/** Ride velocity override (0-1, Tone.Synth gain) */
 	rideVelocity?: number;
-	/** Hi-hat velocity override (0-1) */
+	/** Hi-hat velocity override (0-1, Tone.Synth gain) */
 	hihatVelocity?: number;
-	/** Kick velocity override (0-1) */
+	/** Kick velocity override (0-1, Tone.Synth gain) */
 	kickVelocity?: number;
 }
 
@@ -25,9 +33,14 @@ export interface StyleDefinition {
 	defaultSwing: number;
 	/** Drum pattern: maps beat index (0-based within bar) to drum hits */
 	drumPattern: (beat: number, beatsPerBar: number) => DrumHit;
-	/** Comping pattern: returns true if this beat should get a comp hit.
-	 *  Duration is a [numerator, denominator] tuple representing a fraction
-	 *  of one beat (quarter note). Converted to seconds at scheduling time. */
+	/**
+	 * Comping pattern: decides whether this beat gets a comp hit.
+	 *
+	 * `velocity` is a MIDI value in the range 0–127 (smplr convention —
+	 * do NOT confuse with DrumHit's 0–1 normalized velocities).  Duration
+	 * is a [numerator, denominator] tuple representing a fraction of one
+	 * beat (quarter note); converted to seconds at scheduling time.
+	 */
 	compPattern: (beat: number, beatsPerBar: number) => { hit: boolean; velocity: number; duration: [number, number] };
 	/** Bass style: 'walking' = chord-tone walking, 'pedal' = root pedal, 'pattern' = rhythmic pattern */
 	bassStyle: 'walking' | 'pedal' | 'pattern';

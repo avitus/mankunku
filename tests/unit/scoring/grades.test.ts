@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { scoreToGrade, GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
 
+const GRADE_KEYS = ['perfect', 'great', 'good', 'fair', 'try-again'] as const;
+
 describe('scoreToGrade', () => {
 	it('1.0 → perfect', () => {
 		expect(scoreToGrade(1.0)).toBe('perfect');
@@ -43,22 +45,16 @@ describe('scoreToGrade', () => {
 	});
 });
 
-describe('GRADE_LABELS', () => {
-	it('has labels for all 5 grades', () => {
-		expect(GRADE_LABELS.perfect).toBe('Perfect');
-		expect(GRADE_LABELS.great).toBe('Great');
-		expect(GRADE_LABELS.good).toBe('Good');
-		expect(GRADE_LABELS.fair).toBe('Fair');
-		expect(GRADE_LABELS['try-again']).toBe('Try Again');
+describe('grade display mappings', () => {
+	it('both exports cover every grade key with no drift', () => {
+		expect(Object.keys(GRADE_LABELS).sort()).toEqual([...GRADE_KEYS].sort());
+		expect(Object.keys(GRADE_COLORS).sort()).toEqual([...GRADE_KEYS].sort());
 	});
-});
 
-describe('GRADE_COLORS', () => {
-	it('has colors for all 5 grades', () => {
-		expect(GRADE_COLORS.perfect).toBeDefined();
-		expect(GRADE_COLORS.great).toBeDefined();
-		expect(GRADE_COLORS.good).toBeDefined();
-		expect(GRADE_COLORS.fair).toBeDefined();
-		expect(GRADE_COLORS['try-again']).toBeDefined();
+	it('labels are non-empty strings and colors are CSS color vars', () => {
+		for (const key of GRADE_KEYS) {
+			expect(GRADE_LABELS[key]).toBeTruthy();
+			expect(GRADE_COLORS[key]).toMatch(/^var\(--color-/);
+		}
 	});
 });

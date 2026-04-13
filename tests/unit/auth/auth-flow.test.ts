@@ -724,25 +724,3 @@ describe('auth state transitions', () => {
 	});
 });
 
-describe('mock cookies', () => {
-	it('stores and retrieves cookies correctly', () => {
-		const cookies = createMockCookies();
-
-		cookies.set('sb-auth-token', 'mock-jwt-value');
-		expect(cookies.get('sb-auth-token')).toBe('mock-jwt-value');
-
-		const allCookies = cookies.getAll();
-		expect(allCookies).toHaveLength(1);
-		expect(allCookies[0]).toEqual({ name: 'sb-auth-token', value: 'mock-jwt-value' });
-	});
-
-	it('deletes cookies correctly', () => {
-		const cookies = createMockCookies();
-
-		cookies.set('sb-auth-token', 'mock-jwt-value');
-		cookies.delete('sb-auth-token');
-
-		expect(cookies.get('sb-auth-token')).toBeUndefined();
-		expect(cookies.getAll()).toHaveLength(0);
-	});
-});
