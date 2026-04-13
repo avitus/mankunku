@@ -111,6 +111,24 @@ export const SAMPLE_MAPS: Record<string, SampleMap> = {
 	'tenor-sax': TENOR_SAX_SAMPLES
 };
 
+/**
+ * Jazz drum kit samples for the backing track.
+ *
+ * Single-velocity-layer sampler with string aliases (smplr maps each
+ * non-MIDI key to an internal alias at load time). Source: Karoryfer/
+ * Versilian "Virtuosity Drums" v0.924 (CC0). Converted from FLAC to
+ * OGG Vorbis q5 for web delivery.
+ *
+ * - kick:  felt-beater acoustic kick (close mic)
+ * - ride:  ride cymbal bow stroke (overhead mic, full sustain)
+ * - hihat: closed hi-hat (overhead mic)
+ */
+export const DRUM_BUFFERS: Record<string, string> = {
+	kick: '/samples/drums/kick.ogg',
+	ride: '/samples/drums/ride.ogg',
+	hihat: '/samples/drums/hihat.ogg'
+};
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 /** Convert MIDI number to note name (e.g. 60 → "C4", 44 → "G#2"). */
