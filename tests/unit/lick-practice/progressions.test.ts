@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
 	PROGRESSION_TEMPLATES,
 	transposeProgression,
-	PROGRESSION_LICK_CATEGORIES
+	PROGRESSION_LICK_CATEGORIES,
+	getLickAlignmentOffset,
+	getChordRootAtOffset,
+	isChordQualityCategory
 } from '$lib/data/progressions.ts';
 import type { ChordProgressionType } from '$lib/types/lick-practice.ts';
 import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
@@ -130,5 +133,83 @@ describe('PROGRESSION_LICK_CATEGORIES', () => {
 			expect(PROGRESSION_LICK_CATEGORIES[type], `${type} should be defined`).toBeDefined();
 			expect(PROGRESSION_LICK_CATEGORIES[type].length, `${type} should have compatible categories`).toBeGreaterThan(0);
 		}
+	});
+
+	it('every entry has a category and a fraction offset', () => {
+		for (const entries of Object.values(PROGRESSION_LICK_CATEGORIES)) {
+			for (const entry of entries) {
+				expect(entry.category).toBeTruthy();
+				expect(Array.isArray(entry.offset)).toBe(true);
+				expect(entry.offset.length).toBe(2);
+			}
+		}
+	});
+});
+
+describe('getLickAlignmentOffset', () => {
+	it('returns [0,1] for unknown category (safe default)', () => {
+		expect(getLickAlignmentOffset('ii-V-I-major-long', 'pentatonic')).toEqual([0, 1]);
+	});
+
+	it('aligns V-I-major at bar 1 of long ii-V-I major', () => {
+		expect(getLickAlignmentOffset('ii-V-I-major-long', 'V-I-major')).toEqual([1, 1]);
+	});
+
+	it('aligns V-I-minor at bar 1 of long ii-V-I minor', () => {
+		expect(getLickAlignmentOffset('ii-V-I-minor-long', 'V-I-minor')).toEqual([1, 1]);
+	});
+
+	it('aligns chord-quality licks correctly in long ii-V-I major', () => {
+		expect(getLickAlignmentOffset('ii-V-I-major-long', 'minor-chord')).toEqual([0, 1]);
+		expect(getLickAlignmentOffset('ii-V-I-major-long', 'dominant-chord')).toEqual([1, 1]);
+		expect(getLickAlignmentOffset('ii-V-I-major-long', 'major-chord')).toEqual([2, 1]);
+	});
+
+	it('aligns chord-quality licks correctly in long ii-V-I minor', () => {
+		expect(getLickAlignmentOffset('ii-V-I-minor-long', 'diminished-chord')).toEqual([0, 1]);
+		expect(getLickAlignmentOffset('ii-V-I-minor-long', 'dominant-chord')).toEqual([1, 1]);
+		expect(getLickAlignmentOffset('ii-V-I-minor-long', 'minor-chord')).toEqual([2, 1]);
+	});
+
+	it('aligns major-chord at bar 1 in short ii-V-I major (I chord)', () => {
+		expect(getLickAlignmentOffset('ii-V-I-major', 'major-chord')).toEqual([1, 1]);
+	});
+
+	it('aligns minor-chord at bar 1 in short ii-V-I minor (I chord)', () => {
+		expect(getLickAlignmentOffset('ii-V-I-minor', 'minor-chord')).toEqual([1, 1]);
+	});
+});
+
+describe('getChordRootAtOffset', () => {
+	it('returns ii root for bar 0 of long ii-V-I major in C', () => {
+		expect(getChordRootAtOffset('ii-V-I-major-long', 'C', [0, 1])).toBe('D');
+	});
+
+	it('returns V root for bar 1 of long ii-V-I major in F', () => {
+		// In F: ii=Gm7, V=C7, I=Fmaj7
+		expect(getChordRootAtOffset('ii-V-I-major-long', 'F', [1, 1])).toBe('C');
+	});
+
+	it('returns I root for bar 2 of long ii-V-I major in F', () => {
+		expect(getChordRootAtOffset('ii-V-I-major-long', 'F', [2, 1])).toBe('F');
+	});
+
+	it('returns null when no segment starts at the offset', () => {
+		expect(getChordRootAtOffset('ii-V-I-major-long', 'C', [7, 8])).toBeNull();
+	});
+});
+
+describe('isChordQualityCategory', () => {
+	it('flags chord-quality categories', () => {
+		expect(isChordQualityCategory('major-chord')).toBe(true);
+		expect(isChordQualityCategory('dominant-chord')).toBe(true);
+		expect(isChordQualityCategory('minor-chord')).toBe(true);
+		expect(isChordQualityCategory('diminished-chord')).toBe(true);
+	});
+
+	it('does not flag sub-progression or full-progression categories', () => {
+		expect(isChordQualityCategory('V-I-major')).toBe(false);
+		expect(isChordQualityCategory('ii-V-I-major')).toBe(false);
+		expect(isChordQualityCategory('pentatonic')).toBe(false);
 	});
 });

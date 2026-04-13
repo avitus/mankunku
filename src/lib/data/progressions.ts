@@ -1,4 +1,4 @@
-import type { HarmonicSegment, PitchClass } from '$lib/types/music.ts';
+import type { Fraction, HarmonicSegment, PhraseCategory, PitchClass } from '$lib/types/music.ts';
 import type { ChordProgressionType } from '$lib/types/lick-practice.ts';
 import { PITCH_CLASSES } from '$lib/types/music.ts';
 
@@ -200,12 +200,117 @@ export function transposeProgression(
 	}));
 }
 
-/** Categories of licks compatible with each progression type */
-export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, string[]> = {
-	'ii-V-I-major': ['ii-V-I-major', 'short-ii-V-I-major'],
-	'ii-V-I-minor': ['ii-V-I-minor', 'short-ii-V-I-minor'],
-	'ii-V-I-major-long': ['ii-V-I-major', 'long-ii-V-I-major'],
-	'ii-V-I-minor-long': ['ii-V-I-minor', 'long-ii-V-I-minor'],
-	turnaround: ['turnarounds', 'ii-V-I-major', 'rhythm-changes'],
-	blues: ['blues']
+/**
+ * A lick category compatible with a given progression, plus the bar offset
+ * at which the lick's melody should start within that progression.
+ *
+ * Example: a `V-I-major` lick inside `ii-V-I-major-long` starts at bar 1
+ * (offset `[1, 1]`) so it lands on the V chord rather than the ii chord.
+ */
+export interface CompatibleLickCategory {
+	category: PhraseCategory;
+	/** Start offset in whole-note fractions (i.e. bars). `[0, 1]` = no shift. */
+	offset: Fraction;
+}
+
+/**
+ * Categories of licks compatible with each progression type.
+ *
+ * Entries include an alignment offset so short-form licks (e.g. a 2-bar V-I
+ * or a 1-bar chord-quality lick) land on the correct bar of a longer parent
+ * progression. A value of `[0, 1]` means the lick plays from bar 0 as before.
+ *
+ * Short progressions intentionally omit `V-I-*` (V only covers half a bar
+ * there) and only list chord-quality roles whose chord spans a full bar.
+ */
+export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, CompatibleLickCategory[]> = {
+	'ii-V-I-major': [
+		{ category: 'ii-V-I-major',       offset: [0, 1] },
+		{ category: 'short-ii-V-I-major', offset: [0, 1] },
+		{ category: 'major-chord',        offset: [1, 1] } // I (maj7) on bar 1
+	],
+	'ii-V-I-minor': [
+		{ category: 'ii-V-I-minor',       offset: [0, 1] },
+		{ category: 'short-ii-V-I-minor', offset: [0, 1] },
+		{ category: 'minor-chord',        offset: [1, 1] } // I (min7) on bar 1
+	],
+	'ii-V-I-major-long': [
+		{ category: 'ii-V-I-major',      offset: [0, 1] },
+		{ category: 'long-ii-V-I-major', offset: [0, 1] },
+		{ category: 'V-I-major',         offset: [1, 1] }, // V starts bar 1
+		{ category: 'minor-chord',       offset: [0, 1] }, // ii = min7
+		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7
+		{ category: 'major-chord',       offset: [2, 1] }  // I = maj7 starts bar 2
+	],
+	'ii-V-I-minor-long': [
+		{ category: 'ii-V-I-minor',      offset: [0, 1] },
+		{ category: 'long-ii-V-I-minor', offset: [0, 1] },
+		{ category: 'V-I-minor',         offset: [1, 1] },
+		{ category: 'diminished-chord',  offset: [0, 1] }, // ii = min7b5 (half-dim)
+		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7alt
+		{ category: 'minor-chord',       offset: [2, 1] }  // I = min7 starts bar 2
+	],
+	turnaround: [
+		{ category: 'turnarounds',    offset: [0, 1] },
+		{ category: 'ii-V-I-major',   offset: [0, 1] },
+		{ category: 'rhythm-changes', offset: [0, 1] },
+		{ category: 'major-chord',    offset: [0, 1] }, // I = maj7 on bar 0
+		{ category: 'dominant-chord', offset: [1, 1] }, // VI7 on bar 1
+		{ category: 'minor-chord',    offset: [2, 1] }  // ii = min7 on bar 2
+	],
+	blues: [
+		{ category: 'blues',          offset: [0, 1] },
+		{ category: 'dominant-chord', offset: [0, 1] } // I7 bar 0 (first matching bar)
+	]
 };
+
+/**
+ * Lookup the bar offset to apply to a lick of the given category when it is
+ * played inside the given progression. Returns `[0, 1]` (no shift) when the
+ * combination is not explicitly configured.
+ */
+export function getLickAlignmentOffset(
+	progressionType: ChordProgressionType,
+	category: PhraseCategory
+): Fraction {
+	const entries = PROGRESSION_LICK_CATEGORIES[progressionType];
+	const match = entries?.find(e => e.category === category);
+	return match?.offset ?? [0, 1];
+}
+
+/** Quick lookup of just the category names compatible with a progression. */
+export function getCompatibleLickCategories(
+	progressionType: ChordProgressionType
+): PhraseCategory[] {
+	return PROGRESSION_LICK_CATEGORIES[progressionType].map(e => e.category);
+}
+
+/** Categories where the lick covers a single chord (1 bar), not a progression. */
+const CHORD_QUALITY_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<PhraseCategory>([
+	'major-chord', 'dominant-chord', 'minor-chord', 'diminished-chord'
+]);
+
+export function isChordQualityCategory(category: PhraseCategory): boolean {
+	return CHORD_QUALITY_CATEGORIES.has(category);
+}
+
+/** Compare two fractions for equality after normalizing denominators. */
+function fractionsEqual(a: Fraction, b: Fraction): boolean {
+	return a[0] * b[1] === b[0] * a[1];
+}
+
+/**
+ * Resolve the chord root at a given bar offset within a progression
+ * transposed to `sessionKey`. Returns `null` if no segment starts exactly
+ * at that offset.
+ */
+export function getChordRootAtOffset(
+	progressionType: ChordProgressionType,
+	sessionKey: PitchClass,
+	offset: Fraction
+): PitchClass | null {
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	const harmony = transposeProgression(template.harmony, sessionKey);
+	const match = harmony.find(seg => fractionsEqual(seg.startOffset, offset));
+	return match ? match.chord.root : null;
+}
