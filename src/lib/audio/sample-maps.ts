@@ -123,7 +123,9 @@ export const SAMPLE_MAPS: Record<string, SampleMap> = {
  * - ride:  ride cymbal bow stroke (overhead mic, full sustain)
  * - hihat: closed hi-hat (overhead mic)
  */
-export const DRUM_BUFFERS: Record<string, string> = {
+export type DrumBufferName = 'kick' | 'ride' | 'hihat';
+
+export const DRUM_BUFFERS: Record<DrumBufferName, string> = {
 	kick: '/samples/drums/kick.ogg',
 	ride: '/samples/drums/ride.ogg',
 	hihat: '/samples/drums/hihat.ogg'

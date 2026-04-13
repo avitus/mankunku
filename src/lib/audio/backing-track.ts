@@ -20,7 +20,7 @@ import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings.ts';
 import { chordSymbol } from '$lib/music/chords.ts';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule.ts';
 import { BACKING_STYLES, type StyleDefinition } from './backing-styles.ts';
-import { DRUM_BUFFERS } from './sample-maps.ts';
+import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps.ts';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -111,6 +111,9 @@ let backingGain: GainNode | null = null;
 // (`kick`, `ride`, `hihat`) mapped to CC0 Virtuosity Drums recordings.
 let drumSampler: SmplrSampler | null = null;
 let drumGainNode: GainNode | null = null;
+/** Shared in-flight load promise so concurrent callers don't race and
+ *  leak a gain node / sampler graph (single-flight pattern). */
+let drumLoadPromise: Promise<void> | null = null;
 
 // Scheduled parts
 let bassPart: InstanceType<ToneModule['Part']> | null = null;
@@ -130,20 +133,38 @@ async function getTone(): Promise<ToneModule> {
 
 async function ensureDrums(): Promise<void> {
 	if (drumSampler) return;
-	const audioCtx = await initAudio();
-	const { Sampler } = await import('smplr');
+	if (drumLoadPromise) return drumLoadPromise;
 
-	const master = getMasterGain();
-	drumGainNode = audioCtx.createGain();
-	drumGainNode.gain.value = 0.4;
-	drumGainNode.connect(master);
+	drumLoadPromise = (async () => {
+		const audioCtx = await initAudio();
+		const { Sampler } = await import('smplr');
 
-	const sampler = new Sampler(audioCtx, {
-		buffers: DRUM_BUFFERS,
-		destination: drumGainNode
-	});
-	await sampler.load;
-	drumSampler = sampler;
+		// Build the graph locally first — only promote to module-level
+		// refs on successful load so a rejection or a concurrent winner
+		// can't leave an orphaned gain node wired to master.
+		const gainNode = audioCtx.createGain();
+		gainNode.gain.value = 0.4;
+		gainNode.connect(getMasterGain());
+
+		const sampler = new Sampler(audioCtx, {
+			buffers: DRUM_BUFFERS,
+			destination: gainNode
+		});
+
+		try {
+			await sampler.load;
+			drumGainNode = gainNode;
+			drumSampler = sampler;
+		} catch (error) {
+			sampler.disconnect();
+			gainNode.disconnect();
+			throw error;
+		} finally {
+			drumLoadPromise = null;
+		}
+	})();
+
+	return drumLoadPromise;
 }
 
 /**
@@ -643,15 +664,12 @@ export async function scheduleBackingTrack(
 		const sampler = drumSampler;
 		if (!sampler) return;
 		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127.
-		if (hits.kick) {
-			sampler.start({ note: 'kick', velocity: Math.round((hits.kickVelocity ?? 0.5) * 127), time });
-		}
-		if (hits.ride) {
-			sampler.start({ note: 'ride', velocity: Math.round((hits.rideVelocity ?? 0.4) * 127), time });
-		}
-		if (hits.hihat) {
-			sampler.start({ note: 'hihat', velocity: Math.round((hits.hihatVelocity ?? 0.5) * 127), time });
-		}
+		const trigger = (note: DrumBufferName, velocity: number) => {
+			sampler.start({ note, velocity: Math.round(velocity * 127), time });
+		};
+		if (hits.kick) trigger('kick', hits.kickVelocity ?? 0.5);
+		if (hits.ride) trigger('ride', hits.rideVelocity ?? 0.4);
+		if (hits.hihat) trigger('hihat', hits.hihatVelocity ?? 0.5);
 	};
 
 	const pattern = Array.from({ length: beatsPerBar }, (_, i) => i);
