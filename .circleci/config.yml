@@ -1,102 +1,31 @@
 version: 2.1
 
-jobs:
-  test:
-    docker:
-      - image: cimg/node:22.14
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - deps-v1-{{ checksum "package-lock.json" }}
-            - deps-v1-
-      - run:
-          name: Install dependencies
-          command: npm ci
-      - save_cache:
-          key: deps-v1-{{ checksum "package-lock.json" }}
-          paths:
-            - node_modules
-      - run:
-          name: Run unit and integration tests
-          command: npx vitest run
+# Dynamic config: this file is a setup workflow that decides which pipeline
+# parameters to set based on which files changed, then hands off to
+# .circleci/continue-config.yml for the real jobs and workflows.
+#
+# Requires "Dynamic config using setup workflows" enabled in the CircleCI
+# project settings (Project Settings -> Advanced -> Enable dynamic config).
+setup: true
 
-  build:
-    docker:
-      - image: cimg/node:22.14
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - deps-v1-{{ checksum "package-lock.json" }}
-            - deps-v1-
-      - run:
-          name: Install dependencies
-          command: npm ci
-      - save_cache:
-          key: deps-v1-{{ checksum "package-lock.json" }}
-          paths:
-            - node_modules
-      - run:
-          name: Build SvelteKit app
-          command: npm run build
-      - persist_to_workspace:
-          root: .
-          paths:
-            - build
-            - package.json
-            - package-lock.json
-            - ecosystem.config.cjs
-
-  deploy:
-    docker:
-      - image: cimg/base:current
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:EE3+mp97fBRW+P32GUizJAnsX9lPkEeRrmuGudIFDqU"
-      - run:
-          name: Add server to known_hosts
-          command: ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
-      - run:
-          name: Install rsync
-          command: sudo apt-get update && sudo apt-get install -y rsync
-      - run:
-          name: Deploy to server
-          command: |
-            # Backup current release for rollback
-            ssh $DEPLOY_USER@$DEPLOY_HOST 'cd ~/mankunku && rm -rf build.previous && cp -r build build.previous 2>/dev/null || true'
-
-            # Rsync build artifacts to server
-            rsync -avz --delete \
-              /tmp/workspace/build/ \
-              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/build/
-
-            # Rsync package files for production dependency installation
-            rsync -avz \
-              /tmp/workspace/package.json \
-              /tmp/workspace/package-lock.json \
-              /tmp/workspace/ecosystem.config.cjs \
-              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/
-
-            # Install production deps and restart
-            ssh $DEPLOY_USER@$DEPLOY_HOST 'bash -l -c "cd ~/mankunku && npm ci --omit=dev && pm2 startOrRestart ecosystem.config.cjs --env production && pm2 save"'
+orbs:
+  path-filtering: circleci/path-filtering@1.3.0
 
 workflows:
-  ci:
+  setup:
     jobs:
-      - test
-      - build:
-          requires:
-            - test
-          filters:
-            branches:
-              only: main
-      - deploy:
-          requires:
-            - build
-          filters:
-            branches:
-              only: main
+      - path-filtering/filter:
+          # Compare changes against main so feature branches see their own
+          # diff against the base. On main itself the orb falls back to
+          # comparing HEAD against HEAD~1.
+          base-revision: main
+          config-path: .circleci/continue-config.yml
+          # Format: <regex>  <parameter-name>  <value>
+          # A file matches if any regex fires. Multiple rules may fire per
+          # path. If no rule fires, parameters keep their defaults (false).
+          # .circleci/* is routed to nginx-changed so that updates to this
+          # pipeline itself trigger a nginx deploy verification on main.
+          mapping: |
+            ^nginx/.*                 nginx-changed  true
+            ^deploy/nginx/.*          nginx-changed  true
+            ^\.circleci/.*            nginx-changed  true
