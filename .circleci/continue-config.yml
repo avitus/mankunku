@@ -1,0 +1,151 @@
+version: 2.1
+
+# Continuation config invoked by .circleci/config.yml via the path-filtering
+# orb. Pipeline parameters below are set by that orb based on which files
+# changed in the push.
+parameters:
+  nginx-changed:
+    type: boolean
+    default: false
+
+jobs:
+  test:
+    docker:
+      - image: cimg/node:22.14
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+            - deps-v1-
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - save_cache:
+          key: deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Run unit and integration tests
+          command: npx vitest run
+
+  build:
+    docker:
+      - image: cimg/node:22.14
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+            - deps-v1-
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - save_cache:
+          key: deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Build SvelteKit app
+          command: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - build
+            - package.json
+            - package-lock.json
+            - ecosystem.config.cjs
+
+  deploy:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:EE3+mp97fBRW+P32GUizJAnsX9lPkEeRrmuGudIFDqU"
+      - run:
+          name: Add server to known_hosts
+          command: ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
+      - run:
+          name: Install rsync
+          command: sudo apt-get update && sudo apt-get install -y rsync
+      - run:
+          name: Deploy to server
+          command: |
+            # Backup current release for rollback
+            ssh $DEPLOY_USER@$DEPLOY_HOST 'cd ~/mankunku && rm -rf build.previous && cp -r build build.previous 2>/dev/null || true'
+
+            # Rsync build artifacts to server
+            rsync -avz --delete \
+              /tmp/workspace/build/ \
+              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/build/
+
+            # Rsync package files for production dependency installation
+            rsync -avz \
+              /tmp/workspace/package.json \
+              /tmp/workspace/package-lock.json \
+              /tmp/workspace/ecosystem.config.cjs \
+              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/
+
+            # Install production deps and restart
+            ssh $DEPLOY_USER@$DEPLOY_HOST 'bash -l -c "cd ~/mankunku && npm ci --omit=dev && pm2 startOrRestart ecosystem.config.cjs --env production && pm2 save"'
+
+  nginx-deploy:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:EE3+mp97fBRW+P32GUizJAnsX9lPkEeRrmuGudIFDqU"
+      - run:
+          name: Add server to known_hosts
+          command: |
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+            chmod 644 ~/.ssh/known_hosts
+      - run:
+          name: Copy nginx config and deploy script to server
+          command: |
+            PORT="${DEPLOY_PORT:-22}"
+            scp -P "$PORT" nginx/mankunku.conf "$DEPLOY_USER@$DEPLOY_HOST:/tmp/mankunku.nginx.staged"
+            scp -P "$PORT" deploy/nginx/deploy.sh "$DEPLOY_USER@$DEPLOY_HOST:/tmp/deploy-nginx.sh"
+      - run:
+          name: Run nginx deploy script on server
+          command: |
+            PORT="${DEPLOY_PORT:-22}"
+            ssh -p "$PORT" "$DEPLOY_USER@$DEPLOY_HOST" '
+              set -e
+              bash /tmp/deploy-nginx.sh /tmp/mankunku.nginx.staged
+              rm -f /tmp/deploy-nginx.sh
+            '
+
+workflows:
+  # Existing app pipeline — unchanged behavior. Runs on every push; build and
+  # deploy gated to main.
+  ci:
+    jobs:
+      - test
+      - build:
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
+      - deploy:
+          requires:
+            - build
+          filters:
+            branches:
+              only: main
+
+  # Nginx pipeline — runs only when nginx-related files changed on main.
+  nginx-deploy:
+    when: << pipeline.parameters.nginx-changed >>
+    jobs:
+      - nginx-deploy:
+          filters:
+            branches:
+              only: main
