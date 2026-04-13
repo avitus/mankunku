@@ -54,10 +54,8 @@ fi
 echo "==> Installing new config at ${LIVE_CONFIG}"
 sudo install -m 0644 -o root -g root "$STAGED_CONFIG" "$LIVE_CONFIG"
 
-if [[ ! -L "$ENABLED_LINK" ]]; then
-    echo "==> Creating sites-enabled symlink"
-    sudo ln -sf "$LIVE_CONFIG" "$ENABLED_LINK"
-fi
+echo "==> Ensuring sites-enabled symlink points to live config"
+sudo ln -sfn "$LIVE_CONFIG" "$ENABLED_LINK"
 
 echo "==> Validating nginx config (nginx -t)"
 if ! sudo nginx -t; then

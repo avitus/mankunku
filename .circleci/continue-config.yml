@@ -110,17 +110,25 @@ jobs:
           name: Copy nginx config and deploy script to server
           command: |
             PORT="${DEPLOY_PORT:-22}"
-            scp -P "$PORT" nginx/mankunku.conf "$DEPLOY_USER@$DEPLOY_HOST:/tmp/mankunku.nginx.staged"
-            scp -P "$PORT" deploy/nginx/deploy.sh "$DEPLOY_USER@$DEPLOY_HOST:/tmp/deploy-nginx.sh"
+            # Per-workflow suffix so concurrent nginx-deploy runs cannot clobber
+            # each other's staged files on the server.
+            SUFFIX="${CIRCLE_WORKFLOW_ID:-$CIRCLE_SHA1}"
+            REMOTE_CONFIG="/tmp/mankunku.${SUFFIX}.nginx.staged"
+            REMOTE_SCRIPT="/tmp/deploy-nginx.${SUFFIX}.sh"
+            scp -P "$PORT" nginx/mankunku.conf "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_CONFIG"
+            scp -P "$PORT" deploy/nginx/deploy.sh "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_SCRIPT"
       - run:
           name: Run nginx deploy script on server
           command: |
             PORT="${DEPLOY_PORT:-22}"
-            ssh -p "$PORT" "$DEPLOY_USER@$DEPLOY_HOST" '
+            SUFFIX="${CIRCLE_WORKFLOW_ID:-$CIRCLE_SHA1}"
+            REMOTE_CONFIG="/tmp/mankunku.${SUFFIX}.nginx.staged"
+            REMOTE_SCRIPT="/tmp/deploy-nginx.${SUFFIX}.sh"
+            ssh -p "$PORT" "$DEPLOY_USER@$DEPLOY_HOST" "
               set -e
-              bash /tmp/deploy-nginx.sh /tmp/mankunku.nginx.staged
-              rm -f /tmp/deploy-nginx.sh
-            '
+              trap 'rm -f \"$REMOTE_SCRIPT\" \"$REMOTE_CONFIG\"' EXIT
+              bash \"$REMOTE_SCRIPT\" \"$REMOTE_CONFIG\"
+            "
 
 workflows:
   # Existing app pipeline — unchanged behavior. Runs on every push; build and
