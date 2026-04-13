@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreToGrade, GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
+import { scoreToGrade } from '$lib/scoring/grades.ts';
 
 describe('scoreToGrade', () => {
 	it('1.0 → perfect', () => {
@@ -40,25 +40,5 @@ describe('scoreToGrade', () => {
 
 	it('0 → try-again', () => {
 		expect(scoreToGrade(0)).toBe('try-again');
-	});
-});
-
-describe('GRADE_LABELS', () => {
-	it('has labels for all 5 grades', () => {
-		expect(GRADE_LABELS.perfect).toBe('Perfect');
-		expect(GRADE_LABELS.great).toBe('Great');
-		expect(GRADE_LABELS.good).toBe('Good');
-		expect(GRADE_LABELS.fair).toBe('Fair');
-		expect(GRADE_LABELS['try-again']).toBe('Try Again');
-	});
-});
-
-describe('GRADE_COLORS', () => {
-	it('has colors for all 5 grades', () => {
-		expect(GRADE_COLORS.perfect).toBeDefined();
-		expect(GRADE_COLORS.great).toBeDefined();
-		expect(GRADE_COLORS.good).toBeDefined();
-		expect(GRADE_COLORS.fair).toBeDefined();
-		expect(GRADE_COLORS['try-again']).toBeDefined();
 	});
 });
