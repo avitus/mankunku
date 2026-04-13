@@ -14,6 +14,8 @@ export type PhraseCategory =
 	| 'ii-V-I-major' | 'ii-V-I-minor' | 'blues' | 'bebop-lines'
 	| 'short-ii-V-I-major' | 'short-ii-V-I-minor'
 	| 'long-ii-V-I-major' | 'long-ii-V-I-minor'
+	| 'V-I-major' | 'V-I-minor'
+	| 'major-chord' | 'dominant-chord' | 'minor-chord' | 'diminished-chord'
 	| 'pentatonic' | 'enclosures' | 'digital-patterns' | 'approach-notes'
 	| 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal'
 	| 'user';
@@ -26,6 +28,12 @@ export const CATEGORY_LABELS: Record<PhraseCategory, string> = {
 	'short-ii-V-I-minor': 'Short ii-V-I (Min)',
 	'long-ii-V-I-major': 'Long ii-V-I (Maj)',
 	'long-ii-V-I-minor': 'Long ii-V-I (Min)',
+	'V-I-major': 'V-I (Maj)',
+	'V-I-minor': 'V-I (Min)',
+	'major-chord': 'Major Chord',
+	'dominant-chord': 'Dominant Chord',
+	'minor-chord': 'Minor Chord',
+	'diminished-chord': 'Diminished Chord',
 	'blues': 'Blues',
 	'bebop-lines': 'Bebop',
 	'pentatonic': 'Pentatonic',

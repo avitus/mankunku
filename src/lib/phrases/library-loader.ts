@@ -211,6 +211,7 @@ const MAJOR_MODE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 /** Categories where licks span multi-chord progressions — use parent-key transposition */
 const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
 	'ii-V-I-major', 'ii-V-I-minor', 'short-ii-V-I-major', 'short-ii-V-I-minor',
+	'long-ii-V-I-major', 'long-ii-V-I-minor', 'V-I-major', 'V-I-minor',
 	'turnarounds', 'rhythm-changes'
 ]);
 

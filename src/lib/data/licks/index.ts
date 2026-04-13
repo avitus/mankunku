@@ -7,6 +7,12 @@ import { BEBOP_LICKS } from './bebop-lines.ts';
 import { II_V_I_MINOR_LICKS } from './ii-V-I-minor.ts';
 import { SHORT_II_V_I_MAJOR_LICKS } from './short-ii-V-I-major.ts';
 import { SHORT_II_V_I_MINOR_LICKS } from './short-ii-V-I-minor.ts';
+import { V_I_MAJOR_LICKS } from './v-i-major.ts';
+import { V_I_MINOR_LICKS } from './v-i-minor.ts';
+import { MAJOR_CHORD_LICKS } from './major-chord.ts';
+import { DOMINANT_CHORD_LICKS } from './dominant-chord.ts';
+import { MINOR_CHORD_LICKS } from './minor-chord.ts';
+import { DIMINISHED_CHORD_LICKS } from './diminished-chord.ts';
 import { PENTATONIC_LICKS } from './pentatonic.ts';
 import { MODAL_LICKS } from './modal.ts';
 import { RHYTHM_CHANGES_LICKS } from './rhythm-changes.ts';
@@ -24,6 +30,12 @@ export const ALL_CURATED_LICKS: Phrase[] = [
 	...II_V_I_MINOR_LICKS,
 	...SHORT_II_V_I_MAJOR_LICKS,
 	...SHORT_II_V_I_MINOR_LICKS,
+	...V_I_MAJOR_LICKS,
+	...V_I_MINOR_LICKS,
+	...MAJOR_CHORD_LICKS,
+	...DOMINANT_CHORD_LICKS,
+	...MINOR_CHORD_LICKS,
+	...DIMINISHED_CHORD_LICKS,
 	...PENTATONIC_LICKS,
 	...MODAL_LICKS,
 	...RHYTHM_CHANGES_LICKS,
@@ -38,6 +50,12 @@ export {
 	II_V_I_MINOR_LICKS,
 	SHORT_II_V_I_MAJOR_LICKS,
 	SHORT_II_V_I_MINOR_LICKS,
+	V_I_MAJOR_LICKS,
+	V_I_MINOR_LICKS,
+	MAJOR_CHORD_LICKS,
+	DOMINANT_CHORD_LICKS,
+	MINOR_CHORD_LICKS,
+	DIMINISHED_CHORD_LICKS,
 	PENTATONIC_LICKS,
 	MODAL_LICKS,
 	RHYTHM_CHANGES_LICKS,

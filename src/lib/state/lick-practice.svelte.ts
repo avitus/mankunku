@@ -46,7 +46,14 @@ import {
 } from '$lib/persistence/lick-practice-store.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types.ts';
-import { PROGRESSION_LICK_CATEGORIES, PROGRESSION_TEMPLATES, transposeProgression } from '$lib/data/progressions.ts';
+import {
+	PROGRESSION_TEMPLATES,
+	getChordRootAtOffset,
+	getCompatibleLickCategories,
+	getLickAlignmentOffset,
+	isChordQualityCategory,
+	transposeProgression
+} from '$lib/data/progressions.ts';
 import { getAllLicks, transposeLick } from '$lib/phrases/library-loader.ts';
 import { getLickTagOverrides } from '$lib/persistence/user-licks.ts';
 import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
@@ -136,7 +143,7 @@ export function getPracticeLicks(): Phrase[] {
 	if (taggedIds.size === 0) return [];
 
 	const progressionType = lickPractice.config.progressionType;
-	const compatibleCategories = PROGRESSION_LICK_CATEGORIES[progressionType];
+	const compatibleCategories = getCompatibleLickCategories(progressionType);
 	const allLicks = getAllLicks();
 
 	return allLicks.filter(lick => {
@@ -265,19 +272,52 @@ export function getCurrentHarmony(): HarmonicSegment[] {
  * Build the transposed phrase + harmony for a given lick/key combo.
  * Shared by getCurrentPhrase and the lookahead accessors so they all
  * transpose identically.
+ *
+ * If the lick's category has an alignment offset configured for the current
+ * progression (e.g. a 2-bar V-I lick inside a 4-bar ii-V-I long), every
+ * melody note is shifted by that offset so it lands on the matching bar of
+ * the parent progression. Harmony always comes from the progression template
+ * — the lick's intrinsic harmony is discarded.
  */
 function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
 	const allLicks = getAllLicks();
 	const baseLick = allLicks.find(l => l.id === lickId);
 	if (!baseLick) return null;
 
-	const instrument = getInstrument();
-	const transposed = transposeLick(baseLick, key, instrument.concertRangeLow, getEffectiveHighestNote());
+	const progressionType = lickPractice.config.progressionType;
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	const alignmentOffset = getLickAlignmentOffset(progressionType, baseLick.category);
 
-	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
+	// Chord-quality licks (e.g. a 1-bar `minor-chord` lick) are rooted on a
+	// single chord. They must transpose to the ROOT of the target chord in
+	// the progression, not the session key — otherwise a Cm7 lick placed at
+	// the ii of an F ii-V-I would play in Fm7 instead of Gm7.
+	let transposeTarget = key;
+	if (isChordQualityCategory(baseLick.category)) {
+		const targetRoot = getChordRootAtOffset(progressionType, key, alignmentOffset);
+		if (targetRoot) transposeTarget = targetRoot;
+	}
+
+	const instrument = getInstrument();
+	const transposed = transposeLick(
+		baseLick,
+		transposeTarget,
+		instrument.concertRangeLow,
+		getEffectiveHighestNote()
+	);
+
 	const progressionHarmony = transposeProgression(template.harmony, key);
 
-	return { ...transposed, harmony: progressionHarmony };
+	const alignedNotes = alignmentOffset[0] === 0
+		? transposed.notes
+		: transposed.notes.map(n => ({
+			...n,
+			offset: addFractions(n.offset, alignmentOffset)
+		}));
+
+	// The session's "key" is driven by the progression, not the chord-quality
+	// lick's transposition target, so restore it on the returned phrase.
+	return { ...transposed, key, notes: alignedNotes, harmony: progressionHarmony };
 }
 
 /**
@@ -384,13 +424,28 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	const baseLick = allLicks.find(l => l.id === item.phraseId);
 	if (!baseLick) return null;
 
-	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
+	const progressionType = lickPractice.config.progressionType;
+	const template = PROGRESSION_TEMPLATES[progressionType];
 	const progressionBars = template.bars;
 	const mode = lickPractice.config.practiceMode;
 	const keyBars = mode === 'call-response' ? progressionBars * 2 : progressionBars;
 	const demoBars = mode === 'continuous' ? progressionBars : 0;
 	const instrument = getInstrument();
 	const highestNote = getEffectiveHighestNote();
+
+	// Shift applied to every melody note so short-form licks (e.g. a 2-bar
+	// V-I lick inside a 4-bar ii-V-I) land on the matching bar of the
+	// progression cycle. `[0, 1]` means no shift.
+	const alignmentOffset = getLickAlignmentOffset(progressionType, baseLick.category);
+	const isChordQuality = isChordQualityCategory(baseLick.category);
+
+	// For chord-quality licks, transpose to the target chord's root rather
+	// than the session key (see buildPhraseFor for the rationale).
+	const resolveTransposeTarget = (sessionKey: PitchClass): PitchClass => {
+		if (!isChordQuality) return sessionKey;
+		const root = getChordRootAtOffset(progressionType, sessionKey, alignmentOffset);
+		return root ?? sessionKey;
+	};
 
 	const superHarmony: HarmonicSegment[] = [];
 	const superNotes: Note[] = [];
@@ -409,12 +464,15 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		}
 		const demoLick = transposeLick(
 			baseLick,
-			firstKey,
+			resolveTransposeTarget(firstKey),
 			instrument.concertRangeLow,
 			highestNote
 		);
 		for (const note of demoLick.notes) {
-			superNotes.push({ ...note });
+			superNotes.push({
+				...note,
+				offset: addFractions(note.offset, alignmentOffset)
+			});
 		}
 	}
 
@@ -452,14 +510,17 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		if (mode === 'call-response') {
 			const transposed = transposeLick(
 				baseLick,
-				key,
+				resolveTransposeTarget(key),
 				instrument.concertRangeLow,
 				highestNote
 			);
 			for (const note of transposed.notes) {
 				superNotes.push({
 					...note,
-					offset: addFractions(note.offset, keyOffsetWhole)
+					offset: addFractions(
+						addFractions(note.offset, alignmentOffset),
+						keyOffsetWhole
+					)
 				});
 			}
 		}
