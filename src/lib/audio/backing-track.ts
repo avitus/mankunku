@@ -5,9 +5,10 @@
  * drum pattern synchronized to phrase harmony via the Tone.js Transport.
  *
  * Instruments:
- * - Upright bass (acoustic_bass GM SoundFont)
- * - Piano or organ (acoustic_grand_piano / drawbar_organ, configurable)
- * - Drums: synthesized kick, ride, hi-hat (same approach as metronome.ts)
+ * - Upright bass (Smolken "Pizzicato" double-bass sample library)
+ * - Piano (Salamander Grand Piano via smplr.SplendidGrandPiano) or
+ *   organ (drawbar_organ GM SoundFont, MusyngKite kit)
+ * - Drums: sampled kick, ride, hi-hat (Virtuosity Drums, CC0)
  */
 
 import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
@@ -19,6 +20,7 @@ import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings.ts';
 import { chordSymbol } from '$lib/music/chords.ts';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule.ts';
 import { BACKING_STYLES, type StyleDefinition } from './backing-styles.ts';
+import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps.ts';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -82,26 +84,36 @@ export function getBackingTrackLog(count = 20): BackingTrackLog[] {
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
+type SmplrSplendidPiano = import('smplr').SplendidGrandPiano;
+type SmplrSmolken = import('smplr').Smolken;
+type SmplrSampler = import('smplr').Sampler;
+
+/** Comping instrument: SplendidGrandPiano (piano) or Soundfont (organ). */
+type CompInstrument = SmplrSplendidPiano | SmplrSoundfont;
+/** Bass instrument: Smolken upright-bass sample library. */
+type BassInstrument = SmplrSmolken;
 
 // ── Module-level state ───────────────────────────────────────
 
 let tone: ToneModule | null = null;
 
-// Pitched instruments (loaded lazily via smplr Soundfont)
-let compInstrument: SmplrSoundfont | null = null;
-let bassInstrument: SmplrSoundfont | null = null;
+// Pitched instruments (loaded lazily via smplr).  Piano uses the
+// Salamander-sampled SplendidGrandPiano; organ uses the GM SoundFont;
+// bass uses the Smolken pizzicato double-bass library.
+let compInstrument: CompInstrument | null = null;
+let bassInstrument: BassInstrument | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
 
 // Gain nodes for independent volume control
 let backingGain: GainNode | null = null;
 
-// Drums: synthesized (same approach as metronome.ts)
-let rideSynth: InstanceType<ToneModule['NoiseSynth']> | null = null;
-let hihatSynth: InstanceType<ToneModule['NoiseSynth']> | null = null;
-let kickSynth: InstanceType<ToneModule['MembraneSynth']> | null = null;
-let rideFilter: InstanceType<ToneModule['Filter']> | null = null;
-let hihatFilter: InstanceType<ToneModule['Filter']> | null = null;
-let drumGainNode: InstanceType<ToneModule['Gain']> | null = null;
+// Drums: multi-sample kit loaded via smplr.Sampler with string aliases
+// (`kick`, `ride`, `hihat`) mapped to CC0 Virtuosity Drums recordings.
+let drumSampler: SmplrSampler | null = null;
+let drumGainNode: GainNode | null = null;
+/** Shared in-flight load promise so concurrent callers don't race and
+ *  leak a gain node / sampler graph (single-flight pattern). */
+let drumLoadPromise: Promise<void> | null = null;
 
 // Scheduled parts
 let bassPart: InstanceType<ToneModule['Part']> | null = null;
@@ -120,43 +132,55 @@ async function getTone(): Promise<ToneModule> {
 }
 
 async function ensureDrums(): Promise<void> {
-	if (rideSynth) return;
-	const Tone = await getTone();
+	if (drumSampler) return;
+	if (drumLoadPromise) return drumLoadPromise;
 
-	const master = getMasterGain();
-	drumGainNode = new Tone.Gain(0.4);
-	drumGainNode.connect(master);
+	drumLoadPromise = (async () => {
+		const audioCtx = await initAudio();
+		const { Sampler } = await import('smplr');
 
-	// Ride cymbal: bright filtered noise
-	rideFilter = new Tone.Filter({ frequency: 8000, type: 'highpass' }).connect(drumGainNode);
-	rideSynth = new Tone.NoiseSynth({
-		noise: { type: 'white' },
-		envelope: { attack: 0.001, decay: 0.15, sustain: 0, release: 0.08 }
-	}).connect(rideFilter);
+		// Build the graph locally first — only promote to module-level
+		// refs on successful load so a rejection or a concurrent winner
+		// can't leave an orphaned gain node wired to master.
+		const gainNode = audioCtx.createGain();
+		gainNode.gain.value = 0.4;
+		gainNode.connect(getMasterGain());
 
-	// Hi-hat chick: tight filtered noise
-	hihatFilter = new Tone.Filter({ frequency: 6000, type: 'highpass' }).connect(drumGainNode);
-	hihatSynth = new Tone.NoiseSynth({
-		noise: { type: 'pink' },
-		envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.02 }
-	}).connect(hihatFilter);
+		// Explicit defaults required — smplr's samplerToSmplrJson puts
+		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
+		// undefined values clobber PARAM_DEFAULTS via object spread,
+		// producing NaN detune at playback and throwing inside Voice.
+		const sampler = new Sampler(audioCtx, {
+			buffers: DRUM_BUFFERS,
+			destination: gainNode,
+			detune: 0,
+			decayTime: 0.3,
+			lpfCutoffHz: 20000
+		});
 
-	// Kick drum: short membrane thump
-	kickSynth = new Tone.MembraneSynth({
-		pitchDecay: 0.04,
-		octaves: 6,
-		envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 }
-	}).connect(drumGainNode);
+		try {
+			await sampler.load;
+			drumGainNode = gainNode;
+			drumSampler = sampler;
+		} catch (error) {
+			sampler.disconnect();
+			gainNode.disconnect();
+			throw error;
+		} finally {
+			drumLoadPromise = null;
+		}
+	})();
+
+	return drumLoadPromise;
 }
-
-const COMP_INSTRUMENT_NAMES: Record<BackingInstrument, string> = {
-	piano: 'acoustic_grand_piano',
-	organ: 'drawbar_organ'
-};
 
 /**
  * Load backing track instruments (bass + chord instrument).
  * Idempotent for the same chord instrument type.
+ *
+ * Bass: Smolken "Pizzicato" double-bass (loaded once, reused across types).
+ * Piano: SplendidGrandPiano (Salamander, 16 velocity layers).
+ * Organ: SoundFont drawbar_organ (MusyngKite kit — no better smplr option).
  */
 export async function loadBackingInstruments(
 	instrumentType: BackingInstrument = 'piano'
@@ -172,14 +196,13 @@ export async function loadBackingInstruments(
 		backingGain.connect(getMasterGain());
 	}
 
-	const { Soundfont } = await import('smplr');
+	const { Soundfont, SplendidGrandPiano, Smolken } = await import('smplr');
 	if (loadId !== currentLoadId) return;
 
-	// Load bass if not already loaded
+	// Load bass if not already loaded — pizzicato upright bass samples
 	if (!bassInstrument) {
-		const bass = new Soundfont(audioCtx, {
-			instrument: 'acoustic_bass',
-			kit: 'MusyngKite',
+		const bass = new Smolken(audioCtx, {
+			instrument: 'Pizzicato',
 			destination: backingGain
 		});
 		await bass.load;
@@ -192,11 +215,13 @@ export async function loadBackingInstruments(
 
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
-		const newComp = new Soundfont(audioCtx, {
-			instrument: COMP_INSTRUMENT_NAMES[instrumentType],
-			kit: 'MusyngKite',
-			destination: backingGain
-		});
+		const newComp: CompInstrument = instrumentType === 'piano'
+			? new SplendidGrandPiano(audioCtx, { destination: backingGain })
+			: new Soundfont(audioCtx, {
+				instrument: 'drawbar_organ',
+				kit: 'MusyngKite',
+				destination: backingGain
+			});
 		await newComp.load;
 		if (loadId !== currentLoadId) {
 			newComp.disconnect();
@@ -534,6 +559,7 @@ export function disposeBackingParts(): void {
 	}
 	bassInstrument?.stop();
 	compInstrument?.stop();
+	drumSampler?.stop();
 	activeSchedule = null;
 }
 
@@ -642,15 +668,15 @@ export async function scheduleBackingTrack(
 
 	const drumCallback = (time: number, beat: number) => {
 		const hits = style.drumPattern(beat, beatsPerBar);
-		if (hits.kick) {
-			kickSynth!.triggerAttackRelease('C1', '16n', time, hits.kickVelocity ?? 0.5);
-		}
-		if (hits.ride) {
-			rideSynth!.triggerAttackRelease('16n', time, hits.rideVelocity ?? 0.4);
-		}
-		if (hits.hihat) {
-			hihatSynth!.triggerAttackRelease('32n', time, hits.hihatVelocity ?? 0.5);
-		}
+		const sampler = drumSampler;
+		if (!sampler) return;
+		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127.
+		const trigger = (note: DrumBufferName, velocity: number) => {
+			sampler.start({ note, velocity: Math.round(velocity * 127), time });
+		};
+		if (hits.kick) trigger('kick', hits.kickVelocity ?? 0.5);
+		if (hits.ride) trigger('ride', hits.rideVelocity ?? 0.4);
+		if (hits.hihat) trigger('hihat', hits.hihatVelocity ?? 0.5);
 	};
 
 	const pattern = Array.from({ length: beatsPerBar }, (_, i) => i);
@@ -703,6 +729,14 @@ export function disposeBackingTrack(): void {
 		compInstrument.disconnect();
 		compInstrument = null;
 		currentInstrumentType = null;
+	}
+	if (drumSampler) {
+		drumSampler.disconnect();
+		drumSampler = null;
+	}
+	if (drumGainNode) {
+		drumGainNode.disconnect();
+		drumGainNode = null;
 	}
 	if (backingGain) {
 		backingGain.disconnect();
