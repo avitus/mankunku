@@ -146,9 +146,16 @@ async function ensureDrums(): Promise<void> {
 		gainNode.gain.value = 0.4;
 		gainNode.connect(getMasterGain());
 
+		// Explicit defaults required — smplr's samplerToSmplrJson puts
+		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
+		// undefined values clobber PARAM_DEFAULTS via object spread,
+		// producing NaN detune at playback and throwing inside Voice.
 		const sampler = new Sampler(audioCtx, {
 			buffers: DRUM_BUFFERS,
-			destination: gainNode
+			destination: gainNode,
+			detune: 0,
+			decayTime: 0.3,
+			lpfCutoffHz: 20000
 		});
 
 		try {
