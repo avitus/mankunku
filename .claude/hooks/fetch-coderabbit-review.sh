@@ -5,6 +5,17 @@
 
 set -euo pipefail
 
+# The PostToolUse hook matcher in .claude/settings.json fires for every
+# Bash invocation (Claude Code's matcher only matches tool name, not
+# command content). Bail out unless the command begins with `git push`
+# so we don't enter the polling loop on unrelated Bash calls.
+HOOK_INPUT=$(cat 2>/dev/null || echo '{}')
+COMMAND=$(printf '%s' "$HOOK_INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("command",""))' 2>/dev/null || echo '')
+case "$COMMAND" in
+  "git push"|"git push "*) ;;
+  *) exit 0 ;;
+esac
+
 PUSH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 BRANCH=$(git branch --show-current 2>/dev/null)

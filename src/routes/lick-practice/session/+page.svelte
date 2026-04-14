@@ -299,7 +299,7 @@
 			// seconds (1 + demoBars) × oneBarSeconds.
 			lickAudioStartSeconds = oneBarSeconds;
 			lickStartSeconds = (1 + demoBars) * oneBarSeconds;
-			startBeatTracking(progressionBars);
+			startBeatTracking(progressionBars, beatsPerBar);
 
 			// playPhrase schedules count-in (1 bar) + metronome + backing +
 			// the full super-phrase melody (which now includes the continuous
@@ -454,8 +454,8 @@
 	 * - scrollFraction is in "key units": 0 at lick start, 1 at the
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
-	function startBeatTracking(progressionBars: number) {
-		const loopBeats = progressionBars * 4;
+	function startBeatTracking(progressionBars: number, beatsPerBar: number) {
+		const loopBeats = progressionBars * beatsPerBar;
 		function tick() {
 			if (!isSessionRunning) return;
 			if (toneModule) {
