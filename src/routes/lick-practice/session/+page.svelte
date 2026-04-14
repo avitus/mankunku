@@ -299,7 +299,7 @@
 			// seconds (1 + demoBars) × oneBarSeconds.
 			lickAudioStartSeconds = oneBarSeconds;
 			lickStartSeconds = (1 + demoBars) * oneBarSeconds;
-			startBeatTracking(keyBars);
+			startBeatTracking(progressionBars, beatsPerBar);
 
 			// playPhrase schedules count-in (1 bar) + metronome + backing +
 			// the full super-phrase melody (which now includes the continuous
@@ -445,13 +445,17 @@
 	 * highlighting on the active row) and the UpcomingKeysDisplay's
 	 * continuous scroll position.
 	 *
-	 * - currentBeat wraps at `keyBars * beatsPerBar` so each new key
-	 *   restarts the beat highlight from beat 0.
+	 * - currentBeat wraps at `progressionBars * beatsPerBar` so the chart's
+	 *   beat indicator cycles through each full progression play. In
+	 *   continuous mode that's once per key (user cycle); in call-response
+	 *   mode that's twice per key (app cycle, then user cycle) — both halves
+	 *   animate the chart identically, matching the first key of continuous
+	 *   mode.
 	 * - scrollFraction is in "key units": 0 at lick start, 1 at the
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
-	function startBeatTracking(keyBars: number) {
-		const loopBeats = keyBars * 4;
+	function startBeatTracking(progressionBars: number, beatsPerBar: number) {
+		const loopBeats = progressionBars * beatsPerBar;
 		function tick() {
 			if (!isSessionRunning) return;
 			if (toneModule) {

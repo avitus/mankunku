@@ -3,7 +3,6 @@
     "PostToolUse": [
       {
         "matcher": "Bash",
-        "if": "Bash(git push *)",
         "hooks": [
           {
             "type": "command",
@@ -13,5 +12,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "coderabbit@claude-plugins-official": true
   }
 }

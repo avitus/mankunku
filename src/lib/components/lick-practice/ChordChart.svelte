@@ -45,11 +45,9 @@
 	}
 
 	/**
-	 * Maximum bars shown per row. All cell widths are expressed as a fraction
-	 * of this constant so that a given beat duration always maps to the same
-	 * visual width, even when comparing rows across different chord charts
-	 * (e.g. a 1-bar lick vs a 3-bar lick in the UpcomingKeysDisplay scroll).
-	 * A 2-beat chord is always half as wide as a 4-beat chord.
+	 * Maximum bars shown per row before wrapping to the next row. Within a
+	 * row, cells are sized proportionally to each other (via flex-grow on
+	 * `widthWeight`) so the row always fills the container.
 	 */
 	const MAX_BARS_PER_ROW = 4;
 
@@ -141,7 +139,7 @@
 					class="relative flex flex-col items-center justify-center border border-[var(--color-bg-tertiary)] px-3 py-5
 						   {isActive ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]' : ''}
 						   {isPast ? 'opacity-40' : ''}"
-					style="flex: 0 0 {(cell.widthWeight / MAX_BARS_PER_ROW) * 100}%"
+					style="flex: {cell.widthWeight}"
 				>
 					<span
 						class="text-xl font-bold tracking-tight transition-colors
