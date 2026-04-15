@@ -26,9 +26,7 @@
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
-	import { scoreAttempt } from '$lib/scoring/scorer';
-	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
-	import { filterBleed } from '$lib/audio/bleed-filter';
+	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { SessionReport } from '$lib/types/lick-practice';
@@ -559,51 +557,23 @@
 		}
 
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
-		const validatedOnsets = validateOnsets(workletOnsets, rebased);
-		let onsets =
-			validatedOnsets.length > 0 ? validatedOnsets : extractOnsetsFromReadings(rebased);
-
-		if (rebased.length > 0 && (onsets.length === 0 || onsets[0] - rebased[0].time > 0.1)) {
-			onsets = [rebased[0].time, ...onsets];
-		}
-
 		const phraseDuration =
 			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
-		const detected = segmentNotes(rebased, onsets, phraseDuration);
 
-		const unfilteredScore = scoreAttempt(
-			window.phrase,
-			detected,
-			lickPractice.currentTempo,
-			window.recordingTransportSeconds,
-			settings.swing
-		);
+		const result = runScorePipeline({
+			readings: rebased,
+			workletOnsets,
+			phrase: window.phrase,
+			phraseDuration,
+			tempo: lickPractice.currentTempo,
+			transportSeconds: window.recordingTransportSeconds,
+			swing: settings.swing,
+			schedule: window.schedule,
+			bleedFilterEnabled: settings.bleedFilterEnabled
+		});
 
-		let score = unfilteredScore;
-		if (window.schedule) {
-			const result = filterBleed(
-				detected,
-				window.schedule,
-				window.recordingTransportSeconds
-			);
-			const filteredScore = scoreAttempt(
-				window.phrase,
-				result.kept,
-				lickPractice.currentTempo,
-				window.recordingTransportSeconds,
-				settings.swing
-			);
-			session.bleedFilterLog = {
-				totalNotes: detected.length,
-				keptNotes: result.kept.length,
-				filteredNotes: result.filtered,
-				unfilteredScore,
-				filteredScore
-			};
-			if (settings.bleedFilterEnabled && filteredScore) {
-				score = filteredScore;
-			}
-		}
+		session.bleedFilterLog = result.bleedLog;
+		const score = result.chosen;
 
 		// Record the attempt to the lick-practice-only progress store.
 		// We deliberately do NOT call the global ear-training recordAttempt
@@ -632,23 +602,6 @@
 		// mutation, so derived/effect observers don't flicker when the
 		// scorer peeks at a non-current key.
 		return getPhraseFor(lickIdx, keyIdx);
-	}
-
-	function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
-		if (readings.length === 0) return [];
-		const onsets: number[] = [readings[0].time];
-		for (let i = 1; i < readings.length; i++) {
-			const timeSinceLastOnset = readings[i].time - onsets[onsets.length - 1];
-			if (timeSinceLastOnset < 0.08) continue;
-			const gap = readings[i].time - readings[i - 1].time;
-			const noteChanged = readings[i].midi !== readings[i - 1].midi;
-			if (gap > 0.1) {
-				onsets.push(readings[i].time - 0.05);
-			} else if (noteChanged) {
-				onsets.push(readings[i].time);
-			}
-		}
-		return onsets;
 	}
 
 	function stopAll() {
