@@ -136,11 +136,11 @@ Reverse of `circleOfFifths()` (without duplicating the starting note).
 
 ### `getNextKeyInCircle(current, direction?): PitchClass`
 
-Return the next key around the circle of fifths. `direction` is `1` (fifths, default) or `-1` (fourths).
+Return the next key around the circle of fourths. `direction` is `1` (fourths, default) or `-1` (fifths).
 
 ### `getKeyAtIndex(index: number): PitchClass`
 
-Return the key at the given position in the circle of fifths. The index wraps around (negative values and values ≥ 12 are normalized via modulo).
+Return the key at the given position in the circle of fourths. The index wraps around (negative values and values ≥ 12 are normalized via modulo).
 
 ### `relativeMajor(minorKey): PitchClass`
 
@@ -185,7 +185,7 @@ Uses `KEY_SIG_ACCIDENTALS` lookup table (maps each key to its altered pitch clas
 
 ### `displayPitchClass(pc, keyContext): string`
 
-Return a pitch class name spelled for a given key context (preferring sharps in sharp keys and flats in flat keys). Used by UI chips that show the current scale's notes.
+Return a pitch class name spelled for a given key context. Only special-cases `F#` → `Gb` when `keyContext` is a flat key; all other pitch classes pass through unchanged. Used by UI chips that show the current scale's notes.
 
 ### `midiToDisplayName(midi, useFlats?): string`
 

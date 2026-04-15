@@ -125,7 +125,7 @@ Record a completed attempt. `source` defaults to `'ear-training'`; pass `'lick-p
 
 ### `initFromCloud(supabase): Promise<void>`
 
-Fetch cloud progress for an authenticated user and merge with local. Cloud-takes-precedence when the cloud session count is ≥ the local count; otherwise local wins. Re-derives daily summaries via `rebuildHistoryIfNeeded()` afterwards.
+Fetch cloud progress for an authenticated user and merge with local. Cloud-takes-precedence when the cloud session count is ≥ the local count; otherwise local wins. Re-derives daily summaries via `rebuildHistoryIfNeeded()` afterward.
 
 ### `getRecentSessions(count?): SessionResult[]`
 
