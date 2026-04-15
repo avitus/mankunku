@@ -66,18 +66,18 @@ Components reference these variables inline: `bg-[var(--color-bg-secondary)]`. T
 
 ## Configuration Files
 
-- **`svelte.config.js`** — Enables runes mode for all non-node_modules files via `dynamicCompileOptions`. Uses `adapter-auto` for deployment flexibility.
+- **`svelte.config.js`** — Enables runes mode for all non-node_modules files via `dynamicCompileOptions`. Uses `adapter-node` so the server can run authentication hooks and session middleware.
 - **`tsconfig.json`** — Extends SvelteKit's generated config. Strict mode enabled with bundler module resolution.
 - **`vite.config.ts`** — Registers Tailwind, SvelteKit, and PWA plugins. Test config points to `tests/unit/**/*.test.ts` with `node` environment.
 
 ## Architecture Summary
 
-Mankunku is a **client-side SPA/PWA** with no backend or server-side data processing:
+Mankunku is a **local-first PWA** with optional cloud sync:
 
-- **State persistence** — All user progress, settings, and session history are stored in `localStorage`. There is no database, authentication, or server API.
+- **State persistence** — All user progress, settings, and session history are stored in `localStorage` first. An optional Supabase backend (`src/lib/supabase/`, `src/routes/api/account/`) provides authenticated cloud sync so the same data follows a user across devices.
 - **Audio pipeline** — Built entirely on Web Audio APIs. An `AudioWorklet` handles onset detection, an `AnalyserNode` feeds the pitch detector, and Tone.js manages transport scheduling for metronome and phrase playback.
 - **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 35-scale catalog and ~250 lick library are defined as typed data structures.
-- **Deployment** — The `adapter-auto` configuration allows deployment to any static hosting platform (Vercel, Netlify, GitHub Pages). The PWA service worker enables full offline functionality after initial load.
+- **Deployment** — `adapter-node` produces a Node.js server bundle (deployed via rsync + PM2 to a Digital Ocean VM). The PWA service worker still enables full offline functionality after initial load.
 
 ## Why These Choices
 
@@ -86,4 +86,4 @@ Mankunku is a **client-side SPA/PWA** with no backend or server-side data proces
 - **smplr** over Tone.js sampler: Smaller bundle for GM SoundFont playback. Shares the same AudioContext.
 - **Pitchy** over Web Audio `AnalyserNode` alone: Implements the McLeod Pitch Method which is more accurate for monophonic instruments than simple FFT peak detection.
 - **ABC notation** over MusicXML: Text-based format is trivial to generate from MIDI data. abcjs renders it to SVG with no server required.
-- **No backend**: Keeps the app simple, free to host on any static hosting (Vercel, Netlify, GitHub Pages), and functional offline.
+- **Local-first with optional Supabase**: All writes hit `localStorage` first so the app works fully offline; an authenticated user's Supabase sync is background fire-and-forget, not a request path.

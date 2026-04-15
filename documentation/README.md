@@ -34,7 +34,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Music](./api-reference/music.md) | scales, chords, keys, intervals, notation, transposition |
 | [Phrases](./api-reference/phrases.md) | generator, mutator, validator, library-loader |
 | [Difficulty](./api-reference/difficulty.md) | adaptive, params |
-| [State](./api-reference/state.md) | session, settings, progress, library state modules |
+| [State](./api-reference/state.md) | session, settings, progress, history, library, lick-practice, step-entry state modules |
 | [Components](./api-reference/components.md) | All Svelte components and route pages |
 
 ### Contributing

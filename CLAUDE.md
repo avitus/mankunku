@@ -34,7 +34,10 @@ Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back o
 - **state/** — Svelte 5 runes state modules (`.svelte.ts` files). Bridge between UI and logic.
 - **persistence/** — localStorage wrapper + optional Supabase cloud sync.
 - **components/** — Reusable Svelte UI components.
-- **data/** — Curated lick library JSON files and rhythm pattern templates.
+- **data/** — Curated lick library JSON files, rhythm pattern templates, progression templates.
+- **step-entry/** — Manual lick entry helpers: duration metadata, pitch-input accidentals.
+- **supabase/** — Supabase client factories (browser + server), auth helpers, generated DB types.
+- **util/** — Small shared utilities (e.g., seeded shuffle).
 
 ### Key design decisions
 
@@ -51,14 +54,17 @@ Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back o
 ### State management
 
 State modules in `src/lib/state/` use Svelte 5 runes (`$state()`, `$derived()`, `$effect()`), not Svelte 4 stores. Key modules:
-- **session.svelte.ts** — Current practice session (not persisted)
+- **session.svelte.ts** — Single-phrase practice session (not persisted)
 - **settings.svelte.ts** — User preferences (persisted to localStorage)
 - **progress.svelte.ts** — Session history + adaptive state (persisted, bounded to 200 entries)
+- **history.svelte.ts** — Long-term daily progress summaries for calendar heatmaps and period comparisons (persisted, survives the 200-session prune window)
 - **library.svelte.ts** — Lick browser filter state (not persisted)
+- **lick-practice.svelte.ts** — Multi-key lick-practice flow: progression plans, per-key results, tempo adjustments (progress persisted via `persistence/lick-practice-store.ts`)
+- **step-entry.svelte.ts** — Manual lick entry UI state: current duration, octave, accidental, entered notes (not persisted)
 
 ### Routes (`src/routes/`)
 
-practice/, library/, progress/, settings/, scales/, entry/ (step-entry), auth/ (login + OAuth callback), diagnostics/
+practice/, lick-practice/ (multi-key flow), library/, progress/, settings/, scales/, entry/ (step-entry), add-licks/, record/, auth/ (login + OAuth callback), diagnostics/, api/account/ (account management endpoints)
 
 ## Code conventions
 

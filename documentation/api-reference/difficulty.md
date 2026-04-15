@@ -52,7 +52,18 @@ Pitch and rhythm are adjusted **independently** — each dimension has its own s
 
 ### `getAdaptiveSummary(state): string`
 
-Human-readable summary. E.g. `"Level 3 (Pitch: 3, Rhythm: 2) — Avg: 78%"`.
+Human-readable summary using the current difficulty band name. E.g. `"Beginner 3 (Pitch: 3, Rhythm: 2) — Avg: 78%"`.
+
+### Per-scale / per-key proficiency
+
+Shared single-dimension advancement is also exposed for scale- and key-specific proficiency tracking (see `src/lib/types/progress.ts`).
+
+| Function | Signature | Description |
+|---|---|---|
+| `createInitialScaleProficiency` | `() → ScaleProficiency` | Fresh scale proficiency state (level 1, empty window) |
+| `createInitialKeyProficiency` | `() → KeyProficiency` | Fresh key proficiency state (level 1, empty window) |
+| `processScaleAttempt` | `(state, overall) → ScaleProficiency` | Same window + cooldown algorithm as `processAttempt`, single dimension |
+| `processKeyAttempt` | `(state, overall) → KeyProficiency` | Same as `processScaleAttempt`, for per-key tracking |
 
 ---
 
@@ -104,31 +115,67 @@ Returns the profile for a level. Accepts both content tiers (1-10) and player le
 
 ---
 
+## calculate.ts
+
+Static difficulty calculator for a finished lick. Used when persisting curated and user-entered licks, and by the combinatorial lick generator.
+
+### `calculateDifficulty(phrase): DifficultyMetadata`
+
+Compute a `{ level, pitchComplexity, rhythmComplexity, lengthBars }` summary (all values clamped to 1–100 except `lengthBars`). Scores four dimensions and combines them:
+
+**Pitch complexity (raw 0–~65):**
+- **Note count** (≤ 25 pts) — 2 notes ≈ trivial, ≥ 14 demanding
+- **Intervals** (≤ 30 pts) — average + max interval + share of leaps > P5
+- **Chromaticism** (≤ 25 pts) — share of non-diatonic pitch classes + length of chromatic runs
+- **Range** (≤ 10 pts) — pitch spread in semitones
+
+**Rhythm complexity (raw 0–~65):**
+- **Density** (≤ 25 pts) — notes per bar
+- **Fastest subdivision** (≤ 30 pts) — sixteenths 30 / triplet-8ths 21 / 8ths 10 / 4ths 3
+- **Off-beat notes** (≤ 25 pts) — fraction of notes not on a quarter-note grid
+- **Variety** (≤ 15 pts) — distinct duration values
+- **Rests** (≤ 5 pts)
+
+Raw sub-scores are multiplied by a **1.5× scaling factor** to stretch into the usable 1–70 range so the adaptive system has room to progress. Overall level is weighted 55% pitch / 45% rhythm.
+
+---
+
 ## display.ts
 
-Difficulty display utilities — maps 1-100 values to 10 color-coded bands.
+Difficulty display utilities — maps 1-100 values to 10 color-coded bands (1–10, 11–20, …, 91–100).
 
-### `difficultyBand(level): string`
+### `DifficultyDisplay` interface
 
-Returns the band name for a difficulty level.
+```typescript
+interface DifficultyDisplay {
+  band: number;   // 1–10
+  label: string;  // e.g. "21-30"
+  color: string;  // Hex from green → red
+  name: string;   // Band name
+}
+```
 
-| Range | Name |
-|---|---|
-| 1–10 | Beginner |
-| 11–20 | Elementary |
-| 21–30 | Intermediate |
-| 31–40 | Upper Intermediate |
-| 41–50 | Advanced |
-| 51–60 | Upper Advanced |
-| 61–70 | Pre-Professional |
-| 71–80 | Professional |
-| 81–90 | Expert |
-| 91–100 | Virtuoso |
+### `difficultyBand(difficulty): number`
 
-### `difficultyColor(level): string`
+Returns the **1–10 band index** for a difficulty value (1–100). Clamped to the valid range.
 
-Returns a CSS color string for the difficulty level. Colors range from green (Beginner) through teal, blue, indigo, purple, magenta, orange to deep red (Virtuoso).
+### `difficultyColor(difficulty): string`
 
-### `difficultyDisplay(level): { band: string, color: string }`
+Returns the hex color for a difficulty value. Colors progress from green (easy) through lime / yellow / amber / orange to deep red (hardest).
 
-Convenience function returning both band name and color.
+### `difficultyDisplay(difficulty): DifficultyDisplay`
+
+Returns `{ band, label, color, name }` for a difficulty value.
+
+| Band | Range | Name |
+|---|---|---|
+| 1 | 1–10 | Beginner |
+| 2 | 11–20 | Elementary |
+| 3 | 21–30 | Easy |
+| 4 | 31–40 | Moderate |
+| 5 | 41–50 | Intermediate |
+| 6 | 51–60 | Challenging |
+| 7 | 61–70 | Advanced |
+| 8 | 71–80 | Expert |
+| 9 | 81–90 | Master |
+| 10 | 91–100 | Virtuoso |

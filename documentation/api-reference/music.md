@@ -45,7 +45,10 @@ Fractions `[numerator, denominator]` represent note durations and offsets withou
 |---|---|---|
 | `fractionToFloat` | `(f) → number` | `f[0] / f[1]` |
 | `addFractions` | `(a, b) → Fraction` | Addition with GCD reduction |
+| `subtractFractions` | `(a, b) → Fraction` | Subtraction with GCD reduction |
 | `multiplyFraction` | `(f, scalar) → Fraction` | Multiply by integer scalar |
+| `compareFractions` | `(a, b) → number` | `-1 / 0 / 1` sort comparator |
+| `gcd` | `(a, b) → number` | Greatest common divisor (used internally by the fraction helpers) |
 
 ---
 
@@ -127,6 +130,18 @@ Sharps (positive) or flats (negative) for a major key. E.g. `'Bb' → -2`, `'D' 
 
 Returns `['C', 'G', 'D', 'A', 'E', 'B', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F']`.
 
+### `circleOfFourths(): PitchClass[]`
+
+Reverse of `circleOfFifths()` (without duplicating the starting note).
+
+### `getNextKeyInCircle(current, direction?): PitchClass`
+
+Return the next key around the circle of fifths. `direction` is `1` (fifths, default) or `-1` (fourths).
+
+### `getKeyAtIndex(index: number): PitchClass`
+
+Return the key at the given position in the circle of fifths. The index wraps around (negative values and values ≥ 12 are normalized via modulo).
+
 ### `relativeMajor(minorKey): PitchClass`
 
 ### `relativeMinor(majorKey): PitchClass`
@@ -167,6 +182,10 @@ Generate an ABC notation string.
 - Final barline `|]`
 
 Uses `KEY_SIG_ACCIDENTALS` lookup table (maps each key to its altered pitch classes) to determine which accidentals are implicit vs. explicit.
+
+### `displayPitchClass(pc, keyContext): string`
+
+Return a pitch class name spelled for a given key context (preferring sharps in sharp keys and flats in flat keys). Used by UI chips that show the current scale's notes.
 
 ### `midiToDisplayName(midi, useFlats?): string`
 
@@ -209,3 +228,46 @@ Ascending interval in semitones between two pitch classes.
 ### `isInRange(midi, instrument): boolean`
 
 Check if a MIDI note is within an instrument's concert range.
+
+---
+
+## key-ordering.ts
+
+Staged 12-key orderings for lick practice. The order a lick cycles through the 12 keys is chosen from a pool of "stages" unlocked at the current tempo.
+
+### Ordering generators
+
+| Function | Signature | Description |
+|---|---|---|
+| `circleOfFifthsFrom` | `(start) → PitchClass[]` | Rotate the standard circle of fifths so `start` is first |
+| `chromaticFrom` | `(start) → PitchClass[]` | Semitone-step ordering starting on `start` |
+| `wholeTonePairFrom` | `(start) → PitchClass[]` | The six keys of the whole-tone scale containing `start`, then the six keys of the complementary whole-tone scale |
+| `shufflePitchClasses` | `(rng?) → PitchClass[]` | Fisher–Yates shuffle, RNG-parameterizable for deterministic tests |
+
+### `KeyOrderingStage` type
+
+```typescript
+export type KeyOrderingStage = 0 | 1 | 2 | 3 | 4;
+```
+
+### `unlockedStages(tempo, minBpm): KeyOrderingStage[]`
+
+Return the stages unlocked at `tempo`:
+- Stage 0 always unlocked — circle of fifths from the player's written C.
+- Stages 1 and 2 unlock linearly between `minBpm` and 150 BPM — circle of fifths / chromatic from a random root.
+- Stages 3 and 4 unlock together at 150 BPM — whole-tone pair and full shuffle.
+
+### `PlanLickKeysArgs` interface
+
+```typescript
+interface PlanLickKeysArgs {
+  tempo: number;
+  minBpm: number;
+  instrument: InstrumentConfig;   // resolves "written C" for Stage 0
+  rng?: () => number;
+}
+```
+
+### `planLickKeys(args): PitchClass[]`
+
+Pick a stage uniformly at random from `unlockedStages(tempo, minBpm)`, then draw that stage's 12-key ordering. The returned array is always a permutation of all 12 pitch classes.

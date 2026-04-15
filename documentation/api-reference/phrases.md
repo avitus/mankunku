@@ -29,7 +29,7 @@ Generate a phrase using the 5-stage pipeline. Retries up to 5 times if validatio
 
 **Stages:**
 
-1. **Target note selection** — Place chord tones on strong beats (every 2 beats). Voice-lead by picking the chord tone closest to the previous target across multiple octaves. Constrained to MIDI 44–76 (tenor sax range).
+1. **Target note selection** — Place chord tones on strong beats (every 2 beats). Voice-lead by picking the chord tone closest to the previous target across multiple octaves. Constrained to MIDI 44–75 by default (tenor-sax concert range, overridable via `rangeHigh`/`rangeLow`).
 
 2. **Approach patterns** — Fill gaps between targets using one of three strategies:
    - **Scale run** (easy/common): Diatonic notes between targets
@@ -63,9 +63,9 @@ Standard harmonic progressions for generating phrases.
 
 Transforms existing licks to create variations.
 
-### `mutateLick(lick): Phrase | null`
+### `mutateLick(lick, rangeHigh?): Phrase | null`
 
-Apply a random mutation. Returns `null` if the result fails validation.
+Apply a random mutation. Returns `null` if the result fails validation. `rangeHigh` (default tenor-sax top) is forwarded to `octaveDisplacement`.
 
 Randomly selects from:
 
@@ -73,9 +73,9 @@ Randomly selects from:
 
 Shift all note onsets forward by an eighth note, creating syncopation. ID suffix: `_displaced`.
 
-### `octaveDisplacement(lick): Phrase`
+### `octaveDisplacement(lick, rangeHigh?): Phrase`
 
-Randomly shift ~25% of notes up or down an octave. Skips first and last pitched notes. Constrains to MIDI 44–84. ID suffix: `_octdispl`.
+Randomly shift ~25% of notes up or down an octave. Skips first and last pitched notes. Constrains to MIDI 44–`rangeHigh` (default 84). ID suffix: `_octdispl`.
 
 ### `truncate(lick, maxNotes?): Phrase`
 
@@ -98,7 +98,7 @@ interface ValidationRules {
   maxInterval: number;             // Max semitones between consecutive notes (default: 14)
   maxConsecutiveLeaps: number;     // Max intervals > 2 semitones in a row (default: 3)
   minStepRatio: number;            // Min ratio of steps to total intervals (default: 0.3)
-  range: [number, number];         // MIDI range bounds (default: [44, 84])
+  range: [number, number];         // MIDI range bounds (default: [44, 75], tenor-sax concert range)
   leapRecovery: boolean;           // Require step in opposite direction after large leap
   leapRecoveryThreshold: number;   // Semitones above which recovery is enforced (default: 7)
   minDirectionChanges: number;     // Min melodic direction changes (default: 1)
@@ -166,6 +166,10 @@ interface LibraryQuery {
 | `queryLicks` | `(query) → Phrase[]` | Multi-filter query |
 | `pickRandomLick` | `(query?, key?) → Phrase \| null` | Random selection with optional transposition |
 
+### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`
+
+Adjust a transposed lick so every note lies in the given scale. Out-of-scale pitches are snapped to the nearest scale degree (ties break up). Useful for reusing major-family licks against non-major tonalities.
+
 ### `transposeLick(lick, targetKey): Phrase`
 
 Transpose a lick from concert C to a target key. Shifts all MIDI pitches and harmony roots by the interval from C to the target key, then applies an **octave adjustment** via `bestOctaveShift()` to keep notes within the tenor sax range (MIDI 60–75, C4–Eb5).
@@ -189,3 +193,30 @@ Filters are applied in order:
 4. Tag overlap (any tag matches)
 5. Text search (name or tags, case-insensitive)
 6. Scale type compatibility (via `isLickCompatible` from `scale-compatibility.ts`)
+
+---
+
+## combiner.ts
+
+Combinatorial lick generation — pairs scale patterns with rhythm patterns (from `src/lib/data/patterns/`) to produce a large pool of `Phrase` objects. Output shows up in the library alongside curated licks.
+
+### `realizeScalePattern(degrees, scaleId, key): number[] | null`
+
+Map scale-degree indices to MIDI pitches against a scale in the given key. Anchors the root closest to C4 (MIDI 60) and indexes up/down from there through a MIDI 36–96 pool. Returns `null` if the scale is unknown, the root isn't in the pool, or any degree falls outside the pool bounds.
+
+### `combine(sp, rp, scaleId, key, harmony): Phrase | null`
+
+Pair a `ScalePattern` with a `RhythmPattern` and build a `Phrase`.
+
+- Note counts must match (`sp.degrees.length === rp.noteCount`).
+- If the scale pattern declares `compatibleFamilies`, the scale's family must be one of them.
+- Difficulty is computed via `calculateDifficulty()` on the finished phrase.
+- Phrases are tagged with `'combined'` and `source: 'combined'`. IDs are `cmb-<scale-pattern-id>_<rhythm-pattern-id>`.
+
+### `generateAllCombinations(): Phrase[]`
+
+Iterate over every `(ScalePattern, RhythmPattern)` cross-product whose category is mapped in the internal category→scale context table. Called once at module import time.
+
+### `COMBINED_LICKS: Phrase[]`
+
+Pre-computed array of all valid combinatorial licks (~evaluated at import). Consumed by the library loader to seed the in-memory lick index.
