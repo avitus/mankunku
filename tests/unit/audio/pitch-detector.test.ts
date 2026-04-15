@@ -58,7 +58,7 @@ beforeEach(async () => {
 // ─── Tests ────────────────────────────────────────────────────
 
 describe('createPitchDetector', () => {
-	it('creates a detector with start/stop/getReadings/clear', async () => {
+	it('creates a detector with start/stop/getReadings/clear/resetOctaveStateAt', async () => {
 		const analyser = createMockAnalyser();
 		const onPitch = vi.fn();
 		const detector = await createPitchDetector(analyser, onPitch);
@@ -67,6 +67,7 @@ describe('createPitchDetector', () => {
 		expect(detector.stop).toBeTypeOf('function');
 		expect(detector.getReadings).toBeTypeOf('function');
 		expect(detector.clear).toBeTypeOf('function');
+		expect(detector.resetOctaveStateAt).toBeTypeOf('function');
 	});
 
 	it('calls onPitch with reading when clarity above threshold', async () => {
@@ -261,236 +262,209 @@ function midiToFreq(midi: number): number {
 	return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-describe('octave stabilization', () => {
-	it('filters transient octave-below glitch', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
+/** Run a sequence of [freq, clarity] pairs through a fresh detector */
+async function runSequence(
+	sequence: ReadonlyArray<readonly [number, number]>,
+	createMockAnalyserFn: () => AnalyserNode = createMockAnalyser
+) {
+	const analyser = createMockAnalyserFn();
+	const onPitch = vi.fn();
+	for (const vals of sequence) mockFindPitch.mockReturnValueOnce([...vals]);
+	const detector = await createPitchDetector(analyser, onPitch);
+	detector.start();
+	for (let i = 1; i < sequence.length; i++) pumpFrame();
+	return { detector, readings: detector.getReadings() };
+}
 
-		// C3 (MIDI 48) for 2 frames — subharmonic glitch — then C4 (MIDI 60) for 5 frames
-		const sequence = [
-			[midiToFreq(48), 0.95],
-			[midiToFreq(48), 0.95],
-			[midiToFreq(60), 0.95],
-			[midiToFreq(60), 0.95],
-			[midiToFreq(60), 0.95],
-			[midiToFreq(60), 0.95],
-			[midiToFreq(60), 0.95],
-		] as const;
+describe('octave stabilization warmup seed', () => {
+	it('passes the first WARMUP_FRAMES (5) confident readings through raw', async () => {
+		// All 5 warmup frames carry MIDI 60 with varying clarity.
+		const { readings } = await runSequence([
+			[midiToFreq(60), 0.90],
+			[midiToFreq(60), 0.91],
+			[midiToFreq(60), 0.92],
+			[midiToFreq(60), 0.93],
+			[midiToFreq(60), 0.94]
+		]);
+		expect(readings).toHaveLength(5);
+		for (const r of readings) expect(r.midi).toBe(60);
+		// All five should be marked warmup.
+		for (const r of readings) expect(r.warmup).toBe(true);
+	});
 
-		for (const vals of sequence) {
-			mockFindPitch.mockReturnValueOnce([...vals]);
-		}
-
-		const detector = await createPitchDetector(analyser, onPitch);
-		detector.start(); // frame 0
-		for (let i = 1; i < sequence.length; i++) pumpFrame();
-
-		const readings = detector.getReadings();
-		expect(readings).toHaveLength(7);
-		// First reading accepted as-is (no prior stable note), but all
-		// subsequent readings that would be an octave jump are corrected.
-		// Frame 0: 48 (first, accepted). Frames 1: 48 (same, accepted).
-		// Frames 2-6: 60 is +12 from stable 48. Needs 3 confirms.
-		// Frame 2: confirm 1 → corrected to 48
-		// Frame 3: confirm 2 → corrected to 48
-		// Frame 4: confirm 3 → accepted as 60, stable updated
-		// Frames 5-6: 60 (matches new stable)
-		expect(readings[0].midi).toBe(48);
-		expect(readings[1].midi).toBe(48);
-		expect(readings[2].midi).toBe(48); // corrected
-		expect(readings[3].midi).toBe(48); // corrected
-		expect(readings[4].midi).toBe(60); // confirmed
+	it('seeds stable MIDI with clarity-weighted mode of the warmup window', async () => {
+		// 2× glitch at 72 (both low clarity), 3× sustained at 60 (high clarity),
+		// then a steady 60. Mode should pick 60 thanks to clarity weighting.
+		const { readings } = await runSequence([
+			[midiToFreq(72), 0.81], // warmup frame 0 — glitch
+			[midiToFreq(72), 0.82], // warmup frame 1 — glitch
+			[midiToFreq(60), 0.95], // warmup frame 2 — real
+			[midiToFreq(60), 0.95], // warmup frame 3 — real
+			[midiToFreq(60), 0.95], // warmup frame 4 — seed frame → stable = 60
+			[midiToFreq(60), 0.95], // steady state
+			[midiToFreq(60), 0.95]
+		]);
+		// Warmup frames pass through raw.
+		expect(readings[0].midi).toBe(72);
+		expect(readings[1].midi).toBe(72);
+		expect(readings[2].midi).toBe(60);
+		expect(readings[3].midi).toBe(60);
+		// Seed frame: returns the weighted-mode seed (60, not raw 60 again).
+		expect(readings[4].midi).toBe(60);
+		// Steady-state frames.
 		expect(readings[5].midi).toBe(60);
 		expect(readings[6].midi).toBe(60);
+		// Warmup flag present on first 5, absent on steady state.
+		expect(readings[0].warmup).toBe(true);
+		expect(readings[4].warmup).toBe(true);
+		expect(readings[5].warmup).toBeUndefined();
+		expect(readings[6].warmup).toBeUndefined();
 	});
 
-	it('filters octave-below glitch at note onset', async () => {
+	it('seeds stable MIDI at even split with the most recent pitch (tie-break)', async () => {
+		// 3× at 48 followed by 2× at 60 — weights tie after clarity^2 if
+		// clarities differ, but here all equal so key 48 wins by count.
+		// Flip: equal clarities, 2× at 48 then 3× at 60 → 60 wins on count.
+		const { readings } = await runSequence([
+			[midiToFreq(48), 0.9],
+			[midiToFreq(48), 0.9],
+			[midiToFreq(60), 0.9],
+			[midiToFreq(60), 0.9],
+			[midiToFreq(60), 0.9],
+			[midiToFreq(60), 0.9]
+		]);
+		// Warmup pass-through, then seed = 60, then steady at 60.
+		expect(readings[5].midi).toBe(60);
+		expect(readings[5].warmup).toBeUndefined();
+	});
+
+	it('reset() re-enters warmup on the next process call', async () => {
 		const analyser = createMockAnalyser();
 		const onPitch = vi.fn();
 
-		// Simulates the reported bug: first detect C3 briefly, then correct to C4.
-		// Stable starts at C4, brief drop to C3, back to C4.
-		const c4 = midiToFreq(60);
-		const c3 = midiToFreq(48);
-		const sequence = [
-			[c4, 0.95], [c4, 0.95], [c4, 0.95], // stable at C4
-			[c3, 0.90], [c3, 0.90],               // brief octave-below glitch
-			[c4, 0.95], [c4, 0.95], [c4, 0.95],   // corrects back
-		] as const;
-
-		for (const vals of sequence) {
-			mockFindPitch.mockReturnValueOnce([...vals]);
-		}
+		// Seed stable at 60 with 5 warmup frames; then a steady-state frame.
+		for (let i = 0; i < 6; i++) mockFindPitch.mockReturnValueOnce([midiToFreq(60), 0.95]);
 
 		const detector = await createPitchDetector(analyser, onPitch);
 		detector.start();
-		for (let i = 1; i < sequence.length; i++) pumpFrame();
+		for (let i = 0; i < 5; i++) pumpFrame();
 
-		const readings = detector.getReadings();
-		// All readings should be MIDI 60 — the 2-frame dip to 48 is suppressed
-		expect(readings.every(r => r.midi === 60)).toBe(true);
-		// Raw frequency is preserved (for debugging)
-		expect(readings[3].frequency).toBeCloseTo(c3, 0);
-	});
-
-	it('accepts genuine octave change after confirmation window', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
-
-		const c4 = midiToFreq(60);
-		const c5 = midiToFreq(72);
-		// 3 frames at C4, then 5 frames at C5 (genuine octave change)
-		const sequence = [
-			[c4, 0.95], [c4, 0.95], [c4, 0.95],
-			[c5, 0.95], [c5, 0.95], [c5, 0.95], [c5, 0.95], [c5, 0.95],
-		] as const;
-
-		for (const vals of sequence) {
-			mockFindPitch.mockReturnValueOnce([...vals]);
-		}
-
-		const detector = await createPitchDetector(analyser, onPitch);
-		detector.start();
-		for (let i = 1; i < sequence.length; i++) pumpFrame();
-
-		const readings = detector.getReadings();
-		expect(readings[0].midi).toBe(60);
-		expect(readings[1].midi).toBe(60);
-		expect(readings[2].midi).toBe(60);
-		// Frames 3-4: confirming (corrected to 60)
-		expect(readings[3].midi).toBe(60);
-		expect(readings[4].midi).toBe(60);
-		// Frame 5: 3rd confirm → accepted as 72
-		expect(readings[5].midi).toBe(72);
-		expect(readings[6].midi).toBe(72);
-		expect(readings[7].midi).toBe(72);
-	});
-
-	it('accepts non-octave pitch changes immediately', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
-
-		// C4 → D4 (2 semitones, different pitch class)
-		const sequence = [
-			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
-			[midiToFreq(62), 0.95], [midiToFreq(62), 0.95],
-		] as const;
-
-		for (const vals of sequence) {
-			mockFindPitch.mockReturnValueOnce([...vals]);
-		}
-
-		const detector = await createPitchDetector(analyser, onPitch);
-		detector.start();
-		for (let i = 1; i < sequence.length; i++) pumpFrame();
-
-		const readings = detector.getReadings();
-		expect(readings[2].midi).toBe(60);
-		expect(readings[3].midi).toBe(62); // accepted immediately, no delay
-		expect(readings[4].midi).toBe(62);
-	});
-
-	it('filters octave-above glitch', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
-
-		const c4 = midiToFreq(60);
-		const c5 = midiToFreq(72);
-		// Stable at C4, brief jump to C5 (2 frames), back to C4
-		const sequence = [
-			[c4, 0.95], [c4, 0.95], [c4, 0.95],
-			[c5, 0.95], [c5, 0.95],
-			[c4, 0.95], [c4, 0.95],
-		] as const;
-
-		for (const vals of sequence) {
-			mockFindPitch.mockReturnValueOnce([...vals]);
-		}
-
-		const detector = await createPitchDetector(analyser, onPitch);
-		detector.start();
-		for (let i = 1; i < sequence.length; i++) pumpFrame();
-
-		const readings = detector.getReadings();
-		// All should be 60 — the brief C5 is suppressed
-		expect(readings.every(r => r.midi === 60)).toBe(true);
-	});
-
-	it('resets octave state on start()', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
-
-		// First run: establish stable at C4, begin glitch
-		mockFindPitch
-			.mockReturnValueOnce([midiToFreq(60), 0.95])  // start frame
-			.mockReturnValueOnce([midiToFreq(48), 0.95]); // octave glitch (1 confirm)
-
-		const detector = await createPitchDetector(analyser, onPitch);
-		detector.start();
+		// Queue a reset, then enqueue a 69 frame — it should pass through raw
+		// because warmup restarts.
+		detector.resetOctaveStateAt(0);
+		mockFindPitch.mockReturnValueOnce([midiToFreq(69), 0.95]);
 		pumpFrame();
+
+		const readings = detector.getReadings();
+		const last = readings[readings.length - 1];
+		expect(last.midi).toBe(69);
+		expect(last.warmup).toBe(true);
+	});
+});
+
+describe('octave stabilization (steady state)', () => {
+	it('filters a brief octave-below glitch after warmup', async () => {
+		// First 5 frames: all 60 → seed stable at 60. Then 2 frames at 48
+		// (glitch) and back to 60 — glitch should be suppressed.
+		const { readings } = await runSequence([
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(48), 0.90], [midiToFreq(48), 0.90],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95]
+		]);
+		// Warmup: all 60, marked warmup.
+		for (let i = 0; i < 5; i++) expect(readings[i].midi).toBe(60);
+		// Steady: glitch frames corrected to 60.
+		expect(readings[5].midi).toBe(60);
+		expect(readings[6].midi).toBe(60);
+		// Return to 60.
+		expect(readings[7].midi).toBe(60);
+		expect(readings[8].midi).toBe(60);
+	});
+
+	it('accepts a genuine octave change after the confirmation window', async () => {
+		// Seed at 60, then 5× at 72 — the confirmFrames=3 threshold is met.
+		const { readings } = await runSequence([
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95], // warmup → seed 60
+			[midiToFreq(72), 0.95], // confirm 1 → 60
+			[midiToFreq(72), 0.95], // confirm 2 → 60
+			[midiToFreq(72), 0.95], // confirm 3 → accepted as 72
+			[midiToFreq(72), 0.95], [midiToFreq(72), 0.95]
+		]);
+		expect(readings[5].midi).toBe(60);
+		expect(readings[6].midi).toBe(60);
+		expect(readings[7].midi).toBe(72);
+		expect(readings[8].midi).toBe(72);
+		expect(readings[9].midi).toBe(72);
+	});
+
+	it('accepts non-octave pitch changes immediately after warmup', async () => {
+		// Seed at 60 via warmup, then jump to 62 (whole step, not octave).
+		const { readings } = await runSequence([
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(62), 0.95], [midiToFreq(62), 0.95]
+		]);
+		expect(readings[5].midi).toBe(62);
+		expect(readings[6].midi).toBe(62);
+	});
+
+	it('filters a brief octave-above glitch after warmup', async () => {
+		const { readings } = await runSequence([
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(72), 0.95], [midiToFreq(72), 0.95],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95]
+		]);
+		// All steady-state readings should be 60 (glitch suppressed).
+		for (let i = 5; i < readings.length; i++) expect(readings[i].midi).toBe(60);
+	});
+
+	it('handles two-octave jumps (±24 semitones) as octave glitches', async () => {
+		const { readings } = await runSequence([
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95],
+			[midiToFreq(36), 0.90], [midiToFreq(36), 0.90],
+			[midiToFreq(60), 0.95], [midiToFreq(60), 0.95]
+		]);
+		for (let i = 5; i < readings.length; i++) expect(readings[i].midi).toBe(60);
+	});
+
+	it('preserves cents and raw frequency when correcting an octave glitch', async () => {
+		const c4 = midiToFreq(60);
+		const c3Sharp = midiToFreq(48) * Math.pow(2, 5 / 1200); // 5 cents sharp
+		const { readings } = await runSequence([
+			[c4, 0.95], [c4, 0.95], [c4, 0.95], [c4, 0.95], [c4, 0.95],
+			[c3Sharp, 0.90],
+			[c4, 0.95]
+		]);
+		const corrected = readings[5];
+		expect(corrected.midi).toBe(60);                // corrected octave
+		expect(corrected.frequency).toBeCloseTo(c3Sharp, 0); // raw frequency preserved
+		expect(corrected.cents).toBe(5);                // cents from the raw detection
+	});
+
+	it('start() resets octave state so prior-run stabilization does not leak', async () => {
+		const analyser = createMockAnalyser();
+		const onPitch = vi.fn();
+
+		// First run: a full warmup at C4 to seed stable.
+		for (let i = 0; i < 5; i++) mockFindPitch.mockReturnValueOnce([midiToFreq(60), 0.95]);
+		const detector = await createPitchDetector(analyser, onPitch);
+		detector.start();
+		for (let i = 1; i < 5; i++) pumpFrame();
 
 		detector.stop();
 
-		// Second run: start fresh at A4 — should not carry over C4 stable state
+		// Second run: first frame at A4 — must NOT be treated as an octave
+		// glitch relative to the previous run's stable state.
 		mockFindPitch.mockReturnValueOnce([midiToFreq(69), 0.95]);
 		detector.start();
 
 		const readings = detector.getReadings();
 		expect(readings).toHaveLength(1);
-		expect(readings[0].midi).toBe(69); // A4, accepted as-is
-	});
-
-	it('handles two-octave jump (±24 semitones)', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
-
-		const c4 = midiToFreq(60);
-		const c2 = midiToFreq(36);
-		// Stable at C4, brief 2-octave drop, back to C4
-		const sequence = [
-			[c4, 0.95], [c4, 0.95], [c4, 0.95],
-			[c2, 0.90], [c2, 0.90],
-			[c4, 0.95], [c4, 0.95],
-		] as const;
-
-		for (const vals of sequence) {
-			mockFindPitch.mockReturnValueOnce([...vals]);
-		}
-
-		const detector = await createPitchDetector(analyser, onPitch);
-		detector.start();
-		for (let i = 1; i < sequence.length; i++) pumpFrame();
-
-		const readings = detector.getReadings();
-		expect(readings.every(r => r.midi === 60)).toBe(true);
-	});
-
-	it('preserves cents and raw frequency when correcting octave', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
-
-		const c4 = midiToFreq(60);
-		// Slightly sharp C3 — raw frequency preserved, midi/midiFloat corrected
-		const c3Sharp = midiToFreq(48) * Math.pow(2, 5 / 1200); // 5 cents sharp
-
-		const sequence = [
-			[c4, 0.95], [c4, 0.95], [c4, 0.95],
-			[c3Sharp, 0.90], // octave glitch, slightly sharp
-			[c4, 0.95],
-		] as const;
-
-		for (const vals of sequence) {
-			mockFindPitch.mockReturnValueOnce([...vals]);
-		}
-
-		const detector = await createPitchDetector(analyser, onPitch);
-		detector.start();
-		for (let i = 1; i < sequence.length; i++) pumpFrame();
-
-		const readings = detector.getReadings();
-		const corrected = readings[3];
-		expect(corrected.midi).toBe(60); // corrected octave
-		expect(corrected.frequency).toBeCloseTo(c3Sharp, 0); // raw frequency preserved
-		expect(corrected.cents).toBe(5); // cents preserved from raw detection
+		expect(readings[0].midi).toBe(69); // A4, raw pass-through (warmup frame 0)
+		expect(readings[0].warmup).toBe(true);
 	});
 });

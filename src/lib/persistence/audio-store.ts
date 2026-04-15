@@ -6,15 +6,62 @@
  * uploaded to the Supabase Storage bucket `recordings` for cross-device
  * access. Downloads fall back to the cloud when a recording is missing
  * from the local IndexedDB store.
+ *
+ * Each record is `{ sessionId, blob, timestamp, metadata | null }`.
+ * Metadata is a self-contained snapshot of the practice context at save
+ * time (phrase, score, detected notes, backing-track log, bleed-filter
+ * log). It is optional so cloud-restored recordings and legacy records
+ * without metadata still work.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
+import type { DetectedNote } from '$lib/types/audio';
+import type { Score, BleedFilterLog } from '$lib/types/scoring';
+import type { BackingTrackLog } from '$lib/audio/backing-track';
 
 const DB_NAME = 'mankunku-audio';
 const STORE_NAME = 'recordings';
 const DB_VERSION = 1;
 const MAX_RECORDINGS = 20;
+
+/**
+ * Self-contained snapshot of the practice context at save time.
+ * Everything the diagnostics UI needs to display a recording without
+ * reaching back into live session state.
+ */
+export interface RecordingMetadata {
+	phraseId: string;
+	phraseName: string;
+	source: 'ear-training' | 'lick-practice';
+	tempo: number;
+	/** Concert-pitch key — display layer transposes to written as needed. */
+	key: string;
+	swing: number;
+	score: Score | null;
+	detectedNotes: DetectedNote[];
+	backingTrackLog: BackingTrackLog | null;
+	bleedFilterLog: BleedFilterLog | null;
+}
+
+export interface RecordingRecord {
+	sessionId: string;
+	blob: Blob;
+	timestamp: number;
+	metadata: RecordingMetadata | null;
+}
+
+export interface RecordingSummary {
+	sessionId: string;
+	timestamp: number;
+	metadata: RecordingMetadata | null;
+}
+
+export interface SaveRecordingOptions {
+	metadata?: RecordingMetadata;
+	supabase?: SupabaseClient<Database>;
+	userId?: string;
+}
 
 function openDb(): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
@@ -45,7 +92,8 @@ function idbTx(t: IDBTransaction): Promise<void> {
 }
 
 /**
- * Save a recording blob, pruning oldest entries beyond the local cap.
+ * Save a recording blob (and optional metadata), pruning oldest entries
+ * beyond the local cap.
  *
  * The primary write always targets IndexedDB for instant local availability
  * and offline resilience. When an authenticated Supabase client and userId
@@ -53,22 +101,25 @@ function idbTx(t: IDBTransaction): Promise<void> {
  * bucket `recordings` in a fire-and-forget manner (the upload never blocks
  * the function return and failures are logged but not thrown).
  *
- * @param sessionId  Unique practice session identifier
- * @param blob       Audio blob (audio/webm) to persist
- * @param supabase   Optional authenticated Supabase client for cloud upload
- * @param userId     Optional user UUID — required together with supabase for cloud upload
+ * Metadata is persisted locally only — cloud-restored recordings re-hydrate
+ * with `metadata: null`.
  */
 export async function saveRecording(
 	sessionId: string,
 	blob: Blob,
-	supabase?: SupabaseClient<Database>,
-	userId?: string
+	options: SaveRecordingOptions = {}
 ): Promise<void> {
+	const { metadata, supabase, userId } = options;
 	const db = await openDb();
 	try {
 		const transaction = db.transaction(STORE_NAME, 'readwrite');
 		const store = transaction.objectStore(STORE_NAME);
-		store.put({ sessionId, blob, timestamp: Date.now() });
+		store.put({
+			sessionId,
+			blob,
+			timestamp: Date.now(),
+			metadata: metadata ?? null
+		});
 
 		const all = await idbReq(store.getAll());
 		if (all.length > MAX_RECORDINGS) {
@@ -102,6 +153,32 @@ export async function saveRecording(
 }
 
 /**
+ * Replace the metadata for an existing recording without touching the blob.
+ * Used by the post-hoc rescore path to upgrade a provisional score/notes
+ * snapshot to the authoritative replay result. No-op when the record is
+ * missing (e.g. pruned since the original save).
+ */
+export async function updateRecordingMetadata(
+	sessionId: string,
+	metadata: RecordingMetadata
+): Promise<void> {
+	const db = await openDb();
+	try {
+		const transaction = db.transaction(STORE_NAME, 'readwrite');
+		const store = transaction.objectStore(STORE_NAME);
+		const existing = await idbReq(store.get(sessionId));
+		if (!existing) {
+			await idbTx(transaction);
+			return;
+		}
+		store.put({ ...existing, metadata });
+		await idbTx(transaction);
+	} finally {
+		db.close();
+	}
+}
+
+/**
  * Retrieve a recording blob by session ID.
  *
  * Follows a local-first strategy: IndexedDB is checked first for the
@@ -110,11 +187,6 @@ export async function saveRecording(
  * falls back to downloading the blob from the Supabase Storage bucket
  * `recordings`. Cloud download errors are caught and logged; the
  * function returns null in case of any failure.
- *
- * @param sessionId  Unique practice session identifier
- * @param supabase   Optional authenticated Supabase client for cloud download fallback
- * @param userId     Optional user UUID — required together with supabase for cloud access
- * @returns The audio Blob if found locally or in the cloud, otherwise null
  */
 export async function getRecording(
 	sessionId: string,
@@ -162,6 +234,50 @@ export async function getRecording(
 	return null;
 }
 
+/**
+ * Retrieve a recording plus its metadata (local only — cloud blobs do not
+ * carry sidecar metadata). Returns null when the sessionId is not found
+ * in IndexedDB.
+ */
+export async function getRecordingFull(sessionId: string): Promise<RecordingRecord | null> {
+	const db = await openDb();
+	try {
+		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
+		const result = await idbReq(store.get(sessionId));
+		if (!result) return null;
+		return {
+			sessionId: result.sessionId,
+			blob: result.blob,
+			timestamp: result.timestamp,
+			metadata: result.metadata ?? null
+		};
+	} finally {
+		db.close();
+	}
+}
+
+/**
+ * Return every local recording's summary (sessionId + timestamp + metadata),
+ * sorted newest first. Omits the blob so the diagnostics list can render
+ * many rows without loading audio into memory.
+ */
+export async function getAllRecordingSummaries(): Promise<RecordingSummary[]> {
+	const db = await openDb();
+	try {
+		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
+		const all = await idbReq(store.getAll());
+		return all
+			.map((r: { sessionId: string; timestamp: number; metadata?: RecordingMetadata | null }) => ({
+				sessionId: r.sessionId,
+				timestamp: r.timestamp,
+				metadata: r.metadata ?? null
+			}))
+			.sort((a: RecordingSummary, b: RecordingSummary) => b.timestamp - a.timestamp);
+	} finally {
+		db.close();
+	}
+}
+
 /** Get the set of session IDs that have recordings. */
 export async function getRecordingIds(): Promise<Set<string>> {
 	const db = await openDb();
@@ -171,6 +287,37 @@ export async function getRecordingIds(): Promise<Set<string>> {
 		return new Set(keys as string[]);
 	} finally {
 		db.close();
+	}
+}
+
+/**
+ * Delete a single recording by session ID. When authenticated, also removes
+ * the cloud copy so a subsequent sync does not resurrect the deleted entry.
+ * Cloud delete failures are logged but do not throw.
+ */
+export async function deleteRecording(
+	sessionId: string,
+	supabase?: SupabaseClient<Database>,
+	userId?: string
+): Promise<void> {
+	const db = await openDb();
+	try {
+		const transaction = db.transaction(STORE_NAME, 'readwrite');
+		transaction.objectStore(STORE_NAME).delete(sessionId);
+		await idbTx(transaction);
+	} finally {
+		db.close();
+	}
+
+	if (supabase && userId) {
+		const path = `${userId}/${sessionId}.webm`;
+		supabase.storage
+			.from('recordings')
+			.remove([path])
+			.then(({ error }) => {
+				if (error) console.warn('Failed to delete cloud recording:', error);
+			})
+			.catch((err) => console.warn('Failed to delete cloud recording:', err));
 	}
 }
 

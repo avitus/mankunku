@@ -9,15 +9,13 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
 	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte';
-	import { scoreAttempt } from '$lib/scoring/scorer';
-	import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
+	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
 	import { loadBackingInstruments, getActiveSchedule } from '$lib/audio/backing-track';
-	import { filterBleed } from '$lib/audio/bleed-filter';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
@@ -87,6 +85,14 @@
 	let recorderHandle: RecorderHandle | null = null;
 	let awaitingInput = $state(false);
 	let recordingTransportSeconds = 0;
+
+	/**
+	 * Monotonic id for each in-flight rescore. Bumped every time finishRecording
+	 * kicks off a new replay, captured before the async save+replay chain, and
+	 * re-checked before any post-await writes to session state. Guards against
+	 * an earlier slow replay clobbering a later take's score/notes.
+	 */
+	let latestRescoreId = 0;
 
 	// ─── Auto-advance loop state ─────────────────────────────
 	const PASS_THRESHOLD = 0.70;
@@ -337,50 +343,23 @@
 		stopRecording();
 
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
-		const validatedOnsets = validateOnsets(workletOnsets, readings);
-		let onsets = validatedOnsets.length > 0
-			? validatedOnsets
-			: extractOnsetsFromReadings(readings);
-
-		// Ensure first note has an onset — the worklet may lose it
-		// due to the MessagePort race condition in beginRecording()
-		if (readings.length > 0 && (onsets.length === 0 || onsets[0] - readings[0].time > 0.1)) {
-			onsets = [readings[0].time, ...onsets];
-		}
-
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
-		const detected = segmentNotes(readings, onsets, phraseDuration);
 
-		// Always score unfiltered (current behavior)
-		const unfilteredScore = scoreAttempt(
-			session.phrase, detected, session.tempo, recordingTransportSeconds, settings.swing
-		);
+		const result = runScorePipeline({
+			readings,
+			workletOnsets,
+			phrase: session.phrase,
+			phraseDuration,
+			tempo: session.tempo,
+			transportSeconds: recordingTransportSeconds,
+			swing: settings.swing,
+			schedule: getActiveSchedule(),
+			bleedFilterEnabled: settings.bleedFilterEnabled
+		});
 
-		// Score filtered path when backing track schedule is available
-		let filteredScore: Score | null = null;
-		let filteredNotes = detected;
-		const schedule = getActiveSchedule();
-		if (schedule) {
-			const result = filterBleed(detected, schedule, recordingTransportSeconds);
-			filteredNotes = result.kept;
-			filteredScore = scoreAttempt(
-				session.phrase, filteredNotes, session.tempo, recordingTransportSeconds, settings.swing
-			);
-			session.bleedFilterLog = {
-				totalNotes: detected.length,
-				keptNotes: result.kept.length,
-				filteredNotes: result.filtered,
-				unfilteredScore,
-				filteredScore
-			};
-		} else {
-			session.bleedFilterLog = null;
-		}
-
-		// Toggle picks which score is primary
-		const useFiltered = settings.bleedFilterEnabled && filteredScore != null;
-		session.recordedNotes = useFiltered ? filteredNotes : detected;
-		session.lastScore = useFiltered ? filteredScore : unfilteredScore;
+		session.bleedFilterLog = result.bleedLog;
+		session.recordedNotes = result.useFiltered ? result.filteredNotes : result.detected;
+		session.lastScore = result.chosen;
 
 		if (session.lastScore) {
 			persistentScore = session.lastScore;
@@ -398,16 +377,61 @@
 			);
 		}
 
-		// Save audio recording in the background
+		// Save audio recording in the background, then re-score from the
+		// saved blob. The replay path is deterministic (no rAF jitter,
+		// no AudioWorklet scheduling); live readings drift across runs even
+		// on identical audio, so the replay score is authoritative. UI
+		// shows the provisional live score immediately and swaps to the
+		// authoritative one when replay resolves (~200–500 ms).
 		if (recorderHandle) {
 			const handle = recorderHandle;
 			const sessionId = progress.sessions[0]?.id;
+			const phraseForRescore = session.phrase;
+			const tempoForRescore = session.tempo;
+			const transportForRescore = recordingTransportSeconds;
+			const swingForRescore = settings.swing;
+			const scheduleForRescore = getActiveSchedule();
+			const bleedFilterEnabled = settings.bleedFilterEnabled;
+			const provisionalScore = session.lastScore;
+			const provisionalNotes = session.recordedNotes;
+			const provisionalBleedLog = session.bleedFilterLog;
+			const rescoreId = ++latestRescoreId;
 			recorderHandle = null;
 			handle.stop().then(async (blob) => {
 				handle.dispose();
 				if (blob.size > 0 && sessionId) {
 					const { saveRecording } = await import('$lib/persistence/audio-store');
-					await saveRecording(sessionId, blob, supabase, user?.id);
+					const { getBackingTrackLog } = await import('$lib/audio/backing-track');
+					const baseMetadata = {
+						phraseId: phraseForRescore.id,
+						phraseName: phraseForRescore.name ?? phraseForRescore.id,
+						source: 'ear-training' as const,
+						tempo: tempoForRescore,
+						key: phraseForRescore.key,
+						swing: swingForRescore,
+						score: provisionalScore,
+						detectedNotes: provisionalNotes,
+						backingTrackLog: getBackingTrackLog(1)[0] ?? null,
+						bleedFilterLog: provisionalBleedLog
+					};
+					await saveRecording(sessionId, blob, {
+						metadata: baseMetadata,
+						supabase,
+						userId: user?.id
+					});
+					rescoreFromBlob(
+						blob,
+						phraseDuration,
+						phraseForRescore,
+						tempoForRescore,
+						transportForRescore,
+						swingForRescore,
+						scheduleForRescore,
+						bleedFilterEnabled,
+						sessionId,
+						baseMetadata,
+						rescoreId
+					).catch((err) => console.warn('post-hoc rescore failed', err));
 				}
 			}).catch(console.error);
 		}
@@ -452,26 +476,65 @@
 		}
 	}
 
-	function extractOnsetsFromReadings(
-		readings: import('$lib/audio/pitch-detector').PitchReading[]
-	): number[] {
-		if (readings.length === 0) return [];
-		const onsets: number[] = [readings[0].time];
-		const GAP_THRESHOLD = 0.1;
-		const MIN_ONSET_INTERVAL = 0.08;
-		const ATTACK_LATENCY = 0.05;
-		for (let i = 1; i < readings.length; i++) {
-			const timeSinceLastOnset = readings[i].time - onsets[onsets.length - 1];
-			if (timeSinceLastOnset < MIN_ONSET_INTERVAL) continue;
-			const gap = readings[i].time - readings[i - 1].time;
-			const noteChanged = readings[i].midi !== readings[i - 1].midi;
-			if (gap > GAP_THRESHOLD) {
-				onsets.push(readings[i].time - ATTACK_LATENCY);
-			} else if (noteChanged) {
-				onsets.push(readings[i].time);
-			}
+	/**
+	 * Replay the saved recording through the offline pipeline and overwrite
+	 * the live score. Deterministic, so identical recordings always yield
+	 * identical scores. If replay fails (decode error, no onsets, etc.) we
+	 * keep the provisional live score and log a warning — the user sees no
+	 * visible regression.
+	 */
+	async function rescoreFromBlob(
+		blob: Blob,
+		phraseDuration: number,
+		phrase: import('$lib/types/music').Phrase,
+		tempo: number,
+		transportSeconds: number,
+		swing: number,
+		schedule: ReturnType<typeof getActiveSchedule>,
+		bleedFilterEnabled: boolean,
+		sessionId: string | null = null,
+		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
+		rescoreId: number = latestRescoreId
+	) {
+		const { replayFromBlob } = await import('$lib/audio/replay');
+		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
+		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
+		const replay = await replayFromBlob(blob, ctx);
+		if (replay.readings.length === 0) return;
+
+		const result = runScorePipeline({
+			readings: replay.readings,
+			workletOnsets: replay.onsets,
+			phrase,
+			phraseDuration,
+			tempo,
+			transportSeconds,
+			swing,
+			schedule,
+			bleedFilterEnabled
+		});
+
+		const authoritativeNotes = result.useFiltered ? result.filteredNotes : result.detected;
+
+		// Only overwrite session state if this rescore is still the latest take.
+		// An earlier-started replay finishing after the user moves on would
+		// otherwise clobber the provisional score of the current take.
+		if (rescoreId === latestRescoreId) {
+			session.bleedFilterLog = result.bleedLog;
+			session.recordedNotes = authoritativeNotes;
+			session.lastScore = result.chosen;
+			persistentScore = result.chosen;
 		}
-		return onsets;
+
+		if (sessionId && baseMetadata) {
+			const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
+			await updateRecordingMetadata(sessionId, {
+				...baseMetadata,
+				score: result.chosen,
+				detectedNotes: authoritativeNotes,
+				bleedFilterLog: result.bleedLog
+			});
+		}
 	}
 
 	// ─── Navigation ──────────────────────────────────────────
