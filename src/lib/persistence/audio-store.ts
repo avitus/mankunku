@@ -17,9 +17,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { DetectedNote } from '$lib/types/audio';
-import type { Score } from '$lib/types/scoring';
+import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import type { BackingTrackLog } from '$lib/audio/backing-track';
-import type { BleedFilterLog } from '$lib/state/session.svelte';
 
 const DB_NAME = 'mankunku-audio';
 const STORE_NAME = 'recordings';

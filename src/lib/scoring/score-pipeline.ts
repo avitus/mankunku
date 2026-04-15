@@ -15,8 +15,7 @@
 
 import type { Phrase } from '$lib/types/music.ts';
 import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Score } from '$lib/types/scoring.ts';
-import type { BleedFilterLog } from '$lib/state/session.svelte.ts';
+import type { Score, BleedFilterLog } from '$lib/types/scoring.ts';
 import type { PitchReading } from '$lib/audio/pitch-detector.ts';
 import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule.ts';
 import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';

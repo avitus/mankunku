@@ -86,6 +86,14 @@
 	let awaitingInput = $state(false);
 	let recordingTransportSeconds = 0;
 
+	/**
+	 * Monotonic id for each in-flight rescore. Bumped every time finishRecording
+	 * kicks off a new replay, captured before the async save+replay chain, and
+	 * re-checked before any post-await writes to session state. Guards against
+	 * an earlier slow replay clobbering a later take's score/notes.
+	 */
+	let latestRescoreId = 0;
+
 	// ─── Auto-advance loop state ─────────────────────────────
 	const PASS_THRESHOLD = 0.70;
 	let failCount = $state(0);
@@ -387,6 +395,7 @@
 			const provisionalScore = session.lastScore;
 			const provisionalNotes = session.recordedNotes;
 			const provisionalBleedLog = session.bleedFilterLog;
+			const rescoreId = ++latestRescoreId;
 			recorderHandle = null;
 			handle.stop().then(async (blob) => {
 				handle.dispose();
@@ -420,7 +429,8 @@
 						scheduleForRescore,
 						bleedFilterEnabled,
 						sessionId,
-						baseMetadata
+						baseMetadata,
+						rescoreId
 					).catch((err) => console.warn('post-hoc rescore failed', err));
 				}
 			}).catch(console.error);
@@ -483,7 +493,8 @@
 		schedule: ReturnType<typeof getActiveSchedule>,
 		bleedFilterEnabled: boolean,
 		sessionId: string | null = null,
-		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null
+		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
+		rescoreId: number = latestRescoreId
 	) {
 		const { replayFromBlob } = await import('$lib/audio/replay');
 		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
@@ -504,10 +515,16 @@
 		});
 
 		const authoritativeNotes = result.useFiltered ? result.filteredNotes : result.detected;
-		session.bleedFilterLog = result.bleedLog;
-		session.recordedNotes = authoritativeNotes;
-		session.lastScore = result.chosen;
-		persistentScore = result.chosen;
+
+		// Only overwrite session state if this rescore is still the latest take.
+		// An earlier-started replay finishing after the user moves on would
+		// otherwise clobber the provisional score of the current take.
+		if (rescoreId === latestRescoreId) {
+			session.bleedFilterLog = result.bleedLog;
+			session.recordedNotes = authoritativeNotes;
+			session.lastScore = result.chosen;
+			persistentScore = result.chosen;
+		}
 
 		if (sessionId && baseMetadata) {
 			const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');

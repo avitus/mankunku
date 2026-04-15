@@ -13,6 +13,7 @@
 		type RecordingSummary
 	} from '$lib/persistence/audio-store';
 	import { replayFromBlob } from '$lib/audio/replay';
+	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
 	import { segmentNotes } from '$lib/audio/note-segmenter';
 	import { resolveOnsets } from '$lib/scoring/score-pipeline';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
@@ -96,20 +97,35 @@
 
 	// ── Row expand / collapse ───────────────────────────────
 
+	/**
+	 * Incrementing counter used to discard results from a replay that was
+	 * superseded by a later toggle. Without this guard, rapidly clicking
+	 * rows (or expanding a second row before the first replay completes)
+	 * would race: the slower replay could overwrite state for the
+	 * currently-visible row, or leak a blob URL.
+	 */
+	let replayRequestId = 0;
+
 	async function toggle(id: string) {
 		if (expandedId === id) {
 			collapseCurrent();
 			return;
 		}
 		collapseCurrent();
+		const requestId = ++replayRequestId;
 		expandedId = id;
 		replayLoading = true;
 		replayError = null;
+		let localAudioUrl: string | null = null;
 		try {
 			const full = await getRecordingFull(id);
+			if (requestId !== replayRequestId || expandedId !== id) return;
 			if (!full) throw new Error('recording not found locally');
-			audioUrl = URL.createObjectURL(full.blob);
-			const { readings, onsets, duration, sampleRate } = await replayFromBlob(full.blob);
+			localAudioUrl = URL.createObjectURL(full.blob);
+			audioUrl = localAudioUrl;
+			const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
+			const { readings, onsets, duration, sampleRate } = await replayFromBlob(full.blob, ctx);
+			if (requestId !== replayRequestId || expandedId !== id) return;
 			const resolvedOnsets = resolveOnsets(onsets, readings);
 			const segmented = segmentNotes(readings, resolvedOnsets, duration);
 			replay = {
@@ -122,9 +138,19 @@
 				sampleRate
 			};
 		} catch (err) {
-			replayError = err instanceof Error ? err.message : String(err);
+			if (requestId === replayRequestId && expandedId === id) {
+				replayError = err instanceof Error ? err.message : String(err);
+			}
 		} finally {
-			replayLoading = false;
+			const isStale = requestId !== replayRequestId || expandedId !== id;
+			if (isStale) {
+				if (localAudioUrl) {
+					URL.revokeObjectURL(localAudioUrl);
+					if (audioUrl === localAudioUrl) audioUrl = null;
+				}
+			} else {
+				replayLoading = false;
+			}
 		}
 	}
 

@@ -48,3 +48,11 @@ export interface AlignmentPair {
 	detectedIndex: number | null;
 	cost: number;
 }
+
+export interface BleedFilterLog {
+	totalNotes: number;
+	keptNotes: number;
+	filteredNotes: DetectedNote[];
+	unfilteredScore: Score | null;
+	filteredScore: Score | null;
+}
