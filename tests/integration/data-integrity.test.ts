@@ -11,7 +11,7 @@ import { ALL_CURATED_LICKS } from '../../src/lib/data/licks/index';
 import { fractionToFloat } from '../../src/lib/music/intervals';
 import { getScale } from '../../src/lib/music/scales';
 import { calculateDifficulty } from '../../src/lib/difficulty/calculate';
-import type { PhraseCategory, ChordQuality, PitchClass } from '../../src/lib/types/music';
+import type { Phrase, PhraseCategory, ChordQuality, PitchClass } from '../../src/lib/types/music';
 
 /** All valid PhraseCategory values */
 const VALID_CATEGORIES: PhraseCategory[] = [
@@ -39,7 +39,7 @@ const VALID_PITCH_CLASSES: PitchClass[] = [
 ];
 
 /** Valid time signature beat units */
-const VALID_BEAT_UNITS = [2, 4, 8];
+const VALID_BEAT_UNITS: number[] = [2, 4, 8];
 
 /**
  * Instrument range for curated licks (concert pitch MIDI).
@@ -49,14 +49,14 @@ const VALID_BEAT_UNITS = [2, 4, 8];
 const DEFAULT_RANGE_LOW = 44;
 const DEFAULT_RANGE_HIGH = 84;
 
-describe('curated lick data integrity', () => {
-	const licks = ALL_CURATED_LICKS;
+describe('curated lick data integrity', (): void => {
+	const licks: Phrase[] = ALL_CURATED_LICKS;
 
-	it('library is non-empty', () => {
+	it('library is non-empty', (): void => {
 		expect(licks.length).toBeGreaterThan(0);
 	});
 
-	it('every lick has a non-empty id', () => {
+	it('every lick has a non-empty id', (): void => {
 		for (const lick of licks) {
 			expect(lick.id, `lick at index ${licks.indexOf(lick)} has empty/missing id`).toBeTruthy();
 			expect(typeof lick.id).toBe('string');
@@ -64,8 +64,8 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('no duplicate IDs across the entire library', () => {
-		const ids = licks.map((l) => l.id);
+	it('no duplicate IDs across the entire library', (): void => {
+		const ids: string[] = licks.map((l: Phrase): string => l.id);
 		const seen = new Set<string>();
 		const duplicates: string[] = [];
 		for (const id of ids) {
@@ -75,7 +75,7 @@ describe('curated lick data integrity', () => {
 		expect(duplicates, `duplicate IDs found: ${duplicates.join(', ')}`).toEqual([]);
 	});
 
-	it('every lick has a non-empty name', () => {
+	it('every lick has a non-empty name', (): void => {
 		for (const lick of licks) {
 			expect(lick.name, `lick ${lick.id} has empty/missing name`).toBeTruthy();
 			expect(typeof lick.name).toBe('string');
@@ -83,7 +83,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every lick category is a valid PhraseCategory', () => {
+	it('every lick category is a valid PhraseCategory', (): void => {
 		for (const lick of licks) {
 			expect(
 				VALID_CATEGORIES,
@@ -92,7 +92,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every note has valid MIDI pitch (integer 0-127) or null for rests', () => {
+	it('every note has valid MIDI pitch (integer 0-127) or null for rests', (): void => {
 		for (const lick of licks) {
 			for (let i = 0; i < lick.notes.length; i++) {
 				const note = lick.notes[i];
@@ -113,15 +113,17 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every note has a valid Fraction duration (numerator > 0, denominator > 0, both integers)', () => {
+	it('every note has a valid Fraction duration (numerator > 0, denominator > 0, both integers)', (): void => {
 		for (const lick of licks) {
 			for (let i = 0; i < lick.notes.length; i++) {
 				const note = lick.notes[i];
-				const [num, den] = note.duration;
+				// Assert shape BEFORE destructuring — otherwise a malformed value
+				// would throw at the destructure and bypass the custom message.
 				expect(
 					Array.isArray(note.duration) && note.duration.length === 2,
 					`lick ${lick.id} note ${i}: duration is not a [num, den] tuple`
 				).toBe(true);
+				const [num, den] = note.duration;
 				expect(
 					Number.isInteger(num) && num > 0,
 					`lick ${lick.id} note ${i}: duration numerator ${num} must be a positive integer`
@@ -134,15 +136,16 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every note has a valid Fraction offset (numerator >= 0, denominator > 0, both integers)', () => {
+	it('every note has a valid Fraction offset (numerator >= 0, denominator > 0, both integers)', (): void => {
 		for (const lick of licks) {
 			for (let i = 0; i < lick.notes.length; i++) {
 				const note = lick.notes[i];
-				const [num, den] = note.offset;
+				// Assert shape BEFORE destructuring (see Fraction-duration test).
 				expect(
 					Array.isArray(note.offset) && note.offset.length === 2,
 					`lick ${lick.id} note ${i}: offset is not a [num, den] tuple`
 				).toBe(true);
+				const [num, den] = note.offset;
 				expect(
 					Number.isInteger(num) && num >= 0,
 					`lick ${lick.id} note ${i}: offset numerator ${num} must be a non-negative integer`
@@ -155,7 +158,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('note offsets are monotonically non-decreasing within each lick', () => {
+	it('note offsets are monotonically non-decreasing within each lick', (): void => {
 		for (const lick of licks) {
 			for (let i = 1; i < lick.notes.length; i++) {
 				const prev = fractionToFloat(lick.notes[i - 1].offset);
@@ -168,7 +171,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every lick has at least one harmony segment', () => {
+	it('every lick has at least one harmony segment', (): void => {
 		for (const lick of licks) {
 			expect(
 				lick.harmony.length,
@@ -177,7 +180,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every harmony chord root is a valid PitchClass', () => {
+	it('every harmony chord root is a valid PitchClass', (): void => {
 		for (const lick of licks) {
 			for (let i = 0; i < lick.harmony.length; i++) {
 				const seg = lick.harmony[i];
@@ -189,7 +192,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every harmony chord quality is a valid ChordQuality', () => {
+	it('every harmony chord quality is a valid ChordQuality', (): void => {
 		for (const lick of licks) {
 			for (let i = 0; i < lick.harmony.length; i++) {
 				const seg = lick.harmony[i];
@@ -201,7 +204,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every harmony scaleId resolves via getScale()', () => {
+	it('every harmony scaleId resolves via getScale()', (): void => {
 		// NOTE: we deliberately do NOT also assert `chordApplications.contains(quality)`.
 		// Curated licks legitimately use scale/chord pairings that aren't listed in
 		// the scale's conservative `chordApplications` set (e.g., Phrygian over
@@ -218,7 +221,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('difficulty.level is between 1 and 100 for every lick', () => {
+	it('difficulty.level is between 1 and 100 for every lick', (): void => {
 		for (const lick of licks) {
 			expect(
 				lick.difficulty.level,
@@ -231,7 +234,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('difficulty.pitchComplexity is between 1 and 100', () => {
+	it('difficulty.pitchComplexity is between 1 and 100', (): void => {
 		for (const lick of licks) {
 			expect(
 				lick.difficulty.pitchComplexity,
@@ -244,7 +247,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('difficulty.rhythmComplexity is between 1 and 100', () => {
+	it('difficulty.rhythmComplexity is between 1 and 100', (): void => {
 		for (const lick of licks) {
 			expect(
 				lick.difficulty.rhythmComplexity,
@@ -257,7 +260,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('difficulty.lengthBars >= 1', () => {
+	it('difficulty.lengthBars >= 1', (): void => {
 		for (const lick of licks) {
 			expect(
 				lick.difficulty.lengthBars,
@@ -266,7 +269,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('declared difficulty.level is within +/-35 of calculateDifficulty() output', () => {
+	it('declared difficulty.level is within +/-35 of calculateDifficulty() output', (): void => {
 		const TOLERANCE = 35;
 		for (const lick of licks) {
 			const computed = calculateDifficulty(lick);
@@ -278,7 +281,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every curated lick has key C (all curated licks stored in concert C)', () => {
+	it('every curated lick has key C (all curated licks stored in concert C)', (): void => {
 		for (const lick of licks) {
 			expect(
 				lick.key,
@@ -287,7 +290,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every curated lick has source "curated" or "combined"', () => {
+	it('every curated lick has source "curated" or "combined"', (): void => {
 		for (const lick of licks) {
 			expect(
 				['curated', 'combined'],
@@ -296,7 +299,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('every lick has a tags array', () => {
+	it('every lick has a tags array', (): void => {
 		for (const lick of licks) {
 			expect(
 				Array.isArray(lick.tags),
@@ -305,13 +308,14 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('timeSignature is a valid tuple with beats > 0 and unit in [2, 4, 8]', () => {
+	it('timeSignature is a valid tuple with beats > 0 and unit in [2, 4, 8]', (): void => {
 		for (const lick of licks) {
-			const [beats, unit] = lick.timeSignature;
+			// Assert shape BEFORE destructuring (see Fraction-duration test).
 			expect(
 				Array.isArray(lick.timeSignature) && lick.timeSignature.length === 2,
 				`lick ${lick.id}: timeSignature is not a [beats, unit] tuple`
 			).toBe(true);
+			const [beats, unit] = lick.timeSignature;
 			expect(
 				Number.isInteger(beats) && beats > 0,
 				`lick ${lick.id}: timeSignature beats ${beats} must be a positive integer`
@@ -323,8 +327,8 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it(`all pitched notes in curated (non-combined) licks are within range [${DEFAULT_RANGE_LOW}, ${DEFAULT_RANGE_HIGH}]`, () => {
-		const curated = licks.filter((l) => l.source === 'curated');
+	it(`all pitched notes in curated (non-combined) licks are within range [${DEFAULT_RANGE_LOW}, ${DEFAULT_RANGE_HIGH}]`, (): void => {
+		const curated: Phrase[] = licks.filter((l: Phrase): boolean => l.source === 'curated');
 		for (const lick of curated) {
 			for (let i = 0; i < lick.notes.length; i++) {
 				const note = lick.notes[i];
