@@ -10,15 +10,16 @@ The scoring system aligns detected notes to expected notes and produces per-note
 
 Dynamic Time Warping (DTW) alignment of detected notes to expected notes.
 
-### `alignNotes(expected, detected, tempo): AlignmentPair[]`
+### `alignNotes(expected, detected, tempo, swing?): AlignmentPair[]`
 
 Find the minimum-cost alignment between two note sequences.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `expected` | `Note[]` | Notes from the phrase (rests are filtered out internally) |
-| `detected` | `DetectedNote[]` | Notes captured from microphone |
-| `tempo` | `number` | BPM for converting offsets to seconds |
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `expected` | `Note[]` | — | Notes from the phrase (rests are filtered out internally) |
+| `detected` | `DetectedNote[]` | — | Notes captured from microphone |
+| `tempo` | `number` | — | BPM for converting offsets to seconds |
+| `swing` | `number` | `0.5` | Swing ratio; shifts expected off-beat 8ths in the cost function to match swing playback |
 
 **Returns:** `AlignmentPair[]` where each pair is one of:
 - `{ expectedIndex, detectedIndex, cost }` — matched pair
@@ -73,17 +74,21 @@ Per-note rhythm accuracy scoring.
 
 ```
 timingError = |detectedOnset - expectedOnset| / beatDuration
-rhythmScore = max(0, 1.0 - timingError * 1.5)
+penalty     = min(1.0, 0.5 + tempo / 300)
+rhythmScore = max(0, 1.0 - timingError * penalty)
 ```
 
-| Timing | Score |
-|---|---|
-| Within ~11% of a beat | ~1.0 |
-| One-third of a beat off | ~0.5 |
-| Two-thirds of a beat off | 0.0 |
-| Rest | 1.0 |
+The penalty is **tempo-scaled**: gentler at slow tempos (where a given absolute timing error is a smaller fraction of a beat) and tighter at fast tempos.
+
+| Tempo | Penalty | 0-score threshold |
+|---|---|---|
+| 60 BPM | 0.70 | ~1.43 beats off (~1430 ms) |
+| 100 BPM | 0.83 | ~1.20 beats off (~720 ms) |
+| 200 BPM | 1.00 | 1.00 beat off (300 ms) |
 
 **Swing awareness:** When `swing > 0.5` and the expected note falls on an off-beat eighth, the expected onset is adjusted to match swing playback timing.
+
+**Rests:** If `expected.pitch` is `null`, the score is `1.0`.
 
 ---
 
@@ -114,13 +119,26 @@ Orchestrates the full scoring pipeline.
 
 ```typescript
 {
-  pitchAccuracy: number;     // 0-1, average of pitch scores
-  rhythmAccuracy: number;    // 0-1, average of rhythm scores
-  overall: number;           // 0-1, weighted composite
-  grade: Grade;              // 'perfect' | 'great' | 'good' | 'fair' | 'try-again'
-  noteResults: NoteResult[]; // Per-note breakdown
-  notesHit: number;          // Count of correct pitches
-  notesTotal: number;        // Total expected notes
+  pitchAccuracy: number;       // 0-1, average of pitch scores
+  rhythmAccuracy: number;      // 0-1, average of rhythm scores
+  overall: number;             // 0-1, weighted composite
+  grade: Grade;                // 'perfect' | 'great' | 'good' | 'fair' | 'try-again'
+  noteResults: NoteResult[];   // Per-note breakdown
+  notesHit: number;            // Count of correct pitches
+  notesTotal: number;          // Total expected notes
+  timing: TimingDiagnostics;   // Offset statistics after latency correction
+}
+```
+
+`TimingDiagnostics`:
+
+```typescript
+interface TimingDiagnostics {
+  meanOffsetMs: number;                // Average signed offset after correction
+  medianOffsetMs: number;
+  stdDevMs: number;                    // Rhythmic consistency
+  latencyCorrectionMs: number;         // Median offset that was subtracted
+  perNoteOffsetMs: (number | null)[];  // null = missed / extra
 }
 ```
 

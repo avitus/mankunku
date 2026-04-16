@@ -2,23 +2,32 @@
 
 ## System Design
 
-Mankunku is a client-side SvelteKit application with no backend. All processing — audio capture, pitch detection, scoring, and progress tracking — happens in the browser.
+Mankunku is local-first: all audio capture, pitch detection, scoring, and progress tracking runs in the browser. An optional Supabase-backed backend layer handles authentication, cross-device progress sync, and user-defined lick management — the app ships with a SvelteKit Node adapter (`adapter-node`) and a small set of server endpoints under `/api/account/` for account operations. When the user is signed out or offline, every feature still works against localStorage.
 
 ```mermaid
 graph TD
     subgraph UI ["UI Layer (Svelte Components)"]
         Layout["+layout.svelte"]
         Practice["/practice"]
+        LickPractice["/lick-practice"]
         Library["/library"]
         Progress["/progress"]
         Settings["/settings"]
+        Scales["/scales"]
+        Entry["/entry"]
+        AddLicks["/add-licks"]
+        Record["/record"]
+        Diagnostics["/diagnostics"]
     end
 
     subgraph State ["State Layer (Svelte 5 Runes)"]
         Session["session.svelte.ts"]
+        LickPracticeState["lick-practice.svelte.ts"]
         SettingsState["settings.svelte.ts"]
         ProgressState["progress.svelte.ts"]
+        HistoryState["history.svelte.ts"]
         LibraryState["library.svelte.ts"]
+        StepEntryState["step-entry.svelte.ts"]
     end
 
     subgraph Audio ["Audio Pipeline"]
@@ -63,17 +72,27 @@ graph TD
 
     subgraph Persistence
         Storage["storage.ts (localStorage)"]
+        Supabase["supabase/* (cloud sync, auth)"]
     end
 
     Practice --> Session
     Practice --> Audio
     Practice --> Scoring
+    LickPractice --> LickPracticeState
+    LickPractice --> Audio
     Library --> LibLoader
+    Library --> LibraryState
     Progress --> ProgressState
+    Progress --> HistoryState
+    Entry --> StepEntryState
+    AddLicks --> StepEntryState
 
     Session --> Audio
     SettingsState --> Storage
     ProgressState --> Storage
+    HistoryState --> Storage
+    LickPracticeState --> Storage
+    Storage --> Supabase
 
     Playback --> AudioCtx
     Playback --> Metro
@@ -130,7 +149,7 @@ The codebase follows clear module boundaries:
 
 ## Key Architectural Decisions
 
-1. **No backend**: Everything runs client-side. Progress is stored in localStorage. This enables offline use and simplifies deployment.
+1. **Local-first with optional backend**: All scoring, pitch detection, and audio logic runs client-side, and every feature works offline against localStorage. A Supabase-backed backend layer (auth, cross-device progress sync, user-lick storage) is optional — when the user is signed in, localStorage writes are mirrored to Supabase in the background, and a small set of `/api/account/` server endpoints handle account operations.
 2. **Shared AudioContext**: Tone.js and smplr share the same `AudioContext` so that Transport scheduling and sample playback are on the same timeline.
 3. **Concert pitch as canonical**: All data is stored in concert pitch. Transposition to written pitch (for Bb/Eb instruments) happens only at the display layer via `notation.ts` and `transposition.ts`.
 4. **DTW for alignment**: Dynamic Time Warping handles timing differences between expected and played notes, making scoring robust against slight tempo variations.
