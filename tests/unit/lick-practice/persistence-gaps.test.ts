@@ -68,16 +68,16 @@ describe('clampTempo', () => {
 		expect(clampTempo(120)).toBe(120);
 	});
 
-	it('clamps below minimum to 40', () => {
-		expect(clampTempo(10)).toBe(40);
+	it('clamps below minimum to 50', () => {
+		expect(clampTempo(10)).toBe(50);
 	});
 
 	it('clamps above maximum to 300', () => {
 		expect(clampTempo(500)).toBe(300);
 	});
 
-	it('boundary: exactly 40 passes through', () => {
-		expect(clampTempo(40)).toBe(40);
+	it('boundary: exactly 50 passes through', () => {
+		expect(clampTempo(50)).toBe(50);
 	});
 
 	it('boundary: exactly 300 passes through', () => {

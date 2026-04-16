@@ -37,7 +37,6 @@ function plan(...items: Array<{ id: string; keys: string[] }>): LickPracticePlan
 beforeEach(() => {
 	lickPractice.config.progressionType = 'ii-V-I-major';
 	lickPractice.config.practiceMode = 'continuous';
-	lickPractice.config.tempoIncrement = 5;
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.currentTempo = 100;
@@ -325,7 +324,7 @@ describe('startInterLickTransition', () => {
 		expect(lickPractice.phase).toBe('complete');
 	});
 
-	it('does not bump tempo when not all keys passed', () => {
+	it('adjusts tempo based on average score (now always-on)', () => {
 		lickPractice.plan = plan(
 			{ id: SHORT_LICK_ID, keys: ['C', 'F'] },
 			{ id: SHORT_LICK_ID, keys: ['G'] }
@@ -335,8 +334,8 @@ describe('startInterLickTransition', () => {
 		lickPractice.currentKeyIndex = 1;
 		recordKeyAttempt(fakeScore(0.9)); // F: passed
 		startInterLickTransition();
-		// Tempo for the NEXT lick (lick index 1) is loaded from progress;
-		// since we never bumped, it should be the default tempo (100).
-		expect(lickPractice.currentTempo).toBe(100);
+		// avg = 0.7 → computeAutoTempoAdjustment returns -1, so tempo goes
+		// from 100 → 99 and the next lick (same phraseId) inherits that.
+		expect(lickPractice.currentTempo).toBe(99);
 	});
 });

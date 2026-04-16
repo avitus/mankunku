@@ -59,8 +59,7 @@ export const settings = $state({
   onboardingComplete: false,
   tonalityOverride: null as Tonality | null,  // override for daily tonality
   highestNote: null as number | null,         // concert-pitch MIDI ceiling; null = instrument default
-  bleedFilterEnabled: false,                  // A/B toggle for bleed-filtered scoring
-  newLickStartingTempo: 60                    // Starting BPM for fresh licks (40–200)
+  bleedFilterEnabled: false                   // A/B toggle for bleed-filtered scoring
 });
 ```
 
@@ -239,8 +238,7 @@ Active state for the multi-key lick-practice flow. The live session is ephemeral
 
 ```typescript
 export const lickPractice = $state<{
-  config: LickPracticeConfig;          // progressionType, durationMinutes, tempoIncrement,
-                                        // practiceMode, backingStyle, autoAdjustTempo
+  config: LickPracticeConfig;          // progressionType, durationMinutes, practiceMode, backingStyle
   phase: LickPracticePhase;            // 'setup' | 'count-in' | 'playing' | 'inter-lick-rest' | 'complete'
   plan: LickPracticePlanItem[];         // Ordered licks + planned keys (12 per lick)
   currentLickIndex: number;
@@ -299,7 +297,7 @@ export interface PlannedKey {
 
 - `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ 0.80.
 - `advance(): 'next-key' | 'end-of-lick'` — Move to the next key; returns `'end-of-lick'` when the current lick's keys are exhausted.
-- `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply tempo adjustment (auto-adjust uses avg-score delta; otherwise requires all 12 keys passed), move to the next lick or mark session complete.
+- `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the always-on score-weighted tempo adjustment (average score across attempted keys → signed delta via `computeAutoTempoAdjustment`, clamped and persisted to every key in the lick), then move to the next lick or mark session complete.
 - `updateElapsedTime(): void`
 - `resetSession(): void`
 - `getSessionReport(): SessionReport` — Build the end-of-session report from archived attempts, including any in-progress lick.

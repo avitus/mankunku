@@ -280,11 +280,11 @@ describe('key progress persistence', () => {
 		expect(computeAutoTempoAdjustment(0.50)).toBe(-3);  // < 0.70
 	});
 
-	it('clampTempo enforces 40–300 range', () => {
-		expect(clampTempo(30)).toBe(40);
+	it('clampTempo enforces 50–300 range', () => {
+		expect(clampTempo(30)).toBe(50);
 		expect(clampTempo(350)).toBe(300);
 		expect(clampTempo(120)).toBe(120);
-		expect(clampTempo(40)).toBe(40);
+		expect(clampTempo(50)).toBe(50);
 		expect(clampTempo(300)).toBe(300);
 	});
 });

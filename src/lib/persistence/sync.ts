@@ -54,7 +54,6 @@ interface SyncableSettings {
 	onboardingComplete: boolean;
 	tonalityOverride: unknown;
 	highestNote: number | null;
-	newLickStartingTempo: number;
 }
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -418,7 +417,6 @@ export async function syncSettingsToCloud(
 				onboarding_complete: settings.onboardingComplete,
 				tonality_override: (settings.tonalityOverride ?? null) as Json,
 				highest_note: settings.highestNote ?? null,
-				new_lick_starting_tempo: settings.newLickStartingTempo,
 				updated_at: new Date().toISOString()
 			},
 			{ onConflict: 'user_id' }
@@ -471,8 +469,7 @@ export async function loadSettingsFromCloud(
 			theme: data.theme,
 			onboardingComplete: data.onboarding_complete,
 			tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null,
-			highestNote: data.highest_note ?? null,
-			newLickStartingTempo: data.new_lick_starting_tempo ?? 60
+			highestNote: data.highest_note ?? null
 		};
 	} catch (error) {
 		console.warn('Failed to load settings from cloud:', error);

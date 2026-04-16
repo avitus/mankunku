@@ -82,11 +82,6 @@
 		settings.defaultTempo = parseInt((e.target as HTMLInputElement).value);
 	}
 
-	function handleNewLickTempoChange(e: Event) {
-		const v = parseInt((e.target as HTMLInputElement).value);
-		settings.newLickStartingTempo = Math.min(200, Math.max(40, Number.isNaN(v) ? 60 : v));
-	}
-
 	function handleMasterVolumeChange(e: Event) {
 		settings.masterVolume = parseFloat((e.target as HTMLInputElement).value);
 		setMasterVolume(settings.masterVolume);
@@ -555,31 +550,6 @@
 		</div>
 
 		<div class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-accent)]/10">
-			<!-- Starting tempo for new licks -->
-			<div class="px-4 py-3">
-				<div class="flex items-center justify-between text-sm">
-					<span class="font-medium">Starting Tempo for New Licks</span>
-					<span class="tabular-nums text-[var(--color-text-secondary)]">{settings.newLickStartingTempo} BPM</span>
-				</div>
-				<p class="mt-0.5 mb-1 text-xs text-[var(--color-text-secondary)]">
-					BPM used the first time you practice a lick with no prior history.
-				</p>
-				<input
-					type="range"
-					min="40"
-					max="200"
-					step="5"
-					value={settings.newLickStartingTempo}
-					oninput={handleNewLickTempoChange}
-					onchange={() => saveSettings(supabase)}
-					class="mt-1 w-full accent-[var(--color-accent)]"
-				/>
-				<div class="mt-0.5 flex justify-between text-xs text-[var(--color-text-secondary)]">
-					<span>40</span>
-					<span>200</span>
-				</div>
-			</div>
-
 			<!-- Session config info -->
 			<div class="px-4 py-4 flex items-start justify-between gap-4">
 				<p class="text-sm text-[var(--color-text-secondary)] leading-relaxed">
