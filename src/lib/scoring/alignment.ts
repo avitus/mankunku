@@ -8,6 +8,7 @@
 import type { Note } from '$lib/types/music.ts';
 import type { DetectedNote } from '$lib/types/audio.ts';
 import type { AlignmentPair } from '$lib/types/scoring.ts';
+import { midiToPitchClass } from '$lib/music/intervals.ts';
 
 /** Cost for a completely missed or extra note */
 const SKIP_COST = 2.0;
@@ -15,9 +16,24 @@ const SKIP_COST = 2.0;
 /**
  * Pitch distance: 0 if same MIDI note, scaled penalty otherwise.
  * Max capped at 1.0 so pitch and rhythm contribute equally.
+ *
+ * When `octaveInsensitive` is true, same pitch class (any octave) is distance
+ * 0, and the cyclic pitch-class distance (min of |diff| and 12-|diff|) drives
+ * the cost. Tritone is the max cyclic distance (6) → cost saturates at 1.0,
+ * matching the strict path's ceiling.
  */
-function pitchDistance(expected: Note, detected: DetectedNote): number {
+function pitchDistance(
+	expected: Note,
+	detected: DetectedNote,
+	octaveInsensitive = false
+): number {
 	if (expected.pitch === null) return 0; // rest — no pitch to compare
+	if (octaveInsensitive) {
+		const pcDiff = Math.abs(midiToPitchClass(expected.pitch) - midiToPitchClass(detected.midi));
+		const cyclic = Math.min(pcDiff, 12 - pcDiff);
+		if (cyclic === 0) return 0;
+		return Math.min(1.0, cyclic * 0.5);
+	}
 	const diff = Math.abs(expected.pitch - detected.midi);
 	if (diff === 0) return 0;
 	// Semitone errors: 1 semi = 0.5, 2+ = 1.0
@@ -64,13 +80,16 @@ function noteOnsetSeconds(note: Note, tempo: number, swing = 0.5): number {
  * @param detected - Notes captured from microphone
  * @param tempo - BPM for converting offsets to time
  * @param swing - Swing ratio (0.5 = straight, 0.67 ≈ triplet, 0.8 = heavy)
+ * @param octaveInsensitive - If true, same pitch class (any octave) is a
+ *   zero-cost pitch match. Used by lick-practice continuous mode.
  * @returns Alignment pairs with cost for each match
  */
 export function alignNotes(
 	expected: Note[],
 	detected: DetectedNote[],
 	tempo: number,
-	swing = 0.5
+	swing = 0.5,
+	octaveInsensitive = false
 ): AlignmentPair[] {
 	// Filter out rests
 	const exp = expected.filter((n) => n.pitch !== null);
@@ -98,7 +117,7 @@ export function alignNotes(
 			const detOnset = detected[j - 1].onsetTime;
 
 			const matchCost =
-				pitchDistance(exp[i - 1], detected[j - 1]) +
+				pitchDistance(exp[i - 1], detected[j - 1], octaveInsensitive) +
 				rhythmDistance(expOnset, detOnset, beatDuration);
 
 			dp[i][j] = Math.min(
@@ -119,7 +138,7 @@ export function alignNotes(
 			const expOnset = noteOnsetSeconds(exp[i - 1], tempo, swing);
 			const detOnset = detected[j - 1].onsetTime;
 			const matchCost =
-				pitchDistance(exp[i - 1], detected[j - 1]) +
+				pitchDistance(exp[i - 1], detected[j - 1], octaveInsensitive) +
 				rhythmDistance(expOnset, detOnset, beatDuration);
 
 			if (dp[i][j] === dp[i - 1][j - 1] + matchCost) {

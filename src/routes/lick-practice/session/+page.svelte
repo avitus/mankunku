@@ -25,9 +25,12 @@
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
+	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
+	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { SessionReport } from '$lib/types/lick-practice';
 	import type { PitchDetectorHandle, PitchReading } from '$lib/audio/pitch-detector';
@@ -35,6 +38,10 @@
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
 	import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 	import type { Phrase, PitchClass } from '$lib/types/music';
+
+	// Auth state from layout load chain — derive supabase client for cloud sync
+	const supabase = $derived(page.data?.supabase ?? null);
+	const user = $derived(page.data?.user ?? null);
 
 	let playback: typeof import('$lib/audio/playback') | null = null;
 	let captureModule: typeof import('$lib/audio/capture') | null = null;
@@ -49,6 +56,10 @@
 	let levelInterval: ReturnType<typeof setInterval> | null = null;
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let beatAnimFrame: number | null = null;
+	// Per-window mic+playback recorder. Lifecycle: created when a recording
+	// window opens, stopped/saved when it closes, disposed either at save time
+	// or during session teardown if a window is still open.
+	let recorderHandle: RecorderHandle | null = null;
 
 	let isRecording = $state(false);
 	let isSessionRunning = $state(false);
@@ -85,6 +96,8 @@
 	 * attempt. Populated at window open, consumed at window close.
 	 */
 	interface RecordingWindow {
+		/** Stable ID used as the IndexedDB key for the saved recording. */
+		sessionId: string;
 		lickIndex: number;
 		keyIndex: number;
 		key: PitchClass;
@@ -520,7 +533,16 @@
 		const readings = pitchDetector.getReadings();
 		const schedule = backingTrack.getActiveSchedule();
 
+		// Mint an ID for this window so the scored result and the saved audio
+		// blob share a key in IndexedDB. Per-window uniqueness matters —
+		// lick-practice generates one record per key-recording window.
+		const sessionId =
+			typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+				? crypto.randomUUID()
+				: `lp-${Date.now()}-${lickIdx}-${keyIdx}-${Math.random().toString(36).slice(2, 10)}`;
+
 		currentWindow = {
+			sessionId,
 			lickIndex: lickIdx,
 			keyIndex: keyIdx,
 			key,
@@ -530,6 +552,24 @@
 			micStartTime: micCapture?.context.currentTime ?? 0,
 			readingsStartCount: readings.length
 		};
+
+		// Spin up a recorder that mixes mic + master (metronome + backing)
+		// exactly as ear-training does, so /diagnostics can replay what the
+		// user heard alongside what they played. A failed recorder init is
+		// non-fatal — scoring and progress still work without the audio blob.
+		if (micCapture) {
+			try {
+				recorderHandle = createRecorder(
+					micCapture.source,
+					getMasterGain(),
+					micCapture.context
+				);
+				recorderHandle.start();
+			} catch (err) {
+				console.warn('Lick-practice audio recording unavailable:', err);
+				recorderHandle = null;
+			}
+		}
 
 		isRecording = true;
 		onsetDetector?.reset(currentWindow.micStartTime);
@@ -573,11 +613,16 @@
 			transportSeconds: window.recordingTransportSeconds,
 			swing: settings.swing,
 			schedule: window.schedule,
-			bleedFilterEnabled: settings.bleedFilterEnabled
+			bleedFilterEnabled: settings.bleedFilterEnabled,
+			// Continuous mode: accept any octave of the right pitch class.
+			// Call-response stays strict so the user reproduces the demo
+			// register exactly, matching ear-training's contract.
+			octaveInsensitive: lickPractice.config.practiceMode === 'continuous'
 		});
 
 		session.bleedFilterLog = result.bleedLog;
 		const score = result.chosen;
+		const detectedNotes = result.useFiltered ? result.filteredNotes : result.detected;
 
 		// Record the attempt to the lick-practice-only progress store.
 		// We deliberately do NOT call the global ear-training recordAttempt
@@ -586,6 +631,45 @@
 		// session history, streak, or any other ear-training state.
 		if (score) {
 			recordKeyAttempt(score);
+		}
+
+		// Persist the audio + metadata for /diagnostics. Each key-window is
+		// its own IndexedDB row with source='lick-practice'. We deliberately
+		// pass backingTrackLog: null — the active log entry describes the
+		// whole super-phrase (12 keys concatenated), not this single key, so
+		// attaching it would be misleading. Keep mic-only context for now;
+		// a future enhancement could slice the super-phrase log to this key.
+		if (recorderHandle) {
+			const handle = recorderHandle;
+			recorderHandle = null;
+			const windowForSave = window;
+			const scoreForSave = score;
+			const detectedForSave = detectedNotes;
+			const bleedLogForSave = result.bleedLog;
+			const tempoForSave = lickPractice.currentTempo;
+			const swingForSave = settings.swing;
+			const supabaseForSave = supabase;
+			const userIdForSave = user?.id;
+			handle
+				.stop()
+				.then(async (blob) => {
+					handle.dispose();
+					if (blob.size === 0) return;
+					await saveLickPracticeRecording({
+						sessionId: windowForSave.sessionId,
+						blob,
+						phrase: windowForSave.phrase,
+						tempo: tempoForSave,
+						swing: swingForSave,
+						score: scoreForSave,
+						detectedNotes: detectedForSave,
+						backingTrackLog: null,
+						bleedFilterLog: bleedLogForSave,
+						supabase: supabaseForSave ?? undefined,
+						userId: userIdForSave
+					});
+				})
+				.catch((err) => console.warn('lick-practice recording save failed', err));
 		}
 
 		// Advance the key index. The scheduler has already scheduled the
@@ -620,6 +704,13 @@
 		isSessionRunning = false;
 		isRecording = false;
 		currentWindow = null;
+		// Abort any in-flight recording window — discard blob, release mic
+		// graph connections so the next session starts clean.
+		if (recorderHandle) {
+			const handle = recorderHandle;
+			recorderHandle = null;
+			handle.stop().then(() => handle.dispose()).catch(() => handle.dispose());
+		}
 		stopBeatTracking();
 		pitchDetector?.stop();
 		pitchDetector = null;
