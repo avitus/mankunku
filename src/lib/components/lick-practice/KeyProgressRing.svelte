@@ -40,12 +40,18 @@
 		return 'pending';
 	}
 
-	const STATUS_COLORS = {
+	// When every key has been passed, the ring glows brass as a reward —
+	// a small Blue Note-style flourish at completion.
+	const allPassed = $derived(
+		keys.length > 0 && keys.every((k) => keyResults.find((r) => r.key === k)?.passed)
+	);
+
+	const STATUS_COLORS = $derived({
 		current: 'var(--color-accent)',
-		passed: '#22c55e',
+		passed: allPassed ? 'var(--color-brass)' : '#22c55e',
 		failed: 'var(--color-error)',
 		pending: 'var(--color-bg-tertiary)'
-	};
+	});
 </script>
 
 <div class="flex flex-col items-center">

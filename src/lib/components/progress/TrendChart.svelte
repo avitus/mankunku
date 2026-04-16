@@ -156,14 +156,14 @@
 				onclick={() => { showPitch = !showPitch; }}
 				class="flex items-center gap-1 {showPitch ? 'opacity-100' : 'opacity-40'}"
 			>
-				<span class="inline-block h-2 w-2 rounded-full bg-blue-500"></span>
+				<span class="inline-block h-2 w-2 rounded-full bg-[var(--color-accent)]"></span>
 				Pitch
 			</button>
 			<button
 				onclick={() => { showRhythm = !showRhythm; }}
 				class="flex items-center gap-1 {showRhythm ? 'opacity-100' : 'opacity-40'}"
 			>
-				<span class="inline-block h-2 w-2 rounded-full bg-green-500"></span>
+				<span class="inline-block h-2 w-2 rounded-full bg-[var(--color-brass)]"></span>
 				Rhythm
 			</button>
 		</div>
@@ -184,7 +184,7 @@
 			{#if showRhythm}
 				<polyline
 					fill="none"
-					stroke="#22c55e"
+					stroke="var(--color-brass)"
 					stroke-width="1.5"
 					stroke-linejoin="round"
 					stroke-opacity="0.7"
@@ -197,7 +197,7 @@
 			{#if showPitch}
 				<polyline
 					fill="none"
-					stroke="#3b82f6"
+					stroke="var(--color-accent)"
 					stroke-width="1.5"
 					stroke-linejoin="round"
 					stroke-opacity="0.7"

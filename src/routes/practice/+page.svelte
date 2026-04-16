@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { GRADE_COLORS } from '$lib/scoring/grades';
+	import { GRADE_COLORS, GRADE_CAPTIONS, GRADE_LABELS } from '$lib/scoring/grades';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
@@ -486,10 +486,15 @@
 <div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
 	<!-- Tonality + phrase info -->
 	<div class="text-center">
-		<div class="text-4xl font-black tracking-tight">
+		<div class="smallcaps text-[var(--color-brass)]">Today's key</div>
+		<div
+			class="font-display text-5xl font-bold text-[var(--color-accent)]"
+			style="letter-spacing: -0.02em;"
+		>
 			{writtenKey}
 		</div>
-		<div class="mt-1 text-lg text-[var(--color-text-secondary)]">
+		<div class="mx-auto mt-2 h-px w-16 bg-[var(--color-brass)] opacity-60"></div>
+		<div class="mt-2 font-display text-xl italic text-[var(--color-accent)] opacity-80">
 			{SCALE_TYPE_NAMES[activeTonality.scaleType]}
 		</div>
 		<div class="text-sm text-[var(--color-text-secondary)] opacity-60">
@@ -504,11 +509,11 @@
 			onclick={isActive ? handleStop : handlePlay}
 			disabled={session.isLoadingInstrument}
 			class="group relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full
-				   transition-all duration-300 active:scale-95
+				   transition-all duration-300 active:scale-95 ring-1 ring-[var(--color-brass)]/50
 				   {session.isLoadingInstrument
 					? 'bg-[var(--color-bg-tertiary)] cursor-wait'
 					: isActive
-						? 'bg-[var(--color-error)] hover:bg-red-600 shadow-lg shadow-red-500/20'
+						? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg'
 						: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] shadow-lg shadow-[var(--color-accent)]/20'}"
 		>
 			{#if session.isLoadingInstrument}
@@ -528,15 +533,21 @@
 			{/if}
 
 			{#if session.isRecording}
-				<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-error)] opacity-20"></span>
+				<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-onair)] opacity-25"></span>
 			{/if}
 		</button>
 
 		<!-- Persistent score display (stays until replaced by next result) -->
 		{#if persistentScore}
 			<div class="min-w-0">
-				<div class="text-3xl font-black tabular-nums" style="color: {GRADE_COLORS[persistentScore.grade]}">
+				<div
+					class="font-display text-4xl font-bold tabular-nums"
+					style="color: {GRADE_COLORS[persistentScore.grade]}"
+				>
 					{pct(persistentScore.overall)}%
+				</div>
+				<div class="mt-0.5 text-sm italic text-[var(--color-text-secondary)]">
+					{GRADE_LABELS[persistentScore.grade]} — {GRADE_CAPTIONS[persistentScore.grade]}
 				</div>
 				<div class="mt-1 flex gap-4 text-sm text-[var(--color-text-secondary)]">
 					<span>Pitch {pct(persistentScore.pitchAccuracy)}%</span>
@@ -548,12 +559,14 @@
 
 	<!-- Status text -->
 	<div class="h-6 text-center text-sm">
-		{#if awaitingInput}
+		{#if session.isLoadingInstrument}
+			<span class="italic text-[var(--color-text-secondary)]">Tuning up&hellip;</span>
+		{:else if awaitingInput}
 			<span class="font-medium text-[var(--color-accent)]">Your turn — play!</span>
 		{:else if session.isRecording}
-			<span class="font-medium text-[var(--color-error)]">Listening...</span>
+			<span class="font-medium text-[var(--color-onair)]">Listening&hellip;</span>
 		{:else if session.engineState === 'playing'}
-			<span class="text-[var(--color-text-secondary)]">Listen...</span>
+			<span class="text-[var(--color-text-secondary)]">Listen&hellip;</span>
 		{:else if !isActive && session.micPermission !== 'granted'}
 			<span class="text-[var(--color-text-secondary)]">Tap to start — mic access required</span>
 		{/if}

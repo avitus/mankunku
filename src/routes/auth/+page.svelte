@@ -47,13 +47,18 @@
 	<div class="w-full max-w-md space-y-6">
 		<!-- Header -->
 		<div class="text-center space-y-2">
-			<h1 class="text-2xl font-bold">
+			<div class="font-display text-3xl font-bold tracking-tight text-[var(--color-text)]" style="letter-spacing: 0.02em;">
+				MANKUNKU
+			</div>
+			<div class="smallcaps text-[var(--color-brass)]">Yakhal' Inkomo &middot; Cry of the Bull</div>
+			<div class="jazz-rule mx-auto max-w-[120px]"></div>
+			<h1 class="font-display text-3xl font-semibold pt-2">
 				{isSignUp ? 'Create Account' : 'Welcome Back'}
 			</h1>
-			<p class="text-sm text-[var(--color-text-secondary)]">
+			<p class="text-sm italic text-[var(--color-text-secondary)]">
 				{isSignUp
-					? 'Start your jazz ear training journey'
-					: 'Sign in to sync your progress'}
+					? 'Start your jazz ear training journey.'
+					: 'Sign in to sync your progress.'}
 			</p>
 		</div>
 

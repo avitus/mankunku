@@ -37,13 +37,17 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold">Lick Practice</h1>
+	<div>
+		<div class="smallcaps text-[var(--color-brass)]">Side B</div>
+		<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
+			Lick Practice
+		</h1>
+		<div class="jazz-rule mt-2 max-w-[140px]"></div>
 	</div>
 
-	<p class="text-sm text-[var(--color-text-secondary)]">
-		Practice licks through all 12 keys with a backing track.
-		Tag licks in the <a href="/library" class="text-[var(--color-accent)] underline">library</a> to add them to your practice set.
+	<p class="text-sm italic text-[var(--color-text-secondary)]">
+		Play the licks through all 12 keys with a backing track.
+		Tag a few in the <a href="/library" class="text-[var(--color-accent)] underline">library</a> to start your set.
 	</p>
 
 	<PracticeSetup

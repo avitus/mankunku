@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Score } from '$lib/types/scoring.ts';
-	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
+	import { GRADE_LABELS, GRADE_COLORS, GRADE_CAPTIONS } from '$lib/scoring/grades.ts';
 	import NoteComparison from './NoteComparison.svelte';
 
 	interface Props {
@@ -18,12 +18,15 @@
 	<!-- Grade + overall -->
 	<div class="text-center">
 		<div
-			class="text-5xl font-black"
-			style="color: {GRADE_COLORS[score.grade]}"
+			class="font-display text-5xl font-bold"
+			style="color: {GRADE_COLORS[score.grade]}; letter-spacing: -0.02em;"
 		>
 			{GRADE_LABELS[score.grade]}
 		</div>
-		<div class="mt-1 text-2xl font-bold tabular-nums">
+		<div class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
+			{GRADE_CAPTIONS[score.grade]}
+		</div>
+		<div class="mt-1 font-display text-3xl font-bold tabular-nums">
 			{pct(score.overall)}%
 		</div>
 		<div class="text-sm text-[var(--color-text-secondary)]">

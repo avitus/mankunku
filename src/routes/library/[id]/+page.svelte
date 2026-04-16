@@ -199,7 +199,7 @@
 					onclick={togglePlay}
 					class="flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium transition-colors
 						{isPlaying
-							? 'bg-[var(--color-error)] hover:bg-red-600'
+							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
 							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
 					aria-label={isPlaying ? 'Stop' : 'Play'}
 				>
@@ -226,7 +226,7 @@
 					onclick={handleTogglePracticeTag}
 					class="rounded px-3 py-2 text-sm font-medium transition-colors
 						{isPracticeTagged
-							? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+							? 'bg-[var(--color-success)]/20 text-[var(--color-success)] hover:bg-[var(--color-success)]/30'
 							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 					title={isPracticeTagged ? 'Remove from lick practice' : 'Add to lick practice'}
 				>
@@ -237,7 +237,7 @@
 						onclick={handleDelete}
 						class="rounded px-3 py-2 text-sm font-medium transition-colors
 							{confirmingDelete
-								? 'bg-[var(--color-error)] text-white hover:bg-red-600'
+								? 'bg-[var(--color-error)] text-white hover:opacity-80'
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 					>
 						{confirmingDelete ? 'Confirm Delete' : 'Delete'}

@@ -1,0 +1,11 @@
+Fraunces is licensed under the SIL Open Font License, Version 1.1.
+
+Copyright 2020 The Fraunces Project Authors (https://github.com/undercasetype/Fraunces)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+License available at: https://scripts.sil.org/OFL
+
+Full license text: https://openfontlicense.org/open-font-license-official-text/
+
+Source: https://fonts.google.com/specimen/Fraunces
+Downloaded for self-hosting in the Mankunku PWA (offline-first).

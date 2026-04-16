@@ -75,10 +75,12 @@
 		if (cell.future) return 'var(--color-bg-tertiary)';
 		if (!cell.summary) return 'var(--color-bg-tertiary)';
 		const count = cell.summary.sessionCount;
-		// Intensity based on session count: 1=low, 2-3=med, 4+=high
-		if (count >= 4) return 'var(--color-accent)';
-		if (count >= 2) return 'color-mix(in srgb, var(--color-accent) 65%, var(--color-bg-tertiary))';
-		return 'color-mix(in srgb, var(--color-accent) 35%, var(--color-bg-tertiary))';
+		// Intensity based on session count (brass heatmap): 1=low, 2-3=med, 4+=high.
+		// Brass is the decorative Blue Note accent — progress lives here, not on
+		// the domain accent.
+		if (count >= 4) return 'var(--color-brass)';
+		if (count >= 2) return 'color-mix(in srgb, var(--color-brass) 65%, var(--color-bg-tertiary))';
+		return 'color-mix(in srgb, var(--color-brass) 35%, var(--color-bg-tertiary))';
 	}
 
 	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);

@@ -164,7 +164,11 @@
 </script>
 
 <div class="space-y-8">
-	<h1 class="text-2xl font-bold">Settings</h1>
+	<div>
+		<div class="smallcaps text-[var(--color-brass)]">Control Room</div>
+		<h1 class="font-display text-4xl font-bold tracking-tight">Settings</h1>
+		<div class="jazz-rule mt-2 max-w-[140px]"></div>
+	</div>
 
 	<!-- ── GENERAL ─────────────────────────────────────────────────── -->
 	<div class="space-y-4">
@@ -178,7 +182,7 @@
 				</svg>
 			</div>
 			<div>
-				<h2 class="text-base font-semibold">General</h2>
+				<h2 class="font-display text-xl font-semibold">General</h2>
 				<p class="text-xs text-[var(--color-text-secondary)]">Instrument, appearance, and master volume</p>
 			</div>
 		</div>
@@ -278,23 +282,29 @@
 	</div>
 
 	<!-- ── EAR TRAINING ────────────────────────────────────────────── -->
-	<div class="space-y-4">
-		<!-- Section header — blue identity -->
+	<!--
+		data-domain="ear-training" scopes --color-accent to teal within
+		this section (overrides the page-level "neutral" domain set by
+		the layout) so headers, toggles, and highlights pick up the
+		palette automatically. See app.css.
+	-->
+	<div data-domain="ear-training" class="space-y-4">
+		<!-- Section header — teal identity -->
 		<div class="flex items-center gap-3">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-500/15">
+			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent)]/15">
 				<!-- Ear icon -->
-				<svg class="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg class="h-4 w-4 text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 0 1-7 0"/>
 					<path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 0 4 0"/>
 				</svg>
 			</div>
 			<div>
-				<h2 class="text-base font-semibold text-blue-400">Ear Training</h2>
+				<h2 class="font-display text-xl font-semibold text-[var(--color-accent)]">Ear Training</h2>
 				<p class="text-xs text-[var(--color-text-secondary)]">Keys, scales, tempo, metronome, and backing track</p>
 			</div>
 		</div>
 
-		<div class="rounded-xl border border-blue-500/20 bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
+		<div class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
 
 			<!-- Keys & Scales -->
 			<div class="p-4 space-y-4">
@@ -303,7 +313,7 @@
 				<!-- Current tonality status bar -->
 				<div class="flex items-center justify-between rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-2">
 					<div>
-						<span class="text-sm font-semibold text-blue-400">
+						<span class="text-sm font-semibold text-[var(--color-accent)]">
 							{concertKeyToWritten(activeTonality.key, instrument)} {SCALE_TYPE_NAMES[activeTonality.scaleType]}
 						</span>
 						<span class="ml-2 text-xs text-[var(--color-text-secondary)]">
@@ -313,7 +323,7 @@
 					{#if useOverride}
 						<button
 							onclick={resetToDaily}
-							class="text-xs text-blue-400 hover:underline"
+							class="text-xs text-[var(--color-accent)] hover:underline"
 						>
 							Reset to daily
 						</button>
@@ -333,7 +343,7 @@
 								disabled={!unlocked}
 								class="relative rounded px-2.5 py-1 text-sm transition-colors
 									{isActive
-										? 'bg-blue-500 text-white'
+										? 'bg-[var(--color-accent)] text-white'
 										: unlocked
 											? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
 											: 'bg-[var(--color-bg-tertiary)] opacity-50 cursor-not-allowed'}"
@@ -360,7 +370,7 @@
 								disabled={!unlocked}
 								class="relative rounded-full px-3 py-1 text-sm transition-colors
 									{isActive
-										? 'bg-blue-500 text-white'
+										? 'bg-[var(--color-accent)] text-white'
 										: unlocked
 											? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
 											: 'bg-[var(--color-bg-tertiary)] opacity-50 cursor-not-allowed'}"
@@ -396,7 +406,7 @@
 					value={settings.defaultTempo}
 					oninput={handleTempoChange}
 					onchange={syncSettingsToCloud}
-					class="mt-2 w-full accent-blue-500"
+					class="mt-2 w-full accent-[var(--color-accent)]"
 				/>
 				<div class="mt-0.5 flex justify-between text-xs text-[var(--color-text-secondary)]">
 					<span>60</span>
@@ -418,7 +428,7 @@
 					value={settings.swing}
 					oninput={handleSwingChange}
 					onchange={syncSettingsToCloud}
-					class="mt-2 w-full accent-blue-500"
+					class="mt-2 w-full accent-[var(--color-accent)]"
 				/>
 				<div class="mt-0.5 flex justify-between text-xs text-[var(--color-text-secondary)]">
 					<span>Straight (50%)</span>
@@ -436,7 +446,7 @@
 						aria-checked={settings.metronomeEnabled}
 						aria-label="Toggle metronome"
 						class="relative h-7 w-12 rounded-full transition-colors
-							{settings.metronomeEnabled ? 'bg-blue-500' : 'bg-[var(--color-bg-tertiary)]'}"
+							{settings.metronomeEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
 					>
 						<span
 							class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform shadow-sm
@@ -459,7 +469,7 @@
 							value={settings.metronomeVolume}
 							oninput={handleVolumeChange}
 							onchange={syncSettingsToCloud}
-							class="mt-1 w-full accent-blue-500"
+							class="mt-1 w-full accent-[var(--color-accent)]"
 						/>
 					</div>
 				{/if}
@@ -475,7 +485,7 @@
 						aria-checked={settings.backingTrackEnabled}
 						aria-labelledby="backing-track-label"
 						class="relative h-7 w-12 rounded-full transition-colors
-							{settings.backingTrackEnabled ? 'bg-blue-500' : 'bg-[var(--color-bg-tertiary)]'}"
+							{settings.backingTrackEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
 					>
 						<span
 							class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform shadow-sm
@@ -495,7 +505,7 @@
 									aria-checked={settings.backingInstrument === inst}
 									class="rounded-full px-3 py-1 text-sm transition-colors
 										{settings.backingInstrument === inst
-											? 'bg-blue-500 text-white'
+											? 'bg-[var(--color-accent)] text-white'
 											: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
 								>
 									{inst === 'piano' ? 'Piano' : 'Organ'}
@@ -517,7 +527,7 @@
 							value={settings.backingTrackVolume}
 							oninput={handleBackingVolumeChange}
 							onchange={syncSettingsToCloud}
-							class="mt-1 w-full accent-blue-500"
+							class="mt-1 w-full accent-[var(--color-accent)]"
 						/>
 					</div>
 				{/if}
@@ -527,23 +537,24 @@
 	</div>
 
 	<!-- ── LICK PRACTICE ──────────────────────────────────────────── -->
-	<div class="space-y-4">
-		<!-- Section header — green identity -->
+	<!-- data-domain scopes --color-accent to terracotta here. See app.css. -->
+	<div data-domain="lick-practice" class="space-y-4">
+		<!-- Section header — terracotta identity -->
 		<div class="flex items-center gap-3">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-green-500/15">
+			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent)]/15">
 				<!-- Music note icon -->
-				<svg class="h-4 w-4 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg class="h-4 w-4 text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M9 18V5l12-2v13"/>
 					<circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
 				</svg>
 			</div>
 			<div>
-				<h2 class="text-base font-semibold text-green-400">Lick Practice</h2>
+				<h2 class="font-display text-xl font-semibold text-[var(--color-accent)]">Lick Practice</h2>
 				<p class="text-xs text-[var(--color-text-secondary)]">Configure sessions in the Lick Practice page</p>
 			</div>
 		</div>
 
-		<div class="rounded-xl border border-green-500/20 bg-[var(--color-bg-secondary)] divide-y divide-green-500/10">
+		<div class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-accent)]/10">
 			<!-- Starting tempo for new licks -->
 			<div class="px-4 py-3">
 				<div class="flex items-center justify-between text-sm">
@@ -561,7 +572,7 @@
 					value={settings.newLickStartingTempo}
 					oninput={handleNewLickTempoChange}
 					onchange={() => saveSettings(supabase)}
-					class="mt-1 w-full accent-green-500"
+					class="mt-1 w-full accent-[var(--color-accent)]"
 				/>
 				<div class="mt-0.5 flex justify-between text-xs text-[var(--color-text-secondary)]">
 					<span>40</span>
@@ -573,12 +584,12 @@
 			<div class="px-4 py-4 flex items-start justify-between gap-4">
 				<p class="text-sm text-[var(--color-text-secondary)] leading-relaxed">
 					Lick practice session settings — chord progression, backing style, mode, and tempo — are configured directly on the
-					<a href="/lick-practice" class="text-green-400 hover:underline font-medium">Lick Practice</a>
+					<a href="/lick-practice" class="text-[var(--color-accent)] hover:underline font-medium">Lick Practice</a>
 					page before each session. They are saved automatically per session.
 				</p>
 				<a
 					href="/lick-practice"
-					class="shrink-0 rounded-lg bg-green-500/15 px-3 py-1.5 text-xs font-medium text-green-400 hover:bg-green-500/25 transition-colors"
+					class="shrink-0 rounded-lg bg-[var(--color-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/25 transition-colors"
 				>
 					Go to Lick Practice
 				</a>
@@ -598,7 +609,7 @@
 					</svg>
 				</div>
 				<div>
-					<h2 class="text-base font-semibold">Account</h2>
+					<h2 class="font-display text-xl font-semibold">Account</h2>
 					<p class="text-xs text-[var(--color-text-secondary)]">Cloud sync and account management</p>
 				</div>
 			</div>
@@ -672,7 +683,7 @@
 				</svg>
 			</div>
 			<div>
-				<h2 class="text-base font-semibold">Data</h2>
+				<h2 class="font-display text-xl font-semibold">Data</h2>
 				<p class="text-xs text-[var(--color-text-secondary)]">Progress and session history</p>
 			</div>
 		</div>

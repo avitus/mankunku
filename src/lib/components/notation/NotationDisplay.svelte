@@ -33,10 +33,15 @@
 </script>
 
 <div class="notation-container rounded-lg bg-[var(--color-bg-secondary)] p-4">
+	<!-- "Lead sheet" liner-note header — mirrors the typography of a Blue Note LP -->
+	<div class="mb-2 flex items-center gap-2">
+		<span class="smallcaps text-[var(--color-brass)]">Lead sheet</span>
+		<div class="jazz-rule flex-1"></div>
+	</div>
 	{#if phrase}
 		<div bind:this={containerEl} class="abcjs-container"></div>
 	{:else}
-		<div class="flex h-24 items-center justify-center text-[var(--color-text-secondary)]">
+		<div class="flex h-24 items-center justify-center italic text-[var(--color-text-secondary)]">
 			No phrase loaded
 		</div>
 	{/if}

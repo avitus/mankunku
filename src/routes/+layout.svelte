@@ -23,14 +23,17 @@
 	let mobileMenuOpen = $state(false);
 	let { supabase, session, user } = $derived(data);
 
+	// `primary: true` marks the two headline practice modes. They get
+	// display-serif treatment and sit visually separated from the utility
+	// nav so they read as the "Side A / Side B" of the app.
 	const navItems = [
-		{ href: '/', label: 'Home' },
-		{ href: '/practice', label: 'Ear Training' },
-		{ href: '/lick-practice', label: 'Lick Practice' },
-		{ href: '/library', label: 'Library' },
-		{ href: '/add-licks', label: 'Add Licks' },
-		{ href: '/progress', label: 'Progress' },
-		{ href: '/settings', label: 'Settings' }
+		{ href: '/', label: 'Home', primary: false },
+		{ href: '/practice', label: 'Ear Training', primary: true },
+		{ href: '/lick-practice', label: 'Lick Practice', primary: true },
+		{ href: '/library', label: 'Library', primary: false },
+		{ href: '/add-licks', label: 'Add Licks', primary: false },
+		{ href: '/progress', label: 'Progress', primary: false },
+		{ href: '/settings', label: 'Settings', primary: false }
 	];
 
 	/**
@@ -114,7 +117,7 @@
 
 <div
 	data-domain={dataDomain}
-	class="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]"
+	class="grain-overlay min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]"
 >
 	<!-- Domain accent stripe — peripheral cue that the user is inside a
 	     mode-specific section. Hidden on neutral pages. -->
@@ -122,13 +125,19 @@
 		<div class="h-0.5 w-full bg-[var(--color-accent)]"></div>
 	{/if}
 
-	<nav class="border-b border-[var(--color-bg-tertiary)] px-4 py-3">
+	<nav class="relative z-10 border-b border-[var(--color-bg-tertiary)] px-4 py-3">
 		<div class="mx-auto flex max-w-5xl items-center justify-between">
-			<div class="flex items-center gap-2">
-				<a href="/" class="text-xl font-bold tracking-tight">Mankunku</a>
+			<div class="flex items-center gap-3">
+				<a
+					href="/"
+					class="font-display text-2xl tracking-tight text-[var(--color-text)]"
+					style="font-weight: 700; letter-spacing: 0.02em;"
+				>
+					MANKUNKU
+				</a>
 				{#if dataDomain !== 'neutral'}
 					<span
-						class="rounded-full bg-[var(--color-accent)]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent)]"
+						class="smallcaps border border-[var(--color-brass)]/60 px-1.5 py-0.5 text-[var(--color-brass)]"
 					>
 						{domainLabel}
 					</span>
@@ -137,14 +146,28 @@
 
 			<!-- Desktop nav -->
 			<div class="hidden gap-4 text-sm sm:flex items-center">
-				{#each navItems as { href, label }}
+				{#each navItems as { href, label, primary }, i}
+					{@const prevPrimary = i > 0 ? navItems[i - 1].primary : false}
+					{@const needsDivider = prevPrimary && !primary}
+					{#if needsDivider}
+						<span class="h-4 w-px bg-[var(--color-brass)]/40" aria-hidden="true"></span>
+					{/if}
 					<a
 						{href}
-						class="transition-colors {isActive(href)
-							? 'text-[var(--color-accent)] font-medium'
-							: 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'}"
+						class="relative transition-colors {primary
+							? 'font-display text-lg tracking-tight'
+							: 'text-sm'} {isActive(href)
+							? 'text-[var(--color-text)] font-medium'
+							: primary
+								? 'text-[var(--color-text)]/90 hover:text-[var(--color-brass)]'
+								: 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'}"
 					>
 						{label}
+						{#if isActive(href)}
+							<span
+								class="absolute -bottom-1 left-0 right-0 h-px bg-[var(--color-brass)]"
+							></span>
+						{/if}
 					</a>
 				{/each}
 
@@ -195,13 +218,22 @@
 		<!-- Mobile menu -->
 		{#if mobileMenuOpen}
 			<div class="mt-3 space-y-1 border-t border-[var(--color-bg-tertiary)] pt-3 sm:hidden">
-				{#each navItems as { href, label }}
+				{#each navItems as { href, label, primary }, i}
+					{@const prevPrimary = i > 0 ? navItems[i - 1].primary : false}
+					{@const needsDivider = prevPrimary && !primary}
+					{#if needsDivider}
+						<div class="my-1 h-px bg-[var(--color-brass)]/30" aria-hidden="true"></div>
+					{/if}
 					<a
 						{href}
 						onclick={() => { mobileMenuOpen = false; }}
-						class="block rounded px-3 py-2 text-sm transition-colors {isActive(href)
-							? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium'
-							: 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]'}"
+						class="block rounded px-3 py-2 transition-colors {primary
+							? 'font-display text-xl tracking-tight'
+							: 'text-sm'} {isActive(href)
+							? 'text-[var(--color-text)] font-medium border-l-2 border-[var(--color-brass)]'
+							: primary
+								? 'text-[var(--color-text)] border-l-2 border-transparent hover:bg-[var(--color-bg-tertiary)]'
+								: 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)] border-l-2 border-transparent'}"
 					>
 						{label}
 					</a>
@@ -240,7 +272,7 @@
 		{/if}
 	</nav>
 
-	<main class="mx-auto max-w-5xl px-4 py-6">
+	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6">
 		{@render children()}
 	</main>
 </div>
