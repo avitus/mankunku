@@ -23,6 +23,7 @@
 		"@tailwindcss/vite": "^4.2.2",
 		"@testing-library/svelte": "^5.3.1",
 		"@vite-pwa/sveltekit": "^1.1.0",
+		"fake-indexeddb": "^6.2.5",
 		"playwright": "^1.58.2",
 		"svelte": "^5.51.0",
 		"svelte-check": "^4.4.2",

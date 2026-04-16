@@ -115,6 +115,45 @@ npm run check         # TypeScript + svelte-check
 
 See the [Testing Guide](documentation/contributing/testing-guide.md) for patterns, audio mocking strategies, and conventions.
 
+## Nginx deployment
+
+The production nginx config at `nginx/mankunku.conf` is the single source of truth. It is deployed to `/etc/nginx/sites-available/mankunku` on the server by a dedicated CircleCI workflow.
+
+**When does it deploy?** The `nginx-deploy` workflow runs only when a push to `main` changes any of:
+
+- `nginx/**`
+- `deploy/nginx/**`
+- `.circleci/**`
+
+App-only changes (under `src/`, `tests/`, `static/`, etc.) do not trigger `nginx-deploy`. Path filtering is wired via the [`circleci/path-filtering`](https://circleci.com/developer/orbs/orb/circleci/path-filtering) orb from `.circleci/config.yml`; the actual jobs live in `.circleci/continue-config.yml`. Running this workflow requires "Dynamic config using setup workflows" enabled in CircleCI (Project Settings → Advanced).
+
+**What happens on the server?** The job scp's `nginx/mankunku.conf` and `deploy/nginx/deploy.sh` to `/tmp`, then invokes the script over SSH. The script:
+
+1. Backs up the existing `/etc/nginx/sites-available/mankunku` to `/etc/nginx/backups/mankunku.<timestamp>.conf`.
+2. Installs the new config (mode `0644`, owner `root:root`).
+3. Ensures the `sites-enabled/mankunku` symlink exists.
+4. Runs `sudo nginx -t`.
+5. On success, reloads nginx with `sudo systemctl reload nginx`.
+6. On failure, restores the backup and exits non-zero (no reload).
+
+**Required CircleCI environment variables** (set in a context or the project):
+
+| Variable | Purpose |
+|---|---|
+| `DEPLOY_HOST` | Server hostname or IP |
+| `DEPLOY_USER` | SSH user (must have passwordless `sudo` for `nginx`, `systemctl`, `install`, `mkdir`, `cp`, `ln`, `rm` on the relevant paths) |
+| `DEPLOY_PORT` | *(optional)* SSH port; defaults to `22` |
+
+The SSH key is attached via `add_ssh_keys` using the fingerprint already registered for the app deploy job.
+
+**Manual deploy.** Copy `nginx/mankunku.conf` to the server (e.g. `/tmp/mankunku.nginx.staged`) and run:
+
+```sh
+bash deploy/nginx/deploy.sh /tmp/mankunku.nginx.staged
+```
+
+The script is idempotent and safe to re-run.
+
 ## License
 
 License pending. This project does not yet have a license file — one will be added before the first public release.

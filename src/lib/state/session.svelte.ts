@@ -1,14 +1,6 @@
 import type { Phrase } from '$lib/types/music.ts';
 import type { AudioEngineState, MicPermissionState, DetectedNote } from '$lib/types/audio.ts';
-import type { Score } from '$lib/types/scoring.ts';
-
-export interface BleedFilterLog {
-	totalNotes: number;
-	keptNotes: number;
-	filteredNotes: DetectedNote[];
-	unfilteredScore: Score | null;
-	filteredScore: Score | null;
-}
+import type { Score, BleedFilterLog } from '$lib/types/scoring.ts';
 
 export const session = $state<{
 	phrase: Phrase | null;
