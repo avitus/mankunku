@@ -106,6 +106,9 @@ describe('content tier profiles', () => {
 	});
 
 	it('each successive tier has equal or more content than the previous', () => {
+		// getProfile(1..10) intentionally treats its argument as a tier index
+		// directly when <= 10 (see params.ts). Passing tier numbers here is
+		// the correct way to walk tiers 1..10.
 		for (let tier = 2; tier <= 10; tier++) {
 			const prev = getProfile(tier - 1);
 			const curr = getProfile(tier);
@@ -182,8 +185,8 @@ describe('validator rules by difficulty', () => {
 
 	it('rules relax monotonically as difficulty increases', () => {
 		const levels = [10, 30, 50, 70, 90];
-		const intervals = levels.map((l) => rulesForDifficulty(l).maxInterval!);
-		const leaps = levels.map((l) => rulesForDifficulty(l).maxConsecutiveLeaps!);
+		const intervals = levels.map((l: number): number => rulesForDifficulty(l).maxInterval!);
+		const leaps = levels.map((l: number): number => rulesForDifficulty(l).maxConsecutiveLeaps!);
 
 		for (let i = 1; i < intervals.length; i++) {
 			expect(intervals[i]).toBeGreaterThanOrEqual(intervals[i - 1]);
@@ -195,7 +198,7 @@ describe('validator rules by difficulty', () => {
 
 	it('minStepRatio decreases as difficulty increases', () => {
 		const levels = [10, 30, 50, 70, 90];
-		const ratios = levels.map((l) => rulesForDifficulty(l).minStepRatio!);
+		const ratios = levels.map((l: number): number => rulesForDifficulty(l).minStepRatio!);
 
 		for (let i = 1; i < ratios.length; i++) {
 			expect(ratios[i]).toBeLessThanOrEqual(ratios[i - 1]);
@@ -248,15 +251,16 @@ describe('adaptive state advancement', () => {
 		// 10 good attempts — triggers first advancement (cooldown resets to 0)
 		let state = processN(initial, 10, 0.95, 0.95, 0.95);
 		const levelAfterAdvance = state.currentLevel;
+		const pitchAfterAdvance = state.pitchComplexity;
+		const rhythmAfterAdvance = state.rhythmComplexity;
 		expect(levelAfterAdvance).toBeGreaterThan(1);
 
 		// Immediately send 5 bad attempts — not enough to pass the 10-attempt cooldown
 		state = processN(state, 5, 0.20, 0.20, 0.20);
 
-		// Level should NOT have retreated because cooldown hasn't elapsed
-		expect(state.pitchComplexity).toBeGreaterThanOrEqual(
-			levelAfterAdvance // complexity can't drop yet
-		);
+		// Complexity should NOT have retreated because cooldown hasn't elapsed
+		expect(state.pitchComplexity).toBe(pitchAfterAdvance);
+		expect(state.rhythmComplexity).toBe(rhythmAfterAdvance);
 	});
 
 	it('getAdaptiveSummary returns human-readable string', () => {

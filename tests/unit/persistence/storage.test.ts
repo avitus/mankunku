@@ -1,28 +1,30 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { save, load, remove, listKeys, clearAll } from '$lib/persistence/storage';
 
-function createLocalStorageMock() {
+type MockStorage = Storage & { _store: Record<string, string> };
+
+function createLocalStorageMock(): MockStorage {
 	const store: Record<string, string> = {};
 	return {
-		getItem: (key: string) => store[key] ?? null,
-		setItem: (key: string, value: string) => {
+		getItem: (key: string): string | null => store[key] ?? null,
+		setItem: (key: string, value: string): void => {
 			store[key] = value;
 		},
-		removeItem: (key: string) => {
+		removeItem: (key: string): void => {
 			delete store[key];
 		},
-		clear: () => {
+		clear: (): void => {
 			for (const k of Object.keys(store)) delete store[k];
 		},
-		get length() {
+		get length(): number {
 			return Object.keys(store).length;
 		},
-		key: (index: number) => Object.keys(store)[index] ?? null,
+		key: (index: number): string | null => Object.keys(store)[index] ?? null,
 		_store: store
 	};
 }
 
-let mock: ReturnType<typeof createLocalStorageMock>;
+let mock: MockStorage;
 
 beforeEach(() => {
 	mock = createLocalStorageMock();

@@ -57,20 +57,28 @@ describe('notation round-trip', () => {
 
 	// ─── Category-specific tests ────────────────────────────────
 
+	// Only include categories that are actually represented in the curated
+	// library. Any category added here must exist (the test fails loudly
+	// when a curated category is removed or renamed).
 	const categoryTests: Array<{ category: string; label: string }> = [
 		{ category: 'ii-V-I-major', label: 'ii-V-I-major' },
 		{ category: 'blues', label: 'blues' },
 		{ category: 'pentatonic', label: 'pentatonic' },
 		{ category: 'modal', label: 'modal' },
 		{ category: 'bebop-lines', label: 'bebop-lines' },
-		{ category: 'beginner-cells', label: 'beginner-cells' },
 		{ category: 'ballad', label: 'ballad' },
 	];
 
 	for (const { category, label } of categoryTests) {
 		const licks = licksByCategory(category);
 
-		it.skipIf(licks.length === 0)(`handles ${label} category licks (${licks.length} licks)`, () => {
+		it(`handles ${label} category licks (${licks.length} licks)`, (): void => {
+			// Fail loudly if a curated category is removed or renamed; this suite
+			// is explicitly here to protect the fixed curated categories.
+			expect(
+				licks.length,
+				`No curated licks found for category "${category}"`
+			).toBeGreaterThan(0);
 			for (const lick of licks) {
 				const abc = phraseToAbc(lick);
 				assertValidHeader(abc, lick.id);
@@ -82,42 +90,40 @@ describe('notation round-trip', () => {
 
 	// ─── Instrument transposition ───────────────────────────────
 
-	it('phraseToAbc with tenor sax instrument transposition does not throw', () => {
+	/**
+	 * Curated licks are stored in concert C. When rendered for a transposing
+	 * instrument, the K: header should reflect the *written* key, not concert.
+	 *   - Tenor sax (+14 semitones): C concert → D written
+	 *   - Alto sax (+9 semitones):   C concert → A written
+	 *   - Trumpet (+2 semitones):    C concert → D written
+	 */
+	it('phraseToAbc with tenor sax renders the written K: header', () => {
 		const tenorSax = INSTRUMENTS['tenor-sax'];
 		const sample = ALL_CURATED_LICKS.slice(0, 10);
 		for (const lick of sample) {
-			try {
-				const abc = phraseToAbc(lick, tenorSax);
-				assertValidHeader(abc, lick.id);
-			} catch (e) {
-				expect.fail(`phraseToAbc threw for lick "${lick.id}" with tenor sax: ${e}`);
-			}
+			const abc = phraseToAbc(lick, tenorSax);
+			assertValidHeader(abc, lick.id);
+			expect(abc, `Lick ${lick.id} tenor sax K: header`).toMatch(/^K:D$/m);
 		}
 	});
 
-	it('phraseToAbc with alto sax instrument transposition does not throw', () => {
+	it('phraseToAbc with alto sax renders the written K: header', () => {
 		const altoSax = INSTRUMENTS['alto-sax'];
 		const sample = ALL_CURATED_LICKS.slice(0, 10);
 		for (const lick of sample) {
-			try {
-				const abc = phraseToAbc(lick, altoSax);
-				assertValidHeader(abc, lick.id);
-			} catch (e) {
-				expect.fail(`phraseToAbc threw for lick "${lick.id}" with alto sax: ${e}`);
-			}
+			const abc = phraseToAbc(lick, altoSax);
+			assertValidHeader(abc, lick.id);
+			expect(abc, `Lick ${lick.id} alto sax K: header`).toMatch(/^K:A$/m);
 		}
 	});
 
-	it('phraseToAbc with trumpet transposition does not throw', () => {
+	it('phraseToAbc with trumpet renders the written K: header', () => {
 		const trumpet = INSTRUMENTS['trumpet'];
 		const sample = ALL_CURATED_LICKS.slice(0, 10);
 		for (const lick of sample) {
-			try {
-				const abc = phraseToAbc(lick, trumpet);
-				assertValidHeader(abc, lick.id);
-			} catch (e) {
-				expect.fail(`phraseToAbc threw for lick "${lick.id}" with trumpet: ${e}`);
-			}
+			const abc = phraseToAbc(lick, trumpet);
+			assertValidHeader(abc, lick.id);
+			expect(abc, `Lick ${lick.id} trumpet K: header`).toMatch(/^K:D$/m);
 		}
 	});
 

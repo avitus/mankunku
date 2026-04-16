@@ -19,7 +19,7 @@ import { getScale } from '../../src/lib/music/scales';
 import { realizeScale } from '../../src/lib/music/keys';
 import type { PitchClass, Phrase, Note } from '../../src/lib/types/music';
 
-/** Instrument range: concert Ab3 (44) to concert Eb5 (75) — tenor sax */
+/** Instrument range: concert Ab2 (44) to concert Eb5 (75) — tenor sax */
 const RANGE_LOW = 44;
 const RANGE_HIGH = 75;
 
@@ -197,9 +197,19 @@ describe('lick transposition integrity', () => {
 
 describe('transposeLickForTonality', () => {
 	it('progression licks (ii-V-I-major) transpose using parent key logic', () => {
-		// Find a real ii-V-I-major lick from the curated library
-		const iiVI = ALL_CURATED_LICKS.find((l) => l.category === 'ii-V-I-major');
-		expect(iiVI, 'No ii-V-I-major lick found in curated library').toBeDefined();
+		// Pin a known fixture: category=ii-V-I-major, key=C, harmony roots D,G,C.
+		// A loose `find(category === 'ii-V-I-major')` would be flaky if another
+		// lick with different roots was inserted before the expected one.
+		const iiVI = ALL_CURATED_LICKS.find(
+			(l): boolean =>
+				l.category === 'ii-V-I-major' &&
+				l.key === 'C' &&
+				l.harmony.map((h) => h.chord.root).join(',') === 'D,G,C'
+		);
+		expect(
+			iiVI,
+			'No ii-V-I-major lick found in curated library with key=C and harmony roots D,G,C'
+		).toBeDefined();
 
 		// Original lick is in C. Harmony roots should be D, G, C (ii, V, I).
 		// Transpose for D Dorian (key=D, scale=major.dorian).

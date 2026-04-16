@@ -13,7 +13,9 @@ const VALID_CHORD_QUALITIES: ChordQuality[] = [
 	'minMaj7', 'aug', 'dim'
 ];
 
-function makeOptions(overrides: Partial<Parameters<typeof generatePhrase>[0]> = {}) {
+function makeOptions(
+	overrides: Partial<Parameters<typeof generatePhrase>[0]> = {}
+): Parameters<typeof generatePhrase>[0] {
 	const key: PitchClass = overrides.key ?? 'C';
 	const category: PhraseCategory = overrides.category ?? 'ii-V-I-major';
 	return {
@@ -205,16 +207,14 @@ describe('generatePhrase', () => {
 			// offset is [numerator, denominator]
 			expect(Array.isArray(note.offset)).toBe(true);
 			expect(note.offset).toHaveLength(2);
-			expect(Number.isFinite(note.offset[0])).toBe(true);
-			expect(Number.isFinite(note.offset[1])).toBe(true);
-			expect(note.offset[1]).not.toBe(0);
+			expect(Number.isInteger(note.offset[0]) && note.offset[0] >= 0).toBe(true);
+			expect(Number.isInteger(note.offset[1]) && note.offset[1] > 0).toBe(true);
 
 			// duration is [numerator, denominator]
 			expect(Array.isArray(note.duration)).toBe(true);
 			expect(note.duration).toHaveLength(2);
-			expect(Number.isFinite(note.duration[0])).toBe(true);
-			expect(Number.isFinite(note.duration[1])).toBe(true);
-			expect(note.duration[1]).not.toBe(0);
+			expect(Number.isInteger(note.duration[0]) && note.duration[0] > 0).toBe(true);
+			expect(Number.isInteger(note.duration[1]) && note.duration[1] > 0).toBe(true);
 		}
 	});
 

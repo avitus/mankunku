@@ -147,7 +147,7 @@ describe('difficultyDisplay', () => {
 			'Virtuoso',
 		];
 		const values = [5, 15, 25, 35, 45, 55, 65, 75, 85, 95];
-		const names = values.map((d) => difficultyDisplay(d).name);
+		const names = values.map((d: number): string => difficultyDisplay(d).name);
 		expect(names).toEqual(expectedNames);
 	});
 });

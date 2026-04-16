@@ -406,11 +406,11 @@ describe('pickRandomLick', () => {
 		// Force a single match for determinism
 		const result = pickRandomLick({ category: 'pentatonic' }, 'C', 48, 72);
 		expect(result).not.toBeNull();
-		// All pitched notes should be within range (bestOctaveShift adjusts)
+		// All pitched notes should be within the requested range
 		for (const note of result!.notes) {
 			if (note.pitch !== null) {
-				expect(note.pitch).toBeGreaterThanOrEqual(36); // after octave shift, at least reasonable
-				expect(note.pitch).toBeLessThanOrEqual(84);
+				expect(note.pitch).toBeGreaterThanOrEqual(48);
+				expect(note.pitch).toBeLessThanOrEqual(72);
 			}
 		}
 	});

@@ -202,6 +202,10 @@ describe('curated lick data integrity', () => {
 	});
 
 	it('every harmony scaleId resolves via getScale()', () => {
+		// NOTE: we deliberately do NOT also assert `chordApplications.contains(quality)`.
+		// Curated licks legitimately use scale/chord pairings that aren't listed in
+		// the scale's conservative `chordApplications` set (e.g., Phrygian over
+		// sus4 in modal jazz). The existence check is the meaningful invariant here.
 		for (const lick of licks) {
 			for (let i = 0; i < lick.harmony.length; i++) {
 				const seg = lick.harmony[i];

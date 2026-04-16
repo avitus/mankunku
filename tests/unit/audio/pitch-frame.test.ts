@@ -9,8 +9,10 @@ import {
 	DEFAULT_MAX_FREQUENCY,
 } from '$lib/audio/pitch-frame.ts';
 
-function makeMockDetector(frequency: number, clarity: number) {
-	return { findPitch: () => [frequency, clarity] as [number, number] };
+type MockDetector = { findPitch: () => [number, number] };
+
+function makeMockDetector(frequency: number, clarity: number): MockDetector {
+	return { findPitch: (): [number, number] => [frequency, clarity] };
 }
 
 describe('createOctaveStabilizer', () => {
@@ -76,7 +78,7 @@ describe('createOctaveStabilizer', () => {
 	});
 
 	describe('steady state', () => {
-		function warmUp(stab: ReturnType<typeof createOctaveStabilizer>, midi: number) {
+		function warmUp(stab: ReturnType<typeof createOctaveStabilizer>, midi: number): void {
 			for (let i = 0; i < WARMUP_FRAMES; i++) {
 				stab.process(midi, 0.9);
 			}
