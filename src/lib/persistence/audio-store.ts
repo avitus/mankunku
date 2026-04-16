@@ -114,11 +114,14 @@ export async function saveRecording(
 	try {
 		const transaction = db.transaction(STORE_NAME, 'readwrite');
 		const store = transaction.objectStore(STORE_NAME);
+		// JSON round-trip strips Svelte 5 $state proxies that structuredClone
+		// (used internally by IndexedDB) cannot handle.
+		const plainMetadata = metadata ? JSON.parse(JSON.stringify(metadata)) : null;
 		store.put({
 			sessionId,
 			blob,
 			timestamp: Date.now(),
-			metadata: metadata ?? null
+			metadata: plainMetadata
 		});
 
 		const all = await idbReq(store.getAll());
@@ -171,7 +174,8 @@ export async function updateRecordingMetadata(
 			await idbTx(transaction);
 			return;
 		}
-		store.put({ ...existing, metadata });
+		const plainMetadata = JSON.parse(JSON.stringify(metadata));
+		store.put({ ...existing, metadata: plainMetadata });
 		await idbTx(transaction);
 	} finally {
 		db.close();

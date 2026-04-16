@@ -186,7 +186,7 @@ export async function syncProgressToCloud(
 				user_id: userId,
 				scale_id: scaleId,
 				level: prof.level,
-				recent_scores: prof.recentScores,
+				recent_scores: prof.recentScores.map((s) => Math.round(s * 100)),
 				attempts_at_level: prof.attemptsAtLevel,
 				attempts_since_change: prof.attemptsSinceChange,
 				total_attempts: prof.totalAttempts
@@ -209,7 +209,7 @@ export async function syncProgressToCloud(
 				user_id: userId,
 				key,
 				level: prof.level,
-				recent_scores: prof.recentScores,
+				recent_scores: prof.recentScores.map((s) => Math.round(s * 100)),
 				attempts_at_level: prof.attemptsAtLevel,
 				attempts_since_change: prof.attemptsSinceChange,
 				total_attempts: prof.totalAttempts
@@ -344,7 +344,7 @@ export async function loadProgressFromCloud(
 		for (const row of scales ?? []) {
 			scaleProficiency[row.scale_id as ScaleType] = {
 				level: row.level,
-				recentScores: row.recent_scores,
+				recentScores: row.recent_scores.map((s: number) => s / 100),
 				attemptsAtLevel: row.attempts_at_level,
 				attemptsSinceChange: row.attempts_since_change,
 				totalAttempts: row.total_attempts
@@ -356,7 +356,7 @@ export async function loadProgressFromCloud(
 		for (const row of keys ?? []) {
 			keyProficiency[row.key as PitchClass] = {
 				level: row.level,
-				recentScores: row.recent_scores,
+				recentScores: row.recent_scores.map((s: number) => s / 100),
 				attemptsAtLevel: row.attempts_at_level,
 				attemptsSinceChange: row.attempts_since_change,
 				totalAttempts: row.total_attempts
