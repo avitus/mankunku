@@ -48,22 +48,24 @@ Beat 1 must always use the kick (`MembraneSynth`), not ride cymbal. Both the fin
 **How to apply:** When touching `scheduleMetronome()` or adding new metronome patterns, verify ALL branches use kick on beat 0.
 
 ### Always follow the design system
-The Mankunku app has a written design system at `documentation/architecture/design-system.md`. Read it before any cosmetic, color, layout, typography, or styling change.
+The Mankunku app has a written design system at `documentation/architecture/design-system.md`. Read it before any cosmetic, color, layout, typography, or styling change — but verify the actual hex values in `src/app.css`, because the spec doc has drifted from the implementation (see "Spec drift" below).
 
 Key principles to keep in working memory without re-reading every time:
 
-- **Three color domains**, all controlled by a single `--color-accent` CSS variable, switched via a `[data-domain]` attribute on the layout root:
-  - **Ear Training** (blue, `#3b82f6` / `#2563eb`) — `/practice`, `/practice/settings`, `/scales`, `/record`, `/progress`
-  - **Lick Practice** (green, `#22c55e` / `#16a34a`) — `/lick-practice`, `/lick-practice/session`
-  - **Neutral** (slate, `#94a3b8` / `#475569`) — `/`, `/library`, `/add-licks`, `/entry`, `/settings`, `/auth`, `/diagnostics`
+- **Three color domains**, all controlled by a single `--color-accent` CSS variable, switched via a `[data-domain]` attribute on the layout root (`src/routes/+layout.svelte`). Values as of 2026-04-16 in `src/app.css`:
+  - **Ear Training** (teal, `#2e8b9e` dark / `#15667a` light) — `/practice`, `/practice/settings`, `/scales`, `/record`, `/progress`
+  - **Lick Practice** (terracotta, `#c96a3e` dark / `#a84a26` light) — `/lick-practice`, `/lick-practice/session`
+  - **Neutral** (slate, `#94a3b8` dark / `#475569` light) — `/`, `/library`, `/add-licks`, `/entry`, `/settings`, `/auth`, `/diagnostics`
 - **Single-variable theming**: don't hardcode hex values, Tailwind color classes (e.g. `text-blue-500`, `bg-green-500`), or new CSS variables for accent purposes. Use `var(--color-accent)` / `var(--color-accent-hover)` and let the data-domain override do the work.
 - **Subtle, not decorative**: backgrounds, text colors, layout, spacing, typography, and component shapes stay constant across domains. Only the accent variable changes.
-- **The `practice` tag's green star icon on `LickCard` stays green** even on neutral library pages — it identifies a lick tagged for lick practice, not page chrome. (One intentional exception.)
+- **The `practice` tag's green star icon on `LickCard` stays green** even on neutral library pages — it identifies a lick tagged for lick practice, independent of page chrome. (One intentional exception; still green because it's a semantic marker for the tag, not a mode-accent color.)
 - **Light + dark parity**: every override needs both `:root [data-domain='…']` and `:root.light [data-domain='…']` rules.
 
-**Why:** The user defined this system on 2026-04-09 to make Ear Training and Lick Practice visually distinct without making them feel like two unrelated apps. Drift undermines the whole point.
+**Why:** The user defined the three-domain system on 2026-04-09 to make Ear Training and Lick Practice visually distinct without making them feel like two unrelated apps. The palette evolved from blue/green to teal/terracotta at some point after; the spec doc was not updated.
 
-**How to apply:** If a request would deviate from the spec, push back and propose a spec amendment instead of silently ad-hoc-ing it.
+**How to apply:** Treat `src/app.css` as ground truth for current color values. If a request would deviate from the three-domain structural rules, push back and propose a spec amendment.
+
+**Spec drift to resolve:** `documentation/architecture/design-system.md` still documents blue (`#3b82f6`) and green (`#22c55e`) as the domain accents. The implementation uses teal and terracotta. Either the spec should be updated to match, or the implementation should be reverted — this is a design call for the user. Flag this drift whenever a design-system question comes up.
 
 ### Write tests for new functionality (especially at framework/storage boundaries)
 **Why:** PR #40 added metadata to `saveRecording` without a test verifying the metadata could be persisted to IndexedDB. Svelte 5 `$state` proxies can't be `structuredClone`d, so every recording save silently failed in production for a day. A simple test would have caught this.

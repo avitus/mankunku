@@ -658,6 +658,12 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 			}
 			saveLickPracticeProgress(lickPractice.progress);
 		}
+
+		// Clear on both paths so getSessionReport's "include in-progress lick"
+		// fallback (which reads from keyResults) doesn't phantom-attribute
+		// this lick's results to a plan slot that was never started — matters
+		// when the complete path is taken mid-plan due to time-up.
+		lickPractice.keyResults = [];
 	}
 
 	const timeUp = lickPractice.elapsedSeconds >= lickPractice.config.durationMinutes * 60;
@@ -665,7 +671,6 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 	if (lickPractice.currentLickIndex < lickPractice.plan.length - 1 && !timeUp) {
 		lickPractice.currentLickIndex++;
 		lickPractice.currentKeyIndex = 0;
-		lickPractice.keyResults = [];
 
 		const nextItem = getCurrentPlanItem();
 		if (nextItem) {

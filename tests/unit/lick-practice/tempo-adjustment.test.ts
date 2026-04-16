@@ -16,7 +16,8 @@ import {
 import {
 	lickPractice,
 	resolveLickTempo,
-	startInterLickTransition
+	startInterLickTransition,
+	getSessionReport
 } from '$lib/state/lick-practice.svelte';
 import type {
 	LickPracticePlanItem,
@@ -221,6 +222,41 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 		});
 		startInterLickTransition();
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(300);
+	});
+
+	it('clears keyResults on the complete path so the report does not phantom-attribute them to the next lick', () => {
+		// Simulate a time-up scenario mid-session: plan has 2 licks, user got
+		// partway through lick 1 before the session ended. Transition runs
+		// and takes the complete branch because timeUp is set.
+		setupLick({
+			currentTempo: 100,
+			results: [
+				{ key: 'C', score: 0.9 },
+				{ key: 'F', score: 0.9 }
+			]
+		});
+		// Add a second planned lick to expose the phantom-attribution bug:
+		// if keyResults isn't cleared, getSessionReport will stream them
+		// into position 1 (the never-started second lick).
+		lickPractice.plan.push({
+			phraseId: 'test-lick-2',
+			phraseName: 'test-lick-2',
+			phraseNumber: 2,
+			category: 'ii-V-I-major',
+			keys: ['D', 'Eb']
+		});
+		// Force the complete branch: exceed the duration budget.
+		lickPractice.config.durationMinutes = 0;
+		lickPractice.elapsedSeconds = 1;
+
+		const outcome = startInterLickTransition();
+		expect(outcome).toBe('complete');
+		expect(lickPractice.keyResults.length).toBe(0);
+
+		const report = getSessionReport();
+		// Only one lick should appear — the one the user actually played.
+		expect(report.licks.length).toBe(1);
+		expect(report.licks[0].lickId).toBe(LICK_ID);
 	});
 
 	it('does not change tempo when no keys were scored', () => {
