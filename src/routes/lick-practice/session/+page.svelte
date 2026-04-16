@@ -94,6 +94,9 @@
 	// shown first row doesn't animate before its demo starts.
 	let lickAudioStartTick = 0;
 	let ticksPerKey = 0;
+	// Beat-wrap length for the chord chart highlight. Updated on every lick
+	// boundary so licks with different progression lengths wrap correctly.
+	let beatLoopBeats = 0;
 
 	// Inter-lick rest: 2 bars of backing-only between licks.
 	const INTER_LICK_REST_BARS = 2;
@@ -298,6 +301,7 @@
 		// tempo change at the same time).
 		plannedKeysForLick = getPlannedKeysForLick(lickIdx);
 		ticksPerKey = keyBars * ticksPerBar;
+		beatLoopBeats = progressionBars * beatsPerBar;
 
 		lickPractice.phase = 'lick-running';
 		lickPractice.currentKeyIndex = 0;
@@ -315,7 +319,7 @@
 			// correct even when BPM changes between licks.
 			lickAudioStartTick = ticksPerBar;
 			lickStartTick = (1 + demoBars) * ticksPerBar;
-			startBeatTracking(progressionBars, beatsPerBar);
+			startBeatTracking();
 
 			// playPhrase schedules count-in (1 bar) + metronome + backing +
 			// the full super-phrase melody (which now includes the continuous
@@ -481,8 +485,7 @@
 	 * - scrollFraction is in "key units": 0 at lick start, 1 at the
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
-	function startBeatTracking(progressionBars: number, beatsPerBar: number) {
-		const loopBeats = progressionBars * beatsPerBar;
+	function startBeatTracking() {
 		const ppq = toneModule!.getTransport().PPQ;
 		function tick() {
 			if (!isSessionRunning) return;
@@ -496,7 +499,7 @@
 				// through beats before its demo plays.
 				const elapsedTicks = ticks - lickAudioStartTick;
 				const phrasePos = elapsedTicks < 0 ? 0 : elapsedTicks / ppq;
-				currentBeat = phrasePos % loopBeats;
+				currentBeat = beatLoopBeats > 0 ? phrasePos % beatLoopBeats : 0;
 
 				// Continuous scroll position for the upcoming-keys preview.
 				// Clamped to the number of planned keys so the display
