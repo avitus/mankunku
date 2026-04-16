@@ -60,6 +60,10 @@
 	// window opens, stopped/saved when it closes, disposed either at save time
 	// or during session teardown if a window is still open.
 	let recorderHandle: RecorderHandle | null = null;
+	// Recorders that have been handed off for async stop+save but haven't
+	// settled yet. stopAll() iterates this to ensure every recorder is
+	// disposed even if the user ends the session mid-save.
+	const pendingRecorders = new Set<RecorderHandle>();
 
 	let isRecording = $state(false);
 	let isSessionRunning = $state(false);
@@ -642,6 +646,7 @@
 		if (recorderHandle) {
 			const handle = recorderHandle;
 			recorderHandle = null;
+			pendingRecorders.add(handle);
 			const windowForSave = window;
 			const scoreForSave = score;
 			const detectedForSave = detectedNotes;
@@ -650,10 +655,9 @@
 			const swingForSave = settings.swing;
 			const supabaseForSave = supabase;
 			const userIdForSave = user?.id;
-			handle
+			void handle
 				.stop()
 				.then(async (blob) => {
-					handle.dispose();
 					if (blob.size === 0) return;
 					await saveLickPracticeRecording({
 						sessionId: windowForSave.sessionId,
@@ -669,7 +673,11 @@
 						userId: userIdForSave
 					});
 				})
-				.catch((err) => console.warn('lick-practice recording save failed', err));
+				.catch((err) => console.warn('lick-practice recording save failed', err))
+				.finally(() => {
+					pendingRecorders.delete(handle);
+					handle.dispose();
+				});
 		}
 
 		// Advance the key index. The scheduler has already scheduled the
@@ -709,7 +717,15 @@
 		if (recorderHandle) {
 			const handle = recorderHandle;
 			recorderHandle = null;
-			handle.stop().then(() => handle.dispose()).catch(() => handle.dispose());
+			void handle.stop().catch(() => undefined).finally(() => handle.dispose());
+		}
+		// Also drain recorders that were handed off for async save but
+		// haven't settled yet (user ended session mid-save).
+		for (const handle of pendingRecorders) {
+			void handle.stop().catch(() => undefined).finally(() => {
+				pendingRecorders.delete(handle);
+				handle.dispose();
+			});
 		}
 		stopBeatTracking();
 		pitchDetector?.stop();
