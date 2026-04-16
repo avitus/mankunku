@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import 'fake-indexeddb/auto';
 import {
 	saveRecording,
 	getAllRecordingSummaries,
