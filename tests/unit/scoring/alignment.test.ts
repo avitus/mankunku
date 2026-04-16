@@ -125,4 +125,32 @@ describe('alignNotes', () => {
 		expect(matched).toBeDefined();
 		expect(matched!.cost).toBeCloseTo(0, 1);
 	});
+
+	it('treats octave-off as pitch-matched when octaveInsensitive=true', () => {
+		const expected = [makeNote(60, [0, 1])]; // C4
+		// Detected C5 (one octave up) at the same time
+		const pairs = alignNotes(expected, [makeDetected(72, 0)], TEMPO, 0.5, true);
+		const matched = pairs.find(p => p.expectedIndex === 0 && p.detectedIndex === 0);
+		expect(matched).toBeDefined();
+		// Cost should be rhythm-only (zero here) since pitch distance collapses to 0
+		expect(matched!.cost).toBeCloseTo(0, 1);
+	});
+
+	it('still penalizes wrong pitch class when octaveInsensitive=true', () => {
+		const expected = [makeNote(60, [0, 1])]; // C4
+		// C#5 → pitch class 1 vs expected 0 → cyclic distance 1 → cost 0.5
+		const pairs = alignNotes(expected, [makeDetected(73, 0)], TEMPO, 0.5, true);
+		const matched = pairs.find(p => p.expectedIndex === 0 && p.detectedIndex === 0);
+		expect(matched).toBeDefined();
+		expect(matched!.cost).toBeCloseTo(0.5, 1);
+	});
+
+	it('caps pitch-class distance at tritone (cyclic distance 6 → cost 1.0)', () => {
+		const expected = [makeNote(60, [0, 1])]; // C4
+		// F#5 (MIDI 78) → pitch class 6 → cyclic distance 6 → cost capped at 1.0
+		const pairs = alignNotes(expected, [makeDetected(78, 0)], TEMPO, 0.5, true);
+		const matched = pairs.find(p => p.expectedIndex === 0 && p.detectedIndex === 0);
+		expect(matched).toBeDefined();
+		expect(matched!.cost).toBeCloseTo(1.0, 1);
+	});
 });

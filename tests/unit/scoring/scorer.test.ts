@@ -144,3 +144,73 @@ describe('scoreAttempt', () => {
 		expect(extra.length).toBeGreaterThanOrEqual(2);
 	});
 });
+
+describe('scoreAttempt with octaveInsensitive=true', () => {
+	it('scores a whole phrase played one octave up at full credit', () => {
+		const phrase = makePhrase([
+			makeNote(60, [0, 1]),
+			makeNote(62, [1, 8]),
+			makeNote(64, [1, 4])
+		]);
+		// Same lick played an octave up: 72, 74, 76
+		const detected = [
+			makeDetected(72, 0),
+			makeDetected(74, 0.25),
+			makeDetected(76, 0.5)
+		];
+		const score = scoreAttempt(phrase, detected, TEMPO, 0, 0.5, true);
+		expect(score.pitchAccuracy).toBeGreaterThan(0.9);
+		expect(score.notesHit).toBe(3);
+		expect(score.notesTotal).toBe(3);
+	});
+
+	it('scores mixed-octave playing at full credit', () => {
+		const phrase = makePhrase([
+			makeNote(60, [0, 1]),  // C4
+			makeNote(62, [1, 8]),  // D4
+			makeNote(64, [1, 4])   // E4
+		]);
+		// User jumps around: C4, D5, E4
+		const detected = [
+			makeDetected(60, 0),
+			makeDetected(74, 0.25),
+			makeDetected(64, 0.5)
+		];
+		const score = scoreAttempt(phrase, detected, TEMPO, 0, 0.5, true);
+		expect(score.pitchAccuracy).toBeGreaterThan(0.9);
+		expect(score.notesHit).toBe(3);
+	});
+
+	it('strict mode (flag omitted) still rejects octave-off on the same input', () => {
+		const phrase = makePhrase([
+			makeNote(60, [0, 1]),
+			makeNote(62, [1, 8]),
+			makeNote(64, [1, 4])
+		]);
+		const detected = [
+			makeDetected(72, 0),
+			makeDetected(74, 0.25),
+			makeDetected(76, 0.5)
+		];
+		const score = scoreAttempt(phrase, detected, TEMPO); // no flag
+		expect(score.pitchAccuracy).toBeLessThan(0.1);
+		expect(score.notesHit).toBe(0);
+	});
+
+	it('still rejects wrong pitch classes even with the flag on', () => {
+		const phrase = makePhrase([
+			makeNote(60, [0, 1]),
+			makeNote(62, [1, 8]),
+			makeNote(64, [1, 4])
+		]);
+		// Semitone-off on every note: C#5, D#5, F5
+		const detected = [
+			makeDetected(73, 0),
+			makeDetected(75, 0.25),
+			makeDetected(77, 0.5)
+		];
+		const score = scoreAttempt(phrase, detected, TEMPO, 0, 0.5, true);
+		expect(score.pitchAccuracy).toBeLessThan(0.1);
+		expect(score.notesHit).toBe(0);
+	});
+});

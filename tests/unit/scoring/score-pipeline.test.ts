@@ -384,4 +384,44 @@ describe('runScorePipeline', () => {
 		const result = runScorePipeline(inputs);
 		expect(result.detected).toBe(customDetected);
 	});
+
+	it('defaults octaveInsensitive to false when omitted (passed to scoreAttempt as 6th arg)', () => {
+		const inputs = makePipelineInputs();
+		runScorePipeline(inputs);
+		// scoreAttempt(phrase, detected, tempo, transportSeconds, swing, octaveInsensitive)
+		expect(vi.mocked(scoreAttempt)).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			false
+		);
+	});
+
+	it('forwards octaveInsensitive=true to scoreAttempt on the unfiltered path', () => {
+		const inputs = makePipelineInputs({ octaveInsensitive: true });
+		runScorePipeline(inputs);
+		expect(vi.mocked(scoreAttempt)).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			true
+		);
+	});
+
+	it('forwards octaveInsensitive=true to both scoreAttempt calls when schedule is present', () => {
+		const schedule = { notes: [], activeMidiAt: () => [] };
+		vi.mocked(scoreAttempt)
+			.mockReturnValueOnce(mockScore)
+			.mockReturnValueOnce(mockFilteredScore);
+		const inputs = makePipelineInputs({ schedule, octaveInsensitive: true });
+		runScorePipeline(inputs);
+		const calls = vi.mocked(scoreAttempt).mock.calls;
+		expect(calls.length).toBe(2);
+		expect(calls[0][5]).toBe(true); // unfiltered scoreAttempt
+		expect(calls[1][5]).toBe(true); // filtered scoreAttempt
+	});
 });

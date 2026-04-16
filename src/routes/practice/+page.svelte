@@ -402,6 +402,21 @@
 				if (blob.size > 0 && sessionId) {
 					const { saveRecording } = await import('$lib/persistence/audio-store');
 					const { getBackingTrackLog } = await import('$lib/audio/backing-track');
+					// Only attach the backing-track log when backing track was
+					// actually scheduled for THIS phrase. The log is a global
+					// sessionStorage-backed list populated by every
+					// scheduleBackingTrack() call (including lick-practice
+					// super-phrases), so reading the latest entry unconditionally
+					// would attach a stale log from another session/phrase — e.g.
+					// a 12-key lick-practice progression — to an ear-training
+					// recording where backing track was off.
+					const latestBackingLog = scheduleForRescore
+						? getBackingTrackLog(1)[0] ?? null
+						: null;
+					const attachedBackingLog =
+						latestBackingLog && latestBackingLog.phraseId === phraseForRescore.id
+							? latestBackingLog
+							: null;
 					const baseMetadata = {
 						phraseId: phraseForRescore.id,
 						phraseName: phraseForRescore.name ?? phraseForRescore.id,
@@ -411,7 +426,7 @@
 						swing: swingForRescore,
 						score: provisionalScore,
 						detectedNotes: provisionalNotes,
-						backingTrackLog: getBackingTrackLog(1)[0] ?? null,
+						backingTrackLog: attachedBackingLog,
 						bleedFilterLog: provisionalBleedLog
 					};
 					await saveRecording(sessionId, blob, {
