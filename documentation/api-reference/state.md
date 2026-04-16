@@ -59,8 +59,7 @@ export const settings = $state({
   onboardingComplete: false,
   tonalityOverride: null as Tonality | null,  // override for daily tonality
   highestNote: null as number | null,         // concert-pitch MIDI ceiling; null = instrument default
-  bleedFilterEnabled: false,                  // A/B toggle for bleed-filtered scoring
-  newLickStartingTempo: 60                    // Starting BPM for fresh licks (40–200)
+  bleedFilterEnabled: false                   // A/B toggle for bleed-filtered scoring
 });
 ```
 
@@ -239,8 +238,7 @@ Active state for the multi-key lick-practice flow. The live session is ephemeral
 
 ```typescript
 export const lickPractice = $state<{
-  config: LickPracticeConfig;          // progressionType, durationMinutes, tempoIncrement,
-                                        // practiceMode, backingStyle, autoAdjustTempo
+  config: LickPracticeConfig;          // progressionType, durationMinutes, practiceMode, backingStyle
   phase: LickPracticePhase;            // 'setup' | 'count-in' | 'playing' | 'inter-lick-rest' | 'complete'
   plan: LickPracticePlanItem[];         // Ordered licks + planned keys (12 per lick)
   currentLickIndex: number;

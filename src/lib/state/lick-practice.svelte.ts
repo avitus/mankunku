@@ -40,7 +40,7 @@ import {
 	isTaggedForProgression,
 	backfillPracticeTags,
 	initLickMetadataFromCloud,
-	AUTO_ADJUST_DEFAULT_TEMPO,
+	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo
 } from '$lib/persistence/lick-practice-store.ts';
@@ -56,7 +56,7 @@ import {
 } from '$lib/data/progressions.ts';
 import { getAllLicks, transposeLick } from '$lib/phrases/library-loader.ts';
 import { getLickTagOverrides } from '$lib/persistence/user-licks.ts';
-import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 
 const PASS_THRESHOLD = 0.80;
 
@@ -87,10 +87,8 @@ export const lickPractice = $state<{
 	config: {
 		progressionType: 'ii-V-I-major',
 		durationMinutes: 15,
-		tempoIncrement: 5,
 		practiceMode: 'continuous',
-		backingStyle: 'swing',
-		autoAdjustTempo: false
+		backingStyle: 'swing'
 	},
 	phase: 'setup',
 	plan: [],
@@ -154,14 +152,15 @@ export function getPracticeLicks(): Phrase[] {
 	});
 }
 
-/** Resolve the starting tempo for a lick, respecting auto-adjust mode. */
-function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): number {
+/**
+ * Resolve the starting tempo for a lick at session setup:
+ *   - New lick (no practice history) → NEW_LICK_DEFAULT_TEMPO (60).
+ *   - Known lick → the minimum stored tempo across its 12 keys.
+ * Always clamped into the MIN_TEMPO / MAX_TEMPO range.
+ */
+export function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): number {
 	if (!hasLickProgress(progress, phraseId)) {
-		return clampTempo(
-			lickPractice.config.autoAdjustTempo
-				? AUTO_ADJUST_DEFAULT_TEMPO
-				: settings.newLickStartingTempo
-		);
+		return clampTempo(NEW_LICK_DEFAULT_TEMPO);
 	}
 	return clampTempo(getLickTempo(progress, phraseId));
 }
@@ -186,7 +185,7 @@ export function buildSessionPlan(): void {
 		const tempo = resolveLickTempo(progress, lick.id);
 		const keys = planLickKeys({
 			tempo,
-			minBpm: settings.newLickStartingTempo,
+			minBpm: NEW_LICK_DEFAULT_TEMPO,
 			instrument: getInstrument()
 		});
 		plan.push({
@@ -631,42 +630,26 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 		// Archive results for session report
 		lickPractice.allAttempts.push([...lickPractice.keyResults]);
 
-		if (lickPractice.config.autoAdjustTempo) {
-			// Auto-adjust: compute average score and adjust tempo accordingly.
-			// Always persists the new tempo (even on poor performance).
-			const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
-			const avgScore = lickPractice.keyResults.length > 0
-				? totalScore / lickPractice.keyResults.length
-				: 0;
-			const delta = computeAutoTempoAdjustment(avgScore);
-			const newTempo = clampTempo(lickPractice.currentTempo + delta);
-			const now = Date.now();
-			for (const key of item.keys) {
-				lickPractice.progress = updateKeyProgress(
-					lickPractice.progress,
-					item.phraseId,
-					key,
-					{ currentTempo: newTempo, lastPracticedAt: now }
-				);
-			}
-			saveLickPracticeProgress(lickPractice.progress);
-		} else {
-			// Fixed increment: bump only if ALL 12 keys passed
-			const allPassed = lickPractice.keyResults.length === item.keys.length
-				&& lickPractice.keyResults.every(r => r.passed);
-			if (allPassed) {
-				const newTempo = clampTempo(lickPractice.currentTempo + lickPractice.config.tempoIncrement);
-				for (const key of item.keys) {
-					lickPractice.progress = updateKeyProgress(
-						lickPractice.progress,
-						item.phraseId,
-						key,
-						{ currentTempo: newTempo }
-					);
-				}
-				saveLickPracticeProgress(lickPractice.progress);
-			}
+		// Score-weighted tempo adjustment. Compute the average score across the
+		// attempted keys and apply the signed delta from computeAutoTempoAdjustment.
+		// The new tempo is persisted for every key in the lick — the per-lick
+		// tempo is a single number that tracks performance across the whole set.
+		const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
+		const avgScore = lickPractice.keyResults.length > 0
+			? totalScore / lickPractice.keyResults.length
+			: 0;
+		const delta = computeAutoTempoAdjustment(avgScore);
+		const newTempo = clampTempo(lickPractice.currentTempo + delta);
+		const now = Date.now();
+		for (const key of item.keys) {
+			lickPractice.progress = updateKeyProgress(
+				lickPractice.progress,
+				item.phraseId,
+				key,
+				{ currentTempo: newTempo, lastPracticedAt: now }
+			);
 		}
+		saveLickPracticeProgress(lickPractice.progress);
 	}
 
 	const timeUp = lickPractice.elapsedSeconds >= lickPractice.config.durationMinutes * 60;
