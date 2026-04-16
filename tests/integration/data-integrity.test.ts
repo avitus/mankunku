@@ -323,7 +323,7 @@ describe('curated lick data integrity', () => {
 		}
 	});
 
-	it('all pitched notes in curated (non-combined) licks are within default range [44, 75]', () => {
+	it(`all pitched notes in curated (non-combined) licks are within range [${DEFAULT_RANGE_LOW}, ${DEFAULT_RANGE_HIGH}]`, () => {
 		const curated = licks.filter((l) => l.source === 'curated');
 		for (const lick of curated) {
 			for (let i = 0; i < lick.notes.length; i++) {

@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { save, load, remove, listKeys, clearAll } from '$lib/persistence/storage';
 
 type MockStorage = Storage & { _store: Record<string, string> };
+
+// Preserve any pre-existing localStorage so we can restore it after this file.
+const ORIGINAL_LOCAL_STORAGE = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
 
 function createLocalStorageMock(): MockStorage {
 	const store: Record<string, string> = {};
@@ -29,6 +32,23 @@ let mock: MockStorage;
 beforeEach(() => {
 	mock = createLocalStorageMock();
 	Object.defineProperty(globalThis, 'localStorage', { value: mock, writable: true });
+});
+
+afterAll((): void => {
+	// Restore the original localStorage so other test files don't inherit our
+	// fake and become order-dependent. Guard against non-configurable
+	// descriptors (other test files may have stubbed the global in a way
+	// that blocks redefinition).
+	try {
+		if (ORIGINAL_LOCAL_STORAGE) {
+			Object.defineProperty(globalThis, 'localStorage', ORIGINAL_LOCAL_STORAGE);
+		}
+	} catch {
+		// Best effort: if we can't redefine, fall back to assignment which
+		// works when the property is writable but not configurable.
+		(globalThis as { localStorage?: unknown }).localStorage =
+			ORIGINAL_LOCAL_STORAGE?.value;
+	}
 });
 
 describe('save', () => {
