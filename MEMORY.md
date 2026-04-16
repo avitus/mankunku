@@ -102,12 +102,16 @@ The GraphQL `reviewThreads` query only returns inline diff comments. CodeRabbit 
 
 **How to apply:** Use multiple API calls covering all comment locations, or ask the user to paste any missed comments.
 
-### Proactively autofix CodeRabbit comments after every push
-After any `git push` to a PR branch, automatically wait for CodeRabbit's review to complete (~2-5 min), then fetch ALL comments and fix valid ones. Don't wait for the user to ask.
+### Proactively autofix CodeRabbit comments after every push, and keep iterating until clean
+After any `git push` to a PR branch — including the autofix commits themselves — automatically wait for CodeRabbit's review to complete (~2-5 min), fetch ALL comment sources, and fix the valid ones. After pushing the fixes, **wait for CodeRabbit's next review pass and repeat**; CodeRabbit will often have follow-on comments triggered by the previous fix or duplicates it didn't surface in the first round. Continue until a review pass produces no actionable comments.
 
-**Why:** The user doesn't want to manually trigger autofix every time.
+**Why:** The user doesn't want to manually trigger autofix every time, and doesn't want to be the one watching for follow-on review rounds.
 
-**How to apply:** Poll for CodeRabbit review completion after every push, run the autofix flow, check all comment sources.
+**How to apply:**
+- Poll for CodeRabbit review completion after every push (including autofix pushes).
+- Check all comment sources (inline `reviewThreads`, review bodies via `reviews`, top-level PR `comments`, outside-diff comments).
+- After applying fixes, push, then loop back to polling. Stop when a review round produces no new actionable findings.
+- **Resolve the inline review threads** for issues that were actually fixed via the GraphQL `resolveReviewThread` mutation — keeps the PR view clean and signals to the user (and to CodeRabbit's next pass) that the finding is addressed.
 
 ---
 
