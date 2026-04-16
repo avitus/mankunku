@@ -623,9 +623,15 @@ export function advance(): 'next-key' | 'end-of-lick' {
 
 /**
  * Transition from the current lick to the next (or complete the session).
- * Archives results, bumps tempo if all 12 keys passed, and either moves
- * currentLickIndex forward or marks the session complete. Called by the
- * scheduler at the start of the 2-bar inter-lick rest.
+ * Archives the lick's results, applies the always-on score-weighted tempo
+ * adjustment (average score across attempted keys → signed delta via
+ * computeAutoTempoAdjustment, clamped, persisted to every key in the lick),
+ * and either advances currentLickIndex or marks the session complete.
+ * Called by the scheduler at the start of the 2-bar inter-lick rest.
+ *
+ * If the lick had no scored keys (e.g. session ended before any attempt
+ * landed), the tempo is left unchanged — an empty result set carries no
+ * signal about how the user performed.
  */
 export function startInterLickTransition(): 'next-lick' | 'complete' {
 	const item = getCurrentPlanItem();
@@ -633,26 +639,25 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 		// Archive results for session report
 		lickPractice.allAttempts.push([...lickPractice.keyResults]);
 
-		// Score-weighted tempo adjustment. Compute the average score across the
-		// attempted keys and apply the signed delta from computeAutoTempoAdjustment.
-		// The new tempo is persisted for every key in the lick — the per-lick
-		// tempo is a single number that tracks performance across the whole set.
-		const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
-		const avgScore = lickPractice.keyResults.length > 0
-			? totalScore / lickPractice.keyResults.length
-			: 0;
-		const delta = computeAutoTempoAdjustment(avgScore);
-		const newTempo = clampTempo(lickPractice.currentTempo + delta);
-		const now = Date.now();
-		for (const key of item.keys) {
-			lickPractice.progress = updateKeyProgress(
-				lickPractice.progress,
-				item.phraseId,
-				key,
-				{ currentTempo: newTempo, lastPracticedAt: now }
-			);
+		// Score-weighted tempo adjustment. Skipped when keyResults is empty
+		// because avgScore would default to 0 and produce a spurious -3 BPM
+		// nudge for a lick the user didn't actually play.
+		if (lickPractice.keyResults.length > 0) {
+			const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
+			const avgScore = totalScore / lickPractice.keyResults.length;
+			const delta = computeAutoTempoAdjustment(avgScore);
+			const newTempo = clampTempo(lickPractice.currentTempo + delta);
+			const now = Date.now();
+			for (const key of item.keys) {
+				lickPractice.progress = updateKeyProgress(
+					lickPractice.progress,
+					item.phraseId,
+					key,
+					{ currentTempo: newTempo, lastPracticedAt: now }
+				);
+			}
+			saveLickPracticeProgress(lickPractice.progress);
 		}
-		saveLickPracticeProgress(lickPractice.progress);
 	}
 
 	const timeUp = lickPractice.elapsedSeconds >= lickPractice.config.durationMinutes * 60;

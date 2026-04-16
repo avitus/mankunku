@@ -223,6 +223,22 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(300);
 	});
 
+	it('does not change tempo when no keys were scored', () => {
+		// A lick can transition with zero scored keys (e.g. session ended
+		// before any attempt landed). Without a guard, avgScore defaults to
+		// 0 and the formula returns -3, which would silently drop the lick's
+		// tempo for no reason.
+		setupLick({
+			currentTempo: 100,
+			results: [],
+			plannedKeys: ['C', 'F', 'G']
+		});
+		startInterLickTransition();
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBeUndefined();
+		expect(lickPractice.progress[LICK_ID]?.F?.currentTempo).toBeUndefined();
+		expect(lickPractice.progress[LICK_ID]?.G?.currentTempo).toBeUndefined();
+	});
+
 	it("applies the adjustment to all of the lick's keys, not just the scored ones", () => {
 		// Plan has 5 keys but the user only scored 2 before the session rolled
 		// over — the 3 unscored keys should still get the new tempo, proving
