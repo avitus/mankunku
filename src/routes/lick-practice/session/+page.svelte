@@ -563,15 +563,19 @@
 		// non-fatal — scoring and progress still work without the audio blob.
 		if (micCapture) {
 			try {
-				recorderHandle = createRecorder(
+				const tmpRecorder = createRecorder(
 					micCapture.source,
 					getMasterGain(),
 					micCapture.context
 				);
-				recorderHandle.start();
+				tmpRecorder.start();
+				recorderHandle = tmpRecorder;
 			} catch (err) {
-				console.warn('Lick-practice audio recording unavailable:', err);
+				// If createRecorder succeeded but start() threw, the audio
+				// graph nodes are still connected — dispose to clean up.
+				recorderHandle?.dispose();
 				recorderHandle = null;
+				console.warn('Lick-practice audio recording unavailable:', err);
 			}
 		}
 
