@@ -28,29 +28,29 @@
 	<!-- Streak numbers -->
 	<div class="flex items-center gap-6">
 		<div class="text-center">
-			<div class="text-2xl font-bold tabular-nums">
+			<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
 				{currentStreak}
 			</div>
-			<div class="text-xs text-[var(--color-text-secondary)]">Current Streak</div>
+			<div class="smallcaps text-[var(--color-text-secondary)]">Current Streak</div>
 		</div>
 		{#if longestStreak > 0}
 			<div class="text-center">
-				<div class="text-2xl font-bold tabular-nums text-[var(--color-text-secondary)]">
+				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-text-secondary)]">
 					{longestStreak}
 				</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Longest</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Longest</div>
 			</div>
 		{/if}
 	</div>
 
 	<!-- 30-day dot grid -->
 	<div>
-		<div class="text-xs text-[var(--color-text-secondary)] mb-1">Last 30 days</div>
+		<div class="smallcaps text-[var(--color-text-secondary)] mb-1">Last 30 days</div>
 		<div class="flex gap-[3px] flex-wrap">
 			{#each days as day}
 				<div
 					class="h-3 w-3 rounded-sm"
-					style="background-color: {day.practiced ? 'var(--color-accent)' : 'var(--color-bg-tertiary)'}"
+					style="background-color: {day.practiced ? 'var(--color-brass)' : 'var(--color-bg-tertiary)'}"
 					title={day.label}
 				></div>
 			{/each}

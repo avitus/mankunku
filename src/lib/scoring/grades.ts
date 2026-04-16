@@ -41,3 +41,15 @@ export const GRADE_COLORS: Record<Grade, string> = {
 	fair: 'var(--color-warning)',
 	'try-again': 'var(--color-error)'
 };
+
+/**
+ * Liner-note style grade captions — small italic one-liners in the tone
+ * of a Blue Note sleeve, shown below the grade label to add warmth.
+ */
+export const GRADE_CAPTIONS: Record<Grade, string> = {
+	perfect: 'Right in the pocket.',
+	great: 'Cookin\u2019.',
+	good: 'Swinging along.',
+	fair: 'A little off the changes.',
+	'try-again': 'Take it again from the top.'
+};

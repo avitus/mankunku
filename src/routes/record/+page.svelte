@@ -314,17 +314,21 @@
 	{#if recordState === 'idle'}
 		<!-- Idle: record button + tempo -->
 		<div class="text-center">
-			<h1 class="text-2xl font-bold">Record a Lick</h1>
-			<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
-				Play a phrase into your mic and we'll notate it
+			<div class="smallcaps text-[var(--color-brass)]">Put it on tape</div>
+			<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
+				Record a Lick
+			</h1>
+			<div class="jazz-rule mx-auto mt-2 max-w-[140px]"></div>
+			<p class="mt-3 text-sm italic text-[var(--color-text-secondary)]">
+				Play a phrase into your mic and we'll notate it.
 			</p>
 		</div>
 
 		<button
 			onclick={startRecording}
 			class="group relative flex h-28 w-28 items-center justify-center rounded-full
-				   bg-[var(--color-error)] shadow-lg shadow-red-500/20
-				   transition-all duration-300 hover:bg-red-600 active:scale-95"
+				   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
+				   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
 		>
 			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
 				<circle cx="12" cy="12" r="6" />
@@ -365,27 +369,27 @@
 		<!-- Recording -->
 		<div class="text-center">
 			{#if pitchName}
-				<div class="text-4xl font-black text-[var(--color-error)]">
+				<div class="font-display text-5xl font-bold text-[var(--color-onair)]">
 					{pitchName}
 				</div>
 			{:else}
-				<div class="text-4xl font-black text-[var(--color-text-secondary)]">
+				<div class="font-display text-5xl font-bold text-[var(--color-text-secondary)]">
 					---
 				</div>
 			{/if}
-			<p class="mt-2 text-sm text-[var(--color-error)]">Recording...</p>
+			<p class="mt-2 text-sm italic text-[var(--color-onair)]">On tape&hellip;</p>
 		</div>
 
 		<button
 			onclick={stopRecording}
 			class="group relative flex h-28 w-28 items-center justify-center rounded-full
-				   bg-[var(--color-error)] shadow-lg shadow-red-500/20
-				   transition-all duration-300 hover:bg-red-600 active:scale-95"
+				   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
+				   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
 		>
 			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
 				<rect x="6" y="6" width="12" height="12" rx="1" />
 			</svg>
-			<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-error)] opacity-20"></span>
+			<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-onair)] opacity-20"></span>
 		</button>
 
 	{:else if recordState === 'processing'}
@@ -395,13 +399,13 @@
 				<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
 				<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"></path>
 			</svg>
-			<p class="mt-4 text-sm text-[var(--color-text-secondary)]">Processing...</p>
+			<p class="mt-4 text-sm italic text-[var(--color-text-secondary)]">Rolling the tape back&hellip;</p>
 		</div>
 
 	{:else if recordState === 'review' && reviewPhrase}
 		<!-- Review -->
 		<div class="w-full max-w-2xl space-y-4">
-			<h2 class="text-xl font-bold text-center">Review Your Lick</h2>
+			<h2 class="font-display text-2xl font-bold text-center">Review Your Lick</h2>
 
 			<!-- Sheet music -->
 			<NotationDisplay phrase={reviewPhrase} {instrument} />
@@ -437,7 +441,7 @@
 				<button
 					onclick={handleSave}
 					disabled={savedConfirmation}
-					class="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white
+					class="rounded bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
 						   hover:opacity-90 transition-opacity disabled:opacity-50"
 				>
 					{savedConfirmation ? 'Saved!' : 'Save to Library'}

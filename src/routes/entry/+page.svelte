@@ -147,7 +147,11 @@
 
 <div class="mx-auto max-w-2xl space-y-4">
 	<!-- Header -->
-	<h1 class="text-xl font-bold">Lick Entry</h1>
+	<div>
+		<div class="smallcaps text-[var(--color-brass)]">Write a lick</div>
+		<h1 class="font-display text-3xl font-bold tracking-tight">Lick Entry</h1>
+		<div class="jazz-rule mt-2 max-w-[120px]"></div>
+	</div>
 
 	<!-- Notation preview (written pitch for the user's instrument) -->
 	<NotationDisplay

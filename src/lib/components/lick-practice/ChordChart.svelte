@@ -128,6 +128,7 @@
 </script>
 
 <div class="chord-chart flex flex-col gap-0">
+	<div class="smallcaps mb-1 text-[var(--color-brass)]">Changes</div>
 	{#each rows as row}
 		<div class="flex">
 			{#each row.cells as cell}
@@ -142,7 +143,7 @@
 					style="flex: {cell.widthWeight}"
 				>
 					<span
-						class="text-xl font-bold tracking-tight transition-colors
+						class="font-display text-2xl font-bold tracking-tight transition-colors
 							   {isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}"
 					>
 						{cell.chord}

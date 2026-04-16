@@ -25,9 +25,9 @@
 >
 	<div class="flex items-start justify-between gap-2">
 		<div class="min-w-0">
-			<h3 class="font-medium truncate">{lick.name}</h3>
+			<h3 class="font-display text-lg font-semibold tracking-tight truncate">{lick.name}</h3>
 			<div class="mt-1 flex flex-wrap gap-1.5 text-xs">
-				<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5">
+				<span class="smallcaps border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">
 					{CATEGORY_LABELS[lick.category] ?? lick.category}
 				</span>
 				<span
@@ -50,7 +50,7 @@
 					onclick={(e) => { e.stopPropagation(); onplay!(); }}
 					class="flex h-8 w-8 items-center justify-center rounded-full transition-colors
 						   {isPlaying
-							? 'bg-[var(--color-error)] hover:bg-red-600'
+							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
 							: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
 					aria-label={isPlaying ? 'Stop' : 'Play'}
 				>
@@ -70,7 +70,7 @@
 	</div>
 	<div class="mt-2 flex flex-wrap items-center gap-1.5">
 		{#if isPracticeTagged}
-			<span class="inline-flex items-center gap-0.5 text-xs font-medium text-green-500">
+			<span class="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--color-success)]">
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
 					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
 				</svg>
@@ -83,8 +83,11 @@
 				{template?.shortName ?? pt}
 			</span>
 		{/each}
-		{#each lick.tags.filter(t => t !== 'practice' && t !== 'user-entered').slice(0, 4) as tag}
-			<span class="text-xs text-[var(--color-text-secondary)]">#{tag}</span>
+		{#each lick.tags.filter(t => t !== 'practice' && t !== 'user-entered').slice(0, 4) as tag, i}
+			{#if i > 0}
+				<span class="text-xs text-[var(--color-brass)] opacity-60">·</span>
+			{/if}
+			<span class="text-xs italic text-[var(--color-text-secondary)]">{tag}</span>
 		{/each}
 	</div>
 </button>

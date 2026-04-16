@@ -158,8 +158,12 @@
 </script>
 
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold">Lick Library</h1>
+	<div class="flex items-end justify-between gap-4 flex-wrap">
+		<div>
+			<div class="smallcaps text-[var(--color-brass)]">The Book</div>
+			<h1 class="font-display text-4xl font-bold tracking-tight">Lick Library</h1>
+			<div class="jazz-rule mt-2 max-w-[160px]"></div>
+		</div>
 		<div class="flex items-center gap-4">
 			<a
 				href="/scales"
@@ -176,7 +180,7 @@
 	<!-- Search -->
 	<input
 		type="text"
-		placeholder="Search licks..."
+		placeholder="find a lick…"
 		bind:value={library.searchQuery}
 		class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
 			   placeholder:text-[var(--color-text-secondary)] focus:outline-none
@@ -240,8 +244,8 @@
 		</div>
 	{:else}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-			<p class="text-[var(--color-text-secondary)]">
-				No licks match your filters. Try broadening your search.
+			<p class="italic text-[var(--color-text-secondary)]">
+				No licks match. Play with the filters — or clear them.
 			</p>
 		</div>
 	{/if}

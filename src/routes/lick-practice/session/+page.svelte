@@ -671,23 +671,27 @@
 <div class="space-y-4">
 	{#if lickPractice.phase === 'complete' && sessionReport}
 		<!-- Session report -->
-		<h1 class="text-2xl font-bold text-center">Session Report</h1>
+		<div class="text-center">
+			<div class="smallcaps text-[var(--color-brass)]">Session notes</div>
+			<h1 class="font-display text-3xl font-bold text-[var(--color-accent)]">Session Report</h1>
+			<div class="jazz-rule mx-auto mt-2 max-w-[160px]"></div>
+		</div>
 
 		<!-- Summary stats -->
 		<div class="grid grid-cols-3 gap-3">
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="text-2xl font-bold">{pct(sessionReport.overallAverage)}%</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Overall</div>
+				<div class="font-display text-3xl font-bold">{pct(sessionReport.overallAverage)}%</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Overall</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="text-2xl font-bold">
+				<div class="font-display text-3xl font-bold">
 					{sessionReport.totalPassed}/{sessionReport.totalAttempts}
 				</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Keys Passed</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Keys Passed</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="text-2xl font-bold">{sessionReport.elapsedMinutes}m</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Practiced</div>
+				<div class="font-display text-3xl font-bold">{sessionReport.elapsedMinutes}m</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Practiced</div>
 			</div>
 		</div>
 

@@ -36,7 +36,7 @@
 		disabled={isLoading}
 		class="flex h-10 w-10 items-center justify-center rounded-full
 			   {isLoading ? 'bg-[var(--color-bg-tertiary)] cursor-wait' :
-			    isPlaying ? 'bg-[var(--color-error)] hover:bg-red-600' :
+			    isPlaying ? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] ring-1 ring-[var(--color-brass)]/50' :
 			    'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}
 			   text-white transition-colors"
 	>

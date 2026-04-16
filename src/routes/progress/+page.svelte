@@ -129,7 +129,13 @@
 </script>
 
 <div class="space-y-6">
-	<h1 class="text-2xl font-bold">Progress</h1>
+	<div>
+		<div class="smallcaps text-[var(--color-brass)]">Liner notes</div>
+		<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
+			Progress
+		</h1>
+		<div class="jazz-rule mt-2 max-w-[140px]"></div>
+	</div>
 
 	<!-- Tab bar -->
 	<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1" role="tablist">
@@ -166,16 +172,22 @@
 		<!-- Summary bar: 3 compact stat cards -->
 		<div class="grid grid-cols-3 gap-3">
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="text-2xl font-bold">{progress.streakDays}</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Day Streak</div>
+				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
+					{progress.streakDays}
+				</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="text-2xl font-bold" style="color: {levelDisp.color}">{primaryLevel}</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Level</div>
+				<div class="font-display text-3xl font-bold tabular-nums" style="color: {levelDisp.color}">
+					{primaryLevel}
+				</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Level</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="text-2xl font-bold">{progress.sessions.length}</div>
-				<div class="text-xs text-[var(--color-text-secondary)]">Recent Sessions</div>
+				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
+					{progress.sessions.length}
+				</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Recent Sessions</div>
 			</div>
 		</div>
 
@@ -280,8 +292,8 @@
 			</div>
 		{:else}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="text-[var(--color-text-secondary)]">
-					No sessions yet. Start practicing to see your progress!
+				<p class="italic text-[var(--color-text-secondary)]">
+					The record's still spinning. Play a session to start the history.
 				</p>
 				<a
 					href="/practice"
@@ -351,7 +363,7 @@
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
-								class="h-full rounded-full bg-blue-500"
+								class="h-full rounded-full bg-[var(--color-accent)]"
 								style="width: {Math.round(progress.adaptive.pitchComplexity)}%"
 							></div>
 						</div>
@@ -363,7 +375,7 @@
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
-								class="h-full rounded-full bg-green-500"
+								class="h-full rounded-full bg-[var(--color-brass)]"
 								style="width: {Math.round(progress.adaptive.rhythmComplexity)}%"
 							></div>
 						</div>
