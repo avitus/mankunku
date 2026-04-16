@@ -64,8 +64,14 @@ function makeResult(key: PitchClass, score: number, tempo: number): LickPractice
 function setupLick(opts: {
 	currentTempo: number;
 	results: Array<{ key: PitchClass; score: number }>;
+	/**
+	 * Keys present on the plan item. Defaults to the scored keys. Tests that
+	 * want to verify the adjustment is applied to unattempted keys too should
+	 * pass a superset here.
+	 */
+	plannedKeys?: PitchClass[];
 }): void {
-	const keys: PitchClass[] = opts.results.map((r) => r.key);
+	const keys: PitchClass[] = opts.plannedKeys ?? opts.results.map((r) => r.key);
 	const plan: LickPracticePlanItem[] = [
 		{
 			phraseId: LICK_ID,
@@ -218,17 +224,23 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 	});
 
 	it("applies the adjustment to all of the lick's keys, not just the scored ones", () => {
+		// Plan has 5 keys but the user only scored 2 before the session rolled
+		// over — the 3 unscored keys should still get the new tempo, proving
+		// the write loops over item.keys rather than keyResults.
 		setupLick({
 			currentTempo: 80,
 			results: [
 				{ key: 'C', score: 0.5 },
-				{ key: 'F', score: 0.5 },
-				{ key: 'G', score: 0.5 }
-			]
+				{ key: 'F', score: 0.5 }
+			],
+			plannedKeys: ['C', 'F', 'G', 'D', 'Eb']
 		});
 		startInterLickTransition();
+		// avg = 0.5 → -3, new tempo = 77
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(77);
 		expect(lickPractice.progress[LICK_ID]?.F?.currentTempo).toBe(77);
 		expect(lickPractice.progress[LICK_ID]?.G?.currentTempo).toBe(77);
+		expect(lickPractice.progress[LICK_ID]?.D?.currentTempo).toBe(77);
+		expect(lickPractice.progress[LICK_ID]?.Eb?.currentTempo).toBe(77);
 	});
 });

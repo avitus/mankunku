@@ -12,8 +12,11 @@
  *   responds for `lengthBars` bars, repeat for all 12 keys.
  *
  * Scoring runs silently each key and appears only in the end-of-session
- * report. No retries. All 12 keys passed (score ≥ 80%) → tempo bumps for
- * this lick on the next session.
+ * report. No retries. At the end of each lick, the average score across the
+ * attempted keys is fed through `computeAutoTempoAdjustment` to produce a
+ * signed BPM delta (+5/+2/−1/−3). That delta is added to the current tempo,
+ * clamped to [MIN_TEMPO, MAX_TEMPO], and persisted for every key in the lick
+ * so the whole set ratchets up or down together based on overall performance.
  */
 
 import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music.ts';

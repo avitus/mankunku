@@ -297,7 +297,7 @@ export interface PlannedKey {
 
 - `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ 0.80.
 - `advance(): 'next-key' | 'end-of-lick'` — Move to the next key; returns `'end-of-lick'` when the current lick's keys are exhausted.
-- `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply tempo adjustment (auto-adjust uses avg-score delta; otherwise requires all 12 keys passed), move to the next lick or mark session complete.
+- `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the always-on score-weighted tempo adjustment (average score across attempted keys → signed delta via `computeAutoTempoAdjustment`, clamped and persisted to every key in the lick), then move to the next lick or mark session complete.
 - `updateElapsedTime(): void`
 - `resetSession(): void`
 - `getSessionReport(): SessionReport` — Build the end-of-session report from archived attempts, including any in-progress lick.
