@@ -2,6 +2,18 @@
 
 Newest at the top.
 
+## 2026-04-16 — Fix chord/demo alignment in continuous lick practice
+
+**What happened:**
+
+- Diagnosed the recurring chord/demo alignment bug in continuous lick practice mode (second lick onwards)
+- Root cause: visual tracking used seconds-based anchors computed with constant-BPM formula, which diverges from actual `transport.seconds` when tempo changes between licks (~3 second / ~5 beat error)
+- Fix: replaced seconds-based tracking with tick-based; applied BPM synchronously; cleaned up backing Part start pattern
+- Files changed: `src/routes/lick-practice/session/+page.svelte`, `src/lib/audio/backing-track.ts`
+- All 1341 tests pass, zero new type errors
+
+---
+
 ## 2026-04-16 — Session start; memory restructure
 
 **What happened:**

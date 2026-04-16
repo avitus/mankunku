@@ -79,18 +79,24 @@
 
 	// Continuous-scroll preview state. plannedKeysForLick is set at lick
 	// start; scrollFraction is updated each animation frame from
-	// transport.seconds via startBeatTracking().
+	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
 	let scrollFraction = $state(0);
-	// Non-reactive timing anchors. Updated only at lick start, then read
-	// each animation frame to compute scrollFraction.
-	let lickStartSeconds = 0;
-	// Transport seconds at which the current lick's audio first sounds
+	// Non-reactive tick-based timing anchors. Updated only at lick start,
+	// then read each animation frame to compute scrollFraction and
+	// currentBeat. Using ticks instead of seconds avoids the constant-BPM
+	// assumption that breaks when tempo changes between licks — ticks are
+	// tempo-independent.
+	let lickStartTick = 0;
+	// Transport tick at which the current lick's audio first sounds
 	// (demo in continuous mode, first app-phrase in call-response).  Used
 	// to freeze the beat indicator during the inter-lick rest so the newly
 	// shown first row doesn't animate before its demo starts.
-	let lickAudioStartSeconds = 0;
-	let secondsPerKey = 0;
+	let lickAudioStartTick = 0;
+	let ticksPerKey = 0;
+	// Beat-wrap length for the chord chart highlight. Updated on every lick
+	// boundary so licks with different progression lengths wrap correctly.
+	let beatLoopBeats = 0;
 
 	// Inter-lick rest: 2 bars of backing-only between licks.
 	const INTER_LICK_REST_BARS = 2;
@@ -293,10 +299,9 @@
 		// scroll preview. Both update on every lick boundary so the scroll
 		// resets cleanly when a new lick starts (and adapts to a possible
 		// tempo change at the same time).
-		const tempo = lickPractice.currentTempo;
-		const oneBarSeconds = (beatsPerBar * 60) / tempo;
 		plannedKeysForLick = getPlannedKeysForLick(lickIdx);
-		secondsPerKey = keyBars * oneBarSeconds;
+		ticksPerKey = keyBars * ticksPerBar;
+		beatLoopBeats = progressionBars * beatsPerBar;
 
 		lickPractice.phase = 'lick-running';
 		lickPractice.currentKeyIndex = 0;
@@ -308,13 +313,13 @@
 			isSessionRunning = true;
 			currentBeat = 0;
 			scrollFraction = 0;
-			// Transport starts at 0; the count-in occupies bar 1. After the
-			// count-in, the demo plays for `demoBars` bars (continuous only).
-			// The first user recording window therefore opens at transport
-			// seconds (1 + demoBars) × oneBarSeconds.
-			lickAudioStartSeconds = oneBarSeconds;
-			lickStartSeconds = (1 + demoBars) * oneBarSeconds;
-			startBeatTracking(progressionBars, beatsPerBar);
+			// Transport starts at tick 0; the count-in occupies 1 bar. After
+			// the count-in, the demo plays for `demoBars` bars (continuous
+			// only). Anchors are in ticks (tempo-independent) so they stay
+			// correct even when BPM changes between licks.
+			lickAudioStartTick = ticksPerBar;
+			lickStartTick = (1 + demoBars) * ticksPerBar;
+			startBeatTracking();
 
 			// playPhrase schedules count-in (1 bar) + metronome + backing +
 			// the full super-phrase melody (which now includes the continuous
@@ -348,13 +353,20 @@
 			// scheduling agree on the exact bar boundary.
 			const audioStartTick = nextAudioStartTick!;
 
-			// Convert rest + demo bars to seconds for the scroll anchor.
-			// audioStartTick is the tick where the new lick's audio begins;
-			// the first user window opens demoBars later.
-			const audioStartSeconds = (audioStartTick / ppq) * (60 / tempo);
-			const demoSeconds = demoBars * oneBarSeconds;
-			lickAudioStartSeconds = audioStartSeconds;
-			lickStartSeconds = audioStartSeconds + demoSeconds;
+			// Set BPM synchronously so the inter-lick rest plays at the new
+			// tempo immediately, before scheduleNextPhrase's async setup.
+			// Without this, the metronome runs at the old BPM until
+			// scheduleNextPhrase's await getTone() resolves.
+			if (toneModule) {
+				toneModule.getTransport().bpm.value = opts.tempo;
+			}
+
+			// Tick-based anchors for the scroll and beat tracking. Ticks are
+			// tempo-independent, so these stay correct regardless of BPM
+			// history — unlike the old seconds-based anchors which assumed
+			// constant BPM from Transport start.
+			lickAudioStartTick = audioStartTick;
+			lickStartTick = audioStartTick + demoBars * ticksPerBar;
 			scrollFraction = 0;
 
 			void playback.scheduleNextPhrase(superPhrase, opts, {
@@ -460,6 +472,10 @@
 	 * highlighting on the active row) and the UpcomingKeysDisplay's
 	 * continuous scroll position.
 	 *
+	 * Uses transport.ticks (not transport.seconds) so the tracking stays
+	 * correct across BPM changes between licks. Ticks are tempo-independent
+	 * — they always advance at PPQ ticks per quarter note regardless of BPM.
+	 *
 	 * - currentBeat wraps at `progressionBars * beatsPerBar` so the chart's
 	 *   beat indicator cycles through each full progression play. In
 	 *   continuous mode that's once per key (user cycle); in call-response
@@ -469,29 +485,29 @@
 	 * - scrollFraction is in "key units": 0 at lick start, 1 at the
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
-	function startBeatTracking(progressionBars: number, beatsPerBar: number) {
-		const loopBeats = progressionBars * beatsPerBar;
+	function startBeatTracking() {
+		const ppq = toneModule!.getTransport().PPQ;
 		function tick() {
 			if (!isSessionRunning) return;
 			if (toneModule) {
-				const transport = toneModule.getTransport();
-				const seconds = transport.seconds;
-				const beatsPerSecond = lickPractice.currentTempo / 60;
+				const ticks = toneModule.getTransport().ticks;
+
 				// Anchor the beat indicator to when the current lick's audio
 				// actually starts (count-in end for lick 1, audioStartTick for
 				// subsequent licks).  This freezes currentBeat at 0 during the
 				// inter-lick rest so the newly shown first row doesn't animate
 				// through beats before its demo plays.
-				const phrasePos = (seconds - lickAudioStartSeconds) * beatsPerSecond;
-				currentBeat = phrasePos < 0 ? 0 : phrasePos % loopBeats;
+				const elapsedTicks = ticks - lickAudioStartTick;
+				const phrasePos = elapsedTicks < 0 ? 0 : elapsedTicks / ppq;
+				currentBeat = beatLoopBeats > 0 ? phrasePos % beatLoopBeats : 0;
 
 				// Continuous scroll position for the upcoming-keys preview.
 				// Clamped to the number of planned keys so the display
 				// never scrolls past the last key into phantom rows.
-				const elapsedInLick = seconds - lickStartSeconds;
+				const scrollTicks = ticks - lickStartTick;
 				const rawScroll =
-					elapsedInLick > 0 && secondsPerKey > 0
-						? elapsedInLick / secondsPerKey
+					scrollTicks > 0 && ticksPerKey > 0
+						? scrollTicks / ticksPerKey
 						: 0;
 				scrollFraction = Math.min(rawScroll, plannedKeysForLick.length);
 			}

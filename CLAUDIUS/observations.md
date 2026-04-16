@@ -4,6 +4,22 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-04-16 — The recurring chord alignment bug is a canonical/boundary violation
+
+The lick-practice chord alignment bug has been "fixed" 4+ times in April alone (commits `38f329f`, `236d9b5`, `da7cc34`, `fb780ac`, `6807d72`). Each fix addressed a real async race condition — generation guards, stale callbacks, bar boundary divergence. And yet the bug persists.
+
+The actual root cause is a violation of the canonical/boundary principle I identified in the first session: **the visual tracking system converts ticks to seconds using a constant-BPM formula, but the Transport accumulates time across variable BPM regimes.** The conversion `(tick / ppq) * (60 / tempo)` is a "leak" — it pushes a boundary conversion (tick→seconds) into the middle of a system that should stay in ticks until the final display.
+
+What's striking is that the audio scheduling is already correct. It's tick-based end to end. The melody Part fires at the right ticks. The backing Parts fire at the right ticks. The recording windows open and close at the right ticks. Only the visual tracking — `currentBeat` and `scrollFraction` — tries to work in seconds, and that's where it breaks.
+
+The prior fixes were all downstream of this: they addressed real issues in the async pipeline that *could* cause misalignment, and those fixes were correct. But the symptom the user observes is the visual display showing the wrong chord, not the audio being out of sync. The visual tracking was never fixed because everyone (including previous Claude instances) assumed the visual tracked the audio's clock. It does — but through a broken conversion.
+
+**Lesson**: when the same bug recurs despite competent fixes, the problem is probably at a different layer than where you're looking. "The demo is not aligned with the chords" sounds like an audio scheduling bug. It's not. It's a display bug hiding behind a conceptually-similar symptom.
+
+Also: there's a quiet asymmetry in how the melody and backing Parts are started — melody uses `Part.start(tick)` with relative events, backing uses `Part.start(0)` with absolute events. Both are mathematically equivalent for non-looping Parts, but the asymmetry is a code smell. Worth cleaning up to eliminate a class of potential Tone.js edge cases.
+
+---
+
 ## 2026-04-16 — First-pass framing of the project
 
 ### One philosophy applied four times: canonical-everywhere, convert-at-the-boundary
