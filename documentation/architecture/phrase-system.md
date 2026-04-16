@@ -100,7 +100,7 @@ Places chord tones on strong beats (every 2 beats). For each beat position:
 1. Find the active `HarmonicSegment`
 2. Get chord tones for that segment's chord
 3. Voice-lead: pick the chord tone closest to the previous target (checking multiple octaves)
-4. Constrain to instrument range (MIDI 44–76 for tenor sax)
+4. Constrain to the tenor-sax concert range (MIDI 44–75)
 
 ### Stage 2: Approach Patterns
 
@@ -173,7 +173,7 @@ Enforces musical constraints to keep generated/mutated phrases sounding idiomati
 | `maxInterval` | 14 | Maximum semitone leap between consecutive notes |
 | `maxConsecutiveLeaps` | 3 | Max consecutive intervals > 2 semitones |
 | `minStepRatio` | 0.3 | Minimum ratio of steps (<=2 semitones) to total intervals |
-| `range` | [44, 84] | MIDI range bounds |
+| `range` | [44, 75] | MIDI range bounds (concert Ab2–Eb5, tenor sax default) |
 | `leapRecovery` | true | After a large leap, require stepwise motion in the opposite direction |
 | `leapRecoveryThreshold` | 7 | Semitones above which leap recovery is enforced |
 | `minDirectionChanges` | 1 | Minimum number of melodic direction changes |
