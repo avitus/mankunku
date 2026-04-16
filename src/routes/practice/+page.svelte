@@ -392,9 +392,9 @@
 			const swingForRescore = settings.swing;
 			const scheduleForRescore = getActiveSchedule();
 			const bleedFilterEnabled = settings.bleedFilterEnabled;
-			const provisionalScore = session.lastScore;
-			const provisionalNotes = session.recordedNotes;
-			const provisionalBleedLog = session.bleedFilterLog;
+			const provisionalScore = $state.snapshot(session.lastScore);
+			const provisionalNotes = $state.snapshot(session.recordedNotes);
+			const provisionalBleedLog = $state.snapshot(session.bleedFilterLog);
 			const rescoreId = ++latestRescoreId;
 			recorderHandle = null;
 			handle.stop().then(async (blob) => {

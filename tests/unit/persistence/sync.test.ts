@@ -160,7 +160,7 @@ const TEST_PROGRESS: UserProgress = {
 	scaleProficiency: {
 		'blues.minor': {
 			level: 25,
-			recentScores: [70, 75, 80],
+			recentScores: [0.70, 0.75, 0.80],
 			attemptsAtLevel: 8,
 			attemptsSinceChange: 3,
 			totalAttempts: 20
@@ -169,7 +169,7 @@ const TEST_PROGRESS: UserProgress = {
 	keyProficiency: {
 		C: {
 			level: 30,
-			recentScores: [80, 85],
+			recentScores: [0.80, 0.85],
 			attemptsAtLevel: 6,
 			attemptsSinceChange: 2,
 			totalAttempts: 15
@@ -506,7 +506,7 @@ describe('loadProgressFromCloud', () => {
 			expect(bluesMinor).toBeDefined();
 			if (bluesMinor) {
 				expect(bluesMinor.level).toBe(25);
-				expect(bluesMinor.recentScores).toEqual([70, 75, 80]);
+				expect(bluesMinor.recentScores).toEqual([0.70, 0.75, 0.80]);
 				expect(bluesMinor.attemptsAtLevel).toBe(8);
 				expect(bluesMinor.attemptsSinceChange).toBe(3);
 				expect(bluesMinor.totalAttempts).toBe(20);
@@ -517,7 +517,7 @@ describe('loadProgressFromCloud', () => {
 			expect(cKey).toBeDefined();
 			if (cKey) {
 				expect(cKey.level).toBe(30);
-				expect(cKey.recentScores).toEqual([80, 85]);
+				expect(cKey.recentScores).toEqual([0.80, 0.85]);
 				expect(cKey.attemptsAtLevel).toBe(6);
 				expect(cKey.attemptsSinceChange).toBe(2);
 				expect(cKey.totalAttempts).toBe(15);
