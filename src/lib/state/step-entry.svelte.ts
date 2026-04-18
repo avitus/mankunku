@@ -52,8 +52,9 @@ function isInEntryRange(midi: number): boolean {
 }
 
 export const stepEntry = $state({
-	currentDuration: 'quarter' as BaseDurationId,
+	currentDuration: 'eighth' as BaseDurationId,
 	tripletMode: false,
+	dottedMode: false,
 	selectedOctave: 4,
 	accidental: 'natural' as 'sharp' | 'flat' | 'natural',
 	enteredNotes: [] as Note[],
@@ -140,7 +141,7 @@ export function addNote(
 	pitchClass: number, octave: number,
 	accidental: 'sharp' | 'flat' | 'natural'
 ): boolean {
-	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode);
+	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
 	if (!canAddDuration(duration)) return false;
 
 	// When no explicit accidental is set, apply the key signature.
@@ -188,7 +189,7 @@ function findLastPitchedNote(): number | null {
 }
 
 export function addRest(): boolean {
-	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode);
+	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
 	if (!canAddDuration(duration)) return false;
 
 	const offset = getCurrentCursorOffset();
@@ -243,6 +244,12 @@ export function setDuration(id: BaseDurationId): void {
 
 export function toggleTriplet(): void {
 	stepEntry.tripletMode = !stepEntry.tripletMode;
+	if (stepEntry.tripletMode) stepEntry.dottedMode = false;
+}
+
+export function toggleDotted(): void {
+	stepEntry.dottedMode = !stepEntry.dottedMode;
+	if (stepEntry.dottedMode) stepEntry.tripletMode = false;
 }
 
 export function setAccidental(acc: 'sharp' | 'flat' | 'natural'): void {

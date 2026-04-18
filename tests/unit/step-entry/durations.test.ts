@@ -10,8 +10,8 @@ import {
 } from '$lib/step-entry/durations';
 
 describe('DURATIONS', () => {
-	it('has all 8 duration entries', () => {
-		expect(Object.keys(DURATIONS)).toHaveLength(8);
+	it('has all 10 duration entries', () => {
+		expect(Object.keys(DURATIONS)).toHaveLength(10);
 	});
 
 	it('whole note is [1, 1]', () => {
@@ -29,6 +29,11 @@ describe('DURATIONS', () => {
 		expect(DURATIONS['quarter-triplet']).toEqual([1, 6]);
 		expect(DURATIONS['eighth-triplet']).toEqual([1, 12]);
 	});
+
+	it('dotted durations are 1.5x base', () => {
+		expect(DURATIONS['half-dotted']).toEqual([3, 4]);
+		expect(DURATIONS['quarter-dotted']).toEqual([3, 8]);
+	});
 });
 
 describe('BASE_DURATION_IDS', () => {
@@ -41,7 +46,8 @@ describe('DURATION_DISPLAY_NAMES', () => {
 	it('has a display name for every DurationId', () => {
 		const allIds: DurationId[] = [
 			'whole', 'half', 'quarter', 'eighth',
-			'whole-triplet', 'half-triplet', 'quarter-triplet', 'eighth-triplet'
+			'whole-triplet', 'half-triplet', 'quarter-triplet', 'eighth-triplet',
+			'half-dotted', 'quarter-dotted'
 		];
 		for (const id of allIds) {
 			expect(DURATION_DISPLAY_NAMES[id]).toBeTruthy();
@@ -72,5 +78,19 @@ describe('getDurationFraction', () => {
 
 	it('returns half triplet correctly', () => {
 		expect(getDurationFraction('half', true)).toEqual([1, 3]);
+	});
+
+	it('returns dotted duration for half and quarter', () => {
+		expect(getDurationFraction('half', false, true)).toEqual([3, 4]);
+		expect(getDurationFraction('quarter', false, true)).toEqual([3, 8]);
+	});
+
+	it('ignores dotted flag for whole and eighth', () => {
+		expect(getDurationFraction('whole', false, true)).toEqual([1, 1]);
+		expect(getDurationFraction('eighth', false, true)).toEqual([1, 8]);
+	});
+
+	it('dotted takes precedence over triplet', () => {
+		expect(getDurationFraction('quarter', true, true)).toEqual([3, 8]);
 	});
 });

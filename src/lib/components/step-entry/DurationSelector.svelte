@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { stepEntry, setDuration, toggleTriplet } from '$lib/state/step-entry.svelte';
-	import { BASE_DURATION_IDS, DURATION_DISPLAY_NAMES, getDurationFraction, type BaseDurationId, type DurationId } from '$lib/step-entry/durations';
+	import { stepEntry, setDuration, toggleTriplet, toggleDotted } from '$lib/state/step-entry.svelte';
+	import { BASE_DURATION_IDS, DOTTED_BASES, DURATION_DISPLAY_NAMES, getDurationFraction, type BaseDurationId, type DurationId } from '$lib/step-entry/durations';
 
 	const labels: Record<BaseDurationId, string> = {
 		whole: '1', half: '\u00BD', quarter: '\u00BC', eighth: '\u215B'
@@ -11,7 +11,11 @@
 	};
 
 	const resolvedId: DurationId = $derived(
-		stepEntry.tripletMode ? `${stepEntry.currentDuration}-triplet` : stepEntry.currentDuration
+		stepEntry.dottedMode && DOTTED_BASES.has(stepEntry.currentDuration)
+			? `${stepEntry.currentDuration}-dotted` as DurationId
+			: stepEntry.tripletMode
+				? `${stepEntry.currentDuration}-triplet`
+				: stepEntry.currentDuration
 	);
 
 	const resolvedName = $derived(DURATION_DISPLAY_NAMES[resolvedId]);
@@ -42,6 +46,15 @@
 					: 'border-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-secondary)]'}"
 		>
 			Triplet <span class="text-[10px] opacity-50">T</span>
+		</button>
+		<button
+			onclick={toggleDotted}
+			class="rounded border px-3 py-1.5 text-sm transition-colors
+				{stepEntry.dottedMode
+					? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10'
+					: 'border-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:border-[var(--color-text-secondary)]'}"
+		>
+			Dotted <span class="text-[10px] opacity-50">.</span>
 		</button>
 		<span class="text-sm text-[var(--color-text-secondary)]">{resolvedName}</span>
 	</div>
