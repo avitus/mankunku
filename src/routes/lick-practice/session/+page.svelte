@@ -766,7 +766,7 @@
 		onsetDetector = null;
 		// Release microphone
 		if (micCapture) {
-			micCapture.stream.getTracks().forEach(t => t.stop());
+			captureModule?.stopMicCapture();
 			micCapture = null;
 		}
 	}
