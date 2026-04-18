@@ -17,9 +17,9 @@
 	const today = new Date();
 	const todayStr = localDateStr(today);
 
-	// Find the start: go back ~1 year to the nearest Sunday
+	// Find the start: this week's Sunday, then back (WEEKS-1) more weeks
 	const startDate = new Date(today);
-	startDate.setDate(startDate.getDate() - (WEEKS * 7 - 1) - startDate.getDay());
+	startDate.setDate(startDate.getDate() - startDate.getDay() - (WEEKS - 1) * 7);
 
 	// Get all summaries in range
 	const startStr = localDateStr(startDate);
