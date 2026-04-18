@@ -62,13 +62,6 @@
 		return 'neutral';
 	});
 
-	const domainLabel = $derived(
-		dataDomain === 'ear-training'
-			? 'Ear Training'
-			: dataDomain === 'lick-practice'
-				? 'Lick Practice'
-				: ''
-	);
 
 	onMount(() => {
 		applyTheme();
@@ -135,13 +128,6 @@
 				>
 					MANKUNKU
 				</a>
-				{#if dataDomain !== 'neutral'}
-					<span
-						class="smallcaps border border-[var(--color-brass)]/60 px-1.5 py-0.5 text-[var(--color-brass)]"
-					>
-						{domainLabel}
-					</span>
-				{/if}
 			</div>
 
 			<!-- Desktop nav -->
