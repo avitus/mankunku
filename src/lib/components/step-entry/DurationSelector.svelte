@@ -49,6 +49,7 @@
 		</button>
 		<button
 			onclick={toggleDotted}
+			aria-pressed={stepEntry.dottedMode}
 			class="rounded border px-3 py-1.5 text-sm transition-colors
 				{stepEntry.dottedMode
 					? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/10'
