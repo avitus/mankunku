@@ -357,12 +357,13 @@ export function getSubstitutionAlignmentOffset(
 	progressionType: ChordProgressionType,
 	lickCategory: PhraseCategory
 ): Fraction | null {
-	const rule = CHORD_SUBSTITUTION_RULES.find(r => r.sourceCategory === lickCategory);
-	if (!rule) return null;
-
 	const template = PROGRESSION_TEMPLATES[progressionType];
-	const match = template.harmony.find(seg => seg.chord.quality === rule.targetQuality);
-	return match ? match.startOffset : null;
+	for (const rule of CHORD_SUBSTITUTION_RULES) {
+		if (rule.sourceCategory !== lickCategory) continue;
+		const match = template.harmony.find(seg => seg.chord.quality === rule.targetQuality);
+		if (match) return match.startOffset;
+	}
+	return null;
 }
 
 /**
@@ -410,12 +411,14 @@ export function getActiveSubstitution(
 	);
 	if (nativeEntry) return null;
 
-	const rule = CHORD_SUBSTITUTION_RULES.find(r => r.sourceCategory === lickCategory);
-	if (!rule) return null;
-
 	const template = PROGRESSION_TEMPLATES[progressionType];
-	const hasTarget = template.harmony.some(seg => seg.chord.quality === rule.targetQuality);
-	return hasTarget ? rule : null;
+	for (const rule of CHORD_SUBSTITUTION_RULES) {
+		if (rule.sourceCategory !== lickCategory) continue;
+		if (template.harmony.some(seg => seg.chord.quality === rule.targetQuality)) {
+			return rule;
+		}
+	}
+	return null;
 }
 
 /** True when the progression contains at least one chord eligible for substitution. */
