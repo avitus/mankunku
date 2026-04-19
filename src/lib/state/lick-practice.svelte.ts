@@ -48,10 +48,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types.ts';
 import {
 	PROGRESSION_TEMPLATES,
-	getChordRootAtOffset,
 	getCompatibleLickCategories,
-	getLickAlignmentOffset,
-	isChordQualityCategory,
+	getSubstitutionCategories,
+	resolveLickAlignmentOffset,
+	resolveTransposeTarget,
 	transposeProgression
 } from '$lib/data/progressions.ts';
 import { getAllLicks, transposeLick } from '$lib/phrases/library-loader.ts';
@@ -90,7 +90,8 @@ export const lickPractice = $state<{
 		tempoIncrement: 5,
 		practiceMode: 'continuous',
 		backingStyle: 'swing',
-		autoAdjustTempo: false
+		autoAdjustTempo: false,
+		enableSubstitutions: false
 	},
 	phase: 'setup',
 	plan: [],
@@ -136,7 +137,9 @@ export async function hydrateLickPracticeProgress(
  * Get all licks tagged for practice that match the selected progression.
  * A lick must have the 'practice' tag, and matches if either:
  *   1. Its curated category is compatible with the progression, OR
- *   2. It has a user-assigned progression tag for the selected progression type.
+ *   2. It has a user-assigned progression tag for the selected progression type, OR
+ *   3. Its category is a substitution source for the progression and
+ *      `enableSubstitutions` is on (e.g. `minor-chord` over a `7` chord).
  */
 export function getPracticeLicks(): Phrase[] {
 	const taggedIds = getPracticeTaggedIds();
@@ -144,13 +147,18 @@ export function getPracticeLicks(): Phrase[] {
 
 	const progressionType = lickPractice.config.progressionType;
 	const compatibleCategories = getCompatibleLickCategories(progressionType);
+	const substitutionCategories = getSubstitutionCategories(
+		progressionType,
+		lickPractice.config.enableSubstitutions ?? false
+	);
 	const allLicks = getAllLicks();
 
 	return allLicks.filter(lick => {
 		if (!taggedIds.has(lick.id)) return false;
 		const matchesByCategory = compatibleCategories.includes(lick.category);
 		const matchesByProgressionTag = isTaggedForProgression(lick.id, progressionType);
-		return matchesByCategory || matchesByProgressionTag;
+		const matchesBySubstitution = substitutionCategories.includes(lick.category);
+		return matchesByCategory || matchesByProgressionTag || matchesBySubstitution;
 	});
 }
 
@@ -285,18 +293,29 @@ function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
+	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 	const template = PROGRESSION_TEMPLATES[progressionType];
-	const alignmentOffset = getLickAlignmentOffset(progressionType, baseLick.category);
+	const alignmentOffset = resolveLickAlignmentOffset(
+		progressionType,
+		baseLick.category,
+		enableSubstitutions
+	);
 
 	// Chord-quality licks (e.g. a 1-bar `minor-chord` lick) are rooted on a
 	// single chord. They must transpose to the ROOT of the target chord in
 	// the progression, not the session key — otherwise a Cm7 lick placed at
 	// the ii of an F ii-V-I would play in Fm7 instead of Gm7.
-	let transposeTarget = key;
-	if (isChordQualityCategory(baseLick.category)) {
-		const targetRoot = getChordRootAtOffset(progressionType, key, alignmentOffset);
-		if (targetRoot) transposeTarget = targetRoot;
-	}
+	//
+	// When a substitution rule applies (e.g. minor-over-dominant), the target
+	// root is then shifted by the rule's semitone offset — a Cm7 lick played
+	// over G7 transposes to Ab, producing Abm7 over G7 for altered sonority.
+	const transposeTarget = resolveTransposeTarget(
+		key,
+		baseLick.category,
+		progressionType,
+		alignmentOffset,
+		enableSubstitutions
+	);
 
 	const instrument = getInstrument();
 	const transposed = transposeLick(
@@ -425,6 +444,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
+	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 	const template = PROGRESSION_TEMPLATES[progressionType];
 	const progressionBars = template.bars;
 	const mode = lickPractice.config.practiceMode;
@@ -435,17 +455,26 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 
 	// Shift applied to every melody note so short-form licks (e.g. a 2-bar
 	// V-I lick inside a 4-bar ii-V-I) land on the matching bar of the
-	// progression cycle. `[0, 1]` means no shift.
-	const alignmentOffset = getLickAlignmentOffset(progressionType, baseLick.category);
-	const isChordQuality = isChordQualityCategory(baseLick.category);
+	// progression cycle. `[0, 1]` means no shift. When substitutions are on,
+	// this falls back to the substitution target chord's offset.
+	const alignmentOffset = resolveLickAlignmentOffset(
+		progressionType,
+		baseLick.category,
+		enableSubstitutions
+	);
 
 	// For chord-quality licks, transpose to the target chord's root rather
-	// than the session key (see buildPhraseFor for the rationale).
-	const resolveTransposeTarget = (sessionKey: PitchClass): PitchClass => {
-		if (!isChordQuality) return sessionKey;
-		const root = getChordRootAtOffset(progressionType, sessionKey, alignmentOffset);
-		return root ?? sessionKey;
-	};
+	// than the session key (see buildPhraseFor for the rationale). When a
+	// substitution rule applies, the resolver shifts the root by the rule's
+	// semitone offset.
+	const targetFor = (sessionKey: PitchClass): PitchClass =>
+		resolveTransposeTarget(
+			sessionKey,
+			baseLick.category,
+			progressionType,
+			alignmentOffset,
+			enableSubstitutions
+		);
 
 	const superHarmony: HarmonicSegment[] = [];
 	const superNotes: Note[] = [];
@@ -464,7 +493,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		}
 		const demoLick = transposeLick(
 			baseLick,
-			resolveTransposeTarget(firstKey),
+			targetFor(firstKey),
 			instrument.concertRangeLow,
 			highestNote
 		);
@@ -510,7 +539,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		if (mode === 'call-response') {
 			const transposed = transposeLick(
 				baseLick,
-				resolveTransposeTarget(key),
+				targetFor(key),
 				instrument.concertRangeLow,
 				highestNote
 			);

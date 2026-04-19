@@ -1,7 +1,10 @@
 <script lang="ts">
 	import type { LickPracticeConfig, LickPracticeMode } from '$lib/types/lick-practice.ts';
 	import type { BackingStyle } from '$lib/types/instruments.ts';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions.ts';
+	import {
+		PROGRESSION_TEMPLATES,
+		progressionHasSubstitutionTargets
+	} from '$lib/data/progressions.ts';
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles.ts';
 
 	interface Props {
@@ -29,6 +32,7 @@
 	];
 
 	const canStart = $derived(availableLickCount > 0);
+	const showSubstitutions = $derived(progressionHasSubstitutionTargets(config.progressionType));
 </script>
 
 <div class="space-y-4">
@@ -50,6 +54,29 @@
 			{/each}
 		</div>
 	</div>
+
+	{#if showSubstitutions}
+		<div class="flex items-center gap-3">
+			<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Substitutions:</span>
+			<button
+				onclick={() => onupdate({ enableSubstitutions: !config.enableSubstitutions })}
+				aria-label="Include chord substitutions"
+				aria-pressed={config.enableSubstitutions ?? false}
+				class="relative h-5 w-9 shrink-0 rounded-full transition-colors
+					{config.enableSubstitutions
+						? 'bg-[var(--color-accent)]'
+						: 'bg-[var(--color-bg-tertiary)]'}"
+			>
+				<span
+					class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform
+						{config.enableSubstitutions ? 'translate-x-4' : ''}"
+				></span>
+			</button>
+			<span class="text-xs text-[var(--color-text-secondary)]">
+				Practice minor licks over dominant chords (advanced)
+			</span>
+		</div>
+	{/if}
 
 	<!-- Backing style pills -->
 	<div>

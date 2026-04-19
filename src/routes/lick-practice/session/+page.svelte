@@ -22,6 +22,7 @@
 		resetSession,
 		getSessionReport
 	} from '$lib/state/lick-practice.svelte';
+	import { getActiveSubstitution } from '$lib/data/progressions';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
@@ -108,6 +109,18 @@
 	const currentPhrase = $derived(getCurrentPhrase());
 	const instrument = $derived(getInstrument());
 	const totalSeconds = $derived(lickPractice.config.durationMinutes * 60);
+
+	// Label shown in the header when the current lick is playing via a
+	// harmonic substitution (e.g. minor lick shifted over a dominant chord).
+	const substitutionLabel = $derived.by(() => {
+		if (!currentItem) return null;
+		const rule = getActiveSubstitution(
+			lickPractice.config.progressionType,
+			currentItem.category,
+			lickPractice.config.enableSubstitutions ?? false
+		);
+		return rule?.name ?? null;
+	});
 
 	const pct = (n: number) => Math.round(n * 100);
 
@@ -771,6 +784,7 @@
 			progressionType={lickPractice.config.progressionType}
 			keyIndex={lickPractice.currentKeyIndex}
 			totalKeys={currentItem.keys.length}
+			{substitutionLabel}
 		/>
 
 		<!-- Continuous chord-block scroll: the lick's full key stack drifts

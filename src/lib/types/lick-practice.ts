@@ -1,4 +1,4 @@
-import type { PitchClass, PhraseCategory } from './music.ts';
+import type { PitchClass, PhraseCategory, ChordQuality } from './music.ts';
 import type { Score } from './scoring.ts';
 
 export type ChordProgressionType =
@@ -29,6 +29,29 @@ export interface LickPracticeConfig {
 	backingStyle: import('./instruments.ts').BackingStyle;
 	/** When true, tempo starts at 60 BPM and adjusts based on average score across 12 keys */
 	autoAdjustTempo: boolean;
+	/**
+	 * When true, include licks whose category can substitute over a compatible
+	 * chord in the progression (e.g. a minor lick played a semitone above a
+	 * dominant chord for altered/diminished color). See `CHORD_SUBSTITUTION_RULES`.
+	 */
+	enableSubstitutions?: boolean;
+}
+
+/**
+ * A harmonic substitution rule: licks curated for `sourceCategory` can be
+ * transposed over chords of `targetQuality` by shifting the chord root up
+ * by `semitoneOffset` semitones.
+ *
+ * Example: `minor-chord` lick (rooted on `Cm7`) played over a `G7` with
+ * `semitoneOffset = 1` becomes `Abm7` over `G7` — the classic "minor a
+ * half-step up" device that yields b9/#11/b13 altered sonority.
+ */
+export interface ChordSubstitutionRule {
+	id: string;
+	name: string;
+	sourceCategory: PhraseCategory;
+	targetQuality: ChordQuality;
+	semitoneOffset: number;
 }
 
 export interface LickPracticeKeyProgress {
