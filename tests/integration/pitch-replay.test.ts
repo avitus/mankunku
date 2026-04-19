@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { replayFromAudioBuffer } from '$lib/audio/replay';
-import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
-import { resolveOnsets } from '$lib/scoring/score-pipeline';
+import { segmentNotes, validateOnsets, resolveOnsets } from '$lib/audio/note-segmenter';
 import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**

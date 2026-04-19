@@ -13,9 +13,8 @@ import {
 	SETTLE_FRAMES,
 	MIN_ONSET_INTERVAL,
 } from '$lib/audio/onset-core';
-import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
+import { segmentNotes, validateOnsets, extractOnsetsFromReadings } from '$lib/audio/note-segmenter';
 import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
-import { extractOnsetsFromReadings } from '$lib/scoring/score-pipeline';
 import { scoreAttempt } from '$lib/scoring/scorer';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
