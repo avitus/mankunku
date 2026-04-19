@@ -214,16 +214,18 @@ describe('resolveOnsets', () => {
 		expect(result).toEqual([1.5]);
 	});
 
-	it('drops a trailing stable-run start within PREPEND_MIN_GAP of first worklet onset', () => {
+	it('replaces the worklet onset with a near-coincident stable-run start', () => {
 		// User played one note before the worklet caught up; the stable run
-		// and the worklet onset describe the same attack — only one onset.
+		// and the worklet onset describe the same attack. Pitch detection
+		// caught the attack earlier than HFC, so use the earlier time so
+		// the resulting note isn't fragmented across that boundary.
 		const readings = [
 			...makeStableRun(60, 0.90, 4), // stable run starts at 0.90
 			makeReading(60, 1.0),
 		];
 		const result = resolveOnsets([1.0], readings);
-		// 1.0 - 0.90 = 0.10 < PREPEND_MIN_GAP (0.15) → drop the prepend.
-		expect(result).toEqual([1.0]);
+		// 1.0 - 0.90 = 0.10 < ATTACK_DEDUP_WINDOW (0.15) → drop the worklet onset.
+		expect(result).toEqual([0.90]);
 	});
 
 	it('does not mutate input arrays', () => {

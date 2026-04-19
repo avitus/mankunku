@@ -145,4 +145,16 @@ describe('pitch replay regression: legato C-D-C recovers pre-worklet-onset notes
 		expect(detected[0].onsetTime).toBeLessThan(0.15);
 		expect(detected[0].midi).toBe(60);
 	});
+
+	it('detects exactly the three notes the user played, no ghosts', async () => {
+		// Strict assertion for Bug 2: a McLeod subharmonic during the bend
+		// at the end of the sustained final C used to leak through as a C3
+		// ghost AND split the real C4 into two segments.
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(readings, resolved, duration);
+
+		expect(detected.map((n) => n.midi)).toEqual([60, 62, 60]);
+	});
 });
