@@ -5,7 +5,17 @@ import {
 	PROGRESSION_LICK_CATEGORIES,
 	getLickAlignmentOffset,
 	getChordRootAtOffset,
-	isChordQualityCategory
+	isChordQualityCategory,
+	CHORD_SUBSTITUTION_RULES,
+	getSubstitutionCategories,
+	findApplicableSubstitution,
+	applySubstitutionOffset,
+	getSubstitutionAlignmentOffset,
+	resolveLickAlignmentOffset,
+	resolveTransposeTarget,
+	getActiveSubstitution,
+	progressionHasSubstitutionTargets,
+	getChordQualityAtOffset
 } from '$lib/data/progressions.ts';
 import type { ChordProgressionType } from '$lib/types/lick-practice.ts';
 import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
@@ -211,5 +221,240 @@ describe('isChordQualityCategory', () => {
 		expect(isChordQualityCategory('V-I-major')).toBe(false);
 		expect(isChordQualityCategory('ii-V-I-major')).toBe(false);
 		expect(isChordQualityCategory('pentatonic')).toBe(false);
+	});
+});
+
+describe('CHORD_SUBSTITUTION_RULES', () => {
+	it('includes the minor-over-dominant rule', () => {
+		const rule = CHORD_SUBSTITUTION_RULES.find(r => r.id === 'minor-over-dominant');
+		expect(rule).toBeDefined();
+		expect(rule?.sourceCategory).toBe('minor-chord');
+		expect(rule?.targetQuality).toBe('7');
+		expect(rule?.semitoneOffset).toBe(1);
+	});
+});
+
+describe('getSubstitutionCategories', () => {
+	it('returns [] when substitutions are disabled', () => {
+		expect(getSubstitutionCategories('ii-V-I-major', false)).toEqual([]);
+		expect(getSubstitutionCategories('blues', false)).toEqual([]);
+	});
+
+	it('includes minor-chord for ii-V-I-major (has G7)', () => {
+		expect(getSubstitutionCategories('ii-V-I-major', true)).toContain('minor-chord');
+	});
+
+	it('includes minor-chord for ii-V-I-major-long (has G7)', () => {
+		expect(getSubstitutionCategories('ii-V-I-major-long', true)).toContain('minor-chord');
+	});
+
+	it('includes minor-chord for blues (multiple 7 chords)', () => {
+		expect(getSubstitutionCategories('blues', true)).toContain('minor-chord');
+	});
+
+	it('includes minor-chord for turnaround (has A7 and G7)', () => {
+		expect(getSubstitutionCategories('turnaround', true)).toContain('minor-chord');
+	});
+
+	it('omits minor-chord for minor ii-V-I (V is 7alt, not 7)', () => {
+		expect(getSubstitutionCategories('ii-V-I-minor', true)).not.toContain('minor-chord');
+		expect(getSubstitutionCategories('ii-V-I-minor-long', true)).not.toContain('minor-chord');
+	});
+
+	it('does not return duplicate entries when multiple rules share a source category', () => {
+		const result = getSubstitutionCategories('blues', true);
+		const minorCount = result.filter(c => c === 'minor-chord').length;
+		expect(minorCount).toBeLessThanOrEqual(1);
+	});
+});
+
+describe('findApplicableSubstitution', () => {
+	it('finds minor-over-dominant for minor-chord + 7', () => {
+		const rule = findApplicableSubstitution('minor-chord', '7');
+		expect(rule).not.toBeNull();
+		expect(rule?.id).toBe('minor-over-dominant');
+	});
+
+	it('returns null for minor-chord + min7 (no rule)', () => {
+		expect(findApplicableSubstitution('minor-chord', 'min7')).toBeNull();
+	});
+
+	it('returns null for minor-chord + 7alt (rule targets 7, not 7alt)', () => {
+		expect(findApplicableSubstitution('minor-chord', '7alt')).toBeNull();
+	});
+
+	it('returns null for unrelated categories', () => {
+		expect(findApplicableSubstitution('pentatonic', '7')).toBeNull();
+		expect(findApplicableSubstitution('major-chord', '7')).toBeNull();
+	});
+});
+
+describe('applySubstitutionOffset', () => {
+	it('shifts G up by 1 semitone to Ab', () => {
+		expect(applySubstitutionOffset('G', 1)).toBe('Ab');
+	});
+
+	it('shifts C up by 1 semitone to Db', () => {
+		expect(applySubstitutionOffset('C', 1)).toBe('Db');
+	});
+
+	it('wraps B up by 1 semitone to C', () => {
+		expect(applySubstitutionOffset('B', 1)).toBe('C');
+	});
+
+	it('wraps modulo 12 for large positive offsets', () => {
+		expect(applySubstitutionOffset('C', 13)).toBe('Db');
+		expect(applySubstitutionOffset('C', 12)).toBe('C');
+	});
+
+	it('handles zero offset (identity)', () => {
+		for (const pc of PITCH_CLASSES) {
+			expect(applySubstitutionOffset(pc, 0)).toBe(pc);
+		}
+	});
+
+	it('handles negative offsets', () => {
+		expect(applySubstitutionOffset('C', -1)).toBe('B');
+		expect(applySubstitutionOffset('Ab', -1)).toBe('G');
+	});
+});
+
+describe('getSubstitutionAlignmentOffset', () => {
+	it('returns the V7 offset for minor-chord in short ii-V-I major (half-bar)', () => {
+		// In short ii-V-I-major, G7 starts at [1, 2] (half-bar).
+		expect(getSubstitutionAlignmentOffset('ii-V-I-major', 'minor-chord')).toEqual([1, 2]);
+	});
+
+	it('returns the V7 offset for minor-chord in long ii-V-I major (bar 1)', () => {
+		expect(getSubstitutionAlignmentOffset('ii-V-I-major-long', 'minor-chord')).toEqual([1, 1]);
+	});
+
+	it('returns the first 7 chord offset in blues (bar 0)', () => {
+		expect(getSubstitutionAlignmentOffset('blues', 'minor-chord')).toEqual([0, 1]);
+	});
+
+	it('returns null when no rule matches the category', () => {
+		expect(getSubstitutionAlignmentOffset('ii-V-I-major', 'pentatonic')).toBeNull();
+		expect(getSubstitutionAlignmentOffset('ii-V-I-major', 'major-chord')).toBeNull();
+	});
+
+	it('returns null when progression has no matching target quality', () => {
+		// Minor ii-V-I uses 7alt, not 7 — no match.
+		expect(getSubstitutionAlignmentOffset('ii-V-I-minor', 'minor-chord')).toBeNull();
+		expect(getSubstitutionAlignmentOffset('ii-V-I-minor-long', 'minor-chord')).toBeNull();
+	});
+});
+
+describe('resolveLickAlignmentOffset', () => {
+	it('prefers native mapping over substitution even when enableSubstitutions=true', () => {
+		// minor-chord natively maps to ii in long ii-V-I-major (offset [0,1]).
+		expect(resolveLickAlignmentOffset('ii-V-I-major-long', 'minor-chord', true)).toEqual([0, 1]);
+	});
+
+	it('falls back to substitution when no native mapping and enableSubstitutions=true', () => {
+		// minor-chord has NO native mapping in short ii-V-I-major.
+		expect(resolveLickAlignmentOffset('ii-V-I-major', 'minor-chord', true)).toEqual([1, 2]);
+	});
+
+	it('returns default [0,1] when no native mapping and enableSubstitutions=false', () => {
+		expect(resolveLickAlignmentOffset('ii-V-I-major', 'minor-chord', false)).toEqual([0, 1]);
+	});
+
+	it('returns default [0,1] for unknown category even with enableSubstitutions=true', () => {
+		expect(resolveLickAlignmentOffset('ii-V-I-major', 'pentatonic', true)).toEqual([0, 1]);
+	});
+});
+
+describe('getChordQualityAtOffset', () => {
+	it('returns min7 for ii at bar 0 of long ii-V-I-major', () => {
+		expect(getChordQualityAtOffset('ii-V-I-major-long', [0, 1])).toBe('min7');
+	});
+
+	it('returns 7 for V at bar 1 of long ii-V-I-major', () => {
+		expect(getChordQualityAtOffset('ii-V-I-major-long', [1, 1])).toBe('7');
+	});
+
+	it('returns 7 for V at half-bar in short ii-V-I-major', () => {
+		expect(getChordQualityAtOffset('ii-V-I-major', [1, 2])).toBe('7');
+	});
+
+	it('returns null when no segment starts at the offset', () => {
+		expect(getChordQualityAtOffset('ii-V-I-major-long', [7, 8])).toBeNull();
+	});
+});
+
+describe('resolveTransposeTarget', () => {
+	it('returns session key for non-chord-quality categories', () => {
+		expect(resolveTransposeTarget('F', 'pentatonic', 'ii-V-I-major-long', [0, 1], false)).toBe('F');
+		expect(resolveTransposeTarget('Bb', 'ii-V-I-major', 'ii-V-I-major-long', [0, 1], true)).toBe('Bb');
+	});
+
+	it('returns chord root for chord-quality categories', () => {
+		// Long ii-V-I in F → ii=Gm7, so minor-chord lick transposes to G.
+		expect(resolveTransposeTarget('F', 'minor-chord', 'ii-V-I-major-long', [0, 1], false)).toBe('G');
+	});
+
+	it('applies substitution offset when enableSubstitutions=true and rule matches', () => {
+		// Short ii-V-I in C, minor-chord via substitution → V=G7, shifted up 1 → Ab.
+		expect(resolveTransposeTarget('C', 'minor-chord', 'ii-V-I-major', [1, 2], true)).toBe('Ab');
+	});
+
+	it('does NOT apply substitution when enableSubstitutions=false', () => {
+		// Same setup but substitutions disabled — transposes to raw V root (G).
+		expect(resolveTransposeTarget('C', 'minor-chord', 'ii-V-I-major', [1, 2], false)).toBe('G');
+	});
+
+	it('does NOT apply substitution when target chord quality does not match rule', () => {
+		// minor-chord over ii (min7) does not match minor-over-dominant rule (targets 7).
+		// Transposes to raw ii root (D).
+		expect(resolveTransposeTarget('C', 'minor-chord', 'ii-V-I-major-long', [0, 1], true)).toBe('D');
+	});
+
+	it('applies substitution in multiple keys correctly', () => {
+		// In F ii-V-I-major-long, V=C7 → Cm7 lick substituted = Db.
+		expect(resolveTransposeTarget('F', 'minor-chord', 'ii-V-I-major-long', [1, 1], true)).toBe('Db');
+		// In Bb, V=F7 → shifted = Gb. But PITCH_CLASSES has 'F#' not 'Gb'.
+		expect(resolveTransposeTarget('Bb', 'minor-chord', 'ii-V-I-major-long', [1, 1], true)).toBe('F#');
+	});
+});
+
+describe('getActiveSubstitution', () => {
+	it('returns null when enableSubstitutions=false', () => {
+		expect(getActiveSubstitution('ii-V-I-major', 'minor-chord', false)).toBeNull();
+	});
+
+	it('returns null when the lick has a native mapping', () => {
+		// minor-chord natively maps to ii in long ii-V-I-major.
+		expect(getActiveSubstitution('ii-V-I-major-long', 'minor-chord', true)).toBeNull();
+	});
+
+	it('returns the rule when substitution is actually in play', () => {
+		// No native minor-chord mapping in short ii-V-I-major → substitution active.
+		const rule = getActiveSubstitution('ii-V-I-major', 'minor-chord', true);
+		expect(rule).not.toBeNull();
+		expect(rule?.id).toBe('minor-over-dominant');
+	});
+
+	it('returns null when the progression has no matching target chord', () => {
+		// ii-V-I-minor uses 7alt for V, not 7 — rule does not fire.
+		expect(getActiveSubstitution('ii-V-I-minor', 'minor-chord', true)).toBeNull();
+	});
+
+	it('returns the rule on blues where minor-chord has no native mapping', () => {
+		expect(getActiveSubstitution('blues', 'minor-chord', true)?.id).toBe('minor-over-dominant');
+	});
+});
+
+describe('progressionHasSubstitutionTargets', () => {
+	it('is true for progressions with a 7 chord', () => {
+		expect(progressionHasSubstitutionTargets('ii-V-I-major')).toBe(true);
+		expect(progressionHasSubstitutionTargets('ii-V-I-major-long')).toBe(true);
+		expect(progressionHasSubstitutionTargets('turnaround')).toBe(true);
+		expect(progressionHasSubstitutionTargets('blues')).toBe(true);
+	});
+
+	it('is false for progressions whose only dominant is 7alt', () => {
+		expect(progressionHasSubstitutionTargets('ii-V-I-minor')).toBe(false);
+		expect(progressionHasSubstitutionTargets('ii-V-I-minor-long')).toBe(false);
 	});
 });
