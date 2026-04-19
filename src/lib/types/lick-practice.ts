@@ -22,13 +22,10 @@ export type LickPracticeMode = 'continuous' | 'call-response';
 export interface LickPracticeConfig {
 	progressionType: ChordProgressionType;
 	durationMinutes: number;
-	tempoIncrement: number;
 	/** Practice mode — see LickPracticeMode */
 	practiceMode: LickPracticeMode;
 	/** Backing track musical style */
 	backingStyle: import('./instruments.ts').BackingStyle;
-	/** When true, tempo starts at 60 BPM and adjusts based on average score across 12 keys */
-	autoAdjustTempo: boolean;
 	/**
 	 * When true, include licks whose category can substitute over a compatible
 	 * chord in the progression (e.g. a minor lick played a semitone above a

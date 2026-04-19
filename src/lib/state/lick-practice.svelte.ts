@@ -12,8 +12,11 @@
  *   responds for `lengthBars` bars, repeat for all 12 keys.
  *
  * Scoring runs silently each key and appears only in the end-of-session
- * report. No retries. All 12 keys passed (score ≥ 80%) → tempo bumps for
- * this lick on the next session.
+ * report. No retries. At the end of each lick, the average score across the
+ * attempted keys is fed through `computeAutoTempoAdjustment` to produce a
+ * signed BPM delta (+5/+2/−1/−3). That delta is added to the current tempo,
+ * clamped to [MIN_TEMPO, MAX_TEMPO], and persisted for every key in the lick
+ * so the whole set ratchets up or down together based on overall performance.
  */
 
 import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music.ts';
@@ -40,7 +43,7 @@ import {
 	isTaggedForProgression,
 	backfillPracticeTags,
 	initLickMetadataFromCloud,
-	AUTO_ADJUST_DEFAULT_TEMPO,
+	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo
 } from '$lib/persistence/lick-practice-store.ts';
@@ -56,7 +59,7 @@ import {
 } from '$lib/data/progressions.ts';
 import { getAllLicks, transposeLick } from '$lib/phrases/library-loader.ts';
 import { getLickTagOverrides } from '$lib/persistence/user-licks.ts';
-import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 
 const PASS_THRESHOLD = 0.80;
 
@@ -87,10 +90,8 @@ export const lickPractice = $state<{
 	config: {
 		progressionType: 'ii-V-I-major',
 		durationMinutes: 15,
-		tempoIncrement: 5,
 		practiceMode: 'continuous',
 		backingStyle: 'swing',
-		autoAdjustTempo: false,
 		enableSubstitutions: false
 	},
 	phase: 'setup',
@@ -162,14 +163,15 @@ export function getPracticeLicks(): Phrase[] {
 	});
 }
 
-/** Resolve the starting tempo for a lick, respecting auto-adjust mode. */
-function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): number {
+/**
+ * Resolve the starting tempo for a lick at session setup:
+ *   - New lick (no practice history) → NEW_LICK_DEFAULT_TEMPO (60).
+ *   - Known lick → the minimum stored tempo across its 12 keys.
+ * Always clamped into the MIN_TEMPO / MAX_TEMPO range.
+ */
+export function resolveLickTempo(progress: LickPracticeProgress, phraseId: string): number {
 	if (!hasLickProgress(progress, phraseId)) {
-		return clampTempo(
-			lickPractice.config.autoAdjustTempo
-				? AUTO_ADJUST_DEFAULT_TEMPO
-				: settings.newLickStartingTempo
-		);
+		return clampTempo(NEW_LICK_DEFAULT_TEMPO);
 	}
 	return clampTempo(getLickTempo(progress, phraseId));
 }
@@ -194,7 +196,7 @@ export function buildSessionPlan(): void {
 		const tempo = resolveLickTempo(progress, lick.id);
 		const keys = planLickKeys({
 			tempo,
-			minBpm: settings.newLickStartingTempo,
+			minBpm: NEW_LICK_DEFAULT_TEMPO,
 			instrument: getInstrument()
 		});
 		plan.push({
@@ -650,9 +652,15 @@ export function advance(): 'next-key' | 'end-of-lick' {
 
 /**
  * Transition from the current lick to the next (or complete the session).
- * Archives results, bumps tempo if all 12 keys passed, and either moves
- * currentLickIndex forward or marks the session complete. Called by the
- * scheduler at the start of the 2-bar inter-lick rest.
+ * Archives the lick's results, applies the always-on score-weighted tempo
+ * adjustment (average score across attempted keys → signed delta via
+ * computeAutoTempoAdjustment, clamped, persisted to every key in the lick),
+ * and either advances currentLickIndex or marks the session complete.
+ * Called by the scheduler at the start of the 2-bar inter-lick rest.
+ *
+ * If the lick had no scored keys (e.g. session ended before any attempt
+ * landed), the tempo is left unchanged — an empty result set carries no
+ * signal about how the user performed.
  */
 export function startInterLickTransition(): 'next-lick' | 'complete' {
 	const item = getCurrentPlanItem();
@@ -660,13 +668,12 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 		// Archive results for session report
 		lickPractice.allAttempts.push([...lickPractice.keyResults]);
 
-		if (lickPractice.config.autoAdjustTempo) {
-			// Auto-adjust: compute average score and adjust tempo accordingly.
-			// Always persists the new tempo (even on poor performance).
+		// Score-weighted tempo adjustment. Skipped when keyResults is empty
+		// because avgScore would default to 0 and produce a spurious -3 BPM
+		// nudge for a lick the user didn't actually play.
+		if (lickPractice.keyResults.length > 0) {
 			const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
-			const avgScore = lickPractice.keyResults.length > 0
-				? totalScore / lickPractice.keyResults.length
-				: 0;
+			const avgScore = totalScore / lickPractice.keyResults.length;
 			const delta = computeAutoTempoAdjustment(avgScore);
 			const newTempo = clampTempo(lickPractice.currentTempo + delta);
 			const now = Date.now();
@@ -679,23 +686,13 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				);
 			}
 			saveLickPracticeProgress(lickPractice.progress);
-		} else {
-			// Fixed increment: bump only if ALL 12 keys passed
-			const allPassed = lickPractice.keyResults.length === item.keys.length
-				&& lickPractice.keyResults.every(r => r.passed);
-			if (allPassed) {
-				const newTempo = clampTempo(lickPractice.currentTempo + lickPractice.config.tempoIncrement);
-				for (const key of item.keys) {
-					lickPractice.progress = updateKeyProgress(
-						lickPractice.progress,
-						item.phraseId,
-						key,
-						{ currentTempo: newTempo }
-					);
-				}
-				saveLickPracticeProgress(lickPractice.progress);
-			}
 		}
+
+		// Clear on both paths so getSessionReport's "include in-progress lick"
+		// fallback (which reads from keyResults) doesn't phantom-attribute
+		// this lick's results to a plan slot that was never started — matters
+		// when the complete path is taken mid-plan due to time-up.
+		lickPractice.keyResults = [];
 	}
 
 	const timeUp = lickPractice.elapsedSeconds >= lickPractice.config.durationMinutes * 60;
@@ -703,7 +700,6 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 	if (lickPractice.currentLickIndex < lickPractice.plan.length - 1 && !timeUp) {
 		lickPractice.currentLickIndex++;
 		lickPractice.currentKeyIndex = 0;
-		lickPractice.keyResults = [];
 
 		const nextItem = getCurrentPlanItem();
 		if (nextItem) {

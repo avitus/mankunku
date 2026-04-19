@@ -433,7 +433,7 @@
 								{#if md?.tempo}
 									<span>{md.tempo} BPM</span>
 								{/if}
-								{#if md?.backingTrackLog}
+								{#if md?.backingTrackLog && md.backingTrackLog.phraseId === md.phraseId}
 									<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5 text-[10px]">BT</span>
 								{/if}
 								{#if md?.bleedFilterLog}
@@ -699,8 +699,11 @@
 								</div>
 							{/if}
 
-							<!-- Backing track (per-recording, from metadata) -->
-							{#if md?.backingTrackLog}
+							<!-- Backing track (per-recording, from metadata). Defensive
+								 phraseId match: older recordings may carry a stale log from
+								 an unrelated phrase/session (e.g. a lick-practice super-phrase)
+								 captured by an earlier version of the save path. Hide those. -->
+							{#if md?.backingTrackLog && md.backingTrackLog.phraseId === md.phraseId}
 								{@const bt = md.backingTrackLog}
 								<div>
 									<h3 class="text-sm font-semibold mb-1">Backing track</h3>

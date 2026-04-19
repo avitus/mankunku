@@ -32,6 +32,13 @@ export interface ScorePipelineInputs {
 	swing: number;
 	schedule?: BackingTrackSchedule | null;
 	bleedFilterEnabled: boolean;
+	/**
+	 * When true, pitch matching treats any octave of the expected pitch class
+	 * as correct. Used by lick-practice continuous mode where the user may
+	 * legitimately play a lick up or down an octave to keep it on the horn.
+	 * Defaults to false — ear-training and call-response both stay strict.
+	 */
+	octaveInsensitive?: boolean;
 }
 
 export interface ScorePipelineResult {
@@ -135,13 +142,21 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 		transportSeconds,
 		swing,
 		schedule,
-		bleedFilterEnabled
+		bleedFilterEnabled,
+		octaveInsensitive = false
 	} = inputs;
 
 	const onsets = resolveOnsets(workletOnsets, readings);
 	const detected = segmentNotes(readings, onsets, phraseDuration);
 
-	const unfilteredScore = scoreAttempt(phrase, detected, tempo, transportSeconds, swing);
+	const unfilteredScore = scoreAttempt(
+		phrase,
+		detected,
+		tempo,
+		transportSeconds,
+		swing,
+		octaveInsensitive
+	);
 
 	let filteredScore: Score | null = null;
 	let filteredNotes: DetectedNote[] = detected;
@@ -150,7 +165,14 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 	if (schedule) {
 		const result = filterBleed(detected, schedule, transportSeconds);
 		filteredNotes = result.kept;
-		filteredScore = scoreAttempt(phrase, filteredNotes, tempo, transportSeconds, swing);
+		filteredScore = scoreAttempt(
+			phrase,
+			filteredNotes,
+			tempo,
+			transportSeconds,
+			swing,
+			octaveInsensitive
+		);
 		bleedLog = {
 			totalNotes: detected.length,
 			keptNotes: result.kept.length,

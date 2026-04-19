@@ -8,8 +8,9 @@ import { syncLickMetadataToCloud, loadLickMetadataFromCloud } from './sync.ts';
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
 const DEFAULT_TEMPO = 100;
-export const AUTO_ADJUST_DEFAULT_TEMPO = 60;
-const MIN_TEMPO = 40;
+/** Starting BPM for any lick with no prior practice history. */
+export const NEW_LICK_DEFAULT_TEMPO = 60;
+const MIN_TEMPO = 50;
 const MAX_TEMPO = 300;
 const PROG_TAG_PREFIX = 'prog:';
 

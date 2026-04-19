@@ -55,7 +55,7 @@ const II_V_I_MAJOR_LONG: HarmonicSegment[] = [
 const II_V_I_MINOR_SHORT: HarmonicSegment[] = [
 	{
 		chord: { root: 'D', quality: 'min7b5' },
-		scaleId: 'harmonic-minor.locrian',
+		scaleId: 'harmonic-minor.locrian-sharp6',
 		startOffset: [0, 1],
 		duration: [1, 2]
 	},
@@ -76,7 +76,7 @@ const II_V_I_MINOR_SHORT: HarmonicSegment[] = [
 const II_V_I_MINOR_LONG: HarmonicSegment[] = [
 	{
 		chord: { root: 'D', quality: 'min7b5' },
-		scaleId: 'harmonic-minor.locrian',
+		scaleId: 'harmonic-minor.locrian-sharp6',
 		startOffset: [0, 1],
 		duration: [1, 1]
 	},

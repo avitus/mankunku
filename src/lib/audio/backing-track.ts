@@ -613,7 +613,10 @@ export async function scheduleBackingTrack(
 	// ── Build queryable schedule for bleed filter ───────────
 	activeSchedule = buildSchedule(bassEvents, compEvents, tickOffset, ppq, options.tempo);
 
-	// Schedule bass — offset events by tickOffset (count-in bar)
+	// Schedule bass — Part starts at tickOffset with relative event times.
+	// This matches the melody Part pattern (start at offset, events
+	// relative) and avoids the fragile start(0)-with-absolute-events
+	// pattern on a running transport.
 	bassPart = new Tone.Part((time: number, event: BassEvent) => {
 		bassInstrument?.start({
 			note: event.midi,
@@ -621,18 +624,15 @@ export async function scheduleBackingTrack(
 			duration: event.duration,
 			time
 		});
-	}, bassEvents.map(e => ({
-		...e,
-		time: `${parseInt(e.time) + tickOffset}i`
-	})));
-	bassPart.start(0);
+	}, bassEvents);
+	bassPart.start(`${tickOffset}i`);
 	bassPart.loop = loop;
 	if (loop) {
-		bassPart.loopStart = `${tickOffset}i`;
-		bassPart.loopEnd = `${tickOffset + harmonyTicks}i`;
+		bassPart.loopStart = 0;
+		bassPart.loopEnd = `${harmonyTicks}i`;
 	}
 
-	// Schedule comp — offset events by tickOffset
+	// Schedule comp — same pattern as bass: relative events, start at offset
 	compPart = new Tone.Part((time: number, event: CompEvent) => {
 		for (const midi of event.notes) {
 			compInstrument?.start({
@@ -642,15 +642,12 @@ export async function scheduleBackingTrack(
 				time
 			});
 		}
-	}, compEvents.map(e => ({
-		...e,
-		time: `${parseInt(e.time) + tickOffset}i`
-	})));
-	compPart.start(0);
+	}, compEvents);
+	compPart.start(`${tickOffset}i`);
 	compPart.loop = loop;
 	if (loop) {
-		compPart.loopStart = `${tickOffset}i`;
-		compPart.loopEnd = `${tickOffset + harmonyTicks}i`;
+		compPart.loopStart = 0;
+		compPart.loopEnd = `${harmonyTicks}i`;
 	}
 
 	// ── Drums ───────────────────────────────────────────────

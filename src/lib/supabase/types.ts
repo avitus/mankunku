@@ -126,8 +126,6 @@ export type Database = {
           tonality_override: Json | null
           /** User-configured highest concert pitch MIDI. NULL = instrument default. */
           highest_note: number | null
-          /** Starting BPM for licks with no prior practice history (40–200) */
-          new_lick_starting_tempo: number
           /** Timestamp of last settings update (ISO 8601) */
           updated_at: string
         }
@@ -159,8 +157,6 @@ export type Database = {
           tonality_override?: Json | null
           /** NULL = instrument default */
           highest_note?: number | null
-          /** Defaults to 60 in database */
-          new_lick_starting_tempo?: number
           updated_at?: string
         }
         Update: {
@@ -178,7 +174,6 @@ export type Database = {
           onboarding_complete?: boolean
           tonality_override?: Json | null
           highest_note?: number | null
-          new_lick_starting_tempo?: number
           updated_at?: string
         }
         Relationships: [

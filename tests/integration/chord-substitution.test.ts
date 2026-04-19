@@ -68,7 +68,6 @@ beforeEach(() => {
 	store.clear();
 	lickPractice.config.progressionType = 'ii-V-I-major';
 	lickPractice.config.practiceMode = 'continuous';
-	lickPractice.config.tempoIncrement = 5;
 	lickPractice.config.enableSubstitutions = false;
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;

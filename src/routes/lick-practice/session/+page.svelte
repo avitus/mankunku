@@ -26,9 +26,12 @@
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
+	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
+	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { SessionReport } from '$lib/types/lick-practice';
 	import type { PitchDetectorHandle, PitchReading } from '$lib/audio/pitch-detector';
@@ -36,6 +39,10 @@
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
 	import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 	import type { Phrase, PitchClass } from '$lib/types/music';
+
+	// Auth state from layout load chain — derive supabase client for cloud sync
+	const supabase = $derived(page.data?.supabase ?? null);
+	const user = $derived(page.data?.user ?? null);
 
 	let playback: typeof import('$lib/audio/playback') | null = null;
 	let captureModule: typeof import('$lib/audio/capture') | null = null;
@@ -50,6 +57,14 @@
 	let levelInterval: ReturnType<typeof setInterval> | null = null;
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let beatAnimFrame: number | null = null;
+	// Per-window mic+playback recorder. Lifecycle: created when a recording
+	// window opens, stopped/saved when it closes, disposed either at save time
+	// or during session teardown if a window is still open.
+	let recorderHandle: RecorderHandle | null = null;
+	// Recorders that have been handed off for async stop+save but haven't
+	// settled yet. stopAll() iterates this to ensure every recorder is
+	// disposed even if the user ends the session mid-save.
+	const pendingRecorders = new Set<RecorderHandle>();
 
 	let isRecording = $state(false);
 	let isSessionRunning = $state(false);
@@ -65,18 +80,24 @@
 
 	// Continuous-scroll preview state. plannedKeysForLick is set at lick
 	// start; scrollFraction is updated each animation frame from
-	// transport.seconds via startBeatTracking().
+	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
 	let scrollFraction = $state(0);
-	// Non-reactive timing anchors. Updated only at lick start, then read
-	// each animation frame to compute scrollFraction.
-	let lickStartSeconds = 0;
-	// Transport seconds at which the current lick's audio first sounds
+	// Non-reactive tick-based timing anchors. Updated only at lick start,
+	// then read each animation frame to compute scrollFraction and
+	// currentBeat. Using ticks instead of seconds avoids the constant-BPM
+	// assumption that breaks when tempo changes between licks — ticks are
+	// tempo-independent.
+	let lickStartTick = 0;
+	// Transport tick at which the current lick's audio first sounds
 	// (demo in continuous mode, first app-phrase in call-response).  Used
 	// to freeze the beat indicator during the inter-lick rest so the newly
 	// shown first row doesn't animate before its demo starts.
-	let lickAudioStartSeconds = 0;
-	let secondsPerKey = 0;
+	let lickAudioStartTick = 0;
+	let ticksPerKey = 0;
+	// Beat-wrap length for the chord chart highlight. Updated on every lick
+	// boundary so licks with different progression lengths wrap correctly.
+	let beatLoopBeats = 0;
 
 	// Inter-lick rest: 2 bars of backing-only between licks.
 	const INTER_LICK_REST_BARS = 2;
@@ -86,6 +107,8 @@
 	 * attempt. Populated at window open, consumed at window close.
 	 */
 	interface RecordingWindow {
+		/** Stable ID used as the IndexedDB key for the saved recording. */
+		sessionId: string;
 		lickIndex: number;
 		keyIndex: number;
 		key: PitchClass;
@@ -289,10 +312,9 @@
 		// scroll preview. Both update on every lick boundary so the scroll
 		// resets cleanly when a new lick starts (and adapts to a possible
 		// tempo change at the same time).
-		const tempo = lickPractice.currentTempo;
-		const oneBarSeconds = (beatsPerBar * 60) / tempo;
 		plannedKeysForLick = getPlannedKeysForLick(lickIdx);
-		secondsPerKey = keyBars * oneBarSeconds;
+		ticksPerKey = keyBars * ticksPerBar;
+		beatLoopBeats = progressionBars * beatsPerBar;
 
 		lickPractice.phase = 'lick-running';
 		lickPractice.currentKeyIndex = 0;
@@ -304,13 +326,13 @@
 			isSessionRunning = true;
 			currentBeat = 0;
 			scrollFraction = 0;
-			// Transport starts at 0; the count-in occupies bar 1. After the
-			// count-in, the demo plays for `demoBars` bars (continuous only).
-			// The first user recording window therefore opens at transport
-			// seconds (1 + demoBars) × oneBarSeconds.
-			lickAudioStartSeconds = oneBarSeconds;
-			lickStartSeconds = (1 + demoBars) * oneBarSeconds;
-			startBeatTracking(progressionBars, beatsPerBar);
+			// Transport starts at tick 0; the count-in occupies 1 bar. After
+			// the count-in, the demo plays for `demoBars` bars (continuous
+			// only). Anchors are in ticks (tempo-independent) so they stay
+			// correct even when BPM changes between licks.
+			lickAudioStartTick = ticksPerBar;
+			lickStartTick = (1 + demoBars) * ticksPerBar;
+			startBeatTracking();
 
 			// playPhrase schedules count-in (1 bar) + metronome + backing +
 			// the full super-phrase melody (which now includes the continuous
@@ -344,13 +366,20 @@
 			// scheduling agree on the exact bar boundary.
 			const audioStartTick = nextAudioStartTick!;
 
-			// Convert rest + demo bars to seconds for the scroll anchor.
-			// audioStartTick is the tick where the new lick's audio begins;
-			// the first user window opens demoBars later.
-			const audioStartSeconds = (audioStartTick / ppq) * (60 / tempo);
-			const demoSeconds = demoBars * oneBarSeconds;
-			lickAudioStartSeconds = audioStartSeconds;
-			lickStartSeconds = audioStartSeconds + demoSeconds;
+			// Set BPM synchronously so the inter-lick rest plays at the new
+			// tempo immediately, before scheduleNextPhrase's async setup.
+			// Without this, the metronome runs at the old BPM until
+			// scheduleNextPhrase's await getTone() resolves.
+			if (toneModule) {
+				toneModule.getTransport().bpm.value = opts.tempo;
+			}
+
+			// Tick-based anchors for the scroll and beat tracking. Ticks are
+			// tempo-independent, so these stay correct regardless of BPM
+			// history — unlike the old seconds-based anchors which assumed
+			// constant BPM from Transport start.
+			lickAudioStartTick = audioStartTick;
+			lickStartTick = audioStartTick + demoBars * ticksPerBar;
 			scrollFraction = 0;
 
 			void playback.scheduleNextPhrase(superPhrase, opts, {
@@ -456,6 +485,10 @@
 	 * highlighting on the active row) and the UpcomingKeysDisplay's
 	 * continuous scroll position.
 	 *
+	 * Uses transport.ticks (not transport.seconds) so the tracking stays
+	 * correct across BPM changes between licks. Ticks are tempo-independent
+	 * — they always advance at PPQ ticks per quarter note regardless of BPM.
+	 *
 	 * - currentBeat wraps at `progressionBars * beatsPerBar` so the chart's
 	 *   beat indicator cycles through each full progression play. In
 	 *   continuous mode that's once per key (user cycle); in call-response
@@ -465,29 +498,29 @@
 	 * - scrollFraction is in "key units": 0 at lick start, 1 at the
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
-	function startBeatTracking(progressionBars: number, beatsPerBar: number) {
-		const loopBeats = progressionBars * beatsPerBar;
+	function startBeatTracking() {
+		const ppq = toneModule!.getTransport().PPQ;
 		function tick() {
 			if (!isSessionRunning) return;
 			if (toneModule) {
-				const transport = toneModule.getTransport();
-				const seconds = transport.seconds;
-				const beatsPerSecond = lickPractice.currentTempo / 60;
+				const ticks = toneModule.getTransport().ticks;
+
 				// Anchor the beat indicator to when the current lick's audio
 				// actually starts (count-in end for lick 1, audioStartTick for
 				// subsequent licks).  This freezes currentBeat at 0 during the
 				// inter-lick rest so the newly shown first row doesn't animate
 				// through beats before its demo plays.
-				const phrasePos = (seconds - lickAudioStartSeconds) * beatsPerSecond;
-				currentBeat = phrasePos < 0 ? 0 : phrasePos % loopBeats;
+				const elapsedTicks = ticks - lickAudioStartTick;
+				const phrasePos = elapsedTicks < 0 ? 0 : elapsedTicks / ppq;
+				currentBeat = beatLoopBeats > 0 ? phrasePos % beatLoopBeats : 0;
 
 				// Continuous scroll position for the upcoming-keys preview.
 				// Clamped to the number of planned keys so the display
 				// never scrolls past the last key into phantom rows.
-				const elapsedInLick = seconds - lickStartSeconds;
+				const scrollTicks = ticks - lickStartTick;
 				const rawScroll =
-					elapsedInLick > 0 && secondsPerKey > 0
-						? elapsedInLick / secondsPerKey
+					scrollTicks > 0 && ticksPerKey > 0
+						? scrollTicks / ticksPerKey
 						: 0;
 				scrollFraction = Math.min(rawScroll, plannedKeysForLick.length);
 			}
@@ -533,7 +566,16 @@
 		const readings = pitchDetector.getReadings();
 		const schedule = backingTrack.getActiveSchedule();
 
+		// Mint an ID for this window so the scored result and the saved audio
+		// blob share a key in IndexedDB. Per-window uniqueness matters —
+		// lick-practice generates one record per key-recording window.
+		const sessionId =
+			typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+				? crypto.randomUUID()
+				: `lp-${Date.now()}-${lickIdx}-${keyIdx}-${Math.random().toString(36).slice(2, 10)}`;
+
 		currentWindow = {
+			sessionId,
 			lickIndex: lickIdx,
 			keyIndex: keyIdx,
 			key,
@@ -543,6 +585,29 @@
 			micStartTime: micCapture?.context.currentTime ?? 0,
 			readingsStartCount: readings.length
 		};
+
+		// Spin up a recorder that mixes mic + master (metronome + backing)
+		// exactly as ear-training does, so /diagnostics can replay what the
+		// user heard alongside what they played. A failed recorder init is
+		// non-fatal — scoring and progress still work without the audio blob.
+		if (micCapture) {
+			let tmpRecorder: RecorderHandle | null = null;
+			try {
+				tmpRecorder = createRecorder(
+					micCapture.source,
+					getMasterGain(),
+					micCapture.context
+				);
+				tmpRecorder.start();
+				recorderHandle = tmpRecorder;
+			} catch (err) {
+				// If createRecorder succeeded but start() threw, the audio
+				// graph nodes are still connected — dispose to clean up.
+				tmpRecorder?.dispose();
+				recorderHandle = null;
+				console.warn('Lick-practice audio recording unavailable:', err);
+			}
+		}
 
 		isRecording = true;
 		onsetDetector?.reset(currentWindow.micStartTime);
@@ -586,11 +651,16 @@
 			transportSeconds: window.recordingTransportSeconds,
 			swing: settings.swing,
 			schedule: window.schedule,
-			bleedFilterEnabled: settings.bleedFilterEnabled
+			bleedFilterEnabled: settings.bleedFilterEnabled,
+			// Continuous mode: accept any octave of the right pitch class.
+			// Call-response stays strict so the user reproduces the demo
+			// register exactly, matching ear-training's contract.
+			octaveInsensitive: lickPractice.config.practiceMode === 'continuous'
 		});
 
 		session.bleedFilterLog = result.bleedLog;
 		const score = result.chosen;
+		const detectedNotes = result.useFiltered ? result.filteredNotes : result.detected;
 
 		// Record the attempt to the lick-practice-only progress store.
 		// We deliberately do NOT call the global ear-training recordAttempt
@@ -599,6 +669,49 @@
 		// session history, streak, or any other ear-training state.
 		if (score) {
 			recordKeyAttempt(score);
+		}
+
+		// Persist the audio + metadata for /diagnostics. Each key-window is
+		// its own IndexedDB row with source='lick-practice'. We deliberately
+		// pass backingTrackLog: null — the active log entry describes the
+		// whole super-phrase (12 keys concatenated), not this single key, so
+		// attaching it would be misleading. Keep mic-only context for now;
+		// a future enhancement could slice the super-phrase log to this key.
+		if (recorderHandle) {
+			const handle = recorderHandle;
+			recorderHandle = null;
+			pendingRecorders.add(handle);
+			const windowForSave = window;
+			const scoreForSave = score;
+			const detectedForSave = detectedNotes;
+			const bleedLogForSave = result.bleedLog;
+			const tempoForSave = lickPractice.currentTempo;
+			const swingForSave = settings.swing;
+			const supabaseForSave = supabase;
+			const userIdForSave = user?.id;
+			void handle
+				.stop()
+				.then(async (blob) => {
+					if (blob.size === 0) return;
+					await saveLickPracticeRecording({
+						sessionId: windowForSave.sessionId,
+						blob,
+						phrase: windowForSave.phrase,
+						tempo: tempoForSave,
+						swing: swingForSave,
+						score: scoreForSave,
+						detectedNotes: detectedForSave,
+						backingTrackLog: null,
+						bleedFilterLog: bleedLogForSave,
+						supabase: supabaseForSave ?? undefined,
+						userId: userIdForSave
+					});
+				})
+				.catch((err) => console.warn('lick-practice recording save failed', err))
+				.finally(() => {
+					pendingRecorders.delete(handle);
+					handle.dispose();
+				});
 		}
 
 		// Advance the key index. The scheduler has already scheduled the
@@ -633,6 +746,21 @@
 		isSessionRunning = false;
 		isRecording = false;
 		currentWindow = null;
+		// Abort any in-flight recording window — discard blob, release mic
+		// graph connections so the next session starts clean.
+		if (recorderHandle) {
+			const handle = recorderHandle;
+			recorderHandle = null;
+			void handle.stop().catch(() => undefined).finally(() => handle.dispose());
+		}
+		// Also drain recorders that were handed off for async save but
+		// haven't settled yet (user ended session mid-save).
+		for (const handle of pendingRecorders) {
+			void handle.stop().catch(() => undefined).finally(() => {
+				pendingRecorders.delete(handle);
+				handle.dispose();
+			});
+		}
 		stopBeatTracking();
 		pitchDetector?.stop();
 		pitchDetector = null;
@@ -651,7 +779,7 @@
 		onsetDetector = null;
 		// Release microphone
 		if (micCapture) {
-			micCapture.stream.getTracks().forEach(t => t.stop());
+			captureModule?.stopMicCapture();
 			micCapture = null;
 		}
 	}

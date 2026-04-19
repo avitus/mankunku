@@ -18,7 +18,7 @@ import { alignNotes } from './alignment.ts';
 import { scorePitch } from './pitch-scoring.ts';
 import { scoreRhythm } from './rhythm-scoring.ts';
 import { scoreToGrade } from './grades.ts';
-import { fractionToFloat } from '$lib/music/intervals.ts';
+import { fractionToFloat, midiToPitchClass } from '$lib/music/intervals.ts';
 
 /**
  * Compute the onset time in seconds of an expected note,
@@ -87,6 +87,8 @@ function median(values: number[]): number {
  * @param tempo - BPM used during the attempt
  * @param transportSeconds - Transport position (seconds) when recording started
  * @param swing - Swing ratio (0.5 = straight, 0.67 ≈ triplet, 0.8 = heavy)
+ * @param octaveInsensitive - If true, same pitch class (any octave) counts as
+ *   a pitch match. Used by lick-practice continuous mode.
  * @returns Full score breakdown
  */
 export function scoreAttempt(
@@ -94,7 +96,8 @@ export function scoreAttempt(
 	detected: DetectedNote[],
 	tempo: number,
 	transportSeconds = 0,
-	swing = 0.5
+	swing = 0.5,
+	octaveInsensitive = false
 ): Score {
 	const expected = phrase.notes.filter((n) => n.pitch !== null);
 
@@ -102,7 +105,7 @@ export function scoreAttempt(
 	const gridAligned = anchorToGrid(detected, transportSeconds, phrase, tempo);
 
 	// Step 2: DTW alignment (robust enough with a constant offset)
-	const pairs = alignNotes(phrase.notes, gridAligned, tempo, swing);
+	const pairs = alignNotes(phrase.notes, gridAligned, tempo, swing, octaveInsensitive);
 
 	// Step 3: Compute median timing offset of matched pairs to absorb
 	// constant human latency (reaction time, detection delay)
@@ -134,7 +137,7 @@ export function scoreAttempt(
 		if (pair.expectedIndex !== null && pair.detectedIndex !== null) {
 			const exp = expected[pair.expectedIndex];
 			const det = corrected[pair.detectedIndex];
-			const pitch = Math.min(1.0, scorePitch(exp, det));
+			const pitch = Math.min(1.0, scorePitch(exp, det, octaveInsensitive));
 			const rhythm = scoreRhythm(exp, det, tempo, swing);
 
 			// Signed offset: positive = late, negative = early
@@ -143,7 +146,12 @@ export function scoreAttempt(
 			perNoteOffsetMs.push(offsetMs);
 			signedOffsets.push(offsetMs);
 
-			if (exp.pitch === det.midi) notesHit++;
+			const pitchMatched =
+				exp.pitch !== null &&
+				(octaveInsensitive
+					? midiToPitchClass(exp.pitch) === midiToPitchClass(det.midi)
+					: exp.pitch === det.midi);
+			if (pitchMatched) notesHit++;
 			pitchSum += pitch;
 			rhythmSum += rhythm;
 			scoredCount++;

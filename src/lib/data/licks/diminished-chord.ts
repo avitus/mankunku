@@ -12,7 +12,7 @@ import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
 const DIMINISHED_CHORD: HarmonicSegment[] = [
 	{
 		chord: { root: 'C', quality: 'min7b5' },
-		scaleId: 'harmonic-minor.locrian',
+		scaleId: 'harmonic-minor.locrian-sharp6',
 		startOffset: [0, 1],
 		duration: [1, 1]
 	}

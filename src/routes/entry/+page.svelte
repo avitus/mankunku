@@ -4,7 +4,7 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
-		setDuration, toggleTriplet, setAccidental, adjustOctave,
+		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
 		adjustLastNotePitch, getCurrentPhrase, getPaddedNotes,
 		getCurrentBarAndBeat, getRemainingCapacity
 	} from '$lib/state/step-entry.svelte';
@@ -64,6 +64,10 @@
 		}
 		if (key === 't' || key === 'T') {
 			toggleTriplet();
+			return;
+		}
+		if (key === '.') {
+			toggleDotted();
 			return;
 		}
 		if (isValidPitchKey(key)) {
@@ -268,7 +272,7 @@
 			<span><kbd>A</kbd>-<kbd>G</kbd> Enter note</span>
 			<span><kbd>0</kbd> Rest</span>
 			<span><kbd>1</kbd>-<kbd>4</kbd> Duration</span>
-			<span><kbd>T</kbd> Triplet toggle</span>
+			<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
 			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp</span>
 			<span><kbd>+</kbd>/<kbd>-</kbd> Octave</span>
 			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>

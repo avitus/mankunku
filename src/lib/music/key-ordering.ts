@@ -84,7 +84,7 @@ function pickRandom<T>(arr: readonly T[], rng: () => number): T {
 export interface PlanLickKeysArgs {
 	/** The per-lick tempo the session will run at. */
 	tempo: number;
-	/** The user's minimum BPM anchor (`settings.newLickStartingTempo`). */
+	/** The minimum BPM anchor (`NEW_LICK_DEFAULT_TEMPO`). */
 	minBpm: number;
 	/** Player's instrument; used to resolve "written C" for Stage 0. */
 	instrument: InstrumentConfig;
