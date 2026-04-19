@@ -1,13 +1,12 @@
 /**
- * Unified scoring pipeline.
+ * Pure scoring orchestrator.
  *
- * Three route files used to duplicate the readings → validateOnsets →
- * segmentNotes → scoreAttempt chain (with an optional bleed filter pass).
- * This module is the one canonical implementation. Callers pass inputs,
- * get back the detected notes, both scores, and the chosen score; they
- * decide where to write it (session.lastScore vs. per-route state).
+ * Accepts pre-segmented detected notes and an optional bleed-filter
+ * result, then runs the scorer and assembles the final pipeline result.
+ * No audio-layer dependencies — all audio preprocessing (onset resolution,
+ * note segmentation, bleed filtering) happens upstream in the caller.
  *
- * Pure: no DOM, no Tone, no mic. Safe to call from:
+ * Safe to call from:
  *   - the live finishRecording() path in practice / lick-practice routes
  *   - the post-hoc rescore path (replayFromBlob → runScorePipeline)
  *   - /diagnostics replay panel
@@ -16,22 +15,17 @@
 import type { Phrase } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
-import type { PitchReading } from '$lib/audio/pitch-detector';
-import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
-import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
-import { filterBleed } from '$lib/audio/bleed-filter';
 import { scoreAttempt } from './scorer';
 
 export interface ScorePipelineInputs {
-	readings: PitchReading[];
-	workletOnsets: number[];
+	detected: DetectedNote[];
 	phrase: Phrase;
-	phraseDuration: number;
 	tempo: number;
 	transportSeconds: number;
 	swing: number;
-	schedule?: BackingTrackSchedule | null;
 	bleedFilterEnabled: boolean;
+	/** Pre-computed bleed filter result. When present, a filtered score is also computed. */
+	bleedResult?: { kept: DetectedNote[]; filtered: DetectedNote[] } | null;
 	/**
 	 * When true, pitch matching treats any octave of the expected pitch class
 	 * as correct. Used by lick-practice continuous mode where the user may
@@ -53,29 +47,25 @@ export interface ScorePipelineResult {
 }
 
 /**
- * Run the full readings → chosen score pipeline.
+ * Run the scoring pipeline on pre-segmented notes.
  *
- * Always computes the unfiltered score. If a schedule is provided, also
- * computes the bleed-filtered score and populates the diagnostic log.
- * The toggle (`bleedFilterEnabled`) only affects which score is `chosen`;
- * both are returned so callers can log / display either.
+ * Always computes the unfiltered score from `detected`. If `bleedResult`
+ * is provided, also computes the bleed-filtered score from `bleedResult.kept`
+ * and populates the diagnostic log. The toggle (`bleedFilterEnabled`) only
+ * affects which score is `chosen`; both are returned so callers can log /
+ * display either.
  */
 export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResult {
 	const {
-		readings,
-		workletOnsets,
+		detected,
 		phrase,
-		phraseDuration,
 		tempo,
 		transportSeconds,
 		swing,
-		schedule,
 		bleedFilterEnabled,
+		bleedResult,
 		octaveInsensitive = false
 	} = inputs;
-
-	const onsets = resolveOnsets(workletOnsets, readings);
-	const detected = segmentNotes(readings, onsets, phraseDuration);
 
 	const unfilteredScore = scoreAttempt(
 		phrase,
@@ -90,9 +80,8 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 	let filteredNotes: DetectedNote[] = detected;
 	let bleedLog: BleedFilterLog | null = null;
 
-	if (schedule) {
-		const result = filterBleed(detected, schedule, transportSeconds);
-		filteredNotes = result.kept;
+	if (bleedResult) {
+		filteredNotes = bleedResult.kept;
 		filteredScore = scoreAttempt(
 			phrase,
 			filteredNotes,
@@ -103,8 +92,8 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 		);
 		bleedLog = {
 			totalNotes: detected.length,
-			keptNotes: result.kept.length,
-			filteredNotes: result.filtered,
+			keptNotes: bleedResult.kept.length,
+			filteredNotes: bleedResult.filtered,
 			unfilteredScore,
 			filteredScore
 		};
