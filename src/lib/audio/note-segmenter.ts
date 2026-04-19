@@ -368,3 +368,77 @@ function pickMidi(readings: PitchReading[], prevMidi: number | null): number {
 	}
 	return bestMidi;
 }
+
+// ---------------------------------------------------------------------------
+// Onset helpers (moved from score-pipeline to decouple scoring from audio)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fallback onset extractor used when the worklet produced nothing useful
+ * (metronome-only recordings, permission races, etc.). Inferred from
+ * gaps and pitch changes in the readings themselves.
+ */
+export function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
+	if (readings.length === 0) return [];
+	const onsets: number[] = [readings[0].time];
+	const GAP_THRESHOLD = 0.1;
+	const MIN_ONSET_INTERVAL = 0.08;
+	const ATTACK_LATENCY = 0.05;
+	for (let i = 1; i < readings.length; i++) {
+		const timeSinceLastOnset = readings[i].time - onsets[onsets.length - 1];
+		if (timeSinceLastOnset < MIN_ONSET_INTERVAL) continue;
+		const gap = readings[i].time - readings[i - 1].time;
+		const noteChanged = readings[i].midi !== readings[i - 1].midi;
+		if (gap > GAP_THRESHOLD) {
+			onsets.push(readings[i].time - ATTACK_LATENCY);
+		} else if (noteChanged) {
+			onsets.push(readings[i].time);
+		}
+	}
+	return onsets;
+}
+
+/**
+ * Resolve the final onset list for segmentation. Worklet onsets are
+ * validated against pitch data; if nothing survives, fall back to the
+ * reading-derived onsets; finally, synthesize an opening onset when the
+ * live capture missed the first note (MessagePort race, soft attack
+ * below the HFC threshold).
+ *
+ * The synthesized onset is anchored to the earliest reading that is
+ * within PREPEND_BACKWARD_WINDOW of the first real onset — NOT to
+ * readings[0].time. That guard matters: a short burst of low-frequency
+ * noise (mic rumble, handling) right at capture start can produce a
+ * handful of high-clarity readings. Without the window we would
+ * prepend to that noise and emit a spurious opening note covering the
+ * silence before the real phrase started.
+ */
+/** Max backward search window (seconds) for the synthesized-onset anchor */
+const PREPEND_BACKWARD_WINDOW = 0.5;
+/** Only prepend when the gap between anchor and first onset is meaningful */
+const PREPEND_MIN_GAP = 0.05;
+
+export function resolveOnsets(
+	workletOnsets: number[],
+	readings: PitchReading[]
+): number[] {
+	const validated = validateOnsets(workletOnsets, readings);
+	let onsets = validated.length > 0 ? validated : extractOnsetsFromReadings(readings);
+
+	if (readings.length === 0 || onsets.length === 0) return onsets;
+
+	const firstOnset = onsets[0];
+	let anchor = -1;
+	for (const r of readings) {
+		if (r.time >= firstOnset) break;
+		if (firstOnset - r.time <= PREPEND_BACKWARD_WINDOW) {
+			anchor = r.time;
+			break;
+		}
+	}
+
+	if (anchor >= 0 && firstOnset - anchor > PREPEND_MIN_GAP) {
+		onsets = [anchor, ...onsets];
+	}
+	return onsets;
+}
