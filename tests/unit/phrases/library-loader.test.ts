@@ -117,9 +117,9 @@ vi.mock('$lib/persistence/user-licks', () => ({
 }));
 
 // Mock scale compatibility — default: everything is compatible
-const mockIsLickCompatible = vi.fn((..._args: unknown[]) => true);
+const mockIsLickCompatible = vi.fn((_lick: unknown, _scaleType: unknown) => true);
 vi.mock('$lib/tonality/scale-compatibility', () => ({
-	isLickCompatible: (...args: unknown[]) => mockIsLickCompatible(...(args as [unknown, unknown]))
+	isLickCompatible: (lick: unknown, scaleType: unknown) => mockIsLickCompatible(lick, scaleType)
 }));
 
 // Mock scale/key modules used by transposeLick internals

@@ -67,6 +67,7 @@
 			class="rounded px-3 py-2 text-sm transition-colors
 				bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]"
 			title="Flip enharmonic spelling (e.g. F# ↔ Gb)"
+			aria-label="Flip enharmonic spelling"
 		>
 			&#8596; <span class="text-[10px] opacity-50">\</span>
 		</button>

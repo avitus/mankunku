@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock note-segmenter
-vi.mock('$lib/audio/note-segmenter.ts', () => ({
+vi.mock('$lib/audio/note-segmenter', () => ({
 	validateOnsets: vi.fn(() => []),
 	segmentNotes: vi.fn(() => []),
 }));
 
 // Mock bleed-filter
-vi.mock('$lib/audio/bleed-filter.ts', () => ({
+vi.mock('$lib/audio/bleed-filter', () => ({
 	filterBleed: vi.fn(() => ({ kept: [], filtered: [] })),
 }));
 
 // Mock scorer
-vi.mock('$lib/scoring/scorer.ts', () => ({
+vi.mock('$lib/scoring/scorer', () => ({
 	scoreAttempt: vi.fn(() => ({
 		overall: 0.85,
 		pitchAccuracy: 0.90,
