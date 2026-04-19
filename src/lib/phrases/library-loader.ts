@@ -5,14 +5,14 @@
  * Licks are stored in concert C and transposed at query time.
  */
 
-import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music.ts';
-import type { ScaleType } from '$lib/tonality/tonality.ts';
-import { isLickCompatible } from '$lib/tonality/scale-compatibility.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
-import { ALL_CURATED_LICKS } from '$lib/data/licks/index.ts';
-import { getUserLicksLocal } from '$lib/persistence/user-licks.ts';
-import { getScale } from '$lib/music/scales.ts';
-import { realizeScale } from '$lib/music/keys.ts';
+import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { ScaleType } from '$lib/tonality/tonality';
+import { isLickCompatible } from '$lib/tonality/scale-compatibility';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { ALL_CURATED_LICKS } from '$lib/data/licks/index';
+import { getUserLicksLocal } from '$lib/persistence/user-licks';
+import { getScale } from '$lib/music/scales';
+import { realizeScale } from '$lib/music/keys';
 
 export interface LibraryQuery {
 	category?: PhraseCategory;

@@ -222,10 +222,14 @@ describe('settings sync', () => {
 		masterVolume: 0.8,
 		metronomeEnabled: true,
 		metronomeVolume: 0.6,
+		backingTrackEnabled: false,
+		backingInstrument: 'piano',
+		backingTrackVolume: 0.5,
 		swing: 0.5,
 		theme: 'dark',
 		onboardingComplete: true,
-		tonalityOverride: null
+		tonalityOverride: null,
+		highestNote: null
 	};
 
 	it('syncSettingsToCloud calls upsert on user_settings table', async () => {
@@ -263,10 +267,14 @@ describe('settings sync', () => {
 					master_volume: 0.8,
 					metronome_enabled: true,
 					metronome_volume: 0.6,
+					backing_track_enabled: false,
+					backing_instrument: 'piano',
+					backing_track_volume: 0.5,
 					swing: 0.5,
 					theme: 'dark',
 					onboarding_complete: true,
-					tonality_override: null
+					tonality_override: null,
+					highest_note: null
 				},
 				error: null
 			})
@@ -278,7 +286,17 @@ describe('settings sync', () => {
 		expect(result).not.toBeNull();
 		expect(result!.instrumentId).toBe('tenor-sax');
 		expect(result!.defaultTempo).toBe(120);
+		expect(result!.masterVolume).toBe(0.8);
+		expect(result!.metronomeEnabled).toBe(true);
+		expect(result!.metronomeVolume).toBe(0.6);
+		expect(result!.backingTrackEnabled).toBe(false);
+		expect(result!.backingInstrument).toBe('piano');
+		expect(result!.backingTrackVolume).toBe(0.5);
+		expect(result!.swing).toBe(0.5);
 		expect(result!.theme).toBe('dark');
+		expect(result!.onboardingComplete).toBe(true);
+		expect(result!.tonalityOverride).toBeNull();
+		expect(result!.highestNote).toBeNull();
 	});
 
 	it('loadSettingsFromCloud validates tonality override shape', async () => {
@@ -459,7 +477,9 @@ describe('sync error resilience', () => {
 		await expect(loadProgressFromCloud(supabase as any)).resolves.toBeNull();
 		await expect(syncSettingsToCloud(supabase as any, {
 			instrumentId: 'sax', defaultTempo: 120, masterVolume: 0.8,
-			metronomeEnabled: true, metronomeVolume: 0.6, swing: 0.5,
+			metronomeEnabled: true, metronomeVolume: 0.6,
+			backingTrackEnabled: false, backingInstrument: 'piano', backingTrackVolume: 0.5,
+			swing: 0.5,
 			theme: 'dark', onboardingComplete: true, tonalityOverride: null,
 			highestNote: null
 		})).resolves.toBeUndefined();

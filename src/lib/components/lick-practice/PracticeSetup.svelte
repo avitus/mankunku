@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { LickPracticeConfig, LickPracticeMode } from '$lib/types/lick-practice.ts';
-	import type { BackingStyle } from '$lib/types/instruments.ts';
+	import type { LickPracticeConfig, LickPracticeMode } from '$lib/types/lick-practice';
+	import type { BackingStyle } from '$lib/types/instruments';
 	import {
 		PROGRESSION_TEMPLATES,
 		progressionHasSubstitutionTargets
-	} from '$lib/data/progressions.ts';
-	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles.ts';
+	} from '$lib/data/progressions';
+	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 
 	interface Props {
 		config: LickPracticeConfig;

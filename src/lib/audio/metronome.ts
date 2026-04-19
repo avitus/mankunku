@@ -5,7 +5,7 @@
  * Synthesized from filtered noise bursts — no samples needed.
  */
 
-import { getMasterGain } from './audio-context.ts';
+import { getMasterGain } from './audio-context';
 
 type ToneModule = typeof import('tone');
 
@@ -16,7 +16,7 @@ let kickSynth: InstanceType<ToneModule['MembraneSynth']> | null = null;
 let rideFilter: InstanceType<ToneModule['Filter']> | null = null;
 let hihatFilter: InstanceType<ToneModule['Filter']> | null = null;
 let gainNode: InstanceType<ToneModule['Gain']> | null = null;
-let sequence: InstanceType<ToneModule['Sequence']> | null = null;
+let sequence: import('tone').Sequence<number> | null = null;
 
 async function getTone(): Promise<ToneModule> {
 	if (!tone) tone = await import('tone');

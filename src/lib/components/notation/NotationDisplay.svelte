@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Phrase } from '$lib/types/music.ts';
-	import type { InstrumentConfig } from '$lib/types/instruments.ts';
-	import { phraseToAbc } from '$lib/music/notation.ts';
+	import type { Phrase } from '$lib/types/music';
+	import type { InstrumentConfig } from '$lib/types/instruments';
+	import { phraseToAbc } from '$lib/music/notation';
 
 	interface Props {
 		phrase: Phrase | null;

@@ -106,27 +106,27 @@ const FIXTURE_USER_LICKS: Phrase[] = [
 // ─── Mocks ───────────────────────────────────────────────────────────
 
 // Mock curated licks data source
-vi.mock('$lib/data/licks/index.ts', () => ({
+vi.mock('$lib/data/licks/index', () => ({
 	ALL_CURATED_LICKS: FIXTURE_CURATED
 }));
 
 // Mock user licks persistence
 const mockGetUserLicksLocal = vi.fn<() => Phrase[]>(() => []);
-vi.mock('$lib/persistence/user-licks.ts', () => ({
+vi.mock('$lib/persistence/user-licks', () => ({
 	getUserLicksLocal: () => mockGetUserLicksLocal()
 }));
 
 // Mock scale compatibility — default: everything is compatible
-const mockIsLickCompatible = vi.fn(() => true);
-vi.mock('$lib/tonality/scale-compatibility.ts', () => ({
-	isLickCompatible: (...args: unknown[]) => mockIsLickCompatible(...args)
+const mockIsLickCompatible = vi.fn((_lick: unknown, _scaleType: unknown) => true);
+vi.mock('$lib/tonality/scale-compatibility', () => ({
+	isLickCompatible: (lick: unknown, scaleType: unknown) => mockIsLickCompatible(lick, scaleType)
 }));
 
 // Mock scale/key modules used by transposeLick internals
-vi.mock('$lib/music/scales.ts', () => ({
+vi.mock('$lib/music/scales', () => ({
 	getScale: () => null
 }));
-vi.mock('$lib/music/keys.ts', () => ({
+vi.mock('$lib/music/keys', () => ({
 	realizeScale: () => []
 }));
 
@@ -139,7 +139,7 @@ const {
 	getCategories,
 	queryLicks,
 	pickRandomLick
-} = await import('$lib/phrases/library-loader.ts');
+} = await import('$lib/phrases/library-loader');
 
 // ─── Tests ───────────────────────────────────────────────────────────
 
@@ -323,7 +323,7 @@ describe('queryLicks', () => {
 	it('filters by scaleType via isLickCompatible', () => {
 		// Make only the blues lick compatible with the queried scale type
 		mockIsLickCompatible.mockImplementation(
-			(lick: Phrase) => lick.category === 'blues'
+			(lick: unknown) => (lick as Phrase).category === 'blues'
 		);
 		const results = queryLicks({ scaleType: 'blues' });
 		expect(results).toHaveLength(1);

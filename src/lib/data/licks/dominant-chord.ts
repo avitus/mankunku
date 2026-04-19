@@ -5,7 +5,7 @@
  * transposed so its root matches the dominant chord's root — e.g. in a
  * ii-V-I in key F, this lick lands on C7 (the V of F).
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 const DOMINANT_CHORD: HarmonicSegment[] = [
 	{

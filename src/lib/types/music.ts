@@ -63,6 +63,8 @@ export interface Note {
 	articulation?: Articulation;
 	/** Scale degree string, e.g. '1', 'b3', '#4' */
 	scaleDegree?: string;
+	/** Override enharmonic spelling for notation display */
+	spelling?: 'sharp' | 'flat';
 }
 
 export interface HarmonicSegment {

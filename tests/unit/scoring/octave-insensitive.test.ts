@@ -9,9 +9,9 @@
  * matching (no mocks).
  */
 import { describe, it, expect } from 'vitest';
-import { scoreAttempt } from '$lib/scoring/scorer.ts';
-import type { Note, Phrase, Fraction, HarmonicSegment } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
+import { scoreAttempt } from '$lib/scoring/scorer';
+import type { Note, Phrase, Fraction, HarmonicSegment } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
 
 function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [1, 8]): Note {
 	return { pitch, offset, duration };

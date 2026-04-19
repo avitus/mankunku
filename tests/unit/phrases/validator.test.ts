@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validatePhrase, isChordTone, isInRange, rulesForDifficulty } from '$lib/phrases/validator.ts';
-import type { Phrase, Note, Fraction, HarmonicSegment } from '$lib/types/music.ts';
+import { validatePhrase, isChordTone, isInRange, rulesForDifficulty } from '$lib/phrases/validator';
+import type { Phrase, Note, Fraction, HarmonicSegment } from '$lib/types/music';
 
 function makeNote(pitch: number | null, offset: Fraction = [0, 1], duration: Fraction = [1, 4]): Note {
 	return { pitch, offset, duration };

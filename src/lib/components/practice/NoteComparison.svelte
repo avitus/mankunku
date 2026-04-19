@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring.ts';
-	import { midiToDisplayName } from '$lib/music/notation.ts';
+	import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
+	import { midiToDisplayName } from '$lib/music/notation';
 
 	interface Props {
 		noteResults: NoteResult[];

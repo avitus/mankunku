@@ -4,10 +4,10 @@ import {
 	clampTempo,
 	hasLickProgress,
 	updateKeyProgress
-} from '$lib/persistence/lick-practice-store.ts';
-import { getCompatibleLickCategories } from '$lib/data/progressions.ts';
-import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music.ts';
-import type { LickPracticeProgress } from '$lib/types/lick-practice.ts';
+} from '$lib/persistence/lick-practice-store';
+import { getCompatibleLickCategories } from '$lib/data/progressions';
+import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
+import type { LickPracticeProgress } from '$lib/types/lick-practice';
 
 // Mock localStorage (same pattern as persistence.test.ts)
 const store: Record<string, string> = {};

@@ -1,25 +1,25 @@
 /**
  * Lick library index — re-exports all curated licks.
  */
-import { II_V_I_MAJOR_LICKS } from './ii-V-I-major.ts';
-import { BLUES_LICKS } from './blues.ts';
-import { BEBOP_LICKS } from './bebop-lines.ts';
-import { II_V_I_MINOR_LICKS } from './ii-V-I-minor.ts';
-import { SHORT_II_V_I_MAJOR_LICKS } from './short-ii-V-I-major.ts';
-import { SHORT_II_V_I_MINOR_LICKS } from './short-ii-V-I-minor.ts';
-import { V_I_MAJOR_LICKS } from './v-i-major.ts';
-import { V_I_MINOR_LICKS } from './v-i-minor.ts';
-import { MAJOR_CHORD_LICKS } from './major-chord.ts';
-import { DOMINANT_CHORD_LICKS } from './dominant-chord.ts';
-import { MINOR_CHORD_LICKS } from './minor-chord.ts';
-import { DIMINISHED_CHORD_LICKS } from './diminished-chord.ts';
-import { PENTATONIC_LICKS } from './pentatonic.ts';
-import { MODAL_LICKS } from './modal.ts';
-import { RHYTHM_CHANGES_LICKS } from './rhythm-changes.ts';
-import { BALLAD_LICKS } from './ballad.ts';
-import { BEGINNER_CELL_LICKS } from './beginner-cells.ts';
-import { COMBINED_LICKS } from '$lib/phrases/combiner.ts';
-import type { Phrase } from '$lib/types/music.ts';
+import { II_V_I_MAJOR_LICKS } from './ii-V-I-major';
+import { BLUES_LICKS } from './blues';
+import { BEBOP_LICKS } from './bebop-lines';
+import { II_V_I_MINOR_LICKS } from './ii-V-I-minor';
+import { SHORT_II_V_I_MAJOR_LICKS } from './short-ii-V-I-major';
+import { SHORT_II_V_I_MINOR_LICKS } from './short-ii-V-I-minor';
+import { V_I_MAJOR_LICKS } from './v-i-major';
+import { V_I_MINOR_LICKS } from './v-i-minor';
+import { MAJOR_CHORD_LICKS } from './major-chord';
+import { DOMINANT_CHORD_LICKS } from './dominant-chord';
+import { MINOR_CHORD_LICKS } from './minor-chord';
+import { DIMINISHED_CHORD_LICKS } from './diminished-chord';
+import { PENTATONIC_LICKS } from './pentatonic';
+import { MODAL_LICKS } from './modal';
+import { RHYTHM_CHANGES_LICKS } from './rhythm-changes';
+import { BALLAD_LICKS } from './ballad';
+import { BEGINNER_CELL_LICKS } from './beginner-cells';
+import { COMBINED_LICKS } from '$lib/phrases/combiner';
+import type { Phrase } from '$lib/types/music';
 
 export const ALL_CURATED_LICKS: Phrase[] = [
 	...BEGINNER_CELL_LICKS,

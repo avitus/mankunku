@@ -4,8 +4,8 @@ import {
 	shellVoicing,
 	drop2Voicing,
 	voiceLead
-} from '$lib/audio/voicings.ts';
-import type { PitchClass, ChordQuality } from '$lib/types/music.ts';
+} from '$lib/audio/voicings';
+import type { PitchClass, ChordQuality } from '$lib/types/music';
 
 describe('pitchClassToNumber', () => {
 	it('maps C to 0', () => {

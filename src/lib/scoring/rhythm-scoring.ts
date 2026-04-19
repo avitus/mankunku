@@ -15,8 +15,8 @@
  * At 200 BPM → penalty 1.0, 0% at 1 beat (300 ms).
  */
 
-import type { Note } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
+import type { Note } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
 
 /**
  * Score rhythm accuracy for a single note pair.

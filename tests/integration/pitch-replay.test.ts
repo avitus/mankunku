@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { replayFromAudioBuffer } from '$lib/audio/replay.ts';
-import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
-import { resolveOnsets } from '$lib/scoring/score-pipeline.ts';
-import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures.ts';
+import { replayFromAudioBuffer } from '$lib/audio/replay';
+import { segmentNotes, validateOnsets, resolveOnsets } from '$lib/audio/note-segmenter';
+import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
  * Regression tests for the user-reported non-determinism bug.

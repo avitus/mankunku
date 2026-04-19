@@ -6,8 +6,8 @@
  * and verify harmony processing.
  */
 import { describe, it, expect } from 'vitest';
-import { shellVoicing, voiceLead, pitchClassToNumber } from '$lib/audio/voicings.ts';
-import type { HarmonicSegment, PitchClass, ChordQuality } from '$lib/types/music.ts';
+import { shellVoicing, voiceLead, pitchClassToNumber } from '$lib/audio/voicings';
+import type { HarmonicSegment, PitchClass, ChordQuality } from '$lib/types/music';
 
 describe('backing track: comping voicing generation', () => {
 	const iiVI: Array<{ root: PitchClass; quality: ChordQuality }> = [

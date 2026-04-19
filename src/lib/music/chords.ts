@@ -1,4 +1,4 @@
-import type { ChordQuality } from '$lib/types/music.ts';
+import type { ChordQuality } from '$lib/types/music';
 
 export interface ChordDefinition {
 	quality: ChordQuality;

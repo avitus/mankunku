@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { midiToDisplayName } from '$lib/music/notation.ts';
+	import { midiToDisplayName } from '$lib/music/notation';
 
 	interface Props {
 		/** Current detected MIDI note, null if no pitch detected */

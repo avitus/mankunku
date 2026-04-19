@@ -1,9 +1,9 @@
-import type { PitchClass, PhraseCategory } from '$lib/types/music.ts';
-import type { LickPracticeProgress, LickPracticeKeyProgress, ChordProgressionType } from '$lib/types/lick-practice.ts';
+import type { PitchClass, PhraseCategory } from '$lib/types/music';
+import type { LickPracticeProgress, LickPracticeKeyProgress, ChordProgressionType } from '$lib/types/lick-practice';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/supabase/types.ts';
-import { save, load } from './storage.ts';
-import { syncLickMetadataToCloud, loadLickMetadataFromCloud } from './sync.ts';
+import type { Database } from '$lib/supabase/types';
+import { save, load } from './storage';
+import { syncLickMetadataToCloud, loadLickMetadataFromCloud } from './sync';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';

@@ -6,7 +6,7 @@ import {
 	SILENCE_THRESHOLD,
 	createOnsetState,
 	processOnsetFrame
-} from '$lib/audio/onset-core.ts';
+} from '$lib/audio/onset-core';
 
 /**
  * Tests for the onset detection algorithm.

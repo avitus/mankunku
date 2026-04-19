@@ -7,11 +7,28 @@
  * Loaded via audioContext.audioWorklet.addModule().
  */
 
+// AudioWorklet globals — these exist in the worklet scope but TypeScript
+// doesn't know about them without the WebWorker lib (which pulls in too much).
+declare class AudioWorkletProcessor {
+	readonly port: MessagePort;
+	constructor();
+	process(
+		inputs: Float32Array[][],
+		outputs: Float32Array[][],
+		parameters: Record<string, Float32Array>
+	): boolean;
+}
+declare const currentTime: number;
+declare function registerProcessor(
+	name: string,
+	processorCtor: new () => AudioWorkletProcessor
+): void;
+
 import {
 	createOnsetState,
 	processOnsetFrame,
 	type OnsetState
-} from './onset-core.ts';
+} from './onset-core';
 
 class OnsetDetectorProcessor extends AudioWorkletProcessor {
 	private state: OnsetState;

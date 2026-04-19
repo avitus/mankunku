@@ -7,7 +7,7 @@ import {
 	DEFAULT_CLARITY_THRESHOLD,
 	DEFAULT_MIN_FREQUENCY,
 	DEFAULT_MAX_FREQUENCY,
-} from '$lib/audio/pitch-frame.ts';
+} from '$lib/audio/pitch-frame';
 
 type MockDetector = { findPitch: () => [number, number] };
 

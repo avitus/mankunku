@@ -7,7 +7,7 @@
  * The `category` determines which scale context the combiner uses to realize pitches.
  * Pentatonic patterns target a 5-note pool, blues a 6-note pool, diatonic patterns 7-note.
  */
-import type { ScalePattern } from '$lib/types/combinatorial.ts';
+import type { ScalePattern } from '$lib/types/combinatorial';
 
 export const SCALE_PATTERNS: ScalePattern[] = [
 	// ── 3-note (pentatonic) ─────────────────────────────────────────

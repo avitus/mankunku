@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music.ts';
+	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 
 	interface CategoryInfo {
 		category: PhraseCategory;

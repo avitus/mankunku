@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreToGrade, GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades.ts';
+import { scoreToGrade, GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
 
 const GRADE_KEYS = ['perfect', 'great', 'good', 'fair', 'try-again'] as const;
 

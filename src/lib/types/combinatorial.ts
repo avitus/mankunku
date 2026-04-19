@@ -1,4 +1,4 @@
-import type { PhraseCategory, ScaleFamily, Fraction } from './music.ts';
+import type { PhraseCategory, ScaleFamily, Fraction } from './music';
 
 export interface ScalePattern {
 	id: string;

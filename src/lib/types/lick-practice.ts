@@ -1,5 +1,5 @@
-import type { PitchClass, PhraseCategory, ChordQuality } from './music.ts';
-import type { Score } from './scoring.ts';
+import type { PitchClass, PhraseCategory, ChordQuality } from './music';
+import type { Score } from './scoring';
 
 export type ChordProgressionType =
 	| 'ii-V-I-major'
@@ -25,7 +25,7 @@ export interface LickPracticeConfig {
 	/** Practice mode — see LickPracticeMode */
 	practiceMode: LickPracticeMode;
 	/** Backing track musical style */
-	backingStyle: import('./instruments.ts').BackingStyle;
+	backingStyle: import('./instruments').BackingStyle;
 	/**
 	 * When true, include licks whose category can substitute over a compatible
 	 * chord in the progression (e.g. a minor lick played a semitone above a

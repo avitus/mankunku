@@ -8,7 +8,7 @@
  * try-again: < 55%
  */
 
-import type { Grade } from '$lib/types/scoring.ts';
+import type { Grade } from '$lib/types/scoring';
 
 const GRADE_THRESHOLDS: { grade: Grade; min: number }[] = [
 	{ grade: 'perfect', min: 0.95 },

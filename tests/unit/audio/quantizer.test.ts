@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { quantizeNotes, detectKey } from '$lib/audio/quantizer.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
+import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
+import type { DetectedNote } from '$lib/types/audio';
 
 /** Helper: create a DetectedNote */
 function note(midi: number, onsetTime: number, duration: number): DetectedNote {

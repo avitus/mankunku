@@ -14,8 +14,7 @@
 	} from '$lib/persistence/audio-store';
 	import { replayFromBlob } from '$lib/audio/replay';
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
-	import { segmentNotes } from '$lib/audio/note-segmenter';
-	import { resolveOnsets } from '$lib/scoring/score-pipeline';
+	import { segmentNotes, resolveOnsets } from '$lib/audio/note-segmenter';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';

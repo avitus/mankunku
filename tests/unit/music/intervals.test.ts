@@ -12,7 +12,7 @@ import {
 	addFractions,
 	compareFractions,
 	subtractFractions
-} from '$lib/music/intervals.ts';
+} from '$lib/music/intervals';
 
 describe('midiToPitchClass', () => {
 	it('returns 0 for C', () => {

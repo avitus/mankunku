@@ -1,6 +1,6 @@
-import type { ChordQuality, Fraction, HarmonicSegment, PhraseCategory, PitchClass } from '$lib/types/music.ts';
-import type { ChordProgressionType, ChordSubstitutionRule } from '$lib/types/lick-practice.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
+import type { ChordQuality, Fraction, HarmonicSegment, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { ChordProgressionType, ChordSubstitutionRule } from '$lib/types/lick-practice';
+import { PITCH_CLASSES } from '$lib/types/music';
 
 export interface ProgressionTemplate {
 	type: ChordProgressionType;

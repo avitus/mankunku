@@ -36,7 +36,7 @@ function pumpFrame() {
 	cbs.forEach((cb) => cb(performance.now()));
 }
 
-let createPitchDetector: typeof import('$lib/audio/pitch-detector.ts')['createPitchDetector'];
+let createPitchDetector: typeof import('$lib/audio/pitch-detector')['createPitchDetector'];
 
 beforeEach(async () => {
 	vi.resetModules();
@@ -51,7 +51,7 @@ beforeEach(async () => {
 	}));
 	vi.stubGlobal('cancelAnimationFrame', vi.fn());
 
-	const mod = await import('$lib/audio/pitch-detector.ts');
+	const mod = await import('$lib/audio/pitch-detector');
 	createPitchDetector = mod.createPitchDetector;
 });
 

@@ -5,9 +5,9 @@
  * Intonation bonus: up to +0.1 for being within 50 cents of the correct note.
  */
 
-import type { Note } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
-import { midiToPitchClass } from '$lib/music/intervals.ts';
+import type { Note } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
+import { midiToPitchClass } from '$lib/music/intervals';
 
 /**
  * Score pitch accuracy for a single note pair.
