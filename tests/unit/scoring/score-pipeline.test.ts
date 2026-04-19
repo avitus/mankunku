@@ -140,6 +140,10 @@ describe('extractOnsetsFromReadings', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveOnsets', () => {
+	function makeStableRun(midi: number, startTime: number, count: number, step = 0.017): PitchReading[] {
+		return Array.from({ length: count }, (_, i) => makeReading(midi, startTime + i * step));
+	}
+
 	it('returns empty when both workletOnsets and readings are empty', () => {
 		expect(resolveOnsets([], [])).toEqual([]);
 	});
@@ -162,43 +166,64 @@ describe('resolveOnsets', () => {
 		expect(result.length).toBeGreaterThanOrEqual(2);
 	});
 
-	it('prepends synthesized onset when reading exists before first onset within 0.5s window', () => {
-		// Worklet onsets at 0.3 and 0.8, readings exist at those times → validated.
-		// Reading at 0.1 is before first onset (0.3), within 0.5s backward window.
+	it('prepends a stable-run start when ≥3 same-midi pre-onset readings exist', () => {
+		// 3 stable C4 readings at 0.10–0.134, then worklet onset at 1.0.
 		const readings = [
-			makeReading(60, 0.1),
-			makeReading(60, 0.3),
-			makeReading(64, 0.8),
+			...makeStableRun(60, 0.10, 3),
+			makeReading(64, 1.0),
 		];
-		const result = resolveOnsets([0.3, 0.8], readings);
-		// Should prepend 0.1 since 0.3 - 0.1 = 0.2 > PREPEND_MIN_GAP (0.05)
-		expect(result[0]).toBe(0.1);
-		expect(result[1]).toBe(0.3);
-		expect(result).toHaveLength(3);
+		const result = resolveOnsets([1.0], readings);
+		expect(result[0]).toBe(0.10);
+		expect(result[1]).toBe(1.0);
 	});
 
-	it('does NOT prepend when gap between anchor and first onset < PREPEND_MIN_GAP (0.05s)', () => {
-		// Onset 0.3 validated by reading at 0.3.
-		// Reading at 0.28 is only 0.02s before → below PREPEND_MIN_GAP
+	it('prepends one onset per pitch transition for multiple pre-onset notes', () => {
+		// 3 frames of C4 at 0.10–0.134, then 3 frames of D4 at 0.50–0.534, then worklet at 1.5.
 		const readings = [
-			makeReading(60, 0.28), // 0.3 - 0.28 = 0.02 < 0.05
-			makeReading(60, 0.3),
+			...makeStableRun(60, 0.10, 3),
+			...makeStableRun(62, 0.50, 3),
+			makeReading(64, 1.5),
 		];
-		const result = resolveOnsets([0.3], readings);
-		expect(result[0]).toBe(0.3);
-		expect(result).toHaveLength(1);
+		const result = resolveOnsets([1.5], readings);
+		expect(result).toEqual([0.10, 0.50, 1.5]);
 	});
 
-	it('does NOT prepend when no reading falls within backward window', () => {
-		// Onset 1.0 validated by reading at 1.0.
-		// Reading at 0.1 is 0.9s before → exceeds 0.5s backward window
+	it('does NOT prepend when fewer than 3 stable pre-onset readings exist', () => {
+		// 2 readings at midi 60 — below PITCH_CHANGE_MIN_HOLD threshold.
 		const readings = [
-			makeReading(60, 0.1),
+			makeReading(60, 0.10),
+			makeReading(60, 0.13),
+			makeReading(64, 1.0),
+		];
+		const result = resolveOnsets([1.0], readings);
+		expect(result).toEqual([1.0]);
+	});
+
+	it('skips warmup readings — a warmup-only pre-onset region produces no prepend', () => {
+		// 5 high-clarity warmup readings (e.g. mic rumble or McLeod attack
+		// subharmonic) shouldn't synthesize an onset.
+		const readings = [
+			{ ...makeReading(28, 0.10), warmup: true },
+			{ ...makeReading(28, 0.13), warmup: true },
+			{ ...makeReading(28, 0.16), warmup: true },
+			{ ...makeReading(28, 0.19), warmup: true },
+			{ ...makeReading(28, 0.22), warmup: true },
+			makeReading(60, 1.5),
+		];
+		const result = resolveOnsets([1.5], readings);
+		expect(result).toEqual([1.5]);
+	});
+
+	it('drops a trailing stable-run start within PREPEND_MIN_GAP of first worklet onset', () => {
+		// User played one note before the worklet caught up; the stable run
+		// and the worklet onset describe the same attack — only one onset.
+		const readings = [
+			...makeStableRun(60, 0.90, 4), // stable run starts at 0.90
 			makeReading(60, 1.0),
 		];
 		const result = resolveOnsets([1.0], readings);
-		expect(result[0]).toBe(1.0);
-		expect(result).toHaveLength(1);
+		// 1.0 - 0.90 = 0.10 < PREPEND_MIN_GAP (0.15) → drop the prepend.
+		expect(result).toEqual([1.0]);
 	});
 
 	it('does not mutate input arrays', () => {

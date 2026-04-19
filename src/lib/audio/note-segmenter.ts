@@ -401,44 +401,79 @@ export function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
 /**
  * Resolve the final onset list for segmentation. Worklet onsets are
  * validated against pitch data; if nothing survives, fall back to the
- * reading-derived onsets; finally, synthesize an opening onset when the
- * live capture missed the first note (MessagePort race, soft attack
- * below the HFC threshold).
+ * reading-derived onsets; finally, prepend onsets for any notes the
+ * live worklet missed before the first detected attack — legato lines
+ * and recordings that start with the user already playing don't
+ * provide the silence→signal HFC ratio the worklet needs to fire.
  *
- * The synthesized onset is anchored to the earliest reading that is
- * within PREPEND_BACKWARD_WINDOW of the first real onset — NOT to
- * readings[0].time. That guard matters: a short burst of low-frequency
- * noise (mic rumble, handling) right at capture start can produce a
- * handful of high-clarity readings. Without the window we would
- * prepend to that noise and emit a spurious opening note covering the
- * silence before the real phrase started.
+ * Pre-onset prepend uses stable-pitch-run starts (not just readings[0])
+ * so multiple missed notes are recovered, and warmup readings are
+ * skipped so the McLeod subharmonic at attack doesn't seed a ghost.
+ * A noise burst at capture start can't synthesize an onset because it
+ * never forms a stable run after warmup.
  */
-/** Max backward search window (seconds) for the synthesized-onset anchor */
-const PREPEND_BACKWARD_WINDOW = 0.5;
-/** Only prepend when the gap between anchor and first onset is meaningful */
-const PREPEND_MIN_GAP = 0.05;
+/** Min gap between a prepended stable-run start and the first worklet onset */
+const PREPEND_MIN_GAP = 0.15;
 
 export function resolveOnsets(
 	workletOnsets: number[],
 	readings: PitchReading[]
 ): number[] {
 	const validated = validateOnsets(workletOnsets, readings);
-	let onsets = validated.length > 0 ? validated : extractOnsetsFromReadings(readings);
+	const onsets = validated.length > 0 ? validated : extractOnsetsFromReadings(readings);
 
 	if (readings.length === 0 || onsets.length === 0) return onsets;
 
 	const firstOnset = onsets[0];
-	let anchor = -1;
-	for (const r of readings) {
-		if (r.time >= firstOnset) break;
-		if (firstOnset - r.time <= PREPEND_BACKWARD_WINDOW) {
-			anchor = r.time;
-			break;
-		}
+	const preOnset = readings.filter((r) => r.time < firstOnset);
+	const stableStarts = findStableRunStarts(preOnset);
+
+	// Drop trailing stable-run starts that are too close to the first worklet
+	// onset — same attack, just detected slightly early by pitch.
+	while (
+		stableStarts.length > 0 &&
+		firstOnset - stableStarts[stableStarts.length - 1] < PREPEND_MIN_GAP
+	) {
+		stableStarts.pop();
 	}
 
-	if (anchor >= 0 && firstOnset - anchor > PREPEND_MIN_GAP) {
-		onsets = [anchor, ...onsets];
+	return [...stableStarts, ...onsets];
+}
+
+/**
+ * Find the start time of every stable pitch run in a sequence of readings.
+ * A "stable run" is PITCH_CHANGE_MIN_HOLD consecutive frames at the same
+ * MIDI note. Warmup readings are skipped because the McLeod attack
+ * subharmonic can dominate the warmup mode pick and seed a ghost run
+ * one octave below the actual note.
+ */
+function findStableRunStarts(
+	readings: PitchReading[],
+	minHold: number = PITCH_CHANGE_MIN_HOLD
+): number[] {
+	const filtered = readings.filter((r) => !r.warmup);
+	if (filtered.length < minHold) return [];
+
+	const starts: number[] = [];
+	let runMidi: number | null = null;
+	let runCount = 0;
+	let runStartIdx = 0;
+	let stableMidi: number | null = null;
+
+	for (let i = 0; i < filtered.length; i++) {
+		const m = filtered[i].midi;
+		if (m === runMidi) {
+			runCount++;
+		} else {
+			runMidi = m;
+			runCount = 1;
+			runStartIdx = i;
+		}
+
+		if (runCount === minHold && runMidi !== stableMidi) {
+			starts.push(filtered[runStartIdx].time);
+			stableMidi = runMidi;
+		}
 	}
-	return onsets;
+	return starts;
 }
