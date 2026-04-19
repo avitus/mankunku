@@ -10,6 +10,8 @@
 	import { session } from '$lib/state/session.svelte';
 	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
+	import { resolveOnsets, segmentNotes } from '$lib/audio/note-segmenter';
+	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
@@ -345,16 +347,21 @@
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 
+		const onsets = resolveOnsets(workletOnsets, readings);
+		const detected = segmentNotes(readings, onsets, phraseDuration);
+		const schedule = getActiveSchedule();
+		const bleedResult = schedule
+			? filterBleed(detected, schedule, recordingTransportSeconds)
+			: null;
+
 		const result = runScorePipeline({
-			readings,
-			workletOnsets,
+			detected,
 			phrase: session.phrase,
-			phraseDuration,
 			tempo: session.tempo,
 			transportSeconds: recordingTransportSeconds,
 			swing: settings.swing,
-			schedule: getActiveSchedule(),
-			bleedFilterEnabled: settings.bleedFilterEnabled
+			bleedFilterEnabled: settings.bleedFilterEnabled,
+			bleedResult
 		});
 
 		session.bleedFilterLog = result.bleedLog;
@@ -517,16 +524,20 @@
 		const replay = await replayFromBlob(blob, ctx);
 		if (replay.readings.length === 0) return;
 
+		const onsets = resolveOnsets(replay.onsets, replay.readings);
+		const detected = segmentNotes(replay.readings, onsets, phraseDuration);
+		const bleedResult = schedule
+			? filterBleed(detected, schedule, transportSeconds)
+			: null;
+
 		const result = runScorePipeline({
-			readings: replay.readings,
-			workletOnsets: replay.onsets,
+			detected,
 			phrase,
-			phraseDuration,
 			tempo,
 			transportSeconds,
 			swing,
-			schedule,
-			bleedFilterEnabled
+			bleedFilterEnabled,
+			bleedResult
 		});
 
 		const authoritativeNotes = result.useFiltered ? result.filteredNotes : result.detected;

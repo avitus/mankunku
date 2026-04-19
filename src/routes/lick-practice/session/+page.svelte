@@ -28,6 +28,8 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
+	import { resolveOnsets, segmentNotes } from '$lib/audio/note-segmenter';
+	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
@@ -642,16 +644,20 @@
 		const phraseDuration =
 			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
 
+		const onsets = resolveOnsets(workletOnsets, rebased);
+		const detected = segmentNotes(rebased, onsets, phraseDuration);
+		const bleedResult = window.schedule
+			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
+			: null;
+
 		const result = runScorePipeline({
-			readings: rebased,
-			workletOnsets,
+			detected,
 			phrase: window.phrase,
-			phraseDuration,
 			tempo: lickPractice.currentTempo,
 			transportSeconds: window.recordingTransportSeconds,
 			swing: settings.swing,
-			schedule: window.schedule,
 			bleedFilterEnabled: settings.bleedFilterEnabled,
+			bleedResult,
 			// Continuous mode: accept any octave of the right pitch class.
 			// Call-response stays strict so the user reproduces the demo
 			// register exactly, matching ear-training's contract.
