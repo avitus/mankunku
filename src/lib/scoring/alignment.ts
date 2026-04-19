@@ -5,10 +5,10 @@
  * the minimum-cost alignment between the two sequences.
  */
 
-import type { Note } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { AlignmentPair } from '$lib/types/scoring.ts';
-import { midiToPitchClass } from '$lib/music/intervals.ts';
+import type { Note } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
+import type { AlignmentPair } from '$lib/types/scoring';
+import { midiToPitchClass } from '$lib/music/intervals';
 
 /** Cost for a completely missed or extra note */
 const SKIP_COST = 2.0;

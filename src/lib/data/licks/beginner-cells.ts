@@ -5,7 +5,7 @@
  *
  * Transposed at runtime to any key.
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 /* ── 1-bar harmony blocks ─────────────────────────────────────────── */
 

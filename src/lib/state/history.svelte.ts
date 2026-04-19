@@ -14,9 +14,9 @@ import type {
 	PeriodDelta,
 	SessionResult,
 	UserProgress
-} from '$lib/types/progress.ts';
-import type { Grade } from '$lib/types/scoring.ts';
-import { save, load, remove } from '$lib/persistence/storage.ts';
+} from '$lib/types/progress';
+import type { Grade } from '$lib/types/scoring';
+import { save, load, remove } from '$lib/persistence/storage';
 
 const SUMMARIES_KEY = 'daily-summaries';
 const META_KEY = 'progress-meta';

@@ -38,12 +38,12 @@ function createMockStream() {
 }
 
 // We need to re-import after mocks are set up, and reset module state between tests
-let captureModule: typeof import('$lib/audio/capture.ts');
+let captureModule: typeof import('$lib/audio/capture');
 let mockAnalyserInstance: ReturnType<typeof createMockAnalyser>;
 let mockAudioCtx: ReturnType<typeof createMockAudioContext>;
 
 // Mock initAudio before importing capture
-vi.mock('$lib/audio/audio-context.ts', () => ({
+vi.mock('$lib/audio/audio-context', () => ({
 	initAudio: vi.fn(async () => mockAudioCtx)
 }));
 
@@ -64,7 +64,7 @@ beforeEach(async () => {
 		}
 	});
 
-	captureModule = await import('$lib/audio/capture.ts');
+	captureModule = await import('$lib/audio/capture');
 });
 
 // ─── Tests ────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ describe('checkMicPermission', () => {
 	it('returns "unavailable" when getUserMedia is missing', async () => {
 		vi.stubGlobal('navigator', { mediaDevices: undefined });
 		vi.resetModules();
-		const mod = await import('$lib/audio/capture.ts');
+		const mod = await import('$lib/audio/capture');
 		expect(await mod.checkMicPermission()).toBe('unavailable');
 	});
 

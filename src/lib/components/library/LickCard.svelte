@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { CATEGORY_LABELS, type Phrase } from '$lib/types/music.ts';
-	import { GRADE_COLORS } from '$lib/scoring/grades.ts';
-	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display.ts';
-	import { hasPracticeTag, getProgressionTags } from '$lib/persistence/lick-practice-store.ts';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions.ts';
+	import { CATEGORY_LABELS, type Phrase } from '$lib/types/music';
+	import { GRADE_COLORS } from '$lib/scoring/grades';
+	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display';
+	import { hasPracticeTag, getProgressionTags } from '$lib/persistence/lick-practice-store';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 
 	interface Props {
 		lick: Phrase;

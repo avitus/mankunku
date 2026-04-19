@@ -1,6 +1,6 @@
-import type { Grade, NoteResult, TimingDiagnostics } from './scoring.ts';
-import type { PhraseCategory, PitchClass } from './music.ts';
-import type { ScaleType } from '$lib/tonality/tonality.ts';
+import type { Grade, NoteResult, TimingDiagnostics } from './scoring';
+import type { PhraseCategory, PitchClass } from './music';
+import type { ScaleType } from '$lib/tonality/tonality';
 
 export interface ScaleProficiency {
 	level: number;              // 1-100 — the user's proficiency in this scale

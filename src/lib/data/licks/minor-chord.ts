@@ -5,7 +5,7 @@
  * the target chord's root — e.g. in a long ii-V-I in key F, the `minor-chord`
  * lick lands on Gm7 (the ii of F).
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 const MINOR_CHORD: HarmonicSegment[] = [
 	{

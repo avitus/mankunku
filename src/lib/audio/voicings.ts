@@ -6,9 +6,9 @@
  * between successive chords.
  */
 
-import type { ChordQuality, PitchClass } from '$lib/types/music.ts';
-import { CHORD_DEFINITIONS } from '$lib/music/chords.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
+import type { ChordQuality, PitchClass } from '$lib/types/music';
+import { CHORD_DEFINITIONS } from '$lib/music/chords';
+import { PITCH_CLASSES } from '$lib/types/music';
 
 /** MIDI pitch class for a PitchClass name (C=0, Db=1, ..., B=11) */
 export function pitchClassToNumber(pc: PitchClass): number {

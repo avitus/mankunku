@@ -16,8 +16,8 @@ import {
 	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags
-} from '$lib/persistence/lick-practice-store.ts';
-import type { LickPracticeProgress } from '$lib/types/lick-practice.ts';
+} from '$lib/persistence/lick-practice-store';
+import type { LickPracticeProgress } from '$lib/types/lick-practice';
 
 // Mock localStorage
 const store: Record<string, string> = {};
@@ -77,7 +77,7 @@ describe('lick practice progress persistence', () => {
 			lastPracticedAt: 2000,
 			passCount: 1
 		});
-		expect(updated['lick-1']['G'].currentTempo).toBe(130);
+		expect(updated['lick-1']!['G']!.currentTempo).toBe(130);
 	});
 
 	it('updateKeyProgress merges with existing', () => {
@@ -87,8 +87,8 @@ describe('lick practice progress persistence', () => {
 			}
 		};
 		const updated = updateKeyProgress(progress, 'lick-1', 'C', { passCount: 3 });
-		expect(updated['lick-1']['C'].passCount).toBe(3);
-		expect(updated['lick-1']['C'].currentTempo).toBe(100);
+		expect(updated['lick-1']!['C']!.passCount).toBe(3);
+		expect(updated['lick-1']!['C']!.currentTempo).toBe(100);
 	});
 
 	it('getLickTempo returns minimum tempo across keys', () => {

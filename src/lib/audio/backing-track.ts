@@ -11,16 +11,16 @@
  * - Drums: sampled kick, ride, hi-hat (Virtuosity Drums, CC0)
  */
 
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
-import type { PlaybackOptions } from '$lib/types/audio.ts';
-import type { BackingInstrument, BackingStyle } from '$lib/types/instruments.ts';
-import { fractionToFloat } from '$lib/music/intervals.ts';
-import { initAudio, getMasterGain, getAudioContext } from './audio-context.ts';
-import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings.ts';
-import { chordSymbol } from '$lib/music/chords.ts';
-import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule.ts';
-import { BACKING_STYLES, type StyleDefinition } from './backing-styles.ts';
-import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
+import type { PlaybackOptions } from '$lib/types/audio';
+import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
+import { fractionToFloat } from '$lib/music/intervals';
+import { initAudio, getMasterGain, getAudioContext } from './audio-context';
+import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings';
+import { chordSymbol } from '$lib/music/chords';
+import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
+import { BACKING_STYLES, type StyleDefinition } from './backing-styles';
+import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -116,9 +116,9 @@ let drumGainNode: GainNode | null = null;
 let drumLoadPromise: Promise<void> | null = null;
 
 // Scheduled parts
-let bassPart: InstanceType<ToneModule['Part']> | null = null;
-let compPart: InstanceType<ToneModule['Part']> | null = null;
-let drumSequence: InstanceType<ToneModule['Sequence']> | null = null;
+let bassPart: import('tone').Part<BassEvent> | null = null;
+let compPart: import('tone').Part<CompEvent> | null = null;
+let drumSequence: import('tone').Sequence<number> | null = null;
 let activeSchedule: BackingTrackSchedule | null = null;
 
 /** Monotonically increasing ID for cancelling stale loads. */

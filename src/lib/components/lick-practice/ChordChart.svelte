@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { HarmonicSegment, PitchClass } from '$lib/types/music.ts';
-	import type { InstrumentConfig } from '$lib/types/instruments.ts';
-	import { chordSymbol } from '$lib/music/chords.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
-	import { displayPitchClass } from '$lib/music/notation.ts';
-	import { fractionToFloat } from '$lib/music/intervals.ts';
+	import type { HarmonicSegment, PitchClass } from '$lib/types/music';
+	import type { InstrumentConfig } from '$lib/types/instruments';
+	import { chordSymbol } from '$lib/music/chords';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { displayPitchClass } from '$lib/music/notation';
+	import { fractionToFloat } from '$lib/music/intervals';
 
 	interface Props {
 		harmony: HarmonicSegment[];

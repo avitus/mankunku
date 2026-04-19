@@ -6,8 +6,8 @@
  * time to the next onset (or end of recording).
  */
 
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { PitchReading } from './pitch-detector.ts';
+import type { DetectedNote } from '$lib/types/audio';
+import type { PitchReading } from './pitch-detector';
 
 /**
  * Warmup frames (emitted during the octave stabilizer's warmup window) are

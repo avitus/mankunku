@@ -18,11 +18,11 @@ import {
 	detectFrame,
 	type FrameOptions,
 	type PitchReading
-} from './pitch-frame.ts';
+} from './pitch-frame';
 import {
 	createOnsetState,
 	processOnsetFrame
-} from './onset-core.ts';
+} from './onset-core';
 
 /** AudioWorklet render quantum — onsets are detected per 128-sample block */
 const WORKLET_BLOCK_SIZE = 128;

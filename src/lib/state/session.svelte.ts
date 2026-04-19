@@ -1,6 +1,6 @@
-import type { Phrase } from '$lib/types/music.ts';
-import type { AudioEngineState, MicPermissionState, DetectedNote } from '$lib/types/audio.ts';
-import type { Score, BleedFilterLog } from '$lib/types/scoring.ts';
+import type { Phrase } from '$lib/types/music';
+import type { AudioEngineState, MicPermissionState, DetectedNote } from '$lib/types/audio';
+import type { Score, BleedFilterLog } from '$lib/types/scoring';
 
 export const session = $state<{
 	phrase: Phrase | null;

@@ -6,8 +6,8 @@
  *           NOT connected to destination (no feedback loop).
  */
 
-import type { MicPermissionState } from '$lib/types/audio.ts';
-import { initAudio } from './audio-context.ts';
+import type { MicPermissionState } from '$lib/types/audio';
+import { initAudio } from './audio-context';
 
 export interface MicCapture {
 	stream: MediaStream;

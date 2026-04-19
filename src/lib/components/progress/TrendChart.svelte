@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { DailySummary } from '$lib/types/progress.ts';
-	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte.ts';
+	import type { DailySummary } from '$lib/types/progress';
+	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte';
 
 	type Period = '1w' | '1m' | '3m' | '6m' | '1y' | 'all';
 

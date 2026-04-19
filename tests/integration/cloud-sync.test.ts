@@ -222,10 +222,14 @@ describe('settings sync', () => {
 		masterVolume: 0.8,
 		metronomeEnabled: true,
 		metronomeVolume: 0.6,
+		backingTrackEnabled: false,
+		backingInstrument: 'piano',
+		backingTrackVolume: 0.5,
 		swing: 0.5,
 		theme: 'dark',
 		onboardingComplete: true,
-		tonalityOverride: null
+		tonalityOverride: null,
+		highestNote: null
 	};
 
 	it('syncSettingsToCloud calls upsert on user_settings table', async () => {
@@ -459,7 +463,9 @@ describe('sync error resilience', () => {
 		await expect(loadProgressFromCloud(supabase as any)).resolves.toBeNull();
 		await expect(syncSettingsToCloud(supabase as any, {
 			instrumentId: 'sax', defaultTempo: 120, masterVolume: 0.8,
-			metronomeEnabled: true, metronomeVolume: 0.6, swing: 0.5,
+			metronomeEnabled: true, metronomeVolume: 0.6,
+			backingTrackEnabled: false, backingInstrument: 'piano', backingTrackVolume: 0.5,
+			swing: 0.5,
 			theme: 'dark', onboardingComplete: true, tonalityOverride: null,
 			highestNote: null
 		})).resolves.toBeUndefined();

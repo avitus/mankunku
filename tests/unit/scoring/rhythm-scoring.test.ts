@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { scoreAttempt } from '$lib/scoring/scorer.ts';
-import { scoreRhythm } from '$lib/scoring/rhythm-scoring.ts';
-import type { Phrase, Note } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
+import { scoreAttempt } from '$lib/scoring/scorer';
+import { scoreRhythm } from '$lib/scoring/rhythm-scoring';
+import type { Phrase, Note } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
 
 /** Blues-001 phrase for testing */
 const BLUES_001: Phrase = {

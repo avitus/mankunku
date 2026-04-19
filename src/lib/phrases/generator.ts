@@ -13,14 +13,14 @@
 import type {
 	Phrase, Note, HarmonicSegment, PitchClass, Fraction,
 	PhraseCategory, Articulation
-} from '$lib/types/music.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
-import { getScale } from '$lib/music/scales.ts';
-import { chordTones } from '$lib/music/chords.ts';
-import { realizeScaleMidi } from '$lib/music/keys.ts';
-import { addFractions, fractionToFloat } from '$lib/music/intervals.ts';
-import { getProfile, type DifficultyProfile } from '$lib/difficulty/params.ts';
-import { validatePhrase, rulesForDifficulty } from './validator.ts';
+} from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { getScale } from '$lib/music/scales';
+import { chordTones } from '$lib/music/chords';
+import { realizeScaleMidi } from '$lib/music/keys';
+import { addFractions, fractionToFloat } from '$lib/music/intervals';
+import { getProfile, type DifficultyProfile } from '$lib/difficulty/params';
+import { validatePhrase, rulesForDifficulty } from './validator';
 
 export interface GeneratorOptions {
 	key: PitchClass;

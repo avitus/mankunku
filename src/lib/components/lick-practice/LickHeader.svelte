@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { PitchClass } from '$lib/types/music.ts';
-	import type { ChordProgressionType } from '$lib/types/lick-practice.ts';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
+	import type { PitchClass } from '$lib/types/music';
+	import type { ChordProgressionType } from '$lib/types/lick-practice';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
 
 	interface Props {

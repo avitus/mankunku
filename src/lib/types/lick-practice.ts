@@ -1,5 +1,5 @@
-import type { PitchClass, PhraseCategory } from './music.ts';
-import type { Score } from './scoring.ts';
+import type { PitchClass, PhraseCategory } from './music';
+import type { Score } from './scoring';
 
 export type ChordProgressionType =
 	| 'ii-V-I-major'

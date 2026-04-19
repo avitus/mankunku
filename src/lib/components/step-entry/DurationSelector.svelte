@@ -14,7 +14,7 @@
 		stepEntry.dottedMode && DOTTED_BASES.has(stepEntry.currentDuration)
 			? `${stepEntry.currentDuration}-dotted` as DurationId
 			: stepEntry.tripletMode
-				? `${stepEntry.currentDuration}-triplet`
+				? `${stepEntry.currentDuration}-triplet` as DurationId
 				: stepEntry.currentDuration
 	);
 

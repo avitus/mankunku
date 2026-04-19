@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSchedule } from '$lib/audio/backing-track-schedule.ts';
+import { buildSchedule } from '$lib/audio/backing-track-schedule';
 
 // Helper: create a bass event at a given tick
 function bass(ticks: number, midi: number, duration: number = 0.5) {

@@ -33,7 +33,8 @@ export async function initAudio(): Promise<AudioContext> {
 		// as many chances to pre-schedule events within the lookAhead
 		// window, reducing beat jitter without the side-effect of firing
 		// Transport.schedule callbacks too far ahead of time.
-		Tone.getContext().updateInterval = 0.025;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(Tone.getContext() as any).updateInterval = 0.025;
 
 		// Create master gain node for global volume control
 		const ctx = Tone.getContext().rawContext as AudioContext;

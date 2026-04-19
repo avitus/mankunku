@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getScale, getScalesByFamily, getScalesForChord } from '$lib/music/scales.ts';
+import { getScale, getScalesByFamily, getScalesForChord } from '$lib/music/scales';
 
 describe('getScale', () => {
 	it('finds by ID', () => {

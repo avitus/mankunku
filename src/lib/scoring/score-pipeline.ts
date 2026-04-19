@@ -13,14 +13,14 @@
  *   - /diagnostics replay panel
  */
 
-import type { Phrase } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Score, BleedFilterLog } from '$lib/types/scoring.ts';
-import type { PitchReading } from '$lib/audio/pitch-detector.ts';
-import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule.ts';
-import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
-import { filterBleed } from '$lib/audio/bleed-filter.ts';
-import { scoreAttempt } from './scorer.ts';
+import type { Phrase } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
+import type { Score, BleedFilterLog } from '$lib/types/scoring';
+import type { PitchReading } from '$lib/audio/pitch-detector';
+import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
+import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter';
+import { filterBleed } from '$lib/audio/bleed-filter';
+import { scoreAttempt } from './scorer';
 
 export interface ScorePipelineInputs {
 	readings: PitchReading[];

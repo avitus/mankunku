@@ -7,13 +7,13 @@
  * Phrase objects that work with all existing infrastructure unchanged.
  */
 
-import type { Phrase, PhraseCategory, PitchClass, ChordQuality, HarmonicSegment, Note } from '$lib/types/music.ts';
-import type { ScalePattern, RhythmPattern } from '$lib/types/combinatorial.ts';
-import { SCALE_PATTERNS, RHYTHM_PATTERNS } from '$lib/data/patterns/index.ts';
-import { getScale } from '$lib/music/scales.ts';
-import { realizeScaleMidi } from '$lib/music/keys.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
-import { calculateDifficulty } from '$lib/difficulty/calculate.ts';
+import type { Phrase, PhraseCategory, PitchClass, ChordQuality, HarmonicSegment, Note } from '$lib/types/music';
+import type { ScalePattern, RhythmPattern } from '$lib/types/combinatorial';
+import { SCALE_PATTERNS, RHYTHM_PATTERNS } from '$lib/data/patterns/index';
+import { getScale } from '$lib/music/scales';
+import { realizeScaleMidi } from '$lib/music/keys';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { calculateDifficulty } from '$lib/difficulty/calculate';
 
 /** Maps each category to the scale and harmony context used for realization */
 const CATEGORY_CONTEXT: Record<string, {

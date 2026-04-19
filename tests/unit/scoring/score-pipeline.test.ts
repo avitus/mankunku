@@ -35,14 +35,14 @@ import {
 	extractOnsetsFromReadings,
 	resolveOnsets,
 	runScorePipeline,
-} from '$lib/scoring/score-pipeline.ts';
-import type { ScorePipelineInputs } from '$lib/scoring/score-pipeline.ts';
-import { validateOnsets, segmentNotes } from '$lib/audio/note-segmenter.ts';
-import { filterBleed } from '$lib/audio/bleed-filter.ts';
-import { scoreAttempt } from '$lib/scoring/scorer.ts';
-import type { PitchReading } from '$lib/audio/pitch-detector.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Phrase } from '$lib/types/music.ts';
+} from '$lib/scoring/score-pipeline';
+import type { ScorePipelineInputs } from '$lib/scoring/score-pipeline';
+import { validateOnsets, segmentNotes } from '$lib/audio/note-segmenter';
+import { filterBleed } from '$lib/audio/bleed-filter';
+import { scoreAttempt } from '$lib/scoring/scorer';
+import type { PitchReading } from '$lib/audio/pitch-detector';
+import type { DetectedNote } from '$lib/types/audio';
+import type { Phrase } from '$lib/types/music';
 
 // ---------------------------------------------------------------------------
 // Helpers

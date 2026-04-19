@@ -8,10 +8,10 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { transposeLick, transposeLickForTonality, pickRandomLick } from '$lib/phrases/library-loader.ts';
-import { octaveDisplacement, mutateLick } from '$lib/phrases/mutator.ts';
-import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator.ts';
-import type { Phrase } from '$lib/types/music.ts';
+import { transposeLick, transposeLickForTonality, pickRandomLick } from '$lib/phrases/library-loader';
+import { octaveDisplacement, mutateLick } from '$lib/phrases/mutator';
+import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
+import type { Phrase } from '$lib/types/music';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
 function makePhrase(pitches: (number | null)[], category: string = 'pentatonic'): Phrase {

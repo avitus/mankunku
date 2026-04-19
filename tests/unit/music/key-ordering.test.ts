@@ -7,10 +7,10 @@ import {
 	unlockedStages,
 	planLickKeys,
 	type KeyOrderingStage
-} from '$lib/music/key-ordering.ts';
-import { circleOfFifths } from '$lib/music/keys.ts';
-import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
-import { INSTRUMENTS } from '$lib/types/instruments.ts';
+} from '$lib/music/key-ordering';
+import { circleOfFifths } from '$lib/music/keys';
+import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+import { INSTRUMENTS } from '$lib/types/instruments';
 
 /** Every ordering must visit each of the 12 pitch classes exactly once. */
 function assertPermutation(keys: PitchClass[]): void {

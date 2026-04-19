@@ -15,8 +15,8 @@ import {
 	SCALE_UNLOCK_ORDER,
 	SCALE_PREREQUISITES,
 	KEY_UNLOCK_PREREQUISITES
-} from '$lib/tonality/tonality.ts';
-import type { UnlockContext } from '$lib/types/progress.ts';
+} from '$lib/tonality/tonality';
+import type { UnlockContext } from '$lib/types/progress';
 
 /** Helper to build an UnlockContext with specific levels */
 function ctx(

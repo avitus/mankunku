@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getProfile, levelToContentTier } from '$lib/difficulty/params.ts';
+import { getProfile, levelToContentTier } from '$lib/difficulty/params';
 
 describe('getProfile', () => {
 	it('returns correct profile for content tiers 1-10', () => {

@@ -7,7 +7,7 @@
  */
 
 import type { PitchDetector as PitchyDetector } from 'pitchy';
-import { frequencyToMidi, quantizePitch } from '$lib/music/intervals.ts';
+import { frequencyToMidi, quantizePitch } from '$lib/music/intervals';
 
 export interface PitchReading {
 	/** Fractional MIDI note number */

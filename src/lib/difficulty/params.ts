@@ -1,4 +1,4 @@
-import type { PitchClass, ScaleFamily } from '$lib/types/music.ts';
+import type { PitchClass, ScaleFamily } from '$lib/types/music';
 
 /**
  * Difficulty content profiles.

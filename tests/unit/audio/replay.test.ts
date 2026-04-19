@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { replayFromAudioBuffer } from '$lib/audio/replay.ts';
-import { makeFakeAudioBuffer, makeSine } from '../../helpers/audio-fixtures.ts';
+import { replayFromAudioBuffer } from '$lib/audio/replay';
+import { makeFakeAudioBuffer, makeSine } from '../../helpers/audio-fixtures';
 
 describe('replayFromAudioBuffer', () => {
 	it('detects MIDI 69 from a 440 Hz sine', async () => {

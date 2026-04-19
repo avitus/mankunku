@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Phrase } from '$lib/types/music.ts';
-	import { chordSymbol } from '$lib/music/chords.ts';
-	import { difficultyDisplay } from '$lib/difficulty/display.ts';
+	import type { Phrase } from '$lib/types/music';
+	import { chordSymbol } from '$lib/music/chords';
+	import { difficultyDisplay } from '$lib/difficulty/display';
 
 	interface Props {
 		phrase: Phrase;

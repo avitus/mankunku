@@ -10,8 +10,8 @@
  *   - Levels span 1-100
  */
 
-import type { AdaptiveState, ScaleProficiency, KeyProficiency } from '$lib/types/progress.ts';
-import { difficultyDisplay } from '$lib/difficulty/display.ts';
+import type { AdaptiveState, ScaleProficiency, KeyProficiency } from '$lib/types/progress';
+import { difficultyDisplay } from '$lib/difficulty/display';
 
 export const WINDOW_SIZE = 25;
 const ADVANCE_THRESHOLD = 0.85;

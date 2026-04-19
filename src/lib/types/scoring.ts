@@ -1,5 +1,5 @@
-import type { DetectedNote } from './audio.ts';
-import type { Note } from './music.ts';
+import type { DetectedNote } from './audio';
+import type { Note } from './music';
 
 export type Grade = 'perfect' | 'great' | 'good' | 'fair' | 'try-again';
 

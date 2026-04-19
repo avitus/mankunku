@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
 	getCompatibleScaleTypes,
 	isLickCompatible
-} from '$lib/tonality/scale-compatibility.ts';
-import type { Phrase } from '$lib/types/music.ts';
-import type { ScaleType } from '$lib/tonality/tonality.ts';
-import { SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality.ts';
+} from '$lib/tonality/scale-compatibility';
+import type { Phrase } from '$lib/types/music';
+import type { ScaleType } from '$lib/tonality/tonality';
+import { SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 
 /** Minimal lick stub for testing */
 function makeLick(overrides: {
