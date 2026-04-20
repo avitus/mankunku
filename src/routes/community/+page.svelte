@@ -153,11 +153,9 @@
 			{ ...licks[idx], isAdoptedByMe: true },
 			...licks.slice(idx + 1)
 		];
-		try {
-			await adoptLick(supabase, lick.phrase.id);
-		} catch (err) {
-			console.warn('Failed to adopt lick:', err);
-			// Revert optimistic update on failure so the UI matches server state.
+		const ok = await adoptLick(supabase, lick.phrase.id);
+		if (!ok) {
+			// Revert optimistic update when the server rejected the adoption.
 			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
 		}
 	}
@@ -171,11 +169,9 @@
 			{ ...licks[idx], isAdoptedByMe: false },
 			...licks.slice(idx + 1)
 		];
-		try {
-			await unadoptLick(supabase, lick.phrase.id);
-		} catch (err) {
-			console.warn('Failed to unadopt lick:', err);
-			// Revert optimistic update on failure so the UI matches server state.
+		const ok = await unadoptLick(supabase, lick.phrase.id);
+		if (!ok) {
+			// Revert optimistic update when the server rejected the unadoption.
 			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
 		}
 	}
@@ -259,7 +255,9 @@
 		</div>
 	{:else}
 		<!-- Search -->
+		<label for="community-search" class="sr-only">Search licks</label>
 		<input
+			id="community-search"
 			type="text"
 			placeholder="find a lick…"
 			oninput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
@@ -296,8 +294,14 @@
 		<div class="flex flex-wrap items-center gap-4">
 			<!-- Author search -->
 			<div class="flex items-center gap-2">
-				<span class="text-sm text-[var(--color-text-secondary)]">Author:</span>
+				<label
+					for="author-search"
+					class="text-sm text-[var(--color-text-secondary)]"
+				>
+					Author:
+				</label>
 				<input
+					id="author-search"
 					type="text"
 					placeholder="any"
 					oninput={(e) => handleAuthorInput((e.target as HTMLInputElement).value)}

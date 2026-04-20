@@ -320,18 +320,22 @@ export async function toggleFavorite(
 /**
  * Adopt a lick. Inserts an adoption row and caches the lick's payload locally
  * so it renders in the library offline.
+ *
+ * @returns `true` if the adoption is recorded on the server (or was already),
+ *          `false` if the server write failed or no auth session is available.
+ *          Callers performing optimistic UI updates must revert on `false`.
  */
 export async function adoptLick(
 	supabase: SupabaseClient<Database>,
 	lickId: string
-): Promise<void> {
+): Promise<boolean> {
 	const adoptions = getAdoptionsLocal();
-	if (adoptions.has(lickId)) return;
+	if (adoptions.has(lickId)) return true;
 
 	const { data: { user } } = await supabase.auth.getUser();
 	if (!user) {
 		console.warn('Cannot adopt lick without auth session');
-		return;
+		return false;
 	}
 
 	const { error: insertError } = await supabase
@@ -339,7 +343,7 @@ export async function adoptLick(
 		.insert({ user_id: user.id, lick_id: lickId });
 	if (insertError) {
 		console.warn('Failed to adopt lick:', insertError);
-		return;
+		return false;
 	}
 
 	// Fetch the lick payload so the library has it cached locally.
@@ -377,20 +381,25 @@ export async function adoptLick(
 
 	adoptions.add(lickId);
 	saveAdoptionsLocal(adoptions);
+	return true;
 }
 
 /**
  * Unadopt a lick. Removes the adoption row and the locally cached payload.
+ *
+ * @returns `true` if the adoption is gone from the server (or wasn't there),
+ *          `false` if the server delete failed or no auth session is available.
+ *          Callers performing optimistic UI updates must revert on `false`.
  */
 export async function unadoptLick(
 	supabase: SupabaseClient<Database>,
 	lickId: string
-): Promise<void> {
+): Promise<boolean> {
 	const adoptions = getAdoptionsLocal();
-	if (!adoptions.has(lickId)) return;
+	if (!adoptions.has(lickId)) return true;
 
 	const { data: { user } } = await supabase.auth.getUser();
-	if (!user) return;
+	if (!user) return false;
 
 	const { error } = await supabase
 		.from('lick_adoptions')
@@ -399,7 +408,7 @@ export async function unadoptLick(
 		.eq('lick_id', lickId);
 	if (error) {
 		console.warn('Failed to unadopt lick:', error);
-		return;
+		return false;
 	}
 
 	adoptions.delete(lickId);
@@ -411,6 +420,7 @@ export async function unadoptLick(
 	const authors = getAdoptedAuthorsLocal();
 	delete authors[lickId];
 	saveAdoptedAuthorsLocal(authors);
+	return true;
 }
 
 // ---------------------------------------------------------------------------

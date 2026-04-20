@@ -139,8 +139,16 @@
 
 	async function handleUnadopt(lickId: string) {
 		if (!supabase) return;
-		await unadoptLick(supabase, lickId);
-		refreshAdopted();
+		try {
+			await unadoptLick(supabase, lickId);
+		} catch (err) {
+			console.warn('Failed to unadopt lick:', err);
+		} finally {
+			// Always resync the local cache so the UI matches whatever state
+			// ended up in localStorage — even on failure the cache may be
+			// partially updated, and we want the grid to reflect reality.
+			refreshAdopted();
+		}
 	}
 
 	function handleCategorySelect(category: PhraseCategory | null) {
