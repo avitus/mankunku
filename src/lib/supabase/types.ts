@@ -459,6 +459,99 @@ export type Database = {
       }
 
       /**
+       * Thumbs-up relation between users and licks (community feature).
+       * Composite PK (user_id, lick_id) enforces idempotent favoriting.
+       * ON DELETE CASCADE on lick_id removes favorites when the author
+       * deletes the underlying lick.
+       */
+      lick_favorites: {
+        Row: {
+          /** UUID foreign key to auth.users.id — part of composite PK */
+          user_id: string
+          /** TEXT foreign key to user_licks.id — part of composite PK */
+          lick_id: string
+          /** Timestamp of favorite creation (ISO 8601) */
+          created_at: string
+        }
+        Insert: {
+          /** UUID foreign key to auth.users.id — required, part of composite PK */
+          user_id: string
+          /** TEXT foreign key to user_licks.id — required, part of composite PK */
+          lick_id: string
+          /** Auto-set by database default (now()) */
+          created_at?: string
+        }
+        Update: {
+          user_id?: string
+          lick_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lick_favorites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lick_favorites_lick_id_fkey"
+            columns: ["lick_id"]
+            isOneToOne: false
+            referencedRelation: "user_licks"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+
+      /**
+       * Live-reference adoptions of community licks (community feature).
+       * Composite PK (user_id, lick_id) enforces idempotent adoption.
+       * ON DELETE CASCADE on lick_id removes adoptions when the author
+       * deletes the underlying lick (live-delete semantics).
+       * Self-adoption is blocked by the INSERT RLS policy.
+       */
+      lick_adoptions: {
+        Row: {
+          /** UUID foreign key to auth.users.id — part of composite PK */
+          user_id: string
+          /** TEXT foreign key to user_licks.id — part of composite PK */
+          lick_id: string
+          /** Timestamp of adoption (ISO 8601) */
+          adopted_at: string
+        }
+        Insert: {
+          /** UUID foreign key to auth.users.id — required, part of composite PK */
+          user_id: string
+          /** TEXT foreign key to user_licks.id — required, part of composite PK */
+          lick_id: string
+          /** Auto-set by database default (now()) */
+          adopted_at?: string
+        }
+        Update: {
+          user_id?: string
+          lick_id?: string
+          adopted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lick_adoptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lick_adoptions_lick_id_fkey"
+            columns: ["lick_id"]
+            isOneToOne: false
+            referencedRelation: "user_licks"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+
+      /**
        * Per-user lick practice metadata for cross-device sync.
        * Stores practice tags, progression tags, per-key tempo/pass history,
        * and curated lick overrides as JSONB blobs. One row per user.
@@ -545,6 +638,8 @@ export type Database = {
           created_at: string
           /** Timestamp of last lick update (ISO 8601) */
           updated_at: string
+          /** Denormalized count of favorites (maintained by triggers on lick_favorites). Defaults to 0. */
+          favorite_count: number
         }
         Insert: {
           /** TEXT primary key — generated client-side as user-{timestamp}-{random}, required on insert */
@@ -570,6 +665,8 @@ export type Database = {
           audio_url?: string | null
           created_at?: string
           updated_at?: string
+          /** Defaults to 0 in database; maintained by triggers on lick_favorites. Do not set manually. */
+          favorite_count?: number
         }
         Update: {
           id?: string
@@ -586,6 +683,8 @@ export type Database = {
           audio_url?: string | null
           created_at?: string
           updated_at?: string
+          /** Maintained by triggers; do not set manually. */
+          favorite_count?: number
         }
         Relationships: [
           {
@@ -599,7 +698,30 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      /**
+       * Column-restricted projection of user_profiles for community
+       * attribution. Readable by any authenticated user; exposes only
+       * display_name and avatar_url — no timestamps or other metadata.
+       */
+      public_lick_authors: {
+        Row: {
+          /** UUID — same as auth.users.id */
+          id: string
+          /** User's display name, nullable */
+          display_name: string | null
+          /** URL to avatar image, nullable */
+          avatar_url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Functions: {
       [_ in never]: never

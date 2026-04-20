@@ -31,6 +31,7 @@
 		{ href: '/practice', label: 'Ear Training', primary: true },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true },
 		{ href: '/library', label: 'Library', primary: false },
+		{ href: '/community', label: 'Community', primary: false },
 		{ href: '/add-licks', label: 'Add Licks', primary: false },
 		{ href: '/progress', label: 'Progress', primary: false },
 		{ href: '/settings', label: 'Settings', primary: false }

@@ -16,6 +16,7 @@
 	import { setPracticeTag } from '$lib/persistence/lick-practice-store';
 	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import PrivacyDisclosure from '$lib/components/community/PrivacyDisclosure.svelte';
 
 	const ENTRY_CATEGORIES = Object.entries(CATEGORY_LABELS).map(
 		([value, label]) => ({ value: value as PhraseCategory, label })
@@ -229,6 +230,8 @@
 				</button>
 			{/each}
 		</div>
+
+		<PrivacyDisclosure />
 
 		<div class="flex justify-center gap-3">
 			<button

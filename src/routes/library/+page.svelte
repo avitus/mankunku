@@ -11,6 +11,7 @@
 	import { page } from '$app/state';
 	import { getUserLicks, getLickTagOverrides } from '$lib/persistence/user-licks';
 	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
+	import { getAdoptedLicksLocal, getAdoptedAuthorsLocal, unadoptLick } from '$lib/persistence/community';
 
 	/** Supabase browser client from layout data (null when not available) */
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -73,13 +74,25 @@
 		})
 	);
 
+	/** Live view of adopted community licks (localStorage-cached). */
+	let adoptedLicks: Phrase[] = $state(getAdoptedLicksLocal());
+	let adoptedAuthors: Record<string, { authorName: string | null }> = $state(
+		getAdoptedAuthorsLocal()
+	);
+	const adoptedIds = $derived(new Set(adoptedLicks.map((l) => l.id)));
+
+	function refreshAdopted() {
+		adoptedLicks = getAdoptedLicksLocal();
+		adoptedAuthors = getAdoptedAuthorsLocal();
+	}
+
 	/**
-	 * Combined filtered licks: user-recorded licks (filtered by same criteria)
-	 * appear first, followed by curated licks from the phrase library.
+	 * Combined filtered licks: user-recorded licks and adopted community licks
+	 * (filtered by same criteria) appear first, followed by curated licks.
 	 */
 	const filteredLicks = $derived.by(() => {
-		// Apply the same search/filter criteria to user licks
-		let filtered = userLicks;
+		// Apply the same search/filter criteria to user + adopted licks
+		let filtered = [...userLicks, ...adoptedLicks];
 
 		if (library.categoryFilter) {
 			filtered = filtered.filter((l) => l.category === library.categoryFilter);
@@ -96,10 +109,10 @@
 			);
 		}
 
-		// User licks first, then curated licks (deduplicate by ID since
-		// queryLicks/getAllLicks already includes getUserLicksLocal())
-		const userIds = new Set(filtered.map((l) => l.id));
-		let combined = [...filtered, ...curatedLicks.filter((l) => !userIds.has(l.id))];
+		// User + adopted first, then curated licks (deduplicate by ID since
+		// queryLicks/getAllLicks already includes user + adopted licks).
+		const seenIds = new Set(filtered.map((l) => l.id));
+		let combined = [...filtered, ...curatedLicks.filter((l) => !seenIds.has(l.id))];
 
 		// Practice-only filter
 		if (library.practiceOnly) {
@@ -108,6 +121,12 @@
 
 		return combined;
 	});
+
+	async function handleUnadopt(lickId: string) {
+		if (!supabase) return;
+		await unadoptLick(supabase, lickId);
+		refreshAdopted();
+	}
 
 	function handleCategorySelect(category: PhraseCategory | null) {
 		library.categoryFilter = category;
@@ -234,12 +253,25 @@
 	{#if filteredLicks.length > 0}
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 			{#each filteredLicks as lick (lick.id)}
-				<LickCard
-				{lick}
-				onclick={() => handleLickClick(lick.id)}
-				onplay={() => handlePlay(lick)}
-				isPlaying={playingId === lick.id}
-			/>
+				{@const isAdopted = adoptedIds.has(lick.id)}
+				<div class="relative">
+					<LickCard
+						{lick}
+						onclick={() => handleLickClick(lick.id)}
+						onplay={() => handlePlay(lick)}
+						isPlaying={playingId === lick.id}
+						authorName={isAdopted ? adoptedAuthors[lick.id]?.authorName ?? null : null}
+					/>
+					{#if isAdopted}
+						<button
+							onclick={(e) => { e.stopPropagation(); handleUnadopt(lick.id); }}
+							class="absolute bottom-2 right-2 rounded-full bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors"
+							aria-label="Unadopt lick"
+						>
+							Unadopt
+						</button>
+					{/if}
+				</div>
 			{/each}
 		</div>
 	{:else}

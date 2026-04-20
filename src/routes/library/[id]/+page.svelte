@@ -45,9 +45,43 @@
 				}
 			};
 			if (sess && sb) {
-				getUserLicks(sb).then(assign).catch(() => {
-					getUserLicks().then(assign);
-				});
+				getUserLicks(sb)
+					.then(async (licks) => {
+						if (runId !== effectRunId) return;
+						const hit = licks.find((l) => l.id === id);
+						if (hit) {
+							assign(licks);
+							return;
+						}
+						// Community fallback: fetch the lick directly by id — RLS
+						// allows any authenticated user to read any user_licks row.
+						try {
+							const { data } = await sb
+								.from('user_licks')
+								.select('*')
+								.eq('id', id)
+								.single();
+							if (data && runId === effectRunId) {
+								userLick = {
+									id: data.id,
+									name: data.name,
+									key: data.key as PitchClass,
+									timeSignature: data.time_signature as [number, number],
+									notes: data.notes as unknown as Phrase['notes'],
+									harmony: data.harmony as unknown as Phrase['harmony'],
+									difficulty: data.difficulty as unknown as Phrase['difficulty'],
+									category: data.category as Phrase['category'],
+									tags: data.tags ?? [],
+									source: data.source
+								};
+							}
+						} catch {
+							// Offline or RLS blocked — give up silently
+						}
+					})
+					.catch(() => {
+						getUserLicks().then(assign);
+					});
 			} else {
 				getUserLicks().then(assign);
 			}
