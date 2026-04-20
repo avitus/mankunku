@@ -185,16 +185,25 @@ export async function listCommunityLicks(
 	if (filters.search) {
 		const term = filters.search.trim();
 		if (term) {
-			// PostgREST ilike with % wildcards; escape the term's special chars
-			// by stripping them (search is UX-casual, not a power-user query).
-			const safe = term.replace(/[%_,()]/g, ' ');
-			query = query.or(`name.ilike.%${safe}%,tags.cs.{${safe}}`);
+			// PostgREST ilike with % wildcards; also strip characters that
+			// would break the PostgreSQL array literal in the tags.cs.{...}
+			// clause ({}, ", \) and newlines. Search is UX-casual, not a
+			// power-user query, so dropping these is fine.
+			const safe = term.replace(/[%_,(){}"\\\n\r]/g, ' ').trim();
+			if (safe) {
+				query = query.or(`name.ilike.%${safe}%,tags.cs.{${safe}}`);
+			}
 		}
 	}
 
 	if (filters.maxDifficulty !== undefined) {
-		// difficulty is JSONB; PostgREST JSON operator -> string cast to int
-		query = query.lte('difficulty->>level', String(filters.maxDifficulty));
+		// difficulty is JSONB. `->>` returns text, so a bare `lte` would
+		// compare lexicographically ('5' > '10'); cast to int for numeric
+		// comparison. Note: PostgREST filter columns accept this cast syntax.
+		query = query.lte(
+			"(difficulty->>'level')::int",
+			filters.maxDifficulty
+		);
 	}
 
 	const sort = filters.sort ?? 'popular';
