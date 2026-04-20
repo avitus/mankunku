@@ -20,6 +20,7 @@ import type {
 } from '$lib/types/music';
 import { save, load } from './storage';
 import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
+import { getScopeGeneration } from './user-scope';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -243,17 +244,23 @@ export async function initUserLicksFromCloud(
 	supabase: SupabaseClient<Database>
 ): Promise<void> {
 	_supabase = supabase;
+	const gen = getScopeGeneration();
 	try {
 		// Verify auth before touching localStorage — an expired session would
 		// return zero rows from the RLS-filtered select, wiping local licks.
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) return;
+		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		const localLicks = getUserLicksLocal();
 
-		// Push local licks to cloud (bulk upsert, idempotent)
-		if (localLicks.length > 0) {
+		// Push local licks to cloud (bulk upsert, idempotent). Skipped if a
+		// user switch happened after this function started — the wipe would
+		// have already emptied local state, but guard defensively so we never
+		// stamp stale licks with the new user's ID via upsert.
+		if (localLicks.length > 0 && gen === getScopeGeneration()) {
 			await syncUserLicksToCloud(supabase, localLicks);
+			if (gen !== getScopeGeneration()) return;
 		}
 
 		// Pull cloud licks — now the complete set
@@ -262,6 +269,7 @@ export async function initUserLicksFromCloud(
 			console.warn('Failed to fetch cloud licks during startup sync:', error);
 			return;
 		}
+		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({
 			id: row.id,

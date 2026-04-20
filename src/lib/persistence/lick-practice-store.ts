@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { save, load } from './storage';
 import { syncLickMetadataToCloud, loadLickMetadataFromCloud } from './sync';
+import { getScopeGeneration } from './user-scope';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
@@ -33,9 +34,11 @@ export async function initLickMetadataFromCloud(
 	supabase: SupabaseClient<Database>
 ): Promise<void> {
 	_supabase = supabase;
+	const gen = getScopeGeneration();
 	try {
 		const cloud = await loadLickMetadataFromCloud(supabase);
 		if (!cloud) return;
+		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		const localTags = load<Record<string, string[]>>(TAGS_KEY);
 		if (!localTags || Object.keys(localTags).length === 0) {
