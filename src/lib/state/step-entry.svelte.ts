@@ -259,3 +259,27 @@ export function setAccidental(acc: 'sharp' | 'flat' | 'natural'): void {
 export function adjustOctave(delta: number): void {
 	stepEntry.selectedOctave = Math.max(1, Math.min(8, stepEntry.selectedOctave + delta));
 }
+
+/** Chromatic pitch classes that have enharmonic equivalents (black keys) */
+const CHROMATIC_PCS = new Set([1, 3, 6, 8, 10]);
+
+/** Keys that conventionally use flats */
+const FLAT_KEYS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db']);
+
+/** Toggle the enharmonic spelling of the last entered pitched note. */
+export function flipLastNoteSpelling(): void {
+	const notes = stepEntry.enteredNotes;
+	if (notes.length === 0) return;
+	const lastNote = notes[notes.length - 1];
+	if (lastNote.pitch === null) return;
+
+	const trans = getInstrument().transpositionSemitones;
+	const writtenPc = (((lastNote.pitch + trans) % 12) + 12) % 12;
+	if (!CHROMATIC_PCS.has(writtenPc)) return;
+
+	if (lastNote.spelling) {
+		lastNote.spelling = lastNote.spelling === 'sharp' ? 'flat' : 'sharp';
+	} else {
+		lastNote.spelling = FLAT_KEYS.has(stepEntry.phraseKey) ? 'sharp' : 'flat';
+	}
+}

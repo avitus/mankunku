@@ -1,18 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock note-segmenter
-vi.mock('$lib/audio/note-segmenter.ts', () => ({
-	validateOnsets: vi.fn(() => []),
-	segmentNotes: vi.fn(() => []),
-}));
-
-// Mock bleed-filter
-vi.mock('$lib/audio/bleed-filter.ts', () => ({
-	filterBleed: vi.fn(() => ({ kept: [], filtered: [] })),
-}));
-
 // Mock scorer
-vi.mock('$lib/scoring/scorer.ts', () => ({
+vi.mock('$lib/scoring/scorer', () => ({
 	scoreAttempt: vi.fn(() => ({
 		overall: 0.85,
 		pitchAccuracy: 0.90,
@@ -34,15 +23,15 @@ vi.mock('$lib/scoring/scorer.ts', () => ({
 import {
 	extractOnsetsFromReadings,
 	resolveOnsets,
+} from '$lib/audio/note-segmenter';
+import {
 	runScorePipeline,
-} from '$lib/scoring/score-pipeline.ts';
-import type { ScorePipelineInputs } from '$lib/scoring/score-pipeline.ts';
-import { validateOnsets, segmentNotes } from '$lib/audio/note-segmenter.ts';
-import { filterBleed } from '$lib/audio/bleed-filter.ts';
-import { scoreAttempt } from '$lib/scoring/scorer.ts';
-import type { PitchReading } from '$lib/audio/pitch-detector.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Phrase } from '$lib/types/music.ts';
+} from '$lib/scoring/score-pipeline';
+import type { ScorePipelineInputs } from '$lib/scoring/score-pipeline';
+import { scoreAttempt } from '$lib/scoring/scorer';
+import type { PitchReading } from '$lib/audio/pitch-detector';
+import type { DetectedNote } from '$lib/types/audio';
+import type { Phrase } from '$lib/types/music';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -67,14 +56,11 @@ const minimalPhrase: Phrase = {
 
 function makePipelineInputs(overrides: Partial<ScorePipelineInputs> = {}): ScorePipelineInputs {
 	return {
-		readings: [],
-		workletOnsets: [],
+		detected: [],
 		phrase: minimalPhrase,
-		phraseDuration: 2,
 		tempo: 120,
 		transportSeconds: 0,
 		swing: 0.5,
-		schedule: null,
 		bleedFilterEnabled: false,
 		...overrides,
 	};
@@ -154,76 +140,95 @@ describe('extractOnsetsFromReadings', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveOnsets', () => {
-	beforeEach(() => {
-		vi.mocked(validateOnsets).mockReset().mockReturnValue([]);
-	});
+	function makeStableRun(midi: number, startTime: number, count: number, step = 0.017): PitchReading[] {
+		return Array.from({ length: count }, (_, i) => makeReading(midi, startTime + i * step));
+	}
 
 	it('returns empty when both workletOnsets and readings are empty', () => {
 		expect(resolveOnsets([], [])).toEqual([]);
 	});
 
 	it('uses validated worklet onsets when validateOnsets returns non-empty', () => {
-		vi.mocked(validateOnsets).mockReturnValue([0.1, 0.5]);
+		// Readings at the same times as worklet onsets → validateOnsets keeps them
 		const readings = [makeReading(60, 0.1), makeReading(64, 0.5)];
 		const result = resolveOnsets([0.1, 0.5], readings);
-		expect(validateOnsets).toHaveBeenCalledWith([0.1, 0.5], readings);
 		expect(result).toContain(0.1);
 		expect(result).toContain(0.5);
 	});
 
 	it('falls back to reading-based onsets when validateOnsets returns empty', () => {
-		vi.mocked(validateOnsets).mockReturnValue([]);
+		// Worklet onsets at 1.0 and 2.0 have no readings nearby → validation rejects all
 		// Two readings with a gap > 0.1s → extractOnsetsFromReadings produces 2 onsets
 		const readings = [makeReading(60, 0.0), makeReading(64, 0.20)];
 		const result = resolveOnsets([1.0, 2.0], readings);
-		expect(validateOnsets).toHaveBeenCalled();
 		// Should contain first reading time and the note-change onset
 		expect(result).toContain(0.0);
 		expect(result.length).toBeGreaterThanOrEqual(2);
 	});
 
-	it('prepends synthesized onset when reading exists before first onset within 0.5s window', () => {
-		// Validated onsets start at 0.3, but there's a reading at 0.1 (within 0.5s backward)
-		vi.mocked(validateOnsets).mockReturnValue([0.3, 0.8]);
+	it('prepends a stable-run start when ≥3 same-midi pre-onset readings exist', () => {
+		// 3 stable C4 readings at 0.10–0.134, then worklet onset at 1.0.
 		const readings = [
-			makeReading(60, 0.1),
-			makeReading(60, 0.3),
-			makeReading(64, 0.8),
+			...makeStableRun(60, 0.10, 3),
+			makeReading(64, 1.0),
 		];
-		const result = resolveOnsets([0.3, 0.8], readings);
-		// Should prepend 0.1 since 0.3 - 0.1 = 0.2 > PREPEND_MIN_GAP (0.05)
-		expect(result[0]).toBe(0.1);
-		expect(result[1]).toBe(0.3);
-		expect(result).toHaveLength(3);
+		const result = resolveOnsets([1.0], readings);
+		expect(result[0]).toBe(0.10);
+		expect(result[1]).toBe(1.0);
 	});
 
-	it('does NOT prepend when gap between anchor and first onset < PREPEND_MIN_GAP (0.05s)', () => {
-		vi.mocked(validateOnsets).mockReturnValue([0.3]);
+	it('prepends one onset per pitch transition for multiple pre-onset notes', () => {
+		// 3 frames of C4 at 0.10–0.134, then 3 frames of D4 at 0.50–0.534, then worklet at 1.5.
 		const readings = [
-			makeReading(60, 0.28), // 0.3 - 0.28 = 0.02 < 0.05
-			makeReading(60, 0.3),
+			...makeStableRun(60, 0.10, 3),
+			...makeStableRun(62, 0.50, 3),
+			makeReading(64, 1.5),
 		];
-		const result = resolveOnsets([0.3], readings);
-		expect(result[0]).toBe(0.3);
-		expect(result).toHaveLength(1);
+		const result = resolveOnsets([1.5], readings);
+		expect(result).toEqual([0.10, 0.50, 1.5]);
 	});
 
-	it('does NOT prepend when no reading falls within backward window', () => {
-		vi.mocked(validateOnsets).mockReturnValue([1.0]);
-		// Reading at 0.1 is 0.9s before first onset — exceeds 0.5s window
+	it('does NOT prepend when fewer than 3 stable pre-onset readings exist', () => {
+		// 2 readings at midi 60 — below PITCH_CHANGE_MIN_HOLD threshold.
 		const readings = [
-			makeReading(60, 0.1),
+			makeReading(60, 0.10),
+			makeReading(60, 0.13),
+			makeReading(64, 1.0),
+		];
+		const result = resolveOnsets([1.0], readings);
+		expect(result).toEqual([1.0]);
+	});
+
+	it('skips warmup readings — a warmup-only pre-onset region produces no prepend', () => {
+		// 5 high-clarity warmup readings (e.g. mic rumble or McLeod attack
+		// subharmonic) shouldn't synthesize an onset.
+		const readings = [
+			{ ...makeReading(28, 0.10), warmup: true },
+			{ ...makeReading(28, 0.13), warmup: true },
+			{ ...makeReading(28, 0.16), warmup: true },
+			{ ...makeReading(28, 0.19), warmup: true },
+			{ ...makeReading(28, 0.22), warmup: true },
+			makeReading(60, 1.5),
+		];
+		const result = resolveOnsets([1.5], readings);
+		expect(result).toEqual([1.5]);
+	});
+
+	it('replaces the worklet onset with a near-coincident stable-run start', () => {
+		// User played one note before the worklet caught up; the stable run
+		// and the worklet onset describe the same attack. Pitch detection
+		// caught the attack earlier than HFC, so use the earlier time so
+		// the resulting note isn't fragmented across that boundary.
+		const readings = [
+			...makeStableRun(60, 0.90, 4), // stable run starts at 0.90
 			makeReading(60, 1.0),
 		];
 		const result = resolveOnsets([1.0], readings);
-		// The loop breaks when r.time >= firstOnset, and r.time=0.1 is within
-		// the backward window check: 1.0 - 0.1 = 0.9 > 0.5 so anchor stays -1
-		expect(result[0]).toBe(1.0);
-		expect(result).toHaveLength(1);
+		// 1.0 - 0.90 = 0.10 < ATTACK_DEDUP_WINDOW (0.15) → drop the worklet onset.
+		expect(result).toEqual([0.90]);
 	});
 
 	it('does not mutate input arrays', () => {
-		vi.mocked(validateOnsets).mockReturnValue([0.5]);
 		const workletOnsets = [0.5];
 		const readings = [makeReading(60, 0.2), makeReading(60, 0.5)];
 		const workletCopy = [...workletOnsets];
@@ -267,52 +272,53 @@ describe('runScorePipeline', () => {
 	};
 
 	beforeEach(() => {
-		vi.mocked(validateOnsets).mockReset().mockReturnValue([]);
-		vi.mocked(segmentNotes).mockReset().mockReturnValue(mockDetected);
 		vi.mocked(scoreAttempt).mockReset().mockReturnValue(mockScore);
-		vi.mocked(filterBleed).mockReset().mockReturnValue({
-			kept: mockDetected,
-			filtered: [],
-		});
 	});
 
-	it('calls resolveOnsets, segmentNotes, and scoreAttempt', () => {
-		const readings = [makeReading(60, 0.0)];
-		const inputs = makePipelineInputs({ readings, workletOnsets: [0.0] });
-
+	it('calls scoreAttempt with the detected notes', () => {
+		const inputs = makePipelineInputs({ detected: mockDetected });
 		runScorePipeline(inputs);
-
-		expect(validateOnsets).toHaveBeenCalled();
-		expect(segmentNotes).toHaveBeenCalled();
-		expect(scoreAttempt).toHaveBeenCalled();
+		expect(scoreAttempt).toHaveBeenCalledWith(
+			minimalPhrase,
+			mockDetected,
+			120,
+			0,
+			0.5,
+			false
+		);
 	});
 
-	it('sets filteredScore to null when no schedule provided', () => {
-		const inputs = makePipelineInputs({ schedule: null });
+	it('sets filteredScore to null when no bleedResult provided', () => {
+		const inputs = makePipelineInputs();
 		const result = runScorePipeline(inputs);
 		expect(result.filteredScore).toBeNull();
 	});
 
-	it('sets bleedLog to null when no schedule provided', () => {
-		const inputs = makePipelineInputs({ schedule: null });
+	it('sets bleedLog to null when no bleedResult provided', () => {
+		const inputs = makePipelineInputs();
 		const result = runScorePipeline(inputs);
 		expect(result.bleedLog).toBeNull();
 	});
 
-	it('calls filterBleed when schedule is provided', () => {
-		const schedule = { notes: [], activeMidiAt: () => [] };
-		const inputs = makePipelineInputs({ schedule });
-		runScorePipeline(inputs);
-		expect(filterBleed).toHaveBeenCalled();
-	});
-
-	it('chosen equals unfilteredScore when bleedFilterEnabled is false', () => {
-		const schedule = { notes: [], activeMidiAt: () => [] };
+	it('computes filteredScore when bleedResult is provided', () => {
 		vi.mocked(scoreAttempt)
 			.mockReturnValueOnce(mockScore)         // unfiltered
 			.mockReturnValueOnce(mockFilteredScore); // filtered
+		const bleedResult = { kept: mockDetected, filtered: [] as DetectedNote[] };
+		const inputs = makePipelineInputs({ detected: mockDetected, bleedResult });
+		const result = runScorePipeline(inputs);
+		expect(result.filteredScore).toBe(mockFilteredScore);
+		expect(scoreAttempt).toHaveBeenCalledTimes(2);
+	});
+
+	it('chosen equals unfilteredScore when bleedFilterEnabled is false', () => {
+		vi.mocked(scoreAttempt)
+			.mockReturnValueOnce(mockScore)         // unfiltered
+			.mockReturnValueOnce(mockFilteredScore); // filtered
+		const bleedResult = { kept: mockDetected, filtered: [] as DetectedNote[] };
 		const inputs = makePipelineInputs({
-			schedule,
+			detected: mockDetected,
+			bleedResult,
 			bleedFilterEnabled: false,
 		});
 		const result = runScorePipeline(inputs);
@@ -320,13 +326,14 @@ describe('runScorePipeline', () => {
 		expect(result.useFiltered).toBe(false);
 	});
 
-	it('chosen equals filteredScore when bleedFilterEnabled is true and schedule provided', () => {
-		const schedule = { notes: [], activeMidiAt: () => [] };
+	it('chosen equals filteredScore when bleedFilterEnabled is true and bleedResult provided', () => {
 		vi.mocked(scoreAttempt)
 			.mockReturnValueOnce(mockScore)         // unfiltered
 			.mockReturnValueOnce(mockFilteredScore); // filtered
+		const bleedResult = { kept: mockDetected, filtered: [] as DetectedNote[] };
 		const inputs = makePipelineInputs({
-			schedule,
+			detected: mockDetected,
+			bleedResult,
 			bleedFilterEnabled: true,
 		});
 		const result = runScorePipeline(inputs);
@@ -334,53 +341,52 @@ describe('runScorePipeline', () => {
 		expect(result.useFiltered).toBe(true);
 	});
 
-	it('chosen falls back to unfilteredScore when bleedFilterEnabled is true but no schedule', () => {
+	it('chosen falls back to unfilteredScore when bleedFilterEnabled is true but no bleedResult', () => {
 		const inputs = makePipelineInputs({
-			schedule: null,
 			bleedFilterEnabled: true,
 		});
 		const result = runScorePipeline(inputs);
-		// No schedule → filteredScore is null → falls back to unfiltered
+		// No bleedResult → filteredScore is null → falls back to unfiltered
 		expect(result.chosen).toBe(result.unfilteredScore);
 		expect(result.useFiltered).toBe(false);
 	});
 
 	it('useFiltered is true only when bleedFilterEnabled and filteredScore exists', () => {
-		const schedule = { notes: [], activeMidiAt: () => [] };
+		const bleedResult = { kept: mockDetected, filtered: [] as DetectedNote[] };
+
 		vi.mocked(scoreAttempt)
 			.mockReturnValueOnce(mockScore)
 			.mockReturnValueOnce(mockFilteredScore);
 
 		// Case 1: both conditions met
 		const result1 = runScorePipeline(
-			makePipelineInputs({ schedule, bleedFilterEnabled: true })
+			makePipelineInputs({ detected: mockDetected, bleedResult, bleedFilterEnabled: true })
 		);
 		expect(result1.useFiltered).toBe(true);
 
-		// Case 2: bleedFilterEnabled but no schedule
+		// Case 2: bleedFilterEnabled but no bleedResult
 		const result2 = runScorePipeline(
-			makePipelineInputs({ schedule: null, bleedFilterEnabled: true })
+			makePipelineInputs({ bleedFilterEnabled: true })
 		);
 		expect(result2.useFiltered).toBe(false);
 
-		// Case 3: schedule provided but bleedFilterEnabled false
+		// Case 3: bleedResult provided but bleedFilterEnabled false
 		vi.mocked(scoreAttempt)
 			.mockReturnValueOnce(mockScore)
 			.mockReturnValueOnce(mockFilteredScore);
 		const result3 = runScorePipeline(
-			makePipelineInputs({ schedule, bleedFilterEnabled: false })
+			makePipelineInputs({ detected: mockDetected, bleedResult, bleedFilterEnabled: false })
 		);
 		expect(result3.useFiltered).toBe(false);
 	});
 
-	it('detected array comes from segmentNotes output', () => {
+	it('detected array comes from input', () => {
 		const customDetected: DetectedNote[] = [
 			{ midi: 62, cents: 5, onsetTime: 0.1, duration: 0.4, clarity: 0.88 },
 			{ midi: 65, cents: -3, onsetTime: 0.5, duration: 0.3, clarity: 0.91 },
 		];
-		vi.mocked(segmentNotes).mockReturnValue(customDetected);
 
-		const inputs = makePipelineInputs();
+		const inputs = makePipelineInputs({ detected: customDetected });
 		const result = runScorePipeline(inputs);
 		expect(result.detected).toBe(customDetected);
 	});
@@ -412,16 +418,39 @@ describe('runScorePipeline', () => {
 		);
 	});
 
-	it('forwards octaveInsensitive=true to both scoreAttempt calls when schedule is present', () => {
-		const schedule = { notes: [], activeMidiAt: () => [] };
+	it('forwards octaveInsensitive=true to both scoreAttempt calls when bleedResult is present', () => {
 		vi.mocked(scoreAttempt)
 			.mockReturnValueOnce(mockScore)
 			.mockReturnValueOnce(mockFilteredScore);
-		const inputs = makePipelineInputs({ schedule, octaveInsensitive: true });
+		const bleedResult = { kept: mockDetected, filtered: [] as DetectedNote[] };
+		const inputs = makePipelineInputs({ detected: mockDetected, bleedResult, octaveInsensitive: true });
 		runScorePipeline(inputs);
 		const calls = vi.mocked(scoreAttempt).mock.calls;
 		expect(calls.length).toBe(2);
 		expect(calls[0][5]).toBe(true); // unfiltered scoreAttempt
 		expect(calls[1][5]).toBe(true); // filtered scoreAttempt
+	});
+
+	it('builds bleedLog from bleedResult data', () => {
+		const keptNotes: DetectedNote[] = [
+			{ midi: 60, cents: 0, onsetTime: 0, duration: 0.5, clarity: 0.95 },
+		];
+		const filteredNotes: DetectedNote[] = [
+			{ midi: 62, cents: 0, onsetTime: 0.6, duration: 0.3, clarity: 0.82 },
+		];
+		const allDetected = [...keptNotes, ...filteredNotes];
+		const bleedResult = { kept: keptNotes, filtered: filteredNotes };
+
+		vi.mocked(scoreAttempt)
+			.mockReturnValueOnce(mockScore)
+			.mockReturnValueOnce(mockFilteredScore);
+
+		const inputs = makePipelineInputs({ detected: allDetected, bleedResult });
+		const result = runScorePipeline(inputs);
+
+		expect(result.bleedLog).not.toBeNull();
+		expect(result.bleedLog!.totalNotes).toBe(2);
+		expect(result.bleedLog!.keptNotes).toBe(1);
+		expect(result.bleedLog!.filteredNotes).toBe(filteredNotes);
 	});
 });

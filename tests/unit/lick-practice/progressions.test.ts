@@ -16,10 +16,10 @@ import {
 	getActiveSubstitution,
 	progressionHasSubstitutionTargets,
 	getChordQualityAtOffset
-} from '$lib/data/progressions.ts';
-import type { ChordProgressionType } from '$lib/types/lick-practice.ts';
-import { PITCH_CLASSES, type PitchClass } from '$lib/types/music.ts';
-import { fractionToFloat } from '$lib/music/intervals.ts';
+} from '$lib/data/progressions';
+import type { ChordProgressionType } from '$lib/types/lick-practice';
+import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+import { fractionToFloat } from '$lib/music/intervals';
 
 describe('PROGRESSION_TEMPLATES', () => {
 	const types: ChordProgressionType[] = [

@@ -4,7 +4,7 @@
  *
  * Transposed at runtime to any key.
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 const II_V_I_MINOR_HARMONY: HarmonicSegment[] = [
 	{

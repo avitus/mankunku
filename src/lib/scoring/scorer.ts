@@ -11,14 +11,14 @@
  * Composite: overall = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4
  */
 
-import type { Phrase, Note } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Score, NoteResult, TimingDiagnostics } from '$lib/types/scoring.ts';
-import { alignNotes } from './alignment.ts';
-import { scorePitch } from './pitch-scoring.ts';
-import { scoreRhythm } from './rhythm-scoring.ts';
-import { scoreToGrade } from './grades.ts';
-import { fractionToFloat, midiToPitchClass } from '$lib/music/intervals.ts';
+import type { Phrase, Note } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
+import type { Score, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
+import { alignNotes } from './alignment';
+import { scorePitch } from './pitch-scoring';
+import { scoreRhythm } from './rhythm-scoring';
+import { scoreToGrade } from './grades';
+import { fractionToFloat, midiToPitchClass } from '$lib/music/intervals';
 
 /**
  * Compute the onset time in seconds of an expected note,

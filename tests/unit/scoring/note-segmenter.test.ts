@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { segmentNotes } from '$lib/audio/note-segmenter.ts';
-import type { PitchReading } from '$lib/audio/pitch-detector.ts';
+import { segmentNotes } from '$lib/audio/note-segmenter';
+import type { PitchReading } from '$lib/audio/pitch-detector';
 
 function makeReading(midi: number, time: number, cents = 0, clarity = 0.95): PitchReading {
 	return { midi, midiFloat: midi + cents / 100, cents, clarity, time, frequency: 440 };

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { progress } from '$lib/state/progress.svelte.ts';
-	import { progressMeta, getLast30Days, localDateStr } from '$lib/state/history.svelte.ts';
+	import { progress } from '$lib/state/progress.svelte';
+	import { progressMeta, getLast30Days, localDateStr } from '$lib/state/history.svelte';
 
 	const currentStreak = $derived(progress.streakDays);
 	const longestStreak = $derived(progressMeta.longestStreak);

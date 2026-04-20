@@ -14,7 +14,7 @@ import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud } from '$lib/persistence/sync';
-import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte.ts';
+import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 const STORAGE_KEY = 'progress';

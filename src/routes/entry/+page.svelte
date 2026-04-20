@@ -5,7 +5,7 @@
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
 		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
-		adjustLastNotePitch, getCurrentPhrase, getPaddedNotes,
+		adjustLastNotePitch, flipLastNoteSpelling, getCurrentPhrase, getPaddedNotes,
 		getCurrentBarAndBeat, getRemainingCapacity
 	} from '$lib/state/step-entry.svelte';
 	import { fractionToFloat } from '$lib/music/intervals';
@@ -80,6 +80,7 @@
 		if (key === '0') { addRest(); return; }
 		if (key === ']') { setAccidental('sharp'); return; }
 		if (key === '[') { setAccidental('flat'); return; }
+		if (key === '\\') { flipLastNoteSpelling(); return; }
 		if (key === '+' || key === '=') { adjustOctave(1); return; }
 		if (key === '-') { adjustOctave(-1); return; }
 		if (key === 'ArrowUp') {
@@ -273,7 +274,7 @@
 			<span><kbd>0</kbd> Rest</span>
 			<span><kbd>1</kbd>-<kbd>4</kbd> Duration</span>
 			<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
-			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp</span>
+			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
 			<span><kbd>+</kbd>/<kbd>-</kbd> Octave</span>
 			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
 			<span><kbd>Backspace</kbd> Delete last</span>

@@ -8,11 +8,11 @@
  *
  * The returned array is always a permutation of all 12 `PitchClass` values.
  */
-import type { PitchClass } from '$lib/types/music.ts';
-import type { InstrumentConfig } from '$lib/types/instruments.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
-import { circleOfFifths } from '$lib/music/keys.ts';
-import { writtenKeyToConcert } from '$lib/music/transposition.ts';
+import type { PitchClass } from '$lib/types/music';
+import type { InstrumentConfig } from '$lib/types/instruments';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { circleOfFifths } from '$lib/music/keys';
+import { writtenKeyToConcert } from '$lib/music/transposition';
 
 /** Rotate `arr` so that `start` sits at index 0. Returns a new array. */
 function rotateTo<T>(arr: readonly T[], start: T): T[] {

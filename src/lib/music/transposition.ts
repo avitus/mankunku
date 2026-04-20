@@ -1,6 +1,6 @@
-import type { PitchClass } from '$lib/types/music.ts';
-import type { InstrumentConfig } from '$lib/types/instruments.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
+import type { PitchClass } from '$lib/types/music';
+import type { InstrumentConfig } from '$lib/types/instruments';
+import { PITCH_CLASSES } from '$lib/types/music';
 
 /**
  * Transpose a concert-pitch MIDI note to written pitch for a transposing instrument.

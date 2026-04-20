@@ -1,4 +1,4 @@
-import type { Phrase } from '$lib/types/music.ts';
+import type { Phrase } from '$lib/types/music';
 
 /**
  * Hardcoded test phrases for Phase 2 development.

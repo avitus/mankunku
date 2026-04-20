@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { chordTones, chordSymbol, CHORD_DEFINITIONS } from '$lib/music/chords.ts';
-import type { ChordQuality } from '$lib/types/music.ts';
+import { chordTones, chordSymbol, CHORD_DEFINITIONS } from '$lib/music/chords';
+import type { ChordQuality } from '$lib/types/music';
 
 const ALL_QUALITIES = Object.keys(CHORD_DEFINITIONS) as ChordQuality[];
 

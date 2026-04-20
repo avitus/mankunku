@@ -18,9 +18,9 @@ import {
 	OCTAVE_CONFIRM_FRAMES as OCTAVE_CONFIRM_FRAMES_DEFAULT,
 	type OctaveStabilizer,
 	type PitchReading
-} from './pitch-frame.ts';
+} from './pitch-frame';
 
-export type { PitchReading } from './pitch-frame.ts';
+export type { PitchReading } from './pitch-frame';
 
 /** Minimum clarity to accept a pitch reading (lower for responsive real-time display) */
 export const CLARITY_THRESHOLD = DEFAULT_CLARITY_THRESHOLD;

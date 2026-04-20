@@ -14,12 +14,12 @@
  * - Per-note tuning corrections from SFZ mappings
  */
 
-import type { Phrase } from '$lib/types/music.ts';
-import type { PlaybackOptions } from '$lib/types/audio.ts';
-import type { BackingInstrument } from '$lib/types/instruments.ts';
-import { fractionToFloat } from '$lib/music/intervals.ts';
-import { initAudio, getMasterGain, setMasterVolume } from './audio-context.ts';
-import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome.ts';
+import type { Phrase } from '$lib/types/music';
+import type { PlaybackOptions } from '$lib/types/audio';
+import type { BackingInstrument } from '$lib/types/instruments';
+import { fractionToFloat } from '$lib/music/intervals';
+import { initAudio, getMasterGain, setMasterVolume } from './audio-context';
+import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
 import {
 	loadBackingInstruments,
 	startBackingTrack,
@@ -27,12 +27,20 @@ import {
 	disposeBackingParts,
 	disposeBackingTrack,
 	isBackingLoaded
-} from './backing-track.ts';
-import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps.ts';
+} from './backing-track';
+import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
 type SmplrSampler = import('smplr').Sampler;
+
+interface PlaybackEvent {
+	time: string;
+	midi: number;
+	duration: number;
+	velocity: number;
+	detune: number;
+}
 
 let tone: ToneModule | null = null;
 /** SoundFont instrument (used when no custom samples available) */
@@ -43,7 +51,7 @@ let samplerForte: SmplrSampler | null = null;
 let activeSampleMap: SampleMap | null = null;
 /** Shared mix node for routing both velocity layers through one effect chain */
 let mixNode: GainNode | null = null;
-let currentPart: InstanceType<ToneModule['Part']> | null = null;
+let currentPart: import('tone').Part<PlaybackEvent> | null = null;
 let isPlaying = false;
 let onStopCallback: (() => void) | null = null;
 /** Transport event ID for the end-of-phrase cleanup callback.

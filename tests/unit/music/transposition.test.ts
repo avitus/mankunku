@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { INSTRUMENTS } from '$lib/types/instruments.ts';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import {
 	concertToWritten,
 	writtenToConcert,
@@ -8,7 +8,7 @@ import {
 	transposePitchClass,
 	pitchClassInterval,
 	isInRange
-} from '$lib/music/transposition.ts';
+} from '$lib/music/transposition';
 
 const tenorSax = INSTRUMENTS['tenor-sax'];
 const altoSax = INSTRUMENTS['alto-sax'];

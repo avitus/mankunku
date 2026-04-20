@@ -187,6 +187,9 @@ const TEST_SETTINGS = {
 	masterVolume: 0.8,
 	metronomeEnabled: true,
 	metronomeVolume: 0.7,
+	backingTrackEnabled: false,
+	backingInstrument: 'piano',
+	backingTrackVolume: 0.5,
 	swing: 0.5,
 	theme: 'dark',
 	onboardingComplete: false,
@@ -627,6 +630,9 @@ describe('syncSettingsToCloud', () => {
 				master_volume: 0.8,
 				metronome_enabled: true,
 				metronome_volume: 0.7,
+				backing_track_enabled: false,
+				backing_instrument: 'piano',
+				backing_track_volume: 0.5,
 				swing: 0.5,
 				theme: 'dark',
 				onboarding_complete: false
@@ -724,6 +730,9 @@ describe('loadSettingsFromCloud', () => {
 						master_volume: 0.9,
 						metronome_enabled: false,
 						metronome_volume: 0.6,
+						backing_track_enabled: true,
+						backing_instrument: 'bass',
+						backing_track_volume: 0.7,
 						swing: 0.6,
 						theme: 'light',
 						onboarding_complete: true,
@@ -745,6 +754,9 @@ describe('loadSettingsFromCloud', () => {
 			expect(result.masterVolume).toBe(0.9);
 			expect(result.metronomeEnabled).toBe(false);
 			expect(result.metronomeVolume).toBe(0.6);
+			expect(result.backingTrackEnabled).toBe(true);
+			expect(result.backingInstrument).toBe('bass');
+			expect(result.backingTrackVolume).toBe(0.7);
 			expect(result.swing).toBe(0.6);
 			expect(result.theme).toBe('light');
 			expect(result.onboardingComplete).toBe(true);

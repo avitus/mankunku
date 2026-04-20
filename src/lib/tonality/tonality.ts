@@ -7,11 +7,11 @@
  * based on the date.
  */
 
-import type { PitchClass } from '$lib/types/music.ts';
-import type { UnlockContext } from '$lib/types/progress.ts';
+import type { PitchClass } from '$lib/types/music';
+import type { UnlockContext } from '$lib/types/progress';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { concertKeyToWritten } from '$lib/music/transposition';
-import { localDateStr } from '$lib/state/history.svelte.ts';
+import { localDateStr } from '$lib/state/history.svelte';
 
 // ── Types ────────────────────────────────────────────────────────────
 

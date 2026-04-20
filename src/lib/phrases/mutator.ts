@@ -8,9 +8,9 @@
  *   4. Truncation/extension — shorten or lengthen the phrase
  */
 
-import type { Phrase, Note, Fraction } from '$lib/types/music.ts';
-import { addFractions, fractionToFloat } from '$lib/music/intervals.ts';
-import { validatePhrase, rulesForDifficulty } from './validator.ts';
+import type { Phrase, Note, Fraction } from '$lib/types/music';
+import { addFractions, fractionToFloat } from '$lib/music/intervals';
+import { validatePhrase, rulesForDifficulty } from './validator';
 
 /**
  * Apply a random mutation to a lick.

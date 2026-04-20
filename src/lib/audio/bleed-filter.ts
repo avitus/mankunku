@@ -8,8 +8,8 @@
  * clarity >= 0.92; speaker bleed at typical distances lands in 0.80–0.88.
  */
 
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { BackingTrackSchedule } from './backing-track-schedule.ts';
+import type { DetectedNote } from '$lib/types/audio';
+import type { BackingTrackSchedule } from './backing-track-schedule';
 
 /** Default clarity below which a backing-track-matching note is rejected. */
 const DEFAULT_CLARITY_FLOOR = 0.88;

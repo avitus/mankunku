@@ -5,9 +5,9 @@
  * rather than random. All pitch values are MIDI concert pitch.
  */
 
-import type { Phrase, Note } from '$lib/types/music.ts';
-import { intervalSize } from '$lib/music/intervals.ts';
-import { fractionToFloat } from '$lib/music/intervals.ts';
+import type { Phrase, Note } from '$lib/types/music';
+import { intervalSize } from '$lib/music/intervals';
+import { fractionToFloat } from '$lib/music/intervals';
 
 export interface ValidationResult {
 	valid: boolean;

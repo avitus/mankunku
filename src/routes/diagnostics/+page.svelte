@@ -5,7 +5,7 @@
 	import { midiToDisplayName } from '$lib/music/notation';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
-	import { getInstrument } from '$lib/state/settings.svelte';
+	import { getInstrument, settings } from '$lib/state/settings.svelte';
 	import {
 		getAllRecordingSummaries,
 		getRecordingFull,
@@ -14,8 +14,7 @@
 	} from '$lib/persistence/audio-store';
 	import { replayFromBlob } from '$lib/audio/replay';
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
-	import { segmentNotes } from '$lib/audio/note-segmenter';
-	import { resolveOnsets } from '$lib/scoring/score-pipeline';
+	import { segmentNotes, resolveOnsets } from '$lib/audio/note-segmenter';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
@@ -257,6 +256,66 @@
 		}
 	}
 
+	/**
+	 * Self-contained JSON snapshot for bug reports. Captures everything an
+	 * algorithm-side investigation needs without re-running pitch detection:
+	 * raw worklet onsets, resolved onsets, every pitch reading, the current
+	 * segmenter output, and the saved-at-record-time detection / score.
+	 */
+	function downloadDiagnostics(rec: RecordingSummary) {
+		if (!replay) return;
+		try {
+			const md = rec.metadata;
+			const inst = getInstrument();
+			const payload = {
+				version: 1,
+				exportedAt: new Date().toISOString(),
+				recording: {
+					sessionId: rec.sessionId,
+					timestamp: rec.timestamp,
+					date: new Date(rec.timestamp).toISOString()
+				},
+				context: {
+					phraseId: md?.phraseId ?? null,
+					phraseName: md?.phraseName ?? null,
+					source: md?.source ?? null,
+					instrument: { id: settings.instrumentId, name: inst.name, key: inst.key },
+					concertKey: md?.key ?? null,
+					tempo: md?.tempo ?? null,
+					swing: md?.swing ?? null,
+					backingTrackUsed: md?.backingTrackLog != null
+				},
+				audio: {
+					duration: replay.duration,
+					sampleRate: replay.sampleRate
+				},
+				detection: {
+					rawWorkletOnsets: replay.onsets,
+					resolvedOnsets: replay.resolvedOnsets,
+					segmentedNotes: replay.segmented,
+					readings: replay.readings
+				},
+				scoring: {
+					savedDetectedNotes: md?.detectedNotes ?? null,
+					savedScore: md?.score ?? null
+				},
+				bleedFilterLog: md?.bleedFilterLog ?? null,
+				backingTrackLog: md?.backingTrackLog ?? null
+			};
+			const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = fixtureName(rec).replace(/\.wav$/, '.json');
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			downloadError = err instanceof Error ? err.message : String(err);
+		}
+	}
+
 	async function remove(rec: RecordingSummary) {
 		if (!confirm(`Delete recording ${fixtureName(rec)}?`)) return;
 		if (expandedId === rec.sessionId) collapseCurrent();
@@ -470,6 +529,14 @@
 									class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs hover:bg-[var(--color-bg)] transition-colors disabled:opacity-50"
 								>
 									{downloading ? 'Encoding…' : 'Download WAV'}
+								</button>
+								<button
+									onclick={() => downloadDiagnostics(rec)}
+									disabled={!replay}
+									class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs hover:bg-[var(--color-bg)] transition-colors disabled:opacity-50"
+									title="Self-contained JSON snapshot for bug reports"
+								>
+									Download diagnostics
 								</button>
 								<button
 									onclick={() => copyFixtureName(rec)}

@@ -19,7 +19,7 @@
  * so the whole set ratchets up or down together based on overall performance.
  */
 
-import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music.ts';
+import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music';
 import type {
 	LickPracticeConfig,
 	LickPracticePhase,
@@ -28,10 +28,10 @@ import type {
 	LickPracticeKeyResult,
 	LickReport,
 	SessionReport
-} from '$lib/types/lick-practice.ts';
-import type { Score } from '$lib/types/scoring.ts';
-import { addFractions } from '$lib/music/intervals.ts';
-import { planLickKeys } from '$lib/music/key-ordering.ts';
+} from '$lib/types/lick-practice';
+import type { Score } from '$lib/types/scoring';
+import { addFractions } from '$lib/music/intervals';
+import { planLickKeys } from '$lib/music/key-ordering';
 import {
 	loadLickPracticeProgress,
 	saveLickPracticeProgress,
@@ -46,9 +46,9 @@ import {
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo
-} from '$lib/persistence/lick-practice-store.ts';
+} from '$lib/persistence/lick-practice-store';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/supabase/types.ts';
+import type { Database } from '$lib/supabase/types';
 import {
 	PROGRESSION_TEMPLATES,
 	getCompatibleLickCategories,
@@ -56,9 +56,9 @@ import {
 	resolveLickAlignmentOffset,
 	resolveTransposeTarget,
 	transposeProgression
-} from '$lib/data/progressions.ts';
-import { getAllLicks, transposeLick } from '$lib/phrases/library-loader.ts';
-import { getLickTagOverrides } from '$lib/persistence/user-licks.ts';
+} from '$lib/data/progressions';
+import { getAllLicks, transposeLick } from '$lib/phrases/library-loader';
+import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 
 const PASS_THRESHOLD = 0.80;

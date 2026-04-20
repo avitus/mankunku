@@ -1,4 +1,4 @@
-import type { ScaleDefinition } from '$lib/types/music.ts';
+import type { ScaleDefinition } from '$lib/types/music';
 
 /**
  * Complete scale catalog — 35 scales across 7 families.

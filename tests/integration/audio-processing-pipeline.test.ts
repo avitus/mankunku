@@ -12,14 +12,13 @@ import {
 	processOnsetFrame,
 	SETTLE_FRAMES,
 	MIN_ONSET_INTERVAL,
-} from '$lib/audio/onset-core.ts';
-import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
-import { quantizeNotes, detectKey } from '$lib/audio/quantizer.ts';
-import { extractOnsetsFromReadings } from '$lib/scoring/score-pipeline.ts';
-import { scoreAttempt } from '$lib/scoring/scorer.ts';
-import type { PitchReading } from '$lib/audio/pitch-detector.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Phrase, Note } from '$lib/types/music.ts';
+} from '$lib/audio/onset-core';
+import { segmentNotes, validateOnsets, extractOnsetsFromReadings } from '$lib/audio/note-segmenter';
+import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
+import { scoreAttempt } from '$lib/scoring/scorer';
+import type { PitchReading } from '$lib/audio/pitch-detector';
+import type { DetectedNote } from '$lib/types/audio';
+import type { Phrase, Note } from '$lib/types/music';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 

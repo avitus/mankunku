@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { alignNotes } from '$lib/scoring/alignment.ts';
-import type { Note, Fraction } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
+import { alignNotes } from '$lib/scoring/alignment';
+import type { Note, Fraction } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
 
 function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [1, 8]): Note {
 	return { pitch, offset, duration };

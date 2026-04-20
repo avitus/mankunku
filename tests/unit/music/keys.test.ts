@@ -6,7 +6,7 @@ import {
 	scalePitchClasses,
 	relativeMinor,
 	relativeMajor
-} from '$lib/music/keys.ts';
+} from '$lib/music/keys';
 
 describe('keySignatureAccidentals', () => {
 	it('C major has 0 accidentals', () => {

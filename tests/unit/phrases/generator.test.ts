@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator.ts';
-import type { PhraseCategory, PitchClass, ChordQuality } from '$lib/types/music.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
+import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
+import type { PhraseCategory, PitchClass, ChordQuality } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
 
 // ─── Helpers ───────────────────────────────────────────────────
 

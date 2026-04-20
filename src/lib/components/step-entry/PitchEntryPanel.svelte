@@ -1,7 +1,7 @@
 <script lang="ts">
 	import {
 		stepEntry, addNote, addRest, deleteLastNote,
-		setAccidental, adjustOctave
+		setAccidental, adjustOctave, flipLastNoteSpelling
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
 
@@ -61,6 +61,15 @@
 					: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
 		>
 			&#9839; <span class="text-[10px] opacity-50">]</span>
+		</button>
+		<button
+			onclick={flipLastNoteSpelling}
+			class="rounded px-3 py-2 text-sm transition-colors
+				bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]"
+			title="Flip enharmonic spelling (e.g. F# ↔ Gb)"
+			aria-label="Flip enharmonic spelling"
+		>
+			&#8596; <span class="text-[10px] opacity-50">\</span>
 		</button>
 
 		<span class="mx-1 text-[var(--color-bg-tertiary)]">|</span>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { scorePitch } from '$lib/scoring/pitch-scoring.ts';
-import type { Note } from '$lib/types/music.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
+import { scorePitch } from '$lib/scoring/pitch-scoring';
+import type { Note } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
 
 function makeNote(pitch: number | null): Note {
 	return { pitch, offset: [0, 1], duration: [1, 4] };

@@ -13,7 +13,7 @@
  *     This matches the scale used by walking-bass events and melody notes.
  */
 
-import type { BackingStyle } from '$lib/types/instruments.ts';
+import type { BackingStyle } from '$lib/types/instruments';
 
 export interface DrumHit {
 	kick?: boolean;
