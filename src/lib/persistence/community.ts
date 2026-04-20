@@ -83,6 +83,13 @@ export interface CommunityFilters {
 	maxDifficulty?: number;
 	authorSearch?: string;
 	sort?: 'popular' | 'newest';
+	/**
+	 * Omit licks authored by this user from the results — used on the community
+	 * browse page so you never see your own licks mixed with everyone else's.
+	 * Your own licks already live under /library, and self-adoption is blocked
+	 * at the DB anyway.
+	 */
+	excludeUserId?: string;
 }
 
 export interface CommunityLick {
@@ -180,6 +187,10 @@ export async function listCommunityLicks(
 
 	if (filters.category) {
 		query = query.eq('category', filters.category);
+	}
+
+	if (filters.excludeUserId) {
+		query = query.neq('user_id', filters.excludeUserId);
 	}
 
 	if (filters.search) {

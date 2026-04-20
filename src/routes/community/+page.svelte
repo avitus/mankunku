@@ -46,6 +46,20 @@
 
 	let effectRunId = 0;
 
+	/** Shared filter builder — keep effect and loadMore in sync. */
+	function buildFilters() {
+		return {
+			search: community.searchQuery.trim() || undefined,
+			category: community.categoryFilter ?? undefined,
+			maxDifficulty: community.difficultyFilter ?? undefined,
+			authorSearch: community.authorQuery.trim() || undefined,
+			sort: community.sort,
+			// Exclude the current user's own licks so the browse view shows
+			// only licks you could actually adopt — your own are in /library.
+			excludeUserId: user?.id
+		};
+	}
+
 	$effect(() => {
 		// Depend on filterKey explicitly and supabase availability.
 		void filterKey;
@@ -59,17 +73,7 @@
 		loading = true;
 		pageOffset = 0;
 		loadError = null;
-		listCommunityLicks(
-			sb,
-			{
-				search: community.searchQuery.trim() || undefined,
-				category: community.categoryFilter ?? undefined,
-				maxDifficulty: community.difficultyFilter ?? undefined,
-				authorSearch: community.authorQuery.trim() || undefined,
-				sort: community.sort
-			},
-			0
-		)
+		listCommunityLicks(sb, buildFilters(), 0)
 			.then((results) => {
 				if (runId !== effectRunId) return;
 				licks = results;
@@ -89,17 +93,7 @@
 		loading = true;
 		const nextOffset = pageOffset + COMMUNITY_PAGE_SIZE;
 		try {
-			const more = await listCommunityLicks(
-				supabase,
-				{
-					search: community.searchQuery.trim() || undefined,
-					category: community.categoryFilter ?? undefined,
-					maxDifficulty: community.difficultyFilter ?? undefined,
-					authorSearch: community.authorQuery.trim() || undefined,
-					sort: community.sort
-				},
-				nextOffset
-			);
+			const more = await listCommunityLicks(supabase, buildFilters(), nextOffset);
 			licks = [...licks, ...more];
 			pageOffset = nextOffset;
 			hasMore = more.length === COMMUNITY_PAGE_SIZE;
