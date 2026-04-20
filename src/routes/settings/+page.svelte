@@ -111,6 +111,51 @@
 	let showResetConfirm = $state(false);
 	let showDeleteConfirm = $state(false);
 
+	// Display name editor — surfaced publicly on community lick cards.
+	let displayName = $state('');
+	let displayNameLoaded = $state(false);
+	let displayNameSaving = $state(false);
+	let displayNameStatus: 'idle' | 'saved' | 'error' = $state('idle');
+
+	$effect(() => {
+		if (!supabase || !user || displayNameLoaded) return;
+		displayNameLoaded = true;
+		void (async () => {
+			try {
+				const { data, error } = await supabase
+					.from('user_profiles')
+					.select('display_name')
+					.eq('id', user.id)
+					.single();
+				if (!error && data) {
+					displayName = data.display_name ?? '';
+				}
+			} catch (err) {
+				console.warn('Failed to load display name:', err);
+			}
+		})();
+	});
+
+	async function handleSaveDisplayName() {
+		if (!supabase || !user || displayNameSaving) return;
+		displayNameSaving = true;
+		displayNameStatus = 'idle';
+		try {
+			const trimmed = displayName.trim();
+			const { error } = await supabase
+				.from('user_profiles')
+				.update({ display_name: trimmed || null, updated_at: new Date().toISOString() })
+				.eq('id', user.id);
+			displayNameStatus = error ? 'error' : 'saved';
+			if (error) console.warn('Failed to save display name:', error);
+		} catch (err) {
+			console.warn('Unexpected error saving display name:', err);
+			displayNameStatus = 'error';
+		} finally {
+			displayNameSaving = false;
+		}
+	}
+
 	async function handleChangePassword() {
 		if (!supabase || !user?.email) return;
 		try {
@@ -591,6 +636,40 @@
 						<p class="text-xs text-[var(--color-text-secondary)]">Signed in as</p>
 						<p class="text-sm font-medium">{user.email}</p>
 					</div>
+				</div>
+
+				<!-- Display Name -->
+				<div class="px-4 py-3 space-y-2">
+					<div>
+						<label for="display-name-input" class="text-sm font-medium">Display Name</label>
+						<p id="display-name-help" class="text-xs text-[var(--color-text-secondary)]">
+							Shown on community licks you share. Leave blank to stay anonymous.
+						</p>
+					</div>
+					<div class="flex items-center gap-2">
+						<input
+							id="display-name-input"
+							type="text"
+							bind:value={displayName}
+							oninput={() => { displayNameStatus = 'idle'; }}
+							aria-describedby="display-name-help"
+							placeholder="e.g. Dexter G."
+							maxlength="80"
+							class="flex-1 rounded-lg bg-[var(--color-bg)] px-3 py-1.5 text-sm border border-[var(--color-bg-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)]"
+						/>
+						<button
+							onclick={handleSaveDisplayName}
+							disabled={displayNameSaving}
+							class="rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors disabled:opacity-50"
+						>
+							{displayNameSaving ? 'Saving…' : 'Save'}
+						</button>
+					</div>
+					{#if displayNameStatus === 'saved'}
+						<p class="text-xs text-[var(--color-text-secondary)]">Saved.</p>
+					{:else if displayNameStatus === 'error'}
+						<p class="text-xs text-[var(--color-error)]">Couldn't save. Try again.</p>
+					{/if}
 				</div>
 
 				<!-- Change Password -->

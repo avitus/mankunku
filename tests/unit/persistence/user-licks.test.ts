@@ -16,6 +16,11 @@ vi.mock('$lib/persistence/sync', () => ({
 	syncUserLicksToCloud: (...args: unknown[]) => mockSyncUserLicksToCloud(...args)
 }));
 
+// ─── Mock community module (adopted licks cache) ─────────────
+vi.mock('$lib/persistence/community', () => ({
+	getAdoptedLicksLocal: () => []
+}));
+
 // ─── Mock localStorage ────────────────────────────────────────
 const store: Record<string, string> = {};
 const localStorageMock = {

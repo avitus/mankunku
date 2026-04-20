@@ -11,6 +11,7 @@ import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index';
 import { getUserLicksLocal } from '$lib/persistence/user-licks';
+import { getAdoptedLicksLocal } from '$lib/persistence/community';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 
@@ -36,14 +37,24 @@ for (const lick of ALL_CURATED_LICKS) {
 	byCategory.set(lick.category, arr);
 }
 
-/** Get all licks in the library (curated + user-recorded) */
+/** Get all licks in the library (curated + user-recorded + adopted-from-community) */
 export function getAllLicks(): Phrase[] {
-	return [...ALL_CURATED_LICKS, ...getUserLicksLocal()];
+	const userLicks = getUserLicksLocal();
+	const adopted = getAdoptedLicksLocal();
+	// Dedup in the unlikely event the same id appears in both caches
+	// (self-adoption is blocked by DB policy, but the guard is cheap).
+	const userIds = new Set(userLicks.map((l) => l.id));
+	const adoptedDeduped = adopted.filter((l) => !userIds.has(l.id));
+	return [...ALL_CURATED_LICKS, ...userLicks, ...adoptedDeduped];
 }
 
 /** Get a single lick by ID */
 export function getLickById(id: string): Phrase | undefined {
-	return byId.get(id) ?? getUserLicksLocal().find((l) => l.id === id);
+	return (
+		byId.get(id) ??
+		getUserLicksLocal().find((l) => l.id === id) ??
+		getAdoptedLicksLocal().find((l) => l.id === id)
+	);
 }
 
 /** Get all licks in a category */

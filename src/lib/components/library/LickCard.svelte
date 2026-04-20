@@ -10,9 +10,11 @@
 		onclick?: () => void;
 		onplay?: () => void;
 		isPlaying?: boolean;
+		/** When set, renders a "by <name>" attribution — used for adopted community licks. */
+		authorName?: string | null;
 	}
 
-	let { lick, onclick, onplay, isPlaying = false }: Props = $props();
+	let { lick, onclick, onplay, isPlaying = false, authorName = null }: Props = $props();
 
 	const diff = $derived(difficultyDisplay(lick.difficulty.level));
 	const isPracticeTagged = $derived(hasPracticeTag(lick.id) || lick.tags.includes('practice'));
@@ -26,6 +28,11 @@
 	<div class="flex items-start justify-between gap-2">
 		<div class="min-w-0">
 			<h3 class="font-display text-lg font-semibold tracking-tight truncate">{lick.name}</h3>
+			{#if authorName}
+				<p class="mt-0.5 text-xs italic text-[var(--color-text-secondary)] truncate">
+					by {authorName}
+				</p>
+			{/if}
 			<div class="mt-1 flex flex-wrap gap-1.5 text-xs">
 				<span class="smallcaps border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">
 					{CATEGORY_LABELS[lick.category] ?? lick.category}
