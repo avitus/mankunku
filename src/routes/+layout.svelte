@@ -168,7 +168,7 @@
 					clicking reveals a compact menu with Sign Out. Native
 					disclosure gives us keyboard access for free.
 				-->
-				<span class="ml-2 border-l border-[var(--color-bg-tertiary)] pl-3">
+				<div class="ml-2 border-l border-[var(--color-bg-tertiary)] pl-3">
 					{#if session && user}
 						<details class="group relative">
 							<summary
@@ -198,7 +198,7 @@
 							Sign In
 						</a>
 					{/if}
-				</span>
+				</div>
 			</div>
 
 			<!-- Mobile hamburger -->
