@@ -153,7 +153,13 @@
 			{ ...licks[idx], isAdoptedByMe: true },
 			...licks.slice(idx + 1)
 		];
-		await adoptLick(supabase, lick.phrase.id);
+		try {
+			await adoptLick(supabase, lick.phrase.id);
+		} catch (err) {
+			console.warn('Failed to adopt lick:', err);
+			// Revert optimistic update on failure so the UI matches server state.
+			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
+		}
 	}
 
 	async function handleUnadopt(lick: CommunityLick) {
@@ -165,7 +171,13 @@
 			{ ...licks[idx], isAdoptedByMe: false },
 			...licks.slice(idx + 1)
 		];
-		await unadoptLick(supabase, lick.phrase.id);
+		try {
+			await unadoptLick(supabase, lick.phrase.id);
+		} catch (err) {
+			console.warn('Failed to unadopt lick:', err);
+			// Revert optimistic update on failure so the UI matches server state.
+			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
+		}
 	}
 
 	function handleCardClick(lick: CommunityLick) {

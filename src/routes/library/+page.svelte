@@ -87,6 +87,21 @@
 	}
 
 	/**
+	 * `initCommunityFromCloud` in +layout.ts races a 2s timeout and is allowed
+	 * to finish in the background. A cold load can render this page before the
+	 * adopted cache is hydrated — the initial snapshot above would then stay
+	 * stale for the rest of the visit. Re-read the cache when the session
+	 * becomes available, and again after a short delay to catch hydration that
+	 * completes after the 2s race.
+	 */
+	$effect(() => {
+		if (!session) return;
+		refreshAdopted();
+		const delayed = setTimeout(refreshAdopted, 2500);
+		return () => clearTimeout(delayed);
+	});
+
+	/**
 	 * Combined filtered licks: user-recorded licks and adopted community licks
 	 * (filtered by same criteria) appear first, followed by curated licks.
 	 */

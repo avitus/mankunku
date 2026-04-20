@@ -12,7 +12,7 @@
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
-	import { getUserLicks, deleteUserLick } from '$lib/persistence/user-licks';
+	import { getUserLicks, getUserLicksLocal, deleteUserLick } from '$lib/persistence/user-licks';
 	import {
 		hasPracticeTag as storeHasPracticeTag,
 		setPracticeTag as storeSetPracticeTag,
@@ -186,8 +186,21 @@
 		isPlaying = false;
 	}
 
+	/**
+	 * True only when the resolved lick is owned by the current user — i.e. it
+	 * lives in their own `user_licks` cache. Community-fallback licks (fetched
+	 * by id from any author) and adopted community licks both share the same
+	 * `source` values ('user-recorded' | 'user-entered') but are not owned,
+	 * so `source` alone is not a safe ownership signal.
+	 */
+	const isOwnLick = $derived(
+		baseLick != null && getUserLicksLocal().some((l) => l.id === baseLick.id)
+	);
+
 	const canDelete = $derived(
-		baseLick != null && (baseLick.source === 'user-recorded' || baseLick.source === 'user-entered')
+		isOwnLick &&
+			baseLick != null &&
+			(baseLick.source === 'user-recorded' || baseLick.source === 'user-entered')
 	);
 
 	function handleDelete() {

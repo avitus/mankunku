@@ -641,15 +641,18 @@
 				<!-- Display Name -->
 				<div class="px-4 py-3 space-y-2">
 					<div>
-						<p class="text-sm font-medium">Display Name</p>
-						<p class="text-xs text-[var(--color-text-secondary)]">
+						<label for="display-name-input" class="text-sm font-medium">Display Name</label>
+						<p id="display-name-help" class="text-xs text-[var(--color-text-secondary)]">
 							Shown on community licks you share. Leave blank to stay anonymous.
 						</p>
 					</div>
 					<div class="flex items-center gap-2">
 						<input
+							id="display-name-input"
 							type="text"
 							bind:value={displayName}
+							oninput={() => { displayNameStatus = 'idle'; }}
+							aria-describedby="display-name-help"
 							placeholder="e.g. Dexter G."
 							maxlength="80"
 							class="flex-1 rounded-lg bg-[var(--color-bg)] px-3 py-1.5 text-sm border border-[var(--color-bg-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)]"
