@@ -23,8 +23,15 @@
 	let mobileMenuOpen = $state(false);
 	let { supabase, session, user } = $derived(data);
 
-	/** Username portion of the email (before the @) — saves horizontal space in the nav. */
-	const emailPrefix = $derived(user?.email?.split('@')[0] ?? '');
+	/**
+	 * Username portion of the email (before the @) — saves horizontal space in
+	 * the nav. Falls back to "Account" if the user has no email (e.g. a
+	 * non-email auth provider) or if the local part is empty, so both desktop
+	 * and mobile labels never render blank.
+	 */
+	const emailPrefix = $derived(
+		(user?.email && user.email.split('@')[0].trim()) || 'Account'
+	);
 
 	// `primary: true` marks the two headline practice modes. They get
 	// display-serif treatment and sit visually separated from the utility
