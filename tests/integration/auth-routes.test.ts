@@ -46,11 +46,44 @@ vi.mock('@supabase/ssr', () => ({
 
 /**
  * Mock @sveltejs/kit/hooks to provide a simplified sequence() implementation.
- * The real sequence() composes multiple Handle functions into one.
- * Since hooks.server.ts only passes a single Handle, we return it directly.
+ * The real sequence() composes multiple Handle functions into one so that each
+ * wraps the next. This mock preserves that composition so every handler in the
+ * chain runs (Sentry passthrough → supabaseHandle → securityHeadersHandle).
  */
+type ResolveFn = (event: unknown, opts?: unknown) => Promise<unknown> | unknown;
+type HandleFn = (args: { event: unknown; resolve: ResolveFn }) => Promise<unknown> | unknown;
+
 vi.mock('@sveltejs/kit/hooks', () => ({
-	sequence: vi.fn((...fns: Function[]) => fns[0])
+	sequence: vi.fn((...fns: HandleFn[]) => {
+		return async ({ event, resolve }: { event: unknown; resolve: ResolveFn }) => {
+			let i = 0;
+			const next: ResolveFn = async (evt, opts) => {
+				if (i >= fns.length) return resolve(evt, opts);
+				const fn = fns[i++];
+				return fn({ event: evt, resolve: next });
+			};
+			return next(event);
+		};
+	})
+}));
+
+/**
+ * Mock @sentry/sveltekit so `sentryHandle()` is a passthrough that just
+ * forwards to the next handle. The real Sentry handle reads
+ * `event.request.headers`, which these tests don't provide.
+ */
+type HandleServerErrorFn = (input: {
+	error: unknown;
+	event: unknown;
+	status: number;
+	message: string;
+}) => unknown | Promise<unknown>;
+
+vi.mock('@sentry/sveltekit', () => ({
+	sentryHandle: (): HandleFn =>
+		async ({ event, resolve }: { event: unknown; resolve: ResolveFn }): Promise<unknown> =>
+			resolve(event),
+	handleErrorWithSentry: (): HandleServerErrorFn => () => undefined
 }));
 
 // ─── Imports ─────────────────────────────────────────────────────────

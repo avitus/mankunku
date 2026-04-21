@@ -42,7 +42,9 @@ export async function createOnsetDetector(
 
 	// Register the worklet processor (once per AudioContext lifetime)
 	if (!moduleRegistered) {
-		const workletUrl = new URL('./onset-worklet.ts', import.meta.url);
+		// Plain JS so Vite emits it as-is (no TS transpile on raw-asset URLs).
+		// Algorithm is kept in sync with onset-core.ts (used by the replay path).
+		const workletUrl = new URL('./onset-worklet.js', import.meta.url);
 		await nativeCtx.audioWorklet.addModule(workletUrl);
 		moduleRegistered = true;
 	}

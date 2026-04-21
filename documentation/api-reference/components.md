@@ -170,11 +170,22 @@ Card displaying a curated lick's metadata.
 
 Shows: name, category label, difficulty level (color-coded), bar count, note count, tags (up to 4).
 
-**Difficulty colors:**
-- 1–2: green
-- 3–4: blue (accent)
-- 5–6: yellow (warning)
-- 7+: red (error)
+**Difficulty colors** — sourced from `difficultyColor()` in `src/lib/difficulty/display.ts`, which maps the 1-100 scale to 10 bands:
+
+| Band | Range  | Name         | Color                      |
+| ---- | ------ | ------------ | -------------------------- |
+| 1    | 1-10   | Beginner     | green `#22c55e`            |
+| 2    | 11-20  | Elementary   | light green `#4ade80`      |
+| 3    | 21-30  | Easy         | lime `#84cc16`             |
+| 4    | 31-40  | Moderate     | yellow-green `#a3e635`     |
+| 5    | 41-50  | Intermediate | yellow `#facc15`           |
+| 6    | 51-60  | Challenging  | amber `#f59e0b`            |
+| 7    | 61-70  | Advanced     | orange `#f97316`           |
+| 8    | 71-80  | Expert       | red `#ef4444`              |
+| 9    | 81-90  | Master       | dark red `#dc2626`         |
+| 10   | 91-100 | Virtuoso     | deep red `#991b1b`         |
+
+These are intentionally independent of the domain accent so a lick's difficulty reads the same in the ear-training and lick-practice views.
 
 ### `CategoryFilter.svelte`
 

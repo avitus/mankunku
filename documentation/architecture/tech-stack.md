@@ -53,16 +53,32 @@ Mankunku uses **Tailwind CSS v4** with CSS custom properties for theming:
 :root {
   --color-bg: #0f172a;
   --color-bg-secondary: #1e293b;
-  --color-accent: #3b82f6;
+  --color-bg-tertiary: #334155;
+  /* Ear Training (default) — Blue Note peacock teal */
+  --color-accent: #2e8b9e;
+  --color-accent-hover: #1f6b7a;
+  /* Blue Note brass — decorative chrome accent */
+  --color-brass: #c8923d;
+  --color-paper: #1a1410;
+  /* Vintage recording-booth red for the active/stop state */
+  --color-onair: #a8463a;
   /* ... */
 }
-:root.light {
-  --color-bg: #f8fafc;
-  /* ... */
+[data-domain='lick-practice'] {
+  /* Warm terracotta for lick-practice routes */
+  --color-accent: #c96a3e;
+  --color-accent-hover: #a64f27;
 }
+[data-domain='neutral'] {
+  --color-accent: #94a3b8;
+  --color-accent-hover: #cbd5e1;
+}
+:root.light { /* light-mode equivalents */ }
 ```
 
-Components reference these variables inline: `bg-[var(--color-bg-secondary)]`. Theme switching toggles the `.light` class on `<html>`.
+Components reference these variables inline: `bg-[var(--color-bg-secondary)]`. Theme switching toggles the `.light` class on `<html>`. Route domain (`ear-training` / `lick-practice` / `neutral`) is derived in `+layout.svelte` and applied as `data-domain` on the layout root — flipping `--color-accent` re-colors every interactive surface. See `documentation/architecture/design-system.md`.
+
+The display serif **Fraunces** (variable font, weight 300–800, Latin subset, self-hosted for offline PWA support) is used for the wordmark, page titles, key/grade readouts, and the primary "Ear Training / Lick Practice" nav labels via the `.font-display` utility.
 
 ## Configuration Files
 
