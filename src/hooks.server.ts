@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/sveltekit';
 /**
  * SvelteKit Server Hook — Supabase Authentication
  *
@@ -37,78 +38,78 @@ import type { Database } from '$lib/supabase/types';
  * @returns The HTTP Response after processing the request
  */
 const supabaseHandle: Handle = async ({ event, resolve }) => {
-	// Create a per-request Supabase server client with typed database schema.
-	// The client uses cookie-based session management via SvelteKit's cookie API.
-	// `getAll` reads all cookies from the incoming request headers.
-	// `setAll` writes cookies to the outgoing response headers with path '/'.
-	event.locals.supabase = createServerClient<Database>(
-		PUBLIC_SUPABASE_URL,
-		PUBLIC_SUPABASE_ANON_KEY,
-		{
-			cookies: {
-				getAll: () => event.cookies.getAll(),
-				setAll: (cookiesToSet) => {
-					cookiesToSet.forEach(({ name, value, options }) => {
-						event.cookies.set(name, value, { ...options, path: '/' });
-					});
-				}
-			}
-		}
-	);
+    // Create a per-request Supabase server client with typed database schema.
+    // The client uses cookie-based session management via SvelteKit's cookie API.
+    // `getAll` reads all cookies from the incoming request headers.
+    // `setAll` writes cookies to the outgoing response headers with path '/'.
+    event.locals.supabase = createServerClient<Database>(
+        PUBLIC_SUPABASE_URL,
+        PUBLIC_SUPABASE_ANON_KEY,
+        {
+            cookies: {
+                getAll: () => event.cookies.getAll(),
+                setAll: (cookiesToSet) => {
+                    cookiesToSet.forEach(({ name, value, options }) => {
+                        event.cookies.set(name, value, { ...options, path: '/' });
+                    });
+                }
+            }
+        }
+    );
 
-	/**
-	 * Secure session retrieval helper.
-	 *
-	 * CRITICAL SECURITY: This function implements the two-step verification pattern:
-	 *   1. `getSession()` — reads session data from cookies (fast, but unverified)
-	 *   2. `getUser()` — contacts Supabase Auth server to validate the JWT (secure)
-	 *
-	 * Using `getSession()` alone would trust the JWT from cookies without server-side
-	 * verification, which is insufficient for authorization decisions. The `getUser()`
-	 * call ensures the token hasn't been tampered with, revoked, or expired.
-	 *
-	 * @returns An object with `session` (verified Session or null) and `user` (verified User or null)
-	 */
-	event.locals.safeGetSession = async () => {
-		// Step 1: Read session from cookies (no network call, reads JWT from cookie)
-		const {
-			data: { session }
-		} = await event.locals.supabase.auth.getSession();
+    /**
+     * Secure session retrieval helper.
+     *
+     * CRITICAL SECURITY: This function implements the two-step verification pattern:
+     *   1. `getSession()` — reads session data from cookies (fast, but unverified)
+     *   2. `getUser()` — contacts Supabase Auth server to validate the JWT (secure)
+     *
+     * Using `getSession()` alone would trust the JWT from cookies without server-side
+     * verification, which is insufficient for authorization decisions. The `getUser()`
+     * call ensures the token hasn't been tampered with, revoked, or expired.
+     *
+     * @returns An object with `session` (verified Session or null) and `user` (verified User or null)
+     */
+    event.locals.safeGetSession = async () => {
+        // Step 1: Read session from cookies (no network call, reads JWT from cookie)
+        const {
+            data: { session }
+        } = await event.locals.supabase.auth.getSession();
 
-		// If no session exists in cookies, return null for both session and user
-		if (!session) {
-			return { session: null, user: null };
-		}
+        // If no session exists in cookies, return null for both session and user
+        if (!session) {
+            return { session: null, user: null };
+        }
 
-		// Step 2: Validate the JWT by contacting the Supabase Auth server.
-		// This is the CRITICAL security step — getSession() alone is not sufficient
-		// for authorization because it only reads unverified data from cookies.
-		const {
-			data: { user },
-			error
-		} = await event.locals.supabase.auth.getUser();
+        // Step 2: Validate the JWT by contacting the Supabase Auth server.
+        // This is the CRITICAL security step — getSession() alone is not sufficient
+        // for authorization because it only reads unverified data from cookies.
+        const {
+            data: { user },
+            error
+        } = await event.locals.supabase.auth.getUser();
 
-		// If JWT validation fails (expired, revoked, tampered) or user is null,
-		// discard the session — both a valid error and a missing user indicate
-		// an invalid auth state.
-		if (error || !user) {
-			return { session: null, user: null };
-		}
+        // If JWT validation fails (expired, revoked, tampered) or user is null,
+        // discard the session — both a valid error and a missing user indicate
+        // an invalid auth state.
+        if (error || !user) {
+            return { session: null, user: null };
+        }
 
-		// Both session and user are verified — return the trusted data
-		return { session, user };
-	};
+        // Both session and user are verified — return the trusted data
+        return { session, user };
+    };
 
-	// Resolve the request, filtering response headers to allow Supabase-specific
-	// headers through SvelteKit's serialization layer. Without this filter,
-	// these headers would be stripped from the response during SSR.
-	return resolve(event, {
-		filterSerializedResponseHeaders(name) {
-			// Allow 'content-range' (used by Supabase for paginated query responses)
-			// and 'x-supabase-api-version' (used for API version negotiation)
-			return name === 'content-range' || name === 'x-supabase-api-version';
-		}
-	});
+    // Resolve the request, filtering response headers to allow Supabase-specific
+    // headers through SvelteKit's serialization layer. Without this filter,
+    // these headers would be stripped from the response during SSR.
+    return resolve(event, {
+        filterSerializedResponseHeaders(name) {
+            // Allow 'content-range' (used by Supabase for paginated query responses)
+            // and 'x-supabase-api-version' (used for API version negotiation)
+            return name === 'content-range' || name === 'x-supabase-api-version';
+        }
+    });
 };
 
 /**
@@ -147,22 +148,22 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
  * @returns The HTTP Response with security headers applied
  */
 const securityHeadersHandle: Handle = async ({ event, resolve }) => {
-	const response = await resolve(event);
+    const response = await resolve(event);
 
-	// Prevent MIME-type sniffing — browsers must respect the declared Content-Type
-	response.headers.set('X-Content-Type-Options', 'nosniff');
+    // Prevent MIME-type sniffing — browsers must respect the declared Content-Type
+    response.headers.set('X-Content-Type-Options', 'nosniff');
 
-	// Prevent clickjacking — only allow framing by the same origin
-	response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+    // Prevent clickjacking — only allow framing by the same origin
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
 
-	// Control referrer leakage — send full URL for same-origin, only origin for cross-origin
-	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // Control referrer leakage — send full URL for same-origin, only origin for cross-origin
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-	// Restrict browser API access — allow microphone (required for practice recording),
-	// deny camera and geolocation (not used by the application)
-	response.headers.set('Permissions-Policy', 'camera=(), geolocation=(), microphone=(self)');
+    // Restrict browser API access — allow microphone (required for practice recording),
+    // deny camera and geolocation (not used by the application)
+    response.headers.set('Permissions-Policy', 'camera=(), geolocation=(), microphone=(self)');
 
-	return response;
+    return response;
 };
 
 /**
@@ -180,4 +181,5 @@ const securityHeadersHandle: Handle = async ({ event, resolve }) => {
  * // const authGuardHandle: Handle = async ({ event, resolve }) => { ... };
  * // export const handle: Handle = sequence(supabaseHandle, securityHeadersHandle, authGuardHandle);
  */
-export const handle: Handle = sequence(supabaseHandle, securityHeadersHandle);
+export const handle: Handle = sequence(Sentry.sentryHandle(), sequence(supabaseHandle, securityHeadersHandle));
+export const handleError = Sentry.handleErrorWithSentry();
