@@ -31,12 +31,12 @@
 	const todayStr = localDateStr(new Date());
 
 	// Aggregate data points based on period
-	// Shows level (primary) with pitch/rhythm scores (secondary)
+	// Shows overall level (solid) with pitch/rhythm proficiency (dotted)
 	interface DataPoint {
 		label: string;
-		level: number;        // avg of pitchComplexity + rhythmComplexity (1-100)
-		pitchScore: number;   // avgPitch as percentage (0-100)
-		rhythmScore: number;  // avgRhythm as percentage (0-100)
+		level: number;             // avg of pitchComplexity + rhythmComplexity (1-100)
+		pitchProficiency: number;  // pitchComplexity (1-100)
+		rhythmProficiency: number; // rhythmComplexity (1-100)
 	}
 
 	const dataPoints = $derived.by(() => {
@@ -49,17 +49,21 @@
 			}));
 		if (filtered.length === 0) return [];
 
-		function toPoint(label: string, level: number, pitchScore: number, rhythmScore: number): DataPoint {
-			return { label, level, pitchScore, rhythmScore };
+		function toPoint(label: string, pitch: number, rhythm: number): DataPoint {
+			return {
+				label,
+				level: (pitch + rhythm) / 2,
+				pitchProficiency: pitch,
+				rhythmProficiency: rhythm
+			};
 		}
 
 		// For short periods, use daily; for longer, group
 		if (period === '1w' || period === '1m') {
 			return filtered.map(s => toPoint(
 				s.date.slice(5),
-				(s.pitchComplexity + s.rhythmComplexity) / 2,
-				Math.round(s.avgPitch * 100),
-				Math.round(s.avgRhythm * 100)
+				s.pitchComplexity,
+				s.rhythmComplexity
 			));
 		}
 
@@ -86,17 +90,13 @@
 
 		const points: DataPoint[] = [];
 		for (const [key, group] of groups) {
-			// Level: last day's complexity snapshot
+			// Use last day's proficiency snapshot for the group — proficiency is a
+			// point-in-time adaptive state, not something to average across days.
 			const last = group[group.length - 1];
-			const level = (last.pitchComplexity + last.rhythmComplexity) / 2;
-			// Scores: average across group days
-			const pitchScore = Math.round(group.reduce((sum, s) => sum + s.avgPitch, 0) / group.length * 100);
-			const rhythmScore = Math.round(group.reduce((sum, s) => sum + s.avgRhythm, 0) / group.length * 100);
 			points.push(toPoint(
 				groupByMonth ? key.slice(2) : key.slice(5),
-				level,
-				pitchScore,
-				rhythmScore
+				last.pitchComplexity,
+				last.rhythmComplexity
 			));
 		}
 
@@ -116,7 +116,7 @@
 	// Compute Y range from data (1-100 scale, with some padding)
 	const yMax = $derived(
 		dataPoints.length > 0
-			? Math.max(...dataPoints.flatMap(d => [d.level, d.pitchScore, d.rhythmScore]), 10)
+			? Math.max(...dataPoints.flatMap(d => [d.level, d.pitchProficiency, d.rhythmProficiency]), 10)
 			: 100
 	);
 
@@ -156,20 +156,30 @@
 				>{p.label}</button>
 			{/each}
 		</div>
-		<!-- Line toggles -->
-		<div class="flex gap-2 text-xs">
+		<!-- Line legend + toggles -->
+		<div class="flex gap-3 text-xs">
+			<span class="flex items-center gap-1">
+				<svg width="14" height="6" class="shrink-0">
+					<line x1="0" y1="3" x2="14" y2="3" stroke="var(--color-text-primary)" stroke-width="2" />
+				</svg>
+				Level
+			</span>
 			<button
 				onclick={() => { showPitch = !showPitch; }}
 				class="flex items-center gap-1 {showPitch ? 'opacity-100' : 'opacity-40'}"
 			>
-				<span class="inline-block h-2 w-2 rounded-full bg-[var(--color-accent)]"></span>
+				<svg width="14" height="6" class="shrink-0">
+					<line x1="0" y1="3" x2="14" y2="3" stroke="var(--color-accent)" stroke-width="1.5" stroke-dasharray="3 2" />
+				</svg>
 				Pitch
 			</button>
 			<button
 				onclick={() => { showRhythm = !showRhythm; }}
 				class="flex items-center gap-1 {showRhythm ? 'opacity-100' : 'opacity-40'}"
 			>
-				<span class="inline-block h-2 w-2 rounded-full bg-[var(--color-brass)]"></span>
+				<svg width="14" height="6" class="shrink-0">
+					<line x1="0" y1="3" x2="14" y2="3" stroke="var(--color-brass)" stroke-width="1.5" stroke-dasharray="3 2" />
+				</svg>
 				Rhythm
 			</button>
 		</div>
@@ -186,7 +196,7 @@
 				</text>
 			{/each}
 
-			<!-- Rhythm score (dotted) -->
+			<!-- Rhythm proficiency (dotted, adaptive difficulty metric) -->
 			{#if showRhythm}
 				<polyline
 					fill="none"
@@ -195,11 +205,11 @@
 					stroke-linejoin="round"
 					stroke-opacity="0.7"
 					stroke-dasharray="4 3"
-					points={toPoints(dataPoints, d => d.rhythmScore)}
+					points={toPoints(dataPoints, d => d.rhythmProficiency)}
 				/>
 			{/if}
 
-			<!-- Pitch score (dotted) -->
+			<!-- Pitch proficiency (dotted, adaptive difficulty metric) -->
 			{#if showPitch}
 				<polyline
 					fill="none"
@@ -208,14 +218,14 @@
 					stroke-linejoin="round"
 					stroke-opacity="0.7"
 					stroke-dasharray="4 3"
-					points={toPoints(dataPoints, d => d.pitchScore)}
+					points={toPoints(dataPoints, d => d.pitchProficiency)}
 				/>
 			{/if}
 
-			<!-- Level (solid, always shown, on top) -->
+			<!-- Overall level (solid, always shown, on top) -->
 			<polyline
 				fill="none"
-				stroke="var(--color-accent)"
+				stroke="var(--color-text-primary)"
 				stroke-width="2"
 				stroke-linejoin="round"
 				points={toPoints(dataPoints, d => d.level)}
