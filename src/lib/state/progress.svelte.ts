@@ -18,7 +18,7 @@ import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 const STORAGE_KEY = 'progress';
-const MAX_SESSIONS = 200; // keep last 200 sessions
+const MAX_SESSIONS = 100; // keep last 100 sessions
 
 function createInitialProgress(): UserProgress {
 	return {
@@ -43,6 +43,10 @@ function loadProgress(): UserProgress {
 	const merged: UserProgress = {
 		...createInitialProgress(),
 		...saved,
+		// Clamp rehydrated sessions to the current cap — legacy payloads
+		// written under a larger cap should shrink on first load rather
+		// than persist until the next attempt.
+		sessions: (saved.sessions ?? []).slice(0, MAX_SESSIONS),
 		adaptive: {
 			...createInitialAdaptiveState(),
 			...saved.adaptive
@@ -142,6 +146,8 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 			// Cloud has same or more sessions — use cloud data as base
 			Object.assign(progress, {
 				...cloudProgress,
+				// Clamp cloud sessions to the current cap; older pulls may exceed it.
+				sessions: cloudProgress.sessions.slice(0, MAX_SESSIONS),
 				// Preserve local lickProgress — cloud doesn't store it
 				lickProgress: progress.lickProgress,
 				// Re-merge adaptive state with defaults for forward compatibility

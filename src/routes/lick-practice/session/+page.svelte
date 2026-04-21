@@ -33,6 +33,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
+	import { appendLickPracticeSession } from '$lib/persistence/lick-practice-sessions';
 	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { SessionReport } from '$lib/types/lick-practice';
@@ -790,9 +791,21 @@
 		}
 	}
 
+	function persistReport(report: SessionReport): void {
+		appendLickPracticeSession({
+			id: `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+			timestamp: Date.now(),
+			progressionType: lickPractice.config.progressionType,
+			practiceMode: lickPractice.config.practiceMode,
+			report
+		});
+	}
+
 	function finishSession() {
 		stopAll();
-		sessionReport = getSessionReport();
+		const report = getSessionReport();
+		sessionReport = report;
+		persistReport(report);
 		lickPractice.phase = 'complete';
 	}
 
@@ -810,7 +823,9 @@
 	$effect(() => {
 		if (lickPractice.phase === 'complete' && !sessionReport) {
 			stopAll();
-			sessionReport = getSessionReport();
+			const report = getSessionReport();
+			sessionReport = report;
+			persistReport(report);
 		}
 	});
 </script>

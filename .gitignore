@@ -27,3 +27,6 @@ supabase/.temp/
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Claude Code
+.claude/*.lock
