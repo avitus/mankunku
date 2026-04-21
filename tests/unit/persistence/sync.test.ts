@@ -962,4 +962,42 @@ describe('syncUserLicksToCloud', () => {
 			expect.any(Object)
 		);
 	});
+
+	it('scopes the ownership probe to the current user_id', async () => {
+		// Migration 00013 opened SELECT on user_licks to any authenticated user
+		// for community browse. The owned/unknown classification must filter
+		// by user_id explicitly — otherwise a local id colliding with another
+		// user's cloud row would be misclassified as "owned" and trigger an
+		// RLS 42501 on the ON CONFLICT DO UPDATE path.
+		const eqCalls: Array<[string, unknown]> = [];
+		const inCalls: Array<[string, unknown]> = [];
+
+		const upsertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+		const fromFn = vi.fn(() => {
+			const builder: Record<string, any> = {};
+			builder.select = vi.fn(() => builder);
+			builder.eq = vi.fn((col: string, val: unknown) => {
+				eqCalls.push([col, val]);
+				return builder;
+			});
+			builder.in = vi.fn((col: string, val: unknown) => {
+				inCalls.push([col, val]);
+				return builder;
+			});
+			builder.upsert = upsertFn;
+			builder.then = (resolve: any, reject: any) =>
+				Promise.resolve({ data: [], error: null }).then(resolve, reject);
+			return builder;
+		});
+
+		const mock = {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } }) },
+			from: fromFn
+		};
+
+		await syncUserLicksToCloud(mock as any, [TEST_LICK]);
+
+		expect(eqCalls).toContainEqual(['user_id', 'test-user-id']);
+		expect(inCalls).toContainEqual(['id', ['user-1234-abcd']]);
+	});
 });
