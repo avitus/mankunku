@@ -73,7 +73,7 @@ tests/
   integration/      Integration tests (auth route chain, etc.)
   e2e/              Playwright browser tests
 supabase/
-  migrations/       5 SQL migration files (profiles, progress, settings, licks, RLS)
+  migrations/       12 SQL migrations (profiles, progress, settings, licks, RLS, +evolutions)
 documentation/      Architecture docs, API reference, contributing guides
 ```
 

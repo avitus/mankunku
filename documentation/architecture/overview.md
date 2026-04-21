@@ -34,17 +34,24 @@ graph TD
         AudioCtx["audio-context.ts"]
         Playback["playback.ts"]
         Capture["capture.ts"]
-        PitchDet["pitch-detector.ts"]
-        OnsetDet["onset-detector.ts"]
+        PitchDet["pitch-detector.ts + pitch-frame.ts"]
+        OnsetCore["onset-core.ts + onset-detector.ts + onset-worklet.ts"]
         Segmenter["note-segmenter.ts"]
+        Quantizer["quantizer.ts"]
+        BleedFilter["bleed-filter.ts"]
         Metro["metronome.ts"]
+        Recorder["recorder.ts"]
+        Replay["replay.ts"]
+        Backing["backing-track.ts + backing-track-schedule.ts + backing-styles.ts"]
+        Voicings["voicings.ts + sample-maps.ts"]
     end
 
     subgraph Scoring ["Scoring Engine"]
+        Pipeline["score-pipeline.ts"]
+        Scorer["scorer.ts"]
         Alignment["alignment.ts (DTW)"]
         PitchScore["pitch-scoring.ts"]
         RhythmScore["rhythm-scoring.ts"]
-        Scorer["scorer.ts"]
         Grades["grades.ts"]
     end
 
@@ -52,6 +59,7 @@ graph TD
         Scales["scales.ts"]
         Chords["chords.ts"]
         Keys["keys.ts"]
+        KeyOrdering["key-ordering.ts"]
         Intervals["intervals.ts"]
         Notation["notation.ts"]
         Transposition["transposition.ts"]
@@ -72,7 +80,12 @@ graph TD
 
     subgraph Persistence
         Storage["storage.ts (localStorage)"]
-        Supabase["supabase/* (cloud sync, auth)"]
+        UserLicks["user-licks.ts"]
+        LickRec["lick-practice-recording.ts"]
+        LickStore["lick-practice-store.ts"]
+        AudioStore["audio-store.ts (IndexedDB)"]
+        Sync["sync.ts"]
+        Supabase["supabase/* (cloud, auth)"]
     end
 
     Practice --> Session
@@ -102,6 +115,8 @@ graph TD
     Segmenter --> PitchDet
     Segmenter --> OnsetDet
 
+    Pipeline --> Scorer
+    Pipeline --> BleedFilter
     Scorer --> Alignment
     Scorer --> PitchScore
     Scorer --> RhythmScore
@@ -124,12 +139,14 @@ graph TD
 ## Data Flow: A Practice Session
 
 1. **Phrase Selection**: User picks a phrase from the library or the generator creates one based on difficulty/category/key settings.
-2. **Playback**: `playback.ts` schedules the phrase notes on the Tone.js Transport, plays them through smplr SoundFont samples, and optionally starts the metronome.
-3. **Recording**: After playback completes, the app enters "awaiting input" mode. The pitch detector runs at ~60fps via `requestAnimationFrame`. The first detected pitch starts the recording timer.
-4. **Note Segmentation**: When recording ends (silence timeout or max duration), pitch readings and onset timestamps are combined into `DetectedNote[]` by `note-segmenter.ts`.
-5. **Scoring**: `scorer.ts` anchors detected notes to the beat grid, runs DTW alignment, corrects for latency, and produces per-note pitch and rhythm scores.
-6. **Feedback**: The `FeedbackPanel` component displays the grade, overall score, and per-note comparison.
-7. **Progress Update**: The attempt is recorded in `progress.svelte.ts`, which updates the adaptive difficulty state, category/key stats, and streak.
+2. **Playback**: `playback.ts` schedules the phrase notes on the Tone.js Transport, plays them through smplr SoundFont samples, and optionally starts the metronome and/or a backing track (`backing-track.ts`).
+3. **Recording**: After playback completes, the app enters "awaiting input" mode. In the ear-training path the pitch detector runs at ~60fps via `requestAnimationFrame`; in the record / lick-practice path the AudioWorklet-based onset detector fires events directly. The first detected pitch or onset starts the recording timer.
+4. **Note Segmentation**: When recording ends (silence timeout, bar boundary, or max duration), pitch readings and onset timestamps are combined into `DetectedNote[]` by `note-segmenter.ts`.
+5. **Bleed Filter (optional)**: `bleed-filter.ts` classifies detected notes as kept or filtered based on backing-track bleed heuristics. Both results are carried forward so diagnostics can compare them.
+6. **Scoring**: `score-pipeline.ts` runs `scoreAttempt()` on the unfiltered notes and, when a bleed result is present, on the filtered notes. The scorer anchors detected notes to the beat grid, runs DTW alignment, corrects for constant human latency (median offset), and produces per-note pitch and rhythm scores plus timing diagnostics.
+7. **Feedback**: The `FeedbackPanel` component displays the grade, overall score, liner-note caption, and per-note comparison.
+8. **Progress Update**: The attempt is recorded in `progress.svelte.ts` (ear-training) or `lick-practice.svelte.ts` (lick-practice), which updates adaptive difficulty, category/key stats, streaks, and the `history.svelte.ts` daily summary.
+9. **Optional Replay**: Raw audio can be stored in IndexedDB via `audio-store.ts` and re-scored later (`replay.ts` + `/diagnostics`).
 
 ## Module Boundaries
 
@@ -145,7 +162,10 @@ The codebase follows clear module boundaries:
 - **State** (`src/lib/state/`): Svelte 5 rune-based reactive state. The bridge between UI and logic.
 - **Components** (`src/lib/components/`): Reusable Svelte components. Each accepts props and emits events.
 - **Routes** (`src/routes/`): SvelteKit pages. Compose components, connect state, and handle user interactions.
-- **Persistence** (`src/lib/persistence/`): Thin localStorage wrapper. Used by state modules.
+- **Persistence** (`src/lib/persistence/`): localStorage + IndexedDB wrappers, plus Supabase cloud sync. Used by state modules. Key files: `storage.ts` (localStorage helpers), `audio-store.ts` (IndexedDB for recorded audio), `user-licks.ts` (user-authored licks), `lick-practice-store.ts` + `lick-practice-recording.ts` (lick-practice progress and per-session recordings), `sync.ts` (Supabase background sync).
+- **Supabase** (`src/lib/supabase/`): Browser and server client factories, auth helpers, and generated DB types for the optional backend layer.
+- **Step Entry** (`src/lib/step-entry/`): Helpers for manual lick entry — note-duration metadata and pitch-input accidental logic.
+- **Util** (`src/lib/util/`): Small shared utilities (e.g. `seeded-shuffle.ts`).
 
 ## Key Architectural Decisions
 

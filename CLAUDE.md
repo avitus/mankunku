@@ -26,8 +26,8 @@ Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back o
 
 - **types/** — Pure TypeScript interfaces grouped by domain. No runtime code.
 - **music/** — Pure functions for music theory (scales, intervals, keys, transposition, chords). No side effects.
-- **audio/** — Everything touching Web Audio API: playback (Tone.js), capture (mic), pitch detection (Pitchy at 60fps), onset detection (custom AudioWorklet), note segmentation, metronome, voicings.
-- **scoring/** — Pure functions: DTW alignment + pitch/rhythm scoring. No audio or UI dependencies.
+- **audio/** — Everything touching Web Audio API: playback (Tone.js), capture (mic), pitch detection (Pitchy at 60fps), onset detection (custom AudioWorklet), note segmentation + quantizer, bleed filter, metronome, backing-track rhythm section (bass/comp/drums), voicings, recorder + replay.
+- **scoring/** — Pure functions: `score-pipeline.ts` (bleed filter + scoring orchestrator), `scorer.ts` (DTW + latency correction), per-note pitch/rhythm scorers, grades. No audio or UI dependencies.
 - **phrases/** — Phrase generation, mutation, validation, library loading. Depends on music/ only.
 - **difficulty/** — Adaptive difficulty: proficiency levels 1-100, 10 content tiers.
 - **tonality/** — Daily key/scale selection, progressive unlocking.

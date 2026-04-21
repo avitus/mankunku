@@ -162,8 +162,35 @@ interface Score {
   noteResults: NoteResult[];
   notesHit: number;            // Correctly identified notes
   notesTotal: number;          // Total expected notes
+  timing: TimingDiagnostics;   // Bias, spread, and per-note offsets
 }
 ```
+
+### TimingDiagnostics
+
+```typescript
+interface TimingDiagnostics {
+  meanOffsetMs: number;                // + = late, - = early
+  medianOffsetMs: number;
+  stdDevMs: number;                    // timing jitter proxy
+  latencyCorrectionMs: number;         // constant offset subtracted by scorer
+  perNoteOffsetMs: (number | null)[];  // parallel to noteResults
+}
+```
+
+### BleedFilterLog
+
+```typescript
+interface BleedFilterLog {
+  totalNotes: number;
+  keptNotes: number;
+  filteredNotes: DetectedNote[];
+  unfilteredScore: Score | null;
+  filteredScore: Score | null;
+}
+```
+
+Produced by `runScorePipeline()` when a bleed-filter result is available. Drives the A/B comparison in the `/diagnostics` panel.
 
 ### NoteResult
 
