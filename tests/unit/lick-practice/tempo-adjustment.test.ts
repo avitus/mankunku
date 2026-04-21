@@ -119,7 +119,7 @@ describe('clampTempo — MIN_TEMPO is 50', () => {
 });
 
 describe('resolveLickTempo', () => {
-	it('returns NEW_LICK_DEFAULT_TEMPO (60) for a lick with no progress', () => {
+	it('returns NEW_LICK_DEFAULT_TEMPO (60) for a lick with no progress', (): void => {
 		expect(resolveLickTempo({}, 'never-seen')).toBe(NEW_LICK_DEFAULT_TEMPO);
 		expect(NEW_LICK_DEFAULT_TEMPO).toBe(60);
 	});
