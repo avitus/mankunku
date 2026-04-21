@@ -791,7 +791,7 @@
 		}
 	}
 
-	function persistReport(report: SessionReport) {
+	function persistReport(report: SessionReport): void {
 		appendLickPracticeSession({
 			id: `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
 			timestamp: Date.now(),

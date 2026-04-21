@@ -29,4 +29,4 @@ supabase/.temp/
 .env.sentry-build-plugin
 
 # Claude Code
-.claude/scheduled_tasks.lock
+.claude/*.lock

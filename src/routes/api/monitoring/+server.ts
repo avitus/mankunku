@@ -44,11 +44,16 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 		return new Response('Malformed envelope', { status: 400 });
 	}
 
-	const upstream = await fetch(`https://${SENTRY_HOST}/api/${projectId}/envelope/`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/x-sentry-envelope' },
-		body: envelope
-	});
-
-	return new Response(null, { status: upstream.ok ? 200 : 502 });
+	try {
+		const upstream = await fetch(`https://${SENTRY_HOST}/api/${projectId}/envelope/`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-sentry-envelope' },
+			body: envelope,
+			signal: AbortSignal.timeout(5000)
+		});
+		return new Response(null, { status: upstream.ok ? 200 : 502 });
+	} catch (err) {
+		const isTimeout = err instanceof Error && err.name === 'TimeoutError';
+		return new Response(null, { status: isTimeout ? 504 : 502 });
+	}
 };

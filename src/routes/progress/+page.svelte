@@ -129,7 +129,7 @@
 		expandedSessionId = expandedSessionId === id ? null : id;
 	}
 
-	function toggleLickSession(id: string) {
+	function toggleLickSession(id: string): void {
 		expandedLickSessionId = expandedLickSessionId === id ? null : id;
 	}
 
@@ -142,7 +142,7 @@
 		}
 	}
 
-	function handleSubtabKeydown(e: KeyboardEvent) {
+	function handleSubtabKeydown(e: KeyboardEvent): void {
 		if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
 			e.preventDefault();
 			sessionsSubtab = sessionsSubtab === 'ear-training' ? 'lick-practice' : 'ear-training';
