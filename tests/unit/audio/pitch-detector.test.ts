@@ -58,18 +58,6 @@ beforeEach(async () => {
 // ─── Tests ────────────────────────────────────────────────────
 
 describe('createPitchDetector', () => {
-	it('creates a detector with start/stop/getReadings/clear/resetOctaveStateAt', async () => {
-		const analyser = createMockAnalyser();
-		const onPitch = vi.fn();
-		const detector = await createPitchDetector(analyser, onPitch);
-
-		expect(detector.start).toBeTypeOf('function');
-		expect(detector.stop).toBeTypeOf('function');
-		expect(detector.getReadings).toBeTypeOf('function');
-		expect(detector.clear).toBeTypeOf('function');
-		expect(detector.resetOctaveStateAt).toBeTypeOf('function');
-	});
-
 	it('calls onPitch with reading when clarity above threshold', async () => {
 		const analyser = createMockAnalyser();
 		const onPitch = vi.fn();

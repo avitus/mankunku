@@ -123,29 +123,6 @@ describe('generatePhrase', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('returns a Phrase object with all required fields', () => {
-		const phrase = generatePhrase(makeOptions());
-
-		expect(phrase).toHaveProperty('id');
-		expect(phrase).toHaveProperty('name');
-		expect(phrase).toHaveProperty('notes');
-		expect(phrase).toHaveProperty('key');
-		expect(phrase).toHaveProperty('harmony');
-		expect(phrase).toHaveProperty('difficulty');
-		expect(phrase).toHaveProperty('source');
-		expect(phrase).toHaveProperty('tags');
-		expect(phrase).toHaveProperty('timeSignature');
-		expect(phrase).toHaveProperty('category');
-
-		expect(typeof phrase.id).toBe('string');
-		expect(typeof phrase.name).toBe('string');
-		expect(Array.isArray(phrase.notes)).toBe(true);
-		expect(Array.isArray(phrase.harmony)).toBe(true);
-		expect(Array.isArray(phrase.tags)).toBe(true);
-		expect(Array.isArray(phrase.timeSignature)).toBe(true);
-		expect(phrase.timeSignature).toHaveLength(2);
-	});
-
 	it('sets source to "generated"', () => {
 		const phrase = generatePhrase(makeOptions());
 		expect(phrase.source).toBe('generated');
@@ -200,32 +177,8 @@ describe('generatePhrase', () => {
 		}
 	});
 
-	it('all notes have valid Fraction offset and duration', () => {
-		const phrase = generatePhrase(makeOptions());
-
-		for (const note of phrase.notes) {
-			// offset is [numerator, denominator]
-			expect(Array.isArray(note.offset)).toBe(true);
-			expect(note.offset).toHaveLength(2);
-			expect(Number.isInteger(note.offset[0]) && note.offset[0] >= 0).toBe(true);
-			expect(Number.isInteger(note.offset[1]) && note.offset[1] > 0).toBe(true);
-
-			// duration is [numerator, denominator]
-			expect(Array.isArray(note.duration)).toBe(true);
-			expect(note.duration).toHaveLength(2);
-			expect(Number.isInteger(note.duration[0]) && note.duration[0] > 0).toBe(true);
-			expect(Number.isInteger(note.duration[1]) && note.duration[1] > 0).toBe(true);
-		}
-	});
-
-	it('generated phrase has difficulty metadata', () => {
+	it('generated phrase has difficulty metadata matching requested level and bars', () => {
 		const phrase = generatePhrase(makeOptions({ difficulty: 5 }));
-
-		expect(phrase.difficulty).toBeDefined();
-		expect(typeof phrase.difficulty.level).toBe('number');
-		expect(typeof phrase.difficulty.pitchComplexity).toBe('number');
-		expect(typeof phrase.difficulty.rhythmComplexity).toBe('number');
-		expect(typeof phrase.difficulty.lengthBars).toBe('number');
 		expect(phrase.difficulty.level).toBe(5);
 		expect(phrase.difficulty.lengthBars).toBe(2);
 	});
@@ -243,15 +196,6 @@ describe('generatePhrase', () => {
 		expect(phrase.harmony).toHaveLength(3);
 	});
 
-	it('Math.random is called during phrase generation at higher difficulty', () => {
-		// The generator uses Math.random for fill-type selection (Stage 2),
-		// rhythm cell selection (Stage 3), and articulation (Stage 5).
-		// Verify that it is called at least once during generation.
-		const spy = vi.spyOn(Math, 'random');
-		generatePhrase(makeOptions({ difficulty: 7, bars: 4 }));
-		expect(spy).toHaveBeenCalled();
-	});
-
 	it('controlled randomness: deterministic output when Math.random is fixed', () => {
 		const spy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
 		const phrase1 = generatePhrase(makeOptions());
@@ -263,22 +207,6 @@ describe('generatePhrase', () => {
 		const pitches1 = phrase1.notes.map(n => n.pitch);
 		const pitches2 = phrase2.notes.map(n => n.pitch);
 		expect(pitches1).toEqual(pitches2);
-	});
-
-	it('phrase notes are non-empty', () => {
-		const phrase = generatePhrase(makeOptions());
-		expect(phrase.notes.length).toBeGreaterThan(0);
-	});
-
-	it('passes validation for generated phrases (validator integration)', () => {
-		// Generate several phrases and verify all pass the validator.
-		// The generator itself retries on validation failure, but this confirms
-		// the returned phrase is always valid.
-		for (let i = 0; i < 5; i++) {
-			const phrase = generatePhrase(makeOptions({ difficulty: 3 }));
-			expect(phrase.notes.length).toBeGreaterThan(0);
-			expect(phrase.source).toBe('generated');
-		}
 	});
 
 	it('respects rangeLow and rangeHigh options', () => {

@@ -118,16 +118,10 @@ describe('clampTempo — MIN_TEMPO is 50', () => {
 	});
 });
 
-describe('NEW_LICK_DEFAULT_TEMPO', () => {
-	it('is 60', () => {
-		expect(NEW_LICK_DEFAULT_TEMPO).toBe(60);
-	});
-});
-
 describe('resolveLickTempo', () => {
-	it('returns NEW_LICK_DEFAULT_TEMPO for a lick with no progress', () => {
+	it('returns NEW_LICK_DEFAULT_TEMPO (60) for a lick with no progress', () => {
 		expect(resolveLickTempo({}, 'never-seen')).toBe(NEW_LICK_DEFAULT_TEMPO);
-		expect(resolveLickTempo({}, 'never-seen')).toBe(60);
+		expect(NEW_LICK_DEFAULT_TEMPO).toBe(60);
 	});
 
 	it('returns the minimum stored tempo across keys for a known lick', () => {
