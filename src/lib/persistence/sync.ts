@@ -514,14 +514,16 @@ export async function syncUserLicksToCloud(
 		});
 
 		// Discover which local IDs already exist in the cloud and belong to us.
-		// RLS filters user_licks by user_id = auth.uid() on SELECT, so any id
-		// returned here is one we own. IDs owned by another user are invisible
-		// — blindly upserting them would trigger the ON CONFLICT DO UPDATE path
-		// and fail the RLS USING policy with error 42501.
+		// The SELECT policy on user_licks is open to any authenticated user
+		// (migration 00013, for community browse), so we must filter by user_id
+		// ourselves — otherwise a collision with another user's lick id would be
+		// misclassified as owned, and the ON CONFLICT DO UPDATE path would fail
+		// the RLS USING policy with error 42501.
 		const ids = licks.map((l) => l.id);
 		const { data: existing, error: selectError } = await supabase
 			.from('user_licks')
 			.select('id')
+			.eq('user_id', userId)
 			.in('id', ids);
 		if (selectError) {
 			console.warn('Failed to check existing licks for sync:', selectError);
