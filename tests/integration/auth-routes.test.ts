@@ -72,9 +72,18 @@ vi.mock('@sveltejs/kit/hooks', () => ({
  * forwards to the next handle. The real Sentry handle reads
  * `event.request.headers`, which these tests don't provide.
  */
+type HandleServerErrorFn = (input: {
+	error: unknown;
+	event: unknown;
+	status: number;
+	message: string;
+}) => unknown | Promise<unknown>;
+
 vi.mock('@sentry/sveltekit', () => ({
-	sentryHandle: () => (async ({ event, resolve }: any) => resolve(event)),
-	handleErrorWithSentry: () => undefined
+	sentryHandle: (): HandleFn =>
+		async ({ event, resolve }: { event: unknown; resolve: ResolveFn }): Promise<unknown> =>
+			resolve(event),
+	handleErrorWithSentry: (): HandleServerErrorFn => () => undefined
 }));
 
 // ─── Imports ─────────────────────────────────────────────────────────
