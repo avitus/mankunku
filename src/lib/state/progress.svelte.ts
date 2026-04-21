@@ -18,7 +18,7 @@ import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 const STORAGE_KEY = 'progress';
-const MAX_SESSIONS = 200; // keep last 200 sessions
+const MAX_SESSIONS = 100; // keep last 100 sessions
 
 function createInitialProgress(): UserProgress {
 	return {

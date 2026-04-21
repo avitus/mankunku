@@ -56,8 +56,8 @@ Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back o
 State modules in `src/lib/state/` use Svelte 5 runes (`$state()`, `$derived()`, `$effect()`), not Svelte 4 stores. Key modules:
 - **session.svelte.ts** — Single-phrase practice session (not persisted)
 - **settings.svelte.ts** — User preferences (persisted to localStorage)
-- **progress.svelte.ts** — Session history + adaptive state (persisted, bounded to 200 entries)
-- **history.svelte.ts** — Long-term daily progress summaries for calendar heatmaps and period comparisons (persisted, survives the 200-session prune window)
+- **progress.svelte.ts** — Session history + adaptive state (persisted, bounded to 100 entries)
+- **history.svelte.ts** — Long-term daily progress summaries for calendar heatmaps and period comparisons (persisted, survives the 100-session prune window)
 - **library.svelte.ts** — Lick browser filter state (not persisted)
 - **lick-practice.svelte.ts** — Multi-key lick-practice flow: progression plans, per-key results, tempo adjustments (progress persisted via `persistence/lick-practice-store.ts`)
 - **step-entry.svelte.ts** — Manual lick entry UI state: current duration, octave, accidental, entered notes (not persisted)

@@ -16,6 +16,11 @@
 	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { Grade } from '$lib/types/scoring';
 	import { page } from '$app/state';
+	import {
+		loadLickPracticeSessions,
+		type LickPracticeSessionLogEntry
+	} from '$lib/persistence/lick-practice-sessions';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 
 	const instrument = $derived(getInstrument());
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -27,11 +32,14 @@
 	let audioElement: HTMLAudioElement | null = null;
 	let audioUrl: string | null = null;
 
+	let lickSessions = $state<LickPracticeSessionLogEntry[]>([]);
+
 	onMount(async () => {
 		try {
 			const { getRecordingIds } = await import('$lib/persistence/audio-store');
 			recordingIds = await getRecordingIds();
 		} catch { /* IndexedDB unavailable */ }
+		lickSessions = loadLickPracticeSessions();
 	});
 
 	onDestroy(() => {
@@ -85,8 +93,9 @@
 	}
 
 
-	let tab = $state<'sessions' | 'progress'>('sessions');
-	const recentSessions = $derived(getRecentSessions(20));
+	let tab = $state<'progress' | 'sessions'>('progress');
+	let sessionsSubtab = $state<'ear-training' | 'lick-practice'>('ear-training');
+	const recentSessions = $derived(getRecentSessions(100));
 	const primaryLevel = $derived(getPrimaryLevel());
 	const levelDisp = $derived(difficultyDisplay(primaryLevel));
 	const pct = (n: number) => Math.round(n * 100);
@@ -113,9 +122,14 @@
 
 	let showResetConfirm = $state(false);
 	let expandedSessionId: string | null = $state(null);
+	let expandedLickSessionId: string | null = $state(null);
 
 	function toggleSession(id: string) {
 		expandedSessionId = expandedSessionId === id ? null : id;
+	}
+
+	function toggleLickSession(id: string) {
+		expandedLickSessionId = expandedLickSessionId === id ? null : id;
 	}
 
 	function handleTabKeydown(e: KeyboardEvent) {
@@ -125,6 +139,19 @@
 			const next = document.getElementById(`tab-${tab}`) as HTMLElement | null;
 			next?.focus();
 		}
+	}
+
+	function handleSubtabKeydown(e: KeyboardEvent) {
+		if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+			e.preventDefault();
+			sessionsSubtab = sessionsSubtab === 'ear-training' ? 'lick-practice' : 'ear-training';
+			const next = document.getElementById(`subtab-${sessionsSubtab}`) as HTMLElement | null;
+			next?.focus();
+		}
+	}
+
+	function formatProgression(type: string): string {
+		return PROGRESSION_TEMPLATES[type as keyof typeof PROGRESSION_TEMPLATES]?.shortName ?? type;
 	}
 </script>
 
@@ -140,19 +167,6 @@
 	<!-- Tab bar -->
 	<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1" role="tablist">
 		<button
-			id="tab-sessions"
-			onclick={() => { tab = 'sessions'; }}
-			onkeydown={handleTabKeydown}
-			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
-			style={tab === 'sessions' ? 'background-color: var(--color-accent); color: white' : ''}
-			role="tab"
-			aria-selected={tab === 'sessions'}
-			aria-controls="panel-sessions"
-			tabindex={tab === 'sessions' ? 0 : -1}
-		>
-			Sessions
-		</button>
-		<button
 			id="tab-progress"
 			onclick={() => { tab = 'progress'; }}
 			onkeydown={handleTabKeydown}
@@ -165,32 +179,55 @@
 		>
 			Progress
 		</button>
+		<button
+			id="tab-sessions"
+			onclick={() => { tab = 'sessions'; }}
+			onkeydown={handleTabKeydown}
+			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+			style={tab === 'sessions' ? 'background-color: var(--color-accent); color: white' : ''}
+			role="tab"
+			aria-selected={tab === 'sessions'}
+			aria-controls="panel-sessions"
+			tabindex={tab === 'sessions' ? 0 : -1}
+		>
+			Sessions
+		</button>
 	</div>
 
 	{#if tab === 'sessions'}
-	<div id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
-		<!-- Summary bar: 3 compact stat cards -->
-		<div class="grid grid-cols-3 gap-3">
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
-					{progress.streakDays}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
-			</div>
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums" style="color: {levelDisp.color}">
-					{primaryLevel}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Level</div>
-			</div>
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
-					{progress.sessions.length}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Recent Sessions</div>
-			</div>
+	<div id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions" class="space-y-4">
+		<!-- Sessions sub-tabs -->
+		<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1" role="tablist">
+			<button
+				id="subtab-ear-training"
+				onclick={() => { sessionsSubtab = 'ear-training'; }}
+				onkeydown={handleSubtabKeydown}
+				class="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+				style={sessionsSubtab === 'ear-training' ? 'background-color: var(--color-accent); color: white' : ''}
+				role="tab"
+				aria-selected={sessionsSubtab === 'ear-training'}
+				aria-controls="subpanel-ear-training"
+				tabindex={sessionsSubtab === 'ear-training' ? 0 : -1}
+			>
+				Ear Training
+			</button>
+			<button
+				id="subtab-lick-practice"
+				onclick={() => { sessionsSubtab = 'lick-practice'; }}
+				onkeydown={handleSubtabKeydown}
+				class="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+				style={sessionsSubtab === 'lick-practice' ? 'background-color: var(--color-accent); color: white' : ''}
+				role="tab"
+				aria-selected={sessionsSubtab === 'lick-practice'}
+				aria-controls="subpanel-lick-practice"
+				tabindex={sessionsSubtab === 'lick-practice' ? 0 : -1}
+			>
+				Lick Practice
+			</button>
 		</div>
 
+		{#if sessionsSubtab === 'ear-training'}
+		<div id="subpanel-ear-training" role="tabpanel" aria-labelledby="subtab-ear-training" class="space-y-4">
 		<!-- Recent Sessions -->
 		{#if recentSessions.length > 0}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
@@ -303,10 +340,125 @@
 				</a>
 			</div>
 		{/if}
+		</div>
+		{:else}
+		<div id="subpanel-lick-practice" role="tabpanel" aria-labelledby="subtab-lick-practice" class="space-y-4">
+			{#if lickSessions.length > 0}
+				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+					<h2 class="mb-3 text-lg font-semibold">Recent Sessions</h2>
+					<div class="space-y-2">
+						{#each lickSessions as ls}
+							{@const avgColor = ls.report.overallAverage >= 0.8
+								? '#22c55e'
+								: ls.report.overallAverage >= 0.6
+									? 'var(--color-warning, #f59e0b)'
+									: 'var(--color-error)'}
+							<div class="rounded bg-[var(--color-bg-tertiary)] overflow-hidden">
+								<button
+									onclick={() => toggleLickSession(ls.id)}
+									aria-expanded={expandedLickSessionId === ls.id}
+									class="flex w-full items-center gap-3 px-3 py-2 text-sm text-left hover:bg-[var(--color-bg-secondary)] transition-colors"
+								>
+									<span class="w-16 shrink-0 text-center font-bold tabular-nums" style="color: {avgColor}">
+										{pct(ls.report.overallAverage)}%
+									</span>
+									<span class="flex-1 truncate text-[var(--color-text-secondary)]">
+										{formatProgression(ls.progressionType)} · {ls.practiceMode === 'call-response' ? 'Call & Response' : 'Continuous'}
+									</span>
+									<span class="tabular-nums text-xs text-[var(--color-text-secondary)]">
+										{ls.report.totalPassed}/{ls.report.totalAttempts} keys
+									</span>
+									<span class="tabular-nums text-xs text-[var(--color-text-secondary)]">
+										{ls.report.elapsedMinutes}m
+									</span>
+									<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">
+										{formatDate(ls.timestamp)}
+									</span>
+									<span class="shrink-0 text-xs text-[var(--color-text-secondary)]">
+										{expandedLickSessionId === ls.id ? '▲' : '▼'}
+									</span>
+								</button>
+
+								{#if expandedLickSessionId === ls.id}
+									<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
+										{#each ls.report.licks as lick}
+											<div class="rounded bg-[var(--color-bg-secondary)] p-3 space-y-2">
+												<div class="flex items-center justify-between text-sm">
+													<span class="font-medium">{lick.lickName}</span>
+													<span class="tabular-nums text-xs">
+														{lick.passedCount}/{lick.keys.length} · {pct(lick.averageScore)}% · {lick.tempo} BPM
+													</span>
+												</div>
+												<div class="flex flex-wrap gap-1.5">
+													{#each lick.keys as k}
+														{@const color = k.passed
+															? '#22c55e'
+															: k.score >= 0.6
+																? 'var(--color-warning, #f59e0b)'
+																: 'var(--color-error)'}
+														<div
+															class="flex flex-col items-center rounded px-2 py-1 text-xs"
+															style="background: {color}20; color: {color}"
+														>
+															<span class="font-bold">{concertKeyToWritten(k.key as PitchClass, instrument)}</span>
+															<span class="tabular-nums">{pct(k.score)}%</span>
+														</div>
+													{/each}
+												</div>
+											</div>
+										{/each}
+										{#if ls.report.licks.length === 0}
+											<div class="text-center text-xs italic text-[var(--color-text-secondary)]">
+												No attempts recorded.
+											</div>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+					<p class="italic text-[var(--color-text-secondary)]">
+						No lick-practice sessions yet. Run one to build your history.
+					</p>
+					<a
+						href="/lick-practice"
+						class="mt-3 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+					>
+						Start Lick Practice
+					</a>
+				</div>
+			{/if}
+		</div>
+		{/if}
 	</div>
 	{:else}
-	<div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress">
+	<div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" class="space-y-4">
 		<!-- Progress tab -->
+
+		<!-- Level / Streak summary cards -->
+		<div class="grid grid-cols-3 gap-3">
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
+				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
+					{progress.streakDays}
+				</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
+			</div>
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
+				<div class="font-display text-3xl font-bold tabular-nums" style="color: {levelDisp.color}">
+					{primaryLevel}
+				</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Level</div>
+			</div>
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
+				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
+					{progress.sessions.length}
+				</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Recent Sessions</div>
+			</div>
+		</div>
 
 		{#if dailySummaries.length > 0}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
