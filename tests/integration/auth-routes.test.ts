@@ -50,12 +50,15 @@ vi.mock('@supabase/ssr', () => ({
  * wraps the next. This mock preserves that composition so every handler in the
  * chain runs (Sentry passthrough → supabaseHandle → securityHeadersHandle).
  */
+type ResolveFn = (event: unknown, opts?: unknown) => Promise<unknown> | unknown;
+type HandleFn = (args: { event: unknown; resolve: ResolveFn }) => Promise<unknown> | unknown;
+
 vi.mock('@sveltejs/kit/hooks', () => ({
-	sequence: vi.fn((...fns: Function[]) => {
-		return async ({ event, resolve }: any) => {
+	sequence: vi.fn((...fns: HandleFn[]) => {
+		return async ({ event, resolve }: { event: unknown; resolve: ResolveFn }) => {
 			let i = 0;
-			const next = async (evt: any): Promise<unknown> => {
-				if (i >= fns.length) return resolve(evt);
+			const next: ResolveFn = async (evt, opts) => {
+				if (i >= fns.length) return resolve(evt, opts);
 				const fn = fns[i++];
 				return fn({ event: evt, resolve: next });
 			};

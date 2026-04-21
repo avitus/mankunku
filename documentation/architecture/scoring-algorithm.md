@@ -105,7 +105,7 @@ Median (not mean) is used so a single outlier (e.g., a dropped first note) does 
 
 ## 4. Per-Note Pitch Scoring (`pitch-scoring.ts`)
 
-```
+```text
 if wrong MIDI note (or pitch class, in octaveInsensitive mode) → 0.0
 if correct note                                                → 1.0 + intonation bonus
   intonation bonus = 0.1 * max(0, 1 - |cents| / 50)
@@ -121,7 +121,7 @@ The bonus is clamped to 1.0 at the composite level — it only tips ties on othe
 
 ## 5. Per-Note Rhythm Scoring (`rhythm-scoring.ts`)
 
-```
+```text
 timingError = |detectedOnset - expectedOnset| / beatDuration
 penalty     = min(1.0, 0.5 + tempo / 300)
 rhythmScore = max(0, 1.0 - timingError * penalty)
@@ -141,7 +141,7 @@ Rests score 1.0 automatically.
 
 ## 6. Composite Score + Timing Diagnostics
 
-```
+```text
 pitchAccuracy  = average(pitchScores)    // across scored notes
 rhythmAccuracy = average(rhythmScores)   // across scored notes
 overall        = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4

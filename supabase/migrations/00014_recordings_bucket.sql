@@ -17,8 +17,11 @@
 --
 -- Object path convention:
 --   `{auth.uid()}/{sessionId}.webm`
---   `storage.foldername(name)[1]` returns the first path segment, which MUST
---   equal the caller's auth.uid() for every policy below.
+--   Enforced end-to-end by the predicates below:
+--     - exactly one folder segment (array_length(storage.foldername(name), 1) = 1)
+--     - that segment equals the caller's auth.uid()
+--     - the filename matches `{sessionId}.webm` where sessionId is
+--       [A-Za-z0-9_-]+ (no further slashes, no other extensions).
 --
 -- Policy matrix (4 per bucket — matches the table-level pattern in 00005):
 --   - INSERT: uploads
@@ -68,7 +71,7 @@ CREATE POLICY "Users can upload own recordings"
   TO authenticated
   WITH CHECK (
     bucket_id = 'recordings'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND name ~ ('^' || auth.uid()::text || '/[A-Za-z0-9_-]+\.webm$')
   );
 
 CREATE POLICY "Users can read own recordings"
@@ -77,7 +80,7 @@ CREATE POLICY "Users can read own recordings"
   TO authenticated
   USING (
     bucket_id = 'recordings'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND name ~ ('^' || auth.uid()::text || '/[A-Za-z0-9_-]+\.webm$')
   );
 
 CREATE POLICY "Users can update own recordings"
@@ -86,11 +89,11 @@ CREATE POLICY "Users can update own recordings"
   TO authenticated
   USING (
     bucket_id = 'recordings'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND name ~ ('^' || auth.uid()::text || '/[A-Za-z0-9_-]+\.webm$')
   )
   WITH CHECK (
     bucket_id = 'recordings'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND name ~ ('^' || auth.uid()::text || '/[A-Za-z0-9_-]+\.webm$')
   );
 
 CREATE POLICY "Users can delete own recordings"
@@ -99,5 +102,5 @@ CREATE POLICY "Users can delete own recordings"
   TO authenticated
   USING (
     bucket_id = 'recordings'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND name ~ ('^' || auth.uid()::text || '/[A-Za-z0-9_-]+\.webm$')
   );
