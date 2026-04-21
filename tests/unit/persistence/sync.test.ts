@@ -73,6 +73,7 @@ function createMockSupabase(overrides: {
 		const builder: Record<string, any> = {};
 		builder.select = vi.fn(() => builder);
 		builder.eq = vi.fn(() => builder);
+		builder.in = vi.fn(() => builder);
 		builder.order = vi.fn(() => builder);
 		builder.limit = vi.fn(() => builder);
 		builder.single = vi.fn().mockResolvedValue(result);
