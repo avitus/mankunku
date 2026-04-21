@@ -51,7 +51,7 @@ mankunku/
 │   │   │   ├── pitch-detector.ts    # Pitchy McLeod pitch detection (+ pitch-frame.ts)
 │   │   │   ├── onset-core.ts        # HFC + EMA onset algorithm (shared)
 │   │   │   ├── onset-detector.ts    # Main-thread onset coordinator
-│   │   │   ├── onset-worklet.ts     # AudioWorklet onset processor
+│   │   │   ├── onset-worklet.js     # AudioWorklet onset processor
 │   │   │   ├── note-segmenter.ts    # Combine pitch + onsets into notes
 │   │   │   ├── quantizer.ts         # Snap onsets to subdivision grid
 │   │   │   ├── bleed-filter.ts      # Reject backing-track bleed notes
@@ -162,7 +162,7 @@ mankunku/
 │       ├── diagnostics/             # Replay panel + bleed-filter A/B
 │       └── api/account/             # Account-management endpoints
 ├── supabase/
-│   └── migrations/                  # 12 SQL migrations (00001–00012)
+│   └── migrations/                  # 14 SQL migrations (00001–00014)
 ├── tests/
 │   ├── unit/                        # Vitest unit tests
 │   └── e2e/                         # Playwright E2E tests

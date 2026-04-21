@@ -23,7 +23,7 @@
 		}
 	}
 
-	function handleRestClick() {
+	function handleRestClick(): void {
 		const ok = addRest();
 		if (ok) {
 			lastPressed = 'rest';
@@ -57,7 +57,9 @@
 			class="flex-1 rounded py-3 text-center text-sm font-medium transition-all
 				{lastPressed === 'rest'
 					? 'bg-[var(--color-accent)] text-white scale-95'
-					: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]'}"
+					: errorFlash
+						? 'bg-[var(--color-error)]/20 text-[var(--color-text)]'
+						: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]'}"
 		>
 			Rest <span class="text-[10px] opacity-50">0</span>
 		</button>

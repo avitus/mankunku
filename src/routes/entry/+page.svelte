@@ -128,10 +128,12 @@
 	function handleSave() {
 		if (!hasNotes) return;
 
-		if (!stepEntry.phraseName.trim()) {
+		const trimmedPhraseName = stepEntry.phraseName.trim();
+		if (!trimmedPhraseName) {
 			nameInput?.focus();
 			return;
 		}
+		stepEntry.phraseName = trimmedPhraseName;
 
 		const phrase = getCurrentPhrase();
 		phrase.notes = getPaddedNotes();
@@ -162,6 +164,13 @@
 		setupOpen = false;
 		saveDetailsOpen = false;
 	}
+
+	function handleTitleInputKeydown(e: KeyboardEvent): void {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			nameInput?.blur();
+		}
+	}
 </script>
 
 <div class="mx-auto max-w-2xl space-y-4">
@@ -182,7 +191,7 @@
 				type="text"
 				bind:this={nameInput}
 				bind:value={stepEntry.phraseName}
-				onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); nameInput?.blur(); } }}
+				onkeydown={handleTitleInputKeydown}
 				placeholder="Untitled lick"
 				aria-label="Lick title"
 				class="mb-0 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight

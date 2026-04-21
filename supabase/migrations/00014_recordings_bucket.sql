@@ -3,7 +3,10 @@
 -- Purpose:   Provision the `recordings` Storage bucket and its per-user RLS
 --            policies. The app uploads a practice recording blob to
 --            `recordings/{userId}/{sessionId}.webm` after every scored
---            session (see src/lib/persistence/audio-store.ts::saveRecording).
+--            session. Upload call sites:
+--              - src/lib/persistence/audio-store.ts::saveRecording (primary,
+--                invoked from the practice page after scoring)
+--              - src/lib/persistence/sync.ts::uploadRecording (shared helper)
 --            Without these policies every upload returns a 400 with
 --            "new row violates row-level security policy" from
 --            storage.objects.
@@ -37,9 +40,15 @@
 -- ║  PHASE 1: Create the bucket (idempotent)                                  ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 
+-- Converge on the intended private configuration. If the bucket was
+-- previously created out-of-band with public = true, DO NOTHING would
+-- silently retain that insecure state; DO UPDATE forces it private.
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('recordings', 'recordings', false)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE
+SET
+  name = EXCLUDED.name,
+  public = EXCLUDED.public;
 
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗

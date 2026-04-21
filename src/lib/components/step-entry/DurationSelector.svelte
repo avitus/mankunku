@@ -23,6 +23,7 @@
 			<button
 				onclick={() => setDuration(id)}
 				aria-label={DURATION_DISPLAY_NAMES[id]}
+				aria-pressed={stepEntry.currentDuration === id}
 				class="relative flex-1 rounded px-3 py-2 text-center transition-colors
 					{stepEntry.currentDuration === id
 						? 'bg-[var(--color-accent)] text-white'

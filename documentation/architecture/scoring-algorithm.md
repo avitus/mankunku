@@ -191,7 +191,7 @@ Given a 4-note phrase at 120 BPM (beat = 0.5s, penalty = 0.90):
 
 | Expected     | Detected               | Pitch Score | Rhythm Score |
 | ------------ | ---------------------- | ----------- | ------------ |
-| C4 at beat 0 | C4 at 0.05s (10ms early) | 1.0         | ≈ 0.98       |
+| C4 at beat 0 | C4 at 0.01s (10ms late)  | 1.0         | ≈ 0.98       |
 | E4 at beat 1 | E4 at 0.52s             | 1.0         | ≈ 0.96       |
 | G4 at beat 2 | Ab4 at 1.0s             | 0.0         | 1.0          |
 | C5 at beat 3 | *(missed)*              | 0.0         | 0.0          |

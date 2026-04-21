@@ -35,7 +35,7 @@ graph TD
         Playback["playback.ts"]
         Capture["capture.ts"]
         PitchDet["pitch-detector.ts + pitch-frame.ts"]
-        OnsetCore["onset-core.ts + onset-detector.ts + onset-worklet.ts"]
+        OnsetCore["onset-core.ts + onset-detector.ts + onset-worklet.js"]
         Segmenter["note-segmenter.ts"]
         Quantizer["quantizer.ts"]
         BleedFilter["bleed-filter.ts"]
