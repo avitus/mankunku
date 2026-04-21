@@ -22,6 +22,12 @@
 		type LickPracticeSessionLogEntry
 	} from '$lib/persistence/lick-practice-sessions';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import type { LickPracticeMode } from '$lib/types/lick-practice';
+
+	const PRACTICE_MODE_LABELS: Record<LickPracticeMode, string> = {
+		'call-response': 'Call & Response',
+		continuous: 'Continuous'
+	};
 
 	const instrument = $derived(getInstrument());
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -364,7 +370,7 @@
 										{pct(ls.report.overallAverage)}%
 									</span>
 									<span class="flex-1 truncate text-[var(--color-text-secondary)]">
-										{formatProgression(ls.progressionType)} · {ls.practiceMode === 'call-response' ? 'Call & Response' : 'Continuous'}
+										{formatProgression(ls.progressionType)} · {PRACTICE_MODE_LABELS[ls.practiceMode] ?? ls.practiceMode}
 									</span>
 									<span class="tabular-nums text-xs text-[var(--color-text-secondary)]">
 										{ls.report.totalPassed}/{ls.report.totalAttempts} keys
