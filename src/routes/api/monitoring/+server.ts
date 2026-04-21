@@ -21,9 +21,46 @@ import type { RequestHandler } from './$types';
 
 const SENTRY_HOST = 'o135479.ingest.us.sentry.io';
 const ALLOWED_PROJECT_IDS = new Set(['4511259307081728']);
+/** Upper bound on envelope size. Real Sentry envelopes are well under this;
+ *  the cap stops an attacker from streaming arbitrary bytes into our process. */
+const MAX_ENVELOPE_SIZE_BYTES = 1_000_000;
+
+async function readEnvelope(request: Request): Promise<string | Response> {
+	const body = request.body;
+	if (!body) return '';
+
+	const reader = body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			if (!value) continue;
+			total += value.byteLength;
+			if (total > MAX_ENVELOPE_SIZE_BYTES) {
+				await reader.cancel();
+				return new Response('Envelope too large', { status: 413 });
+			}
+			chunks.push(value);
+		}
+	} catch {
+		return new Response('Malformed envelope', { status: 400 });
+	}
+
+	const buffer = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		buffer.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return new TextDecoder().decode(buffer);
+}
 
 export const POST: RequestHandler = async ({ request, fetch }) => {
-	const envelope = await request.text();
+	const read = await readEnvelope(request);
+	if (read instanceof Response) return read;
+	const envelope = read;
 	const headerLine = envelope.split('\n', 1)[0];
 
 	let projectId: string;
