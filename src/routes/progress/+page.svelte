@@ -18,6 +18,7 @@
 	import { page } from '$app/state';
 	import {
 		loadLickPracticeSessions,
+		clearLickPracticeSessions,
 		type LickPracticeSessionLogEntry
 	} from '$lib/persistence/lick-practice-sessions';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
@@ -594,6 +595,8 @@
 								const m = await import('$lib/persistence/audio-store');
 								await m.clearAllRecordings();
 								recordingIds = new Set();
+								clearLickPracticeSessions();
+								lickSessions = [];
 								showResetConfirm = false;
 							} catch (err) {
 								console.warn('Failed to fully reset progress:', err);

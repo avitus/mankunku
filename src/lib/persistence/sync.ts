@@ -59,7 +59,7 @@ interface SyncableSettings {
 // ── Constants ────────────────────────────────────────────────────────
 
 /** Maximum session results to sync — matches MAX_SESSIONS in progress.svelte.ts. */
-const MAX_SESSIONS = 200;
+const MAX_SESSIONS = 100;
 
 /** Pattern for allowed session ID characters (alphanumeric, hyphen, underscore). */
 const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
@@ -99,7 +99,7 @@ async function getAuthUserId(supabase: SupabaseDB): Promise<string | null> {
  *
  * Writes to four tables in order:
  *  1. `user_progress`   — aggregate progress row
- *  2. `session_results`  — individual session history (capped at 200)
+ *  2. `session_results`  — individual session history (capped at MAX_SESSIONS)
  *  3. `scale_proficiency` — per-scale proficiency records
  *  4. `key_proficiency`   — per-key proficiency records
  *
