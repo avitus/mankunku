@@ -5,6 +5,7 @@ import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } from '$lib/persistence/sync';
+import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 const STORAGE_KEY = 'settings';
 const VALID_BACKING_STYLES = new Set<string>(['swing', 'bossa-nova', 'ballad', 'straight']);
@@ -59,9 +60,11 @@ export function saveSettings(supabase?: SupabaseClient<Database>): void {
  * Merges cloud settings with local, preferring cloud data when session exists.
  */
 export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	const gen = getScopeGeneration();
 	try {
 		const cloudSettings = await fetchSettingsFromCloud(supabase);
 		if (!cloudSettings) return; // No cloud data or not authenticated
+		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		// Merge cloud settings with defaults, preferring cloud values
 		const merged = { ...defaultSettings, ...cloudSettings };

@@ -79,6 +79,16 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	 */
 	const { session, user, isAdmin } = data;
 
+	// Reconcile client-side storage with the currently-authenticated user
+	// BEFORE dynamic state modules evaluate their top-level `$state(loadX())`
+	// initializers. If the authenticated user changed (sign-out or account
+	// switch), wipe localStorage / sessionStorage / IndexedDB so stale state
+	// from the prior user does not leak into the new session.
+	if (isBrowser()) {
+		const { syncUserScope } = await import('$lib/persistence/user-scope');
+		await syncUserScope(user?.id ?? null);
+	}
+
 	// Hydrate settings + progress from cloud before any component renders.
 	// Runs in the load function so child routes (e.g. practice page) snapshot
 	// hydrated state, not stale localStorage defaults.
@@ -90,12 +100,14 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		const { rebuildHistoryIfNeeded } = await import('$lib/state/history.svelte');
 		const { initLickMetadataFromCloud } = await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
+		const { initCommunityFromCloud } = await import('$lib/persistence/community');
 
 		const hydration = Promise.all([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
 			initLickMetadataFromCloud(supabase),
-			initUserLicksFromCloud(supabase)
+			initUserLicksFromCloud(supabase),
+			initCommunityFromCloud(supabase)
 		]).then(() => rebuildHistoryIfNeeded());
 
 		// Don't block rendering for more than 2s (offline / slow connections).

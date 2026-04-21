@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud } from '$lib/persistence/sync';
 import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte';
+import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 200; // keep last 200 sessions
@@ -126,9 +127,11 @@ export function saveProgress(): void {
  * Errors are caught and logged as warnings — the app remains fully functional offline.
  */
 export async function initFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	const gen = getScopeGeneration();
 	try {
 		const cloudProgress = await loadProgressFromCloud(supabase);
 		if (!cloudProgress) return; // No cloud data or not authenticated
+		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		// Merge cloud data with local state
 		// Cloud data takes precedence for aggregate fields

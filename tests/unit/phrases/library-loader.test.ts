@@ -116,6 +116,12 @@ vi.mock('$lib/persistence/user-licks', () => ({
 	getUserLicksLocal: () => mockGetUserLicksLocal()
 }));
 
+// Mock community persistence (adopted licks cache)
+const mockGetAdoptedLicksLocal = vi.fn<() => Phrase[]>(() => []);
+vi.mock('$lib/persistence/community', () => ({
+	getAdoptedLicksLocal: () => mockGetAdoptedLicksLocal()
+}));
+
 // Mock scale compatibility — default: everything is compatible
 const mockIsLickCompatible = vi.fn((_lick: unknown, _scaleType: unknown) => true);
 vi.mock('$lib/tonality/scale-compatibility', () => ({
@@ -146,6 +152,7 @@ const {
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetUserLicksLocal.mockReturnValue([]);
+	mockGetAdoptedLicksLocal.mockReturnValue([]);
 	mockIsLickCompatible.mockReturnValue(true);
 });
 
@@ -169,6 +176,24 @@ describe('getAllLicks', () => {
 		const second = getAllLicks();
 		expect(first).not.toBe(second);
 		expect(first).toEqual(second);
+	});
+
+	it('includes adopted community licks alongside curated + user licks', () => {
+		const adopted = [makePhrase({ id: 'adopted-1', name: 'Adopted Lick', source: 'user-recorded' })];
+		mockGetUserLicksLocal.mockReturnValue(FIXTURE_USER_LICKS);
+		mockGetAdoptedLicksLocal.mockReturnValue(adopted);
+		const all = getAllLicks();
+		expect(all.map(l => l.id)).toContain('adopted-1');
+		expect(all).toHaveLength(FIXTURE_CURATED.length + FIXTURE_USER_LICKS.length + 1);
+	});
+
+	it('dedups when the same id appears in user and adopted caches (safety net)', () => {
+		const shared = makePhrase({ id: 'shared-id', name: 'Shared' });
+		mockGetUserLicksLocal.mockReturnValue([shared]);
+		mockGetAdoptedLicksLocal.mockReturnValue([shared]);
+		const all = getAllLicks();
+		const count = all.filter(l => l.id === 'shared-id').length;
+		expect(count).toBe(1);
 	});
 });
 
