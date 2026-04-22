@@ -221,7 +221,12 @@ describe('adoptLick / unadoptLick', () => {
 			name: 'Test',
 			key: 'C',
 			time_signature: [4, 4],
-			notes: [],
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 64, duration: [1, 4], offset: [2, 4] },
+				{ pitch: 65, duration: [1, 4], offset: [3, 4] }
+			],
 			harmony: [],
 			difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
 			category: 'user',
