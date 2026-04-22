@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { GRADE_COLORS, GRADE_CAPTIONS, GRADE_LABELS } from '$lib/scoring/grades';
+	import { GRADE_COLORS, GRADE_LABELS, getGradeCaption } from '$lib/scoring/grades';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
@@ -105,6 +105,14 @@
 	let willRetry = $state(false);
 	/** Persists across loop iterations — only replaced when a new score arrives */
 	let persistentScore: Score | null = $state(null);
+	/** Fresh random caption per new persistentScore. */
+	const persistentCaption = $derived.by(() => {
+		if (!persistentScore) return '';
+		void persistentScore.overall;
+		void persistentScore.pitchAccuracy;
+		void persistentScore.rhythmAccuracy;
+		return getGradeCaption(persistentScore.grade);
+	});
 
 	const isActive = $derived(
 		session.engineState === 'playing' ||
@@ -636,7 +644,7 @@
 					{pct(persistentScore.overall)}%
 				</div>
 				<div class="mt-0.5 text-sm italic text-[var(--color-text-secondary)]">
-					{GRADE_LABELS[persistentScore.grade]} — {GRADE_CAPTIONS[persistentScore.grade]}
+					{GRADE_LABELS[persistentScore.grade]} — {persistentCaption}
 				</div>
 				<div class="mt-1 flex gap-4 text-sm text-[var(--color-text-secondary)]">
 					<span>Pitch {pct(persistentScore.pitchAccuracy)}%</span>

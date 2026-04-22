@@ -165,7 +165,7 @@ These diagnostics drive the replay panel in `/diagnostics` and the timing visual
 
 ## 7. Grade Assignment (`grades.ts`)
 
-| Grade       | Threshold | Label        | Color                          | Caption                           |
+| Grade       | Threshold | Label        | Color                          | Sample caption                    |
 | ----------- | --------- | ------------ | ------------------------------ | --------------------------------- |
 | `perfect`   | ≥ 95%     | "Perfect"    | `var(--color-success)`         | "Right in the pocket."            |
 | `great`     | ≥ 85%     | "Great"      | `var(--color-success)`         | "Cookin'."                        |
@@ -173,7 +173,7 @@ These diagnostics drive the replay panel in `/diagnostics` and the timing visual
 | `fair`      | ≥ 55%     | "Fair"       | `var(--color-warning)`         | "A little off the changes."       |
 | `try-again` | < 55%     | "Try Again"  | `var(--color-error)`           | "Take it again from the top."     |
 
-`GRADE_CAPTIONS` are liner-note-style one-liners shown below the grade label in session reports — a small warmth touch consistent with the Blue Note visual identity.
+`GRADE_CAPTIONS` is a pool per grade (~10 entries each) mixing Blue Note liner-note one-liners with classic quotes from the giants of the genre (Miles, Coltrane, Monk, Parker, Ellington, Armstrong, Mingus, Evans, Hancock, Brubeck, Rollins, Fitzgerald, Basie, Blakey, Gillespie). `getGradeCaption(grade)` picks one at random per attempt so the feedback stays fresh across a session.
 
 Because `--color-accent` is domain-scoped, the "Good" grade reads peacock-teal in ear-training and terracotta in lick-practice — it always takes the current domain's accent, not a hard-coded hue.
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Score } from '$lib/types/scoring';
-	import { GRADE_LABELS, GRADE_COLORS, GRADE_CAPTIONS } from '$lib/scoring/grades';
+	import { GRADE_LABELS, GRADE_COLORS, getGradeCaption } from '$lib/scoring/grades';
 	import NoteComparison from './NoteComparison.svelte';
 
 	interface Props {
@@ -12,6 +12,16 @@
 	let { score, onrepeat, onnext }: Props = $props();
 
 	const pct = (n: number) => Math.round(n * 100);
+
+	// Pick a fresh caption whenever a new score arrives. Reading `score.overall`
+	// alongside `score.grade` ensures back-to-back attempts on the same grade
+	// still re-roll the quote.
+	const caption = $derived.by(() => {
+		void score.overall;
+		void score.pitchAccuracy;
+		void score.rhythmAccuracy;
+		return getGradeCaption(score.grade);
+	});
 </script>
 
 <div class="space-y-4 rounded-lg bg-[var(--color-bg-secondary)] p-4">
@@ -24,7 +34,7 @@
 			{GRADE_LABELS[score.grade]}
 		</div>
 		<div class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
-			{GRADE_CAPTIONS[score.grade]}
+			{caption}
 		</div>
 		<div class="mt-1 font-display text-3xl font-bold tabular-nums">
 			{pct(score.overall)}%
