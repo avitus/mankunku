@@ -64,8 +64,16 @@ mv -f "$TMP_LINK" "${ROOT}/current"
 trap - EXIT
 
 echo "==> Restarting PM2 against new release"
-pm2 startOrRestart "${ROOT}/current/ecosystem.config.cjs" --env production
-pm2 save
+# PM2 resolves a relative `script:` in the ecosystem config against its own
+# PWD (not against the config's `cwd:` field — that only sets the *runtime*
+# cwd of the spawned process). The deploy user's login shell starts in
+# ~/mankunku, so without this cd PM2 would look for ./build/index.js at
+# ~/mankunku/build/index.js and fail with "Script not found".
+(
+    cd "${ROOT}/current"
+    pm2 startOrRestart ecosystem.config.cjs --env production
+    pm2 save
+)
 
 echo "==> Pruning old releases (keep last ${KEEP_RELEASES:-5})"
 KEEP="${KEEP_RELEASES:-5}"
