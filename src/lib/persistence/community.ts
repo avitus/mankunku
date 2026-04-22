@@ -538,11 +538,17 @@ export async function initCommunityFromCloud(
 		saveAdoptedPayloadsLocal(payloads);
 
 		// Hydrate author attribution — restricted to validated licks so the
-		// author map mirrors what actually landed in `payloads`.
+		// author map mirrors what actually landed in `payloads`. When no
+		// validated payloads remain, explicitly clear the author cache so
+		// stale entries from prior sessions don't linger.
 		const validatedIds = new Set(payloads.map((p) => p.id));
 		const validatedRows = (lickRows ?? []).filter((r) => validatedIds.has(r.id));
 		const authorIds = Array.from(new Set(validatedRows.map((r) => r.user_id)));
-		if (authorIds.length > 0) {
+		if (authorIds.length === 0) {
+			if (gen === getScopeGeneration()) {
+				saveAdoptedAuthorsLocal({});
+			}
+		} else {
 			const { data: authorRows, error: authorError } = await supabase
 				.from('public_lick_authors')
 				.select('id, display_name, avatar_url')
