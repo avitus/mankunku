@@ -62,6 +62,7 @@ jobs:
     steps:
       - attach_workspace:
           at: /tmp/workspace
+      - checkout
       - add_ssh_keys:
           fingerprints:
             - "SHA256:EE3+mp97fBRW+P32GUizJAnsX9lPkEeRrmuGudIFDqU"
@@ -72,25 +73,36 @@ jobs:
           name: Install rsync
           command: sudo apt-get update && sudo apt-get install -y rsync
       - run:
-          name: Deploy to server
+          name: Deploy atomic release
           command: |
-            # Backup current release for rollback
-            ssh $DEPLOY_USER@$DEPLOY_HOST 'cd ~/mankunku && rm -rf build.previous && cp -r build build.previous 2>/dev/null || true'
+            set -euo pipefail
 
-            # Rsync build artifacts to server
-            rsync -avz --delete \
+            # Each deploy lands in its own releases/<id>/ dir; release.sh
+            # atomically flips the `current` symlink and restarts PM2.
+            RELEASE_ID="$(date -u +%Y%m%d-%H%M%S)-${CIRCLE_SHA1:0:7}"
+            REMOTE_ROOT="/home/${DEPLOY_USER}/mankunku"
+            STAGE="${REMOTE_ROOT}/releases/${RELEASE_ID}"
+            REMOTE_SCRIPT="/tmp/mankunku-release.${CIRCLE_WORKFLOW_ID:-$CIRCLE_SHA1}.sh"
+
+            echo "==> Release ID: ${RELEASE_ID}"
+
+            ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${STAGE}/build'"
+
+            rsync -avz \
               /tmp/workspace/build/ \
-              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/build/
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/build/"
 
-            # Rsync package files for production dependency installation
             rsync -avz \
               /tmp/workspace/package.json \
               /tmp/workspace/package-lock.json \
               /tmp/workspace/ecosystem.config.cjs \
-              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/"
 
-            # Install production deps and restart
-            ssh $DEPLOY_USER@$DEPLOY_HOST 'bash -l -c "cd ~/mankunku && npm ci --omit=dev && pm2 startOrRestart ecosystem.config.cjs --env production && pm2 save"'
+            scp deploy/app/release.sh \
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${REMOTE_SCRIPT}"
+
+            ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "bash -l -c \"trap 'rm -f ${REMOTE_SCRIPT}' EXIT; bash ${REMOTE_SCRIPT} ${RELEASE_ID}\""
 
   nginx-deploy:
     docker:
