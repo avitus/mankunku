@@ -259,10 +259,11 @@ export function makePracticeReadyPhrase(
 	category: Phrase['category'],
 	overrides: Partial<Phrase> = {}
 ): Phrase {
+	const tags = overrides.tags ?? ['practice', category];
 	return makePhrase({
 		id,
 		category,
-		tags: overrides.tags ?? ['practice', category],
-		...overrides
+		...overrides,
+		tags
 	});
 }

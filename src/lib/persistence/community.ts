@@ -537,8 +537,11 @@ export async function initCommunityFromCloud(
 			});
 		saveAdoptedPayloadsLocal(payloads);
 
-		// Hydrate author attribution for each adopted lick.
-		const authorIds = Array.from(new Set((lickRows ?? []).map((r) => r.user_id)));
+		// Hydrate author attribution — restricted to validated licks so the
+		// author map mirrors what actually landed in `payloads`.
+		const validatedIds = new Set(payloads.map((p) => p.id));
+		const validatedRows = (lickRows ?? []).filter((r) => validatedIds.has(r.id));
+		const authorIds = Array.from(new Set(validatedRows.map((r) => r.user_id)));
 		if (authorIds.length > 0) {
 			const { data: authorRows, error: authorError } = await supabase
 				.from('public_lick_authors')
@@ -551,7 +554,7 @@ export async function initCommunityFromCloud(
 					(authorRows ?? []).map((a) => [a.id, a])
 				);
 				const authorMap: Record<string, AdoptedAuthor> = {};
-				for (const row of lickRows ?? []) {
+				for (const row of validatedRows) {
 					const a = byAuthorId.get(row.user_id);
 					authorMap[row.id] = {
 						authorId: row.user_id,
