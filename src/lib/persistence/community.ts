@@ -26,6 +26,7 @@ import type {
 } from '$lib/types/music';
 import { save, load } from './storage';
 import { getScopeGeneration } from './user-scope';
+import { validateAdoptedPhrase } from '$lib/phrases/adopted-phrase-validator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 
@@ -377,26 +378,39 @@ export async function adoptLick(
 		console.warn('Adopted lick but failed to fetch payload:', lickError);
 		// The adoption row is in place; next startup hydration will pick it up.
 	} else {
-		const payloads = getAdoptedLicksLocal();
-		if (!payloads.some((p) => p.id === lickId)) {
-			payloads.push(rowToPhrase(lickRow));
-			saveAdoptedPayloadsLocal(payloads);
+		const phrase = rowToPhrase(lickRow);
+		const validation = validateAdoptedPhrase(phrase);
+		if (!validation.valid) {
+			// Server row is malformed — record the adoption intent but keep the
+			// local payload cache clean. The library UI will show "adopted" but
+			// the lick won't appear in the practice pipeline until the author
+			// fixes the source row.
+			console.warn(
+				`Adopted lick ${lickId} failed validation; skipping local cache:`,
+				validation.errors
+			);
+		} else {
+			const payloads = getAdoptedLicksLocal();
+			if (!payloads.some((p) => p.id === lickId)) {
+				payloads.push(phrase);
+				saveAdoptedPayloadsLocal(payloads);
+			}
+
+			// Cache author attribution for the library's "by <author>" badge.
+			const { data: author } = await supabase
+				.from('public_lick_authors')
+				.select('id, display_name, avatar_url')
+				.eq('id', lickRow.user_id)
+				.single();
+
+			const authors = getAdoptedAuthorsLocal();
+			authors[lickId] = {
+				authorId: lickRow.user_id,
+				authorName: author?.display_name ?? null,
+				authorAvatarUrl: author?.avatar_url ?? null
+			};
+			saveAdoptedAuthorsLocal(authors);
 		}
-
-		// Cache author attribution for the library's "by <author>" badge.
-		const { data: author } = await supabase
-			.from('public_lick_authors')
-			.select('id, display_name, avatar_url')
-			.eq('id', lickRow.user_id)
-			.single();
-
-		const authors = getAdoptedAuthorsLocal();
-		authors[lickId] = {
-			authorId: lickRow.user_id,
-			authorName: author?.display_name ?? null,
-			authorAvatarUrl: author?.avatar_url ?? null
-		};
-		saveAdoptedAuthorsLocal(authors);
 	}
 
 	adoptions.add(lickId);
@@ -506,7 +520,21 @@ export async function initCommunityFromCloud(
 		}
 		if (gen !== getScopeGeneration()) return;
 
-		const payloads: Phrase[] = (lickRows ?? []).map(rowToPhrase);
+		// Filter out malformed payloads so the practice pipeline only sees
+		// trustworthy data. Invalid adoptions remain in the adoption set above
+		// so the user can still unadopt them; they just don't render.
+		const payloads: Phrase[] = (lickRows ?? [])
+			.map(rowToPhrase)
+			.filter((phrase) => {
+				const result = validateAdoptedPhrase(phrase);
+				if (!result.valid) {
+					console.warn(
+						`Adopted lick ${phrase.id} failed validation; excluding from cache:`,
+						result.errors
+					);
+				}
+				return result.valid;
+			});
 		saveAdoptedPayloadsLocal(payloads);
 
 		// Hydrate author attribution for each adopted lick.
