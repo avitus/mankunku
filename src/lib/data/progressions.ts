@@ -10,6 +10,24 @@ export interface ProgressionTemplate {
 	bars: number;
 }
 
+const MINOR_VAMP: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: 'min7' },
+		scaleId: 'major.dorian',
+		startOffset: [0, 1],
+		duration: [2, 1]
+	}
+];
+
+const MAJOR_VAMP: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: 'maj7' },
+		scaleId: 'major.ionian',
+		startOffset: [0, 1],
+		duration: [2, 1]
+	}
+];
+
 const II_V_I_MAJOR_SHORT: HarmonicSegment[] = [
 	{
 		chord: { root: 'D', quality: 'min7' },
@@ -132,6 +150,20 @@ const BLUES: HarmonicSegment[] = [
 ];
 
 export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemplate> = {
+	'minor-vamp': {
+		type: 'minor-vamp',
+		name: 'Minor',
+		shortName: 'Minor',
+		harmony: MINOR_VAMP,
+		bars: 2
+	},
+	'major-vamp': {
+		type: 'major-vamp',
+		name: 'Major',
+		shortName: 'Major',
+		harmony: MAJOR_VAMP,
+		bars: 2
+	},
 	'ii-V-I-major': {
 		type: 'ii-V-I-major',
 		name: 'Short ii-V-I (Maj)',
@@ -224,6 +256,12 @@ export interface CompatibleLickCategory {
  * there) and only list chord-quality roles whose chord spans a full bar.
  */
 export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, CompatibleLickCategory[]> = {
+	'minor-vamp': [
+		{ category: 'minor-chord', offset: [0, 1] }
+	],
+	'major-vamp': [
+		{ category: 'major-chord', offset: [0, 1] }
+	],
 	'ii-V-I-major': [
 		{ category: 'ii-V-I-major',       offset: [0, 1] },
 		{ category: 'short-ii-V-I-major', offset: [0, 1] },

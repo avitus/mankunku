@@ -2,6 +2,8 @@ import type { PitchClass, PhraseCategory, ChordQuality } from './music';
 import type { Score } from './scoring';
 
 export type ChordProgressionType =
+	| 'minor-vamp'
+	| 'major-vamp'
 	| 'ii-V-I-major'
 	| 'ii-V-I-minor'
 	| 'ii-V-I-major-long'
