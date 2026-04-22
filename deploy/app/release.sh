@@ -64,14 +64,16 @@ mv -f "$TMP_LINK" "${ROOT}/current"
 trap - EXIT
 
 echo "==> Restarting PM2 against new release"
-# PM2 resolves a relative `script:` in the ecosystem config against its own
-# PWD (not against the config's `cwd:` field — that only sets the *runtime*
-# cwd of the spawned process). The deploy user's login shell starts in
-# ~/mankunku, so without this cd PM2 would look for ./build/index.js at
-# ~/mankunku/build/index.js and fail with "Script not found".
+# `pm2 startOrRestart` reuses the existing in-daemon app definition when one
+# is already registered (from a prior `pm2 save` / `pm2 resurrect`), which
+# means changes to script/cwd in ecosystem.config.cjs are silently ignored.
+# Deleting first guarantees the new ecosystem config is applied verbatim.
+# We also cd into `current` so PM2 resolves the relative `script:` path
+# against the live release rather than the deploy user's login PWD.
 (
     cd "${ROOT}/current"
-    pm2 startOrRestart ecosystem.config.cjs --env production
+    pm2 delete mankunku 2>/dev/null || true
+    pm2 start ecosystem.config.cjs --env production
     pm2 save
 )
 
