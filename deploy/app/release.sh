@@ -68,10 +68,19 @@ echo "==> Restarting PM2 against new release"
 # is already registered (from a prior `pm2 save` / `pm2 resurrect`), which
 # means changes to script/cwd in ecosystem.config.cjs are silently ignored.
 # Deleting first guarantees the new ecosystem config is applied verbatim.
-# We also cd into `current` so PM2 resolves the relative `script:` path
-# against the live release rather than the deploy user's login PWD.
+# We cd into `current` because `pm2 start ecosystem.config.cjs` looks up the
+# config file relative to its own cwd and does not search parent dirs.
 (
     cd "${ROOT}/current"
+
+    # Pre-flight: log what PM2 is about to see. Past deploys failed with
+    # "Script not found" because PM2 resolved against an unexpected cwd;
+    # these lines make the cause visible in CI logs on any future failure.
+    echo "    pwd: $(pwd)"
+    echo "    ecosystem.config.cjs cwd/script:"
+    grep -E "^\s*(cwd|script):" ecosystem.config.cjs | sed 's/^/      /'
+    echo "    build/index.js: $(test -f build/index.js && echo OK || echo MISSING)"
+
     pm2 delete mankunku 2>/dev/null || true
     pm2 start ecosystem.config.cjs --env production
     pm2 save
