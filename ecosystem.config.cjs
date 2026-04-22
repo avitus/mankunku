@@ -3,7 +3,7 @@ module.exports = {
 		{
 			name: 'mankunku',
 			script: './build/index.js',
-			cwd: '/home/deploy/mankunku',
+			cwd: '/home/deploy/mankunku/current',
 			instances: 1,
 			exec_mode: 'fork',
 			autorestart: true,
