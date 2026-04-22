@@ -2,6 +2,8 @@
 
 The adaptive difficulty system automatically adjusts musical complexity based on the player's recent performance.
 
+> **Related:** See [Independent in Theory, Coupled in Practice](pitch-rhythm-coupling.md) for an open investigation into why `pitchComplexity` and `rhythmComplexity` tend to track together despite being designed to advance independently.
+
 **Source files:** `src/lib/difficulty/adaptive.ts`, `src/lib/difficulty/params.ts`
 
 ## Algorithm (`adaptive.ts`)

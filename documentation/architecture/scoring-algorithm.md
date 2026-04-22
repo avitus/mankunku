@@ -2,6 +2,8 @@
 
 The scoring engine takes expected notes (from a `Phrase`) and detected notes (from the microphone pipeline) and produces a `Score` with per-note pitch and rhythm accuracy, plus timing diagnostics.
 
+> **Related:** See [Independent in Theory, Coupled in Practice](pitch-rhythm-coupling.md) for an open investigation into how the missed/extra-note zeroing in `scorer.ts:172-190` correlates the pitch and rhythm accuracy signals that feed adaptive difficulty.
+
 **Source files:** `src/lib/scoring/`
 
 - `score-pipeline.ts` — thin orchestrator that combines bleed filtering and scoring (used by the live path, post-hoc rescore, and the diagnostics replay panel)
