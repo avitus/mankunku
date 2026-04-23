@@ -116,10 +116,10 @@ vi.mock('$lib/persistence/user-licks', () => ({
 	getUserLicksLocal: () => mockGetUserLicksLocal()
 }));
 
-// Mock community persistence (adopted licks cache)
-const mockGetAdoptedLicksLocal = vi.fn<() => Phrase[]>(() => []);
+// Mock community persistence (stolen licks cache)
+const mockGetStolenLicksLocal = vi.fn<() => Phrase[]>(() => []);
 vi.mock('$lib/persistence/community', () => ({
-	getAdoptedLicksLocal: () => mockGetAdoptedLicksLocal()
+	getStolenLicksLocal: () => mockGetStolenLicksLocal()
 }));
 
 // Mock scale compatibility — default: everything is compatible
@@ -152,7 +152,7 @@ const {
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetUserLicksLocal.mockReturnValue([]);
-	mockGetAdoptedLicksLocal.mockReturnValue([]);
+	mockGetStolenLicksLocal.mockReturnValue([]);
 	mockIsLickCompatible.mockReturnValue(true);
 });
 
@@ -178,19 +178,19 @@ describe('getAllLicks', () => {
 		expect(first).toEqual(second);
 	});
 
-	it('includes adopted community licks alongside curated + user licks', () => {
-		const adopted = [makePhrase({ id: 'adopted-1', name: 'Adopted Lick', source: 'user-recorded' })];
+	it('includes stolen community licks alongside curated + user licks', () => {
+		const stolen = [makePhrase({ id: 'stolen-1', name: 'Stolen Lick', source: 'user-recorded' })];
 		mockGetUserLicksLocal.mockReturnValue(FIXTURE_USER_LICKS);
-		mockGetAdoptedLicksLocal.mockReturnValue(adopted);
+		mockGetStolenLicksLocal.mockReturnValue(stolen);
 		const all = getAllLicks();
-		expect(all.map(l => l.id)).toContain('adopted-1');
+		expect(all.map(l => l.id)).toContain('stolen-1');
 		expect(all).toHaveLength(FIXTURE_CURATED.length + FIXTURE_USER_LICKS.length + 1);
 	});
 
-	it('dedups when the same id appears in user and adopted caches (safety net)', () => {
+	it('dedups when the same id appears in user and stolen caches (safety net)', () => {
 		const shared = makePhrase({ id: 'shared-id', name: 'Shared' });
 		mockGetUserLicksLocal.mockReturnValue([shared]);
-		mockGetAdoptedLicksLocal.mockReturnValue([shared]);
+		mockGetStolenLicksLocal.mockReturnValue([shared]);
 		const all = getAllLicks();
 		const count = all.filter(l => l.id === 'shared-id').length;
 		expect(count).toBe(1);

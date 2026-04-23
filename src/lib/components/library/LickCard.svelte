@@ -10,7 +10,7 @@
 		onclick?: () => void;
 		onplay?: () => void;
 		isPlaying?: boolean;
-		/** When set, renders a "by <name>" attribution — used for adopted community licks. */
+		/** When set, renders a "by <name>" attribution — used for stolen community licks. */
 		authorName?: string | null;
 	}
 

@@ -11,7 +11,7 @@
 	import { page } from '$app/state';
 	import { getUserLicks, getLickTagOverrides } from '$lib/persistence/user-licks';
 	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
-	import { getAdoptedLicksLocal, getAdoptedAuthorsLocal, unadoptLick } from '$lib/persistence/community';
+	import { getStolenLicksLocal, getStolenAuthorsLocal, returnLick } from '$lib/persistence/community';
 
 	/** Supabase browser client from layout data (null when not available) */
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -74,40 +74,40 @@
 		})
 	);
 
-	/** Live view of adopted community licks (localStorage-cached). */
-	let adoptedLicks: Phrase[] = $state(getAdoptedLicksLocal());
-	let adoptedAuthors: Record<string, { authorName: string | null }> = $state(
-		getAdoptedAuthorsLocal()
+	/** Live view of stolen community licks (localStorage-cached). */
+	let stolenLicks: Phrase[] = $state(getStolenLicksLocal());
+	let stolenAuthors: Record<string, { authorName: string | null }> = $state(
+		getStolenAuthorsLocal()
 	);
-	const adoptedIds = $derived(new Set(adoptedLicks.map((l) => l.id)));
+	const stolenIds = $derived(new Set(stolenLicks.map((l) => l.id)));
 
-	function refreshAdopted() {
-		adoptedLicks = getAdoptedLicksLocal();
-		adoptedAuthors = getAdoptedAuthorsLocal();
+	function refreshStolen() {
+		stolenLicks = getStolenLicksLocal();
+		stolenAuthors = getStolenAuthorsLocal();
 	}
 
 	/**
 	 * `initCommunityFromCloud` in +layout.ts races a 2s timeout and is allowed
 	 * to finish in the background. A cold load can render this page before the
-	 * adopted cache is hydrated — the initial snapshot above would then stay
+	 * stolen cache is hydrated — the initial snapshot above would then stay
 	 * stale for the rest of the visit. Re-read the cache when the session
 	 * becomes available, and again after a short delay to catch hydration that
 	 * completes after the 2s race.
 	 */
 	$effect(() => {
 		if (!session) return;
-		refreshAdopted();
-		const delayed = setTimeout(refreshAdopted, 2500);
+		refreshStolen();
+		const delayed = setTimeout(refreshStolen, 2500);
 		return () => clearTimeout(delayed);
 	});
 
 	/**
-	 * Combined filtered licks: user-recorded licks and adopted community licks
+	 * Combined filtered licks: user-recorded licks and stolen community licks
 	 * (filtered by same criteria) appear first, followed by curated licks.
 	 */
 	const filteredLicks = $derived.by(() => {
-		// Apply the same search/filter criteria to user + adopted licks
-		let filtered = [...userLicks, ...adoptedLicks];
+		// Apply the same search/filter criteria to user + stolen licks
+		let filtered = [...userLicks, ...stolenLicks];
 
 		if (library.categoryFilter) {
 			filtered = filtered.filter((l) => l.category === library.categoryFilter);
@@ -124,8 +124,8 @@
 			);
 		}
 
-		// User + adopted first, then curated licks (deduplicate by ID since
-		// queryLicks/getAllLicks already includes user + adopted licks).
+		// User + stolen first, then curated licks (deduplicate by ID since
+		// queryLicks/getAllLicks already includes user + stolen licks).
 		const seenIds = new Set(filtered.map((l) => l.id));
 		let combined = [...filtered, ...curatedLicks.filter((l) => !seenIds.has(l.id))];
 
@@ -137,17 +137,17 @@
 		return combined;
 	});
 
-	async function handleUnadopt(lickId: string) {
+	async function handleReturn(lickId: string) {
 		if (!supabase) return;
 		try {
-			await unadoptLick(supabase, lickId);
+			await returnLick(supabase, lickId);
 		} catch (err) {
-			console.warn('Failed to unadopt lick:', err);
+			console.warn('Failed to return lick:', err);
 		} finally {
 			// Always resync the local cache so the UI matches whatever state
 			// ended up in localStorage — even on failure the cache may be
 			// partially updated, and we want the grid to reflect reality.
-			refreshAdopted();
+			refreshStolen();
 		}
 	}
 
@@ -276,22 +276,22 @@
 	{#if filteredLicks.length > 0}
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 			{#each filteredLicks as lick (lick.id)}
-				{@const isAdopted = adoptedIds.has(lick.id)}
+				{@const isStolen = stolenIds.has(lick.id)}
 				<div class="relative">
 					<LickCard
 						{lick}
 						onclick={() => handleLickClick(lick.id)}
 						onplay={() => handlePlay(lick)}
 						isPlaying={playingId === lick.id}
-						authorName={isAdopted ? adoptedAuthors[lick.id]?.authorName ?? null : null}
+						authorName={isStolen ? stolenAuthors[lick.id]?.authorName ?? null : null}
 					/>
-					{#if isAdopted}
+					{#if isStolen}
 						<button
-							onclick={(e) => { e.stopPropagation(); handleUnadopt(lick.id); }}
+							onclick={(e) => { e.stopPropagation(); handleReturn(lick.id); }}
 							class="absolute bottom-2 right-2 rounded-full bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors"
-							aria-label="Unadopt lick"
+							aria-label="Return lick"
 						>
-							Unadopt
+							Return
 						</button>
 					{/if}
 				</div>

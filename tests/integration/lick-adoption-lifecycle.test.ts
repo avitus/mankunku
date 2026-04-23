@@ -1,10 +1,10 @@
 /**
- * Integration tests for the end-to-end lick-adoption lifecycle.
+ * Integration tests for the end-to-end lick-steal lifecycle.
  *
  * Covers the behaviors that span multiple sync calls and stretches of local
- * state: adopt/unadopt round-trip, hydration reconciliation with cloud
- * truth (author delete cascade, author edit propagation), duplicate-adopt
- * races, self-adoption rejection, offline adoption, scope-generation
+ * state: steal/return round-trip, hydration reconciliation with cloud
+ * truth (author delete cascade, author edit propagation), duplicate-steal
+ * races, self-steal rejection, offline steal, scope-generation
  * cancellation during a user switch, stale-payload refresh, and partial
  * sync failures.
  */
@@ -48,12 +48,12 @@ beforeEach(() => {
 });
 
 const {
-	adoptLick,
-	unadoptLick,
+	stealLick,
+	returnLick,
 	initCommunityFromCloud,
-	getAdoptionsLocal,
-	getAdoptedLicksLocal,
-	getAdoptedAuthorsLocal,
+	getStealsLocal,
+	getStolenLicksLocal,
+	getStolenAuthorsLocal,
 	getFavoritesLocal,
 	hasAcknowledgedCommunityPrivacy
 } = await import('$lib/persistence/community');
@@ -95,35 +95,35 @@ function authorRow(id: string, name: string): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Round-trip: adopt → unadopt
+// Round-trip: steal → return
 // ---------------------------------------------------------------------------
 
-describe('adopt → unadopt round trip', () => {
-	it('adopt populates all three local caches', async () => {
+describe('steal → return round trip', () => {
+	it('steal populates all three local caches', async () => {
 		const cloud = createCloudState();
 		seed(cloud, 'user_licks', [validLickRow({ id: 'lick-1', user_id: 'author-1' })]);
 		seed(cloud, 'public_lick_authors', [authorRow('author-1', 'Alice')]);
 		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
 
-		const ok = await adoptLick(sb as never, 'lick-1');
+		const ok = await stealLick(sb as never, 'lick-1');
 		expect(ok).toBe(true);
 
-		expect(getAdoptionsLocal().has('lick-1')).toBe(true);
-		expect(getAdoptedLicksLocal().find((p) => p.id === 'lick-1')).toBeDefined();
-		expect(getAdoptedAuthorsLocal()['lick-1']?.authorName).toBe('Alice');
+		expect(getStealsLocal().has('lick-1')).toBe(true);
+		expect(getStolenLicksLocal().find((p) => p.id === 'lick-1')).toBeDefined();
+		expect(getStolenAuthorsLocal()['lick-1']?.authorName).toBe('Alice');
 
-		// Adoption row persisted to cloud.
+		// Steal row persisted to cloud.
 		expect(peek(cloud, 'lick_adoptions')).toEqual([
 			expect.objectContaining({ user_id: 'me', lick_id: 'lick-1' })
 		]);
 	});
 
-	it('unadopt clears all three local caches and the cloud row', async () => {
+	it('return clears all three local caches and the cloud row', async () => {
 		const cloud = createCloudState();
 		seed(cloud, 'lick_adoptions', [{ user_id: 'me', lick_id: 'lick-1' }]);
 		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
 
-		// Pre-populate local caches as if adoption had already happened.
+		// Pre-populate local caches as if the steal had already happened.
 		localStorageMock.setItem(
 			'mankunku:community-adoptions',
 			JSON.stringify(['lick-1'])
@@ -150,12 +150,12 @@ describe('adopt → unadopt round trip', () => {
 			JSON.stringify({ 'lick-1': { authorId: 'author-1', authorName: 'Alice', authorAvatarUrl: null } })
 		);
 
-		const ok = await unadoptLick(sb as never, 'lick-1');
+		const ok = await returnLick(sb as never, 'lick-1');
 		expect(ok).toBe(true);
 
-		expect(getAdoptionsLocal().has('lick-1')).toBe(false);
-		expect(getAdoptedLicksLocal()).toEqual([]);
-		expect(getAdoptedAuthorsLocal()['lick-1']).toBeUndefined();
+		expect(getStealsLocal().has('lick-1')).toBe(false);
+		expect(getStolenLicksLocal()).toEqual([]);
+		expect(getStolenAuthorsLocal()['lick-1']).toBeUndefined();
 		expect(peek(cloud, 'lick_adoptions')).toEqual([]);
 	});
 });
@@ -165,10 +165,10 @@ describe('adopt → unadopt round trip', () => {
 // ---------------------------------------------------------------------------
 
 describe('initCommunityFromCloud reconciles with cloud truth', () => {
-	it('clears local adoption cache when the cloud adoption row is gone (delete cascade)', async () => {
-		// Simulate: adopter's local cache has an adoption that the cloud no longer
+	it('clears local adoption cache when the cloud steal row is gone (delete cascade)', async () => {
+		// Simulate: adopter's local cache has a steal that the cloud no longer
 		// has (because the author deleted their lick and the FK cascade removed
-		// the adoption row). Expect: hydration wipes the stale local entries.
+		// the steal row). Expect: hydration wipes the stale local entries.
 		localStorageMock.setItem(
 			'mankunku:community-adoptions',
 			JSON.stringify(['lick-deleted'])
@@ -202,8 +202,8 @@ describe('initCommunityFromCloud reconciles with cloud truth', () => {
 
 		await initCommunityFromCloud(sb as never);
 
-		expect(getAdoptionsLocal().size).toBe(0);
-		expect(getAdoptedLicksLocal()).toEqual([]);
+		expect(getStealsLocal().size).toBe(0);
+		expect(getStolenLicksLocal()).toEqual([]);
 	});
 
 	it('refreshes the payload cache with the author’s latest version', async () => {
@@ -244,20 +244,20 @@ describe('initCommunityFromCloud reconciles with cloud truth', () => {
 
 		await initCommunityFromCloud(sb as never);
 
-		const cached = getAdoptedLicksLocal().find((p) => p.id === 'lick-1');
+		const cached = getStolenLicksLocal().find((p) => p.id === 'lick-1');
 		expect(cached?.name).toBe('New');
 	});
 
-	it('handles an empty adoption set without crashing', async () => {
+	it('handles an empty steal set without crashing', async () => {
 		const cloud = createCloudState();
 		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
 
 		await expect(initCommunityFromCloud(sb as never)).resolves.toBeUndefined();
-		expect(getAdoptionsLocal().size).toBe(0);
-		expect(getAdoptedLicksLocal()).toEqual([]);
+		expect(getStealsLocal().size).toBe(0);
+		expect(getStolenLicksLocal()).toEqual([]);
 	});
 
-	it('excludes invalid payloads from the cache but keeps the adoption row', async () => {
+	it('excludes invalid payloads from the cache but keeps the steal row', async () => {
 		const cloud = createCloudState();
 		seed(cloud, 'lick_adoptions', [{ user_id: 'me', lick_id: 'lick-bad' }]);
 		// Seed a malformed row: empty notes fails validation.
@@ -268,8 +268,8 @@ describe('initCommunityFromCloud reconciles with cloud truth', () => {
 		await initCommunityFromCloud(sb as never);
 		warnSpy.mockRestore();
 
-		expect(getAdoptionsLocal().has('lick-bad')).toBe(true);
-		expect(getAdoptedLicksLocal().find((p) => p.id === 'lick-bad')).toBeUndefined();
+		expect(getStealsLocal().has('lick-bad')).toBe(true);
+		expect(getStolenLicksLocal().find((p) => p.id === 'lick-bad')).toBeUndefined();
 	});
 });
 
@@ -277,61 +277,61 @@ describe('initCommunityFromCloud reconciles with cloud truth', () => {
 // Edge cases
 // ---------------------------------------------------------------------------
 
-describe('adoption edge cases', () => {
-	it('second adoptLick call is idempotent — no duplicate cache entry', async () => {
+describe('steal edge cases', () => {
+	it('second stealLick call is idempotent — no duplicate cache entry', async () => {
 		const cloud = createCloudState();
 		seed(cloud, 'user_licks', [validLickRow({ id: 'lick-1' })]);
 		seed(cloud, 'public_lick_authors', [authorRow('author-1', 'Alice')]);
 		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
 
-		const first = await adoptLick(sb as never, 'lick-1');
-		const second = await adoptLick(sb as never, 'lick-1');
+		const first = await stealLick(sb as never, 'lick-1');
+		const second = await stealLick(sb as never, 'lick-1');
 
 		expect(first).toBe(true);
 		expect(second).toBe(true);
-		expect(getAdoptedLicksLocal().filter((p) => p.id === 'lick-1')).toHaveLength(1);
+		expect(getStolenLicksLocal().filter((p) => p.id === 'lick-1')).toHaveLength(1);
 		// The DB should reject the duplicate, but even if it didn't, the client
 		// short-circuits on a repeat call so no second row is attempted.
 		expect(peek(cloud, 'lick_adoptions')).toHaveLength(1);
 	});
 
-	it('adoptLick returns false when no auth session is present (offline)', async () => {
+	it('stealLick returns false when no auth session is present (offline)', async () => {
 		const cloud = createCloudState();
 		seed(cloud, 'user_licks', [validLickRow({ id: 'lick-1' })]);
 		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: null } });
 
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const ok = await adoptLick(sb as never, 'lick-1');
+		const ok = await stealLick(sb as never, 'lick-1');
 		warnSpy.mockRestore();
 
 		expect(ok).toBe(false);
-		expect(getAdoptionsLocal().has('lick-1')).toBe(false);
-		expect(getAdoptedLicksLocal()).toEqual([]);
+		expect(getStealsLocal().has('lick-1')).toBe(false);
+		expect(getStolenLicksLocal()).toEqual([]);
 		expect(peek(cloud, 'lick_adoptions')).toEqual([]);
 	});
 
-	it('adoptLick surfaces a server error (e.g. RLS self-adoption block) without polluting local', async () => {
+	it('stealLick surfaces a server error (e.g. RLS self-steal block) without polluting local', async () => {
 		const cloud = createCloudState();
 		const sb = mockSupabaseFromCloud(cloud, {
 			auth: { userId: 'me' },
 			failures: (op) => (op.kind === 'insert' && op.table === 'lick_adoptions'
-				? { message: 'row-level security violation (cannot adopt own lick)' }
+				? { message: 'row-level security violation (cannot steal own lick)' }
 				: null)
 		});
 
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const ok = await adoptLick(sb as never, 'lick-mine');
+		const ok = await stealLick(sb as never, 'lick-mine');
 		warnSpy.mockRestore();
 
 		expect(ok).toBe(false);
-		expect(getAdoptionsLocal().has('lick-mine')).toBe(false);
-		expect(getAdoptedLicksLocal()).toEqual([]);
+		expect(getStealsLocal().has('lick-mine')).toBe(false);
+		expect(getStolenLicksLocal()).toEqual([]);
 	});
 
-	it('adoption row lands even when the payload fetch fails', async () => {
-		// Simulate: insert succeeds on the adoption row, but the follow-up SELECT
+	it('steal row lands even when the payload fetch fails', async () => {
+		// Simulate: insert succeeds on the steal row, but the follow-up SELECT
 		// on user_licks fails. The adoption is recorded on the server (and in
-		// local cache so unadopt still works); the payload is not cached.
+		// local cache so return still works); the payload is not cached.
 		const cloud = createCloudState();
 		const sb = mockSupabaseFromCloud(cloud, {
 			auth: { userId: 'me' },
@@ -341,12 +341,12 @@ describe('adoption edge cases', () => {
 		});
 
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const ok = await adoptLick(sb as never, 'lick-1');
+		const ok = await stealLick(sb as never, 'lick-1');
 		warnSpy.mockRestore();
 
 		expect(ok).toBe(true);
-		expect(getAdoptionsLocal().has('lick-1')).toBe(true);
-		expect(getAdoptedLicksLocal().find((p) => p.id === 'lick-1')).toBeUndefined();
+		expect(getStealsLocal().has('lick-1')).toBe(true);
+		expect(getStolenLicksLocal().find((p) => p.id === 'lick-1')).toBeUndefined();
 		expect(peek(cloud, 'lick_adoptions')).toEqual([
 			expect.objectContaining({ user_id: 'me', lick_id: 'lick-1' })
 		]);
@@ -391,8 +391,8 @@ describe('initCommunityFromCloud — scope generation guard', () => {
 
 		// The adoption set should NOT have been overwritten with user-A's data
 		// because the scope guard detected the switch mid-flight.
-		expect(reImported.getAdoptionsLocal().size).toBe(0);
-		expect(reImported.getAdoptedLicksLocal()).toEqual([]);
+		expect(reImported.getStealsLocal().size).toBe(0);
+		expect(reImported.getStolenLicksLocal()).toEqual([]);
 	});
 });
 
@@ -424,7 +424,7 @@ describe('favorites hydration', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Privacy acknowledgement plumbing (flag persists, doesn't auto-adopt)
+// Privacy acknowledgement plumbing (flag persists, doesn't auto-steal)
 // ---------------------------------------------------------------------------
 
 describe('privacy acknowledgement', () => {

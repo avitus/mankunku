@@ -189,7 +189,7 @@
 	/**
 	 * True only when the resolved lick is owned by the current user — i.e. it
 	 * lives in their own `user_licks` cache. Community-fallback licks (fetched
-	 * by id from any author) and adopted community licks both share the same
+	 * by id from any author) and stolen community licks both share the same
 	 * `source` values ('user-recorded' | 'user-entered') but are not owned,
 	 * so `source` alone is not a safe ownership signal.
 	 */

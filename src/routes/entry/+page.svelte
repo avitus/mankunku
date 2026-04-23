@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
@@ -14,6 +15,8 @@
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { saveUserLick } from '$lib/persistence/user-licks';
 	import { setPracticeTag } from '$lib/persistence/lick-practice-store';
+	import { getAllLicks } from '$lib/phrases/library-loader';
+	import { findDuplicateLick } from '$lib/phrases/duplicate-detection';
 	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PrivacyDisclosure from '$lib/components/community/PrivacyDisclosure.svelte';
@@ -33,6 +36,13 @@
 	const remainingBeats = $derived(Math.round(fractionToFloat(remaining) * 4));
 	const isFull = $derived(remainingBeats <= 0);
 	const hasNotes = $derived(currentPhrase.notes.length > 0);
+
+	/**
+	 * The first lick in the user's reachable library (curated + their own +
+	 * stolen community) whose melody + rhythm match what's being entered, in
+	 * any key or octave. Drives the Save → Steal label swap.
+	 */
+	const duplicateMatch = $derived(hasNotes ? findDuplicateLick(currentPhrase, getAllLicks()) : null);
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let savedConfirmation = $state(false);
@@ -128,6 +138,21 @@
 	function handleSave() {
 		if (!hasNotes) return;
 
+		// Steal path: the entered phrase already exists in the library. Don't
+		// create a duplicate row — carry over the practice-tag intent onto the
+		// existing lick and navigate there.
+		if (duplicateMatch) {
+			if (stepEntry.practiceTag) {
+				setPracticeTag(duplicateMatch.id, true);
+			}
+			const matchId = duplicateMatch.id;
+			reset();
+			setupOpen = false;
+			saveDetailsOpen = false;
+			goto(`/library/${matchId}`);
+			return;
+		}
+
 		const trimmedPhraseName = stepEntry.phraseName.trim();
 		if (!trimmedPhraseName) {
 			nameInput?.focus();
@@ -209,6 +234,13 @@
 			<span class={isFull ? 'font-medium text-[var(--color-error)]' : ''}>
 				{isFull ? 'Full' : `${remainingBeats} beat${remainingBeats !== 1 ? 's' : ''} left`}
 			</span>
+		</div>
+	{/if}
+
+	<!-- Duplicate match hint -->
+	{#if duplicateMatch}
+		<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+			Already in the library as <span class="italic text-[var(--color-text)]">"{duplicateMatch.name}"</span>. Saving will steal it into your library instead of creating a duplicate.
 		</div>
 	{/if}
 
@@ -325,7 +357,7 @@
 			class="rounded-lg bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
 				hover:opacity-90 transition-opacity disabled:opacity-40"
 		>
-			{savedConfirmation ? 'Saved!' : 'Save'}
+			{savedConfirmation ? 'Saved!' : duplicateMatch ? 'Steal' : 'Save'}
 		</button>
 		<button
 			onclick={handleClear}
