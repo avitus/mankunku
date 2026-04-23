@@ -78,7 +78,7 @@ echo "==> Restarting PM2 against new release"
     # these lines make the cause visible in CI logs on any future failure.
     echo "    pwd: $(pwd)"
     echo "    ecosystem.config.cjs cwd/script:"
-    grep -E "^\s*(cwd|script):" ecosystem.config.cjs | sed 's/^/      /'
+    { grep -E "^[[:space:]]*(cwd|script):" ecosystem.config.cjs || true; } | sed 's/^/      /'
     echo "    build/index.js: $(test -f build/index.js && echo OK || echo MISSING)"
 
     pm2 delete mankunku 2>/dev/null || true
