@@ -54,7 +54,11 @@ jobs:
             - build
             - package.json
             - package-lock.json
-            - ecosystem.config.cjs
+          # NOTE: ecosystem.config.cjs is NOT persisted here. The deploy job
+          # ships it straight from its own checkout to avoid a mystery where
+          # /tmp/workspace/ecosystem.config.cjs arrived on the server with
+          # pre-atomic-release content (cwd: '/home/deploy/mankunku' without
+          # /current/) even though the committed file was the new version.
 
   deploy:
     docker:
@@ -86,16 +90,25 @@ jobs:
 
             echo "==> Release ID: ${RELEASE_ID}"
 
+            # Sanity-check the ecosystem.config.cjs we're about to ship. The
+            # workspace version has shown up stale on the server once before;
+            # keeping the hash in the log makes any future drift obvious.
+            echo "==> ecosystem.config.cjs (deploy checkout) sha256: $(sha256sum ecosystem.config.cjs | cut -d' ' -f1)"
+
             ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${STAGE}/build'"
 
             rsync -avz \
               /tmp/workspace/build/ \
               "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/build/"
 
+            # Ship package.json / lock from the build workspace (they're what
+            # `npm ci` needs to match the build's resolved deps). Ship
+            # ecosystem.config.cjs straight from the deploy job's own checkout
+            # to dodge the workspace-staleness bug.
             rsync -avz \
               /tmp/workspace/package.json \
               /tmp/workspace/package-lock.json \
-              /tmp/workspace/ecosystem.config.cjs \
+              ecosystem.config.cjs \
               "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/"
 
             scp deploy/app/release.sh \
