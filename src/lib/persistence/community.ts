@@ -370,7 +370,10 @@ export async function stealLick(
 	const { error: insertError } = await supabase
 		.from('lick_adoptions')
 		.insert({ user_id: user.id, lick_id: lickId });
-	if (insertError) {
+	// Postgres 23505 (unique-violation) means the server already has this
+	// steal row — treat as success, matching the "was already" clause in
+	// the function's documented contract. Every other error is a real failure.
+	if (insertError && (insertError as { code?: string }).code !== '23505') {
 		console.warn('Failed to steal lick:', insertError);
 		return false;
 	}
@@ -525,6 +528,21 @@ export async function initCommunityFromCloud(
 			.in('id', stolenIds);
 		if (lickError) {
 			console.warn('Failed to fetch stolen lick payloads:', lickError);
+			// Keep the payload/author caches in sync with the authoritative
+			// steal set we just wrote. Dropping entries for ids no longer in
+			// `stolenIds` prevents the library from rendering stale attribution
+			// or stale stolen licks from a previous session.
+			if (gen === getScopeGeneration()) {
+				const keep = new Set(stolenIds);
+				saveStolenPayloadsLocal(
+					getStolenLicksLocal().filter((phrase) => keep.has(phrase.id))
+				);
+				saveStolenAuthorsLocal(
+					Object.fromEntries(
+						Object.entries(getStolenAuthorsLocal()).filter(([id]) => keep.has(id))
+					)
+				);
+			}
 			return;
 		}
 		if (gen !== getScopeGeneration()) return;
@@ -564,6 +582,16 @@ export async function initCommunityFromCloud(
 				.in('id', authorIds);
 			if (authorError) {
 				console.warn('Failed to fetch stolen-lick authors:', authorError);
+				// Prune author cache to the validated id set so stale entries
+				// for licks that were returned or deleted don't linger.
+				if (gen === getScopeGeneration()) {
+					const keep = validatedIds;
+					saveStolenAuthorsLocal(
+						Object.fromEntries(
+							Object.entries(getStolenAuthorsLocal()).filter(([id]) => keep.has(id))
+						)
+					);
+				}
 			} else if (gen === getScopeGeneration()) {
 				const byAuthorId = new Map(
 					(authorRows ?? []).map((a) => [a.id, a])

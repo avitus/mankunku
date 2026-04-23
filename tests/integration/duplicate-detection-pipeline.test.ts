@@ -53,7 +53,7 @@ import type { Phrase, PitchClass, Note } from '$lib/types/music';
 function makeEnteredPhrase(
 	notes: Array<[number | null, [number, number]]>,
 	key: PitchClass = 'C',
-	name = 'Entered'
+	name: string = 'Entered'
 ): Phrase {
 	return {
 		id: '',
