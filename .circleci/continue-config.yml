@@ -93,7 +93,8 @@ jobs:
             # Sanity-check the ecosystem.config.cjs we're about to ship. The
             # workspace version has shown up stale on the server once before;
             # keeping the hash in the log makes any future drift obvious.
-            echo "==> ecosystem.config.cjs (deploy checkout) sha256: $(sha256sum ecosystem.config.cjs | cut -d' ' -f1)"
+            LOCAL_SHA=$(sha256sum ecosystem.config.cjs | cut -d' ' -f1)
+            echo "==> ecosystem.config.cjs (deploy checkout) sha256: ${LOCAL_SHA}"
 
             ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${STAGE}/build'"
 
@@ -101,15 +102,26 @@ jobs:
               /tmp/workspace/build/ \
               "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/build/"
 
-            # Ship package.json / lock from the build workspace (they're what
-            # `npm ci` needs to match the build's resolved deps). Ship
-            # ecosystem.config.cjs straight from the deploy job's own checkout
-            # to dodge the workspace-staleness bug.
             rsync -avz \
               /tmp/workspace/package.json \
               /tmp/workspace/package-lock.json \
-              ecosystem.config.cjs \
               "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/"
+
+            # Ship ecosystem.config.cjs via scp (not rsync), from the deploy
+            # job's own checkout. Previous deploys ended up with pre-atomic
+            # content on the server despite CI shipping the right sha, and
+            # rsync was the one variable in the chain we hadn't swapped out.
+            # Verify the landed file matches what we sent; abort if it didn't.
+            scp ecosystem.config.cjs \
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/ecosystem.config.cjs"
+            REMOTE_SHA=$(ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "sha256sum '${STAGE}/ecosystem.config.cjs' | cut -d' ' -f1")
+            echo "==> ecosystem.config.cjs (server, after scp) sha256: ${REMOTE_SHA}"
+            if [[ "${LOCAL_SHA}" != "${REMOTE_SHA}" ]]; then
+              echo "error: ecosystem.config.cjs content drifted between CI and server" >&2
+              echo "  local:  ${LOCAL_SHA}" >&2
+              echo "  remote: ${REMOTE_SHA}" >&2
+              exit 1
+            fi
 
             scp deploy/app/release.sh \
               "${DEPLOY_USER}@${DEPLOY_HOST}:${REMOTE_SCRIPT}"
