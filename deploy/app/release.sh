@@ -69,23 +69,26 @@ echo "==> Installing production dependencies in staged release"
 
 snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 
-# Atomic symlink swap: write a temporary symlink, then rename it over `current`.
-# `mv -f` uses rename(2), which is atomic on POSIX filesystems. When the
-# destination is itself a symlink (not a directory), rename(2) replaces the
-# symlink in one step without following it — so no -T flag needed (GNU-only).
+# Swap `current` to point at the new release.
+#
+# The previous version of this code used `mv -f TMP_LINK current` — that was
+# broken: when `current` is a symlink to a directory, `mv` dereferences the
+# symlink and moves TMP_LINK *into* that directory rather than replacing the
+# symlink (rename(2) would have been fine, but mv adds its own "target is a
+# dir" heuristic on top). Every atomic-release deploy since 5ff2fc4 silently
+# left `current` pointing at the pre-migration dir and the snapshot
+# diagnostics on 2026-04-23 caught it.
+#
+# `ln -sfn` does the right thing: `-f` removes the existing symlink, `-n`
+# ensures a symlink-to-dir destination isn't followed. Not strictly atomic
+# (millisecond-scale window between unlink and re-link) but PM2 isn't running
+# during this window, so no live-traffic race.
 echo "==> Swapping current -> releases/${RELEASE_ID}"
-TMP_LINK="${ROOT}/current.tmp.$$"
-# Clean up the temp symlink if anything below fails before the mv completes.
-trap 'rm -f "$TMP_LINK"' EXIT
-ln -sfn "releases/${RELEASE_ID}" "$TMP_LINK"
-# If `current` exists as a real directory (not a symlink), `mv -f` would move
-# TMP_LINK *into* it rather than replacing it. Abort instead.
 if [[ -e "${ROOT}/current" && ! -L "${ROOT}/current" ]]; then
     echo "error: ${ROOT}/current exists and is not a symlink; refusing to swap" >&2
     exit 1
 fi
-mv -f "$TMP_LINK" "${ROOT}/current"
-trap - EXIT
+ln -sfn "releases/${RELEASE_ID}" "${ROOT}/current"
 
 snapshot_ecosystem "via current/ after swap" "${ROOT}/current/ecosystem.config.cjs"
 
