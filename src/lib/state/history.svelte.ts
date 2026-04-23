@@ -270,13 +270,12 @@ export function clearHistory(): void {
 /**
  * Re-derive daily summaries from current progress session history when stale.
  *
- * Called after cloud hydration writes progress to localStorage. Computes the
- * expected summaries from the (now cloud-hydrated) sessions and compares them
- * against the existing in-memory summaries. If they differ — different length,
- * or any day's date or sessionCount doesn't match — the existing data is replaced.
- *
- * Limited to the 200-session sync window — history beyond that is not preserved
- * cross-device.
+ * Called after cloud hydration writes progress to localStorage. The session
+ * log is pruned to MAX_SESSIONS (100) recent sessions, so derivation only
+ * sees the last 100 sessions' worth of days. This function is therefore
+ * additive: it upserts derived days into the existing summaries but never
+ * deletes a day that exists locally and isn't in the derived set — that
+ * day's sessions are simply outside the sync window.
  */
 export function rebuildHistoryIfNeeded(): void {
 	const progressState = load<UserProgress>('progress');
@@ -285,27 +284,37 @@ export function rebuildHistoryIfNeeded(): void {
 	const derived = deriveSummaries(progressState.sessions);
 	if (derived.summaries.length === 0) return;
 
-	// Check if existing summaries already match the derived data.
-	// Compare per-day date + sessionCount to catch mid-range differences
-	// (length + latest date alone can miss changed counts on existing dates).
-	if (dailySummaries.length === derived.summaries.length) {
-		let match = true;
-		for (let i = 0; i < dailySummaries.length; i++) {
-			if (dailySummaries[i].date !== derived.summaries[i].date
-				|| dailySummaries[i].sessionCount !== derived.summaries[i].sessionCount) {
-				match = false;
-				break;
-			}
+	// Fast-path: if every derived day already matches the existing summary
+	// (same date + sessionCount), there's nothing to persist.
+	let changed = false;
+	for (const derivedSummary of derived.summaries) {
+		const existing = summaryMap.get(derivedSummary.date);
+		if (!existing) {
+			dailySummaries.push(derivedSummary);
+			summaryMap.set(derivedSummary.date, derivedSummary);
+			changed = true;
+			continue;
 		}
-		if (match) return;
+		if (existing.sessionCount !== derivedSummary.sessionCount) {
+			Object.assign(existing, derivedSummary);
+			changed = true;
+		}
 	}
 
-	// Summaries are stale — replace with recomputed data
-	dailySummaries.length = 0;
-	dailySummaries.push(...derived.summaries);
-	summaryMap = new Map(derived.summaries.map(s => [s.date, s]));
-	Object.assign(progressMeta, derived.meta);
-	saveAll();
+	if (changed) dailySummaries.sort((a, b) => a.date.localeCompare(b.date));
+
+	// allTimeSessionCount must never shrink — older sessions outside the
+	// sync window still count. longestStreak likewise only grows.
+	if (derived.meta.allTimeSessionCount > progressMeta.allTimeSessionCount) {
+		progressMeta.allTimeSessionCount = derived.meta.allTimeSessionCount;
+		changed = true;
+	}
+	progressMeta.lastAggregationTimestamp = derived.meta.lastAggregationTimestamp;
+
+	if (changed) {
+		updateLongestStreak();
+		saveAll();
+	}
 }
 
 // ── Query functions ──────────────────────────────────────────────
