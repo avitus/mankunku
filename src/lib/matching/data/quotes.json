@@ -1,0 +1,46 @@
+{
+	"_readme": "Hand-curated melodic quote library. Each source describes a named pattern; each phrase gives the interval + IOI sequence the matcher compares against. Transposition-invariant. Add more as they're identified in the wild.",
+	"sources": [
+		{
+			"id": "quote:chromatic-descent",
+			"kind": "quote",
+			"performer": "Traditional bebop vocabulary",
+			"title": "Chromatic descent",
+			"note": "Common bebop device: a run of descending half steps, often used to connect chord tones."
+		},
+		{
+			"id": "quote:ii-v-enclosure",
+			"kind": "quote",
+			"performer": "Traditional bebop vocabulary",
+			"title": "Target-approach enclosure",
+			"note": "Approach a target chord tone from a third below, then chromatically up through it."
+		},
+		{
+			"id": "quote:arp-scale-turn",
+			"kind": "quote",
+			"performer": "Traditional bebop vocabulary",
+			"title": "Arpeggio + scalar turnaround",
+			"note": "Triad arpeggio up to the 7th, then scalar descent back to the 3rd."
+		}
+	],
+	"phrases": [
+		{
+			"sourceId": "quote:chromatic-descent",
+			"startBar": 1,
+			"intervals": [-1, -1, -1, -1, -1],
+			"iois": [2, 2, 2, 2, 2]
+		},
+		{
+			"sourceId": "quote:ii-v-enclosure",
+			"startBar": 1,
+			"intervals": [-3, 1, 2, 2, 1],
+			"iois": [2, 2, 2, 2, 2]
+		},
+		{
+			"sourceId": "quote:arp-scale-turn",
+			"startBar": 1,
+			"intervals": [4, 3, 4, -2, -2, -2, -1],
+			"iois": [2, 2, 2, 2, 2, 2, 2]
+		}
+	]
+}

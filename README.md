@@ -158,6 +158,10 @@ The script is idempotent and safe to re-run.
 
 License pending. This project does not yet have a license file — one will be added before the first public release.
 
+### Third-party data
+
+The lick-naming feature uses a derivative index of the [Weimar Jazz Database](https://jazzomat.hfm-weimar.de/) (CC-BY-NC-SA 4.0). See [`docs/wjazzd-attribution.md`](docs/wjazzd-attribution.md) for license details and rebuild instructions.
+
 ## Acknowledgments
 
 Named after [Winston "Mankunku" Ngozi](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) (1943-2009), South African jazz tenor saxophonist whose 1968 album *Yakhal' Inkomo* ("Cry of the Bull") remains a landmark of South African jazz.

@@ -30,3 +30,7 @@ supabase/.temp/
 
 # Claude Code
 .claude/*.lock
+
+# Raw Weimar Jazz Database (CC-BY-NC-SA) — downloaded locally, preprocessed
+# into src/lib/matching/data/wjazzd-index.json. Not redistributed.
+/data/raw/

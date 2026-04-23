@@ -27,6 +27,13 @@
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import EntryConfig from '$lib/components/step-entry/EntryConfig.svelte';
+	import SuggestionCard from '$lib/components/step-entry/SuggestionCard.svelte';
+	import {
+		suggestions,
+		requestMatches,
+		clearSuggestions,
+		clearPickedFromSuggestion
+	} from '$lib/state/lick-suggestions.svelte';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 	const currentPhrase = $derived(getCurrentPhrase());
@@ -43,6 +50,26 @@
 	 * any key or octave. Drives the Save → Steal label swap.
 	 */
 	const duplicateMatch = $derived(hasNotes ? findDuplicateLick(currentPhrase, getAllLicks()) : null);
+
+	// Kick off suggestion lookup whenever the lick changes. The state module
+	// debounces the network call internally.
+	$effect(() => {
+		if (hasNotes) {
+			requestMatches(currentPhrase);
+		} else {
+			clearSuggestions();
+		}
+	});
+
+	// If the user edits the name after picking a suggestion, stop calling it "not verified".
+	$effect(() => {
+		if (
+			suggestions.pickedFromSuggestion !== null &&
+			stepEntry.phraseName !== suggestions.pickedFromSuggestion
+		) {
+			clearPickedFromSuggestion();
+		}
+	});
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let savedConfirmation = $state(false);
@@ -153,12 +180,13 @@
 			return;
 		}
 
-		const trimmedPhraseName = stepEntry.phraseName.trim();
-		if (!trimmedPhraseName) {
+		const typed = stepEntry.phraseName.trim();
+		const effectiveName = typed || suggestions.fallbackName.trim();
+		if (!effectiveName) {
 			nameInput?.focus();
 			return;
 		}
-		stepEntry.phraseName = trimmedPhraseName;
+		stepEntry.phraseName = effectiveName;
 
 		const phrase = getCurrentPhrase();
 		phrase.notes = getPaddedNotes();
@@ -173,6 +201,7 @@
 		}
 
 		reset();
+		clearSuggestions();
 		setupOpen = false;
 		saveDetailsOpen = false;
 
@@ -186,6 +215,7 @@
 	function handleClear() {
 		playbackModule?.stopPlayback();
 		reset();
+		clearSuggestions();
 		setupOpen = false;
 		saveDetailsOpen = false;
 	}
@@ -212,20 +242,30 @@
 		instrument={getInstrument()}
 	>
 		{#snippet titleArea()}
-			<input
-				type="text"
-				bind:this={nameInput}
-				bind:value={stepEntry.phraseName}
-				onkeydown={handleTitleInputKeydown}
-				placeholder="Untitled lick"
-				aria-label="Lick title"
-				class="mb-0 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
-					border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
-					focus:border-[var(--color-accent)] focus:outline-none
-					placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
-			/>
+			<div class="space-y-0.5">
+				<input
+					type="text"
+					bind:this={nameInput}
+					bind:value={stepEntry.phraseName}
+					onkeydown={handleTitleInputKeydown}
+					placeholder={suggestions.fallbackName || 'Untitled lick'}
+					aria-label="Lick title"
+					class="mb-0 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
+						border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
+						focus:border-[var(--color-accent)] focus:outline-none
+						placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
+				/>
+				{#if suggestions.pickedFromSuggestion}
+					<div class="text-center text-[10px] italic text-[var(--color-text-secondary)]">
+						Suggestion — not verified
+					</div>
+				{/if}
+			</div>
 		{/snippet}
 	</NotationDisplay>
+
+	<!-- Attribution suggestions (if any) -->
+	<SuggestionCard />
 
 	<!-- Status bar -->
 	{#if hasNotes}
