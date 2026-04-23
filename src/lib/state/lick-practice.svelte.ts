@@ -21,6 +21,7 @@
 
 import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music';
 import type {
+	ChordProgressionType,
 	LickPracticeConfig,
 	LickPracticePhase,
 	LickPracticePlanItem,
@@ -40,6 +41,7 @@ import {
 	hasLickProgress,
 	updateKeyProgress,
 	getPracticeTaggedIds,
+	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags,
 	initLickMetadataFromCloud,
@@ -132,6 +134,8 @@ export async function hydrateLickPracticeProgress(
 	// Migrate legacy 'practice' markers from lick.tags + tag overrides
 	// into the new user-lick-tags store so getPracticeLicks can find them.
 	backfillPracticeTags(getAllLicks(), getLickTagOverrides());
+
+	lickPractice.config.progressionType = pickInitialProgression();
 }
 
 /**
@@ -161,6 +165,52 @@ export function getPracticeLicks(): Phrase[] {
 		const matchesBySubstitution = substitutionCategories.includes(lick.category);
 		return matchesByCategory || matchesByProgressionTag || matchesBySubstitution;
 	});
+}
+
+const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
+
+/**
+ * Pick the progression whose practice-tagged set contains the lick most in
+ * need of practice — the least-recently-practiced tagged lick, with
+ * never-practiced licks (lastPracticedAt = 0) winning over any with history.
+ *
+ * Called on setup hydration so the pill pre-selection already matches the
+ * lick the session plan would lead with. Resolution order for the target
+ * lick's home progression: user-assigned prog:* tags (first in template
+ * order), else first progression whose compatible-category list includes
+ * the lick's category, else the hard default. Substitutions are ignored —
+ * we don't presume the user wants to enable them just to justify a pill.
+ */
+export function pickInitialProgression(): ChordProgressionType {
+	const taggedIds = getPracticeTaggedIds();
+	if (taggedIds.size === 0) return DEFAULT_PROGRESSION;
+
+	const candidates = getAllLicks().filter(l => taggedIds.has(l.id));
+	if (candidates.length === 0) return DEFAULT_PROGRESSION;
+
+	const progress = lickPractice.progress;
+	let neglected = candidates[0];
+	let neglectedTime = getLickLastPracticed(progress, neglected.id);
+	for (let i = 1; i < candidates.length; i++) {
+		const t = getLickLastPracticed(progress, candidates[i].id);
+		if (t < neglectedTime) {
+			neglected = candidates[i];
+			neglectedTime = t;
+		}
+	}
+
+	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
+
+	const userTags = getProgressionTags(neglected.id);
+	if (userTags.length > 0) {
+		const tagged = order.find(p => userTags.includes(p));
+		if (tagged) return tagged;
+	}
+
+	const categoryMatch = order.find(p =>
+		getCompatibleLickCategories(p).includes(neglected.category)
+	);
+	return categoryMatch ?? DEFAULT_PROGRESSION;
 }
 
 /**
