@@ -39,11 +39,35 @@ if [[ ! -d "$STAGE" ]]; then
     exit 2
 fi
 
+# Snapshot ecosystem.config.cjs state at every stage. The last several deploys
+# had this file mysteriously arrive as pre-atomic-release content on the server
+# despite CI rsyncing the correct content — these snapshots narrow down at
+# which step the flip happens.
+snapshot_ecosystem() {
+    local label="$1"
+    local target="$2"
+    echo "==> ecosystem snapshot [$label]"
+    if [[ ! -e "$target" ]]; then
+        echo "    MISSING: $target"
+        return
+    fi
+    echo "    path:      $target"
+    echo "    realpath:  $(readlink -f "$target" 2>/dev/null || echo 'n/a')"
+    echo "    sha256:    $(sha256sum "$target" | cut -d' ' -f1)"
+    echo "    size/mtime:$(stat -c ' %s bytes / %y' "$target" 2>/dev/null || stat -f ' %z bytes / %Sm' "$target")"
+    echo "    cwd|script lines:"
+    { grep -E "^[[:space:]]*(cwd|script):" "$target" || true; } | sed 's/^/      /'
+}
+
+snapshot_ecosystem "after rsync" "${STAGE}/ecosystem.config.cjs"
+
 echo "==> Installing production dependencies in staged release"
 (
     cd "$STAGE"
     npm ci --omit=dev
 )
+
+snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 
 # Atomic symlink swap: write a temporary symlink, then rename it over `current`.
 # `mv -f` uses rename(2), which is atomic on POSIX filesystems. When the
@@ -62,6 +86,8 @@ if [[ -e "${ROOT}/current" && ! -L "${ROOT}/current" ]]; then
 fi
 mv -f "$TMP_LINK" "${ROOT}/current"
 trap - EXIT
+
+snapshot_ecosystem "via current/ after swap" "${ROOT}/current/ecosystem.config.cjs"
 
 echo "==> Restarting PM2 against new release"
 # `pm2 startOrRestart` reuses the existing in-daemon app definition when one
