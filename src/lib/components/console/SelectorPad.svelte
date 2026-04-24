@@ -80,9 +80,6 @@
 			{#if opt.sublabel}
 				<span class="pad-sublabel">{opt.sublabel}</span>
 			{/if}
-			{#if opt.disabled}
-				<span class="pad-lock" aria-hidden="true">🔒</span>
-			{/if}
 		</button>
 	{/each}
 </div>
@@ -160,12 +157,6 @@
 		font-size: 0.65rem;
 		opacity: 0.75;
 		font-weight: 400;
-	}
-	.pad-lock {
-		position: absolute;
-		top: 1px;
-		right: 2px;
-		font-size: 8px;
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.pad-btn {

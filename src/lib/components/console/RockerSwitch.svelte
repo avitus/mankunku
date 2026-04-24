@@ -21,22 +21,24 @@
 </script>
 
 <div class="inline-flex flex-col items-center gap-1.5">
-	<button
-		type="button"
-		role="switch"
-		aria-checked={checked}
-		aria-label={ariaLabel ?? label}
-		onclick={toggle}
-		onkeydown={onKeyDown}
-		class="rocker-housing group relative h-8 w-20 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brass-soft)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-secondary)]"
-	>
-		<span class="rocker-mark rocker-mark-off" class:dim={checked}>OFF</span>
-		<span class="rocker-mark rocker-mark-on" class:dim={!checked}>ON</span>
+	<div class="flex items-center justify-center" style:min-height="84px">
+		<button
+			type="button"
+			role="switch"
+			aria-checked={checked}
+			aria-label={ariaLabel ?? label}
+			onclick={toggle}
+			onkeydown={onKeyDown}
+			class="rocker-housing group relative h-8 w-20 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brass-soft)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-secondary)]"
+		>
+			<span class="rocker-mark rocker-mark-off" class:dim={checked}>OFF</span>
+			<span class="rocker-mark rocker-mark-on" class:dim={!checked}>ON</span>
 
-		<span class="rocker-cap" class:right={checked}>
-			<span class="led" class:led-on={checked}></span>
-		</span>
-	</button>
+			<span class="rocker-cap" class:right={checked}>
+				<span class="led" class:led-on={checked}></span>
+			</span>
+		</button>
+	</div>
 	<span class="smallcaps console-engrave">{label}</span>
 </div>
 

@@ -149,6 +149,7 @@
 </script>
 
 <div class="inline-flex flex-col items-center gap-1.5 select-none">
+	<div class="flex items-center justify-center" style:min-height="84px">
 	<button
 		bind:this={buttonEl}
 		type="button"
@@ -242,18 +243,38 @@
 				/>
 			</g>
 
-			<!-- Center dot -->
-			<circle cx={cx} cy={cy} r="2" fill="color-mix(in srgb, var(--color-brass) 60%, black)" />
+			<!-- Center readout (only when displayValue is provided) -->
+			{#if displayValue}
+				<text
+					x={cx}
+					y={cy}
+					text-anchor="middle"
+					dominant-baseline="central"
+					class="knob-readout"
+					fill="var(--color-text)"
+				>{displayValue}</text>
+			{:else}
+				<circle cx={cx} cy={cy} r="2" fill="color-mix(in srgb, var(--color-brass) 60%, black)" />
+			{/if}
 		</svg>
 	</button>
-
-	<div class="flex flex-col items-center leading-tight">
-		<span class="font-display text-sm tabular-nums text-[var(--color-text)]">{readout}</span>
-		<span class="smallcaps console-engrave inline-flex items-center gap-1">
-			{label}
-			{#if helpText}
-				<HelpTip text={helpText} position="top" ariaLabel={`About ${label}`} />
-			{/if}
-		</span>
 	</div>
+
+	<span class="smallcaps console-engrave inline-flex items-center gap-1">
+		{label}
+		{#if helpText}
+			<HelpTip text={helpText} position="top" ariaLabel={`About ${label}`} />
+		{/if}
+	</span>
 </div>
+
+<style>
+	.knob-readout {
+		font-family: var(--font-display), Georgia, serif;
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		pointer-events: none;
+		user-select: none;
+	}
+</style>

@@ -40,8 +40,7 @@
 	const highestReadout = $derived.by(() => {
 		const midi = highestPresets[highestIndex] ?? standardHighest;
 		const written = concertToWritten(midi, instrument);
-		const name = midiToDisplayName(written, false);
-		return midi === standardHighest ? `${name}*` : name;
+		return midiToDisplayName(written, false);
 	});
 
 	function handleHighestNoteInput(idx: number) {
@@ -239,26 +238,28 @@
 
 		<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
 
-			<!-- Instrument + Highest Note -->
+			<!-- Instrument + Highest Note + Master -->
 			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 p-5">
 				<div class="inline-flex flex-col items-center gap-1.5">
-					<SelectorPad
-						ariaLabel="Instrument"
-						value={settings.instrumentId}
-						options={instruments.map(([id, config]) => ({
-							value: id,
-							label: config.name,
-							sublabel: `${config.key} · ${config.concertRangeLow}–${config.concertRangeHigh}`
-						}))}
-						onChange={selectInstrument}
-					/>
+					<div class="flex items-center justify-center" style:min-height="84px">
+						<SelectorPad
+							ariaLabel="Instrument"
+							value={settings.instrumentId}
+							options={instruments.map(([id, config]) => ({
+								value: id,
+								label: config.name,
+								sublabel: `${config.key} · ${config.concertRangeLow}–${config.concertRangeHigh}`
+							}))}
+							onChange={selectInstrument}
+						/>
+					</div>
 					<span class="smallcaps console-engrave">Instrument</span>
 				</div>
 
 				<Knob
 					label="Highest"
 					ariaLabel="Highest note"
-					helpText="Highest note you're comfortable playing. Lower for beginners, raise for altissimo. The * marks the instrument standard."
+					helpText="Highest note you're comfortable playing. Lower for beginners, raise for altissimo."
 					value={highestIndex}
 					min={0}
 					max={highestPresets.length - 1}
@@ -267,10 +268,7 @@
 					onInput={handleHighestNoteInput}
 					onCommit={syncSettingsToCloud}
 				/>
-			</div>
 
-			<!-- Master volume -->
-			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 p-5">
 				<Knob
 					label="Master"
 					ariaLabel="Master volume"
@@ -279,24 +277,22 @@
 					min={0}
 					max={1}
 					step={0.05}
-					displayValue={`${Math.round(settings.masterVolume * 100)}%`}
 					onInput={handleMasterVolumeInput}
 					onCommit={syncSettingsToCloud}
 				/>
-			</div>
 
-			<!-- Theme -->
-			<div class="flex items-end justify-center px-5 py-5">
 				<div class="inline-flex flex-col items-center gap-1.5">
-					<SelectorPad
-						ariaLabel="Theme"
-						value={settings.theme}
-						options={[
-							{ value: 'dark', label: 'Dark' },
-							{ value: 'light', label: 'Light' }
-						]}
-						onChange={selectTheme}
-					/>
+					<div class="flex items-center justify-center" style:min-height="84px">
+						<SelectorPad
+							ariaLabel="Theme"
+							value={settings.theme}
+							options={[
+								{ value: 'dark', label: 'Dark' },
+								{ value: 'light', label: 'Light' }
+							]}
+							onChange={selectTheme}
+						/>
+					</div>
 					<span class="smallcaps console-engrave">Theme</span>
 				</div>
 			</div>
@@ -355,41 +351,45 @@
 
 				<!-- Key selector -->
 				<div class="flex flex-col items-center gap-1.5">
-					<SelectorPad
-						ariaLabel="Key center"
-						size="sm"
-						columns={6}
-						value={activeTonality.key}
-						options={KEY_UNLOCK_ORDER.map((key) => ({
-							value: key,
-							label: concertKeyToWritten(key, instrument),
-							disabled: !isKeyUnlocked(key, unlockCtx),
-							title: isKeyUnlocked(key, unlockCtx)
-								? concertKeyToWritten(key, instrument)
-								: keyUnlockTooltip(key)
-						}))}
-						onChange={selectKey}
-					/>
+					<div class="flex items-center justify-center">
+						<SelectorPad
+							ariaLabel="Key center"
+							size="sm"
+							columns={6}
+							value={activeTonality.key}
+							options={KEY_UNLOCK_ORDER.map((key) => ({
+								value: key,
+								label: concertKeyToWritten(key, instrument),
+								disabled: !isKeyUnlocked(key, unlockCtx),
+								title: isKeyUnlocked(key, unlockCtx)
+									? concertKeyToWritten(key, instrument)
+									: keyUnlockTooltip(key)
+							}))}
+							onChange={selectKey}
+						/>
+					</div>
 					<span class="smallcaps console-engrave">Key Center</span>
 				</div>
 
 				<!-- Scale type selector -->
 				<div class="flex flex-col items-center gap-1.5">
-					<SelectorPad
-						ariaLabel="Scale type"
-						size="sm"
-						columns={4}
-						value={activeTonality.scaleType}
-						options={SCALE_UNLOCK_ORDER.map((scaleType) => ({
-							value: scaleType,
-							label: SCALE_TYPE_NAMES[scaleType],
-							disabled: !isScaleTypeUnlocked(scaleType, unlockCtx),
-							title: isScaleTypeUnlocked(scaleType, unlockCtx)
-								? SCALE_TYPE_NAMES[scaleType]
-								: scaleUnlockTooltip(scaleType)
-						}))}
-						onChange={selectScale}
-					/>
+					<div class="flex items-center justify-center">
+						<SelectorPad
+							ariaLabel="Scale type"
+							size="sm"
+							columns={4}
+							value={activeTonality.scaleType}
+							options={SCALE_UNLOCK_ORDER.map((scaleType) => ({
+								value: scaleType,
+								label: SCALE_TYPE_NAMES[scaleType],
+								disabled: !isScaleTypeUnlocked(scaleType, unlockCtx),
+								title: isScaleTypeUnlocked(scaleType, unlockCtx)
+									? SCALE_TYPE_NAMES[scaleType]
+									: scaleUnlockTooltip(scaleType)
+							}))}
+							onChange={selectScale}
+						/>
+					</div>
 					<span class="smallcaps console-engrave">Scale Type</span>
 				</div>
 
@@ -405,12 +405,12 @@
 				<Knob
 					label="Tempo"
 					ariaLabel="Default tempo"
-					helpText="Starting tempo for new practice sessions."
+					helpText="Starting tempo for new practice sessions, in BPM."
 					value={settings.defaultTempo}
 					min={60}
 					max={200}
 					step={5}
-					displayValue={`${settings.defaultTempo} BPM`}
+					displayValue={String(settings.defaultTempo)}
 					onInput={(v) => (settings.defaultTempo = v)}
 					onCommit={syncSettingsToCloud}
 				/>
@@ -422,40 +422,36 @@
 					min={0.5}
 					max={0.8}
 					step={0.05}
-					displayValue={settings.swing === 0.5 ? 'Straight' : settings.swing.toFixed(2)}
+					displayValue={settings.swing.toFixed(2)}
 					onInput={(v) => (settings.swing = v)}
 					onCommit={syncSettingsToCloud}
 				/>
 
-				<div class="flex items-end gap-8">
-					<RockerSwitch
-						label="Metronome"
-						checked={settings.metronomeEnabled}
-						onChange={(v) => {
-							settings.metronomeEnabled = v;
-							saveSettings(supabase);
-						}}
+				<RockerSwitch
+					label="Metronome"
+					checked={settings.metronomeEnabled}
+					onChange={(v) => {
+						settings.metronomeEnabled = v;
+						saveSettings(supabase);
+					}}
+				/>
+				{#if settings.metronomeEnabled}
+					<Knob
+						label="Metro Vol"
+						ariaLabel="Metronome volume"
+						helpText="Metronome click level, relative to master."
+						value={settings.metronomeVolume}
+						min={0}
+						max={1}
+						step={0.05}
+						onInput={(v) => (settings.metronomeVolume = v)}
+						onCommit={syncSettingsToCloud}
 					/>
-					{#if settings.metronomeEnabled}
-						<Knob
-							label="Metro Vol"
-							ariaLabel="Metronome volume"
-							helpText="Metronome click level, relative to master."
-							value={settings.metronomeVolume}
-							min={0}
-							max={1}
-							step={0.05}
-							size="sm"
-							displayValue={`${Math.round(settings.metronomeVolume * 100)}%`}
-							onInput={(v) => (settings.metronomeVolume = v)}
-							onCommit={syncSettingsToCloud}
-						/>
-					{/if}
-				</div>
+				{/if}
 			</div>
 
 			<!-- Backing Track row -->
-			<div class="flex flex-wrap items-end justify-center gap-x-12 gap-y-6 px-5 py-5">
+			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
 				<RockerSwitch
 					label="Backing"
 					ariaLabel="Backing track"
@@ -467,17 +463,18 @@
 				/>
 
 				{#if settings.backingTrackEnabled}
-					<div class="flex flex-col items-center gap-1.5">
-						<SelectorPad
-							ariaLabel="Backing instrument"
-							size="sm"
-							value={settings.backingInstrument}
-							options={[
-								{ value: 'piano', label: 'Piano' },
-								{ value: 'organ', label: 'Organ' }
-							]}
-							onChange={selectBackingInstrument}
-						/>
+					<div class="inline-flex flex-col items-center gap-1.5">
+						<div class="flex items-center justify-center" style:min-height="84px">
+							<SelectorPad
+								ariaLabel="Backing instrument"
+								value={settings.backingInstrument}
+								options={[
+									{ value: 'piano', label: 'Piano' },
+									{ value: 'organ', label: 'Organ' }
+								]}
+								onChange={selectBackingInstrument}
+							/>
+						</div>
 						<span class="smallcaps console-engrave">Instrument</span>
 					</div>
 					<Knob
@@ -488,8 +485,6 @@
 						min={0}
 						max={1}
 						step={0.05}
-						size="sm"
-						displayValue={`${Math.round(settings.backingTrackVolume * 100)}%`}
 						onInput={(v) => (settings.backingTrackVolume = v)}
 						onCommit={syncSettingsToCloud}
 					/>
