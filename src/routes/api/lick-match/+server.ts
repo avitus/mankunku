@@ -11,7 +11,7 @@
 import type { RequestHandler } from './$types';
 import quotesData from '$lib/matching/data/quotes.json';
 import wjazzdData from '$lib/matching/data/wjazzd-index.json';
-import type { IndexPhrase, SourceEntry } from '$lib/matching/index-format';
+import type { IndexPhrase, SourceEntry, MatchIndex } from '$lib/matching/index-format';
 import { buildIndex, searchMatches, DEFAULT_NGRAM_SIZE } from '$lib/matching/search';
 
 interface IndexBundle {
@@ -19,7 +19,7 @@ interface IndexBundle {
 	phrases: IndexPhrase[];
 }
 
-function assembleIndex() {
+function assembleIndex(): MatchIndex {
 	const quotes = quotesData as unknown as IndexBundle;
 	const wjazzd = wjazzdData as unknown as IndexBundle;
 	const sources = [...quotes.sources, ...wjazzd.sources];
@@ -75,6 +75,33 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: `sequence too long (max ${MAX_SEQUENCE_LENGTH})` }, 400);
 	}
 
+	// Validate and sanitize minScore and topK
+	let validatedMinScore: number | undefined;
+	let validatedTopK: number | undefined;
+
+	if (minScore !== undefined) {
+		if (typeof minScore !== 'number' || !Number.isFinite(minScore)) {
+			return json({ error: 'minScore must be a finite number' }, 400);
+		}
+		if (minScore < 0 || minScore > 1) {
+			return json({ error: 'minScore must be between 0 and 1' }, 400);
+		}
+		validatedMinScore = minScore;
+	}
+
+	if (topK !== undefined) {
+		if (typeof topK !== 'number' || !Number.isFinite(topK) || !Number.isInteger(topK)) {
+			return json({ error: 'topK must be a finite integer' }, 400);
+		}
+		if (topK < 1) {
+			return json({ error: 'topK must be a positive integer' }, 400);
+		}
+		if (topK > 100) {
+			return json({ error: 'topK must not exceed 100' }, 400);
+		}
+		validatedTopK = topK;
+	}
+
 	const results = searchMatches(
 		{
 			intervals,
@@ -84,7 +111,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			keyPc: 0
 		},
 		MATCH_INDEX,
-		{ minScore, topK }
+		{ minScore: validatedMinScore, topK: validatedTopK }
 	);
 
 	const matches: MatchResponse[] = results.map((r) => ({
@@ -103,7 +130,7 @@ export const POST: RequestHandler = async ({ request }) => {
 };
 
 function isValidSequence(seq: unknown): seq is number[] {
-	return Array.isArray(seq) && seq.every((x) => typeof x === 'number' && Number.isFinite(x));
+	return Array.isArray(seq) && seq.every((x) => typeof x === 'number' && Number.isFinite(x) && Number.isInteger(x));
 }
 
 function formatLabel(source: SourceEntry, startBar: number | undefined): string {
