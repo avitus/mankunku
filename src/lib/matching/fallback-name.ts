@@ -15,7 +15,8 @@ export function fallbackName(phrase: Phrase): string {
 	const progression = progressionLabel(phrase.category);
 	const shapes = detectShapes(feature.intervals).slice(0, 2);
 	const rhythm = predominantRhythm(phrase.notes);
-	const bars = phrase.difficulty?.lengthBars ?? Math.max(1, Math.ceil(feature.totalBeats / phrase.timeSignature[0]));
+	const beatsPerBar = (phrase.timeSignature[0] * 4) / phrase.timeSignature[1];
+	const bars = phrase.difficulty?.lengthBars ?? Math.max(1, Math.ceil(feature.totalBeats / beatsPerBar));
 
 	const descriptor = shapes.length > 0
 		? `${shapes.join(' + ')} ${rhythm}`

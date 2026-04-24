@@ -41,6 +41,17 @@ let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let inflight: AbortController | null = null;
 
 export function requestMatches(phrase: Phrase): void {
+	// Cancel any pending debounce or in-flight fetch from a prior phrase so
+	// stale results can't resolve after a newer request has started.
+	if (debounceTimer) {
+		clearTimeout(debounceTimer);
+		debounceTimer = undefined;
+	}
+	if (inflight) {
+		inflight.abort();
+		inflight = null;
+	}
+
 	// Fallback is cheap and deterministic — update synchronously so the UI
 	// always has a name to show as a placeholder.
 	suggestions.fallbackName = computeFallback(phrase);
@@ -52,8 +63,10 @@ export function requestMatches(phrase: Phrase): void {
 		return;
 	}
 
-	if (debounceTimer) clearTimeout(debounceTimer);
-	debounceTimer = setTimeout(() => void fetchMatches(feature.intervals, feature.iois), DEBOUNCE_MS);
+	debounceTimer = setTimeout(() => {
+		debounceTimer = undefined;
+		void fetchMatches(feature.intervals, feature.iois);
+	}, DEBOUNCE_MS);
 }
 
 async function fetchMatches(intervals: number[], iois: number[]): Promise<void> {

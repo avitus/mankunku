@@ -52,33 +52,39 @@ interface MatchResponse {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-	let body: RequestBody;
+	let body: unknown;
 	try {
-		body = (await request.json()) as RequestBody;
+		body = await request.json();
 	} catch {
 		return json({ error: 'Invalid JSON' }, 400);
 	}
 
-	if (!isValidSequence(body.intervals) || !isValidSequence(body.iois)) {
+	if (!body || typeof body !== 'object' || Array.isArray(body)) {
+		return json({ error: 'Expected JSON object body' }, 400);
+	}
+
+	const { intervals, iois, minScore, topK } = body as Partial<RequestBody>;
+
+	if (!isValidSequence(intervals) || !isValidSequence(iois)) {
 		return json({ error: 'intervals and iois must be integer arrays' }, 400);
 	}
-	if (body.intervals.length !== body.iois.length) {
+	if (intervals.length !== iois.length) {
 		return json({ error: 'intervals and iois must have equal length' }, 400);
 	}
-	if (body.intervals.length > MAX_SEQUENCE_LENGTH) {
+	if (intervals.length > MAX_SEQUENCE_LENGTH) {
 		return json({ error: `sequence too long (max ${MAX_SEQUENCE_LENGTH})` }, 400);
 	}
 
 	const results = searchMatches(
 		{
-			intervals: body.intervals,
-			iois: body.iois,
-			noteCount: body.intervals.length + 1,
+			intervals,
+			iois,
+			noteCount: intervals.length + 1,
 			totalBeats: 0,
 			keyPc: 0
 		},
 		MATCH_INDEX,
-		{ minScore: body.minScore, topK: body.topK }
+		{ minScore, topK }
 	);
 
 	const matches: MatchResponse[] = results.map((r) => ({
