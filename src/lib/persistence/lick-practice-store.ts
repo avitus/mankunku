@@ -8,12 +8,15 @@ import { getScopeGeneration } from './user-scope';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
+const UNLOCK_KEY = 'lick-unlock-count';
 const DEFAULT_TEMPO = 100;
 /** Starting BPM for any lick with no prior practice history. */
 export const NEW_LICK_DEFAULT_TEMPO = 60;
 const MIN_TEMPO = 50;
 const MAX_TEMPO = 300;
 const PROG_TAG_PREFIX = 'prog:';
+/** Maximum unlocked keys per lick (full 12-key circle). */
+const MAX_UNLOCKED_KEYS = 12;
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
@@ -182,6 +185,62 @@ export function computeAutoTempoAdjustment(averageScore: number): number {
 /** Clamp a tempo to the allowed range (40–300 BPM). */
 export function clampTempo(tempo: number): number {
 	return Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, tempo));
+}
+
+// ── Unlocked-key count ──────────────────────────────────────
+
+export function loadUnlockCounts(): Record<string, number> {
+	return load<Record<string, number>>(UNLOCK_KEY) ?? {};
+}
+
+function saveUnlockCounts(counts: Record<string, number>): void {
+	save(UNLOCK_KEY, counts);
+}
+
+/**
+ * Resolve the unlocked key count for a lick.
+ *
+ *   - explicit stored value (clamped to [1, 12]), else
+ *   - 12 if the lick has progress in all 12 keys (grandfathers pre-feature
+ *     users — the old code wrote all 12 per session, so full coverage is
+ *     unique to pre-feature data), else
+ *   - 1 (brand-new lick or post-feature lick whose first session failed).
+ *
+ * The "all 12 keys" check matters: a fresh lick whose entry-key session
+ * failed has progress in 1 key but no stored count, and we must not
+ * grandfather it back up to 12 — otherwise a single bad session demotes
+ * the user to the daunting full-12-key cycle.
+ */
+export function getUnlockedKeyCount(
+	progress: LickPracticeProgress,
+	phraseId: string
+): number {
+	const stored = loadUnlockCounts()[phraseId];
+	if (typeof stored === 'number') {
+		return Math.min(MAX_UNLOCKED_KEYS, Math.max(1, stored));
+	}
+	const keysWithProgress = progress[phraseId]
+		? Object.keys(progress[phraseId]).length
+		: 0;
+	return keysWithProgress >= MAX_UNLOCKED_KEYS ? MAX_UNLOCKED_KEYS : 1;
+}
+
+/**
+ * Bump the unlock count by 1, capped at 12. Returns the new count.
+ * Reads the resolved current count via getUnlockedKeyCount so that
+ * pre-feature licks with existing progress (which fall back to 12)
+ * don't get accidentally reset to 2 the first time they're bumped.
+ */
+export function bumpUnlockedKeyCount(
+	progress: LickPracticeProgress,
+	phraseId: string
+): number {
+	const counts = loadUnlockCounts();
+	const current = getUnlockedKeyCount(progress, phraseId);
+	const next = Math.min(MAX_UNLOCKED_KEYS, current + 1);
+	counts[phraseId] = next;
+	saveUnlockCounts(counts);
+	return next;
 }
 
 /** User-managed practice tags — stored separately from curated lick tags */

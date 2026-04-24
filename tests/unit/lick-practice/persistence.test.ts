@@ -15,9 +15,13 @@ import {
 	hasProgressionTag,
 	getProgressionTags,
 	isTaggedForProgression,
-	backfillPracticeTags
+	backfillPracticeTags,
+	getUnlockedKeyCount,
+	bumpUnlockedKeyCount,
+	loadUnlockCounts
 } from '$lib/persistence/lick-practice-store';
-import type { LickPracticeProgress } from '$lib/types/lick-practice';
+import type { LickPracticeProgress, LickPracticeKeyProgress } from '$lib/types/lick-practice';
+import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 
 // Mock localStorage
 const store: Record<string, string> = {};
@@ -207,6 +211,91 @@ describe('backfillPracticeTags', () => {
 	it('returns 0 when there is nothing to backfill', () => {
 		expect(backfillPracticeTags([], {})).toBe(0);
 		expect(backfillPracticeTags([{ id: 'x', tags: [] }], {})).toBe(0);
+	});
+});
+
+describe('unlocked key count', () => {
+	it('returns 1 for a brand-new lick with no progress and no stored count', () => {
+		expect(getUnlockedKeyCount({}, 'lick-new')).toBe(1);
+	});
+
+	it('returns 12 for a lick with progress in all 12 keys and no stored count (grandfathered)', () => {
+		const allKeysProgress: Partial<Record<PitchClass, LickPracticeKeyProgress>> = {};
+		for (const k of PITCH_CLASSES) {
+			allKeysProgress[k] = { currentTempo: 100, lastPracticedAt: 1000, passCount: 1 };
+		}
+		const progress: LickPracticeProgress = { 'lick-old': allKeysProgress };
+		expect(getUnlockedKeyCount(progress, 'lick-old')).toBe(12);
+	});
+
+	it('returns 1 for a lick with partial progress (e.g. failed first session) and no stored count', () => {
+		// A new lick whose entry-key session failed will have progress in 1
+		// key but no stored unlock count. We must not grandfather it to 12.
+		const progress: LickPracticeProgress = {
+			'lick-failed-first': {
+				'C': { currentTempo: 60, lastPracticedAt: 1000, passCount: 0 }
+			}
+		};
+		expect(getUnlockedKeyCount(progress, 'lick-failed-first')).toBe(1);
+	});
+
+	it('returns the stored count when one exists, clamped to [1, 12]', () => {
+		bumpUnlockedKeyCount({}, 'lick-x'); // 1 → 2
+		bumpUnlockedKeyCount({}, 'lick-x'); // 2 → 3
+		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(3);
+	});
+
+	it('clamps a corrupt stored value below 1 up to 1', () => {
+		// Storage module prefixes keys with 'mankunku:' — write through the
+		// same path so getUnlockedKeyCount actually sees the corrupt value.
+		localStorageMock.setItem(
+			'mankunku:lick-unlock-count',
+			JSON.stringify({ 'lick-x': 0 })
+		);
+		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(1);
+	});
+
+	it('clamps a corrupt stored value above 12 down to 12', () => {
+		localStorageMock.setItem(
+			'mankunku:lick-unlock-count',
+			JSON.stringify({ 'lick-x': 99 })
+		);
+		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(12);
+	});
+
+	it('bumpUnlockedKeyCount increments from 1 to 2 on first call for a new lick', () => {
+		const next = bumpUnlockedKeyCount({}, 'lick-new');
+		expect(next).toBe(2);
+		expect(loadUnlockCounts()['lick-new']).toBe(2);
+	});
+
+	it('bumpUnlockedKeyCount keeps a grandfathered lick at 12 instead of resetting to 2', () => {
+		const allKeysProgress: Partial<Record<PitchClass, LickPracticeKeyProgress>> = {};
+		for (const k of PITCH_CLASSES) {
+			allKeysProgress[k] = { currentTempo: 100, lastPracticedAt: 1000, passCount: 1 };
+		}
+		const progress: LickPracticeProgress = { 'lick-old': allKeysProgress };
+		const next = bumpUnlockedKeyCount(progress, 'lick-old');
+		expect(next).toBe(12);
+		expect(loadUnlockCounts()['lick-old']).toBe(12);
+	});
+
+	it('bumpUnlockedKeyCount caps at 12', () => {
+		localStorageMock.setItem(
+			'mankunku:lick-unlock-count',
+			JSON.stringify({ 'lick-x': 12 })
+		);
+		expect(bumpUnlockedKeyCount({}, 'lick-x')).toBe(12);
+		expect(loadUnlockCounts()['lick-x']).toBe(12);
+	});
+
+	it('multiple licks track independent unlock counts', () => {
+		bumpUnlockedKeyCount({}, 'lick-a');
+		bumpUnlockedKeyCount({}, 'lick-a');
+		bumpUnlockedKeyCount({}, 'lick-b');
+		expect(getUnlockedKeyCount({}, 'lick-a')).toBe(3);
+		expect(getUnlockedKeyCount({}, 'lick-b')).toBe(2);
+		expect(getUnlockedKeyCount({}, 'lick-c')).toBe(1);
 	});
 });
 
