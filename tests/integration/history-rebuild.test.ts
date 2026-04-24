@@ -92,15 +92,17 @@ describe('rebuildHistoryIfNeeded', () => {
 		// Simulate: user has 7 days of practice history already aggregated
 		// locally, but the 'progress' log has been pruned to the last 100
 		// sessions — only the most recent 4 days are represented there.
+		// Use daysAgo(0..3) dates for the seeded "recent" summaries so they
+		// overlap with the sessions below and exercise the merge path.
+		historyModule = await import('$lib/state/history.svelte');
+		const recentDateStrings = [0, 1, 2, 3].map((d) =>
+			historyModule.localDateStr(new Date(daysAgo(d)))
+		);
 		const existingSummaries: DailySummary[] = [
 			makeSummary('2025-01-01', 5),
 			makeSummary('2025-01-02', 3),
 			makeSummary('2025-01-03', 4),
-			// The most recent 4 days are also present in the pruned log:
-			makeSummary('2025-02-15', 25),
-			makeSummary('2025-02-16', 25),
-			makeSummary('2025-02-17', 25),
-			makeSummary('2025-02-18', 25)
+			...recentDateStrings.map((date) => makeSummary(date, 25))
 		];
 		const existingMeta: ProgressMeta = {
 			version: 2,
@@ -122,15 +124,23 @@ describe('rebuildHistoryIfNeeded', () => {
 		}
 		store.set('mankunku:progress', JSON.stringify(makeProgressWith(recentSessions)));
 
+		// Re-import now that localStorage is fully seeded so loadHistory picks
+		// up the stored summaries instead of deriving an empty starting state.
+		vi.resetModules();
 		historyModule = await import('$lib/state/history.svelte');
 		historyModule.rebuildHistoryIfNeeded();
 
-		// All 7 historical days must still be present after rebuild.
+		// All 7 historical days must still be present after rebuild — and the
+		// overlapping recent dates appear exactly once (no duplicates).
 		const dates = historyModule.dailySummaries.map((s) => s.date);
 		expect(dates).toContain('2025-01-01');
 		expect(dates).toContain('2025-01-02');
 		expect(dates).toContain('2025-01-03');
-		expect(historyModule.dailySummaries.length).toBeGreaterThanOrEqual(7);
+		for (const recent of recentDateStrings) {
+			expect(dates.filter((d) => d === recent)).toHaveLength(1);
+		}
+		expect(new Set(dates).size).toBe(dates.length);
+		expect(historyModule.dailySummaries.length).toBe(7);
 
 		// all-time session count must not shrink.
 		expect(historyModule.progressMeta.allTimeSessionCount).toBeGreaterThanOrEqual(112);
@@ -157,9 +167,13 @@ describe('rebuildHistoryIfNeeded', () => {
 		historyModule = await import('$lib/state/history.svelte');
 		historyModule.rebuildHistoryIfNeeded();
 
-		// The new day is added without destroying 2025-02-15.
+		// The new day is added without destroying 2025-02-15, and it is a
+		// distinct date (guards against inserting a duplicate 2025-02-15).
 		const dates = historyModule.dailySummaries.map((s) => s.date);
+		const todayDate = historyModule.localDateStr(new Date(todaySession.timestamp));
 		expect(dates).toContain('2025-02-15');
-		expect(historyModule.dailySummaries.length).toBeGreaterThanOrEqual(2);
+		expect(dates).toContain(todayDate);
+		expect(todayDate).not.toBe('2025-02-15');
+		expect(new Set(dates)).toEqual(new Set(['2025-02-15', todayDate]));
 	});
 });

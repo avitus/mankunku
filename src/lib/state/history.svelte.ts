@@ -267,6 +267,20 @@ export function clearHistory(): void {
 	remove(META_KEY);
 }
 
+function summariesMatch(a: DailySummary, b: DailySummary): boolean {
+	return (
+		a.sessionCount === b.sessionCount &&
+		a.avgOverall === b.avgOverall &&
+		a.avgPitch === b.avgPitch &&
+		a.avgRhythm === b.avgRhythm &&
+		a.bestScore === b.bestScore &&
+		a.notesTotal === b.notesTotal &&
+		a.notesHit === b.notesHit &&
+		JSON.stringify(a.grades) === JSON.stringify(b.grades) &&
+		JSON.stringify(a.categories) === JSON.stringify(b.categories)
+	);
+}
+
 /**
  * Re-derive daily summaries from current progress session history when stale.
  *
@@ -285,7 +299,7 @@ export function rebuildHistoryIfNeeded(): void {
 	if (derived.summaries.length === 0) return;
 
 	// Fast-path: if every derived day already matches the existing summary
-	// (same date + sessionCount), there's nothing to persist.
+	// across all aggregate fields, there's nothing to persist.
 	let changed = false;
 	for (const derivedSummary of derived.summaries) {
 		const existing = summaryMap.get(derivedSummary.date);
@@ -295,7 +309,7 @@ export function rebuildHistoryIfNeeded(): void {
 			changed = true;
 			continue;
 		}
-		if (existing.sessionCount !== derivedSummary.sessionCount) {
+		if (!summariesMatch(existing, derivedSummary)) {
 			Object.assign(existing, derivedSummary);
 			changed = true;
 		}
