@@ -188,6 +188,15 @@ export function clampTempo(tempo: number): number {
 }
 
 // ── Unlocked-key count ──────────────────────────────────────
+//
+// Local-only by design — unlike practice progress / tags, unlock counts
+// are NOT pushed to the cloud. The state can be re-derived from per-key
+// progress on a fresh device (any lick with progress in all 12 keys is
+// grandfathered to 12; otherwise the user re-earns unlocks one session
+// at a time), so cross-device sync isn't needed for correctness, just
+// convenience. Adding it would require schema changes to the cloud
+// metadata table; revisit if cross-device unlock-count drift becomes
+// a real annoyance.
 
 export function loadUnlockCounts(): Record<string, number> {
 	return load<Record<string, number>>(UNLOCK_KEY) ?? {};
