@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { GRADE_COLORS, GRADE_CAPTIONS, GRADE_LABELS } from '$lib/scoring/grades';
+	import { GRADE_COLORS, GRADE_LABELS, getGradeCaption } from '$lib/scoring/grades';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
@@ -10,6 +10,8 @@
 	import { session } from '$lib/state/session.svelte';
 	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
+	import { resolveOnsets, segmentNotes } from '$lib/audio/note-segmenter';
+	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
@@ -103,6 +105,14 @@
 	let willRetry = $state(false);
 	/** Persists across loop iterations — only replaced when a new score arrives */
 	let persistentScore: Score | null = $state(null);
+	/** Fresh random caption per new persistentScore. */
+	const persistentCaption = $derived.by(() => {
+		if (!persistentScore) return '';
+		void persistentScore.overall;
+		void persistentScore.pitchAccuracy;
+		void persistentScore.rhythmAccuracy;
+		return getGradeCaption(persistentScore.grade);
+	});
 
 	const isActive = $derived(
 		session.engineState === 'playing' ||
@@ -345,16 +355,21 @@
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 
+		const onsets = resolveOnsets(workletOnsets, readings);
+		const detected = segmentNotes(readings, onsets, phraseDuration);
+		const schedule = getActiveSchedule();
+		const bleedResult = schedule
+			? filterBleed(detected, schedule, recordingTransportSeconds)
+			: null;
+
 		const result = runScorePipeline({
-			readings,
-			workletOnsets,
+			detected,
 			phrase: session.phrase,
-			phraseDuration,
 			tempo: session.tempo,
 			transportSeconds: recordingTransportSeconds,
 			swing: settings.swing,
-			schedule: getActiveSchedule(),
-			bleedFilterEnabled: settings.bleedFilterEnabled
+			bleedFilterEnabled: settings.bleedFilterEnabled,
+			bleedResult
 		});
 
 		session.bleedFilterLog = result.bleedLog;
@@ -517,16 +532,20 @@
 		const replay = await replayFromBlob(blob, ctx);
 		if (replay.readings.length === 0) return;
 
+		const onsets = resolveOnsets(replay.onsets, replay.readings);
+		const detected = segmentNotes(replay.readings, onsets, phraseDuration);
+		const bleedResult = schedule
+			? filterBleed(detected, schedule, transportSeconds)
+			: null;
+
 		const result = runScorePipeline({
-			readings: replay.readings,
-			workletOnsets: replay.onsets,
+			detected,
 			phrase,
-			phraseDuration,
 			tempo,
 			transportSeconds,
 			swing,
-			schedule,
-			bleedFilterEnabled
+			bleedFilterEnabled,
+			bleedResult
 		});
 
 		const authoritativeNotes = result.useFiltered ? result.filteredNotes : result.detected;
@@ -625,7 +644,7 @@
 					{pct(persistentScore.overall)}%
 				</div>
 				<div class="mt-0.5 text-sm italic text-[var(--color-text-secondary)]">
-					{GRADE_LABELS[persistentScore.grade]} — {GRADE_CAPTIONS[persistentScore.grade]}
+					{GRADE_LABELS[persistentScore.grade]} — {persistentCaption}
 				</div>
 				<div class="mt-1 flex gap-4 text-sm text-[var(--color-text-secondary)]">
 					<span>Pitch {pct(persistentScore.pitchAccuracy)}%</span>

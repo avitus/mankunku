@@ -54,7 +54,11 @@ jobs:
             - build
             - package.json
             - package-lock.json
-            - ecosystem.config.cjs
+          # NOTE: ecosystem.config.cjs is NOT persisted here. The deploy job
+          # ships it straight from its own checkout to avoid a mystery where
+          # /tmp/workspace/ecosystem.config.cjs arrived on the server with
+          # pre-atomic-release content (cwd: '/home/deploy/mankunku' without
+          # /current/) even though the committed file was the new version.
 
   deploy:
     docker:
@@ -62,6 +66,7 @@ jobs:
     steps:
       - attach_workspace:
           at: /tmp/workspace
+      - checkout
       - add_ssh_keys:
           fingerprints:
             - "SHA256:EE3+mp97fBRW+P32GUizJAnsX9lPkEeRrmuGudIFDqU"
@@ -72,25 +77,57 @@ jobs:
           name: Install rsync
           command: sudo apt-get update && sudo apt-get install -y rsync
       - run:
-          name: Deploy to server
+          name: Deploy atomic release
           command: |
-            # Backup current release for rollback
-            ssh $DEPLOY_USER@$DEPLOY_HOST 'cd ~/mankunku && rm -rf build.previous && cp -r build build.previous 2>/dev/null || true'
+            set -euo pipefail
 
-            # Rsync build artifacts to server
-            rsync -avz --delete \
+            # Each deploy lands in its own releases/<id>/ dir; release.sh
+            # atomically flips the `current` symlink and restarts PM2.
+            RELEASE_ID="$(date -u +%Y%m%d-%H%M%S)-${CIRCLE_SHA1:0:7}"
+            REMOTE_ROOT="/home/${DEPLOY_USER}/mankunku"
+            STAGE="${REMOTE_ROOT}/releases/${RELEASE_ID}"
+            REMOTE_SCRIPT="/tmp/mankunku-release.${CIRCLE_WORKFLOW_ID:-$CIRCLE_SHA1}.sh"
+
+            echo "==> Release ID: ${RELEASE_ID}"
+
+            # Sanity-check the ecosystem.config.cjs we're about to ship. The
+            # workspace version has shown up stale on the server once before;
+            # keeping the hash in the log makes any future drift obvious.
+            LOCAL_SHA=$(sha256sum ecosystem.config.cjs | cut -d' ' -f1)
+            echo "==> ecosystem.config.cjs (deploy checkout) sha256: ${LOCAL_SHA}"
+
+            ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${STAGE}/build'"
+
+            rsync -avz \
               /tmp/workspace/build/ \
-              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/build/
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/build/"
 
-            # Rsync package files for production dependency installation
             rsync -avz \
               /tmp/workspace/package.json \
               /tmp/workspace/package-lock.json \
-              /tmp/workspace/ecosystem.config.cjs \
-              $DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/mankunku/
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/"
 
-            # Install production deps and restart
-            ssh $DEPLOY_USER@$DEPLOY_HOST 'bash -l -c "cd ~/mankunku && npm ci --omit=dev && pm2 startOrRestart ecosystem.config.cjs --env production && pm2 save"'
+            # Ship ecosystem.config.cjs via scp (not rsync), from the deploy
+            # job's own checkout. Previous deploys ended up with pre-atomic
+            # content on the server despite CI shipping the right sha, and
+            # rsync was the one variable in the chain we hadn't swapped out.
+            # Verify the landed file matches what we sent; abort if it didn't.
+            scp ecosystem.config.cjs \
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${STAGE}/ecosystem.config.cjs"
+            REMOTE_SHA=$(ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "sha256sum '${STAGE}/ecosystem.config.cjs' | cut -d' ' -f1")
+            echo "==> ecosystem.config.cjs (server, after scp) sha256: ${REMOTE_SHA}"
+            if [[ "${LOCAL_SHA}" != "${REMOTE_SHA}" ]]; then
+              echo "error: ecosystem.config.cjs content drifted between CI and server" >&2
+              echo "  local:  ${LOCAL_SHA}" >&2
+              echo "  remote: ${REMOTE_SHA}" >&2
+              exit 1
+            fi
+
+            scp deploy/app/release.sh \
+              "${DEPLOY_USER}@${DEPLOY_HOST}:${REMOTE_SCRIPT}"
+
+            ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "bash -l -c \"trap 'rm -f ${REMOTE_SCRIPT}' EXIT; bash ${REMOTE_SCRIPT} ${RELEASE_ID}\""
 
   nginx-deploy:
     docker:

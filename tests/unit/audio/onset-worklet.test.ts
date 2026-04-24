@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-	ENERGY_SMOOTHING,
-	MIN_ONSET_INTERVAL,
 	ONSET_THRESHOLD,
-	SILENCE_THRESHOLD,
 	createOnsetState,
 	processOnsetFrame
-} from '$lib/audio/onset-core.ts';
+} from '$lib/audio/onset-core';
 
 /**
  * Tests for the onset detection algorithm.
@@ -15,10 +12,6 @@ import {
  * instantiated in node, but its entire algorithm lives in `onset-core.ts`
  * as pure functions. We exercise those directly.
  */
-
-// Suppress unused-import warnings for constants referenced in assertions below.
-void ENERGY_SMOOTHING;
-void MIN_ONSET_INTERVAL;
 
 /** Create a frame of silence */
 function silentFrame(size = 128): Float32Array {
@@ -32,69 +25,9 @@ function constantFrame(amplitude: number, size = 128): Float32Array {
 	return frame;
 }
 
-/** Create a loud transient frame (simulates note attack) */
-function transientFrame(amplitude: number, size = 128): Float32Array {
-	const frame = new Float32Array(size);
-	for (let i = 0; i < size; i++) {
-		// Ramp up to simulate attack transient
-		frame[i] = amplitude * (i / size);
-	}
-	return frame;
-}
-
 // ─── Tests ────────────────────────────────────────────────────
 
 describe('onset detection algorithm', () => {
-	describe('energy computation', () => {
-		it('silence has energy below threshold', () => {
-			const frame = silentFrame();
-			let energy = 0;
-			for (let i = 0; i < frame.length; i++) energy += frame[i] * frame[i];
-			energy /= frame.length;
-
-			expect(energy).toBe(0);
-			expect(energy).toBeLessThan(SILENCE_THRESHOLD);
-		});
-
-		it('non-zero signal has energy above threshold', () => {
-			const frame = constantFrame(0.1);
-			let energy = 0;
-			for (let i = 0; i < frame.length; i++) energy += frame[i] * frame[i];
-			energy /= frame.length;
-
-			expect(energy).toBeCloseTo(0.01, 4);
-			expect(energy).toBeGreaterThan(SILENCE_THRESHOLD);
-		});
-	});
-
-	describe('HFC (high-frequency content)', () => {
-		it('weights later samples more heavily', () => {
-			const frame = constantFrame(0.1, 128);
-			let hfc = 0;
-			for (let i = 0; i < frame.length; i++) {
-				hfc += Math.abs(frame[i]) * (i + 1);
-			}
-			hfc /= frame.length;
-
-			// For constant signal: sum of 0.1 * (1+2+...+128) / 128
-			// = 0.1 * (128*129/2) / 128 = 0.1 * 64.5 = 6.45
-			expect(hfc).toBeCloseTo(6.45, 1);
-		});
-
-		it('transient has higher HFC than steady-state', () => {
-			const steady = constantFrame(0.1, 128);
-			const transient = transientFrame(0.2, 128);
-
-			let hfcSteady = 0, hfcTransient = 0;
-			for (let i = 0; i < 128; i++) {
-				hfcSteady += Math.abs(steady[i]) * (i + 1);
-				hfcTransient += Math.abs(transient[i]) * (i + 1);
-			}
-
-			expect(hfcTransient).toBeGreaterThan(hfcSteady);
-		});
-	});
-
 	describe('silence handling', () => {
 		it('does not trigger onset on silence', () => {
 			const state = createOnsetState();

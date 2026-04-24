@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { PitchClass } from '$lib/types/music.ts';
-	import type { ChordProgressionType } from '$lib/types/lick-practice.ts';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
+	import type { PitchClass } from '$lib/types/music';
+	import type { ChordProgressionType } from '$lib/types/lick-practice';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
 
 	interface Props {
@@ -12,9 +12,19 @@
 		progressionType: ChordProgressionType;
 		keyIndex: number;
 		totalKeys: number;
+		/** Optional label shown when the current lick is playing via substitution (e.g. "Minor over V"). */
+		substitutionLabel?: string | null;
 	}
 
-	let { phraseNumber, phraseName, currentKey, progressionType, keyIndex, totalKeys }: Props = $props();
+	let {
+		phraseNumber,
+		phraseName,
+		currentKey,
+		progressionType,
+		keyIndex,
+		totalKeys,
+		substitutionLabel = null
+	}: Props = $props();
 
 	const progressionName = $derived(PROGRESSION_TEMPLATES[progressionType].shortName);
 	const instrument = $derived(getInstrument());
@@ -33,6 +43,14 @@
 			<span class="rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs">
 				{progressionName}
 			</span>
+			{#if substitutionLabel}
+				<span
+					class="rounded bg-[var(--color-brass)]/20 px-2 py-0.5 text-xs font-semibold text-[var(--color-brass)]"
+					title="This lick is playing as a harmonic substitution"
+				>
+					{substitutionLabel}
+				</span>
+			{/if}
 			<span>Key {keyIndex + 1}/{totalKeys}</span>
 		</div>
 	</div>

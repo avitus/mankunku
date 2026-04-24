@@ -7,7 +7,7 @@
  * the target chord's root — e.g. in a long minor ii-V-I in key F, it lands
  * on Gm7b5 (the ii of F minor).
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 const DIMINISHED_CHORD: HarmonicSegment[] = [
 	{

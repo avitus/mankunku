@@ -106,27 +106,33 @@ const FIXTURE_USER_LICKS: Phrase[] = [
 // ─── Mocks ───────────────────────────────────────────────────────────
 
 // Mock curated licks data source
-vi.mock('$lib/data/licks/index.ts', () => ({
+vi.mock('$lib/data/licks/index', () => ({
 	ALL_CURATED_LICKS: FIXTURE_CURATED
 }));
 
 // Mock user licks persistence
 const mockGetUserLicksLocal = vi.fn<() => Phrase[]>(() => []);
-vi.mock('$lib/persistence/user-licks.ts', () => ({
+vi.mock('$lib/persistence/user-licks', () => ({
 	getUserLicksLocal: () => mockGetUserLicksLocal()
 }));
 
+// Mock community persistence (adopted licks cache)
+const mockGetAdoptedLicksLocal = vi.fn<() => Phrase[]>(() => []);
+vi.mock('$lib/persistence/community', () => ({
+	getAdoptedLicksLocal: () => mockGetAdoptedLicksLocal()
+}));
+
 // Mock scale compatibility — default: everything is compatible
-const mockIsLickCompatible = vi.fn(() => true);
-vi.mock('$lib/tonality/scale-compatibility.ts', () => ({
-	isLickCompatible: (...args: unknown[]) => mockIsLickCompatible(...args)
+const mockIsLickCompatible = vi.fn((_lick: unknown, _scaleType: unknown) => true);
+vi.mock('$lib/tonality/scale-compatibility', () => ({
+	isLickCompatible: (lick: unknown, scaleType: unknown) => mockIsLickCompatible(lick, scaleType)
 }));
 
 // Mock scale/key modules used by transposeLick internals
-vi.mock('$lib/music/scales.ts', () => ({
+vi.mock('$lib/music/scales', () => ({
 	getScale: () => null
 }));
-vi.mock('$lib/music/keys.ts', () => ({
+vi.mock('$lib/music/keys', () => ({
 	realizeScale: () => []
 }));
 
@@ -139,13 +145,14 @@ const {
 	getCategories,
 	queryLicks,
 	pickRandomLick
-} = await import('$lib/phrases/library-loader.ts');
+} = await import('$lib/phrases/library-loader');
 
 // ─── Tests ───────────────────────────────────────────────────────────
 
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetUserLicksLocal.mockReturnValue([]);
+	mockGetAdoptedLicksLocal.mockReturnValue([]);
 	mockIsLickCompatible.mockReturnValue(true);
 });
 
@@ -169,6 +176,24 @@ describe('getAllLicks', () => {
 		const second = getAllLicks();
 		expect(first).not.toBe(second);
 		expect(first).toEqual(second);
+	});
+
+	it('includes adopted community licks alongside curated + user licks', () => {
+		const adopted = [makePhrase({ id: 'adopted-1', name: 'Adopted Lick', source: 'user-recorded' })];
+		mockGetUserLicksLocal.mockReturnValue(FIXTURE_USER_LICKS);
+		mockGetAdoptedLicksLocal.mockReturnValue(adopted);
+		const all = getAllLicks();
+		expect(all.map(l => l.id)).toContain('adopted-1');
+		expect(all).toHaveLength(FIXTURE_CURATED.length + FIXTURE_USER_LICKS.length + 1);
+	});
+
+	it('dedups when the same id appears in user and adopted caches (safety net)', () => {
+		const shared = makePhrase({ id: 'shared-id', name: 'Shared' });
+		mockGetUserLicksLocal.mockReturnValue([shared]);
+		mockGetAdoptedLicksLocal.mockReturnValue([shared]);
+		const all = getAllLicks();
+		const count = all.filter(l => l.id === 'shared-id').length;
+		expect(count).toBe(1);
 	});
 });
 
@@ -323,7 +348,7 @@ describe('queryLicks', () => {
 	it('filters by scaleType via isLickCompatible', () => {
 		// Make only the blues lick compatible with the queried scale type
 		mockIsLickCompatible.mockImplementation(
-			(lick: Phrase) => lick.category === 'blues'
+			(lick: unknown) => (lick as Phrase).category === 'blues'
 		);
 		const results = queryLicks({ scaleType: 'blues' });
 		expect(results).toHaveLength(1);

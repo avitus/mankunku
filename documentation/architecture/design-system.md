@@ -1,21 +1,22 @@
-# Design System: Two-Mode Color Identity
+# Design System: Three-Domain Color Identity + Blue Note Chrome
 
 ## Goals
 
-Mankunku has two functionally distinct practice modes that are increasingly diverging in how they work. Users need a clear, persistent visual signal of which mode they're in, without the app feeling like two unrelated products.
+Mankunku has two functionally distinct practice modes that diverge in how they work. Users need a clear, persistent visual signal of which mode they're in, without the app feeling like two unrelated products. On top of that, the product wears a Blue Note Records / LP-sleeve visual identity — warm brass accents, a display serif, subtle film grain — so that the chrome feels like jazz reference material, not a generic dashboard.
 
 This spec defines:
 
 1. A **three-domain color identity** (Ear Training / Lick Practice / Neutral)
-2. The **specific colors** used in each domain
+2. The **specific colors** used in each domain, plus the decorative brass palette
 3. The **surfaces** where the domain color appears
 4. A **single-variable implementation** that requires minimal changes to existing components
+5. The **typography, rules, and grain utilities** that carry the Blue Note mood
 
-The guiding principle is **subtle but unmissable**. The color identity must be obvious within a glance at any page, but never overwhelming or decorative. Real estate is reserved for music, not chrome.
+The guiding principle is **subtle but unmissable**. The domain color must be obvious at a glance, but never overwhelming. Real estate is reserved for music, not chrome.
 
 ## Domains
 
-### 1. Ear Training (blue)
+### 1. Ear Training (peacock teal)
 
 Routes that belong to the ear-training domain:
 
@@ -23,30 +24,32 @@ Routes that belong to the ear-training domain:
 - `/practice/settings` — settings specific to ear-training practice
 - `/scales` — scale practice (ear-training subset)
 - `/record` — recording mode for capturing user phrases
-- `/progress` — session history & adaptive difficulty (currently fed only by ear-training; lick practice has its own report)
+- `/progress` — session history & adaptive difficulty
 
-**Identity color**: blue. Same as today's `--color-accent`. No change.
+**Identity color**: peacock teal. This is the default `--color-accent` — ear-training owns the unadorned `:root` palette.
 
-| Mode | Token | Hex | Notes |
-|---|---|---|---|
-| Dark | `--color-accent` | `#3b82f6` | Tailwind blue-500 |
-| Light | `--color-accent` | `#2563eb` | Tailwind blue-600 |
-| Hover | `--color-accent-hover` | `#2563eb` / `#1d4ed8` | one shade darker |
+| Mode  | Token                  | Hex       | Notes                                      |
+| ----- | ---------------------- | --------- | ------------------------------------------ |
+| Dark  | `--color-accent`       | `#2e8b9e` | Blue Note peacock teal                     |
+| Dark  | `--color-accent-hover` | `#1f6b7a` | one shade darker                           |
+| Light | `--color-accent`       | `#15667a` | deeper teal for contrast on light bg       |
+| Light | `--color-accent-hover` | `#0f4e5c` | one shade darker                           |
 
-### 2. Lick Practice (green)
+### 2. Lick Practice (warm terracotta)
 
 Routes that belong to the lick-practice domain:
 
 - `/lick-practice` — setup
 - `/lick-practice/session` — running session
 
-**Identity color**: green. Same hue as the existing `practice` tag in `LickCard.svelte:73` (`text-green-500` = `#22c55e`) and the existing `--color-success` token. The green is already a known-and-used color in the app, so it doesn't introduce a new hue.
+**Identity color**: warm terracotta / burnt sienna. This is the LP-sleeve counterpart to the ear-training teal — complementary in hue, same visual weight, reads as jazz-era rather than "success/error" signal.
 
-| Mode | Token | Hex | Notes |
-|---|---|---|---|
-| Dark | `--color-accent` (overridden) | `#22c55e` | Tailwind green-500, matches `--color-success` |
-| Light | `--color-accent` (overridden) | `#16a34a` | Tailwind green-600 |
-| Hover | `--color-accent-hover` (overridden) | `#16a34a` / `#15803d` | one shade darker |
+| Mode  | Token                                | Hex       | Notes                                    |
+| ----- | ------------------------------------ | --------- | ---------------------------------------- |
+| Dark  | `--color-accent` (overridden)        | `#c96a3e` | Warm terracotta                          |
+| Dark  | `--color-accent-hover` (overridden)  | `#a64f27` | one shade darker                         |
+| Light | `--color-accent` (overridden)        | `#a84a26` | darkened for readability on light bg     |
+| Light | `--color-accent-hover` (overridden)  | `#8a3b1c` | one shade darker                         |
 
 ### 3. Neutral
 
@@ -58,19 +61,97 @@ Routes that belong to neither domain (or that serve both):
 - `/settings` — global app settings
 - `/auth`, `/diagnostics` — utility pages
 
-**Identity color**: slate / desaturated. The neutral domain has no strong accent — interactive elements use `--color-text-secondary` or a slate-500 neutral, and CTAs are styled with the existing `--color-bg-tertiary` background instead of an accent color.
+**Identity color**: slate / desaturated. The neutral domain has no strong accent — interactive elements use `--color-text-secondary` or a slate neutral, and CTAs typically use `--color-bg-tertiary` backgrounds instead of an accent fill.
 
-| Mode | Token | Hex | Notes |
-|---|---|---|---|
-| Dark | `--color-accent` (overridden) | `#94a3b8` | Tailwind slate-400, matches `--color-text-secondary` |
-| Light | `--color-accent` (overridden) | `#475569` | Tailwind slate-600, matches `--color-text-secondary` |
-| Hover | `--color-accent-hover` (overridden) | `#cbd5e1` / `#334155` | one shade lighter/darker |
+| Mode  | Token                                | Hex       | Notes                                         |
+| ----- | ------------------------------------ | --------- | --------------------------------------------- |
+| Dark  | `--color-accent` (overridden)        | `#94a3b8` | Tailwind slate-400, matches secondary text    |
+| Dark  | `--color-accent-hover` (overridden)  | `#cbd5e1` | one shade lighter                             |
+| Light | `--color-accent` (overridden)        | `#475569` | Tailwind slate-600, matches secondary text    |
+| Light | `--color-accent-hover` (overridden)  | `#334155` | one shade darker                              |
 
-The neutral domain inherits the secondary text color as its accent so that nothing on a neutral page reads as "primary action color." Buttons and chips on neutral pages should also avoid solid `var(--color-accent)` fills — prefer `var(--color-bg-tertiary)` backgrounds with `var(--color-text)` text.
+The neutral domain inherits the secondary text color as its accent so that nothing on a neutral page reads as "primary action color." Buttons and chips on neutral pages should prefer `var(--color-bg-tertiary)` backgrounds with `var(--color-text)` text.
+
+## Decorative brass palette
+
+Alongside the functional domain accent, a second palette drawing from Blue Note Records cover art provides chrome and warmth. Brass tokens are **always decorative** — they never replace the functional domain accent or signal interactivity.
+
+| Token                 | Dark hex  | Light hex | Usage                                                                      |
+| --------------------- | --------- | --------- | -------------------------------------------------------------------------- |
+| `--color-brass`       | `#c8923d` | `#8b6a2f` | Wordmark, jazz rules, active underlines, streak number, calendar heatmap   |
+| `--color-brass-soft`  | `#e2b875` | `#a8853e` | Secondary brass (hover glows, softer chrome)                               |
+| `--color-paper`       | `#1a1410` | `#f5efe3` | Warm paper-like backgrounds for LP-sleeve panels                           |
+
+### On-air red
+
+A vintage recording-booth red used for the active / stop state of the practice and record buttons. Intentionally desaturated compared to `--color-error` so it reads as jazz-era rather than alert red.
+
+| Token                 | Dark hex  | Light hex | Usage                                                          |
+| --------------------- | --------- | --------- | -------------------------------------------------------------- |
+| `--color-onair`       | `#a8463a` | `#8a3328` | "Recording" / "stop" state on practice and record buttons      |
+| `--color-onair-hover` | `#8a3428` | `#6a2418` | Hover                                                          |
+
+### Feedback tokens
+
+`--color-success`, `--color-warning`, `--color-error` are reserved for grade readouts, toasts, and validation. They are **never** used as domain accents.
+
+## Typography
+
+### Display serif — Fraunces
+
+Self-hosted variable font (weight 300–800, Latin subset, `.woff2`, license SIL OFL 1.1). Used for:
+
+- App wordmark (`MANKUNKU`)
+- Page titles
+- Key/grade readouts
+- Lick names
+- Primary nav labels for "Side A / Side B" practice modes
+
+Apply via the `.font-display` utility:
+
+```css
+.font-display {
+  font-family: Fraunces, ui-serif, Georgia, 'Times New Roman', serif;
+  font-optical-sizing: auto;
+  font-variation-settings: 'SOFT' 50, 'WONK' 0;
+  letter-spacing: -0.01em;
+}
+```
+
+### Body — system UI sans
+
+Everything else uses the Tailwind default sans stack. No custom webfont for body text — keep the page light and legible.
+
+### Tracked small caps
+
+`.smallcaps` — liner-note credits, section labels, meta rows on cards.
+
+```css
+.smallcaps {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+```
+
+## Surface utilities
+
+### Brass hairlines
+
+`.jazz-rule` — decorative 1px line under titles and between sections. Gradient fades to transparent to feel engraved rather than ruled. `.jazz-rule-full` is the symmetric version for full-width section breaks.
+
+### Film grain
+
+`.grain-overlay` — subtle fractal-noise grain applied to the layout root. Inline SVG, no HTTP request. Low opacity (0.045 dark, 0.06 light, 0.03 under `prefers-reduced-motion`) and `mix-blend-mode: overlay` / `multiply` so it does not compete with scoring colors or notation.
+
+### Peripheral accent stripe
+
+A 0.5px-tall stripe at the top of non-neutral pages, rendered in `bg-[var(--color-accent)]`. It's a peripheral cue — the eye registers it without dwelling on it. On neutral pages there is no stripe.
 
 ## Single-variable implementation
 
-Existing components already use `var(--color-accent)` for almost every interactive surface. We can flip the entire visual identity of a page by overriding `--color-accent` (and `--color-accent-hover`) inside a scoped CSS rule keyed off the route. **No component code needs to change** for the basic shift — only the layout wrapper.
+Components use `var(--color-accent)` for almost every interactive surface. Flipping a page's identity means overriding `--color-accent` (and `--color-accent-hover`) inside a scoped CSS rule keyed off the route. **No component code changes** — only the layout wrapper.
 
 ### Mechanism
 
@@ -90,154 +171,110 @@ const dataDomain = $derived.by(() => {
 });
 ```
 
-Apply it as a `data-domain` attribute on the layout's outermost element (the `<div class="min-h-screen ...">`).
+It's applied as `data-domain={dataDomain}` on the layout's outermost element. The grain overlay and peripheral stripe both live on that same wrapper.
 
-### CSS
-
-In `src/app.css`, add scoped overrides for the two non-default domains:
+### CSS (actual, as in `src/app.css`)
 
 ```css
-/* Default (:root) keeps blue — ear-training is the historical default. */
+/* Default (:root) is ear-training: peacock teal. */
 :root {
-    --color-accent: #3b82f6;
-    --color-accent-hover: #2563eb;
-    /* ... existing variables ... */
+    --color-accent: #2e8b9e;
+    --color-accent-hover: #1f6b7a;
+    --color-brass: #c8923d;
+    --color-brass-soft: #e2b875;
+    --color-paper: #1a1410;
+    --color-onair: #a8463a;
+    --color-onair-hover: #8a3428;
+    /* ... backgrounds, text, feedback tokens ... */
 }
 
-/* Lick Practice domain → green */
 [data-domain='lick-practice'] {
-    --color-accent: #22c55e;
-    --color-accent-hover: #16a34a;
+    --color-accent: #c96a3e;
+    --color-accent-hover: #a64f27;
 }
 
-/* Neutral domain → slate (no strong accent) */
 [data-domain='neutral'] {
     --color-accent: #94a3b8;
     --color-accent-hover: #cbd5e1;
 }
 
-/* Light-mode equivalents */
-:root.light {
-    --color-accent: #2563eb;
-    --color-accent-hover: #1d4ed8;
-    /* ... existing variables ... */
-}
-:root.light [data-domain='lick-practice'] {
-    --color-accent: #16a34a;
-    --color-accent-hover: #15803d;
-}
-:root.light [data-domain='neutral'] {
-    --color-accent: #475569;
-    --color-accent-hover: #334155;
-}
+:root.light { /* light-mode equivalents */ }
+:root.light [data-domain='lick-practice'] { ... }
+:root.light [data-domain='neutral']       { ... }
 ```
 
 ### What automatically picks this up
 
-Every component that uses `var(--color-accent)` already does the right thing. A non-exhaustive sample of what changes "for free":
+Every component that uses `var(--color-accent)` flips for free when the domain changes. A non-exhaustive sample:
 
-- **Active navigation item** (`+layout.svelte:92`) — turns green on lick-practice routes, slate on neutral
-- **Sign In link** in nav (`+layout.svelte:119`)
-- **Primary CTA buttons** (`Start Session`, `New Session`, etc.) on `/practice/+page.svelte`, `/lick-practice/+page.svelte`, the session report on `/lick-practice/session/+page.svelte`
+- **Active navigation underline** (`+layout.svelte`) — turns terracotta on lick-practice, slate on neutral
+- **Sign In link** in nav
+- **Primary CTA buttons** on `/practice`, `/lick-practice`, session reports
 - **`KeyProgressRing`** (current key indicator)
-- **`ChordChart`** (active cell highlight, beat dots, progress bar — `ChordChart.svelte:127, 132, 144, 155`)
-- **`UpcomingKeysDisplay`** (the "Now"/"Listen" chip background, the recording-pulse box-shadow — `UpcomingKeysDisplay.svelte:124, 105`)
+- **`ChordChart`** (active cell highlight, beat dots, progress bar)
+- **`UpcomingKeysDisplay`** ("Now"/"Listen" chip, recording-pulse shadow)
 - **`SessionTimer`** progress bar fill
-- **`LickCard`** play button (`LickCard.svelte:54`) and progression-tag chips (`LickCard.svelte:81`)
-- **`PracticeSetup`** segmented control selected state
-- **`CategoryFilter`** selected pill
-- **`PhraseInfo`** highlighted bits
-- All `border-l-[var(--color-accent)]` / `text-[var(--color-accent)]` / `bg-[var(--color-accent)]` usages elsewhere
+- **`LickCard`** play button and progression-tag chips
+- **`PracticeSetup`** / `CategoryFilter` selected state
+- All `border-l-[var(--color-accent)]` / `text-[var(--color-accent)]` / `bg-[var(--color-accent)]` usages
 
-This is the "subtle but unmissable" win: the user opens `/lick-practice` and the entire interactive vocabulary turns green, but the page layout is unchanged.
+The user opens `/lick-practice` and the entire interactive vocabulary turns terracotta, but the page layout is unchanged.
 
 ## What we deliberately don't change
 
 To keep the design subtle, **none** of the following change between domains:
 
-- **Backgrounds** — `--color-bg`, `--color-bg-secondary`, `--color-bg-tertiary` stay constant. No section gets a tinted page background.
-- **Text colors** — body text, headings, secondary text all stay neutral (slate-50/slate-400 in dark mode).
-- **Layout** — same nav bar, same max-width, same spacing scale, same border-radius scale.
+- **Backgrounds** — `--color-bg`, `--color-bg-secondary`, `--color-bg-tertiary` stay constant.
+- **Text colors** — body text, headings, secondary text.
+- **Layout** — nav bar, max-width (`max-w-5xl`), spacing scale, border-radius scale.
 - **Typography** — same fonts, same scale, same weight.
-- **Component shapes** — buttons, cards, inputs all retain their current geometry.
+- **Component shapes** — buttons, cards, inputs retain their geometry.
+- **Brass chrome** — wordmark color, jazz rules, on-air red are domain-invariant.
 
-The only thing that changes is the **accent color**, applied via the existing single CSS variable. Everything else stays put.
+The only thing that changes per domain is the **accent color**, applied via the existing single CSS variable.
 
-## Two extra subtle markers
+## Edge cases
 
-The accent-color swap alone is already pretty obvious to anyone paying attention, but it can be missed if a page is mostly chord blocks and text. Two small additions reinforce the identity without becoming decorative:
-
-### 1. Domain badge in the nav bar
-
-Next to the "Mankunku" wordmark in `+layout.svelte:84`, render a small chip whose label and color reflect the current domain:
-
-```svelte
-{#if dataDomain !== 'neutral'}
-    <span
-        class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider
-               bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
-    >
-        {dataDomain === 'ear-training' ? 'Ear Training' : 'Lick Practice'}
-    </span>
-{/if}
-```
-
-The chip is visible at all times during a session, so the user always knows which mode they're in. On neutral pages it's hidden — there's no domain to advertise.
-
-### 2. Top accent stripe
-
-A 2-pixel-tall stripe at the very top of the page in the domain accent color, only on non-neutral pages:
-
-```svelte
-{#if dataDomain !== 'neutral'}
-    <div class="h-0.5 w-full bg-[var(--color-accent)]"></div>
-{/if}
-```
-
-Placed above the `<nav>` element. It's a peripheral cue — the eye registers it without dwelling on it. On neutral pages there's no stripe (the `border-b` on the nav is the only top edge).
-
-## Edge cases and decisions to confirm
-
-- **`/progress`** — currently classified as ear-training because it shows the global ear-training session history (`progress.svelte` is fed only by `recordAttempt`, which we removed from lick-practice in a prior session). If/when lick-practice gets its own progress page, we'd add a separate route.
-- **`/library` and `/add-licks`** — explicitly classified as neutral in the user's brief. The neutral slate accent applies. The `practice` tag's green star icon on `LickCard` (`LickCard.svelte:73`) **stays green** even on neutral pages, because that icon's job is to identify a lick that's tagged for lick practice — it's a tag for the lick-practice domain, not for the page chrome.
+- **`/progress`** — classified as ear-training because it shows the global ear-training session history. If lick-practice gets its own long-term progress page, that route can opt in separately.
+- **`/library` and `/add-licks`** — neutral, even though `LickCard` may display a green-star "practice" tag. That tag identifies a lick's category, not the page chrome.
 - **`/diagnostics`** — neutral.
 - **Light mode** — every override has a `:root.light [data-domain='…']` equivalent so themes stay coherent.
 
 ## Files affected
 
-Implementing this spec touches only two files for the base behavior:
+The base behavior lives in just two files:
 
-| File | Change |
-|---|---|
-| `src/app.css` | Add `[data-domain='lick-practice']` and `[data-domain='neutral']` rules (dark + light). Existing `:root` rules unchanged. |
-| `src/routes/+layout.svelte` | Derive `dataDomain` from `page.url.pathname`. Add `data-domain={dataDomain}` to the outermost `<div>`. Optionally add the domain chip next to "Mankunku" and the top accent stripe. |
+| File                         | Role                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| `src/app.css`                | Defines the tokens, domain overrides, typography, and utility classes above.  |
+| `src/routes/+layout.svelte`  | Derives `dataDomain`, applies `data-domain`, renders the peripheral stripe.   |
 
 No component-level files need to change. Every existing `var(--color-accent)` usage automatically picks up the new color.
 
 ## Verification
 
-After implementing, walk through these surfaces and confirm the accent is correct for each:
+After changes, walk through these surfaces and confirm the accent is correct:
 
-| Surface | Domain | Expected accent |
-|---|---|---|
-| `/` home page | neutral | slate-400 (dark) / slate-600 (light) |
-| `/practice` (mid-session) | ear-training | blue-500 / blue-600 |
-| `/practice/settings` | ear-training | blue |
-| `/scales` | ear-training | blue |
-| `/progress` | ear-training | blue |
-| `/lick-practice` setup | lick-practice | green-500 / green-600 |
-| `/lick-practice/session` mid-lick | lick-practice | green |
-| `/library` | neutral | slate |
-| `/library/[id]` | neutral | slate |
-| `/add-licks` | neutral | slate |
-| `/settings` | neutral | slate |
-| `/auth` | neutral | slate |
+| Surface                          | Domain        | Expected accent                     |
+| -------------------------------- | ------------- | ----------------------------------- |
+| `/` home                         | neutral       | slate                               |
+| `/practice` (mid-session)        | ear-training  | peacock teal                        |
+| `/practice/settings`             | ear-training  | peacock teal                        |
+| `/scales`                        | ear-training  | peacock teal                        |
+| `/progress`                      | ear-training  | peacock teal                        |
+| `/lick-practice` setup           | lick-practice | terracotta                          |
+| `/lick-practice/session`         | lick-practice | terracotta                          |
+| `/library`, `/library/[id]`      | neutral       | slate                               |
+| `/add-licks`, `/entry`           | neutral       | slate                               |
+| `/settings`, `/auth`, `/diag…`   | neutral       | slate                               |
 
-For each, check:
-1. The active nav item color
+For each page confirm:
+
+1. Active nav item underline color
 2. Primary CTA button color
-3. Any current-state highlights (selected pill, current key chip, active beat indicator)
-4. The domain chip is present on ear-training and lick-practice pages, hidden on neutral
-5. The top accent stripe is present on ear-training and lick-practice, hidden on neutral
+3. Current-state highlights (selected pill, current key chip, active beat)
+4. The peripheral accent stripe is present on ear-training and lick-practice pages, hidden on neutral
+5. Brass chrome (wordmark, jazz rules) is unchanged across domains
+6. The on-air red only appears on active practice/record buttons
 
-Light mode and dark mode should both be checked.
+Check both light and dark modes.

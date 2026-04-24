@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { PeriodComparison } from '$lib/types/progress.ts';
-	import { comparePeriods, getWeekRanges, getMonthRanges } from '$lib/state/history.svelte.ts';
+	import type { PeriodComparison } from '$lib/types/progress';
+	import { comparePeriods, getWeekRanges, getMonthRanges } from '$lib/state/history.svelte';
 
 	type Tab = 'week' | 'month';
 	let tab: Tab = $state('week');

@@ -6,10 +6,10 @@
  * trying multiple grids and picking the one with lowest total snap error.
  */
 
-import type { DetectedNote } from '$lib/types/audio.ts';
-import type { Note, Fraction, PitchClass } from '$lib/types/music.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
-import { gcd } from '$lib/music/intervals.ts';
+import type { DetectedNote } from '$lib/types/audio';
+import type { Note, Fraction, PitchClass } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { gcd } from '$lib/music/intervals';
 
 /** Grid resolution: 48 ticks per whole note */
 const GRID = 48;

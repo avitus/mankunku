@@ -1,5 +1,5 @@
-import type { PitchClass } from '$lib/types/music.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
+import type { PitchClass } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
 
 /** Number of sharps (positive) or flats (negative) for each key in major */
 const KEY_SIGNATURES: Record<PitchClass, number> = {

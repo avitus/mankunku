@@ -23,6 +23,16 @@
 	let mobileMenuOpen = $state(false);
 	let { supabase, session, user } = $derived(data);
 
+	/**
+	 * Username portion of the email (before the @) — saves horizontal space in
+	 * the nav. Falls back to "Account" if the user has no email (e.g. a
+	 * non-email auth provider) or if the local part is empty, so both desktop
+	 * and mobile labels never render blank.
+	 */
+	const emailPrefix = $derived(
+		(user?.email && user.email.split('@')[0].trim()) || 'Account'
+	);
+
 	// `primary: true` marks the two headline practice modes. They get
 	// display-serif treatment and sit visually separated from the utility
 	// nav so they read as the "Side A / Side B" of the app.
@@ -31,6 +41,7 @@
 		{ href: '/practice', label: 'Ear Training', primary: true },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true },
 		{ href: '/library', label: 'Library', primary: false },
+		{ href: '/community', label: 'Community', primary: false },
 		{ href: '/add-licks', label: 'Add Licks', primary: false },
 		{ href: '/progress', label: 'Progress', primary: false },
 		{ href: '/settings', label: 'Settings', primary: false }
@@ -62,13 +73,6 @@
 		return 'neutral';
 	});
 
-	const domainLabel = $derived(
-		dataDomain === 'ear-training'
-			? 'Ear Training'
-			: dataDomain === 'lick-practice'
-				? 'Lick Practice'
-				: ''
-	);
 
 	onMount(() => {
 		applyTheme();
@@ -135,13 +139,6 @@
 				>
 					MANKUNKU
 				</a>
-				{#if dataDomain !== 'neutral'}
-					<span
-						class="smallcaps border border-[var(--color-brass)]/60 px-1.5 py-0.5 text-[var(--color-brass)]"
-					>
-						{domainLabel}
-					</span>
-				{/if}
 			</div>
 
 			<!-- Desktop nav -->
@@ -171,23 +168,35 @@
 					</a>
 				{/each}
 
-				<!-- Auth controls (desktop) -->
-				<span class="ml-2 border-l border-[var(--color-bg-tertiary)] pl-3">
+				<!--
+					Auth controls (desktop) — collapsed into a single dropdown
+					using <details>/<summary>. The summary shows just the
+					email's local part (before the @) to save horizontal space;
+					clicking reveals a compact menu with Sign Out. Native
+					disclosure gives us keyboard access for free.
+				-->
+				<div class="ml-2 border-l border-[var(--color-bg-tertiary)] pl-3">
 					{#if session && user}
-						<span class="flex items-center gap-2">
-							<span
-								class="max-w-[120px] truncate text-xs text-[var(--color-text-secondary)]"
-								>{user.email}</span
+						<details class="group relative">
+							<summary
+								class="cursor-pointer list-none max-w-[120px] truncate text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
+								title={user.email ?? ''}
 							>
-							<form method="POST" action="/auth/logout">
-								<button
-									type="submit"
-									class="text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
-								>
-									Sign Out
-								</button>
-							</form>
-						</span>
+								{emailPrefix} <span class="opacity-60 group-open:opacity-100">▾</span>
+							</summary>
+							<div
+								class="absolute right-0 top-full z-20 mt-1 min-w-[120px] rounded-md border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-1 shadow-md"
+							>
+								<form method="POST" action="/auth/logout">
+									<button
+										type="submit"
+										class="block w-full rounded px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
+									>
+										Sign Out
+									</button>
+								</form>
+							</div>
+						</details>
 					{:else}
 						<a
 							href="/auth"
@@ -196,7 +205,7 @@
 							Sign In
 						</a>
 					{/if}
-				</span>
+				</div>
 			</div>
 
 			<!-- Mobile hamburger -->
@@ -242,8 +251,11 @@
 				<!-- Mobile auth controls -->
 				<div class="mt-2 border-t border-[var(--color-bg-tertiary)] pt-2">
 					{#if session && user}
-						<div class="truncate px-3 py-2 text-xs text-[var(--color-text-secondary)]">
-							{user.email}
+						<div
+							class="truncate px-3 py-2 text-xs text-[var(--color-text-secondary)]"
+							title={user.email ?? ''}
+						>
+							{emailPrefix}
 						</div>
 						<form method="POST" action="/auth/logout">
 							<button

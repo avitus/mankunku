@@ -1,6 +1,6 @@
-import type { Fraction, HarmonicSegment, PhraseCategory, PitchClass } from '$lib/types/music.ts';
-import type { ChordProgressionType } from '$lib/types/lick-practice.ts';
-import { PITCH_CLASSES } from '$lib/types/music.ts';
+import type { ChordQuality, Fraction, HarmonicSegment, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { ChordProgressionType, ChordSubstitutionRule } from '$lib/types/lick-practice';
+import { PITCH_CLASSES } from '$lib/types/music';
 
 export interface ProgressionTemplate {
 	type: ChordProgressionType;
@@ -9,6 +9,24 @@ export interface ProgressionTemplate {
 	harmony: HarmonicSegment[];
 	bars: number;
 }
+
+const MINOR_VAMP: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: 'min7' },
+		scaleId: 'major.dorian',
+		startOffset: [0, 1],
+		duration: [2, 1]
+	}
+];
+
+const MAJOR_VAMP: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: 'maj7' },
+		scaleId: 'major.ionian',
+		startOffset: [0, 1],
+		duration: [2, 1]
+	}
+];
 
 const II_V_I_MAJOR_SHORT: HarmonicSegment[] = [
 	{
@@ -132,6 +150,20 @@ const BLUES: HarmonicSegment[] = [
 ];
 
 export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemplate> = {
+	'minor-vamp': {
+		type: 'minor-vamp',
+		name: 'Minor',
+		shortName: 'Minor',
+		harmony: MINOR_VAMP,
+		bars: 2
+	},
+	'major-vamp': {
+		type: 'major-vamp',
+		name: 'Major',
+		shortName: 'Major',
+		harmony: MAJOR_VAMP,
+		bars: 2
+	},
 	'ii-V-I-major': {
 		type: 'ii-V-I-major',
 		name: 'Short ii-V-I (Maj)',
@@ -224,6 +256,12 @@ export interface CompatibleLickCategory {
  * there) and only list chord-quality roles whose chord spans a full bar.
  */
 export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, CompatibleLickCategory[]> = {
+	'minor-vamp': [
+		{ category: 'minor-chord', offset: [0, 1] }
+	],
+	'major-vamp': [
+		{ category: 'major-chord', offset: [0, 1] }
+	],
 	'ii-V-I-major': [
 		{ category: 'ii-V-I-major',       offset: [0, 1] },
 		{ category: 'short-ii-V-I-major', offset: [0, 1] },
@@ -283,6 +321,197 @@ export function getCompatibleLickCategories(
 	progressionType: ChordProgressionType
 ): PhraseCategory[] {
 	return PROGRESSION_LICK_CATEGORIES[progressionType].map(e => e.category);
+}
+
+// Play a minor lick rooted a semitone above the dominant chord root to create
+// altered/diminished sonority (e.g. Abm7 over G7 → b9, 3, b13, b5/#11 colors).
+export const CHORD_SUBSTITUTION_RULES: ChordSubstitutionRule[] = [
+	{
+		id: 'minor-over-dominant',
+		name: 'Minor over Dominant',
+		sourceCategory: 'minor-chord',
+		targetQuality: '7',
+		semitoneOffset: 1
+	}
+];
+
+/**
+ * Returns the lick categories eligible for practice via a substitution rule
+ * when substitutions are enabled, given a progression.
+ *
+ * A source category is included only if the progression contains at least one
+ * chord whose quality matches a rule's `targetQuality`. For example,
+ * `'minor-chord'` is eligible on any progression containing a `'7'` chord.
+ */
+export function getSubstitutionCategories(
+	progressionType: ChordProgressionType,
+	enableSubstitutions: boolean
+): PhraseCategory[] {
+	if (!enableSubstitutions) return [];
+
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	const qualitiesInProgression = new Set<ChordQuality>(
+		template.harmony.map(seg => seg.chord.quality)
+	);
+
+	const categories = new Set<PhraseCategory>();
+	for (const rule of CHORD_SUBSTITUTION_RULES) {
+		if (qualitiesInProgression.has(rule.targetQuality)) {
+			categories.add(rule.sourceCategory);
+		}
+	}
+	return [...categories];
+}
+
+/**
+ * Find a substitution rule where a lick of `lickCategory` can be played over
+ * a chord of `chordQuality`. Returns `null` when no rule applies.
+ */
+export function findApplicableSubstitution(
+	lickCategory: PhraseCategory,
+	chordQuality: ChordQuality
+): ChordSubstitutionRule | null {
+	return CHORD_SUBSTITUTION_RULES.find(
+		rule => rule.sourceCategory === lickCategory && rule.targetQuality === chordQuality
+	) ?? null;
+}
+
+/** Pitch class `semitoneOffset` semitones above `chordRoot`. Wraps modulo 12. */
+export function applySubstitutionOffset(
+	chordRoot: PitchClass,
+	semitoneOffset: number
+): PitchClass {
+	const rootIdx = PITCH_CLASSES.indexOf(chordRoot);
+	const shifted = ((rootIdx + semitoneOffset) % 12 + 12) % 12;
+	return PITCH_CLASSES[shifted];
+}
+
+/**
+ * Find the bar offset of the first chord slot in the progression whose quality
+ * matches a substitution rule keyed on `lickCategory`. Returns `null` when no
+ * applicable rule exists or the progression contains no matching chord.
+ */
+export function getSubstitutionAlignmentOffset(
+	progressionType: ChordProgressionType,
+	lickCategory: PhraseCategory
+): Fraction | null {
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	for (const rule of CHORD_SUBSTITUTION_RULES) {
+		if (rule.sourceCategory !== lickCategory) continue;
+		const match = template.harmony.find(seg => seg.chord.quality === rule.targetQuality);
+		if (match) return match.startOffset;
+	}
+	return null;
+}
+
+/**
+ * Resolve the alignment offset for a lick within a progression, falling back
+ * to a substitution-based offset when the lick has no native home in the
+ * progression and substitutions are enabled.
+ *
+ * Native entries always win: a `minor-chord` lick on a long ii-V-I where
+ * `minor-chord` is mapped to the ii still plays on the ii, not the V (via
+ * minor-over-dominant substitution).
+ */
+export function resolveLickAlignmentOffset(
+	progressionType: ChordProgressionType,
+	lickCategory: PhraseCategory,
+	enableSubstitutions: boolean
+): Fraction {
+	const nativeEntry = PROGRESSION_LICK_CATEGORIES[progressionType]?.find(
+		e => e.category === lickCategory
+	);
+	if (nativeEntry) return nativeEntry.offset;
+	if (enableSubstitutions) {
+		const subOffset = getSubstitutionAlignmentOffset(progressionType, lickCategory);
+		if (subOffset) return subOffset;
+	}
+	return [0, 1];
+}
+
+/**
+ * Returns the substitution rule actively shaping a lick's playback, or `null`
+ * if the lick is playing natively (i.e. the lick's category has a direct
+ * entry in `PROGRESSION_LICK_CATEGORIES` for this progression, or
+ * substitutions are disabled).
+ *
+ * The UI uses this to show a "substitution active" badge.
+ */
+export function getActiveSubstitution(
+	progressionType: ChordProgressionType,
+	lickCategory: PhraseCategory,
+	enableSubstitutions: boolean
+): ChordSubstitutionRule | null {
+	if (!enableSubstitutions) return null;
+
+	const nativeEntry = PROGRESSION_LICK_CATEGORIES[progressionType]?.find(
+		e => e.category === lickCategory
+	);
+	if (nativeEntry) return null;
+
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	for (const rule of CHORD_SUBSTITUTION_RULES) {
+		if (rule.sourceCategory !== lickCategory) continue;
+		if (template.harmony.some(seg => seg.chord.quality === rule.targetQuality)) {
+			return rule;
+		}
+	}
+	return null;
+}
+
+/** True when the progression contains at least one chord eligible for substitution. */
+export function progressionHasSubstitutionTargets(
+	progressionType: ChordProgressionType
+): boolean {
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	const targetQualities = new Set<ChordQuality>(
+		CHORD_SUBSTITUTION_RULES.map(r => r.targetQuality)
+	);
+	return template.harmony.some(seg => targetQualities.has(seg.chord.quality));
+}
+
+/** Chord quality at a given bar offset in a progression, or `null` if no segment starts there. */
+export function getChordQualityAtOffset(
+	progressionType: ChordProgressionType,
+	offset: Fraction
+): ChordQuality | null {
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	const match = template.harmony.find(seg => fractionsEqual(seg.startOffset, offset));
+	return match ? match.chord.quality : null;
+}
+
+/**
+ * Resolve the pitch class a lick's notes should be transposed to for the
+ * current session key. Handles three cases:
+ *
+ * 1. Non chord-quality category → transpose to the session key directly.
+ * 2. Chord-quality category → transpose to the target chord's root at
+ *    `alignmentOffset` (e.g. a `minor-chord` lick on the ii chord of a
+ *    ii-V-I in F transposes to G, not F).
+ * 3. Chord-quality category with an active substitution → shift the target
+ *    root by the rule's `semitoneOffset` (e.g. Cm7 lick over G7 transposes
+ *    to Ab, producing Abm7 over G7).
+ */
+export function resolveTransposeTarget(
+	sessionKey: PitchClass,
+	category: PhraseCategory,
+	progressionType: ChordProgressionType,
+	alignmentOffset: Fraction,
+	enableSubstitutions: boolean
+): PitchClass {
+	if (!isChordQualityCategory(category)) return sessionKey;
+
+	const targetRoot = getChordRootAtOffset(progressionType, sessionKey, alignmentOffset);
+	if (!targetRoot) return sessionKey;
+
+	if (enableSubstitutions) {
+		const targetQuality = getChordQualityAtOffset(progressionType, alignmentOffset);
+		if (targetQuality) {
+			const rule = findApplicableSubstitution(category, targetQuality);
+			if (rule) return applySubstitutionOffset(targetRoot, rule.semitoneOffset);
+		}
+	}
+	return targetRoot;
 }
 
 /** Categories where the lick covers a single chord (1 bar), not a progression. */

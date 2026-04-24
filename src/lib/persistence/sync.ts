@@ -59,7 +59,7 @@ interface SyncableSettings {
 // ── Constants ────────────────────────────────────────────────────────
 
 /** Maximum session results to sync — matches MAX_SESSIONS in progress.svelte.ts. */
-const MAX_SESSIONS = 200;
+const MAX_SESSIONS = 100;
 
 /** Pattern for allowed session ID characters (alphanumeric, hyphen, underscore). */
 const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
@@ -99,7 +99,7 @@ async function getAuthUserId(supabase: SupabaseDB): Promise<string | null> {
  *
  * Writes to four tables in order:
  *  1. `user_progress`   — aggregate progress row
- *  2. `session_results`  — individual session history (capped at 200)
+ *  2. `session_results`  — individual session history (capped at MAX_SESSIONS)
  *  3. `scale_proficiency` — per-scale proficiency records
  *  4. `key_proficiency`   — per-key proficiency records
  *
@@ -495,8 +495,9 @@ export async function syncUserLicksToCloud(
 	try {
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return;
+		if (licks.length === 0) return;
 
-		const rows = licks.map((lick) => ({
+		const toRow = (lick: Phrase) => ({
 			id: lick.id,
 			user_id: userId,
 			name: lick.name,
@@ -510,15 +511,52 @@ export async function syncUserLicksToCloud(
 			source: lick.source as string,
 			audio_url: null as string | null,
 			updated_at: new Date().toISOString()
-		}));
+		});
 
-		if (rows.length > 0) {
+		// Discover which local IDs already exist in the cloud and belong to us.
+		// The SELECT policy on user_licks is open to any authenticated user
+		// (migration 00013, for community browse), so we must filter by user_id
+		// ourselves — otherwise a collision with another user's lick id would be
+		// misclassified as owned, and the ON CONFLICT DO UPDATE path would fail
+		// the RLS USING policy with error 42501.
+		const ids = licks.map((l) => l.id);
+		const { data: existing, error: selectError } = await supabase
+			.from('user_licks')
+			.select('id')
+			.eq('user_id', userId)
+			.in('id', ids);
+		if (selectError) {
+			console.warn('Failed to check existing licks for sync:', selectError);
+			return;
+		}
+		const ownedIds = new Set((existing ?? []).map((r) => r.id));
+
+		const ownedRows: ReturnType<typeof toRow>[] = [];
+		const unknownRows: ReturnType<typeof toRow>[] = [];
+		for (const lick of licks) {
+			(ownedIds.has(lick.id) ? ownedRows : unknownRows).push(toRow(lick));
+		}
+
+		// Owned rows: normal upsert — UPDATE is safe because we own them, and
+		// this is how offline edits get flushed to the cloud at startup.
+		if (ownedRows.length > 0) {
 			const { error } = await supabase
 				.from('user_licks')
-				.upsert(rows, { onConflict: 'id' });
-
+				.upsert(ownedRows, { onConflict: 'id' });
 			if (error) {
-				console.warn('Failed to sync user licks to cloud:', error);
+				console.warn('Failed to sync owned user licks to cloud:', error);
+			}
+		}
+
+		// Unknown rows: either truly new (INSERT) or IDs already taken by
+		// another user. Use ignoreDuplicates so conflicts become DO NOTHING —
+		// this avoids engaging the RLS USING policy on rows we don't own.
+		if (unknownRows.length > 0) {
+			const { error } = await supabase
+				.from('user_licks')
+				.upsert(unknownRows, { onConflict: 'id', ignoreDuplicates: true });
+			if (error) {
+				console.warn('Failed to insert new user licks to cloud:', error);
 			}
 		}
 	} catch (error) {

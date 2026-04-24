@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { rhythmicDisplacement, octaveDisplacement, truncate, retrograde } from '$lib/phrases/mutator.ts';
-import type { Phrase, Note, Fraction, HarmonicSegment } from '$lib/types/music.ts';
-import { addFractions } from '$lib/music/intervals.ts';
+import { rhythmicDisplacement, octaveDisplacement, truncate, retrograde } from '$lib/phrases/mutator';
+import type { Phrase, Note, Fraction, HarmonicSegment } from '$lib/types/music';
+import { addFractions } from '$lib/music/intervals';
 
 function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [1, 8]): Note {
 	return { pitch, offset, duration };

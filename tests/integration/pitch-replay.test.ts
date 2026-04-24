@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { replayFromAudioBuffer } from '$lib/audio/replay.ts';
-import { segmentNotes, validateOnsets } from '$lib/audio/note-segmenter.ts';
-import { resolveOnsets } from '$lib/scoring/score-pipeline.ts';
-import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures.ts';
+import { replayFromAudioBuffer } from '$lib/audio/replay';
+import { segmentNotes, validateOnsets, resolveOnsets } from '$lib/audio/note-segmenter';
+import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
  * Regression tests for the user-reported non-determinism bug.
@@ -97,5 +96,65 @@ describe('pitch replay regression: noisy preamble does not produce a leading gho
 
 		expect(detected.map((n) => n.midi)).toEqual([57, 60]);
 		expect(detected[0].onsetTime).toBeGreaterThan(1.0); // real A3 starts ~1.37s
+	});
+});
+
+/**
+ * Third regression recording: "Upper Neighbor on Root" (C4 → D4 → C4) played
+ * legato with the C4 attack starting at t=0. The HFC-ratio worklet needs a
+ * silence-to-signal transition to fire, so it produces only ONE onset (1.355 s)
+ * for the whole take — at the *third* C, where there's a brief decay before
+ * the re-articulation.
+ *
+ * Before the fix, resolveOnsets prepended a single anchor at 0.867 s
+ * (PREPEND_BACKWARD_WINDOW = 0.5 s before the first worklet onset). The
+ * segmenter then discarded readings 0–47 (the entire first C and most of
+ * the D), and reported the remaining D-tail as the "first" detected note.
+ *
+ * After the fix, we walk the pre-onset readings and prepend an onset at the
+ * start of every stable pitch run, recovering the missed C and D attacks.
+ */
+describe('pitch replay regression: legato C-D-C recovers pre-worklet-onset notes', () => {
+	function loadFixture() {
+		const wav = loadWavFixture('recordings/2026-04-19-upper-neighbor-on-root.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	it('detects the C-D-C pitch sequence the user actually played', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(readings, resolved, duration);
+
+		// Collapse adjacent-same pitch classes so any surviving McLeod
+		// subharmonic glitch (Bug 2 — same pitch class, different octave)
+		// inside the sustained final C doesn't break this assertion.
+		const pcs = detected.map((n) => ((n.midi % 12) + 12) % 12);
+		const distinctPcs = pcs.filter((pc, i, a) => i === 0 || pc !== a[i - 1]);
+		expect(distinctPcs).toEqual([0, 2, 0]); // C, D, C
+	});
+
+	it('places the first detected note within the first ~150 ms', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(readings, resolved, duration);
+
+		// The user's first C attack lands at ~t=0; allow a little slack for
+		// the warmup window and the first stable-run anchor.
+		expect(detected[0].onsetTime).toBeLessThan(0.15);
+		expect(detected[0].midi).toBe(60);
+	});
+
+	it('detects exactly the three notes the user played, no ghosts', async () => {
+		// Strict assertion for Bug 2: a McLeod subharmonic during the bend
+		// at the end of the sustained final C used to leak through as a C3
+		// ghost AND split the real C4 into two segments.
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(readings, resolved, duration);
+
+		expect(detected.map((n) => n.midi)).toEqual([60, 62, 60]);
 	});
 });

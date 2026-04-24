@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { difficultyBand, difficultyColor, difficultyDisplay } from '$lib/difficulty/display.ts';
+import { difficultyBand, difficultyColor, difficultyDisplay } from '$lib/difficulty/display';
 
 describe('difficultyBand', () => {
 	it('maps 1 → 1 (lower bound of band 1)', () => {

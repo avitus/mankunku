@@ -1,7 +1,7 @@
 /**
  * Library state — filters, selected lick, and query results.
  */
-import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music.ts';
+import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
 
 export const library = $state<{
 	categoryFilter: PhraseCategory | null;

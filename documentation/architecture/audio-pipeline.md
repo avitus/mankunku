@@ -9,13 +9,15 @@ graph LR
     subgraph Playback
         Transport["Tone.js Transport"]
         SF["smplr SoundFont"]
-        Metro["Metronome (NoiseSynth)"]
+        Metro["Metronome"]
+        Backing["Backing Track"]
     end
 
     subgraph Capture
         Mic["getUserMedia"]
         Source["MediaStreamSource"]
         Analyser["AnalyserNode (fftSize=4096)"]
+        Recorder["MediaRecorder"]
     end
 
     subgraph Detection
@@ -25,21 +27,28 @@ graph LR
 
     subgraph Segmentation
         Seg["NoteSegmenter"]
+        Quant["Quantizer"]
+        Bleed["BleedFilter"]
     end
 
     Transport --> SF
     Transport --> Metro
+    Transport --> Backing
     SF --> Speakers["Speakers"]
     Metro --> Speakers
+    Backing --> Speakers
 
     Mic --> Source
     Source --> Analyser
+    Source --> Recorder
     Analyser --> Pitch
     Source --> Onset
 
     Pitch --> Seg
     Onset --> Seg
-    Seg --> DetectedNotes["DetectedNote[]"]
+    Seg --> Quant
+    Quant --> Bleed
+    Bleed --> DetectedNotes["DetectedNote[] kept + filtered"]
 ```
 
 ## 1. Audio Context (`src/lib/audio/audio-context.ts`)
@@ -162,16 +171,51 @@ The practice page (`src/routes/practice/+page.svelte`) orchestrates the full rec
 
 The practice page prefers the AudioWorklet onset detector when available. It creates the worklet on first mic capture (`ensureMicCapture()`) and calls `reset(recordingStartTime)` before each recording pass to synchronize timestamps with the pitch detector. If the AudioWorklet is unavailable (e.g., unsupported browser), it falls back to `extractOnsetsFromReadings()` which derives onsets from pitch data gaps and MIDI changes.
 
-### Known Issue: Backing Track False Onset
+## 8. Backing Track (`src/lib/audio/backing-track.ts` + `backing-track-schedule.ts` + `backing-styles.ts`)
 
-When the backing track is enabled, its audio (piano/organ comping, walking bass) plays through speakers and is picked up by the microphone. Since `echoCancellation` is disabled (to preserve saxophone pitch accuracy), the pitch detector can register backing track notes as valid readings (clarity >= 0.80, frequency within 80–1200 Hz range).
+Generates and schedules a three-part jazz rhythm section (upright bass, piano or organ comping, drum kit) synchronized to phrase harmony on the Tone.js Transport.
 
-This falsely triggers `beginRecording()` during the `awaitingInput` phase, starting the recording timer before the user plays. Consequences:
+- **Bass**: Smolken pizzicato double-bass sample library; walking lines built per `HarmonicSegment` using chord tones and passing tones.
+- **Comping**: `smplr.SplendidGrandPiano` (Salamander Grand) or drawbar organ (GM SoundFont, MusyngKite). Voicings are built via `voicings.ts` — shell voicings + voice-leading to minimize hand motion between chords.
+- **Drums**: Sampled kick, ride, hi-hat (Virtuosity Drums, CC0) loaded through `sample-maps.ts`. Patterns are defined in `backing-styles.ts` and include swing, straight, bossa, and ballad feels.
+- **Schedule**: `buildSchedule()` returns a `BackingTrackSchedule` — a time-indexed structure with `notes[]` (bass/comp note events with `startSeconds`, `endSeconds`, `midi[]`) and an `activeMidiAt(time)` lookup. The schedule is consumed by the bleed filter.
+- **Diagnostics**: A `BackingTrackLog` (per-beat dump of bass/comp/drum/melody activity) is produced for the `/diagnostics` panel.
 
-- A phantom note (e.g. Db4 from a comp voicing) appears as the first detected note
-- The recording timeout (`phraseDuration + 2 beats`) starts early, potentially cutting off the user's last note
-- The silence timeout (2s) can terminate recording before the user starts playing
+Because `echoCancellation` is disabled on the mic (to preserve instrument pitch accuracy), the backing track is audible in the user's recording. Two mitigations:
 
-The 150ms decay pause in `enterAwaitingInput()` was designed for the melody instrument's sustain tail, but does not help against the continuously-looping backing track.
+1. The backing track gain is ducked during the `awaitingInput` phase so bleed cannot falsely trigger `beginRecording()`.
+2. The bleed filter runs between segmentation and scoring (see below).
 
-**Proposed fix**: Mute the backing track gain node during the `awaitingInput` phase (after the melody finishes, before the user starts playing), then restore volume in `beginRecording()`. The backing track Parts continue playing silently in sync with the transport, so no rescheduling is needed. The metronome remains audible as a timing reference.
+## 9. Bleed Filter (`src/lib/audio/bleed-filter.ts`)
+
+Reference-aware filter that rejects detected notes which probably came from the backing track bleeding into the mic rather than from the user's instrument. It uses `clarity` (autocorrelation confidence) as a proxy for signal strength — direct instrument input typically produces clarity ≥ 0.92; speaker bleed at typical distances lands in 0.80–0.88.
+
+Per detected note, given the `BackingTrackSchedule`:
+
+1. If no backing-track pitch is active at the note's transport time (octave-folded pitch-class match) → **keep**.
+2. If `clarity >= 0.92` → **keep** (even if the pitch matches — the user is playing the same note).
+3. If `clarity < 0.88` → **filter** (weak signal on a matching pitch = bleed).
+4. Borderline clarity (0.88–0.92) on a matching pitch → check onset coincidence: if a backing note begins within 50 ms of the detected onset → **filter**; otherwise → **keep**.
+
+The filter returns `{ kept, filtered }`. `score-pipeline.ts` passes both lists to `scoreAttempt()` so the unfiltered and filtered scores can be compared in diagnostics.
+
+## 10. Quantizer (`src/lib/audio/quantizer.ts`)
+
+Snaps detected onsets to the Transport's subdivision grid (quarter, eighth, triplet, sixteenth). Used by the lick-practice continuous flow so the notation overlay stays on a clean rhythmic grid even when the user's timing drifts.
+
+## 11. Recording & Replay (`src/lib/audio/recorder.ts` + `replay.ts` + `persistence/audio-store.ts`)
+
+`recorder.ts` wraps `MediaRecorder` to persist raw microphone audio per attempt. `persistence/audio-store.ts` stores blobs in IndexedDB (bounded, FIFO). `replay.ts` reads a stored blob and feeds it through the full detection + scoring pipeline again, which drives the `/diagnostics` rescore panel.
+
+## Recording Flow in Practice
+
+The practice page (`src/routes/practice/+page.svelte`) orchestrates the full recording flow:
+
+1. **Play**: Load instrument if needed, play phrase via `playPhrase()` with `keepMetronome=true`.
+2. **Await input**: After phrase ends, pitch detection runs and backing-track gain is ducked. The first detected pitch triggers recording.
+3. **Record**: Pitch detector collects readings. Silence timeout (2s) or max duration triggers finish.
+4. **Segment**: `extractOnsetsFromReadings()` detects onsets from pitch data (gap > 100ms or MIDI change). Gap-based onsets are **back-dated by 50ms** to compensate for pitch detector re-lock delay after silence (see Scoring Algorithm docs). `segmentNotes()` produces `DetectedNote[]`.
+5. **Bleed filter**: `filterBleed()` splits the notes into `kept` / `filtered`.
+6. **Score**: `runScorePipeline()` runs `scoreAttempt()` on both the unfiltered and filtered sets.
+
+The record and lick-practice flows use the AudioWorklet onset detector directly (it fires onset events on the audio thread), skipping the gap-inference path.

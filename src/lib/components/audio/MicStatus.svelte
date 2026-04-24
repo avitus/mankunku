@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MicPermissionState } from '$lib/types/audio.ts';
+	import type { MicPermissionState } from '$lib/types/audio';
 
 	interface Props {
 		permission: MicPermissionState;

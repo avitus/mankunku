@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { DailySummary } from '$lib/types/progress.ts';
-	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte.ts';
+	import type { DailySummary } from '$lib/types/progress';
+	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte';
 
 	const CELL_SIZE = 11;
 	const GAP = 2;
@@ -10,16 +10,18 @@
 	const LABEL_WIDTH = 20;
 	const HEADER_HEIGHT = 14;
 
-	const DAY_LABELS = ['', 'M', '', 'W', '', 'F', ''];
+	// Rows top→bottom: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+	const DAY_LABELS = ['M', '', 'W', '', 'F', '', ''];
 	const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 	// Build calendar grid: 53 weeks x 7 days, ending today
 	const today = new Date();
 	const todayStr = localDateStr(today);
 
-	// Find the start: go back ~1 year to the nearest Sunday
+	// Find the start: this week's Monday, then back (WEEKS-1) more weeks.
+	// getDay() returns Sun=0..Sat=6; offset to Monday is (getDay()+6)%7.
 	const startDate = new Date(today);
-	startDate.setDate(startDate.getDate() - (WEEKS * 7 - 1) - startDate.getDay());
+	startDate.setDate(startDate.getDate() - ((startDate.getDay() + 6) % 7) - (WEEKS - 1) * 7);
 
 	// Get all summaries in range
 	const startStr = localDateStr(startDate);

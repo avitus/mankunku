@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { transposeLick, transposeLickForTonality, snapLickToScale } from '$lib/phrases/library-loader.ts';
-import type { Phrase } from '$lib/types/music.ts';
+import { transposeLick, transposeLickForTonality, snapLickToScale } from '$lib/phrases/library-loader';
+import type { Phrase } from '$lib/types/music';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
 function makePhrase(pitches: (number | null)[], category: string = 'pentatonic'): Phrase {

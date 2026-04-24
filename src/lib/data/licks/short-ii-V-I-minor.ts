@@ -5,7 +5,7 @@
  * Compact minor ii-V patterns without resolution, ideal for drilling
  * the minor approach. Transposed at runtime.
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 const SHORT_II_V_MINOR: HarmonicSegment[] = [
 	{

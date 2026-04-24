@@ -10,6 +10,7 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import PrivacyDisclosure from '$lib/components/community/PrivacyDisclosure.svelte';
 
 	const instrument = $derived(getInstrument());
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -428,6 +429,8 @@
 						   border border-transparent focus:border-[var(--color-accent)] focus:outline-none"
 				/>
 			</div>
+
+			<PrivacyDisclosure />
 
 			<!-- Action buttons -->
 			<div class="flex justify-center gap-3">

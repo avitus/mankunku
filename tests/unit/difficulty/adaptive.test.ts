@@ -8,8 +8,8 @@ import {
 	processScaleAttempt,
 	processKeyAttempt,
 	WINDOW_SIZE
-} from '$lib/difficulty/adaptive.ts';
-import type { AdaptiveState } from '$lib/types/progress.ts';
+} from '$lib/difficulty/adaptive';
+import type { AdaptiveState } from '$lib/types/progress';
 
 /** Feed N attempts with the same score for all dimensions. */
 function feedAttempts(count: number, score: number): AdaptiveState {

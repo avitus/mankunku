@@ -20,6 +20,8 @@ import type {
 } from '$lib/types/music';
 import { save, load } from './storage';
 import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
+import { getScopeGeneration } from './user-scope';
+import { getAdoptedLicksLocal } from './community';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -243,17 +245,23 @@ export async function initUserLicksFromCloud(
 	supabase: SupabaseClient<Database>
 ): Promise<void> {
 	_supabase = supabase;
+	const gen = getScopeGeneration();
 	try {
 		// Verify auth before touching localStorage — an expired session would
 		// return zero rows from the RLS-filtered select, wiping local licks.
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) return;
+		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		const localLicks = getUserLicksLocal();
 
-		// Push local licks to cloud (bulk upsert, idempotent)
-		if (localLicks.length > 0) {
+		// Push local licks to cloud (bulk upsert, idempotent). Skipped if a
+		// user switch happened after this function started — the wipe would
+		// have already emptied local state, but guard defensively so we never
+		// stamp stale licks with the new user's ID via upsert.
+		if (localLicks.length > 0 && gen === getScopeGeneration()) {
 			await syncUserLicksToCloud(supabase, localLicks);
+			if (gen !== getScopeGeneration()) return;
 		}
 
 		// Pull cloud licks — now the complete set
@@ -262,6 +270,7 @@ export async function initUserLicksFromCloud(
 			console.warn('Failed to fetch cloud licks during startup sync:', error);
 			return;
 		}
+		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({
 			id: row.id,
@@ -355,6 +364,10 @@ export function saveUserLick(
  * For curated licks, stores tag overrides in a separate localStorage key.
  * For user licks, updates the lick's tags array in-place.
  * Fire-and-forget cloud sync when a Supabase client is provided.
+ *
+ * Adopted community licks are read-only for the adopter — if the id matches
+ * an adopted lick, this no-ops with a warning. The library UI must not
+ * surface tag-editing for adopted licks; this is a defensive guard.
  */
 export function updateUserLickTags(
 	id: string,
@@ -386,6 +399,14 @@ export function updateUserLickTags(
 		return;
 	}
 
+	// Adopted community licks are read-only — refuse to create curated-style
+	// overrides against them. This guards against the library UI mistakenly
+	// routing an adopted-lick edit through this function.
+	if (getAdoptedLicksLocal().some((l) => l.id === id)) {
+		console.warn(`Refusing to edit tags on adopted lick ${id}; adopted licks are read-only.`);
+		return;
+	}
+
 	// For curated licks, store tag overrides separately
 	const overrides = load<Record<string, string[]>>(TAGS_OVERRIDE_KEY) ?? {};
 	overrides[id] = tags;
@@ -408,6 +429,8 @@ export function getLickTagOverrides(): Record<string, string[]> {
  * For user licks, updates the category in-place in localStorage.
  * For curated licks, stores category overrides in a separate key.
  * Fire-and-forget cloud sync when a Supabase client is provided.
+ *
+ * Adopted community licks are read-only — same guard as updateUserLickTags.
  */
 export function updateLickCategory(
 	id: string,
@@ -438,6 +461,11 @@ export function updateLickCategory(
 		return;
 	}
 
+	if (getAdoptedLicksLocal().some((l) => l.id === id)) {
+		console.warn(`Refusing to edit category on adopted lick ${id}; adopted licks are read-only.`);
+		return;
+	}
+
 	// For curated licks, store category overrides separately
 	const overrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDE_KEY) ?? {};
 	overrides[id] = category;
@@ -461,6 +489,11 @@ export function getLickCategoryOverrides(): Record<string, PhraseCategory> {
  * delete to Supabase when a client is provided. The cloud operation is
  * fire-and-forget — errors are logged but never thrown.
  *
+ * Adopted community licks must not be deleted through this path — the UI
+ * should call `unadoptLick` from `community.ts` instead. RLS will reject the
+ * cloud delete anyway, but the guard avoids wiping the local cache for a
+ * lick the user doesn't own.
+ *
  * @param id - The ID of the lick to delete
  * @param supabase - Optional authenticated Supabase client for cloud sync
  */
@@ -468,9 +501,15 @@ export function deleteUserLick(
 	id: string,
 	supabase?: SupabaseClient<Database>
 ): void {
-	// Read and filter directly from localStorage (not the async getUserLicks)
-	const licks = (load<Phrase[]>(STORAGE_KEY) ?? []).filter((l) => l.id !== id);
-	save(STORAGE_KEY, licks);
+	// Adopted licks live in a separate cache and must be removed via unadoptLick.
+	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
+	const owned = licks.some((l) => l.id === id);
+	if (!owned && getAdoptedLicksLocal().some((l) => l.id === id)) {
+		console.warn(`Refusing to delete adopted lick ${id} via deleteUserLick; call unadoptLick instead.`);
+		return;
+	}
+
+	save(STORAGE_KEY, licks.filter((l) => l.id !== id));
 
 	// Fire-and-forget cloud delete — RLS ensures user can only delete own licks
 	const sb = supabase ?? _supabase;

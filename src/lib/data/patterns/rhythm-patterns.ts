@@ -8,7 +8,7 @@
  *
  * Each pattern fills one bar of 4/4.
  */
-import type { RhythmPattern } from '$lib/types/combinatorial.ts';
+import type { RhythmPattern } from '$lib/types/combinatorial';
 
 export const RHYTHM_PATTERNS: RhythmPattern[] = [
 	// ── 3-note patterns ─────────────────────────────────────────────

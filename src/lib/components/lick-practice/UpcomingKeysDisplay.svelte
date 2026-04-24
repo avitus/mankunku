@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
-	import type { InstrumentConfig } from '$lib/types/instruments.ts';
-	import type { PlannedKey } from '$lib/state/lick-practice.svelte.ts';
+	import type { InstrumentConfig } from '$lib/types/instruments';
+	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 
 	interface Props {
 		/** All keys for the current lick, in playback order. */

@@ -7,9 +7,9 @@
  * NOT appear in pentatonic sessions.
  */
 
-import type { Phrase, PhraseCategory } from '$lib/types/music.ts';
-import type { ScaleType } from './tonality.ts';
-import { SCALE_UNLOCK_ORDER } from './tonality.ts';
+import type { Phrase, PhraseCategory } from '$lib/types/music';
+import type { ScaleType } from './tonality';
+import { SCALE_UNLOCK_ORDER } from './tonality';
 
 // ── Scale-level compatibility ────────────────────────────────────────
 // Maps a lick's native scaleId to the ScaleTypes it works with.

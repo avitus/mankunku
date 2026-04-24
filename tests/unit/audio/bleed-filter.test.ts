@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { filterBleed } from '$lib/audio/bleed-filter.ts';
-import { buildSchedule } from '$lib/audio/backing-track-schedule.ts';
-import type { DetectedNote } from '$lib/types/audio.ts';
+import { filterBleed } from '$lib/audio/bleed-filter';
+import { buildSchedule } from '$lib/audio/backing-track-schedule';
+import type { DetectedNote } from '$lib/types/audio';
 
 function note(midi: number, onsetTime: number, clarity: number, duration = 0.4): DetectedNote {
 	return { midi, cents: 0, onsetTime, duration, clarity };

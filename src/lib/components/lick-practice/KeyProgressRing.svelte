@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { PitchClass } from '$lib/types/music.ts';
-	import type { LickPracticeKeyResult } from '$lib/types/lick-practice.ts';
-	import { concertKeyToWritten } from '$lib/music/transposition.ts';
+	import type { PitchClass } from '$lib/types/music';
+	import type { LickPracticeKeyResult } from '$lib/types/lick-practice';
+	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
 
 	interface Props {

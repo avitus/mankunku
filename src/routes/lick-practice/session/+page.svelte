@@ -22,14 +22,18 @@
 		resetSession,
 		getSessionReport
 	} from '$lib/state/lick-practice.svelte';
+	import { getActiveSubstitution } from '$lib/data/progressions';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
+	import { resolveOnsets, segmentNotes } from '$lib/audio/note-segmenter';
+	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
+	import { appendLickPracticeSession } from '$lib/persistence/lick-practice-sessions';
 	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { SessionReport } from '$lib/types/lick-practice';
@@ -131,6 +135,18 @@
 	const currentPhrase = $derived(getCurrentPhrase());
 	const instrument = $derived(getInstrument());
 	const totalSeconds = $derived(lickPractice.config.durationMinutes * 60);
+
+	// Label shown in the header when the current lick is playing via a
+	// harmonic substitution (e.g. minor lick shifted over a dominant chord).
+	const substitutionLabel = $derived.by(() => {
+		if (!currentItem) return null;
+		const rule = getActiveSubstitution(
+			lickPractice.config.progressionType,
+			currentItem.category,
+			lickPractice.config.enableSubstitutions ?? false
+		);
+		return rule?.name ?? null;
+	});
 
 	const pct = (n: number) => Math.round(n * 100);
 
@@ -629,16 +645,20 @@
 		const phraseDuration =
 			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
 
+		const onsets = resolveOnsets(workletOnsets, rebased);
+		const detected = segmentNotes(rebased, onsets, phraseDuration);
+		const bleedResult = window.schedule
+			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
+			: null;
+
 		const result = runScorePipeline({
-			readings: rebased,
-			workletOnsets,
+			detected,
 			phrase: window.phrase,
-			phraseDuration,
 			tempo: lickPractice.currentTempo,
 			transportSeconds: window.recordingTransportSeconds,
 			swing: settings.swing,
-			schedule: window.schedule,
 			bleedFilterEnabled: settings.bleedFilterEnabled,
+			bleedResult,
 			// Continuous mode: accept any octave of the right pitch class.
 			// Call-response stays strict so the user reproduces the demo
 			// register exactly, matching ear-training's contract.
@@ -766,14 +786,26 @@
 		onsetDetector = null;
 		// Release microphone
 		if (micCapture) {
-			micCapture.stream.getTracks().forEach(t => t.stop());
+			captureModule?.stopMicCapture();
 			micCapture = null;
 		}
 	}
 
+	function persistReport(report: SessionReport): void {
+		appendLickPracticeSession({
+			id: `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+			timestamp: Date.now(),
+			progressionType: lickPractice.config.progressionType,
+			practiceMode: lickPractice.config.practiceMode,
+			report
+		});
+	}
+
 	function finishSession() {
 		stopAll();
-		sessionReport = getSessionReport();
+		const report = getSessionReport();
+		sessionReport = report;
+		persistReport(report);
 		lickPractice.phase = 'complete';
 	}
 
@@ -791,7 +823,9 @@
 	$effect(() => {
 		if (lickPractice.phase === 'complete' && !sessionReport) {
 			stopAll();
-			sessionReport = getSessionReport();
+			const report = getSessionReport();
+			sessionReport = report;
+			persistReport(report);
 		}
 	});
 </script>
@@ -899,6 +933,7 @@
 			progressionType={lickPractice.config.progressionType}
 			keyIndex={lickPractice.currentKeyIndex}
 			totalKeys={currentItem.keys.length}
+			{substitutionLabel}
 		/>
 
 		<!-- Continuous chord-block scroll: the lick's full key stack drifts

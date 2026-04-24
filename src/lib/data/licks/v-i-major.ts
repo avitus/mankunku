@@ -5,7 +5,7 @@
  * Built so that when placed inside a longer progression (e.g. the 4-bar
  * long ii-V-I), the V-I alignment offset lands them on the V and I bars.
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 const V_I_MAJOR: HarmonicSegment[] = [
 	{

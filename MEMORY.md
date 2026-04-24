@@ -62,7 +62,7 @@ Durable principles (won't go stale as values evolve):
 
 **How to apply:** For the structural rules, enforce. If a request would deviate from them, push back and propose a spec amendment. For specific color/route values, look them up in `src/app.css` and `src/routes/+layout.svelte` rather than trusting a snapshot in this file.
 
-**Spec drift to resolve:** `documentation/architecture/design-system.md` still documents the original blue/green palette while the implementation has moved on. Either the spec should be updated to match the code, or the code should be reverted to match the spec — design call for the user.
+**Spec status (2026-04-20):** `documentation/architecture/design-system.md` was rewritten to match the current implementation — three-domain palette (peacock teal / terracotta / slate), brass decorative tokens, on-air red, Fraunces display serif, `.jazz-rule`/`.smallcaps`/`.grain-overlay` utilities. Before making design changes, still read `src/app.css` and `src/routes/+layout.svelte` — they remain ground truth.
 
 ### Write tests for new functionality (especially at framework/storage boundaries)
 **Why:** PR #40 added metadata to `saveRecording` without a test verifying the metadata could be persisted to IndexedDB. Svelte 5 `$state` proxies can't be `structuredClone`d, so every recording save silently failed in production for a day. A simple test would have caught this.

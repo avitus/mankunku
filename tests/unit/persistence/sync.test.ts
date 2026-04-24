@@ -73,6 +73,7 @@ function createMockSupabase(overrides: {
 		const builder: Record<string, any> = {};
 		builder.select = vi.fn(() => builder);
 		builder.eq = vi.fn(() => builder);
+		builder.in = vi.fn(() => builder);
 		builder.order = vi.fn(() => builder);
 		builder.limit = vi.fn(() => builder);
 		builder.single = vi.fn().mockResolvedValue(result);
@@ -187,6 +188,9 @@ const TEST_SETTINGS = {
 	masterVolume: 0.8,
 	metronomeEnabled: true,
 	metronomeVolume: 0.7,
+	backingTrackEnabled: false,
+	backingInstrument: 'piano',
+	backingTrackVolume: 0.5,
 	swing: 0.5,
 	theme: 'dark',
 	onboardingComplete: false,
@@ -627,6 +631,9 @@ describe('syncSettingsToCloud', () => {
 				master_volume: 0.8,
 				metronome_enabled: true,
 				metronome_volume: 0.7,
+				backing_track_enabled: false,
+				backing_instrument: 'piano',
+				backing_track_volume: 0.5,
 				swing: 0.5,
 				theme: 'dark',
 				onboarding_complete: false
@@ -724,6 +731,9 @@ describe('loadSettingsFromCloud', () => {
 						master_volume: 0.9,
 						metronome_enabled: false,
 						metronome_volume: 0.6,
+						backing_track_enabled: true,
+						backing_instrument: 'bass',
+						backing_track_volume: 0.7,
 						swing: 0.6,
 						theme: 'light',
 						onboarding_complete: true,
@@ -745,6 +755,9 @@ describe('loadSettingsFromCloud', () => {
 			expect(result.masterVolume).toBe(0.9);
 			expect(result.metronomeEnabled).toBe(false);
 			expect(result.metronomeVolume).toBe(0.6);
+			expect(result.backingTrackEnabled).toBe(true);
+			expect(result.backingInstrument).toBe('bass');
+			expect(result.backingTrackVolume).toBe(0.7);
 			expect(result.swing).toBe(0.6);
 			expect(result.theme).toBe('light');
 			expect(result.onboardingComplete).toBe(true);
@@ -948,5 +961,43 @@ describe('syncUserLicksToCloud', () => {
 			]),
 			expect.any(Object)
 		);
+	});
+
+	it('scopes the ownership probe to the current user_id', async () => {
+		// Migration 00013 opened SELECT on user_licks to any authenticated user
+		// for community browse. The owned/unknown classification must filter
+		// by user_id explicitly — otherwise a local id colliding with another
+		// user's cloud row would be misclassified as "owned" and trigger an
+		// RLS 42501 on the ON CONFLICT DO UPDATE path.
+		const eqCalls: Array<[string, unknown]> = [];
+		const inCalls: Array<[string, unknown]> = [];
+
+		const upsertFn = vi.fn().mockResolvedValue({ data: null, error: null });
+		const fromFn = vi.fn(() => {
+			const builder: Record<string, any> = {};
+			builder.select = vi.fn(() => builder);
+			builder.eq = vi.fn((col: string, val: unknown) => {
+				eqCalls.push([col, val]);
+				return builder;
+			});
+			builder.in = vi.fn((col: string, val: unknown) => {
+				inCalls.push([col, val]);
+				return builder;
+			});
+			builder.upsert = upsertFn;
+			builder.then = (resolve: any, reject: any) =>
+				Promise.resolve({ data: [], error: null }).then(resolve, reject);
+			return builder;
+		});
+
+		const mock = {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } }) },
+			from: fromFn
+		};
+
+		await syncUserLicksToCloud(mock as any, [TEST_LICK]);
+
+		expect(eqCalls).toContainEqual(['user_id', 'test-user-id']);
+		expect(inCalls).toContainEqual(['id', ['user-1234-abcd']]);
 	});
 });

@@ -4,8 +4,8 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
-		setDuration, toggleTriplet, setAccidental, adjustOctave,
-		adjustLastNotePitch, getCurrentPhrase, getPaddedNotes,
+		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
+		adjustLastNotePitch, flipLastNoteSpelling, getCurrentPhrase, getPaddedNotes,
 		getCurrentBarAndBeat, getRemainingCapacity
 	} from '$lib/state/step-entry.svelte';
 	import { fractionToFloat } from '$lib/music/intervals';
@@ -16,6 +16,7 @@
 	import { setPracticeTag } from '$lib/persistence/lick-practice-store';
 	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import PrivacyDisclosure from '$lib/components/community/PrivacyDisclosure.svelte';
 
 	const ENTRY_CATEGORIES = Object.entries(CATEGORY_LABELS).map(
 		([value, label]) => ({ value: value as PhraseCategory, label })
@@ -37,6 +38,10 @@
 	let savedConfirmation = $state(false);
 	let isPlaying = $state(false);
 	let saveResetTimer: ReturnType<typeof setTimeout> | undefined;
+
+	let setupOpen = $state(false);
+	let saveDetailsOpen = $state(false);
+	let nameInput = $state<HTMLInputElement | undefined>(undefined);
 
 	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
@@ -66,6 +71,10 @@
 			toggleTriplet();
 			return;
 		}
+		if (key === '.') {
+			toggleDotted();
+			return;
+		}
 		if (isValidPitchKey(key)) {
 			const pc = keyToPitchClass(key);
 			if (pc !== null) {
@@ -76,6 +85,7 @@
 		if (key === '0') { addRest(); return; }
 		if (key === ']') { setAccidental('sharp'); return; }
 		if (key === '[') { setAccidental('flat'); return; }
+		if (key === '\\') { flipLastNoteSpelling(); return; }
 		if (key === '+' || key === '=') { adjustOctave(1); return; }
 		if (key === '-') { adjustOctave(-1); return; }
 		if (key === 'ArrowUp') {
@@ -118,6 +128,13 @@
 	function handleSave() {
 		if (!hasNotes) return;
 
+		const trimmedPhraseName = stepEntry.phraseName.trim();
+		if (!trimmedPhraseName) {
+			nameInput?.focus();
+			return;
+		}
+		stepEntry.phraseName = trimmedPhraseName;
+
 		const phrase = getCurrentPhrase();
 		phrase.notes = getPaddedNotes();
 		phrase.difficulty = calculateDifficulty(phrase);
@@ -131,6 +148,8 @@
 		}
 
 		reset();
+		setupOpen = false;
+		saveDetailsOpen = false;
 
 		savedConfirmation = true;
 		clearTimeout(saveResetTimer);
@@ -142,6 +161,15 @@
 	function handleClear() {
 		playbackModule?.stopPlayback();
 		reset();
+		setupOpen = false;
+		saveDetailsOpen = false;
+	}
+
+	function handleTitleInputKeydown(e: KeyboardEvent): void {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			nameInput?.blur();
+		}
 	}
 </script>
 
@@ -157,7 +185,22 @@
 	<NotationDisplay
 		phrase={hasNotes ? currentPhrase : null}
 		instrument={getInstrument()}
-	/>
+	>
+		{#snippet titleArea()}
+			<input
+				type="text"
+				bind:this={nameInput}
+				bind:value={stepEntry.phraseName}
+				onkeydown={handleTitleInputKeydown}
+				placeholder="Untitled lick"
+				aria-label="Lick title"
+				class="mb-0 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
+					border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
+					focus:border-[var(--color-accent)] focus:outline-none
+					placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
+			/>
+		{/snippet}
+	</NotationDisplay>
 
 	<!-- Status bar -->
 	{#if hasNotes}
@@ -169,12 +212,35 @@
 		</div>
 	{/if}
 
-	<!-- Input panel -->
+	<!-- Setup chip (key + bars) -->
+	{#if setupOpen}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 space-y-2">
+			<EntryConfig />
+			<div class="flex justify-end">
+				<button
+					onclick={() => { setupOpen = false; }}
+					class="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+				>Done</button>
+			</div>
+		</div>
+	{:else}
+		<button
+			onclick={() => { setupOpen = true; }}
+			class="flex w-full items-center justify-between rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
+				hover:bg-[var(--color-bg-tertiary)] transition-colors"
+		>
+			<span class="flex items-center gap-3">
+				<span class="smallcaps text-[11px] text-[var(--color-text-secondary)]">Setup</span>
+				<span>Key {stepEntry.phraseKey}</span>
+				<span class="text-[var(--color-text-secondary)]">·</span>
+				<span>{stepEntry.barCount} bar{stepEntry.barCount === 1 ? '' : 's'}</span>
+			</span>
+			<span class="text-xs text-[var(--color-text-secondary)]">Edit</span>
+		</button>
+	{/if}
+
+	<!-- Rhythm + pitch panel -->
 	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
-		<EntryConfig />
-
-		<div class="border-t border-[var(--color-bg-tertiary)]"></div>
-
 		<DurationSelector />
 
 		<div class="border-t border-[var(--color-bg-tertiary)]"></div>
@@ -182,83 +248,93 @@
 		<PitchEntryPanel />
 	</div>
 
-	<!-- Name + actions -->
-	<div class="space-y-3">
-		<div class="flex gap-2">
-			<input
-				type="text"
-				bind:value={stepEntry.phraseName}
-				placeholder="Name this lick..."
-				class="flex-1 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2.5 text-sm
-					border border-transparent focus:border-[var(--color-accent)] focus:outline-none
-					placeholder:text-[var(--color-text-secondary)]"
-			/>
-			<button
-				onclick={() => { stepEntry.practiceTag = !stepEntry.practiceTag; }}
-				class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-					{stepEntry.practiceTag
-						? 'bg-[var(--color-accent)] text-white'
-						: 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'}"
-				title={stepEntry.practiceTag ? 'Remove from practice queue' : 'Add to practice queue'}
-				aria-pressed={stepEntry.practiceTag}
-			>
-				<svg class="h-4 w-4" viewBox="0 0 24 24" fill={stepEntry.practiceTag ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
-					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-				</svg>
-				Practice
-			</button>
-		</div>
+	<!-- Details disclosure (category, practice tag, privacy) -->
+	<div class="rounded-lg bg-[var(--color-bg-secondary)]">
+		<button
+			onclick={() => { saveDetailsOpen = !saveDetailsOpen; }}
+			aria-expanded={saveDetailsOpen}
+			class="flex w-full items-center justify-between px-4 py-2 text-sm hover:bg-[var(--color-bg-tertiary)]
+				rounded-lg transition-colors"
+		>
+			<span class="flex items-center gap-3">
+				<span class="smallcaps text-[11px] text-[var(--color-text-secondary)]">Details</span>
+				<span class="text-[var(--color-text-secondary)]">
+					{CATEGORY_LABELS[stepEntry.category]}{stepEntry.practiceTag ? ' · Practice' : ''}
+				</span>
+			</span>
+			<span class="text-xs text-[var(--color-text-secondary)]">{saveDetailsOpen ? 'Hide' : 'Edit'}</span>
+		</button>
 
-		<!-- Category -->
-		<div class="flex flex-wrap gap-1.5">
-			{#each ENTRY_CATEGORIES as { value, label }}
-				<button
-					onclick={() => { stepEntry.category = value; }}
-					class="rounded-full px-2.5 py-0.5 text-xs transition-colors
-						{stepEntry.category === value
-							? 'bg-[var(--color-accent)] text-white'
-							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-					aria-pressed={stepEntry.category === value}
-				>
-					{label}
-				</button>
-			{/each}
-		</div>
+		{#if saveDetailsOpen}
+			<div class="space-y-3 px-4 pt-1 pb-4">
+				<div class="flex flex-wrap items-center gap-1.5">
+					{#each ENTRY_CATEGORIES as { value, label }}
+						<button
+							onclick={() => { stepEntry.category = value; }}
+							class="rounded-full px-2.5 py-0.5 text-xs transition-colors
+								{stepEntry.category === value
+									? 'bg-[var(--color-accent)] text-white'
+									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+							aria-pressed={stepEntry.category === value}
+						>
+							{label}
+						</button>
+					{/each}
+					<button
+						onclick={() => { stepEntry.practiceTag = !stepEntry.practiceTag; }}
+						class="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
+							{stepEntry.practiceTag
+								? 'bg-[var(--color-accent)] text-white'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+						title={stepEntry.practiceTag ? 'Remove from practice queue' : 'Add to practice queue'}
+						aria-pressed={stepEntry.practiceTag}
+					>
+						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill={stepEntry.practiceTag ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
+							<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+						</svg>
+						Practice
+					</button>
+				</div>
 
-		<div class="flex justify-center gap-3">
-			<button
-				onclick={handlePlayBack}
-				disabled={!hasNotes || isPlaying}
-				class="flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white
-					hover:opacity-90 transition-opacity disabled:opacity-40"
-			>
-				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-					{#if isPlaying}
-						<rect x="6" y="5" width="4" height="14" rx="1" />
-						<rect x="14" y="5" width="4" height="14" rx="1" />
-					{:else}
-						<path d="M8 5v14l11-7z" />
-					{/if}
-				</svg>
-				{isPlaying ? 'Playing...' : 'Play'}
-			</button>
-			<button
-				onclick={handleSave}
-				disabled={!hasNotes || savedConfirmation}
-				class="rounded-lg bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
-					hover:opacity-90 transition-opacity disabled:opacity-40"
-			>
-				{savedConfirmation ? 'Saved!' : 'Save'}
-			</button>
-			<button
-				onclick={handleClear}
-				disabled={!hasNotes}
-				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
-					hover:bg-[var(--color-bg-secondary)] transition-colors disabled:opacity-40"
-			>
-				Clear
-			</button>
-		</div>
+				<PrivacyDisclosure />
+			</div>
+		{/if}
+	</div>
+
+	<!-- Actions -->
+	<div class="flex justify-center gap-3">
+		<button
+			onclick={handlePlayBack}
+			disabled={!hasNotes || isPlaying}
+			class="flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white
+				hover:opacity-90 transition-opacity disabled:opacity-40"
+		>
+			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+				{#if isPlaying}
+					<rect x="6" y="5" width="4" height="14" rx="1" />
+					<rect x="14" y="5" width="4" height="14" rx="1" />
+				{:else}
+					<path d="M8 5v14l11-7z" />
+				{/if}
+			</svg>
+			{isPlaying ? 'Playing...' : 'Play'}
+		</button>
+		<button
+			onclick={handleSave}
+			disabled={!hasNotes || savedConfirmation}
+			class="rounded-lg bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
+				hover:opacity-90 transition-opacity disabled:opacity-40"
+		>
+			{savedConfirmation ? 'Saved!' : 'Save'}
+		</button>
+		<button
+			onclick={handleClear}
+			disabled={!hasNotes}
+			class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
+				hover:bg-[var(--color-bg-secondary)] transition-colors disabled:opacity-40"
+		>
+			Clear
+		</button>
 	</div>
 
 	<!-- Keyboard shortcuts -->
@@ -268,8 +344,8 @@
 			<span><kbd>A</kbd>-<kbd>G</kbd> Enter note</span>
 			<span><kbd>0</kbd> Rest</span>
 			<span><kbd>1</kbd>-<kbd>4</kbd> Duration</span>
-			<span><kbd>T</kbd> Triplet toggle</span>
-			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp</span>
+			<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
+			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
 			<span><kbd>+</kbd>/<kbd>-</kbd> Octave</span>
 			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
 			<span><kbd>Backspace</kbd> Delete last</span>

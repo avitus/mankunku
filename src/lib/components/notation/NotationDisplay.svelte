@@ -1,15 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Phrase } from '$lib/types/music.ts';
-	import type { InstrumentConfig } from '$lib/types/instruments.ts';
-	import { phraseToAbc } from '$lib/music/notation.ts';
+	import type { Snippet } from 'svelte';
+	import type { Phrase } from '$lib/types/music';
+	import type { InstrumentConfig } from '$lib/types/instruments';
+	import { phraseToAbc } from '$lib/music/notation';
 
 	interface Props {
 		phrase: Phrase | null;
 		instrument?: InstrumentConfig;
+		titleArea?: Snippet;
 	}
 
-	let { phrase, instrument }: Props = $props();
+	let { phrase, instrument, titleArea }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
 	let abcjs = $state<typeof import('abcjs') | null>(null);
@@ -32,12 +34,15 @@
 	});
 </script>
 
-<div class="notation-container rounded-lg bg-[var(--color-bg-secondary)] p-4">
+<div class="notation-container rounded-lg bg-[var(--color-bg-secondary)] p-4" class:has-custom-title={titleArea}>
 	<!-- "Lead sheet" liner-note header — mirrors the typography of a Blue Note LP -->
-	<div class="mb-2 flex items-center gap-2">
+	<div class="mb-4 flex items-center gap-2">
 		<span class="smallcaps text-[var(--color-brass)]">Lead sheet</span>
 		<div class="jazz-rule flex-1"></div>
 	</div>
+	{#if titleArea}
+		{@render titleArea()}
+	{/if}
 	{#if phrase}
 		<div bind:this={containerEl} class="abcjs-container"></div>
 	{:else}
@@ -60,5 +65,9 @@
 	}
 	.notation-container :global(svg text) {
 		fill: var(--color-text) !important;
+	}
+	/* Suppress abcjs-rendered title when the parent provides its own title area */
+	.notation-container.has-custom-title :global(.abcjs-title) {
+		display: none;
 	}
 </style>

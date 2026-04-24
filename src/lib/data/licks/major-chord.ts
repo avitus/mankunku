@@ -5,7 +5,7 @@
  * transposed so its root chord matches the target chord's root — e.g. in a
  * ii-V-I in key F, this lick lands on Fmaj7.
  */
-import type { Phrase, HarmonicSegment } from '$lib/types/music.ts';
+import type { Phrase, HarmonicSegment } from '$lib/types/music';
 
 const MAJOR_CHORD: HarmonicSegment[] = [
 	{

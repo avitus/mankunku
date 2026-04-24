@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { realizeScalePattern, combine, generateAllCombinations, COMBINED_LICKS } from '$lib/phrases/combiner.ts';
-import { SCALE_PATTERNS, RHYTHM_PATTERNS } from '$lib/data/patterns/index.ts';
-import type { HarmonicSegment } from '$lib/types/music.ts';
+import { realizeScalePattern, combine, generateAllCombinations, COMBINED_LICKS } from '$lib/phrases/combiner';
+import { SCALE_PATTERNS, RHYTHM_PATTERNS } from '$lib/data/patterns/index';
+import type { HarmonicSegment } from '$lib/types/music';
 
 const CMAJ_HARMONY: HarmonicSegment[] = [{
 	chord: { root: 'C', quality: 'maj7' },

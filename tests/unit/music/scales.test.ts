@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { getScale, getScalesByFamily, getScalesForChord } from '$lib/music/scales.ts';
+import { getScale, getScalesByFamily, getScalesForChord } from '$lib/music/scales';
 
 describe('getScale', () => {
 	it('finds by ID', () => {
-		const dorian = getScale('major.dorian');
-		expect(dorian).toBeDefined();
-		expect(dorian!.name).toBe('Dorian');
+		expect(getScale('major.dorian')?.name).toBe('Dorian');
 	});
 
 	it('returns undefined for missing ID', () => {

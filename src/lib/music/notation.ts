@@ -1,7 +1,7 @@
-import type { Note, Phrase, PitchClass } from '$lib/types/music.ts';
-import type { InstrumentConfig } from '$lib/types/instruments.ts';
-import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals.ts';
-import { concertToWritten, concertKeyToWritten } from './transposition.ts';
+import type { Note, Phrase, PitchClass } from '$lib/types/music';
+import type { InstrumentConfig } from '$lib/types/instruments';
+import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals';
+import { concertToWritten, concertKeyToWritten } from './transposition';
 
 /** Note letter names A–G */
 type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
@@ -416,7 +416,10 @@ export function phraseToAbc(
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-		const pitch = midiToAbcPitch(midi, useFlats, keySigAccidentals, barState);
+		const noteUseFlats = note.spelling === 'flat' ? true
+			: note.spelling === 'sharp' ? false
+			: useFlats;
+		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		return `${pitch}${durationToAbc(duration, defaultLength)}`;
 	}
 

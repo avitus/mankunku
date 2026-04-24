@@ -12,7 +12,7 @@
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
-	import { getUserLicks, deleteUserLick } from '$lib/persistence/user-licks';
+	import { getUserLicks, getUserLicksLocal, deleteUserLick } from '$lib/persistence/user-licks';
 	import {
 		hasPracticeTag as storeHasPracticeTag,
 		setPracticeTag as storeSetPracticeTag,
@@ -45,9 +45,43 @@
 				}
 			};
 			if (sess && sb) {
-				getUserLicks(sb).then(assign).catch(() => {
-					getUserLicks().then(assign);
-				});
+				getUserLicks(sb)
+					.then(async (licks) => {
+						if (runId !== effectRunId) return;
+						const hit = licks.find((l) => l.id === id);
+						if (hit) {
+							assign(licks);
+							return;
+						}
+						// Community fallback: fetch the lick directly by id — RLS
+						// allows any authenticated user to read any user_licks row.
+						try {
+							const { data } = await sb
+								.from('user_licks')
+								.select('*')
+								.eq('id', id)
+								.single();
+							if (data && runId === effectRunId) {
+								userLick = {
+									id: data.id,
+									name: data.name,
+									key: data.key as PitchClass,
+									timeSignature: data.time_signature as [number, number],
+									notes: data.notes as unknown as Phrase['notes'],
+									harmony: data.harmony as unknown as Phrase['harmony'],
+									difficulty: data.difficulty as unknown as Phrase['difficulty'],
+									category: data.category as Phrase['category'],
+									tags: data.tags ?? [],
+									source: data.source
+								};
+							}
+						} catch {
+							// Offline or RLS blocked — give up silently
+						}
+					})
+					.catch(() => {
+						getUserLicks().then(assign);
+					});
 			} else {
 				getUserLicks().then(assign);
 			}
@@ -152,8 +186,21 @@
 		isPlaying = false;
 	}
 
+	/**
+	 * True only when the resolved lick is owned by the current user — i.e. it
+	 * lives in their own `user_licks` cache. Community-fallback licks (fetched
+	 * by id from any author) and adopted community licks both share the same
+	 * `source` values ('user-recorded' | 'user-entered') but are not owned,
+	 * so `source` alone is not a safe ownership signal.
+	 */
+	const isOwnLick = $derived(
+		baseLick != null && getUserLicksLocal().some((l) => l.id === baseLick.id)
+	);
+
 	const canDelete = $derived(
-		baseLick != null && (baseLick.source === 'user-recorded' || baseLick.source === 'user-entered')
+		isOwnLick &&
+			baseLick != null &&
+			(baseLick.source === 'user-recorded' || baseLick.source === 'user-entered')
 	);
 
 	function handleDelete() {

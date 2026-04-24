@@ -6,8 +6,8 @@
  * and verify harmony processing.
  */
 import { describe, it, expect } from 'vitest';
-import { shellVoicing, voiceLead, pitchClassToNumber } from '$lib/audio/voicings.ts';
-import type { HarmonicSegment, PitchClass, ChordQuality } from '$lib/types/music.ts';
+import { shellVoicing, voiceLead, pitchClassToNumber } from '$lib/audio/voicings';
+import type { PitchClass, ChordQuality } from '$lib/types/music';
 
 describe('backing track: comping voicing generation', () => {
 	const iiVI: Array<{ root: PitchClass; quality: ChordQuality }> = [
@@ -56,104 +56,10 @@ describe('backing track: comping voicing generation', () => {
 	});
 });
 
-describe('backing track: harmony segment processing', () => {
-	it('handles single-chord phrases (1 bar)', () => {
-		const harmony: HarmonicSegment[] = [{
-			chord: { root: 'C', quality: 'maj7' },
-			scaleId: 'major.ionian',
-			startOffset: [0, 1],
-			duration: [1, 1]
-		}];
-		expect(harmony).toHaveLength(1);
-		expect(harmony[0].chord.root).toBe('C');
-	});
-
-	it('handles multi-bar ii-V-I harmony segments', () => {
-		const harmony: HarmonicSegment[] = [
-			{
-				chord: { root: 'D', quality: 'min7' },
-				scaleId: 'major.dorian',
-				startOffset: [0, 1],
-				duration: [1, 1]
-			},
-			{
-				chord: { root: 'G', quality: '7' },
-				scaleId: 'major.mixolydian',
-				startOffset: [1, 1],
-				duration: [1, 1]
-			},
-			{
-				chord: { root: 'C', quality: 'maj7' },
-				scaleId: 'major.ionian',
-				startOffset: [2, 1],
-				duration: [1, 1]
-			}
-		];
-		expect(harmony).toHaveLength(3);
-		// Total duration should be 3 bars (12 beats in 4/4)
-		const totalBeats = harmony.reduce((sum, seg) => {
-			return sum + (seg.duration[0] / seg.duration[1]) * 4;
-		}, 0);
-		expect(totalBeats).toBe(12);
-	});
-
-	it('handles half-bar chord changes', () => {
-		const harmony: HarmonicSegment[] = [
-			{
-				chord: { root: 'D', quality: 'min7' },
-				scaleId: 'major.dorian',
-				startOffset: [0, 1],
-				duration: [1, 2]
-			},
-			{
-				chord: { root: 'G', quality: '7' },
-				scaleId: 'major.mixolydian',
-				startOffset: [1, 2],
-				duration: [1, 2]
-			}
-		];
-		const totalBeats = harmony.reduce((sum, seg) => {
-			return sum + (seg.duration[0] / seg.duration[1]) * 4;
-		}, 0);
-		expect(totalBeats).toBe(4); // 1 bar total
-	});
-});
-
 describe('backing track: bass note selection', () => {
 	it('maps pitch classes correctly for bass register', () => {
-		// C near MIDI 40 (E2) should be 36 (C2) or 48 (C3)
-		const cPc = pitchClassToNumber('C');
-		expect(cPc).toBe(0);
-
-		const ePc = pitchClassToNumber('E');
-		expect(ePc).toBe(4);
-
-		const bbPc = pitchClassToNumber('Bb');
-		expect(bbPc).toBe(10);
-	});
-
-	it('chromatic approach notes are one semitone from target', () => {
-		const target = 40;
-		// Approach should be target ± 1
-		expect(target - 1).toBe(39);
-		expect(target + 1).toBe(41);
-	});
-});
-
-describe('backing track: PlaybackOptions integration', () => {
-	it('PlaybackOptions includes backing track fields', () => {
-		const options = {
-			tempo: 120,
-			swing: 0.5,
-			countInBeats: 0,
-			metronomeEnabled: true,
-			metronomeVolume: 0.7,
-			backingTrackEnabled: true,
-			backingTrackVolume: 0.5,
-			backingInstrument: 'piano' as const
-		};
-		expect(options.backingTrackEnabled).toBe(true);
-		expect(options.backingTrackVolume).toBe(0.5);
-		expect(options.backingInstrument).toBe('piano');
+		expect(pitchClassToNumber('C')).toBe(0);
+		expect(pitchClassToNumber('E')).toBe(4);
+		expect(pitchClassToNumber('Bb')).toBe(10);
 	});
 });

@@ -12,7 +12,7 @@ import { combine, realizeScalePattern, generateAllCombinations } from '../../src
 import { rhythmicDisplacement, retrograde, truncate } from '../../src/lib/phrases/mutator';
 import { validatePhrase, rulesForDifficulty, isInRange } from '../../src/lib/phrases/validator';
 import { calculateDifficulty } from '../../src/lib/difficulty/calculate';
-import { getScale, SCALES } from '../../src/lib/music/scales';
+import { getScale } from '../../src/lib/music/scales';
 import { SCALE_PATTERNS, RHYTHM_PATTERNS } from '../../src/lib/data/patterns/index';
 import type { Phrase, Note, HarmonicSegment } from '../../src/lib/types/music';
 

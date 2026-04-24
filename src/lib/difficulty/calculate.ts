@@ -14,7 +14,7 @@
  * so the adaptive difficulty system has room to gate content progressively.
  */
 
-import type { Phrase, DifficultyMetadata, Fraction } from '$lib/types/music.ts';
+import type { Phrase, DifficultyMetadata, Fraction } from '$lib/types/music';
 
 /** C-major pitch classes — the "home" diatonic set */
 const DIATONIC_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
