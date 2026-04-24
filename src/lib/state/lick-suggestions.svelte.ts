@@ -55,10 +55,13 @@ export function requestMatches(phrase: Phrase): void {
 	// Fallback is cheap and deterministic — update synchronously so the UI
 	// always has a name to show as a placeholder.
 	suggestions.fallbackName = computeFallback(phrase);
+	// Clear any stale matches from the previous phrase so they can't be applied
+	// to the edited phrase during the debounce/network gap.
+	suggestions.matches = [];
+	suggestions.loading = true;
 
 	const feature = encodePhrase(phrase);
 	if (feature.intervals.length < MIN_PITCHED_NOTES - 1) {
-		suggestions.matches = [];
 		suggestions.loading = false;
 		return;
 	}

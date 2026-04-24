@@ -96,8 +96,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (topK < 1) {
 			return json({ error: 'topK must be a positive integer' }, 400);
 		}
-		if (topK > 100) {
-			return json({ error: 'topK must not exceed 100' }, 400);
+		if (topK > 500) {
+			return json({ error: 'topK must not exceed 500' }, 400);
 		}
 		validatedTopK = topK;
 	}

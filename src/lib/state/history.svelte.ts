@@ -323,9 +323,9 @@ export function rebuildHistoryIfNeeded(): void {
 		progressMeta.allTimeSessionCount = derived.meta.allTimeSessionCount;
 		changed = true;
 	}
-	progressMeta.lastAggregationTimestamp = derived.meta.lastAggregationTimestamp;
 
 	if (changed) {
+		progressMeta.lastAggregationTimestamp = derived.meta.lastAggregationTimestamp;
 		updateLongestStreak();
 		saveAll();
 	}

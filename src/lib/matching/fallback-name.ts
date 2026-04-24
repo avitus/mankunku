@@ -91,7 +91,7 @@ function predominantRhythm(notes: Note[]): string {
 
 	const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
 	const [topKey, topCount] = sorted[0];
-	if (topCount / total < 0.5) return 'mixed rhythms';
+	if (topCount / total <= 0.5) return 'mixed rhythms';
 	return durationLabel(topKey);
 }
 
