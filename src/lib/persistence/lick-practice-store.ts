@@ -72,6 +72,13 @@ export async function initLickMetadataFromCloud(
 				save(CATEGORY_OVERRIDES_KEY, cloud.categoryOverrides);
 			}
 		}
+
+		const localUnlocks = load<Record<string, number>>(UNLOCK_KEY);
+		if (!localUnlocks || Object.keys(localUnlocks).length === 0) {
+			if (Object.keys(cloud.unlockCounts).length > 0) {
+				save(UNLOCK_KEY, cloud.unlockCounts);
+			}
+		}
 	} catch (error) {
 		console.warn('Failed to hydrate lick metadata from cloud:', error);
 	}
@@ -80,6 +87,7 @@ export async function initLickMetadataFromCloud(
 /** Debounce timers — prevents rapid writes from racing in the cloud. */
 let syncTagsTimer: ReturnType<typeof setTimeout> | null = null;
 let syncProgressTimer: ReturnType<typeof setTimeout> | null = null;
+let syncUnlocksTimer: ReturnType<typeof setTimeout> | null = null;
 const SYNC_DEBOUNCE_MS = 500;
 
 /**
@@ -110,6 +118,21 @@ function syncPracticeProgressToCloud(): void {
 		syncProgressTimer = null;
 		const progress = loadLickPracticeProgress();
 		syncLickMetadataToCloud(_supabase!, { practiceProgress: progress }).catch(() => {});
+	}, SYNC_DEBOUNCE_MS);
+}
+
+/**
+ * Debounced sync of the unlock_counts column to cloud.
+ *
+ * Same coalescing strategy as the other sync helpers.
+ */
+function syncUnlockCountsToCloud(): void {
+	if (!_supabase) return;
+	if (syncUnlocksTimer) clearTimeout(syncUnlocksTimer);
+	syncUnlocksTimer = setTimeout(() => {
+		syncUnlocksTimer = null;
+		const counts = loadUnlockCounts();
+		syncLickMetadataToCloud(_supabase!, { unlockCounts: counts }).catch(() => {});
 	}, SYNC_DEBOUNCE_MS);
 }
 
@@ -189,14 +212,9 @@ export function clampTempo(tempo: number): number {
 
 // ── Unlocked-key count ──────────────────────────────────────
 //
-// Local-only by design — unlike practice progress / tags, unlock counts
-// are NOT pushed to the cloud. The state can be re-derived from per-key
-// progress on a fresh device (any lick with progress in all 12 keys is
-// grandfathered to 12; otherwise the user re-earns unlocks one session
-// at a time), so cross-device sync isn't needed for correctness, just
-// convenience. Adding it would require schema changes to the cloud
-// metadata table; revisit if cross-device unlock-count drift becomes
-// a real annoyance.
+// Cloud-synced via the unlock_counts column on user_lick_metadata
+// (migration 00015). Hydrated alongside the other lick metadata blobs in
+// initLickMetadataFromCloud; saved with a debounced upsert by saveUnlockCounts.
 
 export function loadUnlockCounts(): Record<string, number> {
 	return load<Record<string, number>>(UNLOCK_KEY) ?? {};
@@ -204,6 +222,7 @@ export function loadUnlockCounts(): Record<string, number> {
 
 function saveUnlockCounts(counts: Record<string, number>): void {
 	save(UNLOCK_KEY, counts);
+	syncUnlockCountsToCloud();
 }
 
 /**
