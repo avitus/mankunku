@@ -214,12 +214,12 @@ describe('backfillPracticeTags', () => {
 	});
 });
 
-describe('unlocked key count', () => {
-	it('returns 1 for a brand-new lick with no progress and no stored count', () => {
+describe('unlocked key count', (): void => {
+	it('returns 1 for a brand-new lick with no progress and no stored count', (): void => {
 		expect(getUnlockedKeyCount({}, 'lick-new')).toBe(1);
 	});
 
-	it('returns 12 for a lick with progress in all 12 keys and no stored count (grandfathered)', () => {
+	it('returns 12 for a lick with progress in all 12 keys and no stored count (grandfathered)', (): void => {
 		const allKeysProgress: Partial<Record<PitchClass, LickPracticeKeyProgress>> = {};
 		for (const k of PITCH_CLASSES) {
 			allKeysProgress[k] = { currentTempo: 100, lastPracticedAt: 1000, passCount: 1 };
@@ -228,7 +228,7 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount(progress, 'lick-old')).toBe(12);
 	});
 
-	it('returns 1 for a lick with partial progress (e.g. failed first session) and no stored count', () => {
+	it('returns 1 for a lick with partial progress (e.g. failed first session) and no stored count', (): void => {
 		// A new lick whose entry-key session failed will have progress in 1
 		// key but no stored unlock count. We must not grandfather it to 12.
 		const progress: LickPracticeProgress = {
@@ -239,13 +239,13 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount(progress, 'lick-failed-first')).toBe(1);
 	});
 
-	it('returns the stored count when one exists, clamped to [1, 12]', () => {
+	it('returns the stored count when one exists, clamped to [1, 12]', (): void => {
 		bumpUnlockedKeyCount({}, 'lick-x'); // 1 → 2
 		bumpUnlockedKeyCount({}, 'lick-x'); // 2 → 3
 		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(3);
 	});
 
-	it('clamps a corrupt stored value below 1 up to 1', () => {
+	it('clamps a corrupt stored value below 1 up to 1', (): void => {
 		// Storage module prefixes keys with 'mankunku:' — write through the
 		// same path so getUnlockedKeyCount actually sees the corrupt value.
 		localStorageMock.setItem(
@@ -255,7 +255,7 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(1);
 	});
 
-	it('clamps a corrupt stored value above 12 down to 12', () => {
+	it('clamps a corrupt stored value above 12 down to 12', (): void => {
 		localStorageMock.setItem(
 			'mankunku:lick-unlock-count',
 			JSON.stringify({ 'lick-x': 99 })
@@ -263,7 +263,7 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(12);
 	});
 
-	it('falls back to default when stored value is NaN (e.g. corrupted store)', () => {
+	it('falls back to default when stored value is NaN (e.g. corrupted store)', (): void => {
 		// JSON.stringify converts NaN to null, so simulate manual corruption by
 		// writing the raw payload directly. Math.max(1, NaN) returns NaN, which
 		// would silently break session planning if it leaked through.
@@ -274,7 +274,7 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(1);
 	});
 
-	it('falls back to default when stored value is Infinity', () => {
+	it('falls back to default when stored value is Infinity', (): void => {
 		localStorageMock.setItem(
 			'mankunku:lick-unlock-count',
 			'{"lick-x": 1e999}'
@@ -283,7 +283,7 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(1);
 	});
 
-	it('truncates fractional stored values to integers', () => {
+	it('truncates fractional stored values to integers', (): void => {
 		// Without truncation, slice(0, 1.5) unlocks 1 key but bumping would
 		// persist 2.5 — the stored counter drifts from the actual unlocked set.
 		localStorageMock.setItem(
@@ -297,13 +297,13 @@ describe('unlocked key count', () => {
 		expect(loadUnlockCounts()['lick-x']).toBe(3);
 	});
 
-	it('bumpUnlockedKeyCount increments from 1 to 2 on first call for a new lick', () => {
+	it('bumpUnlockedKeyCount increments from 1 to 2 on first call for a new lick', (): void => {
 		const next = bumpUnlockedKeyCount({}, 'lick-new');
 		expect(next).toBe(2);
 		expect(loadUnlockCounts()['lick-new']).toBe(2);
 	});
 
-	it('bumpUnlockedKeyCount keeps a grandfathered lick at 12 instead of resetting to 2', () => {
+	it('bumpUnlockedKeyCount keeps a grandfathered lick at 12 instead of resetting to 2', (): void => {
 		const allKeysProgress: Partial<Record<PitchClass, LickPracticeKeyProgress>> = {};
 		for (const k of PITCH_CLASSES) {
 			allKeysProgress[k] = { currentTempo: 100, lastPracticedAt: 1000, passCount: 1 };
@@ -314,7 +314,7 @@ describe('unlocked key count', () => {
 		expect(loadUnlockCounts()['lick-old']).toBe(12);
 	});
 
-	it('bumpUnlockedKeyCount caps at 12', () => {
+	it('bumpUnlockedKeyCount caps at 12', (): void => {
 		localStorageMock.setItem(
 			'mankunku:lick-unlock-count',
 			JSON.stringify({ 'lick-x': 12 })
@@ -323,7 +323,7 @@ describe('unlocked key count', () => {
 		expect(loadUnlockCounts()['lick-x']).toBe(12);
 	});
 
-	it('multiple licks track independent unlock counts', () => {
+	it('multiple licks track independent unlock counts', (): void => {
 		bumpUnlockedKeyCount({}, 'lick-a');
 		bumpUnlockedKeyCount({}, 'lick-a');
 		bumpUnlockedKeyCount({}, 'lick-b');

@@ -73,10 +73,16 @@ export async function initLickMetadataFromCloud(
 			}
 		}
 
-		const localUnlocks = load<Record<string, number>>(UNLOCK_KEY);
-		if (!localUnlocks || Object.keys(localUnlocks).length === 0) {
-			if (Object.keys(cloud.unlockCounts).length > 0) {
-				save(UNLOCK_KEY, cloud.unlockCounts);
+		// Normalize both ends through the same type guard the rest of the
+		// module uses — load<T>() is just a cast, and cloud.unlockCounts is a
+		// JSONB blob that could in principle be any JSON value. Without this,
+		// a corrupt non-object payload on either side would either misfire the
+		// "already populated" check or write a non-object back to localStorage.
+		const localUnlocks = loadUnlockCounts();
+		if (Object.keys(localUnlocks).length === 0) {
+			const cloudUnlocks = isUnlockCountMap(cloud.unlockCounts) ? cloud.unlockCounts : {};
+			if (Object.keys(cloudUnlocks).length > 0) {
+				save(UNLOCK_KEY, cloudUnlocks);
 			}
 		}
 	} catch (error) {
@@ -216,8 +222,19 @@ export function clampTempo(tempo: number): number {
 // (migration 00015). Hydrated alongside the other lick metadata blobs in
 // initLickMetadataFromCloud; saved with a debounced upsert by saveUnlockCounts.
 
+/**
+ * Type guard for the unlock-counts shape. The persistence layer's `load<T>()`
+ * is only a type cast — if localStorage holds a corrupt primitive (string,
+ * number, array, null) we'd otherwise mutate it like an object, which throws
+ * in strict-mode module code (`counts[phraseId] = next` on a string).
+ */
+function isUnlockCountMap(value: unknown): value is Record<string, number> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export function loadUnlockCounts(): Record<string, number> {
-	return load<Record<string, number>>(UNLOCK_KEY) ?? {};
+	const raw = load<unknown>(UNLOCK_KEY);
+	return isUnlockCountMap(raw) ? raw : {};
 }
 
 function saveUnlockCounts(counts: Record<string, number>): void {
