@@ -1,7 +1,7 @@
 /**
  * Long-term progress history — daily aggregates persisted to localStorage.
  *
- * Captures compact daily summaries that survive the 200-session pruning window.
+ * Captures compact daily summaries that survive the MAX_SESSIONS pruning window.
  * Provides query functions for calendar heatmaps, trend charts, and period comparisons.
  */
 
@@ -295,8 +295,8 @@ function summariesMatch(a: DailySummary, b: DailySummary): boolean {
  * Re-derive daily summaries from current progress session history when stale.
  *
  * Called after cloud hydration writes progress to localStorage. The session
- * log is pruned to MAX_SESSIONS (100) recent sessions, so derivation only
- * sees the last 100 sessions' worth of days. This function is therefore
+ * log is pruned to MAX_SESSIONS recent sessions, so derivation only
+ * sees the last MAX_SESSIONS sessions' worth of days. This function is therefore
  * additive: it upserts derived days into the existing summaries but never
  * deletes a day that exists locally and isn't in the derived set — that
  * day's sessions are simply outside the sync window.
