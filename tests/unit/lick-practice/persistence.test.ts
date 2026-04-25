@@ -263,6 +263,26 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(12);
 	});
 
+	it('falls back to default when stored value is NaN (e.g. corrupted store)', () => {
+		// JSON.stringify converts NaN to null, so simulate manual corruption by
+		// writing the raw payload directly. Math.max(1, NaN) returns NaN, which
+		// would silently break session planning if it leaked through.
+		localStorageMock.setItem(
+			'mankunku:lick-unlock-count',
+			'{"lick-x": null}'
+		);
+		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(1);
+	});
+
+	it('falls back to default when stored value is Infinity', () => {
+		localStorageMock.setItem(
+			'mankunku:lick-unlock-count',
+			'{"lick-x": 1e999}'
+		);
+		expect(Number.isFinite(JSON.parse('{"lick-x": 1e999}')['lick-x'])).toBe(false);
+		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(1);
+	});
+
 	it('bumpUnlockedKeyCount increments from 1 to 2 on first call for a new lick', () => {
 		const next = bumpUnlockedKeyCount({}, 'lick-new');
 		expect(next).toBe(2);

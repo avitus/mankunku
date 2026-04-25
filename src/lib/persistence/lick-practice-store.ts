@@ -226,9 +226,12 @@ function saveUnlockCounts(counts: Record<string, number>): void {
 }
 
 /**
- * Resolve the unlocked key count for a lick.
+ * Resolve the unlocked key count from an already-loaded counts map. Shared
+ * by getUnlockedKeyCount (which loads on each call) and bumpUnlockedKeyCount
+ * (which has a counts map in hand and would otherwise read storage twice).
  *
- *   - explicit stored value (clamped to [1, 12]), else
+ * Resolution order:
+ *   - explicit stored value (must be a finite number, clamped to [1, 12]), else
  *   - 12 if the lick has progress in all 12 keys (grandfathers pre-feature
  *     users — the old code wrote all 12 per session, so full coverage is
  *     unique to pre-feature data), else
@@ -238,13 +241,18 @@ function saveUnlockCounts(counts: Record<string, number>): void {
  * failed has progress in 1 key but no stored count, and we must not
  * grandfather it back up to 12 — otherwise a single bad session demotes
  * the user to the daunting full-12-key cycle.
+ *
+ * The Number.isFinite gate exists because Math.max(1, NaN) returns NaN,
+ * which would propagate into key-plan slicing and silently break sessions
+ * if a manually-edited or legacy-corrupt store ever held NaN/Infinity.
  */
-export function getUnlockedKeyCount(
+function resolveUnlockCount(
+	counts: Record<string, number>,
 	progress: LickPracticeProgress,
 	phraseId: string
 ): number {
-	const stored = loadUnlockCounts()[phraseId];
-	if (typeof stored === 'number') {
+	const stored = counts[phraseId];
+	if (typeof stored === 'number' && Number.isFinite(stored)) {
 		return Math.min(MAX_UNLOCKED_KEYS, Math.max(1, stored));
 	}
 	const keysWithProgress = progress[phraseId]
@@ -253,18 +261,20 @@ export function getUnlockedKeyCount(
 	return keysWithProgress >= MAX_UNLOCKED_KEYS ? MAX_UNLOCKED_KEYS : 1;
 }
 
-/**
- * Bump the unlock count by 1, capped at 12. Returns the new count.
- * Reads the resolved current count via getUnlockedKeyCount so that
- * pre-feature licks with existing progress (which fall back to 12)
- * don't get accidentally reset to 2 the first time they're bumped.
- */
+export function getUnlockedKeyCount(
+	progress: LickPracticeProgress,
+	phraseId: string
+): number {
+	return resolveUnlockCount(loadUnlockCounts(), progress, phraseId);
+}
+
+/** Bump the unlock count by 1, capped at 12. Returns the new count. */
 export function bumpUnlockedKeyCount(
 	progress: LickPracticeProgress,
 	phraseId: string
 ): number {
 	const counts = loadUnlockCounts();
-	const current = getUnlockedKeyCount(progress, phraseId);
+	const current = resolveUnlockCount(counts, progress, phraseId);
 	const next = Math.min(MAX_UNLOCKED_KEYS, current + 1);
 	counts[phraseId] = next;
 	saveUnlockCounts(counts);
