@@ -277,12 +277,16 @@ function categoriesMatch(a: Record<string, number>, b: Record<string, number>): 
 }
 
 function summariesMatch(a: DailySummary, b: DailySummary): boolean {
+	// avg* fields are derived two different ways (rolling per-session vs full
+	// re-derivation), so FP non-associativity can produce tiny diffs that
+	// shouldn't count as a real change.
+	const EPS = 1e-6;
 	return (
 		a.sessionCount === b.sessionCount &&
 		a.practiceMinutes === b.practiceMinutes &&
-		a.avgOverall === b.avgOverall &&
-		a.avgPitch === b.avgPitch &&
-		a.avgRhythm === b.avgRhythm &&
+		Math.abs(a.avgOverall - b.avgOverall) < EPS &&
+		Math.abs(a.avgPitch - b.avgPitch) < EPS &&
+		Math.abs(a.avgRhythm - b.avgRhythm) < EPS &&
 		a.bestScore === b.bestScore &&
 		a.notesTotal === b.notesTotal &&
 		a.notesHit === b.notesHit &&
