@@ -16,7 +16,7 @@ npm run test:e2e       # Playwright E2E tests
 npx vitest run tests/unit/music/scales.test.ts   # Run a single test file
 ```
 
-CI pipeline (CircleCI): test → build → deploy (main branch only). Deploy rsyncs to a Digital Ocean server and restarts via PM2.
+CI pipeline (CircleCI): test → (build, db-migrate) → deploy (main branch only). Deploy rsyncs to a Digital Ocean server and restarts via PM2; db-migrate runs `supabase db push` against the production database via the `SUPABASE_DB_URL` env var.
 
 ## Architecture
 

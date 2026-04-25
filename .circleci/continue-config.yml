@@ -60,6 +60,42 @@ jobs:
           # pre-atomic-release content (cwd: '/home/deploy/mankunku' without
           # /current/) even though the committed file was the new version.
 
+  db-migrate:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - run:
+          name: Install Supabase CLI
+          command: |
+            set -euo pipefail
+            # Pin a known-stable CLI version. Bump deliberately; check
+            # https://github.com/supabase/cli/releases for newer releases.
+            SUPABASE_CLI_VERSION="1.226.4"
+            curl -fsSL \
+              "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz" \
+              | sudo tar -xz -C /usr/local/bin supabase
+            supabase --version
+      - run:
+          name: Apply pending migrations
+          command: |
+            set -euo pipefail
+            # SUPABASE_DB_URL must be set in CircleCI env vars
+            # (Project Settings → Environment Variables). Grab it from
+            # Supabase Dashboard → Project Settings → Database →
+            # Connection string → URI; include the database password.
+            #
+            # Direct connection (port 5432) is preferred over the pooler
+            # for schema migrations — some DDL fails through pgbouncer's
+            # transaction-mode pooling.
+            if [ -z "${SUPABASE_DB_URL:-}" ]; then
+              echo "error: SUPABASE_DB_URL is not set in CircleCI env" >&2
+              exit 1
+            fi
+            # No-op when no new migrations are pending. Any failure aborts
+            # the job, which blocks the downstream deploy via `requires:`.
+            supabase db push --db-url "$SUPABASE_DB_URL"
+
   deploy:
     docker:
       - image: cimg/base:current
@@ -179,9 +215,20 @@ workflows:
           filters:
             branches:
               only: main
+      - db-migrate:
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
       - deploy:
+          # Gate deploy on BOTH build (artifact ready) and db-migrate
+          # (schema in sync). A failed migration must block shipping the
+          # code that depends on it; running the migration before deploy
+          # also limits the window where new code can hit an old schema.
           requires:
             - build
+            - db-migrate
           filters:
             branches:
               only: main
