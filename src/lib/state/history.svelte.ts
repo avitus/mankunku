@@ -267,6 +267,15 @@ export function clearHistory(): void {
 	remove(META_KEY);
 }
 
+function categoriesMatch(a: Record<string, number>, b: Record<string, number>): boolean {
+	const aKeys = Object.keys(a);
+	if (aKeys.length !== Object.keys(b).length) return false;
+	for (const k of aKeys) {
+		if (a[k] !== b[k]) return false;
+	}
+	return true;
+}
+
 function summariesMatch(a: DailySummary, b: DailySummary): boolean {
 	return (
 		a.sessionCount === b.sessionCount &&
@@ -278,7 +287,7 @@ function summariesMatch(a: DailySummary, b: DailySummary): boolean {
 		a.notesTotal === b.notesTotal &&
 		a.notesHit === b.notesHit &&
 		JSON.stringify(a.grades) === JSON.stringify(b.grades) &&
-		JSON.stringify(a.categories) === JSON.stringify(b.categories)
+		categoriesMatch(a.categories, b.categories)
 	);
 }
 
