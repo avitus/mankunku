@@ -6,6 +6,7 @@ import {
 	shufflePitchClasses,
 	unlockedStages,
 	planLickKeys,
+	planUnlockedKeys,
 	type KeyOrderingStage
 } from '$lib/music/key-ordering';
 import { circleOfFifths } from '$lib/music/keys';
@@ -241,6 +242,39 @@ describe('planLickKeys — stage dispatch via deterministic RNG', () => {
 		});
 		assertPermutation(keys);
 		expect(keys).toEqual([...PITCH_CLASSES]);
+	});
+});
+
+describe('planUnlockedKeys', () => {
+	it('returns just the entry key when count is 1', () => {
+		expect(planUnlockedKeys('F', 1)).toEqual(['F']);
+	});
+
+	it('returns the first N keys of circleOfFifthsFrom(entryKey)', () => {
+		for (const start of PITCH_CLASSES) {
+			const full = circleOfFifthsFrom(start);
+			for (let n = 1; n <= 12; n++) {
+				expect(planUnlockedKeys(start, n)).toEqual(full.slice(0, n));
+			}
+		}
+	});
+
+	it('first key always equals the entry key', () => {
+		for (const start of PITCH_CLASSES) {
+			for (let n = 1; n <= 12; n++) {
+				expect(planUnlockedKeys(start, n)[0]).toBe(start);
+			}
+		}
+	});
+
+	it('clamps counts above 12 to 12', () => {
+		expect(planUnlockedKeys('C', 99)).toEqual(circleOfFifthsFrom('C'));
+		expect(planUnlockedKeys('C', 13).length).toBe(12);
+	});
+
+	it('clamps counts at or below 0 to 1', () => {
+		expect(planUnlockedKeys('D', 0)).toEqual(['D']);
+		expect(planUnlockedKeys('D', -5)).toEqual(['D']);
 	});
 });
 

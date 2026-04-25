@@ -643,12 +643,13 @@ export async function downloadRecording(
 //  Lick practice metadata sync
 // ═════════════════════════════════════════════════════════════════════
 
-/** Shape of the four JSONB columns in user_lick_metadata. */
+/** Shape of the JSONB columns in user_lick_metadata. */
 export interface LickMetadata {
 	lickTags: Record<string, string[]>;
 	practiceProgress: LickPracticeProgress;
 	tagOverrides: Record<string, string[]>;
 	categoryOverrides: Record<string, PhraseCategory>;
+	unlockCounts: Record<string, number>;
 }
 
 /**
@@ -664,7 +665,8 @@ export async function syncLickMetadataToCloud(
 ): Promise<void> {
 	try {
 		const hasData = data.lickTags !== undefined || data.practiceProgress !== undefined ||
-			data.tagOverrides !== undefined || data.categoryOverrides !== undefined;
+			data.tagOverrides !== undefined || data.categoryOverrides !== undefined ||
+			data.unlockCounts !== undefined;
 		if (!hasData) return;
 
 		const userId = await getAuthUserId(supabase);
@@ -676,7 +678,8 @@ export async function syncLickMetadataToCloud(
 			...(data.lickTags !== undefined && { lick_tags: data.lickTags as unknown as Json }),
 			...(data.practiceProgress !== undefined && { practice_progress: data.practiceProgress as unknown as Json }),
 			...(data.tagOverrides !== undefined && { tag_overrides: data.tagOverrides as unknown as Json }),
-			...(data.categoryOverrides !== undefined && { category_overrides: data.categoryOverrides as unknown as Json })
+			...(data.categoryOverrides !== undefined && { category_overrides: data.categoryOverrides as unknown as Json }),
+			...(data.unlockCounts !== undefined && { unlock_counts: data.unlockCounts as unknown as Json })
 		};
 
 		const { error } = await supabase
@@ -719,7 +722,11 @@ export async function loadLickMetadataFromCloud(
 			lickTags: (data.lick_tags ?? {}) as unknown as Record<string, string[]>,
 			practiceProgress: (data.practice_progress ?? {}) as unknown as LickPracticeProgress,
 			tagOverrides: (data.tag_overrides ?? {}) as unknown as Record<string, string[]>,
-			categoryOverrides: (data.category_overrides ?? {}) as unknown as Record<string, PhraseCategory>
+			categoryOverrides: (data.category_overrides ?? {}) as unknown as Record<string, PhraseCategory>,
+			// `unlock_counts` is a column added in migration 00015; older cloud
+			// rows (pre-migration deploy) won't have it, so coalesce missing /
+			// null values to {} to keep loads resilient against schema drift.
+			unlockCounts: (data.unlock_counts ?? {}) as unknown as Record<string, number>
 		};
 	} catch (error) {
 		console.warn('Failed to load lick metadata from cloud:', error);

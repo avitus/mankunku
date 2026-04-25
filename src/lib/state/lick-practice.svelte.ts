@@ -32,7 +32,7 @@ import type {
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
 import { addFractions } from '$lib/music/intervals';
-import { planLickKeys } from '$lib/music/key-ordering';
+import { planLickKeys, planUnlockedKeys } from '$lib/music/key-ordering';
 import {
 	loadLickPracticeProgress,
 	saveLickPracticeProgress,
@@ -45,6 +45,8 @@ import {
 	isTaggedForProgression,
 	backfillPracticeTags,
 	initLickMetadataFromCloud,
+	getUnlockedKeyCount,
+	bumpUnlockedKeyCount,
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo
@@ -244,11 +246,18 @@ export function buildSessionPlan(): void {
 	for (let i = 0; i < sorted.length && estimatedTime < totalSeconds; i++) {
 		const lick = sorted[i];
 		const tempo = resolveLickTempo(progress, lick.id);
-		const keys = planLickKeys({
-			tempo,
-			minBpm: NEW_LICK_DEFAULT_TEMPO,
-			instrument: getInstrument()
-		});
+		const unlockedCount = getUnlockedKeyCount(progress, lick.id);
+		// Below the 12-key cap, ramp predictably along the circle of fifths
+		// from the lick's entry key so each session adds exactly one neighbour.
+		// Once the lick has earned all 12 keys, hand off to planLickKeys for
+		// staged variety (random starts, chromatic / whole-tone orderings).
+		const keys = unlockedCount < 12
+			? planUnlockedKeys(lick.key, unlockedCount)
+			: planLickKeys({
+					tempo,
+					minBpm: NEW_LICK_DEFAULT_TEMPO,
+					instrument: getInstrument()
+				});
 		plan.push({
 			phraseId: lick.id,
 			phraseName: lick.name,
@@ -258,7 +267,7 @@ export function buildSessionPlan(): void {
 		});
 		const barsPerKey = PROGRESSION_TEMPLATES[lickPractice.config.progressionType].bars;
 		const secondsPerKey = (barsPerKey * 4 * 60) / tempo + 5;
-		estimatedTime += secondsPerKey * 12;
+		estimatedTime += secondsPerKey * keys.length;
 	}
 
 	lickPractice.plan = plan;
@@ -725,6 +734,16 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 			const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
 			const avgScore = totalScore / lickPractice.keyResults.length;
 			const delta = computeAutoTempoAdjustment(avgScore);
+
+			// Bump unlock BEFORE writing progress for this session's keys.
+			// The grandfather fallback in getUnlockedKeyCount treats a lick
+			// with any per-key progress as already at 12 — if we bumped after
+			// the writes, even a brand-new lick (just one entry-key result)
+			// would look "grandfathered" and stay capped at 12.
+			if (delta > 0) {
+				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);
+			}
+
 			const newTempo = clampTempo(lickPractice.currentTempo + delta);
 			const now = Date.now();
 			for (const key of item.keys) {

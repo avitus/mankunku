@@ -93,6 +93,22 @@ export interface PlanLickKeysArgs {
 }
 
 /**
+ * Build the gradually-unlocked key set for a lick that hasn't reached its
+ * full 12-key range yet. Returns the first `unlockedCount` keys of the
+ * circle of fifths starting at `entryKey` — adjacent keys in this sequence
+ * share 6 of 7 scale tones, so growing the set one step at a time stays
+ * friendly. Once `unlockedCount` reaches 12, callers should fall back to
+ * `planLickKeys` for staged variety.
+ */
+export function planUnlockedKeys(
+	entryKey: PitchClass,
+	unlockedCount: number
+): PitchClass[] {
+	const clamped = Math.min(12, Math.max(1, unlockedCount));
+	return circleOfFifthsFrom(entryKey).slice(0, clamped);
+}
+
+/**
  * Build the 12-key order for a single lick. Picks a stage uniformly at random
  * from the set unlocked at `tempo`, then draws that stage's ordering.
  */
