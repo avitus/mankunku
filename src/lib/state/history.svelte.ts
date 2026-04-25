@@ -270,6 +270,7 @@ export function clearHistory(): void {
 function summariesMatch(a: DailySummary, b: DailySummary): boolean {
 	return (
 		a.sessionCount === b.sessionCount &&
+		a.practiceMinutes === b.practiceMinutes &&
 		a.avgOverall === b.avgOverall &&
 		a.avgPitch === b.avgPitch &&
 		a.avgRhythm === b.avgRhythm &&
