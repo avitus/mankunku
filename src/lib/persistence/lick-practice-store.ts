@@ -253,7 +253,11 @@ function resolveUnlockCount(
 ): number {
 	const stored = counts[phraseId];
 	if (typeof stored === 'number' && Number.isFinite(stored)) {
-		return Math.min(MAX_UNLOCKED_KEYS, Math.max(1, stored));
+		// Truncate before clamping so a corrupt fractional value (e.g. 1.5)
+		// can't desync the persisted counter from the actual unlocked set:
+		// slice(0, 1.5) unlocks 1 key, but bumping 1.5 → 2.5 would
+		// persist a non-integer that drifts further with each session.
+		return Math.min(MAX_UNLOCKED_KEYS, Math.max(1, Math.trunc(stored)));
 	}
 	const keysWithProgress = progress[phraseId]
 		? Object.keys(progress[phraseId]).length

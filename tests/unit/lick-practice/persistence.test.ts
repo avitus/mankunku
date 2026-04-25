@@ -283,6 +283,20 @@ describe('unlocked key count', () => {
 		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(1);
 	});
 
+	it('truncates fractional stored values to integers', () => {
+		// Without truncation, slice(0, 1.5) unlocks 1 key but bumping would
+		// persist 2.5 — the stored counter drifts from the actual unlocked set.
+		localStorageMock.setItem(
+			'mankunku:lick-unlock-count',
+			JSON.stringify({ 'lick-x': 2.7 })
+		);
+		expect(getUnlockedKeyCount({}, 'lick-x')).toBe(2);
+
+		// And the bump from a fractional base lands on a clean integer.
+		expect(bumpUnlockedKeyCount({}, 'lick-x')).toBe(3);
+		expect(loadUnlockCounts()['lick-x']).toBe(3);
+	});
+
 	it('bumpUnlockedKeyCount increments from 1 to 2 on first call for a new lick', () => {
 		const next = bumpUnlockedKeyCount({}, 'lick-new');
 		expect(next).toBe(2);
