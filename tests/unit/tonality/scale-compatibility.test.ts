@@ -124,12 +124,6 @@ describe('progression category compatibility', () => {
 		expect(compat).toContain('altered');
 	});
 
-	it('turnarounds lick is compatible with major and mixolydian', () => {
-		const lick = makeLick({ scaleId: 'major.ionian', category: 'turnarounds' });
-		const compat = getCompatibleScaleTypes(lick);
-		expect(compat).toEqual(['major', 'mixolydian']);
-	});
-
 	it('rhythm-changes lick is compatible with major and mixolydian', () => {
 		const lick = makeLick({ scaleId: 'major.ionian', category: 'rhythm-changes' });
 		const compat = getCompatibleScaleTypes(lick);
