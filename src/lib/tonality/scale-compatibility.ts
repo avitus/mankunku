@@ -36,7 +36,6 @@ const CATEGORY_COMPATIBILITY: Partial<Record<PhraseCategory, ScaleType[]>> = {
 	'ii-V-I-minor': ['minor', 'dorian', 'melodic-minor', 'altered'],
 	'short-ii-V-I-major': ['major', 'dorian', 'mixolydian', 'lydian'],
 	'short-ii-V-I-minor': ['minor', 'dorian', 'melodic-minor', 'altered'],
-	'turnarounds': ['major', 'mixolydian'],
 	'rhythm-changes': ['major', 'mixolydian'],
 };
 

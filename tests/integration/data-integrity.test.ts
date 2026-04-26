@@ -17,11 +17,10 @@ import type { Phrase, PhraseCategory, ChordQuality, PitchClass } from '../../src
 const VALID_CATEGORIES: PhraseCategory[] = [
 	'ii-V-I-major', 'ii-V-I-minor', 'blues', 'bebop-lines',
 	'short-ii-V-I-major', 'short-ii-V-I-minor',
-	'long-ii-V-I-major', 'long-ii-V-I-minor',
 	'V-I-major', 'V-I-minor',
 	'major-chord', 'dominant-chord', 'minor-chord', 'diminished-chord',
-	'pentatonic', 'enclosures', 'digital-patterns', 'approach-notes',
-	'turnarounds', 'rhythm-changes', 'ballad', 'modal',
+	'pentatonic', 'enclosures', 'digital-patterns',
+	'rhythm-changes', 'ballad', 'modal',
 	'user'
 ];
 

@@ -181,13 +181,6 @@ describe('transposeLickForTonality — progression licks use parent key', () => 
 		expect(result.key).toBe('A');
 	});
 
-	it('turnaround lick uses parent key', () => {
-		const phrase = makePhrase([60, 64], 'turnarounds');
-		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
-		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
-		expect(result.key).toBe('A');
-	});
-
 	it('rhythm-changes lick uses parent key', () => {
 		const phrase = makePhrase([60, 64], 'rhythm-changes');
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');

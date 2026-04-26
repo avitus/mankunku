@@ -13,11 +13,10 @@ export type ChordQuality =
 export type PhraseCategory =
 	| 'ii-V-I-major' | 'ii-V-I-minor' | 'blues' | 'bebop-lines'
 	| 'short-ii-V-I-major' | 'short-ii-V-I-minor'
-	| 'long-ii-V-I-major' | 'long-ii-V-I-minor'
 	| 'V-I-major' | 'V-I-minor'
 	| 'major-chord' | 'dominant-chord' | 'minor-chord' | 'diminished-chord'
-	| 'pentatonic' | 'enclosures' | 'digital-patterns' | 'approach-notes'
-	| 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal'
+	| 'pentatonic' | 'enclosures' | 'digital-patterns'
+	| 'rhythm-changes' | 'ballad' | 'modal'
 	| 'user';
 
 /** Canonical display labels for every PhraseCategory value */
@@ -26,8 +25,6 @@ export const CATEGORY_LABELS: Record<PhraseCategory, string> = {
 	'ii-V-I-minor': 'ii-V-I (Min)',
 	'short-ii-V-I-major': 'Short ii-V-I (Maj)',
 	'short-ii-V-I-minor': 'Short ii-V-I (Min)',
-	'long-ii-V-I-major': 'Long ii-V-I (Maj)',
-	'long-ii-V-I-minor': 'Long ii-V-I (Min)',
 	'V-I-major': 'V-I (Maj)',
 	'V-I-minor': 'V-I (Min)',
 	'major-chord': 'Major Chord',
@@ -39,8 +36,6 @@ export const CATEGORY_LABELS: Record<PhraseCategory, string> = {
 	'pentatonic': 'Pentatonic',
 	'enclosures': 'Enclosures',
 	'digital-patterns': 'Digital Patterns',
-	'approach-notes': 'Approach Notes',
-	'turnarounds': 'Turnarounds',
 	'rhythm-changes': 'Rhythm Changes',
 	'ballad': 'Ballad',
 	'modal': 'Modal',
@@ -87,6 +82,13 @@ export interface DifficultyMetadata {
 	/** Rhythm complexity from 1-100 */
 	rhythmComplexity: number;
 	lengthBars: number;
+	/**
+	 * Whole bars of pickup that precede the lick's bulk downbeat. The engine
+	 * shifts the category's base alignment left by this many bars (clamped at
+	 * the start of the progression) so the bulk lands on the target chord
+	 * regardless of how many lead-in bars the lick has. Default 0.
+	 */
+	pickupBars?: number;
 }
 
 export interface Phrase {

@@ -209,6 +209,39 @@ export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemp
 };
 
 /**
+ * Subtract `pickupBars` whole bars from a category's base alignment offset,
+ * clamping at the start of the progression. Used so a lick with a 1-bar
+ * pickup whose category aligns to bar N (e.g. `major-chord` at bar 2 of long
+ * ii-V-I) actually starts at bar N-1 — putting its bulk on bar N as the
+ * 1-bar variant would.
+ */
+export function applyPickupBarShift(baseAlignment: Fraction, pickupBars: number): Fraction {
+	if (pickupBars <= 0) return baseAlignment;
+	const num = baseAlignment[0] - pickupBars * baseAlignment[1];
+	if (num <= 0) return [0, 1];
+	return [num, baseAlignment[1]];
+}
+
+/**
+ * Lengthen the duration of a harmony's last segment by `extraBars` whole bars.
+ * Used to sustain the progression's resolution chord through a per-lick
+ * tail-extension when a lick spans more bars than the progression's cycle.
+ * Returns the original array unchanged when no extension is needed.
+ */
+export function extendHarmonyTail(
+	harmony: HarmonicSegment[],
+	extraBars: number
+): HarmonicSegment[] {
+	if (extraBars <= 0 || harmony.length === 0) return harmony;
+	const last = harmony[harmony.length - 1];
+	const extended: HarmonicSegment = {
+		...last,
+		duration: [last.duration[0] + extraBars * last.duration[1], last.duration[1]]
+	};
+	return [...harmony.slice(0, -1), extended];
+}
+
+/**
  * Transpose a progression template to a target key.
  * All templates are defined in C — this shifts every chord root.
  */
@@ -274,7 +307,6 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 	],
 	'ii-V-I-major-long': [
 		{ category: 'ii-V-I-major',      offset: [0, 1] },
-		{ category: 'long-ii-V-I-major', offset: [0, 1] },
 		{ category: 'V-I-major',         offset: [1, 1] }, // V starts bar 1
 		{ category: 'minor-chord',       offset: [0, 1] }, // ii = min7
 		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7
@@ -282,14 +314,12 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 	],
 	'ii-V-I-minor-long': [
 		{ category: 'ii-V-I-minor',      offset: [0, 1] },
-		{ category: 'long-ii-V-I-minor', offset: [0, 1] },
 		{ category: 'V-I-minor',         offset: [1, 1] },
 		{ category: 'diminished-chord',  offset: [0, 1] }, // ii = min7b5 (half-dim)
 		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7alt
 		{ category: 'minor-chord',       offset: [2, 1] }  // I = min7 starts bar 2
 	],
 	turnaround: [
-		{ category: 'turnarounds',    offset: [0, 1] },
 		{ category: 'ii-V-I-major',   offset: [0, 1] },
 		{ category: 'rhythm-changes', offset: [0, 1] },
 		{ category: 'major-chord',    offset: [0, 1] }, // I = maj7 on bar 0

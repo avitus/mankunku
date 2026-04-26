@@ -225,7 +225,7 @@ describe('getLicksByCategory', () => {
 	});
 
 	it('returns empty array for category with no licks', () => {
-		const result = getLicksByCategory('turnarounds');
+		const result = getLicksByCategory('rhythm-changes');
 		expect(result).toEqual([]);
 	});
 
