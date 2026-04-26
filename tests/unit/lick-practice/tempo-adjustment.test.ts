@@ -11,7 +11,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	clampTempo,
-	NEW_LICK_DEFAULT_TEMPO
+	NEW_LICK_DEFAULT_TEMPO,
+	loadUnlockCounts
 } from '$lib/persistence/lick-practice-store';
 import {
 	lickPractice,
@@ -288,5 +289,84 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 		expect(lickPractice.progress[LICK_ID]?.G?.currentTempo).toBe(77);
 		expect(lickPractice.progress[LICK_ID]?.D?.currentTempo).toBe(77);
 		expect(lickPractice.progress[LICK_ID]?.Eb?.currentTempo).toBe(77);
+	});
+});
+
+describe('startInterLickTransition — unlock count bump', () => {
+	it('bumps unlock count by 1 on positive tempo delta (avg score ≥ 0.85)', () => {
+		setupLick({
+			currentTempo: 60,
+			results: [{ key: 'C', score: 0.9 }],
+			plannedKeys: ['C']
+		});
+		startInterLickTransition();
+		// avg 0.9 → +2, so unlock should bump from 1 to 2
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+	});
+
+	it('bumps unlock count on +5 tier (avg score ≥ 0.95)', () => {
+		setupLick({
+			currentTempo: 60,
+			results: [{ key: 'C', score: 1.0 }],
+			plannedKeys: ['C']
+		});
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+	});
+
+	it('does not bump unlock count on negative tempo delta', () => {
+		setupLick({
+			currentTempo: 80,
+			results: [
+				{ key: 'C', score: 0.5 },
+				{ key: 'F', score: 0.5 }
+			],
+			plannedKeys: ['C', 'F']
+		});
+		startInterLickTransition();
+		// avg 0.5 → -3 → no bump. Store stays empty for this lick.
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+	});
+
+	it('does not bump unlock count on the -1 tier (avg 0.70 ≤ score < 0.85)', () => {
+		setupLick({
+			currentTempo: 80,
+			results: [{ key: 'C', score: 0.75 }],
+			plannedKeys: ['C']
+		});
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+	});
+
+	it('does not bump unlock count when no keys were scored (empty results)', () => {
+		setupLick({
+			currentTempo: 100,
+			results: [],
+			plannedKeys: ['C', 'F']
+		});
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+	});
+
+	it('caps unlock count at 12 even when multiple positive sessions accumulate', () => {
+		setupLick({
+			currentTempo: 100,
+			results: [{ key: 'C', score: 0.9 }],
+			plannedKeys: ['C']
+		});
+		// Pre-seed near the cap: simulate 11 prior bumps. Storage module
+		// prefixes keys with 'mankunku:' so we write through that key.
+		store['mankunku:lick-unlock-count'] = JSON.stringify({ [LICK_ID]: 11 });
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(12);
+
+		// A second positive session should not push past 12.
+		setupLick({
+			currentTempo: 100,
+			results: [{ key: 'C', score: 0.9 }],
+			plannedKeys: ['C']
+		});
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(12);
 	});
 });

@@ -8,12 +8,15 @@ import { getScopeGeneration } from './user-scope';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
+const UNLOCK_KEY = 'lick-unlock-count';
 const DEFAULT_TEMPO = 100;
 /** Starting BPM for any lick with no prior practice history. */
 export const NEW_LICK_DEFAULT_TEMPO = 60;
 const MIN_TEMPO = 50;
 const MAX_TEMPO = 300;
 const PROG_TAG_PREFIX = 'prog:';
+/** Maximum unlocked keys per lick (full 12-key circle). */
+const MAX_UNLOCKED_KEYS = 12;
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
@@ -69,6 +72,19 @@ export async function initLickMetadataFromCloud(
 				save(CATEGORY_OVERRIDES_KEY, cloud.categoryOverrides);
 			}
 		}
+
+		// Normalize both ends through the same type guard the rest of the
+		// module uses — load<T>() is just a cast, and cloud.unlockCounts is a
+		// JSONB blob that could in principle be any JSON value. Without this,
+		// a corrupt non-object payload on either side would either misfire the
+		// "already populated" check or write a non-object back to localStorage.
+		const localUnlocks = loadUnlockCounts();
+		if (Object.keys(localUnlocks).length === 0) {
+			const cloudUnlocks = isUnlockCountMap(cloud.unlockCounts) ? cloud.unlockCounts : {};
+			if (Object.keys(cloudUnlocks).length > 0) {
+				save(UNLOCK_KEY, cloudUnlocks);
+			}
+		}
 	} catch (error) {
 		console.warn('Failed to hydrate lick metadata from cloud:', error);
 	}
@@ -77,6 +93,7 @@ export async function initLickMetadataFromCloud(
 /** Debounce timers — prevents rapid writes from racing in the cloud. */
 let syncTagsTimer: ReturnType<typeof setTimeout> | null = null;
 let syncProgressTimer: ReturnType<typeof setTimeout> | null = null;
+let syncUnlocksTimer: ReturnType<typeof setTimeout> | null = null;
 const SYNC_DEBOUNCE_MS = 500;
 
 /**
@@ -107,6 +124,21 @@ function syncPracticeProgressToCloud(): void {
 		syncProgressTimer = null;
 		const progress = loadLickPracticeProgress();
 		syncLickMetadataToCloud(_supabase!, { practiceProgress: progress }).catch(() => {});
+	}, SYNC_DEBOUNCE_MS);
+}
+
+/**
+ * Debounced sync of the unlock_counts column to cloud.
+ *
+ * Same coalescing strategy as the other sync helpers.
+ */
+function syncUnlockCountsToCloud(): void {
+	if (!_supabase) return;
+	if (syncUnlocksTimer) clearTimeout(syncUnlocksTimer);
+	syncUnlocksTimer = setTimeout(() => {
+		syncUnlocksTimer = null;
+		const counts = loadUnlockCounts();
+		syncLickMetadataToCloud(_supabase!, { unlockCounts: counts }).catch(() => {});
 	}, SYNC_DEBOUNCE_MS);
 }
 
@@ -182,6 +214,92 @@ export function computeAutoTempoAdjustment(averageScore: number): number {
 /** Clamp a tempo to the allowed range (40–300 BPM). */
 export function clampTempo(tempo: number): number {
 	return Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, tempo));
+}
+
+// ── Unlocked-key count ──────────────────────────────────────
+//
+// Cloud-synced via the unlock_counts column on user_lick_metadata
+// (migration 00015). Hydrated alongside the other lick metadata blobs in
+// initLickMetadataFromCloud; saved with a debounced upsert by saveUnlockCounts.
+
+/**
+ * Type guard for the unlock-counts shape. The persistence layer's `load<T>()`
+ * is only a type cast — if localStorage holds a corrupt primitive (string,
+ * number, array, null) we'd otherwise mutate it like an object, which throws
+ * in strict-mode module code (`counts[phraseId] = next` on a string).
+ */
+function isUnlockCountMap(value: unknown): value is Record<string, number> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function loadUnlockCounts(): Record<string, number> {
+	const raw = load<unknown>(UNLOCK_KEY);
+	return isUnlockCountMap(raw) ? raw : {};
+}
+
+function saveUnlockCounts(counts: Record<string, number>): void {
+	save(UNLOCK_KEY, counts);
+	syncUnlockCountsToCloud();
+}
+
+/**
+ * Resolve the unlocked key count from an already-loaded counts map. Shared
+ * by getUnlockedKeyCount (which loads on each call) and bumpUnlockedKeyCount
+ * (which has a counts map in hand and would otherwise read storage twice).
+ *
+ * Resolution order:
+ *   - explicit stored value (must be a finite number, clamped to [1, 12]), else
+ *   - 12 if the lick has progress in all 12 keys (grandfathers pre-feature
+ *     users — the old code wrote all 12 per session, so full coverage is
+ *     unique to pre-feature data), else
+ *   - 1 (brand-new lick or post-feature lick whose first session failed).
+ *
+ * The "all 12 keys" check matters: a fresh lick whose entry-key session
+ * failed has progress in 1 key but no stored count, and we must not
+ * grandfather it back up to 12 — otherwise a single bad session demotes
+ * the user to the daunting full-12-key cycle.
+ *
+ * The Number.isFinite gate exists because Math.max(1, NaN) returns NaN,
+ * which would propagate into key-plan slicing and silently break sessions
+ * if a manually-edited or legacy-corrupt store ever held NaN/Infinity.
+ */
+function resolveUnlockCount(
+	counts: Record<string, number>,
+	progress: LickPracticeProgress,
+	phraseId: string
+): number {
+	const stored = counts[phraseId];
+	if (typeof stored === 'number' && Number.isFinite(stored)) {
+		// Truncate before clamping so a corrupt fractional value (e.g. 1.5)
+		// can't desync the persisted counter from the actual unlocked set:
+		// slice(0, 1.5) unlocks 1 key, but bumping 1.5 → 2.5 would
+		// persist a non-integer that drifts further with each session.
+		return Math.min(MAX_UNLOCKED_KEYS, Math.max(1, Math.trunc(stored)));
+	}
+	const keysWithProgress = progress[phraseId]
+		? Object.keys(progress[phraseId]).length
+		: 0;
+	return keysWithProgress >= MAX_UNLOCKED_KEYS ? MAX_UNLOCKED_KEYS : 1;
+}
+
+export function getUnlockedKeyCount(
+	progress: LickPracticeProgress,
+	phraseId: string
+): number {
+	return resolveUnlockCount(loadUnlockCounts(), progress, phraseId);
+}
+
+/** Bump the unlock count by 1, capped at 12. Returns the new count. */
+export function bumpUnlockedKeyCount(
+	progress: LickPracticeProgress,
+	phraseId: string
+): number {
+	const counts = loadUnlockCounts();
+	const current = resolveUnlockCount(counts, progress, phraseId);
+	const next = Math.min(MAX_UNLOCKED_KEYS, current + 1);
+	counts[phraseId] = next;
+	saveUnlockCounts(counts);
+	return next;
 }
 
 /** User-managed practice tags — stored separately from curated lick tags */
