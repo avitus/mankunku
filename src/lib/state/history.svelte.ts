@@ -314,6 +314,13 @@ export function rebuildHistoryIfNeeded(): void {
 
 	// Fast-path: if every derived day already matches the existing summary
 	// across all aggregate fields, there's nothing to persist.
+	//
+	// The earliest derived date is special: if some of that day's sessions
+	// were pruned out of the MAX_SESSIONS window before derivation ran, the
+	// derived summary undercounts the day. Skip the overwrite when the
+	// existing summary has strictly larger totals — the local copy is the
+	// authoritative one.
+	const earliestDerivedDate = derived.summaries[0]?.date;
 	let changed = false;
 	for (const derivedSummary of derived.summaries) {
 		const existing = summaryMap.get(derivedSummary.date);
@@ -321,6 +328,14 @@ export function rebuildHistoryIfNeeded(): void {
 			dailySummaries.push(derivedSummary);
 			summaryMap.set(derivedSummary.date, derivedSummary);
 			changed = true;
+			continue;
+		}
+		if (
+			derivedSummary.date === earliestDerivedDate &&
+			(existing.sessionCount > derivedSummary.sessionCount ||
+				existing.notesTotal > derivedSummary.notesTotal ||
+				existing.notesHit > derivedSummary.notesHit)
+		) {
 			continue;
 		}
 		if (!summariesMatch(existing, derivedSummary)) {
