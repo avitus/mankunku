@@ -228,9 +228,9 @@ const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
 /**
  * Transpose a lick for a given tonality (key + scale).
  *
- * For major-family modes with multi-chord progressions (ii-V-I, turnarounds,
- * rhythm changes), transposes to the parent major key so chord relationships
- * are preserved. E.g. A Dorian ii-V-I → parent G major.
+ * For major-family modes with multi-chord progressions (ii-V-I, V-I, rhythm
+ * changes), transposes to the parent major key so chord relationships are
+ * preserved. E.g. A Dorian ii-V-I → parent G major.
  *
  * For single-chord modal licks (pentatonic, blues category, etc.),
  * transposes directly to the modal root and snaps to the scale.

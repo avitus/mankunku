@@ -258,13 +258,19 @@ export function buildSessionPlan(): void {
 			category: lick.category,
 			keys
 		});
-		const barsPerKey = getLickBars(
+		// Mirror the runtime layout: each key consumes `keyBars` (= lickBars in
+		// continuous mode, 2 × lickBars in C&R) and continuous mode prepends a
+		// demo cycle of `lickBars` before the keys.
+		const lickBars = getLickBars(
 			lick,
 			lickPractice.config.progressionType,
 			lickPractice.config.enableSubstitutions ?? false
 		);
-		const secondsPerKey = (barsPerKey * 4 * 60) / tempo + 5;
-		estimatedTime += secondsPerKey * 12;
+		const mode = lickPractice.config.practiceMode;
+		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
+		const demoBars = mode === 'continuous' ? lickBars : 0;
+		const totalBars = keys.length * keyBars + demoBars;
+		estimatedTime += (totalBars * 4 * 60) / tempo + 5;
 	}
 
 	lickPractice.plan = plan;
@@ -412,26 +418,18 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 	let lickIdx = lickPractice.currentLickIndex;
 	let keyIdx = lickPractice.currentKeyIndex + offset;
 
-	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 	while (lickIdx < lickPractice.plan.length) {
 		const item = lickPractice.plan[lickIdx];
 		if (keyIdx < item.keys.length) {
 			const key = item.keys[keyIdx];
 			const phrase = buildPhraseFor(item.phraseId, key);
 			if (!phrase) return null;
-			const lick = getAllLicks().find(l => l.id === item.phraseId);
-			const harmony = lick
-				? harmonyForLick(lick, key, lickPractice.config.progressionType, enableSubstitutions)
-				: transposeProgression(
-					PROGRESSION_TEMPLATES[lickPractice.config.progressionType].harmony,
-					key
-				);
 			return {
 				lickIndex: lickIdx,
 				keyIndex: keyIdx,
 				key,
 				phrase,
-				harmony,
+				harmony: phrase.harmony,
 				lickName: item.phraseName,
 				lickId: item.phraseId
 			};
@@ -464,23 +462,17 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 	const item = lickPractice.plan[lickIdx];
 	if (!item) return [];
 
-	const lick = getAllLicks().find(l => l.id === item.phraseId);
-	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
-	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 	const result: PlannedKey[] = [];
 	for (let i = 0; i < item.keys.length; i++) {
 		const key = item.keys[i];
 		const phrase = buildPhraseFor(item.phraseId, key);
 		if (!phrase) continue;
-		const harmony = lick
-			? harmonyForLick(lick, key, lickPractice.config.progressionType, enableSubstitutions)
-			: transposeProgression(template.harmony, key);
 		result.push({
 			lickIndex: lickIdx,
 			keyIndex: i,
 			key,
 			phrase,
-			harmony,
+			harmony: phrase.harmony,
 			lickName: item.phraseName,
 			lickId: item.phraseId
 		});
