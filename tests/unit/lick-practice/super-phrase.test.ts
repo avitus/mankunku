@@ -339,3 +339,218 @@ describe('startInterLickTransition', () => {
 		expect(lickPractice.currentTempo).toBe(99);
 	});
 });
+
+// ─── Pickup-bar handling for the 3-bar major lick ────────────────────
+//
+// `major-chord-pickup-001` is a 3-bar lick (`lengthBars: 3`, `pickupBars: 1`):
+// rests + a triplet pickup on beat 4 of lick bar 0, melodic bulk on lick bar 1,
+// and a final note on beat 1 of lick bar 2. The engine shifts the
+// `major-chord` category's base alignment left by `pickupBars` (clamped at
+// `[0,1]`) so the pickup lands on the V chord wherever V exists; when the
+// shifted lick wouldn't fit inside the progression cycle, the per-key window
+// stretches and the progression's last chord sustains through the tail.
+
+const PICKUP_LICK_ID = 'major-chord-pickup-001';
+
+function planMajorChord(...items: Array<{ id: string; keys: string[] }>): LickPracticePlanItem[] {
+	return items.map((item, idx) => ({
+		phraseId: item.id,
+		phraseName: item.id,
+		phraseNumber: idx + 1,
+		category: 'major-chord' as const,
+		keys: item.keys as LickPracticePlanItem['keys']
+	}));
+}
+
+describe('3-bar pickup major lick over major-vamp', () => {
+	beforeEach(() => {
+		lickPractice.config.progressionType = 'major-vamp';
+		lickPractice.config.practiceMode = 'continuous';
+		lickPractice.plan = planMajorChord({ id: PICKUP_LICK_ID, keys: ['C'] });
+	});
+
+	it('getKeyBars stretches to fit the 3-bar lick (progressionBars 2 → keyBars 3)', () => {
+		expect(getProgressionBars()).toBe(2);
+		expect(getKeyBars()).toBe(3);
+	});
+
+	it('super-phrase total span = (1 demo + 1 user) × 3 bars = 6', () => {
+		const sp = buildLickSuperPhrase(0);
+		const lastSeg = sp!.harmony[sp!.harmony.length - 1];
+		const endOffset =
+			fractionToFloat(lastSeg.startOffset) + fractionToFloat(lastSeg.duration);
+		expect(endOffset).toBe(6);
+		expect(sp?.difficulty.lengthBars).toBe(6);
+	});
+
+	it('each cycle is one Cmaj7 segment with duration extended to 3 bars', () => {
+		const sp = buildLickSuperPhrase(0);
+		// 1 segment per cycle × 2 cycles (demo + 1 user key) = 2 segments
+		expect(sp?.harmony.length).toBe(2);
+		expect(sp!.harmony[0].chord.root).toBe('C');
+		expect(sp!.harmony[0].chord.quality).toBe('maj7');
+		expect(fractionToFloat(sp!.harmony[0].duration)).toBe(3);
+		expect(fractionToFloat(sp!.harmony[1].startOffset)).toBe(3);
+		expect(fractionToFloat(sp!.harmony[1].duration)).toBe(3);
+	});
+
+	it('demo notes keep their original offsets — pickup at beat 4, final at bar 2 beat 1', () => {
+		const sp = buildLickSuperPhrase(0);
+		// Continuous mode: only the demo cycle emits melody (12 notes for this lick)
+		expect(sp?.notes.length).toBe(12);
+		// First note (pickup triplet's first eighth) is at beat 4 of lick bar 0
+		expect(fractionToFloat(sp!.notes[0].offset)).toBe(0.75);
+		// Last note (resolution) is at beat 1 of lick bar 2
+		expect(fractionToFloat(sp!.notes[sp!.notes.length - 1].offset)).toBe(2);
+	});
+});
+
+describe('3-bar pickup major lick over short ii-V-I-major', () => {
+	beforeEach(() => {
+		lickPractice.config.progressionType = 'ii-V-I-major';
+		lickPractice.config.practiceMode = 'continuous';
+		lickPractice.plan = planMajorChord({ id: PICKUP_LICK_ID, keys: ['C'] });
+	});
+
+	it('pickupBars shift moves alignment from [1,1] to [0,1]; keyBars stretches 2 → 3', () => {
+		expect(getProgressionBars()).toBe(2);
+		expect(getKeyBars()).toBe(3);
+	});
+
+	it('Cmaj7 (last segment) sustains an extra bar; Dm7/G7 unchanged', () => {
+		const sp = buildLickSuperPhrase(0);
+		// 3 segments per cycle × 2 cycles = 6 segments
+		expect(sp?.harmony.length).toBe(6);
+		// Demo cycle:
+		//   [0]   Dm7  startOffset 0     duration 0.5
+		//   [1]   G7   startOffset 0.5   duration 0.5
+		//   [2]   Cmaj7 startOffset 1    duration 2 (extended from 1 → 2)
+		expect(sp!.harmony[0].chord.root).toBe('D');
+		expect(fractionToFloat(sp!.harmony[0].duration)).toBe(0.5);
+		expect(sp!.harmony[1].chord.root).toBe('G');
+		expect(fractionToFloat(sp!.harmony[1].duration)).toBe(0.5);
+		expect(sp!.harmony[2].chord.root).toBe('C');
+		expect(sp!.harmony[2].chord.quality).toBe('maj7');
+		expect(fractionToFloat(sp!.harmony[2].duration)).toBe(2);
+	});
+
+	it('pickup falls on G7\'s last beat (beat 4 of progression bar 0)', () => {
+		const sp = buildLickSuperPhrase(0);
+		// First demo note is the start of the triplet pickup at beat 4
+		expect(fractionToFloat(sp!.notes[0].offset)).toBe(0.75);
+		// At offset 0.75 the harmony segment is G7 (covers [0.5, 1.0))
+		// Sanity check: G7 starts at 0.5 with duration 0.5, so 0.75 falls inside it
+		expect(fractionToFloat(sp!.harmony[1].startOffset)).toBe(0.5);
+		expect(fractionToFloat(sp!.harmony[1].startOffset) + fractionToFloat(sp!.harmony[1].duration)).toBe(1);
+	});
+
+	it('total span = (1 demo + 1 user) × 3 bars = 6', () => {
+		const sp = buildLickSuperPhrase(0);
+		const lastSeg = sp!.harmony[sp!.harmony.length - 1];
+		const endOffset =
+			fractionToFloat(lastSeg.startOffset) + fractionToFloat(lastSeg.duration);
+		expect(endOffset).toBe(6);
+	});
+});
+
+describe('3-bar pickup major lick over long ii-V-I-major', () => {
+	beforeEach(() => {
+		lickPractice.config.progressionType = 'ii-V-I-major-long';
+		lickPractice.config.practiceMode = 'continuous';
+		lickPractice.plan = planMajorChord({ id: PICKUP_LICK_ID, keys: ['C'] });
+	});
+
+	it('lick fits in 4 bars: alignment shifts [2,1] → [1,1], no extension', () => {
+		expect(getProgressionBars()).toBe(4);
+		expect(getKeyBars()).toBe(4);
+	});
+
+	it('Cmaj7 last segment keeps its original 2-bar duration (no extension)', () => {
+		const sp = buildLickSuperPhrase(0);
+		// 3 segments per cycle × 2 cycles = 6 segments
+		expect(sp?.harmony.length).toBe(6);
+		expect(sp!.harmony[2].chord.root).toBe('C');
+		expect(sp!.harmony[2].chord.quality).toBe('maj7');
+		expect(fractionToFloat(sp!.harmony[2].duration)).toBe(2);
+	});
+
+	it('alignment offset [1,1] places pickup on G7\'s last beat (bar 1 beat 4)', () => {
+		const sp = buildLickSuperPhrase(0);
+		// Pickup's first note: original offset [3,4] (=0.75) shifted by [1,1] → 1.75
+		expect(fractionToFloat(sp!.notes[0].offset)).toBe(1.75);
+		// Final note: original [2,1] (=2) shifted by [1,1] → 3 (= bar 4 beat 1)
+		expect(fractionToFloat(sp!.notes[sp!.notes.length - 1].offset)).toBe(3);
+		// Bar 1 (G7) spans [1, 2) — 1.75 is inside
+		expect(sp!.harmony[1].chord.root).toBe('G');
+		expect(fractionToFloat(sp!.harmony[1].startOffset)).toBe(1);
+		expect(fractionToFloat(sp!.harmony[1].duration)).toBe(1);
+	});
+
+	it('transposes to the body chord (I), not the pickup chord (V)', () => {
+		// Lick is authored in C and rooted on Cmaj7. With session key C the
+		// transposition target must be C — using the pickup-shifted alignment
+		// would resolve to G (the V) and shift every note up a fifth.
+		const sp = buildLickSuperPhrase(0);
+		// First note in the lick file: pickup G3 (MIDI 55). After a no-op
+		// C → C transpose the pitch must be unchanged.
+		expect(sp!.notes[0].pitch).toBe(55);
+		// Final resolution note in the lick file: C4 (MIDI 60).
+		expect(sp!.notes[sp!.notes.length - 1].pitch).toBe(60);
+	});
+
+	it('total span = (1 demo + 1 user) × 4 bars = 8', () => {
+		const sp = buildLickSuperPhrase(0);
+		const lastSeg = sp!.harmony[sp!.harmony.length - 1];
+		const endOffset =
+			fractionToFloat(lastSeg.startOffset) + fractionToFloat(lastSeg.duration);
+		expect(endOffset).toBe(8);
+	});
+});
+
+describe('3-bar pickup major lick — call-response mode', () => {
+	beforeEach(() => {
+		lickPractice.config.progressionType = 'ii-V-I-major';
+		lickPractice.config.practiceMode = 'call-response';
+		lickPractice.plan = planMajorChord({ id: PICKUP_LICK_ID, keys: ['C', 'F'] });
+	});
+
+	it('keyBars doubles the stretched lickBars (3 × 2 = 6)', () => {
+		expect(getKeyBars()).toBe(6);
+	});
+
+	it('app and user halves of each key both span the stretched 3-bar window', () => {
+		const sp = buildLickSuperPhrase(0);
+		// Each key has the progression's 3 segments twice (app + user halves):
+		// 3 × 2 × 2 keys = 12 segments
+		expect(sp?.harmony.length).toBe(12);
+		// User half of key 0 starts at offset 3 (= app phase of 3 stretched bars)
+		// Segment index 3 is the start of the user half (Dm7 again)
+		expect(sp!.harmony[3].chord.root).toBe('D');
+		expect(fractionToFloat(sp!.harmony[3].startOffset)).toBe(3);
+	});
+});
+
+describe('1-bar major-chord lick is unaffected by pickup-bar machinery', () => {
+	const ONE_BAR_MAJOR_LICK_ID = 'major-chord-001';
+
+	beforeEach(() => {
+		lickPractice.config.practiceMode = 'continuous';
+		lickPractice.plan = planMajorChord({ id: ONE_BAR_MAJOR_LICK_ID, keys: ['C'] });
+	});
+
+	it('on short ii-V-I-major: keyBars stays 2 (progressionBars), no extension', () => {
+		lickPractice.config.progressionType = 'ii-V-I-major';
+		expect(getKeyBars()).toBe(2);
+		const sp = buildLickSuperPhrase(0);
+		// Cmaj7 last segment keeps its original 1-bar duration
+		expect(fractionToFloat(sp!.harmony[2].duration)).toBe(1);
+	});
+
+	it('on long ii-V-I-major: keyBars stays 4, alignment offset still [2,1]', () => {
+		lickPractice.config.progressionType = 'ii-V-I-major-long';
+		expect(getKeyBars()).toBe(4);
+		const sp = buildLickSuperPhrase(0);
+		// First demo note's offset = original [0,1] + alignment [2,1] = 2
+		expect(fractionToFloat(sp!.notes[0].offset)).toBe(2);
+	});
+});

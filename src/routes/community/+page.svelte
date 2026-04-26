@@ -216,8 +216,6 @@
 		'bebop-lines',
 		'pentatonic',
 		'enclosures',
-		'approach-notes',
-		'turnarounds',
 		'rhythm-changes',
 		'user'
 	];

@@ -220,18 +220,17 @@ export function transposeLick(
 const MAJOR_MODE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 
 /** Categories where licks span multi-chord progressions — use parent-key transposition */
-const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
+const PROGRESSION_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<PhraseCategory>([
 	'ii-V-I-major', 'ii-V-I-minor', 'short-ii-V-I-major', 'short-ii-V-I-minor',
-	'long-ii-V-I-major', 'long-ii-V-I-minor', 'V-I-major', 'V-I-minor',
-	'turnarounds', 'rhythm-changes'
+	'V-I-major', 'V-I-minor', 'rhythm-changes'
 ]);
 
 /**
  * Transpose a lick for a given tonality (key + scale).
  *
- * For major-family modes with multi-chord progressions (ii-V-I, turnarounds,
- * rhythm changes), transposes to the parent major key so chord relationships
- * are preserved. E.g. A Dorian ii-V-I → parent G major.
+ * For major-family modes with multi-chord progressions (ii-V-I, V-I, rhythm
+ * changes), transposes to the parent major key so chord relationships are
+ * preserved. E.g. A Dorian ii-V-I → parent G major.
  *
  * For single-chord modal licks (pentatonic, blues category, etc.),
  * transposes directly to the modal root and snaps to the scale.
