@@ -63,7 +63,7 @@ import {
 	applyPickupBarShift,
 	extendHarmonyTail
 } from '$lib/data/progressions';
-import { getAllLicks, transposeLick } from '$lib/phrases/library-loader';
+import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-loader';
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 
@@ -347,7 +347,7 @@ export function getCurrentHarmony(): HarmonicSegment[] {
 	const key = getCurrentKey();
 	if (!key) return [];
 	const item = getCurrentPlanItem();
-	const lick = item ? getAllLicks().find(l => l.id === item.phraseId) : undefined;
+	const lick = item ? getLickById(item.phraseId) : undefined;
 	if (!lick) {
 		const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 		return transposeProgression(template.harmony, key);
@@ -372,13 +372,20 @@ export function getCurrentHarmony(): HarmonicSegment[] {
  * — the lick's intrinsic harmony is discarded.
  */
 function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
-	const allLicks = getAllLicks();
-	const baseLick = allLicks.find(l => l.id === lickId);
+	const baseLick = getLickById(lickId);
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
+	// Two alignment offsets, both needed:
+	// - `alignmentOffset` (pickup-shifted) places the melody's notes inside the
+	//   progression cycle so the pickup falls on V where applicable.
+	// - `bodyAlignment` (un-shifted) is what `resolveTransposeTarget` reads to
+	//   pick the lick's body chord — using the shifted version here would
+	//   transpose the lick to the pickup chord (e.g. G7) instead of its
+	//   intended target (e.g. Cmaj7).
 	const alignmentOffset = resolveAlignedLickOffset(baseLick, progressionType, enableSubstitutions);
+	const bodyAlignment = resolveLickAlignmentOffset(progressionType, baseLick.category, enableSubstitutions);
 
 	// Chord-quality licks (e.g. a 1-bar `minor-chord` lick) are rooted on a
 	// single chord. They must transpose to the ROOT of the target chord in
@@ -392,7 +399,7 @@ function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
 		key,
 		baseLick.category,
 		progressionType,
-		alignmentOffset,
+		bodyAlignment,
 		enableSubstitutions
 	);
 
@@ -516,8 +523,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	const item = lickPractice.plan[lickIdx];
 	if (!item) return null;
 
-	const allLicks = getAllLicks();
-	const baseLick = allLicks.find(l => l.id === item.phraseId);
+	const baseLick = getLickById(item.phraseId);
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
@@ -538,6 +544,9 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	// the same chord as the no-pickup variant of its category. Substitutions
 	// fall through to the substitution target chord's offset.
 	const alignmentOffset = resolveAlignedLickOffset(baseLick, progressionType, enableSubstitutions);
+	// Transposition reads the un-shifted alignment so the lick transposes to
+	// its body chord (e.g. the I), not the pickup chord (e.g. the V).
+	const bodyAlignment = resolveLickAlignmentOffset(progressionType, baseLick.category, enableSubstitutions);
 
 	// For chord-quality licks, transpose to the target chord's root rather
 	// than the session key (see buildPhraseFor for the rationale). When a
@@ -548,7 +557,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 			sessionKey,
 			baseLick.category,
 			progressionType,
-			alignmentOffset,
+			bodyAlignment,
 			enableSubstitutions
 		);
 
@@ -689,7 +698,7 @@ function getCurrentLickBars(): number {
 	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 	const item = getCurrentPlanItem();
 	if (!item) return template.bars;
-	const lick = getAllLicks().find(l => l.id === item.phraseId);
+	const lick = getLickById(item.phraseId);
 	if (!lick) return template.bars;
 	return getLickBars(
 		lick,

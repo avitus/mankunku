@@ -220,7 +220,7 @@ export function transposeLick(
 const MAJOR_MODE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 
 /** Categories where licks span multi-chord progressions — use parent-key transposition */
-const PROGRESSION_CATEGORIES: ReadonlySet<string> = new Set([
+const PROGRESSION_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<PhraseCategory>([
 	'ii-V-I-major', 'ii-V-I-minor', 'short-ii-V-I-major', 'short-ii-V-I-minor',
 	'V-I-major', 'V-I-minor', 'rhythm-changes'
 ]);

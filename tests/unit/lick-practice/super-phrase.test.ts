@@ -486,6 +486,18 @@ describe('3-bar pickup major lick over long ii-V-I-major', () => {
 		expect(fractionToFloat(sp!.harmony[1].duration)).toBe(1);
 	});
 
+	it('transposes to the body chord (I), not the pickup chord (V)', () => {
+		// Lick is authored in C and rooted on Cmaj7. With session key C the
+		// transposition target must be C — using the pickup-shifted alignment
+		// would resolve to G (the V) and shift every note up a fifth.
+		const sp = buildLickSuperPhrase(0);
+		// First note in the lick file: pickup G3 (MIDI 55). After a no-op
+		// C → C transpose the pitch must be unchanged.
+		expect(sp!.notes[0].pitch).toBe(55);
+		// Final resolution note in the lick file: C4 (MIDI 60).
+		expect(sp!.notes[sp!.notes.length - 1].pitch).toBe(60);
+	});
+
 	it('total span = (1 demo + 1 user) × 4 bars = 8', () => {
 		const sp = buildLickSuperPhrase(0);
 		const lastSeg = sp!.harmony[sp!.harmony.length - 1];
