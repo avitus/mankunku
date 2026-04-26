@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
@@ -14,6 +15,8 @@
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { saveUserLick } from '$lib/persistence/user-licks';
 	import { setPracticeTag } from '$lib/persistence/lick-practice-store';
+	import { getAllLicks } from '$lib/phrases/library-loader';
+	import { findDuplicateLick } from '$lib/phrases/duplicate-detection';
 	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PrivacyDisclosure from '$lib/components/community/PrivacyDisclosure.svelte';
@@ -24,6 +27,13 @@
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import EntryConfig from '$lib/components/step-entry/EntryConfig.svelte';
+	import SuggestionCard from '$lib/components/step-entry/SuggestionCard.svelte';
+	import {
+		suggestions,
+		requestMatches,
+		clearSuggestions,
+		clearPickedFromSuggestion
+	} from '$lib/state/lick-suggestions.svelte';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 	const currentPhrase = $derived(getCurrentPhrase());
@@ -33,6 +43,33 @@
 	const remainingBeats = $derived(Math.round(fractionToFloat(remaining) * 4));
 	const isFull = $derived(remainingBeats <= 0);
 	const hasNotes = $derived(currentPhrase.notes.length > 0);
+
+	/**
+	 * The first lick in the user's reachable library (curated + their own +
+	 * stolen community) whose melody + rhythm match what's being entered, in
+	 * any key or octave. Drives the Save → Steal label swap.
+	 */
+	const duplicateMatch = $derived(hasNotes ? findDuplicateLick(currentPhrase, getAllLicks()) : null);
+
+	// Kick off suggestion lookup whenever the lick changes. The state module
+	// debounces the network call internally.
+	$effect(() => {
+		if (hasNotes) {
+			requestMatches(currentPhrase);
+		} else {
+			clearSuggestions();
+		}
+	});
+
+	// If the user edits the name after picking a suggestion, stop calling it "not verified".
+	$effect(() => {
+		if (
+			suggestions.pickedFromSuggestion !== null &&
+			stepEntry.phraseName !== suggestions.pickedFromSuggestion
+		) {
+			clearPickedFromSuggestion();
+		}
+	});
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let savedConfirmation = $state(false);
@@ -128,12 +165,28 @@
 	function handleSave() {
 		if (!hasNotes) return;
 
-		const trimmedPhraseName = stepEntry.phraseName.trim();
-		if (!trimmedPhraseName) {
+		// Steal path: the entered phrase already exists in the library. Don't
+		// create a duplicate row — carry over the practice-tag intent onto the
+		// existing lick and navigate there.
+		if (duplicateMatch) {
+			if (stepEntry.practiceTag) {
+				setPracticeTag(duplicateMatch.id, true);
+			}
+			const matchId = duplicateMatch.id;
+			reset();
+			setupOpen = false;
+			saveDetailsOpen = false;
+			goto(`/library/${matchId}`);
+			return;
+		}
+
+		const typed = stepEntry.phraseName.trim();
+		const effectiveName = typed || suggestions.fallbackName.trim();
+		if (!effectiveName) {
 			nameInput?.focus();
 			return;
 		}
-		stepEntry.phraseName = trimmedPhraseName;
+		stepEntry.phraseName = effectiveName;
 
 		const phrase = getCurrentPhrase();
 		phrase.notes = getPaddedNotes();
@@ -148,6 +201,7 @@
 		}
 
 		reset();
+		clearSuggestions();
 		setupOpen = false;
 		saveDetailsOpen = false;
 
@@ -161,6 +215,7 @@
 	function handleClear() {
 		playbackModule?.stopPlayback();
 		reset();
+		clearSuggestions();
 		setupOpen = false;
 		saveDetailsOpen = false;
 	}
@@ -187,20 +242,30 @@
 		instrument={getInstrument()}
 	>
 		{#snippet titleArea()}
-			<input
-				type="text"
-				bind:this={nameInput}
-				bind:value={stepEntry.phraseName}
-				onkeydown={handleTitleInputKeydown}
-				placeholder="Untitled lick"
-				aria-label="Lick title"
-				class="mb-0 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
-					border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
-					focus:border-[var(--color-accent)] focus:outline-none
-					placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
-			/>
+			<div class="space-y-0.5">
+				<input
+					type="text"
+					bind:this={nameInput}
+					bind:value={stepEntry.phraseName}
+					onkeydown={handleTitleInputKeydown}
+					placeholder={suggestions.fallbackName || 'Untitled lick'}
+					aria-label="Lick title"
+					class="mb-0 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
+						border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
+						focus:border-[var(--color-accent)] focus:outline-none
+						placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
+				/>
+				{#if suggestions.pickedFromSuggestion}
+					<div class="text-center text-[10px] italic text-[var(--color-text-secondary)]">
+						Suggestion — not verified
+					</div>
+				{/if}
+			</div>
 		{/snippet}
 	</NotationDisplay>
+
+	<!-- Attribution suggestions (if any) -->
+	<SuggestionCard />
 
 	<!-- Status bar -->
 	{#if hasNotes}
@@ -209,6 +274,13 @@
 			<span class={isFull ? 'font-medium text-[var(--color-error)]' : ''}>
 				{isFull ? 'Full' : `${remainingBeats} beat${remainingBeats !== 1 ? 's' : ''} left`}
 			</span>
+		</div>
+	{/if}
+
+	<!-- Duplicate match hint -->
+	{#if duplicateMatch}
+		<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+			Already in the library as <span class="italic text-[var(--color-text)]">"{duplicateMatch.name}"</span>. Saving will steal it into your library instead of creating a duplicate.
 		</div>
 	{/if}
 
@@ -325,7 +397,7 @@
 			class="rounded-lg bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
 				hover:opacity-90 transition-opacity disabled:opacity-40"
 		>
-			{savedConfirmation ? 'Saved!' : 'Save'}
+			{savedConfirmation ? 'Saved!' : duplicateMatch ? 'Steal' : 'Save'}
 		</button>
 		<button
 			onclick={handleClear}

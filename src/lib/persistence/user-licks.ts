@@ -21,7 +21,7 @@ import type {
 import { save, load } from './storage';
 import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
 import { getScopeGeneration } from './user-scope';
-import { getAdoptedLicksLocal } from './community';
+import { getStolenLicksLocal } from './community';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -365,9 +365,9 @@ export function saveUserLick(
  * For user licks, updates the lick's tags array in-place.
  * Fire-and-forget cloud sync when a Supabase client is provided.
  *
- * Adopted community licks are read-only for the adopter — if the id matches
- * an adopted lick, this no-ops with a warning. The library UI must not
- * surface tag-editing for adopted licks; this is a defensive guard.
+ * Stolen community licks are read-only for the thief — if the id matches
+ * a stolen lick, this no-ops with a warning. The library UI must not
+ * surface tag-editing for stolen licks; this is a defensive guard.
  */
 export function updateUserLickTags(
 	id: string,
@@ -399,11 +399,11 @@ export function updateUserLickTags(
 		return;
 	}
 
-	// Adopted community licks are read-only — refuse to create curated-style
+	// Stolen community licks are read-only — refuse to create curated-style
 	// overrides against them. This guards against the library UI mistakenly
-	// routing an adopted-lick edit through this function.
-	if (getAdoptedLicksLocal().some((l) => l.id === id)) {
-		console.warn(`Refusing to edit tags on adopted lick ${id}; adopted licks are read-only.`);
+	// routing a stolen-lick edit through this function.
+	if (getStolenLicksLocal().some((l) => l.id === id)) {
+		console.warn(`Refusing to edit tags on stolen lick ${id}; stolen licks are read-only.`);
 		return;
 	}
 
@@ -430,7 +430,7 @@ export function getLickTagOverrides(): Record<string, string[]> {
  * For curated licks, stores category overrides in a separate key.
  * Fire-and-forget cloud sync when a Supabase client is provided.
  *
- * Adopted community licks are read-only — same guard as updateUserLickTags.
+ * Stolen community licks are read-only — same guard as updateUserLickTags.
  */
 export function updateLickCategory(
 	id: string,
@@ -461,8 +461,8 @@ export function updateLickCategory(
 		return;
 	}
 
-	if (getAdoptedLicksLocal().some((l) => l.id === id)) {
-		console.warn(`Refusing to edit category on adopted lick ${id}; adopted licks are read-only.`);
+	if (getStolenLicksLocal().some((l) => l.id === id)) {
+		console.warn(`Refusing to edit category on stolen lick ${id}; stolen licks are read-only.`);
 		return;
 	}
 
@@ -489,8 +489,8 @@ export function getLickCategoryOverrides(): Record<string, PhraseCategory> {
  * delete to Supabase when a client is provided. The cloud operation is
  * fire-and-forget — errors are logged but never thrown.
  *
- * Adopted community licks must not be deleted through this path — the UI
- * should call `unadoptLick` from `community.ts` instead. RLS will reject the
+ * Stolen community licks must not be deleted through this path — the UI
+ * should call `returnLick` from `community.ts` instead. RLS will reject the
  * cloud delete anyway, but the guard avoids wiping the local cache for a
  * lick the user doesn't own.
  *
@@ -501,11 +501,11 @@ export function deleteUserLick(
 	id: string,
 	supabase?: SupabaseClient<Database>
 ): void {
-	// Adopted licks live in a separate cache and must be removed via unadoptLick.
+	// Stolen licks live in a separate cache and must be removed via returnLick.
 	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const owned = licks.some((l) => l.id === id);
-	if (!owned && getAdoptedLicksLocal().some((l) => l.id === id)) {
-		console.warn(`Refusing to delete adopted lick ${id} via deleteUserLick; call unadoptLick instead.`);
+	if (!owned && getStolenLicksLocal().some((l) => l.id === id)) {
+		console.warn(`Refusing to delete stolen lick ${id} via deleteUserLick; call returnLick instead.`);
 		return;
 	}
 

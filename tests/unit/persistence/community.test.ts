@@ -33,13 +33,13 @@ beforeEach(() => {
 // ─── Load module under test after mocks ───────────────────────────────
 const {
 	getFavoritesLocal,
-	getAdoptionsLocal,
-	getAdoptedLicksLocal,
-	getAdoptedAuthorsLocal,
+	getStealsLocal,
+	getStolenLicksLocal,
+	getStolenAuthorsLocal,
 	hasAcknowledgedCommunityPrivacy,
 	acknowledgeCommunityPrivacy,
-	adoptLick,
-	unadoptLick,
+	stealLick,
+	returnLick,
 	toggleFavorite,
 	listCommunityLicks
 } = await import('$lib/persistence/community');
@@ -153,9 +153,9 @@ function makeSupabaseMock(response: {
 describe('local cache accessors', () => {
 	it('return empty collections when localStorage is unset', () => {
 		expect(getFavoritesLocal().size).toBe(0);
-		expect(getAdoptionsLocal().size).toBe(0);
-		expect(getAdoptedLicksLocal()).toEqual([]);
-		expect(getAdoptedAuthorsLocal()).toEqual({});
+		expect(getStealsLocal().size).toBe(0);
+		expect(getStolenLicksLocal()).toEqual([]);
+		expect(getStolenAuthorsLocal()).toEqual({});
 	});
 });
 
@@ -213,8 +213,8 @@ describe('toggleFavorite', () => {
 	});
 });
 
-describe('adoptLick / unadoptLick', () => {
-	it('adoptLick stores adoption id and caches payload', async () => {
+describe('stealLick / returnLick', () => {
+	it('stealLick stores steal id and caches payload', async () => {
 		const phraseRow = {
 			id: 'lick-1',
 			user_id: 'author-1',
@@ -243,15 +243,15 @@ describe('adoptLick / unadoptLick', () => {
 				user_licks: phraseRow,
 				public_lick_authors: { id: 'author-1', display_name: 'Dex', avatar_url: null }
 			}
-		}) as Parameters<typeof adoptLick>[0];
+		}) as Parameters<typeof stealLick>[0];
 
-		await adoptLick(sb, 'lick-1');
-		expect(getAdoptionsLocal().has('lick-1')).toBe(true);
-		expect(getAdoptedLicksLocal().find((l) => l.id === 'lick-1')).toBeDefined();
-		expect(getAdoptedAuthorsLocal()['lick-1']?.authorName).toBe('Dex');
+		await stealLick(sb, 'lick-1');
+		expect(getStealsLocal().has('lick-1')).toBe(true);
+		expect(getStolenLicksLocal().find((l) => l.id === 'lick-1')).toBeDefined();
+		expect(getStolenAuthorsLocal()['lick-1']?.authorName).toBe('Dex');
 	});
 
-	it('unadoptLick removes adoption + cache entries', async () => {
+	it('returnLick removes steal + cache entries', async () => {
 		localStorageMock.setItem('mankunku:community-adoptions', JSON.stringify(['lick-1']));
 		localStorageMock.setItem(
 			'mankunku:community-adopted-payloads',
@@ -265,12 +265,12 @@ describe('adoptLick / unadoptLick', () => {
 		const sb = makeSupabaseMock({
 			user: { id: 'u1' },
 			onDelete: () => ({ error: null })
-		}) as Parameters<typeof unadoptLick>[0];
+		}) as Parameters<typeof returnLick>[0];
 
-		await unadoptLick(sb, 'lick-1');
-		expect(getAdoptionsLocal().has('lick-1')).toBe(false);
-		expect(getAdoptedLicksLocal()).toEqual([]);
-		expect(getAdoptedAuthorsLocal()['lick-1']).toBeUndefined();
+		await returnLick(sb, 'lick-1');
+		expect(getStealsLocal().has('lick-1')).toBe(false);
+		expect(getStolenLicksLocal()).toEqual([]);
+		expect(getStolenAuthorsLocal()['lick-1']).toBeUndefined();
 	});
 });
 
@@ -283,7 +283,7 @@ describe('listCommunityLicks', () => {
 		expect(results).toEqual([]);
 	});
 
-	it('joins lick rows with author info and flags favorited/adopted', async () => {
+	it('joins lick rows with author info and flags favorited/stolen', async () => {
 		localStorageMock.setItem('mankunku:community-favorites', JSON.stringify(['lick-1']));
 		localStorageMock.setItem('mankunku:community-adoptions', JSON.stringify(['lick-2']));
 
@@ -338,10 +338,10 @@ describe('listCommunityLicks', () => {
 		expect(one.authorName).toBe('Alice');
 		expect(one.favoriteCount).toBe(3);
 		expect(one.isFavoritedByMe).toBe(true);
-		expect(one.isAdoptedByMe).toBe(false);
+		expect(one.isStolenByMe).toBe(false);
 		const two = results.find((r) => r.phrase.id === 'lick-2')!;
 		expect(two.isFavoritedByMe).toBe(false);
-		expect(two.isAdoptedByMe).toBe(true);
+		expect(two.isStolenByMe).toBe(true);
 	});
 
 	it('filters by author name client-side', async () => {
