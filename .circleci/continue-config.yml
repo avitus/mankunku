@@ -72,9 +72,18 @@ jobs:
             # Pin a known-stable CLI version. Bump deliberately; releases
             # at https://github.com/supabase/cli/releases.
             SUPABASE_CLI_VERSION="2.95.5"
-            curl -fsSL \
-              "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz" \
-              | sudo tar -xz -C /usr/local/bin supabase
+            BASE_URL="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}"
+            TARBALL="supabase_linux_amd64.tar.gz"
+            CHECKSUMS="supabase_${SUPABASE_CLI_VERSION}_checksums.txt"
+            TMP_DIR="$(mktemp -d)"
+            trap 'rm -rf "$TMP_DIR"' EXIT
+            # Download archive + checksums file from the same release tag,
+            # then verify the tarball against the published SHA256 before
+            # extracting. Aborts on mismatch via sha256sum -c's exit code.
+            curl -fsSL -o "$TMP_DIR/$TARBALL" "$BASE_URL/$TARBALL"
+            curl -fsSL -o "$TMP_DIR/$CHECKSUMS" "$BASE_URL/$CHECKSUMS"
+            (cd "$TMP_DIR" && grep " $TARBALL\$" "$CHECKSUMS" | sha256sum -c -)
+            sudo tar -xzf "$TMP_DIR/$TARBALL" -C /usr/local/bin supabase
             supabase --version
       - run:
           name: Apply pending migrations
@@ -220,16 +229,18 @@ workflows:
             branches:
               only: main
       - db-migrate:
+          # Gate on `build` (not just `test`) so a failed build can't
+          # leave the schema ahead of code that never shipped. Migrations
+          # run only after the artifact is proven buildable; deploy then
+          # waits on the migration in turn.
           requires:
-            - test
+            - build
           filters:
             branches:
               only: main
       - deploy:
-          # Gate deploy on BOTH build (artifact ready) and db-migrate
-          # (schema in sync). A failed migration must block shipping the
-          # code that depends on it; running the migration before deploy
-          # also limits the window where new code can hit an old schema.
+          # db-migrate already implies build; listing both is redundant
+          # but keeps the dependency graph self-explanatory at a glance.
           requires:
             - build
             - db-migrate
