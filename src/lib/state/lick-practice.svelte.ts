@@ -61,6 +61,7 @@ import {
 	resolveTransposeTarget,
 	transposeProgression,
 	applyPickupBarShift,
+	detectPickupBars,
 	extendHarmonyTail
 } from '$lib/data/progressions';
 import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-loader';
@@ -661,6 +662,10 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
  * Resolve the per-lick alignment offset, including the `pickupBars` shift.
  * Returns the category's base alignment shifted left by the lick's pickup
  * bars (clamped at the start of the progression).
+ *
+ * Falls back to inferring pickupBars from note positions when the field is
+ * absent — this keeps user/community licks authored before the field
+ * existed working correctly without forcing a re-save.
  */
 function resolveAlignedLickOffset(
 	lick: Phrase,
@@ -668,7 +673,8 @@ function resolveAlignedLickOffset(
 	enableSubstitutions: boolean
 ): Fraction {
 	const base = resolveLickAlignmentOffset(progressionType, lick.category, enableSubstitutions);
-	return applyPickupBarShift(base, lick.difficulty.pickupBars ?? 0);
+	const pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes);
+	return applyPickupBarShift(base, pickupBars);
 }
 
 /**

@@ -15,10 +15,11 @@ import {
 	resolveTransposeTarget,
 	getActiveSubstitution,
 	progressionHasSubstitutionTargets,
-	getChordQualityAtOffset
+	getChordQualityAtOffset,
+	detectPickupBars
 } from '$lib/data/progressions';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
-import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+import { PITCH_CLASSES, type Note, type PitchClass } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
 
 describe('PROGRESSION_TEMPLATES', () => {
@@ -456,5 +457,63 @@ describe('progressionHasSubstitutionTargets', () => {
 	it('is false for progressions whose only dominant is 7alt', () => {
 		expect(progressionHasSubstitutionTargets('ii-V-I-minor')).toBe(false);
 		expect(progressionHasSubstitutionTargets('ii-V-I-minor-long')).toBe(false);
+	});
+});
+
+describe('detectPickupBars', () => {
+	function note(offset: [number, number]): Note {
+		return { pitch: 60, duration: [1, 8], offset };
+	}
+
+	it('returns 0 when the first note is on a downbeat', () => {
+		expect(detectPickupBars([note([0, 1]), note([1, 4]), note([1, 2])])).toBe(0);
+	});
+
+	it('returns 0 for an empty note list', () => {
+		expect(detectPickupBars([])).toBe(0);
+	});
+
+	it('returns 1 for a triplet pickup leading into bar 1', () => {
+		// Anacrusis on beat 4 of bar 0; bulk downbeat at [1, 1].
+		const notes = [
+			note([3, 4]),
+			note([5, 6]),
+			note([11, 12]),
+			note([1, 1]),
+			note([2, 1])
+		];
+		expect(detectPickupBars(notes)).toBe(1);
+	});
+
+	it('returns 1 for an eighth-note pickup before bar 1', () => {
+		// Single anacrusis eighth, then a downbeat at [1, 1].
+		expect(detectPickupBars([note([7, 8]), note([1, 1]), note([5, 4])])).toBe(1);
+	});
+
+	it('returns 0 for a fully-syncopated multi-bar lick (no integer downbeat)', () => {
+		// Notes never land exactly on a whole-bar boundary — heuristic stays safe.
+		expect(detectPickupBars([note([1, 8]), note([3, 8]), note([5, 8]), note([9, 8])])).toBe(0);
+	});
+
+	it('does not infer pickup when notes start at [0, 1] even with later integer offsets', () => {
+		// Standard 3-bar ii-V-I shape: bar 0 downbeat present, no anacrusis.
+		expect(detectPickupBars([note([0, 1]), note([1, 1]), note([2, 1])])).toBe(0);
+	});
+
+	it('uses the EARLIEST integer downbeat, not the latest', () => {
+		// First downbeat note at [1, 1]; even though [3, 1] also exists, pickupBars = 1.
+		expect(detectPickupBars([note([3, 4]), note([1, 1]), note([3, 1])])).toBe(1);
+	});
+
+	it('ignores note order — works on unsorted input', () => {
+		// Reversed order vs. the triplet-pickup case.
+		const notes = [
+			note([2, 1]),
+			note([1, 1]),
+			note([11, 12]),
+			note([5, 6]),
+			note([3, 4])
+		];
+		expect(detectPickupBars(notes)).toBe(1);
 	});
 });
