@@ -69,32 +69,36 @@ jobs:
           name: Install Supabase CLI
           command: |
             set -euo pipefail
-            # Pin a known-stable CLI version. Bump deliberately; check
-            # https://github.com/supabase/cli/releases for newer releases.
-            SUPABASE_CLI_VERSION="1.226.4"
+            # Pin a known-stable CLI version. Bump deliberately; releases
+            # at https://github.com/supabase/cli/releases.
+            SUPABASE_CLI_VERSION="2.95.5"
             curl -fsSL \
               "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/supabase_linux_amd64.tar.gz" \
               | sudo tar -xz -C /usr/local/bin supabase
             supabase --version
       - run:
           name: Apply pending migrations
+          environment:
+            SUPABASE_PROJECT_REF: ynzfliunzejusnlvpeey
           command: |
             set -euo pipefail
-            # SUPABASE_DB_URL must be set in CircleCI env vars
-            # (Project Settings → Environment Variables). Grab it from
-            # Supabase Dashboard → Project Settings → Database →
-            # Connection string → URI; include the database password.
+            # SUPABASE_ACCESS_TOKEN must be set in CircleCI env vars
+            # (Project Settings → Environment Variables). Generate one
+            # at https://supabase.com/dashboard/account/tokens — give it
+            # a descriptive name like "circleci-mankunku-deploy".
             #
-            # Direct connection (port 5432) is preferred over the pooler
-            # for schema migrations — some DDL fails through pgbouncer's
-            # transaction-mode pooling.
-            if [ -z "${SUPABASE_DB_URL:-}" ]; then
-              echo "error: SUPABASE_DB_URL is not set in CircleCI env" >&2
+            # The CLI uses this access token to fetch project connection
+            # details from Supabase's API at runtime, so no separate DB
+            # password / connection string is needed.
+            if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+              echo "error: SUPABASE_ACCESS_TOKEN is not set in CircleCI env" >&2
               exit 1
             fi
-            # No-op when no new migrations are pending. Any failure aborts
-            # the job, which blocks the downstream deploy via `requires:`.
-            supabase db push --db-url "$SUPABASE_DB_URL"
+            # Link to the project (no-op if already linked in the working
+            # directory) and apply pending migrations. db push is a no-op
+            # when schema_migrations is up-to-date.
+            supabase link --project-ref "$SUPABASE_PROJECT_REF"
+            supabase db push --linked
 
   deploy:
     docker:
