@@ -1,11 +1,19 @@
+<script lang="ts" module>
+	let nextTipSeq = 0;
+</script>
+
 <script lang="ts">
 	interface Props {
 		text: string;
 		position?: 'top' | 'bottom';
 		ariaLabel?: string;
+		id?: string;
 	}
 
-	let { text, position = 'top', ariaLabel }: Props = $props();
+	let { text, position = 'top', ariaLabel, id }: Props = $props();
+
+	const autoId = `help-tip-${++nextTipSeq}`;
+	const tipId = $derived(id ?? autoId);
 </script>
 
 <span class="help-tip" data-pos={position}>
@@ -13,10 +21,9 @@
 		type="button"
 		class="help-icon"
 		aria-label={ariaLabel ?? 'More info'}
-		aria-describedby="tip"
-		tabindex="0"
+		aria-describedby={tipId}
 	>i</button>
-	<span id="tip" class="help-bubble" role="tooltip">{text}</span>
+	<span id={tipId} class="help-bubble" role="tooltip">{text}</span>
 </span>
 
 <style>

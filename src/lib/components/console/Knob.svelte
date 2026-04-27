@@ -39,8 +39,11 @@
 	const minAngle = -135;
 	const maxAngle = 135;
 
-	const norm = $derived(Math.max(0, Math.min(1, (value - min) / (max - min))));
+	const norm = $derived(
+		max === min ? 0 : Math.max(0, Math.min(1, (value - min) / (max - min)))
+	);
 	const angle = $derived(minAngle + norm * (maxAngle - minAngle));
+	const safeLabel = $derived(label.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
 
 	function polar(angleDeg: number, r: number): { x: number; y: number } {
 		const a = ((angleDeg - 90) * Math.PI) / 180;
@@ -175,12 +178,12 @@
 	>
 		<svg viewBox="0 0 {viewBox} {viewBox}" width={pixelSize} height={pixelSize} aria-hidden="true">
 			<defs>
-				<radialGradient id="knobBrass-{label}" cx="0.3" cy="0.3" r="0.9">
+				<radialGradient id="knobBrass-{safeLabel}" cx="0.3" cy="0.3" r="0.9">
 					<stop offset="0%" stop-color="var(--color-brass-soft)" />
 					<stop offset="55%" stop-color="var(--color-brass)" />
 					<stop offset="100%" stop-color="color-mix(in srgb, var(--color-brass) 40%, black)" />
 				</radialGradient>
-				<radialGradient id="knobFace-{label}" cx="0.5" cy="0.35" r="0.85">
+				<radialGradient id="knobFace-{safeLabel}" cx="0.5" cy="0.35" r="0.85">
 					<stop offset="0%" stop-color="color-mix(in srgb, var(--color-bg-secondary) 70%, white 10%)" />
 					<stop offset="100%" stop-color="color-mix(in srgb, var(--color-bg) 85%, black)" />
 				</radialGradient>
@@ -219,13 +222,13 @@
 			{/each}
 
 			<!-- Brass bezel -->
-			<circle cx={cx} cy={cy} r={rOuter - 4} fill="url(#knobBrass-{label})" />
+			<circle cx={cx} cy={cy} r={rOuter - 4} fill="url(#knobBrass-{safeLabel})" />
 			<!-- Inner face -->
 			<circle
 				cx={cx}
 				cy={cy}
 				r={rInner}
-				fill="url(#knobFace-{label})"
+				fill="url(#knobFace-{safeLabel})"
 				stroke="color-mix(in srgb, var(--color-brass) 60%, black)"
 				stroke-width="0.8"
 			/>
