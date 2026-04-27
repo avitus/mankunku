@@ -1,4 +1,4 @@
-import type { ChordQuality, Fraction, HarmonicSegment, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { ChordQuality, Fraction, HarmonicSegment, Note, PhraseCategory, PitchClass } from '$lib/types/music';
 import type { ChordProgressionType, ChordSubstitutionRule } from '$lib/types/lick-practice';
 import { PITCH_CLASSES } from '$lib/types/music';
 
@@ -220,6 +220,44 @@ export function applyPickupBarShift(baseAlignment: Fraction, pickupBars: number)
 	const num = baseAlignment[0] - pickupBars * baseAlignment[1];
 	if (num <= 0) return [0, 1];
 	return [num, baseAlignment[1]];
+}
+
+/**
+ * Infer `pickupBars` from a lick's note positions when not explicitly set.
+ *
+ * The convention: a lick has a 1-bar pickup when its earliest sounding note
+ * is in bar 0 (offset < [1, 1]) but its first sounding note ON a whole-bar
+ * downbeat sits in bar 1+. The pickup count = the bar of that first
+ * downbeat note. This matches the way step-entered or stolen licks express
+ * anacrusis (rests in bar 0, notes from beat 4 onward, then a clear
+ * downbeat in bar 1).
+ *
+ * Rest events (`pitch === null`) are excluded from the scan. Step-entry
+ * fills empty beats with explicit rests, so a typical pickup lick has rests
+ * at [0, 1], [1, 4], [1, 2] before the first sounding note at [3, 4]. If we
+ * counted rests, the rest at [0, 1] would set firstOffset to 0 and force
+ * the function to return 0, defeating detection on the very licks it's
+ * meant to fix.
+ *
+ * Returns 0 when:
+ *  - the earliest sounding note is on a whole-bar downbeat (no anacrusis)
+ *  - no sounding note sits exactly on a whole-bar downbeat (can't tell
+ *    where the bulk starts; default to no shift)
+ */
+export function detectPickupBars(notes: Note[]): number {
+	const sounded = notes.filter((n) => n.pitch !== null);
+	if (sounded.length === 0) return 0;
+	let firstOffset = Infinity;
+	let firstDownbeatBar = Infinity;
+	for (const n of sounded) {
+		const off = n.offset[0] / n.offset[1];
+		if (off < firstOffset) firstOffset = off;
+		if (off === Math.floor(off) && off < firstDownbeatBar) {
+			firstDownbeatBar = off;
+		}
+	}
+	if (firstDownbeatBar === Infinity || firstOffset >= firstDownbeatBar) return 0;
+	return Math.floor(firstDownbeatBar);
 }
 
 /**

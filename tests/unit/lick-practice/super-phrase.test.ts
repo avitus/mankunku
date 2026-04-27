@@ -11,11 +11,13 @@ import {
 	getUpcomingKeys,
 	buildLickSuperPhrase,
 	getKeyBars,
+	getLickBars,
 	getProgressionBars,
 	advance,
 	startInterLickTransition,
 	recordKeyAttempt
 } from '$lib/state/lick-practice.svelte';
+import type { Phrase } from '$lib/types/music';
 import type { LickPracticePlanItem } from '$lib/types/lick-practice';
 import { fractionToFloat } from '$lib/music/intervals';
 import type { Score } from '$lib/types/scoring';
@@ -552,5 +554,74 @@ describe('1-bar major-chord lick is unaffected by pickup-bar machinery', () => {
 		const sp = buildLickSuperPhrase(0);
 		// First demo note's offset = original [0,1] + alignment [2,1] = 2
 		expect(fractionToFloat(sp!.notes[0].offset)).toBe(2);
+	});
+});
+
+// ─── Auto-detection of pickupBars for licks authored before the field ────
+//
+// User/community licks created via the entry page never set `pickupBars`
+// because the field didn't exist (and there's no UI for it). The engine
+// infers it from note positions: rests in bar 0 + bulk on a bar 1 downbeat
+// → pickupBars = 1, identical to an explicit field. This test simulates
+// such a user lick by passing a Phrase directly to `getLickBars` (bypassing
+// the curated-library plumbing) and verifies the alignment math.
+
+describe('pickupBars auto-detection — user/community licks without explicit field', () => {
+	function userPickupLick(): Phrase {
+		return {
+			id: 'user-test-pickup',
+			name: 'User Pickup Lick',
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: [
+				// Triplet pickup on beat 4 of bar 0 (matches Dexter Gordon - Go Chromatic shape)
+				{ pitch: 55, duration: [1, 12], offset: [3, 4] },
+				{ pitch: 57, duration: [1, 12], offset: [5, 6] },
+				{ pitch: 59, duration: [1, 12], offset: [11, 12] },
+				// Bulk downbeat on bar 1
+				{ pitch: 60, duration: [1, 8], offset: [1, 1] },
+				{ pitch: 64, duration: [1, 8], offset: [9, 8] },
+				// Final on bar 2
+				{ pitch: 60, duration: [1, 4], offset: [2, 1] }
+			],
+			harmony: [
+				{
+					chord: { root: 'C', quality: 'maj7' },
+					scaleId: 'major.ionian',
+					startOffset: [0, 1],
+					duration: [3, 1]
+				}
+			],
+			difficulty: { level: 30, pitchComplexity: 25, rhythmComplexity: 35, lengthBars: 3 },
+			category: 'major-chord',
+			tags: ['user'],
+			source: 'user-entered'
+		};
+	}
+
+	it('lickBars on short ii-V-I-major matches the explicit-pickupBars case (3, not 4)', () => {
+		const lick = userPickupLick();
+		expect(lick.difficulty.pickupBars).toBeUndefined();
+		expect(getLickBars(lick, 'ii-V-I-major', false)).toBe(3);
+	});
+
+	it('lickBars on major-vamp matches the explicit-pickupBars case (3)', () => {
+		const lick = userPickupLick();
+		expect(getLickBars(lick, 'major-vamp', false)).toBe(3);
+	});
+
+	it('lickBars on long ii-V-I-major still fits without extension (4)', () => {
+		// Long progression has 4 bars; alignment shifts from [2,1] to [1,1].
+		// Required = 1 + 3 = 4 ⇒ no extension.
+		const lick = userPickupLick();
+		expect(getLickBars(lick, 'ii-V-I-major-long', false)).toBe(4);
+	});
+
+	it('explicit pickupBars wins over auto-detection', () => {
+		// Force pickupBars: 0 even though notes look like a pickup.
+		// lickBars then degrades to 1 + 3 = 4 (the un-shifted behavior).
+		const lick = { ...userPickupLick() };
+		lick.difficulty = { ...lick.difficulty, pickupBars: 0 };
+		expect(getLickBars(lick, 'ii-V-I-major', false)).toBe(4);
 	});
 });
