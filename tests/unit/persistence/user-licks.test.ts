@@ -16,9 +16,9 @@ vi.mock('$lib/persistence/sync', () => ({
 	syncUserLicksToCloud: (...args: unknown[]) => mockSyncUserLicksToCloud(...args)
 }));
 
-// ─── Mock community module (adopted licks cache) ─────────────
+// ─── Mock community module (stolen licks cache) ─────────────
 vi.mock('$lib/persistence/community', () => ({
-	getAdoptedLicksLocal: () => []
+	getStolenLicksLocal: () => []
 }));
 
 // ─── Mock localStorage ────────────────────────────────────────

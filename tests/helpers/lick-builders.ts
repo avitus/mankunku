@@ -2,12 +2,12 @@
  * Shared factories for building Phrase objects in tests.
  *
  * These mirror the ad-hoc `makePhrase()` helpers found inline in existing test
- * files, but are exported so test files for cloud sync and lick adoption can
+ * files, but are exported so test files for cloud sync and lick stealing can
  * share a single source of truth for what a valid phrase looks like.
  *
  * The `makeMalformedPhrase` factory produces deliberately-broken phrases for
  * each class of invariant we care about when licks arrive from external
- * authors (the lick-adoption feature).
+ * authors (the lick-steal feature).
  */
 
 import type {
@@ -17,7 +17,7 @@ import type {
 	DifficultyMetadata,
 	PitchClass
 } from '$lib/types/music';
-import type { AdoptedAuthor } from '$lib/persistence/community';
+import type { StolenAuthor } from '$lib/persistence/community';
 
 export interface AuthorMeta {
 	id: string;
@@ -71,13 +71,15 @@ export function makePhrase(overrides: Partial<Phrase> = {}): Phrase {
 }
 
 /**
- * Build an adopted-lick pair: the Phrase plus the author metadata that
- * accompanies it in the `community-adopted-authors` localStorage cache.
+ * Build a stolen-lick pair: the Phrase plus the author metadata that
+ * accompanies it in the `community-adopted-authors` localStorage cache (the
+ * key string keeps its legacy name even though the user-facing feature is
+ * "steal").
  */
-export function makeAdoptedLick(
+export function makeStolenLick(
 	author: AuthorMeta,
 	phrase: Partial<Phrase> = {}
-): { phrase: Phrase; author: AdoptedAuthor } {
+): { phrase: Phrase; author: StolenAuthor } {
 	return {
 		phrase: makePhrase(phrase),
 		author: {
@@ -108,7 +110,7 @@ export type MalformedKind =
 
 /**
  * Build a phrase that deliberately violates a known invariant. Used by the
- * adoption-validation test suite to assert that the app either rejects or
+ * steal-validation test suite to assert that the app either rejects or
  * sanitizes each class of malformed input.
  *
  * The returned value is intentionally cast to `Phrase` even when its shape

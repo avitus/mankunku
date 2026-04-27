@@ -8,8 +8,8 @@
 	import {
 		listCommunityLicks,
 		toggleFavorite,
-		adoptLick,
-		unadoptLick,
+		stealLick,
+		returnLick,
 		COMMUNITY_PAGE_SIZE,
 		type CommunityLick
 	} from '$lib/persistence/community';
@@ -55,7 +55,7 @@
 			authorSearch: community.authorQuery.trim() || undefined,
 			sort: community.sort,
 			// Exclude the current user's own licks so the browse view shows
-			// only licks you could actually adopt — your own are in /library.
+			// only licks you could actually steal — your own are in /library.
 			excludeUserId: user?.id
 		};
 	}
@@ -138,34 +138,34 @@
 		}
 	}
 
-	async function handleAdopt(lick: CommunityLick) {
+	async function handleSteal(lick: CommunityLick) {
 		if (!supabase) return;
 		const idx = licks.findIndex((l) => l.phrase.id === lick.phrase.id);
 		if (idx === -1) return;
 		licks = [
 			...licks.slice(0, idx),
-			{ ...licks[idx], isAdoptedByMe: true },
+			{ ...licks[idx], isStolenByMe: true },
 			...licks.slice(idx + 1)
 		];
-		const ok = await adoptLick(supabase, lick.phrase.id);
+		const ok = await stealLick(supabase, lick.phrase.id);
 		if (!ok) {
-			// Revert optimistic update when the server rejected the adoption.
+			// Revert optimistic update when the server rejected the steal.
 			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
 		}
 	}
 
-	async function handleUnadopt(lick: CommunityLick) {
+	async function handleReturn(lick: CommunityLick) {
 		if (!supabase) return;
 		const idx = licks.findIndex((l) => l.phrase.id === lick.phrase.id);
 		if (idx === -1) return;
 		licks = [
 			...licks.slice(0, idx),
-			{ ...licks[idx], isAdoptedByMe: false },
+			{ ...licks[idx], isStolenByMe: false },
 			...licks.slice(idx + 1)
 		];
-		const ok = await unadoptLick(supabase, lick.phrase.id);
+		const ok = await returnLick(supabase, lick.phrase.id);
 		if (!ok) {
-			// Revert optimistic update when the server rejected the unadoption.
+			// Revert optimistic update when the server rejected the return.
 			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
 		}
 	}
@@ -216,8 +216,6 @@
 		'bebop-lines',
 		'pentatonic',
 		'enclosures',
-		'approach-notes',
-		'turnarounds',
 		'rhythm-changes',
 		'user'
 	];
@@ -358,8 +356,8 @@
 						onclick={() => handleCardClick(clk)}
 						onplay={() => handlePlay(clk.phrase)}
 						onfavorite={() => handleFavorite(clk)}
-						onadopt={() => handleAdopt(clk)}
-						onunadopt={() => handleUnadopt(clk)}
+						onsteal={() => handleSteal(clk)}
+						onreturn={() => handleReturn(clk)}
 						isPlaying={playingId === clk.phrase.id}
 					/>
 				{/each}
@@ -387,7 +385,7 @@
 					The Community library is just getting started.
 				</p>
 				<p class="text-sm text-[var(--color-text-secondary)]">
-					Record or step-enter a lick of your own to kick things off — other players will be able to adopt it from here.
+					Record or step-enter a lick of your own to kick things off — other players will be able to steal it from here.
 				</p>
 				<div class="flex justify-center gap-2 pt-2">
 					<a

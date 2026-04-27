@@ -568,6 +568,8 @@ export type Database = {
           tag_overrides: Json
           /** JSONB storing Record<lickId, PhraseCategory> — category overrides for curated licks */
           category_overrides: Json
+          /** JSONB storing Record<lickId, number> — gradual key-unlock count (1-12) per lick */
+          unlock_counts: Json
           /** Timestamp of last update (ISO 8601) */
           updated_at: string
         }
@@ -582,6 +584,8 @@ export type Database = {
           tag_overrides?: Json
           /** Defaults to '{}' in database */
           category_overrides?: Json
+          /** Defaults to '{}' in database */
+          unlock_counts?: Json
           updated_at?: string
         }
         Update: {
@@ -590,6 +594,7 @@ export type Database = {
           practice_progress?: Json
           tag_overrides?: Json
           category_overrides?: Json
+          unlock_counts?: Json
           updated_at?: string
         }
         Relationships: [

@@ -1,12 +1,12 @@
 /**
- * Validation of externally-authored lick content at the adoption boundary.
+ * Validation of externally-authored lick content at the steal boundary.
  *
- * Adopted licks are live references to rows authored by someone else. The app
+ * Stolen licks are live references to rows authored by someone else. The app
  * must not trust their shape — these tests pin down the structural invariants
- * we enforce before caching an adopted payload locally or surfacing it to the
+ * we enforce before caching a stolen payload locally or surfacing it to the
  * practice pipeline.
  *
- * Runs on top of `validateAdoptedPhrase` (structural checks) and `adoptLick`
+ * Runs on top of `validateAdoptedPhrase` (structural checks) and `stealLick`
  * (integration: invalid payloads don't poison the local cache).
  */
 
@@ -44,7 +44,7 @@ const {
 	validateAdoptedPhrase,
 	MAX_NOTES_PER_ADOPTED_PHRASE
 } = await import('$lib/phrases/adopted-phrase-validator');
-const { adoptLick, getAdoptedLicksLocal, getAdoptionsLocal } = await import(
+const { stealLick, getStolenLicksLocal, getStealsLocal } = await import(
 	'$lib/persistence/community'
 );
 const { makePhrase, makeMalformedPhrase } = await import('../../helpers/lick-builders');
@@ -150,7 +150,7 @@ describe('validateAdoptedPhrase', () => {
 	});
 
 	it('tolerates an unknown category (falls back at render time)', () => {
-		// Unknown categories are not an adoption-time failure: the library UI
+		// Unknown categories are not a steal-time failure: the library UI
 		// already treats any unfamiliar category as "user".
 		const result = validateAdoptedPhrase(makeMalformedPhrase('unknown-category'));
 		expect(result.valid).toBe(true);
@@ -158,7 +158,7 @@ describe('validateAdoptedPhrase', () => {
 
 	it('accepts harmony with a scaleId not in the local scale library', () => {
 		// Scale-id cross-referencing happens in the practice pipeline's fallback.
-		// Validation at the adoption boundary only requires a non-empty string.
+		// Validation at the steal boundary only requires a non-empty string.
 		const result = validateAdoptedPhrase(makeMalformedPhrase('unknown-scale-id'));
 		expect(result.valid).toBe(true);
 	});
@@ -177,7 +177,7 @@ describe('validateAdoptedPhrase', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Integration: adoptLick respects the validator
+// Integration: stealLick respects the validator
 // ---------------------------------------------------------------------------
 
 interface QueryState {
@@ -234,7 +234,7 @@ function makeSupabaseMock(response: {
 	};
 }
 
-describe('adoptLick — payload validation integration', () => {
+describe('stealLick — payload validation integration', () => {
 	it('does not cache a malformed lick payload', async () => {
 		const malformedRow = {
 			id: 'lick-malformed',
@@ -260,15 +260,15 @@ describe('adoptLick — payload validation integration', () => {
 				user_licks: malformedRow,
 				public_lick_authors: { id: 'author-1', display_name: 'Bad Author', avatar_url: null }
 			}
-		}) as Parameters<typeof adoptLick>[0];
+		}) as Parameters<typeof stealLick>[0];
 
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		await adoptLick(sb, 'lick-malformed');
+		await stealLick(sb, 'lick-malformed');
 
-		// Adoption row on the server was accepted — user's intent is recorded.
-		expect(getAdoptionsLocal().has('lick-malformed')).toBe(true);
+		// Steal row on the server was accepted — user's intent is recorded.
+		expect(getStealsLocal().has('lick-malformed')).toBe(true);
 		// But the malformed payload must not land in the local library cache.
-		expect(getAdoptedLicksLocal().find((l) => l.id === 'lick-malformed')).toBeUndefined();
+		expect(getStolenLicksLocal().find((l) => l.id === 'lick-malformed')).toBeUndefined();
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
 	});
@@ -310,11 +310,11 @@ describe('adoptLick — payload validation integration', () => {
 				user_licks: goodRow,
 				public_lick_authors: { id: 'author-1', display_name: 'OK', avatar_url: null }
 			}
-		}) as Parameters<typeof adoptLick>[0];
+		}) as Parameters<typeof stealLick>[0];
 
-		await adoptLick(sb, 'lick-good');
+		await stealLick(sb, 'lick-good');
 
-		expect(getAdoptionsLocal().has('lick-good')).toBe(true);
-		expect(getAdoptedLicksLocal().find((l) => l.id === 'lick-good')).toBeDefined();
+		expect(getStealsLocal().has('lick-good')).toBe(true);
+		expect(getStolenLicksLocal().find((l) => l.id === 'lick-good')).toBeDefined();
 	});
 });

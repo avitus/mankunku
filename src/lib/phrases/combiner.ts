@@ -28,7 +28,6 @@ const CATEGORY_CONTEXT: Record<string, {
 	'short-ii-V-I-minor': { scaleId: 'major.aeolian', chord: { root: 'C', quality: 'min7' } },
 	'digital-patterns': { scaleId: 'major.ionian', chord: { root: 'C', quality: 'maj7' } },
 	'enclosures': { scaleId: 'major.ionian', chord: { root: 'C', quality: 'maj7' } },
-	'approach-notes': { scaleId: 'major.ionian', chord: { root: 'C', quality: 'maj7' } },
 	'modal': { scaleId: 'major.dorian', chord: { root: 'C', quality: 'min7' } },
 	'bebop-lines': { scaleId: 'bebop.dominant', chord: { root: 'C', quality: '7' } }
 };

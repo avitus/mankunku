@@ -1,7 +1,7 @@
 /**
  * Long-term progress history — daily aggregates persisted to localStorage.
  *
- * Captures compact daily summaries that survive the 200-session pruning window.
+ * Captures compact daily summaries that survive the MAX_SESSIONS pruning window.
  * Provides query functions for calendar heatmaps, trend charts, and period comparisons.
  */
 
@@ -267,16 +267,43 @@ export function clearHistory(): void {
 	remove(META_KEY);
 }
 
+function categoriesMatch(a: Record<string, number>, b: Record<string, number>): boolean {
+	const aKeys = Object.keys(a);
+	if (aKeys.length !== Object.keys(b).length) return false;
+	for (const k of aKeys) {
+		if (a[k] !== b[k]) return false;
+	}
+	return true;
+}
+
+function summariesMatch(a: DailySummary, b: DailySummary): boolean {
+	// avg* fields are derived two different ways (rolling per-session vs full
+	// re-derivation), so FP non-associativity can produce tiny diffs that
+	// shouldn't count as a real change.
+	const EPS = 1e-6;
+	return (
+		a.sessionCount === b.sessionCount &&
+		a.practiceMinutes === b.practiceMinutes &&
+		Math.abs(a.avgOverall - b.avgOverall) < EPS &&
+		Math.abs(a.avgPitch - b.avgPitch) < EPS &&
+		Math.abs(a.avgRhythm - b.avgRhythm) < EPS &&
+		a.bestScore === b.bestScore &&
+		a.notesTotal === b.notesTotal &&
+		a.notesHit === b.notesHit &&
+		JSON.stringify(a.grades) === JSON.stringify(b.grades) &&
+		categoriesMatch(a.categories, b.categories)
+	);
+}
+
 /**
  * Re-derive daily summaries from current progress session history when stale.
  *
- * Called after cloud hydration writes progress to localStorage. Computes the
- * expected summaries from the (now cloud-hydrated) sessions and compares them
- * against the existing in-memory summaries. If they differ — different length,
- * or any day's date or sessionCount doesn't match — the existing data is replaced.
- *
- * Limited to the 200-session sync window — history beyond that is not preserved
- * cross-device.
+ * Called after cloud hydration writes progress to localStorage. The session
+ * log is pruned to MAX_SESSIONS recent sessions, so derivation only
+ * sees the last MAX_SESSIONS sessions' worth of days. This function is therefore
+ * additive: it upserts derived days into the existing summaries but never
+ * deletes a day that exists locally and isn't in the derived set — that
+ * day's sessions are simply outside the sync window.
  */
 export function rebuildHistoryIfNeeded(): void {
 	const progressState = load<UserProgress>('progress');
@@ -285,27 +312,52 @@ export function rebuildHistoryIfNeeded(): void {
 	const derived = deriveSummaries(progressState.sessions);
 	if (derived.summaries.length === 0) return;
 
-	// Check if existing summaries already match the derived data.
-	// Compare per-day date + sessionCount to catch mid-range differences
-	// (length + latest date alone can miss changed counts on existing dates).
-	if (dailySummaries.length === derived.summaries.length) {
-		let match = true;
-		for (let i = 0; i < dailySummaries.length; i++) {
-			if (dailySummaries[i].date !== derived.summaries[i].date
-				|| dailySummaries[i].sessionCount !== derived.summaries[i].sessionCount) {
-				match = false;
-				break;
-			}
+	// Fast-path: if every derived day already matches the existing summary
+	// across all aggregate fields, there's nothing to persist.
+	//
+	// The earliest derived date is special: if some of that day's sessions
+	// were pruned out of the MAX_SESSIONS window before derivation ran, the
+	// derived summary undercounts the day. Skip the overwrite when the
+	// existing summary has strictly larger totals — the local copy is the
+	// authoritative one.
+	const earliestDerivedDate = derived.summaries[0]?.date;
+	let changed = false;
+	for (const derivedSummary of derived.summaries) {
+		const existing = summaryMap.get(derivedSummary.date);
+		if (!existing) {
+			dailySummaries.push(derivedSummary);
+			summaryMap.set(derivedSummary.date, derivedSummary);
+			changed = true;
+			continue;
 		}
-		if (match) return;
+		if (
+			derivedSummary.date === earliestDerivedDate &&
+			(existing.sessionCount > derivedSummary.sessionCount ||
+				existing.notesTotal > derivedSummary.notesTotal ||
+				existing.notesHit > derivedSummary.notesHit)
+		) {
+			continue;
+		}
+		if (!summariesMatch(existing, derivedSummary)) {
+			Object.assign(existing, derivedSummary);
+			changed = true;
+		}
 	}
 
-	// Summaries are stale — replace with recomputed data
-	dailySummaries.length = 0;
-	dailySummaries.push(...derived.summaries);
-	summaryMap = new Map(derived.summaries.map(s => [s.date, s]));
-	Object.assign(progressMeta, derived.meta);
-	saveAll();
+	if (changed) dailySummaries.sort((a, b) => a.date.localeCompare(b.date));
+
+	// allTimeSessionCount must never shrink — older sessions outside the
+	// sync window still count. longestStreak likewise only grows.
+	if (derived.meta.allTimeSessionCount > progressMeta.allTimeSessionCount) {
+		progressMeta.allTimeSessionCount = derived.meta.allTimeSessionCount;
+		changed = true;
+	}
+
+	if (changed) {
+		progressMeta.lastAggregationTimestamp = derived.meta.lastAggregationTimestamp;
+		updateLongestStreak();
+		saveAll();
+	}
 }
 
 // ── Query functions ──────────────────────────────────────────────

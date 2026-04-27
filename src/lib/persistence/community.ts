@@ -1,12 +1,12 @@
 /**
- * Client API for the Community Licks feature (browse, favorite, adopt).
+ * Client API for the Community Licks feature (browse, favorite, steal).
  *
  * Mirrors the local-first pattern used by `user-licks.ts`:
- *  - localStorage is authoritative for the UI's "is this favorited / adopted"
+ *  - localStorage is authoritative for the UI's "is this favorited / stolen"
  *    state so rendering never waits on a round trip.
  *  - Writes go to Supabase fire-and-forget, with graceful logging on failure.
  *  - `initCommunityFromCloud` hydrates the three local caches (favorites,
- *    adoptions, adopted-lick payloads) from Supabase on app startup.
+ *    steals, stolen-lick payloads) from Supabase on app startup.
  *  - A generation guard (via `getScopeGeneration`) discards writebacks if a
  *    user switch happened mid-flight.
  *
@@ -14,6 +14,13 @@
  * query against Supabase rather than a local cache. The corpus can be large
  * and filtered many ways; caching it locally would be bigger than the rest
  * of the app's data combined.
+ *
+ * Note: the underlying DB table is still named `lick_adoptions` and the
+ * localStorage keys still carry the `community-adopt*` prefix. The rename to
+ * "steal" vocabulary is UI + code-identifier only; touching the table name
+ * or local keys would force a migration/cache wipe for no user benefit. The
+ * `validateAdoptedPhrase` import keeps its original name — that module is
+ * outside the rename scope.
  */
 
 import type {
@@ -37,23 +44,23 @@ import type { Database } from '$lib/supabase/types';
 const FAVORITES_KEY = 'community-favorites';
 
 /**
- * localStorage key holding the set of lick IDs the current user has adopted.
+ * localStorage key holding the set of lick IDs the current user has stolen.
  * Stored as an array; converted to a Set on read.
  */
-const ADOPTIONS_KEY = 'community-adoptions';
+const STEALS_KEY = 'community-adoptions';
 
 /**
- * localStorage key holding the Phrase payloads for adopted licks. Populated
+ * localStorage key holding the Phrase payloads for stolen licks. Populated
  * from Supabase at startup; read synchronously by the library loader so the
- * `/library` page can show adopted licks offline.
+ * `/library` page can show stolen licks offline.
  */
-const ADOPTED_PAYLOADS_KEY = 'community-adopted-payloads';
+const STOLEN_PAYLOADS_KEY = 'community-adopted-payloads';
 
 /**
- * localStorage key holding author attribution for each adopted lick id:
+ * localStorage key holding author attribution for each stolen lick id:
  *   Record<lickId, { authorId, authorName, authorAvatarUrl }>
  */
-const ADOPTED_AUTHORS_KEY = 'community-adopted-authors';
+const STOLEN_AUTHORS_KEY = 'community-adopted-authors';
 
 /**
  * localStorage key holding the one-time acknowledgement that the user has
@@ -69,7 +76,7 @@ export function acknowledgeCommunityPrivacy(): void {
 	save(PRIVACY_ACK_KEY, true);
 }
 
-export interface AdoptedAuthor {
+export interface StolenAuthor {
 	authorId: string;
 	authorName: string | null;
 	authorAvatarUrl: string | null;
@@ -87,7 +94,7 @@ export interface CommunityFilters {
 	/**
 	 * Omit licks authored by this user from the results — used on the community
 	 * browse page so you never see your own licks mixed with everyone else's.
-	 * Your own licks already live under /library, and self-adoption is blocked
+	 * Your own licks already live under /library, and self-stealing is blocked
 	 * at the DB anyway.
 	 */
 	excludeUserId?: string;
@@ -100,7 +107,7 @@ export interface CommunityLick {
 	authorAvatarUrl: string | null;
 	favoriteCount: number;
 	isFavoritedByMe: boolean;
-	isAdoptedByMe: boolean;
+	isStolenByMe: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,33 +119,33 @@ export function getFavoritesLocal(): Set<string> {
 	return new Set(ids);
 }
 
-export function getAdoptionsLocal(): Set<string> {
-	const ids = load<string[]>(ADOPTIONS_KEY) ?? [];
+export function getStealsLocal(): Set<string> {
+	const ids = load<string[]>(STEALS_KEY) ?? [];
 	return new Set(ids);
 }
 
-export function getAdoptedLicksLocal(): Phrase[] {
-	return load<Phrase[]>(ADOPTED_PAYLOADS_KEY) ?? [];
+export function getStolenLicksLocal(): Phrase[] {
+	return load<Phrase[]>(STOLEN_PAYLOADS_KEY) ?? [];
 }
 
-export function getAdoptedAuthorsLocal(): Record<string, AdoptedAuthor> {
-	return load<Record<string, AdoptedAuthor>>(ADOPTED_AUTHORS_KEY) ?? {};
+export function getStolenAuthorsLocal(): Record<string, StolenAuthor> {
+	return load<Record<string, StolenAuthor>>(STOLEN_AUTHORS_KEY) ?? {};
 }
 
 function saveFavoritesLocal(ids: Set<string>): void {
 	save(FAVORITES_KEY, Array.from(ids));
 }
 
-function saveAdoptionsLocal(ids: Set<string>): void {
-	save(ADOPTIONS_KEY, Array.from(ids));
+function saveStealsLocal(ids: Set<string>): void {
+	save(STEALS_KEY, Array.from(ids));
 }
 
-function saveAdoptedPayloadsLocal(licks: Phrase[]): void {
-	save(ADOPTED_PAYLOADS_KEY, licks);
+function saveStolenPayloadsLocal(licks: Phrase[]): void {
+	save(STOLEN_PAYLOADS_KEY, licks);
 }
 
-function saveAdoptedAuthorsLocal(authors: Record<string, AdoptedAuthor>): void {
-	save(ADOPTED_AUTHORS_KEY, authors);
+function saveStolenAuthorsLocal(authors: Record<string, StolenAuthor>): void {
+	save(STOLEN_AUTHORS_KEY, authors);
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +259,7 @@ export async function listCommunityLicks(
 	);
 
 	const favorites = getFavoritesLocal();
-	const adoptions = getAdoptionsLocal();
+	const steals = getStealsLocal();
 
 	let results: CommunityLick[] = licks.map((row) => {
 		const author = authorById.get(row.user_id);
@@ -263,7 +270,7 @@ export async function listCommunityLicks(
 			authorAvatarUrl: author?.avatar_url ?? null,
 			favoriteCount: row.favorite_count ?? 0,
 			isFavoritedByMe: favorites.has(row.id),
-			isAdoptedByMe: adoptions.has(row.id)
+			isStolenByMe: steals.has(row.id)
 		};
 	});
 
@@ -335,35 +342,39 @@ export async function toggleFavorite(
 }
 
 // ---------------------------------------------------------------------------
-// Adoptions
+// Steals
 // ---------------------------------------------------------------------------
 
 /**
- * Adopt a lick. Inserts an adoption row and caches the lick's payload locally
- * so it renders in the library offline.
+ * Steal a lick. Inserts an adoption row (underlying `lick_adoptions` table;
+ * terminology only — "steal" is the user-facing verb) and caches the lick's
+ * payload locally so it renders in the library offline.
  *
- * @returns `true` if the adoption is recorded on the server (or was already),
+ * @returns `true` if the steal is recorded on the server (or was already),
  *          `false` if the server write failed or no auth session is available.
  *          Callers performing optimistic UI updates must revert on `false`.
  */
-export async function adoptLick(
+export async function stealLick(
 	supabase: SupabaseClient<Database>,
 	lickId: string
 ): Promise<boolean> {
-	const adoptions = getAdoptionsLocal();
-	if (adoptions.has(lickId)) return true;
+	const steals = getStealsLocal();
+	if (steals.has(lickId)) return true;
 
 	const { data: { user } } = await supabase.auth.getUser();
 	if (!user) {
-		console.warn('Cannot adopt lick without auth session');
+		console.warn('Cannot steal lick without auth session');
 		return false;
 	}
 
 	const { error: insertError } = await supabase
 		.from('lick_adoptions')
 		.insert({ user_id: user.id, lick_id: lickId });
-	if (insertError) {
-		console.warn('Failed to adopt lick:', insertError);
+	// Postgres 23505 (unique-violation) means the server already has this
+	// steal row — treat as success, matching the "was already" clause in
+	// the function's documented contract. Every other error is a real failure.
+	if (insertError && (insertError as { code?: string }).code !== '23505') {
+		console.warn('Failed to steal lick:', insertError);
 		return false;
 	}
 
@@ -375,25 +386,25 @@ export async function adoptLick(
 		.single();
 
 	if (lickError || !lickRow) {
-		console.warn('Adopted lick but failed to fetch payload:', lickError);
-		// The adoption row is in place; next startup hydration will pick it up.
+		console.warn('Stole lick but failed to fetch payload:', lickError);
+		// The steal row is in place; next startup hydration will pick it up.
 	} else {
 		const phrase = rowToPhrase(lickRow);
 		const validation = validateAdoptedPhrase(phrase);
 		if (!validation.valid) {
-			// Server row is malformed — record the adoption intent but keep the
-			// local payload cache clean. The library UI will show "adopted" but
+			// Server row is malformed — record the steal intent but keep the
+			// local payload cache clean. The library UI will show "stolen" but
 			// the lick won't appear in the practice pipeline until the author
 			// fixes the source row.
 			console.warn(
-				`Adopted lick ${lickId} failed validation; skipping local cache:`,
+				`Stolen lick ${lickId} failed validation; skipping local cache:`,
 				validation.errors
 			);
 		} else {
-			const payloads = getAdoptedLicksLocal();
+			const payloads = getStolenLicksLocal();
 			if (!payloads.some((p) => p.id === lickId)) {
 				payloads.push(phrase);
-				saveAdoptedPayloadsLocal(payloads);
+				saveStolenPayloadsLocal(payloads);
 			}
 
 			// Cache author attribution for the library's "by <author>" badge.
@@ -403,34 +414,35 @@ export async function adoptLick(
 				.eq('id', lickRow.user_id)
 				.single();
 
-			const authors = getAdoptedAuthorsLocal();
+			const authors = getStolenAuthorsLocal();
 			authors[lickId] = {
 				authorId: lickRow.user_id,
 				authorName: author?.display_name ?? null,
 				authorAvatarUrl: author?.avatar_url ?? null
 			};
-			saveAdoptedAuthorsLocal(authors);
+			saveStolenAuthorsLocal(authors);
 		}
 	}
 
-	adoptions.add(lickId);
-	saveAdoptionsLocal(adoptions);
+	steals.add(lickId);
+	saveStealsLocal(steals);
 	return true;
 }
 
 /**
- * Unadopt a lick. Removes the adoption row and the locally cached payload.
+ * Return a stolen lick (undo the steal). Removes the adoption row and the
+ * locally cached payload.
  *
- * @returns `true` if the adoption is gone from the server (or wasn't there),
+ * @returns `true` if the steal is gone from the server (or wasn't there),
  *          `false` if the server delete failed or no auth session is available.
  *          Callers performing optimistic UI updates must revert on `false`.
  */
-export async function unadoptLick(
+export async function returnLick(
 	supabase: SupabaseClient<Database>,
 	lickId: string
 ): Promise<boolean> {
-	const adoptions = getAdoptionsLocal();
-	if (!adoptions.has(lickId)) return true;
+	const steals = getStealsLocal();
+	if (!steals.has(lickId)) return true;
 
 	const { data: { user } } = await supabase.auth.getUser();
 	if (!user) return false;
@@ -441,19 +453,19 @@ export async function unadoptLick(
 		.eq('user_id', user.id)
 		.eq('lick_id', lickId);
 	if (error) {
-		console.warn('Failed to unadopt lick:', error);
+		console.warn('Failed to return lick:', error);
 		return false;
 	}
 
-	adoptions.delete(lickId);
-	saveAdoptionsLocal(adoptions);
+	steals.delete(lickId);
+	saveStealsLocal(steals);
 
-	const payloads = getAdoptedLicksLocal().filter((p) => p.id !== lickId);
-	saveAdoptedPayloadsLocal(payloads);
+	const payloads = getStolenLicksLocal().filter((p) => p.id !== lickId);
+	saveStolenPayloadsLocal(payloads);
 
-	const authors = getAdoptedAuthorsLocal();
+	const authors = getStolenAuthorsLocal();
 	delete authors[lickId];
-	saveAdoptedAuthorsLocal(authors);
+	saveStolenAuthorsLocal(authors);
 	return true;
 }
 
@@ -464,8 +476,8 @@ export async function unadoptLick(
 /**
  * Bidirectional startup sync for community state:
  *   1. Pull favorite IDs → localStorage.
- *   2. Pull adoption IDs → localStorage.
- *   3. For each adopted lick, pull the latest lick payload → localStorage.
+ *   2. Pull steal IDs → localStorage.
+ *   3. For each stolen lick, pull the latest lick payload → localStorage.
  *
  * Called once from `+layout.ts` during hydration. Never throws.
  */
@@ -490,52 +502,67 @@ export async function initCommunityFromCloud(
 			saveFavoritesLocal(ids);
 		}
 
-		// Adoptions + their lick payloads
-		const { data: adoptionRows, error: adoptError } = await supabase
+		// Steals + their lick payloads
+		const { data: stealRows, error: stealError } = await supabase
 			.from('lick_adoptions')
 			.select('lick_id')
 			.eq('user_id', user.id);
-		if (adoptError) {
-			console.warn('Failed to fetch adoptions:', adoptError);
+		if (stealError) {
+			console.warn('Failed to fetch steals:', stealError);
 			return;
 		}
-		if (!adoptionRows || gen !== getScopeGeneration()) return;
+		if (!stealRows || gen !== getScopeGeneration()) return;
 
-		const adoptedIds = adoptionRows.map((r) => r.lick_id);
-		saveAdoptionsLocal(new Set(adoptedIds));
+		const stolenIds = stealRows.map((r) => r.lick_id);
+		saveStealsLocal(new Set(stolenIds));
 
-		if (adoptedIds.length === 0) {
-			saveAdoptedPayloadsLocal([]);
-			saveAdoptedAuthorsLocal({});
+		if (stolenIds.length === 0) {
+			saveStolenPayloadsLocal([]);
+			saveStolenAuthorsLocal({});
 			return;
 		}
 
 		const { data: lickRows, error: lickError } = await supabase
 			.from('user_licks')
 			.select('*')
-			.in('id', adoptedIds);
+			.in('id', stolenIds);
 		if (lickError) {
-			console.warn('Failed to fetch adopted lick payloads:', lickError);
+			console.warn('Failed to fetch stolen lick payloads:', lickError);
+			// Keep the payload/author caches in sync with the authoritative
+			// steal set we just wrote. Dropping entries for ids no longer in
+			// `stolenIds` prevents the library from rendering stale attribution
+			// or stale stolen licks from a previous session.
+			if (gen === getScopeGeneration()) {
+				const keep = new Set(stolenIds);
+				saveStolenPayloadsLocal(
+					getStolenLicksLocal().filter((phrase) => keep.has(phrase.id))
+				);
+				saveStolenAuthorsLocal(
+					Object.fromEntries(
+						Object.entries(getStolenAuthorsLocal()).filter(([id]) => keep.has(id))
+					)
+				);
+			}
 			return;
 		}
 		if (gen !== getScopeGeneration()) return;
 
 		// Filter out malformed payloads so the practice pipeline only sees
-		// trustworthy data. Invalid adoptions remain in the adoption set above
-		// so the user can still unadopt them; they just don't render.
+		// trustworthy data. Invalid steals remain in the steal set above
+		// so the user can still return them; they just don't render.
 		const payloads: Phrase[] = (lickRows ?? [])
 			.map(rowToPhrase)
 			.filter((phrase) => {
 				const result = validateAdoptedPhrase(phrase);
 				if (!result.valid) {
 					console.warn(
-						`Adopted lick ${phrase.id} failed validation; excluding from cache:`,
+						`Stolen lick ${phrase.id} failed validation; excluding from cache:`,
 						result.errors
 					);
 				}
 				return result.valid;
 			});
-		saveAdoptedPayloadsLocal(payloads);
+		saveStolenPayloadsLocal(payloads);
 
 		// Hydrate author attribution — restricted to validated licks so the
 		// author map mirrors what actually landed in `payloads`. When no
@@ -546,7 +573,7 @@ export async function initCommunityFromCloud(
 		const authorIds = Array.from(new Set(validatedRows.map((r) => r.user_id)));
 		if (authorIds.length === 0) {
 			if (gen === getScopeGeneration()) {
-				saveAdoptedAuthorsLocal({});
+				saveStolenAuthorsLocal({});
 			}
 		} else {
 			const { data: authorRows, error: authorError } = await supabase
@@ -554,12 +581,22 @@ export async function initCommunityFromCloud(
 				.select('id, display_name, avatar_url')
 				.in('id', authorIds);
 			if (authorError) {
-				console.warn('Failed to fetch adopted-lick authors:', authorError);
+				console.warn('Failed to fetch stolen-lick authors:', authorError);
+				// Prune author cache to the validated id set so stale entries
+				// for licks that were returned or deleted don't linger.
+				if (gen === getScopeGeneration()) {
+					const keep = validatedIds;
+					saveStolenAuthorsLocal(
+						Object.fromEntries(
+							Object.entries(getStolenAuthorsLocal()).filter(([id]) => keep.has(id))
+						)
+					);
+				}
 			} else if (gen === getScopeGeneration()) {
 				const byAuthorId = new Map(
 					(authorRows ?? []).map((a) => [a.id, a])
 				);
-				const authorMap: Record<string, AdoptedAuthor> = {};
+				const authorMap: Record<string, StolenAuthor> = {};
 				for (const row of validatedRows) {
 					const a = byAuthorId.get(row.user_id);
 					authorMap[row.id] = {
@@ -568,7 +605,7 @@ export async function initCommunityFromCloud(
 						authorAvatarUrl: a?.avatar_url ?? null
 					};
 				}
-				saveAdoptedAuthorsLocal(authorMap);
+				saveStolenAuthorsLocal(authorMap);
 			}
 		}
 	} catch (err) {

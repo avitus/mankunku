@@ -14,7 +14,6 @@
 		getPlannedKeysForLick,
 		buildLickSuperPhrase,
 		getKeyBars,
-		getProgressionBars,
 		recordKeyAttempt,
 		advance,
 		startInterLickTransition,
@@ -304,12 +303,15 @@
 		const beatsPerBar = superPhrase.timeSignature[0];
 		const ticksPerBar = beatsPerBar * ppq;
 		const keyBars = getKeyBars();
-		const progressionBars = getProgressionBars();
+		// Per-lick cycle length in bars — equals the progression's bar count
+		// for licks that fit, longer for licks with extension. Drives demo
+		// length and (in C&R mode) the offset between the app and user halves.
+		const lickBars = mode === 'call-response' ? keyBars / 2 : keyBars;
 		// In continuous mode, the lick's audio begins with a demo cycle of
-		// `progressionBars` bars (the app plays the lick once in keys[0]).
+		// `lickBars` bars (the app plays the lick once in keys[0]).
 		// In C&R mode there's no separate demo (each key has its own
 		// app-then-user pattern), so demoBars = 0.
-		const demoBars = mode === 'continuous' ? progressionBars : 0;
+		const demoBars = mode === 'continuous' ? lickBars : 0;
 
 		// Build the planned-keys stack and timing anchors for the continuous
 		// scroll preview. Both update on every lick boundary so the scroll
@@ -317,7 +319,7 @@
 		// tempo change at the same time).
 		plannedKeysForLick = getPlannedKeysForLick(lickIdx);
 		ticksPerKey = keyBars * ticksPerBar;
-		beatLoopBeats = progressionBars * beatsPerBar;
+		beatLoopBeats = lickBars * beatsPerBar;
 
 		lickPractice.phase = 'lick-running';
 		lickPractice.currentKeyIndex = 0;
@@ -358,7 +360,7 @@
 						lickIdx,
 						ticksPerBar,
 						keyBars,
-						progressionBars,
+						lickBars,
 						ticksPerBar
 					);
 				}
@@ -391,7 +393,7 @@
 				startTick: audioStartTick
 			});
 
-			scheduleLickWindows(lickIdx, audioStartTick, keyBars, progressionBars, ticksPerBar);
+			scheduleLickWindows(lickIdx, audioStartTick, keyBars, lickBars, ticksPerBar);
 		}
 	}
 
@@ -401,15 +403,17 @@
 	 * transport.scheduleOnce so they fire on the audio clock, not JS timers.
 	 *
 	 * `audioStartTick` is the transport tick where the lick's audio begins.
-	 * In continuous mode this is followed by a `progressionBars`-long demo
-	 * before the first user window opens; in C&R mode the audio begins
-	 * directly with the first key's app phase, so demoBars = 0.
+	 * In continuous mode this is followed by a `lickBars`-long demo before
+	 * the first user window opens; in C&R mode the audio begins directly
+	 * with the first key's app phase, so demoBars = 0. `lickBars` is the
+	 * lick's effective cycle length (≥ progressionBars for licks with a
+	 * tail extension).
 	 */
 	function scheduleLickWindows(
 		lickIdx: number,
 		audioStartTick: number,
 		keyBars: number,
-		progressionBars: number,
+		lickBars: number,
 		ticksPerBar: number
 	): void {
 		if (!toneModule) return;
@@ -422,11 +426,11 @@
 		// Demo cycle (continuous mode only) — the app plays the lick once
 		// in keys[0] before the user starts. The first user window opens
 		// `demoBars` bars after the audio starts.
-		const demoBars = mode === 'continuous' ? progressionBars : 0;
+		const demoBars = mode === 'continuous' ? lickBars : 0;
 		const lickStartTick = audioStartTick + demoBars * ticksPerBar;
-		// In call-response mode the user's bars start `progressionBars` into
-		// each key window (after the app has played its half).
-		const userBarsOffset = mode === 'call-response' ? progressionBars * ticksPerBar : 0;
+		// In call-response mode the user's bars start `lickBars` into each
+		// key window (after the app has played its half).
+		const userBarsOffset = mode === 'call-response' ? lickBars * ticksPerBar : 0;
 
 		for (let i = 0; i < item.keys.length; i++) {
 			const keyStartTick = lickStartTick + i * keyTicks;
@@ -492,12 +496,12 @@
 	 * correct across BPM changes between licks. Ticks are tempo-independent
 	 * — they always advance at PPQ ticks per quarter note regardless of BPM.
 	 *
-	 * - currentBeat wraps at `progressionBars * beatsPerBar` so the chart's
-	 *   beat indicator cycles through each full progression play. In
-	 *   continuous mode that's once per key (user cycle); in call-response
-	 *   mode that's twice per key (app cycle, then user cycle) — both halves
-	 *   animate the chart identically, matching the first key of continuous
-	 *   mode.
+	 * - currentBeat wraps at `lickBars * beatsPerBar` (the lick's effective
+	 *   cycle, ≥ progression's bar count when the lick has a tail extension)
+	 *   so the chart's beat indicator cycles through each full play. In
+	 *   continuous mode that's once per key; in call-response mode that's
+	 *   twice per key (app cycle, then user cycle) — both halves animate
+	 *   the chart identically, matching the first key of continuous mode.
 	 * - scrollFraction is in "key units": 0 at lick start, 1 at the
 	 *   start of the second key, etc. Drives the translateY animation.
 	 */
