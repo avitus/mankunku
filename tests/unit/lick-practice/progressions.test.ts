@@ -465,6 +465,10 @@ describe('detectPickupBars', () => {
 		return { pitch: 60, duration: [1, 8], offset };
 	}
 
+	function rest(offset: [number, number]): Note {
+		return { pitch: null, duration: [1, 8], offset };
+	}
+
 	it('returns 0 when the first note is on a downbeat', () => {
 		expect(detectPickupBars([note([0, 1]), note([1, 4]), note([1, 2])])).toBe(0);
 	});
@@ -515,5 +519,27 @@ describe('detectPickupBars', () => {
 			note([3, 4])
 		];
 		expect(detectPickupBars(notes)).toBe(1);
+	});
+
+	it('skips leading rest events when detecting the pickup', () => {
+		// Step-entry produces explicit rests for empty beats. A lick with
+		// rests at [0,1], [1,4], [1,2] before the pickup at [3,4] must still
+		// detect pickupBars = 1 (counting the rest's [0,1] offset would set
+		// firstOffset to 0 and force the function to return 0).
+		const notes = [
+			rest([0, 1]),
+			rest([1, 4]),
+			rest([1, 2]),
+			note([3, 4]),
+			note([5, 6]),
+			note([11, 12]),
+			note([1, 1]),
+			note([2, 1])
+		];
+		expect(detectPickupBars(notes)).toBe(1);
+	});
+
+	it('returns 0 when the lick has only rests', () => {
+		expect(detectPickupBars([rest([0, 1]), rest([1, 4]), rest([1, 2])])).toBe(0);
 	});
 });
