@@ -126,6 +126,78 @@ describe('alignNotes', () => {
 		expect(matched!.cost).toBeCloseTo(0, 1);
 	});
 
+	it('does NOT shift triplet 8ths when swing > 0.5 (matches playback contract)', () => {
+		// Triplet 8ths inside beat 1: offsets [0,12], [1,12], [2,12]
+		// → beats 0, 1/3, 2/3 (none of which equal n + 1/2)
+		const swing = 0.67;
+		const beatDuration = 60 / TEMPO;
+		const expected = [
+			makeNote(60, [0, 12]),
+			makeNote(62, [1, 12]),
+			makeNote(64, [2, 12])
+		];
+		// Detected at the *unswung* positions — exactly 1/3 beat apart.
+		const detected = [
+			makeDetected(60, 0),
+			makeDetected(62, (1 / 3) * beatDuration),
+			makeDetected(64, (2 / 3) * beatDuration)
+		];
+		const pairs = alignNotes(expected, detected, TEMPO, swing);
+		const matched = pairs.filter(p => p.expectedIndex !== null && p.detectedIndex !== null);
+		expect(matched).toHaveLength(3);
+		for (const p of matched) {
+			expect(p.cost).toBeCloseTo(0, 1);
+		}
+	});
+
+	it('beat-4 triplet pickup (major-chord-pickup-001) scores zero cost at swing 0.67', () => {
+		// Replicates the exact pickup pattern from src/lib/data/licks/major-chord.ts
+		// (offsets [3,4], [5,6], [11,12]) — the lick whose timing the user reported as broken.
+		const swing = 0.67;
+		const beatDuration = 60 / TEMPO;
+		const expected = [
+			makeNote(55, [3, 4]),    // beat 3.0
+			makeNote(57, [5, 6]),    // beat 10/3
+			makeNote(59, [11, 12])   // beat 11/3
+		];
+		const detected = [
+			makeDetected(55, 3.0 * beatDuration),
+			makeDetected(57, (10 / 3) * beatDuration),
+			makeDetected(59, (11 / 3) * beatDuration)
+		];
+		const pairs = alignNotes(expected, detected, TEMPO, swing);
+		const matched = pairs.filter(p => p.expectedIndex !== null && p.detectedIndex !== null);
+		expect(matched).toHaveLength(3);
+		for (const p of matched) {
+			expect(p.cost).toBeCloseTo(0, 1);
+		}
+	});
+
+	it('mixed phrase: swings 8th off-beats, leaves triplets and downbeats unchanged', () => {
+		// Beat 0 downbeat | beat 0.5 off-beat 8th | triplet at beats 1+1/3, 1+2/3
+		const swing = 0.67;
+		const beatDuration = 60 / TEMPO;
+		const swungOffBeat = 0.5 + (swing - 0.5);    // 0.67 beats
+		const expected = [
+			makeNote(60, [0, 1]),   // downbeat
+			makeNote(62, [1, 8]),   // off-beat 8th — should be swung
+			makeNote(64, [4, 12]),  // triplet 8n at 4/3 beats — should NOT be swung
+			makeNote(65, [5, 12])   // triplet 8n at 5/3 beats — should NOT be swung
+		];
+		const detected = [
+			makeDetected(60, 0),
+			makeDetected(62, swungOffBeat * beatDuration),
+			makeDetected(64, (4 / 3) * beatDuration),
+			makeDetected(65, (5 / 3) * beatDuration)
+		];
+		const pairs = alignNotes(expected, detected, TEMPO, swing);
+		const matched = pairs.filter(p => p.expectedIndex !== null && p.detectedIndex !== null);
+		expect(matched).toHaveLength(4);
+		for (const p of matched) {
+			expect(p.cost).toBeCloseTo(0, 1);
+		}
+	});
+
 	it('treats octave-off as pitch-matched when octaveInsensitive=true', () => {
 		const expected = [makeNote(60, [0, 1])]; // C4
 		// Detected C5 (one octave up) at the same time
