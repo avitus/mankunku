@@ -9,6 +9,7 @@ import type { Note } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import type { AlignmentPair } from '$lib/types/scoring';
 import { midiToPitchClass } from '$lib/music/intervals';
+import { applySwingToBeats } from '$lib/music/swing';
 
 /** Cost for a completely missed or extra note */
 const SKIP_COST = 2.0;
@@ -55,22 +56,15 @@ function rhythmDistance(
 
 /**
  * Convert a note's fractional offset to seconds given a tempo,
- * applying swing to off-beat 8th notes.
+ * applying swing to off-beat 8th notes (shared with playback so a perfect
+ * performance scores perfectly).
  *
  * @param swing - Swing ratio (0.5 = straight, 0.67 ≈ triplet, 0.8 = heavy)
  */
 function noteOnsetSeconds(note: Note, tempo: number, swing = 0.5): number {
-	const beats = (note.offset[0] / note.offset[1]) * 4;
-	const beatDuration = 60 / tempo;
-	let onset = beats * beatDuration;
-
-	// Shift off-beat 8ths to match Tone.js swing playback
-	const fractionalBeat = beats % 1;
-	if (swing > 0.5 && Math.abs(fractionalBeat - 0.5) < 0.001) {
-		onset += (swing - 0.5) * beatDuration;
-	}
-
-	return onset;
+	const rawBeats = (note.offset[0] / note.offset[1]) * 4;
+	const swungBeats = applySwingToBeats(rawBeats, swing);
+	return swungBeats * (60 / tempo);
 }
 
 /**

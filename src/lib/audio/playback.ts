@@ -9,7 +9,7 @@
  * - Custom tenor sax samples (MTG Solo Sax, CC-BY 4.0) with velocity layers
  * - Subtle vibrato via LFO-driven detune
  * - Warm low-pass filtering to tame harsh digital edges
- * - Swing feel via Tone.js Transport swing
+ * - Per-note swing pre-shift on off-beat 8ths (triplets are immune)
  * - Humanized velocity and timing for authentic jazz phrasing
  * - Per-note tuning corrections from SFZ mappings
  */
@@ -18,6 +18,7 @@ import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
+import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
 import {
@@ -424,13 +425,15 @@ function getBreathDetune(midi: number, isFirstNote: boolean): number {
 /**
  * Convert phrase note offsets to Tone.js tick-based times.
  * Uses PPQ (Pulses Per Quarter note) for exact subdivision timing.
- * Applies humanization for authentic jazz feel.
+ * Applies swing pre-shift (off-beat 8ths only — triplets are immune)
+ * and timing humanization for authentic jazz feel.
  */
-function phraseToEvents(phrase: Phrase, tempo: number, ppq: number) {
+function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number) {
 	const pitched = phrase.notes.filter((n) => n.pitch !== null);
 	return pitched.map((note, index) => {
-		const quarterNotesFromStart = fractionToFloat(note.offset) * 4;
-		const rawTicks = Math.round(quarterNotesFromStart * ppq);
+		const rawBeats = fractionToFloat(note.offset) * 4;
+		const swungBeats = applySwingToBeats(rawBeats, swing);
+		const rawTicks = Math.round(swungBeats * ppq);
 		const ticks = humanizeTiming(rawTicks, ppq, tempo);
 		const durationBeats = fractionToFloat(note.duration) * 4;
 		const durationSeconds = durationBeats * (60 / tempo);
@@ -513,10 +516,10 @@ export interface PhrasePlaybackOpts {
  * Play a phrase through the loaded instrument.
  * Returns a promise that resolves when phrase playback finishes.
  *
- * Applies swing feel via Tone.js Transport when the swing option
- * is greater than 0.5 (straight). Jazz swing is applied to 8th notes,
- * pushing the off-beat 8ths later to create the characteristic
- * "long-short" subdivision feel.
+ * Swing is applied per-note inside `phraseToEvents` (off-beat 8ths only —
+ * triplets are immune by construction). `Tone.Transport.swing` is left at
+ * its default 0 so it cannot blindly shift triplet 8ths whose ticks land in
+ * an odd 8n subdivision slot.
  *
  * If keepMetronome is true, the transport and metronome keep running
  * after the phrase ends (for the recording phase). Call stopPlayback()
@@ -552,19 +555,10 @@ export async function playPhrase(
 	transport.bpm.value = options.tempo;
 	transport.timeSignature = phrase.timeSignature[0];
 
-	// Apply swing feel to the Transport.
-	// Tone.js swing ranges from 0 (straight) to 1 (dotted-8th + 16th).
-	// The PlaybackOptions.swing ranges from 0.5 (straight) to 0.8 (heavy).
-	// Convert: when options.swing = 0.5  -> transport swing = 0
-	//          when options.swing = 0.67 -> transport swing ≈ 0.34 (triplet feel)
-	//          when options.swing = 0.75 -> transport swing = 0.5
-	//          when options.swing = 0.8  -> transport swing = 0.6 (heavy)
-	if (options.swing > 0.5) {
-		transport.swing = (options.swing - 0.5) * 2;
-		transport.swingSubdivision = '8n';
-	} else {
-		transport.swing = 0;
-	}
+	// Swing is applied per-note in `phraseToEvents` so triplets stay
+	// immune. Keep Transport.swing at 0 so Tone.js does not double-shift
+	// any event whose tick happens to fall in an odd 8n subdivision slot.
+	transport.swing = 0;
 
 	const ppq = transport.PPQ;
 	const beatsPerBar = phrase.timeSignature[0];
@@ -577,7 +571,7 @@ export async function playPhrase(
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
 	if (!skipMelody) {
-		const events = phraseToEvents(phrase, options.tempo, ppq);
+		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq);
 		currentPart = new Tone.Part((time, event) => {
 			startNote({ ...event, time });
 		}, events);
@@ -773,9 +767,9 @@ export async function scheduleNextPhrase(
 		}
 	}
 
-	// Apply swing (transport already has swing configured from initial playPhrase)
+	// Swing is applied per-note inside phraseToEvents (triplet-safe).
 	if (!skipMelody) {
-		const events = phraseToEvents(phrase, options.tempo, ppq);
+		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq);
 		currentPart = new Tone.Part((time, event) => {
 			startNote({ ...event, time });
 		}, events);
