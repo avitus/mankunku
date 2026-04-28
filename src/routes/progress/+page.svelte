@@ -356,7 +356,7 @@
 					The record's still spinning. Play a session to start the history.
 				</p>
 				<a
-					href="/practice"
+					href="/ear-training"
 					class="mt-3 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
 				>
 					Start Practicing
