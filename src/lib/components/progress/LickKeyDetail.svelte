@@ -16,9 +16,9 @@
 	let loading = $state(true);
 	let score: Score | null = $state(null);
 
-	const pct = (n: number) => Math.round(n * 100);
+	const pct = (n: number): number => Math.round(n * 100);
 
-	const caption = $derived.by(() => {
+	const caption = $derived.by((): string => {
 		if (!score) return '';
 		void score.overall;
 		void score.pitchAccuracy;
