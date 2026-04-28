@@ -381,7 +381,7 @@
 			persistentScore = session.lastScore;
 			scoredAttemptCount++;
 			if ((scoredAttemptCount - 1) % 10 === 0) {
-				bottomQuote = getGradeCaption(session.lastScore.grade);
+				bottomQuote = getGradeCaption(persistentScore.grade);
 			}
 			recordAttempt(
 				session.phrase.id,
@@ -563,6 +563,12 @@
 			session.recordedNotes = authoritativeNotes;
 			session.lastScore = result.chosen;
 			persistentScore = result.chosen;
+			// If this attempt was a quote-refresh boundary, the provisional
+			// grade may have driven a now-stale caption — re-pull from the
+			// authoritative grade so the bottom band matches what's shown.
+			if ((scoredAttemptCount - 1) % 10 === 0) {
+				bottomQuote = getGradeCaption(persistentScore.grade);
+			}
 		}
 
 		if (sessionId && baseMetadata) {
