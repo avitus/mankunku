@@ -67,6 +67,8 @@ import {
 import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-loader';
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
+import { selectInitialProgression, DEFAULT_PROGRESSION } from './lick-practice-picker';
 
 const PASS_THRESHOLD = 0.80;
 
@@ -172,50 +174,24 @@ export function getPracticeLicks(): Phrase[] {
 	});
 }
 
-const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
-
 /**
- * Pick the progression whose practice-tagged set contains the lick most in
- * need of practice — the least-recently-practiced tagged lick, with
- * never-practiced licks (lastPracticedAt = 0) winning over any with history.
- *
- * Called on setup hydration so the pill pre-selection already matches the
- * lick the session plan would lead with. Resolution order for the target
- * lick's home progression: user-assigned prog:* tags (first in template
- * order), else first progression whose compatible-category list includes
- * the lick's category, else the hard default. Substitutions are ignored —
- * we don't presume the user wants to enable them just to justify a pill.
+ * Thin wrapper around `selectInitialProgression` (in lick-practice-picker.ts)
+ * that resolves the runtime dependencies — practice-tagged ids, full lick
+ * library, current progress, session log, progression-tags lookup. The
+ * algorithm itself lives in the pure helper so it can be unit-tested
+ * without the runes runtime.
  */
 export function pickInitialProgression(): ChordProgressionType {
 	const taggedIds = getPracticeTaggedIds();
 	if (taggedIds.size === 0) return DEFAULT_PROGRESSION;
 
 	const candidates = getAllLicks().filter(l => taggedIds.has(l.id));
-	if (candidates.length === 0) return DEFAULT_PROGRESSION;
-
-	const progress = lickPractice.progress;
-	let neglected = candidates[0];
-	let neglectedTime = getLickLastPracticed(progress, neglected.id);
-	for (let i = 1; i < candidates.length; i++) {
-		const t = getLickLastPracticed(progress, candidates[i].id);
-		if (t < neglectedTime) {
-			neglected = candidates[i];
-			neglectedTime = t;
-		}
-	}
-
-	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
-
-	const userTags = getProgressionTags(neglected.id);
-	if (userTags.length > 0) {
-		const tagged = order.find(p => userTags.includes(p));
-		if (tagged) return tagged;
-	}
-
-	const categoryMatch = order.find(p =>
-		getCompatibleLickCategories(p).includes(neglected.category)
-	);
-	return categoryMatch ?? DEFAULT_PROGRESSION;
+	return selectInitialProgression({
+		candidates,
+		progress: lickPractice.progress,
+		sessionLog: loadLickPracticeSessions(),
+		getProgressionTags
+	});
 }
 
 /**
