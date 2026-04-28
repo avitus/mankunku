@@ -1,6 +1,8 @@
 /**
  * IndexedDB storage for recorded audio blobs.
- * Keeps at most 20 recordings (locally), pruning oldest on save.
+ * Keeps at most 100 recordings (locally), pruning oldest on save —
+ * matched to the MAX_SESSIONS=100 cap on session reports so /progress can
+ * drill from a logged session's key chip back to its original recording.
  *
  * When a Supabase client and userId are provided, recordings are also
  * uploaded to the Supabase Storage bucket `recordings` for cross-device
@@ -23,7 +25,7 @@ import type { BackingTrackLog } from '$lib/audio/backing-track';
 const DB_NAME = 'mankunku-audio';
 const STORE_NAME = 'recordings';
 const DB_VERSION = 1;
-const MAX_RECORDINGS = 20;
+const MAX_RECORDINGS = 100;
 
 /**
  * Self-contained snapshot of the practice context at save time.

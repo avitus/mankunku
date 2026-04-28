@@ -85,6 +85,11 @@ export interface LickPracticeKeyResult {
 	rhythmAccuracy: number;
 	attempts: number;
 	tempo: number;
+	/**
+	 * IndexedDB recording key for the per-key window. Optional because legacy
+	 * archived results may not carry it; new recordings always do.
+	 */
+	sessionId?: string;
 }
 
 // ── Session report (end-of-session summary) ────────────────
@@ -101,6 +106,11 @@ export interface LickReport {
 		pitchAccuracy: number;
 		rhythmAccuracy: number;
 		passed: boolean;
+		/**
+		 * IndexedDB recording key for the per-key window. Optional for backward
+		 * compatibility with sessions persisted before this field was introduced.
+		 */
+		sessionId?: string;
 	}[];
 	averageScore: number;
 	passedCount: number;

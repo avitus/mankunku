@@ -10,6 +10,7 @@
 	import PracticeCalendar from '$lib/components/progress/PracticeCalendar.svelte';
 	import TrendChart from '$lib/components/progress/TrendChart.svelte';
 	import PeriodCompare from '$lib/components/progress/PeriodCompare.svelte';
+	import LickKeyDetail from '$lib/components/progress/LickKeyDetail.svelte';
 	import { dailySummaries } from '$lib/state/history.svelte';
 	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -130,6 +131,7 @@
 	let showResetConfirm = $state(false);
 	let expandedSessionId: string | null = $state(null);
 	let expandedLickSessionId: string | null = $state(null);
+	let expandedKeySessionId: string | null = $state(null);
 
 	function toggleSession(id: string) {
 		expandedSessionId = expandedSessionId === id ? null : id;
@@ -137,6 +139,15 @@
 
 	function toggleLickSession(id: string): void {
 		expandedLickSessionId = expandedLickSessionId === id ? null : id;
+		// Closing the parent session collapses any open per-key detail too,
+		// so a re-expand starts clean.
+		if (expandedLickSessionId === null) {
+			expandedKeySessionId = null;
+		}
+	}
+
+	function toggleKeyDetail(sid: string): void {
+		expandedKeySessionId = expandedKeySessionId === sid ? null : sid;
 	}
 
 	function handleTabKeydown(e: KeyboardEvent) {
@@ -403,15 +414,32 @@
 															: k.score >= 0.6
 																? 'var(--color-warning, #f59e0b)'
 																: 'var(--color-error)'}
-														<div
-															class="flex flex-col items-center rounded px-2 py-1 text-xs"
-															style="background: {color}20; color: {color}"
+														{@const hasDetail = !!k.sessionId && recordingIds.has(k.sessionId)}
+														{@const isOpen = !!k.sessionId && expandedKeySessionId === k.sessionId}
+														<button
+															type="button"
+															onclick={hasDetail ? () => toggleKeyDetail(k.sessionId!) : undefined}
+															disabled={!hasDetail}
+															aria-expanded={hasDetail ? isOpen : undefined}
+															title={hasDetail ? 'Show note-by-note detail' : 'Detail not available for this attempt'}
+															class="flex flex-col items-center rounded px-2 py-1 text-xs outline outline-2 transition-opacity disabled:cursor-default"
+															class:cursor-pointer={hasDetail}
+															class:opacity-60={!hasDetail}
+															class:outline-current={isOpen}
+															class:outline-transparent={!isOpen}
+															style="background: {color}20; color: {color};"
 														>
 															<span class="font-bold">{concertKeyToWritten(k.key as PitchClass, instrument)}</span>
 															<span class="tabular-nums">{pct(k.score)}%</span>
-														</div>
+														</button>
 													{/each}
 												</div>
+												{#if expandedKeySessionId && lick.keys.some((k) => k.sessionId === expandedKeySessionId)}
+													<LickKeyDetail
+														sessionId={expandedKeySessionId}
+														{instrument}
+													/>
+												{/if}
 											</div>
 										{/each}
 										{#if ls.report.licks.length === 0}

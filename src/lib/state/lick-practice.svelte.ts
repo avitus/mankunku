@@ -757,7 +757,7 @@ export function getProgressionBars(): number {
  * phase transitions; this function only updates keyResults and writes
  * per-key progress for passed attempts.
  */
-export function recordKeyAttempt(score: Score): void {
+export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	const item = getCurrentPlanItem();
 	const key = getCurrentKey();
 	if (!item || !key) return;
@@ -771,7 +771,8 @@ export function recordKeyAttempt(score: Score): void {
 		pitchAccuracy: score.pitchAccuracy,
 		rhythmAccuracy: score.rhythmAccuracy,
 		attempts: 1,
-		tempo: lickPractice.currentTempo
+		tempo: lickPractice.currentTempo,
+		sessionId
 	});
 
 	if (passed) {
@@ -917,7 +918,8 @@ export function getSessionReport(): SessionReport {
 			score: r.score,
 			pitchAccuracy: r.pitchAccuracy,
 			rhythmAccuracy: r.rhythmAccuracy,
-			passed: r.passed
+			passed: r.passed,
+			sessionId: r.sessionId
 		}));
 
 		const totalScore = keys.reduce((s, k) => s + k.score, 0);
