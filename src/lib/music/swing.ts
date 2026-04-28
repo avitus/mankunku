@@ -1,8 +1,8 @@
 /**
  * Swing timing for off-beat 8th notes.
  *
- * Triplets are immune by construction: a beat offset of `n + 1/2`
- * (the off-beat 8th) cannot arise from triplet denominators (3, 6, 12, 24),
+ * Triplet-eighth positions are immune by construction: they land at
+ * `n + 1/3` and `n + 2/3`, not near `n + 1/2` (the swung off-beat 8th),
  * so the `fractional ≈ 0.5` check naturally excludes them. This is shared
  * between playback (Tone.js scheduling) and scoring (DTW alignment) so a
  * perfect performance scores perfectly.

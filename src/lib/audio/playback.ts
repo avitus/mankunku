@@ -728,6 +728,10 @@ export async function scheduleNextPhrase(
 
 	// Ensure BPM stays correct on the running transport
 	transport.bpm.value = options.tempo;
+	// Re-assert the triplet-safe invariant: swing is handled per-note in
+	// phraseToEvents, so Tone.Transport must stay at 0 even if some other
+	// code path mutated it between scheduling calls.
+	transport.swing = 0;
 
 	// Cancel the stale end-of-phrase callback from the previous
 	// playPhrase / scheduleNextPhrase so it can't dispose the new Part
