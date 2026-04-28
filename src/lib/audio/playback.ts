@@ -428,9 +428,9 @@ function getBreathDetune(midi: number, isFirstNote: boolean): number {
  * Applies swing pre-shift (off-beat 8ths only — triplets are immune)
  * and timing humanization for authentic jazz feel.
  */
-function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number) {
+function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number): PlaybackEvent[] {
 	const pitched = phrase.notes.filter((n) => n.pitch !== null);
-	return pitched.map((note, index) => {
+	return pitched.map((note, index): PlaybackEvent => {
 		const rawBeats = fractionToFloat(note.offset) * 4;
 		const swungBeats = applySwingToBeats(rawBeats, swing);
 		const rawTicks = Math.round(swungBeats * ppq);
