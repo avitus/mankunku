@@ -4,7 +4,7 @@
  * Three-domain color identity (see documentation/architecture/design-system.md):
  *
  * - Default :root keeps the historical blue accent — that IS the
- *   ear-training identity color, so /practice, /scales, /progress, etc.
+ *   ear-training identity color, so /ear-training, /scales, /progress, etc.
  *   inherit it without any override.
  * - [data-domain='lick-practice'] overrides the accent to green for the
  *   /lick-practice routes.

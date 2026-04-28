@@ -337,7 +337,12 @@
 
 									<!-- Per-note comparison -->
 									{#if s.noteResults && s.noteResults.length > 0}
-										<NoteComparison noteResults={s.noteResults} transpositionSemitones={instrument.transpositionSemitones} timing={s.timing} />
+										<NoteComparison
+											noteResults={s.noteResults}
+											transpositionSemitones={instrument.transpositionSemitones}
+											displayKey={concertKeyToWritten(s.key as PitchClass, instrument)}
+											timing={s.timing}
+										/>
 									{/if}
 								</div>
 							{/if}
@@ -351,7 +356,7 @@
 					The record's still spinning. Play a session to start the history.
 				</p>
 				<a
-					href="/practice"
+					href="/ear-training"
 					class="mt-3 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
 				>
 					Start Practicing
@@ -435,9 +440,13 @@
 													{/each}
 												</div>
 												{#if expandedKeySessionId && lick.keys.some((k) => k.sessionId === expandedKeySessionId)}
+													{@const expandedKey = lick.keys.find((kk) => kk.sessionId === expandedKeySessionId)?.key}
 													<LickKeyDetail
 														sessionId={expandedKeySessionId}
 														{instrument}
+														displayKey={expandedKey
+															? concertKeyToWritten(expandedKey as PitchClass, instrument)
+															: undefined}
 													/>
 												{/if}
 											</div>

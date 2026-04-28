@@ -154,7 +154,7 @@
 		if (!lick) return;
 		session.phrase = lick;
 		session.tempo = settings.defaultTempo;
-		goto('/practice');
+		goto('/ear-training');
 	}
 
 	async function togglePlay() {

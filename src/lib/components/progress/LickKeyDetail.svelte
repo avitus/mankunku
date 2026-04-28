@@ -7,11 +7,13 @@
 	interface Props {
 		sessionId: string;
 		instrument: InstrumentConfig;
+		/** Written-pitch key for accidental spelling in the per-note comparison. */
+		displayKey?: string;
 		/** Notify parent that a recording lookup failed so it can disable the chip. */
 		onmissing?: () => void;
 	}
 
-	let { sessionId, instrument, onmissing }: Props = $props();
+	let { sessionId, instrument, displayKey, onmissing }: Props = $props();
 
 	let loading = $state(true);
 	let score: Score | null = $state(null);
@@ -105,6 +107,7 @@
 		<NoteComparison
 			noteResults={score.noteResults}
 			transpositionSemitones={instrument.transpositionSemitones}
+			{displayKey}
 			timing={score.timing}
 		/>
 	{:else}
