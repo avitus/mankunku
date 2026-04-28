@@ -19,7 +19,7 @@ Categories are a *role*, not a *bar count*. A `major-chord` lick is a 1-bar (or 
 
 `PROGRESSION_LICK_CATEGORIES` (in `progressions.ts`) maps each progression to the categories it can host, plus the bar offset where each category lands. For example, on `ii-V-I-major` (a 2-bar | ii V | I | progression), the `major-chord` category is offset to bar 1 — so a 1-bar major-chord lick plays over the I chord, not over the ii-V.
 
-```
+```text
 ii-V-I-major  (2 bars)
 ├── major-chord    offset [1, 1]   // I (maj7) on bar 1
 ├── ii-V-I-major   offset [0, 1]   // full progression starts at bar 0
@@ -36,7 +36,7 @@ Given a session:
 
 The engine computes:
 
-```
+```text
 baseAlignment   = PROGRESSION_LICK_CATEGORIES[progressionType][lick.category].offset
 shiftedAlign    = applyPickupBarShift(baseAlignment, pickupBars)        // pulls back, clamped at [0, 1]
 alignmentBars   = ceil(shiftedAlign[0] / shiftedAlign[1])
@@ -73,7 +73,7 @@ The `pickupBars` shift puts the anacrusis on V wherever V exists; the bulk lands
 
 User-entered and community-stolen licks created before the field existed have no way to declare anacrusis: `calculateDifficulty` only emits `{ level, pitchComplexity, rhythmComplexity, lengthBars }`. To keep those licks working without a forced re-save, `resolveAlignedLickOffset` falls back to `detectPickupBars(lick.notes)` when `difficulty.pickupBars` is absent.
 
-```
+```ts
 pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes)
 ```
 
@@ -114,7 +114,7 @@ For short ii-V-I where ii and V are half-bars, this *happens* to land the pickup
 **Plan.**
 - Generalize `pickupBars: number` → `pickupOffset: Fraction` ("the offset where the bulk downbeat sits, relative to the lick's start"). `pickupBars: 1` becomes `pickupOffset: [1, 1]`. `applyPickupBarShift` becomes `applyPickupOffsetShift(baseAlignment, pickupOffset)`.
 - `detectPickupBars` becomes `detectPickupOffset`: returns `firstSoundedDownbeat` (in fractional bars), not just `floor` of it.
-- Alignment subtracts the *exact* fraction from the base: e.g. on long ii-V-I, base `[2, 1]` − `[1, 8]` (eighth pickup) = `[15, 8]` — the pickup sits one eighth before bar 2 (bar 1 last eighth, on V's last eighth) and the bulk on bar 2. Substraction is fraction arithmetic via `addFractions(base, negate(pickupOffset))`.
+- Alignment subtracts the *exact* fraction from the base: e.g. on long ii-V-I, base `[2, 1]` − `[1, 8]` (eighth pickup) = `[15, 8]` — the pickup sits one eighth before bar 2 (bar 1 last eighth, on V's last eighth) and the bulk on bar 2. Subtraction is fraction arithmetic via `addFractions(base, negate(pickupOffset))`.
 - Migration: existing `pickupBars: N` licks read as `pickupOffset: [N, 1]`. No data change.
 
 **Test plan.** New test cases in `progressions.test.ts` for half-bar and eighth-bar pickups; integration tests in `super-phrase.test.ts` covering long ii-V-I with eighth-pickup placement.
