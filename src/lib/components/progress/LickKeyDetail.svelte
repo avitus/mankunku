@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { Score } from '$lib/types/scoring';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import { GRADE_LABELS, GRADE_COLORS, getGradeCaption } from '$lib/scoring/grades';
@@ -27,21 +26,31 @@
 		return getGradeCaption(score.grade);
 	});
 
-	onMount(async () => {
-		try {
-			const { getRecordingFull } = await import('$lib/persistence/audio-store');
-			const record = await getRecordingFull(sessionId);
-			const persisted = record?.metadata?.score ?? null;
-			if (persisted) {
-				score = persisted;
-			} else {
-				onmissing?.();
+	// Re-fetch whenever sessionId changes — the parent reuses this instance
+	// when the user clicks a different chip in the same lick card (the {#if}
+	// guard stays truthy, so onMount would never re-fire). The cancelled
+	// flag drops a stale in-flight result if a new sessionId arrives mid-load.
+	$effect(() => {
+		let cancelled = false;
+		loading = true;
+		score = null;
+		void (async (): Promise<void> => {
+			try {
+				const { getRecordingFull } = await import('$lib/persistence/audio-store');
+				const record = await getRecordingFull(sessionId);
+				if (cancelled) return;
+				const persisted = record?.metadata?.score ?? null;
+				if (persisted) score = persisted;
+				else onmissing?.();
+			} catch {
+				if (!cancelled) onmissing?.();
+			} finally {
+				if (!cancelled) loading = false;
 			}
-		} catch {
-			onmissing?.();
-		} finally {
-			loading = false;
-		}
+		})();
+		return () => {
+			cancelled = true;
+		};
 	});
 </script>
 
