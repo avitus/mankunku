@@ -4,6 +4,8 @@ import { INSTRUMENTS } from '$lib/types/instruments';
 import {
 	saveUserLick,
 	getUserLicksLocal,
+	updateLickCategory,
+	getLickCategoryOverrides,
 	migrateUserLicksWrittenToConcert,
 	migrateUserLicksKeyWrittenToConcert,
 	initUserLicksFromCloud
@@ -82,6 +84,26 @@ describe('saveUserLick', () => {
 		const saved = saveUserLick(phrase);
 		expect(saved.id).toBeTruthy();
 		expect(saved.id).toMatch(/^user-/);
+	});
+});
+
+describe('updateLickCategory', () => {
+	it('updates the category of an own user lick in localStorage', () => {
+		saveUserLick(makePhrase({ id: 'lick-1', category: 'user' }));
+		updateLickCategory('lick-1', 'ii-V-I-major');
+		const stored = getUserLicksLocal();
+		expect(stored.find((l) => l.id === 'lick-1')?.category).toBe('ii-V-I-major');
+	});
+
+	it('does not write a curated override when the id matches an own user lick', () => {
+		saveUserLick(makePhrase({ id: 'lick-2', category: 'user' }));
+		updateLickCategory('lick-2', 'blues');
+		expect(getLickCategoryOverrides()['lick-2']).toBeUndefined();
+	});
+
+	it('stores a curated override when no own user lick matches', () => {
+		updateLickCategory('curated-x', 'modal');
+		expect(getLickCategoryOverrides()['curated-x']).toBe('modal');
 	});
 });
 
