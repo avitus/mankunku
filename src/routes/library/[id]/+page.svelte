@@ -8,11 +8,11 @@
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
-	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import { PITCH_CLASSES, CATEGORY_LABELS, type PitchClass, type PhraseCategory } from '$lib/types/music';
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
-	import { getUserLicks, getUserLicksLocal, deleteUserLick } from '$lib/persistence/user-licks';
+	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
 	import {
 		hasPracticeTag as storeHasPracticeTag,
 		setPracticeTag as storeSetPracticeTag,
@@ -102,18 +102,43 @@
 
 	let isPracticeTagged = $state(false);
 	let progressionTags = $state<ChordProgressionType[]>([]);
+	let currentCategory = $state<PhraseCategory | null>(null);
+	let categoryOpen = $state(false);
+	let categoryWrap: HTMLElement | undefined = $state();
+
+	$effect(() => {
+		if (!categoryOpen) return;
+		const onClick = (e: MouseEvent) => {
+			if (!categoryWrap?.contains(e.target as Node)) categoryOpen = false;
+		};
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') categoryOpen = false;
+		};
+		document.addEventListener('click', onClick);
+		document.addEventListener('keydown', onKey);
+		return () => {
+			document.removeEventListener('click', onClick);
+			document.removeEventListener('keydown', onKey);
+		};
+	});
 	const baseLick = $derived(getLickById(page.params.id ?? '') ?? userLick);
 
 	$effect(() => {
 		if (!baseLick) {
 			isPracticeTagged = false;
 			progressionTags = [];
+			currentCategory = null;
 			return;
 		}
 		// Check new store OR lick's own tags for the practice flag
 		isPracticeTagged = storeHasPracticeTag(baseLick.id) || baseLick.tags.includes('practice');
 		progressionTags = getProgressionTags(baseLick.id);
+		currentCategory = baseLick.category;
 	});
+
+	const CATEGORY_ENTRIES = Object.entries(CATEGORY_LABELS).map(
+		([value, label]) => ({ value: value as PhraseCategory, label })
+	);
 
 	// Reset the key selector to the lick's own (written) key whenever
 	// baseLick changes — so the user sees it in its original key and the selector
@@ -148,6 +173,13 @@
 		if (!baseLick) return;
 		toggleProgressionTag(baseLick.id, type);
 		progressionTags = getProgressionTags(baseLick.id);
+	}
+
+	function handleSetCategory(c: PhraseCategory) {
+		categoryOpen = false;
+		if (!baseLick || currentCategory === c) return;
+		updateLickCategory(baseLick.id, c, supabase ?? undefined);
+		currentCategory = c;
 	}
 
 	function practiceThis() {
@@ -233,7 +265,45 @@
 		<div class="flex items-start justify-between gap-4">
 			<div>
 				<h1 class="text-2xl font-bold">{baseLick?.name}</h1>
-				<div class="mt-1 flex flex-wrap gap-2 text-sm text-[var(--color-text-secondary)]">
+				<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+					{#if isOwnLick && currentCategory}
+						<span bind:this={categoryWrap} class="relative inline-block">
+							<button
+								type="button"
+								onclick={() => (categoryOpen = !categoryOpen)}
+								aria-haspopup="listbox"
+								aria-expanded={categoryOpen}
+								class="smallcaps cursor-pointer border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)] transition-colors
+									{categoryOpen ? 'border-[var(--color-brass)] bg-[var(--color-brass)]/15' : ''}"
+							>
+								{CATEGORY_LABELS[currentCategory]}
+							</button>
+							{#if categoryOpen}
+								<ul
+									role="listbox"
+									aria-label="Category"
+									class="absolute left-0 top-full z-20 mt-1 max-h-72 min-w-full overflow-y-auto whitespace-nowrap border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] py-1 shadow-lg"
+								>
+									{#each CATEGORY_ENTRIES as { value, label } (value)}
+										{@const isActive = currentCategory === value}
+										<li>
+											<button
+												type="button"
+												role="option"
+												aria-selected={isActive}
+												onclick={() => handleSetCategory(value)}
+												class="smallcaps block w-full px-2 py-1 text-left text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/15
+													{isActive ? 'bg-[var(--color-brass)]/20' : ''}"
+											>
+												{label}
+											</button>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</span>
+						<span>&middot;</span>
+					{/if}
 					<span style="color: {difficultyDisplay(lick.difficulty.level).color}">{difficultyDisplay(lick.difficulty.level).name} ({lick.difficulty.level})</span>
 					<span>&middot;</span>
 					<span>{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}</span>
