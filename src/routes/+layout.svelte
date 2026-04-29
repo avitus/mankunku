@@ -129,7 +129,7 @@
 		<div class="h-0.5 w-full bg-[var(--color-accent)]"></div>
 	{/if}
 
-	<nav class="relative z-10 border-b border-[var(--color-bg-tertiary)] px-4 py-3">
+	<nav class="relative z-20 border-b border-[var(--color-bg-tertiary)] px-4 py-3">
 		<div class="mx-auto flex max-w-5xl items-center justify-between">
 			<div class="flex items-center gap-3">
 				<a

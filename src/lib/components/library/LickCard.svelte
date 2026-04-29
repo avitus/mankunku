@@ -21,10 +21,7 @@
 	const progTags = $derived(getProgressionTags(lick.id));
 </script>
 
-<button
-	{onclick}
-	class="w-full text-left rounded-lg bg-[var(--color-bg-secondary)] p-4 transition-colors hover:bg-[var(--color-bg-tertiary)]"
->
+{#snippet cardBody()}
 	<div class="flex items-start justify-between gap-2">
 		<div class="min-w-0">
 			<h3 class="font-display text-lg font-semibold tracking-tight truncate">{lick.name}</h3>
@@ -48,32 +45,9 @@
 				</span>
 			</div>
 		</div>
-		<div class="flex shrink-0 items-center gap-2">
-			<span class="text-sm text-[var(--color-text-secondary)]">
-				{lick.notes.filter(n => n.pitch !== null).length} notes
-			</span>
-			{#if onplay}
-				<button
-					onclick={(e) => { e.stopPropagation(); onplay!(); }}
-					class="flex h-8 w-8 items-center justify-center rounded-full transition-colors
-						   {isPlaying
-							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
-							: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
-					aria-label={isPlaying ? 'Stop' : 'Play'}
-				>
-					{#if isPlaying}
-						<svg class="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
-							<rect x="6" y="5" width="4" height="14" rx="1" />
-							<rect x="14" y="5" width="4" height="14" rx="1" />
-						</svg>
-					{:else}
-						<svg class="h-3.5 w-3.5 ml-0.5 text-white" viewBox="0 0 24 24" fill="currentColor">
-							<path d="M8 5v14l11-7z" />
-						</svg>
-					{/if}
-				</button>
-			{/if}
-		</div>
+		<span class="shrink-0 text-sm text-[var(--color-text-secondary)]">
+			{lick.notes.filter(n => n.pitch !== null).length} notes
+		</span>
 	</div>
 	<div class="mt-2 flex flex-wrap items-center gap-1.5">
 		{#if isPracticeTagged}
@@ -97,4 +71,40 @@
 			<span class="text-xs italic text-[var(--color-text-secondary)]">{tag}</span>
 		{/each}
 	</div>
-</button>
+{/snippet}
+
+<div class="relative">
+	{#if onclick}
+		<button
+			{onclick}
+			class="w-full text-left rounded-lg bg-[var(--color-bg-secondary)] p-4 {onplay ? 'pr-14' : ''} transition-colors hover:bg-[var(--color-bg-tertiary)]"
+		>
+			{@render cardBody()}
+		</button>
+	{:else}
+		<div class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-4 {onplay ? 'pr-14' : ''}">
+			{@render cardBody()}
+		</div>
+	{/if}
+	{#if onplay}
+		<button
+			onclick={onplay}
+			class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors
+				   {isPlaying
+					? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
+					: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
+			aria-label={isPlaying ? 'Stop' : 'Play'}
+		>
+			{#if isPlaying}
+				<svg class="h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+					<rect x="6" y="5" width="4" height="14" rx="1" />
+					<rect x="14" y="5" width="4" height="14" rx="1" />
+				</svg>
+			{:else}
+				<svg class="h-3.5 w-3.5 ml-0.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M8 5v14l11-7z" />
+				</svg>
+			{/if}
+		</button>
+	{/if}
+</div>

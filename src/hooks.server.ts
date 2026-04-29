@@ -96,8 +96,12 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
             return { session: null, user: null };
         }
 
-        // Both session and user are verified — return the trusted data
-        return { session, user };
+        // Replace `session.user` (a Supabase warning-proxy on the server) with
+        // the verified user from getUser(). Without this, SvelteKit's JSON
+        // serialization of the load function's return value reads
+        // `session.user.<prop>` and the proxy logs a noisy "could be insecure!"
+        // warning on every request — even though the user IS verified.
+        return { session: { ...session, user }, user };
     };
 
     // Resolve the request, filtering response headers to allow Supabase-specific
