@@ -28,6 +28,15 @@ const MAJOR_VAMP: HarmonicSegment[] = [
 	}
 ];
 
+const DOMINANT_VAMP: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: '7' },
+		scaleId: 'major.mixolydian',
+		startOffset: [0, 1],
+		duration: [2, 1]
+	}
+];
+
 const II_V_I_MAJOR_SHORT: HarmonicSegment[] = [
 	{
 		chord: { root: 'D', quality: 'min7' },
@@ -162,6 +171,13 @@ export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemp
 		name: 'Major',
 		shortName: 'Major',
 		harmony: MAJOR_VAMP,
+		bars: 2
+	},
+	'dominant-vamp': {
+		type: 'dominant-vamp',
+		name: 'Dominant',
+		shortName: 'Dominant',
+		harmony: DOMINANT_VAMP,
 		bars: 2
 	},
 	'ii-V-I-major': {
@@ -332,6 +348,9 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 	],
 	'major-vamp': [
 		{ category: 'major-chord', offset: [0, 1] }
+	],
+	'dominant-vamp': [
+		{ category: 'dominant-chord', offset: [0, 1] }
 	],
 	'ii-V-I-major': [
 		{ category: 'ii-V-I-major',       offset: [0, 1] },
