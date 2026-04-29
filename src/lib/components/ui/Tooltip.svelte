@@ -33,6 +33,11 @@
 		if (disabled) return;
 		if (showTimer) clearTimeout(showTimer);
 		showTimer = setTimeout(() => {
+			// Re-check disabled inside the callback — the prop can flip between
+			// scheduling and firing, and we don't want a stale show to set
+			// visible=true on a disabled tooltip (which would leave a dangling
+			// aria-describedby pointing at an unrendered node).
+			if (disabled) return;
 			visible = true;
 		}, delay);
 	}
@@ -54,6 +59,29 @@
 		}
 		visible = false;
 	}
+
+	// Tear down a pending show timer when the component unmounts so the
+	// timeout callback can't fire and mutate state after destruction.
+	$effect(() => {
+		return () => {
+			if (showTimer) {
+				clearTimeout(showTimer);
+				showTimer = null;
+			}
+		};
+	});
+
+	// If the tooltip becomes disabled while a show is pending or already
+	// visible, cancel the timer and force-hide so we don't leave an
+	// `aria-describedby` pointing at a node that won't be rendered.
+	$effect(() => {
+		if (!disabled) return;
+		if (showTimer) {
+			clearTimeout(showTimer);
+			showTimer = null;
+		}
+		visible = false;
+	});
 
 	$effect(() => {
 		resolvedPosition = preferredPosition;

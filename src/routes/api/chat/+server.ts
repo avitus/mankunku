@@ -53,9 +53,17 @@ const rateLimitBuckets = new Map<string, number[]>();
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_HISTORY_CHARS = 12_000;
 
-function rateLimitKey(request: Request, getClientAddress: () => string): string {
-	const sessionCookie = request.headers.get('cookie')?.match(/sb-[^=]+-auth-token=([^;]+)/)?.[1];
-	if (sessionCookie) return `s:${sessionCookie.slice(0, 32)}`;
+// Hard cap on the request body to avoid paying parse/allocation cost for
+// pathological clients sending multi-MB `history` arrays. The endpoint trims
+// history later, but only after request.json() has materialized it.
+const MAX_REQUEST_BYTES = 32_000;
+
+function rateLimitKey(userId: string | null, getClientAddress: () => string): string {
+	// Prefer a server-validated user id so the limit can't be bypassed by
+	// rotating client-controlled cookie bytes (and so we don't keep token
+	// material in the bucket map). Fall back to client IP for anonymous
+	// traffic.
+	if (userId) return `u:${userId}`;
 	try {
 		return `ip:${getClientAddress()}`;
 	} catch {
@@ -76,14 +84,20 @@ function isRateLimited(key: string): boolean {
 	return false;
 }
 
-export const POST: RequestHandler = async ({ request, getClientAddress }) => {
+export const POST: RequestHandler = async ({ request, getClientAddress, locals }) => {
 	if (!isAnthropicConfigured()) {
 		throw error(503, 'AI assistant is not configured. Set ANTHROPIC_API_KEY in the environment.');
 	}
 
-	const limitKey = rateLimitKey(request, getClientAddress);
+	const { user } = await locals.safeGetSession();
+	const limitKey = rateLimitKey(user?.id ?? null, getClientAddress);
 	if (isRateLimited(limitKey)) {
 		throw error(429, 'Too many requests. Take a breath, then try again in a minute.');
+	}
+
+	const declaredLength = Number(request.headers.get('content-length') ?? '');
+	if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+		throw error(413, 'Request body too large.');
 	}
 
 	let body: ChatRequestBody;

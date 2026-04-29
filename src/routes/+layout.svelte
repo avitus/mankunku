@@ -78,22 +78,40 @@
 	});
 
 
+	// Track whether cloud tour state has been merged in. Without this, the
+	// welcome banner can render on a fresh device using stale local state
+	// before the cloud merge resolves — letting someone who already
+	// completed/dismissed the tour elsewhere see the CTA again.
+	let tourStateHydrated = $state(false);
+
 	// Pull tour completion from the cloud whenever auth state changes so a
 	// completed tour on one device doesn't replay on another.
 	$effect(() => {
 		const sb = data.supabase;
 		const sess = data.session;
 		if (sb && sess) {
-			loadTourStateFromCloud(sb).catch(() => {
-				/* fire-and-forget — local state already loaded */
-			});
+			tourStateHydrated = false;
+			loadTourStateFromCloud(sb)
+				.catch(() => {
+					/* fire-and-forget — local state already loaded */
+				})
+				.finally(() => {
+					tourStateHydrated = true;
+				});
+		} else {
+			// Anonymous / signed-out: nothing to hydrate from, so unblock.
+			tourStateHydrated = true;
 		}
 	});
 
 	// Welcome banner only shows on the home route to avoid distracting from
-	// in-progress practice sessions on /practice or /lick-practice.
+	// in-progress practice sessions on /ear-training or /lick-practice. Also
+	// gated on `tourStateHydrated` so the cloud-completion check is reliable
+	// before we render the CTA.
 	const showWelcomeBanner = $derived(
-		settings.onboardingComplete && (page.url?.pathname ?? '/') === '/'
+		settings.onboardingComplete &&
+			tourStateHydrated &&
+			(page.url?.pathname ?? '/') === '/'
 	);
 
 	onMount(() => {
