@@ -186,7 +186,17 @@ export async function getUserLicks(
 
 	// Fetch cloud licks and merge with local — graceful fallback on error
 	try {
-		const { data, error } = await supabase.from('user_licks').select('*');
+		// Filter by user_id explicitly. The SELECT policy on user_licks is open
+		// to any authenticated user (migration 00013, for community browse), so
+		// an unfiltered select returns every author's licks and contaminates
+		// localStorage. If the session is missing, fall back to local-only.
+		const { data: { user } } = await supabase.auth.getUser();
+		if (!user) return localLicks;
+
+		const { data, error } = await supabase
+			.from('user_licks')
+			.select('*')
+			.eq('user_id', user.id);
 
 		if (error) {
 			console.warn('Failed to fetch cloud licks:', error);
@@ -264,8 +274,13 @@ export async function initUserLicksFromCloud(
 			if (gen !== getScopeGeneration()) return;
 		}
 
-		// Pull cloud licks — now the complete set
-		const { data, error } = await supabase.from('user_licks').select('*');
+		// Pull cloud licks — now the complete set. Filter by user_id: the
+		// SELECT policy is open to any authenticated user (migration 00013)
+		// so an unfiltered select returns every author's licks.
+		const { data, error } = await supabase
+			.from('user_licks')
+			.select('*')
+			.eq('user_id', user.id);
 		if (error) {
 			console.warn('Failed to fetch cloud licks during startup sync:', error);
 			return;

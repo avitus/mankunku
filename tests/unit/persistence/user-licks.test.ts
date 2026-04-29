@@ -372,6 +372,7 @@ describe('initUserLicksFromCloud', () => {
 			source: l.source ?? 'user-entered'
 		}));
 
+		const eqMock = vi.fn().mockReturnValue({ data: rows, error: null, then: undefined });
 		return {
 			auth: {
 				getUser: vi.fn().mockResolvedValue({
@@ -380,13 +381,10 @@ describe('initUserLicksFromCloud', () => {
 				})
 			},
 			from: vi.fn().mockReturnValue({
-				select: vi.fn().mockReturnValue({
-					data: rows,
-					error: null,
-					then: undefined
-				}),
+				select: vi.fn().mockReturnValue({ eq: eqMock }),
 				upsert: vi.fn().mockResolvedValue({ error: null })
-			})
+			}),
+			__eqMock: eqMock
 		} as any;
 	}
 
@@ -454,9 +452,11 @@ describe('initUserLicksFromCloud', () => {
 			},
 			from: vi.fn().mockReturnValue({
 				select: vi.fn().mockReturnValue({
-					data: null,
-					error: { message: 'network error' },
-					then: undefined
+					eq: vi.fn().mockReturnValue({
+						data: null,
+						error: { message: 'network error' },
+						then: undefined
+					})
 				}),
 				upsert: vi.fn().mockResolvedValue({ error: null })
 			})
@@ -475,6 +475,16 @@ describe('initUserLicksFromCloud', () => {
 
 		expect(mockSyncUserLicksToCloud).not.toHaveBeenCalled();
 		expect(getUserLicksLocal()).toHaveLength(1);
+	});
+
+	it('filters cloud fetch by current user_id', async () => {
+		// Migration 00013 widened SELECT on user_licks to any authenticated
+		// user (for community browse). Without an explicit user_id filter,
+		// the startup hydration would pull every author's licks into the
+		// current user's localStorage. Assert the filter is applied.
+		const supabase = createMockSupabase([{ id: 'mine' }]) as any;
+		await initUserLicksFromCloud(supabase);
+		expect(supabase.__eqMock).toHaveBeenCalledWith('user_id', 'user-123');
 	});
 
 	it('preserves local licks when auth is expired', async () => {
