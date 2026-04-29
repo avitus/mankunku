@@ -9,7 +9,12 @@ version: 2.1
 setup: true
 
 orbs:
-  path-filtering: circleci/path-filtering@1.3.0
+  # v2.0.0 of this orb migrated from Python to Bash, eliminating a
+  # get-pip.py bootstrap failure ("This script does not work on Python
+  # 3.9. The minimum supported Python version is 3.10") that broke the
+  # path-filtering job when CircleCI's default Python 3.9 image started
+  # rejecting the modern get-pip.py.
+  path-filtering: circleci/path-filtering@3.0.0
 
 workflows:
   setup:
