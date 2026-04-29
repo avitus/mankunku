@@ -212,7 +212,7 @@
 				</div>
 
 				<a
-					href="/practice"
+					href="/ear-training"
 					class="mt-5 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
 				>
 					<BrassPlayGlyph size={11} class="text-white" />

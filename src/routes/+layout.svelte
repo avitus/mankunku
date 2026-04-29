@@ -41,7 +41,7 @@
 	// nav so they read as the "Side A / Side B" of the app.
 	const navItems = [
 		{ href: '/', label: 'Home', primary: false, tourKey: 'home' },
-		{ href: '/practice', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
+		{ href: '/ear-training', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
 		{ href: '/library', label: 'Library', primary: false, tourKey: 'library' },
 		{ href: '/community', label: 'Community', primary: false, tourKey: 'community' },
@@ -58,7 +58,7 @@
 	 * spec at documentation/architecture/design-system.md.
 	 *
 	 * - 'lick-practice' (green) — anything under /lick-practice
-	 * - 'ear-training' (blue, the default) — /practice, /scales, /record,
+	 * - 'ear-training' (blue, the default) — /ear-training, /scales, /record,
 	 *   /progress and their subroutes
 	 * - 'neutral' (slate) — everything else (Library, Add Licks, Settings,
 	 *   Home, Auth, Diagnostics, etc.)
@@ -67,7 +67,7 @@
 		const path = page.url?.pathname ?? '/';
 		if (path.startsWith('/lick-practice')) return 'lick-practice';
 		if (
-			path.startsWith('/practice') ||
+			path.startsWith('/ear-training') ||
 			path.startsWith('/scales') ||
 			path.startsWith('/record') ||
 			path.startsWith('/progress')

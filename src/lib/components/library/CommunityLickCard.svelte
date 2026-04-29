@@ -9,8 +9,8 @@
 		onclick?: () => void;
 		onplay?: () => void;
 		onfavorite: () => void;
-		onadopt: () => void;
-		onunadopt: () => void;
+		onsteal: () => void;
+		onreturn: () => void;
 		isPlaying?: boolean;
 	}
 
@@ -20,8 +20,8 @@
 		onclick,
 		onplay,
 		onfavorite,
-		onadopt,
-		onunadopt,
+		onsteal,
+		onreturn,
 		isPlaying = false
 	}: Props = $props();
 
@@ -112,28 +112,28 @@
 			<span class="tabular-nums">{lick.favoriteCount}</span>
 		</button>
 
-		<!-- Adopt / unadopt / own-lick state -->
+		<!-- Steal / return / own-lick state -->
 		{#if isOwnLick}
 			<span
 				class="rounded-full bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)]"
 			>
 				My lick
 			</span>
-		{:else if lick.isAdoptedByMe}
+		{:else if lick.isStolenByMe}
 			<button
-				onclick={onunadopt}
-				aria-label="Unadopt {lick.phrase.name}"
+				onclick={onreturn}
+				aria-label="Return {lick.phrase.name}"
 				class="rounded-full bg-[var(--color-accent)]/20 px-3 py-0.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30 transition-colors"
 			>
-				✓ Adopted
+				✓ Stolen
 			</button>
 		{:else}
 			<button
-				onclick={onadopt}
-				aria-label="Adopt {lick.phrase.name} by {lick.authorName ?? 'anonymous'}"
+				onclick={onsteal}
+				aria-label="Steal {lick.phrase.name} by {lick.authorName ?? 'anonymous'}"
 				class="rounded-full border border-[var(--color-accent)] px-3 py-0.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white transition-colors"
 			>
-				+ Adopt
+				+ Steal
 			</button>
 		{/if}
 	</div>

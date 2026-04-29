@@ -1,7 +1,7 @@
 import type { DriveStep } from 'driver.js';
 
 /**
- * Ear-training tour — assumes the user is on /practice. Walks through
+ * Ear-training tour — assumes the user is on /ear-training. Walks through
  * the play button, the listen-then-respond rhythm, and how the score
  * breaks down into pitch and rhythm components.
  */

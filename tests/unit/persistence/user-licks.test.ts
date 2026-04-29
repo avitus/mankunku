@@ -3,7 +3,10 @@ import type { Phrase } from '$lib/types/music';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import {
 	saveUserLick,
+	getUserLicks,
 	getUserLicksLocal,
+	updateLickCategory,
+	getLickCategoryOverrides,
 	migrateUserLicksWrittenToConcert,
 	migrateUserLicksKeyWrittenToConcert,
 	initUserLicksFromCloud
@@ -16,9 +19,9 @@ vi.mock('$lib/persistence/sync', () => ({
 	syncUserLicksToCloud: (...args: unknown[]) => mockSyncUserLicksToCloud(...args)
 }));
 
-// ─── Mock community module (adopted licks cache) ─────────────
+// ─── Mock community module (stolen licks cache) ─────────────
 vi.mock('$lib/persistence/community', () => ({
-	getAdoptedLicksLocal: () => []
+	getStolenLicksLocal: () => []
 }));
 
 // ─── Mock localStorage ────────────────────────────────────────
@@ -82,6 +85,26 @@ describe('saveUserLick', () => {
 		const saved = saveUserLick(phrase);
 		expect(saved.id).toBeTruthy();
 		expect(saved.id).toMatch(/^user-/);
+	});
+});
+
+describe('updateLickCategory', () => {
+	it('updates the category of an own user lick in localStorage', () => {
+		saveUserLick(makePhrase({ id: 'lick-1', category: 'user' }));
+		updateLickCategory('lick-1', 'ii-V-I-major');
+		const stored = getUserLicksLocal();
+		expect(stored.find((l) => l.id === 'lick-1')?.category).toBe('ii-V-I-major');
+	});
+
+	it('does not write a curated override when the id matches an own user lick', () => {
+		saveUserLick(makePhrase({ id: 'lick-2', category: 'user' }));
+		updateLickCategory('lick-2', 'blues');
+		expect(getLickCategoryOverrides()['lick-2']).toBeUndefined();
+	});
+
+	it('stores a curated override when no own user lick matches', () => {
+		updateLickCategory('curated-x', 'modal');
+		expect(getLickCategoryOverrides()['curated-x']).toBe('modal');
 	});
 });
 
@@ -350,6 +373,7 @@ describe('initUserLicksFromCloud', () => {
 			source: l.source ?? 'user-entered'
 		}));
 
+		const eqMock = vi.fn().mockReturnValue({ data: rows, error: null, then: undefined });
 		return {
 			auth: {
 				getUser: vi.fn().mockResolvedValue({
@@ -358,13 +382,10 @@ describe('initUserLicksFromCloud', () => {
 				})
 			},
 			from: vi.fn().mockReturnValue({
-				select: vi.fn().mockReturnValue({
-					data: rows,
-					error: null,
-					then: undefined
-				}),
+				select: vi.fn().mockReturnValue({ eq: eqMock }),
 				upsert: vi.fn().mockResolvedValue({ error: null })
-			})
+			}),
+			__eqMock: eqMock
 		} as any;
 	}
 
@@ -432,9 +453,11 @@ describe('initUserLicksFromCloud', () => {
 			},
 			from: vi.fn().mockReturnValue({
 				select: vi.fn().mockReturnValue({
-					data: null,
-					error: { message: 'network error' },
-					then: undefined
+					eq: vi.fn().mockReturnValue({
+						data: null,
+						error: { message: 'network error' },
+						then: undefined
+					})
 				}),
 				upsert: vi.fn().mockResolvedValue({ error: null })
 			})
@@ -453,6 +476,24 @@ describe('initUserLicksFromCloud', () => {
 
 		expect(mockSyncUserLicksToCloud).not.toHaveBeenCalled();
 		expect(getUserLicksLocal()).toHaveLength(1);
+	});
+
+	it('filters cloud fetch by current user_id', async () => {
+		// Migration 00013 widened SELECT on user_licks to any authenticated
+		// user (for community browse). Without an explicit user_id filter,
+		// the startup hydration would pull every author's licks into the
+		// current user's localStorage. Assert the filter is applied.
+		const supabase = createMockSupabase([{ id: 'mine' }]) as any;
+		await initUserLicksFromCloud(supabase);
+		expect(supabase.__eqMock).toHaveBeenCalledWith('user_id', 'user-123');
+	});
+
+	it('getUserLicks also filters cloud fetch by current user_id', async () => {
+		// Same RLS-widening rationale as initUserLicksFromCloud — guard the
+		// other read path that writes to localStorage.
+		const supabase = createMockSupabase([{ id: 'mine' }]) as any;
+		await getUserLicks(supabase);
+		expect(supabase.__eqMock).toHaveBeenCalledWith('user_id', 'user-123');
 	});
 
 	it('preserves local licks when auth is expired', async () => {

@@ -14,7 +14,7 @@ export interface TourDefinition {
 
 export const TOURS: TourDefinition[] = [
 	{ id: 'welcome', title: 'Welcome to Mankunku', startsAt: '/', steps: welcomeTour },
-	{ id: 'ear-training', title: 'Ear Training', startsAt: '/practice', steps: earTrainingTour },
+	{ id: 'ear-training', title: 'Ear Training', startsAt: '/ear-training', steps: earTrainingTour },
 	{ id: 'lick-practice', title: 'Lick Practice', startsAt: '/lick-practice', steps: lickPracticeTour },
 	{ id: 'library', title: 'Library', startsAt: '/library', steps: libraryTour }
 ];

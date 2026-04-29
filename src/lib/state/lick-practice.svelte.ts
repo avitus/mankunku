@@ -59,11 +59,16 @@ import {
 	getSubstitutionCategories,
 	resolveLickAlignmentOffset,
 	resolveTransposeTarget,
-	transposeProgression
+	transposeProgression,
+	applyPickupBarShift,
+	detectPickupBars,
+	extendHarmonyTail
 } from '$lib/data/progressions';
-import { getAllLicks, transposeLick } from '$lib/phrases/library-loader';
+import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-loader';
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
+import { selectInitialProgression, DEFAULT_PROGRESSION } from './lick-practice-picker';
 
 const PASS_THRESHOLD = 0.80;
 
@@ -169,50 +174,24 @@ export function getPracticeLicks(): Phrase[] {
 	});
 }
 
-const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
-
 /**
- * Pick the progression whose practice-tagged set contains the lick most in
- * need of practice — the least-recently-practiced tagged lick, with
- * never-practiced licks (lastPracticedAt = 0) winning over any with history.
- *
- * Called on setup hydration so the pill pre-selection already matches the
- * lick the session plan would lead with. Resolution order for the target
- * lick's home progression: user-assigned prog:* tags (first in template
- * order), else first progression whose compatible-category list includes
- * the lick's category, else the hard default. Substitutions are ignored —
- * we don't presume the user wants to enable them just to justify a pill.
+ * Thin wrapper around `selectInitialProgression` (in lick-practice-picker.ts)
+ * that resolves the runtime dependencies — practice-tagged ids, full lick
+ * library, current progress, session log, progression-tags lookup. The
+ * algorithm itself lives in the pure helper so it can be unit-tested
+ * without the runes runtime.
  */
 export function pickInitialProgression(): ChordProgressionType {
 	const taggedIds = getPracticeTaggedIds();
 	if (taggedIds.size === 0) return DEFAULT_PROGRESSION;
 
 	const candidates = getAllLicks().filter(l => taggedIds.has(l.id));
-	if (candidates.length === 0) return DEFAULT_PROGRESSION;
-
-	const progress = lickPractice.progress;
-	let neglected = candidates[0];
-	let neglectedTime = getLickLastPracticed(progress, neglected.id);
-	for (let i = 1; i < candidates.length; i++) {
-		const t = getLickLastPracticed(progress, candidates[i].id);
-		if (t < neglectedTime) {
-			neglected = candidates[i];
-			neglectedTime = t;
-		}
-	}
-
-	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
-
-	const userTags = getProgressionTags(neglected.id);
-	if (userTags.length > 0) {
-		const tagged = order.find(p => userTags.includes(p));
-		if (tagged) return tagged;
-	}
-
-	const categoryMatch = order.find(p =>
-		getCompatibleLickCategories(p).includes(neglected.category)
-	);
-	return categoryMatch ?? DEFAULT_PROGRESSION;
+	return selectInitialProgression({
+		candidates,
+		progress: lickPractice.progress,
+		sessionLog: loadLickPracticeSessions(),
+		getProgressionTags
+	});
 }
 
 /**
@@ -265,9 +244,19 @@ export function buildSessionPlan(): void {
 			category: lick.category,
 			keys
 		});
-		const barsPerKey = PROGRESSION_TEMPLATES[lickPractice.config.progressionType].bars;
-		const secondsPerKey = (barsPerKey * 4 * 60) / tempo + 5;
-		estimatedTime += secondsPerKey * keys.length;
+		// Mirror the runtime layout: each key consumes `keyBars` (= lickBars in
+		// continuous mode, 2 × lickBars in C&R) and continuous mode prepends a
+		// demo cycle of `lickBars` before the keys.
+		const lickBars = getLickBars(
+			lick,
+			lickPractice.config.progressionType,
+			lickPractice.config.enableSubstitutions ?? false
+		);
+		const mode = lickPractice.config.practiceMode;
+		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
+		const demoBars = mode === 'continuous' ? lickBars : 0;
+		const totalBars = keys.length * keyBars + demoBars;
+		estimatedTime += (totalBars * 4 * 60) / tempo + 5;
 	}
 
 	lickPractice.plan = plan;
@@ -329,12 +318,23 @@ export function getPhraseFor(lickIdx: number, keyIdx: number): Phrase | null {
 	return buildPhraseFor(item.phraseId, key);
 }
 
-/** Get the transposed harmony for the current key (for ChordChart) */
+/** Get the transposed harmony for the current key (for ChordChart). Includes
+ *  the per-lick tail extension if the current lick stretches the cycle. */
 export function getCurrentHarmony(): HarmonicSegment[] {
 	const key = getCurrentKey();
 	if (!key) return [];
-	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
-	return transposeProgression(template.harmony, key);
+	const item = getCurrentPlanItem();
+	const lick = item ? getLickById(item.phraseId) : undefined;
+	if (!lick) {
+		const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
+		return transposeProgression(template.harmony, key);
+	}
+	return harmonyForLick(
+		lick,
+		key,
+		lickPractice.config.progressionType,
+		lickPractice.config.enableSubstitutions ?? false
+	);
 }
 
 /**
@@ -349,18 +349,20 @@ export function getCurrentHarmony(): HarmonicSegment[] {
  * — the lick's intrinsic harmony is discarded.
  */
 function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
-	const allLicks = getAllLicks();
-	const baseLick = allLicks.find(l => l.id === lickId);
+	const baseLick = getLickById(lickId);
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
-	const template = PROGRESSION_TEMPLATES[progressionType];
-	const alignmentOffset = resolveLickAlignmentOffset(
-		progressionType,
-		baseLick.category,
-		enableSubstitutions
-	);
+	// Two alignment offsets, both needed:
+	// - `alignmentOffset` (pickup-shifted) places the melody's notes inside the
+	//   progression cycle so the pickup falls on V where applicable.
+	// - `bodyAlignment` (un-shifted) is what `resolveTransposeTarget` reads to
+	//   pick the lick's body chord — using the shifted version here would
+	//   transpose the lick to the pickup chord (e.g. G7) instead of its
+	//   intended target (e.g. Cmaj7).
+	const alignmentOffset = resolveAlignedLickOffset(baseLick, progressionType, enableSubstitutions);
+	const bodyAlignment = resolveLickAlignmentOffset(progressionType, baseLick.category, enableSubstitutions);
 
 	// Chord-quality licks (e.g. a 1-bar `minor-chord` lick) are rooted on a
 	// single chord. They must transpose to the ROOT of the target chord in
@@ -374,7 +376,7 @@ function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
 		key,
 		baseLick.category,
 		progressionType,
-		alignmentOffset,
+		bodyAlignment,
 		enableSubstitutions
 	);
 
@@ -386,7 +388,7 @@ function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
 		getEffectiveHighestNote()
 	);
 
-	const progressionHarmony = transposeProgression(template.harmony, key);
+	const progressionHarmony = harmonyForLick(baseLick, key, progressionType, enableSubstitutions);
 
 	const alignedNotes = alignmentOffset[0] === 0
 		? transposed.notes
@@ -415,13 +417,12 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 			const key = item.keys[keyIdx];
 			const phrase = buildPhraseFor(item.phraseId, key);
 			if (!phrase) return null;
-			const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 			return {
 				lickIndex: lickIdx,
 				keyIndex: keyIdx,
 				key,
 				phrase,
-				harmony: transposeProgression(template.harmony, key),
+				harmony: phrase.harmony,
 				lickName: item.phraseName,
 				lickId: item.phraseId
 			};
@@ -454,7 +455,6 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 	const item = lickPractice.plan[lickIdx];
 	if (!item) return [];
 
-	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 	const result: PlannedKey[] = [];
 	for (let i = 0; i < item.keys.length; i++) {
 		const key = item.keys[i];
@@ -465,7 +465,7 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 			keyIndex: i,
 			key,
 			phrase,
-			harmony: transposeProgression(template.harmony, key),
+			harmony: phrase.harmony,
 			lickName: item.phraseName,
 			lickId: item.phraseId
 		});
@@ -500,29 +500,30 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	const item = lickPractice.plan[lickIdx];
 	if (!item) return null;
 
-	const allLicks = getAllLicks();
-	const baseLick = allLicks.find(l => l.id === item.phraseId);
+	const baseLick = getLickById(item.phraseId);
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
-	const template = PROGRESSION_TEMPLATES[progressionType];
-	const progressionBars = template.bars;
 	const mode = lickPractice.config.practiceMode;
-	const keyBars = mode === 'call-response' ? progressionBars * 2 : progressionBars;
-	const demoBars = mode === 'continuous' ? progressionBars : 0;
+	// Per-lick cycle length: equals the progression's bar count for licks
+	// that fit, otherwise extends to host a long lick's pickup + tail.
+	const lickBars = getLickBars(baseLick, progressionType, enableSubstitutions);
+	const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
+	const demoBars = mode === 'continuous' ? lickBars : 0;
 	const instrument = getInstrument();
 	const highestNote = getEffectiveHighestNote();
 
 	// Shift applied to every melody note so short-form licks (e.g. a 2-bar
 	// V-I lick inside a 4-bar ii-V-I) land on the matching bar of the
-	// progression cycle. `[0, 1]` means no shift. When substitutions are on,
-	// this falls back to the substitution target chord's offset.
-	const alignmentOffset = resolveLickAlignmentOffset(
-		progressionType,
-		baseLick.category,
-		enableSubstitutions
-	);
+	// progression cycle. `[0, 1]` means no shift. The resolver also pulls
+	// the alignment back by the lick's `pickupBars` so the bulk lands on
+	// the same chord as the no-pickup variant of its category. Substitutions
+	// fall through to the substitution target chord's offset.
+	const alignmentOffset = resolveAlignedLickOffset(baseLick, progressionType, enableSubstitutions);
+	// Transposition reads the un-shifted alignment so the lick transposes to
+	// its body chord (e.g. the I), not the pickup chord (e.g. the V).
+	const bodyAlignment = resolveLickAlignmentOffset(progressionType, baseLick.category, enableSubstitutions);
 
 	// For chord-quality licks, transpose to the target chord's root rather
 	// than the session key (see buildPhraseFor for the rationale). When a
@@ -533,7 +534,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 			sessionKey,
 			baseLick.category,
 			progressionType,
-			alignmentOffset,
+			bodyAlignment,
 			enableSubstitutions
 		);
 
@@ -546,7 +547,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	// is then shifted by `demoBars`.
 	if (mode === 'continuous') {
 		const firstKey = item.keys[0];
-		const demoHarmony = transposeProgression(template.harmony, firstKey);
+		const demoHarmony = harmonyForLick(baseLick, firstKey, progressionType, enableSubstitutions);
 		for (const seg of demoHarmony) {
 			// startOffset is already in [0, P) for a single progression cycle,
 			// so the demo segments land directly at the start of the phrase.
@@ -571,7 +572,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		// Continuous mode shifts user keys by `demoBars` to leave room for the
 		// demo at the start. C&R mode is unaffected (demoBars = 0).
 		const keyOffsetWhole: Fraction = [i * keyBars + demoBars, 1];
-		const keyHarmony = transposeProgression(template.harmony, key);
+		const keyHarmony = harmonyForLick(baseLick, key, progressionType, enableSubstitutions);
 
 		// Harmony for the full keyBars span of this key. In continuous mode
 		// this is just the transposed progression. In call-response mode we
@@ -584,7 +585,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 			});
 		}
 		if (mode === 'call-response') {
-			const userBarsOffset: Fraction = [i * keyBars + progressionBars, 1];
+			const userBarsOffset: Fraction = [i * keyBars + lickBars, 1];
 			for (const seg of keyHarmony) {
 				superHarmony.push({
 					...seg,
@@ -634,15 +635,87 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 }
 
 /**
- * Number of bars each key occupies for the given lick + current mode.
- * Continuous: progression bars. Call-response: 2 × progression bars.
+ * Resolve the per-lick alignment offset, including the `pickupBars` shift.
+ * Returns the category's base alignment shifted left by the lick's pickup
+ * bars (clamped at the start of the progression).
+ *
+ * Falls back to inferring pickupBars from note positions when the field is
+ * absent — this keeps user/community licks authored before the field
+ * existed working correctly without forcing a re-save.
+ */
+function resolveAlignedLickOffset(
+	lick: Phrase,
+	progressionType: ChordProgressionType,
+	enableSubstitutions: boolean
+): Fraction {
+	const base = resolveLickAlignmentOffset(progressionType, lick.category, enableSubstitutions);
+	const pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes);
+	return applyPickupBarShift(base, pickupBars);
+}
+
+/**
+ * Number of bars one cycle of this lick occupies in the current progression.
+ * Equals `progressionBars` for licks that fit inside the cycle, otherwise
+ * extends to `alignmentBars + lengthBars` so the lick's resolution note fits.
+ *
+ * Call sites use this to (a) stretch the per-key window when a lick is
+ * longer than the progression cycle, and (b) lengthen the progression's
+ * final chord through the tail so the harmony underneath stays consistent.
+ */
+export function getLickBars(
+	lick: Phrase,
+	progressionType: ChordProgressionType,
+	enableSubstitutions: boolean
+): number {
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	const alignment = resolveAlignedLickOffset(lick, progressionType, enableSubstitutions);
+	const alignmentBars = Math.ceil(alignment[0] / alignment[1]);
+	const required = alignmentBars + lick.difficulty.lengthBars;
+	return Math.max(template.bars, required);
+}
+
+/** lickBars for the lick currently at the head of the plan, or progressionBars
+ *  when no plan exists yet. */
+function getCurrentLickBars(): number {
+	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
+	const item = getCurrentPlanItem();
+	if (!item) return template.bars;
+	const lick = getLickById(item.phraseId);
+	if (!lick) return template.bars;
+	return getLickBars(
+		lick,
+		lickPractice.config.progressionType,
+		lickPractice.config.enableSubstitutions ?? false
+	);
+}
+
+/**
+ * Transpose the current progression's harmony to the given key, with the
+ * lick-specific tail extension applied (final chord sustained through any
+ * extra bars the lick needs).
+ */
+function harmonyForLick(
+	lick: Phrase,
+	key: PitchClass,
+	progressionType: ChordProgressionType,
+	enableSubstitutions: boolean
+): HarmonicSegment[] {
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
+	const extended = extendHarmonyTail(template.harmony, lickBars - template.bars);
+	return transposeProgression(extended, key);
+}
+
+/**
+ * Number of bars each key occupies for the current lick + practice mode.
+ * Continuous: lickBars (the lick's effective cycle, ≥ progressionBars).
+ * Call-response: 2 × lickBars (app phase + user response).
  */
 export function getKeyBars(): number {
-	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
-	const progressionBars = template.bars;
+	const lickBars = getCurrentLickBars();
 	return lickPractice.config.practiceMode === 'call-response'
-		? progressionBars * 2
-		: progressionBars;
+		? lickBars * 2
+		: lickBars;
 }
 
 /**
@@ -660,7 +733,7 @@ export function getProgressionBars(): number {
  * phase transitions; this function only updates keyResults and writes
  * per-key progress for passed attempts.
  */
-export function recordKeyAttempt(score: Score): void {
+export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	const item = getCurrentPlanItem();
 	const key = getCurrentKey();
 	if (!item || !key) return;
@@ -674,7 +747,8 @@ export function recordKeyAttempt(score: Score): void {
 		pitchAccuracy: score.pitchAccuracy,
 		rhythmAccuracy: score.rhythmAccuracy,
 		attempts: 1,
-		tempo: lickPractice.currentTempo
+		tempo: lickPractice.currentTempo,
+		sessionId
 	});
 
 	if (passed) {
@@ -820,7 +894,8 @@ export function getSessionReport(): SessionReport {
 			score: r.score,
 			pitchAccuracy: r.pitchAccuracy,
 			rhythmAccuracy: r.rhythmAccuracy,
-			passed: r.passed
+			passed: r.passed,
+			sessionId: r.sessionId
 		}));
 
 		const totalScore = keys.reduce((s, k) => s + k.score, 0);

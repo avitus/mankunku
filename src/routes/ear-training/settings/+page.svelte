@@ -136,7 +136,7 @@
 			session.phrase = phrase;
 			session.lastScore = null;
 			saveSettings();
-			goto('/practice');
+			goto('/ear-training');
 		}
 	}
 </script>
@@ -145,7 +145,7 @@
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold">Session Settings</h1>
 		<a
-			href="/practice"
+			href="/ear-training"
 			class="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
 		>
 			&larr; Back

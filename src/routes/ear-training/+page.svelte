@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { GRADE_COLORS, GRADE_LABELS, getGradeCaption } from '$lib/scoring/grades';
+	import { GRADE_COLORS, getGradeCaption } from '$lib/scoring/grades';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
@@ -110,14 +110,15 @@
 	let willRetry = $state(false);
 	/** Persists across loop iterations — only replaced when a new score arrives */
 	let persistentScore: Score | null = $state(null);
-	/** Fresh random caption per new persistentScore. */
-	const persistentCaption = $derived.by(() => {
-		if (!persistentScore) return '';
-		void persistentScore.overall;
-		void persistentScore.pitchAccuracy;
-		void persistentScore.rhythmAccuracy;
-		return getGradeCaption(persistentScore.grade);
-	});
+	/**
+	 * Rotating quote rendered centered beneath the status text. Refreshed
+	 * every 10 scored attempts (on attempts 1, 11, 21, …) rather than on
+	 * every attempt, so its variable length doesn't reflow the page on every
+	 * lick transition. Kept out of the score block so score-block height
+	 * stays constant even when the quote changes.
+	 */
+	let scoredAttemptCount = $state(0);
+	let bottomQuote = $state('');
 
 	const isActive = $derived(
 		session.engineState === 'playing' ||
@@ -383,6 +384,10 @@
 
 		if (session.lastScore) {
 			persistentScore = session.lastScore;
+			scoredAttemptCount++;
+			if ((scoredAttemptCount - 1) % 10 === 0) {
+				bottomQuote = getGradeCaption(persistentScore.grade);
+			}
 			recordAttempt(
 				session.phrase.id,
 				session.phrase.name ?? session.phrase.id,
@@ -563,6 +568,12 @@
 			session.recordedNotes = authoritativeNotes;
 			session.lastScore = result.chosen;
 			persistentScore = result.chosen;
+			// If this attempt was a quote-refresh boundary, the provisional
+			// grade may have driven a now-stale caption — re-pull from the
+			// authoritative grade so the bottom band matches what's shown.
+			if ((scoredAttemptCount - 1) % 10 === 0) {
+				bottomQuote = getGradeCaption(persistentScore.grade);
+			}
 		}
 
 		if (sessionId && baseMetadata) {
@@ -644,7 +655,10 @@
 			{/if}
 		</button>
 
-		<!-- Persistent score display (stays until replaced by next result) -->
+		<!-- Persistent score display (stays until replaced by next result).
+		     The rotating quote lives in a fixed band at the bottom of the
+		     viewport so its variable length doesn't reflow the score block
+		     on every lick transition. -->
 		{#if persistentScore}
 			<div data-tour="score-display" class="min-w-0">
 				<div class="flex items-baseline gap-1.5">
@@ -660,10 +674,7 @@
 						position="bottom"
 					/>
 				</div>
-				<div class="mt-0.5 text-sm italic text-[var(--color-text-secondary)]">
-					{GRADE_LABELS[persistentScore.grade]} — {persistentCaption}
-				</div>
-				<div class="mt-1 flex items-center gap-4 text-sm text-[var(--color-text-secondary)]">
+				<div class="mt-1 flex gap-4 text-sm text-[var(--color-text-secondary)]">
 					<span>Pitch {pct(persistentScore.pitchAccuracy)}%</span>
 					<span>Rhythm {pct(persistentScore.rhythmAccuracy)}%</span>
 					<TooltipHint text={tooltips.practice.grades.text} position="bottom" />
@@ -688,4 +699,12 @@
 	</div>
 
 	<TourTrigger tourId="ear-training" steps={earTrainingTour} />
+
+	{#if bottomQuote}
+		<div
+			class="max-w-md text-center text-sm italic text-[var(--color-text-secondary)]"
+		>
+			{bottomQuote}
+		</div>
+	{/if}
 </div>

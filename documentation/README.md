@@ -21,6 +21,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Audio Pipeline](./architecture/audio-pipeline.md) | Playback, capture, detection, segmentation |
 | [Scoring Algorithm](./architecture/scoring-algorithm.md) | DTW alignment, pitch/rhythm scoring, grading |
 | [Phrase System](./architecture/phrase-system.md) | Library, generation, mutation, validation |
+| [Lick Alignment](./architecture/lick-alignment.md) | Per-progression placement, `pickupBars`, tail extension, auto-inference |
 | [Adaptive Difficulty](./architecture/adaptive-difficulty.md) | Algorithm, leveling (1-100), difficulty profiles |
 | [Tonality System](./architecture/tonality-system.md) | Daily key/scale selection, progressive unlocking |
 | [State Management](./architecture/state-management.md) | Svelte 5 runes, state modules, persistence |

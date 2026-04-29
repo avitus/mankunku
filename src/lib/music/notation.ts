@@ -530,11 +530,23 @@ export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): strin
 
 /**
  * Convert a single MIDI note to a display-friendly note name.
- * Returns e.g. "C4", "Bb3", "F#5"
+ * Returns e.g. "C4", "Bb3", "F#5".
+ *
+ * Second argument controls accidental spelling:
+ *   - boolean → explicit `useFlats` (true = "Db", false = "C#")
+ *   - string  → a key name (e.g. "A", "Bb"); flats are used iff the key
+ *               is in `FLAT_KEYS`, so notes are spelled per the key signature.
  */
-export function midiToDisplayName(midi: number, useFlats = true): string {
+export function midiToDisplayName(
+	midi: number,
+	useFlatsOrKey: boolean | string = true,
+): string {
 	const NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 	const NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+	const useFlats =
+		typeof useFlatsOrKey === 'boolean'
+			? useFlatsOrKey
+			: FLAT_KEYS.includes(useFlatsOrKey as PitchClass);
 	const names = useFlats ? NAMES_FLAT : NAMES_SHARP;
 	return `${names[midiToPitchClass(midi)]}${midiToOctave(midi)}`;
 }

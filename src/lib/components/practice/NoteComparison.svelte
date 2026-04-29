@@ -6,14 +6,16 @@
 		noteResults: NoteResult[];
 		/** Semitones to add for written-pitch display (e.g. 14 for tenor sax) */
 		transpositionSemitones?: number;
+		/** Written-pitch key (e.g. "B" for an A-concert tenor session); drives accidental spelling. */
+		displayKey?: string;
 		/** Timing diagnostics from scorer */
 		timing?: TimingDiagnostics;
 	}
 
-	let { noteResults, transpositionSemitones = 0, timing }: Props = $props();
+	let { noteResults, transpositionSemitones = 0, displayKey, timing }: Props = $props();
 
 	function displayNote(midi: number): string {
-		return midiToDisplayName(midi + transpositionSemitones);
+		return midiToDisplayName(midi + transpositionSemitones, displayKey ?? true);
 	}
 
 	// Filter to only show matched and missed notes (not extras)
