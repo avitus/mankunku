@@ -4,6 +4,7 @@ import type { Score } from './scoring';
 export type ChordProgressionType =
 	| 'minor-vamp'
 	| 'major-vamp'
+	| 'dominant-vamp'
 	| 'ii-V-I-major'
 	| 'ii-V-I-minor'
 	| 'ii-V-I-major-long'
