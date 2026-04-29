@@ -98,17 +98,22 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		const { initFromCloud } = await import('$lib/state/progress.svelte');
 		const { loadSettingsFromCloud } = await import('$lib/state/settings.svelte');
 		const { rebuildHistoryIfNeeded } = await import('$lib/state/history.svelte');
-		const { initLickMetadataFromCloud } = await import('$lib/persistence/lick-practice-store');
+		const { initLickMetadataFromCloud, reconcileOrphanedLickMetadata } =
+			await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');
 
+		// Reconciliation must run AFTER initUserLicksFromCloud and
+		// initCommunityFromCloud finish — getAllLicks() reads both stores.
 		const hydration = Promise.all([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
 			initLickMetadataFromCloud(supabase),
 			initUserLicksFromCloud(supabase),
 			initCommunityFromCloud(supabase)
-		]).then(() => rebuildHistoryIfNeeded());
+		])
+			.then(() => reconcileOrphanedLickMetadata(supabase))
+			.then(() => rebuildHistoryIfNeeded());
 
 		// Don't block rendering for more than 2s (offline / slow connections).
 		// The hydration promise continues in the background if the timeout wins.

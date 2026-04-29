@@ -3,8 +3,9 @@ import type { LickPracticeProgress, LickPracticeKeyProgress, ChordProgressionTyp
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { save, load } from './storage';
-import { syncLickMetadataToCloud, loadLickMetadataFromCloud } from './sync';
+import { syncLickMetadataToCloud, loadLickMetadataFromCloud, type LickMetadata } from './sync';
 import { getScopeGeneration } from './user-scope';
+import { getAllLicks } from '$lib/phrases/library-loader';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
@@ -87,6 +88,88 @@ export async function initLickMetadataFromCloud(
 		}
 	} catch (error) {
 		console.warn('Failed to hydrate lick metadata from cloud:', error);
+	}
+}
+
+/**
+ * Drop entries from the keyed-by-lick-id metadata stores (practice tags,
+ * practice progress, unlock counts) whose lick IDs are no longer present in
+ * the current user's known set (curated + owned + stolen). Re-syncs the
+ * cleaned blobs to the cloud `user_lick_metadata` row so the next hydration
+ * doesn't repopulate the orphans.
+ *
+ * Why this exists: prior to commit 57b13ca, `getUserLicks` and
+ * `initUserLicksFromCloud` did unfiltered selects on `user_licks`. After
+ * migration 00013 widened that table's SELECT policy, those reads pulled
+ * every author's licks into the current user's localStorage. Any practice
+ * tag or progress entry written against those foreign IDs got persisted up
+ * to the user's metadata row, where it survives the user-scope wipe and
+ * re-poisons localStorage on every fresh login. The visible symptom in the
+ * library hides once user-licks itself is clean (the orphan keys point at
+ * IDs that aren't in `getAllLicks()`), but the dirt is still there and
+ * resurfaces if the user later steals the same lick from /community.
+ *
+ * Must run AFTER `initUserLicksFromCloud` and `initCommunityFromCloud` so
+ * `getAllLicks()` reflects the post-hydration authoritative set.
+ */
+export async function reconcileOrphanedLickMetadata(
+	supabase: SupabaseClient<Database>
+): Promise<number> {
+	const gen = getScopeGeneration();
+	try {
+		const knownIds = new Set(getAllLicks().map((l) => l.id));
+
+		const tags = loadUserLickTags();
+		const cleanedTags: Record<string, string[]> = {};
+		let removedTags = 0;
+		for (const [id, tagList] of Object.entries(tags)) {
+			if (knownIds.has(id)) cleanedTags[id] = tagList;
+			else removedTags++;
+		}
+
+		const progress = loadLickPracticeProgress();
+		const cleanedProgress: LickPracticeProgress = {};
+		let removedProgress = 0;
+		for (const [id, keyData] of Object.entries(progress)) {
+			if (knownIds.has(id)) cleanedProgress[id] = keyData;
+			else removedProgress++;
+		}
+
+		const unlocks = loadUnlockCounts();
+		const cleanedUnlocks: Record<string, number> = {};
+		let removedUnlocks = 0;
+		for (const [id, count] of Object.entries(unlocks)) {
+			if (knownIds.has(id)) cleanedUnlocks[id] = count;
+			else removedUnlocks++;
+		}
+
+		const totalRemoved = removedTags + removedProgress + removedUnlocks;
+		if (totalRemoved === 0) return 0;
+
+		// User switched mid-flight — abandon writeback so we don't clobber
+		// the new user's freshly hydrated state with the previous user's
+		// reconciled blobs.
+		if (gen !== getScopeGeneration()) return 0;
+
+		const cloudPayload: Partial<LickMetadata> = {};
+		if (removedTags > 0) {
+			save(TAGS_KEY, cleanedTags);
+			cloudPayload.lickTags = cleanedTags;
+		}
+		if (removedProgress > 0) {
+			save(STORAGE_KEY, cleanedProgress);
+			cloudPayload.practiceProgress = cleanedProgress;
+		}
+		if (removedUnlocks > 0) {
+			save(UNLOCK_KEY, cleanedUnlocks);
+			cloudPayload.unlockCounts = cleanedUnlocks;
+		}
+
+		await syncLickMetadataToCloud(supabase, cloudPayload);
+		return totalRemoved;
+	} catch (error) {
+		console.warn('Failed to reconcile orphaned lick metadata:', error);
+		return 0;
 	}
 }
 
