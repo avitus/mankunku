@@ -178,6 +178,7 @@ export async function getUserLicks(
 	supabase?: SupabaseClient<Database>
 ): Promise<Phrase[]> {
 	const localLicks = load<Phrase[]>(STORAGE_KEY) ?? [];
+	const gen = getScopeGeneration();
 
 	// Without a Supabase client, return local-only licks (anonymous/offline mode)
 	if (!supabase) {
@@ -192,6 +193,9 @@ export async function getUserLicks(
 		// localStorage. If the session is missing, fall back to local-only.
 		const { data: { user } } = await supabase.auth.getUser();
 		if (!user) return localLicks;
+		// User switched mid-flight — drop the result rather than persisting
+		// the previous user's data into the new session's localStorage.
+		if (gen !== getScopeGeneration()) return localLicks;
 
 		const { data, error } = await supabase
 			.from('user_licks')
@@ -202,6 +206,7 @@ export async function getUserLicks(
 			console.warn('Failed to fetch cloud licks:', error);
 			return localLicks;
 		}
+		if (gen !== getScopeGeneration()) return localLicks;
 
 		// Map snake_case database rows to camelCase Phrase objects
 		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({

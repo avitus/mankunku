@@ -3,6 +3,7 @@ import type { Phrase } from '$lib/types/music';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import {
 	saveUserLick,
+	getUserLicks,
 	getUserLicksLocal,
 	updateLickCategory,
 	getLickCategoryOverrides,
@@ -484,6 +485,14 @@ describe('initUserLicksFromCloud', () => {
 		// current user's localStorage. Assert the filter is applied.
 		const supabase = createMockSupabase([{ id: 'mine' }]) as any;
 		await initUserLicksFromCloud(supabase);
+		expect(supabase.__eqMock).toHaveBeenCalledWith('user_id', 'user-123');
+	});
+
+	it('getUserLicks also filters cloud fetch by current user_id', async () => {
+		// Same RLS-widening rationale as initUserLicksFromCloud — guard the
+		// other read path that writes to localStorage.
+		const supabase = createMockSupabase([{ id: 'mine' }]) as any;
+		await getUserLicks(supabase);
 		expect(supabase.__eqMock).toHaveBeenCalledWith('user_id', 'user-123');
 	});
 
