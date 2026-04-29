@@ -24,6 +24,11 @@
 	import type { MicCapture } from '$lib/audio/capture';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
 	import { page } from '$app/state';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import { tooltips } from '$lib/content/tooltips';
+	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
+	import { earTrainingTour } from '$lib/tour/tours/ear-training';
+	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	// Auth state from layout load chain — derive supabase client for cloud sync
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -581,6 +586,10 @@
 </script>
 
 <div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
+	<div class="absolute right-4 top-2">
+		<HelpLink href="/docs/user-guide#practice" label="Practice docs" />
+	</div>
+
 	<!-- Tonality + phrase info -->
 	<div class="text-center">
 		<div class="smallcaps text-[var(--color-brass)]">Today's key</div>
@@ -603,6 +612,7 @@
 	<div class="flex items-center justify-center gap-6">
 		<!-- Start/Stop button -->
 		<button
+			data-tour="play-button"
 			onclick={isActive ? handleStop : handlePlay}
 			disabled={session.isLoadingInstrument}
 			class="group relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full
@@ -636,26 +646,34 @@
 
 		<!-- Persistent score display (stays until replaced by next result) -->
 		{#if persistentScore}
-			<div class="min-w-0">
-				<div
-					class="font-display text-4xl font-bold tabular-nums"
-					style="color: {GRADE_COLORS[persistentScore.grade]}"
-				>
-					{pct(persistentScore.overall)}%
+			<div data-tour="score-display" class="min-w-0">
+				<div class="flex items-baseline gap-1.5">
+					<div
+						class="font-display text-4xl font-bold tabular-nums"
+						style="color: {GRADE_COLORS[persistentScore.grade]}"
+					>
+						{pct(persistentScore.overall)}%
+					</div>
+					<TooltipHint
+						text={tooltips.practice.score.text}
+						learnMore={tooltips.practice.score.learnMore}
+						position="bottom"
+					/>
 				</div>
 				<div class="mt-0.5 text-sm italic text-[var(--color-text-secondary)]">
 					{GRADE_LABELS[persistentScore.grade]} — {persistentCaption}
 				</div>
-				<div class="mt-1 flex gap-4 text-sm text-[var(--color-text-secondary)]">
+				<div class="mt-1 flex items-center gap-4 text-sm text-[var(--color-text-secondary)]">
 					<span>Pitch {pct(persistentScore.pitchAccuracy)}%</span>
 					<span>Rhythm {pct(persistentScore.rhythmAccuracy)}%</span>
+					<TooltipHint text={tooltips.practice.grades.text} position="bottom" />
 				</div>
 			</div>
 		{/if}
 	</div>
 
 	<!-- Status text -->
-	<div class="h-6 text-center text-sm">
+	<div data-tour="status-text" class="h-6 text-center text-sm">
 		{#if session.isLoadingInstrument}
 			<span class="italic text-[var(--color-text-secondary)]">Tuning up&hellip;</span>
 		{:else if awaitingInput}
@@ -668,4 +686,6 @@
 			<span class="text-[var(--color-text-secondary)]">Tap to start — mic access required</span>
 		{/if}
 	</div>
+
+	<TourTrigger tourId="ear-training" steps={earTrainingTour} />
 </div>

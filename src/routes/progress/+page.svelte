@@ -23,6 +23,9 @@
 	} from '$lib/persistence/lick-practice-sessions';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import type { LickPracticeMode } from '$lib/types/lick-practice';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import { tooltips } from '$lib/content/tooltips';
+	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	const PRACTICE_MODE_LABELS: Record<LickPracticeMode, string> = {
 		'call-response': 'Call & Response',
@@ -163,12 +166,15 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">Liner notes</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
-			Progress
-		</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
+	<div class="flex items-end justify-between gap-3">
+		<div>
+			<div class="smallcaps text-[var(--color-brass)]">Liner notes</div>
+			<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
+				Progress
+			</h1>
+			<div class="jazz-rule mt-2 max-w-[140px]"></div>
+		</div>
+		<HelpLink href="/docs/user-guide#progress" label="Progress docs" />
 	</div>
 
 	<!-- Tab bar -->
@@ -473,14 +479,20 @@
 				<PeriodCompare />
 			</div>
 
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 text-lg font-semibold">Trends</h2>
+			<div data-tour="trend-chart" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+				<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
+					Trends
+					<TooltipHint text={tooltips.progress.trend.text} position="right" />
+				</h2>
 				<TrendChart summaries={dailySummaries} />
 			</div>
 		{/if}
 
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<h2 class="mb-3 text-lg font-semibold">Practice Calendar</h2>
+		<div data-tour="calendar" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
+				Practice Calendar
+				<TooltipHint text={tooltips.progress.calendar.text} position="right" />
+			</h2>
 			<PracticeCalendar />
 		</div>
 
@@ -514,11 +526,25 @@
 		{/if}
 
 		<!-- Adaptive difficulty detail -->
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<h2 class="mb-3 text-lg font-semibold">Adaptive Difficulty</h2>
+		<div data-tour="adaptive-difficulty" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
+				Adaptive Difficulty
+				<TooltipHint
+					text={tooltips.progress.rollingWindow.text}
+					learnMore={tooltips.progress.rollingWindow.learnMore}
+					position="right"
+				/>
+			</h2>
 			<div class="grid grid-cols-2 gap-4 text-sm">
 				<div>
-					<div class="text-[var(--color-text-secondary)]">Pitch Complexity</div>
+					<div class="inline-flex items-center gap-1 text-[var(--color-text-secondary)]">
+						Pitch Complexity
+						<TooltipHint
+							text={tooltips.progress.pitchComplexity.text}
+							learnMore={tooltips.progress.pitchComplexity.learnMore}
+							position="top"
+						/>
+					</div>
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
@@ -530,7 +556,14 @@
 					</div>
 				</div>
 				<div>
-					<div class="text-[var(--color-text-secondary)]">Rhythm Complexity</div>
+					<div class="inline-flex items-center gap-1 text-[var(--color-text-secondary)]">
+						Rhythm Complexity
+						<TooltipHint
+							text={tooltips.progress.rhythmComplexity.text}
+							learnMore={tooltips.progress.rhythmComplexity.learnMore}
+							position="top"
+						/>
+					</div>
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div

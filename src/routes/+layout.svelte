@@ -8,6 +8,9 @@
 		migrateUserLicksKeyWrittenToConcert
 	} from '$lib/persistence/user-licks';
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
+	import TourBanner from '$lib/components/ui/TourBanner.svelte';
+	import { welcomeTour } from '$lib/tour/tours/welcome';
+	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
 	import { invalidate } from '$app/navigation';
 
 	interface Props {
@@ -37,14 +40,15 @@
 	// display-serif treatment and sit visually separated from the utility
 	// nav so they read as the "Side A / Side B" of the app.
 	const navItems = [
-		{ href: '/', label: 'Home', primary: false },
-		{ href: '/practice', label: 'Ear Training', primary: true },
-		{ href: '/lick-practice', label: 'Lick Practice', primary: true },
-		{ href: '/library', label: 'Library', primary: false },
-		{ href: '/community', label: 'Community', primary: false },
-		{ href: '/add-licks', label: 'Add Licks', primary: false },
-		{ href: '/progress', label: 'Progress', primary: false },
-		{ href: '/settings', label: 'Settings', primary: false }
+		{ href: '/', label: 'Home', primary: false, tourKey: 'home' },
+		{ href: '/practice', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
+		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
+		{ href: '/library', label: 'Library', primary: false, tourKey: 'library' },
+		{ href: '/community', label: 'Community', primary: false, tourKey: 'community' },
+		{ href: '/add-licks', label: 'Add Licks', primary: false, tourKey: 'add-licks' },
+		{ href: '/progress', label: 'Progress', primary: false, tourKey: 'progress' },
+		{ href: '/docs', label: 'Docs', primary: false, tourKey: 'docs' },
+		{ href: '/settings', label: 'Settings', primary: false, tourKey: 'settings' }
 	];
 
 	/**
@@ -73,6 +77,24 @@
 		return 'neutral';
 	});
 
+
+	// Pull tour completion from the cloud whenever auth state changes so a
+	// completed tour on one device doesn't replay on another.
+	$effect(() => {
+		const sb = data.supabase;
+		const sess = data.session;
+		if (sb && sess) {
+			loadTourStateFromCloud(sb).catch(() => {
+				/* fire-and-forget — local state already loaded */
+			});
+		}
+	});
+
+	// Welcome banner only shows on the home route to avoid distracting from
+	// in-progress practice sessions on /practice or /lick-practice.
+	const showWelcomeBanner = $derived(
+		settings.onboardingComplete && (page.url?.pathname ?? '/') === '/'
+	);
 
 	onMount(() => {
 		applyTheme();
@@ -143,7 +165,7 @@
 
 			<!-- Desktop nav -->
 			<div class="hidden gap-4 text-sm sm:flex items-center">
-				{#each navItems as { href, label, primary }, i}
+				{#each navItems as { href, label, primary, tourKey }, i}
 					{@const prevPrimary = i > 0 ? navItems[i - 1].primary : false}
 					{@const needsDivider = prevPrimary && !primary}
 					{#if needsDivider}
@@ -151,6 +173,8 @@
 					{/if}
 					<a
 						{href}
+						id="nav-{tourKey}"
+						data-tour="nav-{tourKey}"
 						class="relative transition-colors {primary
 							? 'font-display text-lg tracking-tight'
 							: 'text-sm'} {isActive(href)
@@ -227,7 +251,7 @@
 		<!-- Mobile menu -->
 		{#if mobileMenuOpen}
 			<div class="mt-3 space-y-1 border-t border-[var(--color-bg-tertiary)] pt-3 sm:hidden">
-				{#each navItems as { href, label, primary }, i}
+				{#each navItems as { href, label, primary, tourKey }, i}
 					{@const prevPrimary = i > 0 ? navItems[i - 1].primary : false}
 					{@const needsDivider = prevPrimary && !primary}
 					{#if needsDivider}
@@ -235,6 +259,7 @@
 					{/if}
 					<a
 						{href}
+						data-tour-mobile="nav-{tourKey}"
 						onclick={() => { mobileMenuOpen = false; }}
 						class="block rounded px-3 py-2 transition-colors {primary
 							? 'font-display text-xl tracking-tight'
@@ -285,6 +310,15 @@
 	</nav>
 
 	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6">
+		{#if showWelcomeBanner}
+			<TourBanner
+				tourId="welcome"
+				title="Take a quick tour?"
+				description="A 60-second walkthrough of the app — Side A, Side B, and how to start practicing."
+				steps={welcomeTour}
+				ctaLabel="Start tour"
+			/>
+		{/if}
 		{@render children()}
 	</main>
 </div>

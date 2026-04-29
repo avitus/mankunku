@@ -126,6 +126,8 @@ export type Database = {
           tonality_override: Json | null
           /** User-configured highest concert pitch MIDI. NULL = instrument default. */
           highest_note: number | null
+          /** Guided tour completion state: { completed: string[], dismissed: string[] } */
+          tour_state: Json
           /** Timestamp of last settings update (ISO 8601) */
           updated_at: string
         }
@@ -157,6 +159,8 @@ export type Database = {
           tonality_override?: Json | null
           /** NULL = instrument default */
           highest_note?: number | null
+          /** Defaults to {} in database */
+          tour_state?: Json
           updated_at?: string
         }
         Update: {
@@ -174,6 +178,7 @@ export type Database = {
           onboarding_complete?: boolean
           tonality_override?: Json | null
           highest_note?: number | null
+          tour_state?: Json
           updated_at?: string
         }
         Relationships: [

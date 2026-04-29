@@ -13,6 +13,8 @@
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
 	import BrassPlayGlyph from '$lib/components/jazz/BrassPlayGlyph.svelte';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import { tooltips } from '$lib/content/tooltips';
 
 	// Make sure lick-practice progress is loaded — the /lick-practice page
 	// also calls this on its own mount, but the home page needs the data
@@ -121,11 +123,15 @@
 				>
 			</h1>
 			{#if isAuthenticated && progress.streakDays > 0}
-				<span class="text-sm text-[var(--color-text-secondary)]">
+				<span
+					data-tour="streak-counter"
+					class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]"
+				>
 					<span class="font-display text-lg font-semibold text-[var(--color-brass)] tabular-nums"
 						>{progress.streakDays}</span
 					>
 					<span class="smallcaps">day streak</span>
+					<TooltipHint text={tooltips.home.streak.text} position="bottom" />
 				</span>
 			{:else if !isAuthenticated}
 				<a
@@ -147,15 +153,25 @@
 		<!-- Ear Training panel — LP-sleeve style card -->
 		<div
 			data-domain="ear-training"
+			data-tour="side-a"
 			class="panel relative flex-1 overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] p-6"
 		>
 			<div class="absolute left-0 top-0 h-full w-1 bg-[var(--color-accent)]"></div>
 			<div class="pl-3">
 				<div class="smallcaps text-[var(--color-brass)]">Side A · Ear Training</div>
 				{#if todaysTonalityLabel}
-					<div class="mt-2 text-xs text-[var(--color-text-secondary)]">Today's key</div>
-					<div class="font-display text-3xl font-semibold tracking-tight text-[var(--color-accent)]">
-						{todaysTonalityLabel}
+					<div data-tour="todays-key">
+						<div class="mt-2 inline-flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+							Today's key
+							<TooltipHint
+								text={tooltips.home.todaysKey.text}
+								learnMore={tooltips.home.todaysKey.learnMore}
+								position="bottom"
+							/>
+						</div>
+						<div class="font-display text-3xl font-semibold tracking-tight text-[var(--color-accent)]">
+							{todaysTonalityLabel}
+						</div>
 					</div>
 				{:else}
 					<div class="mt-2 font-display text-3xl font-semibold tracking-tight text-[var(--color-accent)]">Practice</div>
@@ -166,12 +182,17 @@
 
 				<div class="space-y-1 text-sm text-[var(--color-text-secondary)]">
 					{#if hasEarTrainingHistory}
-						<div>
+						<div data-tour="level-display" class="inline-flex items-center gap-1">
 							Level <span
 								class="font-display font-semibold tabular-nums"
 								style="color: {levelDisp.color}">{primaryLevel}</span
 							>
 							<span class="text-xs">({levelDisp.name})</span>
+							<TooltipHint
+								text={tooltips.home.level.text}
+								learnMore={tooltips.home.level.learnMore}
+								position="bottom"
+							/>
 						</div>
 						{#if lastSession}
 							<div>
@@ -203,13 +224,17 @@
 		<!-- Lick Practice panel — LP-sleeve style card -->
 		<div
 			data-domain="lick-practice"
+			data-tour="side-b"
 			class="panel relative flex-1 overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] p-6"
 		>
 			<div class="absolute left-0 top-0 h-full w-1 bg-[var(--color-accent)]"></div>
 			<div class="pl-3">
 				<div class="smallcaps text-[var(--color-brass)]">Side B · Lick Practice</div>
 				{#if taggedLickCount > 0}
-					<div class="mt-2 text-xs text-[var(--color-text-secondary)]">In your set</div>
+					<div class="mt-2 inline-flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+						In your set
+						<TooltipHint text={tooltips.home.tagged.text} position="bottom" />
+					</div>
 					<div class="font-display text-3xl font-semibold tracking-tight text-[var(--color-accent)]">
 						{taggedLickCount} lick{taggedLickCount === 1 ? '' : 's'} ready
 					</div>
