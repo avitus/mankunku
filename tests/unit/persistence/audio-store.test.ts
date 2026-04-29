@@ -144,21 +144,21 @@ describe('updateRecordingMetadata', () => {
 });
 
 describe('pruning', () => {
-	it('prunes oldest recordings beyond MAX_RECORDINGS (20)', async () => {
-		for (let i = 0; i < 25; i++) {
+	it('prunes oldest recordings beyond MAX_RECORDINGS (100)', async () => {
+		for (let i = 0; i < 105; i++) {
 			await saveRecording(`session-${i}`, makeBlob(), {
 				metadata: makeMetadata({ phraseId: `phrase-${i}` })
 			});
 		}
 
 		const summaries = await getAllRecordingSummaries();
-		expect(summaries).toHaveLength(20);
+		expect(summaries).toHaveLength(100);
 
 		const ids = summaries.map((s) => s.sessionId);
 		expect(ids).not.toContain('session-0');
 		expect(ids).not.toContain('session-4');
 		expect(ids).toContain('session-5');
-		expect(ids).toContain('session-24');
+		expect(ids).toContain('session-104');
 	});
 });
 

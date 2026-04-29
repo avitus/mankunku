@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { phraseToAbc } from '$lib/music/notation';
+import { phraseToAbc, midiToDisplayName } from '$lib/music/notation';
 import type { Phrase, PitchClass } from '$lib/types/music';
 
 /** Build a minimal phrase with a single note for testing ABC output. */
@@ -458,5 +458,37 @@ describe('phraseToAbc beam grouping', () => {
 		expect(line).toContain('(3');
 		// The four eighths on beats 3-4 still beam as a single group of 4.
 		expect(line).toMatch(/CCCC\s*\|]/);
+	});
+});
+
+describe('midiToDisplayName key-aware spelling', () => {
+	it('defaults to flat spelling when no second arg', () => {
+		expect(midiToDisplayName(61)).toBe('Db4');
+		expect(midiToDisplayName(66)).toBe('Gb4');
+	});
+
+	it('honors explicit boolean useFlats', () => {
+		expect(midiToDisplayName(61, true)).toBe('Db4');
+		expect(midiToDisplayName(61, false)).toBe('C#4');
+	});
+
+	it('uses sharps for sharp keys', () => {
+		// A major has F#, C#, G# — C# (midi 61) must spell as C#, not Db.
+		expect(midiToDisplayName(61, 'A')).toBe('C#4');
+		expect(midiToDisplayName(66, 'D')).toBe('F#4');
+		expect(midiToDisplayName(68, 'E')).toBe('G#4');
+		expect(midiToDisplayName(60, 'G')).toBe('C4');
+	});
+
+	it('uses flats for flat keys', () => {
+		// Bb major has Bb, Eb — pc 3 must spell as Eb (matches existing default).
+		expect(midiToDisplayName(63, 'Bb')).toBe('Eb4');
+		expect(midiToDisplayName(58, 'F')).toBe('Bb3');
+		expect(midiToDisplayName(56, 'Ab')).toBe('Ab3');
+	});
+
+	it('treats C major as sharp-keyed (no accidentals in signature)', () => {
+		// C is not in FLAT_KEYS, so default behavior is sharps.
+		expect(midiToDisplayName(61, 'C')).toBe('C#4');
 	});
 });

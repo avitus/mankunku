@@ -222,7 +222,7 @@
 
 			<div class="space-y-3">
 				<a
-					href="/practice"
+					href="/ear-training"
 					onclick={finish}
 					class="block w-full rounded-lg bg-[var(--color-accent)] p-4 text-center font-medium transition-opacity hover:opacity-90"
 				>
