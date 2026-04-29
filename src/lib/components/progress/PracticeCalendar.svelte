@@ -168,4 +168,32 @@
 			{tooltip.text}
 		</div>
 	{/if}
+
+	<!-- Static legend -->
+	<div class="mt-2 flex items-center justify-end gap-2 text-xs text-[var(--color-text-secondary)]">
+		<span>Less</span>
+		<div class="flex gap-1">
+			<span
+				class="block h-3 w-3 rounded-sm"
+				style="background: var(--color-bg-tertiary)"
+				aria-label="No sessions"
+			></span>
+			<span
+				class="block h-3 w-3 rounded-sm"
+				style="background: color-mix(in srgb, var(--color-brass) 35%, var(--color-bg-tertiary))"
+				aria-label="1 session"
+			></span>
+			<span
+				class="block h-3 w-3 rounded-sm"
+				style="background: color-mix(in srgb, var(--color-brass) 65%, var(--color-bg-tertiary))"
+				aria-label="2-3 sessions"
+			></span>
+			<span
+				class="block h-3 w-3 rounded-sm"
+				style="background: var(--color-brass)"
+				aria-label="4+ sessions"
+			></span>
+		</div>
+		<span>More</span>
+	</div>
 </div>

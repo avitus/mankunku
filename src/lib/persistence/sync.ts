@@ -478,6 +478,101 @@ export async function loadSettingsFromCloud(
 }
 
 // ═════════════════════════════════════════════════════════════════════
+//  Tour state sync
+// ═════════════════════════════════════════════════════════════════════
+
+/**
+ * Shape of the `tour_state` JSONB column on user_settings.
+ * Both arrays are deduplicated lists of tour identifiers.
+ */
+export interface SyncableTourState {
+	completed: string[];
+	dismissed: string[];
+}
+
+/**
+ * Upsert tour completion state into the user_settings.tour_state column.
+ *
+ * Uses a partial upsert keyed on user_id so we don't clobber the rest of the
+ * settings row. If the user has no settings row yet (rare — onboarding writes
+ * one), the upsert creates a default-row with only tour_state populated.
+ */
+export async function syncTourStateToCloud(
+	supabase: SupabaseDB,
+	state: SyncableTourState
+): Promise<void> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		// Tour completion is a set, not a snapshot: completing tour A on one
+		// device while another device completes tour B should produce the
+		// union, not whichever wrote last. Read remote first and merge before
+		// upserting.
+		const remote = await loadTourStateFromCloud(supabase);
+		const merged: SyncableTourState = {
+			completed: [...new Set([...(remote?.completed ?? []), ...state.completed])],
+			dismissed: [...new Set([...(remote?.dismissed ?? []), ...state.dismissed])]
+		};
+
+		const { error } = await supabase.from('user_settings').upsert(
+			{
+				user_id: userId,
+				tour_state: merged as unknown as Json,
+				updated_at: new Date().toISOString()
+			},
+			{ onConflict: 'user_id' }
+		);
+
+		if (error) {
+			console.warn('Failed to sync tour state to cloud:', error);
+		}
+	} catch (error) {
+		console.warn('Failed to sync tour state to cloud:', error);
+	}
+}
+
+/**
+ * Fetch tour completion state for the current user.
+ * Returns null when unauthenticated, or an empty object when the column has
+ * never been written.
+ */
+export async function loadTourStateFromCloud(
+	supabase: SupabaseDB
+): Promise<SyncableTourState | null> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return null;
+
+		const { data, error } = await supabase
+			.from('user_settings')
+			.select('tour_state')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (error) {
+			console.warn('Failed to load tour state from cloud:', error);
+			return null;
+		}
+		if (!data) return null;
+
+		const raw = data.tour_state as unknown;
+		if (!raw || typeof raw !== 'object') return { completed: [], dismissed: [] };
+		const obj = raw as Record<string, unknown>;
+		const completed = Array.isArray(obj.completed)
+			? (obj.completed.filter((v) => typeof v === 'string') as string[])
+			: [];
+		const dismissed = Array.isArray(obj.dismissed)
+			? (obj.dismissed.filter((v) => typeof v === 'string') as string[])
+			: [];
+		return { completed, dismissed };
+	} catch (error) {
+		console.warn('Failed to load tour state from cloud:', error);
+		return null;
+	}
+}
+
+// ═════════════════════════════════════════════════════════════════════
 //  User licks sync
 // ═════════════════════════════════════════════════════════════════════
 

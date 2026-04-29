@@ -6,6 +6,8 @@
 		progressionHasSubstitutionTargets
 	} from '$lib/data/progressions';
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import { tooltips } from '$lib/content/tooltips';
 
 	interface Props {
 		config: LickPracticeConfig;
@@ -38,7 +40,14 @@
 <div class="space-y-4">
 	<!-- Chord Progression pills -->
 	<div>
-		<span class="text-sm text-[var(--color-text-secondary)]">Chord Progression:</span>
+		<span class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
+			Chord Progression:
+			<TooltipHint
+				text={tooltips.lickPractice.progressionType.text}
+				learnMore={tooltips.lickPractice.progressionType.learnMore}
+				position="right"
+			/>
+		</span>
 		<div class="mt-1.5 flex flex-wrap gap-1.5">
 			{#each progressionTypes as prog (prog.type)}
 				{@const isSelected = config.progressionType === prog.type}
@@ -57,7 +66,10 @@
 
 	{#if showSubstitutions}
 		<div class="flex items-center gap-3">
-			<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Substitutions:</span>
+			<span class="inline-flex w-28 shrink-0 items-center gap-1 text-sm text-[var(--color-text-secondary)]">
+				Substitutions:
+				<TooltipHint text={tooltips.lickPractice.substitutions.text} position="top" />
+			</span>
 			<button
 				onclick={() => onupdate({ enableSubstitutions: !config.enableSubstitutions })}
 				aria-label="Include chord substitutions"
@@ -80,7 +92,14 @@
 
 	<!-- Backing style pills -->
 	<div>
-		<span class="text-sm text-[var(--color-text-secondary)]">Backing Style:</span>
+		<span class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
+			Backing Style:
+			<TooltipHint
+				text={tooltips.lickPractice.backingStyle.text}
+				learnMore={tooltips.lickPractice.backingStyle.learnMore}
+				position="right"
+			/>
+		</span>
 		<div class="mt-1.5 flex flex-wrap gap-1.5">
 			{#each backingStyles as style}
 				<button
@@ -113,7 +132,10 @@
 
 	<!-- Practice mode selector -->
 	<div>
-		<span class="text-sm text-[var(--color-text-secondary)]">Mode:</span>
+		<span class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
+			Mode:
+			<TooltipHint text={tooltips.lickPractice.practiceMode.text} position="right" />
+		</span>
 		<div class="mt-1.5 flex gap-1.5">
 			{#each modes as mode (mode.value)}
 				{@const isSelected = config.practiceMode === mode.value}

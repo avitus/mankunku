@@ -10,6 +10,9 @@
 		startSession
 	} from '$lib/state/lick-practice.svelte';
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
+	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
+	import { lickPracticeTour } from '$lib/tour/tours/lick-practice';
+	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	onMount(() => {
 		hydrateLickPracticeProgress(page.data?.supabase ?? null);
@@ -37,12 +40,18 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">Side B</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
-			Lick Practice
-		</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
+	<div class="flex items-end justify-between flex-wrap gap-3">
+		<div>
+			<div class="smallcaps text-[var(--color-brass)]">Side B</div>
+			<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
+				Lick Practice
+			</h1>
+			<div class="jazz-rule mt-2 max-w-[140px]"></div>
+		</div>
+		<div class="flex items-center gap-3">
+			<TourTrigger tourId="lick-practice" steps={lickPracticeTour} />
+			<HelpLink href="/docs/user-guide#practice" label="Lick practice docs" />
+		</div>
 	</div>
 
 	<p class="text-sm italic text-[var(--color-text-secondary)]">

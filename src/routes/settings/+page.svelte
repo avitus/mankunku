@@ -23,6 +23,10 @@
 		getKeyUnlockRequirements
 	} from '$lib/tonality/tonality';
 	import { page } from '$app/state';
+	import { TOURS } from '$lib/tour/tours';
+	import { runTour } from '$lib/tour/driver-config';
+	import { hasSeen, resetTours } from '$lib/state/tour.svelte';
+	import { goto } from '$app/navigation';
 
 	const instruments = Object.entries(INSTRUMENTS);
 	const instrument = $derived(getInstrument());
@@ -115,6 +119,31 @@
 
 	function syncSettingsToCloud() {
 		saveSettings(supabase);
+	}
+
+	/**
+	 * Wait for all tour-step selectors to mount on the destination page before
+	 * starting the tour. Replaces a hard-coded 50ms sleep that was racy:
+	 * heavy pages can take longer to render, and on fast machines we'd burn
+	 * 50ms unnecessarily. Polls via rAF until every selector resolves or the
+	 * timeout fires.
+	 */
+	async function waitForTourTargets(
+		steps: Array<{ element?: string | Element | (() => Element) }>,
+		timeoutMs = 1500
+	): Promise<void> {
+		// Only string selectors are pollable here — Element/() => Element steps
+		// are already-resolved or computed-on-demand and don't need a wait.
+		const selectors = steps
+			.map((s) => s.element)
+			.filter((v): v is string => typeof v === 'string');
+		if (selectors.length === 0) return;
+
+		const start = performance.now();
+		while (performance.now() - start < timeoutMs) {
+			if (selectors.every((sel) => document.querySelector(sel))) return;
+			await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		}
 	}
 
 	let showResetConfirm = $state(false);
@@ -638,6 +667,80 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- ── TOURS & HELP ──────────────────────────────────────────── -->
+	<div class="space-y-4">
+		<div class="flex items-center gap-3">
+			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-tertiary)]">
+				<!-- Compass icon -->
+				<svg class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="10"/>
+					<polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+				</svg>
+			</div>
+			<div>
+				<h2 class="font-display text-xl font-semibold">Tours &amp; Help</h2>
+				<p class="text-xs text-[var(--color-text-secondary)]">Replay any guided tour</p>
+			</div>
+		</div>
+
+		<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
+			<div class="flex items-center justify-between px-4 py-3 gap-4">
+				<div class="min-w-0">
+					<p class="text-sm font-medium">Documentation</p>
+					<p class="text-xs text-[var(--color-text-secondary)]">User guide, architecture, glossary, API reference.</p>
+				</div>
+				<a
+					href="/docs"
+					class="shrink-0 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+				>
+					Browse docs
+				</a>
+			</div>
+			{#each TOURS as tour}
+				<div class="flex items-center justify-between px-4 py-3 gap-4">
+					<div class="min-w-0">
+						<p class="text-sm font-medium">{tour.title}</p>
+						<p class="text-xs text-[var(--color-text-secondary)]">
+							{hasSeen(tour.id) ? 'Already seen' : 'Not yet seen'} · starts at <code class="text-[var(--color-brass)]">{tour.startsAt}</code>
+						</p>
+					</div>
+					<button
+						type="button"
+						onclick={async () => {
+							if (page.url?.pathname !== tour.startsAt) {
+								await goto(tour.startsAt);
+								await waitForTourTargets(tour.steps);
+							}
+							runTour({
+								tourId: tour.id,
+								steps: tour.steps,
+								supabase: supabase ?? undefined
+							});
+						}}
+						class="shrink-0 rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-bg)] transition-colors"
+					>
+						{hasSeen(tour.id) ? 'Replay' : 'Take tour'}
+					</button>
+				</div>
+			{/each}
+			<div class="flex items-center justify-between px-4 py-3 gap-4">
+				<div class="min-w-0">
+					<p class="text-sm font-medium">Reset all tour history</p>
+					<p class="text-xs text-[var(--color-text-secondary)]">
+						The welcome banner and "Need help?" links will reappear.
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={() => resetTours(supabase)}
+					class="shrink-0 rounded-lg border border-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:border-[var(--color-text-secondary)] transition-colors"
+				>
+					Reset
+				</button>
+			</div>
+		</div>
+	</div>
 
 	<!-- ── DATA ───────────────────────────────────────────────────── -->
 	<div class="space-y-4">
