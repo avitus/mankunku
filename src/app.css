@@ -4,7 +4,7 @@
  * Three-domain color identity (see documentation/architecture/design-system.md):
  *
  * - Default :root keeps the historical blue accent — that IS the
- *   ear-training identity color, so /practice, /scales, /progress, etc.
+ *   ear-training identity color, so /ear-training, /scales, /progress, etc.
  *   inherit it without any override.
  * - [data-domain='lick-practice'] overrides the accent to green for the
  *   /lick-practice routes.
@@ -186,5 +186,60 @@ html {
 @media (prefers-reduced-motion: reduce) {
 	.grain-overlay::before {
 		opacity: 0.03;
+	}
+}
+
+/* -------------------------------------------------------------------- */
+/* Console utilities — shared by Knob, RockerSwitch, SelectorPad.       */
+/* -------------------------------------------------------------------- */
+
+/* Brushed-slate faceplate with a thin brass inner rim. Used as the
+   outer frame for knobs and selector pads. */
+.console-panel {
+	background:
+		linear-gradient(180deg, color-mix(in srgb, var(--color-bg-secondary) 85%, black) 0%, var(--color-bg-secondary) 100%);
+	border: 1px solid color-mix(in srgb, var(--color-brass) 35%, transparent);
+	box-shadow:
+		inset 0 1px 0 color-mix(in srgb, var(--color-brass-soft) 15%, transparent),
+		inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Engraved label on a console panel. */
+.console-engrave {
+	color: var(--color-brass-soft);
+	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* Small LED dot. Reuses --color-onair for the "on" state. */
+.led {
+	width: 6px;
+	height: 6px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--color-onair) 15%, var(--color-bg));
+	box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.6);
+	transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.led-on {
+	background: var(--color-onair);
+	box-shadow:
+		0 0 6px color-mix(in srgb, var(--color-onair) 80%, transparent),
+		0 0 2px color-mix(in srgb, var(--color-onair) 100%, transparent),
+		inset 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+/* Accent LED (teal in ear-training, slate elsewhere) used as the
+   "active" indicator on selector-pad buttons. */
+.led-accent-on {
+	background: var(--color-accent);
+	box-shadow:
+		0 0 6px color-mix(in srgb, var(--color-accent) 70%, transparent),
+		inset 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.led,
+	.led-on,
+	.led-accent-on {
+		transition: none;
 	}
 }

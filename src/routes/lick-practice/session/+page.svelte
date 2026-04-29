@@ -679,7 +679,7 @@
 		// not influence the adaptive difficulty, scale/key proficiency,
 		// session history, streak, or any other ear-training state.
 		if (score) {
-			recordKeyAttempt(score);
+			recordKeyAttempt(score, window.sessionId);
 		}
 
 		// Persist the audio + metadata for /diagnostics. Each key-window is

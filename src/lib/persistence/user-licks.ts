@@ -20,7 +20,7 @@ import type {
 } from '$lib/types/music';
 import { save, load } from './storage';
 import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
-import { getScopeGeneration } from './user-scope';
+import { getScopeGeneration, getLastUserId } from './user-scope';
 import { getStolenLicksLocal } from './community';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import type { InstrumentConfig } from '$lib/types/instruments';
@@ -28,6 +28,23 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
 
 const STORAGE_KEY = 'user-licks';
+
+/**
+ * Map of `lickId → user_id` recording who owns each entry in the
+ * `user-licks` localStorage array.
+ *
+ * Stamped on every `saveUserLick` (with the current user's id) and on
+ * cloud-merge for every cloud-returned row (the cloud query is filtered by
+ * `user_id`, so a returned row is proof of ownership). Used by the merge to
+ * drop local-only entries whose stamp doesn't match the current user — a
+ * defense-in-depth check against future regressions that might re-introduce
+ * unfiltered cloud reads (the bug fixed in commit 57b13ca).
+ *
+ * Pre-stamp legacy entries (saved before this stamp existed) and entries
+ * saved while the user was unauthenticated have no owner record. Those are
+ * preserved by the merge — we don't have grounds to call them contamination.
+ */
+const OWNERS_KEY = 'user-licks-owners';
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
@@ -38,6 +55,25 @@ const TAGS_OVERRIDE_KEY = 'lick-tag-overrides';
 const CATEGORY_OVERRIDE_KEY = 'lick-category-overrides';
 const WRITTEN_TO_CONCERT_MIGRATION_KEY = 'user-licks-migration-written-to-concert-v1';
 const KEY_WRITTEN_TO_CONCERT_MIGRATION_KEY = 'user-licks-migration-key-written-to-concert-v1';
+
+function loadOwners(): Record<string, string> {
+	const raw = load<Record<string, string>>(OWNERS_KEY);
+	return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
+function setOwner(lickId: string, userId: string): void {
+	const owners = loadOwners();
+	if (owners[lickId] === userId) return;
+	owners[lickId] = userId;
+	save(OWNERS_KEY, owners);
+}
+
+function removeOwner(lickId: string): void {
+	const owners = loadOwners();
+	if (!(lickId in owners)) return;
+	delete owners[lickId];
+	save(OWNERS_KEY, owners);
+}
 
 /** Generate a unique ID for a user lick */
 function generateId(): string {
@@ -178,6 +214,7 @@ export async function getUserLicks(
 	supabase?: SupabaseClient<Database>
 ): Promise<Phrase[]> {
 	const localLicks = load<Phrase[]>(STORAGE_KEY) ?? [];
+	const gen = getScopeGeneration();
 
 	// Without a Supabase client, return local-only licks (anonymous/offline mode)
 	if (!supabase) {
@@ -186,12 +223,26 @@ export async function getUserLicks(
 
 	// Fetch cloud licks and merge with local — graceful fallback on error
 	try {
-		const { data, error } = await supabase.from('user_licks').select('*');
+		// Filter by user_id explicitly. The SELECT policy on user_licks is open
+		// to any authenticated user (migration 00013, for community browse), so
+		// an unfiltered select returns every author's licks and contaminates
+		// localStorage. If the session is missing, fall back to local-only.
+		const { data: { user } } = await supabase.auth.getUser();
+		if (!user) return localLicks;
+		// User switched mid-flight — drop the result rather than persisting
+		// the previous user's data into the new session's localStorage.
+		if (gen !== getScopeGeneration()) return localLicks;
+
+		const { data, error } = await supabase
+			.from('user_licks')
+			.select('*')
+			.eq('user_id', user.id);
 
 		if (error) {
 			console.warn('Failed to fetch cloud licks:', error);
 			return localLicks;
 		}
+		if (gen !== getScopeGeneration()) return localLicks;
 
 		// Map snake_case database rows to camelCase Phrase objects
 		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({
@@ -207,12 +258,32 @@ export async function getUserLicks(
 			source: row.source
 		}));
 
-		// Merge: cloud versions take precedence for duplicate IDs,
-		// local-only licks (not yet synced) are preserved
+		// Merge: cloud versions take precedence for duplicate IDs.
+		// Local-only entries are preserved IFF their owner stamp matches the
+		// current user (or is absent — pre-stamp legacy / offline-saved).
+		// A stamp pointing at a different user is contamination from a prior
+		// regression and gets dropped here, with its stamp removed too.
 		const merged = new Map<string, Phrase>();
-		for (const lick of cloudLicks) merged.set(lick.id, lick);
+		const owners = loadOwners();
+		const stampedOwners = { ...owners };
+		let ownersDirty = false;
+
+		for (const lick of cloudLicks) {
+			merged.set(lick.id, lick);
+			if (stampedOwners[lick.id] !== user.id) {
+				stampedOwners[lick.id] = user.id;
+				ownersDirty = true;
+			}
+		}
 		for (const lick of localLicks) {
-			if (!merged.has(lick.id)) merged.set(lick.id, lick);
+			if (merged.has(lick.id)) continue;
+			const owner = owners[lick.id];
+			if (owner && owner !== user.id) {
+				delete stampedOwners[lick.id];
+				ownersDirty = true;
+				continue;
+			}
+			merged.set(lick.id, lick);
 		}
 		const result = Array.from(merged.values());
 
@@ -220,6 +291,7 @@ export async function getUserLicks(
 		// getAllLicks(), getPracticeLicks(), and backfillPracticeTags — includes
 		// cloud-only licks that haven't been entered on this device.
 		save(STORAGE_KEY, result);
+		if (ownersDirty) save(OWNERS_KEY, stampedOwners);
 
 		return result;
 	} catch (err) {
@@ -264,8 +336,13 @@ export async function initUserLicksFromCloud(
 			if (gen !== getScopeGeneration()) return;
 		}
 
-		// Pull cloud licks — now the complete set
-		const { data, error } = await supabase.from('user_licks').select('*');
+		// Pull cloud licks — now the complete set. Filter by user_id: the
+		// SELECT policy is open to any authenticated user (migration 00013)
+		// so an unfiltered select returns every author's licks.
+		const { data, error } = await supabase
+			.from('user_licks')
+			.select('*')
+			.eq('user_id', user.id);
 		if (error) {
 			console.warn('Failed to fetch cloud licks during startup sync:', error);
 			return;
@@ -287,12 +364,33 @@ export async function initUserLicksFromCloud(
 
 		// Merge rather than replace: any licks added locally during the
 		// push+pull awaits (e.g. user saved while hydration ran in background
-		// after the 2s layout timeout) must not be dropped.
+		// after the 2s layout timeout) must not be dropped. Filter local-only
+		// entries by owner stamp — a stamp pointing at a different user means
+		// contamination from a prior unfiltered-read regression and gets
+		// dropped along with its stamp.
 		const cloudById = new Map(cloudLicks.map((l) => [l.id, l]));
+		const owners = loadOwners();
+		const stampedOwners = { ...owners };
+		let ownersDirty = false;
+
+		for (const lick of cloudLicks) {
+			if (stampedOwners[lick.id] !== user.id) {
+				stampedOwners[lick.id] = user.id;
+				ownersDirty = true;
+			}
+		}
 		for (const l of getUserLicksLocal()) {
-			if (!cloudById.has(l.id)) cloudById.set(l.id, l);
+			if (cloudById.has(l.id)) continue;
+			const owner = owners[l.id];
+			if (owner && owner !== user.id) {
+				delete stampedOwners[l.id];
+				ownersDirty = true;
+				continue;
+			}
+			cloudById.set(l.id, l);
 		}
 		save(STORAGE_KEY, Array.from(cloudById.values()));
+		if (ownersDirty) save(OWNERS_KEY, stampedOwners);
 	} catch (error) {
 		console.warn('Failed to sync user licks from cloud:', error);
 	}
@@ -324,6 +422,13 @@ export function saveUserLick(
 	};
 	licks.push(toSave);
 	save(STORAGE_KEY, licks);
+
+	// Stamp ownership so the cloud-merge can later distinguish legitimate
+	// local-only entries from contamination introduced by an upstream bug.
+	// When unauthenticated (no marker), skip the stamp — pre-stamp licks
+	// get benefit-of-the-doubt treatment in the merge.
+	const ownerId = getLastUserId();
+	if (ownerId) setOwner(toSave.id, ownerId);
 
 	// Fire-and-forget cloud sync — fetch user ID then upsert to user_licks table
 	const sb = supabase ?? _supabase;
@@ -510,6 +615,7 @@ export function deleteUserLick(
 	}
 
 	save(STORAGE_KEY, licks.filter((l) => l.id !== id));
+	removeOwner(id);
 
 	// Fire-and-forget cloud delete — RLS ensures user can only delete own licks
 	const sb = supabase ?? _supabase;

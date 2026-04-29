@@ -40,6 +40,18 @@ export function getScopeGeneration(): number {
 }
 
 /**
+ * Read the last-seen authenticated user ID from localStorage.
+ *
+ * Used by synchronous write paths (e.g. `saveUserLick`) to stamp records
+ * with their owning user without requiring an async Supabase round-trip.
+ * Returns `null` when the marker is absent — either no user has signed in
+ * yet on this device, or the previous user signed out (which clears it).
+ */
+export function getLastUserId(): string | null {
+	return load<string>(LAST_USER_ID_KEY);
+}
+
+/**
  * Reconcile the last-seen authenticated user with the currently-authenticated
  * user. When they differ, wipe all user-owned client-side state so the next
  * cloud hydration starts from a clean slate.

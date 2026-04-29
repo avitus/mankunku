@@ -6,6 +6,9 @@
 	import { concertKeyToWritten, concertToWritten } from '$lib/music/transposition';
 	import { midiToDisplayName } from '$lib/music/notation';
 	import type { PitchClass } from '$lib/types/music';
+	import Knob from '$lib/components/console/Knob.svelte';
+	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
+	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
 	import {
 		type ScaleType,
 		SCALE_TYPE_NAMES,
@@ -23,6 +26,28 @@
 
 	const instruments = Object.entries(INSTRUMENTS);
 	const instrument = $derived(getInstrument());
+
+	// Highest-note knob: sort presets ascending so rotating clockwise raises pitch.
+	const highestPresets = $derived([...instrument.highNotePresets].sort((a, b) => a - b));
+	const standardHighest = $derived(instrument.concertRangeHigh - 1);
+	const effectiveHighest = $derived(settings.highestNote ?? standardHighest);
+	const highestIndex = $derived.by(() => {
+		const idx = highestPresets.indexOf(effectiveHighest);
+		if (idx !== -1) return idx;
+		const stdIdx = highestPresets.indexOf(standardHighest);
+		return stdIdx === -1 ? 0 : stdIdx;
+	});
+	const highestReadout = $derived.by(() => {
+		const midi = highestPresets[highestIndex] ?? standardHighest;
+		const written = concertToWritten(midi, instrument);
+		return midiToDisplayName(written, false);
+	});
+
+	function handleHighestNoteInput(idx: number) {
+		const midi = highestPresets[idx];
+		if (midi === undefined) return;
+		settings.highestNote = midi;
+	}
 
 	// Tonality state
 	const unlockCtx = $derived(getUnlockContext());
@@ -72,31 +97,15 @@
 		saveSettings(supabase);
 	}
 
-	function toggleTheme() {
-		settings.theme = settings.theme === 'dark' ? 'light' : 'dark';
+	function selectTheme(theme: 'dark' | 'light') {
+		settings.theme = theme;
 		applyTheme();
 		saveSettings(supabase);
 	}
 
-	function handleTempoChange(e: Event) {
-		settings.defaultTempo = parseInt((e.target as HTMLInputElement).value);
-	}
-
-	function handleMasterVolumeChange(e: Event) {
-		settings.masterVolume = parseFloat((e.target as HTMLInputElement).value);
-		setMasterVolume(settings.masterVolume);
-	}
-
-	function handleVolumeChange(e: Event) {
-		settings.metronomeVolume = parseFloat((e.target as HTMLInputElement).value);
-	}
-
-	function handleSwingChange(e: Event) {
-		settings.swing = parseFloat((e.target as HTMLInputElement).value);
-	}
-
-	function handleBackingVolumeChange(e: Event) {
-		settings.backingTrackVolume = parseFloat((e.target as HTMLInputElement).value);
+	function handleMasterVolumeInput(v: number) {
+		settings.masterVolume = v;
+		setMasterVolume(v);
 	}
 
 	function selectBackingInstrument(instrument: BackingInstrument) {
@@ -229,93 +238,63 @@
 
 		<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
 
-			<!-- Instrument selection -->
-			<div class="p-4 space-y-3">
-				<p class="text-sm font-medium">Instrument</p>
-				<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-					{#each instruments as [id, config]}
-						<button
-							onclick={() => selectInstrument(id)}
-							class="rounded-lg p-3 text-left transition-colors
-								{settings.instrumentId === id
-									? 'bg-[var(--color-bg-tertiary)] ring-2 ring-[var(--color-text-secondary)]'
-									: 'bg-[var(--color-bg)] hover:bg-[var(--color-bg-tertiary)]'}"
-						>
-							<p class="text-sm font-medium">{config.name}</p>
-							<p class="text-xs text-[var(--color-text-secondary)]">
-								{config.key} &middot; MIDI {config.concertRangeLow}–{config.concertRangeHigh}
-							</p>
-						</button>
-					{/each}
+			<!-- Instrument + Highest Note + Master -->
+			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 p-5">
+				<div class="inline-flex flex-col items-center gap-1.5">
+					<div class="flex items-center justify-center" style:min-height="84px">
+						<SelectorPad
+							ariaLabel="Instrument"
+							value={settings.instrumentId}
+							options={instruments.map(([id, config]) => ({
+								value: id,
+								label: config.name,
+								sublabel: `${config.key} · ${config.concertRangeLow}–${config.concertRangeHigh}`
+							}))}
+							onChange={selectInstrument}
+						/>
+					</div>
+					<span class="smallcaps console-engrave">Instrument</span>
 				</div>
 
-				<!-- Highest note -->
-				<div class="pt-1">
-					<label for="highest-note" class="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Highest Note</label>
-					<p class="mb-2 text-xs text-[var(--color-text-secondary)]">
-						Highest note you're comfortable playing. Lower for beginners, raise for altissimo.
-					</p>
-					<select
-						id="highest-note"
-						value={settings.highestNote ?? ''}
-						onchange={(e) => {
-							const val = (e.target as HTMLSelectElement).value;
-							settings.highestNote = val === '' ? null : Number(val);
-							saveSettings(supabase);
-						}}
-						class="w-full rounded-lg bg-[var(--color-bg)] px-3 py-2 text-sm border border-[var(--color-bg-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-text-secondary)]"
-					>
-						<option value="">Instrument default</option>
-						{#each instrument.highNotePresets as midi}
-							{@const writtenMidi = concertToWritten(midi, instrument)}
-							{@const isDefault = midi === instrument.concertRangeHigh - 1}
-							<option value={midi}>
-								{midiToDisplayName(writtenMidi, false)}{isDefault ? ' (standard)' : ''}
-							</option>
-						{/each}
-					</select>
-				</div>
-			</div>
-
-			<!-- Master volume -->
-			<div class="px-4 py-3">
-				<div class="flex items-center justify-between text-sm">
-					<span class="font-medium">Master Volume</span>
-					<span class="tabular-nums text-[var(--color-text-secondary)]">{Math.round(settings.masterVolume * 100)}%</span>
-				</div>
-				<input
-					type="range"
-					min="0"
-					max="1"
-					step="0.05"
-					value={settings.masterVolume}
-					oninput={handleMasterVolumeChange}
-					onchange={syncSettingsToCloud}
-					class="mt-2 w-full accent-[var(--color-text-secondary)]"
+				<Knob
+					label="Highest"
+					ariaLabel="Highest note"
+					helpText="Highest note you're comfortable playing. Lower for beginners, raise for altissimo."
+					value={highestIndex}
+					min={0}
+					max={highestPresets.length - 1}
+					step={1}
+					displayValue={highestReadout}
+					onInput={handleHighestNoteInput}
+					onCommit={syncSettingsToCloud}
 				/>
-			</div>
 
-			<!-- Theme -->
-			<div class="flex items-center justify-between px-4 py-3">
-				<div>
-					<p class="text-sm font-medium">Theme</p>
-					<p class="text-xs text-[var(--color-text-secondary)]">
-						{settings.theme === 'dark' ? 'Dark mode' : 'Light mode'}
-					</p>
+				<Knob
+					label="Master"
+					ariaLabel="Master volume"
+					helpText="Overall output level. Affects playback, metronome, and backing track."
+					value={settings.masterVolume}
+					min={0}
+					max={1}
+					step={0.05}
+					onInput={handleMasterVolumeInput}
+					onCommit={syncSettingsToCloud}
+				/>
+
+				<div class="inline-flex flex-col items-center gap-1.5">
+					<div class="flex items-center justify-center" style:min-height="84px">
+						<SelectorPad
+							ariaLabel="Theme"
+							value={settings.theme}
+							options={[
+								{ value: 'dark', label: 'Dark' },
+								{ value: 'light', label: 'Light' }
+							]}
+							onChange={selectTheme}
+						/>
+					</div>
+					<span class="smallcaps console-engrave">Theme</span>
 				</div>
-				<button
-					onclick={toggleTheme}
-					role="switch"
-					aria-checked={settings.theme === 'dark'}
-					aria-label="Toggle dark mode"
-					class="relative h-7 w-12 rounded-full transition-colors
-						{settings.theme === 'dark' ? 'bg-[var(--color-text-secondary)]' : 'bg-[var(--color-bg-tertiary)]'}"
-				>
-					<span
-						class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform shadow-sm
-							{settings.theme === 'dark' ? 'left-[22px]' : 'left-0.5'}"
-					></span>
-				</button>
 			</div>
 
 		</div>
@@ -371,58 +350,47 @@
 				</div>
 
 				<!-- Key selector -->
-				<div>
-					<label class="mb-2 block text-xs font-medium text-[var(--color-text-secondary)]">Key Center</label>
-					<div class="flex flex-wrap gap-1">
-						{#each KEY_UNLOCK_ORDER as key}
-							{@const unlocked = isKeyUnlocked(key, unlockCtx)}
-							{@const isActive = activeTonality.key === key}
-							{@const writtenKey = concertKeyToWritten(key, instrument)}
-							<button
-								onclick={() => selectKey(key)}
-								disabled={!unlocked}
-								class="relative rounded px-2.5 py-1 text-sm transition-colors
-									{isActive
-										? 'bg-[var(--color-accent)] text-white'
-										: unlocked
-											? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
-											: 'bg-[var(--color-bg-tertiary)] opacity-50 cursor-not-allowed'}"
-								title={unlocked ? writtenKey : keyUnlockTooltip(key)}
-							>
-								{writtenKey}
-								{#if !unlocked}
-									<span class="absolute -right-0.5 -top-0.5 text-[8px]">&#x1f512;</span>
-								{/if}
-							</button>
-						{/each}
+				<div class="flex flex-col items-center gap-1.5">
+					<div class="flex items-center justify-center">
+						<SelectorPad
+							ariaLabel="Key center"
+							size="sm"
+							columns={6}
+							value={activeTonality.key}
+							options={KEY_UNLOCK_ORDER.map((key) => ({
+								value: key,
+								label: concertKeyToWritten(key, instrument),
+								disabled: !isKeyUnlocked(key, unlockCtx),
+								title: isKeyUnlocked(key, unlockCtx)
+									? concertKeyToWritten(key, instrument)
+									: keyUnlockTooltip(key)
+							}))}
+							onChange={selectKey}
+						/>
 					</div>
+					<span class="smallcaps console-engrave">Key Center</span>
 				</div>
 
 				<!-- Scale type selector -->
-				<div>
-					<label class="mb-2 block text-xs font-medium text-[var(--color-text-secondary)]">Scale Type</label>
-					<div class="flex flex-wrap gap-1.5">
-						{#each SCALE_UNLOCK_ORDER as scaleType}
-							{@const unlocked = isScaleTypeUnlocked(scaleType, unlockCtx)}
-							{@const isActive = activeTonality.scaleType === scaleType}
-							<button
-								onclick={() => selectScale(scaleType)}
-								disabled={!unlocked}
-								class="relative rounded-full px-3 py-1 text-sm transition-colors
-									{isActive
-										? 'bg-[var(--color-accent)] text-white'
-										: unlocked
-											? 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'
-											: 'bg-[var(--color-bg-tertiary)] opacity-50 cursor-not-allowed'}"
-								title={unlocked ? SCALE_TYPE_NAMES[scaleType] : scaleUnlockTooltip(scaleType)}
-							>
-								{SCALE_TYPE_NAMES[scaleType]}
-								{#if !unlocked}
-									<span class="ml-0.5 text-[10px]">&#x1f512;</span>
-								{/if}
-							</button>
-						{/each}
+				<div class="flex flex-col items-center gap-1.5">
+					<div class="flex items-center justify-center">
+						<SelectorPad
+							ariaLabel="Scale type"
+							size="sm"
+							columns={4}
+							value={activeTonality.scaleType}
+							options={SCALE_UNLOCK_ORDER.map((scaleType) => ({
+								value: scaleType,
+								label: SCALE_TYPE_NAMES[scaleType],
+								disabled: !isScaleTypeUnlocked(scaleType, unlockCtx),
+								title: isScaleTypeUnlocked(scaleType, unlockCtx)
+									? SCALE_TYPE_NAMES[scaleType]
+									: scaleUnlockTooltip(scaleType)
+							}))}
+							onChange={selectScale}
+						/>
 					</div>
+					<span class="smallcaps console-engrave">Scale Type</span>
 				</div>
 
 				<!-- Unlock progress -->
@@ -432,144 +400,94 @@
 				</p>
 			</div>
 
-			<!-- Default tempo -->
-			<div class="px-4 py-3">
-				<div class="flex items-center justify-between text-sm">
-					<span class="font-medium">Default Tempo</span>
-					<span class="tabular-nums text-[var(--color-text-secondary)]">{settings.defaultTempo} BPM</span>
-				</div>
-				<input
-					type="range"
-					min="60"
-					max="200"
-					step="5"
+			<!-- Tempo / Swing / Metronome row -->
+			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
+				<Knob
+					label="Tempo"
+					ariaLabel="Default tempo"
+					helpText="Starting tempo for new practice sessions, in BPM."
 					value={settings.defaultTempo}
-					oninput={handleTempoChange}
-					onchange={syncSettingsToCloud}
-					class="mt-2 w-full accent-[var(--color-accent)]"
+					min={60}
+					max={200}
+					step={5}
+					displayValue={String(settings.defaultTempo)}
+					onInput={(v) => (settings.defaultTempo = v)}
+					onCommit={syncSettingsToCloud}
 				/>
-				<div class="mt-0.5 flex justify-between text-xs text-[var(--color-text-secondary)]">
-					<span>60</span>
-					<span>200</span>
-				</div>
-			</div>
-
-			<!-- Swing -->
-			<div class="px-4 py-3">
-				<div class="flex items-center justify-between text-sm">
-					<span class="font-medium">Swing Feel</span>
-					<span class="tabular-nums text-[var(--color-text-secondary)]">{Math.round(settings.swing * 100)}%</span>
-				</div>
-				<input
-					type="range"
-					min="0.5"
-					max="0.8"
-					step="0.05"
+				<Knob
+					label="Swing"
+					ariaLabel="Swing feel"
+					helpText="Eighth-note swing ratio. 0.50 is straight eighths, 0.80 is heavy swing."
 					value={settings.swing}
-					oninput={handleSwingChange}
-					onchange={syncSettingsToCloud}
-					class="mt-2 w-full accent-[var(--color-accent)]"
+					min={0.5}
+					max={0.8}
+					step={0.05}
+					displayValue={settings.swing.toFixed(2)}
+					onInput={(v) => (settings.swing = v)}
+					onCommit={syncSettingsToCloud}
 				/>
-				<div class="mt-0.5 flex justify-between text-xs text-[var(--color-text-secondary)]">
-					<span>Straight (50%)</span>
-					<span>Heavy swing (80%)</span>
-				</div>
-			</div>
 
-			<!-- Metronome -->
-			<div class="px-4 py-3 space-y-3">
-				<div class="flex items-center justify-between">
-					<span class="text-sm font-medium">Metronome</span>
-					<button
-						onclick={() => { settings.metronomeEnabled = !settings.metronomeEnabled; saveSettings(supabase); }}
-						role="switch"
-						aria-checked={settings.metronomeEnabled}
-						aria-label="Toggle metronome"
-						class="relative h-7 w-12 rounded-full transition-colors
-							{settings.metronomeEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
-					>
-						<span
-							class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform shadow-sm
-								{settings.metronomeEnabled ? 'left-[22px]' : 'left-0.5'}"
-						></span>
-					</button>
-				</div>
-
+				<RockerSwitch
+					label="Metronome"
+					checked={settings.metronomeEnabled}
+					onChange={(v) => {
+						settings.metronomeEnabled = v;
+						saveSettings(supabase);
+					}}
+				/>
 				{#if settings.metronomeEnabled}
-					<div>
-						<div class="flex items-center justify-between text-sm">
-							<span class="text-[var(--color-text-secondary)]">Metronome Volume</span>
-							<span class="tabular-nums text-[var(--color-text-secondary)]">{Math.round(settings.metronomeVolume * 100)}%</span>
-						</div>
-						<input
-							type="range"
-							min="0"
-							max="1"
-							step="0.05"
-							value={settings.metronomeVolume}
-							oninput={handleVolumeChange}
-							onchange={syncSettingsToCloud}
-							class="mt-1 w-full accent-[var(--color-accent)]"
-						/>
-					</div>
+					<Knob
+						label="Metro Vol"
+						ariaLabel="Metronome volume"
+						helpText="Metronome click level, relative to master."
+						value={settings.metronomeVolume}
+						min={0}
+						max={1}
+						step={0.05}
+						onInput={(v) => (settings.metronomeVolume = v)}
+						onCommit={syncSettingsToCloud}
+					/>
 				{/if}
 			</div>
 
-			<!-- Backing Track -->
-			<div class="px-4 py-3 space-y-3">
-				<div class="flex items-center justify-between">
-					<span id="backing-track-label" class="text-sm font-medium">Backing Track</span>
-					<button
-						onclick={() => { settings.backingTrackEnabled = !settings.backingTrackEnabled; saveSettings(supabase); }}
-						role="switch"
-						aria-checked={settings.backingTrackEnabled}
-						aria-labelledby="backing-track-label"
-						class="relative h-7 w-12 rounded-full transition-colors
-							{settings.backingTrackEnabled ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}"
-					>
-						<span
-							class="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform shadow-sm
-								{settings.backingTrackEnabled ? 'left-[22px]' : 'left-0.5'}"
-						></span>
-					</button>
-				</div>
+			<!-- Backing Track row -->
+			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
+				<RockerSwitch
+					label="Backing"
+					ariaLabel="Backing track"
+					checked={settings.backingTrackEnabled}
+					onChange={(v) => {
+						settings.backingTrackEnabled = v;
+						saveSettings(supabase);
+					}}
+				/>
 
 				{#if settings.backingTrackEnabled}
-					<div class="flex items-center justify-between">
-						<span id="backing-instrument-label" class="text-sm text-[var(--color-text-secondary)]">Instrument</span>
-						<div class="flex gap-1" role="radiogroup" aria-labelledby="backing-instrument-label">
-							{#each /** @type {const} */ (['piano', 'organ'] as BackingInstrument[]) as inst}
-								<button
-									onclick={() => selectBackingInstrument(inst)}
-									role="radio"
-									aria-checked={settings.backingInstrument === inst}
-									class="rounded-full px-3 py-1 text-sm transition-colors
-										{settings.backingInstrument === inst
-											? 'bg-[var(--color-accent)] text-white'
-											: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
-								>
-									{inst === 'piano' ? 'Piano' : 'Organ'}
-								</button>
-							{/each}
+					<div class="inline-flex flex-col items-center gap-1.5">
+						<div class="flex items-center justify-center" style:min-height="84px">
+							<SelectorPad
+								ariaLabel="Backing instrument"
+								value={settings.backingInstrument}
+								options={[
+									{ value: 'piano', label: 'Piano' },
+									{ value: 'organ', label: 'Organ' }
+								]}
+								onChange={selectBackingInstrument}
+							/>
 						</div>
+						<span class="smallcaps console-engrave">Instrument</span>
 					</div>
-
-					<div>
-						<div class="flex items-center justify-between text-sm">
-							<span class="text-[var(--color-text-secondary)]">Backing Track Volume</span>
-							<span class="tabular-nums text-[var(--color-text-secondary)]">{Math.round(settings.backingTrackVolume * 100)}%</span>
-						</div>
-						<input
-							type="range"
-							min="0"
-							max="1"
-							step="0.05"
-							value={settings.backingTrackVolume}
-							oninput={handleBackingVolumeChange}
-							onchange={syncSettingsToCloud}
-							class="mt-1 w-full accent-[var(--color-accent)]"
-						/>
-					</div>
+					<Knob
+						label="Backing Vol"
+						ariaLabel="Backing track volume"
+						helpText="Backing track level, relative to master."
+						value={settings.backingTrackVolume}
+						min={0}
+						max={1}
+						step={0.05}
+						onInput={(v) => (settings.backingTrackVolume = v)}
+						onCommit={syncSettingsToCloud}
+					/>
 				{/if}
 			</div>
 
@@ -784,3 +702,4 @@
 	</div>
 
 </div>
+
