@@ -19,7 +19,7 @@
 	const hidden = $derived(hasSeen(tourId) || tourState.tourInProgress !== null);
 
 	function start() {
-		runTour({ tourId, steps });
+		runTour({ tourId, steps, supabase: supabase ?? undefined });
 	}
 
 	function dismiss() {

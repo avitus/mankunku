@@ -47,6 +47,12 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 10;
 const rateLimitBuckets = new Map<string, number[]>();
 
+// Cap carried-over chat history before passing it to Anthropic. Without this,
+// every turn balloons the prompt size — eventually hitting context limits and
+// turning a cheap interaction into an expensive one.
+const MAX_HISTORY_MESSAGES = 12;
+const MAX_HISTORY_CHARS = 12_000;
+
 function rateLimitKey(request: Request, getClientAddress: () => string): string {
 	const sessionCookie = request.headers.get('cookie')?.match(/sb-[^=]+-auth-token=([^;]+)/)?.[1];
 	if (sessionCookie) return `s:${sessionCookie.slice(0, 32)}`;
@@ -94,10 +100,21 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 		throw error(400, 'Message too long — keep it under 4000 characters.');
 	}
 
-	const history = (body.history ?? []).filter(
-		(m): m is ChatMessage =>
-			m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
-	);
+	const history = (body.history ?? [])
+		.filter(
+			(m): m is ChatMessage =>
+				m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
+		)
+		.slice(-MAX_HISTORY_MESSAGES);
+
+	let totalHistoryChars = 0;
+	const trimmedHistory: ChatMessage[] = [];
+	for (const msg of [...history].reverse()) {
+		totalHistoryChars += msg.content.length;
+		if (totalHistoryChars > MAX_HISTORY_CHARS) break;
+		trimmedHistory.push(msg);
+	}
+	trimmedHistory.reverse();
 
 	const [docContext, pageContext] = await Promise.all([
 		getDocContext(),
@@ -114,7 +131,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 	];
 
 	const messages = [
-		...history.map((m) => ({ role: m.role, content: m.content })),
+		...trimmedHistory.map((m) => ({ role: m.role, content: m.content })),
 		{
 			role: 'user' as const,
 			content: pageContext
@@ -129,17 +146,22 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 	}
 
 	const encoder = new TextEncoder();
+	// Hold the upstream Anthropic stream out here so the ReadableStream's
+	// cancel callback can abort it when the client disconnects (closed tab,
+	// navigation). Without this we keep consuming tokens long after the user
+	// has gone.
+	let upstream: ReturnType<typeof client.messages.stream> | null = null;
 	const stream = new ReadableStream({
 		async start(controller) {
 			try {
-				const response = client.messages.stream({
+				upstream = client.messages.stream({
 					model: ANTHROPIC_MODEL,
 					max_tokens: ANTHROPIC_MAX_TOKENS,
 					system: systemBlocks,
 					messages
 				});
 
-				for await (const event of response) {
+				for await (const event of upstream) {
 					if (
 						event.type === 'content_block_delta' &&
 						event.delta.type === 'text_delta'
@@ -158,6 +180,9 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 			} finally {
 				controller.close();
 			}
+		},
+		cancel() {
+			upstream?.abort();
 		}
 	});
 

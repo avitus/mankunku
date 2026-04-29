@@ -121,6 +121,31 @@
 		saveSettings(supabase);
 	}
 
+	/**
+	 * Wait for all tour-step selectors to mount on the destination page before
+	 * starting the tour. Replaces a hard-coded 50ms sleep that was racy:
+	 * heavy pages can take longer to render, and on fast machines we'd burn
+	 * 50ms unnecessarily. Polls via rAF until every selector resolves or the
+	 * timeout fires.
+	 */
+	async function waitForTourTargets(
+		steps: Array<{ element?: string | Element | (() => Element) }>,
+		timeoutMs = 1500
+	): Promise<void> {
+		// Only string selectors are pollable here — Element/() => Element steps
+		// are already-resolved or computed-on-demand and don't need a wait.
+		const selectors = steps
+			.map((s) => s.element)
+			.filter((v): v is string => typeof v === 'string');
+		if (selectors.length === 0) return;
+
+		const start = performance.now();
+		while (performance.now() - start < timeoutMs) {
+			if (selectors.every((sel) => document.querySelector(sel))) return;
+			await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		}
+	}
+
 	let showResetConfirm = $state(false);
 	let showDeleteConfirm = $state(false);
 
@@ -685,10 +710,13 @@
 						onclick={async () => {
 							if (page.url?.pathname !== tour.startsAt) {
 								await goto(tour.startsAt);
-								// Wait one tick so the new page renders before targeting elements
-								await new Promise((r) => setTimeout(r, 50));
+								await waitForTourTargets(tour.steps);
 							}
-							runTour({ tourId: tour.id, steps: tour.steps });
+							runTour({
+								tourId: tour.id,
+								steps: tour.steps,
+								supabase: supabase ?? undefined
+							});
 						}}
 						class="shrink-0 rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-bg)] transition-colors"
 					>

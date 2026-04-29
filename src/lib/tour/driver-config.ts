@@ -1,5 +1,7 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { driver, type Config, type DriveStep, type Driver } from 'driver.js';
 import { tourState, markComplete } from '$lib/state/tour.svelte';
+import type { Database } from '$lib/supabase/types';
 import './driver-styles.css';
 
 /**
@@ -34,6 +36,12 @@ export interface RunTourOptions {
 	/** Stable identifier; tour is marked complete in tourState on done. */
 	tourId: string;
 	steps: DriveStep[];
+	/**
+	 * Supabase client, threaded through to `markComplete` so that tour
+	 * completion synced to the cloud — without it, the cross-device
+	 * suppression that the rest of the feature depends on never fires.
+	 */
+	supabase?: SupabaseClient<Database>;
 	/** Runs after the user finishes the last step. */
 	onComplete?: () => void;
 	/** Runs when the user closes the tour before finishing. */
@@ -54,7 +62,7 @@ export interface RunTourOptions {
  * to the dummy element's location) renders in the centre of the viewport.
  */
 export function runTour(options: RunTourOptions): Driver {
-	const { tourId, steps, onComplete, onClose, config } = options;
+	const { tourId, steps, supabase, onComplete, onClose, config } = options;
 
 	if (typeof window !== 'undefined') {
 		window.scrollTo({ top: 0, behavior: 'auto' });
@@ -70,7 +78,7 @@ export function runTour(options: RunTourOptions): Driver {
 			steps,
 			onDestroyed: () => {
 				if (completedNaturally) {
-					markComplete(tourId);
+					markComplete(tourId, supabase);
 					onComplete?.();
 				} else {
 					onClose?.();

@@ -505,13 +505,20 @@ export async function syncTourStateToCloud(
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return;
 
+		// Tour completion is a set, not a snapshot: completing tour A on one
+		// device while another device completes tour B should produce the
+		// union, not whichever wrote last. Read remote first and merge before
+		// upserting.
+		const remote = await loadTourStateFromCloud(supabase);
+		const merged: SyncableTourState = {
+			completed: [...new Set([...(remote?.completed ?? []), ...state.completed])],
+			dismissed: [...new Set([...(remote?.dismissed ?? []), ...state.dismissed])]
+		};
+
 		const { error } = await supabase.from('user_settings').upsert(
 			{
 				user_id: userId,
-				tour_state: {
-					completed: state.completed,
-					dismissed: state.dismissed
-				} as unknown as Json,
+				tour_state: merged as unknown as Json,
 				updated_at: new Date().toISOString()
 			},
 			{ onConflict: 'user_id' }

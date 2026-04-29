@@ -88,6 +88,7 @@
 		class="chat-panel {chatOpen ? 'is-open' : ''}"
 		aria-label="AI assistant"
 		aria-hidden={!chatOpen}
+		inert={!chatOpen}
 	>
 		<div class="chat-panel-header">
 			<button

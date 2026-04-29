@@ -1,5 +1,6 @@
 import { Marked } from 'marked';
 import type { Tokens } from 'marked';
+import DOMPurify from 'isomorphic-dompurify';
 
 /**
  * Slugify text into a URL-safe heading anchor (matches GitHub's algorithm
@@ -121,7 +122,15 @@ export function renderMarkdown(markdown: string, currentSlug = ''): RenderResult
 		}
 	});
 
-	const html = m.parse(markdown, { async: false }) as string;
+	const rawHtml = m.parse(markdown, { async: false }) as string;
+	// Sanitize: marked v18 doesn't strip raw HTML by default, and the chat
+	// renderer streams untrusted LLM output through this. DOMPurify scrubs
+	// any `<script>`, inline event handlers, and javascript: URLs while
+	// keeping our renderer's emitted attributes (id, class, href, target,
+	// rel, title, data-lang) intact.
+	const html = DOMPurify.sanitize(rawHtml, {
+		ADD_ATTR: ['target', 'data-lang']
+	});
 	return { html, headings };
 }
 

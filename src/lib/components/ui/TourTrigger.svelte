@@ -2,6 +2,7 @@
 	import type { DriveStep } from 'driver.js';
 	import { runTour } from '$lib/tour/driver-config';
 	import { hasSeen } from '$lib/state/tour.svelte';
+	import { page } from '$app/state';
 
 	interface Props {
 		tourId: string;
@@ -20,13 +21,14 @@
 		class: klass = ''
 	}: Props = $props();
 
+	const supabase = $derived(page.data?.supabase ?? null);
 	const visible = $derived(!hideIfSeen || !hasSeen(tourId));
 </script>
 
 {#if visible}
 	<button
 		type="button"
-		onclick={() => runTour({ tourId, steps })}
+		onclick={() => runTour({ tourId, steps, supabase: supabase ?? undefined })}
 		class="tour-trigger {klass}"
 	>
 		{label} →

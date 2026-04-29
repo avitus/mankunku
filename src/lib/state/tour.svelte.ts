@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { SvelteSet } from 'svelte/reactivity';
 import type { Database } from '$lib/supabase/types';
 import { save, load } from '$lib/persistence/storage';
 import {
@@ -37,8 +38,10 @@ const initial = typeof window === 'undefined'
  *   triggers don't fight each other on the same page).
  */
 export const tourState = $state({
-	completedTours: new Set<string>(initial.completed),
-	dismissedTours: new Set<string>(initial.dismissed),
+	// SvelteSet (not plain Set) so .add()/.delete()/.clear() trigger reactive
+	// updates — `hasSeen`-driven UI like the welcome banner depends on this.
+	completedTours: new SvelteSet<string>(initial.completed),
+	dismissedTours: new SvelteSet<string>(initial.dismissed),
 	tourInProgress: null as string | null
 });
 

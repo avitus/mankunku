@@ -38,6 +38,11 @@
 	.help-link:focus-visible {
 		opacity: 1;
 		color: var(--color-brass);
-		outline: none;
+	}
+
+	.help-link:focus-visible {
+		outline: 2px solid var(--color-brass);
+		outline-offset: 2px;
+		border-radius: 0.25rem;
 	}
 </style>

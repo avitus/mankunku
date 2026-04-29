@@ -39,6 +39,7 @@
 		"@supabase/supabase-js": "^2.99.3",
 		"abcjs": "^6.6.2",
 		"driver.js": "^1.4.0",
+		"isomorphic-dompurify": "^3.11.0",
 		"marked": "^18.0.2",
 		"pitchy": "^4.1.0",
 		"smplr": "^0.19.0",

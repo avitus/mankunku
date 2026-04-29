@@ -37,7 +37,17 @@
 		}, delay);
 	}
 
-	function hide() {
+	function hide(event?: Event) {
+		// Keep the tooltip open if focus moved into the trigger/wrapper or the
+		// tooltip body — otherwise interactive tooltip content (links, buttons)
+		// would be unreachable because focusout fires before focus settles
+		// on the descendant.
+		const related = (event as FocusEvent | undefined)?.relatedTarget;
+		if (related instanceof Node) {
+			if (wrapperEl?.contains(related) || tooltipEl?.contains(related)) {
+				return;
+			}
+		}
 		if (showTimer) {
 			clearTimeout(showTimer);
 			showTimer = null;
@@ -73,6 +83,25 @@
 			hide();
 		}
 	}
+
+	// `aria-describedby` belongs on the focused element. The wrapper is just
+	// a presentation container, so when the trigger is a real focusable child
+	// (button, link, etc.) a screen reader has to find that child to announce
+	// the tooltip. Project the relationship onto the first focusable
+	// descendant when visible.
+	$effect(() => {
+		if (!wrapperEl) return;
+		const target = wrapperEl.querySelector<HTMLElement>(
+			'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+		);
+		if (!target) return;
+		if (visible) {
+			target.setAttribute('aria-describedby', tooltipId);
+		} else {
+			target.removeAttribute('aria-describedby');
+		}
+		return () => target.removeAttribute('aria-describedby');
+	});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -85,7 +114,6 @@
 	onmouseleave={hide}
 	onfocusin={show}
 	onfocusout={hide}
-	aria-describedby={visible ? tooltipId : undefined}
 >
 	{@render children()}
 	{#if visible && !disabled}

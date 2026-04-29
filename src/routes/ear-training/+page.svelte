@@ -659,8 +659,8 @@
 		     The rotating quote lives in a fixed band at the bottom of the
 		     viewport so its variable length doesn't reflow the score block
 		     on every lick transition. -->
-		{#if persistentScore}
-			<div data-tour="score-display" class="min-w-0">
+		<div data-tour="score-display" class="min-w-0">
+			{#if persistentScore}
 				<div class="flex items-baseline gap-1.5">
 					<div
 						class="font-display text-4xl font-bold tabular-nums"
@@ -679,8 +679,12 @@
 					<span>Rhythm {pct(persistentScore.rhythmAccuracy)}%</span>
 					<TooltipHint text={tooltips.practice.grades.text} position="bottom" />
 				</div>
-			</div>
-		{/if}
+			{:else}
+				<div class="text-sm italic text-[var(--color-text-secondary)]">
+					Score appears after your first take.
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Status text -->

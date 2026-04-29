@@ -259,6 +259,7 @@
 					{/if}
 					<a
 						{href}
+						data-tour="nav-{tourKey}"
 						data-tour-mobile="nav-{tourKey}"
 						onclick={() => { mobileMenuOpen = false; }}
 						class="block rounded px-3 py-2 transition-colors {primary
