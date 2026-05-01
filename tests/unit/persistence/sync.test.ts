@@ -1031,20 +1031,61 @@ const TEST_SUMMARY: DailySummary = {
 };
 
 describe('syncProgressAggregateToCloud', () => {
-	it('only upserts the user_progress row (no session_results / proficiency writes)', async () => {
-		const mock = createMockSupabase();
+	function buildAggregateMock(updateRows: Array<{ user_id: string }> = [{ user_id: 'test-user-id' }]) {
+		const updateFn = vi.fn();
+		const upsertFn = vi.fn().mockResolvedValue({ error: null });
+		const fromFn = vi.fn(() => {
+			const builder: Record<string, any> = {};
+			builder.update = vi.fn((payload: unknown) => {
+				updateFn(payload);
+				return builder;
+			});
+			builder.eq = vi.fn(() => builder);
+			builder.select = vi.fn(() => builder);
+			builder.upsert = upsertFn;
+			builder.then = (resolve: any, reject: any) =>
+				Promise.resolve({ data: updateRows, error: null }).then(resolve, reject);
+			return builder;
+		});
+		return {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } }) },
+			from: fromFn,
+			_updateFn: updateFn,
+			_upsertFn: upsertFn,
+			_fromFn: fromFn
+		};
+	}
+
+	it('updates only aggregate columns when the row exists — never adaptive/category/key_progress', async () => {
+		const mock = buildAggregateMock();
 		await syncProgressAggregateToCloud(mock as any, TEST_PROGRESS);
 
-		// Exactly one upsert, against user_progress. The four-table sync
-		// would also call session_results, scale_proficiency, key_proficiency.
-		expect(mock._fromFn).toHaveBeenCalledTimes(1);
 		expect(mock._fromFn).toHaveBeenCalledWith('user_progress');
+		expect(mock._updateFn).toHaveBeenCalledTimes(1);
+		const payload = mock._updateFn.mock.calls[0][0];
+		expect(payload.streak_days).toBe(TEST_PROGRESS.streakDays);
+		expect(payload.last_practice_date).toBe(TEST_PROGRESS.lastPracticeDate);
+		expect(payload.total_practice_time).toBe(TEST_PROGRESS.totalPracticeTime);
+		// Critical: must not write fields a parallel ear-training device may
+		// have advanced past us on.
+		expect(payload).not.toHaveProperty('adaptive_state');
+		expect(payload).not.toHaveProperty('category_progress');
+		expect(payload).not.toHaveProperty('key_progress');
+		// And no upsert fallback when the row already exists.
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+	});
+
+	it('falls back to upsert when the user has no user_progress row yet', async () => {
+		const mock = buildAggregateMock([]); // update affects 0 rows
+		await syncProgressAggregateToCloud(mock as any, TEST_PROGRESS);
 		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
-		const [row, opts] = mock._upsertFn.mock.calls[0];
-		expect(opts).toEqual({ onConflict: 'user_id' });
+		const [row] = mock._upsertFn.mock.calls[0];
+		// Insert path includes the full progress shape so subsequent updates
+		// have something to land on.
 		expect(row.user_id).toBe('test-user-id');
-		expect(row.streak_days).toBe(TEST_PROGRESS.streakDays);
-		expect(row.last_practice_date).toBe(TEST_PROGRESS.lastPracticeDate);
+		expect(row.adaptive_state).toBeDefined();
+		expect(row.category_progress).toBeDefined();
+		expect(row.key_progress).toBeDefined();
 	});
 
 	it('skips when unauthenticated', async () => {

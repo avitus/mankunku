@@ -235,8 +235,16 @@ export async function syncProgressToCloud(
  * that don't change session_results or proficiency tables.
  *
  * Used by the lick-practice path so a high-frequency loop doesn't trigger
- * the full four-table re-upsert on every key attempt — only the user_progress
- * row is touched.
+ * the full four-table re-upsert on every key attempt.
+ *
+ * The implementation deliberately does NOT include `adaptive_state`,
+ * `category_progress`, or `key_progress` in the update payload: lick-practice
+ * doesn't touch those, and writing them back from local state could clobber a
+ * newer ear-training advance from another device that synced in between this
+ * device's hydration and this call. We UPDATE the aggregate-only fields when
+ * the row already exists, and only fall back to a full upsert (with adaptive
+ * defaults) when the user has no `user_progress` row yet — i.e., a fresh
+ * account whose first ever practice attempt is a lick-practice key.
  */
 export async function syncProgressAggregateToCloud(
 	supabase: SupabaseDB,
@@ -246,22 +254,41 @@ export async function syncProgressAggregateToCloud(
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return;
 
-		const { error } = await supabase.from('user_progress').upsert(
-			{
-				user_id: userId,
-				adaptive_state: progress.adaptive as unknown as Json,
-				category_progress: progress.categoryProgress as unknown as Json,
-				key_progress: progress.keyProgress as unknown as Json,
-				total_practice_time: progress.totalPracticeTime,
-				streak_days: progress.streakDays,
-				last_practice_date: progress.lastPracticeDate,
-				updated_at: new Date().toISOString()
-			},
-			{ onConflict: 'user_id' }
-		);
+		const aggregateOnly = {
+			total_practice_time: progress.totalPracticeTime,
+			streak_days: progress.streakDays,
+			last_practice_date: progress.lastPracticeDate,
+			updated_at: new Date().toISOString()
+		};
 
-		if (error) {
-			console.warn('Failed to sync progress aggregate to cloud:', error);
+		const { data: updated, error: updateError } = await supabase
+			.from('user_progress')
+			.update(aggregateOnly)
+			.eq('user_id', userId)
+			.select('user_id');
+
+		if (updateError) {
+			console.warn('Failed to sync progress aggregate to cloud:', updateError);
+			return;
+		}
+
+		// Row didn't exist (fresh account whose first attempt was lick-practice
+		// before any ear-training). Insert a full row so subsequent updates
+		// have something to UPDATE against.
+		if ((updated?.length ?? 0) === 0) {
+			const { error: insertError } = await supabase.from('user_progress').upsert(
+				{
+					user_id: userId,
+					adaptive_state: progress.adaptive as unknown as Json,
+					category_progress: progress.categoryProgress as unknown as Json,
+					key_progress: progress.keyProgress as unknown as Json,
+					...aggregateOnly
+				},
+				{ onConflict: 'user_id' }
+			);
+			if (insertError) {
+				console.warn('Failed to insert initial progress row:', insertError);
+			}
 		}
 	} catch (error) {
 		console.warn('Failed to sync progress aggregate to cloud:', error);
@@ -427,7 +454,10 @@ export async function loadProgressFromCloud(
 //  Daily summary sync
 // ═════════════════════════════════════════════════════════════════════
 
-function dailySummaryToRow(userId: string, s: DailySummary) {
+function dailySummaryToRow(
+	userId: string,
+	s: DailySummary
+): Database['public']['Tables']['daily_summaries']['Insert'] {
 	return {
 		user_id: userId,
 		date: s.date,
