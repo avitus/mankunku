@@ -331,12 +331,15 @@ export function clearHistory(): void {
  * (covers the cross-device case where one device has more activity logged).
  * Local-only days are preserved untouched (offline writes that haven't synced).
  *
- * Returns the list of summaries that exist locally but were unknown to the
- * cloud — callers should batch-push these so the next login sees them.
+ * Returns the list of summaries the cloud should be told about: any day the
+ * cloud is missing entirely, plus any same-date day where local has strictly
+ * more activity than cloud (otherwise the cloud would stay stale on that day
+ * and a subsequent device pull could restore the smaller summary).
  */
 export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[] {
 	let changed = false;
 	const cloudDates = new Set<string>();
+	const localWinnerDates = new Set<string>();
 
 	for (const cs of cloudSummaries) {
 		cloudDates.add(cs.date);
@@ -355,6 +358,10 @@ export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummar
 		if (cs.sessionCount >= existing.sessionCount) {
 			Object.assign(existing, cs);
 			changed = true;
+		} else {
+			// Local has strictly more sessions for this date — keep local
+			// in memory and flag it for upload so the cloud catches up.
+			localWinnerDates.add(existing.date);
 		}
 	}
 
@@ -363,8 +370,9 @@ export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummar
 		saveAll();
 	}
 
-	// Identify local-only days the cloud is missing
-	return dailySummaries.filter((s) => !cloudDates.has(s.date));
+	return dailySummaries.filter(
+		(s) => !cloudDates.has(s.date) || localWinnerDates.has(s.date)
+	);
 }
 
 function categoriesMatch(a: Record<string, number>, b: Record<string, number>): boolean {

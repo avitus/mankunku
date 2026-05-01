@@ -39,6 +39,18 @@ CREATE TABLE public.daily_summaries (
   pitch_complexity       INTEGER,
   rhythm_complexity      INTEGER,
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Defense-in-depth: the calendar split and cloud-merge precedence both
+  -- treat session_count as the authoritative total and the per-source
+  -- counters as its decomposition. Reject any write that would let them
+  -- drift apart. Pre-split clients (no per-source split known) encode
+  -- ear_training_sessions = session_count and lick_practice_sessions = 0
+  -- in dailySummaryToRow(), which satisfies this invariant.
+  CHECK (
+    session_count = ear_training_sessions + lick_practice_sessions
+    AND session_count >= 0
+    AND ear_training_sessions >= 0
+    AND lick_practice_sessions >= 0
+  ),
   PRIMARY KEY (user_id, date)
 );
 

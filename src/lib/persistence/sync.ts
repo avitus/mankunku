@@ -231,6 +231,44 @@ export async function syncProgressToCloud(
 }
 
 /**
+ * Lightweight sync for aggregate-only updates (streak / lastPracticeDate)
+ * that don't change session_results or proficiency tables.
+ *
+ * Used by the lick-practice path so a high-frequency loop doesn't trigger
+ * the full four-table re-upsert on every key attempt — only the user_progress
+ * row is touched.
+ */
+export async function syncProgressAggregateToCloud(
+	supabase: SupabaseDB,
+	progress: UserProgress
+): Promise<void> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const { error } = await supabase.from('user_progress').upsert(
+			{
+				user_id: userId,
+				adaptive_state: progress.adaptive as unknown as Json,
+				category_progress: progress.categoryProgress as unknown as Json,
+				key_progress: progress.keyProgress as unknown as Json,
+				total_practice_time: progress.totalPracticeTime,
+				streak_days: progress.streakDays,
+				last_practice_date: progress.lastPracticeDate,
+				updated_at: new Date().toISOString()
+			},
+			{ onConflict: 'user_id' }
+		);
+
+		if (error) {
+			console.warn('Failed to sync progress aggregate to cloud:', error);
+		}
+	} catch (error) {
+		console.warn('Failed to sync progress aggregate to cloud:', error);
+	}
+}
+
+/**
  * Delete all detail rows (session_results, scale_proficiency, key_proficiency)
  * for the authenticated user. Called during progress reset to remove orphaned
  * rows that `syncProgressToCloud` would skip when the arrays are empty.

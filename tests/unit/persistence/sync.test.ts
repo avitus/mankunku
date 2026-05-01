@@ -17,6 +17,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
 	syncProgressToCloud,
+	syncProgressAggregateToCloud,
 	loadProgressFromCloud,
 	syncSettingsToCloud,
 	loadSettingsFromCloud,
@@ -1028,6 +1029,30 @@ const TEST_SUMMARY: DailySummary = {
 	pitchComplexity: 14,
 	rhythmComplexity: 12
 };
+
+describe('syncProgressAggregateToCloud', () => {
+	it('only upserts the user_progress row (no session_results / proficiency writes)', async () => {
+		const mock = createMockSupabase();
+		await syncProgressAggregateToCloud(mock as any, TEST_PROGRESS);
+
+		// Exactly one upsert, against user_progress. The four-table sync
+		// would also call session_results, scale_proficiency, key_proficiency.
+		expect(mock._fromFn).toHaveBeenCalledTimes(1);
+		expect(mock._fromFn).toHaveBeenCalledWith('user_progress');
+		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
+		const [row, opts] = mock._upsertFn.mock.calls[0];
+		expect(opts).toEqual({ onConflict: 'user_id' });
+		expect(row.user_id).toBe('test-user-id');
+		expect(row.streak_days).toBe(TEST_PROGRESS.streakDays);
+		expect(row.last_practice_date).toBe(TEST_PROGRESS.lastPracticeDate);
+	});
+
+	it('skips when unauthenticated', async () => {
+		const mock = createMockSupabase({ user: null });
+		await syncProgressAggregateToCloud(mock as any, TEST_PROGRESS);
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+	});
+});
 
 describe('syncDailySummaryToCloud', () => {
 	it('upserts a single row keyed on (user_id, date) with the right payload', async () => {

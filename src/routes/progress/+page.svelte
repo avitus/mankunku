@@ -97,10 +97,11 @@
 			await stopLickPlayback();
 		}
 
-		// Stop current playback
+		// Capture before stopping — stopRecordingPlayback() nulls
+		// playingSessionId, so checking it afterwards would always miss.
+		const wasPlayingSameSession = playingSessionId === sessionId;
 		stopRecordingPlayback();
-
-		if (playingSessionId === sessionId) {
+		if (wasPlayingSameSession) {
 			return;
 		}
 

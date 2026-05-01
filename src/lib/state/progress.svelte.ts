@@ -13,7 +13,7 @@ import { createInitialAdaptiveState, processAttempt, createInitialScaleProficien
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
-import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud, syncDailySummaryToCloud, deleteDailySummariesFromCloud } from '$lib/persistence/sync';
+import { syncProgressToCloud, syncProgressAggregateToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud, syncDailySummaryToCloud, deleteDailySummariesFromCloud } from '$lib/persistence/sync';
 import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 
@@ -305,11 +305,13 @@ export function recordLickPracticeAttempt(
 	saveProgress();
 
 	if (supabase) {
-		// Push only the streak/last_practice_date column changes — calling
-		// syncProgressToCloud with full progress is wasteful but safe; it
-		// just re-upserts session_results & proficiency unchanged.
-		syncProgressToCloud(supabase, progress).catch((err) => {
-			console.warn('Failed to sync progress to cloud:', err);
+		// Lightweight aggregate-only sync — touches just the user_progress
+		// row (streak / lastPracticeDate). Avoids the four-table re-upsert
+		// (session_results + scale_proficiency + key_proficiency) on every
+		// lick-practice key attempt, which would otherwise produce heavy
+		// write amplification on a high-frequency practice loop.
+		syncProgressAggregateToCloud(supabase, progress).catch((err) => {
+			console.warn('Failed to sync progress aggregate to cloud:', err);
 		});
 		syncDailySummaryToCloud(supabase, summary).catch((err) => {
 			console.warn('Failed to sync daily summary to cloud:', err);

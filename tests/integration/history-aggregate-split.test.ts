@@ -210,28 +210,44 @@ describe('mergeCloudSummaries', () => {
 		expect(merged?.avgOverall).toBeCloseTo(0.95);
 	});
 
-	it('keeps local when local has strictly more sessions than cloud', () => {
+	it('keeps local when local has strictly more sessions than cloud and flags it for upload', () => {
 		// Seed local with multiple attempts on 2025-03-11
 		const ts = new Date('2025-03-11T12:00').getTime();
 		for (let i = 0; i < 6; i++) {
 			historyModule.aggregateSession(buildInput({ timestamp: ts }), 5, 5);
 		}
 		const cloud = [makeCloudSummary('2025-03-11', 2)];
-		historyModule.mergeCloudSummaries(cloud);
+		const upload = historyModule.mergeCloudSummaries(cloud);
 		const merged = historyModule.dailySummaries.find((s) => s.date === '2025-03-11');
 		expect(merged?.sessionCount).toBe(6);
+		// Same-date local winner must be returned so the cloud catches up;
+		// otherwise the cloud stays stale and a future pull could restore the
+		// smaller summary.
+		expect(upload.map((s) => s.date)).toContain('2025-03-11');
+		expect(upload.find((s) => s.date === '2025-03-11')?.sessionCount).toBe(6);
 	});
 
-	it('returns local-only days so the caller can push them to cloud', () => {
-		// Seed two local days
+	it('returns both local-only days and same-date local winners', () => {
 		const t1 = new Date('2025-03-12T12:00').getTime();
 		const t2 = new Date('2025-03-13T12:00').getTime();
-		historyModule.aggregateSession(buildInput({ timestamp: t1 }), 5, 5);
+		// 2025-03-12: 5 sessions locally
+		for (let i = 0; i < 5; i++) {
+			historyModule.aggregateSession(buildInput({ timestamp: t1 }), 5, 5);
+		}
+		// 2025-03-13: 1 session locally — only local-only day
 		historyModule.aggregateSession(buildInput({ timestamp: t2 }), 5, 5);
 
-		// Cloud knows only 2025-03-12
-		const cloud = [makeCloudSummary('2025-03-12', 1)]; // smaller — local wins
-		const localOnly = historyModule.mergeCloudSummaries(cloud);
-		expect(localOnly.map((s) => s.date)).toEqual(['2025-03-13']);
+		// Cloud has 2025-03-12 with smaller count → local wins on same date
+		const cloud = [makeCloudSummary('2025-03-12', 1)];
+		const upload = historyModule.mergeCloudSummaries(cloud);
+		expect(upload.map((s) => s.date).sort()).toEqual(['2025-03-12', '2025-03-13']);
+	});
+
+	it('does not return same-date days where cloud beat local', () => {
+		const ts = new Date('2025-03-14T12:00').getTime();
+		historyModule.aggregateSession(buildInput({ timestamp: ts }), 5, 5);
+		const cloud = [makeCloudSummary('2025-03-14', 10)]; // cloud wins
+		const upload = historyModule.mergeCloudSummaries(cloud);
+		expect(upload.find((s) => s.date === '2025-03-14')).toBeUndefined();
 	});
 });
