@@ -141,6 +141,7 @@ vi.mock('$lib/music/keys', () => ({
 const {
 	getAllLicks,
 	getLickById,
+	getBaseLickFromId,
 	getLicksByCategory,
 	getCategories,
 	queryLicks,
@@ -214,6 +215,55 @@ describe('getLickById', () => {
 	it('returns undefined for unknown ID', () => {
 		const lick = getLickById('nonexistent-id');
 		expect(lick).toBeUndefined();
+	});
+});
+
+describe('getBaseLickFromId', () => {
+	it('returns the lick when id matches directly', () => {
+		const lick = getBaseLickFromId('lick-1');
+		expect(lick?.id).toBe('lick-1');
+	});
+
+	it('strips a transposition `_<KEY>` suffix to find the base lick', () => {
+		// transposeLick produces ids like `${baseId}_${targetKey}`
+		const lick = getBaseLickFromId('lick-1_F#');
+		expect(lick?.id).toBe('lick-1');
+	});
+
+	it('handles every pitch class as a stripped suffix', () => {
+		const keys = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+		for (const k of keys) {
+			expect(getBaseLickFromId(`lick-3_${k}`)?.id).toBe('lick-3');
+		}
+	});
+
+	it('does not strip a non-pitch-class suffix', () => {
+		// "_xyz" is not a valid pitch class — should not be stripped
+		expect(getBaseLickFromId('lick-1_xyz')).toBeUndefined();
+	});
+
+	it('returns undefined when neither direct nor stripped id matches', () => {
+		expect(getBaseLickFromId('does-not-exist_C')).toBeUndefined();
+	});
+
+	it('returns undefined for an id with no underscore that does not match', () => {
+		expect(getBaseLickFromId('mystery')).toBeUndefined();
+	});
+
+	it('prefers a direct id hit over the stripped fallback', () => {
+		// A user-created lick whose id ends in `_C` and exists verbatim
+		// must not be stripped down to a different lick.
+		mockGetUserLicksLocal.mockReturnValue([
+			makePhrase({ id: 'lick-1_C', name: 'User Lick Ending In C' })
+		]);
+		const lick = getBaseLickFromId('lick-1_C');
+		expect(lick?.name).toBe('User Lick Ending In C');
+	});
+
+	it('finds user lick via stripped suffix', () => {
+		mockGetUserLicksLocal.mockReturnValue(FIXTURE_USER_LICKS);
+		const lick = getBaseLickFromId('user-1_Bb');
+		expect(lick?.id).toBe('user-1');
 	});
 });
 

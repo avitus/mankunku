@@ -4,7 +4,7 @@
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
-	import { SCALE_TYPE_NAMES, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
+	import { SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
 	import PracticeCalendar from '$lib/components/progress/PracticeCalendar.svelte';
@@ -12,9 +12,12 @@
 	import PeriodCompare from '$lib/components/progress/PeriodCompare.svelte';
 	import LickKeyDetail from '$lib/components/progress/LickKeyDetail.svelte';
 	import { dailySummaries } from '$lib/state/history.svelte';
-	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
+	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass, type Phrase } from '$lib/types/music';
+	import { getBaseLickFromId, transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
+	import { setMasterVolume } from '$lib/audio/audio-context';
+	import type { SessionResult } from '$lib/types/progress';
 	import type { Grade } from '$lib/types/scoring';
 	import { page } from '$app/state';
 	import {
@@ -42,6 +45,8 @@
 	let playingSessionId: string | null = $state(null);
 	let audioElement: HTMLAudioElement | null = null;
 	let audioUrl: string | null = null;
+	let playingLickSessionId: string | null = $state(null);
+	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 
 	let lickSessions = $state<LickPracticeSessionLogEntry[]>([]);
 
@@ -62,10 +67,12 @@
 			URL.revokeObjectURL(audioUrl);
 			audioUrl = null;
 		}
+		if (playbackModule && playingLickSessionId) {
+			playbackModule.stopPlayback();
+		}
 	});
 
-	async function toggleAudio(sessionId: string) {
-		// Stop current playback
+	function stopRecordingPlayback(): void {
 		if (audioElement) {
 			audioElement.pause();
 			audioElement = null;
@@ -74,9 +81,26 @@
 			URL.revokeObjectURL(audioUrl);
 			audioUrl = null;
 		}
+		playingSessionId = null;
+	}
+
+	async function stopLickPlayback(): Promise<void> {
+		if (playbackModule) {
+			await playbackModule.stopPlayback();
+		}
+		playingLickSessionId = null;
+	}
+
+	async function toggleAudio(sessionId: string) {
+		// If a lick is playing, stop it first so audio sources don't overlap.
+		if (playingLickSessionId) {
+			await stopLickPlayback();
+		}
+
+		// Stop current playback
+		stopRecordingPlayback();
 
 		if (playingSessionId === sessionId) {
-			playingSessionId = null;
 			return;
 		}
 
@@ -100,6 +124,70 @@
 		} catch (err) {
 			console.error('Failed to play recording:', err);
 			playingSessionId = null;
+		}
+	}
+
+	/**
+	 * Reconstruct the phrase the user heard for an ear-training session by
+	 * looking up the lick by id (or id with a stripped `_<key>` suffix from
+	 * transposition) and re-applying the session's key/scale transposition.
+	 * Returns null if the lick is no longer in the library.
+	 */
+	function findPhraseForSession(s: SessionResult): Phrase | null {
+		const base = getBaseLickFromId(s.phraseId);
+		if (!base) return null;
+
+		const sessionKey = s.key as PitchClass;
+		const inst = instrument;
+		const rangeHigh = getEffectiveHighestNote();
+		if (s.scaleType) {
+			const scaleId = SCALE_TYPE_TO_SCALE_ID[s.scaleType];
+			if (scaleId) {
+				return transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh);
+			}
+		}
+		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh);
+	}
+
+	async function togglePlayLick(s: SessionResult): Promise<void> {
+		if (!playbackModule) {
+			playbackModule = await import('$lib/audio/playback');
+		}
+
+		// Don't run lick audio over a recording playback.
+		stopRecordingPlayback();
+
+		if (playingLickSessionId === s.id) {
+			await stopLickPlayback();
+			return;
+		}
+		if (playingLickSessionId) {
+			await stopLickPlayback();
+		}
+
+		const phrase = findPhraseForSession(s);
+		if (!phrase) return;
+
+		if (!playbackModule.isInstrumentLoaded()) {
+			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+		}
+		setMasterVolume(settings.masterVolume);
+
+		playingLickSessionId = s.id;
+		try {
+			await playbackModule.playPhrase(phrase, {
+				tempo: s.tempo,
+				swing: settings.swing,
+				countInBeats: 0,
+				metronomeEnabled: false,
+				metronomeVolume: 0
+			});
+		} catch (err) {
+			console.error('Failed to play lick:', err);
+		} finally {
+			if (playingLickSessionId === s.id) {
+				playingLickSessionId = null;
+			}
 		}
 	}
 
@@ -285,25 +373,48 @@
 
 							<!-- Expanded detail view -->
 							{#if expandedSessionId === s.id}
+								{@const lickAvailable = !!findPhraseForSession(s)}
 								<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
 									<!-- Audio playback -->
-									{#if recordingIds.has(s.id)}
-										<button
-											onclick={() => toggleAudio(s.id)}
-											class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
-										>
-											{#if playingSessionId === s.id}
-												<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-													<rect x="6" y="6" width="12" height="12" rx="1" />
-												</svg>
-												<span>Stop</span>
-											{:else}
-												<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-													<path d="M8 5v14l11-7z" />
-												</svg>
-												<span>Play Recording</span>
+									{#if recordingIds.has(s.id) || lickAvailable}
+										<div class="flex flex-wrap gap-2">
+											{#if recordingIds.has(s.id)}
+												<button
+													onclick={() => toggleAudio(s.id)}
+													class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
+												>
+													{#if playingSessionId === s.id}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<rect x="6" y="6" width="12" height="12" rx="1" />
+														</svg>
+														<span>Stop</span>
+													{:else}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<path d="M8 5v14l11-7z" />
+														</svg>
+														<span>Play Recording</span>
+													{/if}
+												</button>
 											{/if}
-										</button>
+											{#if lickAvailable}
+												<button
+													onclick={() => togglePlayLick(s)}
+													class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
+												>
+													{#if playingLickSessionId === s.id}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<rect x="6" y="6" width="12" height="12" rx="1" />
+														</svg>
+														<span>Stop</span>
+													{:else}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<path d="M8 5v14l11-7z" />
+														</svg>
+														<span>Play Lick</span>
+													{/if}
+												</button>
+											{/if}
+										</div>
 									{/if}
 
 									<!-- Score breakdown -->
