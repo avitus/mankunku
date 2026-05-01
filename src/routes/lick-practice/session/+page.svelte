@@ -33,6 +33,7 @@
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
 	import { appendLickPracticeSession } from '$lib/persistence/lick-practice-sessions';
+	import { recordLickPracticeAttempt } from '$lib/state/progress.svelte';
 	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { SessionReport } from '$lib/types/lick-practice';
@@ -677,9 +678,14 @@
 		// We deliberately do NOT call the global ear-training recordAttempt
 		// here — lick practice has its own isolated persistence so it does
 		// not influence the adaptive difficulty, scale/key proficiency,
-		// session history, streak, or any other ear-training state.
+		// session history, or category/per-lick stats.
+		//
+		// Streak + daily-summary aggregation IS shared across modes — calendar
+		// and trend views should reflect any practice activity, not just ear
+		// training. recordLickPracticeAttempt updates only those fields.
 		if (score) {
 			recordKeyAttempt(score, window.sessionId);
+			recordLickPracticeAttempt(score, window.phrase.category, supabase ?? undefined);
 		}
 
 		// Persist the audio + metadata for /diagnostics. Each key-window is

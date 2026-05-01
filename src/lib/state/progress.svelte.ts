@@ -13,7 +13,7 @@ import { createInitialAdaptiveState, processAttempt, createInitialScaleProficien
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
-import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud } from '$lib/persistence/sync';
+import { syncProgressToCloud, syncProgressAggregateToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud, syncDailySummaryToCloud, deleteDailySummariesFromCloud } from '$lib/persistence/sync';
 import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 
@@ -255,7 +255,7 @@ export function recordAttempt(
 	updateStreak();
 
 	// Aggregate into daily summary for long-term tracking
-	aggregateSession(
+	const summary = aggregateSession(
 		session,
 		progress.adaptive.pitchComplexity,
 		progress.adaptive.rhythmComplexity
@@ -268,6 +268,53 @@ export function recordAttempt(
 	if (supabase) {
 		syncProgressToCloud(supabase, progress).catch((err) => {
 			console.warn('Failed to sync progress to cloud:', err);
+		});
+		syncDailySummaryToCloud(supabase, summary).catch((err) => {
+			console.warn('Failed to sync daily summary to cloud:', err);
+		});
+	}
+}
+
+/**
+ * Record a lick-practice key attempt's contribution to the cross-mode
+ * "practice activity" signals: streak counter and daily summary.
+ *
+ * Deliberately does NOT touch adaptive difficulty, per-scale or per-key
+ * proficiency, the session log, category progress, or per-lick progress —
+ * those remain ear-training-only. Lick-practice keeps its own isolated
+ * per-lick / per-key store via lick-practice.svelte.ts.
+ */
+export function recordLickPracticeAttempt(
+	score: Score,
+	category: PhraseCategory,
+	supabase?: SupabaseClient<Database>
+): void {
+	const summary = aggregateSession({
+		timestamp: Date.now(),
+		overall: score.overall,
+		pitchAccuracy: score.pitchAccuracy,
+		rhythmAccuracy: score.rhythmAccuracy,
+		grade: score.grade,
+		category,
+		notesHit: score.notesHit,
+		notesTotal: score.notesTotal,
+		source: 'lick-practice'
+	});
+
+	updateStreak();
+	saveProgress();
+
+	if (supabase) {
+		// Lightweight aggregate-only sync — touches just the user_progress
+		// row (streak / lastPracticeDate). Avoids the four-table re-upsert
+		// (session_results + scale_proficiency + key_proficiency) on every
+		// lick-practice key attempt, which would otherwise produce heavy
+		// write amplification on a high-frequency practice loop.
+		syncProgressAggregateToCloud(supabase, progress).catch((err) => {
+			console.warn('Failed to sync progress aggregate to cloud:', err);
+		});
+		syncDailySummaryToCloud(supabase, summary).catch((err) => {
+			console.warn('Failed to sync daily summary to cloud:', err);
 		});
 	}
 }
@@ -419,6 +466,9 @@ export function resetProgress(supabase?: SupabaseClient<Database>): void {
 		// Delete orphaned detail rows that syncProgressToCloud skips when empty
 		deleteProgressDetailsFromCloud(supabase).catch((err) => {
 			console.warn('Failed to delete progress details from cloud:', err);
+		});
+		deleteDailySummariesFromCloud(supabase).catch((err) => {
+			console.warn('Failed to delete daily summaries from cloud:', err);
 		});
 	}
 }

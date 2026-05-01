@@ -17,10 +17,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
 	syncProgressToCloud,
+	syncProgressAggregateToCloud,
 	loadProgressFromCloud,
 	syncSettingsToCloud,
 	loadSettingsFromCloud,
-	syncUserLicksToCloud
+	syncUserLicksToCloud,
+	syncDailySummaryToCloud,
+	syncAllDailySummariesToCloud,
+	loadDailySummariesFromCloud,
+	deleteDailySummariesFromCloud
 } from '$lib/persistence/sync';
 import type {
 	UserProgress,
@@ -28,7 +33,8 @@ import type {
 	ScaleProficiency,
 	KeyProficiency,
 	AdaptiveState,
-	CategoryProgress
+	CategoryProgress,
+	DailySummary
 } from '$lib/types/progress';
 import type { Phrase } from '$lib/types/music';
 
@@ -999,5 +1005,262 @@ describe('syncUserLicksToCloud', () => {
 
 		expect(eqCalls).toContainEqual(['user_id', 'test-user-id']);
 		expect(inCalls).toContainEqual(['id', ['user-1234-abcd']]);
+	});
+});
+
+// ═════════════════════════════════════════════════════════════════════
+//  Daily-summary sync tests
+// ═════════════════════════════════════════════════════════════════════
+
+const TEST_SUMMARY: DailySummary = {
+	date: '2026-04-30',
+	sessionCount: 5,
+	earTrainingSessions: 3,
+	lickPracticeSessions: 2,
+	practiceMinutes: 10,
+	avgOverall: 0.81,
+	avgPitch: 0.82,
+	avgRhythm: 0.80,
+	bestScore: 0.95,
+	notesTotal: 40,
+	notesHit: 33,
+	grades: { perfect: 1, great: 1, good: 2, fair: 1, tryAgain: 0 },
+	categories: { 'ii-V-I-major': 3, 'blues': 2 },
+	pitchComplexity: 14,
+	rhythmComplexity: 12
+};
+
+describe('syncProgressAggregateToCloud', () => {
+	function buildAggregateMock(updateRows: Array<{ user_id: string }> = [{ user_id: 'test-user-id' }]) {
+		const updateFn = vi.fn();
+		const upsertFn = vi.fn().mockResolvedValue({ error: null });
+		const fromFn = vi.fn(() => {
+			const builder: Record<string, any> = {};
+			builder.update = vi.fn((payload: unknown) => {
+				updateFn(payload);
+				return builder;
+			});
+			builder.eq = vi.fn(() => builder);
+			builder.select = vi.fn(() => builder);
+			builder.upsert = upsertFn;
+			builder.then = (resolve: any, reject: any) =>
+				Promise.resolve({ data: updateRows, error: null }).then(resolve, reject);
+			return builder;
+		});
+		return {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } }) },
+			from: fromFn,
+			_updateFn: updateFn,
+			_upsertFn: upsertFn,
+			_fromFn: fromFn
+		};
+	}
+
+	it('updates only aggregate columns when the row exists — never adaptive/category/key_progress', async () => {
+		const mock = buildAggregateMock();
+		await syncProgressAggregateToCloud(mock as any, TEST_PROGRESS);
+
+		expect(mock._fromFn).toHaveBeenCalledWith('user_progress');
+		expect(mock._updateFn).toHaveBeenCalledTimes(1);
+		const payload = mock._updateFn.mock.calls[0][0];
+		expect(payload.streak_days).toBe(TEST_PROGRESS.streakDays);
+		expect(payload.last_practice_date).toBe(TEST_PROGRESS.lastPracticeDate);
+		expect(payload.total_practice_time).toBe(TEST_PROGRESS.totalPracticeTime);
+		// Critical: must not write fields a parallel ear-training device may
+		// have advanced past us on.
+		expect(payload).not.toHaveProperty('adaptive_state');
+		expect(payload).not.toHaveProperty('category_progress');
+		expect(payload).not.toHaveProperty('key_progress');
+		// And no upsert fallback when the row already exists.
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+	});
+
+	it('falls back to upsert when the user has no user_progress row yet', async () => {
+		const mock = buildAggregateMock([]); // update affects 0 rows
+		await syncProgressAggregateToCloud(mock as any, TEST_PROGRESS);
+		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
+		const [row] = mock._upsertFn.mock.calls[0];
+		// Insert path includes the full progress shape so subsequent updates
+		// have something to land on.
+		expect(row.user_id).toBe('test-user-id');
+		expect(row.adaptive_state).toBeDefined();
+		expect(row.category_progress).toBeDefined();
+		expect(row.key_progress).toBeDefined();
+	});
+
+	it('skips when unauthenticated', async () => {
+		const mock = createMockSupabase({ user: null });
+		await syncProgressAggregateToCloud(mock as any, TEST_PROGRESS);
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+	});
+});
+
+describe('syncDailySummaryToCloud', () => {
+	it('upserts a single row keyed on (user_id, date) with the right payload', async () => {
+		const mock = createMockSupabase();
+		await syncDailySummaryToCloud(mock as any, TEST_SUMMARY);
+
+		expect(mock._fromFn).toHaveBeenCalledWith('daily_summaries');
+		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
+		const [row, opts] = mock._upsertFn.mock.calls[0];
+		expect(opts).toEqual({ onConflict: 'user_id,date' });
+		expect(row.user_id).toBe('test-user-id');
+		expect(row.date).toBe('2026-04-30');
+		expect(row.session_count).toBe(5);
+		expect(row.ear_training_sessions).toBe(3);
+		expect(row.lick_practice_sessions).toBe(2);
+		expect(row.pitch_complexity).toBe(14);
+		expect(row.rhythm_complexity).toBe(12);
+	});
+
+	it('encodes a missing snapshot as null for nullable cloud columns', async () => {
+		const mock = createMockSupabase();
+		const lickOnly: DailySummary = {
+			...TEST_SUMMARY,
+			pitchComplexity: undefined,
+			rhythmComplexity: undefined
+		};
+		await syncDailySummaryToCloud(mock as any, lickOnly);
+		const [row] = mock._upsertFn.mock.calls[0];
+		expect(row.pitch_complexity).toBeNull();
+		expect(row.rhythm_complexity).toBeNull();
+	});
+
+	it('skips when unauthenticated', async () => {
+		const mock = createMockSupabase({ user: null });
+		await syncDailySummaryToCloud(mock as any, TEST_SUMMARY);
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+	});
+
+	it('falls back ear_training_sessions to sessionCount when the split is missing', async () => {
+		// Pre-split summary saved by an older client
+		const mock = createMockSupabase();
+		const preSplit: DailySummary = {
+			...TEST_SUMMARY,
+			earTrainingSessions: undefined,
+			lickPracticeSessions: undefined
+		};
+		await syncDailySummaryToCloud(mock as any, preSplit);
+		const [row] = mock._upsertFn.mock.calls[0];
+		// Should not push undefined into NOT NULL columns.
+		expect(row.ear_training_sessions).toBe(preSplit.sessionCount);
+		expect(row.lick_practice_sessions).toBe(0);
+	});
+});
+
+describe('syncAllDailySummariesToCloud', () => {
+	it('bulk-upserts every summary in one call', async () => {
+		const mock = createMockSupabase();
+		const day2 = { ...TEST_SUMMARY, date: '2026-04-29' };
+		await syncAllDailySummariesToCloud(mock as any, [TEST_SUMMARY, day2]);
+		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
+		const [rows, opts] = mock._upsertFn.mock.calls[0];
+		expect(Array.isArray(rows)).toBe(true);
+		expect(rows).toHaveLength(2);
+		expect(opts).toEqual({ onConflict: 'user_id,date' });
+	});
+
+	it('is a no-op on empty input', async () => {
+		const mock = createMockSupabase();
+		await syncAllDailySummariesToCloud(mock as any, []);
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+	});
+});
+
+describe('loadDailySummariesFromCloud', () => {
+	it('maps snake_case columns back to DailySummary camelCase fields', async () => {
+		const cloudRow = {
+			date: '2026-04-30',
+			session_count: 5,
+			ear_training_sessions: 3,
+			lick_practice_sessions: 2,
+			practice_minutes: 10,
+			avg_overall: 0.81,
+			avg_pitch: 0.82,
+			avg_rhythm: 0.80,
+			best_score: 0.95,
+			notes_total: 40,
+			notes_hit: 33,
+			grades: { perfect: 1, great: 1, good: 2, fair: 1, tryAgain: 0 },
+			categories: { 'ii-V-I-major': 3, blues: 2 },
+			pitch_complexity: 14,
+			rhythm_complexity: 12
+		};
+		const mock = createMockSupabase({
+			tableResults: { daily_summaries: { data: [cloudRow], error: null } }
+		});
+		const out = await loadDailySummariesFromCloud(mock as any);
+		expect(out).not.toBeNull();
+		expect(out).toHaveLength(1);
+		const s = out![0];
+		expect(s.date).toBe('2026-04-30');
+		expect(s.sessionCount).toBe(5);
+		expect(s.earTrainingSessions).toBe(3);
+		expect(s.lickPracticeSessions).toBe(2);
+		expect(s.pitchComplexity).toBe(14);
+		expect(s.rhythmComplexity).toBe(12);
+	});
+
+	it('decodes null pitch/rhythm complexity columns as undefined', async () => {
+		const cloudRow = {
+			date: '2026-04-30',
+			session_count: 1,
+			ear_training_sessions: 0,
+			lick_practice_sessions: 1,
+			practice_minutes: 2,
+			avg_overall: 0.7,
+			avg_pitch: 0.7,
+			avg_rhythm: 0.7,
+			best_score: 0.7,
+			notes_total: 8,
+			notes_hit: 6,
+			grades: { perfect: 0, great: 0, good: 1, fair: 0, tryAgain: 0 },
+			categories: { 'ii-V-I-major': 1 },
+			pitch_complexity: null,
+			rhythm_complexity: null
+		};
+		const mock = createMockSupabase({
+			tableResults: { daily_summaries: { data: [cloudRow], error: null } }
+		});
+		const out = await loadDailySummariesFromCloud(mock as any);
+		expect(out![0].pitchComplexity).toBeUndefined();
+		expect(out![0].rhythmComplexity).toBeUndefined();
+	});
+
+	it('returns null when unauthenticated', async () => {
+		const mock = createMockSupabase({ user: null });
+		const out = await loadDailySummariesFromCloud(mock as any);
+		expect(out).toBeNull();
+	});
+});
+
+describe('deleteDailySummariesFromCloud', () => {
+	it('issues a delete scoped to the authenticated user', async () => {
+		const eqCalls: [string, string][] = [];
+		const deleteFn = vi.fn(() => ({
+			eq: (col: string, val: string) => {
+				eqCalls.push([col, val]);
+				return Promise.resolve({ error: null });
+			}
+		}));
+		const fromFn = vi.fn(() => ({ delete: deleteFn }));
+		const mock = {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } } }) },
+			from: fromFn
+		};
+		await deleteDailySummariesFromCloud(mock as any);
+		expect(fromFn).toHaveBeenCalledWith('daily_summaries');
+		expect(deleteFn).toHaveBeenCalledTimes(1);
+		expect(eqCalls).toContainEqual(['user_id', 'test-user-id']);
+	});
+
+	it('skips when unauthenticated', async () => {
+		const fromFn = vi.fn();
+		const mock = {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+			from: fromFn
+		};
+		await deleteDailySummariesFromCloud(mock as any);
+		expect(fromFn).not.toHaveBeenCalled();
 	});
 });
