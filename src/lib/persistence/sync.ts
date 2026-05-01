@@ -27,7 +27,9 @@ import type {
 	ScaleProficiency,
 	KeyProficiency,
 	AdaptiveState,
-	CategoryProgress
+	CategoryProgress,
+	DailySummary,
+	GradeDistribution
 } from '$lib/types/progress';
 import { PITCH_CLASSES, type Phrase, type PhraseCategory, type PitchClass } from '$lib/types/music';
 import type { LickPracticeProgress } from '$lib/types/lick-practice';
@@ -380,6 +382,172 @@ export async function loadProgressFromCloud(
 	} catch (error) {
 		console.warn('Failed to load progress from cloud:', error);
 		return null;
+	}
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  Daily summary sync
+// ═════════════════════════════════════════════════════════════════════
+
+function dailySummaryToRow(userId: string, s: DailySummary) {
+	return {
+		user_id: userId,
+		date: s.date,
+		session_count: s.sessionCount,
+		ear_training_sessions: s.earTrainingSessions ?? s.sessionCount,
+		lick_practice_sessions: s.lickPracticeSessions ?? 0,
+		practice_minutes: s.practiceMinutes,
+		avg_overall: s.avgOverall,
+		avg_pitch: s.avgPitch,
+		avg_rhythm: s.avgRhythm,
+		best_score: s.bestScore,
+		notes_total: s.notesTotal,
+		notes_hit: s.notesHit,
+		grades: s.grades as unknown as Json,
+		categories: s.categories as unknown as Json,
+		pitch_complexity: s.pitchComplexity ?? null,
+		rhythm_complexity: s.rhythmComplexity ?? null,
+		updated_at: new Date().toISOString()
+	};
+}
+
+function rowToDailySummary(row: {
+	date: string;
+	session_count: number;
+	ear_training_sessions: number;
+	lick_practice_sessions: number;
+	practice_minutes: number;
+	avg_overall: number;
+	avg_pitch: number;
+	avg_rhythm: number;
+	best_score: number;
+	notes_total: number;
+	notes_hit: number;
+	grades: Json;
+	categories: Json;
+	pitch_complexity: number | null;
+	rhythm_complexity: number | null;
+}): DailySummary {
+	return {
+		date: row.date,
+		sessionCount: row.session_count,
+		earTrainingSessions: row.ear_training_sessions,
+		lickPracticeSessions: row.lick_practice_sessions,
+		practiceMinutes: row.practice_minutes,
+		avgOverall: row.avg_overall,
+		avgPitch: row.avg_pitch,
+		avgRhythm: row.avg_rhythm,
+		bestScore: row.best_score,
+		notesTotal: row.notes_total,
+		notesHit: row.notes_hit,
+		grades: (row.grades ?? {}) as unknown as GradeDistribution,
+		categories: (row.categories ?? {}) as unknown as Record<string, number>,
+		pitchComplexity: row.pitch_complexity ?? undefined,
+		rhythmComplexity: row.rhythm_complexity ?? undefined
+	};
+}
+
+/**
+ * Upsert a single day's summary to the cloud.
+ * Called after every aggregateSession() so each device's edits propagate.
+ */
+export async function syncDailySummaryToCloud(
+	supabase: SupabaseDB,
+	summary: DailySummary
+): Promise<void> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const { error } = await supabase
+			.from('daily_summaries')
+			.upsert(dailySummaryToRow(userId, summary), { onConflict: 'user_id,date' });
+
+		if (error) {
+			console.warn('Failed to sync daily summary to cloud:', error);
+		}
+	} catch (error) {
+		console.warn('Failed to sync daily summary to cloud:', error);
+	}
+}
+
+/**
+ * Bulk-upsert all local daily summaries. Used after a fresh login flushes
+ * any offline-only days that the cloud doesn't yet know about.
+ */
+export async function syncAllDailySummariesToCloud(
+	supabase: SupabaseDB,
+	summaries: DailySummary[]
+): Promise<void> {
+	try {
+		if (summaries.length === 0) return;
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const rows = summaries.map((s) => dailySummaryToRow(userId, s));
+		const { error } = await supabase
+			.from('daily_summaries')
+			.upsert(rows, { onConflict: 'user_id,date' });
+
+		if (error) {
+			console.warn('Failed to bulk-sync daily summaries to cloud:', error);
+		}
+	} catch (error) {
+		console.warn('Failed to bulk-sync daily summaries to cloud:', error);
+	}
+}
+
+/**
+ * Fetch every daily summary the cloud has for the current user.
+ * Returns an empty array if the user is unauthenticated or no rows exist;
+ * returns null only on hard errors so the caller can distinguish.
+ */
+export async function loadDailySummariesFromCloud(
+	supabase: SupabaseDB
+): Promise<DailySummary[] | null> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return null;
+
+		const { data, error } = await supabase
+			.from('daily_summaries')
+			.select('*')
+			.eq('user_id', userId)
+			.order('date', { ascending: true });
+
+		if (error) {
+			console.warn('Failed to load daily summaries from cloud:', error);
+			return null;
+		}
+
+		return (data ?? []).map(rowToDailySummary);
+	} catch (error) {
+		console.warn('Failed to load daily summaries from cloud:', error);
+		return null;
+	}
+}
+
+/**
+ * Delete every daily summary for the current user — called from
+ * resetProgress alongside session_results / proficiency cleanup.
+ */
+export async function deleteDailySummariesFromCloud(
+	supabase: SupabaseDB
+): Promise<void> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const { error } = await supabase
+			.from('daily_summaries')
+			.delete()
+			.eq('user_id', userId);
+
+		if (error) {
+			console.warn('Failed to delete daily summaries from cloud:', error);
+		}
+	} catch (error) {
+		console.warn('Failed to delete daily summaries from cloud:', error);
 	}
 }
 

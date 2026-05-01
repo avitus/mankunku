@@ -121,7 +121,19 @@ export interface GradeDistribution {
 /** Compact daily summary — persists indefinitely, never pruned */
 export interface DailySummary {
 	date: string;                          // "YYYY-MM-DD"
-	sessionCount: number;
+	sessionCount: number;                  // total = ear + lick
+	/**
+	 * Scored ear-training attempts on this date. Optional only for backward
+	 * compatibility with summaries written before the split was introduced;
+	 * when reading, treat undefined as `sessionCount` (pre-split summaries
+	 * came from the ear-training-only era).
+	 */
+	earTrainingSessions?: number;
+	/**
+	 * Scored lick-practice key-attempts on this date. Optional for backward
+	 * compatibility with pre-split summaries (treat undefined as 0).
+	 */
+	lickPracticeSessions?: number;
 	practiceMinutes: number;               // estimated ~2 min per session
 	avgOverall: number;                    // 0-1
 	avgPitch: number;                      // 0-1
@@ -131,9 +143,9 @@ export interface DailySummary {
 	notesHit: number;
 	grades: GradeDistribution;
 	categories: Record<string, number>;    // category → session count
-	/** Snapshot of adaptive pitchComplexity at end of day */
+	/** Snapshot of adaptive pitchComplexity at end of day. Set on ear-training only. */
 	pitchComplexity?: number;
-	/** Snapshot of adaptive rhythmComplexity at end of day */
+	/** Snapshot of adaptive rhythmComplexity at end of day. Set on ear-training only. */
 	rhythmComplexity?: number;
 }
 

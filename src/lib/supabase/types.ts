@@ -464,6 +464,97 @@ export type Database = {
       }
 
       /**
+       * Per-day practice aggregates for calendar / trend / period views.
+       * Mirrors the DailySummary interface from progress.ts.
+       * Composite PK on (user_id, date). `date` is local YYYY-MM-DD.
+       */
+      daily_summaries: {
+        Row: {
+          /** UUID foreign key to auth.users.id — part of composite PK */
+          user_id: string
+          /** Local YYYY-MM-DD date string — part of composite PK */
+          date: string
+          /** Total scored attempts (ear-training + lick-practice) */
+          session_count: number
+          /** Scored ear-training attempts on this date */
+          ear_training_sessions: number
+          /** Scored lick-practice key attempts on this date */
+          lick_practice_sessions: number
+          /** Estimated practice minutes */
+          practice_minutes: number
+          /** Average overall score (0.0–1.0) across all attempts on this date */
+          avg_overall: number
+          /** Average pitch accuracy (0.0–1.0) */
+          avg_pitch: number
+          /** Average rhythm accuracy (0.0–1.0) */
+          avg_rhythm: number
+          /** Highest single-attempt overall score (0.0–1.0) */
+          best_score: number
+          /** Total expected notes summed across all attempts */
+          notes_total: number
+          /** Total notes hit summed across all attempts */
+          notes_hit: number
+          /** JSONB GradeDistribution { perfect, great, good, fair, tryAgain } */
+          grades: Json
+          /** JSONB Record<PhraseCategory, number> — count per category */
+          categories: Json
+          /** Snapshot of adaptive pitchComplexity at end of day. Nullable. */
+          pitch_complexity: number | null
+          /** Snapshot of adaptive rhythmComplexity at end of day. Nullable. */
+          rhythm_complexity: number | null
+          /** Last modification timestamp — used for sync conflict resolution */
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          date: string
+          session_count?: number
+          ear_training_sessions?: number
+          lick_practice_sessions?: number
+          practice_minutes?: number
+          avg_overall?: number
+          avg_pitch?: number
+          avg_rhythm?: number
+          best_score?: number
+          notes_total?: number
+          notes_hit?: number
+          grades?: Json
+          categories?: Json
+          pitch_complexity?: number | null
+          rhythm_complexity?: number | null
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          date?: string
+          session_count?: number
+          ear_training_sessions?: number
+          lick_practice_sessions?: number
+          practice_minutes?: number
+          avg_overall?: number
+          avg_pitch?: number
+          avg_rhythm?: number
+          best_score?: number
+          notes_total?: number
+          notes_hit?: number
+          grades?: Json
+          categories?: Json
+          pitch_complexity?: number | null
+          rhythm_complexity?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_summaries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+
+      /**
        * Thumbs-up relation between users and licks (community feature).
        * Composite PK (user_id, lick_id) enforces idempotent favoriting.
        * ON DELETE CASCADE on lick_id removes favorites when the author

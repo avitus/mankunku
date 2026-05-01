@@ -73,16 +73,29 @@
 		return labels;
 	});
 
-	function cellColor(cell: Cell): string {
-		if (cell.future) return 'var(--color-bg-tertiary)';
-		if (!cell.summary) return 'var(--color-bg-tertiary)';
-		const count = cell.summary.sessionCount;
-		// Intensity based on session count (brass heatmap): 1=low, 2-3=med, 4+=high.
-		// Brass is the decorative Blue Note accent — progress lives here, not on
-		// the domain accent.
-		if (count >= 4) return 'var(--color-brass)';
-		if (count >= 2) return 'color-mix(in srgb, var(--color-brass) 65%, var(--color-bg-tertiary))';
-		return 'color-mix(in srgb, var(--color-brass) 35%, var(--color-bg-tertiary))';
+	const EMPTY_FILL = 'var(--color-bg-tertiary)';
+	// Two muted hues for the split: brass (warm) for ear training,
+	// accent (cool) for lick practice. Same intensity ladder as before.
+	function intensityFill(baseVar: string, count: number): string {
+		if (count <= 0) return EMPTY_FILL;
+		if (count >= 4) return `var(${baseVar})`;
+		if (count >= 2) return `color-mix(in srgb, var(${baseVar}) 65%, var(--color-bg-tertiary))`;
+		return `color-mix(in srgb, var(${baseVar}) 35%, var(--color-bg-tertiary))`;
+	}
+
+	function earFill(cell: Cell): string {
+		if (cell.future || !cell.summary) return EMPTY_FILL;
+		// Pre-split summaries (no ear/lick split recorded) came from the
+		// ear-training-only era — count them as ear-training so old days
+		// still render with intensity rather than appearing empty.
+		const count = cell.summary.earTrainingSessions ?? cell.summary.sessionCount;
+		return intensityFill('--color-brass', count);
+	}
+
+	function lickFill(cell: Cell): string {
+		if (cell.future || !cell.summary) return EMPTY_FILL;
+		const count = cell.summary.lickPracticeSessions ?? 0;
+		return intensityFill('--color-accent', count);
 	}
 
 	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);
@@ -96,8 +109,14 @@
 		const date = new Date(s.date + 'T12:00:00').toLocaleDateString(undefined, {
 			weekday: 'short', month: 'short', day: 'numeric'
 		});
+		const ear = s.earTrainingSessions ?? s.sessionCount;
+		const lick = s.lickPracticeSessions ?? 0;
+		const parts: string[] = [];
+		if (ear > 0) parts.push(`${ear} ear-training`);
+		if (lick > 0) parts.push(`${lick} lick-practice`);
+		const breakdown = parts.length > 0 ? ` (${parts.join(', ')})` : '';
 		tooltip = {
-			text: `${date}: ${s.sessionCount} session${s.sessionCount !== 1 ? 's' : ''}, avg ${Math.round(s.avgOverall * 100)}%`,
+			text: `${date}: ${s.sessionCount} session${s.sessionCount !== 1 ? 's' : ''}${breakdown}, avg ${Math.round(s.avgOverall * 100)}%`,
 			x: event.offsetX,
 			y: event.offsetY
 		};
@@ -140,18 +159,43 @@
 			{/if}
 		{/each}
 
-		<!-- Cells -->
+		<!-- Cells: two stacked halves per day (top = lick-practice, bottom =
+		     ear-training). The transparent overlay handles hover events so
+		     the tooltip fires anywhere on the cell, not just the half that
+		     happens to be filled. -->
 		{#each cells as cell}
 			{#if !cell.future}
+				{@const cellX = LABEL_WIDTH + cell.week * TOTAL}
+				{@const cellY = HEADER_HEIGHT + cell.day * TOTAL}
+				{@const halfH = CELL_SIZE / 2}
+				<!-- Lick-practice (top half) -->
 				<rect
-					x={LABEL_WIDTH + cell.week * TOTAL}
-					y={HEADER_HEIGHT + cell.day * TOTAL}
+					x={cellX}
+					y={cellY}
+					width={CELL_SIZE}
+					height={halfH}
+					fill={lickFill(cell)}
+				/>
+				<!-- Ear-training (bottom half) -->
+				<rect
+					x={cellX}
+					y={cellY + halfH}
+					width={CELL_SIZE}
+					height={CELL_SIZE - halfH}
+					fill={earFill(cell)}
+				/>
+				<!-- Hover/aria target spanning the full cell -->
+				<rect
+					x={cellX}
+					y={cellY}
 					width={CELL_SIZE}
 					height={CELL_SIZE}
 					rx="2"
-					fill={cellColor(cell)}
+					fill="transparent"
 					role="img"
-					aria-label={cell.summary ? `${cell.date}: ${cell.summary.sessionCount} sessions` : cell.date}
+					aria-label={cell.summary
+						? `${cell.date}: ${cell.summary.earTrainingSessions ?? cell.summary.sessionCount} ear-training, ${cell.summary.lickPracticeSessions ?? 0} lick-practice`
+						: cell.date}
 					onmouseenter={(e) => showTooltip(cell, e)}
 					onmouseleave={hideTooltip}
 				/>
@@ -169,31 +213,49 @@
 		</div>
 	{/if}
 
-	<!-- Static legend -->
-	<div class="mt-2 flex items-center justify-end gap-2 text-xs text-[var(--color-text-secondary)]">
-		<span>Less</span>
-		<div class="flex gap-1">
+	<!-- Static legend: two-tone split (top half = lick practice, bottom = ear training) -->
+	<div class="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-[var(--color-text-secondary)]">
+		<span class="flex items-center gap-1">
 			<span
 				class="block h-3 w-3 rounded-sm"
-				style="background: var(--color-bg-tertiary)"
-				aria-label="No sessions"
+				style="background: linear-gradient(to bottom, var(--color-bg-tertiary) 50%, var(--color-brass) 50%)"
+				aria-label="Ear training"
 			></span>
+			Ear training
+		</span>
+		<span class="flex items-center gap-1">
 			<span
 				class="block h-3 w-3 rounded-sm"
-				style="background: color-mix(in srgb, var(--color-brass) 35%, var(--color-bg-tertiary))"
-				aria-label="1 session"
+				style="background: linear-gradient(to bottom, var(--color-accent) 50%, var(--color-bg-tertiary) 50%)"
+				aria-label="Lick practice"
 			></span>
-			<span
-				class="block h-3 w-3 rounded-sm"
-				style="background: color-mix(in srgb, var(--color-brass) 65%, var(--color-bg-tertiary))"
-				aria-label="2-3 sessions"
-			></span>
-			<span
-				class="block h-3 w-3 rounded-sm"
-				style="background: var(--color-brass)"
-				aria-label="4+ sessions"
-			></span>
-		</div>
-		<span>More</span>
+			Lick practice
+		</span>
+		<span class="flex items-center gap-2">
+			<span>Less</span>
+			<span class="flex gap-1">
+				<span
+					class="block h-3 w-3 rounded-sm"
+					style="background: var(--color-bg-tertiary)"
+					aria-label="No sessions"
+				></span>
+				<span
+					class="block h-3 w-3 rounded-sm"
+					style="background: color-mix(in srgb, var(--color-brass) 35%, var(--color-bg-tertiary))"
+					aria-label="1 session"
+				></span>
+				<span
+					class="block h-3 w-3 rounded-sm"
+					style="background: color-mix(in srgb, var(--color-brass) 65%, var(--color-bg-tertiary))"
+					aria-label="2-3 sessions"
+				></span>
+				<span
+					class="block h-3 w-3 rounded-sm"
+					style="background: var(--color-brass)"
+					aria-label="4+ sessions"
+				></span>
+			</span>
+			<span>More</span>
+		</span>
 	</div>
 </div>

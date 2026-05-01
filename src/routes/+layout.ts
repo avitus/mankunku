@@ -97,7 +97,10 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	if (isBrowser() && session) {
 		const { initFromCloud } = await import('$lib/state/progress.svelte');
 		const { loadSettingsFromCloud } = await import('$lib/state/settings.svelte');
-		const { rebuildHistoryIfNeeded } = await import('$lib/state/history.svelte');
+		const { rebuildHistoryIfNeeded, mergeCloudSummaries } =
+			await import('$lib/state/history.svelte');
+		const { loadDailySummariesFromCloud, syncAllDailySummariesToCloud } =
+			await import('$lib/persistence/sync');
 		const { initLickMetadataFromCloud, reconcileOrphanedLickMetadata } =
 			await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
@@ -105,6 +108,9 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 
 		// Reconciliation must run AFTER initUserLicksFromCloud and
 		// initCommunityFromCloud finish — getAllLicks() reads both stores.
+		// Daily-summary cloud hydration runs after rebuildHistoryIfNeeded so
+		// any locally-derived rows (from the last 100 sessions) are in place
+		// before the cloud merge potentially overwrites them.
 		const hydration = Promise.all([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
@@ -113,7 +119,15 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			initCommunityFromCloud(supabase)
 		])
 			.then(() => reconcileOrphanedLickMetadata(supabase))
-			.then(() => rebuildHistoryIfNeeded());
+			.then(() => rebuildHistoryIfNeeded())
+			.then(async () => {
+				const cloudSummaries = await loadDailySummariesFromCloud(supabase);
+				if (cloudSummaries == null) return;
+				const localOnly = mergeCloudSummaries(cloudSummaries);
+				if (localOnly.length > 0) {
+					await syncAllDailySummariesToCloud(supabase, localOnly);
+				}
+			});
 
 		// Don't block rendering for more than 2s (offline / slow connections).
 		// The hydration promise continues in the background if the timeout wins.
