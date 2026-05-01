@@ -68,7 +68,14 @@ import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-lo
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
-import { selectInitialProgression, DEFAULT_PROGRESSION } from './lick-practice-picker';
+import {
+	selectInitialProgression,
+	buildUpcomingLicks,
+	DEFAULT_PROGRESSION,
+	type UpcomingLickEntry
+} from './lick-practice-picker';
+
+export type { UpcomingLickEntry };
 
 const PASS_THRESHOLD = 0.80;
 
@@ -171,6 +178,22 @@ export function getPracticeLicks(): Phrase[] {
 		const matchesByProgressionTag = isTaggedForProgression(lick.id, progressionType);
 		const matchesBySubstitution = substitutionCategories.includes(lick.category);
 		return matchesByCategory || matchesByProgressionTag || matchesBySubstitution;
+	});
+}
+
+/**
+ * Build the "Upcoming Licks" list for the session-complete screen — runes
+ * wrapper that resolves dependencies and delegates to `buildUpcomingLicks`.
+ */
+export function getUpcomingLicks(): UpcomingLickEntry[] {
+	const taggedIds = getPracticeTaggedIds();
+	if (taggedIds.size === 0) return [];
+
+	const candidates = getAllLicks().filter((l) => taggedIds.has(l.id));
+	return buildUpcomingLicks({
+		candidates,
+		progress: lickPractice.progress,
+		getProgressionTags
 	});
 }
 

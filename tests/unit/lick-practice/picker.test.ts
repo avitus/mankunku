@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	selectInitialProgression,
+	buildUpcomingLicks,
 	DEFAULT_PROGRESSION
 } from '$lib/state/lick-practice-picker';
 import type {
@@ -188,5 +189,87 @@ describe('selectInitialProgression', () => {
 			getProgressionTags: noTags
 		});
 		expect(got).toBe('minor-vamp');
+	});
+});
+
+describe('buildUpcomingLicks', () => {
+	it('returns [] when no candidates are supplied', () => {
+		const got = buildUpcomingLicks({
+			candidates: [],
+			progress: {},
+			getProgressionTags: noTags
+		});
+		expect(got).toEqual([]);
+	});
+
+	it('drops licks with no compatible progressions', () => {
+		// `pentatonic` is not listed in PROGRESSION_LICK_CATEGORIES and the
+		// fake getProgressionTags returns nothing — so the lick is hidden.
+		const got = buildUpcomingLicks({
+			candidates: [lick('lk_pent', 'pentatonic')],
+			progress: {},
+			getProgressionTags: noTags
+		});
+		expect(got).toEqual([]);
+	});
+
+	it('sorts by lastPracticedAt ascending; never-practiced bubbles to top', () => {
+		// lk_old: practiced; lk_new: never. Both `minor-chord`.
+		const got = buildUpcomingLicks({
+			candidates: [
+				lick('lk_old', 'minor-chord'),
+				lick('lk_new', 'minor-chord')
+			],
+			progress: progressForLick('lk_old', { C: 1000 }),
+			getProgressionTags: noTags
+		});
+		expect(got.map((e) => e.lick.id)).toEqual(['lk_new', 'lk_old']);
+		expect(got[0].lastPracticedAt).toBe(0);
+		expect(got[1].lastPracticedAt).toBe(1000);
+	});
+
+	it('returns category-compatible progressions in pill order for major-chord', () => {
+		// `major-chord` fits major-vamp, ii-V-I-major, ii-V-I-major-long, turnaround.
+		const got = buildUpcomingLicks({
+			candidates: [lick('lk1', 'major-chord')],
+			progress: {},
+			getProgressionTags: noTags
+		});
+		expect(got).toHaveLength(1);
+		expect(got[0].progressions).toEqual([
+			'major-vamp',
+			'ii-V-I-major',
+			'ii-V-I-major-long',
+			'turnaround'
+		]);
+	});
+
+	it('unions user prog:* tags with category-derived progressions, no duplicates', () => {
+		// `major-chord` covers major-vamp etc. natively. User adds `blues` via
+		// progression tag — must appear once at the end of pill order.
+		const got = buildUpcomingLicks({
+			candidates: [lick('lk1', 'major-chord')],
+			progress: {},
+			getProgressionTags: (id) => (id === 'lk1' ? ['blues', 'major-vamp'] : [])
+		});
+		expect(got[0].progressions).toEqual([
+			'major-vamp',
+			'ii-V-I-major',
+			'ii-V-I-major-long',
+			'turnaround',
+			'blues'
+		]);
+	});
+
+	it('promotes a category-incompatible lick when the user tags a progression', () => {
+		// `pentatonic` has no native progression. With a `prog:blues` tag, it
+		// surfaces — and the only progression chip is the tagged one.
+		const got = buildUpcomingLicks({
+			candidates: [lick('lk1', 'pentatonic')],
+			progress: {},
+			getProgressionTags: (id) => (id === 'lk1' ? ['blues'] : [])
+		});
+		expect(got).toHaveLength(1);
+		expect(got[0].progressions).toEqual(['blues']);
 	});
 });

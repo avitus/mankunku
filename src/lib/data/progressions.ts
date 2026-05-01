@@ -410,6 +410,26 @@ export function getCompatibleLickCategories(
 	return PROGRESSION_LICK_CATEGORIES[progressionType].map(e => e.category);
 }
 
+/**
+ * Inverse of `getCompatibleLickCategories`: given a lick category, return all
+ * progression types whose compatibility list includes it. Used to surface the
+ * progressions a lick can be practiced over without consulting substitutions.
+ */
+export function getProgressionsForCategory(
+	category: PhraseCategory
+): ChordProgressionType[] {
+	const result: ChordProgressionType[] = [];
+	for (const [progressionType, entries] of Object.entries(PROGRESSION_LICK_CATEGORIES) as [
+		ChordProgressionType,
+		CompatibleLickCategory[]
+	][]) {
+		if (entries.some(e => e.category === category)) {
+			result.push(progressionType);
+		}
+	}
+	return result;
+}
+
 // Play a minor lick rooted a semitone above the dominant chord root to create
 // altered/diminished sonority (e.g. Abm7 over G7 → b9, 3, b13, b5/#11 colors).
 export const CHORD_SUBSTITUTION_RULES: ChordSubstitutionRule[] = [

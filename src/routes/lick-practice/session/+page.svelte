@@ -19,9 +19,11 @@
 		startInterLickTransition,
 		updateElapsedTime,
 		resetSession,
-		getSessionReport
+		startSession,
+		getSessionReport,
+		getUpcomingLicks
 	} from '$lib/state/lick-practice.svelte';
-	import { getActiveSubstitution } from '$lib/data/progressions';
+	import { getActiveSubstitution, PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
@@ -36,7 +38,7 @@
 	import { recordLickPracticeAttempt } from '$lib/state/progress.svelte';
 	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
-	import type { SessionReport } from '$lib/types/lick-practice';
+	import type { ChordProgressionType, SessionReport } from '$lib/types/lick-practice';
 	import type { PitchDetectorHandle, PitchReading } from '$lib/audio/pitch-detector';
 	import type { MicCapture } from '$lib/audio/capture';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
@@ -829,6 +831,60 @@
 		goto('/lick-practice');
 	}
 
+	let isRestarting = false;
+	async function handleStartProgression(progressionType: ChordProgressionType) {
+		// Re-entrancy guard: a fast double-click would otherwise race two
+		// initializeSession() calls against the same shared state.
+		if (isRestarting) return;
+		isRestarting = true;
+		try {
+			lickPractice.config.progressionType = progressionType;
+			resetSession();
+			sessionReport = null;
+			// Page-local session state outlives the prior session's stopAll; clear
+			// it before any reactive read can render stale UI between startSession
+			// (sets phase to 'count-in') and startLick (writes fresh values).
+			plannedKeysForLick = [];
+			scrollFraction = 0;
+			isDemoing = false;
+			currentBeat = 0;
+			lickStartTick = 0;
+			lickAudioStartTick = 0;
+			ticksPerKey = 0;
+			beatLoopBeats = 0;
+			startSession();
+			if (lickPractice.phase !== 'count-in') {
+				// startSession bailed (no plan for this progression) — fall back to setup.
+				goto('/lick-practice');
+				return;
+			}
+			// stopAll cleared the elapsed-time interval when the prior session
+			// finished; re-establish it so the SessionTimer ticks again.
+			if (!timerInterval) {
+				timerInterval = setInterval(() => {
+					updateElapsedTime();
+				}, 1000);
+			}
+			await initializeSession();
+		} finally {
+			isRestarting = false;
+		}
+	}
+
+	const RELATIVE_DAY_MS = 24 * 60 * 60 * 1000;
+	function formatLastPracticed(ts: number): string {
+		if (!ts) return 'Never practiced';
+		const days = Math.floor((Date.now() - ts) / RELATIVE_DAY_MS);
+		if (days <= 0) return 'Today';
+		if (days === 1) return 'Yesterday';
+		if (days < 30) return `${days} days ago`;
+		const months = Math.floor(days / 30);
+		if (months === 1) return '1 month ago';
+		if (months < 12) return `${months} months ago`;
+		const years = Math.floor(days / 365);
+		return years === 1 ? '1 year ago' : `${years} years ago`;
+	}
+
 	// Build session report automatically when phase becomes 'complete'
 	$effect(() => {
 		if (lickPractice.phase === 'complete' && !sessionReport) {
@@ -915,6 +971,40 @@
 			>
 				No attempts recorded this session.
 			</div>
+		{/if}
+
+		{@const upcoming = getUpcomingLicks()}
+		{#if upcoming.length > 0}
+			<details class="group rounded-lg bg-[var(--color-bg-secondary)]">
+				<summary
+					class="flex cursor-pointer list-none items-center justify-between px-4 py-3 font-medium hover:bg-[var(--color-bg-tertiary)] rounded-lg transition-colors"
+				>
+					<span>Upcoming Licks <span class="text-xs text-[var(--color-text-secondary)]">({upcoming.length})</span></span>
+					<span class="text-[var(--color-text-secondary)] group-open:rotate-180 transition-transform">▾</span>
+				</summary>
+				<div class="border-t border-[var(--color-bg-tertiary)] px-4 py-3 space-y-3">
+					{#each upcoming as entry (entry.lick.id)}
+						<div class="space-y-1.5">
+							<div class="flex items-baseline justify-between gap-2">
+								<span class="font-medium">{entry.lick.name}</span>
+								<span class="text-xs text-[var(--color-text-secondary)] whitespace-nowrap">
+									{formatLastPracticed(entry.lastPracticedAt)}
+								</span>
+							</div>
+							<div class="flex flex-wrap gap-1.5">
+								{#each entry.progressions as progType}
+									<button
+										onclick={() => handleStartProgression(progType)}
+										class="rounded-md bg-[var(--color-accent)] px-2.5 py-1 text-xs font-bold hover:opacity-90 transition-opacity"
+									>
+										{PROGRESSION_TEMPLATES[progType].shortName}
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</details>
 		{/if}
 
 		<div class="flex gap-3">
