@@ -831,24 +831,44 @@
 		goto('/lick-practice');
 	}
 
+	let isRestarting = false;
 	async function handleStartProgression(progressionType: ChordProgressionType) {
-		lickPractice.config.progressionType = progressionType;
-		resetSession();
-		sessionReport = null;
-		startSession();
-		if (lickPractice.phase !== 'count-in') {
-			// startSession bailed (no plan for this progression) — fall back to setup.
-			goto('/lick-practice');
-			return;
+		// Re-entrancy guard: a fast double-click would otherwise race two
+		// initializeSession() calls against the same shared state.
+		if (isRestarting) return;
+		isRestarting = true;
+		try {
+			lickPractice.config.progressionType = progressionType;
+			resetSession();
+			sessionReport = null;
+			// Page-local session state outlives the prior session's stopAll; clear
+			// it before any reactive read can render stale UI between startSession
+			// (sets phase to 'count-in') and startLick (writes fresh values).
+			plannedKeysForLick = [];
+			scrollFraction = 0;
+			isDemoing = false;
+			currentBeat = 0;
+			lickStartTick = 0;
+			lickAudioStartTick = 0;
+			ticksPerKey = 0;
+			beatLoopBeats = 0;
+			startSession();
+			if (lickPractice.phase !== 'count-in') {
+				// startSession bailed (no plan for this progression) — fall back to setup.
+				goto('/lick-practice');
+				return;
+			}
+			// stopAll cleared the elapsed-time interval when the prior session
+			// finished; re-establish it so the SessionTimer ticks again.
+			if (!timerInterval) {
+				timerInterval = setInterval(() => {
+					updateElapsedTime();
+				}, 1000);
+			}
+			await initializeSession();
+		} finally {
+			isRestarting = false;
 		}
-		// stopAll cleared the elapsed-time interval when the prior session
-		// finished; re-establish it so the SessionTimer ticks again.
-		if (!timerInterval) {
-			timerInterval = setInterval(() => {
-				updateElapsedTime();
-			}, 1000);
-		}
-		await initializeSession();
 	}
 
 	const RELATIVE_DAY_MS = 24 * 60 * 60 * 1000;
