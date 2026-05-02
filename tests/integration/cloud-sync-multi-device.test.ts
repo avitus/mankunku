@@ -363,6 +363,43 @@ describe('adaptive state — forward-compat merge', () => {
 		// when downstream code reads recentPitchScores.
 		expect(Array.isArray(progressModule.progress.adaptive.recentPitchScores)).toBe(true);
 	});
+
+	it('tolerates unknown future fields in the adaptive payload (does not throw)', async () => {
+		// A future schema may add fields the current client doesn't know about.
+		// The merge should pass them through harmlessly — no exceptions, no
+		// silent corruption of known fields.
+		vi.resetModules();
+		const progressModule = await import('$lib/state/progress.svelte');
+
+		const futureAdaptive = {
+			currentLevel: 25,
+			pitchComplexity: 25,
+			rhythmComplexity: 25,
+			recentScores: [0.7],
+			recentPitchScores: [0.7],
+			recentRhythmScores: [0.7],
+			attemptsAtLevel: 2,
+			attemptsSinceChange: 1,
+			pitchAttemptsSinceChange: 1,
+			rhythmAttemptsSinceChange: 1,
+			// Future fields the client doesn't yet read — must not break
+			// initFromCloud's Object.assign / spread.
+			futureMetric: 0.99,
+			futurePolicy: { mode: 'aggressive' }
+		};
+
+		mockLoadProgress.mockResolvedValue({
+			...progressWith([session('cloud-1'), session('cloud-2')]),
+			adaptive: futureAdaptive as unknown as UserProgress['adaptive']
+		});
+
+		const supabase = { auth: {} };
+		await expect(progressModule.initFromCloud(supabase as never)).resolves.toBeUndefined();
+
+		// Known fields land correctly.
+		expect(progressModule.progress.adaptive.currentLevel).toBe(25);
+		expect(progressModule.progress.adaptive.recentPitchScores).toEqual([0.7]);
+	});
 });
 
 // ---------------------------------------------------------------------------
