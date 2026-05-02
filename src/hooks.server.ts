@@ -49,9 +49,18 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
             cookies: {
                 getAll: () => event.cookies.getAll(),
                 setAll: (cookiesToSet) => {
-                    cookiesToSet.forEach(({ name, value, options }) => {
-                        event.cookies.set(name, value, { ...options, path: '/' });
-                    });
+                    // Supabase's auth listener can fire asynchronously after the
+                    // response is generated (e.g. INITIAL_SESSION emitted on a
+                    // microtask after a route that never awaits any auth call).
+                    // Calling cookies.set() at that point throws — swallow it,
+                    // since we have no chance to attach cookies to a sent response.
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) => {
+                            event.cookies.set(name, value, { ...options, path: '/' });
+                        });
+                    } catch {
+                        // response already generated; cookies cannot be set
+                    }
                 }
             }
         }
