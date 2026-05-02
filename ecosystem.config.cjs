@@ -18,7 +18,11 @@ module.exports = {
 				NODE_ENV: 'production',
 				PORT: 3000,
 				ORIGIN: 'https://mankunkujazz.com',
-				PROTOCOL_HEADER: 'x-forwarded-proto'
+				PROTOCOL_HEADER: 'x-forwarded-proto',
+				// Raise from adapter-node's 512K default so the Sentry replay
+				// tunnel at /api/monitoring can receive ~1MB envelopes — the
+				// route's own MAX_ENVELOPE_SIZE_BYTES (1MB) is the real gate.
+				BODY_SIZE_LIMIT: '1M'
 			}
 		}
 	]
