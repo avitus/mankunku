@@ -407,7 +407,7 @@ export function getLickAlignmentOffset(
 export function getCompatibleLickCategories(
 	progressionType: ChordProgressionType
 ): PhraseCategory[] {
-	return PROGRESSION_LICK_CATEGORIES[progressionType].map(e => e.category);
+	return PROGRESSION_LICK_CATEGORIES[progressionType]?.map(e => e.category) ?? [];
 }
 
 /**
