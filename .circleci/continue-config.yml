@@ -107,7 +107,9 @@ jobs:
             # directory) and apply pending migrations. db push is a no-op
             # when schema_migrations is up-to-date.
             supabase link --project-ref "$SUPABASE_PROJECT_REF"
-            supabase db push --linked
+            # --yes auto-confirms the "push these migrations?" prompt so the
+            # job doesn't hang on stdin in CI (no TTY → 10m no-output timeout).
+            supabase db push --linked --yes
 
   deploy:
     docker:
