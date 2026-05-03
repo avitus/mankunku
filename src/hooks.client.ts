@@ -41,15 +41,31 @@ Sentry.init({
  * server no longer has. SvelteKit surfaces that as "error loading dynamically
  * imported module" — the page is broken until the user reloads. Force the
  * reload here instead of asking the user to do it. See Sentry MANKUNKU-8.
+ *
+ * The reload is gated by a one-shot sessionStorage flag so that if the chunk
+ * is still missing after the reload (e.g. user is offline, or a deploy is
+ * mid-flight and assets haven't propagated to their CDN edge), the second
+ * failure does NOT loop into another reload — it surfaces the error normally.
  */
+const STALE_CHUNK_RELOAD_KEY = 'stale-chunk-reload-attempted';
+
 const handleStaleChunkReload: HandleClientError = ({ error }) => {
   const msg = (error as { message?: string } | null)?.message ?? '';
-  if (
-    typeof location !== 'undefined' &&
+  const isStaleChunkError =
     /error loading dynamically imported module|Failed to fetch dynamically imported module/i.test(
       msg
-    )
+    );
+  if (
+    typeof location !== 'undefined' &&
+    typeof sessionStorage !== 'undefined' &&
+    isStaleChunkError
   ) {
+    if (sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) === '1') {
+      // Already reloaded once this session and still failing — don't loop.
+      sessionStorage.removeItem(STALE_CHUNK_RELOAD_KEY);
+      return;
+    }
+    sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, '1');
     location.reload();
   }
 };
