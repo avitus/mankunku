@@ -16,10 +16,13 @@ import {
 	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags,
+	backfillInferredProgressionTags,
 	getUnlockedKeyCount,
 	bumpUnlockedKeyCount,
-	loadUnlockCounts
+	loadUnlockCounts,
+	migrateOrphanLickCategories
 } from '$lib/persistence/lick-practice-store';
+import { getLickCategoryOverrides } from '$lib/persistence/user-licks';
 import type { LickPracticeProgress, LickPracticeKeyProgress } from '$lib/types/lick-practice';
 import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 
@@ -389,5 +392,137 @@ describe('progression tag management', () => {
 		toggleProgressionTag('lick-1', 'blues');
 		toggleProgressionTag('lick-1', 'blues');
 		expect(getProgressionTags('lick-1')).toEqual([]);
+	});
+});
+
+describe('migrateOrphanLickCategories', () => {
+	const PREFIX = 'mankunku:';
+
+	function seedUserLick(id: string, category: string, name = id): void {
+		const existing = JSON.parse(store[PREFIX + 'user-licks'] ?? '[]');
+		existing.push({
+			id,
+			name,
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: [],
+			harmony: [],
+			difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+			category,
+			tags: [],
+			source: 'user'
+		});
+		store[PREFIX + 'user-licks'] = JSON.stringify(existing);
+	}
+
+	function seedCategoryOverride(id: string, category: string): void {
+		const overrides = JSON.parse(store[PREFIX + 'lick-category-overrides'] ?? '{}');
+		overrides[id] = category;
+		store[PREFIX + 'lick-category-overrides'] = JSON.stringify(overrides);
+	}
+
+	it('returns 0 when no licks carry orphan categories', () => {
+		seedUserLick('lk1', 'ii-V-I-major');
+		expect(migrateOrphanLickCategories()).toBe(0);
+	});
+
+	it('remaps user-lick category and adds the inferred prog:* tag', () => {
+		seedUserLick('lk1', 'long-ii-V-I-major', "Don't Get Around Much Anymore");
+
+		const migrated = migrateOrphanLickCategories();
+
+		expect(migrated).toBe(1);
+		const userLicks = JSON.parse(store[PREFIX + 'user-licks']);
+		expect(userLicks[0].category).toBe('ii-V-I-major');
+		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
+	});
+
+	it('handles long-ii-V-I-minor symmetrically', () => {
+		seedUserLick('lk2', 'long-ii-V-I-minor');
+
+		expect(migrateOrphanLickCategories()).toBe(1);
+		const userLicks = JSON.parse(store[PREFIX + 'user-licks']);
+		expect(userLicks[0].category).toBe('ii-V-I-minor');
+		expect(getProgressionTags('lk2')).toEqual(['ii-V-I-minor-long']);
+	});
+
+	it('rewrites curated category overrides too', () => {
+		seedCategoryOverride('curated-1', 'long-ii-V-I-major');
+
+		expect(migrateOrphanLickCategories()).toBe(1);
+		expect(getLickCategoryOverrides()['curated-1']).toBe('ii-V-I-major');
+		expect(getProgressionTags('curated-1')).toEqual(['ii-V-I-major-long']);
+	});
+
+	it('is idempotent — second run touches nothing', () => {
+		seedUserLick('lk1', 'long-ii-V-I-major');
+		expect(migrateOrphanLickCategories()).toBe(1);
+		expect(migrateOrphanLickCategories()).toBe(0);
+		// Tag wasn't double-added.
+		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
+	});
+
+	it('preserves an already-present prog tag instead of duplicating', () => {
+		seedUserLick('lk1', 'long-ii-V-I-major');
+		toggleProgressionTag('lk1', 'ii-V-I-major-long');
+		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
+
+		migrateOrphanLickCategories();
+		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
+	});
+});
+
+describe('backfillInferredProgressionTags', () => {
+	const PREFIX = 'mankunku:';
+
+	function seedUserLick(id: string, category: string): void {
+		const existing = JSON.parse(store[PREFIX + 'user-licks'] ?? '[]');
+		existing.push({
+			id,
+			name: id,
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: [],
+			harmony: [],
+			difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+			category,
+			tags: [],
+			source: 'user'
+		});
+		store[PREFIX + 'user-licks'] = JSON.stringify(existing);
+	}
+
+	it('adds the inferred prog:* tag for user licks with a bucket-A category', () => {
+		seedUserLick('lk_vi', 'V-I-major');
+		seedUserLick('lk_blues', 'blues');
+		seedUserLick('lk_short', 'short-ii-V-I-minor');
+
+		backfillInferredProgressionTags();
+
+		expect(getProgressionTags('lk_vi')).toContain('ii-V-I-major-long');
+		expect(getProgressionTags('lk_blues')).toContain('blues');
+		expect(getProgressionTags('lk_short')).toContain('ii-V-I-minor');
+	});
+
+	it('does nothing for licks whose category is multi-fit (bucket B)', () => {
+		seedUserLick('lk_mc', 'major-chord');
+		seedUserLick('lk_mn', 'minor-chord');
+
+		backfillInferredProgressionTags();
+
+		expect(getProgressionTags('lk_mc')).toEqual([]);
+		expect(getProgressionTags('lk_mn')).toEqual([]);
+	});
+
+	it('is idempotent — second run touches no new licks', () => {
+		seedUserLick('lk1', 'V-I-minor');
+		expect(backfillInferredProgressionTags()).toBeGreaterThanOrEqual(1);
+		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-minor-long']);
+
+		// Re-run: the seeded lick already has its tag, so it's a no-op for it.
+		// The count may still include curated licks newly tagged on first run —
+		// but those too are now stable.
+		const second = backfillInferredProgressionTags();
+		expect(second).toBe(0);
 	});
 });

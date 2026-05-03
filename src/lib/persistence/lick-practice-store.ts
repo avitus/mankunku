@@ -6,10 +6,13 @@ import { save, load } from './storage';
 import { syncLickMetadataToCloud, loadLickMetadataFromCloud, type LickMetadata } from './sync';
 import { getScopeGeneration } from './user-scope';
 import { getAllLicks } from '$lib/phrases/library-loader';
+import { getUserLicksLocal, getLickCategoryOverrides, updateLickCategory } from './user-licks';
+import { INFERRED_PROGRESSION_TAG_BY_CATEGORY } from '$lib/data/progressions';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
 const UNLOCK_KEY = 'lick-unlock-count';
+const CATEGORY_OVERRIDES_KEY = 'lick-category-overrides';
 const DEFAULT_TEMPO = 100;
 /** Starting BPM for any lick with no prior practice history. */
 export const NEW_LICK_DEFAULT_TEMPO = 60;
@@ -66,7 +69,6 @@ export async function initLickMetadataFromCloud(
 			}
 		}
 
-		const CATEGORY_OVERRIDES_KEY = 'lick-category-overrides';
 		const localCatOverrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDES_KEY);
 		if (!localCatOverrides || Object.keys(localCatOverrides).length === 0) {
 			if (Object.keys(cloud.categoryOverrides).length > 0) {
@@ -522,4 +524,103 @@ export function getProgressionTags(phraseId: string): ChordProgressionType[] {
 /** Check if a lick is tagged for a specific progression. */
 export function isTaggedForProgression(phraseId: string, type: ChordProgressionType): boolean {
 	return hasProgressionTag(phraseId, type);
+}
+
+// ── Orphan-category migration ────────────────────────────────
+//
+// Categories removed from `PhraseCategory` after some user data already
+// carried them. Each entry maps the orphan to a still-valid category plus
+// the `prog:*` tag that captures the progression intent the orphan name made
+// explicit (e.g. `long-ii-V-I-major` is unambiguously a long ii-V-I major lick).
+// Rerunning is a no-op on already-migrated data — the scan only acts on licks
+// still carrying an orphan category, and prog-tag insertion is idempotent.
+
+interface OrphanCategoryRemap {
+	newCategory: PhraseCategory;
+	progressionTag: ChordProgressionType;
+}
+
+const ORPHAN_CATEGORY_MIGRATIONS: Record<string, OrphanCategoryRemap> = {
+	'long-ii-V-I-major': { newCategory: 'ii-V-I-major', progressionTag: 'ii-V-I-major-long' },
+	'long-ii-V-I-minor': { newCategory: 'ii-V-I-minor', progressionTag: 'ii-V-I-minor-long' }
+};
+
+/**
+ * Idempotent prog-tag insertion — adds `prog:<type>` if not already present.
+ * Returns true when a write actually happened. Exported for `updateLickCategory`
+ * (auto-tag on category-set) and the retroactive backfill below.
+ */
+export function ensureProgressionTag(phraseId: string, type: ChordProgressionType): boolean {
+	const tags = loadUserLickTags();
+	const current = tags[phraseId] ?? [];
+	const tag = progTag(type);
+	if (current.includes(tag)) return false;
+	tags[phraseId] = [...current, tag];
+	saveUserLickTags(tags);
+	syncLickTagsToCloud();
+	return true;
+}
+
+/**
+ * Retroactively apply `INFERRED_PROGRESSION_TAG_BY_CATEGORY` to every lick the
+ * user already has. Mirrors what `updateLickCategory` now does on every new
+ * category write — this just covers licks categorized before the auto-tag
+ * hook existed. Idempotent on every subsequent run thanks to
+ * `ensureProgressionTag`'s presence check.
+ */
+export function backfillInferredProgressionTags(): number {
+	let added = 0;
+	for (const lick of getAllLicks()) {
+		const inferred = INFERRED_PROGRESSION_TAG_BY_CATEGORY[lick.category];
+		if (!inferred) continue;
+		if (ensureProgressionTag(lick.id, inferred)) added++;
+	}
+	return added;
+}
+
+/**
+ * Scan user licks and curated category overrides for orphan categories left
+ * over from removed `PhraseCategory` enum values. For each match, swap the
+ * category to a valid equivalent AND auto-assign the corresponding `prog:*`
+ * tag — the orphan name is itself a strong signal of the progression the
+ * user originally intended this lick for.
+ *
+ * Returns the number of licks touched. Stolen community licks are read-only,
+ * so their categories aren't mutated, but a local prog tag is still added so
+ * the lick becomes routable in this user's practice flow.
+ */
+export function migrateOrphanLickCategories(
+	supabase?: SupabaseClient<Database>
+): number {
+	const sb = supabase ?? _supabase ?? undefined;
+	let migrated = 0;
+
+	// 1. User-recorded licks store category in their own row.
+	for (const lick of getUserLicksLocal()) {
+		const remap = ORPHAN_CATEGORY_MIGRATIONS[lick.category];
+		if (!remap) continue;
+		updateLickCategory(lick.id, remap.newCategory, sb);
+		ensureProgressionTag(lick.id, remap.progressionTag);
+		migrated++;
+	}
+
+	// 2. Category overrides on curated/community licks.
+	const overrides = getLickCategoryOverrides();
+	let overridesChanged = false;
+	for (const [id, cat] of Object.entries(overrides)) {
+		const remap = ORPHAN_CATEGORY_MIGRATIONS[cat];
+		if (!remap) continue;
+		overrides[id] = remap.newCategory;
+		overridesChanged = true;
+		ensureProgressionTag(id, remap.progressionTag);
+		migrated++;
+	}
+	if (overridesChanged) {
+		save(CATEGORY_OVERRIDES_KEY, overrides);
+		if (sb) {
+			syncLickMetadataToCloud(sb, { categoryOverrides: overrides }).catch(() => {});
+		}
+	}
+
+	return migrated;
 }

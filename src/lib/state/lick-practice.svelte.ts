@@ -44,7 +44,9 @@ import {
 	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags,
+	backfillInferredProgressionTags,
 	initLickMetadataFromCloud,
+	migrateOrphanLickCategories,
 	getUnlockedKeyCount,
 	bumpUnlockedKeyCount,
 	NEW_LICK_DEFAULT_TEMPO,
@@ -71,6 +73,7 @@ import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-session
 import {
 	selectInitialProgression,
 	buildUpcomingLicks,
+	findStrandedLicks,
 	DEFAULT_PROGRESSION,
 	type UpcomingLickEntry
 } from './lick-practice-picker';
@@ -148,6 +151,15 @@ export async function hydrateLickPracticeProgress(
 	// Migrate legacy 'practice' markers from lick.tags + tag overrides
 	// into the new user-lick-tags store so getPracticeLicks can find them.
 	backfillPracticeTags(getAllLicks(), getLickTagOverrides());
+	// Repair licks still carrying orphan PhraseCategory values (e.g.
+	// `long-ii-V-I-major`, removed in commit eae34f1). Each gets a valid
+	// category plus an inferred `prog:*` tag so the user's original intent
+	// is preserved.
+	migrateOrphanLickCategories(supabase ?? undefined);
+	// Retroactive auto-tag for licks categorized before the
+	// `updateLickCategory` hook existed. Idempotent — covers existing data
+	// once and is a no-op thereafter.
+	backfillInferredProgressionTags();
 
 	lickPractice.config.progressionType = pickInitialProgression();
 }
@@ -179,6 +191,20 @@ export function getPracticeLicks(): Phrase[] {
 		const matchesBySubstitution = substitutionCategories.includes(lick.category);
 		return matchesByCategory || matchesByProgressionTag || matchesBySubstitution;
 	});
+}
+
+/**
+ * Practice-tagged licks with no progression mapping at all — they have
+ * neither a `prog:*` tag nor a category listed in any progression. Surfaced
+ * on the setup screen so the user can finish configuring them in the
+ * library; otherwise they sit invisibly in the practice set forever.
+ */
+export function getStrandedPracticeLicks(): Phrase[] {
+	const taggedIds = getPracticeTaggedIds();
+	if (taggedIds.size === 0) return [];
+
+	const candidates = getAllLicks().filter((l) => taggedIds.has(l.id));
+	return findStrandedLicks({ candidates, getProgressionTags });
 }
 
 /**
