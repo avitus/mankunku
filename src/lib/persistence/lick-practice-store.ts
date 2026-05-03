@@ -6,7 +6,12 @@ import { save, load } from './storage';
 import { syncLickMetadataToCloud, loadLickMetadataFromCloud, type LickMetadata } from './sync';
 import { getScopeGeneration } from './user-scope';
 import { getAllLicks } from '$lib/phrases/library-loader';
-import { getUserLicksLocal, getLickCategoryOverrides, updateLickCategory } from './user-licks';
+import {
+	getUserLicksLocal,
+	getLickCategoryOverrides,
+	updateLickCategory,
+	getLickTagOverrides
+} from './user-licks';
 import { INFERRED_PROGRESSION_TAG_BY_CATEGORY } from '$lib/data/progressions';
 
 const STORAGE_KEY = 'lick-practice-progress';
@@ -431,6 +436,46 @@ export function isInPracticeSet(phraseId: string, lickTags: readonly string[]): 
 	const entry = tags[phraseId];
 	if (entry !== undefined) return entry.includes('practice');
 	return lickTags.includes('practice');
+}
+
+/**
+ * Resolve the effective fallback tags for a lick, honouring legacy
+ * tag-override entries before the curated `lick.tags` array. Display sites
+ * (library list/detail, LickCard) and the practice-flow selectors all use
+ * this so a curated lick whose practice flag still only lives in the
+ * override blob renders consistently across surfaces.
+ */
+export function resolvePracticeFallbackTags(
+	phraseId: string,
+	lickTags: readonly string[]
+): readonly string[] {
+	return getLickTagOverrides()[phraseId] ?? lickTags;
+}
+
+/**
+ * Bulk equivalent of `isInPracticeSet` — given the full lick library,
+ * returns the set of IDs in the user's practice set. The /lick-practice
+ * flow used to read this from `getPracticeTaggedIds()` (store-only), which
+ * silently dropped any lick whose practice flag still only lived in
+ * `lick.tags` (or the legacy override blob) on a fresh device. Now both
+ * the library display and the practice flow follow the same store-or-
+ * fallback rule, so they cannot disagree about membership.
+ */
+export function getEffectivePracticeLickIds(
+	licks: readonly { id: string; tags: readonly string[] }[]
+): Set<string> {
+	const userTags = loadUserLickTags();
+	const overrides = getLickTagOverrides();
+	const ids = new Set<string>();
+	for (const lick of licks) {
+		const entry = userTags[lick.id];
+		const inSet =
+			entry !== undefined
+				? entry.includes('practice')
+				: (overrides[lick.id] ?? lick.tags).includes('practice');
+		if (inSet) ids.add(lick.id);
+	}
+	return ids;
 }
 
 export function setPracticeTag(phraseId: string, tagged: boolean): void {

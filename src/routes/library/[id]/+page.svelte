@@ -15,6 +15,7 @@
 	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
 	import {
 		isInPracticeSet,
+		resolvePracticeFallbackTags,
 		setPracticeTag as storeSetPracticeTag,
 		getProgressionTags,
 		toggleProgressionTag
@@ -131,9 +132,13 @@
 			return;
 		}
 		// Treat the user-tags store as authoritative when an entry exists for
-		// the lick; fall back to `lick.tags` only when the user hasn't yet
-		// expressed intent (legacy data, fresh devices before backfill).
-		isPracticeTagged = isInPracticeSet(baseLick.id, baseLick.tags);
+		// the lick; fall back to the override-aware curated tags only when
+		// the user hasn't yet expressed intent (legacy data, fresh devices
+		// before backfill).
+		isPracticeTagged = isInPracticeSet(
+			baseLick.id,
+			resolvePracticeFallbackTags(baseLick.id, baseLick.tags)
+		);
 		progressionTags = getProgressionTags(baseLick.id);
 		currentCategory = baseLick.category;
 	});

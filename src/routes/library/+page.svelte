@@ -9,8 +9,11 @@
 	import type { Phrase, PhraseCategory } from '$lib/types/music';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getUserLicks, getLickTagOverrides } from '$lib/persistence/user-licks';
-	import { isInPracticeSet } from '$lib/persistence/lick-practice-store';
+	import { getUserLicks } from '$lib/persistence/user-licks';
+	import {
+		isInPracticeSet,
+		resolvePracticeFallbackTags
+	} from '$lib/persistence/lick-practice-store';
 	import { getStolenLicksLocal, getStolenAuthorsLocal, returnLick } from '$lib/persistence/community';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
@@ -68,8 +71,7 @@
 	 * curated tag override (if any) and finally to `lick.tags`.
 	 */
 	function hasPracticeTag(lick: Phrase): boolean {
-		const fallback = getLickTagOverrides()[lick.id] ?? lick.tags;
-		return isInPracticeSet(lick.id, fallback);
+		return isInPracticeSet(lick.id, resolvePracticeFallbackTags(lick.id, lick.tags));
 	}
 
 	/** Curated licks filtered by current library query parameters */

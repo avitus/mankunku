@@ -11,6 +11,8 @@ import {
 	togglePracticeTag,
 	hasPracticeTag,
 	isInPracticeSet,
+	resolvePracticeFallbackTags,
+	getEffectivePracticeLickIds,
 	setPracticeTag,
 	getPracticeTaggedIds,
 	toggleProgressionTag,
@@ -213,6 +215,50 @@ describe('practice tag management', () => {
 		it('respects an empty entry as a deliberate "removed" signal', () => {
 			setPracticeTag('lick-1', false);
 			expect(isInPracticeSet('lick-1', ['practice'])).toBe(false);
+		});
+	});
+
+	describe('resolvePracticeFallbackTags', () => {
+		it('returns lick.tags when no override is present', () => {
+			expect(resolvePracticeFallbackTags('lick-1', ['practice'])).toEqual(['practice']);
+		});
+
+		it('returns the override when one exists', () => {
+			localStorage.setItem(
+				'mankunku:lick-tag-overrides',
+				JSON.stringify({ 'lick-1': ['practice', 'favorite'] })
+			);
+			expect(resolvePracticeFallbackTags('lick-1', ['stale'])).toEqual([
+				'practice',
+				'favorite'
+			]);
+		});
+	});
+
+	describe('getEffectivePracticeLickIds', () => {
+		it('includes licks whose practice flag only lives in lick.tags (pre-backfill)', () => {
+			const licks = [
+				{ id: 'curated-1', tags: ['practice', 'bebop'] },
+				{ id: 'curated-2', tags: ['bebop'] }
+			];
+			const ids = getEffectivePracticeLickIds(licks);
+			expect(ids.has('curated-1')).toBe(true);
+			expect(ids.has('curated-2')).toBe(false);
+		});
+
+		it('treats the store entry as authoritative once it exists', () => {
+			saveUserLickTags({ 'lick-1': [] }); // user removed practice
+			const licks = [{ id: 'lick-1', tags: ['practice'] }];
+			expect(getEffectivePracticeLickIds(licks).has('lick-1')).toBe(false);
+		});
+
+		it('honours the legacy tag-override blob over lick.tags', () => {
+			localStorage.setItem(
+				'mankunku:lick-tag-overrides',
+				JSON.stringify({ 'curated-1': ['practice'] })
+			);
+			const licks = [{ id: 'curated-1', tags: [] }];
+			expect(getEffectivePracticeLickIds(licks).has('curated-1')).toBe(true);
 		});
 	});
 });
