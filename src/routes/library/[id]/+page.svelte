@@ -14,7 +14,7 @@
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
 	import {
-		hasPracticeTag as storeHasPracticeTag,
+		isInPracticeSet,
 		setPracticeTag as storeSetPracticeTag,
 		getProgressionTags,
 		toggleProgressionTag
@@ -130,8 +130,10 @@
 			currentCategory = null;
 			return;
 		}
-		// Check new store OR lick's own tags for the practice flag
-		isPracticeTagged = storeHasPracticeTag(baseLick.id) || baseLick.tags.includes('practice');
+		// Treat the user-tags store as authoritative when an entry exists for
+		// the lick; fall back to `lick.tags` only when the user hasn't yet
+		// expressed intent (legacy data, fresh devices before backfill).
+		isPracticeTagged = isInPracticeSet(baseLick.id, baseLick.tags);
 		progressionTags = getProgressionTags(baseLick.id);
 		currentCategory = baseLick.category;
 	});

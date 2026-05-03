@@ -10,7 +10,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getUserLicks, getLickTagOverrides } from '$lib/persistence/user-licks';
-	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
+	import { isInPracticeSet } from '$lib/persistence/lick-practice-store';
 	import { getStolenLicksLocal, getStolenAuthorsLocal, returnLick } from '$lib/persistence/community';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
@@ -62,12 +62,14 @@
 
 	const categories = getCategories();
 
-	/** Check if a lick has the 'practice' tag (from new store OR legacy overrides) */
+	/**
+	 * Check if a lick is in the user's practice set. The user-tag store is
+	 * authoritative once it has an entry; otherwise we fall back to the
+	 * curated tag override (if any) and finally to `lick.tags`.
+	 */
 	function hasPracticeTag(lick: Phrase): boolean {
-		if (getPracticeTaggedIds().has(lick.id)) return true;
-		const overrides = getLickTagOverrides()[lick.id];
-		const tags = overrides ?? lick.tags;
-		return tags.includes('practice');
+		const fallback = getLickTagOverrides()[lick.id] ?? lick.tags;
+		return isInPracticeSet(lick.id, fallback);
 	}
 
 	/** Curated licks filtered by current library query parameters */

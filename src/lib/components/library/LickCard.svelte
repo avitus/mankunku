@@ -2,7 +2,7 @@
 	import { CATEGORY_LABELS, type Phrase } from '$lib/types/music';
 	import { GRADE_COLORS } from '$lib/scoring/grades';
 	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display';
-	import { hasPracticeTag, getProgressionTags } from '$lib/persistence/lick-practice-store';
+	import { isInPracticeSet, getProgressionTags } from '$lib/persistence/lick-practice-store';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 
 	interface Props {
@@ -17,7 +17,7 @@
 	let { lick, onclick, onplay, isPlaying = false, authorName = null }: Props = $props();
 
 	const diff = $derived(difficultyDisplay(lick.difficulty.level));
-	const isPracticeTagged = $derived(hasPracticeTag(lick.id) || lick.tags.includes('practice'));
+	const isPracticeTagged = $derived(isInPracticeSet(lick.id, lick.tags));
 	const progTags = $derived(getProgressionTags(lick.id));
 </script>
 

@@ -188,11 +188,9 @@ const SYNC_DEBOUNCE_MS = 500;
  * coalesce into a single request carrying the latest data.
  */
 function syncLickTagsToCloud(): void {
-	console.log('[diag] syncLickTagsToCloud called, _supabase=', _supabase ? 'set' : 'null');
 	if (!_supabase) return;
 	if (syncTagsTimer) clearTimeout(syncTagsTimer);
 	syncTagsTimer = setTimeout(() => {
-		console.log('[diag] syncLickTagsToCloud debounce fired, calling syncLickMetadataToCloud');
 		syncTagsTimer = null;
 		const tags = loadUserLickTags();
 		syncLickMetadataToCloud(_supabase!, { lickTags: tags }).catch(() => {});
@@ -403,12 +401,11 @@ export function togglePracticeTag(phraseId: string): boolean {
 	const current = tags[phraseId] ?? [];
 	const hasPractice = current.includes('practice');
 
-	if (hasPractice) {
-		tags[phraseId] = current.filter(t => t !== 'practice');
-		if (tags[phraseId].length === 0) delete tags[phraseId];
-	} else {
-		tags[phraseId] = [...current, 'practice'];
-	}
+	// Keep the empty-array entry on removal so backfillPracticeTags
+	// won't undo a deliberate user removal by re-adding 'practice' from
+	// the curated `lick.tags` default on the next mount.
+	const without = current.filter(t => t !== 'practice');
+	tags[phraseId] = hasPractice ? without : [...without, 'practice'];
 
 	saveUserLickTags(tags);
 	syncLickTagsToCloud();
@@ -420,20 +417,34 @@ export function hasPracticeTag(phraseId: string): boolean {
 	return tags[phraseId]?.includes('practice') ?? false;
 }
 
+/**
+ * Check whether a lick is in the user's practice set, treating the store
+ * as authoritative once it has an entry for the lick. When no entry exists
+ * (legacy users pre-backfill, fresh devices before hydration), falls back
+ * to the curated `lick.tags` array. Without this distinction, an explicit
+ * removal via `setPracticeTag(id, false)` would write `tags[id] = []` to
+ * the store but the OR-with-`lick.tags` fallback in display code would
+ * silently re-show the lick as practice-tagged on the next render.
+ */
+export function isInPracticeSet(phraseId: string, lickTags: readonly string[]): boolean {
+	const tags = loadUserLickTags();
+	const entry = tags[phraseId];
+	if (entry !== undefined) return entry.includes('practice');
+	return lickTags.includes('practice');
+}
+
 export function setPracticeTag(phraseId: string, tagged: boolean): void {
+	// Write unconditionally — gating on the store's current state silently
+	// no-ops when the UI shows the lick as tagged via the curated `lick.tags`
+	// fallback but the store has no entry. The empty-array entry is kept on
+	// removal as positive evidence of user intent so backfillPracticeTags
+	// won't re-add 'practice' from the curated default.
 	const tags = loadUserLickTags();
 	const current = tags[phraseId] ?? [];
-	const has = current.includes('practice');
-	if (tagged && !has) {
-		tags[phraseId] = [...current, 'practice'];
-		saveUserLickTags(tags);
-		syncLickTagsToCloud();
-	} else if (!tagged && has) {
-		tags[phraseId] = current.filter(t => t !== 'practice');
-		if (tags[phraseId].length === 0) delete tags[phraseId];
-		saveUserLickTags(tags);
-		syncLickTagsToCloud();
-	}
+	const without = current.filter(t => t !== 'practice');
+	tags[phraseId] = tagged ? [...without, 'practice'] : without;
+	saveUserLickTags(tags);
+	syncLickTagsToCloud();
 }
 
 export function getPracticeTaggedIds(): Set<string> {
@@ -462,11 +473,12 @@ export function backfillPracticeTags(
 	let added = 0;
 
 	const ensure = (id: string) => {
-		const current = tags[id] ?? [];
-		if (!current.includes('practice')) {
-			tags[id] = [...current, 'practice'];
-			added++;
-		}
+		// Only seed entries that don't yet exist. If the user has already
+		// expressed intent (any entry, even empty after a removal), respect
+		// it — re-adding 'practice' here would silently undo that removal.
+		if (id in tags) return;
+		tags[id] = ['practice'];
+		added++;
 	};
 
 	for (const lick of licks) {
