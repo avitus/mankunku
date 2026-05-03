@@ -1000,8 +1000,11 @@ export async function syncLickMetadataToCloud(
 			data.unlockCounts !== undefined;
 		if (!hasData) return;
 
+		console.log('[diag] syncLickMetadataToCloud: about to call getAuthUserId, keys=', Object.keys(data));
 		const userId = await getAuthUserId(supabase);
+		console.log('[diag] syncLickMetadataToCloud: getAuthUserId returned', userId ? 'userId(present)' : 'null');
 		if (!userId) return;
+		console.log('[diag] syncLickMetadataToCloud: about to upsert user_lick_metadata');
 
 		const row: Database['public']['Tables']['user_lick_metadata']['Insert'] = {
 			user_id: userId,
@@ -1019,6 +1022,8 @@ export async function syncLickMetadataToCloud(
 
 		if (error) {
 			console.warn('Failed to sync lick metadata to cloud:', error);
+		} else {
+			console.log('[diag] syncLickMetadataToCloud: upsert returned no error');
 		}
 	} catch (error) {
 		console.warn('Failed to sync lick metadata to cloud:', error);

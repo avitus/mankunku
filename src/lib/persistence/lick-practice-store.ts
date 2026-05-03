@@ -188,9 +188,11 @@ const SYNC_DEBOUNCE_MS = 500;
  * coalesce into a single request carrying the latest data.
  */
 function syncLickTagsToCloud(): void {
+	console.log('[diag] syncLickTagsToCloud called, _supabase=', _supabase ? 'set' : 'null');
 	if (!_supabase) return;
 	if (syncTagsTimer) clearTimeout(syncTagsTimer);
 	syncTagsTimer = setTimeout(() => {
+		console.log('[diag] syncLickTagsToCloud debounce fired, calling syncLickMetadataToCloud');
 		syncTagsTimer = null;
 		const tags = loadUserLickTags();
 		syncLickMetadataToCloud(_supabase!, { lickTags: tags }).catch(() => {});
