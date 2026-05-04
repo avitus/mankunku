@@ -245,6 +245,12 @@ export function adjustLastNotePitch(semitones: number): void {
 	// Validate in written space — that's the user's mental range
 	const trans = getInstrument().transpositionSemitones;
 	if (!isInEntryRange(newConcert + trans)) return;
+	// If editing breaks the pitch match with a preceding tied note, clear the
+	// stale tie so notation and playback stay consistent.
+	const previous = notes[notes.length - 2];
+	if (previous?.tied && previous.pitch !== newConcert) {
+		previous.tied = false;
+	}
 	lastNote.pitch = newConcert;
 }
 

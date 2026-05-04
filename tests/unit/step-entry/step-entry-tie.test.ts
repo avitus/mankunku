@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-	stepEntry, addNote, addRest, deleteLastNote, enterTiedNote, reset,
-	setDuration, toggleTriplet
+	stepEntry, addNote, addRest, adjustLastNotePitch, deleteLastNote,
+	enterTiedNote, reset, setDuration, toggleTriplet
 } from '$lib/state/step-entry.svelte';
 import { settings } from '$lib/state/settings.svelte';
 
@@ -84,6 +84,32 @@ describe('enterTiedNote', () => {
 
 		deleteLastNote();
 		expect(stepEntry.enteredNotes).toHaveLength(1);
+		expect(stepEntry.enteredNotes[0].tied).toBe(false);
+	});
+
+	it('arrow-edit on the tied duplicate clears the stale tie when pitch diverges', () => {
+		setDuration('quarter');
+		addNote(0, 4, 'natural'); // C4
+		enterTiedNote();
+		expect(stepEntry.enteredNotes[0].tied).toBe(true);
+
+		const basePitch = stepEntry.enteredNotes[0].pitch;
+		adjustLastNotePitch(1); // bump duplicate up a semitone — pitches now differ
+
+		expect(stepEntry.enteredNotes[0].tied).toBe(false);
+		expect(stepEntry.enteredNotes[1].pitch).toBe((basePitch ?? 0) + 1);
+	});
+
+	it('arrow-edit that lands back on the same pitch keeps the tie', () => {
+		setDuration('quarter');
+		addNote(0, 4, 'natural'); // C4
+		enterTiedNote();
+		const startPitch = stepEntry.enteredNotes[0].pitch;
+		adjustLastNotePitch(1);
+		adjustLastNotePitch(-1); // back to original pitch
+		expect(stepEntry.enteredNotes[1].pitch).toBe(startPitch);
+		// Once cleared by the upward edit it stays cleared — the user can re-tie
+		// explicitly if they want.
 		expect(stepEntry.enteredNotes[0].tied).toBe(false);
 	});
 });
