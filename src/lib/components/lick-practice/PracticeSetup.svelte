@@ -68,7 +68,7 @@
 	const instrument = $derived(getInstrument());
 
 	const canStart = $derived(
-		config.singleLickMode ? !!config.singleLickId : availableLickCount > 0
+		config.singleLickMode ? selectedLick !== null : availableLickCount > 0
 	);
 	const showSubstitutions = $derived(progressionHasSubstitutionTargets(config.progressionType));
 </script>

@@ -185,8 +185,7 @@
 	function practiceThis() {
 		if (!lick) return;
 		const bump = lickPractice.config.tempoBumpBpm ?? 5;
-		startSingleLickSession(lick.id, bump);
-		goto('/lick-practice/session');
+		if (startSingleLickSession(lick, bump)) goto('/lick-practice/session');
 	}
 
 	async function togglePlay() {

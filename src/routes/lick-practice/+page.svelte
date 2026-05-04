@@ -31,11 +31,11 @@
 
 	function handleStart() {
 		if (lickPractice.config.singleLickMode && lickPractice.config.singleLickId) {
-			startSingleLickSession(
+			const ok = startSingleLickSession(
 				lickPractice.config.singleLickId,
 				lickPractice.config.tempoBumpBpm ?? 5
 			);
-			goto('/lick-practice/session');
+			if (ok) goto('/lick-practice/session');
 			return;
 		}
 		startSession();

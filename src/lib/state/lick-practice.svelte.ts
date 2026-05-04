@@ -323,14 +323,14 @@ export function startSession(): void {
  * keys), but the elevated tempo IS persisted via `LickPracticeKeyProgress.currentTempo`.
  */
 export function startSingleLickSession(
-	lickId: string,
+	lickOrId: string | Phrase,
 	tempoBumpBpm: number = DEFAULT_TEMPO_BUMP_BPM
-): void {
-	const lick = getLickById(lickId);
-	if (!lick) return;
+): boolean {
+	const lick = typeof lickOrId === 'string' ? getLickById(lickOrId) : lickOrId;
+	if (!lick) return false;
 
 	lickPractice.config.singleLickMode = true;
-	lickPractice.config.singleLickId = lickId;
+	lickPractice.config.singleLickId = lick.id;
 	lickPractice.config.tempoBumpBpm = tempoBumpBpm;
 
 	lickPractice.plan = [
@@ -356,6 +356,7 @@ export function startSingleLickSession(
 	lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, lick.id);
 
 	lickPractice.phase = 'count-in';
+	return true;
 }
 
 /** Get the current plan item */
