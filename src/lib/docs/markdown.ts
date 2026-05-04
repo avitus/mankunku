@@ -1,6 +1,6 @@
 import { Marked } from 'marked';
 import type { Tokens } from 'marked';
-import DOMPurify from 'isomorphic-dompurify';
+import sanitizeHtml from 'sanitize-html';
 
 /**
  * Slugify text into a URL-safe heading anchor (matches GitHub's algorithm
@@ -124,12 +124,24 @@ export function renderMarkdown(markdown: string, currentSlug = ''): RenderResult
 
 	const rawHtml = m.parse(markdown, { async: false }) as string;
 	// Sanitize: marked v18 doesn't strip raw HTML by default, and the chat
-	// renderer streams untrusted LLM output through this. DOMPurify scrubs
-	// any `<script>`, inline event handlers, and javascript: URLs while
-	// keeping our renderer's emitted attributes (id, class, href, target,
-	// rel, title, data-lang) intact.
-	const html = DOMPurify.sanitize(rawHtml, {
-		ADD_ATTR: ['target', 'data-lang']
+	// renderer streams untrusted LLM output through this. sanitize-html drops
+	// `<script>`, inline event handlers, and unsafe URL schemes while keeping
+	// our renderer's emitted attributes (id, class, href, target, rel, title,
+	// data-lang, aria-hidden) intact. Pure JS — works on the prod Node 18
+	// server unlike isomorphic-dompurify, which pulls in jsdom + the
+	// ESM-only @exodus/bytes (see Sentry MANKUNKU-H).
+	const html = sanitizeHtml(rawHtml, {
+		allowedTags: [...sanitizeHtml.defaults.allowedTags, 'img'],
+		allowedAttributes: {
+			...sanitizeHtml.defaults.allowedAttributes,
+			'*': ['id', 'class', 'aria-hidden'],
+			a: ['href', 'name', 'target', 'rel', 'title'],
+			pre: ['class', 'data-lang'],
+			code: ['class'],
+			img: ['src', 'alt', 'title', 'width', 'height', 'loading']
+		},
+		allowedSchemes: ['http', 'https', 'mailto'],
+		allowedSchemesByTag: { img: ['http', 'https', 'data'] }
 	});
 	return { html, headings };
 }
