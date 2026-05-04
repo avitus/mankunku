@@ -32,7 +32,7 @@ import type {
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
 import { addFractions } from '$lib/music/intervals';
-import { planLickKeys, planUnlockedKeys } from '$lib/music/key-ordering';
+import { planLickKeys, planUnlockedKeys, circleOfFourthsFrom } from '$lib/music/key-ordering';
 import {
 	loadLickPracticeProgress,
 	saveLickPracticeProgress,
@@ -72,6 +72,16 @@ import { selectInitialProgression, DEFAULT_PROGRESSION } from './lick-practice-p
 
 const PASS_THRESHOLD = 0.80;
 
+/**
+ * Single-lick deep-practice mastery threshold. A key is considered mastered
+ * (and dropped from the round's rotation) when one attempt scores at or
+ * above this value. Matches the existing `Grade.perfect` cutoff in
+ * `src/lib/scoring/grades.ts`.
+ */
+const MASTERY_THRESHOLD = 0.95;
+/** Default tempo bump applied when all 12 keys are mastered in single-lick mode. */
+const DEFAULT_TEMPO_BUMP_BPM = 5;
+
 /** A key within the plan (may cross lick boundaries when looking ahead). */
 export interface PlannedKey {
 	lickIndex: number;
@@ -81,6 +91,13 @@ export interface PlannedKey {
 	harmony: HarmonicSegment[];
 	lickName: string;
 	lickId: string;
+}
+
+/** Per-round summary captured at end-of-round in single-lick mode. */
+export interface SingleLickRoundEntry {
+	round: number;
+	tempo: number;
+	keys: PitchClass[];
 }
 
 export const lickPractice = $state<{
@@ -95,6 +112,14 @@ export const lickPractice = $state<{
 	startTime: number;
 	elapsedSeconds: number;
 	progress: LickPracticeProgress;
+	/** 'standard' = multi-lick rotation; 'single-lick' = endless deep practice. */
+	mode: 'standard' | 'single-lick';
+	/** Single-lick mode: which round of the 12-key cycle the user is on (1-based). */
+	roundNumber: number;
+	/** Single-lick mode: keys mastered (score ≥ 0.95) so far in the current round. */
+	masteredThisRound: PitchClass[];
+	/** Single-lick mode: per-round mastery log, populated at end-of-round for the report. */
+	roundHistory: SingleLickRoundEntry[];
 }>({
 	config: {
 		progressionType: 'ii-V-I-major',
@@ -112,7 +137,11 @@ export const lickPractice = $state<{
 	allAttempts: [],
 	startTime: 0,
 	elapsedSeconds: 0,
-	progress: {}
+	progress: {},
+	mode: 'standard',
+	roundNumber: 0,
+	masteredThisRound: [],
+	roundHistory: []
 });
 
 /**
@@ -267,15 +296,64 @@ export function startSession(): void {
 	buildSessionPlan();
 	if (lickPractice.plan.length === 0) return;
 
+	lickPractice.mode = 'standard';
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.keyResults = [];
 	lickPractice.allAttempts = [];
 	lickPractice.startTime = Date.now();
 	lickPractice.elapsedSeconds = 0;
+	lickPractice.roundNumber = 0;
+	lickPractice.masteredThisRound = [];
+	lickPractice.roundHistory = [];
 
 	const firstItem = lickPractice.plan[0];
 	lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, firstItem.phraseId);
+
+	lickPractice.phase = 'count-in';
+}
+
+/**
+ * Start a single-lick deep-practice session: cycle the chosen lick through
+ * the circle of 4ths, drop keys at score ≥ 0.95, bump tempo by `tempoBumpBpm`
+ * once all 12 are cleared, and repeat until the user ends the session.
+ *
+ * The session has no time budget — `durationMinutes` is ignored. Mastery
+ * does NOT persist between sessions (each visit re-starts with all 12
+ * keys), but the elevated tempo IS persisted via `LickPracticeKeyProgress.currentTempo`.
+ */
+export function startSingleLickSession(
+	lickId: string,
+	tempoBumpBpm: number = DEFAULT_TEMPO_BUMP_BPM
+): void {
+	const lick = getLickById(lickId);
+	if (!lick) return;
+
+	lickPractice.config.singleLickMode = true;
+	lickPractice.config.singleLickId = lickId;
+	lickPractice.config.tempoBumpBpm = tempoBumpBpm;
+
+	lickPractice.plan = [
+		{
+			phraseId: lick.id,
+			phraseName: lick.name,
+			phraseNumber: 1,
+			category: lick.category,
+			keys: circleOfFourthsFrom(lick.key)
+		}
+	];
+
+	lickPractice.mode = 'single-lick';
+	lickPractice.currentLickIndex = 0;
+	lickPractice.currentKeyIndex = 0;
+	lickPractice.keyResults = [];
+	lickPractice.allAttempts = [];
+	lickPractice.startTime = Date.now();
+	lickPractice.elapsedSeconds = 0;
+	lickPractice.roundNumber = 1;
+	lickPractice.masteredThisRound = [];
+	lickPractice.roundHistory = [];
+	lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, lick.id);
 
 	lickPractice.phase = 'count-in';
 }
@@ -764,6 +842,16 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 		);
 		saveLickPracticeProgress(lickPractice.progress);
 	}
+
+	// Single-lick deep practice: track keys cleared at "close to perfect" so
+	// they can be removed from the rotation at end-of-round.
+	if (
+		lickPractice.mode === 'single-lick' &&
+		score.overall >= MASTERY_THRESHOLD &&
+		!lickPractice.masteredThisRound.includes(key)
+	) {
+		lickPractice.masteredThisRound = [...lickPractice.masteredThisRound, key];
+	}
 }
 
 /**
@@ -856,6 +944,74 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 	return 'complete';
 }
 
+/**
+ * Single-lick deep-practice end-of-round transition.
+ *
+ * Drops keys mastered (score ≥ 0.95) during this round from the rotation,
+ * archives the round's results to `allAttempts`, and:
+ *   - If any keys remain, the next round cycles through the survivors at
+ *     the same tempo.
+ *   - If all 12 keys cleared, the tempo bumps by `config.tempoBumpBpm` (or
+ *     the default of 5 BPM), the rotation refills with a fresh circle of
+ *     4ths from the lick's home key, and a new round begins.
+ *
+ * Mutates `plan[0].keys` so `buildLickSuperPhrase` and `getCurrentPhrase`
+ * see the updated active-key list on the next cycle.
+ */
+export function advanceSingleLickRound(): void {
+	const item = lickPractice.plan[0];
+	if (!item) return;
+
+	// Archive results for the session report.
+	lickPractice.allAttempts.push([...lickPractice.keyResults]);
+	lickPractice.keyResults = [];
+
+	// Capture which keys cleared this round (in their original rotation order)
+	// so the report can show the per-round breakdown.
+	const masteredInOrder = item.keys.filter(k => lickPractice.masteredThisRound.includes(k));
+	lickPractice.roundHistory.push({
+		round: lickPractice.roundNumber,
+		tempo: lickPractice.currentTempo,
+		keys: masteredInOrder
+	});
+
+	// Drop mastered keys from the active rotation.
+	const survivors = item.keys.filter(k => !lickPractice.masteredThisRound.includes(k));
+
+	if (survivors.length === 0) {
+		// All 12 cleared at the current tempo — bump and refill.
+		const bump = lickPractice.config.tempoBumpBpm ?? DEFAULT_TEMPO_BUMP_BPM;
+		const newTempo = clampTempo(lickPractice.currentTempo + bump);
+		const baseLick = getLickById(item.phraseId);
+		const refillStart = baseLick?.key ?? item.keys[0] ?? 'C';
+		const fullCircle = circleOfFourthsFrom(refillStart as PitchClass);
+
+		// Persist the elevated tempo to every key for this lick so the next
+		// session resumes at this BPM (mirrors the per-key write the standard
+		// flow does at inter-lick rest).
+		const now = Date.now();
+		for (const key of fullCircle) {
+			lickPractice.progress = updateKeyProgress(
+				lickPractice.progress,
+				item.phraseId,
+				key,
+				{ currentTempo: newTempo, lastPracticedAt: now }
+			);
+		}
+		saveLickPracticeProgress(lickPractice.progress);
+
+		lickPractice.currentTempo = newTempo;
+		item.keys = fullCircle;
+	} else {
+		item.keys = survivors;
+	}
+
+	lickPractice.masteredThisRound = [];
+	lickPractice.currentKeyIndex = 0;
+	lickPractice.roundNumber += 1;
+	lickPractice.phase = 'inter-lick-rest';
+}
+
 /** Check if time budget is exceeded */
 export function updateElapsedTime(): void {
 	if (lickPractice.startTime > 0) {
@@ -873,14 +1029,24 @@ export function resetSession(): void {
 	lickPractice.allAttempts = [];
 	lickPractice.startTime = 0;
 	lickPractice.elapsedSeconds = 0;
+	lickPractice.mode = 'standard';
+	lickPractice.roundNumber = 0;
+	lickPractice.masteredThisRound = [];
+	lickPractice.roundHistory = [];
+	lickPractice.config.singleLickMode = false;
+	lickPractice.config.singleLickId = undefined;
 }
 
 /** Build the end-of-session report from archived attempts */
 export function getSessionReport(): SessionReport {
-	// Include in-progress lick results (when session ends mid-lick)
+	// Include in-progress results (when session ends mid-lick / mid-round)
 	const allLickResults: LickPracticeKeyResult[][] = [...lickPractice.allAttempts];
 	if (lickPractice.keyResults.length > 0) {
 		allLickResults.push([...lickPractice.keyResults]);
+	}
+
+	if (lickPractice.mode === 'single-lick') {
+		return buildSingleLickReport(allLickResults);
 	}
 
 	const licks: LickReport[] = [];
@@ -935,5 +1101,63 @@ export function getSessionReport(): SessionReport {
 		totalAttempts,
 		totalPassed,
 		elapsedMinutes: Math.round(lickPractice.elapsedSeconds / 60)
+	};
+}
+
+/**
+ * Single-lick mode report: every round's attempts roll up into a single
+ * `LickReport`, and the round-level breakdown rides on the new
+ * `roundsCompleted` / `finalTempo` / `keysMasteredByRound` fields so the UI
+ * can render a per-round summary without conflating rounds with separate
+ * licks.
+ */
+function buildSingleLickReport(allLickResults: LickPracticeKeyResult[][]): SessionReport {
+	const item = lickPractice.plan[0];
+	const flat: LickPracticeKeyResult[] = allLickResults.flat();
+	const keys = flat.map(r => ({
+		key: r.key,
+		score: r.score,
+		pitchAccuracy: r.pitchAccuracy,
+		rhythmAccuracy: r.rhythmAccuracy,
+		passed: r.passed,
+		sessionId: r.sessionId
+	}));
+
+	const totalScore = keys.reduce((s, k) => s + k.score, 0);
+	const averageScore = keys.length > 0 ? totalScore / keys.length : 0;
+	const passedCount = keys.filter(k => k.passed).length;
+	const startTempo = flat[0]?.tempo ?? lickPractice.currentTempo;
+	const finalTempo = lickPractice.currentTempo;
+
+	// Always set newTempo when it changed during the session so the UI can
+	// surface the delta — single-lick is the rare flow where tempo can rise
+	// mid-session, not just between licks.
+	const licks: LickReport[] = item
+		? [
+				{
+					lickId: item.phraseId,
+					lickName: item.phraseName,
+					tempo: startTempo,
+					newTempo: finalTempo !== startTempo ? finalTempo : null,
+					keys,
+					averageScore,
+					passedCount
+				}
+			]
+		: [];
+
+	// roundNumber points at the next-round-to-start, so completed = roundNumber - 1
+	// (clamped at 0 if the user exits before the first round wraps).
+	const roundsCompleted = Math.max(0, lickPractice.roundNumber - 1);
+
+	return {
+		licks,
+		overallAverage: averageScore,
+		totalAttempts: keys.length,
+		totalPassed: passedCount,
+		elapsedMinutes: Math.round(lickPractice.elapsedSeconds / 60),
+		roundsCompleted,
+		finalTempo,
+		keysMasteredByRound: [...lickPractice.roundHistory]
 	};
 }

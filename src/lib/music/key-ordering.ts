@@ -11,7 +11,7 @@
 import type { PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { PITCH_CLASSES } from '$lib/types/music';
-import { circleOfFifths } from '$lib/music/keys';
+import { circleOfFifths, circleOfFourths } from '$lib/music/keys';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 
 /** Rotate `arr` so that `start` sits at index 0. Returns a new array. */
@@ -24,6 +24,11 @@ function rotateTo<T>(arr: readonly T[], start: T): T[] {
 /** Circle of 5ths starting on `start` instead of C. */
 export function circleOfFifthsFrom(start: PitchClass): PitchClass[] {
 	return rotateTo(circleOfFifths(), start);
+}
+
+/** Circle of 4ths starting on `start` instead of C. */
+export function circleOfFourthsFrom(start: PitchClass): PitchClass[] {
+	return rotateTo(circleOfFourths(), start);
 }
 
 /** Chromatic (semitone-step) ordering starting on `start`. */

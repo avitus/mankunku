@@ -35,6 +35,16 @@ export interface LickPracticeConfig {
 	 * dominant chord for altered/diminished color). See `CHORD_SUBSTITUTION_RULES`.
 	 */
 	enableSubstitutions?: boolean;
+	/**
+	 * When true, the session drills a single lick endlessly: cycles through the
+	 * circle of 4ths, drops keys mastered at score ≥ 0.95, and bumps tempo by
+	 * `tempoBumpBpm` once all 12 are cleared.
+	 */
+	singleLickMode?: boolean;
+	/** Phrase id of the lick to drill (only meaningful when singleLickMode is true). */
+	singleLickId?: string;
+	/** BPM added to currentTempo each time all 12 keys are mastered. Default 5. */
+	tempoBumpBpm?: number;
 }
 
 /**
@@ -76,6 +86,7 @@ export type LickPracticePhase =
 	| 'count-in'
 	| 'lick-running'
 	| 'inter-lick-rest'
+	| 'round-complete'
 	| 'complete';
 
 export interface LickPracticeKeyResult {
@@ -123,4 +134,10 @@ export interface SessionReport {
 	totalAttempts: number;
 	totalPassed: number;
 	elapsedMinutes: number;
+	/** Single-lick mode only: how many full rounds (12-key cycles) the user completed. */
+	roundsCompleted?: number;
+	/** Single-lick mode only: tempo at session end (after any tempo bumps). */
+	finalTempo?: number;
+	/** Single-lick mode only: which keys cleared in each round and at what tempo. */
+	keysMasteredByRound?: { round: number; tempo: number; keys: PitchClass[] }[];
 }

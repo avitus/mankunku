@@ -7,7 +7,8 @@
 		lickPractice,
 		hydrateLickPracticeProgress,
 		getPracticeLicks,
-		startSession
+		startSession,
+		startSingleLickSession
 	} from '$lib/state/lick-practice.svelte';
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
 
@@ -29,6 +30,14 @@
 	}
 
 	function handleStart() {
+		if (lickPractice.config.singleLickMode && lickPractice.config.singleLickId) {
+			startSingleLickSession(
+				lickPractice.config.singleLickId,
+				lickPractice.config.tempoBumpBpm ?? 5
+			);
+			goto('/lick-practice/session');
+			return;
+		}
 		startSession();
 		if (lickPractice.plan.length > 0) {
 			goto('/lick-practice/session');

@@ -17,6 +17,7 @@
 		recordKeyAttempt,
 		advance,
 		startInterLickTransition,
+		advanceSingleLickRound,
 		updateElapsedTime,
 		resetSession,
 		getSessionReport
@@ -475,6 +476,14 @@
 	 * bar boundary after the inter-lick rest.
 	 */
 	async function handleLickComplete(nextLickStartTick: number): Promise<void> {
+		if (lickPractice.mode === 'single-lick') {
+			// Endless drill mode: drop mastered keys, possibly bump tempo + refill,
+			// then keep going. There's no 'complete' branch — only the user's
+			// End Session button stops the session.
+			advanceSingleLickRound();
+			await startLick(0, false, nextLickStartTick);
+			return;
+		}
 		const result = startInterLickTransition();
 		if (result === 'complete') {
 			finishSession();
@@ -861,6 +870,58 @@
 			</div>
 		</div>
 
+		{#if sessionReport.roundsCompleted !== undefined && sessionReport.licks[0]}
+			{@const sl = sessionReport.licks[0]}
+			{@const tempoDelta = sl.newTempo != null ? sl.newTempo - sl.tempo : 0}
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
+				<div class="flex items-center justify-between">
+					<div>
+						<div class="smallcaps text-[var(--color-brass)]">Deep Practice</div>
+						<div class="text-base font-medium">{sl.lickName}</div>
+					</div>
+					<div class="flex gap-6 text-right tabular-nums">
+						<div>
+							<div class="font-display text-2xl font-bold">{sessionReport.roundsCompleted}</div>
+							<div class="smallcaps text-[var(--color-text-secondary)]">Rounds</div>
+						</div>
+						<div>
+							<div class="font-display text-2xl font-bold">
+								{sessionReport.finalTempo}
+								{#if tempoDelta !== 0}
+									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}">
+										({tempoDelta > 0 ? '+' : ''}{tempoDelta})
+									</span>
+								{/if}
+							</div>
+							<div class="smallcaps text-[var(--color-text-secondary)]">Final BPM</div>
+						</div>
+					</div>
+				</div>
+				{#if sessionReport.keysMasteredByRound && sessionReport.keysMasteredByRound.length > 0}
+					<div class="space-y-1">
+						{#each sessionReport.keysMasteredByRound as r (r.round)}
+							<div class="flex items-center gap-2 text-xs">
+								<span class="w-20 shrink-0 text-[var(--color-text-secondary)]">
+									Round {r.round} · {r.tempo} BPM
+								</span>
+								<div class="flex flex-wrap gap-1">
+									{#if r.keys.length === 0}
+										<span class="italic text-[var(--color-text-secondary)]">no masteries</span>
+									{:else}
+										{#each r.keys as k}
+											<span class="rounded bg-[var(--color-success)]/20 px-1.5 py-0.5 text-[var(--color-success)]">
+												{concertKeyToWritten(k, instrument)}
+											</span>
+										{/each}
+									{/if}
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
 		<!-- Per-lick breakdown -->
 		{#each sessionReport.licks as lick}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-2">
@@ -926,8 +987,11 @@
 			</a>
 		</div>
 	{:else if currentItem && currentKey}
-		<!-- Timer -->
-		<SessionTimer elapsedSeconds={lickPractice.elapsedSeconds} {totalSeconds} />
+		<!-- Timer — single-lick mode has no time budget so the countdown is
+		     suppressed; everything else is identical to standard mode. -->
+		{#if lickPractice.mode !== 'single-lick'}
+			<SessionTimer elapsedSeconds={lickPractice.elapsedSeconds} {totalSeconds} />
+		{/if}
 
 		<!-- Lick header -->
 		<LickHeader
