@@ -420,7 +420,8 @@ export function phraseToAbc(
 			: note.spelling === 'sharp' ? false
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
-		return `${pitch}${durationToAbc(duration, defaultLength)}`;
+		const tieSuffix = note.tied ? '-' : '';
+		return `${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
 	// ABC header
