@@ -24,6 +24,18 @@ export const NEW_LICK_DEFAULT_TEMPO = 60;
 const MIN_TEMPO = 50;
 const MAX_TEMPO = 300;
 const PROG_TAG_PREFIX = 'prog:';
+/**
+ * Tombstone marker for a deliberate "remove from practice set" action.
+ *
+ * Distinguishes "user explicitly removed practice" (the entry contains
+ * this sentinel) from "user touched the lick for some other reason but
+ * never set a practice decision" (the entry exists with neither this
+ * sentinel nor 'practice'). Without it, a curated lick with `lick.tags`
+ * `['practice']` whose user toggles a `prog:*` tag first would have
+ * `tags[id] = ['prog:X']`, which absent this distinction reads as
+ * "explicit removal" and would silently drop the lick from `/lick-practice`.
+ */
+const PRACTICE_REMOVED_TAG = 'practice:removed';
 /** Maximum unlocked keys per lick (full 12-key circle). */
 const MAX_UNLOCKED_KEYS = 12;
 
@@ -406,11 +418,14 @@ export function togglePracticeTag(phraseId: string): boolean {
 	const current = tags[phraseId] ?? [];
 	const hasPractice = current.includes('practice');
 
-	// Keep the empty-array entry on removal so backfillPracticeTags
-	// won't undo a deliberate user removal by re-adding 'practice' from
-	// the curated `lick.tags` default on the next mount.
-	const without = current.filter(t => t !== 'practice');
-	tags[phraseId] = hasPractice ? without : [...without, 'practice'];
+	// Always write either 'practice' (in set) or PRACTICE_REMOVED_TAG
+	// (explicit out) so backfillPracticeTags can distinguish a deliberate
+	// removal from "no practice decision yet" (entry created by toggling
+	// a prog:* tag, etc.) and won't undo the user's choice on next mount.
+	const cleaned = current.filter(t => t !== 'practice' && t !== PRACTICE_REMOVED_TAG);
+	tags[phraseId] = hasPractice
+		? [...cleaned, PRACTICE_REMOVED_TAG]
+		: [...cleaned, 'practice'];
 
 	saveUserLickTags(tags);
 	syncLickTagsToCloud();
@@ -423,18 +438,24 @@ export function hasPracticeTag(phraseId: string): boolean {
 }
 
 /**
- * Check whether a lick is in the user's practice set, treating the store
- * as authoritative once it has an entry for the lick. When no entry exists
- * (legacy users pre-backfill, fresh devices before hydration), falls back
- * to the curated `lick.tags` array. Without this distinction, an explicit
- * removal via `setPracticeTag(id, false)` would write `tags[id] = []` to
- * the store but the OR-with-`lick.tags` fallback in display code would
- * silently re-show the lick as practice-tagged on the next render.
+ * Check whether a lick is in the user's practice set. Three-state resolution:
+ *
+ *   1. Entry contains PRACTICE_REMOVED_TAG → explicit user removal, false.
+ *   2. Entry contains 'practice' → explicit user inclusion, true.
+ *   3. Otherwise (no entry, or entry holds only unrelated tags like `prog:*`)
+ *      → no decision yet, fall back to the curated `lick.tags` array.
+ *
+ * The PRACTICE_REMOVED_TAG sentinel is what lets us distinguish "user
+ * removed practice" from "user touched the lick to add a progression tag
+ * but never expressed a practice intent" — without it, both produce an
+ * entry without 'practice' and we'd silently drop the lick from
+ * `/lick-practice` in the second case.
  */
 export function isInPracticeSet(phraseId: string, lickTags: readonly string[]): boolean {
 	const tags = loadUserLickTags();
 	const entry = tags[phraseId];
-	if (entry !== undefined) return entry.includes('practice');
+	if (entry?.includes(PRACTICE_REMOVED_TAG)) return false;
+	if (entry?.includes('practice')) return true;
 	return lickTags.includes('practice');
 }
 
@@ -469,10 +490,10 @@ export function getEffectivePracticeLickIds(
 	const ids = new Set<string>();
 	for (const lick of licks) {
 		const entry = userTags[lick.id];
-		const inSet =
-			entry !== undefined
-				? entry.includes('practice')
-				: (overrides[lick.id] ?? lick.tags).includes('practice');
+		let inSet: boolean;
+		if (entry?.includes(PRACTICE_REMOVED_TAG)) inSet = false;
+		else if (entry?.includes('practice')) inSet = true;
+		else inSet = (overrides[lick.id] ?? lick.tags).includes('practice');
 		if (inSet) ids.add(lick.id);
 	}
 	return ids;
@@ -481,13 +502,16 @@ export function getEffectivePracticeLickIds(
 export function setPracticeTag(phraseId: string, tagged: boolean): void {
 	// Write unconditionally — gating on the store's current state silently
 	// no-ops when the UI shows the lick as tagged via the curated `lick.tags`
-	// fallback but the store has no entry. The empty-array entry is kept on
-	// removal as positive evidence of user intent so backfillPracticeTags
-	// won't re-add 'practice' from the curated default.
+	// fallback but the store has no entry. Removal writes PRACTICE_REMOVED_TAG
+	// rather than just dropping 'practice', so backfillPracticeTags can tell
+	// a deliberate removal apart from an entry that exists for unrelated
+	// reasons (e.g. a `prog:*` tag added before any practice decision).
 	const tags = loadUserLickTags();
 	const current = tags[phraseId] ?? [];
-	const without = current.filter(t => t !== 'practice');
-	tags[phraseId] = tagged ? [...without, 'practice'] : without;
+	const cleaned = current.filter(t => t !== 'practice' && t !== PRACTICE_REMOVED_TAG);
+	tags[phraseId] = tagged
+		? [...cleaned, 'practice']
+		: [...cleaned, PRACTICE_REMOVED_TAG];
 	saveUserLickTags(tags);
 	syncLickTagsToCloud();
 }
@@ -518,11 +542,20 @@ export function backfillPracticeTags(
 	let added = 0;
 
 	const ensure = (id: string) => {
-		// Only seed entries that don't yet exist. If the user has already
-		// expressed intent (any entry, even empty after a removal), respect
-		// it — re-adding 'practice' here would silently undo that removal.
-		if (id in tags) return;
-		tags[id] = ['practice'];
+		// Three states the existing entry could be in:
+		//   - has 'practice' → user already in set; nothing to do.
+		//   - has PRACTICE_REMOVED_TAG → user explicitly removed; respect it.
+		//   - has neither (e.g. only `prog:*` tags) → user hasn't expressed a
+		//     practice decision; safe to seed 'practice' from the curated
+		//     default without overriding any user intent.
+		const entry = tags[id];
+		if (entry === undefined) {
+			tags[id] = ['practice'];
+			added++;
+			return;
+		}
+		if (entry.includes('practice') || entry.includes(PRACTICE_REMOVED_TAG)) return;
+		tags[id] = [...entry, 'practice'];
 		added++;
 	};
 

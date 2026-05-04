@@ -170,11 +170,11 @@ describe('practice tag management', () => {
 	// save+sync path entirely. The first uncheck on a curated 'practice' lick
 	// produced no localStorage write and no Supabase request.
 	describe('setPracticeTag', () => {
-		it('writes an empty entry when removing practice from a lick with no prior store entry', () => {
+		it('writes a practice:removed sentinel when removing from a lick with no prior store entry', () => {
 			expect(loadUserLickTags()['curated-practice-lick']).toBeUndefined();
 			setPracticeTag('curated-practice-lick', false);
 			const stored = loadUserLickTags();
-			expect(stored['curated-practice-lick']).toEqual([]);
+			expect(stored['curated-practice-lick']).toEqual(['practice:removed']);
 			expect(hasPracticeTag('curated-practice-lick')).toBe(false);
 		});
 
@@ -184,10 +184,22 @@ describe('practice tag management', () => {
 			expect(hasPracticeTag('lick-1')).toBe(true);
 		});
 
-		it('removes practice from an existing entry while preserving other tags', () => {
+		it('replaces practice with the removal sentinel while preserving other tags', () => {
 			saveUserLickTags({ 'lick-1': ['practice', 'prog:turnaround'] });
 			setPracticeTag('lick-1', false);
-			expect(loadUserLickTags()['lick-1']).toEqual(['prog:turnaround']);
+			const stored = loadUserLickTags()['lick-1'] ?? [];
+			expect(stored).toContain('prog:turnaround');
+			expect(stored).toContain('practice:removed');
+			expect(stored).not.toContain('practice');
+		});
+
+		it('replaces the removal sentinel with practice when re-adding', () => {
+			saveUserLickTags({ 'lick-1': ['practice:removed', 'prog:turnaround'] });
+			setPracticeTag('lick-1', true);
+			const stored = loadUserLickTags()['lick-1'] ?? [];
+			expect(stored).toContain('practice');
+			expect(stored).toContain('prog:turnaround');
+			expect(stored).not.toContain('practice:removed');
 		});
 
 		it('adds practice to an existing entry without duplicating it', () => {
@@ -205,16 +217,25 @@ describe('practice tag management', () => {
 			expect(isInPracticeSet('lick-1', ['bebop'])).toBe(false);
 		});
 
-		it('treats the store entry as authoritative when present', () => {
-			saveUserLickTags({ 'lick-1': [] });
-			// Entry exists but does not include 'practice' — explicit removal.
-			// Must NOT fall through to lick.tags.
+		it('treats an explicit "practice" tag in the entry as authoritative', () => {
+			saveUserLickTags({ 'lick-1': ['practice', 'prog:turnaround'] });
+			expect(isInPracticeSet('lick-1', [])).toBe(true);
+		});
+
+		it('treats the practice:removed sentinel as explicit removal', () => {
+			setPracticeTag('lick-1', false);
+			// Entry now holds the sentinel — must NOT fall through to lick.tags.
 			expect(isInPracticeSet('lick-1', ['practice'])).toBe(false);
 		});
 
-		it('respects an empty entry as a deliberate "removed" signal', () => {
-			setPracticeTag('lick-1', false);
-			expect(isInPracticeSet('lick-1', ['practice'])).toBe(false);
+		// Regression: an entry produced by toggleProgressionTag has no
+		// practice/practice:removed flag — must fall back to lick.tags so
+		// curated 'practice' licks aren't silently dropped from /lick-practice
+		// just because the user reached for a progression tag first.
+		it('falls back to lick.tags when the entry has only unrelated tags', () => {
+			saveUserLickTags({ 'lick-1': ['prog:turnaround'] });
+			expect(isInPracticeSet('lick-1', ['practice'])).toBe(true);
+			expect(isInPracticeSet('lick-1', [])).toBe(false);
 		});
 	});
 
@@ -246,10 +267,16 @@ describe('practice tag management', () => {
 			expect(ids.has('curated-2')).toBe(false);
 		});
 
-		it('treats the store entry as authoritative once it exists', () => {
-			saveUserLickTags({ 'lick-1': [] }); // user removed practice
+		it('honours the practice:removed sentinel as explicit removal', () => {
+			saveUserLickTags({ 'lick-1': ['practice:removed'] });
 			const licks = [{ id: 'lick-1', tags: ['practice'] }];
 			expect(getEffectivePracticeLickIds(licks).has('lick-1')).toBe(false);
+		});
+
+		it('falls back to lick.tags when the entry has only unrelated tags (no practice decision)', () => {
+			saveUserLickTags({ 'lick-1': ['prog:turnaround'] });
+			const licks = [{ id: 'lick-1', tags: ['practice'] }];
+			expect(getEffectivePracticeLickIds(licks).has('lick-1')).toBe(true);
 		});
 
 		it('honours the legacy tag-override blob over lick.tags', () => {
@@ -301,27 +328,27 @@ describe('backfillPracticeTags', () => {
 		expect(hasPracticeTag('lick-1')).toBe(false);
 	});
 
-	it('respects an existing entry — does not re-add practice to a lick the user has already touched', () => {
-		// Pre-populate with a progression tag — this creates an entry the
-		// user owns. Re-adding 'practice' here would silently undo any
-		// deliberate removal the user might have performed before tagging
-		// the progression. Backfill should only seed entries that don't
-		// yet exist.
+	it('seeds practice into a progression-only entry — toggleProgressionTag did not express a practice intent', () => {
+		// User toggled a progression tag first; the entry exists but has no
+		// practice or practice:removed flag. Backfill should treat this as
+		// "no decision yet" and seed the curated 'practice' default —
+		// otherwise curated 'practice' licks silently disappear from
+		// /lick-practice for users who reached for a progression tag first.
 		toggleProgressionTag('lick-1', 'turnaround');
 		expect(hasProgressionTag('lick-1', 'turnaround')).toBe(true);
 
 		const licks = [{ id: 'lick-1', tags: ['practice'] }];
 		const added = backfillPracticeTags(licks, {});
 
-		expect(added).toBe(0);
-		expect(hasPracticeTag('lick-1')).toBe(false);
+		expect(added).toBe(1);
+		expect(hasPracticeTag('lick-1')).toBe(true);
 		expect(hasProgressionTag('lick-1', 'turnaround')).toBe(true);
 	});
 
-	it('respects an empty entry written by a prior removal', () => {
+	it('respects a practice:removed sentinel from a prior removal', () => {
 		// User removes 'practice' from a curated lick on this device.
 		setPracticeTag('lick-1', false);
-		expect(loadUserLickTags()['lick-1']).toEqual([]);
+		expect(loadUserLickTags()['lick-1']).toEqual(['practice:removed']);
 
 		// Backfill runs (e.g., user navigates to /lick-practice).
 		const licks = [{ id: 'lick-1', tags: ['practice'] }];
