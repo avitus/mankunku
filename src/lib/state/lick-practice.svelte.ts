@@ -40,7 +40,7 @@ import {
 	getLickLastPracticed,
 	hasLickProgress,
 	updateKeyProgress,
-	getPracticeTaggedIds,
+	getEffectivePracticeLickIds,
 	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags,
@@ -173,7 +173,8 @@ export async function hydrateLickPracticeProgress(
  *      `enableSubstitutions` is on (e.g. `minor-chord` over a `7` chord).
  */
 export function getPracticeLicks(): Phrase[] {
-	const taggedIds = getPracticeTaggedIds();
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
 	if (taggedIds.size === 0) return [];
 
 	const progressionType = lickPractice.config.progressionType;
@@ -182,7 +183,6 @@ export function getPracticeLicks(): Phrase[] {
 		progressionType,
 		lickPractice.config.enableSubstitutions ?? false
 	);
-	const allLicks = getAllLicks();
 
 	return allLicks.filter(lick => {
 		if (!taggedIds.has(lick.id)) return false;
@@ -200,10 +200,11 @@ export function getPracticeLicks(): Phrase[] {
  * library; otherwise they sit invisibly in the practice set forever.
  */
 export function getStrandedPracticeLicks(): Phrase[] {
-	const taggedIds = getPracticeTaggedIds();
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
 	if (taggedIds.size === 0) return [];
 
-	const candidates = getAllLicks().filter((l) => taggedIds.has(l.id));
+	const candidates = allLicks.filter((l) => taggedIds.has(l.id));
 	return findStrandedLicks({ candidates, getProgressionTags });
 }
 
@@ -212,10 +213,11 @@ export function getStrandedPracticeLicks(): Phrase[] {
  * wrapper that resolves dependencies and delegates to `buildUpcomingLicks`.
  */
 export function getUpcomingLicks(): UpcomingLickEntry[] {
-	const taggedIds = getPracticeTaggedIds();
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
 	if (taggedIds.size === 0) return [];
 
-	const candidates = getAllLicks().filter((l) => taggedIds.has(l.id));
+	const candidates = allLicks.filter((l) => taggedIds.has(l.id));
 	return buildUpcomingLicks({
 		candidates,
 		progress: lickPractice.progress,
@@ -231,10 +233,11 @@ export function getUpcomingLicks(): UpcomingLickEntry[] {
  * without the runes runtime.
  */
 export function pickInitialProgression(): ChordProgressionType {
-	const taggedIds = getPracticeTaggedIds();
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
 	if (taggedIds.size === 0) return DEFAULT_PROGRESSION;
 
-	const candidates = getAllLicks().filter(l => taggedIds.has(l.id));
+	const candidates = allLicks.filter(l => taggedIds.has(l.id));
 	return selectInitialProgression({
 		candidates,
 		progress: lickPractice.progress,

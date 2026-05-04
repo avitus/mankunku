@@ -6,7 +6,12 @@ import { save, load } from './storage';
 import { syncLickMetadataToCloud, loadLickMetadataFromCloud, type LickMetadata } from './sync';
 import { getScopeGeneration } from './user-scope';
 import { getAllLicks } from '$lib/phrases/library-loader';
-import { getUserLicksLocal, getLickCategoryOverrides, updateLickCategory } from './user-licks';
+import {
+	getUserLicksLocal,
+	getLickCategoryOverrides,
+	updateLickCategory,
+	getLickTagOverrides
+} from './user-licks';
 import { INFERRED_PROGRESSION_TAG_BY_CATEGORY } from '$lib/data/progressions';
 
 const STORAGE_KEY = 'lick-practice-progress';
@@ -19,6 +24,18 @@ export const NEW_LICK_DEFAULT_TEMPO = 60;
 const MIN_TEMPO = 50;
 const MAX_TEMPO = 300;
 const PROG_TAG_PREFIX = 'prog:';
+/**
+ * Tombstone marker for a deliberate "remove from practice set" action.
+ *
+ * Distinguishes "user explicitly removed practice" (the entry contains
+ * this sentinel) from "user touched the lick for some other reason but
+ * never set a practice decision" (the entry exists with neither this
+ * sentinel nor 'practice'). Without it, a curated lick with `lick.tags`
+ * `['practice']` whose user toggles a `prog:*` tag first would have
+ * `tags[id] = ['prog:X']`, which absent this distinction reads as
+ * "explicit removal" and would silently drop the lick from `/lick-practice`.
+ */
+const PRACTICE_REMOVED_TAG = 'practice:removed';
 /** Maximum unlocked keys per lick (full 12-key circle). */
 const MAX_UNLOCKED_KEYS = 12;
 
@@ -188,11 +205,9 @@ const SYNC_DEBOUNCE_MS = 500;
  * coalesce into a single request carrying the latest data.
  */
 function syncLickTagsToCloud(): void {
-	console.log('[diag] syncLickTagsToCloud called, _supabase=', _supabase ? 'set' : 'null');
 	if (!_supabase) return;
 	if (syncTagsTimer) clearTimeout(syncTagsTimer);
 	syncTagsTimer = setTimeout(() => {
-		console.log('[diag] syncLickTagsToCloud debounce fired, calling syncLickMetadataToCloud');
 		syncTagsTimer = null;
 		const tags = loadUserLickTags();
 		syncLickMetadataToCloud(_supabase!, { lickTags: tags }).catch(() => {});
@@ -403,12 +418,14 @@ export function togglePracticeTag(phraseId: string): boolean {
 	const current = tags[phraseId] ?? [];
 	const hasPractice = current.includes('practice');
 
-	if (hasPractice) {
-		tags[phraseId] = current.filter(t => t !== 'practice');
-		if (tags[phraseId].length === 0) delete tags[phraseId];
-	} else {
-		tags[phraseId] = [...current, 'practice'];
-	}
+	// Always write either 'practice' (in set) or PRACTICE_REMOVED_TAG
+	// (explicit out) so backfillPracticeTags can distinguish a deliberate
+	// removal from "no practice decision yet" (entry created by toggling
+	// a prog:* tag, etc.) and won't undo the user's choice on next mount.
+	const cleaned = current.filter(t => t !== 'practice' && t !== PRACTICE_REMOVED_TAG);
+	tags[phraseId] = hasPractice
+		? [...cleaned, PRACTICE_REMOVED_TAG]
+		: [...cleaned, 'practice'];
 
 	saveUserLickTags(tags);
 	syncLickTagsToCloud();
@@ -420,20 +437,83 @@ export function hasPracticeTag(phraseId: string): boolean {
 	return tags[phraseId]?.includes('practice') ?? false;
 }
 
+/**
+ * Check whether a lick is in the user's practice set. Three-state resolution:
+ *
+ *   1. Entry contains PRACTICE_REMOVED_TAG → explicit user removal, false.
+ *   2. Entry contains 'practice' → explicit user inclusion, true.
+ *   3. Otherwise (no entry, or entry holds only unrelated tags like `prog:*`)
+ *      → no decision yet, fall back to the curated `lick.tags` array.
+ *
+ * The PRACTICE_REMOVED_TAG sentinel is what lets us distinguish "user
+ * removed practice" from "user touched the lick to add a progression tag
+ * but never expressed a practice intent" — without it, both produce an
+ * entry without 'practice' and we'd silently drop the lick from
+ * `/lick-practice` in the second case.
+ */
+export function isInPracticeSet(phraseId: string, lickTags: readonly string[]): boolean {
+	const tags = loadUserLickTags();
+	const entry = tags[phraseId];
+	if (entry?.includes(PRACTICE_REMOVED_TAG)) return false;
+	if (entry?.includes('practice')) return true;
+	return lickTags.includes('practice');
+}
+
+/**
+ * Resolve the effective fallback tags for a lick, honouring legacy
+ * tag-override entries before the curated `lick.tags` array. Display sites
+ * (library list/detail, LickCard) and the practice-flow selectors all use
+ * this so a curated lick whose practice flag still only lives in the
+ * override blob renders consistently across surfaces.
+ */
+export function resolvePracticeFallbackTags(
+	phraseId: string,
+	lickTags: readonly string[]
+): readonly string[] {
+	return getLickTagOverrides()[phraseId] ?? lickTags;
+}
+
+/**
+ * Bulk equivalent of `isInPracticeSet` — given the full lick library,
+ * returns the set of IDs in the user's practice set. The /lick-practice
+ * flow used to read this from `getPracticeTaggedIds()` (store-only), which
+ * silently dropped any lick whose practice flag still only lived in
+ * `lick.tags` (or the legacy override blob) on a fresh device. Now both
+ * the library display and the practice flow follow the same store-or-
+ * fallback rule, so they cannot disagree about membership.
+ */
+export function getEffectivePracticeLickIds(
+	licks: readonly { id: string; tags: readonly string[] }[]
+): Set<string> {
+	const userTags = loadUserLickTags();
+	const overrides = getLickTagOverrides();
+	const ids = new Set<string>();
+	for (const lick of licks) {
+		const entry = userTags[lick.id];
+		let inSet: boolean;
+		if (entry?.includes(PRACTICE_REMOVED_TAG)) inSet = false;
+		else if (entry?.includes('practice')) inSet = true;
+		else inSet = (overrides[lick.id] ?? lick.tags).includes('practice');
+		if (inSet) ids.add(lick.id);
+	}
+	return ids;
+}
+
 export function setPracticeTag(phraseId: string, tagged: boolean): void {
+	// Write unconditionally — gating on the store's current state silently
+	// no-ops when the UI shows the lick as tagged via the curated `lick.tags`
+	// fallback but the store has no entry. Removal writes PRACTICE_REMOVED_TAG
+	// rather than just dropping 'practice', so backfillPracticeTags can tell
+	// a deliberate removal apart from an entry that exists for unrelated
+	// reasons (e.g. a `prog:*` tag added before any practice decision).
 	const tags = loadUserLickTags();
 	const current = tags[phraseId] ?? [];
-	const has = current.includes('practice');
-	if (tagged && !has) {
-		tags[phraseId] = [...current, 'practice'];
-		saveUserLickTags(tags);
-		syncLickTagsToCloud();
-	} else if (!tagged && has) {
-		tags[phraseId] = current.filter(t => t !== 'practice');
-		if (tags[phraseId].length === 0) delete tags[phraseId];
-		saveUserLickTags(tags);
-		syncLickTagsToCloud();
-	}
+	const cleaned = current.filter(t => t !== 'practice' && t !== PRACTICE_REMOVED_TAG);
+	tags[phraseId] = tagged
+		? [...cleaned, 'practice']
+		: [...cleaned, PRACTICE_REMOVED_TAG];
+	saveUserLickTags(tags);
+	syncLickTagsToCloud();
 }
 
 export function getPracticeTaggedIds(): Set<string> {
@@ -462,11 +542,21 @@ export function backfillPracticeTags(
 	let added = 0;
 
 	const ensure = (id: string) => {
-		const current = tags[id] ?? [];
-		if (!current.includes('practice')) {
-			tags[id] = [...current, 'practice'];
+		// Three states the existing entry could be in:
+		//   - has 'practice' → user already in set; nothing to do.
+		//   - has PRACTICE_REMOVED_TAG → user explicitly removed; respect it.
+		//   - has neither (e.g. only `prog:*` tags) → user hasn't expressed a
+		//     practice decision; safe to seed 'practice' from the curated
+		//     default without overriding any user intent.
+		const entry = tags[id];
+		if (entry === undefined) {
+			tags[id] = ['practice'];
 			added++;
+			return;
 		}
+		if (entry.includes('practice') || entry.includes(PRACTICE_REMOVED_TAG)) return;
+		tags[id] = [...entry, 'practice'];
+		added++;
 	};
 
 	for (const lick of licks) {

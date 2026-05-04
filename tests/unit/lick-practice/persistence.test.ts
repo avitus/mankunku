@@ -10,6 +10,10 @@ import {
 	saveUserLickTags,
 	togglePracticeTag,
 	hasPracticeTag,
+	isInPracticeSet,
+	resolvePracticeFallbackTags,
+	getEffectivePracticeLickIds,
+	setPracticeTag,
 	getPracticeTaggedIds,
 	toggleProgressionTag,
 	hasProgressionTag,
@@ -159,6 +163,131 @@ describe('practice tag management', () => {
 		saveUserLickTags(tags);
 		expect(loadUserLickTags()).toEqual(tags);
 	});
+
+	// Regression: setPracticeTag(id, false) used to silently no-op when the
+	// store had no entry for the lick — the UI showed checked via the
+	// `lick.tags` fallback, but the gate `if (!tagged && has)` skipped the
+	// save+sync path entirely. The first uncheck on a curated 'practice' lick
+	// produced no localStorage write and no Supabase request.
+	describe('setPracticeTag', () => {
+		it('writes a practice:removed sentinel when removing from a lick with no prior store entry', () => {
+			expect(loadUserLickTags()['curated-practice-lick']).toBeUndefined();
+			setPracticeTag('curated-practice-lick', false);
+			const stored = loadUserLickTags();
+			expect(stored['curated-practice-lick']).toEqual(['practice:removed']);
+			expect(hasPracticeTag('curated-practice-lick')).toBe(false);
+		});
+
+		it('writes an entry with practice when adding to a lick with no prior store entry', () => {
+			setPracticeTag('lick-1', true);
+			expect(loadUserLickTags()['lick-1']).toEqual(['practice']);
+			expect(hasPracticeTag('lick-1')).toBe(true);
+		});
+
+		it('replaces practice with the removal sentinel while preserving other tags', () => {
+			saveUserLickTags({ 'lick-1': ['practice', 'prog:turnaround'] });
+			setPracticeTag('lick-1', false);
+			const stored = loadUserLickTags()['lick-1'] ?? [];
+			expect(stored).toContain('prog:turnaround');
+			expect(stored).toContain('practice:removed');
+			expect(stored).not.toContain('practice');
+		});
+
+		it('replaces the removal sentinel with practice when re-adding', () => {
+			saveUserLickTags({ 'lick-1': ['practice:removed', 'prog:turnaround'] });
+			setPracticeTag('lick-1', true);
+			const stored = loadUserLickTags()['lick-1'] ?? [];
+			expect(stored).toContain('practice');
+			expect(stored).toContain('prog:turnaround');
+			expect(stored).not.toContain('practice:removed');
+		});
+
+		it('adds practice to an existing entry without duplicating it', () => {
+			saveUserLickTags({ 'lick-1': ['practice', 'prog:turnaround'] });
+			setPracticeTag('lick-1', true);
+			const stored = loadUserLickTags()['lick-1'] ?? [];
+			expect(stored.filter(t => t === 'practice')).toHaveLength(1);
+			expect(stored).toContain('prog:turnaround');
+		});
+	});
+
+	describe('isInPracticeSet', () => {
+		it('returns lick.tags fallback when no store entry exists', () => {
+			expect(isInPracticeSet('lick-1', ['practice'])).toBe(true);
+			expect(isInPracticeSet('lick-1', ['bebop'])).toBe(false);
+		});
+
+		it('treats an explicit "practice" tag in the entry as authoritative', () => {
+			saveUserLickTags({ 'lick-1': ['practice', 'prog:turnaround'] });
+			expect(isInPracticeSet('lick-1', [])).toBe(true);
+		});
+
+		it('treats the practice:removed sentinel as explicit removal', () => {
+			setPracticeTag('lick-1', false);
+			// Entry now holds the sentinel — must NOT fall through to lick.tags.
+			expect(isInPracticeSet('lick-1', ['practice'])).toBe(false);
+		});
+
+		// Regression: an entry produced by toggleProgressionTag has no
+		// practice/practice:removed flag — must fall back to lick.tags so
+		// curated 'practice' licks aren't silently dropped from /lick-practice
+		// just because the user reached for a progression tag first.
+		it('falls back to lick.tags when the entry has only unrelated tags', () => {
+			saveUserLickTags({ 'lick-1': ['prog:turnaround'] });
+			expect(isInPracticeSet('lick-1', ['practice'])).toBe(true);
+			expect(isInPracticeSet('lick-1', [])).toBe(false);
+		});
+	});
+
+	describe('resolvePracticeFallbackTags', () => {
+		it('returns lick.tags when no override is present', () => {
+			expect(resolvePracticeFallbackTags('lick-1', ['practice'])).toEqual(['practice']);
+		});
+
+		it('returns the override when one exists', () => {
+			localStorage.setItem(
+				'mankunku:lick-tag-overrides',
+				JSON.stringify({ 'lick-1': ['practice', 'favorite'] })
+			);
+			expect(resolvePracticeFallbackTags('lick-1', ['stale'])).toEqual([
+				'practice',
+				'favorite'
+			]);
+		});
+	});
+
+	describe('getEffectivePracticeLickIds', () => {
+		it('includes licks whose practice flag only lives in lick.tags (pre-backfill)', () => {
+			const licks = [
+				{ id: 'curated-1', tags: ['practice', 'bebop'] },
+				{ id: 'curated-2', tags: ['bebop'] }
+			];
+			const ids = getEffectivePracticeLickIds(licks);
+			expect(ids.has('curated-1')).toBe(true);
+			expect(ids.has('curated-2')).toBe(false);
+		});
+
+		it('honours the practice:removed sentinel as explicit removal', () => {
+			saveUserLickTags({ 'lick-1': ['practice:removed'] });
+			const licks = [{ id: 'lick-1', tags: ['practice'] }];
+			expect(getEffectivePracticeLickIds(licks).has('lick-1')).toBe(false);
+		});
+
+		it('falls back to lick.tags when the entry has only unrelated tags (no practice decision)', () => {
+			saveUserLickTags({ 'lick-1': ['prog:turnaround'] });
+			const licks = [{ id: 'lick-1', tags: ['practice'] }];
+			expect(getEffectivePracticeLickIds(licks).has('lick-1')).toBe(true);
+		});
+
+		it('honours the legacy tag-override blob over lick.tags', () => {
+			localStorage.setItem(
+				'mankunku:lick-tag-overrides',
+				JSON.stringify({ 'curated-1': ['practice'] })
+			);
+			const licks = [{ id: 'curated-1', tags: [] }];
+			expect(getEffectivePracticeLickIds(licks).has('curated-1')).toBe(true);
+		});
+	});
 });
 
 describe('backfillPracticeTags', () => {
@@ -199,16 +328,35 @@ describe('backfillPracticeTags', () => {
 		expect(hasPracticeTag('lick-1')).toBe(false);
 	});
 
-	it('preserves other tags in the store when adding practice', () => {
-		// Pre-populate with a progression tag
+	it('seeds practice into a progression-only entry — toggleProgressionTag did not express a practice intent', () => {
+		// User toggled a progression tag first; the entry exists but has no
+		// practice or practice:removed flag. Backfill should treat this as
+		// "no decision yet" and seed the curated 'practice' default —
+		// otherwise curated 'practice' licks silently disappear from
+		// /lick-practice for users who reached for a progression tag first.
 		toggleProgressionTag('lick-1', 'turnaround');
 		expect(hasProgressionTag('lick-1', 'turnaround')).toBe(true);
 
 		const licks = [{ id: 'lick-1', tags: ['practice'] }];
-		backfillPracticeTags(licks, {});
+		const added = backfillPracticeTags(licks, {});
 
+		expect(added).toBe(1);
 		expect(hasPracticeTag('lick-1')).toBe(true);
 		expect(hasProgressionTag('lick-1', 'turnaround')).toBe(true);
+	});
+
+	it('respects a practice:removed sentinel from a prior removal', () => {
+		// User removes 'practice' from a curated lick on this device.
+		setPracticeTag('lick-1', false);
+		expect(loadUserLickTags()['lick-1']).toEqual(['practice:removed']);
+
+		// Backfill runs (e.g., user navigates to /lick-practice).
+		const licks = [{ id: 'lick-1', tags: ['practice'] }];
+		const added = backfillPracticeTags(licks, {});
+
+		// Removal sticks — backfill must not undo it.
+		expect(added).toBe(0);
+		expect(hasPracticeTag('lick-1')).toBe(false);
 	});
 
 	it('returns 0 when there is nothing to backfill', () => {
