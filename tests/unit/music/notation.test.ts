@@ -492,3 +492,36 @@ describe('midiToDisplayName key-aware spelling', () => {
 		expect(midiToDisplayName(61, 'C')).toBe('C#4');
 	});
 });
+
+describe('phraseToAbc tie suffix', () => {
+	function tiedPair(): Phrase {
+		return {
+			id: 'test',
+			name: 'test',
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1], tied: true },
+				{ pitch: 60, duration: [1, 8], offset: [1, 4] }
+			],
+			harmony: [],
+			difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+			category: 'user',
+			tags: [],
+			source: 'test'
+		};
+	}
+
+	it('emits `-` immediately after a tied note', () => {
+		const line = noteLine(phraseToAbc(tiedPair()));
+		// L:1/8 default → quarter at C4 = "C2", then tie suffix, then beam/space, then "C"
+		expect(line).toMatch(/C2-/);
+	});
+
+	it('does not emit `-` when tied is absent', () => {
+		const phrase = tiedPair();
+		phrase.notes[0].tied = false;
+		const line = noteLine(phraseToAbc(phrase));
+		expect(line).not.toMatch(/C2-/);
+	});
+});

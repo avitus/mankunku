@@ -203,6 +203,29 @@ export function addRest(): boolean {
 
 export function deleteLastNote(): void {
 	stepEntry.enteredNotes.pop();
+	const newLast = stepEntry.enteredNotes.at(-1);
+	if (newLast?.tied) newLast.tied = false;
+}
+
+/**
+ * MuseScore-style tie: mark the previous note as tied and append a duplicate
+ * at the same pitch with the currently-selected duration. No-op if the last
+ * note is missing or is a rest.
+ */
+export function enterTiedNote(): boolean {
+	const lastNote = stepEntry.enteredNotes.at(-1);
+	if (!lastNote || lastNote.pitch === null) return false;
+
+	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
+	if (!canAddDuration(duration)) return false;
+
+	lastNote.tied = true;
+	stepEntry.enteredNotes.push({
+		pitch: lastNote.pitch,
+		duration,
+		offset: getCurrentCursorOffset()
+	});
+	return true;
 }
 
 export function reset(): void {

@@ -14,10 +14,10 @@
  * - Per-note tuning corrections from SFZ mappings
  */
 
-import type { Phrase } from '$lib/types/music';
+import type { Fraction, Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
-import { fractionToFloat } from '$lib/music/intervals';
+import { addFractions, fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
@@ -429,23 +429,36 @@ function getBreathDetune(midi: number, isFirstNote: boolean): number {
  * and timing humanization for authentic jazz feel.
  */
 function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number): PlaybackEvent[] {
-	const pitched = phrase.notes.filter((n) => n.pitch !== null);
-	return pitched.map((note, index): PlaybackEvent => {
+	const events: PlaybackEvent[] = [];
+	const notes = phrase.notes;
+	let eventIndex = 0;
+	for (let i = 0; i < notes.length; i++) {
+		const note = notes[i];
+		if (note.pitch === null) continue;
+
+		// Walk forward through any tie chain at the same pitch, summing durations
+		// so the chain plays as a single sustained note with one attack.
+		let combinedDuration: Fraction = note.duration;
+		while (notes[i].tied && i + 1 < notes.length && notes[i + 1].pitch === note.pitch) {
+			i++;
+			combinedDuration = addFractions(combinedDuration, notes[i].duration);
+		}
+
 		const rawBeats = fractionToFloat(note.offset) * 4;
 		const swungBeats = applySwingToBeats(rawBeats, swing);
-		const rawTicks = Math.round(swungBeats * ppq);
-		const ticks = humanizeTiming(rawTicks, ppq, tempo);
-		const durationBeats = fractionToFloat(note.duration) * 4;
-		const durationSeconds = durationBeats * (60 / tempo);
+		const ticks = humanizeTiming(Math.round(swungBeats * ppq), ppq, tempo);
+		const durationSeconds = fractionToFloat(combinedDuration) * 4 * (60 / tempo);
 
-		return {
+		events.push({
 			time: `${ticks}i`,
-			midi: note.pitch!,
+			midi: note.pitch,
 			duration: durationSeconds,
 			velocity: humanizeVelocity(note.velocity ?? 100),
-			detune: getBreathDetune(note.pitch!, index === 0)
-		};
-	});
+			detune: getBreathDetune(note.pitch, eventIndex === 0)
+		});
+		eventIndex++;
+	}
+	return events;
 }
 
 /**
