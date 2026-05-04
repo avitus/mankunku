@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	stepEntry, addNote, addRest, adjustLastNotePitch, deleteLastNote,
-	enterTiedNote, reset, setDuration, toggleTriplet
+	enterTiedNote, flipLastNoteSpelling, reset, setDuration, toggleTriplet
 } from '$lib/state/step-entry.svelte';
 import { settings } from '$lib/state/settings.svelte';
 
@@ -98,6 +98,17 @@ describe('enterTiedNote', () => {
 
 		expect(stepEntry.enteredNotes[0].tied).toBe(false);
 		expect(stepEntry.enteredNotes[1].pitch).toBe((basePitch ?? 0) + 1);
+	});
+
+	it('carries the explicit enharmonic spelling onto the tied duplicate', () => {
+		setDuration('quarter');
+		stepEntry.phraseKey = 'C';
+		addNote(0, 4, 'sharp'); // C natural + sharp = C#4 (chromatic, flippable)
+		flipLastNoteSpelling(); // sets explicit spelling — 'flat' in non-flat key
+		expect(stepEntry.enteredNotes[0].spelling).toBe('flat');
+
+		enterTiedNote();
+		expect(stepEntry.enteredNotes[1].spelling).toBe('flat');
 	});
 
 	it('arrow-edit that lands back on the same pitch keeps the tie', () => {

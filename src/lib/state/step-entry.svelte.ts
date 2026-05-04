@@ -223,7 +223,8 @@ export function enterTiedNote(): boolean {
 	stepEntry.enteredNotes.push({
 		pitch: lastNote.pitch,
 		duration,
-		offset: getCurrentCursorOffset()
+		offset: getCurrentCursorOffset(),
+		spelling: lastNote.spelling
 	});
 	return true;
 }
