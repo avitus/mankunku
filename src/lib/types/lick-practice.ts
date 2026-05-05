@@ -1,4 +1,4 @@
-import type { PitchClass, PhraseCategory, ChordQuality } from './music';
+import type { PitchClass, PhraseCategory, ChordQuality, Phrase } from './music';
 import type { Score } from './scoring';
 
 export type ChordProgressionType =
@@ -79,6 +79,13 @@ export interface LickPracticePlanItem {
 	phraseNumber: number;
 	category: PhraseCategory;
 	keys: PitchClass[];
+	/**
+	 * Resolved Phrase captured at plan-build time. Used as a lookup fallback
+	 * for `getLickById` so user/community licks survive cache misses (e.g.
+	 * the lick was deleted from the local cache mid-session, or the entry
+	 * point passed in a Phrase that's not yet in `getAllLicks()`).
+	 */
+	phrase?: Phrase;
 }
 
 export type LickPracticePhase =
