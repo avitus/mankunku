@@ -21,8 +21,9 @@ const IGNORED_PATTERNS: RegExp[] = [
 	// (e.g. window.location.href change during account deletion). Chromium
 	// and Firefox tolerate the in-flight request; WebKit raises a CORS-style
 	// "access control checks" error that surfaces as a pageerror. Production
-	// users see this as a no-op because the page already moved on.
-	/Fetch API cannot load .* due to access control checks/
+	// users see this as a no-op because the page already moved on. Pinned to
+	// the /api/monitoring path so unrelated CORS regressions still fail.
+	/Fetch API cannot load .*\/api\/monitoring(?:[/?#].*)? due to access control checks/
 ];
 
 /**
@@ -63,19 +64,19 @@ export interface ConsoleCollector {
 }
 
 export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
-	consoleCollector: async ({ page }, use, testInfo) => {
+	consoleCollector: async ({ page }, use, testInfo): Promise<void> => {
 		const errors: string[] = [];
 		const warnings: string[] = [];
 		const pageErrors: string[] = [];
 
-		const onConsole = (msg: ConsoleMessage) => {
+		const onConsole = (msg: ConsoleMessage): void => {
 			const text = msg.text();
 			const url = msg.location()?.url ?? '';
 			if (isIgnored(text, url)) return;
 			if (msg.type() === 'error') errors.push(text);
 			if (msg.type() === 'warning') warnings.push(text);
 		};
-		const onPageError = (err: Error) => {
+		const onPageError = (err: Error): void => {
 			const text = err.stack ?? err.message;
 			// pageerror events don't expose the originating URL, so URL-gated
 			// patterns can't apply — only the global IGNORED_PATTERNS list does.
