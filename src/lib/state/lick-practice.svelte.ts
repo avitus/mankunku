@@ -28,7 +28,8 @@ import type {
 	LickPracticeProgress,
 	LickPracticeKeyResult,
 	LickReport,
-	SessionReport
+	SessionReport,
+	SingleLickRoundEntry
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
 import { addFractions } from '$lib/music/intervals';
@@ -91,13 +92,6 @@ export interface PlannedKey {
 	harmony: HarmonicSegment[];
 	lickName: string;
 	lickId: string;
-}
-
-/** Per-round summary captured at end-of-round in single-lick mode. */
-export interface SingleLickRoundEntry {
-	round: number;
-	tempo: number;
-	keys: PitchClass[];
 }
 
 export const lickPractice = $state<{

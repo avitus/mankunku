@@ -88,6 +88,16 @@ export interface LickPracticePlanItem {
 	phrase?: Phrase;
 }
 
+/**
+ * Single-lick mode end-of-round summary: which keys cleared at score ≥ 0.95
+ * during the round, captured for the session report.
+ */
+export interface SingleLickRoundEntry {
+	round: number;
+	tempo: number;
+	keys: PitchClass[];
+}
+
 export type LickPracticePhase =
 	| 'setup'
 	| 'count-in'
@@ -146,5 +156,5 @@ export interface SessionReport {
 	/** Single-lick mode only: tempo at session end (after any tempo bumps). */
 	finalTempo?: number;
 	/** Single-lick mode only: which keys cleared in each round and at what tempo. */
-	keysMasteredByRound?: { round: number; tempo: number; keys: PitchClass[] }[];
+	keysMasteredByRound?: SingleLickRoundEntry[];
 }
