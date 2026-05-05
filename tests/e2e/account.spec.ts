@@ -19,6 +19,22 @@ import { seedOnboardedAnonymous } from './fixtures/storage';
 test.describe('account section (authed)', () => {
 	test.beforeEach(async ({ signedInPage }) => {
 		await seedOnboardedAnonymous(signedInPage);
+
+		// Settings-while-authed mounts an effect that fetches display_name
+		// via `supabase.from('user_profiles')…single()` from the browser. With
+		// our fake cookie there's no real Supabase session, so PostgREST
+		// returns 406 on .single() over zero rows — surfaced as an unexpected
+		// browser error specifically on WebKit (Chromium/Firefox finish the
+		// 2s hydration race before the call lands). Intercept so we never
+		// hit real Supabase from this spec.
+		await signedInPage.route('**/rest/v1/**', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				headers: { 'content-range': '0-0/0' },
+				body: '[]'
+			});
+		});
 	});
 
 	test('settings page renders the Account section for authed users', async ({
