@@ -1,0 +1,129 @@
+/*
+ * Driver.js base styles + Mankunku theme overrides.
+ *
+ * Imported from driver-config.ts so any code path that calls runTour() picks
+ * up the styles, not just the (rarely-used) <Tour.svelte> component wrapper.
+ *
+ * The theme overrides target `.driver-popover.mankunku-tour` (set via
+ * popoverClass in createDefaultConfig); without that class the base
+ * driver.js styling shows through.
+ */
+
+@import 'driver.js/dist/driver.css';
+
+.driver-popover.mankunku-tour {
+	background: var(--color-bg-secondary);
+	color: var(--color-text);
+	border: 1px solid var(--color-bg-tertiary);
+	border-left: 3px solid var(--color-brass);
+	border-radius: 0.5rem;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+	padding: 1rem 1.125rem 0.875rem;
+	max-width: 22rem;
+	font-size: 0.875rem;
+	line-height: 1.5;
+}
+
+.driver-popover.mankunku-tour .driver-popover-arrow-side-top.driver-popover-arrow {
+	border-top-color: var(--color-bg-tertiary);
+}
+.driver-popover.mankunku-tour .driver-popover-arrow-side-bottom.driver-popover-arrow {
+	border-bottom-color: var(--color-bg-tertiary);
+}
+.driver-popover.mankunku-tour .driver-popover-arrow-side-left.driver-popover-arrow {
+	border-left-color: var(--color-bg-tertiary);
+}
+.driver-popover.mankunku-tour .driver-popover-arrow-side-right.driver-popover-arrow {
+	border-right-color: var(--color-bg-tertiary);
+}
+
+.driver-popover.mankunku-tour .driver-popover-title {
+	font-family: Fraunces, ui-serif, Georgia, 'Times New Roman', serif;
+	font-optical-sizing: auto;
+	font-variation-settings: 'SOFT' 50, 'WONK' 0;
+	font-size: 1.125rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	color: var(--color-text);
+	padding: 0;
+	margin: 0 0 0.375rem;
+}
+
+.driver-popover.mankunku-tour .driver-popover-description {
+	color: var(--color-text-secondary);
+	font-size: 0.85rem;
+	line-height: 1.55;
+	padding: 0;
+	margin: 0;
+}
+
+.driver-popover.mankunku-tour .driver-popover-progress-text {
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
+	font-size: 0.65rem;
+	font-weight: 600;
+	color: var(--color-brass);
+}
+
+.driver-popover.mankunku-tour .driver-popover-footer {
+	margin-top: 0.875rem;
+	padding-top: 0.625rem;
+	border-top: 1px solid var(--color-bg-tertiary);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.driver-popover.mankunku-tour .driver-popover-footer button {
+	background: transparent;
+	color: var(--color-text-secondary);
+	border: 1px solid var(--color-bg-tertiary);
+	border-radius: 0.375rem;
+	padding: 0.4rem 0.85rem;
+	font-size: 0.8rem;
+	font-weight: 500;
+	text-shadow: none;
+	transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.driver-popover.mankunku-tour .driver-popover-footer button:hover {
+	background: var(--color-bg-tertiary);
+	color: var(--color-text);
+	border-color: var(--color-brass);
+}
+
+.driver-popover.mankunku-tour .driver-popover-next-btn {
+	background: var(--color-accent);
+	color: white;
+	border-color: var(--color-accent);
+}
+.driver-popover.mankunku-tour .driver-popover-next-btn:hover {
+	background: var(--color-accent-hover);
+	border-color: var(--color-accent-hover);
+	color: white;
+}
+
+.driver-popover.mankunku-tour .driver-popover-close-btn {
+	color: var(--color-text-secondary);
+	font-size: 1.25rem;
+	line-height: 1;
+	opacity: 0.7;
+	text-shadow: none;
+	padding: 0;
+	width: 1.5rem;
+	height: 1.5rem;
+	border: none;
+	background: transparent;
+}
+.driver-popover.mankunku-tour .driver-popover-close-btn:hover {
+	opacity: 1;
+	color: var(--color-brass);
+	background: transparent;
+	border: none;
+}
+
+.driver-active-element {
+	outline: 2px solid var(--color-brass) !important;
+	outline-offset: 2px;
+}

@@ -344,6 +344,144 @@ describe('listCommunityLicks', () => {
 		expect(two.isStolenByMe).toBe(true);
 	});
 
+	// Cross-device + cross-user favorites tests live next to the listing tests
+	// because `initCommunityFromCloud` is the common entry point. The mock
+	// `makeSupabaseMock` resolves `lick_favorites` queries via `data[table]`
+	// — pre-set rows simulate a particular cloud snapshot, with the filter
+	// being implicit (production filters by user_id; the mock's row set is
+	// what the production filter would have returned).
+
+	it('cross-device — device A favorites X, device B favorites Y, hydration sees both (UNION)', async () => {
+		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+
+		// Cloud snapshot reflects what device A and device B both wrote: rows
+		// for both lick-X and lick-Y owned by user-A.
+		const sb = makeSupabaseMock({
+			user: { id: 'user-A' },
+			data: {
+				lick_favorites: [
+					{ user_id: 'user-A', lick_id: 'lick-X' },
+					{ user_id: 'user-A', lick_id: 'lick-Y' }
+				],
+				lick_adoptions: [],
+				user_licks: []
+			}
+		}) as Parameters<typeof initCommunityFromCloud>[0];
+
+		await initCommunityFromCloud(sb);
+
+		const localFavs = getFavoritesLocal();
+		expect(localFavs.has('lick-X')).toBe(true);
+		expect(localFavs.has('lick-Y')).toBe(true);
+	});
+
+	it('cross-user isolation — user A favorites do not leak into user B after the wipe + hydration on the same device', async () => {
+		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+
+		// User A's session: locally favorites lick-X.
+		localStorageMock.setItem('mankunku:community-favorites', JSON.stringify(['lick-X']));
+		expect(getFavoritesLocal().has('lick-X')).toBe(true);
+
+		// Simulate the wipe coordinator running (user-scope.test.ts pins down
+		// the wipe behavior — here we just need the post-wipe state).
+		localStorageMock.removeItem('mankunku:community-favorites');
+		expect(getFavoritesLocal().has('lick-X')).toBe(false);
+
+		// Now user B hydrates. Cloud's filtered fetch for user-B returns user-B's
+		// favorites only. (The production .eq('user_id', user.id) is the
+		// structural barrier pinned down by cloud-read-filters.test.ts; here we
+		// trust the filter and exercise what the user actually experiences on
+		// the device.)
+		const sb = makeSupabaseMock({
+			user: { id: 'user-B' },
+			data: {
+				lick_favorites: [{ user_id: 'user-B', lick_id: 'lick-Z' }],
+				lick_adoptions: [],
+				user_licks: []
+			}
+		}) as Parameters<typeof initCommunityFromCloud>[0];
+
+		await initCommunityFromCloud(sb);
+
+		// User B sees only their own favorite, not user A's lick-X.
+		const favs = getFavoritesLocal();
+		expect(favs.has('lick-X')).toBe(false);
+		expect(favs.has('lick-Z')).toBe(true);
+	});
+
+	it('cross-device — stolen licks union across two devices stays consistent', async () => {
+		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+
+		// Cloud has both steals (one from each device); the user_licks select
+		// returns both authoritative payloads.
+		const sb = makeSupabaseMock({
+			user: { id: 'user-A' },
+			data: {
+				lick_favorites: [],
+				lick_adoptions: [
+					{ user_id: 'user-A', lick_id: 'steal-X' },
+					{ user_id: 'user-A', lick_id: 'steal-Y' }
+				],
+				user_licks: [
+					{
+						id: 'steal-X',
+						user_id: 'author-1',
+						name: 'X',
+						key: 'C',
+						time_signature: [4, 4],
+						notes: [
+							{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+							{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+							{ pitch: 64, duration: [1, 4], offset: [2, 4] },
+							{ pitch: 65, duration: [1, 4], offset: [3, 4] }
+						],
+						harmony: [],
+						difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
+						category: 'user',
+						tags: [],
+						source: 'user-recorded',
+						audio_url: null,
+						created_at: '',
+						updated_at: '',
+						favorite_count: 0
+					},
+					{
+						id: 'steal-Y',
+						user_id: 'author-2',
+						name: 'Y',
+						key: 'G',
+						time_signature: [4, 4],
+						notes: [
+							{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+							{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+							{ pitch: 64, duration: [1, 4], offset: [2, 4] },
+							{ pitch: 65, duration: [1, 4], offset: [3, 4] }
+						],
+						harmony: [],
+						difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
+						category: 'user',
+						tags: [],
+						source: 'user-recorded',
+						audio_url: null,
+						created_at: '',
+						updated_at: '',
+						favorite_count: 0
+					}
+				],
+				public_lick_authors: []
+			}
+		}) as Parameters<typeof initCommunityFromCloud>[0];
+
+		await initCommunityFromCloud(sb);
+
+		const steals = getStealsLocal();
+		expect(steals.has('steal-X')).toBe(true);
+		expect(steals.has('steal-Y')).toBe(true);
+
+		const payloads = getStolenLicksLocal();
+		expect(payloads.map((p) => p.id).sort()).toEqual(['steal-X', 'steal-Y']);
+	});
+
 	it('filters by author name client-side', async () => {
 		const sb = makeSupabaseMock({
 			data: {

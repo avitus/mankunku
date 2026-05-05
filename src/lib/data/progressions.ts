@@ -407,8 +407,53 @@ export function getLickAlignmentOffset(
 export function getCompatibleLickCategories(
 	progressionType: ChordProgressionType
 ): PhraseCategory[] {
-	return PROGRESSION_LICK_CATEGORIES[progressionType].map(e => e.category);
+	return PROGRESSION_LICK_CATEGORIES[progressionType]?.map(e => e.category) ?? [];
 }
+
+/**
+ * Inverse of `getCompatibleLickCategories`: given a lick category, return all
+ * progression types whose compatibility list includes it. Used to surface the
+ * progressions a lick can be practiced over without consulting substitutions.
+ */
+export function getProgressionsForCategory(
+	category: PhraseCategory
+): ChordProgressionType[] {
+	const result: ChordProgressionType[] = [];
+	for (const [progressionType, entries] of Object.entries(PROGRESSION_LICK_CATEGORIES) as [
+		ChordProgressionType,
+		CompatibleLickCategory[]
+	][]) {
+		if (entries.some(e => e.category === category)) {
+			result.push(progressionType);
+		}
+	}
+	return result;
+}
+
+/**
+ * Categories whose role is unambiguous enough that picking that category is
+ * itself a strong signal about which progression the user intends to practice
+ * the lick over. Setting one of these via `updateLickCategory` auto-adds the
+ * corresponding `prog:*` tag so the user's intent is durably recorded (and
+ * survives later category edits — `updateLickCategory` never removes tags).
+ *
+ * Categories that fit several progressions equally well (e.g. `major-chord`,
+ * `ii-V-I-major`) are deliberately omitted: an auto-tag would be redundant
+ * with category-derived compatibility and just clutter the lick's tag list.
+ * Categories with no fitting progression (`user`, `pentatonic`, etc.) are
+ * also omitted — the user has to state their intent explicitly there.
+ */
+export const INFERRED_PROGRESSION_TAG_BY_CATEGORY: Partial<
+	Record<PhraseCategory, ChordProgressionType>
+> = {
+	'V-I-major': 'ii-V-I-major-long',
+	'V-I-minor': 'ii-V-I-minor-long',
+	'diminished-chord': 'ii-V-I-minor-long',
+	'blues': 'blues',
+	'rhythm-changes': 'turnaround',
+	'short-ii-V-I-major': 'ii-V-I-major',
+	'short-ii-V-I-minor': 'ii-V-I-minor'
+};
 
 // Play a minor lick rooted a semitone above the dominant chord root to create
 // altered/diminished sonority (e.g. Abm7 over G7 → b9, 3, b13, b5/#11 colors).

@@ -25,6 +25,15 @@ export default defineConfig({
         workbox: {
             navigateFallbackDenylist: [/^\/auth/],
             globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+            // Purge precache entries from previous builds so a stale SW can't
+            // serve an index.html that references chunk hashes the server no
+            // longer has. See Sentry MANKUNKU-8.
+            cleanupOutdatedCaches: true,
+            // Take over open tabs immediately on activate so the user lands
+            // on the new build's chunks rather than the previous build's
+            // cached references.
+            skipWaiting: true,
+            clientsClaim: true,
             runtimeCaching: [
                 {
                     urlPattern: /\.sf2$/,

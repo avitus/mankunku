@@ -26,6 +26,8 @@
 		getScaleUnlockRequirements,
 		getKeyUnlockRequirements
 	} from '$lib/tonality/tonality';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import { tooltips } from '$lib/content/tooltips';
 
 	const CATEGORIES: { value: PhraseCategory | 'random'; label: string }[] = [
 		{ value: 'random', label: 'Random' },
@@ -209,7 +211,13 @@
 
 		<!-- Scale type selector -->
 		<div>
-			<label class="mb-2 block text-sm font-medium">Scale Type</label>
+			<label class="mb-2 inline-flex items-center gap-1 text-sm font-medium">
+				Scale Type
+				<TooltipHint
+					text={tooltips.practice.settingsScale.text}
+					position="right"
+				/>
+			</label>
 			<div class="flex flex-wrap gap-1.5">
 				{#each SCALE_UNLOCK_ORDER as scaleType}
 					{@const unlocked = isScaleTypeUnlocked(scaleType, unlockCtx)}
@@ -261,8 +269,13 @@
 
 		<!-- Difficulty -->
 		<div>
-			<label class="mb-2 block text-sm font-medium">
+			<label class="mb-2 inline-flex items-center gap-1 text-sm font-medium">
 				Difficulty: <span style="color: {diffDisp.color}">{diffDisp.name}</span> ({selectedDifficulty})
+				<TooltipHint
+					text={tooltips.practice.settingsDifficulty.text}
+					learnMore={tooltips.practice.settingsDifficulty.learnMore}
+					position="right"
+				/>
 			</label>
 			<input
 				type="range"
@@ -299,7 +312,13 @@
 
 		<!-- Source -->
 		<div>
-			<label class="mb-2 block text-sm font-medium">Phrase Source</label>
+			<label class="mb-2 inline-flex items-center gap-1 text-sm font-medium">
+				Phrase Source
+				<TooltipHint
+					text={tooltips.practice.settingsPhraseSource.text}
+					position="right"
+				/>
+			</label>
 			<div class="flex gap-2">
 				{#each PHRASE_SOURCES as { value, label }}
 					<button

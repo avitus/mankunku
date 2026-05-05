@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DailySummary } from '$lib/types/progress';
-	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte';
+	import { localDateStr } from '$lib/state/history.svelte';
 
 	type Period = '1w' | '1m' | '3m' | '6m' | '1y' | 'all';
 
@@ -41,13 +41,29 @@
 
 	const dataPoints = $derived.by(() => {
 		const start = getStartDate(period);
-		const filtered = getSummariesInRange(start, todayStr)
-			.map(s => ({
-				...s,
-				pitchComplexity: s.pitchComplexity ?? Math.round(s.avgPitch * 100),
-				rhythmComplexity: s.rhythmComplexity ?? Math.round(s.avgRhythm * 100)
-			}));
-		if (filtered.length === 0) return [];
+
+		// Walk every summary in chronological order — including those before
+		// the visible period — to forward-fill the most recent ear-training
+		// adaptive snapshot (pitch/rhythm complexity). Lick-practice-only days
+		// don't update adaptive state, so they inherit the prior snapshot
+		// rather than collapsing to zero or back to per-day accuracy.
+		let lastPitch: number | null = null;
+		let lastRhythm: number | null = null;
+		const filled: { date: string; pitchComplexity: number; rhythmComplexity: number }[] = [];
+
+		for (const s of summaries) {
+			if (s.pitchComplexity != null) lastPitch = s.pitchComplexity;
+			if (s.rhythmComplexity != null) lastRhythm = s.rhythmComplexity;
+			if (s.date < start || s.date > todayStr) continue;
+			if (lastPitch == null || lastRhythm == null) continue; // no snapshot yet
+			filled.push({
+				date: s.date,
+				pitchComplexity: lastPitch,
+				rhythmComplexity: lastRhythm
+			});
+		}
+
+		if (filled.length === 0) return [];
 
 		function toPoint(label: string, pitch: number, rhythm: number): DataPoint {
 			return {
@@ -60,7 +76,7 @@
 
 		// For short periods, use daily; for longer, group
 		if (period === '1w' || period === '1m') {
-			return filtered.map(s => toPoint(
+			return filled.map(s => toPoint(
 				s.date.slice(5),
 				s.pitchComplexity,
 				s.rhythmComplexity
@@ -69,9 +85,9 @@
 
 		// Group by week for 3m/6m, by month for 1y/all
 		const groupByMonth = period === '1y' || period === 'all';
-		const groups = new Map<string, typeof filtered>();
+		const groups = new Map<string, typeof filled>();
 
-		for (const s of filtered) {
+		for (const s of filled) {
 			let key: string;
 			if (groupByMonth) {
 				key = s.date.slice(0, 7); // "YYYY-MM"
@@ -90,8 +106,8 @@
 
 		const points: DataPoint[] = [];
 		for (const [key, group] of groups) {
-			// Use last day's proficiency snapshot for the group — proficiency is a
-			// point-in-time adaptive state, not something to average across days.
+			// Last day's snapshot represents the level at the end of the group;
+			// adaptive state is a point-in-time value, not an average.
 			const last = group[group.length - 1];
 			points.push(toPoint(
 				groupByMonth ? key.slice(2) : key.slice(5),

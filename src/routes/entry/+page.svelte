@@ -6,8 +6,8 @@
 	import {
 		stepEntry, addNote, addRest, deleteLastNote, reset,
 		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
-		adjustLastNotePitch, flipLastNoteSpelling, getCurrentPhrase, getPaddedNotes,
-		getCurrentBarAndBeat, getRemainingCapacity
+		adjustLastNotePitch, flipLastNoteSpelling, enterTiedNote, getCurrentPhrase,
+		getPaddedNotes, getCurrentBarAndBeat, getRemainingCapacity
 	} from '$lib/state/step-entry.svelte';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
@@ -123,7 +123,8 @@
 		if (key === ']') { setAccidental('sharp'); return; }
 		if (key === '[') { setAccidental('flat'); return; }
 		if (key === '\\') { flipLastNoteSpelling(); return; }
-		if (key === '+' || key === '=') { adjustOctave(1); return; }
+		if (key === '=') { adjustOctave(1); return; }
+		if (key === '+') { enterTiedNote(); return; }
 		if (key === '-') { adjustOctave(-1); return; }
 		if (key === 'ArrowUp') {
 			e.preventDefault();
@@ -418,7 +419,7 @@
 			<span><kbd>1</kbd>-<kbd>4</kbd> Duration</span>
 			<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
 			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
-			<span><kbd>+</kbd>/<kbd>-</kbd> Octave</span>
+			<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>
 			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
 			<span><kbd>Backspace</kbd> Delete last</span>
 		</div>

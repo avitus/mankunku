@@ -9,9 +9,17 @@
 	import type { Phrase, PhraseCategory } from '$lib/types/music';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getUserLicks, getLickTagOverrides } from '$lib/persistence/user-licks';
-	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
+	import { getUserLicks } from '$lib/persistence/user-licks';
+	import {
+		isInPracticeSet,
+		resolvePracticeFallbackTags
+	} from '$lib/persistence/lick-practice-store';
 	import { getStolenLicksLocal, getStolenAuthorsLocal, returnLick } from '$lib/persistence/community';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import { tooltips } from '$lib/content/tooltips';
+	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
+	import { libraryTour } from '$lib/tour/tours/library';
+	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	/** Supabase browser client from layout data (null when not available) */
 	const supabase = $derived(page.data?.supabase ?? null);
@@ -57,12 +65,13 @@
 
 	const categories = getCategories();
 
-	/** Check if a lick has the 'practice' tag (from new store OR legacy overrides) */
+	/**
+	 * Check if a lick is in the user's practice set. The user-tag store is
+	 * authoritative once it has an entry; otherwise we fall back to the
+	 * curated tag override (if any) and finally to `lick.tags`.
+	 */
 	function hasPracticeTag(lick: Phrase): boolean {
-		if (getPracticeTaggedIds().has(lick.id)) return true;
-		const overrides = getLickTagOverrides()[lick.id];
-		const tags = overrides ?? lick.tags;
-		return tags.includes('practice');
+		return isInPracticeSet(lick.id, resolvePracticeFallbackTags(lick.id, lick.tags));
 	}
 
 	/** Curated licks filtered by current library query parameters */
@@ -207,6 +216,11 @@
 			<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		</div>
 		<div class="flex items-center gap-4">
+			<TourTrigger
+				tourId="library"
+				steps={libraryTour}
+				label="Learn how tagging works"
+			/>
 			<a
 				href="/scales"
 				class="text-sm text-[var(--color-accent)] transition-opacity hover:opacity-80"
@@ -216,6 +230,7 @@
 			<span class="text-sm text-[var(--color-text-secondary)]">
 				{filteredLicks.length} lick{filteredLicks.length !== 1 ? 's' : ''}
 			</span>
+			<HelpLink href="/docs/user-guide#library" label="Library docs" />
 		</div>
 	</div>
 
@@ -230,32 +245,49 @@
 	/>
 
 	<!-- Category filter -->
-	<CategoryFilter
-		{categories}
-		selected={library.categoryFilter}
-		onselect={handleCategorySelect}
-	/>
+	<div data-tour="category-filter">
+		<div class="mb-1 inline-flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+			<span class="smallcaps">Categories</span>
+			<TooltipHint text={tooltips.library.category.text} position="bottom" />
+		</div>
+		<CategoryFilter
+			{categories}
+			selected={library.categoryFilter}
+			onselect={handleCategorySelect}
+		/>
+	</div>
 
 	<!-- Filters row -->
 	<div class="flex flex-wrap items-center gap-4">
 		<!-- Practice filter -->
-		<button
-			onclick={() => { library.practiceOnly = !library.practiceOnly; }}
-			class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
-				{library.practiceOnly
-					? 'bg-[var(--color-accent)] text-white'
-					: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-			aria-pressed={library.practiceOnly}
-		>
-			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill={library.practiceOnly ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
-				<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-			</svg>
-			Practice
-		</button>
+		<div class="inline-flex items-center gap-1">
+			<button
+				data-tour="practice-tag"
+				onclick={() => { library.practiceOnly = !library.practiceOnly; }}
+				class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
+					{library.practiceOnly
+						? 'bg-[var(--color-accent)] text-white'
+						: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+				aria-pressed={library.practiceOnly}
+			>
+				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill={library.practiceOnly ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
+					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+				</svg>
+				Practice
+			</button>
+			<TooltipHint text={tooltips.library.practiceStar.text} position="bottom" />
+		</div>
 
 		<!-- Difficulty filter -->
-		<div class="flex items-center gap-2">
-			<span class="text-sm text-[var(--color-text-secondary)]">Max difficulty:</span>
+		<div data-tour="difficulty-filter" class="flex items-center gap-2">
+			<span class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
+				Max difficulty:
+				<TooltipHint
+					text={tooltips.library.difficultyScale.text}
+					learnMore={tooltips.library.difficultyScale.learnMore}
+					position="top"
+				/>
+			</span>
 			<div class="flex flex-wrap gap-1">
 				{#each [null, 20, 40, 60, 80, 100] as level}
 					<button

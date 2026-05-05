@@ -41,11 +41,13 @@ import {
 	getLickLastPracticed,
 	hasLickProgress,
 	updateKeyProgress,
-	getPracticeTaggedIds,
+	getEffectivePracticeLickIds,
 	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags,
+	backfillInferredProgressionTags,
 	initLickMetadataFromCloud,
+	migrateOrphanLickCategories,
 	getUnlockedKeyCount,
 	bumpUnlockedKeyCount,
 	NEW_LICK_DEFAULT_TEMPO,
@@ -69,7 +71,15 @@ import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-lo
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
-import { selectInitialProgression, DEFAULT_PROGRESSION } from './lick-practice-picker';
+import {
+	selectInitialProgression,
+	buildUpcomingLicks,
+	findStrandedLicks,
+	DEFAULT_PROGRESSION,
+	type UpcomingLickEntry
+} from './lick-practice-picker';
+
+export type { UpcomingLickEntry };
 
 const PASS_THRESHOLD = 0.80;
 
@@ -164,6 +174,15 @@ export async function hydrateLickPracticeProgress(
 	// Migrate legacy 'practice' markers from lick.tags + tag overrides
 	// into the new user-lick-tags store so getPracticeLicks can find them.
 	backfillPracticeTags(getAllLicks(), getLickTagOverrides());
+	// Repair licks still carrying orphan PhraseCategory values (e.g.
+	// `long-ii-V-I-major`, removed in commit eae34f1). Each gets a valid
+	// category plus an inferred `prog:*` tag so the user's original intent
+	// is preserved.
+	migrateOrphanLickCategories(supabase ?? undefined);
+	// Retroactive auto-tag for licks categorized before the
+	// `updateLickCategory` hook existed. Idempotent — covers existing data
+	// once and is a no-op thereafter.
+	backfillInferredProgressionTags();
 
 	lickPractice.config.progressionType = pickInitialProgression();
 }
@@ -177,7 +196,8 @@ export async function hydrateLickPracticeProgress(
  *      `enableSubstitutions` is on (e.g. `minor-chord` over a `7` chord).
  */
 export function getPracticeLicks(): Phrase[] {
-	const taggedIds = getPracticeTaggedIds();
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
 	if (taggedIds.size === 0) return [];
 
 	const progressionType = lickPractice.config.progressionType;
@@ -186,7 +206,6 @@ export function getPracticeLicks(): Phrase[] {
 		progressionType,
 		lickPractice.config.enableSubstitutions ?? false
 	);
-	const allLicks = getAllLicks();
 
 	return allLicks.filter(lick => {
 		if (!taggedIds.has(lick.id)) return false;
@@ -198,6 +217,38 @@ export function getPracticeLicks(): Phrase[] {
 }
 
 /**
+ * Practice-tagged licks with no progression mapping at all — they have
+ * neither a `prog:*` tag nor a category listed in any progression. Surfaced
+ * on the setup screen so the user can finish configuring them in the
+ * library; otherwise they sit invisibly in the practice set forever.
+ */
+export function getStrandedPracticeLicks(): Phrase[] {
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
+	if (taggedIds.size === 0) return [];
+
+	const candidates = allLicks.filter((l) => taggedIds.has(l.id));
+	return findStrandedLicks({ candidates, getProgressionTags });
+}
+
+/**
+ * Build the "Upcoming Licks" list for the session-complete screen — runes
+ * wrapper that resolves dependencies and delegates to `buildUpcomingLicks`.
+ */
+export function getUpcomingLicks(): UpcomingLickEntry[] {
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
+	if (taggedIds.size === 0) return [];
+
+	const candidates = allLicks.filter((l) => taggedIds.has(l.id));
+	return buildUpcomingLicks({
+		candidates,
+		progress: lickPractice.progress,
+		getProgressionTags
+	});
+}
+
+/**
  * Thin wrapper around `selectInitialProgression` (in lick-practice-picker.ts)
  * that resolves the runtime dependencies — practice-tagged ids, full lick
  * library, current progress, session log, progression-tags lookup. The
@@ -205,10 +256,11 @@ export function getPracticeLicks(): Phrase[] {
  * without the runes runtime.
  */
 export function pickInitialProgression(): ChordProgressionType {
-	const taggedIds = getPracticeTaggedIds();
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
 	if (taggedIds.size === 0) return DEFAULT_PROGRESSION;
 
-	const candidates = getAllLicks().filter(l => taggedIds.has(l.id));
+	const candidates = allLicks.filter(l => taggedIds.has(l.id));
 	return selectInitialProgression({
 		candidates,
 		progress: lickPractice.progress,
