@@ -64,7 +64,12 @@ State modules in `src/lib/state/` use Svelte 5 runes (`$state()`, `$derived()`, 
 
 ### Routes (`src/routes/`)
 
-practice/, lick-practice/ (multi-key flow), library/, progress/, settings/, scales/, entry/ (step-entry), add-licks/, record/, auth/ (login + OAuth callback), diagnostics/, api/account/ (account management endpoints)
+ear-training/ (call-and-response practice, also reachable via `practice/` 308-redirect), lick-practice/ (multi-key flow), library/, community/, progress/, settings/, scales/, entry/ (step-entry), add-licks/, record/, auth/ (login + OAuth callback), diagnostics/, docs/, api/account/, api/chat/, api/lick-match/, api/monitoring/
+
+### Tests
+
+- **Vitest** (`tests/unit/`, `tests/integration/`) — unit + integration tests for pure logic (audio algorithms, scoring, music theory, persistence, lick generation). Runs in Node, no browser. Mocks Supabase via fixtures in `tests/helpers/`. CI: `npx vitest run`.
+- **Playwright E2E** (`tests/e2e/`) — real-browser tests for user flows on Chromium, Firefox, and WebKit. Mocks the audio pipeline via `fixtures/audio.ts` (replaces `MediaRecorder` + `getUserMedia`) and synthesizes auth via the `e2e-test-user` cookie + the `PLAYWRIGHT=1` env-gated branch in `src/hooks.server.ts`. CI: `npx playwright test`. See `tests/e2e/README.md`.
 
 ## Code conventions
 
