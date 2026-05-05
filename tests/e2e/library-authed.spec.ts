@@ -35,8 +35,10 @@ test.describe('library — authed', () => {
 		await expect(signedInPage.getByRole('heading', { name: /lick library/i })).toBeVisible();
 		await expect(signedInPage.getByPlaceholder(/find a lick/i)).toBeVisible();
 
-		// Curated licks should still render — counted via h3 names.
+		// Curated licks should still render — counted via h3 names. Use a
+		// polling assertion so slower engines (WebKit) get a chance to render
+		// before we read the count.
 		const cardHeadings = signedInPage.locator('main h3.font-display');
-		expect(await cardHeadings.count()).toBeGreaterThan(0);
+		await expect.poll(() => cardHeadings.count()).toBeGreaterThan(0);
 	});
 });

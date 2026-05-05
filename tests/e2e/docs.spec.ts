@@ -28,7 +28,10 @@ test.describe('docs', () => {
 		const href = await firstCard.getAttribute('href');
 		expect(href).toBeTruthy();
 		await firstCard.click();
-		await expect(page).toHaveURL(new RegExp(`${href}$`));
+		// Compare the URL pathname directly rather than building a regex from
+		// the href — slugs containing regex metacharacters (`+`, `*`, `(`)
+		// would otherwise produce unexpected matches.
+		await expect(page).toHaveURL((url) => url.pathname.endsWith(href!));
 		await expect(page.locator('main')).toBeVisible();
 	});
 });

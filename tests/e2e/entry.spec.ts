@@ -13,16 +13,18 @@ test.describe('step entry', () => {
 		await seedOnboardedAnonymous(page);
 	});
 
-	test('renders the entry page and accepts a single pitch click', async ({
+	test('renders the entry page with an interactive control surface', async ({
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/entry');
 		await expect(page.locator('main')).toBeVisible();
 
-		// Look for any interactive button in the main area. The page has a
+		// Look for interactive buttons in the main area. The page has a
 		// pitch grid + duration controls; we don't depend on specific labels
-		// here because the controls are visual (musical glyphs).
+		// because the controls are visual (musical glyphs). We don't click
+		// here either — driving a meaningful entry flow needs sequencing
+		// keyboard + button input that's better isolated to a future spec.
 		const buttons = page.locator('main button');
 		const count = await buttons.count();
 		expect(count, 'entry page should expose at least a few buttons').toBeGreaterThan(3);

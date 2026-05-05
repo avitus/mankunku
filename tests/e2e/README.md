@@ -36,7 +36,7 @@ E2E tests do **not** cover:
 
 ## Architecture
 
-```
+```text
 tests/e2e/
 ├── README.md                  ← you are here
 ├── fixtures/

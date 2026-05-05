@@ -16,13 +16,6 @@ const IGNORED_PATTERNS: RegExp[] = [
 	// Sentry surfaces a one-time info log when it boots in dev mode.
 	// Production builds don't emit this — see fix in commit 1fe8365.
 	/\[Sentry\] (?:Initializing|Setting transport)/i,
-	// Browser-emitted message for any non-2xx fetch — this is automatic
-	// console output from the browser itself, not application logic. Real
-	// API failures are tested via response codes in dedicated specs (e.g.,
-	// Supabase calls in auth specs verify 401/400 explicitly via page.route).
-	// Without this allowlist, every anonymous Supabase upsert (which the app
-	// fires-and-forgets) would fail every interactive spec.
-	/Failed to load resource: the server responded with a status of \d{3}/,
 	// WebKit-specific transient that fires when Sentry's beacon tries to
 	// flush its envelope to /api/monitoring as the page is navigating away
 	// (e.g. window.location.href change during account deletion). Chromium
@@ -32,8 +25,35 @@ const IGNORED_PATTERNS: RegExp[] = [
 	/Fetch API cannot load .* due to access control checks/
 ];
 
-function isIgnored(text: string): boolean {
-	return IGNORED_PATTERNS.some((pattern) => pattern.test(text));
+/**
+ * Pattern-based allowlist for the auto-emitted "Failed to load resource"
+ * lines the browser writes to console.error on any non-2xx fetch. We only
+ * suppress this when BOTH the status is in a known-benign range AND the
+ * URL is one of the endpoints we expect to fail in unauthenticated tests
+ * (notably anonymous Supabase REST calls that the app fires-and-forgets).
+ *
+ * Anything else — a 500 from /api/account, an unexpected 404 — surfaces
+ * as a real failure rather than getting swept under a global regex.
+ */
+const RESOURCE_FAILURE = /Failed to load resource: the server responded with a status of (\d{3})/;
+const BENIGN_STATUS = new Set(['400', '401', '403', '404']);
+const BENIGN_URL_PATTERNS: RegExp[] = [
+	// Supabase REST and auth endpoints — anonymous fire-and-forget paths.
+	/\/rest\/v1\//,
+	/\/auth\/v1\//
+];
+
+function isBenignResourceFailure(text: string, url: string): boolean {
+	const match = text.match(RESOURCE_FAILURE);
+	if (!match) return false;
+	if (!BENIGN_STATUS.has(match[1])) return false;
+	return BENIGN_URL_PATTERNS.some((p) => p.test(url));
+}
+
+function isIgnored(text: string, url: string): boolean {
+	if (IGNORED_PATTERNS.some((pattern) => pattern.test(text))) return true;
+	if (isBenignResourceFailure(text, url)) return true;
+	return false;
 }
 
 export interface ConsoleCollector {
@@ -50,13 +70,16 @@ export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
 
 		const onConsole = (msg: ConsoleMessage) => {
 			const text = msg.text();
-			if (isIgnored(text)) return;
+			const url = msg.location()?.url ?? '';
+			if (isIgnored(text, url)) return;
 			if (msg.type() === 'error') errors.push(text);
 			if (msg.type() === 'warning') warnings.push(text);
 		};
 		const onPageError = (err: Error) => {
 			const text = err.stack ?? err.message;
-			if (isIgnored(text)) return;
+			// pageerror events don't expose the originating URL, so URL-gated
+			// patterns can't apply — only the global IGNORED_PATTERNS list does.
+			if (isIgnored(text, '')) return;
 			pageErrors.push(text);
 		};
 

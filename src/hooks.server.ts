@@ -36,6 +36,11 @@ import type { Database } from '$lib/supabase/types';
  */
 const PLAYWRIGHT_MODE = process.env.PLAYWRIGHT === '1';
 
+// Defense-in-depth: even if PLAYWRIGHT=1 ever leaks into a non-test env,
+// the test cookie is only honored for requests originating from loopback.
+// Anything routable (production, staging, internal LAN) is rejected.
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
 interface E2ETestUser {
 	id: string;
 	email: string;
@@ -44,6 +49,7 @@ interface E2ETestUser {
 
 function readE2ETestUser(event: RequestEvent): E2ETestUser | null {
 	if (!PLAYWRIGHT_MODE) return null;
+	if (!LOOPBACK_HOSTS.has(event.url.hostname)) return null;
 	const raw = event.cookies.get('e2e-test-user');
 	if (!raw) return null;
 	try {
