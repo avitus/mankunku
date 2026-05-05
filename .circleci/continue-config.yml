@@ -54,6 +54,41 @@ jobs:
             - build
             - package.json
             - package-lock.json
+
+  e2e:
+    # Playwright's official image bundles all three browsers preinstalled,
+    # so no `npx playwright install` step is needed and there's no need to
+    # apt-install browser deps. Tag matches @playwright/test in package.json.
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.58.2-noble
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+            - deps-v1-
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - save_cache:
+          key: deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Run Playwright E2E (all browsers)
+          # The Playwright config's webServer block runs `npm run build &&
+          # npm run preview` itself — no need to start it here separately.
+          command: npx playwright test
+      - store_artifacts:
+          # Surface the HTML report and any captured traces/videos/screenshots
+          # — the Firefox console-error capture is the whole point of this job.
+          path: playwright-report
+          destination: playwright-report
+      - store_artifacts:
+          path: test-results
+          destination: test-results
+      - store_test_results:
+          path: test-results
           # NOTE: ecosystem.config.cjs is NOT persisted here. The deploy job
           # ships it straight from its own checkout to avoid a mystery where
           # /tmp/workspace/ecosystem.config.cjs arrived on the server with
@@ -224,6 +259,11 @@ workflows:
   ci:
     jobs:
       - test
+      - e2e:
+          # E2E runs on every push (not just main) — its primary value is
+          # surfacing browser-side errors during development. Don't gate
+          # on `test` so feedback comes faster; both jobs run in parallel.
+          requires: []
       - build:
           requires:
             - test
@@ -243,9 +283,12 @@ workflows:
       - deploy:
           # db-migrate already implies build; listing both is redundant
           # but keeps the dependency graph self-explanatory at a glance.
+          # E2E gates deploy too — a Firefox/WebKit regression should not
+          # ship to production.
           requires:
             - build
             - db-migrate
+            - e2e
           filters:
             branches:
               only: main

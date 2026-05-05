@@ -18,10 +18,108 @@ import * as Sentry from '@sentry/sveltekit';
  */
 
 import { createServerClient } from '@supabase/ssr';
-import type { Handle } from '@sveltejs/kit';
+import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import type { Database } from '$lib/supabase/types';
+
+/**
+ * Playwright test-only escape hatch.
+ *
+ * When PLAYWRIGHT=1 is set in the server env (only by tests/e2e/playwright.config.ts),
+ * AND the request has a valid 'e2e-test-user' cookie, the supabase handle below
+ * skips real Supabase auth and synthesizes a session + user from the cookie.
+ *
+ * This branch never executes in production builds because PLAYWRIGHT is never
+ * set there. Keeping the gate at module scope means there's no per-request cost
+ * for non-test environments.
+ */
+const PLAYWRIGHT_MODE = process.env.PLAYWRIGHT === '1';
+
+// Defense-in-depth: even if PLAYWRIGHT=1 ever leaks into a non-test env,
+// the test cookie is only honored for requests originating from loopback.
+// Anything routable (production, staging, internal LAN) is rejected.
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+interface E2ETestUser {
+	id: string;
+	email: string;
+	isAdmin?: boolean;
+}
+
+function readE2ETestUser(event: RequestEvent): E2ETestUser | null {
+	if (!PLAYWRIGHT_MODE) return null;
+	if (!LOOPBACK_HOSTS.has(event.url.hostname)) return null;
+	const raw = event.cookies.get('e2e-test-user');
+	if (!raw) return null;
+	try {
+		const decoded = JSON.parse(decodeURIComponent(raw));
+		if (typeof decoded?.id !== 'string' || typeof decoded?.email !== 'string') return null;
+		return decoded as E2ETestUser;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Minimal stub for the Supabase server client used in Playwright mode.
+ *
+ * Implements only the fluent query patterns the app uses in server-side load
+ * functions — `from(...).select(...).eq(...).single()` and similar — returning
+ * empty data so consuming code falls through to its own defaults. Calls that
+ * aren't matched return rejected promises so test failures point clearly at
+ * the missing stub method.
+ */
+function makeE2EStubSupabase(testUser: E2ETestUser): App.Locals['supabase'] {
+	const tableHandler = (table: string) => {
+		const queryBuilder = {
+			select: () => queryBuilder,
+			eq: () => queryBuilder,
+			in: () => queryBuilder,
+			order: () => queryBuilder,
+			limit: () => queryBuilder,
+			single: async () => {
+				if (table === 'user_profiles') {
+					return { data: { is_admin: testUser.isAdmin ?? false }, error: null };
+				}
+				return { data: null, error: null };
+			},
+			maybeSingle: async () => ({ data: null, error: null }),
+			then: (resolve: (v: unknown) => unknown) =>
+				Promise.resolve({ data: [], error: null }).then(resolve)
+		};
+		return queryBuilder;
+	};
+
+	return {
+		from: tableHandler,
+		auth: {
+			getUser: async () => ({
+				data: { user: { id: testUser.id, email: testUser.email } },
+				error: null
+			}),
+			getSession: async () => ({
+				data: {
+					session: {
+						access_token: 'e2e-mock-token',
+						user: { id: testUser.id, email: testUser.email }
+					}
+				},
+				error: null
+			}),
+			signOut: async () => ({ error: null }),
+			onAuthStateChange: () => ({
+				data: { subscription: { unsubscribe: () => {} } }
+			})
+		},
+		storage: {
+			from: () => ({
+				upload: async () => ({ data: null, error: null }),
+				download: async () => ({ data: null, error: null })
+			})
+		}
+	} as unknown as App.Locals['supabase'];
+}
 
 /**
  * Supabase authentication handle.
@@ -38,6 +136,29 @@ import type { Database } from '$lib/supabase/types';
  * @returns The HTTP Response after processing the request
  */
 const supabaseHandle: Handle = async ({ event, resolve }) => {
+    // Playwright escape hatch — see PLAYWRIGHT_MODE / readE2ETestUser above.
+    // Short-circuits Supabase entirely when a test cookie is present.
+    const testUser = readE2ETestUser(event);
+    if (testUser) {
+        event.locals.supabase = makeE2EStubSupabase(testUser);
+        const syntheticUser = { id: testUser.id, email: testUser.email };
+        const syntheticSession = {
+            access_token: 'e2e-mock-token',
+            refresh_token: 'e2e-mock-refresh',
+            expires_in: 3600,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            token_type: 'bearer',
+            user: syntheticUser
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        event.locals.safeGetSession = async () => ({ session: syntheticSession as any, user: syntheticUser as any });
+        return resolve(event, {
+            filterSerializedResponseHeaders(name) {
+                return name === 'content-range' || name === 'x-supabase-api-version';
+            }
+        });
+    }
+
     // Create a per-request Supabase server client with typed database schema.
     // The client uses cookie-based session management via SvelteKit's cookie API.
     // `getAll` reads all cookies from the incoming request headers.
