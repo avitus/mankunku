@@ -5,7 +5,7 @@
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
 	import { getLickById, transposeLick } from '$lib/phrases/library-loader';
-	import { session } from '$lib/state/session.svelte';
+	import { lickPractice, startSingleLickSession } from '$lib/state/lick-practice.svelte';
 	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { PITCH_CLASSES, CATEGORY_LABELS, type PitchClass, type PhraseCategory } from '$lib/types/music';
@@ -191,9 +191,8 @@
 
 	function practiceThis() {
 		if (!lick) return;
-		session.phrase = lick;
-		session.tempo = settings.defaultTempo;
-		goto('/ear-training');
+		const bump = lickPractice.config.tempoBumpBpm ?? 5;
+		if (startSingleLickSession(lick, bump)) goto('/lick-practice/session');
 	}
 
 	async function togglePlay() {
