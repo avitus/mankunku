@@ -28,7 +28,8 @@ import type {
 	LickPracticeProgress,
 	LickPracticeKeyResult,
 	LickReport,
-	SessionReport
+	SessionReport,
+	SingleLickRoundEntry
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
 import { addFractions } from '$lib/music/intervals';
@@ -101,13 +102,6 @@ export interface PlannedKey {
 	harmony: HarmonicSegment[];
 	lickName: string;
 	lickId: string;
-}
-
-/** Per-round summary captured at end-of-round in single-lick mode. */
-export interface SingleLickRoundEntry {
-	round: number;
-	tempo: number;
-	keys: PitchClass[];
 }
 
 export const lickPractice = $state<{
@@ -391,7 +385,11 @@ export function startSingleLickSession(
 			phraseName: lick.name,
 			phraseNumber: 1,
 			category: lick.category,
-			keys: circleOfFourthsFrom(lick.key)
+			keys: circleOfFourthsFrom(lick.key),
+			// Persist the resolved Phrase so the helpers below survive a
+			// `getLickById` miss for user/community licks not (yet) indexed
+			// in the global library.
+			phrase: lick
 		}
 	];
 
@@ -416,6 +414,16 @@ export function getCurrentPlanItem(): LickPracticePlanItem | null {
 	return lickPractice.plan[lickPractice.currentLickIndex] ?? null;
 }
 
+/**
+ * Resolve the underlying Phrase for a plan item, preferring the live library
+ * lookup so curated edits propagate, and falling back to the Phrase persisted
+ * on the item at plan-build time. The fallback matters for user/community
+ * licks that may not be in `getAllLicks()` when a helper runs.
+ */
+function resolveLickFor(item: LickPracticePlanItem): Phrase | undefined {
+	return getLickById(item.phraseId) ?? item.phrase;
+}
+
 /** Get the current key being practiced */
 export function getCurrentKey(): PitchClass | null {
 	const item = getCurrentPlanItem();
@@ -432,7 +440,7 @@ export function getCurrentPhrase(): Phrase | null {
 	const item = getCurrentPlanItem();
 	const key = getCurrentKey();
 	if (!item || !key) return null;
-	return buildPhraseFor(item.phraseId, key);
+	return buildPhraseFor(item.phraseId, key, item.phrase);
 }
 
 /**
@@ -446,7 +454,7 @@ export function getPhraseFor(lickIdx: number, keyIdx: number): Phrase | null {
 	if (!item) return null;
 	const key = item.keys[keyIdx];
 	if (!key) return null;
-	return buildPhraseFor(item.phraseId, key);
+	return buildPhraseFor(item.phraseId, key, item.phrase);
 }
 
 /** Get the transposed harmony for the current key (for ChordChart). Includes
@@ -455,7 +463,7 @@ export function getCurrentHarmony(): HarmonicSegment[] {
 	const key = getCurrentKey();
 	if (!key) return [];
 	const item = getCurrentPlanItem();
-	const lick = item ? getLickById(item.phraseId) : undefined;
+	const lick = item ? resolveLickFor(item) : undefined;
 	if (!lick) {
 		const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 		return transposeProgression(template.harmony, key);
@@ -479,8 +487,8 @@ export function getCurrentHarmony(): HarmonicSegment[] {
  * the parent progression. Harmony always comes from the progression template
  * — the lick's intrinsic harmony is discarded.
  */
-function buildPhraseFor(lickId: string, key: PitchClass): Phrase | null {
-	const baseLick = getLickById(lickId);
+function buildPhraseFor(lickId: string, key: PitchClass, fallback?: Phrase): Phrase | null {
+	const baseLick = getLickById(lickId) ?? fallback;
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
@@ -546,7 +554,7 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 		const item = lickPractice.plan[lickIdx];
 		if (keyIdx < item.keys.length) {
 			const key = item.keys[keyIdx];
-			const phrase = buildPhraseFor(item.phraseId, key);
+			const phrase = buildPhraseFor(item.phraseId, key, item.phrase);
 			if (!phrase) return null;
 			return {
 				lickIndex: lickIdx,
@@ -589,7 +597,7 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 	const result: PlannedKey[] = [];
 	for (let i = 0; i < item.keys.length; i++) {
 		const key = item.keys[i];
-		const phrase = buildPhraseFor(item.phraseId, key);
+		const phrase = buildPhraseFor(item.phraseId, key, item.phrase);
 		if (!phrase) continue;
 		result.push({
 			lickIndex: lickIdx,
@@ -631,7 +639,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	const item = lickPractice.plan[lickIdx];
 	if (!item) return null;
 
-	const baseLick = getLickById(item.phraseId);
+	const baseLick = resolveLickFor(item);
 	if (!baseLick) return null;
 
 	const progressionType = lickPractice.config.progressionType;
@@ -811,7 +819,7 @@ function getCurrentLickBars(): number {
 	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 	const item = getCurrentPlanItem();
 	if (!item) return template.bars;
-	const lick = getLickById(item.phraseId);
+	const lick = resolveLickFor(item);
 	if (!lick) return template.bars;
 	return getLickBars(
 		lick,
@@ -1035,7 +1043,7 @@ export function advanceSingleLickRound(): void {
 		// All 12 cleared at the current tempo — bump and refill.
 		const bump = lickPractice.config.tempoBumpBpm ?? DEFAULT_TEMPO_BUMP_BPM;
 		const newTempo = clampTempo(lickPractice.currentTempo + bump);
-		const baseLick = getLickById(item.phraseId);
+		const baseLick = resolveLickFor(item);
 		const refillStart = baseLick?.key ?? item.keys[0] ?? 'C';
 		const fullCircle = circleOfFourthsFrom(refillStart as PitchClass);
 

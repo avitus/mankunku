@@ -11,6 +11,19 @@ Sentry.init({
   // project (see Sentry MANKUNKU-6/D/1/C/F/7/B/E).
   environment: import.meta.env.DEV ? 'development' : 'production',
 
+  // In dev, Vite's HMR/dev-server churn produces "error loading dynamically
+  // imported module" against localhost:5173 source URLs (e.g. app.css) when a
+  // hot update is mid-flight or the dev server restarts. Not actionable — the
+  // page recovers on the next HMR tick or via handleStaleChunkReload below.
+  // Production keeps capturing these so deploy-time stale chunks remain
+  // visible. See Sentry MANKUNKU-8.
+  ignoreErrors: import.meta.env.DEV
+    ? [
+        /error loading dynamically imported module/i,
+        /Failed to fetch dynamically imported module/i
+      ]
+    : [],
+
   // Route envelopes through a same-origin endpoint so ad blockers and
   // Firefox ETP don't cancel them. See src/routes/api/monitoring/+server.ts.
   tunnel: '/api/monitoring',
