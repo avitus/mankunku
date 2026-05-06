@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { syncUserScope, getScopeGeneration } from '$lib/persistence/user-scope';
 import { saveRecording, getAllRecordingSummaries } from '$lib/persistence/audio-store';
+import { expectNoMankunkuKeysExcept } from '../../helpers/storage-snapshot';
 
 type MockStorage = Storage & { _store: Record<string, string> };
 
@@ -164,6 +165,24 @@ describe('syncUserScope', () => {
 		expect((await getAllRecordingSummaries()).length).toBe(1);
 	});
 
+	it('anonymous → first login: IndexedDB recordings survive (no wipe on first sign-in)', async () => {
+		// User records audio while anonymous (no `__lastUserId` marker).
+		// On first sign-in, the wipe is skipped (lastUserId === null branch),
+		// so the recording stays available — the user can hear what they just
+		// recorded after signing in.
+		const blob = new Blob([new Uint8Array(20)], { type: 'audio/webm' });
+		await saveRecording('anon-session-1', blob);
+		expect((await getAllRecordingSummaries()).length).toBe(1);
+
+		// First-ever sign-in: marker absent, so syncUserScope does NOT wipe.
+		const { cleared } = await syncUserScope('user-A');
+
+		expect(cleared).toBe(false);
+		// Recording from the anonymous session survives into the new user's
+		// session — they can play back what they just recorded.
+		expect((await getAllRecordingSummaries()).length).toBe(1);
+	});
+
 	it('attempts caches.delete when caches API is present', async () => {
 		seedMarker('user-A');
 		const deleteMock = vi.fn().mockResolvedValue(true);
@@ -176,5 +195,123 @@ describe('syncUserScope', () => {
 		} finally {
 			delete (globalThis as { caches?: unknown }).caches;
 		}
+	});
+
+	it('only clears the supabase-api cache (deliberate scoping — locks in P2-2)', async () => {
+		seedMarker('user-A');
+		const deleteMock = vi.fn().mockResolvedValue(true);
+		const cachesStub = { delete: deleteMock, keys: vi.fn(), open: vi.fn(), match: vi.fn(), has: vi.fn() };
+		Object.defineProperty(globalThis, 'caches', { value: cachesStub, writable: true, configurable: true });
+
+		try {
+			await syncUserScope('user-B');
+			// Asserts the wipe is deliberately scoped: other Workbox caches
+			// (precache, fonts, images) survive a user switch — they are
+			// content-addressable and not user-bound. If a future change starts
+			// nuking everything, this test fails to force a deliberate decision.
+			expect(deleteMock).toHaveBeenCalledTimes(1);
+			expect(deleteMock).toHaveBeenCalledWith('supabase-api');
+		} finally {
+			delete (globalThis as { caches?: unknown }).caches;
+		}
+	});
+});
+
+// ─── Negative-property: nothing prefixed `mankunku:` survives a wipe ───
+//
+// The wipe coordinator (`clearAll` in storage.ts) iterates `mankunku:`-
+// prefixed keys and removes each one. These tests pin down that property
+// so a future cache key added without a corresponding clearAll path will
+// fail here instead of leaking across users in production.
+
+describe('syncUserScope — negative-property wipe', () => {
+	const KNOWN_KEYS = [
+		'mankunku:settings',
+		'mankunku:progress',
+		'mankunku:tour-state',
+		'mankunku:daily-summaries',
+		'mankunku:progress-meta',
+		'mankunku:lick-practice-progress',
+		'mankunku:user-lick-tags',
+		'mankunku:lick-tag-overrides',
+		'mankunku:lick-category-overrides',
+		'mankunku:lick-unlock-count',
+		'mankunku:user-licks',
+		'mankunku:user-licks-owners',
+		'mankunku:community-favorites',
+		'mankunku:community-adoptions',
+		'mankunku:community-adopted-payloads',
+		'mankunku:community-adopted-authors',
+		'mankunku:community-privacy-ack'
+	];
+
+	function seedAllKnownKeys(): void {
+		for (const k of KNOWN_KEYS) {
+			local._store[k] = JSON.stringify({ seeded: true });
+		}
+	}
+
+	it('logout removes every mankunku: key (only __lastUserId removed, no settings remnant)', async () => {
+		seedMarker('user-A');
+		seedAllKnownKeys();
+
+		await syncUserScope(null);
+
+		// Logout: marker removed, no theme to preserve in this seed (the seed
+		// `settings` blob has `{ seeded: true }` and no `theme` field).
+		// Therefore NO mankunku key should remain at all.
+		expectNoMankunkuKeysExcept(local, []);
+		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
+	});
+
+	it('user switch removes every mankunku: key except theme blob (settings has only theme)', async () => {
+		seedMarker('user-A');
+		seedAllKnownKeys();
+		// Overwrite the seed settings with a real theme value so the wipe path
+		// preserves it. Everything else still gets wiped.
+		local._store['mankunku:settings'] = JSON.stringify({ theme: 'light', defaultTempo: 200 });
+
+		await syncUserScope('user-B');
+
+		// settings re-saved as a minimal blob containing only the theme.
+		// __lastUserId now holds the new user. Nothing else from the seed remains.
+		expectNoMankunkuKeysExcept(local, ['settings', '__lastUserId']);
+		const restored = JSON.parse(local._store['mankunku:settings']!);
+		expect(restored).toEqual({ theme: 'light' });
+		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-B');
+	});
+
+	it('theme survives a logout when present (parity with the user-switch path)', async () => {
+		seedMarker('user-A');
+		local._store['mankunku:settings'] = JSON.stringify({
+			theme: 'light',
+			defaultTempo: 120
+		});
+
+		await syncUserScope(null);
+
+		// Same theme-preservation rule as user-switch: the wipe is the same
+		// branch. This pins down the parity so a future refactor can't quietly
+		// drop the theme on logout while keeping it on switch.
+		const restored = JSON.parse(local._store['mankunku:settings']!) as { theme?: string };
+		expect(restored.theme).toBe('light');
+		expect((restored as { defaultTempo?: number }).defaultTempo).toBeUndefined();
+		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
+	});
+
+	it('rejects unknown future cache keys — adding a mankunku:foo without wiring clearAll fails this test', async () => {
+		seedMarker('user-A');
+		local._store['mankunku:foo-future-cache'] = JSON.stringify(['poison']);
+		local._store['mankunku:bar-future-cache'] = JSON.stringify({ leak: true });
+
+		await syncUserScope('user-B');
+
+		// `clearAll` walks every mankunku-prefixed key, so even unknown future
+		// keys are removed. This test is the structural barrier: if someone
+		// adds a key without using the `save()` helper, this still passes
+		// because clearAll uses listKeys(). But if someone special-cases a
+		// new cache to skip the wipe, this fails.
+		expect(local._store['mankunku:foo-future-cache']).toBeUndefined();
+		expect(local._store['mankunku:bar-future-cache']).toBeUndefined();
 	});
 });

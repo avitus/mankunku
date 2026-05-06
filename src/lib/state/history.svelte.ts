@@ -56,6 +56,23 @@ function createDefaultMeta(): ProgressMeta {
 
 // ── Migration ────────────────────────────────────────────────────
 
+/**
+ * Minimal input shape for aggregateSession(). SessionResult satisfies this
+ * directly; lick-practice attempts (which don't have a full SessionResult
+ * record) build a small ad-hoc object that conforms.
+ */
+export interface AggregateInput {
+	timestamp: number;
+	overall: number;
+	pitchAccuracy: number;
+	rhythmAccuracy: number;
+	grade: Grade;
+	category: string;
+	notesHit: number;
+	notesTotal: number;
+	source?: 'ear-training' | 'lick-practice';
+}
+
 function aggregateSessionGroup(date: string, sessions: SessionResult[]): DailySummary {
 	const n = sessions.length;
 	const grades = emptyGrades();
@@ -66,6 +83,8 @@ function aggregateSessionGroup(date: string, sessions: SessionResult[]): DailySu
 	let bestScore = 0;
 	let notesTotal = 0;
 	let notesHit = 0;
+	let earCount = 0;
+	let lickCount = 0;
 
 	for (const s of sessions) {
 		totalOverall += s.overall;
@@ -76,11 +95,16 @@ function aggregateSessionGroup(date: string, sessions: SessionResult[]): DailySu
 		notesHit += s.notesHit;
 		grades[gradeKey(s.grade)]++;
 		categories[s.category] = (categories[s.category] ?? 0) + 1;
+		// Sessions without `source` predate lick-practice — count as ear-training.
+		if (s.source === 'lick-practice') lickCount++;
+		else earCount++;
 	}
 
 	return {
 		date,
 		sessionCount: n,
+		earTrainingSessions: earCount,
+		lickPracticeSessions: lickCount,
 		practiceMinutes: n * ESTIMATED_MINUTES_PER_SESSION,
 		avgOverall: totalOverall / n,
 		avgPitch: totalPitch / n,
@@ -204,17 +228,28 @@ function saveAll(): void {
 // ── Core operations ──────────────────────────────────────────────
 
 /**
- * Aggregate a new session into today's daily summary.
- * Called from recordAttempt() in progress.svelte.ts.
+ * Aggregate a single attempt (ear-training or lick-practice) into the day's
+ * summary. Called from recordAttempt() and recordLickPracticeAttempt() in
+ * progress.svelte.ts.
+ *
+ * `pitchComplexity` / `rhythmComplexity` snapshots are written only when the
+ * caller passes them — lick-practice doesn't change adaptive state, so its
+ * caller passes nothing and the existing snapshot (from the most recent
+ * ear-training attempt) is preserved.
+ *
+ * Returns the (possibly newly created) summary so callers can sync the
+ * touched day to the cloud without rescanning the array.
  */
 export function aggregateSession(
-	session: SessionResult,
+	session: AggregateInput,
 	pitchComplexity?: number,
 	rhythmComplexity?: number
-): void {
+): DailySummary {
 	const dk = dateKey(session.timestamp);
 	const existing = summaryMap.get(dk);
+	const source = session.source ?? 'ear-training';
 
+	let summary: DailySummary;
 	if (existing) {
 		const newCount = existing.sessionCount + 1;
 		existing.avgOverall = (existing.avgOverall * existing.sessionCount + session.overall) / newCount;
@@ -227,10 +262,31 @@ export function aggregateSession(
 		existing.practiceMinutes += ESTIMATED_MINUTES_PER_SESSION;
 		existing.grades[gradeKey(session.grade)]++;
 		existing.categories[session.category] = (existing.categories[session.category] ?? 0) + 1;
+		// Treat pre-split summaries (undefined counters) as ear-training-only,
+		// matching how the calendar reads them, before incrementing.
+		const earBase = existing.earTrainingSessions ?? existing.sessionCount - 1;
+		const lickBase = existing.lickPracticeSessions ?? 0;
+		existing.earTrainingSessions = earBase + (source === 'ear-training' ? 1 : 0);
+		existing.lickPracticeSessions = lickBase + (source === 'lick-practice' ? 1 : 0);
 		if (pitchComplexity !== undefined) existing.pitchComplexity = pitchComplexity;
 		if (rhythmComplexity !== undefined) existing.rhythmComplexity = rhythmComplexity;
+		summary = existing;
 	} else {
-		const summary = aggregateSessionGroup(dk, [session]);
+		summary = {
+			date: dk,
+			sessionCount: 1,
+			earTrainingSessions: source === 'ear-training' ? 1 : 0,
+			lickPracticeSessions: source === 'lick-practice' ? 1 : 0,
+			practiceMinutes: ESTIMATED_MINUTES_PER_SESSION,
+			avgOverall: session.overall,
+			avgPitch: session.pitchAccuracy,
+			avgRhythm: session.rhythmAccuracy,
+			bestScore: session.overall,
+			notesTotal: session.notesTotal,
+			notesHit: session.notesHit,
+			grades: { ...emptyGrades(), [gradeKey(session.grade)]: 1 } as GradeDistribution,
+			categories: { [session.category]: 1 }
+		};
 		if (pitchComplexity !== undefined) summary.pitchComplexity = pitchComplexity;
 		if (rhythmComplexity !== undefined) summary.rhythmComplexity = rhythmComplexity;
 		dailySummaries.push(summary);
@@ -242,6 +298,7 @@ export function aggregateSession(
 
 	updateLongestStreak();
 	saveAll();
+	return summary;
 }
 
 /**
@@ -267,6 +324,57 @@ export function clearHistory(): void {
 	remove(META_KEY);
 }
 
+/**
+ * Merge a list of cloud-fetched daily summaries into local state.
+ *
+ * Cloud is authoritative when its sessionCount on a given date is >= local's
+ * (covers the cross-device case where one device has more activity logged).
+ * Local-only days are preserved untouched (offline writes that haven't synced).
+ *
+ * Returns the list of summaries the cloud should be told about: any day the
+ * cloud is missing entirely, plus any same-date day where local has strictly
+ * more activity than cloud (otherwise the cloud would stay stale on that day
+ * and a subsequent device pull could restore the smaller summary).
+ */
+export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[] {
+	let changed = false;
+	const cloudDates = new Set<string>();
+	const localWinnerDates = new Set<string>();
+
+	for (const cs of cloudSummaries) {
+		cloudDates.add(cs.date);
+		const existing = summaryMap.get(cs.date);
+		if (!existing) {
+			dailySummaries.push(cs);
+			summaryMap.set(cs.date, cs);
+			changed = true;
+			continue;
+		}
+		// Cloud wins when it has the same or more session activity for the day.
+		// "More" comes up when another device practiced the same date and
+		// pushed a fuller summary; "same" guards against the migration case
+		// where the local copy was derived from the 100-session window and
+		// matches the cloud row exactly.
+		if (cs.sessionCount >= existing.sessionCount) {
+			Object.assign(existing, cs);
+			changed = true;
+		} else {
+			// Local has strictly more sessions for this date — keep local
+			// in memory and flag it for upload so the cloud catches up.
+			localWinnerDates.add(existing.date);
+		}
+	}
+
+	if (changed) {
+		dailySummaries.sort((a, b) => a.date.localeCompare(b.date));
+		saveAll();
+	}
+
+	return dailySummaries.filter(
+		(s) => !cloudDates.has(s.date) || localWinnerDates.has(s.date)
+	);
+}
+
 function categoriesMatch(a: Record<string, number>, b: Record<string, number>): boolean {
 	const aKeys = Object.keys(a);
 	if (aKeys.length !== Object.keys(b).length) return false;
@@ -281,8 +389,17 @@ function summariesMatch(a: DailySummary, b: DailySummary): boolean {
 	// re-derivation), so FP non-associativity can produce tiny diffs that
 	// shouldn't count as a real change.
 	const EPS = 1e-6;
+	// Pre-split summaries omit ear/lick counters; treat them as
+	// ear-training-only so a derive-pass that fills them in doesn't look
+	// like a divergence on otherwise identical data.
+	const aEar = a.earTrainingSessions ?? a.sessionCount;
+	const bEar = b.earTrainingSessions ?? b.sessionCount;
+	const aLick = a.lickPracticeSessions ?? 0;
+	const bLick = b.lickPracticeSessions ?? 0;
 	return (
 		a.sessionCount === b.sessionCount &&
+		aEar === bEar &&
+		aLick === bLick &&
 		a.practiceMinutes === b.practiceMinutes &&
 		Math.abs(a.avgOverall - b.avgOverall) < EPS &&
 		Math.abs(a.avgPitch - b.avgPitch) < EPS &&

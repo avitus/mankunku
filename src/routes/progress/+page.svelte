@@ -4,7 +4,7 @@
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
-	import { SCALE_TYPE_NAMES, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
+	import { SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
 	import PracticeCalendar from '$lib/components/progress/PracticeCalendar.svelte';
@@ -12,9 +12,12 @@
 	import PeriodCompare from '$lib/components/progress/PeriodCompare.svelte';
 	import LickKeyDetail from '$lib/components/progress/LickKeyDetail.svelte';
 	import { dailySummaries } from '$lib/state/history.svelte';
-	import { settings, getInstrument, saveSettings } from '$lib/state/settings.svelte';
+	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass, type Phrase } from '$lib/types/music';
+	import { getBaseLickFromId, transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
+	import { setMasterVolume } from '$lib/audio/audio-context';
+	import type { SessionResult } from '$lib/types/progress';
 	import type { Grade } from '$lib/types/scoring';
 	import { page } from '$app/state';
 	import {
@@ -24,6 +27,9 @@
 	} from '$lib/persistence/lick-practice-sessions';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import type { LickPracticeMode } from '$lib/types/lick-practice';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import { tooltips } from '$lib/content/tooltips';
+	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	const PRACTICE_MODE_LABELS: Record<LickPracticeMode, string> = {
 		'call-response': 'Call & Response',
@@ -39,6 +45,8 @@
 	let playingSessionId: string | null = $state(null);
 	let audioElement: HTMLAudioElement | null = null;
 	let audioUrl: string | null = null;
+	let playingLickSessionId: string | null = $state(null);
+	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 
 	let lickSessions = $state<LickPracticeSessionLogEntry[]>([]);
 
@@ -59,10 +67,12 @@
 			URL.revokeObjectURL(audioUrl);
 			audioUrl = null;
 		}
+		if (playbackModule && playingLickSessionId) {
+			playbackModule.stopPlayback();
+		}
 	});
 
-	async function toggleAudio(sessionId: string) {
-		// Stop current playback
+	function stopRecordingPlayback(): void {
 		if (audioElement) {
 			audioElement.pause();
 			audioElement = null;
@@ -71,9 +81,27 @@
 			URL.revokeObjectURL(audioUrl);
 			audioUrl = null;
 		}
+		playingSessionId = null;
+	}
 
-		if (playingSessionId === sessionId) {
-			playingSessionId = null;
+	async function stopLickPlayback(): Promise<void> {
+		if (playbackModule) {
+			await playbackModule.stopPlayback();
+		}
+		playingLickSessionId = null;
+	}
+
+	async function toggleAudio(sessionId: string) {
+		// If a lick is playing, stop it first so audio sources don't overlap.
+		if (playingLickSessionId) {
+			await stopLickPlayback();
+		}
+
+		// Capture before stopping — stopRecordingPlayback() nulls
+		// playingSessionId, so checking it afterwards would always miss.
+		const wasPlayingSameSession = playingSessionId === sessionId;
+		stopRecordingPlayback();
+		if (wasPlayingSameSession) {
 			return;
 		}
 
@@ -97,6 +125,70 @@
 		} catch (err) {
 			console.error('Failed to play recording:', err);
 			playingSessionId = null;
+		}
+	}
+
+	/**
+	 * Reconstruct the phrase the user heard for an ear-training session by
+	 * looking up the lick by id (or id with a stripped `_<key>` suffix from
+	 * transposition) and re-applying the session's key/scale transposition.
+	 * Returns null if the lick is no longer in the library.
+	 */
+	function findPhraseForSession(s: SessionResult): Phrase | null {
+		const base = getBaseLickFromId(s.phraseId);
+		if (!base) return null;
+
+		const sessionKey = s.key as PitchClass;
+		const inst = instrument;
+		const rangeHigh = getEffectiveHighestNote();
+		if (s.scaleType) {
+			const scaleId = SCALE_TYPE_TO_SCALE_ID[s.scaleType];
+			if (scaleId) {
+				return transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh);
+			}
+		}
+		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh);
+	}
+
+	async function togglePlayLick(s: SessionResult): Promise<void> {
+		if (!playbackModule) {
+			playbackModule = await import('$lib/audio/playback');
+		}
+
+		// Don't run lick audio over a recording playback.
+		stopRecordingPlayback();
+
+		if (playingLickSessionId === s.id) {
+			await stopLickPlayback();
+			return;
+		}
+		if (playingLickSessionId) {
+			await stopLickPlayback();
+		}
+
+		const phrase = findPhraseForSession(s);
+		if (!phrase) return;
+
+		if (!playbackModule.isInstrumentLoaded()) {
+			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+		}
+		setMasterVolume(settings.masterVolume);
+
+		playingLickSessionId = s.id;
+		try {
+			await playbackModule.playPhrase(phrase, {
+				tempo: s.tempo,
+				swing: settings.swing,
+				countInBeats: 0,
+				metronomeEnabled: false,
+				metronomeVolume: 0
+			});
+		} catch (err) {
+			console.error('Failed to play lick:', err);
+		} finally {
+			if (playingLickSessionId === s.id) {
+				playingLickSessionId = null;
+			}
 		}
 	}
 
@@ -174,12 +266,15 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">Liner notes</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
-			Progress
-		</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
+	<div class="flex items-end justify-between gap-3">
+		<div>
+			<div class="smallcaps text-[var(--color-brass)]">Liner notes</div>
+			<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
+				Progress
+			</h1>
+			<div class="jazz-rule mt-2 max-w-[140px]"></div>
+		</div>
+		<HelpLink href="/docs/user-guide#progress" label="Progress docs" />
 	</div>
 
 	<!-- Tab bar -->
@@ -279,25 +374,48 @@
 
 							<!-- Expanded detail view -->
 							{#if expandedSessionId === s.id}
+								{@const lickAvailable = !!findPhraseForSession(s)}
 								<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
 									<!-- Audio playback -->
-									{#if recordingIds.has(s.id)}
-										<button
-											onclick={() => toggleAudio(s.id)}
-											class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
-										>
-											{#if playingSessionId === s.id}
-												<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-													<rect x="6" y="6" width="12" height="12" rx="1" />
-												</svg>
-												<span>Stop</span>
-											{:else}
-												<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-													<path d="M8 5v14l11-7z" />
-												</svg>
-												<span>Play Recording</span>
+									{#if recordingIds.has(s.id) || lickAvailable}
+										<div class="flex flex-wrap gap-2">
+											{#if recordingIds.has(s.id)}
+												<button
+													onclick={() => toggleAudio(s.id)}
+													class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
+												>
+													{#if playingSessionId === s.id}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<rect x="6" y="6" width="12" height="12" rx="1" />
+														</svg>
+														<span>Stop</span>
+													{:else}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<path d="M8 5v14l11-7z" />
+														</svg>
+														<span>Play Recording</span>
+													{/if}
+												</button>
 											{/if}
-										</button>
+											{#if lickAvailable}
+												<button
+													onclick={() => togglePlayLick(s)}
+													class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
+												>
+													{#if playingLickSessionId === s.id}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<rect x="6" y="6" width="12" height="12" rx="1" />
+														</svg>
+														<span>Stop</span>
+													{:else}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+															<path d="M8 5v14l11-7z" />
+														</svg>
+														<span>Play Lick</span>
+													{/if}
+												</button>
+											{/if}
+										</div>
 									{/if}
 
 									<!-- Score breakdown -->
@@ -510,14 +628,20 @@
 				<PeriodCompare />
 			</div>
 
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 text-lg font-semibold">Trends</h2>
+			<div data-tour="trend-chart" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+				<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
+					Trends
+					<TooltipHint text={tooltips.progress.trend.text} position="right" />
+				</h2>
 				<TrendChart summaries={dailySummaries} />
 			</div>
 		{/if}
 
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<h2 class="mb-3 text-lg font-semibold">Practice Calendar</h2>
+		<div data-tour="calendar" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
+				Practice Calendar
+				<TooltipHint text={tooltips.progress.calendar.text} position="right" />
+			</h2>
 			<PracticeCalendar />
 		</div>
 
@@ -551,11 +675,25 @@
 		{/if}
 
 		<!-- Adaptive difficulty detail -->
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<h2 class="mb-3 text-lg font-semibold">Adaptive Difficulty</h2>
+		<div data-tour="adaptive-difficulty" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
+				Adaptive Difficulty
+				<TooltipHint
+					text={tooltips.progress.rollingWindow.text}
+					learnMore={tooltips.progress.rollingWindow.learnMore}
+					position="right"
+				/>
+			</h2>
 			<div class="grid grid-cols-2 gap-4 text-sm">
 				<div>
-					<div class="text-[var(--color-text-secondary)]">Pitch Complexity</div>
+					<div class="inline-flex items-center gap-1 text-[var(--color-text-secondary)]">
+						Pitch Complexity
+						<TooltipHint
+							text={tooltips.progress.pitchComplexity.text}
+							learnMore={tooltips.progress.pitchComplexity.learnMore}
+							position="top"
+						/>
+					</div>
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
@@ -567,7 +705,14 @@
 					</div>
 				</div>
 				<div>
-					<div class="text-[var(--color-text-secondary)]">Rhythm Complexity</div>
+					<div class="inline-flex items-center gap-1 text-[var(--color-text-secondary)]">
+						Rhythm Complexity
+						<TooltipHint
+							text={tooltips.progress.rhythmComplexity.text}
+							learnMore={tooltips.progress.rhythmComplexity.learnMore}
+							position="top"
+						/>
+					</div>
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div

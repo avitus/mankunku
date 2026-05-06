@@ -23,6 +23,8 @@ import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
 import { getScopeGeneration, getLastUserId } from './user-scope';
 import { getStolenLicksLocal } from './community';
 import { writtenKeyToConcert } from '$lib/music/transposition';
+import { INFERRED_PROGRESSION_TAG_BY_CATEGORY } from '$lib/data/progressions';
+import { ensureProgressionTag } from './lick-practice-store';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
@@ -546,6 +548,7 @@ export function updateLickCategory(
 	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const idx = licks.findIndex((l) => l.id === id);
 	const sb = supabase ?? _supabase;
+	let applied = false;
 	if (idx !== -1) {
 		licks[idx] = { ...licks[idx], category };
 		save(STORAGE_KEY, licks);
@@ -563,22 +566,30 @@ export function updateLickCategory(
 					console.warn('Failed to sync lick category to cloud (unexpected):', err);
 				});
 		}
-		return;
-	}
-
-	if (getStolenLicksLocal().some((l) => l.id === id)) {
+		applied = true;
+	} else if (getStolenLicksLocal().some((l) => l.id === id)) {
 		console.warn(`Refusing to edit category on stolen lick ${id}; stolen licks are read-only.`);
 		return;
+	} else {
+		// For curated licks, store category overrides separately
+		const overrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDE_KEY) ?? {};
+		overrides[id] = category;
+		save(CATEGORY_OVERRIDE_KEY, overrides);
+
+		// Fire-and-forget sync category overrides to cloud
+		if (sb) {
+			syncLickMetadataToCloud(sb, { categoryOverrides: overrides }).catch(() => {});
+		}
+		applied = true;
 	}
 
-	// For curated licks, store category overrides separately
-	const overrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDE_KEY) ?? {};
-	overrides[id] = category;
-	save(CATEGORY_OVERRIDE_KEY, overrides);
-
-	// Fire-and-forget sync category overrides to cloud
-	if (sb) {
-		syncLickMetadataToCloud(sb, { categoryOverrides: overrides }).catch(() => {});
+	// Auto-add the inferred prog:* tag for categories with an unambiguous
+	// progression home. Idempotent — re-categorizing later won't duplicate
+	// the tag, and we deliberately don't remove tags from prior categories
+	// so the user's accumulated intent persists across edits.
+	if (applied) {
+		const inferred = INFERRED_PROGRESSION_TAG_BY_CATEGORY[category];
+		if (inferred) ensureProgressionTag(id, inferred);
 	}
 }
 

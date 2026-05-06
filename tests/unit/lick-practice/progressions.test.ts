@@ -4,6 +4,8 @@ import {
 	transposeProgression,
 	PROGRESSION_LICK_CATEGORIES,
 	getLickAlignmentOffset,
+	getCompatibleLickCategories,
+	getProgressionsForCategory,
 	getChordRootAtOffset,
 	isChordQualityCategory,
 	CHORD_SUBSTITUTION_RULES,
@@ -130,6 +132,51 @@ describe('transposeProgression', () => {
 			const transposed = transposeProgression(original, key);
 			expect(transposed).toHaveLength(original.length);
 		}
+	});
+});
+
+describe('getProgressionsForCategory', () => {
+	it('is the inverse of getCompatibleLickCategories: a category appears in P iff getCompatibleLickCategories(P) includes it', () => {
+		const allTypes = Object.keys(PROGRESSION_LICK_CATEGORIES) as Array<
+			keyof typeof PROGRESSION_LICK_CATEGORIES
+		>;
+		const allCategories = new Set<string>();
+		for (const type of allTypes) {
+			for (const entry of PROGRESSION_LICK_CATEGORIES[type]) {
+				allCategories.add(entry.category);
+			}
+		}
+		for (const category of allCategories) {
+			const got = new Set(getProgressionsForCategory(category as never));
+			for (const type of allTypes) {
+				const expected = getCompatibleLickCategories(type).includes(category as never);
+				expect(got.has(type), `${category} ↔ ${type}`).toBe(expected);
+			}
+		}
+	});
+
+	it('returns [] for a category listed in no progression', () => {
+		expect(getProgressionsForCategory('pentatonic')).toEqual([]);
+		expect(getProgressionsForCategory('user')).toEqual([]);
+	});
+
+	it('returns the full list for minor-chord (5 progressions)', () => {
+		const got = getProgressionsForCategory('minor-chord');
+		expect(new Set(got)).toEqual(
+			new Set(['minor-vamp', 'ii-V-I-minor', 'ii-V-I-major-long', 'ii-V-I-minor-long', 'turnaround'])
+		);
+	});
+
+	it('returns only [blues] for the blues category', () => {
+		expect(getProgressionsForCategory('blues')).toEqual(['blues']);
+	});
+
+	it('preserves PROGRESSION_TEMPLATES insertion order', () => {
+		const got = getProgressionsForCategory('major-chord');
+		const order = Object.keys(PROGRESSION_TEMPLATES);
+		const indices = got.map((p) => order.indexOf(p));
+		const sorted = [...indices].sort((a, b) => a - b);
+		expect(indices).toEqual(sorted);
 	});
 });
 

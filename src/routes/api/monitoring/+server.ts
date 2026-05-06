@@ -44,8 +44,12 @@ async function readEnvelope(request: Request): Promise<string | Response> {
 			}
 			chunks.push(value);
 		}
-	} catch {
-		return new Response('Malformed envelope', { status: 400 });
+	} catch (err) {
+		// adapter-node errors the body stream with a SvelteKitError(413) when
+		// Content-Length exceeds BODY_SIZE_LIMIT, before we see any bytes. Surface
+		// that as 413 so it's not misdiagnosed as a malformed payload.
+		const status = (err as { status?: unknown })?.status === 413 ? 413 : 400;
+		return new Response(status === 413 ? 'Envelope too large' : 'Malformed envelope', { status });
 	}
 
 	const buffer = new Uint8Array(total);
