@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { segmentNotes } from '$lib/audio/note-segmenter';
+import { segmentNotes, resolveOnsets } from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 
 function makeReading(midi: number, time: number, cents = 0, clarity = 0.95): PitchReading {
@@ -338,5 +338,64 @@ describe('segmentNotes', () => {
 
 		expect(notes).toHaveLength(2);
 		expect(notes[1].midi).toBe(60);
+	});
+});
+
+describe('resolveOnsets — octave-artifact collapse for pre-onset stable runs', () => {
+	it('drops a brief ±12 stable run preceding a longer one (D4 attack glitch)', () => {
+		// Mimics the Locrian-Descent fixture: F4 sustained, then 4 frames of
+		// D3 (Pitchy octave-half glitch at D4 attack) followed by sustained D4.
+		// The D3 portion has only 4 frames (~67ms) — shorter than D4 — and
+		// is exactly 12 semitones below D4. Should collapse, not produce
+		// a phantom onset.
+		const readings: PitchReading[] = [
+			// F4 sustained (10 frames)
+			makeReading(65, 0.083), makeReading(65, 0.10), makeReading(65, 0.117),
+			makeReading(65, 0.133), makeReading(65, 0.15), makeReading(65, 0.167),
+			makeReading(65, 0.20), makeReading(65, 0.25), makeReading(65, 0.28), makeReading(65, 0.30),
+			// D3 octave-glitch (4 frames, 67ms)
+			makeReading(50, 0.383), makeReading(50, 0.40), makeReading(50, 0.417), makeReading(50, 0.433),
+			// D4 sustained (8 frames)
+			makeReading(62, 0.45), makeReading(62, 0.467), makeReading(62, 0.483),
+			makeReading(62, 0.50), makeReading(62, 0.517), makeReading(62, 0.533),
+			makeReading(62, 0.55), makeReading(62, 0.567),
+			// New note at the worklet onset (validates the 1.0 onset survives validateOnsets)
+			makeReading(69, 1.0), makeReading(69, 1.017), makeReading(69, 1.033)
+		];
+		// Worklet found nothing in the pre-onset region, then a real onset later.
+		const workletOnsets = [1.0];
+		const resolved = resolveOnsets(workletOnsets, readings);
+
+		// Expect: F4 stable start, D4 stable start, and the worklet onset.
+		// The D3 phantom must NOT appear.
+		const preOnsetStarts = resolved.filter((t) => t < 1.0);
+		expect(preOnsetStarts).toHaveLength(2);
+		expect(preOnsetStarts[0]).toBeCloseTo(0.083, 2); // F4
+		expect(preOnsetStarts[1]).toBeCloseTo(0.45, 2);  // D4 (NOT 0.383)
+	});
+
+	it('keeps a ±12 stable run when it is the longer one (genuine octave change)', () => {
+		// Inverse case: a SHORT F4 attack glitch followed by a LONG F3 sustain.
+		// We do NOT want to collapse because the longer run IS the real note,
+		// and dropping the shorter one is correct behavior (already handled).
+		// This is a sanity-check that the rule is "drop the shorter of the
+		// ±12 pair", not "drop the second one".
+		const readings: PitchReading[] = [
+			// Brief F4 (3 frames, 33ms) — attack-transient glitch
+			makeReading(65, 0.0), makeReading(65, 0.0167), makeReading(65, 0.0333),
+			// Long F3 sustain (12 frames)
+			makeReading(53, 0.05), makeReading(53, 0.067), makeReading(53, 0.083),
+			makeReading(53, 0.10), makeReading(53, 0.117), makeReading(53, 0.133),
+			makeReading(53, 0.15), makeReading(53, 0.167), makeReading(53, 0.183),
+			makeReading(53, 0.20), makeReading(53, 0.217), makeReading(53, 0.233),
+			// New note at the worklet onset (validates the 1.0 onset survives validateOnsets)
+			makeReading(69, 1.0), makeReading(69, 1.017), makeReading(69, 1.033)
+		];
+		const resolved = resolveOnsets([1.0], readings);
+		const preOnsetStarts = resolved.filter((t) => t < 1.0);
+
+		// Only F3 should remain — the brief F4 collapses into it.
+		expect(preOnsetStarts).toHaveLength(1);
+		expect(preOnsetStarts[0]).toBeCloseTo(0.05, 2);
 	});
 });

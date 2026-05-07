@@ -553,10 +553,17 @@ export function resolveOnsets(
 
 /**
  * Find the start time of every stable pitch run in a sequence of readings.
- * A "stable run" is PITCH_CHANGE_MIN_HOLD consecutive frames at the same
- * MIDI note. Warmup readings are skipped because the McLeod attack
- * subharmonic can dominate the warmup mode pick and seed a ghost run
- * one octave below the actual note.
+ * A "stable run" is `minHold` consecutive frames at the same MIDI note.
+ * Warmup readings are skipped because the McLeod attack subharmonic can
+ * dominate the warmup mode pick and seed a ghost run one octave below
+ * the actual note.
+ *
+ * Cross-run octave-artifact collapse: if a stable run is exactly ±12
+ * semitones from the next stable run AND shorter than it, drop it.
+ * This handles the case where Pitchy's octave stabilizer locks onto
+ * the half-frequency for a few frames at a note attack before settling
+ * on the true fundamental — without the collapse, those 3-4 glitch
+ * frames would seed their own pre-onset and split the real note in two.
  */
 function findStableRunStarts(
 	readings: PitchReading[],
@@ -565,11 +572,14 @@ function findStableRunStarts(
 	const filtered = readings.filter((r) => !r.warmup);
 	if (filtered.length < minHold) return [];
 
-	const starts: number[] = [];
+	// Phase 1: walk and collect stable runs as { midi, startIdx, endIdx }.
+	type Run = { midi: number; startIdx: number; endIdx: number };
+	const runs: Run[] = [];
 	let runMidi: number | null = null;
 	let runCount = 0;
 	let runStartIdx = 0;
 	let stableMidi: number | null = null;
+	let stableStartIdx = 0;
 
 	for (let i = 0; i < filtered.length; i++) {
 		const m = filtered[i].midi;
@@ -582,9 +592,33 @@ function findStableRunStarts(
 		}
 
 		if (runCount === minHold && runMidi !== stableMidi) {
-			starts.push(filtered[runStartIdx].time);
+			if (stableMidi !== null) {
+				runs.push({ midi: stableMidi, startIdx: stableStartIdx, endIdx: runStartIdx - 1 });
+			}
 			stableMidi = runMidi;
+			stableStartIdx = runStartIdx;
 		}
 	}
-	return starts;
+	if (stableMidi !== null) {
+		runs.push({ midi: stableMidi, startIdx: stableStartIdx, endIdx: filtered.length - 1 });
+	}
+
+	// Phase 2: collapse cross-run octave artifacts. If run[i] is exactly
+	// ±12 from run[i+1] AND shorter, it's a McLeod-method octave glitch
+	// at the next note's attack — drop it.
+	const collapsed: Run[] = [];
+	for (let i = 0; i < runs.length; i++) {
+		const cur = runs[i];
+		const next = runs[i + 1];
+		const curLen = cur.endIdx - cur.startIdx + 1;
+		if (next) {
+			const nextLen = next.endIdx - next.startIdx + 1;
+			if (Math.abs(cur.midi - next.midi) === 12 && curLen < nextLen) {
+				continue; // drop cur — it is the octave glitch on next's attack
+			}
+		}
+		collapsed.push(cur);
+	}
+
+	return collapsed.map((r) => filtered[r.startIdx].time);
 }
