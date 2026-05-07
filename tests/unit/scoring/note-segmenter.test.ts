@@ -320,6 +320,33 @@ describe('segmentNotes', () => {
 		expect(notes[0].midi).toBe(53);
 	});
 
+	it('drops a cross-segment ±12 last-sub when next segment is the +12 partner', () => {
+		// F4 onset → 14 frames F4 → 4 frames D3 (octave glitch at the D4
+		// attack, sitting before the worklet onset boundary) → onset at 0.45
+		// → 8 frames D4. The D3 sub of segment 1 must be spliced out
+		// post-emit because it's the half-frequency of the next note.
+		const readings: PitchReading[] = [];
+		for (let i = 0; i < 14; i++) readings.push(makeReading(65, 0.083 + i * 0.017));
+		for (let i = 0; i < 4; i++) readings.push(makeReading(50, 0.383 + i * 0.017));
+		for (let i = 0; i < 8; i++) readings.push(makeReading(62, 0.45 + i * 0.017));
+		const notes = segmentNotes(readings, [0.083, 0.45], 0.6);
+		expect(notes.map((n) => n.midi)).toEqual([65, 62]);
+		expect(notes[0].onsetTime).toBeCloseTo(0.083, 3);
+		expect(notes[1].onsetTime).toBeCloseTo(0.45, 3);
+	});
+
+	it('keeps a cross-segment ±12 last-sub when it is long (real grace note)', () => {
+		// Same shape but the leading sub of segment 1 is 200ms — above
+		// MIN_DURABLE_SUB_DURATION. Must NOT be collapsed: a real D3 grace
+		// note before D4 should survive.
+		const readings: PitchReading[] = [];
+		for (let i = 0; i < 5; i++) readings.push(makeReading(65, 0.0 + i * 0.017));
+		for (let i = 0; i < 12; i++) readings.push(makeReading(50, 0.10 + i * 0.017));
+		for (let i = 0; i < 8; i++) readings.push(makeReading(62, 0.35 + i * 0.017));
+		const notes = segmentNotes(readings, [0.0, 0.35], 0.5);
+		expect(notes.map((n) => n.midi)).toEqual([65, 50, 62]);
+	});
+
 	it('drops sub-segments where every reading is warmup', () => {
 		// F3 sustain, then a 3-frame all-warmup C7 burst at the trailing edge
 		// (mimics the locrian-descent C7 phantom: a stabilizer reset on a

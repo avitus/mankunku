@@ -125,6 +125,25 @@ export function segmentNotes(
 		}
 	}
 
+	// Cross-segment octave-artifact collapse. A McLeod subharmonic glitch
+	// at a note's attack can produce a brief ±12 sub-segment in the PREVIOUS
+	// segment (the glitch frames sit before the worklet onset boundary).
+	// The within-segment collapseOctaveArtifacts can't see across boundaries,
+	// so apply the same shape here. Walk in reverse so an earlier splice
+	// doesn't reindex elements still under inspection. Threshold mirrors
+	// MIN_DURABLE_SUB_DURATION (0.15s) — real grace notes ≥ 150ms are kept.
+	for (let k = notes.length - 2; k >= 0; k--) {
+		const cur = notes[k];
+		const next = notes[k + 1];
+		if (
+			Math.abs(cur.midi - next.midi) === 12 &&
+			cur.duration < next.duration &&
+			cur.duration < MIN_DURABLE_SUB_DURATION
+		) {
+			notes.splice(k, 1);
+		}
+	}
+
 	return notes;
 }
 
