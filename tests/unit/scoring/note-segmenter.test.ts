@@ -474,6 +474,27 @@ describe('resolveOnsets — gap-flanked brief stable runs', () => {
 		expect(preOnsetStarts[2]).toBeCloseTo(1.15, 2);
 	});
 
+	it('accepts the LAST gap-flanked stable run when worklet onset provides flanking gap', () => {
+		// Locrian-descent shape: C4 sustain → 67ms gap → 2 frames A3 → 89ms
+		// gap to worklet onset → G3 sustained after the onset. With
+		// nextEventTime threading, A3's gapAfter against the worklet onset is
+		// 0.089 ≥ 0.05, so A3 promotes. Distinct MIDI from the post-onset
+		// G3, so the MIDI-aware dedup keeps both onsets.
+		const readings: PitchReading[] = [
+			// C4 sustained
+			makeReading(60, 0.617), makeReading(60, 0.633), makeReading(60, 0.65),
+			makeReading(60, 0.667), makeReading(60, 0.70), makeReading(60, 0.75),
+			makeReading(60, 0.80), makeReading(60, 0.883),
+			// A3 (last in pre-onset)
+			makeReading(57, 0.95), makeReading(57, 0.967),
+			// Post-worklet G3 (different MIDI — must NOT be deduped against A3)
+			makeReading(55, 1.20), makeReading(55, 1.217), makeReading(55, 1.233)
+		];
+		const result = resolveOnsets([1.056], readings);
+		expect(result).toContain(0.95);
+		expect(result).toContain(1.056);
+	});
+
 	it('rejects a 2-frame run NOT flanked by gaps (suppresses sustain glitches)', () => {
 		// Mimics a fast vibrato or detector wobble: F4 sustained with a brief
 		// 2-frame F#4 in the middle, no surrounding gaps. Must NOT promote.
@@ -495,5 +516,31 @@ describe('resolveOnsets — gap-flanked brief stable runs', () => {
 		// Only F4 should be a stable start — the F#4 wobble does NOT promote.
 		expect(preOnsetStarts).toHaveLength(1);
 		expect(preOnsetStarts[0]).toBeCloseTo(0.0, 2);
+	});
+});
+
+describe('resolveOnsets — MIDI-aware ATTACK_DEDUP', () => {
+	it('does NOT replace worklet onset with stable-run start when MIDIs differ', () => {
+		// 4 frames of C4 ending at 0.95, worklet onset at 1.0 with E4 readings
+		// immediately after. Distance 0.05 < ATTACK_DEDUP_WINDOW (0.15), but
+		// the MIDIs differ — distinct attacks, both onsets must remain.
+		const readings: PitchReading[] = [
+			makeReading(60, 0.90), makeReading(60, 0.917), makeReading(60, 0.934), makeReading(60, 0.950),
+			makeReading(64, 1.0), makeReading(64, 1.017), makeReading(64, 1.033)
+		];
+		const result = resolveOnsets([1.0], readings);
+		expect(result).toEqual([0.90, 1.0]);
+	});
+
+	it('still dedups when MIDIs match across the boundary', () => {
+		// Regression sanity-check for the original same-attack dedup case:
+		// MIDIs match (60 → 60), so the worklet onset is replaced by the
+		// earlier stable-run start.
+		const readings: PitchReading[] = [
+			makeReading(60, 0.90), makeReading(60, 0.917), makeReading(60, 0.934), makeReading(60, 0.950),
+			makeReading(60, 1.0)
+		];
+		const result = resolveOnsets([1.0], readings);
+		expect(result).toEqual([0.90]);
 	});
 });

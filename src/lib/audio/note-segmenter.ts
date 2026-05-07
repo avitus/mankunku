@@ -576,17 +576,32 @@ export function resolveOnsets(
 
 	const firstOnset = onsets[0];
 	const preOnset = readings.filter((r) => r.time < firstOnset);
-	const stableStarts = findStableRunStarts(preOnset);
+	const stableStarts = findStableRunStarts(preOnset, firstOnset);
 
-	if (
-		stableStarts.length > 0 &&
-		firstOnset - stableStarts[stableStarts.length - 1] < ATTACK_DEDUP_WINDOW
-	) {
-		// Same attack — keep the earlier stable-run start, drop the worklet onset.
-		onsets[0] = stableStarts.pop()!;
+	if (stableStarts.length > 0) {
+		const lastStable = stableStarts[stableStarts.length - 1];
+		if (firstOnset - lastStable.time < ATTACK_DEDUP_WINDOW) {
+			// Same-attack dedup: collapse only when both sources point at the
+			// same note. The post-onset readings are scanned skipping warmup
+			// because warmup MIDI is unstabilized and may carry the McLeod
+			// attack subharmonic — exactly the noise this dedup needs to
+			// avoid being fooled by. When no non-warmup post-onset reading
+			// exists (recording ends right at/after the onset) default to
+			// deduping, preserving prior behavior for that edge case.
+			const post = readings.find((r) => !r.warmup && r.time >= firstOnset);
+			if (post === undefined || post.midi === lastStable.midi) {
+				onsets[0] = lastStable.time;
+				stableStarts.pop();
+			}
+		}
 	}
 
-	return [...stableStarts, ...onsets];
+	return [...stableStarts.map((s) => s.time), ...onsets];
+}
+
+interface StableRunStart {
+	time: number;
+	midi: number;
 }
 
 /**
@@ -595,6 +610,13 @@ export function resolveOnsets(
  * Warmup readings are skipped because the McLeod attack subharmonic can
  * dominate the warmup mode pick and seed a ghost run one octave below
  * the actual note.
+ *
+ * @param nextEventTime When provided, the LAST candidate run uses
+ *   `nextEventTime - lastReadingTime` as `gapAfter` (instead of the
+ *   edge-of-array sentinel 0). Lets a 2-frame run that sits between a
+ *   clarity-dropout gap and the upcoming worklet onset qualify as
+ *   gap-flanked. Caller in `resolveOnsets` passes the first worklet
+ *   onset for this purpose.
  *
  * The function operates in four phases:
  *
@@ -621,8 +643,9 @@ export function resolveOnsets(
  */
 function findStableRunStarts(
 	readings: PitchReading[],
+	nextEventTime?: number,
 	minHold: number = PITCH_CHANGE_MIN_HOLD
-): number[] {
+): StableRunStart[] {
 	const filtered = readings.filter((r) => !r.warmup);
 	if (filtered.length < EPHEMERAL_RUN_MIN_HOLD) return [];
 
@@ -657,6 +680,10 @@ function findStableRunStarts(
 		// Edge-of-array means no flanking context — treat as gap=0 so
 		// isolated 2-frame runs at the start or end of the readings
 		// window don't self-promote without genuine surrounding evidence.
+		// EXCEPTION: when the run is the LAST in the filtered array AND a
+		// nextEventTime (worklet onset) is supplied, use the time to that
+		// upcoming event as gapAfter — a brief note that sits right before
+		// the next attack still has flanking-gap evidence.
 		const gapBefore =
 			cur.startIdx > 0
 				? filtered[cur.startIdx].time - filtered[cur.startIdx - 1].time
@@ -664,7 +691,9 @@ function findStableRunStarts(
 		const gapAfter =
 			cur.endIdx < filtered.length - 1
 				? filtered[cur.endIdx + 1].time - filtered[cur.endIdx].time
-				: 0;
+				: nextEventTime !== undefined
+					? nextEventTime - filtered[cur.endIdx].time
+					: 0;
 		if (gapBefore >= EPHEMERAL_FLANKING_GAP && gapAfter >= EPHEMERAL_FLANKING_GAP) {
 			accepted.push(cur);
 		}
@@ -697,5 +726,5 @@ function findStableRunStarts(
 		collapsed.push(cur);
 	}
 
-	return collapsed.map((r) => filtered[r.startIdx].time);
+	return collapsed.map((r) => ({ time: filtered[r.startIdx].time, midi: r.midi }));
 }
