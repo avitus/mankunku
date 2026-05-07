@@ -398,6 +398,13 @@ function emitNote(
 ): DetectedNote | null {
 	if (subReadings.length === 0) return null;
 
+	// Reject sub-segments composed entirely of warmup readings. By definition
+	// the stabilizer never confirmed a steady pitch on these frames, so they
+	// don't represent a real note — they're transient noise (mouthpiece
+	// artifacts, post-reset bursts, etc.) that the emit-time aggregation
+	// would otherwise crystallize into a phantom MIDI.
+	if (subReadings.every((r) => r.warmup)) return null;
+
 	// Short-note fallback (4d): when a segment has some data but not enough
 	// to run the full vote, pick the single highest-clarity reading so a
 	// quarter note at fast tempo isn't silently dropped. Requires at least

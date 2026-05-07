@@ -320,6 +320,25 @@ describe('segmentNotes', () => {
 		expect(notes[0].midi).toBe(53);
 	});
 
+	it('drops sub-segments where every reading is warmup', () => {
+		// F3 sustain, then a 3-frame all-warmup C7 burst at the trailing edge
+		// (mimics the locrian-descent C7 phantom: a stabilizer reset on a
+		// late false-positive worklet onset puts the post-reset frames in
+		// warmup, and they don't represent a real note).
+		const readings: PitchReading[] = [
+			makeReading(53, 1.0),
+			makeReading(53, 1.017),
+			makeReading(53, 1.033),
+			makeReading(53, 1.05),
+			makeReading(53, 1.067),
+			{ ...makeReading(81, 1.5), warmup: true },
+			{ ...makeReading(81, 1.517), warmup: true },
+			{ ...makeReading(81, 1.533), warmup: true }
+		];
+		const notes = segmentNotes(readings, [1.0], 1.6);
+		expect(notes.map((n) => n.midi)).toEqual([53]);
+	});
+
 	it('tie-breaks octave by proximity to previous note', () => {
 		// First note pins context at C4 (60). Second segment has an equal
 		// clarity-weighted vote for C4 and C5 — proximity to C4 should win.
