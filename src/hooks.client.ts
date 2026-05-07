@@ -2,6 +2,23 @@ import { handleErrorWithSentry, replayIntegration } from "@sentry/sveltekit";
 import * as Sentry from '@sentry/sveltekit';
 import type { HandleClientError } from '@sveltejs/kit';
 
+// `import.meta.env.DEV` is false for `npm run preview`, so a preview running
+// on localhost still shipped events with environment='production' (see Sentry
+// MANKUNKU-K, captured from http://localhost:4173/auth). Detect localhost by
+// hostname too so preview/test sessions land in the right bucket.
+function detectEnvironment(): 'development' | 'production' {
+  if (import.meta.env.DEV) return 'development';
+  if (typeof location !== 'undefined') {
+    const host = location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') {
+      return 'development';
+    }
+  }
+  return 'production';
+}
+
+const SENTRY_ENVIRONMENT = detectEnvironment();
+
 Sentry.init({
   dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
 
@@ -9,20 +26,44 @@ Sentry.init({
   // pollute production. The SDK defaults to 'production' when this is unset,
   // which leaks every HMR/compile glitch from `npm run dev` into the prod
   // project (see Sentry MANKUNKU-6/D/1/C/F/7/B/E).
-  environment: import.meta.env.DEV ? 'development' : 'production',
+  environment: SENTRY_ENVIRONMENT,
 
   // In dev, Vite's HMR/dev-server churn produces "error loading dynamically
   // imported module" against localhost:5173 source URLs (e.g. app.css) when a
   // hot update is mid-flight or the dev server restarts. Not actionable — the
   // page recovers on the next HMR tick or via handleStaleChunkReload below.
-  // Production keeps capturing these so deploy-time stale chunks remain
-  // visible. See Sentry MANKUNKU-8.
-  ignoreErrors: import.meta.env.DEV
-    ? [
-        /error loading dynamically imported module/i,
-        /Failed to fetch dynamically imported module/i
-      ]
-    : [],
+  // The AbortError pattern fires when an <audio>/<video> src changes while a
+  // load is in flight (Firefox is loud about this); not actionable. See
+  // Sentry MANKUNKU-8 and MANKUNKU-M.
+  ignoreErrors: [
+    // Browsers fire AbortError on media elements when the src changes mid-load
+    // or the user navigates away. Surfaces as an unhandled rejection in
+    // Firefox; harmless. Keep filtering across all environments.
+    /The fetching process for the media resource was aborted/i,
+    /AbortError: .*aborted by the user agent/i,
+    ...(SENTRY_ENVIRONMENT === 'development'
+      ? [
+          /error loading dynamically imported module/i,
+          /Failed to fetch dynamically imported module/i
+        ]
+      : [])
+  ],
+
+  // Drop events whose error has no message and no stacktrace — they read as
+  // "<unknown>" / "undefined" in the UI and aren't actionable. See Sentry
+  // MANKUNKU-K.
+  beforeSend(event, hint) {
+    const ex = event.exception?.values?.[0];
+    const hasMessage =
+      typeof event.message === 'string' && event.message.trim().length > 0;
+    const hasExceptionValue =
+      typeof ex?.value === 'string' && ex.value.trim().length > 0;
+    const hasFrames = (ex?.stacktrace?.frames?.length ?? 0) > 0;
+    if (!hasMessage && !hasExceptionValue && !hasFrames && hint?.originalException == null) {
+      return null;
+    }
+    return event;
+  },
 
   // Route envelopes through a same-origin endpoint so ad blockers and
   // Firefox ETP don't cancel them. See src/routes/api/monitoring/+server.ts.

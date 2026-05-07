@@ -1,30 +1,27 @@
 import { error } from '@sveltejs/kit';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import type { PageServerLoad } from './$types';
 import { getPage, getBreadcrumbs } from '$lib/docs/structure';
 
-/**
- * Read a single doc file from /documentation/{slug}.md and return its raw
- * markdown plus structural metadata. The renderer runs in the page component
- * so streaming and reactivity work the same on client and server.
- */
+// Bundle every documentation/*.md into the build at compile time. Reading from
+// process.cwd() at runtime fails in production because the deploy ships only
+// build/ + package files (see .circleci/continue-config.yml), not the
+// documentation/ tree. See Sentry MANKUNKU-N.
+const DOC_FILES = import.meta.glob<string>('/documentation/**/*.md', {
+	query: '?raw',
+	import: 'default',
+	eager: true
+});
+
 export const load: PageServerLoad = async ({ params }) => {
 	const slug = params.slug;
 	const meta = getPage(slug);
 	if (!meta) {
-		throw error(404, `No documentation page at /${slug}`);
+		error(404, `No documentation page at /${slug}`);
 	}
 
-	// Project root is the working directory; documentation sits beside src/.
-	const filePath = path.resolve(process.cwd(), 'documentation', `${slug}.md`);
-
-	let markdown: string;
-	try {
-		markdown = await readFile(filePath, 'utf-8');
-	} catch (err) {
-		console.warn(`Failed to load doc at ${filePath}:`, err);
-		throw error(404, `Documentation file missing: ${slug}.md`);
+	const markdown = DOC_FILES[`/documentation/${slug}.md`];
+	if (markdown === undefined) {
+		error(404, `Documentation file missing: ${slug}.md`);
 	}
 
 	return {
