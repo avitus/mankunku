@@ -704,7 +704,6 @@
 
 	<TourTrigger tourId="ear-training" steps={earTrainingTour} />
 
-
 	{#if bottomQuote}
 		<div
 			class="max-w-md text-center text-sm italic text-[var(--color-text-secondary)]"
