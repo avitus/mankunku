@@ -399,3 +399,55 @@ describe('resolveOnsets — octave-artifact collapse for pre-onset stable runs',
 		expect(preOnsetStarts[0]).toBeCloseTo(0.05, 2);
 	});
 });
+
+describe('resolveOnsets — gap-flanked brief stable runs', () => {
+	it('accepts a 2-frame stable run flanked by clarity gaps as a real note', () => {
+		// Mimics the Locrian-Descent A3: C4 sustained, gap (~67ms), 2 frames
+		// of A3, gap (~183ms), G3 sustained. The A3 is real but Pitchy
+		// dropped most of its frames below clarity threshold.
+		const readings: PitchReading[] = [
+			// C4 sustained (8 frames)
+			makeReading(60, 0.617), makeReading(60, 0.633), makeReading(60, 0.65),
+			makeReading(60, 0.667), makeReading(60, 0.70), makeReading(60, 0.75),
+			makeReading(60, 0.80), makeReading(60, 0.883),
+			// Gap of 67ms (clarity dropout) — then 2 frames of A3
+			makeReading(57, 0.95), makeReading(57, 0.967),
+			// Gap of 183ms — then G3 sustained
+			makeReading(55, 1.15), makeReading(55, 1.167), makeReading(55, 1.183),
+			makeReading(55, 1.20), makeReading(55, 1.25), makeReading(55, 1.30),
+			// New note at the worklet onset (validates the 2.0 onset survives validateOnsets)
+			makeReading(62, 2.0), makeReading(62, 2.017), makeReading(62, 2.033)
+		];
+		const resolved = resolveOnsets([2.0], readings); // worklet onset way later
+
+		const preOnsetStarts = resolved.filter((t) => t < 2.0);
+		// Expect 3 stable starts: C4, A3, G3 — the A3 must appear.
+		expect(preOnsetStarts).toHaveLength(3);
+		expect(preOnsetStarts[0]).toBeCloseTo(0.617, 2);
+		expect(preOnsetStarts[1]).toBeCloseTo(0.95, 2);
+		expect(preOnsetStarts[2]).toBeCloseTo(1.15, 2);
+	});
+
+	it('rejects a 2-frame run NOT flanked by gaps (suppresses sustain glitches)', () => {
+		// Mimics a fast vibrato or detector wobble: F4 sustained with a brief
+		// 2-frame F#4 in the middle, no surrounding gaps. Must NOT promote.
+		const readings: PitchReading[] = [
+			// F4 sustained
+			makeReading(65, 0.0), makeReading(65, 0.0167), makeReading(65, 0.0333),
+			makeReading(65, 0.05), makeReading(65, 0.067),
+			// 2 frames of F#4 — wobble, no gaps
+			makeReading(66, 0.083), makeReading(66, 0.10),
+			// Back to F4
+			makeReading(65, 0.117), makeReading(65, 0.133), makeReading(65, 0.15),
+			makeReading(65, 0.167), makeReading(65, 0.183), makeReading(65, 0.20),
+			// New note at the worklet onset (validates the 1.0 onset survives validateOnsets)
+			makeReading(62, 1.0), makeReading(62, 1.017), makeReading(62, 1.033)
+		];
+		const resolved = resolveOnsets([1.0], readings);
+		const preOnsetStarts = resolved.filter((t) => t < 1.0);
+
+		// Only F4 should be a stable start — the F#4 wobble does NOT promote.
+		expect(preOnsetStarts).toHaveLength(1);
+		expect(preOnsetStarts[0]).toBeCloseTo(0.0, 2);
+	});
+});

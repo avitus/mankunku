@@ -136,6 +136,18 @@ export function segmentNotes(
 const PITCH_CHANGE_MIN_HOLD = 3;
 
 /**
+ * Minimum frames for a stable run that is flanked by clarity-dropout gaps
+ * on both sides. Real but brief notes (transient pitches during fast
+ * lines) often only register 2 frames before the detector loses
+ * confidence. The flanking-gap context distinguishes these from
+ * mid-sustain glitches, which never have gaps around them.
+ */
+const EPHEMERAL_RUN_MIN_HOLD = 2;
+
+/** Minimum frame-to-frame gap that flags a clarity dropout. ~3 frames at 60fps. */
+const EPHEMERAL_FLANKING_GAP = 0.05;
+
+/**
  * Sub-segments shorter than this that are exactly ±12 semitones from a
  * longer neighbor are treated as McLeod subharmonic glitches and merged.
  * Chosen at ~150 ms — shorter than a fast quarter note (~250 ms at 240 BPM),
@@ -558,8 +570,24 @@ export function resolveOnsets(
  * dominate the warmup mode pick and seed a ghost run one octave below
  * the actual note.
  *
- * Cross-run octave-artifact collapse: if a stable run is exactly ±12
- * semitones from the next stable run AND shorter than it, drop it.
+ * The function operates in four phases:
+ *
+ * Phase 1 — Collect: gather every contiguous same-MIDI run of length >=
+ * EPHEMERAL_RUN_MIN_HOLD (2 frames) as a candidate.
+ *
+ * Phase 2 — Filter with ephemeral acceptance: keep runs of length >=
+ * minHold unconditionally. For shorter runs (>= EPHEMERAL_RUN_MIN_HOLD),
+ * require a clarity-dropout gap on BOTH sides — a real but brief note
+ * registers 2 frames between two pitch-detection gaps, while sustain-noise
+ * glitches sit in the middle of a continuous reading stream (no flanking
+ * gaps). This distinguishes genuine transient pitches during fast lines from
+ * mid-sustain wobbles produced by vibrato or McLeod detector noise.
+ *
+ * Phase 3 — Dedup: collapse consecutive accepted runs of the same MIDI.
+ * Only emit on a MIDI change.
+ *
+ * Phase 4 — Octave-artifact collapse (Fix #1, preserved): if a run is
+ * exactly ±12 semitones from the next run AND shorter than it, drop it.
  * This handles the case where Pitchy's octave stabilizer locks onto
  * the half-frequency for a few frames at a note attack before settling
  * on the true fundamental — without the collapse, those 3-4 glitch
@@ -570,51 +598,74 @@ function findStableRunStarts(
 	minHold: number = PITCH_CHANGE_MIN_HOLD
 ): number[] {
 	const filtered = readings.filter((r) => !r.warmup);
-	if (filtered.length < minHold) return [];
+	if (filtered.length < EPHEMERAL_RUN_MIN_HOLD) return [];
 
-	// Phase 1: walk and collect stable runs as { midi, startIdx, endIdx }.
+	// Phase 1: collect every contiguous run of length >= EPHEMERAL_RUN_MIN_HOLD.
 	type Run = { midi: number; startIdx: number; endIdx: number };
-	const runs: Run[] = [];
-	let runMidi: number | null = null;
-	let runCount = 0;
-	let runStartIdx = 0;
-	let stableMidi: number | null = null;
-	let stableStartIdx = 0;
-
-	for (let i = 0; i < filtered.length; i++) {
-		const m = filtered[i].midi;
-		if (m === runMidi) {
-			runCount++;
-		} else {
-			runMidi = m;
-			runCount = 1;
-			runStartIdx = i;
-		}
-
-		if (runCount === minHold && runMidi !== stableMidi) {
-			if (stableMidi !== null) {
-				runs.push({ midi: stableMidi, startIdx: stableStartIdx, endIdx: runStartIdx - 1 });
+	const candidates: Run[] = [];
+	let curStart = 0;
+	for (let i = 1; i <= filtered.length; i++) {
+		const isBoundary = i === filtered.length || filtered[i].midi !== filtered[curStart].midi;
+		if (isBoundary) {
+			const length = i - curStart;
+			if (length >= EPHEMERAL_RUN_MIN_HOLD) {
+				candidates.push({ midi: filtered[curStart].midi, startIdx: curStart, endIdx: i - 1 });
 			}
-			stableMidi = runMidi;
-			stableStartIdx = runStartIdx;
+			curStart = i;
 		}
 	}
-	if (stableMidi !== null) {
-		runs.push({ midi: stableMidi, startIdx: stableStartIdx, endIdx: filtered.length - 1 });
+
+	// Phase 2: keep runs of length >= minHold; for shorter runs (>=
+	// EPHEMERAL_RUN_MIN_HOLD), require a clarity-dropout gap on BOTH sides
+	// — a real but brief note registers 2 frames between two pitch-detection
+	// gaps, while sustain-noise glitches sit in the middle of a continuous
+	// reading stream.
+	const accepted: Run[] = [];
+	for (const cur of candidates) {
+		const length = cur.endIdx - cur.startIdx + 1;
+		if (length >= minHold) {
+			accepted.push(cur);
+			continue;
+		}
+		// A real clarity-dropout gap requires an actual prior/next reading.
+		// Edge-of-array means no flanking context — treat as gap=0 so
+		// isolated 2-frame runs at the start or end of the readings
+		// window don't self-promote without genuine surrounding evidence.
+		const gapBefore =
+			cur.startIdx > 0
+				? filtered[cur.startIdx].time - filtered[cur.startIdx - 1].time
+				: 0;
+		const gapAfter =
+			cur.endIdx < filtered.length - 1
+				? filtered[cur.endIdx + 1].time - filtered[cur.endIdx].time
+				: 0;
+		if (gapBefore >= EPHEMERAL_FLANKING_GAP && gapAfter >= EPHEMERAL_FLANKING_GAP) {
+			accepted.push(cur);
+		}
 	}
 
-	// Phase 2: collapse cross-run octave artifacts. If run[i] is exactly
-	// ±12 from run[i+1] AND shorter, it's a McLeod-method octave glitch
-	// at the next note's attack — drop it.
+	// Phase 3: dedup consecutive same-MIDI runs (only emit on MIDI change).
+	const dedup: Run[] = [];
+	let lastMidi: number | null = null;
+	for (const run of accepted) {
+		if (run.midi !== lastMidi) {
+			dedup.push(run);
+			lastMidi = run.midi;
+		}
+	}
+
+	// Phase 4: collapse cross-run octave artifacts (Fix #1, preserved).
+	// If run[i] is exactly ±12 from run[i+1] AND shorter, it's a
+	// McLeod-method octave glitch at the next note's attack — drop it.
 	const collapsed: Run[] = [];
-	for (let i = 0; i < runs.length; i++) {
-		const cur = runs[i];
-		const next = runs[i + 1];
+	for (let i = 0; i < dedup.length; i++) {
+		const cur = dedup[i];
+		const next = dedup[i + 1];
 		const curLen = cur.endIdx - cur.startIdx + 1;
 		if (next) {
 			const nextLen = next.endIdx - next.startIdx + 1;
 			if (Math.abs(cur.midi - next.midi) === 12 && curLen < nextLen) {
-				continue; // drop cur — it is the octave glitch on next's attack
+				continue;
 			}
 		}
 		collapsed.push(cur);
