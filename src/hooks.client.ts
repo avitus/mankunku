@@ -1,5 +1,6 @@
 import { handleErrorWithSentry, replayIntegration } from "@sentry/sveltekit";
 import * as Sentry from '@sentry/sveltekit';
+import type { ErrorEvent, EventHint } from '@sentry/sveltekit';
 import type { HandleClientError } from '@sveltejs/kit';
 
 // `import.meta.env.DEV` is false for `npm run preview`, so a preview running
@@ -52,7 +53,7 @@ Sentry.init({
   // Drop events whose error has no message and no stacktrace — they read as
   // "<unknown>" / "undefined" in the UI and aren't actionable. See Sentry
   // MANKUNKU-K.
-  beforeSend(event, hint) {
+  beforeSend(event: ErrorEvent, hint: EventHint): ErrorEvent | null {
     const ex = event.exception?.values?.[0];
     const hasMessage =
       typeof event.message === 'string' && event.message.trim().length > 0;
