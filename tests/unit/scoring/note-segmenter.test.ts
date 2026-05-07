@@ -232,14 +232,14 @@ describe('segmentNotes', () => {
 		// is exactly 12 semitones below C4 and ~0.12 s long — it should be
 		// absorbed into the C4 sub-segment, not emitted as its own note.
 		const readings: PitchReading[] = [];
-		// A3 sustained from 1.25 to 3.08 (~110 readings at 60 fps — use 15 for brevity)
-		for (let t = 1.25; t < 3.08; t += 0.12) readings.push(makeReading(57, t));
+		// A3 sustained from 1.25 to 3.08 at ~60fps (16ms steps)
+		for (let t = 1.25; t < 3.08; t += 0.016) readings.push(makeReading(57, t));
 		// C3 glitch for ~0.12 s (3 frames — exactly PITCH_CHANGE_MIN_HOLD)
 		readings.push(makeReading(48, 3.08, 0, 0.93));
 		readings.push(makeReading(48, 3.12, 0, 0.93));
 		readings.push(makeReading(48, 3.16, 0, 0.93));
-		// C4 sustained from 3.20 to 3.65 (~7 readings at ~60 ms hop)
-		for (let t = 3.20; t < 3.65; t += 0.06) readings.push(makeReading(60, t));
+		// C4 sustained from 3.20 to 3.65 at ~60fps (16ms steps)
+		for (let t = 3.20; t < 3.65; t += 0.016) readings.push(makeReading(60, t));
 
 		const notes = segmentNotes(readings, [1.25], 3.65);
 
@@ -255,15 +255,69 @@ describe('segmentNotes', () => {
 		// 7 semitones away (not an octave), so it must NOT be collapsed —
 		// a genuine short grace note shouldn't disappear.
 		const readings: PitchReading[] = [];
-		for (let t = 0; t < 1.0; t += 0.1) readings.push(makeReading(60, t));
+		for (let t = 0; t < 1.0; t += 0.016) readings.push(makeReading(60, t));
 		readings.push(makeReading(67, 1.0));
 		readings.push(makeReading(67, 1.05));
 		readings.push(makeReading(67, 1.10));
-		for (let t = 1.2; t < 1.6; t += 0.08) readings.push(makeReading(72, t));
+		for (let t = 1.2; t < 1.6; t += 0.016) readings.push(makeReading(72, t));
 
 		const notes = segmentNotes(readings, [0], 1.6);
 
 		expect(notes.map((n) => n.midi)).toEqual([60, 67, 72]);
+	});
+
+	it('splits same-MIDI re-articulations on internal reading gaps', () => {
+		// F3 sustained but with two clarity-dropout gaps simulating soft re-tonguing.
+		// Three articulations → three notes, even though pitch never changes.
+		const readings: PitchReading[] = [
+			// First F3 (90ms)
+			makeReading(53, 1.50),
+			makeReading(53, 1.5167),
+			makeReading(53, 1.5333),
+			makeReading(53, 1.55),
+			makeReading(53, 1.5833),
+			// Gap (84ms) — re-tongue
+			makeReading(53, 1.6667),
+			makeReading(53, 1.6833),
+			makeReading(53, 1.70),
+			makeReading(53, 1.85),
+			makeReading(53, 2.00),
+			makeReading(53, 2.1667),
+			// Gap (100ms) — re-tongue
+			makeReading(53, 2.2667),
+			makeReading(53, 2.30),
+			makeReading(53, 2.50),
+			makeReading(53, 2.70)
+		];
+		// Single onset at the start; no other onsets — re-articulations are
+		// entirely gap-driven, simulating the worklet missing soft tongues.
+		const onsets = [1.50];
+		const notes = segmentNotes(readings, onsets, 2.8);
+
+		expect(notes).toHaveLength(3);
+		expect(notes.map((n) => n.midi)).toEqual([53, 53, 53]);
+		expect(notes[0].onsetTime).toBeCloseTo(1.50, 2);
+		expect(notes[1].onsetTime).toBeCloseTo(1.6667, 2);
+		expect(notes[2].onsetTime).toBeCloseTo(2.2667, 2);
+	});
+
+	it('does NOT split same-MIDI run on small clarity blips (< gap threshold)', () => {
+		// Single F3 sustain with a 33ms blip (typical sustain noise) — should NOT split.
+		const readings: PitchReading[] = [
+			makeReading(53, 1.50),
+			makeReading(53, 1.5167),
+			makeReading(53, 1.5333),
+			makeReading(53, 1.55),
+			// 33ms blip — too short to count as articulation
+			makeReading(53, 1.5833),
+			makeReading(53, 1.60),
+			makeReading(53, 1.65),
+			makeReading(53, 1.70)
+		];
+		const notes = segmentNotes(readings, [1.50], 1.8);
+
+		expect(notes).toHaveLength(1);
+		expect(notes[0].midi).toBe(53);
 	});
 
 	it('tie-breaks octave by proximity to previous note', () => {

@@ -210,7 +210,7 @@ function splitByPitchChange(
 		primaryMidi: stableMidi ?? segReadings[0].midi
 	});
 
-	return mergeConsecutiveSameMidi(collapseOctaveArtifacts(subs));
+	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(subs)));
 }
 
 /**
@@ -317,6 +317,61 @@ function mergeConsecutiveSameMidi(subs: SubSegment[]): SubSegment[] {
 		} else {
 			result.push(cur);
 		}
+	}
+	return result;
+}
+
+/**
+ * Minimum reading gap that signals a re-articulation of the same pitch.
+ * Pitchy emits at ~60fps (16.67ms intervals); a 75ms gap = ~4.5 missed frames.
+ * Empirically, real-recording sustain dropouts reach ~67ms (4 frames); soft
+ * re-articulation gaps start at ~84ms. 75ms cleanly separates the two classes.
+ */
+const READING_GAP_SPLIT_THRESHOLD = 0.075;
+
+/**
+ * Split same-MIDI sub-segments on internal reading gaps. A clarity-driven
+ * gap of >= READING_GAP_SPLIT_THRESHOLD inside a sub-segment signals a
+ * soft re-articulation that the HFC onset worklet missed.
+ */
+function splitOnReadingGaps(
+	subs: SubSegment[],
+	threshold: number = READING_GAP_SPLIT_THRESHOLD
+): SubSegment[] {
+	const result: SubSegment[] = [];
+	for (const sub of subs) {
+		if (sub.readings.length < 2) {
+			result.push(sub);
+			continue;
+		}
+		let curStart = sub.start;
+		let curStartIdx = 0;
+		for (let i = 1; i < sub.readings.length; i++) {
+			const gap = sub.readings[i].time - sub.readings[i - 1].time;
+			// Only split where both flanking readings match the primaryMidi.
+			// Gaps that straddle a pitch-class transition are already handled by
+			// splitByPitchChange; splitting them here would fragment a sub-segment
+			// whose edges contain residual off-pitch warmup or attack frames.
+			const bothOnPrimary =
+				sub.readings[i - 1].midi === sub.primaryMidi &&
+				sub.readings[i].midi === sub.primaryMidi;
+			if (gap >= threshold && bothOnPrimary) {
+				result.push({
+					start: curStart,
+					end: sub.readings[i].time,
+					readings: sub.readings.slice(curStartIdx, i),
+					primaryMidi: sub.primaryMidi
+				});
+				curStart = sub.readings[i].time;
+				curStartIdx = i;
+			}
+		}
+		result.push({
+			start: curStart,
+			end: sub.end,
+			readings: sub.readings.slice(curStartIdx),
+			primaryMidi: sub.primaryMidi
+		});
 	}
 	return result;
 }
