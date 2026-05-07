@@ -206,7 +206,18 @@
 				try {
 					onsetDetector = await onsetModule.createOnsetDetector(
 						micCapture.context,
-						micCapture.source
+						micCapture.source,
+						// Per-onset stabilizer reset: each note attack warms up
+						// independently so the McLeod subharmonic is warmup-
+						// flagged. pitchDetector is created in
+						// ensurePitchDetector and held session-long; gate on
+						// isRecording so onsets between recording windows
+						// don't waste warmup frames.
+						(time: number) => {
+							if (isRecording) {
+								pitchDetector?.resetOctaveStateAt(time);
+							}
+						}
 					);
 				} catch {
 					// AudioWorklet unavailable
