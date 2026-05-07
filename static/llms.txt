@@ -1,0 +1,64 @@
+# Mankunku · Jazz Practice
+
+> A browser-based jazz ear training and lick-practice app. The user plays
+> a phrase on their instrument, the app listens through the microphone,
+> and pitch and rhythm are scored in real time.
+
+Mankunku is named after the South African tenor saxophonist Winston "Mankunku"
+Ngozi (1943–2009), whose 1968 album *Yakhal' Inkomo* ("Cry of the Bull") gives
+the app its tagline. The project is open-source and runs entirely in the
+browser as a SvelteKit PWA.
+
+## What the app does
+
+- **Ear training** — Call-and-response: the app plays a generated phrase in
+  the day's key, the user echoes it back on their instrument. Pitch is
+  detected at 60 fps with [Pitchy](https://github.com/ianprime0509/pitchy);
+  rhythm is segmented from a custom AudioWorklet onset detector. Dynamic
+  Time Warping aligns the user's notes to the expected sequence and absorbs
+  human/detection latency.
+- **Lick practice** — Drill curated jazz licks through all twelve keys
+  over a backing-track rhythm section (bass, comping, drums, generated
+  with smplr). Tempo adapts as the user masters keys.
+- **Step entry** — A keyboard-driven UI for adding personal licks, with
+  instrument-aware transposition (Bb / Eb / concert).
+
+## Key concepts
+
+- **Concert pitch is canonical.** All MIDI numbers and lick data are stored
+  in concert pitch internally; transposition to written pitch happens only
+  at display time.
+- **Fraction-based rhythm.** Note durations are `[numerator, denominator]`
+  tuples (e.g. `[1, 12]` = triplet eighth), converted to seconds only when
+  scheduling audio.
+- **Local-first.** All writes go to localStorage / IndexedDB first;
+  Supabase cloud sync runs in the background. The app works fully offline.
+- **Adaptive difficulty.** Levels 1–100 across 10 content tiers; per-key
+  proficiency drives selection.
+
+## Routes worth crawling
+
+- [/](https://mankunkujazz.com/) — Home, two doors into Ear Training and Lick Practice.
+- [/ear-training](https://mankunkujazz.com/ear-training) — Call-and-response practice.
+- [/lick-practice](https://mankunkujazz.com/lick-practice) — Multi-key lick drills.
+- [/library](https://mankunkujazz.com/library) — Curated lick browser.
+- [/scales](https://mankunkujazz.com/scales) — Scale reference.
+- [/docs](https://mankunkujazz.com/docs) — Full developer and user documentation.
+
+## For developers and AI agents
+
+The full documentation is at [/docs](https://mankunkujazz.com/docs). Notable
+entry points:
+
+- [Getting Started](https://mankunkujazz.com/docs/getting-started)
+- [Architecture overview](https://mankunkujazz.com/docs/architecture/overview)
+- [Audio pipeline](https://mankunkujazz.com/docs/architecture/audio-pipeline)
+- [Scoring algorithm](https://mankunkujazz.com/docs/architecture/scoring-algorithm)
+- [Glossary](https://mankunkujazz.com/docs/reference/glossary)
+
+Source code: <https://github.com/avitus/mankunku>
+
+## Tech
+
+SvelteKit 2 · Svelte 5 (runes) · TypeScript · Tailwind CSS 4 · Tone.js ·
+Pitchy · Supabase · Node adapter · PWA.

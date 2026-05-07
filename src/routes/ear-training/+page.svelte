@@ -596,6 +596,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Ear Training — Mankunku</title>
+</svelte:head>
+
 <div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
 	<div class="absolute right-4 top-2">
 		<HelpLink href="/docs/user-guide#practice" label="Practice docs" />

@@ -5,6 +5,10 @@
 	const families = [...new Set(mvpScales.map((s) => s.family))];
 </script>
 
+<svelte:head>
+	<title>Scales — Mankunku</title>
+</svelte:head>
+
 <div class="space-y-6">
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">The Changes</div>

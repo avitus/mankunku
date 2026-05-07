@@ -1,3 +1,7 @@
+<svelte:head>
+	<title>Add Licks — Mankunku</title>
+</svelte:head>
+
 <div class="space-y-6">
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">Cut a side</div>

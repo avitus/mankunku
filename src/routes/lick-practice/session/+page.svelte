@@ -905,6 +905,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Practice Session — Mankunku</title>
+</svelte:head>
+
 <div class="space-y-4">
 	{#if lickPractice.phase === 'complete' && sessionReport}
 		<!-- Session report -->

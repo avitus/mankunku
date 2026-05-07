@@ -258,6 +258,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>{lick?.name ?? 'Lick'} — Mankunku Library</title>
+</svelte:head>
+
 <div class="space-y-6">
 	<!-- Back link -->
 	<a
