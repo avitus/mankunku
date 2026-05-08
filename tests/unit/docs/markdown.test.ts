@@ -51,7 +51,9 @@ describe('renderMarkdown — heading anchors', () => {
 
 	it('captures multiple headings with correct depth in source order', () => {
 		const { headings } = renderMarkdown('# A\n\n## B\n\n### C');
-		expect(headings.map((h) => `${h.depth}:${h.slug}`)).toEqual(['1:a', '2:b', '3:c']);
+		expect(
+			headings.map((h: (typeof headings)[number]): string => `${h.depth}:${h.slug}`)
+		).toEqual(['1:a', '2:b', '3:c']);
 	});
 });
 

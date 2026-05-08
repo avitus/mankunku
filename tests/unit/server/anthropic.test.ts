@@ -28,6 +28,7 @@ describe('isAnthropicConfigured / getAnthropicClient', () => {
 
 		const mod = await import('$lib/server/anthropic');
 		expect(mod.isAnthropicConfigured()).toBe(false);
+		expect(mod.getAnthropicClient()).toBeNull();
 		// Second call must not re-log — the `attempted` gate caches the negative.
 		expect(mod.getAnthropicClient()).toBeNull();
 		expect(warn).toHaveBeenCalledTimes(1);
@@ -60,8 +61,11 @@ describe('isAnthropicConfigured / getAnthropicClient', () => {
 
 		const mod = await import('$lib/server/anthropic');
 		expect(mod.isAnthropicConfigured()).toBe(true);
+		const client1 = mod.getAnthropicClient();
+		const client2 = mod.getAnthropicClient();
+		expect(client1).not.toBeNull();
 		// The same instance is returned across calls (singleton).
-		expect(mod.getAnthropicClient()).toBe(mod.getAnthropicClient());
+		expect(client1).toBe(client2);
 		expect(warn).not.toHaveBeenCalled();
 	});
 

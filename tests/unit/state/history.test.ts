@@ -22,8 +22,18 @@
  * Patterns: history.svelte.ts hydrates at module load via `loadHistory()`,
  * so we seed localStorage and `vi.resetModules()` to re-import.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { DailySummary, GradeDistribution } from '$lib/types/progress';
+
+// Freeze time so date-key computation (`localDateStr(new Date())`) is
+// reproducible regardless of when the test runs — without this, a run
+// straddling local midnight or a non-UTC clock could seed and read keys
+// from different days.
+const FIXED_NOW = new Date('2025-04-10T12:00:00.000Z');
+const FIXED_TODAY_KEY = (() => {
+	const d = FIXED_NOW;
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+})();
 
 const store = new Map<string, string>();
 
@@ -42,8 +52,14 @@ vi.stubGlobal('localStorage', {
 vi.stubGlobal('window', { document: {} });
 
 beforeEach(() => {
+	vi.useFakeTimers();
+	vi.setSystemTime(FIXED_NOW);
 	store.clear();
 	vi.resetModules();
+});
+
+afterEach(() => {
+	vi.useRealTimers();
 });
 
 const SUMMARIES_KEY = 'mankunku:daily-summaries';
@@ -180,8 +196,8 @@ describe('aggregateSession — pre-split-summary coercion', () => {
 		// Adding a new lick-practice attempt must (a) attribute the existing
 		// 3 sessions as ear-training (the only pre-split source), (b) bump
 		// lickPracticeSessions to 1, (c) leave sessionCount at 4.
-		const today = new Date();
-		const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+		const today = new Date(FIXED_NOW);
+		const todayKey = FIXED_TODAY_KEY;
 		seedSummaries([
 			{
 				date: todayKey,
@@ -228,8 +244,8 @@ describe('rebuildHistoryIfNeeded — float-epsilon no-op guard', () => {
 		// rolling averages (in aggregateSession) and batch averages (in
 		// deriveSummaries).  Without it, every page reload would re-write
 		// localStorage even when nothing actually changed.
-		const today = new Date();
-		const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+		const today = new Date(FIXED_NOW);
+		const todayKey = FIXED_TODAY_KEY;
 
 		// Seed an existing daily summary that PERFECTLY matches what we'll
 		// get if we re-derive from a single ear-training session log entry.
@@ -290,8 +306,8 @@ describe('rebuildHistoryIfNeeded — float-epsilon no-op guard', () => {
 		// The 2026-05-07 fix: rebuildHistoryIfNeeded must NOT overwrite a
 		// mixed-day summary because lick-practice attempts never make it
 		// into progress.sessions.  Existing notesTotal > derived → skip.
-		const today = new Date();
-		const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+		const today = new Date(FIXED_NOW);
+		const todayKey = FIXED_TODAY_KEY;
 		seedSummaries([
 			{
 				date: todayKey,
