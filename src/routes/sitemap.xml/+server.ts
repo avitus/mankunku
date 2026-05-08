@@ -14,17 +14,26 @@ const TOP_LEVEL_ROUTES: { path: string; priority: string; changefreq: string }[]
 
 export const prerender = true;
 
-export function GET() {
+function escapeXml(unsafe: string): string {
+	return unsafe
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&apos;');
+}
+
+export function GET(): Response {
 	const lastmod = new Date().toISOString().slice(0, 10);
 
 	const urls = [
 		...TOP_LEVEL_ROUTES.map(
 			(r) =>
-				`	<url>\n		<loc>${SITE}${r.path}</loc>\n		<lastmod>${lastmod}</lastmod>\n		<changefreq>${r.changefreq}</changefreq>\n		<priority>${r.priority}</priority>\n	</url>`
+				`	<url>\n		<loc>${escapeXml(`${SITE}${r.path}`)}</loc>\n		<lastmod>${lastmod}</lastmod>\n		<changefreq>${r.changefreq}</changefreq>\n		<priority>${r.priority}</priority>\n	</url>`
 		),
 		...ALL_PAGES.map(
 			(p) =>
-				`	<url>\n		<loc>${SITE}/docs/${p.slug}</loc>\n		<lastmod>${lastmod}</lastmod>\n		<changefreq>monthly</changefreq>\n		<priority>0.5</priority>\n	</url>`
+				`	<url>\n		<loc>${escapeXml(`${SITE}/docs/${p.slug}`)}</loc>\n		<lastmod>${lastmod}</lastmod>\n		<changefreq>monthly</changefreq>\n		<priority>0.5</priority>\n	</url>`
 		)
 	].join('\n');
 
