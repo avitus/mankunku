@@ -432,12 +432,17 @@ export function rebuildHistoryIfNeeded(): void {
 	// Fast-path: if every derived day already matches the existing summary
 	// across all aggregate fields, there's nothing to persist.
 	//
-	// The earliest derived date is special: if some of that day's sessions
-	// were pruned out of the MAX_SESSIONS window before derivation ran, the
-	// derived summary undercounts the day. Skip the overwrite when the
-	// existing summary has strictly larger totals — the local copy is the
-	// authoritative one.
-	const earliestDerivedDate = derived.summaries[0]?.date;
+	// Skip the overwrite whenever the existing summary has strictly larger
+	// totals — the local copy is the authoritative one. Two cases trigger
+	// this:
+	//   1. Pruning. The earliest derived day's sessions may have been
+	//      partially pruned out of the MAX_SESSIONS window, so derivation
+	//      undercounts that day.
+	//   2. Lick-practice. Lick attempts never land in progress.sessions,
+	//      so for any mixed (ear + lick) day, the derivation undercounts
+	//      by exactly the lick-practice contribution. Without this guard,
+	//      every reload would silently wipe lick-practice from the
+	//      calendar on non-earliest days.
 	let changed = false;
 	for (const derivedSummary of derived.summaries) {
 		const existing = summaryMap.get(derivedSummary.date);
@@ -448,10 +453,9 @@ export function rebuildHistoryIfNeeded(): void {
 			continue;
 		}
 		if (
-			derivedSummary.date === earliestDerivedDate &&
-			(existing.sessionCount > derivedSummary.sessionCount ||
-				existing.notesTotal > derivedSummary.notesTotal ||
-				existing.notesHit > derivedSummary.notesHit)
+			existing.sessionCount > derivedSummary.sessionCount ||
+			existing.notesTotal > derivedSummary.notesTotal ||
+			existing.notesHit > derivedSummary.notesHit
 		) {
 			continue;
 		}
