@@ -39,36 +39,45 @@ test.describe('ear-training: double-start guard', () => {
 		const playBtn = page.locator('[data-tour="play-button"]');
 		await expect(playBtn).toBeEnabled();
 
-		// Fire synchronous double-clicks in a polling loop. The dynamic
-		// imports in onMount may not have completed when the page settles
-		// (Firefox is noticeably slower than Chromium/WebKit on CI), in
-		// which case handlePlay returns at its `!playback` early-out and
-		// the click is a silent no-op. We retry every 200ms until the
-		// first effective pair lands, observable as __gumCount > 0. The
-		// pair itself is what tests the guard: the first click increments
-		// the counter; the second is rejected (guard works → final 1) or
-		// also reaches getUserMedia in parallel (guard broken → final 2).
+		// Inject a synthetic trigger button that fires two synchronous
+		// clicks on the play button when invoked. We click this trigger
+		// via Playwright (a real CDP click event = user gesture). The
+		// trigger's handler runs within the gesture-activated task, and
+		// the two nested btn.click() calls inherit that activation —
+		// crucial because Tone.start() awaits AudioContext.resume() which
+		// requires a user gesture under Firefox/WebKit autoplay policies.
+		// Firing both clicks synchronously (before any await yields) is
+		// what tests the guard: the first click sets starting=true; the
+		// second click's handler synchronously sees starting=true and
+		// returns. Without the guard, both handlePlay invocations queue,
+		// both reach getUserMedia → __gumCount goes to 2.
+		await page.evaluate(() => {
+			const playBtn = document.querySelector(
+				'[data-tour="play-button"]'
+			) as HTMLButtonElement;
+			const trigger = document.createElement('button');
+			trigger.id = '__double-click-trigger';
+			trigger.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;';
+			trigger.textContent = 'trigger';
+			trigger.addEventListener('click', () => {
+				playBtn.click();
+				playBtn.click();
+			});
+			document.body.appendChild(trigger);
+		});
+
+		await page.locator('#__double-click-trigger').click();
+
+		// Wait until at least one handlePlay reaches getUserMedia, then
+		// give a second (unguarded) one time to also call it.
 		await expect
 			.poll(
-				async () => {
-					await page.evaluate(() => {
-						const btn = document.querySelector(
-							'[data-tour="play-button"]'
-						) as HTMLButtonElement;
-						btn.click();
-						btn.click();
-					});
-					return page.evaluate(
-						() => (window as unknown as { __gumCount: number }).__gumCount
-					);
-				},
-				{ intervals: [200], timeout: 15_000 }
+				() =>
+					page.evaluate(() => (window as unknown as { __gumCount: number }).__gumCount),
+				{ intervals: [100], timeout: 10_000 }
 			)
-			.toBeGreaterThan(0);
-
-		// Let an unguarded second handlePlay finish reaching getUserMedia
-		// (the audio mock holds ~200ms) before reading the final count.
-		await page.waitForTimeout(500);
+			.toBeGreaterThanOrEqual(1);
+		await page.waitForTimeout(1000);
 
 		const gumCount = await page.evaluate(
 			() => (window as unknown as { __gumCount: number }).__gumCount
