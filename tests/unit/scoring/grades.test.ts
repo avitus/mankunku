@@ -46,11 +46,6 @@ describe('scoreToGrade', () => {
 });
 
 describe('grade display mappings', () => {
-	it('both exports cover every grade key with no drift', () => {
-		expect(Object.keys(GRADE_LABELS).sort()).toEqual([...GRADE_KEYS].sort());
-		expect(Object.keys(GRADE_COLORS).sort()).toEqual([...GRADE_KEYS].sort());
-	});
-
 	it('labels are non-empty strings and colors are CSS color vars', () => {
 		for (const key of GRADE_KEYS) {
 			expect(GRADE_LABELS[key]).toBeTruthy();

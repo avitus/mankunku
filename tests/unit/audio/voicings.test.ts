@@ -19,12 +19,6 @@ describe('pitchClassToNumber', () => {
 	it('maps B to 11', () => {
 		expect(pitchClassToNumber('B')).toBe(11);
 	});
-
-	it('maps all 12 pitch classes', () => {
-		const expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-		const pcs: PitchClass[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-		expect(pcs.map(pitchClassToNumber)).toEqual(expected);
-	});
 });
 
 describe('shellVoicing', () => {

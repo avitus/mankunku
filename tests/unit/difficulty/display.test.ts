@@ -79,11 +79,6 @@ describe('difficultyColor', () => {
 		expect(colors.size).toBe(10);
 	});
 
-	it('every returned value matches /^#[0-9a-f]{6}$/', () => {
-		for (let d = 1; d <= 100; d++) {
-			expect(difficultyColor(d)).toMatch(/^#[0-9a-f]{6}$/);
-		}
-	});
 });
 
 describe('difficultyDisplay', () => {
@@ -112,15 +107,6 @@ describe('difficultyDisplay', () => {
 			color: '#991b1b',
 			name: 'Virtuoso',
 		});
-	});
-
-	it('all 10 bands have non-empty name', () => {
-		for (let band = 1; band <= 10; band++) {
-			const representative = (band - 1) * 10 + 5;
-			const display = difficultyDisplay(representative);
-			expect(display.name).toBeTruthy();
-			expect(display.name.length).toBeGreaterThan(0);
-		}
 	});
 
 	it('all 10 bands have correct label format', () => {

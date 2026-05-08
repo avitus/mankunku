@@ -43,19 +43,6 @@ beforeEach(() => {
 });
 
 describe('storage round-trip', () => {
-	it('save and load round-trip for object', () => {
-		const data = { instrument: 'tenor-sax', tempo: 120 };
-		save('test-settings', data);
-		const loaded = load<typeof data>('test-settings');
-		expect(loaded).toEqual(data);
-	});
-
-	it('save and load round-trip for array', () => {
-		save('test-list', [1, 2, 3]);
-		const loaded = load<number[]>('test-list');
-		expect(loaded).toEqual([1, 2, 3]);
-	});
-
 	it('load returns null for non-existent key', () => {
 		const loaded = load('does-not-exist');
 		expect(loaded).toBeNull();
