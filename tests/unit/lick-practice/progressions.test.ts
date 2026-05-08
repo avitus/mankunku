@@ -82,11 +82,22 @@ describe('PROGRESSION_TEMPLATES', () => {
 		expect(totalBeats).toBe(8); // 2 bars * 4 beats
 	});
 
-	it('blues has correct 12-bar structure (7 segments)', () => {
-		const h = PROGRESSION_TEMPLATES['blues'].harmony;
-		expect(h).toHaveLength(7);
-		const totalBeats = h.reduce((sum, seg) => sum + fractionToFloat(seg.duration) * 4, 0);
-		expect(totalBeats).toBe(48); // 12 bars * 4 beats
+	it('blues is a 2-bar I7 vamp (single dominant chord)', () => {
+		// Blues licks practice as a vamp drill, not the full 12-bar form.
+		// The lick library's BLUES_HARMONY (a 2-bar C7) and the generator's
+		// getDefaultHarmony('blues') already declare this shape; the
+		// progression template aligns with them.
+		const t = PROGRESSION_TEMPLATES['blues'];
+		expect(t.bars).toBe(2);
+		expect(t.harmony).toHaveLength(1);
+		expect(t.harmony[0].chord.root).toBe('C');
+		expect(t.harmony[0].chord.quality).toBe('7');
+		expect(t.harmony[0].scaleId).toBe('blues.minor');
+		const totalBeats = t.harmony.reduce(
+			(sum, seg) => sum + fractionToFloat(seg.duration) * 4,
+			0
+		);
+		expect(totalBeats).toBe(8); // 2 bars * 4 beats
 	});
 });
 
