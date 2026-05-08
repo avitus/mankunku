@@ -39,22 +39,35 @@ test.describe('ear-training: double-start guard', () => {
 		const playBtn = page.locator('[data-tour="play-button"]');
 		await expect(playBtn).toBeEnabled();
 
-		// Fire two clicks back-to-back inside a single evaluate call so the
-		// second click runs before the first handlePlay's first await resolves.
-		// Wait until at least one click has reached getUserMedia, then assert
-		// the final count to distinguish guarded (1) from unguarded (2).
-		await page.evaluate(() => {
-			const btn = document.querySelector('[data-tour="play-button"]') as HTMLButtonElement;
-			btn.click();
-			btn.click();
-		});
+		// Fire synchronous double-clicks in a polling loop. The dynamic
+		// imports in onMount may not have completed when the page settles
+		// (Firefox is noticeably slower than Chromium/WebKit on CI), in
+		// which case handlePlay returns at its `!playback` early-out and
+		// the click is a silent no-op. We retry every 200ms until the
+		// first effective pair lands, observable as __gumCount > 0. The
+		// pair itself is what tests the guard: the first click increments
+		// the counter; the second is rejected (guard works → final 1) or
+		// also reaches getUserMedia in parallel (guard broken → final 2).
+		await expect
+			.poll(
+				async () => {
+					await page.evaluate(() => {
+						const btn = document.querySelector(
+							'[data-tour="play-button"]'
+						) as HTMLButtonElement;
+						btn.click();
+						btn.click();
+					});
+					return page.evaluate(
+						() => (window as unknown as { __gumCount: number }).__gumCount
+					);
+				},
+				{ intervals: [200], timeout: 15_000 }
+			)
+			.toBeGreaterThan(0);
 
-		await page.waitForFunction(
-			() => (window as unknown as { __gumCount: number }).__gumCount >= 1,
-			{ timeout: 5000 }
-		);
-		// Give a second, unguarded handlePlay enough time to also reach
-		// getUserMedia (audio mock resolves ~200ms after invocation).
+		// Let an unguarded second handlePlay finish reaching getUserMedia
+		// (the audio mock holds ~200ms) before reading the final count.
 		await page.waitForTimeout(500);
 
 		const gumCount = await page.evaluate(
