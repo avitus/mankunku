@@ -148,14 +148,15 @@ const TURNAROUND: HarmonicSegment[] = [
 	}
 ];
 
+// Blues licks are short phrases (typically 1–2 bars) that live over the I7
+// of a blues. Real-world practice loops a vamp of that one chord across all
+// 12 keys rather than playing through a full 12-bar form for every lick —
+// the form would balloon a 2-bar phrase into ~5 minutes per lick. The
+// vamp matches what every blues lick in the library already declares as
+// its native harmony, and what `getDefaultHarmony('blues')` returns for
+// the phrase generator.
 const BLUES: HarmonicSegment[] = [
-	{ chord: { root: 'C', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [4, 1] },
-	{ chord: { root: 'F', quality: '7' }, scaleId: 'blues.minor', startOffset: [4, 1], duration: [2, 1] },
-	{ chord: { root: 'C', quality: '7' }, scaleId: 'blues.minor', startOffset: [6, 1], duration: [2, 1] },
-	{ chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [8, 1], duration: [1, 1] },
-	{ chord: { root: 'F', quality: '7' }, scaleId: 'blues.minor', startOffset: [9, 1], duration: [1, 1] },
-	{ chord: { root: 'C', quality: '7' }, scaleId: 'blues.minor', startOffset: [10, 1], duration: [1, 1] },
-	{ chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [11, 1], duration: [1, 1] }
+	{ chord: { root: 'C', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [2, 1] }
 ];
 
 export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemplate> = {
@@ -217,10 +218,10 @@ export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemp
 	},
 	blues: {
 		type: 'blues',
-		name: '12-Bar Blues',
+		name: 'Blues (I7 vamp)',
 		shortName: 'Blues',
 		harmony: BLUES,
-		bars: 12
+		bars: 2
 	}
 };
 
