@@ -176,4 +176,65 @@ describe('rebuildHistoryIfNeeded', () => {
 		expect(todayDate).not.toBe('2025-02-15');
 		expect(new Set(dates)).toEqual(new Set(['2025-02-15', todayDate]));
 	});
+
+	it('preserves lick-practice contributions on non-earliest mixed days', async () => {
+		// Reproduces the calendar bug: on a multi-day history where one
+		// non-earliest day is mixed (ear-training + lick-practice), rebuild
+		// must NOT overwrite the existing summary with a derivation that
+		// only sees the ear-training half. progress.sessions contains
+		// ear-training only; lick-practice contributions live in the
+		// daily summary directly.
+		historyModule = await import('$lib/state/history.svelte');
+
+		const olderDate = historyModule.localDateStr(new Date(daysAgo(2)));
+		const recentDate = historyModule.localDateStr(new Date(daysAgo(0)));
+
+		// Older day: pure ear-training (3 sessions). Recent day: mixed —
+		// 2 ear-training + 3 lick-practice = 5 total sessions.
+		const mixedSummary: DailySummary = {
+			...makeSummary(recentDate, 5),
+			earTrainingSessions: 2,
+			lickPracticeSessions: 3,
+			notesTotal: 5 * 8,
+			notesHit: 5 * 7
+		};
+		const existingSummaries: DailySummary[] = [
+			{ ...makeSummary(olderDate, 3), earTrainingSessions: 3, lickPracticeSessions: 0 },
+			mixedSummary
+		];
+		store.set('mankunku:daily-summaries', JSON.stringify(existingSummaries));
+		store.set('mankunku:progress-meta', JSON.stringify({
+			version: 2,
+			lastAggregationTimestamp: 0,
+			longestStreak: 1,
+			longestStreakEndDate: recentDate,
+			allTimeSessionCount: 8
+		}));
+
+		// progress.sessions contains the 3 older ear-training sessions and
+		// the 2 recent ear-training sessions. Lick-practice never lands
+		// here, so deriving from this set will report the recent day as
+		// 2 sessions, not 5.
+		const sessions: SessionResult[] = [
+			...Array.from({ length: 3 }, (_, i) =>
+				makeSession(`older-${i}`, daysAgo(2) + i * 1000)
+			),
+			...Array.from({ length: 2 }, (_, i) =>
+				makeSession(`recent-${i}`, daysAgo(0) + i * 1000)
+			)
+		];
+		store.set('mankunku:progress', JSON.stringify(makeProgressWith(sessions)));
+
+		vi.resetModules();
+		historyModule = await import('$lib/state/history.svelte');
+		historyModule.rebuildHistoryIfNeeded();
+
+		const recent = historyModule.dailySummaries.find((s) => s.date === recentDate);
+		expect(recent).toBeDefined();
+		// The total must still reflect both modes; lick-practice must not
+		// get clobbered by the ear-training-only derivation.
+		expect(recent?.sessionCount).toBe(5);
+		expect(recent?.lickPracticeSessions).toBe(3);
+		expect(recent?.earTrainingSessions).toBe(2);
+	});
 });

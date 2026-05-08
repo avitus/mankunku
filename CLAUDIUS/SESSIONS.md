@@ -2,6 +2,23 @@
 
 Newest at the top.
 
+## 2026-05-07 — Calendar wasn't recording lick-practice sessions
+
+**What happened:**
+
+- User reported the progress calendar didn't reflect their lick-practice sessions.
+- Bug was in `rebuildHistoryIfNeeded()` in `src/lib/state/history.svelte.ts`. That function runs on every authenticated page load (twice, in `+layout.ts`) and re-derives daily summaries from `progress.sessions`. But `progress.sessions` only contains ear-training sessions — `recordLickPracticeAttempt` deliberately writes lick attempts straight into the daily summary without polluting the session log.
+- For mixed days (ear + lick), the derived summary undercounts the day by exactly the lick-practice contribution. The "earliest derived date" guard (existing.sessionCount > derived.sessionCount → skip) was the right shape but only ran for the earliest derived date, citing pruning. For every other mixed day, `Object.assign(existing, derivedSummary)` silently wiped lick-practice contributions on each reload.
+- Fix: extended the existing-wins guard to all dates. Added an integration regression test covering a multi-day history with one mixed non-earliest day.
+- All 1781 tests pass; type check clean.
+
+**Notes:**
+
+- Two callers exist for `aggregateSession`: `recordAttempt` (ear-training, full session log + cloud sync) and `recordLickPracticeAttempt` (lick-only, lightweight aggregate sync). The asymmetry is intentional — lick attempts must not pollute adaptive difficulty or per-key proficiency. But that asymmetry is the trap: any consumer that re-derives state from `progress.sessions` will silently lose lick-practice signal. Two existing places do this re-derivation: `migrateScaleProficiency` and `migrateKeyProficiency` both correctly skip non-ear-training sessions. The third place — `rebuildHistoryIfNeeded` — was the one that didn't account for it. Worth flagging as a category of bug: anything reading `progress.sessions` as if it were the full activity log is wrong.
+- The cloud round-trip *would* have papered over the bug for a single reload (mergeCloudSummaries restores from the `daily_summaries` table), but the layout calls `rebuildHistoryIfNeeded` a second time after the cloud merge as a safety net for slow hydrations, which wiped again. The layout's safety-net rebuild is now harmless because the guard preserves existing-wins everywhere.
+
+---
+
 ## 2026-04-20 — Documentation refresh pass
 
 **What happened:**
