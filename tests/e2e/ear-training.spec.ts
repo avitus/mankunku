@@ -25,9 +25,10 @@ test.describe('ear-training: double-start guard', () => {
 		// output device (cubeb backend). The click never reaches getUserMedia
 		// so the count signal can't be observed. The double-start guard
 		// itself is browser-agnostic; coverage on Chromium and WebKit
-		// catches any regression.
+		// catches any regression. Narrowed to CI Linux only so Firefox
+		// still runs on developer machines and non-Linux systems.
 		test.skip(
-			browserName === 'firefox',
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
 
