@@ -4,7 +4,8 @@
 		lickPractice,
 		hydrateLickPracticeProgress
 	} from '$lib/state/lick-practice.svelte';
-	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
+	import { getEffectivePracticeLickIds } from '$lib/persistence/lick-practice-store';
+	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -69,7 +70,7 @@
 		// hydration) — accessing the runes state inside the derivation
 		// makes Svelte track the dependency.
 		void lickPractice.progress;
-		return getPracticeTaggedIds();
+		return getEffectivePracticeLickIds(getAllLicks());
 	});
 	const taggedLickCount = $derived(taggedLickIds.size);
 	const activeProgressionName = $derived(

@@ -12,6 +12,7 @@ import {
 	initUserLicksFromCloud,
 	deleteUserLick
 } from '$lib/persistence/user-licks';
+import { getProgressionTags } from '$lib/persistence/lick-practice-store';
 
 // ─── Mock sync module ────────────────────────────────────────
 const mockSyncUserLicksToCloud = vi.fn().mockResolvedValue(undefined);
@@ -106,6 +107,32 @@ describe('updateLickCategory', () => {
 	it('stores a curated override when no own user lick matches', () => {
 		updateLickCategory('curated-x', 'modal');
 		expect(getLickCategoryOverrides()['curated-x']).toBe('modal');
+	});
+
+	it('auto-adds the inferred prog:* tag for bucket-A categories on user licks', () => {
+		saveUserLick(makePhrase({ id: 'lick-vi', category: 'user' }));
+		updateLickCategory('lick-vi', 'V-I-major');
+		expect(getProgressionTags('lick-vi')).toEqual(['ii-V-I-major-long']);
+	});
+
+	it('auto-adds the inferred prog:* tag for bucket-A categories on curated overrides', () => {
+		updateLickCategory('curated-blues', 'blues');
+		expect(getProgressionTags('curated-blues')).toEqual(['blues']);
+	});
+
+	it('does not auto-tag for ambiguous (bucket-B) categories like major-chord', () => {
+		saveUserLick(makePhrase({ id: 'lick-mc', category: 'user' }));
+		updateLickCategory('lick-mc', 'major-chord');
+		expect(getProgressionTags('lick-mc')).toEqual([]);
+	});
+
+	it('does not remove a previously-added prog:* tag when re-categorizing to a non-mapped category', () => {
+		saveUserLick(makePhrase({ id: 'lick-edit', category: 'user' }));
+		updateLickCategory('lick-edit', 'V-I-major');
+		expect(getProgressionTags('lick-edit')).toEqual(['ii-V-I-major-long']);
+		updateLickCategory('lick-edit', 'major-chord');
+		// Tag persists — accumulated user intent is durable across edits.
+		expect(getProgressionTags('lick-edit')).toEqual(['ii-V-I-major-long']);
 	});
 });
 

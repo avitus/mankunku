@@ -27,6 +27,21 @@ export interface UpcomingLickEntry {
 export const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
 
 /**
+ * True when a practice-tagged lick has at least one progression it can play
+ * over: either an explicit `prog:*` tag or a category that appears in some
+ * `PROGRESSION_LICK_CATEGORIES` entry. Licks failing this test are
+ * "stranded" — kept in the practice set so user intent isn't lost, but
+ * skipped by the picker so they can't starve eligible candidates.
+ */
+function hasFittingProgression(
+	lick: Phrase,
+	getProgressionTags: (lickId: string) => ChordProgressionType[]
+): boolean {
+	if (getProgressionTags(lick.id).length > 0) return true;
+	return getProgressionsForCategory(lick.category).length > 0;
+}
+
+/**
  * Pick the progression to pre-select on /lick-practice setup.
  *
  * Algorithm: of the user's practice-tagged licks, find the
@@ -36,6 +51,13 @@ export const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
  * least-recently-practiced. Ties resolve to the first fit in
  * `Object.keys(PROGRESSION_TEMPLATES)` order, which mirrors the on-screen
  * pill row.
+ *
+ * "Stranded" candidates — practice-tagged but with no `prog:*` tag and a
+ * category that isn't listed in any progression — are excluded from the
+ * search. Without this guard a stranded lick (e.g. one carrying an orphan
+ * category from a removed enum value) keeps its `lastPracticedAt` at 0
+ * forever, monopolises the most-neglected slot, and forces the picker
+ * back to DEFAULT_PROGRESSION every session.
  */
 export function selectInitialProgression(args: {
 	candidates: Phrase[];
@@ -46,12 +68,15 @@ export function selectInitialProgression(args: {
 	const { candidates, progress, sessionLog, getProgressionTags } = args;
 	if (candidates.length === 0) return DEFAULT_PROGRESSION;
 
-	let neglected = candidates[0];
+	const eligible = candidates.filter((c) => hasFittingProgression(c, getProgressionTags));
+	if (eligible.length === 0) return DEFAULT_PROGRESSION;
+
+	let neglected = eligible[0];
 	let neglectedTime = getLickLastPracticed(progress, neglected.id);
-	for (let i = 1; i < candidates.length; i++) {
-		const t = getLickLastPracticed(progress, candidates[i].id);
+	for (let i = 1; i < eligible.length; i++) {
+		const t = getLickLastPracticed(progress, eligible[i].id);
 		if (t < neglectedTime) {
-			neglected = candidates[i];
+			neglected = eligible[i];
 			neglectedTime = t;
 		}
 	}
@@ -123,4 +148,18 @@ export function buildUpcomingLicks(args: {
 
 	entries.sort((a, b) => a.lastPracticedAt - b.lastPracticedAt);
 	return entries;
+}
+
+/**
+ * Practice-tagged licks that have no progression mapping at all — neither a
+ * `prog:*` tag nor a category listed in any `PROGRESSION_LICK_CATEGORIES`
+ * entry. Such licks can never appear in a session and exist only to be
+ * surfaced in the UI as "needs progression — fix in the library".
+ */
+export function findStrandedLicks(args: {
+	candidates: Phrase[];
+	getProgressionTags: (lickId: string) => ChordProgressionType[];
+}): Phrase[] {
+	const { candidates, getProgressionTags } = args;
+	return candidates.filter((c) => !hasFittingProgression(c, getProgressionTags));
 }

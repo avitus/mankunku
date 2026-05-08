@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	selectInitialProgression,
 	buildUpcomingLicks,
+	findStrandedLicks,
 	DEFAULT_PROGRESSION
 } from '$lib/state/lick-practice-picker';
 import type {
@@ -172,6 +173,38 @@ describe('selectInitialProgression', () => {
 		expect(got).toBe('ii-V-I-minor-long');
 	});
 
+	it('skips stranded candidates so they cannot starve eligible licks', () => {
+		// `lk_orphan` carries an orphan category (e.g. left over from a removed
+		// PhraseCategory enum value) and has no prog tags — it can never play
+		// in any progression. Without the guard it would win the most-neglected
+		// race (lastPracticedAt = 0) and force the picker to DEFAULT_PROGRESSION
+		// every session, sidelining `lk_real` even though `lk_real` carries an
+		// explicit prog:* tag pointing at long ii-V-I.
+		const got = selectInitialProgression({
+			candidates: [
+				lick('lk_orphan', 'long-ii-V-I-major' as never),
+				lick('lk_real', 'V-I-major')
+			],
+			progress: progressForLick('lk_real', { C: 1000 }),
+			sessionLog: [],
+			getProgressionTags: (id) => (id === 'lk_real' ? ['ii-V-I-major-long'] : [])
+		});
+		expect(got).toBe('ii-V-I-major-long');
+	});
+
+	it('falls back to DEFAULT when every candidate is stranded', () => {
+		const got = selectInitialProgression({
+			candidates: [
+				lick('lk_orphan_a', 'long-ii-V-I-major' as never),
+				lick('lk_orphan_b', 'user')
+			],
+			progress: {},
+			sessionLog: [],
+			getProgressionTags: noTags
+		});
+		expect(got).toBe(DEFAULT_PROGRESSION);
+	});
+
 	it('treats max timestamp across keys for the lick selection', () => {
 		// lk_a's most recent key practice is later than lk_b's, so lk_b is
 		// the most-neglected. Its category (`minor-chord`) → minor-vamp wins
@@ -271,5 +304,40 @@ describe('buildUpcomingLicks', () => {
 		});
 		expect(got).toHaveLength(1);
 		expect(got[0].progressions).toEqual(['blues']);
+	});
+});
+
+describe('findStrandedLicks', () => {
+	it('returns [] when every candidate has a fitting progression', () => {
+		const got = findStrandedLicks({
+			candidates: [
+				lick('lk1', 'major-chord'),
+				lick('lk2', 'blues')
+			],
+			getProgressionTags: noTags
+		});
+		expect(got).toEqual([]);
+	});
+
+	it('flags licks with neither prog:* tags nor a category-compatible progression', () => {
+		const got = findStrandedLicks({
+			candidates: [
+				lick('lk_orphan', 'long-ii-V-I-major' as never),
+				lick('lk_user', 'user'),
+				lick('lk_ok', 'major-chord')
+			],
+			getProgressionTags: noTags
+		});
+		expect(got.map((l) => l.id)).toEqual(['lk_orphan', 'lk_user']);
+	});
+
+	it('does not flag a lick whose orphan category is rescued by a prog:* tag', () => {
+		// User tagged the orphan-category lick with a prog:* tag — that single
+		// progression is enough to keep it eligible.
+		const got = findStrandedLicks({
+			candidates: [lick('lk', 'long-ii-V-I-major' as never)],
+			getProgressionTags: (id) => (id === 'lk' ? ['ii-V-I-major-long'] : [])
+		});
+		expect(got).toEqual([]);
 	});
 });

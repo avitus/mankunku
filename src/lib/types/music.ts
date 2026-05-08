@@ -60,6 +60,9 @@ export interface Note {
 	scaleDegree?: string;
 	/** Override enharmonic spelling for notation display */
 	spelling?: 'sharp' | 'flat';
+	/** True if this note is tied to the next note. Renders as an ABC tie (`-`)
+	 *  and plays as a single sustained pitch when the next note matches. */
+	tied?: boolean;
 }
 
 export interface HarmonicSegment {

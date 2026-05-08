@@ -7,7 +7,9 @@
 		lickPractice,
 		hydrateLickPracticeProgress,
 		getPracticeLicks,
-		startSession
+		getStrandedPracticeLicks,
+		startSession,
+		startSingleLickSession
 	} from '$lib/state/lick-practice.svelte';
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
@@ -27,11 +29,27 @@
 		return getPracticeLicks().length;
 	});
 
+	// Practice-tagged licks with no progression mapping at all. They never
+	// appear in any session — show them here so the user can finish
+	// configuring them (or untag) in the library.
+	const strandedLicks = $derived.by(() => {
+		void lickPractice.progress;
+		return getStrandedPracticeLicks();
+	});
+
 	function handleUpdate(update: Partial<LickPracticeConfig>) {
 		Object.assign(lickPractice.config, update);
 	}
 
 	function handleStart() {
+		if (lickPractice.config.singleLickMode && lickPractice.config.singleLickId) {
+			const ok = startSingleLickSession(
+				lickPractice.config.singleLickId,
+				lickPractice.config.tempoBumpBpm ?? 5
+			);
+			if (ok) goto('/lick-practice/session');
+			return;
+		}
 		startSession();
 		if (lickPractice.plan.length > 0) {
 			goto('/lick-practice/session');
@@ -65,4 +83,23 @@
 		onstart={handleStart}
 		onupdate={handleUpdate}
 	/>
+
+	{#if strandedLicks.length > 0}
+		<details class="rounded-lg bg-[var(--color-bg-secondary)] text-sm">
+			<summary class="cursor-pointer list-none px-3 py-2 text-[var(--color-text-secondary)]">
+				<span class="text-[var(--color-brass)]">⚠</span>
+				{strandedLicks.length}
+				lick{strandedLicks.length !== 1 ? 's' : ''} tagged for practice but missing a progression — won't appear in any session.
+			</summary>
+			<ul class="space-y-1 px-3 pb-3 pt-1 text-xs">
+				{#each strandedLicks as lick (lick.id)}
+					<li>
+						<a href={`/library/${lick.id}`} class="text-[var(--color-accent)] underline">
+							{lick.name}
+						</a>
+					</li>
+				{/each}
+			</ul>
+		</details>
+	{/if}
 </div>

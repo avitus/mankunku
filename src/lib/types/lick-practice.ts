@@ -1,4 +1,4 @@
-import type { PitchClass, PhraseCategory, ChordQuality } from './music';
+import type { PitchClass, PhraseCategory, ChordQuality, Phrase } from './music';
 import type { Score } from './scoring';
 
 export type ChordProgressionType =
@@ -35,6 +35,16 @@ export interface LickPracticeConfig {
 	 * dominant chord for altered/diminished color). See `CHORD_SUBSTITUTION_RULES`.
 	 */
 	enableSubstitutions?: boolean;
+	/**
+	 * When true, the session drills a single lick endlessly: cycles through the
+	 * circle of 4ths, drops keys mastered at score ≥ 0.95, and bumps tempo by
+	 * `tempoBumpBpm` once all 12 are cleared.
+	 */
+	singleLickMode?: boolean;
+	/** Phrase id of the lick to drill (only meaningful when singleLickMode is true). */
+	singleLickId?: string;
+	/** BPM added to currentTempo each time all 12 keys are mastered. Default 5. */
+	tempoBumpBpm?: number;
 }
 
 /**
@@ -69,6 +79,23 @@ export interface LickPracticePlanItem {
 	phraseNumber: number;
 	category: PhraseCategory;
 	keys: PitchClass[];
+	/**
+	 * Resolved Phrase captured at plan-build time. Used as a lookup fallback
+	 * for `getLickById` so user/community licks survive cache misses (e.g.
+	 * the lick was deleted from the local cache mid-session, or the entry
+	 * point passed in a Phrase that's not yet in `getAllLicks()`).
+	 */
+	phrase?: Phrase;
+}
+
+/**
+ * Single-lick mode end-of-round summary: which keys cleared at score ≥ 0.95
+ * during the round, captured for the session report.
+ */
+export interface SingleLickRoundEntry {
+	round: number;
+	tempo: number;
+	keys: PitchClass[];
 }
 
 export type LickPracticePhase =
@@ -76,6 +103,7 @@ export type LickPracticePhase =
 	| 'count-in'
 	| 'lick-running'
 	| 'inter-lick-rest'
+	| 'round-complete'
 	| 'complete';
 
 export interface LickPracticeKeyResult {
@@ -123,4 +151,10 @@ export interface SessionReport {
 	totalAttempts: number;
 	totalPassed: number;
 	elapsedMinutes: number;
+	/** Single-lick mode only: how many full rounds (12-key cycles) the user completed. */
+	roundsCompleted?: number;
+	/** Single-lick mode only: tempo at session end (after any tempo bumps). */
+	finalTempo?: number;
+	/** Single-lick mode only: which keys cleared in each round and at what tempo. */
+	keysMasteredByRound?: SingleLickRoundEntry[];
 }

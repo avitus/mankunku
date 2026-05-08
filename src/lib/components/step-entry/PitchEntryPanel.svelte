@@ -1,7 +1,7 @@
 <script lang="ts">
 	import {
 		stepEntry, addNote, addRest, deleteLastNote,
-		setAccidental, adjustOctave, flipLastNoteSpelling
+		setAccidental, adjustOctave, flipLastNoteSpelling, enterTiedNote
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
 
@@ -123,6 +123,17 @@
 			aria-label="Flip enharmonic spelling"
 		>
 			&#8596; Flip <span class="text-[10px] opacity-50">\</span>
+		</button>
+		<button
+			onclick={enterTiedNote}
+			class="flex items-center gap-1.5 rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
+			title="Tie to a duplicate of the previous note at the current duration"
+			aria-label="Tie to next note"
+		>
+			<svg viewBox="0 0 20 12" class="h-3 w-5" aria-hidden="true">
+				<path d="M2 8 Q10 1 18 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+			</svg>
+			Tie <span class="text-[10px] opacity-50">+</span>
 		</button>
 		<button
 			onclick={deleteLastNote}

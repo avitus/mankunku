@@ -1,0 +1,19 @@
+{
+  "commands": [
+    {
+      "name": "install",
+      "run": "npm ci"
+    },
+    {
+      "name": "test",
+      "run": "npm test",
+      "role": "gate",
+      "timeout": 300,
+      "limit": 3
+    }
+  ],
+  "vcs": {
+    "org": "avitus",
+    "repo": "mankunku"
+  }
+}
