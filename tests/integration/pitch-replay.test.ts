@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { replayFromAudioBuffer } from '$lib/audio/replay';
 import { segmentNotes, validateOnsets, resolveOnsets } from '$lib/audio/note-segmenter';
+import { runScorePipeline } from '$lib/scoring/score-pipeline';
+import type { Phrase } from '$lib/types/music';
 import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
@@ -156,5 +158,99 @@ describe('pitch replay regression: legato C-D-C recovers pre-worklet-onset notes
 		const detected = segmentNotes(readings, resolved, duration);
 
 		expect(detected.map((n) => n.midi)).toEqual([60, 62, 60]);
+	});
+});
+
+/**
+ * Fourth regression recording: "Locrian Descent" played on Bb tenor sax in
+ * concert F. Phrase as written: F D C C A G F F (8 eighth notes). The user
+ * actually played F D C A G F F F — they dropped the second C and added one
+ * extra F at the end. The live app reported a 49.4% score; the player's
+ * actual performance, correctly segmented, should land in the ~73% range.
+ *
+ * This recording exercises three independent segmentation issues that the
+ * earlier fixes left unaddressed:
+ *
+ *   - **D3 phantom inside the F4-D4 transition.** Pitchy returns the half-
+ *     frequency for ~67ms at the D4 attack. The pre-onset Phase 4 octave-
+ *     collapse drops it from becoming an onset, but the D3 readings still
+ *     live inside the previous segment — fixed post-emit by the cross-
+ *     segment ±12 collapse in segmentNotes.
+ *   - **A3 lost as a 2-frame outlier.** The real A3 only kept 2 readings
+ *     above the clarity threshold, and as the LAST run before the worklet
+ *     onset its `gapAfter` was 0 (edge of the filtered preOnset array) —
+ *     fixed by threading the upcoming worklet onset as `nextEventTime` into
+ *     findStableRunStarts, plus a MIDI-aware ATTACK_DEDUP guard so the
+ *     near-coincident A3 stable-run-start isn't merged into the worklet
+ *     onset of the differently-pitched G3 attack.
+ *   - **Trailing C7 phantom.** 3 reset-induced warmup readings at MIDI 81
+ *     formed a stable run inside the final segment — fixed by rejecting
+ *     all-warmup sub-segments in emitNote.
+ */
+describe('pitch replay regression: Locrian Descent (concert F, 2026-05-07)', () => {
+	function loadFixture() {
+		const wav = loadWavFixture('recordings/2026-05-07-locrian-descent.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// The expected phrase, transposed to chord-root F. 8 eighth notes
+	// at sequential 1/8 offsets — the saved phrase data in the original
+	// diagnostics export reduces to exactly these tuples.
+	const expectedPhrase: Phrase = {
+		id: 'fixture',
+		name: 'Locrian Descent',
+		timeSignature: [4, 4],
+		key: 'F',
+		notes: [
+			{ pitch: 65, duration: [1, 8], offset: [0, 1] }, // F
+			{ pitch: 62, duration: [1, 8], offset: [1, 8] }, // D
+			{ pitch: 60, duration: [1, 8], offset: [1, 4] }, // C
+			{ pitch: 60, duration: [1, 8], offset: [3, 8] }, // C
+			{ pitch: 57, duration: [1, 8], offset: [1, 2] }, // A
+			{ pitch: 55, duration: [1, 8], offset: [5, 8] }, // G
+			{ pitch: 53, duration: [1, 8], offset: [3, 4] }, // F
+			{ pitch: 53, duration: [1, 8], offset: [7, 8] }  // F
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
+		category: 'diminished-chord',
+		tags: [],
+		source: 'curated'
+	};
+
+	it('segments the recording into 8 notes matching what the player actually played', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(readings, resolved, duration);
+
+		// Player's performance: F D C A G F F F (8 notes). MIDI:
+		expect(detected.map((n) => n.midi)).toEqual([65, 62, 60, 57, 55, 53, 53, 53]);
+	});
+
+	it('scores the recording in the expected post-fix range (~73%)', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(readings, resolved, duration);
+
+		// transportSeconds and tempo/swing match the saved alignment context.
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: -0.964,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		// Saved score was 0.494. With all the segmenter fixes the player gets
+		// ~5/8 pitch matches via DTW (in-order, three mismatches), and rhythm
+		// aligns much better with 8 well-distributed onsets. Bounds allow for
+		// DTW tie-break variation across small replay-vs-live timing shifts.
+		expect(result.chosen.overall).toBeGreaterThan(0.65);
+		expect(result.chosen.overall).toBeLessThan(0.78);
+		expect(result.chosen.notesHit).toBeGreaterThanOrEqual(5);
 	});
 });

@@ -88,7 +88,19 @@
 				try {
 					onsetDetector = await onsetModule.createOnsetDetector(
 						micCapture.context,
-						micCapture.source
+						micCapture.source,
+						// Per-onset stabilizer reset: each note attack warms up
+						// independently so the McLeod subharmonic at the attack
+						// is warmup-flagged and gets filtered downstream. The
+						// pitchDetector handle is late-bound (created in
+						// startRecording), so the closure reads it at fire time.
+						// Gated on recordState so onsets during count-in or in
+						// idle don't waste warmup frames.
+						(time: number) => {
+							if (recordState === 'recording') {
+								pitchDetector?.resetOctaveStateAt(time);
+							}
+						}
 					);
 				} catch (err) {
 					console.warn('Onset detector unavailable:', err);

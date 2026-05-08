@@ -125,6 +125,25 @@ export function segmentNotes(
 		}
 	}
 
+	// Cross-segment octave-artifact collapse. A McLeod subharmonic glitch
+	// at a note's attack can produce a brief ±12 sub-segment in the PREVIOUS
+	// segment (the glitch frames sit before the worklet onset boundary).
+	// The within-segment collapseOctaveArtifacts can't see across boundaries,
+	// so apply the same shape here. Walk in reverse so an earlier splice
+	// doesn't reindex elements still under inspection. Threshold mirrors
+	// MIN_DURABLE_SUB_DURATION (0.15s) — real grace notes ≥ 150ms are kept.
+	for (let k = notes.length - 2; k >= 0; k--) {
+		const cur = notes[k];
+		const next = notes[k + 1];
+		if (
+			Math.abs(cur.midi - next.midi) === 12 &&
+			cur.duration < next.duration &&
+			cur.duration < MIN_DURABLE_SUB_DURATION
+		) {
+			notes.splice(k, 1);
+		}
+	}
+
 	return notes;
 }
 
@@ -134,6 +153,18 @@ export function segmentNotes(
  * glitches, catches genuine legato transitions.
  */
 const PITCH_CHANGE_MIN_HOLD = 3;
+
+/**
+ * Minimum frames for a stable run that is flanked by clarity-dropout gaps
+ * on both sides. Real but brief notes (transient pitches during fast
+ * lines) often only register 2 frames before the detector loses
+ * confidence. The flanking-gap context distinguishes these from
+ * mid-sustain glitches, which never have gaps around them.
+ */
+const EPHEMERAL_RUN_MIN_HOLD = 2;
+
+/** Minimum frame-to-frame gap that flags a clarity dropout. ~3 frames at 60fps. */
+const EPHEMERAL_FLANKING_GAP = 0.05;
 
 /**
  * Sub-segments shorter than this that are exactly ±12 semitones from a
@@ -210,7 +241,7 @@ function splitByPitchChange(
 		primaryMidi: stableMidi ?? segReadings[0].midi
 	});
 
-	return mergeConsecutiveSameMidi(collapseOctaveArtifacts(subs));
+	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(subs)));
 }
 
 /**
@@ -321,6 +352,61 @@ function mergeConsecutiveSameMidi(subs: SubSegment[]): SubSegment[] {
 	return result;
 }
 
+/**
+ * Minimum reading gap that signals a re-articulation of the same pitch.
+ * Pitchy emits at ~60fps (16.67ms intervals); a 75ms gap = ~4.5 missed frames.
+ * Empirically, real-recording sustain dropouts reach ~67ms (4 frames); soft
+ * re-articulation gaps start at ~84ms. 75ms cleanly separates the two classes.
+ */
+const READING_GAP_SPLIT_THRESHOLD = 0.075;
+
+/**
+ * Split same-MIDI sub-segments on internal reading gaps. A clarity-driven
+ * gap of >= READING_GAP_SPLIT_THRESHOLD inside a sub-segment signals a
+ * soft re-articulation that the HFC onset worklet missed.
+ */
+function splitOnReadingGaps(
+	subs: SubSegment[],
+	threshold: number = READING_GAP_SPLIT_THRESHOLD
+): SubSegment[] {
+	const result: SubSegment[] = [];
+	for (const sub of subs) {
+		if (sub.readings.length < 2) {
+			result.push(sub);
+			continue;
+		}
+		let curStart = sub.start;
+		let curStartIdx = 0;
+		for (let i = 1; i < sub.readings.length; i++) {
+			const gap = sub.readings[i].time - sub.readings[i - 1].time;
+			// Only split where both flanking readings match the primaryMidi.
+			// Gaps that straddle a pitch-class transition are already handled by
+			// splitByPitchChange; splitting them here would fragment a sub-segment
+			// whose edges contain residual off-pitch warmup or attack frames.
+			const bothOnPrimary =
+				sub.readings[i - 1].midi === sub.primaryMidi &&
+				sub.readings[i].midi === sub.primaryMidi;
+			if (gap >= threshold && bothOnPrimary) {
+				result.push({
+					start: curStart,
+					end: sub.readings[i].time,
+					readings: sub.readings.slice(curStartIdx, i),
+					primaryMidi: sub.primaryMidi
+				});
+				curStart = sub.readings[i].time;
+				curStartIdx = i;
+			}
+		}
+		result.push({
+			start: curStart,
+			end: sub.end,
+			readings: sub.readings.slice(curStartIdx),
+			primaryMidi: sub.primaryMidi
+		});
+	}
+	return result;
+}
+
 function emitNote(
 	subReadings: PitchReading[],
 	subStart: number,
@@ -330,6 +416,13 @@ function emitNote(
 	minNoteDuration: number
 ): DetectedNote | null {
 	if (subReadings.length === 0) return null;
+
+	// Reject sub-segments composed entirely of warmup readings. By definition
+	// the stabilizer never confirmed a steady pitch on these frames, so they
+	// don't represent a real note — they're transient noise (mouthpiece
+	// artifacts, post-reset bursts, etc.) that the emit-time aggregation
+	// would otherwise crystallize into a phantom MIDI.
+	if (subReadings.every((r) => r.warmup)) return null;
 
 	// Short-note fallback (4d): when a segment has some data but not enough
 	// to run the full vote, pick the single highest-clarity reading so a
@@ -483,53 +576,155 @@ export function resolveOnsets(
 
 	const firstOnset = onsets[0];
 	const preOnset = readings.filter((r) => r.time < firstOnset);
-	const stableStarts = findStableRunStarts(preOnset);
+	const stableStarts = findStableRunStarts(preOnset, firstOnset);
 
-	if (
-		stableStarts.length > 0 &&
-		firstOnset - stableStarts[stableStarts.length - 1] < ATTACK_DEDUP_WINDOW
-	) {
-		// Same attack — keep the earlier stable-run start, drop the worklet onset.
-		onsets[0] = stableStarts.pop()!;
+	if (stableStarts.length > 0) {
+		const lastStable = stableStarts[stableStarts.length - 1];
+		if (firstOnset - lastStable.time < ATTACK_DEDUP_WINDOW) {
+			// Same-attack dedup: collapse only when both sources point at the
+			// same note. The post-onset readings are scanned skipping warmup
+			// because warmup MIDI is unstabilized and may carry the McLeod
+			// attack subharmonic — exactly the noise this dedup needs to
+			// avoid being fooled by. When no non-warmup post-onset reading
+			// exists (recording ends right at/after the onset) default to
+			// deduping, preserving prior behavior for that edge case.
+			const post = readings.find((r) => !r.warmup && r.time >= firstOnset);
+			if (post === undefined || post.midi === lastStable.midi) {
+				onsets[0] = lastStable.time;
+				stableStarts.pop();
+			}
+		}
 	}
 
-	return [...stableStarts, ...onsets];
+	return [...stableStarts.map((s) => s.time), ...onsets];
+}
+
+interface StableRunStart {
+	time: number;
+	midi: number;
 }
 
 /**
  * Find the start time of every stable pitch run in a sequence of readings.
- * A "stable run" is PITCH_CHANGE_MIN_HOLD consecutive frames at the same
- * MIDI note. Warmup readings are skipped because the McLeod attack
- * subharmonic can dominate the warmup mode pick and seed a ghost run
- * one octave below the actual note.
+ * A "stable run" is `minHold` consecutive frames at the same MIDI note.
+ * Warmup readings are skipped because the McLeod attack subharmonic can
+ * dominate the warmup mode pick and seed a ghost run one octave below
+ * the actual note.
+ *
+ * @param nextEventTime When provided, the LAST candidate run uses
+ *   `nextEventTime - lastReadingTime` as `gapAfter` (instead of the
+ *   edge-of-array sentinel 0). Lets a 2-frame run that sits between a
+ *   clarity-dropout gap and the upcoming worklet onset qualify as
+ *   gap-flanked. Caller in `resolveOnsets` passes the first worklet
+ *   onset for this purpose.
+ *
+ * The function operates in four phases:
+ *
+ * Phase 1 — Collect: gather every contiguous same-MIDI run of length >=
+ * EPHEMERAL_RUN_MIN_HOLD (2 frames) as a candidate.
+ *
+ * Phase 2 — Filter with ephemeral acceptance: keep runs of length >=
+ * minHold unconditionally. For shorter runs (>= EPHEMERAL_RUN_MIN_HOLD),
+ * require a clarity-dropout gap on BOTH sides — a real but brief note
+ * registers 2 frames between two pitch-detection gaps, while sustain-noise
+ * glitches sit in the middle of a continuous reading stream (no flanking
+ * gaps). This distinguishes genuine transient pitches during fast lines from
+ * mid-sustain wobbles produced by vibrato or McLeod detector noise.
+ *
+ * Phase 3 — Dedup: collapse consecutive accepted runs of the same MIDI.
+ * Only emit on a MIDI change.
+ *
+ * Phase 4 — Octave-artifact collapse (Fix #1, preserved): if a run is
+ * exactly ±12 semitones from the next run AND shorter than it, drop it.
+ * This handles the case where Pitchy's octave stabilizer locks onto
+ * the half-frequency for a few frames at a note attack before settling
+ * on the true fundamental — without the collapse, those 3-4 glitch
+ * frames would seed their own pre-onset and split the real note in two.
  */
 function findStableRunStarts(
 	readings: PitchReading[],
+	nextEventTime?: number,
 	minHold: number = PITCH_CHANGE_MIN_HOLD
-): number[] {
+): StableRunStart[] {
 	const filtered = readings.filter((r) => !r.warmup);
-	if (filtered.length < minHold) return [];
+	if (filtered.length < EPHEMERAL_RUN_MIN_HOLD) return [];
 
-	const starts: number[] = [];
-	let runMidi: number | null = null;
-	let runCount = 0;
-	let runStartIdx = 0;
-	let stableMidi: number | null = null;
-
-	for (let i = 0; i < filtered.length; i++) {
-		const m = filtered[i].midi;
-		if (m === runMidi) {
-			runCount++;
-		} else {
-			runMidi = m;
-			runCount = 1;
-			runStartIdx = i;
-		}
-
-		if (runCount === minHold && runMidi !== stableMidi) {
-			starts.push(filtered[runStartIdx].time);
-			stableMidi = runMidi;
+	// Phase 1: collect every contiguous run of length >= EPHEMERAL_RUN_MIN_HOLD.
+	type Run = { midi: number; startIdx: number; endIdx: number };
+	const candidates: Run[] = [];
+	let curStart = 0;
+	for (let i = 1; i <= filtered.length; i++) {
+		const isBoundary = i === filtered.length || filtered[i].midi !== filtered[curStart].midi;
+		if (isBoundary) {
+			const length = i - curStart;
+			if (length >= EPHEMERAL_RUN_MIN_HOLD) {
+				candidates.push({ midi: filtered[curStart].midi, startIdx: curStart, endIdx: i - 1 });
+			}
+			curStart = i;
 		}
 	}
-	return starts;
+
+	// Phase 2: keep runs of length >= minHold; for shorter runs (>=
+	// EPHEMERAL_RUN_MIN_HOLD), require a clarity-dropout gap on BOTH sides
+	// — a real but brief note registers 2 frames between two pitch-detection
+	// gaps, while sustain-noise glitches sit in the middle of a continuous
+	// reading stream.
+	const accepted: Run[] = [];
+	for (const cur of candidates) {
+		const length = cur.endIdx - cur.startIdx + 1;
+		if (length >= minHold) {
+			accepted.push(cur);
+			continue;
+		}
+		// A real clarity-dropout gap requires an actual prior/next reading.
+		// Edge-of-array means no flanking context — treat as gap=0 so
+		// isolated 2-frame runs at the start or end of the readings
+		// window don't self-promote without genuine surrounding evidence.
+		// EXCEPTION: when the run is the LAST in the filtered array AND a
+		// nextEventTime (worklet onset) is supplied, use the time to that
+		// upcoming event as gapAfter — a brief note that sits right before
+		// the next attack still has flanking-gap evidence.
+		const gapBefore =
+			cur.startIdx > 0
+				? filtered[cur.startIdx].time - filtered[cur.startIdx - 1].time
+				: 0;
+		const gapAfter =
+			cur.endIdx < filtered.length - 1
+				? filtered[cur.endIdx + 1].time - filtered[cur.endIdx].time
+				: nextEventTime !== undefined
+					? nextEventTime - filtered[cur.endIdx].time
+					: 0;
+		if (gapBefore >= EPHEMERAL_FLANKING_GAP && gapAfter >= EPHEMERAL_FLANKING_GAP) {
+			accepted.push(cur);
+		}
+	}
+
+	// Phase 3: dedup consecutive same-MIDI runs (only emit on MIDI change).
+	const dedup: Run[] = [];
+	let lastMidi: number | null = null;
+	for (const run of accepted) {
+		if (run.midi !== lastMidi) {
+			dedup.push(run);
+			lastMidi = run.midi;
+		}
+	}
+
+	// Phase 4: collapse cross-run octave artifacts (Fix #1, preserved).
+	// If run[i] is exactly ±12 from run[i+1] AND shorter, it's a
+	// McLeod-method octave glitch at the next note's attack — drop it.
+	const collapsed: Run[] = [];
+	for (let i = 0; i < dedup.length; i++) {
+		const cur = dedup[i];
+		const next = dedup[i + 1];
+		const curLen = cur.endIdx - cur.startIdx + 1;
+		if (next) {
+			const nextLen = next.endIdx - next.startIdx + 1;
+			if (Math.abs(cur.midi - next.midi) === 12 && curLen < nextLen) {
+				continue;
+			}
+		}
+		collapsed.push(cur);
+	}
+
+	return collapsed.map((r) => ({ time: filtered[r.startIdx].time, midi: r.midi }));
 }
