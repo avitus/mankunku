@@ -8,7 +8,7 @@
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
-	import { progress, recordAttempt, getUnlockContext } from '$lib/state/progress.svelte';
+	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
@@ -582,6 +582,15 @@
 			if ((scoredAttemptCount - 1) % 10 === 0) {
 				bottomQuote = getGradeCaption(persistentScore.grade);
 			}
+		}
+
+		// Align the persisted session entry with the authoritative score so
+		// the progress page matches what the user just saw on screen. Keyed
+		// by id (not the live UI), so a stale rescore that finishes after a
+		// newer take still correctly fixes its own session entry — same
+		// rationale as the recording-metadata update below.
+		if (sessionId) {
+			updateSessionScore(sessionId, result.chosen, supabase);
 		}
 
 		if (sessionId && baseMetadata) {

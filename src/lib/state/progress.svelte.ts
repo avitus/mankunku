@@ -276,6 +276,47 @@ export function recordAttempt(
 }
 
 /**
+ * Update the score-derived fields of a previously-recorded session.
+ *
+ * The ear-training page calls `recordAttempt` with the provisional live score
+ * and then runs a deterministic post-hoc rescore from the saved blob. When
+ * the rescore finishes (~200–500 ms later) the on-screen score swaps to the
+ * authoritative value, but without this helper the persisted session entry
+ * keeps the stale provisional score — producing a visible mismatch between
+ * the score the user just saw and what the progress page later shows.
+ *
+ * Adaptive state, per-key/scale proficiency, category averages, and the
+ * daily summary intentionally retain their original (provisional) inputs:
+ * the per-attempt drift is small, and partially undoing those aggregates
+ * here would risk amplifying transient races between successive rescores.
+ */
+export function updateSessionScore(
+	sessionId: string,
+	score: Score,
+	supabase?: SupabaseClient<Database>
+): void {
+	const idx = progress.sessions.findIndex((s) => s.id === sessionId);
+	if (idx === -1) return;
+	progress.sessions[idx] = {
+		...progress.sessions[idx],
+		pitchAccuracy: score.pitchAccuracy,
+		rhythmAccuracy: score.rhythmAccuracy,
+		overall: score.overall,
+		grade: score.grade,
+		notesHit: score.notesHit,
+		notesTotal: score.notesTotal,
+		noteResults: score.noteResults,
+		timing: score.timing
+	};
+	saveProgress();
+	if (supabase) {
+		syncProgressToCloud(supabase, progress).catch((err) => {
+			console.warn('Failed to sync progress to cloud:', err);
+		});
+	}
+}
+
+/**
  * Record a lick-practice key attempt's contribution to the cross-mode
  * "practice activity" signals: streak counter and daily summary.
  *
