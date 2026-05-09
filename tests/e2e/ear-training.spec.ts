@@ -1,4 +1,5 @@
-import { test, expect } from './fixtures/test';
+import type { Page } from '@playwright/test';
+import { test, expect, type ConsoleCollector } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { installAudioMock } from './fixtures/audio';
 
@@ -19,7 +20,11 @@ test.describe('ear-training: double-start guard', () => {
 		page,
 		browserName,
 		consoleCollector: _consoleCollector
-	}) => {
+	}: {
+		page: Page;
+		browserName: string;
+		consoleCollector: ConsoleCollector;
+	}): Promise<void> => {
 		// Headless Linux Firefox in CI hangs in Tone.start() →
 		// AudioContext.resume(), which never resolves without a real audio
 		// output device (cubeb backend). The click never reaches getUserMedia
@@ -35,7 +40,7 @@ test.describe('ear-training: double-start guard', () => {
 		await seedOnboardedAnonymous(page);
 		await installAudioMock(page);
 
-		await page.addInitScript(() => {
+		await page.addInitScript((): void => {
 			(window as unknown as { __gumCount: number }).__gumCount = 0;
 			const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 			navigator.mediaDevices.getUserMedia = async (
@@ -58,7 +63,7 @@ test.describe('ear-training: double-start guard', () => {
 		// getUserMedia (count=1). Without the guard, both invocations
 		// queue, both reach getUserMedia in parallel because micCapture is
 		// still null when the second runs (count=2).
-		await page.evaluate(() => {
+		await page.evaluate((): void => {
 			const btn = document.querySelector('[data-tour="play-button"]') as HTMLButtonElement;
 			btn.click();
 			btn.click();
@@ -66,8 +71,10 @@ test.describe('ear-training: double-start guard', () => {
 
 		await expect
 			.poll(
-				() =>
-					page.evaluate(() => (window as unknown as { __gumCount: number }).__gumCount),
+				(): Promise<number> =>
+					page.evaluate(
+						(): number => (window as unknown as { __gumCount: number }).__gumCount
+					),
 				{ intervals: [100], timeout: 10_000 }
 			)
 			.toBeGreaterThanOrEqual(1);
@@ -75,7 +82,7 @@ test.describe('ear-training: double-start guard', () => {
 		await page.waitForTimeout(500);
 
 		const gumCount = await page.evaluate(
-			() => (window as unknown as { __gumCount: number }).__gumCount
+			(): number => (window as unknown as { __gumCount: number }).__gumCount
 		);
 		expect(gumCount).toBe(1);
 	});
