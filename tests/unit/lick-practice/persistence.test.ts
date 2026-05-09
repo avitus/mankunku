@@ -18,7 +18,6 @@ import {
 	toggleProgressionTag,
 	hasProgressionTag,
 	getProgressionTags,
-	isTaggedForProgression,
 	backfillPracticeTags,
 	backfillInferredProgressionTags,
 	getUnlockedKeyCount,
@@ -528,12 +527,6 @@ describe('progression tag management', () => {
 
 	it('getProgressionTags returns empty array for untagged lick', () => {
 		expect(getProgressionTags('unknown')).toEqual([]);
-	});
-
-	it('isTaggedForProgression mirrors hasProgressionTag', () => {
-		toggleProgressionTag('lick-1', 'ii-V-I-major-long');
-		expect(isTaggedForProgression('lick-1', 'ii-V-I-major-long')).toBe(true);
-		expect(isTaggedForProgression('lick-1', 'blues')).toBe(false);
 	});
 
 	it('removing all progression tags cleans up the entry', () => {

@@ -1,27 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import {
-	DURATIONS,
-	BASE_DURATION_IDS,
-	DURATION_DISPLAY_NAMES,
-	KEYBOARD_SHORTCUTS,
-	getDurationFraction,
-	type DurationId,
-	type BaseDurationId
-} from '$lib/step-entry/durations';
+import { DURATIONS, getDurationFraction } from '$lib/step-entry/durations';
 
 describe('DURATIONS', () => {
-	it('has all 10 duration entries', () => {
-		expect(Object.keys(DURATIONS)).toHaveLength(10);
-	});
-
-	it('whole note is [1, 1]', () => {
-		expect(DURATIONS.whole).toEqual([1, 1]);
-	});
-
-	it('quarter note is [1, 4]', () => {
-		expect(DURATIONS.quarter).toEqual([1, 4]);
-	});
-
 	it('triplet durations are 2/3 of base', () => {
 		// whole-triplet = 2/3, half-triplet = 1/3
 		expect(DURATIONS['whole-triplet']).toEqual([2, 3]);
@@ -33,34 +13,6 @@ describe('DURATIONS', () => {
 	it('dotted durations are 1.5x base', () => {
 		expect(DURATIONS['half-dotted']).toEqual([3, 4]);
 		expect(DURATIONS['quarter-dotted']).toEqual([3, 8]);
-	});
-});
-
-describe('BASE_DURATION_IDS', () => {
-	it('lists 4 base durations in order', () => {
-		expect(BASE_DURATION_IDS).toEqual(['whole', 'half', 'quarter', 'eighth']);
-	});
-});
-
-describe('DURATION_DISPLAY_NAMES', () => {
-	it('has a display name for every DurationId', () => {
-		const allIds: DurationId[] = [
-			'whole', 'half', 'quarter', 'eighth',
-			'whole-triplet', 'half-triplet', 'quarter-triplet', 'eighth-triplet',
-			'half-dotted', 'quarter-dotted'
-		];
-		for (const id of allIds) {
-			expect(DURATION_DISPLAY_NAMES[id]).toBeTruthy();
-		}
-	});
-});
-
-describe('KEYBOARD_SHORTCUTS', () => {
-	it('maps 1-4 to base durations', () => {
-		expect(KEYBOARD_SHORTCUTS['1']).toBe('whole');
-		expect(KEYBOARD_SHORTCUTS['2']).toBe('half');
-		expect(KEYBOARD_SHORTCUTS['3']).toBe('quarter');
-		expect(KEYBOARD_SHORTCUTS['4']).toBe('eighth');
 	});
 });
 

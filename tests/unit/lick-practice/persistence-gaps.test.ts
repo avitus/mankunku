@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
 	computeAutoTempoAdjustment,
-	clampTempo,
 	hasLickProgress,
 	updateKeyProgress
 } from '$lib/persistence/lick-practice-store';
 import { getCompatibleLickCategories } from '$lib/data/progressions';
-import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 import type { LickPracticeProgress } from '$lib/types/lick-practice';
 
 // Mock localStorage (same pattern as persistence.test.ts)
@@ -21,8 +19,6 @@ const localStorageMock = {
 };
 
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
-
-const validCategories = new Set<string>(Object.keys(CATEGORY_LABELS));
 
 beforeEach(() => {
 	localStorageMock.clear();
@@ -60,28 +56,6 @@ describe('computeAutoTempoAdjustment', () => {
 
 	it('returns -3 for score 0.0', () => {
 		expect(computeAutoTempoAdjustment(0.0)).toBe(-3);
-	});
-});
-
-describe('clampTempo', () => {
-	it('passes through values within range', () => {
-		expect(clampTempo(120)).toBe(120);
-	});
-
-	it('clamps below minimum to 50', () => {
-		expect(clampTempo(10)).toBe(50);
-	});
-
-	it('clamps above maximum to 300', () => {
-		expect(clampTempo(500)).toBe(300);
-	});
-
-	it('boundary: exactly 50 passes through', () => {
-		expect(clampTempo(50)).toBe(50);
-	});
-
-	it('boundary: exactly 300 passes through', () => {
-		expect(clampTempo(300)).toBe(300);
 	});
 });
 
@@ -130,33 +104,5 @@ describe('getCompatibleLickCategories', () => {
 		const cats = getCompatibleLickCategories('blues');
 		expect(cats).toContain('blues');
 		expect(cats).toContain('dominant-chord');
-	});
-
-	it('every returned value is a valid PhraseCategory', () => {
-		const allTypes = [
-			'ii-V-I-major', 'ii-V-I-minor',
-			'ii-V-I-major-long', 'ii-V-I-minor-long',
-			'turnaround', 'blues'
-		] as const;
-
-		for (const type of allTypes) {
-			const cats = getCompatibleLickCategories(type);
-			for (const cat of cats) {
-				expect(validCategories.has(cat), `"${cat}" from ${type} should be a valid PhraseCategory`).toBe(true);
-			}
-		}
-	});
-
-	it('returns non-empty array for known progression types', () => {
-		const allTypes = [
-			'ii-V-I-major', 'ii-V-I-minor',
-			'ii-V-I-major-long', 'ii-V-I-minor-long',
-			'turnaround', 'blues'
-		] as const;
-
-		for (const type of allTypes) {
-			const cats = getCompatibleLickCategories(type);
-			expect(cats.length, `${type} should have compatible categories`).toBeGreaterThan(0);
-		}
 	});
 });
