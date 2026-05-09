@@ -106,9 +106,89 @@ export const TENOR_SAX_SAMPLES: SampleMap = {
 	}
 };
 
+/**
+ * Alto saxophone sample map.
+ *
+ * 32 chromatic samples (MIDI 49–80, Db3–G#5 concert pitch) at 2 velocity layers.
+ * Tuning corrections from the MTG SFZ mappings compensate for the original
+ * A=442 Hz recording pitch and per-note intonation variance.
+ */
+export const ALTO_SAX_SAMPLES: SampleMap = {
+	velocitySplit: 100,
+	piano: {
+		49: { url: '/samples/alto-sax/p_49.ogg', tune: -16 },
+		50: { url: '/samples/alto-sax/p_50.ogg', tune: -5 },
+		51: { url: '/samples/alto-sax/p_51.ogg', tune: 3 },
+		52: { url: '/samples/alto-sax/p_52.ogg', tune: 7 },
+		53: { url: '/samples/alto-sax/p_53.ogg', tune: 11 },
+		54: { url: '/samples/alto-sax/p_54.ogg', tune: 11 },
+		55: { url: '/samples/alto-sax/p_55.ogg', tune: 3 },
+		56: { url: '/samples/alto-sax/p_56.ogg', tune: 6 },
+		57: { url: '/samples/alto-sax/p_57.ogg', tune: 3 },
+		58: { url: '/samples/alto-sax/p_58.ogg', tune: 2 },
+		59: { url: '/samples/alto-sax/p_59.ogg', tune: 2 },
+		60: { url: '/samples/alto-sax/p_60.ogg', tune: -2 },
+		61: { url: '/samples/alto-sax/p_61.ogg', tune: 2 },
+		62: { url: '/samples/alto-sax/p_62.ogg', tune: 6 },
+		63: { url: '/samples/alto-sax/p_63.ogg', tune: 3 },
+		64: { url: '/samples/alto-sax/p_64.ogg', tune: 11 },
+		65: { url: '/samples/alto-sax/p_65.ogg', tune: -17 },
+		66: { url: '/samples/alto-sax/p_66.ogg', tune: -7 },
+		67: { url: '/samples/alto-sax/p_67.ogg', tune: -11 },
+		68: { url: '/samples/alto-sax/p_68.ogg', tune: -8 },
+		69: { url: '/samples/alto-sax/p_69.ogg', tune: -3 },
+		70: { url: '/samples/alto-sax/p_70.ogg', tune: 0 },
+		71: { url: '/samples/alto-sax/p_71.ogg', tune: -4 },
+		72: { url: '/samples/alto-sax/p_72.ogg', tune: -10 },
+		73: { url: '/samples/alto-sax/p_73.ogg', tune: -14 },
+		74: { url: '/samples/alto-sax/p_74.ogg', tune: -12 },
+		75: { url: '/samples/alto-sax/p_75.ogg', tune: -16 },
+		76: { url: '/samples/alto-sax/p_76.ogg', tune: -25 },
+		77: { url: '/samples/alto-sax/p_77.ogg', tune: -24 },
+		78: { url: '/samples/alto-sax/p_78.ogg', tune: -22 },
+		79: { url: '/samples/alto-sax/p_79.ogg', tune: -27 },
+		80: { url: '/samples/alto-sax/p_80.ogg', tune: -22 }
+	},
+	forte: {
+		49: { url: '/samples/alto-sax/f_49.ogg', tune: -21 },
+		50: { url: '/samples/alto-sax/f_50.ogg', tune: -11 },
+		51: { url: '/samples/alto-sax/f_51.ogg', tune: -2 },
+		52: { url: '/samples/alto-sax/f_52.ogg', tune: 0 },
+		53: { url: '/samples/alto-sax/f_53.ogg', tune: 7 },
+		54: { url: '/samples/alto-sax/f_54.ogg', tune: 5 },
+		55: { url: '/samples/alto-sax/f_55.ogg', tune: -2 },
+		56: { url: '/samples/alto-sax/f_56.ogg', tune: -3 },
+		57: { url: '/samples/alto-sax/f_57.ogg', tune: -5 },
+		58: { url: '/samples/alto-sax/f_58.ogg', tune: -5 },
+		59: { url: '/samples/alto-sax/f_59.ogg', tune: -6 },
+		60: { url: '/samples/alto-sax/f_60.ogg', tune: -13 },
+		61: { url: '/samples/alto-sax/f_61.ogg', tune: -11 },
+		62: { url: '/samples/alto-sax/f_62.ogg', tune: -7 },
+		63: { url: '/samples/alto-sax/f_63.ogg', tune: -13 },
+		64: { url: '/samples/alto-sax/f_64.ogg', tune: -8 },
+		65: { url: '/samples/alto-sax/f_65.ogg', tune: -25 },
+		66: { url: '/samples/alto-sax/f_66.ogg', tune: -21 },
+		67: { url: '/samples/alto-sax/f_67.ogg', tune: -22 },
+		68: { url: '/samples/alto-sax/f_68.ogg', tune: -21 },
+		69: { url: '/samples/alto-sax/f_69.ogg', tune: -15 },
+		70: { url: '/samples/alto-sax/f_70.ogg', tune: -17 },
+		71: { url: '/samples/alto-sax/f_71.ogg', tune: -15 },
+		72: { url: '/samples/alto-sax/f_72.ogg', tune: -19 },
+		73: { url: '/samples/alto-sax/f_73.ogg', tune: -23 },
+		74: { url: '/samples/alto-sax/f_74.ogg', tune: -23 },
+		75: { url: '/samples/alto-sax/f_75.ogg', tune: -26 },
+		76: { url: '/samples/alto-sax/f_76.ogg', tune: -40 },
+		77: { url: '/samples/alto-sax/f_77.ogg', tune: -32 },
+		78: { url: '/samples/alto-sax/f_78.ogg', tune: -33 },
+		79: { url: '/samples/alto-sax/f_79.ogg', tune: -34 },
+		80: { url: '/samples/alto-sax/f_80.ogg', tune: -25 }
+	}
+};
+
 /** Instruments that have custom sample maps available */
 export const SAMPLE_MAPS: Record<string, SampleMap> = {
-	'tenor-sax': TENOR_SAX_SAMPLES
+	'tenor-sax': TENOR_SAX_SAMPLES,
+	'alto-sax': ALTO_SAX_SAMPLES
 };
 
 /**
