@@ -241,6 +241,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Settings — Mankunku</title>
+</svelte:head>
+
 <div class="space-y-8">
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">Control Room</div>

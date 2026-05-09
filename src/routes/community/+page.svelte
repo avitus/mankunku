@@ -221,6 +221,10 @@
 	];
 </script>
 
+<svelte:head>
+	<title>Community — Mankunku</title>
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="flex items-end justify-between gap-4 flex-wrap">
 		<div>

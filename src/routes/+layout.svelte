@@ -153,7 +153,18 @@
 		}
 		return page.url?.pathname?.startsWith(href) ?? false;
 	}
+
+	// Canonical and og:url must reflect the current route, not the home page.
+	// Using $page.url.origin keeps the host correct in preview/staging too.
+	const canonicalUrl = $derived(
+		page.url ? `${page.url.origin}${page.url.pathname}` : 'https://mankunkujazz.com/'
+	);
 </script>
+
+<svelte:head>
+	<link rel="canonical" href={canonicalUrl} />
+	<meta property="og:url" content={canonicalUrl} />
+</svelte:head>
 
 {#if !settings.onboardingComplete}
 	<Onboarding {supabase} {session} {user} />

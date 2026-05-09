@@ -323,6 +323,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Record Lick — Mankunku</title>
+</svelte:head>
+
 <div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
 	{#if recordState === 'idle'}
 		<!-- Idle: record button + tempo -->

@@ -57,6 +57,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Lick Practice — Mankunku</title>
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="flex items-end justify-between flex-wrap gap-3">
 		<div>
