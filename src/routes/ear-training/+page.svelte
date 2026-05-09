@@ -92,6 +92,10 @@
 	let recorderHandle: RecorderHandle | null = null;
 	let awaitingInput = $state(false);
 	let recordingTransportSeconds = 0;
+	// Synchronous guard against double-start. handlePlay awaits getUserMedia /
+	// instrument load before engineState/isLoadingInstrument flip, so without
+	// this a second click during that window enters handlePlay twice.
+	let starting = $state(false);
 
 	/**
 	 * Monotonic id for each in-flight rescore. Bumped every time finishRecording
@@ -246,7 +250,9 @@
 	}
 
 	async function handlePlay() {
+		if (starting) return;
 		if (!playback || !session.phrase) return;
+		starting = true;
 		session.lastScore = null;
 		scoreFlash = null;
 		awaitingInput = false;
@@ -286,6 +292,8 @@
 			console.error('Playback error:', err);
 			session.engineState = 'error';
 			session.isLoadingInstrument = false;
+		} finally {
+			starting = false;
 		}
 	}
 
@@ -629,7 +637,7 @@
 		<button
 			data-tour="play-button"
 			onclick={isActive ? handleStop : handlePlay}
-			disabled={session.isLoadingInstrument}
+			disabled={session.isLoadingInstrument || starting}
 			class="group relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full
 				   transition-all duration-300 active:scale-95 ring-1 ring-[var(--color-brass)]/50
 				   {session.isLoadingInstrument
