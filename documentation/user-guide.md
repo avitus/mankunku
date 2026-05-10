@@ -1,182 +1,152 @@
-# User Guide
+# How to Practice
 
-Mankunku is a jazz ear training app that plays musical phrases and scores your attempt to play them back on your instrument.
+Mankunku is a call-and-response app. The app plays you a phrase; you play it back; it scores your accuracy and either moves you on or hands you a retry. Around that loop are two main practice modes (Side A and Side B), a library, and a progress dashboard.
 
-## Getting Started
+This page walks through the practice flow as it actually feels in the room — what to listen for, what to do with your horn in your hands, what each setting changes.
 
-### First Launch
+## The dashboard
 
-On your first visit, Mankunku walks you through three setup steps:
+When you open the app you land on the home page. It's the front cover of the LP. From here you can:
 
-1. **Choose your instrument** — Tenor saxophone, alto saxophone, or trumpet. This determines transposition (the sheet music shows notes in your written key).
-2. **Microphone access** — Grant mic permission so the app can listen to you play and score your accuracy. You can skip this and enable it later.
-3. **Start practicing** — Jump to the practice page or explore the dashboard.
+- Jump straight into **Side A** (Ear Training) or **Side B** (Lick Practice).
+- See your **streak** — consecutive days you've practiced. Skip a day and it resets to 1; the longest streak you've ever held is preserved separately.
+- See **today's key** — the key + scale rotating today. You can override this in Side A's settings.
+- See your current **level** (1–100) on the active scale, plus the count of licks you've **tagged** for Side B.
 
-### Dashboard
+If today is your first day, you won't have a streak or a level yet. Hit Side A and start.
 
-The home page shows:
-- **Quick Start** button to jump into practice
-- **Stats row** — total sessions, average score, streak days
-- **Level bar** — your proficiency level and progress
-- **Recent sessions** — last few attempts with scores
-- **Navigation grid** — links to Practice, Library, Progress, Settings, Scales
+## Side A — Ear Training
 
-## Practice
+This is the call-and-response loop.
 
-### How It Works
+### The flow, beat by beat
 
-1. **Configure** — Before your first session, visit Practice Settings to choose a category, difficulty, and tempo. The app automatically selects a **daily tonality** (key + scale) based on your level and the date. You can override this in settings.
+1. **Pick up your horn.** Make sure the mic is hot — the bottom of the screen shows a green indicator and an input level meter when it's getting signal.
+2. **Press play.** The app plays a phrase through your speakers (or headphones), with a metronome ticking underneath. Sheet music for the phrase appears above the transport bar, written in your instrument's key.
+3. **Listen all the way through.** Don't start playing along. The phrase usually sits inside one or two bars; let the whole thing land in your ear before you reach for it.
+4. **Play it back.** When the phrase finishes, the metronome keeps going so you have a beat to lean on. Play the phrase as you heard it. The app starts recording the moment your first note registers.
+5. **Stop playing.** After about two seconds of silence, the app decides you're done.
+6. **Read the score.** A grade lands on the screen — Perfect, Great, Good, Fair, or Try Again — with a per-note table showing which notes you got and how close your timing was. A liner-note caption underneath quotes the giants ("right in the pocket," "cookin'," "take it again from the top," and so on).
+7. **Move on, or retry.** Above 70% counts as a pass: hit play and you'll get a new phrase. Below that, the same phrase replays so you can take another swing.
 
-2. **Listen** — Press the play button. The app plays a phrase through your speakers with an optional metronome. Follow along on the sheet music display.
+### What you can change in Side A settings
 
-3. **Play back** — After the phrase finishes, the metronome keeps going. Play the phrase back on your instrument. The app detects your notes in real-time via the microphone.
+| Setting | What it does |
+|---|---|
+| **Daily Tonality** | Lock in today's key + scale, or override to any *unlocked* key + scale combination. Locked tonalities show a lock icon with the proficiency they require. The "Reset to daily" button restores the automatic pick. |
+| **Category** | Filter the lick pool to one harmonic context — ii-V-I major, blues, bebop lines, ballad, and so on. Or leave it on "all" and let the app rotate. |
+| **Difficulty** | 1–100, displayed as ten bands from Beginner to Virtuoso. Set it to a fixed value, or let the adaptive system steer. |
+| **Tempo** | 40–300 BPM. Most players start in the 80–110 range. |
+| **Source** | Curated (hand-written and combinatorial library), Generated (algorithmic, infinite variety), or Mixed. |
+| **Bars** | 1–4 bars, applies only to generated phrases. |
+| **Metronome** | On/off, plus a swing slider. Rhythm is 40% of your score, so practicing with the click on is usually the right move. |
 
-4. **Get scored** — When you stop playing (2 seconds of silence), the app scores your attempt:
-   - **Pitch accuracy** (60% weight) — Did you play the right notes?
-   - **Rhythm accuracy** (40% weight) — Were you in time?
-   - **Grade** — Perfect (95%+), Great (85%+), Good (70%+), Fair (55%+), or Try Again
+### What's on screen while you're playing
 
-5. **Review** — The feedback panel shows your grade, pitch/rhythm breakdown, and a per-note comparison table. You can retry the same phrase or move to the next one.
+- The **pitch meter** shows the note you're holding right now, how many cents flat or sharp, and a clarity dot that tells you the detector is locked on. If the dot's dim or jumping, your mic isn't picking up a clean signal — get closer to the bell, or check the room noise.
+- The **mic status bar** shows input level. Stay out of the red.
+- The **status text** tells you what to do: *Listen* while the phrase plays; *Your turn* once it ends; *Listening* once your first note hits and recording starts.
 
-### Practice Settings
+### Scale-aware filtering
 
-Access via the gear icon on the practice page.
+Not every lick fits every scale. A 7-note major lick squashed into a 5-note pentatonic session would lose two of its notes and stop sounding like itself, so the app filters: in a pentatonic session you only see pentatonic licks; in a Lydian session you see Lydian-compatible licks; and so on. The note count for the active scale shows up in the header (e.g. "5 notes" for pentatonic, "7 notes" for major) so you know what palette you're drawing from.
 
-| Setting | Options | Description |
-|---|---|---|
-| Daily Tonality | Auto / Override | Today's key + scale. Auto-selected from unlocked tonalities; overridable. |
-| Category | ii-V-I Major, Blues, Bebop, etc. | Musical style/context |
-| Difficulty | 1–100 | Controls pitch complexity, rhythm, tempo range. Displayed as 10 color-coded bands (Beginner → Virtuoso). |
-| Tempo | 40–300 BPM | Playback speed |
-| Source | Curated / Generated / Mixed | Where phrases come from |
-| Bars | 1–4 | Phrase length (generated only) |
+If filtering would leave you with too few licks at your difficulty, the app widens to all licks at that difficulty — better to practice something than nothing.
 
-### Daily Tonality System
+## Side B — Lick Practice
 
-Each day, the app selects a tonality (key + scale type) for your practice session. All licks are transposed to the daily key.
+This is the 12-key drill. It picks a lick from your **tagged** collection and runs it through every key over a backing track, scoring each pass.
 
-**Progressive unlocking:**
-- **Keys** unlock in circle-of-fifths order: C → G → F → D → Bb → A → Eb → E → Ab → B → Db → Gb
-- **Scale types** unlock progressively: Major Pentatonic → Major → Blues (all three free) → Dorian → Mixolydian → Minor → Lydian → Melodic Minor → Altered → Lydian Dominant → Bebop Dominant
-- Unlocking is driven by proficiency — improving your per-scale and per-key proficiency levels unlocks more tonalities
-- New keys combine with all unlocked scale types (cross-product)
+### Setting it up
 
-**Override:** In settings, you can pick any unlocked tonality. Locked tonalities show a lock icon with the proficiency requirements needed. A "Reset to daily" button restores the automatic selection.
+Before your first session, go to the **Library** and tap the star on a few licks you want to drill. Tagged licks become your Side B practice book.
 
-### Scale-Aware Lick Filtering
+When you open Side B, you choose:
 
-The practice session only shows licks that are compatible with the current scale type. A pentatonic lick can appear in a major session (pentatonic notes are a subset of major), but a 7-note major lick won't appear in a pentatonic session where it would get awkwardly snapped down to 5 notes.
+- **Progression type** — what the backing track plays underneath. ii-V-I major or minor, dominant or major vamp, turnaround, rhythm changes. Each lick's category determines which progressions it lands cleanly on.
+- **Substitutions** — toggle to introduce tritone subs and chromatic approaches. Same lick, harder harmony.
+- **Backing style** — swing for straight-ahead, bossa for Latin, ballad for slow with sustained comping, straight for rock/funk feel.
+- **Practice mode** — *Continuous* loops the backing track and lets you play freely; *Call & Response* alternates the app playing the lick and you playing it back, scored each pass.
+- **Tempo** — starting BPM. This rises +5 BPM each time you pass a key clean, and steps back if you stumble.
 
-The practice page displays the **note count** below the scale name (e.g., "5 notes" for pentatonic) to make the active scale's size clear, especially for beginners.
+### What happens during a session
 
-If scale filtering leaves very few licks at your difficulty level, the app automatically widens to all licks at that difficulty as a fallback.
+The session opens with a **count-in**, then the backing track starts. You see:
 
-### Transport Controls
+- The current **lick name** and the **key** you're playing it in.
+- A **chord chart** above the staff showing the progression cycle, with the active cell highlighted as the bars roll.
+- A **key progress ring** showing how far through the 12-key cycle you are on this lick.
+- A **preview strip** of the next two or three keys coming up.
+- A **session timer** with a progress bar.
 
-- **Play/Stop** — Start or stop playback
-- **Tempo slider** — Adjust BPM (disabled during playback)
-- **Metronome toggle** — Turn the click track on/off
+You play the lick once per cycle. Pass it cleanly (≥ 80%) and the next cycle moves to the next key, with the tempo bumped up by 5 BPM if you've passed in every key so far. Stumble and the next cycle stays in the same key; if you stumble repeatedly, the tempo backs off.
 
-### Real-Time Feedback
+Once you've passed all 12 keys, the session moves to the next tagged lick.
 
-While the mic is active, you see:
-- **Pitch meter** — Shows the detected note name, cents deviation (tuning), and detection clarity
-- **Mic status** — Green when active, with an input level meter
+### Why all 12 keys
 
-## Library
+The shortest answer: every jazz player you admire could play their vocabulary in any key. Coltrane drilled patterns through every key before recording *Giant Steps*. Practicing only in the comfortable keys means your fingers have memorized one shape; practicing in all 12 means you've actually heard the line.
 
-Browse the collection of ~250 jazz licks across 9 categories (163 hand-curated + ~86 combinatorial).
+The longer answer is in [The Daily Key](./architecture/tonality-system.md).
+
+## The library
+
+Every lick the app knows lives in the **Library**. About 250 of them — 163 hand-written and a few dozen generated by pairing scale patterns with rhythm templates — across nine categories. Plus your own user-recorded and step-entered licks, and any community-shared licks you've adopted.
 
 ### Browsing
 
-- **Search** — Type to filter by name or tags
-- **Category filter** — Pill buttons for each category (Beginner Cells, ii-V-I Major, ii-V-I Minor, Blues, Bebop, Pentatonic, Modal, Rhythm Changes, Ballad)
-- **Difficulty filter** — Filter by difficulty band (Beginner through Virtuoso)
+- **Search** filters by name or tag.
+- **Category** pills filter by harmonic context: Beginner Cells, ii-V-I Major, ii-V-I Minor, Blues, Bebop Lines, Pentatonic, Modal, Rhythm Changes, Ballad.
+- **Difficulty** filter narrows to a band (Beginner, Easy, Medium, Hard, etc.).
 
-### Lick Detail
+### Lick detail
 
-Click a lick to see:
-- Sheet music display
-- Key transposition selector — hear and see the lick in any of the 12 keys
-- Metadata: category, difficulty, bar count, tags
-- Play button to hear the lick
+Tap a lick to see:
+
+- Sheet music in your instrument's key.
+- A **key selector** so you can preview the lick in any of the 12 keys before tagging it.
+- Category, difficulty, bar count, and tags.
+- A play button so you can hear it without dropping into a session.
+- A **practice star** — tap to tag the lick for Side B.
 
 ## Progress
 
-Track your improvement over time.
+The Progress page is the back cover. It tells you what's been happening over time.
 
-### Stats Overview
-
-- **Total sessions** and **average score**
-- **Streak** — consecutive days practiced
-- **Level** — The adaptive level (1-100), calculated as the rounded average of pitch complexity and rhythm complexity.
-
-### Adaptive Difficulty
-
-The app shows your current difficulty level and its components:
-- **Pitch complexity** and **rhythm complexity** are adjusted independently
-- Each dimension advances when its accuracy window (last 25 attempts) averages ≥ 85%
-- Below 50% over that window, the dimension retreats
-- Minimum 10 attempts between changes per dimension
-
-### Category Progress
-
-Bar chart showing attempts and average scores per category (ii-V-I Major, Blues, etc.).
-
-### Key Progress
-
-How well you perform in each of the 12 keys.
-
-### Session History
-
-Scrollable list of recent sessions showing phrase, key, tempo, score, and grade.
-
-### Reset
-
-Destructive reset of all progress data. Use with caution.
+- **Calendar heatmap** — every day you practiced, lit by session count. Skipped days are dim.
+- **Trend chart** — pitch complexity, rhythm complexity, and the resulting overall level, plotted over the rolling window.
+- **Streak** — consecutive practice days, plus your longest run.
+- **Category and key bars** — your average score per category and per key, so you can see which keys still need work.
+- **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade.
 
 ## Settings
 
-### Instrument
+The global Settings page controls things that aren't specific to a single session.
 
-Choose between tenor sax, alto sax, and trumpet. Changing instruments affects:
-- Sheet music transposition
-- Playback sound
-- Pitch detection range
+| Setting | What it does |
+|---|---|
+| **Instrument** | Tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
+| **Theme** | Dark (default) or light. |
+| **Default tempo** | Starting BPM for new ear-training sessions. |
+| **Metronome volume** and **swing** | The click's loudness and feel. Swing 0.5 is straight; 0.67 is triplet swing (most common); 0.8 is heavy. |
+| **Bleed filter** | If your speakers are loud enough that the mic re-hears the playback, this drops the spurious notes. Leave it on unless you're investigating a scoring oddity. |
+| **Highest note** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
+| **Reset progress** | Destructive — wipes your local sessions and adaptive level. Cloud-synced data on the same account will resync if you stay signed in. |
 
-### Theme
+## Adding your own licks
 
-Toggle between dark mode (default) and light mode.
+Two ways in.
 
-### Defaults
+- **Step entry** (`/entry`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (with sharps/flats), and the cursor moves on. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
+- **Record** (`/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out.
 
-- **Default tempo** — Starting BPM for new sessions
-- **Metronome volume** — 0–100%
-- **Swing** — Swing ratio for metronome timing
-- **Metronome enabled** — Default on/off state
+Either way, your lick joins the library alongside the curated ones and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
 
-### Reset Progress
+## Tips that keep showing up
 
-Same destructive reset as the progress page.
-
-## Scales Reference
-
-View all 20 MVP scales organized by family:
-- Major modes (Ionian, Dorian, Mixolydian, Aeolian, Lydian)
-- Pentatonic (Minor, Major)
-- Blues (Minor, Major)
-- Bebop (Dominant, Dorian)
-- Melodic Minor (Melodic Minor, Altered, Lydian Dominant, Locrian Natural 2)
-- Harmonic Minor (Harmonic Minor, Phrygian Dominant)
-- Symmetric (Half-Whole Diminished, Whole Tone, Whole-Half Diminished)
-
-Each scale shows its intervals, degrees, chord applications, and target/avoid notes.
-
-## Tips
-
-- **Start slow** — Begin at level 1 with quarter notes and easy keys. Build up gradually.
-- **Use the metronome** — Rhythm is 40% of your score. Practice with the click.
-- **Listen before playing** — Pay attention during playback. Internalize the phrase before attempting it.
-- **Repeat phrases** — Use "Try Again" to drill difficult phrases. Repetition builds muscle memory.
-- **Practice in all keys** — The library lets you transpose any lick to any key. Work through the circle of fifths.
-- **Check your tuning** — The pitch meter shows real-time intonation feedback. Aim for the center line.
+- **Start slow.** A clean Good at 80 BPM teaches your ear more than a stumbled Try Again at 140.
+- **Listen, don't shadow.** Wait for the phrase to land before reaching for your horn — half of ear training is *receiving* the phrase, not playing it.
+- **Use the metronome.** Rhythm is 40% of your score. The click is your friend.
+- **Repeat the hard ones.** Try Again is a feature, not a punishment. The same phrase will replay until you pass.
+- **All 12 keys.** The library lets you transpose any lick to any key — work through the cycle of fifths, even on Side A.
+- **Watch your tuning.** The pitch meter shows you flat or sharp in real time. Fix the room temperature, fix the embouchure, fix your reed; the score will rise on its own.

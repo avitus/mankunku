@@ -1,177 +1,61 @@
-# Architecture Overview
+# Two Practice Modes
 
-## System Design
+Mankunku splits practice into two modes — Side A and Side B — that solve different problems. Side A trains your ear; Side B drills a line into your fingers. They share the lick library, the difficulty system, and the progress tracking, but they ask different things of you in the room.
 
-Mankunku is local-first: all audio capture, pitch detection, scoring, and progress tracking runs in the browser. An optional Supabase-backed backend layer handles authentication, cross-device progress sync, and user-defined lick management — the app ships with a SvelteKit Node adapter (`adapter-node`) and a small set of server endpoints under `/api/account/` for account operations. When the user is signed out or offline, every feature still works against localStorage.
+## Side A — Ear Training
 
-```mermaid
-graph TD
-    subgraph UI ["UI Layer (Svelte Components)"]
-        Layout["+layout.svelte"]
-        Practice["/practice"]
-        LickPractice["/lick-practice"]
-        Library["/library"]
-        Progress["/progress"]
-        Settings["/settings"]
-        Scales["/scales"]
-        Entry["/entry"]
-        AddLicks["/add-licks"]
-        Record["/record"]
-        Diagnostics["/diagnostics"]
-    end
+The classical exercise: someone plays a phrase, you play it back. Side A is that, automated.
 
-    subgraph State ["State Layer (Svelte 5 Runes)"]
-        Session["session.svelte.ts"]
-        LickPracticeState["lick-practice.svelte.ts"]
-        SettingsState["settings.svelte.ts"]
-        ProgressState["progress.svelte.ts"]
-        HistoryState["history.svelte.ts"]
-        LibraryState["library.svelte.ts"]
-        StepEntryState["step-entry.svelte.ts"]
-    end
+- The app picks a phrase that fits today's key, your current level, and any filters you've set.
+- It plays the phrase through your speakers (or headphones) over a metronome.
+- It listens through your microphone while you play it back.
+- It scores how close you got on pitch and rhythm, and either advances you or hands you a retry.
 
-    subgraph Audio ["Audio Pipeline"]
-        AudioCtx["audio-context.ts"]
-        Playback["playback.ts"]
-        Capture["capture.ts"]
-        PitchDet["pitch-detector.ts + pitch-frame.ts"]
-        OnsetCore["onset-core.ts + onset-detector.ts + onset-worklet.js"]
-        Segmenter["note-segmenter.ts"]
-        Quantizer["quantizer.ts"]
-        BleedFilter["bleed-filter.ts"]
-        Metro["metronome.ts"]
-        Recorder["recorder.ts"]
-        Replay["replay.ts"]
-        Backing["backing-track.ts + backing-track-schedule.ts + backing-styles.ts"]
-        Voicings["voicings.ts + sample-maps.ts"]
-    end
+Side A is **breadth-first**. You hear a different phrase each time. Some you'll nail; some will catch you off guard. The point isn't memorizing the licks — it's getting faster at hearing a melodic shape and converting it to a fingering. The library is large enough that licks rarely repeat in a single session.
 
-    subgraph Scoring ["Scoring Engine"]
-        Pipeline["score-pipeline.ts"]
-        Scorer["scorer.ts"]
-        Alignment["alignment.ts (DTW)"]
-        PitchScore["pitch-scoring.ts"]
-        RhythmScore["rhythm-scoring.ts"]
-        Grades["grades.ts"]
-    end
+**Use Side A when** you want to build the listen → play reflex, work on tuning, get used to a new scale, or warm up at the start of a practice session.
 
-    subgraph Music ["Music Theory"]
-        Scales["scales.ts"]
-        Chords["chords.ts"]
-        Keys["keys.ts"]
-        KeyOrdering["key-ordering.ts"]
-        Intervals["intervals.ts"]
-        Notation["notation.ts"]
-        Transposition["transposition.ts"]
-    end
+## Side B — Lick Practice
 
-    subgraph Phrases ["Phrase System"]
-        Generator["generator.ts"]
-        Mutator["mutator.ts"]
-        Validator["validator.ts"]
-        Combiner["combiner.ts"]
-        LibLoader["library-loader.ts"]
-    end
+The opposite exercise: you already know what you want to play; the app helps you own it in every key over a backing track.
 
-    subgraph Tonality ["Tonality System"]
-        TonalityMod["tonality.ts"]
-        ScaleCompat["scale-compatibility.ts"]
-    end
+- You **tag** licks from the library (or your own user-entered ones) as "practice" licks.
+- Side B picks one of your tagged licks and rotates it through all 12 keys over a chord progression — bass, comping, drums.
+- Each key, you play the lick once per cycle. Pass it cleanly (≥ 80%) and the next cycle moves to the next key. Tempo bumps up +5 BPM after every clean key; it backs off when you stumble.
+- Once you've passed all 12 keys, the session moves to the next tagged lick.
 
-    subgraph Persistence
-        Storage["storage.ts (localStorage)"]
-        UserLicks["user-licks.ts"]
-        LickRec["lick-practice-recording.ts"]
-        LickStore["lick-practice-store.ts"]
-        AudioStore["audio-store.ts (IndexedDB)"]
-        Sync["sync.ts"]
-        Supabase["supabase/* (cloud, auth)"]
-    end
+Side B is **depth-first**. It assumes the line is already in your ear and your job is to wire it to your fingers across the cycle of fifths. The progress tracking is per-lick, per-key — you can see exactly which keys still trip you up on a given line, and which are clean.
 
-    Practice --> Session
-    Practice --> Audio
-    Practice --> Scoring
-    LickPractice --> LickPracticeState
-    LickPractice --> Audio
-    Library --> LibLoader
-    Library --> LibraryState
-    Progress --> ProgressState
-    Progress --> HistoryState
-    Entry --> StepEntryState
-    AddLicks --> StepEntryState
+**Use Side B when** there's a specific line you want to internalize — a Bird quote, a turnaround, a ii-V-I lick from your transcription book, a phrase you stole from a record. Stagger Side B sessions across the week and you'll have the line in every key in a month or so.
 
-    Session --> Audio
-    SettingsState --> Storage
-    ProgressState --> Storage
-    HistoryState --> Storage
-    LickPracticeState --> Storage
-    Storage --> Supabase
+## What they share
 
-    Playback --> AudioCtx
-    Playback --> Metro
-    Capture --> AudioCtx
-    PitchDet --> Capture
-    OnsetDet --> Capture
-    Segmenter --> PitchDet
-    Segmenter --> OnsetDet
+Both modes pull from the same lick library and the same daily key system, and both contribute to your overall progress.
 
-    Pipeline --> Scorer
-    Pipeline --> BleedFilter
-    Scorer --> Alignment
-    Scorer --> PitchScore
-    Scorer --> RhythmScore
-    Scorer --> Grades
+- **The library** is the same in both modes. Side A queries it for variety; Side B picks specific licks from it that you've tagged.
+- **The daily key** rotates once per day (more on this in [The Daily Key](./tonality-system.md)). Side A defaults to today's key but lets you override; Side B always cycles through all 12 keys regardless of the daily pick.
+- **Difficulty** climbs from your performance in either mode. Pitch complexity and rhythm complexity rise (or fall) on the same scale — see [Levels & Difficulty](./adaptive-difficulty.md).
+- **Scoring** uses the same algorithm: pitch accuracy at 60%, rhythm accuracy at 40%, with timing tolerances that loosen at slow tempos and tighten at fast ones. The full breakdown is in [How Scoring Works](./scoring-algorithm.md).
+- **Progress and history** roll up across both modes — your streak counts a Side B session the same as a Side A session.
 
-    Generator --> Scales
-    Generator --> Chords
-    Generator --> Keys
-    Generator --> Validator
-    LibLoader --> Transposition
-    LibLoader --> ScaleCompat
+## How a phrase travels through the app
 
-    Practice --> TonalityMod
-    Practice --> ScaleCompat
-    TonalityMod --> SettingsState
+Whether you're on Side A or Side B, a single attempt follows the same path under the hood. You don't need to think about any of this while you play — but it helps to know what the app is doing on your behalf:
 
-    Notation --> Transposition
-```
+1. The app picks (or generates) a phrase. On Side A, it's drawn from the library or made on the fly. On Side B, it's the current tagged lick transposed into the current key.
+2. The phrase plays through speakers or headphones, with the metronome and (on Side B) the rhythm section.
+3. After the phrase ends, the metronome keeps going. The app starts listening through your microphone.
+4. As you play, a real-time pitch detector picks up each note. After about two seconds of silence — or as soon as you complete a Side B cycle — the recording closes.
+5. The detected notes get matched against the expected ones. The match isn't note-for-note: a flexible alignment lets you be a little late or a little early, lets you drop a note, lets you add an extra one. Each note gets a pitch score and a rhythm score; the two are combined into an overall percentage and a grade.
+6. The result lands in your progress: today's date gets logged, the streak ticks (or holds), the level adjusts, and per-category and per-key averages update.
 
-## Data Flow: A Practice Session
+The deeper details — why the alignment is forgiving, what the grades mean, why pitch counts more than rhythm — are in [How Scoring Works](./scoring-algorithm.md).
 
-1. **Phrase Selection**: User picks a phrase from the library or the generator creates one based on difficulty/category/key settings.
-2. **Playback**: `playback.ts` schedules the phrase notes on the Tone.js Transport, plays them through smplr SoundFont samples, and optionally starts the metronome and/or a backing track (`backing-track.ts`).
-3. **Recording**: After playback completes, the app enters "awaiting input" mode. In the ear-training path the pitch detector runs at ~60fps via `requestAnimationFrame`; in the record / lick-practice path the AudioWorklet-based onset detector fires events directly. The first detected pitch or onset starts the recording timer.
-4. **Note Segmentation**: When recording ends (silence timeout, bar boundary, or max duration), pitch readings and onset timestamps are combined into `DetectedNote[]` by `note-segmenter.ts`.
-5. **Bleed Filter (optional)**: `bleed-filter.ts` classifies detected notes as kept or filtered based on backing-track bleed heuristics. Both results are carried forward so diagnostics can compare them.
-6. **Scoring**: `score-pipeline.ts` runs `scoreAttempt()` on the unfiltered notes and, when a bleed result is present, on the filtered notes. The scorer anchors detected notes to the beat grid, runs DTW alignment, corrects for constant human latency (median offset), and produces per-note pitch and rhythm scores plus timing diagnostics.
-7. **Feedback**: The `FeedbackPanel` component displays the grade, overall score, liner-note caption, and per-note comparison.
-8. **Progress Update**: The attempt is recorded in `progress.svelte.ts` (ear-training) or `lick-practice.svelte.ts` (lick-practice), which updates adaptive difficulty, category/key stats, streaks, and the `history.svelte.ts` daily summary.
-9. **Optional Replay**: Raw audio can be stored in IndexedDB via `audio-store.ts` and re-scored later (`replay.ts` + `/diagnostics`).
+## A note on the design choice
 
-## Module Boundaries
+The two modes exist because two very different kinds of practice both happen on a horn:
 
-The codebase follows clear module boundaries:
+- **Reading a melody you've never heard before** and reproducing it. Sight-singing for instrumentalists. This is Side A's job.
+- **Internalizing a memorized line** so it's available in any key under any tempo. The "vocabulary" half of jazz practice. This is Side B's job.
 
-- **Types** (`src/lib/types/`): Pure TypeScript interfaces and type definitions. No runtime code.
-- **Music theory** (`src/lib/music/`): Pure functions operating on MIDI numbers, pitch classes, and scales. No side effects, no browser APIs.
-- **Audio** (`src/lib/audio/`): Manages the Web Audio API graph. The only modules that touch `AudioContext`, `MediaStream`, and `AudioWorklet`.
-- **Scoring** (`src/lib/scoring/`): Pure functions that take expected notes + detected notes and produce scores. No audio or UI dependencies.
-- **Phrases** (`src/lib/phrases/`): Generates, mutates, validates, and queries phrases. Depends on music theory but not on audio or UI.
-- **Tonality** (`src/lib/tonality/`): Daily tonality selection, progressive unlocking, and scale-aware lick filtering. Pure functions, no UI dependencies.
-- **Difficulty** (`src/lib/difficulty/`): Pure algorithm for adjusting difficulty based on performance. No UI dependencies.
-- **State** (`src/lib/state/`): Svelte 5 rune-based reactive state. The bridge between UI and logic.
-- **Components** (`src/lib/components/`): Reusable Svelte components. Each accepts props and emits events.
-- **Routes** (`src/routes/`): SvelteKit pages. Compose components, connect state, and handle user interactions.
-- **Persistence** (`src/lib/persistence/`): localStorage + IndexedDB wrappers, plus Supabase cloud sync. Used by state modules. Key files: `storage.ts` (localStorage helpers), `audio-store.ts` (IndexedDB for recorded audio), `user-licks.ts` (user-authored licks), `lick-practice-store.ts` + `lick-practice-recording.ts` (lick-practice progress and per-session recordings), `sync.ts` (Supabase background sync).
-- **Supabase** (`src/lib/supabase/`): Browser and server client factories, auth helpers, and generated DB types for the optional backend layer.
-- **Step Entry** (`src/lib/step-entry/`): Helpers for manual lick entry — note-duration metadata and pitch-input accidental logic.
-- **Util** (`src/lib/util/`): Small shared utilities (e.g. `seeded-shuffle.ts`).
-
-## Key Architectural Decisions
-
-1. **Local-first with optional backend**: All scoring, pitch detection, and audio logic runs client-side, and every feature works offline against localStorage. A Supabase-backed backend layer (auth, cross-device progress sync, user-lick storage) is optional — when the user is signed in, localStorage writes are mirrored to Supabase in the background, and a small set of `/api/account/` server endpoints handle account operations.
-2. **Shared AudioContext**: Tone.js and smplr share the same `AudioContext` so that Transport scheduling and sample playback are on the same timeline.
-3. **Concert pitch as canonical**: All data is stored in concert pitch. Transposition to written pitch (for Bb/Eb instruments) happens only at the display layer via `notation.ts` and `transposition.ts`.
-4. **DTW for alignment**: Dynamic Time Warping handles timing differences between expected and played notes, making scoring robust against slight tempo variations.
-5. **Latency correction**: The scorer computes the median timing offset of matched note pairs and subtracts it, absorbing constant human reaction time and detection delay.
-6. **PWA**: The app is installable as a Progressive Web App via `@vite-pwa/sveltekit`, with Workbox service worker caching SoundFont files.
+Trying to do both in one mode means picking which one to half-do. Splitting them lets the app commit fully to each — the listen-and-play loop on Side A doesn't need a backing track or a key cycle; the 12-key drill on Side B doesn't need to surprise you with new content.
