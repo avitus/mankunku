@@ -46,7 +46,15 @@ const args = process.argv.slice(2);
 let repoPath = join(homedir(), 'MTG.SoloSax');
 let dryRun = false;
 for (let i = 0; i < args.length; i++) {
-	if (args[i] === '--repo') repoPath = resolve(args[++i] ?? '');
+	if (args[i] === '--repo') {
+		const value = args[i + 1];
+		if (!value || value.startsWith('-')) {
+			console.error('[build-alto-sax-samples] --repo requires a path value');
+			process.exit(1);
+		}
+		repoPath = resolve(value);
+		i++;
+	}
 	else if (args[i] === '--dry-run') dryRun = true;
 	else if (args[i] === '--help' || args[i] === '-h') {
 		console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 21).join('\n').replace(/^ \*\s?/gm, ''));
@@ -141,8 +149,8 @@ for (const dynamic of DYNAMICS) {
 	for (let midi = MIDI_LOW; midi <= MIDI_HIGH; midi++) {
 		const region = regions.get(midi);
 		if (!region) {
-			console.warn(`[build-alto-sax-samples] Missing SFZ region for ${dynamic} MIDI ${midi}`);
-			continue;
+			console.error(`[build-alto-sax-samples] Missing SFZ region for ${dynamic} MIDI ${midi}`);
+			process.exit(1);
 		}
 		const flacPath = join(SAMPLES_DIR, `alt_${dynamic}_${region.sampleIndex}.flac`);
 		const oggPath = join(OUT_DIR, `${dynamic}_${midi}.ogg`);

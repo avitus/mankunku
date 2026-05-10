@@ -113,6 +113,23 @@ export function saveProgress(): void {
 }
 
 /**
+ * Queue progress-cloud syncs so an earlier provisional write can't overwrite
+ * a later authoritative one when their HTTP requests complete out of order.
+ * `recordAttempt` fires a provisional sync, then `updateSessionScore` follows
+ * ~200–500 ms later with the rescored value; chaining onto a single promise
+ * guarantees the second upsert starts after the first one settles, so the
+ * latest local state is always what lands in the cloud.
+ */
+let progressSyncQueue: Promise<unknown> = Promise.resolve();
+function queueProgressSync(supabase: SupabaseClient<Database>): void {
+	progressSyncQueue = progressSyncQueue
+		.then(() => syncProgressToCloud(supabase, progress))
+		.catch((err) => {
+			console.warn('Failed to sync progress to cloud:', err);
+		});
+}
+
+/**
  * Initialize progress from cloud data for authenticated users.
  * Merges cloud data with local state, preferring cloud when more recent.
  * Called from the layout/page level after authentication — never on module import.
@@ -266,9 +283,7 @@ export function recordAttempt(
 
 	// Fire-and-forget cloud sync (does not block UI)
 	if (supabase) {
-		syncProgressToCloud(supabase, progress).catch((err) => {
-			console.warn('Failed to sync progress to cloud:', err);
-		});
+		queueProgressSync(supabase);
 		syncDailySummaryToCloud(supabase, summary).catch((err) => {
 			console.warn('Failed to sync daily summary to cloud:', err);
 		});
@@ -310,9 +325,7 @@ export function updateSessionScore(
 	};
 	saveProgress();
 	if (supabase) {
-		syncProgressToCloud(supabase, progress).catch((err) => {
-			console.warn('Failed to sync progress to cloud:', err);
-		});
+		queueProgressSync(supabase);
 	}
 }
 
@@ -501,9 +514,7 @@ export function resetProgress(supabase?: SupabaseClient<Database>): void {
 
 	// Fire-and-forget cloud reset
 	if (supabase) {
-		syncProgressToCloud(supabase, progress).catch((err) => {
-			console.warn('Failed to sync progress reset to cloud:', err);
-		});
+		queueProgressSync(supabase);
 		// Delete orphaned detail rows that syncProgressToCloud skips when empty
 		deleteProgressDetailsFromCloud(supabase).catch((err) => {
 			console.warn('Failed to delete progress details from cloud:', err);
