@@ -23,7 +23,7 @@ Pitch is weighted more heavily than rhythm — 60/40 — because in practice it'
 | **Fair** | ≥ 55% | Off the changes here and there. The same phrase will retry. |
 | **Try Again** | < 55% | Take it again from the top. |
 
-The pass line is **70%**. At that threshold the app moves you on. Below it, the same phrase replays so you can take another swing. The grades themselves don't gate anything — the threshold for moving on is fixed.
+On **Side A**, the pass line is **70%** — at that threshold the app moves you on, and below it the same phrase replays so you can take another swing. **Side B** uses a tighter **80%** threshold for advancing through the 12 keys (see [Two Practice Modes](./overview.md) and [How to Practice](../user-guide.md)). The grades themselves don't gate anything — the move-on thresholds are fixed per mode.
 
 Each grade picks one of about ten captions from a pool, mixing Blue Note one-liners with quotes from the giants of the genre — so the feedback stays fresh across a session.
 
@@ -77,7 +77,7 @@ This is worth knowing because it explains some "harsh" scores.
 
 When the alignment marks a note as **missed** or **extra**, the app counts it as a zero in *both* pitch accuracy and rhythm accuracy — for that one note. The reasoning is mechanical (a missed note has no pitch and no timing to score), but the effect is that drops and additions punch a bigger hole in your overall percentage than a wrong-note-played-on-time does.
 
-The practical takeaway: it's better to play *every note* of a 4-note phrase, even if one is wrong, than to skip a note. A 4-note phrase with one wrong pitch on time is `(3 × 1.0 + 0) / 4 = 0.75` pitch accuracy and full rhythm — a Good. A 4-note phrase where you played 3 in time and dropped the last one is `0.75` pitch but only `0.75` rhythm — also Good, but with less margin and a worse rhythm component.
+The practical takeaway: it's better to play *every note* of a 4-note phrase, even if one is wrong, than to skip a note. A 4-note phrase with one wrong pitch on time is `(3 × 1.0 + 0) / 4 = 0.75` pitch and full rhythm, for `0.75 × 0.6 + 1.0 × 0.4 = 0.85` overall — a **Great**. A 4-note phrase where you played 3 in time and dropped the last one is `0.75` pitch and `0.75` rhythm, for `0.75` overall — still a **Good**, but with less margin and a worse rhythm component.
 
 ## A worked example
 
@@ -95,7 +95,7 @@ Suppose the original is a four-note phrase at 120 BPM: C–E–G–C. You play:
 - Overall: `0.50 × 0.6 + 0.74 × 0.4 ≈ 0.59`
 - Grade: **Fair**
 
-The two notes you played correctly carry most of the credit. The wrong-pitch G drags pitch accuracy down. The missed last C drags both. To get to a Good, fix either the wrong pitch (overall jumps to ~0.74, **Good**) or play the last note on time (overall jumps to ~0.69, just under **Good**).
+The two notes you played correctly carry most of the credit. The wrong-pitch G drags pitch accuracy down. The missed last C drags both. To get to a Good, fix either the wrong pitch (overall jumps to ~0.74, **Good**) or at least play *something* in time for the last note — even if it's still the wrong pitch, the rhythm score recovers and overall jumps to ~0.69, just under **Good**.
 
 ## What the app *doesn't* score
 
