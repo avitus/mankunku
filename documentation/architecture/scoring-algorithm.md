@@ -1,204 +1,121 @@
-# Scoring Algorithm
+# How Scoring Works
 
-The scoring engine takes expected notes (from a `Phrase`) and detected notes (from the microphone pipeline) and produces a `Score` with per-note pitch and rhythm accuracy, plus timing diagnostics.
+After every phrase you play back, the app gives you a percentage and a grade. This page explains what the score actually measures, what gets rewarded, what gets forgiven, and where the boundaries of "Great" and "Try Again" sit.
 
-> **Related:** See [Independent in Theory, Coupled in Practice](pitch-rhythm-coupling.md) for an open investigation into how the missed/extra-note zeroing in `scorer.ts:172-190` correlates the pitch and rhythm accuracy signals that feed adaptive difficulty.
+## The headline numbers
 
-**Source files:** `src/lib/scoring/`
+| Number | What it measures |
+|---|---|
+| **Pitch accuracy** | How many of the right notes you played, with a small bonus for being in tune. |
+| **Rhythm accuracy** | How close to the written rhythm your notes landed. |
+| **Overall** | `pitch × 0.60 + rhythm × 0.40`. |
+| **Grade** | A label assigned from the overall percentage. |
 
-- `score-pipeline.ts` — thin orchestrator that combines bleed filtering and scoring (used by the live path, post-hoc rescore, and the diagnostics replay panel)
-- `scorer.ts` — `scoreAttempt()` — DTW + latency correction + per-note scoring
-- `alignment.ts` — DTW alignment
-- `pitch-scoring.ts` / `rhythm-scoring.ts` — per-note scorers
-- `grades.ts` — grade thresholds, labels, captions, colors
+Pitch is weighted more heavily than rhythm — 60/40 — because in practice it's harder to hit the right note than the right beat. Most beginners can rush a beat and still play the right pitch; getting the wrong pitch (especially on a fast line over changing harmony) is the larger ear-training challenge. The 60/40 split is also what most reasonable jazz teachers would say if you asked them to grade a transcription.
 
-## Pipeline
+## The grades
 
-```mermaid
-graph TD
-    Input["Phrase.notes + DetectedNote[]"] --> Anchor["1. Grid Anchoring"]
-    Anchor --> DTW["2. DTW Alignment"]
-    DTW --> Latency["3. Latency Correction"]
-    Latency --> PerNote["4. Per-Note Scoring"]
-    PerNote --> Composite["5. Composite Score + Timing Diagnostics"]
-    Composite --> Grade["6. Grade Assignment"]
-```
+| Grade | Threshold | What it means |
+|---|---|---|
+| **Perfect** | ≥ 95% | Right in the pocket. Move on. |
+| **Great** | ≥ 85% | Cookin'. The phrase is solidly in your ear. |
+| **Good** | ≥ 70% | Swinging along. You passed — the next phrase is queued up. |
+| **Fair** | ≥ 55% | Off the changes here and there. The same phrase will retry. |
+| **Try Again** | < 55% | Take it again from the top. |
 
-`runScorePipeline()` wraps `scoreAttempt()` with an optional bleed-filter stage. Callers pre-segment their audio into `DetectedNote[]` and optionally pass a `BleedFilterResult` with `{ kept, filtered }`. The pipeline always computes the unfiltered score; when a bleed result is provided, it also computes the filtered score and returns a diagnostic `BleedFilterLog`. A `bleedFilterEnabled` flag controls which score is marked `chosen`; both scores are always returned so the caller can log or display either.
+The pass line is **70%**. At that threshold the app moves you on. Below it, the same phrase replays so you can take another swing. The grades themselves don't gate anything — the threshold for moving on is fixed.
 
-## 0. Onset Time Compensation (Practice Page)
+Each grade picks one of about ten captions from a pool, mixing Blue Note one-liners with quotes from the giants of the genre — so the feedback stays fresh across a session.
 
-Before notes reach the scoring pipeline, the practice page's `extractOnsetsFromReadings()` detects note onsets from pitch readings. When a gap > 100ms is detected (indicating silence, e.g., a breath between bars), the onset is **back-dated by 50ms** (`ATTACK_LATENCY`) to compensate for the pitch detector's re-lock delay.
+## How the app aligns what you played with what was written
 
-**Why:** After silence, the AnalyserNode buffer clears and the pitch detector needs several frames to rebuild clarity above the 0.80 threshold. This introduces a systematic delay on the first note after any breath, which disproportionately penalizes bar-boundary notes. The compensation corrects this at the source.
+Your playback won't be note-for-note identical to the original. You might be a beat behind. You might drop a note. You might add an extra one. You might play the whole thing slightly late (which is normal — there's a fraction of a second of human reaction time built into the loop).
 
-```
-if (gap > GAP_THRESHOLD):
-    onset = reading.time - ATTACK_LATENCY  // 50ms back-date
-else if (noteChanged):
-    onset = reading.time                    // no compensation needed
-```
+The app handles this with a flexible alignment. The expected notes and the detected notes are paired up the way two transcribers would compare takes: each note in the original is matched to the closest detected note in time and pitch, allowing for missed notes (you didn't play it) and extra notes (you played something not in the original). The math behind it is called Dynamic Time Warping — it's the same idea used in speech recognition to match words against an audio file when the speaker pauses or rushes.
 
-The record and lick-practice paths use the AudioWorklet onset detector (HFC + EMA, threshold 3.0) instead, which produces onsets directly and does not need this compensation.
+What this means for you, in plain terms:
 
-## 1. Grid Anchoring (`scorer.ts:anchorToGrid`)
+- **You can be a little late.** A beat or so off and the alignment still finds the match.
+- **You can be a little early.** Same.
+- **You can play in a different octave** if "octave-insensitive" is on (it's on for Side B's continuous mode, which assumes you might transpose a lick to keep it on the horn). Side A is strict about the octave.
+- **Missed notes don't ruin everything else.** If you skip note 3, the app still tries to match notes 4, 5, and 6 against their counterparts. It just docks you for the missed one.
+- **Extra notes don't ruin everything else.** If you add an extra grace note, the alignment treats it as an extra and grades the rest against the original.
 
-Detected notes have `onsetTime` relative to when the pitch detector started. To compare against expected notes (which have offsets relative to the phrase start), detected notes must be anchored to the Transport's beat grid.
+## Pitch accuracy, note by note
 
-The algorithm snaps detected onsets to the nearest bar downbeat:
+Each note in the original gets a pitch score:
 
-```
-barDuration = beatsPerBar * (60 / tempo)
-barStart = round(transportSeconds / barDuration) * barDuration
-recordingOffset = transportSeconds - barStart
-adjustedOnset = detectedOnset + recordingOffset
-```
+- **Right pitch** → 1.0 (with a small in-tune bonus, up to about +0.10, that maxes out at zero cents off).
+- **Wrong pitch** → 0.
+- **Rest** → 1.0 automatically (you correctly played silence).
+- **Missed note** (the alignment found nothing matching it) → 0.
 
-## 2. DTW Alignment (`alignment.ts`)
+The bonus for tuning is small on purpose — it tips ties on otherwise correct notes, but a slightly out-of-tune correct note still beats a perfectly-tuned wrong note by a wide margin.
 
-**Dynamic Time Warping** finds the minimum-cost alignment between two sequences of different lengths. This handles:
+The pitch accuracy you see is the average across all the original notes.
 
-- **Extra notes** the user played that aren't in the phrase
-- **Missed notes** the user didn't play
-- **Timing variations** — notes played slightly out of order or at different times
+## Rhythm accuracy, note by note
 
-### Cost Function
+Each note's rhythm score depends on how close to the written beat it landed, scaled by the tempo.
 
-Each cell in the cost matrix considers three options:
+- Land on the beat → score near 1.0.
+- The further off, the lower the score.
+- Rests → 1.0 automatically.
+- The tolerance is **looser at slow tempos and tighter at fast ones**: at 60 BPM the score doesn't fall to zero until you're more than a full beat off; at 200 BPM the same fraction of a beat is a much tighter window in absolute time, so the curve is steeper. This is intentional — the same fraction-of-a-beat error feels "tight" at 200 BPM and "very loose" at 60.
 
-1. **Match**: `pitchDistance + rhythmDistance` (match expected[i] with detected[j])
-2. **Skip expected**: cost = 2.0 (missed note)
-3. **Skip detected**: cost = 2.0 (extra note)
+### Latency correction
 
-**Pitch distance:**
+Every player — and every microphone — has a fraction of a second of constant delay. The app measures the median offset across all your matched notes and subtracts it before scoring. So if you played the whole phrase 80 ms late, the app absorbs the 80 ms and only judges your *relative* timing between notes. You don't get docked for reaction time.
 
-- Same MIDI note → 0.0 (or same pitch class in any octave, when `octaveInsensitive` is true)
-- 1 semitone off → 0.5
-- 2+ semitones off → 1.0 (capped)
+### Swing
 
-**Rhythm distance:**
+If the metronome is set to swing and the original phrase has off-beat eighth notes, the expected position of those off-beats shifts to match a triplet feel. You won't get rhythmically dinged for swinging when you're supposed to swing.
 
-- `|expectedOnset - detectedOnset| / beatDuration`
-- Capped at 1.0
+## Why missing or adding a note hurts both pitch *and* rhythm
 
-### Octave-insensitive matching
+This is worth knowing because it explains some "harsh" scores.
 
-When `octaveInsensitive` is true, pitch distance uses `midiToPitchClass()` on both sides so a lick played an octave up or down still matches. This is enabled for lick-practice continuous mode, where the user may legitimately transpose a lick to keep it on the horn. Ear-training and call-response stay strict.
+When the alignment marks a note as **missed** or **extra**, the app counts it as a zero in *both* pitch accuracy and rhythm accuracy — for that one note. The reasoning is mechanical (a missed note has no pitch and no timing to score), but the effect is that drops and additions punch a bigger hole in your overall percentage than a wrong-note-played-on-time does.
 
-### Backtracking
+The practical takeaway: it's better to play *every note* of a 4-note phrase, even if one is wrong, than to skip a note. A 4-note phrase with one wrong pitch on time is `(3 × 1.0 + 0) / 4 = 0.75` pitch accuracy and full rhythm — a Good. A 4-note phrase where you played 3 in time and dropped the last one is `0.75` pitch but only `0.75` rhythm — also Good, but with less margin and a worse rhythm component.
 
-After filling the cost matrix, backtracking from `dp[N][M]` to `dp[0][0]` produces `AlignmentPair[]`. Each pair indicates:
+## A worked example
 
-- `expectedIndex + detectedIndex` → matched pair
-- `expectedIndex + null` → missed note
-- `null + detectedIndex` → extra note
+Suppose the original is a four-note phrase at 120 BPM: C–E–G–C. You play:
 
-## 3. Latency Correction (`scorer.ts`)
+| Beat | Original | You played | Pitch | Rhythm |
+|---|---|---|---|---|
+| 1 | C | C, 10 ms late | 1.0 | ~0.98 |
+| 2 | E | E, 20 ms late | 1.0 | ~0.96 |
+| 3 | G | A♭ (semitone off), on time | 0 | 1.0 |
+| 4 | C | (missed) | 0 | 0 |
 
-Human latency (reaction time + detection delay) creates a constant offset between expected and detected onsets. The scorer computes the **median timing offset** of all matched pairs and subtracts it from all detected onsets.
+- Pitch accuracy: `(1 + 1 + 0 + 0) / 4 = 0.50`
+- Rhythm accuracy: `(0.98 + 0.96 + 1.0 + 0) / 4 ≈ 0.74`
+- Overall: `0.50 × 0.6 + 0.74 × 0.4 ≈ 0.59`
+- Grade: **Fair**
 
-```typescript
-offsets = matchedPairs.map(pair => detected[j].onset - expected[i].onset)
-correction = median(offsets)
-correctedOnset = detectedOnset - correction
-```
+The two notes you played correctly carry most of the credit. The wrong-pitch G drags pitch accuracy down. The missed last C drags both. To get to a Good, fix either the wrong pitch (overall jumps to ~0.74, **Good**) or play the last note on time (overall jumps to ~0.69, just under **Good**).
 
-Median (not mean) is used so a single outlier (e.g., a dropped first note) does not skew the correction. The raw correction is returned in the `timing.latencyCorrectionMs` diagnostic field.
+## What the app *doesn't* score
 
-## 4. Per-Note Pitch Scoring (`pitch-scoring.ts`)
+A few things deliberately stay out of the score:
 
-```text
-if wrong MIDI note (or pitch class, in octaveInsensitive mode) → 0.0
-if correct note                                                → 1.0 + intonation bonus
-  intonation bonus = 0.1 * max(0, 1 - |cents| / 50)
-```
+- **Tone, dynamics, and articulation.** The pitch detector hears the fundamental frequency, not your sound. A breathy ghost note and a fortissimo accent score the same as long as the pitch and timing land.
+- **Vibrato and bends.** The pitch detector takes a median across each note's duration, so a bend that resolves to the right pitch is counted as the right pitch.
+- **Phrasing nuance** like swing degree or laid-back feel. Beyond the swing-aware scoring of off-beat eighths, the app doesn't try to read your phrasing. If you're playing the right notes at roughly the right times, you'll pass.
 
-- Perfect intonation (0 cents): 1.10
-- 25 cents off: 1.05
-- 50 cents off: 1.00
-- Wrong note: 0.00
-- Rests: 1.0 automatically
+The score is a tool for tracking your accuracy on the *content* of the phrase. Once you're consistently passing at a given level, the practicing of *sound* is on you — the app is happy to call a clean attempt with no tone a Perfect, but a real teacher wouldn't, and you shouldn't either.
 
-The bonus is clamped to 1.0 at the composite level — it only tips ties on otherwise correct notes.
+## Bleed filtering
 
-## 5. Per-Note Rhythm Scoring (`rhythm-scoring.ts`)
+If you don't use headphones, your microphone may pick up the playback or the backing track and mistake it for notes you played. To prevent that, the app runs a bleed filter on the detected notes before scoring: notes that line up with active backing-track pitches are dropped if the signal is weak. The filter is conservative — it only drops what looks like room bleed, not what looks like you playing the same note as the backing track.
 
-```text
-timingError = |detectedOnset - expectedOnset| / beatDuration
-penalty     = min(1.0, 0.5 + tempo / 300)
-rhythmScore = max(0, 1.0 - timingError * penalty)
-```
+You can toggle the bleed filter in Settings. Leave it on unless you're investigating an unexpected score.
 
-**Tempo-scaled penalty.** The penalty ramps from gentle at slow tempos to strict at fast tempos:
+## When the score doesn't match how it felt
 
-- 60 BPM → penalty 0.70, score hits 0 at ~1.43 beats off (≈1430 ms)
-- 100 BPM → penalty 0.83, score hits 0 at ~1.20 beats off (≈720 ms)
-- 200 BPM → penalty 1.00, score hits 0 at 1 beat off (300 ms)
+Two situations commonly cause the score to disagree with your gut:
 
-At slow tempos beats are long, so the same absolute timing error is a smaller fraction of a beat — a gentler curve feels fair. At fast tempos the beats are short, so the same fraction-of-a-beat represents a tighter absolute window, and a steeper penalty is reasonable.
-
-Rests score 1.0 automatically.
-
-**Swing-aware scoring.** When `swing > 0.5` and the expected note falls on an off-beat eighth note (the "&" of a beat), the expected onset is shifted to match Tone.js swing playback: `expectedOnset += (swing - 0.5) * beatDuration`. This prevents swing timing from being penalized as rhythmically inaccurate.
-
-## 6. Composite Score + Timing Diagnostics
-
-```text
-pitchAccuracy  = average(pitchScores)    // across scored notes
-rhythmAccuracy = average(rhythmScores)   // across scored notes
-overall        = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4
-```
-
-Pitch is weighted more heavily (60%) because getting the right notes is harder than getting the rhythm exactly right.
-
-In addition to the accuracy numbers, `Score.timing: TimingDiagnostics` is returned:
-
-| Field                 | Meaning                                                                       |
-| --------------------- | ----------------------------------------------------------------------------- |
-| `meanOffsetMs`        | Mean signed offset across matched pairs (positive = late, negative = early)   |
-| `medianOffsetMs`      | Median signed offset                                                          |
-| `stdDevMs`            | Standard deviation — a proxy for timing jitter                                |
-| `latencyCorrectionMs` | The constant offset subtracted in step 3                                      |
-| `perNoteOffsetMs`     | `(number \| null)[]` aligned with `noteResults`, `null` for missed/extra      |
-
-These diagnostics drive the replay panel in `/diagnostics` and the timing visualization in session reports.
-
-## 7. Grade Assignment (`grades.ts`)
-
-| Grade       | Threshold | Label        | Color                          | Sample caption                    |
-| ----------- | --------- | ------------ | ------------------------------ | --------------------------------- |
-| `perfect`   | ≥ 95%     | "Perfect"    | `var(--color-success)`         | "Right in the pocket."            |
-| `great`     | ≥ 85%     | "Great"      | `var(--color-success)`         | "Cookin'."                        |
-| `good`      | ≥ 70%     | "Good"       | `var(--color-accent)`          | "Swinging along."                 |
-| `fair`      | ≥ 55%     | "Fair"       | `var(--color-warning)`         | "A little off the changes."       |
-| `try-again` | < 55%     | "Try Again"  | `var(--color-error)`           | "Take it again from the top."     |
-
-`GRADE_CAPTIONS` is a pool per grade (~10 entries each) mixing Blue Note liner-note one-liners with classic quotes from the giants of the genre (Miles, Coltrane, Monk, Parker, Ellington, Armstrong, Mingus, Evans, Hancock, Brubeck, Rollins, Fitzgerald, Basie, Blakey, Gillespie). `getGradeCaption(grade)` picks one at random per attempt so the feedback stays fresh across a session.
-
-Because `--color-accent` is domain-scoped, the "Good" grade reads peacock-teal in ear-training and terracotta in lick-practice — it always takes the current domain's accent, not a hard-coded hue.
-
-## Bleed filter integration
-
-When the backing track is audible in the user's mic (bleed), spurious notes can be detected. `bleed-filter.ts` runs *before* scoring and classifies each detected note as `kept` or `filtered` based on:
-
-- Proximity to a known backing-track event
-- Pitch class match with an active chord tone
-- Amplitude/confidence heuristics
-
-`runScorePipeline()` always computes the unfiltered score and, when a bleed result is present, also computes the filtered score and a `BleedFilterLog`. The `bleedFilterEnabled` flag decides which one is `chosen`. Both are kept so the `/diagnostics` replay UI can show the A/B.
-
-## Example
-
-Given a 4-note phrase at 120 BPM (beat = 0.5s, penalty = 0.90):
-
-| Expected     | Detected               | Pitch Score | Rhythm Score |
-| ------------ | ---------------------- | ----------- | ------------ |
-| C4 at beat 0 | C4 at 0.01s (10ms late)  | 1.0         | ≈ 0.98       |
-| E4 at beat 1 | E4 at 0.52s             | 1.0         | ≈ 0.96       |
-| G4 at beat 2 | Ab4 at 1.0s             | 0.0         | 1.0          |
-| C5 at beat 3 | *(missed)*              | 0.0         | 0.0          |
-
-- pitchAccuracy = (1 + 1 + 0 + 0) / 4 = 0.50
-- rhythmAccuracy ≈ (0.98 + 0.96 + 1.0 + 0) / 4 ≈ 0.73
-- overall ≈ 0.50 × 0.6 + 0.73 × 0.4 ≈ 0.59
-- grade = "fair"
+- **You played it cleanly but the score is low.** Usually a microphone problem — the room is noisy, the mic is far from the bell, or the input level is too low and the pitch detector is losing clarity. Watch the clarity dot on the pitch meter while you play; if it's flickering, that's why.
+- **You stumbled but the score is high.** Usually because you stopped playing instead of finishing the phrase wrong. The app stops listening after about two seconds of silence; if you cut yourself off, the missed notes don't get logged because the alignment never sees them. This rounds in your favor in the short term, but it doesn't help your ear, so finishing through a stumble is the right move even when it costs a few points.

@@ -1,10 +1,12 @@
 /**
  * Documentation tree.
  *
- * Mirrors the structure of /documentation/ at the repo root. Each `slug` is
- * the URL fragment after `/docs/` (without `.md`). Add new docs here when
- * adding files to /documentation/ — the sidebar reads from this list, and the
- * dynamic route under `/docs/[...slug]` validates against it.
+ * Mirrors a subset of /documentation/ at the repo root — the in-app docs are
+ * written for *musicians*, so engineering-focused files (api-reference, tech
+ * stack, contributing, etc.) stay in the repo for developers but are not
+ * surfaced here. Each `slug` is the URL fragment after `/docs/` (without
+ * `.md`). The dynamic route under `/docs/[...slug]` validates against this
+ * list — a slug not present here returns 404.
  */
 
 export interface DocPage {
@@ -21,64 +23,68 @@ export interface DocSection {
 
 export const DOC_TREE: DocSection[] = [
 	{
-		title: 'Quick Start',
+		title: 'First Steps',
 		pages: [
 			{
 				slug: 'getting-started',
-				title: 'Getting Started',
-				blurb: 'Prerequisites, install, first run, and project structure.'
+				title: 'Welcome',
+				blurb: 'What Mankunku is, what it does for your ears, and how to start.'
 			},
 			{
 				slug: 'user-guide',
-				title: 'User Guide',
-				blurb: 'How to use the app: practice, library, progress, settings.'
+				title: 'How to Practice',
+				blurb: 'A walk through the practice loop — what you hear, what you play, what gets scored.'
 			}
 		]
 	},
 	{
-		title: 'Architecture',
+		title: 'How It Works',
 		pages: [
-			{ slug: 'architecture/overview', title: 'Overview', blurb: 'High-level system design and component diagram.' },
-			{ slug: 'architecture/tech-stack', title: 'Tech Stack', blurb: 'Technology choices and rationale.' },
-			{ slug: 'architecture/data-model', title: 'Data Model', blurb: 'Core TypeScript types with field documentation.' },
-			{ slug: 'architecture/audio-pipeline', title: 'Audio Pipeline', blurb: 'Playback, capture, detection, segmentation.' },
-			{ slug: 'architecture/scoring-algorithm', title: 'Scoring Algorithm', blurb: 'DTW alignment, pitch and rhythm scoring, grading.' },
-			{ slug: 'architecture/phrase-system', title: 'Phrase System', blurb: 'Library, generation, mutation, validation.' },
-			{ slug: 'architecture/adaptive-difficulty', title: 'Adaptive Difficulty', blurb: 'Algorithm, leveling 1–100, difficulty profiles.' },
-			{ slug: 'architecture/tonality-system', title: 'Tonality System', blurb: 'Daily key/scale selection, progressive unlocking.' },
-			{ slug: 'architecture/state-management', title: 'State Management', blurb: 'Svelte 5 runes, state modules, persistence.' },
-			{ slug: 'architecture/design-system', title: 'Design System', blurb: 'Color tokens, typography, the Blue Note aesthetic.' },
-			{ slug: 'architecture/pitch-rhythm-coupling', title: 'Pitch & Rhythm Coupling', blurb: 'How the two scoring systems share state.' }
-		]
-	},
-	{
-		title: 'API Reference',
-		pages: [
-			{ slug: 'api-reference/audio', title: 'Audio', blurb: 'audio-context, playback, capture, pitch-detector, onset-detector.' },
-			{ slug: 'api-reference/scoring', title: 'Scoring', blurb: 'alignment, pitch-scoring, rhythm-scoring, scorer, grades.' },
-			{ slug: 'api-reference/music', title: 'Music', blurb: 'scales, chords, keys, intervals, notation, transposition.' },
-			{ slug: 'api-reference/phrases', title: 'Phrases', blurb: 'generator, mutator, validator, library-loader.' },
-			{ slug: 'api-reference/difficulty', title: 'Difficulty', blurb: 'adaptive, params.' },
-			{ slug: 'api-reference/state', title: 'State', blurb: 'session, settings, progress, history, library state modules.' },
-			{ slug: 'api-reference/components', title: 'Components', blurb: 'All Svelte components and route pages.' }
-		]
-	},
-	{
-		title: 'Contributing',
-		pages: [
-			{ slug: 'contributing/contributing', title: 'Contributing Guide', blurb: 'Workflow, branch naming, PR process, code style.' },
-			{ slug: 'contributing/adding-licks', title: 'Adding Licks', blurb: 'Step-by-step guide to adding curated licks.' },
-			{ slug: 'contributing/adding-scales', title: 'Adding Scales', blurb: 'Extending the scale catalog.' },
-			{ slug: 'contributing/testing-guide', title: 'Testing Guide', blurb: 'Test patterns, mocking audio, writing new tests.' }
+			{
+				slug: 'architecture/overview',
+				title: 'Two Practice Modes',
+				blurb: 'Side A (Ear Training) and Side B (Lick Practice) — when to use each.'
+			},
+			{
+				slug: 'architecture/scoring-algorithm',
+				title: 'How Scoring Works',
+				blurb: 'What the app rewards, what it forgives, and why the score lands where it does.'
+			},
+			{
+				slug: 'architecture/audio-pipeline',
+				title: 'How the App Listens',
+				blurb: 'What the microphone hears, why the room matters, and what to expect from pitch detection.'
+			},
+			{
+				slug: 'architecture/tonality-system',
+				title: 'The Daily Key',
+				blurb: 'A new key + scale every day. Why it rotates, and how new tonalities unlock.'
+			},
+			{
+				slug: 'architecture/adaptive-difficulty',
+				title: 'Levels & Difficulty',
+				blurb: 'How the difficulty climbs as you improve — and what each level adds musically.'
+			},
+			{
+				slug: 'architecture/phrase-system',
+				title: 'The Lick Library',
+				blurb: 'Where the licks come from, what the categories mean, and how transposition keeps them on your horn.'
+			}
 		]
 	},
 	{
 		title: 'Reference',
 		pages: [
-			{ slug: 'reference/glossary', title: 'Glossary', blurb: 'Jazz, audio, and technical terminology.' },
-			{ slug: 'reference/algorithm-details', title: 'Algorithm Details', blurb: 'DTW math, spectral flux, McLeod pitch method.' },
-			{ slug: 'reference/browser-compatibility', title: 'Browser Compatibility', blurb: 'Web Audio API support, PWA, mobile caveats.' },
-			{ slug: 'reference/scale-and-lick-catalog', title: 'Scale & Lick Catalog', blurb: 'All scales and the lick library with metadata.' }
+			{
+				slug: 'reference/scale-and-lick-catalog',
+				title: 'Scales & Lick Categories',
+				blurb: 'Every scale and every lick category, with the harmonic context they belong to.'
+			},
+			{
+				slug: 'reference/glossary',
+				title: 'Glossary',
+				blurb: 'Jazz terminology used throughout the app, defined in plain language.'
+			}
 		]
 	}
 ];
