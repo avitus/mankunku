@@ -12,9 +12,13 @@
 		<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-text)]">Documentation</h1>
 		<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		<p class="mt-4 max-w-2xl text-sm text-[var(--color-text-secondary)]">
-			Mankunku is a jazz ear-training PWA. The app plays a phrase, you play it back on
-			your instrument, and pitch + rhythm are scored in real time. These docs cover the
-			user-facing flows, the architecture, and reference material for contributors.
+			A guide to using Mankunku for jazz ear training and lick practice. Start with
+			<a class="text-[var(--color-text)] underline decoration-[var(--color-brass)] underline-offset-4" href="/docs/getting-started">Welcome</a>
+			if you're new, or skim
+			<a class="text-[var(--color-text)] underline decoration-[var(--color-brass)] underline-offset-4" href="/docs/user-guide">How to Practice</a>
+			for a quick tour of the practice loop. The "How It Works" section explains
+			what the app is doing on your behalf — scoring, the daily key, levels — in
+			musical terms.
 		</p>
 	</div>
 

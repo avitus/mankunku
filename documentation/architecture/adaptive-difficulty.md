@@ -1,128 +1,104 @@
-# Adaptive Difficulty
+# Levels & Difficulty
 
-The adaptive difficulty system automatically adjusts musical complexity based on the player's recent performance.
+Mankunku has a level system that runs from 1 to 100. The number you see on your dashboard reflects how complex the material the app is currently feeding you is — not how good a musician you are in any absolute sense, just where the practice is meeting you on the difficulty curve.
 
-> **Related:** See [Independent in Theory, Coupled in Practice](pitch-rhythm-coupling.md) for an open investigation into why `pitchComplexity` and `rhythmComplexity` tend to track together despite being designed to advance independently.
+This page explains what the level represents, how it climbs as you improve, and what each tier of the curve actually adds musically.
 
-**Source files:** `src/lib/difficulty/adaptive.ts`, `src/lib/difficulty/params.ts`
+## What the level number means
 
-## Algorithm (`adaptive.ts`)
+Your level is the average of two underlying numbers, both also on a 1–100 scale:
 
-### Core Parameters
+- **Pitch complexity** — how chromatic, how wide-ranging, and how pitch-demanding the lines you're working on are.
+- **Rhythm complexity** — how dense, how syncopated, and how rhythmically demanding the lines are.
 
-| Parameter | Value |
-|---|---|
-| Window size | 25 attempts (per dimension) |
-| Advance threshold | >= 85% average |
-| Retreat threshold | < 50% average |
-| Min attempts between changes | 10 (per dimension) |
-| Max level | 100 |
+A pitch-complexity of 35 paired with a rhythm-complexity of 35 gives you a level of 35. Strong rhythm but weak pitch (rhythm 60, pitch 20) gives you a level of 40 — and importantly, the underlying numbers stay separate. The next phrase the app generates can keep the rhythm at level 60 while pitching the melody at level 20, so you keep getting clean wins in pitch while the rhythm keeps challenging you.
 
-### State
+This is the central design choice: pitch and rhythm advance **independently**. If you've been a strong rhythm player your whole life but you're working on hearing fast bebop lines, the rhythm complexity stays high while the pitch complexity climbs at its own pace. The reverse holds too.
 
-The `AdaptiveState` tracks:
-- `currentLevel` — Rounded average of pitchComplexity and rhythmComplexity (1-100)
-- `pitchComplexity` — Pitch difficulty (1-100), adjusted independently
-- `rhythmComplexity` — Rhythm difficulty (1-100), adjusted independently
-- `recentScores` — Circular buffer of last 25 overall scores (for display)
-- `recentPitchScores` — Circular buffer of last 25 pitch accuracy scores
-- `recentRhythmScores` — Circular buffer of last 25 rhythm accuracy scores
-- `attemptsAtLevel` — Total attempts at current rounded level
-- `attemptsSinceChange` — Min of pitch/rhythm cooldowns
-- `pitchAttemptsSinceChange` — Attempts since last pitch complexity change
-- `rhythmAttemptsSinceChange` — Attempts since last rhythm complexity change
+## How the level adjusts
 
-### Adjustment Logic
+The app keeps a rolling window of your last 25 attempts in each dimension. After each attempt:
 
-Pitch and rhythm are adjusted **independently** — each dimension has its own score window and cooldown counter. On each attempt, for each dimension (after at least 10 attempts since that dimension's last change):
+- **If your average pitch accuracy across those 25 attempts is ≥ 85%**, pitch complexity ticks up by 1.
+- **If your average pitch accuracy is < 50%**, pitch complexity ticks down by 1.
+- **Between 50% and 85%**, pitch complexity holds. The app has decided you're at the right level for now.
+- **The same logic runs independently** for rhythm complexity.
 
-1. **Pitch**: If pitch accuracy window average ≥ 85% → `pitchComplexity++`; if < 50% → `pitchComplexity--`
-2. **Rhythm**: If rhythm accuracy window average ≥ 85% → `rhythmComplexity++`; if < 50% → `rhythmComplexity--`
-3. **Hold** (50-85%): No change for that dimension
-4. `currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2)`
+There's a 10-attempt cooldown between adjustments per dimension — so once pitch complexity moves, it can't move again until you've played 10 more phrases. This prevents the level from oscillating on a noisy day.
 
-Note: `currentLevel` maps to content tiers via `levelToContentTier()` (levels 1-5 = tier 1, levels 91-100 = tier 10).
+The window of 25 is long enough to smooth out lucky guesses and unlucky stumbles. A single Try Again won't drop your level; a string of them across two or three sessions will.
 
-## Difficulty Profiles (`params.ts`)
+## What each level tier adds musically
 
-Each level defines what musical elements are available:
+The app groups levels into ten **content tiers**. Each tier expands what's available — what scales the algorithmic generator can use, what rhythms it can produce, what tempos it'll target, what keys it'll choose. Curated licks from the library are stamped with their own complexity rating, so as your level climbs, more challenging library material starts showing up.
 
-### Level 1: Roots & 5ths
-- Scales: major modes only
-- Max interval: 4 semitones
-- Rhythm: quarter notes only
-- No swing, no syncopation
-- 1 bar, tempo 60-80 BPM
-- Keys: C, F, G
+Roughly:
 
-### Level 2: Full Pentatonic
-- Scales: major + pentatonic
-- Max interval: 5 semitones
-- Rhythm: quarter notes
-- 1 bar, tempo 60-90 BPM
-- Keys: C, D, F, G, Bb
+| Tier | Levels | What's in it |
+|---|---|---|
+| **1** | 1–10 | Major modes only. Quarter notes, no swing, no syncopation. 1-bar phrases at 60–80 BPM. Keys: C, F, G. Roots and 5ths only — small interval leaps. |
+| **2** | 11–20 | Adds pentatonic. Still quarter notes. 1 bar, 60–90 BPM. Adds D and Bb. Slightly wider intervals. |
+| **3** | 21–30 | Adds eighth notes and swing. 1–2 bars, 70–100 BPM. Adds Eb, A. |
+| **4** | 31–40 | Adds blues. Syncopation enters. 1–2 bars, 80–120 BPM. All 12 keys. |
+| **5** | 41–50 | Adds bebop scales and approach notes. Triplets enter. 2 bars, 90–140 BPM. |
+| **6** | 51–60 | Adds melodic minor modes. Wider intervals (up to an octave). 2 bars, 100–160 BPM. |
+| **7** | 61–70 | Adds harmonic minor modes. Sixteenth notes enter. 2–4 bars, 120–180 BPM. Bebop lines proper. |
+| **8** | 71–80 | Adds symmetric scales (whole-tone, diminished). Mixed durations across the bar. 2–4 bars, 140–200 BPM. |
+| **9** | 81–90 | Same scale palette as tier 8. Wider intervals (up to a major tenth). 2–4 bars, 160–240 BPM. |
+| **10** | 91–100 | All limits relaxed. 4 bars at 180–300 BPM. Two-octave leaps possible. The vocabulary of advanced bebop and post-bop. |
 
-### Level 3: Swing 8ths
-- Scales: major + pentatonic
-- Max interval: 7 semitones
-- Rhythm: quarter + eighth notes
-- Swing enabled
-- 1-2 bars, tempo 70-100 BPM
-- Keys: C, D, Eb, F, G, A, Bb
+Every tier above tier 1 also raises the **interval ceiling** — the largest leap allowed between two consecutive notes — and the **rhythm density**, which controls how many notes fit per bar. So tier 4 isn't just "tier 1 plus syncopation"; the average note count per bar goes up, the average interval goes up, and the tempo range opens.
 
-### Level 4: Diatonic Lines
-- Scales: major + pentatonic + blues
-- Rhythm: quarter + eighth notes
-- Swing + syncopation
-- 1-2 bars, tempo 80-120 BPM
-- All 12 keys
+## Why pitch and rhythm should diverge — but often don't
 
-### Level 5: Approach Notes
-- Scales: + bebop scales
-- Max interval: 8 semitones
-- Rhythm: + triplets
-- 2 bars, tempo 90-140 BPM
+In theory, pitch and rhythm complexity are independent dimensions. In practice, they tend to climb together. Here's why, and what to do about it:
 
-### Level 6: Enclosures
-- Scales: + melodic minor modes
-- Max interval: 12 semitones
-- 2 bars, tempo 100-160 BPM
+- **The current scoring algorithm penalizes missed and extra notes equally in both dimensions.** A note you skipped becomes a 0 in pitch *and* a 0 in rhythm, even though it's really a timing-and-detection failure. So two scores tend to move together more than they would if the underlying problem were really pitch-specific or rhythm-specific.
+- **Curated phrases don't deliberately stress one dimension.** A lick at level 50 has a single difficulty number, copied to both pitch and rhythm complexity for the generator and used as the cap for library filtering. The library doesn't say "this lick has hard pitch but easy rhythm" or vice versa, so the inputs to your two accuracy windows are correlated.
+- **The cap is the same on both sides** (≥ 85% advances, < 50% retreats), so even when the inputs *are* slightly different, the advancement rule treats them the same way.
 
-### Level 7: Bebop Lines
-- Scales: + harmonic minor modes
-- Max interval: 14 semitones
-- Rhythm: + sixteenths
-- 2-4 bars, tempo 120-180 BPM
+If the trend graph on your Progress page shows the two dotted lines (pitch and rhythm) tracking nearly together, that's the reason. The system *will* let them diverge — there's a worked example below — but in normal usage they don't pull apart by much.
 
-### Level 8: Altered Harmony
-- Scales: + symmetric scales
-- Max interval: 16 semitones
-- Rhythm: Q, 8th, Triplet, 16th
-- 2-4 bars, tempo 140-200 BPM
+The takeaway: **the level number is your best single summary of where you are**, but the two underlying numbers are useful when they *do* diverge. If you see your rhythm complexity climbing faster than your pitch complexity, the app is telling you to spend more practice time on hearing pitch (slow tonal exercises, scale work, transcription). If pitch is outpacing rhythm, focus on the metronome.
 
-### Level 9: Complex Rhythm
-- Same scales as Level 8
-- Max interval: 19 semitones
-- Rhythm: Q, 8th, Triplet, 16th
-- 2-4 bars, tempo 160-240 BPM
+## A worked example of divergence
 
-### Level 10: No Limits
-- Same scales as Level 8
-- Max interval: 24 semitones
-- Rhythm: All (whole through 16th)
-- 4 bars, tempo 180-300 BPM
+Suppose you can play perfect time but you've never trained your ear: you respond to every phrase with a single note (C, all eighth notes, perfectly in time, regardless of what the app played). Over many attempts:
 
-### Player Levels vs Content Tiers
+- Your pitch accuracy hovers near 25% (you happen to be right when the phrase starts and ends on C, wrong otherwise).
+- Your rhythm accuracy is near 100% (you're playing perfect eighth notes — the alignment finds rhythmic matches even when pitches are wrong).
 
-The system has two separate level concepts:
+The system reads this correctly: rhythm complexity climbs steadily while pitch complexity stays at 1. The displayed level rises slowly as the average of (1, climbing rhythm). Over the course of hundreds of attempts, the rhythm number could end up at 100 while the pitch number is still floored at 1.
 
-- **Player Level (1-100)**: Cosmetic, derived from average per-scale proficiency. Displayed in the UI as "Lvl 42". Drives tonality unlocking.
-- **Content Tier (1-10)**: Functional, based on performance. Determines which musical elements (scales, rhythms, tempos) appear in generated phrases. Player levels map to content tiers via `levelToContentTier()` (e.g., player level 35 → content tier 4).
+Real practice doesn't usually look this extreme — but the machinery is built to handle it.
 
-## How Profiles Affect Generation
+## What you'll see on the Progress page
 
-When the phrase generator runs at a given difficulty level:
-1. `getProfile(level)` returns the `DifficultyProfile`
-2. Available scale families, max interval, and rhythm types constrain what notes and rhythms can appear
-3. `rulesForDifficulty(level)` from the validator sets contour constraints
-4. The profile's tempo range and key set guide the session settings page
+The trend chart on the Progress page plots three lines:
+
+- **Solid line — Level**, the rounded average of pitch and rhythm complexity. This is the same number on your dashboard.
+- **Dotted accent line — Pitch**, your pitch complexity over time.
+- **Dotted brass line — Rhythm**, your rhythm complexity over time.
+
+Watch the slope, not the noise. Single sessions vary; the rolling window smooths most of that out, but a bad night can still nudge the line. The trend over a week is the reliable signal.
+
+The chart is daily, so each point is a snapshot taken at the end of that day. Days you didn't practice show as gaps in the line.
+
+## Setting the level manually
+
+Side A's settings let you lock the difficulty to a specific level. The adaptive system stops adjusting and the app feeds you content from the corresponding tier, regardless of how you're doing. Useful for:
+
+- **Targeted practice** at a level you know you struggle with.
+- **A confidence reset** after a hard week — drop the lock to level 30 and play clean for an hour.
+- **Working on something specific** like 16th-note triplets at fast tempos, which only appear at higher tiers.
+
+To return the system to adaptive mode, set the difficulty back to "adaptive" in settings.
+
+## The relationship between level and proficiency
+
+A subtle distinction worth knowing:
+
+- **Level (1–100)** is a content-difficulty number. It controls what the app feeds you.
+- **Per-key proficiency** and **per-scale proficiency** are separate trackers used by the unlocking system in [The Daily Key](./tonality-system.md). They count attempts and accuracy *per key* and *per scale type*.
+
+Your level can be 50 while your D Mixolydian proficiency is much lower (you just unlocked Mixolydian and haven't played in D Mix yet). Conversely, your overall level can be modest while your C Major proficiency is high (you've put a lot of clean reps into C Major specifically). The two systems live alongside each other — level steers difficulty, proficiency steers unlocks.

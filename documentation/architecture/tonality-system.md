@@ -1,164 +1,98 @@
-# Tonality System
+# The Daily Key
 
-The tonality system manages daily key/scale selection and progressive unlocking of tonalities as the player advances.
+Open Mankunku on Tuesday and you might find yourself working in F Mixolydian. On Wednesday, A Dorian. On Thursday, Eb Major Pentatonic. The key changes once per day, and it's the same key for every player who opens the app on the same date.
 
-**Source files:** `src/lib/tonality/tonality.ts`, `src/lib/tonality/scale-compatibility.ts`
+This page explains why the key rotates, how new keys and scales unlock as you improve, and how to override the daily pick when you need to.
 
-## Concepts
+## What "tonality" means here
 
-A **tonality** is a combination of a key (pitch class) and a scale type (e.g., "D Dorian", "Bb Blues"). Practice sessions focus on a single tonality per day — all licks are transposed to the day's key.
+A **tonality** is a key plus a scale type. So:
 
-## Progressive Unlocking
+- **Bb Blues** is one tonality — the key is Bb, the scale is the blues scale.
+- **Bb Major** is a different tonality — same key, different scale.
+- **D Dorian** is another — different key, different scale.
 
-Tonalities unlock based on the player's proficiency levels, with keys and scale types unlocking independently.
+Side A's practice session focuses on a single tonality at a time: every lick gets transposed to the active key, and only licks compatible with the active scale show up.
 
-### Key Unlock Order (Circle of Fifths)
+## Why the key changes daily
 
-| Order | Key | Unlock Condition |
-|---|---|---|
-| 1 | C | 0 (free) |
-| 2 | G | Key proficiency prerequisites met |
-| 3 | F | Key proficiency prerequisites met |
-| 4 | D | Key proficiency prerequisites met |
-| 5 | Bb | Key proficiency prerequisites met |
-| 6 | A | Key proficiency prerequisites met |
-| 7 | Eb | Key proficiency prerequisites met |
-| 8 | E | Key proficiency prerequisites met |
-| 9 | Ab | Key proficiency prerequisites met |
-| 10 | B | Key proficiency prerequisites met |
-| 11 | Db | Key proficiency prerequisites met |
-| 12 | Gb | Key proficiency prerequisites met |
+The short version: every jazz player you admire could play their vocabulary in any key. Coltrane famously drilled patterns in all 12 keys before recording *Giant Steps*. Practicing only in C — or only in the keys your instrument's home position favors — means your fingers have memorized a *shape*, not a *line*. The shape works in C; it doesn't transfer.
 
-### Scale Type Unlock Order
+The daily rotation is a forcing function. You don't get to pick the key today. You get the key the app picks, which means over a week or two you cycle through the keys you'd otherwise avoid. Bb? Comfortable. Db? Less comfortable, but the only way to get comfortable with Db is to play in Db.
 
-| Order | Scale Type | Unlock Condition |
-|---|---|---|
-| 1 | Major Pentatonic | 0 (free) |
-| 2 | Major | 0 (free) |
-| 3 | Blues | 0 (free) |
-| 4 | Dorian | Scale proficiency prerequisites met |
-| 5 | Mixolydian | Scale proficiency prerequisites met |
-| 6 | Minor (Aeolian) | Scale proficiency prerequisites met |
-| 7 | Lydian | Scale proficiency prerequisites met |
-| 8 | Melodic Minor | Scale proficiency prerequisites met |
-| 9 | Altered | Scale proficiency prerequisites met |
-| 10 | Lydian Dominant | Scale proficiency prerequisites met |
-| 11 | Bebop Dominant | Scale proficiency prerequisites met |
+The same logic applies to the scale type. If you only ever practice in major and Dorian, your ear never internalizes Lydian color or Mixolydian color or Lydian Dominant. The rotation ensures you spend regular time in scales you don't naturally reach for.
 
-### Cross-Product
+## How the key gets picked
 
-Available tonalities = unlocked keys × unlocked scale types. Initially, the player has 3 tonalities (C Major Pentatonic, C Major, C Blues). As they build proficiency, the combinatorial space grows quickly.
+The pick is **deterministic**: the app hashes the date string ("2026-05-09") and uses that hash to choose one entry from your unlocked tonalities. Same date, same hash, same pick — every time, on every device, without the app needing a server.
 
-## Daily Tonality Selection
+This has two convenient properties:
 
-The daily tonality is selected deterministically from the set of unlocked tonalities using an FNV-1a hash of the date string. This ensures:
+- The key is the same all day. You can practice in the morning, come back at night, and you're still in the same tonality.
+- Different days produce different keys, evenly distributed over time. There's no clustering — over a year of practice you'll touch all your unlocked tonalities roughly equally.
 
-- Same tonality all day for a given player
-- Different tonality each day (assuming > 1 unlocked)
-- Even distribution across unlocked tonalities over time
-- Deterministic — no server state needed
+## Progressive unlocking
 
-```
-hash = fnv1a(dateString)  // e.g., "2026-03-19"
-index = hash % unlockedTonalities.length
-dailyTonality = unlockedTonalities[index]
-```
+You don't start with all 12 keys × all the scale types unlocked. That would be too much surface area. The app starts you with a small set and unlocks more as your proficiency rises.
 
-## Settings Override
+**Keys unlock in circle-of-fifths order.** This is the same order used by every classical training program and most jazz pedagogy:
 
-Players can override the daily tonality in Practice Settings:
+C → G → F → D → Bb → A → Eb → E → Ab → B → Db → Gb
 
-- **Key selector**: Circle-of-fifths layout. Locked keys shown disabled with lock icon and proficiency requirements tooltip.
-- **Scale type selector**: Locked scales shown similarly.
-- **Reset to daily**: Button to restore automatic selection.
+Concert C is the universal start. From there, fifth-related keys (G, then F) come next, then progressively more accidentals.
 
-The override persists to `localStorage` via the settings state module (`tonalityOverride: Tonality | null`).
+**Scale types unlock in pedagogical order:**
 
-## Integration with Practice
+1. Major Pentatonic (free at start)
+2. Major (free at start)
+3. Blues (free at start)
+4. Dorian
+5. Mixolydian
+6. Minor (Aeolian)
+7. Lydian
+8. Melodic Minor
+9. Altered
+10. Lydian Dominant
+11. Bebop Dominant
 
-The practice page derives the active tonality from either the override or the daily pick:
+Pentatonic, Major, and Blues are free because they cover most of what a beginner needs. The modes follow once you have proficiency in the basics. Altered and Lydian Dominant are the workhorses of bebop reharmonization and unlock later.
 
-```typescript
-const activeTonality = settings.tonalityOverride ?? getDailyTonality(today, unlockContext)
-```
+**Unlocking is driven by proficiency.** Each key has its own per-key proficiency level — a rolling track of how well you've been performing in that key. Each scale type has its own per-scale proficiency level. New keys unlock when your proficiency in already-unlocked keys reaches a threshold; new scales unlock when your scale-by-scale proficiency reaches its threshold. The exact thresholds are tuned so that practicing consistently for two or three weeks tends to unlock the next item.
 
-All licks in a session are transposed to `activeTonality.key` using `transposeLickForTonality()`. When the tonality changes (e.g., override selected), the current phrase is re-transposed via a `$derived`.
+**Cross-product.** Once a new key unlocks, it joins the rotation paired with all your unlocked scale types. Unlock D and you immediately have D Major Pentatonic, D Major, and D Blues in the daily pool. Then when you unlock Dorian, you get D Dorian, G Dorian, and so on across all currently-unlocked keys. The pool grows quickly.
 
-The practice page also displays the note count for the active scale (e.g., "5 notes" for pentatonic, "7 notes" for major) to help beginners understand what scale they're working with.
+## Overriding the daily pick
 
-## Scale-Aware Lick Filtering
+The daily rotation is the default, but you don't have to use it. Side A's settings have a tonality picker:
 
-**Source file:** `src/lib/tonality/scale-compatibility.ts`
+- **Key selector** in a circle-of-fifths layout. Locked keys show a lock icon and a tooltip explaining what proficiency level unlocks them. Pick any unlocked key.
+- **Scale type selector**. Same idea — locked scales are visible but disabled, with their unlock requirements shown.
+- **Reset to daily** — restores the automatic pick.
 
-Not all licks are appropriate for every scale type. A 7-note major lick that gets snapped down to 5 notes sounds awkward in a pentatonic session. The scale compatibility system filters licks by their native scale before presenting them to the player.
+The override persists in your settings. If you need to grind in F Lydian for a week, you can. The app will keep that override active until you reset.
 
-### Design Decision
+Side B (Lick Practice) ignores the daily pick entirely — it always cycles through all 12 keys regardless. The daily key is purely a Side A concept.
 
-Pentatonic and blues scales are treated as **first-class scales**, not subsets of major. A pentatonic lick CAN appear in a major session (since pentatonic pitch classes are a subset of major), but a 7-note major lick should NOT appear in a pentatonic session.
+## Scale-aware lick filtering
 
-### Compatibility Rules
+Once a tonality is active, the app filters the lick library to only licks that fit the active scale type. The compatibility rules are based on subset relationships:
 
-The rules are based on pitch-class subset relationships:
+- **Pentatonic licks** fit pentatonic, major, Lydian, and Mixolydian sessions (the pentatonic notes are a subset of all of those).
+- **Blues licks** fit blues, Dorian, and minor sessions.
+- **Major (7-note) licks** fit major, Lydian, Mixolydian, and Bebop Dominant sessions.
+- **Dorian licks** fit Dorian and minor sessions.
+- **Lydian licks** fit Lydian and major sessions.
+- **Bebop Dominant licks** fit Bebop Dominant, Mixolydian, and major sessions.
+- **Melodic minor licks** fit melodic minor, altered, and Lydian Dominant sessions (these scales share the melodic minor parent).
 
-| Lick's Native Scale | Compatible ScaleTypes |
-|---|---|
-| `pentatonic.major` (C D E G A) | `major-pentatonic`, `major`, `lydian`, `mixolydian` |
-| `pentatonic.minor` (C Eb F G Bb) | `minor`, `dorian` |
-| `blues.minor` (C Eb F Gb G Bb) | `blues`, `dorian`, `minor` |
-| `major.ionian` (7-note major) | `major`, `lydian`, `mixolydian`, `bebop-dominant` |
-| `major.dorian` | `dorian`, `minor` |
-| `major.mixolydian` | `mixolydian`, `major`, `bebop-dominant` |
-| `major.lydian` | `lydian`, `major` |
-| `major.aeolian` | `minor`, `dorian` |
-| `bebop.dominant` | `bebop-dominant`, `mixolydian`, `major` |
-| `melodic-minor.*` | `melodic-minor`, `altered`, `lydian-dominant` |
+For multi-chord licks (ii-V-I patterns, turnarounds, rhythm changes), compatibility is broader because the lick uses the full key context, not a single scale.
 
-For multi-chord progression categories (`ii-V-I-major`, `ii-V-I-minor`, `turnarounds`, `rhythm-changes`), compatibility is broader because the lick uses parent-key transposition:
+The reasoning: a 7-note major lick squashed into a 5-note pentatonic session would lose two of its notes and stop sounding like itself. Filtering ahead of time means the app never asks you to play something that's been mangled.
 
-| Category | Compatible ScaleTypes |
-|---|---|
-| `ii-V-I-major` | `major`, `dorian`, `mixolydian`, `lydian` |
-| `ii-V-I-minor` | `minor`, `dorian`, `melodic-minor`, `altered` |
-| `turnarounds` | `major`, `mixolydian` |
-| `rhythm-changes` | `major`, `mixolydian` |
+If filtering would leave you with too few licks at your current difficulty, the app **widens** to all licks at that difficulty regardless of scale fit — better to practice with a slight mismatch than to have an empty session.
 
-### Resolution Order
+## Watching for unlocks
 
-`getCompatibleScaleTypes(lick)` resolves compatibility in this order:
+The Settings page and the daily-tonality picker both show your current proficiency on each key and each scale, along with the threshold needed for the next unlock. If you've been working hard on Mixolydian and you're getting close, you can see how close from the proficiency bar.
 
-1. If `lick.source === 'user'` → compatible with all ScaleTypes (user-recorded licks always pass)
-2. Check `lick.category` for progression categories → use category-level mapping
-3. Inspect `lick.harmony[0]?.scaleId` → use scale-level mapping
-4. Fallback → compatible with all ScaleTypes (safe for unknown licks)
-
-### Fallback Behavior
-
-If scale filtering leaves fewer than 3 licks at the player's difficulty level, the practice page widens to all licks at that difficulty level. This prevents empty sessions for rare scale type / difficulty level combinations.
-
-## API
-
-### Types
-
-```typescript
-interface Tonality {
-  key: PitchClass;
-  scaleType: string;  // e.g., 'major', 'blues', 'dorian'
-}
-```
-
-### Functions
-
-| Function | Signature | Description |
-|---|---|---|
-| `getDailyTonality` | `(date, ctx: UnlockContext) → Tonality` | Deterministic daily pick from unlocked set |
-| `getUnlockedKeys` | `(ctx: UnlockContext) → PitchClass[]` | Keys unlocked at given proficiency |
-| `getUnlockedScaleTypes` | `(ctx: UnlockContext) → ScaleType[]` | Scale types unlocked at given proficiency |
-| `getUnlockedTonalities` | `(ctx: UnlockContext) → Tonality[]` | All unlocked key × scale combinations |
-| `formatTonality` | `(tonality) → string` | Display string, e.g., "D Dorian" |
-
-### Scale Compatibility Functions (`scale-compatibility.ts`)
-
-| Function | Signature | Description |
-|---|---|---|
-| `getCompatibleScaleTypes` | `(lick: Phrase) → ScaleType[]` | Derive which ScaleTypes a lick works with |
-| `isLickCompatible` | `(lick: Phrase, scaleType: ScaleType) → boolean` | Check if a lick is compatible with a given ScaleType |
+When a new tonality unlocks, the app surfaces it the next time you open Side A. New tonalities don't displace today's pick — the rotation continues, but the new tonality joins the pool starting tomorrow.

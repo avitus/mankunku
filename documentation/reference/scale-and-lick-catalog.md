@@ -1,255 +1,206 @@
-# Scale & Lick Catalog
+# Scales & Lick Categories
 
-Complete reference of all scales and curated licks in Mankunku.
+A catalog of every scale Mankunku knows and every category in the lick library, with notes on what each is used for in the music. This is reference material — flip to it when you need a quick reminder of what Lydian Dominant works over, or whether a Bird-style line lives in the Bebop or ii-V-I category.
 
-## Scale Catalog (35 scales)
+## Scales
 
-**Source:** `src/lib/music/scales.ts`
+The app's scale catalog is organized into seven families. Within each family, scales share a parent key (the major modes are all rotations of one major scale; the melodic minor modes are all rotations of one melodic minor scale; and so on).
 
-### Major Modes (7)
+The "Used over" column tells you the chord types each scale is the standard color choice for.
 
-| ID | Name | Intervals | Degrees | Chord Applications |
-|---|---|---|---|---|
-| `major.ionian` | Ionian (Major) | 2-2-1-2-2-2-1 | 1 2 3 4 5 6 7 | maj7, maj6 |
-| `major.dorian` | Dorian | 2-1-2-2-2-1-2 | 1 2 b3 4 5 6 b7 | min7, min6 |
-| `major.phrygian` | Phrygian | 1-2-2-2-1-2-2 | 1 b2 b3 4 5 b6 b7 | min7 |
-| `major.lydian` | Lydian | 2-2-2-1-2-2-1 | 1 2 3 #4 5 6 7 | maj7 |
-| `major.mixolydian` | Mixolydian | 2-2-1-2-2-1-2 | 1 2 3 4 5 6 b7 | 7, sus4 |
-| `major.aeolian` | Aeolian (Natural Minor) | 2-1-2-2-1-2-2 | 1 2 b3 4 5 b6 b7 | min7 |
-| `major.locrian` | Locrian | 1-2-2-1-2-2-2 | 1 b2 b3 4 b5 b6 b7 | min7b5 |
+### Major modes
 
-### Melodic Minor Modes (7)
+The seven rotations of the major scale.
 
-| ID | Name | Intervals | Degrees | Chord Applications |
-|---|---|---|---|---|
-| `melodic-minor.melodic-minor` | Melodic Minor | 2-1-2-2-2-2-1 | 1 2 b3 4 5 6 7 | minMaj7 |
-| `melodic-minor.dorian-b2` | Dorian b2 | 1-2-2-2-2-1-2 | 1 b2 b3 4 5 6 b7 | sus4, min7 |
-| `melodic-minor.lydian-augmented` | Lydian Augmented | 2-2-2-2-1-2-1 | 1 2 3 #4 #5 6 7 | maj7, aug |
-| `melodic-minor.lydian-dominant` | Lydian Dominant | 2-2-2-1-2-1-2 | 1 2 3 #4 5 6 b7 | 7, 7#11 |
-| `melodic-minor.mixolydian-b6` | Mixolydian b6 | 2-2-1-2-1-2-2 | 1 2 3 4 5 b6 b7 | 7, 7b13 |
-| `melodic-minor.locrian-nat2` | Locrian Natural 2 | 2-1-2-1-2-2-2 | 1 2 b3 4 b5 b6 b7 | min7b5 |
-| `melodic-minor.altered` | Altered (Super Locrian) | 1-2-1-2-2-2-2 | 1 b2 b3 b4 b5 b6 b7 | 7alt, 7#9, 7b9 |
-
-### Harmonic Minor Modes (7)
-
-| ID | Name | Intervals | Degrees | Chord Applications |
-|---|---|---|---|---|
-| `harmonic-minor.harmonic-minor` | Harmonic Minor | 2-1-2-2-1-3-1 | 1 2 b3 4 5 b6 7 | minMaj7 |
-| `harmonic-minor.locrian-sharp6` | Locrian #6 | 1-2-2-1-3-1-2 | 1 b2 b3 4 b5 6 b7 | min7b5 |
-| `harmonic-minor.ionian-augmented` | Ionian Augmented | 2-2-1-3-1-2-1 | 1 2 3 4 #5 6 7 | maj7, aug |
-| `harmonic-minor.dorian-sharp4` | Dorian #4 | 2-1-3-1-2-1-2 | 1 2 b3 #4 5 6 b7 | min7 |
-| `harmonic-minor.phrygian-dominant` | Phrygian Dominant | 1-3-1-2-1-2-2 | 1 b2 3 4 5 b6 b7 | 7, 7b9 |
-| `harmonic-minor.lydian-sharp2` | Lydian #2 | 3-1-2-1-2-2-1 | 1 #2 3 #4 5 6 7 | maj7 |
-| `harmonic-minor.super-locrian-bb7` | Super Locrian bb7 | 1-2-1-2-2-1-3 | 1 b2 b3 b4 b5 b6 bb7 | dim7 |
-
-### Symmetric (4)
-
-| ID | Name | Intervals | Degrees | Chord Applications |
-|---|---|---|---|---|
-| `symmetric.whole-half-dim` | Whole-Half Diminished | 2-1-2-1-2-1-2-1 | 1 2 b3 4 b5 b6 6 7 | dim7 |
-| `symmetric.half-whole-dim` | Half-Whole Diminished | 1-2-1-2-1-2-1-2 | 1 b2 b3 3 #4 5 6 b7 | 7, 7b9, 7#9 |
-| `symmetric.whole-tone` | Whole Tone | 2-2-2-2-2-2 | 1 2 3 #4 #5 b7 | aug7, aug |
-| `symmetric.chromatic` | Chromatic | 1×12 | All 12 | maj7, min7, 7, dim7 |
-
-### Pentatonic (2)
-
-| ID | Name | Intervals | Degrees | Chord Applications |
-|---|---|---|---|---|
-| `pentatonic.minor` | Minor Pentatonic | 3-2-2-3-2 | 1 b3 4 5 b7 | min7 |
-| `pentatonic.major` | Major Pentatonic | 2-2-3-2-3 | 1 2 3 5 6 | maj7, maj6, 7 |
-
-### Blues (2)
-
-| ID | Name | Intervals | Degrees | Chord Applications |
-|---|---|---|---|---|
-| `blues.minor` | Minor Blues | 3-2-1-1-3-2 | 1 b3 4 b5 5 b7 | min7, 7 |
-| `blues.major` | Major Blues | 2-1-1-3-2-3 | 1 2 b3 3 5 6 | 7, maj7, maj6 |
-
-### Bebop (4)
-
-| ID | Name | Intervals | Degrees | Chord Applications |
-|---|---|---|---|---|
-| `bebop.dominant` | Bebop Dominant | 2-2-1-2-2-1-1-1 | 1 2 3 4 5 6 b7 7 | 7 |
-| `bebop.dorian` | Bebop Dorian | 2-1-1-1-2-2-1-2 | 1 2 b3 3 4 5 6 b7 | min7 |
-| `bebop.major` | Bebop Major | 2-2-1-2-1-1-2-1 | 1 2 3 4 5 b6 6 7 | maj7, maj6 |
-| `bebop.melodic-minor` | Bebop Melodic Minor | 2-1-2-2-1-1-2-1 | 1 2 b3 4 5 b6 6 7 | minMaj7 |
-
----
-
-## MVP Scales (20)
-
-The following scales are included in the MVP and shown on the Scales reference page:
-
-**Must-have (12):** Ionian, Dorian, Mixolydian, Aeolian, Lydian, Minor Pentatonic, Major Pentatonic, Minor Blues, Bebop Dominant, Bebop Dorian, Melodic Minor, Altered
-
-**Should-have (8):** Lydian Dominant, Locrian Natural 2, Harmonic Minor, Phrygian Dominant, Half-Whole Diminished, Whole Tone, Major Blues, Whole-Half Diminished
-
----
-
-## Lick Library (~250 licks)
-
-**Source:** `src/lib/data/licks/`
-
-All licks are stored in **concert C** and transposed to other keys at query time. Transposition includes **octave centering** — notes are shifted to stay within the tenor sax range (MIDI 60–75, C4–Eb5). The library has three sources: 163 hand-curated licks, ~86 combinatorial licks from `combiner.ts`, and user-recorded licks.
-
-### Beginner Cells (50 licks) — NEW
-
-**File:** `src/lib/data/licks/beginner-cells.ts`
-
-**Harmony:** Various — Cmaj7 (Major Pentatonic), Cm7 (Minor Pentatonic), C7 (Blues).
-
-Minimal 2–3 note cells designed for players at difficulty levels 1–5:
-
-| ID Range | Difficulty | Notes | Description |
+| Scale | Intervals (half-steps) | Degrees | Used over |
 |---|---|---|---|
-| `bc-001` to `bc-010` | 1–3 | 2 | Major pentatonic intervals |
-| `bc-011` to `bc-020` | 1–3 | 2 | Minor pentatonic intervals |
-| `bc-021` to `bc-030` | 3–5 | 3 | Major pentatonic cells |
-| `bc-031` to `bc-040` | 3–5 | 3 | Minor pentatonic cells |
-| `bc-041` to `bc-045` | 3–5 | 3 | Blues cells |
-| `bc-046` to `bc-050` | 3–5 | 3 | Neighbor tones and mixed patterns |
+| **Ionian** (Major) | 2-2-1-2-2-2-1 | 1 2 3 4 5 6 7 | maj7, 6 |
+| **Dorian** | 2-1-2-2-2-1-2 | 1 2 b3 4 5 6 b7 | min7, m6 |
+| **Phrygian** | 1-2-2-2-1-2-2 | 1 b2 b3 4 5 b6 b7 | min7 (Spanish color) |
+| **Lydian** | 2-2-2-1-2-2-1 | 1 2 3 #4 5 6 7 | maj7 (#11 color) |
+| **Mixolydian** | 2-2-1-2-2-1-2 | 1 2 3 4 5 6 b7 | 7, sus4 |
+| **Aeolian** (Natural Minor) | 2-1-2-2-1-2-2 | 1 2 b3 4 5 b6 b7 | min7 |
+| **Locrian** | 1-2-2-1-2-2-2 | 1 b2 b3 4 b5 b6 b7 | min7b5 (half-diminished) |
+
+The two most common modal-vamp scales are **Dorian** (think *So What*, *Impressions*) and **Mixolydian** (think any blues or rock-influenced jazz). Lydian is the bright "movie soundtrack" sound (think *Days of Wine and Roses* or *Maiden Voyage*'s opening). Locrian is the half-diminished scale you reach for on the ii of a minor ii-V-I.
+
+### Melodic minor modes
+
+The seven rotations of the ascending melodic minor scale. These are the workhorse scales of bebop and post-bop reharmonization.
+
+| Scale | Intervals | Degrees | Used over |
+|---|---|---|---|
+| **Melodic Minor** | 2-1-2-2-2-2-1 | 1 2 b3 4 5 6 7 | minMaj7, min6 |
+| **Dorian b2** | 1-2-2-2-2-1-2 | 1 b2 b3 4 5 6 b7 | sus(b9), min7 |
+| **Lydian Augmented** | 2-2-2-2-1-2-1 | 1 2 3 #4 #5 6 7 | maj7#5, augmented |
+| **Lydian Dominant** | 2-2-2-1-2-1-2 | 1 2 3 #4 5 6 b7 | 7#11 |
+| **Mixolydian b6** | 2-2-1-2-1-2-2 | 1 2 3 4 5 b6 b7 | 7b13 |
+| **Locrian Natural 2** | 2-1-2-1-2-2-2 | 1 2 b3 4 b5 b6 b7 | min7b5 (more singable than Locrian) |
+| **Altered** (Super Locrian) | 1-2-1-2-2-2-2 | 1 b2 b3 b4 b5 b6 b7 | 7alt, 7#9, 7b9 |
+
+The two most-used members are **Lydian Dominant** (over a non-functional dominant — V7/IV, or a tritone sub) and **Altered** (over the V of a minor ii-V-I, or over any V chord where you want to maximize tension). **Locrian Natural 2** is a more melodically friendly substitute for Locrian on the ii of a minor ii-V-I.
+
+### Harmonic minor modes
+
+Less common than the melodic minor family, but the **Phrygian Dominant** mode (5th rotation) is essential for Spanish/flamenco color and minor-key cadences.
+
+| Scale | Intervals | Degrees | Used over |
+|---|---|---|---|
+| **Harmonic Minor** | 2-1-2-2-1-3-1 | 1 2 b3 4 5 b6 7 | minMaj7 |
+| **Locrian #6** | 1-2-2-1-3-1-2 | 1 b2 b3 4 b5 6 b7 | min7b5 |
+| **Ionian Augmented** | 2-2-1-3-1-2-1 | 1 2 3 4 #5 6 7 | maj7#5 |
+| **Dorian #4** | 2-1-3-1-2-1-2 | 1 2 b3 #4 5 6 b7 | min7 (Romanian sound) |
+| **Phrygian Dominant** | 1-3-1-2-1-2-2 | 1 b2 3 4 5 b6 b7 | 7b9, V of i in minor |
+| **Lydian #2** | 3-1-2-1-2-2-1 | 1 #2 3 #4 5 6 7 | maj7 (exotic color) |
+| **Super Locrian bb7** | 1-2-1-2-2-1-3 | 1 b2 b3 b4 b5 b6 bb7 | dim7 |
+
+### Symmetric scales
+
+Scales built from a repeating interval pattern. They have no "tonic" in the usual sense.
+
+| Scale | Intervals | Degrees | Used over |
+|---|---|---|---|
+| **Whole-Half Diminished** | 2-1-2-1-2-1-2-1 | 1 2 b3 4 b5 b6 6 7 | dim7 |
+| **Half-Whole Diminished** | 1-2-1-2-1-2-1-2 | 1 b2 b3 3 #4 5 6 b7 | 7b9, 7#9 |
+| **Whole Tone** | 2-2-2-2-2-2 | 1 2 3 #4 #5 b7 | 7#5, augmented |
+| **Chromatic** | 1×12 | All 12 | (anywhere — used as connecting material) |
+
+The diminished scales come in two flavors: start with a whole step (over a dim7 chord) or start with a half step (over a dominant 7b9 chord). The **Half-Whole** is what you reach for on a V7b9 — every common altered tension is in it (b9, #9, #11, 13).
+
+### Pentatonic
+
+Five-note scales. The bedrock of jazz, blues, gospel, rock, and a thousand folk traditions.
+
+| Scale | Intervals | Degrees | Used over |
+|---|---|---|---|
+| **Major Pentatonic** | 2-2-3-2-3 | 1 2 3 5 6 | maj7, 6, 7 (when treated as parallel major pentatonic) |
+| **Minor Pentatonic** | 3-2-2-3-2 | 1 b3 4 5 b7 | min7 |
+
+McCoy Tyner's quartal pentatonic playing, Wes Montgomery's blues pentatonic, Herbie Hancock's modal pentatonic — three different sounds, all built on the same five-note scaffold.
+
+### Blues
+
+Pentatonic + an added chromatic note (the "blue note").
+
+| Scale | Intervals | Degrees | Used over |
+|---|---|---|---|
+| **Minor Blues** | 3-2-1-1-3-2 | 1 b3 4 b5 5 b7 | min7, 7 (blues feel) |
+| **Major Blues** | 2-1-1-3-2-3 | 1 2 b3 3 5 6 | 7, maj7, 6 |
+
+The minor blues scale (with the b5) is the "default" blues scale most people think of. The major blues is the same shape rotated — it's the major pentatonic with a chromatic between the 2 and the 3. Use it for swing-era and gospel-influenced blues; the minor blues scale is the rock and modern blues sound.
+
+### Bebop
+
+Eight-note scales — a major or minor mode with one chromatic passing note added so that chord tones land on strong beats when the scale is played in eighth notes.
+
+| Scale | Intervals | Degrees | Used over |
+|---|---|---|---|
+| **Bebop Dominant** | 2-2-1-2-2-1-1-1 | 1 2 3 4 5 6 b7 7 | 7 |
+| **Bebop Dorian** | 2-1-1-1-2-2-1-2 | 1 2 b3 3 4 5 6 b7 | min7 |
+| **Bebop Major** | 2-2-1-2-1-1-2-1 | 1 2 3 4 5 b6 6 7 | maj7, 6 |
+| **Bebop Melodic Minor** | 2-1-2-2-1-1-2-1 | 1 2 b3 4 5 b6 6 7 | minMaj7 |
+
+The trick: an eight-note scale played in eighths covers a whole bar of 4/4 with chord tones falling on every downbeat. This is the central rhythmic engineering of bebop. Bird and Dizzy played these scales constantly; if you transcribe their lines, you'll find bebop scale fragments stitched together with arpeggios and enclosures.
+
+## Lick categories
+
+The library organizes its phrases into nine categories. Each category corresponds to a harmonic context.
+
+### Beginner Cells (50 licks)
+
+Two- and three-note minimal cells, designed for difficulty levels 1–5. The on-ramp into the library — short enough that beginners can hear them, recognize them, and play them back without getting overwhelmed.
+
+- 10 major-pentatonic 2-note intervals
+- 10 minor-pentatonic 2-note intervals
+- 10 major-pentatonic 3-note cells
+- 10 minor-pentatonic 3-note cells
+- 5 blues 3-note cells
+- 5 neighbor-tone and mixed patterns
 
 ### ii-V-I Major (24 licks)
 
-**File:** `src/lib/data/licks/ii-V-I-major.ts`
+The most fundamental jazz cadence: minor-7 → dominant-7 → major-7, resolving down a fifth. In C: Dm7 → G7 → Cmaj7.
 
-**Harmony:** Dm7 → G7 → Cmaj7 (scales: Dorian → Mixolydian → Ionian)
+The category covers the full spectrum:
 
-Variants include full-bar and half-bar (Dm7 2 beats → G7 2 beats → Cmaj7 1 bar) harmonic rhythms.
-
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `ii-V-I-major-1` to `ii-V-I-major-5` | 10–25 | 2 | Basic diatonic resolutions |
-| `ii-V-I-major-6` to `ii-V-I-major-10` | 25–40 | 2 | Eighth note lines, approach notes |
-| `ii-V-I-major-11` to `ii-V-I-major-15` | 40–55 | 2 | Chromatic approaches, enclosures |
-| `ii-V-I-major-16` to `ii-V-I-major-24` | 55–75 | 2–3 | Extended lines, bebop vocabulary (incl. Dexter Gordon, Cannonball Adderley, Sonny Stitt style) |
+- **Levels 10–25**: Basic diatonic resolutions, chord-tone arpeggios.
+- **Levels 25–40**: Eighth-note lines, approach notes into chord tones.
+- **Levels 40–55**: Chromatic approaches, enclosures around target notes.
+- **Levels 55–75**: Extended bebop lines drawing on the vocabulary of Dexter Gordon, Cannonball Adderley, Sonny Stitt.
 
 ### Blues (20 licks)
 
-**File:** `src/lib/data/licks/blues.ts`
+12-bar blues vocabulary, mostly over a static C7 with some I–IV variants (C7 → F7 in the right places).
 
-**Harmony:** C7 (Minor Blues scale) with some I-IV variants (C7 → F7).
-
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `blues-1` to `blues-5` | 10–25 | 1–2 | Basic blues scale patterns |
-| `blues-6` to `blues-10` | 25–40 | 1–2 | Blue note bends, call-and-response |
-| `blues-11` to `blues-20` | 40–65 | 2 | Extended blues vocabulary, chromatic, T-Bone Walker, Grant Green, Freddie Hubbard style |
+- **Levels 10–25**: Basic blues-scale patterns.
+- **Levels 25–40**: Blue-note bends, call-and-response shapes.
+- **Levels 40–65**: Extended blues vocabulary with chromatic motion. Material in the spirit of T-Bone Walker, Grant Green, Freddie Hubbard.
 
 ### Bebop Lines (20 licks)
 
-**File:** `src/lib/data/licks/bebop-lines.ts`
+Long lines built on bebop scales, chromatic passing tones, and characteristic shapes from the bebop tradition.
 
-**Harmony:** Various — Cmaj7 (Ionian), C7 (Bebop Dominant), ii-V patterns.
-
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `bebop-1` to `bebop-5` | 25–40 | 2 | Bebop scale patterns, passing tones |
-| `bebop-6` to `bebop-10` | 40–55 | 2 | Enclosures, chromatic approaches |
-| `bebop-11` to `bebop-20` | 55–75 | 2 | Extended bebop lines, arpeggios, Parker turnaround, Dizzy high register, Ornithology fragment |
+- **Levels 25–40**: Bebop-scale patterns, passing tones.
+- **Levels 40–55**: Enclosures, chromatic approaches.
+- **Levels 55–75**: Extended bebop lines, including a Parker turnaround, a Dizzy high-register figure, an *Ornithology* fragment.
 
 ### ii-V-I Minor (15 licks)
 
-**File:** `src/lib/data/licks/ii-V-I-minor.ts`
+The minor counterpart to ii-V-I Major. In C minor: Dm7b5 → G7alt → Cm7. Different scales — Locrian Natural 2, Altered, Aeolian — and a darker, more chromatic color.
 
-**Harmony:** Dm7b5 → G7alt → Cm7 (scales: Locrian Natural 2 → Altered → Aeolian)
+- **Levels 25–40**: Basic minor ii-V resolutions.
+- **Levels 40–55**: Altered-scale vocabulary.
+- **Levels 55–75**: Advanced lines in the spirit of Woody Shaw, Joe Henderson.
 
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `ii-V-I-minor-1` to `ii-V-I-minor-4` | 25–40 | 2 | Basic minor ii-V resolutions |
-| `ii-V-I-minor-5` to `ii-V-I-minor-8` | 40–55 | 2 | Altered scale vocabulary |
-| `ii-V-I-minor-9` to `ii-V-I-minor-15` | 55–75 | 2 | Advanced lines, Woody Shaw, Joe Henderson style |
+### Pentatonic (10 licks)
 
-### Pentatonic (10 licks) — NEW
+Pentatonic vocabulary that works over multiple harmonic contexts — a major-pentatonic line works over Cmaj7, C7, and many other situations because the pentatonic notes are a subset of the major scale.
 
-**File:** `src/lib/data/licks/pentatonic.ts`
+- **Levels 8–20**: Basic major and minor pentatonic patterns, sequences.
+- **Levels 20–45**: McCoy Tyner-style fourths, Wes Montgomery shapes, Herbie Hancock-flavored funky patterns, pentatonic superimpositions.
 
-**Harmony:** Various — Cmaj7 (Ionian), C7 (Mixolydian), Cm7 (Dorian).
+### Modal (10 licks)
 
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `pentatonic-1` to `pentatonic-5` | 8–20 | 1–2 | Basic major/minor pentatonic patterns, sequences |
-| `pentatonic-6` to `pentatonic-10` | 20–45 | 2 | McCoy Tyner fourths, Wes Montgomery style, Herbie Hancock funky patterns, superimposition |
+Sustained-mode vocabulary for static-harmony tunes. *So What* is one chord per eight bars; *Impressions* is the same; *Maiden Voyage* sustains modal harmony over long stretches. This is the territory.
 
-### Modal (10 licks) — NEW
+- **Levels 15–35**: *So What* motif, the Dorian characteristic 6th, Coltrane-style Dorian patterns, Lydian floats.
+- **Levels 35–55**: Wayne Shorter angular lines, the *Impressions* motif, Phrygian color, Hancock-style Dorian vamps.
 
-**File:** `src/lib/data/licks/modal.ts`
+### Rhythm Changes (7 licks)
 
-**Harmony:** Various modal contexts — Dorian, Lydian, Mixolydian, Phrygian.
+The Gershwin "I Got Rhythm" cycle — a I-vi-ii-V repeating pattern in the A section, with a bridge that cycles dominants down a major third or fourth. The bebop test for technical command at speed.
 
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `modal-1` to `modal-5` | 15–35 | 2 | So What motif, Dorian characteristic 6th, Coltrane Dorian, Lydian float |
-| `modal-6` to `modal-10` | 35–55 | 2 | Wayne Shorter angular lines, Impressions motif, Phrygian mystery, Herbie Hancock dorian vamp |
+- **Levels 30–65**: A-section arpeggios, bridge dominant cycles, turnaround patterns. *Oleo* and *Anthropology* excerpts.
 
-### Rhythm Changes (7 licks) — NEW
+### Ballad (7 licks)
 
-**File:** `src/lib/data/licks/rhythm-changes.ts`
+Slower, more lyrical phrases with sustained notes and space.
 
-**Harmony:** I-vi-ii-V and bridge dominant cycles (rhythm changes form).
+- **Levels 25–55**: Excerpts and ornamentations in the spirit of *Body and Soul*, *Misty*, *Round Midnight*, *Lush Life*. Chet Baker–style space, ornamental turns.
 
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `rhythm-changes-1` to `rhythm-changes-7` | 30–65 | 2 | A section arpeggios, bridge dominant cycles, turnaround patterns, Oleo, Anthropology excerpts |
+## Difficulty bands
 
-### Ballad (7 licks) — NEW
+Each lick has a difficulty level (1–100), displayed as one of ten bands.
 
-**File:** `src/lib/data/licks/ballad.ts`
-
-**Harmony:** Various — rich ii-V-I progressions, chromatic harmony.
-
-| ID Range | Difficulty | Bars | Description |
-|---|---|---|---|
-| `ballad-1` to `ballad-7` | 25–55 | 2 | Body and Soul, Misty, Round Midnight fragments, Chet Baker space, ornamental turns, Lush Life |
-
-### Combinatorial Licks (~86 licks) — NEW
-
-**File:** `src/lib/data/licks/combiner.ts`
-
-Generated by pairing 22 scale patterns (pitch sequences as scale degrees) with 14 rhythm templates (duration/offset patterns). Only combinations with matching note counts and compatible scale families are produced. Outputs standard `Phrase` objects with `cmb-` prefixed IDs.
-
-**Scale pattern families:** Pentatonic (3–5 note), blues (4–5 note), diatonic, jazz
-
-**Rhythm templates:** Simple quarters, dotted quarter feels, eighth-note runs, syncopated patterns
-
-Difficulty is calculated automatically using the existing `calculateDifficulty()` function.
-
----
-
-## Lick Metadata
-
-Each curated lick includes:
-
-| Field | Description |
+| Range | Band Name |
 |---|---|
-| `id` | Unique identifier (e.g. `'blues-7'`) |
-| `name` | Descriptive name |
-| `key` | Always `'C'` (canonical) |
-| `timeSignature` | Always `[4, 4]` |
-| `category` | One of: `'ii-V-I-major'`, `'ii-V-I-minor'`, `'blues'`, `'bebop-lines'`, `'pentatonic'`, `'modal'`, `'rhythm-changes'`, `'ballad'` |
-| `difficulty.level` | 1–100 (see Difficulty Bands below) |
-| `difficulty.pitchComplexity` | Independent pitch rating (1–100) |
-| `difficulty.rhythmComplexity` | Independent rhythm rating (1–100) |
-| `difficulty.lengthBars` | Number of bars |
-| `tags` | Searchable keywords (e.g. `['diatonic', 'ascending', 'resolution']`) |
-| `source` | Always `'curated'` |
-| `harmony` | Chord progression with scale IDs |
+| 1–10 | Beginner |
+| 11–20 | Elementary |
+| 21–30 | Intermediate |
+| 31–40 | Upper Intermediate |
+| 41–50 | Advanced |
+| 51–60 | Upper Advanced |
+| 61–70 | Pre-Professional |
+| 71–80 | Professional |
+| 81–90 | Expert |
+| 91–100 | Virtuoso |
 
-### Difficulty Bands (1–100)
+The Library lets you filter by band. Most curated licks live in the 10–75 range; the bands above 75 are mostly populated by the algorithmic generator at high difficulty levels.
 
-Difficulty is displayed as 10 color-coded bands:
+The bands are also color-coded throughout the app — the library tags, the difficulty filter pills, and the level indicator on your dashboard all use the same palette.
 
-| Range | Band Name | Color |
-|---|---|---|
-| 1–10 | Beginner | Green |
-| 11–20 | Elementary | Light green |
-| 21–30 | Intermediate | Teal |
-| 31–40 | Upper Intermediate | Blue |
-| 41–50 | Advanced | Indigo |
-| 51–60 | Upper Advanced | Purple |
-| 61–70 | Pre-Professional | Magenta |
-| 71–80 | Professional | Orange |
-| 81–90 | Expert | Red-orange |
-| 91–100 | Virtuoso | Deep red |
+## Combinatorial licks
 
-Utility functions: `difficultyBand(level)`, `difficultyColor(level)`, `difficultyDisplay(level)` in `src/lib/difficulty/display.ts`.
+In addition to the hand-written licks, the library includes about 86 phrases generated by pairing a small set of **scale patterns** (sequences of scale degrees) with **rhythm templates** (durations and offsets). Only musically valid pairings — matched note counts, compatible scales — get produced.
+
+The combinatorial licks fill out the lower difficulty bands with variations the curators wouldn't have written by hand because they'd be tedious to write twenty-two times. They're labeled as combinatorial in the library if you want to filter them out.
