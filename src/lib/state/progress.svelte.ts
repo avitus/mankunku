@@ -113,6 +113,23 @@ export function saveProgress(): void {
 }
 
 /**
+ * Queue progress-cloud syncs so an earlier provisional write can't overwrite
+ * a later authoritative one when their HTTP requests complete out of order.
+ * `recordAttempt` fires a provisional sync, then `updateSessionScore` follows
+ * ~200–500 ms later with the rescored value; chaining onto a single promise
+ * guarantees the second upsert starts after the first one settles, so the
+ * latest local state is always what lands in the cloud.
+ */
+let progressSyncQueue: Promise<unknown> = Promise.resolve();
+function queueProgressSync(supabase: SupabaseClient<Database>): void {
+	progressSyncQueue = progressSyncQueue
+		.then(() => syncProgressToCloud(supabase, progress))
+		.catch((err) => {
+			console.warn('Failed to sync progress to cloud:', err);
+		});
+}
+
+/**
  * Initialize progress from cloud data for authenticated users.
  * Merges cloud data with local state, preferring cloud when more recent.
  * Called from the layout/page level after authentication — never on module import.
@@ -266,12 +283,49 @@ export function recordAttempt(
 
 	// Fire-and-forget cloud sync (does not block UI)
 	if (supabase) {
-		syncProgressToCloud(supabase, progress).catch((err) => {
-			console.warn('Failed to sync progress to cloud:', err);
-		});
+		queueProgressSync(supabase);
 		syncDailySummaryToCloud(supabase, summary).catch((err) => {
 			console.warn('Failed to sync daily summary to cloud:', err);
 		});
+	}
+}
+
+/**
+ * Update the score-derived fields of a previously-recorded session.
+ *
+ * The ear-training page calls `recordAttempt` with the provisional live score
+ * and then runs a deterministic post-hoc rescore from the saved blob. When
+ * the rescore finishes (~200–500 ms later) the on-screen score swaps to the
+ * authoritative value, but without this helper the persisted session entry
+ * keeps the stale provisional score — producing a visible mismatch between
+ * the score the user just saw and what the progress page later shows.
+ *
+ * Adaptive state, per-key/scale proficiency, category averages, and the
+ * daily summary intentionally retain their original (provisional) inputs:
+ * the per-attempt drift is small, and partially undoing those aggregates
+ * here would risk amplifying transient races between successive rescores.
+ */
+export function updateSessionScore(
+	sessionId: string,
+	score: Score,
+	supabase?: SupabaseClient<Database>
+): void {
+	const idx = progress.sessions.findIndex((s) => s.id === sessionId);
+	if (idx === -1) return;
+	progress.sessions[idx] = {
+		...progress.sessions[idx],
+		pitchAccuracy: score.pitchAccuracy,
+		rhythmAccuracy: score.rhythmAccuracy,
+		overall: score.overall,
+		grade: score.grade,
+		notesHit: score.notesHit,
+		notesTotal: score.notesTotal,
+		noteResults: score.noteResults,
+		timing: score.timing
+	};
+	saveProgress();
+	if (supabase) {
+		queueProgressSync(supabase);
 	}
 }
 
@@ -460,9 +514,7 @@ export function resetProgress(supabase?: SupabaseClient<Database>): void {
 
 	// Fire-and-forget cloud reset
 	if (supabase) {
-		syncProgressToCloud(supabase, progress).catch((err) => {
-			console.warn('Failed to sync progress reset to cloud:', err);
-		});
+		queueProgressSync(supabase);
 		// Delete orphaned detail rows that syncProgressToCloud skips when empty
 		deleteProgressDetailsFromCloud(supabase).catch((err) => {
 			console.warn('Failed to delete progress details from cloud:', err);

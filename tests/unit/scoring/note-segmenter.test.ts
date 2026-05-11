@@ -347,6 +347,45 @@ describe('segmentNotes', () => {
 		expect(notes.map((n) => n.midi)).toEqual([65, 50, 62]);
 	});
 
+	it('collapses a stuck-octave artifact sandwiched between same-pitch neighbors', () => {
+		// Reproduces the "Fourth–Fifth Push" failure: the user holds a sustained
+		// low C, but pitchy locks onto the 2nd harmonic (C5) for ~600ms in the
+		// middle. The segmenter sees three notes — C4, C5, C4 — across separate
+		// onsets, and DTW then matches the LAST C onset to the expected long-C,
+		// blowing up the rhythm score. With the sandwich rule, the C5 should
+		// merge into a single continuous C4 note spanning all three segments.
+		const readings: PitchReading[] = [];
+		// Bb4 quarter note from 0.0 to 0.48
+		for (let t = 0.0; t < 0.48; t += 0.017) readings.push(makeReading(58, t));
+		// C5 segment 1 (true fundamental, 0.50–1.00)
+		for (let t = 0.50; t < 1.00; t += 0.017) readings.push(makeReading(60, t));
+		// "C6" segment (octave artifact — pitch detector locked on 2nd harmonic, 1.05–1.65)
+		for (let t = 1.05; t < 1.65; t += 0.017) readings.push(makeReading(72, t));
+		// C5 segment 2 (back to true fundamental, 1.75–2.40)
+		for (let t = 1.75; t < 2.40; t += 0.017) readings.push(makeReading(60, t));
+		const onsets = [0.0, 0.5, 1.05, 1.75];
+		const notes = segmentNotes(readings, onsets, 2.4);
+
+		// Expect 2 notes: the Bb and one continuous C — NOT 4
+		expect(notes.map((n) => n.midi)).toEqual([58, 60]);
+		expect(notes[1].onsetTime).toBeCloseTo(0.5, 2);
+		// Sustained C duration spans from its first onset to the end of the last C segment
+		expect(notes[1].duration).toBeGreaterThan(1.8);
+	});
+
+	it('preserves a real ±12 sub between DIFFERENT-pitch neighbors (not a sandwich)', () => {
+		// The middle note is ±12 from the LEFT neighbor but the right neighbor
+		// is a different pitch — not a sandwich. The middle note must survive
+		// (a real octave-displacement figure like C4 → C5 → G5 in fast lines).
+		const readings: PitchReading[] = [];
+		for (let t = 0.0; t < 0.40; t += 0.017) readings.push(makeReading(60, t));
+		for (let t = 0.50; t < 0.90; t += 0.017) readings.push(makeReading(72, t));
+		for (let t = 1.00; t < 1.40; t += 0.017) readings.push(makeReading(67, t));
+		const notes = segmentNotes(readings, [0.0, 0.5, 1.0], 1.4);
+
+		expect(notes.map((n) => n.midi)).toEqual([60, 72, 67]);
+	});
+
 	it('drops sub-segments where every reading is warmup', () => {
 		// F3 sustain, then a 3-frame all-warmup C7 burst at the trailing edge
 		// (mimics the locrian-descent C7 phantom: a stabilizer reset on a

@@ -144,7 +144,39 @@ export function segmentNotes(
 		}
 	}
 
-	return notes;
+	// Sandwich rule: a note that is ±12 from BOTH neighbors when those
+	// neighbors share the same midi is a stuck-octave artifact — typically
+	// the pitch detector locking onto the 2nd harmonic for a stretch in the
+	// middle of a sustained note. Merge the three into one continuous note
+	// regardless of the middle note's duration. Genuine fast octave
+	// displacement is rare enough, and bracketing same-pitch neighbors is
+	// strong evidence the middle is detection error rather than music.
+	return collapseSandwichArtifacts(notes);
+}
+
+function collapseSandwichArtifacts(notes: DetectedNote[]): DetectedNote[] {
+	if (notes.length < 3) return notes;
+	const result: DetectedNote[] = [];
+	for (let k = 0; k < notes.length; k++) {
+		const cur = notes[k];
+		const last = result[result.length - 1];
+		const next = notes[k + 1];
+		if (
+			last &&
+			next &&
+			last.midi === next.midi &&
+			Math.abs(cur.midi - last.midi) === 12
+		) {
+			result[result.length - 1] = {
+				...last,
+				duration: next.onsetTime + next.duration - last.onsetTime
+			};
+			k++; // skip `next` — already consumed by the merge
+			continue;
+		}
+		result.push(cur);
+	}
+	return result;
 }
 
 /**
