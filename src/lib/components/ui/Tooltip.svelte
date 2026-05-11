@@ -24,6 +24,7 @@
 
 	let visible = $state(false);
 	let resolvedPosition = $state<Position>('top');
+	let tooltipStyle = $state('');
 	let wrapperEl: HTMLSpanElement | undefined = $state();
 	let tooltipEl: HTMLSpanElement | undefined = $state();
 	let showTimer: ReturnType<typeof setTimeout> | null = null;
@@ -96,12 +97,40 @@
 			const vw = window.innerWidth;
 			const vh = window.innerHeight;
 			const margin = 8;
+			const gap = 8;
+
 			let next: Position = preferredPosition;
-			if (next === 'top' && wRect.top - tRect.height - margin < 0) next = 'bottom';
-			else if (next === 'bottom' && wRect.bottom + tRect.height + margin > vh) next = 'top';
-			else if (next === 'left' && wRect.left - tRect.width - margin < 0) next = 'right';
-			else if (next === 'right' && wRect.right + tRect.width + margin > vw) next = 'left';
+			if (next === 'top' && wRect.top - tRect.height - gap < margin) next = 'bottom';
+			else if (next === 'bottom' && wRect.bottom + tRect.height + gap > vh - margin) next = 'top';
+			else if (next === 'left' && wRect.left - tRect.width - gap < margin) next = 'right';
+			else if (next === 'right' && wRect.right + tRect.width + gap > vw - margin) next = 'left';
 			if (next !== resolvedPosition) resolvedPosition = next;
+
+			let top: number;
+			let left: number;
+			if (next === 'top') {
+				top = wRect.top - tRect.height - gap;
+				left = wRect.left + wRect.width / 2 - tRect.width / 2;
+			} else if (next === 'bottom') {
+				top = wRect.bottom + gap;
+				left = wRect.left + wRect.width / 2 - tRect.width / 2;
+			} else if (next === 'left') {
+				top = wRect.top + wRect.height / 2 - tRect.height / 2;
+				left = wRect.left - tRect.width - gap;
+			} else {
+				top = wRect.top + wRect.height / 2 - tRect.height / 2;
+				left = wRect.right + gap;
+			}
+
+			if (next === 'top' || next === 'bottom') {
+				const maxLeft = vw - tRect.width - margin;
+				left = maxLeft < margin ? margin : Math.max(margin, Math.min(left, maxLeft));
+			} else {
+				const maxTop = vh - tRect.height - margin;
+				top = maxTop < margin ? margin : Math.max(margin, Math.min(top, maxTop));
+			}
+
+			tooltipStyle = `top: ${top}px; left: ${left}px;`;
 		});
 		return () => cancelAnimationFrame(id);
 	});
@@ -150,6 +179,7 @@
 			id={tooltipId}
 			role="tooltip"
 			class="tooltip tooltip-{resolvedPosition}"
+			style={tooltipStyle}
 		>
 			{#if typeof content === 'string'}
 				{content}
@@ -168,10 +198,9 @@
 	}
 
 	.tooltip {
-		position: absolute;
+		position: fixed;
 		z-index: 50;
 		max-width: 20rem;
-		min-width: max-content;
 		padding: 0.5rem 0.75rem;
 		background: var(--color-bg-secondary);
 		color: var(--color-text);
@@ -188,30 +217,6 @@
 		pointer-events: auto;
 		opacity: 0;
 		animation: tooltip-fade 120ms ease-out forwards;
-	}
-
-	.tooltip-top {
-		bottom: calc(100% + 0.5rem);
-		left: 50%;
-		transform: translateX(-50%);
-	}
-
-	.tooltip-bottom {
-		top: calc(100% + 0.5rem);
-		left: 50%;
-		transform: translateX(-50%);
-	}
-
-	.tooltip-left {
-		right: calc(100% + 0.5rem);
-		top: 50%;
-		transform: translateY(-50%);
-	}
-
-	.tooltip-right {
-		left: calc(100% + 0.5rem);
-		top: 50%;
-		transform: translateY(-50%);
 	}
 
 	@keyframes tooltip-fade {
