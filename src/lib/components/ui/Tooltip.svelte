@@ -25,10 +25,15 @@
 	let visible = $state(false);
 	let resolvedPosition = $state<Position>('top');
 	let tooltipStyle = $state('');
+	let viewportTick = $state(0);
 	let wrapperEl: HTMLSpanElement | undefined = $state();
 	let tooltipEl: HTMLSpanElement | undefined = $state();
 	let showTimer: ReturnType<typeof setTimeout> | null = null;
 	const tooltipId = `tooltip-${Math.random().toString(36).slice(2, 11)}`;
+
+	function handleViewportChange() {
+		viewportTick += 1;
+	}
 
 	function show() {
 		if (disabled) return;
@@ -89,6 +94,17 @@
 	});
 
 	$effect(() => {
+		if (!visible) return;
+		window.addEventListener('scroll', handleViewportChange, { capture: true, passive: true });
+		window.addEventListener('resize', handleViewportChange, { passive: true });
+		return () => {
+			window.removeEventListener('scroll', handleViewportChange, { capture: true });
+			window.removeEventListener('resize', handleViewportChange);
+		};
+	});
+
+	$effect(() => {
+		viewportTick;
 		if (!visible || !wrapperEl || !tooltipEl) return;
 		const id = requestAnimationFrame(() => {
 			if (!wrapperEl || !tooltipEl) return;
