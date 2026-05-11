@@ -122,13 +122,11 @@
 				left = wRect.right + gap;
 			}
 
-			if (next === 'top' || next === 'bottom') {
-				const maxLeft = vw - tRect.width - margin;
-				left = maxLeft < margin ? margin : Math.max(margin, Math.min(left, maxLeft));
-			} else {
-				const maxTop = vh - tRect.height - margin;
-				top = maxTop < margin ? margin : Math.max(margin, Math.min(top, maxTop));
-			}
+			const maxLeft = vw - tRect.width - margin;
+			left = maxLeft < margin ? margin : Math.max(margin, Math.min(left, maxLeft));
+
+			const maxTop = vh - tRect.height - margin;
+			top = maxTop < margin ? margin : Math.max(margin, Math.min(top, maxTop));
 
 			tooltipStyle = `top: ${top}px; left: ${left}px;`;
 		});
