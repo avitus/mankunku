@@ -371,6 +371,22 @@
 		return { width, height, padding, xScale, yScale, minMidi, maxMidi };
 	}
 
+	/**
+	 * Y-axis label MIDI values. Prefer the unique pitches of the detected
+	 * notes so every note on the chart is named; fall back to min/max of
+	 * the reading range when nothing was segmented.
+	 */
+	function chartLabels(r: ReplayState): number[] {
+		if (r.segmented.length > 0) {
+			return [...new Set(r.segmented.map((n) => n.midi))].sort((a, b) => b - a);
+		}
+		const midis = r.readings.map((x) => Math.round(x.midi));
+		if (midis.length === 0) return [];
+		const lo = Math.min(...midis);
+		const hi = Math.max(...midis);
+		return lo === hi ? [lo] : [hi, lo];
+	}
+
 	// ── Saved-vs-current diff ────────────────────────────────
 
 	interface DiffRow {
@@ -521,7 +537,17 @@
 							<!-- Playback + actions -->
 							<div class="flex flex-wrap items-center gap-3">
 								{#if audioUrl}
-									<audio src={audioUrl} controls class="h-8 max-w-xs"></audio>
+									<!-- Reset to the start when playback finishes so a second
+										 click on play replays from the beginning instead of
+										 staying parked at duration. -->
+									<audio
+										src={audioUrl}
+										controls
+										onended={(e) => {
+											(e.currentTarget as HTMLAudioElement).currentTime = 0;
+										}}
+										class="h-8 max-w-xs"
+									></audio>
 								{/if}
 								<button
 									onclick={() => downloadAsWav(rec)}
@@ -567,12 +593,24 @@
 								<p class="text-sm text-red-400">Replay failed: {replayError}</p>
 							{:else if replay}
 								{@const dims = chartDims(replay)}
+								{@const labels = chartLabels(replay)}
 								<div class="overflow-x-auto">
 									<svg
 										viewBox="0 0 {dims.width} {dims.height}"
 										class="w-full bg-[var(--color-bg)] rounded"
 										preserveAspectRatio="xMidYMid meet"
 									>
+										{#each labels as m}
+											<line
+												x1={dims.padding}
+												x2={dims.width - dims.padding}
+												y1={dims.yScale(m)}
+												y2={dims.yScale(m)}
+												stroke="var(--color-text-secondary)"
+												stroke-width="0.5"
+												opacity="0.18"
+											/>
+										{/each}
 										{#each replay.resolvedOnsets as o}
 											<line
 												x1={dims.xScale(o)}
@@ -594,24 +632,17 @@
 												opacity={Math.max(0.2, r.clarity)}
 											/>
 										{/each}
-										<text
-											x="2"
-											y={dims.yScale(dims.maxMidi) + 4}
-											fill="var(--color-text-secondary)"
-											font-size="10"
-											font-family="monospace"
-										>
-											{midiToDisplayName(Math.round(dims.maxMidi))}
-										</text>
-										<text
-											x="2"
-											y={dims.yScale(dims.minMidi) + 4}
-											fill="var(--color-text-secondary)"
-											font-size="10"
-											font-family="monospace"
-										>
-											{midiToDisplayName(Math.round(dims.minMidi))}
-										</text>
+										{#each labels as m}
+											<text
+												x="2"
+												y={dims.yScale(m) + 3}
+												fill="var(--color-text-secondary)"
+												font-size="9"
+												font-family="monospace"
+											>
+												{midiToDisplayName(m)}
+											</text>
+										{/each}
 									</svg>
 								</div>
 
