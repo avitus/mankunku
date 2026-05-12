@@ -357,14 +357,19 @@
 
 	// ── Chart ───────────────────────────────────────────────
 
+	// Default y-axis bounds when a replay has no pitch readings, so chartDims
+	// and chartLabels agree on the empty case.
+	const DEFAULT_MIN_MIDI = 40;
+	const DEFAULT_MAX_MIDI = 80;
+
 	function chartDims(r: ReplayState) {
 		const width = 720;
 		const height = 180;
 		const padding = 20;
 		const duration = Math.max(r.duration, 0.001);
 		const midis = r.readings.map((x) => x.midi);
-		const minMidi = midis.length > 0 ? Math.min(...midis) - 2 : 40;
-		const maxMidi = midis.length > 0 ? Math.max(...midis) + 2 : 80;
+		const minMidi = midis.length > 0 ? Math.min(...midis) - 2 : DEFAULT_MIN_MIDI;
+		const maxMidi = midis.length > 0 ? Math.max(...midis) + 2 : DEFAULT_MAX_MIDI;
 		const xScale = (t: number) => padding + (t / duration) * (width - 2 * padding);
 		const yScale = (m: number) =>
 			height - padding - ((m - minMidi) / Math.max(1, maxMidi - minMidi)) * (height - 2 * padding);
@@ -374,14 +379,15 @@
 	/**
 	 * Y-axis label MIDI values. Prefer the unique pitches of the detected
 	 * notes so every note on the chart is named; fall back to min/max of
-	 * the reading range when nothing was segmented.
+	 * the reading range when nothing was segmented, and to the same default
+	 * bounds chartDims uses when there are no readings at all.
 	 */
 	function chartLabels(r: ReplayState): number[] {
 		if (r.segmented.length > 0) {
 			return [...new Set(r.segmented.map((n) => n.midi))].sort((a, b) => b - a);
 		}
 		const midis = r.readings.map((x) => Math.round(x.midi));
-		if (midis.length === 0) return [];
+		if (midis.length === 0) return [DEFAULT_MAX_MIDI, DEFAULT_MIN_MIDI];
 		const lo = Math.min(...midis);
 		const hi = Math.max(...midis);
 		return lo === hi ? [lo] : [hi, lo];
