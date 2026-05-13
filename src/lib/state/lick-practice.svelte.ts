@@ -41,6 +41,7 @@ import {
 	getLickLastPracticed,
 	hasLickProgress,
 	updateKeyProgress,
+	getKeyProgress,
 	getEffectivePracticeLickIds,
 	getProgressionTags,
 	isTaggedForProgression,
@@ -50,6 +51,7 @@ import {
 	migrateOrphanLickCategories,
 	getUnlockedKeyCount,
 	bumpUnlockedKeyCount,
+	shouldUnlockNextKey,
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo
@@ -301,8 +303,9 @@ export function buildSessionPlan(): void {
 		const lick = sorted[i];
 		const tempo = resolveLickTempo(progress, lick.id);
 		const unlockedCount = getUnlockedKeyCount(progress, lick.id);
-		// Below the 12-key cap, ramp predictably along the circle of fifths
-		// from the lick's entry key so each session adds exactly one neighbour.
+		// Below the 12-key cap, ramp predictably from the lick's entry key by
+		// alternating sharp- and flat-side neighbours on the circle of fifths,
+		// so each session adds the next-easiest key by accidental count.
 		// Once the lick has earned all 12 keys, hand off to planLickKeys for
 		// staged variety (random starts, chromatic / whole-tone orderings).
 		const keys = unlockedCount < 12
@@ -963,7 +966,21 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 			// with any per-key progress as already at 12 — if we bumped after
 			// the writes, even a brand-new lick (just one entry-key result)
 			// would look "grandfathered" and stay capped at 12.
-			if (delta > 0) {
+			//
+			// Unlock requires both a strong session AND consolidation on the
+			// most-recently-unlocked key (passCount, already updated by
+			// recordKeyAttempt during the lick) — see shouldUnlockNextKey.
+			// This is independent of the tempo bump above so users keep
+			// accelerating on the existing keys at avg ≥ 0.85 without the
+			// rotation growing on every passable session.
+			const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
+			const newestKey = item.keys[item.keys.length - 1];
+			const newestKeyPassCount = getKeyProgress(
+				lickPractice.progress,
+				item.phraseId,
+				newestKey
+			).passCount;
+			if (shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount })) {
 				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);
 			}
 

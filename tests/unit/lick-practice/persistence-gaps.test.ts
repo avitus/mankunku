@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
 	computeAutoTempoAdjustment,
 	hasLickProgress,
-	updateKeyProgress
+	updateKeyProgress,
+	shouldUnlockNextKey,
+	UNLOCK_AVG_THRESHOLD,
+	UNLOCK_PASSES_REQUIRED
 } from '$lib/persistence/lick-practice-store';
 import { getCompatibleLickCategories } from '$lib/data/progressions';
 import type { LickPracticeProgress } from '$lib/types/lick-practice';
@@ -89,6 +92,55 @@ describe('hasLickProgress', () => {
 			currentTempo: 80, lastPracticedAt: 0, passCount: 0
 		});
 		expect(hasLickProgress(progress, 'lick-7')).toBe(true);
+	});
+});
+
+describe('shouldUnlockNextKey', () => {
+	it('exposes the documented thresholds (avg 0.90, passes 2)', () => {
+		expect(UNLOCK_AVG_THRESHOLD).toBe(0.9);
+		expect(UNLOCK_PASSES_REQUIRED).toBe(2);
+	});
+
+	it('unlocks when both avg and passCount gates clear', () => {
+		expect(
+			shouldUnlockNextKey({ avgScore: 0.9, newestKeyPassCount: 2, unlockedCount: 1 })
+		).toBe(true);
+	});
+
+	it('does not unlock when avg meets the gate but passCount has not yet reached the requirement', () => {
+		expect(
+			shouldUnlockNextKey({ avgScore: 0.95, newestKeyPassCount: 1, unlockedCount: 1 })
+		).toBe(false);
+	});
+
+	it('does not unlock when passCount meets the requirement but avg falls short', () => {
+		expect(
+			shouldUnlockNextKey({ avgScore: 0.85, newestKeyPassCount: 5, unlockedCount: 1 })
+		).toBe(false);
+	});
+
+	it('does not unlock at the old +2-tempo boundary (0.85) — that gate is now tempo-only', () => {
+		expect(
+			shouldUnlockNextKey({ avgScore: 0.85, newestKeyPassCount: 2, unlockedCount: 1 })
+		).toBe(false);
+	});
+
+	it('caps at 12 even if the gates would otherwise clear', () => {
+		expect(
+			shouldUnlockNextKey({ avgScore: 1.0, newestKeyPassCount: 99, unlockedCount: 12 })
+		).toBe(false);
+	});
+
+	it('treats the avg threshold as inclusive at exactly 0.90', () => {
+		expect(
+			shouldUnlockNextKey({ avgScore: 0.9, newestKeyPassCount: 2, unlockedCount: 1 })
+		).toBe(true);
+	});
+
+	it('rejects scores just below 0.90', () => {
+		expect(
+			shouldUnlockNextKey({ avgScore: 0.8999, newestKeyPassCount: 2, unlockedCount: 1 })
+		).toBe(false);
 	});
 });
 

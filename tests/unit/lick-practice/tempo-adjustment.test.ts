@@ -293,28 +293,54 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 });
 
 describe('startInterLickTransition — unlock count bump', () => {
-	it('bumps unlock count by 1 on positive tempo delta (avg score ≥ 0.85)', () => {
+	// `setupLick` builds `keyResults` directly without going through
+	// `recordKeyAttempt`, so the per-key `passCount` increment that normally
+	// happens during the lick is bypassed. Tests that need the new unlock
+	// gate to clear must seed `progress` to reflect what `recordKeyAttempt`
+	// would have written by the time `startInterLickTransition` runs.
+
+	it('unlocks when both avg ≥ 0.90 and newest-key passCount ≥ 2', () => {
 		setupLick({
 			currentTempo: 60,
-			results: [{ key: 'C', score: 0.9 }],
+			results: [{ key: 'C', score: 0.92 }],
 			plannedKeys: ['C']
 		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 2 } }
+		};
 		startInterLickTransition();
-		// avg 0.9 → +2, so unlock should bump from 1 to 2
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
 	});
 
-	it('bumps unlock count on +5 tier (avg score ≥ 0.95)', () => {
+	it('does not unlock on a single strong session (passCount = 1) — gate enforces consolidation', () => {
 		setupLick({
 			currentTempo: 60,
 			results: [{ key: 'C', score: 1.0 }],
 			plannedKeys: ['C']
 		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1 } }
+		};
 		startInterLickTransition();
-		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
 	});
 
-	it('does not bump unlock count on negative tempo delta', () => {
+	it('does not unlock at the old +2-tempo boundary (avg 0.85) even with passCount ≥ 2', () => {
+		setupLick({
+			currentTempo: 60,
+			results: [{ key: 'C', score: 0.85 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 5 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+		// Tempo still bumps (avg 0.85 → +2 BPM); only the unlock gate stayed closed.
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(62);
+	});
+
+	it('does not unlock on negative tempo delta even when passCount is well past the requirement', () => {
 		setupLick({
 			currentTempo: 80,
 			results: [
@@ -323,22 +349,17 @@ describe('startInterLickTransition — unlock count bump', () => {
 			],
 			plannedKeys: ['C', 'F']
 		});
-		startInterLickTransition();
-		// avg 0.5 → -3 → no bump. Store stays empty for this lick.
-		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
-	});
-
-	it('does not bump unlock count on the -1 tier (avg 0.70 ≤ score < 0.85)', () => {
-		setupLick({
-			currentTempo: 80,
-			results: [{ key: 'C', score: 0.75 }],
-			plannedKeys: ['C']
-		});
+		lickPractice.progress = {
+			[LICK_ID]: {
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
+				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 }
+			}
+		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
 	});
 
-	it('does not bump unlock count when no keys were scored (empty results)', () => {
+	it('does not unlock when no keys were scored (empty results)', () => {
 		setupLick({
 			currentTempo: 100,
 			results: [],
@@ -348,25 +369,102 @@ describe('startInterLickTransition — unlock count bump', () => {
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
 	});
 
-	it('caps unlock count at 12 even when multiple positive sessions accumulate', () => {
+	it('caps unlock count at 12 even when multiple qualifying sessions accumulate', () => {
 		setupLick({
 			currentTempo: 100,
-			results: [{ key: 'C', score: 0.9 }],
+			results: [{ key: 'C', score: 0.92 }],
 			plannedKeys: ['C']
 		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 5 } }
+		};
 		// Pre-seed near the cap: simulate 11 prior bumps. Storage module
 		// prefixes keys with 'mankunku:' so we write through that key.
 		store['mankunku:lick-unlock-count'] = JSON.stringify({ [LICK_ID]: 11 });
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(12);
 
-		// A second positive session should not push past 12.
+		// A second qualifying session should not push past 12.
 		setupLick({
 			currentTempo: 100,
-			results: [{ key: 'C', score: 0.9 }],
+			results: [{ key: 'C', score: 0.92 }],
 			plannedKeys: ['C']
 		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 10 } }
+		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(12);
+	});
+
+	it('checks passCount on the most-recently-unlocked key, not the entry key', () => {
+		// Lick is partway through unlocking — keys C and G are unlocked. The
+		// gate should look at G (newest, last in the planned list), not C.
+		setupLick({
+			currentTempo: 80,
+			results: [
+				{ key: 'C', score: 0.95 },
+				{ key: 'G', score: 0.95 }
+			],
+			plannedKeys: ['C', 'G']
+		});
+		// C has been around long enough to be solid; G is brand new.
+		lickPractice.progress = {
+			[LICK_ID]: {
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 8 },
+				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 1 }
+			}
+		};
+		store['mankunku:lick-unlock-count'] = JSON.stringify({ [LICK_ID]: 2 });
+		startInterLickTransition();
+		// Avg 0.95 + C.passCount 8 would unlock under "any unlocked key" logic;
+		// the gate stays closed because the newest key (G) only has 1 pass.
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+	});
+});
+
+describe('startInterLickTransition — slowed unlock cadence (brand-new lick walk-through)', () => {
+	it('two consecutive strong sessions produce exactly one unlock at session 2', () => {
+		// Session 1: brand-new lick, first time on the entry key C.
+		setupLick({
+			currentTempo: 60,
+			results: [{ key: 'C', score: 0.92 }],
+			plannedKeys: ['C']
+		});
+		// recordKeyAttempt would have set passCount=1 by the time the
+		// transition runs; setupLick bypasses it, so seed it.
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+		// Tempo still climbs: avg 0.92 → +2 BPM. The user keeps speeding up
+		// on the entry key without the rotation growing yet.
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(62);
+
+		// Session 2: same key, another strong score → passCount reaches 2 → unlock.
+		setupLick({
+			currentTempo: 62,
+			results: [{ key: 'C', score: 0.92 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 62, lastPracticedAt: 0, passCount: 2 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+	});
+
+	it('a single ≥0.95 session does not unlock on a brand-new lick', () => {
+		setupLick({
+			currentTempo: 60,
+			results: [{ key: 'C', score: 1.0 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
 	});
 });
