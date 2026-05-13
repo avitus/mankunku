@@ -684,6 +684,30 @@ describe('mergeSamePitchWithoutAttack', () => {
 		const one: DetectedNote[] = [makeNote(60, 0.0, 0.5)];
 		expect(mergeSamePitchWithoutAttack(one, [1.0])).toEqual(one);
 	});
+
+	it('handles unsorted workletOnsets without false-merging real re-articulations', () => {
+		// Same boundary as the "preserves a re-articulation" case (onset at
+		// 0.340, within ±75ms of the 0.3 boundary) but supplied as an
+		// unsorted array. A naive early-return scan would skip the
+		// in-window onset and incorrectly merge.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.3),
+			makeNote(60, 0.3, 0.3)
+		];
+		const unsorted = [2.0, 0.0, 0.340];
+		expect(mergeSamePitchWithoutAttack(notes, unsorted)).toHaveLength(2);
+	});
+
+	it('does not mutate the caller-supplied workletOnsets array', () => {
+		const notes: DetectedNote[] = [
+			makeNote(55, 0.0, 0.5),
+			makeNote(55, 0.5, 0.5)
+		];
+		const onsets = [2.0, 5.0, 0.5];
+		const before = [...onsets];
+		mergeSamePitchWithoutAttack(notes, onsets);
+		expect(onsets).toEqual(before);
+	});
 });
 
 describe('segmentNotes — workletOnsets parameter (attack-evidence merge)', () => {

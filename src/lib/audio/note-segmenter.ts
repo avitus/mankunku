@@ -199,13 +199,18 @@ export function mergeSamePitchWithoutAttack(
 ): DetectedNote[] {
 	if (notes.length < 2 || workletOnsets.length === 0) return notes;
 
+	// hasOnsetNear's early-return assumes ascending order. The live worklet
+	// emits in time order so this is usually true, but sort a shallow copy
+	// defensively so an unsorted caller can't silently produce wrong merges.
+	const sortedOnsets = [...workletOnsets].sort((a, b) => a - b);
+
 	const result: DetectedNote[] = [];
 	for (const cur of notes) {
 		const last = result[result.length - 1];
 		if (
 			last &&
 			last.midi === cur.midi &&
-			!hasOnsetNear(workletOnsets, cur.onsetTime, window)
+			!hasOnsetNear(sortedOnsets, cur.onsetTime, window)
 		) {
 			const totalDuration = cur.onsetTime + cur.duration - last.onsetTime;
 			const wLast = last.duration;
