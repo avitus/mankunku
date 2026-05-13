@@ -55,7 +55,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: "When you're ready",
 			description:
-				"Pick a progression, a backing style, and a duration. If your set is empty, head to the Library and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +5 BPM at 95%+, +2 BPM at 85%+, with small step-backs below 70%.",
+				"Pick a progression, a backing style, and a duration. If your set is empty, head to the Library and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM from 70%–84%, and -3 BPM below 70%.",
 			side: 'over',
 			align: 'center'
 		}

@@ -15,7 +15,10 @@
  *    orderings unlock linearly, and above 150 a fully random shuffle joins
  *    the pool.
  *
- * Every returned array is a permutation of all 12 `PitchClass` values.
+ * `planLickKeys` always returns a permutation of all 12 `PitchClass`
+ * values; `planUnlockedKeys` returns the first N keys of the ramp until
+ * the lick has earned the full set, after which callers switch to
+ * `planLickKeys`.
  */
 import type { PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
