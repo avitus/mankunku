@@ -1,12 +1,24 @@
 /**
- * Staged key ordering for lick practice sessions.
+ * Staged key ordering for lick practice sessions. Two phases:
  *
- * The order in which a lick cycles through all 12 keys is chosen based on the
- * lick's current tempo. Slow tempos get a friendly, predictable circle-of-5ths
- * ordering from the player's written C; as tempo rises toward 150 BPM, harder
- * orderings unlock linearly, and above 150 a fully random shuffle joins the pool.
+ * 1. **Ramp-up** — `planUnlockedKeys` is used while a lick has fewer than 12
+ *    keys earned. It returns the first N keys of an alternating sharp/flat
+ *    ramp from the entry key (entry, +1 fifth, -1 fifth, +2 fifths, ...),
+ *    so each unlock adds the next-easiest key by accidental count. The
+ *    unlock cadence itself (when N grows) lives in `lick-practice-store`
+ *    via `shouldUnlockNextKey`.
  *
- * The returned array is always a permutation of all 12 `PitchClass` values.
+ * 2. **Staged variety** — `planLickKeys` runs once the lick has earned all
+ *    12 keys. The ordering is chosen based on the lick's current tempo:
+ *    slow tempos get a friendly, predictable circle-of-5ths ordering from
+ *    the player's written C; as tempo rises toward 150 BPM, harder
+ *    orderings unlock linearly, and above 150 a fully random shuffle joins
+ *    the pool.
+ *
+ * `planLickKeys` always returns a permutation of all 12 `PitchClass`
+ * values; `planUnlockedKeys` returns the first N keys of the ramp until
+ * the lick has earned the full set, after which callers switch to
+ * `planLickKeys`.
  */
 import type { PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';

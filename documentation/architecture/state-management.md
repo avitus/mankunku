@@ -107,7 +107,7 @@ On first load the module self-migrates: if no v2 meta is found in localStorage, 
 
 ### Lick Practice State (`src/lib/state/lick-practice.svelte.ts`)
 
-Active state for the multi-key lick-practice flow: configuration, session plan, per-key results, and tempo adjustments. The reactive `$state` object is ephemeral (resets on reload), but cumulative per-lick/per-key progress is persisted via `persistence/lick-practice-store.ts` under `mankunku:lick-practice-progress`.
+Active state for the multi-key lick-practice flow: configuration, session plan, per-key results, and tempo adjustments. Each lick's key rotation expands gradually — a brand-new lick starts with just one unlocked key (its entry key) and earns each next key as alternating sharp/flat-side neighbours of the entry key on the circle of fifths (see `planUnlockedKeys` in `src/lib/music/key-ordering.ts`). The unlock gate requires both a strong session (avg score ≥ `UNLOCK_AVG_THRESHOLD` = 0.90) and consolidation on the newest-unlocked key (`passCount ≥ UNLOCK_PASSES_REQUIRED` = 2); see `shouldUnlockNextKey`. Tempo bumps run on a separate, looser gate (avg ≥ 0.85 for +2 BPM) so users keep accelerating on the keys they have without the rotation growing every passable session. Once a lick has earned all 12 keys, `planLickKeys` takes over for staged variety. The reactive `$state` object is ephemeral (resets on reload), but cumulative per-lick/per-key progress (including unlock counts and `passCount`) is persisted via `persistence/lick-practice-store.ts` under `mankunku:lick-practice-progress` and `mankunku:lick-unlock-count`.
 
 ```typescript
 export const lickPractice = $state<{
@@ -128,7 +128,7 @@ export const lickPractice = $state<{
 **Key functions:**
 - `hydrateLickPracticeProgress(supabase?)` — Async: pulls cloud metadata when signed in, loads persisted progress, backfills legacy practice tags.
 - `getPracticeLicks()` — All licks tagged `practice` that match the current progression (by category or user-assigned progression tag).
-- `buildSessionPlan()` — Sorts licks by least-recently-practiced and packs the time budget. Called by `startSession()`.
+- `buildSessionPlan()` — Sorts licks by least-recently-practiced and packs the time budget. Each lick's planned key list is the first N keys of the alternating sharp/flat ramp where N is its current unlock count (capped at 12, then handed off to `planLickKeys` for staged variety). Called by `startSession()`.
 - `startSession()` — Transitions to `count-in`, resets indices, stamps `startTime`.
 - `getCurrentPlanItem()`, `getCurrentKey()`, `getCurrentPhrase()`, `getCurrentHarmony()` — Cursor accessors for the active lick/key.
 - `getPhraseFor(lickIdx, keyIdx)` — Pure variant used when scoring a key that has just finished.
@@ -136,7 +136,7 @@ export const lickPractice = $state<{
 - `buildLickSuperPhrase(lickIdx)` — Concatenates all 12 keys (plus an optional demo in continuous mode) into one phrase so the whole lick can be scheduled in a single Tone.js pass.
 - `recordKeyAttempt(score)` — Appends a `LickPracticeKeyResult`; persists key progress on pass (≥ 80%).
 - `advance()` — Moves to the next key within the current lick; returns `'end-of-lick'` when out.
-- `startInterLickTransition()` — Archives results, applies auto-tempo or all-keys-pass tempo bump, advances to the next lick or marks `'complete'`.
+- `startInterLickTransition()` — Archives results, applies the score-weighted tempo delta (independent of the unlock gate), decides whether to bump the unlock count via `shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount })`, and advances to the next lick or marks `'complete'`.
 - `updateElapsedTime()`, `resetSession()`, `getSessionReport()`.
 
 ### Step Entry State (`src/lib/state/step-entry.svelte.ts`)

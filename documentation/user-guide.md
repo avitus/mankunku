@@ -67,7 +67,7 @@ When you open Side B, you choose:
 - **Substitutions** — toggle to introduce tritone subs and chromatic approaches. Same lick, harder harmony.
 - **Backing style** — swing for straight-ahead, bossa for Latin, ballad for slow with sustained comping, straight for rock/funk feel.
 - **Practice mode** — *Continuous* loops the backing track and lets you play freely; *Call & Response* alternates the app playing the lick and you playing it back, scored each pass.
-- **Tempo** — starting BPM. This rises +5 BPM each time you pass a key clean, and steps back if you stumble.
+- **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM at 70%+, and -3 BPM below.
 
 ### What happens during a session
 
@@ -75,13 +75,22 @@ The session opens with a **count-in**, then the backing track starts. You see:
 
 - The current **lick name** and the **key** you're playing it in.
 - A **chord chart** above the staff showing the progression cycle, with the active cell highlighted as the bars roll.
-- A **key progress ring** showing how far through the 12-key cycle you are on this lick.
+- A **key progress ring** showing how far you are through this lick's currently-unlocked keys.
 - A **preview strip** of the next two or three keys coming up.
 - A **session timer** with a progress bar.
 
-You play the lick once per cycle. Pass it cleanly (≥ 80%) and the next cycle moves to the next key, with the tempo bumped up by 5 BPM if you've passed in every key so far. Stumble and the next cycle stays in the same key; if you stumble repeatedly, the tempo backs off.
+You play the lick once per key, with no retries. After all of that lick's keys play through, two things happen:
 
-Once you've passed all 12 keys, the session moves to the next tagged lick.
+1. **Tempo adjusts** based on your average score for the lick: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM at 70%+, and -3 BPM below.
+2. **The next key may unlock.** New keys earn their way into the rotation only when both your average score is at least 90% *and* the most-recently-added key has been passed cleanly twice (≥ 80% per attempt). Tempo can keep climbing without the rotation growing — so you'll often speed up on the keys you have before the next one appears.
+
+Once the session has cycled through every currently-unlocked key for the current lick, it moves to the next tagged lick. The session ends when the time budget runs out or every lick has had its turn.
+
+### Why gradual unlocks
+
+The 12-key cycle is the goal, not the start. A brand-new lick starts with just **one** key — its home key — and earns each next key in easiest-to-hardest order by accidental count, alternating sharps and flats from home. From C, that's: C, G (1♯), F (1♭), D (2♯), Bb (2♭), A (3♯), Eb (3♭), E (4♯), Ab (4♭), B (5♯), Db (5♭), F♯/G♭ (6). For other home keys, the same principle applies relative to the entry key.
+
+This means new vocabulary stays musical from day one: you're consolidating the shapes that matter most before the rotation grows, and by the time you reach the trickiest keys you've already heard the line in every easier one.
 
 ### Why all 12 keys
 
