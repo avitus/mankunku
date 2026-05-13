@@ -26,9 +26,9 @@ export const lickPracticeTour: DriveStep[] = [
 	},
 	{
 		popover: {
-			title: '12-key rotation',
+			title: 'Gradual 12-key unlock',
 			description:
-				"Each tagged lick gets rotated through all 12 keys in a session. The app tracks your tempo and pass-rate per lick, per key — so the keys you struggle with surface more often.",
+				"Each tagged lick starts in just one key — its home key — and earns the next key once you've passed it twice cleanly (avg session score ≥ 90%). Keys come in easiest-to-hardest order, one accidental at a time, alternating sharps and flats from home. You'll have all 12 in time; for now you only practice what you've earned.",
 			side: 'over',
 			align: 'center'
 		}
@@ -55,7 +55,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: "When you're ready",
 			description:
-				"Pick a progression, a backing style, and a duration. If your set is empty, head to the Library and tag a few licks first. Pass a key cleanly and the next attempt bumps tempo +5 BPM.",
+				"Pick a progression, a backing style, and a duration. If your set is empty, head to the Library and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +5 BPM at 95%+, +2 BPM at 85%+, with small step-backs below 70%.",
 			side: 'over',
 			align: 'center'
 		}

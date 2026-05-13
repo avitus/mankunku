@@ -3,13 +3,21 @@
  *
  * Flow: user picks a progression type (ii-V-I, turnaround, blues, etc.),
  * we build a plan of practice-tagged licks sorted by least-recently-practiced,
- * each lick is played through all 12 keys (shuffled order).
+ * each lick is played through its currently-unlocked keys. A brand-new lick
+ * starts with one unlocked key (its entry key) and earns each next key by
+ * alternating sharp- and flat-side neighbours on the circle of fifths from
+ * the entry key (see `planUnlockedKeys`). The unlock gate requires both a
+ * strong session (avg score ≥ `UNLOCK_AVG_THRESHOLD`) and consolidation on
+ * the most-recently-unlocked key (`passCount >= UNLOCK_PASSES_REQUIRED`); see
+ * `shouldUnlockNextKey`. Once a lick has earned all 12 keys, `planLickKeys`
+ * takes over for staged variety (random starts, chromatic / whole-tone
+ * orderings) keyed off the lick's current tempo.
  *
  * Two practice modes, both continuous (the beat never stops between keys):
  * - 'continuous' — user plays every key back-to-back, each lasting exactly
  *   `lengthBars` bars. No demo.
  * - 'call-response' — app plays the lick for `lengthBars` bars, user
- *   responds for `lengthBars` bars, repeat for all 12 keys.
+ *   responds for `lengthBars` bars, repeat for every unlocked key.
  *
  * Scoring runs silently each key and appears only in the end-of-session
  * report. No retries. At the end of each lick, the average score across the
@@ -17,6 +25,9 @@
  * signed BPM delta (+5/+2/−1/−3). That delta is added to the current tempo,
  * clamped to [MIN_TEMPO, MAX_TEMPO], and persisted for every key in the lick
  * so the whole set ratchets up or down together based on overall performance.
+ * The tempo gate (avg ≥ 0.85 for +2) is independent of the unlock gate so
+ * users keep speeding up on what they have without the rotation growing on
+ * every passable session.
  */
 
 import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music';
