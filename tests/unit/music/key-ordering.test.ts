@@ -246,15 +246,32 @@ describe('planLickKeys — stage dispatch via deterministic RNG', () => {
 });
 
 describe('planUnlockedKeys', () => {
+	/** Build the expected alternating ±fifths sequence from `start`. */
+	function alternatingFromEntry(start: PitchClass): PitchClass[] {
+		const fifths = circleOfFifthsFrom(start);
+		const order: PitchClass[] = [fifths[0]];
+		for (let step = 1; step <= 6 && order.length < 12; step++) {
+			order.push(fifths[step]);
+			if (step < 6 && order.length < 12) order.push(fifths[12 - step]);
+		}
+		return order;
+	}
+
 	it('returns just the entry key when count is 1', () => {
 		expect(planUnlockedKeys('F', 1)).toEqual(['F']);
 	});
 
-	it('returns the first N keys of circleOfFifthsFrom(entryKey)', () => {
+	it('produces the documented sequence from C: C, G, F, D, Bb, A, Eb, E, Ab, B, Db, F#', () => {
+		expect(planUnlockedKeys('C', 12)).toEqual<PitchClass[]>([
+			'C', 'G', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db', 'F#'
+		]);
+	});
+
+	it('alternates sharp- and flat-side neighbours of entryKey by N fifths', () => {
 		for (const start of PITCH_CLASSES) {
-			const full = circleOfFifthsFrom(start);
+			const expected = alternatingFromEntry(start);
 			for (let n = 1; n <= 12; n++) {
-				expect(planUnlockedKeys(start, n)).toEqual(full.slice(0, n));
+				expect(planUnlockedKeys(start, n)).toEqual(expected.slice(0, n));
 			}
 		}
 	});
@@ -267,8 +284,14 @@ describe('planUnlockedKeys', () => {
 		}
 	});
 
+	it('full unlock is a permutation of all 12 pitch classes for any entry key', () => {
+		for (const start of PITCH_CLASSES) assertPermutation(planUnlockedKeys(start, 12));
+	});
+
 	it('clamps counts above 12 to 12', () => {
-		expect(planUnlockedKeys('C', 99)).toEqual(circleOfFifthsFrom('C'));
+		expect(planUnlockedKeys('C', 99)).toEqual<PitchClass[]>([
+			'C', 'G', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db', 'F#'
+		]);
 		expect(planUnlockedKeys('C', 13).length).toBe(12);
 	});
 
