@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { segmentNotes, resolveOnsets } from '$lib/audio/note-segmenter';
+import { segmentNotes, resolveOnsets, mergeSamePitchWithoutAttack } from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-detector';
+import type { DetectedNote } from '$lib/types/audio';
 
 function makeReading(midi: number, time: number, cents = 0, clarity = 0.95): PitchReading {
 	return { midi, midiFloat: midi + cents / 100, cents, clarity, time, frequency: 440 };
@@ -555,6 +556,221 @@ describe('resolveOnsets — gap-flanked brief stable runs', () => {
 		// Only F4 should be a stable start — the F#4 wobble does NOT promote.
 		expect(preOnsetStarts).toHaveLength(1);
 		expect(preOnsetStarts[0]).toBeCloseTo(0.0, 2);
+	});
+});
+
+describe('mergeSamePitchWithoutAttack', () => {
+	function makeNote(midi: number, onsetTime: number, duration: number, cents = 0, clarity = 0.95): DetectedNote {
+		return { midi, cents, onsetTime, duration, clarity };
+	}
+
+	it('merges consecutive same-MIDI notes when no worklet onset is near the boundary', () => {
+		// Held D split by a pitch-detector glitch — the pitch tracker briefly
+		// dropped clarity, segmenter emitted two D segments, but no audio
+		// attack happened at the split.
+		const notes: DetectedNote[] = [
+			makeNote(62, 0.0, 1.05),
+			makeNote(62, 1.05, 0.12)
+		];
+		// Worklet onsets are unrelated to the spurious boundary at 1.05.
+		const workletOnsets = [2.84, 3.44];
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0].midi).toBe(62);
+		expect(merged[0].onsetTime).toBe(0.0);
+		expect(merged[0].duration).toBeCloseTo(1.17, 5);
+	});
+
+	it('preserves consecutive same-MIDI notes when a worklet onset confirms the attack', () => {
+		// Two genuinely articulated D quarter notes — the worklet detected an
+		// attack at the boundary, so the segments are real re-articulations.
+		const notes: DetectedNote[] = [
+			makeNote(62, 0.0, 0.5),
+			makeNote(62, 0.5, 0.5)
+		];
+		const workletOnsets = [0.0, 0.5];
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets);
+
+		expect(merged).toHaveLength(2);
+		expect(merged[0].onsetTime).toBe(0.0);
+		expect(merged[1].onsetTime).toBe(0.5);
+	});
+
+	it('still merges when a worklet onset is far outside the ±window of the boundary', () => {
+		// Boundary at 1.0s, onsets at 0.2 and 2.0 — both > window.
+		const notes: DetectedNote[] = [
+			makeNote(55, 0.0, 1.0),
+			makeNote(55, 1.0, 0.5)
+		];
+		const workletOnsets = [0.2, 2.0];
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets);
+
+		expect(merged).toHaveLength(1);
+	});
+
+	it('preserves a re-articulation when the worklet onset is within ±window', () => {
+		// 0.040s after the boundary — well within the 75ms window.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.3),
+			makeNote(60, 0.3, 0.3)
+		];
+		const workletOnsets = [0.0, 0.340];
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets);
+
+		expect(merged).toHaveLength(2);
+	});
+
+	it('never merges different-MIDI consecutive notes', () => {
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.5),
+			makeNote(62, 0.5, 0.5)
+		];
+		// Even with no worklet onset at the boundary, distinct pitches stay split.
+		const merged = mergeSamePitchWithoutAttack(notes, [10.0]);
+
+		expect(merged).toHaveLength(2);
+		expect(merged.map((n) => n.midi)).toEqual([60, 62]);
+	});
+
+	it('returns input unchanged when workletOnsets is empty', () => {
+		// No worklet signal → can't reason about attacks → conservative no-op.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.5),
+			makeNote(60, 0.5, 0.5)
+		];
+		const merged = mergeSamePitchWithoutAttack(notes, []);
+
+		expect(merged).toHaveLength(2);
+	});
+
+	it('chains merges across 3+ consecutive same-MIDI segments', () => {
+		// Three same-pitch fragments, no worklet onsets near any boundary —
+		// should collapse to one note.
+		const notes: DetectedNote[] = [
+			makeNote(55, 0.0, 0.5),
+			makeNote(55, 0.5, 0.3),
+			makeNote(55, 0.8, 0.4)
+		];
+		const merged = mergeSamePitchWithoutAttack(notes, [5.0]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0].onsetTime).toBe(0.0);
+		expect(merged[0].duration).toBeCloseTo(1.2, 5);
+	});
+
+	it('weights merged cents and clarity by duration', () => {
+		// Long sustain at +5 cents, brief glitch fragment at +30 cents — the
+		// long sustain should dominate the merged cents/clarity.
+		const notes: DetectedNote[] = [
+			makeNote(62, 0.0, 1.0, 5, 0.99),
+			makeNote(62, 1.0, 0.1, 30, 0.5)
+		];
+		const merged = mergeSamePitchWithoutAttack(notes, []);
+		// With empty workletOnsets this returns unchanged (sanity), so retry
+		// with a non-empty onset list outside the merge window.
+		const mergedReal = mergeSamePitchWithoutAttack(notes, [5.0]);
+
+		expect(merged).toHaveLength(2); // baseline guarantee
+		expect(mergedReal).toHaveLength(1);
+		// Expected: (5*1.0 + 30*0.1) / 1.1 = 8 → rounded to 7 or 8
+		expect(mergedReal[0].cents).toBeCloseTo(7, 0);
+		// Clarity: (0.99*1.0 + 0.5*0.1) / 1.1 ≈ 0.945
+		expect(mergedReal[0].clarity).toBeCloseTo(0.945, 2);
+	});
+
+	it('passes through when fewer than 2 notes', () => {
+		expect(mergeSamePitchWithoutAttack([], [1.0])).toEqual([]);
+		const one: DetectedNote[] = [makeNote(60, 0.0, 0.5)];
+		expect(mergeSamePitchWithoutAttack(one, [1.0])).toEqual(one);
+	});
+
+	it('handles unsorted workletOnsets without false-merging real re-articulations', () => {
+		// Same boundary as the "preserves a re-articulation" case (onset at
+		// 0.340, within ±75ms of the 0.3 boundary) but supplied as an
+		// unsorted array. A naive early-return scan would skip the
+		// in-window onset and incorrectly merge.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.3),
+			makeNote(60, 0.3, 0.3)
+		];
+		const unsorted = [2.0, 0.0, 0.340];
+		expect(mergeSamePitchWithoutAttack(notes, unsorted)).toHaveLength(2);
+	});
+
+	it('does not mutate the caller-supplied workletOnsets array', () => {
+		const notes: DetectedNote[] = [
+			makeNote(55, 0.0, 0.5),
+			makeNote(55, 0.5, 0.5)
+		];
+		const onsets = [2.0, 5.0, 0.5];
+		const before = [...onsets];
+		mergeSamePitchWithoutAttack(notes, onsets);
+		expect(onsets).toEqual(before);
+	});
+});
+
+describe('segmentNotes — workletOnsets parameter (attack-evidence merge)', () => {
+	function makeReading(midi: number, time: number, cents = 0, clarity = 0.95): PitchReading {
+		return { midi, midiFloat: midi + cents / 100, cents, clarity, time, frequency: 440 };
+	}
+
+	it('merges a same-MIDI split caused by a reading-gap when the worklet did not fire there', () => {
+		// Held D for ~1.2 s with a clarity dropout in the middle — exactly the
+		// fixture pattern. Without workletOnsets the old code would emit two
+		// notes via splitOnReadingGaps; with the worklet evidence pass, the
+		// pieces collapse back into one because there was no real attack.
+		const readings: PitchReading[] = [];
+		for (let t = 0.0; t < 0.95; t += 0.0167) readings.push(makeReading(62, t));
+		// Gap from 0.95 → 1.07 (≥ READING_GAP_SPLIT_THRESHOLD), simulating the
+		// pitch tracker losing the signal briefly.
+		for (let t = 1.07; t < 1.20; t += 0.0167) readings.push(makeReading(62, t));
+		// Single boundary at the start; the split would otherwise come from
+		// the internal gap rule.
+		const onsets = [0.0];
+
+		// Worklet only saw the initial attack — nothing in the middle.
+		const workletOnsets = [0.0];
+
+		const without = segmentNotes(readings, onsets, 1.20);
+		const withWorklet = segmentNotes(readings, onsets, 1.20, undefined, undefined, undefined, workletOnsets);
+
+		// Sanity: the gap-split path is actually firing (without workletOnsets,
+		// two pieces emerge). With workletOnsets, the merge collapses them.
+		expect(without.length).toBeGreaterThanOrEqual(2);
+		expect(withWorklet).toHaveLength(1);
+		expect(withWorklet[0].midi).toBe(62);
+		expect(withWorklet[0].onsetTime).toBeCloseTo(0.0, 3);
+	});
+
+	it('does NOT merge a same-MIDI split when the worklet onset confirms a re-articulation', () => {
+		// Same shape as above, but the worklet fired at the split moment —
+		// a real soft re-tonguing that the pitch tracker also caught via gap.
+		const readings: PitchReading[] = [];
+		for (let t = 0.0; t < 0.95; t += 0.0167) readings.push(makeReading(53, t));
+		for (let t = 1.07; t < 1.50; t += 0.0167) readings.push(makeReading(53, t));
+		const onsets = [0.0, 1.07];
+		const workletOnsets = [0.0, 1.07];
+
+		const result = segmentNotes(readings, onsets, 1.50, undefined, undefined, undefined, workletOnsets);
+
+		expect(result).toHaveLength(2);
+		expect(result[0].midi).toBe(53);
+		expect(result[1].midi).toBe(53);
+		expect(result[1].onsetTime).toBeCloseTo(1.07, 2);
+	});
+
+	it('default (no workletOnsets argument) preserves prior behaviour', () => {
+		// The exact same fixture as the merge test — no workletOnsets parameter
+		// means no merge pass, so the historical two-note output is preserved
+		// for callers that haven't been migrated.
+		const readings: PitchReading[] = [];
+		for (let t = 0.0; t < 0.95; t += 0.0167) readings.push(makeReading(62, t));
+		for (let t = 1.07; t < 1.20; t += 0.0167) readings.push(makeReading(62, t));
+		const onsets = [0.0];
+
+		const result = segmentNotes(readings, onsets, 1.20);
+		expect(result.length).toBeGreaterThanOrEqual(2);
 	});
 });
 

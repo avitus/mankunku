@@ -132,16 +132,19 @@
 
 	const pct = (n: number) => Math.round(n * 100);
 
-	// Init phrase
-	if (!session.phrase) {
-		session.phrase = allLicks[0] ?? TEST_PHRASES[0];
-	}
-
+	// Bind the active phrase to the derived lick list. Runs reactively so a
+	// later activeTonality.key flip (which reshapes allLicks) lands on a
+	// matching phrase. Falls back to TEST_PHRASES[0] only when the lick
+	// library is empty AND no phrase has been chosen yet.
 	$effect(() => {
-		const key = activeTonality.key;
+		void activeTonality.key;
+		if (allLicks.length === 0) {
+			if (!session.phrase) session.phrase = TEST_PHRASES[0];
+			return;
+		}
 		if (phraseIndex >= 0 && phraseIndex < allLicks.length) {
 			session.phrase = allLicks[phraseIndex];
-		} else if (allLicks.length > 0) {
+		} else {
 			phraseIndex = 0;
 			session.phrase = allLicks[0];
 		}
@@ -370,7 +373,7 @@
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 
 		const onsets = resolveOnsets(workletOnsets, readings);
-		const detected = segmentNotes(readings, onsets, phraseDuration);
+		const detected = segmentNotes(readings, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets);
 		const schedule = getActiveSchedule();
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, recordingTransportSeconds)
@@ -551,7 +554,7 @@
 		if (replay.readings.length === 0) return;
 
 		const onsets = resolveOnsets(replay.onsets, replay.readings);
-		const detected = segmentNotes(replay.readings, onsets, phraseDuration);
+		const detected = segmentNotes(replay.readings, onsets, phraseDuration, undefined, undefined, undefined, replay.onsets);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, transportSeconds)
 			: null;
