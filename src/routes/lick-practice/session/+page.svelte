@@ -673,7 +673,7 @@
 			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
 
 		const onsets = resolveOnsets(workletOnsets, rebased);
-		const detected = segmentNotes(rebased, onsets, phraseDuration);
+		const detected = segmentNotes(rebased, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets);
 		const bleedResult = window.schedule
 			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
 			: null;

@@ -189,7 +189,7 @@
 
 		<!-- Key selector -->
 		<div>
-			<label class="mb-2 block text-sm font-medium">Key Center</label>
+			<span class="mb-2 block text-sm font-medium">Key Center</span>
 			<div class="flex flex-wrap gap-1">
 				{#each KEY_UNLOCK_ORDER as key}
 					{@const unlocked = isKeyUnlocked(key, unlockCtx)}
@@ -255,7 +255,7 @@
 	<div class="space-y-5 rounded-lg bg-[var(--color-bg-secondary)] p-5">
 		<!-- Category -->
 		<div>
-			<label class="mb-2 block text-sm font-medium">Category</label>
+			<span class="mb-2 block text-sm font-medium">Category</span>
 			<div class="flex flex-wrap gap-2">
 				{#each CATEGORIES as { value, label }}
 					<button
@@ -297,10 +297,11 @@
 
 		<!-- Tempo -->
 		<div>
-			<label class="mb-2 block text-sm font-medium">
+			<label for="settings-tempo" class="mb-2 block text-sm font-medium">
 				Tempo: {tempo} BPM
 			</label>
 			<input
+				id="settings-tempo"
 				type="range"
 				min="60"
 				max="200"
@@ -341,10 +342,11 @@
 		<!-- Bars (for generated) -->
 		{#if selectedSource !== 'curated'}
 			<div>
-				<label class="mb-2 block text-sm font-medium">
+				<label for="settings-bars" class="mb-2 block text-sm font-medium">
 					Bars: {bars}
 				</label>
 				<input
+					id="settings-bars"
 					type="range"
 					min="1"
 					max="4"

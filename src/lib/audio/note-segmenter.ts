@@ -58,6 +58,14 @@ export function validateOnsets(
  * @param onsets - Onset timestamps in seconds (sorted, relative to recording start)
  * @param recordingDuration - Total recording duration in seconds
  * @param minNoteDuration - Minimum note duration to keep (filters glitches)
+ * @param workletOnsets - Optional raw AudioWorklet onset timestamps. When
+ *   supplied (and non-empty), consecutive same-MIDI notes whose boundary
+ *   has no nearby worklet onset are merged — the pitch detector can split
+ *   a sustained note via brief clarity dropouts or sub-harmonic glitches,
+ *   and the absence of an amplitude attack proves the split is artificial.
+ *   Pass the unprocessed worklet onsets (not the resolved/validated set),
+ *   since resolveOnsets mixes in pitch-derived starts that we explicitly
+ *   want to ignore here.
  */
 export function segmentNotes(
 	readings: PitchReading[],
@@ -65,7 +73,8 @@ export function segmentNotes(
 	recordingDuration: number,
 	minNoteDuration: number = 0.05,
 	onsetGuard: number = 0.08,
-	minReadings: number = 3
+	minReadings: number = 3,
+	workletOnsets?: number[]
 ): DetectedNote[] {
 	if (readings.length === 0) return [];
 
@@ -151,7 +160,77 @@ export function segmentNotes(
 	// regardless of the middle note's duration. Genuine fast octave
 	// displacement is rare enough, and bracketing same-pitch neighbors is
 	// strong evidence the middle is detection error rather than music.
-	return collapseSandwichArtifacts(notes);
+	const sandwiched = collapseSandwichArtifacts(notes);
+
+	// Same-pitch attack-evidence merge. Both extractOnsetsFromReadings and
+	// splitOnReadingGaps can manufacture a same-MIDI boundary from a pure
+	// clarity dropout — there is no audio attack there, only the pitch
+	// tracker losing the signal for a few frames. When the caller passes
+	// the raw worklet onsets we can prove the boundary is artificial: a
+	// real re-articulation produces an amplitude transient the worklet
+	// catches, so an unsupported same-MIDI boundary collapses.
+	return workletOnsets && workletOnsets.length > 0
+		? mergeSamePitchWithoutAttack(sandwiched, workletOnsets)
+		: sandwiched;
+}
+
+/**
+ * Window for treating a worklet onset as evidence of a real attack at a
+ * segment boundary. 75 ms is wider than typical worklet detection latency
+ * (~20–40 ms after the transient) but narrower than even 32nd-note
+ * articulations at 200 BPM (75 ms apart), so real repeated articulations
+ * never get merged.
+ */
+const SAME_PITCH_ATTACK_WINDOW = 0.075;
+
+/**
+ * Merge consecutive same-MIDI notes whose boundary has no worklet onset
+ * within ±window. The merged note spans the union of the two; cents and
+ * clarity are duration-weighted averages so a long sustain isn't overridden
+ * by a brief glitch fragment.
+ *
+ * Different-MIDI neighbours are passed through untouched — pitch transitions
+ * are handled upstream by splitByPitchChange and don't need attack evidence.
+ */
+export function mergeSamePitchWithoutAttack(
+	notes: DetectedNote[],
+	workletOnsets: number[],
+	window: number = SAME_PITCH_ATTACK_WINDOW
+): DetectedNote[] {
+	if (notes.length < 2 || workletOnsets.length === 0) return notes;
+
+	const result: DetectedNote[] = [];
+	for (const cur of notes) {
+		const last = result[result.length - 1];
+		if (
+			last &&
+			last.midi === cur.midi &&
+			!hasOnsetNear(workletOnsets, cur.onsetTime, window)
+		) {
+			const totalDuration = cur.onsetTime + cur.duration - last.onsetTime;
+			const wLast = last.duration;
+			const wCur = cur.duration;
+			const wSum = wLast + wCur;
+			result[result.length - 1] = {
+				midi: last.midi,
+				cents: Math.round((last.cents * wLast + cur.cents * wCur) / wSum),
+				onsetTime: last.onsetTime,
+				duration: totalDuration,
+				clarity: (last.clarity * wLast + cur.clarity * wCur) / wSum
+			};
+			continue;
+		}
+		result.push(cur);
+	}
+	return result;
+}
+
+function hasOnsetNear(onsets: number[], target: number, window: number): boolean {
+	for (const o of onsets) {
+		if (o > target + window) return false;
+		if (Math.abs(o - target) <= window) return true;
+	}
+	return false;
 }
 
 function collapseSandwichArtifacts(notes: DetectedNote[]): DetectedNote[] {

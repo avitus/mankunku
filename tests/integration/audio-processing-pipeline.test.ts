@@ -7,13 +7,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	createOnsetState,
 	processOnsetFrame,
 	SETTLE_FRAMES,
 	MIN_ONSET_INTERVAL,
 } from '$lib/audio/onset-core';
-import { segmentNotes, validateOnsets, extractOnsetsFromReadings } from '$lib/audio/note-segmenter';
+import { segmentNotes, validateOnsets, extractOnsetsFromReadings, resolveOnsets } from '$lib/audio/note-segmenter';
 import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
 import { scoreAttempt } from '$lib/scoring/scorer';
 import type { PitchReading } from '$lib/audio/pitch-detector';
@@ -466,5 +469,120 @@ describe('full audio processing pipeline', () => {
 			expect(note.duration[1]).toBeGreaterThan(0);
 			expect(note.duration[0]).toBeGreaterThan(0);
 		}
+	});
+});
+
+// ─── Fixture regression: Pent 5-3-2-1 half-then-eighths ──────────────
+// Real recording from 2026-05-13. The pitch tracker briefly sub-harmonic
+// glitches during the held D and drops readings during the held G. Before
+// the attack-evidence merge, the segmenter produced 6 notes for a 4-note
+// phrase; the DTW scored the wrong pairing and overall came back at 0.80
+// "good" instead of "excellent". With workletOnsets threaded into
+// segmentNotes the splits collapse and scoring lands above 0.95.
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+interface PentFixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadPentFixture(): PentFixture {
+	const path = resolve(
+		__dirname,
+		'..',
+		'fixtures',
+		'recordings',
+		'2026-05-13-pent-5-3-2-1-half-then-eighths.json'
+	);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Pent 5-3-2-1 half-then-eighths regression (attack-evidence merge)', () => {
+	// G concert pentatonic: G=55, A=57, B=59, D=62. "Half then Eighths" rhythm:
+	// D (half, beat 0) → B (eighth, beat 2) → A (eighth, beat 2.5) → G (quarter, beat 3).
+	const phrase: Phrase = {
+		id: 'cmb-sp-pent-run-down-4_rp-4-half-eighths_G',
+		name: 'Pent 5-3-2-1 / Half Then Eighths',
+		category: 'pentatonic',
+		key: 'G',
+		harmony: [
+			{
+				chord: { root: 'G', quality: 'maj7' as const },
+				scaleId: 'major.ionian',
+				startOffset: [0, 1] as [number, number],
+				duration: [4, 4] as [number, number],
+			},
+		],
+		notes: [
+			{ pitch: 62, offset: [0, 1], duration: [1, 2] },
+			{ pitch: 59, offset: [1, 2], duration: [1, 8] },
+			{ pitch: 57, offset: [5, 8], duration: [1, 8] },
+			{ pitch: 55, offset: [3, 4], duration: [1, 4] },
+		],
+		difficulty: {
+			level: 20,
+			pitchComplexity: 20,
+			rhythmComplexity: 20,
+			lengthBars: 1,
+		},
+		source: 'curated' as const,
+		tags: [],
+		timeSignature: [4, 4] as [number, number],
+	};
+
+	it('without workletOnsets the segmenter emits the buggy 6-note split', () => {
+		const fx = loadPentFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(fx.detection.readings, onsets, fx.audio.duration);
+
+		// Sanity check that the fixture still reproduces the original failure:
+		// at least one same-MIDI consecutive pair (the spurious split) appears.
+		const samePitchSplits = detected.filter(
+			(n, i) => i > 0 && n.midi === detected[i - 1].midi
+		);
+		expect(samePitchSplits.length).toBeGreaterThan(0);
+	});
+
+	it('with workletOnsets the segmenter yields the 4 notes the user actually played', () => {
+		const fx = loadPentFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([62, 59, 57, 55]);
+	});
+
+	it('score climbs from "good" to "excellent" once the spurious splits are merged', () => {
+		const fx = loadPentFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets
+		);
+
+		const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+
+		expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(score.rhythmAccuracy).toBeGreaterThan(0.9);
+		expect(score.overall).toBeGreaterThan(0.95);
+		expect(score.notesHit).toBe(4);
+		expect(score.notesTotal).toBe(4);
 	});
 });

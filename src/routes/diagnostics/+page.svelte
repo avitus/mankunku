@@ -126,7 +126,7 @@
 			const { readings, onsets, duration, sampleRate } = await replayFromBlob(full.blob, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
 			const resolvedOnsets = resolveOnsets(onsets, readings);
-			const segmented = segmentNotes(readings, resolvedOnsets, duration);
+			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets);
 			replay = {
 				sessionId: id,
 				readings,

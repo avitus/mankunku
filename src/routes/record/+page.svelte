@@ -216,7 +216,7 @@
 		}
 
 		// Segment → quantize → build phrase
-		const detected: DetectedNote[] = segmentNotes(readings, onsets, recordingDuration);
+		const detected: DetectedNote[] = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets);
 
 		if (detected.length === 0) {
 			recordState = 'idle';
@@ -343,11 +343,12 @@
 
 		<button
 			onclick={startRecording}
+			aria-label="Start recording"
 			class="group relative flex h-28 w-28 items-center justify-center rounded-full
 				   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
 				   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
 		>
-			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 				<circle cx="12" cy="12" r="6" />
 			</svg>
 		</button>
@@ -399,11 +400,12 @@
 
 		<button
 			onclick={stopRecording}
+			aria-label="Stop recording"
 			class="group relative flex h-28 w-28 items-center justify-center rounded-full
 				   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
 				   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
 		>
-			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 				<rect x="6" y="6" width="12" height="12" rx="1" />
 			</svg>
 			<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-onair)] opacity-20"></span>
