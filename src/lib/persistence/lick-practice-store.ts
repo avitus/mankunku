@@ -40,6 +40,21 @@ const PRACTICE_REMOVED_TAG = 'practice:removed';
 const MAX_UNLOCKED_KEYS = 12;
 
 /**
+ * Minimum average session score required to unlock the next key. Higher
+ * than the +2-BPM tempo threshold (0.85) so a single strong session can
+ * keep speeding up the existing keys without yet adding more.
+ */
+export const UNLOCK_AVG_THRESHOLD = 0.9;
+
+/**
+ * Number of qualifying per-key sessions (each scoring at or above
+ * `PASS_THRESHOLD`) the most-recently-unlocked key must accumulate before
+ * the next key joins the rotation. Pairs with `UNLOCK_AVG_THRESHOLD` to
+ * gate unlocks on both session quality and per-key consolidation.
+ */
+export const UNLOCK_PASSES_REQUIRED = 2;
+
+/**
  * Module-level Supabase reference, set during cloud hydration.
  * Used by write functions that don't receive a client parameter directly
  * (e.g. saveLickPracticeProgress called from session state).
@@ -389,6 +404,31 @@ export function getUnlockedKeyCount(
 	phraseId: string
 ): number {
 	return resolveUnlockCount(loadUnlockCounts(), progress, phraseId);
+}
+
+export interface ShouldUnlockNextKeyArgs {
+	/** Average score across the keys the user attempted this session. */
+	avgScore: number;
+	/** `passCount` of the most-recently-unlocked key (after this session's writes). */
+	newestKeyPassCount: number;
+	/** Currently unlocked-key count BEFORE any potential bump. */
+	unlockedCount: number;
+}
+
+/**
+ * Decide whether to unlock the next key after a finished lick session.
+ * Requires both a strong session (`avgScore >= UNLOCK_AVG_THRESHOLD`) and
+ * sufficient consolidation on the most-recently-unlocked key
+ * (`newestKeyPassCount >= UNLOCK_PASSES_REQUIRED`). Caps at
+ * `MAX_UNLOCKED_KEYS`.
+ */
+export function shouldUnlockNextKey(args: ShouldUnlockNextKeyArgs): boolean {
+	const { avgScore, newestKeyPassCount, unlockedCount } = args;
+	if (unlockedCount >= MAX_UNLOCKED_KEYS) return false;
+	return (
+		avgScore >= UNLOCK_AVG_THRESHOLD &&
+		newestKeyPassCount >= UNLOCK_PASSES_REQUIRED
+	);
 }
 
 /** Bump the unlock count by 1, capped at 12. Returns the new count. */

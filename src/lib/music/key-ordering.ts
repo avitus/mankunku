@@ -99,18 +99,26 @@ export interface PlanLickKeysArgs {
 
 /**
  * Build the gradually-unlocked key set for a lick that hasn't reached its
- * full 12-key range yet. Returns the first `unlockedCount` keys of the
- * circle of fifths starting at `entryKey` — adjacent keys in this sequence
- * share 6 of 7 scale tones, so growing the set one step at a time stays
- * friendly. Once `unlockedCount` reaches 12, callers should fall back to
- * `planLickKeys` for staged variety.
+ * full 12-key range yet. Adds keys easiest-to-hardest by accidental count,
+ * alternating sharp- and flat-side neighbours of `entryKey` on the circle
+ * of fifths: entry, +1 fifth, -1 fifth, +2 fifths, -2 fifths, ..., ±6
+ * (tritone). For an entry key of C this yields C, G, F, D, Bb, A, Eb, E,
+ * Ab, B, Db, F#. Once `unlockedCount` reaches 12, callers should fall back
+ * to `planLickKeys` for staged variety.
  */
 export function planUnlockedKeys(
 	entryKey: PitchClass,
 	unlockedCount: number
 ): PitchClass[] {
 	const clamped = Math.min(12, Math.max(1, unlockedCount));
-	return circleOfFifthsFrom(entryKey).slice(0, clamped);
+	const fifths = circleOfFifthsFrom(entryKey);
+	// fifths[k] is +k fifths from entry; fifths[12-k] is -k fifths from entry.
+	const order: PitchClass[] = [fifths[0]];
+	for (let step = 1; step <= 6 && order.length < 12; step++) {
+		order.push(fifths[step]);
+		if (step < 6 && order.length < 12) order.push(fifths[12 - step]);
+	}
+	return order.slice(0, clamped);
 }
 
 /**
