@@ -12,7 +12,7 @@ import {
 	updateLickCategory,
 	getLickTagOverrides
 } from './user-licks';
-import { INFERRED_PROGRESSION_TAG_BY_CATEGORY } from '$lib/data/progressions';
+import { getProgressionsForCategory } from '$lib/data/progressions';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
@@ -694,18 +694,24 @@ export function ensureProgressionTag(phraseId: string, type: ChordProgressionTyp
 }
 
 /**
- * Retroactively apply `INFERRED_PROGRESSION_TAG_BY_CATEGORY` to every lick the
- * user already has. Mirrors what `updateLickCategory` now does on every new
- * category write — this just covers licks categorized before the auto-tag
- * hook existed. Idempotent on every subsequent run thanks to
- * `ensureProgressionTag`'s presence check.
+ * Retroactively add a `prog:*` tag for every progression that lists the
+ * lick's category as compatible (`getProgressionsForCategory`). Mirrors
+ * what `updateLickCategory` now does on every category write, but covers
+ * licks categorized before the auto-tag hook expanded beyond the
+ * unambiguous-category mapping. Idempotent: `ensureProgressionTag` no-ops
+ * when a tag is already present, so every subsequent run touches no new
+ * tags.
+ *
+ * After this runs, today's session inclusion behavior is preserved under
+ * the new opt-in semantics: any practice-tagged lick whose category was
+ * implicitly bound to a progression now carries an explicit opt-in.
  */
 export function backfillInferredProgressionTags(): number {
 	let added = 0;
 	for (const lick of getAllLicks()) {
-		const inferred = INFERRED_PROGRESSION_TAG_BY_CATEGORY[lick.category];
-		if (!inferred) continue;
-		if (ensureProgressionTag(lick.id, inferred)) added++;
+		for (const prog of getProgressionsForCategory(lick.category)) {
+			if (ensureProgressionTag(lick.id, prog)) added++;
+		}
 	}
 	return added;
 }
@@ -736,7 +742,13 @@ export function migrateOrphanLickCategories(
 		migrated++;
 	}
 
-	// 2. Category overrides on curated/community licks.
+	// 2. Category overrides on curated/community licks. Unlike the user-lick
+	// branch we bypass `updateLickCategory` (curated overrides write to a
+	// separate keyed-by-id blob, not the lick row), so we have to mirror its
+	// opt-in seeding manually: every progression compatible with the new
+	// category gets a `prog:*` tag. The orphan-specific tag is part of that
+	// set, but kept as a final `ensureProgressionTag` call so the migration's
+	// intent is explicit in the code.
 	const overrides = getLickCategoryOverrides();
 	let overridesChanged = false;
 	for (const [id, cat] of Object.entries(overrides)) {
@@ -744,6 +756,9 @@ export function migrateOrphanLickCategories(
 		if (!remap) continue;
 		overrides[id] = remap.newCategory;
 		overridesChanged = true;
+		for (const prog of getProgressionsForCategory(remap.newCategory)) {
+			ensureProgressionTag(id, prog);
+		}
 		ensureProgressionTag(id, remap.progressionTag);
 		migrated++;
 	}

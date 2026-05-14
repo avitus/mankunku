@@ -23,7 +23,7 @@ import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
 import { getScopeGeneration, getLastUserId } from './user-scope';
 import { getStolenLicksLocal } from './community';
 import { writtenKeyToConcert } from '$lib/music/transposition';
-import { INFERRED_PROGRESSION_TAG_BY_CATEGORY } from '$lib/data/progressions';
+import { getProgressionsForCategory } from '$lib/data/progressions';
 import { ensureProgressionTag } from './lick-practice-store';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -583,13 +583,17 @@ export function updateLickCategory(
 		applied = true;
 	}
 
-	// Auto-add the inferred prog:* tag for categories with an unambiguous
-	// progression home. Idempotent — re-categorizing later won't duplicate
-	// the tag, and we deliberately don't remove tags from prior categories
-	// so the user's accumulated intent persists across edits.
+	// Auto-add a `prog:*` tag for every progression the new category is
+	// compatible with. Session inclusion is opt-in only, so a fresh
+	// category write needs to seed all the progressions the user could
+	// reasonably want to practice this lick under. Idempotent —
+	// `ensureProgressionTag` no-ops on duplicates, and we deliberately
+	// don't remove tags from prior categories so the user's accumulated
+	// intent persists across edits.
 	if (applied) {
-		const inferred = INFERRED_PROGRESSION_TAG_BY_CATEGORY[category];
-		if (inferred) ensureProgressionTag(id, inferred);
+		for (const prog of getProgressionsForCategory(category)) {
+			ensureProgressionTag(id, prog);
+		}
 	}
 }
 

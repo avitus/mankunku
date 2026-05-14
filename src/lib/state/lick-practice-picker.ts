@@ -12,9 +12,7 @@ import type {
 } from '$lib/types/lick-practice';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
 import {
-	PROGRESSION_TEMPLATES,
-	getCompatibleLickCategories,
-	getProgressionsForCategory
+	PROGRESSION_TEMPLATES
 } from '$lib/data/progressions';
 import { getLickLastPracticed } from '$lib/persistence/lick-practice-store';
 
@@ -27,18 +25,19 @@ export interface UpcomingLickEntry {
 export const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
 
 /**
- * True when a practice-tagged lick has at least one progression it can play
- * over: either an explicit `prog:*` tag or a category that appears in some
- * `PROGRESSION_LICK_CATEGORIES` entry. Licks failing this test are
- * "stranded" — kept in the practice set so user intent isn't lost, but
- * skipped by the picker so they can't starve eligible candidates.
+ * True when a practice-tagged lick has at least one explicit `prog:*` tag.
+ * Category compatibility alone no longer counts: every practice-eligible
+ * lick must carry the progressions it should play under as user tags
+ * (seeded by the setup-time backfill and `updateLickCategory`). Licks
+ * failing this test are "stranded" — kept in the practice set so user
+ * intent isn't lost, but skipped by the picker and the session-time
+ * `getPracticeLicks` filter so they can't starve eligible candidates.
  */
 function hasFittingProgression(
 	lick: Phrase,
 	getProgressionTags: (lickId: string) => ChordProgressionType[]
 ): boolean {
-	if (getProgressionTags(lick.id).length > 0) return true;
-	return getProgressionsForCategory(lick.category).length > 0;
+	return getProgressionTags(lick.id).length > 0;
 }
 
 /**
@@ -46,18 +45,19 @@ function hasFittingProgression(
  *
  * Algorithm: of the user's practice-tagged licks, find the
  * least-recently-practiced one (lastPracticedAt = 0 wins). Among the
- * progressions that fit that lick — category-compatible OR carrying a
- * user `prog:*` tag for the lick (substitutions ignored) — return the
+ * progressions the user has tagged on that lick (`prog:*` only — category
+ * compatibility no longer auto-includes, and substitutions are an opt-in
+ * setup toggle that doesn't influence the initial pick), return the
  * least-recently-practiced. Ties resolve to the first fit in
  * `Object.keys(PROGRESSION_TEMPLATES)` order, which mirrors the on-screen
  * pill row.
  *
- * "Stranded" candidates — practice-tagged but with no `prog:*` tag and a
- * category that isn't listed in any progression — are excluded from the
- * search. Without this guard a stranded lick (e.g. one carrying an orphan
- * category from a removed enum value) keeps its `lastPracticedAt` at 0
- * forever, monopolises the most-neglected slot, and forces the picker
- * back to DEFAULT_PROGRESSION every session.
+ * "Stranded" candidates — practice-tagged but with no `prog:*` tag at all
+ * — are excluded from the search. Without this guard a stranded lick
+ * (e.g. one whose tags were never backfilled, or whose user removed every
+ * progression tag) keeps its `lastPracticedAt` at 0 forever, monopolises
+ * the most-neglected slot, and forces the picker back to
+ * DEFAULT_PROGRESSION every session.
  */
 export function selectInitialProgression(args: {
 	candidates: Phrase[];
@@ -82,12 +82,8 @@ export function selectInitialProgression(args: {
 	}
 
 	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
-	const userTags = getProgressionTags(neglected.id);
-	const fits = order.filter(
-		(p) =>
-			userTags.includes(p) ||
-			getCompatibleLickCategories(p).includes(neglected.category)
-	);
+	const userTags = new Set(getProgressionTags(neglected.id));
+	const fits = order.filter((p) => userTags.has(p));
 	if (fits.length === 0) return DEFAULT_PROGRESSION;
 
 	const lastPracticed = new Map<ChordProgressionType, number>();
@@ -116,14 +112,14 @@ export function selectInitialProgression(args: {
  * unit tests exercise the logic without booting the lick-practice runtime.
  *
  * For each candidate, the result includes its last-practiced timestamp (0 if
- * never) and the union of progressions it can be launched over: direct
- * category compatibility ∪ user-assigned `prog:*` tags. Substitutions are
- * intentionally excluded — they're an opt-in setup-page toggle, not a
- * one-click action.
+ * never) and the set of progressions the user has explicitly opted the lick
+ * into via `prog:*` tags. Category compatibility no longer auto-fills the
+ * list, and substitutions are intentionally excluded — they're an opt-in
+ * setup-page toggle, not a one-click action.
  *
- * Licks with no compatible progressions are dropped (no actionable CTA).
- * Sorted by `lastPracticedAt` ascending so longest-ago / never-practiced
- * licks bubble to the top; just-finished licks fall to the bottom.
+ * Licks with no `prog:*` tags are dropped (no actionable CTA). Sorted by
+ * `lastPracticedAt` ascending so longest-ago / never-practiced licks bubble
+ * to the top; just-finished licks fall to the bottom.
  */
 export function buildUpcomingLicks(args: {
 	candidates: Phrase[];
@@ -135,8 +131,7 @@ export function buildUpcomingLicks(args: {
 
 	const entries: UpcomingLickEntry[] = [];
 	for (const lick of candidates) {
-		const set = new Set<ChordProgressionType>(getProgressionsForCategory(lick.category));
-		for (const t of getProgressionTags(lick.id)) set.add(t);
+		const set = new Set<ChordProgressionType>(getProgressionTags(lick.id));
 		if (set.size === 0) continue;
 
 		entries.push({
@@ -151,10 +146,12 @@ export function buildUpcomingLicks(args: {
 }
 
 /**
- * Practice-tagged licks that have no progression mapping at all — neither a
- * `prog:*` tag nor a category listed in any `PROGRESSION_LICK_CATEGORIES`
- * entry. Such licks can never appear in a session and exist only to be
- * surfaced in the UI as "needs progression — fix in the library".
+ * Practice-tagged licks that have no `prog:*` tags. Such licks can never
+ * appear in a session — `getPracticeLicks` and `selectInitialProgression`
+ * both require at least one explicit progression opt-in — so they exist
+ * only to be surfaced in the UI as "needs progression — fix in the
+ * library". After the setup-time backfill, the only way to land here is
+ * to manually clear every `prog:*` tag on a practice-tagged lick.
  */
 export function findStrandedLicks(args: {
 	candidates: Phrase[];

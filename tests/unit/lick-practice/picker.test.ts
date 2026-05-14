@@ -61,6 +61,17 @@ function session(
 
 const noTags = (): ChordProgressionType[] => [];
 
+/**
+ * Lift a plain map into a `getProgressionTags` callback. The picker treats
+ * `prog:*` tags as the sole inclusion path now, so most tests need to seed
+ * tags up-front rather than rely on category compatibility.
+ */
+function tagsFromMap(
+	map: Record<string, ChordProgressionType[]>
+): (id: string) => ChordProgressionType[] {
+	return (id: string) => map[id] ?? [];
+}
+
 describe('selectInitialProgression', () => {
 	it('returns default when there are no tagged candidates', () => {
 		const got = selectInitialProgression({
@@ -73,25 +84,27 @@ describe('selectInitialProgression', () => {
 	});
 
 	it('picks the only fitting progression for a brand-new user', () => {
-		// Single tagged blues lick; only `blues` fits.
+		// Single tagged blues lick, opted in to `blues` only.
 		const got = selectInitialProgression({
 			candidates: [lick('lk1', 'blues')],
 			progress: {},
 			sessionLog: [],
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({ lk1: ['blues'] })
 		});
 		expect(got).toBe('blues');
 	});
 
 	it('falls back to first fit in pill order when all fits are tied at 0', () => {
-		// `major-chord` fits major-vamp (idx 1), ii-V-I-major (idx 2),
-		// ii-V-I-major-long (idx 4), turnaround (idx 6). With no session
-		// history, the first in pill order wins.
+		// User has opted lk1 into every category-compatible progression for
+		// `major-chord` — the same set the setup-time backfill produces. With
+		// no session history, the first in pill order wins.
 		const got = selectInitialProgression({
 			candidates: [lick('lk1', 'major-chord')],
 			progress: {},
 			sessionLog: [],
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk1: ['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround']
+			})
 		});
 		expect(got).toBe('major-vamp');
 	});
@@ -102,18 +115,19 @@ describe('selectInitialProgression', () => {
 			candidates: [lick('lk1', 'major-chord')],
 			progress: {},
 			sessionLog: [session('major-vamp', 1000)],
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk1: ['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround']
+			})
 		});
 		// Next fit in pill order with timestamp 0 is ii-V-I-major.
 		expect(got).toBe('ii-V-I-major');
 	});
 
 	it('uses the max timestamp per progression across multiple sessions', () => {
-		// Lick category 'minor-chord' fits 5 progressions. Every fit has
-		// history; the picker must pick the one whose MAX timestamp is the
-		// smallest. If it used the MIN timestamp instead it would mistakenly
-		// pick minor-vamp (since 200 < 1000); using max correctly yields
-		// ii-V-I-minor-long with timestamp 1000.
+		// Lick opted in to 5 progressions. Every fit has history; the picker
+		// must pick the one whose MAX timestamp is the smallest. If it used the
+		// MIN timestamp instead it would mistakenly pick minor-vamp (since
+		// 200 < 1000); using max correctly yields ii-V-I-minor-long with 1000.
 		const got = selectInitialProgression({
 			candidates: [lick('lk1', 'minor-chord')],
 			progress: {},
@@ -125,29 +139,37 @@ describe('selectInitialProgression', () => {
 				session('ii-V-I-minor-long', 1000),
 				session('turnaround', 2000)
 			],
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk1: [
+					'minor-vamp',
+					'ii-V-I-minor',
+					'ii-V-I-major-long',
+					'ii-V-I-minor-long',
+					'turnaround'
+				]
+			})
 		});
 		expect(got).toBe('ii-V-I-minor-long');
 	});
 
-	it('honors user prog:* tags as part of the fitting set', () => {
-		// User tagged a `pentatonic` (no category-compatible progression) lick
-		// for blues. Without the tag, no fits → DEFAULT_PROGRESSION. With the
-		// tag, blues fits.
+	it('honors user prog:* tags regardless of category compatibility', () => {
+		// `pentatonic` is not listed in any progression's compat list. The
+		// `prog:blues` tag is the sole inclusion path here.
 		const got = selectInitialProgression({
 			candidates: [lick('lk1', 'pentatonic')],
 			progress: {},
 			sessionLog: [],
-			getProgressionTags: (id) => (id === 'lk1' ? ['blues'] : [])
+			getProgressionTags: tagsFromMap({ lk1: ['blues'] })
 		});
 		expect(got).toBe('blues');
 	});
 
-	it('returns DEFAULT when no progression fits the lick', () => {
-		// `user` category isn't listed in any progression; with no prog tag,
-		// the picker has no fitting progression and falls back to default.
+	it('returns DEFAULT when the lick has no progression tags', () => {
+		// With opt-in semantics, a practice-tagged lick without prog:* tags
+		// has no fitting progression — even one whose category previously
+		// implied compatibility (e.g. `major-chord`).
 		const got = selectInitialProgression({
-			candidates: [lick('lk1', 'user')],
+			candidates: [lick('lk1', 'major-chord')],
 			progress: {},
 			sessionLog: [],
 			getProgressionTags: noTags
@@ -156,9 +178,8 @@ describe('selectInitialProgression', () => {
 	});
 
 	it('picks the most-neglected lick first, then its least-recently-practiced fit', () => {
-		// lk_old (category major-chord) has practice history; lk_new
-		// (category ii-V-I-minor) does not. Picker picks lk_new (most
-		// neglected). Fits for ii-V-I-minor are ii-V-I-minor and
+		// lk_old has practice history; lk_new does not. Picker picks lk_new
+		// (most neglected). lk_new is opted into ii-V-I-minor and
 		// ii-V-I-minor-long; with ii-V-I-minor recently played, the picker
 		// rotates to ii-V-I-minor-long.
 		const got = selectInitialProgression({
@@ -168,26 +189,29 @@ describe('selectInitialProgression', () => {
 			],
 			progress: progressForLick('lk_old', { C: 5000 }),
 			sessionLog: [session('ii-V-I-minor', 9999)],
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk_old: ['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround'],
+				lk_new: ['ii-V-I-minor', 'ii-V-I-minor-long']
+			})
 		});
 		expect(got).toBe('ii-V-I-minor-long');
 	});
 
 	it('skips stranded candidates so they cannot starve eligible licks', () => {
-		// `lk_orphan` carries an orphan category (e.g. left over from a removed
-		// PhraseCategory enum value) and has no prog tags — it can never play
-		// in any progression. Without the guard it would win the most-neglected
-		// race (lastPracticedAt = 0) and force the picker to DEFAULT_PROGRESSION
-		// every session, sidelining `lk_real` even though `lk_real` carries an
-		// explicit prog:* tag pointing at long ii-V-I.
+		// `lk_strand` has no prog:* tag at all — under opt-in semantics it
+		// can never play in any progression. Without the guard it would win
+		// the most-neglected race (lastPracticedAt = 0) and force the picker
+		// to DEFAULT_PROGRESSION every session, sidelining `lk_real`.
 		const got = selectInitialProgression({
 			candidates: [
-				lick('lk_orphan', 'long-ii-V-I-major' as never),
+				lick('lk_strand', 'major-chord'),
 				lick('lk_real', 'V-I-major')
 			],
 			progress: progressForLick('lk_real', { C: 1000 }),
 			sessionLog: [],
-			getProgressionTags: (id) => (id === 'lk_real' ? ['ii-V-I-major-long'] : [])
+			getProgressionTags: tagsFromMap({
+				lk_real: ['ii-V-I-major-long']
+			})
 		});
 		expect(got).toBe('ii-V-I-major-long');
 	});
@@ -195,8 +219,8 @@ describe('selectInitialProgression', () => {
 	it('falls back to DEFAULT when every candidate is stranded', () => {
 		const got = selectInitialProgression({
 			candidates: [
-				lick('lk_orphan_a', 'long-ii-V-I-major' as never),
-				lick('lk_orphan_b', 'user')
+				lick('lk_strand_a', 'major-chord'),
+				lick('lk_strand_b', 'user')
 			],
 			progress: {},
 			sessionLog: [],
@@ -207,8 +231,8 @@ describe('selectInitialProgression', () => {
 
 	it('treats max timestamp across keys for the lick selection', () => {
 		// lk_a's most recent key practice is later than lk_b's, so lk_b is
-		// the most-neglected. Its category (`minor-chord`) → minor-vamp wins
-		// the tie-break (first in pill order).
+		// the most-neglected. Both licks are opted into their full compat
+		// set; minor-vamp wins the tie-break for lk_b (first in pill order).
 		const got = selectInitialProgression({
 			candidates: [
 				lick('lk_a', 'major-chord'),
@@ -219,7 +243,16 @@ describe('selectInitialProgression', () => {
 				...progressForLick('lk_b', { C: 500, D: 600 })
 			},
 			sessionLog: [],
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk_a: ['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround'],
+				lk_b: [
+					'minor-vamp',
+					'ii-V-I-minor',
+					'ii-V-I-major-long',
+					'ii-V-I-minor-long',
+					'turnaround'
+				]
+			})
 		});
 		expect(got).toBe('minor-vamp');
 	});
@@ -235,11 +268,11 @@ describe('buildUpcomingLicks', () => {
 		expect(got).toEqual([]);
 	});
 
-	it('drops licks with no compatible progressions', () => {
-		// `pentatonic` is not listed in PROGRESSION_LICK_CATEGORIES and the
-		// fake getProgressionTags returns nothing — so the lick is hidden.
+	it('drops licks with no prog:* tags', () => {
+		// Even a category-compatible lick (`major-chord`) is hidden when the
+		// user hasn't opted it into any progression.
 		const got = buildUpcomingLicks({
-			candidates: [lick('lk_pent', 'pentatonic')],
+			candidates: [lick('lk_mc', 'major-chord')],
 			progress: {},
 			getProgressionTags: noTags
 		});
@@ -247,26 +280,33 @@ describe('buildUpcomingLicks', () => {
 	});
 
 	it('sorts by lastPracticedAt ascending; never-practiced bubbles to top', () => {
-		// lk_old: practiced; lk_new: never. Both `minor-chord`.
+		// lk_old: practiced; lk_new: never. Both opted into minor-vamp.
 		const got = buildUpcomingLicks({
 			candidates: [
 				lick('lk_old', 'minor-chord'),
 				lick('lk_new', 'minor-chord')
 			],
 			progress: progressForLick('lk_old', { C: 1000 }),
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk_old: ['minor-vamp'],
+				lk_new: ['minor-vamp']
+			})
 		});
 		expect(got.map((e) => e.lick.id)).toEqual(['lk_new', 'lk_old']);
 		expect(got[0].lastPracticedAt).toBe(0);
 		expect(got[1].lastPracticedAt).toBe(1000);
 	});
 
-	it('returns category-compatible progressions in pill order for major-chord', () => {
-		// `major-chord` fits major-vamp, ii-V-I-major, ii-V-I-major-long, turnaround.
+	it('returns user-tagged progressions in pill order', () => {
+		// lk1 is opted into the full `major-chord` compat set — the same set
+		// the setup-time backfill produces — and the result is rendered in
+		// PROGRESSION_TEMPLATES key order.
 		const got = buildUpcomingLicks({
 			candidates: [lick('lk1', 'major-chord')],
 			progress: {},
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk1: ['turnaround', 'major-vamp', 'ii-V-I-major-long', 'ii-V-I-major']
+			})
 		});
 		expect(got).toHaveLength(1);
 		expect(got[0].progressions).toEqual([
@@ -277,30 +317,13 @@ describe('buildUpcomingLicks', () => {
 		]);
 	});
 
-	it('unions user prog:* tags with category-derived progressions, no duplicates', () => {
-		// `major-chord` covers major-vamp etc. natively. User adds `blues` via
-		// progression tag — must appear once at the end of pill order.
-		const got = buildUpcomingLicks({
-			candidates: [lick('lk1', 'major-chord')],
-			progress: {},
-			getProgressionTags: (id) => (id === 'lk1' ? ['blues', 'major-vamp'] : [])
-		});
-		expect(got[0].progressions).toEqual([
-			'major-vamp',
-			'ii-V-I-major',
-			'ii-V-I-major-long',
-			'turnaround',
-			'blues'
-		]);
-	});
-
-	it('promotes a category-incompatible lick when the user tags a progression', () => {
-		// `pentatonic` has no native progression. With a `prog:blues` tag, it
-		// surfaces — and the only progression chip is the tagged one.
+	it('surfaces a category-incompatible lick when the user tags a progression', () => {
+		// `pentatonic` has no native progression. With a `prog:blues` tag,
+		// the only progression chip shown is the tagged one.
 		const got = buildUpcomingLicks({
 			candidates: [lick('lk1', 'pentatonic')],
 			progress: {},
-			getProgressionTags: (id) => (id === 'lk1' ? ['blues'] : [])
+			getProgressionTags: tagsFromMap({ lk1: ['blues'] })
 		});
 		expect(got).toHaveLength(1);
 		expect(got[0].progressions).toEqual(['blues']);
@@ -308,27 +331,33 @@ describe('buildUpcomingLicks', () => {
 });
 
 describe('findStrandedLicks', () => {
-	it('returns [] when every candidate has a fitting progression', () => {
+	it('returns [] when every candidate has at least one prog:* tag', () => {
 		const got = findStrandedLicks({
 			candidates: [
 				lick('lk1', 'major-chord'),
 				lick('lk2', 'blues')
 			],
-			getProgressionTags: noTags
+			getProgressionTags: tagsFromMap({
+				lk1: ['major-vamp'],
+				lk2: ['blues']
+			})
 		});
 		expect(got).toEqual([]);
 	});
 
-	it('flags licks with neither prog:* tags nor a category-compatible progression', () => {
+	it('flags any practice-tagged lick without prog:* tags, regardless of category', () => {
+		// Under opt-in semantics a `major-chord` lick with no tags is just
+		// as stranded as one with an orphan category — both are dropped by
+		// the inclusion filter and must be surfaced to the user for fixing.
 		const got = findStrandedLicks({
 			candidates: [
 				lick('lk_orphan', 'long-ii-V-I-major' as never),
 				lick('lk_user', 'user'),
-				lick('lk_ok', 'major-chord')
+				lick('lk_mc', 'major-chord')
 			],
 			getProgressionTags: noTags
 		});
-		expect(got.map((l) => l.id)).toEqual(['lk_orphan', 'lk_user']);
+		expect(got.map((l) => l.id)).toEqual(['lk_orphan', 'lk_user', 'lk_mc']);
 	});
 
 	it('does not flag a lick whose orphan category is rescued by a prog:* tag', () => {
@@ -336,7 +365,7 @@ describe('findStrandedLicks', () => {
 		// progression is enough to keep it eligible.
 		const got = findStrandedLicks({
 			candidates: [lick('lk', 'long-ii-V-I-major' as never)],
-			getProgressionTags: (id) => (id === 'lk' ? ['ii-V-I-major-long'] : [])
+			getProgressionTags: tagsFromMap({ lk: ['ii-V-I-major-long'] })
 		});
 		expect(got).toEqual([]);
 	});
