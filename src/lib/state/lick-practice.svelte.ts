@@ -71,7 +71,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import {
 	PROGRESSION_TEMPLATES,
-	getCompatibleLickCategories,
 	getSubstitutionCategories,
 	resolveLickAlignmentOffset,
 	resolveTransposeTarget,
@@ -203,10 +202,15 @@ export async function hydrateLickPracticeProgress(
 /**
  * Get all licks tagged for practice that match the selected progression.
  * A lick must have the 'practice' tag, and matches if either:
- *   1. Its curated category is compatible with the progression, OR
- *   2. It has a user-assigned progression tag for the selected progression type, OR
- *   3. Its category is a substitution source for the progression and
+ *   1. It has a user-assigned progression tag for the selected progression type, OR
+ *   2. Its category is a substitution source for the progression and
  *      `enableSubstitutions` is on (e.g. `minor-chord` over a `7` chord).
+ *
+ * Category compatibility alone is no longer an inclusion path — every lick
+ * is expected to carry an explicit `prog:*` tag for every progression it
+ * should play under. The setup-time backfill in `lick-practice-store` seeds
+ * those tags from `getProgressionsForCategory(lick.category)` for legacy
+ * licks, and `updateLickCategory` auto-adds them on every new category set.
  */
 export function getPracticeLicks(): Phrase[] {
 	const allLicks = getAllLicks();
@@ -214,7 +218,6 @@ export function getPracticeLicks(): Phrase[] {
 	if (taggedIds.size === 0) return [];
 
 	const progressionType = lickPractice.config.progressionType;
-	const compatibleCategories = getCompatibleLickCategories(progressionType);
 	const substitutionCategories = getSubstitutionCategories(
 		progressionType,
 		lickPractice.config.enableSubstitutions ?? false
@@ -222,10 +225,9 @@ export function getPracticeLicks(): Phrase[] {
 
 	return allLicks.filter(lick => {
 		if (!taggedIds.has(lick.id)) return false;
-		const matchesByCategory = compatibleCategories.includes(lick.category);
 		const matchesByProgressionTag = isTaggedForProgression(lick.id, progressionType);
 		const matchesBySubstitution = substitutionCategories.includes(lick.category);
-		return matchesByCategory || matchesByProgressionTag || matchesBySubstitution;
+		return matchesByProgressionTag || matchesBySubstitution;
 	});
 }
 

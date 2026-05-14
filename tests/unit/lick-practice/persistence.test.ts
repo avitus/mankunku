@@ -567,7 +567,7 @@ describe('migrateOrphanLickCategories', () => {
 		expect(migrateOrphanLickCategories()).toBe(0);
 	});
 
-	it('remaps user-lick category and adds the inferred prog:* tag', () => {
+	it('remaps user-lick category and adds the full opt-in set plus the orphan-specific tag', () => {
 		seedUserLick('lk1', 'long-ii-V-I-major', "Don't Get Around Much Anymore");
 
 		const migrated = migrateOrphanLickCategories();
@@ -575,7 +575,13 @@ describe('migrateOrphanLickCategories', () => {
 		expect(migrated).toBe(1);
 		const userLicks = JSON.parse(store[PREFIX + 'user-licks']);
 		expect(userLicks[0].category).toBe('ii-V-I-major');
-		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
+		// updateLickCategory seeds every compat-set tag for ii-V-I-major
+		// (ii-V-I-major, ii-V-I-major-long, turnaround), and the orphan
+		// migration adds ii-V-I-major-long explicitly to preserve the
+		// "long" intent the orphan name carried.
+		expect(new Set(getProgressionTags('lk1'))).toEqual(
+			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
+		);
 	});
 
 	it('handles long-ii-V-I-minor symmetrically', () => {
@@ -584,7 +590,9 @@ describe('migrateOrphanLickCategories', () => {
 		expect(migrateOrphanLickCategories()).toBe(1);
 		const userLicks = JSON.parse(store[PREFIX + 'user-licks']);
 		expect(userLicks[0].category).toBe('ii-V-I-minor');
-		expect(getProgressionTags('lk2')).toEqual(['ii-V-I-minor-long']);
+		expect(new Set(getProgressionTags('lk2'))).toEqual(
+			new Set(['ii-V-I-minor', 'ii-V-I-minor-long'])
+		);
 	});
 
 	it('rewrites curated category overrides too', () => {
@@ -592,15 +600,22 @@ describe('migrateOrphanLickCategories', () => {
 
 		expect(migrateOrphanLickCategories()).toBe(1);
 		expect(getLickCategoryOverrides()['curated-1']).toBe('ii-V-I-major');
-		expect(getProgressionTags('curated-1')).toEqual(['ii-V-I-major-long']);
+		// Curated overrides go through the override branch of
+		// updateLickCategory, which still seeds the full compat set, and the
+		// orphan migration adds ii-V-I-major-long explicitly.
+		expect(new Set(getProgressionTags('curated-1'))).toEqual(
+			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
+		);
 	});
 
 	it('is idempotent — second run touches nothing', () => {
 		seedUserLick('lk1', 'long-ii-V-I-major');
 		expect(migrateOrphanLickCategories()).toBe(1);
 		expect(migrateOrphanLickCategories()).toBe(0);
-		// Tag wasn't double-added.
-		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
+		// Tags weren't double-added.
+		expect(new Set(getProgressionTags('lk1'))).toEqual(
+			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
+		);
 	});
 
 	it('preserves an already-present prog tag instead of duplicating', () => {
@@ -609,7 +624,11 @@ describe('migrateOrphanLickCategories', () => {
 		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
 
 		migrateOrphanLickCategories();
-		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
+		// The pre-existing tag survives untouched; the compat-set backfill
+		// adds the rest without duplicating it.
+		expect(new Set(getProgressionTags('lk1'))).toEqual(
+			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
+		);
 	});
 });
 
@@ -633,26 +652,40 @@ describe('backfillInferredProgressionTags', () => {
 		store[PREFIX + 'user-licks'] = JSON.stringify(existing);
 	}
 
-	it('adds the inferred prog:* tag for user licks with a bucket-A category', () => {
-		seedUserLick('lk_vi', 'V-I-major');
-		seedUserLick('lk_blues', 'blues');
-		seedUserLick('lk_short', 'short-ii-V-I-minor');
+	it('adds prog:* tags for every progression the category is compatible with', () => {
+		seedUserLick('lk_vi', 'V-I-major');     // → ii-V-I-major-long only
+		seedUserLick('lk_blues', 'blues');       // → blues only
+		seedUserLick('lk_short', 'short-ii-V-I-minor'); // → ii-V-I-minor only
 
 		backfillInferredProgressionTags();
 
-		expect(getProgressionTags('lk_vi')).toContain('ii-V-I-major-long');
-		expect(getProgressionTags('lk_blues')).toContain('blues');
-		expect(getProgressionTags('lk_short')).toContain('ii-V-I-minor');
+		// Single-fit categories backfill to one tag, matching today's behavior.
+		expect(getProgressionTags('lk_vi')).toEqual(['ii-V-I-major-long']);
+		expect(getProgressionTags('lk_blues')).toEqual(['blues']);
+		expect(getProgressionTags('lk_short')).toEqual(['ii-V-I-minor']);
 	});
 
-	it('does nothing for licks whose category is multi-fit (bucket B)', () => {
+	it('backfills the full compat set for multi-fit categories', () => {
+		// Under opt-in semantics, every progression a category was implicitly
+		// compatible with must show up as an explicit `prog:*` tag so the
+		// session-time filter keeps including the lick everywhere it used to.
 		seedUserLick('lk_mc', 'major-chord');
 		seedUserLick('lk_mn', 'minor-chord');
 
 		backfillInferredProgressionTags();
 
-		expect(getProgressionTags('lk_mc')).toEqual([]);
-		expect(getProgressionTags('lk_mn')).toEqual([]);
+		expect(new Set(getProgressionTags('lk_mc'))).toEqual(
+			new Set(['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
+		);
+		expect(new Set(getProgressionTags('lk_mn'))).toEqual(
+			new Set([
+				'minor-vamp',
+				'ii-V-I-minor',
+				'ii-V-I-major-long',
+				'ii-V-I-minor-long',
+				'turnaround'
+			])
+		);
 	});
 
 	it('is idempotent — second run touches no new licks', () => {

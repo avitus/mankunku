@@ -20,6 +20,7 @@ import {
 import type { LickPracticePlanItem } from '$lib/types/lick-practice';
 import {
 	togglePracticeTag,
+	toggleProgressionTag,
 	loadUserLickTags,
 	saveUserLickTags
 } from '$lib/persistence/lick-practice-store';
@@ -108,22 +109,25 @@ describe('getPracticeLicks — substitution filter', () => {
 		expect(licks.find(l => l.id === MINOR_LICK_ID)).toBeUndefined();
 	});
 
-	it('includes minor-chord licks on ii-V-I-minor via native mapping (tonic I = min7) — V is 7alt, so substitution would not fire anyway', () => {
+	it('includes minor-chord licks on ii-V-I-minor when opted in (tonic I = min7) — V is 7alt, so substitution would not fire anyway', () => {
 		togglePracticeTag(MINOR_LICK_ID);
+		toggleProgressionTag(MINOR_LICK_ID, 'ii-V-I-minor');
 		lickPractice.config.progressionType = 'ii-V-I-minor';
 		lickPractice.config.enableSubstitutions = true;
 
-		// minor-chord is native on ii-V-I-minor (the I chord), so the lick
-		// appears via native mapping. Substitution over V (7alt) does not fire
-		// because the rule targets plain '7'; native wins regardless.
+		// minor-chord is native on ii-V-I-minor (the I chord), and the user
+		// has opted the lick into that progression. Substitution over V (7alt)
+		// does not fire because the rule targets plain '7'; the opt-in carries
+		// inclusion regardless.
 		const licks = getPracticeLicks();
 		expect(licks.find(l => l.id === MINOR_LICK_ID)).toBeDefined();
 	});
 
-	it('still includes minor-chord licks on long ii-V-I-major via native mapping', () => {
+	it('still includes minor-chord licks on long ii-V-I-major when opted in', () => {
 		// minor-chord maps natively to the ii on the long form; works with or
-		// without substitutions.
+		// without substitutions once the user has opted the lick in.
 		togglePracticeTag(MINOR_LICK_ID);
+		toggleProgressionTag(MINOR_LICK_ID, 'ii-V-I-major-long');
 		lickPractice.config.progressionType = 'ii-V-I-major-long';
 
 		lickPractice.config.enableSubstitutions = false;
@@ -131,6 +135,17 @@ describe('getPracticeLicks — substitution filter', () => {
 
 		lickPractice.config.enableSubstitutions = true;
 		expect(getPracticeLicks().find(l => l.id === MINOR_LICK_ID)).toBeDefined();
+	});
+
+	it('excludes a practice-tagged minor-chord lick from ii-V-I-minor when not opted in', () => {
+		// Opt-in is now the sole native-inclusion path, so a practice-tagged
+		// lick without the matching `prog:*` tag is excluded even when its
+		// category would historically have been compatible.
+		togglePracticeTag(MINOR_LICK_ID);
+		lickPractice.config.progressionType = 'ii-V-I-minor';
+		lickPractice.config.enableSubstitutions = false;
+
+		expect(getPracticeLicks().find(l => l.id === MINOR_LICK_ID)).toBeUndefined();
 	});
 });
 

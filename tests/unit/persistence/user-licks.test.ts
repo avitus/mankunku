@@ -109,30 +109,37 @@ describe('updateLickCategory', () => {
 		expect(getLickCategoryOverrides()['curated-x']).toBe('modal');
 	});
 
-	it('auto-adds the inferred prog:* tag for bucket-A categories on user licks', () => {
+	it('auto-adds prog:* tags for every compatible progression on user licks', () => {
+		// `V-I-major` lives only in ii-V-I-major-long, so a single tag.
 		saveUserLick(makePhrase({ id: 'lick-vi', category: 'user' }));
 		updateLickCategory('lick-vi', 'V-I-major');
 		expect(getProgressionTags('lick-vi')).toEqual(['ii-V-I-major-long']);
 	});
 
-	it('auto-adds the inferred prog:* tag for bucket-A categories on curated overrides', () => {
+	it('auto-adds prog:* tags for every compatible progression on curated overrides', () => {
 		updateLickCategory('curated-blues', 'blues');
 		expect(getProgressionTags('curated-blues')).toEqual(['blues']);
 	});
 
-	it('does not auto-tag for ambiguous (bucket-B) categories like major-chord', () => {
+	it('auto-adds the full compat set for multi-fit categories like major-chord', () => {
+		// Opt-in is the only inclusion path now, so a multi-fit category
+		// has to seed every progression it could reasonably play under.
 		saveUserLick(makePhrase({ id: 'lick-mc', category: 'user' }));
 		updateLickCategory('lick-mc', 'major-chord');
-		expect(getProgressionTags('lick-mc')).toEqual([]);
+		expect(new Set(getProgressionTags('lick-mc'))).toEqual(
+			new Set(['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
+		);
 	});
 
-	it('does not remove a previously-added prog:* tag when re-categorizing to a non-mapped category', () => {
+	it('does not remove a previously-added prog:* tag when re-categorizing', () => {
 		saveUserLick(makePhrase({ id: 'lick-edit', category: 'user' }));
 		updateLickCategory('lick-edit', 'V-I-major');
 		expect(getProgressionTags('lick-edit')).toEqual(['ii-V-I-major-long']);
 		updateLickCategory('lick-edit', 'major-chord');
-		// Tag persists — accumulated user intent is durable across edits.
-		expect(getProgressionTags('lick-edit')).toEqual(['ii-V-I-major-long']);
+		// Original tag persists alongside the freshly-added major-chord set.
+		expect(new Set(getProgressionTags('lick-edit'))).toEqual(
+			new Set(['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
+		);
 	});
 });
 
