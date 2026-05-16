@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { LickPracticeConfig, LickPracticeMode } from '$lib/types/lick-practice';
 	import type { BackingStyle } from '$lib/types/instruments';
-	import type { Phrase } from '$lib/types/music';
+	import type { PitchClass, Phrase } from '$lib/types/music';
 	import {
 		PROGRESSION_TEMPLATES,
 		progressionHasSubstitutionTargets
@@ -11,6 +11,9 @@
 	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
 	import { lickPractice } from '$lib/state/lick-practice.svelte';
 	import { getInstrument } from '$lib/state/settings.svelte';
+	import { getUnlockContext } from '$lib/state/progress.svelte';
+	import { getUnlockedKeys } from '$lib/tonality/tonality';
+	import { circleOfFourthsFrom } from '$lib/music/key-ordering';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
@@ -68,6 +71,17 @@
 	);
 
 	const instrument = $derived(getInstrument());
+
+	// The set of keys the deep-practice rotation will cycle through: the
+	// lick's circle-of-4ths order, filtered to keys the user has unlocked.
+	// Mirrors `unlockedCircleFrom` in lick-practice.svelte.ts; kept inline
+	// here so the setup screen can show the user the active set before they
+	// start, without exporting an internal helper.
+	const rotationKeys = $derived.by<PitchClass[]>(() => {
+		if (!selectedLick) return [];
+		const unlocked = new Set(getUnlockedKeys(getUnlockContext()));
+		return circleOfFourthsFrom(selectedLick.key).filter((k) => unlocked.has(k));
+	});
 
 	const canStart = $derived(
 		config.singleLickMode ? selectedLick !== null : availableLickCount > 0
@@ -154,6 +168,17 @@
 			{/if}
 		</div>
 
+		<!-- Unlocked-key rotation summary -->
+		{#if selectedLick && rotationKeys.length > 0}
+			<div class="flex items-start gap-3">
+				<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Rotation:</span>
+				<span class="text-xs text-[var(--color-text-secondary)]">
+					{rotationKeys.length} unlocked key{rotationKeys.length === 1 ? '' : 's'}:
+					{rotationKeys.map((k) => concertKeyToWritten(k, instrument)).join(' · ')}
+				</span>
+			</div>
+		{/if}
+
 		<!-- Tempo bump amount -->
 		<div class="flex items-center gap-3">
 			<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Tempo Bump:</span>
@@ -170,7 +195,7 @@
 				class="h-8 w-20 rounded-lg bg-[var(--color-bg-secondary)] px-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
 			/>
 			<span class="text-xs text-[var(--color-text-secondary)]">
-				BPM added each time you master all 12 keys.
+				BPM added each time you clear the whole rotation.
 			</span>
 		</div>
 	{:else}

@@ -70,6 +70,8 @@ import {
 import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-loader';
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+import { getUnlockContext } from '$lib/state/progress.svelte';
+import { getUnlockedKeys } from '$lib/tonality/tonality';
 import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
 import {
 	selectInitialProgression,
@@ -360,13 +362,28 @@ export function startSession(): void {
 }
 
 /**
+ * Circle-of-4ths rotation starting at `entryKey`, filtered to the keys the
+ * user has unlocked via the tonality progression. Falls back to the full
+ * circle if the filter would yield an empty set (defensive — `C` is always
+ * unlocked, so this only triggers if the unlock context is malformed).
+ */
+function unlockedCircleFrom(entryKey: PitchClass): PitchClass[] {
+	const unlocked = new Set(getUnlockedKeys(getUnlockContext()));
+	const filtered = circleOfFourthsFrom(entryKey).filter(k => unlocked.has(k));
+	return filtered.length > 0 ? filtered : circleOfFourthsFrom(entryKey);
+}
+
+/**
  * Start a single-lick deep-practice session: cycle the chosen lick through
- * the circle of 4ths, drop keys at score ≥ 0.95, bump tempo by `tempoBumpBpm`
- * once all 12 are cleared, and repeat until the user ends the session.
+ * the user's currently unlocked keys (in circle-of-4ths order from the lick's
+ * home key), drop keys at score ≥ 0.95, bump tempo by `tempoBumpBpm` once the
+ * set is cleared, and repeat until the user ends the session.
  *
  * The session has no time budget — `durationMinutes` is ignored. Mastery
- * does NOT persist between sessions (each visit re-starts with all 12
- * keys), but the elevated tempo IS persisted via `LickPracticeKeyProgress.currentTempo`.
+ * does NOT persist between sessions (each visit re-starts with the unlocked
+ * set), but the elevated tempo IS persisted via `LickPracticeKeyProgress.currentTempo`.
+ * Refills re-read the unlock context, so keys unlocked mid-session join on
+ * the next cycle.
  */
 export function startSingleLickSession(
 	lickOrId: string | Phrase,
@@ -385,7 +402,7 @@ export function startSingleLickSession(
 			phraseName: lick.name,
 			phraseNumber: 1,
 			category: lick.category,
-			keys: circleOfFourthsFrom(lick.key),
+			keys: unlockedCircleFrom(lick.key),
 			// Persist the resolved Phrase so the helpers below survive a
 			// `getLickById` miss for user/community licks not (yet) indexed
 			// in the global library.
@@ -1040,12 +1057,14 @@ export function advanceSingleLickRound(): void {
 	const survivors = item.keys.filter(k => !lickPractice.masteredThisRound.includes(k));
 
 	if (survivors.length === 0) {
-		// All 12 cleared at the current tempo — bump and refill.
+		// Whole unlocked set cleared at the current tempo — bump and refill.
+		// Re-read the unlock context so any keys unlocked since the round
+		// started (via ear-training elsewhere) join on this cycle.
 		const bump = lickPractice.config.tempoBumpBpm ?? DEFAULT_TEMPO_BUMP_BPM;
 		const newTempo = clampTempo(lickPractice.currentTempo + bump);
 		const baseLick = resolveLickFor(item);
 		const refillStart = baseLick?.key ?? item.keys[0] ?? 'C';
-		const fullCircle = circleOfFourthsFrom(refillStart as PitchClass);
+		const fullCircle = unlockedCircleFrom(refillStart as PitchClass);
 
 		// Persist the elevated tempo to every key for this lick so the next
 		// session resumes at this BPM (mirrors the per-key write the standard
