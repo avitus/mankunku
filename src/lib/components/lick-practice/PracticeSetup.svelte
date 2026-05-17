@@ -79,8 +79,10 @@
 	// start, without exporting an internal helper.
 	const rotationKeys = $derived.by<PitchClass[]>(() => {
 		if (!selectedLick) return [];
+		const circle = circleOfFourthsFrom(selectedLick.key);
 		const unlocked = new Set(getUnlockedKeys(getUnlockContext()));
-		return circleOfFourthsFrom(selectedLick.key).filter((k) => unlocked.has(k));
+		const filtered = circle.filter((k) => unlocked.has(k));
+		return filtered.length > 0 ? filtered : circle;
 	});
 
 	const canStart = $derived(
