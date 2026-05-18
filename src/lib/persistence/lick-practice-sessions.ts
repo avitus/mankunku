@@ -1,10 +1,15 @@
 /**
- * Persistent log of completed lick-practice sessions.
+ * Persistent log of lick-practice sessions, written incrementally by id.
  *
- * Distinct from the per-key progress store (`lick-practice-store.ts`) — this
- * captures an end-of-session snapshot so the /progress page can list past
- * sessions alongside ear-training ones. Entries are bounded to the same
- * MAX_SESSIONS window as ear-training.
+ * Each session generates a stable id at start; the session page calls
+ * `upsertLickPracticeSession` after every scored key with the current
+ * report. This gives per-key durability (browser crash mid-session keeps
+ * the keys recorded so far) without a separate per-key write path —
+ * `daily-summaries` then derives from this log as its source of truth for
+ * lick activity.
+ *
+ * Entries are bounded to MAX_SESSIONS so the localStorage blob doesn't
+ * grow unbounded; pruning keeps the newest by timestamp.
  */
 
 import type { ChordProgressionType, LickPracticeMode, SessionReport } from '$lib/types/lick-practice';
@@ -30,15 +35,36 @@ export function saveLickPracticeSessions(entries: LickPracticeSessionLogEntry[])
 }
 
 /**
- * Append a completed session to the log (newest first), bounded to MAX_SESSIONS.
- * Skips writes for empty reports — an aborted session with no attempted keys
- * carries no useful information for the history view.
+ * Insert or replace a session log entry by id. Called incrementally during
+ * a session — once per scored key — so the persisted entry's
+ * `report.totalAttempts` always reflects the keys completed so far. The
+ * final call (at session end) is just the last in the sequence.
+ *
+ * Returns the saved entry, or `null` when `totalAttempts === 0` (an
+ * upsert before any key has scored is a no-op so the log isn't littered
+ * with empty placeholders).
  */
-export function appendLickPracticeSession(entry: LickPracticeSessionLogEntry): void {
-	if (entry.report.totalAttempts === 0) return;
+export function upsertLickPracticeSession(
+	entry: LickPracticeSessionLogEntry
+): LickPracticeSessionLogEntry | null {
+	if (entry.report.totalAttempts === 0) return null;
+
 	const existing = loadLickPracticeSessions();
-	const next = [entry, ...existing].slice(0, MAX_SESSIONS);
+	const idx = existing.findIndex((e) => e.id === entry.id);
+	let next: LickPracticeSessionLogEntry[];
+	if (idx >= 0) {
+		next = [...existing];
+		next[idx] = entry;
+	} else {
+		next = [entry, ...existing];
+	}
+	// Sort newest-first by timestamp before trimming so a late upsert on an
+	// older session can't evict newer sessions when MAX_SESSIONS is hit.
+	next.sort((a, b) => b.timestamp - a.timestamp);
+	if (next.length > MAX_SESSIONS) next = next.slice(0, MAX_SESSIONS);
+
 	saveLickPracticeSessions(next);
+	return entry;
 }
 
 export function clearLickPracticeSessions(): void {

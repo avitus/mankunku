@@ -97,7 +97,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	if (isBrowser() && session) {
 		const { initFromCloud } = await import('$lib/state/progress.svelte');
 		const { loadSettingsFromCloud } = await import('$lib/state/settings.svelte');
-		const { rebuildHistoryIfNeeded, mergeCloudSummaries } =
+		const { recomputeAllDailySummaries, mergeCloudSummaries } =
 			await import('$lib/state/history.svelte');
 		const { loadDailySummariesFromCloud, syncAllDailySummariesToCloud } =
 			await import('$lib/persistence/sync');
@@ -108,9 +108,10 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 
 		// Reconciliation must run AFTER initUserLicksFromCloud and
 		// initCommunityFromCloud finish — getAllLicks() reads both stores.
-		// Daily-summary cloud hydration runs after rebuildHistoryIfNeeded so
-		// any locally-derived rows (from the last 100 sessions) are in place
-		// before the cloud merge potentially overwrites them.
+		// recomputeAllDailySummaries runs after the source-of-truth tables
+		// (progress.sessions, lick-practice-sessions) are populated; the
+		// cloud daily-summaries merge then layers cross-device and
+		// out-of-window rows on top, with anything local-newer pushed back.
 		const hydration = Promise.all([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
@@ -119,7 +120,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			initCommunityFromCloud(supabase)
 		])
 			.then(() => reconcileOrphanedLickMetadata(supabase))
-			.then(() => rebuildHistoryIfNeeded())
+			.then(() => recomputeAllDailySummaries())
 			.then(async () => {
 				const cloudSummaries = await loadDailySummariesFromCloud(supabase);
 				if (cloudSummaries == null) return;
@@ -133,11 +134,12 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		// The hydration promise continues in the background if the timeout wins.
 		await Promise.race([hydration, new Promise<void>(r => setTimeout(r, 2000))]);
 
-		// If initFromCloud finished but loadSettingsFromCloud is still pending,
-		// the .then() above hasn't fired yet. Catch that partial-completion case
-		// by rebuilding with whatever progress data is in localStorage now.
-		// The staleness check inside returns early when summaries are already current.
-		rebuildHistoryIfNeeded();
+		// If cloud hydration hadn't finished by the timeout, re-derive from
+		// whatever's in localStorage now so the calendar renders without
+		// waiting for the cloud round-trip. The hydration chain's mergeCloud
+		// step continues in the background and will overlay any cloud-only
+		// rows when it lands.
+		recomputeAllDailySummaries();
 	}
 
 	return { supabase, session, user, isAdmin };

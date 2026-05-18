@@ -27,7 +27,6 @@ vi.stubGlobal('localStorage', {
 
 vi.mock('$lib/persistence/sync', () => ({
 	syncProgressToCloud: vi.fn().mockResolvedValue(undefined),
-	syncProgressAggregateToCloud: vi.fn().mockResolvedValue(undefined),
 	loadProgressFromCloud: vi.fn().mockResolvedValue(null),
 	deleteProgressDetailsFromCloud: vi.fn().mockResolvedValue(undefined),
 	syncDailySummaryToCloud: vi.fn().mockResolvedValue(undefined),
@@ -35,7 +34,7 @@ vi.mock('$lib/persistence/sync', () => ({
 }));
 
 vi.mock('$lib/state/history.svelte', () => ({
-	aggregateSession: vi.fn(() => ({})),
+	recomputeDailySummary: vi.fn(() => null),
 	clearHistory: vi.fn(),
 	localDateStr: (d: Date) => {
 		const year = d.getFullYear();

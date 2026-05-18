@@ -35,8 +35,10 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
-	import { appendLickPracticeSession } from '$lib/persistence/lick-practice-sessions';
-	import { recordLickPracticeAttempt } from '$lib/state/progress.svelte';
+	import { upsertLickPracticeSession } from '$lib/persistence/lick-practice-sessions';
+	import { bumpStreakForToday } from '$lib/state/progress.svelte';
+	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
+	import { syncDailySummaryToCloud } from '$lib/persistence/sync';
 	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { ChordProgressionType, SessionReport } from '$lib/types/lick-practice';
@@ -104,6 +106,13 @@
 	// Beat-wrap length for the chord chart highlight. Updated on every lick
 	// boundary so licks with different progression lengths wrap correctly.
 	let beatLoopBeats = 0;
+
+	// Stable id + start timestamp for this session's log entry. Generated
+	// once at session start in initializeSession(); each scored key
+	// upserts the entry under this id with the current report, so a browser
+	// crash mid-session keeps the keys completed so far on disk.
+	let lickPracticeSessionLogId = '';
+	let lickPracticeSessionStartTs = 0;
 
 	// Inter-lick rest: 2 bars of backing-only between licks.
 	const INTER_LICK_REST_BARS = 2;
@@ -283,6 +292,13 @@
 		setMasterVolume(settings.masterVolume);
 		await ensurePitchDetector();
 		isLoading = false;
+
+		// Stamp the session log entry id + timestamp once per session. Per-key
+		// upserts keyed by this id keep the log entry's totalAttempts in sync
+		// with the keys played so far, so a browser crash mid-session preserves
+		// real activity (the daily-summary derivation reads from the same log).
+		lickPracticeSessionLogId = `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+		lickPracticeSessionStartTs = Date.now();
 
 		await startLick(lickPractice.currentLickIndex, /* isFirstLick */ true);
 	}
@@ -706,8 +722,38 @@
 		// and trend views should reflect any practice activity, not just ear
 		// training. recordLickPracticeAttempt updates only those fields.
 		if (score) {
-			recordKeyAttempt(score, window.sessionId);
-			recordLickPracticeAttempt(score, window.phrase.category, supabase ?? undefined);
+			// Two independent writes, each in its own try-catch:
+			//   1. recordKeyAttempt: per-key lick-practice progress (passCount,
+			//      tempo, keyResults for the session report).
+			//   2. upsertLickPracticeSession + recomputeDailySummary: the
+			//      session log entry's totalAttempts is what daily-summary
+			//      derives from, so upserting per key gives the calendar
+			//      per-key durability.
+			// Wrapped independently so a throw in (1) can't suppress (2).
+			try {
+				recordKeyAttempt(score, window.sessionId);
+			} catch (err) {
+				console.warn('[lick-practice] recordKeyAttempt failed:', err);
+			}
+			try {
+				upsertLickPracticeSession({
+					id: lickPracticeSessionLogId,
+					timestamp: lickPracticeSessionStartTs,
+					progressionType: lickPractice.config.progressionType,
+					practiceMode: lickPractice.config.practiceMode,
+					report: getSessionReport()
+				});
+				const today = localDateStr(new Date(lickPracticeSessionStartTs));
+				const summary = recomputeDailySummary(today);
+				bumpStreakForToday(supabase ?? undefined);
+				if (supabase && summary) {
+					syncDailySummaryToCloud(supabase, summary).catch((err) => {
+						console.warn('Failed to sync daily summary to cloud:', err);
+					});
+				}
+			} catch (err) {
+				console.warn('[lick-practice] daily-summary update failed:', err);
+			}
 		}
 
 		// Persist the audio + metadata for /diagnostics. Each key-window is
@@ -823,21 +869,36 @@
 		}
 	}
 
-	function persistReport(report: SessionReport): void {
-		appendLickPracticeSession({
-			id: `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-			timestamp: Date.now(),
-			progressionType: lickPractice.config.progressionType,
-			practiceMode: lickPractice.config.practiceMode,
-			report
-		});
-	}
-
 	function finishSession() {
 		stopAll();
 		const report = getSessionReport();
 		sessionReport = report;
-		persistReport(report);
+		// Final upsert under the same id captures any keys archived to
+		// allAttempts by startInterLickTransition since the last per-key
+		// upsert. Idempotent: if the per-key path already wrote the same
+		// report, this replaces it with identical data. Wrapped in try/catch
+		// so a persistence failure here can't block the phase transition —
+		// per-key writes already persisted the activity.
+		if (report.totalAttempts > 0) {
+			try {
+				upsertLickPracticeSession({
+					id: lickPracticeSessionLogId,
+					timestamp: lickPracticeSessionStartTs,
+					progressionType: lickPractice.config.progressionType,
+					practiceMode: lickPractice.config.practiceMode,
+					report
+				});
+				const today = localDateStr(new Date(lickPracticeSessionStartTs));
+				const summary = recomputeDailySummary(today);
+				if (supabase && summary) {
+					syncDailySummaryToCloud(supabase, summary).catch((err) => {
+						console.warn('Failed to sync daily summary to cloud:', err);
+					});
+				}
+			} catch (err) {
+				console.warn('[lick-practice] finishSession persistence failed:', err);
+			}
+		}
 		lickPractice.phase = 'complete';
 	}
 
@@ -905,13 +966,14 @@
 		return years === 1 ? '1 year ago' : `${years} years ago`;
 	}
 
-	// Build session report automatically when phase becomes 'complete'
+	// Build session report automatically when phase becomes 'complete'.
+	// The session log entry has been upserted incrementally per key (and
+	// once more at finishSession), so no extra write is needed here —
+	// this effect just surfaces the report to the UI.
 	$effect(() => {
 		if (lickPractice.phase === 'complete' && !sessionReport) {
 			stopAll();
-			const report = getSessionReport();
-			sessionReport = report;
-			persistReport(report);
+			sessionReport = getSessionReport();
 		}
 	});
 </script>
