@@ -1,8 +1,19 @@
 /**
  * Long-term progress history — daily aggregates persisted to localStorage.
  *
- * Captures compact daily summaries that survive the MAX_SESSIONS pruning window.
- * Provides query functions for calendar heatmaps, trend charts, and period comparisons.
+ * Daily summaries are a PURE DERIVATION of two source-of-truth tables:
+ *   - `progress.sessions` (ear-training, capped at MAX_SESSIONS)
+ *   - `lick-practice-sessions` (lick session log, capped at MAX_SESSIONS)
+ *
+ * Every write that affects either source calls `recomputeAllDailySummaries`,
+ * which re-derives summaries for all dates present in the sources. The
+ * persisted `daily-summaries` blob serves as a cache for past days whose
+ * source rows have aged out of the MAX_SESSIONS window — those days survive
+ * untouched until the cloud merge brings in newer data.
+ *
+ * Pure derivation means: replaying a write is a no-op, divergence is
+ * self-correcting on the next recompute, and there is no per-attempt
+ * mutation path that can race with the rebuild path.
  */
 
 import type {
@@ -16,11 +27,15 @@ import type {
 	UserProgress
 } from '$lib/types/progress';
 import type { Grade } from '$lib/types/scoring';
+import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
 import { save, load, remove } from '$lib/persistence/storage';
+import { scoreToGrade } from '$lib/scoring/grades';
 
 const SUMMARIES_KEY = 'daily-summaries';
 const META_KEY = 'progress-meta';
 const ESTIMATED_MINUTES_PER_SESSION = 2;
+const PROGRESS_KEY = 'progress';
+const LICK_SESSIONS_KEY = 'lick-practice-sessions';
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -54,67 +69,281 @@ function createDefaultMeta(): ProgressMeta {
 	};
 }
 
-// ── Migration ────────────────────────────────────────────────────
+// ── Pure derivation ─────────────────────────────────────────────
 
 /**
- * Minimal input shape for aggregateSession(). SessionResult satisfies this
- * directly; lick-practice attempts (which don't have a full SessionResult
- * record) build a small ad-hoc object that conforms.
+ * Derive a single day's summary from the two source-of-truth tables.
+ * Returns `null` when neither source has activity for the date.
+ *
+ * Caveat: `notesTotal` / `notesHit` and the `categories` breakdown reflect
+ * ear-training only — the lick-practice session log stores per-key scores
+ * but not per-key note counts or categories. The calendar's lick-practice
+ * cell intensity comes from `lickPracticeSessions`, so this is enough; the
+ * downstream readers of notes/categories already display ear-training data.
+ *
+ * `pitchComplexity` / `rhythmComplexity` is preserved when the caller
+ * passes a snapshot — recordAttempt grabs the live adaptive state at write
+ * time, since SessionResult itself doesn't carry the snapshot.
  */
-export interface AggregateInput {
-	timestamp: number;
-	overall: number;
-	pitchAccuracy: number;
-	rhythmAccuracy: number;
-	grade: Grade;
-	category: string;
-	notesHit: number;
-	notesTotal: number;
-	source?: 'ear-training' | 'lick-practice';
-}
+export function deriveDailySummary(
+	date: string,
+	earSessions: SessionResult[],
+	lickEntries: LickPracticeSessionLogEntry[],
+	preservedComplexity?: { pitch?: number; rhythm?: number }
+): DailySummary | null {
+	const dayEar = earSessions.filter((s) => dateKey(s.timestamp) === date);
+	const dayLick = lickEntries.filter((e) => dateKey(e.timestamp) === date);
 
-function aggregateSessionGroup(date: string, sessions: SessionResult[]): DailySummary {
-	const n = sessions.length;
-	const grades = emptyGrades();
-	const categories: Record<string, number> = {};
-	let totalOverall = 0;
-	let totalPitch = 0;
-	let totalRhythm = 0;
+	const earCount = dayEar.length;
+	const lickCount = dayLick.reduce((sum, e) => sum + e.report.totalAttempts, 0);
+	const total = earCount + lickCount;
+
+	if (total === 0) return null;
+
+	let overallSum = 0;
+	let pitchSum = 0;
+	let rhythmSum = 0;
 	let bestScore = 0;
-	let notesTotal = 0;
-	let notesHit = 0;
-	let earCount = 0;
-	let lickCount = 0;
+	const grades = emptyGrades();
 
-	for (const s of sessions) {
-		totalOverall += s.overall;
-		totalPitch += s.pitchAccuracy;
-		totalRhythm += s.rhythmAccuracy;
+	for (const s of dayEar) {
+		overallSum += s.overall;
+		pitchSum += s.pitchAccuracy;
+		rhythmSum += s.rhythmAccuracy;
 		bestScore = Math.max(bestScore, s.overall);
-		notesTotal += s.notesTotal;
-		notesHit += s.notesHit;
 		grades[gradeKey(s.grade)]++;
-		categories[s.category] = (categories[s.category] ?? 0) + 1;
-		// Sessions without `source` predate lick-practice — count as ear-training.
-		if (s.source === 'lick-practice') lickCount++;
-		else earCount++;
 	}
 
-	return {
+	for (const entry of dayLick) {
+		for (const lick of entry.report.licks) {
+			for (const key of lick.keys) {
+				overallSum += key.score;
+				pitchSum += key.pitchAccuracy;
+				rhythmSum += key.rhythmAccuracy;
+				bestScore = Math.max(bestScore, key.score);
+				grades[gradeKey(scoreToGrade(key.score))]++;
+			}
+		}
+	}
+
+	const attemptCount = earCount + lickCount;
+
+	let notesTotal = 0;
+	let notesHit = 0;
+	for (const s of dayEar) {
+		notesTotal += s.notesTotal;
+		notesHit += s.notesHit;
+	}
+
+	const categories: Record<string, number> = {};
+	for (const s of dayEar) {
+		categories[s.category] = (categories[s.category] ?? 0) + 1;
+	}
+
+	const summary: DailySummary = {
 		date,
-		sessionCount: n,
+		sessionCount: total,
 		earTrainingSessions: earCount,
 		lickPracticeSessions: lickCount,
-		practiceMinutes: n * ESTIMATED_MINUTES_PER_SESSION,
-		avgOverall: totalOverall / n,
-		avgPitch: totalPitch / n,
-		avgRhythm: totalRhythm / n,
+		practiceMinutes: total * ESTIMATED_MINUTES_PER_SESSION,
+		avgOverall: overallSum / attemptCount,
+		avgPitch: pitchSum / attemptCount,
+		avgRhythm: rhythmSum / attemptCount,
 		bestScore,
 		notesTotal,
 		notesHit,
 		grades,
 		categories
 	};
+
+	if (preservedComplexity?.pitch !== undefined) summary.pitchComplexity = preservedComplexity.pitch;
+	if (preservedComplexity?.rhythm !== undefined)
+		summary.rhythmComplexity = preservedComplexity.rhythm;
+
+	return summary;
+}
+
+// ── Load ─────────────────────────────────────────────────────────
+
+function loadHistory(): { summaries: DailySummary[]; meta: ProgressMeta } {
+	const savedMeta = load<ProgressMeta>(META_KEY);
+	const savedSummaries = load<DailySummary[]>(SUMMARIES_KEY);
+
+	if (savedMeta && savedMeta.version >= 2 && savedSummaries) {
+		return { summaries: savedSummaries, meta: savedMeta };
+	}
+
+	return { summaries: savedSummaries ?? [], meta: savedMeta ?? createDefaultMeta() };
+}
+
+const loaded = loadHistory();
+
+// ── Reactive state ───────────────────────────────────────────────
+
+export const dailySummaries = $state<DailySummary[]>(loaded.summaries);
+export const progressMeta = $state<ProgressMeta>(loaded.meta);
+
+let summaryMap = new Map<string, DailySummary>(loaded.summaries.map((s) => [s.date, s]));
+
+function saveAll(): void {
+	save(SUMMARIES_KEY, dailySummaries);
+	save(META_KEY, progressMeta);
+}
+
+// ── Public write API ────────────────────────────────────────────
+
+/**
+ * Take the per-counter max of derived (from current sources) and any
+ * existing cached summary. Counters within a day are monotonic — you
+ * can't undo a session — so max protects the cached value against
+ * source-table pruning: if the lick log has aged a day's entries out,
+ * `derived.lickPracticeSessions` would be 0 but `existing.lickPracticeSessions`
+ * still carries the real count. Reset explicitly clears the cache, so
+ * max never strands wrong data.
+ */
+function mergeWithExisting(existing: DailySummary | undefined, derived: DailySummary): DailySummary {
+	if (!existing) return derived;
+	const ear = Math.max(existing.earTrainingSessions ?? 0, derived.earTrainingSessions ?? 0);
+	const lick = Math.max(existing.lickPracticeSessions ?? 0, derived.lickPracticeSessions ?? 0);
+	const merged: DailySummary = {
+		...derived,
+		earTrainingSessions: ear,
+		lickPracticeSessions: lick,
+		sessionCount: ear + lick,
+		practiceMinutes: (ear + lick) * ESTIMATED_MINUTES_PER_SESSION
+	};
+	// Notes / averages prefer the source with more total attempts on record.
+	const derivedTotal = (derived.earTrainingSessions ?? 0) + (derived.lickPracticeSessions ?? 0);
+	const existingTotal = (existing.earTrainingSessions ?? 0) + (existing.lickPracticeSessions ?? 0);
+	if (existingTotal > derivedTotal) {
+		merged.notesTotal = existing.notesTotal;
+		merged.notesHit = existing.notesHit;
+		merged.avgOverall = existing.avgOverall;
+		merged.avgPitch = existing.avgPitch;
+		merged.avgRhythm = existing.avgRhythm;
+		merged.bestScore = Math.max(existing.bestScore, derived.bestScore);
+		merged.grades = existing.grades;
+		merged.categories = existing.categories;
+	}
+	return merged;
+}
+
+/**
+ * Re-derive daily summaries for every date present in the source tables.
+ * Idempotent: safe to call after any write. Past days outside the source
+ * window (older than the most recent MAX_SESSIONS attempts) are left
+ * untouched — their data lives in the persisted cache until cloud merge
+ * brings in newer information.
+ *
+ * @param complexitySnapshots optional date→{pitch,rhythm} map for adaptive
+ *   level snapshots. Caller supplies these at write time because
+ *   SessionResult doesn't carry adaptive complexity; supplied values
+ *   override any preserved value for that date.
+ */
+export function recomputeAllDailySummaries(
+	complexitySnapshots?: Map<string, { pitch: number; rhythm: number }>
+): DailySummary[] {
+	const earSessions = load<UserProgress>(PROGRESS_KEY)?.sessions ?? [];
+	const lickEntries = load<LickPracticeSessionLogEntry[]>(LICK_SESSIONS_KEY) ?? [];
+
+	const dates = new Set<string>();
+	for (const s of earSessions) dates.add(dateKey(s.timestamp));
+	for (const e of lickEntries) dates.add(dateKey(e.timestamp));
+
+	const touched: DailySummary[] = [];
+
+	for (const date of dates) {
+		const existing = summaryMap.get(date);
+		const snapshot =
+			complexitySnapshots?.get(date) ??
+			(existing ? { pitch: existing.pitchComplexity, rhythm: existing.rhythmComplexity } : undefined);
+
+		const derived = deriveDailySummary(date, earSessions, lickEntries, snapshot);
+		if (derived === null) continue;
+		const merged = mergeWithExisting(existing, derived);
+
+		if (existing) {
+			Object.assign(existing, merged);
+			touched.push(existing);
+		} else {
+			dailySummaries.push(merged);
+			summaryMap.set(date, merged);
+			touched.push(merged);
+		}
+	}
+
+	if (touched.length > 0) {
+		dailySummaries.sort((a, b) => a.date.localeCompare(b.date));
+	}
+
+	const allTime = Math.max(
+		progressMeta.allTimeSessionCount,
+		dailySummaries.reduce((sum, s) => sum + s.sessionCount, 0)
+	);
+	if (allTime !== progressMeta.allTimeSessionCount) {
+		progressMeta.allTimeSessionCount = allTime;
+	}
+	progressMeta.lastAggregationTimestamp = Date.now();
+	updateLongestStreak();
+	saveAll();
+
+	return touched;
+}
+
+/**
+ * Recompute the summary for a single date. Equivalent to
+ * `recomputeAllDailySummaries` filtered to one day; offered as a hot-path
+ * helper for callers that know exactly which date they touched.
+ */
+export function recomputeDailySummary(
+	date: string,
+	complexitySnapshot?: { pitch: number; rhythm: number }
+): DailySummary | null {
+	const earSessions = load<UserProgress>(PROGRESS_KEY)?.sessions ?? [];
+	const lickEntries = load<LickPracticeSessionLogEntry[]>(LICK_SESSIONS_KEY) ?? [];
+
+	const existing = summaryMap.get(date);
+	const snapshot =
+		complexitySnapshot ??
+		(existing ? { pitch: existing.pitchComplexity, rhythm: existing.rhythmComplexity } : undefined);
+
+	const derived = deriveDailySummary(date, earSessions, lickEntries, snapshot);
+	if (derived === null) return existing ?? null;
+	const merged = mergeWithExisting(existing, derived);
+
+	if (existing) {
+		Object.assign(existing, merged);
+	} else {
+		dailySummaries.push(merged);
+		summaryMap.set(date, merged);
+		dailySummaries.sort((a, b) => a.date.localeCompare(b.date));
+	}
+
+	const allTime = Math.max(
+		progressMeta.allTimeSessionCount,
+		dailySummaries.reduce((sum, s) => sum + s.sessionCount, 0)
+	);
+	if (allTime !== progressMeta.allTimeSessionCount) {
+		progressMeta.allTimeSessionCount = allTime;
+	}
+	progressMeta.lastAggregationTimestamp = Date.now();
+	updateLongestStreak();
+	saveAll();
+
+	return existing ?? merged;
+}
+
+/**
+ * Recompute longest streak from current daily summaries. Only grows —
+ * historical peaks survive even after pruning.
+ */
+export function updateLongestStreak(): void {
+	const dates = dailySummaries.filter((s) => s.sessionCount > 0).map((s) => s.date);
+	const info = computeStreakInfo(dates);
+	if (info.longest > progressMeta.longestStreak) {
+		progressMeta.longestStreak = info.longest;
+		progressMeta.longestStreakEndDate = info.longestEndDate;
+	}
 }
 
 function computeStreakInfo(dates: string[]): { longest: number; longestEndDate: string } {
@@ -144,177 +373,8 @@ function computeStreakInfo(dates: string[]): { longest: number; longestEndDate: 
 	return { longest, longestEndDate: longestEnd };
 }
 
-/** Pure computation: derive daily summaries from session history (no side effects). */
-function deriveSummaries(sessions: SessionResult[]): {
-	summaries: DailySummary[];
-	meta: ProgressMeta;
-} {
-	if (sessions.length === 0) {
-		return { summaries: [], meta: createDefaultMeta() };
-	}
-
-	const byDate = new Map<string, SessionResult[]>();
-	for (const s of sessions) {
-		const dk = dateKey(s.timestamp);
-		const group = byDate.get(dk) ?? [];
-		group.push(s);
-		byDate.set(dk, group);
-	}
-
-	const summaries: DailySummary[] = [];
-	for (const [date, group] of byDate) {
-		summaries.push(aggregateSessionGroup(date, group));
-	}
-	summaries.sort((a, b) => a.date.localeCompare(b.date));
-
-	const streakInfo = computeStreakInfo(summaries.map(s => s.date));
-	return {
-		summaries,
-		meta: {
-			version: 2,
-			lastAggregationTimestamp: Date.now(),
-			longestStreak: streakInfo.longest,
-			longestStreakEndDate: streakInfo.longestEndDate,
-			allTimeSessionCount: sessions.length
-		}
-	};
-}
-
-function runMigration(existingProgress: UserProgress | null): {
-	summaries: DailySummary[];
-	meta: ProgressMeta;
-} {
-	if (!existingProgress || existingProgress.sessions.length === 0) {
-		return { summaries: [], meta: createDefaultMeta() };
-	}
-	const result = deriveSummaries(existingProgress.sessions);
-	save(SUMMARIES_KEY, result.summaries);
-	save(META_KEY, result.meta);
-	return result;
-}
-
-// ── Load ─────────────────────────────────────────────────────────
-
-function loadHistory(): { summaries: DailySummary[]; meta: ProgressMeta } {
-	const savedMeta = load<ProgressMeta>(META_KEY);
-	const savedSummaries = load<DailySummary[]>(SUMMARIES_KEY);
-
-	if (savedMeta && savedMeta.version >= 2 && savedSummaries) {
-		return { summaries: savedSummaries, meta: savedMeta };
-	}
-
-	// Need migration
-	const existingProgress = load<UserProgress>('progress');
-	return runMigration(existingProgress);
-}
-
-const loaded = loadHistory();
-
-// ── Reactive state ───────────────────────────────────────────────
-
-export const dailySummaries = $state<DailySummary[]>(loaded.summaries);
-export const progressMeta = $state<ProgressMeta>(loaded.meta);
-
-/** Map for O(1) lookup by date */
-let summaryMap = new Map<string, DailySummary>(
-	loaded.summaries.map(s => [s.date, s])
-);
-
-function saveAll(): void {
-	save(SUMMARIES_KEY, dailySummaries);
-	save(META_KEY, progressMeta);
-}
-
-// ── Core operations ──────────────────────────────────────────────
-
 /**
- * Aggregate a single attempt (ear-training or lick-practice) into the day's
- * summary. Called from recordAttempt() and recordLickPracticeAttempt() in
- * progress.svelte.ts.
- *
- * `pitchComplexity` / `rhythmComplexity` snapshots are written only when the
- * caller passes them — lick-practice doesn't change adaptive state, so its
- * caller passes nothing and the existing snapshot (from the most recent
- * ear-training attempt) is preserved.
- *
- * Returns the (possibly newly created) summary so callers can sync the
- * touched day to the cloud without rescanning the array.
- */
-export function aggregateSession(
-	session: AggregateInput,
-	pitchComplexity?: number,
-	rhythmComplexity?: number
-): DailySummary {
-	const dk = dateKey(session.timestamp);
-	const existing = summaryMap.get(dk);
-	const source = session.source ?? 'ear-training';
-
-	let summary: DailySummary;
-	if (existing) {
-		const newCount = existing.sessionCount + 1;
-		existing.avgOverall = (existing.avgOverall * existing.sessionCount + session.overall) / newCount;
-		existing.avgPitch = (existing.avgPitch * existing.sessionCount + session.pitchAccuracy) / newCount;
-		existing.avgRhythm = (existing.avgRhythm * existing.sessionCount + session.rhythmAccuracy) / newCount;
-		existing.bestScore = Math.max(existing.bestScore, session.overall);
-		existing.notesTotal += session.notesTotal;
-		existing.notesHit += session.notesHit;
-		existing.sessionCount = newCount;
-		existing.practiceMinutes += ESTIMATED_MINUTES_PER_SESSION;
-		existing.grades[gradeKey(session.grade)]++;
-		existing.categories[session.category] = (existing.categories[session.category] ?? 0) + 1;
-		// Treat pre-split summaries (undefined counters) as ear-training-only,
-		// matching how the calendar reads them, before incrementing.
-		const earBase = existing.earTrainingSessions ?? existing.sessionCount - 1;
-		const lickBase = existing.lickPracticeSessions ?? 0;
-		existing.earTrainingSessions = earBase + (source === 'ear-training' ? 1 : 0);
-		existing.lickPracticeSessions = lickBase + (source === 'lick-practice' ? 1 : 0);
-		if (pitchComplexity !== undefined) existing.pitchComplexity = pitchComplexity;
-		if (rhythmComplexity !== undefined) existing.rhythmComplexity = rhythmComplexity;
-		summary = existing;
-	} else {
-		summary = {
-			date: dk,
-			sessionCount: 1,
-			earTrainingSessions: source === 'ear-training' ? 1 : 0,
-			lickPracticeSessions: source === 'lick-practice' ? 1 : 0,
-			practiceMinutes: ESTIMATED_MINUTES_PER_SESSION,
-			avgOverall: session.overall,
-			avgPitch: session.pitchAccuracy,
-			avgRhythm: session.rhythmAccuracy,
-			bestScore: session.overall,
-			notesTotal: session.notesTotal,
-			notesHit: session.notesHit,
-			grades: { ...emptyGrades(), [gradeKey(session.grade)]: 1 } as GradeDistribution,
-			categories: { [session.category]: 1 }
-		};
-		if (pitchComplexity !== undefined) summary.pitchComplexity = pitchComplexity;
-		if (rhythmComplexity !== undefined) summary.rhythmComplexity = rhythmComplexity;
-		dailySummaries.push(summary);
-		summaryMap.set(dk, summary);
-	}
-
-	progressMeta.allTimeSessionCount++;
-	progressMeta.lastAggregationTimestamp = Date.now();
-
-	updateLongestStreak();
-	saveAll();
-	return summary;
-}
-
-/**
- * Recompute longest streak from all daily summaries.
- */
-export function updateLongestStreak(): void {
-	const dates = dailySummaries.map(s => s.date);
-	const info = computeStreakInfo(dates);
-	if (info.longest > progressMeta.longestStreak) {
-		progressMeta.longestStreak = info.longest;
-		progressMeta.longestStreakEndDate = info.longestEndDate;
-	}
-}
-
-/**
- * Clear all aggregation data (called from resetProgress).
+ * Clear all aggregation data — called from resetProgress.
  */
 export function clearHistory(): void {
 	dailySummaries.length = 0;
@@ -324,22 +384,24 @@ export function clearHistory(): void {
 	remove(META_KEY);
 }
 
+// ── Cloud merge ────────────────────────────────────────────────
+
 /**
- * Merge a list of cloud-fetched daily summaries into local state.
+ * Merge cloud-fetched summaries into local. Within a day every counter is
+ * monotonic (you can't undo a session), so a strict-greater test on
+ * `sessionCount` is enough: cloud wins when it has strictly more total
+ * activity (another device contributed), local wins when local has more
+ * (offline writes not yet pushed). Equal cases leave local untouched —
+ * after a recompute the data should already match, and overwriting an
+ * equal-count entry was the source of past bugs.
  *
- * Cloud is authoritative when its sessionCount on a given date is >= local's
- * (covers the cross-device case where one device has more activity logged).
- * Local-only days are preserved untouched (offline writes that haven't synced).
- *
- * Returns the list of summaries the cloud should be told about: any day the
- * cloud is missing entirely, plus any same-date day where local has strictly
- * more activity than cloud (otherwise the cloud would stay stale on that day
- * and a subsequent device pull could restore the smaller summary).
+ * Returns the dates the cloud needs to be told about: local-only days plus
+ * same-date local winners, so `syncAllDailySummariesToCloud` can push them.
  */
 export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[] {
-	let changed = false;
 	const cloudDates = new Set<string>();
-	const localWinnerDates = new Set<string>();
+	const localWinners = new Set<string>();
+	let changed = false;
 
 	for (const cs of cloudSummaries) {
 		cloudDates.add(cs.date);
@@ -350,18 +412,11 @@ export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummar
 			changed = true;
 			continue;
 		}
-		// Cloud wins when it has the same or more session activity for the day.
-		// "More" comes up when another device practiced the same date and
-		// pushed a fuller summary; "same" guards against the migration case
-		// where the local copy was derived from the 100-session window and
-		// matches the cloud row exactly.
-		if (cs.sessionCount >= existing.sessionCount) {
+		if (cs.sessionCount > existing.sessionCount) {
 			Object.assign(existing, cs);
 			changed = true;
-		} else {
-			// Local has strictly more sessions for this date — keep local
-			// in memory and flag it for upload so the cloud catches up.
-			localWinnerDates.add(existing.date);
+		} else if (existing.sessionCount > cs.sessionCount) {
+			localWinners.add(existing.date);
 		}
 	}
 
@@ -370,129 +425,15 @@ export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummar
 		saveAll();
 	}
 
-	return dailySummaries.filter(
-		(s) => !cloudDates.has(s.date) || localWinnerDates.has(s.date)
-	);
-}
-
-function categoriesMatch(a: Record<string, number>, b: Record<string, number>): boolean {
-	const aKeys = Object.keys(a);
-	if (aKeys.length !== Object.keys(b).length) return false;
-	for (const k of aKeys) {
-		if (a[k] !== b[k]) return false;
-	}
-	return true;
-}
-
-function summariesMatch(a: DailySummary, b: DailySummary): boolean {
-	// avg* fields are derived two different ways (rolling per-session vs full
-	// re-derivation), so FP non-associativity can produce tiny diffs that
-	// shouldn't count as a real change.
-	const EPS = 1e-6;
-	// Pre-split summaries omit ear/lick counters; treat them as
-	// ear-training-only so a derive-pass that fills them in doesn't look
-	// like a divergence on otherwise identical data.
-	const aEar = a.earTrainingSessions ?? a.sessionCount;
-	const bEar = b.earTrainingSessions ?? b.sessionCount;
-	const aLick = a.lickPracticeSessions ?? 0;
-	const bLick = b.lickPracticeSessions ?? 0;
-	return (
-		a.sessionCount === b.sessionCount &&
-		aEar === bEar &&
-		aLick === bLick &&
-		a.practiceMinutes === b.practiceMinutes &&
-		Math.abs(a.avgOverall - b.avgOverall) < EPS &&
-		Math.abs(a.avgPitch - b.avgPitch) < EPS &&
-		Math.abs(a.avgRhythm - b.avgRhythm) < EPS &&
-		a.bestScore === b.bestScore &&
-		a.notesTotal === b.notesTotal &&
-		a.notesHit === b.notesHit &&
-		JSON.stringify(a.grades) === JSON.stringify(b.grades) &&
-		categoriesMatch(a.categories, b.categories)
-	);
-}
-
-/**
- * Re-derive daily summaries from current progress session history when stale.
- *
- * Called after cloud hydration writes progress to localStorage. The session
- * log is pruned to MAX_SESSIONS recent sessions, so derivation only
- * sees the last MAX_SESSIONS sessions' worth of days. This function is therefore
- * additive: it upserts derived days into the existing summaries but never
- * deletes a day that exists locally and isn't in the derived set — that
- * day's sessions are simply outside the sync window.
- */
-export function rebuildHistoryIfNeeded(): void {
-	const progressState = load<UserProgress>('progress');
-	if (!progressState || progressState.sessions.length === 0) return;
-
-	const derived = deriveSummaries(progressState.sessions);
-	if (derived.summaries.length === 0) return;
-
-	// Fast-path: if every derived day already matches the existing summary
-	// across all aggregate fields, there's nothing to persist.
-	//
-	// Skip the overwrite whenever the existing summary has strictly larger
-	// totals — the local copy is the authoritative one. Two cases trigger
-	// this:
-	//   1. Pruning. The earliest derived day's sessions may have been
-	//      partially pruned out of the MAX_SESSIONS window, so derivation
-	//      undercounts that day.
-	//   2. Lick-practice. Lick attempts never land in progress.sessions,
-	//      so for any mixed (ear + lick) day, the derivation undercounts
-	//      by exactly the lick-practice contribution. Without this guard,
-	//      every reload would silently wipe lick-practice from the
-	//      calendar on non-earliest days.
-	let changed = false;
-	for (const derivedSummary of derived.summaries) {
-		const existing = summaryMap.get(derivedSummary.date);
-		if (!existing) {
-			dailySummaries.push(derivedSummary);
-			summaryMap.set(derivedSummary.date, derivedSummary);
-			changed = true;
-			continue;
-		}
-		if (
-			existing.sessionCount > derivedSummary.sessionCount ||
-			existing.notesTotal > derivedSummary.notesTotal ||
-			existing.notesHit > derivedSummary.notesHit
-		) {
-			continue;
-		}
-		if (!summariesMatch(existing, derivedSummary)) {
-			Object.assign(existing, derivedSummary);
-			changed = true;
-		}
-	}
-
-	if (changed) dailySummaries.sort((a, b) => a.date.localeCompare(b.date));
-
-	// allTimeSessionCount must never shrink — older sessions outside the
-	// sync window still count. longestStreak likewise only grows.
-	if (derived.meta.allTimeSessionCount > progressMeta.allTimeSessionCount) {
-		progressMeta.allTimeSessionCount = derived.meta.allTimeSessionCount;
-		changed = true;
-	}
-
-	if (changed) {
-		progressMeta.lastAggregationTimestamp = derived.meta.lastAggregationTimestamp;
-		updateLongestStreak();
-		saveAll();
-	}
+	return dailySummaries.filter((s) => !cloudDates.has(s.date) || localWinners.has(s.date));
 }
 
 // ── Query functions ──────────────────────────────────────────────
 
-/**
- * Get summaries in a date range (inclusive).
- */
 export function getSummariesInRange(start: string, end: string): DailySummary[] {
-	return dailySummaries.filter(s => s.date >= start && s.date <= end);
+	return dailySummaries.filter((s) => s.date >= start && s.date <= end);
 }
 
-/**
- * Compute aggregate stats for a date range.
- */
 function computePeriodStats(start: string, end: string): PeriodStats {
 	const summaries = getSummariesInRange(start, end);
 	if (summaries.length === 0) {
@@ -523,9 +464,6 @@ function computePeriodStats(start: string, end: string): PeriodStats {
 	};
 }
 
-/**
- * Compare two periods (e.g., this week vs last week).
- */
 export function comparePeriods(
 	currentStart: string,
 	currentEnd: string,
@@ -564,9 +502,6 @@ export function getYearHeatmap(): Map<string, { sessionCount: number; avgOverall
 	return result;
 }
 
-/**
- * Get practice days in the last N days (for streak display).
- */
 export function getLast30Days(): Map<string, boolean> {
 	const result = new Map<string, boolean>();
 	const now = new Date();
@@ -581,24 +516,19 @@ export function getLast30Days(): Map<string, boolean> {
 
 // ── Date helpers ─────────────────────────────────────────────────
 
-/** Get Monday of the week containing a date */
 function getWeekStart(date: Date): Date {
 	const d = new Date(date);
 	const day = d.getDay();
-	const diff = day === 0 ? -6 : 1 - day; // Monday = start
+	const diff = day === 0 ? -6 : 1 - day;
 	d.setDate(d.getDate() + diff);
 	d.setHours(0, 0, 0, 0);
 	return d;
 }
 
-/** Get "YYYY-MM-DD" for a Date (local time) */
 function toDateStr(d: Date): string {
 	return localDateStr(d);
 }
 
-/**
- * Get this-week and last-week date ranges.
- */
 export function getWeekRanges(): {
 	currentStart: string;
 	currentEnd: string;
@@ -620,9 +550,6 @@ export function getWeekRanges(): {
 	};
 }
 
-/**
- * Get this-month and last-month date ranges.
- */
 export function getMonthRanges(): {
 	currentStart: string;
 	currentEnd: string;
