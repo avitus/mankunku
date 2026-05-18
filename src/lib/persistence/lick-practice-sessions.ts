@@ -56,8 +56,12 @@ export function upsertLickPracticeSession(
 		next = [...existing];
 		next[idx] = entry;
 	} else {
-		next = [entry, ...existing].slice(0, MAX_SESSIONS);
+		next = [entry, ...existing];
 	}
+	// Sort newest-first by timestamp before trimming so a late upsert on an
+	// older session can't evict newer sessions when MAX_SESSIONS is hit.
+	next.sort((a, b) => b.timestamp - a.timestamp);
+	if (next.length > MAX_SESSIONS) next = next.slice(0, MAX_SESSIONS);
 
 	saveLickPracticeSessions(next);
 	return entry;

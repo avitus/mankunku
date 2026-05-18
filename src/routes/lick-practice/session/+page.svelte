@@ -876,21 +876,27 @@
 		// Final upsert under the same id captures any keys archived to
 		// allAttempts by startInterLickTransition since the last per-key
 		// upsert. Idempotent: if the per-key path already wrote the same
-		// report, this replaces it with identical data.
+		// report, this replaces it with identical data. Wrapped in try/catch
+		// so a persistence failure here can't block the phase transition —
+		// per-key writes already persisted the activity.
 		if (report.totalAttempts > 0) {
-			upsertLickPracticeSession({
-				id: lickPracticeSessionLogId,
-				timestamp: lickPracticeSessionStartTs,
-				progressionType: lickPractice.config.progressionType,
-				practiceMode: lickPractice.config.practiceMode,
-				report
-			});
-			const today = localDateStr(new Date(lickPracticeSessionStartTs));
-			const summary = recomputeDailySummary(today);
-			if (supabase && summary) {
-				syncDailySummaryToCloud(supabase, summary).catch((err) => {
-					console.warn('Failed to sync daily summary to cloud:', err);
+			try {
+				upsertLickPracticeSession({
+					id: lickPracticeSessionLogId,
+					timestamp: lickPracticeSessionStartTs,
+					progressionType: lickPractice.config.progressionType,
+					practiceMode: lickPractice.config.practiceMode,
+					report
 				});
+				const today = localDateStr(new Date(lickPracticeSessionStartTs));
+				const summary = recomputeDailySummary(today);
+				if (supabase && summary) {
+					syncDailySummaryToCloud(supabase, summary).catch((err) => {
+						console.warn('Failed to sync daily summary to cloud:', err);
+					});
+				}
+			} catch (err) {
+				console.warn('[lick-practice] finishSession persistence failed:', err);
 			}
 		}
 		lickPractice.phase = 'complete';
