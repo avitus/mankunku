@@ -80,7 +80,8 @@ function setupLick(opts: {
 			phraseName: LICK_ID,
 			phraseNumber: 1,
 			category: 'ii-V-I-major',
-			keys
+			keys,
+			progressionType: 'ii-V-I-major'
 		}
 	];
 	lickPractice.plan = plan;
@@ -238,7 +239,8 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 			phraseName: 'test-lick-2',
 			phraseNumber: 2,
 			category: 'ii-V-I-major',
-			keys: ['D', 'Eb']
+			keys: ['D', 'Eb'],
+			progressionType: 'ii-V-I-major'
 		});
 		// Force the complete branch: exceed the duration budget.
 		lickPractice.config.durationMinutes = 0;

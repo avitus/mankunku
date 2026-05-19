@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	selectInitialProgression,
+	pickProgressionForLick,
 	buildUpcomingLicks,
 	findStrandedLicks,
 	DEFAULT_PROGRESSION
@@ -255,6 +256,61 @@ describe('selectInitialProgression', () => {
 			})
 		});
 		expect(got).toBe('minor-vamp');
+	});
+});
+
+describe('pickProgressionForLick', () => {
+	it('returns null when the lick has no prog:* tags', () => {
+		const got = pickProgressionForLick({
+			lickId: 'lk1',
+			progressionTags: [],
+			sessionLog: []
+		});
+		expect(got).toBeNull();
+	});
+
+	it('returns the only tag when the lick has one', () => {
+		const got = pickProgressionForLick({
+			lickId: 'lk1',
+			progressionTags: ['blues'],
+			sessionLog: []
+		});
+		expect(got).toBe('blues');
+	});
+
+	it('returns the least-recently-practiced fit when multiple tags exist', () => {
+		// major-vamp was practiced most recently; picker should skip it.
+		const got = pickProgressionForLick({
+			lickId: 'lk1',
+			progressionTags: ['major-vamp', 'ii-V-I-major', 'turnaround'],
+			sessionLog: [session('major-vamp', 5000)]
+		});
+		expect(got).toBe('ii-V-I-major');
+	});
+
+	it('ties at 0 break by PROGRESSION_TEMPLATES key order', () => {
+		// No history: every fit's timestamp is 0. Earliest in pill order wins.
+		const got = pickProgressionForLick({
+			lickId: 'lk1',
+			progressionTags: ['turnaround', 'major-vamp', 'ii-V-I-major'],
+			sessionLog: []
+		});
+		expect(got).toBe('major-vamp');
+	});
+
+	it('uses the max timestamp across multiple sessions per progression', () => {
+		// blues appears twice — max is 5000. ii-V-I-major appears once at 1000.
+		// Picker should pick ii-V-I-major (smaller max timestamp).
+		const got = pickProgressionForLick({
+			lickId: 'lk1',
+			progressionTags: ['blues', 'ii-V-I-major'],
+			sessionLog: [
+				session('blues', 200),
+				session('blues', 5000),
+				session('ii-V-I-major', 1000)
+			]
+		});
+		expect(got).toBe('ii-V-I-major');
 	});
 });
 

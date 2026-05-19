@@ -7,8 +7,10 @@
 		lickPractice,
 		hydrateLickPracticeProgress,
 		getPracticeLicks,
+		getDailyPracticeLicks,
 		getStrandedPracticeLicks,
 		startSession,
+		startDailyPracticeSession,
 		startSingleLickSession
 	} from '$lib/state/lick-practice.svelte';
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
@@ -27,6 +29,13 @@
 		lickPractice.config.progressionType;
 		void lickPractice.progress;
 		return getPracticeLicks().length;
+	});
+
+	// Total practice-tagged licks across all progressions — drives the "Start
+	// Daily Practice" button and its count caption.
+	const dailyLickCount = $derived.by(() => {
+		void lickPractice.progress;
+		return getDailyPracticeLicks().length;
 	});
 
 	// Practice-tagged licks with no progression mapping at all. They never
@@ -51,6 +60,13 @@
 			return;
 		}
 		startSession();
+		if (lickPractice.plan.length > 0) {
+			goto('/lick-practice/session');
+		}
+	}
+
+	function handleDailyStart() {
+		startDailyPracticeSession();
 		if (lickPractice.plan.length > 0) {
 			goto('/lick-practice/session');
 		}
@@ -84,7 +100,9 @@
 	<PracticeSetup
 		config={lickPractice.config}
 		{availableLickCount}
+		{dailyLickCount}
 		onstart={handleStart}
+		ondailystart={handleDailyStart}
 		onupdate={handleUpdate}
 	/>
 

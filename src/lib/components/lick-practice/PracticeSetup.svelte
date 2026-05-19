@@ -21,11 +21,13 @@
 	interface Props {
 		config: LickPracticeConfig;
 		availableLickCount: number;
+		dailyLickCount: number;
 		onstart: () => void;
+		ondailystart: () => void;
 		onupdate: (config: Partial<LickPracticeConfig>) => void;
 	}
 
-	let { config, availableLickCount, onstart, onupdate }: Props = $props();
+	let { config, availableLickCount, dailyLickCount, onstart, ondailystart, onupdate }: Props = $props();
 
 	const progressionTypes = Object.values(PROGRESSION_TEMPLATES);
 	const backingStyles = Object.keys(BACKING_STYLE_NAMES) as BackingStyle[];
@@ -324,20 +326,46 @@
 		{#if canStart}
 			{#if !config.singleLickMode}
 				<p class="mb-3 text-xs text-[var(--color-text-secondary)]">
-					{availableLickCount} lick{availableLickCount !== 1 ? 's' : ''} tagged for practice
+					{availableLickCount} lick{availableLickCount !== 1 ? 's' : ''} tagged for this progression
+					{#if dailyLickCount > availableLickCount}
+						<span class="opacity-80">·</span>
+						{dailyLickCount} across all your tagged progressions
+					{/if}
 				</p>
 			{/if}
-			<button
-				onclick={onstart}
-				class="rounded-lg bg-[var(--color-accent)] px-6 py-2 text-sm font-bold hover:opacity-90 transition-opacity"
-			>
-				{config.singleLickMode ? 'Start Drill' : 'Start Session'}
-			</button>
+			<div class="flex flex-wrap justify-center gap-2">
+				<button
+					onclick={onstart}
+					class="rounded-lg bg-[var(--color-accent)] px-6 py-2 text-sm font-bold hover:opacity-90 transition-opacity"
+				>
+					{config.singleLickMode ? 'Start Drill' : 'Start Session'}
+				</button>
+				{#if !config.singleLickMode}
+					<button
+						onclick={ondailystart}
+						disabled={dailyLickCount === 0}
+						title="Rotate across every progression you have licks tagged for, sized to the practice time slider."
+						class="rounded-lg border border-[var(--color-accent)] px-6 py-2 text-sm font-bold text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--color-accent)]"
+					>
+						Start Daily Practice
+					</button>
+				{/if}
+			</div>
 		{:else if config.singleLickMode}
 			<p class="text-xs text-[var(--color-text-secondary)]">Pick a lick to drill.</p>
+		{:else if dailyLickCount > 0}
+			<p class="mb-3 text-xs text-[var(--color-text-secondary)]">
+				No licks tagged for this specific progression — but you have {dailyLickCount} across other progressions.
+			</p>
+			<button
+				onclick={ondailystart}
+				class="rounded-lg bg-[var(--color-accent)] px-6 py-2 text-sm font-bold hover:opacity-90 transition-opacity"
+			>
+				Start Daily Practice
+			</button>
 		{:else}
 			<p class="text-xs text-[var(--color-text-secondary)]">
-				No licks tagged for practice with this progression.
+				No licks tagged for practice yet.
 				<a href="/library" class="text-[var(--color-accent)] underline">Browse the library</a>
 				and tag some licks first.
 			</p>

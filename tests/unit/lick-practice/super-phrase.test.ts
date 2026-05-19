@@ -32,7 +32,8 @@ function plan(...items: Array<{ id: string; keys: string[] }>): LickPracticePlan
 		phraseName: item.id,
 		phraseNumber: idx + 1,
 		category: 'short-ii-V-I-major' as const,
-		keys: item.keys as LickPracticePlanItem['keys']
+		keys: item.keys as LickPracticePlanItem['keys'],
+		progressionType: lickPractice.config.progressionType
 	}));
 }
 
@@ -360,7 +361,8 @@ function planMajorChord(...items: Array<{ id: string; keys: string[] }>): LickPr
 		phraseName: item.id,
 		phraseNumber: idx + 1,
 		category: 'major-chord' as const,
-		keys: item.keys as LickPracticePlanItem['keys']
+		keys: item.keys as LickPracticePlanItem['keys'],
+		progressionType: lickPractice.config.progressionType
 	}));
 }
 
@@ -537,11 +539,13 @@ describe('1-bar major-chord lick is unaffected by pickup-bar machinery', () => {
 
 	beforeEach(() => {
 		lickPractice.config.practiceMode = 'continuous';
-		lickPractice.plan = planMajorChord({ id: ONE_BAR_MAJOR_LICK_ID, keys: ['C'] });
 	});
 
 	it('on short ii-V-I-major: keyBars stays 2 (progressionBars), no extension', () => {
+		// `planMajorChord` reads config.progressionType at construction time,
+		// so set the progression first, then build the plan.
 		lickPractice.config.progressionType = 'ii-V-I-major';
+		lickPractice.plan = planMajorChord({ id: ONE_BAR_MAJOR_LICK_ID, keys: ['C'] });
 		expect(getKeyBars()).toBe(2);
 		const sp = buildLickSuperPhrase(0);
 		// Cmaj7 last segment keeps its original 1-bar duration
@@ -550,6 +554,7 @@ describe('1-bar major-chord lick is unaffected by pickup-bar machinery', () => {
 
 	it('on long ii-V-I-major: keyBars stays 4, alignment offset still [2,1]', () => {
 		lickPractice.config.progressionType = 'ii-V-I-major-long';
+		lickPractice.plan = planMajorChord({ id: ONE_BAR_MAJOR_LICK_ID, keys: ['C'] });
 		expect(getKeyBars()).toBe(4);
 		const sp = buildLickSuperPhrase(0);
 		// First demo note's offset = original [0,1] + alignment [2,1] = 2

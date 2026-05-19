@@ -69,7 +69,8 @@ describe('getSessionReport — sessionId round-trip', () => {
 				phraseName: LICK_ID,
 				phraseNumber: 1,
 				category: 'ii-V-I-major',
-				keys: ['C', 'F']
+				keys: ['C', 'F'],
+				progressionType: 'ii-V-I-major'
 			}
 		];
 		lickPractice.plan = plan;
@@ -104,7 +105,8 @@ describe('getSessionReport — sessionId round-trip', () => {
 				phraseName: LICK_ID,
 				phraseNumber: 1,
 				category: 'ii-V-I-major',
-				keys: ['C']
+				keys: ['C'],
+				progressionType: 'ii-V-I-major'
 			}
 		];
 		lickPractice.plan = plan;
