@@ -13,8 +13,8 @@ import { createInitialAdaptiveState, processAttempt, createInitialScaleProficien
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
-import { syncProgressToCloud, syncProgressAggregateToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud, syncDailySummaryToCloud, deleteDailySummariesFromCloud } from '$lib/persistence/sync';
-import { aggregateSession, clearHistory, localDateStr } from '$lib/state/history.svelte';
+import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud, syncDailySummaryToCloud, deleteDailySummariesFromCloud } from '$lib/persistence/sync';
+import { recomputeDailySummary, clearHistory, localDateStr } from '$lib/state/history.svelte';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 const STORAGE_KEY = 'progress';
@@ -271,22 +271,28 @@ export function recordAttempt(
 	// Update streak
 	updateStreak();
 
-	// Aggregate into daily summary for long-term tracking
-	const summary = aggregateSession(
-		session,
-		progress.adaptive.pitchComplexity,
-		progress.adaptive.rhythmComplexity
-	);
-
-	// Persist
+	// Persist progress before recomputing — the recompute reads from
+	// localStorage so the new session must be on disk first.
 	saveProgress();
+
+	// Re-derive today's summary from the source tables (progress.sessions +
+	// lick-practice-sessions). Captures the live adaptive snapshot for the
+	// TrendChart level line; that snapshot isn't reachable from SessionResult
+	// itself, so the caller passes it in here.
+	const today = localDateStr(new Date(session.timestamp));
+	const summary = recomputeDailySummary(today, {
+		pitch: progress.adaptive.pitchComplexity,
+		rhythm: progress.adaptive.rhythmComplexity
+	});
 
 	// Fire-and-forget cloud sync (does not block UI)
 	if (supabase) {
 		queueProgressSync(supabase);
-		syncDailySummaryToCloud(supabase, summary).catch((err) => {
-			console.warn('Failed to sync daily summary to cloud:', err);
-		});
+		if (summary) {
+			syncDailySummaryToCloud(supabase, summary).catch((err) => {
+				console.warn('Failed to sync daily summary to cloud:', err);
+			});
+		}
 	}
 }
 
@@ -330,46 +336,19 @@ export function updateSessionScore(
 }
 
 /**
- * Record a lick-practice key attempt's contribution to the cross-mode
- * "practice activity" signals: streak counter and daily summary.
- *
- * Deliberately does NOT touch adaptive difficulty, per-scale or per-key
- * proficiency, the session log, category progress, or per-lick progress —
- * those remain ear-training-only. Lick-practice keeps its own isolated
- * per-lick / per-key store via lick-practice.svelte.ts.
+ * Bump the streak counter for today. Lick-practice's session-log write
+ * path calls this directly (no longer routed through a
+ * recordLickPracticeAttempt wrapper) and ear-training's recordAttempt
+ * also calls it; the lastPracticeDate guard keeps it idempotent within
+ * a day.
  */
-export function recordLickPracticeAttempt(
-	score: Score,
-	category: PhraseCategory,
-	supabase?: SupabaseClient<Database>
-): void {
-	const summary = aggregateSession({
-		timestamp: Date.now(),
-		overall: score.overall,
-		pitchAccuracy: score.pitchAccuracy,
-		rhythmAccuracy: score.rhythmAccuracy,
-		grade: score.grade,
-		category,
-		notesHit: score.notesHit,
-		notesTotal: score.notesTotal,
-		source: 'lick-practice'
-	});
-
+export function bumpStreakForToday(supabase?: SupabaseClient<Database>): void {
+	const before = progress.lastPracticeDate;
 	updateStreak();
+	if (progress.lastPracticeDate === before) return;
 	saveProgress();
-
 	if (supabase) {
-		// Lightweight aggregate-only sync — touches just the user_progress
-		// row (streak / lastPracticeDate). Avoids the four-table re-upsert
-		// (session_results + scale_proficiency + key_proficiency) on every
-		// lick-practice key attempt, which would otherwise produce heavy
-		// write amplification on a high-frequency practice loop.
-		syncProgressAggregateToCloud(supabase, progress).catch((err) => {
-			console.warn('Failed to sync progress aggregate to cloud:', err);
-		});
-		syncDailySummaryToCloud(supabase, summary).catch((err) => {
-			console.warn('Failed to sync daily summary to cloud:', err);
-		});
+		queueProgressSync(supabase);
 	}
 }
 
