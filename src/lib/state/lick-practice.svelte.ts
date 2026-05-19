@@ -413,7 +413,7 @@ export function buildDailyPracticePlan(): void {
 	const plan: LickPracticePlanItem[] = [];
 	let estimatedTime = 0;
 
-	for (let i = 0; i < sorted.length && estimatedTime < totalSeconds; i++) {
+	for (let i = 0; i < sorted.length; i++) {
 		const lick = sorted[i];
 		const progressionType = pickProgressionForLick({
 			lickId: lick.id,
@@ -435,6 +435,18 @@ export function buildDailyPracticePlan(): void {
 					instrument: getInstrument()
 				});
 
+		// Cost the lick *before* appending so the plan never overshoots the
+		// configured duration budget by an extra lick. The previous loop gate
+		// (`estimatedTime < totalSeconds`) only blocked the *next* iteration,
+		// which let one lick that exceeded the remaining budget through.
+		const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
+		const mode = lickPractice.config.practiceMode;
+		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
+		const demoBars = mode === 'continuous' ? lickBars : 0;
+		const totalBars = keys.length * keyBars + demoBars;
+		const lickSeconds = (totalBars * 4 * 60) / tempo + 5;
+		if (estimatedTime + lickSeconds > totalSeconds) break;
+
 		plan.push({
 			phraseId: lick.id,
 			phraseName: lick.name,
@@ -443,13 +455,7 @@ export function buildDailyPracticePlan(): void {
 			keys,
 			progressionType
 		});
-
-		const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
-		const mode = lickPractice.config.practiceMode;
-		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
-		const demoBars = mode === 'continuous' ? lickBars : 0;
-		const totalBars = keys.length * keyBars + demoBars;
-		estimatedTime += (totalBars * 4 * 60) / tempo + 5;
+		estimatedTime += lickSeconds;
 	}
 
 	lickPractice.plan = plan;
