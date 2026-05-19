@@ -60,7 +60,8 @@ function planWith(phraseId: string, keys: PitchClass[], category: LickPracticePl
 			phraseName: phraseId,
 			phraseNumber: 1,
 			category,
-			keys
+			keys,
+			progressionType: lickPractice.config.progressionType
 		}
 	];
 }

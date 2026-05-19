@@ -824,13 +824,27 @@
 	}
 
 	function persistReport(report: SessionReport): void {
-		appendLickPracticeSession({
-			id: `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-			timestamp: Date.now(),
-			progressionType: lickPractice.config.progressionType,
-			practiceMode: lickPractice.config.practiceMode,
-			report
-		});
+		// Daily Practice sessions mix multiple progressions in one plan; the
+		// picker's least-recently-practiced lookup keys off the session log's
+		// `progressionType`, so emit one entry per distinct progression that
+		// actually played so each one's timestamp updates. Standard sessions
+		// (single progressionType across the plan) still emit a single entry.
+		const distinctProgressions = Array.from(
+			new Set(lickPractice.plan.map((item) => item.progressionType))
+		);
+		const fallback = lickPractice.config.progressionType;
+		const progressionsToLog =
+			distinctProgressions.length > 0 ? distinctProgressions : [fallback];
+		const timestamp = Date.now();
+		for (const progressionType of progressionsToLog) {
+			appendLickPracticeSession({
+				id: `lp-${timestamp}-${progressionType}-${Math.random().toString(36).slice(2, 6)}`,
+				timestamp,
+				progressionType,
+				practiceMode: lickPractice.config.practiceMode,
+				report
+			});
+		}
 	}
 
 	function finishSession() {

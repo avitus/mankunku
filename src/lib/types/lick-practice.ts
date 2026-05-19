@@ -80,6 +80,14 @@ export interface LickPracticePlanItem {
 	category: PhraseCategory;
 	keys: PitchClass[];
 	/**
+	 * The chord progression this lick is played under for the duration of its
+	 * slot in the plan. Standard sessions stamp every item with the user's
+	 * single selection on the setup page. Daily Practice sessions assign each
+	 * lick its own least-recently-practiced compatible progression, which is
+	 * why this is per-plan-item rather than read from config.
+	 */
+	progressionType: ChordProgressionType;
+	/**
 	 * Resolved Phrase captured at plan-build time. Used as a lookup fallback
 	 * for `getLickById` so user/community licks survive cache misses (e.g.
 	 * the lick was deleted from the local cache mid-session, or the entry

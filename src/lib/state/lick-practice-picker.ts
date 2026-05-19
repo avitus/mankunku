@@ -41,16 +41,60 @@ function hasFittingProgression(
 }
 
 /**
+ * Pick the least-recently-practiced compatible progression for a single lick.
+ *
+ * Looks only at the `prog:*` tags the user has opted the lick into. Among
+ * those, returns the one whose max timestamp in `sessionLog` is smallest;
+ * ties resolve to the first fit in `PROGRESSION_TEMPLATES` key order, which
+ * mirrors the on-screen pill row. Returns null when the lick has no `prog:*`
+ * tags so callers can choose how to handle stranded licks (Daily Practice
+ * skips them; the initial-progression picker falls back to DEFAULT_PROGRESSION).
+ *
+ * The selection algorithm is exactly the inner loop that powered
+ * `selectInitialProgression` before this helper was extracted; the function
+ * was lifted out so Daily Practice can reuse it per lick rather than only
+ * for the single most-neglected lick.
+ */
+export function pickProgressionForLick(args: {
+	lickId: string;
+	progressionTags: ChordProgressionType[];
+	sessionLog: LickPracticeSessionLogEntry[];
+}): ChordProgressionType | null {
+	const { progressionTags, sessionLog } = args;
+	if (progressionTags.length === 0) return null;
+
+	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
+	const userTags = new Set(progressionTags);
+	const fits = order.filter((p) => userTags.has(p));
+	if (fits.length === 0) return null;
+
+	const lastPracticed = new Map<ChordProgressionType, number>();
+	for (const entry of sessionLog) {
+		const prev = lastPracticed.get(entry.progressionType) ?? 0;
+		if (entry.timestamp > prev) {
+			lastPracticed.set(entry.progressionType, entry.timestamp);
+		}
+	}
+
+	let pick = fits[0];
+	let pickTime = lastPracticed.get(pick) ?? 0;
+	for (let i = 1; i < fits.length; i++) {
+		const t = lastPracticed.get(fits[i]) ?? 0;
+		if (t < pickTime) {
+			pick = fits[i];
+			pickTime = t;
+		}
+	}
+	return pick;
+}
+
+/**
  * Pick the progression to pre-select on /lick-practice setup.
  *
  * Algorithm: of the user's practice-tagged licks, find the
- * least-recently-practiced one (lastPracticedAt = 0 wins). Among the
- * progressions the user has tagged on that lick (`prog:*` only — category
- * compatibility no longer auto-includes, and substitutions are an opt-in
- * setup toggle that doesn't influence the initial pick), return the
- * least-recently-practiced. Ties resolve to the first fit in
- * `Object.keys(PROGRESSION_TEMPLATES)` order, which mirrors the on-screen
- * pill row.
+ * least-recently-practiced one (lastPracticedAt = 0 wins). For that lick,
+ * delegate to `pickProgressionForLick` to choose among its tagged
+ * progressions.
  *
  * "Stranded" candidates — practice-tagged but with no `prog:*` tag at all
  * — are excluded from the search. Without this guard a stranded lick
@@ -81,29 +125,11 @@ export function selectInitialProgression(args: {
 		}
 	}
 
-	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
-	const userTags = new Set(getProgressionTags(neglected.id));
-	const fits = order.filter((p) => userTags.has(p));
-	if (fits.length === 0) return DEFAULT_PROGRESSION;
-
-	const lastPracticed = new Map<ChordProgressionType, number>();
-	for (const entry of sessionLog) {
-		const prev = lastPracticed.get(entry.progressionType) ?? 0;
-		if (entry.timestamp > prev) {
-			lastPracticed.set(entry.progressionType, entry.timestamp);
-		}
-	}
-
-	let pick = fits[0];
-	let pickTime = lastPracticed.get(pick) ?? 0;
-	for (let i = 1; i < fits.length; i++) {
-		const t = lastPracticed.get(fits[i]) ?? 0;
-		if (t < pickTime) {
-			pick = fits[i];
-			pickTime = t;
-		}
-	}
-	return pick;
+	return pickProgressionForLick({
+		lickId: neglected.id,
+		progressionTags: getProgressionTags(neglected.id),
+		sessionLog
+	}) ?? DEFAULT_PROGRESSION;
 }
 
 /**

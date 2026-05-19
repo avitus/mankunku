@@ -85,6 +85,7 @@ import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svel
 import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
 import {
 	selectInitialProgression,
+	pickProgressionForLick,
 	buildUpcomingLicks,
 	findStrandedLicks,
 	DEFAULT_PROGRESSION,
@@ -301,6 +302,8 @@ export function resolveLickTempo(progress: LickPracticeProgress, phraseId: strin
 export function buildSessionPlan(): void {
 	const licks = getPracticeLicks();
 	const progress = lickPractice.progress;
+	const progressionType = lickPractice.config.progressionType;
+	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 
 	const sorted = [...licks].sort((a, b) => {
 		const aTime = getLickLastPracticed(progress, a.id);
@@ -333,16 +336,13 @@ export function buildSessionPlan(): void {
 			phraseName: lick.name,
 			phraseNumber: i + 1,
 			category: lick.category,
-			keys
+			keys,
+			progressionType
 		});
 		// Mirror the runtime layout: each key consumes `keyBars` (= lickBars in
 		// continuous mode, 2 × lickBars in C&R) and continuous mode prepends a
 		// demo cycle of `lickBars` before the keys.
-		const lickBars = getLickBars(
-			lick,
-			lickPractice.config.progressionType,
-			lickPractice.config.enableSubstitutions ?? false
-		);
+		const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
 		const mode = lickPractice.config.practiceMode;
 		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
 		const demoBars = mode === 'continuous' ? lickBars : 0;
@@ -356,6 +356,119 @@ export function buildSessionPlan(): void {
 /** Start the practice session */
 export function startSession(): void {
 	buildSessionPlan();
+	if (lickPractice.plan.length === 0) return;
+
+	lickPractice.mode = 'standard';
+	lickPractice.currentLickIndex = 0;
+	lickPractice.currentKeyIndex = 0;
+	lickPractice.keyResults = [];
+	lickPractice.allAttempts = [];
+	lickPractice.startTime = Date.now();
+	lickPractice.elapsedSeconds = 0;
+	lickPractice.roundNumber = 0;
+	lickPractice.masteredThisRound = [];
+	lickPractice.roundHistory = [];
+
+	const firstItem = lickPractice.plan[0];
+	lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, firstItem.phraseId);
+
+	lickPractice.phase = 'count-in';
+}
+
+/**
+ * Practice-tagged licks eligible for Daily Practice: every lick with at least
+ * one `prog:*` tag, regardless of which progression. Stranded licks (no tags)
+ * are excluded the same way they are from the standard session filter.
+ */
+export function getDailyPracticeLicks(): Phrase[] {
+	const allLicks = getAllLicks();
+	const taggedIds = getEffectivePracticeLickIds(allLicks);
+	if (taggedIds.size === 0) return [];
+
+	return allLicks.filter(
+		(lick) => taggedIds.has(lick.id) && getProgressionTags(lick.id).length > 0
+	);
+}
+
+/**
+ * Build a Daily Practice plan: pool every eligible lick across all tagged
+ * progressions, sort least-recently-practiced first, assign each lick its
+ * least-recently-practiced compatible progression, and greedily fill the
+ * duration budget. Mirrors `buildSessionPlan` but rotates progressions
+ * across the lick set instead of pinning to a single one.
+ */
+export function buildDailyPracticePlan(): void {
+	const licks = getDailyPracticeLicks();
+	const progress = lickPractice.progress;
+	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
+	const sessionLog = loadLickPracticeSessions();
+
+	const sorted = [...licks].sort((a, b) => {
+		const aTime = getLickLastPracticed(progress, a.id);
+		const bTime = getLickLastPracticed(progress, b.id);
+		return aTime - bTime;
+	});
+
+	const totalSeconds = lickPractice.config.durationMinutes * 60;
+	const plan: LickPracticePlanItem[] = [];
+	let estimatedTime = 0;
+
+	for (let i = 0; i < sorted.length && estimatedTime < totalSeconds; i++) {
+		const lick = sorted[i];
+		const progressionType = pickProgressionForLick({
+			lickId: lick.id,
+			progressionTags: getProgressionTags(lick.id),
+			sessionLog
+		});
+		// Defensive: `getDailyPracticeLicks` already filters out stranded licks,
+		// but if the tag store drifts mid-build (e.g. another tab clears tags)
+		// the picker can still return null. Skip the lick rather than crash.
+		if (!progressionType) continue;
+
+		const tempo = resolveLickTempo(progress, lick.id);
+		const unlockedCount = getUnlockedKeyCount(progress, lick.id);
+		const keys = unlockedCount < 12
+			? planUnlockedKeys(lick.key, unlockedCount)
+			: planLickKeys({
+					tempo,
+					minBpm: NEW_LICK_DEFAULT_TEMPO,
+					instrument: getInstrument()
+				});
+
+		plan.push({
+			phraseId: lick.id,
+			phraseName: lick.name,
+			phraseNumber: plan.length + 1,
+			category: lick.category,
+			keys,
+			progressionType
+		});
+
+		const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
+		const mode = lickPractice.config.practiceMode;
+		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
+		const demoBars = mode === 'continuous' ? lickBars : 0;
+		const totalBars = keys.length * keyBars + demoBars;
+		estimatedTime += (totalBars * 4 * 60) / tempo + 5;
+	}
+
+	lickPractice.plan = plan;
+}
+
+/**
+ * Start a Daily Practice session: rotates across every progression the user
+ * has tagged licks for, filling the configured time budget. Otherwise
+ * identical to `startSession` — same playback, same scoring, same unlock
+ * gate. The user's selected `progressionType` on the setup page is ignored
+ * for plan construction (each plan item carries its own).
+ */
+export function startDailyPracticeSession(): void {
+	// Defensive: clear single-lick state in case the user toggled into Daily
+	// Practice from a single-lick configuration.
+	lickPractice.config.singleLickMode = false;
+	lickPractice.config.singleLickId = undefined;
+
+	buildDailyPracticePlan();
 	if (lickPractice.plan.length === 0) return;
 
 	lickPractice.mode = 'standard';
@@ -402,6 +515,7 @@ export function startSingleLickSession(
 			phraseNumber: 1,
 			category: lick.category,
 			keys: circleOfFourthsFrom(lick.key),
+			progressionType: lickPractice.config.progressionType,
 			// Persist the resolved Phrase so the helpers below survive a
 			// `getLickById` miss for user/community licks not (yet) indexed
 			// in the global library.
@@ -456,7 +570,7 @@ export function getCurrentPhrase(): Phrase | null {
 	const item = getCurrentPlanItem();
 	const key = getCurrentKey();
 	if (!item || !key) return null;
-	return buildPhraseFor(item.phraseId, key, item.phrase);
+	return buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
 }
 
 /**
@@ -470,7 +584,7 @@ export function getPhraseFor(lickIdx: number, keyIdx: number): Phrase | null {
 	if (!item) return null;
 	const key = item.keys[keyIdx];
 	if (!key) return null;
-	return buildPhraseFor(item.phraseId, key, item.phrase);
+	return buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
 }
 
 /** Get the transposed harmony for the current key (for ChordChart). Includes
@@ -479,15 +593,16 @@ export function getCurrentHarmony(): HarmonicSegment[] {
 	const key = getCurrentKey();
 	if (!key) return [];
 	const item = getCurrentPlanItem();
+	const itemProgression = item?.progressionType ?? lickPractice.config.progressionType;
 	const lick = item ? resolveLickFor(item) : undefined;
 	if (!lick) {
-		const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
+		const template = PROGRESSION_TEMPLATES[itemProgression];
 		return transposeProgression(template.harmony, key);
 	}
 	return harmonyForLick(
 		lick,
 		key,
-		lickPractice.config.progressionType,
+		itemProgression,
 		lickPractice.config.enableSubstitutions ?? false
 	);
 }
@@ -497,17 +612,26 @@ export function getCurrentHarmony(): HarmonicSegment[] {
  * Shared by getCurrentPhrase and the lookahead accessors so they all
  * transpose identically.
  *
- * If the lick's category has an alignment offset configured for the current
+ * If the lick's category has an alignment offset configured for the given
  * progression (e.g. a 2-bar V-I lick inside a 4-bar ii-V-I long), every
  * melody note is shifted by that offset so it lands on the matching bar of
  * the parent progression. Harmony always comes from the progression template
  * — the lick's intrinsic harmony is discarded.
+ *
+ * `progressionType` is passed in (rather than read from config) so callers
+ * can resolve it from the relevant plan item. Daily Practice sessions assign
+ * each lick its own progression, so it can change from one plan item to the
+ * next within a single session.
  */
-function buildPhraseFor(lickId: string, key: PitchClass, fallback?: Phrase): Phrase | null {
+function buildPhraseFor(
+	lickId: string,
+	key: PitchClass,
+	progressionType: ChordProgressionType,
+	fallback?: Phrase
+): Phrase | null {
 	const baseLick = getLickById(lickId) ?? fallback;
 	if (!baseLick) return null;
 
-	const progressionType = lickPractice.config.progressionType;
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 	// Two alignment offsets, both needed:
 	// - `alignmentOffset` (pickup-shifted) places the melody's notes inside the
@@ -570,7 +694,7 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 		const item = lickPractice.plan[lickIdx];
 		if (keyIdx < item.keys.length) {
 			const key = item.keys[keyIdx];
-			const phrase = buildPhraseFor(item.phraseId, key, item.phrase);
+			const phrase = buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
 			if (!phrase) return null;
 			return {
 				lickIndex: lickIdx,
@@ -613,7 +737,7 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 	const result: PlannedKey[] = [];
 	for (let i = 0; i < item.keys.length; i++) {
 		const key = item.keys[i];
-		const phrase = buildPhraseFor(item.phraseId, key, item.phrase);
+		const phrase = buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
 		if (!phrase) continue;
 		result.push({
 			lickIndex: lickIdx,
@@ -658,7 +782,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	const baseLick = resolveLickFor(item);
 	if (!baseLick) return null;
 
-	const progressionType = lickPractice.config.progressionType;
+	const progressionType = item.progressionType;
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 	const mode = lickPractice.config.practiceMode;
 	// Per-lick cycle length: equals the progression's bar count for licks
@@ -832,14 +956,15 @@ export function getLickBars(
 /** lickBars for the lick currently at the head of the plan, or progressionBars
  *  when no plan exists yet. */
 function getCurrentLickBars(): number {
-	const template = PROGRESSION_TEMPLATES[lickPractice.config.progressionType];
 	const item = getCurrentPlanItem();
+	const progressionType = item?.progressionType ?? lickPractice.config.progressionType;
+	const template = PROGRESSION_TEMPLATES[progressionType];
 	if (!item) return template.bars;
 	const lick = resolveLickFor(item);
 	if (!lick) return template.bars;
 	return getLickBars(
 		lick,
-		lickPractice.config.progressionType,
+		progressionType,
 		lickPractice.config.enableSubstitutions ?? false
 	);
 }
@@ -879,7 +1004,9 @@ export function getKeyBars(): number {
  * response bars within a single key.
  */
 export function getProgressionBars(): number {
-	return PROGRESSION_TEMPLATES[lickPractice.config.progressionType].bars;
+	const item = getCurrentPlanItem();
+	const progressionType = item?.progressionType ?? lickPractice.config.progressionType;
+	return PROGRESSION_TEMPLATES[progressionType].bars;
 }
 
 /**
