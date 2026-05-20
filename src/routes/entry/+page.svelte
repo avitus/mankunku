@@ -97,9 +97,16 @@
 	let saveDetailsOpen = $state(false);
 	let nameInput = $state<HTMLInputElement | undefined>(undefined);
 
+	// Guard against applying stale hydration results after the component has
+	// unmounted (or after the user navigated to a different `?edit=` id during
+	// the cloud fetch). `stepEntry` is module-scoped, so a late `loadFromPhrase`
+	// call would silently overwrite whatever the next page is doing.
+	let editHydrationActive = true;
+
 	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
 		playbackModule = await import('$lib/audio/playback');
+		if (!editHydrationActive) return;
 
 		// Edit mode: `?edit=<id>` loads an existing lick into the editor.
 		// Without that param, clear any stale editing state left over from a
@@ -110,6 +117,10 @@
 			let lick = local ?? null;
 			if (!lick && supabase) {
 				const remote = await getUserLicks(supabase);
+				if (!editHydrationActive) return;
+				// Bail if the user navigated to a different edit id while we
+				// were waiting on the cloud fetch.
+				if (page.url.searchParams.get('edit') !== editId) return;
 				lick = remote.find((l) => l.id === editId) ?? null;
 			}
 			if (lick) {
@@ -118,6 +129,10 @@
 					lick.id,
 					resolvePracticeFallbackTags(lick.id, lick.tags)
 				);
+			} else {
+				// No matching lick — don't leave a previous edit session's
+				// state sitting in the rune.
+				reset();
 			}
 		} else if (stepEntry.editingId !== null) {
 			reset();
@@ -125,6 +140,7 @@
 	});
 
 	onDestroy(() => {
+		editHydrationActive = false;
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('keydown', handleKeydown);
 		}
