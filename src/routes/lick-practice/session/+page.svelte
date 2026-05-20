@@ -8,6 +8,7 @@
 	import {
 		lickPractice,
 		getCurrentPlanItem,
+		getCurrentProgressionType,
 		getCurrentKey,
 		getCurrentPhrase,
 		getPhraseFor,
@@ -35,7 +36,10 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
-	import { upsertLickPracticeSession } from '$lib/persistence/lick-practice-sessions';
+	import {
+		upsertLickPracticeSession,
+		splitReportByProgression
+	} from '$lib/persistence/lick-practice-sessions';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
 	import { syncDailySummaryToCloud } from '$lib/persistence/sync';
@@ -107,10 +111,13 @@
 	// boundary so licks with different progression lengths wrap correctly.
 	let beatLoopBeats = 0;
 
-	// Stable id + start timestamp for this session's log entry. Generated
-	// once at session start in initializeSession(); each scored key
-	// upserts the entry under this id with the current report, so a browser
-	// crash mid-session keeps the keys completed so far on disk.
+	// Stable base id + start timestamp for this session's log entries.
+	// Generated once at session start in initializeSession(); each scored
+	// key upserts one row per practiced progression under the composite
+	// key `${lickPracticeSessionLogId}-${progressionType}`. Standard
+	// sessions produce a single entry; Daily Practice produces N entries
+	// (one per progressionType in the plan) so a browser crash mid-session
+	// keeps each progression's activity on disk.
 	let lickPracticeSessionLogId = '';
 	let lickPracticeSessionStartTs = 0;
 
@@ -145,15 +152,18 @@
 	const currentItem = $derived(getCurrentPlanItem());
 	const currentKey = $derived(getCurrentKey());
 	const currentPhrase = $derived(getCurrentPhrase());
+	const currentProgressionType = $derived(getCurrentProgressionType());
 	const instrument = $derived(getInstrument());
 	const totalSeconds = $derived(lickPractice.config.durationMinutes * 60);
 
 	// Label shown in the header when the current lick is playing via a
 	// harmonic substitution (e.g. minor lick shifted over a dominant chord).
+	// Daily Practice sessions mix progressions across plan items, so this
+	// must read the active item's progressionType rather than config's.
 	const substitutionLabel = $derived.by(() => {
 		if (!currentItem) return null;
 		const rule = getActiveSubstitution(
-			lickPractice.config.progressionType,
+			currentProgressionType,
 			currentItem.category,
 			lickPractice.config.enableSubstitutions ?? false
 		);
@@ -293,10 +303,11 @@
 		await ensurePitchDetector();
 		isLoading = false;
 
-		// Stamp the session log entry id + timestamp once per session. Per-key
-		// upserts keyed by this id keep the log entry's totalAttempts in sync
-		// with the keys played so far, so a browser crash mid-session preserves
-		// real activity (the daily-summary derivation reads from the same log).
+		// Stamp the session log base id + timestamp once per session. Per-key
+		// upserts keyed off the composite `${baseId}-${progressionType}` keep
+		// each entry's totalAttempts in sync with the keys played so far, so
+		// a browser crash mid-session preserves real activity (the
+		// daily-summary derivation reads from the same log).
 		lickPracticeSessionLogId = `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 		lickPracticeSessionStartTs = Date.now();
 
@@ -739,13 +750,22 @@
 				console.warn('[lick-practice] recordKeyAttempt failed:', err);
 			}
 			try {
-				upsertLickPracticeSession({
-					id: lickPracticeSessionLogId,
-					timestamp: lickPracticeSessionStartTs,
-					progressionType: lickPractice.config.progressionType,
-					practiceMode: lickPractice.config.practiceMode,
-					report: getSessionReport()
-				});
+				// Split the running report into per-progression slices so the
+				// session log records each progression actually practiced. For
+				// standard sessions (one progressionType across the whole plan)
+				// this produces a single entry equivalent to the unsplit write;
+				// for Daily Practice it produces N entries so the picker's
+				// least-recently-practiced lookup stays accurate.
+				const slices = splitReportByProgression(getSessionReport(), lickPractice.plan);
+				for (const slice of slices) {
+					upsertLickPracticeSession({
+						id: `${lickPracticeSessionLogId}-${slice.progressionType}`,
+						timestamp: lickPracticeSessionStartTs,
+						progressionType: slice.progressionType,
+						practiceMode: lickPractice.config.practiceMode,
+						report: slice.report
+					});
+				}
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
 				bumpStreakForToday(supabase ?? undefined);
@@ -876,21 +896,29 @@
 		stopAll();
 		const report = getSessionReport();
 		sessionReport = report;
-		// Final upsert under the same id captures any keys archived to
-		// allAttempts by startInterLickTransition since the last per-key
-		// upsert. Idempotent: if the per-key path already wrote the same
-		// report, this replaces it with identical data. Wrapped in try/catch
-		// so a persistence failure here can't block the phase transition —
+		// Final upsert(s) under the same composite `${baseId}-${progressionType}`
+		// keys capture any keys archived to allAttempts by
+		// startInterLickTransition since the last per-key upsert. Idempotent:
+		// if the per-key path already wrote the same per-progression slice,
+		// this replaces it with identical data. Wrapped in try/catch so a
+		// persistence failure here can't block the phase transition —
 		// per-key writes already persisted the activity.
 		if (report.totalAttempts > 0) {
 			try {
-				upsertLickPracticeSession({
-					id: lickPracticeSessionLogId,
-					timestamp: lickPracticeSessionStartTs,
-					progressionType: lickPractice.config.progressionType,
-					practiceMode: lickPractice.config.practiceMode,
-					report
-				});
+				// Final per-progression flush — see closeAndScoreWindow for the
+				// per-key write that this mirrors. Idempotent: any per-progression
+				// entry already written by the per-key path gets replaced with the
+				// identical final slice.
+				const slices = splitReportByProgression(report, lickPractice.plan);
+				for (const slice of slices) {
+					upsertLickPracticeSession({
+						id: `${lickPracticeSessionLogId}-${slice.progressionType}`,
+						timestamp: lickPracticeSessionStartTs,
+						progressionType: slice.progressionType,
+						practiceMode: lickPractice.config.practiceMode,
+						report: slice.report
+					});
+				}
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
 				if (supabase && summary) {
@@ -970,9 +998,9 @@
 	}
 
 	// Build session report automatically when phase becomes 'complete'.
-	// The session log entry has been upserted incrementally per key (and
-	// once more at finishSession), so no extra write is needed here —
-	// this effect just surfaces the report to the UI.
+	// The per-progression session log entries have been upserted incrementally
+	// per key (and once more at finishSession), so no extra write is needed
+	// here — this effect just surfaces the report to the UI.
 	$effect(() => {
 		if (lickPractice.phase === 'complete' && !sessionReport) {
 			stopAll();
@@ -1174,7 +1202,7 @@
 			phraseNumber={currentItem.phraseNumber}
 			phraseName={currentItem.phraseName}
 			{currentKey}
-			progressionType={lickPractice.config.progressionType}
+			progressionType={currentProgressionType}
 			keyIndex={lickPractice.currentKeyIndex}
 			totalKeys={currentItem.keys.length}
 			{substitutionLabel}

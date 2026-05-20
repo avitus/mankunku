@@ -8,12 +8,10 @@
 	} from '$lib/data/progressions';
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { getAllLicks } from '$lib/phrases/library-loader';
-	import { getPracticeTaggedIds } from '$lib/persistence/lick-practice-store';
+	import { getPracticeTaggedIds, getUnlockedKeyCount } from '$lib/persistence/lick-practice-store';
 	import { lickPractice } from '$lib/state/lick-practice.svelte';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import { getUnlockContext } from '$lib/state/progress.svelte';
-	import { getUnlockedKeys } from '$lib/tonality/tonality';
-	import { circleOfFourthsFrom } from '$lib/music/key-ordering';
+	import { circleOfFourthsFrom, planUnlockedKeys } from '$lib/music/key-ordering';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
@@ -75,14 +73,16 @@
 	const instrument = $derived(getInstrument());
 
 	// The set of keys the deep-practice rotation will cycle through: the
-	// lick's circle-of-4ths order, filtered to keys the user has unlocked.
-	// Mirrors `unlockedCircleFrom` in lick-practice.svelte.ts; kept inline
-	// here so the setup screen can show the user the active set before they
-	// start, without exporting an internal helper.
+	// lick's circle-of-4ths order, restricted to the per-lick unlocked-key
+	// set. Mirrors `unlockedCircleFrom` in lick-practice.svelte.ts; kept
+	// inline here so the setup screen can preview the active set without
+	// exporting an internal helper. Reads `lickPractice.progress` so a
+	// per-key write (which bumps the unlock count) re-derives this list.
 	const rotationKeys = $derived.by<PitchClass[]>(() => {
 		if (!selectedLick) return [];
+		const unlockedCount = getUnlockedKeyCount(lickPractice.progress, selectedLick.id);
+		const unlocked = new Set(planUnlockedKeys(selectedLick.key, unlockedCount));
 		const circle = circleOfFourthsFrom(selectedLick.key);
-		const unlocked = new Set(getUnlockedKeys(getUnlockContext()));
 		const filtered = circle.filter((k) => unlocked.has(k));
 		return filtered.length > 0 ? filtered : circle;
 	});

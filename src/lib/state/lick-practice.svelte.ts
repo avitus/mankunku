@@ -57,7 +57,6 @@ import {
 	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags,
-	backfillInferredProgressionTags,
 	initLickMetadataFromCloud,
 	migrateOrphanLickCategories,
 	getUnlockedKeyCount,
@@ -82,8 +81,6 @@ import {
 import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-loader';
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
-import { getUnlockContext } from '$lib/state/progress.svelte';
-import { getUnlockedKeys } from '$lib/tonality/tonality';
 import { loadLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
 import {
 	selectInitialProgression,
@@ -194,10 +191,6 @@ export async function hydrateLickPracticeProgress(
 	// category plus an inferred `prog:*` tag so the user's original intent
 	// is preserved.
 	migrateOrphanLickCategories(supabase ?? undefined);
-	// Retroactive auto-tag for licks categorized before the
-	// `updateLickCategory` hook existed. Idempotent — covers existing data
-	// once and is a no-op thereafter.
-	backfillInferredProgressionTags();
 
 	lickPractice.config.progressionType = pickInitialProgression();
 }
@@ -497,28 +490,34 @@ export function startDailyPracticeSession(): void {
 }
 
 /**
- * Circle-of-4ths rotation starting at `entryKey`, filtered to the keys the
- * user has unlocked via the tonality progression. Falls back to the full
- * circle if the filter would yield an empty set (defensive — `C` is always
- * unlocked, so this only triggers if the unlock context is malformed).
+ * Circle-of-4ths rotation starting at `entryKey`, restricted to the lick's
+ * per-lick unlocked-key set (the same `planUnlockedKeys` ramp Standard mode
+ * uses). Used by single-lick Deep Practice so a brand-new lick starts at its
+ * entry key only and grows as the per-lick unlock count bumps — Deep Practice
+ * used to draw from the global tonality unlock pool, which gave new licks
+ * unearned keys.
+ *
+ * Falls back to the full circle if the filter would yield an empty set
+ * (defensive — `entryKey` is always in the unlocked set, so this only
+ * triggers if `planUnlockedKeys` is somehow malformed).
  */
-function unlockedCircleFrom(entryKey: PitchClass): PitchClass[] {
-	const unlocked = new Set(getUnlockedKeys(getUnlockContext()));
+function unlockedCircleFrom(entryKey: PitchClass, unlockedCount: number): PitchClass[] {
+	const unlocked = new Set(planUnlockedKeys(entryKey, unlockedCount));
 	const filtered = circleOfFourthsFrom(entryKey).filter(k => unlocked.has(k));
 	return filtered.length > 0 ? filtered : circleOfFourthsFrom(entryKey);
 }
 
 /**
  * Start a single-lick deep-practice session: cycle the chosen lick through
- * the user's currently unlocked keys (in circle-of-4ths order from the lick's
- * home key), drop keys at score ≥ 0.95, bump tempo by `tempoBumpBpm` once the
+ * its per-lick unlocked keys (in circle-of-4ths order from the lick's home
+ * key), drop keys at score ≥ 0.95, bump tempo by `tempoBumpBpm` once the
  * set is cleared, and repeat until the user ends the session.
  *
  * The session has no time budget — `durationMinutes` is ignored. Mastery
  * does NOT persist between sessions (each visit re-starts with the unlocked
  * set), but the elevated tempo IS persisted via `LickPracticeKeyProgress.currentTempo`.
- * Refills re-read the unlock context, so keys unlocked mid-session join on
- * the next cycle.
+ * Refills re-read the per-lick unlock count, so any unlocks earned in a
+ * Standard-mode session between rounds join on the next cycle.
  */
 export function startSingleLickSession(
 	lickOrId: string | Phrase,
@@ -531,13 +530,14 @@ export function startSingleLickSession(
 	lickPractice.config.singleLickId = lick.id;
 	lickPractice.config.tempoBumpBpm = tempoBumpBpm;
 
+	const unlockedCount = getUnlockedKeyCount(lickPractice.progress, lick.id);
 	lickPractice.plan = [
 		{
 			phraseId: lick.id,
 			phraseName: lick.name,
 			phraseNumber: 1,
 			category: lick.category,
-			keys: unlockedCircleFrom(lick.key),
+			keys: unlockedCircleFrom(lick.key, unlockedCount),
 			progressionType: lickPractice.config.progressionType,
 			// Persist the resolved Phrase so the helpers below survive a
 			// `getLickById` miss for user/community licks not (yet) indexed
@@ -565,6 +565,17 @@ export function startSingleLickSession(
 /** Get the current plan item */
 export function getCurrentPlanItem(): LickPracticePlanItem | null {
 	return lickPractice.plan[lickPractice.currentLickIndex] ?? null;
+}
+
+/**
+ * Progression in play right now. Daily Practice sessions mix progressions
+ * across plan items, so the UI (header label, substitution detection, chord
+ * chart) must read from the active plan item rather than `config.progressionType`,
+ * which only reflects the user's setup-page selection for standard sessions.
+ * Falls back to the config value when no plan is loaded yet (e.g. setup phase).
+ */
+export function getCurrentProgressionType(): ChordProgressionType {
+	return getCurrentPlanItem()?.progressionType ?? lickPractice.config.progressionType;
 }
 
 /**
@@ -1221,13 +1232,14 @@ export function advanceSingleLickRound(): void {
 
 	if (survivors.length === 0) {
 		// Whole unlocked set cleared at the current tempo — bump and refill.
-		// Re-read the unlock context so any keys unlocked since the round
-		// started (via ear-training elsewhere) join on this cycle.
+		// Re-read the per-lick unlock count so any keys earned in a Standard
+		// session between rounds join on this cycle.
 		const bump = lickPractice.config.tempoBumpBpm ?? DEFAULT_TEMPO_BUMP_BPM;
 		const newTempo = clampTempo(lickPractice.currentTempo + bump);
 		const baseLick = resolveLickFor(item);
 		const refillStart = baseLick?.key ?? item.keys[0] ?? 'C';
-		const fullCircle = unlockedCircleFrom(refillStart as PitchClass);
+		const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
+		const fullCircle = unlockedCircleFrom(refillStart as PitchClass, unlockedCount);
 
 		// Persist the elevated tempo to every key for this lick so the next
 		// session resumes at this BPM (mirrors the per-key write the standard
