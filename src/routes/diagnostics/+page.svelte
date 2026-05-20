@@ -543,17 +543,26 @@
 							<!-- Playback + actions -->
 							<div class="flex flex-wrap items-center gap-3">
 								{#if audioUrl}
-									<!-- Reset to the start when playback finishes so a second
-										 click on play replays from the beginning instead of
-										 staying parked at duration. -->
-									<audio
-										src={audioUrl}
-										controls
-										onended={(e) => {
-											(e.currentTarget as HTMLAudioElement).currentTime = 0;
-										}}
-										class="h-8 max-w-xs"
-									></audio>
+									<!-- Key on audioUrl so switching to a different recording
+										 destroys and re-creates the audio element instead of
+										 just mutating `src` on the existing node — that path
+										 leaves stale internal state (loaded blob, ended flag)
+										 and was the source of "plays the wrong lick".
+										 On `ended`, call load() rather than just resetting
+										 currentTime: it fully resets the element's state
+										 machine, so a second click on play reliably replays
+										 from the start (currentTime=0 alone is unreliable on
+										 MediaRecorder webm/opus blobs). -->
+									{#key audioUrl}
+										<audio
+											src={audioUrl}
+											controls
+											onended={(e) => {
+												(e.currentTarget as HTMLAudioElement).load();
+											}}
+											class="h-8 max-w-xs"
+										></audio>
+									{/key}
 								{/if}
 								<button
 									onclick={() => downloadAsWav(rec)}
