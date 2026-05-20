@@ -6,6 +6,19 @@
  * time to the next onset (or end of recording).
  */
 
+/**
+ * Speaker→mic latency window for treating a worklet onset as bleed from a
+ * scheduled audible event (metronome click, backing-track hit). Below the
+ * lower bound, a worklet onset that close to a scheduled event is more
+ * likely the player articulating on the beat than acoustic bleed; above
+ * the upper bound, the event is too far in the past to plausibly be the
+ * cause. The 50–200 ms range covers typical Web Audio buffer + room
+ * propagation while staying clear of fast tongued re-articulations on a
+ * beat (worklet detection latency ~30–50 ms on direct instrument input).
+ */
+const BLEED_LATENCY_MIN = 0.050;
+const BLEED_LATENCY_MAX = 0.200;
+
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from './pitch-detector';
 
@@ -74,7 +87,8 @@ export function segmentNotes(
 	minNoteDuration: number = 0.05,
 	onsetGuard: number = 0.08,
 	minReadings: number = 3,
-	workletOnsets?: number[]
+	workletOnsets?: number[],
+	bleedOnsets?: number[]
 ): DetectedNote[] {
 	if (readings.length === 0) return [];
 
@@ -169,9 +183,30 @@ export function segmentNotes(
 	// the raw worklet onsets we can prove the boundary is artificial: a
 	// real re-articulation produces an amplitude transient the worklet
 	// catches, so an unsupported same-MIDI boundary collapses.
-	return workletOnsets && workletOnsets.length > 0
-		? mergeSamePitchWithoutAttack(sandwiched, workletOnsets)
-		: sandwiched;
+	if (!workletOnsets || workletOnsets.length === 0) return sandwiched;
+
+	const samePitchMerged = mergeSamePitchWithoutAttack(
+		sandwiched,
+		workletOnsets,
+		undefined,
+		bleedOnsets
+	);
+
+	// Octave-boundary merge. McLeod can sustainably lock onto the second
+	// harmonic of a low note (its half-period), producing a spurious
+	// upper-octave segment adjacent to the true fundamental segment.
+	// When two adjacent notes are exactly an octave apart, no real attack
+	// at the boundary, AND the higher segment's RAW frequencies contain
+	// multiple frames matching the lower segment's pitch (which they
+	// wouldn't if the upper octave were genuinely present in the audio),
+	// the upper segment is a stabilizer-locked harmonic. Collapse to lower.
+	return mergeOctaveBoundariesWithoutAttack(
+		samePitchMerged,
+		readings,
+		workletOnsets,
+		undefined,
+		bleedOnsets
+	);
 }
 
 /**
@@ -191,18 +226,31 @@ const SAME_PITCH_ATTACK_WINDOW = 0.075;
  *
  * Different-MIDI neighbours are passed through untouched — pitch transitions
  * are handled upstream by splitByPitchChange and don't need attack evidence.
+ *
+ * `bleedOnsets` (optional): scheduled times of audible events that bleed
+ * into the mic (typically metronome clicks). A worklet onset that falls
+ * in the speaker→mic latency window after one of these is treated as
+ * acoustic bleed, not an instrument attack, so the same-MIDI split it
+ * caused collapses. Without this, a metronome click sitting in the
+ * middle of a sustained note manufactures a phantom re-articulation.
  */
 export function mergeSamePitchWithoutAttack(
 	notes: DetectedNote[],
 	workletOnsets: number[],
-	window: number = SAME_PITCH_ATTACK_WINDOW
+	window: number = SAME_PITCH_ATTACK_WINDOW,
+	bleedOnsets?: number[]
 ): DetectedNote[] {
 	if (notes.length < 2 || workletOnsets.length === 0) return notes;
 
-	// hasOnsetNear's early-return assumes ascending order. The live worklet
-	// emits in time order so this is usually true, but sort a shallow copy
-	// defensively so an unsorted caller can't silently produce wrong merges.
+	// hasRealAttackNear's early-return assumes ascending order. The live
+	// worklet emits in time order so this is usually true, but sort a
+	// shallow copy defensively so an unsorted caller can't silently
+	// produce wrong merges.
 	const sortedOnsets = [...workletOnsets].sort((a, b) => a - b);
+	const sortedBleed =
+		bleedOnsets && bleedOnsets.length > 0
+			? [...bleedOnsets].sort((a, b) => a - b)
+			: [];
 
 	const result: DetectedNote[] = [];
 	for (const cur of notes) {
@@ -210,7 +258,7 @@ export function mergeSamePitchWithoutAttack(
 		if (
 			last &&
 			last.midi === cur.midi &&
-			!hasOnsetNear(sortedOnsets, cur.onsetTime, window)
+			!hasRealAttackNear(sortedOnsets, cur.onsetTime, window, sortedBleed)
 		) {
 			const totalDuration = cur.onsetTime + cur.duration - last.onsetTime;
 			const wLast = last.duration;
@@ -230,12 +278,183 @@ export function mergeSamePitchWithoutAttack(
 	return result;
 }
 
-function hasOnsetNear(onsets: number[], target: number, window: number): boolean {
-	for (const o of onsets) {
-		if (o > target + window) return false;
-		if (Math.abs(o - target) <= window) return true;
+/**
+ * Minimum number of "wrong-octave" raw-frequency frames inside the higher
+ * of two adjacent ±12 segments before we treat the upper segment as a
+ * McLeod second-harmonic lock. Each frame is a McLeod detection event
+ * where the underlying frequency matched the LOWER octave's MIDI — strong
+ * evidence the lower octave's fundamental is acoustically present (which
+ * couldn't happen if the upper octave were the true pitch, since a real
+ * upper-octave note's audio doesn't contain the lower-octave fundamental).
+ * Three independent events is well above noise; the bc-016 fixture has 7.
+ */
+const MIN_LOWER_FUNDAMENTAL_FRAMES = 3;
+
+/**
+ * Count readings in `[startTime, endTime)` whose RAW frequency (not the
+ * octave-stabilized `midi` field) rounds to `lowerMidi`. McLeod's raw
+ * pick is the source of truth here — the stabilizer can lie about the
+ * octave for a long stretch while the underlying autocorrelation
+ * occasionally pulls toward the true fundamental.
+ */
+function countLowerFundamentalFrames(
+	readings: PitchReading[],
+	lowerMidi: number,
+	startTime: number,
+	endTime: number
+): number {
+	let count = 0;
+	for (const r of readings) {
+		if (r.time < startTime) continue;
+		if (r.time >= endTime) break;
+		const rawMidi = Math.round(12 * Math.log2(r.frequency / 440) + 69);
+		if (rawMidi === lowerMidi) count++;
+	}
+	return count;
+}
+
+/**
+ * Merge two adjacent notes exactly an octave apart when (a) there is no
+ * real worklet attack at the boundary AND (b) the higher segment's raw
+ * frequencies show ≥ `MIN_LOWER_FUNDAMENTAL_FRAMES` frames pulled toward
+ * the lower fundamental. The merged note adopts the lower MIDI (the
+ * fundamental) and spans the union of both notes' times; cents and
+ * clarity are duration-weighted, mirroring `mergeSamePitchWithoutAttack`.
+ *
+ * Rationale: McLeod's failure mode on low-register notes is locking
+ * onto the half-period, which corresponds to the second harmonic an
+ * octave above. The stabilizer holds that lock against momentary
+ * fundamental detections, producing a spurious upper-octave segment
+ * adjacent to the true note. The raw-frequency evidence is the smoking
+ * gun — a genuinely-played upper-octave note's audio contains no lower
+ * fundamental, so the count is zero; a stabilizer-locked harmonic has
+ * many frames of leaked-through fundamental detection.
+ *
+ * Sub-octave artifacts (McLeod returning lower-than-true) don't get
+ * touched here — the rule is asymmetric (merge to lower) because they
+ * are vanishingly rare and the existing within-segment
+ * `collapseOctaveArtifacts` already handles brief variants.
+ *
+ * `readings` is the full sorted pitch-reading stream; the function
+ * filters by segment time range internally.
+ */
+export function mergeOctaveBoundariesWithoutAttack(
+	notes: DetectedNote[],
+	readings: PitchReading[],
+	workletOnsets: number[],
+	window: number = SAME_PITCH_ATTACK_WINDOW,
+	bleedOnsets?: number[]
+): DetectedNote[] {
+	if (notes.length < 2 || workletOnsets.length === 0 || readings.length === 0) {
+		return notes;
+	}
+
+	const sortedOnsets = [...workletOnsets].sort((a, b) => a - b);
+	const sortedBleed =
+		bleedOnsets && bleedOnsets.length > 0
+			? [...bleedOnsets].sort((a, b) => a - b)
+			: [];
+
+	const result: DetectedNote[] = [];
+	for (const cur of notes) {
+		const last = result[result.length - 1];
+		if (
+			last &&
+			Math.abs(last.midi - cur.midi) === 12 &&
+			!hasRealAttackNear(sortedOnsets, cur.onsetTime, window, sortedBleed)
+		) {
+			const higher = last.midi > cur.midi ? last : cur;
+			const lower = last.midi < cur.midi ? last : cur;
+			const lowerFundCount = countLowerFundamentalFrames(
+				readings,
+				lower.midi,
+				higher.onsetTime,
+				higher.onsetTime + higher.duration
+			);
+			if (lowerFundCount >= MIN_LOWER_FUNDAMENTAL_FRAMES) {
+				const totalDuration = cur.onsetTime + cur.duration - last.onsetTime;
+				const wLast = last.duration;
+				const wCur = cur.duration;
+				const wSum = wLast + wCur;
+				result[result.length - 1] = {
+					midi: lower.midi,
+					cents: Math.round((last.cents * wLast + cur.cents * wCur) / wSum),
+					onsetTime: last.onsetTime,
+					duration: totalDuration,
+					clarity: (last.clarity * wLast + cur.clarity * wCur) / wSum
+				};
+				continue;
+			}
+		}
+		result.push(cur);
+	}
+	return result;
+}
+
+/**
+ * Whether a worklet onset's timing matches the speaker→mic latency window
+ * after any known bleed event. Bleed times must be sorted ascending; the
+ * scan walks past bleed events that are too far in the past (latency >
+ * `BLEED_LATENCY_MAX`) and bails once it lands on one too close to (or
+ * past) the worklet onset (latency < `BLEED_LATENCY_MIN`).
+ */
+function isLikelyBleed(workletOnsetTime: number, sortedBleed: number[]): boolean {
+	for (const t of sortedBleed) {
+		const latency = workletOnsetTime - t;
+		if (latency > BLEED_LATENCY_MAX) continue;
+		if (latency < BLEED_LATENCY_MIN) return false;
+		return true;
 	}
 	return false;
+}
+
+/**
+ * True iff there is a worklet onset within ±window of `target` that is
+ * NOT plausibly bleed from a scheduled audible event. When `sortedBleed`
+ * is empty this matches the legacy "any nearby onset counts" behaviour.
+ */
+function hasRealAttackNear(
+	sortedOnsets: number[],
+	target: number,
+	window: number,
+	sortedBleed: number[]
+): boolean {
+	for (const o of sortedOnsets) {
+		if (o > target + window) return false;
+		if (Math.abs(o - target) <= window && !isLikelyBleed(o, sortedBleed)) return true;
+	}
+	return false;
+}
+
+/**
+ * Recording-time positions of metronome clicks during a capture window.
+ * Used as bleed evidence by `mergeSamePitchWithoutAttack`. The metronome
+ * schedules a click on every beat starting at Transport time 0 (see
+ * `audio/metronome.ts`), so click times in Transport seconds are integer
+ * multiples of `60 / tempo`; we convert to recording-time by subtracting
+ * `recordingTransportSeconds`.
+ *
+ * Includes a 250 ms pre-recording lookback so a click that fired just
+ * before capture but whose speaker→mic propagation arrived inside the
+ * recording window is still represented.
+ */
+export function getMetronomeBleedOnsets(
+	recordingTransportSeconds: number,
+	tempo: number,
+	recordingDuration: number
+): number[] {
+	if (tempo <= 0 || recordingDuration <= 0) return [];
+	const beatDuration = 60 / tempo;
+	const PRE_RECORDING_LOOKBACK = 0.250;
+	const scanStartTransport = recordingTransportSeconds - PRE_RECORDING_LOOKBACK;
+	const scanEndTransport = recordingTransportSeconds + recordingDuration;
+	const out: number[] = [];
+	let beat = Math.ceil(scanStartTransport / beatDuration) * beatDuration;
+	while (beat <= scanEndTransport) {
+		out.push(beat - recordingTransportSeconds);
+		beat += beatDuration;
+	}
+	return out;
 }
 
 function collapseSandwichArtifacts(notes: DetectedNote[]): DetectedNote[] {

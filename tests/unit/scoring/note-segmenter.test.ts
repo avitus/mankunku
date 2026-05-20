@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { segmentNotes, resolveOnsets, mergeSamePitchWithoutAttack } from '$lib/audio/note-segmenter';
+import {
+	segmentNotes,
+	resolveOnsets,
+	mergeSamePitchWithoutAttack,
+	mergeOctaveBoundariesWithoutAttack,
+	getMetronomeBleedOnsets
+} from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
 
@@ -797,5 +803,375 @@ describe('resolveOnsets — MIDI-aware ATTACK_DEDUP', () => {
 		];
 		const result = resolveOnsets([1.0], readings);
 		expect(result).toEqual([0.90]);
+	});
+});
+
+describe('mergeSamePitchWithoutAttack — bleedOnsets evidence', () => {
+	function makeNote(midi: number, onsetTime: number, duration: number, cents = 0, clarity = 0.95): DetectedNote {
+		return { midi, cents, onsetTime, duration, clarity };
+	}
+
+	it('merges same-pitch split when the worklet onset is bleed from a scheduled click', () => {
+		// Sustained C broken into two segments by a worklet onset at 1.019,
+		// which sits 92 ms after a metronome click at 0.927 — the
+		// fingerprint of mic-captured metronome bleed. Without bleedOnsets
+		// the function keeps the false split because the worklet "confirmed"
+		// an attack; with bleed evidence it correctly collapses.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.083, 0.936, 9),
+			makeNote(60, 1.019, 0.581, 12)
+		];
+		const workletOnsets = [1.019];
+		const bleedOnsets = [0.327, 0.927, 1.527];
+
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets, undefined, bleedOnsets);
+		expect(merged).toHaveLength(1);
+		expect(merged[0].midi).toBe(60);
+		expect(merged[0].onsetTime).toBeCloseTo(0.083, 3);
+		expect(merged[0].duration).toBeCloseTo(1.517, 3);
+	});
+
+	it('preserves a re-articulation when the worklet onset is too close to a beat to be bleed', () => {
+		// Player tongues a fresh C exactly on the beat — worklet detects
+		// the real attack ~30 ms after the click. That latency is below
+		// BLEED_LATENCY_MIN, so the onset is treated as a genuine attack
+		// and the two segments stay split.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.6),
+			makeNote(60, 0.6, 0.6)
+		];
+		const workletOnsets = [0.0, 0.630]; // 30ms after beat
+		const bleedOnsets = [0.0, 0.6];
+
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets, undefined, bleedOnsets);
+		expect(merged).toHaveLength(2);
+	});
+
+	it('preserves a re-articulation when the worklet onset is too far past a beat to be bleed', () => {
+		// Worklet onset 300 ms after the previous beat — well past
+		// BLEED_LATENCY_MAX. Treated as a real (if late) attack.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.9),
+			makeNote(60, 0.9, 0.5)
+		];
+		const workletOnsets = [0.0, 0.900];
+		const bleedOnsets = [0.0, 0.6, 1.2];
+
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets, undefined, bleedOnsets);
+		expect(merged).toHaveLength(2);
+	});
+
+	it('falls back to legacy behaviour when bleedOnsets is omitted', () => {
+		// A worklet onset at the boundary preserves the split when no bleed
+		// evidence is supplied, even if the onset happens to coincide with
+		// what would be a beat. Existing callers must see identical results.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.5),
+			makeNote(60, 0.5, 0.5)
+		];
+		const workletOnsets = [0.0, 0.5];
+
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets);
+		expect(merged).toHaveLength(2);
+	});
+
+	it('falls back to legacy behaviour when bleedOnsets is empty', () => {
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.5),
+			makeNote(60, 0.5, 0.5)
+		];
+		const workletOnsets = [0.0, 0.5];
+
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets, undefined, []);
+		expect(merged).toHaveLength(2);
+	});
+
+	it('only flags a worklet onset whose nearest preceding bleed event matches the latency window', () => {
+		// Two worklet onsets at the same-pitch boundary. The first (0.300)
+		// is 30 ms after the bleed time (below MIN) — counts as a real
+		// attack. The second (0.350) is 80 ms after the bleed time (in
+		// window) — counts as bleed. The function must spot at least one
+		// real attack and preserve the split.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 0.32),
+			makeNote(60, 0.32, 0.30)
+		];
+		const workletOnsets = [0.300, 0.350];
+		const bleedOnsets = [0.270];
+
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets, undefined, bleedOnsets);
+		expect(merged).toHaveLength(2);
+	});
+
+	it('does not affect different-pitch transitions even when the onset looks like bleed', () => {
+		// The worklet onset at 1.6 is 73 ms after the bleed at 1.527 — well
+		// inside the bleed window — but the pitches differ across the
+		// boundary, so the merge function never tries to merge them.
+		const notes: DetectedNote[] = [
+			makeNote(60, 0.0, 1.6),
+			makeNote(62, 1.6, 0.5)
+		];
+		const workletOnsets = [1.6];
+		const bleedOnsets = [0.6, 1.2, 1.527];
+
+		const merged = mergeSamePitchWithoutAttack(notes, workletOnsets, undefined, bleedOnsets);
+		expect(merged).toHaveLength(2);
+		expect(merged.map((n) => n.midi)).toEqual([60, 62]);
+	});
+
+	// The end-to-end regression that runs the saved diagnostic JSON through
+	// resolveOnsets + segmentNotes + scoreAttempt lives in
+	// `tests/integration/audio-processing-pipeline.test.ts` under
+	// "Flat Seven–Octave metronome-bleed regression".
+});
+
+describe('getMetronomeBleedOnsets', () => {
+	it('returns beat times in recording-time for the recording window', () => {
+		// recordingTransportSeconds = 1.2 (Transport beat 2 at tempo 100),
+		// recording is 1.5 s long. With a 250ms lookback, the scan starts
+		// at Transport 0.95, so the first beat caught is Transport 1.2 →
+		// recording-time 0.0. Subsequent beats every 0.6 s up to the end.
+		const result = getMetronomeBleedOnsets(1.2, 100, 1.5);
+		expect(result.length).toBeGreaterThan(0);
+		// Beats at recording times 0.0, 0.6, 1.2 (still ≤ 1.5).
+		expect(result[0]).toBeCloseTo(0.0, 5);
+		expect(result[1]).toBeCloseTo(0.6, 5);
+		expect(result[2]).toBeCloseTo(1.2, 5);
+	});
+
+	it('includes a click that fired just before recording started', () => {
+		// recordingTransportSeconds = 1.4 (200 ms past beat 1.2). The beat
+		// at Transport 1.2 fired 200 ms before recording start, well inside
+		// the 250 ms lookback; its bleed could still reach the mic during
+		// the recording window.
+		const result = getMetronomeBleedOnsets(1.4, 100, 1.0);
+		expect(result[0]).toBeCloseTo(-0.2, 5);
+	});
+
+	it('returns an empty array for zero or negative tempo / duration', () => {
+		expect(getMetronomeBleedOnsets(0, 0, 1.0)).toEqual([]);
+		expect(getMetronomeBleedOnsets(0, 100, 0)).toEqual([]);
+		expect(getMetronomeBleedOnsets(0, -1, 1.0)).toEqual([]);
+	});
+
+	it('matches the recording from the flat-seven-octave diagnostic', () => {
+		// recordingTransportSeconds ≈ 6.273, tempo 100, audio 3.6135 s. The
+		// earlier metronome click at Transport 6.0 sits 273 ms before
+		// recording — its bleed window (T + 50..200 ms) lands entirely
+		// before time 0, so the 250 ms lookback correctly excludes it.
+		// The seven beats inside the recording (matching the worklet's
+		// observed ~92 ms bleed pattern) are what matter.
+		const result = getMetronomeBleedOnsets(6.273, 100, 3.6135);
+		expect(result[0]).toBeCloseTo(0.327, 3);
+		expect(result[1]).toBeCloseTo(0.927, 3);
+		expect(result[2]).toBeCloseTo(1.527, 3);
+		expect(result[3]).toBeCloseTo(2.127, 3);
+		expect(result[4]).toBeCloseTo(2.727, 3);
+		expect(result[5]).toBeCloseTo(3.327, 3);
+	});
+});
+
+describe('mergeOctaveBoundariesWithoutAttack', () => {
+	function makeNote(
+		midi: number,
+		onsetTime: number,
+		duration: number,
+		cents = 0,
+		clarity = 0.95
+	): DetectedNote {
+		return { midi, cents, onsetTime, duration, clarity };
+	}
+
+	/**
+	 * Build a synthetic reading stream where most frames carry one midi but
+	 * `lowerFundamentalFrameCount` selected frames have their raw frequency
+	 * pulled to a lower octave's pitch. Mirrors the McLeod-stabilizer-locked
+	 * fingerprint in the bc-016 fixture.
+	 */
+	function makeMixedReadings(
+		startTime: number,
+		endTime: number,
+		dominantMidi: number,
+		lowerFundamentalMidi: number,
+		lowerFundamentalFrameCount: number
+	): PitchReading[] {
+		const dt = 1 / 60;
+		const dominantFreq = 440 * Math.pow(2, (dominantMidi - 69) / 12);
+		const lowerFreq = 440 * Math.pow(2, (lowerFundamentalMidi - 69) / 12);
+		const out: PitchReading[] = [];
+		let lowerEmitted = 0;
+		for (let t = startTime; t < endTime - 1e-9; t += dt) {
+			const isLower = lowerEmitted < lowerFundamentalFrameCount && Math.floor((t - startTime) / dt) % 4 === 0;
+			const freq = isLower ? lowerFreq : dominantFreq;
+			out.push({
+				midi: dominantMidi,
+				midiFloat: dominantMidi + 0.1,
+				cents: 10,
+				clarity: 0.95,
+				time: t,
+				frequency: freq
+			});
+			if (isLower) lowerEmitted++;
+		}
+		return out;
+	}
+
+	it('collapses an octave-up segment when the higher segment shows lower-fundamental evidence', () => {
+		// Higher C5 segment (0.0–0.8s) with ≥ 3 raw frames at 263 Hz (rawMidi 60),
+		// followed by sustained C4 (0.8–1.6s). No worklet onset at the boundary.
+		const readings = [
+			...makeMixedReadings(0.0, 0.8, 72, 60, 5),
+			...makeMixedReadings(0.8, 1.6, 60, 60, 0)
+		];
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.8, 15, 0.95),
+			makeNote(60, 0.8, 0.8, 20, 0.9)
+		];
+		const merged = mergeOctaveBoundariesWithoutAttack(notes, readings, [0.0]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0].midi).toBe(60);
+		expect(merged[0].onsetTime).toBeCloseTo(0.0, 5);
+		expect(merged[0].duration).toBeCloseTo(1.6, 5);
+		// Duration-weighted cents and clarity (both segments equal duration).
+		expect(merged[0].cents).toBe(18); // round((15+20)/2)
+	});
+
+	it('preserves a real octave drop when the worklet detected an attack at the boundary', () => {
+		const readings = [
+			...makeMixedReadings(0.0, 0.8, 72, 60, 5),
+			...makeMixedReadings(0.8, 1.6, 60, 60, 0)
+		];
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.8),
+			makeNote(60, 0.8, 0.8)
+		];
+		// Worklet onset within 75ms of the 0.8 boundary → real attack.
+		const merged = mergeOctaveBoundariesWithoutAttack(notes, readings, [0.0, 0.82]);
+
+		expect(merged).toHaveLength(2);
+		expect(merged[0].midi).toBe(72);
+		expect(merged[1].midi).toBe(60);
+	});
+
+	it('does NOT merge when the higher segment lacks lower-fundamental evidence', () => {
+		// Real sustained C5 — audio contains only ~523 Hz, no leakage to 263 Hz.
+		// Followed by an isolated C4 segment. Without lower-fundamental
+		// evidence in the C5 segment, the merge is unsafe.
+		const readings = [
+			...makeMixedReadings(0.0, 0.8, 72, 60, 0),
+			...makeMixedReadings(0.8, 1.6, 60, 60, 0)
+		];
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.8),
+			makeNote(60, 0.8, 0.8)
+		];
+		const merged = mergeOctaveBoundariesWithoutAttack(notes, readings, [0.0]);
+
+		expect(merged).toHaveLength(2);
+	});
+
+	it('does NOT merge with only one or two lower-fundamental frames (below threshold)', () => {
+		const readings = [
+			...makeMixedReadings(0.0, 0.8, 72, 60, 2), // below MIN_LOWER_FUNDAMENTAL_FRAMES (3)
+			...makeMixedReadings(0.8, 1.6, 60, 60, 0)
+		];
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.8),
+			makeNote(60, 0.8, 0.8)
+		];
+		const merged = mergeOctaveBoundariesWithoutAttack(notes, readings, [0.0]);
+
+		expect(merged).toHaveLength(2);
+	});
+
+	it('treats a bleed-coincident worklet onset as not-a-real-attack and still merges', () => {
+		const readings = [
+			...makeMixedReadings(0.0, 0.8, 72, 60, 5),
+			...makeMixedReadings(0.8, 1.6, 60, 60, 0)
+		];
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.8),
+			makeNote(60, 0.8, 0.8)
+		];
+		// Worklet onset at 0.79 — metronome bleed firing ~90ms after a click
+		// at 0.7. With bleedOnsets supplied, the onset is recognised as bleed
+		// and the boundary is treated as having no real attack.
+		const workletOnsets = [0.0, 0.79];
+		const bleedOnsets = [0.7];
+		const merged = mergeOctaveBoundariesWithoutAttack(
+			notes,
+			readings,
+			workletOnsets,
+			undefined,
+			bleedOnsets
+		);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0].midi).toBe(60);
+	});
+
+	it('never merges when the pitch difference is not exactly one octave', () => {
+		// D4 → C5 (diff 10): not an octave, not subject to this rule
+		// regardless of evidence.
+		const readings = makeMixedReadings(0.0, 1.6, 72, 60, 10);
+		const notes: DetectedNote[] = [
+			makeNote(62, 0.0, 0.8),
+			makeNote(72, 0.8, 0.8)
+		];
+		const merged = mergeOctaveBoundariesWithoutAttack(notes, readings, [0.0]);
+
+		expect(merged).toHaveLength(2);
+	});
+
+	it('passes through when fewer than 2 notes', () => {
+		const readings: PitchReading[] = [];
+		expect(mergeOctaveBoundariesWithoutAttack([], readings, [1.0])).toEqual([]);
+		const one = [makeNote(60, 0.0, 0.5)];
+		expect(mergeOctaveBoundariesWithoutAttack(one, readings, [1.0])).toEqual(one);
+	});
+
+	it('passes through when workletOnsets is empty', () => {
+		const readings = [...makeMixedReadings(0.0, 0.8, 72, 60, 5)];
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.8),
+			makeNote(60, 0.8, 0.8)
+		];
+		expect(mergeOctaveBoundariesWithoutAttack(notes, readings, [])).toEqual(notes);
+	});
+
+	it('passes through when readings is empty', () => {
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.8),
+			makeNote(60, 0.8, 0.8)
+		];
+		expect(mergeOctaveBoundariesWithoutAttack(notes, [], [0.0])).toEqual(notes);
+	});
+
+	it('chains correctly after same-pitch merge in segmentNotes', () => {
+		// Three fragmented C5 segments (split by stabilizer flips) followed by
+		// a low C4 — the bc-016 shape. mergeSamePitchWithoutAttack joins the
+		// three C5s into one, then mergeOctaveBoundariesWithoutAttack
+		// collapses the combined C5 into the C4.
+		const readings = [
+			...makeMixedReadings(0.0, 0.4, 72, 60, 2),
+			...makeMixedReadings(0.4, 0.8, 72, 60, 2),
+			...makeMixedReadings(0.8, 1.2, 72, 60, 2),
+			...makeMixedReadings(1.2, 2.0, 60, 60, 0)
+		];
+		const notes: DetectedNote[] = [
+			makeNote(72, 0.0, 0.4),
+			makeNote(72, 0.4, 0.4),
+			makeNote(72, 0.8, 0.4),
+			makeNote(60, 1.2, 0.8)
+		];
+		const samePitchMerged = mergeSamePitchWithoutAttack(notes, [0.0]);
+		expect(samePitchMerged).toHaveLength(2); // three C5s → one C5, then the C4
+
+		const merged = mergeOctaveBoundariesWithoutAttack(samePitchMerged, readings, [0.0]);
+		expect(merged).toHaveLength(1);
+		expect(merged[0].midi).toBe(60);
+		expect(merged[0].onsetTime).toBeCloseTo(0.0, 5);
+		expect(merged[0].duration).toBeCloseTo(2.0, 5);
 	});
 });

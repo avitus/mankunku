@@ -10,7 +10,7 @@
 	import { session } from '$lib/state/session.svelte';
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
-	import { resolveOnsets, segmentNotes } from '$lib/audio/note-segmenter';
+	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
@@ -373,7 +373,10 @@
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 
 		const onsets = resolveOnsets(workletOnsets, readings);
-		const detected = segmentNotes(readings, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets);
+		const bleedOnsets = settings.metronomeEnabled
+			? getMetronomeBleedOnsets(recordingTransportSeconds, session.tempo, phraseDuration)
+			: undefined;
+		const detected = segmentNotes(readings, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets);
 		const schedule = getActiveSchedule();
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, recordingTransportSeconds)
@@ -428,6 +431,7 @@
 			const swingForRescore = settings.swing;
 			const scheduleForRescore = getActiveSchedule();
 			const bleedFilterEnabled = settings.bleedFilterEnabled;
+			const metronomeEnabledForRescore = settings.metronomeEnabled;
 			const provisionalScore = $state.snapshot(session.lastScore);
 			const provisionalNotes = $state.snapshot(session.recordedNotes);
 			const provisionalBleedLog = $state.snapshot(session.bleedFilterLog);
@@ -479,6 +483,7 @@
 						swingForRescore,
 						scheduleForRescore,
 						bleedFilterEnabled,
+						metronomeEnabledForRescore,
 						sessionId,
 						baseMetadata,
 						rescoreId
@@ -543,6 +548,7 @@
 		swing: number,
 		schedule: ReturnType<typeof getActiveSchedule>,
 		bleedFilterEnabled: boolean,
+		metronomeEnabled: boolean,
 		sessionId: string | null = null,
 		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
 		rescoreId: number = latestRescoreId
@@ -554,7 +560,10 @@
 		if (replay.readings.length === 0) return;
 
 		const onsets = resolveOnsets(replay.onsets, replay.readings);
-		const detected = segmentNotes(replay.readings, onsets, phraseDuration, undefined, undefined, undefined, replay.onsets);
+		const bleedOnsets = metronomeEnabled
+			? getMetronomeBleedOnsets(transportSeconds, tempo, phraseDuration)
+			: undefined;
+		const detected = segmentNotes(replay.readings, onsets, phraseDuration, undefined, undefined, undefined, replay.onsets, bleedOnsets);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, transportSeconds)
 			: null;
