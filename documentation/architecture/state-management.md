@@ -96,9 +96,9 @@ export const progressMeta = $state<ProgressMeta>(loaded.meta);
 Daily summaries are a **pure derivation** of two source-of-truth tables: `progress.sessions` (ear-training) and `lick-practice-sessions` (lick-practice log). Every write that touches either source calls `recomputeAllDailySummaries`, which re-derives summaries for all dates present in the sources. The persisted blob serves as a cache for past days whose source rows have aged out of the 100-session window — those days survive untouched until cloud merge brings in newer data. Replaying a write is a no-op and divergence self-corrects on the next recompute.
 
 **Key functions:**
-- `recomputeAllDailySummaries(sessions, lickSessions)` — Primary write path. Re-derives every day present in either source and persists. Called from `recordAttempt()` (ear-training) and from the lick-practice session writer after each round completes.
-- `recomputeDailySummary(date, sessions, lickSessions)` — Hot-path variant of the above filtered to a single day.
-- `deriveDailySummary(date, sessions, lickSessions)` — Pure helper that builds a `DailySummary` from the source rows for one day, without persisting.
+- `recomputeAllDailySummaries(complexitySnapshots?)` — Primary write path. Re-derives every day present in either source and persists. Called from `recordAttempt()` (ear-training) and from the lick-practice session writer after each round completes.
+- `recomputeDailySummary(date, complexitySnapshot?)` — Hot-path variant of the above filtered to a single day.
+- `deriveDailySummary(date, sessions, lickSessions, complexitySnapshot?)` — Pure helper that builds a `DailySummary` from the source rows for one day, without persisting.
 - `mergeCloudSummaries(cloudSummaries)` — Merges cloud summaries with the local cache after cloud hydration.
 - `getSummariesInRange(start, end)` — Inclusive date range query for charts.
 - `comparePeriods(currentStart, currentEnd, previousStart, previousEnd)` — Returns `{ current, previous, delta }` for week-over-week / month-over-month comparisons.
