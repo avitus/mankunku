@@ -54,9 +54,6 @@
 				<span class="text-[var(--color-text-secondary)]">
 					{lick.phrase.difficulty.lengthBars} bar{lick.phrase.difficulty.lengthBars > 1 ? 's' : ''}
 				</span>
-				<span class="text-[var(--color-text-secondary)]">
-					{lick.phrase.notes.filter((n) => n.pitch !== null).length} notes
-				</span>
 			</div>
 		</button>
 

@@ -317,8 +317,6 @@
 					<span style="color: {difficultyDisplay(lick.difficulty.level).color}">{difficultyDisplay(lick.difficulty.level).name} ({lick.difficulty.level})</span>
 					<span>&middot;</span>
 					<span>{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}</span>
-					<span>&middot;</span>
-					<span>{lick.notes.filter(n => n.pitch !== null).length} notes</span>
 				</div>
 			</div>
 			<div class="flex shrink-0 gap-2">

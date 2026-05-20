@@ -51,9 +51,6 @@
 				</span>
 			</div>
 		</div>
-		<span class="shrink-0 text-sm text-[var(--color-text-secondary)]">
-			{lick.notes.filter(n => n.pitch !== null).length} notes
-		</span>
 	</div>
 	<div class="mt-2 flex flex-wrap items-center gap-1.5">
 		{#if isPracticeTagged}
