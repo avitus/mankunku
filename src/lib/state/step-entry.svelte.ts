@@ -1,9 +1,10 @@
 import type { Note, Fraction, PitchClass, Phrase, PhraseCategory } from '$lib/types/music';
+import type { InstrumentConfig } from '$lib/types/instruments';
 import type { BaseDurationId } from '$lib/step-entry/durations';
 import { getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
-import { writtenKeyToConcert } from '$lib/music/transposition';
+import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 import { getInstrument } from '$lib/state/settings.svelte';
 
 /**
@@ -62,7 +63,14 @@ export const stepEntry = $state({
 	phraseKey: 'C' as PitchClass,
 	phraseName: '',
 	category: 'user' as PhraseCategory,
-	practiceTag: false
+	practiceTag: false,
+	// When non-null, the page is editing an existing lick rather than creating
+	// a new one. The save path replaces the lick at this id and preserves the
+	// snapshot of source/tags/category captured when the lick was loaded.
+	editingId: null as string | null,
+	editingSource: null as string | null,
+	editingTags: null as string[] | null,
+	editingCategory: null as PhraseCategory | null
 });
 
 export function getCurrentCursorOffset(): Fraction {
@@ -235,6 +243,33 @@ export function reset(): void {
 	stepEntry.accidental = 'natural';
 	stepEntry.category = 'user';
 	stepEntry.practiceTag = false;
+	stepEntry.editingId = null;
+	stepEntry.editingSource = null;
+	stepEntry.editingTags = null;
+	stepEntry.editingCategory = null;
+}
+
+/**
+ * Hydrate the step-entry state from an existing lick so the user can edit it.
+ *
+ * Notes are stored in concert pitch — the entry state holds them in concert too,
+ * so they're copied straight across. The `phraseKey` dropdown is in WRITTEN
+ * pitch, so the lick's concert key is converted back via `concertKeyToWritten`.
+ *
+ * Caller is responsible for setting `stepEntry.practiceTag` separately (it lives
+ * in `lick-practice-store`, not on the lick itself).
+ */
+export function loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void {
+	reset();
+	stepEntry.enteredNotes = lick.notes.map((n) => ({ ...n }));
+	stepEntry.phraseKey = concertKeyToWritten(lick.key, instrument);
+	stepEntry.phraseName = lick.name;
+	stepEntry.category = lick.category;
+	stepEntry.barCount = Math.max(1, Math.min(4, lick.difficulty.lengthBars));
+	stepEntry.editingId = lick.id;
+	stepEntry.editingSource = lick.source;
+	stepEntry.editingTags = [...lick.tags];
+	stepEntry.editingCategory = lick.category;
 }
 
 export function adjustLastNotePitch(semitones: number): void {

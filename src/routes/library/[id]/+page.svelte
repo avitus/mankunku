@@ -241,6 +241,16 @@
 			(baseLick.source === 'user-recorded' || baseLick.source === 'user-entered')
 	);
 
+	/**
+	 * Edit is offered only for step-entered licks. Mic-recorded licks have
+	 * arbitrary fractional durations that the step-entry rhythm palette can't
+	 * reproduce, so loading one into the editor would let the user fix pitches
+	 * but not preserve the original timing on any re-added notes.
+	 */
+	const canEdit = $derived(
+		isOwnLick && baseLick != null && baseLick.source === 'user-entered'
+	);
+
 	function handleDelete() {
 		if (!baseLick) return;
 		if (!confirmingDelete) {
@@ -249,6 +259,11 @@
 		}
 		deleteUserLick(baseLick.id, supabase ?? undefined);
 		goto('/library');
+	}
+
+	function handleEdit() {
+		if (!baseLick) return;
+		goto(`/entry?edit=${baseLick.id}`);
 	}
 
 	onDestroy(() => {
@@ -359,6 +374,14 @@
 				>
 					{isPracticeTagged ? '★ Practice Set' : '☆ Add to Practice'}
 				</button>
+				{#if canEdit}
+					<button
+						onclick={handleEdit}
+						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+					>
+						Edit
+					</button>
+				{/if}
 				{#if canDelete}
 					<button
 						onclick={handleDelete}
