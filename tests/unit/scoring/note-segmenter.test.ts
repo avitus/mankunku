@@ -959,7 +959,7 @@ describe('getMetronomeBleedOnsets', () => {
 		// earlier metronome click at Transport 6.0 sits 273 ms before
 		// recording — its bleed window (T + 50..200 ms) lands entirely
 		// before time 0, so the 250 ms lookback correctly excludes it.
-		// The seven beats inside the recording (matching the worklet's
+		// The six beats inside the recording (matching the worklet's
 		// observed ~92 ms bleed pattern) are what matter.
 		const result = getMetronomeBleedOnsets(6.273, 100, 3.6135);
 		expect(result[0]).toBeCloseTo(0.327, 3);

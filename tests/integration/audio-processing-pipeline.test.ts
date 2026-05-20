@@ -645,14 +645,15 @@ function loadFlatSevenOctaveFixture(): FlatSevenOctaveFixture {
 // the rhythm score drops to 0.47 → overall 0.79 ("good") on what was
 // actually a clean performance that should grade ≥ "great".
 //
-// The desired post-fix behaviour is detection of [D4, C4] — the
-// intermediate C5 sub-segments collapse into the C4 neighbour because
-// the C4 sub-segments have strong raw-frequency evidence for their own
-// pitch. The fix lives in `collapseOctaveArtifacts` (note-segmenter.ts):
-// a sub-segment whose own raw frequencies strongly support its detected
-// pitch should NOT be merged into a longer ±12 neighbour. See the
-// regression tests below for the exact behaviour the fix is expected to
-// produce.
+// The post-fix behaviour is detection of [D4, C4] — the intermediate
+// C5 segment is collapsed into the C4 neighbour because its raw
+// frequencies show frames pulled to the C4 fundamental, evidence the
+// upper octave is a McLeod second-harmonic lock rather than a real
+// pitch. The fix lives in `mergeOctaveBoundariesWithoutAttack`
+// (note-segmenter.ts): an adjacent ±12 pair with no real attack at the
+// boundary AND ≥ MIN_LOWER_FUNDAMENTAL_FRAMES lower-fundamental raw
+// frames in the upper segment collapses to the lower MIDI. See the
+// regression tests below for the exact behaviour.
 
 interface OctaveDropFixture {
 	context: { tempo: number; swing: number };
