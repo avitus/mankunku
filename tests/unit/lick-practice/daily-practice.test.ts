@@ -12,7 +12,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
 	lickPractice,
 	buildDailyPracticePlan,
-	getDailyPracticeLicks
+	getDailyPracticeLicks,
+	getCurrentProgressionType
 } from '$lib/state/lick-practice.svelte';
 import {
 	togglePracticeTag,
@@ -203,5 +204,39 @@ describe('buildDailyPracticePlan', () => {
 	it('produces an empty plan when no licks are practice-tagged', () => {
 		buildDailyPracticePlan();
 		expect(lickPractice.plan).toEqual([]);
+	});
+});
+
+describe('getCurrentProgressionType', () => {
+	// Regression: the session header used to read lickPractice.config.progressionType,
+	// which is pinned at plan-build time to a single value. In Daily Practice the
+	// plan mixes progressions per item, so the header showed the same label
+	// ("Minor", because pickInitialProgression seeds minor-vamp on first use)
+	// for every lick. The current-progression lookup must instead defer to the
+	// active plan item's progressionType.
+	it("returns the current plan item's progressionType, not the session-wide config", () => {
+		togglePracticeTag(II_V_LICK);
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major');
+		togglePracticeTag(BLUES_LICK);
+		toggleProgressionTag(BLUES_LICK, 'blues');
+
+		buildDailyPracticePlan();
+		// Pin config to something neither item carries so a stale config read
+		// would produce an unambiguously wrong answer.
+		lickPractice.config.progressionType = 'minor-vamp';
+
+		expect(lickPractice.plan.length).toBeGreaterThanOrEqual(2);
+		for (let i = 0; i < lickPractice.plan.length; i++) {
+			lickPractice.currentLickIndex = i;
+			expect(getCurrentProgressionType()).toBe(lickPractice.plan[i].progressionType);
+			expect(getCurrentProgressionType()).not.toBe('minor-vamp');
+		}
+	});
+
+	it('falls back to config.progressionType when no plan is loaded (setup phase)', () => {
+		lickPractice.plan = [];
+		lickPractice.currentLickIndex = 0;
+		lickPractice.config.progressionType = 'turnaround';
+		expect(getCurrentProgressionType()).toBe('turnaround');
 	});
 });

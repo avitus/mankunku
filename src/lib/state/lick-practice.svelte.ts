@@ -568,6 +568,17 @@ export function getCurrentPlanItem(): LickPracticePlanItem | null {
 }
 
 /**
+ * Progression in play right now. Daily Practice sessions mix progressions
+ * across plan items, so the UI (header label, substitution detection, chord
+ * chart) must read from the active plan item rather than `config.progressionType`,
+ * which only reflects the user's setup-page selection for standard sessions.
+ * Falls back to the config value when no plan is loaded yet (e.g. setup phase).
+ */
+export function getCurrentProgressionType(): ChordProgressionType {
+	return getCurrentPlanItem()?.progressionType ?? lickPractice.config.progressionType;
+}
+
+/**
  * Resolve the underlying Phrase for a plan item, preferring the live library
  * lookup so curated edits propagate, and falling back to the Phrase persisted
  * on the item at plan-build time. The fallback matters for user/community

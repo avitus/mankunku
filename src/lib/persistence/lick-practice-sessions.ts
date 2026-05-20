@@ -12,7 +12,13 @@
  * grow unbounded; pruning keeps the newest by timestamp.
  */
 
-import type { ChordProgressionType, LickPracticeMode, SessionReport } from '$lib/types/lick-practice';
+import type {
+	ChordProgressionType,
+	LickPracticeMode,
+	LickPracticePlanItem,
+	LickReport,
+	SessionReport
+} from '$lib/types/lick-practice';
 import { save, load } from './storage';
 
 const STORAGE_KEY = 'lick-practice-sessions';
@@ -69,4 +75,82 @@ export function upsertLickPracticeSession(
 
 export function clearLickPracticeSessions(): void {
 	saveLickPracticeSessions([]);
+}
+
+/**
+ * Split a SessionReport into per-progression slices, one per distinct
+ * `progressionType` in the plan. Each slice carries only the LickReports
+ * whose plan item used that progression, with aggregates recomputed for
+ * the subset (overallAverage, totalAttempts, totalPassed). Session-wide
+ * fields (elapsedMinutes, single-lick round metadata) are preserved on
+ * every slice — they describe the whole session, and the persisted log's
+ * consumers (picker, daily summary) ignore them.
+ *
+ * Daily Practice sessions need this so the session log records each
+ * progression actually practiced, rather than collapsing the whole
+ * session under one `config.progressionType`. Standard sessions, where
+ * every plan item shares one progression, produce a single-entry array
+ * equivalent to the unsplit report.
+ *
+ * Plan items not represented in the report's licks are still surfaced
+ * with an empty slice so callers (e.g. the per-progression upsert at
+ * session start, before any key has scored) can iterate every distinct
+ * progression without an extra membership check. Upsert's
+ * `totalAttempts === 0` guard then no-ops the empty entries.
+ */
+export function splitReportByProgression(
+	report: SessionReport,
+	plan: LickPracticePlanItem[]
+): Array<{ progressionType: ChordProgressionType; report: SessionReport }> {
+	const lickIdToProgression = new Map<string, ChordProgressionType>();
+	const distinctProgressions: ChordProgressionType[] = [];
+	for (const item of plan) {
+		if (!lickIdToProgression.has(item.phraseId)) {
+			lickIdToProgression.set(item.phraseId, item.progressionType);
+		}
+		if (!distinctProgressions.includes(item.progressionType)) {
+			distinctProgressions.push(item.progressionType);
+		}
+	}
+
+	const licksByProgression = new Map<ChordProgressionType, LickReport[]>();
+	for (const progressionType of distinctProgressions) {
+		licksByProgression.set(progressionType, []);
+	}
+	for (const lick of report.licks) {
+		const progressionType = lickIdToProgression.get(lick.lickId);
+		if (!progressionType) continue;
+		licksByProgression.get(progressionType)!.push(lick);
+	}
+
+	const slices: Array<{ progressionType: ChordProgressionType; report: SessionReport }> = [];
+	for (const progressionType of distinctProgressions) {
+		const licks = licksByProgression.get(progressionType)!;
+		let totalAttempts = 0;
+		let totalPassed = 0;
+		let overallSum = 0;
+		let keyCount = 0;
+		for (const lick of licks) {
+			for (const key of lick.keys) {
+				overallSum += key.score;
+				keyCount++;
+				totalAttempts++;
+				if (key.passed) totalPassed++;
+			}
+		}
+		const sliced: SessionReport = {
+			licks,
+			overallAverage: keyCount > 0 ? overallSum / keyCount : 0,
+			totalAttempts,
+			totalPassed,
+			elapsedMinutes: report.elapsedMinutes
+		};
+		if (report.roundsCompleted !== undefined) sliced.roundsCompleted = report.roundsCompleted;
+		if (report.finalTempo !== undefined) sliced.finalTempo = report.finalTempo;
+		if (report.keysMasteredByRound !== undefined)
+			sliced.keysMasteredByRound = report.keysMasteredByRound;
+		slices.push({ progressionType, report: sliced });
+	}
+
+	return slices;
 }

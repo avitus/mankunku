@@ -8,6 +8,7 @@
 	import {
 		lickPractice,
 		getCurrentPlanItem,
+		getCurrentProgressionType,
 		getCurrentKey,
 		getCurrentPhrase,
 		getPhraseFor,
@@ -35,7 +36,10 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
-	import { upsertLickPracticeSession } from '$lib/persistence/lick-practice-sessions';
+	import {
+		upsertLickPracticeSession,
+		splitReportByProgression
+	} from '$lib/persistence/lick-practice-sessions';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
 	import { syncDailySummaryToCloud } from '$lib/persistence/sync';
@@ -145,15 +149,18 @@
 	const currentItem = $derived(getCurrentPlanItem());
 	const currentKey = $derived(getCurrentKey());
 	const currentPhrase = $derived(getCurrentPhrase());
+	const currentProgressionType = $derived(getCurrentProgressionType());
 	const instrument = $derived(getInstrument());
 	const totalSeconds = $derived(lickPractice.config.durationMinutes * 60);
 
 	// Label shown in the header when the current lick is playing via a
 	// harmonic substitution (e.g. minor lick shifted over a dominant chord).
+	// Daily Practice sessions mix progressions across plan items, so this
+	// must read the active item's progressionType rather than config's.
 	const substitutionLabel = $derived.by(() => {
 		if (!currentItem) return null;
 		const rule = getActiveSubstitution(
-			lickPractice.config.progressionType,
+			currentProgressionType,
 			currentItem.category,
 			lickPractice.config.enableSubstitutions ?? false
 		);
@@ -739,13 +746,22 @@
 				console.warn('[lick-practice] recordKeyAttempt failed:', err);
 			}
 			try {
-				upsertLickPracticeSession({
-					id: lickPracticeSessionLogId,
-					timestamp: lickPracticeSessionStartTs,
-					progressionType: lickPractice.config.progressionType,
-					practiceMode: lickPractice.config.practiceMode,
-					report: getSessionReport()
-				});
+				// Split the running report into per-progression slices so the
+				// session log records each progression actually practiced. For
+				// standard sessions (one progressionType across the whole plan)
+				// this produces a single entry equivalent to the unsplit write;
+				// for Daily Practice it produces N entries so the picker's
+				// least-recently-practiced lookup stays accurate.
+				const slices = splitReportByProgression(getSessionReport(), lickPractice.plan);
+				for (const slice of slices) {
+					upsertLickPracticeSession({
+						id: `${lickPracticeSessionLogId}-${slice.progressionType}`,
+						timestamp: lickPracticeSessionStartTs,
+						progressionType: slice.progressionType,
+						practiceMode: lickPractice.config.practiceMode,
+						report: slice.report
+					});
+				}
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
 				bumpStreakForToday(supabase ?? undefined);
@@ -884,13 +900,20 @@
 		// per-key writes already persisted the activity.
 		if (report.totalAttempts > 0) {
 			try {
-				upsertLickPracticeSession({
-					id: lickPracticeSessionLogId,
-					timestamp: lickPracticeSessionStartTs,
-					progressionType: lickPractice.config.progressionType,
-					practiceMode: lickPractice.config.practiceMode,
-					report
-				});
+				// Final per-progression flush — see closeAndScoreWindow for the
+				// per-key write that this mirrors. Idempotent: any per-progression
+				// entry already written by the per-key path gets replaced with the
+				// identical final slice.
+				const slices = splitReportByProgression(report, lickPractice.plan);
+				for (const slice of slices) {
+					upsertLickPracticeSession({
+						id: `${lickPracticeSessionLogId}-${slice.progressionType}`,
+						timestamp: lickPracticeSessionStartTs,
+						progressionType: slice.progressionType,
+						practiceMode: lickPractice.config.practiceMode,
+						report: slice.report
+					});
+				}
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
 				if (supabase && summary) {
@@ -1174,7 +1197,7 @@
 			phraseNumber={currentItem.phraseNumber}
 			phraseName={currentItem.phraseName}
 			{currentKey}
-			progressionType={lickPractice.config.progressionType}
+			progressionType={currentProgressionType}
 			keyIndex={lickPractice.currentKeyIndex}
 			totalKeys={currentItem.keys.length}
 			{substitutionLabel}
