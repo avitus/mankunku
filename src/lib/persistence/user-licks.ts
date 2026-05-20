@@ -399,13 +399,15 @@ export async function initUserLicksFromCloud(
 }
 
 /**
- * Save a new user lick (assigns ID and source).
+ * Insert or update a user lick (upsert by id).
  *
- * Saves to localStorage first (local-first), then fires a non-blocking
- * upsert to Supabase when a client is provided. The cloud operation is
- * fire-and-forget — errors are logged but never thrown.
+ * If `lick.id` already exists in localStorage, the entry is replaced in place
+ * (list order preserved). Otherwise a new id is generated and the lick is
+ * appended. Saves to localStorage first (local-first), then fires a
+ * non-blocking upsert to Supabase when a client is provided. The cloud
+ * operation is fire-and-forget — errors are logged but never thrown.
  *
- * @param lick - The Phrase to save as a user lick
+ * @param lick - The Phrase to save (insert if id is empty or missing, update if id matches an existing row)
  * @param supabase - Optional authenticated Supabase client for cloud sync
  */
 export function saveUserLick(
@@ -422,7 +424,12 @@ export function saveUserLick(
 		// for any lick that doesn't specify one.
 		source: lick.source || 'user-recorded'
 	};
-	licks.push(toSave);
+	const existingIdx = licks.findIndex((l) => l.id === toSave.id);
+	if (existingIdx === -1) {
+		licks.push(toSave);
+	} else {
+		licks[existingIdx] = toSave;
+	}
 	save(STORAGE_KEY, licks);
 
 	// Stamp ownership so the cloud-merge can later distinguish legitimate

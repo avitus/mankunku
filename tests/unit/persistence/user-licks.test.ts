@@ -88,6 +88,66 @@ describe('saveUserLick', () => {
 		expect(saved.id).toBeTruthy();
 		expect(saved.id).toMatch(/^user-/);
 	});
+
+	it('inserts a new lick when the id is not already in the store', () => {
+		saveUserLick(makePhrase({ id: 'first', name: 'First' }));
+		saveUserLick(makePhrase({ id: 'second', name: 'Second' }));
+		const stored = getUserLicksLocal();
+		expect(stored).toHaveLength(2);
+		expect(stored.map((l) => l.id)).toEqual(['first', 'second']);
+	});
+
+	it('upserts an existing lick by id, replacing in place', () => {
+		saveUserLick(makePhrase({ id: 'edit-me', name: 'Original' }));
+		saveUserLick(makePhrase({ id: 'edit-me', name: 'Edited' }));
+		const stored = getUserLicksLocal();
+		expect(stored).toHaveLength(1);
+		expect(stored[0].name).toBe('Edited');
+	});
+
+	it('preserves list order when updating a lick in the middle of the array', () => {
+		saveUserLick(makePhrase({ id: 'a', name: 'A' }));
+		saveUserLick(makePhrase({ id: 'b', name: 'B' }));
+		saveUserLick(makePhrase({ id: 'c', name: 'C' }));
+		saveUserLick(makePhrase({ id: 'b', name: 'B-edited' }));
+		const stored = getUserLicksLocal();
+		expect(stored.map((l) => l.id)).toEqual(['a', 'b', 'c']);
+		expect(stored[1].name).toBe('B-edited');
+	});
+
+	it('replaces every field on upsert (notes, key, category, tags, source)', () => {
+		saveUserLick(makePhrase({
+			id: 'mutate',
+			name: 'Before',
+			key: 'C',
+			category: 'user',
+			tags: ['user-entered'],
+			notes: [{ pitch: 60, duration: [1, 4] as [number, number], offset: [0, 1] as [number, number] }]
+		}));
+		saveUserLick(makePhrase({
+			id: 'mutate',
+			name: 'After',
+			key: 'G',
+			category: 'blues',
+			tags: ['user-entered', 'practice', 'edited'],
+			source: 'user-entered',
+			notes: [
+				{ pitch: 67, duration: [1, 8] as [number, number], offset: [0, 1] as [number, number] },
+				{ pitch: 69, duration: [1, 8] as [number, number], offset: [1, 8] as [number, number] }
+			]
+		}));
+		const stored = getUserLicksLocal();
+		expect(stored).toHaveLength(1);
+		expect(stored[0]).toMatchObject({
+			id: 'mutate',
+			name: 'After',
+			key: 'G',
+			category: 'blues',
+			tags: ['user-entered', 'practice', 'edited']
+		});
+		expect(stored[0].notes).toHaveLength(2);
+		expect(stored[0].notes[0].pitch).toBe(67);
+	});
 });
 
 describe('updateLickCategory', () => {

@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
-		stepEntry, addNote, addRest, deleteLastNote, reset,
+		stepEntry, addNote, addRest, deleteLastNote, reset, loadFromPhrase,
 		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
 		adjustLastNotePitch, flipLastNoteSpelling, enterTiedNote, getCurrentPhrase,
 		getPaddedNotes, getCurrentBarAndBeat, getRemainingCapacity
@@ -13,8 +13,12 @@
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
 	import { keyToPitchClass, isValidPitchKey } from '$lib/step-entry/pitch-input';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
-	import { saveUserLick } from '$lib/persistence/user-licks';
-	import { setPracticeTag } from '$lib/persistence/lick-practice-store';
+	import { saveUserLick, updateLickCategory, getUserLicks, getUserLicksLocal } from '$lib/persistence/user-licks';
+	import {
+		setPracticeTag,
+		isInPracticeSet,
+		resolvePracticeFallbackTags
+	} from '$lib/persistence/lick-practice-store';
 	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { findDuplicateLick } from '$lib/phrases/duplicate-detection';
 	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
@@ -43,18 +47,31 @@
 	const remainingBeats = $derived(Math.round(fractionToFloat(remaining) * 4));
 	const isFull = $derived(remainingBeats <= 0);
 	const hasNotes = $derived(currentPhrase.notes.length > 0);
+	const isEditing = $derived(stepEntry.editingId !== null);
 
 	/**
 	 * The first lick in the user's reachable library (curated + their own +
 	 * stolen community) whose melody + rhythm match what's being entered, in
 	 * any key or octave. Drives the Save → Steal label swap.
+	 *
+	 * In edit mode, exclude the lick being edited so it doesn't match itself.
 	 */
-	const duplicateMatch = $derived(hasNotes ? findDuplicateLick(currentPhrase, getAllLicks()) : null);
+	const duplicateMatch = $derived(
+		hasNotes
+			? findDuplicateLick(
+				currentPhrase,
+				stepEntry.editingId
+					? getAllLicks().filter((l) => l.id !== stepEntry.editingId)
+					: getAllLicks()
+			)
+			: null
+	);
 
 	// Kick off suggestion lookup whenever the lick changes. The state module
-	// debounces the network call internally.
+	// debounces the network call internally. Skip while editing — the user
+	// didn't ask for an attribution lookup on a lick they already own.
 	$effect(() => {
-		if (hasNotes) {
+		if (hasNotes && !isEditing) {
 			requestMatches(currentPhrase);
 		} else {
 			clearSuggestions();
@@ -80,12 +97,50 @@
 	let saveDetailsOpen = $state(false);
 	let nameInput = $state<HTMLInputElement | undefined>(undefined);
 
+	// Guard against applying stale hydration results after the component has
+	// unmounted (or after the user navigated to a different `?edit=` id during
+	// the cloud fetch). `stepEntry` is module-scoped, so a late `loadFromPhrase`
+	// call would silently overwrite whatever the next page is doing.
+	let editHydrationActive = true;
+
 	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
 		playbackModule = await import('$lib/audio/playback');
+		if (!editHydrationActive) return;
+
+		// Edit mode: `?edit=<id>` loads an existing lick into the editor.
+		// Without that param, clear any stale editing state left over from a
+		// prior session — the rune is module-scoped and persists across navs.
+		const editId = page.url.searchParams.get('edit');
+		if (editId) {
+			const local = getUserLicksLocal().find((l) => l.id === editId);
+			let lick = local ?? null;
+			if (!lick && supabase) {
+				const remote = await getUserLicks(supabase);
+				if (!editHydrationActive) return;
+				// Bail if the user navigated to a different edit id while we
+				// were waiting on the cloud fetch.
+				if (page.url.searchParams.get('edit') !== editId) return;
+				lick = remote.find((l) => l.id === editId) ?? null;
+			}
+			if (lick) {
+				loadFromPhrase(lick, getInstrument());
+				stepEntry.practiceTag = isInPracticeSet(
+					lick.id,
+					resolvePracticeFallbackTags(lick.id, lick.tags)
+				);
+			} else {
+				// No matching lick — don't leave a previous edit session's
+				// state sitting in the rune.
+				reset();
+			}
+		} else if (stepEntry.editingId !== null) {
+			reset();
+		}
 	});
 
 	onDestroy(() => {
+		editHydrationActive = false;
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('keydown', handleKeydown);
 		}
@@ -166,6 +221,52 @@
 	function handleSave() {
 		if (!hasNotes) return;
 
+		// Edit branch: update the existing lick in place. Skip the duplicate-
+		// detection / steal path entirely — the user is intentionally modifying
+		// a lick they already own.
+		if (stepEntry.editingId) {
+			const typed = stepEntry.phraseName.trim();
+			if (!typed) {
+				nameInput?.focus();
+				return;
+			}
+			stepEntry.phraseName = typed;
+
+			const phrase = getCurrentPhrase();
+			phrase.id = stepEntry.editingId;
+			phrase.source = stepEntry.editingSource ?? 'user-entered';
+			phrase.notes = getPaddedNotes();
+			phrase.difficulty = calculateDifficulty(phrase);
+
+			// Preserve original tags except 'practice' — that's owned by the
+			// practice-tag store and reapplied below via setPracticeTag.
+			const baseTags = (stepEntry.editingTags ?? []).filter((t) => t !== 'practice');
+			phrase.tags = stepEntry.practiceTag ? [...baseTags, 'practice'] : baseTags;
+
+			const categoryChanged = stepEntry.category !== stepEntry.editingCategory;
+
+			const saved = saveUserLick(phrase, supabase ?? undefined);
+
+			// Always write — gating on "was tagged" would never persist unchecks.
+			setPracticeTag(saved.id, stepEntry.practiceTag);
+
+			// If the category changed during edit, run the categorical mutator
+			// so the matching `prog:*` tags get auto-seeded the same way they
+			// would on the detail page. saveUserLick has already replaced the
+			// row with phrase.category, so this is a follow-up for tag seeding.
+			if (categoryChanged) {
+				updateLickCategory(saved.id, stepEntry.category, supabase ?? undefined);
+			}
+
+			const destId = saved.id;
+			reset();
+			clearSuggestions();
+			setupOpen = false;
+			saveDetailsOpen = false;
+			goto(`/library/${destId}`);
+			return;
+		}
+
 		// Steal path: the entered phrase already exists in the library. Don't
 		// create a duplicate row — carry over the practice-tag intent onto the
 		// existing lick and navigate there.
@@ -213,6 +314,18 @@
 		}, 1500);
 	}
 
+	function handleCancel() {
+		const editId = stepEntry.editingId;
+		playbackModule?.stopPlayback();
+		reset();
+		clearSuggestions();
+		setupOpen = false;
+		saveDetailsOpen = false;
+		if (editId) {
+			goto(`/library/${editId}`);
+		}
+	}
+
 	function handleClear() {
 		playbackModule?.stopPlayback();
 		reset();
@@ -230,14 +343,14 @@
 </script>
 
 <svelte:head>
-	<title>Step Entry — Mankunku</title>
+	<title>{isEditing ? 'Edit Lick' : 'Step Entry'} — Mankunku</title>
 </svelte:head>
 
 <div class="mx-auto max-w-2xl space-y-4">
 	<!-- Header -->
 	<div>
-		<div class="smallcaps text-[var(--color-brass)]">Write a lick</div>
-		<h1 class="font-display text-3xl font-bold tracking-tight">Lick Entry</h1>
+		<div class="smallcaps text-[var(--color-brass)]">{isEditing ? 'Fix a lick' : 'Write a lick'}</div>
+		<h1 class="font-display text-3xl font-bold tracking-tight">{isEditing ? 'Edit Lick' : 'Lick Entry'}</h1>
 		<div class="jazz-rule mt-2 max-w-[120px]"></div>
 	</div>
 
@@ -282,8 +395,8 @@
 		</div>
 	{/if}
 
-	<!-- Duplicate match hint -->
-	{#if duplicateMatch}
+	<!-- Duplicate match hint (create mode only) -->
+	{#if duplicateMatch && !isEditing}
 		<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 px-3 py-2 text-xs text-[var(--color-text-secondary)]">
 			Already in the library as <span class="italic text-[var(--color-text)]">"{duplicateMatch.name}"</span>. Saving will steal it into your library instead of creating a duplicate.
 		</div>
@@ -402,16 +515,34 @@
 			class="rounded-lg bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
 				hover:opacity-90 transition-opacity disabled:opacity-40"
 		>
-			{savedConfirmation ? 'Saved!' : duplicateMatch ? 'Steal' : 'Save'}
+			{#if isEditing}
+				Update
+			{:else if savedConfirmation}
+				Saved!
+			{:else if duplicateMatch}
+				Steal
+			{:else}
+				Save
+			{/if}
 		</button>
-		<button
-			onclick={handleClear}
-			disabled={!hasNotes}
-			class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
-				hover:bg-[var(--color-bg-secondary)] transition-colors disabled:opacity-40"
-		>
-			Clear
-		</button>
+		{#if isEditing}
+			<button
+				onclick={handleCancel}
+				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
+					hover:bg-[var(--color-bg-secondary)] transition-colors"
+			>
+				Cancel
+			</button>
+		{:else}
+			<button
+				onclick={handleClear}
+				disabled={!hasNotes}
+				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
+					hover:bg-[var(--color-bg-secondary)] transition-colors disabled:opacity-40"
+			>
+				Clear
+			</button>
+		{/if}
 	</div>
 
 	<!-- Keyboard shortcuts -->
