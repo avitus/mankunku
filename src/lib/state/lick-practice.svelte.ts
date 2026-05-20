@@ -57,7 +57,6 @@ import {
 	getProgressionTags,
 	isTaggedForProgression,
 	backfillPracticeTags,
-	backfillInferredProgressionTags,
 	initLickMetadataFromCloud,
 	migrateOrphanLickCategories,
 	getUnlockedKeyCount,
@@ -192,10 +191,6 @@ export async function hydrateLickPracticeProgress(
 	// category plus an inferred `prog:*` tag so the user's original intent
 	// is preserved.
 	migrateOrphanLickCategories(supabase ?? undefined);
-	// Retroactive auto-tag for licks categorized before the
-	// `updateLickCategory` hook existed. Idempotent — covers existing data
-	// once and is a no-op thereafter.
-	backfillInferredProgressionTags();
 
 	lickPractice.config.progressionType = pickInitialProgression();
 }
