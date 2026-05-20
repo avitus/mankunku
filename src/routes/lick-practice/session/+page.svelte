@@ -111,10 +111,13 @@
 	// boundary so licks with different progression lengths wrap correctly.
 	let beatLoopBeats = 0;
 
-	// Stable id + start timestamp for this session's log entry. Generated
-	// once at session start in initializeSession(); each scored key
-	// upserts the entry under this id with the current report, so a browser
-	// crash mid-session keeps the keys completed so far on disk.
+	// Stable base id + start timestamp for this session's log entries.
+	// Generated once at session start in initializeSession(); each scored
+	// key upserts one row per practiced progression under the composite
+	// key `${lickPracticeSessionLogId}-${progressionType}`. Standard
+	// sessions produce a single entry; Daily Practice produces N entries
+	// (one per progressionType in the plan) so a browser crash mid-session
+	// keeps each progression's activity on disk.
 	let lickPracticeSessionLogId = '';
 	let lickPracticeSessionStartTs = 0;
 
@@ -300,10 +303,11 @@
 		await ensurePitchDetector();
 		isLoading = false;
 
-		// Stamp the session log entry id + timestamp once per session. Per-key
-		// upserts keyed by this id keep the log entry's totalAttempts in sync
-		// with the keys played so far, so a browser crash mid-session preserves
-		// real activity (the daily-summary derivation reads from the same log).
+		// Stamp the session log base id + timestamp once per session. Per-key
+		// upserts keyed off the composite `${baseId}-${progressionType}` keep
+		// each entry's totalAttempts in sync with the keys played so far, so
+		// a browser crash mid-session preserves real activity (the
+		// daily-summary derivation reads from the same log).
 		lickPracticeSessionLogId = `lp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 		lickPracticeSessionStartTs = Date.now();
 
@@ -892,11 +896,12 @@
 		stopAll();
 		const report = getSessionReport();
 		sessionReport = report;
-		// Final upsert under the same id captures any keys archived to
-		// allAttempts by startInterLickTransition since the last per-key
-		// upsert. Idempotent: if the per-key path already wrote the same
-		// report, this replaces it with identical data. Wrapped in try/catch
-		// so a persistence failure here can't block the phase transition —
+		// Final upsert(s) under the same composite `${baseId}-${progressionType}`
+		// keys capture any keys archived to allAttempts by
+		// startInterLickTransition since the last per-key upsert. Idempotent:
+		// if the per-key path already wrote the same per-progression slice,
+		// this replaces it with identical data. Wrapped in try/catch so a
+		// persistence failure here can't block the phase transition —
 		// per-key writes already persisted the activity.
 		if (report.totalAttempts > 0) {
 			try {
@@ -993,9 +998,9 @@
 	}
 
 	// Build session report automatically when phase becomes 'complete'.
-	// The session log entry has been upserted incrementally per key (and
-	// once more at finishSession), so no extra write is needed here —
-	// this effect just surfaces the report to the UI.
+	// The per-progression session log entries have been upserted incrementally
+	// per key (and once more at finishSession), so no extra write is needed
+	// here — this effect just surfaces the report to the UI.
 	$effect(() => {
 		if (lickPractice.phase === 'complete' && !sessionReport) {
 			stopAll();
