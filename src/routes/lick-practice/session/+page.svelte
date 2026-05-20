@@ -30,7 +30,7 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
-	import { resolveOnsets, segmentNotes } from '$lib/audio/note-segmenter';
+	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
@@ -689,7 +689,10 @@
 			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
 
 		const onsets = resolveOnsets(workletOnsets, rebased);
-		const detected = segmentNotes(rebased, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets);
+		const bleedOnsets = settings.metronomeEnabled
+			? getMetronomeBleedOnsets(window.recordingTransportSeconds, lickPractice.currentTempo, phraseDuration)
+			: undefined;
+		const detected = segmentNotes(rebased, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets);
 		const bleedResult = window.schedule
 			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
 			: null;

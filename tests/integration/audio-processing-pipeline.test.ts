@@ -16,7 +16,13 @@ import {
 	SETTLE_FRAMES,
 	MIN_ONSET_INTERVAL,
 } from '$lib/audio/onset-core';
-import { segmentNotes, validateOnsets, extractOnsetsFromReadings, resolveOnsets } from '$lib/audio/note-segmenter';
+import {
+	segmentNotes,
+	validateOnsets,
+	extractOnsetsFromReadings,
+	resolveOnsets,
+	getMetronomeBleedOnsets
+} from '$lib/audio/note-segmenter';
 import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
 import { scoreAttempt } from '$lib/scoring/scorer';
 import type { PitchReading } from '$lib/audio/pitch-detector';
@@ -584,5 +590,270 @@ describe('Pent 5-3-2-1 half-then-eighths regression (attack-evidence merge)', ()
 		expect(score.overall).toBeGreaterThan(0.95);
 		expect(score.notesHit).toBe(4);
 		expect(score.notesTotal).toBe(4);
+	});
+});
+
+// ─── Flat Seven–Octave metronome-bleed regression ─────────────────
+//
+// Real recording exported as a diagnostic on 2026-05-19. The user played
+// a clean C4 → D4 (Flat Seven–Octave in concert D) with the metronome
+// ticking. The HFC onset worklet falsely fired on the metronome click at
+// recording-time 1.019 s (≈ 92 ms after the beat at 0.927 s — the
+// fingerprint of mic-captured bleed), splitting the held C into two
+// segments. Pre-fix, the resulting 3-segment input confused DTW into
+// matching the second C with the first expected note, dropping the
+// rhythm score to 0.154 / overall 0.66 ("fair") on what was actually a
+// clean performance.
+//
+// Post-fix: `mergeSamePitchWithoutAttack` recognises the worklet onset
+// as bleed when `bleedOnsets` is supplied and collapses the split.
+
+interface FlatSevenOctaveFixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadFlatSevenOctaveFixture(): FlatSevenOctaveFixture {
+	const path = resolve(
+		__dirname,
+		'..',
+		'fixtures',
+		'recordings',
+		'2026-05-19-flat-seven-octave.json'
+	);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+// ─── Octave–Flat Seven Drop octave-artifact regression ──────────────
+//
+// Real recording exported as a diagnostic on 2026-05-19. The user played
+// a clean D4 → C4 ("Octave–Flat Seven Drop" in concert D — drop from the
+// root octave to flat-7). The McLeod-based pitch detector unstably
+// flipped between the C4 fundamental (263 Hz) and its second harmonic
+// (526 Hz / C5) during the held-C4 portion — visible in the JSON
+// `readings`, where many frames in the middle segment carry midi=72 but
+// frequency≈263 Hz, the octave-stabilizer's lock overriding the raw
+// detector pick.
+//
+// The current segmenter sees three notes: [D4, C5, C4]. DTW matches the
+// C5 as "extra" and pulls the C4 in to fill the second expected slot,
+// but the C4 onset (1.97s) is 767 ms later than expected (1.2s), so
+// the rhythm score drops to 0.47 → overall 0.79 ("good") on what was
+// actually a clean performance that should grade ≥ "great".
+//
+// The post-fix behaviour is detection of [D4, C4] — the intermediate
+// C5 segment is collapsed into the C4 neighbour because its raw
+// frequencies show frames pulled to the C4 fundamental, evidence the
+// upper octave is a McLeod second-harmonic lock rather than a real
+// pitch. The fix lives in `mergeOctaveBoundariesWithoutAttack`
+// (note-segmenter.ts): an adjacent ±12 pair with no real attack at the
+// boundary AND ≥ MIN_LOWER_FUNDAMENTAL_FRAMES lower-fundamental raw
+// frames in the upper segment collapses to the lower MIDI. See the
+// regression tests below for the exact behaviour.
+
+interface OctaveDropFixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadOctaveDropFixture(): OctaveDropFixture {
+	const path = resolve(
+		__dirname,
+		'..',
+		'fixtures',
+		'recordings',
+		'2026-05-19-octave-flat-seven-drop.json'
+	);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Octave–Flat Seven Drop octave-artifact regression', () => {
+	// bc-016_D rendered in the player's chosen register: D4 → C4.
+	const phrase: Phrase = {
+		id: 'bc-016_D',
+		name: 'Octave–Flat Seven Drop',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 62, duration: [1, 2], offset: [0, 1] },
+			{ pitch: 60, duration: [1, 2], offset: [1, 2] }
+		],
+		harmony: [],
+		difficulty: { level: 6, pitchComplexity: 11, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Baseline: without workletOnsets, neither the same-pitch nor the
+	// octave-boundary merge fires. The raw segmenter emits the three
+	// fragmented C5 sub-segments produced by McLeod's stabilizer flipping
+	// between fundamental and harmonic, plus the brief mid-segment C4
+	// already collapsed by cross-segment ±12. This locks in the raw
+	// pipeline shape as a baseline distinct from the merge passes.
+	it('without workletOnsets the segmenter emits fragmented C5 + tail C4', () => {
+		const fx = loadOctaveDropFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([62, 72, 72, 72, 60]);
+	});
+
+	// Post-fix behaviour: the McLeod octave-lock detection in segmentNotes
+	// (mergeOctaveBoundariesWithoutAttack) recognises that the upper-octave
+	// segment's raw frequencies contain frames pulled toward the lower
+	// fundamental — proof the C5 is the second-harmonic lock, not a real
+	// note. Verified by ear from
+	// `tests/fixtures/recordings/2026-05-19-octave-flat-seven-drop.wav`:
+	// the upper-octave C5 is not acoustically present in the recording.
+	it('segmenter collapses the McLeod C5 artifact when worklet onsets are supplied', () => {
+		const fx = loadOctaveDropFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets
+		);
+		expect(detected.map((n) => n.midi)).toEqual([62, 60]);
+	});
+
+	it('score climbs to "great" once the C5 artifact is collapsed', () => {
+		const fx = loadOctaveDropFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets
+		);
+		const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+		// Saved diagnostic (pre-fix): pitch 1.0, rhythm 0.47, overall 0.79.
+		// Post-fix: two notes with much smaller per-note offsets after
+		// latency correction; overall well into the "great" range.
+		expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(score.rhythmAccuracy).toBeGreaterThan(0.8);
+		expect(score.overall).toBeGreaterThan(0.9);
+		expect(score.notesHit).toBe(2);
+		expect(score.notesTotal).toBe(2);
+	});
+});
+
+describe('Flat Seven–Octave metronome-bleed regression', () => {
+	// bc-015_D rendered into the player's chosen register: C4 → D4.
+	const phrase: Phrase = {
+		id: 'bc-015_D',
+		name: 'Flat Seven–Octave',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 60, duration: [3, 4], offset: [0, 1] },
+			{ pitch: 62, duration: [1, 4], offset: [3, 4] }
+		],
+		harmony: [],
+		difficulty: { level: 11, pitchComplexity: 11, rhythmComplexity: 10, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: [],
+		source: 'curated'
+	};
+
+	// `recordingTransportSeconds` isn't in the diagnostic export, but it can
+	// be reconstructed from the saved alignment: the worklet onsets sit
+	// ~92 ms after recording-time 0.927, 1.527, … so the Transport beat
+	// grid is offset by 0.273 s from the recording. A representative
+	// value that produces this offset is 6.273.
+	const recordingTransportSeconds = 6.273;
+
+	it('without bleedOnsets the segmenter emits the buggy 3-note split', () => {
+		const fx = loadFlatSevenOctaveFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets
+		);
+
+		// The held C survives as two consecutive same-MIDI segments.
+		expect(detected.map((n) => n.midi)).toEqual([60, 60, 62]);
+	});
+
+	it('with bleedOnsets the segmenter yields the 2 notes the user actually played', () => {
+		const fx = loadFlatSevenOctaveFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const bleedOnsets = getMetronomeBleedOnsets(
+			recordingTransportSeconds,
+			fx.context.tempo,
+			fx.audio.duration
+		);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets,
+			bleedOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([60, 62]);
+		// First note now spans the full held C.
+		expect(detected[0].onsetTime).toBeCloseTo(0.0833, 3);
+		expect(detected[0].duration).toBeGreaterThan(1.4);
+		expect(detected[1].onsetTime).toBeCloseTo(1.6, 3);
+	});
+
+	it('score climbs from "fair" to "great" once the bleed-induced split is merged', () => {
+		const fx = loadFlatSevenOctaveFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const bleedOnsets = getMetronomeBleedOnsets(
+			recordingTransportSeconds,
+			fx.context.tempo,
+			fx.audio.duration
+		);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets,
+			bleedOnsets
+		);
+
+		const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+
+		// Saved diagnostic score (pre-fix): pitch 1.0, rhythm 0.154, overall 0.66.
+		// Post-fix: pitch unchanged, rhythm well above the prior value, overall
+		// passes the "good"+ threshold. Bounds tolerate small DTW tie-break
+		// variation across replays.
+		expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(score.rhythmAccuracy).toBeGreaterThan(0.7);
+		expect(score.overall).toBeGreaterThan(0.85);
+		expect(score.notesHit).toBe(2);
+		expect(score.notesTotal).toBe(2);
 	});
 });
