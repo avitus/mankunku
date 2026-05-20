@@ -10,7 +10,7 @@
 	import { session } from '$lib/state/session.svelte';
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
-	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
+	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
@@ -372,11 +372,13 @@
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 
-		const onsets = resolveOnsets(workletOnsets, readings);
+		const baseOnsets = resolveOnsets(workletOnsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const bleedOnsets = settings.metronomeEnabled
 			? getMetronomeBleedOnsets(recordingTransportSeconds, session.tempo, phraseDuration)
 			: undefined;
-		const detected = segmentNotes(readings, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets);
+		const detected = segmentNotes(readings, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const schedule = getActiveSchedule();
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, recordingTransportSeconds)
@@ -559,11 +561,13 @@
 		const replay = await replayFromBlob(blob, ctx);
 		if (replay.readings.length === 0) return;
 
-		const onsets = resolveOnsets(replay.onsets, replay.readings);
+		const baseOnsets = resolveOnsets(replay.onsets, replay.readings);
+		const articulationOnsets = findReArticulations(replay.readings, baseOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const bleedOnsets = metronomeEnabled
 			? getMetronomeBleedOnsets(transportSeconds, tempo, phraseDuration)
 			: undefined;
-		const detected = segmentNotes(replay.readings, onsets, phraseDuration, undefined, undefined, undefined, replay.onsets, bleedOnsets);
+		const detected = segmentNotes(replay.readings, onsets, phraseDuration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, transportSeconds)
 			: null;

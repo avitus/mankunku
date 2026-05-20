@@ -38,7 +38,7 @@ import type { Phrase } from '$lib/types/music';
 // ---------------------------------------------------------------------------
 
 function makeReading(midi: number, time: number, clarity = 0.95): PitchReading {
-	return { midi, midiFloat: midi, cents: 0, clarity, time, frequency: 440 };
+	return { midi, midiFloat: midi, cents: 0, clarity, time, frequency: 440, rms: 0.1 };
 }
 
 const minimalPhrase: Phrase = {

@@ -51,6 +51,7 @@ function makeReadings(
 				clarity: 0.95,
 				time,
 				frequency: 440 * Math.pow(2, (note.midi - 69) / 12),
+				rms: 0.1,
 			});
 		}
 	}

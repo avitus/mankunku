@@ -23,6 +23,14 @@ export interface PitchReading {
 	/** Raw frequency in Hz */
 	frequency: number;
 	/**
+	 * RMS amplitude of the analysis window. Used by the segmenter's
+	 * re-articulation detector to find dip-and-recovery patterns inside
+	 * sustained same-MIDI runs — soft tongue articulations on a sustained
+	 * note don't trip the worklet's HFC threshold but they do produce a
+	 * clear envelope dip that this signal exposes.
+	 */
+	rms: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -219,6 +227,10 @@ export function detectFrame(
 
 	const [frequency, clarity] = detector.findPitch(buffer, opts.sampleRate);
 
+	let energy = 0;
+	for (let i = 0; i < buffer.length; i++) energy += buffer[i] * buffer[i];
+	const rms = Math.sqrt(energy / buffer.length);
+
 	if (
 		clarity < clarityThreshold ||
 		frequency < minFrequency ||
@@ -236,7 +248,7 @@ export function detectFrame(
 	const octaveCorrection = midi - rawMidi;
 	const midiFloat = rawMidiFloat + octaveCorrection;
 
-	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency };
+	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms };
 	if (stab.warmup) reading.warmup = true;
 
 	return { reading, rawClarity: clarity };
