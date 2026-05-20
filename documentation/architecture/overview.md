@@ -19,10 +19,11 @@ Side A is **breadth-first**. You hear a different phrase each time. Some you'll 
 
 The opposite exercise: you already know what you want to play; the app helps you own it in every key over a backing track.
 
-- You **tag** licks from the library (or your own user-entered ones) as "practice" licks.
+- You **tag** licks from the library (or your own user-entered ones) as "practice" licks, and each tagged lick carries one or more progression tags (`prog:ii-V-I-major`, `prog:blues`, etc.) that say which backing tracks it plays cleanly over.
 - Side B picks one of your tagged licks and rotates it through all 12 keys over a chord progression — bass, comping, drums.
 - Each key, you play the lick once per cycle. Pass it cleanly (≥ 80%) and the next cycle moves to the next key. Tempo bumps up +5 BPM after every clean key; it backs off when you stumble.
 - Once you've passed all 12 keys, the session moves to the next tagged lick.
+- A **Daily Practice** start button rotates across every progression you have tagged licks for, sized to the same time budget — useful as a daily warm-up that touches every line in your book.
 
 Side B is **depth-first**. It assumes the line is already in your ear and your job is to wire it to your fingers across the cycle of fifths. The progress tracking is per-lick, per-key — you can see exactly which keys still trip you up on a given line, and which are clean.
 

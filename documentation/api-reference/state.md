@@ -94,7 +94,7 @@ Session history and adaptive difficulty. **Persisted** to localStorage under key
 ```typescript
 export const progress = $state<UserProgress>({
   adaptive: AdaptiveState;                                              // Adaptive difficulty state
-  sessions: SessionResult[];                                            // Session history (max 200)
+  sessions: SessionResult[];                                            // Session history (max 100)
   categoryProgress: Record<string, CategoryProgress>;
   keyProgress: Partial<Record<PitchClass, {
     attempts: number;
@@ -112,19 +112,19 @@ export const progress = $state<UserProgress>({
 ### `recordAttempt(phraseId, phraseName, category, key, tempo, difficultyLevel, score, scaleType?, supabase?, source?): void`
 
 Record a completed attempt. `source` defaults to `'ear-training'`; pass `'lick-practice'` for lick-practice runs (those contribute to per-lick progress but skip the ear-training key stats). When a Supabase client is supplied, fire-and-forgets a cloud sync after persisting locally. This single function:
-1. Creates a `SessionResult` and prepends to `sessions` (bounded to 200)
+1. Creates a `SessionResult` and prepends to `sessions` (bounded to 100)
 2. Updates adaptive state via `processAttempt()`
 3. Updates per-scale proficiency (ear-training only)
 4. Updates category progress (running average, best score)
 5. Updates per-lick progress
 6. Updates per-key proficiency + key progress (ear-training only)
 7. Updates streak (compares to yesterday's date)
-8. Aggregates into the daily summary via `aggregateSession()`
+8. Re-derives daily summaries via `recomputeAllDailySummaries()` (pulls in lick-practice rows as well)
 9. Auto-saves to localStorage (+ optional cloud sync)
 
 ### `initFromCloud(supabase): Promise<void>`
 
-Fetch cloud progress for an authenticated user and merge with local. Cloud-takes-precedence when the cloud session count is ≥ the local count; otherwise local wins. Re-derives daily summaries via `rebuildHistoryIfNeeded()` afterward.
+Fetch cloud progress for an authenticated user and merge with local. Cloud-takes-precedence when the cloud session count is ≥ the local count; otherwise local wins. The root layout (`+layout.ts`) then calls `recomputeAllDailySummaries()` and `mergeCloudSummaries()` to re-derive history from the merged source tables.
 
 ### `getRecentSessions(count?): SessionResult[]`
 
@@ -173,7 +173,9 @@ No exported functions — library page reads/writes fields directly.
 
 ## history.svelte.ts
 
-Long-term daily progress summaries that survive the 200-session prune window in `progress.svelte.ts`. **Persisted** to localStorage under keys `mankunku:daily-summaries` and `mankunku:progress-meta`.
+Long-term daily progress summaries that survive the 100-session prune window in `progress.svelte.ts`. **Persisted** to localStorage under keys `mankunku:daily-summaries` and `mankunku:progress-meta`.
+
+Daily summaries are a **pure derivation** of two source-of-truth tables: `progress.sessions` (ear-training) and `lick-practice-sessions` (lick-practice log). Every write that touches either source calls `recomputeAllDailySummaries`, which re-derives summaries for every date present in the sources. The persisted blob serves as a cache for past days whose source rows have aged out of the 100-session window.
 
 ### `dailySummaries`, `progressMeta`
 
@@ -184,17 +186,25 @@ export const progressMeta = $state<ProgressMeta>(/* loaded from localStorage */)
 
 `DailySummary` holds per-day aggregates (session count, avg/best scores, practice minutes, grade distribution, category counts). `ProgressMeta` holds `{ version, lastAggregationTimestamp, longestStreak, longestStreakEndDate, allTimeSessionCount }`.
 
-### `aggregateSession(session, pitchComplexity?, rhythmComplexity?): void`
+### `recomputeAllDailySummaries(complexitySnapshots?): DailySummary[]`
 
-Fold a new `SessionResult` into today's summary (creating the day if needed), bump all-time counters, recompute longest streak, save. Called from `recordAttempt()`.
+Primary write path. Reads the two source-of-truth tables (`progress.sessions` and `lick-practice-sessions`) from localStorage, re-derives summaries for every date that has rows, updates `progressMeta.allTimeSessionCount` + longest streak, and persists. Optional `complexitySnapshots` map lets the caller override pitch/rhythm complexity per date (used by `recordAttempt` to stamp the adaptive snapshot from memory before persistence has flushed). Returns the array of summaries it touched. Called from `recordAttempt()`, from `persistence/lick-practice-sessions.ts` after each lick round, and from `+layout.ts` after cloud hydration.
+
+### `recomputeDailySummary(date, complexitySnapshot?): DailySummary | null`
+
+Single-day variant — useful when only one date is dirty.
+
+### `deriveDailySummary(date, sessions, lickSessions, complexitySnapshot?): DailySummary | null`
+
+Pure helper that builds a `DailySummary` from the source rows for one day, without persisting. Returns `null` if no rows fall on that date.
+
+### `mergeCloudSummaries(cloudSummaries): DailySummary[]`
+
+Merge cloud-side summaries into the local cache during hydration. Cloud rows replace local for dates the cloud knows about; local-only dates (e.g. older than the cloud's window) survive.
 
 ### `updateLongestStreak(): void`
 
 Recompute longest streak from all daily summaries and update `progressMeta` if a new record was set.
-
-### `rebuildHistoryIfNeeded(): void`
-
-Re-derive summaries from `progress.sessions` after cloud hydration. Replaces in-memory state only if length or any per-day sessionCount differs. Limited to the 200-session sync window.
 
 ### `getSummariesInRange(start, end): DailySummary[]`
 
@@ -232,15 +242,18 @@ Helper exported from this module: `'YYYY-MM-DD'` in local time (used anywhere da
 
 ## lick-practice.svelte.ts
 
-Active state for the multi-key lick-practice flow. The live session is ephemeral (resets on reload). Per-lick/per-key cumulative progress is persisted via `persistence/lick-practice-store.ts` under `mankunku:lick-practice-progress`.
+Active state for the multi-key lick-practice flow. The live session is ephemeral (resets on reload). Per-lick/per-key cumulative progress is persisted via `persistence/lick-practice-store.ts` under `mankunku:lick-practice-progress`. Completed sessions are appended to `mankunku:lick-practice-sessions` via `persistence/lick-practice-sessions.ts` so history can derive from them.
+
+A practice-tagged lick is only eligible for a session if it also carries an explicit `prog:<progressionType>` tag. Tags are added automatically when a lick's curated category matches a progression and can be added/removed by hand to drill a lick over an alternative progression. Practice-tagged licks with **no** `prog:*` tags are "stranded" and excluded from both standard and Daily Practice plans.
 
 ### `lickPractice`
 
 ```typescript
 export const lickPractice = $state<{
-  config: LickPracticeConfig;          // progressionType, durationMinutes, practiceMode, backingStyle
+  config: LickPracticeConfig;          // progressionType, durationMinutes, practiceMode, backingStyle,
+                                       //   enableSubstitutions?, singleLickMode?, singleLickId?, tempoBumpBpm?
   phase: LickPracticePhase;            // 'setup' | 'count-in' | 'playing' | 'inter-lick-rest' | 'complete'
-  plan: LickPracticePlanItem[];         // Ordered licks + planned keys (12 per lick)
+  plan: LickPracticePlanItem[];         // Ordered licks + planned keys
   currentLickIndex: number;
   currentKeyIndex: number;
   currentTempo: number;
@@ -249,6 +262,10 @@ export const lickPractice = $state<{
   startTime: number;
   elapsedSeconds: number;
   progress: LickPracticeProgress;       // Persisted per-lick per-key data
+  // Single-lick-mode only:
+  roundNumber: number;                  // Completed full cycles
+  masteredThisRound: PitchClass[];      // Keys cleared at ≥ 0.95 in the current round
+  roundHistory: SingleLickRoundEntry[]; // Per-round summary (tempo + which keys cleared)
 }>();
 ```
 
@@ -272,9 +289,14 @@ export interface PlannedKey {
 
 ### Plan building
 
-- `getPracticeLicks(): Phrase[]` — All `practice`-tagged licks matching the configured progression (by category or progression tag).
-- `buildSessionPlan(): void` — Sorts licks by least-recently-practiced, packs into `durationMinutes` budget.
-- `startSession(): void` — Transitions to `count-in`, resets indices, stamps `startTime`, resolves first-lick tempo.
+- `getPracticeLicks(): Phrase[]` — All `practice`-tagged licks that *also* carry the active progression's `prog:*` tag.
+- `getDailyPracticeLicks(): Phrase[]` — All `practice`-tagged licks with at least one `prog:*` tag, regardless of progression.
+- `buildSessionPlan(): void` — Standard mode. Sorts licks by least-recently-practiced, packs into the `durationMinutes` budget.
+- `buildDailyPracticePlan(): void` — Daily Practice mode. Pools every Daily-eligible lick, assigns each its own least-recently-practiced compatible progression, and packs the budget. Each plan item carries its own `progressionType` instead of inheriting from config.
+- `buildSingleLickPlan(lickId, instrument): void` — Single-lick mode. Builds a 12-key cycle in circle-of-4ths order for one lick.
+- `startSession(): void` — Standard entry: transitions to `count-in`, resets indices, stamps `startTime`, resolves first-lick tempo.
+- `startDailyPracticeSession(): void` — Daily-Practice entry. Clears `singleLickMode`, calls `buildDailyPracticePlan`, then starts.
+- `startSingleLickSession(lickId, tempoBumpBpm?): void` — Single-lick entry. Sets `singleLickMode`, builds the plan, then starts. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpBpm` (default 5) once all 12 clear.
 
 ### Cursor accessors
 

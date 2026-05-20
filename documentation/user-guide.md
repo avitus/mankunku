@@ -59,15 +59,20 @@ This is the 12-key drill. It picks a lick from your **tagged** collection and ru
 
 ### Setting it up
 
-Before your first session, go to the **Library** and tap the star on a few licks you want to drill. Tagged licks become your Side B practice book.
+Before your first session, go to the **Library** and tap the star on a few licks you want to drill. Tagged licks become your Side B practice book. Each tagged lick also needs at least one **progression tag** (`prog:*`) — those are added automatically when the lick's category matches a progression (a ii-V-I lick gets `prog:ii-V-I-major`), and you can add or remove them by hand from the lick's detail page to drill the same line over a different progression.
 
 When you open Side B, you choose:
 
-- **Progression type** — what the backing track plays underneath. ii-V-I major or minor, dominant or major vamp, turnaround, rhythm changes. Each lick's category determines which progressions it lands cleanly on.
+- **Progression type** — what the backing track plays underneath. ii-V-I major or minor, dominant or major vamp, turnaround, rhythm changes, blues. Each lick's category determines which progressions it lands cleanly on by default.
 - **Substitutions** — toggle to introduce tritone subs and chromatic approaches. Same lick, harder harmony.
 - **Backing style** — swing for straight-ahead, bossa for Latin, ballad for slow with sustained comping, straight for rock/funk feel.
 - **Practice mode** — *Continuous* loops the backing track and lets you play freely; *Call & Response* alternates the app playing the lick and you playing it back, scored each pass.
 - **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM at 70%+, and -3 BPM below.
+
+Two start buttons sit at the bottom of the setup screen:
+
+- **Start Session** runs licks tagged for the progression you picked above. It's the right choice when you want focused work on one harmonic context.
+- **Start Daily Practice** ignores the picked progression and rotates across every progression you've tagged licks for, fitting the session into the same time budget. Each lick gets paired with whichever of its eligible progressions you've practiced least recently. Use it as your default daily warm-up so every line gets time on the clock.
 
 ### What happens during a session
 
