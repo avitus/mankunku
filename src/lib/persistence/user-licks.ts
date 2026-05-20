@@ -24,7 +24,7 @@ import { getScopeGeneration, getLastUserId } from './user-scope';
 import { getStolenLicksLocal } from './community';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import { getProgressionsForCategory } from '$lib/data/progressions';
-import { ensureProgressionTag } from './lick-practice-store';
+import { ensureProgressionTag, removeLickMetadata } from './lick-practice-store';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
@@ -47,6 +47,20 @@ const STORAGE_KEY = 'user-licks';
  * preserved by the merge — we don't have grounds to call them contamination.
  */
 const OWNERS_KEY = 'user-licks-owners';
+
+/**
+ * List of lick IDs the user has deleted on this device. Hydration filters
+ * these out of both the cloud-pull and local-only merge legs so a fire-and-
+ * forget cloud delete that hasn't propagated yet can't resurrect the lick
+ * on the next page load (the "ghost lick" symptom).
+ *
+ * Stored as a `string[]` rather than a `Set` because localStorage is JSON.
+ * Local-only for now — cross-device propagation still relies on the cloud
+ * `user_licks` row eventually being deleted. Worst case on a second device:
+ * the lick reappears once, the user deletes it again there too, and the
+ * tombstone keeps it gone after that.
+ */
+const TOMBSTONES_KEY = 'user-licks-tombstones';
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
@@ -75,6 +89,18 @@ function removeOwner(lickId: string): void {
 	if (!(lickId in owners)) return;
 	delete owners[lickId];
 	save(OWNERS_KEY, owners);
+}
+
+function loadTombstones(): Set<string> {
+	const raw = load<string[]>(TOMBSTONES_KEY);
+	return new Set(Array.isArray(raw) ? raw : []);
+}
+
+function addTombstone(lickId: string): void {
+	const tombstones = loadTombstones();
+	if (tombstones.has(lickId)) return;
+	tombstones.add(lickId);
+	save(TOMBSTONES_KEY, Array.from(tombstones));
 }
 
 /** Generate a unique ID for a user lick */
@@ -265,12 +291,17 @@ export async function getUserLicks(
 		// current user (or is absent — pre-stamp legacy / offline-saved).
 		// A stamp pointing at a different user is contamination from a prior
 		// regression and gets dropped here, with its stamp removed too.
+		// Tombstoned IDs (locally deleted licks whose cloud row hasn't been
+		// torn down yet) are skipped at both legs so a stale cloud row can't
+		// resurrect the lick on this device.
 		const merged = new Map<string, Phrase>();
 		const owners = loadOwners();
+		const tombstones = loadTombstones();
 		const stampedOwners = { ...owners };
 		let ownersDirty = false;
 
 		for (const lick of cloudLicks) {
+			if (tombstones.has(lick.id)) continue;
 			merged.set(lick.id, lick);
 			if (stampedOwners[lick.id] !== user.id) {
 				stampedOwners[lick.id] = user.id;
@@ -279,6 +310,7 @@ export async function getUserLicks(
 		}
 		for (const lick of localLicks) {
 			if (merged.has(lick.id)) continue;
+			if (tombstones.has(lick.id)) continue;
 			const owner = owners[lick.id];
 			if (owner && owner !== user.id) {
 				delete stampedOwners[lick.id];
@@ -328,13 +360,21 @@ export async function initUserLicksFromCloud(
 		if (gen !== getScopeGeneration()) return; // User switched mid-flight
 
 		const localLicks = getUserLicksLocal();
+		const pushTombstones = loadTombstones();
+		// Defensive: filter tombstoned IDs out of the push so a tombstone that
+		// somehow drifted out of sync with STORAGE_KEY (e.g. a stale localLicks
+		// entry from before the tombstone was added) can't re-create the cloud
+		// row we just asked the user to delete.
+		const pushable = pushTombstones.size === 0
+			? localLicks
+			: localLicks.filter((l) => !pushTombstones.has(l.id));
 
 		// Push local licks to cloud (bulk upsert, idempotent). Skipped if a
 		// user switch happened after this function started — the wipe would
 		// have already emptied local state, but guard defensively so we never
 		// stamp stale licks with the new user's ID via upsert.
-		if (localLicks.length > 0 && gen === getScopeGeneration()) {
-			await syncUserLicksToCloud(supabase, localLicks);
+		if (pushable.length > 0 && gen === getScopeGeneration()) {
+			await syncUserLicksToCloud(supabase, pushable);
 			if (gen !== getScopeGeneration()) return;
 		}
 
@@ -369,13 +409,19 @@ export async function initUserLicksFromCloud(
 		// after the 2s layout timeout) must not be dropped. Filter local-only
 		// entries by owner stamp — a stamp pointing at a different user means
 		// contamination from a prior unfiltered-read regression and gets
-		// dropped along with its stamp.
-		const cloudById = new Map(cloudLicks.map((l) => [l.id, l]));
+		// dropped along with its stamp. Tombstoned IDs are skipped from both
+		// legs so a stale cloud row (still present because the fire-and-forget
+		// delete hasn't propagated) can't resurrect the lick locally.
+		const tombstones = loadTombstones();
+		const cloudById = new Map(
+			cloudLicks.filter((l) => !tombstones.has(l.id)).map((l) => [l.id, l])
+		);
 		const owners = loadOwners();
 		const stampedOwners = { ...owners };
 		let ownersDirty = false;
 
 		for (const lick of cloudLicks) {
+			if (tombstones.has(lick.id)) continue;
 			if (stampedOwners[lick.id] !== user.id) {
 				stampedOwners[lick.id] = user.id;
 				ownersDirty = true;
@@ -383,6 +429,7 @@ export async function initUserLicksFromCloud(
 		}
 		for (const l of getUserLicksLocal()) {
 			if (cloudById.has(l.id)) continue;
+			if (tombstones.has(l.id)) continue;
 			const owner = owners[l.id];
 			if (owner && owner !== user.id) {
 				delete stampedOwners[l.id];
@@ -609,6 +656,15 @@ export function getLickCategoryOverrides(): Record<string, PhraseCategory> {
  * delete to Supabase when a client is provided. The cloud operation is
  * fire-and-forget — errors are logged but never thrown.
  *
+ * Also adds the ID to the local tombstone list and immediately wipes the
+ * lick's per-lick metadata (practice tags, progression tags, per-key
+ * progress, unlock count). Without the tombstone, a fire-and-forget cloud
+ * delete that hasn't propagated by the next hydration would resurrect the
+ * lick — the "ghost lick" symptom. Without the metadata wipe, stale
+ * progress/unlocks/tags would linger until the next layout-init reconcile
+ * pass and could bind to a same-content re-entry via the duplicate-detector
+ * "Steal" path.
+ *
  * Stolen community licks must not be deleted through this path — the UI
  * should call `returnLick` from `community.ts` instead. RLS will reject the
  * cloud delete anyway, but the guard avoids wiping the local cache for a
@@ -629,7 +685,11 @@ export function deleteUserLick(
 		return;
 	}
 
+	// Tombstone BEFORE removing from STORAGE_KEY so a hydration that races
+	// with this call sees the tombstone and skips the stale cloud row.
+	addTombstone(id);
 	save(STORAGE_KEY, licks.filter((l) => l.id !== id));
+	removeLickMetadata(id);
 	removeOwner(id);
 
 	// Fire-and-forget cloud delete — RLS ensures user can only delete own licks

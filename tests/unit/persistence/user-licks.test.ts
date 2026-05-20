@@ -702,3 +702,148 @@ describe('owner-stamp filtering', () => {
 		expect(readOwners()).not.toHaveProperty('to-delete');
 	});
 });
+
+// ─── Tombstones: deleted licks must not be resurrected by cloud hydration ─
+describe('deletion tombstones', () => {
+	const TOMBSTONES_PREFIX = 'mankunku:user-licks-tombstones';
+
+	function readTombstones(): string[] {
+		const raw = localStorageMock.getItem(TOMBSTONES_PREFIX);
+		return raw ? (JSON.parse(raw) as string[]) : [];
+	}
+
+	function createMockSupabase(cloudLicks: Partial<Phrase>[] = []) {
+		const rows = cloudLicks.map((l) => ({
+			id: l.id ?? 'cloud-1',
+			name: l.name ?? 'Cloud Lick',
+			key: l.key ?? 'C',
+			time_signature: l.timeSignature ?? [4, 4],
+			notes: l.notes ?? [],
+			harmony: l.harmony ?? [],
+			difficulty: l.difficulty ?? { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
+			category: l.category ?? 'user',
+			tags: l.tags ?? [],
+			source: l.source ?? 'user-entered'
+		}));
+		return {
+			auth: {
+				getUser: vi.fn().mockResolvedValue({
+					data: { user: { id: 'user-123' } },
+					error: null
+				})
+			},
+			from: vi.fn().mockImplementation(() => ({
+				select: vi.fn().mockReturnValue({
+					eq: vi.fn().mockReturnValue({ data: rows, error: null, then: undefined })
+				}),
+				upsert: vi.fn().mockResolvedValue({ error: null }),
+				delete: vi.fn().mockReturnValue({
+					eq: vi.fn().mockResolvedValue({ error: null })
+				})
+			}))
+		} as any;
+	}
+
+	it('deleteUserLick adds the lick id to the tombstone list', () => {
+		saveUserLick(makePhrase({ id: 'doomed-lick' }));
+		expect(readTombstones()).not.toContain('doomed-lick');
+
+		deleteUserLick('doomed-lick', createMockSupabase());
+
+		expect(readTombstones()).toContain('doomed-lick');
+	});
+
+	it('initUserLicksFromCloud does not resurrect a tombstoned lick on the pull leg', async () => {
+		// Regression for the "ghost lick" symptom: delete is fire-and-forget,
+		// so a hydration that races with the cloud delete used to pull the
+		// row back into localStorage and re-stamp it on the next push.
+		saveUserLick(makePhrase({ id: 'ghost' }));
+		deleteUserLick('ghost', createMockSupabase());
+
+		// Cloud still has the row (delete hasn't propagated).
+		const supabase = createMockSupabase([{ id: 'ghost', name: 'Ghost' }]);
+		await initUserLicksFromCloud(supabase);
+
+		const local = getUserLicksLocal();
+		expect(local.map((l) => l.id)).not.toContain('ghost');
+	});
+
+	it('initUserLicksFromCloud does not push tombstoned ids back to the cloud', async () => {
+		// Defensive: even if a stale local entry survived the delete (e.g. a
+		// concurrent tab re-added it after a stale cache read), the push leg
+		// must drop tombstoned ids so we don't undo the user-side delete.
+		saveUserLick(makePhrase({ id: 'ghost' }));
+		// Tombstone the id by going through the full delete path…
+		deleteUserLick('ghost', createMockSupabase());
+		// …then re-stuff the local STORAGE_KEY to simulate the race.
+		const stuffed = makePhrase({ id: 'ghost', name: 'Ghost Re-stuffed' });
+		localStorageMock.setItem(
+			'mankunku:user-licks',
+			JSON.stringify([stuffed])
+		);
+
+		const supabase = createMockSupabase([]);
+		await initUserLicksFromCloud(supabase);
+
+		expect(mockSyncUserLicksToCloud).not.toHaveBeenCalledWith(
+			supabase,
+			expect.arrayContaining([expect.objectContaining({ id: 'ghost' })])
+		);
+	});
+
+	it('getUserLicks also filters tombstoned ids from the cloud merge', async () => {
+		saveUserLick(makePhrase({ id: 'ghost' }));
+		deleteUserLick('ghost', createMockSupabase());
+
+		const supabase = createMockSupabase([{ id: 'ghost' }, { id: 'alive' }]);
+		const merged = await getUserLicks(supabase);
+
+		expect(merged.map((l) => l.id)).not.toContain('ghost');
+		expect(merged.map((l) => l.id)).toContain('alive');
+	});
+
+	it("a fresh lick saved after a delete is not tombstoned (different id)", () => {
+		// Sanity check that the tombstone is keyed by id, not by content —
+		// re-entering "the same lick" with new id should not be blocked.
+		saveUserLick(makePhrase({ id: 'old-id' }));
+		deleteUserLick('old-id', createMockSupabase());
+
+		const saved = saveUserLick(makePhrase({ id: 'new-id' }));
+		expect(saved.id).toBe('new-id');
+		expect(getUserLicksLocal().map((l) => l.id)).toContain('new-id');
+		expect(getUserLicksLocal().map((l) => l.id)).not.toContain('old-id');
+	});
+
+	it("deleteUserLick wipes the lick's per-lick metadata immediately", () => {
+		// Without this, stale practice tags / per-key progress / unlock count
+		// would linger until the next layout-init reconcile pass. The user-
+		// visible effect of that staleness was: re-entering the same lick (via
+		// the duplicate-detector "Steal" path) bound the new entry to old
+		// progress/unlocks instead of a clean slate.
+		saveUserLick(makePhrase({ id: 'doomed' }));
+		// Seed metadata for the lick across all three blobs.
+		localStorageMock.setItem(
+			'mankunku:user-lick-tags',
+			JSON.stringify({ doomed: ['practice', 'prog:ii-V-I-major'] })
+		);
+		localStorageMock.setItem(
+			'mankunku:lick-practice-progress',
+			JSON.stringify({
+				doomed: { C: { currentTempo: 120, lastPracticedAt: 1, passCount: 3 } }
+			})
+		);
+		localStorageMock.setItem(
+			'mankunku:lick-unlock-count',
+			JSON.stringify({ doomed: 5 })
+		);
+
+		deleteUserLick('doomed', createMockSupabase());
+
+		const tags = JSON.parse(localStorageMock.getItem('mankunku:user-lick-tags') ?? '{}');
+		const progress = JSON.parse(localStorageMock.getItem('mankunku:lick-practice-progress') ?? '{}');
+		const counts = JSON.parse(localStorageMock.getItem('mankunku:lick-unlock-count') ?? '{}');
+		expect(tags).not.toHaveProperty('doomed');
+		expect(progress).not.toHaveProperty('doomed');
+		expect(counts).not.toHaveProperty('doomed');
+	});
+});

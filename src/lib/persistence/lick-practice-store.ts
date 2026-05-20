@@ -207,6 +207,41 @@ export async function reconcileOrphanedLickMetadata(
 	}
 }
 
+/**
+ * Drop every per-lick metadata entry keyed by `phraseId` — practice/prog tags,
+ * per-key practice progress, and the unlock count — locally, and queue the
+ * cleaned blobs for cloud sync via the existing debounced helpers.
+ *
+ * Called from `deleteUserLick` so a deletion takes effect immediately across
+ * all surfaces (library list, lick-practice picker, /progress drill-down).
+ * Without this, stale metadata would linger until the next layout-init
+ * `reconcileOrphanedLickMetadata` pass and could be picked up by a same-
+ * content re-entry via the duplicate-detector "Steal" path. Idempotent —
+ * missing entries are no-ops.
+ */
+export function removeLickMetadata(phraseId: string): void {
+	const tags = loadUserLickTags();
+	if (tags[phraseId]) {
+		delete tags[phraseId];
+		save(TAGS_KEY, tags);
+		syncLickTagsToCloud();
+	}
+
+	const progress = loadLickPracticeProgress();
+	if (progress[phraseId]) {
+		delete progress[phraseId];
+		save(STORAGE_KEY, progress);
+		syncPracticeProgressToCloud();
+	}
+
+	const counts = loadUnlockCounts();
+	if (counts[phraseId] !== undefined) {
+		delete counts[phraseId];
+		save(UNLOCK_KEY, counts);
+		syncUnlockCountsToCloud();
+	}
+}
+
 /** Debounce timers — prevents rapid writes from racing in the cloud. */
 let syncTagsTimer: ReturnType<typeof setTimeout> | null = null;
 let syncProgressTimer: ReturnType<typeof setTimeout> | null = null;
