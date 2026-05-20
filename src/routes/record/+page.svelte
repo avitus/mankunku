@@ -431,8 +431,7 @@
 
 			<!-- Difficulty badge -->
 			<div class="text-center text-sm text-[var(--color-text-secondary)]">
-				{reviewPhrase.notes.filter(n => n.pitch !== null).length} notes
-				&middot; Difficulty {reviewPhrase.difficulty.level}
+				Difficulty {reviewPhrase.difficulty.level}
 				&middot; {reviewPhrase.difficulty.lengthBars} bar{reviewPhrase.difficulty.lengthBars > 1 ? 's' : ''}
 			</div>
 

@@ -20,6 +20,19 @@ function detectEnvironment(): 'development' | 'production' {
 
 const SENTRY_ENVIRONMENT = detectEnvironment();
 
+// After a deploy, an open tab's cached HTML may reference chunk hashes the
+// server no longer has. SvelteKit surfaces that as "error loading dynamically
+// imported module". The first occurrence per session is recovered by
+// handleStaleChunkReload below; the second occurrence (reload didn't help)
+// is the actionable case. See MANKUNKU-8.
+const STALE_CHUNK_RELOAD_KEY = 'stale-chunk-reload-attempted';
+const STALE_CHUNK_ERROR_PATTERN =
+  /error loading dynamically imported module|Failed to fetch dynamically imported module/i;
+
+function isStaleChunkErrorMessage(msg: string): boolean {
+  return STALE_CHUNK_ERROR_PATTERN.test(msg);
+}
+
 Sentry.init({
   dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
 
@@ -63,6 +76,37 @@ Sentry.init({
     if (!hasMessage && !hasExceptionValue && !hasFrames && hint?.originalException == null) {
       return null;
     }
+
+    // Drop errors thrown from Vite's HMR client (`@vite/client`) in dev — they
+    // surface mid-save when a module is being re-evaluated and a dependent
+    // accepts an export that's momentarily undefined. The page recovers on
+    // the next HMR tick. See MANKUNKU-P.
+    if (SENTRY_ENVIRONMENT === 'development') {
+      const frames = ex?.stacktrace?.frames ?? [];
+      if (
+        frames.some(
+          (f) => typeof f.filename === 'string' && f.filename.includes('@vite/client')
+        )
+      ) {
+        return null;
+      }
+    }
+
+    // Stale-chunk errors: handleStaleChunkReload below auto-recovers the first
+    // occurrence per session by reloading. Don't pollute Sentry with that
+    // first occurrence — but DO report when the flag is already set, because
+    // that means the reload didn't help and the error is actionable. See
+    // MANKUNKU-8.
+    const exMessage = typeof ex?.value === 'string' ? ex.value : '';
+    const messageStr = typeof event.message === 'string' ? event.message : '';
+    if (
+      (isStaleChunkErrorMessage(exMessage) || isStaleChunkErrorMessage(messageStr)) &&
+      typeof sessionStorage !== 'undefined' &&
+      sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) !== '1'
+    ) {
+      return null;
+    }
+
     return event;
   },
 
@@ -101,19 +145,17 @@ Sentry.init({
  * is still missing after the reload (e.g. user is offline, or a deploy is
  * mid-flight and assets haven't propagated to their CDN edge), the second
  * failure does NOT loop into another reload — it surfaces the error normally.
+ *
+ * The same flag is read by `beforeSend` above so the first-occurrence Sentry
+ * report is dropped (the reload is the fix); the second occurrence keeps the
+ * report because it indicates the reload didn't help.
  */
-const STALE_CHUNK_RELOAD_KEY = 'stale-chunk-reload-attempted';
-
 const handleStaleChunkReload: HandleClientError = ({ error }) => {
   const msg = (error as { message?: string } | null)?.message ?? '';
-  const isStaleChunkError =
-    /error loading dynamically imported module|Failed to fetch dynamically imported module/i.test(
-      msg
-    );
   if (
     typeof location !== 'undefined' &&
     typeof sessionStorage !== 'undefined' &&
-    isStaleChunkError
+    isStaleChunkErrorMessage(msg)
   ) {
     if (sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) === '1') {
       // Already reloaded once this session and still failing — don't loop.
