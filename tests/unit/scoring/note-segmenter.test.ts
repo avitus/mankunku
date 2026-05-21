@@ -10,7 +10,7 @@ import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
 
 function makeReading(midi: number, time: number, cents = 0, clarity = 0.95): PitchReading {
-	return { midi, midiFloat: midi + cents / 100, cents, clarity, time, frequency: 440 };
+	return { midi, midiFloat: midi + cents / 100, cents, clarity, time, frequency: 440, rms: 0.1 };
 }
 
 describe('segmentNotes', () => {
@@ -718,7 +718,7 @@ describe('mergeSamePitchWithoutAttack', () => {
 
 describe('segmentNotes — workletOnsets parameter (attack-evidence merge)', () => {
 	function makeReading(midi: number, time: number, cents = 0, clarity = 0.95): PitchReading {
-		return { midi, midiFloat: midi + cents / 100, cents, clarity, time, frequency: 440 };
+		return { midi, midiFloat: midi + cents / 100, cents, clarity, time, frequency: 440, rms: 0.1 };
 	}
 
 	it('merges a same-MIDI split caused by a reading-gap when the worklet did not fire there', () => {
@@ -1009,7 +1009,8 @@ describe('mergeOctaveBoundariesWithoutAttack', () => {
 				cents: 10,
 				clarity: 0.95,
 				time: t,
-				frequency: freq
+				frequency: freq,
+				rms: 0.1
 			});
 			if (isLower) lowerEmitted++;
 		}

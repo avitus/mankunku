@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { replayFromAudioBuffer } from '$lib/audio/replay';
-import { segmentNotes, validateOnsets, resolveOnsets } from '$lib/audio/note-segmenter';
+import {
+	segmentNotes,
+	validateOnsets,
+	resolveOnsets,
+	findReArticulations
+} from '$lib/audio/note-segmenter';
 import { runScorePipeline } from '$lib/scoring/score-pipeline';
 import type { Phrase } from '$lib/types/music';
-import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures';
+import { loadWavFixture, makeFakeAudioBuffer, type FakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
  * Regression tests for the user-reported non-determinism bug.
@@ -252,5 +257,256 @@ describe('pitch replay regression: Locrian Descent (concert F, 2026-05-07)', () 
 		expect(result.chosen.overall).toBeGreaterThan(0.65);
 		expect(result.chosen.overall).toBeLessThan(0.78);
 		expect(result.chosen.notesHit).toBeGreaterThanOrEqual(5);
+	});
+});
+
+/**
+ * Fifth regression recording: "Blues Curl Down" (concert F, 2026-05-20).
+ * Three-note phrase Ab Ab F (quarter quarter half) played in-time on tenor
+ * sax at 100 BPM with the metronome audible in the recording. The user
+ * tongued the second Ab cleanly — there's a real envelope dip-and-rise at
+ * t ≈ 0.55–0.62 s and a clarity dip-and-recovery at t ≈ 0.42–0.50 s — but
+ * the soft attack didn't cross the worklet's 3× HFC ratio against the EMA
+ * of the sustained first Ab, so the live segmenter saw only two notes
+ * (one long Ab, one F) and the DTW marked the first expected Ab as
+ * MISSED. The saved score was 0.580 ("fair"), pitch 2/3, rhythm 0.451.
+ *
+ * After the fix:
+ *   - `findReArticulations` scans inside the same-MIDI run, finds the
+ *     paired clarity + RMS dip, and emits a synthetic onset at the RMS
+ *     recovery point (~0.6 s).
+ *   - The segmenter splits the long Ab into two notes; the articulation
+ *     onset is also passed as attack evidence so `mergeSamePitchWithoutAttack`
+ *     doesn't collapse it.
+ *   - DTW now aligns 3-to-3 with no missed notes; scorer no longer
+ *     anchors to the bar grid (the median latency correction handles any
+ *     constant offset on its own).
+ */
+describe('pitch replay regression: Blues Curl Down re-articulation (concert F, 2026-05-20)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-05-20-blues-curl-down.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// Three-note phrase: Ab Ab F at offsets 0, 1/4, 1/2 (quarter quarter half).
+	const expectedPhrase: Phrase = {
+		id: 'fixture',
+		name: 'Blues Curl Down',
+		timeSignature: [4, 4],
+		key: 'F',
+		notes: [
+			{ pitch: 56, duration: [1, 4], offset: [0, 1] }, // Ab
+			{ pitch: 56, duration: [1, 4], offset: [1, 4] }, // Ab
+			{ pitch: 53, duration: [1, 2], offset: [1, 2] }  // F
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	it('detects three onsets including the second-Ab re-articulation', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+
+		// The re-articulation detector should add at least one onset that
+		// the worklet missed.
+		expect(articulationOnsets.length).toBeGreaterThan(0);
+		expect(allOnsets.length).toBeGreaterThanOrEqual(3);
+
+		// Expected attack times (±100 ms): 0, 0.6, 1.08 s.
+		// The first onset is recovered by the stable-run prepend (user
+		// attacked at recording start). The second is the new re-articulation
+		// onset. The third is the Ab→F transition (pitch change).
+		const target = [0.0, 0.6, 1.08];
+		const matched = target.map((t) =>
+			allOnsets.find((o) => Math.abs(o - t) < 0.1)
+		);
+		expect(matched.every((m) => m !== undefined)).toBe(true);
+	});
+
+	it('segments into three notes [Ab, Ab, F]', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([56, 56, 53]);
+		// Middle note (second Ab) starts somewhere between 0.50 s and 0.70 s.
+		expect(detected[1].onsetTime).toBeGreaterThan(0.45);
+		expect(detected[1].onsetTime).toBeLessThan(0.75);
+	});
+
+	it('scores three matched notes with high overall', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		// All three expected notes should be matched, none missed, no extras.
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		// Pitch is a perfect 3/3 and rhythm should be tight enough for a
+		// passing overall — the user played in time with the metronome.
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.85);
+	});
+});
+
+/**
+ * Sixth regression recording: "Blues Curl Up" (concert F, 2026-05-20). The
+ * mirror image of Blues Curl Down — F quarter, Ab quarter, Ab half — and
+ * the same failure mode in a different shape. Here `extractOnsetsFromReadings`
+ * *did* produce a baseline onset at the second Ab attack (the clarity-dropout
+ * gap was wide enough to register), but `mergeSamePitchWithoutAttack`
+ * collapsed it back together because no worklet onset was nearby. The saved
+ * score was 0.552 ("fair"), pitch 2/3, rhythm 0.381 with one MISS.
+ *
+ * This case exercises the second-half of the re-articulation fix: even when
+ * a baseline boundary already exists, the articulation onsets emitted by
+ * `findReArticulations` must reinforce it as attack evidence so the merge
+ * pass doesn't undo the split.
+ */
+describe('pitch replay regression: Blues Curl Up re-articulation (concert F, 2026-05-20)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-05-20-blues-curl-up.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	const expectedPhrase: Phrase = {
+		id: 'fixture',
+		name: 'Blues Curl Up',
+		timeSignature: [4, 4],
+		key: 'F',
+		notes: [
+			{ pitch: 53, duration: [1, 4], offset: [0, 1] }, // F
+			{ pitch: 56, duration: [1, 4], offset: [1, 4] }, // Ab
+			{ pitch: 56, duration: [1, 2], offset: [1, 2] }  // Ab
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	it('emits an articulation onset near the second-Ab attack', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		expect(articulationOnsets.length).toBeGreaterThan(0);
+		// At least one articulation onset lands in the expected window for
+		// the second Ab attack (beat 2 = 1.2 s; ±200 ms tolerance to absorb
+		// the user's small lead and the algorithm's recovery-point pick).
+		const nearSecondAb = articulationOnsets.some(
+			(t) => Math.abs(t - 1.2) < 0.2
+		);
+		expect(nearSecondAb).toBe(true);
+	});
+
+	it('segments into three notes [F, Ab, Ab]', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([53, 56, 56]);
+		// The second Ab starts somewhere between 1.05 s and 1.30 s — the
+		// user attacked slightly ahead of beat 2 (real performance, not
+		// quantized) and the detector picks up the recovery point.
+		expect(detected[2].onsetTime).toBeGreaterThan(1.0);
+		expect(detected[2].onsetTime).toBeLessThan(1.35);
+	});
+
+	it('scores three matched notes with high overall', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.85);
 	});
 });

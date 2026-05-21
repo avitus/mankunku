@@ -88,7 +88,8 @@ export function segmentNotes(
 	onsetGuard: number = 0.08,
 	minReadings: number = 3,
 	workletOnsets?: number[],
-	bleedOnsets?: number[]
+	bleedOnsets?: number[],
+	articulationOnsets?: number[]
 ): DetectedNote[] {
 	if (readings.length === 0) return [];
 
@@ -183,13 +184,17 @@ export function segmentNotes(
 	// the raw worklet onsets we can prove the boundary is artificial: a
 	// real re-articulation produces an amplitude transient the worklet
 	// catches, so an unsupported same-MIDI boundary collapses.
-	if (!workletOnsets || workletOnsets.length === 0) return sandwiched;
+	const haveAttackEvidence =
+		(workletOnsets && workletOnsets.length > 0) ||
+		(articulationOnsets && articulationOnsets.length > 0);
+	if (!haveAttackEvidence) return sandwiched;
 
 	const samePitchMerged = mergeSamePitchWithoutAttack(
 		sandwiched,
-		workletOnsets,
+		workletOnsets ?? [],
 		undefined,
-		bleedOnsets
+		bleedOnsets,
+		articulationOnsets
 	);
 
 	// Octave-boundary merge. McLeod can sustainably lock onto the second
@@ -203,7 +208,7 @@ export function segmentNotes(
 	return mergeOctaveBoundariesWithoutAttack(
 		samePitchMerged,
 		readings,
-		workletOnsets,
+		workletOnsets ?? [],
 		undefined,
 		bleedOnsets
 	);
@@ -238,15 +243,19 @@ export function mergeSamePitchWithoutAttack(
 	notes: DetectedNote[],
 	workletOnsets: number[],
 	window: number = SAME_PITCH_ATTACK_WINDOW,
-	bleedOnsets?: number[]
+	bleedOnsets?: number[],
+	articulationOnsets?: number[]
 ): DetectedNote[] {
-	if (notes.length < 2 || workletOnsets.length === 0) return notes;
+	if (notes.length < 2) return notes;
+	const articulations = articulationOnsets ?? [];
+	if (workletOnsets.length === 0 && articulations.length === 0) return notes;
 
 	// hasRealAttackNear's early-return assumes ascending order. The live
 	// worklet emits in time order so this is usually true, but sort a
 	// shallow copy defensively so an unsorted caller can't silently
 	// produce wrong merges.
 	const sortedOnsets = [...workletOnsets].sort((a, b) => a - b);
+	const sortedArticulations = [...articulations].sort((a, b) => a - b);
 	const sortedBleed =
 		bleedOnsets && bleedOnsets.length > 0
 			? [...bleedOnsets].sort((a, b) => a - b)
@@ -255,11 +264,14 @@ export function mergeSamePitchWithoutAttack(
 	const result: DetectedNote[] = [];
 	for (const cur of notes) {
 		const last = result[result.length - 1];
-		if (
-			last &&
-			last.midi === cur.midi &&
-			!hasRealAttackNear(sortedOnsets, cur.onsetTime, window, sortedBleed)
-		) {
+		// Articulation onsets are pitch-detector-derived (clarity + RMS dip
+		// evidence) and aren't subject to the speaker→mic latency that the
+		// worklet's bleed filter guards against, so they count as attack
+		// evidence even when adjacent to a scheduled bleed event.
+		const hasAttack =
+			hasRealAttackNear(sortedOnsets, cur.onsetTime, window, sortedBleed) ||
+			hasOnsetNear(sortedArticulations, cur.onsetTime, window);
+		if (last && last.midi === cur.midi && !hasAttack) {
 			const totalDuration = cur.onsetTime + cur.duration - last.onsetTime;
 			const wLast = last.duration;
 			const wCur = cur.duration;
@@ -422,6 +434,24 @@ function hasRealAttackNear(
 	for (const o of sortedOnsets) {
 		if (o > target + window) return false;
 		if (Math.abs(o - target) <= window && !isLikelyBleed(o, sortedBleed)) return true;
+	}
+	return false;
+}
+
+/**
+ * True iff `sortedOnsets` contains any element within ±window of `target`.
+ * Used for pitch-detector-derived articulation onsets, which (unlike raw
+ * worklet onsets) aren't subject to speaker→mic bleed latency, so the
+ * scheduled-event filter doesn't apply.
+ */
+function hasOnsetNear(
+	sortedOnsets: number[],
+	target: number,
+	window: number
+): boolean {
+	for (const o of sortedOnsets) {
+		if (o > target + window) return false;
+		if (Math.abs(o - target) <= window) return true;
 	}
 	return false;
 }
@@ -1062,4 +1092,249 @@ function findStableRunStarts(
 	}
 
 	return collapsed.map((r) => ({ time: filtered[r.startIdx].time, midi: r.midi }));
+}
+
+/**
+ * Re-articulation detection thresholds. The HFC worklet misses soft tongue
+ * attacks on a sustained same-pitch note: amplitude dips ~55% for ~50 ms
+ * and climbs back, but the recovery's HFC ratio against the EMA only
+ * reaches ~1.4× — well below the 3.0× worklet trigger. We find these
+ * inside-segment by looking for a paired clarity dip and RMS dip-and-rise
+ * in the pitch readings (both signals required so vibrato (RMS-only) and
+ * McLeod glitches (clarity-only) don't trigger).
+ *
+ * The clarity dip can precede the RMS dip by ~100 ms — the tongue stop
+ * muddies the harmonic structure before the amplitude follows — so the
+ * algorithm anchors on whichever fires first and looks forward up to
+ * RE_ARTICULATION_PAIR_WINDOW for the other.
+ */
+const RE_ARTICULATION_CLARITY_DROP = 0.07;
+const RE_ARTICULATION_RMS_DROP_RATIO = 0.30;
+const RE_ARTICULATION_RMS_RECOVERY_RATIO = 0.75;
+const RE_ARTICULATION_RMS_ONSET_RATIO = 0.65;
+const RE_ARTICULATION_PAIR_WINDOW = 0.20;
+const RE_ARTICULATION_MIN_INTERVAL = 0.06;
+const RE_ARTICULATION_PRE_CONTEXT_FRAMES = 4;
+const RE_ARTICULATION_SCAN_WINDOW_FRAMES = 12;
+const RE_ARTICULATION_ONSET_GUARD = 0.05;
+const RE_ARTICULATION_ATTACK_LATENCY = 0.02;
+
+/**
+ * Detect re-articulations within same-MIDI runs by looking for paired
+ * clarity and RMS dip-and-recovery patterns in the pitch readings.
+ *
+ * Returns extra onset times (relative to recording start) that the worklet
+ * missed. These are meant to be merged into the baseline onset list AND
+ * threaded through as attack evidence so `mergeSamePitchWithoutAttack`
+ * doesn't collapse the new boundaries.
+ *
+ * The scan operates on contiguous same-MIDI runs in the readings (not on
+ * segments defined by the baseline onset list) because a re-articulation
+ * can straddle a baseline boundary: `extractOnsetsFromReadings` may have
+ * already emitted an onset at the clarity-dropout gap in the middle of
+ * the run, but the segmenter's `mergeSamePitchWithoutAttack` then
+ * collapses it back together. Looking at the readings directly catches
+ * both the "no baseline boundary" case (Blues Curl Down) and the
+ * "baseline boundary present but merged away" case (Blues Curl Up).
+ *
+ * Algorithm (per same-MIDI run):
+ *   1. Walk the readings. When clarity drops > RE_ARTICULATION_CLARITY_DROP
+ *      below the trailing pre-window max, mark a candidate.
+ *   2. Find the clarity minimum in the next ~140 ms.
+ *   3. Look forward up to RE_ARTICULATION_PAIR_WINDOW for the RMS minimum.
+ *   4. Require: rms drop ratio ≥ RE_ARTICULATION_RMS_DROP_RATIO,
+ *      post-min recovery max ≥ RE_ARTICULATION_RMS_RECOVERY_RATIO of the
+ *      pre-window rms max.
+ *   5. Onset point: the first reading after the rms min where rms first
+ *      crosses RE_ARTICULATION_RMS_ONSET_RATIO of the pre-window rms max
+ *      while rising. Subtract RE_ARTICULATION_ATTACK_LATENCY so the
+ *      boundary lands at the start of the rise, not the steady-state plateau.
+ */
+export function findReArticulations(
+	readings: PitchReading[],
+	baseOnsets: number[]
+): number[] {
+	if (readings.length === 0) return [];
+
+	const onsets: number[] = [];
+	const runs = findSameMidiRuns(readings);
+	for (const run of runs) {
+		onsets.push(...findReArticulationsInSegment(run.readings, run.start, run.end));
+	}
+
+	// Filter to those that would actually create a new boundary or
+	// reinforce a missed one — skip articulation onsets that coincide
+	// with an existing baseline onset (within ATTACK_DEDUP_WINDOW),
+	// since the boundary is already present; the articulation list is
+	// still useful as attack evidence so the merge pass keeps the split.
+	// We keep them in the output because the caller uses them as
+	// evidence — duplicates are harmless once sorted.
+	void baseOnsets;
+	return onsets;
+}
+
+interface SameMidiRun {
+	start: number;
+	end: number;
+	readings: PitchReading[];
+}
+
+/**
+ * Group readings into contiguous same-MIDI runs (skipping warmup frames).
+ * Two adjacent readings on the same MIDI are part of the same run; a
+ * MIDI change starts a new run. Runs shorter than 4 frames are dropped
+ * because a re-articulation needs at least a baseline-dip-recovery
+ * spread of frames to be detectable.
+ */
+function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
+	const runs: SameMidiRun[] = [];
+	let curMidi: number | null = null;
+	let curStart = 0;
+	let curReadings: PitchReading[] = [];
+
+	const flush = () => {
+		if (curReadings.length >= 4) {
+			runs.push({
+				start: curStart,
+				end: curReadings[curReadings.length - 1].time + 0.001,
+				readings: curReadings
+			});
+		}
+	};
+
+	for (const r of readings) {
+		if (r.warmup) continue;
+		if (curMidi === null || r.midi !== curMidi) {
+			flush();
+			curMidi = r.midi;
+			curStart = r.time;
+			curReadings = [r];
+		} else {
+			curReadings.push(r);
+		}
+	}
+	flush();
+	return runs;
+}
+
+function findReArticulationsInSegment(
+	readings: PitchReading[],
+	segStart: number,
+	segEnd: number
+): number[] {
+	// Restrict to the segment's stable-MIDI run. Skip warmup frames and a
+	// short post-onset guard so the segment-start attack transient isn't
+	// mistaken for a re-articulation.
+	const inSegment = readings.filter(
+		(r) =>
+			!r.warmup &&
+			r.time >= segStart + RE_ARTICULATION_ONSET_GUARD &&
+			r.time < segEnd
+	);
+	if (inSegment.length < RE_ARTICULATION_PRE_CONTEXT_FRAMES + 4) return [];
+
+	// Determine the segment's primary MIDI by clarity-weighted vote, then
+	// keep only readings on that MIDI so legato pitch transitions and brief
+	// octave glitches don't seed a dip.
+	const midiWeights = new Map<number, number>();
+	for (const r of inSegment) {
+		midiWeights.set(r.midi, (midiWeights.get(r.midi) ?? 0) + readingWeight(r));
+	}
+	let primaryMidi = inSegment[0].midi;
+	let bestWeight = -Infinity;
+	for (const [midi, w] of midiWeights) {
+		if (w > bestWeight) {
+			bestWeight = w;
+			primaryMidi = midi;
+		}
+	}
+	const stable = inSegment.filter((r) => r.midi === primaryMidi);
+	if (stable.length < RE_ARTICULATION_PRE_CONTEXT_FRAMES + 4) return [];
+
+	const onsets: number[] = [];
+	let i = RE_ARTICULATION_PRE_CONTEXT_FRAMES;
+
+	while (i < stable.length - 3) {
+		// Pre-window: max clarity and RMS over the trailing N frames. These
+		// are the "baseline" we're comparing the dip against.
+		let preMaxClarity = 0;
+		let preMaxRms = 0;
+		const preStart = Math.max(0, i - RE_ARTICULATION_PRE_CONTEXT_FRAMES);
+		for (let j = preStart; j < i; j++) {
+			if (stable[j].clarity > preMaxClarity) preMaxClarity = stable[j].clarity;
+			if (stable[j].rms > preMaxRms) preMaxRms = stable[j].rms;
+		}
+		if (preMaxClarity <= 0 || preMaxRms <= 0) {
+			i++;
+			continue;
+		}
+
+		// Trigger only on a clarity dip below the pre-window baseline.
+		if (preMaxClarity - stable[i].clarity <= RE_ARTICULATION_CLARITY_DROP) {
+			i++;
+			continue;
+		}
+
+		// Find the clarity minimum in a short forward window.
+		const clarityScanEnd = Math.min(
+			stable.length,
+			i + RE_ARTICULATION_SCAN_WINDOW_FRAMES
+		);
+		let clarityMinIdx = i;
+		for (let j = i + 1; j < clarityScanEnd; j++) {
+			if (stable[j].clarity < stable[clarityMinIdx].clarity) clarityMinIdx = j;
+			// Don't track past the clarity recovery point.
+			if (stable[j].clarity > stable[clarityMinIdx].clarity + 0.04) break;
+		}
+
+		// From the clarity minimum, look forward up to PAIR_WINDOW for the
+		// RMS minimum — the tongue stop muddies harmonics first and dips
+		// amplitude shortly after on most reed instruments.
+		const rmsSearchEndTime = stable[clarityMinIdx].time + RE_ARTICULATION_PAIR_WINDOW;
+		let rmsMinIdx = clarityMinIdx;
+		for (let j = clarityMinIdx; j < stable.length && stable[j].time <= rmsSearchEndTime; j++) {
+			if (stable[j].rms < stable[rmsMinIdx].rms) rmsMinIdx = j;
+		}
+
+		const rmsDropRatio = 1 - stable[rmsMinIdx].rms / preMaxRms;
+		if (rmsDropRatio < RE_ARTICULATION_RMS_DROP_RATIO) {
+			i = clarityMinIdx + 1;
+			continue;
+		}
+
+		// Walk forward from the RMS min until rms crosses the onset
+		// threshold going up. Also track the post-min max for the
+		// recovery-strength check.
+		const onsetTarget = preMaxRms * RE_ARTICULATION_RMS_ONSET_RATIO;
+		let recoveryIdx = -1;
+		let postMaxRms = stable[rmsMinIdx].rms;
+		const recoveryEndIdx = Math.min(
+			stable.length,
+			rmsMinIdx + RE_ARTICULATION_SCAN_WINDOW_FRAMES + 4
+		);
+		for (let j = rmsMinIdx + 1; j < recoveryEndIdx; j++) {
+			if (stable[j].rms > postMaxRms) postMaxRms = stable[j].rms;
+			if (recoveryIdx === -1 && stable[j].rms >= onsetTarget) recoveryIdx = j;
+		}
+
+		if (
+			recoveryIdx === -1 ||
+			postMaxRms / preMaxRms < RE_ARTICULATION_RMS_RECOVERY_RATIO
+		) {
+			i = rmsMinIdx + 1;
+			continue;
+		}
+
+		const onsetTime = stable[recoveryIdx].time - RE_ARTICULATION_ATTACK_LATENCY;
+		if (
+			onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD &&
+			(onsets.length === 0 ||
+				onsetTime - onsets[onsets.length - 1] > RE_ARTICULATION_MIN_INTERVAL)
+		) {
+			onsets.push(onsetTime);
+		}
+		i = recoveryIdx + 1;
+	}
+
+	return onsets;
 }

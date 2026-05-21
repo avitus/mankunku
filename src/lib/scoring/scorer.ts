@@ -1,12 +1,12 @@
 /**
  * Scoring orchestrator: DTW alignment + pitch + rhythm scoring.
  *
- * Rhythm is scored relative to the Transport's beat grid:
- *   1. Detected onsets are anchored to the nearest bar downbeat
- *   2. DTW aligns detected → expected notes
- *   3. The median timing offset of matched pairs is subtracted,
- *      absorbing constant human latency (reaction time, detection delay)
- *   4. Per-note rhythm is scored against the corrected onsets
+ * Rhythm is scored against the expected phrase timeline:
+ *   1. DTW aligns detected → expected notes using raw recording-relative
+ *      onset times (recording start ≡ phrase start at offset 0).
+ *   2. The median timing offset of matched pairs is subtracted,
+ *      absorbing constant human latency (reaction time, detection delay).
+ *   3. Per-note rhythm is scored against the corrected onsets.
  *
  * Composite: overall = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4
  */
@@ -38,36 +38,6 @@ function expectedOnsetSeconds(note: Note, tempo: number, swing = 0.5): number {
 }
 
 /**
- * Anchor detected note onsets to the Transport's beat grid.
- *
- * detected.onsetTime is relative to recording start (pitch detector reset).
- * transportSeconds is the Transport position at that same moment.
- * We find the bar downbeat the user is closest to and compute each note's
- * position relative to that downbeat.
- */
-function anchorToGrid(
-	detected: DetectedNote[],
-	transportSeconds: number,
-	phrase: Phrase,
-	tempo: number
-): DetectedNote[] {
-	if (detected.length === 0) return detected;
-
-	const beatDuration = 60 / tempo;
-	const beatsPerBar = phrase.timeSignature[0];
-	const barDuration = beatsPerBar * beatDuration;
-
-	// Snap to the nearest bar downbeat
-	const barStart = Math.round(transportSeconds / barDuration) * barDuration;
-	const recordingOffset = transportSeconds - barStart;
-
-	return detected.map((d) => ({
-		...d,
-		onsetTime: d.onsetTime + recordingOffset
-	}));
-}
-
-/**
  * Compute the median of an array of numbers.
  */
 function median(values: number[]): number {
@@ -85,7 +55,13 @@ function median(values: number[]): number {
  * @param phrase - The expected phrase
  * @param detected - Detected notes from mic recording
  * @param tempo - BPM used during the attempt
- * @param transportSeconds - Transport position (seconds) when recording started
+ * @param _transportSeconds - Retained for API compatibility; ignored. The
+ *   detected onset times are already in the natural frame for alignment
+ *   (recording start ≡ phrase start at offset 0), and the median latency
+ *   correction below absorbs any constant offset. An earlier implementation
+ *   anchored detected times to the nearest bar downbeat, which corrupted
+ *   the rhythm cost when the user reacted mid-bar (and tied two same-MIDI
+ *   match costs into ambiguous DTW alignments).
  * @param swing - Swing ratio (0.5 = straight, 0.67 ≈ triplet, 0.8 = heavy)
  * @param octaveInsensitive - If true, same pitch class (any octave) counts as
  *   a pitch match. Used by lick-practice continuous mode.
@@ -95,32 +71,29 @@ export function scoreAttempt(
 	phrase: Phrase,
 	detected: DetectedNote[],
 	tempo: number,
-	transportSeconds = 0,
-	swing = 0.5,
-	octaveInsensitive = false
+	_transportSeconds: number = 0,
+	swing: number = 0.5,
+	octaveInsensitive: boolean = false
 ): Score {
 	const expected = phrase.notes.filter((n) => n.pitch !== null);
 
-	// Step 1: Anchor detected notes to the beat grid
-	const gridAligned = anchorToGrid(detected, transportSeconds, phrase, tempo);
+	// Step 1: DTW alignment on raw recording-relative onset times.
+	const pairs = alignNotes(phrase.notes, detected, tempo, swing, octaveInsensitive);
 
-	// Step 2: DTW alignment (robust enough with a constant offset)
-	const pairs = alignNotes(phrase.notes, gridAligned, tempo, swing, octaveInsensitive);
-
-	// Step 3: Compute median timing offset of matched pairs to absorb
-	// constant human latency (reaction time, detection delay)
+	// Step 2: Compute median timing offset of matched pairs to absorb
+	// constant human latency (reaction time, detection delay).
 	const offsets: number[] = [];
 	for (const pair of pairs) {
 		if (pair.expectedIndex !== null && pair.detectedIndex !== null) {
 			const expOnset = expectedOnsetSeconds(expected[pair.expectedIndex], tempo, swing);
-			const detOnset = gridAligned[pair.detectedIndex].onsetTime;
+			const detOnset = detected[pair.detectedIndex].onsetTime;
 			offsets.push(detOnset - expOnset);
 		}
 	}
 	const latencyCorrection = median(offsets);
 
-	// Step 4: Apply correction and score each pair
-	const corrected = gridAligned.map((d) => ({
+	// Step 3: Apply correction and score each pair.
+	const corrected = detected.map((d) => ({
 		...d,
 		onsetTime: d.onsetTime - latencyCorrection
 	}));

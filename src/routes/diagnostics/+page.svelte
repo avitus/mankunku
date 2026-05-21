@@ -14,7 +14,7 @@
 	} from '$lib/persistence/audio-store';
 	import { replayFromBlob } from '$lib/audio/replay';
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
-	import { segmentNotes, resolveOnsets } from '$lib/audio/note-segmenter';
+	import { segmentNotes, resolveOnsets, findReArticulations } from '$lib/audio/note-segmenter';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
@@ -125,8 +125,10 @@
 			const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
 			const { readings, onsets, duration, sampleRate } = await replayFromBlob(full.blob, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
-			const resolvedOnsets = resolveOnsets(onsets, readings);
-			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets);
+			const baseOnsets = resolveOnsets(onsets, readings);
+			const articulationOnsets = findReArticulations(readings, baseOnsets);
+			const resolvedOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets, undefined, articulationOnsets);
 			replay = {
 				sessionId: id,
 				readings,

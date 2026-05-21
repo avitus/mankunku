@@ -31,7 +31,7 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
-	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
+	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
@@ -699,11 +699,13 @@
 		const phraseDuration =
 			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
 
-		const onsets = resolveOnsets(workletOnsets, rebased);
+		const baseOnsets = resolveOnsets(workletOnsets, rebased);
+		const articulationOnsets = findReArticulations(rebased, baseOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const bleedOnsets = settings.metronomeEnabled
 			? getMetronomeBleedOnsets(window.recordingTransportSeconds, lickPractice.currentTempo, phraseDuration)
 			: undefined;
-		const detected = segmentNotes(rebased, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets);
+		const detected = segmentNotes(rebased, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const bleedResult = window.schedule
 			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
 			: null;
