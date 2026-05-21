@@ -40,27 +40,11 @@ const PRACTICE_REMOVED_TAG = 'practice:removed';
 const MAX_UNLOCKED_KEYS = 12;
 
 /**
- * Minimum average session score required to unlock the next key. Matches
- * `KEY_PROFICIENT_THRESHOLD` so the avg gate aligns with the green-tier
- * bar. Unlocks fire only when the session is proficient AND the
- * most-recently-unlocked key has consolidated (passCount) AND no played
- * key fell below `KEY_FLOOR_THRESHOLD` — the floor check lives in
- * `startInterLickTransition`, not here.
- */
-export const UNLOCK_AVG_THRESHOLD = 0.9;
-
-/**
- * Number of qualifying per-key sessions (each scoring at or above
- * `PASS_THRESHOLD`) the most-recently-unlocked key must accumulate before
- * the next key joins the rotation. Pairs with `UNLOCK_AVG_THRESHOLD` to
- * gate unlocks on both session quality and per-key consolidation.
- */
-export const UNLOCK_PASSES_REQUIRED = 2;
-
-/**
  * Score at or above which a key is considered "proficient" — drives the
  * green tier in the UI, increments `passCount`, and matches the avg gate
- * for tempo bumps and unlocks.
+ * for tempo bumps and unlocks. Single source of truth for the proficiency
+ * bar: `UNLOCK_AVG_THRESHOLD` and the `PASS_THRESHOLD` alias both derive
+ * from this constant.
  */
 export const KEY_PROFICIENT_THRESHOLD = 0.9;
 
@@ -71,6 +55,24 @@ export const KEY_PROFICIENT_THRESHOLD = 0.9;
  * speed or scope. Tempo decreases are still allowed.
  */
 export const KEY_FLOOR_THRESHOLD = 0.75;
+
+/**
+ * Minimum average session score required to unlock the next key. Derived
+ * from `KEY_PROFICIENT_THRESHOLD` so the avg gate stays locked to the
+ * green-tier bar. Unlocks fire only when the session is proficient AND
+ * the most-recently-unlocked key has consolidated (passCount) AND no
+ * played key fell below `KEY_FLOOR_THRESHOLD` — the floor check lives in
+ * `startInterLickTransition`, not here.
+ */
+export const UNLOCK_AVG_THRESHOLD = KEY_PROFICIENT_THRESHOLD;
+
+/**
+ * Number of qualifying per-key sessions (each scoring at or above
+ * `PASS_THRESHOLD`) the most-recently-unlocked key must accumulate before
+ * the next key joins the rotation. Pairs with `UNLOCK_AVG_THRESHOLD` to
+ * gate unlocks on both session quality and per-key consolidation.
+ */
+export const UNLOCK_PASSES_REQUIRED = 2;
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
