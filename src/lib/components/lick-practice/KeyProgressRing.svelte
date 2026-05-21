@@ -3,6 +3,10 @@
 	import type { LickPracticeKeyResult } from '$lib/types/lick-practice';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
+	import {
+		KEY_PROFICIENT_THRESHOLD,
+		KEY_FLOOR_THRESHOLD
+	} from '$lib/persistence/lick-practice-store';
 
 	interface Props {
 		keys: PitchClass[];
@@ -19,6 +23,8 @@
 	const DOT_RADIUS = 18;
 	const CENTER = 110;
 
+	type Status = 'current' | 'proficient' | 'developing' | 'struggling' | 'pending';
+
 	function getKeyPosition(index: number): { x: number; y: number } {
 		// Distribute dots evenly around the ring based on the actual key
 		// count rather than the usual 12, so this works if the plan ever
@@ -31,25 +37,31 @@
 		};
 	}
 
-	function getKeyStatus(key: PitchClass): 'current' | 'passed' | 'failed' | 'pending' {
+	function getKeyStatus(key: PitchClass): Status {
 		const idx = keys.indexOf(key);
 		if (idx === currentKeyIndex) return 'current';
 		const result = keyResults.find(r => r.key === key);
-		if (result?.passed) return 'passed';
-		if (result && !result.passed) return 'failed';
-		return 'pending';
+		if (!result) return 'pending';
+		if (result.score >= KEY_PROFICIENT_THRESHOLD) return 'proficient';
+		if (result.score >= KEY_FLOOR_THRESHOLD) return 'developing';
+		return 'struggling';
 	}
 
-	// When every key has been passed, the ring glows brass as a reward —
+	// When every key has scored proficient, the ring glows brass as a reward —
 	// a small Blue Note-style flourish at completion.
-	const allPassed = $derived(
-		keys.length > 0 && keys.every((k) => keyResults.find((r) => r.key === k)?.passed)
+	const allProficient = $derived(
+		keys.length > 0 &&
+			keys.every((k) => {
+				const r = keyResults.find((r) => r.key === k);
+				return r != null && r.score >= KEY_PROFICIENT_THRESHOLD;
+			})
 	);
 
 	const STATUS_COLORS = $derived({
 		current: 'var(--color-accent)',
-		passed: allPassed ? 'var(--color-brass)' : '#22c55e',
-		failed: 'var(--color-error)',
+		proficient: allProficient ? 'var(--color-brass)' : '#22c55e',
+		developing: 'var(--color-warning, #eab308)',
+		struggling: 'var(--color-error)',
 		pending: 'var(--color-bg-tertiary)'
 	});
 </script>
@@ -102,18 +114,7 @@
 					fill={STATUS_COLORS[status]}
 					opacity={status === 'pending' ? 0.3 : 1}
 				/>
-				{#if status !== 'passed'}
-					<text
-						x={pos.x} y={pos.y}
-						text-anchor="middle"
-						dominant-baseline="central"
-						font-size="11"
-						font-weight={isCurrent ? 'bold' : 'normal'}
-						fill={status === 'pending' ? 'var(--color-text-secondary)' : 'white'}
-					>
-						{displayKey}
-					</text>
-				{:else}
+				{#if status === 'proficient'}
 					<text
 						x={pos.x} y={pos.y + 1}
 						text-anchor="middle"
@@ -123,6 +124,17 @@
 						fill="white"
 					>
 						&#10003;
+					</text>
+				{:else}
+					<text
+						x={pos.x} y={pos.y}
+						text-anchor="middle"
+						dominant-baseline="central"
+						font-size="11"
+						font-weight={isCurrent ? 'bold' : 'normal'}
+						fill={status === 'pending' ? 'var(--color-text-secondary)' : 'white'}
+					>
+						{displayKey}
 					</text>
 				{/if}
 			</g>

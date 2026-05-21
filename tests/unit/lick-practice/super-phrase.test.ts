@@ -333,13 +333,13 @@ describe('startInterLickTransition', () => {
 			{ id: SHORT_LICK_ID, keys: ['G'] }
 		);
 		lickPractice.currentTempo = 100;
-		recordKeyAttempt(fakeScore(0.5)); // C: failed
+		recordKeyAttempt(fakeScore(0.5)); // C: weak
 		lickPractice.currentKeyIndex = 1;
-		recordKeyAttempt(fakeScore(0.9)); // F: passed
+		recordKeyAttempt(fakeScore(0.9)); // F: proficient
 		startInterLickTransition();
-		// avg = 0.7 → computeAutoTempoAdjustment returns -1, so tempo goes
-		// from 100 → 99 and the next lick (same phraseId) inherits that.
-		expect(lickPractice.currentTempo).toBe(99);
+		// avg = 0.7 → -3 band; worstScore 0.5 also breaches the 0.75 floor,
+		// so the floor caps the delta at min(0, -3) = -3. Tempo: 100 → 97.
+		expect(lickPractice.currentTempo).toBe(97);
 	});
 });
 

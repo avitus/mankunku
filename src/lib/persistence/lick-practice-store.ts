@@ -40,9 +40,12 @@ const PRACTICE_REMOVED_TAG = 'practice:removed';
 const MAX_UNLOCKED_KEYS = 12;
 
 /**
- * Minimum average session score required to unlock the next key. Higher
- * than the +2-BPM tempo threshold (0.85) so a single strong session can
- * keep speeding up the existing keys without yet adding more.
+ * Minimum average session score required to unlock the next key. Matches
+ * `KEY_PROFICIENT_THRESHOLD` so the avg gate aligns with the green-tier
+ * bar. Unlocks fire only when the session is proficient AND the
+ * most-recently-unlocked key has consolidated (passCount) AND no played
+ * key fell below `KEY_FLOOR_THRESHOLD` — the floor check lives in
+ * `startInterLickTransition`, not here.
  */
 export const UNLOCK_AVG_THRESHOLD = 0.9;
 
@@ -53,6 +56,21 @@ export const UNLOCK_AVG_THRESHOLD = 0.9;
  * gate unlocks on both session quality and per-key consolidation.
  */
 export const UNLOCK_PASSES_REQUIRED = 2;
+
+/**
+ * Score at or above which a key is considered "proficient" — drives the
+ * green tier in the UI, increments `passCount`, and matches the avg gate
+ * for tempo bumps and unlocks.
+ */
+export const KEY_PROFICIENT_THRESHOLD = 0.9;
+
+/**
+ * Worst-key floor. If any played key in a session scores below this,
+ * `startInterLickTransition` blocks both tempo increases and the
+ * next-key unlock — the user has to bring the weak key up before adding
+ * speed or scope. Tempo decreases are still allowed.
+ */
+export const KEY_FLOOR_THRESHOLD = 0.75;
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
@@ -323,8 +341,8 @@ export function hasLickProgress(progress: LickPracticeProgress, phraseId: string
  */
 export function computeAutoTempoAdjustment(averageScore: number): number {
 	if (averageScore >= 0.95) return 5;
-	if (averageScore >= 0.85) return 2;
-	if (averageScore >= 0.70) return -1;
+	if (averageScore >= KEY_PROFICIENT_THRESHOLD) return 2;
+	if (averageScore >= KEY_FLOOR_THRESHOLD) return -1;
 	return -3;
 }
 
