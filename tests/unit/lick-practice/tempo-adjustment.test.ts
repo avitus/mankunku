@@ -147,7 +147,7 @@ describe('resolveLickTempo', () => {
 });
 
 describe('startInterLickTransition — always-on score-weighted adjustment', () => {
-	it('decreases tempo by 3 when average score < 70%', () => {
+	it('decreases tempo by 3 when average score < 75% (below floor)', () => {
 		setupLick({
 			currentTempo: 100,
 			results: [
@@ -160,7 +160,7 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(97);
 	});
 
-	it('decreases tempo by 1 when average score is 70–84%', () => {
+	it('decreases tempo by 1 when average score is 75–89%', () => {
 		setupLick({
 			currentTempo: 100,
 			results: [
@@ -172,7 +172,7 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(99);
 	});
 
-	it('increases tempo by 2 when average score is 85–94%', () => {
+	it('increases tempo by 2 when average score is 90–94%', () => {
 		setupLick({
 			currentTempo: 100,
 			results: [
@@ -327,7 +327,7 @@ describe('startInterLickTransition — unlock count bump', () => {
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
 	});
 
-	it('does not unlock at the old +2-tempo boundary (avg 0.85) even with passCount ≥ 2', () => {
+	it('does not unlock below the 0.90 proficient avg (avg 0.85) even with passCount ≥ 2', () => {
 		setupLick({
 			currentTempo: 60,
 			results: [{ key: 'C', score: 0.85 }],
@@ -338,8 +338,10 @@ describe('startInterLickTransition — unlock count bump', () => {
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
-		// Tempo still bumps (avg 0.85 → +2 BPM); only the unlock gate stayed closed.
-		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(62);
+		// Avg 0.85 sits in the -1 BPM band (0.75-0.89) under the retuned formula —
+		// worstScore 0.85 is above the 0.75 floor so no floor cap, just the
+		// raw delta.
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(59);
 	});
 
 	it('does not unlock on negative tempo delta even when passCount is well past the requirement', () => {
@@ -468,5 +470,98 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+	});
+});
+
+describe('startInterLickTransition — per-key floor (KEY_FLOOR_THRESHOLD = 0.75)', () => {
+	it('caps tempo delta at 0 when one played key is below 0.75 even if avg ≥ 0.90', () => {
+		// Three keys: two at 1.0, one at 0.70. avg = 0.90 → raw +2 BPM,
+		// but worst (0.70) is below the 0.75 floor so the floor caps delta at 0.
+		setupLick({
+			currentTempo: 100,
+			results: [
+				{ key: 'C', score: 1.0 },
+				{ key: 'F', score: 1.0 },
+				{ key: 'G', score: 0.70 }
+			]
+		});
+		startInterLickTransition();
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(100);
+	});
+
+	it('allows tempo to decrease when the floor is breached and avg is also weak', () => {
+		// The floor only blocks tempo INCREASES (caps at 0). A genuinely bad
+		// session still slows down.
+		setupLick({
+			currentTempo: 100,
+			results: [
+				{ key: 'C', score: 0.60 },
+				{ key: 'F', score: 0.60 }
+			]
+		});
+		startInterLickTransition();
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(97); // -3 BPM
+	});
+
+	it('does not breach the floor when the worst key sits exactly at 0.75 (boundary is inclusive)', () => {
+		// Two keys at 1.0, one at 0.75 → worst = 0.75 (== floor, not below).
+		// avg = (1.0 + 1.0 + 0.75) / 3 ≈ 0.917 → raw +2 BPM, applied normally.
+		setupLick({
+			currentTempo: 100,
+			results: [
+				{ key: 'C', score: 1.0 },
+				{ key: 'F', score: 1.0 },
+				{ key: 'G', score: 0.75 }
+			]
+		});
+		startInterLickTransition();
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(102);
+	});
+
+	it('blocks the next-key unlock when the floor is breached, even if the avg + passCount gates clear', () => {
+		// Two keys at 1.0, one at 0.70 → avg = 0.90 (clears unlock gate),
+		// passCount = 5 (clears consolidation gate), worst = 0.70 (breaches
+		// the floor) → unlock blocked.
+		setupLick({
+			currentTempo: 80,
+			results: [
+				{ key: 'C', score: 1.0 },
+				{ key: 'F', score: 1.0 },
+				{ key: 'G', score: 0.70 }
+			],
+			plannedKeys: ['C', 'F', 'G']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: {
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
+				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
+				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 }
+			}
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+	});
+
+	it('unlocks normally when the floor is satisfied (worst ≥ 0.75) and the other gates clear', () => {
+		// Companion to the previous test with the worst key bumped above the
+		// floor — unlock fires.
+		setupLick({
+			currentTempo: 80,
+			results: [
+				{ key: 'C', score: 1.0 },
+				{ key: 'F', score: 1.0 },
+				{ key: 'G', score: 0.80 }
+			],
+			plannedKeys: ['C', 'F', 'G']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: {
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
+				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
+				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 }
+			}
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
 	});
 });

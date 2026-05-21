@@ -40,6 +40,10 @@
 		upsertLickPracticeSession,
 		splitReportByProgression
 	} from '$lib/persistence/lick-practice-sessions';
+	import {
+		KEY_PROFICIENT_THRESHOLD,
+		KEY_FLOOR_THRESHOLD
+	} from '$lib/persistence/lick-practice-store';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
 	import { syncDailySummaryToCloud } from '$lib/persistence/sync';
@@ -1119,10 +1123,10 @@
 				<div class="flex flex-wrap gap-1.5">
 					{#each lick.keys as k}
 						{@const color =
-							k.passed
+							k.score >= KEY_PROFICIENT_THRESHOLD
 								? '#22c55e'
-								: k.score >= 0.6
-									? 'var(--color-warning, #f59e0b)'
+								: k.score >= KEY_FLOOR_THRESHOLD
+									? 'var(--color-warning, #eab308)'
 									: 'var(--color-error)'}
 						<div
 							class="flex flex-col items-center rounded px-2 py-1 text-xs"

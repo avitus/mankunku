@@ -25,9 +25,9 @@
  * signed BPM delta (+5/+2/−1/−3). That delta is added to the current tempo,
  * clamped to [MIN_TEMPO, MAX_TEMPO], and persisted for every key in the lick
  * so the whole set ratchets up or down together based on overall performance.
- * The tempo gate (avg ≥ 0.85 for +2) is independent of the unlock gate so
- * users keep speeding up on what they have without the rotation growing on
- * every passable session.
+ * A per-key floor (`KEY_FLOOR_THRESHOLD`) caps the delta at 0 and blocks
+ * the next-key unlock whenever any played key in the session falls below
+ * the floor — a strong average can't drag a single weak key along.
  */
 
 import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music';
@@ -64,7 +64,9 @@ import {
 	shouldUnlockNextKey,
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
-	clampTempo
+	clampTempo,
+	KEY_PROFICIENT_THRESHOLD,
+	KEY_FLOOR_THRESHOLD
 } from '$lib/persistence/lick-practice-store';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
@@ -93,7 +95,14 @@ import {
 
 export type { UpcomingLickEntry };
 
-const PASS_THRESHOLD = 0.80;
+/**
+ * Per-key pass bar — score at or above which a key counts as "passed"
+ * (increments `passCount`, drives the green tier in the UI, feeds the
+ * unlock gate's per-key consolidation requirement). Aliased from
+ * `KEY_PROFICIENT_THRESHOLD` so the proficient bar, the pass bar, and
+ * the green-tier color all share one source of truth.
+ */
+const PASS_THRESHOLD = KEY_PROFICIENT_THRESHOLD;
 
 /**
  * Single-lick deep-practice mastery threshold. A key is considered mastered
@@ -1133,7 +1142,14 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 		if (lickPractice.keyResults.length > 0) {
 			const totalScore = lickPractice.keyResults.reduce((s, r) => s + r.score, 0);
 			const avgScore = totalScore / lickPractice.keyResults.length;
-			const delta = computeAutoTempoAdjustment(avgScore);
+			const worstScore = Math.min(...lickPractice.keyResults.map(r => r.score));
+			// Per-key floor: if the weakest played key fell below KEY_FLOOR_THRESHOLD,
+			// advancement (both tempo bump and key unlock) is blocked. The avg can't
+			// drag a single weak key along — the user has to bring it up first.
+			// Tempo decreases are still allowed so a genuinely bad session still slows.
+			const floorBreached = worstScore < KEY_FLOOR_THRESHOLD;
+			const rawDelta = computeAutoTempoAdjustment(avgScore);
+			const delta = floorBreached ? Math.min(0, rawDelta) : rawDelta;
 
 			// Bump unlock BEFORE writing progress for this session's keys.
 			// The grandfather fallback in getUnlockedKeyCount treats a lick
@@ -1141,12 +1157,10 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 			// the writes, even a brand-new lick (just one entry-key result)
 			// would look "grandfathered" and stay capped at 12.
 			//
-			// Unlock requires both a strong session AND consolidation on the
+			// Unlock requires a strong session AND consolidation on the
 			// most-recently-unlocked key (passCount, already updated by
-			// recordKeyAttempt during the lick) — see shouldUnlockNextKey.
-			// This is independent of the tempo bump above so users keep
-			// accelerating on the existing keys at avg ≥ 0.85 without the
-			// rotation growing on every passable session.
+			// recordKeyAttempt during the lick) AND no per-key floor breach
+			// this session — see shouldUnlockNextKey.
 			const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
 			const newestKey = item.keys[item.keys.length - 1];
 			const newestKeyPassCount = getKeyProgress(
@@ -1154,7 +1168,10 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				item.phraseId,
 				newestKey
 			).passCount;
-			if (shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount })) {
+			if (
+				!floorBreached &&
+				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount })
+			) {
 				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);
 			}
 

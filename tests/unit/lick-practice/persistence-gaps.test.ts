@@ -41,20 +41,20 @@ describe('computeAutoTempoAdjustment', () => {
 		expect(computeAutoTempoAdjustment(0.94)).toBe(2);
 	});
 
-	it('returns +2 for score 0.85 (boundary)', () => {
-		expect(computeAutoTempoAdjustment(0.85)).toBe(2);
+	it('returns +2 for score 0.90 (boundary — matches KEY_PROFICIENT_THRESHOLD)', (): void => {
+		expect(computeAutoTempoAdjustment(0.90)).toBe(2);
 	});
 
-	it('returns -1 for score 0.84', () => {
-		expect(computeAutoTempoAdjustment(0.84)).toBe(-1);
+	it('returns -1 for score 0.89 (just below proficient)', (): void => {
+		expect(computeAutoTempoAdjustment(0.89)).toBe(-1);
 	});
 
-	it('returns -1 for score 0.70 (boundary)', () => {
-		expect(computeAutoTempoAdjustment(0.70)).toBe(-1);
+	it('returns -1 for score 0.75 (boundary — matches KEY_FLOOR_THRESHOLD)', (): void => {
+		expect(computeAutoTempoAdjustment(0.75)).toBe(-1);
 	});
 
-	it('returns -3 for score 0.69', () => {
-		expect(computeAutoTempoAdjustment(0.69)).toBe(-3);
+	it('returns -3 for score 0.74 (just below floor)', (): void => {
+		expect(computeAutoTempoAdjustment(0.74)).toBe(-3);
 	});
 
 	it('returns -3 for score 0.0', () => {
@@ -119,7 +119,7 @@ describe('shouldUnlockNextKey', () => {
 		).toBe(false);
 	});
 
-	it('does not unlock at the old +2-tempo boundary (0.85) — that gate is now tempo-only', () => {
+	it('does not unlock at avg 0.85 (below the 0.90 proficient bar)', (): void => {
 		expect(
 			shouldUnlockNextKey({ avgScore: 0.85, newestKeyPassCount: 2, unlockedCount: 1 })
 		).toBe(false);
