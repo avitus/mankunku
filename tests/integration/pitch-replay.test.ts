@@ -8,7 +8,7 @@ import {
 } from '$lib/audio/note-segmenter';
 import { runScorePipeline } from '$lib/scoring/score-pipeline';
 import type { Phrase } from '$lib/types/music';
-import { loadWavFixture, makeFakeAudioBuffer } from '../helpers/audio-fixtures';
+import { loadWavFixture, makeFakeAudioBuffer, type FakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
  * Regression tests for the user-reported non-determinism bug.
@@ -283,7 +283,7 @@ describe('pitch replay regression: Locrian Descent (concert F, 2026-05-07)', () 
  *     constant offset on its own).
  */
 describe('pitch replay regression: Blues Curl Down re-articulation (concert F, 2026-05-20)', () => {
-	function loadFixture() {
+	function loadFixture(): FakeAudioBuffer {
 		const wav = loadWavFixture('recordings/2026-05-20-blues-curl-down.wav');
 		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
 	}
@@ -409,7 +409,7 @@ describe('pitch replay regression: Blues Curl Down re-articulation (concert F, 2
  * pass doesn't undo the split.
  */
 describe('pitch replay regression: Blues Curl Up re-articulation (concert F, 2026-05-20)', () => {
-	function loadFixture() {
+	function loadFixture(): FakeAudioBuffer {
 		const wav = loadWavFixture('recordings/2026-05-20-blues-curl-up.wav');
 		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
 	}

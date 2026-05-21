@@ -71,9 +71,9 @@ export function scoreAttempt(
 	phrase: Phrase,
 	detected: DetectedNote[],
 	tempo: number,
-	_transportSeconds = 0,
-	swing = 0.5,
-	octaveInsensitive = false
+	_transportSeconds: number = 0,
+	swing: number = 0.5,
+	octaveInsensitive: boolean = false
 ): Score {
 	const expected = phrase.notes.filter((n) => n.pitch !== null);
 
