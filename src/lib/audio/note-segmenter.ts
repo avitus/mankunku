@@ -1118,6 +1118,30 @@ const RE_ARTICULATION_PRE_CONTEXT_FRAMES = 4;
 const RE_ARTICULATION_SCAN_WINDOW_FRAMES = 12;
 const RE_ARTICULATION_ONSET_GUARD = 0.05;
 const RE_ARTICULATION_ATTACK_LATENCY = 0.02;
+/**
+ * Same-MIDI reading-time gap above which a re-articulation is inferred even
+ * without a measurable RMS dip in the readings. Deliberately higher than
+ * READING_GAP_SPLIT_THRESHOLD (75 ms): the segmenter splits aggressively at
+ * 75 ms, but mid-sustain detector glitches can leave a ~100 ms hole on a
+ * single held note (RMS fading + clarity briefly under threshold) that we
+ * do NOT want to count as a re-articulation. The 2026-05-22 dropout-gap
+ * fixtures show real tongue stops produce gaps ≥ 200 ms (the pitch
+ * detector quits emitting AND skips a long warmup window before resuming),
+ * so 150 ms gives a comfortable margin on both sides. The dip-and-rise
+ * path below catches the softer case where the pitch detector kept
+ * emitting through the articulation.
+ *
+ * Tempo caveat: this is a physical-time threshold, not beat-relative.
+ * At very fast tempos (~200 BPM+) the player can't sustain a 150 ms
+ * silence between tongued sixteenths, so this pass won't fire — the
+ * dip-and-rise scan below is expected to carry those cases because the
+ * brief clarity drop will still register even when no gap forms. The
+ * fixtures here are all 100 BPM; if a fast-tempo re-articulation MISS
+ * shows up in a diagnostic, revisit whether this should become
+ * `max(0.15, X * beatDuration)` and capture a fast-tempo fixture before
+ * tuning.
+ */
+const RE_ARTICULATION_READING_GAP = 0.15;
 
 /**
  * Detect re-articulations within same-MIDI runs by looking for paired
@@ -1252,6 +1276,23 @@ function findReArticulationsInSegment(
 	if (stable.length < RE_ARTICULATION_PRE_CONTEXT_FRAMES + 4) return [];
 
 	const onsets: number[] = [];
+
+	// Gap pass: a same-MIDI reading-time gap above the threshold is itself
+	// evidence of an articulation. On a sustained reed note the pitch
+	// detector practically never loses tracking for >75 ms except at a
+	// tongue stop, so the gap stands in for the RMS dip the dip-and-rise
+	// scan below can't see (the readings stop being emitted before RMS
+	// bottoms out, then resume already recovered). Anchor at the resumption
+	// of the gap, minus the attack-latency adjustment used elsewhere.
+	for (let g = 1; g < stable.length; g++) {
+		const gap = stable[g].time - stable[g - 1].time;
+		if (gap < RE_ARTICULATION_READING_GAP) continue;
+		const onsetTime = stable[g].time - RE_ARTICULATION_ATTACK_LATENCY;
+		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
+			onsets.push(onsetTime);
+		}
+	}
+
 	let i = RE_ARTICULATION_PRE_CONTEXT_FRAMES;
 
 	while (i < stable.length - 3) {
@@ -1326,15 +1367,25 @@ function findReArticulationsInSegment(
 		}
 
 		const onsetTime = stable[recoveryIdx].time - RE_ARTICULATION_ATTACK_LATENCY;
-		if (
-			onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD &&
-			(onsets.length === 0 ||
-				onsetTime - onsets[onsets.length - 1] > RE_ARTICULATION_MIN_INTERVAL)
-		) {
+		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 			onsets.push(onsetTime);
 		}
 		i = recoveryIdx + 1;
 	}
 
-	return onsets;
+	// Sort + dedupe within MIN_INTERVAL. The dip scan walks forward so it
+	// emits in time order on its own, but the gap pass above runs first and
+	// can interleave its onsets with later dip detections, so a final sort
+	// is required to make the dedupe correct.
+	onsets.sort((a, b) => a - b);
+	const deduped: number[] = [];
+	for (const t of onsets) {
+		if (
+			deduped.length === 0 ||
+			t - deduped[deduped.length - 1] > RE_ARTICULATION_MIN_INTERVAL
+		) {
+			deduped.push(t);
+		}
+	}
+	return deduped;
 }

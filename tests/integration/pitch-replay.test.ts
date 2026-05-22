@@ -510,3 +510,133 @@ describe('pitch replay regression: Blues Curl Up re-articulation (concert F, 202
 		expect(result.chosen.overall).toBeGreaterThan(0.85);
 	});
 });
+
+/**
+ * Seventh regression recording: "Blues Curl Up" (concert G, 2026-05-22). Same
+ * phrase shape as the 2026-05-20 concert-F version — root quarter, ♭3 quarter,
+ * ♭3 half — and same algorithmic failure mode (player tongues the second ♭3
+ * cleanly, segmenter sees only two notes, scorer marks the third expected note
+ * MISSED, saved score "fair" ≈ 0.64). The new wrinkle: the tongue stop is
+ * clean enough that the pitch detector loses the signal entirely for
+ * 130–220 ms around the boundary. The 2026-05-20 fix's findReArticulations
+ * scans for a paired clarity-dip + RMS-dip pattern *inside the readings* —
+ * but here the RMS dip happens during a stretch where the detector emits no
+ * non-warmup readings, so the dip is invisible and findReArticulationsInSegment
+ * bails on the RMS-drop test. Two takes captured back-to-back (sessionIds
+ * 1779409504311 and 1779409492327) show the same failure.
+ *
+ * Fix direction: the same-MIDI reading-gap is itself attack evidence — a
+ * sustained reed note doesn't lose pitch tracking for >50 ms except at a
+ * tongue stop — so findReArticulations also emits an articulation onset at
+ * the resumption of any same-MIDI run that contains a non-warmup time gap
+ * above RE_ARTICULATION_READING_GAP.
+ */
+describe('pitch replay regression: Blues Curl Up dropout-gap re-articulation (concert G, 2026-05-22)', () => {
+	const expectedPhrase: Phrase = {
+		id: 'fixture',
+		name: 'Blues Curl Up',
+		timeSignature: [4, 4],
+		key: 'G',
+		notes: [
+			{ pitch: 55, duration: [1, 4], offset: [0, 1] }, // G
+			{ pitch: 58, duration: [1, 4], offset: [1, 4] }, // B♭
+			{ pitch: 58, duration: [1, 2], offset: [1, 2] }  // B♭
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	const takes: { label: string; file: string }[] = [
+		{ label: 'take A (session 1779409504311)', file: 'recordings/2026-05-22-blues-curl-up.wav' },
+		{ label: 'take B (session 1779409492327)', file: 'recordings/2026-05-22-blues-curl-up-b.wav' }
+	];
+
+	for (const { label, file } of takes) {
+		describe(label, () => {
+			function loadFixture(): FakeAudioBuffer {
+				const wav = loadWavFixture(file);
+				return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+			}
+
+			it('emits an articulation onset near the second-B♭ attack', async () => {
+				const buffer = loadFixture();
+				const { readings, onsets } = await replayFromAudioBuffer(buffer);
+				const baseOnsets = resolveOnsets(onsets, readings);
+				const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+				expect(articulationOnsets.length).toBeGreaterThan(0);
+				// Re-articulation lands around beat 2 of the phrase (1.2 s nominal,
+				// ±200 ms tolerance for the user's small lead and the detector's
+				// recovery-point pick).
+				const nearSecondBb = articulationOnsets.some(
+					(t) => Math.abs(t - 1.2) < 0.2
+				);
+				expect(nearSecondBb).toBe(true);
+			});
+
+			it('segments into three notes [G, B♭, B♭]', async () => {
+				const buffer = loadFixture();
+				const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+				const baseOnsets = resolveOnsets(onsets, readings);
+				const articulationOnsets = findReArticulations(readings, baseOnsets);
+				const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+				const detected = segmentNotes(
+					readings,
+					allOnsets,
+					duration,
+					undefined,
+					undefined,
+					undefined,
+					onsets,
+					undefined,
+					articulationOnsets
+				);
+
+				expect(detected.map((n) => n.midi)).toEqual([55, 58, 58]);
+				// Third note (second B♭) starts somewhere between 1.0 s and 1.35 s.
+				expect(detected[2].onsetTime).toBeGreaterThan(1.0);
+				expect(detected[2].onsetTime).toBeLessThan(1.35);
+			});
+
+			it('scores three matched notes with high overall', async () => {
+				const buffer = loadFixture();
+				const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+				const baseOnsets = resolveOnsets(onsets, readings);
+				const articulationOnsets = findReArticulations(readings, baseOnsets);
+				const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+				const detected = segmentNotes(
+					readings,
+					allOnsets,
+					duration,
+					undefined,
+					undefined,
+					undefined,
+					onsets,
+					undefined,
+					articulationOnsets
+				);
+
+				const result = runScorePipeline({
+					detected,
+					phrase: expectedPhrase,
+					tempo: 100,
+					transportSeconds: 0,
+					swing: 0.65,
+					bleedFilterEnabled: false,
+					octaveInsensitive: false
+				});
+
+				for (const nr of result.chosen.noteResults) {
+					expect(nr.missed).toBe(false);
+					expect(nr.extra).toBe(false);
+				}
+				expect(result.chosen.notesHit).toBe(3);
+				expect(result.chosen.pitchAccuracy).toBe(1);
+				expect(result.chosen.overall).toBeGreaterThan(0.85);
+			});
+		});
+	}
+});
