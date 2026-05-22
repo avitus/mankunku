@@ -21,7 +21,8 @@ import {
 	validateOnsets,
 	extractOnsetsFromReadings,
 	resolveOnsets,
-	getMetronomeBleedOnsets
+	getMetronomeBleedOnsets,
+	findReArticulations
 } from '$lib/audio/note-segmenter';
 import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
 import { scoreAttempt } from '$lib/scoring/scorer';
@@ -857,4 +858,55 @@ describe('Flat Seven–Octave metronome-bleed regression', () => {
 		expect(score.notesHit).toBe(2);
 		expect(score.notesTotal).toBe(2);
 	});
+});
+
+// ─── Blues Curl Up dropout-gap regression (concert G, 2026-05-22) ──────
+//
+// Two takes of a clean G–B♭–B♭ Blues Curl Up where the player tongued the
+// second B♭ so cleanly that the pitch detector lost the signal for
+// 130–220 ms across the boundary. The 2026-05-20 findReArticulations fix
+// requires a paired clarity dip + RMS dip inside the readings; here the
+// RMS dip happens during a stretch where no non-warmup readings are
+// emitted, so the algorithm can't see it.
+//
+// This JSON-fixture test isolates the algorithm from the WAV-replay
+// pipeline: it runs findReArticulations directly on the readings the
+// diagnostic captured. The companion WAV-based tests live in
+// tests/integration/pitch-replay.test.ts.
+
+interface BluesCurlUpFixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadBluesCurlUpFixture(file: string): BluesCurlUpFixture {
+	const path = resolve(__dirname, '..', 'fixtures', 'recordings', file);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Blues Curl Up dropout-gap re-articulation (concert G, 2026-05-22)', () => {
+	const takes: { label: string; file: string }[] = [
+		{ label: 'take A', file: '2026-05-22-blues-curl-up.json' },
+		{ label: 'take B', file: '2026-05-22-blues-curl-up-b.json' }
+	];
+
+	for (const { label, file } of takes) {
+		it(`${label}: findReArticulations emits an onset near the second-B♭ attack`, () => {
+			const fx = loadBluesCurlUpFixture(file);
+			const baseOnsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+			const articulationOnsets = findReArticulations(fx.detection.readings, baseOnsets);
+
+			expect(articulationOnsets.length).toBeGreaterThan(0);
+			const nearSecondBb = articulationOnsets.some((t) => Math.abs(t - 1.1) < 0.2);
+			expect(nearSecondBb).toBe(true);
+		});
+
+		// End-to-end [G, B♭, B♭] recovery is covered by the WAV-based tests
+		// in pitch-replay.test.ts; this file only asserts the algorithm
+		// emits the right boundary so the merge step has evidence to keep.
+	}
 });
