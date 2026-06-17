@@ -89,7 +89,6 @@ beforeEach(() => {
 	lickPractice.config.progressionType = 'ii-V-I-major';
 	lickPractice.config.practiceMode = 'continuous';
 	lickPractice.config.enableSubstitutions = false;
-	lickPractice.config.singleLickMode = false;
 	lickPractice.config.singleLickId = undefined;
 	// Plenty of budget so the plan reflects every eligible lick.
 	lickPractice.config.durationMinutes = 60;

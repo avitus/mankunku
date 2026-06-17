@@ -13,11 +13,12 @@
  * takes over for staged variety (random starts, chromatic / whole-tone
  * orderings) keyed off the lick's current tempo.
  *
- * Two practice modes, both continuous (the beat never stops between keys):
- * - 'continuous' — user plays every key back-to-back, each lasting exactly
- *   `lengthBars` bars. No demo.
- * - 'call-response' — app plays the lick for `lengthBars` bars, user
- *   responds for `lengthBars` bars, repeat for every unlocked key.
+ * Two practice modes, both with continuous backing (the beat never stops):
+ * - 'continuous' — app plays the lick once as a demo in the first key, then
+ *   the user plays every key back-to-back, each lasting `lengthBars` bars.
+ *   See `buildLickSuperPhrase` for the (1 + 12) × P bar layout.
+ * - 'call-response' — no upfront demo. For every key the app plays the lick
+ *   for `lengthBars` bars, then the user responds for `lengthBars` bars.
  *
  * Scoring runs silently each key and appears only in the end-of-session
  * report. No retries. At the end of each lick, the average score across the
@@ -147,6 +148,7 @@ export const lickPractice = $state<{
 	roundHistory: SingleLickRoundEntry[];
 }>({
 	config: {
+		sessionType: 'focused',
 		progressionType: 'ii-V-I-major',
 		durationMinutes: 15,
 		practiceMode: 'continuous',
@@ -359,6 +361,10 @@ export function buildSessionPlan(): void {
 
 /** Start the practice session */
 export function startSession(): void {
+	// Defensive: clear single-lick state in case the user toggled into Focused
+	// from a single-lick configuration. Mirrors startDailyPracticeSession.
+	lickPractice.config.singleLickId = undefined;
+
 	buildSessionPlan();
 	if (lickPractice.plan.length === 0) return;
 
@@ -475,7 +481,6 @@ export function buildDailyPracticePlan(): void {
 export function startDailyPracticeSession(): void {
 	// Defensive: clear single-lick state in case the user toggled into Daily
 	// Practice from a single-lick configuration.
-	lickPractice.config.singleLickMode = false;
 	lickPractice.config.singleLickId = undefined;
 
 	buildDailyPracticePlan();
@@ -535,7 +540,6 @@ export function startSingleLickSession(
 	const lick = typeof lickOrId === 'string' ? getLickById(lickOrId) : lickOrId;
 	if (!lick) return false;
 
-	lickPractice.config.singleLickMode = true;
 	lickPractice.config.singleLickId = lick.id;
 	lickPractice.config.tempoBumpBpm = tempoBumpBpm;
 
@@ -1305,7 +1309,6 @@ export function resetSession(): void {
 	lickPractice.roundNumber = 0;
 	lickPractice.masteredThisRound = [];
 	lickPractice.roundHistory = [];
-	lickPractice.config.singleLickMode = false;
 	lickPractice.config.singleLickId = undefined;
 }
 

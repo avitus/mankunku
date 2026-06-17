@@ -1,5 +1,9 @@
 <script lang="ts">
-	import type { LickPracticeConfig, LickPracticeMode } from '$lib/types/lick-practice';
+	import type {
+		LickPracticeConfig,
+		LickPracticeMode,
+		LickPracticeSessionType
+	} from '$lib/types/lick-practice';
 	import type { BackingStyle } from '$lib/types/instruments';
 	import type { PitchClass, Phrase } from '$lib/types/music';
 	import {
@@ -15,34 +19,35 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
+	import Knob from '$lib/components/console/Knob.svelte';
+	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
+	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
 
 	interface Props {
 		config: LickPracticeConfig;
 		availableLickCount: number;
 		dailyLickCount: number;
 		onstart: () => void;
-		ondailystart: () => void;
 		onupdate: (config: Partial<LickPracticeConfig>) => void;
 	}
 
-	let { config, availableLickCount, dailyLickCount, onstart, ondailystart, onupdate }: Props = $props();
+	let { config, availableLickCount, dailyLickCount, onstart, onupdate }: Props = $props();
 
 	const progressionTypes = Object.values(PROGRESSION_TEMPLATES);
 	const backingStyles = Object.keys(BACKING_STYLE_NAMES) as BackingStyle[];
-	const modes: { value: LickPracticeMode; label: string; description: string }[] = [
-		{
-			value: 'continuous',
-			label: 'Continuous',
-			description: 'Play every key back-to-back — no demo, beat never stops.'
-		},
-		{
-			value: 'call-response',
-			label: 'Call & Response',
-			description: 'App plays the lick, then you respond in the next bars.'
-		}
+
+	const sessionTypeOptions: { value: LickPracticeSessionType; label: string; sublabel: string }[] = [
+		{ value: 'daily', label: 'Daily Practice', sublabel: 'rotate all progressions' },
+		{ value: 'focused', label: 'Focused Session', sublabel: 'one progression at a time' },
+		{ value: 'deep', label: 'Deep Practice', sublabel: 'master one lick' }
 	];
 
-	// Lick picker state (only used when singleLickMode is on). Resolution of
+	const practiceModeOptions: { value: LickPracticeMode; label: string }[] = [
+		{ value: 'continuous', label: 'Continuous' },
+		{ value: 'call-response', label: 'Call & Response' }
+	];
+
+	// Lick picker state (only used when sessionType === 'deep'). Resolution of
 	// the selected lick reads the full library — a Drill action launched from
 	// /library can carry an untagged lick into setup — but the picker's
 	// search/dropdown only surfaces practice-tagged licks so users curate
@@ -87,288 +92,266 @@
 		return filtered.length > 0 ? filtered : circle;
 	});
 
-	const canStart = $derived(
-		config.singleLickMode ? selectedLick !== null : availableLickCount > 0
-	);
 	const showSubstitutions = $derived(progressionHasSubstitutionTargets(config.progressionType));
+
+	const canStart = $derived.by(() => {
+		if (config.sessionType === 'deep') return selectedLick !== null;
+		if (config.sessionType === 'daily') return dailyLickCount > 0;
+		return availableLickCount > 0;
+	});
+
+	const startLabel = $derived(
+		config.sessionType === 'deep'
+			? 'Start Drill'
+			: config.sessionType === 'daily'
+				? 'Start Daily Practice'
+				: 'Start Session'
+	);
+
+	const startCaption = $derived.by(() => {
+		if (config.sessionType === 'deep') {
+			if (!selectedLick) return 'Pick a lick to drill.';
+			return `${rotationKeys.length} unlocked key${rotationKeys.length === 1 ? '' : 's'}`;
+		}
+		if (config.sessionType === 'daily') {
+			if (dailyLickCount === 0) {
+				return 'No licks tagged for practice yet.';
+			}
+			return `${dailyLickCount} lick${dailyLickCount === 1 ? '' : 's'} across your tagged progressions · ~${config.durationMinutes} min`;
+		}
+		// focused
+		if (availableLickCount === 0) {
+			return dailyLickCount > 0
+				? `No licks tagged for this progression — try Daily Practice or tag more in the library.`
+				: 'No licks tagged for practice yet.';
+		}
+		return `${availableLickCount} lick${availableLickCount === 1 ? '' : 's'} tagged for this progression · ~${config.durationMinutes} min`;
+	});
 </script>
 
-<div class="space-y-4">
-	<!-- Single-lick deep practice toggle -->
-	<div class="flex items-center gap-3">
-		<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Deep Practice:</span>
-		<button
-			onclick={() => onupdate({ singleLickMode: !config.singleLickMode })}
-			aria-label="Single-lick deep practice mode"
-			aria-pressed={config.singleLickMode ?? false}
-			class="relative h-5 w-9 shrink-0 rounded-full transition-colors
-				{config.singleLickMode
-					? 'bg-[var(--color-accent)]'
-					: 'bg-[var(--color-bg-tertiary)]'}"
+<div class="space-y-5">
+	<!-- ── SESSION TYPE ────────────────────────────────────────── -->
+	<section class="space-y-2">
+		<h2 class="smallcaps text-[var(--color-brass)]">Session Type</h2>
+		<div
+			class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] p-4 space-y-4"
 		>
-			<span
-				class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform
-					{config.singleLickMode ? 'translate-x-4' : ''}"
-			></span>
-		</button>
-		<span class="text-xs text-[var(--color-text-secondary)]">
-			Drill one lick endlessly through the circle of 4ths; tempo ramps as you master keys.
-		</span>
-	</div>
+			<!-- 3-way mode picker -->
+			<div class="flex justify-center">
+				<SelectorPad
+					ariaLabel="Session type"
+					value={config.sessionType}
+					options={sessionTypeOptions}
+					onChange={(v) => onupdate({ sessionType: v })}
+				/>
+			</div>
 
-	{#if config.singleLickMode}
-		<!-- Lick picker -->
-		<div>
-			<span class="text-sm text-[var(--color-text-secondary)]">Lick:</span>
-			{#if selectedLick}
-				<div
-					class="mt-1.5 flex items-center justify-between rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2"
-				>
-					<div>
-						<div class="text-sm font-medium">{selectedLick.name}</div>
-						<div class="text-xs text-[var(--color-text-secondary)]">
-							{concertKeyToWritten(selectedLick.key, instrument)} · {selectedLick.category} · diff {selectedLick.difficulty.level}
-						</div>
-					</div>
-					<button
-						onclick={() => onupdate({ singleLickId: undefined })}
-						class="text-xs text-[var(--color-text-secondary)] underline hover:text-[var(--color-accent)]"
-					>
-						change
-					</button>
+			<!-- Mode-specific config -->
+			{#if config.sessionType === 'daily'}
+				<div class="flex justify-center">
+					<Knob
+						label="Duration"
+						ariaLabel="Practice time"
+						helpText="Total session length. Mankunku rotates progressions to fit this budget."
+						value={config.durationMinutes}
+						min={3}
+						max={20}
+						step={1}
+						displayValue={`${config.durationMinutes} min`}
+						onInput={(v) => onupdate({ durationMinutes: v })}
+					/>
 				</div>
-			{:else if practiceTaggedLicks.length === 0}
-				<p class="mt-2 text-xs text-[var(--color-text-secondary)]">
-					No licks tagged for practice yet.
-					<a href="/library" class="text-[var(--color-accent)] underline">Browse the library</a>
-					and tag a few first.
-				</p>
-			{:else}
-				<input
-					type="text"
-					bind:value={lickSearch}
-					placeholder="search practice licks…"
-					class="mt-1.5 w-full rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm
-						placeholder:text-[var(--color-text-secondary)] focus:outline-none
-						focus:ring-1 focus:ring-[var(--color-accent)]"
-				/>
-				{#if filteredLicks.length > 0}
-					<div class="mt-2 max-h-64 overflow-y-auto rounded-lg bg-[var(--color-bg-secondary)]">
-						{#each filteredLicks as lick (lick.id)}
-							<button
-								onclick={() => onupdate({ singleLickId: lick.id })}
-								class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-tertiary)]"
-							>
-								<span class="truncate">{lick.name}</span>
-								<span class="ml-2 shrink-0 text-xs text-[var(--color-text-secondary)]">
-									{concertKeyToWritten(lick.key, instrument)} · {lick.category}
-								</span>
-							</button>
-						{/each}
+			{:else if config.sessionType === 'focused'}
+				<div class="flex flex-wrap items-end justify-center gap-x-10 gap-y-4">
+					<!-- Progression picker -->
+					<div class="flex flex-col items-center gap-1.5">
+						<SelectorPad
+							ariaLabel="Chord progression"
+							size="sm"
+							columns={3}
+							value={config.progressionType}
+							options={progressionTypes.map((prog) => ({
+								value: prog.type,
+								label: prog.shortName
+							}))}
+							onChange={(v) => onupdate({ progressionType: v })}
+						/>
+						<span class="smallcaps console-engrave inline-flex items-center gap-1">
+							Chord Progression
+							<TooltipHint
+								text={tooltips.lickPractice.progressionType.text}
+								learnMore={tooltips.lickPractice.progressionType.learnMore}
+								position="top"
+							/>
+						</span>
 					</div>
-				{:else}
-					<p class="mt-2 text-xs italic text-[var(--color-text-secondary)]">No matches.</p>
-				{/if}
-			{/if}
-		</div>
 
-		<!-- Unlocked-key rotation summary -->
-		{#if selectedLick && rotationKeys.length > 0}
-			<div class="flex items-start gap-3">
-				<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Rotation:</span>
-				<span class="text-xs text-[var(--color-text-secondary)]">
-					{rotationKeys.length} unlocked key{rotationKeys.length === 1 ? '' : 's'}:
-					{rotationKeys.map((k) => concertKeyToWritten(k, instrument)).join(' · ')}
-				</span>
-			</div>
-		{/if}
+					<Knob
+						label="Duration"
+						ariaLabel="Practice time"
+						helpText="Session length in minutes. Licks are queued until the budget fills."
+						value={config.durationMinutes}
+						min={3}
+						max={20}
+						step={1}
+						displayValue={`${config.durationMinutes} min`}
+						onInput={(v) => onupdate({ durationMinutes: v })}
+					/>
 
-		<!-- Tempo bump amount -->
-		<div class="flex items-center gap-3">
-			<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Tempo Bump:</span>
-			<input
-				type="number"
-				min="1"
-				max="20"
-				step="1"
-				value={config.tempoBumpBpm ?? 5}
-				oninput={(e) => {
-					const n = parseInt(e.currentTarget.value);
-					if (!Number.isNaN(n) && n >= 1 && n <= 20) onupdate({ tempoBumpBpm: n });
-				}}
-				class="h-8 w-20 rounded-lg bg-[var(--color-bg-secondary)] px-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-			/>
-			<span class="text-xs text-[var(--color-text-secondary)]">
-				BPM added each time you clear the whole rotation.
-			</span>
-		</div>
-	{:else}
-		<!-- Chord Progression pills -->
-		<div>
-			<span class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
-				Chord Progression:
-				<TooltipHint
-					text={tooltips.lickPractice.progressionType.text}
-					learnMore={tooltips.lickPractice.progressionType.learnMore}
-					position="right"
-				/>
-			</span>
-			<div class="mt-1.5 flex flex-wrap gap-1.5">
-				{#each progressionTypes as prog (prog.type)}
-					{@const isSelected = config.progressionType === prog.type}
-					<button
-						onclick={() => onupdate({ progressionType: prog.type })}
-						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-							{isSelected
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-					>
-						{prog.shortName}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		{#if showSubstitutions}
-			<div class="flex items-center gap-3">
-				<span class="inline-flex w-28 shrink-0 items-center gap-1 text-sm text-[var(--color-text-secondary)]">
-					Substitutions:
-					<TooltipHint text={tooltips.lickPractice.substitutions.text} position="top" />
-				</span>
-				<button
-					onclick={() => onupdate({ enableSubstitutions: !config.enableSubstitutions })}
-					aria-label="Include chord substitutions"
-					aria-pressed={config.enableSubstitutions ?? false}
-					class="relative h-5 w-9 shrink-0 rounded-full transition-colors
-						{config.enableSubstitutions
-							? 'bg-[var(--color-accent)]'
-							: 'bg-[var(--color-bg-tertiary)]'}"
-				>
-					<span
-						class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform
-							{config.enableSubstitutions ? 'translate-x-4' : ''}"
-					></span>
-				</button>
-				<span class="text-xs text-[var(--color-text-secondary)]">
-					Practice minor licks over dominant chords (advanced)
-				</span>
-			</div>
-		{/if}
-	{/if}
-
-	<!-- Backing style pills -->
-	<div>
-		<span class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
-			Backing Style:
-			<TooltipHint
-				text={tooltips.lickPractice.backingStyle.text}
-				learnMore={tooltips.lickPractice.backingStyle.learnMore}
-				position="right"
-			/>
-		</span>
-		<div class="mt-1.5 flex flex-wrap gap-1.5">
-			{#each backingStyles as style}
-				<button
-					onclick={() => onupdate({ backingStyle: style })}
-					class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-						{config.backingStyle === style
-							? 'bg-[var(--color-accent)] text-white'
-							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-				>
-					{BACKING_STYLE_NAMES[style]}
-				</button>
-			{/each}
-		</div>
-	</div>
-
-	{#if !config.singleLickMode}
-		<!-- Practice time slider -->
-		<div class="flex items-center gap-3">
-			<span class="w-28 shrink-0 text-sm text-[var(--color-text-secondary)]">Practice Time:</span>
-			<input
-				type="range"
-				min="5"
-				max="60"
-				step="5"
-				value={config.durationMinutes}
-				oninput={(e) => onupdate({ durationMinutes: parseInt(e.currentTarget.value) })}
-				class="h-1 max-w-[200px] flex-1 accent-[var(--color-accent)]"
-			/>
-			<span class="w-16 shrink-0 text-right text-xs tabular-nums">{config.durationMinutes} min</span>
-		</div>
-	{/if}
-
-	<!-- Practice mode selector -->
-	<div>
-		<span class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
-			Mode:
-			<TooltipHint text={tooltips.lickPractice.practiceMode.text} position="right" />
-		</span>
-		<div class="mt-1.5 flex gap-1.5">
-			{#each modes as mode (mode.value)}
-				{@const isSelected = config.practiceMode === mode.value}
-				<button
-					onclick={() => onupdate({ practiceMode: mode.value })}
-					class="flex-1 rounded-lg px-3 py-2 text-left text-xs transition-colors
-						{isSelected
-							? 'bg-[var(--color-accent)] text-white'
-							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-				>
-					<div class="font-semibold">{mode.label}</div>
-					<div class="mt-0.5 opacity-80">{mode.description}</div>
-				</button>
-			{/each}
-		</div>
-	</div>
-
-	<!-- Lick count + start -->
-	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-center">
-		{#if canStart}
-			{#if !config.singleLickMode}
-				<p class="mb-3 text-xs text-[var(--color-text-secondary)]">
-					{availableLickCount} lick{availableLickCount !== 1 ? 's' : ''} tagged for this progression
-					{#if dailyLickCount > availableLickCount}
-						<span class="opacity-80">·</span>
-						{dailyLickCount} across all your tagged progressions
+					{#if showSubstitutions}
+						<RockerSwitch
+							label="Subs"
+							ariaLabel="Include chord substitutions"
+							checked={config.enableSubstitutions ?? false}
+							onChange={(v) => onupdate({ enableSubstitutions: v })}
+						/>
 					{/if}
-				</p>
+				</div>
+			{:else}
+				<!-- Deep practice: lick picker + tempo bump knob -->
+				<div class="space-y-3">
+					<!-- Lick picker -->
+					<div class="space-y-1.5">
+						{#if selectedLick}
+							<div
+								class="flex items-center justify-between rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-2"
+							>
+								<div class="min-w-0">
+									<div class="truncate text-sm font-medium">{selectedLick.name}</div>
+									<div class="text-xs text-[var(--color-text-secondary)]">
+										{concertKeyToWritten(selectedLick.key, instrument)} · {selectedLick.category} · diff
+										{selectedLick.difficulty.level}
+									</div>
+								</div>
+								<button
+									onclick={() => onupdate({ singleLickId: undefined })}
+									class="shrink-0 text-xs text-[var(--color-text-secondary)] underline hover:text-[var(--color-accent)]"
+								>
+									change
+								</button>
+							</div>
+						{:else if practiceTaggedLicks.length === 0}
+							<p class="text-xs text-[var(--color-text-secondary)]">
+								No licks tagged for practice yet.
+								<a href="/library" class="text-[var(--color-accent)] underline">Browse the library</a>
+								and tag a few first.
+							</p>
+						{:else}
+							<input
+								type="text"
+								bind:value={lickSearch}
+								placeholder="search practice licks…"
+								class="w-full rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+							/>
+							{#if filteredLicks.length > 0}
+								<div class="max-h-48 overflow-y-auto rounded-lg bg-[var(--color-bg-tertiary)]">
+									{#each filteredLicks as lick (lick.id)}
+										<button
+											onclick={() => onupdate({ singleLickId: lick.id })}
+											class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-bg)]"
+										>
+											<span class="truncate">{lick.name}</span>
+											<span class="ml-2 shrink-0 text-xs text-[var(--color-text-secondary)]">
+												{concertKeyToWritten(lick.key, instrument)} · {lick.category}
+											</span>
+										</button>
+									{/each}
+								</div>
+							{:else}
+								<p class="text-xs italic text-[var(--color-text-secondary)]">No matches.</p>
+							{/if}
+						{/if}
+					</div>
+
+					<!-- Tempo bump + rotation preview -->
+					{#if selectedLick}
+						<div class="flex justify-center">
+							<Knob
+								label="Tempo Bump"
+								ariaLabel="Tempo bump per cleared rotation"
+								helpText="BPM added each time you clear the whole rotation."
+								value={config.tempoBumpBpm ?? 5}
+								min={1}
+								max={20}
+								step={1}
+								displayValue={`+${config.tempoBumpBpm ?? 5}`}
+								onInput={(v) => onupdate({ tempoBumpBpm: v })}
+							/>
+						</div>
+
+						{#if rotationKeys.length > 0}
+							<p class="text-center text-xs text-[var(--color-text-secondary)]">
+								Rotation: {rotationKeys.map((k) => concertKeyToWritten(k, instrument)).join(' · ')}
+							</p>
+						{/if}
+					{/if}
+				</div>
 			{/if}
-			<div class="flex flex-wrap justify-center gap-2">
-				<button
-					onclick={onstart}
-					class="rounded-lg bg-[var(--color-accent)] px-6 py-2 text-sm font-bold hover:opacity-90 transition-opacity"
-				>
-					{config.singleLickMode ? 'Start Drill' : 'Start Session'}
-				</button>
-				{#if !config.singleLickMode}
-					<button
-						onclick={ondailystart}
-						disabled={dailyLickCount === 0}
-						title="Rotate across every progression you have licks tagged for, sized to the practice time slider."
-						class="rounded-lg border border-[var(--color-accent)] px-6 py-2 text-sm font-bold text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--color-accent)]"
-					>
-						Start Daily Practice
-					</button>
-				{/if}
+		</div>
+	</section>
+
+	<!-- ── BACKING & FLOW ──────────────────────────────────────── -->
+	<section class="space-y-2">
+		<h2 class="smallcaps text-[var(--color-brass)]">Backing &amp; Flow</h2>
+		<div
+			class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] p-4"
+		>
+			<div class="flex flex-wrap items-end justify-center gap-x-10 gap-y-4">
+				<!-- Backing style -->
+				<div class="flex flex-col items-center gap-1.5">
+					<SelectorPad
+						ariaLabel="Backing style"
+						value={config.backingStyle}
+						options={backingStyles.map((style) => ({
+							value: style,
+							label: BACKING_STYLE_NAMES[style]
+						}))}
+						onChange={(v) => onupdate({ backingStyle: v })}
+					/>
+					<span class="smallcaps console-engrave inline-flex items-center gap-1">
+						Backing Style
+						<TooltipHint
+							text={tooltips.lickPractice.backingStyle.text}
+							learnMore={tooltips.lickPractice.backingStyle.learnMore}
+							position="top"
+						/>
+					</span>
+				</div>
+
+				<!-- Practice mode (Continuous / Call & Response) -->
+				<div class="flex flex-col items-center gap-1.5">
+					<SelectorPad
+						ariaLabel="Practice mode"
+						value={config.practiceMode}
+						options={practiceModeOptions}
+						onChange={(v) => onupdate({ practiceMode: v })}
+					/>
+					<span class="smallcaps console-engrave inline-flex items-center gap-1">
+						Mode
+						<TooltipHint text={tooltips.lickPractice.practiceMode.text} position="top" />
+					</span>
+				</div>
 			</div>
-		{:else if config.singleLickMode}
-			<p class="text-xs text-[var(--color-text-secondary)]">Pick a lick to drill.</p>
-		{:else if dailyLickCount > 0}
-			<p class="mb-3 text-xs text-[var(--color-text-secondary)]">
-				No licks tagged for this specific progression — but you have {dailyLickCount} across other progressions.
-			</p>
+		</div>
+	</section>
+
+	<!-- ── START ───────────────────────────────────────────────── -->
+	<div class="flex flex-col items-center gap-1.5">
+		{#if canStart}
 			<button
-				onclick={ondailystart}
-				class="rounded-lg bg-[var(--color-accent)] px-6 py-2 text-sm font-bold hover:opacity-90 transition-opacity"
+				onclick={onstart}
+				class="rounded-lg bg-[var(--color-accent)] px-8 py-2.5 text-base font-bold text-white shadow-md transition-opacity hover:opacity-90"
 			>
-				Start Daily Practice
+				{startLabel}
 			</button>
-		{:else}
-			<p class="text-xs text-[var(--color-text-secondary)]">
-				No licks tagged for practice yet.
-				<a href="/library" class="text-[var(--color-accent)] underline">Browse the library</a>
-				and tag some licks first.
-			</p>
+		{/if}
+		<p class="text-center text-xs text-[var(--color-text-secondary)]">
+			{startCaption}
+		</p>
+		{#if !canStart && dailyLickCount === 0}
+			<a href="/library" class="text-xs text-[var(--color-accent)] underline">
+				Browse the library to tag licks
+			</a>
 		{/if}
 	</div>
 </div>

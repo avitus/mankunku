@@ -31,16 +31,16 @@
 		return getPracticeLicks().length;
 	});
 
-	// Total practice-tagged licks across all progressions — drives the "Start
-	// Daily Practice" button and its count caption.
+	// Total practice-tagged licks across all progressions — drives the Daily
+	// Practice caption and start-availability check.
 	const dailyLickCount = $derived.by(() => {
 		void lickPractice.progress;
 		return getDailyPracticeLicks().length;
 	});
 
 	// Practice-tagged licks with no progression mapping at all. They never
-	// appear in any session — show them here so the user can finish
-	// configuring them (or untag) in the library.
+	// appear in any session — surface them above the configurator so the user
+	// can finish configuring them (or untag) in the library.
 	const strandedLicks = $derived.by(() => {
 		void lickPractice.progress;
 		return getStrandedPracticeLicks();
@@ -51,25 +51,20 @@
 	}
 
 	function handleStart() {
-		if (lickPractice.config.singleLickMode && lickPractice.config.singleLickId) {
-			const ok = startSingleLickSession(
-				lickPractice.config.singleLickId,
-				lickPractice.config.tempoBumpBpm ?? 5
-			);
+		const { sessionType, singleLickId, tempoBumpBpm } = lickPractice.config;
+		if (sessionType === 'deep') {
+			if (!singleLickId) return;
+			const ok = startSingleLickSession(singleLickId, tempoBumpBpm ?? 5);
 			if (ok) goto('/lick-practice/session');
 			return;
 		}
+		if (sessionType === 'daily') {
+			startDailyPracticeSession();
+			if (lickPractice.plan.length > 0) goto('/lick-practice/session');
+			return;
+		}
 		startSession();
-		if (lickPractice.plan.length > 0) {
-			goto('/lick-practice/session');
-		}
-	}
-
-	function handleDailyStart() {
-		startDailyPracticeSession();
-		if (lickPractice.plan.length > 0) {
-			goto('/lick-practice/session');
-		}
+		if (lickPractice.plan.length > 0) goto('/lick-practice/session');
 	}
 </script>
 
@@ -77,7 +72,7 @@
 	<title>Lick Practice — Mankunku</title>
 </svelte:head>
 
-<div class="space-y-6">
+<div class="space-y-5">
 	<div class="flex items-end justify-between flex-wrap gap-3">
 		<div>
 			<div class="smallcaps text-[var(--color-brass)]">Side B</div>
@@ -92,22 +87,8 @@
 		</div>
 	</div>
 
-	<p class="text-sm italic text-[var(--color-text-secondary)]">
-		Play the licks through all 12 keys with a backing track.
-		Tag a few in the <a href="/library" class="text-[var(--color-accent)] underline">library</a> to start your set.
-	</p>
-
-	<PracticeSetup
-		config={lickPractice.config}
-		{availableLickCount}
-		{dailyLickCount}
-		onstart={handleStart}
-		ondailystart={handleDailyStart}
-		onupdate={handleUpdate}
-	/>
-
 	{#if strandedLicks.length > 0}
-		<details class="rounded-lg bg-[var(--color-bg-secondary)] text-sm">
+		<details class="rounded-lg border border-[var(--color-brass)]/30 bg-[var(--color-bg-secondary)] text-sm">
 			<summary class="cursor-pointer list-none px-3 py-2 text-[var(--color-text-secondary)]">
 				<span class="text-[var(--color-brass)]">⚠</span>
 				{strandedLicks.length}
@@ -124,4 +105,12 @@
 			</ul>
 		</details>
 	{/if}
+
+	<PracticeSetup
+		config={lickPractice.config}
+		{availableLickCount}
+		{dailyLickCount}
+		onstart={handleStart}
+		onupdate={handleUpdate}
+	/>
 </div>
