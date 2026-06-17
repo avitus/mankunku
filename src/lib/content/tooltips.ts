@@ -122,7 +122,7 @@ export const tooltips = {
 			learnMore: '/docs/architecture/audio-pipeline'
 		},
 		practiceMode: {
-			text: 'Continuous: backing track loops while you play freely. Call & response: app plays the lick, you play it back, scored each pass.'
+			text: 'Continuous: the app plays the lick once as a demo in the first key, then you play it through all 12 keys back-to-back — the beat never stops. Call & Response: in every key, the app plays the lick first and you echo it on the next cycle, alternating through all 12 keys.'
 		},
 		twelveKeys: {
 			text: 'Each tagged lick rotates through all 12 keys over the progression. Mastery means hitting it cleanly in every key, not just the comfortable ones.'

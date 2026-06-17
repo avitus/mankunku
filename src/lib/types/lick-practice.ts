@@ -14,15 +14,32 @@ export type ChordProgressionType =
 
 /**
  * Practice mode:
- * - 'continuous': no demo. The user plays the lick continuously across all
- *   12 keys. Each key lasts exactly `lengthBars` bars; the beat never stops.
- * - 'call-response': the app plays the lick for `lengthBars` bars, then the
- *   user responds in the next `lengthBars` bars, then the app plays the
- *   next key, etc. Continuous backing.
+ * - 'continuous': the app plays the lick once as a demo in the first key,
+ *   then the user plays it continuously across all 12 keys back-to-back.
+ *   Each user-played key lasts exactly `lengthBars` bars; the beat never
+ *   stops. See `buildLickSuperPhrase` for the (1 + 12) × P bar layout.
+ * - 'call-response': no upfront demo. For every one of the 12 keys, the
+ *   app plays the lick for `lengthBars` bars, then the user responds in
+ *   the next `lengthBars` bars. Continuous backing throughout.
  */
 export type LickPracticeMode = 'continuous' | 'call-response';
 
+/**
+ * Setup-page session-type picker. Drives which configuration block the
+ * /lick-practice page renders and which start function the page dispatches
+ * to on Start.
+ * - 'daily': rotate every progression the user has tagged across all
+ *   practice-tagged licks. Calls `startDailyPracticeSession`.
+ * - 'focused': pin one progression, rotate its practice-tagged licks.
+ *   Calls `startSession`.
+ * - 'deep': drill one lick endlessly through the circle of 4ths with
+ *   tempo ramp. Calls `startSingleLickSession`.
+ */
+export type LickPracticeSessionType = 'daily' | 'focused' | 'deep';
+
 export interface LickPracticeConfig {
+	/** Setup-page picker — see LickPracticeSessionType. */
+	sessionType: LickPracticeSessionType;
 	progressionType: ChordProgressionType;
 	durationMinutes: number;
 	/** Practice mode — see LickPracticeMode */
@@ -36,12 +53,11 @@ export interface LickPracticeConfig {
 	 */
 	enableSubstitutions?: boolean;
 	/**
-	 * When true, the session drills a single lick endlessly: cycles through the
+	 * Phrase id of the lick to drill. Only meaningful when
+	 * `sessionType === 'deep'`, which cycles this lick endlessly through the
 	 * circle of 4ths, drops keys mastered at score ≥ 0.95, and bumps tempo by
 	 * `tempoBumpBpm` once all 12 are cleared.
 	 */
-	singleLickMode?: boolean;
-	/** Phrase id of the lick to drill (only meaningful when singleLickMode is true). */
 	singleLickId?: string;
 	/** BPM added to currentTempo each time all 12 keys are mastered. Default 5. */
 	tempoBumpBpm?: number;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import HelpTip from './HelpTip.svelte';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 
 	interface Props {
 		value: number;
@@ -248,14 +248,36 @@
 
 			<!-- Center readout (only when displayValue is provided) -->
 			{#if displayValue}
-				<text
-					x={cx}
-					y={cy}
-					text-anchor="middle"
-					dominant-baseline="central"
-					class="knob-readout"
-					fill="var(--color-text)"
-				>{displayValue}</text>
+				{@const spaceIdx = displayValue.indexOf(' ')}
+				{#if spaceIdx > 0}
+					{@const num = displayValue.slice(0, spaceIdx)}
+					{@const unit = displayValue.slice(spaceIdx + 1)}
+					<text
+						x={cx}
+						y={cy - 5}
+						text-anchor="middle"
+						dominant-baseline="central"
+						class="knob-number"
+						fill="var(--color-text)"
+					>{num}</text>
+					<text
+						x={cx}
+						y={cy + 13}
+						text-anchor="middle"
+						dominant-baseline="central"
+						class="knob-unit"
+						fill="var(--color-text-secondary)"
+					>{unit}</text>
+				{:else}
+					<text
+						x={cx}
+						y={cy}
+						text-anchor="middle"
+						dominant-baseline="central"
+						class="knob-readout"
+						fill="var(--color-text)"
+					>{displayValue}</text>
+				{/if}
 			{:else}
 				<circle cx={cx} cy={cy} r="2" fill="color-mix(in srgb, var(--color-brass) 60%, black)" />
 			{/if}
@@ -266,7 +288,7 @@
 	<span class="smallcaps console-engrave inline-flex items-center gap-1">
 		{label}
 		{#if helpText}
-			<HelpTip text={helpText} position="top" ariaLabel={`About ${label}`} />
+			<TooltipHint text={helpText} position="top" />
 		{/if}
 	</span>
 </div>
@@ -277,6 +299,22 @@
 		font-size: 11px;
 		font-weight: 600;
 		letter-spacing: 0.02em;
+		pointer-events: none;
+		user-select: none;
+	}
+	.knob-number {
+		font-family: var(--font-display), Georgia, serif;
+		font-size: 20px;
+		font-weight: 600;
+		letter-spacing: 0.01em;
+		pointer-events: none;
+		user-select: none;
+	}
+	.knob-unit {
+		font-family: var(--font-display), Georgia, serif;
+		font-size: 9px;
+		font-weight: 500;
+		letter-spacing: 0.06em;
 		pointer-events: none;
 		user-select: none;
 	}

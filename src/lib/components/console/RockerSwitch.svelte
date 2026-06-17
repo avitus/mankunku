@@ -53,6 +53,10 @@
 		box-shadow:
 			inset 0 1px 0 rgba(255, 255, 255, 0.04),
 			inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+		/* Clip the LED's red glow (box-shadow 0 0 6px) to the housing in ON
+		   state — otherwise the glow bleeds past the right border and reads
+		   as the cap being misaligned / spilling out of the switch. */
+		overflow: hidden;
 	}
 	.rocker-mark {
 		position: absolute;
@@ -96,7 +100,12 @@
 		justify-content: center;
 	}
 	.rocker-cap.right {
-		transform: translateX(37px);
+		/* Housing inner width 78 (80 outer − 2 × 1px border), cap outer 36,
+		   cap.left 3 → translateX 36 puts the cap 3px from the inner-right
+		   edge so the gap matches the 3px gap on the left in the OFF state.
+		   Symmetric layout; the LED glow that previously bled past the
+		   right border is now clipped by overflow:hidden on .rocker-housing. */
+		transform: translateX(36px);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.rocker-cap {
