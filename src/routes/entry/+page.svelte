@@ -11,6 +11,7 @@
 	} from '$lib/state/step-entry.svelte';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
+	import { buildEntryPlaybackOptions } from '$lib/step-entry/playback-options';
 	import { keyToPitchClass, isValidPitchKey } from '$lib/step-entry/pitch-input';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { saveUserLick, updateLickCategory, getUserLicks, getUserLicksLocal } from '$lib/persistence/user-licks';
@@ -206,13 +207,14 @@
 			if (!playbackModule.isInstrumentLoaded()) {
 				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 			}
-			await playbackModule.playPhrase(currentPhrase, {
-				tempo: settings.defaultTempo,
-				swing: 0.5,
-				countInBeats: 0,
-				metronomeEnabled: false,
-				metronomeVolume: 0.6
-			});
+			await playbackModule.playPhrase(
+				currentPhrase,
+				buildEntryPlaybackOptions({
+					tempo: settings.defaultTempo,
+					swing: settings.swing,
+					metronomeVolume: settings.metronomeVolume
+				})
+			);
 		} finally {
 			isPlaying = false;
 		}
