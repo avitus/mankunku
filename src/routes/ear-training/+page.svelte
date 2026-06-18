@@ -8,6 +8,7 @@
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
+	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
@@ -110,8 +111,6 @@
 	let failCount = $state(0);
 	let looping = $state(false);
 	let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
-	let scoreFlash: Score | null = $state(null);
-	let willRetry = $state(false);
 	/** Persists across loop iterations — only replaced when a new score arrives */
 	let persistentScore: Score | null = $state(null);
 	/**
@@ -136,18 +135,24 @@
 	// later activeTonality.key flip (which reshapes allLicks) lands on a
 	// matching phrase. Falls back to TEST_PHRASES[0] only when the lick
 	// library is empty AND no phrase has been chosen yet.
+	//
+	// `resolveBoundPhrase` freezes the active phrase while `looping` is true so
+	// an adaptive-difficulty reshuffle of allLicks between a miss and its retry
+	// can't swap the lick out from under the user mid-retry.
 	$effect(() => {
 		void activeTonality.key;
 		if (allLicks.length === 0) {
 			if (!session.phrase) session.phrase = TEST_PHRASES[0];
 			return;
 		}
-		if (phraseIndex >= 0 && phraseIndex < allLicks.length) {
-			session.phrase = allLicks[phraseIndex];
-		} else {
-			phraseIndex = 0;
-			session.phrase = allLicks[0];
-		}
+		const resolved = resolveBoundPhrase({
+			looping,
+			current: session.phrase,
+			licks: allLicks,
+			index: phraseIndex
+		});
+		phraseIndex = resolved.index;
+		if (resolved.phrase) session.phrase = resolved.phrase;
 	});
 	session.tempo = settings.defaultTempo;
 
@@ -257,7 +262,6 @@
 		if (!playback || !session.phrase) return;
 		starting = true;
 		session.lastScore = null;
-		scoreFlash = null;
 		awaitingInput = false;
 		failCount = 0;
 
@@ -305,7 +309,6 @@
 		if (autoAdvanceTimer) { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
 		looping = false;
 		failCount = 0;
-		scoreFlash = null;
 		await playback.stopPlayback();
 		stopRecording();
 		recorderHandle?.dispose();
@@ -495,21 +498,29 @@
 		}
 
 		if (looping && session.lastScore) {
-			const passed = session.lastScore.overall >= PASS_THRESHOLD;
-			if (passed || failCount >= 1) {
-				willRetry = false;
-				scoreFlash = session.lastScore;
-				failCount = 0;
-				nextPhrase();
-			} else {
-				willRetry = true;
-				scoreFlash = session.lastScore;
-				failCount++;
-			}
 			const barMs = (60 / session.tempo) * 4 * 1000;
 			session.engineState = 'playing';
 			autoAdvanceTimer = setTimeout(() => {
 				autoAdvanceTimer = null;
+				// Decide on the score in session.lastScore *now*, not at scoring
+				// time: the post-hoc replay rescore (~200-500 ms) has overwritten
+				// the provisional value by the time this fires, so the retry/advance
+				// choice matches the authoritative score the user sees. Falls back
+				// to the provisional score when no rescore ran (recorder
+				// unavailable) or it hasn't landed yet.
+				const latest = session.lastScore;
+				if (latest) {
+					const decision = decideNext({
+						scoreOverall: latest.overall,
+						failCount,
+						passThreshold: PASS_THRESHOLD
+					});
+					failCount = decision.nextFailCount;
+					// On 'retry' the phrase is left untouched so playNextInLoop
+					// replays the same lick; the loop-freeze in the binding effect
+					// keeps it from being swapped out underneath us.
+					if (decision.action === 'advance') nextPhrase();
+				}
 				playNextInLoop();
 			}, barMs);
 			return;
@@ -521,7 +532,6 @@
 
 	async function playNextInLoop() {
 		if (!playback || !session.phrase || !looping) return;
-		scoreFlash = null;
 		session.lastScore = null;
 		try {
 			session.engineState = 'playing';
