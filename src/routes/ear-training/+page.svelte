@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import { GRADE_COLORS, getGradeCaption } from '$lib/scoring/grades';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
@@ -139,15 +139,20 @@
 	// `resolveBoundPhrase` freezes the active phrase while `looping` is true so
 	// an adaptive-difficulty reshuffle of allLicks between a miss and its retry
 	// can't swap the lick out from under the user mid-retry.
+	//
+	// session.phrase is read with untrack() so this effect, which *writes*
+	// session.phrase, doesn't also depend on it — that self-dependency would be
+	// an infinite update loop (effect_update_depth_exceeded). The effect still
+	// re-runs on activeTonality.key / allLicks / phraseIndex / looping changes.
 	$effect(() => {
 		void activeTonality.key;
 		if (allLicks.length === 0) {
-			if (!session.phrase) session.phrase = TEST_PHRASES[0];
+			if (!untrack(() => session.phrase)) session.phrase = TEST_PHRASES[0];
 			return;
 		}
 		const resolved = resolveBoundPhrase({
 			looping,
-			current: session.phrase,
+			current: untrack(() => session.phrase),
 			licks: allLicks,
 			index: phraseIndex
 		});
