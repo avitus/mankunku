@@ -53,6 +53,7 @@ import {
 	getLickLastPracticed,
 	hasLickProgress,
 	updateKeyProgress,
+	resetLickPersistence,
 	getKeyProgress,
 	getEffectivePracticeLickIds,
 	getProgressionTags,
@@ -1310,6 +1311,16 @@ export function resetSession(): void {
 	lickPractice.masteredThisRound = [];
 	lickPractice.roundHistory = [];
 	lickPractice.config.singleLickId = undefined;
+}
+
+/**
+ * Full-reset a single lick's practice progress back to never-practiced:
+ * clears its per-key progress and unlock count (tempo → 60, passCounts → 0,
+ * one unlocked key). Reassigns the reactive `progress` rune so both the report
+ * and the library detail page re-render. `phraseId` must be the base lick id.
+ */
+export function resetLick(phraseId: string): void {
+	lickPractice.progress = resetLickPersistence(lickPractice.progress, phraseId);
 }
 
 /** Build the end-of-session report from archived attempts */

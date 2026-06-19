@@ -4,6 +4,9 @@ import {
 	saveLickPracticeProgress,
 	getKeyProgress,
 	updateKeyProgress,
+	clearLickProgress,
+	resetLickPersistence,
+	hasLickProgress,
 	getLickTempo,
 	getLickLastPracticed,
 	loadUserLickTags,
@@ -698,5 +701,72 @@ describe('backfillInferredProgressionTags', () => {
 		// but those too are now stable.
 		const second = backfillInferredProgressionTags();
 		expect(second).toBe(0);
+	});
+});
+
+describe('lick progress reset', () => {
+	it('clearLickProgress removes only the target lick', () => {
+		const progress: LickPracticeProgress = {
+			'lick-1': { 'C': { currentTempo: 120, lastPracticedAt: 1000, passCount: 3 } },
+			'lick-2': { 'G': { currentTempo: 90, lastPracticedAt: 500, passCount: 1 } }
+		};
+		const next = clearLickProgress(progress, 'lick-1');
+		expect(next).toEqual({
+			'lick-2': { 'G': { currentTempo: 90, lastPracticedAt: 500, passCount: 1 } }
+		});
+		// Original is untouched (immutable update).
+		expect(progress['lick-1']).toBeDefined();
+	});
+
+	it('clearLickProgress returns the same reference when the lick is absent', () => {
+		const progress: LickPracticeProgress = {
+			'lick-2': { 'G': { currentTempo: 90, lastPracticedAt: 500, passCount: 1 } }
+		};
+		expect(clearLickProgress(progress, 'lick-1')).toBe(progress);
+	});
+
+	it('resetLickPersistence wipes progress + unlock count back to never-practiced', () => {
+		// Seed a fully-worked lick: progress in several keys, an advanced tempo,
+		// and an unlock count above the floor.
+		let progress: LickPracticeProgress = {};
+		for (const key of ['C', 'G', 'F'] as PitchClass[]) {
+			progress = updateKeyProgress(progress, 'lick-1', key, {
+				currentTempo: 140,
+				lastPracticedAt: 1000,
+				passCount: 2
+			});
+		}
+		saveLickPracticeProgress(progress);
+		// Bump the unlock count so there's a stored value to clear.
+		bumpUnlockedKeyCount(progress, 'lick-1');
+		expect(getUnlockedKeyCount(loadLickPracticeProgress(), 'lick-1')).toBeGreaterThan(1);
+
+		const after = resetLickPersistence(progress, 'lick-1');
+
+		// In-memory return value is clean.
+		expect(hasLickProgress(after, 'lick-1')).toBe(false);
+		// Persisted state matches: no progress, relocked to 1 key.
+		const reloaded = loadLickPracticeProgress();
+		expect(hasLickProgress(reloaded, 'lick-1')).toBe(false);
+		expect(getUnlockedKeyCount(reloaded, 'lick-1')).toBe(1);
+		// No prior progress → store default tempo (the session layer maps this
+		// absence to NEW_LICK_DEFAULT_TEMPO via resolveLickTempo).
+		expect(getLickTempo(reloaded, 'lick-1')).toBe(100);
+		expect(loadUnlockCounts()['lick-1']).toBeUndefined();
+	});
+
+	it('resetLickPersistence leaves other licks intact', () => {
+		let progress: LickPracticeProgress = {};
+		progress = updateKeyProgress(progress, 'lick-1', 'C', {
+			currentTempo: 140, lastPracticedAt: 1000, passCount: 2
+		});
+		progress = updateKeyProgress(progress, 'lick-2', 'G', {
+			currentTempo: 130, lastPracticedAt: 900, passCount: 2
+		});
+		saveLickPracticeProgress(progress);
+
+		const after = resetLickPersistence(progress, 'lick-1');
+		expect(hasLickProgress(after, 'lick-2')).toBe(true);
+		expect(loadLickPracticeProgress()['lick-2']).toBeDefined();
 	});
 });
