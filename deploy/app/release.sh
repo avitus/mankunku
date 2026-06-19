@@ -84,36 +84,68 @@ snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 SHARED_IMMUTABLE="${ROOT}/shared/_app/immutable"
 STAGE_IMMUTABLE="${STAGE}/build/client/_app/immutable"
 if [[ -d "$STAGE_IMMUTABLE" ]]; then
-    echo "==> Merging immutable assets into shared pool: ${SHARED_IMMUTABLE}"
-    mkdir -p "$SHARED_IMMUTABLE"
+    # Serialize all shared-pool mutations behind a lock. CI does not serialize
+    # deploys, so two release.sh runs can overlap; without a lock one run's
+    # eviction can race the other's merge (e.g. delete a directory the other
+    # just created before it copies into it), re-introducing the very 404s this
+    # block fixes. Portable mutex via mkdir atomicity. A lock older than
+    # LOCK_STALE_SECS is assumed orphaned by a crashed deploy and broken, so a
+    # stale lock can't wedge every future deploy. The whole merge+evict runs in
+    # a subshell whose EXIT trap releases the lock even on failure; it's held
+    # only for this fast section, not across npm ci / pm2 restart.
+    mkdir -p "${ROOT}/shared"
+    LOCK_DIR="${ROOT}/shared/.immutable-pool.lock"
+    LOCK_STALE_SECS="${POOL_LOCK_STALE_SECS:-120}"
+    waited=0
+    until mkdir "$LOCK_DIR" 2>/dev/null; do
+        lock_mtime="$(stat -f %m "$LOCK_DIR" 2>/dev/null || stat -c %Y "$LOCK_DIR" 2>/dev/null || echo 0)"
+        if (( $(date +%s) - lock_mtime > LOCK_STALE_SECS )); then
+            echo "==> Breaking stale immutable-pool lock ($LOCK_DIR)"
+            rmdir "$LOCK_DIR" 2>/dev/null || true
+            continue
+        fi
+        sleep 1
+        waited=$((waited + 1))
+        if (( waited > LOCK_STALE_SECS + 30 )); then
+            echo "error: could not acquire immutable-pool lock after ${waited}s" >&2
+            exit 1
+        fi
+    done
 
-    # For each chunk this release ships: copy it in if the pool doesn't already
-    # have it (a new hash), otherwise just refresh its mtime. Copying only the
-    # missing files means an in-flight download of an existing (identical) chunk
-    # by another tab is never truncated. Refreshing the mtime makes the eviction
-    # below measure age from the last deploy that shipped a chunk, not the first
-    # time it appeared. `find -print0` is portable across BSD (macOS test
-    # harness) and GNU; `find -printf` is GNU-only — avoid it. (BSD `cp -n`
-    # exits non-zero when it skips, so we branch on existence ourselves rather
-    # than rely on a no-clobber flag.)
-    ( cd "$STAGE_IMMUTABLE" && find . -type f -print0 ) \
-        | while IFS= read -r -d '' rel; do
-              dest="${SHARED_IMMUTABLE}/${rel}"
-              if [[ -f "$dest" ]]; then
-                  touch -c "$dest"
-              else
-                  mkdir -p "$(dirname "$dest")"
-                  cp "${STAGE_IMMUTABLE}/${rel}" "$dest"
-              fi
-          done
+    (
+        trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
-    # Evict chunks no deploy has shipped in POOL_RETENTION_DAYS (default 30) —
-    # far longer than any realistic open-tab lifetime. Bounds disk growth while
-    # keeping recently-open tabs working. This, not KEEP_RELEASES, governs how
-    # stale a tab may be before its chunks disappear.
-    RETAIN="${POOL_RETENTION_DAYS:-30}"
-    find "$SHARED_IMMUTABLE" -type f -mtime "+${RETAIN}" -delete 2>/dev/null || true
-    find "$SHARED_IMMUTABLE" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+        echo "==> Merging immutable assets into shared pool: ${SHARED_IMMUTABLE}"
+        mkdir -p "$SHARED_IMMUTABLE"
+
+        # For each chunk this release ships: copy it in if the pool doesn't
+        # already have it (a new hash), otherwise just refresh its mtime. Copying
+        # only the missing files means an in-flight download of an existing
+        # (identical) chunk by another tab is never truncated. Refreshing the
+        # mtime makes the eviction below measure age from the last deploy that
+        # shipped a chunk, not the first time it appeared. `find -print0` is
+        # portable across BSD (macOS test harness) and GNU; `find -printf` is
+        # GNU-only — avoid it. (BSD `cp -n` exits non-zero when it skips, so we
+        # branch on existence ourselves rather than rely on a no-clobber flag.)
+        ( cd "$STAGE_IMMUTABLE" && find . -type f -print0 ) \
+            | while IFS= read -r -d '' rel; do
+                  dest="${SHARED_IMMUTABLE}/${rel}"
+                  if [[ -f "$dest" ]]; then
+                      touch -c "$dest"
+                  else
+                      mkdir -p "$(dirname "$dest")"
+                      cp "${STAGE_IMMUTABLE}/${rel}" "$dest"
+                  fi
+              done
+
+        # Evict chunks no deploy has shipped in POOL_RETENTION_DAYS (default 30)
+        # — far longer than any realistic open-tab lifetime. Bounds disk growth
+        # while keeping recently-open tabs working. This, not KEEP_RELEASES,
+        # governs how stale a tab may be before its chunks disappear.
+        RETAIN="${POOL_RETENTION_DAYS:-30}"
+        find "$SHARED_IMMUTABLE" -type f -mtime "+${RETAIN}" -delete 2>/dev/null || true
+        find "$SHARED_IMMUTABLE" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+    )
 else
     echo "==> No _app/immutable in staged build; skipping shared pool merge"
 fi

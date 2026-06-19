@@ -90,4 +90,19 @@ ok "stale chunk evicted past retention window"
 [[ -f "${POOL}/2.BBBBBBB.js" ]] || fail "still-shipped chunk wrongly evicted"
 ok "still-shipped chunk retained despite earlier age"
 
+# Stale lock: a lock left behind by a crashed deploy must be broken, not block
+# the next deploy forever. Plant a lock older than the stale window and confirm
+# the run breaks it, completes, and pools its chunk (within a few seconds, not
+# the full wait budget).
+ID4="20260104-000000-ddddddd"
+LOCK="${MANKUNKU_ROOT}/shared/.immutable-pool.lock"
+mkdir -p "$LOCK"
+touch -t "$(date -v-1H +%Y%m%d%H%M 2>/dev/null || date -d '1 hour ago' +%Y%m%d%H%M)" "$LOCK"
+stage_release "$ID4" "2.DDDDDDD.js"
+POOL_LOCK_STALE_SECS=2 bash "$RELEASE_SH" "$ID4" >/dev/null
+[[ -f "${POOL}/2.DDDDDDD.js" ]] || fail "deploy did not complete past a stale lock"
+ok "stale lock broken; deploy proceeded"
+[[ ! -d "$LOCK" ]] || fail "lock not released after deploy"
+ok "lock released after deploy"
+
 echo "PASSED (${pass} assertions)"
