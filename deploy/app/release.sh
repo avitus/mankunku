@@ -98,7 +98,13 @@ if [[ -d "$STAGE_IMMUTABLE" ]]; then
     LOCK_STALE_SECS="${POOL_LOCK_STALE_SECS:-120}"
     waited=0
     until mkdir "$LOCK_DIR" 2>/dev/null; do
-        lock_mtime="$(stat -f %m "$LOCK_DIR" 2>/dev/null || stat -c %Y "$LOCK_DIR" 2>/dev/null || echo 0)"
+        # GNU first: `stat -c %Y` (epoch mtime). BSD's `stat -c` fails cleanly
+        # with no stdout, so the `||` falls through to BSD's `stat -f %m`. The
+        # reverse order is unsafe — GNU treats `-f` as --file-system and prints
+        # a "File:" block to stdout, which would poison the arithmetic below.
+        # Guard to a number so a non-numeric result can never trip `set -u`.
+        lock_mtime="$(stat -c %Y "$LOCK_DIR" 2>/dev/null || stat -f %m "$LOCK_DIR" 2>/dev/null || echo 0)"
+        [[ "$lock_mtime" =~ ^[0-9]+$ ]] || lock_mtime=0
         if (( $(date +%s) - lock_mtime > LOCK_STALE_SECS )); then
             echo "==> Breaking stale immutable-pool lock ($LOCK_DIR)"
             rmdir "$LOCK_DIR" 2>/dev/null || true
