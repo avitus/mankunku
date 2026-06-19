@@ -108,6 +108,14 @@
 		if (!resetLickIds.includes(lickId)) resetLickIds = [...resetLickIds, lickId];
 	}
 
+	// The component instance outlives a single report (restart flows reuse it),
+	// so clear per-report reset state before another session begins — otherwise
+	// a later report could show a matching lick id as already reset.
+	function clearReportResetState(): void {
+		confirmingResetId = null;
+		resetLickIds = [];
+	}
+
 	// True while the app is playing the demo of a continuous-mode lick's
 	// first key (before the user starts playing). Set at lick start in
 	// continuous mode; cleared when the first user recording window opens.
@@ -966,6 +974,7 @@
 	function handleDone() {
 		resetSession();
 		sessionReport = null;
+		clearReportResetState();
 		goto('/lick-practice');
 	}
 
@@ -979,6 +988,7 @@
 			lickPractice.config.progressionType = progressionType;
 			resetSession();
 			sessionReport = null;
+			clearReportResetState();
 			// Page-local session state outlives the prior session's stopAll; clear
 			// it before any reactive read can render stale UI between startSession
 			// (sets phase to 'count-in') and startLick (writes fresh values).

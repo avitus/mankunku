@@ -107,7 +107,9 @@
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
 	let confirmingDelete = $state(false);
-	let confirmingReset = $state(false);
+	// Id-scoped so a mid-confirm state can't carry over to a different lick if
+	// baseLick changes (client-side nav between licks reuses this component).
+	let confirmingResetId: string | null = $state(null);
 
 	/**
 	 * Key selector state is in WRITTEN pitch (what the user sees on their
@@ -291,12 +293,12 @@
 
 	function handleReset() {
 		if (!baseLick) return;
-		if (!confirmingReset) {
-			confirmingReset = true;
+		if (confirmingResetId !== baseLick.id) {
+			confirmingResetId = baseLick.id;
 			return;
 		}
 		resetLick(baseLick.id);
-		confirmingReset = false;
+		confirmingResetId = null;
 	}
 
 	onDestroy(() => {
@@ -409,12 +411,12 @@
 					<button
 						onclick={handleReset}
 						class="rounded px-3 py-2 text-sm font-medium transition-colors
-							{confirmingReset
+							{confirmingResetId === baseLick?.id
 								? 'bg-[var(--color-warning,#eab308)] text-black hover:opacity-80'
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 						title="Reset this lick's practice progress — tempo back to {NEW_LICK_DEFAULT_TEMPO} BPM, keys relocked"
 					>
-						{confirmingReset ? 'Confirm Reset' : '↺ Reset Progress'}
+						{confirmingResetId === baseLick?.id ? 'Confirm Reset' : '↺ Reset Progress'}
 					</button>
 				{/if}
 				{#if canEdit}
