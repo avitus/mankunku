@@ -39,12 +39,20 @@ for (const lick of ALL_CURATED_LICKS) {
 
 /** Get all licks in the library (curated + user-recorded + stolen-from-community) */
 export function getAllLicks(): Phrase[] {
-	const userLicks = getUserLicksLocal();
+	// Dedup within the user cache by id. The cloud Map-merge collapses same-id
+	// rows on signed-in clients, but anonymous/offline clients never run it, so
+	// a stray duplicate row could otherwise render as two cards (and collide in
+	// the id-keyed {#each} that lists them). Keep the first occurrence.
+	const seen = new Set<string>();
+	const userLicks = getUserLicksLocal().filter((l) => {
+		if (seen.has(l.id)) return false;
+		seen.add(l.id);
+		return true;
+	});
 	const stolen = getStolenLicksLocal();
 	// Dedup in the unlikely event the same id appears in both caches
 	// (self-stealing is blocked by DB policy, but the guard is cheap).
-	const userIds = new Set(userLicks.map((l) => l.id));
-	const stolenDeduped = stolen.filter((l) => !userIds.has(l.id));
+	const stolenDeduped = stolen.filter((l) => !seen.has(l.id));
 	return [...ALL_CURATED_LICKS, ...userLicks, ...stolenDeduped];
 }
 
