@@ -69,6 +69,55 @@ echo "==> Installing production dependencies in staged release"
 
 snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 
+# --- Shared immutable-asset pool (fixes Sentry MANKUNKU-8) ---
+#
+# Each deploy stages its own build/ and `current` flips to it atomically, so the
+# server only ever serves THIS release's _app/immutable chunks. But those chunks
+# are content-hashed precisely so old and new can coexist: a browser tab opened
+# against an older deploy still requests that deploy's chunk hashes. Serving only
+# `current`'s assets 404s them ("error loading dynamically imported module").
+#
+# Keep every release's immutable assets in one shared, accumulating pool so a tab
+# on any recent version can still fetch its chunks. nginx serves /_app/immutable/
+# straight from this pool (see nginx/mankunku.conf), with Node as the fallback.
+# Content hashes never collide, so the union is always self-consistent.
+SHARED_IMMUTABLE="${ROOT}/shared/_app/immutable"
+STAGE_IMMUTABLE="${STAGE}/build/client/_app/immutable"
+if [[ -d "$STAGE_IMMUTABLE" ]]; then
+    echo "==> Merging immutable assets into shared pool: ${SHARED_IMMUTABLE}"
+    mkdir -p "$SHARED_IMMUTABLE"
+
+    # For each chunk this release ships: copy it in if the pool doesn't already
+    # have it (a new hash), otherwise just refresh its mtime. Copying only the
+    # missing files means an in-flight download of an existing (identical) chunk
+    # by another tab is never truncated. Refreshing the mtime makes the eviction
+    # below measure age from the last deploy that shipped a chunk, not the first
+    # time it appeared. `find -print0` is portable across BSD (macOS test
+    # harness) and GNU; `find -printf` is GNU-only — avoid it. (BSD `cp -n`
+    # exits non-zero when it skips, so we branch on existence ourselves rather
+    # than rely on a no-clobber flag.)
+    ( cd "$STAGE_IMMUTABLE" && find . -type f -print0 ) \
+        | while IFS= read -r -d '' rel; do
+              dest="${SHARED_IMMUTABLE}/${rel}"
+              if [[ -f "$dest" ]]; then
+                  touch -c "$dest"
+              else
+                  mkdir -p "$(dirname "$dest")"
+                  cp "${STAGE_IMMUTABLE}/${rel}" "$dest"
+              fi
+          done
+
+    # Evict chunks no deploy has shipped in POOL_RETENTION_DAYS (default 30) —
+    # far longer than any realistic open-tab lifetime. Bounds disk growth while
+    # keeping recently-open tabs working. This, not KEEP_RELEASES, governs how
+    # stale a tab may be before its chunks disappear.
+    RETAIN="${POOL_RETENTION_DAYS:-30}"
+    find "$SHARED_IMMUTABLE" -type f -mtime "+${RETAIN}" -delete 2>/dev/null || true
+    find "$SHARED_IMMUTABLE" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+else
+    echo "==> No _app/immutable in staged build; skipping shared pool merge"
+fi
+
 # Swap `current` to point at the new release.
 #
 # The previous version of this code used `mv -f TMP_LINK current` — that was

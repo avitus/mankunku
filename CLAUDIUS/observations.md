@@ -4,6 +4,26 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-06-18 — A client-side error handler can be a tell that the bug lives upstream
+
+Triaged the three open Sentry issues. Two were already dead at HEAD (the `effect_update_depth_exceeded` from the note below, fixed by `untrack`; and a `HelpTip is not defined` HMR ghost — the component was renamed to `TooltipHint`, so it can't recur). The live one was MANKUNKU-8: `error loading dynamically imported module` on `/add-licks` in production.
+
+There was already an elaborate defense in `hooks.client.ts` — regex-match the error message, force one reload per session via a `sessionStorage` flag, and a `beforeSend` that drops the first occurrence and only reports the "reload didn't help" repeat. It works, but the user pushed back twice ("feels like a hack," "is polling idiomatic?") and was right both times. Each pushback peeled back a layer: my first instinct was to patch the reload guard (a timer hack), my second was SvelteKit `version.pollInterval` (framework-blessed, but still a client-side *guess* about server state). Only when forced past those did I trace to the actual root cause — and it wasn't in the client at all. **The atomic-symlink deploy (`release.sh`) flips `current` to the new release, so the server serves only the newest release's content-hashed chunks; the previous release's chunks still sit on disk but are no longer reachable by URL.** That defeats the entire purpose of content hashing, which exists precisely so old and new can coexist. The fix is six lines server-side: accumulate every release's `_app/immutable` into a shared, growing pool and serve from it. The whole client-side apparatus was compensating for a deployment that threw away assets it should have kept.
+
+The carry-forward: an unusually intricate client-side *recovery* mechanism is a smell worth following upstream. If you're writing string-matching + reload + dedup logic to survive a class of error, ask whether the error should be *occurring* at all — often the elaborateness is the symptom-fix metastasizing because the real cause is one layer down (here, two layers: framework, then infra). Also worth naming: the user's "this feels like a hack" was a better debugging instrument than my knowledge of SvelteKit's feature set. I knew more options; they had better taste about which were root-cause fixes. Both pushbacks moved the solution strictly closer to the source.
+
+---
+
+## 2026-06-17 — A green unit suite can hide a reactive-wiring bug, and I reasoned my way into one
+
+Fixed the ear-training retry inconsistency (PR #127). Two real bugs underneath it: the advance/retry decision ran on the *provisional* live score while the user sees the *authoritative* replay rescore, and the phrase-binding `$effect` could let an adaptive-difficulty reshuffle swap a lick out mid-retry. Both were the same shape of root cause as the April chord-alignment bug: **the control flow keyed off the wrong copy of a value that exists in two forms** (live vs. replay score; cached vs. reshuffled lick list). Worth noting how often this codebase's bugs are "two representations of the same thing, and the logic read the wrong one." That's becoming a signature.
+
+The sharper lesson is about my own process. I extracted the decision and the phrase-binding into pure helpers, wrote 10 unit tests, watched them go green, and shipped — and CI went red with `effect_update_depth_exceeded`. The helper was correct; the *wiring* wasn't. I passed `current: session.phrase` into an effect that also writes `session.phrase`, which is an infinite update loop in the production build. I had even reasoned, in the moment, that "Svelte dedupes same-value writes so it converges" — a confident, wrong rationalization that the unit tests couldn't contradict because they never touched the reactive graph.
+
+Two things to carry forward: (1) Extracting logic into a tested pure function buys you correctness of the *logic*, not of the *integration*. The seam between the pure function and the framework's reactivity is exactly where the test coverage evaporates, and it's precisely where I relaxed. The existing E2E smoke suite ("page renders without console errors") was the real safety net, not my unit tests. (2) When I find myself *arguing* that a framework will save me from a footgun (self-referential effect, same-value dedupe), that argument is a smell, not a proof. The honest move is to run the production build / E2E before claiming done, not to reason about the scheduler's internals. I verified the pure logic locally but pushed the reactive change on reasoning alone. The fix (`untrack`) was trivial once CI told the truth; the cost was a red pipeline that a one-command local E2E run would have caught.
+
+---
+
 ## 2026-04-16 — The recurring chord alignment bug is a canonical/boundary violation
 
 The lick-practice chord alignment bug has been "fixed" 4+ times in April alone (commits `38f329f`, `236d9b5`, `da7cc34`, `fb780ac`, `6807d72`). Each fix addressed a real async race condition — generation guards, stale callbacks, bar boundary divergence. And yet the bug persists.
