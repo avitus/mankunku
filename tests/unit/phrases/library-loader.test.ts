@@ -196,6 +196,21 @@ describe('getAllLicks', () => {
 		const count = all.filter(l => l.id === 'shared-id').length;
 		expect(count).toBe(1);
 	});
+
+	it('dedups duplicate ids within the user cache, keeping the first', () => {
+		// Anonymous/offline clients never run the cloud Map-merge, so a stray
+		// duplicate row can persist in localStorage. getAllLicks() must collapse
+		// it rather than render two cards (and collide in the id-keyed {#each}).
+		mockGetUserLicksLocal.mockReturnValue([
+			makePhrase({ id: 'dup', name: 'First', source: 'user-entered' }),
+			makePhrase({ id: 'dup', name: 'Second', source: 'user-entered' })
+		]);
+		const all = getAllLicks();
+		const matches = all.filter(l => l.id === 'dup');
+		expect(matches).toHaveLength(1);
+		expect(matches[0].name).toBe('First');
+		expect(all).toHaveLength(FIXTURE_CURATED.length + 1);
+	});
 });
 
 describe('getLickById', () => {

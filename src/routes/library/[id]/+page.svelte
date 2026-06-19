@@ -269,6 +269,25 @@
 		isOwnLick && baseLick != null && baseLick.source === 'user-entered'
 	);
 
+	/**
+	 * Why Delete is unavailable for a lick that *looks* user-authored. Hiding the
+	 * button silently leaves users stuck ("why can't I delete this duplicate?").
+	 * Only surfaced for user-authored-looking licks — curated/generated licks are
+	 * never deletable by design and need no explanation.
+	 */
+	const deleteBlockedReason = $derived.by(() => {
+		if (canDelete || baseLick == null) return null;
+		const looksUserAuthored =
+			baseLick.source === 'user-recorded' ||
+			baseLick.source === 'user-entered' ||
+			baseLick.id.startsWith('user-');
+		if (!looksUserAuthored) return null;
+		if (!isOwnLick) {
+			return 'This is a community copy you don’t own — use Return from the library list instead of Delete.';
+		}
+		return 'Can’t delete: this lick has an unexpected source. Open it in the step editor and re-save to normalize it.';
+	});
+
 	function handleDelete() {
 		if (!baseLick) return;
 		if (!confirmingDelete) {
@@ -444,6 +463,10 @@
 		<!-- Key selector — displayed in the user's WRITTEN pitch (what they
 		     see on sheet music and finger on their horn). Matches the key
 		     signature shown on the notation below. -->
+		{#if deleteBlockedReason}
+			<p class="text-xs text-[var(--color-text-secondary)]">{deleteBlockedReason}</p>
+		{/if}
+
 		<div class="flex items-center gap-3">
 			<span class="text-sm text-[var(--color-text-secondary)]">Key:</span>
 			<div class="flex flex-wrap gap-1">
