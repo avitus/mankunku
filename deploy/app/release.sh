@@ -69,6 +69,93 @@ echo "==> Installing production dependencies in staged release"
 
 snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 
+# --- Shared immutable-asset pool (fixes Sentry MANKUNKU-8) ---
+#
+# Each deploy stages its own build/ and `current` flips to it atomically, so the
+# server only ever serves THIS release's _app/immutable chunks. But those chunks
+# are content-hashed precisely so old and new can coexist: a browser tab opened
+# against an older deploy still requests that deploy's chunk hashes. Serving only
+# `current`'s assets 404s them ("error loading dynamically imported module").
+#
+# Keep every release's immutable assets in one shared, accumulating pool so a tab
+# on any recent version can still fetch its chunks. nginx serves /_app/immutable/
+# straight from this pool (see nginx/mankunku.conf), with Node as the fallback.
+# Content hashes never collide, so the union is always self-consistent.
+SHARED_IMMUTABLE="${ROOT}/shared/_app/immutable"
+STAGE_IMMUTABLE="${STAGE}/build/client/_app/immutable"
+if [[ -d "$STAGE_IMMUTABLE" ]]; then
+    # Serialize all shared-pool mutations behind a lock. CI does not serialize
+    # deploys, so two release.sh runs can overlap; without a lock one run's
+    # eviction can race the other's merge (e.g. delete a directory the other
+    # just created before it copies into it), re-introducing the very 404s this
+    # block fixes. Portable mutex via mkdir atomicity. A lock older than
+    # LOCK_STALE_SECS is assumed orphaned by a crashed deploy and broken, so a
+    # stale lock can't wedge every future deploy. The whole merge+evict runs in
+    # a subshell whose EXIT trap releases the lock even on failure; it's held
+    # only for this fast section, not across npm ci / pm2 restart.
+    mkdir -p "${ROOT}/shared"
+    LOCK_DIR="${ROOT}/shared/.immutable-pool.lock"
+    LOCK_STALE_SECS="${POOL_LOCK_STALE_SECS:-120}"
+    waited=0
+    until mkdir "$LOCK_DIR" 2>/dev/null; do
+        # GNU first: `stat -c %Y` (epoch mtime). BSD's `stat -c` fails cleanly
+        # with no stdout, so the `||` falls through to BSD's `stat -f %m`. The
+        # reverse order is unsafe — GNU treats `-f` as --file-system and prints
+        # a "File:" block to stdout, which would poison the arithmetic below.
+        # Guard to a number so a non-numeric result can never trip `set -u`.
+        lock_mtime="$(stat -c %Y "$LOCK_DIR" 2>/dev/null || stat -f %m "$LOCK_DIR" 2>/dev/null || echo 0)"
+        [[ "$lock_mtime" =~ ^[0-9]+$ ]] || lock_mtime=0
+        if (( $(date +%s) - lock_mtime > LOCK_STALE_SECS )); then
+            echo "==> Breaking stale immutable-pool lock ($LOCK_DIR)"
+            rmdir "$LOCK_DIR" 2>/dev/null || true
+            continue
+        fi
+        sleep 1
+        waited=$((waited + 1))
+        if (( waited > LOCK_STALE_SECS + 30 )); then
+            echo "error: could not acquire immutable-pool lock after ${waited}s" >&2
+            exit 1
+        fi
+    done
+
+    (
+        trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
+        echo "==> Merging immutable assets into shared pool: ${SHARED_IMMUTABLE}"
+        mkdir -p "$SHARED_IMMUTABLE"
+
+        # For each chunk this release ships: copy it in if the pool doesn't
+        # already have it (a new hash), otherwise just refresh its mtime. Copying
+        # only the missing files means an in-flight download of an existing
+        # (identical) chunk by another tab is never truncated. Refreshing the
+        # mtime makes the eviction below measure age from the last deploy that
+        # shipped a chunk, not the first time it appeared. `find -print0` is
+        # portable across BSD (macOS test harness) and GNU; `find -printf` is
+        # GNU-only — avoid it. (BSD `cp -n` exits non-zero when it skips, so we
+        # branch on existence ourselves rather than rely on a no-clobber flag.)
+        ( cd "$STAGE_IMMUTABLE" && find . -type f -print0 ) \
+            | while IFS= read -r -d '' rel; do
+                  dest="${SHARED_IMMUTABLE}/${rel}"
+                  if [[ -f "$dest" ]]; then
+                      touch -c "$dest"
+                  else
+                      mkdir -p "$(dirname "$dest")"
+                      cp "${STAGE_IMMUTABLE}/${rel}" "$dest"
+                  fi
+              done
+
+        # Evict chunks no deploy has shipped in POOL_RETENTION_DAYS (default 30)
+        # — far longer than any realistic open-tab lifetime. Bounds disk growth
+        # while keeping recently-open tabs working. This, not KEEP_RELEASES,
+        # governs how stale a tab may be before its chunks disappear.
+        RETAIN="${POOL_RETENTION_DAYS:-30}"
+        find "$SHARED_IMMUTABLE" -type f -mtime "+${RETAIN}" -delete 2>/dev/null || true
+        find "$SHARED_IMMUTABLE" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+    )
+else
+    echo "==> No _app/immutable in staged build; skipping shared pool merge"
+fi
+
 # Swap `current` to point at the new release.
 #
 # The previous version of this code used `mv -f TMP_LINK current` — that was

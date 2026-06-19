@@ -28,6 +28,9 @@ jobs:
       - run:
           name: Run unit and integration tests
           command: npx vitest run
+      - run:
+          name: Test the atomic-release deploy script
+          command: npm run test:deploy
 
   build:
     docker:

@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
 	import { getLickById, transposeLick } from '$lib/phrases/library-loader';
-	import { lickPractice, startSingleLickSession } from '$lib/state/lick-practice.svelte';
+	import {
+		lickPractice,
+		startSingleLickSession,
+		hydrateLickPracticeProgress,
+		resetLick
+	} from '$lib/state/lick-practice.svelte';
 	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { PITCH_CLASSES, CATEGORY_LABELS, type PitchClass, type PhraseCategory } from '$lib/types/music';
@@ -18,7 +23,9 @@
 		resolvePracticeFallbackTags,
 		setPracticeTag as storeSetPracticeTag,
 		getProgressionTags,
-		toggleProgressionTag
+		toggleProgressionTag,
+		hasLickProgress,
+		NEW_LICK_DEFAULT_TEMPO
 	} from '$lib/persistence/lick-practice-store';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
@@ -89,9 +96,20 @@
 		}
 	});
 
+	// Hydrate lick-practice progress so the per-lick "Reset progress" button can
+	// tell whether this lick has any stored progress (mirrors the lick-practice
+	// landing page). Local-first: localStorage populates synchronously, cloud
+	// metadata is best-effort.
+	onMount(() => {
+		hydrateLickPracticeProgress(supabase);
+	});
+
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
 	let confirmingDelete = $state(false);
+	// Id-scoped so a mid-confirm state can't carry over to a different lick if
+	// baseLick changes (client-side nav between licks reuses this component).
+	let confirmingResetId: string | null = $state(null);
 
 	/**
 	 * Key selector state is in WRITTEN pitch (what the user sees on their
@@ -266,6 +284,23 @@
 		goto(`/entry?edit=${baseLick.id}`);
 	}
 
+	// Full-reset this lick's practice progress (two-stage inline confirm, like
+	// Delete). Gated on hasLickProgress, so the button vanishes after a reset —
+	// its own confirmation.
+	const hasProgress = $derived(
+		baseLick != null && hasLickProgress(lickPractice.progress, baseLick.id)
+	);
+
+	function handleReset() {
+		if (!baseLick) return;
+		if (confirmingResetId !== baseLick.id) {
+			confirmingResetId = baseLick.id;
+			return;
+		}
+		resetLick(baseLick.id);
+		confirmingResetId = null;
+	}
+
 	onDestroy(() => {
 		if (playbackModule && isPlaying) {
 			playbackModule.stopPlayback();
@@ -372,6 +407,18 @@
 				>
 					{isPracticeTagged ? '★ Practice Set' : '☆ Add to Practice'}
 				</button>
+				{#if hasProgress}
+					<button
+						onclick={handleReset}
+						class="rounded px-3 py-2 text-sm font-medium transition-colors
+							{confirmingResetId === baseLick?.id
+								? 'bg-[var(--color-warning,#eab308)] text-black hover:opacity-80'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+						title="Reset this lick's practice progress — tempo back to {NEW_LICK_DEFAULT_TEMPO} BPM, keys relocked"
+					>
+						{confirmingResetId === baseLick?.id ? 'Confirm Reset' : '↺ Reset Progress'}
+					</button>
+				{/if}
 				{#if canEdit}
 					<button
 						onclick={handleEdit}

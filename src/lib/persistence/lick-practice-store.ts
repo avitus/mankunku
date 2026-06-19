@@ -316,6 +316,16 @@ export function updateKeyProgress(
 	};
 }
 
+/** Remove a lick's entire per-key progress (immutable). */
+export function clearLickProgress(
+	progress: LickPracticeProgress,
+	phraseId: string
+): LickPracticeProgress {
+	if (!(phraseId in progress)) return progress;
+	const { [phraseId]: _removed, ...rest } = progress;
+	return rest;
+}
+
 /** Get the minimum tempo across all 12 keys for a lick (used for session tempo) */
 export function getLickTempo(progress: LickPracticeProgress, phraseId: string): number {
 	const keyProgress = progress[phraseId];
@@ -377,6 +387,30 @@ export function loadUnlockCounts(): Record<string, number> {
 function saveUnlockCounts(counts: Record<string, number>): void {
 	save(UNLOCK_KEY, counts);
 	syncUnlockCountsToCloud();
+}
+
+/** Drop a lick's stored unlock count, relocking it to 1 key. */
+function clearUnlockCount(phraseId: string): void {
+	const counts = loadUnlockCounts();
+	if (!(phraseId in counts)) return;
+	delete counts[phraseId];
+	saveUnlockCounts(counts);
+}
+
+/**
+ * Full reset: wipe a lick's per-key progress and unlock count, returning it to
+ * the never-practiced state (tempo → NEW_LICK_DEFAULT_TEMPO, passCount → 0, one
+ * unlocked key). Practice/progression tags are left untouched, so the lick
+ * stays in the rotation — it just starts over. Returns the updated progress map.
+ */
+export function resetLickPersistence(
+	progress: LickPracticeProgress,
+	phraseId: string
+): LickPracticeProgress {
+	clearUnlockCount(phraseId);
+	const next = clearLickProgress(progress, phraseId);
+	saveLickPracticeProgress(next);
+	return next;
 }
 
 /**

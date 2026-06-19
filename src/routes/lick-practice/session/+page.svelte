@@ -21,10 +21,12 @@
 		advanceSingleLickRound,
 		updateElapsedTime,
 		resetSession,
+		resetLick,
 		startSession,
 		getSessionReport,
 		getUpcomingLicks
 	} from '$lib/state/lick-practice.svelte';
+	import { scoreToGrade } from '$lib/scoring/grades';
 	import { getActiveSubstitution, PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
@@ -42,7 +44,8 @@
 	} from '$lib/persistence/lick-practice-sessions';
 	import {
 		KEY_PROFICIENT_THRESHOLD,
-		KEY_FLOOR_THRESHOLD
+		KEY_FLOOR_THRESHOLD,
+		NEW_LICK_DEFAULT_TEMPO
 	} from '$lib/persistence/lick-practice-store';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
@@ -87,6 +90,31 @@
 	let isLoading = $state(false);
 	let currentBeat = $state(0);
 	let sessionReport: SessionReport | null = $state(null);
+
+	// Reset-a-struggling-lick UI state on the final report. A low-scoring lick
+	// card offers a two-stage inline confirm (matching the library Delete
+	// pattern); `confirmingResetId` holds the lick mid-confirm, `resetLickIds`
+	// records licks already reset so the card can show feedback.
+	let confirmingResetId: string | null = $state(null);
+	let resetLickIds: string[] = $state([]);
+
+	function handleReportReset(lickId: string): void {
+		if (confirmingResetId !== lickId) {
+			confirmingResetId = lickId;
+			return;
+		}
+		resetLick(lickId);
+		confirmingResetId = null;
+		if (!resetLickIds.includes(lickId)) resetLickIds = [...resetLickIds, lickId];
+	}
+
+	// The component instance outlives a single report (restart flows reuse it),
+	// so clear per-report reset state before another session begins — otherwise
+	// a later report could show a matching lick id as already reset.
+	function clearReportResetState(): void {
+		confirmingResetId = null;
+		resetLickIds = [];
+	}
 
 	// True while the app is playing the demo of a continuous-mode lick's
 	// first key (before the user starts playing). Set at lick start in
@@ -946,6 +974,7 @@
 	function handleDone() {
 		resetSession();
 		sessionReport = null;
+		clearReportResetState();
 		goto('/lick-practice');
 	}
 
@@ -959,6 +988,7 @@
 			lickPractice.config.progressionType = progressionType;
 			resetSession();
 			sessionReport = null;
+			clearReportResetState();
 			// Page-local session state outlives the prior session's stopAll; clear
 			// it before any reactive read can render stale UI between startSession
 			// (sets phase to 'count-in') and startLick (writes fresh values).
@@ -1137,6 +1167,29 @@
 						</div>
 					{/each}
 				</div>
+				<!-- Struggling-lick reset: offered only when this lick scored in the
+				     'try-again' band. Two-stage inline confirm; once reset, the card
+				     shows feedback in place of the button. -->
+				{#if scoreToGrade(lick.averageScore) === 'try-again'}
+					<div class="flex items-center gap-2 pt-1 text-xs">
+						{#if resetLickIds.includes(lick.lickId)}
+							<span class="text-[var(--color-text-secondary)]">
+								↺ Reset — tempo back to {NEW_LICK_DEFAULT_TEMPO} BPM, keys relocked.
+							</span>
+						{:else}
+							<span class="text-[var(--color-text-secondary)]">Struggling with this one?</span>
+							<button
+								onclick={() => handleReportReset(lick.lickId)}
+								class="rounded px-2.5 py-1 font-medium transition-colors
+									{confirmingResetId === lick.lickId
+										? 'bg-[var(--color-warning,#eab308)] text-black hover:opacity-80'
+										: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+							>
+								{confirmingResetId === lick.lickId ? 'Confirm reset' : 'Reset lick'}
+							</button>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{/each}
 
