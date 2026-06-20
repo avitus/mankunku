@@ -74,6 +74,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import {
 	PROGRESSION_TEMPLATES,
+	getProgressionsForCategory,
 	getSubstitutionCategories,
 	resolveLickAlignmentOffset,
 	resolveTransposeTarget,
@@ -523,6 +524,35 @@ function unlockedCircleFrom(entryKey: PitchClass, unlockedCount: number): PitchC
 }
 
 /**
+ * Choose the chord progression a single-lick Deep Practice session plays the
+ * lick over. Unlike the rest of the setup flow, Deep Practice targets one
+ * user-chosen lick, so the progression must be derived from *that* lick — not
+ * inherited from `config.progressionType`, which `pickInitialProgression`
+ * selected for the most-neglected lick and which may be harmonically
+ * incompatible (e.g. a minor progression under a `major-chord` lick).
+ *
+ * Resolution order, each step guaranteeing compatibility with the lick:
+ *   1. The lick's own `prog:*` tags, least-recently-practiced first — mirrors
+ *      Daily Practice's `pickProgressionForLick`. Auto-seeded tags already
+ *      track the lick's category, so a Major lick resolves to a major
+ *      progression; an explicit cross-progression tag is honoured as intent.
+ *   2. Category-compatible progressions, when the lick carries no `prog:*`
+ *      tag at all (e.g. a library lick the user never configured).
+ *   3. `DEFAULT_PROGRESSION`, only if the category maps to no progression.
+ */
+function resolveSingleLickProgression(lick: Phrase): ChordProgressionType {
+	const tagged = pickProgressionForLick({
+		lickId: lick.id,
+		progressionTags: getProgressionTags(lick.id),
+		sessionLog: loadLickPracticeSessions()
+	});
+	if (tagged) return tagged;
+
+	const compatible = getProgressionsForCategory(lick.category);
+	return compatible[0] ?? DEFAULT_PROGRESSION;
+}
+
+/**
  * Start a single-lick deep-practice session: cycle the chosen lick through
  * its per-lick unlocked keys (in circle-of-4ths order from the lick's home
  * key), drop keys at score ≥ 0.95, bump tempo by `tempoBumpBpm` once the
@@ -544,6 +574,12 @@ export function startSingleLickSession(
 	lickPractice.config.singleLickId = lick.id;
 	lickPractice.config.tempoBumpBpm = tempoBumpBpm;
 
+	// Deep Practice drills one chosen lick, so the backing progression must be
+	// derived from that lick rather than inherited from `config.progressionType`
+	// (which was picked for the most-neglected lick and may be incompatible —
+	// e.g. a minor progression under a Major lick).
+	const progressionType = resolveSingleLickProgression(lick);
+
 	const unlockedCount = getUnlockedKeyCount(lickPractice.progress, lick.id);
 	lickPractice.plan = [
 		{
@@ -552,7 +588,7 @@ export function startSingleLickSession(
 			phraseNumber: 1,
 			category: lick.category,
 			keys: unlockedCircleFrom(lick.key, unlockedCount),
-			progressionType: lickPractice.config.progressionType,
+			progressionType,
 			// Persist the resolved Phrase so the helpers below survive a
 			// `getLickById` miss for user/community licks not (yet) indexed
 			// in the global library.
