@@ -1,54 +1,44 @@
 import type { DriveStep } from 'driver.js';
 
 /**
- * Library tour — assumes the user is on /library. Covers browsing,
- * filtering, tagging for practice, and the community-licks story.
+ * Library tour — assumes the user is on /library. Covers what the library now
+ * holds (the user's own + adopted licks), adding licks, and how the practice
+ * sections relate to Lick Practice.
  */
 export const libraryTour: DriveStep[] = [
 	{
 		popover: {
-			title: 'The Lick Library',
+			title: 'Your Licks',
 			description:
-				"Curated jazz licks bundled with the app, plus your own recorded or step-entered licks, plus community licks you've adopted. Filter, search, and pull lines into your practice rotation.",
+				"This is your personal collection — the licks you've recorded, step-entered, or adopted from the community. It's where you manage the lines you're learning for Lick Practice. (The app's built-in ear-training licks live inside Ear Training and Lick Practice, not here.)",
 			side: 'over',
 			align: 'center'
 		}
 	},
 	{
-		element: '[data-tour="category-filter"]',
+		element: '[data-tour="add-lick"]',
 		popover: {
-			title: 'Browse by category',
+			title: 'Add a lick',
 			description:
-				"Categories group licks by harmonic context — ii–V–I, blues, bebop lines, modal, etc. Filter to focus practice on one shape at a time.",
+				'Record a line from your instrument or step-enter it note by note. New licks land here, ready to tag for practice.',
 			side: 'bottom',
-			align: 'start'
-		}
-	},
-	{
-		element: '[data-tour="difficulty-filter"]',
-		popover: {
-			title: 'Cap by difficulty',
-			description:
-				"Difficulty 1–100 reflects pitch range, rhythmic density, and harmonic complexity. The library can be overwhelming — cap the difficulty to focus on what's near your level.",
-			side: 'top',
-			align: 'start'
-		}
-	},
-	{
-		element: '[data-tour="practice-tag"]',
-		popover: {
-			title: 'Tag for practice',
-			description:
-				"Star a lick to tag it for Lick Practice — Side B will rotate it through all 12 keys at increasing tempo. The Practice filter here shows just your tagged set.",
-			side: 'right',
-			align: 'start'
+			align: 'end'
 		}
 	},
 	{
 		popover: {
-			title: 'Community licks',
+			title: 'Practice set',
 			description:
-				"Other users publish licks they've recorded. Browse the Community page to adopt them into your library — once adopted, they behave like any other lick.",
+				"Open a lick and tag it for practice to add it here. Each card shows how many of the 12 keys you've unlocked, its current tempo, and when you last drilled it. Lick Practice rotates this set through every key at increasing tempo.",
+			side: 'over',
+			align: 'center'
+		}
+	},
+	{
+		popover: {
+			title: 'Needs setup & community',
+			description:
+				"A lick tagged for practice but not yet assigned to a progression shows under “Needs setup” — open it to fix that. Adopt more lines from the Community page and they'll appear here too.",
 			side: 'over',
 			align: 'center'
 		}

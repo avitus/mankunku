@@ -77,3 +77,61 @@ export async function seedOnboardedAnonymous(page: Page): Promise<void> {
 		'tour-state': TOUR_DISMISSED
 	});
 }
+
+/**
+ * Sample user-entered licks. The /library page lists only the user's own (and
+ * adopted) licks — curated licks no longer render there — so tests that need
+ * cards on the page must seed a personal collection. Shape matches `Phrase`
+ * (src/lib/types/music.ts); kept loosely typed to avoid a `$lib` import here.
+ */
+export const SAMPLE_USER_LICKS: unknown[] = [
+	{
+		id: 'e2e-user-lick-bebop',
+		name: 'Test Bebop Line',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] },
+			{ pitch: 62, duration: [1, 8], offset: [1, 8] },
+			{ pitch: 64, duration: [1, 8], offset: [1, 4] },
+			{ pitch: 65, duration: [1, 8], offset: [3, 8] }
+		],
+		harmony: [
+			{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [1, 1] }
+		],
+		difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 1 },
+		category: 'bebop-lines',
+		tags: [],
+		source: 'user-entered'
+	},
+	{
+		id: 'e2e-user-lick-blues',
+		name: 'Test Blues Riff',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 63, duration: [1, 4], offset: [1, 4] },
+			{ pitch: 65, duration: [1, 4], offset: [1, 2] },
+			{ pitch: 67, duration: [1, 4], offset: [3, 4] }
+		],
+		harmony: [
+			{ chord: { root: 'C', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }
+		],
+		difficulty: { level: 25, pitchComplexity: 25, rhythmComplexity: 20, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'user-entered'
+	}
+];
+
+/**
+ * Seed the user's personal lick collection into localStorage. Call before
+ * page.goto(). Defaults to {@link SAMPLE_USER_LICKS}.
+ */
+export async function seedUserLicks(
+	page: Page,
+	licks: unknown[] = SAMPLE_USER_LICKS
+): Promise<void> {
+	await seedStorage(page, { 'user-licks': licks });
+}
