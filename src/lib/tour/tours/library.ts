@@ -29,7 +29,7 @@ export const libraryTour: DriveStep[] = [
 		popover: {
 			title: 'Practice set',
 			description:
-				"Open a lick and tag it for practice to add it here. Each card shows how many of the 12 keys you've unlocked, its current tempo, and when you last drilled it. Lick Practice rotates this set through every key at increasing tempo.",
+				"Open a lick and tag it for practice to add it here. Each card shows when you last drilled it, and Lick Practice rotates this set through every key at increasing tempo.",
 			side: 'over',
 			align: 'center'
 		}

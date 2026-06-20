@@ -38,10 +38,11 @@ test.describe('library — authed', () => {
 		await expect(signedInPage.getByRole('heading', { name: /your licks/i })).toBeVisible();
 		await expect(signedInPage.getByPlaceholder(/find a lick/i)).toBeVisible();
 
-		// The user's seeded licks should render — counted via h3 names. Use a
+		// The user's seeded licks should render — counted via the level-3 card
+		// headings (a semantic locator that survives styling refactors). Use a
 		// polling assertion so slower engines (WebKit) get a chance to render
 		// before we read the count.
-		const cardHeadings = signedInPage.locator('main h3.font-display');
+		const cardHeadings = signedInPage.locator('main').getByRole('heading', { level: 3 });
 		await expect.poll(() => cardHeadings.count()).toBeGreaterThan(0);
 	});
 });
