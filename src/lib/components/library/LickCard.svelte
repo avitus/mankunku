@@ -3,10 +3,10 @@
 	import { GRADE_COLORS } from '$lib/scoring/grades';
 	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display';
 	import {
-		isInPracticeSet,
-		resolvePracticeFallbackTags,
-		getProgressionTags
+		getProgressionTags,
+		getLickLastPracticed
 	} from '$lib/persistence/lick-practice-store';
+	import type { LickPracticeProgress } from '$lib/types/lick-practice';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 
 	interface Props {
@@ -16,15 +16,45 @@
 		isPlaying?: boolean;
 		/** When set, renders a "by <name>" attribution — used for stolen community licks. */
 		authorName?: string | null;
+		/**
+		 * Per-lick practice progress. When provided alongside `showStats`, the card
+		 * renders a "last practiced" line. Omit for the plain card.
+		 */
+		progress?: LickPracticeProgress | null;
+		/** Render the last-practiced line (requires `progress`). */
+		showStats?: boolean;
 	}
 
-	let { lick, onclick, onplay, isPlaying = false, authorName = null }: Props = $props();
+	let {
+		lick,
+		onclick,
+		onplay,
+		isPlaying = false,
+		authorName = null,
+		progress = null,
+		showStats = false
+	}: Props = $props();
 
 	const diff = $derived(difficultyDisplay(lick.difficulty.level));
-	const isPracticeTagged = $derived(
-		isInPracticeSet(lick.id, resolvePracticeFallbackTags(lick.id, lick.tags))
-	);
 	const progTags = $derived(getProgressionTags(lick.id));
+
+	const lastPracticed = $derived(
+		showStats && progress ? getLickLastPracticed(progress, lick.id) : null
+	);
+
+	/** Coarse "Nd/Nh ago" label; "not started" for a zero timestamp. */
+	function relativeTime(ts: number): string {
+		if (!ts) return 'not started';
+		const elapsed = Date.now() - ts;
+		const day = 86_400_000;
+		const hour = 3_600_000;
+		if (elapsed < hour) return 'just now';
+		if (elapsed < day) return `${Math.floor(elapsed / hour)}h ago`;
+		const days = Math.floor(elapsed / day);
+		if (days < 30) return `${days}d ago`;
+		const months = Math.floor(days / 30);
+		return months < 12 ? `${months}mo ago` : `${Math.floor(months / 12)}y ago`;
+	}
 </script>
 
 {#snippet cardBody()}
@@ -36,7 +66,7 @@
 					by {authorName}
 				</p>
 			{/if}
-			<div class="mt-1 flex flex-wrap gap-1.5 text-xs">
+			<div class="mt-1 flex items-center gap-1.5 text-xs">
 				<span class="smallcaps border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">
 					{CATEGORY_LABELS[lick.category] ?? lick.category}
 				</span>
@@ -46,33 +76,26 @@
 				>
 					{diff.name} ({lick.difficulty.level})
 				</span>
-				<span class="text-[var(--color-text-secondary)]">
-					{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}
-				</span>
 			</div>
-		</div>
-	</div>
-	<div class="mt-2 flex flex-wrap items-center gap-1.5">
-		{#if isPracticeTagged}
-			<span class="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--color-success)]">
-				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
-					<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-				</svg>
-				practice
-			</span>
-		{/if}
-		{#each progTags as pt}
-			{@const template = PROGRESSION_TEMPLATES[pt]}
-			<span class="rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-xs text-[var(--color-accent)]">
-				{template?.shortName ?? pt}
-			</span>
-		{/each}
-		{#each lick.tags.filter(t => t !== 'practice' && t !== 'user-entered').slice(0, 4) as tag, i}
-			{#if i > 0}
-				<span class="text-xs text-[var(--color-brass)] opacity-60">·</span>
+			<div
+				class="mt-1 flex min-h-[1.375rem] items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs"
+			>
+				{#each progTags as pt}
+					{@const template = PROGRESSION_TEMPLATES[pt]}
+					<span class="rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[var(--color-accent)]">
+						{template?.shortName ?? pt}
+					</span>
+				{/each}
+				{#each lick.tags.filter(t => t !== 'practice' && t !== 'user-entered').slice(0, 4) as tag}
+					<span class="italic text-[var(--color-text-secondary)]">{tag}</span>
+				{/each}
+			</div>
+			{#if lastPracticed !== null}
+				<div class="mt-1.5 pl-1.5 text-xs text-[var(--color-text-secondary)]">
+					{relativeTime(lastPracticed)}
+				</div>
 			{/if}
-			<span class="text-xs italic text-[var(--color-text-secondary)]">{tag}</span>
-		{/each}
+		</div>
 	</div>
 {/snippet}
 
