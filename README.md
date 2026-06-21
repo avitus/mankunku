@@ -50,6 +50,15 @@ The app opens at `http://localhost:5173`. The onboarding flow will prompt for in
 
 **Optional — Supabase cloud sync:** Copy `.env.example` to `.env` and add your Supabase project URL and anon key. See [Getting Started](documentation/getting-started.md) for full setup including database migrations.
 
+**Local Supabase stack (for auth/sync development):** Development runs against a **local** Supabase instance so it never touches production data. Requires Docker.
+
+```sh
+npm run db:start   # boots local Postgres + Auth + Storage via Docker and applies all migrations
+npm run dev        # dev server now talks to the local stack at http://127.0.0.1:54321
+```
+
+`npm run db:reset` re-applies migrations from a clean slate; `npm run db:stop` shuts the stack down. Point your local `.env` `PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` at the values from `npx supabase status`. Production is unaffected — its credentials are injected by CI at build time, not read from `.env`.
+
 ## Project Structure
 
 ```text

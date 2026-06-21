@@ -2,6 +2,27 @@
 
 Newest at the top.
 
+## 2026-06-21 — Diagnosed dev/prod data contamination (no code changed yet)
+
+**What happened:**
+
+- User reported recurring contamination between dev and production: dev-user licks leaking into the prod account, hard-to-delete duplicates. Asked whether two specific cases are *possible* (not yet asking for a fix).
+  - Case 1: same machine, prod user + dev user with the same username, both logged in.
+  - Case 2: same machine, logged-in prod user + a not-logged-in dev user.
+- Root cause: **dev and prod share one Supabase project** — a single `.env`/`PUBLIC_SUPABASE_URL` is read by both `npm run dev` and the deployed site → one DB + one `auth.users` pool. Confirmed: no `.env.development`/`.env.production`, CI does `supabase db push --linked` to prod. The `user_licks` SELECT RLS policy (`00013`) is open to any authenticated user; only the client-side `.eq('user_id', self)` filter isolates libraries.
+- Verdicts (adversarially verified via a 4-agent workflow — 3 lens refuters + 1 completeness critic):
+  - **Case 1 — YES, effectively by definition.** Same email = same `user.id` in the shared project, so dev/prod are one cloud account; licks merge in both libraries, origin-independent. Duplicates persist because IDs are `user-${Date.now()}-${rand}` and dedup is ID-keyed.
+  - **Case 2 — literal scenario impossible, real variant exists.** Anonymous = zero cloud presence; `@supabase/ssr` cookies are origin-scoped so you can't be prod-logged-in and dev-logged-out on one origin. The genuine vector is the anonymous→first-login absorption on a *shared origin* (`syncUserScope` deliberately doesn't wipe on first login; `initUserLicksFromCloud` pushes unstamped local licks into the new account). Diagnostic inversion: a real Case 2 produces no contamination, so observed contamination ⇒ the dev tab still holds a persisted session ⇒ it's Case 1 in disguise.
+  - **Bigger than licks:** shared account also *destroys* data — `session_results` prune (`sync.ts:169`) deletes the other env's history; `user_lick_metadata` (`sync.ts:941`) clobbers `prog:*` eligibility + unlock counts LWW. Stolen-lick payloads render in `/library` but `deleteUserLick:633` refuses to delete them (the literal "can't delete" symptom).
+- Fix implemented (local Supabase stack, chosen over a cloud dev project after the user reconsidered): `supabase init` + `npx supabase start`; committed `supabase/config.toml` (auth URLs → localhost:5173); local `.env` → `http://127.0.0.1:54321` (prod creds saved to gitignored `.env.prod.backup`); added `db:start`/`db:stop`/`db:reset` scripts + README note. Verified all 17 migrations apply on a clean DB, schema/RLS mirror prod, and the dev server renders 200 with no connection errors. Production untouched (CI injects build creds; `.env*` gitignored; CI migrate pinned to prod ref). Not committed — left for the user. Shared-origin anonymous-absorption code bug still open (now low impact).
+
+**Notes:**
+
+- The whole owner-stamp / `syncUserScope` / generation-counter apparatus is symptom-fixing for an infra misconfig — see observations.md 2026-06-21. The defenses are blind to the dev/prod channel because both environments legitimately stamp the same `user.id`.
+- Left open: PR #133's CodeRabbit review completed mid-session; not yet processed (user redirected to this investigation).
+
+---
+
 ## 2026-05-07 — Calendar wasn't recording lick-practice sessions
 
 **What happened:**
