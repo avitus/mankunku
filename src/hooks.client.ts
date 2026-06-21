@@ -77,15 +77,23 @@ Sentry.init({
       return null;
     }
 
-    // Drop errors thrown from Vite's HMR client (`@vite/client`) in dev — they
-    // surface mid-save when a module is being re-evaluated and a dependent
-    // accepts an export that's momentarily undefined. The page recovers on
-    // the next HMR tick. See MANKUNKU-P.
+    // Drop errors thrown from Vite/Svelte HMR machinery in dev — they surface
+    // mid-save when a module is being re-evaluated and a dependent runs an
+    // effect against a momentarily-stale scope (a binding that's not defined
+    // yet, or an export that's transiently undefined). The page recovers on
+    // the next HMR tick. Two sources:
+    //   - `@vite/client`: Vite's own HMR client (see MANKUNKU-P).
+    //   - `hmr/wrapper`: Svelte's HMR effect re-runner. Surfaces as transient
+    //     "X is not defined" ReferenceErrors on localhost:5173 while editing a
+    //     component, where X is a variable/component that was just refactored
+    //     or removed. See MANKUNKU-Q/S/T/V.
     if (SENTRY_ENVIRONMENT === 'development') {
       const frames = ex?.stacktrace?.frames ?? [];
       if (
         frames.some(
-          (f) => typeof f.filename === 'string' && f.filename.includes('@vite/client')
+          (f) =>
+            (typeof f.filename === 'string' && f.filename.includes('@vite/client')) ||
+            (typeof f.function === 'string' && f.function.includes('hmr/wrapper'))
         )
       ) {
         return null;
