@@ -139,7 +139,7 @@ The global Settings page controls things that aren't specific to a single sessio
 
 | Setting | What it does |
 |---|---|
-| **Instrument** | Tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
+| **Instrument** | Soprano sax, tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
 | **Theme** | Dark (default) or light. |
 | **Default tempo** | Starting BPM for new ear-training sessions. |
 | **Metronome volume** and **swing** | The click's loudness and feel. Swing 0.5 is straight; 0.67 is triplet swing (most common); 0.8 is heavy. |

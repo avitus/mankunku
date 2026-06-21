@@ -10,6 +10,7 @@ import {
 	isInRange
 } from '$lib/music/transposition';
 
+const sopranoSax = INSTRUMENTS['soprano-sax'];
 const tenorSax = INSTRUMENTS['tenor-sax'];
 const altoSax = INSTRUMENTS['alto-sax'];
 const trumpet = INSTRUMENTS['trumpet'];
@@ -19,8 +20,14 @@ describe('concertToWritten / writtenToConcert', () => {
 		expect(concertToWritten(58, tenorSax)).toBe(72);
 	});
 
+	it('soprano sax: concert Bb3 (58) -> written C4 (60)', () => {
+		// Soprano sounds a major 2nd below written, like the trumpet: +2.
+		expect(concertToWritten(58, sopranoSax)).toBe(60);
+	});
+
 	it('roundtrips', () => {
 		for (const midi of [44, 58, 60, 69, 76]) {
+			expect(writtenToConcert(concertToWritten(midi, sopranoSax), sopranoSax)).toBe(midi);
 			expect(writtenToConcert(concertToWritten(midi, tenorSax), tenorSax)).toBe(midi);
 			expect(writtenToConcert(concertToWritten(midi, altoSax), altoSax)).toBe(midi);
 			expect(writtenToConcert(concertToWritten(midi, trumpet), trumpet)).toBe(midi);
@@ -41,6 +48,11 @@ describe('concertKeyToWritten / writtenKeyToConcert', () => {
 	it('alto sax (Eb): concert C -> written A', () => {
 		// 0 + 9 = 9 = A
 		expect(concertKeyToWritten('C', altoSax)).toBe('A');
+	});
+
+	it('soprano sax (Bb): concert C -> written D', () => {
+		// 0 + 2 = 2 = D
+		expect(concertKeyToWritten('C', sopranoSax)).toBe('D');
 	});
 
 	it('roundtrips key transposition', () => {
@@ -80,5 +92,12 @@ describe('isInRange', () => {
 		expect(isInRange(43, tenorSax)).toBe(false); // below range
 		expect(isInRange(77, tenorSax)).toBe(false); // above range
 		expect(isInRange(60, tenorSax)).toBe(true);  // middle
+	});
+
+	it('soprano sax range check', () => {
+		expect(isInRange(56, sopranoSax)).toBe(true);  // low end
+		expect(isInRange(88, sopranoSax)).toBe(true);  // high end
+		expect(isInRange(55, sopranoSax)).toBe(false); // below range
+		expect(isInRange(89, sopranoSax)).toBe(false); // above range
 	});
 });

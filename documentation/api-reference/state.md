@@ -45,7 +45,7 @@ User preferences. **Persisted** to localStorage under key `mankunku:settings`.
 
 ```typescript
 export const settings = $state({
-  instrumentId: 'tenor-sax',                  // 'tenor-sax' | 'alto-sax' | 'trumpet'
+  instrumentId: 'tenor-sax',                  // 'soprano-sax' | 'tenor-sax' | 'alto-sax' | 'trumpet'
   defaultTempo: 100,                          // BPM
   masterVolume: 0.8,                          // 0-1
   metronomeEnabled: true,

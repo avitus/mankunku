@@ -25,7 +25,7 @@ Around those two modes are the supporting rooms: a **library** of every lick the
 
 The first time you open the app it asks two questions:
 
-1. **What do you play?** Pick tenor sax, alto sax, or trumpet. This sets the transposition (your sheet music will read in the right key for your horn) and tells the app what range to expect.
+1. **What do you play?** Pick soprano sax, tenor sax, alto sax, or trumpet. This sets the transposition (your sheet music will read in the right key for your horn) and tells the app what range to expect.
 2. **Can it use your microphone?** Grant access. You can skip and turn this on later, but without it nothing gets scored.
 
 After that you land on the dashboard. Hit **Side A** to drop into ear training, or **Side B** if you've already tagged some licks for the 12-key drill.

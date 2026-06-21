@@ -79,6 +79,7 @@ async function getTone(): Promise<ToneModule> {
 
 /** GM instrument names for smplr */
 const GM_INSTRUMENT_NAMES: Record<string, string> = {
+	'soprano-sax': 'soprano_sax',
 	'tenor-sax': 'tenor_sax',
 	'alto-sax': 'alto_sax',
 	trumpet: 'trumpet'

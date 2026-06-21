@@ -31,6 +31,17 @@ export const INSTRUMENTS: Record<string, InstrumentConfig> = {
 		gmProgram: 0,
 		highNotePresets: [96, 90, 84, 79, 72, 65]
 	},
+	'soprano-sax': {
+		name: 'Soprano Saxophone',
+		key: 'Bb',
+		// Soprano sounds a major 2nd below written — same as the Bb trumpet, NOT 14 like the tenor.
+		transpositionSemitones: 2,
+		concertRangeLow: 56, // written Bb3 (58) − 2 = concert Ab3
+		concertRangeHigh: 88, // written F#6 (90) − 2 = concert E6; matches the other saxes' written top
+		clef: 'treble',
+		gmProgram: 64, // GM 64 = Soprano Sax (alto=65, tenor=66)
+		highNotePresets: [90, 89, 88, 87, 86, 84]
+	},
 	'tenor-sax': {
 		name: 'Tenor Saxophone',
 		key: 'Bb',
