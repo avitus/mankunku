@@ -42,11 +42,11 @@ Phrase playback using Tone.js Transport plus either custom multi-sampled instrum
 
 ### `loadInstrument(instrumentId?, masterVolume?, backingInstrument?): Promise<void>`
 
-Load the user's instrument. Defaults to `'tenor-sax'`. Looks up a `SampleMap` in `sample-maps.ts` and loads custom multi-sampled recordings (tenor sax ships with a sample map); when no sample map is available **or** custom samples fail to decode, it falls back to the **MusyngKite** SoundFont via smplr (with `loadLoopData: true` for natural sustain). Cached after first load. Previous instruments are disconnected on switch.
+Load the user's instrument. Defaults to `'tenor-sax'`. Looks up a `SampleMap` in `sample-maps.ts` and loads custom multi-sampled recordings (soprano, alto, and tenor sax ship with sample maps); when no sample map is available **or** custom samples fail to decode, it falls back to the **MusyngKite** SoundFont via smplr (with `loadLoopData: true` for natural sustain). Cached after first load. Previous instruments are disconnected on switch.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `instrumentId` | `string` | `'tenor-sax'` / `'alto-sax'` / `'trumpet'` (default `'tenor-sax'`) |
+| `instrumentId` | `string` | `'soprano-sax'` / `'tenor-sax'` / `'alto-sax'` / `'trumpet'` (default `'tenor-sax'`) |
 | `masterVolume` | `number?` | When provided, applied via `setMasterVolume` during load |
 | `backingInstrument` | `BackingInstrument?` | If provided, backing-track samples are loaded in parallel (best-effort — failures are logged and non-blocking) |
 

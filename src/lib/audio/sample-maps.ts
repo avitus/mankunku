@@ -185,10 +185,92 @@ export const ALTO_SAX_SAMPLES: SampleMap = {
 	}
 };
 
+/**
+ * Soprano saxophone sample map.
+ *
+ * 33 chromatic samples (MIDI 56–88, Ab3–E6 concert pitch) at 2 velocity layers.
+ * Tuning corrections from the MTG SFZ mappings compensate for the original
+ * A=442 Hz recording pitch and per-note intonation variance.
+ */
+export const SOPRANO_SAX_SAMPLES: SampleMap = {
+	velocitySplit: 100,
+	piano: {
+		56: { url: '/samples/soprano-sax/p_56.ogg', tune: -13 },
+		57: { url: '/samples/soprano-sax/p_57.ogg', tune: -11 },
+		58: { url: '/samples/soprano-sax/p_58.ogg', tune: -13 },
+		59: { url: '/samples/soprano-sax/p_59.ogg', tune: -10 },
+		60: { url: '/samples/soprano-sax/p_60.ogg', tune: 2 },
+		61: { url: '/samples/soprano-sax/p_61.ogg', tune: -2 },
+		62: { url: '/samples/soprano-sax/p_62.ogg', tune: -6 },
+		63: { url: '/samples/soprano-sax/p_63.ogg', tune: -8 },
+		64: { url: '/samples/soprano-sax/p_64.ogg', tune: -6 },
+		65: { url: '/samples/soprano-sax/p_65.ogg', tune: -9 },
+		66: { url: '/samples/soprano-sax/p_66.ogg', tune: -3 },
+		67: { url: '/samples/soprano-sax/p_67.ogg', tune: -7 },
+		68: { url: '/samples/soprano-sax/p_68.ogg', tune: -14 },
+		69: { url: '/samples/soprano-sax/p_69.ogg', tune: -12 },
+		70: { url: '/samples/soprano-sax/p_70.ogg', tune: -16 },
+		71: { url: '/samples/soprano-sax/p_71.ogg', tune: -8 },
+		72: { url: '/samples/soprano-sax/p_72.ogg', tune: -21 },
+		73: { url: '/samples/soprano-sax/p_73.ogg', tune: -21 },
+		74: { url: '/samples/soprano-sax/p_74.ogg', tune: -18 },
+		75: { url: '/samples/soprano-sax/p_75.ogg', tune: -18 },
+		76: { url: '/samples/soprano-sax/p_76.ogg', tune: -17 },
+		77: { url: '/samples/soprano-sax/p_77.ogg', tune: -24 },
+		78: { url: '/samples/soprano-sax/p_78.ogg', tune: -17 },
+		79: { url: '/samples/soprano-sax/p_79.ogg', tune: -21 },
+		80: { url: '/samples/soprano-sax/p_80.ogg', tune: -16 },
+		81: { url: '/samples/soprano-sax/p_81.ogg', tune: -28 },
+		82: { url: '/samples/soprano-sax/p_82.ogg', tune: -26 },
+		83: { url: '/samples/soprano-sax/p_83.ogg', tune: -37 },
+		84: { url: '/samples/soprano-sax/p_84.ogg', tune: -39 },
+		85: { url: '/samples/soprano-sax/p_85.ogg', tune: -32 },
+		86: { url: '/samples/soprano-sax/p_86.ogg', tune: -34 },
+		87: { url: '/samples/soprano-sax/p_87.ogg', tune: -35 },
+		88: { url: '/samples/soprano-sax/p_88.ogg', tune: -15 }
+	},
+	forte: {
+		56: { url: '/samples/soprano-sax/f_56.ogg', tune: -13 },
+		57: { url: '/samples/soprano-sax/f_57.ogg', tune: -11 },
+		58: { url: '/samples/soprano-sax/f_58.ogg', tune: -12 },
+		59: { url: '/samples/soprano-sax/f_59.ogg', tune: -10 },
+		60: { url: '/samples/soprano-sax/f_60.ogg', tune: 4 },
+		61: { url: '/samples/soprano-sax/f_61.ogg', tune: -2 },
+		62: { url: '/samples/soprano-sax/f_62.ogg', tune: -5 },
+		63: { url: '/samples/soprano-sax/f_63.ogg', tune: -5 },
+		64: { url: '/samples/soprano-sax/f_64.ogg', tune: -7 },
+		65: { url: '/samples/soprano-sax/f_65.ogg', tune: -9 },
+		66: { url: '/samples/soprano-sax/f_66.ogg', tune: -3 },
+		67: { url: '/samples/soprano-sax/f_67.ogg', tune: -10 },
+		68: { url: '/samples/soprano-sax/f_68.ogg', tune: -11 },
+		69: { url: '/samples/soprano-sax/f_69.ogg', tune: -10 },
+		70: { url: '/samples/soprano-sax/f_70.ogg', tune: -14 },
+		71: { url: '/samples/soprano-sax/f_71.ogg', tune: -13 },
+		72: { url: '/samples/soprano-sax/f_72.ogg', tune: -18 },
+		73: { url: '/samples/soprano-sax/f_73.ogg', tune: -20 },
+		74: { url: '/samples/soprano-sax/f_74.ogg', tune: -20 },
+		75: { url: '/samples/soprano-sax/f_75.ogg', tune: -23 },
+		76: { url: '/samples/soprano-sax/f_76.ogg', tune: -14 },
+		77: { url: '/samples/soprano-sax/f_77.ogg', tune: -19 },
+		78: { url: '/samples/soprano-sax/f_78.ogg', tune: -15 },
+		79: { url: '/samples/soprano-sax/f_79.ogg', tune: -21 },
+		80: { url: '/samples/soprano-sax/f_80.ogg', tune: -25 },
+		81: { url: '/samples/soprano-sax/f_81.ogg', tune: -21 },
+		82: { url: '/samples/soprano-sax/f_82.ogg', tune: -21 },
+		83: { url: '/samples/soprano-sax/f_83.ogg', tune: -45 },
+		84: { url: '/samples/soprano-sax/f_84.ogg', tune: -37 },
+		85: { url: '/samples/soprano-sax/f_85.ogg', tune: -35 },
+		86: { url: '/samples/soprano-sax/f_86.ogg', tune: -41 },
+		87: { url: '/samples/soprano-sax/f_87.ogg', tune: -38 },
+		88: { url: '/samples/soprano-sax/f_88.ogg', tune: -32 }
+	}
+};
+
 /** Instruments that have custom sample maps available */
 export const SAMPLE_MAPS: Record<string, SampleMap> = {
 	'tenor-sax': TENOR_SAX_SAMPLES,
-	'alto-sax': ALTO_SAX_SAMPLES
+	'alto-sax': ALTO_SAX_SAMPLES,
+	'soprano-sax': SOPRANO_SAX_SAMPLES
 };
 
 /**

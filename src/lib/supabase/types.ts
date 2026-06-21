@@ -100,7 +100,7 @@ export type Database = {
         Row: {
           /** UUID primary key, references auth.users.id (1:1 relationship) */
           user_id: string
-          /** Instrument identifier, e.g. 'tenor-sax', 'alto-sax', 'trumpet' */
+          /** Instrument identifier, e.g. 'soprano-sax', 'tenor-sax', 'alto-sax', 'trumpet' */
           instrument_id: string
           /** Default BPM for practice sessions */
           default_tempo: number
