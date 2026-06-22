@@ -2,6 +2,23 @@
 
 Newest at the top.
 
+## 2026-06-21 — Fixed short-gap same-pitch re-articulation merge (flat-five-chromatic-up)
+
+**What happened:**
+
+- User reported an ear-training lick was mis-scored: "two notes were combined into one" despite clear audible separation. Diagnostic JSON + WAV provided (flat-five-chromatic-up, concert G, bc-045_G, tenor sax, 100 BPM, no backing track).
+- Established ground truth from the raw WAV (numpy autocorrelation + RMS envelope, independent of the app's captured readings): player played **C-C-D** — two tongued C4 quarters + a D4 half. The two C4s re-articulate at t≈0.42 s (RMS doubles 0.05→0.09; pitch readings drop ~6 frames → a 100 ms gap at 0.333→0.433 with a clarity dip to 0.847). The post-phrase transients at 2.2/2.8/3.4 s are key-clicks (no sustained pitch).
+- Root cause (mapped via a 4-agent Workflow over onset-core / note-segmenter / score-pipeline / tests): the soft re-attack fell in the **dead zone between `findReArticulations`' two passes** — bare-gap pass wants ≥150 ms (this is 100 ms); dip-and-rise pass wants an RMS *dip* (this RMS *rises*). `splitOnReadingGaps` (75 ms) created the boundary, but with no articulation onset `mergeSamePitchWithoutAttack` collapsed it → 2 notes, second expected note MISSED, score 0.62 ("fair").
+- Fix (`note-segmenter.ts`, surgical, ~12 lines + 2 consts + `meanRms` helper): gave the gap pass a corroborated lower tier — a gap ≥ `READING_GAP_SPLIT_THRESHOLD` (75 ms) now counts as a re-articulation when the post-gap RMS window averages ≥1.5× the pre-gap window (a re-attack). A sustain dropout fades/holds (ratio ≲1.0), so the energy-*direction* discriminator separates the two without lowering the 150 ms bare-gap floor that protects against mid-sustain glitches.
+- Tests (per the diagnostics-regression-suite habit): copied both fixtures into `tests/fixtures/recordings/`; added a JSON-fixture block (`audio-processing-pipeline.test.ts`, algorithm in isolation) and a WAV-replay block (`pitch-replay.test.ts`, end-to-end). Verified all 5 new tests **fail without the fix and pass with it** (git-stashed the source to confirm). Full suite green (2008 passed), `npm run check` clean (0 errors).
+- Side finding (not a bug, flagged to user): the scored target was C-C-D, not the chromatic C-Db-D, because the day's tonality was G major — `snapLickToScale` snaps the out-of-scale b5 (Db) to the root. See observations.md.
+
+**Notes:**
+
+- Not committed — left for the user to review/commit. Branch: `dev`. Files: `src/lib/audio/note-segmenter.ts`, two test files, two new fixtures.
+
+---
+
 ## 2026-06-21 — Diagnosed dev/prod data contamination (no code changed yet)
 
 **What happened:**

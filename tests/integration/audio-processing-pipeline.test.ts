@@ -910,3 +910,107 @@ describe('Blues Curl Up dropout-gap re-articulation (concert G, 2026-05-22)', ()
 		// emits the right boundary so the merge step has evidence to keep.
 	}
 });
+
+// ─── Flat Five Chromatic Up short-gap re-articulation (concert G, 2026-06-21) ──
+//
+// The player tongued two C4 quarter-notes — the "C, C, D" the app rendered
+// for bc-045_G — but the second attack was soft. The HFC worklet missed it,
+// the pitch detector dropped ~6 frames across the boundary (a 100 ms reading
+// gap at 0.33→0.43 s), and the RMS stepped UP ~2× on the re-attack without
+// ever dipping below the pre-gap level. That falls between findReArticulations'
+// two passes — the bare-gap pass wants a gap ≥ 150 ms, the dip-and-rise pass
+// wants a measurable RMS dip — so the boundary that splitOnReadingGaps created
+// had no attack evidence, mergeSamePitchWithoutAttack collapsed the two C's
+// into one, the scorer marked the second note MISSED, and the saved score fell
+// to 0.62 ("fair") on an otherwise correct performance.
+//
+// The fix gives the gap pass a corroborated lower tier: a gap ≥ the segmenter's
+// own split threshold (75 ms) counts as a re-articulation when the RMS clearly
+// steps up across it (a re-attack), which a sustain dropout never does.
+
+interface FlatFiveChromaticFixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadFlatFiveChromaticFixture(): FlatFiveChromaticFixture {
+	const path = resolve(
+		__dirname,
+		'..',
+		'fixtures',
+		'recordings',
+		'2026-06-21-flat-five-chromatic-up.json'
+	);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Flat Five Chromatic Up short-gap re-articulation (concert G, 2026-06-21)', () => {
+	// bc-045_G as the scorer saw it: a repeated C4 then D4.
+	const phrase: Phrase = {
+		id: 'bc-045_G',
+		name: 'Flat Five Chromatic Up',
+		timeSignature: [4, 4],
+		key: 'G',
+		notes: [
+			{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 60, duration: [1, 4], offset: [1, 4] },
+			{ pitch: 62, duration: [1, 2], offset: [1, 2] }
+		],
+		harmony: [],
+		difficulty: { level: 15, pitchComplexity: 16, rhythmComplexity: 15, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Mirror the production ear-training path: resolveOnsets → findReArticulations
+	// → segmentNotes(..., articulationOnsets). No backing track was used, so no
+	// bleed onsets. (context.backingTrackUsed === false in the diagnostic.)
+	function runPipeline(fx: FlatFiveChromaticFixture): DetectedNote[] {
+		const baseOnsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const articulationOnsets = findReArticulations(fx.detection.readings, baseOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets,
+			undefined,
+			articulationOnsets
+		);
+	}
+
+	it('findReArticulations emits an onset near the second-C attack (~0.42 s)', () => {
+		const fx = loadFlatFiveChromaticFixture();
+		const baseOnsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const articulationOnsets = findReArticulations(fx.detection.readings, baseOnsets);
+
+		const nearSecondC = articulationOnsets.some((t) => Math.abs(t - 0.42) < 0.1);
+		expect(nearSecondC).toBe(true);
+	});
+
+	it('segments the held region into two C notes + a D instead of merging', () => {
+		const detected = runPipeline(loadFlatFiveChromaticFixture());
+		expect(detected.map((n) => n.midi)).toEqual([60, 60, 62]);
+	});
+
+	it('score climbs from "fair" to "great" once the merged C is split', () => {
+		const fx = loadFlatFiveChromaticFixture();
+		const detected = runPipeline(fx);
+		const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+
+		// Saved diagnostic (pre-fix): pitch 0.667, rhythm 0.547, overall 0.62,
+		// second note MISSED. Post-fix all three notes match.
+		expect(score.notesHit).toBe(3);
+		expect(score.notesTotal).toBe(3);
+		expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(score.overall).toBeGreaterThan(0.85);
+	});
+});

@@ -1144,6 +1144,41 @@ const RE_ARTICULATION_ATTACK_LATENCY = 0.02;
 const RE_ARTICULATION_READING_GAP = 0.15;
 
 /**
+ * Short-gap re-articulation corroboration. A same-MIDI reading gap below
+ * RE_ARTICULATION_READING_GAP (so the bare-gap pass won't fire) but at or
+ * above READING_GAP_SPLIT_THRESHOLD still marks a tongue re-attack when the
+ * amplitude clearly steps UP across the gap. These slip past both existing
+ * passes: the bare-gap pass needs ≥ 150 ms, and the dip-and-rise pass needs a
+ * measurable RMS dip — but here the pitch detector drops a few frames through
+ * the attack transient while the RMS never falls below the pre-gap level, it
+ * only jumps higher on the louder re-attack. The HFC worklet misses it too
+ * because the energy only roughly doubles (ratio ~1.4×, under the 3.0× trigger).
+ *
+ * Require the post-gap RMS window to average ≥ RE_ARTICULATION_GAP_ATTACK_RISE
+ * times the pre-gap window. A mid-sustain detector dropout leaves RMS flat or
+ * fading across the hole (ratio ≲ 1.0), so the rise requirement cleanly
+ * separates a real re-articulation from a sustain glitch — without lowering the
+ * bare-gap floor that RE_ARTICULATION_READING_GAP deliberately keeps high.
+ *
+ * Reference: the 2026-06-21 "flat-five-chromatic-up" diagnostic (concert G,
+ * 100 BPM) — two tongued C4 quarter-notes, 100 ms reading gap, RMS stepping
+ * ~0.044 → ~0.089 (≈2×) across it. Previously merged into one note, dropping
+ * the score to 0.62 ("fair") with the second note marked MISSED.
+ */
+const RE_ARTICULATION_GAP_ATTACK_RISE = 1.5;
+const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
+
+/** Mean RMS over readings[from, to), clamped to bounds; 0 if the range is empty. */
+function meanRms(readings: PitchReading[], from: number, to: number): number {
+	const lo = Math.max(0, from);
+	const hi = Math.min(readings.length, to);
+	if (hi <= lo) return 0;
+	let sum = 0;
+	for (let k = lo; k < hi; k++) sum += readings[k].rms;
+	return sum / (hi - lo);
+}
+
+/**
  * Detect re-articulations within same-MIDI runs by looking for paired
  * clarity and RMS dip-and-recovery patterns in the pitch readings.
  *
@@ -1277,16 +1312,26 @@ function findReArticulationsInSegment(
 
 	const onsets: number[] = [];
 
-	// Gap pass: a same-MIDI reading-time gap above the threshold is itself
-	// evidence of an articulation. On a sustained reed note the pitch
-	// detector practically never loses tracking for >75 ms except at a
-	// tongue stop, so the gap stands in for the RMS dip the dip-and-rise
-	// scan below can't see (the readings stop being emitted before RMS
-	// bottoms out, then resume already recovered). Anchor at the resumption
+	// Gap pass: a same-MIDI reading-time gap is itself evidence of an
+	// articulation. On a sustained reed note the pitch detector practically
+	// never loses tracking for >75 ms except at a tongue stop, so the gap
+	// stands in for the RMS dip the dip-and-rise scan below can't see (the
+	// readings stop being emitted before RMS bottoms out, then resume already
+	// recovered). A bare gap ≥ RE_ARTICULATION_READING_GAP fires on its own;
+	// a shorter gap (≥ READING_GAP_SPLIT_THRESHOLD, where the segmenter already
+	// splits) fires only when the RMS clearly steps up across it, which marks a
+	// re-attack and rules out a mid-sustain dropout. Anchor at the resumption
 	// of the gap, minus the attack-latency adjustment used elsewhere.
 	for (let g = 1; g < stable.length; g++) {
 		const gap = stable[g].time - stable[g - 1].time;
-		if (gap < RE_ARTICULATION_READING_GAP) continue;
+		if (gap < READING_GAP_SPLIT_THRESHOLD) continue;
+		if (gap < RE_ARTICULATION_READING_GAP) {
+			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
+			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
+			if (preRms <= 0 || postRms < preRms * RE_ARTICULATION_GAP_ATTACK_RISE) {
+				continue;
+			}
+		}
 		const onsetTime = stable[g].time - RE_ARTICULATION_ATTACK_LATENCY;
 		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 			onsets.push(onsetTime);
