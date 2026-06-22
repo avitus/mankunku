@@ -685,13 +685,16 @@ describe('pitch replay regression: Flat Five Chromatic Up short-gap re-articulat
 		source: 'curated'
 	};
 
-	it('segments into three notes [C, C, D] instead of merging the two C4s', async () => {
+	// Mirror the production ear-training path: resolveOnsets →
+	// findReArticulations → segmentNotes(..., articulationOnsets). No backing
+	// track was used, so no bleed onsets.
+	async function detectFromFixture() {
 		const buffer = loadFixture();
 		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
 		const baseOnsets = resolveOnsets(onsets, readings);
 		const articulationOnsets = findReArticulations(readings, baseOnsets);
 		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(
+		return segmentNotes(
 			readings,
 			allOnsets,
 			duration,
@@ -702,6 +705,10 @@ describe('pitch replay regression: Flat Five Chromatic Up short-gap re-articulat
 			undefined,
 			articulationOnsets
 		);
+	}
+
+	it('segments into three notes [C, C, D] instead of merging the two C4s', async () => {
+		const detected = await detectFromFixture();
 
 		expect(detected.map((n) => n.midi)).toEqual([60, 60, 62]);
 		// Second C4 re-articulation lands in the 0.40–0.55 s window.
@@ -710,22 +717,7 @@ describe('pitch replay regression: Flat Five Chromatic Up short-gap re-articulat
 	});
 
 	it('scores three matched notes with high overall', async () => {
-		const buffer = loadFixture();
-		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
-		const baseOnsets = resolveOnsets(onsets, readings);
-		const articulationOnsets = findReArticulations(readings, baseOnsets);
-		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(
-			readings,
-			allOnsets,
-			duration,
-			undefined,
-			undefined,
-			undefined,
-			onsets,
-			undefined,
-			articulationOnsets
-		);
+		const detected = await detectFromFixture();
 
 		const result = runScorePipeline({
 			detected,
