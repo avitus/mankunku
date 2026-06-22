@@ -640,3 +640,109 @@ describe('pitch replay regression: Blues Curl Up dropout-gap re-articulation (co
 		});
 	}
 });
+
+/**
+ * Eighth regression recording: "Flat Five Chromatic Up" (concert G,
+ * 2026-06-21). The app rendered bc-045_G as C4 C4 D4 (quarter quarter half);
+ * the player tongued the two C4s in time on tenor sax at 100 BPM, no backing
+ * track. The second attack was soft — the HFC worklet missed it — and across
+ * the boundary the pitch detector dropped ~6 frames (a 100 ms reading gap at
+ * t ≈ 0.33→0.43 s) while the RMS stepped UP ~2× on the re-attack without ever
+ * dipping below the pre-gap level.
+ *
+ * That short-gap-with-rising-RMS shape fell between findReArticulations' two
+ * passes: the bare-gap pass wanted a gap ≥ 150 ms (this one is 100 ms) and the
+ * dip-and-rise pass wanted a measurable RMS dip (this one only rises). With no
+ * articulation onset, mergeSamePitchWithoutAttack collapsed the two C4s into
+ * one, the DTW marked the second expected note MISSED, and the saved score was
+ * 0.62 ("fair"), pitch 2/3, rhythm 0.547.
+ *
+ * The fix gives the gap pass a corroborated lower tier: a gap ≥ the segmenter's
+ * own 75 ms split threshold counts as a re-articulation when the RMS clearly
+ * steps up across it (a re-attack a sustain dropout never produces).
+ */
+describe('pitch replay regression: Flat Five Chromatic Up short-gap re-articulation (concert G, 2026-06-21)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-06-21-flat-five-chromatic-up.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-045_G as the scorer saw it: a repeated C4 then D4.
+	const expectedPhrase: Phrase = {
+		id: 'bc-045_G',
+		name: 'Flat Five Chromatic Up',
+		timeSignature: [4, 4],
+		key: 'G',
+		notes: [
+			{ pitch: 60, duration: [1, 4], offset: [0, 1] }, // C4
+			{ pitch: 60, duration: [1, 4], offset: [1, 4] }, // C4
+			{ pitch: 62, duration: [1, 2], offset: [1, 2] }  // D4
+		],
+		harmony: [],
+		difficulty: { level: 15, pitchComplexity: 16, rhythmComplexity: 15, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	it('segments into three notes [C, C, D] instead of merging the two C4s', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([60, 60, 62]);
+		// Second C4 re-articulation lands in the 0.40–0.55 s window.
+		expect(detected[1].onsetTime).toBeGreaterThan(0.35);
+		expect(detected[1].onsetTime).toBeLessThan(0.6);
+	});
+
+	it('scores three matched notes with high overall', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.85);
+	});
+});
