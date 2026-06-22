@@ -15,7 +15,8 @@ Newest at the top.
 
 **Notes:**
 
-- Not committed — left for the user to review/commit. Branch: `dev`. Files: `src/lib/audio/note-segmenter.ts`, two test files, two new fixtures.
+- Shipped: committed on `dev` (fix + tests/fixtures + these notes), opened **PR #135** (dev→main), CodeRabbit had one trivial nitpick (extract a shared replay→segmentation helper in the new WAV block) — applied; the non-blocking "docstring coverage 40%" pre-merge warning declined with rationale. **User merged PR #135.**
+- The "Flat Five Chromatic Up renders without its flat five in diatonic tonalities" question is **resolved — accepted as-is** (see observations.md); don't re-raise.
 
 ---
 
