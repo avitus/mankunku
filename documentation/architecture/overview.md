@@ -24,6 +24,7 @@ The opposite exercise: you already know what you want to play; the app helps you
 - Each key, you play the lick once per cycle. Pass it cleanly (≥ 80%) and the next cycle moves to the next key. Tempo bumps up +5 BPM after every clean key; it backs off when you stumble.
 - Once you've passed all 12 keys, the session moves to the next tagged lick.
 - A **Daily Practice** start button rotates across every progression you have tagged licks for, sized to the same time budget — useful as a daily warm-up that touches every line in your book.
+- A **Practice** button on any lick's detail page in the Library launches **Deep Practice** on that single lick — a focused round through just that lick's currently-unlocked keys, with the rotation refilling and tempo bumping each time all keys are mastered.
 
 Side B is **depth-first**. It assumes the line is already in your ear and your job is to wire it to your fingers across the cycle of fifths. The progress tracking is per-lick, per-key — you can see exactly which keys still trip you up on a given line, and which are clean.
 

@@ -23,7 +23,7 @@ Pitch is weighted more heavily than rhythm — 60/40 — because in practice it'
 | **Fair** | ≥ 55% | Off the changes here and there. The same phrase will retry. |
 | **Try Again** | < 55% | Take it again from the top. |
 
-On **Side A**, the pass line is **70%** — at that threshold the app moves you on, and below it the same phrase replays so you can take another swing. **Side B** uses a tighter **80%** threshold for advancing through the 12 keys (see [Two Practice Modes](./overview.md) and [How to Practice](../user-guide.md)). The grades themselves don't gate anything — the move-on thresholds are fixed per mode.
+On **Side A**, the pass line is **70%** — at that threshold the app moves you on, and below it the same phrase replays so you can take another swing. **Side B** is tighter: each key is graded on a green/yellow/red scale (green ≥ 90%, yellow 75–89%, red < 75%). Green earns tempo bumps and key unlocks; yellow holds the line without earning either; a single red key blocks tempo *increases* and unlocks until you bring it back up. See [Two Practice Modes](./overview.md) and [How to Practice](../user-guide.md). The grades themselves don't gate anything — the per-mode thresholds are what move the practice forward.
 
 Each grade picks one of about ten captions from a pool, mixing Blue Note one-liners with quotes from the giants of the genre — so the feedback stays fresh across a session.
 

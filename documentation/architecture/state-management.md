@@ -111,7 +111,7 @@ On first load the module self-migrates: if no v2 meta is found in localStorage, 
 
 ### Lick Practice State (`src/lib/state/lick-practice.svelte.ts`)
 
-Active state for the multi-key lick-practice flow: configuration, session plan, per-key results, and tempo adjustments. Each lick's key rotation expands gradually — a brand-new lick starts with just one unlocked key (its entry key) and earns each next key as alternating sharp/flat-side neighbours of the entry key on the circle of fifths (see `planUnlockedKeys` in `src/lib/music/key-ordering.ts`). The unlock gate requires both a strong session (avg score ≥ `UNLOCK_AVG_THRESHOLD` = 0.90) and consolidation on the newest-unlocked key (`passCount ≥ UNLOCK_PASSES_REQUIRED` = 2); see `shouldUnlockNextKey`. Tempo bumps run on a separate, looser gate (avg ≥ 0.85 for +2 BPM) so users keep accelerating on the keys they have without the rotation growing every passable session. Once a lick has earned all 12 keys, `planLickKeys` takes over for staged variety. The reactive `$state` object is ephemeral (resets on reload), but cumulative per-lick/per-key progress (including unlock counts and `passCount`) is persisted via `persistence/lick-practice-store.ts` under `mankunku:lick-practice-progress` and `mankunku:lick-unlock-count`.
+Active state for the multi-key lick-practice flow: configuration, session plan, per-key results, and tempo adjustments. Each lick's key rotation expands gradually — a brand-new lick starts with just one unlocked key (its entry key) and earns each next key as alternating sharp/flat-side neighbours of the entry key on the circle of fifths (see `planUnlockedKeys` in `src/lib/music/key-ordering.ts`). Each key is graded on a green/yellow/red scale against two thresholds in `persistence/lick-practice-store.ts`: `KEY_PROFICIENT_THRESHOLD = 0.90` (green) and `KEY_FLOOR_THRESHOLD = 0.75`. The unlock gate requires (1) average session score ≥ `UNLOCK_AVG_THRESHOLD` = 0.90, (2) `passCount ≥ UNLOCK_PASSES_REQUIRED` = 2 on the newest-unlocked key — only green attempts (≥ 0.90) increment `passCount` — and (3) no red key in the session (any key below the floor blocks the unlock). Tempo delta: +5 BPM at ≥ 95%, +2 at ≥ 90%, -1 in the 75–89% yellow band, -3 below 75% — and a single red key clamps the delta to ≤ 0 regardless of average. Once a lick has earned all 12 keys, `planLickKeys` takes over for staged variety. The reactive `$state` object is ephemeral (resets on reload), but cumulative per-lick/per-key progress (including unlock counts and `passCount`) is persisted via `persistence/lick-practice-store.ts` under `mankunku:lick-practice-progress` and `mankunku:lick-unlock-count`.
 
 ```typescript
 export const lickPractice = $state<{
@@ -136,15 +136,16 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 - `getPracticeLicks()` — All licks tagged `practice` that *also* carry the active progression's `prog:*` tag.
 - `getDailyPracticeLicks()` — All practice-tagged licks with at least one `prog:*` tag, regardless of progression. Powers Daily Practice mode.
 - `buildSessionPlan()` — Standard mode. Sorts licks by least-recently-practiced and packs the time budget. Each lick's planned key list is the first N keys of the alternating sharp/flat ramp where N is its current unlock count (capped at 12, then handed off to `planLickKeys` for staged variety). Called by `startSession()`.
-- `buildDailyPracticePlan()` — Daily Practice mode. Pools every lick from `getDailyPracticeLicks()`, sorts least-recently-practiced first, picks each lick's least-recently-practiced compatible progression via `pickProgressionForLick`, and packs the duration budget. Each plan item carries its own `progressionType` instead of inheriting from config.
-- `startSession()`, `startDailyPracticeSession()`, `startSingleLickSession(lickId, tempoBumpBpm?)` — The three entry points; all converge on the same playback engine.
+- `buildDailyPracticePlan()` — Daily Practice mode. Pools every lick from `getDailyPracticeLicks()`, sorts least-recently-practiced first, picks each lick's least-recently-practiced compatible progression via `pickProgressionForLick`, and packs the duration budget. Each plan item carries its own `progressionType` instead of inheriting from config. When the session ends, the writer in `persistence/lick-practice-sessions.ts` calls `splitReportByProgression` to log one session entry per progression — the picker's least-recently-practiced lookup stays accurate even when a single Daily Practice run touched several progressions.
+- `startSession()`, `startDailyPracticeSession()`, `startSingleLickSession(lickId, tempoBumpBpm?)` — The three entry points; all converge on the same playback engine. Single-lick (Deep Practice) cycles only the lick's currently-unlocked keys and **derives its progression from the chosen lick's own `prog:*` tags** rather than `config.progressionType` — fixes the case where a major lick gets stuck over a minor vamp because the setup screen was set that way.
 - `getCurrentPlanItem()`, `getCurrentKey()`, `getCurrentPhrase()`, `getCurrentHarmony()` — Cursor accessors for the active lick/key.
 - `getPhraseFor(lickIdx, keyIdx)` — Pure variant used when scoring a key that has just finished.
 - `getPlannedKey(offset)`, `getUpcomingKeys()`, `getPlannedKeysForLick(lickIdx)` — Lookahead accessors for the preview strip and scroll animation.
 - `buildLickSuperPhrase(lickIdx)` — Concatenates all 12 keys (plus an optional demo in continuous mode) into one phrase so the whole lick can be scheduled in a single Tone.js pass.
-- `recordKeyAttempt(score)` — Appends a `LickPracticeKeyResult`; persists key progress on pass (≥ 80%).
+- `recordKeyAttempt(score)` — Appends a `LickPracticeKeyResult`; persists key progress and increments `passCount` only on green attempts (≥ `KEY_PROFICIENT_THRESHOLD` = 0.90).
+- `resetLickProgress(lickId, supabase?)` — Wipes one lick's per-key scores, `passCount`, and unlock count. Tags (`practice`, `prog:*`) are preserved; cloud is synced when a client is supplied. Surfaced from the post-session report (gated on try-again-band score) and the library detail page (gated on `hasLickProgress`).
 - `advance()` — Moves to the next key within the current lick; returns `'end-of-lick'` when out.
-- `startInterLickTransition()` — Archives results, applies the score-weighted tempo delta (independent of the unlock gate), decides whether to bump the unlock count via `shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount })`, and advances to the next lick or marks `'complete'`.
+- `startInterLickTransition()` — Archives results, applies the score-weighted tempo delta (and clamps the delta to ≤ 0 when any key in the session fell below `KEY_FLOOR_THRESHOLD`), decides whether to bump the unlock count via `shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount, floorHit })`, and advances to the next lick or marks `'complete'`.
 - `updateElapsedTime()`, `resetSession()`, `getSessionReport()`.
 
 ### Step Entry State (`src/lib/state/step-entry.svelte.ts`)
@@ -162,7 +163,12 @@ export const stepEntry = $state({
   phraseKey: 'C' as PitchClass,
   phraseName: '',
   category: 'user' as PhraseCategory,
-  practiceTag: false
+  practiceTag: false,
+  // Edit-mode metadata (non-null when re-opening an existing user-entered lick)
+  editingId: null as string | null,
+  editingSource: null as string | null,
+  editingTags: null as string[] | null,
+  editingCategory: null as PhraseCategory | null
 });
 ```
 
@@ -175,6 +181,7 @@ The user enters notes in their instrument's **written** pitch (what they see on 
 - `getCurrentCursorOffset()`, `getRemainingCapacity()`, `canAddDuration(duration)`, `getCurrentBarAndBeat()` — Cursor helpers.
 - `getPaddedNotes()` — Pads entered notes with a final rest so partial bars render cleanly in notation.
 - `setBarCount(n)` (1–4, trims overflow), `setDuration(id)`, `toggleTriplet()`, `setAccidental(acc)`, `adjustOctave(delta)`, `reset()`.
+- `loadFromPhrase(lick)` — Edit mode entry point. Hydrates the state from an existing lick (converts concert pitches back to written, restores key/bar count/name/category) and stamps `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save → Update label, skip duplicate-detection self-match, route category changes through `updateLickCategory` (preserving `prog:*` seeding), and redirect to `/library/<id>` on save. Mic-recorded licks are not editable — only `source === 'user-entered'`.
 
 ## Persistence Layer (`src/lib/persistence/storage.ts`)
 
