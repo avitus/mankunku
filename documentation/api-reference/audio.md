@@ -265,23 +265,26 @@ Filter raw onset timestamps to only those confirmed by a pitch reading within a 
 
 An onset is dropped if no pitch reading falls within `[onset, onset + window]`. This rejects false positives from metronome bleed and other percussive environmental noise that don't produce pitched content.
 
-### `segmentNotes(readings, onsets, recordingDuration, minNoteDuration?): DetectedNote[]`
+### `segmentNotes(readings, onsets, recordingDuration, options?): DetectedNote[]`
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `readings` | `PitchReading[]` | — | Pitch readings, sorted by time |
-| `onsets` | `number[]` | — | Onset timestamps (seconds, sorted) |
+| `onsets` | `number[]` | — | Resolved onset timestamps (seconds, sorted). Pass `resolveOnsets(...)` output, not raw worklet onsets. |
 | `recordingDuration` | `number` | — | Total recording duration (seconds) |
-| `minNoteDuration` | `number` | `0.05` | Minimum note duration to keep |
+| `options.minNoteDuration` | `number` | `0.05` | Minimum note duration to keep |
+| `options.workletOnsets` | `number[]` | — | Raw AudioWorklet onset times. Used by the same-pitch consolidation pass to tell artifact splits apart from real re-articulations. |
+| `options.bleedOnsets` | `number[]` | — | Timestamps of scheduled metronome (and demo-playback) events. Worklet onsets that land inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a metronome click caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
 
 **Algorithm:**
-1. Use onset timestamps as segment boundaries
-2. For each segment, compute:
-   - **Median MIDI note** (robust to outliers)
-   - **Median cents** of readings matching the median MIDI
-   - **Average clarity** of matching readings
-3. Filter segments shorter than `minNoteDuration`
-4. If no onsets detected, treat all readings as one note
+1. Use the resolved `onsets` as segment boundaries (no pre-segmentation drop; bleed-window suppression happens in the cleanup phase below).
+2. For each segment, compute median MIDI note, median cents on matching readings, and average clarity.
+3. Filter segments shorter than `minNoteDuration`.
+4. If no onsets detected, treat all readings as one note.
+5. **`mergeSamePitchWithoutAttack`** — Collapse adjacent same-MIDI segments whose boundary has no `workletOnsets` entry within ±75 ms. A worklet onset that *does* sit inside the bleed window after a `bleedOnsets` event is treated as bleed, not attack, so the split collapses anyway. Catches clarity dropouts and detector wobble that split a single held note.
+6. **`mergeOctaveBoundariesWithoutAttack`** — Collapse a stray upper-octave segment back into its neighbour when ≥ 3 of the segment's raw frames match the lower fundamental (McLeod octave-lock artifact).
+
+Both cleanup passes are conservative: they require explicit absence-of-attack evidence, so genuine same-pitch re-articulations are preserved.
 
 ---
 

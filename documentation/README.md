@@ -4,6 +4,8 @@ Mankunku is a jazz ear training web app built around **call and response**: the 
 
 Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) iconic 1968 album *Yakhal' Inkomo*, this app targets jazz musicians practicing ear training, transcription, and improvisation vocabulary.
 
+> **Last major docs update: 2026-06-23** — synced user-facing and developer docs to reflect: soprano sax as a first-class instrument; the library refocus on the user's own practice book (`needsSetup` / `practiceSet` / `otherLicks`); per-lick **Reset progress** action; tighter Side B advancement gates (green ≥ 0.90, yellow 0.75–0.89, red < 0.75, with a single red key blocking tempo bumps and unlocks); Daily Practice mode; single-lick Deep Practice now respecting per-lick unlocks and deriving its progression from the chosen lick; explicit `prog:*` opt-in; step-entry lick editing; history derive-on-write; metronome-bleed suppression; and the same-pitch / octave-lock / re-articulation segmentation passes. Previous major update was 2026-05-09 (the rewrite-for-musicians pass).
+
 ## Quick Links
 
 | Section | Description |

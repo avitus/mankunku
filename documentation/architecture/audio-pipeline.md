@@ -22,6 +22,15 @@ If the onset detector is unavailable (older browsers, some mobile devices), the 
 
 Once the app has both the pitch readings and the onset times, segmenting them into notes is straightforward: each onset starts a new note; each note's pitch is the median of all the pitch readings that fell inside its window (the median, not the mean, because a single octave glitch in one frame shouldn't change the answer); each note's duration runs to the next onset or until the player stops playing.
 
+After segmentation, the app does two cleanup passes that handle real-world failure modes the raw detector can't avoid:
+
+- **Same-pitch consolidation.** If two adjacent segments share the same MIDI pitch *and* the boundary between them has no AudioWorklet onset within ±75 ms — meaning there was no actual attack — they're merged back into one note. This catches octave glitches and clarity dropouts that briefly split a single sustained note into two.
+- **Octave-boundary collapse.** When the McLeod method temporarily locks to the wrong octave for a few frames, the app spots the artifact (three or more raw frames inside the segment match the lower fundamental) and merges the stray segment back into its neighbour.
+
+These passes are deliberately conservative: they only fire when the absence-of-attack evidence is unambiguous, so genuine re-articulations of the same pitch still register as separate notes.
+
+Telling a glitch from a real re-articulation is the hard part. When you blow two notes of the same pitch back to back, the air column briefly destabilises between them — that shows up as a clarity dip plus an RMS dip, often with the McLeod pitch detector dropping signal for a frame or two. The segmenter watches for that *energy signature*, not just for a worklet onset: even when the onset detector misses a re-articulation, a clear clarity+RMS double-dip is enough to split the note. And when the gap between two same-pitch frames is short but the RMS clearly steps back up, the segmenter treats that as a re-articulation too. The net result: legato held notes stay one note, repeated notes stay separate, and you don't have to tongue overly hard to make the app hear what you're doing.
+
 ## Why the room matters
 
 The pitch detector works best when it's clearly hearing one note at a time. Three things commonly degrade that:
@@ -43,6 +52,10 @@ If yes to all three, the filter drops the note as bleed. If your clarity is high
 The filter is conservative on purpose. False positives (dropping notes you actually played) are worse than false negatives (keeping a few bleed notes), so the threshold is biased toward keeping ambiguous notes.
 
 You can toggle the bleed filter in Settings. The default is on. If you're using headphones, leaving it on is harmless — there's no bleed to filter, so the filter does nothing.
+
+### Metronome bleed
+
+The metronome click is its own kind of bleed. Even on headphones, the playback engine schedules the click on the same internal timeline the app records from — and a sharp, broad-spectrum click can light up the onset detector for an instant, fragmenting the surrounding played note into spurious extras. To prevent that, every scheduled metronome (and demo-playback) event registers a timestamp on a shared event log. During segmentation, any onset that falls inside a tight 50–200 ms window after a logged click is suppressed before it can split a note. The result: your sustained notes stay sustained, and the scorer doesn't penalise rhythm for phantom subdivisions you didn't actually play.
 
 ## Latency and reaction time
 

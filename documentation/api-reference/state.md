@@ -293,10 +293,10 @@ export interface PlannedKey {
 - `getDailyPracticeLicks(): Phrase[]` — All `practice`-tagged licks with at least one `prog:*` tag, regardless of progression.
 - `buildSessionPlan(): void` — Standard mode. Sorts licks by least-recently-practiced, packs into the `durationMinutes` budget.
 - `buildDailyPracticePlan(): void` — Daily Practice mode. Pools every Daily-eligible lick, assigns each its own least-recently-practiced compatible progression, and packs the budget. Each plan item carries its own `progressionType` instead of inheriting from config.
-- `buildSingleLickPlan(lickId, instrument): void` — Single-lick mode. Builds a 12-key cycle in circle-of-4ths order for one lick.
+- `buildSingleLickPlan(lickId, instrument): void` — Single-lick mode. Builds a per-lick cycle through the lick's *currently-unlocked* keys (via `unlockedCircleFrom`), not all 12 — Deep Practice respects the same gradual-unlock ramp as standard sessions.
 - `startSession(): void` — Standard entry: transitions to `count-in`, resets indices, stamps `startTime`, resolves first-lick tempo.
 - `startDailyPracticeSession(): void` — Daily-Practice entry. Clears `singleLickMode`, calls `buildDailyPracticePlan`, then starts.
-- `startSingleLickSession(lickId, tempoBumpBpm?): void` — Single-lick entry. Sets `singleLickMode`, builds the plan, then starts. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpBpm` (default 5) once all 12 clear.
+- `startSingleLickSession(lickId, tempoBumpBpm?): void` — Single-lick entry. Sets `singleLickMode`, builds the per-lick unlocked-key plan, then starts. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpBpm` (default 5) once every unlocked key clears and the rotation refills.
 
 ### Cursor accessors
 
@@ -317,9 +317,10 @@ export interface PlannedKey {
 
 ### Session control
 
-- `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ 0.80.
+- `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ `KEY_PROFICIENT_THRESHOLD` (0.90, green tier). Yellow 0.75–0.89 is recorded but doesn't increment `passCount`. Below `KEY_FLOOR_THRESHOLD` (0.75) is red and blocks tempo increases + unlocks at session end.
+- `resetLickProgress(lickId, supabase?): void` — Wipe one lick's per-key scores, `passCount`, and unlock count. Tags (`practice`, `prog:*`) are preserved. Cloud is synced when a client is supplied. Surfaced from the post-session report (gated on try-again-band scores) and the library detail page (gated on `hasLickProgress`).
 - `advance(): 'next-key' | 'end-of-lick'` — Move to the next key; returns `'end-of-lick'` when the current lick's keys are exhausted.
-- `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the always-on score-weighted tempo adjustment (average score across attempted keys → signed delta via `computeAutoTempoAdjustment`, clamped and persisted to every key in the lick), then move to the next lick or mark session complete.
+- `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the score-weighted tempo adjustment (+5 BPM at ≥ 95%, +2 at ≥ 90%, -1 in the 75–89% yellow band, -3 below 75% — and any single key below `KEY_FLOOR_THRESHOLD` clamps the delta to ≤ 0 regardless of average), then move to the next lick or mark session complete.
 - `updateElapsedTime(): void`
 - `resetSession(): void`
 - `getSessionReport(): SessionReport` — Build the end-of-session report from archived attempts, including any in-progress lick.
@@ -343,7 +344,12 @@ export const stepEntry = $state({
   phraseKey: 'C' as PitchClass,                   // Written key for the user's instrument
   phraseName: '',
   category: 'user' as PhraseCategory,
-  practiceTag: false
+  practiceTag: false,
+  // Edit-mode metadata (non-null when re-opening an existing user-entered lick).
+  editingId: null as string | null,
+  editingSource: null as string | null,
+  editingTags: null as string[] | null,
+  editingCategory: null as PhraseCategory | null
 });
 ```
 
@@ -374,7 +380,11 @@ export const stepEntry = $state({
 
 ### Export
 
-- `getCurrentPhrase(): Phrase` — Builds a `Phrase` in concert pitch with `source: 'user-entered'` and `'user-entered'` / `'practice'` tags, ready to persist.
+- `getCurrentPhrase(): Phrase` — Builds a `Phrase` in concert pitch with `source: 'user-entered'` and `'user-entered'` / `'practice'` tags, ready to persist. In edit mode (`editingId` set), preserves the original lick id, source, and non-practice tags.
+
+### Edit mode
+
+- `loadFromPhrase(lick): void` — Hydrate the editor from an existing lick: pulls the notes back into written-pitch space, restores key/bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the library detail page), and redirect to `/library/<id>` after saving.
 
 ---
 

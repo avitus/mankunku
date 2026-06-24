@@ -67,7 +67,7 @@ When you open Side B, you choose:
 - **Substitutions** — toggle to introduce tritone subs and chromatic approaches. Same lick, harder harmony.
 - **Backing style** — swing for straight-ahead, bossa for Latin, ballad for slow with sustained comping, straight for rock/funk feel.
 - **Practice mode** — *Continuous* plays the lick once as a demo in the first key, then you play it through all 12 keys back-to-back over a non-stop backing track. *Call & Response* skips the upfront demo and instead, in every key, the app plays the lick first and you echo it on the next cycle, alternating through all 12 keys. Both modes score every key the user plays.
-- **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM at 70%+, and -3 BPM below.
+- **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +5 BPM at 95%+, +2 BPM at 90%+, -1 BPM in the 75–89% yellow band, and -3 BPM below 75%. A single key scored below 75% blocks *any* upward adjustment, even if the average looks good.
 
 Two start buttons sit at the bottom of the setup screen:
 
@@ -86,10 +86,37 @@ The session opens with a **count-in**, then the backing track starts. You see:
 
 You play the lick once per key, with no retries. After all of that lick's keys play through, two things happen:
 
-1. **Tempo adjusts** based on your average score for the lick: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM at 70%+, and -3 BPM below.
-2. **The next key may unlock.** New keys earn their way into the rotation only when both your average score is at least 90% *and* the most-recently-added key has been passed cleanly twice (≥ 80% per attempt). Tempo can keep climbing without the rotation growing — so you'll often speed up on the keys you have before the next one appears.
+1. **Tempo adjusts** based on your average score for the lick: +5 BPM at 95%+, +2 BPM at 90%+, -1 BPM in the 75–89% yellow band, -3 BPM below 75%. Any single key under 75% blocks tempo *increases* but doesn't block decreases — you lose ground on a lick you can't hold together.
+2. **The next key may unlock.** New keys earn their way into the rotation only when both your average score is at least 90% *and* the most-recently-added key has been passed cleanly twice (≥ 90% per attempt). A floor failure (any key below 75%) blocks the unlock outright. Tempo can keep climbing without the rotation growing — so you'll often speed up on the keys you have before the next one appears.
+
+### The traffic-light tiers
+
+The key progress ring and the post-session card both colour each key by how it scored:
+
+- **Green (≥ 90%).** A clean pass. Green keys count toward unlocking the next key and toward tempo bumps. The "all clear" brass glow on the ring only fires when every key in the rotation is green.
+- **Yellow (75–89%).** Passable but not consolidated. Yellow keys don't block anything from happening — they just don't earn it. You're still in the rotation; nothing decays.
+- **Red (< 75%).** Below the floor. A single red key holds the brake on tempo increases and unlocks until you bring it back up. This is the app's way of saying *don't move on until you've actually got it.*
 
 Once the session has cycled through every currently-unlocked key for the current lick, it moves to the next tagged lick. The session ends when the time budget runs out or every lick has had its turn.
+
+### Single-Lick Deep Practice
+
+Sometimes you don't want the rotation across your tagged book — you just want to *own* one specific line. Open a lick from the library, hit the **Practice** button on its detail page, and Side B launches in single-lick mode (also called Deep Practice in the session header).
+
+It works the same as a normal session but pinned to one lick:
+
+- The same per-lick unlocked-key set is used as in a standard session — a brand-new lick starts at its entry key and grows as you earn it. (Earlier builds rotated through every unlocked tonality globally; that's no longer the case.)
+- Each round cycles through the unlocked keys for that lick. Keys you score ≥ 95% on are marked **mastered** for the round and drop from the rotation.
+- When all unlocked keys are mastered, the round completes: tempo bumps by 5 BPM and the rotation refills.
+- The progression and substitution settings are **derived from the lick itself** — its own `prog:*` tags pick the backing harmony, so a major lick won't get stuck over a minor vamp because the setup screen happened to be set that way.
+
+### When a lick keeps beating you
+
+Side B is happy to grow with you. It's less helpful when a single lick has slipped so far that its current state — the keys it's unlocked, the tempo it's anchored to — doesn't match where you are anymore.
+
+For that, both the post-session report and the lick's detail page in the library show a **↺ Reset progress** action when the lick has practice history. Reset wipes that lick's per-key scores, its unlock count (back to one key — its home key), and resets the tempo to 60 BPM. Your tags stay; the lick stays in your practice book; only the progress against it clears. Use it when you've been stuck for weeks on a line you should be able to drill at a kinder pace.
+
+Use Deep Practice when there's a single line you want to drill into your fingers in one sitting. Use a standard Start Session when you want to spread time across everything you've tagged.
 
 ### Why gradual unlocks
 
@@ -105,13 +132,19 @@ The longer answer is in [The Daily Key](./architecture/tonality-system.md).
 
 ## The library
 
-Every lick the app knows lives in the **Library**. About 250 of them — 163 hand-written and a few dozen generated by pairing scale patterns with rhythm templates — across nine categories. Plus your own user-recorded and step-entered licks, and any community-shared licks you've adopted.
+The **Library** is your practice book. It shows the licks *you* are working with — the ones you've step-entered, recorded, adopted from the community, plus anything you've added to your practice set from the broader catalog. The hundreds of curated ear-training licks the app uses to feed Side A live behind the scenes; the library page is for your stuff.
 
-### Browsing
+### Three sections
 
-- **Search** filters by name or tag.
-- **Category** pills filter by harmonic context: Beginner Cells, ii-V-I Major, ii-V-I Minor, Blues, Bebop Lines, Pentatonic, Modal, Rhythm Changes, Ballad.
-- **Difficulty** filter narrows to a band (Beginner, Easy, Medium, Hard, etc.).
+The page is organised into three groups, in this order:
+
+- **Needs setup** — licks you've tagged for practice that don't yet carry a progression tag. Side B can't schedule them yet. Open the lick and pick which progressions it should drill over (you can pick more than one).
+- **Practice set** — fully-configured practice licks, sorted by least-recently-practiced so the most overdue line sits at the top.
+- **Other licks** — everything else of yours that you haven't tagged for practice.
+
+### Search
+
+The search box filters across all three groups by name or tag. The category and difficulty browse filters that used to live on this page have been retired — they belonged to the old "browse the whole catalog" library; now that the library is focused on the practice book, search is enough.
 
 ### Lick detail
 
@@ -122,6 +155,11 @@ Tap a lick to see:
 - Category, difficulty, bar count, and tags.
 - A play button so you can hear it without dropping into a session.
 - A **practice star** — tap to tag the lick for Side B.
+- A **Practice** button to drop straight into single-lick Deep Practice.
+- **Practice over** pills — the `prog:*` tags telling Side B which backing tracks this lick is eligible for. Tap to add or remove.
+- An **Edit** button (step-entered, owned licks only) to reopen the lick in the staff editor.
+- A **↺ Reset progress** action once you've actually drilled the lick — wipes scores and unlock count back to a fresh start. See [Side B above](#when-a-lick-keeps-beating-you).
+- A **Delete** button for licks you authored. If the delete is blocked (a community copy of someone else's, for example), the page now tells you *why* inline instead of just hiding the button.
 
 ## Progress
 
@@ -155,6 +193,10 @@ Two ways in.
 - **Record** (`/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out.
 
 Either way, your lick joins the library alongside the curated ones and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
+
+### Editing a step-entered lick
+
+Step-entered licks are editable after the fact. Open the lick from the library and an **Edit** button shows up (only for licks you authored via step entry — recorded-from-mic licks aren't editable in the staff editor). Editing reopens the lick in the same `/entry` flow with all your notes pre-loaded. Change anything you want — durations, pitches, name, category, bar count — and hit Update. The same lick id is preserved (so your practice history sticks with it), and changing the category re-seeds the progression tags so the lick lines up with the new harmonic context.
 
 ## Tips that keep showing up
 
