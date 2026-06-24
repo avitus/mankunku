@@ -738,3 +738,117 @@ describe('pitch replay regression: Flat Five Chromatic Up short-gap re-articulat
 		expect(result.chosen.overall).toBeGreaterThan(0.85);
 	});
 });
+
+/**
+ * Sixth regression recording: "Blues Curl Up" (concert D, 2026-06-24). The
+ * day's tonality (concert D) snapped the lick's E→F# blue note down to F, so
+ * bc-041_D rendered as D F F (quarter quarter half); the player tongued the
+ * two Fs in time on tenor sax at 100 BPM, no backing track.
+ *
+ * This is the SAME dead zone the Flat Five Chromatic Up fix targeted — a soft
+ * re-attack the HFC worklet missed, leaving a short reading gap with RISING
+ * RMS (no dip for the dip-and-rise scan, < 150 ms for the bare-gap tier) — but
+ * with a WEAKER step-up: the pitch detector resumed on the new note's decay
+ * shoulder (the attack peak fell inside the 117 ms reading gap), so the
+ * measured rise across the gap is only ~1.26× rather than the flat-five ~2×.
+ * The short-gap tier's 1.5× floor rejected it, mergeSamePitchWithoutAttack
+ * collapsed the two Fs, the third expected note was marked MISSED, and the
+ * saved score was 0.627 ("fair"), pitch 2/3.
+ *
+ * The fix adds the discriminating axis the ratio alone can't supply: a genuine
+ * soft-tongue silence emits NO frames across the hole (the worklet missed it,
+ * so the octave stabilizer never reset), whereas a stabilizer-reset artifact
+ * (e.g. the C-D-C upper-neighbor fixture, whose final-C "gap" is bridged by
+ * warmup frames and shows an even LARGER 1.27× rise) is warmup-bridged. Gating
+ * the short-gap tier on a true reading-time silence lets the rise floor drop to
+ * 1.2× to admit this re-attack without re-admitting the warmup-bridged glitch.
+ */
+describe('pitch replay regression: Blues Curl Up weak-step-up re-articulation (concert D, 2026-06-24)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-06-24-blues-curl-up.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-041_D as the scorer saw it after the tonality snap: D F F.
+	const expectedPhrase: Phrase = {
+		id: 'bc-041_D',
+		name: 'Blues Curl Up',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 62, duration: [1, 4], offset: [0, 1] }, // D
+			{ pitch: 65, duration: [1, 4], offset: [1, 4] }, // F
+			{ pitch: 65, duration: [1, 2], offset: [1, 2] }  // F
+		],
+		harmony: [],
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Mirror the production ear-training path: resolveOnsets →
+	// findReArticulations → segmentNotes(..., articulationOnsets). No backing
+	// track was used, so no bleed onsets.
+	async function detectFromFixture() {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+	}
+
+	it('emits an articulation onset near the second-F attack', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		expect(articulationOnsets.length).toBeGreaterThan(0);
+		// The re-attack lands around beat 2 of the phrase (~1.05 s), ±200 ms.
+		const nearSecondF = articulationOnsets.some((t) => Math.abs(t - 1.05) < 0.2);
+		expect(nearSecondF).toBe(true);
+	});
+
+	it('segments into three notes [D, F, F] instead of merging the two Fs', async () => {
+		const detected = await detectFromFixture();
+
+		expect(detected.map((n) => n.midi)).toEqual([62, 65, 65]);
+		// Third note (second F) re-articulation lands in the 1.0–1.35 s window.
+		expect(detected[2].onsetTime).toBeGreaterThan(1.0);
+		expect(detected[2].onsetTime).toBeLessThan(1.35);
+	});
+
+	it('scores three matched notes with high overall', async () => {
+		const detected = await detectFromFixture();
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.85);
+	});
+});
