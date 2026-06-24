@@ -583,7 +583,7 @@
 			<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>
 			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
 			<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Select note &middot; <kbd>Esc</kbd> Clear</span>
-			<span><kbd>Backspace</kbd> Delete selected</span>
+			<span><kbd>Backspace</kbd>/<kbd>Delete</kbd> Delete selected</span>
 		</div>
 	</details>
 </div>

@@ -111,7 +111,10 @@
 	.notation-container :global(.abcjs-note) {
 		cursor: pointer;
 	}
-	/* User-selected note — colored notehead + stem so it stands out on the staff */
+	/* User-selected note — colored notehead + stem so it stands out on the staff.
+	   Includes the .abcjs-note group itself in case abcjs renders the notehead
+	   directly on that element rather than on a child path/ellipse/circle. */
+	.notation-container :global(.abcjs-note.selected-note),
 	.notation-container :global(.abcjs-note.selected-note path),
 	.notation-container :global(.abcjs-note.selected-note ellipse),
 	.notation-container :global(.abcjs-note.selected-note circle) {

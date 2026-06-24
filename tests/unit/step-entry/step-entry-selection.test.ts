@@ -11,6 +11,7 @@ import {
 	selectNote,
 	selectPrev,
 	selectNext,
+	setBarCount,
 	setDuration
 } from '$lib/state/step-entry.svelte';
 import { settings } from '$lib/state/settings.svelte';
@@ -236,5 +237,35 @@ describe('reset and setBarCount touching selection', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(0);
 		reset();
 		expect(stepEntry.selectedNoteIndex).toBe(null);
+	});
+
+	it('setBarCount clears selection when the trim pops the selected note', () => {
+		stepEntry.barCount = 4;
+		setDuration('whole');
+		addNote(0, 4, 'natural'); // 0: C4, bar 1
+		addNote(2, 4, 'natural'); // 1: D4, bar 2
+		addNote(4, 4, 'natural'); // 2: E4, bar 3
+		expect(stepEntry.enteredNotes).toHaveLength(3);
+
+		selectNote(2);
+		expect(stepEntry.selectedNoteIndex).toBe(2);
+
+		// Shrink the canvas to 2 bars — the third whole note is popped, and the
+		// dangling selection must clear instead of pointing past the new end.
+		setBarCount(2);
+		expect(stepEntry.enteredNotes).toHaveLength(2);
+		expect(stepEntry.selectedNoteIndex).toBe(null);
+	});
+
+	it('setBarCount preserves selection when the selected note survives the trim', () => {
+		stepEntry.barCount = 4;
+		setDuration('whole');
+		addNote(0, 4, 'natural'); // 0: C4
+		addNote(2, 4, 'natural'); // 1: D4
+		addNote(4, 4, 'natural'); // 2: E4
+
+		selectNote(0);
+		setBarCount(2); // pops index 2 but leaves 0 and 1 intact
+		expect(stepEntry.selectedNoteIndex).toBe(0);
 	});
 });
