@@ -3,15 +3,19 @@
 	import type { Snippet } from 'svelte';
 	import type { Phrase } from '$lib/types/music';
 	import type { InstrumentConfig } from '$lib/types/instruments';
-	import { phraseToAbc } from '$lib/music/notation';
+	import { phraseToAbcWithMap, type PitchedNoteAnchor } from '$lib/music/notation';
 
 	interface Props {
 		phrase: Phrase | null;
 		instrument?: InstrumentConfig;
+		/** Source-array index of the note to highlight, or `null` for no highlight. */
+		selectedIndex?: number | null;
+		/** Fires when the user clicks a pitched note. Receives the source-array index. */
+		onSelect?: (sourceIndex: number) => void;
 		titleArea?: Snippet;
 	}
 
-	let { phrase, instrument, titleArea }: Props = $props();
+	let { phrase, instrument, selectedIndex = null, onSelect, titleArea }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
 	let abcjs = $state<typeof import('abcjs') | null>(null);
@@ -23,15 +27,48 @@
 	$effect(() => {
 		if (!abcjs || !containerEl || !phrase) return;
 
-		const abc = phraseToAbc(phrase, instrument);
+		const { abc, noteAnchors } = phraseToAbcWithMap(phrase, instrument);
 		abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
 			staffwidth: 600,
 			paddingtop: 10,
 			paddingbottom: 10,
-			add_classes: true
+			add_classes: true,
+			clickListener: (abcElem) => {
+				if (!onSelect || !abcElem) return;
+				const startChar = (abcElem as { startChar?: number }).startChar;
+				if (typeof startChar !== 'number') return;
+				const anchor = findAnchorAt(noteAnchors, startChar);
+				if (anchor) onSelect(anchor.sourceIndex);
+			}
 		});
+
+		applySelectionHighlight(containerEl, noteAnchors, selectedIndex);
 	});
+
+	function findAnchorAt(anchors: PitchedNoteAnchor[], char: number): PitchedNoteAnchor | undefined {
+		// Exact-start match first (the common case), then fall back to range
+		// containment for abcjs implementations that report a slightly different
+		// position inside the note token.
+		const exact = anchors.find((a) => a.startChar === char);
+		if (exact) return exact;
+		return anchors.find((a) => char >= a.startChar && char < a.endChar);
+	}
+
+	function applySelectionHighlight(
+		container: HTMLDivElement,
+		anchors: PitchedNoteAnchor[],
+		index: number | null
+	): void {
+		if (index === null) return;
+		const anchorIdx = anchors.findIndex((a) => a.sourceIndex === index);
+		if (anchorIdx < 0) return;
+		// abcjs renders pitched notes in source order with `.abcjs-note` (rests
+		// get `.abcjs-rest`), so the nth `.abcjs-note` matches the nth anchor.
+		const noteEls = container.querySelectorAll('.abcjs-note');
+		const el = noteEls[anchorIdx] as HTMLElement | undefined;
+		el?.classList.add('selected-note');
+	}
 </script>
 
 <div class="notation-container rounded-lg bg-[var(--color-bg-secondary)] p-4" class:has-custom-title={titleArea}>
@@ -69,5 +106,19 @@
 	/* Suppress abcjs-rendered title when the parent provides its own title area */
 	.notation-container.has-custom-title :global(.abcjs-title) {
 		display: none;
+	}
+	/* Cursor affordance: every pitched note is clickable */
+	.notation-container :global(.abcjs-note) {
+		cursor: pointer;
+	}
+	/* User-selected note — colored notehead + stem so it stands out on the staff */
+	.notation-container :global(.abcjs-note.selected-note path),
+	.notation-container :global(.abcjs-note.selected-note ellipse),
+	.notation-container :global(.abcjs-note.selected-note circle) {
+		fill: var(--color-accent) !important;
+		stroke: var(--color-accent) !important;
+	}
+	.notation-container :global(.abcjs-note.selected-note line) {
+		stroke: var(--color-accent) !important;
 	}
 </style>

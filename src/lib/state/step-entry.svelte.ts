@@ -64,6 +64,11 @@ export const stepEntry = $state({
 	phraseName: '',
 	category: 'user' as PhraseCategory,
 	practiceTag: false,
+	// Index into `enteredNotes` of the user-selected pitched note. The selected
+	// note is the target of ↑/↓ pitch shift, Backspace delete, and `\` spell
+	// flip. `null` means "no explicit selection" — those operations fall back
+	// to the last pitched note (the historical last-note behavior).
+	selectedNoteIndex: null as number | null,
 	// When non-null, the page is editing an existing lick rather than creating
 	// a new one. The save path replaces the lick at this id and preserves the
 	// snapshot of source/tags/category captured when the lick was loaded.
@@ -183,6 +188,7 @@ export function addNote(
 		duration,
 		offset
 	});
+	stepEntry.selectedNoteIndex = stepEntry.enteredNotes.length - 1;
 	stepEntry.accidental = 'natural';
 	return true;
 }
@@ -209,11 +215,114 @@ export function addRest(): boolean {
 	return true;
 }
 
-export function deleteLastNote(): void {
-	stepEntry.enteredNotes.pop();
-	const newLast = stepEntry.enteredNotes.at(-1);
-	if (newLast?.tied) newLast.tied = false;
+/**
+ * Resolve which note any "selected-note" operation should act on.
+ * Returns the explicit selection when it points at a valid pitched note,
+ * otherwise falls back to the last pitched note (the legacy behavior
+ * preserved by aliases like `deleteLastNote`). Returns `null` if there
+ * is nothing pitched in the phrase.
+ */
+function resolveTargetNoteIndex(): number | null {
+	const notes = stepEntry.enteredNotes;
+	const sel = stepEntry.selectedNoteIndex;
+	if (sel !== null && sel >= 0 && sel < notes.length && notes[sel].pitch !== null) {
+		return sel;
+	}
+	for (let i = notes.length - 1; i >= 0; i--) {
+		if (notes[i].pitch !== null) return i;
+	}
+	return null;
 }
+
+/** Set the selected note. Pass `null` to clear; non-pitched indices are ignored. */
+export function selectNote(index: number | null): void {
+	if (index === null) {
+		stepEntry.selectedNoteIndex = null;
+		return;
+	}
+	const notes = stepEntry.enteredNotes;
+	if (index < 0 || index >= notes.length || notes[index].pitch === null) return;
+	stepEntry.selectedNoteIndex = index;
+}
+
+/** Step selection to the previous pitched note (skipping rests). No-op at the start. */
+export function selectPrev(): void {
+	const notes = stepEntry.enteredNotes;
+	const start = stepEntry.selectedNoteIndex !== null
+		? stepEntry.selectedNoteIndex - 1
+		: notes.length - 1;
+	for (let i = start; i >= 0; i--) {
+		if (notes[i].pitch !== null) {
+			stepEntry.selectedNoteIndex = i;
+			return;
+		}
+	}
+}
+
+/** Step selection to the next pitched note (skipping rests). No-op at the end. */
+export function selectNext(): void {
+	const notes = stepEntry.enteredNotes;
+	const start = stepEntry.selectedNoteIndex !== null
+		? stepEntry.selectedNoteIndex + 1
+		: 0;
+	for (let i = start; i < notes.length; i++) {
+		if (notes[i].pitch !== null) {
+			stepEntry.selectedNoteIndex = i;
+			return;
+		}
+	}
+}
+
+/**
+ * Remove the selected note (or the last pitched note if no explicit selection).
+ * Shifts subsequent offsets left by the deleted duration, repairs any tie that
+ * straddled the deletion, and advances selection to a neighboring pitched note
+ * unless the deletion was from the end (in which case selection clears so the
+ * append-cursor flow resumes).
+ */
+export function deleteSelectedNote(): void {
+	const notes = stepEntry.enteredNotes;
+	const target = resolveTargetNoteIndex();
+	if (target === null) return;
+
+	const wasAtEnd = target === notes.length - 1;
+	const deletedDuration = notes[target].duration;
+
+	for (let i = target + 1; i < notes.length; i++) {
+		notes[i].offset = subtractFractions(notes[i].offset, deletedDuration);
+	}
+	notes.splice(target, 1);
+
+	// Repair any tie that pointed into the deleted note.
+	if (target > 0) {
+		const prev = notes[target - 1];
+		if (prev.tied) {
+			const newNext = notes[target];
+			if (!newNext || newNext.pitch !== prev.pitch) {
+				prev.tied = false;
+			}
+		}
+	}
+
+	if (wasAtEnd) {
+		stepEntry.selectedNoteIndex = null;
+		return;
+	}
+
+	let newSelection: number | null = null;
+	for (let i = target - 1; i >= 0; i--) {
+		if (notes[i].pitch !== null) { newSelection = i; break; }
+	}
+	if (newSelection === null) {
+		for (let i = target; i < notes.length; i++) {
+			if (notes[i].pitch !== null) { newSelection = i; break; }
+		}
+	}
+	stepEntry.selectedNoteIndex = newSelection;
+}
+
+/** Backward-compat alias — delegates to `deleteSelectedNote`. */
+export const deleteLastNote = deleteSelectedNote;
 
 /**
  * MuseScore-style tie: mark the previous note as tied and append a duplicate
@@ -234,6 +343,7 @@ export function enterTiedNote(): boolean {
 		offset: getCurrentCursorOffset(),
 		spelling: lastNote.spelling
 	});
+	stepEntry.selectedNoteIndex = stepEntry.enteredNotes.length - 1;
 	return true;
 }
 
@@ -243,6 +353,7 @@ export function reset(): void {
 	stepEntry.accidental = 'natural';
 	stepEntry.category = 'user';
 	stepEntry.practiceTag = false;
+	stepEntry.selectedNoteIndex = null;
 	stepEntry.editingId = null;
 	stepEntry.editingSource = null;
 	stepEntry.editingTags = null;
@@ -272,23 +383,37 @@ export function loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void
 	stepEntry.editingCategory = lick.category;
 }
 
-export function adjustLastNotePitch(semitones: number): void {
+/**
+ * Shift the selected note (or the last pitched note if no explicit selection)
+ * by `semitones` in concert pitch. Validated against the written-pitch entry
+ * range. Clears any tie that would no longer connect notes of the same pitch.
+ */
+export function adjustSelectedNotePitch(semitones: number): void {
 	const notes = stepEntry.enteredNotes;
-	if (notes.length === 0) return;
-	const lastNote = notes[notes.length - 1];
-	if (lastNote.pitch === null) return;
-	const newConcert = lastNote.pitch + semitones;
+	const target = resolveTargetNoteIndex();
+	if (target === null) return;
+	const note = notes[target];
+	if (note.pitch === null) return;
+	const newConcert = note.pitch + semitones;
 	// Validate in written space — that's the user's mental range
 	const trans = getInstrument().transpositionSemitones;
 	if (!isInEntryRange(newConcert + trans)) return;
-	// If editing breaks the pitch match with a preceding tied note, clear the
-	// stale tie so notation and playback stay consistent.
-	const previous = notes[notes.length - 2];
-	if (previous?.tied && previous.pitch !== newConcert) {
-		previous.tied = false;
+	// Break ties whose endpoints would no longer share a pitch.
+	if (target > 0) {
+		const previous = notes[target - 1];
+		if (previous.tied && previous.pitch !== newConcert) {
+			previous.tied = false;
+		}
 	}
-	lastNote.pitch = newConcert;
+	if (note.tied && target + 1 < notes.length) {
+		const next = notes[target + 1];
+		if (next.pitch !== newConcert) note.tied = false;
+	}
+	note.pitch = newConcert;
 }
+
+/** Backward-compat alias — delegates to `adjustSelectedNotePitch`. */
+export const adjustLastNotePitch = adjustSelectedNotePitch;
 
 export function setBarCount(n: number): void {
 	stepEntry.barCount = Math.max(1, Math.min(4, n));
@@ -300,6 +425,12 @@ export function setBarCount(n: number): void {
 		} else {
 			break;
 		}
+	}
+	if (
+		stepEntry.selectedNoteIndex !== null &&
+		stepEntry.selectedNoteIndex >= stepEntry.enteredNotes.length
+	) {
+		stepEntry.selectedNoteIndex = null;
 	}
 }
 
@@ -331,20 +462,24 @@ const CHROMATIC_PCS = new Set([1, 3, 6, 8, 10]);
 /** Keys that conventionally use flats */
 const FLAT_KEYS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db']);
 
-/** Toggle the enharmonic spelling of the last entered pitched note. */
-export function flipLastNoteSpelling(): void {
+/** Toggle the enharmonic spelling of the selected note (or last pitched note). */
+export function flipSelectedNoteSpelling(): void {
 	const notes = stepEntry.enteredNotes;
-	if (notes.length === 0) return;
-	const lastNote = notes[notes.length - 1];
-	if (lastNote.pitch === null) return;
+	const target = resolveTargetNoteIndex();
+	if (target === null) return;
+	const note = notes[target];
+	if (note.pitch === null) return;
 
 	const trans = getInstrument().transpositionSemitones;
-	const writtenPc = (((lastNote.pitch + trans) % 12) + 12) % 12;
+	const writtenPc = (((note.pitch + trans) % 12) + 12) % 12;
 	if (!CHROMATIC_PCS.has(writtenPc)) return;
 
-	if (lastNote.spelling) {
-		lastNote.spelling = lastNote.spelling === 'sharp' ? 'flat' : 'sharp';
+	if (note.spelling) {
+		note.spelling = note.spelling === 'sharp' ? 'flat' : 'sharp';
 	} else {
-		lastNote.spelling = FLAT_KEYS.has(stepEntry.phraseKey) ? 'sharp' : 'flat';
+		note.spelling = FLAT_KEYS.has(stepEntry.phraseKey) ? 'sharp' : 'flat';
 	}
 }
+
+/** Backward-compat alias — delegates to `flipSelectedNoteSpelling`. */
+export const flipLastNoteSpelling = flipSelectedNoteSpelling;
