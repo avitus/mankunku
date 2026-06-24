@@ -2,6 +2,24 @@
 
 Newest at the top.
 
+## 2026-06-23 — Fixed weak-step-up re-articulation merge via a true-silence gate (blues-curl-up, concert D)
+
+**What happened:**
+
+- User reported the same class of bug as 2026-06-21: an ear-training lick "missing the division between the second and third notes." Diagnostic JSON + WAV (`2026-06-24-blues-curl-up`, bc-041_D, tenor sax, 100 BPM, no backing track).
+- Ground truth from the raw WAV (numpy autocorr + RMS envelope): player played **D-F-F** — the day's concert-D tonality snapped the lick's blue note (F#) down to F, so the rendered phrase was D F F and the player matched it. Three clean attacks; the third (re-articulated F) attacks at ~1.02 s with a true ~1.8× energy jump (peak 0.38). Segmenter produced only **2 notes** → third F MISSED → score 0.627 ("fair"), pitch 2/3.
+- Root cause: the **same dead zone** as flat-five, but with a weaker *measured* step-up. The 117 ms reading gap (0.950→1.067) brackets the attack — clarity collapses through the tongue click so Pitchy drops the whole transient; readings resume on the new note's decay shoulder, so the captured rise is only **1.26×**, under the short-gap tier's 1.5× floor. `extractOnsetsFromReadings` made the boundary (gap >100 ms) but `mergeSamePitchWithoutAttack` collapsed it for lack of attack evidence; `findReArticulations` supplied none.
+- The trap: lowering 1.5×→1.26× re-admits a real false positive. Built a cross-fixture decision table from the **actual replay path** — the **upper-neighbor-on-root** (C-D-C) fixture's sustained-final-C "gap" rises **1.27× / peak 1.51×**, *higher* than the genuine re-attack, and must NOT split. Ratio cannot separate them.
+- The separating axis is the **`warmup` flag**: a genuine soft-tongue silence emits *no* frames across the hole (worklet missed it → no stabilizer reset → no warmup); the upper-neighbor "gap" is bridged by warmup frames (the worklet fired at 1.355 s → reset → `findSameMidiRuns` skips warmup → phantom gap).
+- Fix (`note-segmenter.ts`, ~15 lines): added `hasReadingInOpenInterval` and gated the short-gap tier on a **true reading-time silence** (no frames, warmup included, bridge the hole). That rejects the warmup-bridged landmine *by structure*, which then makes lowering `RE_ARTICULATION_GAP_ATTACK_RISE` 1.5→1.2 safe (remaining true-gap non-re-attacks sit ≤1.12×). The ≥150 ms bare-gap tier is untouched (the 2026-05-22 takes' 217 ms warmup-bridged gaps must still fire — they do).
+- Tests (diagnostics-regression habit): copied both fixtures into `tests/fixtures/recordings/`; added a WAV-replay block in `pitch-replay.test.ts` (3 tests: articulation onset, segments [D,F,F], scores 3/3). Verified **RED without the fix** (detected [62,65], 0 onsets) → **GREEN with it**. Full suite green (**2011 passed**), `npm run check` clean (0 errors).
+
+**Notes:**
+
+- Not yet committed (awaiting user go-ahead). On `dev`. The 2026-06-21 prediction ("future fixes here will be a new *axis*, not a new threshold") held precisely — see observations.md.
+
+---
+
 ## 2026-06-21 — Fixed short-gap same-pitch re-articulation merge (flat-five-chromatic-up)
 
 **What happened:**
@@ -15,7 +33,8 @@ Newest at the top.
 
 **Notes:**
 
-- Not committed — left for the user to review/commit. Branch: `dev`. Files: `src/lib/audio/note-segmenter.ts`, two test files, two new fixtures.
+- Shipped: committed on `dev` (fix + tests/fixtures + these notes), opened **PR #135** (dev→main), CodeRabbit had one trivial nitpick (extract a shared replay→segmentation helper in the new WAV block) — applied; the non-blocking "docstring coverage 40%" pre-merge warning declined with rationale. **User merged PR #135.**
+- The "Flat Five Chromatic Up renders without its flat five in diatonic tonalities" question is **resolved — accepted as-is** (see observations.md); don't re-raise.
 
 ---
 

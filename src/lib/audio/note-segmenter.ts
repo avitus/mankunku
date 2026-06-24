@@ -1164,8 +1164,21 @@ const RE_ARTICULATION_READING_GAP = 0.15;
  * 100 BPM) — two tongued C4 quarter-notes, 100 ms reading gap, RMS stepping
  * ~0.044 → ~0.089 (≈2×) across it. Previously merged into one note, dropping
  * the score to 0.62 ("fair") with the second note marked MISSED.
+ *
+ * 1.5 → 1.2 (2026-06-24): the "blues-curl-up" concert-D diagnostic is the same
+ * soft-tongue shape but with a WEAKER measured step-up (~1.26×). The pitch
+ * detector resumed on the new note's decay shoulder — the attack peak fell
+ * inside the 117 ms reading gap and was never sampled — so the rise across the
+ * gap reads lower than the true ~1.8× energy jump in the raw audio. Lowering
+ * the floor to 1.2 admits it. This is only safe because the short-gap pass now
+ * ALSO requires a true reading-time silence (see the gap pass below): the
+ * dangerous false positive — the C-D-C upper-neighbor fixture, whose final-C
+ * "gap" is a warmup-bridged stabilizer reset rising ~1.27× (HIGHER than this
+ * real re-attack) — is rejected by the silence gate, not by the ratio. The
+ * remaining true-gap non-re-attacks (a McLeod subharmonic flicker during a
+ * note bend, mid-sustain dropouts) sit at ≤ ~1.12, comfortably below 1.2.
  */
-const RE_ARTICULATION_GAP_ATTACK_RISE = 1.5;
+const RE_ARTICULATION_GAP_ATTACK_RISE = 1.2;
 const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
 
 /** Mean RMS over readings[from, to), clamped to bounds; 0 if the range is empty. */
@@ -1176,6 +1189,25 @@ function meanRms(readings: PitchReading[], from: number, to: number): number {
 	let sum = 0;
 	for (let k = lo; k < hi; k++) sum += readings[k].rms;
 	return sum / (hi - lo);
+}
+
+/**
+ * Whether any reading falls strictly inside the open interval (from, to).
+ * `readings` must be sorted ascending by time. Used to tell a genuine
+ * detector silence (no frames of any kind across a same-MIDI hole) from a
+ * warmup-bridged hole: a same-MIDI run skips warmup frames, so a stabilizer
+ * reset mid-note leaves a phantom "gap" between two stable readings even
+ * though warmup frames were emitted throughout. Passing the FULL reading
+ * stream (warmup included) lets the short-gap re-articulation pass reject
+ * those phantom gaps.
+ */
+function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: number): boolean {
+	for (const r of readings) {
+		if (r.time <= from) continue;
+		if (r.time >= to) return false; // sorted ascending — nothing left in range
+		return true;
+	}
+	return false;
 }
 
 /**
@@ -1218,7 +1250,10 @@ export function findReArticulations(
 	const onsets: number[] = [];
 	const runs = findSameMidiRuns(readings);
 	for (const run of runs) {
-		onsets.push(...findReArticulationsInSegment(run.readings, run.start, run.end));
+		// Pass the FULL reading stream so the gap pass can distinguish a true
+		// detector silence from a warmup-bridged hole (findSameMidiRuns drops
+		// warmup frames, which can manufacture a phantom gap inside a run).
+		onsets.push(...findReArticulationsInSegment(run.readings, run.start, run.end, readings));
 	}
 
 	// Filter to those that would actually create a new boundary or
@@ -1279,7 +1314,8 @@ function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
 function findReArticulationsInSegment(
 	readings: PitchReading[],
 	segStart: number,
-	segEnd: number
+	segEnd: number,
+	allReadings: PitchReading[]
 ): number[] {
 	// Restrict to the segment's stable-MIDI run. Skip warmup frames and a
 	// short post-onset guard so the segment-start attack transient isn't
@@ -1326,6 +1362,17 @@ function findReArticulationsInSegment(
 		const gap = stable[g].time - stable[g - 1].time;
 		if (gap < READING_GAP_SPLIT_THRESHOLD) continue;
 		if (gap < RE_ARTICULATION_READING_GAP) {
+			// A genuine soft-tongue re-attack the worklet missed produces a
+			// true detector silence — no frames of any kind across the hole.
+			// If warmup frames bridge it, the gap is a stabilizer-reset
+			// artifact (findSameMidiRuns skipped them, manufacturing a phantom
+			// gap), not a missed attack, so the corroborated step-up tier must
+			// not fire. The ≥ 150 ms bare-gap tier stays unconditional: a long
+			// enough silence is a re-attack even when the stabilizer re-warms
+			// as the new note blooms.
+			if (hasReadingInOpenInterval(allReadings, stable[g - 1].time, stable[g].time)) {
+				continue;
+			}
 			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
 			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
 			if (preRms <= 0 || postRms < preRms * RE_ARTICULATION_GAP_ATTACK_RISE) {
