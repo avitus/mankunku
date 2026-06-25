@@ -1181,6 +1181,41 @@ const RE_ARTICULATION_READING_GAP = 0.15;
 const RE_ARTICULATION_GAP_ATTACK_RISE = 1.2;
 const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
 
+/**
+ * High-frequency-transient re-articulation tier. The softest legato ("doodle")
+ * tongue re-attacks leave NO reading gap, NO envelope dip (the airflow never
+ * stops, so rms holds or rises), and a clarity dip too shallow to clear
+ * RE_ARTICULATION_CLARITY_DROP — yet they inject a sharp broadband
+ * high-frequency burst (tongue noise) that spikes `hfRms` to several times the
+ * run baseline. The worklet misses it because its "HFC" is amplitude-weighted
+ * (≈Σ|s|·i) and the amplitude barely moves; the captured `hfRms` (RMS of the
+ * first-difference high-pass) is the signal that exposes it.
+ *
+ * A bare hfRms spike is NOT specific: a superimposed sax key click is also a
+ * broadband transient, and it must NOT split the note. The separator is a
+ * coincident perturbation of the FUNDAMENTAL: a tongue stop momentarily resets
+ * the reed, wobbling `midiFloat` by ≳0.1 semitone, whereas a key click rides on
+ * top of an unbroken fundamental (midiFloat steady). Requiring both a spike and
+ * a pitch perturbation rejects clicks, vibrato (no HF spike), and McLeod
+ * clarity flickers (no HF spike).
+ *
+ * Reference: the 2026-06-25 "blues-curl-down" diagnostic (concert Bb, 100 BPM) —
+ * two tongued Db4 quarters; the second was a soft legato tongue at ~0.47 s with
+ * hfRms spiking 0.012 → 0.067 (≈5.5×) and midiFloat dipping 61.1 → 60.94, but
+ * zero reading gap and a rising rms. Previously merged into one note, dropping
+ * the score to 0.63 ("fair") with the second Db marked MISSED.
+ */
+const HF_RE_ARTICULATION_SPIKE_RATIO = 3.0;
+const HF_RE_ARTICULATION_MIN_PITCH_PERTURB = 0.1;
+
+/** Median of a numeric array; 0 if empty. Non-mutating. */
+function median(xs: number[]): number {
+	if (xs.length === 0) return 0;
+	const s = [...xs].sort((a, b) => a - b);
+	const mid = Math.floor(s.length / 2);
+	return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
 /** Mean RMS over readings[from, to), clamped to bounds; 0 if the range is empty. */
 function meanRms(readings: PitchReading[], from: number, to: number): number {
 	const lo = Math.max(0, from);
@@ -1382,6 +1417,43 @@ function findReArticulationsInSegment(
 		const onsetTime = stable[g].time - RE_ARTICULATION_ATTACK_LATENCY;
 		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 			onsets.push(onsetTime);
+		}
+	}
+
+	// HF-transient pass: catch the softest legato-tongue re-attacks that leave
+	// no gap and no envelope dip but spike hfRms (broadband tongue noise) while
+	// perturbing the fundamental. See HF_RE_ARTICULATION_SPIKE_RATIO. Gated on
+	// hfRms being present so readings restored from pre-2026-06-25 diagnostic
+	// JSON (no hfRms field) simply skip this pass.
+	if (stable.some((r) => r.hfRms != null)) {
+		const baseHf = median(stable.map((r) => r.hfRms ?? 0));
+		const baseMidiFloat = median(stable.map((r) => r.midiFloat));
+		if (baseHf > 0) {
+			let k = 0;
+			while (k < stable.length) {
+				if ((stable[k].hfRms ?? 0) < baseHf * HF_RE_ARTICULATION_SPIKE_RATIO) {
+					k++;
+					continue;
+				}
+				// Span the contiguous spike; track its hfRms peak and the largest
+				// fundamental deviation across it.
+				let peak = k;
+				let maxPerturb = 0;
+				let j = k;
+				while (j < stable.length && (stable[j].hfRms ?? 0) >= baseHf * HF_RE_ARTICULATION_SPIKE_RATIO) {
+					if ((stable[j].hfRms ?? 0) > (stable[peak].hfRms ?? 0)) peak = j;
+					const dev = Math.abs(stable[j].midiFloat - baseMidiFloat);
+					if (dev > maxPerturb) maxPerturb = dev;
+					j++;
+				}
+				if (maxPerturb >= HF_RE_ARTICULATION_MIN_PITCH_PERTURB) {
+					const onsetTime = stable[peak].time - RE_ARTICULATION_ATTACK_LATENCY;
+					if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
+						onsets.push(onsetTime);
+					}
+				}
+				k = j; // skip past this spike
+			}
 		}
 	}
 
