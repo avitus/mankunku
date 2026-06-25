@@ -968,3 +968,56 @@ describe('pitch replay regression: Blues Curl Down legato-tongue re-articulation
 		expect(result.chosen.overall).toBeGreaterThan(0.85);
 	});
 });
+
+/**
+ * Guard for the HF-transient pass against a McLeod octave artifact, on the
+ * WAV-replay path (the JSON-fixture test for this recording exercises the
+ * saved-readings path, which predates hfRms and never runs the HF tier).
+ *
+ * "Octave–Flat Seven Drop" (concert D, 2026-05-19): the true phrase collapses
+ * to [D4, C4]. Mid-phrase, McLeod locks onto the C4's second harmonic for a
+ * stretch, producing a spurious C5 (midi 72) run. That run is broadband AND
+ * pitch-unstable (the detector flips ~0.33 st), so it clears the HF-spike and
+ * pitch-perturbation gates — but it sits on a DECAYING envelope (post/pre rms
+ * ≈ 0.61). Without the rms-sustain gate the HF pass emitted an articulation
+ * onset at ~1.6 s, which blocked mergeOctaveBoundariesWithoutAttack and left
+ * the C5 artifact uncollapsed ([62, 72, 72, 72, 60]). The energy-sustain
+ * corroborator rejects it, so the octave collapse runs and the result is the
+ * correct [D4, C4]. (A real re-attack adds energy; an artifact on a fading note
+ * does not — see HF_RE_ARTICULATION_MIN_RMS_SUSTAIN.)
+ */
+describe('pitch replay regression: HF pass does not split a McLeod octave artifact (concert D, 2026-05-19)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-05-19-octave-flat-seven-drop.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	it('emits no articulation onset inside the C5 artifact region (~1.1–2.0 s)', async () => {
+		const { readings, onsets } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		const insideArtifact = articulationOnsets.filter((t) => t > 1.1 && t < 2.0);
+		expect(insideArtifact).toEqual([]);
+	});
+
+	it('collapses to [D4, C4] — the HF split no longer blocks the octave merge', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([62, 60]);
+	});
+});

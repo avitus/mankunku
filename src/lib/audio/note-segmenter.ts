@@ -1191,22 +1191,36 @@ const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
  * (≈Σ|s|·i) and the amplitude barely moves; the captured `hfRms` (RMS of the
  * first-difference high-pass) is the signal that exposes it.
  *
- * A bare hfRms spike is NOT specific: a superimposed sax key click is also a
- * broadband transient, and it must NOT split the note. The separator is a
- * coincident perturbation of the FUNDAMENTAL: a tongue stop momentarily resets
- * the reed, wobbling `midiFloat` by ≳0.1 semitone, whereas a key click rides on
- * top of an unbroken fundamental (midiFloat steady). Requiring both a spike and
- * a pitch perturbation rejects clicks, vibrato (no HF spike), and McLeod
- * clarity flickers (no HF spike).
+ * A bare hfRms spike is NOT specific. Two corroborators are required, each
+ * rejecting a distinct broadband-transient impostor:
+ *   1. A coincident perturbation of the FUNDAMENTAL, measured against a LOCAL
+ *      baseline (the non-spike frames bracketing the spike, not the whole-run
+ *      median). A tongue stop momentarily resets the reed, wobbling `midiFloat`
+ *      by ≳0.1 semitone; a key click rides on top of an unbroken fundamental
+ *      (midiFloat steady). The local baseline keeps a click landing on a bent or
+ *      vibrato'd note from clearing the gate just because the run median sits far
+ *      from the local pitch.
+ *   2. Sustained energy across the spike: post-spike rms ≥ pre-spike rms ×
+ *      HF_RE_ARTICULATION_MIN_RMS_SUSTAIN. A real re-attack adds/holds energy; a
+ *      McLeod octave/harmonic flip (broadband AND pitch-unstable, so it clears
+ *      the spike + perturbation gates) happens on a decaying note and loses
+ *      energy. This also keeps the pass from emitting a spurious split inside an
+ *      upper-octave artifact run, which would block the octave-collapse pass.
+ * Together with the spike these reject clicks, vibrato/bends, McLeod clarity
+ * flickers (no HF spike), and McLeod octave artifacts.
  *
  * Reference: the 2026-06-25 "blues-curl-down" diagnostic (concert Bb, 100 BPM) —
  * two tongued Db4 quarters; the second was a soft legato tongue at ~0.47 s with
- * hfRms spiking 0.012 → 0.067 (≈5.5×) and midiFloat dipping 61.1 → 60.94, but
- * zero reading gap and a rising rms. Previously merged into one note, dropping
- * the score to 0.63 ("fair") with the second Db marked MISSED.
+ * hfRms spiking 0.012 → 0.067 (≈5.5×), midiFloat dipping ~0.1 st against the
+ * local baseline, and rms rising ~1.1× across it — but zero reading gap. The
+ * 2026-05-19 "octave-flat-seven-drop" McLeod C5 artifact is the counter-case it
+ * must reject: a bigger pitch swing (0.33 st) but a falling envelope (post/pre
+ * rms ≈ 0.61). Previously merged the two Dbs into one note, dropping the score
+ * to 0.63 ("fair") with the second Db marked MISSED.
  */
 const HF_RE_ARTICULATION_SPIKE_RATIO = 3.0;
 const HF_RE_ARTICULATION_MIN_PITCH_PERTURB = 0.1;
+const HF_RE_ARTICULATION_MIN_RMS_SUSTAIN = 0.9;
 
 /** Median of a numeric array; 0 if empty. Non-mutating. */
 function median(xs: number[]): number {
@@ -1427,7 +1441,6 @@ function findReArticulationsInSegment(
 	// JSON (no hfRms field) simply skip this pass.
 	if (stable.some((r) => r.hfRms != null)) {
 		const baseHf = median(stable.map((r) => r.hfRms ?? 0));
-		const baseMidiFloat = median(stable.map((r) => r.midiFloat));
 		if (baseHf > 0) {
 			let k = 0;
 			while (k < stable.length) {
@@ -1435,18 +1448,40 @@ function findReArticulationsInSegment(
 					k++;
 					continue;
 				}
-				// Span the contiguous spike; track its hfRms peak and the largest
-				// fundamental deviation across it.
+				// Span the contiguous spike and track its hfRms peak.
 				let peak = k;
-				let maxPerturb = 0;
 				let j = k;
 				while (j < stable.length && (stable[j].hfRms ?? 0) >= baseHf * HF_RE_ARTICULATION_SPIKE_RATIO) {
 					if ((stable[j].hfRms ?? 0) > (stable[peak].hfRms ?? 0)) peak = j;
-					const dev = Math.abs(stable[j].midiFloat - baseMidiFloat);
-					if (dev > maxPerturb) maxPerturb = dev;
 					j++;
 				}
-				if (maxPerturb >= HF_RE_ARTICULATION_MIN_PITCH_PERTURB) {
+				// Measure the fundamental perturbation against a LOCAL baseline —
+				// the non-spike frames immediately bracketing the spike — not the
+				// whole-run median. A vibrato swing or an expressive bend moves the
+				// run median far from the local pitch, so a key click landing on the
+				// bent portion would clear the gate against the run median even
+				// though the fundamental is locally steady. The local baseline
+				// tracks the bend, so only a genuine reed reset (which dips the
+				// pitch relative to its immediate neighbours) clears the gate.
+				const context = [
+					...stable.slice(Math.max(0, k - RE_ARTICULATION_PRE_CONTEXT_FRAMES), k),
+					...stable.slice(j, Math.min(stable.length, j + RE_ARTICULATION_PRE_CONTEXT_FRAMES))
+				];
+				const localMidiFloat = median(
+					(context.length > 0 ? context : stable).map((r) => r.midiFloat)
+				);
+				let maxPerturb = 0;
+				for (let p = k; p < j; p++) {
+					const dev = Math.abs(stable[p].midiFloat - localMidiFloat);
+					if (dev > maxPerturb) maxPerturb = dev;
+				}
+				// A genuine re-attack sustains or adds energy; a McLeod octave/
+				// harmonic flip (or any HF artifact on a decaying note) loses it.
+				const preRms = meanRms(stable, k - RE_ARTICULATION_PRE_CONTEXT_FRAMES, k);
+				const postRms = meanRms(stable, j, j + RE_ARTICULATION_PRE_CONTEXT_FRAMES);
+				const sustainsEnergy =
+					preRms > 0 && postRms >= preRms * HF_RE_ARTICULATION_MIN_RMS_SUSTAIN;
+				if (maxPerturb >= HF_RE_ARTICULATION_MIN_PITCH_PERTURB && sustainsEnergy) {
 					const onsetTime = stable[peak].time - RE_ARTICULATION_ATTACK_LATENCY;
 					if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 						onsets.push(onsetTime);
