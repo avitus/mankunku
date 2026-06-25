@@ -2,6 +2,27 @@
 
 Newest at the top.
 
+## 2026-06-25 — Editor: transpose-on-key-change in the lick editor (best octave for the instrument)
+
+**What happened:**
+
+- User asked: when changing the Key while editing a lick, it should transpose the lick into the new key, in a range best-suited for their instrument.
+- Mapped the current behavior (3 parallel Explore agents): the editor's Key dropdown was **relabel-only** — `getCurrentPhrase()` converts the written-key selection to concert and stamps it on `phrase.key`, but the entered notes (stored in concert pitch) never moved. So "moving" a C line to F left the C notes under an F key signature. This is a latent correctness bug: the multi-key practice engine transposes *from* `phrase.key`, so a key/notes mismatch propagates downstream.
+- Key finding: **the exact machinery already existed.** `transposeLick(phrase, targetKey, rangeLow, rangeHigh)` (library-loader.ts) does chromatic transpose + `bestOctaveShift()` octave-fit, and is the same call ear-training, lick-practice, and the library viewer use. The feature was wiring, not new math — so the editor's transposition is guaranteed identical to how the lick later plays.
+- Brainstormed two genuine decisions with the user: (1) **transpose by default but keep a relabel escape hatch** (for fixing a mislabeled key without moving notes); (2) **fire whenever notes exist** (edit or fresh entry), not edit-only.
+- A subtle non-obvious point: the dropdown is in **written** pitch, notes are **concert**. But the transposition *interval* is invariant to the constant Bb/Eb offset — written-key delta == concert-key delta — so the note result is identical whether you feed written or concert keys to `transposeLick`. I still convert written→concert (`writtenKeyToConcert`) so the carrier phrase is *semantically honest* (concert notes paired with a concert key), even though it's numerically equivalent. Range-fitting genuinely needs concert space (`concertRangeLow`..`getEffectiveHighestNote()`), and that part is not a no-op.
+- TDD: new pure helper `src/lib/step-entry/transpose.ts` — `transposeNotesForKeyChange(notes, oldWrittenKey, newWrittenKey, instrument, rangeHigh)` builds a minimal carrier phrase and delegates to `transposeLick`. 7 tests (interval+range, octave-down fit, rests/metadata preserved, no-op on equal key, empty notes, transposing-instrument guard against double-transpose, no input mutation). RED (module missing) → GREEN.
+- Component glue in `EntryConfig.svelte`: swapped the key `<select>` from `bind:value` to `value` + `onchange` handler; added a "Move notes" checkbox (`$state`, default on) that appears only once notes exist. Off = legacy relabel.
+- Verified: 2023 unit+integration tests green; `npm run check` clean (0 errors/0 warnings). Not yet exercised in a live browser — confidence rests on the helper's unit coverage + typecheck.
+
+**Notes:**
+
+- **Reuse beat invention decisively here.** The instinct on "transpose into the best octave for the instrument" is to reach for octave math; the right move was to recognize that `bestOctaveShift` + `transposeLick` already encode the app's canonical answer, and that *deviating* from them would make the editor preview diverge from playback. The discriminating question for a feature like this isn't "how do I compute it" but "what does the rest of the app already consider correct, and how do I route through it." Chose `transposeLick` (no scale-snap) over `transposeLickForTonality` (snaps) deliberately — a user-entered lick is ground truth; snapping would silently rewrite their notes.
+- The relabel/transpose tension exposed that the old relabel-only behavior was quietly producing key/notes mismatches. The new default (transpose) makes a lick's notes always agree with its stated key — the escape-hatch toggle preserves the rare legitimate relabel without re-opening the mismatch as the default.
+- Not committed — left on `dev` working tree for user review.
+
+---
+
 ## 2026-06-25 — Fixed legato-tongue re-articulation via a new captured signal (hfRms) — blues-curl-down, concert Bb
 
 **What happened:**
