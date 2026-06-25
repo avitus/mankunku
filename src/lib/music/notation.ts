@@ -275,11 +275,16 @@ function isCompoundMeter(ts: [number, number]): boolean {
  *    3 sub-beats, e.g. every dotted quarter in 6/8)
  *  - Within each segment, use the largest standard duration that fits
  *  - Triplet rests are left untouched (they belong to a triplet group)
+ *
+ * Returns the merged display list alongside `sourceMap`, where `sourceMap[k]`
+ * is the index in the original `notes` array that display element `k` came
+ * from, or `null` if `k` is a synthesized rest segment (one source rest can
+ * fan out to several display rests; many source rests can collapse to one).
  */
 function mergeConsecutiveRests(
 	notes: readonly Note[],
 	timeSignature: [number, number]
-): Note[] {
+): { display: Note[]; sourceMap: (number | null)[] } {
 	const barDur = timeSignature[0] / timeSignature[1];
 	const compound = isCompoundMeter(timeSignature);
 
@@ -300,12 +305,14 @@ function mergeConsecutiveRests(
 		restPalette = REST_DURATIONS;
 	}
 
-	const result: Note[] = [];
+	const display: Note[] = [];
+	const sourceMap: (number | null)[] = [];
 	let i = 0;
 
 	while (i < notes.length) {
 		if (notes[i].pitch !== null || getTripletBase(notes[i].duration) !== null) {
-			result.push(notes[i]);
+			display.push(notes[i]);
+			sourceMap.push(i);
 			i++;
 			continue;
 		}
@@ -320,11 +327,13 @@ function mergeConsecutiveRests(
 			j++;
 		}
 
-		fillRests(result, fractionToFloat(notes[i].offset), spanEnd, barDur, splitDur, useSplit, restPalette, timeSignature);
+		const before = display.length;
+		fillRests(display, fractionToFloat(notes[i].offset), spanEnd, barDur, splitDur, useSplit, restPalette, timeSignature);
+		for (let k = display.length - before; k > 0; k--) sourceMap.push(null);
 		i = j;
 	}
 
-	return result;
+	return { display, sourceMap };
 }
 
 /** Recursively decompose a rest span into properly grouped rests */
@@ -378,21 +387,38 @@ function fillRests(
 }
 
 /**
- * Generate an ABC notation string from a Phrase.
+ * Anchor that maps a pitched-note element in the rendered ABC back to its
+ * source-array index. Consumed by NotationDisplay's clickListener to resolve
+ * a click on the staff to a `phrase.notes[]` index.
+ */
+export interface PitchedNoteAnchor {
+	/** Character index in the ABC string where this note's token begins. */
+	startChar: number;
+	/** Character index just past the end of this note's token. */
+	endChar: number;
+	/** Index into the original `phrase.notes` array. */
+	sourceIndex: number;
+}
+
+/**
+ * Generate an ABC notation string from a Phrase, alongside a list of anchors
+ * pointing each emitted pitched-note element back at the source index. Rest
+ * elements are intentionally absent from `noteAnchors` — synthesized merged
+ * rests have no single source-note origin.
  *
- * Inserts barlines at bar boundaries, groups notes within beats
- * for proper beam grouping, merges consecutive rests, and emits
- * ABC (3 triplet groups for consecutive triplet notes.
+ * Inserts barlines at bar boundaries, groups notes within beats for proper
+ * beam grouping, merges consecutive rests, and emits ABC (3-style triplet
+ * groups for consecutive triplet notes.
  *
  * @param phrase - The phrase to render
  * @param instrument - If provided, transposes to written pitch
  * @param defaultLength - ABC L: field value, default [1, 8] (eighth note)
  */
-export function phraseToAbc(
+export function phraseToAbcWithMap(
 	phrase: Phrase,
 	instrument?: InstrumentConfig,
 	defaultLength: [number, number] = [1, 8]
-): string {
+): { abc: string; noteAnchors: PitchedNoteAnchor[] } {
 	const displayKey = instrument
 		? concertKeyToWritten(phrase.key, instrument)
 		: phrase.key;
@@ -405,8 +431,10 @@ export function phraseToAbc(
 	// Duration of one bar in whole notes (e.g. 4/4 = 1.0)
 	const barDuration = beatsPerBar / beatUnit;
 
-	// Preprocess: merge consecutive rests into standard groupings
-	const displayNotes = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
+	// Preprocess: merge consecutive rests into standard groupings.
+	// `sourceMap[k]` maps display index k back to the original `phrase.notes`
+	// index (or `null` for synthesized merged-rest segments).
+	const { display: displayNotes, sourceMap } = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
 
 	// Per-bar accidental state — reset when crossing a barline below
 	let barState: BarAccidentalState = initBarState(keySigAccidentals);
@@ -425,7 +453,7 @@ export function phraseToAbc(
 	}
 
 	// ABC header
-	const lines: string[] = [
+	const headerLines: string[] = [
 		`X:1`,
 		`T:${phrase.name}`,
 		`M:${phrase.timeSignature[0]}/${phrase.timeSignature[1]}`,
@@ -433,8 +461,21 @@ export function phraseToAbc(
 		`K:${displayKey}`,
 	];
 
-	// Generate notes with barlines, beam grouping, and triplet groups
+	// Body assembly: each token-and-anchor pair lets us compute the final
+	// character offset of every pitched note in the assembled ABC string.
 	const tokens: string[] = [];
+	// Pending anchors carry source indices keyed by the eventual token index.
+	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number }> = [];
+
+	function emitElement(displayIdx: number, duration: [number, number]): void {
+		const note = displayNotes[displayIdx];
+		const source = sourceMap[displayIdx];
+		if (note.pitch !== null && source !== null) {
+			pendingAnchors.push({ tokenIndex: tokens.length, sourceIndex: source });
+		}
+		tokens.push(renderNote(note, duration));
+	}
+
 	let prevBar = 0;
 	let prevPosInBar = 0;
 	// Only read when i > 0; initial value is a placeholder.
@@ -495,7 +536,7 @@ export function phraseToAbc(
 
 				tokens.push('(3');
 				for (let j = 0; j < 3; j++) {
-					tokens.push(renderNote(displayNotes[i + j], tripBase));
+					emitElement(i + j, tripBase);
 				}
 
 				prevBar = Math.floor(off2 / barDuration + 1e-9);
@@ -507,7 +548,7 @@ export function phraseToAbc(
 		}
 
 		// Single note
-		tokens.push(renderNote(note, note.duration));
+		emitElement(i, note.duration);
 		prevBar = bar;
 		prevPosInBar = posInBar;
 		prevDuration = note.duration;
@@ -515,8 +556,37 @@ export function phraseToAbc(
 	}
 
 	tokens.push(' |]');
-	lines.push(tokens.join(''));
-	return lines.join('\n');
+
+	// Translate token-index anchors into absolute character offsets.
+	const headerStr = headerLines.join('\n');
+	const bodyStart = headerStr.length + 1; // +1 for the newline before the body
+	const tokenStarts: number[] = new Array(tokens.length);
+	let cursor = 0;
+	for (let t = 0; t < tokens.length; t++) {
+		tokenStarts[t] = cursor;
+		cursor += tokens[t].length;
+	}
+	const noteAnchors: PitchedNoteAnchor[] = pendingAnchors.map(({ tokenIndex, sourceIndex }) => ({
+		startChar: bodyStart + tokenStarts[tokenIndex],
+		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
+		sourceIndex
+	}));
+
+	const abc = headerStr + '\n' + tokens.join('');
+	return { abc, noteAnchors };
+}
+
+/**
+ * Generate an ABC notation string from a Phrase. Thin wrapper around
+ * `phraseToAbcWithMap` that discards the click-anchor map for callers that
+ * only need the rendered text.
+ */
+export function phraseToAbc(
+	phrase: Phrase,
+	instrument?: InstrumentConfig,
+	defaultLength: [number, number] = [1, 8]
+): string {
+	return phraseToAbcWithMap(phrase, instrument, defaultLength).abc;
 }
 
 /**

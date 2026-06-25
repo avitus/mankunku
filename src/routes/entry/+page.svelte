@@ -4,10 +4,11 @@
 	import { goto } from '$app/navigation';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
-		stepEntry, addNote, addRest, deleteLastNote, reset, loadFromPhrase,
+		stepEntry, addNote, addRest, deleteSelectedNote, reset, loadFromPhrase,
 		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
-		adjustLastNotePitch, flipLastNoteSpelling, enterTiedNote, getCurrentPhrase,
-		getPaddedNotes, getCurrentBarAndBeat, getRemainingCapacity
+		adjustSelectedNotePitch, flipSelectedNoteSpelling, enterTiedNote, getCurrentPhrase,
+		getPaddedNotes, getCurrentBarAndBeat, getRemainingCapacity,
+		selectNote, selectPrev, selectNext
 	} from '$lib/state/step-entry.svelte';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
@@ -178,23 +179,37 @@
 		if (key === '0') { addRest(); return; }
 		if (key === ']') { setAccidental('sharp'); return; }
 		if (key === '[') { setAccidental('flat'); return; }
-		if (key === '\\') { flipLastNoteSpelling(); return; }
+		if (key === '\\') { flipSelectedNoteSpelling(); return; }
 		if (key === '=') { adjustOctave(1); return; }
 		if (key === '+') { enterTiedNote(); return; }
 		if (key === '-') { adjustOctave(-1); return; }
+		if (key === 'ArrowLeft') {
+			e.preventDefault();
+			selectPrev();
+			return;
+		}
+		if (key === 'ArrowRight') {
+			e.preventDefault();
+			selectNext();
+			return;
+		}
+		if (key === 'Escape') {
+			selectNote(null);
+			return;
+		}
 		if (key === 'ArrowUp') {
 			e.preventDefault();
-			adjustLastNotePitch(e.shiftKey ? 12 : 1);
+			adjustSelectedNotePitch(e.shiftKey ? 12 : 1);
 			return;
 		}
 		if (key === 'ArrowDown') {
 			e.preventDefault();
-			adjustLastNotePitch(e.shiftKey ? -12 : -1);
+			adjustSelectedNotePitch(e.shiftKey ? -12 : -1);
 			return;
 		}
 		if (key === 'Backspace' || key === 'Delete') {
 			e.preventDefault();
-			deleteLastNote();
+			deleteSelectedNote();
 			return;
 		}
 	}
@@ -360,6 +375,8 @@
 	<NotationDisplay
 		phrase={hasNotes ? currentPhrase : null}
 		instrument={getInstrument()}
+		selectedIndex={stepEntry.selectedNoteIndex}
+		onSelect={(i) => selectNote(i)}
 	>
 		{#snippet titleArea()}
 			<div class="space-y-0.5">
@@ -390,7 +407,14 @@
 	<!-- Status bar -->
 	{#if hasNotes}
 		<div class="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-			<span class="tabular-nums">Bar {position.bar}, Beat {position.beat}</span>
+			{#if stepEntry.selectedNoteIndex !== null}
+				<span class="tabular-nums">
+					Note {stepEntry.selectedNoteIndex + 1} selected
+					<span class="opacity-70">· ←/→ to move · ↑/↓ to pitch · Esc to clear</span>
+				</span>
+			{:else}
+				<span class="tabular-nums">Bar {position.bar}, Beat {position.beat}</span>
+			{/if}
 			<span class={isFull ? 'font-medium text-[var(--color-error)]' : ''}>
 				{isFull ? 'Full' : `${remainingBeats} beat${remainingBeats !== 1 ? 's' : ''} left`}
 			</span>
@@ -558,7 +582,8 @@
 			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
 			<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>
 			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
-			<span><kbd>Backspace</kbd> Delete last</span>
+			<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Select note &middot; <kbd>Esc</kbd> Clear</span>
+			<span><kbd>Backspace</kbd>/<kbd>Delete</kbd> Delete selected</span>
 		</div>
 	</details>
 </div>
