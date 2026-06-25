@@ -852,3 +852,172 @@ describe('pitch replay regression: Blues Curl Up weak-step-up re-articulation (c
 		expect(result.chosen.overall).toBeGreaterThan(0.85);
 	});
 });
+
+/**
+ * Ninth regression recording: "Blues Curl Down" (concert Bb, 2026-06-25).
+ * The softest re-articulation seen so far. Phrase Db Db Bb (quarter quarter
+ * half, bc-042_Bb) on tenor sax at 100 BPM, no backing track. The player
+ * tongued the second Db with a *legato* tongue at t ≈ 0.47 s — the airflow
+ * never stopped, so unlike every prior curl fixture there is NO reading gap
+ * and NO envelope dip (rms actually rises across the attack), and the clarity
+ * dip is only ~0.04 (under RE_ARTICULATION_CLARITY_DROP). The worklet's
+ * amplitude-weighted HFC never moved (it fired only at the Db→Bb transition,
+ * 1.09 s, plus three post-phrase key clicks), so the live segmenter saw two
+ * notes (one long Db, one Bb) and the DTW marked the second Db MISSED. The
+ * saved score was 0.631 ("fair"), pitch 2/3.
+ *
+ * What the prior passes can't see and the fix adds:
+ *   - The re-attack injects a broadband high-frequency burst: the per-frame
+ *     `hfRms` (RMS of the first-difference high-pass, captured in detectFrame)
+ *     spikes ~0.012 → 0.067 (≈5.5×) at t ≈ 0.47 s while midiFloat dips
+ *     61.1 → 60.94 (the reed resetting).
+ *   - `findReArticulations`' HF-transient tier fires on that spike, gated on a
+ *     coincident fundamental perturbation (≥0.1 st) so a superimposed key
+ *     click — broadband but leaving the fundamental steady — is rejected.
+ *   - The synthetic onset splits the long Db into two and reinforces the
+ *     boundary as attack evidence, so DTW aligns 3-to-3.
+ *
+ * Because the fix lives in detectFrame (hfRms), only the WAV-replay path
+ * exercises it — readings restored from the saved diagnostic JSON predate the
+ * hfRms field and deliberately skip the HF tier.
+ */
+describe('pitch replay regression: Blues Curl Down legato-tongue re-articulation (concert Bb, 2026-06-25)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-06-25-blues-curl-down.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-042_Bb: Db Db Bb (the blue third tongued twice, curling down to root).
+	const expectedPhrase: Phrase = {
+		id: 'bc-042_Bb',
+		name: 'Blues Curl Down',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 61, duration: [1, 4], offset: [0, 1] }, // Db
+			{ pitch: 61, duration: [1, 4], offset: [1, 4] }, // Db
+			{ pitch: 58, duration: [1, 2], offset: [1, 2] }  // Bb
+		],
+		harmony: [],
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Mirror the production ear-training path. No backing track → no bleed onsets.
+	async function detectFromFixture() {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+	}
+
+	it('emits an HF-transient articulation onset near the second-Db attack', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		expect(articulationOnsets.length).toBeGreaterThan(0);
+		// The legato re-attack lands around beat 1 (~0.47 s), ±0.2 s.
+		const nearSecondDb = articulationOnsets.some((t) => Math.abs(t - 0.47) < 0.2);
+		expect(nearSecondDb).toBe(true);
+	});
+
+	it('segments into three notes [Db, Db, Bb] instead of merging the two Dbs', async () => {
+		const detected = await detectFromFixture();
+
+		expect(detected.map((n) => n.midi)).toEqual([61, 61, 58]);
+		// Second Db re-articulation lands in the 0.35–0.65 s window.
+		expect(detected[1].onsetTime).toBeGreaterThan(0.35);
+		expect(detected[1].onsetTime).toBeLessThan(0.65);
+	});
+
+	it('scores three matched notes with high overall', async () => {
+		const detected = await detectFromFixture();
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.85);
+	});
+});
+
+/**
+ * Guard for the HF-transient pass against a McLeod octave artifact, on the
+ * WAV-replay path (the JSON-fixture test for this recording exercises the
+ * saved-readings path, which predates hfRms and never runs the HF tier).
+ *
+ * "Octave–Flat Seven Drop" (concert D, 2026-05-19): the true phrase collapses
+ * to [D4, C4]. Mid-phrase, McLeod locks onto the C4's second harmonic for a
+ * stretch, producing a spurious C5 (midi 72) run. That run is broadband AND
+ * pitch-unstable (the detector flips ~0.33 st), so it clears the HF-spike and
+ * pitch-perturbation gates — but it sits on a DECAYING envelope (post/pre rms
+ * ≈ 0.61). Without the rms-sustain gate the HF pass emitted an articulation
+ * onset at ~1.6 s, which blocked mergeOctaveBoundariesWithoutAttack and left
+ * the C5 artifact uncollapsed ([62, 72, 72, 72, 60]). The energy-sustain
+ * corroborator rejects it, so the octave collapse runs and the result is the
+ * correct [D4, C4]. (A real re-attack adds energy; an artifact on a fading note
+ * does not — see HF_RE_ARTICULATION_MIN_RMS_SUSTAIN.)
+ */
+describe('pitch replay regression: HF pass does not split a McLeod octave artifact (concert D, 2026-05-19)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-05-19-octave-flat-seven-drop.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	it('emits no articulation onset inside the C5 artifact region (~1.1–2.0 s)', async () => {
+		const { readings, onsets } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		const insideArtifact = articulationOnsets.filter((t) => t > 1.1 && t < 2.0);
+		expect(insideArtifact).toEqual([]);
+	});
+
+	it('collapses to [D4, C4] — the HF split no longer blocks the octave merge', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([62, 60]);
+	});
+});

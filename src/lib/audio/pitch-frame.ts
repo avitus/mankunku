@@ -31,6 +31,19 @@ export interface PitchReading {
 	 */
 	rms: number;
 	/**
+	 * RMS of the first-difference (a +6 dB/octave high-pass) of the analysis
+	 * window — a cheap high-frequency-energy proxy. A tongue re-attack injects
+	 * a burst of broadband/high-frequency noise that spikes this measure even
+	 * when the overall envelope (rms) barely moves and no reading gap forms.
+	 * The segmenter's re-articulation detector uses a localized spike above the
+	 * same-MIDI run's baseline to recover the softest legato-tongue re-attacks —
+	 * the ones that produce neither an envelope dip nor a worklet onset (whose
+	 * HFC is amplitude-weighted and so misses a high-noise / low-amplitude
+	 * transient). Optional so readings restored from pre-2026-06-25 diagnostic
+	 * JSON (which lack it) simply skip the high-frequency pass.
+	 */
+	hfRms?: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -228,8 +241,17 @@ export function detectFrame(
 	const [frequency, clarity] = detector.findPitch(buffer, opts.sampleRate);
 
 	let energy = 0;
-	for (let i = 0; i < buffer.length; i++) energy += buffer[i] * buffer[i];
+	let hfEnergy = 0;
+	for (let i = 0; i < buffer.length; i++) {
+		const s = buffer[i];
+		energy += s * s;
+		if (i > 0) {
+			const d = s - buffer[i - 1];
+			hfEnergy += d * d;
+		}
+	}
 	const rms = Math.sqrt(energy / buffer.length);
+	const hfRms = Math.sqrt(hfEnergy / buffer.length);
 
 	if (
 		clarity < clarityThreshold ||
@@ -248,7 +270,7 @@ export function detectFrame(
 	const octaveCorrection = midi - rawMidi;
 	const midiFloat = rawMidiFloat + octaveCorrection;
 
-	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms };
+	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms };
 	if (stab.warmup) reading.warmup = true;
 
 	return { reading, rawClarity: clarity };

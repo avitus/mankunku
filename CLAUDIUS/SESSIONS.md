@@ -2,6 +2,27 @@
 
 Newest at the top.
 
+## 2026-06-25 — Fixed legato-tongue re-articulation via a new captured signal (hfRms) — blues-curl-down, concert Bb
+
+**What happened:**
+
+- User reported the 4th instance of the re-articulation-merge class: an ear-training lick where "a re-articulated note failed to be detected." Diagnostic JSON + WAV (`2026-06-25-blues-curl-down`, bc-042_Bb, tenor sax, 100 BPM, no backing track).
+- Ground truth (raw WAV, numpy + FFT): phrase is **Db Db Bb** (the blue 3rd tongued twice, curling to the root). The second Db was a **soft legato tongue** at t≈0.474 s — the airflow never stopped. Segmenter produced **2 notes** (one long Db, one Bb) → second Db MISSED → score 0.631 ("fair"), pitch 2/3.
+- Root cause: this re-attack is invisible to **all four** existing detectors. **No reading gap** (continuous 16.7 ms frames), **rms RISES** not dips (no envelope dip), **clarity dip only 0.042** (< 0.07 floor), **worklet never fired** (its "HFC" is amplitude-weighted `Σ|s|·(i+1)`, and the amplitude barely moved). The *only* clean signature is a broadband **high-frequency transient** (FFT centroid spikes to ~9 kHz, HF>4 kHz energy 0.05→0.7) — and that signal **was not captured in `PitchReading` at all**.
+- This is the first fix in this class that required a **new captured signal**, not a new reading of existing fields. Added `hfRms` to `detectFrame` (RMS of the first-difference / +6 dB-oct high-pass; one extra term in the existing energy loop), exposed on `PitchReading` (optional → old JSON skips it). Because `detectFrame` is shared by live capture AND the WAV-replay harness, the replay recomputes `hfRms` from this exact WAV → an end-to-end regression test works.
+- **The hard part — the false-positive question.** A bare hfRms spike is NOT specific. Profiling all 12 fixtures through the real replay path: `a4-c5` and `a3-c4` (curated 2 notes, `[57,60]`) each show a mid-note HF burst at ~2.5 s (similar ~9 kHz centroid spike). I first read these as the same tongue event and wrote that their ground truth was "debatable." **The user then listened (temp `/listen` page) and confirmed a4-c5/a3-c4 have NO audible transient — only curl-down's re-tongue is audible. So `[57,60]` is correct and the gate makes the right call on all three.** I'd over-read the spectrogram: a centroid/HF-*ratio* spike with no change in *total* energy need not be audible.
+- The separator: the genuine re-attack perturbs the **fundamental** (midiFloat dips 61.1→60.94, ≈0.12–0.16 st — the reed resetting) because the tone audibly restarts; the inaudible a4-c5/a3-c4 blips leave the fundamental steady (≤0.07 st). The single threshold (`HF_RE_ARTICULATION_MIN_PITCH_PERTURB = 0.1`) sits between them — numerically tight (~0.03 each side) but, per the listening test, **perceptually aligned** (fires iff the reed audibly re-attacked). See observations.md.
+- Fix (`note-segmenter.ts`, ~40 lines): new HF-transient tier in `findReArticulationsInSegment`, after the gap pass. For each same-MIDI stable run: spike = `hfRms ≥ 3× run-median`; fire only if a coincident `|midiFloat − run-median| ≥ 0.1 st` perturbation exists. Emits an articulation onset → splits the run AND reinforces it as attack evidence.
+- Tests: copied both fixtures into `tests/fixtures/recordings/`; added a WAV-replay block in `pitch-replay.test.ts` (3 tests: HF articulation onset, segments [Db,Db,Bb], scores 3/3). Verified **RED without the fix** (detected [61,58], 0 onsets — matches the diagnostic exactly) → **GREEN with it**. NO JSON-fixture test: the saved readings predate `hfRms`, so only the WAV path can exercise it. Full suite green (**2014 passed**), `npm run check` clean (0 errors).
+
+**Notes:**
+
+- **Shipped to PR #139** (`dev→main`, 2026-06-25), awaiting user merge. Temp `/listen` page deleted after the listening test.
+- **CodeRabbit round did real work.** One Major comment: the perturbation gate compared `midiFloat` to the whole-run median, which a key click during a bend/vibrato could clear. Adopted its **local-baseline** fix (bracket the spike with PRE_CONTEXT frames). Validating it — re-profiling the whole corpus through the WAV path, per the 2026-06-23 discipline — caught a **latent regression in my own original fix**: the HF pass fired inside a McLeod **octave artifact** (`octave-flat-seven-drop` C5 harmonic lock: broadband + 0.33 st swing, so it cleared both gates), and its spurious onset blocked `mergeOctaveBoundariesWithoutAttack` → `[62,72,72,72,60]` instead of `[62,60]`. Invisible to CI because that fixture only has a JSON-path test (saved readings predate `hfRms`). Fixed with a 3rd corroborator — **energy must sustain** across the spike (real re-attack post/pre rms 1.11; decaying artifact 0.61; gate ×0.9). Added a WAV-replay guard for it (RED without the energy gate). Commit `1702299`; thread resolved; suite 2016 green.
+- The 2026-06-21 prediction held a 4th time but **evolved**: this axis wasn't latent in the existing readings — it required new capture (`hfRms`). Two headline corrections this session, both from outside my own analysis: (1) the user's ear settled that a4-c5/a3-c4 are genuinely single notes (`[57,60]` correct, cue perceptually aligned); (2) CodeRabbit's review prompted the re-validation that caught the octave-artifact landmine. **Lessons: for a "would a human hear this?" question, ask the human first; and the 2026-06-23 "interrogate EVERY fixture against the boundary" rule applies to fixtures that only have a JSON test too — the WAV path is the one production uses.** See observations.md.
+
+---
+
 ## 2026-06-23 — Fixed weak-step-up re-articulation merge via a true-silence gate (blues-curl-up, concert D)
 
 **What happened:**
@@ -16,7 +37,7 @@ Newest at the top.
 
 **Notes:**
 
-- Not yet committed (awaiting user go-ahead). On `dev`. The 2026-06-21 prediction ("future fixes here will be a new *axis*, not a new threshold") held precisely — see observations.md.
+- **Shipped.** Committed on `dev` (`d76f53b` fix + `74b6d09` CLAUDIUS note), merged to main via **PR #137** (confirmed 2026-06-24). On 2026-06-24 fetched + fast-forward-merged main back into `dev` (alongside PR #136 from `dev-macbook` + a docs sync); `dev` now identical to `origin/main`. The 2026-06-21 prediction ("future fixes here will be a new *axis*, not a new threshold") held precisely — see observations.md.
 
 ---
 
