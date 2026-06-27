@@ -1,5 +1,6 @@
 import { createBrowserClient, createServerClient, isBrowser } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { setHydrationPromise } from '$lib/state/hydration';
 import type { LayoutLoad } from './$types';
 import type { Database } from '$lib/supabase/types';
 
@@ -93,7 +94,11 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	// Runs in the load function so child routes (e.g. practice page) snapshot
 	// hydrated state, not stale localStorage defaults.
 	// Dynamic imports keep .svelte.ts modules off the server (no localStorage in SSR).
-	// cloudHydrated guards in each module prevent re-fetching on subsequent load re-runs.
+	// NOTE: none of these inits short-circuit a re-fetch — each re-selects on
+	// every re-run (e.g. an `invalidate('supabase:auth')` from token refresh /
+	// tab focus). Their localStorage guards only prevent OVERWRITING populated
+	// local data, so a re-run is redundant network, not data loss. (A previous
+	// version of this comment incorrectly claimed per-module hydration guards.)
 	if (isBrowser() && session) {
 		const { initFromCloud } = await import('$lib/state/progress.svelte');
 		const { loadSettingsFromCloud } = await import('$lib/state/settings.svelte');
@@ -130,15 +135,21 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 				}
 			});
 
-		// Don't block rendering for more than 2s (offline / slow connections).
-		// The hydration promise continues in the background if the timeout wins.
-		await Promise.race([hydration, new Promise<void>(r => setTimeout(r, 2000))]);
+		// Run cloud hydration in the BACKGROUND — do NOT block the page mount on
+		// it. Components render from local-first state immediately and the inits
+		// overlay cloud data reactively as they resolve. Routes that snapshot
+		// hydrated state once at mount (e.g. /ear-training) opt back into a
+		// bounded wait via `awaitHydration()`. This is what removes the up-to-2s
+		// cold-load stall before any page could mount.
+		setHydrationPromise(
+			hydration.catch((err) =>
+				console.warn('[hydration] background cloud sync failed:', err)
+			)
+		);
 
-		// If cloud hydration hadn't finished by the timeout, re-derive from
-		// whatever's in localStorage now so the calendar renders without
-		// waiting for the cloud round-trip. The hydration chain's mergeCloud
-		// step continues in the background and will overlay any cloud-only
-		// rows when it lands.
+		// Derive the calendar from whatever is already in localStorage so it
+		// renders at mount; the background chain re-runs recompute + overlays
+		// any cloud-only summaries reactively when it lands.
 		recomputeAllDailySummaries();
 	}
 

@@ -15,6 +15,7 @@
 	import { keyToPitchClass, isValidPitchKey } from '$lib/step-entry/pitch-input';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { saveUserLick, updateLickCategory, getUserLicks, getUserLicksLocal } from '$lib/persistence/user-licks';
+	import { awaitHydration } from '$lib/state/hydration';
 	import {
 		setPracticeTag,
 		isInPracticeSet,
@@ -114,6 +115,14 @@
 		// prior session — the rune is module-scoped and persists across navs.
 		const editId = page.url.searchParams.get('edit');
 		if (editId) {
+			// Wait (bounded) for cloud hydration before loading the lick — the
+			// edit flow transposes notes/key via getInstrument() once at mount,
+			// so a cold deep-link to ?edit=<id> must read the hydrated instrument
+			// rather than a stale localStorage default. Re-check the navigation
+			// guard after the await in case the user moved on.
+			await awaitHydration();
+			if (!editHydrationActive) return;
+
 			const local = getUserLicksLocal().find((l) => l.id === editId);
 			let lick = local ?? null;
 			if (!lick && supabase) {

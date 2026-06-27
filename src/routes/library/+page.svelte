@@ -7,7 +7,7 @@
 	import type { Phrase } from '$lib/types/music';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getUserLicks } from '$lib/persistence/user-licks';
+	import { getUserLicks, getUserLicksLocal } from '$lib/persistence/user-licks';
 	import {
 		isInPracticeSet,
 		resolvePracticeFallbackTags,
@@ -32,9 +32,22 @@
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let playingId: string | null = $state(null);
 
-	/** User-recorded + step-entered licks loaded from localStorage and/or cloud */
-	let userLicks: Phrase[] = $state([]);
+	/**
+	 * User-recorded + step-entered licks. Seeded synchronously from localStorage
+	 * so a returning user's own licks paint on first render (mirrors the
+	 * `stolenLicks` seed below); the async effect then overlays the cloud merge.
+	 * On the server `getUserLicksLocal()` returns `[]` (no localStorage).
+	 */
+	let userLicks: Phrase[] = $state(getUserLicksLocal());
 	let effectRunId = 0;
+
+	/**
+	 * False until the async load has resolved at least once. Gates the empty
+	 * state so the "your library is empty" copy never flashes while the
+	 * network-backed cloud merge is still in flight (a user whose only licks
+	 * live in the cloud would otherwise see "empty" for the whole load window).
+	 */
+	let loaded = $state(false);
 
 	/**
 	 * Bumped whenever a practice tag is toggled inline so the grouping deriveds
@@ -53,11 +66,14 @@
 		const runId = ++effectRunId;
 
 		const assign = (licks: Phrase[]) => {
-			if (runId === effectRunId) userLicks = licks;
+			if (runId === effectRunId) {
+				userLicks = licks;
+				loaded = true;
+			}
 		};
 
 		if (sess && sb) {
-			getUserLicks(sb)
+			getUserLicks(sb, sess.user?.id)
 				.then(assign)
 				.catch(() => {
 					getUserLicks().then(assign).catch(() => assign([]));
@@ -265,7 +281,18 @@
 		</div>
 	</div>
 
-	{#if myLicks.length === 0}
+	{#if myLicks.length === 0 && !loaded}
+		<div
+			class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center"
+			aria-busy="true"
+		>
+			<p class="font-display text-lg text-[var(--color-text-secondary)]">Loading your licks…</p>
+			<div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2" aria-hidden="true">
+				<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
+				<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
+			</div>
+		</div>
+	{:else if myLicks.length === 0}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center">
 			<p class="font-display text-lg">Your library is empty.</p>
 			<p class="mt-2 text-sm text-[var(--color-text-secondary)]">

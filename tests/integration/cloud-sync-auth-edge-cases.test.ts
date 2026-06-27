@@ -560,16 +560,18 @@ describe('user-licks.initUserLicksFromCloud — scope generation guard', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Hydration timeout — render race
+// Hydration timeout — fire-and-forget + bounded opt-in
 //
-// `+layout.ts:118-120` races the parallel hydration against a 2-second timer
-// so render isn't blocked on slow networks. Verify the pattern works (slow
-// hydrator does not stall the race) AND that the production source still
-// contains the Promise.race + setTimeout structure.
+// `+layout.ts` no longer blocks the page mount on cloud hydration: it registers
+// the hydration promise fire-and-forget via `setHydrationPromise()` so render
+// is never stalled. Routes that snapshot hydrated state at mount opt back into
+// a wait that is bounded at 2s by `awaitHydration()` in src/lib/state/hydration.ts.
+// Verify the bound works (slow hydrator does not stall the opt-in) AND that the
+// production sources still encode this structure.
 // ---------------------------------------------------------------------------
 
-describe('hydration race against the 2s timeout', () => {
-	it('the timeout wins when a hydrator is slower than 2s — render does not stall', async () => {
+describe('hydration timeout — fire-and-forget + bounded opt-in', () => {
+	it('the timeout wins when a hydrator is slower than 2s — the opt-in does not stall', async () => {
 		vi.useFakeTimers();
 
 		try {
@@ -581,8 +583,8 @@ describe('hydration race against the 2s timeout', () => {
 				}, 5000);
 			});
 
-			// Mirrors the production race in +layout.ts:120 — slow hydration vs
-			// 2s timeout. Whichever wins resolves the await.
+			// Mirrors the bound in awaitHydration() — slow hydration vs 2s
+			// timeout. Whichever wins resolves the opt-in route's load.
 			const race = Promise.race([
 				slowHydration,
 				new Promise<void>((r) => setTimeout(r, 2000))
@@ -607,18 +609,41 @@ describe('hydration race against the 2s timeout', () => {
 		}
 	});
 
-	it('production +layout.ts still races hydration against a 2s timeout', async () => {
+	it('production +layout.ts hydrates fire-and-forget (does not await the race)', async () => {
 		const { readFileSync } = await import('node:fs');
 		const { fileURLToPath } = await import('node:url');
-		const layoutPath = fileURLToPath(new URL('../../src/routes/+layout.ts', import.meta.url));
-		const src = readFileSync(layoutPath, 'utf8');
-		// Allow whitespace variation; require the Promise.race + setTimeout
-		// (with a literal 2000) wrapping the hydration await.
-		const racePattern = /Promise\.race\(\s*\[\s*hydration\s*,\s*new\s+Promise[^]*?setTimeout\([^]*?2000[^]*?\)\s*\]\s*\)/;
+		const src = readFileSync(
+			fileURLToPath(new URL('../../src/routes/+layout.ts', import.meta.url)),
+			'utf8'
+		);
+		// The hydration promise must be registered for background completion…
 		expect(
 			src,
-			'src/routes/+layout.ts must keep Promise.race([hydration, setTimeout(..., 2000)]) so a slow cloud does not block render. See +layout.ts:118-120.'
-		).toMatch(racePattern);
+			'src/routes/+layout.ts must register the background hydration via setHydrationPromise() so render is not blocked.'
+		).toMatch(/setHydrationPromise\(/);
+		// …and must NOT await a blocking race on `hydration` (the old behaviour
+		// that stalled every cold load up to 2s).
+		expect(
+			src,
+			'src/routes/+layout.ts must NOT `await Promise.race([hydration, ...])` — that blocking race was replaced by fire-and-forget. The 2s bound now lives in awaitHydration().'
+		).not.toMatch(/await\s+Promise\.race\(\s*\[\s*hydration/);
+	});
+
+	it('the 2s bound lives in awaitHydration() so opt-in routes never hang', async () => {
+		const { readFileSync } = await import('node:fs');
+		const { fileURLToPath } = await import('node:url');
+		const src = readFileSync(
+			fileURLToPath(new URL('../../src/lib/state/hydration.ts', import.meta.url)),
+			'utf8'
+		);
+		// awaitHydration() must keep a Promise.race against a setTimeout, with a
+		// default 2000ms ceiling, so a slow cloud degrades to local state.
+		expect(src).toMatch(/Promise\.race\(/);
+		expect(src).toMatch(/setTimeout\(/);
+		expect(
+			src,
+			'src/lib/state/hydration.ts awaitHydration() must default to a 2000ms timeout.'
+		).toMatch(/timeoutMs\s*=\s*2000/);
 	});
 });
 
