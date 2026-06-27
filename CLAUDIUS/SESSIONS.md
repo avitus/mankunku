@@ -2,6 +2,88 @@
 
 Newest at the top.
 
+## 2026-06-26 — /library load speed: fire-and-forget cloud hydration
+
+**What happened:**
+
+- Asked to speed up the /library load. Investigation (verified) found the cost is almost entirely **cold-load**, gated by the root layout's `await Promise.race([hydration, 2000ms])` (`+layout.ts`) — the client re-runs the universal load during hydration and can't mount any page until that race resolves. **Warm in-app nav was already fast** (layout load is cached; reads no url/params). Bundle is NOT the bottleneck — abcjs/Tone/d3 are all code-split out of the library closure (confirmed against built chunks).
+- **Honest correction surfaced:** last turn's synchronous `userLicks` seed does NOT help cold load — the mount itself waits on the race. It only helps warm nav.
+- Shipped safe wins first: **R1** — `getUserLicks(sb, knownUserId?)` skips a network `auth.getUser()` by taking the already-server-validated id from layout data; **R3** — fixed a false `+layout.ts` comment. **Dropped R2** (a hydration guard on `initUserLicksFromCloud`): background-only, and it broke 5 sync tests because that function doubles as the cross-device re-pull mechanism — not worth the blast radius for a load-speed goal.
+- User chose the **correct fix** for the headline (2s race) over the quick cap-lowering. **Verified the blast radius first** via a 4-domain audit — and the prior "only ear-training snapshots" claim was WRONG: **7** sites snapshot hydrated state non-reactively at mount (ear-training index #1-3, ear-training/settings clobber-back #4, library/[id] curated metadata #5, layout migrations #6, entry edit deep-link #7). The /progress calendar and /library list are reactive-safe (verified `dailySummaries.sort()` invalidation).
+- Implemented: new `src/lib/state/hydration.ts` (`setHydrationPromise`/`whenHydrated`/`awaitHydration` — bounded 2s, default-resolved, swallows rejections). `+layout.ts` now fires hydration **fire-and-forget** (keeps `syncUserScope` awaited + an immediate local calendar recompute). Snapshotting routes opt back into a bounded wait: `ear-training/+layout.ts` (covers #1-4), `library/[id]/+page.ts` (#5); `+layout.svelte` runs migrations after `awaitHydration()` (#6, theme stays immediate — self-heals); `entry/+page.svelte` awaits before the edit-mode instrument read (#7).
+- Guard: `tests/unit/state/hydration.test.ts` (default-resolved, never-rejects, 2s-bounded via fake timers). Updated `cloud-sync-auth-edge-cases.test.ts` — the source-pattern test that pinned the old in-layout race now asserts the new fire-and-forget shape + the bound living in `awaitHydration()`.
+- Verified: `npm run check` clean; **2036** unit tests pass; library/ear-training/cross-flow E2E (6) pass.
+
+**Still needs runtime/browser confirmation (reactive overlay; E2E mocks cloud as empty):**
+
+- Cross-device cold-load straight to /library: instant mount, cloud-only licks overlay reactively.
+- /progress calendar: offline sessions at mount, cloud out-of-window rows overlay when the background chain lands.
+- /ear-training cold-load on a throttled connection: fresh daily key/tempo/roster; offline degrades to local within 2s. /ear-training/settings: tempo seeds from hydrated `defaultTempo` (no clobber-back). Anonymous /ear-training: no 2s wait. Network: cloud inits fire ONCE (root layout), not a second time from the opt-in.
+
+**Notes:**
+
+- The reusable lesson: a global de-block is only as safe as the *snapshot audit* behind it. "Only ear-training" was asserted twice and wrong twice; the fan-out audit found 6 more by grepping for `const x = module.foo` at mount across every route. Reactive vs snapshot is the real axis — and the fix is uniform: extract one bounded `awaitHydration()` and let the few snapshotting routes opt back in, rather than weakening the global default. The default got *faster*; the exceptions pay their own (bounded) cost.
+- Second time this project that a "perf win" turned out to also be a correctness boundary (cf. R2 = the cross-device pull). Sync paths here carry double duty; before optimizing one away, ask what *else* it silently provides.
+
+**Shipped as PR #141 (dev→main) + CodeRabbit round:**
+
+- Committed the /library work (excluding the unrelated, deliberately-uncommitted `major-4-7` licks staging), opened #141, processed CodeRabbit. 3 actionable comments, all 3 **valid against my own new code** — adopted, fixed (`24041a4`), replied + resolved; incremental re-review came back empty; all CI green; MERGEABLE/CLEAN.
+- The standout catch refines the reactive-vs-snapshot axis from earlier this session into a **third** case. I had used the bounded `awaitHydration()` for the one-way pitch migrations in `+layout.svelte`. CodeRabbit flagged: a bounded wait that the 2s timeout *wins* lets `getInstrument()` read a stale instrument, and the migration is an **idempotent-but-irreversible write** (it stamps a done-flag), so a timeout-win corrupts transposition permanently. Fix: use the **unbounded** `whenHydrated()` for it. The lesson: the snapshot audit has three buckets, not two — (1) reactive reads = safe under fire-and-forget; (2) display-only snapshots = bounded opt-in is fine; (3) **irreversible writes keyed on hydrated state = must use the unbounded signal**, because "act on stale, but fast" is strictly worse than "wait" when the action can't be undone. I had collapsed (2) and (3); CodeRabbit didn't.
+- Other two: a stale `?edit=` param re-check after the await (entry page), and an account-switch privacy leak in /library (re-seed + reset `loaded` on the auth-scoped effect rerun — the seed only ran once at mount, so a `supabase:auth` invalidation after `syncUserScope` wiped storage could keep showing the prior user's licks). Both real, both mine.
+
+## 2026-06-25 — /library "always empty + slow" root cause + fix
+
+**What happened:**
+
+- Bug report: `/library` takes a few seconds to load and always shows "Your library is empty."
+- Root cause (verified by a 4-lens parallel investigation + synthesis): the refocus commit `75487fa` dropped the **synchronous** curated source (`getAllLicks`/`queryLicks`) that previously kept the page non-empty, but left `userLicks = $state([])` filled **only** by an async `$effect` calling `getUserLicks(sb)` — which awaits a network `supabase.auth.getUser()` before its select, stacked behind `+layout.ts`'s up-to-2s hydration race. No synchronous seed + no loading guard ⇒ the empty card paints on **every** load (deterministic "always") and lingers for the whole network window ("a few seconds"). Classified primarily **transient-flash**, not data loss.
+- Fix (minimal, `src/routes/library/+page.svelte`): seed `userLicks = $state(getUserLicksLocal())` (mirrors the existing `stolenLicks` seed), and gate the empty copy behind a `loaded` flag with a loading skeleton in between. ~15 lines.
+- Regression test: the flash itself is **not** E2E-testable — in the harness the browser Supabase client has no client-side session, so `auth.getUser()` short-circuits to null locally (no network), making the async path resolve in a microtask. A delayed-route test passed against pre-fix code (no-op). Pivoted to asserting the **raw SSR HTML** (`page.request.get('/library')`): server has no localStorage, so pre-fix it shipped "Your library is empty." as first bytes; post-fix it ships the loading placeholder. Deterministic, no timing. Confirmed it fails against pre-fix and passes after.
+- `npm run check` clean; library E2E (4 specs, chromium) green.
+
+**Open / awaiting (flagged to user, not done):**
+
+- Perf: `+layout.ts` 2s blocking race gates page mount; `getUserLicks` uses network `getUser()` where `getSession()` (local) would do; `initUserLicksFromCloud` has **no** hydration guard and the `+layout.ts:96` comment claiming such guards exist is **false/stale**. Larger blast radius — left for user decision.
+- Permanent-loss hardening: `syncUserScope` wipes ALL localStorage on a transient `currentUserId === null` (SSR session miss / expired cookie); never-synced local licks are lost for good. Medium confidence — needs runtime confirmation that transient nulls occur.
+
+**Notes:**
+
+- The deep lesson here is a *pattern*, not a one-off: `stolenLicks` was seeded synchronously and `userLicks` was not — two sources feeding the same view, loaded two different ways, and only one of them flashes. Whenever a view spreads `[...sourceA, ...sourceB]` and gates UI on the combined length, **every** source needs the same first-paint guarantee or the slowest one defines the user's experience. Worth auditing other `$state([])`-then-async-fill spots against their synchronous siblings.
+- Second lesson, about test honesty: my first regression test passed against the buggy code. That's worse than no test — it's false confidence. The harness's lack of a real backend made the *symptom* (network-timing flash) unreproducible, so I had to find a *different deterministic signal of the same root cause* (the SSR HTML) rather than a flaky approximation of the symptom. "Find the deterministic proxy" beats "approximate the symptom with timing."
+
+## 2026-06-25 — Major pool audit + 40 staged 4th/7th licks behind a review page
+
+**What happened:**
+
+- User asked, starting from a concrete question: "at major proficiency level 18, how many licks am I tested on?" Traced the real selection path in `ear-training/+page.svelte:66-84` (a two-stage filter: `difficulty.level ≤ scaleProfLevel`, then `isLickCompatible(lick, 'major')`, with a `<3 → widen` fallback). Ran the actual code via a throwaway vitest spec rather than estimating: **57** curated licks at L18.
+- The striking finding, surfaced unprompted: **72% of the L18 major pool (41/57) is pentatonic** — i.e. licks with no 4th or 7th. The "major scale" sessions barely contain the two notes that distinguish major from major-pentatonic. Built the full per-level table (1-100); the difficulty cap admits the easy end first, which is overwhelmingly pentatonic, so the gap persists until ~L25+.
+- User's fix: add 40 major-compatible licks (levels 1-20) that feature the 4th and 7th, "iconic jazz vocabulary, not made up," shown on a review page before anything touches the DB.
+- **The decisive technical constraint** (found before authoring, shaped the whole design): single-chord major licks take the `snapLickToScale` path in a major session → chromatic notes get flattened to C major. ii-V-I licks take the *progression* branch → **no snap**. So I split the vocabulary by where chromaticism survives: ~20 single-chord licks kept strictly diatonic (the 4th/7th are diatonic — exactly the gap), ~20 ii-V-I licks carrying the chromatic bebop language (bebop scale, b9 arps, enclosures, altered, Parker/Confirmation-style lines).
+- Authored `src/lib/data/licks/staging-major-4-7.ts` (deliberately NOT in `index.ts`). Verified every lick programmatically: major-compatible, level∈[1,20], no timing spills, monotonic offsets, single-chord licks diatonic, each features 4 or 7 — plus a scale-degree dump I eyeballed chord-by-chord. Caught one mislabel (m47-031 was tagged tritone-sub but its notes are G7-altered tensions) and renamed it honestly.
+- Built `/curated-review` — notation (`NotationDisplay`) + per-lick playback + keep/discard toggle persisted to localStorage + "Copy Kept IDs" export. Confirmed live: route 200s, all 40 cards + notation containers render SSR, no dev-log errors.
+- Permanent test `tests/unit/data/staging-major-4-7.test.ts` (7 tests, incl. a guard that the staging file has NOT leaked into `ALL_CURATED_LICKS`). All green; `npm run check` clean.
+- Not committed — left on `dev` for review. Finalization (move survivors into real category files, wire `index.ts`, delete staging + route) is a separate step the user triggers after pruning.
+
+**Notes:**
+
+- This is the second time this session the high-leverage move was *measuring the real pipeline* instead of reasoning about it. The pentatonic-dominance of major sessions is invisible until you run the actual filter — it's an emergent property of "difficulty cap meets a catalog whose diatonic licks skew harder." Worth remembering as a latent content-curve issue beyond this one fix: the difficulty *ordering* of the catalog implicitly decides *which scale colors* a learner hears first, and nobody designed that coupling on purpose.
+- The snap/no-snap asymmetry is a genuinely elegant constraint to design around rather than fight: it means the chromatic vocabulary has a natural home (progressions) and the diatonic-gap-filling has another (single-chord), and each lands where it stays intact. If we ever want chromatic single-chord bebop in major sessions, that's a real feature decision (a "don't snap user/curated major-chord licks" flag), not a bug.
+- User feedback captured to memory: after a presented design, don't ask again — just build. The brainstorming skill's per-section approval gate is the wrong default for this user; momentum matters more than ceremony once the questions are answered.
+
+**Finalization (same day — user kept all 40):**
+
+- Promoted the staging file to `src/lib/data/licks/major-4-7.ts` (`MAJOR_4_7_LICKS`), wired into `index.ts`/`ALL_CURATED_LICKS`; deleted the staging file + `/curated-review` route; renamed the test to `tests/unit/data/major-4-7.test.ts` (flipped the "not wired" guard to "wired exactly once, no id collisions"). Kept all 40 in ONE themed file rather than scattering across category files — confirmed first that nothing consumes the per-category arrays except the index aggregation (the combiner builds from `SCALE_PATTERNS`, not the lick arrays), and `digital-patterns` has no curated file by design (combiner-sourced). Per-lick `category` is preserved, so the functional result is identical with far less churn/risk.
+- **The integrity test bit back — and it was right.** `tests/integration/data-integrity.test.ts` asserts each lick's declared `difficulty.level` is within ±35 of `calculateDifficulty()`. Five dense ii-V-I eighth-note lines failed; **three (m47-033/034/036) calc'd at 57-60 — they literally cannot be both ≤20 AND within ±35.** That's not a test bug: the app's own model says dense chromatic bebop ii-V-I lines are level ~50-60, *not* 1-20. The user's "1-20" and "iconic bebop vocabulary" are in genuine tension, because the most idiomatic lines are exactly the hardest ones.
+- Resolved by honoring "1-20" as the hard constraint: bumped declared levels where that alone sufficed (m47-023→16, m47-024→20), and **thinned** the three densest lines (bar-1 eighth-run → quarter notes, keeping the bar-2 chromatic G7 content) so they legitimately calc ≤55 and sit at 20. Iterated against the calculator empirically until max diff = 34. All 2030 tests green, `check` clean.
+- Impact (the L18 question that started it all): major pool 57 → **89**; non-pentatonic content at L18 **16 → 48**; pentatonic share **72% → 46%**. The single-chord diatonic licks carry the low end (levels 1-15, where the gap was worst); the ii-V-I lines cluster 16-20.
+
+**Notes (finalization):**
+
+- The difficulty-model conflict is the sharper version of this session's recurring lesson: the catalog's difficulty *ordering* is doing un-designed pedagogical work. `calculateDifficulty` weights absolute note-count and subdivision heavily, so ANY eighth-note multi-bar line lands high regardless of how "beginner-friendly" its note choices are. That means the system structurally resists putting real bebop vocabulary at low levels — you either thin it (losing character) or it gates late. Worth a future conversation: should `calculateDifficulty` be more per-bar / density-normalized, or should the pool filter consider something other than a single scalar level? The ±35 tolerance is a band-aid over this.
+- Chose to thin rather than de-chromaticize the three lines — kept the altered/b9 color (the identity) and spent the complexity budget on rhythm (quarters vs eighths) instead. That's the right trade when forced: harmonic content is what makes a lick "iconic," rhythmic density is more fungible.
+
+---
+
 ## 2026-06-25 — Editor: transpose-on-key-change in the lick editor (best octave for the instrument)
 
 **What happened:**
