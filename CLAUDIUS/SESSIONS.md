@@ -25,6 +25,12 @@ Newest at the top.
 - The reusable lesson: a global de-block is only as safe as the *snapshot audit* behind it. "Only ear-training" was asserted twice and wrong twice; the fan-out audit found 6 more by grepping for `const x = module.foo` at mount across every route. Reactive vs snapshot is the real axis — and the fix is uniform: extract one bounded `awaitHydration()` and let the few snapshotting routes opt back in, rather than weakening the global default. The default got *faster*; the exceptions pay their own (bounded) cost.
 - Second time this project that a "perf win" turned out to also be a correctness boundary (cf. R2 = the cross-device pull). Sync paths here carry double duty; before optimizing one away, ask what *else* it silently provides.
 
+**Shipped as PR #141 (dev→main) + CodeRabbit round:**
+
+- Committed the /library work (excluding the unrelated, deliberately-uncommitted `major-4-7` licks staging), opened #141, processed CodeRabbit. 3 actionable comments, all 3 **valid against my own new code** — adopted, fixed (`24041a4`), replied + resolved; incremental re-review came back empty; all CI green; MERGEABLE/CLEAN.
+- The standout catch refines the reactive-vs-snapshot axis from earlier this session into a **third** case. I had used the bounded `awaitHydration()` for the one-way pitch migrations in `+layout.svelte`. CodeRabbit flagged: a bounded wait that the 2s timeout *wins* lets `getInstrument()` read a stale instrument, and the migration is an **idempotent-but-irreversible write** (it stamps a done-flag), so a timeout-win corrupts transposition permanently. Fix: use the **unbounded** `whenHydrated()` for it. The lesson: the snapshot audit has three buckets, not two — (1) reactive reads = safe under fire-and-forget; (2) display-only snapshots = bounded opt-in is fine; (3) **irreversible writes keyed on hydrated state = must use the unbounded signal**, because "act on stale, but fast" is strictly worse than "wait" when the action can't be undone. I had collapsed (2) and (3); CodeRabbit didn't.
+- Other two: a stale `?edit=` param re-check after the await (entry page), and an account-switch privacy leak in /library (re-seed + reset `loaded` on the auth-scoped effect rerun — the seed only ran once at mount, so a `supabase:auth` invalidation after `syncUserScope` wiped storage could keep showing the prior user's licks). Both real, both mine.
+
 ## 2026-06-25 — /library "always empty + slow" root cause + fix
 
 **What happened:**
