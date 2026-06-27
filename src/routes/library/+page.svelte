@@ -65,6 +65,16 @@
 		const sess = session;
 		const runId = ++effectRunId;
 
+		// Re-seed from current localStorage and clear `loaded` on every rerun
+		// (this effect re-fires on `supabase:auth` invalidations). After an
+		// account switch syncUserScope() has already wiped storage, so this
+		// drops the previous user's licks immediately instead of leaving them
+		// visible until the new fetch lands. For a benign token-refresh rerun
+		// the local set is unchanged, so there's no flash (the skeleton only
+		// shows when there are zero licks).
+		userLicks = getUserLicksLocal();
+		loaded = false;
+
 		const assign = (licks: Phrase[]) => {
 			if (runId === effectRunId) {
 				userLicks = licks;

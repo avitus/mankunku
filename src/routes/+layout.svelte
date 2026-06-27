@@ -11,7 +11,7 @@
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
 	import { welcomeTour } from '$lib/tour/tours/welcome';
 	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
-	import { awaitHydration } from '$lib/state/hydration';
+	import { whenHydrated } from '$lib/state/hydration';
 	import { invalidate } from '$app/navigation';
 
 	interface Props {
@@ -121,11 +121,12 @@
 		// One-off migrations for step-entered licks that were stored in the
 		// user's WRITTEN pitch space (before step-entry was made instrument-
 		// aware). Both are idempotent via separate localStorage flags — safe
-		// to call on every app start. Run them AFTER cloud hydration (bounded)
-		// so `getInstrument()` reflects the user's hydrated instrument, not a
-		// stale localStorage default — the root layout now hydrates in the
-		// background, so onMount would otherwise see pre-cloud settings.
-		awaitHydration().then(() => {
+		// to call on every app start. Wait for the REAL hydration completion
+		// (not the bounded route helper) so `getInstrument()` reflects the
+		// user's hydrated instrument: these are one-way writes that set a
+		// done-flag, so running them on a stale default would corrupt the
+		// transposition permanently. This work is already off the render path.
+		whenHydrated().then(() => {
 			const instrument = getInstrument();
 			const notesMigrated = migrateUserLicksWrittenToConcert(instrument.transpositionSemitones);
 			if (notesMigrated > 0) {

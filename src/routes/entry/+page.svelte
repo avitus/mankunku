@@ -122,6 +122,10 @@
 			// guard after the await in case the user moved on.
 			await awaitHydration();
 			if (!editHydrationActive) return;
+			// The query string may have changed while hydration was pending;
+			// bail if the user navigated to a different edit target so we don't
+			// load a stale lick (mirrors the guard on the remote-fetch path).
+			if (page.url.searchParams.get('edit') !== editId) return;
 
 			const local = getUserLicksLocal().find((l) => l.id === editId);
 			let lick = local ?? null;
