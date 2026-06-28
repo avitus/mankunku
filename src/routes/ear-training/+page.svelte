@@ -825,9 +825,14 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		.level-signal {
-			animation: none;
-			opacity: 1;
-			transition: opacity 200ms ease-out;
+			animation: level-signal-reduced 2.2s linear forwards;
 		}
+	}
+
+	@keyframes level-signal-reduced {
+		0% { opacity: 0; }
+		10% { opacity: 1; }
+		75% { opacity: 1; }
+		100% { opacity: 0; }
 	}
 </style>
