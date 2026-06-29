@@ -23,9 +23,12 @@ describe('blues blue-note licks', () => {
 		}
 	});
 
-	it('every lick is blues-scale compatible', () => {
+	it('every lick is blues-scale compatible and natively annotated blues.minor', () => {
 		for (const lick of BLUES_BLUE_NOTE_LICKS) {
 			expect(isLickCompatible(lick, 'blues'), lick.id).toBe(true);
+			// Compatibility alone can pass via the unknown-scale fallback; pin the
+			// native scale annotation so the b5 stays in the blues-session snap target.
+			expect(lick.harmony[0]?.scaleId, lick.id).toBe('blues.minor');
 		}
 	});
 
@@ -70,14 +73,14 @@ describe('blues blue-note licks', () => {
 		}
 	});
 
-	it('is evenly distributed across difficulty levels 1-25', () => {
+	it('is evenly distributed across difficulty levels 1-25 (exactly 3 per level)', () => {
 		const counts = new Map<number, number>();
 		for (let l = 1; l <= 25; l++) counts.set(l, 0);
 		for (const lick of BLUES_BLUE_NOTE_LICKS) {
 			counts.set(lick.difficulty.level, (counts.get(lick.difficulty.level) ?? 0) + 1);
 		}
 		for (let l = 1; l <= 25; l++) {
-			expect(counts.get(l), `level ${l}`).toBeGreaterThanOrEqual(2);
+			expect(counts.get(l), `level ${l}`).toBe(3);
 		}
 	});
 });
