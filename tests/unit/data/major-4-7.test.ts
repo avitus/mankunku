@@ -4,7 +4,7 @@ import { ALL_CURATED_LICKS } from '$lib/data/licks/index';
 import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 import type { Fraction } from '$lib/types/music';
 
-const val = (f: Fraction) => f[0] / f[1];
+const val = (f: Fraction): number => f[0] / f[1];
 const DIATONIC_C = new Set([0, 2, 4, 5, 7, 9, 11]); // C major pitch classes
 
 describe('major 4th & 7th licks', () => {
