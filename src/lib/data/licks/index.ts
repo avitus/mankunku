@@ -19,6 +19,7 @@ import { RHYTHM_CHANGES_LICKS } from './rhythm-changes';
 import { BALLAD_LICKS } from './ballad';
 import { BEGINNER_CELL_LICKS } from './beginner-cells';
 import { MAJOR_4_7_LICKS } from './major-4-7';
+import { BLUES_BLUE_NOTE_LICKS } from './blues-blue-note';
 import { COMBINED_LICKS } from '$lib/phrases/combiner';
 import type { Phrase } from '$lib/types/music';
 
@@ -41,7 +42,8 @@ export const ALL_CURATED_LICKS: Phrase[] = [
 	...MODAL_LICKS,
 	...RHYTHM_CHANGES_LICKS,
 	...BALLAD_LICKS,
-	...MAJOR_4_7_LICKS
+	...MAJOR_4_7_LICKS,
+	...BLUES_BLUE_NOTE_LICKS
 ];
 
 export {
@@ -62,5 +64,6 @@ export {
 	MODAL_LICKS,
 	RHYTHM_CHANGES_LICKS,
 	BALLAD_LICKS,
-	MAJOR_4_7_LICKS
+	MAJOR_4_7_LICKS,
+	BLUES_BLUE_NOTE_LICKS
 };
