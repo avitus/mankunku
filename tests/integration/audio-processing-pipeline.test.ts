@@ -860,6 +860,88 @@ describe('Flat Seven–Octave metronome-bleed regression', () => {
 	});
 });
 
+// ─── Fifth–Sixth Step subharmonic octave-drop: why the fix is upstream ──
+//
+// Real recording exported as a diagnostic on 2026-06-30. The user played a
+// clean F3 → G3 ("Fifth–Sixth Step" rendered in concert Bb) on tenor sax, in
+// the correct octave. On the sustained first note the McLeod detector locked
+// onto the octave-DOWN subharmonic F2 (≈87.8 Hz, the doubled period of the true
+// F3 ≈175.6 Hz). Critically the subharmonic frames carry HIGHER clarity (~0.99)
+// than the true fundamental (~0.91) — an autocorrelation property — so every
+// downstream octave decision resolves the note to the WRONG lower octave (MIDI
+// 41), and the scorer correctly penalises an "octave-low" note that was in fact
+// played right.
+//
+// This block documents WHY the fix can't live in the segmenter. By the time the
+// saved `readings` exist the frequency field already says ≈87.8 Hz, and that is
+// LOCALLY INDISTINGUISHABLE from a genuine low note (and from the opposite
+// octave-UP 2nd-harmonic lock that the Octave–Flat Seven Drop fixture relies on
+// the segmenter to collapse DOWN). The disambiguating evidence — that there is
+// no real spectral energy at 87.8 Hz — only survives in the raw audio. So the
+// fix is `correctSubharmonic` in pitch-frame.ts, applied per frame during
+// detection; the behavioural regression that proves it lives in
+// pitch-replay.test.ts (WAV replay), which re-runs detection on the real audio.
+
+interface FifthSixthStepFixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadFifthSixthStepFixture(): FifthSixthStepFixture {
+	const path = resolve(
+		__dirname,
+		'..',
+		'fixtures',
+		'recordings',
+		'2026-06-30-fifth-sixth-step.json'
+	);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Fifth–Sixth Step subharmonic octave-drop (root cause)', () => {
+	// The raw detector flicker is real and present in the saved readings:
+	// the first note's frames carry both the true F3 (53) and the subharmonic
+	// F2 (41), and the F2 frames have higher mean clarity. This documents the
+	// cause independent of the fix.
+	it('the saved readings contain a higher-clarity F2 subharmonic of the true F3', () => {
+		const fx = loadFifthSixthStepFixture();
+		const note1 = fx.detection.readings.filter((r) => r.time >= 0.5 && r.time < 1.0507);
+		const f3 = note1.filter((r) => r.midi === 53);
+		const f2 = note1.filter((r) => r.midi === 41);
+		expect(f3.length).toBeGreaterThan(0);
+		expect(f2.length).toBeGreaterThan(0);
+		const meanClarity = (rs: PitchReading[]) =>
+			rs.reduce((s, r) => s + r.clarity, 0) / rs.length;
+		// The subharmonic is the higher-clarity one — exactly why a naive
+		// clarity vote picks the wrong octave.
+		expect(meanClarity(f2)).toBeGreaterThan(meanClarity(f3));
+	});
+
+	it('segmenting the already-corrupted readings cannot recover the octave (→ [41, 55])', () => {
+		// Replaying the SAVED readings (whose frequency field is already the
+		// subharmonic) reproduces the bug: the segmenter resolves note 1 to F2.
+		// This is the floor the detector-level fix has to clear — it is why
+		// correctSubharmonic runs during detection, on the raw audio, rather
+		// than here. See pitch-replay.test.ts for the post-fix [53, 55].
+		const fx = loadFifthSixthStepFixture();
+		const onsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const detected = segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets
+		);
+		expect(detected.map((n) => n.midi)).toEqual([41, 55]);
+	});
+});
+
 // ─── Blues Curl Up dropout-gap regression (concert G, 2026-05-22) ──────
 //
 // Two takes of a clean G–B♭–B♭ Blues Curl Up where the player tongued the
