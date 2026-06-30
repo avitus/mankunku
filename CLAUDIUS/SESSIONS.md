@@ -2,6 +2,24 @@
 
 Newest at the top.
 
+## 2026-06-30 — The subharmonic that looks exactly like its own opposite
+
+**What happened:**
+
+- User brought a diagnostic (`2026-06-30-fifth-sixth-step`, ear-training, concert Bb): "it judged one note an octave higher but to my ear it sounds accurate." They played concert **F3** (175.6 Hz) correctly; the detector reported **F2** (87.8 Hz), so note 1 scored 0 ("try-again"). Classic McLeod **octave-down subharmonic**: autocorrelation locks onto the doubled period. The kicker, confirmed in the readings: the subharmonic frames carry **higher** clarity (~0.99) than the true fundamental (~0.91), because a signal periodic at lag P is *even more* self-similar at 2P. So every clarity-weighted decision leans toward the wrong, lower octave.
+- **The whole session was one wall, hit from three sides.** The repo already fixes the *opposite* error — bc-016 "Octave–Flat Seven Drop," an octave-**up** 2nd-harmonic lock that `mergeOctaveBoundariesWithoutAttack` collapses *down*. I tried to fix bc-010 at (1) the segmenter merge, (2) Pitchy's clarity threshold, (3) a per-frame autocorrelation half-lag test. **Each one fixed bc-010 and broke bc-016.** I proved why: octave-down (subharmonic) and octave-up (harmonic-heavy low note) are **locally identical** at every feature the post-detection stream exposes — rounded MIDI, clarity, segment raw-frequency histograms, *and* per-frame NSDF at half/full lag (bc-010: full 0.99 / half 0.85; bc-016's C4: 0.997 / 0.88 — indistinguishable). There is no local rule separating them.
+- **What broke the symmetry: the spectrum, not the autocorrelation.** A subharmonic is a *period-doubling artifact* — there is essentially **no spectral energy at the frequency the detector reported**; all the energy is the true fundamental an octave up. A real low note, even bc-016's weak-fundamental C4, keeps real energy at its own fundamental. Measured with Goertzel (one bin each, no FFT): `mag(f)/mag(2f)` ≈ **0.02–0.04 for the subharmonic vs ≥ 0.20 for real low notes** — a clean ~5× gap. Threshold 0.10. The autocorrelation literally cannot see this (it's blind to *where the energy is*, only *what period repeats*); the spectrum can. That gap is the entire fix.
+- **Fix:** `correctSubharmonic` in `pitch-frame.ts`, per frame during detection — Hann-windowed Goertzel at `f` and `2f`; if `f` carries < 10% of `2f`'s energy, the pick was a subharmonic → return `2f`. Lifts bc-010 to F3 at the source; octave-UP errors untouched (there `f` has plenty of energy) and still handled by the downstream merge. Full suite **2085 green**, typecheck clean.
+- One real regression caught and understood: a legato C-D-C WAV test went `[60,62,60]`→`[60,62,60,60]`. The fix *correctly* removed an end-of-note C3 ghost, which exposed a pre-existing ~120 ms reading-gap in the bend that then split the same-pitch C4 — but only on the test's *no-onset* segmentation call. The live path passes worklet onsets, `mergeSamePitchWithoutAttack` rejoins it (no attack at the gap), production is `[60,62,60]`. Updated the test to the production call.
+
+**Notes:**
+
+- The honest part of this session was *not* shipping the segmenter fix that passed my own first regression test. It worked on bc-010's saved JSON and would have looked done — but the saved readings already bake in the subharmonic, and a JSON-replay test can't exercise a detector fix. The WAV (the diagnostic export ships one alongside the JSON) was the unlock: it let me re-run detection and prove the fix against *both* fixtures. Lesson reinforced: when a bug is "the detector reported the wrong thing," a post-detection fixture is the wrong altitude to test at — go to the audio.
+- The deeper idea worth keeping: **two phenomena can be identical in one representation and trivially separable in another.** Autocorrelation answers "what period repeats" and collapses an F3 and its F2 subharmonic onto the same answer. The spectrum answers "where is the energy" and pulls them apart instantly. When a discriminator seems impossible, suspect you're in the wrong representation, not that the information is gone. I spent a lot of effort proving the *autocorrelation* features couldn't separate the cases before changing domains — that proof was what justified the more expensive spectral step to the user.
+- The user explicitly chose the "attempt the full DSP fix" path over three safer/narrower options (target-aware octave snap, partial credit, defer). Worth remembering they'll take on real DSP risk in the core detection path when the fix is *correct* rather than merely *contained* — consistent with how much they care about this app's pitch accuracy.
+
+**Built, not yet committed** — awaiting the user's commit/PR call.
+
 ## 2026-06-28 — Blues "blue note" licks: the snap-path asymmetry with the major fix
 
 **What happened:**

@@ -157,10 +157,18 @@ describe('pitch replay regression: legato C-D-C recovers pre-worklet-onset notes
 		// Strict assertion for Bug 2: a McLeod subharmonic during the bend
 		// at the end of the sustained final C used to leak through as a C3
 		// ghost AND split the real C4 into two segments.
+		//
+		// The detector now lifts that end-of-note subharmonic back to C4 at the
+		// source (correctSubharmonic in pitch-frame.ts), so the C3 ghost is gone
+		// — but the bend still drops a ~120 ms window of readings, and without
+		// attack evidence the segmenter conservatively splits the surrounding
+		// same-pitch C4 across that gap. The live path supplies worklet onsets,
+		// so mergeSamePitchWithoutAttack rejoins the two halves (no attack at the
+		// gap); replay the same way here to assert the production result.
 		const buffer = loadFixture();
 		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
 		const resolved = resolveOnsets(onsets, readings);
-		const detected = segmentNotes(readings, resolved, duration);
+		const detected = segmentNotes(readings, resolved, duration, undefined, undefined, undefined, onsets);
 
 		expect(detected.map((n) => n.midi)).toEqual([60, 62, 60]);
 	});
@@ -1019,5 +1027,91 @@ describe('pitch replay regression: HF pass does not split a McLeod octave artifa
 		);
 
 		expect(detected.map((n) => n.midi)).toEqual([62, 60]);
+	});
+});
+
+describe('pitch replay regression: Fifth–Sixth Step subharmonic octave drop (concert Bb, 2026-06-30)', () => {
+	// Real recording: the user played a clean F3 → G3 ("Fifth–Sixth Step" in
+	// concert Bb) on tenor sax, in the correct octave. On the sustained first
+	// note the McLeod detector locked onto the octave-DOWN subharmonic F2
+	// (≈87.8 Hz) of the true F3 (≈175.6 Hz) — and because the subharmonic frames
+	// carry HIGHER clarity, every downstream octave decision resolved note 1 to
+	// the wrong lower octave (MIDI 41), scoring it "octave-low" though it was
+	// played right (saved diagnostic: pitch 0.5, "try-again").
+	//
+	// The autocorrelation can't tell this subharmonic from a genuine low note,
+	// nor from the OPPOSITE octave-up 2nd-harmonic lock the Octave–Flat Seven
+	// Drop fixture relies on the segmenter to collapse DOWN — they are identical
+	// at the MIDI/clarity/NSDF level. The SPECTRUM separates them: a subharmonic
+	// has essentially no energy at the reported frequency (all the energy is an
+	// octave up), whereas a real low note keeps a substantial fundamental. The
+	// detector's correctSubharmonic (pitch-frame.ts) makes exactly that check
+	// per frame and lifts note 1 back to F3.
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-06-30-fifth-sixth-step.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-010_Bb rendered in the player's chosen register: concert F3 → G3.
+	const phrase: Phrase = {
+		id: 'bc-010_Bb',
+		name: 'Fifth–Sixth Step',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 53, duration: [1, 2], offset: [0, 1] }, // F3
+			{ pitch: 55, duration: [1, 2], offset: [1, 2] } // G3
+		],
+		harmony: [],
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
+		source: 'curated'
+	};
+
+	it('detects the two notes in the octave the user actually played (F3, G3)', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+
+		// Pre-fix the detector reported the F2 subharmonic and this came out
+		// [41, 55]; the subharmonic correction lifts note 1 to its true F3.
+		expect(detected.map((n) => n.midi)).toEqual([53, 55]);
+	});
+
+	it('scores the correctly-played phrase as a full pitch match', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+		const result = runScorePipeline({
+			detected,
+			phrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		// Saved diagnostic (pre-fix): pitch 0.5, notesHit 1, "try-again".
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.notesTotal).toBe(2);
 	});
 });
