@@ -94,6 +94,36 @@ function articulationFactor(intensity: ExpressionIntensity): number {
 }
 
 /**
+ * Ghost-note profile — a "swallowed" saxophone ghost: quiet, very short, and
+ * heavily muffled. Attack shaping isn't available in the engine, so the heavy
+ * lowpass (see `ghostCutoff`) carries the muffled character. Base note-length
+ * is scaled by the articulation factor in `computeArticulation`.
+ */
+const GHOST = {
+	/** Base fraction of the notated length actually sounded (before intensity). */
+	durationScale: 0.5,
+	/** Crisp, short release so the ghost cuts off cleanly. */
+	release: 0.05
+};
+
+/**
+ * Ghost loudness (MIDI). Clearly under the ~88 mp melody but still audible
+ * ("noticeable but de-emphasized"). Intensity-scaled: higher intensity ⇒
+ * quieter (more de-emphasized) ghost.
+ */
+function ghostVelocity(vf: number): number {
+	return clamp(Math.round(72 - 12 * vf), VELOCITY_MIN, VELOCITY_MAX);
+}
+
+/**
+ * Ghost brightness (Hz). A heavy per-note lowpass is the key perceptual cue
+ * for "swallowed"; lightly darker at higher intensity.
+ */
+function ghostCutoff(vf: number): number {
+	return Math.round(2500 - 200 * vf);
+}
+
+/**
  * Rest-skip + tie-merge walk producing the sounding-note sequence.
  * Mirrors the walk in `phraseToEvents` exactly so the two stay aligned.
  */
@@ -137,7 +167,6 @@ interface NoteContext {
 	downwardLeapNext: boolean;
 	longerThanNeighbors: boolean;
 	isAccentTarget: boolean;
-	isGhost: boolean;
 }
 
 function isNear(x: number, target: number, tol = 0.05): boolean {
@@ -192,13 +221,54 @@ function buildContext(phrase: Phrase, sounding: SoundingNote[], k: number): Note
 		prev != null && next != null && durBeats > prevDur + EPS && durBeats > nextDur + EPS;
 
 	const isAccentTarget = role === 'chordTone' && strongBeat;
-	const isGhost = role === 'chromatic' && isEighthOrShorter && !strongBeat;
 
 	return {
 		beat, barPos, frac, onBeat, offBeat8, strongBeat,
 		durBeats, isEighthOrShorter, isQuarter, isLong,
-		role, downwardLeapNext, longerThanNeighbors, isAccentTarget, isGhost
+		role, downwardLeapNext, longerThanNeighbors, isAccentTarget
 	};
+}
+
+/**
+ * Decide whether a note is a ghost, using neighbor context. An explicit
+ * `articulation:'ghost'` always wins (over any authored velocity too); other
+ * explicit articulations opt out. Otherwise a note ghosts only if it is a weak,
+ * fast, non-structural connective note — idiomatic ghost placement:
+ *  - a chromatic passing/approach tone,
+ *  - a stepwise approach into an accent target,
+ *  - a repeated-note weak upbeat, or
+ *  - a stepwise passing tone (approached and left by step).
+ * Structural notes (apex, strong-beat / chord-tone / accent, first, last, and
+ * quarter-or-longer notes) never ghost, so the line stays intelligible.
+ * Deterministic — no randomness, so replays are consistent.
+ */
+function decideGhost(
+	contexts: NoteContext[],
+	sounding: SoundingNote[],
+	k: number,
+	apex: number
+): boolean {
+	const authored = sounding[k].articulation;
+	if (authored === 'ghost') return true;
+	if (authored === 'accent' || authored === 'staccato' || authored === 'legato') return false;
+
+	const ctx = contexts[k];
+	const n = contexts.length;
+	// Guards: keep structural notes voiced.
+	if (k === 0 || k === n - 1 || k === apex) return false;
+	if (!ctx.isEighthOrShorter || ctx.strongBeat || ctx.isAccentTarget) return false;
+
+	// Chromatic connective notes always ghost.
+	if (ctx.role === 'chromatic') return true;
+	// Chord tones carry the line — never ghost them via the broadened rules.
+	if (ctx.role === 'chordTone') return false;
+
+	const toPrev = sounding[k].pitch - sounding[k - 1].pitch;
+	const toNext = sounding[k + 1].pitch - sounding[k].pitch;
+	if (toPrev === 0) return true; // repeated-note weak upbeat
+	if (Math.abs(toNext) <= 2 && contexts[k + 1].isAccentTarget) return true; // stepwise approach into accent
+	if (Math.abs(toPrev) <= 2 && Math.abs(toNext) <= 2) return true; // stepwise passing tone
+	return false;
 }
 
 /** 0 at the phrase ends, rising to 1 at the melodic apex. */
@@ -232,11 +302,10 @@ function computeVelocity(
 	// Agogic accent: a note noticeably longer than its neighbors.
 	if (ctx.longerThanNeighbors) v += 6 * vf;
 
-	// Ghosts / de-emphasis of weak fast notes.
-	if (ctx.isGhost) {
-		v -= 28 * vf; // chromatic passing tone → dark piano layer
-	} else if (ctx.role === 'scaleTone' && ctx.isEighthOrShorter && ctx.offBeat8 && !ctx.strongBeat) {
-		v -= 10 * vf; // weak off-beat run note, lightly swallowed
+	// Mild de-emphasis of weak fast off-beat notes that aren't full ghosts.
+	// (Full ghosts bypass this function — see `computeExpression`.)
+	if (ctx.role === 'scaleTone' && ctx.isEighthOrShorter && ctx.offBeat8 && !ctx.strongBeat) {
+		v -= 10 * vf;
 	}
 
 	// Phrase-shape endpoints.
@@ -255,6 +324,7 @@ interface Articulated {
 function computeArticulation(
 	ctx: NoteContext,
 	authored: Articulation | undefined,
+	isGhost: boolean,
 	k: number,
 	n: number,
 	beforeAccent: boolean,
@@ -265,16 +335,14 @@ function computeArticulation(
 
 	let base: Articulated;
 
-	if (authored === 'staccato') {
+	if (isGhost) {
+		base = { durationScale: GHOST.durationScale, release: GHOST.release }; // swallowed: short + crisp
+	} else if (authored === 'staccato') {
 		base = { durationScale: 0.5, release: 0.06 };
 	} else if (authored === 'legato') {
 		base = { durationScale: 1.0, release: 0.2 };
 	} else if (authored === 'accent') {
 		base = { durationScale: 0.92, release: 0.1 };
-	} else if (authored === 'ghost') {
-		base = { durationScale: 0.9, release: 0.08 };
-	} else if (ctx.isGhost) {
-		base = { durationScale: 0.9, release: 0.08 };
 	} else if (k === n - 1) {
 		base = ctx.isLong ? { durationScale: 1.0, release: 0.35 } : { durationScale: 0.9, release: 0.1 };
 	} else if (ctx.isEighthOrShorter) {
@@ -290,7 +358,8 @@ function computeArticulation(
 	let durationScale = scaleDeviation(base.durationScale);
 
 	// A hair of separation before a tongued accent — only ever shortens.
-	if (beforeAccent) {
+	// Ghosts are already short, so skip.
+	if (beforeAccent && !isGhost) {
 		durationScale = Math.min(durationScale, scaleDeviation(0.9));
 	}
 
@@ -333,10 +402,13 @@ export function computeExpression(
 
 	return sounding.map((s, k) => {
 		const ctx = contexts[k];
-		const intendedVelocity = s.velocity ?? computeVelocity(ctx, k, n, apex, vf);
+		const isGhost = decideGhost(contexts, sounding, k, apex);
+		// A ghost forces its swallowed dynamics/timbre — the 'ghost' intent wins
+		// over any authored velocity; otherwise honor authored velocity, else compute.
+		const intendedVelocity = isGhost ? ghostVelocity(vf) : (s.velocity ?? computeVelocity(ctx, k, n, apex, vf));
 		const beforeAccent = k < n - 1 && contexts[k + 1].isAccentTarget;
-		const { durationScale, release } = computeArticulation(ctx, s.articulation, k, n, beforeAccent, af);
-		const cutoffHz = computeCutoff(intendedVelocity, s.pitch);
+		const { durationScale, release } = computeArticulation(ctx, s.articulation, isGhost, k, n, beforeAccent, af);
+		const cutoffHz = isGhost ? ghostCutoff(vf) : computeCutoff(intendedVelocity, s.pitch);
 		return {
 			velocity: intendedVelocity,
 			layerVelocity: intendedVelocity,

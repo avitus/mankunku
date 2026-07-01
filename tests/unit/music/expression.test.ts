@@ -205,3 +205,106 @@ describe('computePhraseExpression — convenience wrapper', () => {
 		expect(sounding).toHaveLength(8);
 	});
 });
+
+// A ghost is the only note that gets a heavy per-note lowpass (~2300 Hz);
+// every non-ghost cutoff is >= 3000, so this cleanly identifies ghosts.
+const isGhosted = (e: { cutoffHz: number }): boolean => e.cutoffHz <= 2500;
+
+describe('computeExpression — ghost notes are swallowed', () => {
+	it('renders a ghost as quiet, short, muffled, and crisply released', () => {
+		const phrase = makePhrase(EIGHTH_LINE);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		const ghost = expr.find(isGhosted);
+		expect(ghost).toBeDefined();
+		expect(ghost!.velocity).toBeLessThanOrEqual(65); // de-emphasized
+		expect(ghost!.durationScale).toBeLessThanOrEqual(0.55); // clipped short
+		expect(ghost!.cutoffHz).toBeLessThanOrEqual(2500); // heavily muffled
+		expect(ghost!.release).toBeLessThanOrEqual(0.1); // crisp cutoff
+	});
+
+	it('fully ghosts an authored articulation:ghost even when a velocity is set (gap fix)', () => {
+		const notes: Note[] = [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] },
+			{ pitch: 64, duration: [1, 8], offset: [1, 8], articulation: 'ghost', velocity: 80 },
+			{ pitch: 67, duration: [1, 8], offset: [1, 4] }
+		];
+		const phrase = makePhrase(notes);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		// The 'ghost' intent overrides the authored velocity of 80.
+		expect(expr[1].velocity).toBeLessThanOrEqual(65);
+		expect(isGhosted(expr[1])).toBe(true);
+		expect(expr[1].durationScale).toBeLessThanOrEqual(0.55);
+	});
+});
+
+describe('computeExpression — broadened ghost selection', () => {
+	it('ghosts a chromatic passing tone', () => {
+		const phrase = makePhrase(EIGHTH_LINE); // idx3 Eb is chromatic over C7
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(isGhosted(expr[3])).toBe(true);
+	});
+
+	it('ghosts a stepwise passing tone (approached and left by step)', () => {
+		const notes: Note[] = [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] }, // C strong (first)
+			{ pitch: 62, duration: [1, 8], offset: [1, 8] }, // D off, C->D->E stepwise passing
+			{ pitch: 64, duration: [1, 8], offset: [1, 4] } // E
+		];
+		const phrase = makePhrase(notes);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(isGhosted(expr[1])).toBe(true);
+	});
+
+	it('ghosts a stepwise approach into an accent target', () => {
+		const notes: Note[] = [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] }, // C beat0 strong (first)
+			{ pitch: 64, duration: [1, 8], offset: [1, 8] }, // E off chord tone
+			{ pitch: 69, duration: [1, 8], offset: [1, 4] }, // A beat1 leap up
+			{ pitch: 65, duration: [1, 8], offset: [3, 8] }, // F beat1.5 off, leap-in then step up into G
+			{ pitch: 67, duration: [1, 8], offset: [1, 2] }, // G beat2 strong chord tone → accent target
+			{ pitch: 72, duration: [1, 8], offset: [5, 8] } // C off (final)
+		];
+		const phrase = makePhrase(notes);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(isGhosted(expr[3])).toBe(true); // F approaches the G accent by step
+		expect(isGhosted(expr[1])).toBe(false); // E is a chord tone → voiced
+		expect(isGhosted(expr[4])).toBe(false); // G accent target → voiced
+	});
+
+	it('ghosts a repeated-note weak upbeat but leaves the melodic apex voiced', () => {
+		const notes: Note[] = [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] }, // C strong (first)
+			{ pitch: 69, duration: [1, 8], offset: [1, 8] }, // A off scale tone — apex (first max)
+			{ pitch: 69, duration: [1, 8], offset: [1, 4] }, // A repeated (not strong) → ghost
+			{ pitch: 67, duration: [1, 8], offset: [3, 8] }, // G off chord tone
+			{ pitch: 65, duration: [1, 8], offset: [1, 2] } // F (final)
+		];
+		const phrase = makePhrase(notes);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(isGhosted(expr[2])).toBe(true); // repeated A
+		expect(isGhosted(expr[1])).toBe(false); // apex A stays voiced
+	});
+});
+
+describe('computeExpression — ghost guards keep the line intelligible', () => {
+	it('never ghosts strong-beat chord-tone accents, the apex, or the first/last note', () => {
+		const phrase = makePhrase(EIGHTH_LINE);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(isGhosted(expr[0])).toBe(false); // first note (also a downbeat accent)
+		expect(isGhosted(expr[4])).toBe(false); // apex + strong-beat accent target
+		expect(isGhosted(expr[expr.length - 1])).toBe(false); // final note
+		// Not everything is ghosted — structural notes stay voiced.
+		expect(expr.filter((e) => !isGhosted(e)).length).toBeGreaterThan(expr.length / 2);
+	});
+
+	it('does not ghost a stepwise passing tone that is a quarter note', () => {
+		const notes: Note[] = [
+			{ pitch: 60, duration: [1, 4], offset: [0, 1] }, // C quarter
+			{ pitch: 62, duration: [1, 4], offset: [1, 4] }, // D quarter — stepwise passing, but too long to ghost
+			{ pitch: 64, duration: [1, 4], offset: [1, 2] } // E quarter
+		];
+		const phrase = makePhrase(notes);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(isGhosted(expr[1])).toBe(false);
+	});
+});
