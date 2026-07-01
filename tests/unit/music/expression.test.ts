@@ -88,9 +88,9 @@ describe('computeExpression — dynamics', () => {
 		expect(expr[0].velocity).toBeGreaterThan(100); // C on beat 1 (downbeat target)
 	});
 
-	it('ghosts a chromatic passing tone into the soft-piano range (~55-70)', () => {
-		expect(expr[3].velocity).toBeGreaterThanOrEqual(55);
-		expect(expr[3].velocity).toBeLessThanOrEqual(70);
+	it('de-emphasizes a chromatic passing tone (ghost, softer than the melody)', () => {
+		expect(expr[3].isGhost).toBe(true);
+		expect(expr[3].velocity).toBeLessThan(85); // clearly under the ~88 mp line
 	});
 
 	it('shapes a phrase arch that peaks above both endpoints', () => {
@@ -188,12 +188,14 @@ describe('computeExpression — intensity scaling', () => {
 	const phrase = makePhrase(EIGHTH_LINE);
 	const sounding = extractSoundingNotes(phrase.notes);
 
-	it('makes pronounced dynamics wider than subtle at the same note', () => {
+	it('widens accents with intensity while ghost loudness stays a fixed tuning', () => {
 		const subtle = computeExpression(sounding, phrase, { intensity: 'subtle' });
 		const pronounced = computeExpression(sounding, phrase, { intensity: 'pronounced' });
-		// The ghost (idx3) is quieter under pronounced; the apex accent (idx4) louder.
-		expect(pronounced[3].velocity).toBeLessThan(subtle[3].velocity);
+		// The apex accent (idx4) is louder under pronounced.
 		expect(pronounced[4].velocity).toBeGreaterThan(subtle[4].velocity);
+		// The ghost (idx3) loudness comes from its tuning, not the intensity knob.
+		expect(subtle[3].isGhost).toBe(true);
+		expect(pronounced[3].velocity).toBe(subtle[3].velocity);
 	});
 });
 
@@ -206,20 +208,17 @@ describe('computePhraseExpression — convenience wrapper', () => {
 	});
 });
 
-// A ghost is the only note that gets a heavy per-note lowpass (~2300 Hz);
-// every non-ghost cutoff is >= 3000, so this cleanly identifies ghosts.
-const isGhosted = (e: { cutoffHz: number }): boolean => e.cutoffHz <= 2500;
-
-describe('computeExpression — ghost notes are swallowed', () => {
-	it('renders a ghost as quiet, short, muffled, and crisply released', () => {
+describe('computeExpression — ghost notes are de-emphasized but legato', () => {
+	it('renders a ghost as softer + muffled, yet connected (not staccato)', () => {
 		const phrase = makePhrase(EIGHTH_LINE);
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		const ghost = expr.find(isGhosted);
+		const ghost = expr.find((e) => e.isGhost);
 		expect(ghost).toBeDefined();
-		expect(ghost!.velocity).toBeLessThanOrEqual(65); // de-emphasized
-		expect(ghost!.durationScale).toBeLessThanOrEqual(0.55); // clipped short
-		expect(ghost!.cutoffHz).toBeLessThanOrEqual(2500); // heavily muffled
-		expect(ghost!.release).toBeLessThanOrEqual(0.1); // crisp cutoff
+		expect(ghost!.velocity).toBeLessThan(85); // de-emphasized vs the ~88 melody
+		expect(ghost!.cutoffHz).toBeLessThan(4500); // muffled beneath the global warmth
+		expect(ghost!.cutoffHz).toBeGreaterThan(3000); // but subtler than the old ~2300
+		expect(ghost!.durationScale).toBeGreaterThanOrEqual(0.85); // LEGATO — airstream stays connected
+		expect(ghost!.release).toBeGreaterThanOrEqual(0.1); // long enough to connect the line
 	});
 
 	it('fully ghosts an authored articulation:ghost even when a velocity is set (gap fix)', () => {
@@ -230,18 +229,17 @@ describe('computeExpression — ghost notes are swallowed', () => {
 		];
 		const phrase = makePhrase(notes);
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		// The 'ghost' intent overrides the authored velocity of 80.
-		expect(expr[1].velocity).toBeLessThanOrEqual(65);
-		expect(isGhosted(expr[1])).toBe(true);
-		expect(expr[1].durationScale).toBeLessThanOrEqual(0.55);
+		expect(expr[1].isGhost).toBe(true);
+		expect(expr[1].velocity).toBeLessThan(80); // ghost tuning overrides the authored 80
 	});
+
 });
 
 describe('computeExpression — broadened ghost selection', () => {
 	it('ghosts a chromatic passing tone', () => {
 		const phrase = makePhrase(EIGHTH_LINE); // idx3 Eb is chromatic over C7
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		expect(isGhosted(expr[3])).toBe(true);
+		expect(expr[3].isGhost).toBe(true);
 	});
 
 	it('ghosts a stepwise passing tone (approached and left by step)', () => {
@@ -252,7 +250,7 @@ describe('computeExpression — broadened ghost selection', () => {
 		];
 		const phrase = makePhrase(notes);
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		expect(isGhosted(expr[1])).toBe(true);
+		expect(expr[1].isGhost).toBe(true);
 	});
 
 	it('ghosts a stepwise approach into an accent target', () => {
@@ -266,9 +264,9 @@ describe('computeExpression — broadened ghost selection', () => {
 		];
 		const phrase = makePhrase(notes);
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		expect(isGhosted(expr[3])).toBe(true); // F approaches the G accent by step
-		expect(isGhosted(expr[1])).toBe(false); // E is a chord tone → voiced
-		expect(isGhosted(expr[4])).toBe(false); // G accent target → voiced
+		expect(expr[3].isGhost).toBe(true); // F approaches the G accent by step
+		expect(expr[1].isGhost).toBe(false); // E is a chord tone → voiced
+		expect(expr[4].isGhost).toBe(false); // G accent target → voiced
 	});
 
 	it('ghosts a repeated-note weak upbeat but leaves the melodic apex voiced', () => {
@@ -281,8 +279,23 @@ describe('computeExpression — broadened ghost selection', () => {
 		];
 		const phrase = makePhrase(notes);
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		expect(isGhosted(expr[2])).toBe(true); // repeated A
-		expect(isGhosted(expr[1])).toBe(false); // apex A stays voiced
+		expect(expr[2].isGhost).toBe(true); // repeated A
+		expect(expr[1].isGhost).toBe(false); // apex A stays voiced
+	});
+
+	it('ghosts the low note of a big leap down then big leap up (the Blue Monk figure)', () => {
+		const notes: Note[] = [
+			{ pitch: 72, duration: [1, 8], offset: [0, 1] }, // C5 (first)
+			{ pitch: 74, duration: [1, 8], offset: [1, 8] }, // D5
+			{ pitch: 65, duration: [1, 8], offset: [1, 4] }, // F4 — leap DOWN a 6th, then leap UP → low note ghosts
+			{ pitch: 74, duration: [1, 8], offset: [3, 8] }, // D5 (leap up)
+			{ pitch: 79, duration: [1, 8], offset: [1, 2] } // G5 (final, apex)
+		];
+		const phrase = makePhrase(notes);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(expr[2].isGhost).toBe(true); // the low F4
+		expect(expr[1].isGhost).toBe(false);
+		expect(expr[3].isGhost).toBe(false);
 	});
 });
 
@@ -290,11 +303,11 @@ describe('computeExpression — ghost guards keep the line intelligible', () => 
 	it('never ghosts strong-beat chord-tone accents, the apex, or the first/last note', () => {
 		const phrase = makePhrase(EIGHTH_LINE);
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		expect(isGhosted(expr[0])).toBe(false); // first note (also a downbeat accent)
-		expect(isGhosted(expr[4])).toBe(false); // apex + strong-beat accent target
-		expect(isGhosted(expr[expr.length - 1])).toBe(false); // final note
+		expect(expr[0].isGhost).toBe(false); // first note (also a downbeat accent)
+		expect(expr[4].isGhost).toBe(false); // apex + strong-beat accent target
+		expect(expr[expr.length - 1].isGhost).toBe(false); // final note
 		// Not everything is ghosted — structural notes stay voiced.
-		expect(expr.filter((e) => !isGhosted(e)).length).toBeGreaterThan(expr.length / 2);
+		expect(expr.filter((e) => !e.isGhost).length).toBeGreaterThan(expr.length / 2);
 	});
 
 	it('does not ghost a stepwise passing tone that is a quarter note', () => {
@@ -305,6 +318,6 @@ describe('computeExpression — ghost guards keep the line intelligible', () => 
 		];
 		const phrase = makePhrase(notes);
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		expect(isGhosted(expr[1])).toBe(false);
+		expect(expr[1].isGhost).toBe(false);
 	});
 });

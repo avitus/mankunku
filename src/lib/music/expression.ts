@@ -38,6 +38,18 @@ export interface ExpressionOptions {
 	intensity?: ExpressionIntensity;
 }
 
+/** Ghost-note tuning: how a de-emphasized note sounds (loudness / muffle / length / release). */
+interface GhostTuning {
+	/** MIDI loudness of a ghost (well under the ~88 mp melody). */
+	velocity: number;
+	/** Per-note lowpass cutoff in Hz — the muffled "swallowed" cue. */
+	cutoffHz: number;
+	/** Fraction of notated length sounded — kept near 1 so the line stays legato. */
+	durationScale: number;
+	/** Amplitude release tail in seconds — long enough to connect the line. */
+	release: number;
+}
+
 /**
  * A single sounding note after rest-skipping and tie-chain merging — the same
  * sequence `phraseToEvents` iterates, so an aligned expression array can be
@@ -69,6 +81,8 @@ export interface NoteExpression {
 	release: number;
 	/** Per-note lowpass cutoff in Hz (smplr `lpfCutoffHz`); 20000 = no filter */
 	cutoffHz: number;
+	/** Whether this note was treated as a ghost (for tests/UI; playback ignores it) */
+	isGhost: boolean;
 }
 
 const BASE_VELOCITY = 88;
@@ -94,34 +108,15 @@ function articulationFactor(intensity: ExpressionIntensity): number {
 }
 
 /**
- * Ghost-note profile — a "swallowed" saxophone ghost: quiet, very short, and
- * heavily muffled. Attack shaping isn't available in the engine, so the heavy
- * lowpass (see `ghostCutoff`) carries the muffled character. Base note-length
- * is scaled by the articulation factor in `computeArticulation`.
+ * Ghost-note tuning. A jazz ghost is de-emphasized and *muffled* but stays
+ * connected to the line (the airstream keeps going) — so the note-length is
+ * near-full (legato) and the softness + darkening do the "swallowed" work
+ * rather than clipping the note short.
  */
-const GHOST = {
-	/** Base fraction of the notated length actually sounded (before intensity). */
-	durationScale: 0.5,
-	/** Crisp, short release so the ghost cuts off cleanly. */
-	release: 0.05
-};
+const GHOST: GhostTuning = { velocity: 73, cutoffHz: 3600, durationScale: 0.9, release: 0.14 };
 
-/**
- * Ghost loudness (MIDI). Clearly under the ~88 mp melody but still audible
- * ("noticeable but de-emphasized"). Intensity-scaled: higher intensity ⇒
- * quieter (more de-emphasized) ghost.
- */
-function ghostVelocity(vf: number): number {
-	return clamp(Math.round(72 - 12 * vf), VELOCITY_MIN, VELOCITY_MAX);
-}
-
-/**
- * Ghost brightness (Hz). A heavy per-note lowpass is the key perceptual cue
- * for "swallowed"; lightly darker at higher intensity.
- */
-function ghostCutoff(vf: number): number {
-	return Math.round(2500 - 200 * vf);
-}
+/** A "large" leap (semitones) for the low-note dip rule — a perfect fourth or more. */
+const LARGE_LEAP = 5;
 
 /**
  * Rest-skip + tie-merge walk producing the sounding-note sequence.
@@ -254,6 +249,16 @@ function decideGhost(
 
 	const ctx = contexts[k];
 	const n = contexts.length;
+
+	// Low-note dip: a large leap DOWN immediately answered by a large leap UP —
+	// the low note is ghosted, regardless of beat or harmonic role. This is the
+	// idiomatic "drop down and bounce back" figure (e.g. Blue Monk).
+	if (k > 0 && k < n - 1 && ctx.isEighthOrShorter) {
+		const dPrev = sounding[k].pitch - sounding[k - 1].pitch;
+		const dNext = sounding[k + 1].pitch - sounding[k].pitch;
+		if (dPrev <= -LARGE_LEAP && dNext >= LARGE_LEAP) return true;
+	}
+
 	// Guards: keep structural notes voiced.
 	if (k === 0 || k === n - 1 || k === apex) return false;
 	if (!ctx.isEighthOrShorter || ctx.strongBeat || ctx.isAccentTarget) return false;
@@ -330,14 +335,16 @@ function computeArticulation(
 	beforeAccent: boolean,
 	af: number
 ): Articulated {
+	// Ghosts use the ghost tuning verbatim (kept near-full/legato so the airstream
+	// stays connected — the softness + darkening carry the "swallowed" feel).
+	if (isGhost) return { durationScale: GHOST.durationScale, release: GHOST.release };
+
 	// Scale a target durationScale's deviation-from-1 by the articulation factor.
 	const scaleDeviation = (ds: number): number => 1 - (1 - ds) * af;
 
 	let base: Articulated;
 
-	if (isGhost) {
-		base = { durationScale: GHOST.durationScale, release: GHOST.release }; // swallowed: short + crisp
-	} else if (authored === 'staccato') {
+	if (authored === 'staccato') {
 		base = { durationScale: 0.5, release: 0.06 };
 	} else if (authored === 'legato') {
 		base = { durationScale: 1.0, release: 0.2 };
@@ -403,18 +410,19 @@ export function computeExpression(
 	return sounding.map((s, k) => {
 		const ctx = contexts[k];
 		const isGhost = decideGhost(contexts, sounding, k, apex);
-		// A ghost forces its swallowed dynamics/timbre — the 'ghost' intent wins
+		// A ghost forces its de-emphasized dynamics/timbre — the 'ghost' intent wins
 		// over any authored velocity; otherwise honor authored velocity, else compute.
-		const intendedVelocity = isGhost ? ghostVelocity(vf) : (s.velocity ?? computeVelocity(ctx, k, n, apex, vf));
+		const intendedVelocity = isGhost ? GHOST.velocity : (s.velocity ?? computeVelocity(ctx, k, n, apex, vf));
 		const beforeAccent = k < n - 1 && contexts[k + 1].isAccentTarget;
 		const { durationScale, release } = computeArticulation(ctx, s.articulation, isGhost, k, n, beforeAccent, af);
-		const cutoffHz = isGhost ? ghostCutoff(vf) : computeCutoff(intendedVelocity, s.pitch);
+		const cutoffHz = isGhost ? GHOST.cutoffHz : computeCutoff(intendedVelocity, s.pitch);
 		return {
 			velocity: intendedVelocity,
 			layerVelocity: intendedVelocity,
 			durationScale,
 			release,
-			cutoffHz
+			cutoffHz,
+			isGhost
 		};
 	});
 }
