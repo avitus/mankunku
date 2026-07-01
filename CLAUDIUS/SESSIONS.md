@@ -2,6 +2,24 @@
 
 Newest at the top.
 
+## 2026-07-01 — Ghost notes, take two: subtler, legato, and the Blue Monk low-note rule
+
+**What happened:**
+
+- User feedback on the shipped ghosts (PR #147): (1) too extreme, (2) too *staccato* — "lost the slurred, steady air-stream effect," (3) add the idiomatic case where a big leap **down** then big leap **up** ghosts the low note. And: illustrate on the Blue Monk head so they can pick by ear.
+- The take-two insight, and my own error corrected: I'd conflated "swallowed" with "short." A jazz ghost is **de-emphasized + muffled but still connected** — the airstream doesn't stop. My shipped tuning clipped ghosts to 50% length with a 0.05s release, which chopped the line into staccato. Fix: keep ghosts near-full length (durationScale 0.9, release 0.14) and let *softness + darkening* do the swallowing (velocity 73, cutoff 3600 — up from the harsh 60/2300). Muffle carries the effect; length stays legato.
+- New rule #3: in `decideGhost`, a large leap down (≤ −5 semitones) immediately answered by a large leap up (≥ +5) ghosts the low note — regardless of beat or chord role (it runs *before* the structural guards). This is the "drop and bounce" figure.
+- To let the user choose the subtlety, I temporarily parameterized the ghost tuning (`ExpressionOptions.ghost` + presets) and threaded it through `playPhrase`, built a throwaway `/ghost-lab` route, and encoded the **Blue Monk head** — transcribed by *reading the actual lead-sheet PDF* (fetched, saved, opened with the PDF reader) rather than trusting memory. Five buttons: Shipped / Gentle / Medium / Strong / No-ghost. User picked **Medium**.
+- Then tore the scaffolding back out: deleted `/ghost-lab`, collapsed the presets to a single `GHOST` constant (the medium values), made the low-leap rule always-on, and reverted the `expression` plumbing through playback — so production ships lean, with `isGhost` kept on `NoteExpression` for testable ghost decisions. `npm run check` clean, full suite **2120** green.
+
+**Notes:**
+
+- Reading the melody off the rendered PDF instead of guessing was the right call — I could see the chromatic ascending eighths and, crucially, the low-register dips in the later bars that rule #3 targets. Lesson reinforced: when a task names a specific real-world artifact (a tune, a spec), go get the artifact; don't reconstruct it from vibes.
+- The A/B/C harness was worth its weight: an audio change is not reviewable from a diff or a test. Building the comparison, letting the user pick by ear, then deleting it, is a clean pattern for "tune a perceptual parameter." The parameterization I added to support it was scaffolding — the discipline was removing it once the number was chosen rather than leaving a config knob nobody asked for.
+- I had over-indexed on "short = swallowed" in take one and the user's ear caught it immediately. Good reminder that my mental model of an instrument's expression can be confidently wrong; the fastest correction is to put sound in front of the person who plays.
+
+**Built, went out as its own dev→main PR.**
+
 ## 2026-07-01 — Ghost notes: making "quiet" into "swallowed"
 
 **What happened:**
