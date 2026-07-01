@@ -14,10 +14,10 @@
  * - Per-note tuning corrections from SFZ mappings
  */
 
-import type { Fraction, Phrase } from '$lib/types/music';
+import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
-import { addFractions, fractionToFloat } from '$lib/music/intervals';
+import { fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
@@ -30,16 +30,24 @@ import {
 	isBackingLoaded
 } from './backing-track';
 import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
+import { extractSoundingNotes, computeExpression } from '$lib/music/expression';
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
 type SmplrSampler = import('smplr').Sampler;
 
-interface PlaybackEvent {
+export interface PlaybackEvent {
 	time: string;
 	midi: number;
 	duration: number;
+	/** Humanized loudness (drives sample gain) */
 	velocity: number;
+	/** Intended, un-humanized velocity — selects the piano/forte layer deterministically */
+	layerVelocity: number;
+	/** Amplitude release tail in seconds (smplr `ampRelease`) */
+	release: number;
+	/** Per-note lowpass cutoff in Hz (smplr `lpfCutoffHz`); 20000 = no per-note filter */
+	cutoffHz: number;
 	detune: number;
 }
 
@@ -335,22 +343,20 @@ export function isInstrumentLoaded(): boolean {
  * Routes to the correct velocity layer when using custom samples,
  * and applies per-note tuning corrections from the SFZ mapping.
  */
-function startNote(event: {
-	midi: number;
-	velocity: number;
-	duration: number;
-	time: number;
-	detune: number;
-}): void {
+function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void {
 	if (activeSampleMap && samplerPiano && samplerForte) {
-		const sampler = event.velocity > activeSampleMap.velocitySplit ? samplerForte : samplerPiano;
-		const tuneCorrection = getTuneCorrection(activeSampleMap, event.midi, event.velocity);
+		// Layer + tuning are chosen from the intended (un-humanized) velocity so
+		// timbre tracks musical intent and never flickers with gain jitter.
+		const sampler = event.layerVelocity > activeSampleMap.velocitySplit ? samplerForte : samplerPiano;
+		const tuneCorrection = getTuneCorrection(activeSampleMap, event.midi, event.layerVelocity);
 		sampler.start({
 			note: event.midi,
 			velocity: event.velocity,
 			duration: event.duration,
 			time: event.time,
-			detune: event.detune + tuneCorrection
+			detune: event.detune + tuneCorrection,
+			ampRelease: event.release,
+			lpfCutoffHz: event.cutoffHz
 		});
 	} else if (instrument) {
 		instrument.start({
@@ -358,7 +364,9 @@ function startNote(event: {
 			velocity: event.velocity,
 			duration: event.duration,
 			time: event.time,
-			detune: event.detune
+			detune: event.detune,
+			ampRelease: event.release,
+			lpfCutoffHz: event.cutoffHz
 		});
 	}
 }
@@ -429,35 +437,34 @@ function getBreathDetune(midi: number, isFirstNote: boolean): number {
  * Applies swing pre-shift (off-beat 8ths only — triplets are immune)
  * and timing humanization for authentic jazz feel.
  */
-function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number): PlaybackEvent[] {
+export function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number): PlaybackEvent[] {
+	// Rest-skip + tie-merge into sounding notes, then compute per-note musical
+	// expression (dynamics + articulation). The expression pass NEVER touches
+	// timing — onset ticks below are derived exactly as before so the swung grid
+	// stays identical to the scorer's (scoring/alignment.ts shares the model).
+	const sounding = extractSoundingNotes(phrase.notes);
+	const expression = computeExpression(sounding, phrase, { intensity: 'moderate' });
+
 	const events: PlaybackEvent[] = [];
-	const notes = phrase.notes;
-	let eventIndex = 0;
-	for (let i = 0; i < notes.length; i++) {
-		const note = notes[i];
-		if (note.pitch === null) continue;
+	for (let k = 0; k < sounding.length; k++) {
+		const s = sounding[k];
+		const e = expression[k];
 
-		// Walk forward through any tie chain at the same pitch, summing durations
-		// so the chain plays as a single sustained note with one attack.
-		let combinedDuration: Fraction = note.duration;
-		while (notes[i].tied && i + 1 < notes.length && notes[i + 1].pitch === note.pitch) {
-			i++;
-			combinedDuration = addFractions(combinedDuration, notes[i].duration);
-		}
-
-		const rawBeats = fractionToFloat(note.offset) * 4;
+		const rawBeats = fractionToFloat(s.offset) * 4;
 		const swungBeats = applySwingToBeats(rawBeats, swing);
 		const ticks = humanizeTiming(Math.round(swungBeats * ppq), ppq, tempo);
-		const durationSeconds = fractionToFloat(combinedDuration) * 4 * (60 / tempo);
+		const notatedSeconds = fractionToFloat(s.duration) * 4 * (60 / tempo);
 
 		events.push({
 			time: `${ticks}i`,
-			midi: note.pitch,
-			duration: durationSeconds,
-			velocity: humanizeVelocity(note.velocity ?? 100),
-			detune: getBreathDetune(note.pitch, eventIndex === 0)
+			midi: s.pitch,
+			duration: notatedSeconds * e.durationScale,
+			velocity: humanizeVelocity(e.velocity), // gain jitter only — layer is fixed by layerVelocity
+			layerVelocity: e.layerVelocity,
+			release: e.release,
+			cutoffHz: e.cutoffHz,
+			detune: getBreathDetune(s.pitch, k === 0)
 		});
-		eventIndex++;
 	}
 	return events;
 }

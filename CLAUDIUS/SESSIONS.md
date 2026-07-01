@@ -2,6 +2,22 @@
 
 Newest at the top.
 
+## 2026-06-30 — "Two different instruments": the flicker that became the dynamics engine
+
+**What happened:**
+
+- User: tenor sax lick replay "sometimes sounds as though there are two different instruments playing… could be my ears." It wasn't their ears. A 4-lens verification workflow (14 agents) converged on a one-line boundary collision: curated licks carry **no velocity**, so every note defaults to `velocity ?? 100` (`playback.ts:457`); `humanizeVelocity` jitters ±8 → [92,108]; and `velocitySplit` is **exactly 100** (`sample-maps.ts:36`). So each note coin-flips (~47%/53%) between two genuinely different recordings — `p_*.ogg` (soft/dark) and `f_*.ogg` (loud/bright) — re-rolled every replay. For an 8-note lick, P(all one layer) < 1%: it mixes both nearly every time; what varies is *which* notes flip. The adversarial pass killed three tempting wrong theories — literal simultaneous doubling (release tails are the same horn fading into itself), SoundFont/sampler coexistence, and per-layer `tune` "wobble" (those values *converge* the layers to concert pitch, not diverge them).
+- User escalated: fold the fix into a broader project to make replays **musical** — "dynamics should follow standard practice, articulation widely accepted jazz conventions." Three Explore agents mapped (1) engine levers, (2) the note/phrase pipeline, (3) backing feel + documented intent. Decisive constraints fell out: **scoring shares the swing grid** (`music/swing.ts` used by both `playback.ts` and `scoring/alignment.ts`), so onset-timing changes would break "a perfect performance scores perfectly" — but velocity, note-length, release, and cutoff are all unscored and free to shape; and smplr can't move pitch within a note (detune written once), so scoops/falls/bends/vibrato need a Voice wrapper (deferred). User chose scope = **dynamics + articulation**, intensity = **moderate**.
+- Built Tier 1: pure `src/lib/music/expression.ts` (`extractSoundingNotes` + `computeExpression`) computing per-note velocity / layerVelocity / durationScale / release / cutoffHz from metric position, harmonic role (`findHarmonyAt`+`chordTones`+`realizeScale`), contour, and phrase shape — phrase arch, strong-beat chord-tone accents (→forte), bebop off-beat tongued accents, ghosted chromatic passing tones (→piano), legato runs vs. detached swing quarters vs. staccato, darkening cutoff on soft/low notes; authored velocity/articulation honored. Extracted shared `findHarmonyAt` to `music/harmony.ts`. Wired `PlaybackEvent`/`phraseToEvents`/`startNote` (layer+tune now routed by intended `layerVelocity`; `ampRelease`+`lpfCutoffHz` passed per note — both free smplr levers, previously unused). Timing left byte-for-byte identical.
+- Tests: `tests/unit/music/expression.test.ts` + `tests/unit/audio/playback-expression.test.ts` (incl. the scoring-invariant guard and the layer-decoupling proof). `npm run check` clean; full suite **2105 green** (was 2085).
+
+**Notes:**
+
+- The elegant turn: the *same* coincidence that caused the bug — note velocity sitting exactly on the layer split — is what makes the fix powerful. Once layer selection is driven by *intended* velocity instead of noise, the two recorded dynamic layers stop being a random glitch and become a real pp→ff timbre tool: accents cross 100 into the bright forte samples, ghosts fall below into the dark piano samples, automatically. The defect and the feature were the same mechanism seen from two sides.
+- The scoring constraint is the kind of thing that quietly decides a design. "Make it more musical" naively points at timing/feel first (laid-back swing), but that's exactly the one dimension coupled to the scorer. The safe, high-impact surface turned out to be everything *except* timing — a good reminder to map the invariants before the ambitions.
+
+**Built, not yet committed** — awaiting the user's commit/PR call. Manual audio listen still pending on the user (I can't hear the replay).
+
 ## 2026-06-30 — The subharmonic that looks exactly like its own opposite
 
 **What happened:**

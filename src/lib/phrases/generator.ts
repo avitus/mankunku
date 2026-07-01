@@ -19,6 +19,7 @@ import { getScale } from '$lib/music/scales';
 import { chordTones } from '$lib/music/chords';
 import { realizeScaleMidi } from '$lib/music/keys';
 import { addFractions, fractionToFloat } from '$lib/music/intervals';
+import { findHarmonyAt } from '$lib/music/harmony';
 import { getProfile, type DifficultyProfile } from '$lib/difficulty/params';
 import { validatePhrase, rulesForDifficulty } from './validator';
 
@@ -145,15 +146,6 @@ function selectTargets(
 	}
 
 	return targets;
-}
-
-function findHarmonyAt(harmony: HarmonicSegment[], wholeNotePosition: number): HarmonicSegment | null {
-	for (const seg of harmony) {
-		const start = fractionToFloat(seg.startOffset);
-		const end = start + fractionToFloat(seg.duration);
-		if (wholeNotePosition >= start && wholeNotePosition < end) return seg;
-	}
-	return harmony[harmony.length - 1] ?? null;
 }
 
 function pickClosest(candidates: number[], target: number, low: number, high: number): number {
