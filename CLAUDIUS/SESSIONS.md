@@ -2,6 +2,21 @@
 
 Newest at the top.
 
+## 2026-07-01 — Ghost notes: making "quiet" into "swallowed"
+
+**What happened:**
+
+- Follow-up to the merged musicality Tier 1 (PR #146). User: "add ghosted notes." But Tier 1 already *had* ghosting — so the real work was that its ghosts weren't convincing and had a latent bug. Diagnosed three problems in `expression.ts`: (1) a ghost was only *quieter* (velocity ~60) but barely shortened (`durationScale 0.9`) and only mildly dark (`cutoffHz 3000`) — not the *swallowed* character of a real sax ghost; (2) selection was narrow (chromatic-only); (3) an authored `articulation:'ghost'` shortened the note but never reduced its velocity/brightness, because `computeVelocity` only ghosted *chromatic* notes — so the generator's velocity-80 ghosts stayed bright and audible.
+- User chose scope = **better sound + more of them**, prominence = **noticeable but de-emphasized**.
+- Built a cohesive ghost treatment: one `decideGhost()` decision drives velocity + articulation + timbre together. Moderate targets — velocity ~60, `durationScale` 0.5, **`cutoffHz` ~2300** (the heavy per-note lowpass is the whole "swallowed" cue, since attack shaping is impossible in the engine), 0.05 release — all intensity-scaled. Broadened, *deterministic* selection: chromatic passing tones + stepwise approaches into an accent + repeated-note weak upbeats + stepwise passing tones, with guards that never ghost the apex, strong-beat chord tones/accents, first/last, or quarter-or-longer notes. Authored `'ghost'` now forces the full treatment, overriding an authored velocity. All in `src/lib/music/expression.ts` + 8 new tests. `npm run check` clean, full suite **2119** green.
+
+**Notes:**
+
+- The perceptual lesson: "ghost" isn't a *volume*, it's a *timbre*. Turning a note down just makes a quiet note; what says "ghost" to the ear is the note being **muffled and clipped** — the sound of air and a half-articulated reed. With no attack control in smplr, the heavy lowpass is doing almost all the expressive work; velocity and length are secondary. Worth remembering when I reach for "make it quieter" as a fix — quietness and darkness are different instruments.
+- The bebop-articulation payoff fell out for free: because the broadened rule ghosts the *stepwise off-beat connective notes* and the guards protect chord tones / accents / apex, a fast run now naturally swallows its "and"-notes and voices its structural notes — the long-short bebop feel, from a selection rule rather than a timing trick (timing stays scorer-safe, untouched).
+
+**Built, not yet committed at time of writing** — went out as its own dev→main PR.
+
 ## 2026-06-30 — "Two different instruments": the flicker that became the dynamics engine
 
 **What happened:**
