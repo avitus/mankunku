@@ -261,7 +261,7 @@ function computeArticulation(
 	af: number
 ): Articulated {
 	// Scale a target durationScale's deviation-from-1 by the articulation factor.
-	const scaleDeviation = (ds: number) => 1 - (1 - ds) * af;
+	const scaleDeviation = (ds: number): number => 1 - (1 - ds) * af;
 
 	let base: Articulated;
 

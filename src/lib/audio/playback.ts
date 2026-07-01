@@ -343,16 +343,7 @@ export function isInstrumentLoaded(): boolean {
  * Routes to the correct velocity layer when using custom samples,
  * and applies per-note tuning corrections from the SFZ mapping.
  */
-function startNote(event: {
-	midi: number;
-	velocity: number;
-	layerVelocity: number;
-	release: number;
-	cutoffHz: number;
-	duration: number;
-	time: number;
-	detune: number;
-}): void {
+function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void {
 	if (activeSampleMap && samplerPiano && samplerForte) {
 		// Layer + tuning are chosen from the intended (un-humanized) velocity so
 		// timbre tracks musical intent and never flickers with gain jitter.

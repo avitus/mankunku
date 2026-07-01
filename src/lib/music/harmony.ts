@@ -19,10 +19,16 @@ export function findHarmonyAt(
 	harmony: HarmonicSegment[],
 	wholeNotePosition: number
 ): HarmonicSegment | null {
+	if (harmony.length === 0) return null;
 	for (const seg of harmony) {
 		const start = fractionToFloat(seg.startOffset);
 		const end = start + fractionToFloat(seg.duration);
 		if (wholeNotePosition >= start && wholeNotePosition < end) return seg;
 	}
-	return harmony[harmony.length - 1] ?? null;
+	// Only fall back to the final segment for positions past its end (a note
+	// ringing past the last chord). Positions before the first segment or inside
+	// a gap between non-contiguous segments have no active harmony → null.
+	const last = harmony[harmony.length - 1];
+	const lastEnd = fractionToFloat(last.startOffset) + fractionToFloat(last.duration);
+	return wholeNotePosition >= lastEnd ? last : null;
 }
