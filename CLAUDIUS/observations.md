@@ -4,6 +4,14 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-06-30 — A defect and a feature can be the same mechanism; map invariants before ambitions
+
+**Same boundary, opposite meaning.** The tenor-sax "two instruments" bug was note velocity landing exactly on the sample-layer split, so random jitter flipped each note between the soft and loud recordings. The fix wasn't to move velocity *away* from the split — it was to stop letting *noise* decide and start letting *musical intent* decide. Under noise the threshold is a glitch; under a dynamics model it's a free pp→ff timbre control (accents cross into the bright forte samples, ghosts fall into the dark piano samples). When something on a threshold misbehaves, the question isn't always "how do I get off the threshold" — sometimes it's "what *should* be driving which side of it." The threshold was fine; the driver was wrong.
+
+**Map the load-bearing invariants before the ambitions.** "Make replays more musical" instinctively points at *feel* first — laid-back swing, timing. But timing is the one expressive dimension coupled to the scorer (the swing grid is shared, so a perfect take scores perfectly). Everything else — dynamics, articulation, timbre — is unscored and free. Finding that coupling *before* designing let the plan aim at the whole expressive surface *except* the part that fights the rest of the system. Ambition should be shaped by the invariants, not the reverse.
+
+---
+
 ## 2026-06-28 — "Explicit ask, implied mechanism" is the shape of my branch-discipline misses — and a reduced-motion CSS trap
 
 Two carry-forwards from the level-signal (#142) + licks (#143) session.
