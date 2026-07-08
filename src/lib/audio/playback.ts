@@ -497,20 +497,26 @@ export function getPhraseDuration(phrase: Phrase, tempo: number): number {
  * *call* finishes; waiting out a harmony vamp that extends past the last
  * note (e.g. a 1.25-bar lick over a 2-bar blues vamp) opens the listening
  * window after the user has already started echoing the phrase. Falls
- * back to whole-bar semantics when the phrase has no melody notes.
+ * back to whole-bar semantics when the phrase has no sounding melody
+ * notes (rests don't count).
  */
 export function getPhraseEndTicks(
 	phrase: Phrase,
 	ppq: number,
 	resolveAtMelodyEnd = false
 ): number {
-	if (resolveAtMelodyEnd && phrase.notes.length > 0) {
-		let melodyEndBeats = 0;
-		for (const note of phrase.notes) {
-			const endBeat = (fractionToFloat(note.offset) + fractionToFloat(note.duration)) * 4;
-			melodyEndBeats = Math.max(melodyEndBeats, endBeat);
+	if (resolveAtMelodyEnd) {
+		// Measure the same notes playback schedules (rests excluded) so a
+		// trailing rest can't push the handoff past the audible ending.
+		const soundingNotes = extractSoundingNotes(phrase.notes);
+		if (soundingNotes.length > 0) {
+			let melodyEndBeats = 0;
+			for (const note of soundingNotes) {
+				const endBeat = (fractionToFloat(note.offset) + fractionToFloat(note.duration)) * 4;
+				melodyEndBeats = Math.max(melodyEndBeats, endBeat);
+			}
+			return Math.round(melodyEndBeats * ppq) + ppq;
 		}
-		return Math.round(melodyEndBeats * ppq) + ppq;
 	}
 	const barTicks = phrase.timeSignature[0] * ppq;
 	return getPhraseBars(phrase) * barTicks + ppq;

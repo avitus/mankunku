@@ -56,4 +56,21 @@ describe('getPhraseEndTicks', () => {
 		const harmonyOnly = makePhrase([], 2);
 		expect(getPhraseEndTicks(harmonyOnly, PPQ, true)).toBe(2 * 4 * PPQ + PPQ);
 	});
+
+	it('ignores trailing rests — melody end is the last sounding note', () => {
+		const withTrailingRest = makePhrase(
+			[
+				{ pitch: 65, duration: [1, 4], offset: [0, 1] },
+				{ pitch: null, duration: [3, 4], offset: [1, 4] }
+			],
+			2
+		);
+		// Sounding melody ends at beat 1; the 3-beat rest doesn't delay the handoff.
+		expect(getPhraseEndTicks(withTrailingRest, PPQ, true)).toBe(1 * PPQ + PPQ);
+	});
+
+	it('falls back to whole-bar semantics when the melody is all rests', () => {
+		const allRests = makePhrase([{ pitch: null, duration: [1, 1], offset: [0, 1] }], 2);
+		expect(getPhraseEndTicks(allRests, PPQ, true)).toBe(2 * 4 * PPQ + PPQ);
+	});
 });
