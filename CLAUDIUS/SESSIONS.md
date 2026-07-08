@@ -2,7 +2,20 @@
 
 Newest at the top.
 
-## 2026-07-01 — Ghost notes, take two: subtler, legato, and the Blue Monk low-note rule
+## 2026-07-07 — The listening window that opened after the user started playing
+
+**What happened:**
+
+- User report: on some licks in ear training, an unusually long pause after the lick plays, and the user's echo starts before the app is listening. Diagnostic pair provided (`2026-07-08-four-to-five.{wav,json}` — bbn-004 "Four to Five", 105 BPM, tenor).
+- Systematic debugging. The suspects looked obvious — the ghost-notes/expression commits are the recent *audio* work — but they were innocent: expression only shapes per-note velocity/length/timbre, never the transport schedule. The real collision was **content × old code**: `playPhrase`/`scheduleNextPhrase` resolve at `count-in + ceil(max(melodyEnd, harmonyEnd) in bars) + 1 beat` (via `getPhraseBars`, needed for lick-practice super phrases), and the new blues-blue-note collection (1c8bcbe) pairs ~1.25-bar melodies with a 2-bar `BLUES_2BAR` vamp. Catalog-wide sweep: **36 of 75 bbn licks** have a ≥2-beat dead gap between melody end and the harmony-rounded bar end (max 3.5 beats); the old blues collection's 120 licks max out at 1 beat. Ear training waited out the silent vamp tail + 1 beat + 150 ms cooldown before opening the mic — ~2.4 s after the last note for bbn-004 — while the user naturally echoed at the next downbeat, ~0.7 s *before* the window opened. Arithmetic against the diagnostic confirmed it: predicted first captured onset 0.42 s into the recording, actual 0.5 s, first two notes (F, F#) lost, 1/4 notes hit.
+- Fix: extracted the end-tick math into pure `getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd)`; default keeps whole-bar semantics (super phrases, previews), new opt-in mode ends 1 beat after the melody's last note. Ear training passes `resolveAtMelodyEnd` in both handoff paths (initial `playPhrase` when mic'd, and the looping `scheduleNextPhrase`). Diagnostic copied to `tests/fixtures/recordings/`; regression tests in `tests/unit/audio/playback-end-tick.test.ts` + `tests/integration/listening-window.test.ts` (old formula opens late, new opens ≥0.5 s early). Full suite 2127 green, check clean.
+
+**Notes:**
+
+- The bug had no bad commit — it was a *semantic overload*: one end-of-phrase notification serving three meanings (stop the preview, dispose the super-phrase, open the mic). It held only while melody-end ≈ harmony-end everywhere; the first content that broke that accidental invariant broke the most timing-sensitive consumer. Naming the two semantics (`resolveAtMelodyEnd` vs whole-bar) is the actual fix; the tick math is incidental.
+- "Recent changes" in a bug report means *recent to the user's experience*, not recent to `git log` — new **data** ships behavior just like new code. The catalog sweep (a 30-line throwaway analysis over all 21 collections) was what separated "ghost notes did it" from "the new licks did it"; worth reaching for the census early when a bug is described as "some licks".
+
+
 
 **What happened:**
 
