@@ -2,18 +2,42 @@
   "commands": [
     {
       "name": "install",
-      "run": "npm ci"
+      "run": "npm ci",
+      "remote": true
     },
     {
       "name": "test",
       "run": "npm test",
       "role": "gate",
       "timeout": 300,
-      "limit": 3
+      "limit": 3,
+      "remote": true
     }
   ],
   "vcs": {
     "org": "avitus",
     "repo": "mankunku"
+  },
+  "validation": {
+    "sidecarImage": "d9c39423-a63c-4a3e-9c3f-114a48ab222e"
+  },
+  "environment": {
+    "stack": "javascript",
+    "setup": [
+      {
+        "name": "system",
+        "command": "curl -fsSL https://deb.nodesource.com/setup_26.x | sudo -E bash - && sudo apt-get install -y nodejs --no-install-recommends && sudo rm -rf /var/lib/apt/lists/*"
+      },
+      {
+        "name": "install",
+        "command": "npm install"
+      },
+      {
+        "name": "test",
+        "command": "npm test"
+      }
+    ],
+    "image": "cimg/node",
+    "image_version": "26.5.0"
   }
 }
