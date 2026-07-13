@@ -27,7 +27,12 @@
 		getUpcomingLicks
 	} from '$lib/state/lick-practice.svelte';
 	import { scoreToGrade } from '$lib/scoring/grades';
-	import { getActiveSubstitution, PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import {
+		getActiveSubstitution,
+		getTransitionCadenceChords,
+		PROGRESSION_TEMPLATES
+	} from '$lib/data/progressions';
+	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
@@ -142,6 +147,10 @@
 	// Beat-wrap length for the chord chart highlight. Updated on every lick
 	// boundary so licks with different progression lengths wrap correctly.
 	let beatLoopBeats = 0;
+	// Tick where the current lick's audio ends. Beat tracking clamps to this
+	// during the score-hold bar so the finished lick's chart doesn't animate
+	// through phantom beats while its results stay on screen.
+	let lickEndFreezeTick: number | null = null;
 
 	// Stable base id + start timestamp for this session's log entries.
 	// Generated once at session start in initializeSession(); each scored
@@ -153,8 +162,13 @@
 	let lickPracticeSessionLogId = '';
 	let lickPracticeSessionStartTs = 0;
 
-	// Inter-lick rest: 2 bars of backing-only between licks.
+	// Inter-lick rest: 2 bars of backing-only between licks. The rest is
+	// split visually: the first SCORE_HOLD_BARS keep the finished lick on
+	// screen so the last key's score dot is actually seen (it lands at the
+	// same tick the lick ends), then the display flips to the next lick
+	// while a ii-V cue into its key fills the final rest bar.
 	const INTER_LICK_REST_BARS = 2;
+	const SCORE_HOLD_BARS = 1;
 
 	/**
 	 * Recording window — captures the state needed to score a single key's
@@ -526,35 +540,45 @@
 			scheduledEventIds.push(closeId);
 		}
 
-		// End of lick: fire the transition callback at lickEndTick (not
-		// later) so the visual display updates immediately — no phantom
-		// key scrolling during the rest.  The pre-computed nextLickStartTick
-		// is passed through so scheduleNextPhrase can land the audio on
-		// the correct bar boundary regardless of when the callback fires.
+		// End of lick: the last key's score lands in keyResults at
+		// lickEndTick (its close callback fires there), so the transition
+		// waits SCORE_HOLD_BARS before flipping the display — flipping at
+		// lickEndTick would wipe the final dot's colour in the same frame
+		// it appears. The pre-computed nextLickStartTick is passed through
+		// so scheduleNextPhrase can land the audio on the correct bar
+		// boundary regardless of when the callback fires.
 		const lickEndTick = lickStartTick + item.keys.length * keyTicks;
 		const nextLickStartTick = lickEndTick + INTER_LICK_REST_BARS * ticksPerBar;
+		lickEndFreezeTick = lickEndTick;
 
 		const restId = transport.scheduleOnce(() => {
-			handleLickComplete(nextLickStartTick);
-		}, `${lickEndTick}i`);
+			handleLickComplete(nextLickStartTick, ticksPerBar);
+		}, `${lickEndTick + SCORE_HOLD_BARS * ticksPerBar}i`);
 		scheduledEventIds.push(restId);
 	}
 
 	/**
-	 * Called at lickEndTick — archives results, bumps tempo if all 12
-	 * keys passed, and either transitions to the next lick or completes
-	 * the session. Fires immediately when the last key ends so the
-	 * visual display updates without a gap; the pre-computed
-	 * nextLickStartTick ensures the audio still lands on the correct
-	 * bar boundary after the inter-lick rest.
+	 * Called SCORE_HOLD_BARS into the inter-lick rest (the finished lick,
+	 * with its last key's score dot, stays on screen for that bar) —
+	 * archives results, bumps tempo if all 12 keys passed, and either
+	 * transitions to the next lick or completes the session. The
+	 * pre-computed nextLickStartTick ensures the audio lands on the
+	 * correct bar boundary however late the callback fires.
 	 */
-	async function handleLickComplete(nextLickStartTick: number): Promise<void> {
+	async function handleLickComplete(
+		nextLickStartTick: number,
+		ticksPerBar: number
+	): Promise<void> {
+		// A cancelled event can still fire if it was already dequeued when
+		// End Session ran — never restart audio after stopAll().
+		if (!isSessionRunning) return;
 		if (lickPractice.mode === 'single-lick') {
 			// Endless drill mode: drop mastered keys, possibly bump tempo + refill,
 			// then keep going. There's no 'complete' branch — only the user's
 			// End Session button stops the session.
 			advanceSingleLickRound();
 			await startLick(0, false, nextLickStartTick);
+			scheduleTransitionCue(nextLickStartTick, ticksPerBar);
 			return;
 		}
 		const result = startInterLickTransition();
@@ -564,9 +588,66 @@
 		}
 		// Start the next lick.  nextLickStartTick tells startLick exactly
 		// where to place the audio so the 2-bar inter-lick rest is preserved
-		// even though this callback now fires at lickEndTick (earlier than
-		// before) for immediate visual feedback.
+		// even though this callback fires a bar earlier.
 		await startLick(lickPractice.currentLickIndex, false, nextLickStartTick);
+		scheduleTransitionCue(nextLickStartTick, ticksPerBar);
+	}
+
+	/**
+	 * ii-V cue into the next lick's first key, filling the rest bar
+	 * between the display flip and the next lick's downbeat: the ii on
+	 * beat 2, the V on the bar's last beat, pushing into the resolution.
+	 *
+	 * Each stab is a future transport event whose callback hands smplr a
+	 * near-now time. Triggering the samples directly here would NOT work:
+	 * scheduleNextPhrase → scheduleBackingTrack runs a deferred
+	 * disposeBackingParts() (backing-track.ts) one microtask after this
+	 * function, and its compInstrument.stop() kills any already-created
+	 * voice before it sounds. Transport events also keep the stabs
+	 * cancellable — End Session's transport.cancel() drops pending ones,
+	 * and a stab that already fired is a live voice that instrument
+	 * .stop() cuts — so nothing rings after teardown.
+	 */
+	function scheduleTransitionCue(nextLickStartTick: number, ticksPerBar: number): void {
+		if (!toneModule || !backingTrack) return;
+		if (!settings.backingTrackEnabled || !backingTrack.isBackingLoaded()) return;
+		const item = getCurrentPlanItem();
+		const nextKey = plannedKeysForLick[0]?.key ?? item?.keys[0];
+		if (!item || !nextKey) return;
+
+		const transport = toneModule.getTransport();
+		const ppq = transport.PPQ;
+		const beatsPerBar = Math.round(ticksPerBar / ppq);
+		// startLick has already set the new lick's BPM synchronously, so
+		// beat lengths match the metronome through the cue bar.
+		const beatSec = 60 / lickPractice.currentTempo;
+		const voicings = voiceLead(
+			getTransitionCadenceChords(item.progressionType, nextKey),
+			shellVoicing,
+			54
+		);
+		if (voicings.length < 2 || voicings.some(v => v.length === 0)) return;
+
+		const iiBeat = 1;
+		const vBeat = beatsPerBar - 1;
+		// Degenerate meters (2/4) can't fit two hits — keep just the V.
+		const stabs =
+			vBeat > iiBeat
+				? [
+						{ beat: iiBeat, notes: voicings[0], duration: (vBeat - iiBeat) * beatSec * 0.9 },
+						{ beat: vBeat, notes: voicings[1], duration: beatSec * 0.9 }
+					]
+				: [{ beat: iiBeat, notes: voicings[1], duration: beatSec * 0.9 }];
+
+		const cueBarStartTick = nextLickStartTick - ticksPerBar;
+		for (const stab of stabs) {
+			const id = transport.scheduleOnce((time: number) => {
+				backingTrack?.playTransitionChords([
+					{ notes: stab.notes, time, duration: stab.duration }
+				]);
+			}, `${cueBarStartTick + stab.beat * ppq}i`);
+			scheduledEventIds.push(id);
+		}
 	}
 
 	/**
@@ -598,10 +679,17 @@
 				// actually starts (count-in end for lick 1, audioStartTick for
 				// subsequent licks).  This freezes currentBeat at 0 during the
 				// inter-lick rest so the newly shown first row doesn't animate
-				// through beats before its demo plays.
-				const elapsedTicks = ticks - lickAudioStartTick;
-				const phrasePos = elapsedTicks < 0 ? 0 : elapsedTicks / ppq;
-				currentBeat = beatLoopBeats > 0 ? phrasePos % beatLoopBeats : 0;
+				// through beats before its demo plays. During the score-hold
+				// bar the finished lick is still on screen — park the beat at
+				// -1 (no active cell) so its chart doesn't wrap around and
+				// re-highlight beat 0 as if the key had restarted.
+				if (lickEndFreezeTick !== null && ticks >= lickEndFreezeTick) {
+					currentBeat = -1;
+				} else {
+					const elapsedTicks = ticks - lickAudioStartTick;
+					const phrasePos = elapsedTicks < 0 ? 0 : elapsedTicks / ppq;
+					currentBeat = beatLoopBeats > 0 ? phrasePos % beatLoopBeats : 0;
+				}
 
 				// Continuous scroll position for the upcoming-keys preview.
 				// Clamped to the number of planned keys so the display
@@ -877,6 +965,20 @@
 	}
 
 	function stopAll() {
+		// If the session ends during the score-hold bar — after the last
+		// key was scored but before the delayed handleLickComplete has
+		// archived the lick — run the archival now so tempo adjustments,
+		// key unlocks, and round bookkeeping aren't lost. Idempotent: the
+		// transition clears keyResults, so a repeat call can't match the
+		// full-lick length again.
+		const heldItem = getCurrentPlanItem();
+		if (heldItem && lickPractice.keyResults.length >= heldItem.keys.length) {
+			if (lickPractice.mode === 'single-lick') {
+				advanceSingleLickRound();
+			} else {
+				startInterLickTransition();
+			}
+		}
 		// Capture whether the session was actually running.  Resources
 		// created during initializeSession() (mic, detectors, timers)
 		// can exist while isSessionRunning is still false, so we always
@@ -1000,6 +1102,7 @@
 			lickAudioStartTick = 0;
 			ticksPerKey = 0;
 			beatLoopBeats = 0;
+			lickEndFreezeTick = null;
 			startSession();
 			if (lickPractice.phase !== 'count-in') {
 				// startSession bailed (no plan for this progression) — fall back to setup.

@@ -18,6 +18,7 @@ import {
 	getActiveSubstitution,
 	progressionHasSubstitutionTargets,
 	getChordQualityAtOffset,
+	getTransitionCadenceChords,
 	detectPickupBars
 } from '$lib/data/progressions';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
@@ -599,5 +600,58 @@ describe('detectPickupBars', () => {
 
 	it('returns 0 when the lick has only rests', () => {
 		expect(detectPickupBars([rest([0, 1]), rest([1, 4]), rest([1, 2])])).toBe(0);
+	});
+});
+
+describe('getTransitionCadenceChords', () => {
+	it('builds iim7-V7 into a major-tonic key', () => {
+		expect(getTransitionCadenceChords('major-vamp', 'C')).toEqual([
+			{ root: 'D', quality: 'min7' },
+			{ root: 'G', quality: '7' }
+		]);
+	});
+
+	it('builds iiø7-V7 into a minor-tonic key', () => {
+		expect(getTransitionCadenceChords('minor-vamp', 'C')).toEqual([
+			{ root: 'D', quality: 'min7b5' },
+			{ root: 'G', quality: '7' }
+		]);
+	});
+
+	it('reads the tonic quality from the template, not the first segment', () => {
+		// ii-V-I minor templates START on min7b5 (the ii) — the cadence must
+		// key off the C-rooted tonic segment (min7), still yielding the
+		// minor-style cadence, transposed to the target key.
+		expect(getTransitionCadenceChords('ii-V-I-minor', 'F')).toEqual([
+			{ root: 'G', quality: 'min7b5' },
+			{ root: 'C', quality: '7' }
+		]);
+		// ...and the major template's Cmaj7 tonic yields the major-style ii.
+		expect(getTransitionCadenceChords('ii-V-I-major-long', 'F')).toEqual([
+			{ root: 'G', quality: 'min7' },
+			{ root: 'C', quality: '7' }
+		]);
+	});
+
+	it('treats dominant and blues tonics as major-style targets', () => {
+		expect(getTransitionCadenceChords('dominant-vamp', 'C')[0].quality).toBe('min7');
+		expect(getTransitionCadenceChords('blues', 'Bb')).toEqual([
+			{ root: 'C', quality: 'min7' },
+			{ root: 'F', quality: '7' }
+		]);
+	});
+
+	it('returns valid pitch classes for every key and progression', () => {
+		const allTypes = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
+		for (const type of allTypes) {
+			for (const key of PITCH_CLASSES) {
+				const cadence = getTransitionCadenceChords(type, key);
+				expect(cadence).toHaveLength(2);
+				const keyNum = PITCH_CLASSES.indexOf(key);
+				expect(PITCH_CLASSES.indexOf(cadence[0].root)).toBe((keyNum + 2) % 12);
+				expect(PITCH_CLASSES.indexOf(cadence[1].root)).toBe((keyNum + 7) % 12);
+				expect(cadence[1].quality).toBe('7');
+			}
+		}
 	});
 });

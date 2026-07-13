@@ -38,13 +38,19 @@
 	}
 
 	function getKeyStatus(key: PitchClass): Status {
+		// A scored key shows its score tier even when it's still the
+		// current index — after the final key, currentKeyIndex parks on it
+		// through the inter-lick score-hold bar, and the whole point of
+		// that bar is seeing the last dot's colour.
+		const result = keyResults.find(r => r.key === key);
+		if (result) {
+			if (result.score >= KEY_PROFICIENT_THRESHOLD) return 'proficient';
+			if (result.score >= KEY_FLOOR_THRESHOLD) return 'developing';
+			return 'struggling';
+		}
 		const idx = keys.indexOf(key);
 		if (idx === currentKeyIndex) return 'current';
-		const result = keyResults.find(r => r.key === key);
-		if (!result) return 'pending';
-		if (result.score >= KEY_PROFICIENT_THRESHOLD) return 'proficient';
-		if (result.score >= KEY_FLOOR_THRESHOLD) return 'developing';
-		return 'struggling';
+		return 'pending';
 	}
 
 	// When every key has scored proficient, the ring glows brass as a reward —
