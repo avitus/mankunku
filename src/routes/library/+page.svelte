@@ -99,7 +99,9 @@
 	 * `hydrateLickPracticeProgress` is idempotent and best-effort.
 	 */
 	$effect(() => {
-		hydrateLickPracticeProgress(supabase);
+		// Client only when signed in — its presence selects cloud-backed mode
+		// inside hydrateLickPracticeProgress (see that function's docstring).
+		hydrateLickPracticeProgress(session ? supabase : null);
 	});
 
 	/** Live view of adopted community licks (localStorage-cached). */

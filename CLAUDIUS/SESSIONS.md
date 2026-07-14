@@ -2,6 +2,28 @@
 
 Newest at the top.
 
+## 2026-07-14 — The progression-tags "data loss" that was three latent bugs wearing one symptom
+
+**What happened:**
+
+- Executed the dev-macbook handoff: after the reboot-forced client refresh, all user licks showed "tagged for practice" with no assigned progressions. Diagnosis was pre-verified: **no data was lost** — explicit `prog:*` tags were never persisted for the user's own 13 licks (commit `00df9ab` made them mandatory in May; its one-time migration missed them; a months-stale cached PWA client kept matching by category, masking the gap until the reboot).
+- Implemented the four-part fix as one PR on `dev`:
+  1. `backfillInferredProgressionTags` rewritten as a guarded ONE-TIME migration (scope: non-curated licks only) with a durable `prog-backfill-v1` marker stored under a reserved `__migrations` key *inside the cloud-synced tags blob* — survives user-scope wipes, travels across devices, and merges down even into populated local blobs.
+  2. The three lick hydrators (`initLickMetadataFromCloud`, `initUserLicksFromCloud`, `initCommunityFromCloud`) now return success booleans; `loadLickMetadataFromCloud` returns ok/empty/error (distinguishing "no cloud row" from "couldn't check").
+  3. `runLickMetadataMaintenance` gates the orphan reconciler + backfill on all three reports — a silently failed hydration can no longer mass-prune metadata and push emptied blobs over the intact cloud row.
+  4. `safeGetSession` gained a `degraded` flag (via `isAuthVerificationUnavailable`), and — the deeper cut — `syncUserScope` now wipes ONLY on an affirmative account switch. A null user (expired cookies, revoked token, 429'd refresh, dead backend) never wipes; explicit sign-out hygiene moved to `wipeUserScopeOnSignOut()` invoked by the logout forms.
+- Adversarial review workflow (4 lenses → per-finding refuters) earned its cost: **(a)** auth-js wraps only 502/503/504 as retryable, so a 429 on token refresh arrived as a "definitive" AuthApiError → wipe — and auth-js destroys the session cookies before the classifier even sees the error, so classifier-only fixes just defer the wipe one request (the switch-only wipe policy is what actually closes it); **(b)** `depends('supabase:auth')` was missing from `+layout.server.ts`, so a degraded verdict would have stuck for the tab's lifetime; **(c)** `hydrateLickPracticeProgress` (4 page mounts) still ran tag-writing maintenance ungated — the incident-class clobber had a second front door; **(d)** guard-3/4 skips needed to STAMP the marker or removing your last prog tag would make the account look unmigrated again.
+- Full suite 2170 green, `npm run check` clean, Playwright 123/123 (one webkit console-noise flake, 9/9 on repeat).
+
+**Notes:**
+
+- The unifying shape: **"absence of evidence read as evidence of absence."** A null user read as signed-out; a null metadata row read as empty account; a partial `getAllLicks()` read as orphaned metadata. Every fix is the same move — split "verified negative" from "verification unavailable" and make destructive actions require the former. Worth carrying to any local-first + cloud-sync design.
+- The marker-in-the-blob trick (reserved `__migrations` key inside the synced JSONB) is the only place a one-time-migration flag can live that survives both the user-scope wipe AND device switches without a schema change. The reconciler had to learn to skip reserved keys — enumerating blob keys as lick ids was an unwritten invariant that nearly ate the marker.
+- The switch-only wipe policy quietly improves the old Case-2 absorption gap: the marker now survives sign-out, so a *different* user signing in on the same browser wipes the prior user's residue (previously the marker was deleted on sign-out and the next login looked "first-ever"). The never-signed-in → first-login absorption path remains by design.
+- Follow-ups deliberately NOT in this PR: whole-column `lick_tags` LWW sync is still clobber-prone from ordinary write paths after a failed hydration (field-level merge or size-drop guard); SSR cookie-deletion buffering for degraded requests; stale-client version-skew banner; deploy-hardening items from 2026-07-13.
+
+---
+
 ## 2026-07-13 — Deploy collision: two merges, three npm ci's, one wedged droplet
 
 **What happened:**

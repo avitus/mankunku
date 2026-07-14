@@ -82,12 +82,25 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 
 	// Reconcile client-side storage with the currently-authenticated user
 	// BEFORE dynamic state modules evaluate their top-level `$state(loadX())`
-	// initializers. If the authenticated user changed (sign-out or account
-	// switch), wipe localStorage / sessionStorage / IndexedDB so stale state
-	// from the prior user does not leak into the new session.
+	// initializers. On an affirmative account switch, syncUserScope wipes
+	// localStorage / sessionStorage / IndexedDB so stale state from the prior
+	// user does not leak into the new session. (A null user no longer wipes —
+	// explicit sign-out hygiene lives in the logout UI via
+	// wipeUserScopeOnSignOut; see user-scope.ts.)
+	//
+	// Skip reconciliation entirely when the auth verdict is degraded: `user`
+	// is then null because the auth server couldn't be reached (network
+	// failure, backend reboot), not because of any real auth state change.
+	// Treating that null as a sign-out is how the 2026-07-13 droplet outage
+	// wiped users' localStorage; this guard and the switch-only wipe policy
+	// are two independent layers against that class of loss.
 	if (isBrowser()) {
-		const { syncUserScope } = await import('$lib/persistence/user-scope');
-		await syncUserScope(user?.id ?? null);
+		if (data.degraded) {
+			console.warn('[auth] session verification unavailable — leaving local state untouched');
+		} else {
+			const { syncUserScope } = await import('$lib/persistence/user-scope');
+			await syncUserScope(user?.id ?? null);
+		}
 	}
 
 	// Hydrate settings + progress from cloud before any component renders.
@@ -106,13 +119,18 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			await import('$lib/state/history.svelte');
 		const { loadDailySummariesFromCloud, syncAllDailySummariesToCloud } =
 			await import('$lib/persistence/sync');
-		const { initLickMetadataFromCloud, reconcileOrphanedLickMetadata } =
+		const { initLickMetadataFromCloud, runLickMetadataMaintenance } =
 			await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');
 
-		// Reconciliation must run AFTER initUserLicksFromCloud and
-		// initCommunityFromCloud finish — getAllLicks() reads both stores.
+		// Metadata maintenance (orphan reconciliation + the one-time
+		// progression-tag backfill) must run AFTER initUserLicksFromCloud and
+		// initCommunityFromCloud finish — getAllLicks() reads both stores —
+		// and ONLY when all three lick hydrations report success: a silently
+		// failed hydration leaves getAllLicks() partial, and maintenance would
+		// then prune every "unknown" metadata entry and push the emptied blobs
+		// to the cloud. runLickMetadataMaintenance enforces that gate.
 		// recomputeAllDailySummaries runs after the source-of-truth tables
 		// (progress.sessions, lick-practice-sessions) are populated; the
 		// cloud daily-summaries merge then layers cross-device and
@@ -124,7 +142,9 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			initUserLicksFromCloud(supabase),
 			initCommunityFromCloud(supabase)
 		])
-			.then(() => reconcileOrphanedLickMetadata(supabase))
+			.then(([, , metadataOk, userLicksOk, communityOk]) =>
+				runLickMetadataMaintenance(supabase, { metadataOk, userLicksOk, communityOk })
+			)
 			.then(() => recomputeAllDailySummaries())
 			.then(async () => {
 				const cloudSummaries = await loadDailySummariesFromCloud(supabase);

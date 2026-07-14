@@ -101,7 +101,9 @@
 	// landing page). Local-first: localStorage populates synchronously, cloud
 	// metadata is best-effort.
 	onMount(() => {
-		hydrateLickPracticeProgress(supabase);
+		// Client only when signed in — its presence selects cloud-backed mode
+		// inside hydrateLickPracticeProgress (see that function's docstring).
+		hydrateLickPracticeProgress(authSession ? supabase : null);
 	});
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;

@@ -961,16 +961,35 @@ export async function syncLickMetadataToCloud(
 }
 
 /**
+ * Result of a cloud lick-metadata load. The three states matter because
+ * consumers gate destructive maintenance (orphan reconciliation, the
+ * one-time progression-tag backfill) on hydration health:
+ *
+ *  - `ok`    — a cloud row exists and was read successfully.
+ *  - `empty` — the read succeeded and there is affirmatively no row
+ *              (a brand-new account). Safe to treat as hydrated.
+ *  - `error` — auth could not be verified or the query failed. The local
+ *              store may NOT reflect cloud truth; treating this like
+ *              `empty` is what lets whole-column syncs clobber cloud data.
+ */
+export type LickMetadataLoadResult =
+	| { status: 'ok'; data: LickMetadata }
+	| { status: 'empty' }
+	| { status: 'error' };
+
+/**
  * Fetch lick practice metadata from the `user_lick_metadata` table.
  *
- * Returns `null` when the user is unauthenticated or no cloud data exists.
+ * Unauthenticated / unverifiable sessions report `error` rather than
+ * `empty`: callers only reach this with a session in hand, so a missing
+ * user here means verification failed, not that the account has no data.
  */
 export async function loadLickMetadataFromCloud(
 	supabase: SupabaseDB
-): Promise<LickMetadata | null> {
+): Promise<LickMetadataLoadResult> {
 	try {
 		const userId = await getAuthUserId(supabase);
-		if (!userId) return null;
+		if (!userId) return { status: 'error' };
 
 		const { data, error } = await supabase
 			.from('user_lick_metadata')
@@ -980,11 +999,11 @@ export async function loadLickMetadataFromCloud(
 
 		if (error) {
 			console.warn('Failed to load lick metadata from cloud:', error);
-			return null;
+			return { status: 'error' };
 		}
-		if (!data) return null;
+		if (!data) return { status: 'empty' };
 
-		return {
+		const metadata: LickMetadata = {
 			lickTags: (data.lick_tags ?? {}) as unknown as Record<string, string[]>,
 			practiceProgress: (data.practice_progress ?? {}) as unknown as LickPracticeProgress,
 			tagOverrides: (data.tag_overrides ?? {}) as unknown as Record<string, string[]>,
@@ -994,8 +1013,9 @@ export async function loadLickMetadataFromCloud(
 			// null values to {} to keep loads resilient against schema drift.
 			unlockCounts: (data.unlock_counts ?? {}) as unknown as Record<string, number>
 		};
+		return { status: 'ok', data: metadata };
 	} catch (error) {
 		console.warn('Failed to load lick metadata from cloud:', error);
-		return null;
+		return { status: 'error' };
 	}
 }

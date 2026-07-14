@@ -5,7 +5,7 @@ import type { Database } from '$lib/supabase/types';
 import { save, load } from './storage';
 import { syncLickMetadataToCloud, loadLickMetadataFromCloud, type LickMetadata } from './sync';
 import { getScopeGeneration } from './user-scope';
-import { getAllLicks } from '$lib/phrases/library-loader';
+import { getAllLicks, isCuratedLickId } from '$lib/phrases/library-loader';
 import {
 	getUserLicksLocal,
 	getLickCategoryOverrides,
@@ -38,6 +38,25 @@ const PROG_TAG_PREFIX = 'prog:';
 const PRACTICE_REMOVED_TAG = 'practice:removed';
 /** Maximum unlocked keys per lick (full 12-key circle). */
 const MAX_UNLOCKED_KEYS = 12;
+
+/**
+ * Reserved key in the user-lick-tags blob holding one-time migration
+ * markers instead of a lick's tags. Living inside the cloud-synced blob is
+ * what makes a marker durable: it survives the user-scope wipe, travels to
+ * new devices, and comes back on every hydration. Consumers that enumerate
+ * tag keys as lick ids must skip reserved keys (see `isReservedTagKey` —
+ * `reconcileOrphanedLickMetadata` is the one enumerator that would
+ * otherwise prune it as an orphan).
+ */
+const MIGRATIONS_KEY = '__migrations';
+
+/** Marker recorded under MIGRATIONS_KEY once the progression-tag backfill has run. */
+const PROG_BACKFILL_MARKER = 'prog-backfill-v1';
+
+/** Reserved (non-lick-id) keys in the user-lick-tags blob start with `__`. */
+function isReservedTagKey(key: string): boolean {
+	return key.startsWith('__');
+}
 
 /**
  * Score at or above which a key is considered "proficient" — drives the
@@ -88,21 +107,43 @@ let _supabase: SupabaseClient<Database> | null = null;
  * populates localStorage only when the local store is empty (new device).
  * Sets the module-level `_supabase` reference for fire-and-forget sync
  * in subsequent write operations.
+ *
+ * Returns `true` when hydration completed (including the affirmative
+ * "no cloud row yet" case for brand-new accounts) and `false` when it
+ * could not verify cloud state (auth/network/query failure, or a user
+ * switch mid-flight). `runLickMetadataMaintenance` gates destructive
+ * maintenance on this report — see that function for why.
  */
 export async function initLickMetadataFromCloud(
 	supabase: SupabaseClient<Database>
-): Promise<void> {
+): Promise<boolean> {
 	_supabase = supabase;
 	const gen = getScopeGeneration();
 	try {
-		const cloud = await loadLickMetadataFromCloud(supabase);
-		if (!cloud) return;
-		if (gen !== getScopeGeneration()) return; // User switched mid-flight
+		const result = await loadLickMetadataFromCloud(supabase);
+		if (result.status === 'error') return false;
+		if (gen !== getScopeGeneration()) return false; // User switched mid-flight
+		if (result.status === 'empty') return true; // New account — nothing to hydrate
+		const cloud = result.data;
 
 		const localTags = load<Record<string, string[]>>(TAGS_KEY);
 		if (!localTags || Object.keys(localTags).length === 0) {
 			if (Object.keys(cloud.lickTags).length > 0) {
 				save(TAGS_KEY, cloud.lickTags);
+			}
+		} else {
+			// A populated local blob is never overwritten with cloud data — but
+			// the reserved `__migrations` entry must still merge DOWN, or a
+			// device whose local blob predates the marker would re-run one-time
+			// migrations another device already completed (and resurrect
+			// deliberately-removed tags). The union is additive and touches no
+			// lick entries, so local-first semantics are preserved.
+			const cloudMigrations = cloud.lickTags[MIGRATIONS_KEY] ?? [];
+			const localMigrations = localTags[MIGRATIONS_KEY] ?? [];
+			const missing = cloudMigrations.filter((m) => !localMigrations.includes(m));
+			if (missing.length > 0) {
+				localTags[MIGRATIONS_KEY] = [...localMigrations, ...missing];
+				save(TAGS_KEY, localTags);
 			}
 		}
 
@@ -140,8 +181,10 @@ export async function initLickMetadataFromCloud(
 				save(UNLOCK_KEY, cloudUnlocks);
 			}
 		}
+		return true;
 	} catch (error) {
 		console.warn('Failed to hydrate lick metadata from cloud:', error);
+		return false;
 	}
 }
 
@@ -177,7 +220,9 @@ export async function reconcileOrphanedLickMetadata(
 		const cleanedTags: Record<string, string[]> = {};
 		let removedTags = 0;
 		for (const [id, tagList] of Object.entries(tags)) {
-			if (knownIds.has(id)) cleanedTags[id] = tagList;
+			// Reserved keys (e.g. `__migrations`) are not lick ids — they must
+			// survive reconciliation or one-time migrations would re-run.
+			if (isReservedTagKey(id) || knownIds.has(id)) cleanedTags[id] = tagList;
 			else removedTags++;
 		}
 
@@ -225,6 +270,61 @@ export async function reconcileOrphanedLickMetadata(
 		console.warn('Failed to reconcile orphaned lick metadata:', error);
 		return 0;
 	}
+}
+
+/** Per-store cloud hydration outcomes reported by the three lick inits. */
+export interface LickHydrationStatus {
+	/** initLickMetadataFromCloud (tags / progress / overrides / unlocks). */
+	metadataOk: boolean;
+	/** initUserLicksFromCloud (the user's own licks). */
+	userLicksOk: boolean;
+	/** initCommunityFromCloud (favorites, steals, stolen payloads). */
+	communityOk: boolean;
+}
+
+/**
+ * Post-hydration metadata maintenance: orphan reconciliation followed by the
+ * one-time progression-tag backfill — gated on every lick hydration having
+ * verifiably succeeded.
+ *
+ * The gate is the point. Both maintenance steps trust local state as a
+ * faithful mirror of the cloud: the reconciler prunes metadata entries whose
+ * ids aren't in `getAllLicks()` and pushes the cleaned blobs cloudward, and
+ * the backfill judges "has this account migrated?" from the local tags blob.
+ * If any hydration failed silently (auth hiccup, network, mid-reboot
+ * backend), local state is partial — the reconciler would prune every
+ * user-lick entry as an "orphan" and sync the emptied blobs over the cloud
+ * row, and the backfill would misread an already-migrated account as
+ * unmigrated. Skipping maintenance for one session is free; recovering a
+ * clobbered cloud row is not.
+ */
+export async function runLickMetadataMaintenance(
+	supabase: SupabaseClient<Database>,
+	status: LickHydrationStatus
+): Promise<{ ran: boolean; reconciled: number; backfilled: number }> {
+	if (!status.metadataOk || !status.userLicksOk || !status.communityOk) {
+		console.warn(
+			'[lick-metadata] hydration incomplete — skipping orphan reconcile + progression-tag backfill',
+			status
+		);
+		return { ran: false, reconciled: 0, backfilled: 0 };
+	}
+
+	const gen = getScopeGeneration();
+	const reconciled = await reconcileOrphanedLickMetadata(supabase);
+	// A user switch during the (async) reconcile means the freshly-wiped
+	// store no longer belongs to the account the hydration reports vouched
+	// for — do not judge migration state from it.
+	if (gen !== getScopeGeneration()) {
+		return { ran: true, reconciled, backfilled: 0 };
+	}
+	const backfilled = backfillInferredProgressionTags();
+	if (backfilled > 0) {
+		console.info(
+			`[migration] Seeded ${backfilled} progression tag(s) from lick categories (one-time backfill).`
+		);
+	}
+	return { ran: true, reconciled, backfilled };
 }
 
 /** Debounce timers — prevents rapid writes from racing in the cloud. */
@@ -748,26 +848,109 @@ export function ensureProgressionTag(phraseId: string, type: ChordProgressionTyp
 }
 
 /**
- * Retroactively add a `prog:*` tag for every progression that lists the
- * lick's category as compatible (`getProgressionsForCategory`). Mirrors
- * what `updateLickCategory` now does on every category write, but covers
- * licks categorized before the auto-tag hook expanded beyond the
- * unambiguous-category mapping. Idempotent: `ensureProgressionTag` no-ops
- * when a tag is already present, so every subsequent run touches no new
- * tags.
+ * GUARDED ONE-TIME migration: seed a `prog:*` tag for every progression
+ * compatible with each non-curated lick's category
+ * (`getProgressionsForCategory`), for accounts whose own/adopted licks
+ * predate the explicit-tag requirement introduced by commit 00df9ab.
  *
- * After this runs, today's session inclusion behavior is preserved under
- * the new opt-in semantics: any practice-tagged lick whose category was
- * implicitly bound to a progression now carries an explicit opt-in.
+ * Background (2026-07-13 incident): progression eligibility was originally
+ * derived from `lick.category` at runtime. 00df9ab made explicit `prog:*`
+ * tags mandatory; the one-time category→tag migration that accompanied it
+ * only ran in prod May 3–20 and missed user-entered licks, which therefore
+ * had no persisted `prog:*` tags anywhere — invisible while stale cached
+ * clients still matched by category, and surfacing as "no assigned
+ * progressions" the moment a fresh client loaded.
+ *
+ * Guards — ALL must hold, so the backfill can never resurrect
+ * deliberately-removed tags (the exact reason 00df9ab dropped the
+ * unconditional hydrate-time backfill):
+ *
+ *  1. The durable `prog-backfill-v1` marker is absent. The marker is
+ *     written into the cloud-synced tags blob itself, so "has run" survives
+ *     user-scope wipes and follows the account across devices.
+ *  2. At least one non-curated (own or adopted) lick exists — a brand-new
+ *     account has nothing to migrate and is NOT stamped, keeping its blob
+ *     untouched. (Once they categorize their first lick, guard 3 stamps on
+ *     the next maintenance run, so every active account converges to
+ *     stamped.)
+ *  3. No non-curated lick carries any `prog:*` tag. One explicit tag means
+ *     the account already lives under opt-in semantics (seeded by
+ *     `updateLickCategory` or toggled by hand) — mass-seeding would trample
+ *     deliberate curation. This skip STAMPS the marker: the state is
+ *     affirmative proof of a current account, and stamping closes the hole
+ *     where removing the last prog tag later makes it look unmigrated.
+ *  4. No `practice:removed` sentinel exists anywhere in the blob. Sentinels
+ *     only exist post-00df9ab-era interaction, so their presence also marks
+ *     an already-current account. Stamps on skip, like guard 3.
+ *
+ * Curated catalog licks are excluded: their tags were migrated server-side
+ * in May (they hydrate down with the metadata blob), and seeding them here
+ * would silently opt the entire catalog into every progression for new
+ * accounts.
+ *
+ * MUST only run after cloud hydration has verifiably succeeded — the
+ * guards read the local tags blob, and a silently failed hydration makes
+ * an already-migrated account look unmigrated (then the follow-up
+ * whole-column sync clobbers the cloud row). `runLickMetadataMaintenance`
+ * enforces that gate; do not call this from an ungated path.
+ *
+ * Returns the number of tags added.
  */
 export function backfillInferredProgressionTags(): number {
+	const tags = loadUserLickTags();
+
+	// Guard 1 — durable marker: already ran for this account.
+	if (tags[MIGRATIONS_KEY]?.includes(PROG_BACKFILL_MARKER)) return 0;
+
+	// Guard 2 — nothing in scope (curated licks are excluded by design).
+	const candidates = getAllLicks().filter((lick) => !isCuratedLickId(lick.id));
+	if (candidates.length === 0) return 0;
+
+	// Guard 3 — the account already uses explicit opt-in tags. STAMP before
+	// skipping: this state is affirmative proof the account lives under the
+	// new semantics, and without the marker a user who later removes their
+	// last prog tag would make the account look unmigrated again — the
+	// resurrection hole all over.
+	const hasExplicitProgTag = candidates.some((lick) =>
+		(tags[lick.id] ?? []).some((t) => t.startsWith(PROG_TAG_PREFIX))
+	);
+	if (hasExplicitProgTag) {
+		stampProgBackfillMarker();
+		return 0;
+	}
+
+	// Guard 4 — post-00df9ab practice-removal sentinels also mark a current
+	// account; stamp for the same reason as guard 3 (sentinels can vanish if
+	// the user re-adds those licks to the practice set).
+	const hasRemovalSentinel = Object.values(tags).some((list) =>
+		list.includes(PRACTICE_REMOVED_TAG)
+	);
+	if (hasRemovalSentinel) {
+		stampProgBackfillMarker();
+		return 0;
+	}
+
 	let added = 0;
-	for (const lick of getAllLicks()) {
+	for (const lick of candidates) {
 		for (const prog of getProgressionsForCategory(lick.category)) {
 			if (ensureProgressionTag(lick.id, prog)) added++;
 		}
 	}
+
+	// Stamp the marker even when nothing was added (e.g. categories with no
+	// compatible progression): the state has been judged once; never rescan.
+	stampProgBackfillMarker();
+
 	return added;
+}
+
+/** Record the one-time progression backfill as done (idempotent, cloud-synced). */
+function stampProgBackfillMarker(): void {
+	const tags = loadUserLickTags();
+	if (tags[MIGRATIONS_KEY]?.includes(PROG_BACKFILL_MARKER)) return;
+	tags[MIGRATIONS_KEY] = [...(tags[MIGRATIONS_KEY] ?? []), PROG_BACKFILL_MARKER];
+	saveUserLickTags(tags);
+	syncLickTagsToCloud();
 }
 
 /**

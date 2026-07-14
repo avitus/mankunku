@@ -21,7 +21,7 @@ vi.stubGlobal('localStorage', {
 // Mock the sync module to prevent Supabase calls
 vi.mock('$lib/persistence/sync', () => ({
 	syncLickMetadataToCloud: vi.fn().mockResolvedValue(undefined),
-	loadLickMetadataFromCloud: vi.fn().mockResolvedValue(null),
+	loadLickMetadataFromCloud: vi.fn().mockResolvedValue({ status: 'empty' }),
 	syncSettingsToCloud: vi.fn().mockResolvedValue(undefined),
 	loadSettingsFromCloud: vi.fn().mockResolvedValue(null),
 	syncProgressToCloud: vi.fn().mockResolvedValue(undefined),

@@ -584,9 +584,139 @@ describe('Server Hook — safeGetSession', () => {
 		const result = await event.locals.safeGetSession();
 		expect(result.session).toBeNull();
 		expect(result.user).toBeNull();
+		// A definitive rejection is a real verdict — NOT a degraded outcome,
+		// so downstream user-scope reconciliation may treat it as signed out.
+		expect(result.degraded).toBe(false);
 
 		// Verify getUser() was still called even though session existed
 		expect(mockSupabase.auth.getUser).toHaveBeenCalled();
+	});
+
+	it('reports degraded=false when there is simply no cookie session', async () => {
+		mockSupabase.auth.getSession.mockResolvedValue({
+			data: { session: null }
+		});
+
+		const event = {
+			locals: {} as any,
+			cookies: createMockCookies()
+		};
+		const resolve = vi.fn(async () => new Response('OK'));
+
+		await handle({ event, resolve } as any);
+
+		const result = await event.locals.safeGetSession();
+		expect(result.session).toBeNull();
+		expect(result.user).toBeNull();
+		expect(result.degraded).toBe(false);
+	});
+
+	it('reports degraded=true when getUser() fails with a retryable network error', async () => {
+		// The 2026-07-13 incident shape: the auth backend is mid-reboot, the
+		// cookie session is perfectly valid, and getUser() fails at the
+		// transport level. The null user must NOT read as a sign-out — that is
+		// what let +layout.ts wipe localStorage during the outage.
+		const mockSession = {
+			access_token: 'valid-token',
+			user: { id: 'user-123', email: 'test@example.com' }
+		};
+
+		mockSupabase.auth.getSession.mockResolvedValue({
+			data: { session: mockSession }
+		});
+		mockSupabase.auth.getUser.mockResolvedValue({
+			data: { user: null },
+			error: { name: 'AuthRetryableFetchError', status: 0, message: 'fetch failed' }
+		});
+
+		const event = {
+			locals: {} as any,
+			cookies: createMockCookies()
+		};
+		const resolve = vi.fn(async () => new Response('OK'));
+
+		await handle({ event, resolve } as any);
+
+		const result = await event.locals.safeGetSession();
+		expect(result.session).toBeNull();
+		expect(result.user).toBeNull();
+		expect(result.degraded).toBe(true);
+	});
+
+	it('reports degraded=true when the cookie-session refresh fails on the network', async () => {
+		// getSession() itself performs a refresh round-trip when the access
+		// token is expired; with the backend down that returns an error and a
+		// null session even though the user never signed out.
+		mockSupabase.auth.getSession.mockResolvedValue({
+			data: { session: null },
+			error: { name: 'AuthRetryableFetchError', status: 0, message: 'fetch failed' }
+		});
+
+		const event = {
+			locals: {} as any,
+			cookies: createMockCookies()
+		};
+		const resolve = vi.fn(async () => new Response('OK'));
+
+		await handle({ event, resolve } as any);
+
+		const result = await event.locals.safeGetSession();
+		expect(result.session).toBeNull();
+		expect(result.user).toBeNull();
+		expect(result.degraded).toBe(true);
+	});
+
+	it('reports degraded=true when getUser() throws outright', async () => {
+		const mockSession = {
+			access_token: 'valid-token',
+			user: { id: 'user-123', email: 'test@example.com' }
+		};
+
+		mockSupabase.auth.getSession.mockResolvedValue({
+			data: { session: mockSession }
+		});
+		mockSupabase.auth.getUser.mockRejectedValue(new TypeError('fetch failed'));
+
+		const event = {
+			locals: {} as any,
+			cookies: createMockCookies()
+		};
+		const resolve = vi.fn(async () => new Response('OK'));
+
+		await handle({ event, resolve } as any);
+
+		const result = await event.locals.safeGetSession();
+		expect(result.session).toBeNull();
+		expect(result.user).toBeNull();
+		expect(result.degraded).toBe(true);
+	});
+
+	it('reports degraded=false on a fully verified session', async () => {
+		const mockSession = {
+			access_token: 'valid-token',
+			user: { id: 'user-123', email: 'test@example.com' }
+		};
+		const mockUser = { id: 'user-123', email: 'test@example.com' };
+
+		mockSupabase.auth.getSession.mockResolvedValue({
+			data: { session: mockSession }
+		});
+		mockSupabase.auth.getUser.mockResolvedValue({
+			data: { user: mockUser },
+			error: null
+		});
+
+		const event = {
+			locals: {} as any,
+			cookies: createMockCookies()
+		};
+		const resolve = vi.fn(async () => new Response('OK'));
+
+		await handle({ event, resolve } as any);
+
+		const result = await event.locals.safeGetSession();
+		expect(result.user).toEqual(mockUser);
+		expect(result.degraded).toBe(false);
 	});
 });
 

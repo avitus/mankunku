@@ -422,15 +422,22 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 		});
 
 		mockLoadLickMetadata.mockResolvedValue({
-			lickTags: { 'lick-1': ['practice'] },
-			practiceProgress: { 'lick-1': { C: { currentTempo: 120, lastPracticedAt: 1, passCount: 3 } } },
-			tagOverrides: { 'curated-1': ['practice'] },
-			categoryOverrides: { 'curated-2': 'modal' },
-			unlockCounts: { 'lick-1': 5 }
+			status: 'ok',
+			data: {
+				lickTags: { 'lick-1': ['practice'] },
+				practiceProgress: { 'lick-1': { C: { currentTempo: 120, lastPracticedAt: 1, passCount: 3 } } },
+				tagOverrides: { 'curated-1': ['practice'] },
+				categoryOverrides: { 'curated-2': 'modal' },
+				unlockCounts: { 'lick-1': 5 }
+			}
 		});
 
 		const supabase = { auth: {} };
-		await lickStore.initLickMetadataFromCloud(supabase as never);
+		const ok = await lickStore.initLickMetadataFromCloud(supabase as never);
+
+		// The mid-flight switch must also be reported as a failed hydration so
+		// downstream maintenance (reconcile + backfill) stays gated off.
+		expect(ok).toBe(false);
 
 		// None of the four lick-metadata localStorage keys should have landed.
 		expect(store.has('mankunku:user-lick-tags')).toBe(false);
@@ -447,20 +454,64 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 		getScopeGenerationMock.mockReturnValue(0);
 
 		mockLoadLickMetadata.mockResolvedValue({
-			lickTags: { 'lick-1': ['practice'] },
-			practiceProgress: {},
-			tagOverrides: {},
-			categoryOverrides: {},
-			unlockCounts: {}
+			status: 'ok',
+			data: {
+				lickTags: { 'lick-1': ['practice'] },
+				practiceProgress: {},
+				tagOverrides: {},
+				categoryOverrides: {},
+				unlockCounts: {}
+			}
 		});
 
 		const supabase = { auth: {} };
-		await lickStore.initLickMetadataFromCloud(supabase as never);
+		const ok = await lickStore.initLickMetadataFromCloud(supabase as never);
 
+		expect(ok).toBe(true);
 		expect(store.has('mankunku:user-lick-tags')).toBe(true);
 		expect(JSON.parse(store.get('mankunku:user-lick-tags')!)).toEqual({
 			'lick-1': ['practice']
 		});
+	});
+
+	it('merges the cloud __migrations marker into a populated local blob (marker durability)', async () => {
+		vi.resetModules();
+		const lickStore = await import('$lib/persistence/lick-practice-store');
+
+		getScopeGenerationMock.mockReturnValue(0);
+
+		// Device B: local tags blob predates the marker another device stamped.
+		store.set(
+			'mankunku:user-lick-tags',
+			JSON.stringify({ 'lick-local': ['practice', 'prog:blues'] })
+		);
+
+		mockLoadLickMetadata.mockResolvedValue({
+			status: 'ok',
+			data: {
+				lickTags: {
+					'lick-cloud': ['practice'],
+					'__migrations': ['prog-backfill-v1']
+				},
+				practiceProgress: {},
+				tagOverrides: {},
+				categoryOverrides: {},
+				unlockCounts: {}
+			}
+		});
+
+		const supabase = { auth: {} };
+		const ok = await lickStore.initLickMetadataFromCloud(supabase as never);
+
+		expect(ok).toBe(true);
+		const localTags = JSON.parse(store.get('mankunku:user-lick-tags')!);
+		// Local lick entries are untouched (populated local always wins) and
+		// the cloud lick entries do NOT overwrite them...
+		expect(localTags['lick-local']).toEqual(['practice', 'prog:blues']);
+		expect(localTags['lick-cloud']).toBeUndefined();
+		// ...but the reserved marker merges down, so this device can never
+		// re-run a one-time migration another device already completed.
+		expect(localTags['__migrations']).toContain('prog-backfill-v1');
 	});
 });
 
