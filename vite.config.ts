@@ -1,13 +1,25 @@
+import { existsSync } from 'node:fs';
 import { sentrySvelteKit } from "@sentry/sveltekit";
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vitest/config';
 
+// Release creation + source-map upload need a Sentry auth token (SENTRY_AUTH_TOKEN
+// env var or the local .env.sentry-build-plugin file). Skip the upload step for
+// throwaway e2e builds (PLAYWRIGHT=1, set by playwright.config.ts webServer) and
+// for token-less environments (e.g. CI e2e), where sentry-vite-plugin would only
+// emit "No auth token" warnings on every build. autoInstrument is unaffected, so
+// the built app matches production either way.
+const uploadSourceMaps =
+    !process.env.PLAYWRIGHT &&
+    (Boolean(process.env.SENTRY_AUTH_TOKEN) || existsSync('.env.sentry-build-plugin'));
+
 export default defineConfig({
 	plugins: [sentrySvelteKit({
         org: "veetle",
-        project: "mankunku"
+        project: "mankunku",
+        autoUploadSourceMaps: uploadSourceMaps
     }), tailwindcss(), sveltekit(), SvelteKitPWA({
         registerType: 'autoUpdate',
         manifest: {
