@@ -30,7 +30,7 @@ Newest at the top.
 - Fix (data-only, no runtime changes): re-rated the 11 chromatic licks to 44-58, calibrated against `ii-V-I-major.ts` anchors and the tier floors in `difficulty/params.ts` (chromaticism = tier 5 = level 31+). 29 of 40 licks stay ≤ 20, preserving the collection's diatonic 4th/7th purpose.
 - Regression guard: new `tests/unit/data/difficulty-calibration.test.ts` — content-based (pitch-class analysis, NOT tags; tags proved unreliable — diatonic licks carry `enclosure`/`bebop` tags). Asserts any major-session-reachable progression lick with non-diatonic notes is rated ≥ the derived tier-5 floor. Exported `PROGRESSION_CATEGORIES` from library-loader for it. Also fixed `major-4-7.test.ts`, which literally asserted all levels ≤ 20 — a test enshrining the bug.
 - One plan deviation: m47-031 "Altered Dominant Descent" landed at 58, not the planned 66 — the existing data-integrity test (declared level within ±35 of `calculateDifficulty()`) caps it; the lick is rhythmically simple, so 66 overshot.
-- 2172 tests pass, check clean. Not committed (user hasn't asked).
+- 2172 tests pass, check clean. Later committed as `e90d590` and shipped with the vol. 2 collection in PR #153 (all checks green, CodeRabbit's one finding — a too-weak overlap check in the well-formedness test — adopted in `189bf17` and mirrored into the older test file).
 
 **Notes:**
 
