@@ -33,6 +33,11 @@ Mistake to avoid: assuming "Bb instrument" always means "major 2nd transposition
 
 ## Working agreements (lessons distilled from past sessions)
 
+### Eliminate warnings wherever possible
+Builds, tests, and CI output should be warning-free as far as possible. A constant stream of warnings buries real signal and trains everyone to ignore the log. When a tool emits a warning on every run (e.g. sentry-vite-plugin's "No auth token" in token-less CI e2e builds, silenced 2026-07-14 by gating `autoUploadSourceMaps` in `vite.config.ts`), either fix the underlying cause or configure the tool so the warning legitimately doesn't apply — don't leave it to scroll by.
+
+**How to apply:** When you introduce or notice a recurring warning in build/test/CI output, treat it as a defect: silence it at the source in the same change, or flag it explicitly if out of scope.
+
 ### Display written pitch in the UI — never concert
 Every key, note, pitch class, or tonality label rendered in the UI must be in the user's written pitch. This applies everywhere: home page tonality labels, practice/scales headers, key selectors, chord charts, progress displays, session reports, lick card tags, diagnostics. No exceptions.
 
