@@ -3,10 +3,15 @@
  * pentatonic gap (it otherwise carries no 4th or 7th).
  *
  * These deliberately feature the 4th (F in concert C) and 7th (B) so a major
- * session covers the full scale. Front-loaded to difficulty levels 1-20, which
- * is where the pool was previously almost entirely pentatonic.
+ * session covers the full scale. Diatonic content is front-loaded to
+ * difficulty levels 1-20, which is where the pool was previously almost
+ * entirely pentatonic. Chromatic ii-V-I vocabulary is rated per the content
+ * tier floors in difficulty/params.ts (chromaticism enters at tier 5 = level
+ * 31+), matching the calibration of ii-V-I-major.ts — the ear-training filter
+ * gates on difficulty.level alone, so a low level would put bebop chromaticism
+ * on beginner ears (see tests/unit/data/difficulty-calibration.test.ts).
  *
- * Two harmonic frames, ~20 each, spread across difficulty levels 1-20:
+ * Two harmonic frames, ~20 each:
  *
  *  - SINGLE-CHORD MAJOR (`scaleId: 'major.ionian'`): play over the tonic in a
  *    major session. These take the snap-to-scale path at runtime, so they are
@@ -523,7 +528,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }  // E4  — resolve to 3rd
 		],
 		harmony: II_V_I,
-		difficulty: { level: 20, pitchComplexity: 14, rhythmComplexity: 13, lengthBars: 3 },
+		difficulty: { level: 55, pitchComplexity: 55, rhythmComplexity: 50, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'bebop-scale', 'chromatic'],
 		source: 'curated'
@@ -545,7 +550,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 1], offset: [2, 1] }  // G4  — resolve (5 of Cmaj7)
 		],
 		harmony: II_V_I,
-		difficulty: { level: 13, pitchComplexity: 15, rhythmComplexity: 8, lengthBars: 3 },
+		difficulty: { level: 53, pitchComplexity: 54, rhythmComplexity: 40, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'b9', 'altered', 'arpeggio'],
 		source: 'curated'
@@ -569,7 +574,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [9, 4] }  // E4  — target (3 of Cmaj7)
 		],
 		harmony: II_V_I,
-		difficulty: { level: 14, pitchComplexity: 15, rhythmComplexity: 12, lengthBars: 3 },
+		difficulty: { level: 44, pitchComplexity: 44, rhythmComplexity: 42, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'enclosure', 'chromatic'],
 		source: 'curated'
@@ -617,7 +622,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }  // E4 — resolve
 		],
 		harmony: II_V_I,
-		difficulty: { level: 15, pitchComplexity: 15, rhythmComplexity: 14, lengthBars: 3 },
+		difficulty: { level: 46, pitchComplexity: 46, rhythmComplexity: 45, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'chromatic', 'approach'],
 		source: 'curated'
@@ -669,7 +674,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 1], offset: [2, 1] }  // B4  — resolve to maj7 (7)
 		],
 		harmony: II_V_I,
-		difficulty: { level: 17, pitchComplexity: 16, rhythmComplexity: 15, lengthBars: 3 },
+		difficulty: { level: 50, pitchComplexity: 50, rhythmComplexity: 52, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'bebop', 'chromatic'],
 		source: 'curated'
@@ -691,7 +696,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }  // E4  — resolve to 3rd
 		],
 		harmony: II_V_I,
-		difficulty: { level: 17, pitchComplexity: 17, rhythmComplexity: 9, lengthBars: 3 },
+		difficulty: { level: 58, pitchComplexity: 60, rhythmComplexity: 40, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', 'altered', 'b9', 'b13'],
 		source: 'curated'
@@ -741,7 +746,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 1], offset: [2, 1] }  // B4  — resolve (7)
 		],
 		harmony: II_V_I,
-		difficulty: { level: 20, pitchComplexity: 17, rhythmComplexity: 16, lengthBars: 3 },
+		difficulty: { level: 55, pitchComplexity: 55, rhythmComplexity: 54, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'parker', 'bebop', 'chromatic'],
 		source: 'curated'
@@ -793,7 +798,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 67, duration: [1, 1], offset: [2, 1] }  // G4  — resolve to 5
 		],
 		harmony: II_V_I,
-		difficulty: { level: 19, pitchComplexity: 18, rhythmComplexity: 15, lengthBars: 3 },
+		difficulty: { level: 56, pitchComplexity: 57, rhythmComplexity: 52, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'diminished', 'b9', 'chromatic'],
 		source: 'curated'
@@ -821,7 +826,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 71, duration: [1, 2], offset: [5, 2] }  // B4  — maj7 (7)
 		],
 		harmony: II_V_I,
-		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 17, lengthBars: 3 },
+		difficulty: { level: 54, pitchComplexity: 55, rhythmComplexity: 54, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'bebop', 'line', 'chromatic'],
 		source: 'curated'
@@ -847,7 +852,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 2], offset: [9, 4] }  // E4  — target
 		],
 		harmony: II_V_I,
-		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 16, lengthBars: 3 },
+		difficulty: { level: 52, pitchComplexity: 52, rhythmComplexity: 50, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'enclosure', 'chromatic'],
 		source: 'curated'
@@ -927,7 +932,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }  // E4  — resolve (3)
 		],
 		harmony: II_V_I,
-		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 16, lengthBars: 3 },
+		difficulty: { level: 56, pitchComplexity: 56, rhythmComplexity: 54, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'parker', 'confirmation', 'chromatic'],
 		source: 'curated'

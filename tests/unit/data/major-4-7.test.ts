@@ -28,10 +28,13 @@ describe('major 4th & 7th licks', () => {
 		}
 	});
 
-	it('every lick sits between difficulty level 1 and 20', () => {
+	it('diatonic licks are front-loaded to levels 1-20; chromatic licks sit at/above the tier-5 floor', () => {
 		for (const lick of MAJOR_4_7_LICKS) {
-			expect(lick.difficulty.level, lick.id).toBeGreaterThanOrEqual(1);
-			expect(lick.difficulty.level, lick.id).toBeLessThanOrEqual(20);
+			const chromatic = lick.notes.some(
+				(n) => n.pitch !== null && !DIATONIC_C.has(n.pitch % 12)
+			);
+			expect(lick.difficulty.level, lick.id).toBeGreaterThanOrEqual(chromatic ? 31 : 1);
+			expect(lick.difficulty.level, lick.id).toBeLessThanOrEqual(chromatic ? 100 : 20);
 		}
 	});
 
