@@ -12,7 +12,7 @@ import { defineConfig } from 'vitest/config';
 // emit "No auth token" warnings on every build. autoInstrument is unaffected, so
 // the built app matches production either way.
 const uploadSourceMaps =
-    !process.env.PLAYWRIGHT &&
+    process.env.PLAYWRIGHT !== '1' &&
     (Boolean(process.env.SENTRY_AUTH_TOKEN) || existsSync('.env.sentry-build-plugin'));
 
 export default defineConfig({
