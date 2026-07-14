@@ -368,7 +368,8 @@ describe('listCommunityLicks', () => {
 			}
 		}) as Parameters<typeof initCommunityFromCloud>[0];
 
-		await initCommunityFromCloud(sb);
+		// An affirmatively-empty steal set is still a faithful hydration.
+		await expect(initCommunityFromCloud(sb)).resolves.toBe(true);
 
 		const localFavs = getFavoritesLocal();
 		expect(localFavs.has('lick-X')).toBe(true);
@@ -480,6 +481,45 @@ describe('listCommunityLicks', () => {
 
 		const payloads = getStolenLicksLocal();
 		expect(payloads.map((p) => p.id).sort()).toEqual(['steal-X', 'steal-Y']);
+	});
+
+	it('reports failure when the steal fetch errors (gates downstream maintenance)', async () => {
+		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+
+		// A failed steal fetch leaves the stolen-lick caches stale, so
+		// getAllLicks() may be missing adopted licks — the hydration report
+		// must be false so metadata maintenance stays gated off.
+		const sb = {
+			auth: {
+				getUser: vi
+					.fn()
+					.mockResolvedValue({ data: { user: { id: 'user-A' } }, error: null })
+			},
+			from: vi.fn((table: string) => ({
+				select: vi.fn().mockReturnValue({
+					eq: vi.fn().mockResolvedValue(
+						table === 'lick_adoptions'
+							? { data: null, error: { message: 'network error' } }
+							: { data: [], error: null }
+					)
+				})
+			}))
+		} as never;
+
+		await expect(initCommunityFromCloud(sb)).resolves.toBe(false);
+	});
+
+	it('reports failure when auth is unverifiable', async () => {
+		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+
+		const sb = {
+			auth: {
+				getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null })
+			},
+			from: vi.fn()
+		} as never;
+
+		await expect(initCommunityFromCloud(sb)).resolves.toBe(false);
 	});
 
 	it('filters by author name client-side', async () => {

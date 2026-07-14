@@ -22,6 +22,7 @@ import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import type { Database } from '$lib/supabase/types';
+import { isAuthVerificationUnavailable } from '$lib/supabase/auth-errors';
 
 /**
  * Playwright test-only escape hatch.
@@ -151,7 +152,7 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
             user: syntheticUser
         };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        event.locals.safeGetSession = async () => ({ session: syntheticSession as any, user: syntheticUser as any });
+        event.locals.safeGetSession = async () => ({ session: syntheticSession as any, user: syntheticUser as any, degraded: false });
         return resolve(event, {
             filterSerializedResponseHeaders(name) {
                 return name === 'content-range' || name === 'x-supabase-api-version';
@@ -198,40 +199,71 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
      * verification, which is insufficient for authorization decisions. The `getUser()`
      * call ensures the token hasn't been tampered with, revoked, or expired.
      *
-     * @returns An object with `session` (verified Session or null) and `user` (verified User or null)
+     * The `degraded` flag separates two "no verified user" outcomes that must be
+     * handled differently downstream: `degraded: false` means Supabase Auth gave a
+     * verdict (no cookie session, or an affirmatively rejected token), while
+     * `degraded: true` means the verdict is UNKNOWN — the auth server was
+     * unreachable (network failure, reboot, 5xx). Client-side user-scope
+     * reconciliation (`+layout.ts` → `syncUserScope`) only treats a null user as a
+     * sign-out when the verdict is trustworthy; wiping on an unknown verdict is
+     * how a transient backend outage destroyed local-first data on 2026-07-13.
+     *
+     * @returns An object with `session` (verified Session or null), `user`
+     *   (verified User or null), and `degraded` (true when auth verification
+     *   was unavailable rather than negative)
      */
     event.locals.safeGetSession = async () => {
-        // Step 1: Read session from cookies (no network call, reads JWT from cookie)
-        const {
-            data: { session }
-        } = await event.locals.supabase.auth.getSession();
+        try {
+            // Step 1: Read session from cookies. Normally no network call, but a
+            // cookie session past its access-token expiry triggers a refresh
+            // round-trip here — which fails when the auth backend is down.
+            const {
+                data: { session },
+                error: sessionError
+            } = await event.locals.supabase.auth.getSession();
 
-        // If no session exists in cookies, return null for both session and user
-        if (!session) {
-            return { session: null, user: null };
+            // No session in cookies: a genuine signed-out state when there was no
+            // error (or a definitive one), degraded when the refresh network call
+            // is what failed.
+            if (!session) {
+                return {
+                    session: null,
+                    user: null,
+                    degraded: isAuthVerificationUnavailable(sessionError)
+                };
+            }
+
+            // Step 2: Validate the JWT by contacting the Supabase Auth server.
+            // This is the CRITICAL security step — getSession() alone is not sufficient
+            // for authorization because it only reads unverified data from cookies.
+            const {
+                data: { user },
+                error
+            } = await event.locals.supabase.auth.getUser();
+
+            // If JWT validation fails or user is null, discard the session. The
+            // degraded flag records whether that was a real rejection (expired,
+            // revoked, tampered) or the auth server simply couldn't be reached.
+            if (error || !user) {
+                return {
+                    session: null,
+                    user: null,
+                    degraded: isAuthVerificationUnavailable(error)
+                };
+            }
+
+            // Replace `session.user` (a Supabase warning-proxy on the server) with
+            // the verified user from getUser(). Without this, SvelteKit's JSON
+            // serialization of the load function's return value reads
+            // `session.user.<prop>` and the proxy logs a noisy "could be insecure!"
+            // warning on every request — even though the user IS verified.
+            return { session: { ...session, user }, user, degraded: false };
+        } catch (error) {
+            // A thrown error is a transport-level failure (auth-js normally
+            // returns errors rather than throwing) — the token was never judged.
+            console.warn('safeGetSession: auth verification unavailable:', error);
+            return { session: null, user: null, degraded: true };
         }
-
-        // Step 2: Validate the JWT by contacting the Supabase Auth server.
-        // This is the CRITICAL security step — getSession() alone is not sufficient
-        // for authorization because it only reads unverified data from cookies.
-        const {
-            data: { user },
-            error
-        } = await event.locals.supabase.auth.getUser();
-
-        // If JWT validation fails (expired, revoked, tampered) or user is null,
-        // discard the session — both a valid error and a missing user indicate
-        // an invalid auth state.
-        if (error || !user) {
-            return { session: null, user: null };
-        }
-
-        // Replace `session.user` (a Supabase warning-proxy on the server) with
-        // the verified user from getUser(). Without this, SvelteKit's JSON
-        // serialization of the load function's return value reads
-        // `session.user.<prop>` and the proxy logs a noisy "could be insecure!"
-        // warning on every request — even though the user IS verified.
-        return { session: { ...session, user }, user };
     };
 
     // Resolve the request, filtering response headers to allow Supabase-specific

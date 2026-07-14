@@ -11,7 +11,16 @@ declare global {
 		}
 		interface Locals {
 			supabase: SupabaseClient<Database>;
-			safeGetSession: () => Promise<{ session: Session | null; user: User | null }>;
+			/**
+			 * `degraded: true` means auth verification was UNAVAILABLE (network /
+			 * backend failure) rather than negative — a null user then carries no
+			 * signed-out verdict and must not trigger client-side data wipes.
+			 */
+			safeGetSession: () => Promise<{
+				session: Session | null;
+				user: User | null;
+				degraded: boolean;
+			}>;
 		}
 		interface PageData {
 			session: Session | null;

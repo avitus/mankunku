@@ -4,6 +4,16 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-07-14 — "Absence of evidence read as evidence of absence" is this codebase's recurring data-loss shape
+
+The progression-tags incident fix turned out to be the same bug three times in different clothes: `safeGetSession` read *couldn't reach the auth server* as *signed out* (→ wipe); the hydrators read *fetch failed* as *account is empty* (→ reconciler prunes everything and pushes the emptied blobs cloudward); and the whole incident existed because a stale client read *no explicit prog tag* as *category matching still applies*. Every fix was the same move — split "verified negative" from "verification unavailable" and make the destructive action require the verified form. In a local-first + cloud-sync architecture, **any code that deletes or overwrites based on what it *didn't* find must first prove the absence is real.** That's now enforced in three places (degraded flag, hydration reports, maintenance gate), but the pattern predicts future bugs anywhere a `null` return conflates "no" with "unknown" — `getAuthUserId` still returns one null for both, and the whole-column LWW sync (follow-up) still trusts whatever blob is local.
+
+Second, smaller keep: **one-time migration markers can live inside the data they migrate.** The `__migrations` reserved key inside the cloud-synced tags blob is the only place a flag survives both the user-scope wipe and device switches without a schema change — but it only works because every consumer that enumerates blob keys as lick ids now knows to skip reserved keys. An unwritten invariant ("all keys are lick ids") had to become a written one (`isReservedTagKey`) before the trick was safe. When smuggling metadata into a keyed collection, enumerate the enumerators first.
+
+Third: the adversarial review workflow caught what single-pass review reliably misses — not the bugs in the new code, but the **old code paths the new invariant doesn't cover** (the ungated `hydrateLickPracticeProgress` writers, the 429 that auth-js refuses to classify as retryable, the missing `depends()` that would have made a transient verdict permanent). The lens that pays is "where else does this same class of write happen," not "is this diff correct."
+
+---
+
 ## 2026-06-30 — A defect and a feature can be the same mechanism; map invariants before ambitions
 
 **Same boundary, opposite meaning.** The tenor-sax "two instruments" bug was note velocity landing exactly on the sample-layer split, so random jitter flipped each note between the soft and loud recordings. The fix wasn't to move velocity *away* from the split — it was to stop letting *noise* decide and start letting *musical intent* decide. Under noise the threshold is a glitch; under a dynamics model it's a free pp→ff timbre control (accents cross into the bright forte samples, ghosts fall into the dark piano samples). When something on a threshold misbehaves, the question isn't always "how do I get off the threshold" — sometimes it's "what *should* be driving which side of it." The threshold was fine; the driver was wrong.

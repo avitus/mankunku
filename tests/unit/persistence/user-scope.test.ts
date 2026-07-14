@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { syncUserScope, getScopeGeneration } from '$lib/persistence/user-scope';
+import {
+	syncUserScope,
+	wipeUserScopeOnSignOut,
+	getScopeGeneration
+} from '$lib/persistence/user-scope';
 import { saveRecording, getAllRecordingSummaries } from '$lib/persistence/audio-store';
 import { expectNoMankunkuKeysExcept } from '../../helpers/storage-snapshot';
 
@@ -99,7 +103,12 @@ describe('syncUserScope', () => {
 		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-B');
 	});
 
-	it('logout (currentUserId null, marker set) → clears and removes marker', async () => {
+	it('null user (signed out / expired cookies / auth outage) → NO wipe, marker retained', async () => {
+		// A null user is not an affirmative sign-out: it is also what expired
+		// cookies, a revoked token, or an auth backend that destroyed the
+		// session cookies mid-outage produce. Wiping here is how the
+		// 2026-07-13 incident destroyed local-first data. Explicit sign-out
+		// hygiene lives in wipeUserScopeOnSignOut() (tested below).
 		seedMarker('user-A');
 		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
 		session._store['backing-track-log'] = JSON.stringify([{ phraseId: 'p1' }]);
@@ -107,11 +116,54 @@ describe('syncUserScope', () => {
 
 		const { cleared } = await syncUserScope(null);
 
+		expect(cleared).toBe(false);
+		expect(getScopeGeneration()).toBe(genBefore);
+		expect(local._store['mankunku:user-licks']).toBeDefined();
+		expect(session._store['backing-track-log']).toBeDefined();
+		// Marker retained: a LATER different-user sign-in must still wipe.
+		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-A');
+	});
+
+	it('null user then a different user signs in → wipe still happens at the switch', async () => {
+		// Closes the old signed-out → next-account absorption gap: because the
+		// marker survives the null-user phase, user B's sign-in is recognized
+		// as a switch away from user A and wipes A's residue.
+		seedMarker('user-A');
+		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-A' }]);
+
+		await syncUserScope(null); // cookie expiry / signed-out phase
+		expect(local._store['mankunku:user-licks']).toBeDefined();
+
+		const { cleared } = await syncUserScope('user-B');
+
 		expect(cleared).toBe(true);
+		expect(local._store['mankunku:user-licks']).toBeUndefined();
+		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-B');
+	});
+
+	it('null user then the SAME user returns → data intact, no wipe', async () => {
+		seedMarker('user-A');
+		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-A' }]);
+
+		await syncUserScope(null);
+		const { cleared } = await syncUserScope('user-A');
+
+		expect(cleared).toBe(false);
+		expect(local._store['mankunku:user-licks']).toBeDefined();
+	});
+
+	it('wipeUserScopeOnSignOut (explicit logout) → clears everything and removes marker', async () => {
+		seedMarker('user-A');
+		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
+		session._store['backing-track-log'] = JSON.stringify([{ phraseId: 'p1' }]);
+		const genBefore = getScopeGeneration();
+
+		await wipeUserScopeOnSignOut();
+
 		expect(getScopeGeneration()).toBe(genBefore + 1);
 		expect(local._store['mankunku:user-licks']).toBeUndefined();
 		expect(session._store['backing-track-log']).toBeUndefined();
-		// Marker removed when unauthenticated
+		// Marker removed — the browser returns to a clean anonymous state.
 		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
 	});
 
@@ -251,17 +303,31 @@ describe('syncUserScope — negative-property wipe', () => {
 		}
 	}
 
-	it('logout removes every mankunku: key (only __lastUserId removed, no settings remnant)', async () => {
+	it('explicit sign-out removes every mankunku: key (marker removed, no settings remnant)', async () => {
+		seedMarker('user-A');
+		seedAllKnownKeys();
+
+		await wipeUserScopeOnSignOut();
+
+		// Explicit logout: marker removed, no theme to preserve in this seed
+		// (the seed `settings` blob has `{ seeded: true }` and no `theme`
+		// field). Therefore NO mankunku key should remain at all.
+		expectNoMankunkuKeysExcept(local, []);
+		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
+	});
+
+	it('a null user (non-explicit) leaves every mankunku: key in place', async () => {
 		seedMarker('user-A');
 		seedAllKnownKeys();
 
 		await syncUserScope(null);
 
-		// Logout: marker removed, no theme to preserve in this seed (the seed
-		// `settings` blob has `{ seeded: true }` and no `theme` field).
-		// Therefore NO mankunku key should remain at all.
-		expectNoMankunkuKeysExcept(local, []);
-		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
+		// Cookie expiry / auth outage: nothing is removed — including the
+		// marker, so a later different-user sign-in still triggers the wipe.
+		for (const k of KNOWN_KEYS) {
+			expect(local._store[k]).toBeDefined();
+		}
+		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-A');
 	});
 
 	it('user switch removes every mankunku: key except theme blob (settings has only theme)', async () => {
@@ -281,18 +347,18 @@ describe('syncUserScope — negative-property wipe', () => {
 		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-B');
 	});
 
-	it('theme survives a logout when present (parity with the user-switch path)', async () => {
+	it('theme survives an explicit sign-out when present (parity with the user-switch path)', async () => {
 		seedMarker('user-A');
 		local._store['mankunku:settings'] = JSON.stringify({
 			theme: 'light',
 			defaultTempo: 120
 		});
 
-		await syncUserScope(null);
+		await wipeUserScopeOnSignOut();
 
 		// Same theme-preservation rule as user-switch: the wipe is the same
-		// branch. This pins down the parity so a future refactor can't quietly
-		// drop the theme on logout while keeping it on switch.
+		// code path. This pins down the parity so a future refactor can't
+		// quietly drop the theme on logout while keeping it on switch.
 		const restored = JSON.parse(local._store['mankunku:settings']!) as { theme?: string };
 		expect(restored.theme).toBe('light');
 		expect((restored as { defaultTempo?: number }).defaultTempo).toBeUndefined();

@@ -56,6 +56,15 @@ export function getAllLicks(): Phrase[] {
 	return [...ALL_CURATED_LICKS, ...userLicks, ...stolenDeduped];
 }
 
+/**
+ * True when the id belongs to the built-in curated catalog (as opposed to a
+ * user-recorded or community-adopted lick). Backed by the module-load index,
+ * so lookups are O(1).
+ */
+export function isCuratedLickId(id: string): boolean {
+	return byId.has(id);
+}
+
 /** Get a single lick by ID */
 export function getLickById(id: string): Phrase | undefined {
 	return (

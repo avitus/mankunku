@@ -70,7 +70,7 @@ import {
 	KEY_PROFICIENT_THRESHOLD,
 	KEY_FLOOR_THRESHOLD
 } from '$lib/persistence/lick-practice-store';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import {
 	PROGRESSION_TEMPLATES,
@@ -179,31 +179,49 @@ export const lickPractice = $state<{
  * When a Supabase client is provided, also hydrates lick metadata from
  * the cloud (practice tags, progression tags, per-key progress, curated
  * lick overrides). This ensures cross-device sync on first visit.
+ *
+ * Cloud-backed mode requires BOTH a client and a session — the gate lives
+ * here (not at call sites) so no route can forget it; anonymous users
+ * always get the local-only path (and skip a wasted network round-trip).
+ * In cloud mode, the tag-writing maintenance below is gated on the
+ * hydration succeeding: `backfillPracticeTags` and
+ * `migrateOrphanLickCategories` both write to the tags blob and trigger a
+ * debounced WHOLE-COLUMN push to `user_lick_metadata.lick_tags`, so running
+ * them over a store that failed to hydrate would sync a partial/empty blob
+ * over the intact cloud row (the 2026-07-13 incident class). In local-only
+ * mode they always run — there is no cloud counterpart to clobber and no
+ * hydration to wait for.
  */
 export async function hydrateLickPracticeProgress(
-	supabase?: SupabaseClient<Database> | null
+	supabase?: SupabaseClient<Database> | null,
+	session?: Session | null
 ): Promise<void> {
-	// Hydrate cloud metadata first so localStorage is populated before
-	// we read from it below.  Swallow errors (network/auth failure) so
-	// the session can still proceed with local-only data — the app is
+	const client = session ? (supabase ?? null) : null;
+
+	// Hydrate cloud metadata first so localStorage is populated before we
+	// read from it below. initLickMetadataFromCloud never throws; it reports
+	// success/failure, and the app proceeds with local-only data either way —
 	// local-first, cloud sync is best-effort.
-	if (supabase) {
-		try {
-			await initLickMetadataFromCloud(supabase);
-		} catch (err) {
-			console.warn('Cloud hydration failed, proceeding with local data:', err);
-		}
+	let cloudOk = true;
+	if (client) {
+		cloudOk = await initLickMetadataFromCloud(client);
 	}
 
 	lickPractice.progress = loadLickPracticeProgress();
-	// Migrate legacy 'practice' markers from lick.tags + tag overrides
-	// into the new user-lick-tags store so getPracticeLicks can find them.
-	backfillPracticeTags(getAllLicks(), getLickTagOverrides());
-	// Repair licks still carrying orphan PhraseCategory values (e.g.
-	// `long-ii-V-I-major`, removed in commit eae34f1). Each gets a valid
-	// category plus an inferred `prog:*` tag so the user's original intent
-	// is preserved.
-	migrateOrphanLickCategories(supabase ?? undefined);
+	if (cloudOk) {
+		// Migrate legacy 'practice' markers from lick.tags + tag overrides
+		// into the new user-lick-tags store so getPracticeLicks can find them.
+		backfillPracticeTags(getAllLicks(), getLickTagOverrides());
+		// Repair licks still carrying orphan PhraseCategory values (e.g.
+		// `long-ii-V-I-major`, removed in commit eae34f1). Each gets a valid
+		// category plus an inferred `prog:*` tag so the user's original intent
+		// is preserved.
+		migrateOrphanLickCategories(client ?? undefined);
+	} else {
+		console.warn(
+			'[lick-practice] cloud hydration failed — skipping tag backfill + orphan migration this mount'
+		);
+	}
 
 	lickPractice.config.progressionType = pickInitialProgression();
 }
