@@ -483,6 +483,46 @@ export function getPhraseDuration(phrase: Phrase, tempo: number): number {
 }
 
 /**
+ * Ticks from phrase start to the end-of-phrase notification (includes a
+ * 1-beat margin for the last note's decay). Callers add their own start
+ * offset (count-in bar / next-bar downbeat).
+ *
+ * Default: whole-bar semantics — the max of melody and harmony extents,
+ * rounded up to a full bar. Needed for super phrases (continuous
+ * lick-practice) whose harmony outlives the demo melody, and musically
+ * right for previews that stop the backing at a bar boundary.
+ *
+ * `resolveAtMelodyEnd`: end 1 beat after the melody's last note instead.
+ * Call-and-response flows (ear training) hand off to the mic when the
+ * *call* finishes; waiting out a harmony vamp that extends past the last
+ * note (e.g. a 1.25-bar lick over a 2-bar blues vamp) opens the listening
+ * window after the user has already started echoing the phrase. Falls
+ * back to whole-bar semantics when the phrase has no sounding melody
+ * notes (rests don't count).
+ */
+export function getPhraseEndTicks(
+	phrase: Phrase,
+	ppq: number,
+	resolveAtMelodyEnd = false
+): number {
+	if (resolveAtMelodyEnd) {
+		// Measure the same notes playback schedules (rests excluded) so a
+		// trailing rest can't push the handoff past the audible ending.
+		const soundingNotes = extractSoundingNotes(phrase.notes);
+		if (soundingNotes.length > 0) {
+			let melodyEndBeats = 0;
+			for (const note of soundingNotes) {
+				const endBeat = (fractionToFloat(note.offset) + fractionToFloat(note.duration)) * 4;
+				melodyEndBeats = Math.max(melodyEndBeats, endBeat);
+			}
+			return Math.round(melodyEndBeats * ppq) + ppq;
+		}
+	}
+	const barTicks = phrase.timeSignature[0] * ppq;
+	return getPhraseBars(phrase) * barTicks + ppq;
+}
+
+/**
  * Calculate total phrase length in bars.
  * Considers both the melody notes and the harmony segments — a phrase
  * intended for `skipMelody` playback may carry only harmony, so we can't
@@ -527,6 +567,11 @@ function getPhraseBars(phrase: Phrase): number {
 export interface PhrasePlaybackOpts {
 	skipMelody?: boolean;
 	loopBacking?: boolean;
+	/** Resolve the returned promise 1 beat after the melody's last note
+	 *  instead of after the harmony extent rounded up to whole bars. Use
+	 *  for call-and-response handoffs (see getPhraseEndTicks). Ignored
+	 *  when skipMelody is set or the phrase has no melody notes. */
+	resolveAtMelodyEnd?: boolean;
 	onStarted?: () => void;
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
@@ -625,17 +670,10 @@ export async function playPhrase(
 		if (scheduleId !== currentScheduleId) return;
 	}
 
-	// Schedule end-of-phrase notification. We always derive phrase length from
-	// `getPhraseBars`, which considers both melody notes and harmony segments
-	// (max of the two, rounded up to a whole bar). This is the right choice
-	// for both:
-	//   1. Phrases whose notes and harmony cover the same bar range — same
-	//      result as the old getPhraseDuration-based math.
-	//   2. Super phrases (continuous lick-practice mode with demo) where the
-	//      notes cover only the demo cycle but the harmony spans 13 cycles —
-	//      we need the endTick to cover the full harmony.
-	const phraseTicks = getPhraseBars(phrase) * barTicks;
-	const endTick = barTicks + phraseTicks + ppq;
+	// Schedule end-of-phrase notification — see getPhraseEndTicks for the
+	// whole-bar vs melody-end semantics.
+	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
+	const endTick = barTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {
@@ -813,10 +851,10 @@ export async function scheduleNextPhrase(
 		if (scheduleId !== currentScheduleId) return;
 	}
 
-	// Schedule end-of-phrase notification. See playPhrase for the rationale
-	// behind always deriving the length from getPhraseBars.
-	const phraseTicks = getPhraseBars(phrase) * ticksPerBar;
-	const endTicks = nextBarTicks + phraseTicks + ppq;
+	// Schedule end-of-phrase notification — see getPhraseEndTicks for the
+	// whole-bar vs melody-end semantics.
+	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
+	const endTicks = nextBarTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {

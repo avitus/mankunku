@@ -314,7 +314,14 @@
 
 			session.engineState = 'playing';
 			const hasMic = session.micPermission === 'granted';
-			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic);
+			// resolveAtMelodyEnd: open the listening window 1 beat after the
+			// call's last note — not after its harmony vamp (which can extend
+			// bars past a short melody and let the user's echo start before
+			// the mic is live). Without a mic there's no handoff, so keep the
+			// bar-aligned stop.
+			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, {
+				resolveAtMelodyEnd: hasMic
+			});
 
 			if (hasMic) {
 				looping = true;
@@ -566,7 +573,9 @@
 		session.lastScore = null;
 		try {
 			session.engineState = 'playing';
-			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions());
+			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), {
+				resolveAtMelodyEnd: true
+			});
 			if (looping) await enterAwaitingInput();
 		} catch (err) {
 			console.error('Loop playback error:', err);
