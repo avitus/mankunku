@@ -569,6 +569,29 @@ export function getActiveSchedule(): BackingTrackSchedule | null {
 }
 
 /**
+ * Trigger one-off chord stabs on the comp instrument, outside any
+ * Tone.Part — used for the inter-lick ii-V transition cue. Times are
+ * absolute AudioContext seconds and must be NEAR-NOW (within smplr's
+ * ~200ms lookahead): that creates the voices immediately, so a later
+ * compInstrument.stop() (disposeBackingParts, session teardown) can
+ * always cut them. Far-future times would sit in smplr's internal
+ * scheduler queue, which .stop() does not clear — the stab would sound
+ * after the session ends. Schedule distant stabs as transport events
+ * that call this at fire time instead.
+ */
+export function playTransitionChords(
+	stabs: Array<{ notes: number[]; time: number; duration: number }>,
+	velocity = 65
+): void {
+	if (!compInstrument) return;
+	for (const stab of stabs) {
+		for (const note of stab.notes) {
+			compInstrument.start({ note, velocity, duration: stab.duration, time: stab.time });
+		}
+	}
+}
+
+/**
  * Schedule the backing track on the Tone.js Transport.
  *
  * @param phrase - The phrase whose harmony drives the backing track

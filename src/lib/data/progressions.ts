@@ -651,3 +651,28 @@ export function getChordRootAtOffset(
 	const match = harmony.find(seg => fractionsEqual(seg.startOffset, offset));
 	return match ? match.chord.root : null;
 }
+
+/**
+ * Two-chord ii-V cadence resolving to `key`, mode-matched to the
+ * progression's tonic quality: iiø7–V7 when the tonic is minor,
+ * iim7–V7 otherwise (dominant and blues tonics take the major-style
+ * cadence, which resolves idiomatically to I7). Played as the audible
+ * inter-lick transition cue in lick-practice sessions, landing the ear
+ * in the next lick's key before its downbeat.
+ */
+export function getTransitionCadenceChords(
+	progressionType: ChordProgressionType,
+	key: PitchClass
+): Array<{ root: PitchClass; quality: ChordQuality }> {
+	// Templates are written in C, so the tonic segment is the one rooted on C.
+	const tonic = PROGRESSION_TEMPLATES[progressionType]?.harmony.find(
+		seg => seg.chord.root === 'C'
+	);
+	const minor = tonic?.chord.quality.startsWith('min') ?? false;
+	const root = PITCH_CLASSES.indexOf(key);
+	const pc = (semitones: number): PitchClass => PITCH_CLASSES[(root + semitones) % 12];
+	return [
+		{ root: pc(2), quality: minor ? 'min7b5' : 'min7' },
+		{ root: pc(7), quality: '7' }
+	];
+}
