@@ -39,6 +39,66 @@ if [[ ! -d "$STAGE" ]]; then
     exit 2
 fi
 
+# --- Whole-deploy serialization ---
+#
+# CI does not serialize deploys: two merges landing close together run two
+# release.sh's concurrently, and concurrent `npm ci` runs memory-thrash the
+# droplet badly enough to take the whole site down (2026-07-13 incident: two
+# collided deploys plus a rerun kept production unresponsive for ~30 minutes;
+# a lone npm ci finishes in under a minute). Hold an exclusive lock for the
+# entire release so a second deploy queues instead of competing.
+#
+# flock, not a mkdir mutex like the pool lock below: the kernel releases a
+# flock when the holding process dies — SIGKILL, dropped SSH session, OOM —
+# so a crashed deploy can never wedge the queue and no staleness heuristic
+# is needed. We poll with `-n` rather than block with `-w` because the
+# waiting deploy must keep emitting output: CircleCI kills any step silent
+# for 10 minutes, which is exactly how the colliding deploys died.
+#
+# Queued deploys are serialized, not ordered: if two are waiting, whichever
+# grabs the lock last wins `current`. Both are main builds within seconds of
+# each other, so the stakes are one commit of drift, visible in CI logs and
+# healed by any subsequent deploy.
+#
+# The lock file itself is never deleted — unlinking a flock'd path lets the
+# next opener lock a different inode and defeats the mutex.
+#
+# flock ships with util-linux, always present on the Ubuntu server. macOS
+# lacks it; there the local test harness warns and runs unserialized.
+DEPLOY_LOCK_FILE="${ROOT}/.deploy.lock"
+DEPLOY_LOCK_WAIT_SECS="${DEPLOY_LOCK_WAIT_SECS:-900}"
+# Guard to a number (same convention as the stat-mtime guard below): a bare
+# word here is a fatal set -u error at the first *contended* poll — latent
+# until the exact collision the lock exists for — and a non-integer like
+# "15m" makes (( )) return false forever, so the waiter would keepalive past
+# its budget indefinitely, defeating CircleCI's no-output kill.
+[[ "$DEPLOY_LOCK_WAIT_SECS" =~ ^[0-9]+$ ]] || DEPLOY_LOCK_WAIT_SECS=900
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$DEPLOY_LOCK_FILE"
+    waited=0
+    until flock -n 9; do
+        if (( waited >= DEPLOY_LOCK_WAIT_SECS )); then
+            echo "error: another deploy still holds ${DEPLOY_LOCK_FILE} after ${waited}s; giving up" >&2
+            exit 1
+        fi
+        if (( waited % 30 == 0 )); then
+            echo "==> Another deploy is in progress; waiting (${waited}s elapsed)"
+        fi
+        sleep 5
+        waited=$((waited + 5))
+    done
+    echo "==> Deploy lock acquired"
+    # Re-check after the wait: a deploy queued long enough can have its
+    # staged dir pruned by the keep-last-5 pass of deploys that ran ahead
+    # of it. Fail with the curated message, not a bare cd error at npm ci.
+    if [[ ! -d "$STAGE" ]]; then
+        echo "error: staged release disappeared while queued for the deploy lock: $STAGE" >&2
+        exit 2
+    fi
+else
+    echo "warn: flock not found; deploys are NOT serialized" >&2
+fi
+
 # Snapshot ecosystem.config.cjs state at every stage. The last several deploys
 # had this file mysteriously arrive as pre-atomic-release content on the server
 # despite CI rsyncing the correct content — these snapshots narrow down at
@@ -61,11 +121,17 @@ snapshot_ecosystem() {
 
 snapshot_ecosystem "after rsync" "${STAGE}/ecosystem.config.cjs"
 
+# `9>&-` here and on the PM2 subshell below: don't let child processes
+# inherit the deploy-lock fd. A child that outlives this script (the PM2
+# God daemon when `pm2 start` has to spawn it; in principle an npm
+# lifecycle script) would keep the flock held forever, timing out every
+# subsequent deploy. Closing the fd in the subshell doesn't release the
+# parent's lock — flock lives on the parent's open file description.
 echo "==> Installing production dependencies in staged release"
 (
     cd "$STAGE"
     npm ci --omit=dev
-)
+) 9>&-
 
 snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 
@@ -200,7 +266,7 @@ echo "==> Restarting PM2 against new release"
     pm2 delete mankunku 2>/dev/null || true
     pm2 start ecosystem.config.cjs --env production
     pm2 save
-)
+) 9>&-
 
 echo "==> Pruning old releases (keep last ${KEEP_RELEASES:-5})"
 KEEP="${KEEP_RELEASES:-5}"

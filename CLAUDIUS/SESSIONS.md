@@ -2,6 +2,29 @@
 
 Newest at the top.
 
+## 2026-07-13 — Deploy collision: two merges, three npm ci's, one wedged droplet
+
+**What happened:**
+
+- PRs #150 and #149 were merged 41 seconds apart, spawning pipelines 571 and 572. Both passed test/e2e/build/db-migrate, then both `deploy` jobs ran `release.sh` on the droplet **concurrently**. Two simultaneous `npm ci --omit=dev` runs memory-thrashed the box (a single one normally finishes inside a 58-second deploy job).
+- Both deploys died mid-`npm ci` — one canceled by the user, one on CircleCI's 10-minute no-output timeout. Because sshd doesn't signal a no-TTY remote command when the connection drops, the orphaned `npm ci` processes kept grinding server-side, keeping the droplet unresponsive (TLS handshakes taking 11s, HTTP never answering).
+- A user-triggered rerun of 572 at 01:49 landed a **third** `npm ci` on the wedged box and also timed out — this is why the droplet never recovered on its own for ~30 minutes. A later rerun of 571 failed fast at `ssh-keyscan` (sshd too starved to hand out host keys) — which at least proved deploys fail *before* touching the server when it's truly wedged.
+- Resolution: user power-cycled the droplet (PM2 resurrection worked; old release came back serving 200s), then one clean rerun of 572's deploy shipped `bbd3bb1` (both PRs) in 63 seconds. Verified: `version.json` changed, entry chunk hashes changed, live release `20260714-025022-bbd3bb1`, PM2 online.
+- Production was protected throughout by the atomic-release design: the `current` symlink flip and PM2 restart sit *after* `npm ci`, so none of the three failed deploys ever touched the live release. The outage was resource exhaustion, not a bad release.
+
+**Independent take:**
+
+- `release.sh` already documents that "CI does not serialize deploys" — but the mkdir-mutex it added only guards the immutable-pool merge, the *cheap* section. The expensive, dangerous section (`npm ci`) runs unguarded. The lock protects the wrong thing: the shared-pool race corrupts assets (correctness), but concurrent `npm ci` takes down the whole droplet (availability). A whole-script `flock` with keepalive output (to stay under CircleCI's 10-min no-output timeout) would close this class of incident for a few lines of bash.
+- Secondary observations, not urgent: server node is v18 (every npm install spews EBADENGINE for deps wanting ≥20 — one day something will actually break rather than warn), and the release-pruning keeps half-staged failed dirs (they count toward keep-last-5 by mtime, so tonight three junk dirs displaced three good rollback targets; the previous good release survived).
+
+**Follow-up (same session):** implemented the whole-deploy lock. `release.sh` now takes an exclusive `flock` on `${ROOT}/.deploy.lock` for the entire release — polling with `-n` plus keepalive echoes (a blocking `flock -w` would sit silent and trip CircleCI's 10-minute kill), a numeric-guarded 900s wait budget, warn-and-continue where flock doesn't exist (stock macOS test harness), `9>&-` on the npm and PM2 subshells so a spawned PM2 God daemon can't inherit the lock fd and hold it forever, and a post-wait re-check of the staged dir (a queued deploy's stage can be pruned by deploys ahead of it). Four regression tests added to `release.test.sh`, flock-gated so the suite still passes on macOS; verified 12/12 × 3 runs on Linux (node:22-slim). An adversarial multi-agent review (three lenses, every finding empirically reproduced by verifiers) caught four real issues pre-commit: unvalidated `DEPLOY_LOCK_WAIT_SECS` neutralizing the give-up branch, the prune-vs-queued-stage race, a blind-sleep handoff race in the timeout test, and orphaned background jobs polluting failure output.
+
+**Open / awaiting:**
+
+- Server node is still v18 (EBADENGINE warnings on every install); bump to 20/22 someday before something hard-breaks.
+
+---
+
 ## 2026-07-07 — The listening window that opened after the user started playing
 
 **What happened:**
