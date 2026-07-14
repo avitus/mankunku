@@ -19,9 +19,9 @@
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	onMount(() => {
-		// Client only when signed in — its presence selects cloud-backed mode
-		// inside hydrateLickPracticeProgress (see that function's docstring).
-		hydrateLickPracticeProgress(page.data?.session ? (page.data?.supabase ?? null) : null);
+		// Cloud-backed mode requires both the client and a session; the gate
+		// lives inside hydrateLickPracticeProgress.
+		hydrateLickPracticeProgress(page.data?.supabase ?? null, page.data?.session ?? null);
 	});
 
 	// Trigger reactivity on config/progress changes to update the lick count.

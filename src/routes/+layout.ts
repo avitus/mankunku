@@ -135,15 +135,25 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		// (progress.sessions, lick-practice-sessions) are populated; the
 		// cloud daily-summaries merge then layers cross-device and
 		// out-of-window rows on top, with anything local-newer pushed back.
+		// Named promises (rather than positional Promise.all destructuring) so
+		// adding or reordering a hydration can never silently mis-map the
+		// success reports feeding the maintenance gate.
+		const metadataHydration = initLickMetadataFromCloud(supabase);
+		const userLicksHydration = initUserLicksFromCloud(supabase);
+		const communityHydration = initCommunityFromCloud(supabase);
 		const hydration = Promise.all([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
-			initLickMetadataFromCloud(supabase),
-			initUserLicksFromCloud(supabase),
-			initCommunityFromCloud(supabase)
+			metadataHydration,
+			userLicksHydration,
+			communityHydration
 		])
-			.then(([, , metadataOk, userLicksOk, communityOk]) =>
-				runLickMetadataMaintenance(supabase, { metadataOk, userLicksOk, communityOk })
+			.then(async () =>
+				runLickMetadataMaintenance(supabase, {
+					metadataOk: await metadataHydration,
+					userLicksOk: await userLicksHydration,
+					communityOk: await communityHydration
+				})
 			)
 			.then(() => recomputeAllDailySummaries())
 			.then(async () => {

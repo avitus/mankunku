@@ -19,12 +19,10 @@
 
 	// Make sure lick-practice progress is loaded — the /lick-practice page
 	// also calls this on its own mount, but the home page needs the data
-	// for its stat lines. Pass supabase for cross-device sync — but only
-	// when a session exists: the client's presence selects cloud-backed
-	// mode inside hydrateLickPracticeProgress, and anonymous users must get
-	// the local-only path (see that function's docstring).
+	// for its stat lines. Cloud-backed mode requires both the client and a
+	// session; the gate lives inside hydrateLickPracticeProgress.
 	if (browser) {
-		hydrateLickPracticeProgress(page.data?.session ? (page.data?.supabase ?? null) : null);
+		hydrateLickPracticeProgress(page.data?.supabase ?? null, page.data?.session ?? null);
 	}
 
 	const session = $derived(page.data?.session ?? null);

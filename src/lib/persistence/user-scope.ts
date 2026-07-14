@@ -65,7 +65,13 @@ export function getLastUserId(): string | null {
 async function performScopeWipe(): Promise<void> {
 	const previousTheme = load<{ theme?: string }>(SETTINGS_KEY)?.theme;
 
-	clearAll();
+	try {
+		clearAll();
+	} catch {
+		// Best-effort — a storage error (revoked access, private-browsing
+		// quirks) must not abort the wipe before the generation bump and
+		// theme re-save, or sign-out / account switching would block.
+	}
 	if (typeof sessionStorage !== 'undefined') {
 		try {
 			sessionStorage.clear();
