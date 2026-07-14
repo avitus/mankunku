@@ -73,6 +73,9 @@ DEPLOY_LOCK_WAIT_SECS="${DEPLOY_LOCK_WAIT_SECS:-900}"
 # "15m" makes (( )) return false forever, so the waiter would keepalive past
 # its budget indefinitely, defeating CircleCI's no-output kill.
 [[ "$DEPLOY_LOCK_WAIT_SECS" =~ ^[0-9]+$ ]] || DEPLOY_LOCK_WAIT_SECS=900
+# Force base-10: a leading zero ("0900") passes the regex but (( )) would
+# parse it as octal and error, making the give-up branch unreachable.
+DEPLOY_LOCK_WAIT_SECS=$(( 10#$DEPLOY_LOCK_WAIT_SECS ))
 if command -v flock >/dev/null 2>&1; then
     exec 9>"$DEPLOY_LOCK_FILE"
     waited=0
