@@ -2,6 +2,43 @@
 
 Newest at the top.
 
+## 2026-07-14 — Vol. 2: 40 intermediate major-scale licks (18-30), diatonic by design
+
+**What happened:**
+
+- Follow-up to the bebop-ambush fix below: re-rating the chromatic ii-V-I licks out of the ≤20 band restored correctness but re-exposed the original gap the collection was meant to fill (too much pentatonic at low levels, sparse major-scale content at 18-30).
+- Authored `src/lib/data/licks/major-4-7-vol2.ts`: 40 licks, levels 18-30 (~3 per level, max 4), every lick featuring the 4th and/or 7th, collection covers all seven degrees. STRICTLY diatonic — that is what tiers 3-4 mean, and it keeps the calibration guard green. Jazz character from shape/rhythm instead of chromaticism: guide tones, digital patterns, Bm7b5-over-G7 (3-to-9), Fmaj7-over-tonic, quartal cells, Charleston, anticipations, hemiola, rhythmic displacement, dorian-6 color. 18 single-chord Cmaj7 lines + 22 diatonic ii-V-I lines.
+- Calibrated against `calculateDifficulty()` up front (the ±35 integrity test): two initial drafts violated tolerance — the full-octave scale computed 56 (re-rated 20→22) and "Interval Widening" computed 68 because octave leaps dominate the interval score (reworked to cap at a sixth).
+- Ran a 5-agent adversarial musical review workflow over all 40 licks: caught 2 must-fix (a wrong degree claim in a comment; "Two-Octave Sweep" named for a range it doesn't span) and useful nice-to-haves (made both escape-tone figures true escape tones; let the common tone actually sound over all three chords). Declined one: the plain full-octave scale stays plain — coverage is its job, and syncopating it would breach calc tolerance.
+- New test `tests/unit/data/major-4-7-vol2.test.ts` enforces the collection's contract: 40 unique wired ids, major-compatible, levels 18-30, strictly diatonic, 4th/7th per lick, all degrees collectively, ≤4 licks per level (anti-cliff), well-formed rhythm.
+- Pool growth after: prof 17→82 eligible, 20→97 (9 vol2), 23→115, 26→154, 30→179. Smooth ramp, no cliff. 2181 tests pass, check clean.
+
+**Notes:**
+
+- The difficulty calculator is leap-dominated: alternating wide intervals score far above equivalent-sounding scalar content. Worth remembering when authoring — check `calculateDifficulty()` before settling a declared level.
+- Review agents were genuinely useful on the one axis machines can't check here: whether a comment's music-theory claim matches the notes. Two factual errors survived my own pass; both were caught.
+
+---
+
+## 2026-07-14 — Bebop licks ambushing a level-20 ear-training user
+
+**What happened:**
+
+- User (major-scale proficiency 20) reported suddenly being served advanced licks — "G7 Bebop Scale Descent", "Enclosed Approach to Each Chord" — in E major. Traced end to end.
+- Root cause: the Major 4th & 7th collection (`5c2a988`, 2026-06-28) front-loaded ALL 40 licks to levels 1-20 per its own header, but 11 of its ii-V-I licks contain real chromaticism (bebop scale, enclosures, b9, altered). The ear-training filter gates purely on `difficulty.level <= scaleProficiency`, `ii-V-I-major` is compatibility-mapped into major sessions, and progression licks skip snap-to-scale — so full bebop vocabulary hit level-20 ears. Near-identical licks in `ii-V-I-major.ts` are rated 42-61. Five sat at exactly level 20 → batch cliff the moment proficiency ticked 19→20.
+- The "sudden" onset was almost certainly the stale-PWA-cache refresh of 2026-07-13 (same event documented in `ba27309`) finally exposing two-week-old content.
+- Fix (data-only, no runtime changes): re-rated the 11 chromatic licks to 44-58, calibrated against `ii-V-I-major.ts` anchors and the tier floors in `difficulty/params.ts` (chromaticism = tier 5 = level 31+). 29 of 40 licks stay ≤ 20, preserving the collection's diatonic 4th/7th purpose.
+- Regression guard: new `tests/unit/data/difficulty-calibration.test.ts` — content-based (pitch-class analysis, NOT tags; tags proved unreliable — diatonic licks carry `enclosure`/`bebop` tags). Asserts any major-session-reachable progression lick with non-diatonic notes is rated ≥ the derived tier-5 floor. Exported `PROGRESSION_CATEGORIES` from library-loader for it. Also fixed `major-4-7.test.ts`, which literally asserted all levels ≤ 20 — a test enshrining the bug.
+- One plan deviation: m47-031 "Altered Dominant Descent" landed at 58, not the planned 66 — the existing data-integrity test (declared level within ±35 of `calculateDifficulty()`) caps it; the lick is rhythmically simple, so 66 overshot.
+- 2172 tests pass, check clean. Not committed (user hasn't asked).
+
+**Notes:**
+
+- Two difficulty systems coexist: tier profiles (`params.ts`, gates the generator) and per-lick hand ratings (gates curated selection). Nothing structurally links them — calibration discipline in data + the new test is the only bridge. If a third content drop lands, watch this seam.
+- The failure needed three benign decisions to align: front-loading intent stated proudly in a file header, single-dimension level gate, category-compatibility mapping. Each locally reasonable; nobody owned the composition.
+
+---
+
 ## 2026-07-14 — The progression-tags "data loss" that was three latent bugs wearing one symptom
 
 **What happened:**
