@@ -48,14 +48,14 @@ describe('major 4th & 7th licks', () => {
 	it('notes are well-formed and stay within the phrase', () => {
 		for (const lick of MAJOR_4_7_LICKS) {
 			const total = lick.difficulty.lengthBars; // whole notes in 4/4
-			let prev = -Infinity;
+			let prevEnd = -Infinity;
 			for (const n of lick.notes) {
 				const off = val(n.offset);
 				const dur = val(n.duration);
 				expect(dur, `${lick.id} duration`).toBeGreaterThan(0);
-				expect(off, `${lick.id} offset order`).toBeGreaterThanOrEqual(prev - 1e-9);
+				expect(off, `${lick.id} overlaps previous note`).toBeGreaterThanOrEqual(prevEnd - 1e-9);
 				expect(off + dur, `${lick.id} spills past end`).toBeLessThanOrEqual(total + 1e-9);
-				prev = off;
+				prevEnd = off + dur;
 			}
 		}
 	});
