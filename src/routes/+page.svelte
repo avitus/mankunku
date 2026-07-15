@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { progress, getRecentSessions, getPrimaryLevel, getUnlockContext } from '$lib/state/progress.svelte';
+	import { progress, getRecentSessions, getTonalMastery, getUnlockContext } from '$lib/state/progress.svelte';
 	import {
 		lickPractice,
 		hydrateLickPracticeProgress
 	} from '$lib/state/lick-practice.svelte';
 	import { getEffectivePracticeLickIds } from '$lib/persistence/lick-practice-store';
 	import { getAllLicks } from '$lib/phrases/library-loader';
-	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { masteryDisplay } from '$lib/difficulty/display';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getTodaysTonality, formatTonality } from '$lib/tonality/tonality';
@@ -47,8 +47,8 @@
 	});
 
 	// ── Ear Training panel data ──────────────────────────────────────
-	const primaryLevel = $derived(getPrimaryLevel());
-	const levelDisp = $derived(difficultyDisplay(primaryLevel));
+	const mastery = $derived(getTonalMastery());
+	const levelDisp = $derived(masteryDisplay(mastery.overall));
 	const recentSessions = $derived(getRecentSessions(1));
 	const lastSession = $derived(recentSessions[0] ?? null);
 
@@ -185,14 +185,14 @@
 				<div class="space-y-1 text-sm text-[var(--color-text-secondary)]">
 					{#if hasEarTrainingHistory}
 						<div data-tour="level-display" class="inline-flex items-center gap-1">
-							Level <span
+							Tonal Mastery <span
 								class="font-display font-semibold tabular-nums"
-								style="color: {levelDisp.color}">{primaryLevel}</span
+								style="color: var(--color-brass-soft)">{Math.round(mastery.overall)}%</span
 							>
 							<span class="text-xs">({levelDisp.name})</span>
 							<TooltipHint
-								text={tooltips.home.level.text}
-								learnMore={tooltips.home.level.learnMore}
+								text={tooltips.home.mastery.text}
+								learnMore={tooltips.home.mastery.learnMore}
 								position="bottom"
 							/>
 						</div>

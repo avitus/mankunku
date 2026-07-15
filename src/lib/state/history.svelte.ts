@@ -89,7 +89,7 @@ export function deriveDailySummary(
 	date: string,
 	earSessions: SessionResult[],
 	lickEntries: LickPracticeSessionLogEntry[],
-	preservedComplexity?: { pitch?: number; rhythm?: number }
+	preservedComplexity?: { pitch?: number; rhythm?: number; tonalMastery?: number }
 ): DailySummary | null {
 	const dayEar = earSessions.filter((s) => dateKey(s.timestamp) === date);
 	const dayLick = lickEntries.filter((e) => dateKey(e.timestamp) === date);
@@ -159,6 +159,8 @@ export function deriveDailySummary(
 	if (preservedComplexity?.pitch !== undefined) summary.pitchComplexity = preservedComplexity.pitch;
 	if (preservedComplexity?.rhythm !== undefined)
 		summary.rhythmComplexity = preservedComplexity.rhythm;
+	if (preservedComplexity?.tonalMastery !== undefined)
+		summary.tonalMastery = preservedComplexity.tonalMastery;
 
 	return summary;
 }
@@ -241,7 +243,7 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
  *   override any preserved value for that date.
  */
 export function recomputeAllDailySummaries(
-	complexitySnapshots?: Map<string, { pitch: number; rhythm: number }>
+	complexitySnapshots?: Map<string, { pitch: number; rhythm: number; tonalMastery?: number }>
 ): DailySummary[] {
 	const earSessions = load<UserProgress>(PROGRESS_KEY)?.sessions ?? [];
 	const lickEntries = load<LickPracticeSessionLogEntry[]>(LICK_SESSIONS_KEY) ?? [];
@@ -256,7 +258,13 @@ export function recomputeAllDailySummaries(
 		const existing = summaryMap.get(date);
 		const snapshot =
 			complexitySnapshots?.get(date) ??
-			(existing ? { pitch: existing.pitchComplexity, rhythm: existing.rhythmComplexity } : undefined);
+			(existing
+				? {
+						pitch: existing.pitchComplexity,
+						rhythm: existing.rhythmComplexity,
+						tonalMastery: existing.tonalMastery
+					}
+				: undefined);
 
 		const derived = deriveDailySummary(date, earSessions, lickEntries, snapshot);
 		if (derived === null) continue;
@@ -297,7 +305,7 @@ export function recomputeAllDailySummaries(
  */
 export function recomputeDailySummary(
 	date: string,
-	complexitySnapshot?: { pitch: number; rhythm: number }
+	complexitySnapshot?: { pitch: number; rhythm: number; tonalMastery?: number }
 ): DailySummary | null {
 	const earSessions = load<UserProgress>(PROGRESS_KEY)?.sessions ?? [];
 	const lickEntries = load<LickPracticeSessionLogEntry[]>(LICK_SESSIONS_KEY) ?? [];
@@ -305,7 +313,13 @@ export function recomputeDailySummary(
 	const existing = summaryMap.get(date);
 	const snapshot =
 		complexitySnapshot ??
-		(existing ? { pitch: existing.pitchComplexity, rhythm: existing.rhythmComplexity } : undefined);
+		(existing
+			? {
+					pitch: existing.pitchComplexity,
+					rhythm: existing.rhythmComplexity,
+					tonalMastery: existing.tonalMastery
+				}
+			: undefined);
 
 	const derived = deriveDailySummary(date, earSessions, lickEntries, snapshot);
 	if (derived === null) return existing ?? null;

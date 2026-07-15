@@ -43,6 +43,22 @@
 	   --color-error so it reads as jazz-era rather than alert-red. */
 	--color-onair: #a8463a;
 	--color-onair-hover: #8a3428;
+	/* Tonal Mastery ramp — a Blue Note teal→brass sequential scale used for
+	   proficiency/mastery surfaces (mastery meter, per-scale bars). "From the
+	   ear-training teal to the brass you're earning." Distinct from the
+	   green→red difficulty ramp in difficulty/display.ts (there red=hard is
+	   correct); mastery climbs cool→warm. Dark-mode steps brighten toward gold;
+	   the :root.light block re-steps them to stay legible on paper. */
+	--mastery-1: #21767b;
+	--mastery-2: #3f8583;
+	--mastery-3: #698f85;
+	--mastery-4: #909582;
+	--mastery-5: #aea178;
+	--mastery-6: #c5ab6b;
+	--mastery-7: #d8b66b;
+	--mastery-8: #e9c26e;
+	--mastery-9: #f8ce76;
+	--mastery-10: #ffd87b;
 }
 
 [data-domain='lick-practice'] {
@@ -76,6 +92,18 @@
 	/* On-air red — darkened for readability on light bg */
 	--color-onair: #8a3328;
 	--color-onair-hover: #6a2418;
+	/* Mastery ramp re-stepped for light backgrounds: teal→deep-brass, kept
+	   mid-dark so every band stays legible on paper (contrast ≥ 3.6:1). */
+	--mastery-1: #388589;
+	--mastery-2: #3f817f;
+	--mastery-3: #577c71;
+	--mastery-4: #707462;
+	--mastery-5: #7d6f47;
+	--mastery-6: #856b2f;
+	--mastery-7: #86661b;
+	--mastery-8: #866206;
+	--mastery-9: #855f00;
+	--mastery-10: #835b00;
 }
 
 :root.light [data-domain='lick-practice'] {
