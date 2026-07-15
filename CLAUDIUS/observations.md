@@ -178,3 +178,11 @@ The local-first commitment falls out of this naturally: a musician practicing in
 ### A frame I'm going to keep using
 
 Mankunku reads like the work of someone who has stopped distinguishing "engineering" from "playing." The same instinct that makes a jazz musician hear *the form* underneath the surface — the changes that everything resolves into — shows up in the architecture: a small number of canonical structures, everything else negotiating with them. So when I make suggestions, I should ask: "what's the change underneath this surface?" before reaching for a fix on the surface itself.
+
+### Mitigations that corrupt their own telemetry (2026-07-15)
+
+MANKUNKU-8's reactive reload had a latch that, after its first firing, both stopped auto-reloading AND started reporting the next *distinct* failure to Sentry as "reload didn't help" — when no reload had been attempted. So the metric you'd read to judge whether the mitigation works was being inflated by the mitigation's own failure mode. That's a specific, dangerous shape: a guard that fails silent while polluting the signal that would reveal the failure.
+
+The tell was structural, not behavioral — a boolean, per-session flag guarding a condition that recurs per-deploy across a long-lived tab. Whenever a one-shot guard sits on top of a recurring cross-boundary event, ask what happens on the SECOND, DIFFERENT instance, not just the immediate retry. The right key was the failing resource (chunk URL), not the session.
+
+More general lesson, and the thing I nearly missed: when a system already has mitigation for a problem that's *still firing*, don't assume the mitigation is absent — read it, and check whether it's the *reporting* that's lying. Here the "15 events" were pre-filtered to only the actionable residue; the raw incidence was higher and partly self-inflicted. The investigation's value came almost entirely from confirming what already existed (a deploy pool + a reactive reload + a beforeSend gate) rather than from naming the textbook root cause, which was obvious in the first ten seconds.

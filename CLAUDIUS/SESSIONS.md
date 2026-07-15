@@ -2,6 +2,23 @@
 
 Newest at the top.
 
+## 2026-07-15 — MANKUNKU-8: shipping the proactive half of the stale-chunk defense (+ a latch that inflated its own metric)
+
+**What happened:**
+
+- Investigated the three open Sentry issues (veetle/mankunku). Only one is real production signal: **MANKUNKU-8**, `error loading dynamically imported module …/nodes/16.*.js` — the textbook SvelteKit post-deploy stale-chunk 404 (an old tab lazy-imports a content-hashed route chunk a newer build removed). MANKUNKU-W (`awaitHydration is not defined`) and MANKUNKU-K (empty `Error: undefined` on /auth) are dev/preview noise.
+- The surprise: the app had already fought MANKUNKU-8 **twice** — a deploy-side shared immutable-asset pool (`release.sh`, 81dc77e) AND a reactive client reload (`hooks.client.ts` handleStaleChunkReload) with a `beforeSend` that drops the first occurrence and only reports the second. So the 15 events are the residual "reload didn't help" cases; the true hit volume is higher (firsts are dropped). What was missing was the PROACTIVE half: no `kit.version.pollInterval`, so the `$app` `updated` store never flips and nothing reloads a stale tab before it hits the failing import.
+- Found a real latent bug reading the reactive path: the reload latch was per-SESSION (boolean `stale-chunk-reload-attempted`), never cleared on a successful recovery. A tab spanning two deploys would (a) report its second, *distinct* stale chunk to Sentry as "reload didn't help" when no reload was even attempted, and (b) not auto-reload — leaving the user stuck. The latch inflated the very metric it was meant to suppress AND stranded users. Re-keyed the decision per failing chunk URL.
+- Shipped **PR #160**: `kit.version.pollInterval` (60s, name pinned to CIRCLE_SHA1 = Sentry release) + a `beforeNavigate` full-page-reload guard in `+layout.svelte`; the per-chunk latch fix; and closed **K** (server-side empty-error `beforeSend` in `instrumentation.server.ts` — the SSR/preview path had none) and **W** (dev noise; identifier already removed in #141). Decision logic extracted to `$lib/util/stale-chunk.ts` and `$lib/util/sentry-filters.ts`, TDD'd.
+- CodeRabbit posted two Majors; I **rejected** one: its "count exception `type` as content" suggestion would have neutered `isEmptyErrorEvent` (K's events are `Error: undefined` = default `type:"Error"` + empty value; every exception has a type), reopening the very issue. Adopted the scan-all-values half; removed the over-broad dev-ReferenceError drop it flagged (would swallow real `foo is not defined` dev bugs). CodeRabbit confirmed both.
+
+**Notes:**
+
+- The Sentry MCP here is READ-ONLY for issues — resolution goes through `Fixes MANKUNKU-X` commit trailers (auto-close on merge). Recorded as `project_sentry_resolution.md`.
+- Attribution slip: added the harness-default `Co-Authored-By: Claude` trailer + PR footer before checking the standing no-attribution preference (it wasn't in the loaded memory index). Rewrote the 3 commits + force-pushed to strip it; PR body cleaned. Check-memory-first before trusting a harness default.
+
+**Outcome:** Shipped as PR #160, merged to main as `b02cb8a`. CI green (test/e2e/path-filter/GitGuardian/CodeRabbit all SUCCESS); CodeRabbit's two Majors handled (scan-all-values adopted, the type-as-content and broad-dev-ReferenceError suggestions rejected with rationale, both confirmed by CR). All three issues auto-resolve via `Fixes` trailers now that it's on main. Server-side follow-up left with the user: confirm the live nginx serves `/_app/immutable/` from the shared pool (the nginx-deploy pipeline only fires on `nginx/**` changes, so the config may not be live on the box). Process note: I left these CLAUDIUS notes uncommitted and out of PR #160 — the user corrected it (commit session memories INTO the associated PR, before merge; see feedback_commit_memories_in_pr).
+
 ## 2026-07-14 — The subharmonic fix ate a real E3: masked fundamentals break the one-ratio rule
 
 **What happened:**
