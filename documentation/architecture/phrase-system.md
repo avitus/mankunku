@@ -95,7 +95,7 @@ The mutator runs occasionally in mixed mode to refresh familiar licks. Each muta
 
 Two ways to add to the library yourself:
 
-**Step entry** at `/entry`. Pick a duration (whole, half, quarter, eighth, sixteenth, with triplet toggle), pick a pitch (with sharp/flat/natural), and the cursor advances. Add rests, set the bar count (1–4 bars), pick a name and a category. Notes are entered in your **written** pitch — what you'd see on your chart — and the app converts to concert pitch internally on save.
+**Step entry** at `/entry`. Pick a duration (whole, half, quarter, eighth, sixteenth, with triplet and dotted toggles), pick a pitch (with sharp/flat/natural), and the cursor advances. Add rests, set the bar count (1–4 bars), pick a name and a category. Any already-entered note can be selected — click its notehead or arrow-key to it (←/→) — and pitch-shifted (↑/↓), deleted (Backspace/Delete), or re-spelled (`\`) in place without retyping the rest. Notes are entered in your **written** pitch — what you'd see on your chart — and the app converts to concert pitch internally on save.
 
 **Record** at `/record`. Play a phrase on your horn, the app captures the audio, runs the pitch detector and onset detector across it, and produces a transcription. Useful for capturing something you just figured out by ear.
 
