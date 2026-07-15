@@ -18,6 +18,8 @@ Newest at the top.
 - This is the third body in the same graveyard: 2026-06-30 proved octave-down and octave-up locks are indistinguishable post-detection; today proved the artifact and the genuine note are indistinguishable on the fundamental bin alone. The pattern: every single-feature octave discriminator so far has had a real-world counterexample on the other side. The odd-harmonic rank at least encodes the physical asymmetry (half-harmonic sidebands are weak by nature, full-rank harmonics aren't) rather than an empirical amplitude assumption.
 - Corpus-sweep-before-code was the highest-value step: it found the threshold that a single fixture would have set wrong (0.10 would have left 4-frame uncorrected runs in bc-010 — enough to flip the stabilizer) and surfaced the four-to-five collateral damage for free.
 
+**Outcome:** Shipped as PR #154 (`7415177`, merged to main as `c7034e3` the same day). CodeRabbit posted no actionable findings before the merge.
+
 **What happened:**
 
 - Follow-up to the bebop-ambush fix below: re-rating the chromatic ii-V-I licks out of the ≤20 band restored correctness but re-exposed the original gap the collection was meant to fill (too much pentatonic at low levels, sparse major-scale content at 18-30).
