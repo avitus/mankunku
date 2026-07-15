@@ -72,22 +72,27 @@ export const DEFAULT_MAX_FREQUENCY = 1200;
  * MIDI stream then can't tell a real low note from this artifact: at the
  * autocorrelation level they are identical (see the bc-010 vs bc-016 fixtures).
  *
- * The SPECTRUM tells them apart. A subharmonic is purely a period-doubling
- * artifact, so there is essentially NO spectral energy at the reported
- * frequency — all the energy sits at the true fundamental an octave up (and its
- * harmonics). A genuinely low note, even one with a weak fundamental and a
- * strong 2nd harmonic, still has real energy at its own fundamental. So we
- * compare the magnitude at the reported frequency `f` against the magnitude at
- * `2f` (the Goertzel algorithm — one bin each, no full FFT): when `f` carries
- * almost none of the energy of `2f`, the detector locked onto a subharmonic and
- * the true fundamental is `2f`.
+ * The SPECTRUM tells them apart — but one bin is not enough. A subharmonic is
+ * purely a period-doubling artifact, so there is essentially no spectral energy
+ * at the reported frequency `f` — yet a genuinely low tenor-sax note can mask
+ * its own fundamental just as completely (the 2026-07-14 Third–Fifth Rise
+ * regression: a real E3 measured mag(f)/mag(2f) ≈ 0.02–0.06, indistinguishable
+ * from the artifact cluster on that ratio alone). The test therefore runs in
+ * two stages, each a single-bin Goertzel (no full FFT):
  *
- * Measured separation on real recordings: subharmonic frames sit at
- * mag(f)/mag(2f) ≈ 0.02–0.04 (only window-leakage energy at f); real low notes
- * sit at ≥ 0.20. The threshold lives in the middle with wide margin on both
- * sides. Octave-UP errors (2nd-harmonic locks) are unaffected — there `f`
- * carries plenty of energy — and stay handled by the segmenter's downstream
- * octave-boundary merge.
+ *   1. mag(f) vs mag(2f) — when `f` carries real energy relative to `2f`
+ *      (≥ SUBHARMONIC_FUNDAMENTAL_RATIO), it is a genuine fundamental: keep it.
+ *      Subharmonic frames sit at ≈ 0.02–0.04 here (window leakage only).
+ *   2. Odd-harmonic rank: (mag(3f) + mag(5f)) / (mag(2f) + mag(4f)). For a
+ *      genuine low note 3f and 5f are full-rank harmonics — measured ≥ 0.26.
+ *      For a period-doubling artifact they are at most weak half-harmonic
+ *      sidebands of the true note an octave up (1.5F and 2.5F), and 4f is that
+ *      note's dominant 2nd harmonic — measured ≤ 0.05. Only when the odd bins
+ *      are empty too is the pick a subharmonic, and the true fundamental `2f`.
+ *
+ * Octave-UP errors (2nd-harmonic locks) are unaffected — there `f` carries
+ * plenty of energy and stage 1 keeps it — and stay handled by the segmenter's
+ * downstream octave-boundary merge.
  *
  * Only applied at/below `SUBHARMONIC_MAX_FREQUENCY`: subharmonic locks happen on
  * low, sustained tones, and the bound covers the subharmonic of the entire
@@ -96,11 +101,21 @@ export const DEFAULT_MAX_FREQUENCY = 1200;
  */
 const SUBHARMONIC_MAX_FREQUENCY = 350;
 /**
- * Declare a subharmonic when the energy at the reported frequency is below this
+ * Stage 1: declare the fundamental real when its energy is at least this
  * fraction of the energy an octave up. 0.10 sits ~2.3× above the subharmonic
- * cluster (~0.04) and ~2× below the real-low-note cluster (~0.20).
+ * cluster (~0.04); genuine low notes usually sit ≥ 0.20 but can fall well
+ * below this bound (masked fundamentals) — which is what stage 2 is for.
  */
 const SUBHARMONIC_FUNDAMENTAL_RATIO = 0.1;
+/**
+ * Stage 2: keep the reported frequency when the odd-to-even harmonic ratio
+ * (mag(3f)+mag(5f))/(mag(2f)+mag(4f)) reaches this bound. Measured clusters on
+ * the fixture corpus: period-doubling artifacts ≤ 0.050 (2026-06-30
+ * Fifth–Sixth Step, including its half-harmonic-sideband frames); genuine
+ * masked-fundamental low notes ≥ 0.264 (2026-07-14 Third–Fifth Rise,
+ * 2026-07-08 Four-to-Five). 0.12 sits ≥ 2.2× from both clusters.
+ */
+const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
 
 /**
  * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
@@ -291,10 +306,22 @@ export function correctSubharmonic(buffer: Float32Array, frequency: number, samp
 	if (frequency <= 0 || frequency > SUBHARMONIC_MAX_FREQUENCY) return frequency;
 	const fundamental = goertzelMagnitude(buffer, frequency, sampleRate);
 	const octaveUp = goertzelMagnitude(buffer, frequency * 2, sampleRate);
-	if (octaveUp > 0 && fundamental < octaveUp * SUBHARMONIC_FUNDAMENTAL_RATIO) {
-		return frequency * 2;
+	if (!(octaveUp > 0 && fundamental < octaveUp * SUBHARMONIC_FUNDAMENTAL_RATIO)) {
+		return frequency;
 	}
-	return frequency;
+	// The fundamental bin is empty — but a genuine low note can mask its own
+	// fundamental too. Stage 2: a real note at `f` still has full-rank odd
+	// harmonics at 3f/5f, while a period-doubling artifact only shows weak
+	// half-harmonic sidebands there (and the true note's dominant 2nd harmonic
+	// at 4f). Only an empty odd side confirms the subharmonic.
+	const third = goertzelMagnitude(buffer, frequency * 3, sampleRate);
+	const fourth = goertzelMagnitude(buffer, frequency * 4, sampleRate);
+	const fifth = goertzelMagnitude(buffer, frequency * 5, sampleRate);
+	const oddRank = (third + fifth) / (octaveUp + fourth);
+	if (oddRank >= SUBHARMONIC_ODD_HARMONIC_RATIO) {
+		return frequency;
+	}
+	return frequency * 2;
 }
 
 /**

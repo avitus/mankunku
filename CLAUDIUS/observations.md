@@ -4,6 +4,16 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-07-14 — Every octave fix so far has manufactured its mirror image; the way out was physics, not thresholds
+
+The Third–Fifth Rise bug completes a telling sequence. The 2026-06-30 subharmonic corrector was built on a measured empirical boundary — "real low notes keep ≥ 0.20 of their 2nd-harmonic energy at the fundamental" — and fourteen days later a real E3 walked through it at 0.02. The corrector then did to a *correct* detection exactly what the artifact used to do to a wrong one: rewrote the whole note an octave off, at the source, unrecoverably (the readings' `frequency` field stores the *corrected* value — a design choice that makes the corrector's mistakes indistinguishable from the detector's truths downstream; worth remembering that any in-place correction erases the evidence of its own failure).
+
+The fix that held wasn't a better threshold on the same bin — it was a discriminator aligned with the *mechanism*: period-doubling sidebands are physically weak (a perturbation on the true period), full-rank odd harmonics are not. Ratios built on empirical amplitude clusters ("notes usually look like X") keep getting falsified by the long tail of real playing — subtone, masked fundamentals, room filtering. Ratios built on what the mechanism *can't* produce (an artifact can't put full-rank energy at 1.5× the true fundamental) have a floor under them. When the next octave case appears — and the sequence says it will — the first question should be "what does each hypothesis make physically impossible," not "where do these two recordings separate."
+
+Also worth keeping: sweeping the entire fixture corpus at production settings *before* writing the fix is cheap (a 60-line script) and did three things a test-first loop alone wouldn't have: set the threshold with real margins, proved the only regression surface was bc-010, and found a week-old recording (`four-to-five`) that the bug had been silently corrupting with no test noticing — the corpus is a measurement instrument, not just a safety net.
+
+---
+
 ## 2026-07-14 — "Absence of evidence read as evidence of absence" is this codebase's recurring data-loss shape
 
 The progression-tags incident fix turned out to be the same bug three times in different clothes: `safeGetSession` read *couldn't reach the auth server* as *signed out* (→ wipe); the hydrators read *fetch failed* as *account is empty* (→ reconciler prunes everything and pushes the emptied blobs cloudward); and the whole incident existed because a stale client read *no explicit prog tag* as *category matching still applies*. Every fix was the same move — split "verified negative" from "verification unavailable" and make the destructive action require the verified form. In a local-first + cloud-sync architecture, **any code that deletes or overwrites based on what it *didn't* find must first prove the absence is real.** That's now enforced in three places (degraded flag, hydration reports, maintenance gate), but the pattern predicts future bugs anywhere a `null` return conflates "no" with "unknown" — `getAuthUserId` still returns one null for both, and the whole-column LWW sync (follow-up) still trusts whatever blob is local.

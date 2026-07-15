@@ -2,7 +2,21 @@
 
 Newest at the top.
 
-## 2026-07-14 — Vol. 2: 40 intermediate major-scale licks (18-30), diatonic by design
+## 2026-07-14 — The subharmonic fix ate a real E3: masked fundamentals break the one-ratio rule
+
+**What happened:**
+
+- User diagnostic `2026-07-14-third-fifth-rise`: played a clean concert E3 → G3 (Third–Fifth Rise, bc-005_C rendered an octave down), scored pitch 0.5 "fair" with note 1 read as E4 — every one of the 55 note-1 readings was MIDI 64.
+- Signal analysis first, code second. FFT of note 1 showed odd harmonics of 165 Hz (495.9, 826.2, 1156.6 Hz) — impossible if the true fundamental were 330 — so the user played E3 and detection was wrong. Then the surprise: raw Pitchy on the WAV reads the CORRECT 165 Hz on essentially every frame. The corruption wasn't Pitchy.
+- Root cause: `correctSubharmonic` (the 2026-06-30 fix for the octave-DOWN artifact, e9d3f99). Its single ratio — mag(f)/mag(2f) < 0.10 ⇒ artifact ⇒ double — assumed "real low notes sit ≥ 0.20". This genuine E3 measured 0.02–0.06: low tenor notes can mask their own fundamental as completely as a period-doubling artifact leaves its bin empty. Every correctly-detected frame was doubled to E4 at detection time, so readings were corrupted at the source and no downstream vote/merge could recover (the readings' `frequency` field is stored post-correction).
+- The one-bin discriminator that first came to mind (mag(3f)/mag(2f), threshold 0.10) measured too tight: real reed period-doubling puts energy at half-harmonics, and bc-010's artifact frames reach 0.157 while this genuine note bottoms at 0.168. Shipped instead the compound odd-to-even rank (mag(3f)+mag(5f))/(mag(2f)+mag(4f)): artifact ≤ 0.050, genuine ≥ 0.264 — 5.3× gap, threshold 0.12. Including 4f is what buys the margin: for an artifact, 4f is the true note's dominant 2nd harmonic and crushes the ratio.
+- Swept the entire fixture corpus at production settings before touching code: bc-010's 28 artifact frames all keep doubling; all 53 genuine frames here flip to keep; `2026-07-08-four-to-five` had 16 genuine G3 frames being silently doubled by the same bug (no test asserted the corruption — fix retroactively heals it); two old fixtures show 2 isolated flips each, absorbed by the octave stabilizer.
+- TDD: fixture pair promoted to `tests/fixtures/recordings/`, failing tests first — two synthetic-profile unit tests pinning both sides of the discriminator (amplitudes lifted from measured frames), WAV-replay regression ([52,55], pitch 1.0), JSON-path floor test documenting the total corruption ([64,55], every note-1 frame 64). Fix is stage 2 inside `correctSubharmonic`, computed only after the stage-1 gate fires (3 extra Goertzel bins on rare frames). 2187 tests green, check clean.
+
+**Notes:**
+
+- This is the third body in the same graveyard: 2026-06-30 proved octave-down and octave-up locks are indistinguishable post-detection; today proved the artifact and the genuine note are indistinguishable on the fundamental bin alone. The pattern: every single-feature octave discriminator so far has had a real-world counterexample on the other side. The odd-harmonic rank at least encodes the physical asymmetry (half-harmonic sidebands are weak by nature, full-rank harmonics aren't) rather than an empirical amplitude assumption.
+- Corpus-sweep-before-code was the highest-value step: it found the threshold that a single fixture would have set wrong (0.10 would have left 4-frame uncorrected runs in bc-010 — enough to flip the stabilizer) and surfaced the four-to-five collateral damage for free.
 
 **What happened:**
 

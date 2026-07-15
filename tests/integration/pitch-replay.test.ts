@@ -1115,3 +1115,91 @@ describe('pitch replay regression: Fifth–Sixth Step subharmonic octave drop (c
 		expect(result.chosen.notesTotal).toBe(2);
 	});
 });
+
+describe('pitch replay regression: Third–Fifth Rise masked-fundamental octave lift (concert C, 2026-07-14)', () => {
+	// Real recording: the user played a clean E3 → G3 ("Third–Fifth Rise" in
+	// concert C, rendered an octave below the canonical bc-005 register) on
+	// tenor sax. Pitchy detected the E3 correctly (~165 Hz) on essentially
+	// every frame — but the note's fundamental radiates almost nothing
+	// (mag(f)/mag(2f) ≈ 0.02–0.06), which is INSIDE the band the 2026-06-30
+	// subharmonic corrector treats as "no real energy at f ⇒ artifact". So
+	// correctSubharmonic doubled every correctly-detected frame to E4
+	// (MIDI 64) before it entered the MIDI stream, and the whole first note
+	// scored octave-high (saved diagnostic: pitch 0.5, overall 0.66, "fair").
+	//
+	// This is the mirror-image failure of the Fifth–Sixth Step fixture above:
+	// there the reported f was spectrally empty because it was a period-doubling
+	// artifact; here it is spectrally empty because low tenor notes can mask
+	// their own fundamental. The ODD harmonics break the tie — 3f/5f are
+	// full-rank harmonics of a genuine low note (measured (3f+5f)/(2f+4f)
+	// ≥ 0.26) but only weak period-doubling sidebands of an artifact (≤ 0.05).
+	// correctSubharmonic now requires the odd-harmonic ratio to be low before
+	// doubling; the Fifth–Sixth Step tests above pin the artifact side.
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-07-14-third-fifth-rise.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-005_C rendered in the player's chosen register: concert E3 → G3.
+	const phrase: Phrase = {
+		id: 'bc-005_C',
+		name: 'Third–Fifth Rise',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 52, duration: [1, 2], offset: [0, 1] }, // E3
+			{ pitch: 55, duration: [1, 2], offset: [1, 2] } // G3
+		],
+		harmony: [],
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
+		source: 'curated'
+	};
+
+	it('detects the two notes in the octave the user actually played (E3, G3)', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+
+		// Pre-fix correctSubharmonic doubled the masked-fundamental E3 to E4
+		// and this came out [64, 55]; the odd-harmonic gate keeps it at E3.
+		expect(detected.map((n) => n.midi)).toEqual([52, 55]);
+	});
+
+	it('scores the correctly-played phrase as a full pitch match', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+		const result = runScorePipeline({
+			detected,
+			phrase,
+			tempo: 105,
+			transportSeconds: 0,
+			swing: 0.6,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		// Saved diagnostic (pre-fix): pitch 0.5, notesHit 1, overall 0.66 "fair".
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.notesTotal).toBe(2);
+	});
+});
