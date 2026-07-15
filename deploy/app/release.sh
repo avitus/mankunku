@@ -266,9 +266,20 @@ echo "==> Restarting PM2 against new release"
     { grep -E "^[[:space:]]*(cwd|script):" ecosystem.config.cjs || true; } | sed 's/^/      /'
     echo "    build/index.js: $(test -f build/index.js && echo OK || echo MISSING)"
     # Runtime secrets live in a git-ignored file loaded by ecosystem.config.cjs
-    # (ANTHROPIC_API_KEY, SUPABASE_SERVICE_ROLE_KEY). Absent file => those
-    # features silently report "unavailable"; surface it in the deploy log.
-    echo "    shared/runtime.env: $(test -f "${ROOT}/shared/runtime.env" && echo present || echo 'MISSING (chat + admin secrets will be unset)')"
+    # (ANTHROPIC_API_KEY, SUPABASE_SERVICE_ROLE_KEY). Mirror the loader's path
+    # (including the MANKUNKU_RUNTIME_ENV_FILE override) and check readability,
+    # not just existence, so this reflects what the loader can actually read.
+    # File-only secrets (e.g. ANTHROPIC_API_KEY) go unset when it's absent or
+    # unreadable; others may still arrive via the inherited login-shell env.
+    runtime_env_file="${MANKUNKU_RUNTIME_ENV_FILE:-${ROOT}/shared/runtime.env}"
+    if [[ -f "$runtime_env_file" && -r "$runtime_env_file" ]]; then
+        runtime_env_status="present"
+    elif [[ -e "$runtime_env_file" ]]; then
+        runtime_env_status="UNREADABLE (file-only secrets unset; others via inherited env)"
+    else
+        runtime_env_status="MISSING (file-only secrets unset; others via inherited env)"
+    fi
+    echo "    runtime env: ${runtime_env_file}: ${runtime_env_status}"
 
     pm2 delete mankunku 2>/dev/null || true
     pm2 start ecosystem.config.cjs --env production
