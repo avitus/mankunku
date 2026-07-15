@@ -189,7 +189,7 @@ The global Settings page controls things that aren't specific to a single sessio
 
 Two ways in.
 
-- **Step entry** (`/entry`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (with sharps/flats), and the cursor moves on. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓, delete it with Backspace, or flip its spelling with `\`, all without retyping the rest. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
+- **Step entry** (`/entry`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (sharp, flat, or natural), and the cursor moves on. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓, delete it with Backspace/Delete, or flip its spelling with `\`, all without retyping the rest. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
 - **Record** (`/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out.
 
 Either way, your lick joins the library alongside the curated ones and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
