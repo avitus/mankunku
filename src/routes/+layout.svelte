@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { page } from '$app/state';
+	import { page, updated } from '$app/state';
 	import { settings, applyTheme, getInstrument } from '$lib/state/settings.svelte';
 	import {
 		migrateUserLicksWrittenToConcert,
@@ -12,7 +12,8 @@
 	import { welcomeTour } from '$lib/tour/tours/welcome';
 	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
 	import { whenHydrated } from '$lib/state/hydration';
-	import { invalidate } from '$app/navigation';
+	import { beforeNavigate, invalidate } from '$app/navigation';
+	import { shouldHardReloadOnNavigation } from '$lib/util/stale-chunk';
 
 	interface Props {
 		children: import('svelte').Snippet;
@@ -26,6 +27,20 @@
 	let { children, data }: Props = $props();
 	let mobileMenuOpen = $state(false);
 	let { supabase, session, user } = $derived(data);
+
+	// Proactive stale-chunk guard (Sentry MANKUNKU-8). `kit.version.pollInterval`
+	// (svelte.config.js) polls for a new deployment; when one goes live,
+	// `updated.current` flips true. On the next client navigation we do a
+	// full-page load of the target instead of a client-side one, so a fresh HTML
+	// shell + manifest are fetched and the next lazy `import()` resolves to a
+	// chunk that still exists — heading off "error loading dynamically imported
+	// module" before it can happen. `handleStaleChunkReload` in hooks.client.ts
+	// is the reactive backstop for anything that slips past this.
+	beforeNavigate((nav) => {
+		if (shouldHardReloadOnNavigation(nav, updated.current) && nav.to) {
+			location.href = nav.to.url.href;
+		}
+	});
 
 	/**
 	 * Username portion of the email (before the @) — saves horizontal space in
