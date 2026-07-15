@@ -4,7 +4,7 @@ import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
 import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 
 /** Minimal structural proficiency stub — the function only reads `.level`. */
-const p = (level: number) => ({ level });
+const p = (level: number): { level: number } => ({ level });
 
 function allScales(level: number): Partial<Record<ScaleType, { level: number }>> {
 	return Object.fromEntries(SCALE_UNLOCK_ORDER.map((st) => [st, p(level)]));

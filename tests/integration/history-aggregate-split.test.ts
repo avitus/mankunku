@@ -196,6 +196,7 @@ describe('deriveDailySummary', () => {
 		const ts = new Date('2025-05-13T12:00').getTime();
 		const ear = [makeEarSession({ timestamp: ts })];
 		const result = historyModule.deriveDailySummary('2025-05-13', ear, []);
+		expect(result).not.toBeNull();
 		expect(result?.tonalMastery).toBeUndefined();
 	});
 

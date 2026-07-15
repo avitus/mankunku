@@ -148,11 +148,15 @@
 			: 100
 	);
 
+	function xForIndex(i: number, length: number): number {
+		const step = length > 1 ? chartW / (length - 1) : 0;
+		return PAD_LEFT + i * step;
+	}
+
 	function toPoints(data: DataPoint[], accessor: (d: DataPoint) => number): string {
 		if (data.length === 0) return '';
-		const step = data.length > 1 ? chartW / (data.length - 1) : 0;
 		return data.map((d, i) => {
-			const x = PAD_LEFT + i * step;
+			const x = xForIndex(i, data.length);
 			const y = PAD_TOP + chartH - (accessor(d) / yMax) * chartH;
 			return `${x},${y}`;
 		}).join(' ');
@@ -164,12 +168,11 @@
 	// through when older history predates the snapshot).
 	function toPointsSkipNull(data: DataPoint[], accessor: (d: DataPoint) => number | null): string {
 		if (data.length === 0) return '';
-		const step = data.length > 1 ? chartW / (data.length - 1) : 0;
 		const parts: string[] = [];
 		data.forEach((d, i) => {
 			const v = accessor(d);
 			if (v == null) return;
-			const x = PAD_LEFT + i * step;
+			const x = xForIndex(i, data.length);
 			const y = PAD_TOP + chartH - (v / yMax) * chartH;
 			parts.push(`${x},${y}`);
 		});
@@ -206,7 +209,7 @@
 		<div class="flex gap-3 text-xs">
 			<span class="flex items-center gap-1">
 				<svg width="14" height="6" class="shrink-0">
-					<line x1="0" y1="3" x2="14" y2="3" stroke="var(--color-text-primary)" stroke-width="2" />
+					<line x1="0" y1="3" x2="14" y2="3" stroke="var(--color-text)" stroke-width="2" />
 				</svg>
 				Mastery
 			</span>
@@ -271,7 +274,7 @@
 			<!-- Tonal Mastery (solid, primary, on top) -->
 			<polyline
 				fill="none"
-				stroke="var(--color-text-primary)"
+				stroke="var(--color-text)"
 				stroke-width="2"
 				stroke-linejoin="round"
 				points={toPointsSkipNull(dataPoints, d => d.tonalMastery)}

@@ -201,8 +201,11 @@
 	const mastery = $derived(getTonalMastery());
 	// Full teal→brass ramp as a gradient for the mastery meter; the CSS vars
 	// re-step per theme (see app.css), so this stays legible in light + dark.
-	const masteryGradient =
-		'linear-gradient(to right, var(--mastery-1), var(--mastery-2), var(--mastery-3), var(--mastery-4), var(--mastery-5), var(--mastery-6), var(--mastery-7), var(--mastery-8), var(--mastery-9), var(--mastery-10))';
+	// Generated from the 10 difficultyBand steps so it can't drift from them.
+	const masteryGradient = `linear-gradient(to right, ${Array.from(
+		{ length: 10 },
+		(_, i) => `var(--mastery-${i + 1})`
+	).join(', ')})`;
 	const pct = (n: number) => Math.round(n * 100);
 
 	// Per-scale proficiency entries (only scales with data)
