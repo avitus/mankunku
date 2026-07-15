@@ -2,6 +2,11 @@ import { handleErrorWithSentry, replayIntegration } from "@sentry/sveltekit";
 import * as Sentry from '@sentry/sveltekit';
 import type { ErrorEvent, EventHint } from '@sentry/sveltekit';
 import type { HandleClientError } from '@sveltejs/kit';
+import {
+  isStaleChunkErrorMessage,
+  shouldDropStaleChunkReport,
+  shouldReloadForStaleChunk
+} from '$lib/util/stale-chunk';
 
 // `import.meta.env.DEV` is false for `npm run preview`, so a preview running
 // on localhost still shipped events with environment='production' (see Sentry
@@ -22,16 +27,11 @@ const SENTRY_ENVIRONMENT = detectEnvironment();
 
 // After a deploy, an open tab's cached HTML may reference chunk hashes the
 // server no longer has. SvelteKit surfaces that as "error loading dynamically
-// imported module". The first occurrence per session is recovered by
-// handleStaleChunkReload below; the second occurrence (reload didn't help)
-// is the actionable case. See MANKUNKU-8.
-const STALE_CHUNK_RELOAD_KEY = 'stale-chunk-reload-attempted';
-const STALE_CHUNK_ERROR_PATTERN =
-  /error loading dynamically imported module|Failed to fetch dynamically imported module/i;
-
-function isStaleChunkErrorMessage(msg: string): boolean {
-  return STALE_CHUNK_ERROR_PATTERN.test(msg);
-}
+// imported module". The first occurrence for a given chunk is recovered by
+// handleStaleChunkReload below; if the reload doesn't help — or the same tab
+// later hits a *different* stale chunk across another deploy — that occurrence
+// is the actionable case and is reported. The report/reload decisions are keyed
+// per chunk URL in $lib/util/stale-chunk (unit-tested). See MANKUNKU-8.
 
 Sentry.init({
   dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
@@ -101,16 +101,17 @@ Sentry.init({
     }
 
     // Stale-chunk errors: handleStaleChunkReload below auto-recovers the first
-    // occurrence per session by reloading. Don't pollute Sentry with that
-    // first occurrence — but DO report when the flag is already set, because
-    // that means the reload didn't help and the error is actionable. See
-    // MANKUNKU-8.
+    // occurrence for a chunk by reloading. Don't pollute Sentry with that first
+    // occurrence — but DO report once a reload for that same chunk was already
+    // attempted, because it means the reload didn't help and the error is
+    // actionable. See MANKUNKU-8.
     const exMessage = typeof ex?.value === 'string' ? ex.value : '';
     const messageStr = typeof event.message === 'string' ? event.message : '';
+    const staleMessage = [exMessage, messageStr].find(isStaleChunkErrorMessage);
     if (
-      (isStaleChunkErrorMessage(exMessage) || isStaleChunkErrorMessage(messageStr)) &&
+      staleMessage &&
       typeof sessionStorage !== 'undefined' &&
-      sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) !== '1'
+      shouldDropStaleChunkReport(staleMessage, sessionStorage)
     ) {
       return null;
     }
@@ -149,28 +150,27 @@ Sentry.init({
  * imported module" — the page is broken until the user reloads. Force the
  * reload here instead of asking the user to do it. See Sentry MANKUNKU-8.
  *
- * The reload is gated by a one-shot sessionStorage flag so that if the chunk
- * is still missing after the reload (e.g. user is offline, or a deploy is
- * mid-flight and assets haven't propagated to their CDN edge), the second
- * failure does NOT loop into another reload — it surfaces the error normally.
+ * The reload is gated per failing chunk URL (`shouldReloadForStaleChunk`) so
+ * that if the SAME chunk is still missing after the reload (e.g. user is
+ * offline, or a deploy is mid-flight and assets haven't propagated), the repeat
+ * failure does NOT loop into another reload — it surfaces normally. A later,
+ * DISTINCT stale chunk still gets its own reload attempt.
  *
- * The same flag is read by `beforeSend` above so the first-occurrence Sentry
- * report is dropped (the reload is the fix); the second occurrence keeps the
- * report because it indicates the reload didn't help.
+ * The same per-chunk record is read by `beforeSend` above so the first
+ * occurrence for a chunk is dropped (the reload is the fix) and only the
+ * reload-didn't-help case is reported.
+ *
+ * Note: this reactive reload is a backstop. The proactive `beforeNavigate`
+ * guard in +layout.svelte (driven by kit.version.pollInterval) reloads a stale
+ * tab before the failing import can happen; this catches whatever slips past.
  */
 const handleStaleChunkReload: HandleClientError = ({ error }) => {
   const msg = (error as { message?: string } | null)?.message ?? '';
   if (
     typeof location !== 'undefined' &&
     typeof sessionStorage !== 'undefined' &&
-    isStaleChunkErrorMessage(msg)
+    shouldReloadForStaleChunk(msg, sessionStorage)
   ) {
-    if (sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) === '1') {
-      // Already reloaded once this session and still failing — don't loop.
-      sessionStorage.removeItem(STALE_CHUNK_RELOAD_KEY);
-      return;
-    }
-    sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, '1');
     location.reload();
   }
 };
