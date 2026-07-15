@@ -428,7 +428,7 @@
 			{:else}
 				<span class="tabular-nums">Bar {position.bar}, Beat {position.beat}</span>
 			{/if}
-			<span class={isFull ? 'font-medium text-[var(--color-error)]' : ''}>
+			<span class={isFull ? 'font-medium text-[var(--color-error-text)]' : ''}>
 				{isFull ? 'Full' : `${remainingBeats} beat${remainingBeats !== 1 ? 's' : ''} left`}
 			</span>
 		</div>

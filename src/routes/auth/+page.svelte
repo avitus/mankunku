@@ -65,7 +65,7 @@
 		<!-- Error display — shows both form action errors and OAuth callback errors -->
 		{#if form?.error || errorMessage}
 			<div
-				class="rounded-lg bg-[var(--color-error)]/10 px-4 py-3 text-sm text-[var(--color-error)]"
+				class="rounded-lg bg-[var(--color-error)]/10 px-4 py-3 text-sm text-[var(--color-error-text)]"
 				role="alert"
 			>
 				{form?.error ?? decodeErrorMessage(errorMessage)}

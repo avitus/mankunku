@@ -349,7 +349,7 @@
 		<!-- Lick grid -->
 		{#if loadError}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-error)]">{loadError}</p>
+				<p class="italic text-[var(--color-error-text)]">{loadError}</p>
 			</div>
 		{:else if licks.length > 0}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">

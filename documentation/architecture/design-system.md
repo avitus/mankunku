@@ -97,6 +97,8 @@ A vintage recording-booth red used for the active / stop state of the practice a
 
 `--color-error` is a **muted jazz-toned red** (`#c45b5b` dark / `#a12f35` light), desaturated from a bright alert red so it sits inside the Blue Note palette — used for negative feedback (a "Try Again" grade, a low score) as well as genuine errors. It stays distinct in hue from the warmer `--color-onair` brick.
 
+`--color-error` and `--color-warning` are **fill** tokens (tuned for button/tint backgrounds, which carry white text). For feedback **text** — an error message, a warning label — use the text-safe variants `--color-error-text` / `--color-warning-text`, which lighten (error) or darken (warning) per theme so small text keeps ≥4.5:1 contrast on the page and card surfaces.
+
 ### Difficulty & Mastery ramps
 
 Two 10-step ramps, both theme-aware (base in `:root`, re-stepped in `:root.light`), for the two things the app grades on a scale. **Never** hand-roll a green→red heatmap or hardcode these hues inline.

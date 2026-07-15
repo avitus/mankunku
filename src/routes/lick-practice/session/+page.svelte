@@ -1194,7 +1194,7 @@
 							<div class="font-display text-2xl font-bold">
 								{sessionReport.finalTempo}
 								{#if tempoDelta !== 0}
-									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}">
+									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}">
 										({tempoDelta > 0 ? '+' : ''}{tempoDelta})
 									</span>
 								{/if}
@@ -1238,7 +1238,7 @@
 							{#if lick.newTempo != null}
 								{@const delta = lick.newTempo - lick.tempo}
 								{lick.newTempo} BPM
-								<span class={delta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}>
+								<span class={delta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}>
 									({delta > 0 ? '+' : ''}{delta})
 								</span>
 							{:else}
@@ -1388,7 +1388,7 @@
 		<div class="flex justify-center gap-4">
 			<button
 				onclick={handleEnd}
-				class="rounded-lg bg-[var(--color-bg-tertiary)] px-6 py-2 text-sm font-medium text-[var(--color-error)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+				class="rounded-lg bg-[var(--color-bg-tertiary)] px-6 py-2 text-sm font-medium text-[var(--color-error-text)] hover:bg-[var(--color-bg-secondary)] transition-colors"
 			>
 				End Session
 			</button>

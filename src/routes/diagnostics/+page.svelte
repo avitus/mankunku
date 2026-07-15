@@ -600,14 +600,14 @@
 							</div>
 
 							{#if downloadError}
-								<p class="text-xs text-[var(--color-error)]">Download failed: {downloadError}</p>
+								<p class="text-xs text-[var(--color-error-text)]">Download failed: {downloadError}</p>
 							{/if}
 
 							<!-- Replay panel -->
 							{#if replayLoading}
 								<p class="text-sm text-[var(--color-text-secondary)]">Decoding and replaying…</p>
 							{:else if replayError}
-								<p class="text-sm text-[var(--color-error)]">Replay failed: {replayError}</p>
+								<p class="text-sm text-[var(--color-error-text)]">Replay failed: {replayError}</p>
 							{:else if replay}
 								{@const dims = chartDims(replay)}
 								{@const labels = chartLabels(replay)}
@@ -735,7 +735,7 @@
 											{#if mismatchCount === 0}
 												<span class="text-xs text-[var(--color-accent)]">(match)</span>
 											{:else}
-												<span class="text-xs text-[var(--color-warning)]">
+												<span class="text-xs text-[var(--color-warning-text)]">
 													({mismatchCount} differ)
 												</span>
 											{/if}

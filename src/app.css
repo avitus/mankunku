@@ -35,8 +35,15 @@
 	--color-warning: #eab308;
 	/* Muted jazz-toned red for negative feedback (try-again grades, low scores)
 	   AND genuine errors — desaturated from the old alert red (#ef4444) so it
-	   sits inside the Blue Note palette. Distinct in hue from --color-onair. */
+	   sits inside the Blue Note palette. Distinct in hue from --color-onair.
+	   This is the FILL token (button/tint backgrounds carry white text on it). */
 	--color-error: #c45b5b;
+	/* Text-safe feedback foregrounds. The fill tokens above are tuned for
+	   backgrounds; these variants keep small feedback TEXT readable (≥4.5:1)
+	   on the page + card surfaces. In dark mode error text lightens; warning
+	   text is already legible. */
+	--color-error-text: #d47b7c;
+	--color-warning-text: #eab308;
 	/* Blue Note brass — decorative chrome accent */
 	--color-brass: #c8923d;
 	--color-brass-soft: #e2b875;
@@ -103,6 +110,10 @@
 	--color-success: #16a34a;
 	--color-warning: #ca8a04;
 	--color-error: #a12f35;
+	/* Text-safe feedback foregrounds for light mode (darker for contrast on
+	   the pale surfaces; the fill --color-error is already text-legible here). */
+	--color-error-text: #a12f35;
+	--color-warning-text: #8a5a00;
 	/* Brass tones — deeper and more saturated on light backgrounds */
 	--color-brass: #8b6a2f;
 	--color-brass-soft: #a8853e;

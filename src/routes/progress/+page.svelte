@@ -796,7 +796,7 @@
 		<!-- Reset -->
 		<div class="text-center">
 			{#if showResetConfirm}
-				<p class="mb-2 text-sm text-[var(--color-error)]">
+				<p class="mb-2 text-sm text-[var(--color-error-text)]">
 					This will erase all progress. Are you sure?
 				</p>
 				<div class="flex justify-center gap-2">
@@ -834,7 +834,7 @@
 			{:else}
 				<button
 					onclick={() => { showResetConfirm = true; }}
-					class="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-error)] transition-colors"
+					class="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-error-text)] transition-colors"
 				>
 					Reset Progress
 				</button>
