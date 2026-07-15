@@ -265,6 +265,10 @@ echo "==> Restarting PM2 against new release"
     echo "    ecosystem.config.cjs cwd/script:"
     { grep -E "^[[:space:]]*(cwd|script):" ecosystem.config.cjs || true; } | sed 's/^/      /'
     echo "    build/index.js: $(test -f build/index.js && echo OK || echo MISSING)"
+    # Runtime secrets live in a git-ignored file loaded by ecosystem.config.cjs
+    # (ANTHROPIC_API_KEY, SUPABASE_SERVICE_ROLE_KEY). Absent file => those
+    # features silently report "unavailable"; surface it in the deploy log.
+    echo "    shared/runtime.env: $(test -f "${ROOT}/shared/runtime.env" && echo present || echo 'MISSING (chat + admin secrets will be unset)')"
 
     pm2 delete mankunku 2>/dev/null || true
     pm2 start ecosystem.config.cjs --env production
