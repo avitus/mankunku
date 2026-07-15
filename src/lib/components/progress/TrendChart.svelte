@@ -201,7 +201,7 @@
 					onclick={() => { period = p.value; }}
 					class="rounded px-2 py-0.5 text-xs transition-colors {period === p.value
 						? 'bg-[var(--color-accent)] text-white'
-						: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]'}"
+						: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}"
 				>{p.label}</button>
 			{/each}
 		</div>

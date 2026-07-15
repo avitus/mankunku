@@ -3,7 +3,7 @@
 	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, getTonalMastery } from '$lib/state/progress.svelte';
 	import { difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
 	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
-	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
+	import { GRADE_LABELS, GRADE_COLORS, scoreToGrade } from '$lib/scoring/grades';
 	import { SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
@@ -501,11 +501,7 @@
 					<h2 class="mb-3 text-lg font-semibold">Recent Sessions</h2>
 					<div class="space-y-2">
 						{#each lickSessions as ls}
-							{@const avgColor = ls.report.overallAverage >= 0.8
-								? '#22c55e'
-								: ls.report.overallAverage >= 0.6
-									? 'var(--color-warning, #f59e0b)'
-									: 'var(--color-error)'}
+							{@const avgColor = GRADE_COLORS[scoreToGrade(ls.report.overallAverage)]}
 							<div class="rounded bg-[var(--color-bg-tertiary)] overflow-hidden">
 								<button
 									onclick={() => toggleLickSession(ls.id)}
@@ -544,11 +540,7 @@
 												</div>
 												<div class="flex flex-wrap gap-1.5">
 													{#each lick.keys as k}
-														{@const color = k.passed
-															? '#22c55e'
-															: k.score >= 0.6
-																? 'var(--color-warning, #f59e0b)'
-																: 'var(--color-error)'}
+														{@const color = masteryDisplay(k.score * 100).color}
 														{@const hasDetail = !!k.sessionId && recordingIds.has(k.sessionId)}
 														{@const isOpen = !!k.sessionId && expandedKeySessionId === k.sessionId}
 														<button
@@ -562,7 +554,7 @@
 															class:opacity-60={!hasDetail}
 															class:outline-current={isOpen}
 															class:outline-transparent={!isOpen}
-															style="background: {color}20; color: {color};"
+															style="background: color-mix(in srgb, {color} 13%, transparent); color: {color};"
 														>
 															<span class="font-bold">{concertKeyToWritten(k.key as PitchClass, instrument)}</span>
 															<span class="tabular-nums">{pct(k.score)}%</span>

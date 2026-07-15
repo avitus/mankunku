@@ -206,7 +206,7 @@
 	<!-- Tooltip -->
 	{#if tooltip}
 		<div
-			class="pointer-events-none absolute rounded bg-[var(--color-bg-primary)] px-2 py-1 text-xs shadow-lg border border-[var(--color-bg-tertiary)]"
+			class="pointer-events-none absolute rounded bg-[var(--color-bg)] px-2 py-1 text-xs shadow-lg border border-[var(--color-bg-tertiary)]"
 			style="left: {tooltip.x + 10}px; top: {tooltip.y - 30}px"
 		>
 			{tooltip.text}

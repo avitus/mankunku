@@ -590,7 +590,7 @@
 								</button>
 								<button
 									onclick={() => remove(rec)}
-									class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs hover:bg-red-900 transition-colors"
+									class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs hover:bg-[var(--color-error)]/25 transition-colors"
 								>
 									Delete
 								</button>
@@ -600,14 +600,14 @@
 							</div>
 
 							{#if downloadError}
-								<p class="text-xs text-red-400">Download failed: {downloadError}</p>
+								<p class="text-xs text-[var(--color-error)]">Download failed: {downloadError}</p>
 							{/if}
 
 							<!-- Replay panel -->
 							{#if replayLoading}
 								<p class="text-sm text-[var(--color-text-secondary)]">Decoding and replaying…</p>
 							{:else if replayError}
-								<p class="text-sm text-red-400">Replay failed: {replayError}</p>
+								<p class="text-sm text-[var(--color-error)]">Replay failed: {replayError}</p>
 							{:else if replay}
 								{@const dims = chartDims(replay)}
 								{@const labels = chartLabels(replay)}
@@ -645,7 +645,7 @@
 												cx={dims.xScale(r.time)}
 												cy={dims.yScale(r.midi)}
 												r="1.5"
-												fill={r.warmup ? '#888' : 'var(--color-accent)'}
+												fill={r.warmup ? 'var(--color-text-secondary)' : 'var(--color-accent)'}
 												opacity={Math.max(0.2, r.clarity)}
 											/>
 										{/each}
@@ -735,7 +735,7 @@
 											{#if mismatchCount === 0}
 												<span class="text-xs text-[var(--color-accent)]">(match)</span>
 											{:else}
-												<span class="text-xs text-amber-400">
+												<span class="text-xs text-[var(--color-warning)]">
 													({mismatchCount} differ)
 												</span>
 											{/if}
@@ -750,7 +750,7 @@
 											</thead>
 											<tbody class="font-mono">
 												{#each diff as row, i}
-													<tr class="border-b border-[var(--color-bg-tertiary)] {row.matches ? '' : 'bg-amber-900/20'}">
+													<tr class="border-b border-[var(--color-bg-tertiary)] {row.matches ? '' : 'bg-[var(--color-warning)]/15'}">
 														<td class="py-1 pr-2 text-[var(--color-text-secondary)]">{i + 1}</td>
 														<td class="py-1 px-2">
 															{row.saved ? `${midiToDisplayName(row.saved.midi)} @ ${row.saved.onsetTime.toFixed(2)}s` : '—'}

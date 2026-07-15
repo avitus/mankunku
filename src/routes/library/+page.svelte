@@ -338,8 +338,8 @@
 		{:else}
 			{#if needsSetup.length > 0}
 				<section class="space-y-3">
-					<div class="rounded-lg border border-[var(--color-onair)]/40 bg-[var(--color-onair)]/10 p-3">
-						<div class="smallcaps text-[var(--color-onair)]">Needs setup</div>
+					<div class="rounded-lg border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 p-3">
+						<div class="smallcaps text-[var(--color-warning)]">Needs setup</div>
 						<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
 							These are tagged for practice but aren't assigned to a progression yet, so they
 							can't appear in a session. Open each one to choose where it's practiced.

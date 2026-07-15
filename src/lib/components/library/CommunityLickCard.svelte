@@ -47,7 +47,7 @@
 				</span>
 				<span
 					class="rounded px-1.5 py-0.5"
-					style="background: {diff.color}20; color: {diff.color}"
+					style="background: color-mix(in srgb, {diff.color} 13%, transparent); color: {diff.color}"
 				>
 					{diff.name} ({lick.phrase.difficulty.level})
 				</span>

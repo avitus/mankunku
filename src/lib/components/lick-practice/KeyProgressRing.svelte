@@ -63,11 +63,14 @@
 			})
 	);
 
+	// Proficiency reads as accomplishment via the teal→brass mastery ramp
+	// (matching the ear-training Scale Proficiency bars) — not a green/amber/red
+	// danger scale. The all-proficient ring still glows brass as a reward.
 	const STATUS_COLORS = $derived({
 		current: 'var(--color-accent)',
-		proficient: allProficient ? 'var(--color-brass)' : '#22c55e',
-		developing: 'var(--color-warning, #eab308)',
-		struggling: 'var(--color-error)',
+		proficient: allProficient ? 'var(--color-brass)' : 'var(--mastery-9)',
+		developing: 'var(--mastery-5)',
+		struggling: 'var(--mastery-3)',
 		pending: 'var(--color-bg-tertiary)'
 	});
 </script>
