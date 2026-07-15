@@ -1,4 +1,6 @@
 import * as Sentry from '@sentry/sveltekit';
+import type { ErrorEvent, EventHint } from '@sentry/sveltekit';
+import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
 
 // SvelteKit loads this file via Node's `--import` flag, BEFORE Vite's transform
 // pipeline kicks in. That means `import.meta.env.DEV` is undefined here even
@@ -23,6 +25,18 @@ Sentry.init({
     SENTRY_ENVIRONMENT === 'development'
       ? [/Transform failed with \d+ error/i]
       : [],
+
+  // Drop empty "Error: undefined" events (no message, value, frames, or
+  // original exception) — they read as "<unknown>" and aren't actionable. The
+  // client hook already filters these; this mirrors it for the SSR/load path
+  // (e.g. a preview server capturing an empty root-layout load error). See
+  // MANKUNKU-K.
+  beforeSend(event: ErrorEvent, hint: EventHint): ErrorEvent | null {
+    if (isEmptyErrorEvent(event, hint)) {
+      return null;
+    }
+    return event;
+  },
 
   tracesSampleRate: 1.0,
 
