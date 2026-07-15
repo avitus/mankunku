@@ -31,7 +31,7 @@ export function isAnthropicConfigured(): boolean {
 }
 
 /** Default Claude model used by the docs chat. Swap here to upgrade. */
-export const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+export const ANTHROPIC_MODEL = 'claude-opus-4-8';
 
 /** Cap on output tokens per chat response — keeps costs predictable. */
 export const ANTHROPIC_MAX_TOKENS = 1024;
