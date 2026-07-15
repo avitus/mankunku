@@ -82,13 +82,17 @@ Renders sheet music from a `Phrase` using [abcjs](https://paulrosen.github.io/ab
 |---|---|---|
 | `phrase` | `Phrase \| null` | Phrase to render |
 | `instrument` | `InstrumentConfig` | Optional; transposes to written pitch |
+| `selectedIndex` | `number \| null` | Optional; source-array index of the note to highlight (`null` = none). Defaults to `null` |
+| `onSelect` | `(sourceIndex: number) => void` | Optional; fires when the user clicks a pitched notehead, with the note's source-array index |
+| `titleArea` | `Snippet` | Optional; custom header rendered above the staff |
 
 **Behavior:**
 - Lazy-loads `abcjs` on mount
-- Converts phrase to ABC notation via `phraseToAbc()`
+- Converts phrase to ABC notation via `phraseToAbcWithMap()` (which also returns per-note click anchors)
 - Renders to SVG with `abcjs.renderAbc()`
 - Responsive rendering (`responsive: 'resize'`)
 - Dark mode support: overrides SVG path/text colors via CSS
+- Registers an abcjs `clickListener`: clicking a pitched notehead calls `onSelect` with the note's source-array index (resolved through the anchor map); `selectedIndex` highlights that notehead (colored notehead + stem). Rests are not selectable. Used by the `/entry` staff for click-to-select editing.
 
 Shows "No phrase loaded" placeholder when `phrase` is null.
 

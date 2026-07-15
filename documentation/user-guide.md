@@ -97,7 +97,7 @@ The key progress ring and the post-session card both colour each key by how it s
 - **Yellow (75–89%).** Passable but not consolidated. Yellow keys don't block anything from happening — they just don't earn it. You're still in the rotation; nothing decays.
 - **Red (< 75%).** Below the floor. A single red key holds the brake on tempo increases and unlocks until you bring it back up. This is the app's way of saying *don't move on until you've actually got it.*
 
-Once the session has cycled through every currently-unlocked key for the current lick, it moves to the next tagged lick. The session ends when the time budget runs out or every lick has had its turn.
+Once the session has cycled through every currently-unlocked key for the current lick, the finished lick holds on screen for one more bar — long enough for that last key's score dot to actually land, and, when every key came up green, for the all-clear brass glow to sit there a beat — before the chart flips to the next tagged lick. In that gap, with the backing track on, a quick two-chord **ii-V** comps you into the next lick's first key so your ear is set before its downbeat; the cue is mode-matched — a half-diminished ii into minor tonics, a plain ii-V otherwise. The next lick still starts on the same beat it always did. The session ends when the time budget runs out or every lick has had its turn.
 
 ### Single-Lick Deep Practice
 
@@ -189,7 +189,7 @@ The global Settings page controls things that aren't specific to a single sessio
 
 Two ways in.
 
-- **Step entry** (`/entry`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (with sharps/flats), and the cursor moves on. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
+- **Step entry** (`/entry`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (sharp, flat, or natural), and the cursor moves on. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓, delete it with Backspace/Delete, or flip its spelling with `\`, all without retyping the rest. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
 - **Record** (`/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out.
 
 Either way, your lick joins the library alongside the curated ones and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.

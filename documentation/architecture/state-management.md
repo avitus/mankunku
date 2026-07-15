@@ -154,8 +154,9 @@ UI state for manual lick entry (the `/entry` and `/add-licks` routes). **Not per
 
 ```typescript
 export const stepEntry = $state({
-  currentDuration: 'quarter' as BaseDurationId,
+  currentDuration: 'eighth' as BaseDurationId,
   tripletMode: false,
+  dottedMode: false,
   selectedOctave: 4,
   accidental: 'natural' as 'sharp' | 'flat' | 'natural',
   enteredNotes: [] as Note[],
@@ -164,6 +165,9 @@ export const stepEntry = $state({
   phraseName: '',
   category: 'user' as PhraseCategory,
   practiceTag: false,
+  // Index into `enteredNotes` of the user-selected pitched note; `null` falls back
+  // to the last pitched note for pitch-shift / delete / spell-flip operations
+  selectedNoteIndex: null as number | null,
   // Edit-mode metadata (non-null when re-opening an existing user-entered lick)
   editingId: null as string | null,
   editingSource: null as string | null,
@@ -176,11 +180,13 @@ The user enters notes in their instrument's **written** pitch (what they see on 
 
 **Key functions:**
 - `addNote(pitchClass, octave, accidental)` — Validates the duration fits, applies key-signature accidentals (when explicit accidental is `'natural'`), picks the nearest octave to the previous note, converts written → concert, appends.
-- `addRest()`, `deleteLastNote()`, `adjustLastNotePitch(semitones)`.
+- `addRest()`, `enterTiedNote()` (tie the last note into the current one).
+- `selectNote(index)`, `selectPrev()`, `selectNext()` — Set/move the selected note (click a notehead or step with ←/→).
+- `deleteSelectedNote()`, `adjustSelectedNotePitch(semitones)`, `flipSelectedNoteSpelling()` — Act on the selected note, falling back to the last pitched note when nothing is selected; delete shifts later offsets left and repairs straddling ties. `deleteLastNote` / `adjustLastNotePitch` / `flipLastNoteSpelling` remain as backward-compat aliases.
 - `getCurrentPhrase()` — Builds a `Phrase` with `user-entered` source and optional `practice` tag for export.
 - `getCurrentCursorOffset()`, `getRemainingCapacity()`, `canAddDuration(duration)`, `getCurrentBarAndBeat()` — Cursor helpers.
 - `getPaddedNotes()` — Pads entered notes with a final rest so partial bars render cleanly in notation.
-- `setBarCount(n)` (1–4, trims overflow), `setDuration(id)`, `toggleTriplet()`, `setAccidental(acc)`, `adjustOctave(delta)`, `reset()`.
+- `setBarCount(n)` (1–4, trims overflow; clears the selection if it now points past the end), `setDuration(id)`, `toggleTriplet()`, `toggleDotted()`, `setAccidental(acc)`, `adjustOctave(delta)`, `reset()`.
 - `loadFromPhrase(lick)` — Edit mode entry point. Hydrates the state from an existing lick (converts concert pitches back to written, restores key/bar count/name/category) and stamps `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save → Update label, skip duplicate-detection self-match, route category changes through `updateLickCategory` (preserving `prog:*` seeding), and redirect to `/library/<id>` on save. Mic-recorded licks are not editable — only `source === 'user-entered'`.
 
 ## Persistence Layer (`src/lib/persistence/storage.ts`)

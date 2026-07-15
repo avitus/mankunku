@@ -335,8 +335,9 @@ UI state for manual lick entry (`/entry`, `/add-licks`). **Not persisted** — d
 
 ```typescript
 export const stepEntry = $state({
-  currentDuration: 'quarter' as BaseDurationId,
+  currentDuration: 'eighth' as BaseDurationId,
   tripletMode: false,
+  dottedMode: false,
   selectedOctave: 4,
   accidental: 'natural' as 'sharp' | 'flat' | 'natural',
   enteredNotes: [] as Note[],
@@ -345,6 +346,9 @@ export const stepEntry = $state({
   phraseName: '',
   category: 'user' as PhraseCategory,
   practiceTag: false,
+  // Index of the user-selected pitched note in `enteredNotes`; `null` = no explicit
+  // selection (selected-note operations fall back to the last pitched note).
+  selectedNoteIndex: null as number | null,
   // Edit-mode metadata (non-null when re-opening an existing user-entered lick).
   editingId: null as string | null,
   editingSource: null as string | null,
@@ -357,8 +361,12 @@ export const stepEntry = $state({
 
 - `addNote(pitchClass, octave, accidental): boolean` — Validates that the duration fits, applies key-signature accidentals when `accidental === 'natural'`, picks the octave nearest to the previous pitched note, converts written → concert, appends. Written-pitch range is Bb3–F6.
 - `addRest(): boolean`
-- `deleteLastNote(): void`
-- `adjustLastNotePitch(semitones): void` — Clamped to written-pitch range.
+- `enterTiedNote(): boolean` — MuseScore-style tie: mark the previous note tied and append a same-pitch duplicate of the current duration (no-op if the last note is a rest).
+- `selectNote(index): void` — Set the user-selected note (`null` clears; non-pitched indices are ignored). Backs click-to-select a notehead on the entry staff.
+- `selectPrev(): void` / `selectNext(): void` — Step the selection to the previous / next pitched note, skipping rests (bound to ←/→).
+- `deleteSelectedNote(): void` — Delete the selected note (or the last pitched note when nothing is selected), shifting later note offsets left and repairing straddling ties. Backward-compat alias: `deleteLastNote`.
+- `adjustSelectedNotePitch(semitones): void` — Shift the selected note (or last pitched note) by `semitones`, clamped to the written-pitch range. Backward-compat alias: `adjustLastNotePitch`.
+- `flipSelectedNoteSpelling(): void` — Toggle the enharmonic spelling of the selected note (or last pitched note). Backward-compat alias: `flipLastNoteSpelling`.
 
 ### Cursor helpers
 
@@ -374,6 +382,7 @@ export const stepEntry = $state({
 - `setBarCount(n): void` — Clamped to 1–4; trims overflow notes.
 - `setDuration(id): void`
 - `toggleTriplet(): void`
+- `toggleDotted(): void`
 - `setAccidental(acc): void` — Toggles off if already set.
 - `adjustOctave(delta): void` — Clamped to 1–8.
 - `reset(): void`

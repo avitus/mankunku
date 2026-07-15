@@ -183,6 +183,20 @@ Generate an ABC notation string.
 
 Uses `KEY_SIG_ACCIDENTALS` lookup table (maps each key to its altered pitch classes) to determine which accidentals are implicit vs. explicit.
 
+`phraseToAbc` is a thin wrapper around `phraseToAbcWithMap` (below) that discards the click-anchor map.
+
+### `phraseToAbcWithMap(phrase, instrument?, defaultLength?): { abc, noteAnchors }`
+
+Generate the same ABC string as `phraseToAbc`, plus a `noteAnchors: PitchedNoteAnchor[]` click-anchor map. Each anchor maps a rendered pitched-note token back to its index in `phrase.notes`, letting `NotationDisplay.svelte` resolve a click on a notehead to a source note (this powers click-to-select on the `/entry` staff). Rest elements are intentionally absent from `noteAnchors`.
+
+```typescript
+export interface PitchedNoteAnchor {
+  startChar: number;   // char index in the ABC string where this note's token begins
+  endChar: number;     // char index just past the end of the token
+  sourceIndex: number; // index into the original phrase.notes array
+}
+```
+
 ### `displayPitchClass(pc, keyContext): string`
 
 Return a pitch class name spelled for a given key context. Only special-cases `F#` → `Gb` when `keyContext` is a flat key; all other pitch classes pass through unchanged. Used by UI chips that show the current scale's notes.

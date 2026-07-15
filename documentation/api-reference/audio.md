@@ -586,6 +586,17 @@ Full teardown: dispose parts, disconnect bass/comp/drum samplers and the shared 
 
 Clamp to `0–1` and set the shared backing gain node's value. Affects bass + comp + drums together.
 
+### `playTransitionChords(stabs, velocity?): void`
+
+Trigger one-off chord stabs directly on the module-level comp instrument, outside any `Tone.Part`. No-op if the comp instrument isn't loaded. Drives the inter-lick **ii-V transition cue** in lick-practice sessions (built via `getTransitionCadenceChords` in `data/progressions.ts`).
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `stabs` | `Array<{ notes: number[]; time: number; duration: number }>` | — | Chord stabs to trigger; `time` is absolute AudioContext seconds |
+| `velocity` | `number` | `65` | MIDI velocity (0–127) |
+
+Stab times **must** be near-now (within smplr's ~200 ms lookahead) so a later `compInstrument.stop()` (`disposeBackingParts` / teardown) can cut them. Schedule far-future stabs as Transport events that call this at fire time instead.
+
 ---
 
 ## bleed-filter.ts
