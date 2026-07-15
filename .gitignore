@@ -43,3 +43,4 @@ supabase/.temp/
 # chunk active sidecar tracking
 .chunk/sidecar.json
 .chunk/sidecar.*.json
+.prod-backup.*
