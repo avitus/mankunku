@@ -157,10 +157,18 @@ describe('pitch replay regression: legato C-D-C recovers pre-worklet-onset notes
 		// Strict assertion for Bug 2: a McLeod subharmonic during the bend
 		// at the end of the sustained final C used to leak through as a C3
 		// ghost AND split the real C4 into two segments.
+		//
+		// The detector now lifts that end-of-note subharmonic back to C4 at the
+		// source (correctSubharmonic in pitch-frame.ts), so the C3 ghost is gone
+		// — but the bend still drops a ~120 ms window of readings, and without
+		// attack evidence the segmenter conservatively splits the surrounding
+		// same-pitch C4 across that gap. The live path supplies worklet onsets,
+		// so mergeSamePitchWithoutAttack rejoins the two halves (no attack at the
+		// gap); replay the same way here to assert the production result.
 		const buffer = loadFixture();
 		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
 		const resolved = resolveOnsets(onsets, readings);
-		const detected = segmentNotes(readings, resolved, duration);
+		const detected = segmentNotes(readings, resolved, duration, undefined, undefined, undefined, onsets);
 
 		expect(detected.map((n) => n.midi)).toEqual([60, 62, 60]);
 	});
@@ -736,5 +744,462 @@ describe('pitch replay regression: Flat Five Chromatic Up short-gap re-articulat
 		expect(result.chosen.notesHit).toBe(3);
 		expect(result.chosen.pitchAccuracy).toBe(1);
 		expect(result.chosen.overall).toBeGreaterThan(0.85);
+	});
+});
+
+/**
+ * Sixth regression recording: "Blues Curl Up" (concert D, 2026-06-24). The
+ * day's tonality (concert D) snapped the lick's E→F# blue note down to F, so
+ * bc-041_D rendered as D F F (quarter quarter half); the player tongued the
+ * two Fs in time on tenor sax at 100 BPM, no backing track.
+ *
+ * This is the SAME dead zone the Flat Five Chromatic Up fix targeted — a soft
+ * re-attack the HFC worklet missed, leaving a short reading gap with RISING
+ * RMS (no dip for the dip-and-rise scan, < 150 ms for the bare-gap tier) — but
+ * with a WEAKER step-up: the pitch detector resumed on the new note's decay
+ * shoulder (the attack peak fell inside the 117 ms reading gap), so the
+ * measured rise across the gap is only ~1.26× rather than the flat-five ~2×.
+ * The short-gap tier's 1.5× floor rejected it, mergeSamePitchWithoutAttack
+ * collapsed the two Fs, the third expected note was marked MISSED, and the
+ * saved score was 0.627 ("fair"), pitch 2/3.
+ *
+ * The fix adds the discriminating axis the ratio alone can't supply: a genuine
+ * soft-tongue silence emits NO frames across the hole (the worklet missed it,
+ * so the octave stabilizer never reset), whereas a stabilizer-reset artifact
+ * (e.g. the C-D-C upper-neighbor fixture, whose final-C "gap" is bridged by
+ * warmup frames and shows an even LARGER 1.27× rise) is warmup-bridged. Gating
+ * the short-gap tier on a true reading-time silence lets the rise floor drop to
+ * 1.2× to admit this re-attack without re-admitting the warmup-bridged glitch.
+ */
+describe('pitch replay regression: Blues Curl Up weak-step-up re-articulation (concert D, 2026-06-24)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-06-24-blues-curl-up.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-041_D as the scorer saw it after the tonality snap: D F F.
+	const expectedPhrase: Phrase = {
+		id: 'bc-041_D',
+		name: 'Blues Curl Up',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 62, duration: [1, 4], offset: [0, 1] }, // D
+			{ pitch: 65, duration: [1, 4], offset: [1, 4] }, // F
+			{ pitch: 65, duration: [1, 2], offset: [1, 2] }  // F
+		],
+		harmony: [],
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Mirror the production ear-training path: resolveOnsets →
+	// findReArticulations → segmentNotes(..., articulationOnsets). No backing
+	// track was used, so no bleed onsets.
+	async function detectFromFixture() {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+	}
+
+	it('emits an articulation onset near the second-F attack', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		expect(articulationOnsets.length).toBeGreaterThan(0);
+		// The re-attack lands around beat 2 of the phrase (~1.05 s), ±200 ms.
+		const nearSecondF = articulationOnsets.some((t) => Math.abs(t - 1.05) < 0.2);
+		expect(nearSecondF).toBe(true);
+	});
+
+	it('segments into three notes [D, F, F] instead of merging the two Fs', async () => {
+		const detected = await detectFromFixture();
+
+		expect(detected.map((n) => n.midi)).toEqual([62, 65, 65]);
+		// Third note (second F) re-articulation lands in the 1.0–1.35 s window.
+		expect(detected[2].onsetTime).toBeGreaterThan(1.0);
+		expect(detected[2].onsetTime).toBeLessThan(1.35);
+	});
+
+	it('scores three matched notes with high overall', async () => {
+		const detected = await detectFromFixture();
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.85);
+	});
+});
+
+/**
+ * Ninth regression recording: "Blues Curl Down" (concert Bb, 2026-06-25).
+ * The softest re-articulation seen so far. Phrase Db Db Bb (quarter quarter
+ * half, bc-042_Bb) on tenor sax at 100 BPM, no backing track. The player
+ * tongued the second Db with a *legato* tongue at t ≈ 0.47 s — the airflow
+ * never stopped, so unlike every prior curl fixture there is NO reading gap
+ * and NO envelope dip (rms actually rises across the attack), and the clarity
+ * dip is only ~0.04 (under RE_ARTICULATION_CLARITY_DROP). The worklet's
+ * amplitude-weighted HFC never moved (it fired only at the Db→Bb transition,
+ * 1.09 s, plus three post-phrase key clicks), so the live segmenter saw two
+ * notes (one long Db, one Bb) and the DTW marked the second Db MISSED. The
+ * saved score was 0.631 ("fair"), pitch 2/3.
+ *
+ * What the prior passes can't see and the fix adds:
+ *   - The re-attack injects a broadband high-frequency burst: the per-frame
+ *     `hfRms` (RMS of the first-difference high-pass, captured in detectFrame)
+ *     spikes ~0.012 → 0.067 (≈5.5×) at t ≈ 0.47 s while midiFloat dips
+ *     61.1 → 60.94 (the reed resetting).
+ *   - `findReArticulations`' HF-transient tier fires on that spike, gated on a
+ *     coincident fundamental perturbation (≥0.1 st) so a superimposed key
+ *     click — broadband but leaving the fundamental steady — is rejected.
+ *   - The synthetic onset splits the long Db into two and reinforces the
+ *     boundary as attack evidence, so DTW aligns 3-to-3.
+ *
+ * Because the fix lives in detectFrame (hfRms), only the WAV-replay path
+ * exercises it — readings restored from the saved diagnostic JSON predate the
+ * hfRms field and deliberately skip the HF tier.
+ */
+describe('pitch replay regression: Blues Curl Down legato-tongue re-articulation (concert Bb, 2026-06-25)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-06-25-blues-curl-down.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-042_Bb: Db Db Bb (the blue third tongued twice, curling down to root).
+	const expectedPhrase: Phrase = {
+		id: 'bc-042_Bb',
+		name: 'Blues Curl Down',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 61, duration: [1, 4], offset: [0, 1] }, // Db
+			{ pitch: 61, duration: [1, 4], offset: [1, 4] }, // Db
+			{ pitch: 58, duration: [1, 2], offset: [1, 2] }  // Bb
+		],
+		harmony: [],
+		difficulty: { level: 13, pitchComplexity: 11, rhythmComplexity: 15, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Mirror the production ear-training path. No backing track → no bleed onsets.
+	async function detectFromFixture() {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+	}
+
+	it('emits an HF-transient articulation onset near the second-Db attack', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets } = await replayFromAudioBuffer(buffer);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		expect(articulationOnsets.length).toBeGreaterThan(0);
+		// The legato re-attack lands around beat 1 (~0.47 s), ±0.2 s.
+		const nearSecondDb = articulationOnsets.some((t) => Math.abs(t - 0.47) < 0.2);
+		expect(nearSecondDb).toBe(true);
+	});
+
+	it('segments into three notes [Db, Db, Bb] instead of merging the two Dbs', async () => {
+		const detected = await detectFromFixture();
+
+		expect(detected.map((n) => n.midi)).toEqual([61, 61, 58]);
+		// Second Db re-articulation lands in the 0.35–0.65 s window.
+		expect(detected[1].onsetTime).toBeGreaterThan(0.35);
+		expect(detected[1].onsetTime).toBeLessThan(0.65);
+	});
+
+	it('scores three matched notes with high overall', async () => {
+		const detected = await detectFromFixture();
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.85);
+	});
+});
+
+/**
+ * Guard for the HF-transient pass against a McLeod octave artifact, on the
+ * WAV-replay path (the JSON-fixture test for this recording exercises the
+ * saved-readings path, which predates hfRms and never runs the HF tier).
+ *
+ * "Octave–Flat Seven Drop" (concert D, 2026-05-19): the true phrase collapses
+ * to [D4, C4]. Mid-phrase, McLeod locks onto the C4's second harmonic for a
+ * stretch, producing a spurious C5 (midi 72) run. That run is broadband AND
+ * pitch-unstable (the detector flips ~0.33 st), so it clears the HF-spike and
+ * pitch-perturbation gates — but it sits on a DECAYING envelope (post/pre rms
+ * ≈ 0.61). Without the rms-sustain gate the HF pass emitted an articulation
+ * onset at ~1.6 s, which blocked mergeOctaveBoundariesWithoutAttack and left
+ * the C5 artifact uncollapsed ([62, 72, 72, 72, 60]). The energy-sustain
+ * corroborator rejects it, so the octave collapse runs and the result is the
+ * correct [D4, C4]. (A real re-attack adds energy; an artifact on a fading note
+ * does not — see HF_RE_ARTICULATION_MIN_RMS_SUSTAIN.)
+ */
+describe('pitch replay regression: HF pass does not split a McLeod octave artifact (concert D, 2026-05-19)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-05-19-octave-flat-seven-drop.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	it('emits no articulation onset inside the C5 artifact region (~1.1–2.0 s)', async () => {
+		const { readings, onsets } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+
+		const insideArtifact = articulationOnsets.filter((t) => t > 1.1 && t < 2.0);
+		expect(insideArtifact).toEqual([]);
+	});
+
+	it('collapses to [D4, C4] — the HF split no longer blocks the octave merge', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+
+		expect(detected.map((n) => n.midi)).toEqual([62, 60]);
+	});
+});
+
+describe('pitch replay regression: Fifth–Sixth Step subharmonic octave drop (concert Bb, 2026-06-30)', () => {
+	// Real recording: the user played a clean F3 → G3 ("Fifth–Sixth Step" in
+	// concert Bb) on tenor sax, in the correct octave. On the sustained first
+	// note the McLeod detector locked onto the octave-DOWN subharmonic F2
+	// (≈87.8 Hz) of the true F3 (≈175.6 Hz) — and because the subharmonic frames
+	// carry HIGHER clarity, every downstream octave decision resolved note 1 to
+	// the wrong lower octave (MIDI 41), scoring it "octave-low" though it was
+	// played right (saved diagnostic: pitch 0.5, "try-again").
+	//
+	// The autocorrelation can't tell this subharmonic from a genuine low note,
+	// nor from the OPPOSITE octave-up 2nd-harmonic lock the Octave–Flat Seven
+	// Drop fixture relies on the segmenter to collapse DOWN — they are identical
+	// at the MIDI/clarity/NSDF level. The SPECTRUM separates them: a subharmonic
+	// has essentially no energy at the reported frequency (all the energy is an
+	// octave up), whereas a real low note keeps a substantial fundamental. The
+	// detector's correctSubharmonic (pitch-frame.ts) makes exactly that check
+	// per frame and lifts note 1 back to F3.
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-06-30-fifth-sixth-step.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-010_Bb rendered in the player's chosen register: concert F3 → G3.
+	const phrase: Phrase = {
+		id: 'bc-010_Bb',
+		name: 'Fifth–Sixth Step',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 53, duration: [1, 2], offset: [0, 1] }, // F3
+			{ pitch: 55, duration: [1, 2], offset: [1, 2] } // G3
+		],
+		harmony: [],
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
+		source: 'curated'
+	};
+
+	it('detects the two notes in the octave the user actually played (F3, G3)', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+
+		// Pre-fix the detector reported the F2 subharmonic and this came out
+		// [41, 55]; the subharmonic correction lifts note 1 to its true F3.
+		expect(detected.map((n) => n.midi)).toEqual([53, 55]);
+	});
+
+	it('scores the correctly-played phrase as a full pitch match', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+		const result = runScorePipeline({
+			detected,
+			phrase,
+			tempo: 100,
+			transportSeconds: 0,
+			swing: 0.65,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		// Saved diagnostic (pre-fix): pitch 0.5, notesHit 1, "try-again".
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.notesTotal).toBe(2);
+	});
+});
+
+describe('pitch replay regression: Third–Fifth Rise masked-fundamental octave lift (concert C, 2026-07-14)', () => {
+	// Real recording: the user played a clean E3 → G3 ("Third–Fifth Rise" in
+	// concert C, rendered an octave below the canonical bc-005 register) on
+	// tenor sax. Pitchy detected the E3 correctly (~165 Hz) on essentially
+	// every frame — but the note's fundamental radiates almost nothing
+	// (mag(f)/mag(2f) ≈ 0.02–0.06), which is INSIDE the band the 2026-06-30
+	// subharmonic corrector treats as "no real energy at f ⇒ artifact". So
+	// correctSubharmonic doubled every correctly-detected frame to E4
+	// (MIDI 64) before it entered the MIDI stream, and the whole first note
+	// scored octave-high (saved diagnostic: pitch 0.5, overall 0.66, "fair").
+	//
+	// This is the mirror-image failure of the Fifth–Sixth Step fixture above:
+	// there the reported f was spectrally empty because it was a period-doubling
+	// artifact; here it is spectrally empty because low tenor notes can mask
+	// their own fundamental. The ODD harmonics break the tie — 3f/5f are
+	// full-rank harmonics of a genuine low note (measured (3f+5f)/(2f+4f)
+	// ≥ 0.26) but only weak period-doubling sidebands of an artifact (≤ 0.05).
+	// correctSubharmonic now requires the odd-harmonic ratio to be low before
+	// doubling; the Fifth–Sixth Step tests above pin the artifact side.
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-07-14-third-fifth-rise.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// bc-005_C rendered in the player's chosen register: concert E3 → G3.
+	const phrase: Phrase = {
+		id: 'bc-005_C',
+		name: 'Third–Fifth Rise',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 52, duration: [1, 2], offset: [0, 1] }, // E3
+			{ pitch: 55, duration: [1, 2], offset: [1, 2] } // G3
+		],
+		harmony: [],
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['beginner', 'major-pentatonic', 'interval', 'ascending'],
+		source: 'curated'
+	};
+
+	it('detects the two notes in the octave the user actually played (E3, G3)', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+
+		// Pre-fix correctSubharmonic doubled the masked-fundamental E3 to E4
+		// and this came out [64, 55]; the odd-harmonic gate keeps it at E3.
+		expect(detected.map((n) => n.midi)).toEqual([52, 55]);
+	});
+
+	it('scores the correctly-played phrase as a full pitch match', async () => {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const resolved = resolveOnsets(onsets, readings);
+		const detected = segmentNotes(
+			readings,
+			resolved,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets
+		);
+		const result = runScorePipeline({
+			detected,
+			phrase,
+			tempo: 105,
+			transportSeconds: 0,
+			swing: 0.6,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		// Saved diagnostic (pre-fix): pitch 0.5, notesHit 1, overall 0.66 "fair".
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.notesTotal).toBe(2);
 	});
 });

@@ -31,6 +31,19 @@ export interface PitchReading {
 	 */
 	rms: number;
 	/**
+	 * RMS of the first-difference (a +6 dB/octave high-pass) of the analysis
+	 * window — a cheap high-frequency-energy proxy. A tongue re-attack injects
+	 * a burst of broadband/high-frequency noise that spikes this measure even
+	 * when the overall envelope (rms) barely moves and no reading gap forms.
+	 * The segmenter's re-articulation detector uses a localized spike above the
+	 * same-MIDI run's baseline to recover the softest legato-tongue re-attacks —
+	 * the ones that produce neither an envelope dip nor a worklet onset (whose
+	 * HFC is amplitude-weighted and so misses a high-noise / low-amplitude
+	 * transient). Optional so readings restored from pre-2026-06-25 diagnostic
+	 * JSON (which lack it) simply skip the high-frequency pass.
+	 */
+	hfRms?: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -48,6 +61,61 @@ export const DEFAULT_MIN_FREQUENCY = 80;
 
 /** Default max frequency (above tenor sax range) */
 export const DEFAULT_MAX_FREQUENCY = 1200;
+
+/**
+ * Subharmonic (octave-down) correction.
+ *
+ * McLeod / autocorrelation pitch detection can lock onto the DOUBLED period of
+ * a sustained tone, reporting a frequency exactly an octave too LOW (a
+ * "subharmonic") — often with HIGHER clarity than the true fundamental, because
+ * a signal periodic at lag P is even more self-similar at 2P. The post-detection
+ * MIDI stream then can't tell a real low note from this artifact: at the
+ * autocorrelation level they are identical (see the bc-010 vs bc-016 fixtures).
+ *
+ * The SPECTRUM tells them apart — but one bin is not enough. A subharmonic is
+ * purely a period-doubling artifact, so there is essentially no spectral energy
+ * at the reported frequency `f` — yet a genuinely low tenor-sax note can mask
+ * its own fundamental just as completely (the 2026-07-14 Third–Fifth Rise
+ * regression: a real E3 measured mag(f)/mag(2f) ≈ 0.02–0.06, indistinguishable
+ * from the artifact cluster on that ratio alone). The test therefore runs in
+ * two stages, each a single-bin Goertzel (no full FFT):
+ *
+ *   1. mag(f) vs mag(2f) — when `f` carries real energy relative to `2f`
+ *      (≥ SUBHARMONIC_FUNDAMENTAL_RATIO), it is a genuine fundamental: keep it.
+ *      Subharmonic frames sit at ≈ 0.02–0.04 here (window leakage only).
+ *   2. Odd-harmonic rank: (mag(3f) + mag(5f)) / (mag(2f) + mag(4f)). For a
+ *      genuine low note 3f and 5f are full-rank harmonics — measured ≥ 0.26.
+ *      For a period-doubling artifact they are at most weak half-harmonic
+ *      sidebands of the true note an octave up (1.5F and 2.5F), and 4f is that
+ *      note's dominant 2nd harmonic — measured ≤ 0.05. Only when the odd bins
+ *      are empty too is the pick a subharmonic, and the true fundamental `2f`.
+ *
+ * Octave-UP errors (2nd-harmonic locks) are unaffected — there `f` carries
+ * plenty of energy and stage 1 keeps it — and stay handled by the segmenter's
+ * downstream octave-boundary merge.
+ *
+ * Only applied at/below `SUBHARMONIC_MAX_FREQUENCY`: subharmonic locks happen on
+ * low, sustained tones, and the bound covers the subharmonic of the entire
+ * tenor/alto concert range while keeping the extra autocorrelation off the
+ * common mid/high register.
+ */
+const SUBHARMONIC_MAX_FREQUENCY = 350;
+/**
+ * Stage 1: declare the fundamental real when its energy is at least this
+ * fraction of the energy an octave up. 0.10 sits ~2.3× above the subharmonic
+ * cluster (~0.04); genuine low notes usually sit ≥ 0.20 but can fall well
+ * below this bound (masked fundamentals) — which is what stage 2 is for.
+ */
+const SUBHARMONIC_FUNDAMENTAL_RATIO = 0.1;
+/**
+ * Stage 2: keep the reported frequency when the odd-to-even harmonic ratio
+ * (mag(3f)+mag(5f))/(mag(2f)+mag(4f)) reaches this bound. Measured clusters on
+ * the fixture corpus: period-doubling artifacts ≤ 0.050 (2026-06-30
+ * Fifth–Sixth Step, including its half-harmonic-sideband frames); genuine
+ * masked-fundamental low notes ≥ 0.264 (2026-07-14 Third–Fifth Rise,
+ * 2026-07-08 Four-to-Five). 0.12 sits ≥ 2.2× from both clusters.
+ */
+const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
 
 /**
  * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
@@ -206,6 +274,57 @@ export interface FrameResult {
 }
 
 /**
+ * Goertzel magnitude at a single target frequency over a Hann-windowed buffer.
+ * O(n) and allocation-free — far cheaper than a full FFT when only a couple of
+ * bins are needed. The Hann window suppresses spectral leakage from the (often
+ * much stronger) neighbouring octave into the bin being measured.
+ */
+export function goertzelMagnitude(buffer: Float32Array, frequency: number, sampleRate: number): number {
+	const n = buffer.length;
+	if (n < 2 || frequency <= 0 || frequency >= sampleRate / 2) return 0;
+	const w = (2 * Math.PI * frequency) / sampleRate;
+	const coeff = 2 * Math.cos(w);
+	const hannScale = (2 * Math.PI) / (n - 1);
+	let s1 = 0;
+	let s2 = 0;
+	for (let i = 0; i < n; i++) {
+		const hann = 0.5 - 0.5 * Math.cos(hannScale * i);
+		const x = buffer[i] * hann + coeff * s1 - s2;
+		s2 = s1;
+		s1 = x;
+	}
+	const power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+	return Math.sqrt(Math.max(0, power));
+}
+
+/**
+ * If the detected frequency is an octave-down subharmonic of the true
+ * fundamental, return the corrected (doubled) frequency; otherwise return it
+ * unchanged. See the `SUBHARMONIC_*` constants for the rationale.
+ */
+export function correctSubharmonic(buffer: Float32Array, frequency: number, sampleRate: number): number {
+	if (frequency <= 0 || frequency > SUBHARMONIC_MAX_FREQUENCY) return frequency;
+	const fundamental = goertzelMagnitude(buffer, frequency, sampleRate);
+	const octaveUp = goertzelMagnitude(buffer, frequency * 2, sampleRate);
+	if (!(octaveUp > 0 && fundamental < octaveUp * SUBHARMONIC_FUNDAMENTAL_RATIO)) {
+		return frequency;
+	}
+	// The fundamental bin is empty — but a genuine low note can mask its own
+	// fundamental too. Stage 2: a real note at `f` still has full-rank odd
+	// harmonics at 3f/5f, while a period-doubling artifact only shows weak
+	// half-harmonic sidebands there (and the true note's dominant 2nd harmonic
+	// at 4f). Only an empty odd side confirms the subharmonic.
+	const third = goertzelMagnitude(buffer, frequency * 3, sampleRate);
+	const fourth = goertzelMagnitude(buffer, frequency * 4, sampleRate);
+	const fifth = goertzelMagnitude(buffer, frequency * 5, sampleRate);
+	const oddRank = (third + fifth) / (octaveUp + fourth);
+	if (oddRank >= SUBHARMONIC_ODD_HARMONIC_RATIO) {
+		return frequency;
+	}
+	return frequency * 2;
+}
+
+/**
  * Run pitch detection on a single buffer and apply octave stabilization.
  *
  * @param buffer Time-domain samples (length must match detector's input size)
@@ -225,11 +344,23 @@ export function detectFrame(
 	const minFrequency = opts.minFrequency ?? DEFAULT_MIN_FREQUENCY;
 	const maxFrequency = opts.maxFrequency ?? DEFAULT_MAX_FREQUENCY;
 
-	const [frequency, clarity] = detector.findPitch(buffer, opts.sampleRate);
+	const [rawFrequency, clarity] = detector.findPitch(buffer, opts.sampleRate);
+	// Lift an octave-down subharmonic pick back to the true fundamental before
+	// it ever enters the MIDI stream (see SUBHARMONIC_* above).
+	const frequency = correctSubharmonic(buffer, rawFrequency, opts.sampleRate);
 
 	let energy = 0;
-	for (let i = 0; i < buffer.length; i++) energy += buffer[i] * buffer[i];
+	let hfEnergy = 0;
+	for (let i = 0; i < buffer.length; i++) {
+		const s = buffer[i];
+		energy += s * s;
+		if (i > 0) {
+			const d = s - buffer[i - 1];
+			hfEnergy += d * d;
+		}
+	}
 	const rms = Math.sqrt(energy / buffer.length);
+	const hfRms = Math.sqrt(hfEnergy / buffer.length);
 
 	if (
 		clarity < clarityThreshold ||
@@ -248,7 +379,7 @@ export function detectFrame(
 	const octaveCorrection = midi - rawMidi;
 	const midiFloat = rawMidiFloat + octaveCorrection;
 
-	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms };
+	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms };
 	if (stab.warmup) reading.warmup = true;
 
 	return { reading, rawClarity: clarity };

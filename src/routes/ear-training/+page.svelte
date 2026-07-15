@@ -9,7 +9,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
 	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
-	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
+	import { progress, recordAttempt, updateSessionScore, getUnlockContext, getPrimaryLevel } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
@@ -18,6 +18,7 @@
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
+	import { levelSignalDirection } from '$lib/difficulty/level-signal';
 	import { loadBackingInstruments, getActiveSchedule } from '$lib/audio/backing-track';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
@@ -123,6 +124,26 @@
 	let scoredAttemptCount = $state(0);
 	let bottomQuote = $state('');
 
+	/**
+	 * Transient, very subtle acknowledgement of a level change. Set when the
+	 * primary or per-scale proficiency moves during recordAttempt(), then cleared
+	 * after the fade-out completes. Lives in its own reserved-height slot so it
+	 * never reflows the page.
+	 */
+	let levelSignal = $state<'up' | 'down' | null>(null);
+	let levelSignalTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function showLevelSignal(dir: 'up' | 'down') {
+		clearTimeout(levelSignalTimer);
+		levelSignal = dir;
+		levelSignalTimer = setTimeout(() => { levelSignal = null; }, 2200);
+	}
+
+	function currentScaleLevel(): number {
+		return (progress.scaleProficiency[activeTonality.scaleType]
+			?? createInitialScaleProficiency()).level;
+	}
+
 	const isActive = $derived(
 		session.engineState === 'playing' ||
 		session.engineState === 'recording' ||
@@ -174,6 +195,7 @@
 		stopRecording();
 		if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
 		if (levelInterval) clearInterval(levelInterval);
+		clearTimeout(levelSignalTimer);
 		onsetDetector?.dispose();
 		onsetDetector = null;
 		recorderHandle?.dispose();
@@ -292,7 +314,14 @@
 
 			session.engineState = 'playing';
 			const hasMic = session.micPermission === 'granted';
-			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic);
+			// resolveAtMelodyEnd: open the listening window 1 beat after the
+			// call's last note — not after its harmony vamp (which can extend
+			// bars past a short melody and let the user's echo start before
+			// the mic is live). Without a mic there's no handoff, so keep the
+			// bar-aligned stop.
+			await playback.playPhrase(session.phrase, getPlaybackOptions(), hasMic, {
+				resolveAtMelodyEnd: hasMic
+			});
 
 			if (hasMic) {
 				looping = true;
@@ -412,6 +441,8 @@
 			if ((scoredAttemptCount - 1) % 10 === 0) {
 				bottomQuote = getGradeCaption(persistentScore.grade);
 			}
+			const prevPrimary = getPrimaryLevel();
+			const prevScale = currentScaleLevel();
 			recordAttempt(
 				session.phrase.id,
 				session.phrase.name ?? session.phrase.id,
@@ -424,6 +455,8 @@
 				supabase,
 				'ear-training'
 			);
+			const dir = levelSignalDirection(prevPrimary, getPrimaryLevel(), prevScale, currentScaleLevel());
+			if (dir) showLevelSignal(dir);
 		}
 
 		// Save audio recording in the background, then re-score from the
@@ -540,7 +573,9 @@
 		session.lastScore = null;
 		try {
 			session.engineState = 'playing';
-			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions());
+			await playback.scheduleNextPhrase(session.phrase, getPlaybackOptions(), {
+				resolveAtMelodyEnd: true
+			});
 			if (looping) await enterAwaitingInput();
 		} catch (err) {
 			console.error('Loop playback error:', err);
@@ -754,6 +789,19 @@
 		{/if}
 	</div>
 
+	<!-- Level change signal (reserved height so it never shifts layout) -->
+	<div class="h-6 text-center" aria-live="polite">
+		{#if levelSignal}
+			<span
+				class="level-signal smallcaps text-sm"
+				class:is-up={levelSignal === 'up'}
+				class:is-down={levelSignal === 'down'}
+			>
+				{levelSignal === 'up' ? '↑ Level up' : '↓ Level down'}
+			</span>
+		{/if}
+	</div>
+
 	<TourTrigger tourId="ear-training" steps={earTrainingTour} />
 
 	{#if bottomQuote}
@@ -764,3 +812,36 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.level-signal {
+		display: inline-block;
+		animation: level-signal 2.2s ease-out forwards;
+	}
+	.level-signal.is-up {
+		color: var(--color-brass);
+	}
+	.level-signal.is-down {
+		color: var(--color-text-secondary);
+	}
+
+	@keyframes level-signal {
+		0% { opacity: 0; transform: translateY(3px); }
+		10% { opacity: 1; transform: translateY(0); }
+		75% { opacity: 1; transform: translateY(0); }
+		100% { opacity: 0; transform: translateY(0); }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.level-signal {
+			animation: level-signal-reduced 2.2s linear forwards;
+		}
+	}
+
+	@keyframes level-signal-reduced {
+		0% { opacity: 0; }
+		10% { opacity: 1; }
+		75% { opacity: 1; }
+		100% { opacity: 0; }
+	}
+</style>

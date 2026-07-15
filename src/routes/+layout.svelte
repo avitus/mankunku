@@ -11,6 +11,7 @@
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
 	import { welcomeTour } from '$lib/tour/tours/welcome';
 	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
+	import { whenHydrated } from '$lib/state/hydration';
 	import { invalidate } from '$app/navigation';
 
 	interface Props {
@@ -35,6 +36,22 @@
 	const emailPrefix = $derived(
 		(user?.email && user.email.split('@')[0].trim()) || 'Account'
 	);
+
+	/**
+	 * Explicit sign-out: wipe this browser's user-scoped data BEFORE posting
+	 * to /auth/logout. This is the affirmative signal for the wipe —
+	 * `syncUserScope` deliberately no longer wipes on a null user, because a
+	 * null user is also what expired cookies or an unreachable auth backend
+	 * produce (the 2026-07-13 localStorage-wipe incident). `form.submit()`
+	 * bypasses this handler, so there is no resubmission loop.
+	 */
+	async function handleSignOut(event: SubmitEvent) {
+		event.preventDefault();
+		const form = event.currentTarget as HTMLFormElement;
+		const { wipeUserScopeOnSignOut } = await import('$lib/persistence/user-scope');
+		await wipeUserScopeOnSignOut();
+		form.submit();
+	}
 
 	// `primary: true` marks the two headline practice modes. They get
 	// display-serif treatment and sit visually separated from the utility
@@ -120,16 +137,22 @@
 		// One-off migrations for step-entered licks that were stored in the
 		// user's WRITTEN pitch space (before step-entry was made instrument-
 		// aware). Both are idempotent via separate localStorage flags — safe
-		// to call on every app start.
-		const instrument = getInstrument();
-		const notesMigrated = migrateUserLicksWrittenToConcert(instrument.transpositionSemitones);
-		if (notesMigrated > 0) {
-			console.info(`[migration] Shifted ${notesMigrated} step-entered lick(s) notes to concert pitch.`);
-		}
-		const keysMigrated = migrateUserLicksKeyWrittenToConcert(instrument);
-		if (keysMigrated > 0) {
-			console.info(`[migration] Converted ${keysMigrated} step-entered lick(s) keys to concert pitch.`);
-		}
+		// to call on every app start. Wait for the REAL hydration completion
+		// (not the bounded route helper) so `getInstrument()` reflects the
+		// user's hydrated instrument: these are one-way writes that set a
+		// done-flag, so running them on a stale default would corrupt the
+		// transposition permanently. This work is already off the render path.
+		whenHydrated().then(() => {
+			const instrument = getInstrument();
+			const notesMigrated = migrateUserLicksWrittenToConcert(instrument.transpositionSemitones);
+			if (notesMigrated > 0) {
+				console.info(`[migration] Shifted ${notesMigrated} step-entered lick(s) notes to concert pitch.`);
+			}
+			const keysMigrated = migrateUserLicksKeyWrittenToConcert(instrument);
+			if (keysMigrated > 0) {
+				console.info(`[migration] Converted ${keysMigrated} step-entered lick(s) keys to concert pitch.`);
+			}
+		});
 
 		const {
 			data: { subscription }
@@ -240,7 +263,7 @@
 							<div
 								class="absolute right-0 top-full z-20 mt-1 min-w-[120px] rounded-md border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-1 shadow-md"
 							>
-								<form method="POST" action="/auth/logout">
+								<form method="POST" action="/auth/logout" onsubmit={handleSignOut}>
 									<button
 										type="submit"
 										class="block w-full rounded px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
@@ -312,7 +335,7 @@
 						>
 							{emailPrefix}
 						</div>
-						<form method="POST" action="/auth/logout">
+						<form method="POST" action="/auth/logout" onsubmit={handleSignOut}>
 							<button
 								type="submit"
 								class="block w-full rounded px-3 py-2 text-left text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"

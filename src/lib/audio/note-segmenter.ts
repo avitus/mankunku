@@ -1164,9 +1164,71 @@ const RE_ARTICULATION_READING_GAP = 0.15;
  * 100 BPM) — two tongued C4 quarter-notes, 100 ms reading gap, RMS stepping
  * ~0.044 → ~0.089 (≈2×) across it. Previously merged into one note, dropping
  * the score to 0.62 ("fair") with the second note marked MISSED.
+ *
+ * 1.5 → 1.2 (2026-06-24): the "blues-curl-up" concert-D diagnostic is the same
+ * soft-tongue shape but with a WEAKER measured step-up (~1.26×). The pitch
+ * detector resumed on the new note's decay shoulder — the attack peak fell
+ * inside the 117 ms reading gap and was never sampled — so the rise across the
+ * gap reads lower than the true ~1.8× energy jump in the raw audio. Lowering
+ * the floor to 1.2 admits it. This is only safe because the short-gap pass now
+ * ALSO requires a true reading-time silence (see the gap pass below): the
+ * dangerous false positive — the C-D-C upper-neighbor fixture, whose final-C
+ * "gap" is a warmup-bridged stabilizer reset rising ~1.27× (HIGHER than this
+ * real re-attack) — is rejected by the silence gate, not by the ratio. The
+ * remaining true-gap non-re-attacks (a McLeod subharmonic flicker during a
+ * note bend, mid-sustain dropouts) sit at ≤ ~1.12, comfortably below 1.2.
  */
-const RE_ARTICULATION_GAP_ATTACK_RISE = 1.5;
+const RE_ARTICULATION_GAP_ATTACK_RISE = 1.2;
 const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
+
+/**
+ * High-frequency-transient re-articulation tier. The softest legato ("doodle")
+ * tongue re-attacks leave NO reading gap, NO envelope dip (the airflow never
+ * stops, so rms holds or rises), and a clarity dip too shallow to clear
+ * RE_ARTICULATION_CLARITY_DROP — yet they inject a sharp broadband
+ * high-frequency burst (tongue noise) that spikes `hfRms` to several times the
+ * run baseline. The worklet misses it because its "HFC" is amplitude-weighted
+ * (≈Σ|s|·i) and the amplitude barely moves; the captured `hfRms` (RMS of the
+ * first-difference high-pass) is the signal that exposes it.
+ *
+ * A bare hfRms spike is NOT specific. Two corroborators are required, each
+ * rejecting a distinct broadband-transient impostor:
+ *   1. A coincident perturbation of the FUNDAMENTAL, measured against a LOCAL
+ *      baseline (the non-spike frames bracketing the spike, not the whole-run
+ *      median). A tongue stop momentarily resets the reed, wobbling `midiFloat`
+ *      by ≳0.1 semitone; a key click rides on top of an unbroken fundamental
+ *      (midiFloat steady). The local baseline keeps a click landing on a bent or
+ *      vibrato'd note from clearing the gate just because the run median sits far
+ *      from the local pitch.
+ *   2. Sustained energy across the spike: post-spike rms ≥ pre-spike rms ×
+ *      HF_RE_ARTICULATION_MIN_RMS_SUSTAIN. A real re-attack adds/holds energy; a
+ *      McLeod octave/harmonic flip (broadband AND pitch-unstable, so it clears
+ *      the spike + perturbation gates) happens on a decaying note and loses
+ *      energy. This also keeps the pass from emitting a spurious split inside an
+ *      upper-octave artifact run, which would block the octave-collapse pass.
+ * Together with the spike these reject clicks, vibrato/bends, McLeod clarity
+ * flickers (no HF spike), and McLeod octave artifacts.
+ *
+ * Reference: the 2026-06-25 "blues-curl-down" diagnostic (concert Bb, 100 BPM) —
+ * two tongued Db4 quarters; the second was a soft legato tongue at ~0.47 s with
+ * hfRms spiking 0.012 → 0.067 (≈5.5×), midiFloat dipping ~0.1 st against the
+ * local baseline, and rms rising ~1.1× across it — but zero reading gap. The
+ * 2026-05-19 "octave-flat-seven-drop" McLeod C5 artifact is the counter-case it
+ * must reject: a bigger pitch swing (0.33 st) but a falling envelope (post/pre
+ * rms ≈ 0.61). Previously merged the two Dbs into one note, dropping the score
+ * to 0.63 ("fair") with the second Db marked MISSED.
+ */
+const HF_RE_ARTICULATION_SPIKE_RATIO = 3.0;
+const HF_RE_ARTICULATION_MIN_PITCH_PERTURB = 0.1;
+const HF_RE_ARTICULATION_MIN_RMS_SUSTAIN = 0.9;
+
+/** Median of a numeric array; 0 if empty. Non-mutating. */
+function median(xs: number[]): number {
+	if (xs.length === 0) return 0;
+	const s = [...xs].sort((a, b) => a - b);
+	const mid = Math.floor(s.length / 2);
+	return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
 
 /** Mean RMS over readings[from, to), clamped to bounds; 0 if the range is empty. */
 function meanRms(readings: PitchReading[], from: number, to: number): number {
@@ -1176,6 +1238,25 @@ function meanRms(readings: PitchReading[], from: number, to: number): number {
 	let sum = 0;
 	for (let k = lo; k < hi; k++) sum += readings[k].rms;
 	return sum / (hi - lo);
+}
+
+/**
+ * Whether any reading falls strictly inside the open interval (from, to).
+ * `readings` must be sorted ascending by time. Used to tell a genuine
+ * detector silence (no frames of any kind across a same-MIDI hole) from a
+ * warmup-bridged hole: a same-MIDI run skips warmup frames, so a stabilizer
+ * reset mid-note leaves a phantom "gap" between two stable readings even
+ * though warmup frames were emitted throughout. Passing the FULL reading
+ * stream (warmup included) lets the short-gap re-articulation pass reject
+ * those phantom gaps.
+ */
+function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: number): boolean {
+	for (const r of readings) {
+		if (r.time <= from) continue;
+		if (r.time >= to) return false; // sorted ascending — nothing left in range
+		return true;
+	}
+	return false;
 }
 
 /**
@@ -1218,7 +1299,10 @@ export function findReArticulations(
 	const onsets: number[] = [];
 	const runs = findSameMidiRuns(readings);
 	for (const run of runs) {
-		onsets.push(...findReArticulationsInSegment(run.readings, run.start, run.end));
+		// Pass the FULL reading stream so the gap pass can distinguish a true
+		// detector silence from a warmup-bridged hole (findSameMidiRuns drops
+		// warmup frames, which can manufacture a phantom gap inside a run).
+		onsets.push(...findReArticulationsInSegment(run.readings, run.start, run.end, readings));
 	}
 
 	// Filter to those that would actually create a new boundary or
@@ -1279,7 +1363,8 @@ function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
 function findReArticulationsInSegment(
 	readings: PitchReading[],
 	segStart: number,
-	segEnd: number
+	segEnd: number,
+	allReadings: PitchReading[]
 ): number[] {
 	// Restrict to the segment's stable-MIDI run. Skip warmup frames and a
 	// short post-onset guard so the segment-start attack transient isn't
@@ -1326,6 +1411,17 @@ function findReArticulationsInSegment(
 		const gap = stable[g].time - stable[g - 1].time;
 		if (gap < READING_GAP_SPLIT_THRESHOLD) continue;
 		if (gap < RE_ARTICULATION_READING_GAP) {
+			// A genuine soft-tongue re-attack the worklet missed produces a
+			// true detector silence — no frames of any kind across the hole.
+			// If warmup frames bridge it, the gap is a stabilizer-reset
+			// artifact (findSameMidiRuns skipped them, manufacturing a phantom
+			// gap), not a missed attack, so the corroborated step-up tier must
+			// not fire. The ≥ 150 ms bare-gap tier stays unconditional: a long
+			// enough silence is a re-attack even when the stabilizer re-warms
+			// as the new note blooms.
+			if (hasReadingInOpenInterval(allReadings, stable[g - 1].time, stable[g].time)) {
+				continue;
+			}
 			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
 			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
 			if (preRms <= 0 || postRms < preRms * RE_ARTICULATION_GAP_ATTACK_RISE) {
@@ -1335,6 +1431,64 @@ function findReArticulationsInSegment(
 		const onsetTime = stable[g].time - RE_ARTICULATION_ATTACK_LATENCY;
 		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 			onsets.push(onsetTime);
+		}
+	}
+
+	// HF-transient pass: catch the softest legato-tongue re-attacks that leave
+	// no gap and no envelope dip but spike hfRms (broadband tongue noise) while
+	// perturbing the fundamental. See HF_RE_ARTICULATION_SPIKE_RATIO. Gated on
+	// hfRms being present so readings restored from pre-2026-06-25 diagnostic
+	// JSON (no hfRms field) simply skip this pass.
+	if (stable.some((r) => r.hfRms != null)) {
+		const baseHf = median(stable.map((r) => r.hfRms ?? 0));
+		if (baseHf > 0) {
+			let k = 0;
+			while (k < stable.length) {
+				if ((stable[k].hfRms ?? 0) < baseHf * HF_RE_ARTICULATION_SPIKE_RATIO) {
+					k++;
+					continue;
+				}
+				// Span the contiguous spike and track its hfRms peak.
+				let peak = k;
+				let j = k;
+				while (j < stable.length && (stable[j].hfRms ?? 0) >= baseHf * HF_RE_ARTICULATION_SPIKE_RATIO) {
+					if ((stable[j].hfRms ?? 0) > (stable[peak].hfRms ?? 0)) peak = j;
+					j++;
+				}
+				// Measure the fundamental perturbation against a LOCAL baseline —
+				// the non-spike frames immediately bracketing the spike — not the
+				// whole-run median. A vibrato swing or an expressive bend moves the
+				// run median far from the local pitch, so a key click landing on the
+				// bent portion would clear the gate against the run median even
+				// though the fundamental is locally steady. The local baseline
+				// tracks the bend, so only a genuine reed reset (which dips the
+				// pitch relative to its immediate neighbours) clears the gate.
+				const context = [
+					...stable.slice(Math.max(0, k - RE_ARTICULATION_PRE_CONTEXT_FRAMES), k),
+					...stable.slice(j, Math.min(stable.length, j + RE_ARTICULATION_PRE_CONTEXT_FRAMES))
+				];
+				const localMidiFloat = median(
+					(context.length > 0 ? context : stable).map((r) => r.midiFloat)
+				);
+				let maxPerturb = 0;
+				for (let p = k; p < j; p++) {
+					const dev = Math.abs(stable[p].midiFloat - localMidiFloat);
+					if (dev > maxPerturb) maxPerturb = dev;
+				}
+				// A genuine re-attack sustains or adds energy; a McLeod octave/
+				// harmonic flip (or any HF artifact on a decaying note) loses it.
+				const preRms = meanRms(stable, k - RE_ARTICULATION_PRE_CONTEXT_FRAMES, k);
+				const postRms = meanRms(stable, j, j + RE_ARTICULATION_PRE_CONTEXT_FRAMES);
+				const sustainsEnergy =
+					preRms > 0 && postRms >= preRms * HF_RE_ARTICULATION_MIN_RMS_SUSTAIN;
+				if (maxPerturb >= HF_RE_ARTICULATION_MIN_PITCH_PERTURB && sustainsEnergy) {
+					const onsetTime = stable[peak].time - RE_ARTICULATION_ATTACK_LATENCY;
+					if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
+						onsets.push(onsetTime);
+					}
+				}
+				k = j; // skip past this spike
+			}
 		}
 	}
 

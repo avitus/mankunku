@@ -13,7 +13,7 @@ const mockSyncLickMetadataToCloud = vi.hoisted(() =>
 );
 vi.mock('$lib/persistence/sync', () => ({
 	syncLickMetadataToCloud: mockSyncLickMetadataToCloud,
-	loadLickMetadataFromCloud: vi.fn().mockResolvedValue(null)
+	loadLickMetadataFromCloud: vi.fn().mockResolvedValue({ status: 'empty' })
 }));
 
 // ─── Mock user-scope: lets each test simulate a mid-flight switch ───
@@ -161,6 +161,25 @@ describe('reconcileOrphanedLickMetadata', () => {
 			'mine-1': ['practice'],
 			'foreign-avitus': ['practice']
 		});
+	});
+
+	it('preserves the reserved __migrations key and does not count it as an orphan', async () => {
+		knownIds.add('mine-1');
+		saveUserLickTags({
+			'mine-1': ['practice'],
+			'__migrations': ['prog-backfill-v1']
+		});
+
+		const removed = await reconcileOrphanedLickMetadata(supabase);
+
+		// The marker is not a lick id — pruning it would let the one-time
+		// progression-tag backfill re-run and resurrect removed tags.
+		expect(removed).toBe(0);
+		expect(loadUserLickTags()).toEqual({
+			'mine-1': ['practice'],
+			'__migrations': ['prog-backfill-v1']
+		});
+		expect(mockSyncLickMetadataToCloud).not.toHaveBeenCalled();
 	});
 
 	it('totals removed counts across all three stores', async () => {

@@ -56,6 +56,15 @@ export function getAllLicks(): Phrase[] {
 	return [...ALL_CURATED_LICKS, ...userLicks, ...stolenDeduped];
 }
 
+/**
+ * True when the id belongs to the built-in curated catalog (as opposed to a
+ * user-recorded or community-adopted lick). Backed by the module-load index,
+ * so lookups are O(1).
+ */
+export function isCuratedLickId(id: string): boolean {
+	return byId.has(id);
+}
+
 /** Get a single lick by ID */
 export function getLickById(id: string): Phrase | undefined {
 	return (
@@ -247,7 +256,7 @@ export function transposeLick(
 const MAJOR_MODE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 
 /** Categories where licks span multi-chord progressions — use parent-key transposition */
-const PROGRESSION_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<PhraseCategory>([
+export const PROGRESSION_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<PhraseCategory>([
 	'ii-V-I-major', 'ii-V-I-minor', 'short-ii-V-I-major', 'short-ii-V-I-minor',
 	'V-I-major', 'V-I-minor', 'rhythm-changes'
 ]);

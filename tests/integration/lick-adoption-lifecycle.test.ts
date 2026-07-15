@@ -252,7 +252,8 @@ describe('initCommunityFromCloud reconciles with cloud truth', () => {
 		const cloud = createCloudState();
 		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
 
-		await expect(initCommunityFromCloud(sb as never)).resolves.toBeUndefined();
+		// An affirmatively-empty steal set is a successful (faithful) hydration.
+	await expect(initCommunityFromCloud(sb as never)).resolves.toBe(true);
 		expect(getStealsLocal().size).toBe(0);
 		expect(getStolenLicksLocal()).toEqual([]);
 	});

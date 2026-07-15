@@ -493,8 +493,11 @@ describe('initUserLicksFromCloud', () => {
 		saveUserLick(local);
 
 		const supabase = createMockSupabase([{ id: 'local-1', name: 'Local' }]);
-		await initUserLicksFromCloud(supabase);
+		const ok = await initUserLicksFromCloud(supabase);
 
+		// A completed push+pull+merge must report success so downstream
+		// metadata maintenance (reconcile + backfill) is allowed to run.
+		expect(ok).toBe(true);
 		expect(mockSyncUserLicksToCloud).toHaveBeenCalledWith(
 			supabase,
 			expect.arrayContaining([expect.objectContaining({ id: 'local-1' })])
@@ -558,8 +561,11 @@ describe('initUserLicksFromCloud', () => {
 			})
 		} as any;
 
-		await initUserLicksFromCloud(supabase);
+		const ok = await initUserLicksFromCloud(supabase);
 
+		// The bail must be observable: an ungated reconcile after this partial
+		// hydration would prune every cloud-only lick's metadata as orphaned.
+		expect(ok).toBe(false);
 		const local = getUserLicksLocal();
 		expect(local).toHaveLength(1);
 		expect(local[0].id).toBe('offline-lick');
@@ -604,8 +610,10 @@ describe('initUserLicksFromCloud', () => {
 			from: vi.fn()
 		} as any;
 
-		await initUserLicksFromCloud(supabase);
+		const ok = await initUserLicksFromCloud(supabase);
 
+		// Unverifiable auth is a failed hydration, not an empty account.
+		expect(ok).toBe(false);
 		expect(getUserLicksLocal()).toHaveLength(1);
 		expect(getUserLicksLocal()[0].id).toBe('my-lick');
 		expect(supabase.from).not.toHaveBeenCalled();

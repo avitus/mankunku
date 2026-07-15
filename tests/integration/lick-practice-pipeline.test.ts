@@ -34,7 +34,7 @@ afterAll((): void => {
 // ── Mock sync module to prevent Supabase calls ───────────────
 vi.mock('$lib/persistence/sync', () => ({
 	syncLickMetadataToCloud: vi.fn().mockResolvedValue(undefined),
-	loadLickMetadataFromCloud: vi.fn().mockResolvedValue(null),
+	loadLickMetadataFromCloud: vi.fn().mockResolvedValue({ status: 'empty' }),
 	syncUserLicksToCloud: vi.fn().mockResolvedValue(undefined)
 }));
 

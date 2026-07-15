@@ -480,15 +480,22 @@ export async function returnLick(
  *   3. For each stolen lick, pull the latest lick payload → localStorage.
  *
  * Called once from `+layout.ts` during hydration. Never throws.
+ *
+ * Returns `true` when the STOLEN-LICK SET is verifiably faithful to the
+ * cloud (steal ids + payloads hydrated, or affirmatively empty) — that is
+ * what `getAllLicks()` and the downstream metadata maintenance depend on.
+ * Favorites and author-attribution failures stay best-effort (warn and
+ * continue) and do not fail the report: they are display-only caches with
+ * no bearing on lick-set completeness.
  */
 export async function initCommunityFromCloud(
 	supabase: SupabaseClient<Database>
-): Promise<void> {
+): Promise<boolean> {
 	const gen = getScopeGeneration();
 	try {
 		const { data: { user } } = await supabase.auth.getUser();
-		if (!user) return;
-		if (gen !== getScopeGeneration()) return;
+		if (!user) return false;
+		if (gen !== getScopeGeneration()) return false;
 
 		// Favorites
 		const { data: favoriteRows, error: favError } = await supabase
@@ -509,9 +516,9 @@ export async function initCommunityFromCloud(
 			.eq('user_id', user.id);
 		if (stealError) {
 			console.warn('Failed to fetch steals:', stealError);
-			return;
+			return false;
 		}
-		if (!stealRows || gen !== getScopeGeneration()) return;
+		if (!stealRows || gen !== getScopeGeneration()) return false;
 
 		const stolenIds = stealRows.map((r) => r.lick_id);
 		saveStealsLocal(new Set(stolenIds));
@@ -519,7 +526,7 @@ export async function initCommunityFromCloud(
 		if (stolenIds.length === 0) {
 			saveStolenPayloadsLocal([]);
 			saveStolenAuthorsLocal({});
-			return;
+			return true;
 		}
 
 		const { data: lickRows, error: lickError } = await supabase
@@ -543,9 +550,9 @@ export async function initCommunityFromCloud(
 					)
 				);
 			}
-			return;
+			return false;
 		}
-		if (gen !== getScopeGeneration()) return;
+		if (gen !== getScopeGeneration()) return false;
 
 		// Filter out malformed payloads so the practice pipeline only sees
 		// trustworthy data. Invalid steals remain in the steal set above
@@ -608,7 +615,11 @@ export async function initCommunityFromCloud(
 				saveStolenAuthorsLocal(authorMap);
 			}
 		}
+		// Steal set + payloads are faithful; favorites/author hiccups above
+		// were warned about but don't compromise lick-set fidelity.
+		return true;
 	} catch (err) {
 		console.warn('Failed to hydrate community state from cloud:', err);
+		return false;
 	}
 }

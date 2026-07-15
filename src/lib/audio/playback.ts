@@ -14,10 +14,10 @@
  * - Per-note tuning corrections from SFZ mappings
  */
 
-import type { Fraction, Phrase } from '$lib/types/music';
+import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument } from '$lib/types/instruments';
-import { addFractions, fractionToFloat } from '$lib/music/intervals';
+import { fractionToFloat } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { initAudio, getMasterGain, setMasterVolume } from './audio-context';
 import { scheduleMetronome, disposeMetronome, warmUpMetronome, setMetronomeVolume } from './metronome';
@@ -30,16 +30,24 @@ import {
 	isBackingLoaded
 } from './backing-track';
 import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
+import { extractSoundingNotes, computeExpression } from '$lib/music/expression';
 
 type ToneModule = typeof import('tone');
 type SmplrSoundfont = import('smplr').Soundfont;
 type SmplrSampler = import('smplr').Sampler;
 
-interface PlaybackEvent {
+export interface PlaybackEvent {
 	time: string;
 	midi: number;
 	duration: number;
+	/** Humanized loudness (drives sample gain) */
 	velocity: number;
+	/** Intended, un-humanized velocity — selects the piano/forte layer deterministically */
+	layerVelocity: number;
+	/** Amplitude release tail in seconds (smplr `ampRelease`) */
+	release: number;
+	/** Per-note lowpass cutoff in Hz (smplr `lpfCutoffHz`); 20000 = no per-note filter */
+	cutoffHz: number;
 	detune: number;
 }
 
@@ -335,22 +343,20 @@ export function isInstrumentLoaded(): boolean {
  * Routes to the correct velocity layer when using custom samples,
  * and applies per-note tuning corrections from the SFZ mapping.
  */
-function startNote(event: {
-	midi: number;
-	velocity: number;
-	duration: number;
-	time: number;
-	detune: number;
-}): void {
+function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void {
 	if (activeSampleMap && samplerPiano && samplerForte) {
-		const sampler = event.velocity > activeSampleMap.velocitySplit ? samplerForte : samplerPiano;
-		const tuneCorrection = getTuneCorrection(activeSampleMap, event.midi, event.velocity);
+		// Layer + tuning are chosen from the intended (un-humanized) velocity so
+		// timbre tracks musical intent and never flickers with gain jitter.
+		const sampler = event.layerVelocity > activeSampleMap.velocitySplit ? samplerForte : samplerPiano;
+		const tuneCorrection = getTuneCorrection(activeSampleMap, event.midi, event.layerVelocity);
 		sampler.start({
 			note: event.midi,
 			velocity: event.velocity,
 			duration: event.duration,
 			time: event.time,
-			detune: event.detune + tuneCorrection
+			detune: event.detune + tuneCorrection,
+			ampRelease: event.release,
+			lpfCutoffHz: event.cutoffHz
 		});
 	} else if (instrument) {
 		instrument.start({
@@ -358,7 +364,9 @@ function startNote(event: {
 			velocity: event.velocity,
 			duration: event.duration,
 			time: event.time,
-			detune: event.detune
+			detune: event.detune,
+			ampRelease: event.release,
+			lpfCutoffHz: event.cutoffHz
 		});
 	}
 }
@@ -429,35 +437,34 @@ function getBreathDetune(midi: number, isFirstNote: boolean): number {
  * Applies swing pre-shift (off-beat 8ths only — triplets are immune)
  * and timing humanization for authentic jazz feel.
  */
-function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number): PlaybackEvent[] {
+export function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq: number): PlaybackEvent[] {
+	// Rest-skip + tie-merge into sounding notes, then compute per-note musical
+	// expression (dynamics + articulation). The expression pass NEVER touches
+	// timing — onset ticks below are derived exactly as before so the swung grid
+	// stays identical to the scorer's (scoring/alignment.ts shares the model).
+	const sounding = extractSoundingNotes(phrase.notes);
+	const expression = computeExpression(sounding, phrase, { intensity: 'moderate' });
+
 	const events: PlaybackEvent[] = [];
-	const notes = phrase.notes;
-	let eventIndex = 0;
-	for (let i = 0; i < notes.length; i++) {
-		const note = notes[i];
-		if (note.pitch === null) continue;
+	for (let k = 0; k < sounding.length; k++) {
+		const s = sounding[k];
+		const e = expression[k];
 
-		// Walk forward through any tie chain at the same pitch, summing durations
-		// so the chain plays as a single sustained note with one attack.
-		let combinedDuration: Fraction = note.duration;
-		while (notes[i].tied && i + 1 < notes.length && notes[i + 1].pitch === note.pitch) {
-			i++;
-			combinedDuration = addFractions(combinedDuration, notes[i].duration);
-		}
-
-		const rawBeats = fractionToFloat(note.offset) * 4;
+		const rawBeats = fractionToFloat(s.offset) * 4;
 		const swungBeats = applySwingToBeats(rawBeats, swing);
 		const ticks = humanizeTiming(Math.round(swungBeats * ppq), ppq, tempo);
-		const durationSeconds = fractionToFloat(combinedDuration) * 4 * (60 / tempo);
+		const notatedSeconds = fractionToFloat(s.duration) * 4 * (60 / tempo);
 
 		events.push({
 			time: `${ticks}i`,
-			midi: note.pitch,
-			duration: durationSeconds,
-			velocity: humanizeVelocity(note.velocity ?? 100),
-			detune: getBreathDetune(note.pitch, eventIndex === 0)
+			midi: s.pitch,
+			duration: notatedSeconds * e.durationScale,
+			velocity: humanizeVelocity(e.velocity), // gain jitter only — layer is fixed by layerVelocity
+			layerVelocity: e.layerVelocity,
+			release: e.release,
+			cutoffHz: e.cutoffHz,
+			detune: getBreathDetune(s.pitch, k === 0)
 		});
-		eventIndex++;
 	}
 	return events;
 }
@@ -473,6 +480,46 @@ export function getPhraseDuration(phrase: Phrase, tempo: number): number {
 		maxEndBeat = Math.max(maxEndBeat, startBeat + durationBeat);
 	}
 	return maxEndBeat * (60 / tempo);
+}
+
+/**
+ * Ticks from phrase start to the end-of-phrase notification (includes a
+ * 1-beat margin for the last note's decay). Callers add their own start
+ * offset (count-in bar / next-bar downbeat).
+ *
+ * Default: whole-bar semantics — the max of melody and harmony extents,
+ * rounded up to a full bar. Needed for super phrases (continuous
+ * lick-practice) whose harmony outlives the demo melody, and musically
+ * right for previews that stop the backing at a bar boundary.
+ *
+ * `resolveAtMelodyEnd`: end 1 beat after the melody's last note instead.
+ * Call-and-response flows (ear training) hand off to the mic when the
+ * *call* finishes; waiting out a harmony vamp that extends past the last
+ * note (e.g. a 1.25-bar lick over a 2-bar blues vamp) opens the listening
+ * window after the user has already started echoing the phrase. Falls
+ * back to whole-bar semantics when the phrase has no sounding melody
+ * notes (rests don't count).
+ */
+export function getPhraseEndTicks(
+	phrase: Phrase,
+	ppq: number,
+	resolveAtMelodyEnd = false
+): number {
+	if (resolveAtMelodyEnd) {
+		// Measure the same notes playback schedules (rests excluded) so a
+		// trailing rest can't push the handoff past the audible ending.
+		const soundingNotes = extractSoundingNotes(phrase.notes);
+		if (soundingNotes.length > 0) {
+			let melodyEndBeats = 0;
+			for (const note of soundingNotes) {
+				const endBeat = (fractionToFloat(note.offset) + fractionToFloat(note.duration)) * 4;
+				melodyEndBeats = Math.max(melodyEndBeats, endBeat);
+			}
+			return Math.round(melodyEndBeats * ppq) + ppq;
+		}
+	}
+	const barTicks = phrase.timeSignature[0] * ppq;
+	return getPhraseBars(phrase) * barTicks + ppq;
 }
 
 /**
@@ -520,6 +567,11 @@ function getPhraseBars(phrase: Phrase): number {
 export interface PhrasePlaybackOpts {
 	skipMelody?: boolean;
 	loopBacking?: boolean;
+	/** Resolve the returned promise 1 beat after the melody's last note
+	 *  instead of after the harmony extent rounded up to whole bars. Use
+	 *  for call-and-response handoffs (see getPhraseEndTicks). Ignored
+	 *  when skipMelody is set or the phrase has no melody notes. */
+	resolveAtMelodyEnd?: boolean;
 	onStarted?: () => void;
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
@@ -618,17 +670,10 @@ export async function playPhrase(
 		if (scheduleId !== currentScheduleId) return;
 	}
 
-	// Schedule end-of-phrase notification. We always derive phrase length from
-	// `getPhraseBars`, which considers both melody notes and harmony segments
-	// (max of the two, rounded up to a whole bar). This is the right choice
-	// for both:
-	//   1. Phrases whose notes and harmony cover the same bar range — same
-	//      result as the old getPhraseDuration-based math.
-	//   2. Super phrases (continuous lick-practice mode with demo) where the
-	//      notes cover only the demo cycle but the harmony spans 13 cycles —
-	//      we need the endTick to cover the full harmony.
-	const phraseTicks = getPhraseBars(phrase) * barTicks;
-	const endTick = barTicks + phraseTicks + ppq;
+	// Schedule end-of-phrase notification — see getPhraseEndTicks for the
+	// whole-bar vs melody-end semantics.
+	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
+	const endTick = barTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {
@@ -806,10 +851,10 @@ export async function scheduleNextPhrase(
 		if (scheduleId !== currentScheduleId) return;
 	}
 
-	// Schedule end-of-phrase notification. See playPhrase for the rationale
-	// behind always deriving the length from getPhraseBars.
-	const phraseTicks = getPhraseBars(phrase) * ticksPerBar;
-	const endTicks = nextBarTicks + phraseTicks + ppq;
+	// Schedule end-of-phrase notification — see getPhraseEndTicks for the
+	// whole-bar vs melody-end semantics.
+	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
+	const endTicks = nextBarTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {

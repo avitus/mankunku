@@ -635,8 +635,10 @@ describe('migrateOrphanLickCategories', () => {
 	});
 });
 
-describe('backfillInferredProgressionTags', () => {
+describe('backfillInferredProgressionTags (guarded one-time migration)', () => {
 	const PREFIX = 'mankunku:';
+	const MIGRATIONS_KEY = '__migrations';
+	const MARKER = 'prog-backfill-v1';
 
 	function seedUserLick(id: string, category: string): void {
 		const existing = JSON.parse(store[PREFIX + 'user-licks'] ?? '[]');
@@ -691,16 +693,99 @@ describe('backfillInferredProgressionTags', () => {
 		);
 	});
 
-	it('is idempotent — second run touches no new licks', () => {
-		seedUserLick('lk1', 'V-I-minor');
-		expect(backfillInferredProgressionTags()).toBeGreaterThanOrEqual(1);
-		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-minor-long']);
+	it('never touches curated catalog licks', () => {
+		seedUserLick('lk1', 'blues');
 
-		// Re-run: the seeded lick already has its tag, so it's a no-op for it.
-		// The count may still include curated licks newly tagged on first run —
-		// but those too are now stable.
-		const second = backfillInferredProgressionTags();
-		expect(second).toBe(0);
+		backfillInferredProgressionTags();
+
+		// Only the user lick and the migration marker may land in the blob —
+		// curated licks were migrated server-side in May 2026 and mass-seeding
+		// them here would opt the whole catalog into every progression.
+		expect(new Set(Object.keys(loadUserLickTags()))).toEqual(
+			new Set(['lk1', MIGRATIONS_KEY])
+		);
+	});
+
+	it('stamps a durable marker on first run and never runs twice', () => {
+		seedUserLick('lk1', 'V-I-minor');
+		expect(backfillInferredProgressionTags()).toBe(1);
+		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-minor-long']);
+		expect(loadUserLickTags()[MIGRATIONS_KEY]).toContain(MARKER);
+
+		expect(backfillInferredProgressionTags()).toBe(0);
+	});
+
+	it('does not resurrect a tag the user removed after the migration ran', () => {
+		// The exact failure mode that got the unconditional hydrate-time
+		// backfill removed in 00df9ab: user deletes a seeded tag, next
+		// hydration re-adds it. The durable marker must prevent the re-run
+		// even though the store then looks identical to a never-migrated one.
+		seedUserLick('lk1', 'blues');
+		backfillInferredProgressionTags();
+		expect(getProgressionTags('lk1')).toEqual(['blues']);
+
+		toggleProgressionTag('lk1', 'blues');
+		expect(getProgressionTags('lk1')).toEqual([]);
+
+		expect(backfillInferredProgressionTags()).toBe(0);
+		expect(getProgressionTags('lk1')).toEqual([]);
+	});
+
+	it('skips AND stamps when any own lick already carries a prog tag', () => {
+		seedUserLick('lk1', 'blues');
+		seedUserLick('lk2', 'major-chord');
+		// An explicit opt-in means the account already lives under the new
+		// semantics — mass-seeding would trample deliberate curation. The
+		// skip still stamps the marker: this state is affirmative proof of a
+		// current account.
+		toggleProgressionTag('lk1', 'blues');
+
+		expect(backfillInferredProgressionTags()).toBe(0);
+		expect(getProgressionTags('lk2')).toEqual([]);
+		expect(loadUserLickTags()[MIGRATIONS_KEY]).toContain(MARKER);
+	});
+
+	it('guard-3 stamp closes the remove-last-tag resurrection hole', () => {
+		// Without stamping on the guard-3 skip, an account whose only prog
+		// tag is later removed would look unmigrated again and get re-seeded.
+		seedUserLick('lk1', 'blues');
+		seedUserLick('lk2', 'major-chord');
+		toggleProgressionTag('lk1', 'blues');
+		expect(backfillInferredProgressionTags()).toBe(0); // skips, stamps
+
+		toggleProgressionTag('lk1', 'blues'); // user removes their only tag
+		expect(getProgressionTags('lk1')).toEqual([]);
+
+		expect(backfillInferredProgressionTags()).toBe(0);
+		expect(getProgressionTags('lk1')).toEqual([]);
+		expect(getProgressionTags('lk2')).toEqual([]);
+	});
+
+	it('skips AND stamps when a practice:removed sentinel exists anywhere', () => {
+		seedUserLick('lk1', 'blues');
+		// Sentinels only exist post-00df9ab interaction — also proof of a
+		// current account, even on a curated lick's entry.
+		setPracticeTag('bc-001', false);
+
+		expect(backfillInferredProgressionTags()).toBe(0);
+		expect(getProgressionTags('lk1')).toEqual([]);
+		expect(loadUserLickTags()[MIGRATIONS_KEY]).toContain(MARKER);
+	});
+
+	it('is a no-op on an account with no own/adopted licks and leaves the blob unstamped', () => {
+		expect(backfillInferredProgressionTags()).toBe(0);
+		expect(loadUserLickTags()).toEqual({});
+	});
+
+	it('preserves existing practice entries when seeding', () => {
+		seedUserLick('lk1', 'blues');
+		setPracticeTag('lk1', true);
+
+		backfillInferredProgressionTags();
+
+		const entry = loadUserLickTags()['lk1'];
+		expect(entry).toContain('practice');
+		expect(entry).toContain('prog:blues');
 	});
 });
 

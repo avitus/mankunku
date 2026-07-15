@@ -213,7 +213,8 @@ export function migrateUserLicksKeyWrittenToConcert(instrument: InstrumentConfig
  * @returns Array of user-recorded Phrase objects
  */
 export async function getUserLicks(
-	supabase?: SupabaseClient<Database>
+	supabase?: SupabaseClient<Database>,
+	knownUserId?: string
 ): Promise<Phrase[]> {
 	const localLicks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const gen = getScopeGeneration();
@@ -229,8 +230,17 @@ export async function getUserLicks(
 		// to any authenticated user (migration 00013, for community browse), so
 		// an unfiltered select returns every author's licks and contaminates
 		// localStorage. If the session is missing, fall back to local-only.
-		const { data: { user } } = await supabase.auth.getUser();
-		if (!user) return localLicks;
+		//
+		// Prefer the caller-supplied id (already JWT-validated server-side in
+		// hooks.server.ts and passed down via layout data) to skip a network
+		// auth.getUser() round-trip on every library mount. Fall back to
+		// getUser() only when no id was threaded in.
+		let userId = knownUserId ?? null;
+		if (!userId) {
+			const { data: { user } } = await supabase.auth.getUser();
+			userId = user?.id ?? null;
+		}
+		if (!userId) return localLicks;
 		// User switched mid-flight — drop the result rather than persisting
 		// the previous user's data into the new session's localStorage.
 		if (gen !== getScopeGeneration()) return localLicks;
@@ -238,7 +248,7 @@ export async function getUserLicks(
 		const { data, error } = await supabase
 			.from('user_licks')
 			.select('*')
-			.eq('user_id', user.id);
+			.eq('user_id', userId);
 
 		if (error) {
 			console.warn('Failed to fetch cloud licks:', error);
@@ -272,15 +282,15 @@ export async function getUserLicks(
 
 		for (const lick of cloudLicks) {
 			merged.set(lick.id, lick);
-			if (stampedOwners[lick.id] !== user.id) {
-				stampedOwners[lick.id] = user.id;
+			if (stampedOwners[lick.id] !== userId) {
+				stampedOwners[lick.id] = userId;
 				ownersDirty = true;
 			}
 		}
 		for (const lick of localLicks) {
 			if (merged.has(lick.id)) continue;
 			const owner = owners[lick.id];
-			if (owner && owner !== user.id) {
+			if (owner && owner !== userId) {
 				delete stampedOwners[lick.id];
 				ownersDirty = true;
 				continue;
@@ -314,18 +324,24 @@ export async function getUserLicks(
  *  1. Push all local licks to cloud (upsert — safe for duplicates)
  *  2. Fetch all cloud licks (now includes anything just pushed)
  *  3. Replace localStorage with cloud set (cloud is truth after push)
+ *
+ * Returns `true` when the full push+pull+merge completed, `false` when it
+ * bailed for any reason (unverifiable auth, fetch error, user switch
+ * mid-flight). `runLickMetadataMaintenance` gates destructive metadata
+ * maintenance on this report — a silent bail here leaves getAllLicks()
+ * partial, which the reconciler would misread as mass orphaning.
  */
 export async function initUserLicksFromCloud(
 	supabase: SupabaseClient<Database>
-): Promise<void> {
+): Promise<boolean> {
 	_supabase = supabase;
 	const gen = getScopeGeneration();
 	try {
 		// Verify auth before touching localStorage — an expired session would
 		// return zero rows from the RLS-filtered select, wiping local licks.
 		const { data: { user } } = await supabase.auth.getUser();
-		if (!user) return;
-		if (gen !== getScopeGeneration()) return; // User switched mid-flight
+		if (!user) return false;
+		if (gen !== getScopeGeneration()) return false; // User switched mid-flight
 
 		const localLicks = getUserLicksLocal();
 
@@ -335,7 +351,7 @@ export async function initUserLicksFromCloud(
 		// stamp stale licks with the new user's ID via upsert.
 		if (localLicks.length > 0 && gen === getScopeGeneration()) {
 			await syncUserLicksToCloud(supabase, localLicks);
-			if (gen !== getScopeGeneration()) return;
+			if (gen !== getScopeGeneration()) return false;
 		}
 
 		// Pull cloud licks — now the complete set. Filter by user_id: the
@@ -347,9 +363,9 @@ export async function initUserLicksFromCloud(
 			.eq('user_id', user.id);
 		if (error) {
 			console.warn('Failed to fetch cloud licks during startup sync:', error);
-			return;
+			return false;
 		}
-		if (gen !== getScopeGeneration()) return; // User switched mid-flight
+		if (gen !== getScopeGeneration()) return false; // User switched mid-flight
 
 		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({
 			id: row.id,
@@ -393,8 +409,10 @@ export async function initUserLicksFromCloud(
 		}
 		save(STORAGE_KEY, Array.from(cloudById.values()));
 		if (ownersDirty) save(OWNERS_KEY, stampedOwners);
+		return true;
 	} catch (error) {
 		console.warn('Failed to sync user licks from cloud:', error);
+		return false;
 	}
 }
 

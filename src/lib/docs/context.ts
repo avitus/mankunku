@@ -1,6 +1,16 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { ALL_PAGES } from './structure';
+
+// Bundle every documentation/*.md into the build at compile time. Reading from
+// process.cwd() at runtime fails in production because the deploy ships only
+// build/ + package files (see .circleci/continue-config.yml), not the
+// documentation/ tree — which left this chat doc context EMPTY in prod, so the
+// assistant answered every question as "not documented". Mirrors the docs-site
+// loader in src/routes/docs/[...slug]/+page.server.ts. See Sentry MANKUNKU-N.
+const DOC_FILES = import.meta.glob<string>('/documentation/**/*.md', {
+	query: '?raw',
+	import: 'default',
+	eager: true
+});
 
 /**
  * Slugs whose content is bundled into every chat request as system context.
@@ -23,15 +33,9 @@ const CORE_DOC_SLUGS = [
  */
 let cachedContext: string | null = null;
 
-/** Read a doc file from /documentation/<slug>.md, returning empty on failure. */
-async function readDoc(slug: string): Promise<string> {
-	const filePath = path.resolve(process.cwd(), 'documentation', `${slug}.md`);
-	try {
-		return await readFile(filePath, 'utf-8');
-	} catch (err) {
-		console.warn(`[docs/context] Failed to read ${filePath}:`, err);
-		return '';
-	}
+/** Return the bundled markdown for /documentation/<slug>.md, or '' if absent. */
+function readDoc(slug: string): string {
+	return DOC_FILES[`/documentation/${slug}.md`] ?? '';
 }
 
 /**
@@ -43,7 +47,7 @@ export async function getDocContext(): Promise<string> {
 
 	const sections: string[] = [];
 	for (const slug of CORE_DOC_SLUGS) {
-		const content = await readDoc(slug);
+		const content = readDoc(slug);
 		if (!content) continue;
 		sections.push(`<doc slug="${slug}" url="/docs/${slug}">\n${content}\n</doc>`);
 	}
@@ -62,7 +66,7 @@ export async function getPageContext(slug: string | undefined): Promise<string> 
 	const meta = ALL_PAGES.find((p) => p.slug === slug);
 	if (!meta) return '';
 
-	const content = await readDoc(slug);
+	const content = readDoc(slug);
 	if (!content) return '';
 
 	return `The user is currently viewing /docs/${slug} ("${meta.title}").\n\n${content}`;

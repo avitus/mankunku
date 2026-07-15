@@ -44,5 +44,28 @@ test.describe('library — authed', () => {
 		// before we read the count.
 		const cardHeadings = signedInPage.locator('main').getByRole('heading', { level: 3 });
 		await expect.poll(() => cardHeadings.count()).toBeGreaterThan(0);
+
+		// With licks present, the "empty" copy must never be the rendered state.
+		await expect(signedInPage.getByText('Your library is empty.')).toHaveCount(0);
+	});
+
+	test('server-rendered HTML shows a loading state, never the empty copy', async ({
+		signedInPage
+	}) => {
+		// Regression guard for the "library is empty for a few seconds on every
+		// load" bug. The server has no localStorage, so userLicks/stolenLicks are
+		// empty during SSR; before the fix that rendered the literal "Your library
+		// is empty." card as the first bytes the user saw (and it stayed until the
+		// network-backed client load resolved). The fix gates the empty copy
+		// behind a `loaded` flag, so SSR now emits a loading placeholder instead.
+		//
+		// Asserting against the raw SSR HTML is deterministic — it sidesteps the
+		// client hydration timing that makes the flash itself untestable in a
+		// harness with no real Supabase backend.
+		const res = await signedInPage.request.get('/library');
+		expect(res.ok()).toBeTruthy();
+		const html = await res.text();
+		expect(html).toContain('Loading your licks');
+		expect(html).not.toContain('Your library is empty.');
 	});
 });

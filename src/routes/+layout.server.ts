@@ -13,8 +13,15 @@ import type { LayoutServerLoad } from './$types';
  * - `+layout.ts` via its `data` parameter
  * - All descendant routes via `$page.data`
  */
-export const load: LayoutServerLoad = async ({ locals, cookies }) => {
-	const { session, user } = await locals.safeGetSession();
+export const load: LayoutServerLoad = async ({ locals, cookies, depends }) => {
+	// Re-run this server load (not just the universal +layout.ts) when
+	// `invalidate('supabase:auth')` fires from onAuthStateChange. Without
+	// this, +layout.ts re-runs against CACHED server data, so a transient
+	// `degraded: true` verdict (or a stale null session) would stick for the
+	// lifetime of the tab even after the browser client refreshed fine.
+	depends('supabase:auth');
+
+	const { session, user, degraded } = await locals.safeGetSession();
 
 	let isAdmin = false;
 	if (user) {
@@ -29,6 +36,9 @@ export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 	return {
 		session,
 		user,
+		// True when auth verification was unavailable (not a signed-out verdict) —
+		// +layout.ts must skip user-scope reconciliation rather than wipe.
+		degraded,
 		isAdmin,
 		cookies: cookies.getAll().filter(
 			(c) => c.name.startsWith('sb-') || c.name.startsWith('supabase-')
