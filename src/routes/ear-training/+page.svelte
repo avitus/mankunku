@@ -9,7 +9,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
 	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
-	import { progress, recordAttempt, updateSessionScore, getUnlockContext, getTonalMastery } from '$lib/state/progress.svelte';
+	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
@@ -126,16 +126,17 @@
 
 	/**
 	 * Transient, very subtle acknowledgement of a level change. Set when the
-	 * primary or per-scale proficiency moves during recordAttempt(), then cleared
-	 * after the fade-out completes. Lives in its own reserved-height slot so it
-	 * never reflows the page.
+	 * current scale's proficiency level moves during recordAttempt(), then
+	 * cleared after the fade-out completes. Carries the scale name + the level
+	 * actually reached so the cue reads e.g. "↑ Dorian · Lv 47". Lives in its
+	 * own reserved-height slot so it never reflows the page.
 	 */
-	let levelSignal = $state<'up' | 'down' | null>(null);
+	let levelSignal = $state<{ dir: 'up' | 'down'; scaleName: string; level: number } | null>(null);
 	let levelSignalTimer: ReturnType<typeof setTimeout> | undefined;
 
-	function showLevelSignal(dir: 'up' | 'down') {
+	function showLevelSignal(dir: 'up' | 'down', scaleName: string, level: number) {
 		clearTimeout(levelSignalTimer);
-		levelSignal = dir;
+		levelSignal = { dir, scaleName, level };
 		levelSignalTimer = setTimeout(() => { levelSignal = null; }, 2200);
 	}
 
@@ -436,9 +437,12 @@
 			if ((scoredAttemptCount - 1) % 10 === 0) {
 				bottomQuote = getGradeCaption(persistentScore.grade);
 			}
-			// Tonal Mastery ticks up whenever any scale OR key proficiency level
-			// changes, so comparing it before/after the attempt captures both.
-			const prevMastery = getTonalMastery().overall;
+			// The daily session is scale-focused, so report the current scale's
+			// proficiency level: compare it before/after the attempt and surface
+			// the actual level reached (up or down).
+			const scaleType = activeTonality.scaleType;
+			const prevScaleLevel =
+				progress.scaleProficiency[scaleType]?.level ?? createInitialScaleProficiency().level;
 			recordAttempt(
 				session.phrase.id,
 				session.phrase.name ?? session.phrase.id,
@@ -447,12 +451,14 @@
 				session.tempo,
 				session.phrase.difficulty.level,
 				session.lastScore,
-				activeTonality.scaleType,
+				scaleType,
 				supabase,
 				'ear-training'
 			);
-			const dir = levelSignalDirection(prevMastery, getTonalMastery().overall, 0, 0);
-			if (dir) showLevelSignal(dir);
+			const newScaleLevel =
+				progress.scaleProficiency[scaleType]?.level ?? createInitialScaleProficiency().level;
+			const dir = levelSignalDirection(prevScaleLevel, newScaleLevel, 0, 0);
+			if (dir) showLevelSignal(dir, SCALE_TYPE_NAMES[scaleType], newScaleLevel);
 		}
 
 		// Save audio recording in the background, then re-score from the
@@ -790,10 +796,10 @@
 		{#if levelSignal}
 			<span
 				class="level-signal smallcaps text-sm"
-				class:is-up={levelSignal === 'up'}
-				class:is-down={levelSignal === 'down'}
+				class:is-up={levelSignal.dir === 'up'}
+				class:is-down={levelSignal.dir === 'down'}
 			>
-				{levelSignal === 'up' ? '↑ Level up' : '↓ Level down'}
+				{levelSignal.dir === 'up' ? '↑' : '↓'} {levelSignal.scaleName} · Lv {levelSignal.level}
 			</span>
 		{/if}
 	</div>
