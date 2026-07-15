@@ -101,7 +101,7 @@
 		</div>
 
 		{#if timing}
-			<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-text-secondary)] border-t border-[var(--color-border)] pt-2">
+			<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-text-secondary)] border-t border-[var(--color-bg-tertiary)] pt-2">
 				<span>
 					Bias: <span class="font-mono" style="color: {timingBiasColor}">{formatOffset(timing.meanOffsetMs)}</span>
 					<span style="color: {timingBiasColor}">{timingBiasLabel}</span>

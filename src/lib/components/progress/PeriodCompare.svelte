@@ -70,13 +70,13 @@
 			onclick={() => { tab = 'week'; }}
 			class="rounded px-3 py-1 text-xs transition-colors {tab === 'week'
 				? 'bg-[var(--color-accent)] text-white'
-				: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]'}"
+				: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}"
 		>Week</button>
 		<button
 			onclick={() => { tab = 'month'; }}
 			class="rounded px-3 py-1 text-xs transition-colors {tab === 'month'
 				? 'bg-[var(--color-accent)] text-white'
-				: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]'}"
+				: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}"
 		>Month</button>
 	</div>
 

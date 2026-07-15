@@ -619,7 +619,7 @@
 					{#if displayNameStatus === 'saved'}
 						<p class="text-xs text-[var(--color-text-secondary)]">Saved.</p>
 					{:else if displayNameStatus === 'error'}
-						<p class="text-xs text-[var(--color-error)]">Couldn't save. Try again.</p>
+						<p class="text-xs text-[var(--color-error-text)]">Couldn't save. Try again.</p>
 					{/if}
 				</div>
 
@@ -641,7 +641,7 @@
 				<div class="px-4 py-3">
 					{#if showDeleteConfirm}
 						<div use:scrollIntoView>
-							<p class="mb-3 text-sm text-[var(--color-error)]">
+							<p class="mb-3 text-sm text-[var(--color-error-text)]">
 								This will permanently delete your account and all associated data including progress, recordings, and settings. This action cannot be undone.
 							</p>
 							<div class="flex gap-2">
@@ -662,7 +662,7 @@
 					{:else}
 						<button
 							onclick={() => { showDeleteConfirm = true; }}
-							class="text-sm text-[var(--color-error)] hover:underline"
+							class="text-sm text-[var(--color-error-text)] hover:underline"
 						>
 							Delete Account
 						</button>
@@ -766,7 +766,7 @@
 			<div class="px-4 py-3">
 				{#if showResetConfirm}
 					<div use:scrollIntoView>
-						<p class="mb-3 text-sm text-[var(--color-error)]">
+						<p class="mb-3 text-sm text-[var(--color-error-text)]">
 							This will erase all progress, scores, and session history. This cannot be undone.
 						</p>
 						<div class="flex gap-2">
@@ -799,7 +799,7 @@
 				{:else}
 					<button
 						onclick={() => { showResetConfirm = true; }}
-						class="text-sm text-[var(--color-error)] hover:underline"
+						class="text-sm text-[var(--color-error-text)] hover:underline"
 					>
 						Reset All Progress
 					</button>

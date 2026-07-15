@@ -33,7 +33,17 @@
 	--color-accent-hover: #1f6b7a;
 	--color-success: #22c55e;
 	--color-warning: #eab308;
-	--color-error: #ef4444;
+	/* Muted jazz-toned red for negative feedback (try-again grades, low scores)
+	   AND genuine errors — desaturated from the old alert red (#ef4444) so it
+	   sits inside the Blue Note palette. Distinct in hue from --color-onair.
+	   This is the FILL token (button/tint backgrounds carry white text on it). */
+	--color-error: #c45b5b;
+	/* Text-safe feedback foregrounds. The fill tokens above are tuned for
+	   backgrounds; these variants keep small feedback TEXT readable (≥4.5:1)
+	   on the page + card surfaces. In dark mode error text lightens; warning
+	   text is already legible. */
+	--color-error-text: #d47b7c;
+	--color-warning-text: #eab308;
 	/* Blue Note brass — decorative chrome accent */
 	--color-brass: #c8923d;
 	--color-brass-soft: #e2b875;
@@ -59,6 +69,21 @@
 	--mastery-8: #e9c26e;
 	--mastery-9: #f8ce76;
 	--mastery-10: #ffd87b;
+	/* Difficulty ramp — how hard the material is (lick/level badges, adaptive
+	   level). A theme-aware Blue Note "traffic light": muted green (easy) →
+	   amber (mid) → muted brick-red (hard). Deliberately muted vs the old
+	   green→alert-red heatmap so a hard "Level 82" reads jazz-hot, not alarm.
+	   Distinct from the teal→brass mastery ramp (mastery = accomplishment). */
+	--difficulty-1: #5da56e;
+	--difficulty-2: #7da75e;
+	--difficulty-3: #9ba753;
+	--difficulty-4: #b2a346;
+	--difficulty-5: #c69f41;
+	--difficulty-6: #cf9443;
+	--difficulty-7: #d3864c;
+	--difficulty-8: #cc7a55;
+	--difficulty-9: #bf6c59;
+	--difficulty-10: #b06058;
 }
 
 [data-domain='lick-practice'] {
@@ -84,7 +109,11 @@
 	--color-accent-hover: #0f4e5c;
 	--color-success: #16a34a;
 	--color-warning: #ca8a04;
-	--color-error: #dc2626;
+	--color-error: #a12f35;
+	/* Text-safe feedback foregrounds for light mode (darker for contrast on
+	   the pale surfaces; the fill --color-error is already text-legible here). */
+	--color-error-text: #a12f35;
+	--color-warning-text: #8a5a00;
 	/* Brass tones — deeper and more saturated on light backgrounds */
 	--color-brass: #8b6a2f;
 	--color-brass-soft: #a8853e;
@@ -104,6 +133,18 @@
 	--mastery-8: #866206;
 	--mastery-9: #855f00;
 	--mastery-10: #835b00;
+	/* Difficulty ramp re-stepped for light backgrounds: same green→amber→brick
+	   hue path, darkened so every band stays legible on paper (contrast ≥ 4.2:1). */
+	--difficulty-1: #3e8651;
+	--difficulty-2: #5c8239;
+	--difficulty-3: #717817;
+	--difficulty-4: #857100;
+	--difficulty-5: #926a00;
+	--difficulty-6: #9a6000;
+	--difficulty-7: #9f5618;
+	--difficulty-8: #9e502c;
+	--difficulty-9: #974937;
+	--difficulty-10: #90433c;
 }
 
 :root.light [data-domain='lick-practice'] {

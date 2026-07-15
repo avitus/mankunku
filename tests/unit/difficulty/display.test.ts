@@ -58,15 +58,15 @@ describe('difficultyBand', () => {
 });
 
 describe('difficultyColor', () => {
-	it('band 1 difficulties (1-10) return #22c55e', () => {
+	it('band 1 difficulties (1-10) return the band-1 token', () => {
 		for (let d = 1; d <= 10; d++) {
-			expect(difficultyColor(d)).toBe('#22c55e');
+			expect(difficultyColor(d)).toBe('var(--difficulty-1)');
 		}
 	});
 
-	it('band 10 difficulties (91-100) return #991b1b', () => {
+	it('band 10 difficulties (91-100) return the band-10 token', () => {
 		for (let d = 91; d <= 100; d++) {
-			expect(difficultyColor(d)).toBe('#991b1b');
+			expect(difficultyColor(d)).toBe('var(--difficulty-10)');
 		}
 	});
 
@@ -86,7 +86,7 @@ describe('difficultyDisplay', () => {
 		expect(difficultyDisplay(5)).toEqual({
 			band: 1,
 			label: '1-10',
-			color: '#22c55e',
+			color: 'var(--difficulty-1)',
 			name: 'Beginner',
 		});
 	});
@@ -95,7 +95,7 @@ describe('difficultyDisplay', () => {
 		expect(difficultyDisplay(45)).toEqual({
 			band: 5,
 			label: '41-50',
-			color: '#facc15',
+			color: 'var(--difficulty-5)',
 			name: 'Intermediate',
 		});
 	});
@@ -104,7 +104,7 @@ describe('difficultyDisplay', () => {
 		expect(difficultyDisplay(95)).toEqual({
 			band: 10,
 			label: '91-100',
-			color: '#991b1b',
+			color: 'var(--difficulty-10)',
 			name: 'Virtuoso',
 		});
 	});

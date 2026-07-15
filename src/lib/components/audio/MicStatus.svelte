@@ -58,7 +58,7 @@
 			{permission === 'denied' ? 'Retry Mic' : 'Enable Mic'}
 		</button>
 		{#if permission === 'denied'}
-			<span class="text-xs text-[var(--color-error)]">
+			<span class="text-xs text-[var(--color-error-text)]">
 				Check browser permissions
 			</span>
 		{/if}

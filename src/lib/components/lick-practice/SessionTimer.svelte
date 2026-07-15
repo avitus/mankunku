@@ -26,7 +26,7 @@
 			style="width: {progress * 100}%"
 		></div>
 	</div>
-	<span class="text-sm font-medium tabular-nums {isOvertime ? 'text-[var(--color-error)]' : 'text-[var(--color-text-secondary)]'}">
+	<span class="text-sm font-medium tabular-nums {isOvertime ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-secondary)]'}">
 		{isOvertime ? '+' : ''}{formatTime(isOvertime ? elapsedSeconds - totalSeconds : remainingSeconds)}
 	</span>
 </div>
