@@ -59,6 +59,40 @@ describe('correctSubharmonic', () => {
 		expect(correctSubharmonic(buf, 88, SR)).toBe(88);
 	});
 
+	it('does NOT lift a genuine low note whose fundamental is fully masked', () => {
+		// The 2026-07-14 Third–Fifth Rise regression: a real low E3 (165 Hz) on
+		// tenor sax whose fundamental radiates almost nothing — mag(f)/mag(2f)
+		// sat at 0.02–0.06, inside the old rule's "subharmonic" band, so every
+		// correctly-detected frame was doubled to E4. What still separates it
+		// from an artifact is the ODD harmonics: 3f and 5f are full-rank
+		// harmonics of a genuine 165 Hz note. Amplitudes below mirror the
+		// measured frame profile (normalized to the 2nd harmonic).
+		const buf = makeTone([
+			[165, 0.02], // fundamental ~4% of the 2nd harmonic — spectrally absent
+			[330, 0.5],
+			[495, 0.09], // real 3rd harmonic
+			[660, 0.05],
+			[825, 0.06] // real 5th harmonic
+		]);
+		expect(correctSubharmonic(buf, 165, SR)).toBe(165);
+	});
+
+	it('still lifts a subharmonic even when period-doubling adds half-harmonic sidebands', () => {
+		// Worst measured frame of the 2026-06-30 Fifth–Sixth Step artifact
+		// (t≈0.75s): real reed period-doubling puts SOME energy at 0.5F and
+		// 1.5F of the true F3, so the reported 88 Hz "note" shows nonzero odd
+		// bins — but they stay far below true-harmonic rank, and 4f (the real
+		// note's 2nd harmonic) towers over everything. Must still double.
+		const buf = makeTone([
+			[88, 0.0075], // reported fundamental: leakage-level
+			[176, 0.25], // true F3 fundamental
+			[264, 0.039], // half-harmonic sideband (1.5 × 176)
+			[352, 0.87], // true F3 2nd harmonic — dominant
+			[440, 0.017] // half-harmonic sideband (2.5 × 176)
+		]);
+		expect(correctSubharmonic(buf, 88, SR)).toBeCloseTo(176, 0);
+	});
+
 	it('does not engage above the low-register bound', () => {
 		// Even with the spectral shape of a subharmonic, high frequencies are
 		// left alone (subharmonic locks only occur on low sustained tones).
