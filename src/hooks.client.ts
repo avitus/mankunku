@@ -7,7 +7,7 @@ import {
   shouldDropStaleChunkReport,
   shouldReloadForStaleChunk
 } from '$lib/util/stale-chunk';
-import { isEmptyErrorEvent, isTransientDevReferenceError } from '$lib/util/sentry-filters';
+import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
 
 // `import.meta.env.DEV` is false for `npm run preview`, so a preview running
 // on localhost still shipped events with environment='production' (see Sentry
@@ -84,14 +84,6 @@ Sentry.init({
     //     component, where X is a variable/component that was just refactored
     //     or removed. See MANKUNKU-Q/S/T/V.
     if (SENTRY_ENVIRONMENT === 'development') {
-      // Transient "X is not defined" ReferenceErrors thrown when Svelte's HMR
-      // re-runs an effect against a momentarily-stale scope after an identifier
-      // is renamed/removed. The page recovers on the next tick; not actionable.
-      // These don't always carry @vite/client / hmr/wrapper frames (stale
-      // sourcemaps), so match by shape. See MANKUNKU-W (and Q/S/T/V).
-      if (isTransientDevReferenceError(event)) {
-        return null;
-      }
       const frames = ex?.stacktrace?.frames ?? [];
       if (
         frames.some(

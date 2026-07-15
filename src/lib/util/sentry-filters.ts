@@ -5,11 +5,12 @@
  * sync.
  */
 
-/** Minimal shape of the fields these predicates read on a Sentry event. */
+/** Minimal shape of the fields this predicate reads on a Sentry event. */
 interface SentryLikeEvent {
 	message?: string;
 	exception?: {
 		values?: Array<{
+			// `type` (e.g. "Error") is intentionally NOT read — see isEmptyErrorEvent.
 			type?: string;
 			value?: string;
 			stacktrace?: { frames?: unknown[] };
@@ -22,29 +23,23 @@ interface SentryLikeHint {
 }
 
 /**
- * True when an event has no usable content — no message, no exception value, no
- * stack frames, and no original exception. These render as "<unknown>" /
- * "undefined" in Sentry and aren't actionable. See MANKUNKU-K (an empty
- * `Error: undefined` captured from an SSR load during `npm run preview`).
+ * True when an event has no usable content — no message, no exception value in
+ * ANY `exception.values` entry, no stack frames, and no original exception.
+ * These render as "<unknown>" / "undefined" in Sentry and aren't actionable.
+ * See MANKUNKU-K (an empty `Error: undefined` captured from an SSR load during
+ * `npm run preview`).
+ *
+ * Note: a bare exception `type` (e.g. "Error") does NOT count as content — the
+ * MANKUNKU-K events carry a default `type` with an empty value, and since
+ * essentially every exception event has a type, counting it would neuter this
+ * filter entirely.
  */
 export function isEmptyErrorEvent(event: SentryLikeEvent, hint: SentryLikeHint | undefined): boolean {
-	const ex = event.exception?.values?.[0];
 	const hasMessage = typeof event.message === 'string' && event.message.trim().length > 0;
-	const hasExceptionValue = typeof ex?.value === 'string' && ex.value.trim().length > 0;
-	const hasFrames = (ex?.stacktrace?.frames?.length ?? 0) > 0;
-	return !hasMessage && !hasExceptionValue && !hasFrames && hint?.originalException == null;
-}
-
-/**
- * True for transient "X is not defined" ReferenceErrors. During `npm run dev`,
- * Svelte's HMR re-runs an effect against a momentarily-stale scope right after
- * an identifier is renamed/removed, throwing a ReferenceError that the page
- * recovers from on the next tick. Callers should gate this on the development
- * environment. See MANKUNKU-W (and the Q/S/T/V family): `awaitHydration is not
- * defined` thrown from +layout.svelte moments after the symbol was renamed.
- */
-export function isTransientDevReferenceError(event: SentryLikeEvent): boolean {
-	const ex = event.exception?.values?.[0];
-	const value = typeof ex?.value === 'string' ? ex.value : '';
-	return ex?.type === 'ReferenceError' && /is not defined/i.test(value);
+	const hasExceptionContent = (event.exception?.values ?? []).some(
+		(ex) =>
+			(typeof ex.value === 'string' && ex.value.trim().length > 0) ||
+			(ex.stacktrace?.frames?.length ?? 0) > 0
+	);
+	return !hasMessage && !hasExceptionContent && hint?.originalException == null;
 }
