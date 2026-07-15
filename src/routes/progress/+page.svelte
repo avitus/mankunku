@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { progress, getRecentSessions, resetProgress, getPrimaryLevel } from '$lib/state/progress.svelte';
-	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, getTonalMastery } from '$lib/state/progress.svelte';
+	import { difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
 	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
 	import { GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
 	import { SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
@@ -197,7 +197,12 @@
 	let sessionsSubtab = $state<'ear-training' | 'lick-practice'>('ear-training');
 	const recentSessions = $derived(getRecentSessions(100));
 	const primaryLevel = $derived(getPrimaryLevel());
-	const levelDisp = $derived(difficultyDisplay(primaryLevel));
+	const primaryLevelDisp = $derived(difficultyDisplay(primaryLevel));
+	const mastery = $derived(getTonalMastery());
+	// Full teal→brass ramp as a gradient for the mastery meter; the CSS vars
+	// re-step per theme (see app.css), so this stays legible in light + dark.
+	const masteryGradient =
+		'linear-gradient(to right, var(--mastery-1), var(--mastery-2), var(--mastery-3), var(--mastery-4), var(--mastery-5), var(--mastery-6), var(--mastery-7), var(--mastery-8), var(--mastery-9), var(--mastery-10))';
 	const pct = (n: number) => Math.round(n * 100);
 
 	// Per-scale proficiency entries (only scales with data)
@@ -613,16 +618,35 @@
 				<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums" style="color: {levelDisp.color}">
-					{primaryLevel}
+				<div class="font-display text-3xl font-bold tabular-nums" style="color: var(--color-brass-soft)">
+					{Math.round(mastery.overall)}%
 				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Level</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Tonal Mastery</div>
+				<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+					{mastery.scalesStarted}/12 scales · {mastery.keysStarted}/12 keys
+				</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
 				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
 					{progress.sessions.length}
 				</div>
 				<div class="smallcaps text-[var(--color-text-secondary)]">Recent Sessions</div>
+			</div>
+		</div>
+
+		<!-- Tonal Mastery meter — the teal→brass ramp filled to overall mastery -->
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3">
+			<div class="mb-2 flex items-center justify-between text-xs">
+				<span class="smallcaps text-[var(--color-text-secondary)]">Beginner</span>
+				<span class="smallcaps text-[var(--color-brass-soft)]">Virtuoso</span>
+			</div>
+			<div class="h-2.5 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+				<div
+					class="h-full rounded-full transition-[width] duration-500"
+					style="width: {mastery.overall}%; background: {masteryGradient}; background-size: {mastery.overall > 0
+						? (100 / mastery.overall) * 100
+						: 100}% 100%; background-repeat: no-repeat;"
+				></div>
 			</div>
 		</div>
 
@@ -655,7 +679,7 @@
 				<h2 class="mb-3 text-lg font-semibold">Scale Proficiency</h2>
 				<div class="space-y-3">
 					{#each scaleProfEntries as { scaleType, prof }}
-						{@const disp = difficultyDisplay(prof.level)}
+						{@const disp = masteryDisplay(prof.level)}
 						<div>
 							<div class="flex items-center justify-between text-sm">
 								<span>{SCALE_TYPE_NAMES[scaleType]}</span>
@@ -687,6 +711,9 @@
 					learnMore={tooltips.progress.rollingWindow.learnMore}
 					position="right"
 				/>
+				<span class="ml-auto text-sm font-normal tabular-nums" style="color: {primaryLevelDisp.color}">
+					Level {primaryLevel} <span class="text-xs text-[var(--color-text-secondary)]">({primaryLevelDisp.name})</span>
+				</span>
 			</h2>
 			<div class="grid grid-cols-2 gap-4 text-sm">
 				<div>

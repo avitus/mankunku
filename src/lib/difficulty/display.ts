@@ -76,3 +76,24 @@ export function difficultyDisplay(difficulty: number): DifficultyDisplay {
 		name: BAND_NAMES[band - 1],
 	};
 }
+
+/**
+ * Display info for a proficiency / mastery value (0-100), using the Blue Note
+ * teal→brass ramp instead of the green→red difficulty ramp — for a mastery
+ * scale, high should read as *accomplishment* (brass), not danger (red).
+ *
+ * The color is a CSS custom property (`var(--mastery-N)`, defined in app.css)
+ * rather than a literal hex, so the ramp re-steps automatically between the
+ * dark and light themes. Safe to drop into an inline `style` attribute.
+ */
+export function masteryDisplay(value: number): DifficultyDisplay {
+	const band = difficultyBand(value);
+	const lo = (band - 1) * 10 + 1;
+	const hi = band * 10;
+	return {
+		band,
+		label: `${lo}-${hi}`,
+		color: `var(--mastery-${band})`,
+		name: BAND_NAMES[band - 1],
+	};
+}

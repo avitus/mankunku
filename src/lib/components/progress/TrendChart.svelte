@@ -31,12 +31,14 @@
 	const todayStr = localDateStr(new Date());
 
 	// Aggregate data points based on period
-	// Shows overall level (solid) with pitch/rhythm proficiency (dotted)
+	// Shows Tonal Mastery (solid) with pitch/rhythm complexity (dotted).
+	// tonalMastery is null before the first day a snapshot exists (pre-feature
+	// history) so the solid line simply begins once data is available.
 	interface DataPoint {
 		label: string;
-		level: number;             // avg of pitchComplexity + rhythmComplexity (1-100)
-		pitchProficiency: number;  // pitchComplexity (1-100)
-		rhythmProficiency: number; // rhythmComplexity (1-100)
+		tonalMastery: number | null; // avg proficiency across scales + keys (0-100)
+		pitchProficiency: number;    // pitchComplexity (1-100)
+		rhythmProficiency: number;   // rhythmComplexity (1-100)
 	}
 
 	const dataPoints = $derived.by(() => {
@@ -49,26 +51,34 @@
 		// rather than collapsing to zero or back to per-day accuracy.
 		let lastPitch: number | null = null;
 		let lastRhythm: number | null = null;
-		const filled: { date: string; pitchComplexity: number; rhythmComplexity: number }[] = [];
+		let lastMastery: number | null = null;
+		const filled: {
+			date: string;
+			pitchComplexity: number;
+			rhythmComplexity: number;
+			tonalMastery: number | null;
+		}[] = [];
 
 		for (const s of summaries) {
 			if (s.pitchComplexity != null) lastPitch = s.pitchComplexity;
 			if (s.rhythmComplexity != null) lastRhythm = s.rhythmComplexity;
+			if (s.tonalMastery != null) lastMastery = s.tonalMastery;
 			if (s.date < start || s.date > todayStr) continue;
 			if (lastPitch == null || lastRhythm == null) continue; // no snapshot yet
 			filled.push({
 				date: s.date,
 				pitchComplexity: lastPitch,
-				rhythmComplexity: lastRhythm
+				rhythmComplexity: lastRhythm,
+				tonalMastery: lastMastery
 			});
 		}
 
 		if (filled.length === 0) return [];
 
-		function toPoint(label: string, pitch: number, rhythm: number): DataPoint {
+		function toPoint(label: string, pitch: number, rhythm: number, mastery: number | null): DataPoint {
 			return {
 				label,
-				level: (pitch + rhythm) / 2,
+				tonalMastery: mastery,
 				pitchProficiency: pitch,
 				rhythmProficiency: rhythm
 			};
@@ -79,7 +89,8 @@
 			return filled.map(s => toPoint(
 				s.date.slice(5),
 				s.pitchComplexity,
-				s.rhythmComplexity
+				s.rhythmComplexity,
+				s.tonalMastery
 			));
 		}
 
@@ -112,7 +123,8 @@
 			points.push(toPoint(
 				groupByMonth ? key.slice(2) : key.slice(5),
 				last.pitchComplexity,
-				last.rhythmComplexity
+				last.rhythmComplexity,
+				last.tonalMastery
 			));
 		}
 
@@ -132,7 +144,7 @@
 	// Compute Y range from data (1-100 scale, with some padding)
 	const yMax = $derived(
 		dataPoints.length > 0
-			? Math.max(...dataPoints.flatMap(d => [d.level, d.pitchProficiency, d.rhythmProficiency]), 10)
+			? Math.max(...dataPoints.flatMap(d => [d.tonalMastery ?? 0, d.pitchProficiency, d.rhythmProficiency]), 10)
 			: 100
 	);
 
@@ -144,6 +156,24 @@
 			const y = PAD_TOP + chartH - (accessor(d) / yMax) * chartH;
 			return `${x},${y}`;
 		}).join(' ');
+	}
+
+	// Like toPoints but skips points whose accessor is null, keeping each
+	// remaining point at its original index-based x so the line stays aligned
+	// to the full timeline (used for the mastery line, which starts partway
+	// through when older history predates the snapshot).
+	function toPointsSkipNull(data: DataPoint[], accessor: (d: DataPoint) => number | null): string {
+		if (data.length === 0) return '';
+		const step = data.length > 1 ? chartW / (data.length - 1) : 0;
+		const parts: string[] = [];
+		data.forEach((d, i) => {
+			const v = accessor(d);
+			if (v == null) return;
+			const x = PAD_LEFT + i * step;
+			const y = PAD_TOP + chartH - (v / yMax) * chartH;
+			parts.push(`${x},${y}`);
+		});
+		return parts.join(' ');
 	}
 
 	let showPitch = $state(true);
@@ -178,7 +208,7 @@
 				<svg width="14" height="6" class="shrink-0">
 					<line x1="0" y1="3" x2="14" y2="3" stroke="var(--color-text-primary)" stroke-width="2" />
 				</svg>
-				Level
+				Mastery
 			</span>
 			<button
 				onclick={() => { showPitch = !showPitch; }}
@@ -238,13 +268,13 @@
 				/>
 			{/if}
 
-			<!-- Overall level (solid, always shown, on top) -->
+			<!-- Tonal Mastery (solid, primary, on top) -->
 			<polyline
 				fill="none"
 				stroke="var(--color-text-primary)"
 				stroke-width="2"
 				stroke-linejoin="round"
-				points={toPoints(dataPoints, d => d.level)}
+				points={toPointsSkipNull(dataPoints, d => d.tonalMastery)}
 			/>
 		</svg>
 

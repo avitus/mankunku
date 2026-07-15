@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { difficultyBand, difficultyColor, difficultyDisplay } from '$lib/difficulty/display';
+import { difficultyBand, difficultyColor, difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
 
 describe('difficultyBand', () => {
 	it('maps 1 → 1 (lower bound of band 1)', () => {
@@ -135,5 +135,36 @@ describe('difficultyDisplay', () => {
 		const values = [5, 15, 25, 35, 45, 55, 65, 75, 85, 95];
 		const names = values.map((d: number): string => difficultyDisplay(d).name);
 		expect(names).toEqual(expectedNames);
+	});
+});
+
+describe('masteryDisplay', () => {
+	it('returns the teal→brass CSS var for the band, not a difficulty hex', () => {
+		expect(masteryDisplay(5)).toEqual({
+			band: 1,
+			label: '1-10',
+			color: 'var(--mastery-1)',
+			name: 'Beginner',
+		});
+		expect(masteryDisplay(95)).toEqual({
+			band: 10,
+			label: '91-100',
+			color: 'var(--mastery-10)',
+			name: 'Virtuoso',
+		});
+	});
+
+	it('maps every band to its own --mastery var (theme-aware, no literal hex)', () => {
+		for (let band = 1; band <= 10; band++) {
+			const rep = (band - 1) * 10 + 5;
+			const disp = masteryDisplay(rep);
+			expect(disp.band).toBe(band);
+			expect(disp.color).toBe(`var(--mastery-${band})`);
+		}
+	});
+
+	it('clamps out-of-range values like difficultyBand does', () => {
+		expect(masteryDisplay(0).color).toBe('var(--mastery-1)');
+		expect(masteryDisplay(999).color).toBe('var(--mastery-10)');
 	});
 });

@@ -5,10 +5,11 @@
  * Auto-saves on every mutation via $effect.
  */
 
-import type { UserProgress, SessionResult, CategoryProgress, LickProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext } from '$lib/types/progress';
+import type { UserProgress, SessionResult, CategoryProgress, LickProgress, AdaptiveState, ScaleProficiency, KeyProficiency, UnlockContext, TonalMastery } from '$lib/types/progress';
 import type { Score } from '$lib/types/scoring';
 import type { PhraseCategory, PitchClass } from '$lib/types/music';
 import type { ScaleType } from '$lib/tonality/tonality';
+import { computeTonalMastery } from '$lib/tonality/mastery';
 import { createInitialAdaptiveState, processAttempt, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive';
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -282,7 +283,8 @@ export function recordAttempt(
 	const today = localDateStr(new Date(session.timestamp));
 	const summary = recomputeDailySummary(today, {
 		pitch: progress.adaptive.pitchComplexity,
-		rhythm: progress.adaptive.rhythmComplexity
+		rhythm: progress.adaptive.rhythmComplexity,
+		tonalMastery: getTonalMastery().overall
 	});
 
 	// Fire-and-forget cloud sync (does not block UI)
@@ -446,6 +448,15 @@ export function getUnlockContext(): UnlockContext {
  */
 export function getPrimaryLevel(): number {
 	return progress.adaptive.currentLevel;
+}
+
+/**
+ * Aggregate ear-training progress: average proficiency across all 12 scales
+ * and all 12 keys (never-attempted slots count as 0). This is the headline
+ * "Tonal Mastery" metric shown on the home and progress pages.
+ */
+export function getTonalMastery(): TonalMastery {
+	return computeTonalMastery(progress.scaleProficiency, progress.keyProficiency);
 }
 
 function updateStreak(): void {

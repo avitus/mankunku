@@ -9,7 +9,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
 	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
-	import { progress, recordAttempt, updateSessionScore, getUnlockContext, getPrimaryLevel } from '$lib/state/progress.svelte';
+	import { progress, recordAttempt, updateSessionScore, getUnlockContext, getTonalMastery } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
@@ -137,11 +137,6 @@
 		clearTimeout(levelSignalTimer);
 		levelSignal = dir;
 		levelSignalTimer = setTimeout(() => { levelSignal = null; }, 2200);
-	}
-
-	function currentScaleLevel(): number {
-		return (progress.scaleProficiency[activeTonality.scaleType]
-			?? createInitialScaleProficiency()).level;
 	}
 
 	const isActive = $derived(
@@ -441,8 +436,9 @@
 			if ((scoredAttemptCount - 1) % 10 === 0) {
 				bottomQuote = getGradeCaption(persistentScore.grade);
 			}
-			const prevPrimary = getPrimaryLevel();
-			const prevScale = currentScaleLevel();
+			// Tonal Mastery ticks up whenever any scale OR key proficiency level
+			// changes, so comparing it before/after the attempt captures both.
+			const prevMastery = getTonalMastery().overall;
 			recordAttempt(
 				session.phrase.id,
 				session.phrase.name ?? session.phrase.id,
@@ -455,7 +451,7 @@
 				supabase,
 				'ear-training'
 			);
-			const dir = levelSignalDirection(prevPrimary, getPrimaryLevel(), prevScale, currentScaleLevel());
+			const dir = levelSignalDirection(prevMastery, getTonalMastery().overall, 0, 0);
 			if (dir) showLevelSignal(dir);
 		}
 

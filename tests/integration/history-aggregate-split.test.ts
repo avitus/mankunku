@@ -179,15 +179,24 @@ describe('deriveDailySummary', () => {
 		expect(result?.bestScore).toBe(0.95);
 	});
 
-	it('preserves complexity snapshot when supplied', () => {
+	it('preserves complexity + tonal-mastery snapshot when supplied', () => {
 		const ts = new Date('2025-05-13T12:00').getTime();
 		const ear = [makeEarSession({ timestamp: ts })];
 		const result = historyModule.deriveDailySummary('2025-05-13', ear, [], {
 			pitch: 42,
-			rhythm: 51
+			rhythm: 51,
+			tonalMastery: 8.33
 		});
 		expect(result?.pitchComplexity).toBe(42);
 		expect(result?.rhythmComplexity).toBe(51);
+		expect(result?.tonalMastery).toBe(8.33);
+	});
+
+	it('leaves tonalMastery undefined when no snapshot is supplied', () => {
+		const ts = new Date('2025-05-13T12:00').getTime();
+		const ear = [makeEarSession({ timestamp: ts })];
+		const result = historyModule.deriveDailySummary('2025-05-13', ear, []);
+		expect(result?.tonalMastery).toBeUndefined();
 	});
 
 	it('filters sources to the requested date', () => {
