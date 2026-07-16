@@ -2,6 +2,28 @@
 
 Newest at the top.
 
+## 2026-07-16 — The 100 BPM "tempo cap" was a phantom `Gb` key vetoing the min (FIXED, confirmed on live data)
+
+**What happened:**
+
+- User: Honeysuckle Rose scored ~98% in **all 12 keys** during practice, yet the tempo "appears capped at 100 BPM" and never advanced. Ran systematic-debugging.
+- **First hypothesis was wrong — and the user caught it.** I initially concluded single-lick Deep Practice's per-key 0.95 mastery gate (Eb 91% < 0.95 blocks the bump) and drafted an AskUserQuestion about loosening it. User stopped me: *"Actually, I was running through my daily practice."* Daily = `mode='standard'`, whose writer is `startInterLickTransition` using `computeAutoTempoAdjustment(avg)` → avg 0.98 = **+5**, floor not breached (Eb 0.91 > 0.75). That path *should* advance 100→105. So the flat-100 was a real bug, not a design gate. Lesson: don't infer the entry-point; the report card format alone couldn't disambiguate Daily vs Deep, and I guessed.
+- **Cornered it by logic, not more guessing.** Flat "100 BPM" (no "+5") on the card ⟹ `getLickTempo` returned 100 post-session ⟹ ≥1 stored key still at 100. But all 12 canonical keys were played+passed and `startInterLickTransition` writes the +5 to *all* `item.keys`. `PitchClass` is a fixed 12-value union (only sharp is `F#`); `planLickKeys` returns all 12 at full unlock. So the stuck key **must** be outside the canonical set.
+- **Ran a verification workflow** (4 parallel investigators → synthesis → 3 adversarial refuters, 0/3 refuted). Scheduler tracer cleared the end-of-session path (the bump runs for a fully-played final lick in every natural/time-up path; only *partial* teardown skips it, which would show <12 keys). Store auditor's lead: a **non-canonical "phantom" key** (legacy all-flats `Gb` from an older build) stranded at `DEFAULT_TEMPO = 100` — which `getLickTempo`'s **unfiltered `Math.min` over `Object.values(keyProgress)`** reads but no writer (canonical-only `item.keys`) can ever lift. `min(twelve 105s, Gb 100) = 100` → flat card, no advance, forever. Self-perpetuating: because the resolved tempo stays 100, `recordKeyAttempt` re-stamps the 12 canonical keys back down to 100 each session, actively erasing the +5.
+- **Confirmed on the user's actual data** (the honesty step all three refuters flagged as required): a one-line localStorage scan printed `PHANTOM KEYS → ["Gb:100"]` on **two** of their user-entered licks. Inferred → observed.
+- **Fix (minimal, targeted):** filter `getLickTempo` to the 12 canonical `PITCH_CLASSES`, so any phantom is inert. Verified no-op on clean stores across standard/Daily/Deep/unlock-ramp; the phantom can't corrupt unlock counts either (`resolveUnlockCount` prefers the explicit stored count and its grandfather fallback caps at 12). Promoted the workflow's scratch reproduction into a permanent regression (`tests/unit/lick-practice/repro-honeysuckle-tempo.test.ts`): a phantom-`Gb` full-12 session — **fails without the fix (got 100), passes with it (105)** — plus a clean-store baseline and a tight `getLickTempo` unit test. 370 lick-practice/persistence tests green, `npm run check` clean.
+
+**Open / awaiting:**
+
+- Data hygiene decision for the user: Fix A makes the phantom *inert*, so no migration is strictly required. Offered (a) a manual console snippet to delete the two `Gb` entries now, or (b) a one-time hydration sanitize that strips non-canonical keys for all users (cleans the shared cloud blob). Leaning (a)+leave-it unless they want (b).
+- Commit gated on the user's ask (and the data-cleanup choice folds into the same change).
+
+**Notes:**
+
+- The architectural root is `getLickTempo = min over ALL stored keys`: any key the write-set never covers becomes a permanent floor. The phantom is one trigger; the sub-12-unlock case (a legit canonical key not in this session's plan) is another latent one Fix A does *not* cover (Fix B — min over the planned/unlocked set — would). Chose the minimal canonical-filter because the confirmed symptom is a full-12 phantom; noted the broader fix rather than building it.
+- Coverage gap that let this ship: every existing `startInterLickTransition` tempo test uses 1–3 keys or a *decrease*; none drove a full-12 high-score session through to a persisted `getLickTempo`. The new regression closes exactly that.
+- `DEFAULT_TEMPO = 100` (distinct from `NEW_LICK_DEFAULT_TEMPO = 60`) is why the stuck value was *exactly* 100 — the legacy build's starting tempo, so the orphaned `Gb` sits there.
+
 ## 2026-07-16 — The "drums drop on every second beat" hunt: proven not a scheduling bug (OPEN, user re-testing live)
 
 **What happened:**
