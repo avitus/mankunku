@@ -2,6 +2,25 @@
 
 Newest at the top.
 
+## 2026-07-16 — The "drums drop on every second beat" hunt: proven not a scheduling bug (OPEN, user re-testing live)
+
+**What happened:**
+
+- User reported that in **lick practice**, for one of their **own entered licks**, the **drum track drops out on every second beat**, attributed to a recent commit, with a memory that "we fixed something like this before." Ran systematic-debugging end to end.
+- **Ruled out recency, exhaustively.** Diffed every last-~8-day audio/lick-practice commit: `3c644be` only added `playTransitionChords` (comp stabs), `c05ea57`/`0f1a773` are CSS/hydration, `ba27309` is tag-migration, `65a21c6`/`39e778e` touch only the `resolveAtMelodyEnd` ear-training branch. The drum-length + `extendHarmonyTail` code is April-vintage, untouched. A background workflow (fired mid-session from another context, framed around *ear training*) claimed the cause was the pre-existing harmony<melody finite-branch drop on ballad-005/006 — declined to accept it wholesale because it investigated the wrong surface; verified independently.
+- **Proved the drum scheduling is complete for the multi-key lick-practice flow.** Drove the real `buildLickSuperPhrase` + finite drum-branch formula over all 538 curated licks (600 combos) AND all 13 of the user's *actual* licks (pulled from `mankunku:user-licks`) × every compatible progression × both modes: zero drops, zero negative offsets, `drumBeats == audibleBars` every time. The per-key `extendHarmonyTail` + contiguous multi-key harmony + user-phase always cover the melody — the ear-training trailing-drop cannot occur here.
+- **Symptom reframe was the turning point.** "Missing beats" (a *coverage* failure — what I and the background workflow chased for the first half) is a different bug family from "**every second beat**" (a *rate/subdivision* failure). The drum `Tone.Sequence` fires one hit per `'4n'` unconditionally; all four styles hit a drum on every beat in 4/4; all 13 user licks are `[4,4]`. So every-second-beat is *impossible* from the scheduler. The one denominator-8 path that would cause it is closed — step-entry forces `[4,4]`.
+- **Landed on:** the **piano comp hits beats 2 & 4 by design** (`compPattern: beat % 4 === 1 || 3`) — the only backing voice on every *other* beat, and the most likely thing actually heard. If it is genuinely the drums, it's the live sample-trigger layer, not the schedule — needs a recorded failing take (diagnostics renders per-beat `drumParts`).
+
+**Open / awaiting:**
+
+- User to run lick practice today and report whether it recurs. If it does: capture a **recording** of the failing take so the diagnostics page shows the exact per-beat drum coverage and the WAV can be inspected.
+
+**Notes:**
+
+- Two real LATENT bugs surfaced while tracing (recorded in `project_drum_every_second_beat.md`), neither matching the symptom: (1) `scheduleBackingTrack` schedules bass+comp *before* the `await ensureDrums()`/`isStillCurrent()` bailout and drums *after* — a supersession race can leave a lick with bass+comp but no drums; (2) backing length is harmony-driven (`getHarmonyDurationBeats`) not `max(melody,harmony)` (`getPhraseBars`), so ballad-005/006 drop a trailing bar on the finite branch (ear-training mic-denied + all preview surfaces, not lick practice). Offered to harden #1 as defense-in-depth; user chose to re-test first.
+- Retrieval gotcha worth keeping: localStorage keys carry a `mankunku:` prefix, so `getItem('user-licks')` is null; the real key is `mankunku:user-licks`. The dev Supabase DB is empty of lick data (localStorage-only).
+
 ## 2026-07-15 — MANKUNKU-8: shipping the proactive half of the stale-chunk defense (+ a latch that inflated its own metric)
 
 **What happened:**
