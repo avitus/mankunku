@@ -1,4 +1,5 @@
 import type { PitchClass, PhraseCategory } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
 import type { LickPracticeProgress, LickPracticeKeyProgress, ChordProgressionType } from '$lib/types/lick-practice';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
@@ -426,11 +427,25 @@ export function clearLickProgress(
 	return rest;
 }
 
-/** Get the minimum tempo across all 12 keys for a lick (used for session tempo) */
+/**
+ * Get the minimum tempo across a lick's 12 canonical keys (used for session tempo).
+ *
+ * Only the 12 canonical `PitchClass` spellings are ever written by the app
+ * (every writer draws its key set from `PITCH_CLASSES` / the circle helpers,
+ * whose sole sharp is `F#`). A legacy or imported non-canonical entry — e.g.
+ * an all-flats `Gb` left in the store by an older build, stranded at the old
+ * `DEFAULT_TEMPO` of 100 — can never be reached by `recordKeyAttempt` or the
+ * end-of-lick tempo bump. Left in an unfiltered `Math.min`, such a phantom key
+ * pins the whole lick's session tempo at its stale value forever, silently
+ * cancelling every tempo advance (see the Honeysuckle-Rose 100 BPM plateau).
+ * Restricting the min to canonical keys makes any phantom inert.
+ */
 export function getLickTempo(progress: LickPracticeProgress, phraseId: string): number {
 	const keyProgress = progress[phraseId];
 	if (!keyProgress) return DEFAULT_TEMPO;
-	const tempos = Object.values(keyProgress).map(kp => kp.currentTempo);
+	const tempos = PITCH_CLASSES
+		.map(k => keyProgress[k]?.currentTempo)
+		.filter((t): t is number => typeof t === 'number');
 	return tempos.length > 0 ? Math.min(...tempos) : DEFAULT_TEMPO;
 }
 
