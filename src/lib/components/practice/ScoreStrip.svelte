@@ -16,13 +16,8 @@
 
 	const results = $derived(noteResults.filter(r => !r.extra));
 
-	// Smooth HSL color from accuracy (0=red, 0.5=amber, 1=green)
-	function accuracyColor(score: number): string {
-		const hue = score * 142; // 0 → 0 (red), 1 → 142 (green)
-		const sat = 75 + (1 - Math.abs(score - 0.5) * 2) * 15; // boost saturation in middle
-		const light = 50 + (1 - score) * 10;
-		return `hsl(${hue}, ${sat}%, ${light}%)`;
-	}
+	// Pitch and rhythm are distinguished by hue (accent = pitch, brass = rhythm,
+	// matching the progress complexity meters); the bar height encodes the score.
 
 	// Dimensions
 	const BAR_W = 10;
@@ -41,11 +36,11 @@
 	<div class="overflow-x-auto rounded-lg bg-[var(--color-bg-tertiary)] p-3">
 		<div class="flex items-center gap-4 mb-2">
 			<div class="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-				<span class="inline-block h-2.5 w-2.5 rounded-sm" style="background: hsl(200, 70%, 55%)"></span>
+				<span class="inline-block h-2.5 w-2.5 rounded-sm" style="background: var(--color-accent)"></span>
 				Pitch
 			</div>
 			<div class="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-				<span class="inline-block h-2.5 w-2.5 rounded-sm" style="background: hsl(280, 65%, 60%)"></span>
+				<span class="inline-block h-2.5 w-2.5 rounded-sm" style="background: var(--color-brass)"></span>
 				Rhythm
 			</div>
 		</div>
@@ -91,7 +86,7 @@
 					<rect
 						x={x} y={pitchY}
 						width={BAR_W} height={pitchH}
-						rx="2" fill={accuracyColor(r.pitchScore)}
+						rx="2" fill="var(--color-accent)"
 						opacity="0.85"
 					/>
 
@@ -99,7 +94,7 @@
 					<rect
 						x={x + BAR_W + PAIR_GAP} y={rhythmY}
 						width={BAR_W} height={rhythmH}
-						rx="2" fill={accuracyColor(r.rhythmScore)}
+						rx="2" fill="var(--color-brass)"
 						opacity="0.85"
 					/>
 

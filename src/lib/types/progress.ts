@@ -23,6 +23,24 @@ export interface UnlockContext {
 	keyProficiency: Partial<Record<PitchClass, { level: number }>>;
 }
 
+/**
+ * Aggregate "how much of the tonal space you command" — the average
+ * proficiency level across all 12 scale types and all 12 keys, with
+ * never-attempted slots counted as 0. Computed by `computeTonalMastery`.
+ */
+export interface TonalMastery {
+	/** 0-100, average of all 24 proficiency levels (unrounded) */
+	overall: number;
+	/** 0-100, average of the 12 scale-type levels */
+	scaleMastery: number;
+	/** 0-100, average of the 12 key levels */
+	keyMastery: number;
+	/** 0-12, count of scale slots the user has attempted */
+	scalesStarted: number;
+	/** 0-12, count of key slots the user has attempted */
+	keysStarted: number;
+}
+
 export interface SessionResult {
 	id: string;
 	timestamp: number;
@@ -147,6 +165,11 @@ export interface DailySummary {
 	pitchComplexity?: number;
 	/** Snapshot of adaptive rhythmComplexity at end of day. Set on ear-training only. */
 	rhythmComplexity?: number;
+	/**
+	 * Snapshot of Tonal Mastery (avg proficiency across all scales + keys, 0-100)
+	 * at end of day. Set on ear-training only; the primary line in the trend chart.
+	 */
+	tonalMastery?: number;
 }
 
 export interface ProgressMeta {

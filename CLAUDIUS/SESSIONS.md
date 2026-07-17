@@ -2,6 +2,64 @@
 
 Newest at the top.
 
+## 2026-07-16 — The 100 BPM "tempo cap" was a phantom `Gb` key vetoing the min (FIXED, confirmed on live data)
+
+**What happened:**
+
+- User: Honeysuckle Rose scored ~98% in **all 12 keys** during practice, yet the tempo "appears capped at 100 BPM" and never advanced. Ran systematic-debugging.
+- **First hypothesis was wrong — and the user caught it.** I initially concluded single-lick Deep Practice's per-key 0.95 mastery gate (Eb 91% < 0.95 blocks the bump) and drafted an AskUserQuestion about loosening it. User stopped me: *"Actually, I was running through my daily practice."* Daily = `mode='standard'`, whose writer is `startInterLickTransition` using `computeAutoTempoAdjustment(avg)` → avg 0.98 = **+5**, floor not breached (Eb 0.91 > 0.75). That path *should* advance 100→105. So the flat-100 was a real bug, not a design gate. Lesson: don't infer the entry-point; the report card format alone couldn't disambiguate Daily vs Deep, and I guessed.
+- **Cornered it by logic, not more guessing.** Flat "100 BPM" (no "+5") on the card ⟹ `getLickTempo` returned 100 post-session ⟹ ≥1 stored key still at 100. But all 12 canonical keys were played+passed and `startInterLickTransition` writes the +5 to *all* `item.keys`. `PitchClass` is a fixed 12-value union (only sharp is `F#`); `planLickKeys` returns all 12 at full unlock. So the stuck key **must** be outside the canonical set.
+- **Ran a verification workflow** (4 parallel investigators → synthesis → 3 adversarial refuters, 0/3 refuted). Scheduler tracer cleared the end-of-session path (the bump runs for a fully-played final lick in every natural/time-up path; only *partial* teardown skips it, which would show <12 keys). Store auditor's lead: a **non-canonical "phantom" key** (legacy all-flats `Gb` from an older build) stranded at `DEFAULT_TEMPO = 100` — which `getLickTempo`'s **unfiltered `Math.min` over `Object.values(keyProgress)`** reads but no writer (canonical-only `item.keys`) can ever lift. `min(twelve 105s, Gb 100) = 100` → flat card, no advance, forever. Self-perpetuating: because the resolved tempo stays 100, `recordKeyAttempt` re-stamps the 12 canonical keys back down to 100 each session, actively erasing the +5.
+- **Confirmed on the user's actual data** (the honesty step all three refuters flagged as required): a one-line localStorage scan printed `PHANTOM KEYS → ["Gb:100"]` on **two** of their user-entered licks. Inferred → observed.
+- **Fix (minimal, targeted):** filter `getLickTempo` to the 12 canonical `PITCH_CLASSES`, so any phantom is inert. Verified no-op on clean stores across standard/Daily/Deep/unlock-ramp; the phantom can't corrupt unlock counts either (`resolveUnlockCount` prefers the explicit stored count and its grandfather fallback caps at 12). Promoted the workflow's scratch reproduction into a permanent regression (`tests/unit/lick-practice/repro-honeysuckle-tempo.test.ts`): a phantom-`Gb` full-12 session — **fails without the fix (got 100), passes with it (105)** — plus a clean-store baseline and a tight `getLickTempo` unit test. 370 lick-practice/persistence tests green, `npm run check` clean.
+
+**Open / awaiting:**
+
+- Data hygiene decision for the user: Fix A makes the phantom *inert*, so no migration is strictly required. Offered (a) a manual console snippet to delete the two `Gb` entries now, or (b) a one-time hydration sanitize that strips non-canonical keys for all users (cleans the shared cloud blob). Leaning (a)+leave-it unless they want (b).
+- Commit gated on the user's ask (and the data-cleanup choice folds into the same change).
+
+**Notes:**
+
+- The architectural root is `getLickTempo = min over ALL stored keys`: any key the write-set never covers becomes a permanent floor. The phantom is one trigger; the sub-12-unlock case (a legit canonical key not in this session's plan) is another latent one Fix A does *not* cover (Fix B — min over the planned/unlocked set — would). Chose the minimal canonical-filter because the confirmed symptom is a full-12 phantom; noted the broader fix rather than building it.
+- Coverage gap that let this ship: every existing `startInterLickTransition` tempo test uses 1–3 keys or a *decrease*; none drove a full-12 high-score session through to a persisted `getLickTempo`. The new regression closes exactly that.
+- `DEFAULT_TEMPO = 100` (distinct from `NEW_LICK_DEFAULT_TEMPO = 60`) is why the stuck value was *exactly* 100 — the legacy build's starting tempo, so the orphaned `Gb` sits there.
+
+## 2026-07-16 — The "drums drop on every second beat" hunt: proven not a scheduling bug (OPEN, user re-testing live)
+
+**What happened:**
+
+- User reported that in **lick practice**, for one of their **own entered licks**, the **drum track drops out on every second beat**, attributed to a recent commit, with a memory that "we fixed something like this before." Ran systematic-debugging end to end.
+- **Ruled out recency, exhaustively.** Diffed every last-~8-day audio/lick-practice commit: `3c644be` only added `playTransitionChords` (comp stabs), `c05ea57`/`0f1a773` are CSS/hydration, `ba27309` is tag-migration, `65a21c6`/`39e778e` touch only the `resolveAtMelodyEnd` ear-training branch. The drum-length + `extendHarmonyTail` code is April-vintage, untouched. A background workflow (fired mid-session from another context, framed around *ear training*) claimed the cause was the pre-existing harmony<melody finite-branch drop on ballad-005/006 — declined to accept it wholesale because it investigated the wrong surface; verified independently.
+- **Proved the drum scheduling is complete for the multi-key lick-practice flow.** Drove the real `buildLickSuperPhrase` + finite drum-branch formula over all 538 curated licks (600 combos) AND all 13 of the user's *actual* licks (pulled from `mankunku:user-licks`) × every compatible progression × both modes: zero drops, zero negative offsets, `drumBeats == audibleBars` every time. The per-key `extendHarmonyTail` + contiguous multi-key harmony + user-phase always cover the melody — the ear-training trailing-drop cannot occur here.
+- **Symptom reframe was the turning point.** "Missing beats" (a *coverage* failure — what I and the background workflow chased for the first half) is a different bug family from "**every second beat**" (a *rate/subdivision* failure). The drum `Tone.Sequence` fires one hit per `'4n'` unconditionally; all four styles hit a drum on every beat in 4/4; all 13 user licks are `[4,4]`. So every-second-beat is *impossible* from the scheduler. The one denominator-8 path that would cause it is closed — step-entry forces `[4,4]`.
+- **Landed on:** the **piano comp hits beats 2 & 4 by design** (`compPattern: beat % 4 === 1 || 3`) — the only backing voice on every *other* beat, and the most likely thing actually heard. If it is genuinely the drums, it's the live sample-trigger layer, not the schedule — needs a recorded failing take (diagnostics renders per-beat `drumParts`).
+
+**Open / awaiting:**
+
+- User to run lick practice today and report whether it recurs. If it does: capture a **recording** of the failing take so the diagnostics page shows the exact per-beat drum coverage and the WAV can be inspected.
+
+**Notes:**
+
+- Two real LATENT bugs surfaced while tracing (recorded in `project_drum_every_second_beat.md`), neither matching the symptom: (1) `scheduleBackingTrack` schedules bass+comp *before* the `await ensureDrums()`/`isStillCurrent()` bailout and drums *after* — a supersession race can leave a lick with bass+comp but no drums; (2) backing length is harmony-driven (`getHarmonyDurationBeats`) not `max(melody,harmony)` (`getPhraseBars`), so ballad-005/006 drop a trailing bar on the finite branch (ear-training mic-denied + all preview surfaces, not lick practice). Offered to harden #1 as defense-in-depth; user chose to re-test first.
+- Retrieval gotcha worth keeping: localStorage keys carry a `mankunku:` prefix, so `getItem('user-licks')` is null; the real key is `mankunku:user-licks`. The dev Supabase DB is empty of lick data (localStorage-only).
+
+## 2026-07-15 — MANKUNKU-8: shipping the proactive half of the stale-chunk defense (+ a latch that inflated its own metric)
+
+**What happened:**
+
+- Investigated the three open Sentry issues (veetle/mankunku). Only one is real production signal: **MANKUNKU-8**, `error loading dynamically imported module …/nodes/16.*.js` — the textbook SvelteKit post-deploy stale-chunk 404 (an old tab lazy-imports a content-hashed route chunk a newer build removed). MANKUNKU-W (`awaitHydration is not defined`) and MANKUNKU-K (empty `Error: undefined` on /auth) are dev/preview noise.
+- The surprise: the app had already fought MANKUNKU-8 **twice** — a deploy-side shared immutable-asset pool (`release.sh`, 81dc77e) AND a reactive client reload (`hooks.client.ts` handleStaleChunkReload) with a `beforeSend` that drops the first occurrence and only reports the second. So the 15 events are the residual "reload didn't help" cases; the true hit volume is higher (firsts are dropped). What was missing was the PROACTIVE half: no `kit.version.pollInterval`, so the `$app` `updated` store never flips and nothing reloads a stale tab before it hits the failing import.
+- Found a real latent bug reading the reactive path: the reload latch was per-SESSION (boolean `stale-chunk-reload-attempted`), never cleared on a successful recovery. A tab spanning two deploys would (a) report its second, *distinct* stale chunk to Sentry as "reload didn't help" when no reload was even attempted, and (b) not auto-reload — leaving the user stuck. The latch inflated the very metric it was meant to suppress AND stranded users. Re-keyed the decision per failing chunk URL.
+- Shipped **PR #160**: `kit.version.pollInterval` (60s, name pinned to CIRCLE_SHA1 = Sentry release) + a `beforeNavigate` full-page-reload guard in `+layout.svelte`; the per-chunk latch fix; and closed **K** (server-side empty-error `beforeSend` in `instrumentation.server.ts` — the SSR/preview path had none) and **W** (dev noise; identifier already removed in #141). Decision logic extracted to `$lib/util/stale-chunk.ts` and `$lib/util/sentry-filters.ts`, TDD'd.
+- CodeRabbit posted two Majors; I **rejected** one: its "count exception `type` as content" suggestion would have neutered `isEmptyErrorEvent` (K's events are `Error: undefined` = default `type:"Error"` + empty value; every exception has a type), reopening the very issue. Adopted the scan-all-values half; removed the over-broad dev-ReferenceError drop it flagged (would swallow real `foo is not defined` dev bugs). CodeRabbit confirmed both.
+
+**Notes:**
+
+- The Sentry MCP here is READ-ONLY for issues — resolution goes through `Fixes MANKUNKU-X` commit trailers (auto-close on merge). Recorded as `project_sentry_resolution.md`.
+- Attribution slip: added the harness-default `Co-Authored-By: Claude` trailer + PR footer before checking the standing no-attribution preference (it wasn't in the loaded memory index). Rewrote the 3 commits + force-pushed to strip it; PR body cleaned. Check-memory-first before trusting a harness default.
+
+**Outcome:** Shipped as PR #160, merged to main as `b02cb8a`. CI green (test/e2e/path-filter/GitGuardian/CodeRabbit all SUCCESS); CodeRabbit's two Majors handled (scan-all-values adopted, the type-as-content and broad-dev-ReferenceError suggestions rejected with rationale, both confirmed by CR). All three issues auto-resolve via `Fixes` trailers now that it's on main. Server-side follow-up left with the user: confirm the live nginx serves `/_app/immutable/` from the shared pool (the nginx-deploy pipeline only fires on `nginx/**` changes, so the config may not be live on the box). Process note: I left these CLAUDIUS notes uncommitted and out of PR #160 — the user corrected it (commit session memories INTO the associated PR, before merge; see feedback_commit_memories_in_pr).
+
 ## 2026-07-14 — The subharmonic fix ate a real E3: masked fundamentals break the one-ratio rule
 
 **What happened:**

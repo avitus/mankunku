@@ -517,6 +517,8 @@ export type Database = {
           pitch_complexity: number | null
           /** Snapshot of adaptive rhythmComplexity at end of day. Nullable. */
           rhythm_complexity: number | null
+          /** Snapshot of Tonal Mastery (avg proficiency across scales + keys, 0-100). Nullable. */
+          tonal_mastery: number | null
           /** Last modification timestamp — used for sync conflict resolution */
           updated_at: string
         }
@@ -537,6 +539,7 @@ export type Database = {
           categories?: Json
           pitch_complexity?: number | null
           rhythm_complexity?: number | null
+          tonal_mastery?: number | null
           updated_at?: string
         }
         Update: {
@@ -556,6 +559,7 @@ export type Database = {
           categories?: Json
           pitch_complexity?: number | null
           rhythm_complexity?: number | null
+          tonal_mastery?: number | null
           updated_at?: string
         }
         Relationships: [

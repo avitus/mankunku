@@ -166,3 +166,36 @@ describe('updateSessionScore', () => {
 		expect(persisted.sessions[0].overall).toBe(0.92);
 	});
 });
+
+describe('getTonalMastery (end-to-end via recordAttempt)', () => {
+	it('is 0% for a fresh user', () => {
+		const m = progressModule.getTonalMastery();
+		expect(m.overall).toBe(0);
+		expect(m.scalesStarted).toBe(0);
+		expect(m.keysStarted).toBe(0);
+	});
+
+	it('rises after an ear-training attempt seeds one scale + one key at level 1', () => {
+		progressModule.recordAttempt('p', 'P', 'ii-V-I-major', 'C', 120, 5, makeScore(0.9), 'dorian');
+
+		const m = progressModule.getTonalMastery();
+		expect(m.scalesStarted).toBe(1);
+		expect(m.keysStarted).toBe(1);
+		// One scale + one key, each freshly at level 1 → (1/12 + 1/12) / 2.
+		expect(m.overall).toBeCloseTo(1 / 12, 5);
+	});
+
+	it('is unaffected by lick-practice attempts (scale/key proficiency untouched)', () => {
+		progressModule.recordAttempt('p', 'P', 'ii-V-I-major', 'C', 120, 5, makeScore(0.9), 'dorian');
+		const before = progressModule.getTonalMastery();
+
+		progressModule.recordAttempt(
+			'p', 'P', 'ii-V-I-major', 'G', 120, 5, makeScore(0.9), 'mixolydian', undefined, 'lick-practice'
+		);
+		const after = progressModule.getTonalMastery();
+
+		expect(after.overall).toBe(before.overall);
+		expect(after.scalesStarted).toBe(before.scalesStarted);
+		expect(after.keysStarted).toBe(before.keysStarted);
+	});
+});

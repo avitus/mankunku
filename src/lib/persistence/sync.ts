@@ -434,6 +434,7 @@ function dailySummaryToRow(
 		categories: s.categories as unknown as Json,
 		pitch_complexity: s.pitchComplexity ?? null,
 		rhythm_complexity: s.rhythmComplexity ?? null,
+		tonal_mastery: s.tonalMastery ?? null,
 		updated_at: new Date().toISOString()
 	};
 }
@@ -454,6 +455,7 @@ function rowToDailySummary(row: {
 	categories: Json;
 	pitch_complexity: number | null;
 	rhythm_complexity: number | null;
+	tonal_mastery: number | null;
 }): DailySummary {
 	return {
 		date: row.date,
@@ -470,7 +472,8 @@ function rowToDailySummary(row: {
 		grades: (row.grades ?? {}) as unknown as GradeDistribution,
 		categories: (row.categories ?? {}) as unknown as Record<string, number>,
 		pitchComplexity: row.pitch_complexity ?? undefined,
-		rhythmComplexity: row.rhythm_complexity ?? undefined
+		rhythmComplexity: row.rhythm_complexity ?? undefined,
+		tonalMastery: row.tonal_mastery ?? undefined
 	};
 }
 

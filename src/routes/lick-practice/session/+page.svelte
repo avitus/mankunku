@@ -27,6 +27,7 @@
 		getUpcomingLicks
 	} from '$lib/state/lick-practice.svelte';
 	import { scoreToGrade } from '$lib/scoring/grades';
+	import { masteryDisplay } from '$lib/difficulty/display';
 	import {
 		getActiveSubstitution,
 		getTransitionCadenceChords,
@@ -47,11 +48,7 @@
 		upsertLickPracticeSession,
 		splitReportByProgression
 	} from '$lib/persistence/lick-practice-sessions';
-	import {
-		KEY_PROFICIENT_THRESHOLD,
-		KEY_FLOOR_THRESHOLD,
-		NEW_LICK_DEFAULT_TEMPO
-	} from '$lib/persistence/lick-practice-store';
+	import { NEW_LICK_DEFAULT_TEMPO } from '$lib/persistence/lick-practice-store';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
 	import { enqueue } from '$lib/persistence/outbox';
@@ -1189,7 +1186,7 @@
 							<div class="font-display text-2xl font-bold">
 								{sessionReport.finalTempo}
 								{#if tempoDelta !== 0}
-									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}">
+									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}">
 										({tempoDelta > 0 ? '+' : ''}{tempoDelta})
 									</span>
 								{/if}
@@ -1233,7 +1230,7 @@
 							{#if lick.newTempo != null}
 								{@const delta = lick.newTempo - lick.tempo}
 								{lick.newTempo} BPM
-								<span class={delta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'}>
+								<span class={delta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}>
 									({delta > 0 ? '+' : ''}{delta})
 								</span>
 							{:else}
@@ -1247,15 +1244,10 @@
 				</div>
 				<div class="flex flex-wrap gap-1.5">
 					{#each lick.keys as k}
-						{@const color =
-							k.score >= KEY_PROFICIENT_THRESHOLD
-								? '#22c55e'
-								: k.score >= KEY_FLOOR_THRESHOLD
-									? 'var(--color-warning, #eab308)'
-									: 'var(--color-error)'}
+						{@const color = masteryDisplay(k.score * 100).color}
 						<div
 							class="flex flex-col items-center rounded px-2 py-1 text-xs"
-							style="background: {color}20; color: {color}"
+							style="background: color-mix(in srgb, {color} 13%, transparent); color: {color}"
 						>
 							<span class="font-bold">{concertKeyToWritten(k.key, instrument)}</span>
 							<span class="tabular-nums">{pct(k.score)}%</span>
@@ -1277,7 +1269,7 @@
 								onclick={() => handleReportReset(lick.lickId)}
 								class="rounded px-2.5 py-1 font-medium transition-colors
 									{confirmingResetId === lick.lickId
-										? 'bg-[var(--color-warning,#eab308)] text-black hover:opacity-80'
+										? 'bg-[var(--color-warning)] text-black hover:opacity-80'
 										: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 							>
 								{confirmingResetId === lick.lickId ? 'Confirm reset' : 'Reset lick'}
@@ -1388,7 +1380,7 @@
 		<div class="flex justify-center gap-4">
 			<button
 				onclick={handleEnd}
-				class="rounded-lg bg-[var(--color-bg-tertiary)] px-6 py-2 text-sm font-medium text-[var(--color-error)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+				class="rounded-lg bg-[var(--color-bg-tertiary)] px-6 py-2 text-sm font-medium text-[var(--color-error-text)] hover:bg-[var(--color-bg-secondary)] transition-colors"
 			>
 				End Session
 			</button>

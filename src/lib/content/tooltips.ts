@@ -25,8 +25,8 @@ export const tooltips = {
 			text: "Each day rotates to a new key + scale combination. Practicing across all 12 keys is how the canon got built — Coltrane drilled them in every key before recording.",
 			learnMore: '/docs/architecture/tonality-system'
 		},
-		level: {
-			text: 'Levels 1–100 reflect your recent accuracy on the current scale. Pass at the level you’re on, and the next attempt nudges harder. Stumble, and it eases off.',
+		mastery: {
+			text: 'Tonal Mastery is your average proficiency across the whole space — all 12 scale types and all 12 keys. Unpractised ones count as zero, so it climbs from 0% as you level up scales and keys through ear training. 100% means every scale and key maxed.',
 			learnMore: '/docs/architecture/adaptive-difficulty'
 		},
 		tagged: {

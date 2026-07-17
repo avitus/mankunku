@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { CATEGORY_LABELS, type Phrase } from '$lib/types/music';
-	import { GRADE_COLORS } from '$lib/scoring/grades';
-	import { difficultyColor, difficultyDisplay } from '$lib/difficulty/display';
+	import { difficultyDisplay } from '$lib/difficulty/display';
 	import {
 		getProgressionTags,
 		getLickLastPracticed
@@ -72,7 +71,7 @@
 				</span>
 				<span
 					class="rounded px-1.5 py-0.5"
-					style="background: {diff.color}20; color: {diff.color}"
+					style="background: color-mix(in srgb, {diff.color} 13%, transparent); color: {diff.color}"
 				>
 					{diff.name} ({lick.difficulty.level})
 				</span>

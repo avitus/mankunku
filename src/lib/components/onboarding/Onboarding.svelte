@@ -196,7 +196,7 @@
 					</button>
 				{:else if micStatus === 'denied'}
 					<div class="rounded-lg bg-[var(--color-error)]/10 p-4 text-center text-sm">
-						<p class="font-medium text-[var(--color-error)]">Microphone access denied</p>
+						<p class="font-medium text-[var(--color-error-text)]">Microphone access denied</p>
 						<p class="mt-1 text-[var(--color-text-secondary)]">
 							You can enable it later in your browser settings.
 						</p>
