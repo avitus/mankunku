@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } from '$lib/persistence/sync';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
+import { enqueue } from '$lib/persistence/outbox';
 
 const STORAGE_KEY = 'settings';
 const VALID_BACKING_STYLES = new Set<string>(['swing', 'bossa-nova', 'ballad', 'straight']);
@@ -47,24 +48,29 @@ export const settings = $state(loadSettings());
 export function saveSettings(supabase?: SupabaseClient<Database>): void {
 	save(STORAGE_KEY, settings);
 
-	// Fire-and-forget cloud sync for authenticated users
-	if (supabase) {
-		syncSettingsToCloud(supabase, settings).catch((err) => {
-			console.warn('Failed to sync settings to cloud:', err);
-		});
-	}
+	// Queue a durable cloud sync for authenticated users.
+	if (supabase) enqueue('settings');
+}
+
+/** Outbox flush handler: push current settings. Throws on failure so it retries. */
+export async function flushSettingsToCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	const ok = await syncSettingsToCloud(supabase, settings);
+	if (!ok) throw new Error('settings push failed');
 }
 
 /**
  * Load settings from cloud for authenticated users.
  * Merges cloud settings with local, preferring cloud data when session exists.
+ * On a load ERROR (auth/network/query), local is kept untouched — never
+ * clobbered back to defaults.
  */
 export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
 	const gen = getScopeGeneration();
 	try {
-		const cloudSettings = await fetchSettingsFromCloud(supabase);
-		if (!cloudSettings) return; // No cloud data or not authenticated
+		const result = await fetchSettingsFromCloud(supabase);
+		if (result.status !== 'ok') return; // error → keep local; empty → keep local
 		if (gen !== getScopeGeneration()) return; // User switched mid-flight
+		const cloudSettings = result.data;
 
 		// Merge cloud settings with defaults, preferring cloud values
 		const merged = { ...defaultSettings, ...cloudSettings };

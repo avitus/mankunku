@@ -109,5 +109,13 @@ export function resetTours(supabase?: SupabaseClient<Database>): void {
 	tourState.completedTours.clear();
 	tourState.dismissedTours.clear();
 	tourState.tourInProgress = null;
-	saveTourState(supabase);
+	// Persist the cleared set locally. Do NOT route through saveTourState — its
+	// cloud sync UNIONS with the remote row, so a cleared set would be re-added.
+	// Use the explicit replace path so the reset actually propagates.
+	save(STORAGE_KEY, snapshot());
+	if (supabase) {
+		import('$lib/persistence/sync')
+			.then(({ clearTourStateInCloud }) => clearTourStateInCloud(supabase))
+			.catch(() => {});
+	}
 }

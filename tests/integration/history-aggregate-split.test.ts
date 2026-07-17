@@ -348,7 +348,7 @@ describe('recomputeDailySummary', () => {
 	});
 });
 
-describe('mergeCloudSummaries', () => {
+describe('reconcileCloudSummaries', () => {
 	beforeEach(async () => {
 		store.clear();
 		vi.resetModules();
@@ -375,20 +375,26 @@ describe('mergeCloudSummaries', () => {
 	}
 
 	it('adds cloud-only days into local state', () => {
-		const localOnly = historyModule.mergeCloudSummaries([cloudSummary('2025-01-01', 3)]);
+		const localOnly = historyModule.reconcileCloudSummaries([cloudSummary('2025-01-01', 3)]);
 		expect(historyModule.dailySummaries).toHaveLength(1);
 		expect(localOnly).toHaveLength(0);
 	});
 
-	it('cloud overwrites local when cloud has strictly more total sessions', () => {
+	it('derivable date: local re-derivation wins over a higher cloud count', () => {
 		const ts = new Date('2025-03-10T12:00').getTime();
 		seedProgress([makeEarSession({ timestamp: ts })]);
 		historyModule.recomputeAllDailySummaries();
 
-		historyModule.mergeCloudSummaries([cloudSummary('2025-03-10', 12, { avgOverall: 0.95 })]);
+		// CHANGED SEMANTICS: 2025-03-10 has local source rows, so it is "derivable"
+		// and the fresh local re-derivation is authoritative — the higher cloud
+		// count is ignored, and the local summary is returned to overwrite cloud.
+		const push = historyModule.reconcileCloudSummaries([
+			cloudSummary('2025-03-10', 12, { avgOverall: 0.95 })
+		]);
 		const merged = historyModule.dailySummaries.find((s) => s.date === '2025-03-10');
-		expect(merged?.sessionCount).toBe(12);
-		expect(merged?.avgOverall).toBeCloseTo(0.95);
+		expect(merged?.sessionCount).toBe(1); // local wins (1 ear session), not cloud's 12
+		expect(merged?.avgOverall).toBeCloseTo(0.8); // local's derived avg, not cloud's 0.95
+		expect(push.map((s) => s.date)).toContain('2025-03-10'); // local pushed to overwrite cloud
 	});
 
 	it('keeps local and flags upload when local has strictly more', () => {
@@ -396,7 +402,7 @@ describe('mergeCloudSummaries', () => {
 		seedProgress(Array.from({ length: 6 }, () => makeEarSession({ timestamp: ts })));
 		historyModule.recomputeAllDailySummaries();
 
-		const upload = historyModule.mergeCloudSummaries([cloudSummary('2025-03-11', 2)]);
+		const upload = historyModule.reconcileCloudSummaries([cloudSummary('2025-03-11', 2)]);
 		expect(historyModule.dailySummaries.find((s) => s.date === '2025-03-11')?.sessionCount).toBe(6);
 		expect(upload.map((s) => s.date)).toContain('2025-03-11');
 	});
@@ -411,7 +417,7 @@ describe('mergeCloudSummaries', () => {
 		const before = historyModule.dailySummaries.find((s) => s.date === '2025-03-14')!;
 
 		// Cloud has only 5 ear sessions, no lick (cloud session_results doesn't store source).
-		historyModule.mergeCloudSummaries([cloudSummary('2025-03-14', 5)]);
+		historyModule.reconcileCloudSummaries([cloudSummary('2025-03-14', 5)]);
 
 		const after = historyModule.dailySummaries.find((s) => s.date === '2025-03-14')!;
 		// Local's mixed entry stayed: lickPracticeSessions preserved.
@@ -427,7 +433,7 @@ describe('mergeCloudSummaries', () => {
 		]);
 		historyModule.recomputeAllDailySummaries();
 
-		const upload = historyModule.mergeCloudSummaries([cloudSummary('2025-03-12', 1)]);
+		const upload = historyModule.reconcileCloudSummaries([cloudSummary('2025-03-12', 1)]);
 		expect(upload.map((s) => s.date).sort()).toEqual(['2025-03-12', '2025-03-13']);
 	});
 });

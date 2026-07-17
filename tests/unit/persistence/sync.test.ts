@@ -200,7 +200,9 @@ const TEST_SETTINGS = {
 	theme: 'dark',
 	onboardingComplete: false,
 	tonalityOverride: null,
-	highestNote: null
+	highestNote: null,
+	backingStyle: 'swing',
+	bleedFilterEnabled: false
 };
 
 const TEST_LICK: Phrase = {
@@ -293,9 +295,11 @@ describe('syncProgressToCloud', () => {
 			upsertResult: { error: { message: 'Database unavailable' } }
 		});
 
+		// New contract: syncProgressToCloud returns a boolean (false on a caught
+		// error) instead of void. Still never throws.
 		await expect(
 			syncProgressToCloud(mock as any, TEST_PROGRESS)
-		).resolves.toBeUndefined();
+		).resolves.toBe(false);
 
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
@@ -385,9 +389,10 @@ describe('syncProgressToCloud', () => {
 			keyProficiency: {} as any
 		};
 
+		// New contract: a clean sync resolves to true (was void).
 		await expect(
 			syncProgressToCloud(mock as any, emptyProgress)
-		).resolves.toBeUndefined();
+		).resolves.toBe(true);
 
 		// user_progress should still be upserted
 		expect(mock._fromFn).toHaveBeenCalledWith('user_progress');
@@ -490,28 +495,29 @@ describe('loadProgressFromCloud', () => {
 
 		const result = await loadProgressFromCloud(mock as any);
 
-		expect(result).not.toBeNull();
-		if (result) {
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') {
+			const data = result.data;
 			// Aggregate progress fields
-			expect(result.totalPracticeTime).toBe(3600);
-			expect(result.streakDays).toBe(5);
-			expect(result.lastPracticeDate).toBe('2024-01-15');
-			expect(result.adaptive).toEqual(TEST_ADAPTIVE_STATE);
-			expect(result.categoryProgress).toEqual(TEST_PROGRESS.categoryProgress);
-			expect(result.keyProgress).toEqual(TEST_PROGRESS.keyProgress);
+			expect(data.totalPracticeTime).toBe(3600);
+			expect(data.streakDays).toBe(5);
+			expect(data.lastPracticeDate).toBe('2024-01-15');
+			expect(data.adaptive).toEqual(TEST_ADAPTIVE_STATE);
+			expect(data.categoryProgress).toEqual(TEST_PROGRESS.categoryProgress);
+			expect(data.keyProgress).toEqual(TEST_PROGRESS.keyProgress);
 
 			// Session results mapped from snake_case
-			expect(result.sessions).toHaveLength(1);
-			expect(result.sessions[0].phraseId).toBe('blues-001');
-			expect(result.sessions[0].phraseName).toBe('Blues Call');
-			expect(result.sessions[0].pitchAccuracy).toBe(0.85);
-			expect(result.sessions[0].rhythmAccuracy).toBe(0.78);
-			expect(result.sessions[0].notesHit).toBe(5);
-			expect(result.sessions[0].notesTotal).toBe(6);
-			expect(result.sessions[0].difficultyLevel).toBe(15);
+			expect(data.sessions).toHaveLength(1);
+			expect(data.sessions[0].phraseId).toBe('blues-001');
+			expect(data.sessions[0].phraseName).toBe('Blues Call');
+			expect(data.sessions[0].pitchAccuracy).toBe(0.85);
+			expect(data.sessions[0].rhythmAccuracy).toBe(0.78);
+			expect(data.sessions[0].notesHit).toBe(5);
+			expect(data.sessions[0].notesTotal).toBe(6);
+			expect(data.sessions[0].difficultyLevel).toBe(15);
 
 			// Scale proficiency mapped from snake_case
-			const bluesMinor = (result.scaleProficiency as Record<string, ScaleProficiency | undefined>)?.['blues.minor'];
+			const bluesMinor = (data.scaleProficiency as Record<string, ScaleProficiency | undefined>)?.['blues.minor'];
 			expect(bluesMinor).toBeDefined();
 			if (bluesMinor) {
 				expect(bluesMinor.level).toBe(25);
@@ -522,7 +528,7 @@ describe('loadProgressFromCloud', () => {
 			}
 
 			// Key proficiency mapped from snake_case
-			const cKey = (result.keyProficiency as Record<string, KeyProficiency | undefined>)?.['C'];
+			const cKey = (data.keyProficiency as Record<string, KeyProficiency | undefined>)?.['C'];
 			expect(cKey).toBeDefined();
 			if (cKey) {
 				expect(cKey.level).toBe(30);
@@ -534,16 +540,17 @@ describe('loadProgressFromCloud', () => {
 		}
 	});
 
-	it('returns null when not authenticated', async () => {
+	it('reports error when not authenticated', async () => {
 		const mock = createMockSupabase({ user: null });
 
 		const result = await loadProgressFromCloud(mock as any);
 
-		expect(result).toBeNull();
+		// Unauthenticated → 'error' (cloud truth unknown), and no query is issued.
+		expect(result.status).toBe('error');
 		expect(mock._fromFn).not.toHaveBeenCalled();
 	});
 
-	it('returns null on database error', async () => {
+	it('reports error on database error', async () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const mock = createMockSupabase({
 			tableResults: {
@@ -553,11 +560,11 @@ describe('loadProgressFromCloud', () => {
 
 		const result = await loadProgressFromCloud(mock as any);
 
-		expect(result).toBeNull();
+		expect(result.status).toBe('error');
 		warnSpy.mockRestore();
 	});
 
-	it('returns null when no progress row exists', async () => {
+	it('reports empty when no progress row exists', async () => {
 		const mock = createMockSupabase({
 			tableResults: {
 				user_progress: { data: null, error: null }
@@ -566,7 +573,8 @@ describe('loadProgressFromCloud', () => {
 
 		const result = await loadProgressFromCloud(mock as any);
 
-		expect(result).toBeNull();
+		// No row (data:null,error:null) is an affirmative empty, not an error.
+		expect(result.status).toBe('empty');
 	});
 
 	it('never throws on any error', async () => {
@@ -575,7 +583,7 @@ describe('loadProgressFromCloud', () => {
 		mock.auth.getUser.mockRejectedValue(new Error('Auth service down'));
 
 		const result = await loadProgressFromCloud(mock as any);
-		expect(result).toBeNull();
+		expect(result.status).toBe('error');
 
 		warnSpy.mockRestore();
 	});
@@ -604,11 +612,11 @@ describe('loadProgressFromCloud', () => {
 
 		const result = await loadProgressFromCloud(mock as any);
 
-		expect(result).not.toBeNull();
-		if (result) {
-			expect(result.sessions).toEqual([]);
-			expect(result.scaleProficiency).toEqual({});
-			expect(result.keyProficiency).toEqual({});
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') {
+			expect(result.data.sessions).toEqual([]);
+			expect(result.data.scaleProficiency).toEqual({});
+			expect(result.data.keyProficiency).toEqual({});
 		}
 	});
 });
@@ -661,9 +669,11 @@ describe('syncSettingsToCloud', () => {
 			upsertResult: { error: { message: 'Permission denied' } }
 		});
 
+		// New contract: syncSettingsToCloud returns false on a caught error
+		// (was void). Still never throws.
 		await expect(
 			syncSettingsToCloud(mock as any, TEST_SETTINGS)
-		).resolves.toBeUndefined();
+		).resolves.toBe(false);
 
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
@@ -753,21 +763,22 @@ describe('loadSettingsFromCloud', () => {
 
 		const result = await loadSettingsFromCloud(mock as any);
 
-		expect(result).not.toBeNull();
-		if (result) {
-			expect(result.instrumentId).toBe('alto-sax');
-			expect(result.defaultTempo).toBe(110);
-			expect(result.masterVolume).toBe(0.9);
-			expect(result.metronomeEnabled).toBe(false);
-			expect(result.metronomeVolume).toBe(0.6);
-			expect(result.backingTrackEnabled).toBe(true);
-			expect(result.backingInstrument).toBe('bass');
-			expect(result.backingTrackVolume).toBe(0.7);
-			expect(result.swing).toBe(0.6);
-			expect(result.theme).toBe('light');
-			expect(result.onboardingComplete).toBe(true);
-			expect(result.tonalityOverride).toBeNull();
-			expect(result.highestNote).toBeNull();
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') {
+			const data = result.data;
+			expect(data.instrumentId).toBe('alto-sax');
+			expect(data.defaultTempo).toBe(110);
+			expect(data.masterVolume).toBe(0.9);
+			expect(data.metronomeEnabled).toBe(false);
+			expect(data.metronomeVolume).toBe(0.6);
+			expect(data.backingTrackEnabled).toBe(true);
+			expect(data.backingInstrument).toBe('bass');
+			expect(data.backingTrackVolume).toBe(0.7);
+			expect(data.swing).toBe(0.6);
+			expect(data.theme).toBe('light');
+			expect(data.onboardingComplete).toBe(true);
+			expect(data.tonalityOverride).toBeNull();
+			expect(data.highestNote).toBeNull();
 		}
 	});
 
@@ -796,19 +807,20 @@ describe('loadSettingsFromCloud', () => {
 
 		const result = await loadSettingsFromCloud(mock as any);
 
-		expect(result).not.toBeNull();
-		expect(result!.highestNote).toBe(72);
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') expect(result.data.highestNote).toBe(72);
 	});
 
-	it('returns null when not authenticated', async () => {
+	it('reports error when not authenticated', async () => {
 		const mock = createMockSupabase({ user: null });
 
 		const result = await loadSettingsFromCloud(mock as any);
 
-		expect(result).toBeNull();
+		// Unauthenticated → 'error' (cloud truth unknown), not 'empty'.
+		expect(result.status).toBe('error');
 	});
 
-	it('returns null when no settings found in DB', async () => {
+	it('reports empty when no settings found in DB', async () => {
 		const mock = createMockSupabase({
 			tableResults: {
 				user_settings: { data: null, error: null }
@@ -817,10 +829,11 @@ describe('loadSettingsFromCloud', () => {
 
 		const result = await loadSettingsFromCloud(mock as any);
 
-		expect(result).toBeNull();
+		// No row (data:null,error:null) is an affirmative empty, not an error.
+		expect(result.status).toBe('empty');
 	});
 
-	it('catches errors and returns null', async () => {
+	it('reports error on query failure', async () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const mock = createMockSupabase({
 			tableResults: {
@@ -830,7 +843,7 @@ describe('loadSettingsFromCloud', () => {
 
 		const result = await loadSettingsFromCloud(mock as any);
 
-		expect(result).toBeNull();
+		expect(result.status).toBe('error');
 		warnSpy.mockRestore();
 	});
 
@@ -840,7 +853,7 @@ describe('loadSettingsFromCloud', () => {
 		mock.auth.getUser.mockRejectedValue(new Error('Auth service down'));
 
 		const result = await loadSettingsFromCloud(mock as any);
-		expect(result).toBeNull();
+		expect(result.status).toBe('error');
 
 		warnSpy.mockRestore();
 	});

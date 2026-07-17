@@ -31,35 +31,31 @@ export const DELETE: RequestHandler = async ({ locals }) => {
 		return json({ error: 'Failed to delete account. Please try again.' }, { status: 500 });
 	}
 
-	// 1. Delete storage objects (recordings bucket) — best-effort, paginated
+	// 1. Delete storage objects (recordings bucket) — best-effort, paginated.
+	// ALWAYS list offset 0: each pass deletes what it listed, so the folder
+	// shrinks to empty. Advancing the offset while deleting skipped every second
+	// page (the list shifts under the cursor), orphaning half a user's audio.
+	// A pass cap + break-on-error prevents an infinite re-list of an undeletable page.
 	try {
 		const PAGE_SIZE = 100;
-		let offset = 0;
-		let hasMore = true;
-
-		while (hasMore) {
+		const MAX_PASSES = 1000;
+		for (let pass = 0; pass < MAX_PASSES; pass++) {
 			const { data: files, error: listError } = await admin.storage
 				.from('recordings')
-				.list(userId, { limit: PAGE_SIZE, offset });
+				.list(userId, { limit: PAGE_SIZE, offset: 0 });
 
 			if (listError) {
 				console.warn('Failed to list recordings for deletion:', listError);
 				break;
 			}
+			if (!files || files.length === 0) break;
 
-			if (files && files.length > 0) {
-				const paths = files.map((f) => `${userId}/${f.name}`);
-				const { error: removeError } = await admin.storage
-					.from('recordings')
-					.remove(paths);
-
-				if (removeError) {
-					console.warn('Failed to remove recordings from storage:', removeError);
-				}
+			const paths = files.map((f) => `${userId}/${f.name}`);
+			const { error: removeError } = await admin.storage.from('recordings').remove(paths);
+			if (removeError) {
+				console.warn('Failed to remove recordings from storage:', removeError);
+				break;
 			}
-
-			hasMore = files !== null && files.length === PAGE_SIZE;
-			offset += PAGE_SIZE;
 		}
 	} catch (err) {
 		console.warn('Storage cleanup error during account deletion:', err);

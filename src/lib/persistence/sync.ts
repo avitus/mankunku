@@ -33,6 +33,7 @@ import type {
 } from '$lib/types/progress';
 import { PITCH_CLASSES, type Phrase, type PhraseCategory, type PitchClass } from '$lib/types/music';
 import type { LickPracticeProgress } from '$lib/types/lick-practice';
+import type { LickMergeMeta } from './lick-metadata-merge';
 import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
 
@@ -40,6 +41,16 @@ import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
 
 /** Supabase client parameterized with the Mankunku database schema. */
 type SupabaseDB = SupabaseClient<Database>;
+
+/**
+ * Tri-state result of a cloud load. The distinction is load-bearing: `error`
+ * means the cloud truth is UNKNOWN (auth/network/query failure) and callers must
+ * NOT treat local as authoritative or push/prune; `empty` means the read
+ * succeeded and there is affirmatively no row (a new account); `ok` carries the
+ * data. Conflating error with empty is what let a fresh / hydration-failed
+ * device clobber real cloud data.
+ */
+export type CloudLoad<T> = { status: 'ok'; data: T } | { status: 'empty' } | { status: 'error' };
 
 /** Minimal typed interface for settings passed to syncSettingsToCloud. */
 interface SyncableSettings {
@@ -56,6 +67,8 @@ interface SyncableSettings {
 	onboardingComplete: boolean;
 	tonalityOverride: unknown;
 	highestNote: number | null;
+	backingStyle: string;
+	bleedFilterEnabled: boolean;
 }
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -111,10 +124,10 @@ async function getAuthUserId(supabase: SupabaseDB): Promise<string | null> {
 export async function syncProgressToCloud(
 	supabase: SupabaseDB,
 	progress: UserProgress
-): Promise<void> {
+): Promise<boolean> {
 	try {
 		const userId = await getAuthUserId(supabase);
-		if (!userId) return;
+		if (!userId) return false;
 
 		// 1. Upsert aggregate progress
 		const { error: progressError } = await supabase.from('user_progress').upsert(
@@ -133,7 +146,7 @@ export async function syncProgressToCloud(
 
 		if (progressError) {
 			console.warn('Failed to sync progress to cloud:', progressError);
-			return;
+			return false;
 		}
 
 		// 2. Upsert session results (cap at MAX_SESSIONS)
@@ -155,7 +168,8 @@ export async function syncProgressToCloud(
 			notes_total: s.notesTotal,
 			note_results: s.noteResults as unknown as Json,
 			timing: (s.timing ?? null) as unknown as Json,
-			timestamp: s.timestamp
+			timestamp: s.timestamp,
+			source: (s.source as string) ?? null
 		}));
 
 		if (sessionRows.length > 0) {
@@ -164,18 +178,17 @@ export async function syncProgressToCloud(
 				.upsert(sessionRows, { onConflict: 'id' });
 
 			if (sessionsError) {
-				console.warn('Failed to sync session results to cloud:', sessionsError);
-			} else {
-				// Prune orphaned rows beyond the retained set
-				const retainedIds = sessionRows.map((r) => r.id);
-				const { error: pruneError } = await supabase
-					.from('session_results')
-					.delete()
-					.eq('user_id', userId)
-					.not('id', 'in', `(${retainedIds.join(',')})`);
-
-				if (pruneError) {
-					console.warn('Failed to prune old session results:', pruneError);
+				// A single poisoned id (e.g. a legacy global-id collision with
+				// another user's row) fails the whole batch with 42501. Fall back
+				// to per-row upserts so one bad row can't freeze session sync.
+				// NOTE: no prune — cloud sessions are unioned across devices and are
+				// only ever deleted by an explicit reset (deleteProgressDetailsFromCloud).
+				console.warn('Batch session upsert failed; retrying per-row:', sessionsError);
+				for (const row of sessionRows) {
+					const { error: rowError } = await supabase
+						.from('session_results')
+						.upsert(row, { onConflict: 'id' });
+					if (rowError) console.warn(`Failed to sync session ${row.id}:`, rowError);
 				}
 			}
 		}
@@ -225,8 +238,10 @@ export async function syncProgressToCloud(
 				console.warn('Failed to sync key proficiency to cloud:', keyError);
 			}
 		}
+		return true;
 	} catch (error) {
 		console.warn('Failed to sync progress to cloud:', error);
+		return false;
 	}
 }
 
@@ -258,14 +273,18 @@ export async function deleteProgressDetailsFromCloud(
  * Fetch the user's progress from Supabase and reconstruct a full
  * `UserProgress` object.
  *
- * Returns `null` when the user is unauthenticated or no cloud data exists.
+ * Returns a tri-state (see CloudLoad): `error` on any auth/query failure (the
+ * caller must NOT treat local as authoritative), `empty` when there is
+ * affirmatively no aggregate row (a new account), `ok` with the data. A partial
+ * pull (one sub-query errors) reports `error` — never an object with fewer
+ * sessions than really exist, which the caller could misread and clobber cloud.
  */
 export async function loadProgressFromCloud(
 	supabase: SupabaseDB
-): Promise<UserProgress | null> {
+): Promise<CloudLoad<UserProgress>> {
 	try {
 		const userId = await getAuthUserId(supabase);
-		if (!userId) return null;
+		if (!userId) return { status: 'error' };
 
 		// Fetch aggregate progress row
 		const { data: progressRow, error: progressError } = await supabase
@@ -276,9 +295,9 @@ export async function loadProgressFromCloud(
 
 		if (progressError) {
 			console.warn('Failed to load progress from cloud:', progressError);
-			return null;
+			return { status: 'error' };
 		}
-		if (!progressRow) return null;
+		if (!progressRow) return { status: 'empty' };
 
 		// Fetch session results (newest first, capped at MAX_SESSIONS)
 		const { data: sessions, error: sessionsError } = await supabase
@@ -290,7 +309,7 @@ export async function loadProgressFromCloud(
 
 		if (sessionsError) {
 			console.warn('Failed to load session results from cloud:', sessionsError);
-			return null;
+			return { status: 'error' };
 		}
 
 		// Fetch per-scale proficiency rows
@@ -301,7 +320,7 @@ export async function loadProgressFromCloud(
 
 		if (scalesError) {
 			console.warn('Failed to load scale proficiency from cloud:', scalesError);
-			return null;
+			return { status: 'error' };
 		}
 
 		// Fetch per-key proficiency rows
@@ -312,7 +331,7 @@ export async function loadProgressFromCloud(
 
 		if (keysError) {
 			console.warn('Failed to load key proficiency from cloud:', keysError);
-			return null;
+			return { status: 'error' };
 		}
 
 		// ── Map session_results rows → SessionResult[] ──
@@ -326,6 +345,8 @@ export async function loadProgressFromCloud(
 			scaleType: row.scale_type != null
 				? (row.scale_type as ScaleType)
 				: undefined,
+			// NULL source (legacy / old-client rows) reads as ear-training.
+			source: (row.source as 'ear-training' | 'lick-practice' | null) ?? 'ear-training',
 			tempo: row.tempo,
 			difficultyLevel: row.difficulty_level,
 			pitchAccuracy: row.pitch_accuracy,
@@ -366,22 +387,25 @@ export async function loadProgressFromCloud(
 
 		// ── Assemble and return UserProgress ──
 		return {
-			adaptive: progressRow.adaptive_state as unknown as AdaptiveState,
-			sessions: mappedSessions,
-			categoryProgress: progressRow.category_progress as unknown as Record<string, CategoryProgress>,
-			keyProgress: progressRow.key_progress as unknown as Partial<
-				Record<PitchClass, { attempts: number; averageScore: number }>
-			>,
-			scaleProficiency,
-			keyProficiency,
-			lickProgress: {},
-			totalPracticeTime: progressRow.total_practice_time,
-			streakDays: progressRow.streak_days,
-			lastPracticeDate: progressRow.last_practice_date
+			status: 'ok',
+			data: {
+				adaptive: progressRow.adaptive_state as unknown as AdaptiveState,
+				sessions: mappedSessions,
+				categoryProgress: progressRow.category_progress as unknown as Record<string, CategoryProgress>,
+				keyProgress: progressRow.key_progress as unknown as Partial<
+					Record<PitchClass, { attempts: number; averageScore: number }>
+				>,
+				scaleProficiency,
+				keyProficiency,
+				lickProgress: {},
+				totalPracticeTime: progressRow.total_practice_time,
+				streakDays: progressRow.streak_days,
+				lastPracticeDate: progressRow.last_practice_date
+			}
 		};
 	} catch (error) {
 		console.warn('Failed to load progress from cloud:', error);
-		return null;
+		return { status: 'error' };
 	}
 }
 
@@ -567,10 +591,10 @@ export async function deleteDailySummariesFromCloud(
 export async function syncSettingsToCloud(
 	supabase: SupabaseDB,
 	settings: SyncableSettings
-): Promise<void> {
+): Promise<boolean> {
 	try {
 		const userId = await getAuthUserId(supabase);
-		if (!userId) return;
+		if (!userId) return false;
 
 		const { error } = await supabase.from('user_settings').upsert(
 			{
@@ -588,6 +612,8 @@ export async function syncSettingsToCloud(
 				onboarding_complete: settings.onboardingComplete,
 				tonality_override: (settings.tonalityOverride ?? null) as Json,
 				highest_note: settings.highestNote ?? null,
+				backing_style: settings.backingStyle,
+				bleed_filter_enabled: settings.bleedFilterEnabled,
 				updated_at: new Date().toISOString()
 			},
 			{ onConflict: 'user_id' }
@@ -595,25 +621,28 @@ export async function syncSettingsToCloud(
 
 		if (error) {
 			console.warn('Failed to sync settings to cloud:', error);
+			return false;
 		}
+		return true;
 	} catch (error) {
 		console.warn('Failed to sync settings to cloud:', error);
+		return false;
 	}
 }
 
 /**
  * Fetch user settings from the `user_settings` table.
  *
- * Returns a plain object with camelCase keys matching the Settings
- * interface, or `null` if the user is unauthenticated or has no saved
- * settings.
+ * Tri-state (see CloudLoad): `error` on auth/query failure (caller keeps local,
+ * does NOT clobber), `empty` when no row (new account), `ok` with camelCase
+ * values matching the Settings interface.
  */
 export async function loadSettingsFromCloud(
 	supabase: SupabaseDB
-): Promise<Record<string, unknown> | null> {
+): Promise<CloudLoad<Record<string, unknown>>> {
 	try {
 		const userId = await getAuthUserId(supabase);
-		if (!userId) return null;
+		if (!userId) return { status: 'error' };
 
 		const { data, error } = await supabase
 			.from('user_settings')
@@ -623,28 +652,33 @@ export async function loadSettingsFromCloud(
 
 		if (error) {
 			console.warn('Failed to load settings from cloud:', error);
-			return null;
+			return { status: 'error' };
 		}
-		if (!data) return null;
+		if (!data) return { status: 'empty' };
 
 		return {
-			instrumentId: data.instrument_id,
-			defaultTempo: data.default_tempo,
-			masterVolume: data.master_volume,
-			metronomeEnabled: data.metronome_enabled,
-			metronomeVolume: data.metronome_volume,
-			backingTrackEnabled: data.backing_track_enabled ?? true,
-			backingInstrument: data.backing_instrument ?? 'piano',
-			backingTrackVolume: data.backing_track_volume ?? 0.6,
-			swing: data.swing,
-			theme: data.theme,
-			onboardingComplete: data.onboarding_complete,
-			tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null,
-			highestNote: data.highest_note ?? null
+			status: 'ok',
+			data: {
+				instrumentId: data.instrument_id,
+				defaultTempo: data.default_tempo,
+				masterVolume: data.master_volume,
+				metronomeEnabled: data.metronome_enabled,
+				metronomeVolume: data.metronome_volume,
+				backingTrackEnabled: data.backing_track_enabled ?? true,
+				backingInstrument: data.backing_instrument ?? 'piano',
+				backingTrackVolume: data.backing_track_volume ?? 0.6,
+				swing: data.swing,
+				theme: data.theme,
+				onboardingComplete: data.onboarding_complete,
+				tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null,
+				highestNote: data.highest_note ?? null,
+				backingStyle: data.backing_style ?? 'swing',
+				bleedFilterEnabled: data.bleed_filter_enabled ?? false
+			}
 		};
 	} catch (error) {
 		console.warn('Failed to load settings from cloud:', error);
-		return null;
+		return { status: 'error' };
 	}
 }
 
@@ -740,6 +774,34 @@ export async function loadTourStateFromCloud(
 	} catch (error) {
 		console.warn('Failed to load tour state from cloud:', error);
 		return null;
+	}
+}
+
+/**
+ * REPLACE the cloud tour_state with an empty set — the deliberate destructive
+ * path for `resetTours`. `syncTourStateToCloud` unions with the remote row, so
+ * pushing a cleared set through it would be a no-op; this overwrites instead.
+ */
+export async function clearTourStateInCloud(supabase: SupabaseDB): Promise<void> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const empty: SyncableTourState = { completed: [], dismissed: [] };
+		const { error } = await supabase.from('user_settings').upsert(
+			{
+				user_id: userId,
+				tour_state: empty as unknown as Json,
+				updated_at: new Date().toISOString()
+			},
+			{ onConflict: 'user_id' }
+		);
+
+		if (error) {
+			console.warn('Failed to clear tour state in cloud:', error);
+		}
+	} catch (error) {
+		console.warn('Failed to clear tour state in cloud:', error);
 	}
 }
 
@@ -905,6 +967,40 @@ export async function downloadRecording(
 	}
 }
 
+/**
+ * Delete every recording blob under `recordings/{userId}/` — called from the
+ * "reset everything" path so cloud audio isn't orphaned. Paginated by ALWAYS
+ * listing offset 0 (each pass deletes what it listed, so the folder shrinks to
+ * empty), with a pass cap + break-on-error to avoid an infinite re-list.
+ */
+export async function deleteAllRecordingsFromCloud(supabase: SupabaseDB): Promise<void> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return;
+
+		const PAGE_SIZE = 100;
+		const MAX_PASSES = 1000;
+		for (let pass = 0; pass < MAX_PASSES; pass++) {
+			const { data: files, error: listError } = await supabase.storage
+				.from('recordings')
+				.list(userId, { limit: PAGE_SIZE, offset: 0 });
+			if (listError) {
+				console.warn('Failed to list recordings for deletion:', listError);
+				return;
+			}
+			if (!files || files.length === 0) return;
+			const paths = files.map((f) => `${userId}/${f.name}`);
+			const { error: removeError } = await supabase.storage.from('recordings').remove(paths);
+			if (removeError) {
+				console.warn('Failed to remove recordings from cloud:', removeError);
+				return;
+			}
+		}
+	} catch (error) {
+		console.warn('Failed to delete recordings from cloud:', error);
+	}
+}
+
 // ═════════════════════════════════════════════════════════════════════
 //  Lick practice metadata sync
 // ═════════════════════════════════════════════════════════════════════
@@ -919,44 +1015,40 @@ export interface LickMetadata {
 }
 
 /**
- * Upsert lick practice metadata to the `user_lick_metadata` table.
+ * Upsert the FULL lick-metadata row (all blobs + the per-entry merge_meta).
  *
- * Accepts a partial payload so callers can sync a single column
- * without reading the others. All provided fields are upserted;
- * omitted fields are left unchanged in the database row.
+ * This is the merge-aware write path: callers first read the current cloud row,
+ * run `mergeLickMetadata(local, cloud)` (per-entry, non-destructive), and write
+ * the merged result here — so a device can no longer replace another device's
+ * entire column. Writing the whole row is safe because the merge already folded
+ * in the cloud's contents.
  */
-export async function syncLickMetadataToCloud(
+export async function upsertLickMetadataRow(
 	supabase: SupabaseDB,
-	data: Partial<LickMetadata>
+	data: LickMetadata,
+	mergeMeta: LickMergeMeta
 ): Promise<void> {
-	try {
-		const hasData = data.lickTags !== undefined || data.practiceProgress !== undefined ||
-			data.tagOverrides !== undefined || data.categoryOverrides !== undefined ||
-			data.unlockCounts !== undefined;
-		if (!hasData) return;
+	const userId = await getAuthUserId(supabase);
+	if (!userId) throw new Error('not authenticated');
 
-		const userId = await getAuthUserId(supabase);
-		if (!userId) return;
+	const row: Database['public']['Tables']['user_lick_metadata']['Insert'] = {
+		user_id: userId,
+		lick_tags: data.lickTags as unknown as Json,
+		practice_progress: data.practiceProgress as unknown as Json,
+		tag_overrides: data.tagOverrides as unknown as Json,
+		category_overrides: data.categoryOverrides as unknown as Json,
+		unlock_counts: data.unlockCounts as unknown as Json,
+		merge_meta: mergeMeta as unknown as Json,
+		updated_at: new Date().toISOString()
+	};
 
-		const row: Database['public']['Tables']['user_lick_metadata']['Insert'] = {
-			user_id: userId,
-			updated_at: new Date().toISOString(),
-			...(data.lickTags !== undefined && { lick_tags: data.lickTags as unknown as Json }),
-			...(data.practiceProgress !== undefined && { practice_progress: data.practiceProgress as unknown as Json }),
-			...(data.tagOverrides !== undefined && { tag_overrides: data.tagOverrides as unknown as Json }),
-			...(data.categoryOverrides !== undefined && { category_overrides: data.categoryOverrides as unknown as Json }),
-			...(data.unlockCounts !== undefined && { unlock_counts: data.unlockCounts as unknown as Json })
-		};
+	const { error } = await supabase
+		.from('user_lick_metadata')
+		.upsert(row, { onConflict: 'user_id' });
 
-		const { error } = await supabase
-			.from('user_lick_metadata')
-			.upsert(row, { onConflict: 'user_id' });
-
-		if (error) {
-			console.warn('Failed to sync lick metadata to cloud:', error);
-		}
-	} catch (error) {
-		console.warn('Failed to sync lick metadata to cloud:', error);
+	if (error) {
+		// Surface to the outbox so it retries; do not silently swallow.
+		throw new Error(`Failed to upsert lick metadata: ${error.message}`);
 	}
 }
 
@@ -973,7 +1065,7 @@ export async function syncLickMetadataToCloud(
  *              `empty` is what lets whole-column syncs clobber cloud data.
  */
 export type LickMetadataLoadResult =
-	| { status: 'ok'; data: LickMetadata }
+	| { status: 'ok'; data: LickMetadata; mergeMeta: LickMergeMeta }
 	| { status: 'empty' }
 	| { status: 'error' };
 
@@ -1013,7 +1105,8 @@ export async function loadLickMetadataFromCloud(
 			// null values to {} to keep loads resilient against schema drift.
 			unlockCounts: (data.unlock_counts ?? {}) as unknown as Record<string, number>
 		};
-		return { status: 'ok', data: metadata };
+		const mergeMeta = (data.merge_meta ?? {}) as unknown as LickMergeMeta;
+		return { status: 'ok', data: metadata, mergeMeta };
 	} catch (error) {
 		console.warn('Failed to load lick metadata from cloud:', error);
 		return { status: 'error' };

@@ -21,11 +21,22 @@ import type { Database } from '$lib/supabase/types';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import type { BackingTrackLog } from '$lib/audio/backing-track';
+import { getActiveUid } from './namespace';
 
-const DB_NAME = 'mankunku-audio';
+/**
+ * The IndexedDB database is namespaced per user (`mankunku-audio:<uid>`), so
+ * two users on one browser never see each other's recordings and a switch needs
+ * no wipe. The active uid is resolved from namespace.ts unless a caller passes
+ * an explicit uid (account deletion targets a specific user's DB).
+ */
+const DB_NAME_BASE = 'mankunku-audio';
 const STORE_NAME = 'recordings';
 const DB_VERSION = 1;
 const MAX_RECORDINGS = 100;
+
+function dbNameFor(uid?: string): string {
+	return `${DB_NAME_BASE}:${uid ?? getActiveUid()}`;
+}
 
 /**
  * Self-contained snapshot of the practice context at save time.
@@ -65,9 +76,9 @@ export interface SaveRecordingOptions {
 	userId?: string;
 }
 
-function openDb(): Promise<IDBDatabase> {
+function openDb(uid?: string): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
-		const request = indexedDB.open(DB_NAME, DB_VERSION);
+		const request = indexedDB.open(dbNameFor(uid), DB_VERSION);
 		request.onupgradeneeded = () => {
 			const db = request.result;
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -112,34 +123,43 @@ export async function saveRecording(
 	options: SaveRecordingOptions = {}
 ): Promise<void> {
 	const { metadata, supabase, userId } = options;
-	const db = await openDb();
+
+	// The local IndexedDB write is best-effort and MUST NOT throw: a quota /
+	// private-mode failure should neither lose the take (the cloud upload below
+	// still runs) nor short-circuit the caller's authoritative post-hoc rescore.
 	try {
-		const transaction = db.transaction(STORE_NAME, 'readwrite');
-		const store = transaction.objectStore(STORE_NAME);
-		// JSON round-trip strips Svelte 5 $state proxies that structuredClone
-		// (used internally by IndexedDB) cannot handle.
-		const plainMetadata = metadata ? JSON.parse(JSON.stringify(metadata)) : null;
-		store.put({
-			sessionId,
-			blob,
-			timestamp: Date.now(),
-			metadata: plainMetadata
-		});
+		const db = await openDb();
+		try {
+			const transaction = db.transaction(STORE_NAME, 'readwrite');
+			const store = transaction.objectStore(STORE_NAME);
+			// JSON round-trip strips Svelte 5 $state proxies that structuredClone
+			// (used internally by IndexedDB) cannot handle.
+			const plainMetadata = metadata ? JSON.parse(JSON.stringify(metadata)) : null;
+			store.put({
+				sessionId,
+				blob,
+				timestamp: Date.now(),
+				metadata: plainMetadata
+			});
 
-		const all = await idbReq(store.getAll());
-		if (all.length > MAX_RECORDINGS) {
-			all.sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
-			for (let i = 0; i < all.length - MAX_RECORDINGS; i++) {
-				store.delete(all[i].sessionId);
+			const all = await idbReq(store.getAll());
+			if (all.length > MAX_RECORDINGS) {
+				all.sort((a: { timestamp: number }, b: { timestamp: number }) => a.timestamp - b.timestamp);
+				for (let i = 0; i < all.length - MAX_RECORDINGS; i++) {
+					store.delete(all[i].sessionId);
+				}
 			}
-		}
 
-		await idbTx(transaction);
-	} finally {
-		db.close();
+			await idbTx(transaction);
+		} finally {
+			db.close();
+		}
+	} catch (err) {
+		console.warn('Failed to persist recording to IndexedDB (continuing to cloud upload):', err);
 	}
 
-	// Fire-and-forget cloud upload — runs independently of the local save
+	// Cloud upload — runs independently of the local save so an IDB failure
+	// doesn't lose the recording when the user is online and authenticated.
 	if (supabase && userId) {
 		const path = `${userId}/${sessionId}.webm`;
 		supabase.storage
@@ -327,9 +347,9 @@ export async function deleteRecording(
 	}
 }
 
-/** Delete all recordings. */
-export async function clearAllRecordings(): Promise<void> {
-	const db = await openDb();
+/** Delete all recordings for a user (defaults to the active user's DB). */
+export async function clearAllRecordings(uid?: string): Promise<void> {
+	const db = await openDb(uid);
 	try {
 		const transaction = db.transaction(STORE_NAME, 'readwrite');
 		transaction.objectStore(STORE_NAME).clear();

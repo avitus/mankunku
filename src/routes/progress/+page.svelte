@@ -107,7 +107,10 @@
 
 		try {
 			const { getRecording } = await import('$lib/persistence/audio-store');
-			const blob = await getRecording(sessionId);
+			// Pass credentials so a recording missing locally (e.g. practised on
+			// another device) falls back to the cloud copy — previously this was
+			// called without them, making the cloud-restore path dead code.
+			const blob = await getRecording(sessionId, supabase ?? undefined, page.data?.user?.id);
 			if (!blob || blob.size === 0) return;
 
 			audioUrl = URL.createObjectURL(blob);

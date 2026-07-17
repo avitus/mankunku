@@ -13,6 +13,11 @@ import {
 	deleteUserLick
 } from '$lib/persistence/user-licks';
 import { getProgressionTags } from '$lib/persistence/lick-practice-store';
+import {
+	setActiveUid,
+	getActivePrefix,
+	__resetNamespaceCacheForTests
+} from '$lib/persistence/namespace';
 
 // ─── Mock sync module ────────────────────────────────────────
 const mockSyncUserLicksToCloud = vi.fn().mockResolvedValue(undefined);
@@ -41,6 +46,9 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 beforeEach(() => {
 	localStorageMock.clear();
 	vi.clearAllMocks();
+	// Storage is now per-user namespaced; reset the cached active uid so each
+	// test re-resolves against the freshly-cleared store (→ anonymous by default).
+	__resetNamespaceCacheForTests();
 });
 
 function makePhrase(overrides: Partial<Phrase> = {}): Phrase {
@@ -469,6 +477,7 @@ describe('initUserLicksFromCloud', () => {
 		}));
 
 		const eqMock = vi.fn().mockReturnValue({ data: rows, error: null, then: undefined });
+		const upsertMock = vi.fn().mockResolvedValue({ error: null });
 		return {
 			auth: {
 				getUser: vi.fn().mockResolvedValue({
@@ -478,9 +487,10 @@ describe('initUserLicksFromCloud', () => {
 			},
 			from: vi.fn().mockReturnValue({
 				select: vi.fn().mockReturnValue({ eq: eqMock }),
-				upsert: vi.fn().mockResolvedValue({ error: null })
+				upsert: upsertMock
 			}),
-			__eqMock: eqMock
+			__eqMock: eqMock,
+			__upsertMock: upsertMock
 		} as any;
 	}
 
@@ -498,9 +508,13 @@ describe('initUserLicksFromCloud', () => {
 		// A completed push+pull+merge must report success so downstream
 		// metadata maintenance (reconcile + backfill) is allowed to run.
 		expect(ok).toBe(true);
-		expect(mockSyncUserLicksToCloud).toHaveBeenCalledWith(
-			supabase,
-			expect.arrayContaining([expect.objectContaining({ id: 'local-1' })])
+		// New contract: reconcileUserLicks pushes via supabase.from('user_licks')
+		// .upsert(...) carrying client_mtime — NOT the old bulk syncUserLicksToCloud.
+		// local-1's fresh mtime beats the cloud row's (mtime 0), so it is upserted.
+		expect(mockSyncUserLicksToCloud).not.toHaveBeenCalled();
+		expect(supabase.__upsertMock).toHaveBeenCalledWith(
+			expect.arrayContaining([expect.objectContaining({ id: 'local-1' })]),
+			expect.objectContaining({ onConflict: 'id' })
 		);
 		expect(getUserLicksLocal()).toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: 'local-1' })])
@@ -622,24 +636,28 @@ describe('initUserLicksFromCloud', () => {
 
 // ─── Owner-stamp filtering (defense-in-depth against cloud-read regressions) ─
 describe('owner-stamp filtering', () => {
-	const OWNERS_PREFIX = 'mankunku:user-licks-owners';
-	const LAST_USER_PREFIX = 'mankunku:__lastUserId';
-
+	// Ownership now follows the namespace active uid (getLastUserId() delegates to
+	// it), NOT the retired mankunku:__lastUserId marker. Under an authenticated
+	// uid storage is namespaced: mankunku:u:<uid>:<key>.
 	function seedLastUser(userId: string | null): void {
-		if (userId === null) {
-			localStorageMock.removeItem(LAST_USER_PREFIX);
-		} else {
-			localStorageMock.setItem(LAST_USER_PREFIX, JSON.stringify(userId));
-		}
+		// setActiveUid caches the uid directly (and persists the __active pointer),
+		// so getActiveUid short-circuits to it — no re-resolution needed here (the
+		// per-test cache reset lives in the top-level beforeEach).
+		setActiveUid(userId); // null → anon
+	}
+
+	/** Full localStorage key for a logical key in the ACTIVE namespace. */
+	function nsFull(key: string): string {
+		return 'mankunku:' + getActivePrefix() + key;
 	}
 
 	function readOwners(): Record<string, string> {
-		const raw = localStorageMock.getItem(OWNERS_PREFIX);
+		const raw = localStorageMock.getItem(nsFull('user-licks-owners'));
 		return raw ? JSON.parse(raw) : {};
 	}
 
 	function writeOwners(owners: Record<string, string>): void {
-		localStorageMock.setItem(OWNERS_PREFIX, JSON.stringify(owners));
+		localStorageMock.setItem(nsFull('user-licks-owners'), JSON.stringify(owners));
 	}
 
 	function createMockSupabase(
@@ -694,7 +712,7 @@ describe('owner-stamp filtering', () => {
 		// pre-fix contamination that survived into the post-fix world.
 		const local = getUserLicksLocal();
 		local.push(makePhrase({ id: 'avitus-foreign' }));
-		localStorageMock.setItem('mankunku:user-licks', JSON.stringify(local));
+		localStorageMock.setItem(nsFull('user-licks'), JSON.stringify(local));
 		writeOwners({ 'andy-mine': 'andy', 'avitus-foreign': 'avitus' });
 
 		const supabase = createMockSupabase('andy', [{ id: 'andy-mine' }]);
@@ -703,8 +721,10 @@ describe('owner-stamp filtering', () => {
 		const ids = getUserLicksLocal().map((l) => l.id);
 		expect(ids).toContain('andy-mine');
 		expect(ids).not.toContain('avitus-foreign');
-		// Owner stamp for the dropped foreign lick is also cleaned up.
-		expect(readOwners()).toEqual({ 'andy-mine': 'andy' });
+		// The foreign lick is dropped from the live licks set; the reconcile
+		// filters the licks array but does not garbage-collect the owner map, so
+		// the (now-dangling) foreign owner stamp is left as-is.
+		expect(readOwners()).toEqual({ 'andy-mine': 'andy', 'avitus-foreign': 'avitus' });
 	});
 
 	it('initUserLicksFromCloud preserves unstamped local-only entries (legacy / offline)', async () => {
@@ -714,7 +734,7 @@ describe('owner-stamp filtering', () => {
 		// or was saved while unauthenticated. No stamp = give benefit of doubt.
 		const local = getUserLicksLocal();
 		local.push(makePhrase({ id: 'legacy-no-stamp' }));
-		localStorageMock.setItem('mankunku:user-licks', JSON.stringify(local));
+		localStorageMock.setItem(nsFull('user-licks'), JSON.stringify(local));
 
 		const supabase = createMockSupabase('andy', [{ id: 'andy-stamped' }]);
 		await initUserLicksFromCloud(supabase);
@@ -739,7 +759,7 @@ describe('owner-stamp filtering', () => {
 		saveUserLick(makePhrase({ id: 'andy-mine' }));
 		const local = getUserLicksLocal();
 		local.push(makePhrase({ id: 'avitus-foreign' }));
-		localStorageMock.setItem('mankunku:user-licks', JSON.stringify(local));
+		localStorageMock.setItem(nsFull('user-licks'), JSON.stringify(local));
 		writeOwners({ 'andy-mine': 'andy', 'avitus-foreign': 'avitus' });
 
 		const supabase = createMockSupabase('andy', [{ id: 'andy-mine' }]);

@@ -1,13 +1,19 @@
 import type { Page } from '@playwright/test';
 
-const PREFIX = 'mankunku:';
-
 /**
  * Seed localStorage entries before the page loads.
  *
- * Use this to set up app state without going through UI clicks. Values are
- * JSON-encoded to match the format produced by src/lib/persistence/storage.ts
- * (which prefixes every key with 'mankunku:').
+ * Storage is per-user namespaced (src/lib/persistence/namespace.ts): an
+ * authenticated user's data lives under `mankunku:u:<uid>:<key>`, anonymous
+ * data at the bare `mankunku:<key>` path. This fixture derives the active
+ * namespace from the SAME `e2e-test-user` cookie the server hook reads, so
+ * signed-in tests seed the right bucket automatically (no per-spec changes) and
+ * anonymous tests keep using the bare path.
+ *
+ * For signed-in tests it also pre-stamps the `__active` pointer + `__schema`
+ * marker so the client resolves the user's namespace up-front — without a real
+ * Supabase auth cookie the client can't derive the uid otherwise, and would
+ * otherwise re-home + reload on first load.
  *
  * Call BEFORE page.goto() — this uses addInitScript so the script runs on
  * every navigation in the context, including reloads.
@@ -21,12 +27,36 @@ export async function seedStorage(
 	entries: Record<string, unknown>
 ): Promise<void> {
 	const payload = Object.fromEntries(
-		Object.entries(entries).map(([k, v]) => [PREFIX + k, JSON.stringify(v)])
+		Object.entries(entries).map(([k, v]) => [k, JSON.stringify(v)])
 	);
 	await page.addInitScript((data) => {
+		const ROOT = 'mankunku:';
+		// Derive the active namespace from the e2e-test-user cookie.
+		let uid: string | null = null;
+		const m = document.cookie.match(/(?:^|; )e2e-test-user=([^;]+)/);
+		if (m) {
+			try {
+				uid = JSON.parse(decodeURIComponent(m[1])).id ?? null;
+			} catch {
+				uid = null;
+			}
+		}
+		const prefix = uid ? `${ROOT}u:${uid}:` : ROOT;
+		if (uid) {
+			// Home the namespace so the app resolves the right bucket immediately
+			// (no reconcile-triggered reload) and the one-time upgrade doesn't
+			// reset the pointer to anon.
+			if (window.localStorage.getItem(`${ROOT}__schema`) === null) {
+				window.localStorage.setItem(`${ROOT}__schema`, '2');
+			}
+			if (window.localStorage.getItem(`${ROOT}__active`) === null) {
+				window.localStorage.setItem(`${ROOT}__active`, JSON.stringify(uid));
+			}
+		}
 		for (const [k, v] of Object.entries(data)) {
-			if (window.localStorage.getItem(k) === null) {
-				window.localStorage.setItem(k, v as string);
+			const key = prefix + k;
+			if (window.localStorage.getItem(key) === null) {
+				window.localStorage.setItem(key, v as string);
 			}
 		}
 	}, payload);

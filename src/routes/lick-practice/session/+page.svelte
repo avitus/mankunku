@@ -54,7 +54,7 @@
 	} from '$lib/persistence/lick-practice-store';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
-	import { syncDailySummaryToCloud } from '$lib/persistence/sync';
+	import { enqueue } from '$lib/persistence/outbox';
 	import { page } from '$app/state';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { ChordProgressionType, SessionReport } from '$lib/types/lick-practice';
@@ -891,11 +891,7 @@
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
 				bumpStreakForToday(supabase ?? undefined);
-				if (supabase && summary) {
-					syncDailySummaryToCloud(supabase, summary).catch((err) => {
-						console.warn('Failed to sync daily summary to cloud:', err);
-					});
-				}
+				if (supabase && summary) enqueue('dailySummaries');
 			} catch (err) {
 				console.warn('[lick-practice] daily-summary update failed:', err);
 			}
@@ -1057,11 +1053,7 @@
 				}
 				const today = localDateStr(new Date(lickPracticeSessionStartTs));
 				const summary = recomputeDailySummary(today);
-				if (supabase && summary) {
-					syncDailySummaryToCloud(supabase, summary).catch((err) => {
-						console.warn('Failed to sync daily summary to cloud:', err);
-					});
-				}
+				if (supabase && summary) enqueue('dailySummaries');
 			} catch (err) {
 				console.warn('[lick-practice] finishSession persistence failed:', err);
 			}

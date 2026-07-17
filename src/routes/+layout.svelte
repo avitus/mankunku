@@ -38,18 +38,23 @@
 	);
 
 	/**
-	 * Explicit sign-out: wipe this browser's user-scoped data BEFORE posting
-	 * to /auth/logout. This is the affirmative signal for the wipe —
-	 * `syncUserScope` deliberately no longer wipes on a null user, because a
-	 * null user is also what expired cookies or an unreachable auth backend
-	 * produce (the 2026-07-13 localStorage-wipe incident). `form.submit()`
-	 * bypasses this handler, so there is no resubmission loop.
+	 * Explicit sign-out. Storage is per-user-namespaced, so the user's data
+	 * SURVIVES sign-out (local-first, ready for instant re-login) — the
+	 * post-logout load re-homes this browser to the anonymous bucket. Before
+	 * posting to /auth/logout we FLUSH any pending cloud syncs so nothing
+	 * unsynced is stranded, then submit. `form.submit()` bypasses this handler,
+	 * so there is no resubmission loop. Flushing is best-effort and never blocks
+	 * sign-out.
 	 */
 	async function handleSignOut(event: SubmitEvent) {
 		event.preventDefault();
 		const form = event.currentTarget as HTMLFormElement;
-		const { wipeUserScopeOnSignOut } = await import('$lib/persistence/user-scope');
-		await wipeUserScopeOnSignOut();
+		try {
+			const { flushAllPendingSync } = await import('$lib/persistence/outbox');
+			await flushAllPendingSync();
+		} catch {
+			/* best effort — never block sign-out */
+		}
 		form.submit();
 	}
 
@@ -162,8 +167,36 @@
 			}
 		});
 
+		// Propagate account switches across tabs: when another tab switches
+		// users, this tab re-homes (reloads) instead of writing the previous
+		// user's in-memory state under whoever is now signed in.
+		let teardownCrossTab: (() => void) | undefined;
+		import('$lib/persistence/user-scope').then(({ initCrossTabSync }) => {
+			teardownCrossTab = initCrossTabSync();
+		});
+
+		// Flush debounced/queued cloud syncs when the tab is hidden or unloaded
+		// (mobile-safe: pagehide + visibilitychange, not beforeunload-only), so
+		// pending writes are captured durably before the tab may be killed.
+		const onHide = () => {
+			import('$lib/persistence/outbox').then(({ flushOnHide }) => flushOnHide(supabase)).catch(() => {});
+		};
+		const onVisibility = () => {
+			if (document.visibilityState === 'hidden') onHide();
+		};
+		window.addEventListener('pagehide', onHide);
+		document.addEventListener('visibilitychange', onVisibility);
+		const onOnline = () => {
+			import('$lib/persistence/outbox').then(({ drainOutbox }) => drainOutbox(supabase)).catch(() => {});
+		};
+		window.addEventListener('online', onOnline);
+
 		return () => {
 			subscription.unsubscribe();
+			teardownCrossTab?.();
+			window.removeEventListener('pagehide', onHide);
+			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener('online', onOnline);
 		};
 	});
 

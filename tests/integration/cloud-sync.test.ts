@@ -185,17 +185,19 @@ describe('progress sync', () => {
 
 		const progress = makeProgress();
 
-		// Should not throw
-		await expect(syncProgressToCloud(supabase as any, progress)).resolves.toBeUndefined();
+		// New contract: returns false on a caught Supabase error (was void). Still
+		// never throws.
+		await expect(syncProgressToCloud(supabase as any, progress)).resolves.toBe(false);
 	});
 
-	it('loadProgressFromCloud returns null when unauthenticated', async () => {
+	it('loadProgressFromCloud reports error when unauthenticated', async () => {
 		const supabase = createMockSupabase(null);
 		const result = await loadProgressFromCloud(supabase as any);
-		expect(result).toBeNull();
+		// Unauthenticated is 'error' (cloud truth unknown), not 'empty'.
+		expect(result.status).toBe('error');
 	});
 
-	it('loadProgressFromCloud returns null when no data exists', async () => {
+	it('loadProgressFromCloud reports empty when no data exists', async () => {
 		const supabase = createMockSupabase();
 
 		// Mock the chained select → eq → maybeSingle
@@ -209,7 +211,8 @@ describe('progress sync', () => {
 		supabase.from = vi.fn().mockReturnValue(chainedQuery);
 
 		const result = await loadProgressFromCloud(supabase as any);
-		expect(result).toBeNull();
+		// maybeSingle → {data:null,error:null} is an affirmative no-row: 'empty'.
+		expect(result.status).toBe('empty');
 	});
 });
 
@@ -229,7 +232,9 @@ describe('settings sync', () => {
 		theme: 'dark',
 		onboardingComplete: true,
 		tonalityOverride: null,
-		highestNote: null
+		highestNote: null,
+		backingStyle: 'swing',
+		bleedFilterEnabled: false
 	};
 
 	it('syncSettingsToCloud calls upsert on user_settings table', async () => {
@@ -248,10 +253,11 @@ describe('settings sync', () => {
 		expect(supabase.from).not.toHaveBeenCalled();
 	});
 
-	it('loadSettingsFromCloud returns null when unauthenticated', async () => {
+	it('loadSettingsFromCloud reports error when unauthenticated', async () => {
 		const supabase = createMockSupabase(null);
 		const result = await loadSettingsFromCloud(supabase as any);
-		expect(result).toBeNull();
+		// Unauthenticated is 'error' (cloud truth unknown), not 'empty'.
+		expect(result.status).toBe('error');
 	});
 
 	it('loadSettingsFromCloud returns mapped settings', async () => {
@@ -283,20 +289,21 @@ describe('settings sync', () => {
 
 		const result = await loadSettingsFromCloud(supabase as any);
 
-		expect(result).not.toBeNull();
-		expect(result!.instrumentId).toBe('tenor-sax');
-		expect(result!.defaultTempo).toBe(120);
-		expect(result!.masterVolume).toBe(0.8);
-		expect(result!.metronomeEnabled).toBe(true);
-		expect(result!.metronomeVolume).toBe(0.6);
-		expect(result!.backingTrackEnabled).toBe(false);
-		expect(result!.backingInstrument).toBe('piano');
-		expect(result!.backingTrackVolume).toBe(0.5);
-		expect(result!.swing).toBe(0.5);
-		expect(result!.theme).toBe('dark');
-		expect(result!.onboardingComplete).toBe(true);
-		expect(result!.tonalityOverride).toBeNull();
-		expect(result!.highestNote).toBeNull();
+		expect(result.status).toBe('ok');
+		if (result.status !== 'ok') return;
+		expect(result.data.instrumentId).toBe('tenor-sax');
+		expect(result.data.defaultTempo).toBe(120);
+		expect(result.data.masterVolume).toBe(0.8);
+		expect(result.data.metronomeEnabled).toBe(true);
+		expect(result.data.metronomeVolume).toBe(0.6);
+		expect(result.data.backingTrackEnabled).toBe(false);
+		expect(result.data.backingInstrument).toBe('piano');
+		expect(result.data.backingTrackVolume).toBe(0.5);
+		expect(result.data.swing).toBe(0.5);
+		expect(result.data.theme).toBe('dark');
+		expect(result.data.onboardingComplete).toBe(true);
+		expect(result.data.tonalityOverride).toBeNull();
+		expect(result.data.highestNote).toBeNull();
 	});
 
 	it('loadSettingsFromCloud validates tonality override shape', async () => {
@@ -323,7 +330,8 @@ describe('settings sync', () => {
 		supabase.from = vi.fn().mockReturnValue(chainedQuery);
 
 		const result = await loadSettingsFromCloud(supabase as any);
-		expect(result!.tonalityOverride).toEqual({ key: 'C', scaleType: 'major' });
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') expect(result.data.tonalityOverride).toEqual({ key: 'C', scaleType: 'major' });
 	});
 
 	it('loadSettingsFromCloud nullifies invalid tonality override', async () => {
@@ -350,7 +358,8 @@ describe('settings sync', () => {
 		supabase.from = vi.fn().mockReturnValue(chainedQuery);
 
 		const result = await loadSettingsFromCloud(supabase as any);
-		expect(result!.tonalityOverride).toBeNull();
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') expect(result.data.tonalityOverride).toBeNull();
 	});
 });
 
@@ -472,18 +481,20 @@ describe('sync error resilience', () => {
 		const supabase = createMockSupabase();
 		supabase.auth.getUser = vi.fn().mockRejectedValue(new Error('Network error'));
 
-		// None of these should throw
-		await expect(syncProgressToCloud(supabase as any, makeProgress())).resolves.toBeUndefined();
-		await expect(loadProgressFromCloud(supabase as any)).resolves.toBeNull();
+		// None of these should throw. syncProgress/syncSettings now return false on
+		// a caught error (was void). Loads report 'error' (getUser rejected).
+		await expect(syncProgressToCloud(supabase as any, makeProgress())).resolves.toBe(false);
+		expect((await loadProgressFromCloud(supabase as any)).status).toBe('error');
 		await expect(syncSettingsToCloud(supabase as any, {
 			instrumentId: 'sax', defaultTempo: 120, masterVolume: 0.8,
 			metronomeEnabled: true, metronomeVolume: 0.6,
 			backingTrackEnabled: false, backingInstrument: 'piano', backingTrackVolume: 0.5,
 			swing: 0.5,
 			theme: 'dark', onboardingComplete: true, tonalityOverride: null,
-			highestNote: null
-		})).resolves.toBeUndefined();
-		await expect(loadSettingsFromCloud(supabase as any)).resolves.toBeNull();
+			highestNote: null,
+			backingStyle: 'swing', bleedFilterEnabled: false
+		})).resolves.toBe(false);
+		expect((await loadSettingsFromCloud(supabase as any)).status).toBe('error');
 		await expect(syncUserLicksToCloud(supabase as any, [])).resolves.toBeUndefined();
 		await expect(uploadRecording(supabase as any, 'id', new Blob())).resolves.toBeUndefined();
 		await expect(downloadRecording(supabase as any, 'id')).resolves.toBeNull();

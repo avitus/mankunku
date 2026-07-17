@@ -18,11 +18,18 @@ vi.stubGlobal('localStorage', {
 	clear: vi.fn(() => store.clear())
 });
 
-// Mock the sync module to control what "cloud" returns
+// Mock the sync module to control what "cloud" returns. The sync-level
+// loadSettingsFromCloud is now tri-state (CloudLoad<T>): tests drive it via
+// mockFetchSettings returning a bare settings object (or null), and this wrapper
+// adapts that to { status:'ok', data } / { status:'empty' }. On a non-'ok'
+// result the state module leaves the reactive `settings` untouched.
 const mockFetchSettings = vi.fn();
 vi.mock('$lib/persistence/sync', () => ({
-	syncSettingsToCloud: vi.fn().mockResolvedValue(undefined),
-	loadSettingsFromCloud: (...args: unknown[]) => mockFetchSettings(...args)
+	syncSettingsToCloud: vi.fn().mockResolvedValue(true),
+	loadSettingsFromCloud: async (...args: unknown[]) => {
+		const data = await mockFetchSettings(...args);
+		return data == null ? { status: 'empty' } : { status: 'ok', data };
+	}
 }));
 
 let settingsModule: typeof import('$lib/state/settings.svelte');

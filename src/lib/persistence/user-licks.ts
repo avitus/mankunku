@@ -19,12 +19,16 @@ import type {
 	PhraseCategory
 } from '$lib/types/music';
 import { save, load } from './storage';
-import { syncLickMetadataToCloud, syncUserLicksToCloud } from './sync';
 import { getScopeGeneration, getLastUserId } from './user-scope';
+import { enqueue } from './outbox';
 import { getStolenLicksLocal } from './community';
 import { writtenKeyToConcert } from '$lib/music/transposition';
 import { getProgressionsForCategory } from '$lib/data/progressions';
-import { ensureProgressionTag } from './lick-practice-store';
+import {
+	ensureProgressionTag,
+	stampTagOverrideMtime,
+	stampCategoryOverrideMtime
+} from './lick-practice-store';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
@@ -47,6 +51,45 @@ const STORAGE_KEY = 'user-licks';
  * preserved by the merge — we don't have grounds to call them contamination.
  */
 const OWNERS_KEY = 'user-licks-owners';
+
+/**
+ * Parallel map `lickId → { mtime, deletedAt }` giving each user lick a
+ * client-owned edit clock and a soft-delete tombstone, kept out of the `Phrase`
+ * shape (which is shared app-wide). `mtime` (Date.now() ms) is what the
+ * cross-device merge compares — NOT the trigger-clobbered `updated_at`. A
+ * `deletedAt` marks a tombstone so a delete on one device propagates instead of
+ * being resurrected by another device's push.
+ */
+const LICK_META_KEY = 'user-licks-meta';
+
+interface LickSyncMeta {
+	mtime: number;
+	deletedAt?: number;
+}
+
+function loadLickMetaMap(): Record<string, LickSyncMeta> {
+	const raw = load<Record<string, LickSyncMeta>>(LICK_META_KEY);
+	return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+}
+
+function saveLickMetaMap(map: Record<string, LickSyncMeta>): void {
+	save(LICK_META_KEY, map);
+}
+
+/** Stamp a lick as edited now (clears any tombstone). */
+function stampLickEdited(id: string): void {
+	const map = loadLickMetaMap();
+	map[id] = { mtime: Date.now() };
+	saveLickMetaMap(map);
+}
+
+/** Stamp a lick as deleted now (tombstone). */
+function stampLickDeleted(id: string): void {
+	const map = loadLickMetaMap();
+	const now = Date.now();
+	map[id] = { mtime: now, deletedAt: now };
+	saveLickMetaMap(map);
+}
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
@@ -214,206 +257,234 @@ export function migrateUserLicksKeyWrittenToConcert(instrument: InstrumentConfig
  */
 export async function getUserLicks(
 	supabase?: SupabaseClient<Database>,
-	knownUserId?: string
+	_knownUserId?: string
 ): Promise<Phrase[]> {
-	const localLicks = load<Phrase[]>(STORAGE_KEY) ?? [];
-	const gen = getScopeGeneration();
+	// Without a Supabase client, return local-only licks (anonymous/offline mode).
+	if (!supabase) return getUserLicksLocal();
 
-	// Without a Supabase client, return local-only licks (anonymous/offline mode)
-	if (!supabase) {
-		return localLicks;
+	// Reconcile local↔cloud (per-id mtime + tombstones), then return the current
+	// LIVE local set. reconcileUserLicks re-reads localStorage at persist time,
+	// so a concurrent saveUserLick is never clobbered by a stale pre-await
+	// snapshot (the bug the sibling init function was already fixed for), and
+	// tombstoned licks are excluded because they aren't written to the live set.
+	try {
+		await reconcileUserLicks(supabase);
+	} catch (err) {
+		console.warn('Failed to reconcile cloud licks:', err);
+	}
+	return getUserLicksLocal();
+}
+
+/** Map a cloud row to a Phrase. */
+function cloudRowToPhrase(row: Database['public']['Tables']['user_licks']['Row']): Phrase {
+	return {
+		id: row.id,
+		name: row.name,
+		key: row.key as PitchClass,
+		timeSignature: row.time_signature as [number, number],
+		notes: row.notes as unknown as Note[],
+		harmony: row.harmony as unknown as HarmonicSegment[],
+		difficulty: row.difficulty as unknown as DifficultyMetadata,
+		category: row.category as PhraseCategory,
+		tags: row.tags ?? [],
+		source: row.source
+	};
+}
+
+/** Build a full upsert row from a Phrase, stamping the client edit clock. */
+function phraseToRow(
+	userId: string,
+	lick: Phrase,
+	mtime: number
+): Database['public']['Tables']['user_licks']['Insert'] {
+	return {
+		id: lick.id,
+		user_id: userId,
+		name: lick.name,
+		key: lick.key as string,
+		time_signature: lick.timeSignature as number[],
+		notes: lick.notes as unknown as Json,
+		harmony: lick.harmony as unknown as Json,
+		difficulty: lick.difficulty as unknown as Json,
+		category: lick.category as string,
+		tags: lick.tags,
+		source: lick.source as string,
+		audio_url: null,
+		deleted_at: null,
+		client_mtime: mtime,
+		updated_at: new Date().toISOString()
+	};
+}
+
+/**
+ * Core bidirectional reconcile between local and cloud user licks, resolved
+ * per-id by the client-owned `client_mtime` with soft-delete tombstones:
+ *  - a side with a strictly newer mtime wins (live edit or tombstone);
+ *  - a tombstone deletes the lick everywhere and is never resurrected by a
+ *    stale push;
+ *  - a genuinely newer re-creation still wins over an older tombstone.
+ *
+ * Throws on auth/query/push failure (so the outbox retries). Aborts silently on
+ * a mid-flight user switch. Never deletes cloud rows: deletions are tombstones.
+ */
+async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<void> {
+	const gen = getScopeGeneration();
+	const {
+		data: { user }
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error('not authenticated');
+	if (gen !== getScopeGeneration()) return;
+	const userId = user.id;
+
+	// Pull ALL rows for this user, INCLUDING tombstones (owner reads its own
+	// tombstoned rows per the migration-00019 SELECT policy), so deletes made on
+	// other devices propagate here.
+	const { data, error } = await supabase.from('user_licks').select('*').eq('user_id', userId);
+	if (error) throw new Error(`fetch user licks failed: ${error.message}`);
+	if (gen !== getScopeGeneration()) return;
+
+	const cloudById = new Map<
+		string,
+		{ row: Database['public']['Tables']['user_licks']['Row']; mtime: number; deletedAt: number | null }
+	>();
+	for (const row of data ?? []) {
+		cloudById.set(row.id, {
+			row,
+			mtime: typeof row.client_mtime === 'number' ? row.client_mtime : 0,
+			deletedAt: row.deleted_at ? Date.parse(row.deleted_at) : null
+		});
 	}
 
-	// Fetch cloud licks and merge with local — graceful fallback on error
-	try {
-		// Filter by user_id explicitly. The SELECT policy on user_licks is open
-		// to any authenticated user (migration 00013, for community browse), so
-		// an unfiltered select returns every author's licks and contaminates
-		// localStorage. If the session is missing, fall back to local-only.
-		//
-		// Prefer the caller-supplied id (already JWT-validated server-side in
-		// hooks.server.ts and passed down via layout data) to skip a network
-		// auth.getUser() round-trip on every library mount. Fall back to
-		// getUser() only when no id was threaded in.
-		let userId = knownUserId ?? null;
-		if (!userId) {
-			const { data: { user } } = await supabase.auth.getUser();
-			userId = user?.id ?? null;
+	const localById = new Map(getUserLicksLocal().map((l) => [l.id, l]));
+	const meta = loadLickMetaMap();
+	const owners = loadOwners();
+	let metaDirty = false;
+	let ownersDirty = false;
+
+	const mergedLive = new Map<string, Phrase>();
+	const liveRows: Database['public']['Tables']['user_licks']['Insert'][] = [];
+	const tombstones: { id: string; deletedAt: number }[] = [];
+
+	const setMeta = (id: string, m: LickSyncMeta) => {
+		meta[id] = m;
+		metaDirty = true;
+	};
+	const claimOwner = (id: string) => {
+		if (owners[id] !== userId) {
+			owners[id] = userId;
+			ownersDirty = true;
 		}
-		if (!userId) return localLicks;
-		// User switched mid-flight — drop the result rather than persisting
-		// the previous user's data into the new session's localStorage.
-		if (gen !== getScopeGeneration()) return localLicks;
+	};
 
-		const { data, error } = await supabase
-			.from('user_licks')
-			.select('*')
-			.eq('user_id', userId);
+	for (const id of new Set<string>([...localById.keys(), ...cloudById.keys()])) {
+		const local = localById.get(id);
+		const cloud = cloudById.get(id);
+		const lm = meta[id];
+		const localMtime = lm?.mtime ?? 0;
+		const localDeleted = lm?.deletedAt ?? null;
 
-		if (error) {
-			console.warn('Failed to fetch cloud licks:', error);
-			return localLicks;
+		// Defense-in-depth: a local-only entry stamped for a different user is
+		// contamination from a prior unfiltered-read regression — drop it.
+		if (local && !cloud) {
+			const owner = owners[id];
+			if (owner && owner !== userId) continue;
 		}
-		if (gen !== getScopeGeneration()) return localLicks;
 
-		// Map snake_case database rows to camelCase Phrase objects
-		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({
-			id: row.id,
-			name: row.name,
-			key: row.key as PitchClass,
-			timeSignature: row.time_signature as [number, number],
-			notes: row.notes as unknown as Note[],
-			harmony: row.harmony as unknown as HarmonicSegment[],
-			difficulty: row.difficulty as unknown as DifficultyMetadata,
-			category: row.category as PhraseCategory,
-			tags: row.tags ?? [],
-			source: row.source
-		}));
-
-		// Merge: cloud versions take precedence for duplicate IDs.
-		// Local-only entries are preserved IFF their owner stamp matches the
-		// current user (or is absent — pre-stamp legacy / offline-saved).
-		// A stamp pointing at a different user is contamination from a prior
-		// regression and gets dropped here, with its stamp removed too.
-		const merged = new Map<string, Phrase>();
-		const owners = loadOwners();
-		const stampedOwners = { ...owners };
-		let ownersDirty = false;
-
-		for (const lick of cloudLicks) {
-			merged.set(lick.id, lick);
-			if (stampedOwners[lick.id] !== userId) {
-				stampedOwners[lick.id] = userId;
-				ownersDirty = true;
-			}
-		}
-		for (const lick of localLicks) {
-			if (merged.has(lick.id)) continue;
-			const owner = owners[lick.id];
-			if (owner && owner !== userId) {
-				delete stampedOwners[lick.id];
-				ownersDirty = true;
+		if (cloud && !local) {
+			if (cloud.deletedAt) {
+				if (!localDeleted || localDeleted < cloud.deletedAt) {
+					setMeta(id, { mtime: cloud.mtime, deletedAt: cloud.deletedAt });
+				}
 				continue;
 			}
-			merged.set(lick.id, lick);
+			if (localDeleted && localDeleted >= cloud.mtime) {
+				tombstones.push({ id, deletedAt: localDeleted }); // our delete wins
+				continue;
+			}
+			mergedLive.set(id, cloudRowToPhrase(cloud.row));
+			setMeta(id, { mtime: cloud.mtime });
+			claimOwner(id);
+			continue;
 		}
-		const result = Array.from(merged.values());
 
-		// Persist merged licks to localStorage so getUserLicksLocal() — used by
-		// getAllLicks(), getPracticeLicks(), and backfillPracticeTags — includes
-		// cloud-only licks that haven't been entered on this device.
-		save(STORAGE_KEY, result);
-		if (ownersDirty) save(OWNERS_KEY, stampedOwners);
+		if (local && !cloud) {
+			if (localDeleted) {
+				tombstones.push({ id, deletedAt: localDeleted });
+			} else {
+				const m = localMtime || Date.now();
+				mergedLive.set(id, local);
+				liveRows.push(phraseToRow(userId, local, m));
+				if (!lm) setMeta(id, { mtime: m });
+				claimOwner(id);
+			}
+			continue;
+		}
 
-		return result;
-	} catch (err) {
-		console.warn('Failed to fetch cloud licks:', err);
-		return localLicks;
+		if (local && cloud) {
+			if (localMtime > cloud.mtime) {
+				if (localDeleted) tombstones.push({ id, deletedAt: localDeleted });
+				else {
+					mergedLive.set(id, local);
+					liveRows.push(phraseToRow(userId, local, localMtime));
+				}
+			} else if (cloud.mtime > localMtime) {
+				if (cloud.deletedAt) setMeta(id, { mtime: cloud.mtime, deletedAt: cloud.deletedAt });
+				else {
+					mergedLive.set(id, cloudRowToPhrase(cloud.row));
+					setMeta(id, { mtime: cloud.mtime });
+				}
+			} else {
+				// Equal mtime — keep local; adopt a cloud tombstone if present.
+				if (cloud.deletedAt) setMeta(id, { mtime: cloud.mtime, deletedAt: cloud.deletedAt });
+				else if (!localDeleted) mergedLive.set(id, local);
+			}
+			claimOwner(id);
+		}
+	}
+
+	if (gen !== getScopeGeneration()) return;
+
+	save(STORAGE_KEY, Array.from(mergedLive.values()));
+	if (metaDirty) saveLickMetaMap(meta);
+	if (ownersDirty) save(OWNERS_KEY, owners);
+
+	if (liveRows.length > 0) {
+		const { error: upErr } = await supabase.from('user_licks').upsert(liveRows, { onConflict: 'id' });
+		if (upErr) throw new Error(`push user licks failed: ${upErr.message}`);
+	}
+	for (const t of tombstones) {
+		// UPDATE (not upsert) so a tombstone for a lick that never reached cloud
+		// is a harmless 0-row no-op instead of a NOT NULL insert failure.
+		const { error: tErr } = await supabase
+			.from('user_licks')
+			.update({ deleted_at: new Date(t.deletedAt).toISOString(), client_mtime: t.deletedAt })
+			.eq('id', t.id)
+			.eq('user_id', userId);
+		if (tErr) throw new Error(`tombstone user lick failed: ${tErr.message}`);
 	}
 }
 
 /**
- * Bidirectional startup sync: push local-only licks to cloud, pull the
- * authoritative cloud set back to localStorage.
- *
- * Called once from +layout.ts during app startup hydration. Sets the
- * module-level `_supabase` reference for fire-and-forget sync in
- * subsequent write operations.
- *
- * Strategy:
- *  1. Push all local licks to cloud (upsert — safe for duplicates)
- *  2. Fetch all cloud licks (now includes anything just pushed)
- *  3. Replace localStorage with cloud set (cloud is truth after push)
- *
- * Returns `true` when the full push+pull+merge completed, `false` when it
- * bailed for any reason (unverifiable auth, fetch error, user switch
- * mid-flight). `runLickMetadataMaintenance` gates destructive metadata
- * maintenance on this report — a silent bail here leaves getAllLicks()
- * partial, which the reconciler would misread as mass orphaning.
+ * Startup hydration of user licks. Returns `true` when the reconcile completed,
+ * `false` on any failure/mid-flight switch. `runLickMetadataMaintenance` gates
+ * destructive maintenance on this report.
  */
 export async function initUserLicksFromCloud(
 	supabase: SupabaseClient<Database>
 ): Promise<boolean> {
 	_supabase = supabase;
-	const gen = getScopeGeneration();
 	try {
-		// Verify auth before touching localStorage — an expired session would
-		// return zero rows from the RLS-filtered select, wiping local licks.
-		const { data: { user } } = await supabase.auth.getUser();
-		if (!user) return false;
-		if (gen !== getScopeGeneration()) return false; // User switched mid-flight
-
-		const localLicks = getUserLicksLocal();
-
-		// Push local licks to cloud (bulk upsert, idempotent). Skipped if a
-		// user switch happened after this function started — the wipe would
-		// have already emptied local state, but guard defensively so we never
-		// stamp stale licks with the new user's ID via upsert.
-		if (localLicks.length > 0 && gen === getScopeGeneration()) {
-			await syncUserLicksToCloud(supabase, localLicks);
-			if (gen !== getScopeGeneration()) return false;
-		}
-
-		// Pull cloud licks — now the complete set. Filter by user_id: the
-		// SELECT policy is open to any authenticated user (migration 00013)
-		// so an unfiltered select returns every author's licks.
-		const { data, error } = await supabase
-			.from('user_licks')
-			.select('*')
-			.eq('user_id', user.id);
-		if (error) {
-			console.warn('Failed to fetch cloud licks during startup sync:', error);
-			return false;
-		}
-		if (gen !== getScopeGeneration()) return false; // User switched mid-flight
-
-		const cloudLicks: Phrase[] = (data ?? []).map((row) => ({
-			id: row.id,
-			name: row.name,
-			key: row.key as PitchClass,
-			timeSignature: row.time_signature as [number, number],
-			notes: row.notes as unknown as Note[],
-			harmony: row.harmony as unknown as HarmonicSegment[],
-			difficulty: row.difficulty as unknown as DifficultyMetadata,
-			category: row.category as PhraseCategory,
-			tags: row.tags ?? [],
-			source: row.source
-		}));
-
-		// Merge rather than replace: any licks added locally during the
-		// push+pull awaits (e.g. user saved while hydration ran in background
-		// after the 2s layout timeout) must not be dropped. Filter local-only
-		// entries by owner stamp — a stamp pointing at a different user means
-		// contamination from a prior unfiltered-read regression and gets
-		// dropped along with its stamp.
-		const cloudById = new Map(cloudLicks.map((l) => [l.id, l]));
-		const owners = loadOwners();
-		const stampedOwners = { ...owners };
-		let ownersDirty = false;
-
-		for (const lick of cloudLicks) {
-			if (stampedOwners[lick.id] !== user.id) {
-				stampedOwners[lick.id] = user.id;
-				ownersDirty = true;
-			}
-		}
-		for (const l of getUserLicksLocal()) {
-			if (cloudById.has(l.id)) continue;
-			const owner = owners[l.id];
-			if (owner && owner !== user.id) {
-				delete stampedOwners[l.id];
-				ownersDirty = true;
-				continue;
-			}
-			cloudById.set(l.id, l);
-		}
-		save(STORAGE_KEY, Array.from(cloudById.values()));
-		if (ownersDirty) save(OWNERS_KEY, stampedOwners);
+		await reconcileUserLicks(supabase);
 		return true;
 	} catch (error) {
 		console.warn('Failed to sync user licks from cloud:', error);
 		return false;
 	}
+}
+
+/** Outbox flush handler: reconcile local↔cloud user licks. Throws so it retries. */
+export async function flushUserLicksToCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	await reconcileUserLicks(supabase);
 }
 
 /**
@@ -450,43 +521,14 @@ export function saveUserLick(
 	}
 	save(STORAGE_KEY, licks);
 
-	// Stamp ownership so the cloud-merge can later distinguish legitimate
-	// local-only entries from contamination introduced by an upstream bug.
-	// When unauthenticated (no marker), skip the stamp — pre-stamp licks
-	// get benefit-of-the-doubt treatment in the merge.
+	// Stamp ownership + the client edit clock (drives cross-device merge), then
+	// queue a durable, merge-aware cloud sync via the outbox.
 	const ownerId = getLastUserId();
 	if (ownerId) setOwner(toSave.id, ownerId);
+	stampLickEdited(toSave.id);
 
-	// Fire-and-forget cloud sync — fetch user ID then upsert to user_licks table
 	const sb = supabase ?? _supabase;
-	if (sb) {
-		sb.auth
-			.getUser()
-			.then(({ data: { user } }) => {
-				if (!user) return;
-				return sb.from('user_licks').upsert({
-					id: toSave.id,
-					user_id: user.id,
-					name: toSave.name,
-					key: toSave.key,
-					time_signature: toSave.timeSignature,
-					notes: toSave.notes as unknown as Json,
-					harmony: toSave.harmony as unknown as Json,
-					difficulty: toSave.difficulty as unknown as Json,
-					category: toSave.category,
-					tags: toSave.tags,
-					source: toSave.source,
-					audio_url: null,
-					updated_at: new Date().toISOString()
-				});
-			})
-			.then((result) => {
-				if (result?.error) console.warn('Failed to save lick to cloud:', result.error);
-			})
-			.catch((err) => {
-				console.warn('Failed to save lick to cloud (unexpected):', err);
-			});
-	}
+	if (sb) enqueue('userLicks');
 	return toSave;
 }
 
@@ -513,21 +555,8 @@ export function updateUserLickTags(
 	if (idx !== -1) {
 		licks[idx] = { ...licks[idx], tags };
 		save(STORAGE_KEY, licks);
-
-		// Fire-and-forget cloud sync for user licks
-		if (sb) {
-			Promise.resolve(
-				sb.from('user_licks')
-					.update({ tags, updated_at: new Date().toISOString() })
-					.eq('id', id)
-			)
-				.then(({ error }) => {
-					if (error) console.warn('Failed to sync lick tags to cloud:', error);
-				})
-				.catch((err: unknown) => {
-					console.warn('Failed to sync lick tags to cloud (unexpected):', err);
-				});
-		}
+		stampLickEdited(id);
+		if (sb) enqueue('userLicks');
 		return;
 	}
 
@@ -539,15 +568,12 @@ export function updateUserLickTags(
 		return;
 	}
 
-	// For curated licks, store tag overrides separately
+	// For curated licks, store tag overrides separately (synced as lick metadata).
 	const overrides = load<Record<string, string[]>>(TAGS_OVERRIDE_KEY) ?? {};
 	overrides[id] = tags;
 	save(TAGS_OVERRIDE_KEY, overrides);
-
-	// Fire-and-forget sync tag overrides to cloud
-	if (sb) {
-		syncLickMetadataToCloud(sb, { tagOverrides: overrides }).catch(() => {});
-	}
+	stampTagOverrideMtime(id);
+	if (sb) enqueue('lickMeta');
 }
 
 /** Get tag overrides for curated licks */
@@ -577,34 +603,19 @@ export function updateLickCategory(
 	if (idx !== -1) {
 		licks[idx] = { ...licks[idx], category };
 		save(STORAGE_KEY, licks);
-
-		if (sb) {
-			Promise.resolve(
-				sb.from('user_licks')
-					.update({ category, updated_at: new Date().toISOString() })
-					.eq('id', id)
-			)
-				.then(({ error }) => {
-					if (error) console.warn('Failed to sync lick category to cloud:', error);
-				})
-				.catch((err: unknown) => {
-					console.warn('Failed to sync lick category to cloud (unexpected):', err);
-				});
-		}
+		stampLickEdited(id);
+		if (sb) enqueue('userLicks');
 		applied = true;
 	} else if (getStolenLicksLocal().some((l) => l.id === id)) {
 		console.warn(`Refusing to edit category on stolen lick ${id}; stolen licks are read-only.`);
 		return;
 	} else {
-		// For curated licks, store category overrides separately
+		// For curated licks, store category overrides separately (lick metadata).
 		const overrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDE_KEY) ?? {};
 		overrides[id] = category;
 		save(CATEGORY_OVERRIDE_KEY, overrides);
-
-		// Fire-and-forget sync category overrides to cloud
-		if (sb) {
-			syncLickMetadataToCloud(sb, { categoryOverrides: overrides }).catch(() => {});
-		}
+		stampCategoryOverrideMtime(id);
+		if (sb) enqueue('lickMeta');
 		applied = true;
 	}
 
@@ -656,21 +667,12 @@ export function deleteUserLick(
 
 	save(STORAGE_KEY, licks.filter((l) => l.id !== id));
 	removeOwner(id);
+	// Write a soft-delete tombstone (with a fresh mtime) so the deletion
+	// propagates across devices and can't be resurrected by a stale push, then
+	// queue a merge-aware sync. The reconcile turns this into a cloud UPDATE
+	// setting deleted_at (a no-op if the lick never reached the cloud).
+	stampLickDeleted(id);
 
-	// Fire-and-forget cloud delete — RLS ensures user can only delete own licks
 	const sb = supabase ?? _supabase;
-	if (sb) {
-		Promise.resolve(
-			sb
-				.from('user_licks')
-				.delete()
-				.eq('id', id)
-		)
-			.then(({ error }) => {
-				if (error) console.warn('Failed to delete lick from cloud:', error);
-			})
-			.catch((err: unknown) => {
-				console.warn('Failed to delete lick from cloud (unexpected):', err);
-			});
-	}
+	if (sb) enqueue('userLicks');
 }

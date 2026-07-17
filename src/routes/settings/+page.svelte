@@ -219,13 +219,14 @@
 				alert(data.error || 'Failed to delete account. Please try again.');
 				return;
 			}
-			// Clear all local state
+			// Erase this user's local data properly: their namespaced bucket, their
+			// IndexedDB recordings, and the runtime cache. (The old cleanup used
+			// unprefixed removeItem calls that were no-ops, leaving all local data
+			// readable by the next browser user.)
 			try {
-				localStorage.removeItem('settings');
-				localStorage.removeItem('progress');
-				localStorage.removeItem('user-licks');
-				const { clearAllRecordings } = await import('$lib/persistence/audio-store');
-				await clearAllRecordings();
+				const { wipeUserData } = await import('$lib/persistence/user-scope');
+				const { getActiveUid } = await import('$lib/persistence/namespace');
+				await wipeUserData(getActiveUid());
 			} catch {
 				// Best-effort cleanup — proceed to redirect regardless
 			}
@@ -773,11 +774,8 @@
 							<button
 								onclick={async () => {
 									try {
-										resetProgress(supabase);
-										settings.tonalityOverride = null;
-										saveSettings(supabase);
-										const { clearAllRecordings } = await import('$lib/persistence/audio-store');
-										await clearAllRecordings();
+										const { resetAllPracticeData } = await import('$lib/state/reset');
+										await resetAllPracticeData(supabase);
 									} catch (err) {
 										console.warn('Failed to fully reset progress:', err);
 									} finally {

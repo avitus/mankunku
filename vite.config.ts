@@ -56,16 +56,15 @@ export default defineConfig({
                     }
                 },
                 {
-                    urlPattern: /^https:\/\/.*\.supabase\.co\/.*/,
-                    handler: 'NetworkFirst',
-                    options: {
-                        cacheName: 'supabase-api',
-                        expiration: {
-                            maxEntries: 50,
-                            maxAgeSeconds: 5 * 60
-                        },
-                        networkTimeoutSeconds: 10
-                    }
+                    // Auth verification and user data (REST) must never be served
+                    // from a URL-keyed cache: the cache ignores the Authorization
+                    // header, so around an account switch (offline / within TTL) a
+                    // NetworkFirst cache could serve the PREVIOUS user's identity or
+                    // rows into the next user's session. NetworkOnly = always fresh,
+                    // never cross-user. (Public assets like soundfonts keep their own
+                    // CacheFirst entry above.)
+                    urlPattern: /^https:\/\/.*\.supabase\.co\/(auth|rest)\/.*/,
+                    handler: 'NetworkOnly'
                 }
             ]
         }

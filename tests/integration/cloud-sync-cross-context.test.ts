@@ -58,6 +58,8 @@ interface SettingsPayload {
 	onboardingComplete: boolean;
 	tonalityOverride: unknown;
 	highestNote: number | null;
+	backingStyle: string;
+	bleedFilterEnabled: boolean;
 }
 
 function settingsRow(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
@@ -75,6 +77,8 @@ function settingsRow(overrides: Partial<SettingsPayload> = {}): SettingsPayload 
 		onboardingComplete: true,
 		tonalityOverride: null,
 		highestNote: null,
+		backingStyle: 'swing',
+		bleedFilterEnabled: false,
 		...overrides
 	};
 }
@@ -132,7 +136,8 @@ describe('LWW — two devices write to same settings row', () => {
 			auth: { userId: 'user-A' }
 		}) as Parameters<typeof loadSettingsFromCloud>[0];
 		const pulled = await loadSettingsFromCloud(deviceC);
-		expect(pulled?.defaultTempo).toBe(140);
+		expect(pulled.status).toBe('ok');
+		if (pulled.status === 'ok') expect(pulled.data.defaultTempo).toBe(140);
 	});
 
 	it('writes by different users land in different rows (no cross-user clobber)', async () => {
@@ -244,6 +249,7 @@ describe('LWW — two devices write to same user_progress row', () => {
 			auth: { userId: 'user-A' }
 		}) as Parameters<typeof loadProgressFromCloud>[0];
 		const pulled = await loadProgressFromCloud(deviceC);
-		expect(pulled?.adaptive.currentLevel).toBe(70);
+		expect(pulled.status).toBe('ok');
+		if (pulled.status === 'ok') expect(pulled.data.adaptive.currentLevel).toBe(70);
 	});
 });
