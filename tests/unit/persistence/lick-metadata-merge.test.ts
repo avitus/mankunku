@@ -126,7 +126,10 @@ describe('mergeLickMetadata', () => {
 	});
 
 	it('ignores prototype-polluting ids', () => {
-		const local = bundle({ lickTags: { __proto__: ['x'] } as unknown as Record<string, string[]> }, {});
+		// JSON.parse creates an OWN enumerable "__proto__" key (an object literal
+		// would set the prototype instead), so this actually exercises the guard.
+		const lickTags = JSON.parse('{"__proto__":["x"]}') as Record<string, string[]>;
+		const local = bundle({ lickTags }, {});
 		const cloud = bundle({ lickTags: {} }, {});
 		const merged = mergeLickMetadata(local, cloud);
 		expect(Object.prototype.hasOwnProperty.call(merged.data.lickTags, '__proto__')).toBe(false);

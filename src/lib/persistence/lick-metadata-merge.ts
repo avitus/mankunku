@@ -84,8 +84,10 @@ function mergeById<V>(
 		const mtime = Math.max(lm, cm);
 		if (mtime > 0) mtimes[id] = mtime;
 
-		const localHas = !!localVals && id in localVals;
-		const cloudHas = !!cloudVals && id in cloudVals;
+		// Own-property checks — `in` would treat inherited keys (e.g. `toString`)
+		// as persisted data and clobber the real value.
+		const localHas = !!localVals && Object.prototype.hasOwnProperty.call(localVals, id);
+		const cloudHas = !!cloudVals && Object.prototype.hasOwnProperty.call(cloudVals, id);
 		if (localHas && cloudHas) {
 			vals[id] = lm >= cm ? (localVals as Record<string, V>)[id] : (cloudVals as Record<string, V>)[id];
 		} else if (localHas) {
