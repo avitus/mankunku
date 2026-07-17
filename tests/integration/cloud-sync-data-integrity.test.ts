@@ -128,17 +128,18 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('loadProgressFromCloud — malformed cloud data', () => {
-	it('returns null gracefully when no progress row exists', async () => {
+	it('reports empty gracefully when no progress row exists', async () => {
 		const supabase = supabaseWith('u1', {
 			user_progress: chainMock('user_progress', {
 				maybeSingle: { data: null, error: null }
 			})
 		});
 		const result = await loadProgressFromCloud(supabase as never);
-		expect(result).toBeNull();
+		// No row (data:null,error:null) is an affirmative empty, not an error.
+		expect(result.status).toBe('empty');
 	});
 
-	it('returns null when the progress fetch reports an error', async () => {
+	it('reports error when the progress fetch reports an error', async () => {
 		const supabase = supabaseWith('u1', {
 			user_progress: chainMock('user_progress', {
 				maybeSingle: { data: null, error: { message: 'unexpected' } }
@@ -147,10 +148,10 @@ describe('loadProgressFromCloud — malformed cloud data', () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const result = await loadProgressFromCloud(supabase as never);
 		warnSpy.mockRestore();
-		expect(result).toBeNull();
+		expect(result.status).toBe('error');
 	});
 
-	it('returns null when session_results fetch fails even though progress loaded', async () => {
+	it('reports error when session_results fetch fails even though progress loaded', async () => {
 		const supabase = supabaseWith('u1', {
 			user_progress: chainMock('user_progress', {
 				maybeSingle: {
@@ -175,7 +176,8 @@ describe('loadProgressFromCloud — malformed cloud data', () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const result = await loadProgressFromCloud(supabase as never);
 		warnSpy.mockRestore();
-		expect(result).toBeNull();
+		// A partial pull (a sub-query errored) is reported as error, not empty.
+		expect(result.status).toBe('error');
 	});
 
 	it('survives malformed adaptive_state JSON without throwing', async () => {
@@ -232,7 +234,7 @@ describe('loadProgressFromCloud — malformed cloud data', () => {
 		});
 
 		const result = await loadProgressFromCloud(supabase as never);
-		expect(result).not.toBeNull();
+		expect(result.status).toBe('ok');
 	});
 });
 
@@ -271,7 +273,10 @@ describe('partial sync failures', () => {
 		];
 
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		await expect(syncProgressToCloud(supabase as never, progress)).resolves.toBeUndefined();
+		// The batch AND the per-row fallback fail here, so a session row is left
+		// unsynced. The function does NOT throw (offline resilience) but returns
+		// FALSE so the outbox retries rather than dequeuing a partial push.
+		await expect(syncProgressToCloud(supabase as never, progress)).resolves.toBe(false);
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
 	});
@@ -344,10 +349,11 @@ describe('loadSettingsFromCloud — bad inputs', () => {
 		});
 
 		const result = await loadSettingsFromCloud(supabase as never);
-		expect(result).not.toBeNull();
+		expect(result.status).toBe('ok');
+		if (result.status !== 'ok') return;
 		// highestNote null → passes through; caller uses instrument default.
-		expect(result!.highestNote).toBeNull();
-		expect(result!.tonalityOverride).toBeNull();
+		expect(result.data.highestNote).toBeNull();
+		expect(result.data.tonalityOverride).toBeNull();
 	});
 
 	it('coerces a null backing-track volume to the default 0.6', async () => {
@@ -376,12 +382,14 @@ describe('loadSettingsFromCloud — bad inputs', () => {
 		});
 
 		const result = await loadSettingsFromCloud(supabase as never);
-		expect(result!.backingTrackVolume).toBe(0.6);
-		expect(result!.backingInstrument).toBe('piano');
-		expect(result!.backingTrackEnabled).toBe(true);
+		expect(result.status).toBe('ok');
+		if (result.status !== 'ok') return;
+		expect(result.data.backingTrackVolume).toBe(0.6);
+		expect(result.data.backingInstrument).toBe('piano');
+		expect(result.data.backingTrackEnabled).toBe(true);
 	});
 
-	it('returns null when the settings fetch reports an error', async () => {
+	it('reports error when the settings fetch reports an error', async () => {
 		const supabase = supabaseWith('u1', {
 			user_settings: chainMock('user_settings', {
 				maybeSingle: { data: null, error: { message: 'down' } }
@@ -391,7 +399,7 @@ describe('loadSettingsFromCloud — bad inputs', () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const result = await loadSettingsFromCloud(supabase as never);
 		warnSpy.mockRestore();
-		expect(result).toBeNull();
+		expect(result.status).toBe('error');
 	});
 });
 
@@ -503,11 +511,14 @@ describe('sync functions never throw', () => {
 			theme: 'dark',
 			onboardingComplete: true,
 			tonalityOverride: null,
-			highestNote: null
+			highestNote: null,
+			backingStyle: 'swing',
+			bleedFilterEnabled: false
 		};
 
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		await expect(syncSettingsToCloud(supabase as never, settings)).resolves.toBeUndefined();
+		// New contract: returns false on the caught auth rejection (was void).
+		await expect(syncSettingsToCloud(supabase as never, settings)).resolves.toBe(false);
 		warnSpy.mockRestore();
 	});
 });

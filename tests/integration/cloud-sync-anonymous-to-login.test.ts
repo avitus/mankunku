@@ -44,10 +44,16 @@ const mockLoadTourState = vi.fn();
 const mockSyncTourState = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('$lib/persistence/sync', () => ({
-	syncProgressToCloud: vi.fn().mockResolvedValue(undefined),
-	loadProgressFromCloud: (...args: unknown[]) => mockLoadProgress(...args),
+	syncProgressToCloud: vi.fn().mockResolvedValue(true),
+	// loadProgressFromCloud is now tri-state; adapt the bare payload the tests
+	// set (a nullish payload becomes 'empty', anything else 'ok' + data).
+	loadProgressFromCloud: async (...args: unknown[]) => {
+		const data = await mockLoadProgress(...args);
+		return data == null ? { status: 'empty' } : { status: 'ok', data };
+	},
 	deleteProgressDetailsFromCloud: vi.fn().mockResolvedValue(undefined),
-	syncSettingsToCloud: vi.fn().mockResolvedValue(undefined),
+	deleteDailySummariesFromCloud: vi.fn().mockResolvedValue(undefined),
+	syncSettingsToCloud: vi.fn().mockResolvedValue(true),
 	loadSettingsFromCloud: (...args: unknown[]) => mockLoadSettings(...args),
 	syncTourStateToCloud: (...args: unknown[]) => mockSyncTourState(...args),
 	loadTourStateFromCloud: (...args: unknown[]) => mockLoadTourState(...args),
@@ -143,7 +149,7 @@ describe('anonymous → first-login: progress migration', () => {
 		expect(progressModule.progress.sessions[0].id).toBe('anon-0');
 	});
 
-	it('50 anonymous sessions + cloud has 30 → local kept (count-based merge)', async () => {
+	it('50 anonymous sessions + cloud has 30 → union keeps all 80', async () => {
 		const localSessions = Array.from({ length: 50 }, (_, i) => session(`anon-${i}`));
 		store.set('mankunku:progress', JSON.stringify(progressWith(localSessions)));
 
@@ -156,29 +162,52 @@ describe('anonymous → first-login: progress migration', () => {
 		const supabase = { auth: {} };
 		await progressModule.initFromCloud(supabase as never);
 
-		// Local has more — local kept. Anonymous burst from this device is
-		// the more complete record.
-		expect(progressModule.progress.sessions).toHaveLength(50);
-		expect(progressModule.progress.sessions[0].id).toBe('anon-0');
+		// New contract: UNION, not count-based "local kept". Every anon session
+		// AND every cloud session survives (80 distinct, under the 100 cap).
+		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
+		expect(progressModule.progress.sessions).toHaveLength(80);
+		for (let i = 0; i < 50; i++) expect(ids.has(`anon-${i}`)).toBe(true);
+		for (let i = 0; i < 30; i++) expect(ids.has(`cloud-${i}`)).toBe(true);
 	});
 
-	it('50 anonymous sessions + cloud has 60 → cloud wins (offline burst was less recent)', async () => {
-		const localSessions = Array.from({ length: 50 }, (_, i) => session(`anon-${i}`));
+	it('50 anonymous sessions + cloud 60 more-recent → union + cap, cloud adaptive wins', async () => {
+		// The offline anon burst is OLDER; the cloud sessions were practiced more
+		// recently (elsewhere, while signed in).
+		const localSessions = Array.from({ length: 50 }, (_, i) => session(`anon-${i}`, 100_000 + i * 1000));
 		store.set('mankunku:progress', JSON.stringify(progressWith(localSessions)));
 
 		vi.resetModules();
 		const progressModule = await import('$lib/state/progress.svelte');
 
-		const cloudSessions = Array.from({ length: 60 }, (_, i) => session(`cloud-${i}`));
-		mockLoadProgress.mockResolvedValue(progressWith(cloudSessions));
+		const cloudSessions = Array.from({ length: 60 }, (_, i) => session(`cloud-${i}`, i * 100));
+		mockLoadProgress.mockResolvedValue(
+			progressWith(cloudSessions, {
+				adaptive: {
+					currentLevel: 99,
+					pitchComplexity: 30,
+					rhythmComplexity: 30,
+					recentScores: [0.9],
+					recentPitchScores: [0.9],
+					recentRhythmScores: [0.9],
+					attemptsAtLevel: 1,
+					attemptsSinceChange: 1,
+					pitchAttemptsSinceChange: 1,
+					rhythmAttemptsSinceChange: 1
+				}
+			})
+		);
 
 		const supabase = { auth: {} };
 		await progressModule.initFromCloud(supabase as never);
 
-		// Cloud > local → cloud wins. Anonymous data is replaced — caller
-		// likely practiced more on another device while signed in.
-		expect(progressModule.progress.sessions).toHaveLength(60);
-		expect(progressModule.progress.sessions.map((s) => s.id)).not.toContain('anon-0');
+		// New contract: UNION (was "cloud wins wholesale"). 60 cloud + 50 anon =
+		// 110 distinct, capped at 100 by timestamp — all 60 recent cloud sessions
+		// survive, the 10 oldest anon fall off the cap.
+		expect(progressModule.progress.sessions).toHaveLength(100);
+		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
+		for (let i = 0; i < 60; i++) expect(ids.has(`cloud-${i}`)).toBe(true);
+		// Adaptive follows the more-recently-practiced (cloud) side.
+		expect(progressModule.progress.adaptive.currentLevel).toBe(99);
 	});
 });
 

@@ -7,11 +7,12 @@
  * `progress.svelte.ts::initFromCloud`.
  *
  * Rules under test:
- *  - cloud.sessions >= local.sessions   → cloud wins, local fully replaced
- *  - cloud.sessions <  local.sessions   → local kept (offline burst preserved)
- *  - Session cap of 100 applies AFTER the merge decision
+ *  - sessions UNION by id (local wins same-id collisions); no distinct session
+ *    from either side is dropped by a count comparison
+ *  - Session cap of 100 applies AFTER the union, keeping newest by timestamp
+ *  - `adaptive` follows whichever side practiced most recently (newest session)
  *  - `lickProgress` is never synced through this path and must survive
- *  - Adaptive state merges forward-compat defaults with cloud values
+ *  - Adaptive state merges forward-compat defaults with the chosen side's values
  *
  * Also covers recording-upload path isolation: each upload is scoped to the
  * authenticated user's storage prefix, so a user switch cannot bleed blobs
@@ -50,8 +51,15 @@ vi.mock('$lib/persistence/sync', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('$lib/persistence/sync')>();
 	return {
 		...actual,
-		loadProgressFromCloud: (...args: unknown[]) => mockLoadProgress(...args),
-		loadSettingsFromCloud: vi.fn().mockResolvedValue(null)
+		// Tests set mockLoadProgress to the cloud UserProgress payload; wrap it in
+		// the tri-state CloudLoad the real initFromCloud now consumes (a nullish
+		// payload becomes 'empty', anything else 'ok' + data).
+		loadProgressFromCloud: async (...args: unknown[]) => {
+			const data = await mockLoadProgress(...args);
+			return data == null ? { status: 'empty' } : { status: 'ok', data };
+		},
+		// New tri-state contract: no settings row → { status: 'empty' }.
+		loadSettingsFromCloud: vi.fn().mockResolvedValue({ status: 'empty' })
 	};
 });
 
@@ -131,16 +139,16 @@ function progressWith(
 // Merge rule: local > cloud → local kept
 // ---------------------------------------------------------------------------
 
-describe('merge rule — local has more sessions than cloud', () => {
-	it('keeps the entire local session list intact (offline burst preserved)', async () => {
-		// Seed local with 80 sessions that aren't in the cloud.
+describe('merge rule — union keeps every distinct session', () => {
+	it('unions the local offline burst with the cloud sessions (nothing dropped)', async () => {
+		// Seed local with 80 sessions that aren't in the cloud (newer timestamps).
 		const localSessions = Array.from({ length: 80 }, (_, i) => session(`local-${i}`, i * 1000));
 		store.set('mankunku:progress', JSON.stringify(progressWith(localSessions)));
 
 		vi.resetModules();
 		const progressModule = await import('$lib/state/progress.svelte');
 
-		// Cloud only knows about 20 (e.g., pre-offline period).
+		// Cloud only knows about 20 (older, e.g., pre-offline period).
 		const cloudSessions = Array.from({ length: 20 }, (_, i) =>
 			session(`cloud-${i}`, (i + 80) * 1000)
 		);
@@ -149,15 +157,18 @@ describe('merge rule — local has more sessions than cloud', () => {
 		const supabase = { auth: {} };
 		await progressModule.initFromCloud(supabase as never);
 
-		expect(progressModule.progress.sessions).toHaveLength(80);
-		// All local session ids preserved.
-		for (let i = 0; i < 80; i++) {
-			expect(progressModule.progress.sessions[i].id).toBe(`local-${i}`);
-		}
+		// New contract: UNION, not "local kept". All 80 local + 20 cloud distinct
+		// sessions survive (100 total, exactly at the cap — none dropped).
+		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
+		expect(progressModule.progress.sessions).toHaveLength(100);
+		for (let i = 0; i < 80; i++) expect(ids.has(`local-${i}`)).toBe(true);
+		for (let i = 0; i < 20; i++) expect(ids.has(`cloud-${i}`)).toBe(true);
 	});
 
-	it('preserves the local adaptive state but still forward-merges defaults', async () => {
-		const localSessions = Array.from({ length: 30 }, (_, i) => session(`local-${i}`));
+	it('takes the adaptive state from whichever side practiced most recently', async () => {
+		// Local practiced more recently (small offsets), so its adaptive buffers
+		// win — the merge picks adaptive by newest session timestamp, not count.
+		const localSessions = Array.from({ length: 30 }, (_, i) => session(`local-${i}`, i));
 		store.set(
 			'mankunku:progress',
 			JSON.stringify(
@@ -181,13 +192,16 @@ describe('merge rule — local has more sessions than cloud', () => {
 		vi.resetModules();
 		const progressModule = await import('$lib/state/progress.svelte');
 
-		mockLoadProgress.mockResolvedValue(progressWith([session('cloud-1')]));
+		// Cloud's single session is much older, so local's adaptive wins.
+		mockLoadProgress.mockResolvedValue(progressWith([session('cloud-1', 100_000)]));
 
 		const supabase = { auth: {} };
 		await progressModule.initFromCloud(supabase as never);
 
-		// Local adaptive state preserved — local had more sessions, so cloud loses.
+		// Local adaptive state preserved — local practiced more recently.
 		expect(progressModule.progress.adaptive.currentLevel).toBe(77);
+		// Forward-compat defaults still fill any missing fields.
+		expect(Array.isArray(progressModule.progress.adaptive.recentPitchScores)).toBe(true);
 	});
 });
 
@@ -195,27 +209,32 @@ describe('merge rule — local has more sessions than cloud', () => {
 // Merge rule: cloud >= local → cloud wins
 // ---------------------------------------------------------------------------
 
-describe('merge rule — cloud has at least as many sessions as local', () => {
-	it('replaces local sessions with cloud when cloud has more', async () => {
+describe('merge rule — union regardless of which side has more', () => {
+	it('unions local and cloud when cloud has more (local sessions survive)', async () => {
 		store.set(
 			'mankunku:progress',
-			JSON.stringify(progressWith([session('local-1'), session('local-2')]))
+			JSON.stringify(progressWith([session('local-1', 1), session('local-2', 2)]))
 		);
 
 		vi.resetModules();
 		const progressModule = await import('$lib/state/progress.svelte');
 
-		const cloud = Array.from({ length: 50 }, (_, i) => session(`cloud-${i}`));
+		const cloud = Array.from({ length: 50 }, (_, i) => session(`cloud-${i}`, 10 + i));
 		mockLoadProgress.mockResolvedValue(progressWith(cloud));
 
 		const supabase = { auth: {} };
 		await progressModule.initFromCloud(supabase as never);
 
-		expect(progressModule.progress.sessions).toHaveLength(50);
-		expect(progressModule.progress.sessions.map((s) => s.id)).not.toContain('local-1');
+		// New contract: UNION (was "cloud replaces local"). Local's 2 sessions
+		// survive alongside the 50 cloud ones — 52 distinct, under the 100 cap.
+		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
+		expect(progressModule.progress.sessions).toHaveLength(52);
+		expect(ids.has('local-1')).toBe(true);
+		expect(ids.has('local-2')).toBe(true);
+		for (let i = 0; i < 50; i++) expect(ids.has(`cloud-${i}`)).toBe(true);
 	});
 
-	it('equal session counts → cloud wins (>= semantics)', async () => {
+	it('equal session counts → union keeps all distinct ids from both sides', async () => {
 		store.set(
 			'mankunku:progress',
 			JSON.stringify(
@@ -233,11 +252,12 @@ describe('merge rule — cloud has at least as many sessions as local', () => {
 		const supabase = { auth: {} };
 		await progressModule.initFromCloud(supabase as never);
 
-		expect(progressModule.progress.sessions.map((s) => s.id)).toEqual([
-			'cloud-1',
-			'cloud-2',
-			'cloud-3'
-		]);
+		// New contract: equal counts no longer means "cloud wins" — all 6 distinct
+		// sessions are retained by the union merge.
+		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
+		expect(ids).toEqual(
+			new Set(['local-1', 'local-2', 'local-3', 'cloud-1', 'cloud-2', 'cloud-3'])
+		);
 	});
 
 	it('applies the 100-session cap to legacy oversized cloud payloads', async () => {
@@ -528,7 +548,9 @@ describe('syncSettingsToCloud timestamps every upsert', () => {
 			theme: 'dark',
 			onboardingComplete: true,
 			tonalityOverride: null,
-			highestNote: null
+			highestNote: null,
+			backingStyle: 'swing',
+			bleedFilterEnabled: false
 		};
 
 		const beforeMs = Date.now();

@@ -42,8 +42,12 @@
 		if (!supabase) return;
 		checkingCloud = true;
 		try {
-			const cloudProgress = await loadProgressFromCloud(supabase);
-			if (cloudProgress && cloudProgress.sessions.length > 0) {
+			// Tri-state: only offer restore when the cloud read AFFIRMATIVELY has
+			// data. On an error (auth/network) we must not fall through and push
+			// fresh default settings over a real cloud row (that clobber was the
+			// onboarding data-loss bug).
+			const result = await loadProgressFromCloud(supabase);
+			if (result.status === 'ok' && result.data.sessions.length > 0) {
 				hasCloudData = true;
 				step = 'restore';
 			}

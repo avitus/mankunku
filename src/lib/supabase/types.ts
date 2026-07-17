@@ -128,6 +128,10 @@ export type Database = {
           highest_note: number | null
           /** Guided tour completion state: { completed: string[], dismissed: string[] } */
           tour_state: Json
+          /** Backing-track feel: swing|bossa-nova|ballad|straight. NULL = 'swing'. */
+          backing_style: string | null
+          /** A/B toggle: use bleed-filtered notes as primary score. NULL = false. */
+          bleed_filter_enabled: boolean | null
           /** Timestamp of last settings update (ISO 8601) */
           updated_at: string
         }
@@ -161,6 +165,10 @@ export type Database = {
           highest_note?: number | null
           /** Defaults to {} in database */
           tour_state?: Json
+          /** NULL = 'swing' */
+          backing_style?: string | null
+          /** NULL = false */
+          bleed_filter_enabled?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -179,6 +187,8 @@ export type Database = {
           tonality_override?: Json | null
           highest_note?: number | null
           tour_state?: Json
+          backing_style?: string | null
+          bleed_filter_enabled?: boolean | null
           updated_at?: string
         }
         Relationships: [
@@ -298,6 +308,8 @@ export type Database = {
           timing: Json | null
           /** Unix timestamp in milliseconds from original SessionResult.timestamp */
           timestamp: number
+          /** Session origin: 'ear-training' | 'lick-practice'. Nullable — NULL reads as 'ear-training'. */
+          source: string | null
         }
         Insert: {
           /** TEXT primary key — generated client-side as ${Date.now()}-${random}, required on insert */
@@ -323,6 +335,8 @@ export type Database = {
           /** JSONB — optional, stores TimingDiagnostics */
           timing?: Json | null
           timestamp: number
+          /** Optional — 'ear-training' | 'lick-practice'; omitted reads as 'ear-training' */
+          source?: string | null
         }
         Update: {
           id?: string
@@ -343,6 +357,7 @@ export type Database = {
           note_results?: Json
           timing?: Json | null
           timestamp?: number
+          source?: string | null
         }
         Relationships: [
           {
@@ -670,6 +685,8 @@ export type Database = {
           category_overrides: Json
           /** JSONB storing Record<lickId, number> — gradual key-unlock count (1-12) per lick */
           unlock_counts: Json
+          /** JSONB per-entry merge metadata (tags/overrides/catOverrides/progressResets/unlockResets → id→mtime). Defaults to {}. */
+          merge_meta: Json
           /** Timestamp of last update (ISO 8601) */
           updated_at: string
         }
@@ -686,6 +703,8 @@ export type Database = {
           category_overrides?: Json
           /** Defaults to '{}' in database */
           unlock_counts?: Json
+          /** Defaults to '{}' in database */
+          merge_meta?: Json
           updated_at?: string
         }
         Update: {
@@ -695,6 +714,7 @@ export type Database = {
           tag_overrides?: Json
           category_overrides?: Json
           unlock_counts?: Json
+          merge_meta?: Json
           updated_at?: string
         }
         Relationships: [
@@ -745,6 +765,10 @@ export type Database = {
           updated_at: string
           /** Denormalized count of favorites (maintained by triggers on lick_favorites). Defaults to 0. */
           favorite_count: number
+          /** Soft-delete tombstone. NULL = live. Set instead of a hard DELETE so deletes propagate. */
+          deleted_at: string | null
+          /** Client-owned edit clock (ms). NOT touched by the updated_at trigger; the field the merge compares. Defaults to 0. */
+          client_mtime: number
         }
         Insert: {
           /** TEXT primary key — generated client-side as user-{timestamp}-{random}, required on insert */
@@ -772,6 +796,10 @@ export type Database = {
           updated_at?: string
           /** Defaults to 0 in database; maintained by triggers on lick_favorites. Do not set manually. */
           favorite_count?: number
+          /** NULL = live; set to a timestamp to tombstone */
+          deleted_at?: string | null
+          /** Client edit clock (ms). Defaults to 0. */
+          client_mtime?: number
         }
         Update: {
           id?: string
@@ -790,6 +818,8 @@ export type Database = {
           updated_at?: string
           /** Maintained by triggers; do not set manually. */
           favorite_count?: number
+          deleted_at?: string | null
+          client_mtime?: number
         }
         Relationships: [
           {

@@ -80,26 +80,21 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	 */
 	const { session, user, isAdmin } = data;
 
-	// Reconcile client-side storage with the currently-authenticated user
-	// BEFORE dynamic state modules evaluate their top-level `$state(loadX())`
-	// initializers. On an affirmative account switch, syncUserScope wipes
-	// localStorage / sessionStorage / IndexedDB so stale state from the prior
-	// user does not leak into the new session. (A null user no longer wipes —
-	// explicit sign-out hygiene lives in the logout UI via
-	// wipeUserScopeOnSignOut; see user-scope.ts.)
+	// Reconcile client-side storage with the currently-authenticated user.
+	// Storage is per-user-namespaced (namespace.ts), so this no longer WIPES —
+	// it re-homes the browser to the right namespace and reloads so the
+	// in-memory rune singletons re-read the correct bucket. A `degraded` verdict
+	// (auth server unreachable, e.g. the 2026-07-13 outage) or a genuine
+	// sign-out is handled non-destructively inside reconcileActiveUser.
 	//
-	// Skip reconciliation entirely when the auth verdict is degraded: `user`
-	// is then null because the auth server couldn't be reached (network
-	// failure, backend reboot), not because of any real auth state change.
-	// Treating that null as a sign-out is how the 2026-07-13 droplet outage
-	// wiped users' localStorage; this guard and the switch-only wipe policy
-	// are two independent layers against that class of loss.
+	// When a reload is scheduled (a real user switch / first-login adoption),
+	// this realm is about to be torn down — do NOT kick off hydration in it, or
+	// it would run against the previous user's namespace before the reload lands.
 	if (isBrowser()) {
-		if (data.degraded) {
-			console.warn('[auth] session verification unavailable — leaving local state untouched');
-		} else {
-			const { syncUserScope } = await import('$lib/persistence/user-scope');
-			await syncUserScope(user?.id ?? null);
+		const { reconcileActiveUser } = await import('$lib/persistence/user-scope');
+		const { action } = reconcileActiveUser(user?.id ?? null, data.degraded);
+		if (action === 'reload') {
+			return { supabase, session, user, isAdmin };
 		}
 	}
 
@@ -115,7 +110,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	if (isBrowser() && session) {
 		const { initFromCloud } = await import('$lib/state/progress.svelte');
 		const { loadSettingsFromCloud } = await import('$lib/state/settings.svelte');
-		const { recomputeAllDailySummaries, mergeCloudSummaries } =
+		const { recomputeAllDailySummaries, reconcileCloudSummaries } =
 			await import('$lib/state/history.svelte');
 		const { loadDailySummariesFromCloud, syncAllDailySummariesToCloud } =
 			await import('$lib/persistence/sync');
@@ -123,6 +118,10 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+		const { setOutboxClient, drainOutbox } = await import('$lib/persistence/outbox');
+
+		// Register the client the durable outbox uses to flush queued cloud writes.
+		setOutboxClient(supabase);
 
 		// Metadata maintenance (orphan reconciliation + the one-time
 		// progression-tag backfill) must run AFTER initUserLicksFromCloud and
@@ -159,11 +158,14 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			.then(async () => {
 				const cloudSummaries = await loadDailySummariesFromCloud(supabase);
 				if (cloudSummaries == null) return;
-				const localOnly = mergeCloudSummaries(cloudSummaries);
-				if (localOnly.length > 0) {
-					await syncAllDailySummariesToCloud(supabase, localOnly);
+				const toPush = reconcileCloudSummaries(cloudSummaries);
+				if (toPush.length > 0) {
+					await syncAllDailySummariesToCloud(supabase, toPush);
 				}
-			});
+			})
+			// Drain any writes queued while offline / from a prior session now that
+			// the client is registered and hydration has settled.
+			.then(() => drainOutbox(supabase));
 
 		// Run cloud hydration in the BACKGROUND — do NOT block the page mount on
 		// it. Components render from local-first state immediately and the inits

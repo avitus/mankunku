@@ -1,13 +1,19 @@
 import type { Page } from '@playwright/test';
 
-const PREFIX = 'mankunku:';
-
 /**
  * Seed localStorage entries before the page loads.
  *
- * Use this to set up app state without going through UI clicks. Values are
- * JSON-encoded to match the format produced by src/lib/persistence/storage.ts
- * (which prefixes every key with 'mankunku:').
+ * Storage is per-user namespaced (src/lib/persistence/namespace.ts): an
+ * authenticated user's data lives under `mankunku:u:<uid>:<key>`, anonymous
+ * data at the bare `mankunku:<key>` path. This fixture derives the active
+ * namespace from the SAME `e2e-test-user` cookie the server hook reads, so
+ * signed-in tests seed the right bucket automatically (no per-spec changes) and
+ * anonymous tests keep using the bare path.
+ *
+ * For signed-in tests it also pre-stamps the `__active` pointer + `__schema`
+ * marker so the client resolves the user's namespace up-front — without a real
+ * Supabase auth cookie the client can't derive the uid otherwise, and would
+ * otherwise re-home + reload on first load.
  *
  * Call BEFORE page.goto() — this uses addInitScript so the script runs on
  * every navigation in the context, including reloads.
@@ -20,16 +26,46 @@ export async function seedStorage(
 	page: Page,
 	entries: Record<string, unknown>
 ): Promise<void> {
+	const ROOT = 'mankunku:';
+	// Resolve the active namespace ONCE, now, from the e2e-test-user cookie the
+	// auth fixture already set on the context — rather than re-parsing
+	// document.cookie on every navigation (which would re-derive from a cookie
+	// the test may have since changed, seeding the wrong bucket).
+	let uid: string | null = null;
+	try {
+		const cookies = await page.context().cookies();
+		const c = cookies.find((ck) => ck.name === 'e2e-test-user');
+		if (c) uid = JSON.parse(decodeURIComponent(c.value)).id ?? null;
+	} catch {
+		uid = null;
+	}
+	const prefix = uid ? `${ROOT}u:${uid}:` : ROOT;
 	const payload = Object.fromEntries(
-		Object.entries(entries).map(([k, v]) => [PREFIX + k, JSON.stringify(v)])
+		Object.entries(entries).map(([k, v]) => [prefix + k, JSON.stringify(v)])
 	);
-	await page.addInitScript((data) => {
-		for (const [k, v] of Object.entries(data)) {
-			if (window.localStorage.getItem(k) === null) {
-				window.localStorage.setItem(k, v as string);
+	// Signed-in: pre-stamp the namespace pointer + schema so the client resolves
+	// the right bucket up-front (no re-home reload; the upgrade stays a no-op).
+	const control = uid
+		? { schemaKey: `${ROOT}__schema`, activeKey: `${ROOT}__active`, activeVal: JSON.stringify(uid) }
+		: null;
+	await page.addInitScript(
+		({ data, control }) => {
+			if (control) {
+				if (window.localStorage.getItem(control.schemaKey) === null) {
+					window.localStorage.setItem(control.schemaKey, '2');
+				}
+				if (window.localStorage.getItem(control.activeKey) === null) {
+					window.localStorage.setItem(control.activeKey, control.activeVal);
+				}
 			}
-		}
-	}, payload);
+			for (const [k, v] of Object.entries(data)) {
+				if (window.localStorage.getItem(k) === null) {
+					window.localStorage.setItem(k, v as string);
+				}
+			}
+		},
+		{ data: payload, control }
+	);
 }
 
 /**

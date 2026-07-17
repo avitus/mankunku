@@ -4,8 +4,10 @@ import type { LickPracticeProgress, LickPracticeKeyProgress, ChordProgressionTyp
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { save, load } from './storage';
-import { syncLickMetadataToCloud, loadLickMetadataFromCloud, type LickMetadata } from './sync';
+import { loadLickMetadataFromCloud, upsertLickMetadataRow, type LickMetadata } from './sync';
 import { getScopeGeneration } from './user-scope';
+import { enqueue } from './outbox';
+import { mergeLickMetadata, type LickMergeMeta, type LickMetaBundle } from './lick-metadata-merge';
 import { getAllLicks, isCuratedLickId } from '$lib/phrases/library-loader';
 import {
 	getUserLicksLocal,
@@ -19,6 +21,9 @@ const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
 const UNLOCK_KEY = 'lick-unlock-count';
 const CATEGORY_OVERRIDES_KEY = 'lick-category-overrides';
+const TAG_OVERRIDES_KEY = 'lick-tag-overrides';
+/** Per-entry merge metadata (mtimes + reset tombstones) for cross-device merge. */
+const MERGE_META_KEY = 'lick-merge-meta';
 const DEFAULT_TEMPO = 100;
 /** Starting BPM for any lick with no prior practice history. */
 export const NEW_LICK_DEFAULT_TEMPO = 60;
@@ -124,64 +129,27 @@ export async function initLickMetadataFromCloud(
 		const result = await loadLickMetadataFromCloud(supabase);
 		if (result.status === 'error') return false;
 		if (gen !== getScopeGeneration()) return false; // User switched mid-flight
-		if (result.status === 'empty') return true; // New account — nothing to hydrate
-		const cloud = result.data;
 
-		const localTags = load<Record<string, string[]>>(TAGS_KEY);
-		if (!localTags || Object.keys(localTags).length === 0) {
-			if (Object.keys(cloud.lickTags).length > 0) {
-				save(TAGS_KEY, cloud.lickTags);
-			}
-		} else {
-			// A populated local blob is never overwritten with cloud data — but
-			// the reserved `__migrations` entry must still merge DOWN, or a
-			// device whose local blob predates the marker would re-run one-time
-			// migrations another device already completed (and resurrect
-			// deliberately-removed tags). The union is additive and touches no
-			// lick entries, so local-first semantics are preserved.
-			const cloudMigrations = cloud.lickTags[MIGRATIONS_KEY] ?? [];
-			const localMigrations = localTags[MIGRATIONS_KEY] ?? [];
-			const missing = cloudMigrations.filter((m) => !localMigrations.includes(m));
-			if (missing.length > 0) {
-				localTags[MIGRATIONS_KEY] = [...localMigrations, ...missing];
-				save(TAGS_KEY, localTags);
-			}
-		}
-
-		const localProgress = load<LickPracticeProgress>(STORAGE_KEY);
-		if (!localProgress || Object.keys(localProgress).length === 0) {
-			if (Object.keys(cloud.practiceProgress).length > 0) {
-				save(STORAGE_KEY, cloud.practiceProgress);
-			}
-		}
-
-		const TAG_OVERRIDES_KEY = 'lick-tag-overrides';
-		const localTagOverrides = load<Record<string, string[]>>(TAG_OVERRIDES_KEY);
-		if (!localTagOverrides || Object.keys(localTagOverrides).length === 0) {
-			if (Object.keys(cloud.tagOverrides).length > 0) {
-				save(TAG_OVERRIDES_KEY, cloud.tagOverrides);
-			}
-		}
-
-		const localCatOverrides = load<Record<string, PhraseCategory>>(CATEGORY_OVERRIDES_KEY);
-		if (!localCatOverrides || Object.keys(localCatOverrides).length === 0) {
-			if (Object.keys(cloud.categoryOverrides).length > 0) {
-				save(CATEGORY_OVERRIDES_KEY, cloud.categoryOverrides);
-			}
-		}
-
-		// Normalize both ends through the same type guard the rest of the
-		// module uses — load<T>() is just a cast, and cloud.unlockCounts is a
-		// JSONB blob that could in principle be any JSON value. Without this,
-		// a corrupt non-object payload on either side would either misfire the
-		// "already populated" check or write a non-object back to localStorage.
-		const localUnlocks = loadUnlockCounts();
-		if (Object.keys(localUnlocks).length === 0) {
-			const cloudUnlocks = isUnlockCountMap(cloud.unlockCounts) ? cloud.unlockCounts : {};
-			if (Object.keys(cloudUnlocks).length > 0) {
-				save(UNLOCK_KEY, cloudUnlocks);
-			}
-		}
+		// Per-entry merge (cross-device, non-destructive). Both sides converge:
+		// the reserved `__migrations` marker is always unioned (never lost),
+		// per-id tags/overrides/unlocks resolve by client mtime, and
+		// practice_progress unions per (lick, key) by lastPracticedAt with reset
+		// tombstones. Replaces the old "only overwrite empty local" hydration
+		// that let a stale device's later write clobber the cloud column.
+		//
+		// An EMPTY cloud (brand-new account) is treated as an empty cloud bundle:
+		// merging leaves local intact and the enqueue below pushes it up, so a
+		// device with existing local metadata seeds the fresh cloud row without
+		// waiting for the user's next tag edit.
+		const cloudBundle: LickMetaBundle =
+			result.status === 'ok'
+				? { data: result.data as unknown as LickMetaBundle['data'], mergeMeta: result.mergeMeta }
+				: { data: emptyMetaData(), mergeMeta: {} };
+		const merged = mergeLickMetadata(currentLocalBundle(), cloudBundle);
+		if (gen !== getScopeGeneration()) return false;
+		saveLocalBundle(merged);
+		// Push the merged superset back so the cloud converges (coalesced).
+		enqueue('lickMeta');
 		return true;
 	} catch (error) {
 		console.warn('Failed to hydrate lick metadata from cloud:', error);
@@ -217,33 +185,37 @@ export async function reconcileOrphanedLickMetadata(
 	try {
 		const knownIds = new Set(getAllLicks().map((l) => l.id));
 
+		// Orphan removals must PROPAGATE through the per-entry merge, or the next
+		// push would re-union the orphan back from the cloud. We stamp a fresh
+		// mtime / reset tombstone for each removed id so the merge sees the
+		// deletion as the newest edit and drops it cloud-side too.
 		const tags = loadUserLickTags();
 		const cleanedTags: Record<string, string[]> = {};
-		let removedTags = 0;
+		const removedTagIds: string[] = [];
 		for (const [id, tagList] of Object.entries(tags)) {
 			// Reserved keys (e.g. `__migrations`) are not lick ids — they must
 			// survive reconciliation or one-time migrations would re-run.
 			if (isReservedTagKey(id) || knownIds.has(id)) cleanedTags[id] = tagList;
-			else removedTags++;
+			else removedTagIds.push(id);
 		}
 
 		const progress = loadLickPracticeProgress();
 		const cleanedProgress: LickPracticeProgress = {};
-		let removedProgress = 0;
+		const removedProgressIds: string[] = [];
 		for (const [id, keyData] of Object.entries(progress)) {
 			if (knownIds.has(id)) cleanedProgress[id] = keyData;
-			else removedProgress++;
+			else removedProgressIds.push(id);
 		}
 
 		const unlocks = loadUnlockCounts();
 		const cleanedUnlocks: Record<string, number> = {};
-		let removedUnlocks = 0;
+		const removedUnlockIds: string[] = [];
 		for (const [id, count] of Object.entries(unlocks)) {
 			if (knownIds.has(id)) cleanedUnlocks[id] = count;
-			else removedUnlocks++;
+			else removedUnlockIds.push(id);
 		}
 
-		const totalRemoved = removedTags + removedProgress + removedUnlocks;
+		const totalRemoved = removedTagIds.length + removedProgressIds.length + removedUnlockIds.length;
 		if (totalRemoved === 0) return 0;
 
 		// User switched mid-flight — abandon writeback so we don't clobber
@@ -251,21 +223,20 @@ export async function reconcileOrphanedLickMetadata(
 		// reconciled blobs.
 		if (gen !== getScopeGeneration()) return 0;
 
-		const cloudPayload: Partial<LickMetadata> = {};
-		if (removedTags > 0) {
+		if (removedTagIds.length > 0) {
 			save(TAGS_KEY, cleanedTags);
-			cloudPayload.lickTags = cleanedTags;
+			for (const id of removedTagIds) stampMergeMeta('tags', id);
 		}
-		if (removedProgress > 0) {
+		if (removedProgressIds.length > 0) {
 			save(STORAGE_KEY, cleanedProgress);
-			cloudPayload.practiceProgress = cleanedProgress;
+			for (const id of removedProgressIds) stampMergeMeta('progressResets', id);
 		}
-		if (removedUnlocks > 0) {
+		if (removedUnlockIds.length > 0) {
 			save(UNLOCK_KEY, cleanedUnlocks);
-			cloudPayload.unlockCounts = cleanedUnlocks;
+			for (const id of removedUnlockIds) stampMergeMeta('unlockMtime', id);
 		}
 
-		await syncLickMetadataToCloud(supabase, cloudPayload);
+		enqueue('lickMeta');
 		return totalRemoved;
 	} catch (error) {
 		console.warn('Failed to reconcile orphaned lick metadata:', error);
@@ -328,56 +299,99 @@ export async function runLickMetadataMaintenance(
 	return { ran: true, reconciled, backfilled };
 }
 
-/** Debounce timers — prevents rapid writes from racing in the cloud. */
-let syncTagsTimer: ReturnType<typeof setTimeout> | null = null;
-let syncProgressTimer: ReturnType<typeof setTimeout> | null = null;
-let syncUnlocksTimer: ReturnType<typeof setTimeout> | null = null;
-const SYNC_DEBOUNCE_MS = 500;
+// ── Per-entry merge metadata + cloud sync ───────────────────────────────────
+//
+// All lick-metadata cloud writes now go through the durable outbox (kind
+// 'lickMeta') and the merge-aware `flushLickMetadataToCloud`, which reads the
+// current cloud row, folds local into it per lick id (mergeLickMetadata), and
+// writes the merged result back. This replaces the old per-column debounced
+// whole-column pushes that could clobber another device's data. Writes stamp a
+// per-id mtime in the local merge_meta so LWW-per-id is possible.
 
-/**
- * Debounced sync of the lick_tags column to cloud.
- *
- * Reads the current state at sync time (not call time) so rapid calls
- * coalesce into a single request carrying the latest data.
- */
+function loadMergeMeta(): LickMergeMeta {
+	return load<LickMergeMeta>(MERGE_META_KEY) ?? {};
+}
+
+function saveMergeMeta(meta: LickMergeMeta): void {
+	save(MERGE_META_KEY, meta);
+}
+
+type MergeMetaBucket = 'tags' | 'overrides' | 'catOverrides' | 'unlockMtime' | 'progressResets';
+
+function stampMergeMeta(bucket: MergeMetaBucket, id: string): void {
+	const meta = loadMergeMeta();
+	const map = (meta[bucket] ??= {});
+	map[id] = Date.now();
+	saveMergeMeta(meta);
+}
+
+/** Snapshot the current local metadata blobs as a merge bundle. */
+function currentLocalBundle(): LickMetaBundle {
+	return {
+		data: {
+			lickTags: loadUserLickTags(),
+			practiceProgress: loadLickPracticeProgress() as LickMetaBundle['data']['practiceProgress'],
+			tagOverrides: load<Record<string, string[]>>(TAG_OVERRIDES_KEY) ?? {},
+			categoryOverrides: (load<Record<string, string>>(CATEGORY_OVERRIDES_KEY) ?? {}),
+			unlockCounts: loadUnlockCounts()
+		},
+		mergeMeta: loadMergeMeta()
+	};
+}
+
+/** Persist a merged bundle back into the local blobs + merge_meta. */
+function saveLocalBundle(bundle: LickMetaBundle): void {
+	save(TAGS_KEY, bundle.data.lickTags);
+	save(STORAGE_KEY, bundle.data.practiceProgress);
+	save(TAG_OVERRIDES_KEY, bundle.data.tagOverrides);
+	save(CATEGORY_OVERRIDES_KEY, bundle.data.categoryOverrides);
+	save(UNLOCK_KEY, bundle.data.unlockCounts);
+	saveMergeMeta(bundle.mergeMeta);
+}
+
+/** Queue a durable cloud sync of the lick metadata (coalesced by the outbox). */
 function syncLickTagsToCloud(): void {
-	if (!_supabase) return;
-	if (syncTagsTimer) clearTimeout(syncTagsTimer);
-	syncTagsTimer = setTimeout(() => {
-		syncTagsTimer = null;
-		const tags = loadUserLickTags();
-		syncLickMetadataToCloud(_supabase!, { lickTags: tags }).catch(() => {});
-	}, SYNC_DEBOUNCE_MS);
+	enqueue('lickMeta');
 }
-
-/**
- * Debounced sync of the practice_progress column to cloud.
- *
- * Same coalescing strategy as syncLickTagsToCloud.
- */
 function syncPracticeProgressToCloud(): void {
-	if (!_supabase) return;
-	if (syncProgressTimer) clearTimeout(syncProgressTimer);
-	syncProgressTimer = setTimeout(() => {
-		syncProgressTimer = null;
-		const progress = loadLickPracticeProgress();
-		syncLickMetadataToCloud(_supabase!, { practiceProgress: progress }).catch(() => {});
-	}, SYNC_DEBOUNCE_MS);
+	enqueue('lickMeta');
+}
+function syncUnlockCountsToCloud(): void {
+	enqueue('lickMeta');
 }
 
 /**
- * Debounced sync of the unlock_counts column to cloud.
- *
- * Same coalescing strategy as the other sync helpers.
+ * Outbox flush handler: read the cloud row, merge local into it per lick id,
+ * write the merged result back AND save it locally (both sides converge).
+ * Throws on failure so the outbox retries.
  */
-function syncUnlockCountsToCloud(): void {
-	if (!_supabase) return;
-	if (syncUnlocksTimer) clearTimeout(syncUnlocksTimer);
-	syncUnlocksTimer = setTimeout(() => {
-		syncUnlocksTimer = null;
-		const counts = loadUnlockCounts();
-		syncLickMetadataToCloud(_supabase!, { unlockCounts: counts }).catch(() => {});
-	}, SYNC_DEBOUNCE_MS);
+export async function flushLickMetadataToCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	// Bind the whole flush to one account scope. A user switch triggers a full
+	// page reload (reconcileActiveUser), but that isn't instantaneous — so guard
+	// defensively: capture the scope generation up front and abort after each
+	// await if it changed, or the read-merge-write could straddle two accounts
+	// (read cloud for the new user, merge with the old user's local, and upsert
+	// the mix under the new auth context).
+	const gen = getScopeGeneration();
+	const cloud = await loadLickMetadataFromCloud(supabase);
+	if (gen !== getScopeGeneration()) return; // user switched mid-flight
+	if (cloud.status === 'error') throw new Error('lick metadata hydration failed — deferring push');
+	const cloudBundle: LickMetaBundle =
+		cloud.status === 'ok'
+			? { data: cloud.data as unknown as LickMetaBundle['data'], mergeMeta: cloud.mergeMeta }
+			: { data: emptyMetaData(), mergeMeta: {} };
+	const merged = mergeLickMetadata(currentLocalBundle(), cloudBundle);
+	if (gen !== getScopeGeneration()) return; // switched during merge — do not persist/push
+	saveLocalBundle(merged);
+	await upsertLickMetadataRow(
+		supabase,
+		merged.data as unknown as LickMetadata,
+		merged.mergeMeta
+	);
+}
+
+function emptyMetaData(): LickMetaBundle['data'] {
+	return { lickTags: {}, practiceProgress: {}, tagOverrides: {}, categoryOverrides: {}, unlockCounts: {} };
 }
 
 export function loadLickPracticeProgress(): LickPracticeProgress {
@@ -509,6 +523,9 @@ function clearUnlockCount(phraseId: string): void {
 	const counts = loadUnlockCounts();
 	if (!(phraseId in counts)) return;
 	delete counts[phraseId];
+	// Stamp so the removal (a reset) wins the per-id LWW over a stale higher
+	// count still held on another device.
+	stampMergeMeta('unlockMtime', phraseId);
 	saveUnlockCounts(counts);
 }
 
@@ -523,6 +540,9 @@ export function resetLickPersistence(
 	phraseId: string
 ): LickPracticeProgress {
 	clearUnlockCount(phraseId);
+	// Reset tombstone: per-key entries older than this are dropped by the merge,
+	// so a stale device's older practice can't resurrect the cleared progress.
+	stampMergeMeta('progressResets', phraseId);
 	const next = clearLickProgress(progress, phraseId);
 	saveLickPracticeProgress(next);
 	return next;
@@ -609,6 +629,7 @@ export function bumpUnlockedKeyCount(
 	const current = resolveUnlockCount(counts, progress, phraseId);
 	const next = Math.min(MAX_UNLOCKED_KEYS, current + 1);
 	counts[phraseId] = next;
+	stampMergeMeta('unlockMtime', phraseId);
 	saveUnlockCounts(counts);
 	return next;
 }
@@ -637,6 +658,7 @@ export function togglePracticeTag(phraseId: string): boolean {
 		: [...cleaned, 'practice'];
 
 	saveUserLickTags(tags);
+	stampMergeMeta('tags', phraseId);
 	syncLickTagsToCloud();
 	return !hasPractice;
 }
@@ -722,6 +744,7 @@ export function setPracticeTag(phraseId: string, tagged: boolean): void {
 		? [...cleaned, 'practice']
 		: [...cleaned, PRACTICE_REMOVED_TAG];
 	saveUserLickTags(tags);
+	stampMergeMeta('tags', phraseId);
 	syncLickTagsToCloud();
 }
 
@@ -760,11 +783,13 @@ export function backfillPracticeTags(
 		const entry = tags[id];
 		if (entry === undefined) {
 			tags[id] = ['practice'];
+			stampMergeMeta('tags', id);
 			added++;
 			return;
 		}
 		if (entry.includes('practice') || entry.includes(PRACTICE_REMOVED_TAG)) return;
 		tags[id] = [...entry, 'practice'];
+		stampMergeMeta('tags', id);
 		added++;
 	};
 
@@ -796,13 +821,17 @@ export function toggleProgressionTag(phraseId: string, type: ChordProgressionTyp
 	const has = current.includes(tag);
 
 	if (has) {
+		// Keep an empty array (with a fresh mtime) rather than deleting the key,
+		// so a cleared-to-empty state has a timestamp and wins the per-id LWW over
+		// a stale non-empty copy on another device (the merge treats a missing key
+		// as "no edit", which could otherwise resurrect the removed tag).
 		tags[phraseId] = current.filter(t => t !== tag);
-		if (tags[phraseId].length === 0) delete tags[phraseId];
 	} else {
 		tags[phraseId] = [...current, tag];
 	}
 
 	saveUserLickTags(tags);
+	stampMergeMeta('tags', phraseId);
 	syncLickTagsToCloud();
 	return !has;
 }
@@ -858,8 +887,19 @@ export function ensureProgressionTag(phraseId: string, type: ChordProgressionTyp
 	if (current.includes(tag)) return false;
 	tags[phraseId] = [...current, tag];
 	saveUserLickTags(tags);
+	stampMergeMeta('tags', phraseId);
 	syncLickTagsToCloud();
 	return true;
+}
+
+/** Stamp a curated tag-override edit so it wins the per-id merge (for user-licks.ts). */
+export function stampTagOverrideMtime(id: string): void {
+	stampMergeMeta('overrides', id);
+}
+
+/** Stamp a curated category-override edit so it wins the per-id merge. */
+export function stampCategoryOverrideMtime(id: string): void {
+	stampMergeMeta('catOverrides', id);
 }
 
 /**
@@ -1012,13 +1052,12 @@ export function migrateOrphanLickCategories(
 			ensureProgressionTag(id, prog);
 		}
 		ensureProgressionTag(id, remap.progressionTag);
+		stampMergeMeta('catOverrides', id);
 		migrated++;
 	}
 	if (overridesChanged) {
 		save(CATEGORY_OVERRIDES_KEY, overrides);
-		if (sb) {
-			syncLickMetadataToCloud(sb, { categoryOverrides: overrides }).catch(() => {});
-		}
+		enqueue('lickMeta');
 	}
 
 	return migrated;

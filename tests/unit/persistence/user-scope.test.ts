@@ -1,11 +1,32 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+/**
+ * Active-user reconciliation + per-user storage namespacing.
+ *
+ * The old "wipe the previous user's data on account switch" model is gone (it
+ * caused the 2026-07-13 data-loss incident). Storage is now per-user-namespaced
+ * (`mankunku:u:<uid>:<key>`), so switching accounts re-homes to a different
+ * bucket and reloads — it never destroys the prior user's data.
+ *
+ * These tests cover the new surface:
+ *   - `reconcileActiveUser(serverUid, degraded)` — none / reload decisions and
+ *     the scope-generation counter, including the degraded-null regression guard.
+ *   - `namespace.ts` — active-uid resolution, the one-time legacy key upgrade,
+ *     and per-user bucket clearing.
+ */
+
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import {
-	syncUserScope,
-	wipeUserScopeOnSignOut,
-	getScopeGeneration
+	reconcileActiveUser,
+	getScopeGeneration,
+	getLastUserId
 } from '$lib/persistence/user-scope';
-import { saveRecording, getAllRecordingSummaries } from '$lib/persistence/audio-store';
-import { expectNoMankunkuKeysExcept } from '../../helpers/storage-snapshot';
+import {
+	getActiveUid,
+	getActiveUidOrNull,
+	setActiveUid,
+	runNamespaceUpgradeIfNeeded,
+	clearNamespace,
+	__resetNamespaceCacheForTests
+} from '$lib/persistence/namespace';
 
 type MockStorage = Storage & { _store: Record<string, string> };
 
@@ -35,15 +56,22 @@ function createStorageMock(): MockStorage {
 
 let local: MockStorage;
 let session: MockStorage;
+let reloadMock: ReturnType<typeof vi.fn>;
 
-beforeEach(async () => {
+beforeEach(() => {
 	local = createStorageMock();
 	session = createStorageMock();
 	Object.defineProperty(globalThis, 'localStorage', { value: local, writable: true, configurable: true });
 	Object.defineProperty(globalThis, 'sessionStorage', { value: session, writable: true, configurable: true });
-	// Ensure IndexedDB store is empty before each test.
-	const mod = await import('$lib/persistence/audio-store');
-	await mod.clearAllRecordings();
+	// reconcileActiveUser calls location.reload() on a real switch; stub it.
+	reloadMock = vi.fn();
+	vi.stubGlobal('location', { reload: reloadMock });
+	// Re-resolve the active namespace from scratch for each test.
+	__resetNamespaceCacheForTests();
+});
+
+afterEach(() => {
+	vi.unstubAllGlobals();
 });
 
 afterAll(() => {
@@ -51,333 +79,114 @@ afterAll(() => {
 	if (ORIGINAL_SESSION) Object.defineProperty(globalThis, 'sessionStorage', ORIGINAL_SESSION);
 });
 
-function seedMarker(userId: string): void {
-	local._store['mankunku:__lastUserId'] = JSON.stringify(userId);
-}
-
-describe('syncUserScope', () => {
-	it('first-ever call (no marker) → no clear, writes marker', async () => {
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
+describe('reconcileActiveUser', () => {
+	it('server user equals the active uid → no-op, no reload, generation unchanged', () => {
+		setActiveUid('user-A');
 		const genBefore = getScopeGeneration();
 
-		const { cleared } = await syncUserScope('user-A');
+		const result = reconcileActiveUser('user-A', false);
 
-		expect(cleared).toBe(false);
+		expect(result.action).toBe('none');
 		expect(getScopeGeneration()).toBe(genBefore);
-		// Local data preserved (supports anonymous → first-login migration path)
-		expect(local._store['mankunku:user-licks']).toBeDefined();
-		// Marker now points at the newly-authenticated user
-		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-A');
+		expect(getActiveUid()).toBe('user-A');
+		expect(reloadMock).not.toHaveBeenCalled();
 	});
 
-	it('same user returning → no clear, marker unchanged', async () => {
-		seedMarker('user-A');
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
+	it('a real switch (server uid differs) → reload, re-homes namespace, bumps generation', () => {
+		setActiveUid('user-A');
 		const genBefore = getScopeGeneration();
 
-		const { cleared } = await syncUserScope('user-A');
+		const result = reconcileActiveUser('user-B', false);
 
-		expect(cleared).toBe(false);
-		expect(getScopeGeneration()).toBe(genBefore);
-		expect(local._store['mankunku:user-licks']).toBeDefined();
-		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-A');
-	});
-
-	it('user switch → clears localStorage, sessionStorage, updates marker, bumps generation', async () => {
-		seedMarker('user-A');
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
-		local._store['mankunku:progress'] = JSON.stringify({ sessions: [] });
-		local._store['mankunku:settings'] = JSON.stringify({ theme: 'dark', defaultTempo: 100 });
-		session._store['backing-track-log'] = JSON.stringify([{ phraseId: 'p1' }]);
-		const genBefore = getScopeGeneration();
-
-		const { cleared } = await syncUserScope('user-B');
-
-		expect(cleared).toBe(true);
+		expect(result.action).toBe('reload');
 		expect(getScopeGeneration()).toBe(genBefore + 1);
-		// Prior user's data wiped
-		expect(local._store['mankunku:user-licks']).toBeUndefined();
-		expect(local._store['mankunku:progress']).toBeUndefined();
-		expect(session._store['backing-track-log']).toBeUndefined();
-		// Marker updated to new user
-		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-B');
+		// Namespace re-homed to the new user (no wipe of user-A's bucket).
+		expect(getActiveUid()).toBe('user-B');
+		expect(reloadMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('null user (signed out / expired cookies / auth outage) → NO wipe, marker retained', async () => {
-		// A null user is not an affirmative sign-out: it is also what expired
-		// cookies, a revoked token, or an auth backend that destroyed the
-		// session cookies mid-outage produce. Wiping here is how the
-		// 2026-07-13 incident destroyed local-first data. Explicit sign-out
-		// hygiene lives in wipeUserScopeOnSignOut() (tested below).
-		seedMarker('user-A');
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
-		session._store['backing-track-log'] = JSON.stringify([{ phraseId: 'p1' }]);
+	it('degraded null user → NO change (the 2026-07-13 regression guard)', () => {
+		// A transient auth outage yields a null user WITHOUT a genuine sign-out.
+		// Treating that as a switch is exactly what destroyed local-first data;
+		// reconcile must do nothing.
+		setActiveUid('user-A');
 		const genBefore = getScopeGeneration();
 
-		const { cleared } = await syncUserScope(null);
+		const result = reconcileActiveUser(null, true);
 
-		expect(cleared).toBe(false);
+		expect(result.action).toBe('none');
 		expect(getScopeGeneration()).toBe(genBefore);
-		expect(local._store['mankunku:user-licks']).toBeDefined();
-		expect(session._store['backing-track-log']).toBeDefined();
-		// Marker retained: a LATER different-user sign-in must still wipe.
-		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-A');
+		expect(getActiveUid()).toBe('user-A');
+		expect(reloadMock).not.toHaveBeenCalled();
 	});
 
-	it('null user then a different user signs in → wipe still happens at the switch', async () => {
-		// Closes the old signed-out → next-account absorption gap: because the
-		// marker survives the null-user phase, user B's sign-in is recognized
-		// as a switch away from user A and wipes A's residue.
-		seedMarker('user-A');
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-A' }]);
-
-		await syncUserScope(null); // cookie expiry / signed-out phase
-		expect(local._store['mankunku:user-licks']).toBeDefined();
-
-		const { cleared } = await syncUserScope('user-B');
-
-		expect(cleared).toBe(true);
-		expect(local._store['mankunku:user-licks']).toBeUndefined();
-		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-B');
-	});
-
-	it('null user then the SAME user returns → data intact, no wipe', async () => {
-		seedMarker('user-A');
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-A' }]);
-
-		await syncUserScope(null);
-		const { cleared } = await syncUserScope('user-A');
-
-		expect(cleared).toBe(false);
-		expect(local._store['mankunku:user-licks']).toBeDefined();
-	});
-
-	it('wipeUserScopeOnSignOut (explicit logout) → clears everything and removes marker', async () => {
-		seedMarker('user-A');
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
-		session._store['backing-track-log'] = JSON.stringify([{ phraseId: 'p1' }]);
+	it('genuine sign-out (null, not degraded) → re-homes to the anon bucket + reload', () => {
+		setActiveUid('user-A');
 		const genBefore = getScopeGeneration();
 
-		await wipeUserScopeOnSignOut();
+		const result = reconcileActiveUser(null, false);
 
+		expect(result.action).toBe('reload');
 		expect(getScopeGeneration()).toBe(genBefore + 1);
-		expect(local._store['mankunku:user-licks']).toBeUndefined();
-		expect(session._store['backing-track-log']).toBeUndefined();
-		// Marker removed — the browser returns to a clean anonymous state.
-		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
-	});
-
-	it('anonymous → anonymous (no marker, null user) → no-op', async () => {
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
-		const genBefore = getScopeGeneration();
-
-		const { cleared } = await syncUserScope(null);
-
-		expect(cleared).toBe(false);
-		expect(getScopeGeneration()).toBe(genBefore);
-		expect(local._store['mankunku:user-licks']).toBeDefined();
-		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
-	});
-
-	it('theme survives a user switch', async () => {
-		seedMarker('user-A');
-		local._store['mankunku:settings'] = JSON.stringify({
-			theme: 'light',
-			defaultTempo: 120,
-			instrumentId: 'alto-sax'
-		});
-
-		const { cleared } = await syncUserScope('user-B');
-
-		expect(cleared).toBe(true);
-		// Other settings wiped, but theme restored as a minimal settings blob
-		const restored = JSON.parse(local._store['mankunku:settings']!) as { theme?: string };
-		expect(restored.theme).toBe('light');
-		expect((restored as { defaultTempo?: number }).defaultTempo).toBeUndefined();
-	});
-
-	it('wipes IndexedDB recordings on user switch', async () => {
-		seedMarker('user-A');
-		const blob = new Blob([new Uint8Array(10)], { type: 'audio/webm' });
-		await saveRecording('session-A-1', blob);
-		expect((await getAllRecordingSummaries()).length).toBe(1);
-
-		await syncUserScope('user-B');
-
-		expect((await getAllRecordingSummaries()).length).toBe(0);
-	});
-
-	it('does not wipe IndexedDB for same user', async () => {
-		seedMarker('user-A');
-		const blob = new Blob([new Uint8Array(10)], { type: 'audio/webm' });
-		await saveRecording('session-A-1', blob);
-
-		await syncUserScope('user-A');
-
-		expect((await getAllRecordingSummaries()).length).toBe(1);
-	});
-
-	it('anonymous → first login: IndexedDB recordings survive (no wipe on first sign-in)', async () => {
-		// User records audio while anonymous (no `__lastUserId` marker).
-		// On first sign-in, the wipe is skipped (lastUserId === null branch),
-		// so the recording stays available — the user can hear what they just
-		// recorded after signing in.
-		const blob = new Blob([new Uint8Array(20)], { type: 'audio/webm' });
-		await saveRecording('anon-session-1', blob);
-		expect((await getAllRecordingSummaries()).length).toBe(1);
-
-		// First-ever sign-in: marker absent, so syncUserScope does NOT wipe.
-		const { cleared } = await syncUserScope('user-A');
-
-		expect(cleared).toBe(false);
-		// Recording from the anonymous session survives into the new user's
-		// session — they can play back what they just recorded.
-		expect((await getAllRecordingSummaries()).length).toBe(1);
-	});
-
-	it('attempts caches.delete when caches API is present', async () => {
-		seedMarker('user-A');
-		const deleteMock = vi.fn().mockResolvedValue(true);
-		const cachesStub = { delete: deleteMock, keys: vi.fn(), open: vi.fn(), match: vi.fn(), has: vi.fn() };
-		Object.defineProperty(globalThis, 'caches', { value: cachesStub, writable: true, configurable: true });
-
-		try {
-			await syncUserScope('user-B');
-			expect(deleteMock).toHaveBeenCalledWith('supabase-api');
-		} finally {
-			delete (globalThis as { caches?: unknown }).caches;
-		}
-	});
-
-	it('only clears the supabase-api cache (deliberate scoping — locks in P2-2)', async () => {
-		seedMarker('user-A');
-		const deleteMock = vi.fn().mockResolvedValue(true);
-		const cachesStub = { delete: deleteMock, keys: vi.fn(), open: vi.fn(), match: vi.fn(), has: vi.fn() };
-		Object.defineProperty(globalThis, 'caches', { value: cachesStub, writable: true, configurable: true });
-
-		try {
-			await syncUserScope('user-B');
-			// Asserts the wipe is deliberately scoped: other Workbox caches
-			// (precache, fonts, images) survive a user switch — they are
-			// content-addressable and not user-bound. If a future change starts
-			// nuking everything, this test fails to force a deliberate decision.
-			expect(deleteMock).toHaveBeenCalledTimes(1);
-			expect(deleteMock).toHaveBeenCalledWith('supabase-api');
-		} finally {
-			delete (globalThis as { caches?: unknown }).caches;
-		}
+		// Re-homed to anon; user-A's own bucket is untouched (survives re-login).
+		expect(getActiveUidOrNull()).toBeNull();
+		expect(reloadMock).toHaveBeenCalledTimes(1);
 	});
 });
 
-// ─── Negative-property: nothing prefixed `mankunku:` survives a wipe ───
-//
-// The wipe coordinator (`clearAll` in storage.ts) iterates `mankunku:`-
-// prefixed keys and removes each one. These tests pin down that property
-// so a future cache key added without a corresponding clearAll path will
-// fail here instead of leaking across users in production.
+describe('getLastUserId', () => {
+	it('reflects the active uid, and is null in the anonymous bucket', () => {
+		setActiveUid('user-A');
+		expect(getLastUserId()).toBe('user-A');
 
-describe('syncUserScope — negative-property wipe', () => {
-	const KNOWN_KEYS = [
-		'mankunku:settings',
-		'mankunku:progress',
-		'mankunku:tour-state',
-		'mankunku:daily-summaries',
-		'mankunku:progress-meta',
-		'mankunku:lick-practice-progress',
-		'mankunku:user-lick-tags',
-		'mankunku:lick-tag-overrides',
-		'mankunku:lick-category-overrides',
-		'mankunku:lick-unlock-count',
-		'mankunku:user-licks',
-		'mankunku:user-licks-owners',
-		'mankunku:community-favorites',
-		'mankunku:community-adoptions',
-		'mankunku:community-adopted-payloads',
-		'mankunku:community-adopted-authors',
-		'mankunku:community-privacy-ack'
-	];
+		setActiveUid(null); // → anon
+		expect(getLastUserId()).toBeNull();
+	});
+});
 
-	function seedAllKnownKeys(): void {
-		for (const k of KNOWN_KEYS) {
-			local._store[k] = JSON.stringify({ seeded: true });
-		}
-	}
+describe('namespace — active uid resolution', () => {
+	it('setActiveUid round-trips through getActiveUid / getActiveUidOrNull', () => {
+		setActiveUid('user-X');
+		expect(getActiveUid()).toBe('user-X');
+		expect(getActiveUidOrNull()).toBe('user-X');
 
-	it('explicit sign-out removes every mankunku: key (marker removed, no settings remnant)', async () => {
-		seedMarker('user-A');
-		seedAllKnownKeys();
+		setActiveUid(null);
+		expect(getActiveUid()).toBe('anon');
+		expect(getActiveUidOrNull()).toBeNull();
+	});
+});
 
-		await wipeUserScopeOnSignOut();
+describe('namespace — one-time legacy key upgrade', () => {
+	it('moves a legacy mankunku:<key> into mankunku:u:<lastUserId>:<key>', () => {
+		// Pre-namespace layout: an un-namespaced data key plus the legacy
+		// __lastUserId marker that names the bucket to migrate into.
+		local._store['mankunku:__lastUserId'] = JSON.stringify('user-A');
+		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
 
-		// Explicit logout: marker removed, no theme to preserve in this seed
-		// (the seed `settings` blob has `{ seeded: true }` and no `theme`
-		// field). Therefore NO mankunku key should remain at all.
-		expectNoMankunkuKeysExcept(local, []);
+		runNamespaceUpgradeIfNeeded();
+
+		// Value re-homed into user-A's namespaced bucket, legacy key removed.
+		expect(local._store['mankunku:u:user-A:user-licks']).toBe(JSON.stringify([{ id: 'lick-1' }]));
+		expect(local._store['mankunku:user-licks']).toBeUndefined();
+		// Upgrade stamps the schema marker and the active pointer, and clears the
+		// legacy marker so it can never re-run against stale state.
+		expect(local._store['mankunku:__schema']).toBe('2');
+		expect(JSON.parse(local._store['mankunku:__active']!)).toBe('user-A');
 		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
 	});
+});
 
-	it('a null user (non-explicit) leaves every mankunku: key in place', async () => {
-		seedMarker('user-A');
-		seedAllKnownKeys();
+describe('namespace — clearNamespace', () => {
+	it('erases only the target user’s bucket, leaving other users untouched', () => {
+		local._store['mankunku:u:user-A:progress'] = JSON.stringify({ sessions: [] });
+		local._store['mankunku:u:user-A:user-licks'] = JSON.stringify([{ id: 'a' }]);
+		local._store['mankunku:u:user-B:progress'] = JSON.stringify({ sessions: [1] });
 
-		await syncUserScope(null);
+		clearNamespace('user-A');
 
-		// Cookie expiry / auth outage: nothing is removed — including the
-		// marker, so a later different-user sign-in still triggers the wipe.
-		for (const k of KNOWN_KEYS) {
-			expect(local._store[k]).toBeDefined();
-		}
-		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-A');
-	});
-
-	it('user switch removes every mankunku: key except theme blob (settings has only theme)', async () => {
-		seedMarker('user-A');
-		seedAllKnownKeys();
-		// Overwrite the seed settings with a real theme value so the wipe path
-		// preserves it. Everything else still gets wiped.
-		local._store['mankunku:settings'] = JSON.stringify({ theme: 'light', defaultTempo: 200 });
-
-		await syncUserScope('user-B');
-
-		// settings re-saved as a minimal blob containing only the theme.
-		// __lastUserId now holds the new user. Nothing else from the seed remains.
-		expectNoMankunkuKeysExcept(local, ['settings', '__lastUserId']);
-		const restored = JSON.parse(local._store['mankunku:settings']!);
-		expect(restored).toEqual({ theme: 'light' });
-		expect(JSON.parse(local._store['mankunku:__lastUserId']!)).toBe('user-B');
-	});
-
-	it('theme survives an explicit sign-out when present (parity with the user-switch path)', async () => {
-		seedMarker('user-A');
-		local._store['mankunku:settings'] = JSON.stringify({
-			theme: 'light',
-			defaultTempo: 120
-		});
-
-		await wipeUserScopeOnSignOut();
-
-		// Same theme-preservation rule as user-switch: the wipe is the same
-		// code path. This pins down the parity so a future refactor can't
-		// quietly drop the theme on logout while keeping it on switch.
-		const restored = JSON.parse(local._store['mankunku:settings']!) as { theme?: string };
-		expect(restored.theme).toBe('light');
-		expect((restored as { defaultTempo?: number }).defaultTempo).toBeUndefined();
-		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
-	});
-
-	it('rejects unknown future cache keys — adding a mankunku:foo without wiring clearAll fails this test', async () => {
-		seedMarker('user-A');
-		local._store['mankunku:foo-future-cache'] = JSON.stringify(['poison']);
-		local._store['mankunku:bar-future-cache'] = JSON.stringify({ leak: true });
-
-		await syncUserScope('user-B');
-
-		// `clearAll` walks every mankunku-prefixed key, so even unknown future
-		// keys are removed. This test is the structural barrier: if someone
-		// adds a key without using the `save()` helper, this still passes
-		// because clearAll uses listKeys(). But if someone special-cases a
-		// new cache to skip the wipe, this fails.
-		expect(local._store['mankunku:foo-future-cache']).toBeUndefined();
-		expect(local._store['mankunku:bar-future-cache']).toBeUndefined();
+		expect(local._store['mankunku:u:user-A:progress']).toBeUndefined();
+		expect(local._store['mankunku:u:user-A:user-licks']).toBeUndefined();
+		// User B's isolated bucket survives.
+		expect(local._store['mankunku:u:user-B:progress']).toBeDefined();
 	});
 });

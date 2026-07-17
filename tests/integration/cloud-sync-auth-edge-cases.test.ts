@@ -42,12 +42,24 @@ const mockLoadSettings = vi.fn();
 const mockLoadLickMetadata = vi.fn();
 
 vi.mock('$lib/persistence/sync', () => ({
-	syncProgressToCloud: vi.fn().mockResolvedValue(undefined),
-	loadProgressFromCloud: (...args: unknown[]) => mockLoadProgress(...args),
+	syncProgressToCloud: vi.fn().mockResolvedValue(true),
+	// loadProgress/loadSettings are now tri-state (CloudLoad<T>): tests drive the
+	// bare payload via the mocks and these wrappers adapt it to
+	// { status:'ok', data } / { status:'empty' }. loadLickMetadata is already
+	// tri-state in the tests below, so it stays a direct pass-through.
+	loadProgressFromCloud: async (...args: unknown[]) => {
+		const data = await mockLoadProgress(...args);
+		return data == null ? { status: 'empty' } : { status: 'ok', data };
+	},
 	deleteProgressDetailsFromCloud: vi.fn().mockResolvedValue(undefined),
-	syncSettingsToCloud: vi.fn().mockResolvedValue(undefined),
-	loadSettingsFromCloud: (...args: unknown[]) => mockLoadSettings(...args),
+	deleteDailySummariesFromCloud: vi.fn().mockResolvedValue(undefined),
+	syncSettingsToCloud: vi.fn().mockResolvedValue(true),
+	loadSettingsFromCloud: async (...args: unknown[]) => {
+		const data = await mockLoadSettings(...args);
+		return data == null ? { status: 'empty' } : { status: 'ok', data };
+	},
 	syncLickMetadataToCloud: vi.fn().mockResolvedValue(undefined),
+	upsertLickMetadataRow: vi.fn().mockResolvedValue(undefined),
 	loadLickMetadataFromCloud: (...args: unknown[]) => mockLoadLickMetadata(...args),
 	syncUserLicksToCloud: vi.fn().mockResolvedValue(undefined)
 }));
@@ -453,6 +465,10 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 
 		getScopeGenerationMock.mockReturnValue(0);
 
+		// The hydration now does a per-id merge, not a whole-column overwrite. For
+		// the cloud entry to win into an EMPTY local blob it must carry a client
+		// mtime (mergeMeta.tags) — a tie at mtime 0 would keep the (empty) local
+		// side. A real cross-device pull always carries these stamps.
 		mockLoadLickMetadata.mockResolvedValue({
 			status: 'ok',
 			data: {
@@ -461,7 +477,8 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 				tagOverrides: {},
 				categoryOverrides: {},
 				unlockCounts: {}
-			}
+			},
+			mergeMeta: { tags: { 'lick-1': Date.now() } }
 		});
 
 		const supabase = { auth: {} };
@@ -505,12 +522,14 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 
 		expect(ok).toBe(true);
 		const localTags = JSON.parse(store.get('mankunku:user-lick-tags')!);
-		// Local lick entries are untouched (populated local always wins) and
-		// the cloud lick entries do NOT overwrite them...
+		// Per-entry merge (not "populated local wins"): the local-only entry is
+		// kept AND the cloud-only entry is merged in — neither is dropped. A
+		// cloud value with no merge_meta must survive (an absent entry is a
+		// deletion only when the other side stamped a strictly-newer write).
 		expect(localTags['lick-local']).toEqual(['practice', 'prog:blues']);
-		expect(localTags['lick-cloud']).toBeUndefined();
-		// ...but the reserved marker merges down, so this device can never
-		// re-run a one-time migration another device already completed.
+		expect(localTags['lick-cloud']).toEqual(['practice']);
+		// The reserved marker merges down too, so this device can never re-run a
+		// one-time migration another device already completed.
 		expect(localTags['__migrations']).toContain('prog-backfill-v1');
 	});
 });

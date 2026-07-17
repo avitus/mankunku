@@ -401,24 +401,41 @@ export function clearHistory(): void {
 // ── Cloud merge ────────────────────────────────────────────────
 
 /**
- * Merge cloud-fetched summaries into local. Within a day every counter is
- * monotonic (you can't undo a session), so a strict-greater test on
- * `sessionCount` is enough: cloud wins when it has strictly more total
- * activity (another device contributed), local wins when local has more
- * (offline writes not yet pushed). Equal cases leave local untouched —
- * after a recompute the data should already match, and overwriting an
- * equal-count entry was the source of past bugs.
+ * Reconcile cloud summaries with local. Summaries are a PURE derivation of the
+ * source logs, so once sessions sync by union every device re-derives the same,
+ * correct combined summary for any date whose source rows it still holds. This
+ * reconcile therefore branches on whether THIS device can derive the date:
  *
- * Returns the dates the cloud needs to be told about: local-only days plus
- * same-date local winners, so `syncAllDailySummariesToCloud` can push them.
+ *  - DERIVABLE (source rows present locally): the fresh local re-derivation is
+ *    authoritative — the cloud row is ignored, and the local summary is pushed
+ *    (overwrite). This is what fixes the old clobber / undercount / equal-count
+ *    deadlock: two devices' same-day activity both land in the unioned sources
+ *    and are counted once, and the derivation always wins over a stale cloud row.
+ *  - AGED-OUT (no local source rows to derive from): the day is finalized, so a
+ *    per-counter MAX merge is safe and monotonic — the most-complete derivation
+ *    ever recorded wins and can't be lowered.
+ *
+ * Returns the dates the cloud must be told about (derivable dates + local-only
+ * days + aged-out local winners), for `syncAllDailySummariesToCloud`.
  */
-export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[] {
+export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[] {
+	const earSessions = load<UserProgress>(PROGRESS_KEY)?.sessions ?? [];
+	const lickEntries = load<LickPracticeSessionLogEntry[]>(LICK_SESSIONS_KEY) ?? [];
+	const derivable = new Set<string>();
+	for (const s of earSessions) derivable.add(dateKey(s.timestamp));
+	for (const e of lickEntries) derivable.add(dateKey(e.timestamp));
+
 	const cloudDates = new Set<string>();
 	const localWinners = new Set<string>();
 	let changed = false;
 
 	for (const cs of cloudSummaries) {
 		cloudDates.add(cs.date);
+		// Derivable dates: local re-derivation is authoritative — never let a
+		// stale cloud row modify it; it will be pushed (overwrite) below.
+		if (derivable.has(cs.date)) continue;
+
+		// Aged-out date: MAX-merge into local (safe: finalized, monotonic).
 		const existing = summaryMap.get(cs.date);
 		if (!existing) {
 			dailySummaries.push(cs);
@@ -426,10 +443,21 @@ export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummar
 			changed = true;
 			continue;
 		}
-		if (cs.sessionCount > existing.sessionCount) {
-			Object.assign(existing, cs);
-			changed = true;
-		} else if (existing.sessionCount > cs.sessionCount) {
+		const merged = mergeWithExisting(existing, cs);
+		Object.assign(existing, merged);
+		changed = true;
+		// Push when the merged result exceeds cloud on ANY counter — not just
+		// when aggregate session totals differ. Two devices' same-day activity
+		// can net equal totals while the per-source decomposition (or notes/best)
+		// is richer locally, which the cloud must still learn.
+		if (
+			merged.sessionCount > cs.sessionCount ||
+			(merged.earTrainingSessions ?? 0) > (cs.earTrainingSessions ?? 0) ||
+			(merged.lickPracticeSessions ?? 0) > (cs.lickPracticeSessions ?? 0) ||
+			merged.bestScore > cs.bestScore ||
+			merged.notesTotal > cs.notesTotal ||
+			merged.notesHit > cs.notesHit
+		) {
 			localWinners.add(existing.date);
 		}
 	}
@@ -439,7 +467,26 @@ export function mergeCloudSummaries(cloudSummaries: DailySummary[]): DailySummar
 		saveAll();
 	}
 
-	return dailySummaries.filter((s) => !cloudDates.has(s.date) || localWinners.has(s.date));
+	return dailySummaries.filter(
+		(s) => derivable.has(s.date) || !cloudDates.has(s.date) || localWinners.has(s.date)
+	);
+}
+
+/**
+ * Outbox flush handler: reconcile against the cloud and push local-authoritative
+ * summaries. Throws when the cloud read fails (so it retries offline); the push
+ * itself is best-effort (every session re-enqueues, so it self-heals).
+ */
+export async function flushDailySummariesToCloud(
+	supabase: import('@supabase/supabase-js').SupabaseClient<import('$lib/supabase/types').Database>
+): Promise<void> {
+	const { loadDailySummariesFromCloud, syncAllDailySummariesToCloud } = await import(
+		'$lib/persistence/sync'
+	);
+	const cloud = await loadDailySummariesFromCloud(supabase);
+	if (cloud == null) throw new Error('daily summaries load failed — deferring push');
+	const toPush = reconcileCloudSummaries(cloud);
+	if (toPush.length > 0) await syncAllDailySummariesToCloud(supabase, toPush);
 }
 
 // ── Query functions ──────────────────────────────────────────────

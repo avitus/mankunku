@@ -19,14 +19,20 @@ vi.stubGlobal('localStorage', {
 	clear: vi.fn(() => store.clear())
 });
 
-// Mock the sync module
+// Mock the sync module. loadProgressFromCloud is now tri-state (CloudLoad<T>):
+// tests still drive it via mockLoadProgress returning a bare UserProgress (or
+// null), and this wrapper adapts that to { status:'ok', data } / { status:'empty' }.
 const mockLoadProgress = vi.fn();
 vi.mock('$lib/persistence/sync', () => ({
-	syncProgressToCloud: vi.fn().mockResolvedValue(undefined),
-	loadProgressFromCloud: (...args: unknown[]) => mockLoadProgress(...args),
+	syncProgressToCloud: vi.fn().mockResolvedValue(true),
+	loadProgressFromCloud: async (...args: unknown[]) => {
+		const data = await mockLoadProgress(...args);
+		return data == null ? { status: 'empty' } : { status: 'ok', data };
+	},
 	deleteProgressDetailsFromCloud: vi.fn().mockResolvedValue(undefined),
-	syncSettingsToCloud: vi.fn().mockResolvedValue(undefined),
-	loadSettingsFromCloud: vi.fn().mockResolvedValue(null)
+	deleteDailySummariesFromCloud: vi.fn().mockResolvedValue(undefined),
+	syncSettingsToCloud: vi.fn().mockResolvedValue(true),
+	loadSettingsFromCloud: vi.fn().mockResolvedValue({ status: 'empty' })
 }));
 
 // Mock history module (called during progress operations)
@@ -142,7 +148,7 @@ describe('initFromCloud', () => {
 		expect(mockLoadProgress).toHaveBeenCalledTimes(2);
 	});
 
-	it('keeps local state when local has more sessions', async () => {
+	it('unions local and cloud sessions (no distinct session is dropped)', async () => {
 		// Seed local with 3 sessions via localStorage before module import
 		vi.resetModules();
 		const localProgress = makeCloudProgress([
@@ -151,15 +157,16 @@ describe('initFromCloud', () => {
 		store.set('mankunku:progress', JSON.stringify(localProgress));
 		progressModule = await import('$lib/state/progress.svelte');
 
-		// Cloud has only 1 session (hasn't synced yet)
+		// Cloud has 1 distinct session (hasn't synced yet).
 		mockLoadProgress.mockResolvedValue(
 			makeCloudProgress([makeSession('cloud-1')])
 		);
 		await progressModule.initFromCloud(mockSupabase() as any);
 
-		// Local state should be kept (more sessions)
-		expect(progressModule.progress.sessions).toHaveLength(3);
-		expect(progressModule.progress.sessions[0].id).toBe('local-1');
+		// New contract: sessions UNION by id — the old count-based "local kept
+		// intact" merge is gone, so local's 3 AND the cloud's 1 are all present.
+		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
+		expect(ids).toEqual(new Set(['local-1', 'local-2', 'local-3', 'cloud-1']));
 	});
 
 	it('does nothing when cloud returns null', async () => {
@@ -217,6 +224,8 @@ describe('initFromCloud', () => {
 
 		await progressModule.initFromCloud(mockSupabase() as any);
 
+		// New contract: proficiency merges per key, keeping the record with more
+		// totalAttempts. Local is empty here, so every cloud key wins outright.
 		expect(progressModule.progress.scaleProficiency['major']).toBeDefined();
 		expect(progressModule.progress.scaleProficiency['major']!.level).toBe(5);
 		expect(progressModule.progress.keyProficiency['G']).toBeDefined();

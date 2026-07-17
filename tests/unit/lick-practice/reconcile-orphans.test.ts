@@ -53,7 +53,7 @@ import {
 	saveLickPracticeProgress,
 	loadUnlockCounts
 } from '$lib/persistence/lick-practice-store';
-import { save } from '$lib/persistence/storage';
+import { save, load } from '$lib/persistence/storage';
 
 beforeEach(() => {
 	localStorageMock.clear();
@@ -104,24 +104,34 @@ describe('reconcileOrphanedLickMetadata', () => {
 		expect(loadUnlockCounts()).toEqual({ 'mine-1': 3 });
 	});
 
-	it('syncs cleaned blobs to cloud, but only for the maps that changed', async () => {
+	it('cleans orphaned blobs locally and enqueues a lick-metadata cloud sync', async () => {
 		knownIds.add('mine-1');
 		saveUserLickTags({
 			'mine-1': ['practice'],
 			'foreign-avitus': ['practice']
 		});
-		// Progress map is already clean — should not appear in the cloud payload.
+		// Progress map is already clean — left untouched by the reconcile.
 		saveLickPracticeProgress({
 			'mine-1': { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 0 } }
 		});
 
 		await reconcileOrphanedLickMetadata(supabase);
 
-		expect(mockSyncLickMetadataToCloud).toHaveBeenCalledTimes(1);
-		const [, payload] = mockSyncLickMetadataToCloud.mock.calls[0];
-		expect(payload).toHaveProperty('lickTags');
-		expect(payload).not.toHaveProperty('practiceProgress');
-		expect(payload).not.toHaveProperty('unlockCounts');
+		// New contract: the reconcile no longer calls syncLickMetadataToCloud with
+		// a per-map payload. It (1) cleans the local blobs of orphan ids, stamps a
+		// fresh merge-meta tombstone for each removed id, and (2) enqueues a single
+		// merge-aware 'lickMeta' sync on the durable outbox.
+		expect(mockSyncLickMetadataToCloud).not.toHaveBeenCalled();
+		// Orphan tag id was removed from the local tags blob…
+		expect(loadUserLickTags()).toEqual({ 'mine-1': ['practice'] });
+		// …and a lickMeta sync is now queued on the (namespaced) outbox.
+		const outbox = load<Record<string, unknown>>('outbox') ?? {};
+		expect(outbox).toHaveProperty('lickMeta');
+		// …and a merge-meta tombstone was stamped for the removed orphan id, so
+		// the deletion propagates through the per-entry merge (rather than being
+		// re-unioned back from the cloud on the next hydration).
+		const mergeMeta = load<{ tags?: Record<string, number> }>('lick-merge-meta') ?? {};
+		expect(mergeMeta.tags).toHaveProperty('foreign-avitus');
 	});
 
 	it('is a no-op when nothing is orphaned', async () => {

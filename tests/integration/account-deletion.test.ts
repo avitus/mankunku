@@ -114,19 +114,23 @@ describe('account deletion — storage cleanup', () => {
 	});
 
 	it('paginates storage listing', async () => {
-		// First page: 100 files (full page → more pages)
+		// New contract: the handler ALWAYS lists offset 0. Each pass deletes what
+		// it listed, so the folder shrinks; the loop re-lists offset 0 and stops
+		// when a page comes back empty. (Advancing the offset while deleting
+		// skipped every second page.)
 		const files100 = Array.from({ length: 100 }, (_, i) => ({
 			name: `recording${i}.webm`
 		}));
 
-		// Second page: 50 files (less than page size → done)
+		// Second page: 50 files (still non-empty → one more pass).
 		const files50 = Array.from({ length: 50 }, (_, i) => ({
 			name: `recording${100 + i}.webm`
 		}));
 
 		const listMock = vi.fn()
 			.mockResolvedValueOnce({ data: files100, error: null })
-			.mockResolvedValueOnce({ data: files50, error: null });
+			.mockResolvedValueOnce({ data: files50, error: null })
+			.mockResolvedValueOnce({ data: [], error: null }); // empty page → stop
 		const removeMock = vi.fn().mockResolvedValue({ error: null });
 
 		mockAdminStorage.from.mockReturnValue({
@@ -137,13 +141,16 @@ describe('account deletion — storage cleanup', () => {
 		const locals = createMockLocals(true);
 		await DELETE({ locals } as any);
 
-		// Should list twice: offset 0 and offset 100
-		expect(listMock).toHaveBeenCalledTimes(2);
-		expect(listMock).toHaveBeenCalledWith('user-123', { limit: 100, offset: 0 });
-		expect(listMock).toHaveBeenCalledWith('user-123', { limit: 100, offset: 100 });
+		// Three list calls, EVERY one at offset 0 (never an advancing cursor).
+		expect(listMock).toHaveBeenCalledTimes(3);
+		for (const call of listMock.mock.calls) {
+			expect(call).toEqual(['user-123', { limit: 100, offset: 0 }]);
+		}
 
-		// Should remove twice (once per page)
+		// Both non-empty pages were removed — all 150 files across pages.
 		expect(removeMock).toHaveBeenCalledTimes(2);
+		expect(removeMock).toHaveBeenNthCalledWith(1, files100.map((f) => `user-123/${f.name}`));
+		expect(removeMock).toHaveBeenNthCalledWith(2, files50.map((f) => `user-123/${f.name}`));
 	});
 
 	it('continues with auth deletion even if storage listing fails', async () => {
@@ -222,10 +229,17 @@ describe('account deletion — full flow', () => {
 	it('executes complete deletion sequence: auth check → storage → delete user', async () => {
 		const callOrder: string[] = [];
 
-		const listMock = vi.fn().mockImplementation(async () => {
-			callOrder.push('list-storage');
-			return { data: [{ name: 'file.webm' }], error: null };
-		});
+		// One non-empty page, then an empty page so the always-offset-0 loop
+		// terminates (each pass re-lists offset 0 after deleting what it listed).
+		const listMock = vi.fn()
+			.mockImplementationOnce(async () => {
+				callOrder.push('list-storage');
+				return { data: [{ name: 'file.webm' }], error: null };
+			})
+			.mockImplementationOnce(async () => {
+				callOrder.push('list-storage');
+				return { data: [], error: null };
+			});
 		const removeMock = vi.fn().mockImplementation(async () => {
 			callOrder.push('remove-storage');
 			return { error: null };
@@ -253,8 +267,9 @@ describe('account deletion — full flow', () => {
 
 		expect(callOrder).toEqual([
 			'auth-check',
-			'list-storage',
+			'list-storage', // page 1 (one file)
 			'remove-storage',
+			'list-storage', // page 2 (empty → loop exits; each pass re-lists offset 0)
 			'delete-user'
 		]);
 		expect(response.status).toBe(200);

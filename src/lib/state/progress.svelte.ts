@@ -14,12 +14,30 @@ import { createInitialAdaptiveState, processAttempt, createInitialScaleProficien
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
-import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud, syncDailySummaryToCloud, deleteDailySummariesFromCloud } from '$lib/persistence/sync';
+import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCloud, deleteDailySummariesFromCloud } from '$lib/persistence/sync';
 import { recomputeDailySummary, clearHistory, localDateStr } from '$lib/state/history.svelte';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
+import { enqueue } from '$lib/persistence/outbox';
 
 const STORAGE_KEY = 'progress';
 const MAX_SESSIONS = 100; // keep last 100 sessions
+
+/**
+ * Collision-resistant session id. Replaces the old `${Date.now()}-${random4}`
+ * scheme whose global-PK collisions with another user's row could fail the
+ * whole session upsert batch (42501). Falls back to a timestamp+random string
+ * where crypto.randomUUID is unavailable (very old / insecure contexts).
+ */
+function newSessionId(): string {
+	try {
+		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+			return crypto.randomUUID();
+		}
+	} catch {
+		/* fall through */
+	}
+	return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function createInitialProgress(): UserProgress {
 	return {
@@ -114,20 +132,69 @@ export function saveProgress(): void {
 }
 
 /**
- * Queue progress-cloud syncs so an earlier provisional write can't overwrite
- * a later authoritative one when their HTTP requests complete out of order.
- * `recordAttempt` fires a provisional sync, then `updateSessionScore` follows
- * ~200–500 ms later with the rescored value; chaining onto a single promise
- * guarantees the second upsert starts after the first one settles, so the
- * latest local state is always what lands in the cloud.
+ * Whether cloud progress has been hydrated this session. Gates the aggregate
+ * cloud push: on a hydration error the flag stays false and the outbox defers
+ * the push (retrying after a later successful hydration) rather than writing a
+ * possibly-stale aggregate over the cloud row.
  */
-let progressSyncQueue: Promise<unknown> = Promise.resolve();
-function queueProgressSync(supabase: SupabaseClient<Database>): void {
-	progressSyncQueue = progressSyncQueue
-		.then(() => syncProgressToCloud(supabase, progress))
-		.catch((err) => {
-			console.warn('Failed to sync progress to cloud:', err);
-		});
+let progressHydrationOk = false;
+
+/**
+ * Enqueue a progress sync. The outbox coalesces (one pending entry, drained
+ * against the latest local state) and retries with backoff, so an earlier
+ * provisional write can't land after a later authoritative one, and a failed
+ * push is never silently dropped. `_supabase` param kept for call-site parity.
+ */
+function queueProgressSync(_supabase?: SupabaseClient<Database>): void {
+	enqueue('progress');
+}
+
+/**
+ * Outbox flush handler: push the current progress to the cloud. Gated on a
+ * successful hydration so we never clobber the cloud aggregate from an
+ * un-hydrated device. Throws on failure so the outbox retries.
+ */
+export async function flushProgressToCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	if (!progressHydrationOk) throw new Error('progress not hydrated yet — deferring push');
+	const ok = await syncProgressToCloud(supabase, progress);
+	if (!ok) throw new Error('progress push failed');
+}
+
+/** Merge two per-key counter maps, keeping the entry with the larger counter. */
+function mergeByCounter<T>(
+	local: Record<string, T | undefined>,
+	cloud: Record<string, T | undefined>,
+	field: keyof T
+): Record<string, T> {
+	const out: Record<string, T> = {};
+	const ids = new Set([...Object.keys(local ?? {}), ...Object.keys(cloud ?? {})]);
+	for (const id of ids) {
+		const l = local?.[id];
+		const c = cloud?.[id];
+		if (l && c) out[id] = Number(l[field]) >= Number(c[field]) ? l : c;
+		else if (l) out[id] = l;
+		else if (c) out[id] = c;
+	}
+	return out;
+}
+
+/** Merge proficiency maps, keeping the record with more lifetime attempts. */
+function mergeProficiency<T extends { totalAttempts: number; level: number }>(
+	local: Partial<Record<string, T>>,
+	cloud: Partial<Record<string, T>>
+): Partial<Record<string, T>> {
+	const out: Partial<Record<string, T>> = {};
+	const ids = new Set([...Object.keys(local ?? {}), ...Object.keys(cloud ?? {})]);
+	for (const id of ids) {
+		const l = local[id];
+		const c = cloud[id];
+		if (l && c) {
+			if (c.totalAttempts > l.totalAttempts) out[id] = c;
+			else if (l.totalAttempts > c.totalAttempts) out[id] = l;
+			else out[id] = c.level >= l.level ? c : l;
+		} else out[id] = (l ?? c)!;
+	}
+	return out;
 }
 
 /**
@@ -151,48 +218,73 @@ function queueProgressSync(supabase: SupabaseClient<Database>): void {
 export async function initFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
 	const gen = getScopeGeneration();
 	try {
-		const cloudProgress = await loadProgressFromCloud(supabase);
-		if (!cloudProgress) return; // No cloud data or not authenticated
+		const result = await loadProgressFromCloud(supabase);
+		if (result.status === 'error') {
+			// Cloud truth unknown — do NOT treat local as authoritative and do NOT
+			// enable the cloud push. Local stays intact; a later successful
+			// hydration flips the gate and drains any queued push.
+			progressHydrationOk = false;
+			return;
+		}
 		if (gen !== getScopeGeneration()) return; // User switched mid-flight
+		progressHydrationOk = true;
 
-		// Merge cloud data with local state
-		// Cloud data takes precedence for aggregate fields
-		const localSessionCount = progress.sessions.length;
-		const cloudSessionCount = cloudProgress.sessions.length;
-
-		if (cloudSessionCount >= localSessionCount) {
-			// Cloud has same or more sessions — use cloud data as base
-			Object.assign(progress, {
-				...cloudProgress,
-				// Clamp cloud sessions to the current cap; older pulls may exceed it.
-				sessions: cloudProgress.sessions.slice(0, MAX_SESSIONS),
-				// Preserve local lickProgress — cloud doesn't store it
-				lickProgress: progress.lickProgress,
-				// Re-merge adaptive state with defaults for forward compatibility
-				adaptive: {
-					...createInitialAdaptiveState(),
-					...cloudProgress.adaptive
-				}
-			});
-
-			// Migrate: rebuild proficiency from sessions if cloud detail tables were empty
-			if (!progress.scaleProficiency || Object.keys(progress.scaleProficiency).length === 0) {
-				progress.scaleProficiency = migrateScaleProficiency(progress.sessions);
-			}
-			if (!progress.keyProficiency || Object.keys(progress.keyProficiency).length === 0) {
-				progress.keyProficiency = migrateKeyProficiency(progress.sessions);
-			}
-		} else {
-			// Local has more sessions — keep local state intact (offline practice not yet synced)
-			// Only re-merge adaptive state with defaults for forward compatibility of new fields
-			progress.adaptive = {
-				...createInitialAdaptiveState(),
-				...progress.adaptive
-			};
+		if (result.status === 'empty') {
+			// Brand-new cloud account — local is authoritative; ensure it's cached
+			// and let the outbox push it up.
+			saveProgress();
+			if (progress.sessions.length > 0 && gen === getScopeGeneration()) enqueue('progress');
+			return;
 		}
 
-		// Persist merged state locally for offline cache
+		const cloud = result.data;
+
+		// Sessions: UNION by id (local wins same-id for in-flight rescore), newest
+		// MAX_SESSIONS for local display. Never discard the other side's distinct
+		// sessions the way the old count-based all-or-nothing merge did.
+		const byId = new Map<string, SessionResult>();
+		for (const s of cloud.sessions) byId.set(s.id, s);
+		for (const s of progress.sessions) byId.set(s.id, s);
+		const mergedSessions = [...byId.values()]
+			.sort((a, b) => b.timestamp - a.timestamp)
+			.slice(0, MAX_SESSIONS);
+
+		// adaptive: the device that practiced most recently has the freshest
+		// buffers (they can't be rebuilt from a 100-row window). Derive each side's
+		// latest from the MAX timestamp rather than assuming sessions[0] is newest.
+		const maxTs = (list: SessionResult[]) => list.reduce((m, s) => (s.timestamp > m ? s.timestamp : m), 0);
+		const localLatest = maxTs(progress.sessions);
+		const cloudLatest = maxTs(cloud.sessions);
+		const adaptive = cloudLatest > localLatest ? cloud.adaptive : progress.adaptive;
+
+		Object.assign(progress, {
+			adaptive: { ...createInitialAdaptiveState(), ...adaptive },
+			sessions: mergedSessions,
+			// Lifetime counters: keep the side with more attempts per key/category.
+			categoryProgress: mergeByCounter(progress.categoryProgress, cloud.categoryProgress, 'attemptsTotal'),
+			keyProgress: mergeByCounter(progress.keyProgress, cloud.keyProgress, 'attempts'),
+			scaleProficiency: mergeProficiency(progress.scaleProficiency, cloud.scaleProficiency),
+			keyProficiency: mergeProficiency(progress.keyProficiency, cloud.keyProficiency),
+			lickProgress: progress.lickProgress, // cloud doesn't store it
+			totalPracticeTime: Math.max(progress.totalPracticeTime, cloud.totalPracticeTime),
+			streakDays: Math.max(progress.streakDays, cloud.streakDays),
+			lastPracticeDate:
+				progress.lastPracticeDate >= cloud.lastPracticeDate
+					? progress.lastPracticeDate
+					: cloud.lastPracticeDate
+		});
+
+		// Rebuild proficiency from sessions if both sides were empty.
+		if (Object.keys(progress.scaleProficiency).length === 0) {
+			progress.scaleProficiency = migrateScaleProficiency(progress.sessions);
+		}
+		if (Object.keys(progress.keyProficiency).length === 0) {
+			progress.keyProficiency = migrateKeyProficiency(progress.sessions);
+		}
+
 		saveProgress();
+		// Push the merged superset back so the cloud converges.
+		if (gen === getScopeGeneration()) enqueue('progress');
 	} catch (err) {
 		console.warn('Failed to initialize progress from cloud:', err);
 	}
@@ -219,7 +311,7 @@ export function recordAttempt(
 	source: 'ear-training' | 'lick-practice' = 'ear-training'
 ): void {
 	const session: SessionResult = {
-		id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+		id: newSessionId(),
 		timestamp: Date.now(),
 		phraseId,
 		phraseName,
@@ -287,14 +379,10 @@ export function recordAttempt(
 		tonalMastery: getTonalMastery().overall
 	});
 
-	// Fire-and-forget cloud sync (does not block UI)
+	// Queue cloud sync via the durable outbox (does not block UI).
 	if (supabase) {
 		queueProgressSync(supabase);
-		if (summary) {
-			syncDailySummaryToCloud(supabase, summary).catch((err) => {
-				console.warn('Failed to sync daily summary to cloud:', err);
-			});
-		}
+		if (summary) enqueue('dailySummaries');
 	}
 }
 

@@ -12,8 +12,10 @@
  * These tests pin down:
  *   - UNION across two devices via the real `syncTourStateToCloud` function
  *   - Empty-cloud no-op on load
- *   - User-switch isolation: tour-state localStorage is wiped so the next
- *     user does not inherit dismissed tours
+ *   - User-switch isolation: storage is per-user-namespaced (namespace.ts), so
+ *     switching accounts re-homes to a different bucket — the next user does not
+ *     inherit dismissed tours, and (unlike the old wipe model) the prior user's
+ *     tour state survives in their own bucket.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -158,33 +160,34 @@ describe('loadTourStateFromCloud — empty / missing cloud row', () => {
 	});
 });
 
-describe('user-switch isolation — tour-state localStorage is wiped', () => {
-	it('clearAll wipes mankunku:tour-state along with everything else', async () => {
-		// Simulate user A's tour state in localStorage.
-		store.set(
-			'mankunku:tour-state',
-			JSON.stringify({ completed: ['welcome'], dismissed: ['library-intro'] })
+describe('user-switch isolation — tour-state is namespaced, not wiped', () => {
+	it('a switch re-homes the namespace: user B does not see A’s tour state, and A’s survives', async () => {
+		// __schema=2 skips the one-time legacy key migration in namespace.ts.
+		store.set('mankunku:__schema', '2');
+		const { setActiveUid, __resetNamespaceCacheForTests } = await import(
+			'$lib/persistence/namespace'
 		);
-		store.set('mankunku:__lastUserId', JSON.stringify('user-A'));
+		const { save, load } = await import('$lib/persistence/storage');
+		__resetNamespaceCacheForTests();
 
-		const { syncUserScope } = await import('$lib/persistence/user-scope');
-		await syncUserScope('user-B');
+		// User A authors tour state in their own isolated bucket.
+		setActiveUid('user-A');
+		save('tour-state', { completed: ['welcome'], dismissed: ['library-intro'] });
+		expect(store.has('mankunku:u:user-A:tour-state')).toBe(true);
 
-		// Tour state wiped — user B does not inherit user A's tour history.
-		expect(store.has('mankunku:tour-state')).toBe(false);
+		// Switch to user B (new model: re-home the namespace, NO destructive wipe).
+		setActiveUid('user-B');
+
+		// Isolation: user B's bucket has no tour state, so B does not inherit A's.
+		expect(load('tour-state')).toBeNull();
+		// And A's data is preserved, not destroyed — the anti-2026-07-13 guarantee.
+		expect(store.has('mankunku:u:user-A:tour-state')).toBe(true);
 	});
 
-	it('after wipe, a fresh tour module load shows no completed/dismissed tours', async () => {
+	it('after a switch, a fresh tour module load shows no completed/dismissed tours', async () => {
 		// Stub window so the tour module's import-time loadInitial runs.
 		vi.stubGlobal('window', { document: {} });
 		try {
-			// Pre-wipe: prior user's tour state in localStorage.
-			store.set(
-				'mankunku:tour-state',
-				JSON.stringify({ completed: ['welcome'], dismissed: ['library-intro'] })
-			);
-			store.set('mankunku:__lastUserId', JSON.stringify('user-A'));
-
 			// Re-stub localStorage after stubGlobal cleared previous stubs.
 			vi.stubGlobal('localStorage', {
 				getItem: vi.fn((k: string) => store.get(k) ?? null),
@@ -196,18 +199,29 @@ describe('user-switch isolation — tour-state localStorage is wiped', () => {
 				},
 				clear: vi.fn(() => store.clear())
 			});
+			store.set('mankunku:__schema', '2'); // skip legacy migration
 
-			// User switches.
-			const { syncUserScope } = await import('$lib/persistence/user-scope');
-			await syncUserScope('user-B');
+			const ns = await import('$lib/persistence/namespace');
+			ns.__resetNamespaceCacheForTests();
+			const { save } = await import('$lib/persistence/storage');
+
+			// Prior user A's tour state lives in A's namespace bucket.
+			ns.setActiveUid('user-A');
+			save('tour-state', { completed: ['welcome'], dismissed: ['library-intro'] });
+
+			// Switch to user B — the __active pointer now resolves to B.
+			ns.setActiveUid('user-B');
 
 			// Reset module graph so the tour module's $state initializer re-runs
-			// against the now-empty localStorage.
+			// against user B's (empty) namespace bucket.
 			vi.resetModules();
 			const tourModule = await import('$lib/state/tour.svelte');
 
+			// User B inherits nothing — isolation, not a wipe.
 			expect(tourModule.tourState.completedTours.size).toBe(0);
 			expect(tourModule.tourState.dismissedTours.size).toBe(0);
+			// A's tour state still exists in A's bucket (not destroyed).
+			expect(store.has('mankunku:u:user-A:tour-state')).toBe(true);
 		} finally {
 			vi.unstubAllGlobals();
 		}
