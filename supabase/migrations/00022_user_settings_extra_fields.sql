@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 00021_user_settings_extra_fields
+-- Migration: 00022_user_settings_extra_fields
 -- Purpose:   Add the two Settings fields that existed only in local state and
 --            were therefore reset to their defaults on every authenticated
 --            hydration (cloud-wins with no column to write them to):

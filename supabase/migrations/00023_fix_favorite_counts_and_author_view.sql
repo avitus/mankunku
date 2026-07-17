@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 00022_fix_favorite_counts_and_author_view
+-- Migration: 00023_fix_favorite_counts_and_author_view
 -- Purpose:   Fix two community-layer defects surfaced by the data-layer audit:
 --            (a) favorite_count never updates for cross-user favorites, and
 --            (b) public_lick_authors leaks every registered user's profile.
@@ -24,7 +24,7 @@
 -- Depends on:
 --   - public.lick_favorites + favorite_count triggers (migration 00013)
 --   - public.public_lick_authors view (migration 00013)
---   - public.user_licks.deleted_at (migration 00019)
+--   - public.user_licks.deleted_at (migration 00020)
 -- =============================================================================
 
 -- ── (a) favorite_count triggers → SECURITY DEFINER ──────────────────────────

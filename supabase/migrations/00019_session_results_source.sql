@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 00018_session_results_source
+-- Migration: 00019_session_results_source
 -- Purpose:   Persist SessionResult.source ('ear-training' | 'lick-practice') on
 --            session_results so a device that hydrates its history from the
 --            cloud can rebuild per-scale / per-key proficiency correctly.

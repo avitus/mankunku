@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 00020_lick_metadata_merge_meta
+-- Migration: 00021_lick_metadata_merge_meta
 -- Purpose:   Carry per-entry recency + reset-tombstone maps for the lick
 --            metadata JSONB blobs so cross-device sync can merge per lick id
 --            instead of replacing an entire column (whole-column last-writer-wins

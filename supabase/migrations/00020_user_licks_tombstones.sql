@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 00019_user_licks_tombstones
+-- Migration: 00020_user_licks_tombstones
 -- Purpose:   Make user_licks sync non-destructive and delete-safe across devices
 --            by adding (a) a client-owned edit clock the updated_at trigger does
 --            NOT touch, and (b) soft-delete tombstones so a delete on one device
