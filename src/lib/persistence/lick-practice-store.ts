@@ -362,13 +362,22 @@ function syncUnlockCountsToCloud(): void {
  * Throws on failure so the outbox retries.
  */
 export async function flushLickMetadataToCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	// Bind the whole flush to one account scope. A user switch triggers a full
+	// page reload (reconcileActiveUser), but that isn't instantaneous — so guard
+	// defensively: capture the scope generation up front and abort after each
+	// await if it changed, or the read-merge-write could straddle two accounts
+	// (read cloud for the new user, merge with the old user's local, and upsert
+	// the mix under the new auth context).
+	const gen = getScopeGeneration();
 	const cloud = await loadLickMetadataFromCloud(supabase);
+	if (gen !== getScopeGeneration()) return; // user switched mid-flight
 	if (cloud.status === 'error') throw new Error('lick metadata hydration failed — deferring push');
 	const cloudBundle: LickMetaBundle =
 		cloud.status === 'ok'
 			? { data: cloud.data as unknown as LickMetaBundle['data'], mergeMeta: cloud.mergeMeta }
 			: { data: emptyMetaData(), mergeMeta: {} };
 	const merged = mergeLickMetadata(currentLocalBundle(), cloudBundle);
+	if (gen !== getScopeGeneration()) return; // switched during merge — do not persist/push
 	saveLocalBundle(merged);
 	await upsertLickMetadataRow(
 		supabase,

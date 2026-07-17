@@ -54,9 +54,20 @@ function keysOf(...objs: Array<Record<string, unknown> | undefined>): string[] {
 	return [...s];
 }
 
+/** Reject prototype-polluting keys before any computed-property assignment. */
+function isUnsafeKey(key: string): boolean {
+	return key === '__proto__' || key === 'constructor' || key === 'prototype';
+}
+
 /**
- * Per-id last-writer-wins over a value map, using an mtime map on each side.
- * A key absent on the winning (newer) side is treated as deleted and omitted.
+ * Per-id merge over a value map using an mtime map on each side.
+ *
+ * When both sides hold the key, the newer clock wins (ties deterministically
+ * favour local). When only ONE side holds the key, absence on the other side is
+ * treated as a deletion ONLY if that other side stamped a strictly-newer write;
+ * otherwise the present value is kept. This preserves a legacy value that has no
+ * merge_meta (both clocks 0 — a real deletion would carry a newer stamp) while
+ * still honouring a genuine remote/local removal (which bumps its mtime).
  */
 function mergeById<V>(
 	localVals: Record<string, V> | undefined,
@@ -67,12 +78,23 @@ function mergeById<V>(
 	const vals: Record<string, V> = {};
 	const mtimes: Record<string, number> = {};
 	for (const id of keysOf(localVals, cloudVals, localMtimes, cloudMtimes)) {
+		if (isUnsafeKey(id)) continue;
 		const lm = localMtimes?.[id] ?? 0;
 		const cm = cloudMtimes?.[id] ?? 0;
-		const winner = lm >= cm ? localVals : cloudVals;
 		const mtime = Math.max(lm, cm);
-		if (winner && id in winner) vals[id] = winner[id];
 		if (mtime > 0) mtimes[id] = mtime;
+
+		const localHas = !!localVals && id in localVals;
+		const cloudHas = !!cloudVals && id in cloudVals;
+		if (localHas && cloudHas) {
+			vals[id] = lm >= cm ? (localVals as Record<string, V>)[id] : (cloudVals as Record<string, V>)[id];
+		} else if (localHas) {
+			// Keep unless the cloud deleted it more recently.
+			if (cm <= lm) vals[id] = (localVals as Record<string, V>)[id];
+		} else if (cloudHas) {
+			// Keep unless the local side deleted it more recently.
+			if (lm <= cm) vals[id] = (cloudVals as Record<string, V>)[id];
+		}
 	}
 	return { vals, mtimes };
 }

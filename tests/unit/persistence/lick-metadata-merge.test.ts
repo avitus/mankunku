@@ -105,6 +105,34 @@ describe('mergeLickMetadata', () => {
 		expect(merged.data.practiceProgress.a?.C?.lastPracticedAt).toBe(150);
 	});
 
+	it('preserves a legacy cloud value that has no merge_meta (both clocks 0)', () => {
+		// An existing user's tags written before merge_meta existed: cloud holds
+		// them with NO mtime; a fresh device has empty local. The value must NOT
+		// be dropped by the zero-clock tie.
+		const local = bundle({ lickTags: {} }, {});
+		const cloud = bundle({ lickTags: { a: ['practice', 'prog:ii-V-I-major'] } }, {});
+		const merged = mergeLickMetadata(local, cloud);
+		expect(merged.data.lickTags.a).toEqual(['practice', 'prog:ii-V-I-major']);
+		// symmetric
+		expect(mergeLickMetadata(cloud, local).data.lickTags.a).toEqual(['practice', 'prog:ii-V-I-major']);
+	});
+
+	it('still drops a value the other side deleted with a strictly-newer stamp', () => {
+		// local removed `a` (stamped 300); cloud still has the stale legacy value.
+		const local = bundle({ lickTags: {} }, { tags: { a: 300 } });
+		const cloud = bundle({ lickTags: { a: ['practice'] } }, {});
+		const merged = mergeLickMetadata(local, cloud);
+		expect(merged.data.lickTags.a).toBeUndefined();
+	});
+
+	it('ignores prototype-polluting ids', () => {
+		const local = bundle({ lickTags: { __proto__: ['x'] } as unknown as Record<string, string[]> }, {});
+		const cloud = bundle({ lickTags: {} }, {});
+		const merged = mergeLickMetadata(local, cloud);
+		expect(Object.prototype.hasOwnProperty.call(merged.data.lickTags, '__proto__')).toBe(false);
+		expect(({} as Record<string, unknown>).x).toBeUndefined(); // no pollution
+	});
+
 	it('is commutative for the data it produces', () => {
 		const a = bundle(
 			{ lickTags: { x: ['practice'] }, unlockCounts: { x: 4 } },

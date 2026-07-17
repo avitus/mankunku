@@ -522,12 +522,14 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 
 		expect(ok).toBe(true);
 		const localTags = JSON.parse(store.get('mankunku:user-lick-tags')!);
-		// Local lick entries are untouched (populated local always wins) and
-		// the cloud lick entries do NOT overwrite them...
+		// Per-entry merge (not "populated local wins"): the local-only entry is
+		// kept AND the cloud-only entry is merged in — neither is dropped. A
+		// cloud value with no merge_meta must survive (an absent entry is a
+		// deletion only when the other side stamped a strictly-newer write).
 		expect(localTags['lick-local']).toEqual(['practice', 'prog:blues']);
-		expect(localTags['lick-cloud']).toBeUndefined();
-		// ...but the reserved marker merges down, so this device can never
-		// re-run a one-time migration another device already completed.
+		expect(localTags['lick-cloud']).toEqual(['practice']);
+		// The reserved marker merges down too, so this device can never re-run a
+		// one-time migration another device already completed.
 		expect(localTags['__migrations']).toContain('prog-backfill-v1');
 	});
 });
