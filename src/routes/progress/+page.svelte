@@ -811,7 +811,7 @@
 							// the two reset entry points can't drift.
 							try {
 								const { resetAllPracticeData } = await import('$lib/state/reset');
-								await resetAllPracticeData(supabase);
+								await resetAllPracticeData(supabase ?? undefined);
 							} catch (err) {
 								console.warn('Failed to fully reset progress:', err);
 							}

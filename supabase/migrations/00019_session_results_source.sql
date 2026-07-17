@@ -26,9 +26,16 @@ ALTER TABLE public.session_results
 -- Enforce the documented allowed values while staying nullable for old-client
 -- compatibility (old clients omit the column → NULL). Rejects arbitrary strings
 -- so the ear-training/lick-practice exclusion logic can't be bypassed.
+--
+-- NOT VALID: skips the full-table validation scan that would otherwise take a
+-- lock and block writes on a live session_results. It's safe to skip here —
+-- every existing row has source = NULL (the column was just added above), so
+-- there is nothing to validate; the constraint is still enforced on all future
+-- writes. (A later `VALIDATE CONSTRAINT` in a maintenance window is therefore
+-- unnecessary, but harmless if desired.)
 ALTER TABLE public.session_results
   ADD CONSTRAINT session_results_source_check
-  CHECK (source IS NULL OR source IN ('ear-training', 'lick-practice'));
+  CHECK (source IS NULL OR source IN ('ear-training', 'lick-practice')) NOT VALID;
 
 COMMENT ON COLUMN public.session_results.source IS
   'Origin of the session: ''ear-training'' or ''lick-practice''. Nullable — '
