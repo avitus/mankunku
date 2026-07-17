@@ -280,7 +280,9 @@ async function handleRest(route: Route, cloud: StubCloud, table: string, params:
 		return empty(route, 204);
 	}
 
-	return json(route, 200, []);
+	// Fail closed on an unsupported REST method so a broken/added call path
+	// surfaces instead of silently getting an empty 200.
+	return json(route, 405, { message: `stub-cloud: unsupported REST method ${method}` });
 }
 
 async function handleAuth(route: Route, user: E2ETestUser, sub: string): Promise<void> {
@@ -341,13 +343,15 @@ export async function installStubCloud(
 				// Recordings aren't part of convergence — succeed emptily.
 				return await json(route, 200, {});
 			}
-			return await json(route, 200, {});
+			// Fail closed on an unsupported Supabase path so unhandled plumbing is
+			// visible rather than masked by an empty 200.
+			return await json(route, 404, { message: `stub-cloud: unhandled path ${path}` });
 		} catch (err) {
-			// Never let the stub 500 — that would surface as a console error and
-			// fail the console-error fixture. Fall back to an empty success.
+			// Fail closed: a handler exception is a broken stub — surface it as a
+			// 500 (which the console-error fixture will catch) instead of hiding it.
 			// eslint-disable-next-line no-console
 			console.warn('[stub-cloud] handler error:', err);
-			return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+			return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: String(err) }) });
 		}
 	});
 }

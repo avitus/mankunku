@@ -33,7 +33,7 @@ beforeEach(() => {
 	setActiveUid('user-a');
 });
 
-function outbox() {
+function outbox(): Record<string, unknown> {
 	return load<Record<string, unknown>>('outbox') ?? {};
 }
 

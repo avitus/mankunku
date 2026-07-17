@@ -68,8 +68,14 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 	const gen = getScopeGeneration();
 	try {
 		const result = await fetchSettingsFromCloud(supabase);
-		if (result.status !== 'ok') return; // error → keep local; empty → keep local
+		if (result.status === 'error') return; // keep local — do not clobber
 		if (gen !== getScopeGeneration()) return; // User switched mid-flight
+		if (result.status === 'empty') {
+			// Brand-new cloud account: push the existing local settings up so they
+			// adopt to other devices without waiting for the user's next edit.
+			enqueue('settings');
+			return;
+		}
 		const cloudSettings = result.data;
 
 		// Merge cloud settings with defaults, preferring cloud values

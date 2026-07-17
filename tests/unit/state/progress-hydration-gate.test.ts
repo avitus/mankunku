@@ -145,7 +145,11 @@ function readOutbox(): Record<string, unknown> {
 }
 
 /** Supabase mock that records every from()/upsert()/delete() call, all succeeding. */
-function makeRecordingSupabase(uid = 'user-1') {
+interface RecordingSupabaseMock {
+	client: unknown;
+	calls: { table: string; method: string; args: unknown[] }[];
+}
+function makeRecordingSupabase(uid: string = 'user-1'): RecordingSupabaseMock {
 	const calls: { table: string; method: string; args: unknown[] }[] = [];
 	const client = {
 		auth: {

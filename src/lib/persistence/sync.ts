@@ -172,6 +172,10 @@ export async function syncProgressToCloud(
 			source: (s.source as string) ?? null
 		}));
 
+		// Track whether every detail row synced. If any row is left unsynced we
+		// return false so the outbox retries instead of dequeuing a partial push.
+		let allDetailsOk = true;
+
 		if (sessionRows.length > 0) {
 			const { error: sessionsError } = await supabase
 				.from('session_results')
@@ -188,7 +192,10 @@ export async function syncProgressToCloud(
 					const { error: rowError } = await supabase
 						.from('session_results')
 						.upsert(row, { onConflict: 'id' });
-					if (rowError) console.warn(`Failed to sync session ${row.id}:`, rowError);
+					if (rowError) {
+						console.warn(`Failed to sync session ${row.id}:`, rowError);
+						allDetailsOk = false;
+					}
 				}
 			}
 		}
@@ -213,6 +220,7 @@ export async function syncProgressToCloud(
 
 			if (scaleError) {
 				console.warn('Failed to sync scale proficiency to cloud:', scaleError);
+				allDetailsOk = false;
 			}
 		}
 
@@ -236,9 +244,10 @@ export async function syncProgressToCloud(
 
 			if (keyError) {
 				console.warn('Failed to sync key proficiency to cloud:', keyError);
+				allDetailsOk = false;
 			}
 		}
-		return true;
+		return allDetailsOk;
 	} catch (error) {
 		console.warn('Failed to sync progress to cloud:', error);
 		return false;

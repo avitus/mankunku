@@ -127,6 +127,11 @@ describe('reconcileOrphanedLickMetadata', () => {
 		// …and a lickMeta sync is now queued on the (namespaced) outbox.
 		const outbox = load<Record<string, unknown>>('outbox') ?? {};
 		expect(outbox).toHaveProperty('lickMeta');
+		// …and a merge-meta tombstone was stamped for the removed orphan id, so
+		// the deletion propagates through the per-entry merge (rather than being
+		// re-unioned back from the cloud on the next hydration).
+		const mergeMeta = load<{ tags?: Record<string, number> }>('lick-merge-meta') ?? {};
+		expect(mergeMeta.tags).toHaveProperty('foreign-avitus');
 	});
 
 	it('is a no-op when nothing is orphaned', async () => {

@@ -91,11 +91,6 @@ function stampLickDeleted(id: string): void {
 	saveLickMetaMap(map);
 }
 
-/**
- * Module-level Supabase reference, set during cloud hydration.
- * Used by write functions as a fallback when no client is passed directly.
- */
-let _supabase: SupabaseClient<Database> | null = null;
 const TAGS_OVERRIDE_KEY = 'lick-tag-overrides';
 const CATEGORY_OVERRIDE_KEY = 'lick-category-overrides';
 const WRITTEN_TO_CONCERT_MIGRATION_KEY = 'user-licks-migration-written-to-concert-v1';
@@ -327,21 +322,21 @@ function phraseToRow(
  * Throws on auth/query/push failure (so the outbox retries). Aborts silently on
  * a mid-flight user switch. Never deletes cloud rows: deletions are tombstones.
  */
-async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<void> {
+async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<boolean> {
 	const gen = getScopeGeneration();
 	const {
 		data: { user }
 	} = await supabase.auth.getUser();
 	if (!user) throw new Error('not authenticated');
-	if (gen !== getScopeGeneration()) return;
+	if (gen !== getScopeGeneration()) return false; // user switched mid-flight
 	const userId = user.id;
 
 	// Pull ALL rows for this user, INCLUDING tombstones (owner reads its own
-	// tombstoned rows per the migration-00019 SELECT policy), so deletes made on
+	// tombstoned rows per the migration SELECT policy), so deletes made on
 	// other devices propagate here.
 	const { data, error } = await supabase.from('user_licks').select('*').eq('user_id', userId);
 	if (error) throw new Error(`fetch user licks failed: ${error.message}`);
-	if (gen !== getScopeGeneration()) return;
+	if (gen !== getScopeGeneration()) return false;
 
 	const cloudById = new Map<
 		string,
@@ -392,7 +387,14 @@ async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<v
 
 		if (cloud && !local) {
 			if (cloud.deletedAt) {
-				if (!localDeleted || localDeleted < cloud.deletedAt) {
+				// Both sides tombstoned — converge on the NEWER deletion clock in
+				// both directions: adopt the cloud tombstone when it's newer (or
+				// local has none), and push ours up when the local tombstone is
+				// newer so the cloud clock advances (else a later re-creation with a
+				// clock between the two could resurrect the lick).
+				if (localDeleted && localDeleted > cloud.deletedAt) {
+					tombstones.push({ id, deletedAt: localDeleted });
+				} else if (!localDeleted || localDeleted < cloud.deletedAt) {
 					setMeta(id, { mtime: cloud.mtime, deletedAt: cloud.deletedAt });
 				}
 				continue;
@@ -442,7 +444,7 @@ async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<v
 		}
 	}
 
-	if (gen !== getScopeGeneration()) return;
+	if (gen !== getScopeGeneration()) return false;
 
 	save(STORAGE_KEY, Array.from(mergedLive.values()));
 	if (metaDirty) saveLickMetaMap(meta);
@@ -462,6 +464,8 @@ async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<v
 			.eq('user_id', userId);
 		if (tErr) throw new Error(`tombstone user lick failed: ${tErr.message}`);
 	}
+	if (gen !== getScopeGeneration()) return false;
+	return true;
 }
 
 /**
@@ -472,10 +476,10 @@ async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<v
 export async function initUserLicksFromCloud(
 	supabase: SupabaseClient<Database>
 ): Promise<boolean> {
-	_supabase = supabase;
 	try {
-		await reconcileUserLicks(supabase);
-		return true;
+		// A mid-flight scope switch reports false so the maintenance gate treats
+		// the hydration as incomplete (rather than acting on partial state).
+		return await reconcileUserLicks(supabase);
 	} catch (error) {
 		console.warn('Failed to sync user licks from cloud:', error);
 		return false;
@@ -484,7 +488,10 @@ export async function initUserLicksFromCloud(
 
 /** Outbox flush handler: reconcile local↔cloud user licks. Throws so it retries. */
 export async function flushUserLicksToCloud(supabase: SupabaseClient<Database>): Promise<void> {
-	await reconcileUserLicks(supabase);
+	const ok = await reconcileUserLicks(supabase);
+	// Aborted by a scope switch — keep the outbox intent so it retries (or is
+	// dropped by the drain's uid-gate if the account genuinely changed).
+	if (!ok) throw new Error('user-licks reconcile aborted (scope switch)');
 }
 
 /**
@@ -527,8 +534,10 @@ export function saveUserLick(
 	if (ownerId) setOwner(toSave.id, ownerId);
 	stampLickEdited(toSave.id);
 
-	const sb = supabase ?? _supabase;
-	if (sb) enqueue('userLicks');
+	// Enqueue whenever authenticated — NOT gated on a client being wired up yet.
+	// A mutation before hydration sets the fallback client would otherwise drop
+	// the sync intent; the outbox drains once its client registers.
+	if (getLastUserId()) enqueue('userLicks');
 	return toSave;
 }
 
@@ -551,12 +560,11 @@ export function updateUserLickTags(
 	// Try updating in user licks first
 	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const idx = licks.findIndex((l) => l.id === id);
-	const sb = supabase ?? _supabase;
 	if (idx !== -1) {
 		licks[idx] = { ...licks[idx], tags };
 		save(STORAGE_KEY, licks);
 		stampLickEdited(id);
-		if (sb) enqueue('userLicks');
+		if (getLastUserId()) enqueue('userLicks');
 		return;
 	}
 
@@ -573,7 +581,7 @@ export function updateUserLickTags(
 	overrides[id] = tags;
 	save(TAGS_OVERRIDE_KEY, overrides);
 	stampTagOverrideMtime(id);
-	if (sb) enqueue('lickMeta');
+	if (getLastUserId()) enqueue('lickMeta');
 }
 
 /** Get tag overrides for curated licks */
@@ -598,13 +606,12 @@ export function updateLickCategory(
 	// Try updating in user licks first
 	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
 	const idx = licks.findIndex((l) => l.id === id);
-	const sb = supabase ?? _supabase;
 	let applied = false;
 	if (idx !== -1) {
 		licks[idx] = { ...licks[idx], category };
 		save(STORAGE_KEY, licks);
 		stampLickEdited(id);
-		if (sb) enqueue('userLicks');
+		if (getLastUserId()) enqueue('userLicks');
 		applied = true;
 	} else if (getStolenLicksLocal().some((l) => l.id === id)) {
 		console.warn(`Refusing to edit category on stolen lick ${id}; stolen licks are read-only.`);
@@ -615,7 +622,7 @@ export function updateLickCategory(
 		overrides[id] = category;
 		save(CATEGORY_OVERRIDE_KEY, overrides);
 		stampCategoryOverrideMtime(id);
-		if (sb) enqueue('lickMeta');
+		if (getLastUserId()) enqueue('lickMeta');
 		applied = true;
 	}
 
@@ -673,6 +680,5 @@ export function deleteUserLick(
 	// setting deleted_at (a no-op if the lick never reached the cloud).
 	stampLickDeleted(id);
 
-	const sb = supabase ?? _supabase;
-	if (sb) enqueue('userLicks');
+	if (getLastUserId()) enqueue('userLicks');
 }

@@ -443,12 +443,23 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 			changed = true;
 			continue;
 		}
-		if (existing.sessionCount > cs.sessionCount) {
-			localWinners.add(existing.date);
-		}
 		const merged = mergeWithExisting(existing, cs);
 		Object.assign(existing, merged);
 		changed = true;
+		// Push when the merged result exceeds cloud on ANY counter — not just
+		// when aggregate session totals differ. Two devices' same-day activity
+		// can net equal totals while the per-source decomposition (or notes/best)
+		// is richer locally, which the cloud must still learn.
+		if (
+			merged.sessionCount > cs.sessionCount ||
+			(merged.earTrainingSessions ?? 0) > (cs.earTrainingSessions ?? 0) ||
+			(merged.lickPracticeSessions ?? 0) > (cs.lickPracticeSessions ?? 0) ||
+			merged.bestScore > cs.bestScore ||
+			merged.notesTotal > cs.notesTotal ||
+			merged.notesHit > cs.notesHit
+		) {
+			localWinners.add(existing.date);
+		}
 	}
 
 	if (changed) {

@@ -805,23 +805,19 @@
 				<div class="flex justify-center gap-2">
 					<button
 						onclick={async () => {
-							// Local/cloud resets run unconditionally — IndexedDB audio
-							// cleanup is best-effort and must not block them if the
-							// browser denies the handle or the store is unavailable.
-							resetProgress(supabase);
-							settings.tonalityOverride = null;
-							saveSettings(supabase);
-							recordingIds = new Set();
-							clearLickPracticeSessions();
-							lickSessions = [];
 							showResetConfirm = false;
-
+							// Shared reset contract (same as Settings): clears progress +
+							// lick session log + history + local AND cloud recordings, so
+							// the two reset entry points can't drift.
 							try {
-								const m = await import('$lib/persistence/audio-store');
-								await m.clearAllRecordings();
+								const { resetAllPracticeData } = await import('$lib/state/reset');
+								await resetAllPracticeData(supabase);
 							} catch (err) {
-								console.warn('Failed to clear audio recordings:', err);
+								console.warn('Failed to fully reset progress:', err);
 							}
+							// Reset page-local view state.
+							recordingIds = new Set();
+							lickSessions = [];
 						}}
 						class="rounded bg-[var(--color-error)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80"
 					>

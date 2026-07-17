@@ -818,6 +818,8 @@ describe('loadSettingsFromCloud', () => {
 
 		// Unauthenticated → 'error' (cloud truth unknown), not 'empty'.
 		expect(result.status).toBe('error');
+		// …and it bails before querying user_settings (mirrors the progress test).
+		expect(mock._fromFn).not.toHaveBeenCalled();
 	});
 
 	it('reports empty when no settings found in DB', async () => {

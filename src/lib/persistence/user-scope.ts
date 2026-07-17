@@ -229,6 +229,17 @@ export function reconcileActiveUser(serverUid: string | null, degraded: boolean)
  * touch other users' buckets. Re-homes to the anon bucket.
  */
 export async function wipeUserData(uid: string): Promise<void> {
+	const wipingActiveUser = getActiveUid() === uid;
+	// Invalidate any in-flight writeback for the wiped user BEFORE re-homing, so
+	// a straggling sync/save that resolves after this can't re-persist the
+	// deleted data (its generation check now fails). This must happen before
+	// setActiveUid(null), or the straggler could copy deleted state into the
+	// anon namespace. The caller (account deletion) then navigates away, which
+	// tears down the in-memory rune singletons.
+	if (wipingActiveUser) {
+		_generation++;
+		broadcastUserChanged('anon');
+	}
 	clearNamespace(uid);
 	try {
 		await clearAllRecordings(uid);
@@ -238,5 +249,5 @@ export async function wipeUserData(uid: string): Promise<void> {
 	if (typeof caches !== 'undefined') {
 		caches.delete(SUPABASE_RUNTIME_CACHE).catch(() => {});
 	}
-	setActiveUid(null);
+	if (wipingActiveUser) setActiveUid(null);
 }

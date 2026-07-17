@@ -129,7 +129,6 @@ export async function initLickMetadataFromCloud(
 		const result = await loadLickMetadataFromCloud(supabase);
 		if (result.status === 'error') return false;
 		if (gen !== getScopeGeneration()) return false; // User switched mid-flight
-		if (result.status === 'empty') return true; // New account — nothing to hydrate
 
 		// Per-entry merge (cross-device, non-destructive). Both sides converge:
 		// the reserved `__migrations` marker is always unioned (never lost),
@@ -137,10 +136,15 @@ export async function initLickMetadataFromCloud(
 		// practice_progress unions per (lick, key) by lastPracticedAt with reset
 		// tombstones. Replaces the old "only overwrite empty local" hydration
 		// that let a stale device's later write clobber the cloud column.
-		const cloudBundle: LickMetaBundle = {
-			data: result.data as unknown as LickMetaBundle['data'],
-			mergeMeta: result.mergeMeta
-		};
+		//
+		// An EMPTY cloud (brand-new account) is treated as an empty cloud bundle:
+		// merging leaves local intact and the enqueue below pushes it up, so a
+		// device with existing local metadata seeds the fresh cloud row without
+		// waiting for the user's next tag edit.
+		const cloudBundle: LickMetaBundle =
+			result.status === 'ok'
+				? { data: result.data as unknown as LickMetaBundle['data'], mergeMeta: result.mergeMeta }
+				: { data: emptyMetaData(), mergeMeta: {} };
 		const merged = mergeLickMetadata(currentLocalBundle(), cloudBundle);
 		if (gen !== getScopeGeneration()) return false;
 		saveLocalBundle(merged);

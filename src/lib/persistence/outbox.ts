@@ -35,6 +35,10 @@ interface OutboxEntry {
 	kind: OutboxKind;
 	/** uid that enqueued this (defense-in-depth; the namespace already isolates). */
 	uid: string;
+	/** Monotonic revision, bumped on every enqueue. Lets a drain detect a
+	 *  concurrent re-enqueue (a newer local change) that happened during its
+	 *  async push, so it doesn't delete the fresher intent. */
+	rev: number;
 	attempts: number;
 	nextAttemptAt: number;
 }
@@ -69,9 +73,11 @@ function saveOutbox(map: OutboxMap): void {
 export function enqueue(kind: OutboxKind): void {
 	try {
 		const map = loadOutbox();
+		const prevRev = map[kind]?.rev ?? 0;
 		map[kind] = {
 			kind,
 			uid: getActiveUidOrNull() ?? 'anon',
+			rev: prevRev + 1,
 			attempts: 0,
 			nextAttemptAt: 0
 		};
@@ -153,43 +159,62 @@ export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<v
 		const activeUid = getActiveUidOrNull();
 		if (!authedUid || authedUid !== activeUid) return;
 
-		const map = loadOutbox();
-		const kinds = Object.keys(map) as OutboxKind[];
+		const kinds = Object.keys(loadOutbox()) as OutboxKind[];
 		if (kinds.length === 0) return;
 
-		const now = Date.now();
-		let changed = false;
 		let rescheduleDelay = Infinity;
 
+		// Mutate the on-disk outbox through read-modify-write helpers rather than a
+		// single stale in-memory snapshot: a re-enqueue or user switch can happen
+		// across the `runKind` await, and we must not clobber the newer intent or
+		// persist into a switched account's namespace.
+		const patch = (fn: (m: OutboxMap) => void) => {
+			const m = loadOutbox();
+			fn(m);
+			saveOutbox(m);
+		};
+
 		for (const kind of kinds) {
-			const entry = map[kind];
+			// Re-read per iteration so we see re-enqueues from earlier awaits.
+			const entry = loadOutbox()[kind];
 			if (!entry) continue;
 			if (entry.uid !== activeUid) {
-				// Stale cross-identity entry (should not happen given namespacing).
-				delete map[kind];
-				changed = true;
+				patch((m) => {
+					if (m[kind]?.uid !== activeUid) delete m[kind];
+				});
 				continue;
 			}
-			if (entry.nextAttemptAt > now) {
-				rescheduleDelay = Math.min(rescheduleDelay, entry.nextAttemptAt - now);
+			if (entry.nextAttemptAt > Date.now()) {
+				rescheduleDelay = Math.min(rescheduleDelay, entry.nextAttemptAt - Date.now());
 				continue;
 			}
+			const revAtStart = entry.rev;
 			try {
 				await runKind(kind, supabase);
-				delete map[kind];
-				changed = true;
 			} catch {
-				entry.attempts += 1;
-				const delay = backoff(entry.attempts);
-				entry.nextAttemptAt = Date.now() + delay;
-				rescheduleDelay = Math.min(rescheduleDelay, delay);
-				changed = true;
+				// Re-check scope, then bump backoff on whatever the current entry is.
+				if (getActiveUidOrNull() !== activeUid) return;
+				patch((m) => {
+					const e = m[kind];
+					if (!e || e.uid !== activeUid) return;
+					e.attempts += 1;
+					e.nextAttemptAt = Date.now() + backoff(e.attempts);
+				});
+				const e = loadOutbox()[kind];
+				if (e) rescheduleDelay = Math.min(rescheduleDelay, Math.max(0, e.nextAttemptAt - Date.now()));
+				continue;
 			}
+			// Success. Abort if the account switched mid-push; otherwise delete the
+			// entry ONLY if it wasn't re-enqueued during the push (rev unchanged).
+			if (getActiveUidOrNull() !== activeUid) return;
+			patch((m) => {
+				const e = m[kind];
+				if (e && e.uid === activeUid && e.rev === revAtStart) delete m[kind];
+				else if (e) rescheduleDelay = Math.min(rescheduleDelay, 500); // re-enqueued → drain again
+			});
 		}
 
-		if (changed) saveOutbox(map);
-
-		// If anything is still queued (backing off), schedule a follow-up drain.
+		// If anything is still queued (backing off / re-enqueued), schedule a follow-up.
 		if (Number.isFinite(rescheduleDelay) && typeof setTimeout !== 'undefined') {
 			if (_drainTimer) clearTimeout(_drainTimer);
 			_drainTimer = setTimeout(() => {

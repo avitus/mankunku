@@ -23,6 +23,13 @@
 ALTER TABLE public.session_results
   ADD COLUMN source TEXT;
 
+-- Enforce the documented allowed values while staying nullable for old-client
+-- compatibility (old clients omit the column → NULL). Rejects arbitrary strings
+-- so the ear-training/lick-practice exclusion logic can't be bypassed.
+ALTER TABLE public.session_results
+  ADD CONSTRAINT session_results_source_check
+  CHECK (source IS NULL OR source IN ('ear-training', 'lick-practice'));
+
 COMMENT ON COLUMN public.session_results.source IS
   'Origin of the session: ''ear-training'' or ''lick-practice''. Nullable — '
   'rows written before this column (or by old clients) read back as NULL and '

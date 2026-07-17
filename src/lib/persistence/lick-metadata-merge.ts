@@ -142,9 +142,13 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 			const winner = (lk?.lastPracticedAt ?? -1) >= (ck?.lastPracticedAt ?? -1) ? lk : ck;
 			if (!winner) continue;
 			if (winner.lastPracticedAt < resetTime) continue; // dropped by a newer reset
+			// Only entries at/after the reset contribute to passCount — a stale
+			// pre-reset count on either side must not resurrect via Math.max.
+			const lkPass = lk && lk.lastPracticedAt >= resetTime ? lk.passCount : 0;
+			const ckPass = ck && ck.lastPracticedAt >= resetTime ? ck.passCount : 0;
 			mergedKeys[key] = {
 				...winner,
-				passCount: Math.max(lk?.passCount ?? 0, ck?.passCount ?? 0)
+				passCount: Math.max(lkPass, ckPass)
 			};
 		}
 		if (Object.keys(mergedKeys).length > 0) practiceProgress[id] = mergedKeys;

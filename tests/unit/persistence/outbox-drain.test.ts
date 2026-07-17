@@ -41,13 +41,13 @@ import { flushProgressToCloud } from '$lib/state/progress.svelte';
 const BASE = 1_700_000_000_000;
 
 /** Read the raw namespaced outbox map exactly as the module persists it. */
-type StoredEntry = { kind: string; uid: string; attempts: number; nextAttemptAt: number };
-function outbox() {
+type StoredEntry = { kind: string; uid: string; rev: number; attempts: number; nextAttemptAt: number };
+function outbox(): Record<string, StoredEntry> {
 	return load<Record<string, StoredEntry>>('outbox') ?? {};
 }
 
 /** A supabase client whose verified user matches the active namespace (user-a). */
-function authedAs(uid = 'user-a') {
+function authedAs(uid: string = 'user-a'): never {
 	return {
 		auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: uid } } }) }
 	} as never;

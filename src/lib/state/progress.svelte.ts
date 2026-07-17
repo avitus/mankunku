@@ -250,9 +250,11 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 			.slice(0, MAX_SESSIONS);
 
 		// adaptive: the device that practiced most recently has the freshest
-		// buffers (they can't be rebuilt from a 100-row window).
-		const localLatest = progress.sessions[0]?.timestamp ?? 0;
-		const cloudLatest = cloud.sessions[0]?.timestamp ?? 0;
+		// buffers (they can't be rebuilt from a 100-row window). Derive each side's
+		// latest from the MAX timestamp rather than assuming sessions[0] is newest.
+		const maxTs = (list: SessionResult[]) => list.reduce((m, s) => (s.timestamp > m ? s.timestamp : m), 0);
+		const localLatest = maxTs(progress.sessions);
+		const cloudLatest = maxTs(cloud.sessions);
 		const adaptive = cloudLatest > localLatest ? cloud.adaptive : progress.adaptive;
 
 		Object.assign(progress, {

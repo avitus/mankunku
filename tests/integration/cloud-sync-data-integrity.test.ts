@@ -273,10 +273,10 @@ describe('partial sync failures', () => {
 		];
 
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		// The aggregate user_progress upsert succeeded, so the function returns
-		// true even though the session batch failed (it falls back to per-row
-		// upserts, which only warn — no false return, no throw).
-		await expect(syncProgressToCloud(supabase as never, progress)).resolves.toBe(true);
+		// The batch AND the per-row fallback fail here, so a session row is left
+		// unsynced. The function does NOT throw (offline resilience) but returns
+		// FALSE so the outbox retries rather than dequeuing a partial push.
+		await expect(syncProgressToCloud(supabase as never, progress)).resolves.toBe(false);
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
 	});

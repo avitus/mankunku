@@ -223,7 +223,30 @@ test('convergence: a delete tombstone propagates up and never resurrects', async
 	const guard = guardConsole(pageC);
 	try {
 		await installStubCloud(contextC, cloud, USER, baseURL as string);
-		await seedStorage(pageC, { settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED });
+		// Device C holds a STALE LIVE copy of lick-X (older clock than the cloud
+		// tombstone at 500), so reconcile must ACTIVELY REMOVE it — a stronger
+		// assertion than an empty device merely not adding it back.
+		await seedStorage(pageC, {
+			settings: SETTINGS_ONBOARDED,
+			'tour-state': TOUR_DISMISSED,
+			'user-licks': [
+				{
+					id: 'lick-X',
+					name: 'Tombstone Target Lick',
+					timeSignature: [4, 4],
+					key: 'C',
+					notes: [{ pitch: 60, duration: [1, 8], offset: [0, 1] }],
+					harmony: [
+						{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [1, 1] }
+					],
+					difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 1 },
+					category: 'bebop-lines',
+					tags: [],
+					source: 'user-entered'
+				}
+			],
+			'user-licks-meta': { 'lick-X': { mtime: 50 } }
+		});
 
 		await pageC.goto('/library');
 		await pageC.waitForLoadState('networkidle');
