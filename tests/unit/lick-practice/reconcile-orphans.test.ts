@@ -7,6 +7,12 @@ vi.mock('$lib/phrases/library-loader', () => ({
 	getAllLicks: () => Array.from(knownIds).map((id) => ({ id }))
 }));
 
+// ─── Mock community: lick-practice-store imports getStolenLicksLocal (used by
+//     the maintenance gate); the reconcile under test doesn't read it. ───
+vi.mock('$lib/persistence/community', () => ({
+	getStolenLicksLocal: () => []
+}));
+
 // ─── Mock sync module: capture what would have been written to cloud ───
 const mockSyncLickMetadataToCloud = vi.hoisted(() =>
 	vi.fn().mockResolvedValue(undefined)

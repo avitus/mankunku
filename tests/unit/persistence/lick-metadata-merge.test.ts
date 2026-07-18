@@ -125,6 +125,42 @@ describe('mergeLickMetadata', () => {
 		expect(merged.data.lickTags.a).toBeUndefined();
 	});
 
+	it('legacy both-sides tags with NO mtime union instead of clobbering (regression: prog tags stripped)', () => {
+		// The 2026-07-17 incident: a stale device held ["practice"] while the cloud
+		// held ["practice","prog:ii-V-I-major"], NEITHER side stamped (legacy data).
+		// The zero-clock tie used to favour local and drop the prog tag, then push
+		// the loss up. Union preserves both sides' tags.
+		const stale = bundle({ lickTags: { a: ['practice'] } }, {});
+		const good = bundle({ lickTags: { a: ['practice', 'prog:ii-V-I-major'] } }, {});
+		expect([...mergeLickMetadata(stale, good).data.lickTags.a].sort()).toEqual([
+			'practice',
+			'prog:ii-V-I-major'
+		]);
+		// Symmetric — the stale side must not strip the prog tag in either order.
+		expect([...mergeLickMetadata(good, stale).data.lickTags.a].sort()).toEqual([
+			'practice',
+			'prog:ii-V-I-major'
+		]);
+		// A zero-clock union writes no phantom mtime.
+		expect(mergeLickMetadata(stale, good).mergeMeta.tags?.a).toBeUndefined();
+	});
+
+	it('legacy zero-clock union also applies to tag_overrides', () => {
+		const a = bundle({ tagOverrides: { c: ['practice'] } }, {});
+		const b = bundle({ tagOverrides: { c: ['prog:blues'] } }, {});
+		expect([...mergeLickMetadata(a, b).data.tagOverrides.c].sort()).toEqual(['practice', 'prog:blues']);
+	});
+
+	it('a stamped edit (mtime > 0) still wins over a legacy value — union fires only with no signal', () => {
+		// One side recorded a deliberate edit; LWW must win, not union, so a real
+		// user change (incl. removing tags) is honoured.
+		const edited = bundle({ lickTags: { a: ['prog:minor-vamp'] } }, { tags: { a: 500 } });
+		const legacy = bundle({ lickTags: { a: ['practice', 'prog:ii-V-I-major'] } }, {});
+		const merged = mergeLickMetadata(edited, legacy);
+		expect(merged.data.lickTags.a).toEqual(['prog:minor-vamp']);
+		expect(merged.mergeMeta.tags?.a).toBe(500);
+	});
+
 	it('ignores prototype-polluting ids', () => {
 		// JSON.parse creates an OWN enumerable "__proto__" key (an object literal
 		// would set the prototype instead), so this actually exercises the guard.

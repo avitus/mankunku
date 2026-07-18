@@ -15,6 +15,7 @@ import {
 	updateLickCategory,
 	getLickTagOverrides
 } from './user-licks';
+import { getStolenLicksLocal } from './community';
 import { getProgressionsForCategory } from '$lib/data/progressions';
 
 const STORAGE_KEY = 'lick-practice-progress';
@@ -278,6 +279,25 @@ export async function runLickMetadataMaintenance(
 		console.warn(
 			'[lick-metadata] hydration incomplete — skipping orphan reconcile + progression-tag backfill',
 			status
+		);
+		return { ran: false, reconciled: 0, backfilled: 0 };
+	}
+
+	// Second gate, independent of the hydration REPORTS above: never run the
+	// destructive reconcile against an empty non-curated universe. `getAllLicks()`
+	// always contains the curated catalog, so ONLY non-curated ids (user-entered +
+	// adopted) are ever prune candidates — and `reconcileOrphanedLickMetadata`
+	// prunes any tag whose id isn't in `getAllLicks()`, stamping a fresh deletion
+	// mtime and pushing it cloud-side. If both non-curated stores are empty we
+	// cannot distinguish "hydration reported success but produced nothing
+	// (race / empty read)" from "genuinely no user licks", so pruning here would
+	// delete every `user-*` progression tag and propagate the loss to the cloud
+	// (the 2026-07-17 incident's failure mode). Skipping is safe: orphan cleanup
+	// for a truly-empty account is deferred, never lost, and the backfill has no
+	// non-curated licks to seed anyway.
+	if (getUserLicksLocal().length === 0 && getStolenLicksLocal().length === 0) {
+		console.warn(
+			'[lick-metadata] non-curated lick stores empty post-hydration — skipping reconcile + backfill to avoid pruning user tags'
 		);
 		return { ran: false, reconciled: 0, backfilled: 0 };
 	}
