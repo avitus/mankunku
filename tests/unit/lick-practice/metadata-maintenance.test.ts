@@ -7,10 +7,13 @@ vi.mock('$lib/phrases/library-loader', () => ({
 	isCuratedLickId: (id: string) => id.startsWith('curated-')
 }));
 
-// ─── Mock community: the maintenance gate reads the adopted-licks store ───
+// ─── Mock community: the maintenance gate reads the adopted-licks payload store,
+//     and the reconcile unions the adoption id set into its known set. ───
 const stolenLicks = vi.hoisted(() => [] as { id: string }[]);
+const adoptedIds = vi.hoisted(() => new Set<string>());
 vi.mock('$lib/persistence/community', () => ({
-	getStolenLicksLocal: () => stolenLicks
+	getStolenLicksLocal: () => stolenLicks,
+	getStealsLocal: () => adoptedIds
 }));
 
 // ─── Mock sync module: capture what would have been written to cloud ───
@@ -73,6 +76,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	knownLicks.length = 0;
 	stolenLicks.length = 0;
+	adoptedIds.clear();
 	mockGetScopeGeneration.mockReturnValue(0);
 });
 

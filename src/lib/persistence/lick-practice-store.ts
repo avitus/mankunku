@@ -15,7 +15,7 @@ import {
 	updateLickCategory,
 	getLickTagOverrides
 } from './user-licks';
-import { getStolenLicksLocal } from './community';
+import { getStolenLicksLocal, getStealsLocal } from './community';
 import { getProgressionsForCategory } from '$lib/data/progressions';
 
 const STORAGE_KEY = 'lick-practice-progress';
@@ -185,6 +185,13 @@ export async function reconcileOrphanedLickMetadata(
 	const gen = getScopeGeneration();
 	try {
 		const knownIds = new Set(getAllLicks().map((l) => l.id));
+		// An adopted community lick is still "known" even if its payload was dropped
+		// from the local cache on hydration (e.g. its author's row transiently failed
+		// validateAdoptedPhrase). getStealsLocal() is the payload-INDEPENDENT adoption
+		// id set, so union it in — otherwise a still-adopted lick's tags/progress/
+		// unlock would be pruned here and the deletion pushed cloud-side, permanently
+		// losing the user's routing tag + practice history for it.
+		for (const stealId of getStealsLocal()) knownIds.add(stealId);
 
 		// Orphan removals must PROPAGATE through the per-entry merge, or the next
 		// push would re-union the orphan back from the cloud. We stamp a fresh

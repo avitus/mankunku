@@ -7,10 +7,13 @@ vi.mock('$lib/phrases/library-loader', () => ({
 	getAllLicks: () => Array.from(knownIds).map((id) => ({ id }))
 }));
 
-// ─── Mock community: lick-practice-store imports getStolenLicksLocal (used by
-//     the maintenance gate); the reconcile under test doesn't read it. ───
+// ─── Mock community: getStolenLicksLocal (payload cache) + getStealsLocal
+//     (payload-independent adoption id set, which the reconcile unions into its
+//     known set so a still-adopted lick with a dropped payload isn't pruned). ───
+const adoptedIds = vi.hoisted(() => new Set<string>());
 vi.mock('$lib/persistence/community', () => ({
-	getStolenLicksLocal: () => []
+	getStolenLicksLocal: () => [],
+	getStealsLocal: () => adoptedIds
 }));
 
 // ─── Mock sync module: capture what would have been written to cloud ───
@@ -65,6 +68,7 @@ beforeEach(() => {
 	localStorageMock.clear();
 	vi.clearAllMocks();
 	knownIds.clear();
+	adoptedIds.clear();
 	mockGetScopeGeneration.mockReturnValue(0);
 });
 
@@ -82,6 +86,27 @@ describe('reconcileOrphanedLickMetadata', () => {
 
 		expect(removed).toBe(1);
 		expect(loadUserLickTags()).toEqual({ 'mine-1': ['practice'] });
+	});
+
+	it('does NOT prune an adopted lick whose payload was dropped but whose adoption id survives', async () => {
+		// comm-abc is still adopted (in the steal-id set) but its payload was dropped
+		// from getAllLicks() (e.g. its author's row transiently failed validation).
+		// Unioning getStealsLocal() into knownIds keeps its tags from being pruned +
+		// pushed as a cloud deletion.
+		knownIds.add('mine-1');
+		adoptedIds.add('comm-abc');
+		saveUserLickTags({
+			'mine-1': ['practice'],
+			'comm-abc': ['practice', 'prog:blues'],
+			'foreign-x': ['practice'] // genuine orphan → pruned
+		});
+
+		const removed = await reconcileOrphanedLickMetadata(supabase);
+
+		expect(removed).toBe(1); // only foreign-x
+		const tags = loadUserLickTags();
+		expect(tags['comm-abc']).toEqual(['practice', 'prog:blues']);
+		expect(tags['foreign-x']).toBeUndefined();
 	});
 
 	it('removes orphan practice progress entries', async () => {
