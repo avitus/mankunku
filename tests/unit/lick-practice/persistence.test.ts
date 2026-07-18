@@ -24,10 +24,8 @@ import {
 	backfillPracticeTags,
 	getUnlockedKeyCount,
 	bumpUnlockedKeyCount,
-	loadUnlockCounts,
-	migrateOrphanLickCategories
+	loadUnlockCounts
 } from '$lib/persistence/lick-practice-store';
-import { getLickCategoryOverrides } from '$lib/persistence/user-licks';
 import type { LickPracticeProgress, LickPracticeKeyProgress } from '$lib/types/lick-practice';
 import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 
@@ -535,102 +533,6 @@ describe('progression tag management', () => {
 		toggleProgressionTag('lick-1', 'blues');
 		toggleProgressionTag('lick-1', 'blues');
 		expect(getProgressionTags('lick-1')).toEqual([]);
-	});
-});
-
-describe('migrateOrphanLickCategories', () => {
-	const PREFIX = 'mankunku:';
-
-	function seedUserLick(id: string, category: string, name = id): void {
-		const existing = JSON.parse(store[PREFIX + 'user-licks'] ?? '[]');
-		existing.push({
-			id,
-			name,
-			timeSignature: [4, 4],
-			key: 'C',
-			notes: [],
-			harmony: [],
-			difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
-			category,
-			tags: [],
-			source: 'user'
-		});
-		store[PREFIX + 'user-licks'] = JSON.stringify(existing);
-	}
-
-	function seedCategoryOverride(id: string, category: string): void {
-		const overrides = JSON.parse(store[PREFIX + 'lick-category-overrides'] ?? '{}');
-		overrides[id] = category;
-		store[PREFIX + 'lick-category-overrides'] = JSON.stringify(overrides);
-	}
-
-	it('returns 0 when no licks carry orphan categories', () => {
-		seedUserLick('lk1', 'ii-V-I-major');
-		expect(migrateOrphanLickCategories()).toBe(0);
-	});
-
-	it('remaps user-lick category and adds the full opt-in set plus the orphan-specific tag', () => {
-		seedUserLick('lk1', 'long-ii-V-I-major', "Don't Get Around Much Anymore");
-
-		const migrated = migrateOrphanLickCategories();
-
-		expect(migrated).toBe(1);
-		const userLicks = JSON.parse(store[PREFIX + 'user-licks']);
-		expect(userLicks[0].category).toBe('ii-V-I-major');
-		// updateLickCategory seeds every compat-set tag for ii-V-I-major
-		// (ii-V-I-major, ii-V-I-major-long, turnaround), and the orphan
-		// migration adds ii-V-I-major-long explicitly to preserve the
-		// "long" intent the orphan name carried.
-		expect(new Set(getProgressionTags('lk1'))).toEqual(
-			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
-		);
-	});
-
-	it('handles long-ii-V-I-minor symmetrically', () => {
-		seedUserLick('lk2', 'long-ii-V-I-minor');
-
-		expect(migrateOrphanLickCategories()).toBe(1);
-		const userLicks = JSON.parse(store[PREFIX + 'user-licks']);
-		expect(userLicks[0].category).toBe('ii-V-I-minor');
-		expect(new Set(getProgressionTags('lk2'))).toEqual(
-			new Set(['ii-V-I-minor', 'ii-V-I-minor-long'])
-		);
-	});
-
-	it('rewrites curated category overrides too', () => {
-		seedCategoryOverride('curated-1', 'long-ii-V-I-major');
-
-		expect(migrateOrphanLickCategories()).toBe(1);
-		expect(getLickCategoryOverrides()['curated-1']).toBe('ii-V-I-major');
-		// Curated overrides go through the override branch of
-		// updateLickCategory, which still seeds the full compat set, and the
-		// orphan migration adds ii-V-I-major-long explicitly.
-		expect(new Set(getProgressionTags('curated-1'))).toEqual(
-			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
-		);
-	});
-
-	it('is idempotent — second run touches nothing', () => {
-		seedUserLick('lk1', 'long-ii-V-I-major');
-		expect(migrateOrphanLickCategories()).toBe(1);
-		expect(migrateOrphanLickCategories()).toBe(0);
-		// Tags weren't double-added.
-		expect(new Set(getProgressionTags('lk1'))).toEqual(
-			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
-		);
-	});
-
-	it('preserves an already-present prog tag instead of duplicating', () => {
-		seedUserLick('lk1', 'long-ii-V-I-major');
-		toggleProgressionTag('lk1', 'ii-V-I-major-long');
-		expect(getProgressionTags('lk1')).toEqual(['ii-V-I-major-long']);
-
-		migrateOrphanLickCategories();
-		// The pre-existing tag survives untouched; the compat-set backfill
-		// adds the rest without duplicating it.
-		expect(new Set(getProgressionTags('lk1'))).toEqual(
-			new Set(['ii-V-I-major', 'ii-V-I-major-long', 'turnaround'])
-		);
 	});
 });
 

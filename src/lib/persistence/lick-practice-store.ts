@@ -8,13 +8,7 @@ import { loadLickMetadataFromCloud, upsertLickMetadataRow, type LickMetadata } f
 import { getScopeGeneration } from './user-scope';
 import { enqueue } from './outbox';
 import { mergeLickMetadata, type LickMergeMeta, type LickMetaBundle } from './lick-metadata-merge';
-import {
-	getUserLicksLocal,
-	getLickCategoryOverrides,
-	updateLickCategory,
-	getLickTagOverrides
-} from './user-licks';
-import { getProgressionsForCategory } from '$lib/data/progressions';
+import { getLickTagOverrides } from './user-licks';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
@@ -694,29 +688,10 @@ export function isTaggedForProgression(phraseId: string, type: ChordProgressionT
 	return hasProgressionTag(phraseId, type);
 }
 
-// ── Orphan-category migration ────────────────────────────────
-//
-// Categories removed from `PhraseCategory` after some user data already
-// carried them. Each entry maps the orphan to a still-valid category plus
-// the `prog:*` tag that captures the progression intent the orphan name made
-// explicit (e.g. `long-ii-V-I-major` is unambiguously a long ii-V-I major lick).
-// Rerunning is a no-op on already-migrated data — the scan only acts on licks
-// still carrying an orphan category, and prog-tag insertion is idempotent.
-
-interface OrphanCategoryRemap {
-	newCategory: PhraseCategory;
-	progressionTag: ChordProgressionType;
-}
-
-const ORPHAN_CATEGORY_MIGRATIONS: Record<string, OrphanCategoryRemap> = {
-	'long-ii-V-I-major': { newCategory: 'ii-V-I-major', progressionTag: 'ii-V-I-major-long' },
-	'long-ii-V-I-minor': { newCategory: 'ii-V-I-minor', progressionTag: 'ii-V-I-minor-long' }
-};
-
 /**
  * Idempotent prog-tag insertion — adds `prog:<type>` if not already present.
  * Returns true when a write actually happened. Exported for `updateLickCategory`
- * (auto-tag on category-set) and the retroactive backfill below.
+ * (auto-tag on category-set).
  */
 export function ensureProgressionTag(phraseId: string, type: ChordProgressionType): boolean {
 	const tags = loadUserLickTags();
@@ -740,57 +715,3 @@ export function stampCategoryOverrideMtime(id: string): void {
 	stampMergeMeta('catOverrides', id);
 }
 
-/**
- * Scan user licks and curated category overrides for orphan categories left
- * over from removed `PhraseCategory` enum values. For each match, swap the
- * category to a valid equivalent AND auto-assign the corresponding `prog:*`
- * tag — the orphan name is itself a strong signal of the progression the
- * user originally intended this lick for.
- *
- * Returns the number of licks touched. Stolen community licks are read-only,
- * so their categories aren't mutated, but a local prog tag is still added so
- * the lick becomes routable in this user's practice flow.
- */
-export function migrateOrphanLickCategories(
-	supabase?: SupabaseClient<Database>
-): number {
-	const sb = supabase ?? _supabase ?? undefined;
-	let migrated = 0;
-
-	// 1. User-recorded licks store category in their own row.
-	for (const lick of getUserLicksLocal()) {
-		const remap = ORPHAN_CATEGORY_MIGRATIONS[lick.category];
-		if (!remap) continue;
-		updateLickCategory(lick.id, remap.newCategory, sb);
-		ensureProgressionTag(lick.id, remap.progressionTag);
-		migrated++;
-	}
-
-	// 2. Category overrides on curated/community licks. Unlike the user-lick
-	// branch we bypass `updateLickCategory` (curated overrides write to a
-	// separate keyed-by-id blob, not the lick row), so we have to mirror its
-	// opt-in seeding manually: every progression compatible with the new
-	// category gets a `prog:*` tag. The orphan-specific tag is part of that
-	// set, but kept as a final `ensureProgressionTag` call so the migration's
-	// intent is explicit in the code.
-	const overrides = getLickCategoryOverrides();
-	let overridesChanged = false;
-	for (const [id, cat] of Object.entries(overrides)) {
-		const remap = ORPHAN_CATEGORY_MIGRATIONS[cat];
-		if (!remap) continue;
-		overrides[id] = remap.newCategory;
-		overridesChanged = true;
-		for (const prog of getProgressionsForCategory(remap.newCategory)) {
-			ensureProgressionTag(id, prog);
-		}
-		ensureProgressionTag(id, remap.progressionTag);
-		stampMergeMeta('catOverrides', id);
-		migrated++;
-	}
-	if (overridesChanged) {
-		save(CATEGORY_OVERRIDES_KEY, overrides);
-		enqueue('lickMeta');
-	}
-
-	return migrated;
-}
