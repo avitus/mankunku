@@ -114,7 +114,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			await import('$lib/state/history.svelte');
 		const { loadDailySummariesFromCloud, syncAllDailySummariesToCloud } =
 			await import('$lib/persistence/sync');
-		const { initLickMetadataFromCloud, runLickMetadataMaintenance } =
+		const { initLickMetadataFromCloud } =
 			await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');
@@ -123,37 +123,17 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		// Register the client the durable outbox uses to flush queued cloud writes.
 		setOutboxClient(supabase);
 
-		// Metadata maintenance (orphan reconciliation + the one-time
-		// progression-tag backfill) must run AFTER initUserLicksFromCloud and
-		// initCommunityFromCloud finish — getAllLicks() reads both stores —
-		// and ONLY when all three lick hydrations report success: a silently
-		// failed hydration leaves getAllLicks() partial, and maintenance would
-		// then prune every "unknown" metadata entry and push the emptied blobs
-		// to the cloud. runLickMetadataMaintenance enforces that gate.
 		// recomputeAllDailySummaries runs after the source-of-truth tables
-		// (progress.sessions, lick-practice-sessions) are populated; the
-		// cloud daily-summaries merge then layers cross-device and
-		// out-of-window rows on top, with anything local-newer pushed back.
-		// Named promises (rather than positional Promise.all destructuring) so
-		// adding or reordering a hydration can never silently mis-map the
-		// success reports feeding the maintenance gate.
-		const metadataHydration = initLickMetadataFromCloud(supabase);
-		const userLicksHydration = initUserLicksFromCloud(supabase);
-		const communityHydration = initCommunityFromCloud(supabase);
+		// (progress.sessions, lick-practice-sessions) are populated; the cloud
+		// daily-summaries merge then layers cross-device and out-of-window rows on
+		// top, with anything local-newer pushed back.
 		const hydration = Promise.all([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
-			metadataHydration,
-			userLicksHydration,
-			communityHydration
+			initLickMetadataFromCloud(supabase),
+			initUserLicksFromCloud(supabase),
+			initCommunityFromCloud(supabase)
 		])
-			.then(async () =>
-				runLickMetadataMaintenance(supabase, {
-					metadataOk: await metadataHydration,
-					userLicksOk: await userLicksHydration,
-					communityOk: await communityHydration
-				})
-			)
 			.then(() => recomputeAllDailySummaries())
 			.then(async () => {
 				const cloudSummaries = await loadDailySummariesFromCloud(supabase);

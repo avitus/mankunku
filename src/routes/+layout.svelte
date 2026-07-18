@@ -2,16 +2,11 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { page, updated } from '$app/state';
-	import { settings, applyTheme, getInstrument } from '$lib/state/settings.svelte';
-	import {
-		migrateUserLicksWrittenToConcert,
-		migrateUserLicksKeyWrittenToConcert
-	} from '$lib/persistence/user-licks';
+	import { settings, applyTheme } from '$lib/state/settings.svelte';
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
 	import { welcomeTour } from '$lib/tour/tours/welcome';
 	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
-	import { whenHydrated } from '$lib/state/hydration';
 	import { beforeNavigate, invalidate } from '$app/navigation';
 	import { shouldHardReloadOnNavigation } from '$lib/util/stale-chunk';
 
@@ -154,25 +149,6 @@
 	onMount(() => {
 		applyTheme();
 
-		// One-off migrations for step-entered licks that were stored in the
-		// user's WRITTEN pitch space (before step-entry was made instrument-
-		// aware). Both are idempotent via separate localStorage flags — safe
-		// to call on every app start. Wait for the REAL hydration completion
-		// (not the bounded route helper) so `getInstrument()` reflects the
-		// user's hydrated instrument: these are one-way writes that set a
-		// done-flag, so running them on a stale default would corrupt the
-		// transposition permanently. This work is already off the render path.
-		whenHydrated().then(() => {
-			const instrument = getInstrument();
-			const notesMigrated = migrateUserLicksWrittenToConcert(instrument.transpositionSemitones);
-			if (notesMigrated > 0) {
-				console.info(`[migration] Shifted ${notesMigrated} step-entered lick(s) notes to concert pitch.`);
-			}
-			const keysMigrated = migrateUserLicksKeyWrittenToConcert(instrument);
-			if (keysMigrated > 0) {
-				console.info(`[migration] Converted ${keysMigrated} step-entered lick(s) keys to concert pitch.`);
-			}
-		});
 
 		const {
 			data: { subscription }

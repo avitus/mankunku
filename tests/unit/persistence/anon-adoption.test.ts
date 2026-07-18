@@ -171,7 +171,6 @@ describe('adoptAnonInto', () => {
 	it('never adopts or clears control keys or other users buckets', () => {
 		store[ROOT + '__active'] = '"anon"';
 		store[ROOT + '__schema'] = '2';
-		store[ROOT + '__theme'] = 'dark';
 		store[ROOT + 'u:user-b:progress'] = '{"who":"b"}';
 		store[ROOT + 'progress'] = '{"who":"anon"}';
 
@@ -185,7 +184,6 @@ describe('adoptAnonInto', () => {
 		// Control keys survive untouched.
 		expect(store[ROOT + '__active']).toBe('"anon"');
 		expect(store[ROOT + '__schema']).toBe('2');
-		expect(store[ROOT + '__theme']).toBe('dark');
 		// The other user's bucket is neither copied into user-a nor cleared.
 		expect(store[ROOT + 'u:user-b:progress']).toBe('{"who":"b"}');
 		expect(store[ROOT + 'u:user-a:u:user-b:progress']).toBeUndefined();

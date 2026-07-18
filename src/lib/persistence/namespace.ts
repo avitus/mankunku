@@ -16,11 +16,10 @@
  * two authenticated users have distinct prefixes, and an authenticated user's
  * data never collides with the bare anon path.
  *
- * Three GLOBAL control keys sit outside any namespace:
+ * Two GLOBAL control keys sit outside any namespace:
  *
  *   mankunku:__active   JSON "<uid>" | "anon" — which bucket this device homed to
  *   mankunku:__schema   namespace-upgrade version marker
- *   mankunku:__theme    (optional) pre-hydration theme mirror
  *
  * The active namespace is resolved ONCE per JS realm, synchronously, so the
  * module-eval `$state(loadX())` singletons in the state modules read the right
@@ -45,7 +44,7 @@ const CURRENT_SCHEMA = 2;
 const ANON = 'anon';
 
 /** Reserved global control keys — never namespaced, never migrated. */
-const CONTROL_KEYS = new Set([SCHEMA_KEY, ACTIVE_KEY, '__theme', LEGACY_LAST_USER_ID_KEY]);
+const CONTROL_KEYS = new Set([SCHEMA_KEY, ACTIVE_KEY, LEGACY_LAST_USER_ID_KEY]);
 
 let _cachedUid: string | null = null;
 
@@ -229,11 +228,6 @@ export function activeLogicalKey(rootStripped: string): string | null {
 /** Namespace a logical key: `u:<uid>:<key>` (storage.ts prepends the ROOT). */
 export function nsKey(key: string): string {
 	return getActivePrefix() + key;
-}
-
-/** The last-verified active pointer as stored (before cookie resolution). */
-export function getStoredActivePointer(): string | null {
-	return rawGetJSON<string>(ACTIVE_KEY);
 }
 
 /**
