@@ -366,8 +366,7 @@ async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<b
 
 /**
  * Startup hydration of user licks. Returns `true` when the reconcile completed,
- * `false` on any failure/mid-flight switch. `runLickMetadataMaintenance` gates
- * destructive maintenance on this report.
+ * `false` on any failure/mid-flight switch.
  */
 export async function initUserLicksFromCloud(
 	supabase: SupabaseClient<Database>
