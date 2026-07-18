@@ -68,12 +68,21 @@ function isUnsafeKey(key: string): boolean {
  * otherwise the present value is kept. This preserves a legacy value that has no
  * merge_meta (both clocks 0 — a real deletion would carry a newer stamp) while
  * still honouring a genuine remote/local removal (which bumps its mtime).
+ *
+ * `combineNoSignal` — for ADDITIVE values (tag arrays), the caller passes a
+ * combiner used ONLY when both sides hold the key with NO recency signal (both
+ * clocks 0 = legacy, pre-merge_meta data). Without it, LWW arbitrarily drops one
+ * side's data: a stale device's `["practice"]`-only copy would clobber another
+ * device's `["practice","prog:X"]` during the legacy→new-code transition (the
+ * incident this fixes). A deliberate edit or removal stamps a real mtime (>0), so
+ * the combiner never fires for one — those still resolve by LWW.
  */
 function mergeById<V>(
 	localVals: Record<string, V> | undefined,
 	localMtimes: Record<string, number> | undefined,
 	cloudVals: Record<string, V> | undefined,
-	cloudMtimes: Record<string, number> | undefined
+	cloudMtimes: Record<string, number> | undefined,
+	combineNoSignal?: (local: V, cloud: V) => V
 ): { vals: Record<string, V>; mtimes: Record<string, number> } {
 	const vals: Record<string, V> = {};
 	const mtimes: Record<string, number> = {};
@@ -89,7 +98,15 @@ function mergeById<V>(
 		const localHas = !!localVals && Object.prototype.hasOwnProperty.call(localVals, id);
 		const cloudHas = !!cloudVals && Object.prototype.hasOwnProperty.call(cloudVals, id);
 		if (localHas && cloudHas) {
-			vals[id] = lm >= cm ? (localVals as Record<string, V>)[id] : (cloudVals as Record<string, V>)[id];
+			if (combineNoSignal && lm === 0 && cm === 0) {
+				// Legacy, no edit recorded on either side — preserve both.
+				vals[id] = combineNoSignal(
+					(localVals as Record<string, V>)[id],
+					(cloudVals as Record<string, V>)[id]
+				);
+			} else {
+				vals[id] = lm >= cm ? (localVals as Record<string, V>)[id] : (cloudVals as Record<string, V>)[id];
+			}
 		} else if (localHas) {
 			// Keep unless the cloud deleted it more recently.
 			if (cm <= lm) vals[id] = (localVals as Record<string, V>)[id];
@@ -106,23 +123,43 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 	const lm = local.mergeMeta ?? {};
 	const cm = cloud.mergeMeta ?? {};
 
-	// ── lick_tags: per-id LWW, plus the always-unioned __migrations key ──
+	// ── lick_tags: per-id LWW (legacy no-signal entries union both sides so a
+	//    stale copy can't strip prog:* tags), plus the always-unioned __migrations key ──
 	const tagsMerge = mergeById(
 		stripKey(local.data.lickTags, MIGRATIONS_KEY),
 		lm.tags,
 		stripKey(cloud.data.lickTags, MIGRATIONS_KEY),
-		cm.tags
+		cm.tags,
+		unionStrings
 	);
 	const lickTags: Record<string, string[]> = { ...tagsMerge.vals };
 	const migrations = unionStrings(local.data.lickTags?.[MIGRATIONS_KEY], cloud.data.lickTags?.[MIGRATIONS_KEY]);
 	if (migrations.length > 0) lickTags[MIGRATIONS_KEY] = migrations;
 
-	// ── tag_overrides / category_overrides: per-id LWW ──
-	const overridesMerge = mergeById(local.data.tagOverrides, lm.overrides, cloud.data.tagOverrides, cm.overrides);
+	// ── tag_overrides: per-id LWW (legacy no-signal entries union, same as tags) ──
+	// ── category_overrides: per-id LWW (scalar — no union) ──
+	const overridesMerge = mergeById(
+		local.data.tagOverrides,
+		lm.overrides,
+		cloud.data.tagOverrides,
+		cm.overrides,
+		unionStrings
+	);
 	const catMerge = mergeById(local.data.categoryOverrides, lm.catOverrides, cloud.data.categoryOverrides, cm.catOverrides);
 
-	// ── unlock_counts: per-id LWW (a reset removes the id + bumps its mtime) ──
-	const unlockMerge = mergeById(local.data.unlockCounts, lm.unlockMtime, cloud.data.unlockCounts, cm.unlockMtime);
+	// ── unlock_counts: per-id LWW (a reset removes the id + bumps its mtime).
+	//    unlock_counts is a MONOTONIC counter, so legacy entries with no mtime on
+	//    either side (both clocks 0) take the MAX — otherwise the 0>=0 tie would
+	//    favour local and a stale device's lower count would silently overwrite a
+	//    higher one, losing unlocked keys (same no-signal clobber as lick_tags). A
+	//    genuine decrease only comes from a reset, which stamps mtime>0 → LWW. ──
+	const unlockMerge = mergeById(
+		local.data.unlockCounts,
+		lm.unlockMtime,
+		cloud.data.unlockCounts,
+		cm.unlockMtime,
+		Math.max
+	);
 
 	// ── practice_progress: per-(id,key) union by lastPracticedAt + reset tombstones ──
 	const progressResets: Record<string, number> = {};

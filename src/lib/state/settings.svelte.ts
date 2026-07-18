@@ -45,7 +45,32 @@ const defaultSettings = {
 
 export const settings = $state(loadSettings());
 
+/**
+ * True once a cloud settings read has verifiably completed (row present OR
+ * affirmatively empty). Gates the push: an ERRORED hydration leaves this false,
+ * so a later edit can't clobber the cloud row with stale/default local settings
+ * (mirrors `progressHydrationOk` in progress.svelte.ts).
+ */
+let settingsHydrationOk = false;
+
+/**
+ * Monotonic local-edit counter vs the highest revision successfully pushed.
+ * `localRev > syncedRev` means there are unsynced local edits — a whole-blob
+ * cloud read must NOT overwrite them, or a re-hydration (auth refresh) that
+ * fires before the outbox flush would silently revert the user's edit.
+ *
+ * PERSISTED (per-user namespace) so the dirty state survives a restart: an edit
+ * made just before a reload, still pending in the durable outbox, would
+ * otherwise reset both counters to 0 and be clobbered by the next hydration.
+ */
+const LOCAL_REV_KEY = 'settings-local-rev';
+const SYNCED_REV_KEY = 'settings-synced-rev';
+let localRev = load<number>(LOCAL_REV_KEY) ?? 0;
+let syncedRev = load<number>(SYNCED_REV_KEY) ?? 0;
+
 export function saveSettings(supabase?: SupabaseClient<Database>): void {
+	localRev++;
+	save(LOCAL_REV_KEY, localRev);
 	save(STORAGE_KEY, settings);
 
 	// Queue a durable cloud sync for authenticated users.
@@ -54,8 +79,14 @@ export function saveSettings(supabase?: SupabaseClient<Database>): void {
 
 /** Outbox flush handler: push current settings. Throws on failure so it retries. */
 export async function flushSettingsToCloud(supabase: SupabaseClient<Database>): Promise<void> {
+	// Never push over a cloud row we never successfully read — a failed hydration
+	// would otherwise clobber it with stale/default local settings on the next edit.
+	if (!settingsHydrationOk) throw new Error('settings not hydrated — deferring push');
+	const rev = localRev;
 	const ok = await syncSettingsToCloud(supabase, settings);
 	if (!ok) throw new Error('settings push failed');
+	syncedRev = Math.max(syncedRev, rev);
+	save(SYNCED_REV_KEY, syncedRev);
 }
 
 /**
@@ -68,11 +99,20 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 	const gen = getScopeGeneration();
 	try {
 		const result = await fetchSettingsFromCloud(supabase);
-		if (result.status === 'error') return; // keep local — do not clobber
+		if (result.status === 'error') return; // keep local — do not clobber, stay un-hydrated
 		if (gen !== getScopeGeneration()) return; // User switched mid-flight
+		// Cloud state is now verifiably known (row present or affirmatively empty) —
+		// the push gate may open.
+		settingsHydrationOk = true;
 		if (result.status === 'empty') {
 			// Brand-new cloud account: push the existing local settings up so they
 			// adopt to other devices without waiting for the user's next edit.
+			enqueue('settings');
+			return;
+		}
+		// Unsynced local edits outrank a whole-blob cloud read: keep local and let
+		// the pending outbox flush push it, rather than reverting the user's edit.
+		if (localRev > syncedRev) {
 			enqueue('settings');
 			return;
 		}

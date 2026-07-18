@@ -390,21 +390,24 @@ describe('reconcileCloudSummaries', () => {
 		expect(localOnly).toHaveLength(0);
 	});
 
-	it('derivable date: local re-derivation wins over a higher cloud count', () => {
+	it('derivable date: a higher cloud count is preserved (MAX) — aged-out sessions are not dropped', () => {
 		const ts = new Date('2025-03-10T12:00').getTime();
 		seedProgress([makeEarSession({ timestamp: ts })]);
 		historyModule.recomputeAllDailySummaries();
 
-		// CHANGED SEMANTICS: 2025-03-10 has local source rows, so it is "derivable"
-		// and the fresh local re-derivation is authoritative — the higher cloud
-		// count is ignored, and the local summary is returned to overwrite cloud.
+		// 2025-03-10 is derivable locally (1 ear session survives the load window),
+		// but the cloud durably holds the full count of 12 from when those sessions
+		// were recent. MAX-merge keeps the complete cloud row rather than overwriting
+		// it with the window-capped partial local re-derivation (daily-summary
+		// data-loss fix). mergeWithExisting takes averages from the higher-attempt
+		// side, so the cloud avg comes along consistently with its count.
 		const push = historyModule.reconcileCloudSummaries([
 			cloudSummary('2025-03-10', 12, { avgOverall: 0.95 })
 		]);
 		const merged = historyModule.dailySummaries.find((s) => s.date === '2025-03-10');
-		expect(merged?.sessionCount).toBe(1); // local wins (1 ear session), not cloud's 12
-		expect(merged?.avgOverall).toBeCloseTo(0.8); // local's derived avg, not cloud's 0.95
-		expect(push.map((s) => s.date)).toContain('2025-03-10'); // local pushed to overwrite cloud
+		expect(merged?.sessionCount).toBe(12); // cloud's higher count wins via MAX
+		expect(merged?.avgOverall).toBeCloseTo(0.95); // cloud has more attempts → its avg
+		expect(push.map((s) => s.date)).toContain('2025-03-10'); // still pushed (derivable)
 	});
 
 	it('keeps local and flags upload when local has strictly more', () => {

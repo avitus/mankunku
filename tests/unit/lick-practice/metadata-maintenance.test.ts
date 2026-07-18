@@ -7,6 +7,15 @@ vi.mock('$lib/phrases/library-loader', () => ({
 	isCuratedLickId: (id: string) => id.startsWith('curated-')
 }));
 
+// ─── Mock community: the maintenance gate reads the adopted-licks payload store,
+//     and the reconcile unions the adoption id set into its known set. ───
+const stolenLicks = vi.hoisted(() => [] as { id: string }[]);
+const adoptedIds = vi.hoisted(() => new Set<string>());
+vi.mock('$lib/persistence/community', () => ({
+	getStolenLicksLocal: () => stolenLicks,
+	getStealsLocal: () => adoptedIds
+}));
+
 // ─── Mock sync module: capture what would have been written to cloud ───
 const mockSyncLickMetadataToCloud = vi.hoisted(() =>
 	vi.fn().mockResolvedValue(undefined)
@@ -51,11 +60,23 @@ import {
 	saveUserLickTags,
 	getProgressionTags
 } from '$lib/persistence/lick-practice-store';
+import { save } from '$lib/persistence/storage';
+
+/** Seed the real user-licks store so the maintenance gate's non-empty-universe
+ *  check passes (getUserLicksLocal reads the 'user-licks' key). */
+function seedOwnLicks(ids: string[]): void {
+	save(
+		'user-licks',
+		ids.map((id) => ({ id }))
+	);
+}
 
 beforeEach(() => {
 	localStorageMock.clear();
 	vi.clearAllMocks();
 	knownLicks.length = 0;
+	stolenLicks.length = 0;
+	adoptedIds.clear();
 	mockGetScopeGeneration.mockReturnValue(0);
 });
 
@@ -66,6 +87,7 @@ const ALL_OK = { metadataOk: true, userLicksOk: true, communityOk: true };
 describe('runLickMetadataMaintenance', () => {
 	it('runs reconcile then backfill when every hydration succeeded', async () => {
 		knownLicks.push({ id: 'user-1', category: 'blues' });
+		seedOwnLicks(['user-1']); // non-curated universe is non-empty
 		saveUserLickTags({
 			'user-1': ['practice'],
 			'ghost-lick': ['practice'] // orphan — not in getAllLicks()
@@ -111,6 +133,7 @@ describe('runLickMetadataMaintenance', () => {
 
 	it('skips the backfill when the scope generation changes during reconcile', async () => {
 		knownLicks.push({ id: 'user-1', category: 'blues' });
+		seedOwnLicks(['user-1']);
 		saveUserLickTags({
 			'user-1': ['practice'],
 			'ghost-lick': ['practice']
@@ -154,6 +177,30 @@ describe('runLickMetadataMaintenance', () => {
 
 		expect(result.ran).toBe(false);
 		expect(Object.keys(loadUserLickTags())).toHaveLength(3);
+		expect(mockSyncLickMetadataToCloud).not.toHaveBeenCalled();
+	});
+
+	it('a "successful" but EMPTY user-lick hydration still cannot mass-prune', async () => {
+		// The 2026-07-17 failure mode: all three hydrations REPORT success, but the
+		// user-licks + adopted stores came back empty (race / transient empty read
+		// while the account genuinely has licks). The second gate must refuse to
+		// reconcile, or it would delete every user-* progression tag and push the
+		// loss cloud-side (stamped with a fresh mtime that wins the merge).
+		knownLicks.push({ id: 'curated-1', category: 'blues' }); // only curated known
+		// No seedOwnLicks(): getUserLicksLocal() and getStolenLicksLocal() are both empty.
+		saveUserLickTags({
+			'user-1': ['practice', 'prog:blues'],
+			'user-2': ['practice', 'prog:ii-V-I-major']
+		});
+
+		const result = await runLickMetadataMaintenance(supabase, ALL_OK);
+
+		expect(result).toEqual({ ran: false, reconciled: 0, backfilled: 0 });
+		// Every user tag survives — nothing pruned, nothing pushed.
+		expect(loadUserLickTags()).toEqual({
+			'user-1': ['practice', 'prog:blues'],
+			'user-2': ['practice', 'prog:ii-V-I-major']
+		});
 		expect(mockSyncLickMetadataToCloud).not.toHaveBeenCalled();
 	});
 });

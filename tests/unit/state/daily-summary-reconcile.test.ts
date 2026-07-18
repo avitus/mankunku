@@ -126,31 +126,40 @@ async function setupHistory(seed: {
 
 // ─── Tests ─────────────────────────────────────────────────────────────
 
-describe('reconcileCloudSummaries — DERIVABLE date is authoritative (anti-clobber)', () => {
-	it('does not let a higher-count cloud summary overwrite a locally-derivable date, and pushes the local value', async () => {
+describe('reconcileCloudSummaries — DERIVABLE date MAX-merges (anti-clobber + anti-loss)', () => {
+	it('local re-derivation wins when it is the higher count (same-day cross-device dedup)', async () => {
 		const D = '2026-06-10';
-		// One real source row on D → D is derivable; the local derivation is 1.
-		const history = await setupHistory({ sessions: [makeSession(D)] });
+		// Two source rows on D locally (this device + a unioned session) → derives 2.
+		const history = await setupHistory({ sessions: [makeSession(D), makeSession(D)] });
 		history.recomputeAllDailySummaries();
+		expect(history.dailySummaries.find((s) => s.date === D)?.sessionCount).toBe(2);
 
-		const before = history.dailySummaries.find((s) => s.date === D);
-		expect(before?.sessionCount).toBe(1);
+		// A stale cloud row with a LOWER count must not lower the local derivation.
+		const toPush = history.reconcileCloudSummaries([makeSummary(D, 1)]);
 
-		// Cloud claims a wildly inflated count for the same (derivable) date.
-		const toPush = history.reconcileCloudSummaries([makeSummary(D, 999)]);
-
-		// Local re-derivation is authoritative: cloud's 999 must NOT land locally.
-		const after = history.dailySummaries.find((s) => s.date === D);
-		expect(after?.sessionCount).toBe(1);
-		expect(after?.earTrainingSessions).toBe(1);
-
-		// Local is pushed up (overwrite) — and it's the LOCAL (1) value, not cloud's.
-		const pushed = toPush.find((s) => s.date === D);
-		expect(pushed).toBeDefined();
-		expect(pushed?.sessionCount).toBe(1);
+		expect(history.dailySummaries.find((s) => s.date === D)?.sessionCount).toBe(2);
+		// Local wins and is pushed up.
+		expect(toPush.find((s) => s.date === D)?.sessionCount).toBe(2);
 	});
 
-	it('treats a date derivable from the lick log (not just ear sessions) as authoritative', async () => {
+	it('a HIGHER cloud count is preserved for a derivable date (MAX) — sessions aged out of the 100-row window are not dropped', async () => {
+		const D = '2026-06-11';
+		// Only 1 of D's sessions survives in the local window; the rest aged out.
+		const history = await setupHistory({ sessions: [makeSession(D)] });
+		history.recomputeAllDailySummaries();
+		expect(history.dailySummaries.find((s) => s.date === D)?.sessionCount).toBe(1);
+
+		// Cloud durably holds the full count (5) from when those sessions were recent.
+		history.reconcileCloudSummaries([makeSummary(D, 5)]);
+
+		// MAX-merge keeps the complete cloud count instead of overwriting it with the
+		// window-capped partial local re-derivation (the daily-summary data-loss fix).
+		const after = history.dailySummaries.find((s) => s.date === D);
+		expect(after?.sessionCount).toBe(5);
+		expect(after?.earTrainingSessions).toBe(5);
+	});
+
+	it('treats a date derivable from the lick log (not just ear sessions) as derivable and pushes it', async () => {
 		const D = '2026-06-12';
 		const lickEntry: LickPracticeSessionLogEntry = {
 			id: 'lick-1',
@@ -173,9 +182,10 @@ describe('reconcileCloudSummaries — DERIVABLE date is authoritative (anti-clob
 		history.recomputeAllDailySummaries();
 		expect(history.dailySummaries.find((s) => s.date === D)?.sessionCount).toBe(1);
 
-		const toPush = history.reconcileCloudSummaries([makeSummary(D, 500)]);
+		// No cloud row for D → derivable local-only day; must still be pushed so the
+		// cloud learns it.
+		const toPush = history.reconcileCloudSummaries([]);
 
-		// Unchanged locally; still pushed because the date is derivable here.
 		expect(history.dailySummaries.find((s) => s.date === D)?.sessionCount).toBe(1);
 		expect(toPush.some((s) => s.date === D)).toBe(true);
 	});
@@ -219,6 +229,18 @@ describe('reconcileCloudSummaries — AGED-OUT date MAX-merges', () => {
 		expect(merged?.earTrainingSessions).toBe(7);
 		// Local is authoritative for this date → must be pushed so cloud catches up.
 		expect(toPush.some((s) => s.date === E)).toBe(true);
+	});
+
+	it('bestScore is the max of both sides even when the other side has more attempts', async () => {
+		const E = '2026-05-04';
+		// Aged-out local summary: fewer sessions (2) but a HIGHER bestScore (0.95).
+		const history = await setupHistory({ summaries: [makeSummary(E, 2, { bestScore: 0.95 })] });
+		// Cloud: more sessions (5) but a LOWER bestScore (0.7).
+		history.reconcileCloudSummaries([makeSummary(E, 5, { bestScore: 0.7 })]);
+
+		const merged = history.dailySummaries.find((s) => s.date === E);
+		expect(merged?.sessionCount).toBe(5); // cloud's higher count wins
+		expect(merged?.bestScore).toBe(0.95); // local's higher personal best preserved
 	});
 });
 
