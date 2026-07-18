@@ -147,8 +147,19 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 	);
 	const catMerge = mergeById(local.data.categoryOverrides, lm.catOverrides, cloud.data.categoryOverrides, cm.catOverrides);
 
-	// ── unlock_counts: per-id LWW (a reset removes the id + bumps its mtime) ──
-	const unlockMerge = mergeById(local.data.unlockCounts, lm.unlockMtime, cloud.data.unlockCounts, cm.unlockMtime);
+	// ── unlock_counts: per-id LWW (a reset removes the id + bumps its mtime).
+	//    unlock_counts is a MONOTONIC counter, so legacy entries with no mtime on
+	//    either side (both clocks 0) take the MAX — otherwise the 0>=0 tie would
+	//    favour local and a stale device's lower count would silently overwrite a
+	//    higher one, losing unlocked keys (same no-signal clobber as lick_tags). A
+	//    genuine decrease only comes from a reset, which stamps mtime>0 → LWW. ──
+	const unlockMerge = mergeById(
+		local.data.unlockCounts,
+		lm.unlockMtime,
+		cloud.data.unlockCounts,
+		cm.unlockMtime,
+		Math.max
+	);
 
 	// ── practice_progress: per-(id,key) union by lastPracticedAt + reset tombstones ──
 	const progressResets: Record<string, number> = {};

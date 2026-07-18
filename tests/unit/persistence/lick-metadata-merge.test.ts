@@ -161,6 +161,16 @@ describe('mergeLickMetadata', () => {
 		expect(merged.mergeMeta.tags?.a).toBe(500);
 	});
 
+	it('unlock_counts: legacy both-mtime-0 entries take the MAX, not favour-local', () => {
+		// A stale device with a LOWER unlock count must not overwrite a higher one
+		// when neither side has a merge_meta signal (same no-signal clobber class as
+		// lick_tags). A real decrease only comes from a reset, which stamps mtime>0.
+		const stale = bundle({ unlockCounts: { a: 3 } }, {});
+		const higher = bundle({ unlockCounts: { a: 8 } }, {});
+		expect(mergeLickMetadata(stale, higher).data.unlockCounts.a).toBe(8);
+		expect(mergeLickMetadata(higher, stale).data.unlockCounts.a).toBe(8);
+	});
+
 	it('ignores prototype-polluting ids', () => {
 		// JSON.parse creates an OWN enumerable "__proto__" key (an object literal
 		// would set the prototype instead), so this actually exercises the guard.
