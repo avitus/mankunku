@@ -230,6 +230,18 @@ describe('reconcileCloudSummaries — AGED-OUT date MAX-merges', () => {
 		// Local is authoritative for this date → must be pushed so cloud catches up.
 		expect(toPush.some((s) => s.date === E)).toBe(true);
 	});
+
+	it('bestScore is the max of both sides even when the other side has more attempts', async () => {
+		const E = '2026-05-04';
+		// Aged-out local summary: fewer sessions (2) but a HIGHER bestScore (0.95).
+		const history = await setupHistory({ summaries: [makeSummary(E, 2, { bestScore: 0.95 })] });
+		// Cloud: more sessions (5) but a LOWER bestScore (0.7).
+		history.reconcileCloudSummaries([makeSummary(E, 5, { bestScore: 0.7 })]);
+
+		const merged = history.dailySummaries.find((s) => s.date === E);
+		expect(merged?.sessionCount).toBe(5); // cloud's higher count wins
+		expect(merged?.bestScore).toBe(0.95); // local's higher personal best preserved
+	});
 });
 
 describe('reconcileCloudSummaries — no deadlock on equal counts', () => {

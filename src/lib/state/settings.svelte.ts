@@ -58,12 +58,19 @@ let settingsHydrationOk = false;
  * `localRev > syncedRev` means there are unsynced local edits — a whole-blob
  * cloud read must NOT overwrite them, or a re-hydration (auth refresh) that
  * fires before the outbox flush would silently revert the user's edit.
+ *
+ * PERSISTED (per-user namespace) so the dirty state survives a restart: an edit
+ * made just before a reload, still pending in the durable outbox, would
+ * otherwise reset both counters to 0 and be clobbered by the next hydration.
  */
-let localRev = 0;
-let syncedRev = 0;
+const LOCAL_REV_KEY = 'settings-local-rev';
+const SYNCED_REV_KEY = 'settings-synced-rev';
+let localRev = load<number>(LOCAL_REV_KEY) ?? 0;
+let syncedRev = load<number>(SYNCED_REV_KEY) ?? 0;
 
 export function saveSettings(supabase?: SupabaseClient<Database>): void {
 	localRev++;
+	save(LOCAL_REV_KEY, localRev);
 	save(STORAGE_KEY, settings);
 
 	// Queue a durable cloud sync for authenticated users.
@@ -79,6 +86,7 @@ export async function flushSettingsToCloud(supabase: SupabaseClient<Database>): 
 	const ok = await syncSettingsToCloud(supabase, settings);
 	if (!ok) throw new Error('settings push failed');
 	syncedRev = Math.max(syncedRev, rev);
+	save(SYNCED_REV_KEY, syncedRev);
 }
 
 /**

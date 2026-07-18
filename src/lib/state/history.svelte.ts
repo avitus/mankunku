@@ -212,7 +212,11 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		earTrainingSessions: ear,
 		lickPracticeSessions: lick,
 		sessionCount: ear + lick,
-		practiceMinutes: (ear + lick) * ESTIMATED_MINUTES_PER_SESSION
+		practiceMinutes: (ear + lick) * ESTIMATED_MINUTES_PER_SESSION,
+		// bestScore is a personal best — always the max of both sides, independent
+		// of which side has more attempts (a higher best can live on the side with
+		// fewer sessions).
+		bestScore: Math.max(existing.bestScore, derived.bestScore)
 	};
 	// Notes / averages prefer the source with more total attempts on record.
 	const derivedTotal = (derived.earTrainingSessions ?? 0) + (derived.lickPracticeSessions ?? 0);
@@ -223,7 +227,6 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		merged.avgOverall = existing.avgOverall;
 		merged.avgPitch = existing.avgPitch;
 		merged.avgRhythm = existing.avgRhythm;
-		merged.bestScore = Math.max(existing.bestScore, derived.bestScore);
 		merged.grades = existing.grades;
 		merged.categories = existing.categories;
 	}
