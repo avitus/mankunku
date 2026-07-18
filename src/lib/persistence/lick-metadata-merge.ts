@@ -130,7 +130,7 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 		lm.tags,
 		stripKey(cloud.data.lickTags, MIGRATIONS_KEY),
 		cm.tags,
-		(a, b) => unionStrings(a, b)
+		unionStrings
 	);
 	const lickTags: Record<string, string[]> = { ...tagsMerge.vals };
 	const migrations = unionStrings(local.data.lickTags?.[MIGRATIONS_KEY], cloud.data.lickTags?.[MIGRATIONS_KEY]);
@@ -143,7 +143,7 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 		lm.overrides,
 		cloud.data.tagOverrides,
 		cm.overrides,
-		(a, b) => unionStrings(a, b)
+		unionStrings
 	);
 	const catMerge = mergeById(local.data.categoryOverrides, lm.catOverrides, cloud.data.categoryOverrides, cm.catOverrides);
 
