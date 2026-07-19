@@ -7,9 +7,7 @@
  * All tests are self-contained — no live Supabase instance required.
  * All Supabase client interactions are mocked via vi.fn() / vi.mock().
  *
- * @see AAP §0.5.1 Group 9 (Testing)
- * @see AAP §0.7.4 (Testing Rules — mock strategy, no live Supabase)
- * @see AAP §0.7.2 (Server-Side JWT Validation via getUser())
+ * Mock strategy: no live Supabase instance is required.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -106,7 +104,6 @@ function createMockSupabaseClient(overrides: Record<string, unknown> = {}) {
 		auth: {
 			signInWithPassword: vi.fn(),
 			signUp: vi.fn(),
-			signInWithOAuth: vi.fn(),
 			exchangeCodeForSession: vi.fn(),
 			signOut: vi.fn(),
 			getSession: vi.fn(),
@@ -188,7 +185,7 @@ beforeEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────
 
 describe('Auth Page Server Actions — /auth', () => {
-	// Tests for src/routes/auth/+page.server.ts form actions (login, register, oauth).
+	// Tests for src/routes/auth/+page.server.ts form actions (login, register).
 	// Each action receives a mock SvelteKit RequestEvent with event.locals.supabase.
 
 	it('login action — succeeds with valid credentials and redirects to /', async () => {
@@ -347,59 +344,11 @@ describe('Auth Page Server Actions — /auth', () => {
 		expect(result?.status).toBe(400);
 		expect((result as any)?.data?.error).toBe('User already registered');
 	});
-
-	it('oauth action — redirects to Google OAuth URL', async () => {
-		const oauthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=test';
-		mockSupabase.auth.signInWithOAuth.mockResolvedValue({
-			data: { url: oauthUrl },
-			error: null
-		});
-
-		const mockEvent = {
-			locals: { supabase: mockSupabase },
-			url: createMockUrl('/auth'),
-			cookies: createMockCookies()
-		};
-
-		try {
-			await actions.oauth(mockEvent as any);
-			expect.fail('Expected redirect to be thrown');
-		} catch (e: any) {
-			expect(e.status).toBe(303);
-			expect(e.location).toBe(oauthUrl);
-		}
-
-		expect(mockSupabase.auth.signInWithOAuth).toHaveBeenCalledWith({
-			provider: 'google',
-			options: {
-				redirectTo: 'http://localhost:5173/auth/callback'
-			}
-		});
-	});
-
-	it('oauth action — returns fail(400) when OAuth initiation fails', async () => {
-		mockSupabase.auth.signInWithOAuth.mockResolvedValue({
-			data: { url: null },
-			error: { message: 'Provider not enabled' }
-		});
-
-		const mockEvent = {
-			locals: { supabase: mockSupabase },
-			url: createMockUrl('/auth'),
-			cookies: createMockCookies()
-		};
-
-		const result = await actions.oauth(mockEvent as any);
-		expect(result?.status).toBe(400);
-		expect((result as any)?.data?.error).toBe(
-			'Could not initiate Google sign-in. Please try again.'
-		);
-	});
 });
 
-describe('OAuth Callback — /auth/callback', () => {
+describe('Auth Callback — /auth/callback', () => {
 	// Tests for src/routes/auth/callback/+server.ts GET handler.
-	// Validates OAuth code exchange and redirect behavior.
+	// Validates the email-confirmation code exchange and redirect behavior.
 
 	it('exchanges valid code for session and redirects to /', async () => {
 		mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({ error: null });
@@ -506,7 +455,7 @@ describe('Logout — /auth/logout', () => {
 describe('Server Hook — safeGetSession', () => {
 	// Tests for the safeGetSession function defined in src/hooks.server.ts.
 	// These tests exercise the hook's handle function directly, verifying
-	// that JWT validation via getUser() is always performed (AAP §0.7.2).
+	// that JWT validation via getUser() is always performed.
 
 	it('returns null session and user when no session exists', async () => {
 		mockSupabase.auth.getSession.mockResolvedValue({
@@ -553,7 +502,7 @@ describe('Server Hook — safeGetSession', () => {
 		expect(result.session).toEqual(mockSession);
 		expect(result.user).toEqual(mockUser);
 
-		// CRITICAL SECURITY (AAP §0.7.2): getUser() MUST be called to validate JWT.
+		// CRITICAL SECURITY: getUser() MUST be called to validate JWT.
 		// Using getSession() alone is insufficient — it only reads unverified cookie data.
 		expect(mockSupabase.auth.getUser).toHaveBeenCalled();
 	});

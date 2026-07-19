@@ -18,8 +18,8 @@
  *
  * Consumers:
  * - src/hooks.server.ts — per-request client in the handle hook
- * - src/routes/auth/+page.server.ts — form actions for login/register/OAuth
- * - src/routes/auth/callback/+server.ts — OAuth code exchange
+ * - src/routes/auth/+page.server.ts — form actions for login/register
+ * - src/routes/auth/callback/+server.ts — email-confirmation code exchange
  * - src/routes/auth/logout/+server.ts — session cleanup and signout
  *
  * @module

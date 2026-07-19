@@ -16,7 +16,7 @@ import type { Database } from '$lib/supabase/types';
  * 2. Create a typed Supabase client (browser or server variant based on `isBrowser()`)
  * 3. Pass through the JWT-validated session and user from the server layout load
  *
- * Security note (AAP §0.7.3):
+ * Security note:
  *   Only `PUBLIC_SUPABASE_ANON_KEY` is used — never the `service_role` key.
  *   Session validation happens server-side in `hooks.server.ts` via `safeGetSession()`.
  *

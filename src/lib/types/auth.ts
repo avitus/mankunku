@@ -16,7 +16,7 @@ export interface UserProfile {
 	/** User's chosen display name; nullable because email-only registrations may not provide one */
 	displayName: string | null;
 
-	/** URL to the user's avatar image, populated from OAuth provider or manual upload */
+	/** URL to the user's avatar image, set by manual upload */
 	avatarUrl: string | null;
 
 	/** ISO 8601 timestamp of when the profile was created */
