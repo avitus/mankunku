@@ -36,7 +36,7 @@ database**. Development runs against a *local* Supabase instance so it never
 touches production data.
 
 ```sh
-npm run db:start       # boots Postgres + Auth + Storage in Docker, applies all migrations
+npm run db:start       # boots Postgres + Auth + Storage in Docker, applying the migrations that exist now
 npm run dev            # now talks to the local stack at http://127.0.0.1:54321
 ```
 
@@ -52,11 +52,15 @@ and are never read from it.
 | `npm run db:stop` | Shuts the stack down |
 | `npm run db:types:check` | Verifies the hand-maintained `src/lib/supabase/types.ts` still matches the schema |
 
-**The Supabase CLI is linked to the production project.** Every command has a
-`--linked` variant that targets production, so pass `--local` explicitly when
-you mean the local stack. `npm run db:reset` defaults to local, but prefer
-`migration up --local` when you only need to apply what's pending — a reset
-rebuilds from scratch for no reason.
+**The Supabase CLI is linked to the production project.** The commands that take
+`--linked` / `--local` — `migration up`, `migration list`, `db push`, `db reset`,
+`gen types` — can all reach production, and **`db push` targets the remote
+database by default**. Pass `--local` explicitly whenever you mean the local
+stack. (`npx supabase migration new`, `db:start`, and `db:stop` accept neither
+flag — they are local-only and can't touch production.)
+
+`npm run db:reset` defaults to local, but prefer `migration up --local` when you
+only need to apply what's pending — a reset rebuilds from scratch for no reason.
 
 ### Database migrations
 
