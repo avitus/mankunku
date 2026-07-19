@@ -12,8 +12,9 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 
 | Section | Description |
 |---|---|
-| [Getting Started](./getting-started.md) | Prerequisites, install, first run, project structure |
+| [Getting Started](./getting-started.md) | For players: what the app does, what you need, your first session |
 | [User Guide](./user-guide.md) | How to use the app: practice, library, progress, settings |
+| [Development Setup](./contributing/contributing.md#development-setup) | For developers: prerequisites, install, first run, local Supabase stack |
 
 ### Architecture
 

@@ -48,7 +48,7 @@ npm run dev
 
 The app opens at `http://localhost:5173`. The onboarding flow will prompt for instrument selection and microphone access. A microphone is needed for full functionality but not required to explore the codebase.
 
-**Optional — Supabase cloud sync:** Copy `.env.example` to `.env` and add your Supabase project URL and anon key. See [Getting Started](documentation/getting-started.md) for full setup including database migrations.
+**Optional — Supabase cloud sync:** Copy `.env.example` to `.env` and add your Supabase project URL and anon key. See [Development Setup](documentation/contributing/contributing.md#development-setup) for full setup including database migrations.
 
 **Local Supabase stack (for auth/sync development):** Development runs against a **local** Supabase instance so it never touches production data. Requires Docker.
 

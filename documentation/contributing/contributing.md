@@ -4,7 +4,65 @@ Guidelines for contributing to Mankunku.
 
 ## Development Setup
 
-See [Getting Started](../getting-started.md) for prerequisites and installation.
+> Looking for the player-facing introduction — what the app does, what gear you
+> need, how a first session goes? That's [Getting Started](../getting-started.md).
+> This section is the developer setup.
+
+### Prerequisites
+
+- **Node 22** (CI builds on `cimg/node:22.14`; no `engines` field is enforced, but older majors are untested).
+- **Docker**, only if you want the local Supabase stack. The app runs fine without it.
+- A **microphone**, to exercise anything in the audio pipeline by hand.
+
+### First run
+
+```sh
+npm install
+npm run dev            # http://localhost:5173
+```
+
+That is genuinely all you need. Mankunku is **local-first**: every write goes to
+localStorage/IndexedDB, and the app is fully usable signed out, offline, with no
+backend configured. Cloud sync is an optional layer on top.
+
+### Optional — the local Supabase stack
+
+Only needed when working on **auth, cloud sync, or anything touching the
+database**. Development runs against a *local* Supabase instance so it never
+touches production data.
+
+```sh
+npm run db:start       # boots Postgres + Auth + Storage in Docker, applies all migrations
+npm run dev            # now talks to the local stack at http://127.0.0.1:54321
+```
+
+Then copy `.env.example` to `.env` and set `PUBLIC_SUPABASE_URL` and
+`PUBLIC_SUPABASE_ANON_KEY` to the values printed by `npx supabase status`.
+`.env` is gitignored; production credentials are injected by CI at build time
+and are never read from it.
+
+| Command | What it does |
+|---|---|
+| `npx supabase migration up --local` | Applies migrations added since the stack was started (e.g. after pulling `main`) |
+| `npm run db:reset` | Re-applies every migration from a clean slate — **wipes local data** |
+| `npm run db:stop` | Shuts the stack down |
+| `npm run db:types:check` | Verifies the hand-maintained `src/lib/supabase/types.ts` still matches the schema |
+
+**The Supabase CLI is linked to the production project.** Every command has a
+`--linked` variant that targets production, so pass `--local` explicitly when
+you mean the local stack. `npm run db:reset` defaults to local, but prefer
+`migration up --local` when you only need to apply what's pending — a reset
+rebuilds from scratch for no reason.
+
+### Database migrations
+
+Create them with `npx supabase migration new <name>`, which produces the
+Supabase-standard `<YYYYMMDDHHMMSS>_<name>.sql` UTC-timestamp filename. Do not
+hand-number new migrations — see the "Database migrations" section of
+`CLAUDE.md` for why the legacy `00001`–`00023` names are left alone.
+
+`src/lib/supabase/types.ts` is **hand-maintained**, not generator output. Edit
+it by hand when a migration changes the schema, then run `npm run db:types:check`.
 
 ## Code Style
 
