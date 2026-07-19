@@ -32,7 +32,17 @@ function summary(date: string, mastery: number | undefined) {
 	};
 }
 
+/**
+ * The chart derives its default 3M window from `new Date()`, and both the
+ * window start and the `date > todayStr` future-cutoff are compared against
+ * these fixed seed dates — so the clock has to be pinned or the spec quietly
+ * starts failing once wall-clock time walks past the seeded range.
+ */
+const NOW = new Date('2026-07-19T12:00:00Z');
+
 test('trend chart renders mastery only', async ({ page, consoleCollector: _c }) => {
+	await page.clock.install({ time: NOW });
+
 	const summaries = [
 		// Two pre-feature days with complexity but no mastery — must NOT plot.
 		summary('2026-05-02', undefined),
