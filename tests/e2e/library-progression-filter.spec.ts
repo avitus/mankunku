@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedUserLicks, seedStorage } from './fixtures/storage';
+import type { Phrase } from '$lib/types/music';
 
 /**
  * Library progression filter.
@@ -10,7 +11,7 @@ import { seedOnboardedAnonymous, seedUserLicks, seedStorage } from './fixtures/s
  * compatibility deliberately does not widen it.
  */
 
-function lick(id: string, name: string, category: string) {
+function lick(id: string, name: string, category: Phrase['category']): Phrase {
 	return {
 		id,
 		name,
@@ -39,7 +40,7 @@ test.describe('library progression filter', () => {
 	test.beforeEach(async ({ page }) => {
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page, [
-			lick('filt-blues', 'Filter Blues Lick', 'blues-vocabulary'),
+			lick('filt-blues', 'Filter Blues Lick', 'blues'),
 			lick('filt-major', 'Filter Major Lick', 'ii-V-I-major'),
 			lick('filt-both', 'Filter Both Lick', 'bebop-lines'),
 			lick('filt-untagged', 'Filter Untagged Lick', 'bebop-lines')
