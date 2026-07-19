@@ -22,6 +22,8 @@ CI pipeline (CircleCI): test → (build, db-migrate) → deploy (main branch onl
 
 Create new migrations with `npx supabase migration new <name>`, which produces the Supabase-standard `<YYYYMMDDHHMMSS>_<name>.sql` UTC-timestamp filename. **Do not hand-number new migrations.** Migrations `00001`–`00023` use a legacy sequential scheme; the Supabase dashboard derives its "inserted at (UTC)" column by parsing the version string as a timestamp, so those legacy ones render "Unknown" forever. Renaming them retroactively would require rewriting the `version` primary keys in production's `supabase_migrations.schema_migrations` in lockstep — if files and table rows disagree, the CLI treats every migration as pending and CI's db-migrate job fails. So the legacy names stay; only new ones get real dates. Mixed schemes order correctly, since `00023` sorts before any `2026…` string.
 
+`src/lib/supabase/types.ts` is **hand-maintained**, not generator output — edit it by hand when a migration changes the schema, then run `npm run db:types:check` (needs the local stack) to verify it matches the database. There is deliberately no regenerate-in-place script: generating over it drops the source-interface mapping in its header, adds the unused `graphql_public` schema, and widens `public_lick_authors.id` to `string | null`, which would widen the Map key type at three call sites in `persistence/community.ts` for a NOT NULL primary key.
+
 The CLI is linked to the **production** project ref. Local commands need an explicit `--local` (`npx supabase migration up --local`); the `--linked` variants target production. `npm run db:reset` defaults to local but rebuilds from scratch, so prefer `migration up --local` to apply pending migrations in place.
 
 ## Architecture

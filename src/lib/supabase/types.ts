@@ -4,6 +4,14 @@
  * Generated-style type definitions for the Mankunku PostgreSQL database.
  * Follows the exact format produced by `npx supabase gen types typescript`.
  *
+ * HAND-MAINTAINED — do NOT overwrite this file with generator output. Edit it
+ * by hand when a migration changes the schema, then run `npm run db:types:check`
+ * to confirm it matches the local database. Regenerating in place would drop the
+ * source-interface mapping below, pull in the unused `graphql_public` schema,
+ * and widen `public_lick_authors.id` to `string | null` (Postgres cannot prove
+ * non-nullability through a view, though that column is a NOT NULL primary key
+ * — see DELIBERATE_OVERRIDES in scripts/check-db-types.mjs).
+ *
  * These types provide compile-time safety for all Supabase client queries.
  * Each table in the `public` schema is represented with three type variants:
  *   - Row:    The complete row shape returned by SELECT queries
