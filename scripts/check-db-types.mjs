@@ -20,7 +20,7 @@
  * Exit codes: 0 = in sync, 1 = drift found, 2 = could not run the generator.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -93,7 +93,6 @@ const generatedPath = join(scratch, 'generated-types.ts');
 let keepScratch = false;
 
 try {
-	const { writeFileSync } = await import('node:fs');
 	writeFileSync(generatedPath, generatedSource);
 
 	const committed = parseRowTypes(readFileSync(COMMITTED, 'utf8'));
