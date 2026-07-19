@@ -10,7 +10,11 @@ Guidelines for contributing to Mankunku.
 
 ### Prerequisites
 
-- **Node 22** (CI builds on `cimg/node:22.14`; no `engines` field is enforced, but older majors are untested).
+- **Node 22 or newer.** This is enforced, not advisory: `package.json` declares
+  `engines.node: ">=22"` and `.npmrc` sets `engine-strict=true`, so `npm install`
+  fails with `EBADENGINE` on an older major rather than warning. `.nvmrc` pins
+  `22.14` to match CI (`cimg/node:22.14`) — run `nvm use` to switch to it.
+  Newer majors are fine and are what most local work happens on.
 - **Docker**, only if you want the local Supabase stack. The app runs fine without it.
 - A **microphone**, to exercise anything in the audio pipeline by hand.
 
