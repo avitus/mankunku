@@ -2,6 +2,22 @@
 
 Newest at the top.
 
+## 2026-07-19 — Trend chart cut to Tonal Mastery alone; found a three-way drift between legend, tooltip and data
+
+**What happened:**
+
+- User: the trend chart still plots pitch and rhythm complexity, "both of which are meaningless progress metrics." Correct — they're adaptive-difficulty state (how hard the *generator* is making the material), not a measure of the player. `tonalMastery` was already being captured into `DailySummary` and already drawn as the solid line, so this was a subtraction, not a build.
+- Rewrote `TrendChart.svelte` as a single series: dropped `showPitch`/`showRhythm` toggles, both dotted polylines, `toPointsSkipNull`, and the three-field `DataPoint`. The mastery line takes `var(--color-accent)` now that it isn't competing with a dotted accent line for attention.
+- **The removal exposed a real coupling.** The forward-fill loop gated on `if (lastPitch == null || lastRhythm == null) continue` — so the *mastery* line's visibility was hostage to whether an unrelated metric had a snapshot. Now gated on `lastMastery`. Verified in the browser: seeded two complexity-only days ahead of the mastery history, and they're correctly dropped instead of anchoring the chart (first x-label `05-11`, the week of the first mastery day, not `04-27`).
+- **Tooltip described a third thing entirely.** `tooltips.progress.trend` read "Daily average accuracy over the rolling window" — which the chart has never shown. Legend said one thing, tooltip another, data a third. Rewrote it to describe mastery, including the part that will otherwise read as a bug: it climbs slowly because every unattempted scale/key counts as zero.
+- Left the "Adaptive Difficulty" section (`/progress` line ~705) alone — pitch/rhythm complexity as *current* bars is legitimate there; it says what the generator is feeding you now, which is a state readout, not a progress claim.
+- Kept the throwaway verification spec as `tests/e2e/progress-trend-chart.spec.ts`: asserts one polyline, mastery-only legend, and the pre-snapshot exclusion.
+
+**Notes:**
+
+- `npm run check` clean (0 errors, 2340 files); progress unit/integration + both progress e2e specs green; screenshotted the rendered chart rather than inferring from the typecheck.
+- Deliberately *not* done: `pitchComplexity`/`rhythmComplexity` stay on `DailySummary` and in the `daily_summaries` sync. They're recorded history, and dropping them means a migration plus `sync.ts` churn for no display benefit. Flagged to the user rather than decided unilaterally.
+
 ## 2026-07-18 — Merged the data-layer rewrite into dev; migration naming switched; killed a lossy types script
 
 **What happened:**

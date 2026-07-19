@@ -90,7 +90,7 @@ export const tooltips = {
 			text: 'Each square is a day. Brightness reflects practice volume — darker means more sessions.'
 		},
 		trend: {
-			text: 'Daily average accuracy over the rolling window. Watch the slope, not the noise — single sessions vary.'
+			text: 'Tonal Mastery over time — your average proficiency across all 12 scales and all 12 keys. It climbs slowly by design: ground you have never covered counts as zero.'
 		},
 		pitchComplexity: {
 			text: 'How chromatic the licks you’re drilling are. Climbs as your pitch accuracy rises across consecutive sessions.',
