@@ -57,7 +57,7 @@ npm run db:start   # boots local Postgres + Auth + Storage via Docker and applie
 npm run dev        # dev server now talks to the local stack at http://127.0.0.1:54321
 ```
 
-`npm run db:reset` re-applies migrations from a clean slate; `npm run db:stop` shuts the stack down. Point your local `.env` `PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` at the values from `npx supabase status`. Production is unaffected — its credentials are injected by CI at build time, not read from `.env`.
+`npx supabase migration up --local` applies any migrations added since the stack was started (e.g. after pulling main); `npm run db:reset` re-applies them from a clean slate; `npm run db:stop` shuts the stack down. Point your local `.env` `PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` at the values from `npx supabase status`. Production is unaffected — its credentials are injected by CI at build time, not read from `.env`.
 
 ## Project Structure
 
@@ -82,7 +82,7 @@ tests/
   integration/      Integration tests (auth route chain, etc.)
   e2e/              Playwright browser tests
 supabase/
-  migrations/       12 SQL migrations (profiles, progress, settings, licks, RLS, +evolutions)
+  migrations/       23 SQL migrations (profiles, progress, settings, licks, RLS, +evolutions)
 documentation/      Architecture docs, API reference, contributing guides
 ```
 
