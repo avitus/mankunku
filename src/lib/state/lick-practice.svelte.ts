@@ -31,6 +31,7 @@
  * the floor — a strong average can't drag a single weak key along.
  */
 
+import { untrack } from 'svelte';
 import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music';
 import type {
 	ChordProgressionType,
@@ -215,7 +216,20 @@ export async function hydrateLickPracticeProgress(
 		);
 	}
 
-	lickPractice.config.progressionType = pickInitialProgression();
+	// `pickInitialProgression` reads `lickPractice.progress`, which this function
+	// has just *written* a fresh object to. Called from an `$effect` (the library
+	// and lick-practice pages both do), that read is tracked, so the write
+	// re-invalidates the effect and it re-runs forever.
+	//
+	// It only bites signed-out users: with a client, the `await` above splits the
+	// function and these writes land outside the effect's tracking window. And it
+	// needs a non-empty practice set, since `pickInitialProgression` early-returns
+	// before touching `lickPractice.progress` when nothing is tagged — which is
+	// why it stayed invisible for so long.
+	//
+	// Hydration should never establish reactive dependencies in the first place;
+	// it runs *because* auth changed, not because the state it writes changed.
+	lickPractice.config.progressionType = untrack(pickInitialProgression);
 }
 
 /**
