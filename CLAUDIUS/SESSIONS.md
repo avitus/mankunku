@@ -2,6 +2,24 @@
 
 Newest at the top.
 
+## 2026-07-18 — Merged the data-layer rewrite into dev; migration naming switched; killed a lossy types script
+
+**What happened:**
+
+- Fast-forwarded `dev` 35 commits to `origin/main` (`58f4c5d`). Two large PRs landed: **#164** (per-user namespaced storage, write outbox, per-record cloud merge, lick tombstones, migrations 00019–00023, a stub-cloud E2E harness) and **#165**, which then *deletes* four legacy migration/reconciliation paths on top of it — the written→concert migration, legacy-recording adoption, the orphan reconciler + maintenance + backfill, and the orphan-category migration. Checked the pending `grades.ts` edit against main first (untouched, so the FF was safe).
+- **"Is it safe to apply the migrations?" — the honest answer was that the question pointed at the wrong risk.** Local DB had *zero* rows in all 11 tables and zero auth users; the user's practice data is localStorage-only, which no DB command can reach. Read all six migrations: additive columns, one `NOT VALID` check, an index, a policy swap, an `AFTER UPDATE` trigger that only fires on future soft-deletes, and one data-touching statement (00023 recomputing `favorite_count`, a no-op on an empty DB). The real hazard was elsewhere entirely: **the CLI is linked to the production project ref**, so every command has a `--linked` twin that hits prod. Applied via `migration up --local`; verified all 7 columns, the trigger and the view exist afterwards.
+- **Migration naming switched to timestamps.** Diagnosed the dashboard's always-"Unknown" inserted-at: `supabase_migrations.schema_migrations` stores only `(version, statements, name)` — no timestamp at all — so the dashboard parses `version` as `YYYYMMDDHHMMSS`, which the legacy `00001`–`00023` scheme can't satisfy. The "always, not just old rows" detail is what proves it's derived rather than stored. Retroactive renaming would mean rewriting production's `version` primary keys in lockstep with the files or CI's db-migrate replays everything and fails — declined for a cosmetic column. New migrations use `supabase migration new` (confirmed output `20260719021452_probe_naming_format.sql`); mixed schemes still order correctly since `00023` sorts before any `2026…`. Documented in CLAUDE.md, along with the `--local`/`--linked` hazard.
+- **I asserted a mechanism I hadn't checked, and running it proved me wrong.** I warned that `npm run db:types` against the stale DB would "silently strip the six new columns." Ran it: the six survived, but it destroyed a 26-line documentation header — because `src/lib/supabase/types.ts` is **hand-maintained**, written to *imitate* generator format, not generated. Restored it and re-investigated properly.
+- **The re-investigation inverted the fix.** Parsed both the committed file and fresh generator output into table→column→type maps and diffed against the live schema: **zero drift** — all 12 entities, every column, every type identical save one. That one (`public_lick_authors.id`: hand `string`, generated `string | null`) is the hand-written side being *more* correct — the view selects a NOT NULL PK but Postgres can't prove non-nullability through a view, and adopting the generated type would widen the `Map` key at three `community.ts` call sites. Generation was a downgrade on accuracy, noise (unused `graphql_public`), and documentation. So the file stays hand-maintained and the **script** became the thing to fix.
+- Shipped `scripts/check-db-types.mjs` (`npm run db:types:check`): generates to a temp file, compares the semantic map, never writes to `src/`. Deliberate narrowings live in `DELIBERATE_OVERRIDES` with a stated reason. Verified it catches a removed column, a changed type, and — importantly — reports the override as drift when removed, proving it's load-bearing rather than a blanket pass. Exit 0/1/2. Also stamped the provenance warning into `types.ts`'s own header, which is where anyone about to regenerate is actually looking.
+- Corrected CLAUDE.md's lick-practice paragraph, which still documented `backfillInferredProgressionTags` / `runLickMetadataMaintenance` (removed in #165). `backfillPracticeTags` does survive — different function, legacy `practice` markers only, gated on cloud-hydration success.
+
+**Notes:**
+
+- Two commits on `dev`, both pushed: `fc069bf` (docs/naming) and `4ffb95d` (the checker). `npm run check` clean (0 errors, 2339 files).
+- Left alone deliberately: `blitzy/documentation/` still references `npm run db:types` and the `000NN` scheme, but it's a frozen March 31 spec artifact nothing links to — editing it would falsify a historical record.
+- Still uncommitted and untouched: the user's Kerouac caption in `grades.ts`.
+
 ## 2026-07-16 — The 100 BPM "tempo cap" was a phantom `Gb` key vetoing the min (FIXED, confirmed on live data)
 
 **What happened:**
