@@ -7,11 +7,11 @@
  * cross-device data persistence, implementing a last-write-wins conflict
  * resolution strategy via Supabase `upsert` with `updated_at` timestamps.
  *
- * Design rules (from AAP §0.7.1):
+ * Design rules:
  *  • Every function is wrapped in try/catch and logs warnings on failure.
  *  • No function ever throws — offline resilience is preserved.
  *  • Every function validates the user is authenticated via `getUser()`
- *    before attempting any cloud operation (AAP §0.7.2).
+ *    before attempting any cloud operation.
  *  • This module contains ONLY pure async functions — no Svelte state
  *    store imports, no side effects.
  */
@@ -96,7 +96,7 @@ function isValidTonality(value: unknown): boolean {
 /**
  * Retrieve the authenticated user ID, or `null` if not signed in.
  * Uses `getUser()` (not `getSession()`) for server-side JWT validation
- * per AAP §0.7.2.
+ * per the server-side JWT validation rule.
  */
 async function getAuthUserId(supabase: SupabaseDB): Promise<string | null> {
 	const {

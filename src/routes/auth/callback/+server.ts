@@ -2,14 +2,18 @@ import { redirect, isRedirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 /**
- * OAuth callback GET handler.
+ * Auth callback GET handler.
  *
- * Receives the authorization code from an OAuth provider (e.g., Google) after
- * the user grants consent, then exchanges it for a Supabase session via the
- * PKCE code flow. On success, the Supabase server client's cookie handlers
+ * Receives an authorization code and exchanges it for a Supabase session via
+ * the PKCE code flow. On success, the Supabase server client's cookie handlers
  * (configured in hooks.server.ts) automatically persist the session tokens as
  * httpOnly cookies, and the user is redirected to the homepage. On failure,
  * the user is redirected back to the auth page with an error indicator.
+ *
+ * This route is NOT dead code now that social login is gone: the register
+ * action passes `emailRedirectTo: <origin>/auth/callback`, so it is what the
+ * email-confirmation link lands on whenever Supabase has confirmations
+ * enabled. Deleting it would break signup confirmation.
  */
 export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const code = url.searchParams.get('code');
@@ -22,7 +26,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 			}
 		} catch (err) {
 			if (isRedirect(err)) throw err;
-			console.warn('OAuth code exchange failed:', err);
+			console.warn('Auth code exchange failed:', err);
 		}
 	}
 

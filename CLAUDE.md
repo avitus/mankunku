@@ -72,7 +72,7 @@ State modules in `src/lib/state/` use Svelte 5 runes (`$state()`, `$derived()`, 
 
 ### Routes (`src/routes/`)
 
-ear-training/ (call-and-response practice, also reachable via `practice/` 308-redirect), lick-practice/ (multi-key flow), library/, community/, progress/, settings/, scales/, entry/ (step-entry), add-licks/, record/, auth/ (login + OAuth callback), diagnostics/, docs/, api/account/, api/chat/, api/lick-match/, api/monitoring/
+ear-training/ (call-and-response practice, also reachable via `practice/` 308-redirect), lick-practice/ (multi-key flow), library/, community/, progress/, settings/, scales/, entry/ (step-entry), add-licks/, record/, auth/ (email/password login + email-confirmation callback; no social login), diagnostics/, docs/, api/account/, api/chat/, api/lick-match/, api/monitoring/
 
 ### Tests
 
