@@ -36,7 +36,15 @@ export default defineConfig({
         },
         workbox: {
             navigateFallbackDenylist: [/^\/auth/],
-            globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+            globPatterns: [
+                '**/*.{js,css,html,svg,woff2}',
+                // @vite-pwa/sveltekit appends `prerendered/**/*.{html,json}`
+                // unless a `prerendered/`-prefixed pattern is already present.
+                // The only thing this app prerenders is sitemap.xml, so that
+                // default matched nothing and workbox warned on every build.
+                // Naming the extension we actually emit silences it at source.
+                'prerendered/**/*.{html,json,xml}'
+            ],
             // Purge precache entries from previous builds so a stale SW can't
             // serve an index.html that references chunk hashes the server no
             // longer has. See Sentry MANKUNKU-8.

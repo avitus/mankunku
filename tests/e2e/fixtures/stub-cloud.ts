@@ -21,15 +21,52 @@
  * See tests/e2e/cloud-convergence.spec.ts for the scenarios and
  * tests/e2e/stub-cloud-smoke.spec.ts for a plumbing sanity check.
  */
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { BrowserContext, Route } from '@playwright/test';
 import type { E2ETestUser } from './auth';
 
+/** Fallback when no PUBLIC_SUPABASE_URL is discoverable (the deployed project). */
+const DEFAULT_SUPABASE_URL = 'https://ynzfliunzejusnlvpeey.supabase.co';
+
 /**
- * The production build bakes in PUBLIC_SUPABASE_URL, so this is the exact host
- * every browser Supabase request goes to. Route interception keys off it.
+ * Split a Supabase URL into the host to intercept and the project ref used in
+ * the auth cookie name. The ref derivation mirrors supabase-js exactly —
+ * `sb-${new URL(url).hostname.split('.')[0]}-auth-token` — so a local-stack URL
+ * (`http://127.0.0.1:54321`) correctly yields the ref `127`.
  */
-export const SUPABASE_URL = 'https://ynzfliunzejusnlvpeey.supabase.co';
-export const PROJECT_REF = 'ynzfliunzejusnlvpeey';
+export function resolveSupabaseTarget(rawUrl: string): { url: string; projectRef: string } {
+	const url = rawUrl.replace(/\/$/, '');
+	return { url, projectRef: new URL(url).hostname.split('.')[0] };
+}
+
+/**
+ * Resolve PUBLIC_SUPABASE_URL the way Vite does when it builds the bundle under
+ * test: an already-set environment variable wins, otherwise the `.env` file.
+ *
+ * This must not be hardcoded. The build bakes in whatever PUBLIC_SUPABASE_URL
+ * resolves to, and since `.env` began pointing at the local Supabase stack the
+ * baked host stopped matching a hardcoded production constant — route
+ * interception silently never fired, and the convergence specs failed on every
+ * developer machine while still passing in CI (where PUBLIC_SUPABASE_URL is a
+ * project-level env var holding the production URL).
+ */
+function buildTimeSupabaseUrl(): string {
+	if (process.env.PUBLIC_SUPABASE_URL) return process.env.PUBLIC_SUPABASE_URL;
+	const envPath = fileURLToPath(new URL('../../../.env', import.meta.url));
+	if (!existsSync(envPath)) return DEFAULT_SUPABASE_URL;
+	const line = readFileSync(envPath, 'utf8')
+		.split('\n')
+		.find((l) => l.trim().startsWith('PUBLIC_SUPABASE_URL='));
+	const value = line?.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
+	return value || DEFAULT_SUPABASE_URL;
+}
+
+const target = resolveSupabaseTarget(buildTimeSupabaseUrl());
+
+/** The exact host every browser Supabase request goes to. Routing keys off it. */
+export const SUPABASE_URL = target.url;
+export const PROJECT_REF = target.projectRef;
 
 /** Loose row shape — the cloud is schemaless; the app maps snake_case columns. */
 export type Row = Record<string, unknown>;
