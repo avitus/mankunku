@@ -500,9 +500,14 @@ function extendHarmonyToCoverMelody(
 	notes: Note[],
 	beatsPerBar: number
 ): HarmonicSegment[] {
-	const harmonyBars = Math.ceil(getHarmonyDurationBeats(harmony) / beatsPerBar);
-	const melodyBars = Math.ceil(getMelodyDurationBeats(notes) / beatsPerBar);
-	return extendHarmonyTail(harmony, melodyBars - harmonyBars);
+	const harmonyDuration = getHarmonyDurationBeats(harmony);
+	const melodyDuration = getMelodyDurationBeats(notes);
+	if (melodyDuration <= harmonyDuration) return harmony;
+
+	return extendHarmonyTail(
+		harmony,
+		Math.ceil((melodyDuration - harmonyDuration) / beatsPerBar)
+	);
 }
 
 // ── Log capture ──────────────────────────────────────────────
