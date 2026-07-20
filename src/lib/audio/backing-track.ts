@@ -11,7 +11,7 @@
  * - Drums: sampled kick, ride, hi-hat (Virtuosity Drums, CC0)
  */
 
-import type { Phrase, HarmonicSegment } from '$lib/types/music';
+import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -21,6 +21,7 @@ import { chordSymbol } from '$lib/music/chords';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
 import { BACKING_STYLES, type StyleDefinition } from './backing-styles';
 import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps';
+import { extendHarmonyTail } from '$lib/data/progressions';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -235,6 +236,20 @@ export async function loadBackingInstruments(
 			oldComp.disconnect();
 		}
 	}
+
+	// Preload the drum kit alongside the pitched instruments so
+	// `scheduleBackingTrack`'s `ensureDrums()` resolves as a microtask rather
+	// than a sample fetch. That await now precedes the first audible commit,
+	// so a cold load there would delay bass and comp — possibly past the
+	// scheduled `tickOffset` on a running transport.
+	//
+	// Best-effort, exactly like the pitched preload at the call site: a kit
+	// failure must not stop bass and comp loading. `ensureDrums` is
+	// single-flight and idempotent, so re-entry on an instrument change is
+	// free, and a failure here still surfaces from `scheduleBackingTrack`.
+	await ensureDrums().catch((err) => {
+		console.warn('Drum kit preload failed (non-blocking):', err);
+	});
 }
 
 /** Check if backing instruments are loaded and ready. */
@@ -453,6 +468,43 @@ function getHarmonyDurationBeats(harmony: HarmonicSegment[]): number {
 	return maxEnd;
 }
 
+/** Beat at which the last note of the melody ends. */
+function getMelodyDurationBeats(notes: Note[]): number {
+	let maxEnd = 0;
+	for (const note of notes) {
+		const start = fractionToFloat(note.offset) * 4;
+		const dur = fractionToFloat(note.duration) * 4;
+		maxEnd = Math.max(maxEnd, start + dur);
+	}
+	return maxEnd;
+}
+
+/**
+ * Hold the final chord for as many extra bars as the melody needs.
+ *
+ * Bass, comp and drum lengths are all derived from the harmony, so a phrase
+ * whose melody outruns its harmony had its last bar play dry — `ballad-005`
+ * (melody 12 beats over 8 of harmony) and `ballad-006` (8.5 over 8) in the
+ * curated catalog. Lick practice never hit this because it already extends the
+ * tail before scheduling; the ear-training path did not.
+ *
+ * Extending the harmony rather than patching each length separately keeps one
+ * source of truth: bass and comp events are GENERATED from harmony, so padding
+ * a length without extending the chords would have produced longer silence
+ * rather than a covered final bar.
+ *
+ * Returns the harmony untouched when it already covers the melody.
+ */
+function extendHarmonyToCoverMelody(
+	harmony: HarmonicSegment[],
+	notes: Note[],
+	beatsPerBar: number
+): HarmonicSegment[] {
+	const harmonyBars = Math.ceil(getHarmonyDurationBeats(harmony) / beatsPerBar);
+	const melodyBars = Math.ceil(getMelodyDurationBeats(notes) / beatsPerBar);
+	return extendHarmonyTail(harmony, melodyBars - harmonyBars);
+}
+
 // ── Log capture ──────────────────────────────────────────────
 
 function captureLog(
@@ -618,8 +670,24 @@ export async function scheduleBackingTrack(
 	const ppq = transport.PPQ;
 	const beatsPerBar = phrase.timeSignature[0];
 
-	const harmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
+	const baseHarmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
+	// Every backing length is derived from the harmony, so it has to reach the
+	// end of the melody or the phrase's last bar plays dry.
+	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
 	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
+
+	// Load the kit BEFORE touching any state. This is the last await in the
+	// function, so every bailout happens while nothing has been disposed and
+	// nothing has been started — the supersession check is atomic with respect
+	// to audible output. It used to sit after the bass and comp Parts were
+	// already started, so being superseded mid-load left them playing with no
+	// drums. Everything from here down is synchronous.
+	//
+	// `loadBackingInstruments` preloads the kit, so this is a no-op microtask
+	// on every normal path rather than a sample fetch that could push the start
+	// past `tickOffset`.
+	await ensureDrums();
+	if (!isStillCurrent()) return;
 
 	disposeBackingParts();
 
@@ -674,16 +742,8 @@ export async function scheduleBackingTrack(
 	}
 
 	// ── Drums ───────────────────────────────────────────────
-	await ensureDrums();
-	if (!isStillCurrent()) {
-		// A newer schedule has taken over. Do NOT touch module-level
-		// state here: the `bassPart` / `compPart` / `activeSchedule`
-		// references may already belong to the superseding invocation
-		// (its own scheduleNextPhrase → disposeBackingParts cleared our
-		// orphans and it installed its own parts).  Disposing them here
-		// would silence the newer phrase.  Just bail out.
-		return;
-	}
+	// The kit is already loaded and the supersession check already passed
+	// above, before any state was touched — see the comment there.
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
 	const drumCallback = (time: number, beat: number) => {
