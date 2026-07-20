@@ -80,6 +80,15 @@ test.describe('account section (authed)', () => {
 		await signedInPage.route('**/api/account', async (route) => {
 			if (route.request().method() === 'DELETE') {
 				deleteFired = true;
+				// Simulate the deletion ending the session. Our synthetic auth is a
+				// cookie the harness sets (e2e-test-user); the mocked DELETE never
+				// runs the real endpoint, so without this the "deleted" user still
+				// looks authenticated and the /auth load guard (which redirects a
+				// verified session home) would bounce the follow-up nav to '/'. In
+				// production getUser() fails for the just-deleted user, so /auth
+				// sees no session and renders the form — clearing the cookie here
+				// reproduces that post-deletion state faithfully.
+				await signedInPage.context().clearCookies();
 				await route.fulfill({
 					status: 200,
 					contentType: 'application/json',
@@ -94,7 +103,9 @@ test.describe('account section (authed)', () => {
 		await signedInPage.getByRole('button', { name: /^delete account$/i }).click();
 		await signedInPage.getByRole('button', { name: /yes, delete my account/i }).click();
 
-		// The success path redirects to /auth via window.location.href.
+		// The success path redirects to /auth via window.location.href; with the
+		// session cleared above, the /auth guard leaves the browser on the login
+		// form rather than bouncing an authenticated user home.
 		await expect(signedInPage).toHaveURL(/\/auth$/, { timeout: 5_000 });
 		expect(deleteFired).toBe(true);
 	});

@@ -71,7 +71,7 @@ function readE2ETestUser(event: RequestEvent): E2ETestUser | null {
  * aren't matched return rejected promises so test failures point clearly at
  * the missing stub method.
  */
-function makeE2EStubSupabase(testUser: E2ETestUser): App.Locals['supabase'] {
+function makeE2EStubSupabase(testUser: E2ETestUser, event: RequestEvent): App.Locals['supabase'] {
 	const tableHandler = (table: string) => {
 		const queryBuilder = {
 			select: () => queryBuilder,
@@ -108,7 +108,16 @@ function makeE2EStubSupabase(testUser: E2ETestUser): App.Locals['supabase'] {
 				},
 				error: null
 			}),
-			signOut: async () => ({ error: null }),
+			signOut: async () => {
+				// Faithfully END the synthetic session: clear the cookie the harness
+				// authenticates with, so a post-sign-out /auth request sees no session
+				// — matching production, where signOut clears the real Supabase auth
+				// cookie. Without this the /auth load guard (which redirects a verified
+				// session to '/') would bounce the just-signed-out browser home instead
+				// of leaving it on the login page.
+				event.cookies.delete('e2e-test-user', { path: '/' });
+				return { error: null };
+			},
 			onAuthStateChange: () => ({
 				data: { subscription: { unsubscribe: () => {} } }
 			})
@@ -141,7 +150,7 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
     // Short-circuits Supabase entirely when a test cookie is present.
     const testUser = readE2ETestUser(event);
     if (testUser) {
-        event.locals.supabase = makeE2EStubSupabase(testUser);
+        event.locals.supabase = makeE2EStubSupabase(testUser, event);
         const syntheticUser = { id: testUser.id, email: testUser.email };
         const syntheticSession = {
             access_token: 'e2e-mock-token',
