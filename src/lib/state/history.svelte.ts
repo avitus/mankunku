@@ -212,7 +212,11 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		earTrainingSessions: ear,
 		lickPracticeSessions: lick,
 		sessionCount: ear + lick,
-		practiceMinutes: (ear + lick) * ESTIMATED_MINUTES_PER_SESSION
+		practiceMinutes: (ear + lick) * ESTIMATED_MINUTES_PER_SESSION,
+		// bestScore is a personal best — always the max of both sides, independent
+		// of which side has more attempts (a higher best can live on the side with
+		// fewer sessions).
+		bestScore: Math.max(existing.bestScore, derived.bestScore)
 	};
 	// Notes / averages prefer the source with more total attempts on record.
 	const derivedTotal = (derived.earTrainingSessions ?? 0) + (derived.lickPracticeSessions ?? 0);
@@ -223,7 +227,6 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		merged.avgOverall = existing.avgOverall;
 		merged.avgPitch = existing.avgPitch;
 		merged.avgRhythm = existing.avgRhythm;
-		merged.bestScore = Math.max(existing.bestScore, derived.bestScore);
 		merged.grades = existing.grades;
 		merged.categories = existing.categories;
 	}
@@ -431,11 +434,17 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 
 	for (const cs of cloudSummaries) {
 		cloudDates.add(cs.date);
-		// Derivable dates: local re-derivation is authoritative — never let a
-		// stale cloud row modify it; it will be pushed (overwrite) below.
-		if (derivable.has(cs.date)) continue;
-
-		// Aged-out date: MAX-merge into local (safe: finalized, monotonic).
+		// Every cloud date — derivable OR aged-out — is MAX-merged into local, then
+		// (for derivable dates) pushed via the return filter below. We must NOT
+		// blindly overwrite a derivable date with the local re-derivation: session
+		// loads are capped at MAX_SESSIONS (100), so a boundary date whose older
+		// sessions aged out of the window re-derives to a PARTIAL, undercounted
+		// value locally. MAX-merge keeps whichever side is more complete — the
+		// unioned-sessions re-derivation still wins when it's the larger (the
+		// same-day dedup / deadlock fix), while a full cloud count is never lowered
+		// by a partial local one. Counters are monotonic; a real deletion goes
+		// through reset, which clears the cache both sides, so max never strands
+		// stale data.
 		const existing = summaryMap.get(cs.date);
 		if (!existing) {
 			dailySummaries.push(cs);

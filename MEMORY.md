@@ -69,6 +69,16 @@ Durable principles (won't go stale as values evolve):
 
 **Spec status (2026-04-20):** `documentation/architecture/design-system.md` was rewritten to match the current implementation — three-domain palette (peacock teal / terracotta / slate), brass decorative tokens, on-air red, Fraunces display serif, `.jazz-rule`/`.smallcaps`/`.grain-overlay` utilities. Before making design changes, still read `src/app.css` and `src/routes/+layout.svelte` — they remain ground truth.
 
+### Never leave a bug unfixed — failing test first, then fix (TDD is a core tenet)
+
+Every bug found during a session gets fixed in that session. The required order is **test first**: write a test that fails *because of the bug*, watch it fail, then fix and watch it pass. Then revert the fix once to confirm the test is load-bearing — a test that passes without the fix proves nothing.
+
+This covers bugs found **incidentally**: pre-existing failures, bugs in other subsystems, latent issues spotted while reading. "Pre-existing, not from this branch" explains where a bug came from; it is never a reason to leave it. Neither is "outside the scope of this task."
+
+**Why:** Reporting a bug without fixing it hands the work back to the user and lets real defects pile up behind a note that reads as though it were handled. The expensive part of a bug is *finding* it; leaving it unfixed throws that away and makes the next person pay for the discovery again. Test-driven development is a key tenet of this project, not a stylistic preference.
+
+**How to apply:** On finding any bug, write the failing test before the fix. Never claim work complete with known bugs outstanding — if something truly can't be fixed now, say so prominently rather than burying it in a summary.
+
 ### Write tests for new functionality (especially at framework/storage boundaries)
 **Why:** PR #40 added metadata to `saveRecording` without a test verifying the metadata could be persisted to IndexedDB. Svelte 5 `$state` proxies can't be `structuredClone`d, so every recording save silently failed in production for a day. A simple test would have caught this.
 

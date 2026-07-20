@@ -160,19 +160,28 @@ export async function flushProgressToCloud(supabase: SupabaseClient<Database>): 
 	if (!ok) throw new Error('progress push failed');
 }
 
-/** Merge two per-key counter maps, keeping the entry with the larger counter. */
+/**
+ * Merge two per-key counter maps, keeping the entry with the larger counter.
+ * When both sides hold the key, `combine` (if given) folds the salvageable
+ * fields of the losing side into the winner — otherwise the loser's data (e.g.
+ * a higher bestScore recorded on the other device) would be silently dropped.
+ */
 function mergeByCounter<T>(
 	local: Record<string, T | undefined>,
 	cloud: Record<string, T | undefined>,
-	field: keyof T
+	field: keyof T,
+	combine?: (winner: T, loser: T) => T
 ): Record<string, T> {
 	const out: Record<string, T> = {};
 	const ids = new Set([...Object.keys(local ?? {}), ...Object.keys(cloud ?? {})]);
 	for (const id of ids) {
 		const l = local?.[id];
 		const c = cloud?.[id];
-		if (l && c) out[id] = Number(l[field]) >= Number(c[field]) ? l : c;
-		else if (l) out[id] = l;
+		if (l && c) {
+			const winner = Number(l[field]) >= Number(c[field]) ? l : c;
+			const loser = winner === l ? c : l;
+			out[id] = combine ? combine(winner, loser) : winner;
+		} else if (l) out[id] = l;
 		else if (c) out[id] = c;
 	}
 	return out;
@@ -260,8 +269,19 @@ export async function initFromCloud(supabase: SupabaseClient<Database>): Promise
 		Object.assign(progress, {
 			adaptive: { ...createInitialAdaptiveState(), ...adaptive },
 			sessions: mergedSessions,
-			// Lifetime counters: keep the side with more attempts per key/category.
-			categoryProgress: mergeByCounter(progress.categoryProgress, cloud.categoryProgress, 'attemptsTotal'),
+			// Lifetime counters: keep the side with more attempts per key/category,
+			// but fold in the loser's higher bestScore / newer lastAttempt so a
+			// personal best set on the other device is never dropped.
+			categoryProgress: mergeByCounter(
+				progress.categoryProgress,
+				cloud.categoryProgress,
+				'attemptsTotal',
+				(w, l) => ({
+					...w,
+					bestScore: Math.max(w.bestScore, l.bestScore),
+					lastAttempt: Math.max(w.lastAttempt, l.lastAttempt)
+				})
+			),
 			keyProgress: mergeByCounter(progress.keyProgress, cloud.keyProgress, 'attempts'),
 			scaleProficiency: mergeProficiency(progress.scaleProficiency, cloud.scaleProficiency),
 			keyProficiency: mergeProficiency(progress.keyProficiency, cloud.keyProficiency),

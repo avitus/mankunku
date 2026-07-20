@@ -12,8 +12,11 @@
 		isInPracticeSet,
 		resolvePracticeFallbackTags,
 		setPracticeTag,
-		getLickLastPracticed
+		getLickLastPracticed,
+		getProgressionTags
 	} from '$lib/persistence/lick-practice-store';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import type { ChordProgressionType } from '$lib/types/lick-practice';
 	import {
 		lickPractice,
 		hydrateLickPracticeProgress,
@@ -142,6 +145,25 @@
 		);
 	});
 
+	/** Progression options for the filter, in the canonical template order. */
+	const progressionOptions = Object.entries(PROGRESSION_TEMPLATES).map(([value, t]) => ({
+		value: value as ChordProgressionType,
+		label: t.name
+	}));
+
+	/**
+	 * Narrow to one progression, matching on the lick's explicit `prog:*` tags —
+	 * the same source the practice engine reads, so this shows exactly what a
+	 * session for that progression would draw from. Reads through
+	 * `practiceVersion` so toggling a tag re-filters.
+	 */
+	const visible = $derived.by(() => {
+		practiceVersion;
+		const prog = library.progressionFilter;
+		if (!prog) return searched;
+		return searched.filter((l) => getProgressionTags(l.id).includes(prog));
+	});
+
 	function inPractice(lick: Phrase): boolean {
 		return isInPracticeSet(lick.id, resolvePracticeFallbackTags(lick.id, lick.tags));
 	}
@@ -155,14 +177,14 @@
 	/** Practice-tagged but unconfigured — surfaced as "needs setup". */
 	const needsSetup = $derived.by(() => {
 		practiceVersion;
-		return searched.filter((l) => inPractice(l) && strandedIds.has(l.id));
+		return visible.filter((l) => inPractice(l) && strandedIds.has(l.id));
 	});
 
 	/** Fully-configured practice set, most-recently-practiced first. */
 	const practiceSet = $derived.by(() => {
 		practiceVersion;
 		const progress = lickPractice.progress;
-		return searched
+		return visible
 			.filter((l) => inPractice(l) && !strandedIds.has(l.id))
 			.sort((a, b) => getLickLastPracticed(progress, b.id) - getLickLastPracticed(progress, a.id));
 	});
@@ -170,7 +192,7 @@
 	/** Everything else the user has added but hasn't tagged for practice. */
 	const otherLicks = $derived.by(() => {
 		practiceVersion;
-		return searched.filter((l) => !inPractice(l));
+		return visible.filter((l) => !inPractice(l));
 	});
 
 	function togglePractice(lick: Phrase) {
@@ -319,21 +341,46 @@
 			</a>
 		</div>
 	{:else}
-		<!-- Search -->
-		<input
-			type="text"
-			placeholder="find a lick…"
-			bind:value={library.searchQuery}
-			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
-				   placeholder:text-[var(--color-text-secondary)] focus:outline-none
-				   focus:ring-1 focus:ring-[var(--color-accent)]"
-		/>
+		<!-- Search + progression filter -->
+		<div class="flex flex-col gap-2 sm:flex-row">
+			<input
+				type="text"
+				placeholder="find a lick…"
+				bind:value={library.searchQuery}
+				class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
+					   placeholder:text-[var(--color-text-secondary)] focus:outline-none
+					   focus:ring-1 focus:ring-[var(--color-accent)]"
+			/>
+			<select
+				bind:value={library.progressionFilter}
+				aria-label="Filter by progression"
+				class="rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm
+					   text-[var(--color-text)] focus:outline-none
+					   focus:ring-1 focus:ring-[var(--color-accent)] sm:w-56"
+			>
+				<option value={null}>All progressions</option>
+				{#each progressionOptions as opt}
+					<option value={opt.value}>{opt.label}</option>
+				{/each}
+			</select>
+		</div>
 
-		{#if searched.length === 0}
+		{#if visible.length === 0}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-text-secondary)]">
-					No licks match your search.
-				</p>
+				{#if library.progressionFilter}
+					<p class="italic text-[var(--color-text-secondary)]">
+						No licks are tagged for {PROGRESSION_TEMPLATES[library.progressionFilter].name}{library.searchQuery.trim()
+							? ' that match your search'
+							: ''}.
+					</p>
+					<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
+						Open a lick and add it to this progression to see it here.
+					</p>
+				{:else}
+					<p class="italic text-[var(--color-text-secondary)]">
+						No licks match your search.
+					</p>
+				{/if}
 			</div>
 		{:else}
 			{#if needsSetup.length > 0}

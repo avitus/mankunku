@@ -2,6 +2,9 @@
 	"name": "mankunku",
 	"private": true,
 	"version": "0.0.1",
+	"engines": {
+		"node": ">=22"
+	},
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -20,7 +23,7 @@
 		"db:start": "npx supabase start",
 		"db:stop": "npx supabase stop",
 		"db:reset": "npx supabase db reset",
-		"db:types": "npx supabase gen types typescript --local > ./src/lib/supabase/types.ts"
+		"db:types:check": "node scripts/check-db-types.mjs"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.58.2",

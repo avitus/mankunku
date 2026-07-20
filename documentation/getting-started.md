@@ -43,3 +43,5 @@ Every player who's tried this app has the same instinct: start at level 50 becau
 - **[How Scoring Works](./architecture/scoring-algorithm.md)** — what the app rewards and what it forgives.
 - **[The Daily Key](./architecture/tonality-system.md)** — why the key changes every day, and how new ones unlock.
 - **[Glossary](./reference/glossary.md)** — jazz terms used throughout the app.
+
+Building the app rather than practising with it? See **[Development Setup](./contributing/contributing.md#development-setup)**.

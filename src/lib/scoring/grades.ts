@@ -70,7 +70,8 @@ export const GRADE_CAPTIONS: Record<Grade, readonly string[]> = {
 		'“Make the drummer sound good.” — Thelonious Monk',
 		'“Damn the rules — it’s the feeling that counts.” — John Coltrane',
 		'“Don’t play the saxophone. Let it play you.” — Charlie Parker',
-		'“Jazz is not a style but a process of making music.” — Bill Evans'
+		'“Jazz is not a style but a process of making music.” — Bill Evans',
+		'“I want to be considered a jazz poet blowing a long blues in an afternoon jam session on Sunday. I take 242 choruses; my ideas vary and sometimes roll from chorus to chorus or from halfway through a chorus to halfway into the next.” — Jack Kerouac, Mexico City Blues (242 Choruses), 1955'
 	],
 	good: [
 		'Swinging along.',

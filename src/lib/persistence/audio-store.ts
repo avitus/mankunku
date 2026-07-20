@@ -22,7 +22,6 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import type { BackingTrackLog } from '$lib/audio/backing-track';
 import { getActiveUid } from './namespace';
-import { loadGlobal, saveGlobal } from './storage';
 
 /**
  * The IndexedDB database is namespaced per user (`mankunku-audio:<uid>`), so
@@ -31,63 +30,12 @@ import { loadGlobal, saveGlobal } from './storage';
  * an explicit uid (account deletion targets a specific user's DB).
  */
 const DB_NAME_BASE = 'mankunku-audio';
-/** Pre-namespace (device-global) recordings DB, adopted once on upgrade. */
-const LEGACY_DB_NAME = 'mankunku-audio';
-const LEGACY_ADOPTED_FLAG = '__audio-legacy-adopted';
 const STORE_NAME = 'recordings';
 const DB_VERSION = 1;
 const MAX_RECORDINGS = 100;
 
 function dbNameFor(uid: string): string {
 	return `${DB_NAME_BASE}:${uid}`;
-}
-
-let _legacyAdoptPromise: Promise<void> | null = null;
-
-/**
- * One-time migration of the pre-namespace `mankunku-audio` database into the
- * active user's namespaced DB, so recordings made before this release stay
- * accessible. Device-global (the legacy DB was device-global, owned by the
- * pre-upgrade user) and guarded by a one-shot flag; the legacy DB is left in
- * place as a backup. Runs only for active-user opens, never for targeted
- * (explicit-uid) operations.
- */
-function adoptLegacyRecordingsIfNeeded(activeUid: string): Promise<void> {
-	if (!_legacyAdoptPromise) _legacyAdoptPromise = doAdoptLegacy(activeUid);
-	return _legacyAdoptPromise;
-}
-
-async function doAdoptLegacy(activeUid: string): Promise<void> {
-	try {
-		if (loadGlobal<boolean>(LEGACY_ADOPTED_FLAG)) return;
-		// The legacy DB name equals the base — a namespaced DB always has a `:uid`
-		// suffix, so this only matches a genuine pre-upgrade database.
-		const legacy = await openRawDb(LEGACY_DB_NAME);
-		try {
-			const records = await idbReq<RecordingRecord[]>(
-				legacy.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll()
-			);
-			if (records.length > 0) {
-				const target = await openRawDb(dbNameFor(activeUid));
-				try {
-					const tx = target.transaction(STORE_NAME, 'readwrite');
-					const store = tx.objectStore(STORE_NAME);
-					// Don't overwrite records already present in the target.
-					for (const r of records) store.add(r);
-					await idbTx(tx).catch(() => {}); // `add` throws on existing keys — ignore
-				} finally {
-					target.close();
-				}
-			}
-		} finally {
-			legacy.close();
-		}
-		saveGlobal(LEGACY_ADOPTED_FLAG, true);
-	} catch {
-		// Best effort — the legacy DB is left intact, so nothing is lost; retry
-		// next launch (flag stays unset).
-		_legacyAdoptPromise = null;
-	}
 }
 
 /** Open a database by exact name, creating the store on first use. */
@@ -145,12 +93,6 @@ export interface SaveRecordingOptions {
 
 async function openDb(uid?: string): Promise<IDBDatabase> {
 	const targetUid = uid ?? getActiveUid();
-	// Active-user opens (no explicit uid) trigger the one-time adoption of the
-	// pre-namespace legacy recordings. Targeted operations (explicit uid, e.g.
-	// account-deletion cleanup) skip it.
-	if (uid === undefined) {
-		await adoptLegacyRecordingsIfNeeded(targetUid);
-	}
 	return openRawDb(dbNameFor(targetUid));
 }
 

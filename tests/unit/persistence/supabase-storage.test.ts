@@ -7,7 +7,7 @@
  * in the `recordings` bucket.
  *
  * All Supabase client interactions are fully mocked with `vi.fn()` stubs —
- * no live Supabase instance is required (AAP §0.7.4).
+ * no live Supabase instance is required.
  *
  * Test coverage:
  *  - Correct bucket and path construction (`{userId}/{sessionId}.webm`)
