@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, getTonalMastery } from '$lib/state/progress.svelte';
 	import { difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
+	import { accuracyTier } from '$lib/scoring/accuracy-color';
 	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
 	import { GRADE_LABELS, GRADE_COLORS, scoreToGrade } from '$lib/scoring/grades';
 	import { SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
@@ -543,7 +544,7 @@
 												</div>
 												<div class="flex flex-wrap gap-1.5">
 													{#each lick.keys as k}
-														{@const color = masteryDisplay(k.score * 100).color}
+														{@const color = accuracyTier(k.score)}
 														{@const hasDetail = !!k.sessionId && recordingIds.has(k.sessionId)}
 														{@const isOpen = !!k.sessionId && expandedKeySessionId === k.sessionId}
 														<button

@@ -3,10 +3,8 @@
 	import type { LickPracticeKeyResult } from '$lib/types/lick-practice';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import {
-		KEY_PROFICIENT_THRESHOLD,
-		KEY_FLOOR_THRESHOLD
-	} from '$lib/persistence/lick-practice-store';
+	import { accuracyTier } from '$lib/scoring/accuracy-color';
+	import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 
 	interface Props {
 		keys: PitchClass[];
@@ -23,7 +21,12 @@
 	const DOT_RADIUS = 18;
 	const CENTER = 110;
 
-	type Status = 'current' | 'proficient' | 'developing' | 'struggling' | 'pending';
+	// A scored dot carries its accuracy tier; 'current' / 'pending' are the two
+	// score-less states.
+	type Visual =
+		| { kind: 'scored'; color: string }
+		| { kind: 'current' }
+		| { kind: 'pending' };
 
 	function getKeyPosition(index: number): { x: number; y: number } {
 		// Distribute dots evenly around the ring based on the actual key
@@ -37,22 +40,6 @@
 		};
 	}
 
-	function getKeyStatus(key: PitchClass): Status {
-		// A scored key shows its score tier even when it's still the
-		// current index — after the final key, currentKeyIndex parks on it
-		// through the inter-lick score-hold bar, and the whole point of
-		// that bar is seeing the last dot's colour.
-		const result = keyResults.find(r => r.key === key);
-		if (result) {
-			if (result.score >= KEY_PROFICIENT_THRESHOLD) return 'proficient';
-			if (result.score >= KEY_FLOOR_THRESHOLD) return 'developing';
-			return 'struggling';
-		}
-		const idx = keys.indexOf(key);
-		if (idx === currentKeyIndex) return 'current';
-		return 'pending';
-	}
-
 	// When every key has scored proficient, the ring glows brass as a reward —
 	// a small Blue Note-style flourish at completion.
 	const allProficient = $derived(
@@ -63,16 +50,30 @@
 			})
 	);
 
-	// Proficiency reads as accomplishment via the teal→brass mastery ramp
-	// (matching the ear-training Scale Proficiency bars) — not a green/amber/red
-	// danger scale. The all-proficient ring still glows brass as a reward.
-	const STATUS_COLORS = $derived({
-		current: 'var(--color-accent)',
-		proficient: allProficient ? 'var(--color-brass)' : 'var(--mastery-9)',
-		developing: 'var(--mastery-5)',
-		struggling: 'var(--mastery-3)',
-		pending: 'var(--color-bg-tertiary)'
-	});
+	function getKeyVisual(key: PitchClass): Visual {
+		// A scored key shows its accuracy tier even when it's still the current
+		// index — after the final key, currentKeyIndex parks on it through the
+		// inter-lick score-hold bar, and the point of that bar is seeing the
+		// last dot's colour. Scores use the discrete accuracy medal scale so a
+		// key that needs work reads as such at a glance (not a cool mastery
+		// tint). When every key is proficient the whole ring turns brass as a
+		// completion reward.
+		const result = keyResults.find(r => r.key === key);
+		if (result) {
+			return {
+				kind: 'scored',
+				color: allProficient ? 'var(--color-brass)' : accuracyTier(result.score)
+			};
+		}
+		if (keys.indexOf(key) === currentKeyIndex) return { kind: 'current' };
+		return { kind: 'pending' };
+	}
+
+	// Report-style chip fill: a dark tint of the tier color (matches the
+	// end-of-session per-key chips), so the ring and the report read alike.
+	function dotFill(color: string): string {
+		return `color-mix(in srgb, ${color} 20%, var(--color-bg))`;
+	}
 </script>
 
 <div class="flex flex-col items-center">
@@ -100,48 +101,61 @@
 			BPM
 		</text>
 
-		<!-- Key dots arranged in a circle -->
+		<!-- Key dots arranged in a circle. Scored keys use the report-style
+		     treatment: a dark tinted circle with the key label in the tier
+		     color. The current key is a hollow, pulsing brass outline (no fill)
+		     so it reads as "here, not yet scored"; pending keys are dim slate. -->
 		{#each keys as key, i (key)}
 			{@const pos = getKeyPosition(i)}
-			{@const status = getKeyStatus(key)}
-			{@const isCurrent = status === 'current'}
+			{@const visual = getKeyVisual(key)}
 			{@const displayKey = concertKeyToWritten(key, instrument)}
 
 			<g>
-				{#if isCurrent}
+				{#if visual.kind === 'current'}
 					<circle
 						cx={pos.x} cy={pos.y} r={DOT_RADIUS + 3}
 						fill="none"
-						stroke={STATUS_COLORS.current}
+						stroke="var(--color-brass-soft)"
 						stroke-width="2"
-						opacity="0.4"
+						opacity="0.55"
 						class="animate-pulse"
 					/>
-				{/if}
-				<circle
-					cx={pos.x} cy={pos.y} r={DOT_RADIUS}
-					fill={STATUS_COLORS[status]}
-					opacity={status === 'pending' ? 0.3 : 1}
-				/>
-				{#if status === 'proficient'}
-					<text
-						x={pos.x} y={pos.y + 1}
-						text-anchor="middle"
-						dominant-baseline="central"
-						font-size="14"
-						font-weight="bold"
-						fill="white"
-					>
-						&#10003;
-					</text>
-				{:else}
+					<circle
+						cx={pos.x} cy={pos.y} r={DOT_RADIUS}
+						fill="none"
+						stroke="var(--color-brass-soft)"
+						stroke-width="2.5"
+					/>
 					<text
 						x={pos.x} y={pos.y}
 						text-anchor="middle"
 						dominant-baseline="central"
 						font-size="11"
-						font-weight={isCurrent ? 'bold' : 'normal'}
-						fill={status === 'pending' ? 'var(--color-text-secondary)' : 'white'}
+						font-weight="bold"
+						fill="var(--color-text)"
+					>
+						{displayKey}
+					</text>
+				{:else if visual.kind === 'pending'}
+					<circle cx={pos.x} cy={pos.y} r={DOT_RADIUS} fill="var(--color-bg-tertiary)" opacity="0.3" />
+					<text
+						x={pos.x} y={pos.y}
+						text-anchor="middle"
+						dominant-baseline="central"
+						font-size="11"
+						fill="var(--color-text-secondary)"
+					>
+						{displayKey}
+					</text>
+				{:else}
+					<circle cx={pos.x} cy={pos.y} r={DOT_RADIUS} style="fill: {dotFill(visual.color)}" />
+					<text
+						x={pos.x} y={pos.y}
+						text-anchor="middle"
+						dominant-baseline="central"
+						font-size="11"
+						font-weight="bold"
+						fill={visual.color}
 					>
 						{displayKey}
 					</text>

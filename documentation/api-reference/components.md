@@ -191,6 +191,8 @@ Shows: name, category label, difficulty level (color-coded), bar count, note cou
 
 These are intentionally independent of the domain accent so a lick's difficulty reads the same in the ear-training and lick-practice views.
 
+> **Related color helpers.** `difficultyColor()`/`masteryDisplay()` (`src/lib/difficulty/display.ts`) return theme-aware `var(--difficulty-N)` / `var(--mastery-N)` tokens for *how hard* / *how mastered*. For **performance scores** (poor → perfect) use `accuracyTier(score01)` (`src/lib/scoring/accuracy-color.ts`), which returns the discrete medal tier (`var(--accuracy-gold|silver|bronze|teal|deep)`) — used by grade readouts, the lick key ring, per-key report chips, and per-note pitch/rhythm. See the Accuracy medal scale in `documentation/architecture/design-system.md`.
+
 ### `CategoryFilter.svelte`
 
 **Path:** `src/lib/components/library/CategoryFilter.svelte`

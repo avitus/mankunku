@@ -49,7 +49,7 @@ describe('grade display mappings', () => {
 	it('labels are non-empty strings and colors are CSS color vars', () => {
 		for (const key of GRADE_KEYS) {
 			expect(GRADE_LABELS[key]).toBeTruthy();
-			expect(GRADE_COLORS[key]).toMatch(/^var\(--color-/);
+			expect(GRADE_COLORS[key]).toMatch(/^var\(--accuracy-/);
 		}
 	});
 });

@@ -84,6 +84,19 @@
 	--difficulty-8: #cc7a55;
 	--difficulty-9: #bf6c59;
 	--difficulty-10: #b06058;
+	/* Accuracy medal scale — the counterpart to the Tonal Mastery ramp, for
+	   PERFORMANCE scores (per-key report chips, the circle-of-fifths key ring,
+	   grade readouts, per-note pitch/rhythm). Where mastery is a smooth climb to
+	   gold (accomplishment), accuracy is DISCRETE tiers so "which keys need work"
+	   is instantly legible: podium medals (gold/silver/bronze) for good takes,
+	   two teal shades below "decent" for needs-work vs rough — encouraging,
+	   never an alarm-red. Breakpoints match the Grade thresholds (.95/.85/.70/.55).
+	   The :root.light block re-steps them to stay legible on paper. */
+	--accuracy-gold: #eec867;   /* ≥ 95%  excellence */
+	--accuracy-silver: #c3ccd4; /* 85–94% very good  */
+	--accuracy-bronze: #b07a44; /* 70–84% decent     */
+	--accuracy-teal: #4a98a0;   /* 55–69% needs work */
+	--accuracy-deep: #2f7d84;   /* < 55%  rough      */
 }
 
 [data-domain='lick-practice'] {
@@ -145,6 +158,14 @@
 	--difficulty-8: #9e502c;
 	--difficulty-9: #974937;
 	--difficulty-10: #90433c;
+	/* Accuracy medal scale re-stepped for light backgrounds. These are used as
+	   TEXT on pale (tinted) surfaces, so each is darkened for ≥4.5:1 — the light
+	   silver/gold from dark mode would be near-invisible on paper. */
+	--accuracy-gold: #8a6a1e;
+	--accuracy-silver: #556270;
+	--accuracy-bronze: #85502a;
+	--accuracy-teal: #256a70;
+	--accuracy-deep: #1f565c;
 }
 
 :root.light [data-domain='lick-practice'] {
