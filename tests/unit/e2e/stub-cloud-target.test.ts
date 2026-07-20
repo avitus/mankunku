@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { loadEnv } from 'vite';
 import {
 	SUPABASE_URL,
 	PROJECT_REF,
@@ -21,15 +21,15 @@ import {
  * the production URL. Environment-dependent green.
  */
 
-/** The same value Vite resolves for `$env/static/public` at build time. */
-function buildTimeSupabaseUrl(): string | undefined {
-	if (process.env.PUBLIC_SUPABASE_URL) return process.env.PUBLIC_SUPABASE_URL;
-	const envPath = resolve(__dirname, '../../../.env');
-	if (!existsSync(envPath)) return undefined;
-	const line = readFileSync(envPath, 'utf8')
-		.split('\n')
-		.find((l) => l.trim().startsWith('PUBLIC_SUPABASE_URL='));
-	return line?.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
+/**
+ * Ground truth: what Vite itself resolves for `$env/static/public` at build
+ * time. Deliberately calls `loadEnv` directly rather than reusing the
+ * fixture's helper — a test that re-invokes the code under test agrees with it
+ * by construction, including when both are wrong. This is the assertion that
+ * would have caught the original hardcoded host.
+ */
+function viteResolvedSupabaseUrl(): string | undefined {
+	return loadEnv('production', resolve(__dirname, '../../../'), 'PUBLIC_').PUBLIC_SUPABASE_URL;
 }
 
 describe('stub-cloud target resolution', () => {
@@ -53,7 +53,7 @@ describe('stub-cloud target resolution', () => {
 	});
 
 	it('targets the same Supabase URL the app bundle is built against', () => {
-		const built = buildTimeSupabaseUrl();
+		const built = viteResolvedSupabaseUrl();
 		// Only meaningful when a build-time URL is discoverable; otherwise the
 		// fixture's baked default is all there is to check.
 		if (!built) return;

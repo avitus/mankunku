@@ -21,8 +21,8 @@
  * See tests/e2e/cloud-convergence.spec.ts for the scenarios and
  * tests/e2e/stub-cloud-smoke.spec.ts for a plumbing sanity check.
  */
-import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { loadEnv } from 'vite';
 import type { BrowserContext, Route } from '@playwright/test';
 import type { E2ETestUser } from './auth';
 
@@ -40,26 +40,29 @@ export function resolveSupabaseTarget(rawUrl: string): { url: string; projectRef
 	return { url, projectRef: new URL(url).hostname.split('.')[0] };
 }
 
+/** Repo root — where the `.env*` files the build reads live. */
+const ROOT_DIR = fileURLToPath(new URL('../../../', import.meta.url));
+
 /**
- * Resolve PUBLIC_SUPABASE_URL the way Vite does when it builds the bundle under
- * test: an already-set environment variable wins, otherwise the `.env` file.
+ * Resolve PUBLIC_SUPABASE_URL through Vite's own loader, so the fixture sees
+ * exactly what the bundle under test was built with — including `.env.local`
+ * and `.env.[mode]` overrides, and inline `process.env` values, which Vite
+ * prioritises over files.
  *
- * This must not be hardcoded. The build bakes in whatever PUBLIC_SUPABASE_URL
- * resolves to, and since `.env` began pointing at the local Supabase stack the
- * baked host stopped matching a hardcoded production constant — route
- * interception silently never fired, and the convergence specs failed on every
- * developer machine while still passing in CI (where PUBLIC_SUPABASE_URL is a
- * project-level env var holding the production URL).
+ * This must not be hardcoded, and must not be a hand-rolled `.env` parser.
+ * The build bakes in whatever PUBLIC_SUPABASE_URL resolves to; when `.env`
+ * began pointing at the local Supabase stack, a hardcoded production constant
+ * stopped matching, route interception silently never fired, and the
+ * convergence specs failed on every developer machine while still passing in
+ * CI (where PUBLIC_SUPABASE_URL is a project-level env var holding the
+ * production URL). A partial re-implementation of Vite's precedence would
+ * reintroduce the same divergence for anyone using `.env.local`.
+ *
+ * Mode is `production` because the e2e webServer runs `npm run build`.
  */
-function buildTimeSupabaseUrl(): string {
-	if (process.env.PUBLIC_SUPABASE_URL) return process.env.PUBLIC_SUPABASE_URL;
-	const envPath = fileURLToPath(new URL('../../../.env', import.meta.url));
-	if (!existsSync(envPath)) return DEFAULT_SUPABASE_URL;
-	const line = readFileSync(envPath, 'utf8')
-		.split('\n')
-		.find((l) => l.trim().startsWith('PUBLIC_SUPABASE_URL='));
-	const value = line?.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
-	return value || DEFAULT_SUPABASE_URL;
+export function buildTimeSupabaseUrl(): string {
+	const env = loadEnv('production', ROOT_DIR, 'PUBLIC_');
+	return env.PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
 }
 
 const target = resolveSupabaseTarget(buildTimeSupabaseUrl());
