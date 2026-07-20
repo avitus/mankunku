@@ -89,7 +89,7 @@ vi.mock('@sentry/sveltekit', () => ({
 // ─── Imports ─────────────────────────────────────────────────────────
 // These run AFTER vi.mock() hoisting, so mocked modules are in effect.
 
-import { actions } from '../../src/routes/auth/+page.server';
+import { actions, load as authPageLoad } from '../../src/routes/auth/+page.server';
 import { GET as callbackGET } from '../../src/routes/auth/callback/+server';
 import { POST as logoutPOST } from '../../src/routes/auth/logout/+server';
 import { handle } from '../../src/hooks.server';
@@ -394,6 +394,63 @@ describe('Auth Page Server Actions — /auth', () => {
 		expect((result as any)?.data?.error).toBe(
 			'Could not initiate Google sign-in. Please try again.'
 		);
+	});
+});
+
+describe('Auth Page Load Guard — /auth', () => {
+	// Tests for the `load` in src/routes/auth/+page.server.ts. An already
+	// authenticated browser must be bounced to '/' so a successful login never
+	// re-renders the login form (the "have to sign in twice" bug). A null/
+	// degraded verdict must NOT redirect, so the form still shows when signed
+	// out or when the auth backend is unreachable.
+
+	function eventWithSession(result: {
+		user: unknown;
+		session?: unknown;
+		degraded: boolean;
+	}) {
+		return {
+			locals: {
+				safeGetSession: vi.fn(async () => ({
+					session: result.session ?? null,
+					user: result.user,
+					degraded: result.degraded
+				}))
+			}
+		};
+	}
+
+	it('redirects a verified user to / (kills the double-login)', async () => {
+		const event = eventWithSession({
+			user: { id: 'user-123', email: 'test@example.com' },
+			session: { access_token: 'valid', user: { id: 'user-123' } },
+			degraded: false
+		});
+
+		try {
+			await authPageLoad(event as any);
+			expect.fail('Expected redirect to be thrown');
+		} catch (e: any) {
+			expect(e.status).toBe(303);
+			expect(e.location).toBe('/');
+		}
+	});
+
+	it('does NOT redirect an anonymous (no-session) visitor', async () => {
+		const event = eventWithSession({ user: null, degraded: false });
+
+		// Must return normally (no thrown redirect) so the login form renders.
+		const result = await authPageLoad(event as any);
+		expect(result).toEqual({});
+	});
+
+	it('does NOT redirect when the auth verdict is degraded (backend unreachable)', async () => {
+		// The 2026-07-13 failure shape: user is null AND degraded. Never bounce
+		// on an unverified verdict — show the form rather than loop.
+		const event = eventWithSession({ user: null, degraded: true });
+
+		const result = await authPageLoad(event as any);
+		expect(result).toEqual({});
 	});
 });
 

@@ -22,7 +22,37 @@
  */
 
 import { fail, redirect } from '@sveltejs/kit';
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
+
+/**
+ * Guard: an already-authenticated browser must never see the login form.
+ *
+ * Without this, a successful login lands the user back on /auth and forces a
+ * SECOND sign-in. The mechanism: the login action sets the session cookie and
+ * returns redirect(303, '/'); use:enhance turns that into a client-side
+ * goto('/', { invalidateAll: true }), which re-runs the root +layout.ts while
+ * the browser URL is still /auth. That re-run calls reconcileActiveUser(), and
+ * because the storage namespace was resolved to 'anon' once when this realm
+ * first loaded (namespace.ts caches it per-realm), it now sees an anon→uid
+ * switch and fires location.reload() to re-home the rune singletons onto the
+ * user's bucket. SvelteKit commits the URL only after loads resolve, so that
+ * reload targets the still-current /auth — re-rendering the login form.
+ *
+ * Bouncing a verified session to '/' means that post-login reload lands home
+ * after a SINGLE login: the reloaded /auth immediately 303s to '/', where
+ * reconcile finds the namespace already matches and does not reload again.
+ *
+ * `degraded` (auth server unreachable) yields user === null, so the form still
+ * renders during an outage rather than bouncing on an unverified verdict — the
+ * same conservative stance reconcileActiveUser takes.
+ */
+export const load: PageServerLoad = async ({ locals: { safeGetSession } }) => {
+	const { user, degraded } = await safeGetSession();
+	if (user && !degraded) {
+		redirect(303, '/');
+	}
+	return {};
+};
 
 /**
  * Named form actions for the /auth route.
