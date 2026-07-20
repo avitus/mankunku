@@ -21,15 +21,55 @@
  * See tests/e2e/cloud-convergence.spec.ts for the scenarios and
  * tests/e2e/stub-cloud-smoke.spec.ts for a plumbing sanity check.
  */
+import { fileURLToPath } from 'node:url';
+import { loadEnv } from 'vite';
 import type { BrowserContext, Route } from '@playwright/test';
 import type { E2ETestUser } from './auth';
 
+/** Fallback when no PUBLIC_SUPABASE_URL is discoverable (the deployed project). */
+const DEFAULT_SUPABASE_URL = 'https://ynzfliunzejusnlvpeey.supabase.co';
+
 /**
- * The production build bakes in PUBLIC_SUPABASE_URL, so this is the exact host
- * every browser Supabase request goes to. Route interception keys off it.
+ * Split a Supabase URL into the host to intercept and the project ref used in
+ * the auth cookie name. The ref derivation mirrors supabase-js exactly —
+ * `sb-${new URL(url).hostname.split('.')[0]}-auth-token` — so a local-stack URL
+ * (`http://127.0.0.1:54321`) correctly yields the ref `127`.
  */
-export const SUPABASE_URL = 'https://ynzfliunzejusnlvpeey.supabase.co';
-export const PROJECT_REF = 'ynzfliunzejusnlvpeey';
+export function resolveSupabaseTarget(rawUrl: string): { url: string; projectRef: string } {
+	const url = rawUrl.replace(/\/$/, '');
+	return { url, projectRef: new URL(url).hostname.split('.')[0] };
+}
+
+/** Repo root — where the `.env*` files the build reads live. */
+const ROOT_DIR = fileURLToPath(new URL('../../../', import.meta.url));
+
+/**
+ * Resolve PUBLIC_SUPABASE_URL through Vite's own loader, so the fixture sees
+ * exactly what the bundle under test was built with — including `.env.local`
+ * and `.env.[mode]` overrides, and inline `process.env` values, which Vite
+ * prioritises over files.
+ *
+ * This must not be hardcoded, and must not be a hand-rolled `.env` parser.
+ * The build bakes in whatever PUBLIC_SUPABASE_URL resolves to; when `.env`
+ * began pointing at the local Supabase stack, a hardcoded production constant
+ * stopped matching, route interception silently never fired, and the
+ * convergence specs failed on every developer machine while still passing in
+ * CI (where PUBLIC_SUPABASE_URL is a project-level env var holding the
+ * production URL). A partial re-implementation of Vite's precedence would
+ * reintroduce the same divergence for anyone using `.env.local`.
+ *
+ * Mode is `production` because the e2e webServer runs `npm run build`.
+ */
+export function buildTimeSupabaseUrl(): string {
+	const env = loadEnv('production', ROOT_DIR, 'PUBLIC_');
+	return env.PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+}
+
+const target = resolveSupabaseTarget(buildTimeSupabaseUrl());
+
+/** The exact host every browser Supabase request goes to. Routing keys off it. */
+export const SUPABASE_URL = target.url;
+export const PROJECT_REF = target.projectRef;
 
 /** Loose row shape — the cloud is schemaless; the app maps snake_case columns. */
 export type Row = Record<string, unknown>;
