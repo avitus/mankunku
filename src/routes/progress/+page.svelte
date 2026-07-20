@@ -2,9 +2,10 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, getTonalMastery } from '$lib/state/progress.svelte';
 	import { difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
-	import { accuracyTier } from '$lib/scoring/accuracy-color';
+	import { accuracyTier } from '$lib/ui/score-colors';
 	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
-	import { GRADE_LABELS, GRADE_COLORS, scoreToGrade } from '$lib/scoring/grades';
+	import { GRADE_LABELS, scoreToGrade } from '$lib/scoring/grades';
+	import { GRADE_COLORS } from '$lib/ui/score-colors';
 	import { SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';

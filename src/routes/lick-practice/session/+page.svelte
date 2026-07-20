@@ -27,7 +27,7 @@
 		getUpcomingLicks
 	} from '$lib/state/lick-practice.svelte';
 	import { scoreToGrade } from '$lib/scoring/grades';
-	import { accuracyTier } from '$lib/scoring/accuracy-color';
+	import { accuracyTier } from '$lib/ui/score-colors';
 	import {
 		getActiveSubstitution,
 		getTransitionCadenceChords,

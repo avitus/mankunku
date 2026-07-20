@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { accuracyTier, accuracyTierInfo, ACCURACY_TIERS } from '$lib/scoring/accuracy-color';
+import {
+	accuracyTier,
+	accuracyTierInfo,
+	ACCURACY_TIERS,
+	GRADE_COLORS
+} from '$lib/ui/score-colors';
+import { GRADE_LABELS } from '$lib/scoring/grades';
 
 describe('accuracyTierInfo', () => {
 	it('maps ≥ 0.95 to gold', () => {
@@ -49,5 +55,21 @@ describe('ACCURACY_TIERS', () => {
 
 	it('bottoms out at 0 so every score matches a tier', () => {
 		expect(ACCURACY_TIERS[ACCURACY_TIERS.length - 1].min).toBe(0);
+	});
+});
+
+describe('GRADE_COLORS', () => {
+	it('maps every grade to an accuracy-tier CSS var', () => {
+		for (const key of Object.keys(GRADE_LABELS) as (keyof typeof GRADE_COLORS)[]) {
+			expect(GRADE_COLORS[key]).toMatch(/^var\(--accuracy-/);
+		}
+	});
+
+	it('walks the medal scale from perfect (gold) to try-again (deep)', () => {
+		expect(GRADE_COLORS.perfect).toBe('var(--accuracy-gold)');
+		expect(GRADE_COLORS.great).toBe('var(--accuracy-silver)');
+		expect(GRADE_COLORS.good).toBe('var(--accuracy-bronze)');
+		expect(GRADE_COLORS.fair).toBe('var(--accuracy-teal)');
+		expect(GRADE_COLORS['try-again']).toBe('var(--accuracy-deep)');
 	});
 });

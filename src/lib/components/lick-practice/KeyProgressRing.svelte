@@ -3,7 +3,7 @@
 	import type { LickPracticeKeyResult } from '$lib/types/lick-practice';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import { accuracyTier } from '$lib/scoring/accuracy-color';
+	import { accuracyTier } from '$lib/ui/score-colors';
 	import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 
 	interface Props {
@@ -56,14 +56,12 @@
 		// inter-lick score-hold bar, and the point of that bar is seeing the
 		// last dot's colour. Scores use the discrete accuracy medal scale so a
 		// key that needs work reads as such at a glance (not a cool mastery
-		// tint). When every key is proficient the whole ring turns brass as a
-		// completion reward.
+		// tint). Each dot always keeps its own tier colour; the all-proficient
+		// completion reward is a brass halo (see the template), so per-key
+		// accuracy stays visible even when the whole ring is celebrated.
 		const result = keyResults.find(r => r.key === key);
 		if (result) {
-			return {
-				kind: 'scored',
-				color: allProficient ? 'var(--color-brass)' : accuracyTier(result.score)
-			};
+			return { kind: 'scored', color: accuracyTier(result.score) };
 		}
 		if (keys.indexOf(key) === currentKeyIndex) return { kind: 'current' };
 		return { kind: 'pending' };
@@ -148,6 +146,17 @@
 						{displayKey}
 					</text>
 				{:else}
+					{#if allProficient}
+						<!-- Completion reward: a brass halo around every dot, kept
+						     separate from the fill so each key still shows its tier. -->
+						<circle
+							cx={pos.x} cy={pos.y} r={DOT_RADIUS + 3}
+							fill="none"
+							stroke="var(--color-brass)"
+							stroke-width="2"
+							opacity="0.75"
+						/>
+					{/if}
 					<circle cx={pos.x} cy={pos.y} r={DOT_RADIUS} style="fill: {dotFill(visual.color)}" />
 					<text
 						x={pos.x} y={pos.y}

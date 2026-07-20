@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Score } from '$lib/types/scoring';
 	import type { InstrumentConfig } from '$lib/types/instruments';
-	import { GRADE_LABELS, GRADE_COLORS, getGradeCaption } from '$lib/scoring/grades';
+	import { GRADE_LABELS, getGradeCaption } from '$lib/scoring/grades';
+	import { GRADE_COLORS } from '$lib/ui/score-colors';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
 
 	interface Props {

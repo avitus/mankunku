@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 	import { midiToDisplayName } from '$lib/music/notation';
-	import { accuracyTier } from '$lib/scoring/accuracy-color';
+	import { accuracyTier } from '$lib/ui/score-colors';
 
 	interface Props {
 		noteResults: NoteResult[];

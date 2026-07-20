@@ -9,7 +9,6 @@
  */
 
 import type { Grade } from '$lib/types/scoring';
-import { accuracyTier } from '$lib/scoring/accuracy-color';
 
 const GRADE_THRESHOLDS: { grade: Grade; min: number }[] = [
 	{ grade: 'perfect', min: 0.95 },
@@ -34,19 +33,8 @@ export const GRADE_LABELS: Record<Grade, string> = {
 	'try-again': 'Try Again'
 };
 
-/**
- * CSS color for each grade, drawn from the accuracy medal scale so the grade
- * readout speaks the same poor→perfect language as the score chips and key
- * ring. Thresholds match: perfect ≥.95 → gold, great ≥.85 → silver,
- * good ≥.70 → bronze, fair ≥.55 → teal, try-again → deep teal.
- */
-export const GRADE_COLORS: Record<Grade, string> = {
-	perfect: accuracyTier(0.97),
-	great: accuracyTier(0.88),
-	good: accuracyTier(0.77),
-	fair: accuracyTier(0.6),
-	'try-again': accuracyTier(0.4)
-};
+// GRADE_COLORS (grade → CSS color) lives in the UI layer at
+// `$lib/ui/score-colors` — the scoring layer stays free of UI/CSS concerns.
 
 /**
  * Liner-note captions shown below the grade label after each attempt — a mix

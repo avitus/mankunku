@@ -122,7 +122,7 @@ The counterpart to the Mastery ramp, for **performance scores** (poor → perfec
 | **Teal** | `--accuracy-teal` | 55–69% | Needs work |
 | **Deep teal** | `--accuracy-deep` | < 55% | Rough |
 
-Podium medals reward good takes; the two teal shades below "decent" keep the low end calm and encouraging (a rough key reads teal, never alarm-red). It stays in the app's teal↔gold family so it never fights the Mastery ramp, but where mastery is a 10-step gradient, accuracy is 5 crisp tiers. Access via `accuracyTier(score01)` (`src/lib/scoring/accuracy-color.ts`), which returns the tier's `var(--accuracy-*)` token. Used by: the lick-practice **key ring** + **per-key report chips**, the **progress per-key detail**, **grade readouts** (`GRADE_COLORS`), and **per-note pitch/rhythm** (`NoteComparison`). The exact % is always shown alongside, so precision within a tier isn't lost.
+Podium medals reward good takes; the two teal shades below "decent" keep the low end calm and encouraging (a rough key reads teal, never alarm-red). It stays in the app's teal↔gold family so it never fights the Mastery ramp, but where mastery is a 10-step gradient, accuracy is 5 crisp tiers. Access via `accuracyTier(score01)` (`src/lib/ui/score-colors.ts`), which returns the tier's `var(--accuracy-*)` token. Used by: the lick-practice **key ring** + **per-key report chips**, the **progress per-key detail**, **grade readouts** (`GRADE_COLORS`), and **per-note pitch/rhythm** (`NoteComparison`). The exact % is always shown alongside, so precision within a tier isn't lost.
 
 ## Typography
 
