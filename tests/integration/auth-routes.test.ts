@@ -408,7 +408,15 @@ describe('Auth Page Load Guard — /auth', () => {
 		user: unknown;
 		session?: unknown;
 		degraded: boolean;
-	}) {
+	}): {
+		locals: {
+			safeGetSession: () => Promise<{
+				session: unknown;
+				user: unknown;
+				degraded: boolean;
+			}>;
+		};
+	} {
 		return {
 			locals: {
 				safeGetSession: vi.fn(async () => ({
