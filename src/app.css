@@ -92,15 +92,22 @@
 	   two teal shades below "decent" for needs-work vs rough — encouraging,
 	   never an alarm-red. Breakpoints match the Grade thresholds (.95/.85/.70/.55).
 	   The :root.light block re-steps them to stay legible on paper. */
-	--accuracy-gold: #eec867;   /* ≥ 95%  excellence */
-	--accuracy-silver: #c6d6ee; /* 85–94% very good  */
-	--accuracy-bronze: #c6996c; /* 70–84% decent     */
-	--accuracy-teal: #62afb6;   /* 55–69% needs work */
-	--accuracy-deep: #43b2bc;   /* < 55%  rough      */
+	--accuracy-gold: var(--metal-gold);     /* ≥ 95%  excellence */
+	--accuracy-silver: var(--metal-silver); /* 85–94% very good  */
+	--accuracy-bronze: var(--metal-bronze); /* 70–84% decent     */
+	--accuracy-teal: #62afb6;               /* 55–69% needs work */
+	--accuracy-deep: #43b2bc;               /* < 55%  rough      */
 
-	/* Medal metal colors — theme-invariant (a medal doesn't invert with the
-	   page theme). Used by the polished-coin light-theme treatment below;
-	   in dark theme they equal the --accuracy-* values above. */
+	/* Medal metal colors — the single source of truth for each medal, and
+	   theme-invariant (a medal doesn't invert with the page theme). The dark
+	   --accuracy-{gold,silver,bronze} above ARE the metal (they reference
+	   these), so retuning a medal here moves the dark tier color and the
+	   both-theme lustre together. :root.light re-points those --accuracy-*
+	   to darker, paper-legible text accents but leaves --metal-* untouched,
+	   so the light-theme coins stay metal.
+	   NB: --metal-* must be literals, not var(--accuracy-*) — --accuracy-* is
+	   theme-dependent, so referencing it would make the light coin resolve to
+	   the dark paper-text accent instead of the metal. */
 	--metal-gold: #eec867;
 	--metal-silver: #c6d6ee;
 	--metal-bronze: #c6996c;
