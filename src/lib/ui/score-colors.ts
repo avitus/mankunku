@@ -26,6 +26,7 @@
  */
 
 import type { Grade } from '$lib/types/scoring';
+import { GRADE_THRESHOLDS } from '$lib/scoring/grades';
 
 export type AccuracyTierKey = 'gold' | 'silver' | 'bronze' | 'teal' | 'deep';
 
@@ -72,13 +73,11 @@ export function accuracyTier(score01: number): string {
 /**
  * CSS color for each grade, drawn from the accuracy medal scale so the grade
  * readout speaks the same poor→perfect language as the score chips and key
- * ring. Thresholds match: perfect ≥.95 → gold, great ≥.85 → silver,
- * good ≥.70 → bronze, fair ≥.55 → teal, try-again → deep teal.
+ * ring. Each grade is colored by its own lower-bound score (the source of truth
+ * in `GRADE_THRESHOLDS`), so grade colors can never desync from the grade
+ * cutoffs. `try-again` has no lower bound, so it takes the bottom tier (deep).
  */
 export const GRADE_COLORS: Record<Grade, string> = {
-	perfect: accuracyTier(0.97),
-	great: accuracyTier(0.88),
-	good: accuracyTier(0.77),
-	fair: accuracyTier(0.6),
-	'try-again': accuracyTier(0.4)
-};
+	'try-again': accuracyTier(0),
+	...Object.fromEntries(GRADE_THRESHOLDS.map(({ grade, min }) => [grade, accuracyTier(min)]))
+} as Record<Grade, string>;

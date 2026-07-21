@@ -10,7 +10,13 @@
 
 import type { Grade } from '$lib/types/scoring';
 
-const GRADE_THRESHOLDS: { grade: Grade; min: number }[] = [
+/**
+ * Score cutoffs for each non-default grade, highest first. The source of truth
+ * for grade boundaries — `scoreToGrade` and the UI-layer grade colors
+ * (`ui/score-colors.ts`) both derive from this, so a threshold change can't
+ * silently desync them. `try-again` is the implicit fallback below `fair`.
+ */
+export const GRADE_THRESHOLDS: readonly { grade: Grade; min: number }[] = [
 	{ grade: 'perfect', min: 0.95 },
 	{ grade: 'great', min: 0.85 },
 	{ grade: 'good', min: 0.70 },
