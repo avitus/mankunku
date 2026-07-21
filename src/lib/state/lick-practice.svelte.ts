@@ -171,7 +171,9 @@ export const lickPractice = $state<{
 	roundHistory: SingleLickRoundEntry[];
 }>({
 	config: {
-		sessionType: 'focused',
+		// Daily Practice is the front door: it rotates every progression the
+		// user has tagged, so it needs no setup before the first Start.
+		sessionType: 'daily',
 		progressionType: 'ii-V-I-major',
 		durationMinutes: 15,
 		practiceMode: 'continuous',

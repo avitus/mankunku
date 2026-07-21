@@ -4,6 +4,18 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-07-21 — An invariant that holds because the content happens to match is not an invariant
+
+Removing the progression line from the home page's Side B panel made its stat block two lines, matching Side A's two, and the two Continue buttons lined up. That is a true sentence about one state of the data and a false sentence about the feature. A fresh user gets one line on Side B against Side A's two, and a tagged-but-unpracticed set gives the same 1-vs-2. The buttons were staggered by 38px and 20px in those states — measured, after restoring the pre-fix file, not inferred.
+
+The distinction worth keeping is between a property that *obtains* and a property that is *enforced*. Content-driven layout gives you the first: the buttons align when the line counts happen to match, and the alignment silently expires the next time someone adds a stat line, or a user reaches a state nobody screenshotted. `mt-auto` in a flex column gives you the second — the button is at the bottom because the layout says so, and no future edit to the copy above it can change that. The same shape shows up in the stub-cloud fixture (2026-07-19): **a value restated is a value that decays; a value derived stays true.** Here it's a *position* rather than a value, but the failure mode is identical, and so is the tell — the property was true when written and nobody wrote down what it depended on.
+
+What made this catchable was enumerating the states rather than looking at the one on screen. I had the "pleasing side effect" claim in hand and it was pleasant enough to be worth checking, which is roughly the right instinct: **a claim that arrives as a bonus has had no scrutiny applied to it, because nobody asked for it.** The cost of checking was reading two `{#if}` branches.
+
+Second, smaller, on process: I flagged the caveat and named the fix instead of either doing it unasked or staying quiet. The user's reply was two words. That exchange cost less than the alternative in both directions — a silent scope expansion I'd have had to justify, or a bug shipped behind a claim I'd already half-retracted. **The flag is cheap precisely when you can state the fix in one clause**; if it takes a paragraph to describe, it's a design conversation, not a flag.
+
+---
+
 ## 2026-07-19 — The await must come before the commitment, and one of the three bugs had already fixed itself
 
 Three long-open bugs, taken TDD. The most interesting thing is that they failed in three *different* ways relative to their write-ups, and only one matched its note exactly.

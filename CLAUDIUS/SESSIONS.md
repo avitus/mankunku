@@ -2,6 +2,21 @@
 
 Newest at the top.
 
+## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
+
+**What happened:**
+
+- User: "Lick practice should default to the daily practice option." One line in `lick-practice.svelte.ts` — `config.sessionType` from `'focused'` to `'daily'`. The config is in-memory only (never persisted), so no migration, and the setup screen, start label, caption and `handleStart` branch all key off that single field. Test written RED first (`Received: "focused"`) in its own file, since other suites mutate `lickPractice.config` freely and Vitest isolates module registries per file.
+- Flagged two things the default invalidated rather than silently fixing or silently ignoring them; user took both. The lick-practice tour's closing step still opened "Pick a progression, a backing style, and a duration" — accurate for Focused, but the progression picker is now hidden on open. And the home page's Side B panel printed `PROGRESSION_TEMPLATES[config.progressionType].shortName`, which describes a Focused session only; Daily rotates across all of them. Removed the line, its `$derived`, and the now-unused import.
+- I noted removing that line would even the two panels' stat lines at two apiece "so the buttons line up" — then checked the other states before claiming it. It was only true when *both* sides had history. Tagged-but-never-practiced gives Side B one line against Side A's two; the empty state gives one against two as well. Said so, and said the structural fix was flex-column + `mt-auto` rather than doing it unasked. User: "Make sure the buttons are always aligned."
+- Fixed structurally: both panels are flex columns (`flex flex-1 flex-col` on the card *and* its inner `pl-3` wrapper — the wrapper needs it too or the column never fills the stretched card), CTA moved `mt-5` → `mt-auto`, the gap moved onto the stat block as `mb-5` so slack collects above the button.
+- `tests/e2e/home-panel-alignment.spec.ts` measures both CTAs' bounding boxes and asserts a shared baseline in the two previously-broken states. Verified RED by restoring the pre-fix file from a scratchpad copy: **38px** stagger empty, **20px** tagged-unpracticed. Green after, 6/6 across Chromium/Firefox/WebKit. Sets a 1280px viewport first — below `sm` the panels stack and there is nothing to align.
+
+**Notes:**
+
+- `npm run check` clean (2353 files, 0 errors, 0 warnings); 2268 unit/integration green.
+- The middle commit's message claims the progression-line removal makes the buttons line up. That was true only in the both-have-history state; the third commit supersedes it. Left the history intact rather than rewriting a claim that was honest when written.
+
 ## 2026-07-19 — Trend chart cut to Tonal Mastery alone; found a three-way drift between legend, tooltip and data
 
 **What happened:**
