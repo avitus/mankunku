@@ -146,16 +146,21 @@
 	<!-- Section heading -->
 	<h2 class="smallcaps text-[var(--color-text-secondary)]">Pick today's practice</h2>
 
-	<!-- Two doors -->
+	<!-- Two doors.
+
+	     Both panels are flex columns whose stat block absorbs the slack, so the
+	     two Continue buttons sit on the same baseline no matter how many stat
+	     lines each side has (a fresh user has none on either; a tagged-but-
+	     unpracticed set has one on Side B against two on Side A). -->
 	<div class="flex flex-col gap-4 sm:flex-row">
 		<!-- Ear Training panel — LP-sleeve style card -->
 		<div
 			data-domain="ear-training"
 			data-tour="side-a"
-			class="panel relative flex-1 overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] p-6"
+			class="panel relative flex flex-1 flex-col overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] p-6"
 		>
 			<div class="absolute left-0 top-0 h-full w-1 bg-[var(--color-accent)]"></div>
-			<div class="pl-3">
+			<div class="flex flex-1 flex-col pl-3">
 				<div class="smallcaps text-[var(--color-brass)]">Side A · Ear Training</div>
 				{#if todaysTonalityLabel}
 					<div data-tour="todays-key">
@@ -178,7 +183,7 @@
 
 				<div class="jazz-rule my-4"></div>
 
-				<div class="space-y-1 text-sm text-[var(--color-text-secondary)]">
+				<div class="mb-5 space-y-1 text-sm text-[var(--color-text-secondary)]">
 					{#if hasEarTrainingHistory}
 						<div data-tour="level-display" class="inline-flex items-center gap-1">
 							Tonal Mastery <span
@@ -211,7 +216,7 @@
 
 				<a
 					href="/ear-training"
-					class="mt-5 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
+					class="mt-auto flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
 				>
 					<BrassPlayGlyph size={11} class="text-white" />
 					{hasEarTrainingHistory ? 'Continue' : 'Begin first session'}
@@ -223,10 +228,10 @@
 		<div
 			data-domain="lick-practice"
 			data-tour="side-b"
-			class="panel relative flex-1 overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] p-6"
+			class="panel relative flex flex-1 flex-col overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] p-6"
 		>
 			<div class="absolute left-0 top-0 h-full w-1 bg-[var(--color-accent)]"></div>
-			<div class="pl-3">
+			<div class="flex flex-1 flex-col pl-3">
 				<div class="smallcaps text-[var(--color-brass)]">Side B · Lick Practice</div>
 				{#if taggedLickCount > 0}
 					<div class="mt-2 inline-flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
@@ -247,7 +252,7 @@
 
 				<div class="jazz-rule my-4"></div>
 
-				<div class="space-y-1 text-sm text-[var(--color-text-secondary)]">
+				<div class="mb-5 space-y-1 text-sm text-[var(--color-text-secondary)]">
 					{#if taggedLickCount > 0}
 						{#if bestLickTempo > 0}
 							<div>
@@ -274,7 +279,7 @@
 
 				<a
 					href={taggedLickCount > 0 ? '/lick-practice' : '/library'}
-					class="mt-5 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
+					class="mt-auto flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
 				>
 					<BrassPlayGlyph size={11} class="text-white" />
 					{taggedLickCount > 0 ? 'Continue' : 'Tag a lick to start'}
