@@ -28,7 +28,7 @@
 		getUpcomingLicks
 	} from '$lib/state/lick-practice.svelte';
 	import { scoreToGrade } from '$lib/scoring/grades';
-	import { accuracyTier } from '$lib/ui/score-colors';
+	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import {
 		getActiveSubstitution,
 		getTransitionCadenceChords,
@@ -1297,10 +1297,18 @@
 				</div>
 				<div class="flex flex-wrap gap-1.5">
 					{#each lick.keys as k}
-						{@const color = accuracyTier(k.score)}
+						{@const tier = accuracyTierInfo(k.score)}
+						{@const medal =
+							tier.key === 'gold' || tier.key === 'silver' || tier.key === 'bronze'
+								? tier.key
+								: null}
 						<div
-							class="flex flex-col items-center rounded px-2 py-1 text-xs"
-							style="background: color-mix(in srgb, {color} 13%, transparent); color: {color}"
+							class="flex flex-col items-center rounded px-2 py-1 text-xs {medal
+								? `lp-medal-chip lp-chip-${medal}`
+								: ''}"
+							style={medal
+								? ''
+								: `background: color-mix(in srgb, ${tier.color} 13%, transparent); color: ${tier.color}`}
 						>
 							<span class="font-bold">{concertKeyToWritten(k.key, instrument)}</span>
 							<span class="tabular-nums">{pct(k.score)}%</span>
