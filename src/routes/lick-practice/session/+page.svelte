@@ -35,8 +35,7 @@
 		PROGRESSION_TEMPLATES
 	} from '$lib/data/progressions';
 	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
-	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
-	import type { LickBreatherInfo } from '$lib/types/lick-practice';
+	import type { PlannedKey, LickBreatherInfo } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
@@ -1418,6 +1417,7 @@
 				class="transition-opacity duration-300"
 				class:pointer-events-none={inScoreHold}
 				style="opacity: {inScoreHold ? 0 : 1};"
+				aria-hidden={inScoreHold}
 			>
 				<UpcomingKeysDisplay
 					plannedKeys={plannedKeysForLick}

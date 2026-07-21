@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
-	import type { LickBreatherInfo } from '$lib/types/lick-practice';
+	import type { LickBreatherInfo } from '$lib/state/lick-practice.svelte';
 
 	// Shown over the sliding-progression area during the inter-lick score-hold
 	// bar (in place of the finished lick's frozen chart). Presentational only —
