@@ -10,7 +10,13 @@
 
 import type { Grade } from '$lib/types/scoring';
 
-const GRADE_THRESHOLDS: { grade: Grade; min: number }[] = [
+/**
+ * Score cutoffs for each non-default grade, highest first. The source of truth
+ * for grade boundaries — `scoreToGrade` and the UI-layer grade colors
+ * (`ui/score-colors.ts`) both derive from this, so a threshold change can't
+ * silently desync them. `try-again` is the implicit fallback below `fair`.
+ */
+export const GRADE_THRESHOLDS: readonly { readonly grade: Grade; readonly min: number }[] = [
 	{ grade: 'perfect', min: 0.95 },
 	{ grade: 'great', min: 0.85 },
 	{ grade: 'good', min: 0.70 },
@@ -33,14 +39,8 @@ export const GRADE_LABELS: Record<Grade, string> = {
 	'try-again': 'Try Again'
 };
 
-/** CSS color variable for each grade */
-export const GRADE_COLORS: Record<Grade, string> = {
-	perfect: 'var(--color-success)',
-	great: 'var(--color-success)',
-	good: 'var(--color-accent)',
-	fair: 'var(--color-warning)',
-	'try-again': 'var(--color-error)'
-};
+// GRADE_COLORS (grade → CSS color) lives in the UI layer at
+// `$lib/ui/score-colors` — the scoring layer stays free of UI/CSS concerns.
 
 /**
  * Liner-note captions shown below the grade label after each attempt — a mix

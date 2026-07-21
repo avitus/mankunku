@@ -27,7 +27,7 @@
 		getUpcomingLicks
 	} from '$lib/state/lick-practice.svelte';
 	import { scoreToGrade } from '$lib/scoring/grades';
-	import { masteryDisplay } from '$lib/difficulty/display';
+	import { accuracyTier } from '$lib/ui/score-colors';
 	import {
 		getActiveSubstitution,
 		getTransitionCadenceChords,
@@ -1244,7 +1244,7 @@
 				</div>
 				<div class="flex flex-wrap gap-1.5">
 					{#each lick.keys as k}
-						{@const color = masteryDisplay(k.score * 100).color}
+						{@const color = accuracyTier(k.score)}
 						<div
 							class="flex flex-col items-center rounded px-2 py-1 text-xs"
 							style="background: color-mix(in srgb, {color} 13%, transparent); color: {color}"

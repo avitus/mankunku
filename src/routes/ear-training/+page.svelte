@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
-	import { GRADE_COLORS, getGradeCaption } from '$lib/scoring/grades';
+	import { getGradeCaption } from '$lib/scoring/grades';
+	import { GRADE_COLORS } from '$lib/ui/score-colors';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
 	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';

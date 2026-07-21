@@ -105,10 +105,24 @@ Two 10-step ramps, both theme-aware (base in `:root`, re-stepped in `:root.light
 
 | Ramp | Tokens | Direction | Meaning | Where |
 | --- | --- | --- | --- | --- |
-| **Mastery** | `--mastery-1..10` | teal → brass | *Accomplishment* — high = brass you've earned | Tonal Mastery meter, scale-proficiency bars, lick-practice key ring + per-key result chips |
+| **Mastery** | `--mastery-1..10` | teal → brass | *Accomplishment* — high = brass you've earned | Tonal Mastery meter, scale-proficiency bars |
 | **Difficulty** | `--difficulty-1..10` | muted green → amber → muted brick-red | *How hard the material is* — high = jazz-hot, not alarm | Lick/level difficulty badges, adaptive Level readout |
 
 Access them via `masteryDisplay()` / `difficultyDisplay()` (`src/lib/difficulty/display.ts`), which return the band's `var(--…-N)` token — safe to drop into an inline `style`. **Proficiency always uses the mastery ramp, not the feedback tokens** (a low-proficiency key reads as low-teal, never danger-red).
+
+### Accuracy medal scale
+
+The counterpart to the Mastery ramp, for **performance scores** (poor → perfect) rather than long-term proficiency. Mastery is a smooth climb where high = accomplishment; accuracy must instead make it obvious **which keys/notes need work**, so it's **discrete** with breakpoints that match the `Grade` thresholds:
+
+| Tier | Token | Band | Meaning |
+| --- | --- | --- | --- |
+| **Gold** | `--accuracy-gold` | ≥ 95% | Excellence |
+| **Silver** | `--accuracy-silver` | 85–94% | Very good |
+| **Bronze** | `--accuracy-bronze` | 70–84% | Decent |
+| **Teal** | `--accuracy-teal` | 55–69% | Needs work |
+| **Deep teal** | `--accuracy-deep` | < 55% | Rough |
+
+Podium medals reward good takes; the two teal shades below "decent" keep the low end calm and encouraging (a rough key reads teal, never alarm-red). It stays in the app's teal↔gold family so it never fights the Mastery ramp, but where mastery is a 10-step gradient, accuracy is 5 crisp tiers. Access via `accuracyTier(score01)` (`src/lib/ui/score-colors.ts`), which returns the tier's `var(--accuracy-*)` token. Used by: the lick-practice **key ring** + **per-key report chips**, the **progress per-key detail**, **grade readouts** (`GRADE_COLORS`), and **per-note pitch/rhythm** (`NoteComparison`). The exact % is always shown alongside, so precision within a tier isn't lost.
 
 ## Typography
 
