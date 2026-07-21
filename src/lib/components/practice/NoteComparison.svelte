@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 	import { midiToDisplayName } from '$lib/music/notation';
+	import { accuracyTier } from '$lib/ui/score-colors';
 
 	interface Props {
 		noteResults: NoteResult[];
@@ -21,11 +22,15 @@
 	// Filter to only show matched and missed notes (not extras)
 	const displayResults = $derived(noteResults.filter((r) => !r.extra));
 
+	// Per-note pitch/rhythm accuracy on the shared medal scale (a missed note
+	// reads as the lowest tier). Timing offset below keeps the success/warning/
+	// error signal — it's an early/late diagnostic, not a score.
 	function pitchColor(r: NoteResult): string {
-		if (r.missed) return 'var(--color-error)';
-		if (r.pitchScore >= 0.9) return 'var(--color-success)';
-		if (r.pitchScore >= 0.5) return 'var(--color-warning)';
-		return 'var(--color-error)';
+		return accuracyTier(r.missed ? 0 : r.pitchScore);
+	}
+
+	function rhythmColor(r: NoteResult): string {
+		return accuracyTier(r.missed ? 0 : r.rhythmScore);
 	}
 
 	function formatOffset(ms: number | null): string {
@@ -90,7 +95,7 @@
 				</span>
 				<span
 					class="text-right tabular-nums"
-					style="color: {result.missed ? 'var(--color-error)' : result.rhythmScore >= 0.7 ? 'var(--color-success)' : 'var(--color-warning)'}"
+					style="color: {rhythmColor(result)}"
 				>
 					{result.missed ? '0' : Math.round(result.rhythmScore * 100)}%
 				</span>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreToGrade, GRADE_LABELS, GRADE_COLORS } from '$lib/scoring/grades';
+import { scoreToGrade, GRADE_LABELS } from '$lib/scoring/grades';
 
 const GRADE_KEYS = ['perfect', 'great', 'good', 'fair', 'try-again'] as const;
 
@@ -46,10 +46,11 @@ describe('scoreToGrade', () => {
 });
 
 describe('grade display mappings', () => {
-	it('labels are non-empty strings and colors are CSS color vars', () => {
+	it('labels are non-empty strings', () => {
 		for (const key of GRADE_KEYS) {
 			expect(GRADE_LABELS[key]).toBeTruthy();
-			expect(GRADE_COLORS[key]).toMatch(/^var\(--color-/);
 		}
 	});
+	// GRADE_COLORS now lives in the UI layer; its color mapping is covered by
+	// tests/unit/ui/score-colors.test.ts.
 });
