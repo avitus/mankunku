@@ -10,7 +10,6 @@
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getTodaysTonality, formatTonality } from '$lib/tonality/tonality';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
 	import BrassPlayGlyph from '$lib/components/jazz/BrassPlayGlyph.svelte';
@@ -74,9 +73,6 @@
 		return getEffectivePracticeLickIds(getAllLicks());
 	});
 	const taggedLickCount = $derived(taggedLickIds.size);
-	const activeProgressionName = $derived(
-		PROGRESSION_TEMPLATES[lickPractice.config.progressionType].shortName
-	);
 
 	const bestLickTempo = $derived.by(() => {
 		let best = 0;
@@ -253,7 +249,6 @@
 
 				<div class="space-y-1 text-sm text-[var(--color-text-secondary)]">
 					{#if taggedLickCount > 0}
-						<div>{activeProgressionName}</div>
 						{#if bestLickTempo > 0}
 							<div>
 								Best <span class="font-medium tabular-nums text-[var(--color-text)]"
