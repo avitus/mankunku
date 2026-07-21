@@ -128,6 +128,27 @@ export interface PlannedKey {
 	lickId: string;
 }
 
+/** What follows the inter-lick pause, for the breather card. */
+export type LickBreatherNext =
+	| { kind: 'next'; name: string } // standard/daily: another lick is queued
+	| { kind: 'round'; round: number } // single-lick deep practice: same lick, next round
+	| { kind: 'done' }; // last lick in the plan — the completion report follows
+
+/**
+ * Snapshot of the just-finished lick, shown on the breather card during the
+ * inter-lick score-hold bar. Captured at the moment the last key scores so the
+ * card stays stable while it fades out (by the next bar the session state has
+ * already advanced to the next lick and cleared keyResults).
+ */
+export interface LickBreatherInfo {
+	/** Name of the lick just finished. */
+	lickName: string;
+	/** Average score across the finished lick's keys, 0..1. */
+	scorePct: number;
+	/** What the session moves on to after the pause. */
+	next: LickBreatherNext;
+}
+
 export const lickPractice = $state<{
 	config: LickPracticeConfig;
 	phase: LickPracticePhase;

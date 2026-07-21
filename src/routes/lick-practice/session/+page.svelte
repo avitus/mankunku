@@ -5,6 +5,7 @@
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
 	import UpcomingKeysDisplay from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
+	import LickBreatherCard from '$lib/components/lick-practice/LickBreatherCard.svelte';
 	import {
 		lickPractice,
 		getCurrentPlanItem,
@@ -34,7 +35,7 @@
 		PROGRESSION_TEMPLATES
 	} from '$lib/data/progressions';
 	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
-	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
+	import type { PlannedKey, LickBreatherInfo } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
@@ -129,6 +130,17 @@
 	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
 	let scrollFraction = $state(0);
+	// Score-hold: true only during the first inter-lick rest bar, while the
+	// finished lick's last-key chart would otherwise sit frozen on screen. It
+	// drives the cross-fade that swaps that chart for the breather card. Set
+	// when the last key scores (advance() returns 'end-of-lick' in
+	// closeAndScoreWindow); cleared when startLick flips the display to the
+	// next lick a bar later.
+	let inScoreHold = $state(false);
+	// Snapshot of the just-finished lick for the breather card, captured when
+	// the hold begins so the card's content stays stable while it fades out
+	// (by the next bar currentLickIndex has advanced and keyResults cleared).
+	let breatherInfo = $state<LickBreatherInfo | null>(null);
 	// Non-reactive tick-based timing anchors. Updated only at lick start,
 	// then read each animation frame to compute scrollFraction and
 	// currentBeat. Using ticks instead of seconds avoids the constant-BPM
@@ -408,6 +420,10 @@
 
 		lickPractice.phase = 'lick-running';
 		lickPractice.currentKeyIndex = 0;
+		// The display now flips to this lick's first key — end any score-hold
+		// left over from the previous lick so the breather card cross-fades
+		// back to the sliding chart.
+		inScoreHold = false;
 		// Continuous mode is in "demo" state at the start of every lick
 		// until the first user recording window opens.
 		isDemoing = mode === 'continuous';
@@ -939,7 +955,44 @@
 
 		// Advance the key index. The scheduler has already scheduled the
 		// next key's window open callback, so the UI just needs to update.
-		advance();
+		const step = advance();
+		if (step === 'end-of-lick') {
+			// The last key just scored — enter the score-hold. Snapshot the
+			// finished lick now, before the delayed handleLickComplete (a bar
+			// later) advances currentLickIndex and clears keyResults. The
+			// cross-fade swaps the frozen chart for the breather card.
+			breatherInfo = buildBreatherInfo();
+			inScoreHold = true;
+		}
+	}
+
+	/**
+	 * Snapshot the just-finished lick for the breather card. Called from
+	 * closeAndScoreWindow the moment the last key scores, while keyResults
+	 * still holds the full finished lick and currentLickIndex still points at
+	 * it (both change a bar later in the transition).
+	 */
+	function buildBreatherInfo(): LickBreatherInfo {
+		const item = getCurrentPlanItem();
+		const results = lickPractice.keyResults;
+		const scorePct =
+			results.length > 0
+				? results.reduce((sum, r) => sum + r.score, 0) / results.length
+				: 0;
+
+		let next: LickBreatherInfo['next'];
+		if (lickPractice.mode === 'single-lick') {
+			// Endless drill: same lick, next round. roundNumber still holds the
+			// round just finished, so the upcoming round is +1.
+			next = { kind: 'round', round: lickPractice.roundNumber + 1 };
+		} else {
+			const nextItem = lickPractice.plan[lickPractice.currentLickIndex + 1];
+			next = nextItem
+				? { kind: 'next', name: nextItem.phraseName }
+				: { kind: 'done' };
+		}
+
+		return { lickName: item?.phraseName ?? '', scorePct, next };
 	}
 
 	/** Pitch detector start time in mic context seconds (set once at session init). */
@@ -1355,16 +1408,38 @@
 		/>
 
 		<!-- Continuous chord-block scroll: the lick's full key stack drifts
-		     upward at exactly one row per key duration. -->
-		<UpcomingKeysDisplay
-			plannedKeys={plannedKeysForLick}
-			{scrollFraction}
-			{currentBeat}
-			isPlaying={isSessionRunning}
-			{isRecording}
-			{isDemoing}
-			{instrument}
-		/>
+		     upward at exactly one row per key duration. During the inter-lick
+		     score-hold bar the frozen last-key chart cross-fades out and the
+		     breather card fades in over the same reserved space, so nothing
+		     below jumps. -->
+		<div class="relative">
+			<div
+				class="transition-opacity duration-300"
+				class:pointer-events-none={inScoreHold}
+				style="opacity: {inScoreHold ? 0 : 1};"
+				aria-hidden={inScoreHold}
+			>
+				<UpcomingKeysDisplay
+					plannedKeys={plannedKeysForLick}
+					{scrollFraction}
+					{currentBeat}
+					isPlaying={isSessionRunning}
+					{isRecording}
+					{isDemoing}
+					{instrument}
+				/>
+			</div>
+			{#if breatherInfo}
+				<div
+					class="absolute inset-0 transition-opacity duration-300"
+					class:pointer-events-none={!inScoreHold}
+					style="opacity: {inScoreHold ? 1 : 0};"
+					aria-hidden={!inScoreHold}
+				>
+					<LickBreatherCard {...breatherInfo} />
+				</div>
+			{/if}
+		</div>
 
 		<!-- Key progress ring -->
 		<div class="flex justify-center">
