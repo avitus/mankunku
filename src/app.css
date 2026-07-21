@@ -93,10 +93,42 @@
 	   never an alarm-red. Breakpoints match the Grade thresholds (.95/.85/.70/.55).
 	   The :root.light block re-steps them to stay legible on paper. */
 	--accuracy-gold: #eec867;   /* ≥ 95%  excellence */
-	--accuracy-silver: #c3ccd4; /* 85–94% very good  */
+	--accuracy-silver: #c6d6ee; /* 85–94% very good  */
 	--accuracy-bronze: #c6996c; /* 70–84% decent     */
 	--accuracy-teal: #62afb6;   /* 55–69% needs work */
 	--accuracy-deep: #43b2bc;   /* < 55%  rough      */
+
+	/* Medal metal colors — theme-invariant (a medal doesn't invert with the
+	   page theme). Used by the polished-coin light-theme treatment below;
+	   in dark theme they equal the --accuracy-* values above. */
+	--metal-gold: #eec867;
+	--metal-silver: #c6d6ee;
+	--metal-bronze: #c6996c;
+
+	/* Medal lustre tokens (gold/silver/bronze only — teal/deep aren't medals).
+	   Dark theme = SOFT SHEEN: a translucent tint disc with an off-center
+	   highlight, so the dot reads as lit metal over the navy ground. Derived
+	   from the flat --accuracy-* so a tier-color change still cascades.
+	   Consumed by the key-ring dots (SVG radial gradient) and the lick-report
+	   chips (.lp-medal-chip). The :root.light block re-treats these as opaque
+	   struck coins. */
+	--medal-gold-hi: color-mix(in srgb, var(--accuracy-gold) 42%, transparent);
+	--medal-gold-mid: color-mix(in srgb, var(--accuracy-gold) 20%, transparent);
+	--medal-gold-lo: color-mix(in srgb, var(--accuracy-gold) 16%, transparent);
+	--medal-gold-label: var(--accuracy-gold);
+	--medal-gold-rim: color-mix(in srgb, var(--accuracy-gold) 24%, transparent);
+
+	--medal-silver-hi: color-mix(in srgb, var(--accuracy-silver) 42%, transparent);
+	--medal-silver-mid: color-mix(in srgb, var(--accuracy-silver) 20%, transparent);
+	--medal-silver-lo: color-mix(in srgb, var(--accuracy-silver) 16%, transparent);
+	--medal-silver-label: var(--accuracy-silver);
+	--medal-silver-rim: color-mix(in srgb, var(--accuracy-silver) 24%, transparent);
+
+	--medal-bronze-hi: color-mix(in srgb, var(--accuracy-bronze) 42%, transparent);
+	--medal-bronze-mid: color-mix(in srgb, var(--accuracy-bronze) 20%, transparent);
+	--medal-bronze-lo: color-mix(in srgb, var(--accuracy-bronze) 16%, transparent);
+	--medal-bronze-label: var(--accuracy-bronze);
+	--medal-bronze-rim: color-mix(in srgb, var(--accuracy-bronze) 24%, transparent);
 }
 
 [data-domain='lick-practice'] {
@@ -162,10 +194,61 @@
 	   TEXT on pale (tinted) surfaces, so each is darkened for ≥4.5:1 — the light
 	   silver/gold from dark mode would be near-invisible on paper. */
 	--accuracy-gold: #715719;
-	--accuracy-silver: #4f5b68;
+	--accuracy-silver: #566e97;
 	--accuracy-bronze: #804d28;
 	--accuracy-teal: #226268;
 	--accuracy-deep: #1f565c;
+
+	/* Medal lustre — light theme = POLISHED MEDAL: an opaque struck-coin
+	   gradient (highlight → metal → shadow) with an engraved label, since a
+	   translucent sheen barely registers on paper. Metal colors don't invert,
+	   so these derive from the theme-invariant --metal-* set, not the darkened
+	   --accuracy-* text colors above. */
+	--medal-gold-hi: color-mix(in srgb, var(--metal-gold) 58%, white);
+	--medal-gold-mid: var(--metal-gold);
+	--medal-gold-lo: color-mix(in srgb, var(--metal-gold) 64%, #0a0f18);
+	--medal-gold-label: color-mix(in srgb, var(--metal-gold) 40%, #0a0f18);
+	--medal-gold-rim: color-mix(in srgb, var(--metal-gold) 50%, #0a0f18);
+
+	--medal-silver-hi: color-mix(in srgb, var(--metal-silver) 58%, white);
+	--medal-silver-mid: var(--metal-silver);
+	--medal-silver-lo: color-mix(in srgb, var(--metal-silver) 58%, #0a0f18);
+	--medal-silver-label: color-mix(in srgb, var(--metal-silver) 36%, #0a0f18);
+	--medal-silver-rim: color-mix(in srgb, var(--metal-silver) 46%, #0a0f18);
+
+	--medal-bronze-hi: color-mix(in srgb, var(--metal-bronze) 56%, white);
+	--medal-bronze-mid: var(--metal-bronze);
+	--medal-bronze-lo: color-mix(in srgb, var(--metal-bronze) 62%, #0a0f18);
+	--medal-bronze-label: color-mix(in srgb, var(--metal-bronze) 36%, #0a0f18);
+	--medal-bronze-rim: color-mix(in srgb, var(--metal-bronze) 48%, #0a0f18);
+}
+
+/* Lick-report medal chips — the gold/silver/bronze "squares" in the
+   post-practice report carry the same sheen(dark)/coin(light) lustre as the
+   key ring, via the shared --medal-* tokens. The tier modifier maps a tier's
+   tokens onto the generic --lp-* the surface reads; teal/deep chips keep their
+   flat inline tint. */
+.lp-medal-chip {
+	background: radial-gradient(circle at 34% 26%, var(--lp-hi), var(--lp-mid) 46%, var(--lp-lo));
+	color: var(--lp-label);
+	/* Inset rim (not a border) so medal chips stay the same box size as the
+	   flat teal/deep chips in the same wrap row. */
+	box-shadow: inset 0 0 0 1px var(--lp-rim);
+}
+:root.light .lp-medal-chip {
+	box-shadow: inset 0 0 0 1px var(--lp-rim), 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.lp-chip-gold {
+	--lp-hi: var(--medal-gold-hi); --lp-mid: var(--medal-gold-mid); --lp-lo: var(--medal-gold-lo);
+	--lp-label: var(--medal-gold-label); --lp-rim: var(--medal-gold-rim);
+}
+.lp-chip-silver {
+	--lp-hi: var(--medal-silver-hi); --lp-mid: var(--medal-silver-mid); --lp-lo: var(--medal-silver-lo);
+	--lp-label: var(--medal-silver-label); --lp-rim: var(--medal-silver-rim);
+}
+.lp-chip-bronze {
+	--lp-hi: var(--medal-bronze-hi); --lp-mid: var(--medal-bronze-mid); --lp-lo: var(--medal-bronze-lo);
+	--lp-label: var(--medal-bronze-label); --lp-rim: var(--medal-bronze-rim);
 }
 
 :root.light [data-domain='lick-practice'] {

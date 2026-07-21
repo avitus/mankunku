@@ -3,7 +3,7 @@
 	import type { LickPracticeKeyResult } from '$lib/types/lick-practice';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import { accuracyTier } from '$lib/ui/score-colors';
+	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 
 	interface Props {
@@ -22,9 +22,11 @@
 	const CENTER = 110;
 
 	// A scored dot carries its accuracy tier; 'current' / 'pending' are the two
-	// score-less states.
+	// score-less states. Medal tiers (gold/silver/bronze) get the metallic
+	// lustre treatment; teal/deep render flat (medal === null).
+	type MedalTier = 'gold' | 'silver' | 'bronze';
 	type Visual =
-		| { kind: 'scored'; color: string }
+		| { kind: 'scored'; color: string; medal: MedalTier | null }
 		| { kind: 'current' }
 		| { kind: 'pending' };
 
@@ -61,7 +63,12 @@
 		// accuracy stays visible even when the whole ring is celebrated.
 		const result = keyResults.find(r => r.key === key);
 		if (result) {
-			return { kind: 'scored', color: accuracyTier(result.score) };
+			const tier = accuracyTierInfo(result.score);
+			const medal =
+				tier.key === 'gold' || tier.key === 'silver' || tier.key === 'bronze'
+					? tier.key
+					: null;
+			return { kind: 'scored', color: tier.color, medal };
 		}
 		if (keys.indexOf(key) === currentKeyIndex) return { kind: 'current' };
 		return { kind: 'pending' };
@@ -76,6 +83,27 @@
 
 <div class="flex flex-col items-center">
 	<svg viewBox="0 0 220 220" class="w-56 h-56">
+		<!-- Medal lustre gradients: highlight top-left → metal → shadow. Stops
+		     read the theme-switched --medal-* tokens (soft sheen in dark, a
+		     polished coin in light), so one set of gradients serves both. -->
+		<defs>
+			<radialGradient id="lpMedal-gold" cx="0.5" cy="0.5" r="0.62" fx="0.34" fy="0.28">
+				<stop offset="0%" style="stop-color: var(--medal-gold-hi)" />
+				<stop offset="46%" style="stop-color: var(--medal-gold-mid)" />
+				<stop offset="100%" style="stop-color: var(--medal-gold-lo)" />
+			</radialGradient>
+			<radialGradient id="lpMedal-silver" cx="0.5" cy="0.5" r="0.62" fx="0.34" fy="0.28">
+				<stop offset="0%" style="stop-color: var(--medal-silver-hi)" />
+				<stop offset="46%" style="stop-color: var(--medal-silver-mid)" />
+				<stop offset="100%" style="stop-color: var(--medal-silver-lo)" />
+			</radialGradient>
+			<radialGradient id="lpMedal-bronze" cx="0.5" cy="0.5" r="0.62" fx="0.34" fy="0.28">
+				<stop offset="0%" style="stop-color: var(--medal-bronze-hi)" />
+				<stop offset="46%" style="stop-color: var(--medal-bronze-mid)" />
+				<stop offset="100%" style="stop-color: var(--medal-bronze-lo)" />
+			</radialGradient>
+		</defs>
+
 		<!-- Center tempo display -->
 		<text
 			x={CENTER}
@@ -157,19 +185,47 @@
 							opacity="0.75"
 						/>
 					{/if}
-					<circle cx={pos.x} cy={pos.y} r={DOT_RADIUS} style="fill: {dotFill(visual.color)}" />
-					<text
-						x={pos.x} y={pos.y}
-						text-anchor="middle"
-						dominant-baseline="central"
-						font-size="11"
-						font-weight="bold"
-						fill={visual.color}
-					>
-						{displayKey}
-					</text>
+					{#if visual.medal}
+						<!-- Medal tier: metallic lustre disc + engraved label. -->
+						<circle
+							class="medal-dot"
+							cx={pos.x} cy={pos.y} r={DOT_RADIUS}
+							fill="url(#lpMedal-{visual.medal})"
+							style="stroke: var(--medal-{visual.medal}-rim); stroke-width: 1;"
+						/>
+						<text
+							x={pos.x} y={pos.y}
+							text-anchor="middle"
+							dominant-baseline="central"
+							font-size="11"
+							font-weight="bold"
+							style="fill: var(--medal-{visual.medal}-label)"
+						>
+							{displayKey}
+						</text>
+					{:else}
+						<circle cx={pos.x} cy={pos.y} r={DOT_RADIUS} style="fill: {dotFill(visual.color)}" />
+						<text
+							x={pos.x} y={pos.y}
+							text-anchor="middle"
+							dominant-baseline="central"
+							font-size="11"
+							font-weight="bold"
+							fill={visual.color}
+						>
+							{displayKey}
+						</text>
+					{/if}
 				{/if}
 			</g>
 		{/each}
 	</svg>
 </div>
+
+<style>
+	/* Polished-medal coins (light theme) get a faint lift off the paper; the
+	   dark-theme soft sheen stays flat. */
+	:global(:root.light) .medal-dot {
+		filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+	}
+</style>
