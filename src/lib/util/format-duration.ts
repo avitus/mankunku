@@ -12,6 +12,6 @@ export function formatDuration(seconds: number): string {
 	const s = total % 60;
 	const m = Math.floor(total / 60) % 60;
 	const h = Math.floor(total / 3600);
-	const pad = (n: number) => n.toString().padStart(2, '0');
+	const pad = (n: number): string => n.toString().padStart(2, '0');
 	return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
