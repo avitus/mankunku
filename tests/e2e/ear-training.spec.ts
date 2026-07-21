@@ -87,3 +87,47 @@ test.describe('ear-training: double-start guard', () => {
 		expect(gumCount).toBe(1);
 	});
 });
+
+/**
+ * The practice-time counter is driven off a `practising` flag that spans the
+ * whole run — including the awaiting-input and auto-advance phases, where the
+ * engine sits at 'ready'. These tests pin the two ends of that behaviour: it
+ * stays hidden until a run actually begins, and once begun it advances.
+ */
+test.describe('ear-training: practice-time counter', () => {
+	const timerSeconds = async (page: Page): Promise<number> => {
+		const text = (await page.getByRole('timer').textContent()) ?? '';
+		const parts = text.trim().split(':').map(Number);
+		return parts.reduce((acc, part) => acc * 60 + part, 0);
+	};
+
+	test('stays hidden until a practice run starts, then counts up', async ({
+		page,
+		consoleCollector: _consoleCollector
+	}: {
+		page: Page;
+		consoleCollector: ConsoleCollector;
+	}): Promise<void> => {
+		await seedOnboardedAnonymous(page);
+		await installAudioMock(page);
+
+		await page.goto('/ear-training', { waitUntil: 'networkidle' });
+		await expect(page.locator('main')).toBeVisible();
+
+		// Nothing has been practised yet, so there is no clock to show.
+		await expect(page.getByRole('timer')).toHaveCount(0);
+
+		const playBtn = page.locator('[data-tour="play-button"]');
+		await expect(playBtn).toBeEnabled();
+		await playBtn.click();
+
+		// `starting` flips synchronously inside handlePlay, so the counter
+		// appears without waiting on the audio pipeline.
+		await expect(page.getByRole('timer')).toBeVisible({ timeout: 10_000 });
+
+		const first = await timerSeconds(page);
+		await expect
+			.poll((): Promise<number> => timerSeconds(page), { intervals: [250], timeout: 10_000 })
+			.toBeGreaterThan(first);
+	});
+});

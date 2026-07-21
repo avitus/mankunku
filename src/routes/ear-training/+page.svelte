@@ -16,6 +16,7 @@
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
+	import { formatDuration } from '$lib/util/format-duration';
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
@@ -148,6 +149,48 @@
 	);
 
 	const pct = (n: number) => Math.round(n * 100);
+
+	// ─── Practice-time counter ───────────────────────────────
+	/**
+	 * Discreet count-up of time actually spent practising on this page visit.
+	 * `practising` has to span the whole run, not just `isActive` — the engine
+	 * drops to 'ready' both while the mic is open awaiting the user's turn and
+	 * during the inter-lick auto-advance pause, and neither is idle time.
+	 * `looping` covers those; `starting` covers the getUserMedia/instrument-load
+	 * window before engineState flips.
+	 */
+	const practising = $derived(starting || looping || awaitingInput || isActive);
+
+	/** Reactive readout, in ms. Written only by the ticker below. */
+	let practiceElapsedMs = $state(0);
+	/**
+	 * Time banked by previous runs. Deliberately *not* $state: the ticker effect
+	 * both reads and writes the elapsed pair, and a reactive read here would
+	 * re-trigger the effect on every tick.
+	 */
+	let practiceBankedMs = 0;
+
+	/**
+	 * Runs the clock for as long as a practice run is live, then banks the total
+	 * so the next run resumes rather than restarts. Each tick recomputes from a
+	 * wall-clock delta instead of incrementing a counter, so a throttled
+	 * background tab loses resolution but never drifts.
+	 */
+	$effect(() => {
+		if (!practising) return;
+		const startedAt = Date.now();
+		const banked = practiceBankedMs;
+		const elapsed = () => banked + (Date.now() - startedAt);
+		practiceElapsedMs = elapsed();
+		const id = setInterval(() => { practiceElapsedMs = elapsed(); }, 1000);
+		return () => {
+			clearInterval(id);
+			// Bank the final total rather than reading practiceElapsedMs back out,
+			// so the last partial second isn't lost between ticks.
+			practiceBankedMs = elapsed();
+			practiceElapsedMs = practiceBankedMs;
+		};
+	});
 
 	// Bind the active phrase to the derived lick list. Runs reactively so a
 	// later activeTonality.key flip (which reshapes allLicks) lands on a
@@ -690,6 +733,20 @@
 	<div class="absolute right-4 top-2">
 		<HelpLink href="/docs/user-guide#practice" label="Practice docs" />
 	</div>
+
+	<!-- Practice-time counter. Balances the help link in the opposite corner,
+	     and stays hidden until the first run so it isn't a nagging 0:00. -->
+	{#if practiceElapsedMs > 0}
+		<div
+			role="timer"
+			aria-label="Time practised this session"
+			class="absolute left-4 top-2 select-none text-xs tabular-nums
+				   text-[var(--color-text-secondary)] transition-opacity duration-500
+				   {practising ? 'opacity-60' : 'opacity-35'}"
+		>
+			{formatDuration(practiceElapsedMs / 1000)}
+		</div>
+	{/if}
 
 	<!-- Tonality + phrase info -->
 	<div class="text-center">
