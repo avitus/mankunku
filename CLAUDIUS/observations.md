@@ -4,6 +4,16 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-07-22 — Reuse by shrinking the problem to fit the tool, not stretching the tool to fit the problem
+
+The lead-sheet editor needed long forms; the existing melody-entry buffer maxes out at four bars, deliberately. The obvious move was to lift the cap — touch `setBarCount`'s clamp, the capacity math, the status bar, and accept that the lick editor now carries lead-sheet-sized state. The better move, hiding in one word of the spec ("paging"), was to leave the tool alone and cut the problem into tool-shaped pieces: a section is edited one ≤4-bar page at a time through the UNMODIFIED buffer, and the section list — plain data, no reactivity constraints — is the real document. Every entry component, the keyboard map, the range validation, the accidental logic came along for free, and the lick editor's invariants were never at risk. The general form: **when a constraint in a shared component looks like the obstacle, first try shrinking your working set to honor it; the constraint is usually load-bearing for someone else.**
+
+The cost of that design is an ownership rule: while a page is loaded, the buffer owns that window, and writing to the section list underneath it is undefined. My own test violated it (seeded sections directly, then watched a commit "eat" a note) and my first instinct was to blame the commit. The commit was right; the test used a door that doesn't exist in production. Worth naming: **an ownership invariant binds tests too — a test that mutates state through a path the UI can't reach isn't testing the system, it's testing a hypothetical one.** The fix was to route the test through the real hydration API, which also made it a better test.
+
+Two smaller keeps. The written-pitch discipline caught ME: I asserted the chart would show "Gm7" after selecting written G, but the ii of written G is Am7 — the exact error class this project's memory warns about, committed by the entity that wrote the warning into the test suite an hour earlier. The rule survives because the tests enforce it, not because anyone internalizes it permanently. And the importer fixtures: the iReal unscrambler is an involution, so the temptation was to generate test input with the function under test — agreement by construction. Writing the scrambler into the TEST from the published reference instead means both sides pin to the spec; if I mistranscribed the algorithm, the hand-computed spot-checks (position 0 takes char 49) fail rather than agree. **When an algorithm is its own inverse, independent fixtures require a second implementation from the source document, plus at least one assertion a human can verify by counting.**
+
+---
+
 ## 2026-07-21 — An invariant that holds because the content happens to match is not an invariant
 
 Removing the progression line from the home page's Side B panel made its stat block two lines, matching Side A's two, and the two Continue buttons lined up. That is a true sentence about one state of the data and a false sentence about the feature. A fresh user gets one line on Side B against Side A's two, and a tagged-but-unpracticed set gives the same 1-vs-2. The buttons were staggered by 38px and 20px in those states — measured, after restoring the pre-fix file, not inferred.
