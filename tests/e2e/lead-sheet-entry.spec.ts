@@ -1,0 +1,93 @@
+import { test, expect } from './fixtures/test';
+import { seedOnboardedAnonymous, seedLeadSheets } from './fixtures/storage';
+
+/**
+ * Manual lead-sheet entry: melody via the step-entry panel, chords via the
+ * grid, live chart preview, save, and the ?edit= round trip.
+ */
+
+test.beforeEach(async ({ page }) => {
+	await seedOnboardedAnonymous(page);
+});
+
+test('creates a lead sheet with melody and chords', async ({ page }) => {
+	await page.goto('/lead-sheets/entry');
+
+	await expect(page.getByRole('heading', { name: 'Lead Sheet Entry' })).toBeVisible();
+
+	// Melody: three notes through the pitch panel (eighth default duration).
+	await page.getByRole('button', { name: 'C', exact: true }).click();
+	await page.getByRole('button', { name: 'E', exact: true }).click();
+	await page.getByRole('button', { name: 'G', exact: true }).click();
+
+	// Chord at bar 1 beat 1, typed in written pitch.
+	await page.getByRole('button', { name: 'Set chord at bar 1, beat 1' }).click();
+	const chordInput = page.getByRole('textbox', { name: 'Chord at bar 1, beat 1' });
+	await chordInput.fill('Dm7');
+	await chordInput.press('Enter');
+
+	// The live preview shows the chord over the staff.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Dm7' }).first()).toBeVisible();
+
+	// Title + save.
+	await page.getByRole('textbox', { name: 'Lead sheet title' }).fill('My First Chart');
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+	await page.waitForURL('**/lead-sheets/sheet-*');
+	await expect(page.getByRole('heading', { name: 'My First Chart' })).toBeVisible();
+	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Dm7' }).first()).toBeVisible();
+});
+
+test('rejects an unparseable chord with an inline error flash', async ({ page }) => {
+	await page.goto('/lead-sheets/entry');
+
+	await page.getByRole('button', { name: 'Set chord at bar 2, beat 1' }).click();
+	const chordInput = page.getByRole('textbox', { name: 'Chord at bar 2, beat 1' });
+	await chordInput.fill('Zzz9');
+	await chordInput.press('Enter');
+
+	// Editor stays open (nothing committed); escape closes it and the slot stays empty.
+	await expect(chordInput).toBeVisible();
+	await chordInput.press('Escape');
+	await expect(page.getByRole('button', { name: 'Set chord at bar 2, beat 1' })).toHaveText('·');
+});
+
+test('edits an existing sheet via ?edit= and updates in place', async ({ page }) => {
+	await seedLeadSheets(page);
+	await page.goto('/lead-sheets/entry?edit=e2e-user-sheet-1');
+
+	await expect(page.getByRole('heading', { name: 'Edit Lead Sheet' })).toBeVisible();
+	const title = page.getByRole('textbox', { name: 'Lead sheet title' });
+	await expect(title).toHaveValue('Test Session Tune');
+
+	await title.fill('Test Session Tune v2');
+	await page.getByRole('button', { name: 'Update' }).click();
+
+	await page.waitForURL('**/lead-sheets/e2e-user-sheet-1');
+	await expect(page.getByRole('heading', { name: 'Test Session Tune v2' })).toBeVisible();
+
+	// The stored sheet kept its id and got the new title.
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-leadsheets'));
+	const sheets = JSON.parse(stored ?? '[]') as Array<{ id: string; title: string }>;
+	expect(sheets).toHaveLength(1);
+	expect(sheets[0].id).toBe('e2e-user-sheet-1');
+	expect(sheets[0].title).toBe('Test Session Tune v2');
+});
+
+test('adds a section with a repeat and sees it in the preview', async ({ page }) => {
+	await page.goto('/lead-sheets/entry');
+
+	// Open setup, add a B section, and mark the A section repeated.
+	await page.getByRole('button', { name: /Setup · Key/ }).click();
+	await page.getByRole('button', { name: '+ Add section' }).click();
+	await expect(page.getByRole('textbox', { name: 'Section 2 label' })).toHaveValue('B');
+	await page.locator('label').filter({ hasText: '|: repeat' }).first().locator('input').check();
+
+	// Status bar tracks the section switch (Add navigates to the new section).
+	await expect(page.getByText(/Section B/)).toBeVisible();
+
+	// The preview shows both part labels.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
+});
