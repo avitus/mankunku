@@ -10,7 +10,7 @@ type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
 type KeySigAccidental = '^' | '_';
 
 /** Map of note letters to their key-signature accidentals */
-type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
+export type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
 
 /**
  * ABC notation generation from Phrase data.
@@ -23,7 +23,7 @@ const ABC_NOTE_NAMES_SHARP = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', '
 const ABC_NOTE_NAMES_FLAT = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A', '_B', 'B'];
 
 /** Keys that conventionally use flats */
-const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
+export const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
 
 /**
  * Key signature accidentals: maps each key to the set of note letters ('A'–'G')
@@ -35,7 +35,7 @@ const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
  * differ require an explicit accidental (including '=' for naturals that cancel
  * a key-sig sharp or flat).
  */
-const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
+export const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	// Sharp keys — keyed by letter name that the key signature alters
 	'C':  {},
 	'G':  { F: '^' },
@@ -73,9 +73,9 @@ const ENHARMONIC_FLAT_RESPELL: Partial<Record<NoteLetter, NoteLetter>> = {
  * letter. We use this state to decide whether an explicit accidental is
  * needed on each note.
  */
-type BarAccidentalState = Record<NoteLetter, '^' | '_' | '=' | ''>;
+export type BarAccidentalState = Record<NoteLetter, '^' | '_' | '=' | ''>;
 
-function initBarState(keySigAccidentals: KeySigMap): BarAccidentalState {
+export function initBarState(keySigAccidentals: KeySigMap): BarAccidentalState {
 	const letters: NoteLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 	const state = {} as BarAccidentalState;
 	for (const l of letters) state[l] = keySigAccidentals[l] ?? '';
@@ -100,7 +100,7 @@ function initBarState(keySigAccidentals: KeySigMap): BarAccidentalState {
  *
  * ABC octave convention: C = middle C (C4), c = C5, c' = C6, C, = C3
  */
-function midiToAbcPitch(
+export function midiToAbcPitch(
 	midi: number,
 	useFlats: boolean,
 	keySigAccidentals: KeySigMap,
@@ -171,7 +171,7 @@ function midiToAbcPitch(
  * ABC default unit is 1/8. Duration multipliers:
  *   /2 = sixteenth, (none) = eighth, 2 = quarter, 4 = half, 8 = whole
  */
-function durationToAbc(duration: [number, number], defaultLength: [number, number]): string {
+export function durationToAbc(duration: [number, number], defaultLength: [number, number]): string {
 	const noteBeats = fractionToFloat(duration);
 	const unitBeats = fractionToFloat(defaultLength);
 	const ratio = noteBeats / unitBeats;
@@ -201,19 +201,19 @@ const TRIPLET_BASE: Array<{ triplet: [number, number]; base: [number, number] }>
 	{ triplet: [1, 12], base: [1, 8] },  // eighth-triplet → eighth
 ];
 
-function getTripletBase(d: [number, number]): [number, number] | null {
+export function getTripletBase(d: [number, number]): [number, number] | null {
 	for (const entry of TRIPLET_BASE) {
 		if (d[0] * entry.triplet[1] === entry.triplet[0] * d[1]) return entry.base;
 	}
 	return null;
 }
 
-function sameDuration(a: [number, number], b: [number, number]): boolean {
+export function sameDuration(a: [number, number], b: [number, number]): boolean {
 	return a[0] * b[1] === b[0] * a[1];
 }
 
 /** Return whichever of two fractions represents the shorter duration. */
-function shorterFraction(
+export function shorterFraction(
 	a: [number, number],
 	b: [number, number]
 ): [number, number] {
@@ -231,7 +231,7 @@ function shorterFraction(
  * per-beat beaming, since 16ths are conventionally grouped by beat.
  * All other time signatures keep per-beat beaming.
  */
-function getBeamGroupDuration(
+export function getBeamGroupDuration(
 	timeSignature: [number, number],
 	minDurationInGroup: [number, number]
 ): number {
@@ -251,7 +251,7 @@ function getBeamGroupDuration(
 const REST_DURATIONS: [number, number][] = [[1, 2], [1, 4], [1, 8], [1, 16]];
 
 /** Convert a float to the nearest standard musical fraction */
-function approxToFraction(f: number): [number, number] {
+export function approxToFraction(f: number): [number, number] {
 	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
 		const num = Math.round(f * den);
 		if (Math.abs(num / den - f) < 1e-9) return [num, den];
@@ -281,7 +281,7 @@ function isCompoundMeter(ts: [number, number]): boolean {
  * from, or `null` if `k` is a synthesized rest segment (one source rest can
  * fan out to several display rests; many source rests can collapse to one).
  */
-function mergeConsecutiveRests(
+export function mergeConsecutiveRests(
 	notes: readonly Note[],
 	timeSignature: [number, number]
 ): { display: Note[]; sourceMap: (number | null)[] } {

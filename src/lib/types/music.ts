@@ -75,6 +75,13 @@ export interface HarmonicSegment {
 	scaleId: string;
 	startOffset: Fraction;
 	duration: Fraction;
+	/**
+	 * Original chord symbol as written in the source (e.g. "C7(b9,#11)").
+	 * Preserves display fidelity when the mapping onto the closed
+	 * `ChordQuality` union is imperfect. Display prefers this; audio uses
+	 * `chord`.
+	 */
+	symbol?: string;
 }
 
 export interface DifficultyMetadata {

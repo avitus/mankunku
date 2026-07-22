@@ -160,7 +160,7 @@ const FALLBACK_RANGE_HIGH = 75;
  * playable range. When two shifts tie, prefer the one whose average pitch is
  * closest to the midpoint of the range.
  */
-function bestOctaveShift(midiNotes: number[], rangeLow: number, rangeHigh: number): number {
+export function bestOctaveShift(midiNotes: number[], rangeLow: number, rangeHigh: number): number {
 	if (midiNotes.length === 0) return 0;
 
 	const mid = (rangeLow + rangeHigh) / 2;

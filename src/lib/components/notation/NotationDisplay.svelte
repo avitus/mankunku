@@ -2,11 +2,20 @@
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
 	import type { Phrase } from '$lib/types/music';
+	import type { LeadSheet } from '$lib/types/lead-sheet';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import { phraseToAbcWithMap, type PitchedNoteAnchor } from '$lib/music/notation';
+	import { leadSheetToAbcWithMap } from '$lib/music/lead-sheet-notation';
 
 	interface Props {
-		phrase: Phrase | null;
+		phrase?: Phrase | null;
+		/**
+		 * Full song form rendered with chord symbols, section markers, and
+		 * multi-system reflow. Takes precedence over `phrase` when set;
+		 * click/highlight indices refer to the flattened note order
+		 * (`flattenLeadSheet(sheet).notes`).
+		 */
+		leadSheet?: LeadSheet | null;
 		instrument?: InstrumentConfig;
 		/** Source-array index of the note to highlight, or `null` for no highlight. */
 		selectedIndex?: number | null;
@@ -15,7 +24,7 @@
 		titleArea?: Snippet;
 	}
 
-	let { phrase, instrument, selectedIndex = null, onSelect, titleArea }: Props = $props();
+	let { phrase = null, leadSheet = null, instrument, selectedIndex = null, onSelect, titleArea }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
 	let abcjs = $state<typeof import('abcjs') | null>(null);
@@ -25,9 +34,11 @@
 	});
 
 	$effect(() => {
-		if (!abcjs || !containerEl || !phrase) return;
+		if (!abcjs || !containerEl || (!phrase && !leadSheet)) return;
 
-		const { abc, noteAnchors } = phraseToAbcWithMap(phrase, instrument);
+		const { abc, noteAnchors } = leadSheet
+			? leadSheetToAbcWithMap(leadSheet, instrument)
+			: phraseToAbcWithMap(phrase!, instrument);
 		abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
 			staffwidth: 600,
@@ -80,7 +91,7 @@
 	{#if titleArea}
 		{@render titleArea()}
 	{/if}
-	{#if phrase}
+	{#if phrase || leadSheet}
 		<div bind:this={containerEl} class="abcjs-container"></div>
 	{:else}
 		<div class="flex h-24 items-center justify-center italic text-[var(--color-text-secondary)]">
