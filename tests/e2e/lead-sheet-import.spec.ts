@@ -1,0 +1,77 @@
+import { test, expect } from './fixtures/test';
+import { seedOnboardedAnonymous } from './fixtures/storage';
+
+/**
+ * Import flows: the method chooser, the iReal Pro paste flow end-to-end
+ * (parse → add-to-book → detail, and parse → review-in-editor), and the PDF
+ * page's render states.
+ */
+
+test.beforeEach(async ({ page }) => {
+	await seedOnboardedAnonymous(page);
+});
+
+const IREAL_URL =
+	'irealbook://' +
+	encodeURIComponent(
+		'Imported Blues=Trad=Medium Swing=F=n={*AT44F7 |Bb7 |F7 |F7 |N1Bb7 |F7 } N2Bb7 |F6 Z'
+	);
+
+test('the add-lead-sheets chooser links all four methods', async ({ page }) => {
+	await page.goto('/add-lead-sheets');
+	await expect(page.getByRole('heading', { name: 'Add Lead Sheets' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Manual Entry/ })).toHaveAttribute('href', '/lead-sheets/entry');
+	await expect(page.getByRole('link', { name: /PDF Upload/ })).toHaveAttribute('href', '/lead-sheets/import/pdf');
+	await expect(page.getByRole('link', { name: /iReal Pro/ })).toHaveAttribute('href', '/lead-sheets/import/ireal');
+	await expect(page.getByRole('link', { name: /Band-in-a-Box/ })).toHaveAttribute('href', '/lead-sheets/import/biab');
+});
+
+test('iReal link imports straight into the book', async ({ page }) => {
+	await page.goto('/lead-sheets/import/ireal');
+
+	await page.getByRole('textbox', { name: 'iReal Pro share link' }).fill(IREAL_URL);
+	await page.getByRole('button', { name: 'Read link' }).click();
+
+	await expect(page.getByText('Imported Blues')).toBeVisible();
+	await page.getByRole('button', { name: 'Add to book' }).click();
+	await page.getByRole('link', { name: /Added — view/ }).click();
+
+	await page.waitForURL('**/lead-sheets/sheet-*');
+	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
+	// The chart renders with chords (tenor settings: concert F7 → written G7).
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'G7' }).first()).toBeVisible();
+});
+
+test('iReal review flow opens the imported form in the editor', async ({ page }) => {
+	await page.goto('/lead-sheets/import/ireal');
+
+	await page.getByRole('textbox', { name: 'iReal Pro share link' }).fill(IREAL_URL);
+	await page.getByRole('button', { name: 'Read link' }).click();
+	await page.getByRole('button', { name: 'Review & edit' }).click();
+
+	await page.waitForURL('**/lead-sheets/entry');
+	// Draft mode (create, not update) with the imported content hydrated.
+	await expect(page.getByRole('heading', { name: 'Lead Sheet Entry' })).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'Lead sheet title' })).toHaveValue('Imported Blues');
+	await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+	// The imported changes render in the preview (written pitch: F7 → G7).
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'G7' }).first()).toBeVisible();
+
+	// Saving lands on a fresh sheet detail.
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await page.waitForURL('**/lead-sheets/sheet-*');
+	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
+});
+
+test('the PDF import page renders a usable state', async ({ page }) => {
+	await page.goto('/lead-sheets/import/pdf');
+	await expect(page.getByRole('heading', { name: 'Import a PDF Chart' })).toBeVisible();
+	// Either the upload control (key configured) or the manual-entry fallback
+	// (keyless environment) — never a blank page.
+	await expect(
+		page
+			.getByLabel('Lead sheet PDF')
+			.or(page.getByText(/isn't available on this server/))
+			.first()
+	).toBeVisible();
+});

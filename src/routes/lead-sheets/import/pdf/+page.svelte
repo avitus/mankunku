@@ -1,0 +1,152 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import { loadFromLeadSheet } from '$lib/state/lead-sheet-entry.svelte';
+	import { saveLeadSheetPdf } from '$lib/persistence/lead-sheet-store';
+	import { getInstrument } from '$lib/state/settings.svelte';
+
+	const supabase = $derived(page.data?.supabase ?? null);
+	const user = $derived(page.data?.user ?? null);
+
+	const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
+	let configured = $state<boolean | null>(null);
+	let uploading = $state(false);
+	let errorMessage = $state<string | null>(null);
+	let importWarnings = $state<string[]>([]);
+
+	onMount(async () => {
+		try {
+			const res = await fetch('/api/lead-sheet-parse');
+			configured = res.ok ? Boolean((await res.json()).configured) : false;
+		} catch {
+			configured = false;
+		}
+	});
+
+	function toBase64(buffer: ArrayBuffer): string {
+		const bytes = new Uint8Array(buffer);
+		let binary = '';
+		const CHUNK = 0x8000;
+		for (let i = 0; i < bytes.length; i += CHUNK) {
+			binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+		}
+		return btoa(binary);
+	}
+
+	async function handleFile(event: Event): Promise<void> {
+		const inputEl = event.currentTarget as HTMLInputElement;
+		const file = inputEl.files?.[0];
+		if (!file) return;
+		errorMessage = null;
+		importWarnings = [];
+
+		if (file.size > MAX_PDF_BYTES) {
+			errorMessage = 'PDF too large — keep uploads under 10 MB.';
+			inputEl.value = '';
+			return;
+		}
+
+		uploading = true;
+		try {
+			const buffer = await file.arrayBuffer();
+			const res = await fetch('/api/lead-sheet-parse', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ pdf: toBase64(buffer), filename: file.name })
+			});
+			if (!res.ok) {
+				const body = (await res.json().catch(() => null)) as { message?: string } | null;
+				errorMessage = body?.message ?? `Extraction failed (${res.status}).`;
+				return;
+			}
+			const { sheet, warnings } = (await res.json()) as { sheet: LeadSheet; warnings: string[] };
+			importWarnings = warnings;
+
+			// Keep the original file: local IndexedDB cache always; private
+			// bucket upload when signed in (non-blocking), path stamped on the
+			// draft so it round-trips through the cloud row.
+			const blob = new Blob([buffer], { type: 'application/pdf' });
+			if (supabase && user) {
+				await saveLeadSheetPdf(sheet.id, blob, { supabase, userId: user.id });
+				sheet.pdfUrl = `${user.id}/${sheet.id}.pdf`;
+			} else {
+				await saveLeadSheetPdf(sheet.id, blob);
+			}
+
+			// Mandatory human review: the draft (with its pre-assigned id, so
+			// the stored PDF stays linked) opens in the editor; nothing is
+			// saved until the user hits Update there.
+			loadFromLeadSheet(sheet, getInstrument());
+			goto('/lead-sheets/entry');
+		} catch (err) {
+			errorMessage = err instanceof Error ? err.message : 'Upload failed.';
+		} finally {
+			uploading = false;
+			inputEl.value = '';
+		}
+	}
+</script>
+
+<svelte:head>
+	<title>Import a PDF Chart — Mankunku</title>
+</svelte:head>
+
+<div class="mx-auto max-w-3xl space-y-4">
+	<a
+		href="/add-lead-sheets"
+		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
+	>
+		&larr; Add Lead Sheets
+	</a>
+
+	<div>
+		<div class="smallcaps text-[var(--color-brass)]">From paper</div>
+		<h1 class="font-display text-3xl font-bold tracking-tight">Import a PDF Chart</h1>
+		<div class="jazz-rule mt-2 max-w-[140px]"></div>
+	</div>
+
+	<p class="text-sm text-[var(--color-text-secondary)]">
+		Upload a lead-sheet PDF and the AI reads the chords and melody into an editable draft.
+		Extraction is never perfect — the draft always opens in the editor for review and
+		correction before anything is saved. Charts are assumed to be at concert pitch.
+	</p>
+
+	{#if configured === false}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]">
+			PDF import isn't available on this server (no AI key configured). You can still
+			<a href="/lead-sheets/entry" class="text-[var(--color-accent)] underline">enter the chart manually</a>.
+		</div>
+	{:else}
+		<input
+			type="file"
+			accept=".pdf,application/pdf"
+			disabled={uploading || configured === null}
+			onchange={handleFile}
+			aria-label="Lead sheet PDF"
+			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+		/>
+		{#if uploading}
+			<p class="text-sm text-[var(--color-text-secondary)]">Reading the chart — this can take a minute…</p>
+		{/if}
+	{/if}
+
+	{#if errorMessage}
+		<div class="rounded-lg bg-[var(--color-error)]/10 p-3 text-sm text-[var(--color-error)]">
+			{errorMessage}
+		</div>
+	{/if}
+
+	{#if importWarnings.length > 0}
+		<div class="rounded-lg bg-[var(--color-warning)]/10 p-3 text-xs text-[var(--color-text-secondary)]">
+			<div class="mb-1 font-medium text-[var(--color-warning)]">Extraction notes</div>
+			<ul class="list-inside list-disc space-y-0.5">
+				{#each importWarnings as w, i (i)}
+					<li>{w}</li>
+				{/each}
+			</ul>
+		</div>
+	{/if}
+</div>

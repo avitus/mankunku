@@ -84,10 +84,14 @@ module.exports = {
 				PORT: 3000,
 				ORIGIN: 'https://mankunkujazz.com',
 				PROTOCOL_HEADER: 'x-forwarded-proto',
-				// Raise from adapter-node's 512K default so the Sentry replay
-				// tunnel at /api/monitoring can receive ~1MB envelopes — the
-				// route's own MAX_ENVELOPE_SIZE_BYTES (1MB) is the real gate.
-				BODY_SIZE_LIMIT: '1M'
+				// Raise from adapter-node's 512K default so (a) the Sentry replay
+				// tunnel at /api/monitoring can receive ~1MB envelopes and (b) the
+				// lead-sheet PDF import at /api/lead-sheet-parse can receive a
+				// base64-encoded 10MB PDF (~13.4MB JSON). Each route's own byte
+				// constant (MAX_ENVELOPE_SIZE_BYTES 1MB / MAX_PDF_REQUEST_BYTES
+				// 15MB) is the real gate. PM2 needs delete+start (not restart)
+				// to pick this up.
+				BODY_SIZE_LIMIT: '16M'
 			}
 		}
 	]

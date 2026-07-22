@@ -22,7 +22,8 @@ import {
 	currentSectionPageCount,
 	flattenedBufferBase,
 	suspendEntryBuffer,
-	resumeEntryBuffer
+	resumeEntryBuffer,
+	melodyEditingSupported
 } from '$lib/state/lead-sheet-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -243,6 +244,55 @@ describe('key changes', () => {
 		expect(draft.key).toBe('D');
 		const pitched = draft.sections[0].notes.filter((n) => n.pitch !== null);
 		expect(pitched[0].pitch).toBe(60);
+	});
+});
+
+describe('non-4/4 time signatures (imported charts)', () => {
+	function waltzSheet(): LeadSheet {
+		return {
+			id: 'sheet-w-altz',
+			title: 'Waltz',
+			key: 'F',
+			timeSignature: [3, 4],
+			tags: [],
+			sections: [{
+				label: 'A',
+				bars: 4,
+				notes: [{ pitch: 65, duration: [1, 4], offset: [0, 1] }],
+				harmony: []
+			}],
+			source: 'imported-ireal'
+		};
+	}
+
+	it('preserves the imported time signature through the draft', () => {
+		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
+		expect(buildDraftLeadSheet().timeSignature).toEqual([3, 4]);
+		expect(melodyEditingSupported()).toBe(false);
+	});
+
+	it('never lets the 4/4 buffer corrupt a non-4/4 sheet', () => {
+		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
+		// Buffer stays empty and commits are no-ops.
+		expect(stepEntry.enteredNotes).toEqual([]);
+		commitBuffer();
+		expect(leadSheetEntry.sections[0].notes).toHaveLength(1);
+		expect(leadSheetEntry.sections[0].notes[0].offset).toEqual([0, 1]);
+	});
+
+	it('places chords on the meter grid, not a hardcoded 4/4 grid', () => {
+		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
+		expect(setChord(0, 1, 2, 'F7')).toBe(true);
+		const seg = leadSheetEntry.sections[0].harmony[0];
+		expect(seg.startOffset).toEqual([5, 4]); // bar 1 (3/4) + 2 beats
+		expect(seg.duration).toEqual([7, 4]); // to the 4-bar section end (3.0)
+	});
+
+	it('resets to 4/4 for a fresh sheet', () => {
+		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
+		initNewLeadSheet();
+		expect(buildDraftLeadSheet().timeSignature).toEqual([4, 4]);
+		expect(melodyEditingSupported()).toBe(true);
 	});
 });
 

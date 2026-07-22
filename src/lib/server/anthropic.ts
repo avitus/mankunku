@@ -35,3 +35,10 @@ export const ANTHROPIC_MODEL = 'claude-opus-4-8';
 
 /** Cap on output tokens per chat response — keeps costs predictable. */
 export const ANTHROPIC_MAX_TOKENS = 1024;
+
+/**
+ * Cap on output tokens for the lead-sheet PDF extraction. A full multi-page
+ * chart's chords + melody as JSON runs a few thousand tokens; 8192 leaves
+ * headroom without letting a runaway response get expensive.
+ */
+export const ANTHROPIC_LEAD_SHEET_MAX_TOKENS = 8192;

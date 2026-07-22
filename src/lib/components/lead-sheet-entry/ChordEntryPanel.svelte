@@ -7,7 +7,6 @@
 		removeChord,
 		chordTextAt
 	} from '$lib/state/lead-sheet-entry.svelte';
-	import { stepEntry } from '$lib/state/step-entry.svelte';
 
 	/** Slot currently being edited (absolute bar within the section). */
 	let editing: { bar: number; beat: number } | null = $state(null);
@@ -17,9 +16,16 @@
 	let errorTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const pageBars = $derived.by(() => {
+		const sec = leadSheetEntry.sections[leadSheetEntry.currentSection];
 		const first = leadSheetEntry.currentPage * PAGE_BARS;
-		return Array.from({ length: stepEntry.barCount }, (_, i) => first + i);
+		const count = Math.max(1, Math.min(PAGE_BARS, (sec?.bars ?? PAGE_BARS) - first));
+		return Array.from({ length: count }, (_, i) => first + i);
 	});
+
+	/** Beat slots per bar follow the sheet meter (3 in 3/4, 4 in 4/4, …). */
+	const beats = $derived(
+		Array.from({ length: Math.max(1, leadSheetEntry.timeSignature[0]) }, (_, i) => i)
+	);
 
 	function cellText(bar: number, beat: number): string | null {
 		return chordTextAt(leadSheetEntry.currentSection, bar, beat);
@@ -78,7 +84,7 @@
 			<div class="rounded bg-[var(--color-bg-tertiary)] p-1.5">
 				<div class="mb-1 text-center text-[10px] text-[var(--color-text-secondary)]">Bar {bar + 1}</div>
 				<div class="grid grid-cols-2 gap-1">
-					{#each [0, 1, 2, 3] as beat (beat)}
+					{#each beats as beat (beat)}
 						{@const text = cellText(bar, beat)}
 						{#if editing && editing.bar === bar && editing.beat === beat}
 							<input

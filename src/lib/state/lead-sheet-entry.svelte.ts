@@ -27,9 +27,9 @@ import {
 	subtractFractions
 } from '$lib/music/intervals';
 import { concertKeyToWritten, transposePitchClass, writtenKeyToConcert } from '$lib/music/transposition';
-import { parseChordSymbol, formatChordSymbol, chordSymbolToQuality, type ChordSymbol } from '$lib/music/chord-symbol';
+import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from '$lib/music/chord-symbol';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
-import { getScalesForChord } from '$lib/music/scales';
+import { harmonicSegmentFromChordSymbol } from '$lib/leadsheets/segment-from-symbol';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 import { stepEntry, reset as resetStepEntry } from '$lib/state/step-entry.svelte';
 import { transposeLeadSheet } from '$lib/leadsheets/library-loader';
@@ -45,6 +45,12 @@ export const leadSheetEntry = $state({
 	style: '',
 	/** WRITTEN key shown in the key selector. */
 	writtenKey: 'C' as PitchClass,
+	/**
+	 * Sheet meter. Manual entry is 4/4 (the step-entry buffer's assumption);
+	 * imported charts in other meters keep theirs, with melody editing gated
+	 * off (`melodyEditingSupported`) so the 4/4 buffer can't corrupt them.
+	 */
+	timeSignature: [4, 4] as [number, number],
 	tags: [] as string[],
 	/** Authoritative section list (CONCERT pitch), except the current page. */
 	sections: [] as LeadSheetSection[],
@@ -134,8 +140,14 @@ function extractWindow(notes: Note[], pageStart: Fraction, windowBars: number): 
 	return buffer;
 }
 
+/** True when the melody buffer can edit this sheet (4/4 only). */
+export function melodyEditingSupported(): boolean {
+	return leadSheetEntry.timeSignature[0] === 4 && leadSheetEntry.timeSignature[1] === 4;
+}
+
 /** Write the step-entry buffer back into the current section. */
 export function commitBuffer(): void {
+	if (!melodyEditingSupported()) return;
 	const sec = leadSheetEntry.sections[leadSheetEntry.currentSection];
 	if (!sec) return;
 	sec.notes = mergeWindow(
@@ -150,6 +162,12 @@ export function commitBuffer(): void {
 function loadBuffer(sectionIdx: number, pageIdx: number): void {
 	const sec = leadSheetEntry.sections[sectionIdx];
 	if (!sec) return;
+	if (!melodyEditingSupported()) {
+		stepEntry.enteredNotes = [];
+		stepEntry.selectedNoteIndex = null;
+		stepEntry.phraseKey = leadSheetEntry.writtenKey;
+		return;
+	}
 	const windowBars = pageWindowBars(sec, pageIdx);
 	stepEntry.enteredNotes = extractWindow(sec.notes, pageStartFraction(pageIdx), windowBars);
 	stepEntry.barCount = windowBars;
@@ -175,6 +193,7 @@ export function initNewLeadSheet(): void {
 	leadSheetEntry.composer = '';
 	leadSheetEntry.style = '';
 	leadSheetEntry.writtenKey = 'C';
+	leadSheetEntry.timeSignature = [4, 4];
 	leadSheetEntry.tags = [];
 	leadSheetEntry.sections = [makeSection('A')];
 	leadSheetEntry.currentSection = 0;
@@ -194,6 +213,7 @@ export function loadFromLeadSheet(sheet: LeadSheet, instrument: InstrumentConfig
 	leadSheetEntry.composer = sheet.composer ?? '';
 	leadSheetEntry.style = sheet.style ?? '';
 	leadSheetEntry.writtenKey = concertKeyToWritten(sheet.key, instrument);
+	leadSheetEntry.timeSignature = [sheet.timeSignature[0], sheet.timeSignature[1]];
 	leadSheetEntry.tags = [...sheet.tags];
 	leadSheetEntry.sections = sheet.sections.map(cloneSection);
 	leadSheetEntry.currentSection = 0;
@@ -202,6 +222,18 @@ export function loadFromLeadSheet(sheet: LeadSheet, instrument: InstrumentConfig
 	leadSheetEntry.editingSource = sheet.source;
 	leadSheetEntry.editingPdfUrl = sheet.pdfUrl ?? null;
 	loadBuffer(0, 0);
+}
+
+/**
+ * Load an UNSAVED import draft for review: hydrates the editor but keeps it
+ * in create mode (no editingId), so Save assigns a fresh id. Drafts that
+ * already carry a pre-assigned id (the PDF flow, which stores the original
+ * file under that id) should use `loadFromLeadSheet` instead.
+ */
+export function loadDraftForReview(sheet: LeadSheet, instrument: InstrumentConfig): void {
+	loadFromLeadSheet(sheet, instrument);
+	leadSheetEntry.editingId = null;
+	leadSheetEntry.editingSource = sheet.source;
 }
 
 /**
@@ -227,7 +259,7 @@ export function buildDraftLeadSheet(): LeadSheet {
 		id: leadSheetEntry.editingId ?? '',
 		title: leadSheetEntry.title.trim() || 'Untitled',
 		key: concertKey,
-		timeSignature: [4, 4],
+		timeSignature: [leadSheetEntry.timeSignature[0], leadSheetEntry.timeSignature[1]],
 		tags: [...leadSheetEntry.tags],
 		sections,
 		source: leadSheetEntry.editingSource ?? 'user'
@@ -340,7 +372,8 @@ export function setSectionBars(index: number, bars: number): void {
  */
 function recomputeHarmonyDurations(sec: LeadSheetSection): void {
 	const sorted = [...sec.harmony].sort((a, b) => compareFractions(a.startOffset, b.startOffset));
-	const sectionEnd: Fraction = [sec.bars, 1];
+	const [tsNum, tsDen] = leadSheetEntry.timeSignature;
+	const sectionEnd: Fraction = [sec.bars * tsNum, tsDen];
 	for (let i = 0; i < sorted.length; i++) {
 		const next = i + 1 < sorted.length ? sorted[i + 1].startOffset : sectionEnd;
 		sorted[i].duration = subtractFractions(next, sorted[i].startOffset);
@@ -349,12 +382,8 @@ function recomputeHarmonyDurations(sec: LeadSheetSection): void {
 }
 
 function chordOffset(bar: number, beat: number): Fraction {
-	return addFractions([bar, 1], [beat, 4]);
-}
-
-/** Default scale context for a voiced quality — derived from the scale table. */
-function scaleIdForQuality(quality: HarmonicSegment['chord']['quality']): string {
-	return getScalesForChord(quality)[0]?.id ?? 'major.ionian';
+	const [tsNum, tsDen] = leadSheetEntry.timeSignature;
+	return addFractions([bar * tsNum, tsDen], [beat, tsDen]);
 }
 
 /**
@@ -374,20 +403,10 @@ export function setChord(sectionIdx: number, bar: number, beat: number, symbolTe
 		root: transposePitchClass(parsed.root, -semitones),
 		bass: parsed.bass ? transposePitchClass(parsed.bass, -semitones) : undefined
 	};
-	const quality = chordSymbolToQuality(concert);
 	const startOffset = chordOffset(bar, beat);
-
-	const segment: HarmonicSegment = {
-		chord: {
-			root: concert.root,
-			quality,
-			...(concert.bass ? { bass: concert.bass } : {})
-		},
-		scaleId: scaleIdForQuality(quality),
-		startOffset,
-		duration: [1, 1], // recomputed below
-		symbol: formatChordSymbol(concert)
-	};
+	// Duration is a placeholder — recomputed below so each chord runs to the
+	// next change or the section end.
+	const segment = harmonicSegmentFromChordSymbol(concert, startOffset, [1, 1]);
 
 	sec.harmony = sec.harmony.filter((h) => compareFractions(h.startOffset, startOffset) !== 0);
 	sec.harmony.push(segment);
@@ -445,7 +464,7 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
 			id: '',
 			title: leadSheetEntry.title,
 			key: oldConcert,
-			timeSignature: [4, 4],
+			timeSignature: [leadSheetEntry.timeSignature[0], leadSheetEntry.timeSignature[1]],
 			tags: [],
 			sections: leadSheetEntry.sections,
 			source: 'user'

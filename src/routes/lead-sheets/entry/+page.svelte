@@ -17,7 +17,8 @@
 		resumeEntryBuffer,
 		setSheetWrittenKey,
 		flattenedBufferBase,
-		currentSectionPageCount
+		currentSectionPageCount,
+		melodyEditingSupported
 	} from '$lib/state/lead-sheet-entry.svelte';
 	import {
 		stepEntry,
@@ -287,12 +288,20 @@
 		{/if}
 	</div>
 
-	<!-- Melody entry -->
-	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
-		<DurationSelector />
-		<hr class="my-3 border-[var(--color-bg-tertiary)]" />
-		<PitchEntryPanel />
-	</div>
+	<!-- Melody entry (4/4 only — the step-entry buffer's assumption) -->
+	{#if melodyEditingSupported()}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
+			<DurationSelector />
+			<hr class="my-3 border-[var(--color-bg-tertiary)]" />
+			<PitchEntryPanel />
+		</div>
+	{:else}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-sm text-[var(--color-text-secondary)]">
+			This chart is in {leadSheetEntry.timeSignature[0]}/{leadSheetEntry.timeSignature[1]} —
+			melody entry currently supports 4/4 only. The imported melody and form are preserved;
+			chords and sections stay fully editable below.
+		</div>
+	{/if}
 
 	<!-- Chord entry -->
 	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">

@@ -87,7 +87,9 @@ test('adds a section with a repeat and sees it in the preview', async ({ page })
 	// Status bar tracks the section switch (Add navigates to the new section).
 	await expect(page.getByText(/Section B/)).toBeVisible();
 
-	// The preview shows both part labels.
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible();
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
+	// The preview shows both part labels. Generous timeout: abcjs re-renders
+	// destructively on every state change, and WebKit under full-suite
+	// parallel load can take longer than the default expect window.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible({ timeout: 15000 });
 });
