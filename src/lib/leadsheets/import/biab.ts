@@ -188,12 +188,21 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 		const key = normalizePitchClass(BIAB_ROOTS[rootIdx] ?? '') ?? 'C';
 		if (!BIAB_ROOTS[rootIdx]) warnings.push(`Unknown key byte ${keyByte}; defaulting to C.`);
 
-		// Bar-type stream (form markers) — advanced past, not interpreted.
+		// Bar-type stream: part markers. A marked bar starts a new form
+		// section; the value is the substyle (1 = 'a', 2 = 'b', …), which is
+		// how BIAB denotes a style change — e.g. the B section of an AABA
+		// form carries a 'b' marker on its first bar.
+		const markers = new Map<number, string>(); // 0-based bar → section label
 		let bar = r.u8();
 		while (bar < MAX_BARS) {
 			const val = r.u8();
 			if (val === 0) bar += r.u8();
-			else bar++;
+			else {
+				const letter =
+					val >= 1 && val <= 26 ? String.fromCharCode(64 + val) : 'A';
+				markers.set(bar - 1, letter);
+				bar++;
+			}
 		}
 
 		// Chord extension ids per beat cell.
@@ -236,23 +245,82 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 		const [tsNum, tsDen] = style.timeSignature;
 		const bars = Math.floor((maxBeat + 4 - 1) / 4) + 1;
 		const barDuration: Fraction = [tsNum, tsDen];
-		const sectionEnd = multiplyFraction(barDuration, bars);
 
-		const harmony: HarmonicSegment[] = [];
+		// Chorus markers follow the streams as [start][end][repeats]. NB: the
+		// first byte IS startChorus — MuseScore's importer skips a leading
+		// 0x01 as a "pad", which eats the start marker whenever the chorus
+		// starts at bar 1 (i.e. almost always) and loses the repeat. Some
+		// files do carry a pad, so read both interpretations and keep the
+		// coherent one.
+		const plausibleChorus = (s: number, e: number, rep: number): boolean =>
+			s >= 1 && e > s && e <= bars && rep >= 1 && rep <= 40;
+		let chorus: { start: number; end: number; repeats: number } | null = null;
+		try {
+			const c0 = r.u8();
+			const c1 = r.u8();
+			const c2 = r.u8();
+			if (plausibleChorus(c0, c1, c2)) {
+				chorus = { start: c0, end: c1, repeats: c2 };
+			} else {
+				const c3 = r.u8();
+				if (plausibleChorus(c1, c2, c3)) chorus = { start: c1, end: c2, repeats: c3 };
+			}
+		} catch {
+			/* truncated file — no chorus markers */
+		}
+
+		// ── Sections from part markers ──────────────────────────────────
+		const boundaries = [...markers.keys()].filter((b) => b < bars).sort((a, b) => a - b);
+		if (boundaries.length === 0 || boundaries[0] !== 0) boundaries.unshift(0);
+
+		const sections = boundaries.map((startBar, i) => {
+			const nextStart = boundaries[i + 1] ?? bars;
+			const section: import('$lib/types/lead-sheet').LeadSheetSection = {
+				label: markers.get(startBar) ?? 'A',
+				bars: nextStart - startBar,
+				notes: [],
+				harmony: []
+			};
+			return { startBar, endBar: nextStart - 1, section };
+		});
+
+		if (chorus && chorus.repeats >= 2) {
+			const opening = sections.find((s) => s.startBar === chorus!.start - 1);
+			const closing = sections.find((s) => s.endBar === chorus!.end - 1);
+			if (opening && closing) {
+				opening.section.repeatStart = true;
+				closing.section.repeatEnd = true;
+			} else {
+				warnings.push(
+					`Chorus repeat (bars ${chorus.start}-${chorus.end}) did not align with the part markers; repeat omitted.`
+				);
+			}
+		}
+
+		// ── Chords, section-local, durations to the next change or section end ──
+		const sectionFor = (barIdx: number) =>
+			sections.find((s) => barIdx >= s.startBar && barIdx <= s.endBar);
+
 		chords.forEach((c, i) => {
 			const barIdx = Math.floor(c.beat / 4);
-			const beatInBar = c.beat % 4;
+			const home = sectionFor(barIdx);
+			if (!home) return;
+			const localBar = barIdx - home.startBar;
 			const offset = addFractions(
-				multiplyFraction(barDuration, barIdx),
-				multiplyFraction([barDuration[0], barDuration[1] * 4], beatInBar)
+				multiplyFraction(barDuration, localBar),
+				multiplyFraction([barDuration[0], barDuration[1] * 4], c.beat % 4)
 			);
+
+			// Next chord within the same section, else the section end.
 			const next = chords[i + 1];
-			const nextOffset = next
-				? addFractions(
-						multiplyFraction(barDuration, Math.floor(next.beat / 4)),
-						multiplyFraction([barDuration[0], barDuration[1] * 4], next.beat % 4)
-					)
-				: sectionEnd;
+			const nextBarIdx = next ? Math.floor(next.beat / 4) : -1;
+			const nextOffset =
+				next && nextBarIdx <= home.endBar
+					? addFractions(
+							multiplyFraction(barDuration, nextBarIdx - home.startBar),
+							multiplyFraction([barDuration[0], barDuration[1] * 4], next.beat % 4)
+						)
+					: multiplyFraction(barDuration, home.section.bars);
 			const duration = subtractFractions(nextOffset, offset);
 
 			const rootName = BIAB_ROOTS[c.root];
@@ -267,11 +335,11 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 			const segment =
 				suffix !== undefined ? harmonicSegmentFromSymbol(text, offset, duration) : null;
 			if (segment) {
-				harmony.push(segment);
+				home.section.harmony.push(segment);
 			} else {
 				const fallback = fallbackSegment(rootName, bassName, text, offset, duration);
 				if (fallback) {
-					harmony.push(fallback);
+					home.section.harmony.push(fallback);
 					warnings.push(`Chord type ${c.extension} approximated as "${fallback.symbol}".`);
 				}
 			}
@@ -284,7 +352,7 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 			timeSignature: style.timeSignature,
 			style: style.name,
 			tags: [],
-			sections: [{ label: 'A', bars, notes: [], harmony }],
+			sections: sections.map((s) => s.section),
 			source: 'imported-biab'
 		};
 		return { sheets: [sheet], warnings };

@@ -114,6 +114,8 @@ export function leadSheetToAbcWithMap(
 		...(sheet.composer ? [`C:${sheet.composer}`] : []),
 		`M:${sheet.timeSignature[0]}/${sheet.timeSignature[1]}`,
 		`L:${defaultLength[0]}/${defaultLength[1]}`,
+		// Box the P: section labels so they read as form markers, not chords.
+		`%%partsbox 1`,
 		`K:${displayKey}`
 	];
 
@@ -150,27 +152,64 @@ export function leadSheetToAbcWithMap(
 		const sectionEnd = sec.bars * barDuration;
 
 		// ── Gap-fill: every bar renders, melody or not ──────────────────
+		// Gaps are additionally split at chord-change offsets so each chord
+		// lands on its own rest at its own beat (two chords in a bar sit side
+		// by side over half-bar rests, never stacked on one whole-bar rest).
+		const chordBoundaries = [...new Set(sec.harmony.map((h) => fractionToFloat(h.startOffset)))]
+			.sort((a, b) => a - b);
+
 		const inputNotes: Note[] = [];
 		const inputSources: (number | null)[] = [];
+
+		const pushGapRests = (fromF: number, toF: number): void => {
+			const cuts = chordBoundaries.filter((b) => b > fromF + 1e-9 && b < toF - 1e-9);
+			let start = fromF;
+			for (const cut of [...cuts, toF]) {
+				inputNotes.push({
+					pitch: null,
+					duration: approxToFraction(cut - start),
+					offset: approxToFraction(start)
+				});
+				inputSources.push(null);
+				start = cut;
+			}
+		};
+
 		let cursor = 0;
 		for (let i = 0; i < sec.notes.length; i++) {
 			const n = sec.notes[i];
 			const off = fractionToFloat(n.offset);
-			if (off > cursor + 1e-9) {
-				inputNotes.push({ pitch: null, duration: approxToFraction(off - cursor), offset: approxToFraction(cursor) });
-				inputSources.push(null);
-			}
+			if (off > cursor + 1e-9) pushGapRests(cursor, off);
 			inputNotes.push(n);
 			inputSources.push(flattenedNoteBase + i);
 			cursor = Math.max(cursor, off + fractionToFloat(n.duration));
 		}
-		if (sectionEnd > cursor + 1e-9) {
-			inputNotes.push({ pitch: null, duration: approxToFraction(sectionEnd - cursor), offset: approxToFraction(cursor) });
-			inputSources.push(null);
-		}
+		if (sectionEnd > cursor + 1e-9) pushGapRests(cursor, sectionEnd);
 		flattenedNoteBase += sec.notes.length;
 
-		const { display, sourceMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
+		// Merge rests PER CHORD SPAN: mergeConsecutiveRests fuses any
+		// contiguous rest run back into whole-bar groupings, so it must never
+		// see across a chord boundary — process each inter-boundary run
+		// independently and concatenate.
+		const display: Note[] = [];
+		const sourceMap: (number | null)[] = [];
+		let runStart = 0;
+		for (let k = 1; k <= inputNotes.length; k++) {
+			const isBoundary =
+				k === inputNotes.length ||
+				chordBoundaries.some(
+					(b) => Math.abs(fractionToFloat(inputNotes[k].offset) - b) < 1e-9
+				);
+			if (!isBoundary) continue;
+			const run = mergeConsecutiveRests(inputNotes.slice(runStart, k), sheet.timeSignature);
+			for (let m = 0; m < run.display.length; m++) {
+				display.push(run.display[m]);
+				const src = run.sourceMap[m];
+				sourceMap.push(src === null ? null : src + runStart);
+			}
+			runStart = k;
+		}
+
 		const elements: DisplayElement[] = display.map((note, k) => ({
 			note,
 			sourceIndex: sourceMap[k] === null ? null : inputSources[sourceMap[k]!],

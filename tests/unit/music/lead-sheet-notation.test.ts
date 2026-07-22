@@ -98,6 +98,56 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 		expect(abc).toContain('"Dmaj7"e4');
 	});
 
+	it('places two chords in a bar side by side on their own beat-aligned rests', () => {
+		const abc = leadSheetToAbc(sheet({
+			sections: [
+				section({
+					bars: 2,
+					harmony: [
+						seg('D', 'min7', [0, 1], [1, 2]),
+						seg('G', '7', [1, 2], [1, 2]),
+						seg('C', 'maj7', [1, 1], [1, 1])
+					]
+				})
+			]
+		}));
+		// Half-bar rests, each carrying its own chord — never stacked on one
+		// whole-bar rest.
+		expect(abc).toContain('"Dm7"z4 "G7"z4');
+		expect(abc).not.toContain('"Dm7""G7"');
+		expect(abc).toContain('"Cmaj7"z8');
+	});
+
+	it('keeps a beat-3-only chord aligned to beat 3', () => {
+		const abc = leadSheetToAbc(sheet({
+			sections: [
+				section({ bars: 1, harmony: [seg('G', '7', [1, 2], [1, 2])] })
+			]
+		}));
+		// First half of the bar is a bare rest; the chord opens the second half.
+		expect(abc).toContain('z4 "G7"z4');
+	});
+
+	it('annotates only the first bar of a multi-bar chord', () => {
+		const abc = leadSheetToAbc(sheet({
+			sections: [
+				section({
+					bars: 3,
+					harmony: [
+						seg('F', 'maj7', [0, 1], [2, 1]),
+						seg('G', '7', [2, 1], [1, 1])
+					]
+				})
+			]
+		}));
+		expect(abc).toContain('"Fmaj7"z8 | z8 | "G7"z8');
+	});
+
+	it('emits the partsbox directive so section labels render boxed', () => {
+		const abc = leadSheetToAbc(simpleSheet());
+		expect(abc).toMatch(/^%%partsbox 1$/m);
+	});
+
 	it('renders whole-bar rests with chords for harmony-only sections', () => {
 		const abc = leadSheetToAbc(sheet({
 			sections: [

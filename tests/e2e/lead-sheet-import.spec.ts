@@ -63,6 +63,27 @@ test('iReal review flow opens the imported form in the editor', async ({ page })
 	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
 });
 
+test('a real Band-in-a-Box file imports with sections and a chorus repeat', async ({ page }) => {
+	await page.goto('/lead-sheets/import/biab');
+
+	await page
+		.getByLabel('Band-in-a-Box file')
+		.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.sgu');
+
+	await expect(page.getByText('02. Fly Me to the Moon')).toBeVisible();
+	await page.getByRole('button', { name: 'Add to book' }).click();
+	await page.getByRole('link', { name: /Added — view/ }).click();
+
+	await page.waitForURL('**/lead-sheets/sheet-*');
+	// Boxed part labels for both sections render on the chart.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
+	// Chords in written pitch for the seeded tenor (concert Am7 → Bm7), with
+	// bar 8's beat-3 chord (concert A7 → B7) present as its own element.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Bm7' }).first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B7$/ }).first()).toBeVisible();
+});
+
 test('the PDF import page renders a usable state', async ({ page }) => {
 	await page.goto('/lead-sheets/import/pdf');
 	await expect(page.getByRole('heading', { name: 'Import a PDF Chart' })).toBeVisible();

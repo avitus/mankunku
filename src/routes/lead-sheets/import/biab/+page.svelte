@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
 	import { importBandInABox } from '$lib/leadsheets/import/biab';
@@ -12,6 +13,13 @@
 	let sheets = $state<LeadSheet[]>([]);
 	let warnings = $state<string[]>([]);
 	let parsedOnce = $state(false);
+
+	// A file chosen before hydration would silently do nothing (no change
+	// handler attached yet) — keep the input disabled until mounted.
+	let mounted = $state(false);
+	onMount(() => {
+		mounted = true;
+	});
 
 	async function handleFile(event: Event): Promise<void> {
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
@@ -64,9 +72,10 @@
 	<input
 		type="file"
 		accept=".sgu,.mgu,.mg1,.mg2,.mg3,.mg4,.mg5,.mg6,.mg7,.mg8,.mg9,.xml,.musicxml,.txt"
+		disabled={!mounted}
 		onchange={handleFile}
 		aria-label="Band-in-a-Box file"
-		class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
+		class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
 	/>
 
 	{#if parsedOnce && sheets.length === 0}
