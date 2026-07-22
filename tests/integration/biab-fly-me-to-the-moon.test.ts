@@ -59,21 +59,21 @@ describe('BIAB: Fly Me to the Moon.SGU', () => {
 
 		// A section opens Am7 / Dm7 / G7 / Cmaj7.
 		expect(a.harmony.slice(0, 4).map((h) => [h.symbol, h.startOffset])).toEqual([
-			['Am7', [0, 1]],
-			['Dm7', [1, 1]],
+			['A-7', [0, 1]],
+			['D-7', [1, 1]],
 			['G7', [2, 1]],
-			['Cmaj7', [3, 1]]
+			['CΔ7', [3, 1]]
 		]);
 
 		// Bar 8: two chords side by side on beats 1 and 3.
 		const bar8 = a.harmony.filter((h) => h.startOffset[0] / h.startOffset[1] >= 7 && h.startOffset[0] / h.startOffset[1] < 8);
 		expect(bar8.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
-			['Am7', [7, 1], [1, 2]],
+			['A-7', [7, 1], [1, 2]],
 			['A7', [15, 2], [1, 2]]
 		]);
 
 		// B section restarts its local timeline at zero.
-		expect(b.harmony[0].symbol).toBe('Am7');
+		expect(b.harmony[0].symbol).toBe('A-7');
 		expect(b.harmony[0].startOffset).toEqual([0, 1]);
 
 		// Last chord of B runs to the section end, not into the tag bar.
@@ -84,7 +84,7 @@ describe('BIAB: Fly Me to the Moon.SGU', () => {
 
 		// The tag bar holds the final Cmaj7.
 		expect(tag.harmony.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
-			['Cmaj7', [0, 1], [1, 1]]
+			['CΔ7', [0, 1], [1, 1]]
 		]);
 	});
 

@@ -123,7 +123,7 @@ describe('transposeLeadSheet', () => {
 
 	it('re-derives the raw chord symbol in the new key', () => {
 		const transposed = transposeLeadSheet(userSheet(), 'D');
-		expect(transposed.sections[0].harmony[0].symbol).toBe('Em7');
+		expect(transposed.sections[0].harmony[0].symbol).toBe('E-7');
 	});
 
 	it('drops unparseable raw symbols rather than leaving them wrong', () => {

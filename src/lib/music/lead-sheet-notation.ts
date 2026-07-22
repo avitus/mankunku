@@ -57,9 +57,11 @@ function chordDisplayText(
 	const semitones = instrument?.transpositionSemitones ?? 0;
 
 	if (seg.symbol) {
-		// Raw symbol travels verbatim at concert pitch; transposing requires
-		// re-parsing so the root/bass shift while the color tokens survive.
-		if (semitones === 0) return seg.symbol;
+		// Parseable raw symbols are re-formatted canonically (compact jazz
+		// spellings: Δ, -7) so display is uniform regardless of the source's
+		// spelling, with the color tokens surviving the round trip. Only an
+		// UNPARSEABLE symbol shows verbatim — and only untransposed, since
+		// its root can't be shifted.
 		const parsed = parseChordSymbol(seg.symbol);
 		if (parsed) {
 			const shifted: ChordSymbol = {
@@ -69,7 +71,8 @@ function chordDisplayText(
 			};
 			return respellFormat(shifted, keyContext);
 		}
-		// Unparseable raw symbol — fall through to the structured chord.
+		if (semitones === 0) return seg.symbol;
+		// Unparseable + transposing — fall through to the structured chord.
 	}
 
 	const root = instrument ? concertKeyToWritten(seg.chord.root, instrument) : seg.chord.root;

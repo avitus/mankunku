@@ -194,7 +194,7 @@ describe('chords', () => {
 		// Second runs to the section end (8 bars).
 		expect(harmony[1].duration).toEqual([6, 1]);
 		expect(typeof harmony[0].scaleId).toBe('string');
-		expect(harmony[0].symbol).toBe('Dm7');
+		expect(harmony[0].symbol).toBe('D-7');
 	});
 
 	it('converts written chord symbols to concert for transposing instruments', () => {
@@ -203,9 +203,9 @@ describe('chords', () => {
 		const seg = leadSheetEntry.sections[0].harmony[0];
 		// Written Em7 on tenor (+2 pitch class) is concert Dm7.
 		expect(seg.chord.root).toBe('D');
-		expect(seg.symbol).toBe('Dm7');
+		expect(seg.symbol).toBe('D-7');
 		// The editor reads it back in written pitch.
-		expect(chordTextAt(0, 0, 0)).toBe('Em7');
+		expect(chordTextAt(0, 0, 0)).toBe('E-7');
 	});
 
 	it('rejects unparseable chord text', () => {

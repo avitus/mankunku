@@ -56,7 +56,7 @@ describe('parseBiabFile', () => {
 		expect(sheet.sections).toHaveLength(1);
 		expect(sheet.sections[0].bars).toBe(3);
 		expect(sheet.sections[0].notes).toEqual([]);
-		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['Cmaj7', 'F7', 'F7/C']);
+		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['CΔ7', 'F7', 'F7/C']);
 		expect(sheet.sections[0].harmony[1].startOffset).toEqual([1, 1]);
 		expect(warnings).toEqual([]);
 	});
@@ -120,10 +120,10 @@ describe('parseBiabMusicXml', () => {
 		expect(sheet.source).toBe('imported-biab');
 		expect(sheet.sections[0].bars).toBe(3);
 		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual([
-			'Dm7',
+			'D-7',
 			'G7',
-			'Cmaj7/E',
-			'Bbm7b5'
+			'CΔ7/E',
+			'Bb-7b5'
 		]);
 		// Two chords in bar 1 split it evenly.
 		expect(sheet.sections[0].harmony[1].startOffset).toEqual([1, 2]);

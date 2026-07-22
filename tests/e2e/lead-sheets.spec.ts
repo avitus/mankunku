@@ -61,9 +61,9 @@ test('user sheet detail supports the two-stage delete', async ({ page }) => {
 	await page.goto('/lead-sheets/e2e-user-sheet-1');
 
 	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
-	// Chart renders with the repeat form and raw chord symbols (tenor: Dm7→Em7).
+	// Chart renders with the repeat form; chords in written pitch + compact spelling (tenor: Dm7 → E-7).
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Em7' }).first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'E-7' }).first()).toBeVisible();
 
 	const deleteButton = page.getByRole('button', { name: 'Delete' });
 	await deleteButton.click();
@@ -83,8 +83,8 @@ test('key selector re-transposes the chart', async ({ page }) => {
 	// Tenor default: concert C sheet shows written D as the active key.
 	await expect(page.getByRole('button', { name: 'D', exact: true })).toBeVisible();
 
-	// Transpose to written G: the opening ii chord displays as Am7 (ii of the
+	// Transpose to written G: the opening ii chord displays as A-7 (ii of the
 	// WRITTEN key — chords on screen are always written pitch, never concert).
 	await page.getByRole('button', { name: 'G', exact: true }).click();
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Am7' }).first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'A-7' }).first()).toBeVisible();
 });

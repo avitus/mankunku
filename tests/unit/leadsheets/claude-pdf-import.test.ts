@@ -49,7 +49,7 @@ describe('claudeJsonToLeadSheet', () => {
 		const a = sheet!.sections[0];
 		expect(a.bars).toBe(4);
 		expect(a.repeatStart).toBe(true);
-		expect(a.harmony.map((h) => h.symbol)).toEqual(['Bb6', 'Cm7', 'F7']);
+		expect(a.harmony.map((h) => h.symbol)).toEqual(['Bb6', 'C-7', 'F7']);
 		expect(a.harmony[2].startOffset).toEqual([3, 2]); // bar 1, beat 2
 		// Chord durations run to the next change or the section end.
 		expect(a.harmony[0].duration).toEqual([1, 1]);

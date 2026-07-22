@@ -119,7 +119,7 @@ describe('parseIRealUrl — cell semantics', () => {
 	it('splits multi-chord bars evenly', () => {
 		const sheet = sheetFor('T44D-7 G7 |C^7 |C^7 Z');
 		const harmony = sheet.sections[0].harmony;
-		expect(harmony.map((h) => h.symbol)).toEqual(['Dm7', 'G7', 'Cmaj7', 'Cmaj7']);
+		expect(harmony.map((h) => h.symbol)).toEqual(['D-7', 'G7', 'CΔ7', 'CΔ7']);
 		expect(harmony[0].startOffset).toEqual([0, 1]);
 		expect(harmony[0].duration).toEqual([1, 2]);
 		expect(harmony[1].startOffset).toEqual([1, 2]);
@@ -130,8 +130,8 @@ describe('parseIRealUrl — cell semantics', () => {
 		expect(sheet.sections[0].bars).toBe(4);
 		const symbols = sheet.sections[0].harmony.map((h) => [h.symbol, h.startOffset]);
 		expect(symbols).toEqual([
-			['Cmaj7', [0, 1]],
-			['Cmaj7', [1, 1]],
+			['CΔ7', [0, 1]],
+			['CΔ7', [1, 1]],
 			['G7', [3, 1]]
 		]);
 	});
@@ -140,7 +140,7 @@ describe('parseIRealUrl — cell semantics', () => {
 		const sheet = sheetFor('T44Bh7 E7alt |A-7 Z');
 		const harmony = sheet.sections[0].harmony;
 		expect(harmony[0].chord.quality).toBe('min7b5');
-		expect(harmony[0].symbol).toBe('Bm7b5');
+		expect(harmony[0].symbol).toBe('B-7b5');
 		expect(harmony[1].chord.quality).toBe('7alt');
 	});
 
@@ -152,7 +152,7 @@ describe('parseIRealUrl — cell semantics', () => {
 
 	it('strips staff text, size hints, and alternate chords with a warning-free parse', () => {
 		const sheet = sheetFor('T44*A<Solo break>sC^7 l(A-7) |D-7 G7 Z');
-		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['Cmaj7', 'Dm7', 'G7']);
+		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['CΔ7', 'D-7', 'G7']);
 	});
 });
 

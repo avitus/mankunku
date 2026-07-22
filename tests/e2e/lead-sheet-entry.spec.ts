@@ -14,6 +14,10 @@ test('creates a lead sheet with melody and chords', async ({ page }) => {
 	await page.goto('/lead-sheets/entry');
 
 	await expect(page.getByRole('heading', { name: 'Lead Sheet Entry' })).toBeVisible();
+	// Hydration barrier: the chart SVG only renders after mount, so its
+	// presence proves the button handlers are attached (clicks on the
+	// server-rendered buttons before hydration are silent no-ops).
+	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 
 	// Melody: three notes through the pitch panel (eighth default duration).
 	await page.getByRole('button', { name: 'C', exact: true }).click();
@@ -26,8 +30,9 @@ test('creates a lead sheet with melody and chords', async ({ page }) => {
 	await chordInput.fill('Dm7');
 	await chordInput.press('Enter');
 
-	// The live preview shows the chord over the staff.
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Dm7' }).first()).toBeVisible();
+	// The live preview shows the chord in the compact jazz spelling (the
+	// typed 'Dm7' canonicalizes to 'D-7').
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D-7' }).first()).toBeVisible();
 
 	// Title + save.
 	await page.getByRole('textbox', { name: 'Lead sheet title' }).fill('My First Chart');
@@ -36,11 +41,12 @@ test('creates a lead sheet with melody and chords', async ({ page }) => {
 	await page.waitForURL('**/lead-sheets/sheet-*');
 	await expect(page.getByRole('heading', { name: 'My First Chart' })).toBeVisible();
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Dm7' }).first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D-7' }).first()).toBeVisible();
 });
 
 test('rejects an unparseable chord with an inline error flash', async ({ page }) => {
 	await page.goto('/lead-sheets/entry');
+	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
 	await page.getByRole('button', { name: 'Set chord at bar 2, beat 1' }).click();
 	const chordInput = page.getByRole('textbox', { name: 'Chord at bar 2, beat 1' });
@@ -77,6 +83,7 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 
 test('adds a section with a repeat and sees it in the preview', async ({ page }) => {
 	await page.goto('/lead-sheets/entry');
+	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
 	// Open setup, add a B section, and mark the A section repeated.
 	await page.getByRole('button', { name: /Setup · Key/ }).click();

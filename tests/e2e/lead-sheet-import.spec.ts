@@ -66,9 +66,12 @@ test('iReal review flow opens the imported form in the editor', async ({ page })
 test('a real Band-in-a-Box file imports with sections and a chorus repeat', async ({ page }) => {
 	await page.goto('/lead-sheets/import/biab');
 
-	await page
-		.getByLabel('Band-in-a-Box file')
-		.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.sgu');
+	// setInputFiles only waits for attachment, not enabled-ness — wait for
+	// the hydration gate (the input is disabled until mounted) explicitly,
+	// or the change event can fire before the handler is attached.
+	const fileInput = page.getByLabel('Band-in-a-Box file');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.sgu');
 
 	await expect(page.getByText('02. Fly Me to the Moon')).toBeVisible();
 	await page.getByRole('button', { name: 'Add to book' }).click();
@@ -78,9 +81,10 @@ test('a real Band-in-a-Box file imports with sections and a chorus repeat', asyn
 	// Boxed part labels for both sections render on the chart.
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
-	// Chords in written pitch for the seeded tenor (concert Am7 → Bm7), with
-	// bar 8's beat-3 chord (concert A7 → B7) present as its own element.
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'Bm7' }).first()).toBeVisible();
+	// Chords in written pitch and compact spelling for the seeded tenor
+	// (concert Am7 → written B-7), with bar 8's beat-3 chord (concert A7 →
+	// B7) present as its own element.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'B-7' }).first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B7$/ }).first()).toBeVisible();
 });
 

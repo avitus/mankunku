@@ -76,7 +76,7 @@
 	<div class="mb-2 flex items-baseline justify-between">
 		<span class="text-sm font-medium">Chords</span>
 		<span class="text-xs text-[var(--color-text-secondary)]">
-			Written pitch, e.g. Dm7, G7(b9), Fmaj7/A — blank clears
+			Written pitch, e.g. D-7, G7(b9), FΔ7/A — blank clears
 		</span>
 	</div>
 	<div class="grid gap-2" style="grid-template-columns: repeat({pageBars.length}, minmax(0, 1fr));">

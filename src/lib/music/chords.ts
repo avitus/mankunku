@@ -9,13 +9,13 @@ export interface ChordDefinition {
 }
 
 export const CHORD_DEFINITIONS: Record<ChordQuality, ChordDefinition> = {
-	maj7: { quality: 'maj7', name: 'Major 7th', intervals: [0, 4, 7, 11], symbol: 'maj7' },
-	min7: { quality: 'min7', name: 'Minor 7th', intervals: [0, 3, 7, 10], symbol: 'm7' },
+	maj7: { quality: 'maj7', name: 'Major 7th', intervals: [0, 4, 7, 11], symbol: 'Δ7' },
+	min7: { quality: 'min7', name: 'Minor 7th', intervals: [0, 3, 7, 10], symbol: '-7' },
 	'7': { quality: '7', name: 'Dominant 7th', intervals: [0, 4, 7, 10], symbol: '7' },
-	min7b5: { quality: 'min7b5', name: 'Half-Diminished', intervals: [0, 3, 6, 10], symbol: 'm7b5' },
+	min7b5: { quality: 'min7b5', name: 'Half-Diminished', intervals: [0, 3, 6, 10], symbol: '-7b5' },
 	dim7: { quality: 'dim7', name: 'Diminished 7th', intervals: [0, 3, 6, 9], symbol: 'dim7' },
 	maj6: { quality: 'maj6', name: 'Major 6th', intervals: [0, 4, 7, 9], symbol: '6' },
-	min6: { quality: 'min6', name: 'Minor 6th', intervals: [0, 3, 7, 9], symbol: 'm6' },
+	min6: { quality: 'min6', name: 'Minor 6th', intervals: [0, 3, 7, 9], symbol: '-6' },
 	aug7: { quality: 'aug7', name: 'Augmented 7th', intervals: [0, 4, 8, 10], symbol: '7#5' },
 	sus4: { quality: 'sus4', name: 'Suspended 4th', intervals: [0, 5, 7, 10], symbol: '7sus4' },
 	sus2: { quality: 'sus2', name: 'Suspended 2nd', intervals: [0, 2, 7, 10], symbol: '7sus2' },
@@ -24,7 +24,7 @@ export const CHORD_DEFINITIONS: Record<ChordQuality, ChordDefinition> = {
 	'7b9': { quality: '7b9', name: 'Dominant b9', intervals: [0, 1, 4, 7, 10], symbol: '7b9' },
 	'7#9': { quality: '7#9', name: 'Dominant #9', intervals: [0, 3, 4, 7, 10], symbol: '7#9' },
 	'7b13': { quality: '7b13', name: 'Dominant b13', intervals: [0, 4, 7, 8, 10], symbol: '7b13' },
-	minMaj7: { quality: 'minMaj7', name: 'Minor-Major 7th', intervals: [0, 3, 7, 11], symbol: 'mMaj7' },
+	minMaj7: { quality: 'minMaj7', name: 'Minor-Major 7th', intervals: [0, 3, 7, 11], symbol: '-Δ7' },
 	aug: { quality: 'aug', name: 'Augmented', intervals: [0, 4, 8], symbol: 'aug' },
 	dim: { quality: 'dim', name: 'Diminished', intervals: [0, 3, 6], symbol: 'dim' }
 };

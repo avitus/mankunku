@@ -81,8 +81,8 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 	it('attaches quoted chords to the notes sounding at their offsets', () => {
 		const abc = leadSheetToAbc(simpleSheet());
 		// G7 lands mid-way through the held whole note, so it stacks on it.
-		expect(abc).toContain('"Dm7""G7"C8');
-		expect(abc).toContain('"Cmaj7"D4');
+		expect(abc).toContain('"D-7""G7"C8');
+		expect(abc).toContain('"CΔ7"D4');
 	});
 
 	it('fills melody gaps with rests and closes with a final barline', () => {
@@ -94,8 +94,8 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 
 	it('transposes chord roots to written pitch for a transposing instrument', () => {
 		const abc = leadSheetToAbc(simpleSheet(), TENOR);
-		expect(abc).toContain('"Em7""A7"d8');
-		expect(abc).toContain('"Dmaj7"e4');
+		expect(abc).toContain('"E-7""A7"d8');
+		expect(abc).toContain('"DΔ7"e4');
 	});
 
 	it('places two chords in a bar side by side on their own beat-aligned rests', () => {
@@ -113,9 +113,9 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 		}));
 		// Half-bar rests, each carrying its own chord — never stacked on one
 		// whole-bar rest.
-		expect(abc).toContain('"Dm7"z4 "G7"z4');
-		expect(abc).not.toContain('"Dm7""G7"');
-		expect(abc).toContain('"Cmaj7"z8');
+		expect(abc).toContain('"D-7"z4 "G7"z4');
+		expect(abc).not.toContain('"D-7""G7"');
+		expect(abc).toContain('"CΔ7"z8');
 	});
 
 	it('keeps a beat-3-only chord aligned to beat 3', () => {
@@ -140,7 +140,7 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 				})
 			]
 		}));
-		expect(abc).toContain('"Fmaj7"z8 | z8 | "G7"z8');
+		expect(abc).toContain('"FΔ7"z8 | z8 | "G7"z8');
 	});
 
 	it('emits the partsbox directive so section labels render boxed', () => {
@@ -157,29 +157,36 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 				})
 			]
 		}));
-		expect(abc).toContain('"Fmaj7"z8');
+		expect(abc).toContain('"FΔ7"z8');
 		expect(abc).toContain('"Bb7"z8');
 	});
 
-	it('prefers the raw source symbol verbatim when not transposing', () => {
+	it('canonicalizes parseable raw symbols to the compact display forms', () => {
 		const abc = leadSheetToAbc(sheet({
 			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C^7')] })]
 		}));
-		expect(abc).toContain('"C^7"');
+		expect(abc).toContain('"CΔ7"');
+	});
+
+	it('keeps an unparseable raw symbol verbatim when not transposing', () => {
+		const abc = leadSheetToAbc(sheet({
+			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C(mystery)')] })]
+		}));
+		expect(abc).toContain('"C(mystery)"');
 	});
 
 	it('re-parses and transposes the raw symbol for a transposing instrument', () => {
 		const abc = leadSheetToAbc(sheet({
 			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C^7')] })]
 		}), TENOR);
-		expect(abc).toContain('"Dmaj7"');
+		expect(abc).toContain('"DΔ7"');
 	});
 
 	it('falls back to the structured chord when the raw symbol is unparseable', () => {
 		const abc = leadSheetToAbc(sheet({
 			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C(mystery)')] })]
 		}), TENOR);
-		expect(abc).toContain('"Dmaj7"');
+		expect(abc).toContain('"DΔ7"');
 	});
 
 	it('respells F# chord roots as Gb in flat key contexts', () => {
@@ -246,8 +253,8 @@ describe('leadSheetToAbcWithMap — click anchors', () => {
 	it('anchors each pitched note, including its chord prefix, at exact char offsets', () => {
 		const { abc, noteAnchors } = leadSheetToAbcWithMap(simpleSheet());
 		expect(noteAnchors).toHaveLength(2);
-		expect(abc.slice(noteAnchors[0].startChar, noteAnchors[0].endChar)).toBe('"Dm7""G7"C8');
-		expect(abc.slice(noteAnchors[1].startChar, noteAnchors[1].endChar)).toBe('"Cmaj7"D4');
+		expect(abc.slice(noteAnchors[0].startChar, noteAnchors[0].endChar)).toBe('"D-7""G7"C8');
+		expect(abc.slice(noteAnchors[1].startChar, noteAnchors[1].endChar)).toBe('"CΔ7"D4');
 		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 1]);
 	});
 

@@ -240,17 +240,21 @@ describe('formatChordSymbol', () => {
 	const roundTrip = (s: string): string => formatChordSymbol(parseChordSymbol(s)!);
 
 	it('formats canonical spellings unchanged', () => {
-		for (const s of ['C', 'Cmaj7', 'Cm7', 'C7', 'C6', 'C69', 'Cm6', 'Cdim7', 'Caug',
-			'Caug7', 'C7sus4', 'Csus2', 'C7b9', 'C7alt', 'Cadd9', 'Am7/G', 'CmMaj7', 'Dm7b5']) {
+		for (const s of ['C', 'CΔ7', 'C-7', 'C7', 'C6', 'C69', 'C-6', 'Cdim7', 'Caug',
+			'Caug7', 'C7sus4', 'Csus2', 'C7b9', 'C7alt', 'Cadd9', 'A-7/G', 'C-Δ7', 'D-7b5']) {
 			expect(roundTrip(s)).toBe(s);
 		}
 	});
 
-	it('canonicalizes alternative spellings', () => {
-		expect(roundTrip('CM7')).toBe('Cmaj7');
-		expect(roundTrip('C^7')).toBe('Cmaj7');
-		expect(roundTrip('D-7')).toBe('Dm7');
-		expect(roundTrip('Dø')).toBe('Dm7b5');
+	it('canonicalizes alternative spellings to the compact jazz forms', () => {
+		expect(roundTrip('CM7')).toBe('CΔ7');
+		expect(roundTrip('C^7')).toBe('CΔ7');
+		expect(roundTrip('Cmaj7')).toBe('CΔ7');
+		expect(roundTrip('Cmaj9')).toBe('CΔ9');
+		expect(roundTrip('Dm7')).toBe('D-7');
+		expect(roundTrip('Dmin9')).toBe('D-9');
+		expect(roundTrip('Dø')).toBe('D-7b5');
+		expect(roundTrip('CmMaj7')).toBe('C-Δ7');
 		expect(roundTrip('C+')).toBe('Caug');
 		expect(roundTrip('C6/9')).toBe('C69');
 		expect(roundTrip('C7(b9,#11)')).toBe('C7b9#11');

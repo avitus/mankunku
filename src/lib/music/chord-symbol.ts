@@ -181,8 +181,10 @@ export function parseChordSymbol(input: string): ChordSymbol | null {
 }
 
 /**
- * Format a `ChordSymbol` as its canonical display string. Inverse of
- * `parseChordSymbol` for canonical spellings: parse(format(x)) === x.
+ * Format a `ChordSymbol` as its canonical display string, using the compact
+ * jazz spellings: Δ for the major-seventh family (CΔ7, CΔ9), a dash for the
+ * minor family (C-7, C-6, C-7b5, C-Δ7). Inverse of `parseChordSymbol` for
+ * canonical spellings: parse(format(x)) === x.
  */
 export function formatChordSymbol(cs: ChordSymbol): string {
 	let core: string;
@@ -194,16 +196,16 @@ export function formatChordSymbol(cs: ChordSymbol): string {
 		case 'maj':
 			core = extension === '' || extension === '6' || extension === '69'
 				? extension
-				: `maj${extension}`;
+				: `Δ${extension}`;
 			break;
 		case 'min':
-			core = `m${extension}`;
+			core = `-${extension}`;
 			break;
 		case 'dom':
 			core = extension || '7';
 			break;
 		case 'halfdim':
-			core = 'm7b5';
+			core = '-7b5';
 			break;
 		case 'dim':
 			core = `dim${extension}`;
@@ -212,7 +214,7 @@ export function formatChordSymbol(cs: ChordSymbol): string {
 			core = `aug${extension}`;
 			break;
 		case 'minmaj':
-			core = 'mMaj7';
+			core = '-Δ7';
 			break;
 		case 'sus4':
 			core = extension ? `${extension}sus4` : 'sus4';
