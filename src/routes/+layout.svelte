@@ -76,6 +76,7 @@
 		{ href: '/ear-training', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
 		{ href: '/library', label: 'Library', primary: false, tourKey: 'library' },
+		{ href: '/lead-sheets', label: 'Lead Sheets', primary: false, tourKey: 'lead-sheets' },
 		{ href: '/community', label: 'Community', primary: false, tourKey: 'community' },
 		{ href: '/add-licks', label: 'Add Licks', primary: false, tourKey: 'add-licks' },
 		{ href: '/progress', label: 'Progress', primary: false, tourKey: 'progress' },

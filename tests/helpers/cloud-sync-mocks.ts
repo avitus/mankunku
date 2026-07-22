@@ -444,6 +444,9 @@ function inferUpsertKey(table: string, row: CloudRow): string[] {
 		case 'lick_favorites':
 		case 'lick_adoptions':
 			return ['user_id', 'lick_id'];
+		case 'lead_sheet_favorites':
+		case 'lead_sheet_adoptions':
+			return ['user_id', 'sheet_id'];
 		default:
 			return row.id !== undefined ? ['id'] : ['user_id'];
 	}
@@ -455,6 +458,9 @@ function uniqueKeysFor(table: string): string[] | null {
 		case 'lick_favorites':
 		case 'lick_adoptions':
 			return ['user_id', 'lick_id'];
+		case 'lead_sheet_favorites':
+		case 'lead_sheet_adoptions':
+			return ['user_id', 'sheet_id'];
 		default:
 			return null;
 	}

@@ -117,7 +117,9 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		const { initLickMetadataFromCloud } =
 			await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
+		const { initLeadSheetsFromCloud } = await import('$lib/persistence/user-lead-sheets');
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+		const { initLeadSheetCommunityFromCloud } = await import('$lib/persistence/lead-sheet-community');
 		const { setOutboxClient, drainOutbox } = await import('$lib/persistence/outbox');
 
 		// Register the client the durable outbox uses to flush queued cloud writes.
@@ -132,7 +134,9 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			loadSettingsFromCloud(supabase),
 			initLickMetadataFromCloud(supabase),
 			initUserLicksFromCloud(supabase),
-			initCommunityFromCloud(supabase)
+			initLeadSheetsFromCloud(supabase),
+			initCommunityFromCloud(supabase),
+			initLeadSheetCommunityFromCloud(supabase)
 		])
 			.then(() => recomputeAllDailySummaries())
 			.then(async () => {

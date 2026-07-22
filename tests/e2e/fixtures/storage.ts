@@ -100,7 +100,7 @@ export const SETTINGS_ONBOARDED = {
  */
 export const TOUR_DISMISSED = {
 	completed: [] as string[],
-	dismissed: ['welcome', 'home', 'ear-training', 'lick-practice', 'library', 'community', 'add-licks', 'progress', 'settings', 'docs']
+	dismissed: ['welcome', 'home', 'ear-training', 'lick-practice', 'library', 'lead-sheets', 'community', 'add-licks', 'progress', 'settings', 'docs']
 };
 
 /**
@@ -170,4 +170,59 @@ export async function seedUserLicks(
 	licks: unknown[] = SAMPLE_USER_LICKS
 ): Promise<void> {
 	await seedStorage(page, { 'user-licks': licks });
+}
+
+/**
+ * Sample user-entered lead sheet: a 2-section form with melody, chords, and a
+ * repeat, exercising the multi-system chart rendering. Shape matches
+ * `LeadSheet` (src/lib/types/lead-sheet.ts); loosely typed to avoid `$lib`.
+ */
+export const SAMPLE_USER_LEAD_SHEETS: unknown[] = [
+	{
+		id: 'e2e-user-sheet-1',
+		title: 'Test Session Tune',
+		composer: 'E2E',
+		key: 'C',
+		timeSignature: [4, 4],
+		style: 'Medium Swing',
+		tags: ['e2e'],
+		sections: [
+			{
+				label: 'A',
+				bars: 2,
+				repeatStart: true,
+				repeatEnd: true,
+				notes: [
+					{ pitch: 60, duration: [1, 2], offset: [0, 1] },
+					{ pitch: 64, duration: [1, 2], offset: [1, 2] },
+					{ pitch: 67, duration: [1, 1], offset: [1, 1] }
+				],
+				harmony: [
+					{ chord: { root: 'D', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [1, 2], symbol: 'Dm7' },
+					{ chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [1, 2], duration: [1, 2], symbol: 'G7' },
+					{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [1, 1], duration: [1, 1], symbol: 'Cmaj7' }
+				]
+			},
+			{
+				label: 'B',
+				bars: 2,
+				notes: [{ pitch: 65, duration: [1, 1], offset: [0, 1] }],
+				harmony: [
+					{ chord: { root: 'F', quality: 'maj7' }, scaleId: 'major.lydian', startOffset: [0, 1], duration: [2, 1], symbol: 'Fmaj7' }
+				]
+			}
+		],
+		source: 'user'
+	}
+];
+
+/**
+ * Seed the user's lead-sheet book into localStorage. Call before page.goto().
+ * Defaults to {@link SAMPLE_USER_LEAD_SHEETS}.
+ */
+export async function seedLeadSheets(
+	page: Page,
+	sheets: unknown[] = SAMPLE_USER_LEAD_SHEETS
+): Promise<void> {
+	await seedStorage(page, { 'user-leadsheets': sheets });
 }

@@ -29,7 +29,8 @@ export type OutboxKind =
 	| 'lickMeta'
 	| 'settings'
 	| 'dailySummaries'
-	| 'userLicks';
+	| 'userLicks'
+	| 'leadSheets';
 
 interface OutboxEntry {
 	kind: OutboxKind;
@@ -125,6 +126,11 @@ async function runKind(kind: OutboxKind, supabase: SupabaseClient<Database>): Pr
 		case 'userLicks': {
 			const m = await import('./user-licks');
 			await m.flushUserLicksToCloud(supabase);
+			return;
+		}
+		case 'leadSheets': {
+			const m = await import('./user-lead-sheets');
+			await m.flushLeadSheetsToCloud(supabase);
 			return;
 		}
 		case 'dailySummaries': {

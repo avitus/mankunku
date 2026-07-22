@@ -52,4 +52,10 @@ export interface LeadSheet {
 	sections: LeadSheetSection[];
 	source: LeadSheetSource;
 	difficulty?: DifficultyMetadata;
+	/**
+	 * Storage path of the original imported PDF in the `lead-sheets` bucket
+	 * (`{uid}/{id}.pdf`), when this sheet came from a PDF import. Round-trips
+	 * through the cloud row so reconcile never clobbers it.
+	 */
+	pdfUrl?: string;
 }
