@@ -296,6 +296,38 @@ describe('non-4/4 time signatures (imported charts)', () => {
 	});
 });
 
+describe('review handoff flag (import → editor navigation)', () => {
+	it('is raised by loadFromLeadSheet so the editor mount keeps the draft', () => {
+		loadFromLeadSheet({
+			id: 'sheet-h-andf',
+			title: 'Handoff',
+			key: 'C',
+			timeSignature: [4, 4],
+			tags: [],
+			sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }],
+			source: 'imported-pdf'
+		}, INSTRUMENTS['concert']);
+		// A draft with a pre-assigned id has editingId set but NO ?edit= param —
+		// without the flag, the editor's stale-state guard wipes it on mount.
+		expect(leadSheetEntry.editingId).toBe('sheet-h-andf');
+		expect(leadSheetEntry.reviewHandoff).toBe(true);
+	});
+
+	it('is consumed by initNewLeadSheet', () => {
+		loadFromLeadSheet({
+			id: 'sheet-h-andf',
+			title: 'Handoff',
+			key: 'C',
+			timeSignature: [4, 4],
+			tags: [],
+			sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }],
+			source: 'imported-pdf'
+		}, INSTRUMENTS['concert']);
+		initNewLeadSheet();
+		expect(leadSheetEntry.reviewHandoff).toBe(false);
+	});
+});
+
 describe('buffer suspend/resume across navigation', () => {
 	it('commits and empties the shared step-entry buffer on suspend, restores on resume', () => {
 		addNote(0, 4, 'natural');

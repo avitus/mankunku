@@ -58,7 +58,14 @@ export const leadSheetEntry = $state({
 	currentPage: 0,
 	editingId: null as string | null,
 	editingSource: null as string | null,
-	editingPdfUrl: null as string | null
+	editingPdfUrl: null as string | null,
+	/**
+	 * Raised by the import flows when they hydrate a draft and navigate to
+	 * the editor. The editor mount consumes it and KEEPS the draft — without
+	 * it, a PDF draft's pre-assigned editingId (arriving with no ?edit=
+	 * param) looks exactly like stale state and gets wiped.
+	 */
+	reviewHandoff: false
 });
 
 function makeSection(label: string, bars = 8): LeadSheetSection {
@@ -201,6 +208,7 @@ export function initNewLeadSheet(): void {
 	leadSheetEntry.editingId = null;
 	leadSheetEntry.editingSource = null;
 	leadSheetEntry.editingPdfUrl = null;
+	leadSheetEntry.reviewHandoff = false;
 	loadBuffer(0, 0);
 }
 
@@ -221,6 +229,7 @@ export function loadFromLeadSheet(sheet: LeadSheet, instrument: InstrumentConfig
 	leadSheetEntry.editingId = sheet.id;
 	leadSheetEntry.editingSource = sheet.source;
 	leadSheetEntry.editingPdfUrl = sheet.pdfUrl ?? null;
+	leadSheetEntry.reviewHandoff = true;
 	loadBuffer(0, 0);
 }
 

@@ -104,6 +104,11 @@
 			} else {
 				initNewLeadSheet();
 			}
+		} else if (leadSheetEntry.reviewHandoff) {
+			// An import flow just hydrated a draft and navigated here — keep
+			// it (this is the mandatory-review handoff, not stale state).
+			leadSheetEntry.reviewHandoff = false;
+			resumeEntryBuffer();
 		} else if (leadSheetEntry.editingId !== null || leadSheetEntry.sections.length === 0) {
 			// Fresh visit (or stale edit state from a prior nav) — start clean.
 			initNewLeadSheet();
@@ -186,8 +191,13 @@
 		const editId = leadSheetEntry.editingId;
 		if (playbackModule && isPlaying) playbackModule.stopPlayback();
 		initNewLeadSheet();
-		if (editId) goto(`/lead-sheets/${editId}`);
-		else goto('/lead-sheets');
+		// An unsaved import draft carries an editingId with no stored sheet —
+		// its detail page would 404-shrug, so fall back to the book.
+		if (editId && getUserLeadSheetsLocal().some((s) => s.id === editId)) {
+			goto(`/lead-sheets/${editId}`);
+		} else {
+			goto('/lead-sheets');
+		}
 	}
 </script>
 
