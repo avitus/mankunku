@@ -78,11 +78,32 @@ describe('leadSheetToAbc — headers', () => {
 });
 
 describe('leadSheetToAbc — chord symbols over the melody', () => {
-	it('attaches quoted chords to the notes sounding at their offsets', () => {
+	it('splits a held note at chord changes so each chord sits at its beat', () => {
 		const abc = leadSheetToAbc(simpleSheet());
-		// G7 lands mid-way through the held whole note, so it stacks on it.
-		expect(abc).toContain('"D-7""G7"C8');
+		// G7 lands mid-way through the held whole note — the note splits into
+		// tied halves so the chords sit at beats 1 and 3, never stacked.
+		expect(abc).toContain('"D-7"C4-');
+		expect(abc).toContain('"G7"C4');
+		expect(abc).not.toContain('"D-7""G7"');
 		expect(abc).toContain('"CΔ7"D4');
+	});
+
+	it('splits for a lone mid-bar chord too, and keeps original ties intact', () => {
+		const abc = leadSheetToAbc(sheet({
+			sections: [
+				section({
+					bars: 2,
+					notes: [
+						{ pitch: 60, duration: [1, 1], offset: [0, 1], tied: true },
+						{ pitch: 60, duration: [1, 1], offset: [1, 1] }
+					],
+					harmony: [seg('G', '7', [1, 2], [3, 2])]
+				})
+			]
+		}));
+		// Bar 1: plain half tied into the chord's half; the original tie into
+		// bar 2 survives on the final segment.
+		expect(abc).toContain('C4- "G7"C4-');
 	});
 
 	it('fills melody gaps with rests and closes with a final barline', () => {
@@ -94,7 +115,8 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 
 	it('transposes chord roots to written pitch for a transposing instrument', () => {
 		const abc = leadSheetToAbc(simpleSheet(), TENOR);
-		expect(abc).toContain('"E-7""A7"d8');
+		expect(abc).toContain('"E-7"d4-');
+		expect(abc).toContain('"A7"d4');
 		expect(abc).toContain('"DΔ7"e4');
 	});
 
@@ -272,10 +294,13 @@ describe('leadSheetToAbc — multi-system reflow', () => {
 describe('leadSheetToAbcWithMap — click anchors', () => {
 	it('anchors each pitched note, including its chord prefix, at exact char offsets', () => {
 		const { abc, noteAnchors } = leadSheetToAbcWithMap(simpleSheet());
-		expect(noteAnchors).toHaveLength(2);
-		expect(abc.slice(noteAnchors[0].startChar, noteAnchors[0].endChar)).toBe('"D-7""G7"C8');
-		expect(abc.slice(noteAnchors[1].startChar, noteAnchors[1].endChar)).toBe('"CΔ7"D4');
-		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 1]);
+		// The chord-split whole note yields one anchor per tied segment, both
+		// mapping back to the same source note — clicking either selects it.
+		expect(noteAnchors).toHaveLength(3);
+		expect(abc.slice(noteAnchors[0].startChar, noteAnchors[0].endChar)).toBe('"D-7"C4-');
+		expect(abc.slice(noteAnchors[1].startChar, noteAnchors[1].endChar)).toBe('"G7"C4');
+		expect(abc.slice(noteAnchors[2].startChar, noteAnchors[2].endChar)).toBe('"CΔ7"D4');
+		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 0, 1]);
 	});
 
 	it('keeps anchors exact across line breaks', () => {

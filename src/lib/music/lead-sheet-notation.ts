@@ -233,9 +233,26 @@ export function leadSheetToAbcWithMap(
 			const n = sec.notes[i];
 			const off = fractionToFloat(n.offset);
 			if (off > cursor + 1e-9) pushGapRests(cursor, off);
-			inputNotes.push(n);
-			inputSources.push(flattenedNoteBase + i);
-			cursor = Math.max(cursor, off + fractionToFloat(n.duration));
+
+			// A held note also splits at interior chord changes — into TIED
+			// segments — so every chord sits over its own element at its own
+			// beat (two chords on a whole note render side by side at beats
+			// 1 and 3, never stacked). Display-only; the stored note is whole.
+			const noteEnd = off + fractionToFloat(n.duration);
+			const cuts = chordBoundaries.filter((b) => b > off + 1e-9 && b < noteEnd - 1e-9);
+			let segStart = off;
+			for (const cut of [...cuts, noteEnd]) {
+				const isFinal = cut >= noteEnd - 1e-9;
+				inputNotes.push({
+					...n,
+					offset: segStart === off ? n.offset : approxToFraction(segStart),
+					duration: approxToFraction(cut - segStart),
+					...(isFinal ? {} : { tied: true })
+				});
+				inputSources.push(flattenedNoteBase + i);
+				segStart = cut;
+			}
+			cursor = Math.max(cursor, noteEnd);
 		}
 		if (sectionEnd > cursor + 1e-9) pushGapRests(cursor, sectionEnd);
 		flattenedNoteBase += sec.notes.length;
