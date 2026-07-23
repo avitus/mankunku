@@ -1186,7 +1186,6 @@ describe('Flat Five Chromatic Up short-gap re-articulation (concert G, 2026-06-2
 
 interface BlueMonkFixture {
 	context: { tempo: number; swing: number };
-	audio: { duration: number };
 	scoring: { savedDetectedNotes: DetectedNote[] };
 }
 
@@ -1202,11 +1201,11 @@ function loadBlueMonkFixture(): BlueMonkFixture {
 }
 
 describe('Blue Monk tied final-note regression (concert C, 2026-07-23)', () => {
-	// user-1778368486249-zbxh_C as the scorer saw it, reconstructed from the
+	// The Blue Monk head as the scorer saw it, reconstructed from the
 	// diagnostic's saved noteResults (the notated phrase, before tie-merging):
 	// G A G F# F g(low) E♭ E–E, the last two E's joined by a tie.
 	const phrase: Phrase = {
-		id: 'user-1778368486249-zbxh_C',
+		id: 'blue-monk-tied-final-note',
 		name: 'Blue Monk',
 		timeSignature: [4, 4],
 		key: 'C',

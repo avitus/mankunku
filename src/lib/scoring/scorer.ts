@@ -19,7 +19,7 @@ import { scorePitch } from './pitch-scoring';
 import { scoreRhythm } from './rhythm-scoring';
 import { scoreToGrade } from './grades';
 import { fractionToFloat, midiToPitchClass } from '$lib/music/intervals';
-import { extractSoundingNotes } from '$lib/music/expression';
+import { extractSoundingNotes, type SoundingNote } from '$lib/music/expression';
 
 /**
  * Compute the onset time in seconds of an expected note,
@@ -85,11 +85,13 @@ export function scoreAttempt(
 	// matches it to the first, leaving the tied continuation MISSED (pitch 0,
 	// rhythm 0) and dragging the score down. Rests are dropped here too, which
 	// the alignment ignored anyway.
-	const expected: Note[] = extractSoundingNotes(phrase.notes).map((s) => ({
-		pitch: s.pitch,
-		offset: s.offset,
-		duration: s.duration
-	}));
+	const expected: Note[] = extractSoundingNotes(phrase.notes).map(
+		(s: SoundingNote): Note => ({
+			pitch: s.pitch,
+			offset: s.offset,
+			duration: s.duration
+		})
+	);
 
 	// Step 1: DTW alignment on raw recording-relative onset times.
 	const pairs = alignNotes(expected, detected, tempo, swing, octaveInsensitive);
