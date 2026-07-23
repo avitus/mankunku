@@ -44,6 +44,13 @@ Newest at the top.
 - The divergence-as-named-edit pattern is the point: 'matches except exactly these enumerated spots' — any NEW divergence fails, and the test file documents where the printed chart and the BIAB grid genuinely disagree.
 - 2544 unit/integration, check clean; e2e untouched (fixture not referenced there).
 
+**Then — pickup bars: the warning becomes real handling, and the adversarial workflow earns its keep:**
+
+- User: pickups are common; handle them, don't warn. Design: right-align the anacrusis inside a full first bar (the model has no partial bars — leading rests take the slack, downbeats stay downbeats); a lone pickup bar ahead of the first rehearsal mark becomes its own boxed 'Pickup' section outside the repeat.
+- First draft passed all my tests. The ultracode verify workflow (3 lenses → adversarial verify, 9 agents) then confirmed six findings, three substantive — all reproduced with scratch vitest runs, one verified against MuseScore's own C++ source: (1) len= is written on ANY irregular measure incl. split-bar-1 halves; only the <irregular> exclude-from-count tag marks a true anacrusis — my gate was too loose and silently right-aligned split first bars; (2) buildSections ended every section at the FINAL barLength, so a later meter change silently deleted the pickup section's tail-resident content — sections now end at their own measures' lengths; (3) a chord over a sub-beat pickup (eighth pickup → anchor 7/8) was invisible and irremovable in the beat-granular chord editor — pickup harmony now snaps to its containing beat.
+- The lesson worth keeping: my unit tests all exercised inputs I had imagined; the reviewers found the inputs MuseScore actually produces (split measures, meter changes, flag semantics). Format-boundary code needs adversaries who read the OTHER side's source.
+- 2555 unit/integration, 42/42 lead-sheet e2e, check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
