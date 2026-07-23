@@ -20,9 +20,10 @@ Side A is **breadth-first**. You hear a different phrase each time. Some you'll 
 The opposite exercise: you already know what you want to play; the app helps you own it in every key over a backing track.
 
 - You **tag** licks from the library (or your own user-entered ones) as "practice" licks, and each tagged lick carries one or more progression tags (`prog:ii-V-I-major`, `prog:blues`, etc.) that say which backing tracks it plays cleanly over.
-- Side B picks one of your tagged licks and rotates it through all 12 keys over a chord progression — bass, comping, drums.
-- Each key, you play the lick once per cycle. Pass it cleanly (≥ 80%) and the next cycle moves to the next key. Tempo bumps up +5 BPM after every clean key; it backs off when you stumble.
-- Once you've passed all 12 keys, the session moves to the next tagged lick.
+- Side B picks one of your tagged licks and drills it over a chord progression — bass, comping, drums. A lick starts in a single key and earns more keys over successive sessions until it reaches all 12, working outward from its entry key along the circle of fifths.
+- Each session, you play the lick once per currently-unlocked key. Pass a key cleanly (≥ 90%) and it counts toward advancement; a key below the 75% floor blocks any tempo increase or new-key unlock until you bring it back up. Clear the whole set well — session average high enough, the newest key consolidated over a couple of passes, and no key under the floor — and the next session unlocks one more key.
+- Tempo adjusts once per lick, from your average across the keys you played that session: +5 BPM at ≥ 95%, +2 at ≥ 90%, easing down by 1 in the 75–89% band, and −3 below 75%. (In single-lick Deep Practice it bumps a fixed +5 BPM only once you clear every currently-unlocked key in a round.)
+- A lick moves on to the next tagged one once you've played all of its currently-unlocked keys this session — you build a lick toward its full 12-key range one key at a time across many sessions, not all at once. (The session's time budget bounds the whole session, not each lick.)
 - A **Daily Practice** start button rotates across every progression you have tagged licks for, sized to the same time budget — useful as a daily warm-up that touches every line in your book.
 - A **Practice** button on any lick's detail page in the Library launches **Deep Practice** on that single lick — a focused round through just that lick's currently-unlocked keys, with the rotation refilling and tempo bumping each time all keys are mastered.
 

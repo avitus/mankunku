@@ -54,7 +54,7 @@ Fractions `[numerator, denominator]` represent note durations and offsets withou
 
 ## scales.ts
 
-Complete scale catalog — 35 scales across 7 families.
+Complete scale catalog — 33 scales across 7 families.
 
 ### `SCALE_CATALOG: ScaleDefinition[]`
 
@@ -128,7 +128,7 @@ Sharps (positive) or flats (negative) for a major key. E.g. `'Bb' → -2`, `'D' 
 
 ### `circleOfFifths(): PitchClass[]`
 
-Returns `['C', 'G', 'D', 'A', 'E', 'B', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F']`.
+Returns `['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']`.
 
 ### `circleOfFourths(): PitchClass[]`
 
@@ -247,13 +247,18 @@ Check if a MIDI note is within an instrument's concert range.
 
 ## key-ordering.ts
 
-Staged 12-key orderings for lick practice. The order a lick cycles through the 12 keys is chosen from a pool of "stages" unlocked at the current tempo.
+Key orderings for lick practice, in two phases: a gradually-unlocked ramp (`planUnlockedKeys`) used until a lick has earned all 12 keys, then staged 12-key orderings (`planLickKeys`) chosen from a pool of tempo-gated "stages".
+
+### `planUnlockedKeys(entryKey, unlockedCount): PitchClass[]`
+
+Build the gradually-unlocked key set for a lick that hasn't reached its full 12-key range. Adds keys easiest-to-hardest by accidental count, alternating sharp/flat neighbours of `entryKey` on the circle of fifths (entry, +1 fifth, -1 fifth, +2 fifths, ..., ±6). Returns the first `unlockedCount` keys (clamped to 1..12). For entry key C: C, G, F, D, Bb, A, Eb, E, Ab, B, Db, F#. Once `unlockedCount` reaches 12, callers switch to `planLickKeys`.
 
 ### Ordering generators
 
 | Function | Signature | Description |
 |---|---|---|
 | `circleOfFifthsFrom` | `(start) → PitchClass[]` | Rotate the standard circle of fifths so `start` is first |
+| `circleOfFourthsFrom` | `(start) → PitchClass[]` | Rotate the standard circle of fourths so `start` is first (used for ramp-up display ordering) |
 | `chromaticFrom` | `(start) → PitchClass[]` | Semitone-step ordering starting on `start` |
 | `wholeTonePairFrom` | `(start) → PitchClass[]` | The six keys of the whole-tone scale containing `start`, then the six keys of the complementary whole-tone scale |
 | `shufflePitchClasses` | `(rng?) → PitchClass[]` | Fisher–Yates shuffle, RNG-parameterizable for deterministic tests |

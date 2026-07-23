@@ -102,7 +102,7 @@ interface DifficultyProfile {
 | 6 | Enclosures | +melodic-minor | +triplet | 100–160 | all 12 |
 | 7 | Bebop Lines | +harmonic-minor | +sixteenth | 120–180 | all 12 |
 | 8 | Altered Harmony | +symmetric | +sixteenth | 140–200 | all 12 |
-| 9 | Complex Rhythm | same as 8 | all | 160–240 | all 12 |
+| 9 | Complex Rhythm | same as 8 | same as 8 | 160–240 | all 12 |
 | 10 | No Limits | same as 8 | all | 180–300 | all 12 |
 
 ### `levelToContentTier(playerLevel): number`
@@ -150,7 +150,7 @@ Difficulty display utilities — maps 1-100 values to 10 color-coded bands (1–
 interface DifficultyDisplay {
   band: number;   // 1–10
   label: string;  // e.g. "21-30"
-  color: string;  // Hex from green → red
+  color: string;  // CSS var(--difficulty-N), green → red ramp
   name: string;   // Band name
 }
 ```
@@ -161,11 +161,15 @@ Returns the **1–10 band index** for a difficulty value (1–100). Clamped to t
 
 ### `difficultyColor(difficulty): string`
 
-Returns the hex color for a difficulty value. Colors progress from green (easy) through lime / yellow / amber / orange to deep red (hardest).
+Returns the display color as a `var(--difficulty-N)` CSS custom property (N = 1–10 band), safe to drop into an inline `style` attribute. The actual hex ramp — muted green (easy) through amber to muted brick-red (hard) — is defined by theme-aware `--difficulty-N` properties in `app.css` and resolved at render time; the function never returns a literal hex string.
 
 ### `difficultyDisplay(difficulty): DifficultyDisplay`
 
 Returns `{ band, label, color, name }` for a difficulty value.
+
+### `masteryDisplay(value): DifficultyDisplay`
+
+Returns `{ band, label, color, name }` for a proficiency / mastery value (0-100), using the `var(--mastery-N)` teal→brass ramp (high reads as *accomplishment*) instead of the green→red `var(--difficulty-N)` ramp. Used on the home and progress pages for mastery / proficiency displays.
 
 | Band | Range | Name |
 |---|---|---|

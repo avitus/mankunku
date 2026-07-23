@@ -62,10 +62,11 @@ Returns `true` if an instrument (custom sampler or SoundFont) is loaded and read
 
 ```typescript
 interface PhrasePlaybackOpts {
-  skipMelody?: boolean;    // Don't schedule melody notes (backing-only rescheduling)
-  loopBacking?: boolean;   // Loop the backing track at phrase end
-  onStarted?: () => void;  // Callback fired after Transport start
-  startTick?: number;      // Explicit start tick for bar-aligned scheduling
+  skipMelody?: boolean;          // Don't schedule melody notes (backing-only rescheduling)
+  loopBacking?: boolean;         // Loop the backing track at phrase end
+  resolveAtMelodyEnd?: boolean;  // Resolve the promise 1 beat after the melody's last note (call-and-response handoffs); ignored when skipMelody is set or the phrase has no melody
+  onStarted?: () => void;        // Callback fired after Transport start
+  startTick?: number;            // Explicit start tick for bar-aligned scheduling
 }
 ```
 
@@ -84,9 +85,9 @@ Returns a promise that resolves when the phrase finishes. If `keepMetronome` is 
 
 **Note conversion:** Phrase note offsets (fractions of a whole note) are converted to quarter-note beats (`* 4`), then to Tone.js ticks (`* PPQ`), and scheduled as `"${ticks}i"` time strings.
 
-**Expression per note:** Each note gets breath-scoop detune (first note: −15 cents, low notes: −8 cents), humanized velocity (±8), and humanized timing (~±15 ms jitter).
+**Expression per note:** Each note gets breath-scoop detune (first note: −15 cents, low notes: −8 cents), humanized velocity (±8), and humanized timing (~±6 ms jitter at the 120 BPM reference, scaling inversely with tempo — e.g. ~±12 ms at 60 BPM).
 
-**Swing:** Maps `options.swing` (0.5–0.75) to `transport.swing` (0–0.5) with `swingSubdivision: '8n'`.
+**Swing:** Applied per-note inside `phraseToEvents` via `applySwingToBeats(rawBeats, swing)` (from `$lib/music/swing`), which shifts only off-beat eighths; triplets are immune by construction. `Tone.Transport.swing` is left at its default `0` (never mapped from `options.swing`) so Tone.js cannot double-shift triplet eighths whose ticks fall in an odd `8n` subdivision slot. There is no `swingSubdivision` mapping.
 
 ### `scheduleNextPhrase(phrase, options, opts?): Promise<void>`
 
@@ -170,8 +171,13 @@ interface PitchReading {
   clarity: number;       // Detection confidence (0-1)
   time: number;          // Seconds from recording start
   frequency: number;     // Raw Hz
+  rms: number;           // RMS amplitude of the analysis window (segmenter re-articulation detector)
+  hfRms?: number;        // RMS of the first-difference high-pass; high-frequency-energy proxy (optional; absent in pre-2026-06-25 diagnostic JSON)
+  warmup?: boolean;      // True if captured during the octave-stabilizer warmup window (optional)
 }
 ```
+
+> The `PitchReading` interface is defined in `pitch-frame.ts` (shared by the live rAF path and the offline replay path) and re-exported from `pitch-detector.ts`.
 
 ### `PitchDetectorHandle` interface
 
@@ -181,6 +187,7 @@ interface PitchDetectorHandle {
   stop: () => void;
   getReadings: () => PitchReading[];
   clear: () => void;
+  resetOctaveStateAt: (time: number) => void;  // Queue an octave-stabilizer reset for the next rAF tick (onset plumbing warms up each note independently)
 }
 ```
 
@@ -236,9 +243,9 @@ Clear collected onsets and synchronize the timestamp reference with the pitch de
 
 ---
 
-## onset-worklet.ts
+## onset-worklet.js
 
-`AudioWorkletProcessor` running on the audio thread for low-latency onset detection.
+`AudioWorkletProcessor` running on the audio thread for low-latency onset detection. Deliberately plain JavaScript (not TypeScript): Vite loads it as a raw asset via `new URL('./onset-worklet.js', import.meta.url)` and does not transpile it, so it keeps its algorithm in sync with `onset-core.ts` without a build step.
 
 **Algorithm (energy-based with HFC):**
 1. Compute **High-Frequency Content**: `sum(|sample[i]| * (i + 1)) / N`
@@ -265,16 +272,21 @@ Filter raw onset timestamps to only those confirmed by a pitch reading within a 
 
 An onset is dropped if no pitch reading falls within `[onset, onset + window]`. This rejects false positives from metronome bleed and other percussive environmental noise that don't produce pitched content.
 
-### `segmentNotes(readings, onsets, recordingDuration, options?): DetectedNote[]`
+### `segmentNotes(readings, onsets, recordingDuration, minNoteDuration?, onsetGuard?, minReadings?, workletOnsets?, bleedOnsets?, articulationOnsets?): DetectedNote[]`
+
+All parameters are positional (there is no `options` bag).
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `readings` | `PitchReading[]` | — | Pitch readings, sorted by time |
 | `onsets` | `number[]` | — | Resolved onset timestamps (seconds, sorted). Pass `resolveOnsets(...)` output, not raw worklet onsets. |
 | `recordingDuration` | `number` | — | Total recording duration (seconds) |
-| `options.minNoteDuration` | `number` | `0.05` | Minimum note duration to keep |
-| `options.workletOnsets` | `number[]` | — | Raw AudioWorklet onset times. Used by the same-pitch consolidation pass to tell artifact splits apart from real re-articulations. |
-| `options.bleedOnsets` | `number[]` | — | Timestamps of scheduled metronome (and demo-playback) events. Worklet onsets that land inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a metronome click caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
+| `minNoteDuration` | `number` | `0.05` | Minimum note duration to keep |
+| `onsetGuard` | `number` | `0.08` | Seconds after a segment start during which FFT-tainted readings from the previous note are skipped |
+| `minReadings` | `number` | `3` | Minimum pitch readings required to keep a segment |
+| `workletOnsets` | `number[]?` | — | Raw AudioWorklet onset times. Used by the same-pitch consolidation pass to tell artifact splits apart from real re-articulations. |
+| `bleedOnsets` | `number[]?` | — | Timestamps of scheduled metronome (and demo-playback) events. Worklet onsets that land inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a metronome click caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
+| `articulationOnsets` | `number[]?` | — | Articulation onset times used by the re-articulation detector. |
 
 **Algorithm:**
 1. Use the resolved `onsets` as segment boundaries (no pre-segmentation drop; bleed-window suppression happens in the cleanup phase below).
@@ -419,7 +431,9 @@ type DrumBufferName = 'kick' | 'ride' | 'hihat';
 ### Constants
 
 - **`TENOR_SAX_SAMPLES: SampleMap`** — 33 chromatic samples (MIDI 44–76) × 2 velocity layers, sourced from the MTG Solo Sax library (CC-BY 4.0, Universitat Pompeu Fabra). Tuning corrections compensate for A=442 Hz recording pitch.
-- **`SAMPLE_MAPS: Record<string, SampleMap>`** — Registry keyed by instrument id. Currently only `'tenor-sax'`.
+- **`ALTO_SAX_SAMPLES: SampleMap`** — Alto sax multi-samples with per-note tuning corrections.
+- **`SOPRANO_SAX_SAMPLES: SampleMap`** — Soprano sax multi-samples with per-note tuning corrections.
+- **`SAMPLE_MAPS: Record<string, SampleMap>`** — Registry keyed by instrument id. Currently `'tenor-sax'`, `'alto-sax'`, and `'soprano-sax'` (mapping to `TENOR_SAX_SAMPLES`, `ALTO_SAX_SAMPLES`, and `SOPRANO_SAX_SAMPLES` respectively).
 - **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0). Keys: `kick`, `ride`, `hihat`.
 
 ### `layerToBuffers(layer): Record<string, string>`

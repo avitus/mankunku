@@ -121,12 +121,15 @@ Phrases with fewer than 2 pitched notes are always valid.
 
 ### `rulesForDifficulty(level): Partial<ValidationRules>`
 
-| Level | maxInterval | maxConsecutiveLeaps | minStepRatio |
-|---|---|---|---|
-| 1–2 | 5 | 1 | 0.5 |
-| 3–4 | 7 | 2 | 0.4 |
-| 5–6 | 12 | 3 | 0.3 |
-| 7+ | 14 | 3 | 0.25 |
+`level` is on the 1–100 proficiency scale. Five bands, each also setting `leapRecoveryThreshold` and `minDirectionChanges`:
+
+| Level | maxInterval | maxConsecutiveLeaps | minStepRatio | leapRecoveryThreshold | minDirectionChanges |
+|---|---|---|---|---|---|
+| ≤20 | 5 | 1 | 0.5 | 5 | 1 |
+| ≤40 | 7 | 2 | 0.4 | 6 | 2 |
+| ≤60 | 10 | 2 | 0.35 | 7 | 2 |
+| ≤80 | 12 | 3 | 0.3 | 7 | 2 |
+| >80 | 14 | 3 | 0.25 | 8 | 2 |
 
 ### `isChordTone(midi, chordMidiNotes): boolean`
 
@@ -159,7 +162,7 @@ interface LibraryQuery {
 
 | Function | Signature | Description |
 |---|---|---|
-| `getAllLicks` | `() → Phrase[]` | All ~250 licks (curated + combinatorial + user-recorded) |
+| `getAllLicks` | `() → Phrase[]` | All licks: ~538 curated (452 hand-written + ~86 combinatorial) plus the user's own and adopted-community licks |
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) lookup by ID |
 | `getLicksByCategory` | `(category) → Phrase[]` | Pre-built category index |
 | `getCategories` | `() → { category, count }[]` | Categories sorted by count (descending) |

@@ -4,13 +4,15 @@
 
 ## The observation
 
-On the Progress trend graph (`src/lib/components/progress/TrendChart.svelte`), the two dotted lines — pitch complexity and rhythm complexity — move almost in lockstep. The solid "Level" line tracks between them. Although each dimension is supposed to advance independently, in real usage they hardly diverge. This document explains why.
+Pitch complexity and rhythm complexity are supposed to advance independently, but in real usage they hardly diverge — the two accuracy signals that drive them stay almost in lockstep. This document explains why.
 
-## What the trend graph actually plots
+The Progress trend graph (`src/lib/components/progress/TrendChart.svelte`) *used to* make this visible: it plotted two dotted lines (pitch complexity, rhythm complexity) and a solid "Level" midpoint. Those lines were removed — the component now renders only a single "Tonal Mastery" series (see below) — but the underlying coupling in the scoring and adaptive machinery is unchanged, and that is what this document analyses.
 
-- **Solid line — "Level"**: not a stored value. Computed on the fly as `(pitchComplexity + rhythmComplexity) / 2`. See `TrendChart.svelte:55, 225-232`.
-- **Dotted accent line — "Pitch"**: `pitchComplexity` from the end-of-day `AdaptiveState` snapshot (fallback: `avgPitch × 100`).
-- **Dotted brass line — "Rhythm"**: `rhythmComplexity` from the same snapshot (fallback: `avgRhythm × 100`).
+## What the trend graph plots now
+
+The chart renders a single **"Tonal Mastery"** polyline: the average proficiency across 12 scales + 12 keys (0-100), sourced from `DailySummary.tonalMastery` and forward-filled across days that don't refresh it. See `TrendChart.svelte:33-99` (`dataPoints`) and `:179-185` (the lone `<polyline>`).
+
+The old pitch/rhythm complexity lines and the derived "Level" midpoint no longer appear on the graph. The component comment (`TrendChart.svelte:33-36`) explains the removal: those lines "measure how hard the generated material is, not how well the user plays." The `(pitchComplexity + rhythmComplexity) / 2` average still exists, but as `currentLevel` inside the adaptive state, not on the chart — see `src/lib/difficulty/adaptive.ts:103`.
 
 ## The three coupling sources
 
@@ -30,8 +32,8 @@ A missed note is not pitch information: no pitch was heard, so there is nothing 
 
 The practice settings page feeds a single `selectedDifficulty` into both paths:
 
-- Curated lick selection filters on the combined `level` field: `library-loader.ts:88` — `l.difficulty.level <= query.maxDifficulty`.
-- The generator copies that one number into both `pitchComplexity` and `rhythmComplexity` of the generated phrase: `generator.ts:61-63`.
+- Curated lick selection filters on the combined `level` field: `library-loader.ts:124` (inside `queryLicks`) — `l.difficulty.level <= query.maxDifficulty`.
+- The generator copies that number into `pitchComplexity` directly but caps `rhythmComplexity` at 80: `generator.ts:63-64` (`pitchComplexity: options.difficulty`, `rhythmComplexity: Math.min(options.difficulty, 80)`). Below difficulty 80 the two are identical; above 80 they diverge — a minor exception to "content never selectively stresses one dimension," but only at the very top of the range.
 
 So nothing the user ever plays is deliberately pitch-easy / rhythm-hard or vice versa. Without differentiated challenge, the two accuracy signals lack the opportunity to diverge.
 
@@ -79,7 +81,7 @@ Starting from `pitchComplexity = 1, rhythmComplexity = 1`:
 | 500  | 1         | 51  | 26 |
 | 1000 | 1         | 100 (cap) | 51 |
 
-The dimensions separate maximally. The trend graph would show pitch pinned at 1, rhythm climbing to 100, and the solid Level line rising to 51 as the midpoint.
+The dimensions separate maximally: `pitchComplexity` stays pinned at 1, `rhythmComplexity` climbs to the 100 cap, and the derived `currentLevel` midpoint rises to 51.
 
 ### Conclusion
 

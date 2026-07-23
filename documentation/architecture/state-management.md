@@ -1,6 +1,6 @@
 # State Management
 
-Mankunku uses **Svelte 5 runes** for reactive state management with localStorage persistence. There are seven state modules, each a `.svelte.ts` file.
+Mankunku uses **Svelte 5 runes** for reactive state management with localStorage persistence. There are ten state modules, each a `.svelte.ts` file.
 
 ## State Modules
 
@@ -36,18 +36,25 @@ User preferences. **Persisted** to localStorage under key `mankunku:settings`.
 const defaultSettings = {
   instrumentId: 'tenor-sax',
   defaultTempo: 100,
+  masterVolume: 0.8,
   metronomeEnabled: true,
   metronomeVolume: 0.7,
+  backingTrackEnabled: true,
+  backingInstrument: 'piano' as BackingInstrument,
+  backingTrackVolume: 0.6,
+  backingStyle: 'swing' as BackingStyle,
   swing: 0.5,
   theme: 'dark' as 'dark' | 'light',
   onboardingComplete: false,
-  tonalityOverride: null             // Tonality | null
+  tonalityOverride: null as Tonality | null,   // null = auto-selected daily tonality
+  highestNote: null as number | null,          // null = instrument default
+  bleedFilterEnabled: false                     // A/B toggle for bleed-filtered scoring
 };
 export const settings = $state(loadSettings());
 ```
 
 **Key functions:**
-- `saveSettings()` — Serialize to localStorage
+- `saveSettings(supabase?)` — Persists settings to localStorage, increments the local revision counter, and (when a Supabase client is passed) enqueues a durable cloud sync via the outbox
 - `getInstrument()` — Returns the `InstrumentConfig` for the current `instrumentId`
 - `applyTheme()` — Toggles `.light` class on `<html>` based on `settings.theme`
 
@@ -73,16 +80,21 @@ Session history is bounded to 100 entries (oldest trimmed on insert).
 
 ### Library State (`src/lib/state/library.svelte.ts`)
 
-Filter state for the lick library browser. **Not persisted.**
+Filter state for the user's personal lick collection (own + adopted community licks). **Not persisted.**
 
 ```typescript
+import type { ChordProgressionType } from '$lib/types/lick-practice';
+
 export const library = $state<{
-  categoryFilter: PhraseCategory | null;
-  difficultyFilter: number | null;
   searchQuery: string;
-  selectedKey: PitchClass;
-}>();
+  progressionFilter: ChordProgressionType | null;
+}>({
+  searchQuery: '',
+  progressionFilter: null
+});
 ```
+
+The curated-archive browse filters (category, difficulty, selected key) were retired when the library refocused on the user's own book. `progressionFilter` matches on a lick's explicit `prog:*` tags only.
 
 ### History State (`src/lib/state/history.svelte.ts`)
 
@@ -99,7 +111,7 @@ Daily summaries are a **pure derivation** of two source-of-truth tables: `progre
 - `recomputeAllDailySummaries(complexitySnapshots?)` — Primary write path. Re-derives every day present in either source and persists. Called from `recordAttempt()` (ear-training) and from the lick-practice session writer after each round completes.
 - `recomputeDailySummary(date, complexitySnapshot?)` — Hot-path variant of the above filtered to a single day.
 - `deriveDailySummary(date, sessions, lickSessions, complexitySnapshot?)` — Pure helper that builds a `DailySummary` from the source rows for one day, without persisting.
-- `mergeCloudSummaries(cloudSummaries)` — Merges cloud summaries with the local cache after cloud hydration.
+- `reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[]` — Reconciles cloud summaries into the local cache after cloud hydration (per-day MAX-merge for aged-out days, local re-derivation wins for derivable days) and returns the dates the cloud must be told about for `syncAllDailySummariesToCloud`.
 - `getSummariesInRange(start, end)` — Inclusive date range query for charts.
 - `comparePeriods(currentStart, currentEnd, previousStart, previousEnd)` — Returns `{ current, previous, delta }` for week-over-week / month-over-month comparisons.
 - `getYearHeatmap()` — `Map<date, { sessionCount, avgOverall }>` sized to the last 365 days for the calendar heatmap.
@@ -143,7 +155,7 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 - `getPlannedKey(offset)`, `getUpcomingKeys()`, `getPlannedKeysForLick(lickIdx)` — Lookahead accessors for the preview strip and scroll animation.
 - `buildLickSuperPhrase(lickIdx)` — Concatenates all 12 keys (plus an optional demo in continuous mode) into one phrase so the whole lick can be scheduled in a single Tone.js pass.
 - `recordKeyAttempt(score)` — Appends a `LickPracticeKeyResult`; persists key progress and increments `passCount` only on green attempts (≥ `KEY_PROFICIENT_THRESHOLD` = 0.90).
-- `resetLickProgress(lickId, supabase?)` — Wipes one lick's per-key scores, `passCount`, and unlock count. Tags (`practice`, `prog:*`) are preserved; cloud is synced when a client is supplied. Surfaced from the post-session report (gated on try-again-band score) and the library detail page (gated on `hasLickProgress`).
+- `resetLick(phraseId)` — Wipes one lick's per-key scores, `passCount`, and unlock count (tempo → 60, one unlocked key) via `resetLickPersistence`, reassigning the reactive `progress` rune. Tags (`practice`, `prog:*`) are preserved. Local-only — no cloud sync. Surfaced from the post-session report (gated on try-again-band score) and the library detail page (gated on `hasLickProgress`).
 - `advance()` — Moves to the next key within the current lick; returns `'end-of-lick'` when out.
 - `startInterLickTransition()` — Archives results, applies the score-weighted tempo delta (and clamps the delta to ≤ 0 when any key in the session fell below `KEY_FLOOR_THRESHOLD`), decides whether to bump the unlock count via `shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount, floorHit })`, and advances to the next lick or marks `'complete'`.
 - `updateElapsedTime()`, `resetSession()`, `getSessionReport()`.
@@ -189,16 +201,60 @@ The user enters notes in their instrument's **written** pitch (what they see on 
 - `setBarCount(n)` (1–4, trims overflow; clears the selection if it now points past the end), `setDuration(id)`, `toggleTriplet()`, `toggleDotted()`, `setAccidental(acc)`, `adjustOctave(delta)`, `reset()`.
 - `loadFromPhrase(lick)` — Edit mode entry point. Hydrates the state from an existing lick (converts concert pitches back to written, restores key/bar count/name/category) and stamps `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save → Update label, skip duplicate-detection self-match, route category changes through `updateLickCategory` (preserving `prog:*` seeding), and redirect to `/library/<id>` on save. Mic-recorded licks are not editable — only `source === 'user-entered'`.
 
+### Community State (`src/lib/state/community.svelte.ts`)
+
+Filter and sort state for the `/community` browse view. **Not persisted.**
+
+```typescript
+export const community = $state<{
+  searchQuery: string;
+  categoryFilter: PhraseCategory | null;
+  difficultyFilter: number | null;
+  authorQuery: string;
+  sort: CommunitySort;                 // 'popular' | 'newest'
+}>( /* defaults */ );
+```
+
+### Tour State (`src/lib/state/tour.svelte.ts`)
+
+Guided-tour progress: which tours the user has finished, dismissed, or is currently running. **Persisted** to localStorage under key `mankunku:tour-state` (completed + dismissed IDs), with optional cloud sync.
+
+```typescript
+export const tourState = $state({
+  completedTours: new SvelteSet<string>(),  // finished naturally (clicked Done)
+  dismissedTours: new SvelteSet<string>(),  // closed before finishing
+  tourInProgress: null as string | null     // tour ID currently driving
+});
+```
+
+`completedTours` / `dismissedTours` use `SvelteSet` (not a plain `Set`) so `.add()` / `.delete()` / `.clear()` trigger reactivity for `hasSeen`-driven UI. `saveTourState(supabase?)` persists the completed/dismissed snapshot and enqueues a cloud sync when a client is passed.
+
+### Lick Suggestions State (`src/lib/state/lick-suggestions.svelte.ts`)
+
+Descriptive fallback name plus server-returned attribution candidates for the `/entry` page. **Not persisted.**
+
+```typescript
+export const suggestions = $state<SuggestionsState>({
+  fallbackName: '',                    // computed locally, always populated
+  matches: [],                         // arrive asynchronously, may be empty
+  loading: false,
+  pickedFromSuggestion: null           // name the user picked; cleared on reset
+});
+```
+
+The fallback name is computed locally from the entered phrase; the `matches` (quote / wjazzd attribution candidates) arrive asynchronously from the server and may be empty.
+
 ## Persistence Layer (`src/lib/persistence/storage.ts`)
 
 Thin wrapper around `localStorage` with JSON serialization:
 
-- All keys prefixed with `mankunku:` to avoid collisions
-- `save<T>(key, value)` — `JSON.stringify` + `setItem`
-- `load<T>(key)` — `getItem` + `JSON.parse`, returns `null` on missing/invalid
-- `remove(key)` — Remove a single key
-- `listKeys()` — All mankunku-prefixed keys
-- `clearAll()` — Remove all mankunku data
+- All keys carry the outer `mankunku:` prefix. All user data is additionally namespaced under the active user via `namespace.ts` as `mankunku:u:<uid>:<key>` (with a separate anonymous bucket), so switching accounts needs no destructive wipe. A handful of GLOBAL control keys (`__active`, `__schema`, `__lastUserId`) keep the bare `mankunku:` prefix.
+- `save<T>(key, value, syncCallback?)` — `JSON.stringify` + `setItem` into the ACTIVE user's namespace; invokes `syncCallback` after a successful local write
+- `load<T>(key)` — `getItem` + `JSON.parse` from the active user's namespace, returns `null` on missing/invalid
+- `remove(key)` — Remove a single key from the active user's namespace
+- `saveGlobal<T>(key, value)` / `loadGlobal<T>(key)` — Read/write the bare-prefixed GLOBAL control keys (not for user data)
+- `listKeys()` — Logical keys in the ACTIVE user's namespace only (prefix stripped; global keys excluded)
+- `clearAll()` — Clears only the active user's namespace; does NOT touch other users' buckets or the global control keys
 
 Error handling: `save` warns on failure (e.g., quota exceeded), `load` returns `null` on parse errors.
 
@@ -213,6 +269,9 @@ Unlike auto-saving stores, Mankunku uses **explicit save calls**. This avoids ex
 - **Library**: Never persisted (filter state resets on navigation)
 - **Lick Practice**: Live session state is ephemeral; per-lick/per-key progress is persisted by `persistence/lick-practice-store.ts` after each passed key, tempo adjustment, and session end
 - **Step Entry**: Never persisted — drafts are exported to `persistence/user-licks.ts` when the user saves
+- **Community**: Never persisted (browse filter/sort state resets on navigation)
+- **Tour**: Saved via `saveTourState()` whenever a tour is completed or dismissed; cloud-synced when signed in
+- **Lick Suggestions**: Never persisted (per-draft suggestion state, cleared on reset)
 
 ## Svelte 5 Runes Pattern
 

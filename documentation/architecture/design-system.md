@@ -20,8 +20,8 @@ The guiding principle is **subtle but unmissable**. The domain color must be obv
 
 Routes that belong to the ear-training domain:
 
-- `/practice` — main ear-training session
-- `/practice/settings` — settings specific to ear-training practice
+- `/ear-training` — main ear-training session (`/practice` is a 308 redirect to it)
+- `/ear-training/settings` — settings specific to ear-training practice (`/practice/settings` 308-redirects here)
 - `/scales` — scale practice (ear-training subset)
 - `/record` — recording mode for capturing user phrases
 - `/progress` — session history & adaptive difficulty
@@ -176,7 +176,7 @@ Everything else uses the Tailwind default sans stack. No custom webfont for body
 
 ### Peripheral accent stripe
 
-A 0.5px-tall stripe at the top of non-neutral pages, rendered in `bg-[var(--color-accent)]`. It's a peripheral cue — the eye registers it without dwelling on it. On neutral pages there is no stripe.
+A thin stripe (`h-0.5`, 2px = 0.125rem) at the top of non-neutral pages, rendered in `bg-[var(--color-accent)]`. It's a peripheral cue — the eye registers it without dwelling on it. On neutral pages there is no stripe.
 
 ## Single-variable implementation
 
@@ -191,7 +191,7 @@ const dataDomain = $derived.by(() => {
     const path = page.url?.pathname ?? '/';
     if (path.startsWith('/lick-practice')) return 'lick-practice';
     if (
-        path.startsWith('/practice') ||
+        path.startsWith('/ear-training') ||
         path.startsWith('/scales') ||
         path.startsWith('/record') ||
         path.startsWith('/progress')
@@ -200,7 +200,7 @@ const dataDomain = $derived.by(() => {
 });
 ```
 
-It's applied as `data-domain={dataDomain}` on the layout's outermost element. The grain overlay and peripheral stripe both live on that same wrapper.
+It's applied as `data-domain={dataDomain}` on the layout's outermost element. The grain overlay and peripheral stripe both live on that same wrapper. (`/practice` and `/practice/settings` are not referenced in this client domain logic — they exist only as server-side 308 redirects to `/ear-training` and `/ear-training/settings`.)
 
 ### CSS (actual, as in `src/app.css`)
 
@@ -265,7 +265,7 @@ The only thing that changes per domain is the **accent color**, applied via the 
 ## Edge cases
 
 - **`/progress`** — classified as ear-training because it shows the global ear-training session history. If lick-practice gets its own long-term progress page, that route can opt in separately.
-- **`/library` and `/add-licks`** — neutral, even though `LickCard` may display a green-star "practice" tag. That tag identifies a lick's category, not the page chrome.
+- **`/library` and `/add-licks`** — neutral (no domain accent), even though `LickCard` renders per-lick metadata such as category, difficulty, and accent-colored progression-type chips (which inherit the domain accent — slate on the neutral library page). Those chips identify a lick's musical attributes, not the page chrome.
 - **`/diagnostics`** — neutral.
 - **Light mode** — every override has a `:root.light [data-domain='…']` equivalent so themes stay coherent.
 
@@ -287,8 +287,8 @@ After changes, walk through these surfaces and confirm the accent is correct:
 | Surface                          | Domain        | Expected accent                     |
 | -------------------------------- | ------------- | ----------------------------------- |
 | `/` home                         | neutral       | slate                               |
-| `/practice` (mid-session)        | ear-training  | peacock teal                        |
-| `/practice/settings`             | ear-training  | peacock teal                        |
+| `/ear-training` (mid-session)    | ear-training  | peacock teal                        |
+| `/ear-training/settings`         | ear-training  | peacock teal                        |
 | `/scales`                        | ear-training  | peacock teal                        |
 | `/progress`                      | ear-training  | peacock teal                        |
 | `/lick-practice` setup           | lick-practice | terracotta                          |
