@@ -717,3 +717,20 @@ Newest at the top.
 **Notes:**
 
 - Old per-topic memory files at the default location are left in place as historical artifacts. They're no longer referenced by the stub, so they don't load into context. The user can prune them at will.
+
+## 2026-07-23 (cont.) — Deterministic PDF geometry: exact bar counts, text-layer chords
+
+**What happened:**
+
+- Built `pdf-geometry.ts` into a working page analyzer and validated it EXACT against all five reference charts: systems 10/7/5/6/8, bars 41/28/32/25/33, per-system distributions matching the print.
+- The road there was a sequence of real-world discriminations, each found by looking at overlay renders rather than tuning blind:
+  - pdf.js rendered music glyphs as tofu boxes — Playwright's Chromium lacks `Math.sumPrecise` (used 14× in pdf.js 6's worker font code). Fix: Kahan polyfill + fake-worker mode (worker module imported on the main thread). **The import page will need the same polyfill.**
+  - Staff finding: five-line matching had to become an arithmetic-progression chain at the page's modal interline (Audiveris's scale idea) — long beams inside dense systems add dark rows that broke a naive evenness window.
+  - Barlines vs stems: the decisive battery is Audiveris-shaped — continuous spanning run (a tie arc under a notehead defeats plain gap-checking!), ≤0.3 IL internal gap, ≤0.9 IL contiguous extension beyond the staff (winged repeats pass at ~0.5 IL, stem-to-beam ink fails), off-line chunk mass at ±0.4 IL, cluster width ≤2.2 IL (final thin+thick pair ~1.6 IL), min bar width 3 IL with clean-column preference.
+  - Ink is black-only (`max(R,G,B) < 128`) so colored chord-tone highlights don't flood profiles.
+- Built `pdf-text-chords.ts`: chords/marks/endings/printed-bar-numbers from the text layer. Two MuseScore export shapes: MuseJazz (PUA glyphs INSIDE items — "G7" is really GΔ7 with U+E18A; superscript alterations as separate raised items; bold = double-print) and plain-font (full Unicode single items; marks in own font). Probe: chord counts match print exactly, sequences textbook-correct.
+- Audiveris research agent delivered; adopted #1 (interline units) and #3 (barline battery) directly. #2 (per-bar rhythm-sum validation as the LLM QA loop) queued for the route integration.
+
+**Next:** per-system route mode (image crop + known barCount + text-layer chords → model transcribes melody only), orchestrator in the import page with legacy fallback, first-bar beat clamp for chord placement, re-record fixtures.
+
+**Independent take:** the vision model was being asked to do four jobs (count, structure, chords, melody) and was only unreliable at the first three — which are exactly the mechanically-solvable ones. The division of labor now matches each tool's strength. The tofu-font discovery was luck disguised as diligence: had I tuned thresholds against those renders, every constant would have been calibrated to garbage. Look at the actual pixels before believing any metric computed from them.
