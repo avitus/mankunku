@@ -243,8 +243,12 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 		const voice = xmlText(block, 'voice');
 		let cursor = addFractions(measureStart, pad);
 		if (voice) {
+			// Spanner is matched (and discarded) so that the <location> inside a
+			// voice-level slur/text-line/hairpin's <next>/<prev> — spanner
+			// ADDRESSING, not time — never reads as a cursor jump. Bare
+			// voice-level <location> elements remain genuine jumps.
 			const elements = voice.matchAll(
-				/<(KeySig|TimeSig|RehearsalMark|SystemText|Tempo|Harmony|Chord|Rest|Tuplet|location)\b[^>]*>[\s\S]*?<\/\1>|<endTuplet\/>/g
+				/<(KeySig|TimeSig|RehearsalMark|SystemText|Tempo|Harmony|Chord|Rest|Tuplet|Spanner|location)\b[^>]*>[\s\S]*?<\/\1>|<endTuplet\/>/g
 			);
 			for (const el of elements) {
 				const tag = el[1] ?? 'endTuplet';
@@ -387,7 +391,8 @@ function harmonyText(
 }
 
 interface SectionBuilder {
-	label: string;
+	/** Rehearsal-mark label, or null until an auto letter is assigned. */
+	label: string | null;
 	firstMeasure: number;
 	measureCount: number;
 	startRepeat: boolean;
@@ -402,12 +407,20 @@ function buildSections(
 	harmonies: HarmonyEvent[],
 	warnOnce: (msg: string) => void
 ): LeadSheetSection[] {
-	// Split at rehearsal marks; everything before the first mark is 'A'.
+	// Sections split at rehearsal marks AND at repeat barlines: a |: opens a
+	// section and a :| closes one, so a simple repeat is always representable
+	// (sections repeat as whole units). Unmarked sections get running letters.
+	const startsSection = (i: number): boolean =>
+		i === 0 ||
+		measures[i].rehearsalMark !== null ||
+		measures[i].startRepeat ||
+		measures[i - 1].endRepeat;
+
 	const builders: SectionBuilder[] = [];
 	measures.forEach((m, i) => {
-		if (i === 0 || m.rehearsalMark !== null) {
+		if (startsSection(i)) {
 			builders.push({
-				label: m.rehearsalMark ?? String.fromCharCode(65 + builders.length),
+				label: m.rehearsalMark,
 				firstMeasure: i,
 				measureCount: 0,
 				startRepeat: false,
@@ -419,20 +432,13 @@ function buildSections(
 		const current = builders[builders.length - 1];
 		current.measureCount += 1;
 		current.endOffset = addFractions(m.startOffset, m.length);
-
-		if (m.startRepeat) {
-			if (i === current.firstMeasure) current.startRepeat = true;
-			else warnOnce('A repeat start inside a section was dropped — sections repeat as whole units.');
-		}
-		if (m.endRepeat) {
-			const isLast = i + 1 === measures.length || measures[i + 1].rehearsalMark !== null;
-			if (isLast) current.endRepeat = true;
-			else warnOnce('A repeat end inside a section was dropped — sections repeat as whole units.');
-		}
+		// Both flags land on section boundaries by construction now.
+		if (m.startRepeat) current.startRepeat = true;
+		if (m.endRepeat) current.endRepeat = true;
 	});
 
-	// A lone anacrusis bar ahead of the first rehearsal mark sits outside the
-	// form — label it as the pickup rather than a colliding auto 'A'.
+	// A lone anacrusis bar ahead of the first section boundary sits outside
+	// the form — label it as the pickup rather than consuming a letter.
 	if (
 		measures[0]?.pickup &&
 		measures[0].rehearsalMark === null &&
@@ -440,6 +446,32 @@ function buildSections(
 		builders[0].measureCount === 1
 	) {
 		builders[0].label = 'Pickup';
+	}
+
+	// A lone :| with no |: means "repeat from the top" (or from the bar after
+	// the previous :|) — synthesize the opening so playback matches the page.
+	// "The top" is the top of the FORM: a pickup bar stays outside the repeat.
+	let spanStart = builders[0]?.label === 'Pickup' ? 1 : 0;
+	let hasStart = false;
+	builders.forEach((b, i) => {
+		if (b.startRepeat) hasStart = true;
+		if (b.endRepeat) {
+			if (!hasStart) builders[spanStart].startRepeat = true;
+			spanStart = i + 1;
+			hasStart = false;
+		}
+	});
+
+	// Unmarked sections get the next letter NOT already taken by a rehearsal
+	// mark or an earlier auto label — a colliding duplicate would be
+	// suppressed by the notation's consecutive-part-label logic.
+	const usedLabels = new Set(builders.map((b) => b.label).filter((l) => l !== null));
+	for (const b of builders) {
+		if (b.label !== null) continue;
+		let code = 65; // 'A'
+		while (usedLabels.has(String.fromCharCode(code))) code++;
+		b.label = String.fromCharCode(code);
+		usedLabels.add(b.label);
 	}
 
 	return builders.map((b) => {
@@ -456,6 +488,14 @@ function buildSections(
 		const changes = harmonies
 			.filter((h) => inRange(h.offset))
 			.filter((h, i, arr) => i + 1 === arr.length || compareFractions(arr[i + 1].offset, h.offset) !== 0);
+
+		// Carry the in-effect chord across the section boundary: a section
+		// opened by a repeat barline (or a mark placed mid-harmony) restates
+		// the active chord at its start so coverage survives the split.
+		const active = harmonies.filter((h) => compareFractions(h.offset, b.startOffset) < 0).pop();
+		if (active && (changes.length === 0 || compareFractions(changes[0].offset, b.startOffset) > 0)) {
+			changes.unshift({ offset: b.startOffset, text: active.text });
+		}
 		const harmony = changes.flatMap((h, i) => {
 			const end = i + 1 < changes.length ? changes[i + 1].offset : b.endOffset;
 			const duration = subtractFractions(end, h.offset);
@@ -472,7 +512,7 @@ function buildSections(
 		});
 
 		return {
-			label: b.label,
+			label: b.label ?? 'A',
 			bars: b.measureCount,
 			...(b.startRepeat ? { repeatStart: true } : {}),
 			...(b.endRepeat ? { repeatEnd: true } : {}),

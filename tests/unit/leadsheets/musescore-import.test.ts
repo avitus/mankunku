@@ -163,6 +163,57 @@ describe('parseMscx — basics', () => {
 		expect(notes[1].tied).toBeUndefined();
 	});
 
+	it('ignores voice-level spanner location addressing (no phantom time jumps)', () => {
+		// Slurs, text lines, hairpins etc. sit at VOICE level and carry
+		// <next>/<prev><location><fractions> — spanner ADDRESSING, not time.
+		// Consuming those as cursor jumps shifted every later note in the bar
+		// (the "extra rest before the whole note" bug).
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${HARMONY(15, '-7')}
+          <Spanner type="TextLine">
+            <TextLine>
+              <lineWidth>8</lineWidth>
+              </TextLine>
+            <next>
+              <location>
+                <measures>5</measures>
+                <fractions>1/4</fractions>
+                </location>
+              </next>
+            </Spanner>
+          ${CHORD(70, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Spanner type="Slur">
+            <next><location><fractions>1/8</fractions></location></next>
+            </Spanner>
+          ${CHORD(62, 'half')}
+          <Spanner type="Slur">
+            <prev><location><fractions>-1/8</fractions></location></prev>
+            </Spanner>
+          ${CHORD(63, 'half')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const sec = sheets[0].sections[0];
+		expect(sec.notes.map((n) => n.offset)).toEqual([
+			[0, 1],
+			[1, 1],
+			[3, 2]
+		]);
+		expect(sec.harmony[0].symbol).toBe('G-7');
+		expect(sec.harmony[0].startOffset).toEqual([0, 1]);
+	});
+
 	it('scales tuplet members by the tuplet ratio', () => {
 		const { sheets } = parseMscx(mscx({
 			staves: `
@@ -482,7 +533,7 @@ describe('parseMscx — structure', () => {
           ${content}
         </voice>
       </Measure>`;
-		const { sheets } = parseMscx(mscx({
+		const { sheets, warnings } = parseMscx(mscx({
 			staves: `
     <Staff id="1">
       ${measure(`<TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
@@ -501,15 +552,228 @@ describe('parseMscx — structure', () => {
       ${measure(CHORD(65, 'whole'))}
     </Staff>`
 		}));
+		expect(warnings).toEqual([]);
 		const sheet = sheets[0];
+		// The :| after B's first bar splits B — repeats are always kept, with
+		// sections cut to fit them.
 		expect(sheet.sections.map((s) => [s.label, s.bars])).toEqual([
 			['A', 2],
-			['B', 2]
+			['B', 1],
+			['C', 1]
 		]);
 		expect(sheet.sections[0].repeatStart).toBe(true);
-		// The endRepeat sits on the B section's first bar — it cannot land on
-		// a section boundary here, so it is reported rather than misplaced.
+		expect(sheet.sections[1].repeatEnd).toBe(true);
 		expect(sheet.sections[1].notes[0].pitch).toBe(64);
+		expect(sheet.sections[2].notes[0].pitch).toBe(65);
+	});
+
+	it('splits an unmarked chart at repeat barlines so a simple repeat survives', () => {
+		const measure = (content: string, attrs = ''): string => `
+      <Measure${attrs}>
+        <voice>
+          ${content}
+        </voice>
+      </Measure>`;
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      ${measure(`<TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}`)}
+      <Measure>
+        <startRepeat/>
+        <voice>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+      ${measure(CHORD(64, 'whole'))}
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          ${CHORD(65, 'whole')}
+        </voice>
+      </Measure>
+      ${measure(CHORD(67, 'whole'))}
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const sheet = sheets[0];
+		expect(sheet.sections.map((s) => [s.label, s.bars, s.repeatStart ?? false, s.repeatEnd ?? false])).toEqual([
+			['A', 1, false, false],
+			['B', 3, true, true],
+			['C', 1, false, false]
+		]);
+		// Content lands in the right sections with section-local offsets.
+		expect(sheet.sections[1].notes.map((n) => [n.pitch, n.offset])).toEqual([
+			[62, [0, 1]],
+			[64, [1, 1]],
+			[65, [2, 1]]
+		]);
+	});
+
+	it('carries the in-effect chord across a repeat-barline split', () => {
+		// A chord stated once before a |: must still govern the repeated span
+		// and everything after — a section cut cannot silence the backing.
+		const measure = (content: string): string => `
+      <Measure>
+        <voice>
+          ${content}
+        </voice>
+      </Measure>`;
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      ${measure(`<TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${HARMONY(14, 'maj7')}
+          ${CHORD(60, 'whole')}`)}
+      <Measure>
+        <startRepeat/>
+        <voice>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          ${CHORD(64, 'whole')}
+        </voice>
+      </Measure>
+      ${measure(CHORD(65, 'whole'))}
+    </Staff>`
+		}));
+		const [a, b, c] = sheets[0].sections;
+		expect(a.harmony.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
+			['CΔ7', [0, 1], [1, 1]]
+		]);
+		expect(b.harmony.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
+			['CΔ7', [0, 1], [2, 1]]
+		]);
+		expect(c.harmony.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
+			['CΔ7', [0, 1], [1, 1]]
+		]);
+	});
+
+	it('auto letters skip labels taken by real rehearsal marks', () => {
+		const measure = (content: string): string => `
+      <Measure>
+        <voice>
+          ${content}
+        </voice>
+      </Measure>`;
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      ${measure(`<TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}`)}
+      <Measure>
+        <startRepeat/>
+        <voice>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          ${CHORD(64, 'whole')}
+        </voice>
+      </Measure>
+      ${measure(`<RehearsalMark><text>B</text></RehearsalMark>
+          ${CHORD(65, 'whole')}`)}
+    </Staff>`
+		}));
+		// The repeated span must not steal the user's real 'B' — duplicate
+		// labels also collapse in the notation's part-label suppression.
+		expect(sheets[0].sections.map((s) => s.label)).toEqual(['A', 'C', 'B']);
+	});
+
+	it('a pickup ahead of a repeat still leaves the form starting at A', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(55, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure>
+        <startRepeat/>
+        <voice>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(sheets[0].sections.map((s) => s.label)).toEqual(['Pickup', 'A']);
+	});
+
+	it('an orphan :| repeats from the top, as MuseScore plays it', () => {
+		const measure = (content: string): string => `
+      <Measure>
+        <voice>
+          ${content}
+        </voice>
+      </Measure>`;
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      ${measure(`<TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}`)}
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+      ${measure(CHORD(64, 'whole'))}
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const [a, b] = sheets[0].sections;
+		// A lone :| with no |: means "repeat from the top" — synthesize the
+		// opening so playback honors what the barline shows.
+		expect(a.repeatStart).toBe(true);
+		expect(a.repeatEnd).toBe(true);
+		expect(b.repeatStart).toBeUndefined();
+		expect(b.repeatEnd).toBeUndefined();
+	});
+
+	it('an orphan :| after a pickup repeats the form, not the pickup', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(55, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <RehearsalMark><text>A</text></RehearsalMark>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		const [pickup, a] = sheets[0].sections;
+		expect(pickup.label).toBe('Pickup');
+		expect(pickup.repeatStart).toBeUndefined();
+		expect(a.repeatStart).toBe(true);
+		expect(a.repeatEnd).toBe(true);
 	});
 
 	it('takes only the first staff of a multi-staff score', () => {
