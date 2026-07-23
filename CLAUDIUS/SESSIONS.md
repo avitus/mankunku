@@ -64,6 +64,13 @@ Newest at the top.
 - Wired into BOTH renderers — leadSheetToAbcWithMap and phraseToAbcWithMap. The 'phraseToAbc untouched' boundary from the original build was a feature-scoping line, not an invariant; licks over ii-Vs benefit identically, and zero existing tests had pinned a chord-clashing spelling (2570/2570 green without touching a single old expectation — decent evidence the change only adds information where none was asserted).
 - Verified on the real ATTYA: '"A7"G2^c4 G2 | "DΔ7"^F8-' where _d/_G rendered before. 63/63 display-affected e2e.
 
+**Then — the user overrules the Concert default for MuseScore, and the file explains why they're right:**
+
+- 'Not defaulting to Bb for MuseScore when my instrument is tenor.' My original reasoning ('MuseScore self-describes via transposeChromatic') was only half true: the user's ATTYA chart is a written-pitch tenor chart TYPED INTO A NON-TRANSPOSING PART — the file claims concert, key sig Bb, but reading it on tenor sounds concert Ab, the standard ATTYA key. A zero declaration is a claim, not a fact; it's only as trustworthy as the author, exactly like paper.
+- Resolution: FILE-AWARE default. Page loads showing the instrument family (Bb for tenor); after parsing, re-default from the file's declaration — nonzero transposeChromatic → Concert (parser already converted; prevents double-shifting true tenor parts like Fly Me), zero → instrument default. Manual choice never overridden (sourceTouched). Parser exposes declaredTransposition.
+- The design lesson: 'trust the file's metadata' and 'distrust the file's metadata' are both wrong as absolutes — the right rule is trust POSITIVE declarations (someone chose a tenor part on purpose) and distrust DEFAULTS (transposition 0 is what you get by not thinking about it). Defaults encode the tool's assumption, not the author's intent.
+- 2571 unit/integration, 24/24 import e2e; new committed fixture written-pitch-tenor-chart.mscx pins the claims-concert path end to end.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
