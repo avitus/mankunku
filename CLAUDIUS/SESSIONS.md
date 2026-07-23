@@ -89,6 +89,14 @@ Newest at the top.
 - Wrote the wrong expectation once: put repeatEnd on section A when the :| sits on B's bar — the span |: A…B :| crosses the boundary and the flags correctly land on different sections (flatten handles it; round-2 refuter had verified). The test suite caught my error, not the code's.
 - Real-file result: title 'Autumn Leaves' from the frame, marks C/A/D/B respected, 8-bar repeat intact, volta warning surfaced, concert E-minor changes from the tenor's -14. 2581 unit/integration, 24/24 import e2e.
 
+**Then — volta endings, rendered like a chart, and the screenshot that caught a second bug:**
+
+- Voltas → the model's existing ending flags (flatten already expands them; the model was ready since Phase 1). Start anchors carry <Volta><endings> + span in <next><measures>; covered measures become ending sections at boundaries, inheriting the body's label. Read from the top staff like all system structure.
+- Rendering (the user's explicit emphasis): [1 flows INLINE after the body's last bar; [2 opens a fresh line padded with invisible x-rests so its bracket stacks directly below [1. Line-column tracking across sections; padding = ending-1's start column in bars. Verified VISUALLY — playwright screenshot of the real chart read back with the Read tool. The screenshot is what honored 'pay particular attention to rendering': the ABC string looked right long before the page did.
+- And the screenshot caught an unrelated pre-existing bug at first glance: written-A chart showing Ab-7b5/Db7b9. Fixed as its own commit: displayPitchClass respells canonical flat roots to sharp names when DIATONIC to a sharp key (G#-7b5 in A; chromatic Bb7 stays flat); chordSpellingPreference now takes display spellings and letter-derives the pc, so melody accidentals agree with the printed chord symbol.
+- The principle pair: canonical storage never changes; display respelling is a pure key-context function at the last mile. And: a rendering feature isn't done until someone LOOKS at pixels — two of this session's bugs were invisible in ABC text and obvious in the PNG.
+- 2587 unit/integration, 60/60 lead-sheet e2e, check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
