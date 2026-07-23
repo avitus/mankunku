@@ -37,6 +37,13 @@ Newest at the top.
 - The list importers keep the raw parse and $derive the transposed sheets, so the selector can be corrected after parsing. The closing integration test: the recorded PDF extraction (printed tenor D) through the Bb transform equals the user's hand-entered concert-C sheet — chords A-7 D-7 G7 CΔ7… and opening pitches exactly.
 - 2535 unit/integration, 231/231 e2e full run, check clean.
 
+**Then — the dev data layer becomes the fixture: a three-importer fidelity suite:**
+
+- User fixed the bar-4 note the MuseScore import had exposed, and asked for tests validating MuseScore, PDF, and BIAB conversions against their dev data. Checked the local Supabase stack first (empty — the sheet is localStorage-only), so they pasted the export; fixture refreshed.
+- `fly-me-to-the-moon-fidelity.test.ts`: each importer validated at its source's full fidelity. BIAB = EXACT equality (form, repeat, every change with beat+duration — the dev harmony IS this file's grid). MuseScore = melody note-for-note both sections (splice workaround deleted — observed RED first against the fixed fixture), harmony via three NAMED print-divergence edits (bar-12 single A7, no B turnaround, bar-8 anchored at beat 4). PDF = chords via the same two print edits at the printed beat 3, opening phrase exact.
+- The divergence-as-named-edit pattern is the point: 'matches except exactly these enumerated spots' — any NEW divergence fails, and the test file documents where the printed chart and the BIAB grid genuinely disagree.
+- 2544 unit/integration, check clean; e2e untouched (fixture not referenced there).
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
