@@ -1,0 +1,557 @@
+{
+ "sheet": {
+  "id": "sheet-1784835927750-80ef",
+  "title": "There Will Never Be Another You",
+  "key": "F",
+  "timeSignature": [
+   4,
+   4
+  ],
+  "tags": [],
+  "sections": [
+   {
+    "label": "A",
+    "bars": 8,
+    "notes": [],
+    "harmony": [
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "min7b5"
+      },
+      "scaleId": "major.locrian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "E-7b5"
+     },
+     {
+      "chord": {
+       "root": "A",
+       "quality": "7b9"
+      },
+      "scaleId": "melodic-minor.altered",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "A7b9"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "D-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "C-7"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "F7"
+     }
+    ]
+   },
+   {
+    "label": "B",
+    "bars": 8,
+    "notes": [],
+    "harmony": [
+     {
+      "chord": {
+       "root": "Bb",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "BbΔ7"
+     },
+     {
+      "chord": {
+       "root": "Eb",
+       "quality": "7#11"
+      },
+      "scaleId": "melodic-minor.lydian-dominant",
+      "startOffset": [
+       1,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "Eb9#11"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "D-7"
+     },
+     {
+      "chord": {
+       "root": "G",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "G7"
+     },
+     {
+      "chord": {
+       "root": "G",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "G-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "C7"
+     }
+    ]
+   },
+   {
+    "label": "A",
+    "bars": 8,
+    "notes": [],
+    "harmony": [
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "min7b5"
+      },
+      "scaleId": "major.locrian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "E-7b5"
+     },
+     {
+      "chord": {
+       "root": "A",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "A7"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "D-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "C-7"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "F7"
+     }
+    ]
+   },
+   {
+    "label": "C",
+    "bars": 8,
+    "notes": [],
+    "harmony": [
+     {
+      "chord": {
+       "root": "Bb",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "BbΔ7"
+     },
+     {
+      "chord": {
+       "root": "Eb",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       1,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "Eb9"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "B",
+       "quality": "min7b5"
+      },
+      "scaleId": "major.locrian",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "B-7b5"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "7b9"
+      },
+      "scaleId": "melodic-minor.altered",
+      "startOffset": [
+       7,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "E7b9"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       9,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "E7"
+     },
+     {
+      "chord": {
+       "root": "A",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       5,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "A-7"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       11,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "D7"
+     },
+     {
+      "chord": {
+       "root": "G",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "G-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       13,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "C7"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj6"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "F"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       15,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "C7"
+     }
+    ]
+   }
+  ],
+  "source": "imported-pdf",
+  "composer": "Warren / Gordon"
+ },
+ "warnings": []
+}
