@@ -113,11 +113,13 @@ export function extractSystemTexts(
 		placed.push({ ...it, text, bold: false });
 	}
 
-	// Assign items to the system whose above-staff zone holds them.
+	// Assign items to the system whose above-staff zone holds them. The
+	// zone reaches 8.5 interlines up: rehearsal marks ride above the chord
+	// row and land ~6 interlines out on chord-crowded systems.
 	const zoneOf = (p: Placed): number => {
 		for (let i = 0; i < systems.length; i++) {
 			const { band, interline } = systems[i];
-			if (p.y >= band.top - 6 * interline && p.y <= band.top - 0.3 * interline) return i;
+			if (p.y >= band.top - 8.5 * interline && p.y <= band.top - 0.3 * interline) return i;
 		}
 		return -1;
 	};

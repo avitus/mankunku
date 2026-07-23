@@ -275,11 +275,14 @@ export function findBarlines(
 /**
  * Map a chord symbol's x-position to its bar and nearest half-beat within a
  * system whose barline boundaries are known. Returns null outside them.
+ * `contentPad` shifts the interpolation origin right of each barline —
+ * a bar's beat-1 note sits ~0.75 interline in, past clef-side spacing.
  */
 export function assignChordBeat(
 	x: number,
 	boundaries: number[],
-	beatsPerBar: number
+	beatsPerBar: number,
+	contentPad = 0
 ): { bar: number; beat: number } | null {
 	if (boundaries.length < 2) return null;
 	if (x < boundaries[0] || x > boundaries[boundaries.length - 1]) return null;
@@ -290,10 +293,10 @@ export function assignChordBeat(
 			break;
 		}
 	}
-	const barStart = boundaries[bar];
+	const barStart = boundaries[bar] + contentPad;
 	const barWidth = boundaries[bar + 1] - barStart;
 	if (barWidth <= 0) return null;
-	const raw = ((x - barStart) / barWidth) * beatsPerBar;
+	const raw = Math.max(0, ((x - barStart) / barWidth) * beatsPerBar);
 	const beat = Math.min(Math.round(raw * 2) / 2, beatsPerBar - 0.5);
 	return { bar, beat };
 }

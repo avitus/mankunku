@@ -33,23 +33,22 @@
  * TWNBAY's colored-highlight chart went from ZERO melody notes to a full
  * extraction. ATTYA's bar count corrected (41, incl. pickup + intro).
  *
- * ── Remaining defect classes (each pinned by an `it.fails` below) ────────
+ * ── Deterministic per-system pipeline (fixtures re-recorded 2026-07-24) ──
  *
- * D2 FORM SEGMENTATION. The model splits sections at every printed SYSTEM
- *    (ATTYA: eleven 4-bar sections for a 1+4+36 form) and invents letters
- *    for unmarked passages; volta boundaries can land a bar off (Autumn's
- *    4-bar first ending for a printed 3). Bar counts still miscount on
- *    dense layouts (Fly Me: 13+13 for 16+16; A Train 27 for 25; TWNBAY
- *    drops the pickup bar).
+ * Geometry (analyzePageGeometry) counts systems and bars exactly on all
+ * five charts; the text layer supplies chords/marks/endings; the model only
+ * transcribes melody per system. BAR COUNTS, KEYS, and METERS now pass
+ * strictly on 5/5; FORM passes on 3/5 (Fly Me: a spurious model |: on the
+ * B section; TWNBAY: section-label drift on its C section).
  *
- * D3 CHORD POSITIONS INHERIT D2 where the form drifts. Content is nearly
- *    perfect (sequence agreement 96-100%); ATTYA/Autumn are now also
- *    position-near-perfect (35/36 and 23/24), the other three shift with
- *    their bar miscounts.
+ * Remaining defect classes:
  *
- * D4 MELODY RHYTHM. Pitch sequences agree 28-53% and registers are right,
- *    but durations/offsets drift enough that exact note matches stay rare —
- *    the review-in-editor step remains mandatory.
+ * D3 CHORD BEAT INTERPOLATION: content and bar assignment are exact; the
+ *    printed x → beat mapping still lands a half-beat off in squeezed bars
+ *    (A Train passes strictly; the other four differ by ≤ a few beats).
+ *
+ * D4 MELODY RHYTHM. The model's durations/offsets drift enough that exact
+ *    note matches stay rare — the review-in-editor step remains mandatory.
  *
  * When an `it.fails` starts passing, vitest flags it — promote it to `it`.
  */
@@ -72,11 +71,11 @@ type Slug = (typeof SONGS)[number];
 
 /** Which strict expectations each song currently fails (see header). */
 const KNOWN_DEFECTS: Record<Slug, Set<string>> = {
-	'all-the-things-you-are': new Set(['form', 'chords', 'melody', 'pitches']),
-	'autumn-leaves': new Set(['bars', 'form', 'chords', 'melody', 'pitches']),
-	'fly-me-to-the-moon': new Set(['bars', 'form', 'chords', 'melody', 'pitches']),
-	'take-the-a-train': new Set(['bars', 'form', 'chords', 'melody', 'pitches']),
-	'there-will-never-be-another-you': new Set(['bars', 'form', 'chords', 'melody', 'pitches'])
+	'all-the-things-you-are': new Set(['chords', 'melody', 'pitches']),
+	'autumn-leaves': new Set(['chords', 'melody', 'pitches']),
+	'fly-me-to-the-moon': new Set(['form', 'chords', 'melody', 'pitches']),
+	'take-the-a-train': new Set(['melody', 'pitches']),
+	'there-will-never-be-another-you': new Set(['form', 'chords', 'melody', 'pitches'])
 };
 
 /** Regression floors pinned just under the recorded run's quality. */

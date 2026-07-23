@@ -7,6 +7,9 @@
 	import { saveLeadSheetPdf } from '$lib/persistence/lead-sheet-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import { extractPdfSystems, type ExtractedSystem } from '$lib/leadsheets/import/pdf-system-extract';
+	import { assembleClaudeDoc, type ModelBar } from '$lib/leadsheets/import/pdf-system-assemble';
+	import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
 	import {
 		defaultSourceTransposition,
 		writtenSheetToConcert,
@@ -46,6 +49,96 @@
 		return btoa(binary);
 	}
 
+	function generateSheetId(): string {
+		const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+		let rand = '';
+		for (let i = 0; i < 4; i++) {
+			rand += chars[Math.floor(Math.random() * chars.length)];
+		}
+		return `sheet-${Date.now()}-${rand}`;
+	}
+
+	interface SystemModeResponse {
+		keySignature: { fifths: number } | null;
+		timeSignature: [number, number] | null;
+		bars: ModelBar[];
+		warnings: string[];
+	}
+
+	async function transcribeSystem(
+		sys: ExtractedSystem,
+		timeSignature: [number, number]
+	): Promise<SystemModeResponse | null> {
+		const res = await fetch('/api/lead-sheet-parse', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				system: { image: sys.image, barCount: sys.geometry.barlines.length, timeSignature }
+			})
+		});
+		if (!res.ok) return null;
+		return (await res.json()) as SystemModeResponse;
+	}
+
+	/**
+	 * Deterministic per-system import: geometry supplies the bar counts, the
+	 * text layer supplies the chords, and the model transcribes each system
+	 * crop separately. Returns null when any stage fails — the caller falls
+	 * back to the whole-PDF extraction.
+	 */
+	async function importViaSystems(
+		buffer: ArrayBuffer,
+		filename: string
+	): Promise<{ sheet: LeadSheet; warnings: string[] } | null> {
+		const extraction = await extractPdfSystems(buffer);
+		if (!extraction) return null;
+		const { systems } = extraction;
+
+		// The first system shows the printed meter; confirm it before fanning
+		// out the rest with a small concurrency cap.
+		const first = await transcribeSystem(systems[0], [4, 4]);
+		if (!first) return null;
+		const meter = first.timeSignature ?? [4, 4];
+
+		const rest: Array<SystemModeResponse | null> = new Array(systems.length - 1).fill(null);
+		const CONCURRENCY = 3;
+		let next = 0;
+		const workers = Array.from({ length: Math.min(CONCURRENCY, rest.length) }, async () => {
+			while (next < rest.length) {
+				const i = next++;
+				rest[i] = await transcribeSystem(systems[i + 1], meter);
+			}
+		});
+		await Promise.all(workers);
+		const responses = [first, ...rest];
+		if (responses.some((r) => r === null)) return null;
+
+		const warnings: string[] = [];
+		responses.forEach((r, i) => {
+			for (const w of r?.warnings ?? []) warnings.push(`system ${i + 1}: ${w}`);
+		});
+
+		const doc = assembleClaudeDoc(
+			systems.map((sys, i) => ({
+				geometry: sys.geometry,
+				texts: sys.texts,
+				model: {
+					fifths: responses[i]?.keySignature?.fifths ?? null,
+					bars: responses[i]?.bars ?? []
+				}
+			})),
+			{
+				title: extraction.title ?? filename.replace(/\.pdf$/i, ''),
+				composer: extraction.composer,
+				timeSignature: meter
+			}
+		);
+		const converted = claudeJsonToLeadSheet(doc);
+		if (!converted.sheet) return null;
+		converted.sheet.id = generateSheetId();
+		return { sheet: converted.sheet, warnings: [...warnings, ...converted.warnings] };
+	}
+
 	async function handleFile(event: Event): Promise<void> {
 		const inputEl = event.currentTarget as HTMLInputElement;
 		const file = inputEl.files?.[0];
@@ -62,17 +155,29 @@
 		uploading = true;
 		try {
 			const buffer = await file.arrayBuffer();
-			const res = await fetch('/api/lead-sheet-parse', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ pdf: toBase64(buffer), filename: file.name })
-			});
-			if (!res.ok) {
-				const body = (await res.json().catch(() => null)) as { message?: string } | null;
-				errorMessage = body?.message ?? `Extraction failed (${res.status}).`;
-				return;
+
+			// Deterministic per-system pipeline first; whole-PDF extraction is
+			// the fallback for scans the geometry can't read.
+			let imported: { sheet: LeadSheet; warnings: string[] } | null = null;
+			try {
+				imported = await importViaSystems(buffer, file.name);
+			} catch (err) {
+				console.warn('[pdf-import] per-system pipeline failed, falling back:', err);
 			}
-			const { sheet, warnings } = (await res.json()) as { sheet: LeadSheet; warnings: string[] };
+			if (!imported) {
+				const res = await fetch('/api/lead-sheet-parse', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ pdf: toBase64(buffer), filename: file.name })
+				});
+				if (!res.ok) {
+					const body = (await res.json().catch(() => null)) as { message?: string } | null;
+					errorMessage = body?.message ?? `Extraction failed (${res.status}).`;
+					return;
+				}
+				imported = (await res.json()) as { sheet: LeadSheet; warnings: string[] };
+			}
+			const { sheet, warnings } = imported;
 			importWarnings = warnings;
 
 			// The route returns the chart as PRINTED; shift it to concert per

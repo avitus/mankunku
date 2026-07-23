@@ -71,6 +71,17 @@ describe('extractSystemTexts', () => {
 		]);
 	});
 
+	it('catches a rehearsal mark riding high above a chord-crowded first system', () => {
+		// A Train's opening "A" sits ~6.1 interlines above the staff, pushed
+		// up by the chord row — still in the zone.
+		const [sys] = extractSystemTexts(
+			[item('A', 60, 378, 56), item('A', 62, 378, 56), item('D6', 110, 450, 60)],
+			SYSTEMS
+		);
+		expect(sys.marks).toEqual([{ x: 60, text: 'A' }]);
+		expect(sys.chords).toEqual([{ x: 110, text: 'D6' }]);
+	});
+
 	it('treats a single letter well above the chord row as a rehearsal mark', () => {
 		// Same font as chords, single print, but ~5 interlines above the
 		// staff — chords sit 2-3 interlines up.

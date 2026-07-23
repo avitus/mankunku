@@ -734,3 +734,10 @@ Newest at the top.
 **Next:** per-system route mode (image crop + known barCount + text-layer chords → model transcribes melody only), orchestrator in the import page with legacy fallback, first-bar beat clamp for chord placement, re-record fixtures.
 
 **Independent take:** the vision model was being asked to do four jobs (count, structure, chords, melody) and was only unreliable at the first three — which are exactly the mechanically-solvable ones. The division of labor now matches each tool's strength. The tofu-font discovery was luck disguised as diligence: had I tuned thresholds against those renders, every constant would have been calibrated to garbage. Look at the actual pixels before believing any metric computed from them.
+
+## 2026-07-24 — Per-system pipeline wired end to end; fixtures re-recorded
+
+- Client orchestrator complete: `pdf-system-extract.ts` (browser: render → geometry → text layer → crops, with the sumPrecise polyfill + fake worker), `pdf-system-assemble.ts` (pure merge → barwise doc), import page tries the deterministic pipeline first with whole-PDF fallback. System mode got its own 60/min rate bucket.
+- Deterministic overrides beat model flakiness twice more: volta ending flags now come from the printed "1."/"2." labels (ending 1 always closes `:|`, ending-2 bars never carry repeat flags), which fixed Autumn's and A Train's forms outright.
+- Live fixtures re-recorded through the real pipeline: bar counts/keys/meters strict-pass 5/5, form 3/5, A Train passes everything but melody. Expected-fails shrank 24 → 16, all melody-rhythm or half-beat chord interpolation.
+- Watch: extraction still has run variance (composer field, spurious `|:` on Fly Me's B section); the deterministic layer contains it but doesn't eliminate it.

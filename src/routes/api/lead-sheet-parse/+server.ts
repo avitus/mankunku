@@ -46,10 +46,13 @@ interface SystemRequestBody {
 }
 
 // In-memory rate limit (chat-route pattern; safe because PM2 runs a single
-// fork instance). Tighter than chat's 10/min: every call here ships a whole
-// PDF through Claude, so the cost per request is an order of magnitude higher.
+// fork instance). Tighter than chat's 10/min: every whole-PDF call ships a
+// full document through Claude. Per-system calls carry one small image
+// (~1/20 the tokens), and one chart legitimately fans out 10+ of them, so
+// they get their own, larger allowance.
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
+const SYSTEM_RATE_LIMIT_MAX = 60;
 const rateLimitBuckets = new Map<string, number[]>();
 
 function rateLimitKey(userId: string | null, getClientAddress: () => string): string {
@@ -61,11 +64,11 @@ function rateLimitKey(userId: string | null, getClientAddress: () => string): st
 	}
 }
 
-function isRateLimited(key: string): boolean {
+function isRateLimited(key: string, max = RATE_LIMIT_MAX): boolean {
 	const now = Date.now();
 	const bucket = rateLimitBuckets.get(key) ?? [];
 	const recent = bucket.filter((ts) => ts > now - RATE_LIMIT_WINDOW_MS);
-	if (recent.length >= RATE_LIMIT_MAX) {
+	if (recent.length >= max) {
 		rateLimitBuckets.set(key, recent);
 		return true;
 	}
@@ -138,6 +141,7 @@ inside each bar. You may recognize the tune; that knowledge is a trap — the ON
 Return ONLY a JSON object — no prose, no markdown fences — with this exact shape:
 {
   "keySignature": { "fifths": number }, // COUNT the sharps/flats printed at the clef: 2 sharps → 2, 3 flats → -3, none → 0
+  "timeSignature": [number, number] | null, // the printed meter, when this system shows one at its start
   "bars": [
     {
       "startRepeat": boolean,   // |: printed at the START of this bar (winged or plain)
@@ -159,6 +163,7 @@ Rules:
   starts at beat 3).
 - IGNORE chord symbols, lyrics, colored highlighting, and text — melody notes and structural
   markings only.
+- melody lists NOTES only — never rests; a bar of rest has an empty melody array.
 - If a passage is truly illegible, omit its notes rather than inventing them.`;
 
 const SYSTEM_PROMPT = `You are a music COPYIST. Transcribe exactly what is PRINTED on the attached PDF chart.
@@ -229,9 +234,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	}
 
 	const { user } = await locals.safeGetSession();
-	if (isRateLimited(rateLimitKey(user?.id ?? null, getClientAddress))) {
-		throw error(429, 'Too many PDF imports. Take a breath, then try again in a minute.');
-	}
+	const limitKey = rateLimitKey(user?.id ?? null, getClientAddress);
 
 	// Cheap early exit on the declared size; the reader below is the real gate.
 	const declaredLength = Number(request.headers.get('content-length') ?? '');
@@ -251,9 +254,15 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	}
 	const { system } = body as Partial<SystemRequestBody>;
 	if (system !== undefined) {
+		if (isRateLimited(`${limitKey}:sys`, SYSTEM_RATE_LIMIT_MAX)) {
+			throw error(429, 'Too many transcription calls. Try again in a minute.');
+		}
 		return await handleSystemMode(system);
 	}
 
+	if (isRateLimited(limitKey)) {
+		throw error(429, 'Too many PDF imports. Take a breath, then try again in a minute.');
+	}
 	const { pdf } = body as Partial<ParseRequestBody>;
 	if (typeof pdf !== 'string' || pdf.length === 0) {
 		throw error(400, '`pdf` (base64 string) is required.');
@@ -380,9 +389,17 @@ function systemBarIssues(bars: SystemBar[], barCount: number, beats: number): st
 }
 
 /** Screen the raw model JSON into SystemBar[]; null when malformed. */
-function screenSystemBars(parsed: unknown): { fifths: number | null; bars: SystemBar[] } | null {
+function screenSystemBars(parsed: unknown): {
+	fifths: number | null;
+	timeSignature: [number, number] | null;
+	bars: SystemBar[];
+} | null {
 	if (!parsed || typeof parsed !== 'object') return null;
-	const obj = parsed as { keySignature?: { fifths?: unknown }; bars?: unknown };
+	const obj = parsed as {
+		keySignature?: { fifths?: unknown };
+		timeSignature?: unknown;
+		bars?: unknown;
+	};
 	if (!Array.isArray(obj.bars)) return null;
 	const bars: SystemBar[] = [];
 	for (const raw of obj.bars) {
@@ -416,7 +433,12 @@ function screenSystemBars(parsed: unknown): { fifths: number | null; bars: Syste
 	}
 	const fifths =
 		typeof obj.keySignature?.fifths === 'number' ? obj.keySignature.fifths : null;
-	return { fifths, bars };
+	const ts = obj.timeSignature;
+	const timeSignature =
+		Array.isArray(ts) && ts.length === 2 && typeof ts[0] === 'number' && typeof ts[1] === 'number'
+			? ([ts[0], ts[1]] as [number, number])
+			: null;
+	return { fifths, timeSignature, bars };
 }
 
 async function handleSystemMode(system: SystemRequestBody['system']): Promise<Response> {
@@ -445,7 +467,12 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 
 	const ask = async (
 		feedback: string | null
-	): Promise<{ fifths: number | null; bars: SystemBar[]; issues: string[] } | null> => {
+	): Promise<{
+		fifths: number | null;
+		timeSignature: [number, number] | null;
+		bars: SystemBar[];
+		issues: string[];
+	} | null> => {
 		let responseText: string;
 		try {
 			const response = await client.messages
@@ -505,6 +532,7 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 	}
 	return json({
 		keySignature: result.fifths === null ? null : { fifths: result.fifths },
+		timeSignature: result.timeSignature,
 		bars: result.bars,
 		warnings: result.issues
 	});
