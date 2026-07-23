@@ -108,6 +108,15 @@ Newest at the top.
 - The rewrite DELETED the previous three mechanisms (gap-splitting at chord boundaries, per-chord-span rest merging, note splitting) — the chord voice subsumes all of them from a global chord/silence timeline. Net: more capable, less machinery. When a third patch on the same subsystem gets rejected, the model is wrong, not the patch.
 - Residual cosmetic: ending digit and a bar-start chord sit tight ('1C#7b9'); acceptable, noted. 2589 unit/integration, 234/234 FULL e2e, both real charts screenshot-verified.
 
+**Then — PDF vs MuseScore: five charts, both pipelines, defects characterized (no fixes by instruction):**
+
+- Ground truths pulled two ways and cross-checked: dev rows from local Supabase (user signed in — sync finally paid off) matched fresh .mscz parses exactly for all four MuseScore-imported songs. References = today's parse; Fly Me's dev row is BIAB-origin so the mscz parse is the cleaner reference.
+- Five live extractions recorded as fixtures. The headline discovery: **key-by-reputation** — on 3/5 charts the model returned the tune's famous key (ATTYA→Ab, Autumn→G, FlyMe→C) instead of the PRINTED key signature, while the chord symbols faithfully followed the print. One extraction, two inconsistent pitch frames — no source-transposition setting can satisfy both fields. The model's world knowledge is an asset for chords and a liability for keys.
+- Other classes: form invention (repeats written out, voltas merged, pickups dropped, Real-Book segmentation imposed over the engraved layout); bar miscounts (FlyMe 13+13 for 16+16); melody register normalized inconsistently (best-fit shift varies -12..-14 per chart) with partial recall; TWNBAY (colored-analysis chart) returned ZERO melody notes.
+- The bright spot: position-free chord-sequence agreement 90-100% on all five.
+- Suite design: strict targets with per-song KNOWN_DEFECTS choosing it.fails (28 documented defects that ALERT when fixed) + regression floors pinning today's real strengths. A defect inventory that is executable, self-promoting, and regression-guarded — better than a report that goes stale.
+- 2611 passing + 28 expected-fail; check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
