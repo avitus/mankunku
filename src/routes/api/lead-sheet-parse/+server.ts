@@ -28,6 +28,23 @@ interface ParseRequestBody {
 	filename?: string;
 }
 
+/**
+ * Per-system mode: the client has already determined the structure
+ * deterministically (staff geometry → bar count, text layer → chords), and
+ * sends ONE system's image for melody transcription into that fixed
+ * skeleton. Much cheaper than a whole-PDF call, and the known bar count
+ * removes the model's main failure mode (miscounting).
+ */
+interface SystemRequestBody {
+	system: {
+		/** Base64-encoded PNG crop of one system (optionally a data: URL). */
+		image: string;
+		/** Barlines counted by the client's geometry pass. */
+		barCount: number;
+		timeSignature: [number, number];
+	};
+}
+
 // In-memory rate limit (chat-route pattern; safe because PM2 runs a single
 // fork instance). Tighter than chat's 10/min: every call here ships a whole
 // PDF through Claude, so the cost per request is an order of magnitude higher.
@@ -114,6 +131,35 @@ function generateSheetId(): string {
 	}
 	return `sheet-${Date.now()}-${rand}`;
 }
+
+const SYSTEM_MODE_PROMPT = `You are a music COPYIST. The attached image is ONE SYSTEM (one printed line)
+of a lead sheet. The bar count is known and given — your only job is to transcribe what is printed
+inside each bar. You may recognize the tune; that knowledge is a trap — the ONLY authority is the ink.
+Return ONLY a JSON object — no prose, no markdown fences — with this exact shape:
+{
+  "keySignature": { "fifths": number }, // COUNT the sharps/flats printed at the clef: 2 sharps → 2, 3 flats → -3, none → 0
+  "bars": [
+    {
+      "startRepeat": boolean,   // |: printed at the START of this bar (winged or plain)
+      "endRepeat": boolean,     // :| printed at the END of this bar
+      "ending": 1 | 2 | null,   // this bar lies UNDER a printed 1st/2nd volta bracket
+      "pickup": boolean,        // partial pickup bar (fewer beats printed than the meter)
+      "melody": [ [beat, durationBeats, "pitch"], ... ]  // append true as a 4th element when the note TIES into the next
+    }
+  ]
+}
+Rules:
+- The bars array must contain EXACTLY the given number of entries, in reading order.
+- beat is 0-based within the bar in units of the meter denominator; fractional allowed (0.5 = eighth offset).
+- PITCH: scientific notation as PRINTED (middle C = C4), respecting key signature and accidentals.
+  NEVER transpose or shift octaves — the app handles instrument transposition.
+- RHYTHM: notes and rests fill each bar exactly; a note tied across a barline appears in BOTH bars,
+  the first part carrying the tie flag.
+- A pickup bar's notes sit at their real beats near the END of the bar (a one-beat pickup in 4/4
+  starts at beat 3).
+- IGNORE chord symbols, lyrics, colored highlighting, and text — melody notes and structural
+  markings only.
+- If a passage is truly illegible, omit its notes rather than inventing them.`;
 
 const SYSTEM_PROMPT = `You are a music COPYIST. Transcribe exactly what is PRINTED on the attached PDF chart.
 You may recognize the tune — that knowledge is a trap. Published charts appear in many keys and
@@ -203,6 +249,11 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	if (!body || typeof body !== 'object' || Array.isArray(body)) {
 		throw error(400, 'Expected a JSON object body.');
 	}
+	const { system } = body as Partial<SystemRequestBody>;
+	if (system !== undefined) {
+		return await handleSystemMode(system);
+	}
+
 	const { pdf } = body as Partial<ParseRequestBody>;
 	if (typeof pdf !== 'string' || pdf.length === 0) {
 		throw error(400, '`pdf` (base64 string) is required.');
@@ -294,6 +345,170 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 
 	return json({ sheet: result.sheet, warnings: result.warnings });
 };
+
+/** One bar entry of a system-mode response, structurally screened. */
+interface SystemBar {
+	startRepeat: boolean;
+	endRepeat: boolean;
+	ending: number | null;
+	pickup: boolean;
+	melody: Array<[number, number, string] | [number, number, string, boolean]>;
+}
+
+/** Structural issues in a system-mode transcription; empty means clean.
+ * Melody rests are implicit, so this checks bounds and order, not the full
+ * rhythm sum. */
+function systemBarIssues(bars: SystemBar[], barCount: number, beats: number): string[] {
+	const issues: string[] = [];
+	if (bars.length !== barCount) {
+		issues.push(`expected ${barCount} bars but the transcription returned ${bars.length}`);
+	}
+	bars.forEach((bar, i) => {
+		let prevEnd = 0;
+		for (const note of bar.melody) {
+			const [beat, dur] = note;
+			if (beat < -0.01 || beat + dur > beats + 0.01) {
+				issues.push(`bar ${i + 1}: note at beat ${beat} (duration ${dur}) exceeds the ${beats}-beat meter`);
+			}
+			if (beat + 0.01 < prevEnd) {
+				issues.push(`bar ${i + 1}: overlapping notes at beat ${beat}`);
+			}
+			prevEnd = Math.max(prevEnd, beat + dur);
+		}
+	});
+	return issues;
+}
+
+/** Screen the raw model JSON into SystemBar[]; null when malformed. */
+function screenSystemBars(parsed: unknown): { fifths: number | null; bars: SystemBar[] } | null {
+	if (!parsed || typeof parsed !== 'object') return null;
+	const obj = parsed as { keySignature?: { fifths?: unknown }; bars?: unknown };
+	if (!Array.isArray(obj.bars)) return null;
+	const bars: SystemBar[] = [];
+	for (const raw of obj.bars) {
+		if (!raw || typeof raw !== 'object') return null;
+		const b = raw as Record<string, unknown>;
+		if (!Array.isArray(b.melody)) return null;
+		const melody: SystemBar['melody'] = [];
+		for (const note of b.melody) {
+			if (
+				!Array.isArray(note) ||
+				note.length < 3 ||
+				typeof note[0] !== 'number' ||
+				typeof note[1] !== 'number' ||
+				typeof note[2] !== 'string'
+			) {
+				return null;
+			}
+			melody.push(
+				note[3] === true
+					? [note[0], note[1], note[2], true]
+					: [note[0], note[1], note[2]]
+			);
+		}
+		bars.push({
+			startRepeat: b.startRepeat === true,
+			endRepeat: b.endRepeat === true,
+			ending: typeof b.ending === 'number' ? b.ending : null,
+			pickup: b.pickup === true,
+			melody
+		});
+	}
+	const fifths =
+		typeof obj.keySignature?.fifths === 'number' ? obj.keySignature.fifths : null;
+	return { fifths, bars };
+}
+
+async function handleSystemMode(system: SystemRequestBody['system']): Promise<Response> {
+	if (
+		!system ||
+		typeof system.image !== 'string' ||
+		system.image.length === 0 ||
+		typeof system.barCount !== 'number' ||
+		!Number.isInteger(system.barCount) ||
+		system.barCount < 1 ||
+		system.barCount > 32
+	) {
+		throw error(400, '`system.image` (base64 PNG) and `system.barCount` (1-32) are required.');
+	}
+	const meter = Array.isArray(system.timeSignature) ? system.timeSignature : [4, 4];
+	const beats = typeof meter[0] === 'number' && meter[0] >= 1 ? meter[0] : 4;
+	const data = system.image.replace(/^data:image\/png;base64,/, '').replace(/\s/g, '');
+	if (data.length === 0 || !/^[A-Za-z0-9+/]+=*$/.test(data)) {
+		throw error(400, '`system.image` must be base64-encoded PNG data.');
+	}
+
+	const client = getAnthropicClient();
+	if (!client) {
+		throw error(503, 'PDF import is not configured.');
+	}
+
+	const ask = async (
+		feedback: string | null
+	): Promise<{ fifths: number | null; bars: SystemBar[]; issues: string[] } | null> => {
+		let responseText: string;
+		try {
+			const response = await client.messages
+				.stream({
+					model: ANTHROPIC_MODEL,
+					max_tokens: ANTHROPIC_LEAD_SHEET_MAX_TOKENS,
+					system: SYSTEM_MODE_PROMPT,
+					messages: [
+						{
+							role: 'user',
+							content: [
+								{
+									type: 'image',
+									source: { type: 'base64', media_type: 'image/png', data }
+								},
+								{
+									type: 'text',
+									text:
+										`This system contains exactly ${system.barCount} bars in ${beats}/${meter[1] ?? 4} time. ` +
+										`Transcribe it as JSON per the schema.` +
+										(feedback ? ` Your previous attempt had problems — re-read the image carefully: ${feedback}` : '')
+								}
+							]
+						}
+					]
+				})
+				.finalMessage();
+			responseText = response.content
+				.filter((block) => block.type === 'text')
+				.map((block) => (block as { text: string }).text)
+				.join('');
+		} catch (err) {
+			console.error('[lead-sheet-parse] system-mode extraction failed:', err);
+			return null;
+		}
+		const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```\s*$/.exec(responseText.trim());
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(fenced ? fenced[1] : responseText.trim());
+		} catch {
+			return null;
+		}
+		const screened = screenSystemBars(parsed);
+		if (!screened) return null;
+		return { ...screened, issues: systemBarIssues(screened.bars, system.barCount, beats) };
+	};
+
+	// One retry with the issues fed back (per-bar rhythm-sum QA, Audiveris
+	// style); keep the cleaner of the two attempts.
+	let result = await ask(null);
+	if (!result || result.issues.length > 0) {
+		const second = await ask(result ? result.issues.join('; ') : null);
+		if (second && (!result || second.issues.length < result.issues.length)) result = second;
+	}
+	if (!result) {
+		throw error(502, 'The system image could not be transcribed. Try again.');
+	}
+	return json({
+		keySignature: result.fifths === null ? null : { fifths: result.fifths },
+		bars: result.bars,
+		warnings: result.issues
+	});
+}
 
 /** Config probe so the upload page can render a not-configured state. */
 export const GET: RequestHandler = async () => {

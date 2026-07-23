@@ -190,3 +190,89 @@ describe('GET /api/lead-sheet-parse', () => {
 		expect(payload.model).toBe('claude-test-model');
 	});
 });
+
+describe('POST /api/lead-sheet-parse — per-system mode', () => {
+	const PNG_B64 = Buffer.from('fake-png').toString('base64');
+	const goodBars = [
+		{ startRepeat: true, endRepeat: false, pickup: false, melody: [[0, 4, 'C4']] },
+		{ startRepeat: false, endRepeat: true, pickup: false, melody: [[0, 2, 'D4'], [2, 2, 'E4']] }
+	];
+
+	it('transcribes one system into the fixed bar skeleton', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue({
+			content: [
+				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 2 }, bars: goodBars }) }
+			]
+		});
+		const res = await POST(
+			makeEvent({
+				system: { image: `data:image/png;base64,${PNG_B64}`, barCount: 2, timeSignature: [4, 4] }
+			})
+		);
+		expect(res.status).toBe(200);
+		const payload = await res.json();
+		expect(payload.keySignature).toEqual({ fifths: 2 });
+		expect(payload.bars).toHaveLength(2);
+
+		const call = mockCreate.mock.calls[0][0];
+		const imgBlock = call.messages[0].content.find((b: { type: string }) => b.type === 'image');
+		expect(imgBlock.source.data).toBe(PNG_B64);
+		expect(imgBlock.source.media_type).toBe('image/png');
+		// The prompt pins the bar count.
+		const textBlock = call.messages[0].content.find((b: { type: string }) => b.type === 'text');
+		expect(textBlock.text).toContain('exactly 2 bars');
+	});
+
+	it('retries once with feedback when the bar count comes back wrong', async () => {
+		const { POST } = await loadRoute();
+		mockCreate
+			.mockResolvedValueOnce({
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars.slice(0, 1) })
+					}
+				]
+			})
+			.mockResolvedValueOnce({
+				content: [
+					{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }
+				]
+			});
+		const res = await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } })
+		);
+		expect(res.status).toBe(200);
+		expect((await res.json()).bars).toHaveLength(2);
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+		const retryText = mockCreate.mock.calls[1][0].messages[0].content.find(
+			(b: { type: string }) => b.type === 'text'
+		).text;
+		expect(retryText).toContain('returned 1');
+	});
+
+	it('flags out-of-meter melody as a warning after retry', async () => {
+		const { POST } = await loadRoute();
+		const overfull = [{ startRepeat: false, endRepeat: false, pickup: false, melody: [[3, 4, 'C4']] }];
+		mockCreate.mockResolvedValue({
+			content: [
+				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: overfull }) }
+			]
+		});
+		const res = await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } })
+		);
+		expect(res.status).toBe(200);
+		const payload = await res.json();
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+		expect(payload.warnings.join(' ')).toMatch(/bar 1/);
+	});
+
+	it('400s when barCount is missing', async () => {
+		const { POST } = await loadRoute();
+		await expect(POST(makeEvent({ system: { image: PNG_B64 } }))).rejects.toMatchObject({
+			status: 400
+		});
+	});
+});
