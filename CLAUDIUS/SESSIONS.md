@@ -125,6 +125,14 @@ Newest at the top.
 - Remaining pinned: section-per-system splitting, dense-layout bar miscounts (Fly Me's stubborn 13+13), melody rhythm drift. Those look like they need layout-anchored extraction (bar-by-bar) rather than prompt tightening — noted for next round.
 - 2620 passing + 23 expected-fail; 30/30 pdf/import e2e; check clean.
 
+**Then — 'close to flawless': the bar-wise rework and the variance ceiling:**
+
+- Root insight: every remaining defect (form-per-system, bar miscounts, position drift) came from asking the model for GLOBAL assembly. Rebuilt the schema bar-wise (beats within the bar, structure per bar) and moved section assembly into a shared builder extracted from the MuseScore importer — the two pipelines now share one form-semantics brain, so 'PDF matches MuseScore' is partly true by construction.
+- Mechanical anchors beat instructions: printed system bar numbers (firstBarNumber) let the CONVERTER resync undercounts deterministically — recovered 3 dropped bars on Fly Me where three prompt iterations had failed. The '3-5 bars per system' hint in my own prompt was actively harming dense charts; deleted.
+- Hit the API wall: temperature is DEPRECATED on opus-4-8 (400), and the SDK refuses 16k non-streaming (the all-502 mystery — probe scripts against the raw SDK beat guessing from route-level 502s). No sampling control → measured run variance: ATTYA swung from perfect form to merged form to misread key across three runs; TWNBAY once silently dropped half its systems. Mitigations: systemsOverview self-check + one route-level retry keeping the steadier attempt.
+- Where it landed (final recording): keys 5/5, chordSeq 95-100%, ATTYA bar-exact, others within 1-2 bars (tail bars have no following number to resync against); melody rhythm still drifts (exact-match ≤28%). Honest ceiling for single-sample extraction; wrote the variance into the suite header. Next lever if 'flawless' must go further: 2-3-sample consensus merging per bar — infrastructure now exists to compare samples bar-by-bar.
+- 2626 passing + 24 expected-fail; 30/30 e2e; check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
