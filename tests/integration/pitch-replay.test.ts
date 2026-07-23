@@ -1203,3 +1203,117 @@ describe('pitch replay regression: Third–Fifth Rise masked-fundamental octave 
 		expect(result.chosen.notesTotal).toBe(2);
 	});
 });
+
+/**
+ * Blue Monk tied final-note regression (concert C, 2026-07-23). End-to-end
+ * companion to the readings-replay test in audio-processing-pipeline.test.ts.
+ *
+ * The "Blue Monk" head ends on a held E notated as an eighth-note E (offset
+ * 7/8) TIED into a half-note E on the next downbeat. The player sustained a
+ * single E across the tie, and — replaying the real audio through the
+ * production detection path — segmentation captures it as ONE long E segment
+ * (~4.9 s), exactly as the live app did (matches the saved diagnostic's
+ * `detection.segmentedNotes`).
+ *
+ * Pre-fix the scorer treated the phrase as all nine notated notes, matched the
+ * one detected E to the tied eighth, and marked the half-note continuation
+ * MISSED — pitch 0.889 / overall 0.880 "great" with a red final note. Post-fix
+ * scoreAttempt collapses tied same-pitch chains (see scorer.ts), so the eight
+ * sounding notes all match and the whole chain — real audio → detection →
+ * segmentation → scoring — grades "perfect". This guards the fix against a
+ * future detection/segmentation change silently re-splitting the held note.
+ */
+describe('pitch replay regression: Blue Monk tied final note (concert C, 2026-07-23)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-07-23-blue-monk.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// The Blue Monk head as the scorer saw it: G A G F# F g(low) E♭ E–E, the
+	// last two E's joined by a tie.
+	const expectedPhrase: Phrase = {
+		id: 'blue-monk-tied-final-note',
+		name: 'Blue Monk',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, offset: [0, 1], duration: [1, 8] },
+			{ pitch: 69, offset: [1, 8], duration: [1, 8] },
+			{ pitch: 67, offset: [1, 4], duration: [1, 8] },
+			{ pitch: 66, offset: [3, 8], duration: [1, 8] },
+			{ pitch: 65, offset: [1, 2], duration: [1, 8] },
+			{ pitch: 55, offset: [5, 8], duration: [1, 8] },
+			{ pitch: 63, offset: [3, 4], duration: [1, 8], spelling: 'flat' },
+			{ pitch: 64, offset: [7, 8], duration: [1, 8], tied: true },
+			{ pitch: 64, offset: [1, 1], duration: [1, 2] }
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 2 },
+		category: 'blues',
+		tags: [],
+		source: 'user'
+	};
+
+	// Mirror the production replay path (diagnostics / ear-training):
+	// resolveOnsets → findReArticulations → segmentNotes(..., worklet, artic).
+	// No backing track was used, so no bleed onsets.
+	async function detectFromFixture() {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets);
+		const resolvedOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			resolvedOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			undefined,
+			articulationOnsets
+		);
+	}
+
+	it('captures the tied final E as a single sustained detected note', async () => {
+		const detected = await detectFromFixture();
+
+		// Reproduces the saved diagnostic's segmentation. The doubled 55 is a
+		// pre-existing ~46 ms low-G blip at ~2.97 s (a detector artifact ahead of
+		// the real low G) — orthogonal to the tie fix; it scores as a harmless
+		// extra, never a miss.
+		expect(detected.map((n) => n.midi)).toEqual([67, 69, 67, 66, 65, 55, 55, 63, 64]);
+
+		// The crux: the tie is ONE detected E, held long — not two notes.
+		expect(detected.filter((n) => n.midi === 64)).toHaveLength(1);
+		const last = detected[detected.length - 1];
+		expect(last.midi).toBe(64);
+		expect(last.duration).toBeGreaterThan(2);
+	});
+
+	it('scores the tied final note as a hit end-to-end — "perfect"', async () => {
+		const detected = await detectFromFixture();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 54,
+			transportSeconds: 0,
+			swing: 0.6,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		// Eight sounding notes after the tie merge, all matched — no missed note.
+		// (One extra: the benign low-G blip above, which doesn't affect scoring.)
+		expect(result.chosen.noteResults.some((n) => n.missed)).toBe(false);
+		expect(result.chosen.notesHit).toBe(8);
+		expect(result.chosen.notesTotal).toBe(8);
+
+		// Saved diagnostic (pre-fix): pitch 0.889 (final note missed), overall
+		// 0.880 "great". Post-fix the whole chain grades "perfect".
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.rhythmAccuracy).toBeGreaterThan(0.9);
+		expect(result.chosen.overall).toBeGreaterThan(0.95);
+		expect(result.chosen.grade).toBe('perfect');
+	});
+});
