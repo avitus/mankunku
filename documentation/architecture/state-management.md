@@ -111,7 +111,7 @@ Daily summaries are a **pure derivation** of two source-of-truth tables: `progre
 - `recomputeAllDailySummaries(complexitySnapshots?)` — Primary write path. Re-derives every day present in either source and persists. Called from `recordAttempt()` (ear-training) and from the lick-practice session writer after each round completes.
 - `recomputeDailySummary(date, complexitySnapshot?)` — Hot-path variant of the above filtered to a single day.
 - `deriveDailySummary(date, sessions, lickSessions, complexitySnapshot?)` — Pure helper that builds a `DailySummary` from the source rows for one day, without persisting.
-- `reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[]` — Reconciles cloud summaries into the local cache after cloud hydration (per-day MAX-merge for aged-out days, local re-derivation wins for derivable days) and returns the dates the cloud must be told about for `syncAllDailySummariesToCloud`.
+- `reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySummary[]` — Reconciles cloud summaries into the local cache after cloud hydration via a per-counter MAX-merge applied to every cloud date (derivable or aged-out): cloud wins on any counter where the local re-derivation is incomplete, local wins where it is larger. Returns the dates the cloud must be told about for `syncAllDailySummariesToCloud`.
 - `getSummariesInRange(start, end)` — Inclusive date range query for charts.
 - `comparePeriods(currentStart, currentEnd, previousStart, previousEnd)` — Returns `{ current, previous, delta }` for week-over-week / month-over-month comparisons.
 - `getYearHeatmap()` — `Map<date, { sessionCount, avgOverall }>` sized to the last 365 days for the calendar heatmap.

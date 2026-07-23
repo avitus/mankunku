@@ -202,7 +202,7 @@ Pure helper that builds a `DailySummary` from the source rows for one day, witho
 
 ### `reconcileCloudSummaries(cloudSummaries): DailySummary[]`
 
-Reconcile cloud-side summaries with the local cache during hydration / outbox flush. Branches per date: for dates still DERIVABLE from local source rows, the fresh local re-derivation is authoritative and a per-counter MAX merge keeps whichever side is more complete (fixing the equal-count / undercount deadlock); for AGED-OUT dates (no local source rows) a monotonic per-counter MAX merge applies. Returns the dates the cloud must be told about (derivable dates, local-only days, and aged-out local winners) for pushing back via `syncAllDailySummariesToCloud`.
+Reconcile cloud-side summaries with the local cache during hydration / outbox flush. Every cloud date — DERIVABLE from local source rows or AGED-OUT — is combined with local via a monotonic per-counter MAX merge (`mergeWithExisting`): cloud values win on any counter where the local re-derivation is incomplete (e.g. a boundary date whose older sessions aged out of the 100-session window and re-derives to a partial count), while the unioned-sessions re-derivation wins where it is larger — fixing the equal-count / undercount deadlock. Returns the dates the cloud must be told about (derivable dates, local-only days, and dates where the merged local result now exceeds cloud on any counter) for pushing back via `syncAllDailySummariesToCloud`.
 
 ### `updateLongestStreak(): void`
 

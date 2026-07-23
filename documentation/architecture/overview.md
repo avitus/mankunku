@@ -36,7 +36,7 @@ Side B is **depth-first**. It assumes the line is already in your ear and your j
 Both modes pull from the same lick library and the same daily key system, and both contribute to your overall progress.
 
 - **The library** is the same in both modes. Side A queries it for variety; Side B picks specific licks from it that you've tagged.
-- **The daily key** rotates once per day (more on this in [The Daily Key](./tonality-system.md)). Side A defaults to today's key but lets you override; Side B always cycles through all 12 keys regardless of the daily pick.
+- **The daily key** rotates once per day (more on this in [The Daily Key](./tonality-system.md)). Side A defaults to today's key but lets you override; Side B ignores the daily pick and drills each lick through its currently-unlocked keys, earning more keys toward the full 12 across successive sessions.
 - **Difficulty** climbs from your performance in either mode. Pitch complexity and rhythm complexity rise (or fall) on the same scale — see [Levels & Difficulty](./adaptive-difficulty.md).
 - **Scoring** uses the same algorithm: pitch accuracy at 60%, rhythm accuracy at 40%, with timing tolerances that loosen at slow tempos and tighten at fast ones. The full breakdown is in [How Scoring Works](./scoring-algorithm.md).
 - **Progress and history** roll up across both modes — your streak counts a Side B session the same as a Side A session.

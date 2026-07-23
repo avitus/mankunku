@@ -166,7 +166,7 @@ Tap a lick to see:
 The Progress page is the back cover. It tells you what's been happening over time.
 
 - **Calendar heatmap** — every day you practiced, lit by session count. Skipped days are dim.
-- **Trend chart** — pitch complexity, rhythm complexity, and the resulting overall level, plotted over the rolling window.
+- **Trend chart** — your Tonal Mastery (average proficiency across the unlocked scales and keys, 0–100), plotted over the rolling window.
 - **Streak** — consecutive days you've practiced.
 - **By Key grid** — your average score in each key, so you can see which keys still need work.
 - **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade.

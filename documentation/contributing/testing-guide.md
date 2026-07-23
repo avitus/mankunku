@@ -33,7 +33,7 @@ npx vitest tests/unit/audio/capture.test.ts
 
 Unit tests mirror the source structure under `tests/unit/`, one module per file. Integration tests live under `tests/integration/` and exercise cross-module pipelines and flows (audio processing, adaptive difficulty, cloud sync). Both trees are collected by the default `vitest run` (`npm test`):
 
-```
+```text
 tests/
 ├── unit/
 │   ├── audio/
