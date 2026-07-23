@@ -103,6 +103,38 @@ describe('POST /api/monitoring — allow-list rejection paths', () => {
 	});
 });
 
+describe('POST /api/monitoring — e2e test mode', () => {
+	it('sinks envelopes without forwarding when PLAYWRIGHT=1', async () => {
+		// E2e runs must never reach real Sentry ingest: they pollute production
+		// telemetry, and once ingest starts rejecting the flood, the resulting
+		// 502s surface as console errors that fail unrelated e2e tests
+		// (observed 2026-07-22: 12-15 webkit failures per run).
+		vi.stubEnv('PLAYWRIGHT', '1');
+		try {
+			const upstream = vi.fn();
+			const envelope = `${JSON.stringify({ dsn: VALID_DSN })}\n{"type":"event"}\n{}`;
+			const res = await call(makeRequest(envelope), upstream as unknown as typeof fetch);
+			expect(res.status).toBe(200);
+			expect(upstream).not.toHaveBeenCalled();
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('still validates the allow-list in test mode (no open 200 for junk)', async () => {
+		vi.stubEnv('PLAYWRIGHT', '1');
+		try {
+			const upstream = vi.fn();
+			const envelope = JSON.stringify({ dsn: 'https://k@evil.example.com/4511259307081728' });
+			const res = await call(makeRequest(envelope), upstream as unknown as typeof fetch);
+			expect(res.status).toBe(400);
+			expect(upstream).not.toHaveBeenCalled();
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+});
+
 describe('POST /api/monitoring — happy path forwarding', () => {
 	it('forwards a valid envelope to Sentry and propagates the upstream status', async () => {
 		const upstream = vi.fn(async () => new Response(null, { status: 200 }));
