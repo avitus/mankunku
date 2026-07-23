@@ -1164,3 +1164,127 @@ describe('Flat Five Chromatic Up short-gap re-articulation (concert G, 2026-06-2
 		expect(score.overall).toBeGreaterThan(0.85);
 	});
 });
+
+// ─── Blue Monk tied final-note regression (concert C, 2026-07-23) ──────
+//
+// Real recording exported as a diagnostic on 2026-07-23. The user played the
+// "Blue Monk" head cleanly on tenor sax. The phrase ends on a held E — notated
+// as an eighth-note E (offset 7/8) TIED into a half-note E (downbeat of the
+// next bar). The player correctly sustained a single E across the tie, and the
+// pitch tracker captured it as one long E segment (the last savedDetectedNote,
+// ~4.8 s long).
+//
+// Pre-fix the scorer treated the phrase as all NINE notated notes, so the DTW
+// matched the one detected E to the tied eighth and marked the half-note
+// continuation MISSED (pitch 0, rhythm 0). Saved diagnostic: pitch 0.889,
+// rhythm 0.866, overall 0.880 ("great") — the final note showing red is the
+// "the last note is cut off / the tie isn't accounted for" the user reported.
+//
+// Post-fix scoreAttempt collapses tied same-pitch chains with the same
+// extractSoundingNotes walk playback uses, so the phrase has EIGHT sounding
+// notes, the sustained E matches once, and the score climbs to "perfect".
+
+interface BlueMonkFixture {
+	context: { tempo: number; swing: number };
+	scoring: { savedDetectedNotes: DetectedNote[] };
+}
+
+function loadBlueMonkFixture(): BlueMonkFixture {
+	const path = resolve(
+		__dirname,
+		'..',
+		'fixtures',
+		'recordings',
+		'2026-07-23-blue-monk.json'
+	);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Blue Monk tied final-note regression (concert C, 2026-07-23)', () => {
+	// The Blue Monk head as the scorer saw it, reconstructed from the
+	// diagnostic's saved noteResults (the notated phrase, before tie-merging):
+	// G A G F# F g(low) E♭ E–E, the last two E's joined by a tie.
+	const phrase: Phrase = {
+		id: 'blue-monk-tied-final-note',
+		name: 'Blue Monk',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, offset: [0, 1], duration: [1, 8] },
+			{ pitch: 69, offset: [1, 8], duration: [1, 8] },
+			{ pitch: 67, offset: [1, 4], duration: [1, 8] },
+			{ pitch: 66, offset: [3, 8], duration: [1, 8] },
+			{ pitch: 65, offset: [1, 2], duration: [1, 8] },
+			{ pitch: 55, offset: [5, 8], duration: [1, 8] },
+			{ pitch: 63, offset: [3, 4], duration: [1, 8], spelling: 'flat' },
+			{ pitch: 64, offset: [7, 8], duration: [1, 8], tied: true },
+			{ pitch: 64, offset: [1, 1], duration: [1, 2] }
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 2 },
+		category: 'blues',
+		tags: [],
+		source: 'user'
+	};
+
+	it('the notated tie is one held note the pitch tracker captured as a single long E', () => {
+		// Nine notated notes; the last two same-pitch E's joined by a tie.
+		expect(phrase.notes).toHaveLength(9);
+		expect(phrase.notes[7].tied).toBe(true);
+		expect(phrase.notes[7].pitch).toBe(64);
+		expect(phrase.notes[8].pitch).toBe(64);
+
+		// The player sustained that E, so segmentation produced ONE long E at
+		// the end, not two — the detection side already did the right thing.
+		const detected = loadBlueMonkFixture().scoring.savedDetectedNotes;
+		expect(detected.map((n) => n.midi)).toEqual([67, 69, 67, 66, 65, 55, 63, 64]);
+		expect(detected[detected.length - 1].duration).toBeGreaterThan(2);
+	});
+
+	it('scores the tied final note as a hit, climbing from "great" to "perfect"', () => {
+		const fx = loadBlueMonkFixture();
+		const score = scoreAttempt(
+			phrase,
+			fx.scoring.savedDetectedNotes,
+			fx.context.tempo,
+			0,
+			fx.context.swing
+		);
+
+		// Eight sounding notes after the tie merge, all matched — no missed note.
+		expect(score.notesTotal).toBe(8);
+		expect(score.notesHit).toBe(8);
+		expect(score.noteResults.some((r) => r.missed)).toBe(false);
+
+		// Saved diagnostic (pre-fix): pitch 0.889 (final note missed), rhythm
+		// 0.866, overall 0.880 "great". Post-fix pitch is perfect and overall
+		// clears the 0.95 "perfect" threshold.
+		expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(score.rhythmAccuracy).toBeGreaterThan(0.9);
+		expect(score.overall).toBeGreaterThan(0.95);
+		expect(score.grade).toBe('perfect');
+	});
+
+	it('only merges when the notes are TIED — a re-articulated repeat still needs two hits', () => {
+		// Guard against a naive "merge any repeated pitch" fix: if the same two
+		// E's were NOT tied (two separately-tongued notes), a single held note
+		// should still leave the second one MISSED — the same contract the Flat
+		// Five Chromatic Up case relies on for its two tongued C's.
+		const untied: Phrase = {
+			...phrase,
+			notes: phrase.notes.map((n, i) => (i === 7 ? { ...n, tied: false } : n))
+		};
+		const fx = loadBlueMonkFixture();
+		const score = scoreAttempt(
+			untied,
+			fx.scoring.savedDetectedNotes,
+			fx.context.tempo,
+			0,
+			fx.context.swing
+		);
+
+		expect(score.notesTotal).toBe(9);
+		expect(score.noteResults.some((r) => r.missed)).toBe(true);
+		expect(score.pitchAccuracy).toBeLessThan(1);
+	});
+});

@@ -1,0 +1,69 @@
+{
+	"note": "Sanitized regression fixture. Blue Monk head, tenor sax, concert C. Only the fields the tests consume are retained; production session/user identifiers, timestamps, and unused raw detection/reading payloads have been removed.",
+	"context": {
+		"phraseName": "Blue Monk",
+		"concertKey": "C",
+		"tempo": 54,
+		"swing": 0.6
+	},
+	"scoring": {
+		"savedDetectedNotes": [
+			{
+				"midi": 67,
+				"cents": 3,
+				"onsetTime": 0.23800453514741093,
+				"duration": 0.6327437641723463,
+				"clarity": 0.9907531201320671
+			},
+			{
+				"midi": 69,
+				"cents": -8,
+				"onsetTime": 0.8707482993197573,
+				"duration": 0.4527891156462829,
+				"clarity": 0.9855550905094672
+			},
+			{
+				"midi": 67,
+				"cents": -2,
+				"onsetTime": 1.3235374149660402,
+				"duration": 0.6617687074829064,
+				"clarity": 0.9939132029336673
+			},
+			{
+				"midi": 66,
+				"cents": -3,
+				"onsetTime": 1.9853061224489466,
+				"duration": 0.3715192743766238,
+				"clarity": 0.9799961667344715
+			},
+			{
+				"midi": 65,
+				"cents": 5,
+				"onsetTime": 2.3568253968255704,
+				"duration": 0.7140136054420054,
+				"clarity": 0.9894495584029248
+			},
+			{
+				"midi": 55,
+				"cents": 4,
+				"onsetTime": 3.070839002267576,
+				"duration": 0.3853741496599925,
+				"clarity": 0.9928844653888608
+			},
+			{
+				"midi": 63,
+				"cents": 2,
+				"onsetTime": 3.4562131519275683,
+				"duration": 0.6304988662130198,
+				"clarity": 0.9956633135445538
+			},
+			{
+				"midi": 64,
+				"cents": 6,
+				"onsetTime": 4.086712018140588,
+				"duration": 4.802176870748301,
+				"clarity": 0.9909855104616179
+			}
+		]
+	}
+}
