@@ -69,29 +69,6 @@ export function remove(key: string): void {
 }
 
 /**
- * Save a GLOBAL (non-namespaced) control value, e.g. the `__active` pointer.
- * Reserved for cross-user control keys — do NOT use for user data.
- */
-export function saveGlobal<T>(key: string, value: T): void {
-	try {
-		localStorage.setItem(PREFIX + key, JSON.stringify(value));
-	} catch (err) {
-		console.warn(`Failed to save global ${key}:`, err);
-	}
-}
-
-/** Load a GLOBAL (non-namespaced) control value. */
-export function loadGlobal<T>(key: string): T | null {
-	try {
-		const raw = localStorage.getItem(PREFIX + key);
-		if (raw === null) return null;
-		return JSON.parse(raw) as T;
-	} catch {
-		return null;
-	}
-}
-
-/**
  * List all logical keys in the ACTIVE user's namespace (namespace prefix
  * stripped). Global control keys are NOT included.
  */
@@ -112,7 +89,7 @@ export function listKeys(): string[] {
 
 /**
  * Clear all data in the ACTIVE user's namespace. Does NOT touch other users'
- * buckets or the global control keys (`__active`, `__schema`, `__theme`), so a
+ * buckets or the global control keys (`__active`, `__schema`, `__lastUserId`), so a
  * clear can never strand the pointer or wipe another account.
  */
 export function clearAll(): void {
