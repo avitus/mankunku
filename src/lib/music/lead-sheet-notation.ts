@@ -141,9 +141,12 @@ export function leadSheetToAbcWithMap(
 		const chordPref = el.governing
 			? chordSpellingPreference(
 					midi,
-					instrument
-						? concertKeyToWritten(el.governing.chord.root, instrument)
-						: el.governing.chord.root,
+					displayPitchClass(
+						instrument
+							? concertKeyToWritten(el.governing.chord.root, instrument)
+							: el.governing.chord.root,
+						displayKey
+					),
 					el.governing.chord.quality
 				)
 			: null;

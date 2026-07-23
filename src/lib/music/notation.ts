@@ -49,14 +49,20 @@ const SHARP_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set(['aug', 'aug7'])
  */
 export function chordSpellingPreference(
 	midi: number,
-	root: PitchClass,
+	root: string,
 	quality: ChordQuality
 ): 'sharp' | 'flat' | null {
 	const pc = midiToPitchClass(midi);
 	if (pc !== 1 && pc !== 3 && pc !== 6 && pc !== 8 && pc !== 10) return null;
 
-	const rootPc = PITCH_CLASSES.indexOf(root);
+	// The root may be a display spelling ('G#', 'Gb') rather than a canonical
+	// pitch class — derive its pc from letter + accidental so the letter
+	// arithmetic follows the spelling the reader actually sees.
 	const rootLetter = root[0] as NoteLetter;
+	const rootNatural = LETTER_NATURAL_PC[rootLetter];
+	if (rootNatural === undefined) return null;
+	const accidental = root[1] === '#' ? 1 : root[1] === 'b' ? -1 : 0;
+	const rootPc = (rootNatural + accidental + 12) % 12;
 	const interval = (pc - rootPc + 12) % 12;
 
 	// Semitone interval → letter steps above the root letter. Quality decides
@@ -526,7 +532,10 @@ export function phraseToAbcWithMap(
 		const chordPref = seg
 			? chordSpellingPreference(
 					midi,
-					instrument ? concertKeyToWritten(seg.chord.root, instrument) : seg.chord.root,
+					displayPitchClass(
+						instrument ? concertKeyToWritten(seg.chord.root, instrument) : seg.chord.root,
+						displayKey
+					),
 					seg.chord.quality
 				)
 			: null;
@@ -681,9 +690,34 @@ export function phraseToAbc(
  * Respell a pitch class for chord display in a given key context.
  * In flat keys, F# displays as Gb so chord roots stay consistent
  * (e.g. Dbmaj7 → Gbmaj7 → Ab7 rather than Dbmaj7 → F#maj7 → Ab7).
+ * In sharp keys, a canonical flat name that is DIATONIC to the key is
+ * spelled the way the key spells it (G#-7b5 in A, D#-7 in E) — chromatic
+ * roots keep their flat names (Bb7 in A major stays Bb7).
  */
+const SHARP_RESPELL: Partial<Record<PitchClass, string>> = {
+	Db: 'C#',
+	Eb: 'D#',
+	Ab: 'G#',
+	Bb: 'A#'
+};
+
+function isSharpKey(key: PitchClass): boolean {
+	const sig = KEY_SIG_ACCIDENTALS[key];
+	return sig !== undefined && Object.values(sig).includes('^');
+}
+
+const MAJOR_SCALE_STEPS = [0, 2, 4, 5, 7, 9, 11];
+
+function isDiatonic(pc: PitchClass, key: PitchClass): boolean {
+	const keyPc = PITCH_CLASSES.indexOf(key);
+	const target = PITCH_CLASSES.indexOf(pc);
+	return MAJOR_SCALE_STEPS.some((s) => (keyPc + s) % 12 === target);
+}
+
 export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): string {
 	if (pc === 'F#' && FLAT_KEYS.includes(keyContext)) return 'Gb';
+	const sharp = SHARP_RESPELL[pc];
+	if (sharp && isSharpKey(keyContext) && isDiatonic(pc, keyContext)) return sharp;
 	return pc;
 }
 

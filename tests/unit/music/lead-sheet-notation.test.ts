@@ -423,3 +423,52 @@ describe('leadSheetToAbc — unlabeled sections', () => {
 		expect(abc).toContain('P:A');
 	});
 });
+
+describe('leadSheetToAbc — sharp-key chord respelling', () => {
+	it('spells diatonic flat-named roots as the sharp key spells them', () => {
+		// Key A (3 sharps): the canonical Ab/Db roots are the diatonic G#/C#.
+		const abc = leadSheetToAbc(sheet({
+			key: 'A',
+			sections: [
+				section({
+					bars: 3,
+					harmony: [
+						seg('Ab', 'min7b5', [0, 1], [1, 1]),
+						seg('Db', '7b9', [1, 1], [1, 1]),
+						seg('Bb', '7', [2, 1], [1, 1]) // chromatic — keeps its flat name
+					]
+				})
+			]
+		}));
+		expect(abc).toContain('"G#-7b5"');
+		expect(abc).toContain('"C#7b9"');
+		expect(abc).toContain('"Bb7"');
+	});
+
+	it('spells notes against the respelled chord root', () => {
+		// C# over C#7b9 in key A: the root, covered by the key signature —
+		// never an explicit Db.
+		const abc = leadSheetToAbc(sheet({
+			key: 'A',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 61, duration: [1, 1], offset: [0, 1] }],
+					harmony: [seg('Db', '7b9', [0, 1], [1, 1])]
+				})
+			]
+		}));
+		expect(abc).toContain('"C#7b9"C8');
+		expect(abc).not.toContain('_D');
+	});
+
+	it('leaves flat-key contexts untouched', () => {
+		const abc = leadSheetToAbc(sheet({
+			key: 'Bb',
+			sections: [
+				section({ bars: 1, harmony: [seg('Ab', '7', [0, 1], [1, 1])] })
+			]
+		}));
+		expect(abc).toContain('"Ab7"');
+	});
+});
