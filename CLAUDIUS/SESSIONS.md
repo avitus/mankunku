@@ -78,6 +78,8 @@ Newest at the top.
 - Note for the pattern file: when an adversarial finding gets scoped down to 'just the regression', the general class usually comes back with a user's name on it within days. The cost asymmetry (one-line broader fix vs a diagnose-explain-fix round trip) favored the general fix the first time.
 - 2572 unit/integration, 39/39 lead-sheet e2e, check clean.
 
+**Then — pickup bars lose their label:** user doesn't want the boxed 'Pickup' marker. The anacrusis keeps its own section (still outside repeats, still consuming no letter) but with an empty label; the renderer skips P: for blank labels. ATTYA now opens with a bare pickup bar, then P:A. 2573 unit/integration, 54/54 lead-sheet e2e.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
