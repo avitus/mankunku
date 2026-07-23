@@ -307,11 +307,13 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 					case 'Harmony': {
 						const text = harmonyText(body, transpose, warnOnce);
 						if (text !== null) {
-							// Chord symbols are beat-granular in the editor; a chord
-							// over a sub-beat pickup would be unreachable there. Snap
-							// pickup anchors down to their containing beat.
-							const offset = info.pickup ? floorToBeat(cursor, nominal[1]) : cursor;
-							harmonies.push({ offset, text });
+							// Chord symbols are beat-granular in the editor, and a
+							// chord with no note to attach to (e.g. over a rest bar)
+							// can be anchored at an arbitrary drag-placed "time tick".
+							// Snap every anchor down to its containing beat: sub-beat
+							// chords would be unreachable in the editor and fragment
+							// the side-by-side rest layout.
+							harmonies.push({ offset: floorToBeat(cursor, nominal[1]), text });
 						}
 						break;
 					}

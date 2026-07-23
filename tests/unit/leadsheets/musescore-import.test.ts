@@ -214,6 +214,42 @@ describe('parseMscx — basics', () => {
 		expect(sec.harmony[0].startOffset).toEqual([0, 1]);
 	});
 
+	it('snaps drag-placed harmony anchors to the beat grid', () => {
+		// A chord over a rest bar has no note to attach to; MuseScore anchors
+		// it at an arbitrary "time tick" via location jumps (visual drag
+		// placement) — e.g. 3/8 into the bar. Snap to the containing beat so
+		// the chord is editable and the rest bar groups cleanly.
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Rest><durationType>measure</durationType><duration>4/4</duration></Rest>
+          <location><fractions>-3/4</fractions><timeTick>1</timeTick></location>
+          <location><fractions>1/8</fractions></location>
+          ${HARMONY(17, '-7b5')}
+          <location><fractions>3/8</fractions></location>
+          ${HARMONY(16, '7b9')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const harmony = sheets[0].sections[0].harmony;
+		// Anchored in the file at 1/8 and 1/2 past beat 2 of bar 2 — snapped
+		// onto beats 2 and 4.
+		expect(harmony.map((h) => [h.symbol, h.startOffset])).toEqual([
+			['A-7b5', [5, 4]],
+			['D7b9', [7, 4]]
+		]);
+	});
+
 	it('scales tuplet members by the tuplet ratio', () => {
 		const { sheets } = parseMscx(mscx({
 			staves: `
