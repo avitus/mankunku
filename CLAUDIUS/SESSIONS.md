@@ -71,6 +71,13 @@ Newest at the top.
 - The design lesson: 'trust the file's metadata' and 'distrust the file's metadata' are both wrong as absolutes — the right rule is trust POSITIVE declarations (someone chose a tenor part on purpose) and distrust DEFAULTS (transposition 0 is what you get by not thinking about it). Defaults encode the tool's assumption, not the author's intent.
 - 2571 unit/integration, 24/24 import e2e; new committed fixture written-pitch-tenor-chart.mscx pins the claims-concert path end to end.
 
+**Then — the fragmented rest bar closes the loop on the sub-beat-anchor class:**
+
+- User asked WHY ATTYA's final rest bar rendered as [1/4, 1/8, 1/8, 1/4, 1/4]. Diagnosis: the file anchors the last bar's turnaround chords at drag-placed time ticks (3/8 and 3/4 into the bar — no notes to attach to over a whole-bar rest), and the side-by-side-chords renderer splits the rest at each anchor, faithfully fragmenting around a musically meaningless position.
+- The fix was already on the table: the adversarial review's sub-beat-chord finding (round one) recommended snapping ALL harmony anchors, and I'd consciously scoped it to pickup bars only. The user's report is that same class surfacing through a different symptom — rest fragmentation instead of editor unreachability. Snap now applies to every anchor; beat-aligned files (Fly Me) unchanged, fidelity suite green untouched.
+- Note for the pattern file: when an adversarial finding gets scoped down to 'just the regression', the general class usually comes back with a user's name on it within days. The cost asymmetry (one-line broader fix vs a diagnose-explain-fix round trip) favored the general fix the first time.
+- 2572 unit/integration, 39/39 lead-sheet e2e, check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
