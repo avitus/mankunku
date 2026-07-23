@@ -8,6 +8,7 @@ import {
 } from '$lib/audio/note-segmenter';
 import { runScorePipeline } from '$lib/scoring/score-pipeline';
 import type { Phrase } from '$lib/types/music';
+import type { DetectedNote } from '$lib/types/audio';
 import { loadWavFixture, makeFakeAudioBuffer, type FakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
@@ -1257,7 +1258,7 @@ describe('pitch replay regression: Blue Monk tied final note (concert C, 2026-07
 	// Mirror the production replay path (diagnostics / ear-training):
 	// resolveOnsets → findReArticulations → segmentNotes(..., worklet, artic).
 	// No backing track was used, so no bleed onsets.
-	async function detectFromFixture() {
+	async function detectFromFixture(): Promise<DetectedNote[]> {
 		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
 		const baseOnsets = resolveOnsets(onsets, readings);
 		const articulationOnsets = findReArticulations(readings, baseOnsets);
