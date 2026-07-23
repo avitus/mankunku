@@ -560,10 +560,18 @@ function buildSections(
 		builders[0].pickup = true;
 	}
 
+	// Unmarked front matter ahead of the first real rehearsal mark carries no
+	// letter either — it's the pickup/intro bar of the form the marks define,
+	// and a boxed 'C' ahead of 'A' reads as an error, not a section.
+	const hasMarks = builders.some((b) => b.label !== null && b.label !== '');
+	if (hasMarks && builders[0] && builders[0].label === null && !builders[0].inheritLabel) {
+		builders[0].label = '';
+	}
+
 	// A lone :| with no |: means "repeat from the top" (or from the bar after
 	// the previous :|) — synthesize the opening so playback matches the page.
-	// "The top" is the top of the FORM: a pickup bar stays outside the repeat.
-	let spanStart = builders[0]?.pickup ? 1 : 0;
+	// "The top" is the top of the FORM: pickup/front-matter bars stay outside.
+	let spanStart = builders[0]?.label === '' ? 1 : 0;
 	let hasStart = false;
 	builders.forEach((b, i) => {
 		if (b.startRepeat) hasStart = true;

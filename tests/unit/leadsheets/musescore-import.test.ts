@@ -719,8 +719,9 @@ describe('parseMscx — structure', () => {
     </Staff>`
 		}));
 		// The repeated span must not steal the user's real 'B' — duplicate
-		// labels also collapse in the notation's part-label suppression.
-		expect(sheets[0].sections.map((s) => s.label)).toEqual(['A', 'C', 'B']);
+		// labels also collapse in the notation's part-label suppression. The
+		// unmarked lead bar is front matter and carries no letter at all.
+		expect(sheets[0].sections.map((s) => s.label)).toEqual(['', 'A', 'B']);
 	});
 
 	it('a pickup ahead of a repeat still leaves the form starting at A', () => {
@@ -812,6 +813,34 @@ describe('parseMscx — structure', () => {
 		expect(pickup.repeatStart).toBeUndefined();
 		expect(a.repeatStart).toBe(true);
 		expect(a.repeatEnd).toBe(true);
+	});
+
+	it('leaves unmarked front matter before the first mark unlabeled', () => {
+		// A pickup/intro bar engraved as a full measure gets no letter — the
+		// letters belong to the form the rehearsal marks define ('C' boxed
+		// ahead of 'A' reads as an error, not a section).
+		const measure = (content: string): string => `
+      <Measure>
+        <voice>
+          ${content}
+        </voice>
+      </Measure>`;
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      ${measure(`<TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}`)}
+      ${measure(`<RehearsalMark><text>A</text></RehearsalMark>
+          ${CHORD(62, 'whole')}`)}
+      ${measure(`<RehearsalMark><text>B</text></RehearsalMark>
+          ${CHORD(64, 'whole')}`)}
+    </Staff>`
+		}));
+		expect(sheets[0].sections.map((s) => [s.label, s.bars])).toEqual([
+			['', 1],
+			['A', 1],
+			['B', 1]
+		]);
 	});
 
 	it('takes only the first staff of a multi-staff score', () => {
