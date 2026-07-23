@@ -9,8 +9,14 @@
 	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
+	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import { writtenSheetToConcert, type SourceTransposition } from '$lib/leadsheets/source-transposition';
 
-	let sheets = $state<LeadSheet[]>([]);
+	let rawSheets = $state<LeadSheet[]>([]);
+	// These formats are concert-pitch by definition, so the source defaults
+	// to Concert; the selector covers charts authored at written pitch.
+	let source = $state<SourceTransposition>('C');
+	const sheets = $derived(rawSheets.map((s) => writtenSheetToConcert(s, source, getInstrument())));
 	let warnings = $state<string[]>([]);
 	let parsedOnce = $state(false);
 
@@ -28,7 +34,7 @@
 			name: file.name,
 			bytes: new Uint8Array(await file.arrayBuffer())
 		});
-		sheets = result.sheets;
+		rawSheets = result.sheets;
 		warnings = result.warnings;
 		parsedOnce = true;
 	}
@@ -68,6 +74,8 @@
 		melody and chord symbols come across at concert pitch — transposing parts (tenor, alto) are
 		converted automatically.
 	</p>
+
+	<SourceTranspositionSelect value={source} onchange={(v) => (source = v)} hint="MuseScore parts declare their own transposition — leave on Concert unless the score was written at sounding pitch for a horn." />
 
 	<input
 		type="file"

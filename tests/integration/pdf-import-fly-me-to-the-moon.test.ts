@@ -25,6 +25,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
+import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import type { LeadSheet } from '$lib/types/lead-sheet';
 
 const fixture = (name: string): string =>
@@ -92,6 +94,31 @@ describe('recorded Claude extraction converts cleanly', () => {
 		for (let i = 0; i < 3; i++) {
 			expect(extracted[i].duration).toEqual(entered[i].duration);
 		}
+	});
+
+	it('lands on the concert ground truth once the source transposition is applied', () => {
+		// The import page asks what the chart is written for (defaulting to the
+		// user's instrument). This chart is a tenor part; declaring it Bb turns
+		// the printed D chart into the same concert-C sheet the user entered by
+		// hand.
+		const { sheet } = claudeJsonToLeadSheet(RESPONSE);
+		const concert = writtenSheetToConcert(sheet!, 'Bb', INSTRUMENTS['tenor-sax']);
+
+		expect(concert.key).toBe('C');
+		expect(concert.sections.map((s) => [s.label, s.bars])).toEqual([
+			['A', 16],
+			['B', 16]
+		]);
+		// Opening phrase: pitches now EQUAL the hand-entered concert melody.
+		const entered = ENTERED.sections[0].notes.slice(0, 4);
+		concert.sections[0].notes.slice(0, 4).forEach((n, i) => {
+			expect(n.pitch).toBe(entered[i].pitch);
+			expect(n.offset).toEqual(entered[i].offset);
+		});
+		// And the changes read as the standard concert changes.
+		expect(concert.sections[0].harmony.slice(0, 7).map((h) => h.symbol)).toEqual([
+			'A-7', 'D-7', 'G7', 'CΔ7', 'FΔ7', 'B-7b5', 'E7b9'
+		]);
 	});
 
 	it('extracts a plausible full melody for human review', () => {

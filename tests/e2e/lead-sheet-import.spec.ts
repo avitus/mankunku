@@ -64,8 +64,30 @@ test('iReal review flow opens the imported form in the editor', async ({ page })
 	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
 });
 
+test('the source selector re-interprets a chart as a written-pitch part', async ({ page }) => {
+	await page.goto('/lead-sheets/import/ireal');
+
+	await page.getByRole('textbox', { name: 'iReal Pro share link' }).fill(IREAL_URL);
+	await page.getByRole('button', { name: 'Read link' }).click();
+	await expect(page.getByText('Imported Blues')).toBeVisible();
+
+	// Declaring the chart a Bb part AFTER parsing re-derives the result: the
+	// pasted F7 is now treated as written pitch (concert Eb7), so the seeded
+	// tenor's display shows it back as printed — F7 instead of G7.
+	await page.getByLabel('Chart written for').selectOption('Bb');
+	await page.getByRole('button', { name: 'Add to book' }).click();
+	await page.getByRole('link', { name: /Added — view/ }).click();
+
+	await page.waitForURL('**/lead-sheets/sheet-*');
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^F7$/ }).first()).toBeVisible();
+});
+
 test('a real Band-in-a-Box file imports with sections and a chorus repeat', async ({ page }) => {
 	await page.goto('/lead-sheets/import/biab');
+
+	// Format-canonical sources default to Concert — a Bb default would
+	// silently shift every BIAB import for transposing players.
+	await expect(page.getByLabel('Chart written for')).toHaveValue('C');
 
 	// setInputFiles only waits for attachment, not enabled-ness — wait for
 	// the hydration gate (the input is disabled until mounted) explicitly,

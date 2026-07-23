@@ -23,7 +23,8 @@ import {
 	flattenedBufferBase,
 	suspendEntryBuffer,
 	resumeEntryBuffer,
-	melodyEditingSupported
+	melodyEditingSupported,
+	setSourceTransposition
 } from '$lib/state/lead-sheet-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -114,7 +115,9 @@ describe('draft building', () => {
 	});
 
 	it('converts the written key to concert on the built sheet', () => {
+		// The source transposition defaults from the instrument at init time.
 		settings.instrumentId = 'tenor-sax';
+		initNewLeadSheet();
 		setSheetWrittenKey('D', false);
 		const draft = buildDraftLeadSheet();
 		expect(draft.key).toBe('C'); // written D on tenor = concert C
@@ -198,7 +201,9 @@ describe('chords', () => {
 	});
 
 	it('converts written chord symbols to concert for transposing instruments', () => {
+		// The source transposition defaults from the instrument at init time.
 		settings.instrumentId = 'tenor-sax';
+		initNewLeadSheet();
 		setChord(0, 0, 0, 'Em7');
 		const seg = leadSheetEntry.sections[0].harmony[0];
 		// Written Em7 on tenor (+2 pitch class) is concert Dm7.
@@ -398,5 +403,86 @@ describe('edit-mode hydration', () => {
 		expect(draft.id).toBe('sheet-7-zzzz');
 		expect(draft.source).toBe('user');
 		expect(draft.key).toBe('F');
+	});
+});
+
+// ─── Source transposition (chart written for) ─────────────────────────
+
+describe('source transposition', () => {
+	beforeEach(() => {
+		settings.instrumentId = 'tenor-sax';
+		initNewLeadSheet();
+	});
+
+	it('defaults to the user instrument family and arms the buffer override', () => {
+		expect(leadSheetEntry.sourceTransposition).toBe('Bb');
+		expect(stepEntry.transpositionOverride).toBe(14);
+
+		settings.instrumentId = 'concert';
+		initNewLeadSheet();
+		expect(leadSheetEntry.sourceTransposition).toBe('C');
+		expect(stepEntry.transpositionOverride).toBe(0);
+	});
+
+	it('switching the source re-labels the written key, concert stays fixed', () => {
+		// Tenor default: written C = concert Bb.
+		expect(buildDraftLeadSheet().key).toBe('Bb');
+		setSourceTransposition('C');
+		expect(leadSheetEntry.writtenKey).toBe('Bb');
+		expect(buildDraftLeadSheet().key).toBe('Bb');
+		expect(stepEntry.phraseKey).toBe('Bb');
+		expect(stepEntry.transpositionOverride).toBe(0);
+	});
+
+	it('chords are read/written at the SOURCE pitch, not the instrument', () => {
+		// Concert-book source on a tenor: Dm7 on the page is concert Dm7.
+		setSourceTransposition('C');
+		expect(setChord(0, 0, 0, 'Dm7')).toBe(true);
+		expect(leadSheetEntry.sections[0].harmony[0].chord.root).toBe('D');
+		expect(chordTextAt(0, 0, 0)).toBe('D-7');
+	});
+
+	it('under the default Bb source, chords transpose as before', () => {
+		expect(setChord(0, 0, 0, 'Dm7')).toBe(true);
+		expect(leadSheetEntry.sections[0].harmony[0].chord.root).toBe('C');
+		expect(chordTextAt(0, 0, 0)).toBe('D-7');
+	});
+
+	it('typed melody follows the source: concert book C4 stores concert 60', () => {
+		setSourceTransposition('C');
+		addNote(0, 4, 'natural');
+		expect(stepEntry.enteredNotes[0].pitch).toBe(60);
+	});
+
+	it('loadFromLeadSheet re-defaults the source from the instrument', () => {
+		setSourceTransposition('C');
+		const sheet: LeadSheet = {
+			id: 'sheet-1',
+			title: 'T',
+			key: 'C',
+			timeSignature: [4, 4],
+			tags: [],
+			source: 'user',
+			sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }]
+		};
+		loadFromLeadSheet(sheet, INSTRUMENTS['tenor-sax']);
+		expect(leadSheetEntry.sourceTransposition).toBe('Bb');
+		expect(leadSheetEntry.writtenKey).toBe('D');
+		expect(stepEntry.transpositionOverride).toBe(14);
+	});
+
+	it('suspend clears the shared-buffer override; resume restores it', () => {
+		suspendEntryBuffer();
+		expect(stepEntry.transpositionOverride).toBeNull();
+		resumeEntryBuffer();
+		expect(stepEntry.transpositionOverride).toBe(14);
+	});
+
+	it('buildDraftLeadSheet converts the written key through the source', () => {
+		setSheetWrittenKey('D', false);
+		expect(buildDraftLeadSheet().key).toBe('C'); // Bb source: written D = concert C
+		setSourceTransposition('C');
+		expect(leadSheetEntry.writtenKey).toBe('C');
+		expect(buildDraftLeadSheet().key).toBe('C');
 	});
 });

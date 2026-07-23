@@ -34,6 +34,9 @@ test.beforeEach(async ({ page }) => {
 test('a PDF chart lands in the editor for review and saves from there', async ({ page }) => {
 	await page.goto('/lead-sheets/import/pdf');
 
+	// The source-pitch selector defaults to the seeded tenor's family.
+	await expect(page.getByLabel('Chart written for')).toHaveValue('Bb');
+
 	const fileInput = page.getByLabel('Lead sheet PDF');
 	await expect(fileInput).toBeEnabled(); // config probe resolved + hydrated
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
@@ -41,11 +44,11 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	// The draft opens in the editor with the extracted content intact.
 	await page.waitForURL('**/lead-sheets/entry');
 	await expect(page.getByRole('textbox', { name: 'Lead sheet title' })).toHaveValue('Fly Me to the Moon');
-	// Extracted chords render on the chart. The chart data is written-pitch D
-	// (stored as if concert); the seeded tenor transposes display another
-	// whole step: the opening B-7 shows as D♭-7 (abcjs renders chord
-	// accidentals as music glyphs — ♭, not the letter b).
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^D♭-7$/ }).first()).toBeVisible();
+	// The chart is printed at written pitch for tenor (D). The Bb default
+	// shifts it to concert C on import, and the editor re-displays it at the
+	// tenor's written pitch — so the opening chord reads B-7, exactly as
+	// printed on the source chart.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()).toBeVisible();
 	// The pre-assigned id keeps the flow in update mode so the stored PDF
 	// stays linked to the sheet the user saves.
 	await expect(page.getByRole('button', { name: 'Update' })).toBeVisible();

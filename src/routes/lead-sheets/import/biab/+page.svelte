@@ -9,8 +9,14 @@
 	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
+	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import { writtenSheetToConcert, type SourceTransposition } from '$lib/leadsheets/source-transposition';
 
-	let sheets = $state<LeadSheet[]>([]);
+	let rawSheets = $state<LeadSheet[]>([]);
+	// These formats are concert-pitch by definition, so the source defaults
+	// to Concert; the selector covers charts authored at written pitch.
+	let source = $state<SourceTransposition>('C');
+	const sheets = $derived(rawSheets.map((s) => writtenSheetToConcert(s, source, getInstrument())));
 	let warnings = $state<string[]>([]);
 	let parsedOnce = $state(false);
 
@@ -28,7 +34,7 @@
 		const result = /\.(xml|musicxml|txt)$/.test(lower)
 			? importBandInABox({ name: file.name, text: await file.text() })
 			: importBandInABox({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
-		sheets = result.sheets;
+		rawSheets = result.sheets;
 		warnings = result.warnings;
 		parsedOnce = true;
 	}
@@ -68,6 +74,8 @@
 		chord read), or a MusicXML export from BIAB for the most faithful result. Chords and form
 		come across; melodies are entered afterwards.
 	</p>
+
+	<SourceTranspositionSelect value={source} onchange={(v) => (source = v)} hint="BIAB songs store concert chords — change only if the file was built at written pitch." />
 
 	<input
 		type="file"

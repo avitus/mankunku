@@ -81,6 +81,22 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 	expect(sheets[0].title).toBe('Test Session Tune v2');
 });
 
+test('the source-pitch selector defaults to the instrument and re-labels the key', async ({ page }) => {
+	await page.goto('/lead-sheets/entry');
+	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
+
+	await page.getByRole('button', { name: /Setup · Key/ }).click();
+	// Seeded tenor → the chart-written-for selector defaults to Bb.
+	const select = page.getByLabel('Chart written for');
+	await expect(select).toHaveValue('Bb');
+
+	// Switching the source keeps the CONCERT key fixed and re-labels the
+	// written key: written C for a Bb chart is concert Bb, which a concert
+	// chart labels Bb.
+	await select.selectOption('C');
+	await expect(page.getByRole('button', { name: /Setup · Key Bb/ })).toBeVisible();
+});
+
 test('adds a section with a repeat and sees it in the preview', async ({ page }) => {
 	await page.goto('/lead-sheets/entry');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier

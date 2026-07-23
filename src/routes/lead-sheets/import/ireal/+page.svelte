@@ -8,15 +8,21 @@
 	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
+	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import { writtenSheetToConcert, type SourceTransposition } from '$lib/leadsheets/source-transposition';
 
 	let input = $state('');
-	let sheets = $state<LeadSheet[]>([]);
+	let rawSheets = $state<LeadSheet[]>([]);
+	// These formats are concert-pitch by definition, so the source defaults
+	// to Concert; the selector covers charts authored at written pitch.
+	let source = $state<SourceTransposition>('C');
+	const sheets = $derived(rawSheets.map((s) => writtenSheetToConcert(s, source, getInstrument())));
 	let warnings = $state<string[]>([]);
 	let parsedOnce = $state(false);
 
 	function handleParse(): void {
 		const result = parseIRealUrl(input);
-		sheets = result.sheets;
+		rawSheets = result.sheets;
 		warnings = result.warnings;
 		parsedOnce = true;
 	}
@@ -55,6 +61,8 @@
 		<code class="rounded bg-[var(--color-bg-tertiary)] px-1">irealb://</code> link here.
 		Chords and form come across; melodies are entered afterwards.
 	</p>
+
+	<SourceTranspositionSelect value={source} onchange={(v) => (source = v)} hint="iReal charts are concert pitch — change only if yours was built at written pitch." />
 
 	<textarea
 		bind:value={input}

@@ -4,7 +4,7 @@ import type { BaseDurationId } from '$lib/step-entry/durations';
 import { getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
-import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
+import { concertKeyToWritten, transposePitchClass } from '$lib/music/transposition';
 import { getInstrument } from '$lib/state/settings.svelte';
 
 /**
@@ -75,8 +75,18 @@ export const stepEntry = $state({
 	editingId: null as string | null,
 	editingSource: null as string | null,
 	editingTags: null as string[] | null,
-	editingCategory: null as PhraseCategory | null
+	editingCategory: null as PhraseCategory | null,
+	// When non-null, typed pitches are interpreted as written for a SOURCE
+	// chart with this transposition instead of the user's instrument — set by
+	// the lead-sheet editor's "chart written for" selector (0 = concert
+	// book). null = follow the instrument, the lick-entry behavior.
+	transpositionOverride: null as number | null
 });
+
+/** Written-above-concert semitones the entry surface currently assumes. */
+function entryTransposition(): number {
+	return stepEntry.transpositionOverride ?? getInstrument().transpositionSemitones;
+}
 
 export function getCurrentCursorOffset(): Fraction {
 	let offset: Fraction = [0, 1];
@@ -116,9 +126,9 @@ export function getPaddedNotes(): Note[] {
 
 export function getCurrentPhrase(): Phrase {
 	// stepEntry.phraseKey is what the user selected in the dropdown — the WRITTEN
-	// key for their instrument. The rest of the app (notation, playback, scoring)
-	// expects phrase.key in CONCERT pitch, so convert here.
-	const concertKey = writtenKeyToConcert(stepEntry.phraseKey, getInstrument());
+	// key for the entry surface. The rest of the app (notation, playback,
+	// scoring) expects phrase.key in CONCERT pitch, so convert here.
+	const concertKey = transposePitchClass(stepEntry.phraseKey, -entryTransposition());
 	return {
 		id: '',
 		name: stepEntry.phraseName || 'Untitled',
@@ -164,7 +174,7 @@ export function addNote(
 		? applyKeySig(pitchClass, stepEntry.phraseKey)
 		: applyAccidental(pitchClass, accidental);
 
-	const trans = getInstrument().transpositionSemitones;
+	const trans = entryTransposition();
 
 	// Find the last pitched note as a reference. Stored notes are in concert
 	// pitch, so convert to written space for nearest-octave comparison.
@@ -358,6 +368,7 @@ export function reset(): void {
 	stepEntry.editingSource = null;
 	stepEntry.editingTags = null;
 	stepEntry.editingCategory = null;
+	stepEntry.transpositionOverride = null;
 }
 
 /**
@@ -396,7 +407,7 @@ export function adjustSelectedNotePitch(semitones: number): void {
 	if (note.pitch === null) return;
 	const newConcert = note.pitch + semitones;
 	// Validate in written space — that's the user's mental range
-	const trans = getInstrument().transpositionSemitones;
+	const trans = entryTransposition();
 	if (!isInEntryRange(newConcert + trans)) return;
 	// Break ties whose endpoints would no longer share a pitch.
 	if (target > 0) {
@@ -470,7 +481,7 @@ export function flipSelectedNoteSpelling(): void {
 	const note = notes[target];
 	if (note.pitch === null) return;
 
-	const trans = getInstrument().transpositionSemitones;
+	const trans = entryTransposition();
 	const writtenPc = (((note.pitch + trans) % 12) + 12) % 12;
 	if (!CHROMATIC_PCS.has(writtenPc)) return;
 

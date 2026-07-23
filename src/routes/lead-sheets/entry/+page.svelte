@@ -7,6 +7,7 @@
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import SectionConfigPanel from '$lib/components/lead-sheet-entry/SectionConfigPanel.svelte';
 	import ChordEntryPanel from '$lib/components/lead-sheet-entry/ChordEntryPanel.svelte';
+	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
 	import {
 		leadSheetEntry,
 		initNewLeadSheet,
@@ -16,6 +17,8 @@
 		suspendEntryBuffer,
 		resumeEntryBuffer,
 		setSheetWrittenKey,
+		setSourceTransposition,
+		entryTranspositionSemitones,
 		flattenedBufferBase,
 		currentSectionPageCount,
 		melodyEditingSupported
@@ -54,6 +57,12 @@
 
 	const draft = $derived(buildDraftLeadSheet());
 	const isEditing = $derived(leadSheetEntry.editingId !== null);
+	// The preview renders at the SOURCE chart's pitch so the screen matches
+	// the page being copied (usually the user's instrument; selectable).
+	const previewInstrument = $derived({
+		...getInstrument(),
+		transpositionSemitones: entryTranspositionSemitones()
+	});
 	const position = $derived(getCurrentBarAndBeat());
 	const remainingBeats = $derived(Math.round(fractionToFloat(getRemainingCapacity()) * 4));
 	const currentSectionLabel = $derived(
@@ -217,7 +226,7 @@
 	<!-- Live chart preview -->
 	<NotationDisplay
 		leadSheet={draft}
-		instrument={getInstrument()}
+		instrument={previewInstrument}
 		selectedIndex={previewSelectedIndex}
 		onSelect={handlePreviewSelect}
 	>
@@ -273,6 +282,10 @@
 						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
 					/>
 				</div>
+				<SourceTranspositionSelect
+					value={leadSheetEntry.sourceTransposition}
+					onchange={setSourceTransposition}
+				/>
 				<div class="flex flex-wrap items-center gap-3">
 					<label class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
 						Key

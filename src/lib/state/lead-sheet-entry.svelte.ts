@@ -26,16 +26,26 @@ import {
 	fractionToFloat,
 	subtractFractions
 } from '$lib/music/intervals';
-import { concertKeyToWritten, transposePitchClass, writtenKeyToConcert } from '$lib/music/transposition';
+import { transposePitchClass } from '$lib/music/transposition';
 import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from '$lib/music/chord-symbol';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { harmonicSegmentFromChordSymbol } from '$lib/leadsheets/segment-from-symbol';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 import { stepEntry, reset as resetStepEntry } from '$lib/state/step-entry.svelte';
 import { transposeLeadSheet } from '$lib/leadsheets/library-loader';
+import {
+	defaultSourceTransposition,
+	sourceTranspositionSemitones,
+	type SourceTransposition
+} from '$lib/leadsheets/source-transposition';
 
 /** Bars per editing page — matches step-entry's maximum bar capacity. */
 export const PAGE_BARS = 4;
+
+/** Semitones the source chart is written above concert. */
+export function entryTranspositionSemitones(): number {
+	return sourceTranspositionSemitones(leadSheetEntry.sourceTransposition, getInstrument());
+}
 
 const MAX_SECTION_BARS = 64;
 
@@ -43,8 +53,15 @@ export const leadSheetEntry = $state({
 	title: '',
 	composer: '',
 	style: '',
-	/** WRITTEN key shown in the key selector. */
+	/** WRITTEN key shown in the key selector (at the SOURCE's pitch). */
 	writtenKey: 'C' as PitchClass,
+	/**
+	 * What pitch the chart being copied is written in. The whole entry
+	 * surface — key selector, chord text, typed melody, preview — reads and
+	 * writes at this pitch; storage stays concert. Defaults to the user's
+	 * instrument family.
+	 */
+	sourceTransposition: 'C' as SourceTransposition,
 	/**
 	 * Sheet meter. Manual entry is 4/4 (the step-entry buffer's assumption);
 	 * imported charts in other meters keep theirs, with melody editing gated
@@ -169,6 +186,9 @@ export function commitBuffer(): void {
 function loadBuffer(sectionIdx: number, pageIdx: number): void {
 	const sec = leadSheetEntry.sections[sectionIdx];
 	if (!sec) return;
+	// The shared buffer interprets typed pitches at the SOURCE's transposition
+	// while a lead sheet is being edited (cleared by suspendEntryBuffer).
+	stepEntry.transpositionOverride = entryTranspositionSemitones();
 	if (!melodyEditingSupported()) {
 		stepEntry.enteredNotes = [];
 		stepEntry.selectedNoteIndex = null;
@@ -199,6 +219,7 @@ export function initNewLeadSheet(): void {
 	leadSheetEntry.title = '';
 	leadSheetEntry.composer = '';
 	leadSheetEntry.style = '';
+	leadSheetEntry.sourceTransposition = defaultSourceTransposition(getInstrument());
 	leadSheetEntry.writtenKey = 'C';
 	leadSheetEntry.timeSignature = [4, 4];
 	leadSheetEntry.tags = [];
@@ -220,7 +241,11 @@ export function loadFromLeadSheet(sheet: LeadSheet, instrument: InstrumentConfig
 	leadSheetEntry.title = sheet.title;
 	leadSheetEntry.composer = sheet.composer ?? '';
 	leadSheetEntry.style = sheet.style ?? '';
-	leadSheetEntry.writtenKey = concertKeyToWritten(sheet.key, instrument);
+	leadSheetEntry.sourceTransposition = defaultSourceTransposition(instrument);
+	leadSheetEntry.writtenKey = transposePitchClass(
+		sheet.key,
+		sourceTranspositionSemitones(leadSheetEntry.sourceTransposition, instrument)
+	);
 	leadSheetEntry.timeSignature = [sheet.timeSignature[0], sheet.timeSignature[1]];
 	leadSheetEntry.tags = [...sheet.tags];
 	leadSheetEntry.sections = sheet.sections.map(cloneSection);
@@ -250,8 +275,7 @@ export function loadDraftForReview(sheet: LeadSheet, instrument: InstrumentConfi
  * (no state mutation) and converting the written key to concert once.
  */
 export function buildDraftLeadSheet(): LeadSheet {
-	const instrument = getInstrument();
-	const concertKey = writtenKeyToConcert(leadSheetEntry.writtenKey, instrument);
+	const concertKey = transposePitchClass(leadSheetEntry.writtenKey, -entryTranspositionSemitones());
 	const sections = leadSheetEntry.sections.map((sec, i) => {
 		const clone = cloneSection(sec);
 		if (i === leadSheetEntry.currentSection) {
@@ -306,6 +330,8 @@ export function suspendEntryBuffer(): void {
 	commitBuffer();
 	stepEntry.enteredNotes = [];
 	stepEntry.selectedNoteIndex = null;
+	// Hand the shared buffer back to lick entry with instrument semantics.
+	stepEntry.transpositionOverride = null;
 }
 
 /** Reload the current page into the buffer after a suspend. */
@@ -406,7 +432,7 @@ export function setChord(sectionIdx: number, bar: number, beat: number, symbolTe
 	const parsed = parseChordSymbol(symbolText);
 	if (!parsed) return false;
 
-	const semitones = getInstrument().transpositionSemitones;
+	const semitones = entryTranspositionSemitones();
 	const concert: ChordSymbol = {
 		...parsed,
 		root: transposePitchClass(parsed.root, -semitones),
@@ -440,7 +466,7 @@ export function chordTextAt(sectionIdx: number, bar: number, beat: number): stri
 	const seg = sec.harmony.find((h) => compareFractions(h.startOffset, offset) === 0);
 	if (!seg) return null;
 
-	const semitones = getInstrument().transpositionSemitones;
+	const semitones = entryTranspositionSemitones();
 	const parsed = seg.symbol ? parseChordSymbol(seg.symbol) : null;
 	if (parsed) {
 		return formatChordSymbol({
@@ -464,11 +490,12 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
 	const oldKey = leadSheetEntry.writtenKey;
 	if (newKey === oldKey) return;
 	const instrument = getInstrument();
+	const semitones = entryTranspositionSemitones();
 
 	if (moveNotes) {
 		commitBuffer();
-		const oldConcert = writtenKeyToConcert(oldKey, instrument);
-		const newConcert = writtenKeyToConcert(newKey, instrument);
+		const oldConcert = transposePitchClass(oldKey, -semitones);
+		const newConcert = transposePitchClass(newKey, -semitones);
 		const carrier: LeadSheet = {
 			id: '',
 			title: leadSheetEntry.title,
@@ -492,4 +519,19 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
 	if (moveNotes) {
 		loadBuffer(leadSheetEntry.currentSection, leadSheetEntry.currentPage);
 	}
+}
+
+/**
+ * Change what pitch the source chart is written in. The stored (concert)
+ * content is untouched — only the entry surface's written representation
+ * moves: key label, chord text, typed-pitch interpretation, preview.
+ */
+export function setSourceTransposition(source: SourceTransposition): void {
+	if (source === leadSheetEntry.sourceTransposition) return;
+	const concertKey = transposePitchClass(leadSheetEntry.writtenKey, -entryTranspositionSemitones());
+	leadSheetEntry.sourceTransposition = source;
+	const semitones = entryTranspositionSemitones();
+	leadSheetEntry.writtenKey = transposePitchClass(concertKey, semitones);
+	stepEntry.phraseKey = leadSheetEntry.writtenKey;
+	stepEntry.transpositionOverride = semitones;
 }

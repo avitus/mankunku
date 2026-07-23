@@ -6,6 +6,12 @@
 	import { loadFromLeadSheet } from '$lib/state/lead-sheet-entry.svelte';
 	import { saveLeadSheetPdf } from '$lib/persistence/lead-sheet-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
+	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import {
+		defaultSourceTransposition,
+		writtenSheetToConcert,
+		type SourceTransposition
+	} from '$lib/leadsheets/source-transposition';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 	const user = $derived(page.data?.user ?? null);
@@ -16,8 +22,12 @@
 	let uploading = $state(false);
 	let errorMessage = $state<string | null>(null);
 	let importWarnings = $state<string[]>([]);
+	// Printed charts are usually parts for the user's own horn — default the
+	// source pitch to their instrument (set on mount, after settings hydrate).
+	let source = $state<SourceTransposition>('C');
 
 	onMount(async () => {
+		source = defaultSourceTransposition(getInstrument());
 		try {
 			const res = await fetch('/api/lead-sheet-parse');
 			configured = res.ok ? Boolean((await res.json()).configured) : false;
@@ -65,21 +75,25 @@
 			const { sheet, warnings } = (await res.json()) as { sheet: LeadSheet; warnings: string[] };
 			importWarnings = warnings;
 
+			// The route returns the chart as PRINTED; shift it to concert per
+			// the selected source pitch (the id is preserved).
+			const concert = writtenSheetToConcert(sheet, source, getInstrument());
+
 			// Keep the original file: local IndexedDB cache always; private
 			// bucket upload when signed in (non-blocking), path stamped on the
 			// draft so it round-trips through the cloud row.
 			const blob = new Blob([buffer], { type: 'application/pdf' });
 			if (supabase && user) {
-				await saveLeadSheetPdf(sheet.id, blob, { supabase, userId: user.id });
-				sheet.pdfUrl = `${user.id}/${sheet.id}.pdf`;
+				await saveLeadSheetPdf(concert.id, blob, { supabase, userId: user.id });
+				concert.pdfUrl = `${user.id}/${concert.id}.pdf`;
 			} else {
-				await saveLeadSheetPdf(sheet.id, blob);
+				await saveLeadSheetPdf(concert.id, blob);
 			}
 
 			// Mandatory human review: the draft (with its pre-assigned id, so
 			// the stored PDF stays linked) opens in the editor; nothing is
 			// saved until the user hits Update there.
-			loadFromLeadSheet(sheet, getInstrument());
+			loadFromLeadSheet(concert, getInstrument());
 			goto('/lead-sheets/entry');
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Upload failed.';
@@ -111,8 +125,14 @@
 	<p class="text-sm text-[var(--color-text-secondary)]">
 		Upload a lead-sheet PDF and the AI reads the chords and melody into an editable draft.
 		Extraction is never perfect — the draft always opens in the editor for review and
-		correction before anything is saved. Charts are assumed to be at concert pitch.
+		correction before anything is saved.
 	</p>
+
+	<SourceTranspositionSelect
+		value={source}
+		onchange={(v) => (source = v)}
+		hint="Pick before uploading — the chart is converted to concert on import."
+	/>
 
 	{#if configured === false}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]">
