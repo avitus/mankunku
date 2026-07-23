@@ -66,6 +66,10 @@ describe('MuseScore import — Fly Me to the Moon (.mscz)', () => {
 	});
 
 	it('matches the entered ground truth note-for-note across the form', async () => {
+		// The import originally surfaced a missing note in the hand entry
+		// (bar 4's held "stars" note); the user fixed their sheet 2026-07-22,
+		// and both sections now agree completely — pitches, durations,
+		// offsets, and ties.
 		const { sheets } = await parseFixture();
 		const strip = (notes: LeadSheet['sections'][number]['notes']) =>
 			notes.map((n) => ({
@@ -74,21 +78,8 @@ describe('MuseScore import — Fly Me to the Moon (.mscz)', () => {
 				offset: n.offset,
 				tied: n.tied ?? false
 			}));
-
-		// Section B: identical to the hand entry — pitches, durations,
-		// offsets, and ties all agree.
+		expect(strip(sheets[0].sections[0].notes)).toEqual(strip(ENTERED.sections[0].notes));
 		expect(strip(sheets[0].sections[1].notes)).toEqual(strip(ENTERED.sections[1].notes));
-
-		// Section A: the file contains TWO notes the hand entry missed — the
-		// bar-4 held "stars" note (concert E: a tied eighth anticipation into
-		// a whole note). The import is more complete than the manual entry;
-		// everything else is identical.
-		const importedA = strip(sheets[0].sections[0].notes);
-		expect(importedA.splice(13, 2)).toEqual([
-			{ pitch: 52, duration: [1, 8], offset: [23, 8], tied: true },
-			{ pitch: 52, duration: [1, 1], offset: [3, 1], tied: false }
-		]);
-		expect(importedA).toEqual(strip(ENTERED.sections[0].notes));
 	});
 
 	it('transposes written harmony roots to concert', async () => {

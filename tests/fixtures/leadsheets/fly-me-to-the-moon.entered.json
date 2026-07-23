@@ -157,6 +157,29 @@
      ]
     },
     {
+     "pitch": 52,
+     "duration": [
+      1,
+      8
+     ],
+     "offset": [
+      23,
+      8
+     ],
+     "tied": true
+    },
+    {
+     "pitch": 52,
+     "duration": [
+      1,
+      1
+     ],
+     "offset": [
+      3,
+      1
+     ]
+    },
+    {
      "pitch": 57,
      "duration": [
       3,
