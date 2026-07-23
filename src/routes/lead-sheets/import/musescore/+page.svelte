@@ -44,10 +44,12 @@
 	async function handleFile(event: Event): Promise<void> {
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
 		if (!file) return;
-		const result = await parseMuseScoreFile({
-			name: file.name,
-			bytes: new Uint8Array(await file.arrayBuffer())
-		});
+		// Multi-part scores: extract the part matching the user's instrument.
+		const inst = getInstrument();
+		const result = await parseMuseScoreFile(
+			{ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) },
+			{ name: inst.name, transpositionSemitones: inst.transpositionSemitones }
+		);
 		rawSheets = result.sheets;
 		warnings = result.warnings;
 		parsedOnce = true;

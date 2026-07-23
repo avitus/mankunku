@@ -66,6 +66,14 @@ function plainText(source: string, tag: string): string | null {
 	return text.length > 0 ? text : null;
 }
 
+/** First frame Text of the given style (VBox title/composer fallback). */
+function frameText(xml: string, style: string): string | null {
+	for (const t of xml.matchAll(/<Text>[\s\S]*?<\/Text>/g)) {
+		if (t[0].includes(`<style>${style}</style>`)) return plainText(t[0], 'text');
+	}
+	return null;
+}
+
 function parseFractionText(text: string | null): Fraction | null {
 	const m = /^\s*(-?\d+)\s*\/\s*(\d+)\s*$/.exec(text ?? '');
 	if (!m) return null;
@@ -159,40 +167,87 @@ interface MeasureInfo {
 	pickup: boolean;
 }
 
-export function parseMscx(xml: string): MuseScoreImportResult {
+/** The user's instrument, for picking the matching part of a multi-part score. */
+export interface PreferredInstrument {
+	/** Display name, e.g. 'Tenor Saxophone'. */
+	name: string;
+	/** Written-above-concert semitones (tenor 14, alto 9, concert 0). */
+	transpositionSemitones: number;
+}
+
+interface PartInfo {
+	names: string[];
+	transpose: number;
+	firstStaffIndex: number;
+}
+
+export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseScoreImportResult {
 	const warnings: string[] = [];
 	const warnOnce = (msg: string): void => {
 		if (!warnings.includes(msg)) warnings.push(msg);
 	};
 
+	// Frame text (the VBox title block) is the fallback when the metaTags
+	// were never filled in — a common state for hand-made charts.
 	const title =
 		plainText(/<metaTag name="workTitle">[\s\S]*?<\/metaTag>/.exec(xml)?.[0] ?? '', 'metaTag') ??
+		frameText(xml, 'title') ??
 		'Untitled';
 	const composer =
 		plainText(/<metaTag name="composer">[\s\S]*?<\/metaTag>/.exec(xml)?.[0] ?? '', 'metaTag') ??
+		frameText(xml, 'composer') ??
 		undefined;
 
-	// The melody staff belongs to the first Part; its transposition converts
-	// written harmony roots to concert.
-	const firstPart = /<Part[\s>][\s\S]*?<\/Part>/.exec(xml)?.[0] ?? '';
-	const transpose = Number(xmlText(firstPart, 'transposeChromatic') ?? '0');
-
-	// First staff that actually contains measures (Part blocks also hold
-	// <Staff> definitions, without measures).
-	let melodyStaff: string | null = null;
-	for (const staff of xml.matchAll(/<Staff[^>]*>[\s\S]*?<\/Staff>/g)) {
-		if (staff[0].includes('<Measure')) {
-			melodyStaff = staff[0];
-			break;
-		}
+	// Parts, in order, with the score staff range each one owns.
+	const parts: PartInfo[] = [];
+	let staffCursor = 0;
+	for (const pm of xml.matchAll(/<Part[\s>][\s\S]*?<\/Part>/g)) {
+		const body = pm[0];
+		const names = [xmlText(body, 'trackName'), xmlText(body, 'longName'), xmlText(body, 'instrumentId')]
+			.map((n) => n?.trim() ?? '')
+			.filter((n) => n.length > 0);
+		const staffCount = (body.match(/<Staff[\s>]/g) ?? []).length || 1;
+		parts.push({
+			names,
+			transpose: Number(xmlText(body, 'transposeChromatic') ?? '0'),
+			firstStaffIndex: staffCursor
+		});
+		staffCursor += staffCount;
 	}
-	if (!melodyStaff) {
+
+	// Score staves in document order (Part blocks also hold <Staff>
+	// definitions, but those carry no measures).
+	const scoreStaves = [...xml.matchAll(/<Staff[^>]*>[\s\S]*?<\/Staff>/g)]
+		.map((m) => m[0])
+		.filter((b) => b.includes('<Measure'));
+	if (scoreStaves.length === 0) {
 		return {
 			sheets: [],
 			warnings: ['No staff with measures found in the MuseScore file.'],
-			declaredTransposition: transpose
+			declaredTransposition: parts[0]?.transpose ?? 0
 		};
 	}
+
+	// Pick the part matching the user's instrument — by name first, then by
+	// declared transposition — falling back to the first (top) staff.
+	let selected = parts[0] ?? { names: [], transpose: 0, firstStaffIndex: 0 };
+	if (preferred) {
+		const hint = preferred.name.trim().toLowerCase();
+		const byName = parts.find((p) =>
+			p.names.some((n) => {
+				const l = n.toLowerCase();
+				return l.includes(hint) || (l.length >= 4 && hint.includes(l));
+			})
+		);
+		const byTransposition =
+			preferred.transpositionSemitones !== 0
+				? parts.find((p) => p.transpose === -preferred.transpositionSemitones)
+				: undefined;
+		selected = byName ?? byTransposition ?? selected;
+	}
+	const transpose = selected.transpose;
+	const melodyStaff =
+		scoreStaves[selected.firstStaffIndex] ?? scoreStaves[0];
 
 	let timeSignature: [number, number] | null = null;
 	let barLength: Fraction = [1, 1];
@@ -206,9 +261,20 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 	let measureStart: Fraction = [0, 1];
 	const tupletStack: Fraction[] = [];
 
+	// Repeats, voltas, and rehearsal marks are SYSTEM-level objects that
+	// MuseScore serializes only on the top staff — when another part is
+	// extracted, its structure comes from staff 1, bar by bar.
+	const structuralBlocks =
+		melodyStaff === scoreStaves[0]
+			? null
+			: [...scoreStaves[0].matchAll(/<Measure[^>]*>[\s\S]*?<\/Measure>/g)].map((m) => m[0]);
+
+	let measureIdx = -1;
 	for (const measureMatch of melodyStaff.matchAll(/<Measure[^>]*>[\s\S]*?<\/Measure>/g)) {
 		const block = measureMatch[0];
-		if (block.includes('type="Volta"')) {
+		measureIdx++;
+		const struct = structuralBlocks?.[measureIdx] ?? block;
+		if (block.includes('type="Volta"') || struct.includes('type="Volta"')) {
 			warnOnce('Volta endings are not imported — mark 1st/2nd endings on the sections by hand.');
 		}
 
@@ -243,12 +309,14 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 			}
 		}
 
+		const structMarkBlock =
+			struct !== block ? /<RehearsalMark[\s>][\s\S]*?<\/RehearsalMark>/.exec(struct)?.[0] : undefined;
 		const info: MeasureInfo = {
 			startOffset: measureStart,
 			length: nominal,
-			rehearsalMark: null,
-			startRepeat: block.includes('<startRepeat'),
-			endRepeat: block.includes('<endRepeat'),
+			rehearsalMark: structMarkBlock ? plainText(structMarkBlock, 'text') : null,
+			startRepeat: block.includes('<startRepeat') || struct.includes('<startRepeat'),
+			endRepeat: block.includes('<endRepeat') || struct.includes('<endRepeat'),
 			pickup: pad[0] > 0
 		};
 
@@ -548,11 +616,12 @@ export interface MuseScoreImportInput {
 }
 
 export async function parseMuseScoreFile(
-	input: MuseScoreImportInput
+	input: MuseScoreImportInput,
+	preferred?: PreferredInstrument
 ): Promise<MuseScoreImportResult> {
 	const lower = input.name.toLowerCase();
 	if (lower.endsWith('.mscx')) {
-		return parseMscx(new TextDecoder().decode(input.bytes));
+		return parseMscx(new TextDecoder().decode(input.bytes), preferred);
 	}
 	if (lower.endsWith('.mscz')) {
 		try {
@@ -564,7 +633,7 @@ export async function parseMuseScoreFile(
 					declaredTransposition: 0
 				};
 			}
-			return parseMscx(xml);
+			return parseMscx(xml, preferred);
 		} catch (err) {
 			return {
 				sheets: [],

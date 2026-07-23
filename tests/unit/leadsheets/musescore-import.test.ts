@@ -897,3 +897,156 @@ describe('declared transposition reporting', () => {
 		expect(concert.declaredTransposition).toBe(0);
 	});
 });
+
+describe('parseMscx — part selection and frame-text fallback', () => {
+	const TWO_PART_SCORE = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <metaTag name="workTitle"></metaTag>
+    <Part id="1">
+      <Staff></Staff>
+      <trackName>Vocal</trackName>
+      <Instrument id="piano">
+        <longName>Piano</longName>
+        <instrumentId>keyboard.piano</instrumentId>
+      </Instrument>
+    </Part>
+    <Part id="2">
+      <Staff></Staff>
+      <trackName>T. Sax</trackName>
+      <Instrument id="tenor-saxophone">
+        <longName>Tenor Saxophone</longName>
+        <transposeChromatic>-14</transposeChromatic>
+        <instrumentId>wind.reed.saxophone.tenor</instrumentId>
+      </Instrument>
+    </Part>
+    <Staff id="1">
+      <VBox>
+        <Text>
+          <style>title</style>
+          <text>Autumn Leaves</text>
+        </Text>
+        <Text>
+          <style>composer</style>
+          <text>Joseph Kosma</text>
+        </Text>
+      </VBox>
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Harmony><harmonyInfo><name>m7</name><root>17</root></harmonyInfo></Harmony>
+          <Chord><durationType>whole</durationType><Note><pitch>60</pitch></Note></Chord>
+        </voice>
+      </Measure>
+    </Staff>
+    <Staff id="2">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Harmony><harmonyInfo><name>m7</name><root>19</root></harmonyInfo></Harmony>
+          <Chord><durationType>whole</durationType><Note><pitch>57</pitch></Note></Chord>
+        </voice>
+      </Measure>
+    </Staff>
+  </Score>
+</museScore>`;
+
+	it('falls back to the VBox frame text when the workTitle metaTag is empty', () => {
+		const { sheets } = parseMscx(TWO_PART_SCORE);
+		expect(sheets[0].title).toBe('Autumn Leaves');
+		expect(sheets[0].composer).toBe('Joseph Kosma');
+	});
+
+	it('defaults to the first staff when no instrument preference is given', () => {
+		const result = parseMscx(TWO_PART_SCORE);
+		expect(result.sheets[0].sections[0].notes[0].pitch).toBe(60);
+		expect(result.sheets[0].sections[0].harmony[0].symbol).toBe('A-7'); // written A, transpose 0
+		expect(result.declaredTransposition).toBe(0);
+	});
+
+	it("extracts the part matching the user's instrument by name", () => {
+		const result = parseMscx(TWO_PART_SCORE, {
+			name: 'Tenor Saxophone',
+			transpositionSemitones: 14
+		});
+		// Staff 2's melody (concert midi passes through) and ITS harmony,
+		// shifted by ITS transposition: written B-7 on tenor = concert A-7.
+		expect(result.sheets[0].sections[0].notes[0].pitch).toBe(57);
+		expect(result.sheets[0].sections[0].harmony[0].symbol).toBe('A-7');
+		expect(result.declaredTransposition).toBe(-14);
+	});
+
+	it('matches a part by transposition when no name matches', () => {
+		const score = TWO_PART_SCORE
+			.replace('<trackName>T. Sax</trackName>', '<trackName>Horn 2</trackName>')
+			.replace('<longName>Tenor Saxophone</longName>', '<longName>Horn 2</longName>')
+			.replace('<instrumentId>wind.reed.saxophone.tenor</instrumentId>', '<instrumentId>brass.horn</instrumentId>');
+		const result = parseMscx(score, { name: 'Tenor Saxophone', transpositionSemitones: 14 });
+		expect(result.sheets[0].sections[0].notes[0].pitch).toBe(57);
+		expect(result.declaredTransposition).toBe(-14);
+	});
+});
+
+	it('takes system-level structure from the top staff when extracting another part', () => {
+		// Repeats, voltas, and rehearsal marks serialize only on the FIRST
+		// staff; a selected part's own measures carry none of them.
+		const score = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <metaTag name="workTitle">Structure Test</metaTag>
+    <Part id="1">
+      <Staff></Staff>
+      <trackName>Vocal</trackName>
+      <Instrument id="piano"><instrumentId>keyboard.piano</instrumentId></Instrument>
+    </Part>
+    <Part id="2">
+      <Staff></Staff>
+      <trackName>Tenor Saxophone</trackName>
+      <Instrument id="tenor-saxophone">
+        <transposeChromatic>-14</transposeChromatic>
+      </Instrument>
+    </Part>
+    <Staff id="1">
+      <Measure>
+        <startRepeat/>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <RehearsalMark><text>A</text></RehearsalMark>
+          <Chord><durationType>whole</durationType><Note><pitch>72</pitch></Note></Chord>
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          <RehearsalMark><text>B</text></RehearsalMark>
+          <Chord><durationType>whole</durationType><Note><pitch>74</pitch></Note></Chord>
+        </voice>
+      </Measure>
+    </Staff>
+    <Staff id="2">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Chord><durationType>whole</durationType><Note><pitch>57</pitch></Note></Chord>
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Chord><durationType>whole</durationType><Note><pitch>59</pitch></Note></Chord>
+        </voice>
+      </Measure>
+    </Staff>
+  </Score>
+</museScore>`;
+		const result = parseMscx(score, { name: 'Tenor Saxophone', transpositionSemitones: 14 });
+		const sheet = result.sheets[0];
+		// Sections and repeats from staff 1's structure — the |: opens A and
+		// the :| closes on B's bar, so the span crosses the section boundary.
+		expect(sheet.sections.map((s) => [s.label, s.bars, s.repeatStart ?? false, s.repeatEnd ?? false])).toEqual([
+			['A', 1, true, false],
+			['B', 1, false, true]
+		]);
+		// …content from the tenor staff.
+		expect(sheet.sections[0].notes[0].pitch).toBe(57);
+		expect(sheet.sections[1].notes[0].pitch).toBe(59);
+	});
