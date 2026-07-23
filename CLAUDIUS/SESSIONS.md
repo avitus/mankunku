@@ -58,6 +58,12 @@ Newest at the top.
 - Pattern across both rounds: every defect the refuters found was in the interaction between my new code and a neighbor (flatten's span rules, notation's label suppression, the harmony filter) — not in the new code's own arithmetic. Review lenses should be aimed at seams, not centers.
 - ATTYA parses clean: Pickup(1)/A(4, |: :|)/B(36), G-7 under the whole note at beat 1, zero warnings. Real file verified locally but NOT committed as a fixture (copyrighted arrangement the user didn't offer for the suite; synthetic tests pin every behavior). 2562 unit/integration, 57/57 lead-sheet e2e, check clean.
 
+**Then — chord-aware enharmonic spelling:**
+
+- User: notes should be spelled diatonically to the chord (Db over A7 and Gb over DΔ7 were key-signature artifacts of flat keys). New `chordSpellingPreference` in notation.ts: proper interval spelling via letter arithmetic from the chord root, quality resolving the ambiguous degrees (b3/#9, b5/#11, #5/b13), abstaining to the key-sig default when no single-accidental spelling exists (never invents double accidentals — the renderer's 12-name vocabulary is the constraint, embraced rather than fought). Priority chain: user's explicit spelling flip > chord > key signature. Judged at WRITTEN pitch so the accidental always agrees with the printed chord symbol.
+- Wired into BOTH renderers — leadSheetToAbcWithMap and phraseToAbcWithMap. The 'phraseToAbc untouched' boundary from the original build was a feature-scoping line, not an invariant; licks over ii-Vs benefit identically, and zero existing tests had pinned a chord-clashing spelling (2570/2570 green without touching a single old expectation — decent evidence the change only adds information where none was asserted).
+- Verified on the real ATTYA: '"A7"G2^c4 G2 | "DΔ7"^F8-' where _d/_G rendered before. 63/63 display-affected e2e.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
