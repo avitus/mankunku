@@ -19,6 +19,7 @@ import { scorePitch } from './pitch-scoring';
 import { scoreRhythm } from './rhythm-scoring';
 import { scoreToGrade } from './grades';
 import { fractionToFloat, midiToPitchClass } from '$lib/music/intervals';
+import { extractSoundingNotes } from '$lib/music/expression';
 
 /**
  * Compute the onset time in seconds of an expected note,
@@ -75,10 +76,23 @@ export function scoreAttempt(
 	swing: number = 0.5,
 	octaveInsensitive: boolean = false
 ): Score {
-	const expected = phrase.notes.filter((n) => n.pitch !== null);
+	// Collapse tied same-pitch chains into one sustained note — the exact
+	// sequence playback sounds (extractSoundingNotes is the shared tie-merge
+	// walk, so the scorer expects what the player heard). Without this, a held
+	// note written as an eighth tied into a half — e.g. the final E of Blue
+	// Monk — counts as two expected notes, but the player produces a single
+	// sustained pitch and the pitch tracker only one detected note; the DTW
+	// matches it to the first, leaving the tied continuation MISSED (pitch 0,
+	// rhythm 0) and dragging the score down. Rests are dropped here too, which
+	// the alignment ignored anyway.
+	const expected: Note[] = extractSoundingNotes(phrase.notes).map((s) => ({
+		pitch: s.pitch,
+		offset: s.offset,
+		duration: s.duration
+	}));
 
 	// Step 1: DTW alignment on raw recording-relative onset times.
-	const pairs = alignNotes(phrase.notes, detected, tempo, swing, octaveInsensitive);
+	const pairs = alignNotes(expected, detected, tempo, swing, octaveInsensitive);
 
 	// Step 2: Compute median timing offset of matched pairs to absorb
 	// constant human latency (reaction time, detection delay).
