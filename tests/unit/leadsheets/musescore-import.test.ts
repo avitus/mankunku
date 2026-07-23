@@ -193,6 +193,287 @@ describe('parseMscx — basics', () => {
 	});
 });
 
+describe('parseMscx — pickup bars', () => {
+	it('right-aligns an anacrusis in the first bar and gives it its own section', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(55, 'eighth')}
+          ${CHORD(57, 'eighth')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <RehearsalMark><text>A</text></RehearsalMark>
+          ${HARMONY(14, 'maj7')}
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const sheet = sheets[0];
+		expect(sheet.sections.map((s) => [s.label, s.bars])).toEqual([
+			['Pickup', 1],
+			['A', 1]
+		]);
+		// The two pickup eighths lead INTO bar 2's downbeat: beats 4 and 4-and.
+		expect(sheet.sections[0].notes).toEqual([
+			{ pitch: 55, duration: [1, 8], offset: [3, 4] },
+			{ pitch: 57, duration: [1, 8], offset: [7, 8] }
+		]);
+		expect(sheet.sections[1].notes[0].offset).toEqual([0, 1]);
+	});
+
+	it('right-aligns a pickup inside a single unmarked section too', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(55, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const sec = sheets[0].sections[0];
+		expect(sec.bars).toBe(2);
+		expect(sec.label).toBe('A'); // no split point — no special label
+		expect(sec.notes).toEqual([
+			{ pitch: 55, duration: [1, 4], offset: [3, 4] },
+			{ pitch: 60, duration: [1, 1], offset: [1, 1] }
+		]);
+	});
+
+	it('pads the pickup against the actual meter, not an assumed 4/4', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/8">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>3</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(55, 'eighth')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${CHORD(60, 'half', '<dots>1</dots>')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		expect(sheets[0].sections[0].notes[0].offset).toEqual([5, 8]); // 3/4 bar − 1/8
+	});
+
+	it('anchors pickup harmony at the padded position', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${HARMONY(15, '7')}
+          ${CHORD(55, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		const seg = sheets[0].sections[0].harmony[0];
+		expect(seg.symbol).toBe('G7');
+		expect(seg.startOffset).toEqual([3, 4]);
+	});
+
+	it('respects an explicit rehearsal mark on the pickup measure itself', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <RehearsalMark><text>Intro</text></RehearsalMark>
+          ${CHORD(55, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <RehearsalMark><text>A</text></RehearsalMark>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(sheets[0].sections.map((s) => s.label)).toEqual(['Intro', 'A']);
+	});
+
+	it('does NOT treat a split first bar as a pickup (no exclude-from-count flag)', () => {
+		// MuseScore writes len= on any irregular measure, including the halves
+		// of a split bar 1 — but only true anacruses carry the <irregular>
+		// (exclude from measure count) flag. A flagless short first bar stays
+		// left-aligned with a warning instead of being silently right-aligned.
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="2/4">
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'quarter')}
+          ${CHORD(62, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure len="2/4">
+        <voice>
+          ${CHORD(64, 'quarter')}
+          ${CHORD(65, 'quarter')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings.some((w) => /pickup/i.test(w))).toBe(true);
+		expect(sheets[0].sections[0].notes.slice(0, 2).map((n) => n.offset)).toEqual([
+			[0, 1],
+			[1, 4]
+		]);
+	});
+
+	it('snaps a sub-beat pickup chord onto the beat grid so it stays editable', () => {
+		// An eighth-note pickup pads to 7/8; a chord anchored there would be
+		// invisible to the beat-granular chord editor. It snaps to beat 4.
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/8">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${HARMONY(15, '7')}
+          ${CHORD(55, 'eighth')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const sec = sheets[0].sections[0];
+		expect(sec.notes[0].offset).toEqual([7, 8]); // the note keeps its true spot
+		expect(sec.harmony[0].startOffset).toEqual([3, 4]); // the chord sits on beat 4
+	});
+
+	it('keeps pickup content when a later time-signature change shrinks the bar', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(55, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <RehearsalMark><text>A</text></RehearsalMark>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <TimeSig><sigN>3</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(62, 'half', '<dots>1</dots>')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		// The pickup bar's tail belongs to ITS OWN 4/4 length, not the final 3/4.
+		expect(sheets[0].sections[0].notes).toEqual([
+			{ pitch: 55, duration: [1, 4], offset: [3, 4] }
+		]);
+	});
+
+	it('does not claim "mid-piece" for an oversized first measure', () => {
+		const { warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="6/4">
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+          ${CHORD(62, 'half')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings.length).toBeGreaterThan(0);
+		expect(warnings.some((w) => /mid-piece/.test(w))).toBe(false);
+	});
+
+	it('falls back to a warning when a flagged pickup declares no meter', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure len="1/4">
+        <irregular>1</irregular>
+        <voice>
+          ${CHORD(55, 'quarter')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings.length).toBeGreaterThan(0);
+		expect(sheets[0].sections[0].notes[0].offset).toEqual([0, 1]); // left-aligned
+	});
+
+	it('still warns for irregular measures mid-piece and keeps them left-aligned', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure len="1/2">
+        <voice>
+          ${CHORD(62, 'half')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings.some((w) => /irregular measure/i.test(w))).toBe(true);
+		expect(sheets[0].sections[0].notes[1]).toEqual({ pitch: 62, duration: [1, 2], offset: [1, 1] });
+	});
+});
+
 describe('parseMscx — structure', () => {
 	it('splits sections at rehearsal marks and applies repeat barlines', () => {
 		const measure = (content: string): string => `

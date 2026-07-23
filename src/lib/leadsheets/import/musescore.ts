@@ -94,6 +94,13 @@ const DURATION_TYPES: Record<string, Fraction> = {
 	'128th': [1, 128]
 };
 
+/** Largest multiple of 1/den at or below f — the containing beat. */
+function floorToBeat(f: Fraction, den: number): Fraction {
+	const k = Math.floor((f[0] * den) / f[1]);
+	const g = gcd(Math.abs(k), den);
+	return [k / g, den / g];
+}
+
 function multiplyFractions(a: Fraction, b: Fraction): Fraction {
 	const num = a[0] * b[0];
 	const den = a[1] * b[1];
@@ -135,9 +142,13 @@ type NoteEvent = Note;
 
 interface MeasureInfo {
 	startOffset: Fraction;
+	/** The bar length in effect AT this measure (meters can change mid-piece). */
+	length: Fraction;
 	rehearsalMark: string | null;
 	startRepeat: boolean;
 	endRepeat: boolean;
+	/** True for a right-aligned anacrusis (used to label a lone pickup section). */
+	pickup: boolean;
 }
 
 export function parseMscx(xml: string): MuseScoreImportResult {
@@ -185,22 +196,52 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 
 	for (const measureMatch of melodyStaff.matchAll(/<Measure[^>]*>[\s\S]*?<\/Measure>/g)) {
 		const block = measureMatch[0];
-		if (/len="/.test(block.slice(0, block.indexOf('>')))) {
-			warnOnce('Irregular measure length (e.g. a pickup bar) imported as a full bar — review the rhythm placement.');
-		}
 		if (block.includes('type="Volta"')) {
 			warnOnce('Volta endings are not imported — mark 1st/2nd endings on the sections by hand.');
 		}
 
+		// An irregular measure declares its actual length in the len attribute.
+		// The one musically common case is the ANACRUSIS: a short first
+		// measure whose notes lead into bar 2's downbeat. The model has no
+		// partial bars, so the pickup is right-aligned inside a full first bar
+		// (leading rests take up the slack) — downbeats stay downbeats.
+		//
+		// len= alone does NOT mean anacrusis: split measures get it too. True
+		// pickups also carry the exclude-from-measure-count flag, serialized
+		// as an <irregular> child — that is the discriminator.
+		const lenMatch = /len="(\d+)\/(\d+)"/.exec(block.slice(0, block.indexOf('>')));
+		const actualLen: Fraction | null = lenMatch
+			? [Number(lenMatch[1]), Number(lenMatch[2])]
+			: null;
+		// A TimeSig inside this measure applies from its start — peek so the
+		// pickup pads against the real meter, not the previous barLength.
+		const sigN = xmlText(block, 'sigN');
+		const sigD = xmlText(block, 'sigD');
+		const nominal: Fraction = sigN && sigD ? [Number(sigN), Number(sigD)] : barLength;
+
+		let pad: Fraction = [0, 1];
+		if (actualLen && compareFractions(actualLen, nominal) !== 0) {
+			const shortFirst = measures.length === 0 && compareFractions(actualLen, nominal) < 0;
+			if (shortFirst && block.includes('<irregular') && sigN && sigD) {
+				pad = subtractFractions(nominal, actualLen);
+			} else if (shortFirst) {
+				warnOnce('A short first bar was imported as a full bar — for a pickup, tick "Exclude from measure count" in MuseScore\'s bar properties and re-export.');
+			} else {
+				warnOnce('An irregular measure length was imported as a full bar — review the rhythm placement.');
+			}
+		}
+
 		const info: MeasureInfo = {
 			startOffset: measureStart,
+			length: nominal,
 			rehearsalMark: null,
 			startRepeat: block.includes('<startRepeat'),
-			endRepeat: block.includes('<endRepeat')
+			endRepeat: block.includes('<endRepeat'),
+			pickup: pad[0] > 0
 		};
 
 		const voice = xmlText(block, 'voice');
-		let cursor = measureStart;
+		let cursor = addFractions(measureStart, pad);
 		if (voice) {
 			const elements = voice.matchAll(
 				/<(KeySig|TimeSig|RehearsalMark|SystemText|Tempo|Harmony|Chord|Rest|Tuplet|location)\b[^>]*>[\s\S]*?<\/\1>|<endTuplet\/>/g
@@ -249,7 +290,13 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 					}
 					case 'Harmony': {
 						const text = harmonyText(body, transpose, warnOnce);
-						if (text !== null) harmonies.push({ offset: cursor, text });
+						if (text !== null) {
+							// Chord symbols are beat-granular in the editor; a chord
+							// over a sub-beat pickup would be unreachable there. Snap
+							// pickup anchors down to their containing beat.
+							const offset = info.pickup ? floorToBeat(cursor, nominal[1]) : cursor;
+							harmonies.push({ offset, text });
+						}
 						break;
 					}
 					case 'Rest': {
@@ -284,10 +331,10 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 		}
 
 		measures.push(info);
-		measureStart = addFractions(measureStart, barLength);
+		measureStart = addFractions(measureStart, nominal);
 	}
 
-	const sections = buildSections(measures, notes, harmonies, barLength, warnOnce);
+	const sections = buildSections(measures, notes, harmonies, warnOnce);
 
 	const sheet: LeadSheet = {
 		id: '',
@@ -353,7 +400,6 @@ function buildSections(
 	measures: MeasureInfo[],
 	notes: NoteEvent[],
 	harmonies: HarmonyEvent[],
-	barLength: Fraction,
 	warnOnce: (msg: string) => void
 ): LeadSheetSection[] {
 	// Split at rehearsal marks; everything before the first mark is 'A'.
@@ -372,7 +418,7 @@ function buildSections(
 		}
 		const current = builders[builders.length - 1];
 		current.measureCount += 1;
-		current.endOffset = addFractions(m.startOffset, barLength);
+		current.endOffset = addFractions(m.startOffset, m.length);
 
 		if (m.startRepeat) {
 			if (i === current.firstMeasure) current.startRepeat = true;
@@ -385,6 +431,17 @@ function buildSections(
 		}
 	});
 
+	// A lone anacrusis bar ahead of the first rehearsal mark sits outside the
+	// form — label it as the pickup rather than a colliding auto 'A'.
+	if (
+		measures[0]?.pickup &&
+		measures[0].rehearsalMark === null &&
+		builders.length > 1 &&
+		builders[0].measureCount === 1
+	) {
+		builders[0].label = 'Pickup';
+	}
+
 	return builders.map((b) => {
 		const inRange = (offset: Fraction): boolean =>
 			compareFractions(offset, b.startOffset) >= 0 && compareFractions(offset, b.endOffset) < 0;
@@ -393,7 +450,12 @@ function buildSections(
 			.filter((n) => inRange(n.offset))
 			.map((n) => ({ ...n, offset: subtractFractions(n.offset, b.startOffset) }));
 
-		const changes = harmonies.filter((h) => inRange(h.offset));
+		// Later declaration wins when two changes share an anchor (e.g. a
+		// snapped pickup chord landing on an already-occupied beat) — avoids
+		// zero-duration segments.
+		const changes = harmonies
+			.filter((h) => inRange(h.offset))
+			.filter((h, i, arr) => i + 1 === arr.length || compareFractions(arr[i + 1].offset, h.offset) !== 0);
 		const harmony = changes.flatMap((h, i) => {
 			const end = i + 1 < changes.length ? changes[i + 1].offset : b.endOffset;
 			const duration = subtractFractions(end, h.offset);
