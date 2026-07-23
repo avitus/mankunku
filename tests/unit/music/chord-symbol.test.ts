@@ -65,6 +65,35 @@ describe('parseChordSymbol — qualities', () => {
 		expect(parseChordSymbol('Cmaj13')?.extensions).toEqual(['13']);
 	});
 
+	it('parses ma spellings as the major family (Sibelius/Finale style)', () => {
+		const expected: ChordSymbol = { root: 'C', quality: 'maj', extensions: ['7'], alterations: [] };
+		expect(parseChordSymbol('Cma7')).toEqual(expected);
+		expect(parseChordSymbol('CMa7')).toEqual(expected);
+		expect(parseChordSymbol('CMA7')).toEqual(expected);
+		expect(parseChordSymbol('Fma9')?.extensions).toEqual(['9']);
+		expect(parseChordSymbol('Cma')).toEqual({ root: 'C', quality: 'maj', extensions: [], alterations: [] });
+		expect(formatChordSymbol(parseChordSymbol('Cma7')!)).toBe('CΔ7');
+	});
+
+	it('parses mi spellings as the minor family (Sibelius/Finale style)', () => {
+		const expected: ChordSymbol = { root: 'D', quality: 'min', extensions: ['7'], alterations: [] };
+		expect(parseChordSymbol('Dmi7')).toEqual(expected);
+		expect(parseChordSymbol('DMi7')).toEqual(expected);
+		expect(parseChordSymbol('DMI7')).toEqual(expected);
+		expect(parseChordSymbol('Bbmi6')?.extensions).toEqual(['6']);
+		expect(parseChordSymbol('Cmi')).toEqual({ root: 'C', quality: 'min', extensions: [], alterations: [] });
+		expect(parseChordSymbol('F#mi7b5')?.quality).toBe('halfdim');
+		expect(parseChordSymbol('Cmi7/Bb')?.bass).toBe('Bb');
+		expect(formatChordSymbol(parseChordSymbol('Dmi7')!)).toBe('D-7');
+	});
+
+	it('parses mi+ma combinations as minor-major', () => {
+		const expected: ChordSymbol = { root: 'C', quality: 'minmaj', extensions: ['7'], alterations: [] };
+		expect(parseChordSymbol('Cmima7')).toEqual(expected);
+		expect(parseChordSymbol('CmiMa7')).toEqual(expected);
+		expect(parseChordSymbol('Cmima7')).toEqual(parseChordSymbol('CmMaj7'));
+	});
+
 	it('parses minor spellings m, min, and dash', () => {
 		const expected: ChordSymbol = { root: 'D', quality: 'min', extensions: ['7'], alterations: [] };
 		expect(parseChordSymbol('Dm7')).toEqual(expected);
