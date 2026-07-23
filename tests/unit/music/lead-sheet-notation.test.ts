@@ -223,10 +223,30 @@ describe('leadSheetToAbc — sections, repeats, endings', () => {
 		expect(abc).toMatch(/P:A\n\|:/);
 	});
 
-	it('marks first and second endings across the repeat barline', () => {
+	it('flows the first ending inline and stacks the second beneath it', () => {
 		const abc = leadSheetToAbc(formSheet());
+		// [1 continues the body's line (no newline before it)…
+		expect(abc).toMatch(/\| \[1/);
+		// …and [2 starts a fresh line padded with invisible bars so its
+		// bracket sits directly below [1 (body is 2 bars → 2 bars of padding).
+		expect(abc).toMatch(/:\|\nx16 \[2/);
+	});
+
+	it('needs no padding when the endings start at the left margin', () => {
+		const abc = leadSheetToAbc(sheet({
+			sections: [
+				section({ label: 'A', bars: 4, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [4, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+				section({ label: 'B', bars: 1, harmony: [seg('F', 'maj7', [0, 1], [1, 1])] })
+			]
+		}));
+		// A 4-bar body fills its line, so [1 opens the next line at column 0
+		// and [2 aligns beneath it with no invisible padding.
 		expect(abc).toMatch(/\|\n\[1/);
 		expect(abc).toMatch(/:\|\n\[2/);
+		expect(abc).not.toContain('x8');
+		expect(abc).not.toContain('x16');
 	});
 
 	it('separates plain sections with a double bar and ends with a final bar', () => {

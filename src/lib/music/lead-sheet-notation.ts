@@ -1,7 +1,7 @@
 import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { LeadSheet } from '$lib/types/lead-sheet';
-import { fractionToFloat } from './intervals';
+import { fractionToFloat, gcd } from './intervals';
 import { concertKeyToWritten, concertToWritten, transposePitchClass } from './transposition';
 import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from './chord-symbol';
 import { CHORD_DEFINITIONS } from './chords';
@@ -166,10 +166,40 @@ export function leadSheetToAbcWithMap(
 
 	let flattenedNoteBase = 0;
 	let previousLabel: string | null = null;
+	// Line-position tracking for chart-style ending layout: [1 flows inline
+	// after the body, and [2 opens a fresh line padded with invisible bars so
+	// its bracket sits directly below [1.
+	let lineColumn = 0; // bars into the current line where this section starts
+	let prevEndColumn = 0; // column after the previous section's last bar
+	let endingOneColumn = 0; // column where the current [1 bracket started
 
 	for (let secIdx = 0; secIdx < sheet.sections.length; secIdx++) {
 		const sec = sheet.sections[secIdx];
 		const sectionEnd = sec.bars * barDuration;
+
+		// ── Line placement (the previous section closed with its barline) ──
+		if (secIdx > 0) {
+			const prev = sheet.sections[secIdx - 1];
+			if (sec.ending === 2) {
+				tokens.push('\n');
+				if (endingOneColumn > 0) {
+					const num = sheet.timeSignature[0] * endingOneColumn;
+					const den = sheet.timeSignature[1];
+					const g = gcd(num, den);
+					tokens.push(`x${durationToAbc([num / g, den / g], defaultLength)} `);
+				}
+				lineColumn = endingOneColumn;
+			} else if (sec.ending === 1 && prevEndColumn > 0 && prevEndColumn < barsPerLine) {
+				tokens.push(' ');
+				lineColumn = prevEndColumn;
+			} else {
+				tokens.push('\n');
+				lineColumn = 0;
+			}
+			if (sec.ending === 1 && prev.ending !== 1) endingOneColumn = lineColumn;
+		} else {
+			lineColumn = 0;
+		}
 
 		// ── Gap-fill: every bar renders, melody or not ──────────────────
 		// Gaps are additionally split at chord-change offsets so each chord
@@ -331,7 +361,13 @@ export function leadSheetToAbcWithMap(
 		else if (isLast) tokens.push(' |]');
 		else if (next?.ending) tokens.push(' |');
 		else tokens.push(' ||');
-		if (!isLast) tokens.push('\n');
+
+		prevEndColumn =
+			lineColumn === 0
+				? sec.bars % barsPerLine === 0
+					? barsPerLine
+					: sec.bars % barsPerLine
+				: lineColumn + sec.bars;
 	}
 
 	// ── Anchor char-offset resolution across all tokens (incl. newlines) ──

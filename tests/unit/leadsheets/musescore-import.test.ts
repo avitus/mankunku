@@ -1050,3 +1050,155 @@ describe('parseMscx — part selection and frame-text fallback', () => {
 		expect(sheet.sections[0].notes[0].pitch).toBe(57);
 		expect(sheet.sections[1].notes[0].pitch).toBe(59);
 	});
+
+describe('parseMscx — volta endings', () => {
+	it('imports 1st/2nd endings as ending sections inheriting the body label', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <startRepeat/>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <RehearsalMark><text>A</text></RehearsalMark>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          <Spanner type="Volta">
+            <Volta>
+              <endHookType>1</endHookType>
+              <beginText>1.</beginText>
+              <endings>1</endings>
+              </Volta>
+            <next>
+              <location>
+                <measures>1</measures>
+                </location>
+              </next>
+            </Spanner>
+          ${CHORD(64, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Spanner type="Volta">
+            <prev>
+              <location>
+                <measures>-1</measures>
+                </location>
+              </prev>
+            </Spanner>
+          <Spanner type="Volta">
+            <Volta>
+              <endings>2</endings>
+              </Volta>
+            <next>
+              <location>
+                <measures>1</measures>
+                </location>
+              </next>
+            </Spanner>
+          ${CHORD(65, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <RehearsalMark><text>B</text></RehearsalMark>
+          ${CHORD(67, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		expect(
+			sheets[0].sections.map((s) => [s.label, s.bars, s.ending ?? 0, s.repeatStart ?? false, s.repeatEnd ?? false])
+		).toEqual([
+			['A', 2, 0, true, false],
+			['A', 1, 1, false, true],
+			['A', 1, 2, false, false],
+			['B', 1, 0, false, false]
+		]);
+		expect(sheets[0].sections[1].notes[0].pitch).toBe(64);
+		expect(sheets[0].sections[2].notes[0].pitch).toBe(65);
+	});
+
+	it('reads voltas from the top staff when extracting another part', () => {
+		const score = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <metaTag name="workTitle">V</metaTag>
+    <Part id="1">
+      <Staff></Staff>
+      <trackName>Vocal</trackName>
+      <Instrument id="piano"><instrumentId>keyboard.piano</instrumentId></Instrument>
+    </Part>
+    <Part id="2">
+      <Staff></Staff>
+      <trackName>Tenor Saxophone</trackName>
+      <Instrument id="tenor-saxophone"><transposeChromatic>-14</transposeChromatic></Instrument>
+    </Part>
+    <Staff id="1">
+      <Measure>
+        <startRepeat/>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Chord><durationType>whole</durationType><Note><pitch>72</pitch></Note></Chord>
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>2</endRepeat>
+        <voice>
+          <Spanner type="Volta">
+            <Volta><endings>1</endings></Volta>
+            <next><location><measures>1</measures></location></next>
+            </Spanner>
+          <Chord><durationType>whole</durationType><Note><pitch>74</pitch></Note></Chord>
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Spanner type="Volta">
+            <Volta><endings>2</endings></Volta>
+            <next><location><measures>1</measures></location></next>
+            </Spanner>
+          <Chord><durationType>whole</durationType><Note><pitch>76</pitch></Note></Chord>
+        </voice>
+      </Measure>
+    </Staff>
+    <Staff id="2">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Chord><durationType>whole</durationType><Note><pitch>50</pitch></Note></Chord>
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Chord><durationType>whole</durationType><Note><pitch>52</pitch></Note></Chord>
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Chord><durationType>whole</durationType><Note><pitch>53</pitch></Note></Chord>
+        </voice>
+      </Measure>
+    </Staff>
+  </Score>
+</museScore>`;
+		const result = parseMscx(score, { name: 'Tenor Saxophone', transpositionSemitones: 14 });
+		expect(result.warnings).toEqual([]);
+		expect(result.sheets[0].sections.map((s) => [s.ending ?? 0, s.notes[0]?.pitch])).toEqual([
+			[0, 50],
+			[1, 52],
+			[2, 53]
+		]);
+	});
+});

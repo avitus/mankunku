@@ -165,6 +165,8 @@ interface MeasureInfo {
 	endRepeat: boolean;
 	/** True for a right-aligned anacrusis (used to label a lone pickup section). */
 	pickup: boolean;
+	/** Volta this measure belongs to (1st/2nd ending), if any. */
+	ending?: 1 | 2;
 }
 
 /** The user's instrument, for picking the matching part of a multi-part score. */
@@ -269,14 +271,30 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 			? null
 			: [...scoreStaves[0].matchAll(/<Measure[^>]*>[\s\S]*?<\/Measure>/g)].map((m) => m[0]);
 
+	// Volta prepass: a start anchor carries <Volta><endings> plus its span in
+	// <next><measures>; stamp every covered measure with its ending number.
+	const structList =
+		structuralBlocks ?? [...melodyStaff.matchAll(/<Measure[^>]*>[\s\S]*?<\/Measure>/g)].map((m) => m[0]);
+	const endingByMeasure: (1 | 2 | undefined)[] = [];
+	structList.forEach((b, i) => {
+		for (const sp of b.matchAll(/<Spanner type="Volta">[\s\S]*?<\/Spanner>/g)) {
+			const endingsText = xmlText(sp[0], 'endings');
+			if (endingsText === null) continue; // the span's end anchor
+			const n = Number.parseInt(endingsText, 10);
+			if (n !== 1 && n !== 2) {
+				warnOnce(`Ending "${endingsText.trim()}" is not supported (only 1st/2nd) — imported as plain bars.`);
+				continue;
+			}
+			const span = Math.max(1, Number(/<next>[\s\S]*?<measures>(-?\d+)<\/measures>/.exec(sp[0])?.[1] ?? '1'));
+			for (let k = i; k < Math.min(i + span, structList.length); k++) endingByMeasure[k] = n;
+		}
+	});
+
 	let measureIdx = -1;
 	for (const measureMatch of melodyStaff.matchAll(/<Measure[^>]*>[\s\S]*?<\/Measure>/g)) {
 		const block = measureMatch[0];
 		measureIdx++;
 		const struct = structuralBlocks?.[measureIdx] ?? block;
-		if (block.includes('type="Volta"') || struct.includes('type="Volta"')) {
-			warnOnce('Volta endings are not imported — mark 1st/2nd endings on the sections by hand.');
-		}
 
 		// An irregular measure declares its actual length in the len attribute.
 		// The one musically common case is the ANACRUSIS: a short first
@@ -317,7 +335,8 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 			rehearsalMark: structMarkBlock ? plainText(structMarkBlock, 'text') : null,
 			startRepeat: block.includes('<startRepeat') || struct.includes('<startRepeat'),
 			endRepeat: block.includes('<endRepeat') || struct.includes('<endRepeat'),
-			pickup: pad[0] > 0
+			pickup: pad[0] > 0,
+			ending: endingByMeasure[measureIdx]
 		};
 
 		const voice = xmlText(block, 'voice');
@@ -477,6 +496,10 @@ interface SectionBuilder {
 	label: string | null;
 	/** True for the lone anacrusis section (unlabeled, outside repeats). */
 	pickup: boolean;
+	/** Volta ending number, when this section IS an ending. */
+	ending?: 1 | 2;
+	/** Ending sections continue the body — they inherit its label. */
+	inheritLabel: boolean;
 	firstMeasure: number;
 	measureCount: number;
 	startRepeat: boolean;
@@ -498,7 +521,8 @@ function buildSections(
 		i === 0 ||
 		measures[i].rehearsalMark !== null ||
 		measures[i].startRepeat ||
-		measures[i - 1].endRepeat;
+		measures[i - 1].endRepeat ||
+		measures[i].ending !== measures[i - 1].ending;
 
 	const builders: SectionBuilder[] = [];
 	measures.forEach((m, i) => {
@@ -506,6 +530,8 @@ function buildSections(
 			builders.push({
 				label: m.rehearsalMark,
 				pickup: false,
+				ending: m.ending,
+				inheritLabel: m.ending !== undefined && m.rehearsalMark === null,
 				firstMeasure: i,
 				measureCount: 0,
 				startRepeat: false,
@@ -553,12 +579,16 @@ function buildSections(
 	// suppressed by the notation's consecutive-part-label logic.
 	const usedLabels = new Set(builders.map((b) => b.label).filter((l) => l !== null));
 	for (const b of builders) {
-		if (b.label !== null) continue;
+		if (b.label !== null || b.inheritLabel) continue;
 		let code = 65; // 'A'
 		while (usedLabels.has(String.fromCharCode(code))) code++;
 		b.label = String.fromCharCode(code);
 		usedLabels.add(b.label);
 	}
+	// Ending sections continue their body's material — same label, no letter.
+	builders.forEach((b, i) => {
+		if (b.inheritLabel && b.label === null) b.label = builders[i - 1]?.label ?? 'A';
+	});
 
 	return builders.map((b) => {
 		const inRange = (offset: Fraction): boolean =>
@@ -602,6 +632,7 @@ function buildSections(
 			bars: b.measureCount,
 			...(b.startRepeat ? { repeatStart: true } : {}),
 			...(b.endRepeat ? { repeatEnd: true } : {}),
+			...(b.ending ? { ending: b.ending } : {}),
 			notes: sectionNotes,
 			harmony
 		};
