@@ -9,10 +9,12 @@ import {
 	FLAT_KEYS,
 	KEY_SIG_ACCIDENTALS,
 	approxToFraction,
+	chordSpellingPreference,
 	displayPitchClass,
 	durationToAbc,
 	getBeamGroupDuration,
 	getTripletBase,
+	governingSegment,
 	initBarState,
 	mergeConsecutiveRests,
 	midiToAbcPitch,
@@ -46,6 +48,8 @@ interface DisplayElement {
 	sourceIndex: number | null;
 	/** Chord-symbol texts attached to (sounding at) this element. */
 	chords: string[];
+	/** The harmony segment governing this element's offset, for spelling. */
+	governing: HarmonicSegment | null;
 }
 
 /** Build the display text for one harmony segment's chord symbol. */
@@ -132,8 +136,21 @@ export function leadSheetToAbcWithMap(
 			return `${prefix}z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
+		// Spelling priority: the user's explicit choice, then diatonic-to-the-
+		// governing-chord (judged at WRITTEN pitch), then the key signature.
+		const chordPref = el.governing
+			? chordSpellingPreference(
+					midi,
+					instrument
+						? concertKeyToWritten(el.governing.chord.root, instrument)
+						: el.governing.chord.root,
+					el.governing.chord.quality
+				)
+			: null;
 		const noteUseFlats = note.spelling === 'flat' ? true
 			: note.spelling === 'sharp' ? false
+			: chordPref === 'flat' ? true
+			: chordPref === 'sharp' ? false
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const tieSuffix = note.tied ? '-' : '';
@@ -216,7 +233,8 @@ export function leadSheetToAbcWithMap(
 		const elements: DisplayElement[] = display.map((note, k) => ({
 			note,
 			sourceIndex: sourceMap[k] === null ? null : inputSources[sourceMap[k]!],
-			chords: []
+			chords: [],
+			governing: governingSegment(sec.harmony, fractionToFloat(note.offset))
 		}));
 
 		// ── Chord assignment: each chord attaches to the element sounding at its offset ──

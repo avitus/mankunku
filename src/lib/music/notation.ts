@@ -1,7 +1,8 @@
-import type { Note, Phrase, PitchClass } from '$lib/types/music';
+import type { ChordQuality, HarmonicSegment, Note, Phrase, PitchClass } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals';
-import { concertToWritten, concertKeyToWritten } from './transposition';
+import { concertToWritten, concertKeyToWritten, transposePitchClass } from './transposition';
 
 /** Note letter names A–G */
 type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
@@ -21,6 +22,81 @@ export type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
 
 const ABC_NOTE_NAMES_SHARP = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', 'A', '^A', 'B'];
 const ABC_NOTE_NAMES_FLAT = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A', '_B', 'B'];
+
+// ─── Chord-aware enharmonic spelling ─────────────────────────────────────
+
+/** Musical letter sequence for interval arithmetic (wraps G → A). */
+const LETTER_SEQUENCE: NoteLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+const LETTER_NATURAL_PC: Record<NoteLetter, number> = {
+	C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11
+};
+
+const MINOR_THIRD_QUALITIES: ReadonlySet<ChordQuality> = new Set([
+	'min7', 'min6', 'minMaj7', 'min7b5', 'dim7', 'dim'
+]);
+const FLAT_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set([
+	'min7b5', 'dim7', 'dim', '7alt'
+]);
+const SHARP_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set(['aug', 'aug7']);
+
+/**
+ * Preferred enharmonic spelling of a chromatic note against the chord that
+ * governs it — the third of A7 is C#, never Db; the minor third of C-7 is
+ * Eb, never D#. Uses proper interval spelling (letter steps from the chord
+ * root), and returns null when the note has no single-accidental spelling
+ * relative to the chord (natural letters, or spellings needing double
+ * accidentals) so the caller falls back to the key signature.
+ */
+export function chordSpellingPreference(
+	midi: number,
+	root: PitchClass,
+	quality: ChordQuality
+): 'sharp' | 'flat' | null {
+	const pc = midiToPitchClass(midi);
+	if (pc !== 1 && pc !== 3 && pc !== 6 && pc !== 8 && pc !== 10) return null;
+
+	const rootPc = PITCH_CLASSES.indexOf(root);
+	const rootLetter = root[0] as NoteLetter;
+	const interval = (pc - rootPc + 12) % 12;
+
+	// Semitone interval → letter steps above the root letter. Quality decides
+	// the ambiguous degrees: b3 vs #9, b5 vs #11, #5 vs b13.
+	const steps = [
+		0, 1, 1,
+		MINOR_THIRD_QUALITIES.has(quality) ? 2 : 1,
+		2, 3,
+		FLAT_FIVE_QUALITIES.has(quality) ? 4 : 3,
+		4,
+		SHARP_FIVE_QUALITIES.has(quality) ? 4 : 5,
+		5, 6, 6
+	][interval];
+
+	const letter =
+		LETTER_SEQUENCE[(LETTER_SEQUENCE.indexOf(rootLetter) + steps) % 7];
+	const diff = (pc - LETTER_NATURAL_PC[letter] + 12) % 12;
+	if (diff === 1) return 'sharp';
+	if (diff === 11) return 'flat';
+	return null;
+}
+
+/**
+ * The chord governing a note offset: the last change at or before it.
+ * Segments are change points — a chord rules until the next one.
+ */
+export function governingSegment(
+	harmony: HarmonicSegment[],
+	offset: number
+): HarmonicSegment | null {
+	let governing: HarmonicSegment | null = null;
+	for (const seg of harmony) {
+		if (fractionToFloat(seg.startOffset) <= offset + 1e-9) {
+			if (!governing || fractionToFloat(seg.startOffset) >= fractionToFloat(governing.startOffset)) {
+				governing = seg;
+			}
+		}
+	}
+	return governing;
+}
 
 /** Keys that conventionally use flats */
 export const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
@@ -444,8 +520,20 @@ export function phraseToAbcWithMap(
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
+		// Spelling priority: the user's explicit choice, then diatonic-to-the-
+		// governing-chord (judged at WRITTEN pitch), then the key signature.
+		const seg = governingSegment(phrase.harmony, fractionToFloat(note.offset));
+		const chordPref = seg
+			? chordSpellingPreference(
+					midi,
+					instrument ? concertKeyToWritten(seg.chord.root, instrument) : seg.chord.root,
+					seg.chord.quality
+				)
+			: null;
 		const noteUseFlats = note.spelling === 'flat' ? true
 			: note.spelling === 'sharp' ? false
+			: chordPref === 'flat' ? true
+			: chordPref === 'sharp' ? false
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const tieSuffix = note.tied ? '-' : '';

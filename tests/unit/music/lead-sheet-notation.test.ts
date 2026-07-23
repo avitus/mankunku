@@ -284,3 +284,108 @@ describe('leadSheetToAbcWithMap — click anchors', () => {
 		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 1]);
 	});
 });
+
+describe('leadSheetToAbc — chord-aware enharmonic spelling', () => {
+	it('spells notes diatonically to the governing chord, not the key signature', () => {
+		// Key Bb (a flat key): the old key-signature default spelled pc 1 as
+		// Db and pc 6 as Gb — but over A7 that note is the major third C#,
+		// and over Dmaj7 it is the major third F#.
+		const s = sheet({
+			key: 'Bb',
+			sections: [
+				section({
+					bars: 2,
+					notes: [
+						{ pitch: 61, duration: [1, 1], offset: [0, 1] },
+						{ pitch: 66, duration: [1, 1], offset: [1, 1] }
+					],
+					harmony: [
+						seg('A', '7', [0, 1], [1, 1]),
+						seg('D', 'maj7', [1, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const { abc } = leadSheetToAbcWithMap(s);
+		expect(abc).toContain('^C');
+		expect(abc).toContain('^F');
+		expect(abc).not.toContain('_D');
+		expect(abc).not.toContain('_G');
+	});
+
+	it('an explicit user spelling still overrides the chord preference', () => {
+		const s = sheet({
+			key: 'Bb',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 61, duration: [1, 1], offset: [0, 1], spelling: 'flat' }],
+					harmony: [seg('A', '7', [0, 1], [1, 1])]
+				})
+			]
+		});
+		const { abc } = leadSheetToAbcWithMap(s);
+		expect(abc).toContain('_D');
+	});
+
+	it('falls back to the key signature when no chord governs the note', () => {
+		const s = sheet({
+			key: 'Bb',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 61, duration: [1, 1], offset: [0, 1] }],
+					harmony: []
+				})
+			]
+		});
+		const { abc } = leadSheetToAbcWithMap(s);
+		expect(abc).toContain('_D'); // flat key default
+	});
+
+	it('judges the chord in WRITTEN pitch for transposing instruments', () => {
+		// Concert Ab on a tenor displays in written Bb — a flat key whose
+		// default would spell written C#5 as Db. Concert G7 shows as A7, and
+		// concert B (59) is its written third C#5 — spelled sharp.
+		const s = sheet({
+			key: 'Ab',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 59, duration: [1, 1], offset: [0, 1] }],
+					harmony: [seg('G', '7', [0, 1], [1, 1])]
+				})
+			]
+		});
+		const { abc } = leadSheetToAbcWithMap(s, TENOR);
+		expect(abc).toContain('"A7"');
+		expect(abc).toContain('^c');
+		expect(abc).not.toContain('_d');
+	});
+
+	it('spells minor-family thirds flat and dominant colors by their alteration', () => {
+		const s = sheet({
+			key: 'C',
+			sections: [
+				section({
+					bars: 3,
+					notes: [
+						{ pitch: 63, duration: [1, 1], offset: [0, 1] }, // b3 of C-7 → Eb
+						{ pitch: 63, duration: [1, 1], offset: [1, 1] }, // #9 of C7#9 → D#
+						{ pitch: 68, duration: [1, 1], offset: [2, 1] } // b13 of G7b13 → Ab (over G: pc 8)
+					],
+					harmony: [
+						seg('C', 'min7', [0, 1], [1, 1]),
+						seg('C', '7#9', [1, 1], [1, 1]),
+						seg('G', '7b13', [2, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const { abc } = leadSheetToAbcWithMap(s);
+		const body = abc.split('K:C')[1];
+		expect(body).toContain('_E'); // Eb over C-7
+		expect(body).toContain('^D'); // D# over C7#9
+		expect(body).toContain('_A'); // Ab over G7b13
+	});
+});
