@@ -80,6 +80,8 @@ Newest at the top.
 
 **Then — pickup bars lose their label:** user doesn't want the boxed 'Pickup' marker. The anacrusis keeps its own section (still outside repeats, still consuming no letter) but with an empty label; the renderer skips P: for blank labels. ATTYA now opens with a bare pickup bar, then P:A. 2573 unit/integration, 54/54 lead-sheet e2e.
 
+**Then — ma/mi chord spellings:** 'Cma7'/'Cmi7' (Sibelius/Finale style) parse into the maj/min families, any case, incl. Cmima7 as minor-major; 'Min7' fixed as a bonus (capital M used to hit the major branch). The first draft's bare /^ma/ token ate 'Cmadd9' (C minor add9) — caught by the existing suite, fixed with a followed-by-digit guard. Token-order discipline (longest first) plus lookahead guards is the pattern for every future spelling addition. 2576 unit/integration green.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
