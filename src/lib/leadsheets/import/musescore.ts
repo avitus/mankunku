@@ -1,0 +1,514 @@
+import type { Fraction, Note } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
+import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import {
+	addFractions,
+	subtractFractions,
+	multiplyFraction,
+	compareFractions,
+	gcd
+} from '$lib/music/intervals';
+import { harmonicSegmentFromSymbol } from '$lib/leadsheets/segment-from-symbol';
+
+/**
+ * MuseScore importer (.mscz / .mscx, MuseScore 3-4 formats).
+ *
+ * Reads the FIRST staff's first voice as the melody and its Harmony
+ * elements as the changes. Two pitch conventions meet here and the file
+ * resolves both exactly (unlike the PDF path, this import is lossless):
+ *
+ *  - `<Note><pitch>` is CONCERT midi regardless of the part's transposition
+ *    — stored as-is.
+ *  - `<Harmony>` roots are WRITTEN-pitch tonal pitch classes; they are
+ *    shifted by the part's `<transposeChromatic>` back to concert.
+ *  - `<KeySig><concertKey>` gives the concert key signature directly.
+ *
+ * Sections split at RehearsalMarks; repeat barlines map to section repeat
+ * flags when they land on section boundaries.
+ */
+
+export interface MuseScoreImportResult {
+	sheets: LeadSheet[];
+	warnings: string[];
+}
+
+// ─── Small XML helpers (regex-based; runs in Node and the browser) ──────
+
+function xmlText(source: string, tag: string): string | null {
+	// Exact tag match — `<root>` must not match `<rootCase>`, nor
+	// `<duration>` match `<durationType>`.
+	const m = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(source);
+	return m ? m[1] : null;
+}
+
+function decodeEntities(s: string): string {
+	return s
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&quot;/g, '"')
+		.replace(/&apos;/g, "'")
+		.replace(/&amp;/g, '&');
+}
+
+/** Element text content with inline formatting tags stripped. */
+function plainText(source: string, tag: string): string | null {
+	const raw = xmlText(source, tag);
+	if (raw === null) return null;
+	const text = decodeEntities(raw.replace(/<[^>]*>/g, '')).trim();
+	return text.length > 0 ? text : null;
+}
+
+function parseFractionText(text: string | null): Fraction | null {
+	const m = /^\s*(-?\d+)\s*\/\s*(\d+)\s*$/.exec(text ?? '');
+	if (!m) return null;
+	const num = Number(m[1]);
+	const den = Number(m[2]);
+	if (den === 0) return null;
+	const g = gcd(Math.abs(num), den);
+	return [num / g, den / g];
+}
+
+// ─── Pitch spelling ─────────────────────────────────────────────────────
+
+/** Tonal pitch class (14 = C, +1 per fifth) → pitch class 0-11. */
+function tpcToPitchClass(tpc: number): number {
+	return (((tpc - 14) * 7) % 12 + 12) % 12;
+}
+
+/** Key signature fifths (positive = sharps) → canonical major-key name. */
+function fifthsToKey(fifths: number): (typeof PITCH_CLASSES)[number] {
+	return PITCH_CLASSES[((fifths * 7) % 12 + 12) % 12];
+}
+
+// ─── Durations ──────────────────────────────────────────────────────────
+
+const DURATION_TYPES: Record<string, Fraction> = {
+	breve: [2, 1],
+	whole: [1, 1],
+	half: [1, 2],
+	quarter: [1, 4],
+	eighth: [1, 8],
+	'16th': [1, 16],
+	'32nd': [1, 32],
+	'64th': [1, 64],
+	'128th': [1, 128]
+};
+
+function multiplyFractions(a: Fraction, b: Fraction): Fraction {
+	const num = a[0] * b[0];
+	const den = a[1] * b[1];
+	const g = gcd(Math.abs(num), den);
+	return [num / g, den / g];
+}
+
+/** durationType + dots + tuplet ratio → whole-note fraction, or null. */
+function resolveDuration(
+	block: string,
+	barLength: Fraction,
+	tupletRatio: Fraction | null
+): Fraction | null {
+	const type = xmlText(block, 'durationType')?.trim() ?? '';
+	let base: Fraction | null = null;
+	if (type === 'measure') {
+		base = parseFractionText(xmlText(block, 'duration')) ?? barLength;
+	} else if (DURATION_TYPES[type]) {
+		base = DURATION_TYPES[type];
+		const dots = Number(xmlText(block, 'dots') ?? '0');
+		if (dots > 0) {
+			// n dots multiply by (2^(n+1) - 1) / 2^n.
+			base = multiplyFractions(base, [2 ** (dots + 1) - 1, 2 ** dots]);
+		}
+	}
+	if (base && tupletRatio) base = multiplyFractions(base, tupletRatio);
+	return base;
+}
+
+// ─── The .mscx walker ───────────────────────────────────────────────────
+
+interface HarmonyEvent {
+	offset: Fraction; // absolute, whole-note units
+	text: string; // concert-pitch chord text
+}
+
+/** Melody note whose offset is absolute during the walk; rebased per-section afterwards. */
+type NoteEvent = Note;
+
+interface MeasureInfo {
+	startOffset: Fraction;
+	rehearsalMark: string | null;
+	startRepeat: boolean;
+	endRepeat: boolean;
+}
+
+export function parseMscx(xml: string): MuseScoreImportResult {
+	const warnings: string[] = [];
+	const warnOnce = (msg: string): void => {
+		if (!warnings.includes(msg)) warnings.push(msg);
+	};
+
+	const title =
+		plainText(/<metaTag name="workTitle">[\s\S]*?<\/metaTag>/.exec(xml)?.[0] ?? '', 'metaTag') ??
+		'Untitled';
+	const composer =
+		plainText(/<metaTag name="composer">[\s\S]*?<\/metaTag>/.exec(xml)?.[0] ?? '', 'metaTag') ??
+		undefined;
+
+	// The melody staff belongs to the first Part; its transposition converts
+	// written harmony roots to concert.
+	const firstPart = /<Part[\s>][\s\S]*?<\/Part>/.exec(xml)?.[0] ?? '';
+	const transpose = Number(xmlText(firstPart, 'transposeChromatic') ?? '0');
+
+	// First staff that actually contains measures (Part blocks also hold
+	// <Staff> definitions, without measures).
+	let melodyStaff: string | null = null;
+	for (const staff of xml.matchAll(/<Staff[^>]*>[\s\S]*?<\/Staff>/g)) {
+		if (staff[0].includes('<Measure')) {
+			melodyStaff = staff[0];
+			break;
+		}
+	}
+	if (!melodyStaff) {
+		return { sheets: [], warnings: ['No staff with measures found in the MuseScore file.'] };
+	}
+
+	let timeSignature: [number, number] | null = null;
+	let barLength: Fraction = [1, 1];
+	let key: (typeof PITCH_CLASSES)[number] | null = null;
+	let style: string | undefined;
+
+	const measures: MeasureInfo[] = [];
+	const notes: NoteEvent[] = [];
+	const harmonies: HarmonyEvent[] = [];
+
+	let measureStart: Fraction = [0, 1];
+	const tupletStack: Fraction[] = [];
+
+	for (const measureMatch of melodyStaff.matchAll(/<Measure[^>]*>[\s\S]*?<\/Measure>/g)) {
+		const block = measureMatch[0];
+		if (/len="/.test(block.slice(0, block.indexOf('>')))) {
+			warnOnce('Irregular measure length (e.g. a pickup bar) imported as a full bar — review the rhythm placement.');
+		}
+		if (block.includes('type="Volta"')) {
+			warnOnce('Volta endings are not imported — mark 1st/2nd endings on the sections by hand.');
+		}
+
+		const info: MeasureInfo = {
+			startOffset: measureStart,
+			rehearsalMark: null,
+			startRepeat: block.includes('<startRepeat'),
+			endRepeat: block.includes('<endRepeat')
+		};
+
+		const voice = xmlText(block, 'voice');
+		let cursor = measureStart;
+		if (voice) {
+			const elements = voice.matchAll(
+				/<(KeySig|TimeSig|RehearsalMark|SystemText|Tempo|Harmony|Chord|Rest|Tuplet|location)\b[^>]*>[\s\S]*?<\/\1>|<endTuplet\/>/g
+			);
+			for (const el of elements) {
+				const tag = el[1] ?? 'endTuplet';
+				const body = el[0];
+				switch (tag) {
+					case 'KeySig': {
+						const fifths = xmlText(body, 'concertKey') ?? xmlText(body, 'accidental');
+						if (fifths !== null && key === null) key = fifthsToKey(Number(fifths));
+						break;
+					}
+					case 'TimeSig': {
+						const n = Number(xmlText(body, 'sigN') ?? '4');
+						const d = Number(xmlText(body, 'sigD') ?? '4');
+						if (timeSignature === null) {
+							timeSignature = [n, d];
+							barLength = [n, d];
+						} else if (timeSignature[0] !== n || timeSignature[1] !== d) {
+							warnOnce('Time signature changes are not supported — bars after the change may be misaligned.');
+							barLength = [n, d];
+						}
+						break;
+					}
+					case 'RehearsalMark':
+						info.rehearsalMark = plainText(body, 'text');
+						break;
+					case 'SystemText':
+					case 'Tempo':
+						style ??= plainText(body, 'text') ?? undefined;
+						break;
+					case 'Tuplet': {
+						const normal = Number(xmlText(body, 'normalNotes') ?? '0');
+						const actual = Number(xmlText(body, 'actualNotes') ?? '0');
+						tupletStack.push(normal > 0 && actual > 0 ? [normal, actual] : [1, 1]);
+						break;
+					}
+					case 'endTuplet':
+						tupletStack.pop();
+						break;
+					case 'location': {
+						const shift = parseFractionText(xmlText(body, 'fractions'));
+						if (shift) cursor = addFractions(cursor, shift);
+						break;
+					}
+					case 'Harmony': {
+						const text = harmonyText(body, transpose, warnOnce);
+						if (text !== null) harmonies.push({ offset: cursor, text });
+						break;
+					}
+					case 'Rest': {
+						const dur = resolveDuration(body, barLength, null);
+						if (dur) cursor = addFractions(cursor, dur);
+						break;
+					}
+					case 'Chord': {
+						if (/<(acciaccatura|appoggiatura|grace\d)/.test(body)) {
+							warnOnce('Grace notes are not imported.');
+							break;
+						}
+						const ratio = tupletStack.length
+							? tupletStack.reduce(multiplyFractions, [1, 1] as Fraction)
+							: null;
+						const dur = resolveDuration(body, barLength, ratio);
+						if (!dur) break;
+						const note = topNote(body);
+						if (note) {
+							notes.push({
+								pitch: note.pitch,
+								duration: dur,
+								offset: cursor,
+								...(note.tied ? { tied: true } : {})
+							});
+						}
+						cursor = addFractions(cursor, dur);
+						break;
+					}
+				}
+			}
+		}
+
+		measures.push(info);
+		measureStart = addFractions(measureStart, barLength);
+	}
+
+	const sections = buildSections(measures, notes, harmonies, barLength, warnOnce);
+
+	const sheet: LeadSheet = {
+		id: '',
+		title,
+		...(composer ? { composer } : {}),
+		key: key ?? 'C',
+		timeSignature: timeSignature ?? [4, 4],
+		...(style ? { style } : {}),
+		tags: [],
+		sections,
+		source: 'imported-musescore'
+	};
+	return { sheets: [sheet], warnings };
+}
+
+/** Highest note of the chord + whether it starts a tie. */
+function topNote(chordBlock: string): { pitch: number; tied: boolean } | null {
+	let best: { pitch: number; tied: boolean } | null = null;
+	for (const noteMatch of chordBlock.matchAll(/<Note>[\s\S]*?<\/Note>/g)) {
+		const pitch = Number(xmlText(noteMatch[0], 'pitch') ?? 'NaN');
+		if (!Number.isFinite(pitch)) continue;
+		if (best === null || pitch > best.pitch) {
+			const tied = /<Spanner type="Tie">[\s\S]*?<next>/.test(noteMatch[0]);
+			best = { pitch, tied };
+		}
+	}
+	return best;
+}
+
+/** Harmony element → concert-pitch chord text, or null to skip. */
+function harmonyText(
+	body: string,
+	transpose: number,
+	warnOnce: (msg: string) => void
+): string | null {
+	const rootTpc = xmlText(body, 'root');
+	if (rootTpc === null) {
+		warnOnce('Skipped a chord symbol without a root (e.g. a Roman-numeral or N.C. marking).');
+		return null;
+	}
+	const toConcert = (tpc: number): string =>
+		PITCH_CLASSES[(tpcToPitchClass(tpc) + (transpose % 12) + 12) % 12];
+	const root = toConcert(Number(rootTpc));
+	// MuseScore writes alterations in optional parentheses — "7(b9)" — which
+	// our chord parser doesn't accept.
+	const name = (plainText(body, 'name') ?? '').replace(/[()]/g, '');
+	const bassTpc = xmlText(body, 'bass');
+	const bass = bassTpc !== null ? `/${toConcert(Number(bassTpc))}` : '';
+	return `${root}${name}${bass}`;
+}
+
+interface SectionBuilder {
+	label: string;
+	firstMeasure: number;
+	measureCount: number;
+	startRepeat: boolean;
+	endRepeat: boolean;
+	startOffset: Fraction;
+	endOffset: Fraction;
+}
+
+function buildSections(
+	measures: MeasureInfo[],
+	notes: NoteEvent[],
+	harmonies: HarmonyEvent[],
+	barLength: Fraction,
+	warnOnce: (msg: string) => void
+): LeadSheetSection[] {
+	// Split at rehearsal marks; everything before the first mark is 'A'.
+	const builders: SectionBuilder[] = [];
+	measures.forEach((m, i) => {
+		if (i === 0 || m.rehearsalMark !== null) {
+			builders.push({
+				label: m.rehearsalMark ?? String.fromCharCode(65 + builders.length),
+				firstMeasure: i,
+				measureCount: 0,
+				startRepeat: false,
+				endRepeat: false,
+				startOffset: m.startOffset,
+				endOffset: m.startOffset
+			});
+		}
+		const current = builders[builders.length - 1];
+		current.measureCount += 1;
+		current.endOffset = addFractions(m.startOffset, barLength);
+
+		if (m.startRepeat) {
+			if (i === current.firstMeasure) current.startRepeat = true;
+			else warnOnce('A repeat start inside a section was dropped — sections repeat as whole units.');
+		}
+		if (m.endRepeat) {
+			const isLast = i + 1 === measures.length || measures[i + 1].rehearsalMark !== null;
+			if (isLast) current.endRepeat = true;
+			else warnOnce('A repeat end inside a section was dropped — sections repeat as whole units.');
+		}
+	});
+
+	return builders.map((b) => {
+		const inRange = (offset: Fraction): boolean =>
+			compareFractions(offset, b.startOffset) >= 0 && compareFractions(offset, b.endOffset) < 0;
+
+		const sectionNotes: Note[] = notes
+			.filter((n) => inRange(n.offset))
+			.map((n) => ({ ...n, offset: subtractFractions(n.offset, b.startOffset) }));
+
+		const changes = harmonies.filter((h) => inRange(h.offset));
+		const harmony = changes.flatMap((h, i) => {
+			const end = i + 1 < changes.length ? changes[i + 1].offset : b.endOffset;
+			const duration = subtractFractions(end, h.offset);
+			const segment = harmonicSegmentFromSymbol(
+				h.text,
+				subtractFractions(h.offset, b.startOffset),
+				duration
+			);
+			if (!segment) {
+				warnOnce(`Chord "${h.text}" was not recognized and was skipped.`);
+				return [];
+			}
+			return [segment];
+		});
+
+		return {
+			label: b.label,
+			bars: b.measureCount,
+			...(b.startRepeat ? { repeatStart: true } : {}),
+			...(b.endRepeat ? { repeatEnd: true } : {}),
+			notes: sectionNotes,
+			harmony
+		};
+	});
+}
+
+// ─── File dispatch (.mscz zip / .mscx xml) ──────────────────────────────
+
+export interface MuseScoreImportInput {
+	name: string;
+	bytes: Uint8Array;
+}
+
+export async function parseMuseScoreFile(
+	input: MuseScoreImportInput
+): Promise<MuseScoreImportResult> {
+	const lower = input.name.toLowerCase();
+	if (lower.endsWith('.mscx')) {
+		return parseMscx(new TextDecoder().decode(input.bytes));
+	}
+	if (lower.endsWith('.mscz')) {
+		try {
+			const xml = await extractMscxFromZip(input.bytes);
+			if (xml === null) {
+				return { sheets: [], warnings: ['No .mscx score found inside the .mscz archive.'] };
+			}
+			return parseMscx(xml);
+		} catch (err) {
+			return {
+				sheets: [],
+				warnings: [
+					`Failed to read the .mscz archive (${err instanceof Error ? err.message : 'unknown error'}).`
+				]
+			};
+		}
+	}
+	return {
+		sheets: [],
+		warnings: [`Unsupported file type "${input.name}" — expected .mscz or .mscx.`]
+	};
+}
+
+/**
+ * Minimal ZIP reader: enough for .mscz (stored or deflate entries, no
+ * zip64). Returns the root-level .mscx entry's text (Excerpts/ holds
+ * per-part extracts we don't want).
+ */
+async function extractMscxFromZip(bytes: Uint8Array): Promise<string | null> {
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+	// End-of-central-directory record: scan back for its signature.
+	let eocd = -1;
+	for (let i = bytes.length - 22; i >= 0; i--) {
+		if (view.getUint32(i, true) === 0x06054b50) {
+			eocd = i;
+			break;
+		}
+	}
+	if (eocd < 0) throw new Error('not a zip archive');
+	const entryCount = view.getUint16(eocd + 10, true);
+	let offset = view.getUint32(eocd + 16, true);
+
+	const entries: { name: string; method: number; compSize: number; localOffset: number }[] = [];
+	for (let i = 0; i < entryCount; i++) {
+		if (view.getUint32(offset, true) !== 0x02014b50) break;
+		const method = view.getUint16(offset + 10, true);
+		const compSize = view.getUint32(offset + 20, true);
+		const nameLen = view.getUint16(offset + 28, true);
+		const extraLen = view.getUint16(offset + 30, true);
+		const commentLen = view.getUint16(offset + 32, true);
+		const localOffset = view.getUint32(offset + 42, true);
+		const name = new TextDecoder().decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+		entries.push({ name, method, compSize, localOffset });
+		offset += 46 + nameLen + extraLen + commentLen;
+	}
+
+	const candidates = entries.filter((e) => e.name.toLowerCase().endsWith('.mscx'));
+	const entry = candidates.find((e) => !e.name.includes('/')) ?? candidates[0];
+	if (!entry) return null;
+
+	// Local header carries its own name/extra lengths — they can differ
+	// from the central directory's.
+	const lh = entry.localOffset;
+	if (view.getUint32(lh, true) !== 0x04034b50) throw new Error('corrupt local header');
+	const nameLen = view.getUint16(lh + 26, true);
+	const extraLen = view.getUint16(lh + 28, true);
+	const dataStart = lh + 30 + nameLen + extraLen;
+	const data = bytes.subarray(dataStart, dataStart + entry.compSize);
+
+	if (entry.method === 0) return new TextDecoder().decode(data);
+	if (entry.method === 8) {
+		const stream = new Blob([data.slice()]).stream().pipeThrough(
+			new DecompressionStream('deflate-raw')
+		);
+		return await new Response(stream).text();
+	}
+	throw new Error(`unsupported compression method ${entry.method}`);
+}

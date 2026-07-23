@@ -106,5 +106,30 @@
 				Import .SGU/.MGU songs or a BIAB MusicXML export.
 			</p>
 		</a>
+
+		<a
+			href="/lead-sheets/import/musescore"
+			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
+		>
+			<!-- Brass quarter-note glyph -->
+			<svg
+				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				aria-hidden="true"
+			>
+				<path d="M9 18V4l10-2v14" />
+				<circle cx="6.5" cy="18" r="2.5" fill="currentColor" stroke="none" />
+				<circle cx="16.5" cy="16" r="2.5" fill="currentColor" stroke="none" />
+			</svg>
+			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
+				MuseScore
+			</h2>
+			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
+				Import a .mscz/.mscx score — melody, changes, and form.
+			</p>
+		</a>
 	</div>
 </div>

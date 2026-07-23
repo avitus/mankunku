@@ -17,13 +17,14 @@ const IREAL_URL =
 		'Imported Blues=Trad=Medium Swing=F=n={*AT44F7 |Bb7 |F7 |F7 |N1Bb7 |F7 } N2Bb7 |F6 Z'
 	);
 
-test('the add-lead-sheets chooser links all four methods', async ({ page }) => {
+test('the add-lead-sheets chooser links all five methods', async ({ page }) => {
 	await page.goto('/add-lead-sheets');
 	await expect(page.getByRole('heading', { name: 'Add Lead Sheets' })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Manual Entry/ })).toHaveAttribute('href', '/lead-sheets/entry');
 	await expect(page.getByRole('link', { name: /PDF Upload/ })).toHaveAttribute('href', '/lead-sheets/import/pdf');
 	await expect(page.getByRole('link', { name: /iReal Pro/ })).toHaveAttribute('href', '/lead-sheets/import/ireal');
 	await expect(page.getByRole('link', { name: /Band-in-a-Box/ })).toHaveAttribute('href', '/lead-sheets/import/biab');
+	await expect(page.getByRole('link', { name: /MuseScore/ })).toHaveAttribute('href', '/lead-sheets/import/musescore');
 });
 
 test('iReal link imports straight into the book', async ({ page }) => {
@@ -86,6 +87,27 @@ test('a real Band-in-a-Box file imports with sections and a chorus repeat', asyn
 	// B7) present as its own element.
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'B-7' }).first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B7$/ }).first()).toBeVisible();
+});
+
+test('a real MuseScore file imports melody and changes at concert pitch', async ({ page }) => {
+	await page.goto('/lead-sheets/import/musescore');
+
+	const fileInput = page.getByLabel('MuseScore file');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.mscz');
+
+	await expect(page.getByText('Fly me to the moon')).toBeVisible();
+	await page.getByRole('button', { name: 'Add to book' }).click();
+	await page.getByRole('link', { name: /Added — view/ }).click();
+
+	await page.waitForURL('**/lead-sheets/sheet-*');
+	await expect(page.getByRole('heading', { name: 'Fly me to the moon' })).toBeVisible();
+	// The file stores concert pitch (the tenor part's transposition is
+	// display-only), so the seeded tenor shows the opening chord written a
+	// major ninth up: concert A-7 → written B-7.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()).toBeVisible();
+	// Section marks came from the rehearsal marks.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
 });
 
 test('the PDF import page renders a usable state', async ({ page }) => {
