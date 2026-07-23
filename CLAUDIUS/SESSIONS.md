@@ -101,6 +101,13 @@ Newest at the top.
 
 **Then — Take the A Train: chords stacked over whole notes:** two chords over one held note both attached to that note's element and stacked vertically. Held notes now split at interior chord boundaries into TIED display segments — the exact rule rest bars already followed — so chords sit at beats 1 and 3. Display-only (stored note whole); split segments each carry a click anchor to the same source note. The symmetry was sitting there the whole time: the user's original BIAB request ('two chords side by side') was implemented for rests only because the fixture that drove it had no melody; the first melody+two-chord file broke it. When a rule is stated about CHORDS, implementing it on the rest path only is a half-fix wearing a full-fix's tests. Screenshot-verified on the real chart; [2 alignment is approximate when the ending bar carries wide chord text (abcjs justification) — noted to user. 2589 unit/integration, 60/60 lead-sheet e2e.
 
+**Then — the user rejects the tied-split ('should still render as a whole note'), forcing the right architecture:**
+
+- The tied-split was a mechanism leak: it made the ENGRAVING pay for a POSITIONING problem. Correct model: chords are a positioning layer, not note decorations. The renderer now emits two voices merged on one staff — V:M melody untouched (invisible x for gaps), V:H an invisible rhythm voice placing each chord at its beat, with VISIBLE z-rests where melody is silent (a second voice shifts voice-1 rests off-center — discovered by probing, so the reader's rests live in H).
+- Method that made this safe: prototyped the abcjs primitives FIRST with three tiny probes (annotation-on-x in merged voice; rest positions per voice; mid-bar mixes) and read the PNGs before committing to a 150-line emitter rewrite. Ten minutes of probes de-risked the whole design; the alternative was discovering abcjs quirks after the rewrite.
+- The rewrite DELETED the previous three mechanisms (gap-splitting at chord boundaries, per-chord-span rest merging, note splitting) — the chord voice subsumes all of them from a global chord/silence timeline. Net: more capable, less machinery. When a third patch on the same subsystem gets rejected, the model is wrong, not the patch.
+- Residual cosmetic: ending digit and a bar-start chord sit tight ('1C#7b9'); acceptable, noted. 2589 unit/integration, 234/234 FULL e2e, both real charts screenshot-verified.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
