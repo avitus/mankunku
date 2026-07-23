@@ -51,6 +51,13 @@ Newest at the top.
 - The lesson worth keeping: my unit tests all exercised inputs I had imagined; the reviewers found the inputs MuseScore actually produces (split measures, meter changes, flag semantics). Format-boundary code needs adversaries who read the OTHER side's source.
 - 2555 unit/integration, 42/42 lead-sheet e2e, check clean.
 
+**Then — All The Things You Are: spanner addressing vs time, and repeats become section cuts:**
+
+- User's real chart (full arrangement: pickup, repeated 4-bar intro, 36-bar form, no rehearsal marks) exposed two bugs. (1) The 'extra quarter rest' before the whole note on 'You': a voice-level TextLine spanner's <next><location><fractions>1/4</fractions> — spanner ADDRESSING — was consumed by the tokenizer as a cursor time-jump. Any voice-level slur/hairpin/text-line could drift a bar; Fly Me passed its exact-match tests only because that file happens to have zero voice-level spanners. Fixed by consuming Spanner blocks whole. (2) Both repeat warnings: with no marks, the whole chart was one section, so |: and :| fell mid-section and were dropped. Repeat barlines now split sections like marks do — a plain repeat always survives.
+- Second lean refuter pass (2 agents) demonstrated four follow-on defects in my split design before commit: in-effect harmony not carried into repeat-cut sections (backing chord-less for the whole repeated span — now restated at section start); auto letters colliding with real mark labels, which lead-sheet-notation's consecutive-duplicate suppression then HID (next-unused letters now); Pickup consuming 'A'; orphan :| kept as a dead flag playback ignores (now synthesizes repeat-from-top-of-form, pickup excluded).
+- Pattern across both rounds: every defect the refuters found was in the interaction between my new code and a neighbor (flatten's span rules, notation's label suppression, the harmony filter) — not in the new code's own arithmetic. Review lenses should be aimed at seams, not centers.
+- ATTYA parses clean: Pickup(1)/A(4, |: :|)/B(36), G-7 under the whole note at beat 1, zero warnings. Real file verified locally but NOT committed as a fixture (copyrighted arrangement the user didn't offer for the suite; synthetic tests pin every behavior). 2562 unit/integration, 57/57 lead-sheet e2e, check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
