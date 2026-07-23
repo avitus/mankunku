@@ -8,41 +8,41 @@ Tests use [Vitest](https://vitest.dev/) with the following configuration (from `
 
 ```typescript
 test: {
-  include: ['tests/unit/**/*.test.ts'],
+  include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
   environment: 'node',
-  alias: {
-    '$lib': './src/lib'
-  }
+  setupFiles: ['./vitest.setup.ts']
 }
 ```
+
+`$lib` resolves via the `sveltekit()` Vite plugin, so there's no alias block in the test config. The default `vitest run` (`npm test`) collects both the unit and integration suites.
 
 ### Running Tests
 
 ```bash
-# Run all unit tests
-npm run test:unit
+# Run all tests (unit + integration)
+npm test
 
 # Watch mode
-npx vitest
+npm run test:watch
 
 # Specific file
 npx vitest tests/unit/audio/capture.test.ts
-
-# With coverage
-npx vitest --coverage
 ```
 
 ### Test File Location
 
-Tests mirror the source structure under `tests/unit/`:
+Unit tests mirror the source structure under `tests/unit/`, one module per file. Integration tests live under `tests/integration/` and exercise cross-module pipelines and flows (audio processing, adaptive difficulty, cloud sync). Both trees are collected by the default `vitest run` (`npm test`):
 
-```
+```text
 tests/
-└── unit/
-    ├── audio/
-    │   └── capture.test.ts
-    └── scoring/
-        └── note-segmenter.test.ts
+├── unit/
+│   ├── audio/
+│   │   └── capture.test.ts
+│   └── scoring/
+│       └── note-segmenter.test.ts
+└── integration/
+    ├── audio-processing-pipeline.test.ts
+    └── adaptive-difficulty.test.ts
 ```
 
 ## Mocking Audio APIs

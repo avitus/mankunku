@@ -1,6 +1,6 @@
 # API Reference: State
 
-Seven reactive state modules using Svelte 5 `$state` rune at module scope.
+Ten reactive state modules using the Svelte 5 `$state` rune at module scope.
 
 **Source:** `src/lib/state/`, `src/lib/persistence/`
 
@@ -119,12 +119,12 @@ Record a completed attempt. `source` defaults to `'ear-training'`; pass `'lick-p
 5. Updates per-lick progress
 6. Updates per-key proficiency + key progress (ear-training only)
 7. Updates streak (compares to yesterday's date)
-8. Re-derives daily summaries via `recomputeAllDailySummaries()` (pulls in lick-practice rows as well)
+8. Re-derives today's daily summary via `recomputeDailySummary(today, {...})`, passing in the live adaptive snapshot (pitch/rhythm complexity + tonal mastery) that isn't reachable from `SessionResult`. This reads back from the source tables (`progress.sessions` + `lick-practice-sessions`), so lick-practice rows for that day are included.
 9. Auto-saves to localStorage (+ optional cloud sync)
 
 ### `initFromCloud(supabase): Promise<void>`
 
-Fetch cloud progress for an authenticated user and merge with local. Cloud-takes-precedence when the cloud session count is ≥ the local count; otherwise local wins. The root layout (`+layout.ts`) then calls `recomputeAllDailySummaries()` and `mergeCloudSummaries()` to re-derive history from the merged source tables.
+Fetch cloud progress for an authenticated user and merge with local. Merges each field independently rather than choosing a whole side: sessions are unioned by id (local wins same-id ties, e.g. in-flight rescores), then sorted newest-first and capped at `MAX_SESSIONS`; adaptive state comes from whichever side has the most recent session timestamp; category/key lifetime counters merge per-key (keep the side with more attempts, folding in the other side's higher `bestScore` / newer `lastAttempt`), proficiency maps merge per entry, and `totalPracticeTime` / `streakDays` / `lastPracticeDate` take the max/newer of the two. The root layout (`+layout.ts`) then calls `recomputeAllDailySummaries()` and `reconcileCloudSummaries()` to re-derive history from the merged source tables.
 
 ### `getRecentSessions(count?): SessionResult[]`
 
@@ -154,20 +154,22 @@ Manual save to localStorage.
 
 ## library.svelte.ts
 
-Filter state for the lick library browser. **Not persisted** — resets on navigation.
+Search state for the user's personal lick collection. **Not persisted** — resets on navigation.
+
+The library page now lists only the user's own (and adopted community) licks, so the old curated-archive browse filters (category, difficulty, key) were removed. What remains is a search box plus a progression filter that matches on each lick's explicit `prog:*` tags.
 
 ### `library`
 
 ```typescript
+import type { ChordProgressionType } from '$lib/types/lick-practice';
+
 export const library = $state<{
-  categoryFilter: PhraseCategory | null;  // null = show all
-  difficultyFilter: number | null;        // null = show all
   searchQuery: string;
-  selectedKey: PitchClass;                // Default 'C'
+  progressionFilter: ChordProgressionType | null;  // null = show all; matches lick's explicit prog:* tags
 }>();
 ```
 
-No exported functions — library page reads/writes fields directly.
+No exported functions — the library page binds `library.searchQuery` and `library.progressionFilter` directly.
 
 ---
 
@@ -198,9 +200,9 @@ Single-day variant — useful when only one date is dirty.
 
 Pure helper that builds a `DailySummary` from the source rows for one day, without persisting. Returns `null` if no rows fall on that date.
 
-### `mergeCloudSummaries(cloudSummaries): DailySummary[]`
+### `reconcileCloudSummaries(cloudSummaries): DailySummary[]`
 
-Merge cloud-side summaries into the local cache during hydration. Cloud rows replace local for dates the cloud knows about; local-only dates (e.g. older than the cloud's window) survive.
+Reconcile cloud-side summaries with the local cache during hydration / outbox flush. Every cloud date — DERIVABLE from local source rows or AGED-OUT — is combined with local via a monotonic per-counter MAX merge (`mergeWithExisting`): cloud values win on any counter where the local re-derivation is incomplete (e.g. a boundary date whose older sessions aged out of the 100-session window and re-derives to a partial count), while the unioned-sessions re-derivation wins where it is larger — fixing the equal-count / undercount deadlock. Returns the dates the cloud must be told about (derivable dates, local-only days, and dates where the merged local result now exceeds cloud on any counter) for pushing back via `syncAllDailySummariesToCloud`.
 
 ### `updateLongestStreak(): void`
 
@@ -250,9 +252,9 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 
 ```typescript
 export const lickPractice = $state<{
-  config: LickPracticeConfig;          // progressionType, durationMinutes, practiceMode, backingStyle,
-                                       //   enableSubstitutions?, singleLickMode?, singleLickId?, tempoBumpBpm?
-  phase: LickPracticePhase;            // 'setup' | 'count-in' | 'playing' | 'inter-lick-rest' | 'complete'
+  config: LickPracticeConfig;          // sessionType, progressionType, durationMinutes, practiceMode,
+                                       //   backingStyle, enableSubstitutions?, singleLickId?, tempoBumpBpm?
+  phase: LickPracticePhase;            // 'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'round-complete' | 'complete'
   plan: LickPracticePlanItem[];         // Ordered licks + planned keys
   currentLickIndex: number;
   currentKeyIndex: number;
@@ -262,6 +264,7 @@ export const lickPractice = $state<{
   startTime: number;
   elapsedSeconds: number;
   progress: LickPracticeProgress;       // Persisted per-lick per-key data
+  mode: 'standard' | 'single-lick';     // 'standard' = multi-lick rotation; 'single-lick' = endless deep practice
   // Single-lick-mode only:
   roundNumber: number;                  // Completed full cycles
   masteredThisRound: PitchClass[];      // Keys cleared at ≥ 0.95 in the current round
@@ -285,7 +288,7 @@ export interface PlannedKey {
 
 ### Hydration
 
-- `hydrateLickPracticeProgress(supabase?)` — Async: pulls cloud lick metadata (best-effort), loads persisted progress, backfills legacy practice tags.
+- `hydrateLickPracticeProgress(supabase?, session?)` — Async: pulls cloud lick metadata (best-effort), loads persisted progress, backfills legacy practice tags. Cloud-backed hydration only runs when BOTH a Supabase client and an authenticated `session` are passed; without a session (anonymous users) it forces the local-only path.
 
 ### Plan building
 
@@ -293,10 +296,9 @@ export interface PlannedKey {
 - `getDailyPracticeLicks(): Phrase[]` — All `practice`-tagged licks with at least one `prog:*` tag, regardless of progression.
 - `buildSessionPlan(): void` — Standard mode. Sorts licks by least-recently-practiced, packs into the `durationMinutes` budget.
 - `buildDailyPracticePlan(): void` — Daily Practice mode. Pools every Daily-eligible lick, assigns each its own least-recently-practiced compatible progression, and packs the budget. Each plan item carries its own `progressionType` instead of inheriting from config.
-- `buildSingleLickPlan(lickId, instrument): void` — Single-lick mode. Builds a per-lick cycle through the lick's *currently-unlocked* keys (via `unlockedCircleFrom`), not all 12 — Deep Practice respects the same gradual-unlock ramp as standard sessions.
-- `startSession(): void` — Standard entry: transitions to `count-in`, resets indices, stamps `startTime`, resolves first-lick tempo.
-- `startDailyPracticeSession(): void` — Daily-Practice entry. Clears `singleLickMode`, calls `buildDailyPracticePlan`, then starts.
-- `startSingleLickSession(lickId, tempoBumpBpm?): void` — Single-lick entry. Sets `singleLickMode`, builds the per-lick unlocked-key plan, then starts. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpBpm` (default 5) once every unlocked key clears and the rotation refills.
+- `startSession(): void` — Standard entry: sets `mode` to `'standard'`, transitions to `count-in`, resets indices, stamps `startTime`, resolves first-lick tempo.
+- `startDailyPracticeSession(): void` — Daily-Practice entry. Clears `config.singleLickId`, calls `buildDailyPracticePlan`, sets `mode` to `'standard'`, then starts.
+- `startSingleLickSession(lickOrId: string | Phrase, tempoBumpBpm = 5): boolean` — Single-lick entry. Accepts a `Phrase` or a lick id; returns `false` if the lick can't be resolved. Builds the per-lick plan inline: cycles the lick through its *currently-unlocked* keys via `unlockedCircleFrom(lick.key, unlockedCount)` (not all 12), derives the backing progression from the lick's own `prog:*` tags via `resolveSingleLickProgression`, sets `mode` to `'single-lick'`, and transitions to `count-in`. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpBpm` (default 5) once every unlocked key clears and the rotation refills.
 
 ### Cursor accessors
 
@@ -318,7 +320,7 @@ export interface PlannedKey {
 ### Session control
 
 - `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ `KEY_PROFICIENT_THRESHOLD` (0.90, green tier). Yellow 0.75–0.89 is recorded but doesn't increment `passCount`. Below `KEY_FLOOR_THRESHOLD` (0.75) is red and blocks tempo increases + unlocks at session end.
-- `resetLickProgress(lickId, supabase?): void` — Wipe one lick's per-key scores, `passCount`, and unlock count. Tags (`practice`, `prog:*`) are preserved. Cloud is synced when a client is supplied. Surfaced from the post-session report (gated on try-again-band scores) and the library detail page (gated on `hasLickProgress`).
+- `resetLick(phraseId): void` — Full-reset one lick's per-key scores, `passCount`, and unlock count back to never-practiced (tempo → 60, `passCount`s → 0, one unlocked key). Reassigns the reactive `progress` rune. `phraseId` must be the base lick id. Tags (`practice`, `prog:*`) are preserved. Local-only via `resetLickPersistence`; there is no `supabase?` parameter and reset performs no explicit cloud sync. Surfaced from the post-session report (gated on try-again-band scores) and the library detail page (gated on `hasLickProgress`).
 - `advance(): 'next-key' | 'end-of-lick'` — Move to the next key; returns `'end-of-lick'` when the current lick's keys are exhausted.
 - `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the score-weighted tempo adjustment (+5 BPM at ≥ 95%, +2 at ≥ 90%, -1 in the 75–89% yellow band, -3 below 75% — and any single key below `KEY_FLOOR_THRESHOLD` clamps the delta to ≤ 0 regardless of average), then move to the next lick or mark session complete.
 - `updateElapsedTime(): void`
@@ -393,7 +395,76 @@ export const stepEntry = $state({
 
 ### Edit mode
 
-- `loadFromPhrase(lick): void` — Hydrate the editor from an existing lick: pulls the notes back into written-pitch space, restores key/bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the library detail page), and redirect to `/library/<id>` after saving.
+- `loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void` — Hydrate the editor from an existing lick: copies the notes straight across in concert pitch, converts the lick's key back to written pitch via `concertKeyToWritten` (using the `instrument` arg) for the `phraseKey` dropdown, restores bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the library detail page), and redirect to `/library/<id>` after saving.
+
+---
+
+## community.svelte.ts
+
+Filters and sort for the `/community` browse view. **Not persisted** — resets on navigation.
+
+### `community`
+
+```typescript
+export const community = $state<{
+  searchQuery: string;
+  categoryFilter: PhraseCategory | null;  // null = show all
+  difficultyFilter: number | null;        // null = show all
+  authorQuery: string;
+  sort: CommunitySort;                     // 'popular' | 'newest'
+}>();
+```
+
+No exported functions — the community page reads/writes fields directly.
+
+---
+
+## lick-suggestions.svelte.ts
+
+Attribution-suggestion state for the `/entry` page. Holds the locally-computed descriptive fallback name plus the server-returned attribution candidates. **Not persisted.**
+
+### `suggestions`
+
+```typescript
+export const suggestions = $state<{
+  fallbackName: string;               // Deterministic local fallback; always populated
+  matches: SuggestionMatch[];         // Async attribution candidates (may be empty)
+  loading: boolean;
+  pickedFromSuggestion: string | null; // Name the user picked from a suggestion
+}>();
+```
+
+### Functions
+
+- `requestMatches(phrase): void` — Update the fallback name synchronously, clear stale matches, then debounce (600ms) a `/api/lick-match` request. Skips the network call for phrases with fewer than 6 pitched notes. Cancels any pending debounce / in-flight fetch first.
+- `clearSuggestions(): void` — Cancel timers/requests and reset all fields.
+- `markPickedFromSuggestion(label): void` — Record that the user adopted a suggested name.
+- `clearPickedFromSuggestion(): void` — Clear the picked-name marker.
+
+---
+
+## tour.svelte.ts
+
+Guided-tour completion / dismissal state. **Persisted** to localStorage under key `mankunku:tour-state` (with optional cloud sync).
+
+### `tourState`
+
+```typescript
+export const tourState = $state({
+  completedTours: SvelteSet<string>,   // Tours finished naturally (clicked Done)
+  dismissedTours: SvelteSet<string>,   // Tours closed before finishing
+  tourInProgress: null as string | null // Tour ID currently driving the page
+});
+```
+
+### Functions
+
+- `saveTourState(supabase?): void` — Persist locally; fire-and-forget cloud sync when a client is supplied.
+- `loadTourStateFromCloud(supabase): Promise<void>` — Merge cloud completion/dismissal into local (cloud wins for completion so a finished tour never replays).
+- `hasSeen(tourId): boolean` — True when the tour was completed **or** dismissed.
+- `markComplete(tourId, supabase?): void` — Mark completed (promotes from dismissed if present) and persist.
+- `markDismissed(tourId, supabase?): void` — Mark dismissed (no-op if already completed) and persist.
+- `resetTours(supabase?): void` — Wipe completion + dismissal history (Settings → "Reset tours"); clears the cloud row rather than unioning.
 
 ---
 
@@ -403,12 +474,16 @@ Thin localStorage wrapper with JSON serialization.
 
 **Source:** `src/lib/persistence/storage.ts`
 
-All keys are prefixed with `mankunku:` to avoid collisions.
+Keys are namespaced under the active user via `namespace.ts` as `mankunku:u:<uid>:<key>` (with an anonymous bucket for signed-out use), except for a handful of GLOBAL control keys (`__active`, `__schema`, `__lastUserId`) stored as plain `mankunku:<key>`. This isolates each account on a shared browser, so switching users needs no destructive wipe.
+
+`save` / `load` / `remove` / `listKeys` operate on the active user's namespace; `saveGlobal` / `loadGlobal` read and write the non-namespaced control keys.
 
 | Function | Signature | Description |
 |---|---|---|
-| `save<T>` | `(key, value) → void` | `JSON.stringify` + `setItem`. Warns on failure (e.g. quota exceeded). |
-| `load<T>` | `(key) → T \| null` | `getItem` + `JSON.parse`. Returns `null` on missing/invalid. |
-| `remove` | `(key) → void` | Remove a single key |
-| `listKeys` | `() → string[]` | All mankunku-prefixed keys (without prefix) |
-| `clearAll` | `() → void` | Remove all mankunku data |
+| `save<T>` | `(key, value, syncCallback?) → void` | `JSON.stringify` + `setItem` in the active namespace. Warns on failure (e.g. quota exceeded). |
+| `load<T>` | `(key) → T \| null` | `getItem` + `JSON.parse` from the active namespace. Returns `null` on missing/invalid. |
+| `remove` | `(key) → void` | Remove a single key from the active namespace |
+| `saveGlobal<T>` | `(key, value) → void` | Write a global (non-namespaced) control value |
+| `loadGlobal<T>` | `(key) → T \| null` | Read a global (non-namespaced) control value |
+| `listKeys` | `() → string[]` | All logical keys in the active namespace (prefix stripped); excludes global control keys |
+| `clearAll` | `() → void` | Remove all keys in the ACTIVE user's namespace only. Does NOT touch other users' buckets or the global control keys. |

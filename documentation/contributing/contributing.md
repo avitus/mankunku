@@ -78,7 +78,7 @@ it by hand when a migration changes the schema, then run `npm run db:types:check
 
 - Strict mode (`"strict": true` in `tsconfig.json`)
 - Bundler module resolution
-- All imports use `.ts` extensions (e.g. `import { foo } from './bar.ts'`)
+- Relative imports use bare, extensionless paths (e.g. `import { getScale } from './scales'`); most cross-module imports use the `$lib/...` alias (e.g. `import type { ScaleDefinition } from '$lib/types/music'`). Svelte component imports carry a `.svelte` extension (as do runes state modules, whose `.svelte` suffix resolves to a `.svelte.ts` file); JSON imports keep their `.json` extension.
 - Prefer `const` over `let`; avoid `var`
 - Use explicit types for function parameters and return values
 - Use `type` imports for type-only imports
@@ -151,14 +151,14 @@ test: add capture module unit tests
 - One feature/fix per PR
 - Include description of what changed and why
 - Reference any related issues
-- Ensure all tests pass (`npm run test:unit`)
+- Ensure all tests pass (`npm test`)
 - Ensure build succeeds (`npm run build`)
 
 ## Running Tests
 
 ```bash
-# Unit tests
-npm run test:unit
+# Unit + integration tests
+npm test
 
 # Watch mode
 npx vitest

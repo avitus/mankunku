@@ -10,7 +10,7 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 - Real-time pitch detection (McLeod method via Pitchy, 60fps)
 - Note onset detection via custom AudioWorklet (HFC algorithm)
 - DTW alignment-based scoring (pitch 60% + rhythm 40%, with latency correction)
-- 35+ scales and ~250 curated jazz licks (ii-V-I, blues, bebop, modal, and more)
+- 33 scales and 452 curated jazz licks (ii-V-I, blues, bebop, modal, and more)
 - Combinatorial phrase generation from scale patterns and rhythm templates
 - Adaptive difficulty: proficiency levels 1-100, 10 content tiers
 - Concert pitch canonical — transposition to written pitch at display time only
@@ -37,7 +37,7 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 
 ## Quick Start
 
-**Prerequisites:** Node.js >= 18, a modern browser with Web Audio API support
+**Prerequisites:** Node.js >= 22, a modern browser with Web Audio API support
 
 ```sh
 git clone https://github.com/avitus/mankunku.git

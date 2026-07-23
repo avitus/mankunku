@@ -4,7 +4,7 @@ Guide to extending the scale catalog in Mankunku.
 
 ## Overview
 
-The scale catalog lives in `src/lib/music/scales.ts`. It currently contains 35 scales across 7 families. Each scale is a `ScaleDefinition` object.
+The scale catalog lives in `src/lib/music/scales.ts`. It currently contains 33 scales across 7 families. Each scale is a `ScaleDefinition` object.
 
 ## ScaleDefinition Structure
 
@@ -17,8 +17,8 @@ interface ScaleDefinition {
   intervals: number[];           // Semitone steps between degrees (must sum to 12)
   degrees: string[];             // Degree labels relative to major (e.g. '1', 'b3', '#4')
   chordApplications: ChordQuality[];  // Which chords this scale fits
-  targetNotes?: string[];        // Good notes to land on
-  avoidNotes?: string[];         // Notes to treat carefully
+  avoidNotes?: string[];         // Degrees to avoid as sustained notes (optional)
+  targetNotes: string[];         // Chord tones the generator should land on (required)
 }
 ```
 
