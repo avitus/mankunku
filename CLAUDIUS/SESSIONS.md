@@ -82,6 +82,13 @@ Newest at the top.
 
 **Then — ma/mi chord spellings:** 'Cma7'/'Cmi7' (Sibelius/Finale style) parse into the maj/min families, any case, incl. Cmima7 as minor-major; 'Min7' fixed as a bonus (capital M used to hit the major branch). The first draft's bare /^ma/ token ate 'Cmadd9' (C minor add9) — caught by the existing suite, fixed with a followed-by-digit guard. Token-order discipline (longest first) plus lookahead guards is the pattern for every future spelling addition. 2576 unit/integration green.
 
+**Then — multi-part scores: extract the user's part (Autumn Leaves, 4 parts):**
+
+- Two reports: the import should pull the TENOR part, and the title was missing. File inspection: workTitle metaTag EMPTY (title only in the VBox frame text — now a fallback), and the tenor part is staff 2 of 4 (Vocal/Tenor/Piano/Piano) with its own chord symbols. Part selection: name match (trackName/longName/instrumentId vs the user's instrument) then transposition match, else top staff; the selected part's transposeChromatic drives harmony conversion and declaredTransposition.
+- The find that mattered: repeats, voltas, and rehearsal marks are SYSTEM-level — MuseScore serializes them ONLY on the top staff (verified: staff 1 has 1/1/4/4, staff 2 has 0/0/0/0). Extracting a non-top part must merge staff 1's per-bar structure with the selected staff's content, or the tenor chart comes out as one structureless 28-bar slab. That asymmetry is invisible until the first multi-part file.
+- Wrote the wrong expectation once: put repeatEnd on section A when the :| sits on B's bar — the span |: A…B :| crosses the boundary and the flags correctly land on different sections (flatten handles it; round-2 refuter had verified). The test suite caught my error, not the code's.
+- Real-file result: title 'Autumn Leaves' from the frame, marks C/A/D/B respected, 8-bar repeat intact, volta warning surfaced, concert E-minor changes from the tenor's -14. 2581 unit/integration, 24/24 import e2e.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
