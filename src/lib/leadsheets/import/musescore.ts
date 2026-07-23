@@ -30,6 +30,14 @@ import { harmonicSegmentFromSymbol } from '$lib/leadsheets/segment-from-symbol';
 export interface MuseScoreImportResult {
 	sheets: LeadSheet[];
 	warnings: string[];
+	/**
+	 * The melody part's declared transposition in semitones (0 = the file
+	 * claims concert pitch). A nonzero value means the parser has already
+	 * converted the part to concert; zero means the file's pitch claim is
+	 * only as trustworthy as its author — a written-pitch chart typed into
+	 * a non-transposing part looks identical.
+	 */
+	declaredTransposition: number;
 }
 
 // ─── Small XML helpers (regex-based; runs in Node and the browser) ──────
@@ -179,7 +187,11 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 		}
 	}
 	if (!melodyStaff) {
-		return { sheets: [], warnings: ['No staff with measures found in the MuseScore file.'] };
+		return {
+			sheets: [],
+			warnings: ['No staff with measures found in the MuseScore file.'],
+			declaredTransposition: transpose
+		};
 	}
 
 	let timeSignature: [number, number] | null = null;
@@ -351,7 +363,7 @@ export function parseMscx(xml: string): MuseScoreImportResult {
 		sections,
 		source: 'imported-musescore'
 	};
-	return { sheets: [sheet], warnings };
+	return { sheets: [sheet], warnings, declaredTransposition: transpose };
 }
 
 /** Highest note of the chord + whether it starts a tie. */
@@ -540,7 +552,11 @@ export async function parseMuseScoreFile(
 		try {
 			const xml = await extractMscxFromZip(input.bytes);
 			if (xml === null) {
-				return { sheets: [], warnings: ['No .mscx score found inside the .mscz archive.'] };
+				return {
+					sheets: [],
+					warnings: ['No .mscx score found inside the .mscz archive.'],
+					declaredTransposition: 0
+				};
 			}
 			return parseMscx(xml);
 		} catch (err) {
@@ -548,13 +564,15 @@ export async function parseMuseScoreFile(
 				sheets: [],
 				warnings: [
 					`Failed to read the .mscz archive (${err instanceof Error ? err.message : 'unknown error'}).`
-				]
+				],
+				declaredTransposition: 0
 			};
 		}
 	}
 	return {
 		sheets: [],
-		warnings: [`Unsupported file type "${input.name}" — expected .mscz or .mscx.`]
+		warnings: [`Unsupported file type "${input.name}" — expected .mscz or .mscx.`],
+		declaredTransposition: 0
 	};
 }
 

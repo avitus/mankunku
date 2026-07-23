@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <programVersion>4.7.4</programVersion>
+  <Score>
+    <metaTag name="workTitle">Written Pitch Chart</metaTag>
+    <Part id="1">
+      <Staff></Staff>
+      <trackName>Lead</trackName>
+      <Instrument id="piano">
+        <transposeChromatic>0</transposeChromatic>
+      </Instrument>
+    </Part>
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <KeySig><concertKey>2</concertKey></KeySig>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Harmony><harmonyInfo><name>m7</name><root>19</root></harmonyInfo></Harmony>
+          <Chord><durationType>whole</durationType><Note><pitch>71</pitch><tpc>19</tpc></Note></Chord>
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Harmony><harmonyInfo><name>7</name><root>18</root></harmonyInfo></Harmony>
+          <Chord><durationType>whole</durationType><Note><pitch>64</pitch><tpc>18</tpc></Note></Chord>
+        </voice>
+      </Measure>
+    </Staff>
+  </Score>
+</museScore>

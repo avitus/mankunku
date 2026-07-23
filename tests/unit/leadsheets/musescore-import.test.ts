@@ -828,3 +828,34 @@ describe('parseMuseScoreFile dispatch', () => {
 		expect(result.warnings.length).toBeGreaterThan(0);
 	});
 });
+
+describe('declared transposition reporting', () => {
+	it('reports the melody part\'s declared transposition', () => {
+		const transposing = parseMscx(mscx({
+			transposeChromatic: -14,
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(transposing.declaredTransposition).toBe(-14);
+
+		const concert = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(concert.declaredTransposition).toBe(0);
+	});
+});

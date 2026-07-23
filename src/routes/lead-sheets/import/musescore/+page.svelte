@@ -10,12 +10,20 @@
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
-	import { writtenSheetToConcert, type SourceTransposition } from '$lib/leadsheets/source-transposition';
+	import {
+		defaultSourceTransposition,
+		writtenSheetToConcert,
+		type SourceTransposition
+	} from '$lib/leadsheets/source-transposition';
 
 	let rawSheets = $state<LeadSheet[]>([]);
-	// These formats are concert-pitch by definition, so the source defaults
-	// to Concert; the selector covers charts authored at written pitch.
+	// The default is FILE-AWARE. A score that declares a transposing part is
+	// converted by the parser, so its source is Concert. But a score that
+	// CLAIMS concert (transposition 0) is only as trustworthy as its author —
+	// horn players commonly type written-pitch charts into non-transposing
+	// parts — so that claim defaults to the user's instrument, like paper.
 	let source = $state<SourceTransposition>('C');
+	let sourceTouched = $state(false);
 	const sheets = $derived(rawSheets.map((s) => writtenSheetToConcert(s, source, getInstrument())));
 	let warnings = $state<string[]>([]);
 	let parsedOnce = $state(false);
@@ -25,7 +33,13 @@
 	let mounted = $state(false);
 	onMount(() => {
 		mounted = true;
+		source = defaultSourceTransposition(getInstrument());
 	});
+
+	function handleSourceChange(value: SourceTransposition): void {
+		source = value;
+		sourceTouched = true;
+	}
 
 	async function handleFile(event: Event): Promise<void> {
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
@@ -37,6 +51,13 @@
 		rawSheets = result.sheets;
 		warnings = result.warnings;
 		parsedOnce = true;
+		// Re-default from the file's own declaration — unless the user chose.
+		if (!sourceTouched) {
+			source =
+				result.declaredTransposition !== 0
+					? 'C'
+					: defaultSourceTransposition(getInstrument());
+		}
 	}
 
 	function handleReview(sheet: LeadSheet): void {
@@ -75,7 +96,7 @@
 		converted automatically.
 	</p>
 
-	<SourceTranspositionSelect value={source} onchange={(v) => (source = v)} hint="MuseScore parts declare their own transposition — leave on Concert unless the score was written at sounding pitch for a horn." />
+	<SourceTranspositionSelect value={source} onchange={handleSourceChange} hint="Transposing parts convert automatically (the selector switches to Concert). A score that claims concert pitch defaults to your instrument — pick Concert if it really is a concert chart." />
 
 	<input
 		type="file"

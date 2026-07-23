@@ -114,11 +114,17 @@ test('a real Band-in-a-Box file imports with sections and a chorus repeat', asyn
 test('a real MuseScore file imports melody and changes at concert pitch', async ({ page }) => {
 	await page.goto('/lead-sheets/import/musescore');
 
+	// Seeded tenor: the selector defaults to the instrument family…
+	await expect(page.getByLabel('Chart written for')).toHaveValue('Bb');
+
 	const fileInput = page.getByLabel('MuseScore file');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.mscz');
 
 	await expect(page.getByText('Fly me to the moon')).toBeVisible();
+	// …but this file DECLARES a tenor part, which the parser already converts
+	// — so the selector re-defaults to Concert (no double transposition).
+	await expect(page.getByLabel('Chart written for')).toHaveValue('C');
 	await page.getByRole('button', { name: 'Add to book' }).click();
 	await page.getByRole('link', { name: /Added — view/ }).click();
 
@@ -130,6 +136,27 @@ test('a real MuseScore file imports melody and changes at concert pitch', async 
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()).toBeVisible();
 	// Section marks came from the rehearsal marks.
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
+});
+
+test('a MuseScore file that CLAIMS concert defaults to the user instrument', async ({ page }) => {
+	await page.goto('/lead-sheets/import/musescore');
+
+	const fileInput = page.getByLabel('MuseScore file');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/written-pitch-tenor-chart.mscx');
+
+	await expect(page.getByText('Written Pitch Chart')).toBeVisible();
+	// A non-transposing part's "concert" claim is as ambiguous as paper —
+	// for the seeded tenor the selector stays on Bb and the written B-7
+	// chart imports as concert A-7.
+	await expect(page.getByLabel('Chart written for')).toHaveValue('Bb');
+	await page.getByRole('button', { name: 'Add to book' }).click();
+	await page.getByRole('link', { name: /Added — view/ }).click();
+
+	await page.waitForURL('**/lead-sheets/sheet-*');
+	// Round trip: displayed back on tenor, the chart reads exactly as typed.
+	// (Had the Concert default applied, this would display as D♭-7.)
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()).toBeVisible();
 });
 
 test('the PDF import page renders a usable state', async ({ page }) => {
