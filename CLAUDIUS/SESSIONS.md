@@ -117,6 +117,14 @@ Newest at the top.
 - Suite design: strict targets with per-song KNOWN_DEFECTS choosing it.fails (28 documented defects that ALERT when fixed) + regression floors pinning today's real strengths. A defect inventory that is executable, self-promoting, and regression-guarded — better than a report that goes stale.
 - 2611 passing + 28 expected-fail; check clean.
 
+**Then — the fixes: the copyist doctrine (and the suite doing its job on round one):**
+
+- Root cause of key-by-reputation was OUR OWN PROMPT: it asked for 'the concert key of the chart' and instructed the model to CONVERT transposing parts — an open invitation to normalize toward the version it knows. Rewrote as a copyist charter ('you may recognize the tune — that knowledge is a trap'), and made the key MECHANICAL: keySignature.fifths (counting sharps is copying; naming keys is remembering). Pitches printed-verbatim, repeats stay repeats, decoration declared non-musical.
+- Deterministic converter fixes the re-recording surfaced: △ (U+25B3) vs Δ (U+0394) — the THIRD triangle codepoint the parser has met; natural-marked pitches (Bn4/B♮4); editorial parens.
+- One re-recording later: keys 5/5 print-faithful (was 2/5), TWNBAY 0→88 melody notes (highlight-blindness cured by one 'ignore decoration' line), ATTYA bars exact + chords 35/36 at position. Five it.fails flipped to failures-because-they-now-pass — the self-promoting defect inventory worked exactly as designed on its first cycle.
+- Remaining pinned: section-per-system splitting, dense-layout bar miscounts (Fly Me's stubborn 13+13), melody rhythm drift. Those look like they need layout-anchored extraction (bar-by-bar) rather than prompt tightening — noted for next round.
+- 2620 passing + 23 expected-fail; 30/30 pdf/import e2e; check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
