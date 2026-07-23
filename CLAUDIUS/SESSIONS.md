@@ -29,6 +29,14 @@ Newest at the top.
 - **The flaky-afternoon root cause was ours, not the machine's.** Repeated full e2e runs degenerated from rotating singleton timeouts into 12-15 webkit failures per run, all `502` console errors. The Sentry tunnel (`/api/monitoring`) forwards client envelopes to REAL production ingest — every e2e page load in every run, all afternoon, until ingest started rejecting the flood. Fixed: the tunnel accepts-and-drops in `PLAYWRIGHT=1` mode (after allow-list validation, so that behavior stays tested). Two 225/225 full runs post-fix; residual rotating flakes are genuine machine contention (Docker + Supabase + dev server + Spotlight indexing the test videos), each verified green 8x isolated.
 - Commits this round: 2a107d7 (BIAB), c9308aa (spellings), 285d89c (PDF handoff), d92cecf (expect timeout 10s), 2aecacd (Sentry tunnel sink), + MuseScore feat commit.
 
+**Then — source transposition: every add method asks what pitch the chart is written in:**
+
+- User: three cases (C Concert / Bb Tenor·Trumpet / Eb Alto), default to their instrument, selectable on all add methods. One shared model (`leadsheets/source-transposition.ts`): family default from the instrument, and the Bb/Eb semitone shift uses the user's OWN horn's exact offset when it's in the family (tenor part = −14, not −2 — round-trip: import your part, display on your horn, see the printed page octave-for-octave), falling back to the canonical book offsets (+2/+9) outside it.
+- **Deliberate deviation from the letter of the request:** defaults are per-method. PDF + manual entry default to the user's instrument; iReal/BIAB/MuseScore default to Concert because those formats DEFINE pitch (iReal links and .SGU chords are concert; .mscx self-describes via transposeChromatic) — a Bb default there would silently shift every import the user has already validated as correct. Flagged in the summary for the user to overrule.
+- Manual entry: `stepEntry.transpositionOverride` makes the whole entry surface (key label, chord text, typed pitches, preview) operate at the SOURCE's pitch; null = instrument semantics for lick entry, cleared on suspend/reset. Two pre-existing entry tests set the instrument mid-test and relied on call-time getInstrument() — under the new capture-at-init model they re-init instead, matching the real page flow.
+- The list importers keep the raw parse and $derive the transposed sheets, so the selector can be corrected after parsing. The closing integration test: the recorded PDF extraction (printed tenor D) through the Bb transform equals the user's hand-entered concert-C sheet — chords A-7 D-7 G7 CΔ7… and opening pitches exactly.
+- 2535 unit/integration, 231/231 e2e full run, check clean.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
