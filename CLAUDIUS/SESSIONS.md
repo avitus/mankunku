@@ -97,6 +97,8 @@ Newest at the top.
 - The principle pair: canonical storage never changes; display respelling is a pure key-context function at the last mile. And: a rendering feature isn't done until someone LOOKS at pixels — two of this session's bugs were invisible in ABC text and obvious in the PNG.
 - 2587 unit/integration, 60/60 lead-sheet e2e, check clean.
 
+**Then — the boxed 'C' on the intro bar:** the front-matter bar before mark A took the next free auto letter. New rule: unmarked bars ahead of the first real rehearsal mark are unlabeled (letters belong to the form the marks define); no-marks charts keep A/B/C. Screenshot-verified: the chart now opens with a bare intro bar, then boxed A. 2588 unit/integration, 39/39 e2e.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
