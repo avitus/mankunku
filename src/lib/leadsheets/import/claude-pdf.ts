@@ -63,8 +63,17 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 	if (typeof doc.title !== 'string' || doc.title.trim() === '') {
 		errors.push('missing title');
 	}
+	// Prefer the mechanical reading: the printed key signature's fifths.
+	// A key NAME invites the model's knowledge of the tune; counting sharps
+	// is copying. Legacy responses carry only `key`.
+	const fifths = (doc.keySignature as Record<string, unknown> | undefined)?.fifths;
 	const key = doc.key;
-	const normalizedKey = typeof key === 'string' ? parseChordSymbol(key)?.root : undefined;
+	const normalizedKey =
+		typeof fifths === 'number' && Number.isInteger(fifths)
+			? PITCH_CLASSES[(((fifths * 7) % 12) + 12) % 12]
+			: typeof key === 'string'
+				? parseChordSymbol(key)?.root
+				: undefined;
 	if (!normalizedKey || !PITCH_CLASSES.includes(normalizedKey)) {
 		errors.push(`invalid key: ${String(key)}`);
 	}
@@ -130,11 +139,13 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 				warnings.push(`section ${s + 1}: chord "${c.symbol}" outside the section — skipped`);
 				continue;
 			}
-			if (!parseChordSymbol(c.symbol)) {
+			// Editorial parentheses around a chord are punctuation, not pitch.
+			const symbol = (c.symbol as string).replace(/^\s*\(\s*/, '').replace(/\s*\)\s*$/, '');
+			if (!parseChordSymbol(symbol)) {
 				warnings.push(`section ${s + 1}: unparseable chord "${c.symbol}" — skipped`);
 				continue;
 			}
-			placed.push({ offsetBeats, symbol: c.symbol });
+			placed.push({ offsetBeats, symbol });
 		}
 		placed.sort((a, b) => a.offsetBeats - b.offsetBeats);
 		placed.forEach((p, idx) => {
@@ -165,7 +176,13 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 			}
 			let midi: number;
 			try {
-				midi = noteNameToMidi(n.pitch);
+				// Extraction tolerance: unicode accidentals and explicit natural
+				// markers ("Bn4", "B♮4") normalize before the strict reader.
+				const normalized = (n.pitch as string)
+					.replace(/♯/g, '#')
+					.replace(/♭/g, 'b')
+					.replace(/^([A-G])[n♮]/, '$1');
+				midi = noteNameToMidi(normalized);
 			} catch {
 				warnings.push(`section ${s + 1}: unreadable pitch "${n.pitch}" — skipped`);
 				continue;

@@ -114,3 +114,49 @@ describe('claudeJsonToLeadSheet', () => {
 		expect(errors.length).toBeGreaterThan(0);
 	});
 });
+
+describe('claudeJsonToLeadSheet — print-fidelity fields', () => {
+	it('derives the key from keySignature fifths when present (preferred over key)', () => {
+		// Reading "3 sharps" is mechanical; naming the key invites the model's
+		// knowledge of the tune. fifths wins when both are present.
+		const doc = { ...validDoc(), key: 'C', keySignature: { fifths: 3 } };
+		const { sheet, errors } = claudeJsonToLeadSheet(doc);
+		expect(errors).toEqual([]);
+		expect(sheet!.key).toBe('A');
+
+		const flats = { ...validDoc(), key: undefined, keySignature: { fifths: -2 } };
+		expect(claudeJsonToLeadSheet(flats).sheet!.key).toBe('Bb');
+
+		const zero = { ...validDoc(), key: undefined, keySignature: { fifths: 0 } };
+		expect(claudeJsonToLeadSheet(zero).sheet!.key).toBe('C');
+	});
+
+	it('still accepts legacy responses with only a key name', () => {
+		const { sheet, errors } = claudeJsonToLeadSheet(validDoc());
+		expect(errors).toEqual([]);
+		expect(sheet!.key).toBe('Bb');
+	});
+
+	it('reads natural-marked and unicode-accidental pitches', () => {
+		const doc = validDoc();
+		(doc.sections as Array<{ melody: unknown[] }>)[1].melody = [
+			{ bar: 0, beat: 0, durationBeats: 1, pitch: 'Bn4' },
+			{ bar: 0, beat: 1, durationBeats: 1, pitch: 'F♯4' },
+			{ bar: 0, beat: 2, durationBeats: 1, pitch: 'E♭4' }
+		];
+		const { sheet, warnings } = claudeJsonToLeadSheet(doc);
+		expect(warnings).toEqual([]);
+		expect(sheet!.sections[1].notes.map((n) => n.pitch)).toEqual([71, 66, 63]);
+	});
+
+	it('strips editorial parentheses from chord symbols', () => {
+		const doc = validDoc();
+		(doc.sections as Array<{ chords: unknown[] }>)[1].chords = [
+			{ bar: 0, beat: 0, symbol: '(Eb6)' },
+			{ bar: 1, beat: 0, symbol: '( F7 )' }
+		];
+		const { sheet, warnings } = claudeJsonToLeadSheet(doc);
+		expect(warnings).toEqual([]);
+		expect(sheet!.sections[1].harmony.map((h) => h.symbol)).toEqual(['Eb6', 'F7']);
+	});
+});

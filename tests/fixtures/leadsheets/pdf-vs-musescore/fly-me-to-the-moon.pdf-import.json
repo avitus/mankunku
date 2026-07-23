@@ -1,8 +1,8 @@
 {
  "sheet": {
-  "id": "sheet-1784835852882-6put",
+  "id": "sheet-1784839603033-d6we",
   "title": "Fly Me to the Moon",
-  "key": "C",
+  "key": "D",
   "timeSignature": [
    4,
    4
@@ -14,7 +14,7 @@
     "bars": 13,
     "notes": [
      {
-      "pitch": 69,
+      "pitch": 74,
       "duration": [
        3,
        8
@@ -25,7 +25,7 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 72,
       "duration": [
        1,
        8
@@ -36,7 +36,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 71,
       "duration": [
        1,
        8
@@ -47,7 +47,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 69,
       "duration": [
        1,
        8
@@ -58,7 +58,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 71,
       "duration": [
        1,
        8
@@ -69,7 +69,18 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 69,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       7,
+       8
+      ]
+     },
+     {
+      "pitch": 67,
       "duration": [
        3,
        8
@@ -80,7 +91,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -91,7 +102,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 64,
       "duration": [
        1,
        4
@@ -102,7 +113,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 69,
       "duration": [
        3,
        8
@@ -113,7 +124,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 67,
       "duration": [
        1,
        8
@@ -124,7 +135,7 @@
       ]
      },
      {
-      "pitch": 61,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -135,18 +146,29 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 64,
       "duration": [
        1,
-       4
+       8
       ],
       "offset": [
-       11,
-       4
+       21,
+       8
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 62,
+      "duration": [
+       1,
+       2
+      ],
+      "offset": [
+       3,
+       1
+      ]
+     },
+     {
+      "pitch": 69,
       "duration": [
        3,
        8
@@ -157,7 +179,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 67,
       "duration": [
        1,
        8
@@ -168,7 +190,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -179,7 +201,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 64,
       "duration": [
        1,
        8
@@ -190,7 +212,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -201,7 +223,18 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 64,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       39,
+       8
+      ]
+     },
+     {
+      "pitch": 62,
       "duration": [
        3,
        8
@@ -212,7 +245,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 61,
       "duration": [
        1,
        8
@@ -223,7 +256,7 @@
       ]
      },
      {
-      "pitch": 70,
+      "pitch": 66,
       "duration": [
        3,
        8
@@ -234,7 +267,7 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 64,
       "duration": [
        1,
        8
@@ -245,7 +278,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 62,
       "duration": [
        1,
        8
@@ -256,7 +289,18 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 61,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       53,
+       8
+      ]
+     },
+     {
+      "pitch": 59,
       "duration": [
        1,
        4
@@ -267,18 +311,7 @@
       ]
      },
      {
-      "pitch": 62,
-      "duration": [
-       3,
-       8
-      ],
-      "offset": [
-       7,
-       1
-      ]
-     },
-     {
-      "pitch": 70,
+      "pitch": 58,
       "duration": [
        1,
        8
@@ -289,7 +322,18 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 59,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       61,
+       8
+      ]
+     },
+     {
+      "pitch": 61,
       "duration": [
        1,
        8
@@ -300,7 +344,7 @@
       ]
      },
      {
-      "pitch": 76,
+      "pitch": 62,
       "duration": [
        1,
        8
@@ -311,7 +355,7 @@
       ]
      },
      {
-      "pitch": 78,
+      "pitch": 64,
       "duration": [
        1,
        8
@@ -322,21 +366,21 @@
       ]
      },
      {
-      "pitch": 76,
+      "pitch": 64,
       "duration": [
-       1,
-       2
+       5,
+       8
       ],
       "offset": [
-       17,
-       2
+       67,
+       8
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 62,
       "duration": [
        1,
-       4
+       2
       ],
       "offset": [
        9,
@@ -344,21 +388,21 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 61,
       "duration": [
        1,
        4
       ],
       "offset": [
-       37,
-       4
+       19,
+       2
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 59,
       "duration": [
        1,
-       2
+       1
       ],
       "offset": [
        10,
@@ -366,7 +410,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 59,
       "duration": [
        1,
        2
@@ -377,7 +421,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 54,
       "duration": [
        1,
        8
@@ -388,7 +432,18 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 55,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       95,
+       8
+      ]
+     },
+     {
+      "pitch": 57,
       "duration": [
        1,
        8
@@ -399,7 +454,18 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 59,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       97,
+       8
+      ]
+     },
+     {
+      "pitch": 57,
       "duration": [
        1,
        8
@@ -410,25 +476,14 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 55,
       "duration": [
        1,
        8
       ],
       "offset": [
-       25,
-       2
-      ]
-     },
-     {
-      "pitch": 66,
-      "duration": [
-       1,
+       99,
        8
-      ],
-      "offset": [
-       51,
-       4
       ]
      }
     ],
@@ -493,7 +548,7 @@
       ],
       "duration": [
        1,
-       1
+       2
       ],
       "symbol": "DΔ7"
      },
@@ -504,12 +559,12 @@
       },
       "scaleId": "major.ionian",
       "startOffset": [
-       4,
-       1
+       7,
+       2
       ],
       "duration": [
        1,
-       1
+       2
       ],
       "symbol": "GΔ7"
      },
@@ -520,11 +575,11 @@
       },
       "scaleId": "major.locrian",
       "startOffset": [
-       5,
+       4,
        1
       ],
       "duration": [
-       1,
+       2,
        1
       ],
       "symbol": "Db-7b5"
@@ -707,7 +762,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 72,
       "duration": [
        1,
        8
@@ -718,7 +773,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 71,
       "duration": [
        1,
        8
@@ -729,7 +784,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 69,
       "duration": [
        1,
        8
@@ -740,7 +795,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 71,
       "duration": [
        1,
        8
@@ -751,7 +806,18 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 69,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       7,
+       8
+      ]
+     },
+     {
+      "pitch": 67,
       "duration": [
        3,
        8
@@ -762,7 +828,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -770,6 +836,17 @@
       "offset": [
        11,
        8
+      ]
+     },
+     {
+      "pitch": 64,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       2
       ]
      },
      {
@@ -784,7 +861,7 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 67,
       "duration": [
        1,
        8
@@ -795,7 +872,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -806,18 +883,29 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 64,
       "duration": [
        1,
-       4
+       8
       ],
       "offset": [
-       11,
-       4
+       21,
+       8
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 62,
+      "duration": [
+       1,
+       1
+      ],
+      "offset": [
+       3,
+       1
+      ]
+     },
+     {
+      "pitch": 69,
       "duration": [
        3,
        8
@@ -828,7 +916,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 67,
       "duration": [
        1,
        8
@@ -839,7 +927,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -850,7 +938,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 64,
       "duration": [
        1,
        8
@@ -861,7 +949,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 66,
       "duration": [
        1,
        8
@@ -872,7 +960,18 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 64,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       39,
+       8
+      ]
+     },
+     {
+      "pitch": 62,
       "duration": [
        3,
        8
@@ -883,7 +982,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 61,
       "duration": [
        1,
        8
@@ -894,7 +993,7 @@
       ]
      },
      {
-      "pitch": 70,
+      "pitch": 66,
       "duration": [
        3,
        8
@@ -905,7 +1004,7 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 64,
       "duration": [
        1,
        8
@@ -916,7 +1015,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 62,
       "duration": [
        1,
        8
@@ -927,7 +1026,18 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 61,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       53,
+       8
+      ]
+     },
+     {
+      "pitch": 59,
       "duration": [
        1,
        4
@@ -938,18 +1048,7 @@
       ]
      },
      {
-      "pitch": 62,
-      "duration": [
-       3,
-       8
-      ],
-      "offset": [
-       7,
-       1
-      ]
-     },
-     {
-      "pitch": 70,
+      "pitch": 58,
       "duration": [
        1,
        8
@@ -960,7 +1059,18 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 59,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       61,
+       8
+      ]
+     },
+     {
+      "pitch": 61,
       "duration": [
        1,
        8
@@ -971,7 +1081,7 @@
       ]
      },
      {
-      "pitch": 76,
+      "pitch": 62,
       "duration": [
        1,
        8
@@ -982,7 +1092,7 @@
       ]
      },
      {
-      "pitch": 78,
+      "pitch": 64,
       "duration": [
        1,
        8
@@ -993,21 +1103,21 @@
       ]
      },
      {
-      "pitch": 76,
+      "pitch": 64,
       "duration": [
-       1,
-       2
+       5,
+       8
       ],
       "offset": [
-       17,
-       2
+       67,
+       8
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 62,
       "duration": [
        1,
-       4
+       2
       ],
       "offset": [
        9,
@@ -1015,21 +1125,21 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 61,
       "duration": [
        1,
        4
       ],
       "offset": [
-       37,
-       4
+       19,
+       2
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 59,
       "duration": [
        1,
-       2
+       1
       ],
       "offset": [
        10,
@@ -1037,7 +1147,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 59,
       "duration": [
        1,
        2
@@ -1048,7 +1158,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 54,
       "duration": [
        1,
        8
@@ -1059,56 +1169,29 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 55,
       "duration": [
        1,
        8
+      ],
+      "offset": [
+       95,
+       8
+      ]
+     },
+     {
+      "pitch": 57,
+      "duration": [
+       1,
+       1
       ],
       "offset": [
        12,
        1
       ]
-     },
-     {
-      "pitch": 64,
-      "duration": [
-       1,
-       8
-      ],
-      "offset": [
-       49,
-       4
-      ]
-     },
-     {
-      "pitch": 62,
-      "duration": [
-       1,
-       2
-      ],
-      "offset": [
-       25,
-       2
-      ]
      }
     ],
     "harmony": [
-     {
-      "chord": {
-       "root": "Db",
-       "quality": "min7b5"
-      },
-      "scaleId": "major.locrian",
-      "startOffset": [
-       0,
-       1
-      ],
-      "duration": [
-       1,
-       2
-      ],
-      "symbol": "Db-7b5"
-     },
      {
       "chord": {
        "root": "F#",
@@ -1116,12 +1199,12 @@
       },
       "scaleId": "melodic-minor.altered",
       "startOffset": [
-       1,
-       2
+       0,
+       1
       ],
       "duration": [
        1,
-       4
+       2
       ],
       "symbol": "F#7b9"
      },
@@ -1132,12 +1215,12 @@
       },
       "scaleId": "major.dorian",
       "startOffset": [
-       3,
-       4
+       1,
+       2
       ],
       "duration": [
        1,
-       4
+       2
       ],
       "symbol": "B-7"
      },
@@ -1185,7 +1268,7 @@
       ],
       "duration": [
        1,
-       1
+       2
       ],
       "symbol": "DΔ7"
      },
@@ -1196,12 +1279,12 @@
       },
       "scaleId": "major.ionian",
       "startOffset": [
-       4,
-       1
+       7,
+       2
       ],
       "duration": [
        1,
-       1
+       2
       ],
       "symbol": "GΔ7"
      },
@@ -1212,7 +1295,7 @@
       },
       "scaleId": "major.locrian",
       "startOffset": [
-       5,
+       4,
        1
       ],
       "duration": [
@@ -1228,7 +1311,7 @@
       },
       "scaleId": "melodic-minor.altered",
       "startOffset": [
-       6,
+       5,
        1
       ],
       "duration": [
@@ -1244,7 +1327,7 @@
       },
       "scaleId": "major.dorian",
       "startOffset": [
-       7,
+       6,
        1
       ],
       "duration": [
@@ -1260,7 +1343,7 @@
       },
       "scaleId": "major.mixolydian",
       "startOffset": [
-       15,
+       13,
        2
       ],
       "duration": [
@@ -1276,7 +1359,7 @@
       },
       "scaleId": "major.dorian",
       "startOffset": [
-       8,
+       7,
        1
       ],
       "duration": [
@@ -1292,7 +1375,7 @@
       },
       "scaleId": "major.mixolydian",
       "startOffset": [
-       9,
+       8,
        1
       ],
       "duration": [
@@ -1308,7 +1391,7 @@
       },
       "scaleId": "major.dorian",
       "startOffset": [
-       10,
+       9,
        1
       ],
       "duration": [
@@ -1324,7 +1407,7 @@
       },
       "scaleId": "major.mixolydian",
       "startOffset": [
-       21,
+       19,
        2
       ],
       "duration": [
@@ -1340,7 +1423,7 @@
       },
       "scaleId": "major.dorian",
       "startOffset": [
-       11,
+       10,
        1
       ],
       "duration": [
@@ -1356,7 +1439,7 @@
       },
       "scaleId": "major.mixolydian",
       "startOffset": [
-       12,
+       11,
        1
       ],
       "duration": [
@@ -1364,6 +1447,22 @@
        1
       ],
       "symbol": "A7"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       12,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "DΔ7"
      }
     ]
    }

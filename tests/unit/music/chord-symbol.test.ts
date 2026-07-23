@@ -56,6 +56,8 @@ describe('parseChordSymbol — qualities', () => {
 		expect(parseChordSymbol('CM7')).toEqual(expected);
 		expect(parseChordSymbol('C^7')).toEqual(expected);
 		expect(parseChordSymbol('CΔ7')).toEqual(expected);
+		// U+25B3 WHITE UP-POINTING TRIANGLE — what jazz fonts often emit.
+		expect(parseChordSymbol('C△7')).toEqual(expected);
 	});
 
 	it('parses maj9 and maj13 as major quality with higher extension', () => {

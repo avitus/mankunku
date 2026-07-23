@@ -86,7 +86,7 @@ export function parseChordSymbol(input: string): ChordSymbol | null {
 	// Minor-major seventh first — its spellings embed both the min and maj
 	// markers. Token order matters throughout: longest first (min before mi
 	// before m; maj before ma before M) so a prefix never eats a longer name.
-	const minMaj = /^(?:min|Min|MIN|mi|Mi|MI|m|-|−)(?:maj|Maj|MAJ|ma|Ma|MA|∆|Δ|\^|M)7/.exec(s);
+	const minMaj = /^(?:min|Min|MIN|mi|Mi|MI|m|-|−)(?:maj|Maj|MAJ|ma|Ma|MA|∆|Δ|△|\^|M)7/.exec(s);
 	if (minMaj) {
 		quality = 'minmaj';
 		extensions.push('7');
@@ -104,10 +104,10 @@ export function parseChordSymbol(input: string): ChordSymbol | null {
 	} else if (/^mi(?=\d|[(\s]|$)/i.test(s)) {
 		quality = 'min';
 		s = s.slice(2);
-	} else if (/^[∆Δ^M]/.test(s)) {
+	} else if (/^[∆Δ△^M]/.test(s)) {
 		quality = 'maj';
 		// Δ / ^ conventionally imply the seventh even without a digit.
-		if (/^[∆Δ^]/.test(s) && !/^.\d/.test(s)) extensions.push('7');
+		if (/^[∆Δ△^]/.test(s) && !/^.\d/.test(s)) extensions.push('7');
 		s = s.slice(1);
 	} else if (/^[m\-−]/.test(s)) {
 		quality = 'min';
