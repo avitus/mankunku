@@ -389,3 +389,17 @@ describe('leadSheetToAbc — chord-aware enharmonic spelling', () => {
 		expect(body).toContain('_A'); // Ab over G7b13
 	});
 });
+
+describe('leadSheetToAbc — unlabeled sections', () => {
+	it('emits no part marker for a blank-labeled section (e.g. a pickup bar)', () => {
+		const s = sheet({
+			sections: [
+				section({ label: '', bars: 1, notes: [{ pitch: 55, duration: [1, 4], offset: [3, 4] }] }),
+				section({ label: 'A', bars: 2, notes: [{ pitch: 60, duration: [1, 1], offset: [0, 1] }] })
+			]
+		});
+		const { abc } = leadSheetToAbcWithMap(s);
+		expect(abc).not.toContain('P:\n');
+		expect(abc).toContain('P:A');
+	});
+});

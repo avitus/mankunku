@@ -254,10 +254,14 @@ export function leadSheetToAbcWithMap(
 		}
 
 		// ── Section prelude: part label + opening decorations ───────────
-		if (sec.label !== previousLabel) {
-			tokens.push(`P:${sec.label}\n`);
+		// Blank labels (e.g. a pickup bar) get no part marker and don't
+		// disturb the consecutive-duplicate suppression.
+		if (sec.label.trim() !== '') {
+			if (sec.label !== previousLabel) {
+				tokens.push(`P:${sec.label}\n`);
+			}
+			previousLabel = sec.label;
 		}
-		previousLabel = sec.label;
 		if (sec.repeatStart) tokens.push('|:');
 		if (sec.ending) tokens.push(`[${sec.ending}`);
 

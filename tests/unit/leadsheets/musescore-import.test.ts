@@ -304,8 +304,10 @@ describe('parseMscx — pickup bars', () => {
 		}));
 		expect(warnings).toEqual([]);
 		const sheet = sheets[0];
+		// The pickup bar is its own UNLABELED section — outside the form and
+		// its repeats, but with no boxed marker cluttering the chart.
 		expect(sheet.sections.map((s) => [s.label, s.bars])).toEqual([
-			['Pickup', 1],
+			['', 1],
 			['A', 1]
 		]);
 		// The two pickup eighths lead INTO bar 2's downbeat: beats 4 and 4-and.
@@ -746,7 +748,7 @@ describe('parseMscx — structure', () => {
       </Measure>
     </Staff>`
 		}));
-		expect(sheets[0].sections.map((s) => s.label)).toEqual(['Pickup', 'A']);
+		expect(sheets[0].sections.map((s) => s.label)).toEqual(['', 'A']);
 	});
 
 	it('an orphan :| repeats from the top, as MuseScore plays it', () => {
@@ -806,7 +808,7 @@ describe('parseMscx — structure', () => {
     </Staff>`
 		}));
 		const [pickup, a] = sheets[0].sections;
-		expect(pickup.label).toBe('Pickup');
+		expect(pickup.label).toBe('');
 		expect(pickup.repeatStart).toBeUndefined();
 		expect(a.repeatStart).toBe(true);
 		expect(a.repeatEnd).toBe(true);

@@ -407,6 +407,8 @@ function harmonyText(
 interface SectionBuilder {
 	/** Rehearsal-mark label, or null until an auto letter is assigned. */
 	label: string | null;
+	/** True for the lone anacrusis section (unlabeled, outside repeats). */
+	pickup: boolean;
 	firstMeasure: number;
 	measureCount: number;
 	startRepeat: boolean;
@@ -435,6 +437,7 @@ function buildSections(
 		if (startsSection(i)) {
 			builders.push({
 				label: m.rehearsalMark,
+				pickup: false,
 				firstMeasure: i,
 				measureCount: 0,
 				startRepeat: false,
@@ -452,20 +455,21 @@ function buildSections(
 	});
 
 	// A lone anacrusis bar ahead of the first section boundary sits outside
-	// the form — label it as the pickup rather than consuming a letter.
+	// the form — it stays UNLABELED (no boxed marker) and consumes no letter.
 	if (
 		measures[0]?.pickup &&
 		measures[0].rehearsalMark === null &&
 		builders.length > 1 &&
 		builders[0].measureCount === 1
 	) {
-		builders[0].label = 'Pickup';
+		builders[0].label = '';
+		builders[0].pickup = true;
 	}
 
 	// A lone :| with no |: means "repeat from the top" (or from the bar after
 	// the previous :|) — synthesize the opening so playback matches the page.
 	// "The top" is the top of the FORM: a pickup bar stays outside the repeat.
-	let spanStart = builders[0]?.label === 'Pickup' ? 1 : 0;
+	let spanStart = builders[0]?.pickup ? 1 : 0;
 	let hasStart = false;
 	builders.forEach((b, i) => {
 		if (b.startRepeat) hasStart = true;
