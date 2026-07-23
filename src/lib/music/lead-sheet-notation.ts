@@ -46,8 +46,6 @@ interface DisplayElement {
 	note: Note;
 	/** Index into the flattened (notation-order) note array, or null for rests. */
 	sourceIndex: number | null;
-	/** Chord-symbol texts attached to (sounding at) this element. */
-	chords: string[];
 	/** The harmony segment governing this element's offset, for spelling. */
 	governing: HarmonicSegment | null;
 }
@@ -123,17 +121,26 @@ export function leadSheetToAbcWithMap(
 		`L:${defaultLength[0]}/${defaultLength[1]}`,
 		// Box the P: section labels so they read as form markers, not chords.
 		`%%partsbox 1`,
-		`K:${displayKey}`
+		// Two voices merged onto ONE staff: M carries the melody untouched;
+		// H is an invisible rhythm voice that positions every chord symbol at
+		// its exact beat (visible rests where the melody is silent), so a
+		// mid-bar chord never forces a melody note to split or stack.
+		`%%score (M H)`,
+		`K:${displayKey}`,
+		`V:M`,
+		`V:H`
 	];
 
 	const tokens: string[] = [];
 	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number }> = [];
 
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
-		const prefix = el.chords.map((c) => `"${c}"`).join('');
 		const note = el.note;
 		if (note.pitch === null) {
-			return `${prefix}z${durationToAbc(duration, defaultLength)}`;
+			// Invisible in the melody voice — the READER's rest renders from
+			// the chord voice at normal staff position (a second voice shifts
+			// first-voice rests off-center).
+			return `x${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
 		// Spelling priority: the user's explicit choice, then diatonic-to-the-
@@ -157,7 +164,7 @@ export function leadSheetToAbcWithMap(
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const tieSuffix = note.tied ? '-' : '';
-		return `${prefix}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
+		return `${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {
@@ -176,27 +183,108 @@ export function leadSheetToAbcWithMap(
 	let prevEndColumn = 0; // column after the previous section's last bar
 	let endingOneColumn = 0; // column where the current [1 bracket started
 
+	// ── Global chord/silence timeline (absolute whole-note offsets) ──────
+	// The chord voice is built per system line from these.
+	const chordEvents: { at: number; text: string }[] = [];
+	const soundSpans: { start: number; end: number }[] = [];
+	{
+		let base = 0;
+		for (const sec of sheet.sections) {
+			for (const h of sec.harmony) {
+				const at = base + fractionToFloat(h.startOffset);
+				const text = chordDisplayText(h, instrument, displayKey);
+				const existing = chordEvents.findIndex((c) => Math.abs(c.at - at) < 1e-9);
+				if (existing >= 0) chordEvents[existing] = { at, text };
+				else chordEvents.push({ at, text });
+			}
+			for (const n of sec.notes) {
+				if (n.pitch === null) continue;
+				const start = base + fractionToFloat(n.offset);
+				soundSpans.push({ start, end: start + fractionToFloat(n.duration) });
+			}
+			base += sec.bars * barDuration;
+		}
+		chordEvents.sort((a, b) => a.at - b.at);
+	}
+
+	const padToken = (bars: number): string => {
+		const num = sheet.timeSignature[0] * bars;
+		const den = sheet.timeSignature[1];
+		const g = gcd(num, den);
+		return `x${durationToAbc([num / g, den / g], defaultLength)} `;
+	};
+
+	const isSounding = (t: number): boolean =>
+		soundSpans.some((sp) => t > sp.start - 1e-9 && t < sp.end + 1e-9);
+
+	/** One chord-voice bar: x under melody, z where silent, cut at anchors. */
+	function chordBar(barStartAbs: number): string {
+		const be = barStartAbs + barDuration;
+		const cuts = new Set<number>([barStartAbs, be]);
+		for (const c of chordEvents) if (c.at > barStartAbs + 1e-9 && c.at < be - 1e-9) cuts.add(c.at);
+		for (const sp of soundSpans) {
+			if (sp.start > barStartAbs + 1e-9 && sp.start < be - 1e-9) cuts.add(sp.start);
+			if (sp.end > barStartAbs + 1e-9 && sp.end < be - 1e-9) cuts.add(sp.end);
+		}
+		const points = [...cuts].sort((a, b) => a - b);
+		const segs: { chord: string | null; silent: boolean; from: number; to: number }[] = [];
+		for (let i = 0; i + 1 < points.length; i++) {
+			const [s0, s1] = [points[i], points[i + 1]];
+			const chord = chordEvents.find((c) => Math.abs(c.at - s0) < 1e-9)?.text ?? null;
+			const silent = !isSounding((s0 + s1) / 2);
+			const prev = segs[segs.length - 1];
+			if (prev && chord === null && prev.silent === silent) {
+				prev.to = s1; // merge cosmetic cuts (ties, chordless boundaries)
+			} else {
+				segs.push({ chord, silent, from: s0, to: s1 });
+			}
+		}
+		return segs
+			.map((sg) => `${sg.chord ? `"${sg.chord}"` : ''}${sg.silent ? 'z' : 'x'}${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`)
+			.join(' ');
+	}
+
+	// ── Line management: each system emits a melody line + a chord line ──
+	let lineStartBar = 0; // absolute bar where the open line begins
+	let linePadBars = 0;
+	let lineOpen = false;
+	let sectionBaseBars = 0;
+
+	function openLine(padBars: number, startBar: number): void {
+		tokens.push('[V:M]');
+		if (padBars > 0) tokens.push(padToken(padBars));
+		lineStartBar = startBar;
+		linePadBars = padBars;
+		lineOpen = true;
+	}
+
+	function flushLine(endBar: number): void {
+		if (!lineOpen) return;
+		tokens.push('\n[V:H]');
+		if (linePadBars > 0) tokens.push(padToken(linePadBars));
+		const bars: string[] = [];
+		for (let b = lineStartBar; b < endBar; b++) bars.push(chordBar(b * barDuration));
+		tokens.push(bars.join(' | ') + ' |');
+		tokens.push('\n');
+		lineOpen = false;
+	}
+
 	for (let secIdx = 0; secIdx < sheet.sections.length; secIdx++) {
 		const sec = sheet.sections[secIdx];
 		const sectionEnd = sec.bars * barDuration;
 
 		// ── Line placement (the previous section closed with its barline) ──
+		let startsNewLine = true;
+		let padBars = 0;
 		if (secIdx > 0) {
 			const prev = sheet.sections[secIdx - 1];
 			if (sec.ending === 2) {
-				tokens.push('\n');
-				if (endingOneColumn > 0) {
-					const num = sheet.timeSignature[0] * endingOneColumn;
-					const den = sheet.timeSignature[1];
-					const g = gcd(num, den);
-					tokens.push(`x${durationToAbc([num / g, den / g], defaultLength)} `);
-				}
+				padBars = endingOneColumn;
 				lineColumn = endingOneColumn;
 			} else if (sec.ending === 1 && prevEndColumn > 0 && prevEndColumn < barsPerLine) {
-				tokens.push(' ');
+				startsNewLine = false;
 				lineColumn = prevEndColumn;
 			} else {
-				tokens.push('\n');
 				lineColumn = 0;
 			}
 			if (sec.ending === 1 && prev.ending !== 1) endingOneColumn = lineColumn;
@@ -204,116 +292,53 @@ export function leadSheetToAbcWithMap(
 			lineColumn = 0;
 		}
 
-		// ── Gap-fill: every bar renders, melody or not ──────────────────
-		// Gaps are additionally split at chord-change offsets so each chord
-		// lands on its own rest at its own beat (two chords in a bar sit side
-		// by side over half-bar rests, never stacked on one whole-bar rest).
-		const chordBoundaries = [...new Set(sec.harmony.map((h) => fractionToFloat(h.startOffset)))]
-			.sort((a, b) => a - b);
+		if (startsNewLine) {
+			flushLine(sectionBaseBars);
+			// Section prelude: part label between systems. Blank labels (pickup
+			// bars, front matter) get no marker and don't disturb the
+			// consecutive-duplicate suppression.
+			if (sec.label.trim() !== '') {
+				if (sec.label !== previousLabel) {
+					tokens.push(`P:${sec.label}\n`);
+				}
+				previousLabel = sec.label;
+			}
+			openLine(padBars, sectionBaseBars);
+		} else {
+			tokens.push(' ');
+			if (sec.label.trim() !== '') previousLabel = sec.label;
+		}
+		if (sec.repeatStart) tokens.push('|:');
+		if (sec.ending) tokens.push(`[${sec.ending}`);
 
+		// ── Gap-fill: every bar renders, melody or not (invisible in this
+		// voice — visible rests come from the chord voice) ──────────────
 		const inputNotes: Note[] = [];
 		const inputSources: (number | null)[] = [];
-
-		const pushGapRests = (fromF: number, toF: number): void => {
-			const cuts = chordBoundaries.filter((b) => b > fromF + 1e-9 && b < toF - 1e-9);
-			let start = fromF;
-			for (const cut of [...cuts, toF]) {
-				inputNotes.push({
-					pitch: null,
-					duration: approxToFraction(cut - start),
-					offset: approxToFraction(start)
-				});
-				inputSources.push(null);
-				start = cut;
-			}
-		};
-
 		let cursor = 0;
 		for (let i = 0; i < sec.notes.length; i++) {
 			const n = sec.notes[i];
 			const off = fractionToFloat(n.offset);
-			if (off > cursor + 1e-9) pushGapRests(cursor, off);
-
-			// A held note also splits at interior chord changes — into TIED
-			// segments — so every chord sits over its own element at its own
-			// beat (two chords on a whole note render side by side at beats
-			// 1 and 3, never stacked). Display-only; the stored note is whole.
-			const noteEnd = off + fractionToFloat(n.duration);
-			const cuts = chordBoundaries.filter((b) => b > off + 1e-9 && b < noteEnd - 1e-9);
-			let segStart = off;
-			for (const cut of [...cuts, noteEnd]) {
-				const isFinal = cut >= noteEnd - 1e-9;
-				inputNotes.push({
-					...n,
-					offset: segStart === off ? n.offset : approxToFraction(segStart),
-					duration: approxToFraction(cut - segStart),
-					...(isFinal ? {} : { tied: true })
-				});
-				inputSources.push(flattenedNoteBase + i);
-				segStart = cut;
+			if (off > cursor + 1e-9) {
+				inputNotes.push({ pitch: null, duration: approxToFraction(off - cursor), offset: approxToFraction(cursor) });
+				inputSources.push(null);
 			}
-			cursor = Math.max(cursor, noteEnd);
+			inputNotes.push(n);
+			inputSources.push(flattenedNoteBase + i);
+			cursor = Math.max(cursor, off + fractionToFloat(n.duration));
 		}
-		if (sectionEnd > cursor + 1e-9) pushGapRests(cursor, sectionEnd);
+		if (sectionEnd > cursor + 1e-9) {
+			inputNotes.push({ pitch: null, duration: approxToFraction(sectionEnd - cursor), offset: approxToFraction(cursor) });
+			inputSources.push(null);
+		}
 		flattenedNoteBase += sec.notes.length;
 
-		// Merge rests PER CHORD SPAN: mergeConsecutiveRests fuses any
-		// contiguous rest run back into whole-bar groupings, so it must never
-		// see across a chord boundary — process each inter-boundary run
-		// independently and concatenate.
-		const display: Note[] = [];
-		const sourceMap: (number | null)[] = [];
-		let runStart = 0;
-		for (let k = 1; k <= inputNotes.length; k++) {
-			const isBoundary =
-				k === inputNotes.length ||
-				chordBoundaries.some(
-					(b) => Math.abs(fractionToFloat(inputNotes[k].offset) - b) < 1e-9
-				);
-			if (!isBoundary) continue;
-			const run = mergeConsecutiveRests(inputNotes.slice(runStart, k), sheet.timeSignature);
-			for (let m = 0; m < run.display.length; m++) {
-				display.push(run.display[m]);
-				const src = run.sourceMap[m];
-				sourceMap.push(src === null ? null : src + runStart);
-			}
-			runStart = k;
-		}
-
+		const { display, sourceMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
 		const elements: DisplayElement[] = display.map((note, k) => ({
 			note,
 			sourceIndex: sourceMap[k] === null ? null : inputSources[sourceMap[k]!],
-			chords: [],
 			governing: governingSegment(sec.harmony, fractionToFloat(note.offset))
 		}));
-
-		// ── Chord assignment: each chord attaches to the element sounding at its offset ──
-		const sortedHarmony = [...sec.harmony].sort(
-			(a, b) => fractionToFloat(a.startOffset) - fractionToFloat(b.startOffset)
-		);
-		for (const h of sortedHarmony) {
-			const off = fractionToFloat(h.startOffset);
-			let idx = 0;
-			for (let k = 0; k < elements.length; k++) {
-				if (fractionToFloat(elements[k].note.offset) <= off + 1e-9) idx = k;
-				else break;
-			}
-			if (elements.length > 0) {
-				elements[idx].chords.push(chordDisplayText(h, instrument, displayKey));
-			}
-		}
-
-		// ── Section prelude: part label + opening decorations ───────────
-		// Blank labels (e.g. a pickup bar) get no part marker and don't
-		// disturb the consecutive-duplicate suppression.
-		if (sec.label.trim() !== '') {
-			if (sec.label !== previousLabel) {
-				tokens.push(`P:${sec.label}\n`);
-			}
-			previousLabel = sec.label;
-		}
-		if (sec.repeatStart) tokens.push('|:');
-		if (sec.ending) tokens.push(`[${sec.ending}`);
 
 		// ── Bar-structured emission (mirrors the phrase loop's beam/triplet rules) ──
 		let barState = initBarState(keySigAccidentals);
@@ -330,7 +355,12 @@ export function leadSheetToAbcWithMap(
 			if (i > 0) {
 				if (bar > prevBar) {
 					tokens.push(' |');
-					tokens.push(bar % barsPerLine === 0 ? '\n' : ' ');
+					if (bar % barsPerLine === 0) {
+						flushLine(sectionBaseBars + bar);
+						openLine(0, sectionBaseBars + bar);
+					} else {
+						tokens.push(' ');
+					}
 					barState = initBarState(keySigAccidentals);
 				} else {
 					const minDur = shorterFraction(el.note.duration, prevDuration);
@@ -374,7 +404,7 @@ export function leadSheetToAbcWithMap(
 			i += 1;
 		}
 
-		// ── Section close: barline decoration + line break ──────────────
+		// ── Section close: barline decoration ────────────────────────────
 		const isLast = secIdx === sheet.sections.length - 1;
 		const next = isLast ? null : sheet.sections[secIdx + 1];
 		if (sec.repeatEnd) tokens.push(' :|');
@@ -388,7 +418,9 @@ export function leadSheetToAbcWithMap(
 					? barsPerLine
 					: sec.bars % barsPerLine
 				: lineColumn + sec.bars;
+		sectionBaseBars += sec.bars;
 	}
+	flushLine(sectionBaseBars);
 
 	// ── Anchor char-offset resolution across all tokens (incl. newlines) ──
 	const headerStr = headerLines.join('\n');

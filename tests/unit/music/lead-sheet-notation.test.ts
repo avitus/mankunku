@@ -78,17 +78,17 @@ describe('leadSheetToAbc — headers', () => {
 });
 
 describe('leadSheetToAbc — chord symbols over the melody', () => {
-	it('splits a held note at chord changes so each chord sits at its beat', () => {
+	it('keeps held notes whole — chords sit at their beats in the chord voice', () => {
 		const abc = leadSheetToAbc(simpleSheet());
-		// G7 lands mid-way through the held whole note — the note splits into
-		// tied halves so the chords sit at beats 1 and 3, never stacked.
-		expect(abc).toContain('"D-7"C4-');
-		expect(abc).toContain('"G7"C4');
+		// The whole note engraves as a whole note; both chords position over
+		// it from the invisible chord voice at beats 1 and 3, never stacked.
+		expect(abc).toContain('C8');
+		expect(abc).not.toContain('C4-');
+		expect(abc).toContain('"D-7"x4 "G7"x4');
 		expect(abc).not.toContain('"D-7""G7"');
-		expect(abc).toContain('"CΔ7"D4');
 	});
 
-	it('splits for a lone mid-bar chord too, and keeps original ties intact', () => {
+	it('positions a lone mid-bar chord over an untouched tied note', () => {
 		const abc = leadSheetToAbc(sheet({
 			sections: [
 				section({
@@ -101,23 +101,23 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 				})
 			]
 		}));
-		// Bar 1: plain half tied into the chord's half; the original tie into
-		// bar 2 survives on the final segment.
-		expect(abc).toContain('C4- "G7"C4-');
+		expect(abc).toContain('C8-');
+		expect(abc).toContain('x4 "G7"x4');
 	});
 
 	it('fills melody gaps with rests and closes with a final barline', () => {
 		const abc = leadSheetToAbc(simpleSheet());
-		// Second half of bar 2 has no melody → half-bar rest.
+		// Second half of bar 2 has no melody → half-bar rest (in the chord
+		// voice, which owns visible rests); the melody line closes with |].
 		expect(abc).toContain('z4');
-		expect(abc.trimEnd().endsWith('|]')).toBe(true);
+		expect(abc).toContain(' |]');
 	});
 
 	it('transposes chord roots to written pitch for a transposing instrument', () => {
 		const abc = leadSheetToAbc(simpleSheet(), TENOR);
-		expect(abc).toContain('"E-7"d4-');
-		expect(abc).toContain('"A7"d4');
-		expect(abc).toContain('"DΔ7"e4');
+		expect(abc).toContain('d8');
+		expect(abc).toContain('"E-7"x4 "A7"x4');
+		expect(abc).toContain('"DΔ7"');
 	});
 
 	it('places two chords in a bar side by side on their own beat-aligned rests', () => {
@@ -242,16 +242,18 @@ describe('leadSheetToAbc — sections, repeats, endings', () => {
 
 	it('opens a repeat at a repeatStart section', () => {
 		const abc = leadSheetToAbc(formSheet());
-		expect(abc).toMatch(/P:A\n\|:/);
+		expect(abc).toMatch(/P:A\n\[V:M\]\|:/);
 	});
 
 	it('flows the first ending inline and stacks the second beneath it', () => {
 		const abc = leadSheetToAbc(formSheet());
 		// [1 continues the body's line (no newline before it)…
 		expect(abc).toMatch(/\| \[1/);
-		// …and [2 starts a fresh line padded with invisible bars so its
-		// bracket sits directly below [1 (body is 2 bars → 2 bars of padding).
-		expect(abc).toMatch(/:\|\nx16 \[2/);
+		// …and [2 starts a fresh system padded with invisible bars so its
+		// bracket sits directly below [1 (body is 2 bars → 2 bars of padding)
+		// — in BOTH voices, so the alignment holds.
+		expect(abc).toMatch(/\[V:M\]x16 \[2/);
+		expect(abc).toMatch(/\[V:H\]x16 /);
 	});
 
 	it('needs no padding when the endings start at the left margin', () => {
@@ -263,18 +265,20 @@ describe('leadSheetToAbc — sections, repeats, endings', () => {
 				section({ label: 'B', bars: 1, harmony: [seg('F', 'maj7', [0, 1], [1, 1])] })
 			]
 		}));
-		// A 4-bar body fills its line, so [1 opens the next line at column 0
-		// and [2 aligns beneath it with no invisible padding.
-		expect(abc).toMatch(/\|\n\[1/);
-		expect(abc).toMatch(/:\|\n\[2/);
-		expect(abc).not.toContain('x8');
-		expect(abc).not.toContain('x16');
+		// A 4-bar body fills its line, so [1 opens the next system at column 0
+		// and [2 aligns beneath it with no invisible padding after the voice
+		// marker.
+		expect(abc).toMatch(/\[V:M\]\[1/);
+		expect(abc).toMatch(/\[V:M\]\[2/);
 	});
 
 	it('separates plain sections with a double bar and ends with a final bar', () => {
 		const abc = leadSheetToAbc(formSheet());
-		expect(abc).toMatch(/\|\|\nP:B/);
-		expect(abc.trimEnd().endsWith('|]')).toBe(true);
+		expect(abc).toMatch(/\|\|\n\[V:H\]/);
+		expect(abc).toMatch(/P:B\n\[V:M\]/);
+		// The melody line closes with the final barline; the chord voice's
+		// system line follows it.
+		expect(abc).toContain(' |]');
 	});
 });
 
@@ -294,13 +298,11 @@ describe('leadSheetToAbc — multi-system reflow', () => {
 describe('leadSheetToAbcWithMap — click anchors', () => {
 	it('anchors each pitched note, including its chord prefix, at exact char offsets', () => {
 		const { abc, noteAnchors } = leadSheetToAbcWithMap(simpleSheet());
-		// The chord-split whole note yields one anchor per tied segment, both
-		// mapping back to the same source note — clicking either selects it.
-		expect(noteAnchors).toHaveLength(3);
-		expect(abc.slice(noteAnchors[0].startChar, noteAnchors[0].endChar)).toBe('"D-7"C4-');
-		expect(abc.slice(noteAnchors[1].startChar, noteAnchors[1].endChar)).toBe('"G7"C4');
-		expect(abc.slice(noteAnchors[2].startChar, noteAnchors[2].endChar)).toBe('"CΔ7"D4');
-		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 0, 1]);
+		// Chords live in the chord voice now — melody tokens carry no prefixes.
+		expect(noteAnchors).toHaveLength(2);
+		expect(abc.slice(noteAnchors[0].startChar, noteAnchors[0].endChar)).toBe('C8');
+		expect(abc.slice(noteAnchors[1].startChar, noteAnchors[1].endChar)).toBe('D4');
+		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 1]);
 	});
 
 	it('keeps anchors exact across line breaks', () => {
@@ -483,7 +485,8 @@ describe('leadSheetToAbc — sharp-key chord respelling', () => {
 				})
 			]
 		}));
-		expect(abc).toContain('"C#7b9"C8');
+		expect(abc).toContain('"C#7b9"');
+		expect(abc).toMatch(/\[V:M\]C8/);
 		expect(abc).not.toContain('_D');
 	});
 
