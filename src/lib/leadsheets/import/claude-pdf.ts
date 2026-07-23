@@ -5,11 +5,26 @@ import { noteNameToMidi } from '$lib/music/intervals';
 import { parseChordSymbol } from '$lib/music/chord-symbol';
 import { harmonicSegmentFromChordSymbol } from '$lib/leadsheets/segment-from-symbol';
 import {
+	buildSections,
+	type BarStructure,
+	type HarmonyChange
+} from '$lib/leadsheets/section-builder';
+import {
 	validateAdoptedLeadSheet,
 	MAX_SECTIONS_PER_ADOPTED_SHEET,
 	MAX_BARS_PER_SECTION,
 	MAX_NOTES_PER_ADOPTED_SHEET
 } from '$lib/leadsheets/adopted-lead-sheet-validator';
+
+/**
+ * Structural-shakiness score of a conversion: the count of warnings that
+ * indicate the transcription itself lost or misplaced bars (resyncs, bar
+ * count mismatches, overview disagreements) — content-level skips don't
+ * count. The route retries an extraction once when this is high.
+ */
+export function extractionConsistencyScore(warnings: string[]): number {
+	return warnings.filter((w) => /resync|bar count mismatch|overview/.test(w)).length;
+}
 
 /**
  * Conversion of the Claude PDF-extraction JSON into a LeadSheet draft.
@@ -88,11 +103,14 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 		(ts[1] as number) > 0;
 	if (!validTs) errors.push('invalid timeSignature');
 
+	const barwise = Array.isArray(doc.systems);
 	const rawSections = doc.sections;
-	if (!Array.isArray(rawSections) || rawSections.length === 0) {
-		errors.push('no sections extracted');
-	} else if (rawSections.length > MAX_SECTIONS_PER_ADOPTED_SHEET) {
-		errors.push(`too many sections (${rawSections.length})`);
+	if (!barwise) {
+		if (!Array.isArray(rawSections) || rawSections.length === 0) {
+			errors.push('no sections extracted');
+		} else if (rawSections.length > MAX_SECTIONS_PER_ADOPTED_SHEET) {
+			errors.push(`too many sections (${rawSections.length})`);
+		}
 	}
 	if (errors.length > 0) return { sheet: null, errors, warnings };
 
@@ -101,9 +119,164 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 	const beatUnit = 1 / tsDen;
 
 	let totalNotes = 0;
-	const sections: LeadSheetSection[] = [];
+	let sections: LeadSheetSection[] = [];
 
-	for (let s = 0; s < (rawSections as unknown[]).length; s++) {
+	// ── v2: bar-wise transcription (systems → bars) ─────────────────────
+	// The model reads system by system, bar by bar — its reliable frame.
+	// Structural assembly runs through the SAME section builder as the
+	// MuseScore importer, so equivalent readings produce identical forms.
+	if (barwise) {
+		const structures: BarStructure[] = [];
+		const noteEvents: Note[] = [];
+		const harmonyEvents: HarmonyChange[] = [];
+
+		let pickupBars = 0;
+		for (const sys of doc.systems as unknown[]) {
+			const sysBars = (sys as Record<string, unknown>)?.bars;
+			if (!Array.isArray(sysBars)) {
+				warnings.push('malformed system entry skipped');
+				continue;
+			}
+
+			// Printed system bar numbers are a mechanical check on the count.
+			// Engravers exclude pickup bars from numbering, so a system whose
+			// first printed number is N should start at transcribed index
+			// N-1 (+ pickups). Undercounts get placeholder bars inserted so
+			// every later bar keeps its true position.
+			const firstBarNumber = (sys as Record<string, unknown>).firstBarNumber;
+			if (typeof firstBarNumber === 'number' && Number.isInteger(firstBarNumber) && firstBarNumber > 0) {
+				const expected = firstBarNumber - 1 + pickupBars;
+				if (structures.length < expected) {
+					warnings.push(
+						`bar count resynced: inserted ${expected - structures.length} missing bar(s) before printed bar ${firstBarNumber}`
+					);
+					while (structures.length < expected) {
+						structures.push({
+							startOffset: [structures.length * tsNum, tsDen],
+							length: [tsNum, tsDen],
+							rehearsalMark: null,
+							startRepeat: false,
+							endRepeat: false,
+							pickup: false
+						});
+					}
+				} else if (structures.length > expected) {
+					warnings.push(
+						`bar count mismatch: transcription has ${structures.length} bars before printed bar ${firstBarNumber}`
+					);
+				}
+			}
+			for (const rawBar of sysBars as Record<string, unknown>[]) {
+				const i = structures.length;
+				const startOffset: Fraction = [i * tsNum, tsDen];
+				const bar: BarStructure = {
+					startOffset,
+					length: [tsNum, tsDen],
+					rehearsalMark:
+						typeof rawBar?.mark === 'string' && rawBar.mark.trim() !== ''
+							? rawBar.mark.trim()
+							: null,
+					startRepeat: rawBar?.startRepeat === true,
+					endRepeat: rawBar?.endRepeat === true,
+					pickup: rawBar?.pickup === true,
+					ending: rawBar?.ending === 1 || rawBar?.ending === 2 ? rawBar.ending : undefined
+				};
+				structures.push(bar);
+				if (bar.pickup) pickupBars++;
+
+				const barBase = i * tsNum;
+				for (const c of Array.isArray(rawBar?.chords) ? (rawBar.chords as unknown[]) : []) {
+					const beat = Array.isArray(c) ? c[0] : undefined;
+					const rawSymbol = Array.isArray(c) ? c[1] : undefined;
+					if (!isFiniteNumber(beat) || typeof rawSymbol !== 'string' || beat < 0 || beat >= tsNum) {
+						warnings.push(`bar ${i + 1}: malformed chord entry skipped`);
+						continue;
+					}
+					const symbol = rawSymbol.replace(/^\s*\(\s*/, '').replace(/\s*\)\s*$/, '');
+					if (!parseChordSymbol(symbol)) {
+						warnings.push(`bar ${i + 1}: unparseable chord "${rawSymbol}" — skipped`);
+						continue;
+					}
+					harmonyEvents.push({ offset: toFraction((barBase + beat) * beatUnit), text: symbol });
+				}
+
+				for (const m of Array.isArray(rawBar?.melody) ? (rawBar.melody as unknown[]) : []) {
+					if (!Array.isArray(m)) {
+						warnings.push(`bar ${i + 1}: malformed melody entry skipped`);
+						continue;
+					}
+					const [beat, durationBeats, pitch, tied] = m as unknown[];
+					if (
+						!isFiniteNumber(beat) ||
+						!isFiniteNumber(durationBeats) ||
+						typeof pitch !== 'string' ||
+						beat < 0 ||
+						beat >= tsNum ||
+						durationBeats <= 0
+					) {
+						warnings.push(`bar ${i + 1}: malformed melody entry skipped`);
+						continue;
+					}
+					let midi: number;
+					try {
+						const normalized = pitch
+							.replace(/♯/g, '#')
+							.replace(/♭/g, 'b')
+							.replace(/^([A-G])[n♮]/, '$1');
+						midi = noteNameToMidi(normalized);
+					} catch {
+						warnings.push(`bar ${i + 1}: unreadable pitch "${pitch}" — skipped`);
+						continue;
+					}
+					if (midi < 0 || midi > 127) {
+						warnings.push(`bar ${i + 1}: pitch "${pitch}" out of MIDI range — skipped`);
+						continue;
+					}
+					const note: Note = {
+						pitch: midi,
+						duration: toFraction(durationBeats * beatUnit),
+						offset: toFraction((barBase + beat) * beatUnit)
+					};
+					if (tied === true) note.tied = true;
+					noteEvents.push(note);
+					totalNotes++;
+				}
+			}
+		}
+
+		if (structures.length === 0) {
+			return { sheet: null, errors: ['no bars extracted'], warnings };
+		}
+
+		// Self-consistency scaffold: the model declares its bar-per-system
+		// inventory BEFORE transcribing; disagreement means bars were lost.
+		if (Array.isArray(doc.systemsOverview)) {
+			const declared = (doc.systemsOverview as unknown[]).filter(
+				(n): n is number => typeof n === 'number' && Number.isInteger(n) && n > 0
+			);
+			const declaredBars = declared.reduce((a, b) => a + b, 0);
+			const systemCount = (doc.systems as unknown[]).length;
+			if (declared.length !== systemCount) {
+				warnings.push(
+					`system overview declared ${declared.length} systems but ${systemCount} were transcribed`
+				);
+			} else if (declaredBars !== structures.length) {
+				warnings.push(
+					`system overview declared ${declaredBars} bars but ${structures.length} were transcribed`
+				);
+			}
+		}
+		noteEvents.sort((a, b) => a.offset[0] / a.offset[1] - b.offset[0] / b.offset[1]);
+		harmonyEvents.sort((a, b) => a.offset[0] / a.offset[1] - b.offset[0] / b.offset[1]);
+		sections = buildSections(structures, noteEvents, harmonyEvents, (msg) => {
+			if (!warnings.includes(msg)) warnings.push(msg);
+		});
+		if (sections.length > MAX_SECTIONS_PER_ADOPTED_SHEET) {
+			return { sheet: null, errors: [`too many sections (${sections.length})`], warnings };
+		}
+	}
+
+	for (let s = 0; !barwise && s < (rawSections as unknown[]).length; s++) {
 		const raw = (rawSections as Record<string, unknown>[])[s];
 		if (typeof raw !== 'object' || raw === null) {
 			warnings.push(`section ${s + 1}: not an object — skipped`);

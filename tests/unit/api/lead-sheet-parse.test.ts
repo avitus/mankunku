@@ -37,7 +37,17 @@ async function loadRoute() {
 	vi.resetModules();
 	vi.doMock('$lib/server/anthropic', () => ({
 		isAnthropicConfigured: () => configured,
-		getAnthropicClient: () => (configured ? { messages: { create: mockCreate } } : null),
+		getAnthropicClient: () =>
+			configured
+				? {
+						messages: {
+							create: mockCreate,
+							// The route streams (large max_tokens); the mock resolves the
+							// same payload through finalMessage().
+							stream: (req: unknown) => ({ finalMessage: () => mockCreate(req) })
+						}
+					}
+				: null,
 		ANTHROPIC_MODEL: 'claude-test-model',
 		ANTHROPIC_LEAD_SHEET_MAX_TOKENS: 8192
 	}));

@@ -41,4 +41,6 @@ export const ANTHROPIC_MAX_TOKENS = 1024;
  * chart's chords + melody as JSON runs a few thousand tokens; 8192 leaves
  * headroom without letting a runaway response get expensive.
  */
-export const ANTHROPIC_LEAD_SHEET_MAX_TOKENS = 8192;
+// Bar-wise transcription is verbose: ~40 bars × chords + melody tuples can
+// exceed 8k output tokens, and truncation means a JSON parse failure.
+export const ANTHROPIC_LEAD_SHEET_MAX_TOKENS = 16384;

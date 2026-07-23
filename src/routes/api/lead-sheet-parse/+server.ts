@@ -8,7 +8,7 @@ import {
 	ANTHROPIC_MODEL,
 	ANTHROPIC_LEAD_SHEET_MAX_TOKENS
 } from '$lib/server/anthropic';
-import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
+import { claudeJsonToLeadSheet, extractionConsistencyScore } from '$lib/leadsheets/import/claude-pdf';
 
 /**
  * POST /api/lead-sheet-parse — extract a lead sheet (chords + melody) from an
@@ -120,46 +120,62 @@ You may recognize the tune — that knowledge is a trap. Published charts appear
 layouts; the ONLY authority is the ink on this page. Never "correct" anything toward the version
 you know.
 
-Return ONLY a JSON object — no prose, no markdown fences — with this exact shape:
+Work SYSTEM BY SYSTEM (one printed line of music), BAR BY BAR. Return ONLY a JSON object — no
+prose, no markdown fences — with this exact shape:
 {
   "title": string,
   "composer": string | null,
   "style": string | null,
   "keySignature": { "fifths": number }, // COUNT the sharps/flats printed on the staff: 2 sharps → 2, 3 flats → -3, none → 0
   "timeSignature": [number, number],    // as printed, e.g. [4, 4] or [3, 4]
-  "sections": [
-    {
-      "label": string,               // the printed rehearsal mark ("A", "B", "Intro"); "" when a passage has none
-      "bars": number,                // printed bar count — count the barlines
-      "repeatStart": boolean,        // the section opens with a printed |:
-      "repeatEnd": boolean,          // the section closes with a printed :|
-      "ending": 1 | 2 | null,        // this section IS a printed 1st/2nd volta ending
-      "chords": [ { "bar": number, "beat": number, "symbol": string } ],
-      "melody": [ { "bar": number, "beat": number, "durationBeats": number, "pitch": string } ]
+  "systemsOverview": [number, ...],     // FIRST: scan the whole chart and list the bar count of EVERY system, top to bottom
+  "systems": [
+    { "firstBarNumber": number | null,  // the small bar number printed at the system's left edge, if any
+      "bars": [
+        {
+          "mark": string | null,     // rehearsal mark printed AT this bar ("A", "B", "Intro"), else null
+          "startRepeat": boolean,    // |: printed at the START of this bar
+          "endRepeat": boolean,      // :| printed at the END of this bar
+          "ending": 1 | 2 | null,    // this bar lies UNDER a printed 1st/2nd volta bracket
+          "pickup": boolean,         // this is a partial pickup bar before the form
+          "chords": [ [beat, "symbol"], ... ],
+          "melody": [ [beat, durationBeats, "pitch"], ... ]   // append true as a 4th element when the note TIES into the next one
+        }
+      ]
     }
   ]
 }
 Transcription rules — fidelity to the page beats everything:
+- SURVEY FIRST: fill systemsOverview by counting every system's bars across the whole page(s)
+  before transcribing anything. The systems array must then contain exactly one entry per
+  overview item, with exactly that many bars — re-check as you go.
+- ONE ENTRY PER PRINTED BAR, in reading order; every printed bar appears exactly once. After
+  transcribing each system, RE-COUNT its barlines and check you produced that many entries —
+  dense systems can hold 6-8 bars. If the system prints a small bar number at its left edge,
+  report it as firstBarNumber; it must equal 1 + the number of full bars before this system.
+  Do NOT write out repeats — the music between |: and :| is transcribed once, with the flags
+  set on its first/last bars.
+- beat is 0-based WITHIN THE BAR, in units of the time signature's denominator, and may be
+  fractional (0.5 = an eighth-note offset). durationBeats uses the same unit.
 - PITCH: scientific notation of the PRINTED note (middle C = C4), respecting the printed key
   signature and accidentals. NEVER transpose, NEVER shift octaves, NEVER convert to concert
   pitch — even if the chart names a transposing instrument (the app handles transposition).
+- RHYTHM: the notes and rests of a bar fill it exactly — beats + durations must be consistent
+  with the time signature. A note tied across the barline is reported in BOTH bars, the first
+  part with the tie flag.
 - KEY: count the accidentals in the printed key signature. Do not name the key you believe the
   tune is in.
-- BARS: every printed bar appears exactly once. Count each section's bars by its barlines. Do
-  NOT write out repeats — a passage between |: and :| is transcribed once with the repeat flags.
-- FORM: split sections at printed rehearsal marks, repeat barlines, and volta brackets. Each
-  numbered ending is its own section with "ending" set. A pickup (partial) bar before the form
-  is its own section: label "", bars 1, with its notes placed at the END of that bar (e.g. a
-  one-beat pickup in 4/4 starts at beat 3).
+- PICKUP: ANY notes printed before the first full bar — even a single note ahead of the first
+  section letter — form a pickup bar: report it as the very first bar with pickup: true and
+  the notes at their real beats near the END of the bar (a one-beat pickup in 4/4 starts at
+  beat 3). Pickup bars are excluded from printed bar numbering.
 - IGNORE decoration: lyrics, colored highlighting, analysis text, fingerings, and editorial
   commentary are not musical content. Extract the melody even where bars are highlighted.
-- CHORDS: symbols exactly as printed ("Dm7", "G7b9", "Cmaj7/E"), at their printed bar/beat.
+- CHORDS: symbols exactly as printed ("Dm7", "G7b9", "Cmaj7/E"), at their printed beats.
   Strip editorial parentheses; a parenthesized pair like "(Em7 A7)" is TWO chords at their own
   beats.
-- bar and beat are 0-based and SECTION-relative; beat is in units of the time signature's
-  denominator and may be fractional (0.5 = an eighth-note offset).
-- Omit rests from melody entirely. If a passage is truly illegible, omit its notes rather than
-  inventing them — but highlighted or small print is still legible.`;
+- If a passage is truly illegible, omit its notes rather than inventing them — but highlighted
+  or small print is still legible.`;
 
 export const POST: RequestHandler = async ({ request, getClientAddress, locals }) => {
 	if (!isAnthropicConfigured()) {
@@ -201,56 +217,82 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 		throw error(503, 'PDF import is not configured.');
 	}
 
-	let responseText: string;
-	try {
-		const response = await client.messages.create({
-			model: ANTHROPIC_MODEL,
-			max_tokens: ANTHROPIC_LEAD_SHEET_MAX_TOKENS,
-			system: SYSTEM_PROMPT,
-			messages: [
-				{
-					role: 'user',
-					content: [
-						{
-							type: 'document',
-							source: { type: 'base64', media_type: 'application/pdf', data }
-						},
-						{
-							type: 'text',
-							text: 'Extract this lead sheet as JSON per the schema. Return ONLY the JSON object.'
-						}
-					]
-				}
-			]
-		});
-		responseText = response.content
-			.filter((block) => block.type === 'text')
-			.map((block) => (block as { text: string }).text)
-			.join('');
-	} catch (err) {
-		console.error('[lead-sheet-parse] extraction failed:', err);
+	type Attempt =
+		| { ok: true; sheet: NonNullable<ReturnType<typeof claudeJsonToLeadSheet>['sheet']>; warnings: string[]; score: number }
+		| { ok: false; convErrors: string[] | null };
+
+	const runExtraction = async (): Promise<Attempt> => {
+		let responseText: string;
+		try {
+			// Streamed: the SDK refuses non-streaming requests big enough to run
+			// long (bar-wise transcription needs the 16k output ceiling).
+			const response = await client.messages.stream({
+				model: ANTHROPIC_MODEL,
+				max_tokens: ANTHROPIC_LEAD_SHEET_MAX_TOKENS,
+				system: SYSTEM_PROMPT,
+				messages: [
+					{
+						role: 'user',
+						content: [
+							{
+								type: 'document',
+								source: { type: 'base64', media_type: 'application/pdf', data }
+							},
+							{
+								type: 'text',
+								text: 'Extract this lead sheet as JSON per the schema. Return ONLY the JSON object.'
+							}
+						]
+					}
+				]
+			}).finalMessage();
+			responseText = response.content
+				.filter((block) => block.type === 'text')
+				.map((block) => (block as { text: string }).text)
+				.join('');
+		} catch (err) {
+			console.error('[lead-sheet-parse] extraction failed:', err);
+			return { ok: false, convErrors: null };
+		}
+
+		// Models sometimes wrap JSON in fences despite instructions — strip them.
+		const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```\s*$/.exec(responseText.trim());
+		const jsonText = fenced ? fenced[1] : responseText.trim();
+
+		let extracted: unknown;
+		try {
+			extracted = JSON.parse(jsonText);
+		} catch {
+			console.warn('[lead-sheet-parse] model returned non-JSON output');
+			return { ok: false, convErrors: null };
+		}
+
+		const { sheet, errors, warnings } = claudeJsonToLeadSheet(extracted);
+		if (!sheet) {
+			console.warn('[lead-sheet-parse] conversion rejected:', errors.join('; '));
+			return { ok: false, convErrors: errors };
+		}
+		return { ok: true, sheet, warnings, score: extractionConsistencyScore(warnings) };
+	};
+
+	// Extraction has no temperature control on this model, and a bad sample
+	// loses bars. A structurally shaky attempt gets ONE retry; keep the
+	// steadier of the two.
+	let result = await runExtraction();
+	if (!result.ok || result.score >= 2) {
+		const second = await runExtraction();
+		if (second.ok && (!result.ok || second.score < result.score)) result = second;
+	}
+
+	if (!result.ok) {
+		if (result.convErrors) {
+			throw error(422, `The chart could not be read as a lead sheet: ${result.convErrors.join('; ')}`);
+		}
 		throw error(502, 'The PDF could not be processed. Try again, or enter the chart manually.');
 	}
+	result.sheet.id = generateSheetId();
 
-	// Models sometimes wrap JSON in fences despite instructions — strip them.
-	const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```\s*$/.exec(responseText.trim());
-	const jsonText = fenced ? fenced[1] : responseText.trim();
-
-	let extracted: unknown;
-	try {
-		extracted = JSON.parse(jsonText);
-	} catch {
-		console.warn('[lead-sheet-parse] model returned non-JSON output');
-		throw error(502, 'The extraction did not produce readable data. Try again, or enter the chart manually.');
-	}
-
-	const { sheet, errors, warnings } = claudeJsonToLeadSheet(extracted);
-	if (!sheet) {
-		throw error(422, `The chart could not be read as a lead sheet: ${errors.join('; ')}`);
-	}
-	sheet.id = generateSheetId();
-
-	return json({ sheet, warnings });
+	return json({ sheet: result.sheet, warnings: result.warnings });
 };
 
 /** Config probe so the upload page can render a not-configured state. */
