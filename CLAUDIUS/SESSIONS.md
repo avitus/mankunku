@@ -99,6 +99,8 @@ Newest at the top.
 
 **Then — the boxed 'C' on the intro bar:** the front-matter bar before mark A took the next free auto letter. New rule: unmarked bars ahead of the first real rehearsal mark are unlabeled (letters belong to the form the marks define); no-marks charts keep A/B/C. Screenshot-verified: the chart now opens with a bare intro bar, then boxed A. 2588 unit/integration, 39/39 e2e.
 
+**Then — Take the A Train: chords stacked over whole notes:** two chords over one held note both attached to that note's element and stacked vertically. Held notes now split at interior chord boundaries into TIED display segments — the exact rule rest bars already followed — so chords sit at beats 1 and 3. Display-only (stored note whole); split segments each carry a click anchor to the same source note. The symmetry was sitting there the whole time: the user's original BIAB request ('two chords side by side') was implemented for rests only because the fixture that drove it had no melody; the first melody+two-chord file broke it. When a rule is stated about CHORDS, implementing it on the rest path only is a half-fix wearing a full-fix's tests. Screenshot-verified on the real chart; [2 alignment is approximate when the ending bar carries wide chord text (abcjs justification) — noted to user. 2589 unit/integration, 60/60 lead-sheet e2e.
+
 ## 2026-07-21 — Daily Practice becomes the default door; a layout invariant that only held by coincidence
 
 **What happened:**
