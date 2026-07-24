@@ -6,6 +6,7 @@ import {
 	getAnthropicClient,
 	isAnthropicConfigured,
 	ANTHROPIC_MODEL,
+	ANTHROPIC_LEAD_SHEET_MODEL,
 	ANTHROPIC_LEAD_SHEET_MAX_TOKENS
 } from '$lib/server/anthropic';
 import { claudeJsonToLeadSheet, extractionConsistencyScore } from '$lib/leadsheets/import/claude-pdf';
@@ -136,6 +137,16 @@ function generateSheetId(): string {
 	}
 	return `sheet-${Date.now()}-${rand}`;
 }
+
+/**
+ * Fable's thinking controls (the API rejects budget_tokens for this model:
+ * adaptive thinking + output effort is the supported shape). Typed loosely
+ * because the installed SDK predates output_config.
+ */
+const FABLE_THINKING = {
+	thinking: { type: 'adaptive' },
+	output_config: { effort: 'high' }
+} as unknown as Record<string, never>;
 
 const SYSTEM_MODE_PROMPT = `You are a music COPYIST. The attached image is ONE SYSTEM (one printed line)
 of a lead sheet. The bar count is known and given — your only job is to transcribe what is printed
@@ -283,14 +294,15 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 		| { ok: true; sheet: NonNullable<ReturnType<typeof claudeJsonToLeadSheet>['sheet']>; warnings: string[]; score: number }
 		| { ok: false; convErrors: string[] | null };
 
-	const runExtraction = async (): Promise<Attempt> => {
+	const runExtraction = async (model: string): Promise<Attempt> => {
 		let responseText: string;
 		try {
 			// Streamed: the SDK refuses non-streaming requests big enough to run
 			// long (bar-wise transcription needs the 16k output ceiling).
 			const response = await client.messages.stream({
-				model: ANTHROPIC_MODEL,
+				model,
 				max_tokens: ANTHROPIC_LEAD_SHEET_MAX_TOKENS,
+				...(model === ANTHROPIC_LEAD_SHEET_MODEL ? FABLE_THINKING : {}),
 				system: SYSTEM_PROMPT,
 				messages: [
 					{
@@ -340,9 +352,11 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	// Extraction has no temperature control on this model, and a bad sample
 	// loses bars. A structurally shaky attempt gets ONE retry; keep the
 	// steadier of the two.
-	let result = await runExtraction();
+	let result = await runExtraction(ANTHROPIC_LEAD_SHEET_MODEL);
 	if (!result.ok || result.score >= 2) {
-		const second = await runExtraction();
+		// The retry drops to the baseline model when the first attempt died
+		// outright (Fable's output filter blocks some well-known tunes).
+		const second = await runExtraction(result.ok ? ANTHROPIC_LEAD_SHEET_MODEL : ANTHROPIC_MODEL);
 		if (second.ok && (!result.ok || second.score < result.score)) result = second;
 	}
 
@@ -467,8 +481,10 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		throw error(503, 'PDF import is not configured.');
 	}
 
+	let lastFailure = 'unknown';
 	const ask = async (
-		feedback: string | null
+		feedback: string | null,
+		model: string
 	): Promise<{
 		fifths: number | null;
 		timeSignature: [number, number] | null;
@@ -479,8 +495,12 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		try {
 			const response = await client.messages
 				.stream({
-					model: ANTHROPIC_MODEL,
+					model,
 					max_tokens: ANTHROPIC_LEAD_SHEET_MAX_TOKENS,
+					// Fable thinks adaptively; high effort buys transcription
+					// accuracy, and the 32k ceiling keeps dense-system JSON
+					// clear of truncation under the thinking tokens.
+					...(model === ANTHROPIC_LEAD_SHEET_MODEL ? FABLE_THINKING : {}),
 					system: SYSTEM_MODE_PROMPT,
 					messages: [
 						{
@@ -511,6 +531,7 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 				.join('');
 		} catch (err) {
 			console.error('[lead-sheet-parse] system-mode extraction failed:', err);
+			lastFailure = `api: ${err instanceof Error ? err.message.slice(0, 200) : 'unknown'}`;
 			return null;
 		}
 		const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```\s*$/.exec(responseText.trim());
@@ -518,22 +539,33 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		try {
 			parsed = JSON.parse(fenced ? fenced[1] : responseText.trim());
 		} catch {
+			lastFailure = `non-json output (${responseText.length} chars): ${responseText.slice(0, 120)}`;
 			return null;
 		}
 		const screened = screenSystemBars(parsed);
-		if (!screened) return null;
+		if (!screened) {
+			lastFailure = 'malformed bars structure';
+			return null;
+		}
 		return { ...screened, issues: systemBarIssues(screened.bars, system.barCount, beats) };
 	};
 
-	// One retry with the issues fed back (per-bar rhythm-sum QA, Audiveris
-	// style); keep the cleaner of the two attempts.
-	let result = await ask(null);
+	// Fable first for accuracy; its stricter output filter sometimes blocks
+	// transcription of well-known tunes, so a blocked call falls back to the
+	// baseline model. Then one retry with the issues fed back (per-bar
+	// rhythm-sum QA, Audiveris style); keep the cleaner of the two attempts.
+	let model = ANTHROPIC_LEAD_SHEET_MODEL;
+	let result = await ask(null, model);
+	if (!result && lastFailure.includes('content filtering')) {
+		model = ANTHROPIC_MODEL;
+		result = await ask(null, model);
+	}
 	if (!result || result.issues.length > 0) {
-		const second = await ask(result ? result.issues.join('; ') : null);
+		const second = await ask(result ? result.issues.join('; ') : null, model);
 		if (second && (!result || second.issues.length < result.issues.length)) result = second;
 	}
 	if (!result) {
-		throw error(502, 'The system image could not be transcribed. Try again.');
+		throw error(502, `The system image could not be transcribed (${lastFailure}). Try again.`);
 	}
 	return json({
 		keySignature: result.fifths === null ? null : { fifths: result.fifths },
@@ -547,6 +579,6 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 export const GET: RequestHandler = async () => {
 	return json({
 		configured: isAnthropicConfigured(),
-		model: isAnthropicConfigured() ? ANTHROPIC_MODEL : null
+		model: isAnthropicConfigured() ? ANTHROPIC_LEAD_SHEET_MODEL : null
 	});
 };
