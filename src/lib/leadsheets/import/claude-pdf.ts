@@ -54,7 +54,9 @@ export interface ClaudePdfConversion {
 }
 
 /** Convert a float in whole notes to a reduced fraction (denominators to 24ths). */
-function toFraction(value: number): Fraction {
+/** Rational snap over the duration ladder (triplets included); shared with
+ * the route's per-bar rhythm validation. */
+export function toFraction(value: number): Fraction {
 	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
 		const num = Math.round(value * den);
 		if (Math.abs(num / den - value) < 1e-9) return [num, den];

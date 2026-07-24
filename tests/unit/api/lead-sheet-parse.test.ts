@@ -253,6 +253,105 @@ describe('POST /api/lead-sheet-parse — per-system mode', () => {
 		expect(retryText).toContain('returned 1');
 	});
 
+	it('merges per bar across attempts: a good bar never regresses', async () => {
+		const { POST } = await loadRoute();
+		const clean = (pitch: string) => ({
+			startRepeat: false,
+			endRepeat: false,
+			ending: null,
+			pickup: false,
+			melody: [[0, 4, pitch]]
+		});
+		const broken = {
+			startRepeat: false,
+			endRepeat: false,
+			ending: null,
+			pickup: false,
+			melody: [[0, 3, 'X4']]
+		};
+		mockCreate
+			.mockResolvedValueOnce({
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({ keySignature: { fifths: 0 }, bars: [clean('C4'), broken] })
+					}
+				]
+			})
+			.mockResolvedValueOnce({
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({ keySignature: { fifths: 0 }, bars: [broken, clean('D4')] })
+					}
+				]
+			});
+		const res = await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } })
+		);
+		expect(res.status).toBe(200);
+		const payload = await res.json();
+		expect(payload.bars[0].melody).toEqual([[0, 4, 'C4']]);
+		expect(payload.bars[1].melody).toEqual([[0, 4, 'D4']]);
+		expect(payload.warnings).toEqual([]);
+		// The retry feedback named the failing bar and its exact delta.
+		const retryText = mockCreate.mock.calls[1][0].messages[0].content.find(
+			(b: { type: string }) => b.type === 'text'
+		).text;
+		expect(retryText).toContain('bar 2');
+		expect(retryText).toMatch(/sums to 3 beats/);
+	});
+
+	it('strips rests from the returned melody after validating with them', async () => {
+		const { POST } = await loadRoute();
+		const withRests = [
+			{
+				startRepeat: false,
+				endRepeat: false,
+				ending: null,
+				pickup: false,
+				melody: [
+					[0, 1, 'C4'],
+					[1, 1, 'rest'],
+					[2, 2, 'E4']
+				]
+			}
+		];
+		mockCreate.mockResolvedValue({
+			content: [
+				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: withRests }) }
+			]
+		});
+		const res = await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } })
+		);
+		expect(res.status).toBe(200);
+		const payload = await res.json();
+		expect(payload.bars[0].melody).toEqual([
+			[0, 1, 'C4'],
+			[2, 2, 'E4']
+		]);
+		expect(payload.warnings).toEqual([]);
+		expect(mockCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it('allows a pickup bar to omit its leading silence', async () => {
+		const { POST } = await loadRoute();
+		const bars = [
+			{ startRepeat: false, endRepeat: false, ending: null, pickup: true, melody: [[3, 1, 'A4']] },
+			{ startRepeat: false, endRepeat: false, ending: null, pickup: false, melody: [[0, 4, 'F4']] }
+		];
+		mockCreate.mockResolvedValue({
+			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: -1 }, bars }) }]
+		});
+		const res = await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4], first: true } })
+		);
+		expect(res.status).toBe(200);
+		expect((await res.json()).warnings).toEqual([]);
+		expect(mockCreate).toHaveBeenCalledTimes(1);
+	});
+
 	it('flags out-of-meter melody as a warning after retry', async () => {
 		const { POST } = await loadRoute();
 		const overfull = [{ startRepeat: false, endRepeat: false, pickup: false, melody: [[3, 4, 'C4']] }];

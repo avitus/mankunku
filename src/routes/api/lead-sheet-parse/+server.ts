@@ -10,6 +10,7 @@ import {
 	ANTHROPIC_LEAD_SHEET_MAX_TOKENS
 } from '$lib/server/anthropic';
 import { claudeJsonToLeadSheet, extractionConsistencyScore } from '$lib/leadsheets/import/claude-pdf';
+import { barTilingIssues, isRestPitch } from '$lib/leadsheets/import/system-bar-validation';
 
 /**
  * POST /api/lead-sheet-parse — extract a lead sheet (chords + melody) from an
@@ -161,7 +162,7 @@ Return ONLY a JSON object — no prose, no markdown fences — with this exact s
       "endRepeat": boolean,     // :| printed at the END of this bar
       "ending": 1 | 2 | null,   // this bar lies UNDER a printed 1st/2nd volta bracket
       "pickup": boolean,        // partial pickup bar (fewer beats printed than the meter)
-      "melody": [ [beat, durationBeats, "pitch"], ... ]  // append true as a 4th element when the note TIES into the next
+      "melody": [ [beat, durationBeats, "pitch"], ... ]  // notes AND rests in reading order; a rest uses pitch "rest"; append true as a 4th element when a note TIES into the next
     }
   ]
 }
@@ -176,7 +177,9 @@ Rules:
   starts at beat 3).
 - IGNORE chord symbols, lyrics, colored highlighting, and text — melody notes and structural
   markings only.
-- melody lists NOTES only — never rests; a bar of rest has an empty melody array.
+- melody lists notes AND rests in reading order (pitch "rest" for rests). Each bar's notes and
+  rests must tile the meter EXACTLY — this is mechanically checked. A pickup bar may omit its
+  unprinted leading silence.
 - If a passage is truly illegible, omit its notes rather than inventing them.`;
 
 const SYSTEM_PROMPT = `You are a music COPYIST. Transcribe exactly what is PRINTED on the attached PDF chart.
@@ -380,28 +383,22 @@ interface SystemBar {
 	melody: Array<[number, number, string] | [number, number, string, boolean]>;
 }
 
-/** Structural issues in a system-mode transcription; empty means clean.
- * Melody rests are implicit, so this checks bounds and order, not the full
- * rhythm sum. */
-function systemBarIssues(bars: SystemBar[], barCount: number, beats: number): string[] {
-	const issues: string[] = [];
+/** Per-bar rhythm issues (exact tiling incl. rests) plus the global bar
+ * count; index 0 of the result is the global issue list, then one list per
+ * bar. */
+function systemBarIssues(
+	bars: SystemBar[],
+	barCount: number,
+	beats: number
+): { global: string[]; perBar: string[][] } {
+	const global: string[] = [];
 	if (bars.length !== barCount) {
-		issues.push(`expected ${barCount} bars but the transcription returned ${bars.length}`);
+		global.push(`expected ${barCount} bars but the transcription returned ${bars.length}`);
 	}
-	bars.forEach((bar, i) => {
-		let prevEnd = 0;
-		for (const note of bar.melody) {
-			const [beat, dur] = note;
-			if (beat < -0.01 || beat + dur > beats + 0.01) {
-				issues.push(`bar ${i + 1}: note at beat ${beat} (duration ${dur}) exceeds the ${beats}-beat meter`);
-			}
-			if (beat + 0.01 < prevEnd) {
-				issues.push(`bar ${i + 1}: overlapping notes at beat ${beat}`);
-			}
-			prevEnd = Math.max(prevEnd, beat + dur);
-		}
-	});
-	return issues;
+	const perBar = bars.map((bar, i) =>
+		barTilingIssues(bar.melody, i, beats, { allowLeadingGap: bar.pickup })
+	);
+	return { global, perBar };
 }
 
 /** Screen the raw model JSON into SystemBar[]; null when malformed. */
@@ -489,7 +486,7 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		fifths: number | null;
 		timeSignature: [number, number] | null;
 		bars: SystemBar[];
-		issues: string[];
+		issues: { global: string[]; perBar: string[][] };
 	} | null> => {
 		let responseText: string;
 		try {
@@ -550,28 +547,68 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		return { ...screened, issues: systemBarIssues(screened.bars, system.barCount, beats) };
 	};
 
+	const flatIssues = (a: { issues: { global: string[]; perBar: string[][] } }): string[] => [
+		...a.issues.global,
+		...a.issues.perBar.flat()
+	];
+
 	// Fable first for accuracy; its stricter output filter sometimes blocks
 	// transcription of well-known tunes, so a blocked call falls back to the
-	// baseline model. Then one retry with the issues fed back (per-bar
-	// rhythm-sum QA, Audiveris style); keep the cleaner of the two attempts.
+	// baseline model. Failing bars get ONE retry with their exact rhythm
+	// deltas fed back (the Audiveris rhythm-QA loop), and the answer is
+	// merged PER BAR so a clean first-attempt bar can never regress.
 	let model = ANTHROPIC_LEAD_SHEET_MODEL;
-	let result = await ask(null, model);
-	if (!result && lastFailure.includes('content filtering')) {
+	let first = await ask(null, model);
+	if (!first && lastFailure.includes('content filtering')) {
 		model = ANTHROPIC_MODEL;
-		result = await ask(null, model);
+		first = await ask(null, model);
 	}
-	if (!result || result.issues.length > 0) {
-		const second = await ask(result ? result.issues.join('; ') : null, model);
-		if (second && (!result || second.issues.length < result.issues.length)) result = second;
+	let result = first;
+	let bars = first?.bars ?? [];
+	let warnings = first ? flatIssues(first) : [];
+	if (!first || warnings.length > 0) {
+		const second = await ask(first ? warnings.join('; ') : null, model);
+		if (second && !first) {
+			result = second;
+			bars = second.bars;
+			warnings = flatIssues(second);
+		} else if (second && first) {
+			// Per-bar merge: for each bar keep the first clean version.
+			const merged: SystemBar[] = [];
+			const survivors: string[] = [...first.issues.global];
+			const count = Math.max(first.bars.length, second.bars.length);
+			for (let i = 0; i < count; i++) {
+				const firstClean = first.bars[i] && (first.issues.perBar[i] ?? []).length === 0;
+				const secondClean = second.bars[i] && (second.issues.perBar[i] ?? []).length === 0;
+				if (firstClean) {
+					merged.push(first.bars[i]);
+				} else if (secondClean) {
+					merged.push(second.bars[i]);
+				} else if (first.bars[i]) {
+					merged.push(first.bars[i]);
+					survivors.push(...(first.issues.perBar[i] ?? []));
+				} else if (second.bars[i]) {
+					merged.push(second.bars[i]);
+					survivors.push(...(second.issues.perBar[i] ?? []));
+				}
+			}
+			bars = merged;
+			warnings = survivors;
+		}
 	}
 	if (!result) {
 		throw error(502, `The system image could not be transcribed (${lastFailure}). Try again.`);
 	}
+	// Rests were only needed for validation — the importer works with notes.
+	const stripped = bars.map((bar) => ({
+		...bar,
+		melody: bar.melody.filter((note) => !isRestPitch(note[2]))
+	}));
 	return json({
 		keySignature: result.fifths === null ? null : { fifths: result.fifths },
 		timeSignature: result.timeSignature,
-		bars: result.bars,
-		warnings: result.issues
+		bars: stripped,
+		warnings
 	});
 }
 

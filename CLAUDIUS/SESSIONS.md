@@ -762,3 +762,9 @@ Newest at the top.
 - Melody agreement (pitch / exact vs MuseScore ref): attya .29→.46 / .13→.34, autumn .46→.73 / .07→.61, atrain .46→.60 / .18→.56, twnbay .52→.78 / .15→.64; flyme flat (fallback). Note counts now EXACT on three charts — Fable doesn't split ties.
 - Fable read Fly Me's opening correctly in a raw probe (D5 C#5 B4 A4) where Opus produced garbage — the filter, not ability, is the limiter there. Floors raised to pin the new quality (flyme kept at baseline floor).
 - Debugging note: the 502s looked identical for three different causes (thinking-budget rejection, token truncation, content filter) — the route's error body now carries the real reason. Should have done that on day one.
+
+## 2026-07-24 (cont. 4) — Rests + exact per-bar rhythm validation + per-bar merge
+
+- System-mode schema now includes rests (pitch "rest"), enabling the full Audiveris rhythm-QA loop: `system-bar-validation.ts` checks each bar tiles the meter EXACTLY in rational arithmetic (48ths — covers triplets), failing bars get their precise deltas fed back ("bar 3: sums to 4.5 beats in 4/4"), and attempts merge PER BAR so a clean bar never regresses. Rests are stripped before the response — client contract unchanged.
+- All five charts re-record with ZERO warnings — every bar rhythm-consistent. Agreement: autumn exact .61→.69, twnbay .64→.70, others within run variance (±.05). The reliability gain matters more than the LCS delta: imports can no longer carry overfull/gapped bars silently.
+- Floors all pass unchanged; melody exactness targets stay expected-fail (needs Track C notehead detection for the last mile).
