@@ -329,6 +329,22 @@ describe('analyzePageGeometry', () => {
 		};
 	}
 
+	it('locates the end of the clef/meter header as firstBarLeft', () => {
+		// Production-scale staff (interline 20 like a scale-4 render).
+		const { page, hline, vline } = makePage(700, 300);
+		for (const y of [80, 100, 120, 140, 160]) hline(y, 40, 660);
+		for (const x of [400, 660]) vline(x, 80, 160);
+		// Header: a dense clef-like block and a meter block (wider than any
+		// barline), then open space to the first barline.
+		for (let x = 45; x <= 95; x++) vline(x, 75, 165);
+		for (let x = 105; x <= 155; x++) vline(x, 78, 162);
+		const [sys] = analyzePageGeometry(page);
+		expect(sys.interline).toBe(20);
+		expect(sys.barlines).toEqual([400, 660]);
+		expect(sys.firstBarLeft).toBeGreaterThanOrEqual(153);
+		expect(sys.firstBarLeft).toBeLessThanOrEqual(158);
+	});
+
 	it('finds a staff and its barlines from raw pixels', () => {
 		const { page, hline, vline } = makePage(400, 200);
 		for (const y of [80, 90, 100, 110, 120]) hline(y, 40, 360);

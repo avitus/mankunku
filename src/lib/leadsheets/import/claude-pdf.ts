@@ -145,8 +145,14 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 			// every later bar keeps its true position.
 			const firstBarNumber = (sys as Record<string, unknown>).firstBarNumber;
 			if (typeof firstBarNumber === 'number' && Number.isInteger(firstBarNumber) && firstBarNumber > 0) {
+				// Charts number their bars under either convention: pickups
+				// excluded (engraving default) or counted as bar 1. Accept a
+				// transcription matching EITHER before resyncing.
 				const expected = firstBarNumber - 1 + pickupBars;
-				if (structures.length < expected) {
+				const expectedCounted = firstBarNumber - 1;
+				if (structures.length === expectedCounted && expectedCounted !== expected) {
+					// Pickup-counted numbering — the transcription agrees as-is.
+				} else if (structures.length < expected) {
 					warnings.push(
 						`bar count resynced: inserted ${expected - structures.length} missing bar(s) before printed bar ${firstBarNumber}`
 					);

@@ -320,6 +320,13 @@ export interface SystemGeometry {
 	 * veto hallucinated repeat flags with printed evidence.
 	 */
 	repeatDots: Array<{ left: boolean; right: boolean }>;
+	/**
+	 * Where the first bar's content begins: the right edge of the leading
+	 * header run (clef, key signature, meter — dense full-height glyph
+	 * blocks). The width firstBarLeft → barlines[0] exposes narrow pickup
+	 * bars, which the header otherwise hides.
+	 */
+	firstBarLeft: number;
 }
 
 /**
@@ -486,7 +493,37 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 			right: dotsOnSide(bx, 1)
 		}));
 
-		systems.push({ band, interline: il, barlines, repeatDots });
+		// Header end: walk dense glyph blocks (clef/key/meter run ~2+ il of
+		// off-line ink over ≥0.4 il of width) from the staff's left edge;
+		// the header is the leading chain with gaps under 1.2 il. Note
+		// content (noteheads ~1 il, hairline stems) stays below the density
+		// bar, so the chain stops at the meter.
+		let staffLeft = 0;
+		for (let x = 0; x < W; x++) {
+			if (cols[x].touchesTop && cols[x].touchesBottom) {
+				staffLeft = x;
+				break;
+			}
+		}
+		const limit = barlines.length ? barlines[0] : W;
+		let firstBarLeft = staffLeft;
+		let blockStart = -1;
+		let lastDark = -1;
+		for (let x = staffLeft; x < limit; x++) {
+			if (cols[x].offLine >= 1.5 * il) {
+				if (blockStart < 0) {
+					if (x - Math.max(firstBarLeft, staffLeft) > 1.2 * il) break;
+					blockStart = x;
+				}
+				lastDark = x;
+			} else if (blockStart >= 0 && x - lastDark > 0.2 * il) {
+				if (lastDark - blockStart >= 0.4 * il) firstBarLeft = lastDark;
+				blockStart = -1;
+			}
+		}
+		if (blockStart >= 0 && lastDark - blockStart >= 0.4 * il) firstBarLeft = lastDark;
+
+		systems.push({ band, interline: il, barlines, repeatDots, firstBarLeft });
 	}
 	return systems;
 }

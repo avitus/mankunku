@@ -8,6 +8,7 @@ const SYSTEMS: SystemGeometry[] = [
 		band: { top: 500, bottom: 580, lines: [500, 520, 540, 560, 580] },
 		interline: 20,
 		barlines: [100, 400, 700, 1000],
+		firstBarLeft: 0,
 		repeatDots: [
 			{ left: false, right: false },
 			{ left: false, right: false },

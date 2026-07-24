@@ -12,7 +12,7 @@
  * Pure function: all browser work (rendering, cropping, route calls)
  * happens in the import page; this just merges the results.
  */
-import { assignChordBeat, type SystemGeometry } from './pdf-geometry';
+import type { SystemGeometry } from './pdf-geometry';
 import type { SystemTexts } from './pdf-text-chords';
 
 /** One bar as returned by the parse route's system mode. */
@@ -45,6 +45,11 @@ export interface AssembleMeta {
 export function systemBarBoundaries(geometry: SystemGeometry): number[] {
 	const bl = geometry.barlines;
 	if (bl.length === 0) return [];
+	// The measured header end is the real first-bar left edge; fall back to
+	// one median bar width for degenerate measurements.
+	if (geometry.firstBarLeft > 0 && geometry.firstBarLeft < bl[0] - geometry.interline) {
+		return [geometry.firstBarLeft, ...bl];
+	}
 	const widths = bl
 		.slice(1)
 		.map((x, i) => x - bl[i])
@@ -88,21 +93,43 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 			);
 		});
 
-		const chordsByBar = new Map<number, Array<[number, string]>>();
+		// Chord beats from raw interpolation, then musical snapping: a bar's
+		// leading chord sits on the downbeat, and TWO chords in a 4/4 bar
+		// land on beats 1 and 3 unless the print position is decisively
+		// later (interpolation noise cannot distinguish 2.4 from 2.6, but
+		// no jazz chart splits a bar 1/2.5).
 		const contentPad = 0.75 * sys.geometry.interline;
+		const rawByBar = new Map<number, Array<{ raw: number; text: string }>>();
 		for (const chord of sys.texts.chords) {
-			let at = assignChordBeat(chord.x, boundaries, tsNum, contentPad);
-			// Left of the synthetic first boundary → first bar, beat 0.
-			if (!at && boundaries.length && chord.x < boundaries[0]) at = { bar: 0, beat: 0 };
-			if (!at) continue;
-			const list = chordsByBar.get(at.bar) ?? [];
-			// A bar's leading chord read at 0.5 is interpolation noise off
-			// the downbeat (nobody anticipates the FIRST chord of a bar by
-			// an eighth); the system's squeezed first bar always snaps.
-			const beat =
-				list.length === 0 && (at.bar === 0 || at.beat === 0.5) ? 0 : at.beat;
-			list.push([beat, chord.text]);
-			chordsByBar.set(at.bar, list);
+			if (boundaries.length < 2) continue;
+			if (chord.x > boundaries[boundaries.length - 1]) continue;
+			let barIdx = 0;
+			for (let b = 0; b + 1 < boundaries.length; b++) {
+				if (chord.x < boundaries[b + 1]) {
+					barIdx = b;
+					break;
+				}
+				barIdx = b;
+			}
+			const start = boundaries[barIdx] + contentPad;
+			const width = boundaries[barIdx + 1] - start;
+			const raw = width > 0 ? Math.max(0, ((chord.x - start) / width) * tsNum) : 0;
+			const list = rawByBar.get(barIdx) ?? [];
+			list.push({ raw, text: chord.text });
+			rawByBar.set(barIdx, list);
+		}
+		const chordsByBar = new Map<number, Array<[number, string]>>();
+		for (const [barIdx, list] of rawByBar) {
+			list.sort((a, b) => a.raw - b.raw);
+			const beats = list.map(({ raw }, k) => {
+				if (k === 0 && (barIdx === 0 || raw < 0.8)) return 0;
+				if (tsNum === 4 && list.length === 2 && k === 1) return raw >= 3 ? 3 : 2;
+				return Math.min(Math.round(raw * 2) / 2, tsNum - 0.5);
+			});
+			chordsByBar.set(
+				barIdx,
+				list.map(({ text }, k) => [beats[k], text])
+			);
 		}
 
 		// Volta labels are printed facts; the model's per-bar ending flags
@@ -151,6 +178,34 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 		let lastEnding1 = -1;
 		for (const [b, n] of endingByBar) if (n === 1 && b > lastEnding1) lastEnding1 = b;
 
+		// Sheet-opening pickup decision, hoisted so the mark shift below can
+		// use it: the model's flag, the narrow-first-bar evidence (time
+		// signature to first barline well under the median bar width), or a
+		// melody that only starts in the back half of the meter.
+		let firstBarPickup = false;
+		if (sysIndex === 0 && bars.length > 0) {
+			firstBarPickup = bars[0].pickup;
+			if (!firstBarPickup) {
+				const bl = sys.geometry.barlines;
+				const widths = bl
+					.slice(1)
+					.map((x, k) => x - bl[k])
+					.sort((a, b) => a - b);
+				const median = widths.length ? widths[Math.floor(widths.length / 2)] : 0;
+				const bar0Width = bl.length ? bl[0] - sys.geometry.firstBarLeft : 0;
+				if (median > 0 && bar0Width < 0.8 * median) firstBarPickup = true;
+			}
+			if (!firstBarPickup && bars[0].melody.length > 0) {
+				const firstOnset = Math.min(...bars[0].melody.map((n) => n[0]));
+				if (firstOnset >= tsNum / 2) firstBarPickup = true;
+			}
+		}
+		// A rehearsal mark never labels a pickup bar — engraving may print
+		// the label over the pickup, but it anchors to the first FULL bar.
+		if (firstBarPickup && markByBar.has(0) && !markByBar.has(1) && barCount > 1) {
+			markByBar.set(1, markByBar.get(0) as string);
+			markByBar.delete(0);
+		}
 		return {
 			firstBarNumber: sys.texts.barNumber,
 			bars: bars.map((bar, i) => {
@@ -160,14 +215,7 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 						: bar.ending === 1 || bar.ending === 2
 							? bar.ending
 							: null;
-				// Pickup backstop: the sheet-opening bar whose only notes sit
-				// in the back half of the meter is a pickup even when the
-				// model forgot the flag.
-				let pickup = bar.pickup;
-				if (sysIndex === 0 && i === 0 && !pickup && bar.melody.length > 0) {
-					const firstOnset = Math.min(...bar.melody.map((n) => n[0]));
-					if (firstOnset >= tsNum / 2) pickup = true;
-				}
+				const pickup = sysIndex === 0 && i === 0 ? firstBarPickup : bar.pickup;
 				const underLabel = endingByBar.has(i);
 				// Repeat flags are the model's least reliable output; the
 				// printed dots beside a barline are the evidence. A |: needs

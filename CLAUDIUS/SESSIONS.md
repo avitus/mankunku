@@ -748,3 +748,10 @@ Newest at the top.
 - Chord beat: a bar's leading chord read at 0.5 snaps to the downbeat. Superscript gluing gated to alteration-shaped fragments (TWNBAY's analysis text stopped eating neighboring chords). Pickup backstop from melody onsets; first-system prompt nudge.
 - Promoted to strict passes: attya chords, autumn chords, flyme form. atrain needed one re-record (a run misread the opening register — pitch floor caught it, which is exactly what floors are for).
 - Remaining 13: melody/pitch exactness ×8 (model rhythm), flyme chords (two beat-2-vs-3 ambiguities), twnbay form+chords (its "pickup" may print as a full rest-bar — model consistently reads it that way; needs a look at the actual print), + their knock-ons.
+
+## 2026-07-24 (cont. 2) — TWNBAY pickup solved geometrically; user's beat-1-and-3 rule
+
+- The user called it: the pickup bar is bounded by the time signature and the first barline — measurable. Added firstBarLeft (end of the leading dense-glyph header chain) to analyzePageGeometry; bar0/median width ratios split cleanly (twnbay 0.62, attya 0.74 vs flyme 1.66, atrain 1.09). Narrow → pickup, regardless of the model.
+- Two knock-ons fixed: the converter now accepts BOTH bar-numbering conventions (Autumn counts its pickup as bar 1 — the "numbering excludes pickups" resync was inserting a phantom bar); and a rehearsal mark printed over the pickup anchors to the first full bar (TWNBAY's [A] was absorbing the pickup into its section).
+- Two-chord 4/4 bars now resolve to beats 1 and 3 per the user's rule, threshold "decisively later" ≥ beat 4 raw. TWNBAY form promoted; autumn chords regressed to expected-fail by ONE chord (its bar-23 second chord anchors on beat 4 in the ref but interpolates under the threshold — same class as Fly Me's two).
+- Net: 13 → 12 expected-fails... (final count 13 in suite: 12+? recheck next session: sets now attya[m,p] autumn[c,m,p] flyme[c,m,p] atrain[m,p] twnbay[c,m,p] = 13). Melody exactness (×8) remains the frontier — notehead template matching is the next tool.

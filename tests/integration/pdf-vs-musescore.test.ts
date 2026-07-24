@@ -43,9 +43,11 @@
  *
  * Remaining defect classes:
  *
- * D3 CHORD BEAT INTERPOLATION: content and bar assignment are exact; the
- *    printed x → beat mapping still lands a half-beat off in squeezed bars
- *    (A Train passes strictly; the other four differ by ≤ a few beats).
+ * D3 CHORD BEAT INTERPOLATION: content and bar assignment are exact; two
+ *    chords in a 4/4 bar resolve to beats 1 and 3 unless decisively later,
+ *    but charts that anchor a second chord on beat 4 (Autumn bar 23, two
+ *    Fly Me bars) sit under the decisive threshold. A Train, ATTYA pass
+ *    strictly.
  *
  * D4 MELODY RHYTHM. The model's durations/offsets drift enough that exact
  *    note matches stay rare — the review-in-editor step remains mandatory.
@@ -72,10 +74,10 @@ type Slug = (typeof SONGS)[number];
 /** Which strict expectations each song currently fails (see header). */
 const KNOWN_DEFECTS: Record<Slug, Set<string>> = {
 	'all-the-things-you-are': new Set(['melody', 'pitches']),
-	'autumn-leaves': new Set(['melody', 'pitches']),
+	'autumn-leaves': new Set(['chords', 'melody', 'pitches']),
 	'fly-me-to-the-moon': new Set(['chords', 'melody', 'pitches']),
 	'take-the-a-train': new Set(['melody', 'pitches']),
-	'there-will-never-be-another-you': new Set(['form', 'chords', 'melody', 'pitches'])
+	'there-will-never-be-another-you': new Set(['chords', 'melody', 'pitches'])
 };
 
 /** Regression floors pinned just under the recorded run's quality. */

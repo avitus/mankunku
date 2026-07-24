@@ -12,7 +12,9 @@ const geometry = (barlines: number[], repeatDots?: SystemGeometry['repeatDots'])
 	band: { top: 500, bottom: 580, lines: [500, 520, 540, 560, 580] },
 	interline: 20,
 	barlines,
-	repeatDots: repeatDots ?? barlines.map(() => ({ left: false, right: false }))
+	repeatDots: repeatDots ?? barlines.map(() => ({ left: false, right: false })),
+	// A full-width first bar by default (width = the median bar width).
+	firstBarLeft: Math.max(0, barlines[0] - (barlines[1] ? barlines[1] - barlines[0] : 300))
 });
 
 const bar = (melody: ModelBar['melody'] = [], flags: Partial<ModelBar> = {}): ModelBar => ({
@@ -26,13 +28,19 @@ const bar = (melody: ModelBar['melody'] = [], flags: Partial<ModelBar> = {}): Mo
 
 describe('systemBarBoundaries', () => {
 	it('prepends a synthetic first-bar left edge one median bar width out', () => {
-		expect(systemBarBoundaries(geometry([400, 700, 1000, 1300]))).toEqual([
+		expect(systemBarBoundaries({ ...geometry([400, 700, 1000, 1300]), firstBarLeft: 0 })).toEqual([
 			100, 400, 700, 1000, 1300
 		]);
 	});
 
-	it('falls back to eight interlines for a single-barline system', () => {
-		expect(systemBarBoundaries(geometry([400]))).toEqual([240, 400]);
+	it('falls back to eight interlines when no header measurement exists', () => {
+		expect(systemBarBoundaries({ ...geometry([400]), firstBarLeft: 0 })).toEqual([240, 400]);
+	});
+
+	it('uses the measured header end as the first-bar left edge', () => {
+		expect(systemBarBoundaries({ ...geometry([400, 700]), firstBarLeft: 250 })).toEqual([
+			250, 400, 700
+		]);
 	});
 });
 
@@ -272,6 +280,64 @@ describe('assembleClaudeDoc', () => {
 		};
 		expect(doc.systems[0].bars[0].pickup).toBe(true);
 		expect(doc.systems[0].bars[1].pickup).toBe(false);
+	});
+
+	it('forces the pickup flag when the first bar is geometrically narrow', () => {
+		// TWNBAY: bar 1 spans 0.62 of the median bar width (time signature
+		// to first barline) — a pickup regardless of what the model said.
+		const narrow: SystemGeometry = {
+			band: { top: 500, bottom: 580, lines: [500, 520, 540, 560, 580] },
+			interline: 20,
+			barlines: [400, 700, 1000, 1300],
+			repeatDots: [4].flatMap(() =>
+				[0, 1, 2, 3].map(() => ({ left: false, right: false }))
+			),
+			firstBarLeft: 220 // bar 0 width 180 vs median 300 → 0.6
+		};
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: narrow,
+				texts: { chords: [], marks: [], endings: [], barNumber: null },
+				model: { fifths: 0, bars: [bar([[0, 1, 'A4']]), bar(), bar(), bar()] }
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ pickup: boolean }> }>;
+		};
+		expect(doc.systems[0].bars[0].pickup).toBe(true);
+	});
+
+	it('resolves two chords in a 4/4 bar to beats 1 and 3', () => {
+		// Ambiguous mid-bar interpolation lands the second chord on beat 3
+		// (zero-based 2) unless the print position is decisively later.
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700, 1000]),
+				texts: {
+					chords: [
+						{ x: 420, text: 'E-7' },
+						{ x: 585, text: 'A7' }, // raw ≈ 2.4 → beat 2
+						{ x: 720, text: 'D6' },
+						{ x: 975, text: 'B7' } // raw ≈ 3.6 → decisively late → 3
+					],
+					marks: [],
+					endings: [],
+					barNumber: null
+				},
+				model: { fifths: 0, bars: [bar(), bar(), bar()] }
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ chords: Array<[number, string]> }> }>;
+		};
+		expect(doc.systems[0].bars[1].chords).toEqual([
+			[0, 'E-7'],
+			[2, 'A7']
+		]);
+		expect(doc.systems[0].bars[2].chords).toEqual([
+			[0, 'D6'],
+			[3, 'B7']
+		]);
 	});
 
 	it('produces a doc the strict converter accepts end to end', () => {
