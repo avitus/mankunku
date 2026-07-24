@@ -314,6 +314,12 @@ export interface SystemGeometry {
 	/** Barline x-positions, left to right. On single-staff systems there is
 	 * no initial barline, so each bar ENDS at one: bars = barlines.length. */
 	barlines: number[];
+	/**
+	 * Per barline: repeat dots detected beside it. `right` dots make it a
+	 * repeat START (|:), `left` dots a repeat END (:|). Lets the importer
+	 * veto hallucinated repeat flags with printed evidence.
+	 */
+	repeatDots: Array<{ left: boolean; right: boolean }>;
 }
 
 /**
@@ -405,7 +411,82 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 				offLine
 			});
 		}
-		systems.push({ band, interline: il, barlines: findBarlines(cols, il) });
+		const barlines = findBarlines(cols, il);
+
+		// Repeat dots: two compact blobs centered in spaces 2 and 3 beside
+		// the barline, with white clearance around the middle line — a
+		// notehead straddling the line fills that clearance and is rejected.
+		const c2 = Math.round((band.lines[1] + band.lines[2]) / 2);
+		const c3 = Math.round((band.lines[2] + band.lines[3]) / 2);
+		const gapOff = Math.max(2, Math.round(0.2 * il));
+		const nearWin = Math.max(1, Math.round(0.1 * il));
+		// A dot is a SHORT blob: the dark run through each space center must
+		// stay under 0.6 il (noteheads run ~1 il, stems far more).
+		const maxDotRun = 0.6 * il;
+		const isDotColumn = (x: number): boolean => {
+			if (x < 0 || x >= W) return false;
+			const shortRunAt = (c: number): boolean => {
+				let hit = -1;
+				for (let y = c - nearWin; y <= c + nearWin; y++) {
+					if (dark(x, y)) {
+						hit = y;
+						break;
+					}
+				}
+				if (hit < 0) return false;
+				let top = hit;
+				while (top > 0 && dark(x, top - 1)) top--;
+				let bottom = hit;
+				while (bottom < H - 1 && dark(x, bottom + 1)) bottom++;
+				return bottom - top + 1 <= maxDotRun;
+			};
+			if (
+				!shortRunAt(c2) ||
+				!shortRunAt(c3) ||
+				dark(x, band.lines[2] - gapOff) ||
+				dark(x, band.lines[2] + gapOff)
+			) {
+				return false;
+			}
+			// Purity: a real dot column holds NOTHING but staff lines and the
+			// two dots. A hollow whole note on the middle line mimics the two
+			// short runs at its edge columns, but drags ties/arcs/ring ink
+			// elsewhere in the band.
+			const dotWin = Math.round(0.35 * il);
+			for (let y = band.top - 2; y <= band.bottom + 2; y++) {
+				if (!dark(x, y)) continue;
+				const onLine = band.lines.some((l) => Math.abs(y - l) <= 3);
+				const inDot = Math.abs(y - c2) <= dotWin || Math.abs(y - c3) <= dotWin;
+				if (!onLine && !inDot) return false;
+			}
+			return true;
+		};
+		// The window reaches 2.2 il: a winged repeat's accepted boundary
+		// center skews away from its dots. Dots are also NARROW — a hollow
+		// whole note straddling the middle line shows the same two-short-runs
+		// column pattern, but its arcs run 1.5+ il wide, so only a compact
+		// run of dot-columns (2px to 0.7 il) counts.
+		const dotsOnSide = (bx: number, side: -1 | 1): boolean => {
+			const from = Math.round(0.3 * il);
+			const to = Math.round(2.2 * il);
+			let run = 0;
+			let bestRun = 0;
+			for (let d = from; d <= to + 1; d++) {
+				if (d <= to && isDotColumn(bx + side * d)) {
+					run++;
+				} else {
+					if (run > bestRun) bestRun = run;
+					run = 0;
+				}
+			}
+			return bestRun >= 2 && bestRun <= 0.7 * il;
+		};
+		const repeatDots = barlines.map((bx) => ({
+			left: dotsOnSide(bx, -1),
+			right: dotsOnSide(bx, 1)
+		}));
+
+		systems.push({ band, interline: il, barlines, repeatDots });
 	}
 	return systems;
 }

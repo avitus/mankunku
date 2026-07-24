@@ -67,13 +67,14 @@
 
 	async function transcribeSystem(
 		sys: ExtractedSystem,
-		timeSignature: [number, number]
+		timeSignature: [number, number],
+		first = false
 	): Promise<SystemModeResponse | null> {
 		const res = await fetch('/api/lead-sheet-parse', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
-				system: { image: sys.image, barCount: sys.geometry.barlines.length, timeSignature }
+				system: { image: sys.image, barCount: sys.geometry.barlines.length, timeSignature, first }
 			})
 		});
 		if (!res.ok) return null;
@@ -96,7 +97,7 @@
 
 		// The first system shows the printed meter; confirm it before fanning
 		// out the rest with a small concurrency cap.
-		const first = await transcribeSystem(systems[0], [4, 4]);
+		const first = await transcribeSystem(systems[0], [4, 4], true);
 		if (!first) return null;
 		const meter = first.timeSignature ?? [4, 4];
 

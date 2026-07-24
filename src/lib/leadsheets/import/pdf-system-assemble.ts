@@ -70,7 +70,7 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 		}
 	}
 
-	const docSystems = systems.map((sys) => {
+	const docSystems = systems.map((sys, sysIndex) => {
 		const boundaries = systemBarBoundaries(sys.geometry);
 		const barCount = sys.geometry.barlines.length;
 
@@ -96,9 +96,11 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 			if (!at && boundaries.length && chord.x < boundaries[0]) at = { bar: 0, beat: 0 };
 			if (!at) continue;
 			const list = chordsByBar.get(at.bar) ?? [];
-			// The header squeezes the system's first bar, skewing beat
-			// interpolation right — its first chord is on the downbeat.
-			const beat = at.bar === 0 && list.length === 0 ? 0 : at.beat;
+			// A bar's leading chord read at 0.5 is interpolation noise off
+			// the downbeat (nobody anticipates the FIRST chord of a bar by
+			// an eighth); the system's squeezed first bar always snaps.
+			const beat =
+				list.length === 0 && (at.bar === 0 || at.beat === 0.5) ? 0 : at.beat;
 			list.push([beat, chord.text]);
 			chordsByBar.set(at.bar, list);
 		}
@@ -158,18 +160,34 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 						: bar.ending === 1 || bar.ending === 2
 							? bar.ending
 							: null;
+				// Pickup backstop: the sheet-opening bar whose only notes sit
+				// in the back half of the meter is a pickup even when the
+				// model forgot the flag.
+				let pickup = bar.pickup;
+				if (sysIndex === 0 && i === 0 && !pickup && bar.melody.length > 0) {
+					const firstOnset = Math.min(...bar.melody.map((n) => n[0]));
+					if (firstOnset >= tsNum / 2) pickup = true;
+				}
 				const underLabel = endingByBar.has(i);
+				// Repeat flags are the model's least reliable output; the
+				// printed dots beside a barline are the evidence. A |: needs
+				// dots RIGHT of the boundary starting the bar (bar 0 of a
+				// system has no start boundary — unverifiable, suppressed); a
+				// :| needs dots LEFT of the boundary ending it. Volta labels
+				// stay authoritative for the ending bars themselves.
+				const dotsConfirmStart = i > 0 && (sys.geometry.repeatDots[i - 1]?.right ?? false);
+				const dotsConfirmEnd = sys.geometry.repeatDots[i]?.left ?? false;
 				return {
 					mark: markByBar.get(i) ?? null,
-					startRepeat: underLabel ? false : bar.startRepeat,
+					startRepeat: underLabel ? false : bar.startRepeat && dotsConfirmStart,
 					endRepeat:
 						endingByBar.get(i) === 2
 							? false
 							: lastEnding1 >= 0
 								? i === lastEnding1
-								: bar.endRepeat,
+								: bar.endRepeat && dotsConfirmEnd,
 					ending,
-					pickup: bar.pickup,
+					pickup,
 					chords: chordsByBar.get(i) ?? [],
 					melody: bar.melody
 				};

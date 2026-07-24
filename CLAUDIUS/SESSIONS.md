@@ -741,3 +741,10 @@ Newest at the top.
 - Deterministic overrides beat model flakiness twice more: volta ending flags now come from the printed "1."/"2." labels (ending 1 always closes `:|`, ending-2 bars never carry repeat flags), which fixed Autumn's and A Train's forms outright.
 - Live fixtures re-recorded through the real pipeline: bar counts/keys/meters strict-pass 5/5, form 3/5, A Train passes everything but melody. Expected-fails shrank 24 → 16, all melody-rhythm or half-beat chord interpolation.
 - Watch: extraction still has run variance (composer field, spurious `|:` on Fly Me's B section); the deterministic layer contains it but doesn't eliminate it.
+
+## 2026-07-24 (cont.) — Expected-fails 16 → 13; repeat dots, chord snapping, gluing gate
+
+- Repeat-dot detection added to analyzePageGeometry: two compact blobs at the space-2/3 centers beside a barline, with white middle-line clearance, short runs (≤0.6 IL), narrow x-extent (≤0.7 IL), and a purity rule (nothing else in the column but lines and dots — a hollow whole note ON the middle line mimics the pattern at its edge columns but drags tie/ring ink). Detected 5/5 true repeats across the charts, zero false negatives; used as a VETO on model repeat flags (bar-0-of-system unverifiable → suppressed + review).
+- Chord beat: a bar's leading chord read at 0.5 snaps to the downbeat. Superscript gluing gated to alteration-shaped fragments (TWNBAY's analysis text stopped eating neighboring chords). Pickup backstop from melody onsets; first-system prompt nudge.
+- Promoted to strict passes: attya chords, autumn chords, flyme form. atrain needed one re-record (a run misread the opening register — pitch floor caught it, which is exactly what floors are for).
+- Remaining 13: melody/pitch exactness ×8 (model rhythm), flyme chords (two beat-2-vs-3 ambiguities), twnbay form+chords (its "pickup" may print as a full rest-bar — model consistently reads it that way; needs a look at the actual print), + their knock-ons.

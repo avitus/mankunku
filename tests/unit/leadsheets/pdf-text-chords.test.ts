@@ -7,7 +7,13 @@ const SYSTEMS: SystemGeometry[] = [
 	{
 		band: { top: 500, bottom: 580, lines: [500, 520, 540, 560, 580] },
 		interline: 20,
-		barlines: [100, 400, 700, 1000]
+		barlines: [100, 400, 700, 1000],
+		repeatDots: [
+			{ left: false, right: false },
+			{ left: false, right: false },
+			{ left: false, right: false },
+			{ left: false, right: false }
+		]
 	}
 ];
 
@@ -91,6 +97,24 @@ describe('extractSystemTexts', () => {
 		);
 		expect(sys.marks).toEqual([{ x: 300, text: 'C' }]);
 		expect(sys.chords).toEqual([{ x: 420, text: 'C7' }]);
+	});
+
+	it('does not glue analysis text onto a chord as a superscript', () => {
+		// TWNBAY's colored chart annotates chords with raised analysis text;
+		// only alteration-shaped fragments (#11, b9, 11) may attach.
+		const [sys] = extractSystemTexts(
+			[
+				item('C-7', 110, 450, 60, 90),
+				item('ii-V', 204, 430, 45),
+				item('E9', 420, 450, 60, 60),
+				item('\ue10c11', 484, 426, 45)
+			],
+			SYSTEMS
+		);
+		expect(sys.chords).toEqual([
+			{ x: 110, text: 'C-7' },
+			{ x: 420, text: 'E9#11' }
+		]);
 	});
 
 	it('strips parentheses inside chord alterations', () => {

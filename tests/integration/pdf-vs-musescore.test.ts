@@ -71,9 +71,9 @@ type Slug = (typeof SONGS)[number];
 
 /** Which strict expectations each song currently fails (see header). */
 const KNOWN_DEFECTS: Record<Slug, Set<string>> = {
-	'all-the-things-you-are': new Set(['chords', 'melody', 'pitches']),
-	'autumn-leaves': new Set(['chords', 'melody', 'pitches']),
-	'fly-me-to-the-moon': new Set(['form', 'chords', 'melody', 'pitches']),
+	'all-the-things-you-are': new Set(['melody', 'pitches']),
+	'autumn-leaves': new Set(['melody', 'pitches']),
+	'fly-me-to-the-moon': new Set(['chords', 'melody', 'pitches']),
 	'take-the-a-train': new Set(['melody', 'pitches']),
 	'there-will-never-be-another-you': new Set(['form', 'chords', 'melody', 'pitches'])
 };

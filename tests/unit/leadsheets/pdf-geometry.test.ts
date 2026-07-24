@@ -247,6 +247,63 @@ describe('assignChordBeat', () => {
 	});
 });
 
+describe('analyzePageGeometry — repeat dots', () => {
+	function makePage(width: number, height: number) {
+		const data = new Uint8ClampedArray(width * height * 4).fill(255);
+		const set = (x: number, y: number): void => {
+			const i = (y * width + x) * 4;
+			data[i] = 0;
+			data[i + 1] = 0;
+			data[i + 2] = 0;
+		};
+		return {
+			page: { data, width, height },
+			hline: (y: number, x0: number, x1: number) => {
+				for (let x = x0; x <= x1; x++) set(x, y);
+			},
+			vline: (x: number, y0: number, y1: number) => {
+				for (let y = y0; y <= y1; y++) set(x, y);
+			},
+			blob: (cx: number, cy: number, r: number) => {
+				for (let y = cy - r; y <= cy + r; y++)
+					for (let x = cx - r; x <= cx + r; x++) set(x, y);
+			}
+		};
+	}
+
+	it('classifies repeat dots beside a barline and plain barlines without', () => {
+		const { page, hline, vline, blob } = makePage(400, 200);
+		for (const y of [80, 90, 100, 110, 120]) hline(y, 40, 360);
+		for (const x of [40, 150, 260, 360]) vline(x, 80, 120);
+		// |: dots right of x=150 — centered in spaces 2 and 3 (y=95, 105).
+		blob(163, 95, 2);
+		blob(163, 105, 2);
+		// :| dots left of x=260.
+		blob(247, 95, 2);
+		blob(247, 105, 2);
+		const [sys] = analyzePageGeometry(page);
+		expect(sys.barlines).toEqual([40, 150, 260, 360]);
+		expect(sys.repeatDots.map((d) => `${d.left ? 'L' : ''}${d.right ? 'R' : ''}`)).toEqual([
+			'',
+			'R',
+			'L',
+			''
+		]);
+	});
+
+	it('does not read a notehead near the barline as repeat dots', () => {
+		const { page, hline, vline, blob } = makePage(400, 200);
+		for (const y of [80, 90, 100, 110, 120]) hline(y, 40, 360);
+		for (const x of [40, 150, 360]) vline(x, 80, 120);
+		// A notehead straddling the middle line just after x=150: one blob
+		// covering both space centers WITHOUT the white split dots have.
+		blob(165, 100, 6);
+		const [sys] = analyzePageGeometry(page);
+		expect(sys.barlines).toEqual([40, 150, 360]);
+		expect(sys.repeatDots[1]).toEqual({ left: false, right: false });
+	});
+});
+
 describe('analyzePageGeometry', () => {
 	// Paint a tiny synthetic page: white RGBA, staff lines + barlines black.
 	function makePage(width: number, height: number): {

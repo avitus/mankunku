@@ -8,10 +8,11 @@ import {
 import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
 import type { SystemGeometry } from '$lib/leadsheets/import/pdf-geometry';
 
-const geometry = (barlines: number[]): SystemGeometry => ({
+const geometry = (barlines: number[], repeatDots?: SystemGeometry['repeatDots']): SystemGeometry => ({
 	band: { top: 500, bottom: 580, lines: [500, 520, 540, 560, 580] },
 	interline: 20,
-	barlines
+	barlines,
+	repeatDots: repeatDots ?? barlines.map(() => ({ left: false, right: false }))
 });
 
 const bar = (melody: ModelBar['melody'] = [], flags: Partial<ModelBar> = {}): ModelBar => ({
@@ -41,7 +42,12 @@ describe('assembleClaudeDoc', () => {
 	it('merges geometry bars, text chords, and model melody into the barwise doc', () => {
 		const systems: AssembleSystemInput[] = [
 			{
-				geometry: geometry([400, 700, 1000, 1300]),
+				geometry: geometry([400, 700, 1000, 1300], [
+					{ left: false, right: false },
+					{ left: false, right: false },
+					{ left: true, right: false },
+					{ left: false, right: false }
+				]),
 				texts: {
 					// First-bar chord over the header: clamps to beat 0. The
 					// bar-2 chords interpolate to beats 0 and 2.
@@ -190,6 +196,82 @@ describe('assembleClaudeDoc', () => {
 		};
 		expect(doc.systems[0].bars.map((b) => b.ending)).toEqual([2, 2, 2]);
 		expect(doc.systems[0].bars.every((b) => !b.endRepeat)).toBe(true);
+	});
+
+	it('vetoes model repeat flags that geometry dots do not confirm', () => {
+		// Fly Me: the model hallucinated |: at the B section start (bar 0 of
+		// a system — unverifiable, suppressed) and geometry shows no dots at
+		// any boundary; a confirmed |: with dots passes.
+		const dots = (spec: string[]): SystemGeometry['repeatDots'] =>
+			spec.map((s) => ({ left: s.includes('L'), right: s.includes('R') }));
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700, 1000], dots(['R', '', 'L'])),
+				texts: { chords: [], marks: [], endings: [], barNumber: null },
+				model: {
+					fifths: 0,
+					bars: [
+						bar([], { startRepeat: true }), // bar 0: unverifiable → suppressed
+						bar([], { startRepeat: true }), // confirmed by dots[0].right
+						bar([], { endRepeat: true }) // confirmed by dots[2].left
+					]
+				}
+			},
+			{
+				geometry: geometry([400, 700]),
+				texts: { chords: [], marks: [], endings: [], barNumber: null },
+				model: {
+					fifths: 0,
+					bars: [bar([], { startRepeat: true }), bar([], { endRepeat: true })] // no dots → both vetoed
+				}
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ startRepeat: boolean; endRepeat: boolean }> }>;
+		};
+		expect(doc.systems[0].bars.map((b) => b.startRepeat)).toEqual([false, true, false]);
+		expect(doc.systems[0].bars.map((b) => b.endRepeat)).toEqual([false, false, true]);
+		expect(doc.systems[1].bars.map((b) => b.startRepeat)).toEqual([false, false]);
+		expect(doc.systems[1].bars.map((b) => b.endRepeat)).toEqual([false, false]);
+	});
+
+	it('snaps a bar-leading chord read at beat 0.5 to the downbeat', () => {
+		// Interpolation noise in squeezed bars lands a downbeat chord at 0.5;
+		// no jazz chart anticipates the FIRST chord of a bar by an eighth.
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700, 1000]),
+				texts: {
+					// x=454 → bar 1 raw ≈ 0.55 → half-snap 0.5 → downbeat 0.
+					chords: [{ x: 454, text: 'A7' }],
+					marks: [],
+					endings: [],
+					barNumber: null
+				},
+				model: { fifths: 0, bars: [bar(), bar(), bar()] }
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ chords: Array<[number, string]> }> }>;
+		};
+		expect(doc.systems[0].bars[1].chords).toEqual([[0, 'A7']]);
+	});
+
+	it('flags the sheet-opening bar as a pickup when its melody starts late', () => {
+		// TWNBAY: the model missed the pickup flag; a first bar whose only
+		// notes start in the back half of the meter is a pickup.
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700]),
+				texts: { chords: [], marks: [], endings: [], barNumber: null },
+				model: { fifths: 0, bars: [bar([[3, 1, 'A4']]), bar([[0, 4, 'F4']])] }
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ pickup: boolean }> }>;
+		};
+		expect(doc.systems[0].bars[0].pickup).toBe(true);
+		expect(doc.systems[0].bars[1].pickup).toBe(false);
 	});
 
 	it('produces a doc the strict converter accepts end to end', () => {

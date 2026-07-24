@@ -20,6 +20,17 @@
        8
       ],
       "offset": [
+       3,
+       4
+      ]
+     },
+     {
+      "pitch": 71,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
        7,
        8
       ]
@@ -64,13 +75,14 @@
       "offset": [
        1,
        4
-      ]
+      ],
+      "tied": true
      },
      {
       "pitch": 65,
       "duration": [
-       1,
-       4
+       3,
+       8
       ],
       "offset": [
        5,
@@ -84,23 +96,12 @@
        8
       ],
       "offset": [
-       7,
-       8
-      ]
-     },
-     {
-      "pitch": 70,
-      "duration": [
-       1,
-       8
-      ],
-      "offset": [
        1,
        1
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 70,
       "duration": [
        1,
        8
@@ -144,7 +145,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 65,
       "duration": [
        1,
        8
@@ -155,7 +156,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 67,
       "duration": [
        1,
        4
@@ -183,23 +184,24 @@
        8
       ],
       "offset": [
-       9,
-       4
-      ]
+       17,
+       8
+      ],
+      "tied": true
      },
      {
       "pitch": 65,
       "duration": [
-       1,
-       4
+       3,
+       8
       ],
       "offset": [
-       21,
-       8
+       5,
+       2
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 67,
       "duration": [
        1,
        8
@@ -235,7 +237,7 @@
       "pitch": 69,
       "duration": [
        1,
-       8
+       4
       ],
       "offset": [
        13,
@@ -249,8 +251,8 @@
        8
       ],
       "offset": [
-       27,
-       8
+       7,
+       2
       ]
      },
      {
@@ -260,8 +262,8 @@
        8
       ],
       "offset": [
-       7,
-       2
+       29,
+       8
       ]
      },
      {
@@ -271,8 +273,8 @@
        4
       ],
       "offset": [
-       29,
-       8
+       15,
+       4
       ]
      }
     ],
@@ -316,7 +318,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 70,
       "duration": [
        1,
        4
@@ -327,7 +329,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 70,
       "duration": [
        1,
        4
@@ -338,7 +340,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 70,
       "duration": [
        1,
        4
@@ -349,7 +351,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 70,
       "duration": [
        1,
        4
@@ -360,7 +362,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 70,
       "duration": [
        1,
        4
@@ -382,7 +384,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 70,
       "duration": [
        1,
        4
@@ -448,7 +450,7 @@
       ]
      },
      {
-      "pitch": 78,
+      "pitch": 68,
       "duration": [
        1,
        2
@@ -470,7 +472,7 @@
       ]
      },
      {
-      "pitch": 73,
+      "pitch": 61,
       "duration": [
        1,
        1
@@ -482,7 +484,7 @@
       "tied": true
      },
      {
-      "pitch": 73,
+      "pitch": 61,
       "duration": [
        1,
        1
@@ -493,7 +495,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 71,
       "duration": [
        1,
        1
@@ -504,7 +506,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 72,
       "duration": [
        3,
        4
@@ -747,7 +749,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 65,
       "duration": [
        1,
        4
@@ -758,7 +760,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 67,
       "duration": [
        1,
        4
@@ -780,7 +782,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 71,
       "duration": [
        1,
        8
@@ -803,7 +805,7 @@
       "tied": true
      },
      {
-      "pitch": 71,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -836,7 +838,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 71,
       "duration": [
        1,
        4
@@ -850,7 +852,7 @@
       "pitch": 68,
       "duration": [
        1,
-       2
+       1
       ],
       "offset": [
        18,
@@ -859,18 +861,7 @@
       "tied": true
      },
      {
-      "pitch": 67,
-      "duration": [
-       1,
-       2
-      ],
-      "offset": [
-       37,
-       2
-      ]
-     },
-     {
-      "pitch": 64,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -881,7 +872,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 65,
       "duration": [
        1,
        4
@@ -892,7 +883,7 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 67,
       "duration": [
        1,
        4
@@ -903,7 +894,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 70,
       "duration": [
        1,
        4
@@ -970,7 +961,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 68,
       "duration": [
        1,
        4
@@ -981,7 +972,7 @@
       ]
      },
      {
-      "pitch": 76,
+      "pitch": 71,
       "duration": [
        1,
        4
@@ -992,7 +983,7 @@
       ]
      },
      {
-      "pitch": 75,
+      "pitch": 70,
       "duration": [
        1,
        1
@@ -1004,7 +995,7 @@
       "tied": true
      },
      {
-      "pitch": 62,
+      "pitch": 70,
       "duration": [
        1,
        1
@@ -1026,7 +1017,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 65,
       "duration": [
        3,
        4
@@ -1037,7 +1028,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1048,7 +1039,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 60,
       "duration": [
        1,
        4
@@ -1059,7 +1050,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 60,
       "duration": [
        1,
        4
@@ -1070,7 +1061,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 60,
       "duration": [
        1,
        4
@@ -1081,7 +1072,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 60,
       "duration": [
        1,
        4
@@ -1092,7 +1083,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 60,
       "duration": [
        1,
        4
@@ -1103,10 +1094,10 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 65,
       "duration": [
        1,
-       4
+       2
       ],
       "offset": [
        109,
@@ -1114,14 +1105,14 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 60,
       "duration": [
        1,
        4
       ],
       "offset": [
-       55,
-       2
+       111,
+       4
       ]
      },
      {
@@ -1136,7 +1127,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 72,
       "duration": [
        3,
        4
@@ -1147,7 +1138,7 @@
       ]
      },
      {
-      "pitch": 65,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -1158,7 +1149,7 @@
       ]
      },
      {
-      "pitch": 60,
+      "pitch": 65,
       "duration": [
        1,
        4
@@ -1169,7 +1160,7 @@
       ]
      },
      {
-      "pitch": 60,
+      "pitch": 65,
       "duration": [
        1,
        4
@@ -1180,7 +1171,7 @@
       ]
      },
      {
-      "pitch": 60,
+      "pitch": 65,
       "duration": [
        4,
        24
@@ -1191,7 +1182,7 @@
       ]
      },
      {
-      "pitch": 60,
+      "pitch": 65,
       "duration": [
        4,
        24
@@ -1202,7 +1193,7 @@
       ]
      },
      {
-      "pitch": 60,
+      "pitch": 65,
       "duration": [
        4,
        24
@@ -1213,7 +1204,7 @@
       ]
      },
      {
-      "pitch": 59,
+      "pitch": 71,
       "duration": [
        3,
        4
@@ -1224,7 +1215,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -1532,8 +1523,8 @@
        2
       ],
       "duration": [
-       5,
-       8
+       1,
+       2
       ],
       "symbol": "E7"
      },
@@ -1544,12 +1535,12 @@
       },
       "scaleId": "major.ionian",
       "startOffset": [
-       113,
-       8
+       14,
+       1
       ],
       "duration": [
-       11,
-       8
+       3,
+       2
       ],
       "symbol": "AΔ7"
      },

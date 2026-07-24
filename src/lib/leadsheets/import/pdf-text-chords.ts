@@ -169,7 +169,10 @@ export function extractSystemTexts(
 			}
 			if (!CHORD_RE.test(p.text)) continue;
 
-			// Append superscript fragments: smaller, raised, x-adjacent.
+			// Append superscript fragments: smaller, raised, x-adjacent, and
+			// alteration-shaped — analysis annotations above chords must not
+			// glue on.
+			const alteration = /^\(?[#bΔ]?\d{1,2}\)?$/;
 			let text = p.text;
 			let right = p.x + p.w;
 			for (const q of zone) {
@@ -177,7 +180,7 @@ export function extractSystemTexts(
 				const raised = q.y < p.y - 0.15 * p.h;
 				const smaller = q.h <= 0.85 * p.h;
 				const adjacent = q.x >= right - 6 && q.x <= right + 0.8 * p.h;
-				if (raised && smaller && adjacent) {
+				if (raised && smaller && adjacent && alteration.test(q.text)) {
 					text += q.text;
 					right = q.x + q.w;
 					consumed.add(q);

@@ -42,6 +42,8 @@ interface SystemRequestBody {
 		/** Barlines counted by the client's geometry pass. */
 		barCount: number;
 		timeSignature: [number, number];
+		/** True for the chart's first system — prompts a pickup-bar check. */
+		first?: boolean;
 	};
 }
 
@@ -493,6 +495,9 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 									text:
 										`This system contains exactly ${system.barCount} bars in ${beats}/${meter[1] ?? 4} time. ` +
 										`Transcribe it as JSON per the schema.` +
+										(system.first === true
+											? ' This is the FIRST system of the chart: check carefully whether the notes before the first full bar form a partial PICKUP bar (pickup: true, notes at their real beats near the END of the bar).'
+											: '') +
 										(feedback ? ` Your previous attempt had problems — re-read the image carefully: ${feedback}` : '')
 								}
 							]
