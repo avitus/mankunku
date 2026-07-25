@@ -180,7 +180,15 @@ export function buildSections(
 				duration
 			);
 			if (!segment) {
-				warnOnce(`Chord "${h.text}" was not recognized and was skipped.`);
+				// Printed bar number (pickups excluded from numbering).
+				let bar = 0;
+				let pickups = 0;
+				for (const m of measures) {
+					if (compareFractions(m.startOffset, h.offset) > 0) break;
+					bar++;
+					if (m.pickup) pickups++;
+				}
+				warnOnce(`bar ${bar - pickups}: Chord "${h.text}" was not recognized and was skipped.`);
 				return [];
 			}
 			return [segment];

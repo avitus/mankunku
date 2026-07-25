@@ -130,6 +130,29 @@ describe('parseMscx — basics', () => {
 		expect(seg.chord.bass).toBe('E');
 	});
 
+	it('names the bar in chord-symbol warnings', () => {
+		const { warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          <Harmony><harmonyInfo><name></name></harmonyInfo></Harmony>
+          ${HARMONY(16, 'blorp')}
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings.join(' | ')).toContain('bar 2: Skipped a chord symbol without a root');
+		expect(warnings.join(' | ')).toContain('bar 2: Chord "Dblorp" was not recognized');
+	});
+
 	it("normalizes MuseScore's chord shorthand: t → Δ (triangle), 0 → ø (half-dim)", () => {
 		const { sheets, warnings } = parseMscx(mscx({
 			staves: `

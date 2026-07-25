@@ -393,7 +393,13 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 						break;
 					}
 					case 'Harmony': {
-						const text = harmonyText(body, transpose, warnOnce);
+						// Printed bar number: pickups are excluded from MuseScore's
+						// numbering, so subtract any pickup measures seen so far.
+						const printedBar =
+							measures.length + 1 - measures.filter((m) => m.pickup).length;
+						const text = harmonyText(body, transpose, (msg) =>
+							warnOnce(`bar ${printedBar}: ${msg}`)
+						);
 						if (text !== null) {
 							// Chord symbols are beat-granular in the editor, and a
 							// chord with no note to attach to (e.g. over a rest bar)

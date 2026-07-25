@@ -840,3 +840,7 @@ Newest at the top.
 
 - Body and Soul's "unrecognized chord" warnings decoded: MuseScore stores the TYPED chord text in <name>, and its jazz shorthand types "t7" for Δ7 and "07" for ø7 — the renderer substitutes the glyphs, the file keeps the shorthand. harmonyText now normalizes leading t → Δ and leading 0 → ø (parser already accepted both targets; ø canonicalizes to the app's -7b5 spelling).
 - The remaining "chord symbol without a root" warning on that chart is a genuinely EMPTY harmony element in the score (no root, no name) — correctly skipped; deletable at the source in MuseScore.
+
+## 2026-07-25 (cont. 7) — Chord-symbol warnings name their bar
+
+- Both MuseScore chord warnings (rootless symbol, unrecognized text) now carry the printed bar number, pickup-aware (pickups excluded from numbering, matching MuseScore's display). Body and Soul's empty harmony element is at bar 10.
