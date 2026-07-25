@@ -831,3 +831,7 @@ Newest at the top.
 - Lady Bird bar 8: C#5 over F7 rendered as Db (the chord preference read it as the b13). Two-layer fix: (1) the MuseScore importer now captures the EXACT source spelling from tpc/tpc2 (line of fifths: ≥20 sharp, ≤12 flat; tpc2 is the written-pitch spelling on transposing parts) — MuseScore fidelity by construction; (2) the display spelling priority gains an IN-SIGNATURE rule between explicit spelling and chord preference: an enharmonic that is literally in the key signature (C# in D major) needs no accidental and always beats the chord-tone spelling. The original chord-preference cases (C# over A7 in F) are preserved — there, neither spelling is in-signature.
 - New priority chain: explicit note.spelling > in-signature enharmonic > chord-diatonic preference > key-side default.
 - One fidelity fixture updated: Fly Me's concert-B3 opening note (written C#5 on the tenor part) now correctly carries spelling 'sharp' from tpc2.
+
+## 2026-07-25 (cont. 5) — Leadsheets folder reorganized (user)
+
+- `leadsheet PDFs/` → `Leadsheets/PDF/` (10 charts) + `Leadsheets/Musescore/` (9 .mscz sources). Five NEW charts beyond the comparison suite: All of Me, Body and Soul, Do Nothing Till You Hear From Me (Bb), Lady Bird, On Green Dolphin Street — a ready-made expansion set for the pdf-vs-musescore suite (mscz → reference fixtures via the import flow; PDFs → live per-system recordings). Path references updated in pdf-geometry.ts, the comparison suite header, and all scratchpad probes.

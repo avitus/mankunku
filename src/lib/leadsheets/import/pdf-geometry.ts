@@ -11,7 +11,7 @@
  *
  * These give the two quantities the vision model kept getting wrong — how
  * many systems, and how many bars in each — mechanically. Validated exact
- * against all five reference charts in `leadsheet PDFs/` (41/28/32/25/33
+ * against all five reference charts in `Leadsheets/PDF/` (41/28/32/25/33
  * bars) via a browser probe running this exact module.
  */
 
