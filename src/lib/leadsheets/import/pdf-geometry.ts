@@ -509,15 +509,22 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 		let firstBarLeft = staffLeft;
 		let blockStart = -1;
 		let lastDark = -1;
+		let sawBlock = false;
 		for (let x = staffLeft; x < limit; x++) {
 			if (cols[x].offLine >= 1.5 * il) {
 				if (blockStart < 0) {
-					if (x - Math.max(firstBarLeft, staffLeft) > 1.2 * il) break;
+					// The clef indents up to ~3 il from the staff edge; after
+					// the first block, gaps over 1.2 il end the header.
+					const grace = sawBlock ? 1.2 * il : 3 * il;
+					if (x - Math.max(firstBarLeft, staffLeft) > grace) break;
 					blockStart = x;
 				}
 				lastDark = x;
 			} else if (blockStart >= 0 && x - lastDark > 0.2 * il) {
-				if (lastDark - blockStart >= 0.4 * il) firstBarLeft = lastDark;
+				if (lastDark - blockStart >= 0.4 * il) {
+					firstBarLeft = lastDark;
+					sawBlock = true;
+				}
 				blockStart = -1;
 			}
 		}
