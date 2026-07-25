@@ -523,3 +523,41 @@ describe('glissando rendering', () => {
 		expect(noteAnchors[1].gliss).toBeUndefined();
 	});
 });
+
+describe('in-signature spelling priority', () => {
+	it('prefers the enharmonic that is IN the key signature over the chord preference', () => {
+		// Lady Bird bar 8: C#5 over F7 in D major. The chord preference
+		// says Db (the b13), but C# is in the signature — no accidental.
+		const abc = leadSheetToAbc(
+			sheet({
+				key: 'D',
+				sections: [
+					section({
+						bars: 1,
+						harmony: [seg('F', '7', [0, 1], [1, 1], 'F7')],
+						notes: [{ pitch: 73, duration: [1, 1], offset: [0, 1] }]
+					})
+				]
+			})
+		);
+		expect(abc).not.toContain('_d');
+		expect(abc).toMatch(/[^_^]c8/);
+	});
+
+	it('keeps the chord preference when neither spelling is in the signature', () => {
+		// The original request: C# over A7 in F major (Db not in F's sig).
+		const abc = leadSheetToAbc(
+			sheet({
+				key: 'F',
+				sections: [
+					section({
+						bars: 1,
+						harmony: [seg('A', '7', [0, 1], [1, 1], 'A7')],
+						notes: [{ pitch: 73, duration: [1, 1], offset: [0, 1] }]
+					})
+				]
+			})
+		);
+		expect(abc).toContain('^c');
+	});
+});

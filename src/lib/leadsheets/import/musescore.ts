@@ -427,7 +427,8 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 								duration: dur,
 								offset: cursor,
 								...(note.tied ? { tied: true } : {}),
-								...(note.gliss ? { gliss: true } : {})
+								...(note.gliss ? { gliss: true } : {}),
+								...(note.spelling ? { spelling: note.spelling } : {})
 							});
 						}
 						cursor = addFractions(cursor, dur);
@@ -457,11 +458,14 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 	return { sheets: [sheet], warnings, declaredTransposition: transpose };
 }
 
-/** Highest note of the chord + whether it starts a tie or a glissando. */
-function topNote(
-	chordBlock: string
-): { pitch: number; tied: boolean; gliss: boolean } | null {
-	let best: { pitch: number; tied: boolean; gliss: boolean } | null = null;
+/** Highest note of the chord + tie/glissando flags + source spelling. */
+function topNote(chordBlock: string): {
+	pitch: number;
+	tied: boolean;
+	gliss: boolean;
+	spelling: 'sharp' | 'flat' | null;
+} | null {
+	let best: ReturnType<typeof topNote> = null;
 	for (const noteMatch of chordBlock.matchAll(/<Note>[\s\S]*?<\/Note>/g)) {
 		const pitch = Number(xmlText(noteMatch[0], 'pitch') ?? 'NaN');
 		if (!Number.isFinite(pitch)) continue;
@@ -472,7 +476,13 @@ function topNote(
 			const gliss = /<Spanner type="Glissando">[\s\S]*?<Glissando[\s\S]*?<next>/.test(
 				noteMatch[0]
 			);
-			best = { pitch, tied, gliss };
+			// MuseScore records the exact spelling on the line of fifths:
+			// F#..B# and beyond = 20+, Bb..Fb and beyond = 12- (tpc2 is the
+			// written-pitch spelling on transposing parts). Naturals carry
+			// no override — the key signature decides at display time.
+			const tpc = Number(xmlText(noteMatch[0], 'tpc2') ?? xmlText(noteMatch[0], 'tpc') ?? 'NaN');
+			const spelling = !Number.isFinite(tpc) ? null : tpc >= 20 ? 'sharp' : tpc <= 12 ? 'flat' : null;
+			best = { pitch, tied, gliss, spelling };
 		}
 	}
 	return best;

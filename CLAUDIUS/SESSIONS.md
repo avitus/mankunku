@@ -825,3 +825,9 @@ Newest at the top.
 - The rest displacement is exactly TWO staff-line spacings for every rest type — measured numerically per type against a single-voice reference (my earlier 1-spacing read came from eyeballing a small render; numbers beat eyeballs). Eighth rests now head in the C space.
 - Glissando rendering rebuilt to mimic MuseScore (per the user's standing rule — memory saved: MuseScore 4 is ALWAYS the notation reference): abcjs's !slide! is a scoop, wrong symbol. Now the anchors carry the gliss flag and NotationDisplay draws a wavy SVG path connecting the two noteheads (abcjs-notehead sub-paths give exact endpoints; ~0.8-spacing half-waves, 0.22-spacing amplitude, currentColor). Pairs split across rendered lines are skipped, mirroring MuseScore's line-break handling.
 - Verified on Lady Bird: wavy connectors at both glissandos, rests at standard positions.
+
+## 2026-07-25 (cont. 4) — Spelling: MuseScore tpc capture + in-signature priority
+
+- Lady Bird bar 8: C#5 over F7 rendered as Db (the chord preference read it as the b13). Two-layer fix: (1) the MuseScore importer now captures the EXACT source spelling from tpc/tpc2 (line of fifths: ≥20 sharp, ≤12 flat; tpc2 is the written-pitch spelling on transposing parts) — MuseScore fidelity by construction; (2) the display spelling priority gains an IN-SIGNATURE rule between explicit spelling and chord preference: an enharmonic that is literally in the key signature (C# in D major) needs no accidental and always beats the chord-tone spelling. The original chord-preference cases (C# over A7 in F) are preserved — there, neither spelling is in-signature.
+- New priority chain: explicit note.spelling > in-signature enharmonic > chord-diatonic preference > key-side default.
+- One fidelity fixture updated: Fly Me's concert-B3 opening note (written C#5 on the tenor part) now correctly carries spelling 'sharp' from tpc2.

@@ -111,6 +111,17 @@ export function leadSheetToAbcWithMap(
 	const useFlats = FLAT_KEYS.includes(displayKey);
 	const keySigAccidentals: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
 
+	// Black-key pitch class → the letter each enharmonic spelling uses.
+	const SHARP_LETTER: Record<number, keyof KeySigMap> = { 1: 'C', 3: 'D', 6: 'F', 8: 'G', 10: 'A' };
+	const FLAT_LETTER: Record<number, keyof KeySigMap> = { 1: 'D', 3: 'E', 6: 'G', 8: 'A', 10: 'B' };
+	function signatureSpelling(pc: number, sig: KeySigMap): 'sharp' | 'flat' | null {
+		const sl = SHARP_LETTER[pc];
+		const fl = FLAT_LETTER[pc];
+		if (sl && sig[sl] === '^') return 'sharp';
+		if (fl && sig[fl] === '_') return 'flat';
+		return null;
+	}
+
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
 
 	const headerLines: string[] = [
@@ -157,8 +168,14 @@ export function leadSheetToAbcWithMap(
 					el.governing.chord.quality
 				)
 			: null;
+		// Spelling priority: explicit choice > the enharmonic that is IN the
+		// key signature (no accidental needed — a C# in D major must not
+		// print as Db) > chord-diatonic preference > key-side default.
+		const sigPref = signatureSpelling(((midi % 12) + 12) % 12, keySigAccidentals);
 		const noteUseFlats = note.spelling === 'flat' ? true
 			: note.spelling === 'sharp' ? false
+			: sigPref === 'flat' ? true
+			: sigPref === 'sharp' ? false
 			: chordPref === 'flat' ? true
 			: chordPref === 'sharp' ? false
 			: useFlats;

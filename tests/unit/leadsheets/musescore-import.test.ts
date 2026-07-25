@@ -130,6 +130,35 @@ describe('parseMscx — basics', () => {
 		expect(seg.chord.bass).toBe('E');
 	});
 
+	it('captures the source spelling from tpc (sharp side, flat side, natural)', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>73</pitch><tpc>21</tpc></Note>
+          </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>61</pitch><tpc>9</tpc></Note>
+          </Chord>
+          <Chord>
+            <durationType>half</durationType>
+            <Note><pitch>62</pitch><tpc>16</tpc></Note>
+          </Chord>
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		const notes = sheets[0].sections[0].notes;
+		expect(notes[0]).toMatchObject({ pitch: 73, spelling: 'sharp' });
+		expect(notes[1]).toMatchObject({ pitch: 61, spelling: 'flat' });
+		expect(notes[2].spelling).toBeUndefined();
+	});
+
 	it('captures a glissando start on the source note', () => {
 		const { sheets } = parseMscx(mscx({
 			staves: `

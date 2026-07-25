@@ -58,7 +58,8 @@ describe('MuseScore import — Fly Me to the Moon (.mscz)', () => {
 		// (concert): no transposition offset, unlike the written-pitch PDF.
 		expect(notes.slice(0, 5)).toEqual([
 			{ pitch: 60, duration: [3, 8], offset: [0, 1] },
-			{ pitch: 59, duration: [1, 8], offset: [3, 8] },
+			// Written C#5 on the tenor part — tpc2 carries the sharp spelling.
+			{ pitch: 59, duration: [1, 8], offset: [3, 8], spelling: 'sharp' },
 			{ pitch: 57, duration: [1, 4], offset: [1, 2] },
 			{ pitch: 55, duration: [1, 8], offset: [3, 4] },
 			{ pitch: 53, duration: [1, 8], offset: [7, 8], tied: true }
