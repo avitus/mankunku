@@ -46,6 +46,13 @@ interface SystemRequestBody {
 		timeSignature: [number, number];
 		/** True for the chart's first system — prompts a pickup-bar check. */
 		first?: boolean;
+		/**
+		 * Per-bar notehead evidence from the client's geometry pass: counts
+		 * and treble letter names (no accidentals). Used as a SOFT
+		 * cross-check — the model is asked to re-read disagreeing bars but
+		 * may keep its answer.
+		 */
+		barEvidence?: Array<{ count: number; letters: string[] } | null>;
 	};
 }
 
@@ -563,24 +570,54 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		model = ANTHROPIC_MODEL;
 		first = await ask(null, model);
 	}
+	const evidence = Array.isArray(system.barEvidence) ? system.barEvidence : [];
+	const evidenceDisagreements = (bars: SystemBar[]): string[] => {
+		const out: string[] = [];
+		bars.forEach((bar, i) => {
+			const ev = evidence[i];
+			if (!ev || typeof ev.count !== 'number') return;
+			const noteCount = bar.melody.filter((note) => !isRestPitch(note[2])).length;
+			if (noteCount !== ev.count) {
+				out.push(
+					`bar ${i + 1}: independent notehead detection reads ${ev.count} notehead(s)` +
+						(ev.letters?.length ? ` on lines/spaces ${ev.letters.join(' ')} (letters only — apply the key signature and accidentals yourself)` : '') +
+						` but your transcription has ${noteCount} — re-read that bar carefully and keep your reading only if the print clearly confirms it`
+				);
+			}
+		});
+		return out;
+	};
+
 	let result = first;
 	let bars = first?.bars ?? [];
 	let warnings = first ? flatIssues(first) : [];
-	if (!first || warnings.length > 0) {
-		const second = await ask(first ? warnings.join('; ') : null, model);
+	const firstEvidenceIssues = first ? evidenceDisagreements(first.bars) : [];
+	if (!first || warnings.length > 0 || firstEvidenceIssues.length > 0) {
+		const second = await ask(
+			first ? [...warnings, ...firstEvidenceIssues].join('; ') : null,
+			model
+		);
 		if (second && !first) {
 			result = second;
 			bars = second.bars;
 			warnings = flatIssues(second);
 		} else if (second && first) {
-			// Per-bar merge: for each bar keep the first clean version.
+			// Per-bar merge: prefer clean bars, and among clean bars prefer
+			// the one agreeing with the notehead evidence.
+			const agreesWithEvidence = (bar: SystemBar | undefined, i: number): boolean => {
+				const ev = evidence[i];
+				if (!bar || !ev || typeof ev.count !== 'number') return false;
+				return bar.melody.filter((note) => !isRestPitch(note[2])).length === ev.count;
+			};
 			const merged: SystemBar[] = [];
 			const survivors: string[] = [...first.issues.global];
 			const count = Math.max(first.bars.length, second.bars.length);
 			for (let i = 0; i < count; i++) {
 				const firstClean = first.bars[i] && (first.issues.perBar[i] ?? []).length === 0;
 				const secondClean = second.bars[i] && (second.issues.perBar[i] ?? []).length === 0;
-				if (firstClean) {
+				if (firstClean && secondClean && !agreesWithEvidence(first.bars[i], i) && agreesWithEvidence(second.bars[i], i)) {
+					merged.push(second.bars[i]);
+				} else if (firstClean) {
 					merged.push(first.bars[i]);
 				} else if (secondClean) {
 					merged.push(second.bars[i]);

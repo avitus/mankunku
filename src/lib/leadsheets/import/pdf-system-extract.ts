@@ -13,10 +13,14 @@ import {
 	type SystemGeometry
 } from './pdf-geometry';
 import { extractSystemTexts, type PageTextItem, type SystemTexts } from './pdf-text-chords';
+import { detectNoteEvents, barEvidence, type BarEvidence } from './pdf-noteheads';
 
 export interface ExtractedSystem {
 	geometry: SystemGeometry;
 	texts: SystemTexts;
+	/** Per-bar notehead evidence (counts + letter names) for the route's
+	 * soft cross-check. */
+	evidence: BarEvidence[];
 	/** PNG data URL crop of this system, for the parse route. */
 	image: string;
 }
@@ -128,6 +132,7 @@ export async function extractPdfSystems(buffer: ArrayBuffer): Promise<PdfSystemE
 			systems.push({
 				geometry: pageSystems[i],
 				texts: texts[i],
+				evidence: barEvidence(detectNoteEvents(img, pageSystems[i]), pageSystems[i]),
 				image: crop.toDataURL('image/png')
 			});
 		}

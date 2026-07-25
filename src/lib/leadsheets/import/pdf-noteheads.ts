@@ -336,3 +336,27 @@ export function eventsByBar(events: NoteEvent[], system: SystemGeometry): NoteEv
 	}
 	return bars;
 }
+
+/**
+ * Treble-clef letter name (no accidental) for a staff position — position
+ * 0 is E4 on the bottom line. The model applies key signature and
+ * accidentals itself; the letter/octave is what the geometry knows.
+ */
+export function positionToLetter(position: number): string {
+	const abs = 30 + position; // diatonic index, C0-based (E4 = 30)
+	return 'CDEFGAB'[((abs % 7) + 7) % 7] + String(Math.floor(abs / 7));
+}
+
+/** Per-bar note evidence for the transcription route. */
+export interface BarEvidence {
+	count: number;
+	letters: string[];
+}
+
+/** Assemble per-bar evidence (counts + letter names in x order). */
+export function barEvidence(events: NoteEvent[], system: SystemGeometry): BarEvidence[] {
+	return eventsByBar(events, system).map((bar) => ({
+		count: bar.length,
+		letters: bar.map((e) => positionToLetter(e.position))
+	}));
+}

@@ -134,7 +134,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 70,
       "duration": [
        1,
        8
@@ -145,7 +145,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 70,
       "duration": [
        1,
        8
@@ -156,7 +156,7 @@
       ]
      },
      {
-      "pitch": 65,
+      "pitch": 67,
       "duration": [
        3,
        8
@@ -168,7 +168,7 @@
       "tied": true
      },
      {
-      "pitch": 65,
+      "pitch": 67,
       "duration": [
        3,
        8
@@ -190,7 +190,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 70,
       "duration": [
        1,
        8
@@ -201,7 +201,7 @@
       ]
      },
      {
-      "pitch": 65,
+      "pitch": 67,
       "duration": [
        1,
        4
@@ -223,7 +223,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 70,
       "duration": [
        1,
        8
@@ -234,7 +234,7 @@
       ]
      },
      {
-      "pitch": 65,
+      "pitch": 67,
       "duration": [
        1,
        4
@@ -285,7 +285,7 @@
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -296,7 +296,7 @@
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -307,7 +307,7 @@
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -318,7 +318,7 @@
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -329,7 +329,7 @@
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -340,7 +340,7 @@
       ]
      },
      {
-      "pitch": 74,
+      "pitch": 67,
       "duration": [
        1,
        4
@@ -351,7 +351,7 @@
       ]
      },
      {
-      "pitch": 77,
+      "pitch": 72,
       "duration": [
        1,
        2
@@ -362,7 +362,7 @@
       ]
      },
      {
-      "pitch": 70,
+      "pitch": 72,
       "duration": [
        1,
        4
@@ -641,7 +641,7 @@
       "pitch": 64,
       "duration": [
        1,
-       8
+       4
       ],
       "offset": [
        53,
@@ -652,17 +652,6 @@
       "pitch": 67,
       "duration": [
        1,
-       8
-      ],
-      "offset": [
-       107,
-       8
-      ]
-     },
-     {
-      "pitch": 65,
-      "duration": [
-       1,
        4
       ],
       "offset": [
@@ -671,7 +660,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 65,
       "duration": [
        1,
        4
@@ -682,7 +671,7 @@
       ]
      },
      {
-      "pitch": 62,
+      "pitch": 64,
       "duration": [
        1,
        4
@@ -693,14 +682,25 @@
       ]
      },
      {
-      "pitch": 61,
+      "pitch": 62,
       "duration": [
-       3,
+       1,
        4
       ],
       "offset": [
        57,
        4
+      ]
+     },
+     {
+      "pitch": 61,
+      "duration": [
+       1,
+       2
+      ],
+      "offset": [
+       29,
+       2
       ],
       "tied": true
      },
@@ -749,7 +749,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 76,
       "duration": [
        3,
        8
@@ -760,7 +760,7 @@
       ]
      },
      {
-      "pitch": 67,
+      "pitch": 72,
       "duration": [
        1,
        8
@@ -771,7 +771,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 74,
       "duration": [
        1,
        2
@@ -783,7 +783,7 @@
       "tied": true
      },
      {
-      "pitch": 64,
+      "pitch": 76,
       "duration": [
        1,
        4
@@ -794,7 +794,7 @@
       ]
      },
      {
-      "pitch": 60,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -805,7 +805,7 @@
       ]
      },
      {
-      "pitch": 63,
+      "pitch": 72,
       "duration": [
        1,
        4
@@ -816,7 +816,7 @@
       ]
      },
      {
-      "pitch": 65,
+      "pitch": 76,
       "duration": [
        1,
        4
@@ -827,10 +827,10 @@
       ]
      },
      {
-      "pitch": 61,
+      "pitch": 73,
       "duration": [
        1,
-       2
+       1
       ],
       "offset": [
        18,
@@ -839,18 +839,7 @@
       "tied": true
      },
      {
-      "pitch": 61,
-      "duration": [
-       1,
-       2
-      ],
-      "offset": [
-       37,
-       2
-      ]
-     },
-     {
-      "pitch": 65,
+      "pitch": 73,
       "duration": [
        1,
        4
@@ -861,7 +850,7 @@
       ]
      },
      {
-      "pitch": 60,
+      "pitch": 64,
       "duration": [
        1,
        4
@@ -872,7 +861,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 69,
       "duration": [
        1,
        4
@@ -883,7 +872,7 @@
       ]
      },
      {
-      "pitch": 66,
+      "pitch": 73,
       "duration": [
        1,
        4
@@ -905,7 +894,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 59,
       "duration": [
        1,
        8
@@ -972,7 +961,7 @@
       ]
      },
      {
-      "pitch": 61,
+      "pitch": 63,
       "duration": [
        1,
        1
@@ -984,7 +973,7 @@
       "tied": true
      },
      {
-      "pitch": 61,
+      "pitch": 62,
       "duration": [
        1,
        1
@@ -995,7 +984,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 62,
       "duration": [
        1,
        1
@@ -1006,7 +995,7 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 67,
       "duration": [
        3,
        4
@@ -1017,7 +1006,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1028,7 +1017,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 60,
       "duration": [
        1,
        4
@@ -1039,7 +1028,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1050,7 +1039,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1061,7 +1050,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1072,7 +1061,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 60,
       "duration": [
        1,
        4
@@ -1083,10 +1072,10 @@
       ]
      },
      {
-      "pitch": 72,
+      "pitch": 65,
       "duration": [
        1,
-       2
+       4
       ],
       "offset": [
        109,
@@ -1094,7 +1083,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1127,7 +1116,7 @@
       ]
      },
      {
-      "pitch": 64,
+      "pitch": 65,
       "duration": [
        1,
        4
@@ -1138,7 +1127,7 @@
       ]
      },
      {
-      "pitch": 59,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1149,7 +1138,7 @@
       ]
      },
      {
-      "pitch": 59,
+      "pitch": 62,
       "duration": [
        1,
        4
@@ -1160,7 +1149,7 @@
       ]
      },
      {
-      "pitch": 59,
+      "pitch": 62,
       "duration": [
        4,
        24
@@ -1171,7 +1160,7 @@
       ]
      },
      {
-      "pitch": 59,
+      "pitch": 62,
       "duration": [
        4,
        24
@@ -1182,7 +1171,7 @@
       ]
      },
      {
-      "pitch": 59,
+      "pitch": 62,
       "duration": [
        4,
        24
@@ -1204,7 +1193,7 @@
       ]
      },
      {
-      "pitch": 57,
+      "pitch": 64,
       "duration": [
        1,
        4
@@ -1270,7 +1259,7 @@
       ]
      },
      {
-      "pitch": 69,
+      "pitch": 65,
       "duration": [
        1,
        2
@@ -1281,7 +1270,7 @@
       ]
      },
      {
-      "pitch": 71,
+      "pitch": 69,
       "duration": [
        1,
        1

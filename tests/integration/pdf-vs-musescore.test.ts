@@ -83,11 +83,11 @@ const KNOWN_DEFECTS: Record<Slug, Set<string>> = {
 /** Regression floors pinned just under the recorded run's quality. */
 const FLOORS: Record<Slug, { chordSeq: number; pitchSeq: number }> = {
 	'all-the-things-you-are': { chordSeq: 0.95, pitchSeq: 0.4 },
-	'autumn-leaves': { chordSeq: 0.95, pitchSeq: 0.65 },
+	'autumn-leaves': { chordSeq: 0.95, pitchSeq: 0.7 },
 	// Fly Me trips Fable's output filter and falls back to the baseline
-	// model, so its floor stays at the baseline level.
-	'fly-me-to-the-moon': { chordSeq: 0.9, pitchSeq: 0.3 },
-	'take-the-a-train': { chordSeq: 0.8, pitchSeq: 0.5 },
+	// model; the notehead-evidence loop carries its floor anyway.
+	'fly-me-to-the-moon': { chordSeq: 0.9, pitchSeq: 0.45 },
+	'take-the-a-train': { chordSeq: 0.8, pitchSeq: 0.6 },
 	'there-will-never-be-another-you': { chordSeq: 0.95, pitchSeq: 0.7 }
 };
 

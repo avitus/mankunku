@@ -74,7 +74,13 @@
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
-				system: { image: sys.image, barCount: sys.geometry.barlines.length, timeSignature, first }
+				system: {
+					image: sys.image,
+					barCount: sys.geometry.barlines.length,
+					timeSignature,
+					first,
+					barEvidence: sys.evidence
+				}
 			})
 		});
 		if (!res.ok) return null;

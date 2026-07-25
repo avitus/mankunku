@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { detectNoteEvents, eventsByBar } from '$lib/leadsheets/import/pdf-noteheads';
+import {
+	detectNoteEvents,
+	eventsByBar,
+	positionToLetter,
+	barEvidence
+} from '$lib/leadsheets/import/pdf-noteheads';
 import type { SystemGeometry } from '$lib/leadsheets/import/pdf-geometry';
 
 // Production-scale synthetic staff: interline 20, lines at 80..160.
@@ -178,5 +183,34 @@ describe('eventsByBar', () => {
 			sys
 		);
 		expect(bars.map((b) => b.length)).toEqual([1, 2, 1]);
+	});
+});
+
+describe('positionToLetter', () => {
+	it('maps staff positions to treble letter names', () => {
+		expect(positionToLetter(0)).toBe('E4');
+		expect(positionToLetter(4)).toBe('B4');
+		expect(positionToLetter(8)).toBe('F5');
+		expect(positionToLetter(-2)).toBe('C4');
+		expect(positionToLetter(9)).toBe('G5');
+	});
+});
+
+describe('barEvidence', () => {
+	it('summarizes counts and letters per bar', () => {
+		const sys = system([200, 500, 760]);
+		const ev = barEvidence(
+			[
+				{ x: 150, anchorX: 162, position: 4, kind: 'stemmed' },
+				{ x: 300, anchorX: 312, position: 2, kind: 'stemmed' },
+				{ x: 450, anchorX: 450, position: 6, kind: 'hollow' }
+			],
+			sys
+		);
+		expect(ev).toEqual([
+			{ count: 1, letters: ['B4'] },
+			{ count: 2, letters: ['G4', 'D5'] },
+			{ count: 0, letters: [] }
+		]);
 	});
 });
