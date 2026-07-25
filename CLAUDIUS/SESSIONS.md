@@ -819,3 +819,9 @@ Newest at the top.
 
 - The two-voice renderer's belief that H-voice rests render "at normal staff position" was WRONG: abcjs displaces second-voice rests one staff line DOWN (and first-voice rests one line up) — measured against a single-voice reference render. Eighth rests sat low; semibreve rests hung from the 3rd line instead of in the C space. Fix: NotationDisplay post-render pass shifts `.abcjs-rest.abcjs-v1` glyphs up one line-spacing (measured from the staff bbox). Verified against reference across eighth/quarter/half/whole.
 - Glissando support: `Note.gliss` (marks the SOURCE note), MuseScore importer detects note-level `<Spanner type="Glissando">` starts (Glissando body + <next>; targets carry only <prev>), renderer attaches `!slide!` to the NEXT pitched note (abcjs draws the slide leading in; rests keep it pending). Lady Bird.mscz imports with both glissandos captured and rendering.
+
+## 2026-07-25 (cont. 3) — Rest shift corrected to 2 spacings; MuseScore-style wavy glissando
+
+- The rest displacement is exactly TWO staff-line spacings for every rest type — measured numerically per type against a single-voice reference (my earlier 1-spacing read came from eyeballing a small render; numbers beat eyeballs). Eighth rests now head in the C space.
+- Glissando rendering rebuilt to mimic MuseScore (per the user's standing rule — memory saved: MuseScore 4 is ALWAYS the notation reference): abcjs's !slide! is a scoop, wrong symbol. Now the anchors carry the gliss flag and NotationDisplay draws a wavy SVG path connecting the two noteheads (abcjs-notehead sub-paths give exact endpoints; ~0.8-spacing half-waves, 0.22-spacing amplitude, currentColor). Pairs split across rendered lines are skipped, mirroring MuseScore's line-break handling.
+- Verified on Lady Bird: wavy connectors at both glissandos, rests at standard positions.

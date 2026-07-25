@@ -132,11 +132,7 @@ export function leadSheetToAbcWithMap(
 	];
 
 	const tokens: string[] = [];
-	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number }> = [];
-	// A glissando marks its SOURCE note in the model; abcjs draws the slide
-	// leading INTO a note, so the decoration attaches to the next pitched
-	// note rendered (rests in between keep it pending).
-	let pendingGliss = false;
+	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number; gliss?: boolean }> = [];
 
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
 		const note = el.note;
@@ -168,14 +164,18 @@ export function leadSheetToAbcWithMap(
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const tieSuffix = note.tied ? '-' : '';
-		const slidePrefix = pendingGliss ? '!slide!' : '';
-		pendingGliss = note.gliss === true;
-		return `${slidePrefix}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
+		return `${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {
 		if (el.note.pitch !== null && el.sourceIndex !== null) {
-			pendingAnchors.push({ tokenIndex: tokens.length, sourceIndex: el.sourceIndex });
+			pendingAnchors.push({
+				tokenIndex: tokens.length,
+				sourceIndex: el.sourceIndex,
+				// The MuseScore-style wavy connector is drawn over the SVG by
+				// NotationDisplay (abcjs has no native glissando).
+				...(el.note.gliss ? { gliss: true } : {})
+			});
 		}
 		tokens.push(renderElement(el, duration, barState));
 	}
@@ -437,11 +437,14 @@ export function leadSheetToAbcWithMap(
 		tokenStarts[t] = charCursor;
 		charCursor += tokens[t].length;
 	}
-	const noteAnchors: PitchedNoteAnchor[] = pendingAnchors.map(({ tokenIndex, sourceIndex }) => ({
-		startChar: bodyStart + tokenStarts[tokenIndex],
-		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
-		sourceIndex
-	}));
+	const noteAnchors: PitchedNoteAnchor[] = pendingAnchors.map(
+		({ tokenIndex, sourceIndex, gliss }) => ({
+			startChar: bodyStart + tokenStarts[tokenIndex],
+			endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
+			sourceIndex,
+			...(gliss ? { gliss: true } : {})
+		})
+	);
 
 	return { abc: headerStr + '\n' + tokens.join(''), noteAnchors };
 }

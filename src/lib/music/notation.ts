@@ -480,6 +480,8 @@ export interface PitchedNoteAnchor {
 	endChar: number;
 	/** Index into the original `phrase.notes` array. */
 	sourceIndex: number;
+	/** This note starts a glissando into the NEXT pitched note. */
+	gliss?: boolean;
 }
 
 /**

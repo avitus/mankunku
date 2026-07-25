@@ -502,8 +502,8 @@ describe('leadSheetToAbc — sharp-key chord respelling', () => {
 });
 
 describe('glissando rendering', () => {
-	it('renders !slide! on the note a glissando leads into', () => {
-		const abc = leadSheetToAbc(
+	it('flags the source note anchor; the wavy connector is drawn over the SVG', () => {
+		const { abc, noteAnchors } = leadSheetToAbcWithMap(
 			sheet({
 				sections: [
 					section({
@@ -516,8 +516,10 @@ describe('glissando rendering', () => {
 				]
 			})
 		);
-		expect(abc).toContain('!slide!');
-		// The decoration attaches to the TARGET note, not the source.
-		expect(abc.indexOf('!slide!')).toBeGreaterThan(abc.indexOf('a4'));
+		// No ABC decoration — abcjs's !slide! renders a scoop, not a
+		// MuseScore-style glissando; NotationDisplay draws the wavy line.
+		expect(abc).not.toContain('!slide!');
+		expect(noteAnchors[0].gliss).toBe(true);
+		expect(noteAnchors[1].gliss).toBeUndefined();
 	});
 });

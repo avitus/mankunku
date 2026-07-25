@@ -55,15 +55,17 @@
 		});
 
 		normalizeChordVoiceRests(containerEl);
+		drawGlissandi(containerEl, noteAnchors);
 		applySelectionHighlight(containerEl, noteAnchors, selectedIndex);
 	});
 
 	/**
-	 * abcjs drops second-voice rests one staff line below their normal
-	 * position (and raises first-voice rests one line). Lead sheets render
-	 * the READER's rests from the invisible chord voice (V:H, voice index
-	 * 1), so shift those glyphs back up one line-spacing to the standard
-	 * single-voice position.
+	 * abcjs drops second-voice rests exactly TWO staff-line spacings below
+	 * the standard single-voice position (measured per rest type against a
+	 * single-voice reference render). Lead sheets render the READER's rests
+	 * from the invisible chord voice (V:H, voice index 1), so shift those
+	 * glyphs back up to the standard positions (eighth/quarter rests
+	 * centered on the staff, the semibreve rest in the C space).
 	 */
 	function normalizeChordVoiceRests(container: HTMLDivElement): void {
 		for (const svg of container.querySelectorAll('svg')) {
@@ -72,9 +74,71 @@
 			const spacing = staff.getBBox().height / 4;
 			if (!Number.isFinite(spacing) || spacing <= 0) continue;
 			for (const rest of svg.querySelectorAll('.abcjs-rest.abcjs-v1')) {
-				rest.setAttribute('transform', `translate(0, ${-spacing})`);
+				rest.setAttribute('transform', `translate(0, ${-2 * spacing})`);
 			}
 		}
+	}
+
+	/**
+	 * MuseScore-style glissando: a wavy line connecting the two noteheads
+	 * (abcjs has no native glissando). Anchors flag the SOURCE note; the
+	 * target is the next pitched note. Pairs split across rendered lines
+	 * are skipped, as are pairs too close to fit a wave.
+	 */
+	function drawGlissandi(container: HTMLDivElement, anchors: PitchedNoteAnchor[]): void {
+		const noteEls = container.querySelectorAll('.abcjs-note');
+		anchors.forEach((anchor, i) => {
+			if (!anchor.gliss || i + 1 >= anchors.length) return;
+			const src = noteEls[i] as SVGGraphicsElement | undefined;
+			const tgt = noteEls[i + 1] as SVGGraphicsElement | undefined;
+			if (!src || !tgt) return;
+			const svg = src.ownerSVGElement;
+			if (!svg || tgt.ownerSVGElement !== svg) return;
+			const staff = svg.querySelector('.abcjs-staff') as SVGGraphicsElement | null;
+			if (!staff) return;
+			const spacing = staff.getBBox().height / 4;
+			const srcHead = (src.querySelector('.abcjs-notehead') ?? src) as SVGGraphicsElement;
+			const tgtHead = (tgt.querySelector('.abcjs-notehead') ?? tgt) as SVGGraphicsElement;
+			const a = srcHead.getBBox();
+			const b = tgtHead.getBBox();
+			const pad = spacing * 0.25;
+			const x1 = a.x + a.width + pad;
+			const y1 = a.y + a.height / 2;
+			const x2 = b.x - pad;
+			const y2 = b.y + b.height / 2;
+			const dx = x2 - x1;
+			const dy = y2 - y1;
+			const len = Math.hypot(dx, dy);
+			if (len < spacing) return;
+			// Squiggle along the connector: half-waves of ~0.8 spacing with
+			// ~0.2 spacing amplitude, like MuseScore's wavy glissando.
+			const waves = Math.max(2, Math.round(len / (spacing * 0.8)));
+			const amp = spacing * 0.22;
+			const ux = dx / len;
+			const uy = dy / len;
+			const px = -uy;
+			const py = ux;
+			let d = `M ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+			for (let k = 0; k < waves; k++) {
+				const t0 = (k / waves) * len;
+				const t1 = ((k + 1) / waves) * len;
+				const tm = (t0 + t1) / 2;
+				const sign = k % 2 === 0 ? 1 : -1;
+				const cx = x1 + ux * tm + px * amp * sign;
+				const cy = y1 + uy * tm + py * amp * sign;
+				const ex = x1 + ux * t1;
+				const ey = y1 + uy * t1;
+				d += ` Q ${cx.toFixed(2)} ${cy.toFixed(2)} ${ex.toFixed(2)} ${ey.toFixed(2)}`;
+			}
+			const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path.setAttribute('d', d);
+			path.setAttribute('fill', 'none');
+			path.setAttribute('stroke', 'currentColor');
+			path.setAttribute('stroke-width', Math.max(1, spacing * 0.13).toFixed(2));
+			path.setAttribute('stroke-linecap', 'round');
+			path.setAttribute('class', 'abcjs-glissando');
+			svg.appendChild(path);
+		});
 	}
 
 	function findAnchorAt(anchors: PitchedNoteAnchor[], char: number): PitchedNoteAnchor | undefined {
