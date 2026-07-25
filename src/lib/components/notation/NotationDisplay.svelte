@@ -54,8 +54,28 @@
 			}
 		});
 
+		normalizeChordVoiceRests(containerEl);
 		applySelectionHighlight(containerEl, noteAnchors, selectedIndex);
 	});
+
+	/**
+	 * abcjs drops second-voice rests one staff line below their normal
+	 * position (and raises first-voice rests one line). Lead sheets render
+	 * the READER's rests from the invisible chord voice (V:H, voice index
+	 * 1), so shift those glyphs back up one line-spacing to the standard
+	 * single-voice position.
+	 */
+	function normalizeChordVoiceRests(container: HTMLDivElement): void {
+		for (const svg of container.querySelectorAll('svg')) {
+			const staff = svg.querySelector('.abcjs-staff') as SVGGraphicsElement | null;
+			if (!staff) continue;
+			const spacing = staff.getBBox().height / 4;
+			if (!Number.isFinite(spacing) || spacing <= 0) continue;
+			for (const rest of svg.querySelectorAll('.abcjs-rest.abcjs-v1')) {
+				rest.setAttribute('transform', `translate(0, ${-spacing})`);
+			}
+		}
+	}
 
 	function findAnchorAt(anchors: PitchedNoteAnchor[], char: number): PitchedNoteAnchor | undefined {
 		// Exact-start match first (the common case), then fall back to range

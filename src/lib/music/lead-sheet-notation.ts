@@ -133,6 +133,10 @@ export function leadSheetToAbcWithMap(
 
 	const tokens: string[] = [];
 	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number }> = [];
+	// A glissando marks its SOURCE note in the model; abcjs draws the slide
+	// leading INTO a note, so the decoration attaches to the next pitched
+	// note rendered (rests in between keep it pending).
+	let pendingGliss = false;
 
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
 		const note = el.note;
@@ -164,7 +168,9 @@ export function leadSheetToAbcWithMap(
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const tieSuffix = note.tied ? '-' : '';
-		return `${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
+		const slidePrefix = pendingGliss ? '!slide!' : '';
+		pendingGliss = note.gliss === true;
+		return `${slidePrefix}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {

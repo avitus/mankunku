@@ -500,3 +500,24 @@ describe('leadSheetToAbc — sharp-key chord respelling', () => {
 		expect(abc).toContain('"Ab7"');
 	});
 });
+
+describe('glissando rendering', () => {
+	it('renders !slide! on the note a glissando leads into', () => {
+		const abc = leadSheetToAbc(
+			sheet({
+				sections: [
+					section({
+						bars: 1,
+						notes: [
+							{ pitch: 69, duration: [1, 2], offset: [0, 1], gliss: true },
+							{ pitch: 72, duration: [1, 2], offset: [1, 2] }
+						]
+					})
+				]
+			})
+		);
+		expect(abc).toContain('!slide!');
+		// The decoration attaches to the TARGET note, not the source.
+		expect(abc.indexOf('!slide!')).toBeGreaterThan(abc.indexOf('a4'));
+	});
+});

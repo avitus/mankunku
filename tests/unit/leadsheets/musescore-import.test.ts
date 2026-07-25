@@ -130,6 +130,42 @@ describe('parseMscx — basics', () => {
 		expect(seg.chord.bass).toBe('E');
 	});
 
+	it('captures a glissando start on the source note', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Chord>
+            <durationType>half</durationType>
+            <Note>
+              <pitch>69</pitch>
+              <Spanner type="Glissando">
+                <Glissando><subtype>1</subtype></Glissando>
+                <next><location><measures>0</measures><fractions>1/2</fractions></location></next>
+              </Spanner>
+            </Note>
+          </Chord>
+          <Chord>
+            <durationType>half</durationType>
+            <Note>
+              <pitch>72</pitch>
+              <Spanner type="Glissando">
+                <prev><location><fractions>-1/2</fractions></location></prev>
+              </Spanner>
+            </Note>
+          </Chord>
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		const notes = sheets[0].sections[0].notes;
+		expect(notes).toHaveLength(2);
+		expect(notes[0]).toMatchObject({ pitch: 69, gliss: true });
+		expect(notes[1].gliss).toBeUndefined();
+	});
+
 	it('marks ties and takes the top note of multi-note chords', () => {
 		const { sheets } = parseMscx(mscx({
 			staves: `

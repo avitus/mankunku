@@ -426,7 +426,8 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 								pitch: note.pitch,
 								duration: dur,
 								offset: cursor,
-								...(note.tied ? { tied: true } : {})
+								...(note.tied ? { tied: true } : {}),
+								...(note.gliss ? { gliss: true } : {})
 							});
 						}
 						cursor = addFractions(cursor, dur);
@@ -456,15 +457,22 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 	return { sheets: [sheet], warnings, declaredTransposition: transpose };
 }
 
-/** Highest note of the chord + whether it starts a tie. */
-function topNote(chordBlock: string): { pitch: number; tied: boolean } | null {
-	let best: { pitch: number; tied: boolean } | null = null;
+/** Highest note of the chord + whether it starts a tie or a glissando. */
+function topNote(
+	chordBlock: string
+): { pitch: number; tied: boolean; gliss: boolean } | null {
+	let best: { pitch: number; tied: boolean; gliss: boolean } | null = null;
 	for (const noteMatch of chordBlock.matchAll(/<Note>[\s\S]*?<\/Note>/g)) {
 		const pitch = Number(xmlText(noteMatch[0], 'pitch') ?? 'NaN');
 		if (!Number.isFinite(pitch)) continue;
 		if (best === null || pitch > best.pitch) {
 			const tied = /<Spanner type="Tie">[\s\S]*?<next>/.test(noteMatch[0]);
-			best = { pitch, tied };
+			// A glissando START carries the <Glissando> body and a <next>
+			// pointer; the target note has only a <prev> back-reference.
+			const gliss = /<Spanner type="Glissando">[\s\S]*?<Glissando[\s\S]*?<next>/.test(
+				noteMatch[0]
+			);
+			best = { pitch, tied, gliss };
 		}
 	}
 	return best;
