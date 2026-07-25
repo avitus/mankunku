@@ -8,7 +8,12 @@
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
 	import { extractPdfSystems, type ExtractedSystem } from '$lib/leadsheets/import/pdf-system-extract';
-	import { assembleClaudeDoc, type ModelBar } from '$lib/leadsheets/import/pdf-system-assemble';
+	import {
+		assembleClaudeDoc,
+		importReviewNotes,
+		type ModelBar
+	} from '$lib/leadsheets/import/pdf-system-assemble';
+	import { setImportReview } from '$lib/state/lead-sheet-entry.svelte';
 	import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
 	import {
 		defaultSourceTransposition,
@@ -23,6 +28,9 @@
 
 	let configured = $state<boolean | null>(null);
 	let uploading = $state(false);
+	let progress = $state<{ phase: 'reading' | 'transcribing'; done: number; total: number } | null>(
+		null
+	);
 	let errorMessage = $state<string | null>(null);
 	let importWarnings = $state<string[]>([]);
 	// Printed charts are usually parts for the user's own horn — default the
@@ -96,34 +104,49 @@
 	async function importViaSystems(
 		buffer: ArrayBuffer,
 		filename: string
-	): Promise<{ sheet: LeadSheet; warnings: string[] } | null> {
+	): Promise<{ sheet: LeadSheet; warnings: string[]; suspectBars: number[] } | null> {
+		progress = { phase: 'reading', done: 0, total: 1 };
 		const extraction = await extractPdfSystems(buffer);
 		if (!extraction) return null;
 		const { systems } = extraction;
+		progress = { phase: 'transcribing', done: 0, total: systems.length };
 
 		// The first system shows the printed meter; confirm it before fanning
 		// out the rest with a small concurrency cap.
 		const first = await transcribeSystem(systems[0], [4, 4], true);
 		if (!first) return null;
+		progress = { phase: 'transcribing', done: 1, total: systems.length };
 		const meter = first.timeSignature ?? [4, 4];
 
 		const rest: Array<SystemModeResponse | null> = new Array(systems.length - 1).fill(null);
 		const CONCURRENCY = 3;
 		let next = 0;
+		let completed = 1;
 		const workers = Array.from({ length: Math.min(CONCURRENCY, rest.length) }, async () => {
 			while (next < rest.length) {
 				const i = next++;
 				rest[i] = await transcribeSystem(systems[i + 1], meter);
+				completed++;
+				progress = { phase: 'transcribing', done: completed, total: systems.length };
 			}
 		});
 		await Promise.all(workers);
 		const responses = [first, ...rest];
 		if (responses.some((r) => r === null)) return null;
 
-		const warnings: string[] = [];
-		responses.forEach((r, i) => {
-			for (const w of r?.warnings ?? []) warnings.push(`system ${i + 1}: ${w}`);
-		});
+		// Reviewer-facing notes: warnings on ABSOLUTE bars plus bars where
+		// the transcription still disagrees with the detected noteheads.
+		const isRest = (pitch: string): boolean => pitch.trim().toLowerCase() === 'rest';
+		const { warnings, suspectBars } = importReviewNotes(
+			systems.map((sys, i) => ({
+				barCount: sys.geometry.barlines.length,
+				warnings: responses[i]?.warnings ?? [],
+				modelNoteCounts: (responses[i]?.bars ?? []).map(
+					(b) => b.melody.filter((note) => !isRest(note[2])).length
+				),
+				evidenceCounts: sys.evidence.map((e) => e.count)
+			}))
+		);
 
 		const doc = assembleClaudeDoc(
 			systems.map((sys, i) => ({
@@ -144,7 +167,11 @@
 		const converted = claudeJsonToLeadSheet(doc);
 		if (!converted.sheet) return null;
 		converted.sheet.id = generateSheetId();
-		return { sheet: converted.sheet, warnings: [...warnings, ...converted.warnings] };
+		return {
+			sheet: converted.sheet,
+			warnings: [...warnings, ...converted.warnings],
+			suspectBars
+		};
 	}
 
 	async function handleFile(event: Event): Promise<void> {
@@ -166,11 +193,14 @@
 
 			// Deterministic per-system pipeline first; whole-PDF extraction is
 			// the fallback for scans the geometry can't read.
-			let imported: { sheet: LeadSheet; warnings: string[] } | null = null;
+			let imported: { sheet: LeadSheet; warnings: string[]; suspectBars?: number[] } | null =
+				null;
 			try {
 				imported = await importViaSystems(buffer, file.name);
 			} catch (err) {
 				console.warn('[pdf-import] per-system pipeline failed, falling back:', err);
+			} finally {
+				progress = null;
 			}
 			if (!imported) {
 				const res = await fetch('/api/lead-sheet-parse', {
@@ -207,6 +237,7 @@
 			// the stored PDF stays linked) opens in the editor; nothing is
 			// saved until the user hits Update there.
 			loadFromLeadSheet(concert, getInstrument());
+			setImportReview({ warnings, suspectBars: imported.suspectBars ?? [] });
 			goto('/lead-sheets/entry');
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Upload failed.';
@@ -262,7 +293,23 @@
 			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
 		/>
 		{#if uploading}
-			<p class="text-sm text-[var(--color-text-secondary)]">Reading the chart — this can take a minute…</p>
+			<p class="text-sm text-[var(--color-text-secondary)]">
+				{#if progress?.phase === 'transcribing'}
+					Transcribing system {Math.min(progress.done + 1, progress.total)} of {progress.total}…
+				{:else if progress?.phase === 'reading'}
+					Reading pages — staves, barlines, chords, noteheads…
+				{:else}
+					Reading the chart — this can take a minute…
+				{/if}
+			</p>
+			{#if progress?.phase === 'transcribing'}
+				<div class="mt-2 h-1.5 w-full overflow-hidden rounded bg-[var(--color-bg-tertiary)]">
+					<div
+						class="h-full rounded bg-[var(--color-accent)] transition-all"
+						style="width: {Math.round((100 * progress.done) / Math.max(1, progress.total))}%"
+					></div>
+				</div>
+			{/if}
 		{/if}
 	{/if}
 

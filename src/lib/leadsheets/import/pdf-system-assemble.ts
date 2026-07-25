@@ -282,3 +282,63 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 		systems: docSystems
 	};
 }
+
+/** One system's inputs for the import review summary. */
+export interface SystemReviewInput {
+	/** Geometry bar count for this system. */
+	barCount: number;
+	/** Route warnings for this system ("bar N: ..." with system-local N). */
+	warnings: string[];
+	/** Final per-bar melody note counts (rests excluded). */
+	modelNoteCounts: number[];
+	/** Detected notehead counts per bar. */
+	evidenceCounts: number[];
+}
+
+/**
+ * The reviewer-facing summary of an import: warnings re-addressed to
+ * ABSOLUTE bar numbers (notation order across all systems), plus the list
+ * of suspect bars — bars with surviving rhythm issues or where the
+ * transcription still disagrees with the detected notehead count. This is
+ * what the entry editor highlights so mandatory review starts at the bars
+ * the pipeline knows are uncertain.
+ */
+export function importReviewNotes(systems: SystemReviewInput[]): {
+	warnings: string[];
+	suspectBars: number[];
+} {
+	const warnings: string[] = [];
+	const suspects = new Set<number>();
+	let offset = 0;
+	for (const sys of systems) {
+		for (const warning of sys.warnings) {
+			const m = /^bar (\d+):\s*(.*)$/.exec(warning);
+			if (m) {
+				const abs = offset + Number.parseInt(m[1], 10);
+				warnings.push(`bar ${abs}: ${m[2]}`);
+				suspects.add(abs);
+			} else {
+				warnings.push(warning);
+			}
+		}
+		for (let i = 0; i < sys.barCount; i++) {
+			const model = sys.modelNoteCounts[i];
+			const evidence = sys.evidenceCounts[i];
+			if (
+				typeof model === 'number' &&
+				typeof evidence === 'number' &&
+				model !== evidence
+			) {
+				const abs = offset + i + 1;
+				if (!suspects.has(abs)) {
+					warnings.push(
+						`bar ${abs}: the print shows ${evidence} notehead${evidence === 1 ? '' : 's'} but the transcription has ${model} note${model === 1 ? '' : 's'} — check this bar`
+					);
+					suspects.add(abs);
+				}
+			}
+		}
+		offset += sys.barCount;
+	}
+	return { warnings, suspectBars: [...suspects].sort((a, b) => a - b) };
+}

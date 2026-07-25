@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	assembleClaudeDoc,
 	systemBarBoundaries,
+	importReviewNotes,
 	type AssembleSystemInput,
 	type ModelBar
 } from '$lib/leadsheets/import/pdf-system-assemble';
@@ -436,5 +437,37 @@ describe('assembleClaudeDoc', () => {
 		expect(sheet).not.toBeNull();
 		expect(sheet?.title).toBe('Test Chart');
 		expect(sheet?.sections.reduce((n, s) => n + s.bars, 0)).toBe(4);
+	});
+});
+
+describe('importReviewNotes', () => {
+	it('maps per-system warnings to absolute bars and flags evidence mismatches', () => {
+		const result = importReviewNotes([
+			{
+				barCount: 4,
+				warnings: ['bar 2: sums to 4.5 beats in 4/4 time — the bar must fill exactly 4 beats'],
+				modelNoteCounts: [1, 3, 4, 1],
+				evidenceCounts: [1, 3, 4, 1]
+			},
+			{
+				barCount: 4,
+				warnings: [],
+				modelNoteCounts: [4, 4, 2, 1],
+				// bar 3 of this system (absolute bar 7): detector saw 4.
+				evidenceCounts: [4, 4, 4, 1]
+			}
+		]);
+		expect(result.suspectBars).toEqual([2, 7]);
+		expect(result.warnings[0]).toContain('bar 2:');
+		expect(result.warnings[1]).toContain('bar 7:');
+		expect(result.warnings[1]).toContain('4 notehead');
+	});
+
+	it('returns empty review for a clean import', () => {
+		expect(
+			importReviewNotes([
+				{ barCount: 2, warnings: [], modelNoteCounts: [1, 2], evidenceCounts: [1, 2] }
+			])
+		).toEqual({ warnings: [], suspectBars: [] });
 	});
 });

@@ -808,3 +808,9 @@ Newest at the top.
 - ATTYA: stacked-ring rule (two hollow hits at one x, ≥3 positions apart = meter digit counters, never notes) killed the 4/4 false positives. Two more candidate fixes measured NET NEGATIVE across charts (stem barline margin 0.8 il, claim radius 0.95 il) and were reverted — the probe-across-all-five discipline caught both. ATTYA rests at 24/41 counts with 100% position accuracy on its exact bars; its evidence is soft, so residual noise only costs re-asks.
 - TWNBAY fresh sample: pitch .79 / exact .62 — variance around the .70 floor, evidence 33/33 perfect; no merge defect found. Leave the floor at .7 pitch.
 - Detector state: 140/159 bars exact (88%), positions 100/100/100/96/100%. The next real melody lever is model-side (rhythm), not detector-side.
+
+## 2026-07-25 (cont.) — Track D: import progress + review panel in the editor
+
+- Import page now shows real progress ("Reading pages — staves, barlines, chords, noteheads…" → "Transcribing system N of M…" with a bar) instead of a multi-minute spinner. Verified live through the real UI flow (A Train, 6 systems).
+- Import review notes moved to where review actually happens: `importReviewNotes` (pure, tested) re-addresses route warnings to ABSOLUTE bar numbers and adds bars where the final transcription still disagrees with the detected notehead count; the import page hands them to the editor via `setImportReview` (entry state, cleared on any load), and the editor shows an amber "Review bars N, M…" panel with expandable details + dismiss. A clean import shows nothing — the live A Train run came through with zero warnings, correctly panel-free.
+- Verification lesson: /@fs and bare /src dynamic imports create a SECOND module instance in vite dev — external state seeding silently no-ops against the app's instance. Real-UI flows are the only trustworthy browser verification for runes state.

@@ -240,6 +240,37 @@
 		{/snippet}
 	</NotationDisplay>
 
+	{#if leadSheetEntry.importReview}
+		<!-- Import review: the bars the pipeline knows are uncertain -->
+		<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] p-3 text-sm">
+			<div class="flex items-start justify-between gap-2">
+				<p class="font-medium text-[var(--color-brass)]">
+					Review {leadSheetEntry.importReview.suspectBars.length > 0
+						? `bar${leadSheetEntry.importReview.suspectBars.length === 1 ? '' : 's'} ${leadSheetEntry.importReview.suspectBars.join(', ')}`
+						: 'the flagged items'} — the import wasn't certain there.
+				</p>
+				<button
+					type="button"
+					onclick={() => (leadSheetEntry.importReview = null)}
+					class="shrink-0 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]"
+				>
+					Dismiss
+				</button>
+			</div>
+			<details class="mt-1 text-xs text-[var(--color-text-secondary)]">
+				<summary class="cursor-pointer">
+					{leadSheetEntry.importReview.warnings.length}
+					detail{leadSheetEntry.importReview.warnings.length === 1 ? '' : 's'}
+				</summary>
+				<ul class="mt-1 list-disc space-y-0.5 pl-4">
+					{#each leadSheetEntry.importReview.warnings as warning (warning)}
+						<li>{warning}</li>
+					{/each}
+				</ul>
+			</details>
+		</div>
+	{/if}
+
 	<!-- Status bar -->
 	<div class="flex items-center justify-between rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
 		<span>

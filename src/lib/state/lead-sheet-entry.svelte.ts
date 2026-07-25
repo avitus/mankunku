@@ -82,7 +82,14 @@ export const leadSheetEntry = $state({
 	 * it, a PDF draft's pre-assigned editingId (arriving with no ?edit=
 	 * param) looks exactly like stale state and gets wiped.
 	 */
-	reviewHandoff: false
+	reviewHandoff: false,
+	/**
+	 * Import review notes (warnings + suspect bar numbers, absolute
+	 * notation order) surfaced by the PDF import so mandatory review
+	 * starts at the bars the pipeline knows are uncertain. Not persisted;
+	 * cleared on any fresh load.
+	 */
+	importReview: null as { warnings: string[]; suspectBars: number[] } | null
 });
 
 function makeSection(label: string, bars = 8): LeadSheetSection {
@@ -231,6 +238,7 @@ export function initNewLeadSheet(): void {
 	leadSheetEntry.editingPdfUrl = null;
 	leadSheetEntry.reviewHandoff = false;
 	loadBuffer(0, 0);
+	leadSheetEntry.importReview = null;
 }
 
 export const resetLeadSheetEntry = initNewLeadSheet;
@@ -255,7 +263,15 @@ export function loadFromLeadSheet(sheet: LeadSheet, instrument: InstrumentConfig
 	leadSheetEntry.editingSource = sheet.source;
 	leadSheetEntry.editingPdfUrl = sheet.pdfUrl ?? null;
 	leadSheetEntry.reviewHandoff = true;
+	leadSheetEntry.importReview = null;
 	loadBuffer(0, 0);
+}
+
+/** Attach import review notes AFTER a load (loads always clear them). */
+export function setImportReview(
+	review: { warnings: string[]; suspectBars: number[] } | null
+): void {
+	leadSheetEntry.importReview = review && review.warnings.length > 0 ? review : null;
 }
 
 /**
