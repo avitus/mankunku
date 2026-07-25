@@ -261,8 +261,8 @@ describe('analyzePageGeometry — repeat dots', () => {
 			hline: (y: number, x0: number, x1: number) => {
 				for (let x = x0; x <= x1; x++) set(x, y);
 			},
-			vline: (x: number, y0: number, y1: number) => {
-				for (let y = y0; y <= y1; y++) set(x, y);
+			vline: (x: number, y0: number, y1: number, w = 1) => {
+				for (let dx = 0; dx < w; dx++) for (let y = y0; y <= y1; y++) set(x + dx, y);
 			},
 			blob: (cx: number, cy: number, r: number) => {
 				for (let y = cy - r; y <= cy + r; y++)
@@ -309,7 +309,7 @@ describe('analyzePageGeometry', () => {
 	function makePage(width: number, height: number): {
 		page: { data: Uint8ClampedArray; width: number; height: number };
 		hline: (y: number, x0: number, x1: number) => void;
-		vline: (x: number, y0: number, y1: number) => void;
+		vline: (x: number, y0: number, y1: number, w?: number) => void;
 	} {
 		const data = new Uint8ClampedArray(width * height * 4).fill(255);
 		const set = (x: number, y: number): void => {
@@ -323,8 +323,8 @@ describe('analyzePageGeometry', () => {
 			hline: (y, x0, x1) => {
 				for (let x = x0; x <= x1; x++) set(x, y);
 			},
-			vline: (x, y0, y1) => {
-				for (let y = y0; y <= y1; y++) set(x, y);
+			vline: (x, y0, y1, w = 1) => {
+				for (let dx = 0; dx < w; dx++) for (let y = y0; y <= y1; y++) set(x + dx, y);
 			}
 		};
 	}
@@ -343,6 +343,22 @@ describe('analyzePageGeometry', () => {
 		expect(sys.barlines).toEqual([400, 660]);
 		expect(sys.firstBarLeft).toBeGreaterThanOrEqual(153);
 		expect(sys.firstBarLeft).toBeLessThanOrEqual(158);
+	});
+
+	it('chains the header across narrow key-signature strokes to the meter', () => {
+		// Sharps are 2-3px dense runs — too narrow to be blocks, but they
+		// must keep the header chain alive between clef and meter.
+		const { page, hline, vline } = makePage(700, 300);
+		for (const y of [80, 100, 120, 140, 160]) hline(y, 40, 660);
+		for (const x of [400, 660]) vline(x, 80, 160);
+		for (let x = 45; x <= 95; x++) vline(x, 75, 165); // clef block
+		vline(140, 78, 140, 2); // three thin key-sig strokes
+		vline(160, 80, 145, 2);
+		vline(180, 78, 140, 2);
+		for (let x = 205; x <= 255; x++) vline(x, 78, 162); // meter block
+		const [sys] = analyzePageGeometry(page);
+		expect(sys.firstBarLeft).toBeGreaterThanOrEqual(253);
+		expect(sys.firstBarLeft).toBeLessThanOrEqual(258);
 	});
 
 	it('finds a staff and its barlines from raw pixels', () => {

@@ -513,10 +513,14 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 		for (let x = staffLeft; x < limit; x++) {
 			if (cols[x].offLine >= 1.5 * il) {
 				if (blockStart < 0) {
-					// The clef indents up to ~3 il from the staff edge; after
-					// the first block, gaps over 1.2 il end the header.
-					const grace = sawBlock ? 1.2 * il : 3 * il;
-					if (x - Math.max(firstBarLeft, staffLeft) > grace) break;
+					// The clef indents up to ~3 il from the staff edge, and the
+					// clef-body → key-signature gap runs near 3 il too. Gaps
+					// measure from the last DENSE column: key-signature
+					// strokes are too narrow to record as blocks, but they
+					// keep the chain alive on the way to the meter.
+					const grace = sawBlock ? 2.8 * il : 3 * il;
+					const anchor = lastDark >= 0 ? lastDark : Math.max(firstBarLeft, staffLeft);
+					if (x - anchor > grace) break;
 					blockStart = x;
 				}
 				lastDark = x;

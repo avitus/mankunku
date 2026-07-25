@@ -22,6 +22,12 @@ export interface NoteEvent {
 	/** Notehead center x. */
 	x: number;
 	/**
+	 * Bar-binning anchor: the stem x for stemmed notes (a stem always sits
+	 * inside its own bar; the head estimate can shift a full head-width on
+	 * a side misread), the head x for hollow notes.
+	 */
+	anchorX: number;
+	/**
 	 * Staff position in half-steps above the bottom line: 0 = bottom line,
 	 * 1 = the space above it, 8 = top line; negative/9+ are ledger
 	 * territory.
@@ -118,7 +124,10 @@ export function detectNoteEvents(
 	const stems: Stem[] = [];
 	let clusterStart = -1;
 	let prevRun: { y0: number; y1: number } | null = null;
-	for (let x = Math.max(0, Math.round(x0)); x <= Math.round(x1) + 1; x++) {
+	// Margin past the header end: the chain can stop a hair short of the
+	// meter/clef tail, whose strokes otherwise read as stems. Real first
+	// notes put their stems ≥2 il into the bar.
+	for (let x = Math.max(0, Math.round(x0 + 1.0 * il)); x <= Math.round(x1) + 1; x++) {
 		const run = x <= x1 ? runOf(x) : null;
 		if (run && clusterStart < 0) clusterStart = x;
 		if (!run && clusterStart >= 0) {
@@ -158,16 +167,22 @@ export function detectNoteEvents(
 		// Two legal attachments: up-stem head bottom-LEFT, down-stem head
 		// top-RIGHT. Pick the heavier; beams masquerade as top mass but
 		// CONTINUE beyond the head window — penalize continuation.
+		// The head STRADDLES the stem tip (the stem's dark run can end at the
+		// head's top edge), so the window reaches past the run end.
+		const loA = stem.y1 - 0.6 * il;
+		const loB = stem.y1 + 0.7 * il;
+		const hiA = stem.y0 - 0.7 * il;
+		const hiB = stem.y0 + 0.6 * il;
 		const candidates = [
 			{
 				side: -1,
-				window: massIn(dark, stem.x - headW, stem.x - 2, stem.y1 - headH, stem.y1),
-				beyond: massIn(dark, stem.x - 2 * headW, stem.x - headW - 1, stem.y1 - headH, stem.y1)
+				window: massIn(dark, stem.x - headW, stem.x - 2, loA, loB),
+				beyond: massIn(dark, stem.x - 2 * headW, stem.x - headW - 1, loA, loB)
 			},
 			{
 				side: 1,
-				window: massIn(dark, stem.x + 2, stem.x + headW, stem.y0, stem.y0 + headH),
-				beyond: massIn(dark, stem.x + headW + 1, stem.x + 2 * headW, stem.y0, stem.y0 + headH)
+				window: massIn(dark, stem.x + 2, stem.x + headW, hiA, hiB),
+				beyond: massIn(dark, stem.x + headW + 1, stem.x + 2 * headW, hiA, hiB)
 			}
 		].map((c) => ({
 			...c,
@@ -186,6 +201,7 @@ export function detectNoteEvents(
 		const headX = winner.side === -1 ? stem.x - headW / 2 : stem.x + headW / 2;
 		events.push({
 			x: Math.round(headX),
+			anchorX: stem.x,
 			position: positionOf(winner.window.cy, band),
 			kind: 'stemmed'
 		});
@@ -209,10 +225,13 @@ export function detectNoteEvents(
 		}
 		return mass;
 	};
+	// The header chain can stop inside an ornate clef; give the hollow scan
+	// a margin past it (a real whole note starts ≥1.5 il into its bar).
+	const hollowX0 = Math.round(x0 + 1.0 * il);
 	for (let pos = -2; pos <= 10; pos++) {
 		const cy = band.bottom - (pos * il) / 2;
 		if (cy < scanTop || cy > scanBottom) continue;
-		for (let x = Math.round(x0); x <= Math.round(x1); x++) {
+		for (let x = hollowX0; x <= Math.round(x1); x++) {
 			const top = massIn(dark, x - 0.5 * il, x + 0.5 * il, cy - 0.55 * il, cy - 0.2 * il);
 			const bottom = massIn(dark, x - 0.5 * il, x + 0.5 * il, cy + 0.2 * il, cy + 0.55 * il);
 			if (top.mass < 0.18 * il * il || bottom.mass < 0.18 * il * il) continue;
@@ -243,7 +262,7 @@ export function detectNoteEvents(
 			if (system.barlines.some((b) => Math.abs(x - b) <= 1.0 * il)) continue;
 			const near = stems.some((s) => Math.abs(s.x - x) < 1.2 * il);
 			if (near) continue;
-			events.push({ x, position: pos, kind: 'hollow' });
+			events.push({ x, anchorX: x, position: pos, kind: 'hollow' });
 		}
 	}
 
@@ -281,7 +300,7 @@ export function detectNoteEvents(
 export function eventsByBar(events: NoteEvent[], system: SystemGeometry): NoteEvent[][] {
 	const bars: NoteEvent[][] = system.barlines.map(() => []);
 	for (const e of events) {
-		let bar = system.barlines.findIndex((b) => e.x < b);
+		let bar = system.barlines.findIndex((b) => e.anchorX < b);
 		if (bar < 0) bar = system.barlines.length - 1;
 		bars[bar].push(e);
 	}

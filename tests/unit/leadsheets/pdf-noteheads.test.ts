@@ -150,10 +150,10 @@ describe('eventsByBar', () => {
 		const sys = system([200, 500, 760]);
 		const bars = eventsByBar(
 			[
-				{ x: 150, position: 4, kind: 'stemmed' },
-				{ x: 300, position: 2, kind: 'stemmed' },
-				{ x: 450, position: 6, kind: 'hollow' },
-				{ x: 700, position: 0, kind: 'stemmed' }
+				{ x: 150, anchorX: 162, position: 4, kind: 'stemmed' },
+				{ x: 300, anchorX: 312, position: 2, kind: 'stemmed' },
+				{ x: 450, anchorX: 450, position: 6, kind: 'hollow' },
+				{ x: 700, anchorX: 712, position: 0, kind: 'stemmed' }
 			],
 			sys
 		);
