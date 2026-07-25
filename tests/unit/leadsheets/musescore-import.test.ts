@@ -130,6 +130,37 @@ describe('parseMscx — basics', () => {
 		expect(seg.chord.bass).toBe('E');
 	});
 
+	it("normalizes MuseScore's chord shorthand: t → Δ (triangle), 0 → ø (half-dim)", () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${HARMONY(11, 't7')}
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${HARMONY(16, '07')}
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${HARMONY(16, 't9')}
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual([]);
+		const harmony = sheets[0].sections[0].harmony;
+		// ø canonicalizes to the app's compact minor-family spelling.
+		expect(harmony.map((h) => h.symbol)).toEqual(['EbΔ7', 'D-7b5', 'DΔ9']);
+	});
+
 	it('captures the source spelling from tpc (sharp side, flat side, natural)', () => {
 		const { sheets } = parseMscx(mscx({
 			staves: `

@@ -835,3 +835,8 @@ Newest at the top.
 ## 2026-07-25 (cont. 5) — Leadsheets folder reorganized (user)
 
 - `leadsheet PDFs/` → `Leadsheets/PDF/` (10 charts) + `Leadsheets/Musescore/` (9 .mscz sources). Five NEW charts beyond the comparison suite: All of Me, Body and Soul, Do Nothing Till You Hear From Me (Bb), Lady Bird, On Green Dolphin Street — a ready-made expansion set for the pdf-vs-musescore suite (mscz → reference fixtures via the import flow; PDFs → live per-system recordings). Path references updated in pdf-geometry.ts, the comparison suite header, and all scratchpad probes.
+
+## 2026-07-25 (cont. 6) — MuseScore chord shorthand: t → Δ, 0 → ø
+
+- Body and Soul's "unrecognized chord" warnings decoded: MuseScore stores the TYPED chord text in <name>, and its jazz shorthand types "t7" for Δ7 and "07" for ø7 — the renderer substitutes the glyphs, the file keeps the shorthand. harmonyText now normalizes leading t → Δ and leading 0 → ø (parser already accepted both targets; ø canonicalizes to the app's -7b5 spelling).
+- The remaining "chord symbol without a root" warning on that chart is a genuinely EMPTY harmony element in the score (no root, no name) — correctly skipped; deletable at the source in MuseScore.

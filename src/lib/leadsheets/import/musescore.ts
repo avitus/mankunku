@@ -503,8 +503,13 @@ function harmonyText(
 		PITCH_CLASSES[(tpcToPitchClass(tpc) + (transpose % 12) + 12) % 12];
 	const root = toConcert(Number(rootTpc));
 	// MuseScore writes alterations in optional parentheses — "7(b9)" — which
-	// our chord parser doesn't accept.
-	const name = (plainText(body, 'name') ?? '').replace(/[()]/g, '');
+	// our chord parser doesn't accept, and stores the TYPED chord shorthand:
+	// a leading "t" is the triangle (t7 renders as Δ7) and a leading "0" is
+	// half-diminished (07 renders as ø7).
+	const name = (plainText(body, 'name') ?? '')
+		.replace(/[()]/g, '')
+		.replace(/^t/, 'Δ')
+		.replace(/^0/, 'ø');
 	const bassTpc = xmlText(body, 'bass');
 	const bass = bassTpc !== null ? `/${toConcert(Number(bassTpc))}` : '';
 	return `${root}${name}${bass}`;
