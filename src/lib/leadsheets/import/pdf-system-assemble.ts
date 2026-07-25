@@ -14,6 +14,7 @@
  */
 import type { SystemGeometry } from './pdf-geometry';
 import type { SystemTexts } from './pdf-text-chords';
+import { eventsByBar, type NoteEvent } from './pdf-noteheads';
 
 /** One bar as returned by the parse route's system mode. */
 export interface ModelBar {
@@ -28,6 +29,8 @@ export interface AssembleSystemInput {
 	geometry: SystemGeometry;
 	texts: SystemTexts;
 	model: { fifths: number | null; bars: ModelBar[] };
+	/** Detected note events — chord beats anchor to the nearest notehead. */
+	noteEvents?: NoteEvent[];
 }
 
 export interface AssembleMeta {
@@ -99,7 +102,7 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 		// later (interpolation noise cannot distinguish 2.4 from 2.6, but
 		// no jazz chart splits a bar 1/2.5).
 		const contentPad = 0.75 * sys.geometry.interline;
-		const rawByBar = new Map<number, Array<{ raw: number; text: string }>>();
+		const rawByBar = new Map<number, Array<{ raw: number; x: number; text: string }>>();
 		for (const chord of sys.texts.chords) {
 			if (boundaries.length < 2) continue;
 			if (chord.x > boundaries[boundaries.length - 1]) continue;
@@ -115,13 +118,40 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 			const width = boundaries[barIdx + 1] - start;
 			const raw = width > 0 ? Math.max(0, ((chord.x - start) / width) * tsNum) : 0;
 			const list = rawByBar.get(barIdx) ?? [];
-			list.push({ raw, text: chord.text });
+			list.push({ raw, x: chord.x, text: chord.text });
 			rawByBar.set(barIdx, list);
 		}
+		// Chord beats anchor to the nearest detected notehead when the
+		// detector and the model agree on the bar's note count — a chord is
+		// printed at the x of the note ON its beat, which resolves the
+		// beat-3-vs-4 cases interpolation cannot. Otherwise the
+		// interpolation + musical-convention rules apply.
+		const eventsPerBar = sys.noteEvents ? eventsByBar(sys.noteEvents, sys.geometry) : null;
+		const anchorBeat = (barIdx: number, chordX: number): number | null => {
+			const barEvents = eventsPerBar?.[barIdx];
+			if (!barEvents || barEvents.length === 0) return null;
+			const modelNotes = (bars[barIdx]?.melody ?? [])
+				.filter((note) => note[2].trim().toLowerCase() !== 'rest')
+				.slice()
+				.sort((a, b) => a[0] - b[0]);
+			if (modelNotes.length !== barEvents.length) return null;
+			let best = -1;
+			let bestDist = 1.5 * sys.geometry.interline;
+			barEvents.forEach((ev, k) => {
+				const dist = Math.abs(ev.x - chordX);
+				if (dist < bestDist) {
+					bestDist = dist;
+					best = k;
+				}
+			});
+			return best >= 0 ? modelNotes[best][0] : null;
+		};
 		const chordsByBar = new Map<number, Array<[number, string]>>();
 		for (const [barIdx, list] of rawByBar) {
 			list.sort((a, b) => a.raw - b.raw);
-			const beats = list.map(({ raw }, k) => {
+			const beats = list.map(({ raw, x }, k) => {
+				const anchored = anchorBeat(barIdx, x);
+				if (anchored !== null && Number.isFinite(anchored)) return anchored;
 				if (k === 0 && (barIdx === 0 || raw < 0.8)) return 0;
 				if (tsNum === 4 && list.length === 2 && k === 1) return raw >= 3 ? 3 : 2;
 				return Math.min(Math.round(raw * 2) / 2, tsNum - 0.5);

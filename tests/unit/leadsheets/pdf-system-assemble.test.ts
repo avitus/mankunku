@@ -340,6 +340,78 @@ describe('assembleClaudeDoc', () => {
 		]);
 	});
 
+	it('anchors chord beats to the nearest detected notehead', () => {
+		// Bar 1 has four quarters; the second chord prints over the FOURTH
+		// note — interpolation reads beat 2.88 → the 1-and-3 rule would say
+		// 2, but the notehead anchor resolves it to the model's beat 3 (the
+		// Autumn bar-23 case).
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700, 1000]),
+				texts: {
+					chords: [
+						{ x: 430, text: 'F#-7' },
+						{ x: 620, text: 'B7' }
+					],
+					marks: [],
+					endings: [],
+					barNumber: null
+				},
+				model: {
+					fifths: 0,
+					bars: [
+						bar(),
+						bar([[0, 1, 'A4'], [1, 1, 'B4'], [2, 1, 'C5'], [3, 1, 'D5']]),
+						bar()
+					]
+				},
+				noteEvents: [
+					{ x: 435, anchorX: 447, position: 5, kind: 'stemmed' },
+					{ x: 500, anchorX: 512, position: 6, kind: 'stemmed' },
+					{ x: 565, anchorX: 577, position: 7, kind: 'stemmed' },
+					{ x: 635, anchorX: 647, position: 8, kind: 'stemmed' }
+				]
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ chords: Array<[number, string]> }> }>;
+		};
+		expect(doc.systems[0].bars[1].chords).toEqual([
+			[0, 'F#-7'],
+			[3, 'B7']
+		]);
+	});
+
+	it('falls back to interpolation when detector and model counts disagree', () => {
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700, 1000]),
+				texts: {
+					chords: [
+						{ x: 420, text: 'E-7' },
+						{ x: 585, text: 'A7' }
+					],
+					marks: [],
+					endings: [],
+					barNumber: null
+				},
+				model: { fifths: 0, bars: [bar(), bar([[0, 4, 'C4']]), bar()] },
+				noteEvents: [
+					{ x: 435, anchorX: 447, position: 5, kind: 'stemmed' },
+					{ x: 585, anchorX: 597, position: 6, kind: 'stemmed' }
+				]
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ chords: Array<[number, string]> }> }>;
+		};
+		// counts disagree (2 events vs 1 model note) → the 1-and-3 rule.
+		expect(doc.systems[0].bars[1].chords).toEqual([
+			[0, 'E-7'],
+			[2, 'A7']
+		]);
+	});
+
 	it('produces a doc the strict converter accepts end to end', () => {
 		const systems: AssembleSystemInput[] = [
 			{

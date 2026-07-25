@@ -150,6 +150,18 @@ describe('detectNoteEvents', () => {
 		expect(detectNoteEvents(page, system([200, 500, 760]))).toHaveLength(0);
 	});
 
+	it('drops stacked ring hits at one x (meter digits), keeping real whole notes', () => {
+		const { page, hollowHead } = makePage();
+		// Two ring-like blobs stacked at the same x — a 4/4 meter's digit
+		// counters — versus a lone real whole note elsewhere.
+		hollowHead(300, 90);
+		hollowHead(300, 150);
+		hollowHead(600, 110);
+		const events = detectNoteEvents(page, system([200, 500, 760]));
+		expect(events).toHaveLength(1);
+		expect(events[0].x).toBe(600);
+	});
+
 	it('does not read a barline as a note', () => {
 		const { page, vline } = makePage();
 		vline(500, 80, 160, 3);

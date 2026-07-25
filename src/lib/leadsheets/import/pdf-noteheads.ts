@@ -288,9 +288,11 @@ export function detectNoteEvents(
 			if (isoAbove && isoBelow) continue;
 			// Reject if a stem-like run adjoins (then it's a half note,
 			// already found via its stem). Double/final barlines mimic the
-			// ring (two thin verticals, white middle) — keep a full
-			// interline clear of any barline.
-			if (system.barlines.some((b) => Math.abs(x - b) <= 1.0 * il)) continue;
+			// ring (two thin verticals, white middle), and REPEAT DOT PAIRS
+			// read as a hollow at the middle line now that its center is
+			// line-exempt — keep 1.6 interlines clear of any barline (whole
+			// notes never hug one).
+			if (system.barlines.some((b) => Math.abs(x - b) <= 1.6 * il)) continue;
 			const near = stems.some((s) => Math.abs(s.x - x) < 1.2 * il);
 			if (near) continue;
 			events.push({ x, anchorX: x, position: pos, kind: 'hollow', w: top.mass + bottom.mass });
@@ -320,7 +322,21 @@ export function detectNoteEvents(
 		}
 		kept.push(e);
 	}
+	// Stacked ring hits at one x are meter digits (a 4/4's two counters),
+	// never notes — a whole note stands alone on its position.
+	const stacked = new Set<Weighted>();
+	for (const a of kept) {
+		if (a.kind !== 'hollow') continue;
+		for (const b of kept) {
+			if (b === a || b.kind !== 'hollow') continue;
+			if (Math.abs(a.x - b.x) <= 0.3 * il && Math.abs(a.position - b.position) >= 3) {
+				stacked.add(a);
+				stacked.add(b);
+			}
+		}
+	}
 	return kept
+		.filter((e) => !stacked.has(e))
 		.sort((a, b) => a.x - b.x)
 		.map(({ x, anchorX, position, kind }) => ({ x, anchorX, position, kind }));
 }

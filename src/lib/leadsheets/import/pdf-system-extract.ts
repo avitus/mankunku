@@ -13,7 +13,7 @@ import {
 	type SystemGeometry
 } from './pdf-geometry';
 import { extractSystemTexts, type PageTextItem, type SystemTexts } from './pdf-text-chords';
-import { detectNoteEvents, barEvidence, type BarEvidence } from './pdf-noteheads';
+import { detectNoteEvents, barEvidence, type BarEvidence, type NoteEvent } from './pdf-noteheads';
 
 export interface ExtractedSystem {
 	geometry: SystemGeometry;
@@ -21,6 +21,8 @@ export interface ExtractedSystem {
 	/** Per-bar notehead evidence (counts + letter names) for the route's
 	 * soft cross-check. */
 	evidence: BarEvidence[];
+	/** Raw detected note events — chord beats anchor to notehead x's. */
+	noteEvents: NoteEvent[];
 	/** PNG data URL crop of this system, for the parse route. */
 	image: string;
 }
@@ -129,10 +131,12 @@ export async function extractPdfSystems(buffer: ArrayBuffer): Promise<PdfSystemE
 			const cropCtx = crop.getContext('2d');
 			if (!cropCtx) return null;
 			cropCtx.drawImage(canvas, 0, y0, canvas.width, y1 - y0, 0, 0, canvas.width, y1 - y0);
+			const noteEvents = detectNoteEvents(img, pageSystems[i]);
 			systems.push({
 				geometry: pageSystems[i],
 				texts: texts[i],
-				evidence: barEvidence(detectNoteEvents(img, pageSystems[i]), pageSystems[i]),
+				evidence: barEvidence(noteEvents, pageSystems[i]),
+				noteEvents,
 				image: crop.toDataURL('image/png')
 			});
 		}

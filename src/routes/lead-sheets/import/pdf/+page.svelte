@@ -129,6 +129,7 @@
 			systems.map((sys, i) => ({
 				geometry: sys.geometry,
 				texts: sys.texts,
+				noteEvents: sys.noteEvents,
 				model: {
 					fifths: responses[i]?.keySignature?.fifths ?? null,
 					bars: responses[i]?.bars ?? []
