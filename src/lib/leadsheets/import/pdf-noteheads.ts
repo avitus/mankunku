@@ -58,20 +58,29 @@ function massIn(
 	x1: number,
 	y0: number,
 	y1: number
-): { mass: number; cy: number; cx: number } {
+): { mass: number; cy: number; cx: number; rowSpan: number } {
 	let mass = 0;
 	let sumY = 0;
 	let sumX = 0;
+	let minY = Number.POSITIVE_INFINITY;
+	let maxY = Number.NEGATIVE_INFINITY;
 	for (let y = Math.round(y0); y <= Math.round(y1); y++) {
 		for (let x = Math.round(x0); x <= Math.round(x1); x++) {
 			if (dark(x, y)) {
 				mass++;
 				sumY += y;
 				sumX += x;
+				if (y < minY) minY = y;
+				if (y > maxY) maxY = y;
 			}
 		}
 	}
-	return { mass, cy: mass ? sumY / mass : 0, cx: mass ? sumX / mass : 0 };
+	return {
+		mass,
+		cy: mass ? sumY / mass : 0,
+		cx: mass ? sumX / mass : 0,
+		rowSpan: mass ? maxY - minY + 1 : 0
+	};
 }
 
 const positionOf = (cy: number, band: Band): number =>
@@ -143,19 +152,36 @@ export function detectNoteEvents(
 		if (run) prevRun = run;
 	}
 
-	// A sharp/natural is a PAIR of thin strokes ~0.35 il apart — drop both.
+	// A sharp/natural is a PAIR of thin strokes ~0.35 il apart with SIMILAR
+	// length and vertical alignment. A note's down-stem can sit just as
+	// close to a preceding accidental's stroke, but it is much longer and
+	// differently centered — only true glyph pairs are dropped.
 	const paired = new Set<Stem>();
 	for (let i = 0; i < stems.length; i++) {
 		for (let j = i + 1; j < stems.length; j++) {
-			const gap = stems[j].x - stems[i].x;
-			if (gap > 0.2 * il && gap < 0.55 * il) {
-				paired.add(stems[i]);
-				paired.add(stems[j]);
-			}
+			const a = stems[i];
+			const b = stems[j];
+			const gap = b.x - a.x;
+			if (gap <= 0.2 * il || gap >= 0.55 * il) continue;
+			const lenA = a.y1 - a.y0;
+			const lenB = b.y1 - b.y0;
+			const centerA = (a.y0 + a.y1) / 2;
+			const centerB = (b.y0 + b.y1) / 2;
+			// Jazz-font accidentals offset their two strokes vertically by up
+			// to ~1 il; length similarity is the load-bearing test (a note
+			// stem outruns an accidental stroke by ≥1 il).
+			if (Math.abs(lenA - lenB) > 0.7 * il) continue;
+			if (Math.abs(centerA - centerB) > 1.4 * il) continue;
+			paired.add(a);
+			paired.add(b);
 		}
 	}
 
-	const events: NoteEvent[] = [];
+	interface Weighted extends NoteEvent {
+		/** Head-window ink mass — used to arbitrate competing claims. */
+		w: number;
+	}
+	const events: Weighted[] = [];
 	const headW = 1.3 * il;
 	const headH = 1.2 * il;
 	// A real notehead is a solid blob ≈ 0.7 il² of ink; lateral clutter
@@ -176,22 +202,22 @@ export function detectNoteEvents(
 		const candidates = [
 			{
 				side: -1,
-				window: massIn(dark, stem.x - headW, stem.x - 2, loA, loB),
-				beyond: massIn(dark, stem.x - 2 * headW, stem.x - headW - 1, loA, loB)
+				window: massIn(dark, stem.x - headW, stem.x - 2, loA, loB)
 			},
 			{
 				side: 1,
-				window: massIn(dark, stem.x + 2, stem.x + headW, hiA, hiB),
-				beyond: massIn(dark, stem.x + headW + 1, stem.x + 2 * headW, hiA, hiB)
+				window: massIn(dark, stem.x + 2, stem.x + headW, hiA, hiB)
 			}
 		].map((c) => ({
 			...c,
 			// A flag hugs the stem (centroid ~0.35 il out); a notehead's
 			// centroid sits ~0.65 il out. Weight the raw mass by lateral
-			// reach so heads out-rank flags; beams are zeroed when they
-			// continue past the window.
+			// reach so heads out-rank flags. A BEAM window is a THIN band
+			// (row-span ≤ ~0.7 il even when sloped); a real head spans a
+			// full interline — judge the window's own shape, so an
+			// accidental behind the head can never veto it.
 			score:
-				(c.beyond.mass >= 0.6 * c.window.mass ? 0 : c.window.mass) *
+				(c.window.rowSpan <= 0.7 * il ? 0 : c.window.mass) *
 				Math.min(1, Math.abs(c.window.cx - stem.x) / (0.5 * il))
 		}));
 		candidates.sort((a, b) => b.score - a.score);
@@ -199,11 +225,16 @@ export function detectNoteEvents(
 		if (winner.window.mass < minHeadMass || winner.score <= 0) continue;
 		if (Math.abs(winner.window.cx - stem.x) < 0.35 * il) continue;
 		const headX = winner.side === -1 ? stem.x - headW / 2 : stem.x + headW / 2;
+		// A key-signature flat is a single stroke (unpairable) that borrows
+		// clef ink as its "head" — any claimed head this close to the header
+		// end is header residue, never a note.
+		if (headX < x0 + 1.0 * il) continue;
 		events.push({
 			x: Math.round(headX),
 			anchorX: stem.x,
 			position: positionOf(winner.window.cy, band),
-			kind: 'stemmed'
+			kind: 'stemmed',
+			w: winner.window.mass
 		});
 	}
 
@@ -262,37 +293,36 @@ export function detectNoteEvents(
 			if (system.barlines.some((b) => Math.abs(x - b) <= 1.0 * il)) continue;
 			const near = stems.some((s) => Math.abs(s.x - x) < 1.2 * il);
 			if (near) continue;
-			events.push({ x, anchorX: x, position: pos, kind: 'hollow' });
+			events.push({ x, anchorX: x, position: pos, kind: 'hollow', w: top.mass + bottom.mass });
 		}
 	}
 
-	// Dedup: the hollow scan fires on several adjacent columns, and a half
-	// note is found by BOTH its stem and its ring — merge hollows into any
-	// neighbor. Two STEMMED events are always distinct (one stem each).
+	// Dedup by claimed head: one physical head yields one event. An
+	// accidental stroke that escaped pairing borrows the neighboring note's
+	// head (or its own fat crossbars) — the REAL head's claim carries far
+	// more ink, so the heavier claim wins. Hollow ring hits merge into any
+	// neighbor within ~a head-width (the ring scan fires on adjacent
+	// columns, and a half note is found by both its stem and its ring).
 	events.sort((a, b) => a.x - b.x);
-	const deduped: NoteEvent[] = [];
+	const kept: Weighted[] = [];
 	for (const e of events) {
-		if (e.kind === 'hollow') {
-			const near = deduped.some(
-				(d) => Math.abs(e.x - d.x) < 0.9 * il && Math.abs(e.position - d.position) <= 1
-			);
-			if (near) continue;
+		const radius = (d: Weighted): number =>
+			e.kind === 'hollow' || d.kind === 'hollow' ? 0.9 * il : 0.8 * il;
+		// Accidental strokes claim heads up to two positions off the real
+		// note's; genuine adjacent notes keep their stems (hence heads)
+		// well over a head-width apart.
+		const clash = kept.findIndex(
+			(d) => Math.abs(e.x - d.x) < radius(d) && Math.abs(e.position - d.position) <= 2
+		);
+		if (clash >= 0) {
+			if (e.w > kept[clash].w) kept[clash] = e;
+			continue;
 		}
-		deduped.push(e);
+		kept.push(e);
 	}
-	// A stem can also land after its hollow head in x order: fold stemmed
-	// duplicates of a hollow neighbor the other way around.
-	return deduped.filter(
-		(e, i) =>
-			e.kind === 'stemmed' ||
-			!deduped.some(
-				(d, j) =>
-					j !== i &&
-					d.kind === 'stemmed' &&
-					Math.abs(e.x - d.x) < 0.9 * il &&
-					Math.abs(e.position - d.position) <= 1
-			)
-	);
+	return kept
+		.sort((a, b) => a.x - b.x)
+		.map(({ x, anchorX, position, kind }) => ({ x, anchorX, position, kind }));
 }
 
 /** Group events into bars by the system's barlines (bar i ends at

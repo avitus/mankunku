@@ -97,6 +97,26 @@ describe('detectNoteEvents', () => {
 		expect(detectNoteEvents(page, system([200, 500, 760]))).toHaveLength(0);
 	});
 
+	it('keeps a down-stem note whose stem sits close to a preceding sharp', () => {
+		const { page, vline, head, set } = makePage();
+		// Sharp glyph strokes (short, aligned) at 330/338, then the note's
+		// down-stem at 346 — within pairing distance of the sharp's right
+		// stroke, but much longer: it must NOT be eaten as an accidental.
+		vline(330, 95, 145, 2);
+		vline(338, 93, 143, 2);
+		for (let x = 324; x <= 346; x++) {
+			set(x, 110);
+			set(x, 111);
+			set(x, 128);
+			set(x, 129);
+		}
+		head(360, 90); // head top-right of the down-stem
+		vline(346, 90, 160, 3);
+		const events = detectNoteEvents(page, system([200, 500, 760]));
+		expect(events).toHaveLength(1);
+		expect(events[0].position).toBe(7);
+	});
+
 	it('does not read chord text above the staff as whole notes', () => {
 		const { page, set } = makePage();
 		// A big "D"-like glyph 2.5 interlines above the top line: ring-ish
