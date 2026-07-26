@@ -56,7 +56,7 @@ Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back o
 
 **DTW scoring with latency correction.** Dynamic Time Warping in `alignment.ts` aligns expected vs detected note sequences. The scorer subtracts the median timing offset across matched pairs, absorbing constant human/detection latency.
 
-**Local-first.** All writes go to localStorage/IndexedDB first. Supabase sync is optional and runs in the background. The app works fully offline.
+**Local-first.** All writes go to localStorage/IndexedDB first. Supabase sync is optional and runs in the background. User data survives offline; page loads still need the network (no service worker — see tech-stack.md, "Installable web app").
 
 **Shared AudioContext.** Tone.js and smplr share one AudioContext (via `audio-context.ts`) so Transport scheduling and sample playback stay on the same timeline.
 

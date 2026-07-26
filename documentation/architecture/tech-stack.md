@@ -32,17 +32,23 @@
 | [Playwright](https://playwright.dev) | ^1.58 | End-to-end browser testing |
 | [@testing-library/svelte](https://testing-library.com/svelte) | ^5.3 | Component testing utilities |
 
-## PWA
+## Installable web app (no service worker)
 
-| Tool | Version | Role |
-|---|---|---|
-| [@vite-pwa/sveltekit](https://vite-pwa-org.netlify.app/frameworks/sveltekit.html) | ^1.1 | PWA integration with auto-update service worker |
+The @vite-pwa/sveltekit service-worker setup was **removed 2026-07-25**: its
+worker was never registered by SSR pages (the registration `<script>` is only
+injected into prerendered HTML, and this app SSRs everything), and the
+generated `sw.js` threw mid-evaluation (`createHandlerBoundToURL('/')` with
+`'/'` never precached), silently disabling its own runtime caching. What
+remains:
 
-The PWA is configured in `vite.config.ts` with:
-- `registerType: 'autoUpdate'` — service worker updates automatically
-- Workbox pre-caches JS, CSS, HTML, SVG, and WOFF2 files
-- SoundFont (`.sf2`) files use `CacheFirst` runtime caching (30-day expiry)
-- Standalone display mode with dark theme color (`#0f172a`)
+- `static/manifest.webmanifest` (linked from `app.html`) keeps the app
+  installable — standalone display, dark theme color (`#0f172a`), SVG icons.
+- `static/sw.js` is a **kill-switch worker**: devices that registered a worker
+  under older builds pick it up on their next update check; it deletes all
+  leftover caches, unregisters itself, and reloads its tabs. Keep it deployed.
+- Offline behavior: user *data* is local-first (localStorage/IndexedDB), but
+  page loads and code chunks need the network. Real offline support would need
+  a prerendered shell + an `injectManifest` worker, registered explicitly.
 
 ## Styling Approach
 
