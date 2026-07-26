@@ -170,7 +170,7 @@ describe('namespace — one-time legacy key upgrade', () => {
 		expect(local._store['mankunku:user-licks']).toBeUndefined();
 		// Upgrade stamps the schema marker and the active pointer, and clears the
 		// legacy marker so it can never re-run against stale state.
-		expect(local._store['mankunku:__schema']).toBe('2');
+		expect(local._store['mankunku:__schema']).toBe('3');
 		expect(JSON.parse(local._store['mankunku:__active']!)).toBe('user-A');
 		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
 	});

@@ -74,7 +74,7 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 	await expect(page.getByRole('heading', { name: 'Test Session Tune v2' })).toBeVisible();
 
 	// The stored sheet kept its id and got the new title.
-	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-leadsheets'));
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
 	const sheets = JSON.parse(stored ?? '[]') as Array<{ id: string; title: string }>;
 	expect(sheets).toHaveLength(1);
 	expect(sheets[0].id).toBe('e2e-user-sheet-1');

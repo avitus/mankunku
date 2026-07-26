@@ -43,7 +43,7 @@ const DELIBERATE_OVERRIDES = {
 			'public_lick_authors call sites in persistence/community.ts for a value ' +
 			'that is structurally never null.'
 	},
-	'public_lead_sheet_authors.id': {
+	'public_tune_authors.id': {
 		committed: 'string',
 		generated: 'string | null',
 		reason:

@@ -20,7 +20,7 @@ import { getAdoptedTunesLocal } from './tune-community';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
 
-const STORAGE_KEY = 'user-leadsheets';
+const STORAGE_KEY = 'user-tunes';
 
 /**
  * Map of `sheetId → user_id` recording who owns each entry in the
@@ -30,14 +30,14 @@ const STORAGE_KEY = 'user-leadsheets';
  * unfiltered-cloud-read contamination). Unstamped legacy/anon entries are
  * preserved — no grounds to call them contamination.
  */
-const OWNERS_KEY = 'user-leadsheets-owners';
+const OWNERS_KEY = 'user-tunes-owners';
 
 /**
  * Parallel map `sheetId → { mtime, deletedAt }` giving each sheet a
  * client-owned edit clock and a soft-delete tombstone, kept out of the
  * shared `Tune` shape.
  */
-const SHEET_META_KEY = 'user-leadsheets-meta';
+const SHEET_META_KEY = 'user-tunes-meta';
 
 interface SheetSyncMeta {
 	mtime: number;
@@ -121,7 +121,7 @@ export async function getUserTunes(
 	return getUserTunesLocal();
 }
 
-type TuneRow = Database['public']['Tables']['lead_sheets']['Row'];
+type TuneRow = Database['public']['Tables']['tunes']['Row'];
 
 /** Map a cloud row to a Tune. */
 export function cloudRowToTune(row: TuneRow): Tune {
@@ -146,7 +146,7 @@ function tuneToRow(
 	userId: string,
 	sheet: Tune,
 	mtime: number
-): Database['public']['Tables']['lead_sheets']['Insert'] {
+): Database['public']['Tables']['tunes']['Insert'] {
 	return {
 		id: sheet.id,
 		user_id: userId,
@@ -190,7 +190,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 	// Pull ALL rows for this user, INCLUDING tombstones (the owner reads its
 	// own tombstoned rows per the SELECT policy), so deletes made on other
 	// devices propagate here.
-	const { data, error } = await supabase.from('lead_sheets').select('*').eq('user_id', userId);
+	const { data, error } = await supabase.from('tunes').select('*').eq('user_id', userId);
 	if (error) throw new Error(`fetch lead sheets failed: ${error.message}`);
 	if (gen !== getScopeGeneration()) return false;
 
@@ -210,7 +210,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 	let ownersDirty = false;
 
 	const mergedLive = new Map<string, Tune>();
-	const liveRows: Database['public']['Tables']['lead_sheets']['Insert'][] = [];
+	const liveRows: Database['public']['Tables']['tunes']['Insert'][] = [];
 	const tombstones: { id: string; deletedAt: number }[] = [];
 
 	const setMeta = (id: string, m: SheetSyncMeta) => {
@@ -304,14 +304,14 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 	if (ownersDirty) save(OWNERS_KEY, owners);
 
 	if (liveRows.length > 0) {
-		const { error: upErr } = await supabase.from('lead_sheets').upsert(liveRows, { onConflict: 'id' });
+		const { error: upErr } = await supabase.from('tunes').upsert(liveRows, { onConflict: 'id' });
 		if (upErr) throw new Error(`push lead sheets failed: ${upErr.message}`);
 	}
 	for (const t of tombstones) {
 		// UPDATE (not upsert) so a tombstone for a sheet that never reached the
 		// cloud is a harmless 0-row no-op instead of a NOT NULL insert failure.
 		const { error: tErr } = await supabase
-			.from('lead_sheets')
+			.from('tunes')
 			.update({ deleted_at: new Date(t.deletedAt).toISOString(), client_mtime: t.deletedAt })
 			.eq('id', t.id)
 			.eq('user_id', userId);
@@ -373,7 +373,7 @@ export function saveUserTune(sheet: Tune): Tune {
 
 	// Enqueue whenever authenticated — NOT gated on a client being wired up
 	// yet; the outbox drains once its client registers.
-	if (getLastUserId()) enqueue('leadSheets');
+	if (getLastUserId()) enqueue('tunes');
 	return toSave;
 }
 
@@ -397,5 +397,5 @@ export function deleteUserTune(id: string): void {
 	removeOwner(id);
 	stampSheetDeleted(id);
 
-	if (getLastUserId()) enqueue('leadSheets');
+	if (getLastUserId()) enqueue('tunes');
 }

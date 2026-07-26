@@ -24,19 +24,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 
 /** localStorage key holding favorited lead-sheet ids. */
-const FAVORITES_KEY = 'leadsheet-favorites';
+const FAVORITES_KEY = 'tune-favorites';
 
 /** localStorage key holding the ids of adopted community lead sheets. */
-const ADOPTIONS_KEY = 'leadsheet-adoptions';
+const ADOPTIONS_KEY = 'tune-adoptions';
 
 /**
  * localStorage key holding the Tune payloads for adopted community
  * sheets, so the library renders them offline.
  */
-const ADOPTED_PAYLOADS_KEY = 'leadsheet-adopted-payloads';
+const ADOPTED_PAYLOADS_KEY = 'tune-adopted-payloads';
 
 /** localStorage key holding author attribution per adopted sheet id. */
-const ADOPTED_AUTHORS_KEY = 'leadsheet-adopted-authors';
+const ADOPTED_AUTHORS_KEY = 'tune-adopted-authors';
 
 export interface AdoptedTuneAuthor {
 	authorId: string;
@@ -113,9 +113,9 @@ function stripForeignAssets(sheet: Tune): Tune {
 // ─── Listing ────────────────────────────────────────────────────────────
 
 /**
- * Live paginated community listing. Two round trips: (1) lead_sheets
+ * Live paginated community listing. Two round trips: (1) tunes
  * filtered/sorted server-side, (2) author display names from
- * `public_lead_sheet_authors`. Author-name filtering is client-side after
+ * `public_tune_authors`. Author-name filtering is client-side after
  * the author fetch, so it is approximate w.r.t. pagination. Errors return
  * `[]` — listing never throws.
  */
@@ -124,7 +124,7 @@ export async function listCommunityTunes(
 	filters: TuneCommunityFilters = {},
 	offset = 0
 ): Promise<CommunityTune[]> {
-	let query = supabase.from('lead_sheets').select('*').is('deleted_at', null);
+	let query = supabase.from('tunes').select('*').is('deleted_at', null);
 
 	if (filters.excludeUserId) {
 		query = query.neq('user_id', filters.excludeUserId);
@@ -163,7 +163,7 @@ export async function listCommunityTunes(
 
 	const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
 	const { data: authors, error: authorError } = await supabase
-		.from('public_lead_sheet_authors')
+		.from('public_tune_authors')
 		.select('id, display_name, avatar_url')
 		.in('id', userIds);
 	if (authorError) {
@@ -227,10 +227,10 @@ export async function toggleTuneFavorite(
 
 	if (wasFavorited) {
 		const { error } = await supabase
-			.from('lead_sheet_favorites')
+			.from('tune_favorites')
 			.delete()
 			.eq('user_id', user.id)
-			.eq('sheet_id', sheetId);
+			.eq('tune_id', sheetId);
 		if (error) {
 			console.warn('Failed to unfavorite lead sheet:', error);
 			favorites.add(sheetId);
@@ -241,8 +241,8 @@ export async function toggleTuneFavorite(
 	}
 
 	const { error } = await supabase
-		.from('lead_sheet_favorites')
-		.insert({ user_id: user.id, sheet_id: sheetId });
+		.from('tune_favorites')
+		.insert({ user_id: user.id, tune_id: sheetId });
 	if (error) {
 		console.warn('Failed to favorite lead sheet:', error);
 		favorites.delete(sheetId);
@@ -281,21 +281,21 @@ export async function adoptTune(
 	}
 
 	const { error: insertError } = await supabase
-		.from('lead_sheet_adoptions')
-		.insert({ user_id: user.id, sheet_id: sheetId });
+		.from('tune_adoptions')
+		.insert({ user_id: user.id, tune_id: sheetId });
 	if (insertError && (insertError as { code?: string }).code !== '23505') {
 		console.warn('Failed to adopt lead sheet:', insertError);
 		return false;
 	}
 
 	const { data: row, error: fetchError } = await supabase
-		.from('lead_sheets')
+		.from('tunes')
 		.select('*')
 		.eq('id', sheetId)
 		.single();
 	if (fetchError || !row) {
 		// The adoption row is in place; next startup hydration picks the payload up.
-		console.warn('Adopted lead sheet but failed to fetch payload:', fetchError);
+		console.warn('Adopted tune but failed to fetch payload:', fetchError);
 	} else {
 		const sheet = stripForeignAssets(cloudRowToTune(row));
 		const validation = validateAdoptedTune(sheet);
@@ -309,7 +309,7 @@ export async function adoptTune(
 			}
 
 			const { data: author } = await supabase
-				.from('public_lead_sheet_authors')
+				.from('public_tune_authors')
 				.select('id, display_name, avatar_url')
 				.eq('id', row.user_id)
 				.single();
@@ -345,10 +345,10 @@ export async function returnTune(
 	if (!user) return false;
 
 	const { error } = await supabase
-		.from('lead_sheet_adoptions')
+		.from('tune_adoptions')
 		.delete()
 		.eq('user_id', user.id)
-		.eq('sheet_id', sheetId);
+		.eq('tune_id', sheetId);
 	if (error) {
 		console.warn('Failed to return lead sheet:', error);
 		return false;
@@ -390,25 +390,25 @@ export async function initTuneCommunityFromCloud(
 
 		// 1. Favorites — best-effort.
 		const { data: favRows, error: favError } = await supabase
-			.from('lead_sheet_favorites')
-			.select('sheet_id')
+			.from('tune_favorites')
+			.select('tune_id')
 			.eq('user_id', user.id);
 		if (favError) {
 			console.warn('Failed to hydrate lead sheet favorites:', favError);
 		} else if (gen === getScopeGeneration()) {
-			saveFavoritesLocal(new Set((favRows ?? []).map((r) => r.sheet_id)));
+			saveFavoritesLocal(new Set((favRows ?? []).map((r) => r.tune_id)));
 		}
 
 		// 2. Adoptions — authoritative for the report.
 		const { data: adoptionRows, error: adoptionError } = await supabase
-			.from('lead_sheet_adoptions')
-			.select('sheet_id')
+			.from('tune_adoptions')
+			.select('tune_id')
 			.eq('user_id', user.id);
 		if (adoptionError) {
 			console.warn('Failed to hydrate lead sheet adoptions:', adoptionError);
 			return false;
 		}
-		const adoptedIds = (adoptionRows ?? []).map((r) => r.sheet_id);
+		const adoptedIds = (adoptionRows ?? []).map((r) => r.tune_id);
 		if (gen !== getScopeGeneration()) return false;
 		saveAdoptionsLocal(new Set(adoptedIds));
 
@@ -421,7 +421,7 @@ export async function initTuneCommunityFromCloud(
 
 		// 3. Payloads.
 		const { data: sheetRows, error: sheetError } = await supabase
-			.from('lead_sheets')
+			.from('tunes')
 			.select('*')
 			.in('id', adoptedIds);
 		if (sheetError) {
@@ -464,7 +464,7 @@ export async function initTuneCommunityFromCloud(
 		}
 		const authorIds = Array.from(new Set(validatedRows.map((r) => r.user_id)));
 		const { data: authorRows, error: authorError } = await supabase
-			.from('public_lead_sheet_authors')
+			.from('public_tune_authors')
 			.select('id, display_name, avatar_url')
 			.in('id', authorIds);
 		if (authorError) {

@@ -79,20 +79,20 @@ interface SheetMeta {
 }
 
 function seedLive(sheets: Tune[]): void {
-	localStorageMock.setItem(nsFull('user-leadsheets'), JSON.stringify(sheets));
+	localStorageMock.setItem(nsFull('user-tunes'), JSON.stringify(sheets));
 }
 function seedMeta(meta: Record<string, SheetMeta>): void {
-	localStorageMock.setItem(nsFull('user-leadsheets-meta'), JSON.stringify(meta));
+	localStorageMock.setItem(nsFull('user-tunes-meta'), JSON.stringify(meta));
 }
 function seedOwners(owners: Record<string, string>): void {
-	localStorageMock.setItem(nsFull('user-leadsheets-owners'), JSON.stringify(owners));
+	localStorageMock.setItem(nsFull('user-tunes-owners'), JSON.stringify(owners));
 }
 function readMeta(): Record<string, SheetMeta> {
-	const raw = localStorageMock.getItem(nsFull('user-leadsheets-meta'));
+	const raw = localStorageMock.getItem(nsFull('user-tunes-meta'));
 	return raw ? JSON.parse(raw) : {};
 }
 
-/** A cloud `lead_sheets` row shaped like what `.select('*')` returns. */
+/** A cloud `tunes` row shaped like what `.select('*')` returns. */
 function makeCloudRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
 		id: 'X',

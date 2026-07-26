@@ -61,25 +61,25 @@ describe('getAllTunes', () => {
 	});
 
 	it('merges user lead sheets from local storage', () => {
-		save('user-leadsheets', [userSheet()]);
+		save('user-tunes', [userSheet()]);
 		const all = getAllTunes();
 		expect(all.some((s) => s.id === 'sheet-123-abcd')).toBe(true);
 	});
 
 	it('merges adopted community lead sheets', () => {
-		save('leadsheet-adopted-payloads', [userSheet({ id: 'sheet-999-zzzz', title: 'Adopted' })]);
+		save('tune-adopted-payloads', [userSheet({ id: 'sheet-999-zzzz', title: 'Adopted' })]);
 		const all = getAllTunes();
 		expect(all.some((s) => s.id === 'sheet-999-zzzz')).toBe(true);
 	});
 
 	it('dedups by id with the earlier source winning', () => {
 		const curatedId = ALL_CURATED_TUNES[0].id;
-		save('user-leadsheets', [
+		save('user-tunes', [
 			userSheet({ id: curatedId, title: 'Impostor' }),
 			userSheet(),
 			userSheet() // duplicate user id
 		]);
-		save('leadsheet-adopted-payloads', [userSheet({ id: 'sheet-123-abcd', title: 'Also Impostor' })]);
+		save('tune-adopted-payloads', [userSheet({ id: 'sheet-123-abcd', title: 'Also Impostor' })]);
 
 		const all = getAllTunes();
 		expect(all.filter((s) => s.id === curatedId)).toHaveLength(1);
@@ -97,7 +97,7 @@ describe('getTuneById / isCuratedTuneId', () => {
 	});
 
 	it('finds user sheets by id and reports them as not curated', () => {
-		save('user-leadsheets', [userSheet()]);
+		save('user-tunes', [userSheet()]);
 		expect(getTuneById('sheet-123-abcd')?.title).toBe('My Tune');
 		expect(isCuratedTuneId('sheet-123-abcd')).toBe(false);
 	});

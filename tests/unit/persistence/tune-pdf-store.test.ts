@@ -4,7 +4,8 @@ import {
 	getTunePdf,
 	deleteTunePdf,
 	getTunePdfIds,
-	clearAllTunePdfs
+	clearAllTunePdfs,
+	__resetPdfMigrationCacheForTests
 } from '$lib/persistence/tune-pdf-store';
 
 function makePdfBlob(size = 256): Blob {
@@ -38,7 +39,73 @@ function makeSupabaseStorageMock(downloadBlob: Blob | null = null) {
 }
 
 beforeEach(async () => {
+	__resetPdfMigrationCacheForTests();
 	await clearAllTunePdfs();
+});
+
+// ─── Legacy-DB copy-forward (lead-sheet → tune rename) ────────────────────
+
+/** Seed a record into the PRE-RENAME database exactly as the old code wrote it. */
+async function seedLegacyDb(sheetId: string, blob: Blob): Promise<void> {
+	const db = await new Promise<IDBDatabase>((resolve, reject) => {
+		const req = indexedDB.open('mankunku-leadsheet-pdfs:anon', 1);
+		req.onupgradeneeded = () => {
+			if (!req.result.objectStoreNames.contains('pdfs')) {
+				req.result.createObjectStore('pdfs', { keyPath: 'sheetId' });
+			}
+		};
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+	await new Promise<void>((resolve, reject) => {
+		const tx = db.transaction('pdfs', 'readwrite');
+		tx.objectStore('pdfs').put({ sheetId, blob, timestamp: 111 });
+		tx.oncomplete = () => resolve();
+		tx.onerror = () => reject(tx.error);
+	});
+	db.close();
+}
+
+/** Object-store names of a database, without creating stores as a side effect. */
+async function storeNamesOf(dbName: string): Promise<string[]> {
+	const db = await new Promise<IDBDatabase>((resolve, reject) => {
+		const req = indexedDB.open(dbName);
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+	const names = Array.from(db.objectStoreNames);
+	db.close();
+	return names;
+}
+
+describe('legacy lead-sheet PDF database migration', () => {
+	it('copies records forward from the pre-rename database and serves them', async () => {
+		const blob = makePdfBlob(384);
+		await seedLegacyDb('sheet-legacy-1', blob);
+		// Fresh session (the beforeEach reset): the first read must find the
+		// legacy record under the new database and the new keyPath.
+		__resetPdfMigrationCacheForTests();
+
+		const restored = await getTunePdf('sheet-legacy-1');
+		expect(restored).not.toBeNull();
+		expect(restored!.size).toBe(384);
+
+		// The record now lives in the tune database (visible via the ids API).
+		const ids = await getTunePdfIds();
+		expect(ids.has('sheet-legacy-1')).toBe(true);
+
+		// The legacy database was deleted — reopening it yields no object stores.
+		expect(await storeNamesOf('mankunku-leadsheet-pdfs:anon')).toEqual([]);
+	});
+
+	it('never clobbers a record already saved under the new database', async () => {
+		await saveTunePdf('sheet-dup', makePdfBlob(100));
+		await seedLegacyDb('sheet-dup', makePdfBlob(999));
+		__resetPdfMigrationCacheForTests();
+
+		const restored = await getTunePdf('sheet-dup');
+		expect(restored!.size).toBe(100);
+	});
 });
 
 describe('local PDF cache round-trip', () => {
@@ -70,7 +137,7 @@ describe('local PDF cache round-trip', () => {
 });
 
 describe('cloud upload/download', () => {
-	it('uploads to the lead-sheets bucket under the user folder on save', async () => {
+	it('uploads to the tunes bucket under the user folder on save', async () => {
 		const { client, uploads, storage } = makeSupabaseStorageMock();
 		await saveTunePdf('sheet-1-aaaa', makePdfBlob(), {
 			supabase: client,
@@ -78,7 +145,7 @@ describe('cloud upload/download', () => {
 		});
 		// Upload is fire-and-forget; flush the microtask queue.
 		await new Promise((r) => setTimeout(r, 0));
-		expect(storage.from).toHaveBeenCalledWith('lead-sheets');
+		expect(storage.from).toHaveBeenCalledWith('tunes');
 		expect(uploads).toEqual([{ path: 'user-9/sheet-1-aaaa.pdf', contentType: 'application/pdf' }]);
 	});
 

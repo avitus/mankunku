@@ -63,7 +63,7 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 
 	// Saved into the book, and the detail URL is the saved sheet's id — the
 	// same id the PDF blob was stored under, so the linkage holds.
-	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-leadsheets'));
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
 	const sheets = JSON.parse(stored ?? '[]') as Array<{ id: string; title: string }>;
 	expect(sheets).toHaveLength(1);
 	expect(sheets[0].title).toBe('Fly Me to the Moon');

@@ -1,12 +1,12 @@
 /**
- * Local + cloud persistence for lead-sheet PDF assets (the original files
- * behind PDF imports), mirroring `audio-store.ts`:
+ * Local + cloud persistence for tune PDF assets (the original files behind
+ * PDF imports), mirroring `audio-store.ts`:
  *
  *  - IndexedDB is the local cache, one DATABASE per user
- *    (`mankunku-leadsheet-pdfs:<uid>`) so two users on one browser never see
+ *    (`mankunku-tune-pdfs:<uid>`) so two users on one browser never see
  *    each other's files and a switch needs no wipe.
- *  - Cloud upload/download/delete against the private `lead-sheets` Storage
- *    bucket (path `{userId}/{sheetId}.pdf`) is independent and non-blocking:
+ *  - Cloud upload/download/delete against the private `tunes` Storage
+ *    bucket (path `{userId}/{tuneId}.pdf`) is independent and non-blocking:
  *    local failures never lose the asset, cloud failures only warn. Blob
  *    uploads do NOT go through the outbox (no durability queue for binary).
  */
@@ -15,15 +15,24 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { getActiveUid } from './namespace';
 
-const DB_NAME_BASE = 'mankunku-leadsheet-pdfs';
+const DB_NAME_BASE = 'mankunku-tune-pdfs';
+/** Pre-rename database name; migrated forward on first open, then deleted. */
+const LEGACY_DB_NAME_BASE = 'mankunku-leadsheet-pdfs';
 const STORE_NAME = 'pdfs';
 const DB_VERSION = 1;
 /** Local cap — PDFs are heavyweight; prune oldest beyond this. */
 const MAX_PDFS = 50;
 
-const BUCKET = 'lead-sheets';
+const BUCKET = 'tunes';
 
 interface PdfRecord {
+	tuneId: string;
+	blob: Blob;
+	timestamp: number;
+}
+
+/** Record shape the pre-rename build wrote under the legacy database. */
+interface LegacyPdfRecord {
 	sheetId: string;
 	blob: Blob;
 	timestamp: number;
@@ -33,13 +42,13 @@ function dbNameFor(uid: string): string {
 	return `${DB_NAME_BASE}:${uid}`;
 }
 
-function openRawDb(name: string): Promise<IDBDatabase> {
+function openRawDb(name: string, keyPath: string): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
 		const request = indexedDB.open(name, DB_VERSION);
 		request.onupgradeneeded = () => {
 			const db = request.result;
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
-				db.createObjectStore(STORE_NAME, { keyPath: 'sheetId' });
+				db.createObjectStore(STORE_NAME, { keyPath });
 			}
 		};
 		request.onsuccess = () => resolve(request.result);
@@ -47,8 +56,67 @@ function openRawDb(name: string): Promise<IDBDatabase> {
 	});
 }
 
-function openDb(uid?: string): Promise<IDBDatabase> {
-	return openRawDb(dbNameFor(uid ?? getActiveUid()));
+/** Uids whose legacy DB has been checked this session (promise = in flight). */
+const _migrated = new Map<string, Promise<void>>();
+
+/**
+ * Best-effort copy-forward from the pre-rename `mankunku-leadsheet-pdfs:<uid>`
+ * database into the tune database, then delete the legacy DB. Records are
+ * pure cache, so any failure degrades to the cloud-download fallback; errors
+ * log and never block reads. Once per uid per session — after the first run
+ * the legacy open finds an empty store and just deletes it again (trivial).
+ */
+function migrateLegacyPdfDb(uid: string): Promise<void> {
+	let pending = _migrated.get(uid);
+	if (pending) return pending;
+	pending = (async () => {
+		const legacyName = `${LEGACY_DB_NAME_BASE}:${uid}`;
+		try {
+			// Opening a nonexistent DB creates an empty one — harmless, deleted below.
+			const legacy = await openRawDb(legacyName, 'sheetId');
+			let records: LegacyPdfRecord[] = [];
+			try {
+				if (legacy.objectStoreNames.contains(STORE_NAME)) {
+					const tx = legacy.transaction(STORE_NAME, 'readonly');
+					records = (await idbReq(tx.objectStore(STORE_NAME).getAll())) as LegacyPdfRecord[];
+				}
+			} finally {
+				legacy.close();
+			}
+			if (records.length > 0) {
+				const db = await openRawDb(dbNameFor(uid), 'tuneId');
+				try {
+					const tx = db.transaction(STORE_NAME, 'readwrite');
+					const dest = tx.objectStore(STORE_NAME);
+					for (const r of records) {
+						const existing = await idbReq<PdfRecord | undefined>(dest.get(r.sheetId));
+						if (!existing) {
+							dest.put({ tuneId: r.sheetId, blob: r.blob, timestamp: r.timestamp });
+						}
+					}
+					await idbTx(tx);
+				} finally {
+					db.close();
+				}
+			}
+			await idbReq(indexedDB.deleteDatabase(legacyName) as unknown as IDBRequest<unknown>);
+		} catch (error) {
+			console.warn('Legacy tune-PDF migration failed (cache only, safe to ignore):', error);
+		}
+	})();
+	_migrated.set(uid, pending);
+	return pending;
+}
+
+async function openDb(uid?: string): Promise<IDBDatabase> {
+	const resolved = uid ?? getActiveUid();
+	await migrateLegacyPdfDb(resolved);
+	return openRawDb(dbNameFor(resolved), 'tuneId');
+}
+
+/** Test-only: forget which uids were migrated so a test can re-run the pass. */
+export function __resetPdfMigrationCacheForTests(): void {
+	_migrated.clear();
 }
 
 function idbReq<T>(r: IDBRequest<T>): Promise<T> {
@@ -66,8 +134,8 @@ function idbTx(t: IDBTransaction): Promise<void> {
 	});
 }
 
-function bucketPath(userId: string, sheetId: string): string {
-	return `${userId}/${sheetId}.pdf`;
+function bucketPath(userId: string, tuneId: string): string {
+	return `${userId}/${tuneId}.pdf`;
 }
 
 export interface SaveTunePdfOptions {
@@ -82,7 +150,7 @@ export interface SaveTunePdfOptions {
  * short-circuit the caller.
  */
 export async function saveTunePdf(
-	sheetId: string,
+	tuneId: string,
 	blob: Blob,
 	options: SaveTunePdfOptions = {}
 ): Promise<void> {
@@ -91,7 +159,7 @@ export async function saveTunePdf(
 		try {
 			const tx = db.transaction(STORE_NAME, 'readwrite');
 			const store = tx.objectStore(STORE_NAME);
-			const record: PdfRecord = { sheetId, blob, timestamp: Date.now() };
+			const record: PdfRecord = { tuneId, blob, timestamp: Date.now() };
 			store.put(record);
 
 			// Prune oldest beyond the cap.
@@ -99,7 +167,7 @@ export async function saveTunePdf(
 			if (all.length > MAX_PDFS) {
 				const sorted = (all as PdfRecord[]).sort((a, b) => a.timestamp - b.timestamp);
 				for (const stale of sorted.slice(0, all.length - MAX_PDFS)) {
-					store.delete(stale.sheetId);
+					store.delete(stale.tuneId);
 				}
 			}
 			await idbTx(tx);
@@ -107,19 +175,19 @@ export async function saveTunePdf(
 			db.close();
 		}
 	} catch (error) {
-		console.warn('Failed to cache lead sheet PDF locally:', error);
+		console.warn('Failed to cache tune PDF locally:', error);
 	}
 
 	const { supabase, userId } = options;
 	if (supabase && userId) {
 		supabase.storage
 			.from(BUCKET)
-			.upload(bucketPath(userId, sheetId), blob, { contentType: 'application/pdf', upsert: true })
+			.upload(bucketPath(userId, tuneId), blob, { contentType: 'application/pdf', upsert: true })
 			.then(({ error }) => {
-				if (error) console.warn('Failed to upload lead sheet PDF to cloud:', error);
+				if (error) console.warn('Failed to upload tune PDF to cloud:', error);
 			})
 			.catch((error) => {
-				console.warn('Failed to upload lead sheet PDF to cloud:', error);
+				console.warn('Failed to upload tune PDF to cloud:', error);
 			});
 	}
 }
@@ -130,7 +198,7 @@ export async function saveTunePdf(
  * All errors degrade to `null`.
  */
 export async function getTunePdf(
-	sheetId: string,
+	tuneId: string,
 	supabase?: SupabaseClient<Database>,
 	userId?: string
 ): Promise<Blob | null> {
@@ -138,29 +206,29 @@ export async function getTunePdf(
 		const db = await openDb();
 		try {
 			const tx = db.transaction(STORE_NAME, 'readonly');
-			const record = await idbReq<PdfRecord | undefined>(tx.objectStore(STORE_NAME).get(sheetId));
+			const record = await idbReq<PdfRecord | undefined>(tx.objectStore(STORE_NAME).get(tuneId));
 			if (record?.blob) return record.blob;
 		} finally {
 			db.close();
 		}
 	} catch (error) {
-		console.warn('Failed to read lead sheet PDF from local cache:', error);
+		console.warn('Failed to read tune PDF from local cache:', error);
 	}
 
 	if (!supabase || !userId) return null;
 	try {
 		const { data, error } = await supabase.storage
 			.from(BUCKET)
-			.download(bucketPath(userId, sheetId));
+			.download(bucketPath(userId, tuneId));
 		if (error || !data) {
-			if (error) console.warn('Failed to download lead sheet PDF from cloud:', error);
+			if (error) console.warn('Failed to download tune PDF from cloud:', error);
 			return null;
 		}
 		// Re-cache locally so subsequent reads are offline-capable.
-		await saveTunePdf(sheetId, data);
+		await saveTunePdf(tuneId, data);
 		return data;
 	} catch (error) {
-		console.warn('Failed to download lead sheet PDF from cloud:', error);
+		console.warn('Failed to download tune PDF from cloud:', error);
 		return null;
 	}
 }
@@ -177,7 +245,7 @@ export async function getTunePdfIds(): Promise<Set<string>> {
 			db.close();
 		}
 	} catch (error) {
-		console.warn('Failed to list lead sheet PDFs:', error);
+		console.warn('Failed to list tune PDFs:', error);
 		return new Set();
 	}
 }
@@ -187,7 +255,7 @@ export async function getTunePdfIds(): Promise<Set<string>> {
  * subsequent sync does not resurrect the deleted asset).
  */
 export async function deleteTunePdf(
-	sheetId: string,
+	tuneId: string,
 	supabase?: SupabaseClient<Database>,
 	userId?: string
 ): Promise<void> {
@@ -195,24 +263,24 @@ export async function deleteTunePdf(
 		const db = await openDb();
 		try {
 			const tx = db.transaction(STORE_NAME, 'readwrite');
-			tx.objectStore(STORE_NAME).delete(sheetId);
+			tx.objectStore(STORE_NAME).delete(tuneId);
 			await idbTx(tx);
 		} finally {
 			db.close();
 		}
 	} catch (error) {
-		console.warn('Failed to delete lead sheet PDF locally:', error);
+		console.warn('Failed to delete tune PDF locally:', error);
 	}
 
 	if (supabase && userId) {
 		supabase.storage
 			.from(BUCKET)
-			.remove([bucketPath(userId, sheetId)])
+			.remove([bucketPath(userId, tuneId)])
 			.then(({ error }) => {
-				if (error) console.warn('Failed to delete lead sheet PDF from cloud:', error);
+				if (error) console.warn('Failed to delete tune PDF from cloud:', error);
 			})
 			.catch((error) => {
-				console.warn('Failed to delete lead sheet PDF from cloud:', error);
+				console.warn('Failed to delete tune PDF from cloud:', error);
 			});
 	}
 }
@@ -229,6 +297,6 @@ export async function clearAllTunePdfs(uid?: string): Promise<void> {
 			db.close();
 		}
 	} catch (error) {
-		console.warn('Failed to clear lead sheet PDFs:', error);
+		console.warn('Failed to clear tune PDFs:', error);
 	}
 }

@@ -24,7 +24,7 @@
  *   ScaleProficiency (progress.ts)     → scale_proficiency
  *   KeyProficiency (progress.ts)       → key_proficiency
  *   Phrase         (music.ts)          → user_licks
- *   Tune      (tune.ts)           → lead_sheets
+ *   Tune      (tune.ts)           → tunes
  *   defaultSettings (settings.svelte.ts) → user_settings
  *   (new)                              → user_profiles
  */
@@ -846,7 +846,7 @@ export type Database = {
        * so offline-created rows keep their id on first sync. Mirrors
        * user_licks' sync model (client_mtime clock + deleted_at tombstones).
        */
-      lead_sheets: {
+      tunes: {
         Row: {
           /** TEXT primary key — generated client-side as sheet-{timestamp}-{random} */
           id: string
@@ -872,7 +872,7 @@ export type Database = {
           source: string
           /** Storage path of the original imported PDF ({uid}/{id}.pdf in the lead-sheets bucket), nullable */
           pdf_url: string | null
-          /** Denormalized count of favorites (maintained by triggers on lead_sheet_favorites). Defaults to 0. */
+          /** Denormalized count of favorites (maintained by triggers on tune_favorites). Defaults to 0. */
           favorite_count: number
           /** Soft-delete tombstone. NULL = live. Set instead of a hard DELETE so deletes propagate. */
           deleted_at: string | null
@@ -902,7 +902,7 @@ export type Database = {
           /** Defaults to 'user' in database */
           source?: string
           pdf_url?: string | null
-          /** Defaults to 0 in database; maintained by triggers on lead_sheet_favorites. Do not set manually. */
+          /** Defaults to 0 in database; maintained by triggers on tune_favorites. Do not set manually. */
           favorite_count?: number
           /** NULL = live; set to a timestamp to tombstone */
           deleted_at?: string | null
@@ -933,7 +933,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_sheets_user_id_fkey"
+            foreignKeyName: "tunes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -943,90 +943,90 @@ export type Database = {
       }
       /**
        * Thumbs-up relation between users and lead sheets (community feature).
-       * Composite PK (user_id, sheet_id) enforces idempotent favoriting.
-       * ON DELETE CASCADE on sheet_id removes favorites when the author
+       * Composite PK (user_id, tune_id) enforces idempotent favoriting.
+       * ON DELETE CASCADE on tune_id removes favorites when the author
        * deletes the underlying sheet. No UPDATE policy on purpose.
        */
-      lead_sheet_favorites: {
+      tune_favorites: {
         Row: {
           /** UUID foreign key to auth.users.id — part of composite PK */
           user_id: string
-          /** TEXT foreign key to lead_sheets.id — part of composite PK */
-          sheet_id: string
+          /** TEXT foreign key to tunes.id — part of composite PK */
+          tune_id: string
           /** Timestamp of favorite creation (ISO 8601) */
           created_at: string
         }
         Insert: {
           /** UUID foreign key to auth.users.id — required, part of composite PK */
           user_id: string
-          /** TEXT foreign key to lead_sheets.id — required, part of composite PK */
-          sheet_id: string
+          /** TEXT foreign key to tunes.id — required, part of composite PK */
+          tune_id: string
           /** Auto-set by database default (now()) */
           created_at?: string
         }
         Update: {
           user_id?: string
-          sheet_id?: string
+          tune_id?: string
           created_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "lead_sheet_favorites_user_id_fkey"
+            foreignKeyName: "tune_favorites_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_sheet_favorites_sheet_id_fkey"
-            columns: ["sheet_id"]
+            foreignKeyName: "tune_favorites_tune_id_fkey"
+            columns: ["tune_id"]
             isOneToOne: false
-            referencedRelation: "lead_sheets"
+            referencedRelation: "tunes"
             referencedColumns: ["id"]
           }
         ]
       }
       /**
        * Add-to-my-library relation for community lead sheets. Adoption is a
-       * live reference, not a copy — the payload stays in lead_sheets, so an
+       * live reference, not a copy — the payload stays in tunes, so an
        * author delete cascades to adopters. Fully owner-scoped RLS (including
        * SELECT); self-adoption blocked in the INSERT policy's WITH CHECK.
        */
-      lead_sheet_adoptions: {
+      tune_adoptions: {
         Row: {
           /** UUID foreign key to auth.users.id — part of composite PK */
           user_id: string
-          /** TEXT foreign key to lead_sheets.id — part of composite PK */
-          sheet_id: string
+          /** TEXT foreign key to tunes.id — part of composite PK */
+          tune_id: string
           /** Timestamp of adoption (ISO 8601) */
           adopted_at: string
         }
         Insert: {
           /** UUID foreign key to auth.users.id — required, part of composite PK */
           user_id: string
-          /** TEXT foreign key to lead_sheets.id — required, part of composite PK */
-          sheet_id: string
+          /** TEXT foreign key to tunes.id — required, part of composite PK */
+          tune_id: string
           /** Auto-set by database default (now()) */
           adopted_at?: string
         }
         Update: {
           user_id?: string
-          sheet_id?: string
+          tune_id?: string
           adopted_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "lead_sheet_adoptions_user_id_fkey"
+            foreignKeyName: "tune_adoptions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_sheet_adoptions_sheet_id_fkey"
-            columns: ["sheet_id"]
+            foreignKeyName: "tune_adoptions_tune_id_fkey"
+            columns: ["tune_id"]
             isOneToOne: false
-            referencedRelation: "lead_sheets"
+            referencedRelation: "tunes"
             referencedColumns: ["id"]
           }
         ]
@@ -1063,7 +1063,7 @@ export type Database = {
        * only display_name and avatar_url, and only for users with at least
        * one live shared lead sheet.
        */
-      public_lead_sheet_authors: {
+      public_tune_authors: {
         Row: {
           /** UUID — same as auth.users.id */
           id: string

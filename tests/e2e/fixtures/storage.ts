@@ -52,7 +52,7 @@ export async function seedStorage(
 		({ data, control }) => {
 			if (control) {
 				if (window.localStorage.getItem(control.schemaKey) === null) {
-					window.localStorage.setItem(control.schemaKey, '2');
+					window.localStorage.setItem(control.schemaKey, '3');
 				}
 				if (window.localStorage.getItem(control.activeKey) === null) {
 					window.localStorage.setItem(control.activeKey, control.activeVal);
@@ -224,7 +224,5 @@ export async function seedTunes(
 	page: Page,
 	sheets: unknown[] = SAMPLE_USER_TUNES
 ): Promise<void> {
-	// NOTE: the 'user-leadsheets' storage key is the pre-rename persisted key;
-	// it flips to 'user-tunes' together with the schema-v3 storage migration.
-	await seedStorage(page, { 'user-leadsheets': sheets });
+	await seedStorage(page, { 'user-tunes': sheets });
 }

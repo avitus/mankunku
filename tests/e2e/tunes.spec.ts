@@ -85,7 +85,7 @@ test('user sheet detail supports the two-stage delete', async ({ page }) => {
 	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toHaveCount(0);
 
 	// Gone from storage too, not just the view.
-	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-leadsheets'));
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
 	expect(JSON.parse(stored ?? '[]')).toEqual([]);
 });
 
