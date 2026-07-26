@@ -20,7 +20,7 @@ browser as a SvelteKit PWA.
 - **Lick practice** — Drill curated jazz licks through all twelve keys
   over a backing-track rhythm section (bass, comping, drums, generated
   with smplr). Tempo adapts as the user masters keys.
-- **Step entry** — A keyboard-driven UI for adding personal licks, with
+- **Editor** — A keyboard-driven note-by-note UI for adding personal licks, with
   instrument-aware transposition (Bb / Eb / concert).
 
 ## Key concepts
@@ -41,7 +41,8 @@ browser as a SvelteKit PWA.
 - [/](https://mankunkujazz.com/) — Home, two doors into Ear Training and Lick Practice.
 - [/ear-training](https://mankunkujazz.com/ear-training) — Call-and-response practice.
 - [/lick-practice](https://mankunkujazz.com/lick-practice) — Multi-key lick drills.
-- [/library](https://mankunkujazz.com/library) — Curated lick browser.
+- [/licks](https://mankunkujazz.com/licks) — Your lick book: licks you recorded, wrote in the editor, or stole from the community.
+- [/tunes](https://mankunkujazz.com/tunes) — Your tune book: full song forms with melody and changes, curated + imported + community.
 - [/scales](https://mankunkujazz.com/scales) — Scale reference.
 - [/docs](https://mankunkujazz.com/docs) — Full developer and user documentation.
 

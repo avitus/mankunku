@@ -72,11 +72,11 @@ src/
     tonality/       Daily key/scale selection, progressive unlocking
     state/          Svelte 5 runes state modules (.svelte.ts)
     persistence/    localStorage/IndexedDB storage + Supabase sync
-    components/     UI components (audio, practice, library, notation, onboarding)
+    components/     UI components (audio, practice, licks, tunes, notation, onboarding)
     supabase/       Client setup and generated DB types
     types/          TypeScript interfaces grouped by domain
-    data/           Curated lick library and static data
-  routes/           SvelteKit pages: practice, library, progress, settings, auth
+    data/           Curated lick + tune catalogs and static data
+  routes/           SvelteKit pages: practice, licks, tunes, progress, settings, auth
 tests/
   unit/             Unit tests across 8 domains (audio, scoring, music, phrases, ...)
   integration/      Integration tests (auth route chain, etc.)
@@ -106,7 +106,7 @@ Contributions are welcome — whether that is adding jazz licks, improving the s
 
 **Good first contributions:**
 
-- Add curated licks to the library ([guide](documentation/contributing/adding-licks.md))
+- Add curated licks to the catalog ([guide](documentation/contributing/adding-licks.md))
 - Add scales to the catalog ([guide](documentation/contributing/adding-scales.md))
 - Improve test coverage across any of the 8 test domains
 - Report bugs or suggest features via issues

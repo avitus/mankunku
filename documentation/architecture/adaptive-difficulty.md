@@ -30,7 +30,7 @@ The window of 25 is long enough to smooth out lucky guesses and unlucky stumbles
 
 ## What each level tier adds musically
 
-The app groups levels into ten **content tiers**. Each tier expands what's available — what scales the algorithmic generator can use, what rhythms it can produce, what tempos it'll target, what keys it'll choose. Curated licks from the library are stamped with their own complexity rating, so as your level climbs, more challenging library material starts showing up.
+The app groups levels into ten **content tiers**. Each tier expands what's available — what scales the algorithmic generator can use, what rhythms it can produce, what tempos it'll target, what keys it'll choose. Curated licks from the catalog are stamped with their own complexity rating, so as your level climbs, more challenging catalog material starts showing up.
 
 Roughly:
 
@@ -54,7 +54,7 @@ Every tier above tier 1 also raises the **interval ceiling** — the largest lea
 In theory, pitch and rhythm complexity are independent dimensions. In practice, they tend to climb together. Here's why, and what to do about it:
 
 - **The current scoring algorithm penalizes missed and extra notes equally in both dimensions.** A note you skipped becomes a 0 in pitch *and* a 0 in rhythm, even though it's really a timing-and-detection failure. So two scores tend to move together more than they would if the underlying problem were really pitch-specific or rhythm-specific.
-- **Curated phrases don't deliberately stress one dimension.** A lick at level 50 has a single difficulty number, copied to both pitch and rhythm complexity for the generator and used as the cap for library filtering. The library doesn't say "this lick has hard pitch but easy rhythm" or vice versa, so the inputs to your two accuracy windows are correlated.
+- **Curated phrases don't deliberately stress one dimension.** A lick at level 50 has a single difficulty number, copied to both pitch and rhythm complexity for the generator and used as the cap for catalog filtering. The catalog doesn't say "this lick has hard pitch but easy rhythm" or vice versa, so the inputs to your two accuracy windows are correlated.
 - **The cap is the same on both sides** (≥ 85% advances, < 50% retreats), so even when the inputs *are* slightly different, the advancement rule treats them the same way.
 
 If the trend graph on your Progress page shows the two dotted lines (pitch and rhythm) tracking nearly together, that's the reason. The system *will* let them diverge — there's a worked example below — but in normal usage they don't pull apart by much.

@@ -75,7 +75,7 @@ Side B (Lick Practice) ignores the daily pick entirely — it always cycles thro
 
 ## Scale-aware lick filtering
 
-Once a tonality is active, the app filters the lick library to only licks that fit the active scale type. The compatibility rules are based on subset relationships:
+Once a tonality is active, the app filters the lick catalog to only licks that fit the active scale type. The compatibility rules are based on subset relationships:
 
 - **Pentatonic licks** fit pentatonic, major, Lydian, and Mixolydian sessions (the pentatonic notes are a subset of all of those).
 - **Blues licks** fit blues, Dorian, and minor sessions.

@@ -152,22 +152,20 @@ Manual save to localStorage.
 
 ---
 
-## library.svelte.ts
+## licks.svelte.ts
 
-Filter state for the lick library browser. **Not persisted** — resets on navigation.
+Filter state for the Licks page (the user's book). **Not persisted** — resets on navigation.
 
-### `library`
+### `licks`
 
 ```typescript
-export const library = $state<{
-  categoryFilter: PhraseCategory | null;  // null = show all
-  difficultyFilter: number | null;        // null = show all
+export const licks = $state<{
   searchQuery: string;
-  selectedKey: PitchClass;                // Default 'C'
+  progressionFilter: ChordProgressionType | null;  // null = show all; matches explicit prog:* tags only
 }>();
 ```
 
-No exported functions — library page reads/writes fields directly.
+No exported functions — the Licks page reads/writes fields directly.
 
 ---
 
@@ -318,7 +316,7 @@ export interface PlannedKey {
 ### Session control
 
 - `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ `KEY_PROFICIENT_THRESHOLD` (0.90, green tier). Yellow 0.75–0.89 is recorded but doesn't increment `passCount`. Below `KEY_FLOOR_THRESHOLD` (0.75) is red and blocks tempo increases + unlocks at session end.
-- `resetLickProgress(lickId, supabase?): void` — Wipe one lick's per-key scores, `passCount`, and unlock count. Tags (`practice`, `prog:*`) are preserved. Cloud is synced when a client is supplied. Surfaced from the post-session report (gated on try-again-band scores) and the library detail page (gated on `hasLickProgress`).
+- `resetLickProgress(lickId, supabase?): void` — Wipe one lick's per-key scores, `passCount`, and unlock count. Tags (`practice`, `prog:*`) are preserved. Cloud is synced when a client is supplied. Surfaced from the post-session report (gated on try-again-band scores) and the book detail page (gated on `hasLickProgress`).
 - `advance(): 'next-key' | 'end-of-lick'` — Move to the next key; returns `'end-of-lick'` when the current lick's keys are exhausted.
 - `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the score-weighted tempo adjustment (+5 BPM at ≥ 95%, +2 at ≥ 90%, -1 in the 75–89% yellow band, -3 below 75% — and any single key below `KEY_FLOOR_THRESHOLD` clamps the delta to ≤ 0 regardless of average), then move to the next lick or mark session complete.
 - `updateElapsedTime(): void`
@@ -329,7 +327,7 @@ export interface PlannedKey {
 
 ## step-entry.svelte.ts
 
-UI state for manual lick entry (`/entry`, `/add-licks`). **Not persisted** — drafts reset when the route unmounts; completed phrases are exported via `getCurrentPhrase()` and saved through `persistence/user-licks.ts`. The user enters notes in their instrument's **written** pitch; storage is canonical **concert** pitch.
+UI state for manual lick entry in the editor (`/licks/editor`, `/licks/add`). **Not persisted** — drafts reset when the route unmounts; completed phrases are exported via `getCurrentPhrase()` and saved through `persistence/user-licks.ts`. The user enters notes in their instrument's **written** pitch; storage is canonical **concert** pitch.
 
 ### `stepEntry`
 
@@ -393,7 +391,7 @@ export const stepEntry = $state({
 
 ### Edit mode
 
-- `loadFromPhrase(lick): void` — Hydrate the editor from an existing lick: pulls the notes back into written-pitch space, restores key/bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the library detail page), and redirect to `/library/<id>` after saving.
+- `loadFromPhrase(lick): void` — Hydrate the editor from an existing lick: pulls the notes back into written-pitch space, restores key/bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/licks/editor` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the book detail page), and redirect to `/licks/<id>` after saving.
 
 ---
 

@@ -92,7 +92,7 @@ Renders sheet music from a `Phrase` using [abcjs](https://paulrosen.github.io/ab
 - Renders to SVG with `abcjs.renderAbc()`
 - Responsive rendering (`responsive: 'resize'`)
 - Dark mode support: overrides SVG path/text colors via CSS
-- Registers an abcjs `clickListener`: clicking a pitched notehead calls `onSelect` with the note's source-array index (resolved through the anchor map); `selectedIndex` highlights that notehead (colored notehead + stem). Rests are not selectable. Used by the `/entry` staff for click-to-select editing.
+- Registers an abcjs `clickListener`: clicking a pitched notehead calls `onSelect` with the note's source-array index (resolved through the anchor map); `selectedIndex` highlights that notehead (colored notehead + stem). Rests are not selectable. Used by the `/licks/editor` staff for click-to-select editing.
 
 Shows "No phrase loaded" placeholder when `phrase` is null.
 
@@ -159,11 +159,11 @@ Extra notes are filtered out. Bar colors interpolate across an HSL hue range (re
 
 ---
 
-## Library Components
+## Licks Components
 
 ### `LickCard.svelte`
 
-**Path:** `src/lib/components/library/LickCard.svelte`
+**Path:** `src/lib/components/licks/LickCard.svelte`
 
 Card displaying a curated lick's metadata.
 
@@ -195,7 +195,7 @@ These are intentionally independent of the domain accent so a lick's difficulty 
 
 ### `CategoryFilter.svelte`
 
-**Path:** `src/lib/components/library/CategoryFilter.svelte`
+**Path:** `src/lib/components/licks/CategoryFilter.svelte`
 
 Horizontal pill buttons for filtering by category.
 
@@ -334,7 +334,7 @@ Week-over-week / month-over-month comparison of sessions, practice days, average
 
 ## Step Entry Components
 
-Rendered by `/entry` and `/add-licks`. All three components read and mutate `stepEntry` state directly (no props).
+Rendered by `/licks/editor` and `/licks/add`. All three components read and mutate `stepEntry` state directly (no props).
 
 ### `EntryConfig.svelte`
 

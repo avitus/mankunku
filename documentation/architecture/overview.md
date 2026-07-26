@@ -1,6 +1,6 @@
 # Two Practice Modes
 
-Mankunku splits practice into two modes — Side A and Side B — that solve different problems. Side A trains your ear; Side B drills a line into your fingers. They share the lick library, the difficulty system, and the progress tracking, but they ask different things of you in the room.
+Mankunku splits practice into two modes — Side A and Side B — that solve different problems. Side A trains your ear; Side B drills a line into your fingers. They share the lick catalog, the difficulty system, and the progress tracking, but they ask different things of you in the room.
 
 ## Side A — Ear Training
 
@@ -11,7 +11,7 @@ The classical exercise: someone plays a phrase, you play it back. Side A is that
 - It listens through your microphone while you play it back.
 - It scores how close you got on pitch and rhythm, and either advances you or hands you a retry.
 
-Side A is **breadth-first**. You hear a different phrase each time. Some you'll nail; some will catch you off guard. The point isn't memorizing the licks — it's getting faster at hearing a melodic shape and converting it to a fingering. The library is large enough that licks rarely repeat in a single session.
+Side A is **breadth-first**. You hear a different phrase each time. Some you'll nail; some will catch you off guard. The point isn't memorizing the licks — it's getting faster at hearing a melodic shape and converting it to a fingering. The catalog is large enough that licks rarely repeat in a single session.
 
 **Use Side A when** you want to build the listen → play reflex, work on tuning, get used to a new scale, or warm up at the start of a practice session.
 
@@ -19,12 +19,12 @@ Side A is **breadth-first**. You hear a different phrase each time. Some you'll 
 
 The opposite exercise: you already know what you want to play; the app helps you own it in every key over a backing track.
 
-- You **tag** licks from the library (or your own user-entered ones) as "practice" licks, and each tagged lick carries one or more progression tags (`prog:ii-V-I-major`, `prog:blues`, etc.) that say which backing tracks it plays cleanly over.
+- You **tag** licks from your book (stolen from the community or entered yourself) as "practice" licks, and each tagged lick carries one or more progression tags (`prog:ii-V-I-major`, `prog:blues`, etc.) that say which backing tracks it plays cleanly over.
 - Side B picks one of your tagged licks and rotates it through all 12 keys over a chord progression — bass, comping, drums.
 - Each key, you play the lick once per cycle. Pass it cleanly (≥ 80%) and the next cycle moves to the next key. Tempo bumps up +5 BPM after every clean key; it backs off when you stumble.
 - Once you've passed all 12 keys, the session moves to the next tagged lick.
 - A **Daily Practice** start button rotates across every progression you have tagged licks for, sized to the same time budget — useful as a daily warm-up that touches every line in your book.
-- A **Practice** button on any lick's detail page in the Library launches **Deep Practice** on that single lick — a focused round through just that lick's currently-unlocked keys, with the rotation refilling and tempo bumping each time all keys are mastered.
+- A **Practice** button on any lick's detail page in your book launches **Deep Practice** on that single lick — a focused round through just that lick's currently-unlocked keys, with the rotation refilling and tempo bumping each time all keys are mastered.
 
 Side B is **depth-first**. It assumes the line is already in your ear and your job is to wire it to your fingers across the cycle of fifths. The progress tracking is per-lick, per-key — you can see exactly which keys still trip you up on a given line, and which are clean.
 
@@ -32,9 +32,9 @@ Side B is **depth-first**. It assumes the line is already in your ear and your j
 
 ## What they share
 
-Both modes pull from the same lick library and the same daily key system, and both contribute to your overall progress.
+Both modes pull from the same pool of licks and the same daily key system, and both contribute to your overall progress.
 
-- **The library** is the same in both modes. Side A queries it for variety; Side B picks specific licks from it that you've tagged.
+- **The licks are shared.** Side A queries the catalog for variety; Side B picks the specific licks you've tagged in your book.
 - **The daily key** rotates once per day (more on this in [The Daily Key](./tonality-system.md)). Side A defaults to today's key but lets you override; Side B always cycles through all 12 keys regardless of the daily pick.
 - **Difficulty** climbs from your performance in either mode. Pitch complexity and rhythm complexity rise (or fall) on the same scale — see [Levels & Difficulty](./adaptive-difficulty.md).
 - **Scoring** uses the same algorithm: pitch accuracy at 60%, rhythm accuracy at 40%, with timing tolerances that loosen at slow tempos and tighten at fast ones. The full breakdown is in [How Scoring Works](./scoring-algorithm.md).
@@ -44,7 +44,7 @@ Both modes pull from the same lick library and the same daily key system, and bo
 
 Whether you're on Side A or Side B, a single attempt follows the same path under the hood. You don't need to think about any of this while you play — but it helps to know what the app is doing on your behalf:
 
-1. The app picks (or generates) a phrase. On Side A, it's drawn from the library or made on the fly. On Side B, it's the current tagged lick transposed into the current key.
+1. The app picks (or generates) a phrase. On Side A, it's drawn from the catalog or made on the fly. On Side B, it's the current tagged lick transposed into the current key.
 2. The phrase plays through speakers or headphones, with the metronome and (on Side B) the rhythm section.
 3. After the phrase ends, the metronome keeps going. The app starts listening through your microphone.
 4. As you play, a real-time pitch detector picks up each note. After about two seconds of silence — or as soon as you complete a Side B cycle — the recording closes.
