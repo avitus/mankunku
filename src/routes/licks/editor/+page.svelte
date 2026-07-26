@@ -293,7 +293,7 @@
 			clearSuggestions();
 			setupOpen = false;
 			saveDetailsOpen = false;
-			goto(`/library/${destId}`);
+			goto(`/licks/${destId}`);
 			return;
 		}
 
@@ -308,7 +308,7 @@
 			reset();
 			setupOpen = false;
 			saveDetailsOpen = false;
-			goto(`/library/${matchId}`);
+			goto(`/licks/${matchId}`);
 			return;
 		}
 
@@ -352,7 +352,7 @@
 		setupOpen = false;
 		saveDetailsOpen = false;
 		if (editId) {
-			goto(`/library/${editId}`);
+			goto(`/licks/${editId}`);
 		}
 	}
 

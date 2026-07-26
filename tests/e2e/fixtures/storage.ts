@@ -100,7 +100,7 @@ export const SETTINGS_ONBOARDED = {
  */
 export const TOUR_DISMISSED = {
 	completed: [] as string[],
-	dismissed: ['welcome', 'home', 'ear-training', 'lick-practice', 'library', 'lead-sheets', 'community', 'add-licks', 'progress', 'settings', 'docs']
+	dismissed: ['welcome', 'home', 'ear-training', 'lick-practice', 'licks', 'lead-sheets', 'progress', 'settings', 'docs']
 };
 
 /**
@@ -115,7 +115,7 @@ export async function seedOnboardedAnonymous(page: Page): Promise<void> {
 }
 
 /**
- * Sample user-entered licks. The /library page lists only the user's own (and
+ * Sample user-entered licks. The /licks page lists only the user's own (and
  * adopted) licks — curated licks no longer render there — so tests that need
  * cards on the page must seed a personal collection. Shape matches `Phrase`
  * (src/lib/types/music.ts); kept loosely typed to avoid a `$lib` import here.

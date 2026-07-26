@@ -32,7 +32,7 @@ test.describe('community — authed browse', () => {
 		signedInPage,
 		consoleCollector: _consoleCollector
 	}) => {
-		await signedInPage.goto('/community');
+		await signedInPage.goto('/licks/community');
 
 		// The session-gated branch unlocks: search input, Popular/Newest sort,
 		// "All" category chip. The anonymous "Sign in" gate should be gone.
@@ -46,7 +46,7 @@ test.describe('community — authed browse', () => {
 		signedInPage,
 		consoleCollector: _consoleCollector
 	}) => {
-		await signedInPage.goto('/community');
+		await signedInPage.goto('/licks/community');
 		await signedInPage.getByPlaceholder(/find a lick/i).fill('blues');
 		// Debounce window is 200ms; brief settle time.
 		await signedInPage.waitForTimeout(400);

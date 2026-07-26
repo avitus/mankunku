@@ -3,7 +3,7 @@ import { seedOnboardedAnonymous, seedUserLicks, seedStorage } from './fixtures/s
 import { SAMPLE_USER_LICKS } from './fixtures/storage';
 
 /**
- * Regression: signed-out /library with a practice set used to blow up with
+ * Regression: signed-out /licks with a practice set used to blow up with
  * `effect_update_depth_exceeded`.
  *
  * `hydrateLickPracticeProgress` writes a fresh `lickPractice.progress` object
@@ -34,7 +34,7 @@ test('signed-out library with a practice set hydrates without an effect loop', a
 	const pageErrors: string[] = [];
 	page.on('pageerror', (e) => pageErrors.push(String(e)));
 
-	await page.goto('/library');
+	await page.goto('/licks');
 	await expect(page.locator('main').getByRole('heading', { level: 3 }).first()).toBeVisible();
 
 	// The loop is asynchronous — it needs a beat to blow the effect depth limit.

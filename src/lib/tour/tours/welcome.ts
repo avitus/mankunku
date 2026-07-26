@@ -46,7 +46,7 @@ export const welcomeTour: DriveStep[] = [
 		}
 	},
 	{
-		element: '[data-tour="nav-library"]',
+		element: '[data-tour="nav-licks"]',
 		popover: {
 			title: 'Library',
 			description:

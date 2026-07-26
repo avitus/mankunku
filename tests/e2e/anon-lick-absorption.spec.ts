@@ -60,7 +60,7 @@ test('anonymous licks are not absorbed into the first account that signs in', as
 	// Now sign in as USER on the same origin.
 	await installStubCloud(page.context(), cloud, USER, baseURL as string);
 
-	await page.goto('/library');
+	await page.goto('/licks');
 	await page.waitForLoadState('networkidle');
 	// Generous settle: hydration + the durable outbox drain both have to have
 	// had their chance to push before absence proves anything.
@@ -98,7 +98,7 @@ test('control: a lick in the signed-in bucket IS pushed to that account', async 
 		'user-licks': [ANON_LICK]
 	});
 
-	await page.goto('/library');
+	await page.goto('/licks');
 	await page.waitForLoadState('networkidle');
 
 	await expect
@@ -120,7 +120,7 @@ test('the anonymous bucket still holds the lick after signing in', async ({
 	});
 	await installStubCloud(page.context(), cloud, USER, baseURL as string);
 
-	await page.goto('/library');
+	await page.goto('/licks');
 	await page.waitForLoadState('networkidle');
 	await page.waitForTimeout(1500);
 

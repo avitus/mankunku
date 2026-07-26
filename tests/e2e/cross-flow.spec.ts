@@ -41,7 +41,7 @@ test.describe('cross-flow — signed-in journey', () => {
 
 		await signedInPage.getByRole('navigation').first()
 			.getByRole('link', { name: /^library$/i }).first().click();
-		await expect(signedInPage).toHaveURL(/\/library$/);
+		await expect(signedInPage).toHaveURL(/\/licks$/);
 		await expect(signedInPage.getByRole('heading', { name: /your licks/i })).toBeVisible();
 
 		await signedInPage.getByRole('navigation').first()

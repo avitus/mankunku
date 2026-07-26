@@ -49,7 +49,7 @@
 
 	// Lick picker state (only used when sessionType === 'deep'). Resolution of
 	// the selected lick reads the full library — a Drill action launched from
-	// /library can carry an untagged lick into setup — but the picker's
+	// /licks can carry an untagged lick into setup — but the picker's
 	// search/dropdown only surfaces practice-tagged licks so users curate
 	// what they see here through the same flow they use for standard sessions.
 	const allLicks = $derived(getAllLicks());
@@ -233,7 +233,7 @@
 						{:else if practiceTaggedLicks.length === 0}
 							<p class="text-xs text-[var(--color-text-secondary)]">
 								No licks tagged for practice yet.
-								<a href="/library" class="text-[var(--color-accent)] underline">Browse the library</a>
+								<a href="/licks" class="text-[var(--color-accent)] underline">Browse the library</a>
 								and tag a few first.
 							</p>
 						{:else}
@@ -349,7 +349,7 @@
 			{startCaption}
 		</p>
 		{#if !canStart && dailyLickCount === 0}
-			<a href="/library" class="text-xs text-[var(--color-accent)] underline">
+			<a href="/licks" class="text-xs text-[var(--color-accent)] underline">
 				Browse the library to tag licks
 			</a>
 		{/if}

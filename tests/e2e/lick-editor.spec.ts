@@ -17,7 +17,7 @@ test.describe('step entry', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/entry');
+		await page.goto('/licks/editor');
 		await expect(page.locator('main')).toBeVisible();
 
 		// Look for interactive buttons in the main area. The page has a

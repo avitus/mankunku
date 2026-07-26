@@ -3,7 +3,7 @@ import { seedOnboardedAnonymous } from './fixtures/storage';
 import { installAudioMock } from './fixtures/audio';
 
 /**
- * /record route — verifies the recording UI mounts and the mocked audio
+ * /licks/record route — verifies the recording UI mounts and the mocked audio
  * pipeline can be installed without crashing.
  *
  * Full record → transcribe → save → library round-trips depend on the
@@ -24,7 +24,7 @@ test.describe('record route', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/record');
+		await page.goto('/licks/record');
 		await expect(page.locator('main')).toBeVisible();
 
 		// The record page exposes a large circular start-recording button.

@@ -17,7 +17,7 @@ test.describe('community — anonymous gate', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/community');
+		await page.goto('/licks/community');
 		await expect(page.locator('main')).toBeVisible();
 
 		// Anonymous-state gate: a "Sign in" link/button to /auth, and NO

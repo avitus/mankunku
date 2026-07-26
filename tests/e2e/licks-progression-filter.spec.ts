@@ -62,7 +62,7 @@ test.describe('library progression filter', () => {
 		page,
 		consoleCollector: _c
 	}) => {
-		await page.goto('/library');
+		await page.goto('/licks');
 		const cards = page.locator('main').getByRole('heading', { level: 3 });
 		await expect(cards.first()).toBeVisible();
 		await expect(cards).toHaveCount(4);
@@ -95,7 +95,7 @@ test.describe('library progression filter', () => {
 		page,
 		consoleCollector: _c
 	}) => {
-		await page.goto('/library');
+		await page.goto('/licks');
 		await expect(page.locator('main').getByRole('heading', { level: 3 }).first()).toBeVisible();
 
 		await page.getByLabel('Filter by progression').selectOption({ label: 'Turnaround (I-VI-ii-V)' });
@@ -105,7 +105,7 @@ test.describe('library progression filter', () => {
 	});
 
 	test('composes with the search box', async ({ page, consoleCollector: _c }) => {
-		await page.goto('/library');
+		await page.goto('/licks');
 		const cards = page.locator('main').getByRole('heading', { level: 3 });
 		await expect(cards.first()).toBeVisible();
 

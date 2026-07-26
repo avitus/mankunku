@@ -34,7 +34,7 @@ test.describe('library — authed', () => {
 		signedInPage,
 		consoleCollector: _consoleCollector
 	}) => {
-		await signedInPage.goto('/library');
+		await signedInPage.goto('/licks');
 		await expect(signedInPage.getByRole('heading', { name: /your licks/i })).toBeVisible();
 		await expect(signedInPage.getByPlaceholder(/find a lick/i)).toBeVisible();
 
@@ -62,7 +62,7 @@ test.describe('library — authed', () => {
 		// Asserting against the raw SSR HTML is deterministic — it sidesteps the
 		// client hydration timing that makes the flash itself untestable in a
 		// harness with no real Supabase backend.
-		const res = await signedInPage.request.get('/library');
+		const res = await signedInPage.request.get('/licks');
 		expect(res.ok()).toBeTruthy();
 		const html = await res.text();
 		expect(html).toContain('Loading your licks');

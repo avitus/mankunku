@@ -199,7 +199,7 @@ test('convergence: a delete tombstone propagates up and never resurrects', async
 		'user-licks-meta': { 'lick-X': { mtime: 500, deletedAt: 500 } }
 	});
 
-	await page.goto('/library');
+	await page.goto('/licks');
 	await page.waitForLoadState('networkidle');
 	await page.waitForTimeout(1500); // hydration reconcile + tombstone push
 
@@ -248,7 +248,7 @@ test('convergence: a delete tombstone propagates up and never resurrects', async
 			'user-licks-meta': { 'lick-X': { mtime: 50 } }
 		});
 
-		await pageC.goto('/library');
+		await pageC.goto('/licks');
 		await pageC.waitForLoadState('networkidle');
 		await pageC.waitForTimeout(1500);
 

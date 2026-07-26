@@ -13,7 +13,7 @@ test.describe('library', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/library');
+		await page.goto('/licks');
 		await expect(page.getByRole('heading', { name: /your licks/i })).toBeVisible();
 		await expect(page.getByPlaceholder(/find a lick/i)).toBeVisible();
 	});
@@ -22,7 +22,7 @@ test.describe('library', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/library');
+		await page.goto('/licks');
 
 		// Each LickCard renders the lick name as a level-3 heading — counting
 		// those gives a reliable card count via a semantic locator that survives

@@ -75,10 +75,8 @@
 		{ href: '/', label: 'Home', primary: false, tourKey: 'home' },
 		{ href: '/ear-training', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
-		{ href: '/library', label: 'Library', primary: false, tourKey: 'library' },
+		{ href: '/licks', label: 'Licks', primary: false, tourKey: 'licks' },
 		{ href: '/lead-sheets', label: 'Lead Sheets', primary: false, tourKey: 'lead-sheets' },
-		{ href: '/community', label: 'Community', primary: false, tourKey: 'community' },
-		{ href: '/add-licks', label: 'Add Licks', primary: false, tourKey: 'add-licks' },
 		{ href: '/progress', label: 'Progress', primary: false, tourKey: 'progress' },
 		{ href: '/docs', label: 'Docs', primary: false, tourKey: 'docs' },
 		{ href: '/settings', label: 'Settings', primary: false, tourKey: 'settings' }
@@ -91,10 +89,10 @@
 	 * spec at documentation/architecture/design-system.md.
 	 *
 	 * - 'lick-practice' (green) — anything under /lick-practice
-	 * - 'ear-training' (blue, the default) — /ear-training, /scales, /record,
-	 *   /progress and their subroutes
-	 * - 'neutral' (slate) — everything else (Library, Add Licks, Settings,
-	 *   Home, Auth, Diagnostics, etc.)
+	 * - 'ear-training' (blue, the default) — /ear-training, /scales, /progress
+	 *   and their subroutes
+	 * - 'neutral' (slate) — everything else (Licks, Tunes, Settings, Home,
+	 *   Auth, Diagnostics, etc. — book management, not practice)
 	 */
 	const dataDomain = $derived.by(() => {
 		const path = page.url?.pathname ?? '/';
@@ -102,7 +100,6 @@
 		if (
 			path.startsWith('/ear-training') ||
 			path.startsWith('/scales') ||
-			path.startsWith('/record') ||
 			path.startsWith('/progress')
 		) {
 			return 'ear-training';
@@ -194,11 +191,6 @@
 
 	function isActive(href: string): boolean {
 		if (href === '/') return page.url?.pathname === '/';
-		if (href === '/add-licks') {
-			return ['/add-licks', '/record', '/entry'].some(
-				(p) => page.url?.pathname?.startsWith(p) ?? false
-			);
-		}
 		return page.url?.pathname?.startsWith(href) ?? false;
 	}
 

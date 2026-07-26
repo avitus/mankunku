@@ -24,7 +24,7 @@
 	} from '$lib/state/lick-practice.svelte';
 	import { getStolenLicksLocal, getStolenAuthorsLocal, returnLick } from '$lib/persistence/community';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
-	import { libraryTour } from '$lib/tour/tours/library';
+	import { licksTour } from '$lib/tour/tours/licks';
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	/** Supabase browser client from layout data (null when not available) */
@@ -212,7 +212,7 @@
 	}
 
 	function handleLickClick(id: string) {
-		goto(`/library/${id}`);
+		goto(`/licks/${id}`);
 	}
 
 	async function handlePlay(lick: Phrase) {
@@ -303,9 +303,15 @@
 			<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		</div>
 		<div class="flex items-center gap-4">
-			<TourTrigger tourId="library" steps={libraryTour} label="How the library works" />
+			<TourTrigger tourId="licks" steps={licksTour} label="How the library works" />
 			<a
-				href="/add-licks"
+				href="/licks/community"
+				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+			>
+				Browse Community
+			</a>
+			<a
+				href="/licks/add"
 				data-tour="add-lick"
 				class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 			>
@@ -334,7 +340,7 @@
 				them through all 12 keys in Lick Practice.
 			</p>
 			<a
-				href="/add-licks"
+				href="/licks/add"
 				class="mt-4 inline-block rounded-full bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 			>
 				+ Add your first lick

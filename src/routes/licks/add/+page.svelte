@@ -11,7 +11,7 @@
 
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 		<a
-			href="/record"
+			href="/licks/record"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			<!-- Brass microphone glyph -->
@@ -39,7 +39,7 @@
 		</a>
 
 		<a
-			href="/entry"
+			href="/licks/editor"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			<!-- Brass piano-keys glyph -->

@@ -33,6 +33,6 @@ test.describe('lick-practice setup', () => {
 		// Empty practice set → no "Start Session" button rendered.
 		await expect(page.getByRole('button', { name: /start session/i })).toHaveCount(0);
 		// Page should point users at the library to tag their first lick.
-		await expect(page.getByRole('link', { name: /library/i }).first()).toBeVisible();
+		await expect(page.getByRole('link', { name: /licks/i }).first()).toBeVisible();
 	});
 });

@@ -55,7 +55,7 @@
 			authorSearch: community.authorQuery.trim() || undefined,
 			sort: community.sort,
 			// Exclude the current user's own licks so the browse view shows
-			// only licks you could actually steal — your own are in /library.
+			// only licks you could actually steal — your own are in /licks.
 			excludeUserId: user?.id
 		};
 	}
@@ -171,7 +171,7 @@
 	}
 
 	function handleCardClick(lick: CommunityLick) {
-		goto(`/library/${lick.phrase.id}`);
+		goto(`/licks/${lick.phrase.id}`);
 	}
 
 	async function handlePlay(lick: Phrase) {
@@ -393,13 +393,13 @@
 				</p>
 				<div class="flex justify-center gap-2 pt-2">
 					<a
-						href="/record"
+						href="/licks/record"
 						class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-80"
 					>
 						Record a lick
 					</a>
 					<a
-						href="/entry"
+						href="/licks/editor"
 						class="rounded-full border border-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white transition-colors"
 					>
 						Step-enter a lick

@@ -1,11 +1,11 @@
 import type { DriveStep } from 'driver.js';
 
 /**
- * Library tour — assumes the user is on /library. Covers what the library now
+ * Library tour — assumes the user is on /licks. Covers what the library now
  * holds (the user's own + adopted licks), adding licks, and how the practice
  * sections relate to Lick Practice.
  */
-export const libraryTour: DriveStep[] = [
+export const licksTour: DriveStep[] = [
 	{
 		popover: {
 			title: 'Your Licks',

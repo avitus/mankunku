@@ -18,7 +18,7 @@
 	>
 		<p>
 			Heads up — the licks you save appear in the
-			<a href="/community" class="text-[var(--color-accent)] hover:underline">Community library</a>
+			<a href="/licks/community" class="text-[var(--color-accent)] hover:underline">Community library</a>
 			so other players can find and steal them.
 		</p>
 		<button

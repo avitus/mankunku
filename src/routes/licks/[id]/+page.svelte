@@ -297,12 +297,12 @@
 			return;
 		}
 		deleteUserLick(baseLick.id, supabase ?? undefined);
-		goto('/library');
+		goto('/licks');
 	}
 
 	function handleEdit() {
 		if (!baseLick) return;
-		goto(`/entry?edit=${baseLick.id}`);
+		goto(`/licks/editor?edit=${baseLick.id}`);
 	}
 
 	// Full-reset this lick's practice progress (two-stage inline confirm, like
@@ -336,7 +336,7 @@
 <div class="space-y-6">
 	<!-- Back link -->
 	<a
-		href="/library"
+		href="/licks"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
 	>
 		&larr; Library
@@ -526,7 +526,7 @@
 			<p class="text-[var(--color-text-secondary)]">
 				Lick not found: {page.params.id}
 			</p>
-			<a href="/library" class="mt-2 inline-block text-sm text-[var(--color-accent)]">
+			<a href="/licks" class="mt-2 inline-block text-sm text-[var(--color-accent)]">
 				Back to Library
 			</a>
 		</div>
