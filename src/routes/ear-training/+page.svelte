@@ -450,11 +450,11 @@
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 
 		const baseOnsets = resolveOnsets(workletOnsets, readings);
-		const articulationOnsets = findReArticulations(readings, baseOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const bleedOnsets = settings.metronomeEnabled
 			? getMetronomeBleedOnsets(recordingTransportSeconds, session.tempo, phraseDuration)
 			: undefined;
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(readings, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const schedule = getActiveSchedule();
 		const bleedResult = schedule
@@ -658,11 +658,11 @@
 		if (replay.readings.length === 0) return;
 
 		const baseOnsets = resolveOnsets(replay.onsets, replay.readings);
-		const articulationOnsets = findReArticulations(replay.readings, baseOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const bleedOnsets = metronomeEnabled
 			? getMetronomeBleedOnsets(transportSeconds, tempo, phraseDuration)
 			: undefined;
+		const articulationOnsets = findReArticulations(replay.readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(replay.readings, onsets, phraseDuration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, transportSeconds)
