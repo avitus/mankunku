@@ -307,12 +307,15 @@
 		rect.setAttribute('height', Math.max(0, spec.h).toFixed(2));
 		rect.setAttribute('rx', '3');
 		rect.setAttribute('class', `hit-zone ${kind}`);
-		// abcjs binds mousedown/mouseup on the SVG and resolves clicks by
-		// PROXIMITY — swallow both so a rect click can't double-dispatch
-		// through the clickListener as a phantom note/bar hit nearby.
+		// abcjs binds mousedown/mouseup AND touchstart/touchend on the SVG and
+		// resolves clicks by PROXIMITY — swallow all four so a rect tap/click
+		// can't double-dispatch through the clickListener as a phantom
+		// note/bar hit nearby.
 		const swallow = (e: Event) => e.stopPropagation();
 		rect.addEventListener('mousedown', swallow);
 		rect.addEventListener('mouseup', swallow);
+		rect.addEventListener('touchstart', swallow);
+		rect.addEventListener('touchend', swallow);
 		return rect;
 	}
 
