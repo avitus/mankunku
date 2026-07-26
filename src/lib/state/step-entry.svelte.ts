@@ -160,13 +160,20 @@ function nearestOctave(pitchClass: number, referenceMidi: number): number {
 	return inRange ? inRange.midi : candidates[0].midi;
 }
 
-export function addNote(
-	pitchClass: number, octave: number,
-	accidental: 'sharp' | 'flat' | 'natural'
-): boolean {
-	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
-	if (!canAddDuration(duration)) return false;
-
+/**
+ * Resolve a typed pitch letter to a CONCERT midi value using the current
+ * entry surface state (phraseKey key signature, transpositionOverride /
+ * instrument transposition), with nearest-octave placement relative to
+ * referenceConcertPitch (null = use the typed octave literally) and
+ * written-range validation. Returns null when out of range.
+ * Pure with respect to enteredNotes — reads stepEntry config, never mutates.
+ */
+export function resolveEntryPitch(
+	pitchClass: number,
+	octave: number,
+	accidental: 'sharp' | 'flat' | 'natural',
+	referenceConcertPitch: number | null
+): number | null {
 	// When no explicit accidental is set, apply the key signature.
 	// The user types note letters as they appear on their sheet music,
 	// so these adjustments happen in written-pitch space.
@@ -176,21 +183,32 @@ export function addNote(
 
 	const trans = entryTransposition();
 
-	// Find the last pitched note as a reference. Stored notes are in concert
-	// pitch, so convert to written space for nearest-octave comparison.
+	// The reference is in concert pitch (as stored notes are), so convert to
+	// written space for nearest-octave comparison.
 	let writtenMidi: number;
-	const lastPitched = findLastPitchedNote();
-	if (lastPitched !== null) {
-		const lastWritten = lastPitched + trans;
-		writtenMidi = nearestOctave(adjustedPc, lastWritten);
+	if (referenceConcertPitch !== null) {
+		const referenceWritten = referenceConcertPitch + trans;
+		writtenMidi = nearestOctave(adjustedPc, referenceWritten);
 	} else {
 		writtenMidi = pitchClassToMidi(adjustedPc, octave);
 	}
 
-	if (!isInEntryRange(writtenMidi)) return false;
+	if (!isInEntryRange(writtenMidi)) return null;
 
 	// Convert written → concert for canonical storage.
-	const concertMidi = writtenMidi - trans;
+	return writtenMidi - trans;
+}
+
+export function addNote(
+	pitchClass: number, octave: number,
+	accidental: 'sharp' | 'flat' | 'natural'
+): boolean {
+	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
+	if (!canAddDuration(duration)) return false;
+
+	// Find the last pitched note as the octave-placement reference.
+	const concertMidi = resolveEntryPitch(pitchClass, octave, accidental, findLastPitchedNote());
+	if (concertMidi === null) return false;
 
 	const offset = getCurrentCursorOffset();
 	stepEntry.enteredNotes.push({
