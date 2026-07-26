@@ -124,13 +124,30 @@
 			paddingtop: 10,
 			paddingbottom: 10,
 			add_classes: true,
-			clickListener: (abcElem) => {
+			clickListener: (abcElem, _tuneNumber, _classes, analysis) => {
 				if (!abcElem) return;
 				const startChar = (abcElem as { startChar?: number }).startChar;
 				if (typeof startChar !== 'number') return;
 				const target = resolveChartClick(startChar, noteAnchors, chordSlotAnchors, barAnchors);
-				if (target?.kind === 'note') onSelect?.(target.sourceIndex);
-				else if (target?.kind === 'bar') onBarClick?.(target.pos);
+				if (target?.kind === 'note') {
+					onSelect?.(target.sourceIndex);
+					return;
+				}
+				if (target?.kind !== 'bar') return;
+				// Clicking a rendered chord SYMBOL means "edit this chord"
+				// (MuseScore behavior), not "move the cursor". The clicked-glyph
+				// name distinguishes the chord text from the other glyphs (rests)
+				// sharing the chord voice's charspans.
+				if (chordEditor && analysis?.clickedName === 'chord') {
+					const slot = chordSlotAnchors.find(
+						(a) => startChar >= a.startChar && startChar < a.endChar
+					);
+					if (slot) {
+						openChordEditorAt({ sectionIdx: slot.sectionIdx, bar: slot.bar, beat: slot.beat });
+						return;
+					}
+				}
+				onBarClick?.(target.pos);
 			}
 		});
 		const vo = visualObj as unknown as AdapterVisualObj;
@@ -268,6 +285,7 @@
 				if (!band) continue;
 				const rect = makeHitRect(barHitRect(zone, band), 'bar-hit');
 				const pos = { sectionIdx: zone.sectionIdx, bar: zone.bar };
+				rect.setAttribute('data-bar-pos', `${pos.sectionIdx}:${pos.bar}`);
 				rect.addEventListener('click', (e) => {
 					e.stopPropagation();
 					onBarClick?.(pos);
@@ -290,6 +308,7 @@
 				if (!band) continue;
 				const rect = makeHitRect(chordHitRect(zone, band), 'chord-hit');
 				const pos = { sectionIdx: zone.sectionIdx, bar: zone.bar, beat: zone.beat };
+				rect.setAttribute('data-chord-pos', `${pos.sectionIdx}:${pos.bar}:${pos.beat}`);
 				rect.addEventListener('click', (e) => {
 					e.stopPropagation();
 					openChordEditorAt(pos);
@@ -414,7 +433,8 @@
 					onblur={handleChordBlur}
 					autocomplete="off"
 					spellcheck="false"
-					aria-label="Chord at bar {chordEdit.bar + 1}, beat {chordEdit.beat + 1}"
+					data-testid="chord-input"
+					aria-label="Chord at section {chordEdit.sectionIdx}, bar {chordEdit.bar + 1}, beat {chordEdit.beat + 1}"
 					style="left: {overlayBox.leftPct}%; top: {overlayBox.topPct}%; width: {overlayBox.widthPct}%"
 					class="absolute z-10 rounded px-1 py-0.5 text-center text-xs outline-none ring-2 {errorFlash
 						? 'bg-[var(--color-error)]/15 ring-[var(--color-error)]'

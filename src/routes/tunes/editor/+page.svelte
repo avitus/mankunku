@@ -6,7 +6,6 @@
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import SectionConfigPanel from '$lib/components/tune-entry/SectionConfigPanel.svelte';
-	import ChordEntryPanel from '$lib/components/tune-entry/ChordEntryPanel.svelte';
 	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import {
 		tuneEntry,
@@ -20,27 +19,32 @@
 		setSourceTransposition,
 		entryTranspositionSemitones,
 		flattenedBufferBase,
-		currentSectionPageCount,
-		melodyEditingSupported
+		melodyEditingSupported,
+		cursorToFlattened,
+		cursorToBar,
+		tuneAddNote,
+		tuneAddRest,
+		tuneEnterTiedNote,
+		selectNextAcrossPages,
+		selectPrevAcrossPages,
+		clearEntryCursor,
+		entryCursorPosition,
+		setChord,
+		removeChord,
+		chordTextAt,
+		PAGE_BARS
 	} from '$lib/state/tune-entry.svelte';
 	import {
 		stepEntry,
-		addNote,
-		addRest,
 		setDuration,
 		toggleTriplet,
 		toggleDotted,
 		setAccidental,
 		adjustOctave,
-		enterTiedNote,
 		selectNote,
-		selectPrev,
-		selectNext,
 		adjustSelectedNotePitch,
 		deleteSelectedNote,
-		flipSelectedNoteSpelling,
-		getCurrentBarAndBeat,
-		getRemainingCapacity
+		flipSelectedNoteSpelling
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
@@ -63,8 +67,8 @@
 		...getInstrument(),
 		transpositionSemitones: entryTranspositionSemitones()
 	});
-	const position = $derived(getCurrentBarAndBeat());
-	const remainingBeats = $derived(Math.round(fractionToFloat(getRemainingCapacity()) * 4));
+	/** Where the next entered note lands (null on non-4/4 sheets). */
+	const cursorPos = $derived(entryCursorPosition());
 	const currentSectionLabel = $derived(
 		tuneEntry.sections[tuneEntry.currentSection]?.label ?? 'A'
 	);
@@ -75,9 +79,50 @@
 	);
 
 	function handlePreviewSelect(flatIndex: number): void {
-		const base = flattenedBufferBase();
-		const local = flatIndex - base;
-		if (local >= 0 && local < stepEntry.enteredNotes.length) selectNote(local);
+		cursorToFlattened(flatIndex);
+	}
+
+	type BeatPos = { sectionIdx: number; bar: number; beat: number };
+
+	let notationRef: NotationDisplay | undefined = $state();
+
+	/**
+	 * Inline chord-editing adapters for the chart. Unchanged commits and
+	 * no-chord clears are deliberate no-ops: any state write forces a full
+	 * abcjs re-render, which can eat the very gesture that blurred the input.
+	 */
+	const chordEditor = {
+		textAt: (p: BeatPos) => chordTextAt(p.sectionIdx, p.bar, p.beat),
+		commit: (p: BeatPos, text: string) => {
+			if (text === (chordTextAt(p.sectionIdx, p.bar, p.beat) ?? '')) return true;
+			return setChord(p.sectionIdx, p.bar, p.beat, text);
+		},
+		clear: (p: BeatPos) => {
+			if (chordTextAt(p.sectionIdx, p.bar, p.beat) !== null) {
+				removeChord(p.sectionIdx, p.bar, p.beat);
+			}
+		}
+	};
+
+	/** `k`: open the chord editor at the selected note, else the entry cursor. */
+	function openChordEditorAtCursor(): void {
+		if (!notationRef) return;
+		const sel = stepEntry.selectedNoteIndex;
+		const selected = sel !== null ? stepEntry.enteredNotes[sel] : undefined;
+		if (selected) {
+			const barsIn = fractionToFloat(selected.offset) + tuneEntry.currentPage * PAGE_BARS;
+			const bar = Math.floor(barsIn + 1e-9);
+			const beat = Math.floor((barsIn - bar) * 4 + 1e-9);
+			notationRef.openChordEditorAt({ sectionIdx: tuneEntry.currentSection, bar, beat });
+			return;
+		}
+		const pos = entryCursorPosition();
+		if (!pos) return;
+		notationRef.openChordEditorAt({
+			sectionIdx: pos.sectionIdx,
+			bar: pos.barInSection,
+			beat: Math.floor(pos.beatInBar + 1e-9)
+		});
 	}
 
 	let moveNotes = $state(true);
@@ -145,20 +190,28 @@
 		if (e.key === 't' || e.key === 'T') { toggleTriplet(); return; }
 		if (e.key === '.') { toggleDotted(); return; }
 		const pc = keyToPitchClass(e.key);
-		if (pc !== null) { addNote(pc, stepEntry.selectedOctave, stepEntry.accidental); return; }
-		if (e.key === '0') { addRest(); return; }
+		if (pc !== null) { tuneAddNote(pc, stepEntry.selectedOctave, stepEntry.accidental); return; }
+		if (e.key === '0') { tuneAddRest(); return; }
 		if (e.key === ']') { setAccidental('sharp'); return; }
 		if (e.key === '[') { setAccidental('flat'); return; }
 		if (e.key === '\\') { flipSelectedNoteSpelling(); return; }
 		if (e.key === '=') { adjustOctave(1); return; }
 		if (e.key === '-') { adjustOctave(-1); return; }
-		if (e.key === '+') { enterTiedNote(); return; }
-		if (e.key === 'ArrowLeft') { e.preventDefault(); selectPrev(); return; }
-		if (e.key === 'ArrowRight') { e.preventDefault(); selectNext(); return; }
-		if (e.key === 'Escape') { selectNote(null); return; }
+		if (e.key === '+') { tuneEnterTiedNote(); return; }
+		if (e.key === 'k' || e.key === 'K') { openChordEditorAtCursor(); return; }
+		if (e.key === 'ArrowLeft') { e.preventDefault(); selectPrevAcrossPages(); return; }
+		if (e.key === 'ArrowRight') { e.preventDefault(); selectNextAcrossPages(); return; }
+		if (e.key === 'Escape') { selectNote(null); clearEntryCursor(); return; }
 		if (e.key === 'ArrowUp') { e.preventDefault(); adjustSelectedNotePitch(e.shiftKey ? 12 : 1); return; }
 		if (e.key === 'ArrowDown') { e.preventDefault(); adjustSelectedNotePitch(e.shiftKey ? -12 : -1); return; }
-		if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); deleteSelectedNote(); return; }
+		if (e.key === 'Backspace' || e.key === 'Delete') {
+			e.preventDefault();
+			deleteSelectedNote();
+			// The delete shifted every later offset — a live entry cursor would
+			// now point at a stale timeline position.
+			clearEntryCursor();
+			return;
+		}
 	}
 
 	async function togglePlay(): Promise<void> {
@@ -225,10 +278,13 @@
 
 	<!-- Live chart preview -->
 	<NotationDisplay
+		bind:this={notationRef}
 		tune={draft}
 		instrument={previewInstrument}
 		selectedIndex={previewSelectedIndex}
 		onSelect={handlePreviewSelect}
+		onBarClick={(pos) => cursorToBar(pos.sectionIdx, pos.bar)}
+		{chordEditor}
 	>
 		{#snippet titleArea()}
 			<input
@@ -271,16 +327,14 @@
 		</div>
 	{/if}
 
-	<!-- Status bar -->
-	<div class="flex items-center justify-between rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
+	<!-- Status bar: where the next entered note lands -->
+	<div class="rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
 		<span>
 			Section {currentSectionLabel}
-			{#if currentSectionPageCount() > 1}
-				· Page {tuneEntry.currentPage + 1}/{currentSectionPageCount()}
+			{#if cursorPos}
+				· Bar {cursorPos.barInSection + 1}, Beat {Math.floor(cursorPos.beatInBar + 1e-9) + 1}
 			{/if}
-			· Bar {position.bar}, Beat {position.beat}
 		</span>
-		<span>{remainingBeats <= 0 ? 'Page full' : `${remainingBeats} beats left on page`}</span>
 	</div>
 
 	<!-- Setup: title details, key, sections -->
@@ -357,11 +411,6 @@
 		</div>
 	{/if}
 
-	<!-- Chord entry -->
-	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
-		<ChordEntryPanel />
-	</div>
-
 	<!-- Actions -->
 	<div class="flex gap-2">
 		<button
@@ -391,7 +440,7 @@
 		<summary class="cursor-pointer">Keyboard shortcuts</summary>
 		<p class="mt-2">
 			A–G add notes · 0 rest · 1–4 durations · T triplet · . dotted · [ flat · ] sharp ·
-			= / − octave · + tie · \ respell · ←/→ select · ↑/↓ move pitch · ⌫ delete
+			= / − octave · + tie · \ respell · ←/→ select · ↑/↓ move pitch · ⌫ delete · K — chord
 		</p>
 	</details>
 </div>

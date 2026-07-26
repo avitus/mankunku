@@ -2,8 +2,10 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 
 /**
- * Manual lead-sheet entry: melody via the step-entry panel, chords via the
- * grid, live chart preview, save, and the ?edit= round trip.
+ * Manual lead-sheet entry: melody via the step-entry panel, chords typed
+ * directly on the chart, live preview, save, and the ?edit= round trip.
+ * The on-chart chord/cursor flows are covered in depth by
+ * chart-chord-entry.spec.ts and tune-editor-entry.spec.ts.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -24,9 +26,9 @@ test('creates a tune with melody and chords', async ({ page }) => {
 	await page.getByRole('button', { name: 'E', exact: true }).click();
 	await page.getByRole('button', { name: 'G', exact: true }).click();
 
-	// Chord at bar 1 beat 1, typed in written pitch.
-	await page.getByRole('button', { name: 'Set chord at bar 1, beat 1' }).click();
-	const chordInput = page.getByRole('textbox', { name: 'Chord at bar 1, beat 1' });
+	// Chord at bar 1 beat 1, typed in written pitch on the chart itself.
+	await page.locator('[data-chord-pos="0:0:0"]').click();
+	const chordInput = page.getByTestId('chord-input');
 	await chordInput.fill('Dm7');
 	await chordInput.press('Enter');
 
@@ -42,21 +44,6 @@ test('creates a tune with melody and chords', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'My First Chart' })).toBeVisible();
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D-7' }).first()).toBeVisible();
-});
-
-test('rejects an unparseable chord with an inline error flash', async ({ page }) => {
-	await page.goto('/tunes/editor');
-	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
-
-	await page.getByRole('button', { name: 'Set chord at bar 2, beat 1' }).click();
-	const chordInput = page.getByRole('textbox', { name: 'Chord at bar 2, beat 1' });
-	await chordInput.fill('Zzz9');
-	await chordInput.press('Enter');
-
-	// Editor stays open (nothing committed); escape closes it and the slot stays empty.
-	await expect(chordInput).toBeVisible();
-	await chordInput.press('Escape');
-	await expect(page.getByRole('button', { name: 'Set chord at bar 2, beat 1' })).toHaveText('·');
 });
 
 test('edits an existing sheet via ?edit= and updates in place', async ({ page }) => {

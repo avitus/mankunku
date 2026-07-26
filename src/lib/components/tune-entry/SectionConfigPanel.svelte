@@ -1,16 +1,11 @@
 <script lang="ts">
 	import {
-		PAGE_BARS,
 		tuneEntry,
-		loadPage,
 		addSection,
 		removeSection,
 		updateSectionMeta,
-		setSectionBars,
-		currentSectionPageCount
+		setSectionBars
 	} from '$lib/state/tune-entry.svelte';
-
-	const pageCount = $derived(currentSectionPageCount());
 
 	function handleBarsChange(index: number, event: Event): void {
 		const value = Number((event.currentTarget as HTMLInputElement).value);
@@ -35,15 +30,6 @@
 				class="flex flex-wrap items-center gap-2 rounded p-2 text-sm
 					{isCurrent ? 'bg-[var(--color-accent)]/10 ring-1 ring-[var(--color-accent)]/40' : 'bg-[var(--color-bg-tertiary)]'}"
 			>
-				<button
-					type="button"
-					onclick={() => loadPage(i, 0)}
-					class="rounded px-2 py-1 text-xs font-medium transition-colors
-						{isCurrent ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-primary)]'}"
-					aria-label="Edit section {sec.label}"
-				>
-					Edit
-				</button>
 				<input
 					type="text"
 					value={sec.label}
@@ -104,40 +90,11 @@
 		{/each}
 	</div>
 
-	<div class="flex flex-wrap items-center justify-between gap-2">
-		<button
-			type="button"
-			onclick={addSection}
-			class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-secondary)]"
-		>
-			+ Add section
-		</button>
-
-		{#if pageCount > 1}
-			<div class="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
-				<button
-					type="button"
-					disabled={tuneEntry.currentPage === 0}
-					onclick={() => loadPage(tuneEntry.currentSection, tuneEntry.currentPage - 1)}
-					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 transition-colors hover:bg-[var(--color-bg-secondary)] disabled:opacity-40"
-				>
-					&larr;
-				</button>
-				<span>
-					Bars {tuneEntry.currentPage * PAGE_BARS + 1}–{Math.min(
-						(tuneEntry.currentPage + 1) * PAGE_BARS,
-						tuneEntry.sections[tuneEntry.currentSection]?.bars ?? PAGE_BARS
-					)} of {tuneEntry.sections[tuneEntry.currentSection]?.bars}
-				</span>
-				<button
-					type="button"
-					disabled={tuneEntry.currentPage >= pageCount - 1}
-					onclick={() => loadPage(tuneEntry.currentSection, tuneEntry.currentPage + 1)}
-					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 transition-colors hover:bg-[var(--color-bg-secondary)] disabled:opacity-40"
-				>
-					&rarr;
-				</button>
-			</div>
-		{/if}
-	</div>
+	<button
+		type="button"
+		onclick={addSection}
+		class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-secondary)]"
+	>
+		+ Add section
+	</button>
 </div>
