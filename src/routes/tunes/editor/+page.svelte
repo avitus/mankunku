@@ -110,6 +110,8 @@
 		const sel = stepEntry.selectedNoteIndex;
 		const selected = sel !== null ? stepEntry.enteredNotes[sel] : undefined;
 		if (selected) {
+			// 4/4-only by construction — unreachable when !melodyEditingSupported()
+			// (no selection exists on non-4/4); mirrors entryCursorPosition()'s derivation.
 			const barsIn = fractionToFloat(selected.offset) + tuneEntry.currentPage * PAGE_BARS;
 			const bar = Math.floor(barsIn + 1e-9);
 			const beat = Math.floor((barsIn - bar) * 4 + 1e-9);

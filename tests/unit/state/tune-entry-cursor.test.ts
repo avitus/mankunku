@@ -9,7 +9,8 @@ import {
 	addNote,
 	selectNote,
 	deleteSelectedNote,
-	setDuration
+	setDuration,
+	toggleTriplet
 } from '$lib/state/step-entry.svelte';
 import {
 	PAGE_BARS,
@@ -54,6 +55,10 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 beforeEach(() => {
 	localStorageMock.clear();
 	settings.instrumentId = 'concert';
+	// Duration modifiers survive resetStepEntry — clear them explicitly so a
+	// triplet/dotted test can't leak its mode into later tests.
+	stepEntry.tripletMode = false;
+	stepEntry.dottedMode = false;
 	initNewTune();
 });
 
@@ -331,6 +336,37 @@ describe('cursor-mode entry', () => {
 		assertPrefixSum(notes);
 	});
 
+	it('splices a triplet eighth over a covering rest with exact remainders', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: null, duration: [2, 1], offset: [0, 1] },
+				{ pitch: 64, duration: [1, 4], offset: [2, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		setDuration('eighth');
+		toggleTriplet(); // [1, 12]
+		cursorToBar(0, 0, 2); // cursor at 0.5, mid-rest
+		expect(tuneAddNote(0, 4, 'natural')).toBe(true);
+		const notes = stepEntry.enteredNotes;
+		expect(notes).toHaveLength(4);
+		expect(notes[0].pitch).toBeNull();
+		expect(compareFractions(notes[0].duration, [1, 2])).toBe(0);
+		expect(notes[1].pitch).toBe(60);
+		expect(compareFractions(notes[1].offset, [1, 2])).toBe(0);
+		expect(compareFractions(notes[1].duration, [1, 12])).toBe(0);
+		// Trailing rest remainder is exact: 2 − 1/2 − 1/12 = 17/12 at 7/12.
+		expect(notes[2].pitch).toBeNull();
+		expect(compareFractions(notes[2].offset, [7, 12])).toBe(0);
+		expect(compareFractions(notes[2].duration, [17, 12])).toBe(0);
+		// The later pitched note keeps its exact offset.
+		expect(notes[3].pitch).toBe(64);
+		expect(compareFractions(notes[3].offset, [2, 1])).toBe(0);
+		assertPrefixSum(notes);
+	});
+
 	it('blocks on a pitched collision with zero mutation', () => {
 		loadFromTune(sheet([{
 			label: 'A',
@@ -407,6 +443,94 @@ describe('cursor-mode entry', () => {
 		loadFromTune(sheet([{ label: 'A', bars: 4, notes: [], harmony: [] }], [3, 4]),
 			INSTRUMENTS['concert']);
 		expect(entryCursorPosition()).toBeNull();
+	});
+});
+
+// ─── Group 4b: section-end overhang guard ─────────────────────────────
+
+/** Every committed note of section `sectionIdx` ends within the section span. */
+function assertSectionWithinSpan(sectionIdx: number): void {
+	const sec = tuneEntry.sections[sectionIdx];
+	for (const n of sec.notes) {
+		expect(compareFractions(addFractions(n.offset, n.duration), [sec.bars, 1]) <= 0).toBe(true);
+	}
+}
+
+describe('cursor-mode section-end overhang guard', () => {
+	it('rejects an insert that would overhang the section end, with zero mutation', () => {
+		cursorToBar(0, 7, 2); // last window (bars 5-8), local cursor 3.5
+		expect(tuneEntry.currentPage).toBe(1);
+		setDuration('whole'); // would span [3.5, 4.5) — half a bar past the section
+		const bufferBefore = JSON.parse(JSON.stringify(stepEntry.enteredNotes));
+		const sectionsBefore = JSON.parse(JSON.stringify(tuneEntry.sections));
+		expect(tuneAddNote(0, 4, 'natural')).toBe(false);
+		expect(JSON.parse(JSON.stringify(stepEntry.enteredNotes))).toEqual(bufferBefore);
+		expect(JSON.parse(JSON.stringify(tuneEntry.sections))).toEqual(sectionsBefore);
+		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(3.5, 9);
+		expect(stepEntry.selectedNoteIndex).toBeNull();
+		commitBuffer();
+		assertSectionWithinSpan(0);
+	});
+
+	it('rejects a tie that would overhang the section end, with zero mutation', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [{ pitch: 60, duration: [1, 2], offset: [7, 1] }],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		cursorToBar(0, 7, 2); // the C4 ends exactly at the cursor (local 3.5)
+		setDuration('whole'); // tie would span [3.5, 4.5)
+		const bufferBefore = JSON.parse(JSON.stringify(stepEntry.enteredNotes));
+		expect(tuneEnterTiedNote()).toBe(false);
+		// Zero mutation includes the would-be predecessor's tie flag.
+		expect(JSON.parse(JSON.stringify(stepEntry.enteredNotes))).toEqual(bufferBefore);
+		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(3.5, 9);
+		commitBuffer();
+		assertSectionWithinSpan(0);
+	});
+
+	it('rejects an overhang of a short last window', () => {
+		setSectionBars(0, 6); // last window = bars 5-6 (2 bars)
+		cursorToBar(0, 5, 3); // local cursor 1.75
+		setDuration('half'); // would span [1.75, 2.25) — past the 2-bar window
+		expect(tuneAddNote(0, 4, 'natural')).toBe(false);
+		expect(stepEntry.enteredNotes).toHaveLength(0);
+		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(1.75, 9);
+		commitBuffer();
+		assertSectionWithinSpan(0);
+	});
+
+	it('accepts an insert ending exactly at the window end', () => {
+		cursorToBar(0, 7, 2); // last window, local cursor 3.5
+		setDuration('half'); // ends exactly at 4.0
+		expect(tuneAddNote(0, 4, 'natural')).toBe(true);
+		const last = stepEntry.enteredNotes.at(-1)!;
+		expect(last.pitch).toBe(60);
+		expect(fractionToFloat(addFractions(last.offset, last.duration))).toBeCloseTo(4, 9);
+		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(4, 9);
+		commitBuffer();
+		assertSectionWithinSpan(0);
+	});
+
+	it('accepts a tie ending exactly at the window end', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [{ pitch: 60, duration: [1, 2], offset: [7, 1] }],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		cursorToBar(0, 7, 2); // local cursor 3.5, prev C4 ends here
+		setDuration('half'); // tie fills [3.5, 4.0) exactly
+		expect(tuneEnterTiedNote()).toBe(true);
+		const notes = stepEntry.enteredNotes;
+		const prev = notes.find((n) => n.pitch === 60 && compareFractions(n.offset, [3, 1]) === 0)!;
+		expect(prev.tied).toBe(true);
+		const tail = notes.at(-1)!;
+		expect(tail.pitch).toBe(60);
+		expect(fractionToFloat(addFractions(tail.offset, tail.duration))).toBeCloseTo(4, 9);
+		commitBuffer();
+		assertSectionWithinSpan(0);
 	});
 });
 

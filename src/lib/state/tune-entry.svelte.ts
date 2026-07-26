@@ -90,9 +90,10 @@ export const tuneEntry = $state({
 	currentPage: 0,
 	/**
 	 * Page-local insertion offset for cursor-mode entry (click-to-edit).
-	 * null = classic append-at-end mode. Mutually exclusive with the
-	 * step-entry note selection by construction: selecting a note clears the
-	 * cursor; setting the cursor clears the selection.
+	 * null = classic append-at-end mode. Relationship to the step-entry note
+	 * selection: arming the cursor clears the selection, but NOT vice versa —
+	 * a cursor-mode insert selects the inserted note AND keeps the cursor
+	 * armed (advanced past the insert), so both can be live at once.
 	 */
 	entryCursor: null as Fraction | null,
 	editingId: null as string | null,
@@ -721,6 +722,12 @@ export function tuneAddNote(
 			if (!hopCursorToNextPage(cursor)) return false;
 			return tuneAddNote(pitchClass, octave, accidental);
 		}
+		// The note must FIT the window: a mid-window cursor plus a long
+		// duration would otherwise splice a note overhanging the window end —
+		// past the section end on a section's last (possibly short) window.
+		if (compareFractions(addFractions(cursor, duration), [currentWindowBars(), 1]) > 0) {
+			return false;
+		}
 		const pageStart = pageStartFraction(tuneEntry.currentPage);
 		const spanStart = addFractions(pageStart, cursor);
 		if (spanHasPitchedCollision(tuneEntry.currentSection, spanStart, addFractions(spanStart, duration))) {
@@ -844,6 +851,11 @@ export function tuneEnterTiedNote(): boolean {
 			tuneEntry.entryCursor = addFractions([0, 1], duration);
 			restoreTie(prevSectionIdx, prevAbsOffset, pitch);
 			return true;
+		}
+		// Same window-fit pre-flight as tuneAddNote: a mid-window tie may not
+		// overhang the window (nor, on the last window, the section) end.
+		if (compareFractions(addFractions(cursor, duration), [currentWindowBars(), 1]) > 0) {
+			return false;
 		}
 		const pageStart = pageStartFraction(tuneEntry.currentPage);
 		const spanStart = addFractions(pageStart, cursor);

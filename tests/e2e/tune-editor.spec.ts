@@ -97,7 +97,7 @@ test('adds a section with a repeat and sees it in the preview', async ({ page })
 	// Status tracks the section switch (Add navigates to the new section).
 	// Scoped to the rail: the status also renders in the (display:none)
 	// mobile dock, which Playwright's text engine would still match.
-	await expect(page.getByTestId('entry-rail').getByText(/Section B/)).toBeVisible();
+	await expect(page.getByTestId('entry-rail').getByText(/Section B · Bar/)).toBeVisible();
 
 	// The preview shows both part labels. Generous timeout: abcjs re-renders
 	// destructively on every state change, and WebKit under full-suite

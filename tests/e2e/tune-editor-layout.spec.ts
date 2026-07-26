@@ -58,7 +58,7 @@ test.describe('desktop', () => {
 		const rail = page.getByTestId('entry-rail');
 		await expect(rail).toBeVisible();
 		await expect(page.getByTestId('entry-dock')).toBeHidden();
-		await expect(rail.getByText(/Section A\s*· Bar 1, Beat 1/)).toBeVisible();
+		await expect(rail.getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
 
 		const notes = page.locator(`${CHART_SVG} .abcjs-note`);
 		await expect(notes).toHaveCount(0);
@@ -97,7 +97,7 @@ test.describe('desktop', () => {
 		// 20 quarters = 5 bars: 16 fill the first 4-bar page, the rest rolled
 		// onto bar 5 — identical to the keyboard-entry auto-advance path.
 		await expect(page.locator(`${CHART_SVG} .abcjs-note`)).toHaveCount(20);
-		await expect(rail.getByText(/Bar 6, Beat 1/)).toBeVisible();
+		await expect(rail.getByText(/Section A · Bar 6, Beat 1/)).toBeVisible();
 	});
 });
 
@@ -110,7 +110,7 @@ test.describe('mobile', () => {
 		await expect(page.getByTestId('entry-rail')).toBeHidden();
 		const dock = page.getByTestId('entry-dock');
 		await expect(dock).toBeVisible();
-		await expect(dock.getByText(/Section A\s*· Bar 1, Beat 1/)).toBeVisible();
+		await expect(dock.getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
 
 		const box = await dock.boundingBox();
 		expect(box).not.toBeNull();

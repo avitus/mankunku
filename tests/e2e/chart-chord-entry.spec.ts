@@ -186,7 +186,7 @@ test.describe('touch', () => {
 		await expect(input).toHaveCount(1);
 		await expect(input).toHaveAttribute('aria-label', 'Chord at section 0, bar 3, beat 1');
 		// The entry cursor did NOT move (a phantom bar dispatch would arm bar 3).
-		await expect(page.getByTestId('entry-rail').getByText(/Bar 1, Beat 1/)).toBeVisible();
+		await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
 		expect(await touchLeaks(page)).toBe(0);
 	});
 
@@ -201,7 +201,7 @@ test.describe('touch', () => {
 		if (!box) throw new Error('bar zone 0:1 has no bounding box');
 		await zone.tap({ position: { x: box.width / 2, y: box.height * 0.85 } });
 
-		await expect(page.getByTestId('entry-rail').getByText(/Bar 2, Beat 1/)).toBeVisible();
+		await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 2, Beat 1/)).toBeVisible();
 		// One clean dispatch: no note got selected, no chord input opened, and
 		// no touch event leaked through to abcjs's SVG-level listeners.
 		await expect(page.locator(`${CHART_SVG} .selected-note`)).toHaveCount(0);
