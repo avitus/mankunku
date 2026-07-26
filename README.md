@@ -16,7 +16,7 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 - Concert pitch canonical — transposition to written pitch at display time only
 - Fraction-based rhythm representation (no floating-point drift with triplets or dotted notes)
 - Local-first: writes to localStorage/IndexedDB, optional Supabase cloud sync
-- Offline-capable installable PWA with cached SoundFont samples
+- Installable web app (manifest-based; user data is local-first, page loads need the network)
 - Cross-device progress sync via Supabase auth (optional)
 - Dark and light themes
 
@@ -33,7 +33,6 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 | abcjs | Sheet music notation rendering |
 | Supabase | Auth + PostgreSQL cloud sync (optional) |
 | Vitest + Playwright | Unit and E2E testing |
-| @vite-pwa/sveltekit | PWA with Workbox service worker |
 
 ## Quick Start
 

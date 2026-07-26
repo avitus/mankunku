@@ -5,7 +5,9 @@ import type { HandleClientError } from '@sveltejs/kit';
 import {
   isStaleChunkErrorMessage,
   shouldDropStaleChunkReport,
-  navRecoveryAction
+  navRecoveryAction,
+  shouldAttemptNavRecovery,
+  pendingNavTarget
 } from '$lib/util/stale-chunk';
 import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
 
@@ -29,10 +31,10 @@ const SENTRY_ENVIRONMENT = detectEnvironment();
 // After a deploy, an open tab's cached HTML may reference chunk hashes the
 // server no longer has. SvelteKit surfaces that as "error loading dynamically
 // imported module". The first occurrence for a given chunk is recovered by
-// handleStaleChunkReload below; if the reload doesn't help — or the same tab
+// handleNavErrorRecovery below; if the recovery doesn't help — or the same tab
 // later hits a *different* stale chunk across another deploy — that occurrence
-// is the actionable case and is reported. The report/reload decisions are keyed
-// per chunk URL in $lib/util/stale-chunk (unit-tested). See MANKUNKU-8.
+// is the actionable case and is reported. The report/recovery decisions are
+// keyed per chunk URL in $lib/util/stale-chunk (unit-tested). See MANKUNKU-8.
 
 Sentry.init({
   dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
@@ -46,7 +48,7 @@ Sentry.init({
   // In dev, Vite's HMR/dev-server churn produces "error loading dynamically
   // imported module" against localhost:5173 source URLs (e.g. app.css) when a
   // hot update is mid-flight or the dev server restarts. Not actionable — the
-  // page recovers on the next HMR tick or via handleStaleChunkReload below.
+  // page recovers on the next HMR tick or via handleNavErrorRecovery below.
   // The AbortError pattern fires when an <audio>/<video> src changes while a
   // load is in flight (Firefox is loud about this); not actionable. See
   // Sentry MANKUNKU-8 and MANKUNKU-M.
@@ -96,8 +98,9 @@ Sentry.init({
       }
     }
 
-    // Stale-chunk errors: handleStaleChunkReload below auto-recovers the first
-    // occurrence for a chunk by reloading. Don't pollute Sentry with that first
+    // Stale-chunk errors: handleNavErrorRecovery below auto-recovers the first
+    // occurrence for a chunk by navigating to the click target. Don't pollute
+    // Sentry with that first
     // occurrence — but DO report once a reload for that same chunk was already
     // attempted, because it means the reload didn't help and the error is
     // actionable. See MANKUNKU-8.
@@ -163,6 +166,20 @@ Sentry.init({
  * occurrence of a STALE-CHUNK error is dropped (the recovery is the fix) and
  * only the recovery-didn't-help case is reported.
  *
+ * Two gates protect the recovery from making things worse:
+ *
+ * - shouldAttemptNavRecovery: `handleError` also fires for failed hover/touch
+ *   PRELOADS (data-sveltekit-preload-data) with `event.url` = the preload
+ *   target; recovering those would navigate the user to a page they never
+ *   clicked. Only failures matching the in-flight navigation recorded by the
+ *   root layout's `beforeNavigate` (or a dying initial load) are recovered.
+ *
+ * - serverReachable: a full-page navigation while the server is down (deploy
+ *   restart gap) or the device is offline would eject the user from the
+ *   running local-first app onto a browser error page. Probe first; when
+ *   unreachable, leave the app in place — the error boundary offers a manual
+ *   Reload.
+ *
  * Note: this reactive recovery is a backstop. SvelteKit itself full-page
  * navigates to the target when a failed import coincides with a NEW app
  * version (updated.check()), and the proactive `beforeNavigate` guard in
@@ -171,13 +188,32 @@ Sentry.init({
  * (version check unreachable or reporting no change — e.g. dev-server HMR
  * churn, or a click landing inside the deploy's PM2 restart gap).
  */
-const handleNavErrorRecovery: HandleClientError = ({ error, event }) => {
+async function serverReachable(href: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  try {
+    await fetch(href, { method: 'HEAD', cache: 'no-store' });
+    return true; // any HTTP response (even an error status) proves reachability
+  } catch {
+    return false;
+  }
+}
+
+const handleNavErrorRecovery: HandleClientError = async ({ error, event }) => {
   const msg = (error as { message?: string } | null)?.message ?? '';
   if (typeof location === 'undefined' || typeof sessionStorage === 'undefined') return;
-  const action = navRecoveryAction(msg, sessionStorage, event?.url?.href ?? null);
+  const gate = shouldAttemptNavRecovery(
+    pendingNavTarget(),
+    event?.url?.href ?? null,
+    location.href
+  );
+  if (!gate.proceed) return;
+  const action = navRecoveryAction(msg, sessionStorage, gate.targetHref);
+  if (action.kind === 'none') return;
+  const dest = action.kind === 'navigate' ? action.href : location.href;
+  if (!(await serverReachable(dest))) return;
   if (action.kind === 'navigate') {
     location.href = action.href;
-  } else if (action.kind === 'reload') {
+  } else {
     location.reload();
   }
 };

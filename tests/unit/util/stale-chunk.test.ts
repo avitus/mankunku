@@ -5,7 +5,10 @@ import {
 	staleChunkKey,
 	shouldDropStaleChunkReport,
 	navRecoveryAction,
+	shouldAttemptNavRecovery,
+	clearNavRecoveryLatch,
 	shouldHardReloadOnNavigation,
+	STALE_CHUNK_RELOAD_KEY,
 	type KeyValueStore
 } from '$lib/util/stale-chunk';
 
@@ -37,6 +40,13 @@ describe('isStaleChunkErrorMessage', () => {
 	it('matches both SvelteKit stale-chunk phrasings', () => {
 		expect(isStaleChunkErrorMessage(URL_A)).toBe(true);
 		expect(isStaleChunkErrorMessage(FETCH_VARIANT)).toBe(true);
+	});
+
+	it("matches WebKit's stale-import phrasing (Safari/iOS)", () => {
+		expect(isStaleChunkErrorMessage('Importing a module script failed.')).toBe(true);
+		expect(
+			isRecoverableNavErrorMessage('TypeError: Importing a module script failed.')
+		).toBe(true);
 	});
 
 	it('ignores unrelated errors', () => {
@@ -154,24 +164,95 @@ describe('navRecoveryAction (dispatch order: beforeSend then handler)', () => {
 		expect(navRecoveryAction(msg, store, TARGET)).toEqual({ kind: 'none' });
 		expect(store.data['stale-chunk-reload-url']).toBeUndefined();
 	});
+
+	it('clearNavRecoveryLatch resets the latch so the next episode recovers again', () => {
+		const store = makeStore();
+		navRecoveryAction('NetworkError when attempting to fetch resource.', store, TARGET);
+		expect(store.data[STALE_CHUNK_RELOAD_KEY]).toBeDefined();
+		// A later successful client-side navigation proves the tab is healthy —
+		// the latch must reset so the NEXT deploy-window episode (same message
+		// key, days later) recovers instead of dead-ending on the error page.
+		clearNavRecoveryLatch(store);
+		expect(store.data[STALE_CHUNK_RELOAD_KEY]).toBeUndefined();
+		expect(
+			navRecoveryAction('NetworkError when attempting to fetch resource.', store, TARGET)
+		).toEqual({ kind: 'navigate', href: TARGET });
+	});
+});
+
+describe('shouldAttemptNavRecovery (gate: real navigations only, never preloads)', () => {
+	const TARGET = 'https://mankunkujazz.com/progress';
+	const CURRENT = 'https://mankunkujazz.com/settings';
+
+	it('proceeds toward the target when the failed URL matches the in-flight navigation', () => {
+		expect(shouldAttemptNavRecovery(TARGET, TARGET, CURRENT)).toEqual({
+			proceed: true,
+			targetHref: TARGET
+		});
+	});
+
+	it('does NOT act on hover/touch preload failures (no navigation in flight)', () => {
+		// data-sveltekit-preload-data="hover": kit runs loads for a hovered link
+		// and routes their failures through handleError with event.url = the
+		// PRELOAD target. Recovering would force-navigate to a page the user
+		// never clicked.
+		expect(shouldAttemptNavRecovery(null, TARGET, CURRENT)).toEqual({ proceed: false });
+	});
+
+	it('does NOT act when a preload fails while a different navigation is in flight', () => {
+		expect(
+			shouldAttemptNavRecovery('https://mankunkujazz.com/docs', TARGET, CURRENT)
+		).toEqual({ proceed: false });
+	});
+
+	it('falls back to reloading the current page for initial-load failures', () => {
+		// No navigation in flight and the failing event URL IS the current page:
+		// the initial load/hydration itself died (e.g. deploy raced the page
+		// load). A reload fetches a fresh shell — the pre-existing behavior.
+		expect(shouldAttemptNavRecovery(null, CURRENT, CURRENT)).toEqual({
+			proceed: true,
+			targetHref: null
+		});
+	});
+
+	it('does nothing when the event URL is unknown', () => {
+		expect(shouldAttemptNavRecovery(null, null, CURRENT)).toEqual({ proceed: false });
+	});
 });
 
 describe('shouldHardReloadOnNavigation (proactive version guard)', () => {
 	const to = { url: new URL('https://mankunkujazz.com/ear-training') };
 
 	it('hard-reloads when a new deploy is live and the nav has a client target', () => {
-		expect(shouldHardReloadOnNavigation({ to, willUnload: false }, true)).toBe(true);
+		expect(shouldHardReloadOnNavigation({ to, willUnload: false, type: 'link' }, true)).toBe(
+			true
+		);
+		expect(shouldHardReloadOnNavigation({ to, willUnload: false, type: 'goto' }, true)).toBe(
+			true
+		);
 	});
 
 	it('does nothing when no new version is available', () => {
-		expect(shouldHardReloadOnNavigation({ to, willUnload: false }, false)).toBe(false);
+		expect(shouldHardReloadOnNavigation({ to, willUnload: false, type: 'link' }, false)).toBe(
+			false
+		);
 	});
 
 	it('skips full-page unloads (the browser already does a fresh load)', () => {
-		expect(shouldHardReloadOnNavigation({ to, willUnload: true }, true)).toBe(false);
+		expect(shouldHardReloadOnNavigation({ to, willUnload: true, type: 'leave' }, true)).toBe(
+			false
+		);
 	});
 
 	it('skips navigations with no resolvable target', () => {
-		expect(shouldHardReloadOnNavigation({ to: null, willUnload: false }, true)).toBe(false);
+		expect(
+			shouldHardReloadOnNavigation({ to: null, willUnload: false, type: 'link' }, true)
+		).toBe(false);
+	});
+
+	it('skips back/forward (popstate) navigations — cancel() queues a history.go() that races the document load', () => {
+		expect(
+			shouldHardReloadOnNavigation({ to, willUnload: false, type: 'popstate' }, true)
+		).toBe(false);
 	});
 });

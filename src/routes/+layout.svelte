@@ -7,8 +7,12 @@
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
 	import { welcomeTour } from '$lib/tour/tours/welcome';
 	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
-	import { beforeNavigate, invalidate } from '$app/navigation';
-	import { shouldHardReloadOnNavigation } from '$lib/util/stale-chunk';
+	import { afterNavigate, beforeNavigate, invalidate } from '$app/navigation';
+	import {
+		shouldHardReloadOnNavigation,
+		setPendingNavTarget,
+		clearNavRecoveryLatch
+	} from '$lib/util/stale-chunk';
 
 	interface Props {
 		children: import('svelte').Snippet;
@@ -37,9 +41,25 @@
 	// document load (SvelteKit's own native_navigation() stalls the router the
 	// same way).
 	beforeNavigate((nav) => {
+		// Record the in-flight target so handleNavErrorRecovery (hooks.client.ts)
+		// can distinguish a failed NAVIGATION (recover toward this URL) from a
+		// failed hover/touch PRELOAD (do nothing).
+		setPendingNavTarget(nav.to?.url.href ?? null);
 		if (shouldHardReloadOnNavigation(nav, updated.current) && nav.to) {
 			nav.cancel();
 			location.href = nav.to.url.href;
+		}
+	});
+
+	afterNavigate((nav) => {
+		setPendingNavTarget(null);
+		// A completed client-side navigation (not the initial 'enter') proves the
+		// router is healthy — reset the one-attempt recovery latch so the next
+		// deploy-window episode recovers instead of dead-ending. Never reset on
+		// 'enter' alone: a page whose hydration keeps failing must stay latched
+		// or recovery would loop full-page navigations.
+		if (nav.type !== 'enter' && typeof sessionStorage !== 'undefined') {
+			clearNavRecoveryLatch(sessionStorage);
 		}
 	});
 

@@ -146,10 +146,14 @@ snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 # against an older deploy still requests that deploy's chunk hashes. Serving only
 # `current`'s assets 404s them ("error loading dynamically imported module").
 #
-# Keep every release's immutable assets in one shared, accumulating pool so a tab
-# on any recent version can still fetch its chunks. nginx serves /_app/immutable/
-# straight from this pool (see nginx/mankunku.conf), with Node as the fallback.
-# Content hashes never collide, so the union is always self-consistent.
+# Keep every release's immutable assets in one shared, accumulating pool so a
+# tab on any recent version can still fetch its chunks. The pool is SERVED by
+# hardlinking it into each staged release's own client dir (see the hydration
+# step below) — the Node server is the mechanism of record. nginx/mankunku.conf
+# has an alias that would serve the pool directly, but it never went live on
+# the box (discovered 2026-07-25 after months of the pool sitting unserved);
+# if it ever lands, it simply answers first for the same bytes. Content hashes
+# never collide, so the union is always self-consistent.
 SHARED_IMMUTABLE="${ROOT}/shared/_app/immutable"
 STAGE_IMMUTABLE="${STAGE}/build/client/_app/immutable"
 if [[ -d "$STAGE_IMMUTABLE" ]]; then
@@ -194,22 +198,32 @@ if [[ -d "$STAGE_IMMUTABLE" ]]; then
         mkdir -p "$SHARED_IMMUTABLE"
 
         # For each chunk this release ships: copy it in if the pool doesn't
-        # already have it (a new hash), otherwise just refresh its mtime. Copying
-        # only the missing files means an in-flight download of an existing
-        # (identical) chunk by another tab is never truncated. Refreshing the
-        # mtime makes the eviction below measure age from the last deploy that
-        # shipped a chunk, not the first time it appeared. `find -print0` is
-        # portable across BSD (macOS test harness) and GNU; `find -printf` is
-        # GNU-only — avoid it. (BSD `cp -n` exits non-zero when it skips, so we
-        # branch on existence ourselves rather than rely on a no-clobber flag.)
+        # already have it (a new hash), otherwise just refresh its mtime.
+        # Refreshing the mtime makes the eviction below measure age from the
+        # last deploy that shipped a chunk, not the first time it appeared.
+        # `find -print0` is portable across BSD (macOS test harness) and GNU;
+        # `find -printf` is GNU-only — avoid it.
+        #
+        # Writes are ATOMIC (copy to a temp name, then rename): the pool is now
+        # SERVED (hydrated into every release below), so a deploy killed
+        # mid-copy — OOM, dropped SSH, the crash class the stale-lock breaker
+        # above exists for — must never leave a truncated chunk under a
+        # content-hashed name where every future release would link and serve
+        # it. The rename also keeps in-flight downloads of an existing chunk
+        # safe, which the old skip-if-exists branch protected with plain cp.
+        # Existing entries are re-copied when their size disagrees with the
+        # staged file: that repairs any truncated entry from a pre-atomic-era
+        # crash the next time a build ships the same hash.
         ( cd "$STAGE_IMMUTABLE" && find . -type f -print0 ) \
             | while IFS= read -r -d '' rel; do
+                  src="${STAGE_IMMUTABLE}/${rel}"
                   dest="${SHARED_IMMUTABLE}/${rel}"
-                  if [[ -f "$dest" ]]; then
+                  if [[ -f "$dest" ]] && [[ "$(wc -c <"$dest")" -eq "$(wc -c <"$src")" ]]; then
                       touch -c "$dest"
                   else
                       mkdir -p "$(dirname "$dest")"
-                      cp "${STAGE_IMMUTABLE}/${rel}" "$dest"
+                      cp "$src" "${dest}.tmp.$$"
+                      mv -f "${dest}.tmp.$$" "$dest"
                   fi
               done
 

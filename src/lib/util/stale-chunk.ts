@@ -32,7 +32,7 @@ export interface KeyValueStore {
 export const STALE_CHUNK_RELOAD_KEY = 'stale-chunk-reload-url';
 
 const STALE_CHUNK_ERROR_PATTERN =
-	/error loading dynamically imported module|Failed to fetch dynamically imported module/i;
+	/error loading dynamically imported module|Failed to fetch dynamically imported module|Importing a module script failed/i;
 
 /**
  * Generic navigation-fetch failures (no module URL in the message). Seen when
@@ -45,7 +45,12 @@ const STALE_CHUNK_ERROR_PATTERN =
 const NAV_FETCH_ERROR_PATTERN =
 	/NetworkError when attempting to fetch resource|^(TypeError: )?(Load failed|Failed to fetch)\.?$/i;
 
-/** True when the message is SvelteKit's stale dynamic-import failure. */
+/**
+ * True when the message is a stale dynamic-import failure. Phrasings:
+ * Firefox "error loading dynamically imported module", Chromium "Failed to
+ * fetch dynamically imported module", WebKit "Importing a module script
+ * failed." (Safari/iOS — no URL in the message).
+ */
 export function isStaleChunkErrorMessage(msg: string): boolean {
 	return STALE_CHUNK_ERROR_PATTERN.test(msg);
 }
@@ -121,15 +126,83 @@ export function navRecoveryAction(
 }
 
 /**
+ * Reset the one-attempt-per-key recovery latch. Call after a SUBSEQUENT
+ * client-side navigation succeeds (nav type !== 'enter'), which proves the
+ * tab is healthy: generic failures are keyed by message text (no URL), so
+ * without this reset the latch from a recovered episode would survive in
+ * sessionStorage and turn the NEXT deploy-window episode — days later, same
+ * message — into a dead-end on the error page. Never call it on initial-load
+ * completion alone: a page whose hydration keeps failing must NOT re-arm,
+ * or recovery would loop full-page navigations without user input.
+ */
+export function clearNavRecoveryLatch(store: KeyValueStore): void {
+	store.removeItem(STALE_CHUNK_RELOAD_KEY);
+}
+
+/**
+ * Gate for `handleError` recovery: act only on failures of a REAL navigation,
+ * never on preload failures. SvelteKit routes failed loads through
+ * `handleError` for hover/touch PRELOADS too (data-sveltekit-preload-data),
+ * with `event.url` set to the preload target — auto-navigating there would
+ * send the user to a page they never clicked.
+ *
+ * - `pendingHref` — the target of the navigation currently in flight, as
+ *   recorded by the root layout's `beforeNavigate` (null when none).
+ * - `eventHref` — `event.url.href` from `handleError` (the failing route).
+ * - `currentHref` — `location.href`.
+ *
+ * Proceed toward the target when the failure belongs to the in-flight
+ * navigation. With no navigation in flight, a failure whose URL is the
+ * CURRENT page is the initial load/hydration dying — recover by reload
+ * (targetHref null). Anything else is a preload or an unrelated load: do
+ * nothing.
+ */
+export function shouldAttemptNavRecovery(
+	pendingHref: string | null,
+	eventHref: string | null,
+	currentHref: string | null
+): { proceed: false } | { proceed: true; targetHref: string | null } {
+	if (pendingHref && eventHref === pendingHref) {
+		return { proceed: true, targetHref: pendingHref };
+	}
+	if (!pendingHref && eventHref && currentHref && eventHref === currentHref) {
+		return { proceed: true, targetHref: null };
+	}
+	return { proceed: false };
+}
+
+// --- In-flight navigation target (module state, set by the root layout) ---
+//
+// `handleError` has no signal distinguishing a failed NAVIGATION from a
+// failed PRELOAD; the root layout records every navigation's target here so
+// `shouldAttemptNavRecovery` can tell them apart.
+
+let pendingNavHref: string | null = null;
+
+/** Root layout `beforeNavigate`: record the in-flight target (null to clear). */
+export function setPendingNavTarget(href: string | null): void {
+	pendingNavHref = href;
+}
+
+/** The target of the navigation currently in flight, if any. */
+export function pendingNavTarget(): string | null {
+	return pendingNavHref;
+}
+
+/**
  * Proactive `beforeNavigate` guard: when a new deployment is live
  * (`updatedCurrent`, driven by `kit.version.pollInterval`), do a full-page load
  * of the navigation target so a fresh HTML + manifest are fetched before any
- * lazy `import()` can 404. Skips full-page unloads (already a fresh load) and
- * navigations with no resolvable client target (e.g. external/hash).
+ * lazy `import()` can 404. Skips full-page unloads (already a fresh load),
+ * navigations with no resolvable client target (e.g. external/hash), and
+ * back/forward (`popstate`) navigations — cancelling those makes the router
+ * queue a compensating `history.go()` that races the `location.href` document
+ * load; if a popstate lands on a stale chunk, the reactive recovery in
+ * hooks.client.ts catches it instead.
  */
 export function shouldHardReloadOnNavigation(
-	nav: { to: { url: URL } | null; willUnload: boolean },
+	nav: { to: { url: URL } | null; willUnload: boolean; type: string },
 	updatedCurrent: boolean
 ): boolean {
-	return updatedCurrent && !nav.willUnload && nav.to != null;
+	return updatedCurrent && !nav.willUnload && nav.to != null && nav.type !== 'popstate';
 }

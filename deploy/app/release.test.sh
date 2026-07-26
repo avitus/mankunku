@@ -105,6 +105,12 @@ ok "old chunk hydrated into the new release's client dir"
 grep -q "2.AAAAAAA" "$HYDRATED_A" \
     || fail "hydrated chunk content mismatch"
 ok "hydrated chunk carries the original content"
+# Pin the MECHANISM, not just the content: hydration must hardlink (same
+# inode), or a silent regression to the cp fallback would multiply the pool's
+# full size into every retained release.
+[[ "$HYDRATED_A" -ef "${POOL}/2.AAAAAAA.js" ]] \
+    || fail "hydrated chunk is not a hardlink to the pool inode"
+ok "hydrated chunk is a hardlink to the pool inode"
 [[ -f "${MANKUNKU_ROOT}/releases/${ID2}/build/client/_app/immutable/nodes/2.BBBBBBB.js" ]] \
     || fail "release's own chunk clobbered by hydration"
 ok "release's own chunks untouched by hydration"
@@ -128,6 +134,19 @@ ok "still-shipped chunk retained despite earlier age"
 [[ ! -f "${MANKUNKU_ROOT}/releases/${ID3}/build/client/_app/immutable/nodes/2.AAAAAAA.js" ]] \
     || fail "evicted chunk hydrated into new release (evict must precede hydrate)"
 ok "evicted chunk stays out of the new release"
+
+# Self-repair: a crashed deploy can leave a TRUNCATED file in the pool (the
+# copy is interrupted mid-write). Hydration now serves pool bytes, so a
+# poisoned entry would be linked into every future release for the whole
+# retention window. When a build ships the same hash again, the merge must
+# detect the size mismatch and replace the corrupt pool copy.
+ID3B="20260103-120000-c2c2c2c"
+printf 'trunc' > "${POOL}/2.BBBBBBB.js"   # simulate interrupted copy of chunk B
+stage_release "$ID3B" "2.BBBBBBB.js"       # next deploy ships pristine chunk B
+bash "$RELEASE_SH" "$ID3B" >/dev/null
+grep -q "2.BBBBBBB" "${POOL}/2.BBBBBBB.js" \
+    || fail "truncated pool chunk not repaired by a build shipping the same hash"
+ok "truncated pool chunk repaired from the next build that ships it"
 
 # Stale lock: a lock left behind by a crashed deploy must be broken, not block
 # the next deploy forever. Plant a lock older than the stale window and confirm
