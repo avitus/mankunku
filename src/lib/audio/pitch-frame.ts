@@ -44,6 +44,17 @@ export interface PitchReading {
 	 */
 	hfRms?: number;
 	/**
+	 * Minimum short-window RMS (sliding ~11.6 ms sub-windows, see
+	 * RMS_MIN_SPAN_BLOCKS) within the analysis window. The window-level
+	 * `rms` averages over ~93 ms, which smooths a 20–30 ms tongue-stop dip
+	 * completely out of view — the 2026-07-25 "blue-step-down" tongue dips
+	 * the raw envelope 33% for ~20 ms while the window RMS barely moves.
+	 * This field preserves the true dip floor so the segmenter's envelope
+	 * re-articulation pass can see it. Optional so readings restored from
+	 * pre-2026-07-25 diagnostic JSON (which lack it) simply skip that pass.
+	 */
+	rmsMin?: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -52,6 +63,21 @@ export interface PitchReading {
 	 */
 	warmup?: boolean;
 }
+
+/**
+ * Sub-window sizing for the `rmsMin` envelope scan: sliding windows of
+ * RMS_MIN_SPAN_BLOCKS × RMS_MIN_BLOCK_SIZE samples (512 ≈ 11.6 ms at
+ * 44.1 kHz), hopping one block at a time. The sliding window must span at
+ * least one full period of the lowest supported pitch — a bare 128-sample
+ * block covers under half a cycle of a low tenor note (~175 Hz), so its
+ * RMS measures intra-cycle phase, not envelope: a steady F3 reads a
+ * phantom ~0.55× "dip" on every frame while a real 20 ms tongue dip
+ * drowns in the same noise. At 512 samples the steady-state floor sits at
+ * ~0.9× window RMS and articulation dips read true (measured on the
+ * 2026-07-25 fixtures).
+ */
+const RMS_MIN_BLOCK_SIZE = 128;
+const RMS_MIN_SPAN_BLOCKS = 4;
 
 /** Default clarity floor for accepting a reading */
 export const DEFAULT_CLARITY_THRESHOLD = 0.80;
@@ -351,9 +377,16 @@ export function detectFrame(
 
 	let energy = 0;
 	let hfEnergy = 0;
+	let blockEnergy = 0;
+	const blockEnergies: number[] = [];
 	for (let i = 0; i < buffer.length; i++) {
 		const s = buffer[i];
 		energy += s * s;
+		blockEnergy += s * s;
+		if ((i + 1) % RMS_MIN_BLOCK_SIZE === 0) {
+			blockEnergies.push(blockEnergy);
+			blockEnergy = 0;
+		}
 		if (i > 0) {
 			const d = s - buffer[i - 1];
 			hfEnergy += d * d;
@@ -361,6 +394,23 @@ export function detectFrame(
 	}
 	const rms = Math.sqrt(energy / buffer.length);
 	const hfRms = Math.sqrt(hfEnergy / buffer.length);
+
+	// Min RMS over sliding spans of RMS_MIN_SPAN_BLOCKS consecutive blocks.
+	let minSpanEnergy = Infinity;
+	if (blockEnergies.length >= RMS_MIN_SPAN_BLOCKS) {
+		let spanEnergy = 0;
+		for (let b = 0; b < blockEnergies.length; b++) {
+			spanEnergy += blockEnergies[b];
+			if (b >= RMS_MIN_SPAN_BLOCKS) spanEnergy -= blockEnergies[b - RMS_MIN_SPAN_BLOCKS];
+			if (b >= RMS_MIN_SPAN_BLOCKS - 1 && spanEnergy < minSpanEnergy) {
+				minSpanEnergy = spanEnergy;
+			}
+		}
+	}
+	const rmsMin =
+		minSpanEnergy === Infinity
+			? rms
+			: Math.sqrt(minSpanEnergy / (RMS_MIN_SPAN_BLOCKS * RMS_MIN_BLOCK_SIZE));
 
 	if (
 		clarity < clarityThreshold ||
@@ -379,7 +429,7 @@ export function detectFrame(
 	const octaveCorrection = midi - rawMidi;
 	const midiFloat = rawMidiFloat + octaveCorrection;
 
-	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms };
+	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
 	if (stab.warmup) reading.warmup = true;
 
 	return { reading, rawClarity: clarity };

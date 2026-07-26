@@ -12,15 +12,26 @@ Existing files:
 
 | File | Category | Count |
 |---|---|---|
-| `beginner-cells.ts` | Beginner Cells | 50 |
+| `blues.ts` | Blues | 120 |
+| `blues-blue-note.ts` | Blues | 75 |
+| `beginner-cells.ts` | Blues / Pentatonic (mixed) | 55 |
+| `major-4-7.ts` | Major | 40 |
+| `major-4-7-vol2.ts` | Major | 40 |
 | `ii-V-I-major.ts` | ii-V-I Major | 24 |
-| `blues.ts` | Blues | 20 |
 | `bebop-lines.ts` | Bebop Lines | 20 |
 | `ii-V-I-minor.ts` | ii-V-I Minor | 15 |
-| `pentatonic.ts` | Pentatonic | 10 |
 | `modal.ts` | Modal | 10 |
-| `rhythm-changes.ts` | Rhythm Changes | 7 |
+| `pentatonic.ts` | Pentatonic | 10 |
 | `ballad.ts` | Ballad | 7 |
+| `rhythm-changes.ts` | Rhythm Changes | 7 |
+| `short-ii-V-I-major.ts` | ii-V-I Major | 6 |
+| `short-ii-V-I-minor.ts` | ii-V-I Minor | 6 |
+| `major-chord.ts` | Major | 4 |
+| `dominant-chord.ts` | Dominant | 3 |
+| `v-i-major.ts` | V-I Major | 3 |
+| `minor-chord.ts` | Minor | 3 |
+| `diminished-chord.ts` | Diminished | 2 |
+| `v-i-minor.ts` | V-I Minor | 2 |
 
 Add to an existing file for existing categories, or create a new file for a new category. Note: `combiner.ts` generates ~86 additional licks algorithmically from scale pattern × rhythm template pairs — you don't need to add licks there manually.
 
@@ -68,9 +79,9 @@ Each lick is a `Phrase` object. Here's an annotated example:
 
   // Difficulty metadata
   difficulty: {
-    level: 3,                 // 1-7, matches difficulty profiles
-    pitchComplexity: 3,
-    rhythmComplexity: 2,
+    level: 35,                // 1-100 (1 = easiest, 100 = hardest)
+    pitchComplexity: 30,      // 1-100
+    rhythmComplexity: 20,     // 1-100
     lengthBars: 2             // Number of bars
   },
 
@@ -131,7 +142,7 @@ If creating a new file:
 
 1. Create `src/lib/data/licks/your-category.ts`:
    ```typescript
-   import type { Phrase } from '$lib/types/music.ts';
+   import type { Phrase } from '$lib/types/music';
 
    export const YOUR_CATEGORY_LICKS: Phrase[] = [
      // ... your licks
@@ -140,7 +151,7 @@ If creating a new file:
 
 2. Update `src/lib/data/licks/index.ts`:
    ```typescript
-   import { YOUR_CATEGORY_LICKS } from './your-category.ts';
+   import { YOUR_CATEGORY_LICKS } from './your-category';
 
    export const ALL_CURATED_LICKS: Phrase[] = [
      ...II_V_I_MAJOR_LICKS,
@@ -157,18 +168,17 @@ If creating a new file:
 
 Run the app and verify:
 
-1. The lick is drawn in ear-training sessions for its category (the curated catalog is not surfaced on the Licks page)
+1. The lick is selectable and plays in the ear-training practice flow (curated licks surface there, not on the Licks page — which lists only your own and adopted-community licks)
 2. The sheet music renders correctly
 3. Playback sounds right
 4. Transposition to other keys works
-5. The category filter includes it
 
 You can also write the lick in MuseScore or another notation editor first, then convert to MIDI values.
 
 ## Tips
 
 - Listen to real jazz recordings for authentic lick vocabulary
-- Keep licks concise — 1–2 bars for levels 1–4, up to 4 bars for levels 5–7
+- Keep licks concise — 1–2 bars for lower difficulty levels, up to 4 bars for higher ones
 - Include approach notes and enclosures at higher difficulty levels
 - Tag licks descriptively for search discoverability
 - Ensure harmony matches the notes (chord tones on strong beats)

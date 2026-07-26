@@ -100,7 +100,7 @@ cents = round((midiFloat - midi) * 100)
 
 ## Onset Detection (HFC)
 
-**Source:** `src/lib/audio/onset-worklet.ts`
+**Source:** `src/lib/audio/onset-core.ts` (pure algorithm + constants, shared with the offline replay path), run on the audio thread by the `src/lib/audio/onset-worklet.js` AudioWorklet shim (plain JS by necessity — it executes in `AudioWorkletGlobalScope` and Vite loads its URL as a raw asset, so it can't be TypeScript and its constants are kept in sync with `onset-core.ts`).
 
 An energy-based onset detector running on the audio thread via AudioWorklet.
 
@@ -141,16 +141,21 @@ HFC is computationally simpler (no FFT required) and works well for percussive o
 
 **Source:** `src/lib/audio/note-segmenter.ts`
 
-### Median-Based Pitch Assignment
+### Clarity-Weighted Pitch Assignment
 
-Within each onset-bounded segment, the pitch is determined by the **median** MIDI note of all pitch readings, not the mean or mode.
+Within each onset-bounded segment, the pitch is chosen by `pickMidi()`, a two-stage clarity-weighted vote (effectively a weighted mode):
 
-**Why median:**
-- **Robustness to outliers** — A brief pitch glitch (e.g., octave error) doesn't affect the result
-- **No distribution assumption** — Unlike the mean, the median doesn't assume symmetric error
-- **Stable for modal data** — For clean segments, the median equals the true pitch
+1. **Pitch class** — Sum each reading's weight per pitch class (`midi % 12`) and pick the heaviest pitch class.
+2. **Octave** — Within that pitch class, sum weights per octave (per absolute MIDI) and pick the heaviest octave. Near-ties (within 5%) are broken by proximity to the previous note's MIDI so cross-note octave flips don't occur.
 
-The cents deviation is also the median, but only from readings matching the median MIDI (filtering out octave errors before computing intonation).
+Each reading's weight is `clarity²`, further scaled by `0.25` for warmup frames (emitted during the octave stabilizer's warmup window, where raw MIDI often reflects attack-transient partials).
+
+**Why weighted mode:**
+- **Sustained frames dominate** — High-clarity, held frames outweigh brief transients, so the true pitch wins the vote
+- **Outlier suppression** — Attack transients and subharmonic/octave glitches get outvoted rather than averaged in
+- **Octave continuity** — The proximity tie-break keeps octave choices stable across adjacent notes
+
+The cents deviation *is* a median, but only over the readings that already match the chosen MIDI (filtering out octave errors before computing intonation).
 
 ## Adaptive Difficulty
 

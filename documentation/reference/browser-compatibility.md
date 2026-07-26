@@ -11,7 +11,7 @@ Mankunku relies on modern Web APIs. This page documents compatibility requiremen
 | AudioWorklet | Onset detection | 66+ | 76+ | 14.1+ | 79+ |
 | `Permissions.query` | Mic permission check | 43+ | 46+ | 16+ | 79+ |
 | `localStorage` | Settings, progress | All | All | All | All |
-| `CacheStorage` | SoundFont caching | 40+ | 41+ | 11.1+ | 79+ |
+| `CacheStorage` | Service worker asset caching | 40+ | 41+ | 11.1+ | 79+ |
 | `requestAnimationFrame` | Pitch detection loop | 10+ | 23+ | 6.1+ | 12+ |
 | CSS Custom Properties | Theming | 49+ | 31+ | 9.1+ | 15+ |
 | ES2022+ | Async/await, modules | 89+ | 89+ | 15+ | 89+ |
@@ -65,15 +65,15 @@ The `navigator.permissions.query({ name: 'microphone' })` API:
 
 The onset detector loads its worklet via:
 ```typescript
-const workletUrl = new URL('./onset-worklet.ts', import.meta.url);
+const workletUrl = new URL('./onset-worklet.js', import.meta.url);
 await context.audioWorklet.addModule(workletUrl);
 ```
 
-This relies on Vite transforming the TypeScript worklet file into a loadable module. In production builds, Vite handles this correctly. In some development configurations with HMR, the worklet URL may need special handling.
+The worklet is authored as a plain JavaScript file (`onset-worklet.js`) deliberately so Vite emits it as-is with no TypeScript transpilation on the raw-asset URL. Its algorithm is kept in sync with `onset-core.ts` (used by the replay path). In production builds, Vite handles this correctly. In some development configurations with HMR, the worklet URL may need special handling.
 
 ### SoundFont Loading
 
-First instrument load requires downloading a ~2MB SoundFont file. This is cached via `CacheStorage` (not `localStorage`) for subsequent visits. A loading indicator shows during this process.
+The default sax instruments (tenor/alto/soprano) load from bundled local `/samples/<instrument>/*.ogg` audio files served as static assets — there is no separate download step. (The `.ogg` samples fall outside the workbox precache glob, which covers only js/css/html/svg/woff2, so they are not service-worker cached, but the browser HTTP cache still serves them on repeat visits.) Instruments without a bundled sample map fall back to smplr's MusyngKite kit, which smplr fetches as remote JavaScript soundfont files (`{name}-{ogg|mp3}.js`) from `gleitz.github.io` using a plain `fetch` (smplr's `HttpStorage`) — the app does not enable smplr's optional `CacheStorage` backing. A loading indicator shows while an instrument loads.
 
 ### Pitch Detection Accuracy
 

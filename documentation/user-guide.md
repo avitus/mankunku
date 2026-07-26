@@ -36,10 +36,9 @@ This is the call-and-response loop.
 | **Daily Tonality** | Lock in today's key + scale, or override to any *unlocked* key + scale combination. Locked tonalities show a lock icon with the proficiency they require. The "Reset to daily" button restores the automatic pick. |
 | **Category** | Filter the lick pool to one harmonic context — ii-V-I major, blues, bebop lines, ballad, and so on. Or leave it on "all" and let the app rotate. |
 | **Difficulty** | 1–100, displayed as ten bands from Beginner to Virtuoso. Set it to a fixed value, or let the adaptive system steer. |
-| **Tempo** | 40–300 BPM. Most players start in the 80–110 range. |
+| **Tempo** | 60–200 BPM. Most players start in the 80–110 range. |
 | **Source** | Curated (hand-written and combinatorial catalog), Generated (algorithmic, infinite variety), or Mixed. |
 | **Bars** | 1–4 bars, applies only to generated phrases. |
-| **Metronome** | On/off, plus a swing slider. Rhythm is 40% of your score, so practicing with the click on is usually the right move. |
 
 ### What's on screen while you're playing
 
@@ -69,10 +68,11 @@ When you open Side B, you choose:
 - **Practice mode** — *Continuous* plays the lick once as a demo in the first key, then you play it through all 12 keys back-to-back over a non-stop backing track. *Call & Response* skips the upfront demo and instead, in every key, the app plays the lick first and you echo it on the next cycle, alternating through all 12 keys. Both modes score every key the user plays.
 - **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +5 BPM at 95%+, +2 BPM at 90%+, -1 BPM in the 75–89% yellow band, and -3 BPM below 75%. A single key scored below 75% blocks *any* upward adjustment, even if the average looks good.
 
-Two start buttons sit at the bottom of the setup screen:
+A single **Start** button sits at the bottom of the setup screen. Its label changes to match the **Session Type** you pick at the top of the screen, which offers three modes:
 
-- **Start Session** runs licks tagged for the progression you picked above. It's the right choice when you want focused work on one harmonic context.
-- **Start Daily Practice** ignores the picked progression and rotates across every progression you've tagged licks for, fitting the session into the same time budget. Each lick gets paired with whichever of its eligible progressions you've practiced least recently. Use it as your default daily warm-up so every line gets time on the clock.
+- **Focused Session** (the button reads *Start Session*) runs licks tagged for the progression you picked above. It's the right choice when you want focused work on one harmonic context.
+- **Daily Practice** (the button reads *Start Daily Practice*) ignores the picked progression and rotates across every progression you've tagged licks for, fitting the session into the same time budget. Each lick gets paired with whichever of its eligible progressions you've practiced least recently. Use it as your default daily warm-up so every line gets time on the clock.
+- **Deep Practice** (the button reads *Start Drill*) drills a single lick you pick here through its currently-unlocked keys. See [Single-Lick Deep Practice](#single-lick-deep-practice) below — it's also launchable from the Practice button on a lick's detail page.
 
 ### What happens during a session
 
@@ -166,9 +166,9 @@ Tap a lick to see:
 The Progress page is the back cover. It tells you what's been happening over time.
 
 - **Calendar heatmap** — every day you practiced, lit by session count. Skipped days are dim.
-- **Trend chart** — pitch complexity, rhythm complexity, and the resulting overall level, plotted over the rolling window.
-- **Streak** — consecutive practice days, plus your longest run.
-- **Category and key bars** — your average score per category and per key, so you can see which keys still need work.
+- **Trend chart** — your Tonal Mastery (average proficiency across all 12 scales and 12 keys, with unattempted ones counting as zero; 0–100), plotted over the rolling window.
+- **Streak** — consecutive days you've practiced.
+- **By Key grid** — your average score in each key, so you can see which keys still need work.
 - **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade.
 
 ## Settings
@@ -177,11 +177,10 @@ The global Settings page controls things that aren't specific to a single sessio
 
 | Setting | What it does |
 |---|---|
-| **Instrument** | Soprano sax, tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
+| **Instrument** | Concert pitch (C), soprano sax, tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
 | **Theme** | Dark (default) or light. |
 | **Default tempo** | Starting BPM for new ear-training sessions. |
 | **Metronome volume** and **swing** | The click's loudness and feel. Swing 0.5 is straight; 0.67 is triplet swing (most common); 0.8 is heavy. |
-| **Bleed filter** | If your speakers are loud enough that the mic re-hears the playback, this drops the spurious notes. Leave it on unless you're investigating a scoring oddity. |
 | **Highest note** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
 | **Reset progress** | Destructive — wipes your local sessions and adaptive level. Cloud-synced data on the same account will resync if you stay signed in. |
 

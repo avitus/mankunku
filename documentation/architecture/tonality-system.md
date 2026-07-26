@@ -1,6 +1,6 @@
 # The Daily Key
 
-Open Mankunku on Tuesday and you might find yourself working in F Mixolydian. On Wednesday, A Dorian. On Thursday, Eb Major Pentatonic. The key changes once per day, and it's the same key for every player who opens the app on the same date.
+Open Mankunku on Tuesday and you might find yourself working in F Mixolydian. On Wednesday, A Dorian. On Thursday, Eb Major Pentatonic. Once you've unlocked enough tonalities the key rotates once per day (early on it holds steady for a few days at a time), and it's the same key for every player who opens the app on the same date.
 
 This page explains why the key rotates, how new keys and scales unlock as you improve, and how to override the daily pick when you need to.
 
@@ -24,12 +24,14 @@ The same logic applies to the scale type. If you only ever practice in major and
 
 ## How the key gets picked
 
-The pick is **deterministic**: the app hashes the date string ("2026-05-09") and uses that hash to choose one entry from your unlocked tonalities. Same date, same hash, same pick — every time, on every device, without the app needing a server.
+The pick is **deterministic**, but the key doesn't always change every day — at early levels a tonality persists for several days so you have time to internalize it before rotating. With 1–3 unlocked tonalities each one lasts 3 days; with 4–6, 2 days; with 7 or more, the key rotates daily.
 
-This has two convenient properties:
+Under the hood, when a tonality lasts a single day the app hashes the date string ("2026-05-09"); when it spans multiple days it hashes the multi-day block number the date falls into. Either way, same inputs = same pick, on every device, without the app needing a server.
 
-- The key is the same all day. You can practice in the morning, come back at night, and you're still in the same tonality.
-- Different days produce different keys, evenly distributed over time. There's no clustering — over a year of practice you'll touch all your unlocked tonalities roughly equally.
+Two properties follow:
+
+- The key is stable for the whole current block. You can practice in the morning, come back at night, and you're still in the same tonality.
+- Once the block advances (or daily, at 7+ tonalities) you get a fresh, evenly distributed pick. There's no clustering — over time you'll touch all your unlocked tonalities roughly equally.
 
 ## Progressive unlocking
 
@@ -37,25 +39,26 @@ You don't start with all 12 keys × all the scale types unlocked. That would be 
 
 **Keys unlock in circle-of-fifths order.** This is the same order used by every classical training program and most jazz pedagogy:
 
-C → G → F → D → Bb → A → Eb → E → Ab → B → Db → Gb
+C → G → F → D → Bb → A → Eb → E → Ab → B → Db → F#
 
 Concert C is the universal start. From there, fifth-related keys (G, then F) come next, then progressively more accidentals.
 
 **Scale types unlock in pedagogical order:**
 
 1. Major Pentatonic (free at start)
-2. Major (free at start)
-3. Blues (free at start)
-4. Dorian
-5. Mixolydian
-6. Minor (Aeolian)
-7. Lydian
-8. Melodic Minor
-9. Altered
-10. Lydian Dominant
-11. Bebop Dominant
+2. Minor Pentatonic (requires Major Pentatonic level 15)
+3. Major (requires Major Pentatonic level 15)
+4. Blues (requires Minor Pentatonic level 15)
+5. Dorian
+6. Mixolydian
+7. Minor (Aeolian)
+8. Lydian
+9. Melodic Minor
+10. Altered
+11. Lydian Dominant
+12. Bebop Dominant
 
-Pentatonic, Major, and Blues are free because they cover most of what a beginner needs. The modes follow once you have proficiency in the basics. Altered and Lydian Dominant are the workhorses of bebop reharmonization and unlock later.
+Major Pentatonic is the only scale free at start. Minor Pentatonic, Major, and Blues unlock quickly once you reach level 15 in their pentatonic prerequisite — together they cover most of what a beginner needs. The modes follow once you have proficiency in the basics. Altered and Lydian Dominant are the workhorses of bebop reharmonization and unlock later.
 
 **Unlocking is driven by proficiency.** Each key has its own per-key proficiency level — a rolling track of how well you've been performing in that key. Each scale type has its own per-scale proficiency level. New keys unlock when your proficiency in already-unlocked keys reaches a threshold; new scales unlock when your scale-by-scale proficiency reaches its threshold. The exact thresholds are tuned so that practicing consistently for two or three weeks tends to unlock the next item.
 
@@ -71,14 +74,14 @@ The daily rotation is the default, but you don't have to use it. Side A's settin
 
 The override persists in your settings. If you need to grind in F Lydian for a week, you can. The app will keep that override active until you reset.
 
-Side B (Lick Practice) ignores the daily pick entirely — it always cycles through all 12 keys regardless. The daily key is purely a Side A concept.
+Side B (Lick Practice) ignores the daily pick entirely — it uses its own per-lick key-unlocking system instead. A new lick starts with just its entry key and earns each additional key by alternating sharp- and flat-side neighbours on the circle of fifths as proficiency rises; only once a lick has earned all 12 keys does it cycle through the full set with staged variety. The daily key is purely a Side A concept.
 
 ## Scale-aware lick filtering
 
 Once a tonality is active, the app filters the lick catalog to only licks that fit the active scale type. The compatibility rules are based on subset relationships:
 
 - **Pentatonic licks** fit pentatonic, major, Lydian, and Mixolydian sessions (the pentatonic notes are a subset of all of those).
-- **Blues licks** fit blues, Dorian, and minor sessions.
+- **Blues licks** fit blues, minor pentatonic, Dorian, and minor sessions.
 - **Major (7-note) licks** fit major, Lydian, Mixolydian, and Bebop Dominant sessions.
 - **Dorian licks** fit Dorian and minor sessions.
 - **Lydian licks** fit Lydian and major sessions.

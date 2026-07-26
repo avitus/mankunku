@@ -36,15 +36,15 @@ Roughly:
 
 | Tier | Levels | What's in it |
 |---|---|---|
-| **1** | 1–10 | Major modes only. Quarter notes, no swing, no syncopation. 1-bar phrases at 60–80 BPM. Keys: C, F, G. Roots and 5ths only — small interval leaps. |
-| **2** | 11–20 | Adds pentatonic. Still quarter notes. 1 bar, 60–90 BPM. Adds D and Bb. Slightly wider intervals. |
-| **3** | 21–30 | Adds eighth notes and swing. 1–2 bars, 70–100 BPM. Adds Eb, A. |
-| **4** | 31–40 | Adds blues. Syncopation enters. 1–2 bars, 80–120 BPM. All 12 keys. |
-| **5** | 41–50 | Adds bebop scales and approach notes. Triplets enter. 2 bars, 90–140 BPM. |
-| **6** | 51–60 | Adds melodic minor modes. Wider intervals (up to an octave). 2 bars, 100–160 BPM. |
-| **7** | 61–70 | Adds harmonic minor modes. Sixteenth notes enter. 2–4 bars, 120–180 BPM. Bebop lines proper. |
-| **8** | 71–80 | Adds symmetric scales (whole-tone, diminished). Mixed durations across the bar. 2–4 bars, 140–200 BPM. |
-| **9** | 81–90 | Same scale palette as tier 8. Wider intervals (up to a major tenth). 2–4 bars, 160–240 BPM. |
+| **1** | 1–5 | Major modes only. Quarter notes, no swing, no syncopation. 1-bar phrases at 60–80 BPM. Keys: C, F, G. Roots and 5ths only — small interval leaps. |
+| **2** | 6–12 | Adds pentatonic. Still quarter notes. 1 bar, 60–90 BPM. Adds D and Bb. Slightly wider intervals. |
+| **3** | 13–20 | Adds eighth notes and swing. 1–2 bars, 70–100 BPM. Adds Eb, A. |
+| **4** | 21–30 | Adds blues. Syncopation enters. 1–2 bars, 80–120 BPM. All 12 keys. |
+| **5** | 31–40 | Adds bebop scales and approach notes. Triplets enter. 2 bars, 90–140 BPM. |
+| **6** | 41–52 | Adds melodic minor modes. Wider intervals (up to an octave). 2 bars, 100–160 BPM. |
+| **7** | 53–65 | Adds harmonic minor modes. Sixteenth notes enter. 2–4 bars, 120–180 BPM. Bebop lines proper. |
+| **8** | 66–78 | Adds symmetric scales (whole-tone, diminished). Mixed durations across the bar. 2–4 bars, 140–200 BPM. |
+| **9** | 79–90 | Same scale palette as tier 8. Wider intervals (up to a major tenth). 2–4 bars, 160–240 BPM. |
 | **10** | 91–100 | All limits relaxed. 4 bars at 180–300 BPM. Two-octave leaps possible. The vocabulary of advanced bebop and post-bop. |
 
 Every tier above tier 1 also raises the **interval ceiling** — the largest leap allowed between two consecutive notes — and the **rhythm density**, which controls how many notes fit per bar. So tier 4 isn't just "tier 1 plus syncopation"; the average note count per bar goes up, the average interval goes up, and the tempo range opens.
@@ -57,7 +57,7 @@ In theory, pitch and rhythm complexity are independent dimensions. In practice, 
 - **Curated phrases don't deliberately stress one dimension.** A lick at level 50 has a single difficulty number, copied to both pitch and rhythm complexity for the generator and used as the cap for catalog filtering. The catalog doesn't say "this lick has hard pitch but easy rhythm" or vice versa, so the inputs to your two accuracy windows are correlated.
 - **The cap is the same on both sides** (≥ 85% advances, < 50% retreats), so even when the inputs *are* slightly different, the advancement rule treats them the same way.
 
-If the trend graph on your Progress page shows the two dotted lines (pitch and rhythm) tracking nearly together, that's the reason. The system *will* let them diverge — there's a worked example below — but in normal usage they don't pull apart by much.
+If you inspect your pitch and rhythm complexity numbers and they track nearly together, that's the reason. The system *will* let them diverge — there's a worked example below — but in normal usage they don't pull apart by much.
 
 The takeaway: **the level number is your best single summary of where you are**, but the two underlying numbers are useful when they *do* diverge. If you see your rhythm complexity climbing faster than your pitch complexity, the app is telling you to spend more practice time on hearing pitch (slow tonal exercises, scale work, transcription). If pitch is outpacing rhythm, focus on the metronome.
 
@@ -74,25 +74,13 @@ Real practice doesn't usually look this extreme — but the machinery is built t
 
 ## What you'll see on the Progress page
 
-The trend chart on the Progress page plots three lines:
+The trend chart on the Progress page plots a single line — **Tonal Mastery**, your average proficiency across the 12 scale types and 12 keys (0–100). Snapshots are forward-filled, so a lick-practice-only day inherits the prior day's value rather than dropping to zero.
 
-- **Solid line — Level**, the rounded average of pitch and rhythm complexity. This is the same number on your dashboard.
-- **Dotted accent line — Pitch**, your pitch complexity over time.
-- **Dotted brass line — Rhythm**, your rhythm complexity over time.
+Pitch and rhythm complexity are deliberately *not* plotted here. They measure how hard the generated material is, not how well you play — they move on their own schedule and would read as progress when they aren't.
 
 Watch the slope, not the noise. Single sessions vary; the rolling window smooths most of that out, but a bad night can still nudge the line. The trend over a week is the reliable signal.
 
-The chart is daily, so each point is a snapshot taken at the end of that day. Days you didn't practice show as gaps in the line.
-
-## Setting the level manually
-
-Side A's settings let you lock the difficulty to a specific level. The adaptive system stops adjusting and the app feeds you content from the corresponding tier, regardless of how you're doing. Useful for:
-
-- **Targeted practice** at a level you know you struggle with.
-- **A confidence reset** after a hard week — drop the lock to level 30 and play clean for an hour.
-- **Working on something specific** like 16th-note triplets at fast tempos, which only appear at higher tiers.
-
-To return the system to adaptive mode, set the difficulty back to "adaptive" in settings.
+The chart is daily for short periods and grouped by week or month for longer ranges. Each point is a point-in-time snapshot, not an average of the period.
 
 ## The relationship between level and proficiency
 

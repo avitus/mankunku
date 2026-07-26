@@ -1164,3 +1164,303 @@ describe('Flat Five Chromatic Up short-gap re-articulation (concert G, 2026-06-2
 		expect(score.overall).toBeGreaterThan(0.85);
 	});
 });
+
+// ─── Blue Monk tied final-note regression (concert C, 2026-07-23) ──────
+//
+// Real recording exported as a diagnostic on 2026-07-23. The user played the
+// "Blue Monk" head cleanly on tenor sax. The phrase ends on a held E — notated
+// as an eighth-note E (offset 7/8) TIED into a half-note E (downbeat of the
+// next bar). The player correctly sustained a single E across the tie, and the
+// pitch tracker captured it as one long E segment (the last savedDetectedNote,
+// ~4.8 s long).
+//
+// Pre-fix the scorer treated the phrase as all NINE notated notes, so the DTW
+// matched the one detected E to the tied eighth and marked the half-note
+// continuation MISSED (pitch 0, rhythm 0). Saved diagnostic: pitch 0.889,
+// rhythm 0.866, overall 0.880 ("great") — the final note showing red is the
+// "the last note is cut off / the tie isn't accounted for" the user reported.
+//
+// Post-fix scoreAttempt collapses tied same-pitch chains with the same
+// extractSoundingNotes walk playback uses, so the phrase has EIGHT sounding
+// notes, the sustained E matches once, and the score climbs to "perfect".
+
+interface BlueMonkFixture {
+	context: { tempo: number; swing: number };
+	scoring: { savedDetectedNotes: DetectedNote[] };
+}
+
+function loadBlueMonkFixture(): BlueMonkFixture {
+	const path = resolve(
+		__dirname,
+		'..',
+		'fixtures',
+		'recordings',
+		'2026-07-23-blue-monk.json'
+	);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Blue Monk tied final-note regression (concert C, 2026-07-23)', () => {
+	// The Blue Monk head as the scorer saw it, reconstructed from the
+	// diagnostic's saved noteResults (the notated phrase, before tie-merging):
+	// G A G F# F g(low) E♭ E–E, the last two E's joined by a tie.
+	const phrase: Phrase = {
+		id: 'blue-monk-tied-final-note',
+		name: 'Blue Monk',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 67, offset: [0, 1], duration: [1, 8] },
+			{ pitch: 69, offset: [1, 8], duration: [1, 8] },
+			{ pitch: 67, offset: [1, 4], duration: [1, 8] },
+			{ pitch: 66, offset: [3, 8], duration: [1, 8] },
+			{ pitch: 65, offset: [1, 2], duration: [1, 8] },
+			{ pitch: 55, offset: [5, 8], duration: [1, 8] },
+			{ pitch: 63, offset: [3, 4], duration: [1, 8], spelling: 'flat' },
+			{ pitch: 64, offset: [7, 8], duration: [1, 8], tied: true },
+			{ pitch: 64, offset: [1, 1], duration: [1, 2] }
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 2 },
+		category: 'blues',
+		tags: [],
+		source: 'user'
+	};
+
+	it('the notated tie is one held note the pitch tracker captured as a single long E', () => {
+		// Nine notated notes; the last two same-pitch E's joined by a tie.
+		expect(phrase.notes).toHaveLength(9);
+		expect(phrase.notes[7].tied).toBe(true);
+		expect(phrase.notes[7].pitch).toBe(64);
+		expect(phrase.notes[8].pitch).toBe(64);
+
+		// The player sustained that E, so segmentation produced ONE long E at
+		// the end, not two — the detection side already did the right thing.
+		const detected = loadBlueMonkFixture().scoring.savedDetectedNotes;
+		expect(detected.map((n) => n.midi)).toEqual([67, 69, 67, 66, 65, 55, 63, 64]);
+		expect(detected[detected.length - 1].duration).toBeGreaterThan(2);
+	});
+
+	it('scores the tied final note as a hit, climbing from "great" to "perfect"', () => {
+		const fx = loadBlueMonkFixture();
+		const score = scoreAttempt(
+			phrase,
+			fx.scoring.savedDetectedNotes,
+			fx.context.tempo,
+			0,
+			fx.context.swing
+		);
+
+		// Eight sounding notes after the tie merge, all matched — no missed note.
+		expect(score.notesTotal).toBe(8);
+		expect(score.notesHit).toBe(8);
+		expect(score.noteResults.some((r) => r.missed)).toBe(false);
+
+		// Saved diagnostic (pre-fix): pitch 0.889 (final note missed), rhythm
+		// 0.866, overall 0.880 "great". Post-fix pitch is perfect and overall
+		// clears the 0.95 "perfect" threshold.
+		expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(score.rhythmAccuracy).toBeGreaterThan(0.9);
+		expect(score.overall).toBeGreaterThan(0.95);
+		expect(score.grade).toBe('perfect');
+	});
+
+	it('only merges when the notes are TIED — a re-articulated repeat still needs two hits', () => {
+		// Guard against a naive "merge any repeated pitch" fix: if the same two
+		// E's were NOT tied (two separately-tongued notes), a single held note
+		// should still leave the second one MISSED — the same contract the Flat
+		// Five Chromatic Up case relies on for its two tongued C's.
+		const untied: Phrase = {
+			...phrase,
+			notes: phrase.notes.map((n, i) => (i === 7 ? { ...n, tied: false } : n))
+		};
+		const fx = loadBlueMonkFixture();
+		const score = scoreAttempt(
+			untied,
+			fx.scoring.savedDetectedNotes,
+			fx.context.tempo,
+			0,
+			fx.context.swing
+		);
+
+		expect(score.notesTotal).toBe(9);
+		expect(score.noteResults.some((r) => r.missed)).toBe(true);
+		expect(score.pitchAccuracy).toBeLessThan(1);
+	});
+});
+
+// ─── 2026-07-25 metronome-click / soft-tongue trio (concert C, 105 BPM) ────
+//
+// Saved-readings companions to the WAV end-to-end tests in
+// pitch-replay.test.ts (see the block comment there for the full story).
+// Three same-day ear-training takes with the metronome mixed into the
+// recording; each was mis-scored by a different mechanism. What is
+// recoverable from the SAVED readings differs per mechanism:
+//
+//   - root-frame is FULLY recoverable: the onset-guard provenance fix and
+//     the HF tier's scheduled-click suppression both operate on data the
+//     diagnostic already carries (readings + worklet onsets + click grid).
+//   - blue-step-down's click-split C is recoverable (the bare-gap energy
+//     gate uses reading-level rms), but its merged F–F pair is NOT: the
+//     tongue's 20 ms envelope dip only survives in `rmsMin`, which these
+//     pre-fix readings don't carry. Score climbs 0.634 → ~0.78, one MISS.
+//   - blue-note-step-up is NOT recoverable at all from saved readings for
+//     the same reason — the fix lives in detectFrame (rmsMin), so only the
+//     WAV path exercises it. The JSON test pins that floor, exactly like
+//     the Fifth–Sixth Step subharmonic fixtures.
+
+interface Trio20260725Fixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadTrio20260725Fixture(name: string): Trio20260725Fixture {
+	const path = resolve(__dirname, '..', 'fixtures', 'recordings', `2026-07-25-${name}.json`);
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('2026-07-25 trio: saved-readings replay (concert C, 105 BPM)', () => {
+	const BEAT = 60 / 105;
+
+	function runSavedPipeline(
+		name: string,
+		recordingTransportSeconds: number | null
+	): DetectedNote[] {
+		const fx = loadTrio20260725Fixture(name);
+		const baseOnsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const bleedOnsets =
+			recordingTransportSeconds === null
+				? undefined
+				: getMetronomeBleedOnsets(
+						recordingTransportSeconds,
+						fx.context.tempo,
+						fx.audio.duration
+					);
+		const articulationOnsets = findReArticulations(
+			fx.detection.readings,
+			baseOnsets,
+			bleedOnsets
+		);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			fx.detection.readings,
+			onsets,
+			fx.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets,
+			bleedOnsets,
+			articulationOnsets
+		);
+	}
+
+	describe('root-frame (blues-039: C B♭ C G)', () => {
+		// blues-039 as saved: the B♭ vanished into a guard-eaten segment (a
+		// McLeod C3 subharmonic won the vote and the sandwich collapse merged
+		// C–"C3"–C), and the HF tier split the held G on the click at 2.74 s.
+		// Saved score: 0.445 "try-again". Both causes are visible — and fixed —
+		// at the saved-readings level.
+		const phrase: Phrase = {
+			id: 'blues-039',
+			name: 'Root Frame',
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: [
+				{ pitch: 60, duration: [1, 8], offset: [0, 1] },
+				{ pitch: 58, duration: [1, 8], offset: [1, 8] },
+				{ pitch: 60, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 67, duration: [3, 2], offset: [1, 2] }
+			],
+			harmony: [],
+			difficulty: { level: 18, pitchComplexity: 16, rhythmComplexity: 22, lengthBars: 2 },
+			category: 'blues',
+			tags: [],
+			source: 'curated'
+		};
+		// Clicks observed at 0.449 + k·BEAT in recording time.
+		const rts = 16 * BEAT - 0.44875;
+
+		it('without the click schedule the HF tier still splits the held G', () => {
+			const detected = runSavedPipeline('root-frame', null);
+			expect(detected.map((n) => n.midi)).toEqual([60, 58, 60, 67, 67]);
+		});
+
+		it('recovers the B♭ and keeps the held G whole with the click schedule', () => {
+			const detected = runSavedPipeline('root-frame', rts);
+			expect(detected.map((n) => n.midi)).toEqual([60, 58, 60, 67]);
+		});
+
+		it('scores the clean take as such (saved: 0.445 "try-again")', () => {
+			const fx = loadTrio20260725Fixture('root-frame');
+			const detected = runSavedPipeline('root-frame', rts);
+			const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+			expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+			expect(score.notesHit).toBe(4);
+			expect(score.overall).toBeGreaterThan(0.9);
+		});
+	});
+
+	describe('blue-step-down (bbn-041 snapped: G F F E♭ C)', () => {
+		// Saved score 0.634 "fair": the final C was split by a click-induced
+		// 167 ms tracking hole (post/pre rms 0.67, still falling — no attack),
+		// cascading DTW into two pitch mismatches on top of the merged F pair.
+		// The bare-gap energy gate repairs the C from saved readings alone; the
+		// F–F merge needs rmsMin and stays (see pitch-replay.test.ts).
+		const phrase: Phrase = {
+			id: 'bbn-041',
+			name: 'Blue Step Down',
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: [
+				{ pitch: 67, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 65, duration: [1, 8], offset: [1, 4] },
+				{ pitch: 65, duration: [1, 8], offset: [3, 8] },
+				{ pitch: 63, duration: [1, 4], offset: [1, 2] },
+				{ pitch: 60, duration: [1, 2], offset: [3, 4] }
+			],
+			harmony: [],
+			difficulty: { level: 14, pitchComplexity: 18, rhythmComplexity: 10, lengthBars: 2 },
+			category: 'blues',
+			tags: [],
+			source: 'curated'
+		};
+		// Clicks observed at 0.387 + k·BEAT in recording time.
+		const rts = 16 * BEAT - 0.3874;
+
+		it('keeps the held final C whole (no articulation from the click hole)', () => {
+			const detected = runSavedPipeline('blue-step-down', rts);
+			expect(detected.map((n) => n.midi)).toEqual([67, 65, 63, 60]);
+			// The C spans from its attack to the end of the phrase window.
+			const c = detected[detected.length - 1];
+			expect(c.onsetTime).toBeCloseTo(1.617, 2);
+			expect(c.duration).toBeGreaterThan(1.5);
+		});
+
+		it('scores 4/5 with one honest MISS (saved: 0.634 with two pitch mismatches)', () => {
+			const fx = loadTrio20260725Fixture('blue-step-down');
+			const detected = runSavedPipeline('blue-step-down', rts);
+			const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+			expect(score.pitchAccuracy).toBeCloseTo(0.8, 5);
+			expect(score.notesHit).toBe(4);
+			expect(score.overall).toBeGreaterThan(0.7);
+		});
+	});
+
+	describe('blue-note-step-up (bbn-009_C snapped: F F G)', () => {
+		it('saved readings cannot recover the F–F split — the fix is upstream in detectFrame', () => {
+			// The tongue's evidence is a 25 ms envelope dip that only rmsMin
+			// (absent from these pre-fix readings) preserves; every
+			// reading-level signal stays under threshold (rms dip 17%,
+			// perturbation 0.035 st, gap 50 ms). This pins the floor the
+			// WAV-replay test clears — same pattern as the Fifth–Sixth Step
+			// subharmonic fixture.
+			const detected = runSavedPipeline('blue-note-step-up', 16 * BEAT - 0.0803);
+			expect(detected.map((n) => n.midi)).toEqual([53, 55]);
+		});
+	});
+});

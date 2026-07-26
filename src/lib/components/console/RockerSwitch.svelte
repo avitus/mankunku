@@ -22,6 +22,13 @@
 
 <div class="inline-flex flex-col items-center gap-1.5">
 	<div class="flex items-center justify-center" style:min-height="84px">
+		<!-- Housing size is pinned in px (not the rem-based h-8/w-20 utilities)
+		     because the sliding cap's geometry below (width 36px, translateX 36px,
+		     top/left 3px) is fixed px. If the housing scaled with the root
+		     font-size — Firefox default/minimum font size, OS display scaling, or
+		     text-only zoom all make 1rem ≠ 16px — the cap would no longer reach the
+		     ON position and the switch would look misaligned, differently on every
+		     machine. Keep every dimension of this control in one unit. -->
 		<button
 			type="button"
 			role="switch"
@@ -29,7 +36,7 @@
 			aria-label={ariaLabel ?? label}
 			onclick={toggle}
 			onkeydown={onKeyDown}
-			class="rocker-housing group relative h-8 w-20 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brass-soft)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-secondary)]"
+			class="rocker-housing group relative h-[32px] w-[80px] rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brass-soft)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-secondary)]"
 		>
 			<span class="rocker-mark rocker-mark-off" class:dim={checked}>OFF</span>
 			<span class="rocker-mark rocker-mark-on" class:dim={!checked}>ON</span>
@@ -100,11 +107,13 @@
 		justify-content: center;
 	}
 	.rocker-cap.right {
-		/* Housing inner width 78 (80 outer − 2 × 1px border), cap outer 36,
-		   cap.left 3 → translateX 36 puts the cap 3px from the inner-right
-		   edge so the gap matches the 3px gap on the left in the OFF state.
-		   Symmetric layout; the LED glow that previously bled past the
-		   right border is now clipped by overflow:hidden on .rocker-housing. */
+		/* Housing is a fixed 80px wide (pinned in px on the button above), so
+		   inner width is 78 (80 outer − 2 × 1px border). Cap outer 36, cap.left 3
+		   → translateX 36 puts the cap 3px from the inner-right edge so the gap
+		   matches the 3px gap on the left in the OFF state. This math only holds
+		   because the housing is px, not rem — see the note on the button.
+		   Symmetric layout; the LED glow that previously bled past the right
+		   border is now clipped by overflow:hidden on .rocker-housing. */
 		transform: translateX(36px);
 	}
 	@media (prefers-reduced-motion: reduce) {

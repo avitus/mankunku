@@ -8,7 +8,7 @@ The name is a tribute to [Winston "Mankunku" Ngozi](https://en.wikipedia.org/wik
 
 The app has two practice modes, set up like the two sides of an LP.
 
-**Side A — Ear Training.** The app plays a short phrase. You play it back on your horn. It listens through your microphone, scores how close you got on pitch and rhythm, and either moves you on or gives you a retry. Phrases come from a curated catalog of about 250 jazz licks, plus an algorithmic generator for variety. The difficulty rises as you do.
+**Side A — Ear Training.** The app plays a short phrase. You play it back on your horn. It listens through your microphone, scores how close you got on pitch and rhythm, and either moves you on or gives you a retry. Phrases come from a curated catalog of about 450 jazz licks, plus an algorithmic generator for variety. The difficulty rises as you do.
 
 **Side B — Lick Practice.** Pick a lick you want to own. The app cycles it through all 12 keys over a backing track — bass, comping, drums — and scores each pass. Get clean takes and the tempo bumps up by 5 BPM. Stumble and it eases off. This is the practice room version of working a line through the cycle of fifths.
 
@@ -25,7 +25,7 @@ Around those two modes are the supporting rooms: a **Licks** page holding your p
 
 The first time you open the app it asks two questions:
 
-1. **What do you play?** Pick soprano sax, tenor sax, alto sax, or trumpet. This sets the transposition (your sheet music will read in the right key for your horn) and tells the app what range to expect.
+1. **What do you play?** Pick your instrument — Concert Pitch (for C instruments like flute or piano), soprano sax, tenor sax, alto sax, or trumpet. This sets the transposition (your sheet music will read in the right key for your horn) and tells the app what range to expect.
 2. **Can it use your microphone?** Grant access. You can skip and turn this on later, but without it nothing gets scored.
 
 After that you land on the dashboard. Hit **Side A** to drop into ear training, or **Side B** if you've already tagged some licks for the 12-key drill.

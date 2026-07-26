@@ -104,13 +104,13 @@ Shows "No phrase loaded" placeholder when `phrase` is null.
 
 **Path:** `src/lib/components/practice/PhraseInfo.svelte`
 
-Compact display of phrase metadata.
+Compact display of the phrase's chord symbols.
 
 | Prop | Type | Description |
 |---|---|---|
 | `phrase` | `Phrase` | The phrase |
 
-Shows: key, time signature, difficulty level, and chord symbols (derived from harmony).
+Shows a pipe-separated list of chord symbols derived from `phrase.harmony` (via `chordSymbol`), rendered only when at least one chord is present.
 
 ### `FeedbackPanel.svelte`
 
@@ -141,8 +141,11 @@ Per-note comparison grid showing expected vs played notes.
 | Prop | Type | Description |
 |---|---|---|
 | `noteResults` | `NoteResult[]` | Per-note scoring results |
+| `transpositionSemitones` | `number?` | Semitones added for written-pitch display (e.g. `14` for tenor sax). Defaults to `0`. |
+| `displayKey` | `string?` | Written-pitch key (e.g. `"B"` for an A-concert tenor session); drives accidental spelling |
+| `timing` | `TimingDiagnostics?` | Timing diagnostics from the scorer; drives the Offset column and footer |
 
-Filters out extra notes (only shows matched and missed). Columns: index, expected note name, played note name (colored by accuracy), pitch %, rhythm %.
+Filters out extra notes (only shows matched and missed). Columns: index, expected note name, played note name (colored by accuracy), pitch %, rhythm %, and per-note timing offset in ms (colored by lateness/earliness). When `timing` is present, a footer below the grid also shows overall bias, spread, and latency correction.
 
 ### `ScoreStrip.svelte`
 
@@ -155,7 +158,7 @@ Horizontal SVG strip of paired pitch/rhythm bars — one pair per matched note �
 | `noteResults` | `NoteResult[]` | Per-note scoring results |
 | `transpositionSemitones` | `number?` | Semitones added for written-pitch display (e.g. `14` for tenor sax). Defaults to `0`. |
 
-Extra notes are filtered out. Bar colors interpolate across an HSL hue range (red → amber → green) based on per-note accuracy.
+Extra notes are filtered out. Each matched note renders a pair of bars; bar **height** encodes the score (`pitchScore` / `rhythmScore` × `MAX_H`). **Color** is a fixed hue per metric — pitch bars use `var(--color-accent)`, rhythm bars use `var(--color-brass)`, matching the progress complexity meters. Missed notes render as a dashed "miss" outline instead of a bar.
 
 ---
 
@@ -171,23 +174,28 @@ Card displaying a curated lick's metadata.
 |---|---|---|
 | `lick` | `Phrase` | The lick |
 | `onclick` | `() => void` | Optional click handler |
+| `onplay` | `() => void` | Optional; renders a play/stop button in the corner |
+| `isPlaying` | `boolean` | Optional; toggles the play button to a stop button. Defaults to `false` |
+| `authorName` | `string \| null` | Optional; renders a "by <name>" attribution (for stolen community licks). Defaults to `null` |
+| `progress` | `LickPracticeProgress \| null` | Optional; per-lick practice progress. With `showStats`, drives the last-practiced line. Defaults to `null` |
+| `showStats` | `boolean` | Optional; renders the last-practiced line (requires `progress`). Defaults to `false` |
 
-Shows: name, category label, difficulty level (color-coded), bar count, note count, tags (up to 4).
+Shows: name, optional author attribution (`authorName`, for stolen community licks), category label, difficulty name + level (color-coded), progression tags, up to 4 filtered tags, and an optional last-practiced line (when `showStats` + `progress` are provided).
 
-**Difficulty colors** — sourced from `difficultyColor()` in `src/lib/difficulty/display.ts`, which maps the 1-100 scale to 10 bands:
+**Difficulty colors** — the card calls `difficultyDisplay()` (which shares the band/color logic with `difficultyColor()`) in `src/lib/difficulty/display.ts`, mapping the 1-100 scale to 10 bands. Each band's color is the theme-aware CSS custom property `var(--difficulty-N)` (defined in app.css: muted green for easy → amber → muted brick-red for hard), not a literal hex — so the ramp re-steps automatically between the dark and light themes.
 
-| Band | Range  | Name         | Color                      |
-| ---- | ------ | ------------ | -------------------------- |
-| 1    | 1-10   | Beginner     | green `#22c55e`            |
-| 2    | 11-20  | Elementary   | light green `#4ade80`      |
-| 3    | 21-30  | Easy         | lime `#84cc16`             |
-| 4    | 31-40  | Moderate     | yellow-green `#a3e635`     |
-| 5    | 41-50  | Intermediate | yellow `#facc15`           |
-| 6    | 51-60  | Challenging  | amber `#f59e0b`            |
-| 7    | 61-70  | Advanced     | orange `#f97316`           |
-| 8    | 71-80  | Expert       | red `#ef4444`              |
-| 9    | 81-90  | Master       | dark red `#dc2626`         |
-| 10   | 91-100 | Virtuoso     | deep red `#991b1b`         |
+| Band | Range  | Name         | Color                 |
+| ---- | ------ | ------------ | --------------------- |
+| 1    | 1-10   | Beginner     | `var(--difficulty-1)`  |
+| 2    | 11-20  | Elementary   | `var(--difficulty-2)`  |
+| 3    | 21-30  | Easy         | `var(--difficulty-3)`  |
+| 4    | 31-40  | Moderate     | `var(--difficulty-4)`  |
+| 5    | 41-50  | Intermediate | `var(--difficulty-5)`  |
+| 6    | 51-60  | Challenging  | `var(--difficulty-6)`  |
+| 7    | 61-70  | Advanced     | `var(--difficulty-7)`  |
+| 8    | 71-80  | Expert       | `var(--difficulty-8)`  |
+| 9    | 81-90  | Master       | `var(--difficulty-9)`  |
+| 10   | 91-100 | Virtuoso     | `var(--difficulty-10)` |
 
 These are intentionally independent of the domain accent so a lick's difficulty reads the same in the ear-training and lick-practice views.
 
@@ -318,7 +326,7 @@ GitHub-style calendar heatmap of the last ~53 weeks, colored by average overall 
 
 **Path:** `src/lib/components/progress/TrendChart.svelte`
 
-Line chart of pitch complexity, rhythm complexity, and their average over a selectable period (1w/1m/3m/6m/1y/all).
+Line chart of Tonal Mastery (average proficiency across 12 scales + 12 keys, 0-100 scale) over a selectable period (1w/1m/3m/6m/1y/all). Auto-scales the Y axis to the data with a floor.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -362,13 +370,20 @@ Pitch-name buttons (`C`–`B`), accidental toggles (`[` flat, `]` sharp), octave
 
 **Path:** `src/lib/components/onboarding/Onboarding.svelte`
 
-Three-step first-run onboarding flow.
+Four-state first-run onboarding flow.
 
-No props — reads/writes `settings` state directly.
+| Prop | Type | Description |
+|---|---|---|
+| `supabase` | `SupabaseClient<Database>?` | Optional; with `session` + `user`, enables cloud-data detection |
+| `session` | `Session \| null` | Optional; part of the auth trio |
+| `user` | `User \| null` | Optional; part of the auth trio |
 
-**Steps:**
-1. **Instrument** — Select from available instruments (tenor sax, alto sax, trumpet)
-2. **Mic** — Request microphone permission (with "Skip for now" option)
-3. **Ready** — Welcome message with "Start Practicing" and "Go to Dashboard" links
+When all three auth props are provided, the component checks Supabase for existing progress from another device and, if found, shows a Welcome Back / restore step. Otherwise it reads/writes `settings` state directly.
 
-Completion sets `settings.onboardingComplete = true` and saves.
+**States:**
+1. **Restore** (Welcome Back) — shown only when cloud data is detected; offers "Restore My Progress" or "Start Fresh Instead"
+2. **Instrument** — Select from all `INSTRUMENTS` entries (Concert Pitch, Soprano Saxophone, Tenor Saxophone, Alto Saxophone, Trumpet)
+3. **Mic** — Request microphone permission (with "Skip for now" option)
+4. **Ready** — Welcome message with "Start Practicing" and "Go to Dashboard" links
+
+The progress-dot UI shows 4 dots when cloud data is detected, 3 otherwise. Completion sets `settings.onboardingComplete = true` and saves.

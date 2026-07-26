@@ -7,10 +7,10 @@ All core types live in `src/lib/types/`. This document describes every interface
 ### PitchClass
 
 ```typescript
-type PitchClass = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
+type PitchClass = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'F#' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
 ```
 
-The 12 chromatic pitch classes using flat notation. The constant `PITCH_CLASSES` provides them in order.
+The 12 chromatic pitch classes, using flat notation for every accidental except the tritone-from-C slot, which is spelled `'F#'`. The constant `PITCH_CLASSES` provides them in the same order.
 
 ### ChordQuality
 
@@ -29,12 +29,15 @@ type ChordQuality =
 ```typescript
 type PhraseCategory =
   | 'ii-V-I-major' | 'ii-V-I-minor' | 'blues' | 'bebop-lines'
-  | 'pentatonic' | 'enclosures' | 'digital-patterns' | 'approach-notes'
-  | 'turnarounds' | 'rhythm-changes' | 'ballad' | 'modal'
+  | 'short-ii-V-I-major' | 'short-ii-V-I-minor'
+  | 'V-I-major' | 'V-I-minor'
+  | 'major-chord' | 'dominant-chord' | 'minor-chord' | 'diminished-chord'
+  | 'pentatonic' | 'enclosures' | 'digital-patterns'
+  | 'rhythm-changes' | 'ballad' | 'modal'
   | 'user';
 ```
 
-Categories for organizing phrases. Nine categories have curated/combinatorial licks totaling ~250 licks. The `'user'` category is for user-recorded licks.
+Categories for organizing phrases: 18 curated/combinatorial categories plus `'user'` for user-recorded licks. The curated library holds 452 hand-written licks across these categories (plus algorithmically generated combinations, for ~538 licks at import). `CATEGORY_LABELS` in `music.ts` provides the canonical display label for every value.
 
 ### Fraction
 
@@ -54,6 +57,10 @@ interface Note {
   velocity?: number;           // 0-127 (default ~100)
   articulation?: Articulation; // 'normal' | 'accent' | 'ghost' | 'bend-up' | 'staccato' | 'legato'
   scaleDegree?: string;        // e.g. '1', 'b3', '#4'
+  spelling?: 'sharp' | 'flat'; // Override enharmonic spelling for notation display
+  tied?: boolean;              // Ties note to the next: renders an ABC tie and plays as one
+                               // sustained pitch when pitches match; the scorer collapses tied
+                               // same-pitch chains into a single sustained note
 }
 ```
 
@@ -134,6 +141,10 @@ interface PlaybackOptions {
   countInBeats: number;       // Count-in beats before recording
   metronomeEnabled: boolean;
   metronomeVolume: number;    // 0-1
+  backingTrackEnabled?: boolean;         // Enable backing track accompaniment
+  backingInstrument?: BackingInstrument; // Comping instrument: piano or organ
+  backingTrackVolume?: number;           // Backing track volume (0-1)
+  backingStyle?: BackingStyle;           // Backing track musical style
 }
 ```
 
@@ -222,9 +233,12 @@ interface AlignmentPair {
 ```typescript
 interface UserProgress {
   adaptive: AdaptiveState;
-  sessions: SessionResult[];                    // Last 200 sessions
+  sessions: SessionResult[];                    // Last 100 sessions (MAX_SESSIONS)
   categoryProgress: Record<string, CategoryProgress>;
   keyProgress: Partial<Record<PitchClass, { attempts: number; averageScore: number }>>;
+  scaleProficiency: Partial<Record<ScaleType, ScaleProficiency>>;  // per-scale proficiency (1-100)
+  keyProficiency: Partial<Record<PitchClass, KeyProficiency>>;     // per-key proficiency (1-100)
+  lickProgress: Partial<Record<string, LickProgress>>;            // per-lick progress, keyed by phraseId
   totalPracticeTime: number;
   streakDays: number;
   lastPracticeDate: string;                     // ISO date string (YYYY-MM-DD)
@@ -255,14 +269,21 @@ interface SessionResult {
   id: string;
   timestamp: number;
   phraseId: string;
+  phraseName: string;
   category: PhraseCategory;
   key: PitchClass;
+  scaleType?: ScaleType;                        // optional, backward compat
+  source?: 'ear-training' | 'lick-practice';    // optional; absent => 'ear-training'
   tempo: number;
   difficultyLevel: number;
   pitchAccuracy: number;
   rhythmAccuracy: number;
   overall: number;
   grade: Grade;
+  notesHit: number;
+  notesTotal: number;
+  noteResults: NoteResult[];                    // per-note scoring breakdown
+  timing?: TimingDiagnostics;                   // optional, backward compat
 }
 ```
 
@@ -279,6 +300,7 @@ interface InstrumentConfig {
   concertRangeHigh: number;           // Highest MIDI note (concert)
   clef: 'treble' | 'bass';
   gmProgram: number;                   // General MIDI program number
+  highNotePresets: number[];           // Concert MIDI values for the "highest note" dropdown, highest first
 }
 ```
 
@@ -286,6 +308,8 @@ interface InstrumentConfig {
 
 | ID | Name | Key | Transposition | Range (MIDI) | GM Program |
 |---|---|---|---|---|---|
+| `concert` | Concert Pitch | C | 0 | 36–96 | 0 |
+| `soprano-sax` | Soprano Saxophone | Bb | +2 | 56–88 | 64 |
 | `tenor-sax` | Tenor Saxophone | Bb | +14 | 44–76 | 66 |
 | `alto-sax` | Alto Saxophone | Eb | +9 | 49–80 | 65 |
 | `trumpet` | Trumpet | Bb | +2 | 52–82 | 56 |

@@ -96,24 +96,24 @@ The penalty is **tempo-scaled**: gentler at slow tempos (where a given absolute 
 
 Orchestrates the full scoring pipeline.
 
-### `scoreAttempt(phrase, detected, tempo, transportSeconds?, swing?): Score`
+### `scoreAttempt(phrase, detected, tempo, _transportSeconds?, swing?, octaveInsensitive?): Score`
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `phrase` | `Phrase` | — | The expected phrase |
 | `detected` | `DetectedNote[]` | — | Detected notes from mic |
 | `tempo` | `number` | — | BPM used during the attempt |
-| `transportSeconds` | `number` | `0` | Transport position when recording started |
+| `_transportSeconds` | `number` | `0` | Ignored; retained for API compatibility. Detected onset times are already recording-relative (recording start ≡ phrase start at offset 0), and the median latency correction absorbs any constant offset. An earlier implementation anchored onsets to the nearest bar downbeat, which corrupted rhythm cost when the user reacted mid-bar, so it was removed. |
 | `swing` | `number` | `0.5` | Swing ratio for rhythm scoring adjustment |
+| `octaveInsensitive` | `boolean` | `false` | If true, same pitch class in any octave counts as a pitch match (used by lick-practice continuous mode) |
 
 **Pipeline:**
 
-1. **Grid anchoring** — Snap detected onsets to the nearest bar downbeat using Transport position
-2. **DTW alignment** — `alignNotes()` matches detected to expected
-3. **Latency correction** — Compute median timing offset of matched pairs and subtract from all detected onsets (absorbs ~100–300ms constant delay)
-4. **Per-note scoring** — `scorePitch()` and `scoreRhythm()` for each matched pair
-5. **Composite score** — `overall = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4`
-6. **Grade assignment** — `scoreToGrade(overall)`
+1. **DTW alignment** — `alignNotes()` matches detected to expected using raw recording-relative onset times (recording start ≡ phrase start at offset 0)
+2. **Latency correction** — Compute median timing offset of matched pairs and subtract from all detected onsets (absorbs ~100–300ms constant delay)
+3. **Per-note scoring** — `scorePitch()` and `scoreRhythm()` for each matched pair
+4. **Composite score** — `overall = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4`
+5. **Grade assignment** — `scoreToGrade(overall)`
 
 **Returns:** `Score` object:
 
@@ -162,6 +162,22 @@ Score-to-grade mapping and display constants.
 
 Display labels: `'Perfect'`, `'Great'`, `'Good'`, `'Fair'`, `'Try Again'`.
 
+Grade-to-color mapping lives in the UI layer, not here — `scoring/grades.ts` stays free of UI/CSS concerns.
+
+---
+
+## ui/score-colors.ts
+
+Score → color mappings (UI/presentation layer). The display companion to the pure scoring layer.
+
 ### `GRADE_COLORS: Record<Grade, string>`
 
-CSS color variables: `perfect`/`great` → `--color-success`, `good` → `--color-accent`, `fair` → `--color-warning`, `try-again` → `--color-error`.
+Each grade is colored by its own lower-bound score (from `GRADE_THRESHOLDS`) via `accuracyTier(min)`, so grade colors can never desync from the grade cutoffs:
+
+| Grade | Color |
+|---|---|
+| `perfect` | `var(--accuracy-gold)` |
+| `great` | `var(--accuracy-silver)` |
+| `good` | `var(--accuracy-bronze)` |
+| `fair` | `var(--accuracy-teal)` |
+| `try-again` | `var(--accuracy-deep)` |
