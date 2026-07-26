@@ -6,19 +6,19 @@
  *  - localStorage is authoritative for the UI's "is this favorited / adopted"
  *    state so rendering never waits on a round trip.
  *  - Writes go to Supabase fire-and-forget, with graceful logging on failure.
- *  - `initLeadSheetCommunityFromCloud` hydrates the local caches (favorites,
+ *  - `initTuneCommunityFromCloud` hydrates the local caches (favorites,
  *    adoptions, adopted-sheet payloads, authors) from Supabase on startup.
  *  - A generation guard (via `getScopeGeneration`) discards writebacks if a
  *    user switch happened mid-flight.
  *
- * Community listing (`listCommunityLeadSheets`) is the exception — a live
+ * Community listing (`listCommunityTunes`) is the exception — a live
  * paginated query against Supabase rather than a local cache.
  */
 
 import type { Tune } from '$lib/types/tune';
 import { save, load } from './storage';
 import { getScopeGeneration } from './user-scope';
-import { cloudRowToLeadSheet } from './user-lead-sheets';
+import { cloudRowToTune } from './user-tunes';
 import { validateAdoptedTune } from '$lib/tunes/adopted-tune-validator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
@@ -38,16 +38,16 @@ const ADOPTED_PAYLOADS_KEY = 'leadsheet-adopted-payloads';
 /** localStorage key holding author attribution per adopted sheet id. */
 const ADOPTED_AUTHORS_KEY = 'leadsheet-adopted-authors';
 
-export interface AdoptedLeadSheetAuthor {
+export interface AdoptedTuneAuthor {
 	authorId: string;
 	authorName: string | null;
 	authorAvatarUrl: string | null;
 }
 
-/** Page size for `listCommunityLeadSheets`. */
-export const LEAD_SHEET_PAGE_SIZE = 50;
+/** Page size for `listCommunityTunes`. */
+export const TUNE_PAGE_SIZE = 50;
 
-export interface LeadSheetCommunityFilters {
+export interface TuneCommunityFilters {
 	search?: string;
 	authorSearch?: string;
 	sort?: 'popular' | 'newest';
@@ -55,7 +55,7 @@ export interface LeadSheetCommunityFilters {
 	excludeUserId?: string;
 }
 
-export interface CommunityLeadSheet {
+export interface CommunityTune {
 	sheet: Tune;
 	authorId: string;
 	authorName: string | null;
@@ -67,21 +67,21 @@ export interface CommunityLeadSheet {
 
 // ─── Local cache helpers ────────────────────────────────────────────────
 
-export function getLeadSheetFavoritesLocal(): Set<string> {
+export function getTuneFavoritesLocal(): Set<string> {
 	return new Set(load<string[]>(FAVORITES_KEY) ?? []);
 }
 
-export function getLeadSheetAdoptionsLocal(): Set<string> {
+export function getTuneAdoptionsLocal(): Set<string> {
 	return new Set(load<string[]>(ADOPTIONS_KEY) ?? []);
 }
 
 /** Get adopted community lead sheets from the local cache. */
-export function getAdoptedLeadSheetsLocal(): Tune[] {
+export function getAdoptedTunesLocal(): Tune[] {
 	return load<Tune[]>(ADOPTED_PAYLOADS_KEY) ?? [];
 }
 
-export function getAdoptedLeadSheetAuthorsLocal(): Record<string, AdoptedLeadSheetAuthor> {
-	return load<Record<string, AdoptedLeadSheetAuthor>>(ADOPTED_AUTHORS_KEY) ?? {};
+export function getAdoptedTuneAuthorsLocal(): Record<string, AdoptedTuneAuthor> {
+	return load<Record<string, AdoptedTuneAuthor>>(ADOPTED_AUTHORS_KEY) ?? {};
 }
 
 function saveFavoritesLocal(ids: Set<string>): void {
@@ -96,7 +96,7 @@ function saveAdoptedPayloadsLocal(sheets: Tune[]): void {
 	save(ADOPTED_PAYLOADS_KEY, sheets);
 }
 
-function saveAdoptedAuthorsLocal(authors: Record<string, AdoptedLeadSheetAuthor>): void {
+function saveAdoptedAuthorsLocal(authors: Record<string, AdoptedTuneAuthor>): void {
 	save(ADOPTED_AUTHORS_KEY, authors);
 }
 
@@ -119,11 +119,11 @@ function stripForeignAssets(sheet: Tune): Tune {
  * the author fetch, so it is approximate w.r.t. pagination. Errors return
  * `[]` — listing never throws.
  */
-export async function listCommunityLeadSheets(
+export async function listCommunityTunes(
 	supabase: SupabaseClient<Database>,
-	filters: LeadSheetCommunityFilters = {},
+	filters: TuneCommunityFilters = {},
 	offset = 0
-): Promise<CommunityLeadSheet[]> {
+): Promise<CommunityTune[]> {
 	let query = supabase.from('lead_sheets').select('*').is('deleted_at', null);
 
 	if (filters.excludeUserId) {
@@ -151,7 +151,7 @@ export async function listCommunityLeadSheets(
 			.order('created_at', { ascending: false });
 	}
 
-	query = query.range(offset, offset + LEAD_SHEET_PAGE_SIZE - 1);
+	query = query.range(offset, offset + TUNE_PAGE_SIZE - 1);
 
 	const { data, error } = await query;
 	if (error) {
@@ -171,13 +171,13 @@ export async function listCommunityLeadSheets(
 	}
 	const authorById = new Map((authors ?? []).map((a) => [a.id, a]));
 
-	const favorites = getLeadSheetFavoritesLocal();
-	const adoptions = getLeadSheetAdoptionsLocal();
+	const favorites = getTuneFavoritesLocal();
+	const adoptions = getTuneAdoptionsLocal();
 
-	let results: CommunityLeadSheet[] = rows.map((row) => {
+	let results: CommunityTune[] = rows.map((row) => {
 		const author = authorById.get(row.user_id);
 		return {
-			sheet: cloudRowToLeadSheet(row),
+			sheet: cloudRowToTune(row),
 			authorId: row.user_id,
 			authorName: author?.display_name ?? null,
 			authorAvatarUrl: author?.avatar_url ?? null,
@@ -202,11 +202,11 @@ export async function listCommunityLeadSheets(
  * state. Optimistically updates the local cache; reverts if the server
  * rejects. `favorite_count` is never written by the client — DB triggers own it.
  */
-export async function toggleLeadSheetFavorite(
+export async function toggleTuneFavorite(
 	supabase: SupabaseClient<Database>,
 	sheetId: string
 ): Promise<boolean> {
-	const favorites = getLeadSheetFavoritesLocal();
+	const favorites = getTuneFavoritesLocal();
 	const wasFavorited = favorites.has(sheetId);
 
 	// Optimistic local write before any await.
@@ -265,11 +265,11 @@ export async function toggleLeadSheetFavorite(
  * @returns `true` if the adoption is recorded on the server (or was already),
  *          `false` if the server write failed or no auth session exists.
  */
-export async function adoptLeadSheet(
+export async function adoptTune(
 	supabase: SupabaseClient<Database>,
 	sheetId: string
 ): Promise<boolean> {
-	const adoptions = getLeadSheetAdoptionsLocal();
+	const adoptions = getTuneAdoptionsLocal();
 	if (adoptions.has(sheetId)) return true;
 
 	const {
@@ -297,12 +297,12 @@ export async function adoptLeadSheet(
 		// The adoption row is in place; next startup hydration picks the payload up.
 		console.warn('Adopted lead sheet but failed to fetch payload:', fetchError);
 	} else {
-		const sheet = stripForeignAssets(cloudRowToLeadSheet(row));
+		const sheet = stripForeignAssets(cloudRowToTune(row));
 		const validation = validateAdoptedTune(sheet);
 		if (!validation.valid) {
 			console.warn(`Adopted lead sheet ${sheetId} failed validation; not caching payload:`, validation.errors);
 		} else {
-			const payloads = getAdoptedLeadSheetsLocal();
+			const payloads = getAdoptedTunesLocal();
 			if (!payloads.some((p) => p.id === sheetId)) {
 				payloads.push(sheet);
 				saveAdoptedPayloadsLocal(payloads);
@@ -313,7 +313,7 @@ export async function adoptLeadSheet(
 				.select('id, display_name, avatar_url')
 				.eq('id', row.user_id)
 				.single();
-			const authors = getAdoptedLeadSheetAuthorsLocal();
+			const authors = getAdoptedTuneAuthorsLocal();
 			authors[sheetId] = {
 				authorId: row.user_id,
 				authorName: author?.display_name ?? null,
@@ -332,11 +332,11 @@ export async function adoptLeadSheet(
  * Return (un-adopt) a community lead sheet. Server-first: local caches are
  * only cleaned after the server delete succeeds.
  */
-export async function returnLeadSheet(
+export async function returnTune(
 	supabase: SupabaseClient<Database>,
 	sheetId: string
 ): Promise<boolean> {
-	const adoptions = getLeadSheetAdoptionsLocal();
+	const adoptions = getTuneAdoptionsLocal();
 	if (!adoptions.has(sheetId)) return true;
 
 	const {
@@ -356,8 +356,8 @@ export async function returnLeadSheet(
 
 	adoptions.delete(sheetId);
 	saveAdoptionsLocal(adoptions);
-	saveAdoptedPayloadsLocal(getAdoptedLeadSheetsLocal().filter((p) => p.id !== sheetId));
-	const authors = getAdoptedLeadSheetAuthorsLocal();
+	saveAdoptedPayloadsLocal(getAdoptedTunesLocal().filter((p) => p.id !== sheetId));
+	const authors = getAdoptedTuneAuthorsLocal();
 	delete authors[sheetId];
 	saveAdoptedAuthorsLocal(authors);
 	return true;
@@ -378,7 +378,7 @@ export async function returnLeadSheet(
  * Favorites/author failures stay best-effort — display-only caches with no
  * bearing on sheet-set completeness.
  */
-export async function initLeadSheetCommunityFromCloud(
+export async function initTuneCommunityFromCloud(
 	supabase: SupabaseClient<Database>
 ): Promise<boolean> {
 	const gen = getScopeGeneration();
@@ -430,10 +430,10 @@ export async function initLeadSheetCommunityFromCloud(
 			// adoption set we just wrote — drop entries for ids no longer adopted.
 			if (gen === getScopeGeneration()) {
 				const keep = new Set(adoptedIds);
-				saveAdoptedPayloadsLocal(getAdoptedLeadSheetsLocal().filter((s) => keep.has(s.id)));
+				saveAdoptedPayloadsLocal(getAdoptedTunesLocal().filter((s) => keep.has(s.id)));
 				saveAdoptedAuthorsLocal(
 					Object.fromEntries(
-						Object.entries(getAdoptedLeadSheetAuthorsLocal()).filter(([id]) => keep.has(id))
+						Object.entries(getAdoptedTuneAuthorsLocal()).filter(([id]) => keep.has(id))
 					)
 				);
 			}
@@ -445,7 +445,7 @@ export async function initLeadSheetCommunityFromCloud(
 		const validatedRows: NonNullable<typeof sheetRows> = [];
 		const validated: Tune[] = [];
 		for (const row of sheetRows ?? []) {
-			const sheet = stripForeignAssets(cloudRowToLeadSheet(row));
+			const sheet = stripForeignAssets(cloudRowToTune(row));
 			const validation = validateAdoptedTune(sheet);
 			if (validation.valid) {
 				validatedRows.push(row);
@@ -473,13 +473,13 @@ export async function initLeadSheetCommunityFromCloud(
 				const keep = new Set(validatedRows.map((r) => r.id));
 				saveAdoptedAuthorsLocal(
 					Object.fromEntries(
-						Object.entries(getAdoptedLeadSheetAuthorsLocal()).filter(([id]) => keep.has(id))
+						Object.entries(getAdoptedTuneAuthorsLocal()).filter(([id]) => keep.has(id))
 					)
 				);
 			}
 		} else if (gen === getScopeGeneration()) {
 			const byAuthorId = new Map((authorRows ?? []).map((a) => [a.id, a]));
-			const authorMap: Record<string, AdoptedLeadSheetAuthor> = {};
+			const authorMap: Record<string, AdoptedTuneAuthor> = {};
 			for (const row of validatedRows) {
 				const a = byAuthorId.get(row.user_id);
 				authorMap[row.id] = {

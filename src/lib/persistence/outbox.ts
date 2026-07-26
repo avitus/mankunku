@@ -129,8 +129,8 @@ async function runKind(kind: OutboxKind, supabase: SupabaseClient<Database>): Pr
 			return;
 		}
 		case 'leadSheets': {
-			const m = await import('./user-lead-sheets');
-			await m.flushLeadSheetsToCloud(supabase);
+			const m = await import('./user-tunes');
+			await m.flushTunesToCloud(supabase);
 			return;
 		}
 		case 'dailySummaries': {

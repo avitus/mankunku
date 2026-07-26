@@ -11,7 +11,7 @@
  *
  * Pitch conventions match step-entry exactly: sections store CONCERT pitch;
  * the user sees/types WRITTEN. `writtenKey` converts to concert once at
- * `buildDraftLeadSheet`; chords are typed as written symbols and stored with
+ * `buildDraftTune`; chords are typed as written symbols and stored with
  * concert roots + a concert-canonical raw symbol. Manual entry is 4/4 (the
  * step-entry buffer's assumption); imported sheets in other meters are
  * edited through the import review flow's own tooling.
@@ -44,12 +44,12 @@ export const PAGE_BARS = 4;
 
 /** Semitones the source chart is written above concert. */
 export function entryTranspositionSemitones(): number {
-	return sourceTranspositionSemitones(leadSheetEntry.sourceTransposition, getInstrument());
+	return sourceTranspositionSemitones(tuneEntry.sourceTransposition, getInstrument());
 }
 
 const MAX_SECTION_BARS = 64;
 
-export const leadSheetEntry = $state({
+export const tuneEntry = $state({
 	title: '',
 	composer: '',
 	style: '',
@@ -110,7 +110,7 @@ function pageWindowBars(sec: TuneSection, page: number): number {
 }
 
 export function currentSectionPageCount(): number {
-	const sec = leadSheetEntry.sections[leadSheetEntry.currentSection];
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
 	if (!sec) return 1;
 	return Math.max(1, Math.ceil(sec.bars / PAGE_BARS));
 }
@@ -173,25 +173,25 @@ function extractWindow(notes: Note[], pageStart: Fraction, windowBars: number): 
 
 /** True when the melody buffer can edit this sheet (4/4 only). */
 export function melodyEditingSupported(): boolean {
-	return leadSheetEntry.timeSignature[0] === 4 && leadSheetEntry.timeSignature[1] === 4;
+	return tuneEntry.timeSignature[0] === 4 && tuneEntry.timeSignature[1] === 4;
 }
 
 /** Write the step-entry buffer back into the current section. */
 export function commitBuffer(): void {
 	if (!melodyEditingSupported()) return;
-	const sec = leadSheetEntry.sections[leadSheetEntry.currentSection];
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
 	if (!sec) return;
 	sec.notes = mergeWindow(
 		sec.notes,
 		stepEntry.enteredNotes,
-		pageStartFraction(leadSheetEntry.currentPage),
-		pageWindowBars(sec, leadSheetEntry.currentPage)
+		pageStartFraction(tuneEntry.currentPage),
+		pageWindowBars(sec, tuneEntry.currentPage)
 	);
 }
 
 /** Load a section page into the step-entry buffer (no commit). */
 function loadBuffer(sectionIdx: number, pageIdx: number): void {
-	const sec = leadSheetEntry.sections[sectionIdx];
+	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return;
 	// The shared buffer interprets typed pitches at the SOURCE's transposition
 	// while a lead sheet is being edited (cleared by suspendEntryBuffer).
@@ -199,71 +199,71 @@ function loadBuffer(sectionIdx: number, pageIdx: number): void {
 	if (!melodyEditingSupported()) {
 		stepEntry.enteredNotes = [];
 		stepEntry.selectedNoteIndex = null;
-		stepEntry.phraseKey = leadSheetEntry.writtenKey;
+		stepEntry.phraseKey = tuneEntry.writtenKey;
 		return;
 	}
 	const windowBars = pageWindowBars(sec, pageIdx);
 	stepEntry.enteredNotes = extractWindow(sec.notes, pageStartFraction(pageIdx), windowBars);
 	stepEntry.barCount = windowBars;
 	stepEntry.selectedNoteIndex = null;
-	stepEntry.phraseKey = leadSheetEntry.writtenKey;
+	stepEntry.phraseKey = tuneEntry.writtenKey;
 }
 
 /** Navigate to a section page, committing the current buffer first. */
 export function loadPage(sectionIdx: number, pageIdx: number): void {
 	commitBuffer();
-	const sec = leadSheetEntry.sections[sectionIdx];
+	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return;
 	const maxPage = Math.max(0, Math.ceil(sec.bars / PAGE_BARS) - 1);
-	leadSheetEntry.currentSection = sectionIdx;
-	leadSheetEntry.currentPage = Math.max(0, Math.min(pageIdx, maxPage));
-	loadBuffer(leadSheetEntry.currentSection, leadSheetEntry.currentPage);
+	tuneEntry.currentSection = sectionIdx;
+	tuneEntry.currentPage = Math.max(0, Math.min(pageIdx, maxPage));
+	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
 }
 
 /** Reset to a fresh single-section sheet. */
-export function initNewLeadSheet(): void {
+export function initNewTune(): void {
 	resetStepEntry();
-	leadSheetEntry.title = '';
-	leadSheetEntry.composer = '';
-	leadSheetEntry.style = '';
-	leadSheetEntry.sourceTransposition = defaultSourceTransposition(getInstrument());
-	leadSheetEntry.writtenKey = 'C';
-	leadSheetEntry.timeSignature = [4, 4];
-	leadSheetEntry.tags = [];
-	leadSheetEntry.sections = [makeSection('A')];
-	leadSheetEntry.currentSection = 0;
-	leadSheetEntry.currentPage = 0;
-	leadSheetEntry.editingId = null;
-	leadSheetEntry.editingSource = null;
-	leadSheetEntry.editingPdfUrl = null;
-	leadSheetEntry.reviewHandoff = false;
+	tuneEntry.title = '';
+	tuneEntry.composer = '';
+	tuneEntry.style = '';
+	tuneEntry.sourceTransposition = defaultSourceTransposition(getInstrument());
+	tuneEntry.writtenKey = 'C';
+	tuneEntry.timeSignature = [4, 4];
+	tuneEntry.tags = [];
+	tuneEntry.sections = [makeSection('A')];
+	tuneEntry.currentSection = 0;
+	tuneEntry.currentPage = 0;
+	tuneEntry.editingId = null;
+	tuneEntry.editingSource = null;
+	tuneEntry.editingPdfUrl = null;
+	tuneEntry.reviewHandoff = false;
 	loadBuffer(0, 0);
-	leadSheetEntry.importReview = null;
+	tuneEntry.importReview = null;
 }
 
-export const resetLeadSheetEntry = initNewLeadSheet;
+export const resetTuneEntry = initNewTune;
 
 /** Hydrate the editor from an existing sheet (edit mode). */
-export function loadFromLeadSheet(sheet: Tune, instrument: InstrumentConfig): void {
+export function loadFromTune(sheet: Tune, instrument: InstrumentConfig): void {
 	resetStepEntry();
-	leadSheetEntry.title = sheet.title;
-	leadSheetEntry.composer = sheet.composer ?? '';
-	leadSheetEntry.style = sheet.style ?? '';
-	leadSheetEntry.sourceTransposition = defaultSourceTransposition(instrument);
-	leadSheetEntry.writtenKey = transposePitchClass(
+	tuneEntry.title = sheet.title;
+	tuneEntry.composer = sheet.composer ?? '';
+	tuneEntry.style = sheet.style ?? '';
+	tuneEntry.sourceTransposition = defaultSourceTransposition(instrument);
+	tuneEntry.writtenKey = transposePitchClass(
 		sheet.key,
-		sourceTranspositionSemitones(leadSheetEntry.sourceTransposition, instrument)
+		sourceTranspositionSemitones(tuneEntry.sourceTransposition, instrument)
 	);
-	leadSheetEntry.timeSignature = [sheet.timeSignature[0], sheet.timeSignature[1]];
-	leadSheetEntry.tags = [...sheet.tags];
-	leadSheetEntry.sections = sheet.sections.map(cloneSection);
-	leadSheetEntry.currentSection = 0;
-	leadSheetEntry.currentPage = 0;
-	leadSheetEntry.editingId = sheet.id;
-	leadSheetEntry.editingSource = sheet.source;
-	leadSheetEntry.editingPdfUrl = sheet.pdfUrl ?? null;
-	leadSheetEntry.reviewHandoff = true;
-	leadSheetEntry.importReview = null;
+	tuneEntry.timeSignature = [sheet.timeSignature[0], sheet.timeSignature[1]];
+	tuneEntry.tags = [...sheet.tags];
+	tuneEntry.sections = sheet.sections.map(cloneSection);
+	tuneEntry.currentSection = 0;
+	tuneEntry.currentPage = 0;
+	tuneEntry.editingId = sheet.id;
+	tuneEntry.editingSource = sheet.source;
+	tuneEntry.editingPdfUrl = sheet.pdfUrl ?? null;
+	tuneEntry.reviewHandoff = true;
+	tuneEntry.importReview = null;
 	loadBuffer(0, 0);
 }
 
@@ -271,51 +271,51 @@ export function loadFromLeadSheet(sheet: Tune, instrument: InstrumentConfig): vo
 export function setImportReview(
 	review: { warnings: string[]; suspectBars: number[] } | null
 ): void {
-	leadSheetEntry.importReview = review && review.warnings.length > 0 ? review : null;
+	tuneEntry.importReview = review && review.warnings.length > 0 ? review : null;
 }
 
 /**
  * Load an UNSAVED import draft for review: hydrates the editor but keeps it
  * in create mode (no editingId), so Save assigns a fresh id. Drafts that
  * already carry a pre-assigned id (the PDF flow, which stores the original
- * file under that id) should use `loadFromLeadSheet` instead.
+ * file under that id) should use `loadFromTune` instead.
  */
 export function loadDraftForReview(sheet: Tune, instrument: InstrumentConfig): void {
-	loadFromLeadSheet(sheet, instrument);
-	leadSheetEntry.editingId = null;
-	leadSheetEntry.editingSource = sheet.source;
+	loadFromTune(sheet, instrument);
+	tuneEntry.editingId = null;
+	tuneEntry.editingSource = sheet.source;
 }
 
 /**
  * Build the current draft as a Tune, virtually merging the live buffer
  * (no state mutation) and converting the written key to concert once.
  */
-export function buildDraftLeadSheet(): Tune {
-	const concertKey = transposePitchClass(leadSheetEntry.writtenKey, -entryTranspositionSemitones());
-	const sections = leadSheetEntry.sections.map((sec, i) => {
+export function buildDraftTune(): Tune {
+	const concertKey = transposePitchClass(tuneEntry.writtenKey, -entryTranspositionSemitones());
+	const sections = tuneEntry.sections.map((sec, i) => {
 		const clone = cloneSection(sec);
-		if (i === leadSheetEntry.currentSection) {
+		if (i === tuneEntry.currentSection) {
 			clone.notes = mergeWindow(
 				sec.notes,
 				stepEntry.enteredNotes,
-				pageStartFraction(leadSheetEntry.currentPage),
-				pageWindowBars(sec, leadSheetEntry.currentPage)
+				pageStartFraction(tuneEntry.currentPage),
+				pageWindowBars(sec, tuneEntry.currentPage)
 			);
 		}
 		return clone;
 	});
 	const draft: Tune = {
-		id: leadSheetEntry.editingId ?? '',
-		title: leadSheetEntry.title.trim() || 'Untitled',
+		id: tuneEntry.editingId ?? '',
+		title: tuneEntry.title.trim() || 'Untitled',
 		key: concertKey,
-		timeSignature: [leadSheetEntry.timeSignature[0], leadSheetEntry.timeSignature[1]],
-		tags: [...leadSheetEntry.tags],
+		timeSignature: [tuneEntry.timeSignature[0], tuneEntry.timeSignature[1]],
+		tags: [...tuneEntry.tags],
 		sections,
-		source: leadSheetEntry.editingSource ?? 'user'
+		source: tuneEntry.editingSource ?? 'user'
 	};
-	if (leadSheetEntry.composer.trim()) draft.composer = leadSheetEntry.composer.trim();
-	if (leadSheetEntry.style.trim()) draft.style = leadSheetEntry.style.trim();
-	if (leadSheetEntry.editingPdfUrl) draft.pdfUrl = leadSheetEntry.editingPdfUrl;
+	if (tuneEntry.composer.trim()) draft.composer = tuneEntry.composer.trim();
+	if (tuneEntry.style.trim()) draft.style = tuneEntry.style.trim();
+	if (tuneEntry.editingPdfUrl) draft.pdfUrl = tuneEntry.editingPdfUrl;
 	return draft;
 }
 
@@ -325,12 +325,12 @@ export function buildDraftLeadSheet(): Tune {
  */
 export function flattenedBufferBase(): number {
 	let base = 0;
-	for (let i = 0; i < leadSheetEntry.currentSection; i++) {
-		base += leadSheetEntry.sections[i]?.notes.length ?? 0;
+	for (let i = 0; i < tuneEntry.currentSection; i++) {
+		base += tuneEntry.sections[i]?.notes.length ?? 0;
 	}
-	const sec = leadSheetEntry.sections[leadSheetEntry.currentSection];
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
 	if (sec) {
-		const startF = leadSheetEntry.currentPage * PAGE_BARS;
+		const startF = tuneEntry.currentPage * PAGE_BARS;
 		base += sec.notes.filter((n) => fractionToFloat(n.offset) < startF - 1e-9).length;
 	}
 	return base;
@@ -352,7 +352,7 @@ export function suspendEntryBuffer(): void {
 
 /** Reload the current page into the buffer after a suspend. */
 export function resumeEntryBuffer(): void {
-	loadBuffer(leadSheetEntry.currentSection, leadSheetEntry.currentPage);
+	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
 }
 
 // ─── Sections ───────────────────────────────────────────────────────────
@@ -362,24 +362,24 @@ const SECTION_LABELS = 'ABCDEFGH';
 /** Append a new section (auto-labeled) and navigate to it. */
 export function addSection(): void {
 	commitBuffer();
-	const label = SECTION_LABELS[leadSheetEntry.sections.length % SECTION_LABELS.length];
-	leadSheetEntry.sections.push(makeSection(label));
-	leadSheetEntry.currentSection = leadSheetEntry.sections.length - 1;
-	leadSheetEntry.currentPage = 0;
-	loadBuffer(leadSheetEntry.currentSection, 0);
+	const label = SECTION_LABELS[tuneEntry.sections.length % SECTION_LABELS.length];
+	tuneEntry.sections.push(makeSection(label));
+	tuneEntry.currentSection = tuneEntry.sections.length - 1;
+	tuneEntry.currentPage = 0;
+	loadBuffer(tuneEntry.currentSection, 0);
 }
 
 /** Remove a section; the sheet always keeps at least one. */
 export function removeSection(index: number): void {
-	if (leadSheetEntry.sections.length <= 1) return;
-	if (index < 0 || index >= leadSheetEntry.sections.length) return;
-	if (index !== leadSheetEntry.currentSection) commitBuffer();
-	leadSheetEntry.sections.splice(index, 1);
-	if (leadSheetEntry.currentSection >= index) {
-		leadSheetEntry.currentSection = Math.max(0, leadSheetEntry.currentSection - 1);
+	if (tuneEntry.sections.length <= 1) return;
+	if (index < 0 || index >= tuneEntry.sections.length) return;
+	if (index !== tuneEntry.currentSection) commitBuffer();
+	tuneEntry.sections.splice(index, 1);
+	if (tuneEntry.currentSection >= index) {
+		tuneEntry.currentSection = Math.max(0, tuneEntry.currentSection - 1);
 	}
-	leadSheetEntry.currentPage = 0;
-	loadBuffer(leadSheetEntry.currentSection, 0);
+	tuneEntry.currentPage = 0;
+	loadBuffer(tuneEntry.currentSection, 0);
 }
 
 /** Update label/repeat/ending markers on a section. */
@@ -387,7 +387,7 @@ export function updateSectionMeta(
 	index: number,
 	meta: Partial<Pick<TuneSection, 'label' | 'repeatStart' | 'repeatEnd' | 'ending'>>
 ): void {
-	const sec = leadSheetEntry.sections[index];
+	const sec = tuneEntry.sections[index];
 	if (!sec) return;
 	if (meta.label !== undefined) sec.label = meta.label;
 	if ('repeatStart' in meta) sec.repeatStart = meta.repeatStart;
@@ -400,18 +400,18 @@ export function updateSectionMeta(
  * step-entry's destructive setBarCount) and the current page is clamped.
  */
 export function setSectionBars(index: number, bars: number): void {
-	const sec = leadSheetEntry.sections[index];
+	const sec = tuneEntry.sections[index];
 	if (!sec) return;
 	const clamped = Math.max(1, Math.min(MAX_SECTION_BARS, Math.round(bars)));
-	if (index === leadSheetEntry.currentSection) commitBuffer();
+	if (index === tuneEntry.currentSection) commitBuffer();
 	sec.bars = clamped;
 	sec.notes = sec.notes.filter((n) => fractionToFloat(n.offset) < clamped - 1e-9);
 	sec.harmony = sec.harmony.filter((h) => fractionToFloat(h.startOffset) < clamped - 1e-9);
 	recomputeHarmonyDurations(sec);
-	if (index === leadSheetEntry.currentSection) {
+	if (index === tuneEntry.currentSection) {
 		const maxPage = Math.max(0, Math.ceil(clamped / PAGE_BARS) - 1);
-		leadSheetEntry.currentPage = Math.min(leadSheetEntry.currentPage, maxPage);
-		loadBuffer(index, leadSheetEntry.currentPage);
+		tuneEntry.currentPage = Math.min(tuneEntry.currentPage, maxPage);
+		loadBuffer(index, tuneEntry.currentPage);
 	}
 }
 
@@ -423,7 +423,7 @@ export function setSectionBars(index: number, bars: number): void {
  */
 function recomputeHarmonyDurations(sec: TuneSection): void {
 	const sorted = [...sec.harmony].sort((a, b) => compareFractions(a.startOffset, b.startOffset));
-	const [tsNum, tsDen] = leadSheetEntry.timeSignature;
+	const [tsNum, tsDen] = tuneEntry.timeSignature;
 	const sectionEnd: Fraction = [sec.bars * tsNum, tsDen];
 	for (let i = 0; i < sorted.length; i++) {
 		const next = i + 1 < sorted.length ? sorted[i + 1].startOffset : sectionEnd;
@@ -433,7 +433,7 @@ function recomputeHarmonyDurations(sec: TuneSection): void {
 }
 
 function chordOffset(bar: number, beat: number): Fraction {
-	const [tsNum, tsDen] = leadSheetEntry.timeSignature;
+	const [tsNum, tsDen] = tuneEntry.timeSignature;
 	return addFractions([bar * tsNum, tsDen], [beat, tsDen]);
 }
 
@@ -443,7 +443,7 @@ function chordOffset(bar: number, beat: number): Fraction {
  * concert-canonical raw symbol. Returns false for unparseable text.
  */
 export function setChord(sectionIdx: number, bar: number, beat: number, symbolText: string): boolean {
-	const sec = leadSheetEntry.sections[sectionIdx];
+	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return false;
 	const parsed = parseChordSymbol(symbolText);
 	if (!parsed) return false;
@@ -467,7 +467,7 @@ export function setChord(sectionIdx: number, bar: number, beat: number, symbolTe
 
 /** Remove the chord at a bar/beat position. */
 export function removeChord(sectionIdx: number, bar: number, beat: number): void {
-	const sec = leadSheetEntry.sections[sectionIdx];
+	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return;
 	const offset = chordOffset(bar, beat);
 	sec.harmony = sec.harmony.filter((h) => compareFractions(h.startOffset, offset) !== 0);
@@ -476,7 +476,7 @@ export function removeChord(sectionIdx: number, bar: number, beat: number): void
 
 /** The WRITTEN-pitch chord text at a position, or null when none is set. */
 export function chordTextAt(sectionIdx: number, bar: number, beat: number): string | null {
-	const sec = leadSheetEntry.sections[sectionIdx];
+	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return null;
 	const offset = chordOffset(bar, beat);
 	const seg = sec.harmony.find((h) => compareFractions(h.startOffset, offset) === 0);
@@ -503,7 +503,7 @@ export function chordTextAt(sectionIdx: number, bar: number, beat: number): stri
  * it, the key is relabeled only (fixing a mislabeled chart).
  */
 export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void {
-	const oldKey = leadSheetEntry.writtenKey;
+	const oldKey = tuneEntry.writtenKey;
 	if (newKey === oldKey) return;
 	const instrument = getInstrument();
 	const semitones = entryTranspositionSemitones();
@@ -514,11 +514,11 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
 		const newConcert = transposePitchClass(newKey, -semitones);
 		const carrier: Tune = {
 			id: '',
-			title: leadSheetEntry.title,
+			title: tuneEntry.title,
 			key: oldConcert,
-			timeSignature: [leadSheetEntry.timeSignature[0], leadSheetEntry.timeSignature[1]],
+			timeSignature: [tuneEntry.timeSignature[0], tuneEntry.timeSignature[1]],
 			tags: [],
-			sections: leadSheetEntry.sections,
+			sections: tuneEntry.sections,
 			source: 'user'
 		};
 		const transposed = transposeTune(
@@ -527,13 +527,13 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
 			instrument.concertRangeLow,
 			getEffectiveHighestNote()
 		);
-		leadSheetEntry.sections = transposed.sections.map(cloneSection);
+		tuneEntry.sections = transposed.sections.map(cloneSection);
 	}
 
-	leadSheetEntry.writtenKey = newKey;
+	tuneEntry.writtenKey = newKey;
 	stepEntry.phraseKey = newKey;
 	if (moveNotes) {
-		loadBuffer(leadSheetEntry.currentSection, leadSheetEntry.currentPage);
+		loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
 	}
 }
 
@@ -543,11 +543,11 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
  * moves: key label, chord text, typed-pitch interpretation, preview.
  */
 export function setSourceTransposition(source: SourceTransposition): void {
-	if (source === leadSheetEntry.sourceTransposition) return;
-	const concertKey = transposePitchClass(leadSheetEntry.writtenKey, -entryTranspositionSemitones());
-	leadSheetEntry.sourceTransposition = source;
+	if (source === tuneEntry.sourceTransposition) return;
+	const concertKey = transposePitchClass(tuneEntry.writtenKey, -entryTranspositionSemitones());
+	tuneEntry.sourceTransposition = source;
 	const semitones = entryTranspositionSemitones();
-	leadSheetEntry.writtenKey = transposePitchClass(concertKey, semitones);
-	stepEntry.phraseKey = leadSheetEntry.writtenKey;
+	tuneEntry.writtenKey = transposePitchClass(concertKey, semitones);
+	stepEntry.phraseKey = tuneEntry.writtenKey;
 	stepEntry.transpositionOverride = semitones;
 }

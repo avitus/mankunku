@@ -4,8 +4,8 @@
 	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
 	import { parseMuseScoreFile } from '$lib/tunes/import/musescore';
 	import type { Tune } from '$lib/types/tune';
-	import { loadDraftForReview } from '$lib/state/lead-sheet-entry.svelte';
-	import { saveUserLeadSheet } from '$lib/persistence/user-lead-sheets';
+	import { loadDraftForReview } from '$lib/state/tune-entry.svelte';
+	import { saveUserTune } from '$lib/persistence/user-tunes';
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
@@ -69,7 +69,7 @@
 
 	function handleAdd(sheet: Tune): string {
 		const toSave: Tune = { ...sheet, difficulty: calculateDifficulty(tuneToPhrase(sheet)) };
-		return saveUserLeadSheet(toSave).id;
+		return saveUserTune(toSave).id;
 	}
 </script>
 

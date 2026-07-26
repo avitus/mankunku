@@ -6,9 +6,9 @@
  * `client_mtime` edit clock with soft-delete tombstones — never the
  * trigger-clobbered `updated_at`.
  *
- * - getUserLeadSheets:   async — reconciles local↔cloud when a client is given
- * - saveUserLeadSheet:   sync return — local save first, outbox-queued sync
- * - deleteUserLeadSheet: sync return — local tombstone first, outbox-queued sync
+ * - getUserTunes:   async — reconciles local↔cloud when a client is given
+ * - saveUserTune:   sync return — local save first, outbox-queued sync
+ * - deleteUserTune: sync return — local tombstone first, outbox-queued sync
  */
 
 import type { DifficultyMetadata, PitchClass } from '$lib/types/music';
@@ -16,7 +16,7 @@ import type { Tune, TuneSection } from '$lib/types/tune';
 import { save, load } from './storage';
 import { getScopeGeneration, getLastUserId } from './user-scope';
 import { enqueue } from './outbox';
-import { getAdoptedLeadSheetsLocal } from './lead-sheet-community';
+import { getAdoptedTunesLocal } from './tune-community';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
 
@@ -98,7 +98,7 @@ function generateId(): string {
 }
 
 /** Get user lead sheets from localStorage only (synchronous). */
-export function getUserLeadSheetsLocal(): Tune[] {
+export function getUserTunesLocal(): Tune[] {
 	return load<Tune[]>(STORAGE_KEY) ?? [];
 }
 
@@ -109,22 +109,22 @@ export function getUserLeadSheetsLocal(): Tune[] {
  * client, reconciles local↔cloud first, then returns the current LIVE local
  * set (re-read after the await, never a stale pre-await snapshot).
  */
-export async function getUserLeadSheets(
+export async function getUserTunes(
 	supabase?: SupabaseClient<Database>
 ): Promise<Tune[]> {
-	if (!supabase) return getUserLeadSheetsLocal();
+	if (!supabase) return getUserTunesLocal();
 	try {
 		await reconcileLeadSheets(supabase);
 	} catch (err) {
 		console.warn('Failed to reconcile cloud lead sheets:', err);
 	}
-	return getUserLeadSheetsLocal();
+	return getUserTunesLocal();
 }
 
-type LeadSheetRow = Database['public']['Tables']['lead_sheets']['Row'];
+type TuneRow = Database['public']['Tables']['lead_sheets']['Row'];
 
 /** Map a cloud row to a Tune. */
-export function cloudRowToLeadSheet(row: LeadSheetRow): Tune {
+export function cloudRowToTune(row: TuneRow): Tune {
 	const sheet: Tune = {
 		id: row.id,
 		title: row.title,
@@ -142,7 +142,7 @@ export function cloudRowToLeadSheet(row: LeadSheetRow): Tune {
 }
 
 /** Build a full upsert row from a Tune, stamping the client edit clock. */
-function leadSheetToRow(
+function tuneToRow(
 	userId: string,
 	sheet: Tune,
 	mtime: number
@@ -194,7 +194,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 	if (error) throw new Error(`fetch lead sheets failed: ${error.message}`);
 	if (gen !== getScopeGeneration()) return false;
 
-	const cloudById = new Map<string, { row: LeadSheetRow; mtime: number; deletedAt: number | null }>();
+	const cloudById = new Map<string, { row: TuneRow; mtime: number; deletedAt: number | null }>();
 	for (const row of data ?? []) {
 		cloudById.set(row.id, {
 			row,
@@ -203,7 +203,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 		});
 	}
 
-	const localById = new Map(getUserLeadSheetsLocal().map((s) => [s.id, s]));
+	const localById = new Map(getUserTunesLocal().map((s) => [s.id, s]));
 	const meta = loadSheetMetaMap();
 	const owners = loadOwners();
 	let metaDirty = false;
@@ -256,7 +256,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 				tombstones.push({ id, deletedAt: localDeleted }); // our delete wins
 				continue;
 			}
-			mergedLive.set(id, cloudRowToLeadSheet(cloud.row));
+			mergedLive.set(id, cloudRowToTune(cloud.row));
 			setMeta(id, { mtime: cloud.mtime });
 			claimOwner(id);
 			continue;
@@ -268,7 +268,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 			} else {
 				const m = localMtime || Date.now();
 				mergedLive.set(id, local);
-				liveRows.push(leadSheetToRow(userId, local, m));
+				liveRows.push(tuneToRow(userId, local, m));
 				if (!lm) setMeta(id, { mtime: m });
 				claimOwner(id);
 			}
@@ -280,12 +280,12 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 				if (localDeleted) tombstones.push({ id, deletedAt: localDeleted });
 				else {
 					mergedLive.set(id, local);
-					liveRows.push(leadSheetToRow(userId, local, localMtime));
+					liveRows.push(tuneToRow(userId, local, localMtime));
 				}
 			} else if (cloud.mtime > localMtime) {
 				if (cloud.deletedAt) setMeta(id, { mtime: cloud.mtime, deletedAt: cloud.deletedAt });
 				else {
-					mergedLive.set(id, cloudRowToLeadSheet(cloud.row));
+					mergedLive.set(id, cloudRowToTune(cloud.row));
 					setMeta(id, { mtime: cloud.mtime });
 				}
 			} else {
@@ -326,7 +326,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
  * completed, `false` on any failure/mid-flight switch — the gate signal any
  * write-back maintenance must respect.
  */
-export async function initLeadSheetsFromCloud(
+export async function initTunesFromCloud(
 	supabase: SupabaseClient<Database>
 ): Promise<boolean> {
 	try {
@@ -338,7 +338,7 @@ export async function initLeadSheetsFromCloud(
 }
 
 /** Outbox flush handler: reconcile local↔cloud lead sheets. Throws so it retries. */
-export async function flushLeadSheetsToCloud(supabase: SupabaseClient<Database>): Promise<void> {
+export async function flushTunesToCloud(supabase: SupabaseClient<Database>): Promise<void> {
 	const ok = await reconcileLeadSheets(supabase);
 	// Aborted by a scope switch — keep the outbox intent so it retries (or is
 	// dropped by the drain's uid-gate if the account genuinely changed).
@@ -352,7 +352,7 @@ export async function flushLeadSheetsToCloud(supabase: SupabaseClient<Database>)
  * ownership + the client edit clock, then queues a durable merge-aware cloud
  * sync via the outbox. Sync return — cloud effects are never awaited.
  */
-export function saveUserLeadSheet(sheet: Tune): Tune {
+export function saveUserTune(sheet: Tune): Tune {
 	const sheets = load<Tune[]>(STORAGE_KEY) ?? [];
 	const toSave: Tune = {
 		...sheet,
@@ -383,13 +383,13 @@ export function saveUserLeadSheet(sheet: Tune): Tune {
  * Removes from the local live set and writes a tombstone with a fresh mtime
  * so the deletion propagates across devices and can't be resurrected by a
  * stale push. Adopted community sheets must be returned via
- * `returnLeadSheet` instead — this path refuses them.
+ * `returnTune` instead — this path refuses them.
  */
-export function deleteUserLeadSheet(id: string): void {
+export function deleteUserTune(id: string): void {
 	const sheets = load<Tune[]>(STORAGE_KEY) ?? [];
 	const owned = sheets.some((s) => s.id === id);
-	if (!owned && getAdoptedLeadSheetsLocal().some((s) => s.id === id)) {
-		console.warn(`Refusing to delete adopted lead sheet ${id} via deleteUserLeadSheet; call returnLeadSheet instead.`);
+	if (!owned && getAdoptedTunesLocal().some((s) => s.id === id)) {
+		console.warn(`Refusing to delete adopted lead sheet ${id} via deleteUserTune; call returnTune instead.`);
 		return;
 	}
 

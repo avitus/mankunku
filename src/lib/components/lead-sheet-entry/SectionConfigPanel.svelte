@@ -1,14 +1,14 @@
 <script lang="ts">
 	import {
 		PAGE_BARS,
-		leadSheetEntry,
+		tuneEntry,
 		loadPage,
 		addSection,
 		removeSection,
 		updateSectionMeta,
 		setSectionBars,
 		currentSectionPageCount
-	} from '$lib/state/lead-sheet-entry.svelte';
+	} from '$lib/state/tune-entry.svelte';
 
 	const pageCount = $derived(currentSectionPageCount());
 
@@ -29,8 +29,8 @@
 
 <div class="space-y-3">
 	<div class="space-y-2">
-		{#each leadSheetEntry.sections as sec, i (i)}
-			{@const isCurrent = i === leadSheetEntry.currentSection}
+		{#each tuneEntry.sections as sec, i (i)}
+			{@const isCurrent = i === tuneEntry.currentSection}
 			<div
 				class="flex flex-wrap items-center gap-2 rounded p-2 text-sm
 					{isCurrent ? 'bg-[var(--color-accent)]/10 ring-1 ring-[var(--color-accent)]/40' : 'bg-[var(--color-bg-tertiary)]'}"
@@ -90,7 +90,7 @@
 						<option value="2">2nd</option>
 					</select>
 				</label>
-				{#if leadSheetEntry.sections.length > 1}
+				{#if tuneEntry.sections.length > 1}
 					<button
 						type="button"
 						onclick={() => removeSection(i)}
@@ -117,22 +117,22 @@
 			<div class="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
 				<button
 					type="button"
-					disabled={leadSheetEntry.currentPage === 0}
-					onclick={() => loadPage(leadSheetEntry.currentSection, leadSheetEntry.currentPage - 1)}
+					disabled={tuneEntry.currentPage === 0}
+					onclick={() => loadPage(tuneEntry.currentSection, tuneEntry.currentPage - 1)}
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 transition-colors hover:bg-[var(--color-bg-secondary)] disabled:opacity-40"
 				>
 					&larr;
 				</button>
 				<span>
-					Bars {leadSheetEntry.currentPage * PAGE_BARS + 1}–{Math.min(
-						(leadSheetEntry.currentPage + 1) * PAGE_BARS,
-						leadSheetEntry.sections[leadSheetEntry.currentSection]?.bars ?? PAGE_BARS
-					)} of {leadSheetEntry.sections[leadSheetEntry.currentSection]?.bars}
+					Bars {tuneEntry.currentPage * PAGE_BARS + 1}–{Math.min(
+						(tuneEntry.currentPage + 1) * PAGE_BARS,
+						tuneEntry.sections[tuneEntry.currentSection]?.bars ?? PAGE_BARS
+					)} of {tuneEntry.sections[tuneEntry.currentSection]?.bars}
 				</span>
 				<button
 					type="button"
-					disabled={leadSheetEntry.currentPage >= pageCount - 1}
-					onclick={() => loadPage(leadSheetEntry.currentSection, leadSheetEntry.currentPage + 1)}
+					disabled={tuneEntry.currentPage >= pageCount - 1}
+					onclick={() => loadPage(tuneEntry.currentSection, tuneEntry.currentPage + 1)}
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 transition-colors hover:bg-[var(--color-bg-secondary)] disabled:opacity-40"
 				>
 					&rarr;

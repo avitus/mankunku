@@ -5,11 +5,11 @@ import { INSTRUMENTS } from '$lib/types/instruments';
 import { stepEntry, addNote } from '$lib/state/step-entry.svelte';
 import {
 	PAGE_BARS,
-	leadSheetEntry,
-	initNewLeadSheet,
+	tuneEntry,
+	initNewTune,
 	loadPage,
 	commitBuffer,
-	buildDraftLeadSheet,
+	buildDraftTune,
 	addSection,
 	removeSection,
 	updateSectionMeta,
@@ -18,14 +18,14 @@ import {
 	removeChord,
 	chordTextAt,
 	setSheetWrittenKey,
-	loadFromLeadSheet,
+	loadFromTune,
 	currentSectionPageCount,
 	flattenedBufferBase,
 	suspendEntryBuffer,
 	resumeEntryBuffer,
 	melodyEditingSupported,
 	setSourceTransposition
-} from '$lib/state/lead-sheet-entry.svelte';
+} from '$lib/state/tune-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
 const store: Record<string, string> = {};
@@ -42,16 +42,16 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 beforeEach(() => {
 	localStorageMock.clear();
 	settings.instrumentId = 'concert';
-	initNewLeadSheet();
+	initNewTune();
 });
 
-describe('initNewLeadSheet', () => {
+describe('initNewTune', () => {
 	it('starts with one 8-bar A section and an empty buffer', () => {
-		expect(leadSheetEntry.sections).toHaveLength(1);
-		expect(leadSheetEntry.sections[0].label).toBe('A');
-		expect(leadSheetEntry.sections[0].bars).toBe(8);
-		expect(leadSheetEntry.currentSection).toBe(0);
-		expect(leadSheetEntry.currentPage).toBe(0);
+		expect(tuneEntry.sections).toHaveLength(1);
+		expect(tuneEntry.sections[0].label).toBe('A');
+		expect(tuneEntry.sections[0].bars).toBe(8);
+		expect(tuneEntry.currentSection).toBe(0);
+		expect(tuneEntry.currentPage).toBe(0);
 		expect(stepEntry.enteredNotes).toHaveLength(0);
 		expect(stepEntry.barCount).toBe(PAGE_BARS);
 	});
@@ -68,22 +68,22 @@ describe('buffer paging', () => {
 		// Enter a C4 whole note on page 0 (concert instrument: written == concert).
 		addNote(0, 4, 'natural');
 		loadPage(0, 1); // implicit commit
-		expect(leadSheetEntry.sections[0].notes).toHaveLength(1);
-		expect(leadSheetEntry.sections[0].notes[0].offset).toEqual([0, 1]);
+		expect(tuneEntry.sections[0].notes).toHaveLength(1);
+		expect(tuneEntry.sections[0].notes[0].offset).toEqual([0, 1]);
 		expect(stepEntry.enteredNotes).toHaveLength(0);
 		expect(stepEntry.barCount).toBe(4);
 
 		// Enter another note on page 1 → lands at bar 4 in section coordinates.
 		addNote(2, 4, 'natural');
 		commitBuffer();
-		const offsets = leadSheetEntry.sections[0].notes.map((n) => n.offset);
+		const offsets = tuneEntry.sections[0].notes.map((n) => n.offset);
 		expect(offsets).toContainEqual([0, 1]);
 		expect(offsets).toContainEqual([4, 1]);
 	});
 
 	it('loads a page with page-local offsets and gap-filled rests', () => {
 		// Sparse melody: single note at bar 5, beat 3 (offset 5.5).
-		leadSheetEntry.sections[0].notes = [
+		tuneEntry.sections[0].notes = [
 			{ pitch: 60, duration: [1, 4], offset: [11, 2] }
 		];
 		loadPage(0, 1);
@@ -108,18 +108,18 @@ describe('buffer paging', () => {
 describe('draft building', () => {
 	it('merges the live buffer into the draft without committing', () => {
 		addNote(0, 4, 'natural');
-		const draft = buildDraftLeadSheet();
+		const draft = buildDraftTune();
 		expect(draft.sections[0].notes).toHaveLength(1);
 		// State itself not committed yet.
-		expect(leadSheetEntry.sections[0].notes).toHaveLength(0);
+		expect(tuneEntry.sections[0].notes).toHaveLength(0);
 	});
 
 	it('converts the written key to concert on the built sheet', () => {
 		// The source transposition defaults from the instrument at init time.
 		settings.instrumentId = 'tenor-sax';
-		initNewLeadSheet();
+		initNewTune();
 		setSheetWrittenKey('D', false);
-		const draft = buildDraftLeadSheet();
+		const draft = buildDraftTune();
 		expect(draft.key).toBe('C'); // written D on tenor = concert C
 	});
 
@@ -134,30 +134,30 @@ describe('draft building', () => {
 describe('sections', () => {
 	it('adds sections with successive labels and navigates to them', () => {
 		addSection();
-		expect(leadSheetEntry.sections).toHaveLength(2);
-		expect(leadSheetEntry.sections[1].label).toBe('B');
-		expect(leadSheetEntry.currentSection).toBe(1);
+		expect(tuneEntry.sections).toHaveLength(2);
+		expect(tuneEntry.sections[1].label).toBe('B');
+		expect(tuneEntry.currentSection).toBe(1);
 	});
 
 	it('never removes the last section', () => {
 		removeSection(0);
-		expect(leadSheetEntry.sections).toHaveLength(1);
+		expect(tuneEntry.sections).toHaveLength(1);
 	});
 
 	it('updates repeat and ending markers', () => {
 		addSection();
 		updateSectionMeta(0, { repeatStart: true, repeatEnd: true });
 		updateSectionMeta(1, { ending: 2, label: 'Coda' });
-		expect(leadSheetEntry.sections[0].repeatStart).toBe(true);
-		expect(leadSheetEntry.sections[1].ending).toBe(2);
-		expect(leadSheetEntry.sections[1].label).toBe('Coda');
+		expect(tuneEntry.sections[0].repeatStart).toBe(true);
+		expect(tuneEntry.sections[1].ending).toBe(2);
+		expect(tuneEntry.sections[1].label).toBe('Coda');
 	});
 
 	it('truncates overflowing notes and chords when bars shrink', () => {
 		// Hydrate through the real API — the buffer owns the current page
-		// window, so content must arrive via loadFromLeadSheet, not by
+		// window, so content must arrive via loadFromTune, not by
 		// mutating sections directly underneath a loaded buffer.
-		loadFromLeadSheet({
+		loadFromTune({
 			id: 'sheet-t-runc',
 			title: 'Truncate Me',
 			key: 'C',
@@ -177,8 +177,8 @@ describe('sections', () => {
 		setChord(0, 0, 0, 'C');
 		setChord(0, 6, 0, 'G7');
 		setSectionBars(0, 4);
-		expect(leadSheetEntry.sections[0].notes.filter((n) => n.pitch !== null)).toHaveLength(1);
-		expect(leadSheetEntry.sections[0].harmony).toHaveLength(1);
+		expect(tuneEntry.sections[0].notes.filter((n) => n.pitch !== null)).toHaveLength(1);
+		expect(tuneEntry.sections[0].harmony).toHaveLength(1);
 	});
 });
 
@@ -186,7 +186,7 @@ describe('chords', () => {
 	it('stores parsed chords in concert pitch with derived duration and scale', () => {
 		expect(setChord(0, 0, 0, 'Dm7')).toBe(true);
 		expect(setChord(0, 2, 0, 'G7')).toBe(true);
-		const harmony = leadSheetEntry.sections[0].harmony;
+		const harmony = tuneEntry.sections[0].harmony;
 		expect(harmony).toHaveLength(2);
 		// Concert instrument: written == concert.
 		expect(harmony[0].chord.root).toBe('D');
@@ -203,9 +203,9 @@ describe('chords', () => {
 	it('converts written chord symbols to concert for transposing instruments', () => {
 		// The source transposition defaults from the instrument at init time.
 		settings.instrumentId = 'tenor-sax';
-		initNewLeadSheet();
+		initNewTune();
 		setChord(0, 0, 0, 'Em7');
-		const seg = leadSheetEntry.sections[0].harmony[0];
+		const seg = tuneEntry.sections[0].harmony[0];
 		// Written Em7 on tenor (+2 pitch class) is concert Dm7.
 		expect(seg.chord.root).toBe('D');
 		expect(seg.symbol).toBe('D-7');
@@ -215,16 +215,16 @@ describe('chords', () => {
 
 	it('rejects unparseable chord text', () => {
 		expect(setChord(0, 0, 0, 'Xyz9')).toBe(false);
-		expect(leadSheetEntry.sections[0].harmony).toHaveLength(0);
+		expect(tuneEntry.sections[0].harmony).toHaveLength(0);
 	});
 
 	it('replaces a chord at the same position and removes chords', () => {
 		setChord(0, 1, 2, 'Fmaj7');
 		setChord(0, 1, 2, 'F7');
-		expect(leadSheetEntry.sections[0].harmony).toHaveLength(1);
+		expect(tuneEntry.sections[0].harmony).toHaveLength(1);
 		expect(chordTextAt(0, 1, 2)).toBe('F7');
 		removeChord(0, 1, 2);
-		expect(leadSheetEntry.sections[0].harmony).toHaveLength(0);
+		expect(tuneEntry.sections[0].harmony).toHaveLength(0);
 	});
 });
 
@@ -234,7 +234,7 @@ describe('key changes', () => {
 		setChord(0, 0, 0, 'C');
 		commitBuffer();
 		setSheetWrittenKey('D', true);
-		const draft = buildDraftLeadSheet();
+		const draft = buildDraftTune();
 		expect(draft.key).toBe('D');
 		const pitched = draft.sections[0].notes.filter((n) => n.pitch !== null);
 		expect(pitched[0].pitch).toBe(62);
@@ -245,7 +245,7 @@ describe('key changes', () => {
 		addNote(0, 4, 'natural');
 		commitBuffer();
 		setSheetWrittenKey('D', false);
-		const draft = buildDraftLeadSheet();
+		const draft = buildDraftTune();
 		expect(draft.key).toBe('D');
 		const pitched = draft.sections[0].notes.filter((n) => n.pitch !== null);
 		expect(pitched[0].pitch).toBe(60);
@@ -271,39 +271,39 @@ describe('non-4/4 time signatures (imported charts)', () => {
 	}
 
 	it('preserves the imported time signature through the draft', () => {
-		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
-		expect(buildDraftLeadSheet().timeSignature).toEqual([3, 4]);
+		loadFromTune(waltzSheet(), INSTRUMENTS['concert']);
+		expect(buildDraftTune().timeSignature).toEqual([3, 4]);
 		expect(melodyEditingSupported()).toBe(false);
 	});
 
 	it('never lets the 4/4 buffer corrupt a non-4/4 sheet', () => {
-		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
+		loadFromTune(waltzSheet(), INSTRUMENTS['concert']);
 		// Buffer stays empty and commits are no-ops.
 		expect(stepEntry.enteredNotes).toEqual([]);
 		commitBuffer();
-		expect(leadSheetEntry.sections[0].notes).toHaveLength(1);
-		expect(leadSheetEntry.sections[0].notes[0].offset).toEqual([0, 1]);
+		expect(tuneEntry.sections[0].notes).toHaveLength(1);
+		expect(tuneEntry.sections[0].notes[0].offset).toEqual([0, 1]);
 	});
 
 	it('places chords on the meter grid, not a hardcoded 4/4 grid', () => {
-		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
+		loadFromTune(waltzSheet(), INSTRUMENTS['concert']);
 		expect(setChord(0, 1, 2, 'F7')).toBe(true);
-		const seg = leadSheetEntry.sections[0].harmony[0];
+		const seg = tuneEntry.sections[0].harmony[0];
 		expect(seg.startOffset).toEqual([5, 4]); // bar 1 (3/4) + 2 beats
 		expect(seg.duration).toEqual([7, 4]); // to the 4-bar section end (3.0)
 	});
 
 	it('resets to 4/4 for a fresh sheet', () => {
-		loadFromLeadSheet(waltzSheet(), INSTRUMENTS['concert']);
-		initNewLeadSheet();
-		expect(buildDraftLeadSheet().timeSignature).toEqual([4, 4]);
+		loadFromTune(waltzSheet(), INSTRUMENTS['concert']);
+		initNewTune();
+		expect(buildDraftTune().timeSignature).toEqual([4, 4]);
 		expect(melodyEditingSupported()).toBe(true);
 	});
 });
 
 describe('review handoff flag (import → editor navigation)', () => {
-	it('is raised by loadFromLeadSheet so the editor mount keeps the draft', () => {
-		loadFromLeadSheet({
+	it('is raised by loadFromTune so the editor mount keeps the draft', () => {
+		loadFromTune({
 			id: 'sheet-h-andf',
 			title: 'Handoff',
 			key: 'C',
@@ -314,12 +314,12 @@ describe('review handoff flag (import → editor navigation)', () => {
 		}, INSTRUMENTS['concert']);
 		// A draft with a pre-assigned id has editingId set but NO ?edit= param —
 		// without the flag, the editor's stale-state guard wipes it on mount.
-		expect(leadSheetEntry.editingId).toBe('sheet-h-andf');
-		expect(leadSheetEntry.reviewHandoff).toBe(true);
+		expect(tuneEntry.editingId).toBe('sheet-h-andf');
+		expect(tuneEntry.reviewHandoff).toBe(true);
 	});
 
-	it('is consumed by initNewLeadSheet', () => {
-		loadFromLeadSheet({
+	it('is consumed by initNewTune', () => {
+		loadFromTune({
 			id: 'sheet-h-andf',
 			title: 'Handoff',
 			key: 'C',
@@ -328,8 +328,8 @@ describe('review handoff flag (import → editor navigation)', () => {
 			sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }],
 			source: 'imported-pdf'
 		}, INSTRUMENTS['concert']);
-		initNewLeadSheet();
-		expect(leadSheetEntry.reviewHandoff).toBe(false);
+		initNewTune();
+		expect(tuneEntry.reviewHandoff).toBe(false);
 	});
 });
 
@@ -340,12 +340,12 @@ describe('buffer suspend/resume across navigation', () => {
 		// The shared buffer is clean for the lick entry page…
 		expect(stepEntry.enteredNotes).toHaveLength(0);
 		// …but the content is committed into the section.
-		expect(leadSheetEntry.sections[0].notes).toHaveLength(1);
+		expect(tuneEntry.sections[0].notes).toHaveLength(1);
 
 		resumeEntryBuffer();
 		expect(stepEntry.enteredNotes.filter((n) => n.pitch !== null)).toHaveLength(1);
 		// Resume must not double-commit or lose the note.
-		expect(leadSheetEntry.sections[0].notes.filter((n) => n.pitch !== null)).toHaveLength(1);
+		expect(tuneEntry.sections[0].notes.filter((n) => n.pitch !== null)).toHaveLength(1);
 	});
 });
 
@@ -377,18 +377,18 @@ describe('edit-mode hydration', () => {
 			source: 'imported-ireal',
 			pdfUrl: 'me/sheet-7-zzzz.pdf'
 		};
-		loadFromLeadSheet(sheet, INSTRUMENTS['tenor-sax']);
-		expect(leadSheetEntry.editingId).toBe('sheet-7-zzzz');
-		expect(leadSheetEntry.editingSource).toBe('imported-ireal');
-		expect(leadSheetEntry.editingPdfUrl).toBe('me/sheet-7-zzzz.pdf');
-		expect(leadSheetEntry.title).toBe('Round Trip');
-		expect(leadSheetEntry.writtenKey).toBe('D'); // concert C on tenor
-		expect(leadSheetEntry.sections[0].repeatStart).toBe(true);
+		loadFromTune(sheet, INSTRUMENTS['tenor-sax']);
+		expect(tuneEntry.editingId).toBe('sheet-7-zzzz');
+		expect(tuneEntry.editingSource).toBe('imported-ireal');
+		expect(tuneEntry.editingPdfUrl).toBe('me/sheet-7-zzzz.pdf');
+		expect(tuneEntry.title).toBe('Round Trip');
+		expect(tuneEntry.writtenKey).toBe('D'); // concert C on tenor
+		expect(tuneEntry.sections[0].repeatStart).toBe(true);
 		// The first page is loaded into the buffer.
 		expect(stepEntry.enteredNotes.some((n) => n.pitch === 60)).toBe(true);
 	});
 
-	it('round-trips through buildDraftLeadSheet preserving id and source', () => {
+	it('round-trips through buildDraftTune preserving id and source', () => {
 		const sheet: Tune = {
 			id: 'sheet-7-zzzz',
 			title: 'Round Trip',
@@ -398,8 +398,8 @@ describe('edit-mode hydration', () => {
 			sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }],
 			source: 'user'
 		};
-		loadFromLeadSheet(sheet, INSTRUMENTS['concert']);
-		const draft = buildDraftLeadSheet();
+		loadFromTune(sheet, INSTRUMENTS['concert']);
+		const draft = buildDraftTune();
 		expect(draft.id).toBe('sheet-7-zzzz');
 		expect(draft.source).toBe('user');
 		expect(draft.key).toBe('F');
@@ -411,25 +411,25 @@ describe('edit-mode hydration', () => {
 describe('source transposition', () => {
 	beforeEach(() => {
 		settings.instrumentId = 'tenor-sax';
-		initNewLeadSheet();
+		initNewTune();
 	});
 
 	it('defaults to the user instrument family and arms the buffer override', () => {
-		expect(leadSheetEntry.sourceTransposition).toBe('Bb');
+		expect(tuneEntry.sourceTransposition).toBe('Bb');
 		expect(stepEntry.transpositionOverride).toBe(14);
 
 		settings.instrumentId = 'concert';
-		initNewLeadSheet();
-		expect(leadSheetEntry.sourceTransposition).toBe('C');
+		initNewTune();
+		expect(tuneEntry.sourceTransposition).toBe('C');
 		expect(stepEntry.transpositionOverride).toBe(0);
 	});
 
 	it('switching the source re-labels the written key, concert stays fixed', () => {
 		// Tenor default: written C = concert Bb.
-		expect(buildDraftLeadSheet().key).toBe('Bb');
+		expect(buildDraftTune().key).toBe('Bb');
 		setSourceTransposition('C');
-		expect(leadSheetEntry.writtenKey).toBe('Bb');
-		expect(buildDraftLeadSheet().key).toBe('Bb');
+		expect(tuneEntry.writtenKey).toBe('Bb');
+		expect(buildDraftTune().key).toBe('Bb');
 		expect(stepEntry.phraseKey).toBe('Bb');
 		expect(stepEntry.transpositionOverride).toBe(0);
 	});
@@ -438,13 +438,13 @@ describe('source transposition', () => {
 		// Concert-book source on a tenor: Dm7 on the page is concert Dm7.
 		setSourceTransposition('C');
 		expect(setChord(0, 0, 0, 'Dm7')).toBe(true);
-		expect(leadSheetEntry.sections[0].harmony[0].chord.root).toBe('D');
+		expect(tuneEntry.sections[0].harmony[0].chord.root).toBe('D');
 		expect(chordTextAt(0, 0, 0)).toBe('D-7');
 	});
 
 	it('under the default Bb source, chords transpose as before', () => {
 		expect(setChord(0, 0, 0, 'Dm7')).toBe(true);
-		expect(leadSheetEntry.sections[0].harmony[0].chord.root).toBe('C');
+		expect(tuneEntry.sections[0].harmony[0].chord.root).toBe('C');
 		expect(chordTextAt(0, 0, 0)).toBe('D-7');
 	});
 
@@ -454,7 +454,7 @@ describe('source transposition', () => {
 		expect(stepEntry.enteredNotes[0].pitch).toBe(60);
 	});
 
-	it('loadFromLeadSheet re-defaults the source from the instrument', () => {
+	it('loadFromTune re-defaults the source from the instrument', () => {
 		setSourceTransposition('C');
 		const sheet: Tune = {
 			id: 'sheet-1',
@@ -465,9 +465,9 @@ describe('source transposition', () => {
 			source: 'user',
 			sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }]
 		};
-		loadFromLeadSheet(sheet, INSTRUMENTS['tenor-sax']);
-		expect(leadSheetEntry.sourceTransposition).toBe('Bb');
-		expect(leadSheetEntry.writtenKey).toBe('D');
+		loadFromTune(sheet, INSTRUMENTS['tenor-sax']);
+		expect(tuneEntry.sourceTransposition).toBe('Bb');
+		expect(tuneEntry.writtenKey).toBe('D');
 		expect(stepEntry.transpositionOverride).toBe(14);
 	});
 
@@ -478,11 +478,11 @@ describe('source transposition', () => {
 		expect(stepEntry.transpositionOverride).toBe(14);
 	});
 
-	it('buildDraftLeadSheet converts the written key through the source', () => {
+	it('buildDraftTune converts the written key through the source', () => {
 		setSheetWrittenKey('D', false);
-		expect(buildDraftLeadSheet().key).toBe('C'); // Bb source: written D = concert C
+		expect(buildDraftTune().key).toBe('C'); // Bb source: written D = concert C
 		setSourceTransposition('C');
-		expect(leadSheetEntry.writtenKey).toBe('C');
-		expect(buildDraftLeadSheet().key).toBe('C');
+		expect(tuneEntry.writtenKey).toBe('C');
+		expect(buildDraftTune().key).toBe('C');
 	});
 });

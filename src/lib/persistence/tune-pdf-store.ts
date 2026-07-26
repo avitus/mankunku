@@ -70,7 +70,7 @@ function bucketPath(userId: string, sheetId: string): string {
 	return `${userId}/${sheetId}.pdf`;
 }
 
-export interface SaveLeadSheetPdfOptions {
+export interface SaveTunePdfOptions {
 	supabase?: SupabaseClient<Database>;
 	userId?: string;
 }
@@ -81,10 +81,10 @@ export interface SaveLeadSheetPdfOptions {
  * should neither lose the asset (the cloud upload still runs) nor
  * short-circuit the caller.
  */
-export async function saveLeadSheetPdf(
+export async function saveTunePdf(
 	sheetId: string,
 	blob: Blob,
-	options: SaveLeadSheetPdfOptions = {}
+	options: SaveTunePdfOptions = {}
 ): Promise<void> {
 	try {
 		const db = await openDb();
@@ -129,7 +129,7 @@ export async function saveLeadSheetPdf(
  * provided, falls back to a cloud download and re-caches the blob locally.
  * All errors degrade to `null`.
  */
-export async function getLeadSheetPdf(
+export async function getTunePdf(
 	sheetId: string,
 	supabase?: SupabaseClient<Database>,
 	userId?: string
@@ -157,7 +157,7 @@ export async function getLeadSheetPdf(
 			return null;
 		}
 		// Re-cache locally so subsequent reads are offline-capable.
-		await saveLeadSheetPdf(sheetId, data);
+		await saveTunePdf(sheetId, data);
 		return data;
 	} catch (error) {
 		console.warn('Failed to download lead sheet PDF from cloud:', error);
@@ -166,7 +166,7 @@ export async function getLeadSheetPdf(
 }
 
 /** Ids of locally cached PDFs. */
-export async function getLeadSheetPdfIds(): Promise<Set<string>> {
+export async function getTunePdfIds(): Promise<Set<string>> {
 	try {
 		const db = await openDb();
 		try {
@@ -186,7 +186,7 @@ export async function getLeadSheetPdfIds(): Promise<Set<string>> {
  * Delete a PDF locally (awaited) and from the cloud (fire-and-forget, so a
  * subsequent sync does not resurrect the deleted asset).
  */
-export async function deleteLeadSheetPdf(
+export async function deleteTunePdf(
 	sheetId: string,
 	supabase?: SupabaseClient<Database>,
 	userId?: string
@@ -218,7 +218,7 @@ export async function deleteLeadSheetPdf(
 }
 
 /** Clear every locally cached PDF for a user (account deletion / wipe). */
-export async function clearAllLeadSheetPdfs(uid?: string): Promise<void> {
+export async function clearAllTunePdfs(uid?: string): Promise<void> {
 	try {
 		const db = await openDb(uid);
 		try {

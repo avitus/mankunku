@@ -4,20 +4,20 @@
 	import { onDestroy } from 'svelte';
 	import CommunityLeadSheetCard from '$lib/components/leadsheets/CommunityLeadSheetCard.svelte';
 	import {
-		listCommunityLeadSheets,
-		toggleLeadSheetFavorite,
-		adoptLeadSheet,
-		returnLeadSheet,
-		LEAD_SHEET_PAGE_SIZE,
-		type CommunityLeadSheet
-	} from '$lib/persistence/lead-sheet-community';
-	import { leadSheetCommunity, type LeadSheetCommunitySort } from '$lib/state/lead-sheet-community.svelte';
+		listCommunityTunes,
+		toggleTuneFavorite,
+		adoptTune,
+		returnTune,
+		TUNE_PAGE_SIZE,
+		type CommunityTune
+	} from '$lib/persistence/tune-community';
+	import { tuneCommunity, type TuneCommunitySort } from '$lib/state/tune-community.svelte';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 	const session = $derived(page.data?.session ?? null);
 	const user = $derived(page.data?.user ?? null);
 
-	let sheets: CommunityLeadSheet[] = $state([]);
+	let sheets: CommunityTune[] = $state([]);
 	let pageOffset = $state(0);
 	let hasMore = $state(false);
 	let loading = $state(false);
@@ -26,9 +26,9 @@
 	/** Reactive filter snapshot — re-query the corpus when it changes. */
 	const filterKey = $derived(
 		JSON.stringify({
-			s: leadSheetCommunity.searchQuery,
-			a: leadSheetCommunity.authorQuery,
-			sort: leadSheetCommunity.sort
+			s: tuneCommunity.searchQuery,
+			a: tuneCommunity.authorQuery,
+			sort: tuneCommunity.sort
 		})
 	);
 
@@ -36,9 +36,9 @@
 
 	function buildFilters() {
 		return {
-			search: leadSheetCommunity.searchQuery.trim() || undefined,
-			authorSearch: leadSheetCommunity.authorQuery.trim() || undefined,
-			sort: leadSheetCommunity.sort,
+			search: tuneCommunity.searchQuery.trim() || undefined,
+			authorSearch: tuneCommunity.authorQuery.trim() || undefined,
+			sort: tuneCommunity.sort,
 			excludeUserId: user?.id
 		};
 	}
@@ -55,11 +55,11 @@
 		loading = true;
 		pageOffset = 0;
 		loadError = null;
-		listCommunityLeadSheets(sb, buildFilters(), 0)
+		listCommunityTunes(sb, buildFilters(), 0)
 			.then((results) => {
 				if (runId !== effectRunId) return;
 				sheets = results;
-				hasMore = results.length === LEAD_SHEET_PAGE_SIZE;
+				hasMore = results.length === TUNE_PAGE_SIZE;
 				loading = false;
 			})
 			.catch((err) => {
@@ -73,12 +73,12 @@
 		if (!supabase || loading) return;
 		const runId = effectRunId;
 		loading = true;
-		const nextOffset = pageOffset + LEAD_SHEET_PAGE_SIZE;
-		const more = await listCommunityLeadSheets(supabase, buildFilters(), nextOffset);
+		const nextOffset = pageOffset + TUNE_PAGE_SIZE;
+		const more = await listCommunityTunes(supabase, buildFilters(), nextOffset);
 		if (runId !== effectRunId) return;
 		sheets = [...sheets, ...more];
 		pageOffset = nextOffset;
-		hasMore = more.length === LEAD_SHEET_PAGE_SIZE;
+		hasMore = more.length === TUNE_PAGE_SIZE;
 		loading = false;
 	}
 
@@ -90,13 +90,13 @@
 	function onSearchInput(e: Event) {
 		const value = (e.target as HTMLInputElement).value;
 		if (searchTimer) clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => (leadSheetCommunity.searchQuery = value), 200);
+		searchTimer = setTimeout(() => (tuneCommunity.searchQuery = value), 200);
 	}
 
 	function onAuthorInput(e: Event) {
 		const value = (e.target as HTMLInputElement).value;
 		if (authorTimer) clearTimeout(authorTimer);
-		authorTimer = setTimeout(() => (leadSheetCommunity.authorQuery = value), 200);
+		authorTimer = setTimeout(() => (tuneCommunity.authorQuery = value), 200);
 	}
 
 	onDestroy(() => {
@@ -104,46 +104,46 @@
 		if (authorTimer) clearTimeout(authorTimer);
 	});
 
-	async function handleFavorite(item: CommunityLeadSheet) {
+	async function handleFavorite(item: CommunityTune) {
 		if (!supabase) return;
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		const wasFavorited = item.isFavoritedByMe;
-		const optimistic: CommunityLeadSheet = {
+		const optimistic: CommunityTune = {
 			...item,
 			isFavoritedByMe: !wasFavorited,
 			favoriteCount: item.favoriteCount + (wasFavorited ? -1 : 1)
 		};
 		sheets = [...sheets.slice(0, idx), optimistic, ...sheets.slice(idx + 1)];
-		const nowFavorited = await toggleLeadSheetFavorite(supabase, item.sheet.id);
+		const nowFavorited = await toggleTuneFavorite(supabase, item.sheet.id);
 		if (nowFavorited !== !wasFavorited) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}
 	}
 
-	async function handleAdopt(item: CommunityLeadSheet) {
+	async function handleAdopt(item: CommunityTune) {
 		if (!supabase) return;
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: true }, ...sheets.slice(idx + 1)];
-		const ok = await adoptLeadSheet(supabase, item.sheet.id);
+		const ok = await adoptTune(supabase, item.sheet.id);
 		if (!ok) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}
 	}
 
-	async function handleReturn(item: CommunityLeadSheet) {
+	async function handleReturn(item: CommunityTune) {
 		if (!supabase) return;
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: false }, ...sheets.slice(idx + 1)];
-		const ok = await returnLeadSheet(supabase, item.sheet.id);
+		const ok = await returnTune(supabase, item.sheet.id);
 		if (!ok) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}
 	}
 
-	const sortOptions: { id: LeadSheetCommunitySort; label: string }[] = [
+	const sortOptions: { id: TuneCommunitySort; label: string }[] = [
 		{ id: 'popular', label: 'Popular' },
 		{ id: 'newest', label: 'Newest' }
 	];
@@ -182,7 +182,7 @@
 		<input
 			type="search"
 			placeholder="Search by title, composer, or tag…"
-			value={leadSheetCommunity.searchQuery}
+			value={tuneCommunity.searchQuery}
 			oninput={onSearchInput}
 			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2.5 text-sm outline-none ring-[var(--color-accent)] placeholder:text-[var(--color-text-secondary)] focus:ring-2"
 		/>
@@ -191,16 +191,16 @@
 			<input
 				type="search"
 				placeholder="Author…"
-				value={leadSheetCommunity.authorQuery}
+				value={tuneCommunity.authorQuery}
 				oninput={onAuthorInput}
 				class="w-40 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] placeholder:text-[var(--color-text-secondary)] focus:ring-2"
 			/>
 			<div class="flex gap-1">
 				{#each sortOptions as { id, label } (id)}
 					<button
-						onclick={() => (leadSheetCommunity.sort = id)}
+						onclick={() => (tuneCommunity.sort = id)}
 						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-							{leadSheetCommunity.sort === id
+							{tuneCommunity.sort === id
 								? 'bg-[var(--color-accent)] text-white'
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 					>
@@ -244,7 +244,7 @@
 		{:else if !loading}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center">
 				<p class="text-sm text-[var(--color-text-secondary)]">
-					No shared lead sheets yet{leadSheetCommunity.searchQuery ? ' matching that search' : ''}.
+					No shared lead sheets yet{tuneCommunity.searchQuery ? ' matching that search' : ''}.
 					Be the first — enter a tune and it becomes shareable.
 				</p>
 				<a

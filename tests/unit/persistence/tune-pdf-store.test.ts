@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-	saveLeadSheetPdf,
-	getLeadSheetPdf,
-	deleteLeadSheetPdf,
-	getLeadSheetPdfIds,
-	clearAllLeadSheetPdfs
-} from '$lib/persistence/lead-sheet-store';
+	saveTunePdf,
+	getTunePdf,
+	deleteTunePdf,
+	getTunePdfIds,
+	clearAllTunePdfs
+} from '$lib/persistence/tune-pdf-store';
 
 function makePdfBlob(size = 256): Blob {
 	return new Blob([new Uint8Array(size)], { type: 'application/pdf' });
@@ -38,41 +38,41 @@ function makeSupabaseStorageMock(downloadBlob: Blob | null = null) {
 }
 
 beforeEach(async () => {
-	await clearAllLeadSheetPdfs();
+	await clearAllTunePdfs();
 });
 
 describe('local PDF cache round-trip', () => {
 	it('saves and retrieves a PDF blob', async () => {
 		const blob = makePdfBlob();
-		await saveLeadSheetPdf('sheet-1-abcd', blob);
-		const restored = await getLeadSheetPdf('sheet-1-abcd');
+		await saveTunePdf('sheet-1-abcd', blob);
+		const restored = await getTunePdf('sheet-1-abcd');
 		expect(restored).not.toBeNull();
 		expect(restored!.size).toBe(blob.size);
 	});
 
 	it('lists stored PDF ids', async () => {
-		await saveLeadSheetPdf('sheet-1-aaaa', makePdfBlob());
-		await saveLeadSheetPdf('sheet-2-bbbb', makePdfBlob());
-		const ids = await getLeadSheetPdfIds();
+		await saveTunePdf('sheet-1-aaaa', makePdfBlob());
+		await saveTunePdf('sheet-2-bbbb', makePdfBlob());
+		const ids = await getTunePdfIds();
 		expect(ids.has('sheet-1-aaaa')).toBe(true);
 		expect(ids.has('sheet-2-bbbb')).toBe(true);
 	});
 
 	it('deletes a PDF locally', async () => {
-		await saveLeadSheetPdf('sheet-1-aaaa', makePdfBlob());
-		await deleteLeadSheetPdf('sheet-1-aaaa');
-		expect(await getLeadSheetPdf('sheet-1-aaaa')).toBeNull();
+		await saveTunePdf('sheet-1-aaaa', makePdfBlob());
+		await deleteTunePdf('sheet-1-aaaa');
+		expect(await getTunePdf('sheet-1-aaaa')).toBeNull();
 	});
 
 	it('returns null for a missing PDF without a cloud client', async () => {
-		expect(await getLeadSheetPdf('nope')).toBeNull();
+		expect(await getTunePdf('nope')).toBeNull();
 	});
 });
 
 describe('cloud upload/download', () => {
 	it('uploads to the lead-sheets bucket under the user folder on save', async () => {
 		const { client, uploads, storage } = makeSupabaseStorageMock();
-		await saveLeadSheetPdf('sheet-1-aaaa', makePdfBlob(), {
+		await saveTunePdf('sheet-1-aaaa', makePdfBlob(), {
 			supabase: client,
 			userId: 'user-9'
 		});
@@ -85,18 +85,18 @@ describe('cloud upload/download', () => {
 	it('falls back to cloud download when missing locally, then caches it', async () => {
 		const cloudBlob = makePdfBlob(512);
 		const { client } = makeSupabaseStorageMock(cloudBlob);
-		const restored = await getLeadSheetPdf('sheet-3-cccc', client, 'user-9');
+		const restored = await getTunePdf('sheet-3-cccc', client, 'user-9');
 		expect(restored).not.toBeNull();
 		expect(restored!.size).toBe(512);
 		// Second read hits the local cache (no client passed).
-		const cached = await getLeadSheetPdf('sheet-3-cccc');
+		const cached = await getTunePdf('sheet-3-cccc');
 		expect(cached?.size).toBe(512);
 	});
 
 	it('requests cloud removal on delete', async () => {
-		await saveLeadSheetPdf('sheet-1-aaaa', makePdfBlob());
+		await saveTunePdf('sheet-1-aaaa', makePdfBlob());
 		const { client, removals } = makeSupabaseStorageMock();
-		await deleteLeadSheetPdf('sheet-1-aaaa', client, 'user-9');
+		await deleteTunePdf('sheet-1-aaaa', client, 'user-9');
 		await new Promise((r) => setTimeout(r, 0));
 		expect(removals).toEqual([['user-9/sheet-1-aaaa.pdf']]);
 	});

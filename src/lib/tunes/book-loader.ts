@@ -10,8 +10,8 @@ import type { PitchClass } from '$lib/types/music';
 import type { Tune } from '$lib/types/tune';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { ALL_CURATED_TUNES } from '$lib/data/tunes/index';
-import { getUserLeadSheetsLocal } from '$lib/persistence/user-lead-sheets';
-import { getAdoptedLeadSheetsLocal } from '$lib/persistence/lead-sheet-community';
+import { getUserTunesLocal } from '$lib/persistence/user-tunes';
+import { getAdoptedTunesLocal } from '$lib/persistence/tune-community';
 import { bestOctaveShift } from '$lib/phrases/library-loader';
 import { parseChordSymbol, formatChordSymbol } from '$lib/music/chord-symbol';
 import { transposePitchClass, pitchClassInterval } from '$lib/music/transposition';
@@ -29,12 +29,12 @@ for (const sheet of ALL_CURATED_TUNES) {
 export function getAllTunes(): Tune[] {
 	const seen = new Set<string>(curatedById.keys());
 	const result: Tune[] = [...ALL_CURATED_TUNES];
-	for (const sheet of getUserLeadSheetsLocal()) {
+	for (const sheet of getUserTunesLocal()) {
 		if (seen.has(sheet.id)) continue;
 		seen.add(sheet.id);
 		result.push(sheet);
 	}
-	for (const sheet of getAdoptedLeadSheetsLocal()) {
+	for (const sheet of getAdoptedTunesLocal()) {
 		if (seen.has(sheet.id)) continue;
 		seen.add(sheet.id);
 		result.push(sheet);
@@ -51,8 +51,8 @@ export function isCuratedTuneId(id: string): boolean {
 export function getTuneById(id: string): Tune | undefined {
 	return (
 		curatedById.get(id) ??
-		getUserLeadSheetsLocal().find((s) => s.id === id) ??
-		getAdoptedLeadSheetsLocal().find((s) => s.id === id)
+		getUserTunesLocal().find((s) => s.id === id) ??
+		getAdoptedTunesLocal().find((s) => s.id === id)
 	);
 }
 

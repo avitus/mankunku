@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { CommunityLeadSheet } from '$lib/persistence/lead-sheet-community';
+	import type { CommunityTune } from '$lib/persistence/tune-community';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 
 	interface Props {
-		item: CommunityLeadSheet;
+		item: CommunityTune;
 		isOwnSheet: boolean;
 		onclick?: () => void;
 		onfavorite: () => void;

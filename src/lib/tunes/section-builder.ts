@@ -6,7 +6,7 @@ import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 /**
  * Shared section assembly — the ONE place where a flat bar-by-bar structural
  * reading (rehearsal marks, repeat barlines, volta endings, pickup flags)
- * plus absolute-offset melody/harmony events becomes LeadSheetSections.
+ * plus absolute-offset melody/harmony events becomes TuneSections.
  *
  * Both score importers feed this: the MuseScore parser from the .mscx
  * measure stream, and the PDF extraction from the model's per-bar

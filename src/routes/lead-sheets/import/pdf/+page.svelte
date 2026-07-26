@@ -3,8 +3,8 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Tune } from '$lib/types/tune';
-	import { loadFromLeadSheet } from '$lib/state/lead-sheet-entry.svelte';
-	import { saveLeadSheetPdf } from '$lib/persistence/lead-sheet-store';
+	import { loadFromTune } from '$lib/state/tune-entry.svelte';
+	import { saveTunePdf } from '$lib/persistence/tune-pdf-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
 	import { extractPdfSystems, type ExtractedSystem } from '$lib/tunes/import/pdf-system-extract';
@@ -13,7 +13,7 @@
 		importReviewNotes,
 		type ModelBar
 	} from '$lib/tunes/import/pdf-system-assemble';
-	import { setImportReview } from '$lib/state/lead-sheet-entry.svelte';
+	import { setImportReview } from '$lib/state/tune-entry.svelte';
 	import { claudeJsonToTune } from '$lib/tunes/import/claude-pdf';
 	import {
 		defaultSourceTransposition,
@@ -227,16 +227,16 @@
 			// draft so it round-trips through the cloud row.
 			const blob = new Blob([buffer], { type: 'application/pdf' });
 			if (supabase && user) {
-				await saveLeadSheetPdf(concert.id, blob, { supabase, userId: user.id });
+				await saveTunePdf(concert.id, blob, { supabase, userId: user.id });
 				concert.pdfUrl = `${user.id}/${concert.id}.pdf`;
 			} else {
-				await saveLeadSheetPdf(concert.id, blob);
+				await saveTunePdf(concert.id, blob);
 			}
 
 			// Mandatory human review: the draft (with its pre-assigned id, so
 			// the stored PDF stays linked) opens in the editor; nothing is
 			// saved until the user hits Update there.
-			loadFromLeadSheet(concert, getInstrument());
+			loadFromTune(concert, getInstrument());
 			setImportReview({ warnings, suspectBars: imported.suspectBars ?? [] });
 			goto('/lead-sheets/entry');
 		} catch (err) {

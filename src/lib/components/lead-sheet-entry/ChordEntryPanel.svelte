@@ -2,11 +2,11 @@
 	import { tick } from 'svelte';
 	import {
 		PAGE_BARS,
-		leadSheetEntry,
+		tuneEntry,
 		setChord,
 		removeChord,
 		chordTextAt
-	} from '$lib/state/lead-sheet-entry.svelte';
+	} from '$lib/state/tune-entry.svelte';
 
 	/** Slot currently being edited (absolute bar within the section). */
 	let editing: { bar: number; beat: number } | null = $state(null);
@@ -16,19 +16,19 @@
 	let errorTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const pageBars = $derived.by(() => {
-		const sec = leadSheetEntry.sections[leadSheetEntry.currentSection];
-		const first = leadSheetEntry.currentPage * PAGE_BARS;
+		const sec = tuneEntry.sections[tuneEntry.currentSection];
+		const first = tuneEntry.currentPage * PAGE_BARS;
 		const count = Math.max(1, Math.min(PAGE_BARS, (sec?.bars ?? PAGE_BARS) - first));
 		return Array.from({ length: count }, (_, i) => first + i);
 	});
 
 	/** Beat slots per bar follow the sheet meter (3 in 3/4, 4 in 4/4, …). */
 	const beats = $derived(
-		Array.from({ length: Math.max(1, leadSheetEntry.timeSignature[0]) }, (_, i) => i)
+		Array.from({ length: Math.max(1, tuneEntry.timeSignature[0]) }, (_, i) => i)
 	);
 
 	function cellText(bar: number, beat: number): string | null {
-		return chordTextAt(leadSheetEntry.currentSection, bar, beat);
+		return chordTextAt(tuneEntry.currentSection, bar, beat);
 	}
 
 	async function openEditor(bar: number, beat: number): Promise<void> {
@@ -54,11 +54,11 @@
 		if (!editing) return;
 		const text = inputValue.trim();
 		if (text === '') {
-			removeChord(leadSheetEntry.currentSection, editing.bar, editing.beat);
+			removeChord(tuneEntry.currentSection, editing.bar, editing.beat);
 			closeEditor();
 			return;
 		}
-		if (setChord(leadSheetEntry.currentSection, editing.bar, editing.beat, text)) {
+		if (setChord(tuneEntry.currentSection, editing.bar, editing.beat, text)) {
 			closeEditor();
 		} else {
 			flashError();

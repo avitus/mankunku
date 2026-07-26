@@ -5,12 +5,12 @@
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import { getTuneById, isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
-	import { getUserLeadSheetsLocal, deleteUserLeadSheet } from '$lib/persistence/user-lead-sheets';
+	import { getUserTunesLocal, deleteUserTune } from '$lib/persistence/user-tunes';
 	import {
-		getLeadSheetAdoptionsLocal,
-		getAdoptedLeadSheetAuthorsLocal,
-		returnLeadSheet
-	} from '$lib/persistence/lead-sheet-community';
+		getTuneAdoptionsLocal,
+		getAdoptedTuneAuthorsLocal,
+		returnTune
+	} from '$lib/persistence/tune-community';
 	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
@@ -27,15 +27,15 @@
 	const isCurated = $derived(baseSheet ? isCuratedTuneId(baseSheet.id) : false);
 	const isAdopted = $derived.by(() => {
 		void cacheVersion;
-		return baseSheet ? getLeadSheetAdoptionsLocal().has(baseSheet.id) : false;
+		return baseSheet ? getTuneAdoptionsLocal().has(baseSheet.id) : false;
 	});
 	const isOwnSheet = $derived.by(() => {
 		void cacheVersion;
-		return baseSheet ? getUserLeadSheetsLocal().some((s) => s.id === baseSheet.id) : false;
+		return baseSheet ? getUserTunesLocal().some((s) => s.id === baseSheet.id) : false;
 	});
 	const authorName = $derived.by(() => {
 		void cacheVersion;
-		return baseSheet ? getAdoptedLeadSheetAuthorsLocal()[baseSheet.id]?.authorName ?? null : null;
+		return baseSheet ? getAdoptedTuneAuthorsLocal()[baseSheet.id]?.authorName ?? null : null;
 	});
 
 	/**
@@ -101,7 +101,7 @@
 			confirmingDelete = true;
 			return;
 		}
-		deleteUserLeadSheet(baseSheet.id);
+		deleteUserTune(baseSheet.id);
 		goto('/lead-sheets');
 	}
 
@@ -111,7 +111,7 @@
 			confirmingReturn = true;
 			return;
 		}
-		const ok = await returnLeadSheet(supabase, baseSheet.id);
+		const ok = await returnTune(supabase, baseSheet.id);
 		if (ok) goto('/lead-sheets');
 		else confirmingReturn = false;
 	}
@@ -229,7 +229,7 @@
 		</div>
 
 		<!-- Notation: full multi-system chart with chord symbols -->
-		<NotationDisplay leadSheet={sheet} instrument={getInstrument()} />
+		<NotationDisplay tune={sheet} instrument={getInstrument()} />
 
 		{#if baseSheet.tags.length > 0}
 			<div class="flex flex-wrap gap-2">

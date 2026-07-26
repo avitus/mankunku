@@ -16,7 +16,7 @@ import { harmonicSegmentFromSymbol, scaleIdForQuality } from '$lib/tunes/segment
  *    <harmony> elements (well-specified, and the recommended route when the
  *    binary read comes out wrong).
  *
- * Both emit harmony-only LeadSheets (melody left empty for later entry).
+ * Both emit harmony-only Tunes (melody left empty for later entry).
  */
 
 export interface BiabImportResult {

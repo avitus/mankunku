@@ -2,21 +2,21 @@
  * User lead-sheet persistence: local-first CRUD + soft-delete tombstones +
  * client_mtime cross-device merge, mirroring the user-licks contract.
  *
- * Exercises `reconcileLeadSheets` (via `initLeadSheetsFromCloud` /
- * `getUserLeadSheets`) together with `saveUserLeadSheet` /
- * `deleteUserLeadSheet`.
+ * Exercises `reconcileLeadSheets` (via `initTunesFromCloud` /
+ * `getUserTunes`) together with `saveUserTune` /
+ * `deleteUserTune`.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Tune } from '$lib/types/tune';
 import {
-	saveUserLeadSheet,
-	deleteUserLeadSheet,
-	getUserLeadSheets,
-	getUserLeadSheetsLocal,
-	initLeadSheetsFromCloud,
-	flushLeadSheetsToCloud
-} from '$lib/persistence/user-lead-sheets';
+	saveUserTune,
+	deleteUserTune,
+	getUserTunes,
+	getUserTunesLocal,
+	initTunesFromCloud,
+	flushTunesToCloud
+} from '$lib/persistence/user-tunes';
 import { setActiveUid, getActivePrefix, __resetNamespaceCacheForTests } from '$lib/persistence/namespace';
 
 // ─── Mock the outbox so enqueue is an inert no-op ─────────────────────────
@@ -28,8 +28,8 @@ vi.mock('$lib/persistence/outbox', () => ({
 
 // ─── Mock the community module (adopted-sheet cache) ──────────────────────
 const adoptedSheets: Tune[] = [];
-vi.mock('$lib/persistence/lead-sheet-community', () => ({
-	getAdoptedLeadSheetsLocal: () => adoptedSheets
+vi.mock('$lib/persistence/tune-community', () => ({
+	getAdoptedTunesLocal: () => adoptedSheets
 }));
 
 // ─── localStorage mock ────────────────────────────────────────────────────
@@ -171,39 +171,39 @@ function createMockSupabase(cloudRows: Record<string, unknown>[], opts: { fetchE
 
 // ─── Local CRUD ───────────────────────────────────────────────────────────
 
-describe('saveUserLeadSheet', () => {
+describe('saveUserTune', () => {
 	it('generates a sheet- prefixed id when none is given', () => {
-		const saved = saveUserLeadSheet(makeSheet({ id: '' }));
+		const saved = saveUserTune(makeSheet({ id: '' }));
 		expect(saved.id).toMatch(/^sheet-\d+-[a-z0-9]{4}$/);
-		expect(getUserLeadSheetsLocal().map((s) => s.id)).toContain(saved.id);
+		expect(getUserTunesLocal().map((s) => s.id)).toContain(saved.id);
 	});
 
 	it('defaults the source to user when unset', () => {
-		const saved = saveUserLeadSheet(makeSheet({ id: '', source: '' }));
+		const saved = saveUserTune(makeSheet({ id: '', source: '' }));
 		expect(saved.source).toBe('user');
 	});
 
 	it('replaces an existing sheet in place, preserving list order', () => {
-		saveUserLeadSheet(makeSheet({ id: 'A', title: 'First' }));
-		saveUserLeadSheet(makeSheet({ id: 'B', title: 'Second' }));
-		saveUserLeadSheet(makeSheet({ id: 'A', title: 'First v2' }));
-		const local = getUserLeadSheetsLocal();
+		saveUserTune(makeSheet({ id: 'A', title: 'First' }));
+		saveUserTune(makeSheet({ id: 'B', title: 'Second' }));
+		saveUserTune(makeSheet({ id: 'A', title: 'First v2' }));
+		const local = getUserTunesLocal();
 		expect(local.map((s) => s.id)).toEqual(['A', 'B']);
 		expect(local[0].title).toBe('First v2');
 	});
 });
 
-describe('deleteUserLeadSheet', () => {
+describe('deleteUserTune', () => {
 	it('removes the sheet locally and stamps a tombstone', () => {
-		saveUserLeadSheet(makeSheet({ id: 'X' }));
-		deleteUserLeadSheet('X');
-		expect(getUserLeadSheetsLocal()).toHaveLength(0);
+		saveUserTune(makeSheet({ id: 'X' }));
+		deleteUserTune('X');
+		expect(getUserTunesLocal()).toHaveLength(0);
 		expect(typeof readMeta()['X']?.deletedAt).toBe('number');
 	});
 
 	it('refuses to delete an adopted community sheet', () => {
 		adoptedSheets.push(makeSheet({ id: 'adopted-1' }));
-		deleteUserLeadSheet('adopted-1');
+		deleteUserTune('adopted-1');
 		expect(readMeta()['adopted-1']).toBeUndefined();
 	});
 });
@@ -212,16 +212,16 @@ describe('deleteUserLeadSheet', () => {
 
 describe('tombstone propagation', () => {
 	it('pushes a deleted_at UPDATE scoped by id and user_id', async () => {
-		saveUserLeadSheet(makeSheet({ id: 'X', title: 'Mine' }));
-		deleteUserLeadSheet('X');
+		saveUserTune(makeSheet({ id: 'X', title: 'Mine' }));
+		deleteUserTune('X');
 
 		const { client, tombstoneUpdates, upsertedRows } = createMockSupabase([
 			makeCloudRow({ id: 'X', deleted_at: null, client_mtime: 100 })
 		]);
-		const ok = await initLeadSheetsFromCloud(client);
+		const ok = await initTunesFromCloud(client);
 
 		expect(ok).toBe(true);
-		expect(getUserLeadSheetsLocal().map((s) => s.id)).not.toContain('X');
+		expect(getUserTunesLocal().map((s) => s.id)).not.toContain('X');
 		expect(upsertedRows.some((r) => r.id === 'X')).toBe(false);
 		expect(tombstoneUpdates).toHaveLength(1);
 		const t = tombstoneUpdates[0];
@@ -238,9 +238,9 @@ describe('tombstone propagation', () => {
 		const { client, tombstoneUpdates } = createMockSupabase([
 			makeCloudRow({ id: 'X', deleted_at: null, client_mtime: 100 })
 		]);
-		await initLeadSheetsFromCloud(client);
+		await initTunesFromCloud(client);
 
-		expect(getUserLeadSheetsLocal().map((s) => s.id)).not.toContain('X');
+		expect(getUserTunesLocal().map((s) => s.id)).not.toContain('X');
 		expect(tombstoneUpdates).toHaveLength(1);
 		expect(tombstoneUpdates[0].client_mtime).toBe(500);
 	});
@@ -253,9 +253,9 @@ describe('tombstone propagation', () => {
 		const { client } = createMockSupabase([
 			makeCloudRow({ id: 'X', deleted_at: '2026-02-01T00:00:00.000Z', client_mtime: 200 })
 		]);
-		await initLeadSheetsFromCloud(client);
+		await initTunesFromCloud(client);
 
-		expect(getUserLeadSheetsLocal().map((s) => s.id)).not.toContain('X');
+		expect(getUserTunesLocal().map((s) => s.id)).not.toContain('X');
 		expect(typeof readMeta()['X']?.deletedAt).toBe('number');
 	});
 
@@ -267,9 +267,9 @@ describe('tombstone propagation', () => {
 		const { client } = createMockSupabase([
 			makeCloudRow({ id: 'X', title: 'Reborn', deleted_at: null, client_mtime: 200 })
 		]);
-		await initLeadSheetsFromCloud(client);
+		await initTunesFromCloud(client);
 
-		const live = getUserLeadSheetsLocal();
+		const live = getUserTunesLocal();
 		expect(live.find((s) => s.id === 'X')?.title).toBe('Reborn');
 		expect(readMeta()['X']?.deletedAt).toBeUndefined();
 		expect(readMeta()['X']?.mtime).toBe(200);
@@ -285,14 +285,14 @@ describe('live-vs-live edits resolve by client_mtime', () => {
 		const { client, upsertedRows, upsertOpts } = createMockSupabase([
 			makeCloudRow({ id: 'X', title: 'CLOUD v100', client_mtime: 100 })
 		]);
-		await initLeadSheetsFromCloud(client);
+		await initTunesFromCloud(client);
 
 		const pushed = upsertedRows.find((r) => r.id === 'X');
 		expect(pushed?.title).toBe('LOCAL v300');
 		expect(pushed?.client_mtime).toBe(300);
 		expect(pushed?.deleted_at).toBeNull();
 		expect(upsertOpts[0]).toMatchObject({ onConflict: 'id' });
-		expect(getUserLeadSheetsLocal().find((s) => s.id === 'X')?.title).toBe('LOCAL v300');
+		expect(getUserTunesLocal().find((s) => s.id === 'X')?.title).toBe('LOCAL v300');
 	});
 
 	it('adopts the cloud version when cloud is strictly newer', async () => {
@@ -303,9 +303,9 @@ describe('live-vs-live edits resolve by client_mtime', () => {
 		const { client, upsertedRows, tombstoneUpdates } = createMockSupabase([
 			makeCloudRow({ id: 'X', title: 'CLOUD v300', client_mtime: 300 })
 		]);
-		await initLeadSheetsFromCloud(client);
+		await initTunesFromCloud(client);
 
-		expect(getUserLeadSheetsLocal().find((s) => s.id === 'X')?.title).toBe('CLOUD v300');
+		expect(getUserTunesLocal().find((s) => s.id === 'X')?.title).toBe('CLOUD v300');
 		expect(readMeta()['X']?.mtime).toBe(300);
 		expect(upsertedRows).toHaveLength(0);
 		expect(tombstoneUpdates).toHaveLength(0);
@@ -319,34 +319,34 @@ describe('live-vs-live edits resolve by client_mtime', () => {
 		const { client, upsertedRows } = createMockSupabase([
 			makeCloudRow({ id: 'X', title: 'CLOUD tie', client_mtime: 100 })
 		]);
-		await initLeadSheetsFromCloud(client);
+		await initTunesFromCloud(client);
 
-		expect(getUserLeadSheetsLocal().find((s) => s.id === 'X')?.title).toBe('LOCAL tie');
+		expect(getUserTunesLocal().find((s) => s.id === 'X')?.title).toBe('LOCAL tie');
 		expect(upsertedRows).toHaveLength(0);
 	});
 });
 
 describe('brand-new local-only sheet', () => {
 	it('is pushed to cloud and remains locally', async () => {
-		saveUserLeadSheet(makeSheet({ id: 'X', title: 'Fresh local' }));
+		saveUserTune(makeSheet({ id: 'X', title: 'Fresh local' }));
 
 		const { client, upsertedRows, tombstoneUpdates } = createMockSupabase([]);
-		await getUserLeadSheets(client);
+		await getUserTunes(client);
 
 		const pushed = upsertedRows.find((r) => r.id === 'X');
 		expect(pushed?.title).toBe('Fresh local');
 		expect(pushed?.deleted_at).toBeNull();
 		expect(typeof pushed?.client_mtime).toBe('number');
-		expect(getUserLeadSheetsLocal().map((s) => s.id)).toContain('X');
+		expect(getUserTunesLocal().map((s) => s.id)).toContain('X');
 		expect(tombstoneUpdates).toHaveLength(0);
 	});
 });
 
 describe('pdfUrl round-trip', () => {
 	it('pushes the sheet pdfUrl and adopts a cloud pdf_url', async () => {
-		saveUserLeadSheet(makeSheet({ id: 'X', pdfUrl: `${CLOUD_UID}/X.pdf` }));
+		saveUserTune(makeSheet({ id: 'X', pdfUrl: `${CLOUD_UID}/X.pdf` }));
 		const { client, upsertedRows } = createMockSupabase([]);
-		await initLeadSheetsFromCloud(client);
+		await initTunesFromCloud(client);
 		expect(upsertedRows.find((r) => r.id === 'X')?.pdf_url).toBe(`${CLOUD_UID}/X.pdf`);
 
 		// Fresh device pulls a cloud row carrying a pdf_url.
@@ -356,19 +356,19 @@ describe('pdfUrl round-trip', () => {
 		const { client: client2 } = createMockSupabase([
 			makeCloudRow({ id: 'Y', pdf_url: `${CLOUD_UID}/Y.pdf`, client_mtime: 50 })
 		]);
-		await initLeadSheetsFromCloud(client2);
-		expect(getUserLeadSheetsLocal().find((s) => s.id === 'Y')?.pdfUrl).toBe(`${CLOUD_UID}/Y.pdf`);
+		await initTunesFromCloud(client2);
+		expect(getUserTunesLocal().find((s) => s.id === 'Y')?.pdfUrl).toBe(`${CLOUD_UID}/Y.pdf`);
 	});
 });
 
 describe('failure conventions', () => {
-	it('initLeadSheetsFromCloud swallows failures and reports false', async () => {
+	it('initTunesFromCloud swallows failures and reports false', async () => {
 		const { client } = createMockSupabase([], { fetchError: 'boom' });
-		await expect(initLeadSheetsFromCloud(client)).resolves.toBe(false);
+		await expect(initTunesFromCloud(client)).resolves.toBe(false);
 	});
 
-	it('flushLeadSheetsToCloud throws on failure so the outbox retries', async () => {
+	it('flushTunesToCloud throws on failure so the outbox retries', async () => {
 		const { client } = createMockSupabase([], { fetchError: 'boom' });
-		await expect(flushLeadSheetsToCloud(client)).rejects.toThrow();
+		await expect(flushTunesToCloud(client)).rejects.toThrow();
 	});
 });

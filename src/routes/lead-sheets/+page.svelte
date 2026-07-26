@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import LeadSheetCard from '$lib/components/leadsheets/LeadSheetCard.svelte';
 	import { getAllTunes, isCuratedTuneId } from '$lib/tunes/book-loader';
-	import { getAdoptedLeadSheetAuthorsLocal, getLeadSheetAdoptionsLocal } from '$lib/persistence/lead-sheet-community';
+	import { getAdoptedTuneAuthorsLocal, getTuneAdoptionsLocal } from '$lib/persistence/tune-community';
 	import type { Tune } from '$lib/types/tune';
 
 	const session = $derived(page.data?.session ?? null);
@@ -26,11 +26,11 @@
 	});
 	const adoptedIds = $derived.by(() => {
 		void cacheVersion;
-		return getLeadSheetAdoptionsLocal();
+		return getTuneAdoptionsLocal();
 	});
 	const adoptedAuthors = $derived.by(() => {
 		void cacheVersion;
-		return getAdoptedLeadSheetAuthorsLocal();
+		return getAdoptedTuneAuthorsLocal();
 	});
 
 	const filtered = $derived.by(() => {

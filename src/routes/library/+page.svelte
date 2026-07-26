@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import LickCard from '$lib/components/library/LickCard.svelte';
-	import { library } from '$lib/state/library.svelte';
+	import { licks } from '$lib/state/licks.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import type { Phrase } from '$lib/types/music';
@@ -136,7 +136,7 @@
 
 	/** Apply the search box (name + tags) to the collection. */
 	const searched = $derived.by(() => {
-		const q = library.searchQuery.trim().toLowerCase();
+		const q = licks.searchQuery.trim().toLowerCase();
 		if (!q) return myLicks;
 		return myLicks.filter(
 			(l) =>
@@ -159,7 +159,7 @@
 	 */
 	const visible = $derived.by(() => {
 		practiceVersion;
-		const prog = library.progressionFilter;
+		const prog = licks.progressionFilter;
 		if (!prog) return searched;
 		return searched.filter((l) => getProgressionTags(l.id).includes(prog));
 	});
@@ -346,13 +346,13 @@
 			<input
 				type="text"
 				placeholder="find a lick…"
-				bind:value={library.searchQuery}
+				bind:value={licks.searchQuery}
 				class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
 					   placeholder:text-[var(--color-text-secondary)] focus:outline-none
 					   focus:ring-1 focus:ring-[var(--color-accent)]"
 			/>
 			<select
-				bind:value={library.progressionFilter}
+				bind:value={licks.progressionFilter}
 				aria-label="Filter by progression"
 				class="rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm
 					   text-[var(--color-text)] focus:outline-none
@@ -367,9 +367,9 @@
 
 		{#if visible.length === 0}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				{#if library.progressionFilter}
+				{#if licks.progressionFilter}
 					<p class="italic text-[var(--color-text-secondary)]">
-						No licks are tagged for {PROGRESSION_TEMPLATES[library.progressionFilter].name}{library.searchQuery.trim()
+						No licks are tagged for {PROGRESSION_TEMPLATES[licks.progressionFilter].name}{licks.searchQuery.trim()
 							? ' that match your search'
 							: ''}.
 					</p>

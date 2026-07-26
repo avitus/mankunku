@@ -14,7 +14,7 @@
 
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 
-export const library = $state<{
+export const licks = $state<{
 	searchQuery: string;
 	progressionFilter: ChordProgressionType | null;
 }>({

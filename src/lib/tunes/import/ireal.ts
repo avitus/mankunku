@@ -6,7 +6,7 @@ import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 
 /**
  * iReal Pro importer — parses `irealbook://` (plain) and `irealb://`
- * (scrambled) share URLs into harmony-only LeadSheets (melody left empty for
+ * (scrambled) share URLs into harmony-only Tunes (melody left empty for
  * later entry).
  *
  * Format knowledge from the published reverse-engineering in

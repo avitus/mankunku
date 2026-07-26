@@ -3,12 +3,12 @@
  * so the filters survive navigation away and back. Not persisted.
  */
 
-export type LeadSheetCommunitySort = 'popular' | 'newest';
+export type TuneCommunitySort = 'popular' | 'newest';
 
-export const leadSheetCommunity = $state<{
+export const tuneCommunity = $state<{
 	searchQuery: string;
 	authorQuery: string;
-	sort: LeadSheetCommunitySort;
+	sort: TuneCommunitySort;
 }>({
 	searchQuery: '',
 	authorQuery: '',

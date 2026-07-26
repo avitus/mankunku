@@ -15,7 +15,7 @@
 		 * click/highlight indices refer to the flattened note order
 		 * (`flattenTune(sheet).notes`).
 		 */
-		leadSheet?: Tune | null;
+		tune?: Tune | null;
 		instrument?: InstrumentConfig;
 		/** Source-array index of the note to highlight, or `null` for no highlight. */
 		selectedIndex?: number | null;
@@ -24,7 +24,7 @@
 		titleArea?: Snippet;
 	}
 
-	let { phrase = null, leadSheet = null, instrument, selectedIndex = null, onSelect, titleArea }: Props = $props();
+	let { phrase = null, tune = null, instrument, selectedIndex = null, onSelect, titleArea }: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
 	let abcjs = $state<typeof import('abcjs') | null>(null);
@@ -34,10 +34,10 @@
 	});
 
 	$effect(() => {
-		if (!abcjs || !containerEl || (!phrase && !leadSheet)) return;
+		if (!abcjs || !containerEl || (!phrase && !tune)) return;
 
-		const { abc, noteAnchors } = leadSheet
-			? tuneToAbcWithMap(leadSheet, instrument)
+		const { abc, noteAnchors } = tune
+			? tuneToAbcWithMap(tune, instrument)
 			: phraseToAbcWithMap(phrase!, instrument);
 		abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
@@ -175,7 +175,7 @@
 	{#if titleArea}
 		{@render titleArea()}
 	{/if}
-	{#if phrase || leadSheet}
+	{#if phrase || tune}
 		<div bind:this={containerEl} class="abcjs-container"></div>
 	{:else}
 		<div class="flex h-24 items-center justify-center italic text-[var(--color-text-secondary)]">

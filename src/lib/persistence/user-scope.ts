@@ -31,7 +31,7 @@ import {
 	clearNamespace
 } from './namespace';
 import { clearAllRecordings } from './audio-store';
-import { clearAllLeadSheetPdfs } from './lead-sheet-store';
+import { clearAllTunePdfs } from './tune-pdf-store';
 
 const SUPABASE_RUNTIME_CACHE = 'supabase-api';
 const BROADCAST_CHANNEL = 'mankunku:auth';
@@ -248,7 +248,7 @@ export async function wipeUserData(uid: string): Promise<void> {
 		/* IndexedDB errors must not block deletion */
 	}
 	try {
-		await clearAllLeadSheetPdfs(uid);
+		await clearAllTunePdfs(uid);
 	} catch {
 		/* IndexedDB errors must not block deletion */
 	}

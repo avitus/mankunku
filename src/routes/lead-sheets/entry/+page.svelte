@@ -9,10 +9,10 @@
 	import ChordEntryPanel from '$lib/components/lead-sheet-entry/ChordEntryPanel.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
 	import {
-		leadSheetEntry,
-		initNewLeadSheet,
-		loadFromLeadSheet,
-		buildDraftLeadSheet,
+		tuneEntry,
+		initNewTune,
+		loadFromTune,
+		buildDraftTune,
 		commitBuffer,
 		suspendEntryBuffer,
 		resumeEntryBuffer,
@@ -22,7 +22,7 @@
 		flattenedBufferBase,
 		currentSectionPageCount,
 		melodyEditingSupported
-	} from '$lib/state/lead-sheet-entry.svelte';
+	} from '$lib/state/tune-entry.svelte';
 	import {
 		stepEntry,
 		addNote,
@@ -47,7 +47,7 @@
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
-	import { saveUserLeadSheet, getUserLeadSheetsLocal, getUserLeadSheets } from '$lib/persistence/user-lead-sheets';
+	import { saveUserTune, getUserTunesLocal, getUserTunes } from '$lib/persistence/user-tunes';
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { awaitHydration } from '$lib/state/hydration';
@@ -55,8 +55,8 @@
 
 	const supabase = $derived(page.data?.supabase ?? null);
 
-	const draft = $derived(buildDraftLeadSheet());
-	const isEditing = $derived(leadSheetEntry.editingId !== null);
+	const draft = $derived(buildDraftTune());
+	const isEditing = $derived(tuneEntry.editingId !== null);
 	// The preview renders at the SOURCE chart's pitch so the screen matches
 	// the page being copied (usually the user's instrument; selectable).
 	const previewInstrument = $derived({
@@ -66,7 +66,7 @@
 	const position = $derived(getCurrentBarAndBeat());
 	const remainingBeats = $derived(Math.round(fractionToFloat(getRemainingCapacity()) * 4));
 	const currentSectionLabel = $derived(
-		leadSheetEntry.sections[leadSheetEntry.currentSection]?.label ?? 'A'
+		tuneEntry.sections[tuneEntry.currentSection]?.label ?? 'A'
 	);
 
 	/** Map the buffer selection onto the full-sheet preview's flattened indices. */
@@ -97,30 +97,30 @@
 		if (!editHydrationActive) return;
 		const editId = page.url.searchParams.get('edit');
 		if (editId) {
-			// The instrument must be hydrated before loadFromLeadSheet key-converts.
+			// The instrument must be hydrated before loadFromTune key-converts.
 			await awaitHydration();
 			if (!editHydrationActive) return;
 			if (page.url.searchParams.get('edit') !== editId) return;
-			let sheet = getUserLeadSheetsLocal().find((s) => s.id === editId) ?? null;
+			let sheet = getUserTunesLocal().find((s) => s.id === editId) ?? null;
 			if (!sheet && supabase) {
-				const remote = await getUserLeadSheets(supabase);
+				const remote = await getUserTunes(supabase);
 				if (!editHydrationActive) return;
 				if (page.url.searchParams.get('edit') !== editId) return;
 				sheet = remote.find((s) => s.id === editId) ?? null;
 			}
 			if (sheet) {
-				loadFromLeadSheet(sheet, getInstrument());
+				loadFromTune(sheet, getInstrument());
 			} else {
-				initNewLeadSheet();
+				initNewTune();
 			}
-		} else if (leadSheetEntry.reviewHandoff) {
+		} else if (tuneEntry.reviewHandoff) {
 			// An import flow just hydrated a draft and navigated here — keep
 			// it (this is the mandatory-review handoff, not stale state).
-			leadSheetEntry.reviewHandoff = false;
+			tuneEntry.reviewHandoff = false;
 			resumeEntryBuffer();
-		} else if (leadSheetEntry.editingId !== null || leadSheetEntry.sections.length === 0) {
+		} else if (tuneEntry.editingId !== null || tuneEntry.sections.length === 0) {
 			// Fresh visit (or stale edit state from a prior nav) — start clean.
-			initNewLeadSheet();
+			initNewTune();
 		} else {
 			// Returning mid-draft: the buffer was suspended on the way out.
 			resumeEntryBuffer();
@@ -188,21 +188,21 @@
 
 	function handleSave(): void {
 		commitBuffer();
-		const sheet = buildDraftLeadSheet();
+		const sheet = buildDraftTune();
 		const phrase = tuneToPhrase(sheet);
 		sheet.difficulty = calculateDifficulty(phrase);
-		const saved = saveUserLeadSheet(sheet);
-		initNewLeadSheet();
+		const saved = saveUserTune(sheet);
+		initNewTune();
 		goto(`/lead-sheets/${saved.id}`);
 	}
 
 	function handleCancel(): void {
-		const editId = leadSheetEntry.editingId;
+		const editId = tuneEntry.editingId;
 		if (playbackModule && isPlaying) playbackModule.stopPlayback();
-		initNewLeadSheet();
+		initNewTune();
 		// An unsaved import draft carries an editingId with no stored sheet —
 		// its detail page would 404-shrug, so fall back to the book.
-		if (editId && getUserLeadSheetsLocal().some((s) => s.id === editId)) {
+		if (editId && getUserTunesLocal().some((s) => s.id === editId)) {
 			goto(`/lead-sheets/${editId}`);
 		} else {
 			goto('/lead-sheets');
@@ -225,14 +225,14 @@
 
 	<!-- Live chart preview -->
 	<NotationDisplay
-		leadSheet={draft}
+		tune={draft}
 		instrument={previewInstrument}
 		selectedIndex={previewSelectedIndex}
 		onSelect={handlePreviewSelect}
 	>
 		{#snippet titleArea()}
 			<input
-				bind:value={leadSheetEntry.title}
+				bind:value={tuneEntry.title}
 				placeholder="Untitled"
 				aria-label="Lead sheet title"
 				class="mb-2 w-full bg-transparent font-display text-xl font-semibold outline-none placeholder:text-[var(--color-text-secondary)]/60"
@@ -240,18 +240,18 @@
 		{/snippet}
 	</NotationDisplay>
 
-	{#if leadSheetEntry.importReview}
+	{#if tuneEntry.importReview}
 		<!-- Import review: the bars the pipeline knows are uncertain -->
 		<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] p-3 text-sm">
 			<div class="flex items-start justify-between gap-2">
 				<p class="font-medium text-[var(--color-brass)]">
-					Review {leadSheetEntry.importReview.suspectBars.length > 0
-						? `bar${leadSheetEntry.importReview.suspectBars.length === 1 ? '' : 's'} ${leadSheetEntry.importReview.suspectBars.join(', ')}`
+					Review {tuneEntry.importReview.suspectBars.length > 0
+						? `bar${tuneEntry.importReview.suspectBars.length === 1 ? '' : 's'} ${tuneEntry.importReview.suspectBars.join(', ')}`
 						: 'the flagged items'} — the import wasn't certain there.
 				</p>
 				<button
 					type="button"
-					onclick={() => (leadSheetEntry.importReview = null)}
+					onclick={() => (tuneEntry.importReview = null)}
 					class="shrink-0 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]"
 				>
 					Dismiss
@@ -259,11 +259,11 @@
 			</div>
 			<details class="mt-1 text-xs text-[var(--color-text-secondary)]">
 				<summary class="cursor-pointer">
-					{leadSheetEntry.importReview.warnings.length}
-					detail{leadSheetEntry.importReview.warnings.length === 1 ? '' : 's'}
+					{tuneEntry.importReview.warnings.length}
+					detail{tuneEntry.importReview.warnings.length === 1 ? '' : 's'}
 				</summary>
 				<ul class="mt-1 list-disc space-y-0.5 pl-4">
-					{#each leadSheetEntry.importReview.warnings as warning (warning)}
+					{#each tuneEntry.importReview.warnings as warning (warning)}
 						<li>{warning}</li>
 					{/each}
 				</ul>
@@ -276,7 +276,7 @@
 		<span>
 			Section {currentSectionLabel}
 			{#if currentSectionPageCount() > 1}
-				· Page {leadSheetEntry.currentPage + 1}/{currentSectionPageCount()}
+				· Page {tuneEntry.currentPage + 1}/{currentSectionPageCount()}
 			{/if}
 			· Bar {position.bar}, Beat {position.beat}
 		</span>
@@ -292,8 +292,8 @@
 			class="flex w-full items-center justify-between text-sm"
 		>
 			<span>
-				Setup · Key {leadSheetEntry.writtenKey} · {leadSheetEntry.sections.length}
-				section{leadSheetEntry.sections.length === 1 ? '' : 's'}
+				Setup · Key {tuneEntry.writtenKey} · {tuneEntry.sections.length}
+				section{tuneEntry.sections.length === 1 ? '' : 's'}
 			</span>
 			<span class="text-[var(--color-text-secondary)]">{setupOpen ? 'Done' : 'Edit'}</span>
 		</button>
@@ -301,27 +301,27 @@
 			<div class="mt-3 space-y-3">
 				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					<input
-						bind:value={leadSheetEntry.composer}
+						bind:value={tuneEntry.composer}
 						placeholder="Composer"
 						aria-label="Composer"
 						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
 					/>
 					<input
-						bind:value={leadSheetEntry.style}
+						bind:value={tuneEntry.style}
 						placeholder="Style (e.g. Medium Swing)"
 						aria-label="Style"
 						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
 					/>
 				</div>
 				<SourceTranspositionSelect
-					value={leadSheetEntry.sourceTransposition}
+					value={tuneEntry.sourceTransposition}
 					onchange={setSourceTransposition}
 				/>
 				<div class="flex flex-wrap items-center gap-3">
 					<label class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
 						Key
 						<select
-							value={leadSheetEntry.writtenKey}
+							value={tuneEntry.writtenKey}
 							onchange={handleKeyChange}
 							class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none"
 						>
@@ -351,7 +351,7 @@
 		</div>
 	{:else}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-sm text-[var(--color-text-secondary)]">
-			This chart is in {leadSheetEntry.timeSignature[0]}/{leadSheetEntry.timeSignature[1]} —
+			This chart is in {tuneEntry.timeSignature[0]}/{tuneEntry.timeSignature[1]} —
 			melody entry currently supports 4/4 only. The imported melody and form are preserved;
 			chords and sections stay fully editable below.
 		</div>
