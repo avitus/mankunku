@@ -7,7 +7,7 @@
  */
 
 import type { PitchClass } from '$lib/types/music';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { ALL_CURATED_LEAD_SHEETS } from '$lib/data/leadsheets/index';
 import { getUserLeadSheetsLocal } from '$lib/persistence/user-lead-sheets';
@@ -17,7 +17,7 @@ import { parseChordSymbol, formatChordSymbol } from '$lib/music/chord-symbol';
 import { transposePitchClass, pitchClassInterval } from '$lib/music/transposition';
 
 /** Pre-built index for O(1) curated lookups */
-const curatedById = new Map<string, LeadSheet>();
+const curatedById = new Map<string, Tune>();
 for (const sheet of ALL_CURATED_LEAD_SHEETS) {
 	curatedById.set(sheet.id, sheet);
 }
@@ -26,9 +26,9 @@ for (const sheet of ALL_CURATED_LEAD_SHEETS) {
  * All lead sheets: curated + user + adopted-community, deduped by id with the
  * earlier source winning (curated > user > adopted).
  */
-export function getAllLeadSheets(): LeadSheet[] {
+export function getAllLeadSheets(): Tune[] {
 	const seen = new Set<string>(curatedById.keys());
-	const result: LeadSheet[] = [...ALL_CURATED_LEAD_SHEETS];
+	const result: Tune[] = [...ALL_CURATED_LEAD_SHEETS];
 	for (const sheet of getUserLeadSheetsLocal()) {
 		if (seen.has(sheet.id)) continue;
 		seen.add(sheet.id);
@@ -48,7 +48,7 @@ export function isCuratedLeadSheetId(id: string): boolean {
 }
 
 /** Get a single lead sheet by id (curated, user, or adopted). */
-export function getLeadSheetById(id: string): LeadSheet | undefined {
+export function getLeadSheetById(id: string): Tune | undefined {
 	return (
 		curatedById.get(id) ??
 		getUserLeadSheetsLocal().find((s) => s.id === id) ??
@@ -70,11 +70,11 @@ const FALLBACK_RANGE_HIGH = 75;
  * left displaying the old key's chord.
  */
 export function transposeLeadSheet(
-	sheet: LeadSheet,
+	sheet: Tune,
 	targetKey: PitchClass,
 	rangeLow?: number,
 	rangeHigh?: number
-): LeadSheet {
+): Tune {
 	const semitones = pitchClassInterval(sheet.key, targetKey);
 	if (semitones === 0 && rangeLow == null && rangeHigh == null) return sheet;
 

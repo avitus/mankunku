@@ -15,7 +15,7 @@
  * paginated query against Supabase rather than a local cache.
  */
 
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { save, load } from './storage';
 import { getScopeGeneration } from './user-scope';
 import { cloudRowToLeadSheet } from './user-lead-sheets';
@@ -30,7 +30,7 @@ const FAVORITES_KEY = 'leadsheet-favorites';
 const ADOPTIONS_KEY = 'leadsheet-adoptions';
 
 /**
- * localStorage key holding the LeadSheet payloads for adopted community
+ * localStorage key holding the Tune payloads for adopted community
  * sheets, so the library renders them offline.
  */
 const ADOPTED_PAYLOADS_KEY = 'leadsheet-adopted-payloads';
@@ -56,7 +56,7 @@ export interface LeadSheetCommunityFilters {
 }
 
 export interface CommunityLeadSheet {
-	sheet: LeadSheet;
+	sheet: Tune;
 	authorId: string;
 	authorName: string | null;
 	authorAvatarUrl: string | null;
@@ -76,8 +76,8 @@ export function getLeadSheetAdoptionsLocal(): Set<string> {
 }
 
 /** Get adopted community lead sheets from the local cache. */
-export function getAdoptedLeadSheetsLocal(): LeadSheet[] {
-	return load<LeadSheet[]>(ADOPTED_PAYLOADS_KEY) ?? [];
+export function getAdoptedLeadSheetsLocal(): Tune[] {
+	return load<Tune[]>(ADOPTED_PAYLOADS_KEY) ?? [];
 }
 
 export function getAdoptedLeadSheetAuthorsLocal(): Record<string, AdoptedLeadSheetAuthor> {
@@ -92,7 +92,7 @@ function saveAdoptionsLocal(ids: Set<string>): void {
 	save(ADOPTIONS_KEY, Array.from(ids));
 }
 
-function saveAdoptedPayloadsLocal(sheets: LeadSheet[]): void {
+function saveAdoptedPayloadsLocal(sheets: Tune[]): void {
 	save(ADOPTED_PAYLOADS_KEY, sheets);
 }
 
@@ -104,7 +104,7 @@ function saveAdoptedAuthorsLocal(authors: Record<string, AdoptedLeadSheetAuthor>
  * A foreign payload's pdfUrl points into the AUTHOR's private storage folder
  * — the adopter can neither download nor own it. Strip before caching.
  */
-function stripForeignAssets(sheet: LeadSheet): LeadSheet {
+function stripForeignAssets(sheet: Tune): Tune {
 	if (sheet.pdfUrl === undefined) return sheet;
 	const { pdfUrl: _pdfUrl, ...rest } = sheet;
 	return rest;
@@ -443,7 +443,7 @@ export async function initLeadSheetCommunityFromCloud(
 		// Validate every payload; invalid ones stay in the adoption set (so the
 		// user can still return them) but never enter the cache.
 		const validatedRows: NonNullable<typeof sheetRows> = [];
-		const validated: LeadSheet[] = [];
+		const validated: Tune[] = [];
 		for (const row of sheetRows ?? []) {
 			const sheet = stripForeignAssets(cloudRowToLeadSheet(row));
 			const validation = validateAdoptedLeadSheet(sheet);

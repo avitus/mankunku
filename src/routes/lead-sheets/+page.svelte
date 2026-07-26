@@ -4,7 +4,7 @@
 	import LeadSheetCard from '$lib/components/leadsheets/LeadSheetCard.svelte';
 	import { getAllLeadSheets, isCuratedLeadSheetId } from '$lib/leadsheets/library-loader';
 	import { getAdoptedLeadSheetAuthorsLocal, getLeadSheetAdoptionsLocal } from '$lib/persistence/lead-sheet-community';
-	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import type { Tune } from '$lib/types/tune';
 
 	const session = $derived(page.data?.session ?? null);
 
@@ -48,7 +48,7 @@
 	const mySheets = $derived(filtered.filter((s) => !isCuratedLeadSheetId(s.id)));
 	const curatedSheets = $derived(filtered.filter((s) => isCuratedLeadSheetId(s.id)));
 
-	function badgeFor(sheet: LeadSheet): string {
+	function badgeFor(sheet: Tune): string {
 		if (isCuratedLeadSheetId(sheet.id)) return 'Curated';
 		if (adoptedIds.has(sheet.id)) return 'Adopted';
 		return '';

@@ -1,26 +1,26 @@
 <script lang="ts">
-	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import type { Tune } from '$lib/types/tune';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 
 	interface Props {
-		sheets: LeadSheet[];
+		sheets: Tune[];
 		warnings: string[];
 		/** Loads the sheet into the editor for review before saving. */
-		onreview: (sheet: LeadSheet) => void;
+		onreview: (sheet: Tune) => void;
 		/** Saves the sheet directly; returns the saved id. Omit to force review. */
-		onadd?: (sheet: LeadSheet) => string;
+		onadd?: (sheet: Tune) => string;
 	}
 
 	let { sheets, warnings, onreview, onadd }: Props = $props();
 
 	let addedIds = $state<Record<string, string>>({});
 
-	function keyOf(sheet: LeadSheet, index: number): string {
+	function keyOf(sheet: Tune, index: number): string {
 		return `${index}:${sheet.title}`;
 	}
 
-	function handleAdd(sheet: LeadSheet, index: number): void {
+	function handleAdd(sheet: Tune, index: number): void {
 		if (!onadd) return;
 		const savedId = onadd(sheet);
 		addedIds = { ...addedIds, [keyOf(sheet, index)]: savedId };

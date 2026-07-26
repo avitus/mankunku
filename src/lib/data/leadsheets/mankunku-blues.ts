@@ -1,4 +1,4 @@
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 /**
  * "Mankunku Blues" — original riff blues in concert F, written for this app.
@@ -6,7 +6,7 @@ import type { LeadSheet } from '$lib/types/lead-sheet';
  * head with first/second endings, triplets, ties, and altered dominants
  * carrying raw display symbols.
  */
-export const MANKUNKU_BLUES: LeadSheet = {
+export const MANKUNKU_BLUES: Tune = {
 	id: 'ls-mankunku-blues',
 	title: 'Mankunku Blues',
 	composer: 'Mankunku',

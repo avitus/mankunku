@@ -24,7 +24,7 @@
  *   ScaleProficiency (progress.ts)     → scale_proficiency
  *   KeyProficiency (progress.ts)       → key_proficiency
  *   Phrase         (music.ts)          → user_licks
- *   LeadSheet      (lead-sheet.ts)     → lead_sheets
+ *   Tune      (tune.ts)           → lead_sheets
  *   defaultSettings (settings.svelte.ts) → user_settings
  *   (new)                              → user_profiles
  */
@@ -864,7 +864,7 @@ export type Database = {
           style: string | null
           /** PostgreSQL text[] array of descriptive tags */
           tags: string[]
-          /** JSONB storing LeadSheetSection[] — labels, bars, repeats/endings, notes, harmony */
+          /** JSONB storing TuneSection[] — labels, bars, repeats/endings, notes, harmony */
           sections: Json
           /** JSONB storing DifficultyMetadata, nullable */
           difficulty: Json | null

@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
 	import { parseMuseScoreFile } from '$lib/leadsheets/import/musescore';
-	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import type { Tune } from '$lib/types/tune';
 	import { loadDraftForReview } from '$lib/state/lead-sheet-entry.svelte';
 	import { saveUserLeadSheet } from '$lib/persistence/user-lead-sheets';
 	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
@@ -16,7 +16,7 @@
 		type SourceTransposition
 	} from '$lib/leadsheets/source-transposition';
 
-	let rawSheets = $state<LeadSheet[]>([]);
+	let rawSheets = $state<Tune[]>([]);
 	// The default is FILE-AWARE. A score that declares a transposing part is
 	// converted by the parser, so its source is Concert. But a score that
 	// CLAIMS concert (transposition 0) is only as trustworthy as its author —
@@ -62,13 +62,13 @@
 		}
 	}
 
-	function handleReview(sheet: LeadSheet): void {
+	function handleReview(sheet: Tune): void {
 		loadDraftForReview(sheet, getInstrument());
 		goto('/lead-sheets/entry');
 	}
 
-	function handleAdd(sheet: LeadSheet): string {
-		const toSave: LeadSheet = { ...sheet, difficulty: calculateDifficulty(leadSheetToPhrase(sheet)) };
+	function handleAdd(sheet: Tune): string {
+		const toSave: Tune = { ...sheet, difficulty: calculateDifficulty(leadSheetToPhrase(sheet)) };
 		return saveUserLeadSheet(toSave).id;
 	}
 </script>

@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import {
 	validateAdoptedLeadSheet,
 	MAX_NOTES_PER_ADOPTED_SHEET,
 	MAX_SECTIONS_PER_ADOPTED_SHEET
 } from '$lib/leadsheets/adopted-lead-sheet-validator';
 
-function validSheet(overrides: Partial<LeadSheet> = {}): LeadSheet {
+function validSheet(overrides: Partial<Tune> = {}): Tune {
 	return {
 		id: 'sheet-1-abcd',
 		title: 'A Fine Tune',

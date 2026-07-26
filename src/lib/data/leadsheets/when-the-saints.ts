@@ -1,10 +1,10 @@
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 /**
  * "When the Saints Go Marching In" — traditional (public domain).
  * 16-bar single-section form in concert C, lightly simplified.
  */
-export const WHEN_THE_SAINTS: LeadSheet = {
+export const WHEN_THE_SAINTS: Tune = {
 	id: 'ls-when-the-saints',
 	title: 'When the Saints Go Marching In',
 	composer: 'Traditional',

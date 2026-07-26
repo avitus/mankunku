@@ -1,5 +1,5 @@
 import type { Fraction, HarmonicSegment, Note } from '$lib/types/music';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { addFractions, multiplyFraction } from '$lib/music/intervals';
 
 /**
@@ -34,8 +34,8 @@ export interface FlattenOptions {
  * play only on the second. An unbalanced `repeatStart` (no closing
  * `repeatEnd`) plays once rather than looping.
  */
-function expandSections(sections: LeadSheetSection[]): LeadSheetSection[] {
-	const out: LeadSheetSection[] = [];
+function expandSections(sections: TuneSection[]): TuneSection[] {
+	const out: TuneSection[] = [];
 	let i = 0;
 	while (i < sections.length) {
 		if (!sections[i].repeatStart) {
@@ -58,7 +58,7 @@ function expandSections(sections: LeadSheetSection[]): LeadSheetSection[] {
 		const firstEnding = firstEndingStart >= 0 ? span.slice(firstEndingStart) : [];
 
 		let next = end + 1;
-		const secondEnding: LeadSheetSection[] = [];
+		const secondEnding: TuneSection[] = [];
 		while (next < sections.length && sections[next].ending === 2) {
 			secondEnding.push(sections[next]);
 			next++;
@@ -76,7 +76,7 @@ function expandSections(sections: LeadSheetSection[]): LeadSheetSection[] {
  * count before it (in whole-note units).
  */
 export function flattenLeadSheet(
-	sheet: LeadSheet,
+	sheet: Tune,
 	options: FlattenOptions = {}
 ): FlattenedLeadSheet {
 	const barDuration: Fraction = [sheet.timeSignature[0], sheet.timeSignature[1]];

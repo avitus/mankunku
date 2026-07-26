@@ -19,7 +19,7 @@
 
 import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import {
 	addFractions,
 	compareFractions,
@@ -70,7 +70,7 @@ export const leadSheetEntry = $state({
 	timeSignature: [4, 4] as [number, number],
 	tags: [] as string[],
 	/** Authoritative section list (CONCERT pitch), except the current page. */
-	sections: [] as LeadSheetSection[],
+	sections: [] as TuneSection[],
 	currentSection: 0,
 	currentPage: 0,
 	editingId: null as string | null,
@@ -92,11 +92,11 @@ export const leadSheetEntry = $state({
 	importReview: null as { warnings: string[]; suspectBars: number[] } | null
 });
 
-function makeSection(label: string, bars = 8): LeadSheetSection {
+function makeSection(label: string, bars = 8): TuneSection {
 	return { label, bars, notes: [], harmony: [] };
 }
 
-function cloneSection(sec: LeadSheetSection): LeadSheetSection {
+function cloneSection(sec: TuneSection): TuneSection {
 	return {
 		...sec,
 		notes: sec.notes.map((n) => ({ ...n })),
@@ -105,7 +105,7 @@ function cloneSection(sec: LeadSheetSection): LeadSheetSection {
 }
 
 /** Bars covered by a given page of a section (the last page may be short). */
-function pageWindowBars(sec: LeadSheetSection, page: number): number {
+function pageWindowBars(sec: TuneSection, page: number): number {
 	return Math.max(1, Math.min(PAGE_BARS, sec.bars - page * PAGE_BARS));
 }
 
@@ -244,7 +244,7 @@ export function initNewLeadSheet(): void {
 export const resetLeadSheetEntry = initNewLeadSheet;
 
 /** Hydrate the editor from an existing sheet (edit mode). */
-export function loadFromLeadSheet(sheet: LeadSheet, instrument: InstrumentConfig): void {
+export function loadFromLeadSheet(sheet: Tune, instrument: InstrumentConfig): void {
 	resetStepEntry();
 	leadSheetEntry.title = sheet.title;
 	leadSheetEntry.composer = sheet.composer ?? '';
@@ -280,17 +280,17 @@ export function setImportReview(
  * already carry a pre-assigned id (the PDF flow, which stores the original
  * file under that id) should use `loadFromLeadSheet` instead.
  */
-export function loadDraftForReview(sheet: LeadSheet, instrument: InstrumentConfig): void {
+export function loadDraftForReview(sheet: Tune, instrument: InstrumentConfig): void {
 	loadFromLeadSheet(sheet, instrument);
 	leadSheetEntry.editingId = null;
 	leadSheetEntry.editingSource = sheet.source;
 }
 
 /**
- * Build the current draft as a LeadSheet, virtually merging the live buffer
+ * Build the current draft as a Tune, virtually merging the live buffer
  * (no state mutation) and converting the written key to concert once.
  */
-export function buildDraftLeadSheet(): LeadSheet {
+export function buildDraftLeadSheet(): Tune {
 	const concertKey = transposePitchClass(leadSheetEntry.writtenKey, -entryTranspositionSemitones());
 	const sections = leadSheetEntry.sections.map((sec, i) => {
 		const clone = cloneSection(sec);
@@ -304,7 +304,7 @@ export function buildDraftLeadSheet(): LeadSheet {
 		}
 		return clone;
 	});
-	const draft: LeadSheet = {
+	const draft: Tune = {
 		id: leadSheetEntry.editingId ?? '',
 		title: leadSheetEntry.title.trim() || 'Untitled',
 		key: concertKey,
@@ -385,7 +385,7 @@ export function removeSection(index: number): void {
 /** Update label/repeat/ending markers on a section. */
 export function updateSectionMeta(
 	index: number,
-	meta: Partial<Pick<LeadSheetSection, 'label' | 'repeatStart' | 'repeatEnd' | 'ending'>>
+	meta: Partial<Pick<TuneSection, 'label' | 'repeatStart' | 'repeatEnd' | 'ending'>>
 ): void {
 	const sec = leadSheetEntry.sections[index];
 	if (!sec) return;
@@ -421,7 +421,7 @@ export function setSectionBars(index: number, bars: number): void {
  * Chords are stored as change points; durations are always re-derived so
  * each segment runs to the next chord (or the section end).
  */
-function recomputeHarmonyDurations(sec: LeadSheetSection): void {
+function recomputeHarmonyDurations(sec: TuneSection): void {
 	const sorted = [...sec.harmony].sort((a, b) => compareFractions(a.startOffset, b.startOffset));
 	const [tsNum, tsDen] = leadSheetEntry.timeSignature;
 	const sectionEnd: Fraction = [sec.bars * tsNum, tsDen];
@@ -512,7 +512,7 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
 		commitBuffer();
 		const oldConcert = transposePitchClass(oldKey, -semitones);
 		const newConcert = transposePitchClass(newKey, -semitones);
-		const carrier: LeadSheet = {
+		const carrier: Tune = {
 			id: '',
 			title: leadSheetEntry.title,
 			key: oldConcert,

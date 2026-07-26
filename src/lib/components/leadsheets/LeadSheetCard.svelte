@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import type { Tune } from '$lib/types/tune';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 
 	interface Props {
-		sheet: LeadSheet;
+		sheet: Tune;
 		/** Attribution line for adopted community sheets, null otherwise. */
 		authorName?: string | null;
 		/** Small origin badge: 'Curated', 'Adopted', … Empty string hides it. */

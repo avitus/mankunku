@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import type { HarmonicSegment, Note } from '$lib/types/music';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { leadSheetToAbc, leadSheetToAbcWithMap } from '$lib/music/lead-sheet-notation';
@@ -18,11 +18,11 @@ function seg(
 	return s;
 }
 
-function section(overrides: Partial<LeadSheetSection>): LeadSheetSection {
+function section(overrides: Partial<TuneSection>): TuneSection {
 	return { label: 'A', bars: 4, notes: [], harmony: [], ...overrides };
 }
 
-function sheet(overrides: Partial<LeadSheet>): LeadSheet {
+function sheet(overrides: Partial<Tune>): Tune {
 	return {
 		id: 'ls-test',
 		title: 'Test Tune',
@@ -36,7 +36,7 @@ function sheet(overrides: Partial<LeadSheet>): LeadSheet {
 }
 
 /** 2-bar sheet: whole-note C4 over Dm7→G7, then half-note D4 over Cmaj7 + rest. */
-function simpleSheet(): LeadSheet {
+function simpleSheet(): Tune {
 	const notes: Note[] = [
 		{ pitch: 60, duration: [1, 1], offset: [0, 1] },
 		{ pitch: 62, duration: [1, 2], offset: [1, 1] }
@@ -221,7 +221,7 @@ describe('leadSheetToAbc — chord symbols over the melody', () => {
 });
 
 describe('leadSheetToAbc — sections, repeats, endings', () => {
-	function formSheet(): LeadSheet {
+	function formSheet(): Tune {
 		return sheet({
 			sections: [
 				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),

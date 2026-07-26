@@ -36,7 +36,7 @@ function validDoc(): Record<string, unknown> {
 }
 
 describe('claudeJsonToLeadSheet', () => {
-	it('converts a valid extraction into a LeadSheet', () => {
+	it('converts a valid extraction into a Tune', () => {
 		const { sheet, errors, warnings } = claudeJsonToLeadSheet(validDoc());
 		expect(errors).toEqual([]);
 		expect(warnings).toEqual([]);

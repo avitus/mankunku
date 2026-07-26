@@ -12,7 +12,7 @@
  */
 
 import type { DifficultyMetadata, PitchClass } from '$lib/types/music';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { save, load } from './storage';
 import { getScopeGeneration, getLastUserId } from './user-scope';
 import { enqueue } from './outbox';
@@ -35,7 +35,7 @@ const OWNERS_KEY = 'user-leadsheets-owners';
 /**
  * Parallel map `sheetId → { mtime, deletedAt }` giving each sheet a
  * client-owned edit clock and a soft-delete tombstone, kept out of the
- * shared `LeadSheet` shape.
+ * shared `Tune` shape.
  */
 const SHEET_META_KEY = 'user-leadsheets-meta';
 
@@ -98,8 +98,8 @@ function generateId(): string {
 }
 
 /** Get user lead sheets from localStorage only (synchronous). */
-export function getUserLeadSheetsLocal(): LeadSheet[] {
-	return load<LeadSheet[]>(STORAGE_KEY) ?? [];
+export function getUserLeadSheetsLocal(): Tune[] {
+	return load<Tune[]>(STORAGE_KEY) ?? [];
 }
 
 /**
@@ -111,7 +111,7 @@ export function getUserLeadSheetsLocal(): LeadSheet[] {
  */
 export async function getUserLeadSheets(
 	supabase?: SupabaseClient<Database>
-): Promise<LeadSheet[]> {
+): Promise<Tune[]> {
 	if (!supabase) return getUserLeadSheetsLocal();
 	try {
 		await reconcileLeadSheets(supabase);
@@ -123,15 +123,15 @@ export async function getUserLeadSheets(
 
 type LeadSheetRow = Database['public']['Tables']['lead_sheets']['Row'];
 
-/** Map a cloud row to a LeadSheet. */
-export function cloudRowToLeadSheet(row: LeadSheetRow): LeadSheet {
-	const sheet: LeadSheet = {
+/** Map a cloud row to a Tune. */
+export function cloudRowToLeadSheet(row: LeadSheetRow): Tune {
+	const sheet: Tune = {
 		id: row.id,
 		title: row.title,
 		key: row.key as PitchClass,
 		timeSignature: row.time_signature as [number, number],
 		tags: row.tags ?? [],
-		sections: row.sections as unknown as LeadSheetSection[],
+		sections: row.sections as unknown as TuneSection[],
 		source: row.source
 	};
 	if (row.composer !== null) sheet.composer = row.composer;
@@ -141,10 +141,10 @@ export function cloudRowToLeadSheet(row: LeadSheetRow): LeadSheet {
 	return sheet;
 }
 
-/** Build a full upsert row from a LeadSheet, stamping the client edit clock. */
+/** Build a full upsert row from a Tune, stamping the client edit clock. */
 function leadSheetToRow(
 	userId: string,
-	sheet: LeadSheet,
+	sheet: Tune,
 	mtime: number
 ): Database['public']['Tables']['lead_sheets']['Insert'] {
 	return {
@@ -209,7 +209,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 	let metaDirty = false;
 	let ownersDirty = false;
 
-	const mergedLive = new Map<string, LeadSheet>();
+	const mergedLive = new Map<string, Tune>();
 	const liveRows: Database['public']['Tables']['lead_sheets']['Insert'][] = [];
 	const tombstones: { id: string; deletedAt: number }[] = [];
 
@@ -352,9 +352,9 @@ export async function flushLeadSheetsToCloud(supabase: SupabaseClient<Database>)
  * ownership + the client edit clock, then queues a durable merge-aware cloud
  * sync via the outbox. Sync return — cloud effects are never awaited.
  */
-export function saveUserLeadSheet(sheet: LeadSheet): LeadSheet {
-	const sheets = load<LeadSheet[]>(STORAGE_KEY) ?? [];
-	const toSave: LeadSheet = {
+export function saveUserLeadSheet(sheet: Tune): Tune {
+	const sheets = load<Tune[]>(STORAGE_KEY) ?? [];
+	const toSave: Tune = {
 		...sheet,
 		id: sheet.id || generateId(),
 		source: sheet.source || 'user'
@@ -386,7 +386,7 @@ export function saveUserLeadSheet(sheet: LeadSheet): LeadSheet {
  * `returnLeadSheet` instead — this path refuses them.
  */
 export function deleteUserLeadSheet(id: string): void {
-	const sheets = load<LeadSheet[]>(STORAGE_KEY) ?? [];
+	const sheets = load<Tune[]>(STORAGE_KEY) ?? [];
 	const owned = sheets.some((s) => s.id === id);
 	if (!owned && getAdoptedLeadSheetsLocal().some((s) => s.id === id)) {
 		console.warn(`Refusing to delete adopted lead sheet ${id} via deleteUserLeadSheet; call returnLeadSheet instead.`);

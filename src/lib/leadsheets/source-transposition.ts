@@ -2,7 +2,7 @@ import type { PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { transposePitchClass } from '$lib/music/transposition';
 import { parseChordSymbol, formatChordSymbol } from '$lib/music/chord-symbol';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 /**
  * Source transposition — what pitch a chart being ADDED is written in.
@@ -74,10 +74,10 @@ function shiftSymbol(symbol: string | undefined, semitones: number): string | un
  * pre-assigns it to keep the stored original linked.
  */
 export function writtenSheetToConcert(
-	sheet: LeadSheet,
+	sheet: Tune,
 	source: SourceTransposition,
 	instrument: InstrumentConfig
-): LeadSheet {
+): Tune {
 	const semitones = sourceTranspositionSemitones(source, instrument);
 	if (semitones === 0) return sheet;
 

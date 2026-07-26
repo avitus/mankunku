@@ -1,6 +1,6 @@
 import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { fractionToFloat, gcd } from './intervals';
 import { concertKeyToWritten, concertToWritten, transposePitchClass } from './transposition';
 import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from './chord-symbol';
@@ -100,7 +100,7 @@ function respellFormat(cs: ChordSymbol, keyContext: PitchClass): string {
  * note array (`flattenLeadSheet(sheet).notes` order).
  */
 export function leadSheetToAbcWithMap(
-	sheet: LeadSheet,
+	sheet: Tune,
 	instrument?: InstrumentConfig,
 	options: LeadSheetAbcOptions = {}
 ): { abc: string; noteAnchors: PitchedNoteAnchor[] } {
@@ -468,7 +468,7 @@ export function leadSheetToAbcWithMap(
 
 /** Generate an ABC string from a lead sheet, discarding the click-anchor map. */
 export function leadSheetToAbc(
-	sheet: LeadSheet,
+	sheet: Tune,
 	instrument?: InstrumentConfig,
 	options: LeadSheetAbcOptions = {}
 ): string {

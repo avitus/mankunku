@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import type { HarmonicSegment, Note } from '$lib/types/music';
 import { flattenLeadSheet } from '$lib/leadsheets/flatten';
 
-function section(overrides: Partial<LeadSheetSection>): LeadSheetSection {
+function section(overrides: Partial<TuneSection>): TuneSection {
 	return {
 		label: 'A',
 		bars: 4,
@@ -13,7 +13,7 @@ function section(overrides: Partial<LeadSheetSection>): LeadSheetSection {
 	};
 }
 
-function sheet(sections: LeadSheetSection[], timeSignature: [number, number] = [4, 4]): LeadSheet {
+function sheet(sections: TuneSection[], timeSignature: [number, number] = [4, 4]): Tune {
 	return {
 		id: 'test-sheet',
 		title: 'Test Sheet',

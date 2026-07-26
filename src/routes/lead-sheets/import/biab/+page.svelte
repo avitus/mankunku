@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
 	import { importBandInABox } from '$lib/leadsheets/import/biab';
-	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import type { Tune } from '$lib/types/tune';
 	import { loadDraftForReview } from '$lib/state/lead-sheet-entry.svelte';
 	import { saveUserLeadSheet } from '$lib/persistence/user-lead-sheets';
 	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
@@ -12,7 +12,7 @@
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
 	import { writtenSheetToConcert, type SourceTransposition } from '$lib/leadsheets/source-transposition';
 
-	let rawSheets = $state<LeadSheet[]>([]);
+	let rawSheets = $state<Tune[]>([]);
 	// These formats are concert-pitch by definition, so the source defaults
 	// to Concert; the selector covers charts authored at written pitch.
 	let source = $state<SourceTransposition>('C');
@@ -39,13 +39,13 @@
 		parsedOnce = true;
 	}
 
-	function handleReview(sheet: LeadSheet): void {
+	function handleReview(sheet: Tune): void {
 		loadDraftForReview(sheet, getInstrument());
 		goto('/lead-sheets/entry');
 	}
 
-	function handleAdd(sheet: LeadSheet): string {
-		const toSave: LeadSheet = { ...sheet, difficulty: calculateDifficulty(leadSheetToPhrase(sheet)) };
+	function handleAdd(sheet: Tune): string {
+		const toSave: Tune = { ...sheet, difficulty: calculateDifficulty(leadSheetToPhrase(sheet)) };
 		return saveUserLeadSheet(toSave).id;
 	}
 </script>

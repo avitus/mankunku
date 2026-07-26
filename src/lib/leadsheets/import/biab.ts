@@ -1,5 +1,5 @@
 import type { Fraction, HarmonicSegment, PitchClass } from '$lib/types/music';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { addFractions, multiplyFraction, subtractFractions } from '$lib/music/intervals';
 import { harmonicSegmentFromSymbol, scaleIdForQuality } from '$lib/leadsheets/segment-from-symbol';
 
@@ -20,7 +20,7 @@ import { harmonicSegmentFromSymbol, scaleIdForQuality } from '$lib/leadsheets/se
  */
 
 export interface BiabImportResult {
-	sheets: LeadSheet[];
+	sheets: Tune[];
 	warnings: string[];
 }
 
@@ -182,7 +182,7 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 			};
 		}
 		const keyByte = r.u8();
-		r.u16le(); // tempo (not represented on LeadSheet)
+		r.u16le(); // tempo (not represented on Tune)
 
 		const rootIdx = keyByte >= 18 ? keyByte - 17 : keyByte;
 		const key = normalizePitchClass(BIAB_ROOTS[rootIdx] ?? '') ?? 'C';
@@ -275,7 +275,7 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 
 		const sections = boundaries.map((startBar, i) => {
 			const nextStart = boundaries[i + 1] ?? bars;
-			const section: import('$lib/types/lead-sheet').LeadSheetSection = {
+			const section: import('$lib/types/tune').TuneSection = {
 				label: markers.get(startBar) ?? 'A',
 				bars: nextStart - startBar,
 				notes: [],
@@ -345,7 +345,7 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 			}
 		});
 
-		const sheet: LeadSheet = {
+		const sheet: Tune = {
 			id: '',
 			title: title || 'Untitled',
 			key,
@@ -442,7 +442,7 @@ export function parseBiabMusicXml(xml: string): BiabImportResult {
 		else warnings.push(`Skipped unparseable chord "${p.text}".`);
 	});
 
-	const sheet: LeadSheet = {
+	const sheet: Tune = {
 		id: '',
 		title,
 		key: harmony[0]?.chord.root ?? 'C',

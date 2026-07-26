@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import type { Tune } from '$lib/types/tune';
 	import { loadFromLeadSheet } from '$lib/state/lead-sheet-entry.svelte';
 	import { saveLeadSheetPdf } from '$lib/persistence/lead-sheet-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
@@ -104,7 +104,7 @@
 	async function importViaSystems(
 		buffer: ArrayBuffer,
 		filename: string
-	): Promise<{ sheet: LeadSheet; warnings: string[]; suspectBars: number[] } | null> {
+	): Promise<{ sheet: Tune; warnings: string[]; suspectBars: number[] } | null> {
 		progress = { phase: 'reading', done: 0, total: 1 };
 		const extraction = await extractPdfSystems(buffer);
 		if (!extraction) return null;
@@ -193,7 +193,7 @@
 
 			// Deterministic per-system pipeline first; whole-PDF extraction is
 			// the fallback for scans the geometry can't read.
-			let imported: { sheet: LeadSheet; warnings: string[]; suspectBars?: number[] } | null =
+			let imported: { sheet: Tune; warnings: string[]; suspectBars?: number[] } | null =
 				null;
 			try {
 				imported = await importViaSystems(buffer, file.name);
@@ -213,7 +213,7 @@
 					errorMessage = body?.message ?? `Extraction failed (${res.status}).`;
 					return;
 				}
-				imported = (await res.json()) as { sheet: LeadSheet; warnings: string[] };
+				imported = (await res.json()) as { sheet: Tune; warnings: string[] };
 			}
 			const { sheet, warnings } = imported;
 			importWarnings = warnings;

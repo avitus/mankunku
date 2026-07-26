@@ -1,6 +1,6 @@
 import type { Fraction, Note } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import {
 	addFractions,
 	subtractFractions,
@@ -29,7 +29,7 @@ import { buildSections } from '$lib/leadsheets/section-builder';
  */
 
 export interface MuseScoreImportResult {
-	sheets: LeadSheet[];
+	sheets: Tune[];
 	warnings: string[];
 	/**
 	 * The melody part's declared transposition in semitones (0 = the file
@@ -450,7 +450,7 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 
 	const sections = buildSections(measures, notes, harmonies, warnOnce);
 
-	const sheet: LeadSheet = {
+	const sheet: Tune = {
 		id: '',
 		title,
 		...(composer ? { composer } : {}),

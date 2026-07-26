@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
 	import type { Phrase } from '$lib/types/music';
-	import type { LeadSheet } from '$lib/types/lead-sheet';
+	import type { Tune } from '$lib/types/tune';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import { phraseToAbcWithMap, type PitchedNoteAnchor } from '$lib/music/notation';
 	import { leadSheetToAbcWithMap } from '$lib/music/lead-sheet-notation';
@@ -15,7 +15,7 @@
 		 * click/highlight indices refer to the flattened note order
 		 * (`flattenLeadSheet(sheet).notes`).
 		 */
-		leadSheet?: LeadSheet | null;
+		leadSheet?: Tune | null;
 		instrument?: InstrumentConfig;
 		/** Source-array index of the note to highlight, or `null` for no highlight. */
 		selectedIndex?: number | null;

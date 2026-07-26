@@ -7,7 +7,7 @@ import {
 } from '$lib/leadsheets/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { harmonicSegmentFromSymbol } from '$lib/leadsheets/segment-from-symbol';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 describe('defaultSourceTransposition', () => {
 	it('maps each instrument to its written-key family', () => {
@@ -44,7 +44,7 @@ describe('sourceTranspositionSemitones', () => {
 });
 
 describe('writtenSheetToConcert', () => {
-	const writtenTenorSheet = (): LeadSheet => ({
+	const writtenTenorSheet = (): Tune => ({
 		id: 'sheet-keep-me',
 		title: 'Tenor Part',
 		key: 'D', // written D = concert C for a Bb instrument

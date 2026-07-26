@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { parseMuseScoreFile } from '$lib/leadsheets/import/musescore';
 import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { CORPUS, CORPUS_INSTRUMENT } from '../helpers/leadsheet-corpus';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -41,7 +41,7 @@ describe.each(CORPUS)('MuseScore corpus — $slug', ({ slug, mscz }) => {
 				`${root}/tests/fixtures/leadsheets/pdf-vs-musescore/${slug}.musescore-import.json`,
 				'utf8'
 			)
-		) as LeadSheet;
+		) as Tune;
 		expect(sheet).toEqual(golden);
 	});
 });

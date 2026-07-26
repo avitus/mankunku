@@ -60,7 +60,7 @@ import { fileURLToPath } from 'node:url';
 import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { existsSync } from 'node:fs';
 import { CORPUS } from '../helpers/leadsheet-corpus';
 
@@ -78,10 +78,10 @@ const CHARTS = CORPUS.filter((c) =>
 const fixture = (name: string): string =>
 	fileURLToPath(new URL(`../fixtures/leadsheets/pdf-vs-musescore/${name}`, import.meta.url));
 
-function load(slug: string): { ref: LeadSheet; pdf: LeadSheet } {
-	const ref = JSON.parse(readFileSync(fixture(`${slug}.musescore-import.json`), 'utf8')) as LeadSheet;
+function load(slug: string): { ref: Tune; pdf: Tune } {
+	const ref = JSON.parse(readFileSync(fixture(`${slug}.musescore-import.json`), 'utf8')) as Tune;
 	const res = JSON.parse(readFileSync(fixture(`${slug}.pdf-import.json`), 'utf8')) as {
-		sheet: LeadSheet;
+		sheet: Tune;
 	};
 	// The import page's default for a tenor user: the chart is a Bb part.
 	const pdf = writtenSheetToConcert(res.sheet, 'Bb', INSTRUMENTS['tenor-sax']);
@@ -89,7 +89,7 @@ function load(slug: string): { ref: LeadSheet; pdf: LeadSheet } {
 }
 
 /** Absolute-timeline chord changes: [barOffsetFloat, root+quality]. */
-function chords(sheet: LeadSheet): Array<[number, string]> {
+function chords(sheet: Tune): Array<[number, string]> {
 	const out: Array<[number, string]> = [];
 	let base = 0;
 	const barDur = sheet.timeSignature[0] / sheet.timeSignature[1];
@@ -106,10 +106,10 @@ function chords(sheet: LeadSheet): Array<[number, string]> {
 }
 
 /** Position-free chord sequence, for content-only agreement. */
-const chordSeq = (sheet: LeadSheet): string[] => chords(sheet).map(([, c]) => c);
+const chordSeq = (sheet: Tune): string[] => chords(sheet).map(([, c]) => c);
 
 /** Absolute-timeline melody: [offsetFloat, pitch, durationFloat]. */
-function melody(sheet: LeadSheet): Array<[number, number, number]> {
+function melody(sheet: Tune): Array<[number, number, number]> {
 	const out: Array<[number, number, number]> = [];
 	let base = 0;
 	const barDur = sheet.timeSignature[0] / sheet.timeSignature[1];
@@ -123,7 +123,7 @@ function melody(sheet: LeadSheet): Array<[number, number, number]> {
 	return out;
 }
 
-const totalBars = (sheet: LeadSheet): number =>
+const totalBars = (sheet: Tune): number =>
 	sheet.sections.reduce((sum, s) => sum + s.bars, 0);
 
 /** Longest-common-subsequence length between two arrays under `eq`. */
@@ -169,7 +169,7 @@ describe.each(CHARTS)('$slug — PDF import vs MuseScore import', ({ slug, known
 	});
 
 	target('form')('agrees on the form (sections, repeats, endings)', () => {
-		const form = (s: LeadSheet) =>
+		const form = (s: Tune) =>
 			s.sections.map((sec) => [
 				sec.bars,
 				sec.repeatStart ?? false,

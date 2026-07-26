@@ -1,5 +1,5 @@
 import type { Fraction, Note, PitchClass } from '$lib/types/music';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { noteNameToMidi } from '$lib/music/intervals';
 import { parseChordSymbol } from '$lib/music/chord-symbol';
@@ -27,7 +27,7 @@ export function extractionConsistencyScore(warnings: string[]): number {
 }
 
 /**
- * Conversion of the Claude PDF-extraction JSON into a LeadSheet draft.
+ * Conversion of the Claude PDF-extraction JSON into a Tune draft.
  *
  * The model's output is UNTRUSTED input: every field is validated, elements
  * that fail locally (a chord in a nonexistent bar, an unparseable pitch)
@@ -48,7 +48,7 @@ export function extractionConsistencyScore(warnings: string[]): number {
  */
 
 export interface ClaudePdfConversion {
-	sheet: LeadSheet | null;
+	sheet: Tune | null;
 	errors: string[];
 	warnings: string[];
 }
@@ -121,7 +121,7 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 	const beatUnit = 1 / tsDen;
 
 	let totalNotes = 0;
-	let sections: LeadSheetSection[] = [];
+	let sections: TuneSection[] = [];
 
 	// ── v2: bar-wise transcription (systems → bars) ─────────────────────
 	// The model reads system by system, bar by bar — its reliable frame.
@@ -298,7 +298,7 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 		const barCount = bars as number;
 		const sectionEndBeats = barCount * tsNum;
 
-		const section: LeadSheetSection = {
+		const section: TuneSection = {
 			label: typeof raw.label === 'string' && raw.label ? raw.label : String.fromCharCode(65 + s),
 			bars: barCount,
 			notes: [],
@@ -394,7 +394,7 @@ export function claudeJsonToLeadSheet(data: unknown): ClaudePdfConversion {
 		return { sheet: null, errors: [`too many melody notes (${totalNotes})`], warnings };
 	}
 
-	const sheet: LeadSheet = {
+	const sheet: Tune = {
 		id: '',
 		title: (doc.title as string).trim(),
 		key: normalizedKey as PitchClass,

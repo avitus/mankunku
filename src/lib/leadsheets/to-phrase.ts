@@ -1,5 +1,5 @@
 import type { Phrase } from '$lib/types/music';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { flattenLeadSheet, type FlattenOptions } from './flatten';
 
 /**
@@ -8,7 +8,7 @@ import { flattenLeadSheet, type FlattenOptions } from './flatten';
  * Pass `{ expandRepeats: true }` for playback order (repeats written out);
  * omit for notation order.
  */
-export function leadSheetToPhrase(sheet: LeadSheet, options: FlattenOptions = {}): Phrase {
+export function leadSheetToPhrase(sheet: Tune, options: FlattenOptions = {}): Phrase {
 	const flat = flattenLeadSheet(sheet, options);
 	const difficulty = sheet.difficulty
 		? { ...sheet.difficulty, lengthBars: flat.totalBars }

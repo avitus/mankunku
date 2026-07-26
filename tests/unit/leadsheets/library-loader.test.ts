@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import {
 	getAllLeadSheets,
 	getLeadSheetById,
@@ -27,7 +27,7 @@ beforeEach(() => {
 	__resetNamespaceCacheForTests();
 });
 
-function userSheet(overrides: Partial<LeadSheet> = {}): LeadSheet {
+function userSheet(overrides: Partial<Tune> = {}): Tune {
 	return {
 		id: 'sheet-123-abcd',
 		title: 'My Tune',

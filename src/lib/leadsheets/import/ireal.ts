@@ -1,5 +1,5 @@
 import type { Fraction, PitchClass } from '$lib/types/music';
-import type { LeadSheet, LeadSheetSection } from '$lib/types/lead-sheet';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { addFractions, multiplyFraction } from '$lib/music/intervals';
 import { parseChordSymbol } from '$lib/music/chord-symbol';
 import { harmonicSegmentFromSymbol } from '$lib/leadsheets/segment-from-symbol';
@@ -23,7 +23,7 @@ import { harmonicSegmentFromSymbol } from '$lib/leadsheets/segment-from-symbol';
 const MUSIC_PREFIX = '1r34LbKcu7';
 
 export interface IRealImportResult {
-	sheets: LeadSheet[];
+	sheets: Tune[];
 	warnings: string[];
 }
 
@@ -288,14 +288,14 @@ function allBars(sections: SectionBuilder[], current: SectionBuilder | null): Ra
 	return [...sections.flatMap((s) => s.bars), ...(current?.bars ?? [])];
 }
 
-/** Convert raw bars into a LeadSheetSection with evenly-placed chords. */
+/** Convert raw bars into a TuneSection with evenly-placed chords. */
 function buildSection(
 	builder: SectionBuilder,
 	timeSignature: [number, number],
 	warnings: string[]
-): LeadSheetSection {
+): TuneSection {
 	const barDuration: Fraction = [timeSignature[0], timeSignature[1]];
-	const section: LeadSheetSection = {
+	const section: TuneSection = {
 		label: builder.label,
 		bars: builder.bars.length,
 		notes: [],
@@ -353,7 +353,7 @@ function resolveFields(parts: string[]): { title: string; composer: string; styl
 	return { title, composer, style, key, music };
 }
 
-function makeSheet(raw: string, plainScheme: boolean, warnings: string[]): LeadSheet | null {
+function makeSheet(raw: string, plainScheme: boolean, warnings: string[]): Tune | null {
 	const parts = plainScheme ? raw.split('=') : raw.split(/=+/).filter((x) => x !== '');
 	const fields = resolveFields(parts);
 	if (!fields) {
@@ -374,7 +374,7 @@ function makeSheet(raw: string, plainScheme: boolean, warnings: string[]): LeadS
 
 	const key: PitchClass = parseChordSymbol(fields.key)?.root ?? 'C';
 
-	const sheet: LeadSheet = {
+	const sheet: Tune = {
 		id: '',
 		title: fields.title || 'Untitled',
 		key,
@@ -413,7 +413,7 @@ export function parseIRealUrl(input: string): IRealImportResult {
 		chunks.pop();
 	}
 
-	const sheets: LeadSheet[] = [];
+	const sheets: Tune[] = [];
 	for (const chunk of chunks) {
 		if (!chunk.trim()) continue;
 		const sheet = makeSheet(chunk, plainScheme, warnings);

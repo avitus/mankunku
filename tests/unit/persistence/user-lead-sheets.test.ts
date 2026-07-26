@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import {
 	saveUserLeadSheet,
 	deleteUserLeadSheet,
@@ -27,7 +27,7 @@ vi.mock('$lib/persistence/outbox', () => ({
 }));
 
 // ─── Mock the community module (adopted-sheet cache) ──────────────────────
-const adoptedSheets: LeadSheet[] = [];
+const adoptedSheets: Tune[] = [];
 vi.mock('$lib/persistence/lead-sheet-community', () => ({
 	getAdoptedLeadSheetsLocal: () => adoptedSheets
 }));
@@ -56,7 +56,7 @@ beforeEach(() => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-function makeSheet(overrides: Partial<LeadSheet> = {}): LeadSheet {
+function makeSheet(overrides: Partial<Tune> = {}): Tune {
 	return {
 		id: 'X',
 		title: 'Sheet X',
@@ -78,7 +78,7 @@ interface SheetMeta {
 	deletedAt?: number;
 }
 
-function seedLive(sheets: LeadSheet[]): void {
+function seedLive(sheets: Tune[]): void {
 	localStorageMock.setItem(nsFull('user-leadsheets'), JSON.stringify(sheets));
 }
 function seedMeta(meta: Record<string, SheetMeta>): void {

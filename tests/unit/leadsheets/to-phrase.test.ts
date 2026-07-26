@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
 
-function sheet(): LeadSheet {
+function sheet(): Tune {
 	return {
 		id: 'ls-x',
 		title: 'X Tune',

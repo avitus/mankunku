@@ -27,15 +27,15 @@ import { fileURLToPath } from 'node:url';
 import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
 import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 const fixture = (name: string): string =>
 	fileURLToPath(new URL(`../fixtures/leadsheets/${name}`, import.meta.url));
 
 const RESPONSE = JSON.parse(readFileSync(fixture('fly-me-to-the-moon.claude-response.json'), 'utf8'));
-const ENTERED = JSON.parse(readFileSync(fixture('fly-me-to-the-moon.entered.json'), 'utf8')) as LeadSheet;
+const ENTERED = JSON.parse(readFileSync(fixture('fly-me-to-the-moon.entered.json'), 'utf8')) as Tune;
 const PARSED = JSON.parse(readFileSync(fixture('fly-me-to-the-moon.parsed-sheet.json'), 'utf8')) as {
-	sheet: LeadSheet;
+	sheet: Tune;
 	warnings: string[];
 };
 

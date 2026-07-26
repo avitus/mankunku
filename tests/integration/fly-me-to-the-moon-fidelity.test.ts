@@ -35,14 +35,14 @@ import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
 import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 const fixture = (name: string): string =>
 	fileURLToPath(new URL(`../fixtures/leadsheets/${name}`, import.meta.url));
 
-const DEV = JSON.parse(readFileSync(fixture('fly-me-to-the-moon.entered.json'), 'utf8')) as LeadSheet;
+const DEV = JSON.parse(readFileSync(fixture('fly-me-to-the-moon.entered.json'), 'utf8')) as Tune;
 
-type Section = LeadSheet['sections'][number];
+type Section = Tune['sections'][number];
 
 /** Melody in comparable form: concert pitch, exact fractions, tie flags. */
 const melody = (sec: Section) =>
@@ -112,7 +112,7 @@ describe('BIAB .SGU vs the dev data layer', () => {
 // ─── MuseScore: melody-lossless, harmony at print fidelity ──────────────
 
 describe('MuseScore .mscz vs the dev data layer', () => {
-	async function parseMscz(): Promise<LeadSheet> {
+	async function parseMscz(): Promise<Tune> {
 		const bytes = new Uint8Array(readFileSync(fixture('fly-me-to-the-moon.mscz')));
 		return (await parseMuseScoreFile({ name: 'fly-me-to-the-moon.mscz', bytes })).sheets[0];
 	}

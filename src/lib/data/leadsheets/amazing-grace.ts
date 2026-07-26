@@ -1,11 +1,11 @@
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 /**
  * "Amazing Grace" (New Britain) — traditional (public domain).
  * 3/4 ballad in concert F. Bar 1 carries the pickup; the final "see" is held
  * across the last two bars with a tie.
  */
-export const AMAZING_GRACE: LeadSheet = {
+export const AMAZING_GRACE: Tune = {
 	id: 'ls-amazing-grace',
 	title: 'Amazing Grace',
 	composer: 'Traditional',

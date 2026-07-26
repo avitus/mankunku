@@ -14,7 +14,7 @@ import type { DifficultyMetadata, HarmonicSegment, Note, PitchClass } from './mu
  * written pitch happens only at display time.
  */
 
-export type LeadSheetSource =
+export type TuneSource =
 	| 'curated'
 	| 'user'
 	| 'imported-ireal'
@@ -22,7 +22,7 @@ export type LeadSheetSource =
 	| 'imported-pdf'
 	| string;
 
-export interface LeadSheetSection {
+export interface TuneSection {
 	/** Section label shown on the chart: 'A', 'B', 'Intro', 'Coda', … */
 	label: string;
 	/** Length of the section in bars. Authoritative even when melody is sparse or empty. */
@@ -39,7 +39,7 @@ export interface LeadSheetSection {
 	harmony: HarmonicSegment[];
 }
 
-export interface LeadSheet {
+export interface Tune {
 	id: string;
 	title: string;
 	composer?: string;
@@ -49,8 +49,8 @@ export interface LeadSheet {
 	/** Feel/style label, e.g. 'Medium Swing', 'Ballad'. */
 	style?: string;
 	tags: string[];
-	sections: LeadSheetSection[];
-	source: LeadSheetSource;
+	sections: TuneSection[];
+	source: TuneSource;
 	difficulty?: DifficultyMetadata;
 	/**
 	 * Storage path of the original imported PDF in the `lead-sheets` bucket

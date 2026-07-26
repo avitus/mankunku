@@ -1,5 +1,5 @@
 import type { Fraction, Note } from '$lib/types/music';
-import type { LeadSheetSection } from '$lib/types/lead-sheet';
+import type { TuneSection } from '$lib/types/tune';
 import { addFractions, subtractFractions, compareFractions } from '$lib/music/intervals';
 import { harmonicSegmentFromSymbol } from '$lib/leadsheets/segment-from-symbol';
 
@@ -64,7 +64,7 @@ export function buildSections(
 	notes: Note[],
 	harmonies: HarmonyChange[],
 	warnOnce: (msg: string) => void
-): LeadSheetSection[] {
+): TuneSection[] {
 	// Sections split at rehearsal marks AND at repeat barlines: a |: opens a
 	// section and a :| closes one, so a simple repeat is always representable
 	// (sections repeat as whole units). Unmarked sections get running letters.

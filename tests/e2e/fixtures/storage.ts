@@ -175,7 +175,7 @@ export async function seedUserLicks(
 /**
  * Sample user-entered lead sheet: a 2-section form with melody, chords, and a
  * repeat, exercising the multi-system chart rendering. Shape matches
- * `LeadSheet` (src/lib/types/lead-sheet.ts); loosely typed to avoid `$lib`.
+ * `Tune` (src/lib/types/tune.ts); loosely typed to avoid `$lib`.
  */
 export const SAMPLE_USER_LEAD_SHEETS: unknown[] = [
 	{

@@ -17,14 +17,14 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseMuseScoreFile } from '$lib/leadsheets/import/musescore';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 const fixture = (name: string): string =>
 	fileURLToPath(new URL(`../fixtures/leadsheets/${name}`, import.meta.url));
 
 const ENTERED = JSON.parse(
 	readFileSync(fixture('fly-me-to-the-moon.entered.json'), 'utf8')
-) as LeadSheet;
+) as Tune;
 
 async function parseFixture() {
 	const bytes = new Uint8Array(readFileSync(fixture('fly-me-to-the-moon.mscz')));
@@ -72,7 +72,7 @@ describe('MuseScore import — Fly Me to the Moon (.mscz)', () => {
 		// and both sections now agree completely — pitches, durations,
 		// offsets, and ties.
 		const { sheets } = await parseFixture();
-		const strip = (notes: LeadSheet['sections'][number]['notes']) =>
+		const strip = (notes: Tune['sections'][number]['notes']) =>
 			notes.map((n) => ({
 				pitch: n.pitch,
 				duration: n.duration,

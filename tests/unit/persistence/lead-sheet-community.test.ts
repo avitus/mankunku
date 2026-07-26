@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 
 // ─── Mock sync dependencies ───────────────────────────────────────────
 vi.mock('$lib/persistence/user-scope', () => ({
@@ -403,10 +403,10 @@ describe('initLeadSheetCommunityFromCloud', () => {
 // ─── shape guard for the library-loader dependency ───────────────────
 
 describe('getAdoptedLeadSheetsLocal', () => {
-	it('returns LeadSheet objects usable by the library loader', async () => {
+	it('returns Tune objects usable by the library loader', async () => {
 		const sb = makeSupabaseMock({ user: ME, singleRows: { lead_sheets: makeSheetRow() } });
 		await adoptLeadSheet(sb as never, 'sheet-9-wxyz');
-		const sheets: LeadSheet[] = getAdoptedLeadSheetsLocal();
+		const sheets: Tune[] = getAdoptedLeadSheetsLocal();
 		expect(sheets[0].sections[0].harmony[0].chord.root).toBe('C');
 	});
 });

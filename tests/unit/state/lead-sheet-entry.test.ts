@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { LeadSheet } from '$lib/types/lead-sheet';
+import type { Tune } from '$lib/types/tune';
 import { settings } from '$lib/state/settings.svelte';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { stepEntry, addNote } from '$lib/state/step-entry.svelte';
@@ -253,7 +253,7 @@ describe('key changes', () => {
 });
 
 describe('non-4/4 time signatures (imported charts)', () => {
-	function waltzSheet(): LeadSheet {
+	function waltzSheet(): Tune {
 		return {
 			id: 'sheet-w-altz',
 			title: 'Waltz',
@@ -351,7 +351,7 @@ describe('buffer suspend/resume across navigation', () => {
 
 describe('edit-mode hydration', () => {
 	it('loads a sheet back into the editor with the written key', () => {
-		const sheet: LeadSheet = {
+		const sheet: Tune = {
 			id: 'sheet-7-zzzz',
 			title: 'Round Trip',
 			composer: 'Me',
@@ -389,7 +389,7 @@ describe('edit-mode hydration', () => {
 	});
 
 	it('round-trips through buildDraftLeadSheet preserving id and source', () => {
-		const sheet: LeadSheet = {
+		const sheet: Tune = {
 			id: 'sheet-7-zzzz',
 			title: 'Round Trip',
 			key: 'F',
@@ -456,7 +456,7 @@ describe('source transposition', () => {
 
 	it('loadFromLeadSheet re-defaults the source from the instrument', () => {
 		setSourceTransposition('C');
-		const sheet: LeadSheet = {
+		const sheet: Tune = {
 			id: 'sheet-1',
 			title: 'T',
 			key: 'C',
