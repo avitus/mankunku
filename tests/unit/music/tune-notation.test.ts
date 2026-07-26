@@ -561,3 +561,208 @@ describe('in-signature spelling priority', () => {
 		expect(abc).toContain('^c');
 	});
 });
+
+// ── Fixtures shared by the anchor + golden-guard suites ────────────────────
+
+/** 8 whole-note bars → two 4-bar systems. */
+function multiSystemSheet(): Tune {
+	const notes: Note[] = Array.from({ length: 8 }, (_, bar) => ({
+		pitch: 60,
+		duration: [1, 1] as [number, number],
+		offset: [bar, 1] as [number, number]
+	}));
+	return sheet({ sections: [section({ bars: 8, notes })] });
+}
+
+/** Repeat + numbered endings across four sections (A A[1 A[2 B). */
+function repeatsSheet(): Tune {
+	return sheet({
+		sections: [
+			section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+			section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+			section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+			section({ label: 'B', bars: 2, harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })
+		]
+	});
+}
+
+/** 3/4 sheet: three quarter notes over Dm7/G7, then an empty bar under CΔ7. */
+function threeFourSheet(): Tune {
+	return sheet({
+		timeSignature: [3, 4],
+		sections: [
+			section({
+				bars: 2,
+				notes: [
+					{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+					{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+					{ pitch: 64, duration: [1, 4], offset: [1, 2] }
+				],
+				harmony: [
+					seg('D', 'min7', [0, 1], [1, 4]),
+					seg('G', '7', [1, 2], [1, 4]),
+					seg('C', 'maj7', [3, 4], [3, 4])
+				]
+			})
+		]
+	});
+}
+
+describe('tuneToAbc — golden guard (byte-identical output)', () => {
+	// These pins capture the EXACT current output; they must hold before AND
+	// after the anchor-emission restructure — that byte-identity is the point.
+	it('simple 2-bar sheet', () => {
+		expect(tuneToAbc(simpleSheet())).toBe(
+			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+				'P:A\n[V:M]C8 | D4 x4 |]\n[V:H]"D-7"x4 "G7"x4 | "CΔ7"x4 z4 |\n'
+		);
+	});
+
+	it('multi-system 8-bar sheet', () => {
+		expect(tuneToAbc(multiSystemSheet())).toBe(
+			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+				'P:A\n[V:M]C8 | C8 | C8 | C8 |\n[V:H]x8 | x8 | x8 | x8 |\n' +
+				'[V:M]C8 | C8 | C8 | C8 |]\n[V:H]x8 | x8 | x8 | x8 |\n'
+		);
+	});
+
+	it('repeats + numbered endings sheet', () => {
+		expect(tuneToAbc(repeatsSheet())).toBe(
+			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+				'P:A\n[V:M]|:x8 | x8 | [1x8 :|\n[V:H]"CΔ7"z8 | z8 | "G7"z8 |\n' +
+				'[V:M]x16 [2x8 ||\n[V:H]x16 "CΔ7"z8 |\n' +
+				'P:B\n[V:M]x8 | x8 |]\n[V:H]"FΔ7"z8 | z8 |\n'
+		);
+	});
+
+	it('3/4 sheet', () => {
+		expect(tuneToAbc(threeFourSheet())).toBe(
+			'X:1\nT:Test Tune\nM:3/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+				'P:A\n[V:M]C2 D2 E2 | x24/4 |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"z24/4 |\n'
+		);
+	});
+});
+
+describe('tuneToAbcWithMap — bar anchors', () => {
+	it('emits one anchor per bar whose slice runs through its closing barline', () => {
+		const { abc, barAnchors } = tuneToAbcWithMap(simpleSheet());
+		expect(barAnchors).toHaveLength(2);
+		expect(barAnchors.map((b) => [b.sectionIdx, b.bar])).toEqual([
+			[0, 0],
+			[0, 1]
+		]);
+		expect(abc.slice(barAnchors[0].startChar, barAnchors[0].endChar)).toBe('C8 |');
+		expect(abc.slice(barAnchors[1].startChar, barAnchors[1].endChar)).toBe('D4 x4 |]');
+	});
+
+	it('resolves bar anchors across a system break without capturing the chord flush', () => {
+		const { abc, barAnchors } = tuneToAbcWithMap(multiSystemSheet());
+		expect(barAnchors).toHaveLength(8);
+		expect(barAnchors.map((b) => b.bar)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+		for (const b of barAnchors) {
+			const slice = abc.slice(b.startChar, b.endChar);
+			expect(slice).not.toContain('[V:H]');
+			expect(slice).not.toContain('\n');
+		}
+		// Bar 4 opens the second system; its span still resolves to the melody.
+		expect(abc.slice(barAnchors[4].startChar, barAnchors[4].endChar)).toBe('C8 |');
+		expect(abc.slice(barAnchors[7].startChar, barAnchors[7].endChar)).toBe('C8 |]');
+	});
+
+	it('starts repeat/ending bar spans after the |: and [n decorations', () => {
+		const { abc, barAnchors } = tuneToAbcWithMap(repeatsSheet());
+		expect(barAnchors.map((b) => [b.sectionIdx, b.bar])).toEqual([
+			[0, 0],
+			[0, 1],
+			[1, 0],
+			[2, 0],
+			[3, 0],
+			[3, 1]
+		]);
+		const s00 = abc.slice(barAnchors[0].startChar, barAnchors[0].endChar);
+		expect(s00).toBe('x8 |'); // opens after |:, not '|:x8 …'
+		const ending1 = abc.slice(barAnchors[2].startChar, barAnchors[2].endChar);
+		expect(ending1).toBe('x8 :|'); // opens after [1
+		const ending2 = abc.slice(barAnchors[3].startChar, barAnchors[3].endChar);
+		expect(ending2).toBe('x8 ||'); // padded [2 line → section-local bar 0, no x16 pad
+		expect(ending2).not.toContain('x16');
+	});
+
+	it('emits an anchor for every bar including empty and pickup bars', () => {
+		const { barAnchors } = tuneToAbcWithMap(
+			sheet({
+				sections: [
+					// 1-bar pickup: rest then a short note, all in bar 0.
+					section({ label: '', bars: 1, notes: [{ pitch: 55, duration: [1, 4], offset: [3, 4] }] }),
+					// melody-less section: two empty bars.
+					section({ label: 'A', bars: 2, notes: [], harmony: [] })
+				]
+			})
+		);
+		expect(barAnchors.map((b) => [b.sectionIdx, b.bar])).toEqual([
+			[0, 0],
+			[1, 0],
+			[1, 1]
+		]);
+	});
+});
+
+describe('tuneToAbcWithMap — chord-slot anchors', () => {
+	it('emits one anchor per H-voice segment with beat + display text', () => {
+		const { abc, chordSlotAnchors } = tuneToAbcWithMap(simpleSheet());
+		expect(chordSlotAnchors.map((c) => [c.sectionIdx, c.bar, c.beat, c.chord])).toEqual([
+			[0, 0, 0, 'D-7'],
+			[0, 0, 2, 'G7'],
+			[0, 1, 0, 'CΔ7'],
+			[0, 1, 2, null]
+		]);
+		expect(abc.slice(chordSlotAnchors[0].startChar, chordSlotAnchors[0].endChar)).toBe('"D-7"x4');
+		expect(abc.slice(chordSlotAnchors[1].startChar, chordSlotAnchors[1].endChar)).toBe('"G7"x4');
+		expect(abc.slice(chordSlotAnchors[2].startChar, chordSlotAnchors[2].endChar)).toBe('"CΔ7"x4');
+		expect(abc.slice(chordSlotAnchors[3].startChar, chordSlotAnchors[3].endChar)).toBe('z4');
+	});
+
+	it('scales chord-slot beats with a non-4/4 meter', () => {
+		const { chordSlotAnchors } = tuneToAbcWithMap(threeFourSheet());
+		// A 3/4 bar has three beats (0,1,2); the G7 lands on the last beat.
+		expect(chordSlotAnchors.map((c) => [c.bar, c.beat, c.chord])).toEqual([
+			[0, 0, 'D-7'],
+			[0, 2, 'G7'],
+			[1, 0, 'CΔ7']
+		]);
+	});
+
+	it('reports a fractional beat for an off-beat chord', () => {
+		const { chordSlotAnchors } = tuneToAbcWithMap(
+			sheet({
+				sections: [
+					// Chord at offset 3/8 → beat 1.5 in 4/4.
+					section({ bars: 1, harmony: [seg('G', '7', [3, 8], [5, 8])] })
+				]
+			})
+		);
+		const g7 = chordSlotAnchors.find((c) => c.chord === 'G7');
+		expect(g7).toBeDefined();
+		expect(g7!.beat).toBe(1.5);
+	});
+});
+
+describe('tuneToAbcWithMap — note offsets', () => {
+	it('records each pitched note absolute whole-note offset across sections', () => {
+		const { noteAnchors } = tuneToAbcWithMap(
+			sheet({
+				sections: [
+					section({
+						bars: 2,
+						notes: [
+							{ pitch: 60, duration: [1, 1], offset: [0, 1] },
+							{ pitch: 62, duration: [1, 2], offset: [1, 1] }
+						]
+					}),
+					section({ label: 'B', bars: 1, notes: [{ pitch: 64, duration: [1, 1], offset: [0, 1] }] })
+				]
+			})
+		);
+		expect(noteAnchors.map((a) => a.offset)).toEqual([0, 1, 2]);
+	});
+});

@@ -42,6 +42,40 @@ export interface TuneAbcOptions {
 	barsPerLine?: number;
 }
 
+/**
+ * Maps one rendered melody bar (voice M) back to its section/bar. The char
+ * span covers the bar's melody tokens through its closing barline token; it
+ * excludes leading `|:` / `[n` decorations and any inter-system chord flush.
+ */
+export interface BarAnchor {
+	/** Character index where the bar's first melody token begins. */
+	startChar: number;
+	/** Character index just past the bar's closing barline token. */
+	endChar: number;
+	sectionIdx: number;
+	/** 0-based bar within the section. */
+	bar: number;
+}
+
+/**
+ * Maps one chord-voice (voice H) segment token — including its quoted
+ * `"chord"` prefix — back to its position. Segments are cut at chord events,
+ * sound-span boundaries and bar edges, so a bar can hold several slots.
+ */
+export interface ChordSlotAnchor {
+	/** Character index where the segment token (incl. quoted chord) begins. */
+	startChar: number;
+	/** Character index just past the segment token. */
+	endChar: number;
+	sectionIdx: number;
+	/** 0-based bar within the section. */
+	bar: number;
+	/** Segment start within the bar, in beats (float — off-beats like 1.5). */
+	beat: number;
+	/** Display text when this segment starts a chord event, else null. */
+	chord: string | null;
+}
+
 interface DisplayElement {
 	note: Note;
 	/** Index into the flattened (notation-order) note array, or null for rests. */
@@ -103,7 +137,12 @@ export function tuneToAbcWithMap(
 	sheet: Tune,
 	instrument?: InstrumentConfig,
 	options: TuneAbcOptions = {}
-): { abc: string; noteAnchors: PitchedNoteAnchor[] } {
+): {
+	abc: string;
+	noteAnchors: PitchedNoteAnchor[];
+	barAnchors: BarAnchor[];
+	chordSlotAnchors: ChordSlotAnchor[];
+} {
 	const defaultLength = options.defaultLength ?? [1, 8];
 	const barsPerLine = options.barsPerLine ?? 4;
 
@@ -143,7 +182,38 @@ export function tuneToAbcWithMap(
 	];
 
 	const tokens: string[] = [];
-	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number; gliss?: boolean }> = [];
+	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number; offset: number; gliss?: boolean }> = [];
+	const pendingBarAnchors: Array<{
+		startTokenIndex: number;
+		barlineTokenIndex: number;
+		sectionIdx: number;
+		bar: number;
+	}> = [];
+	const pendingChordSlots: Array<{
+		tokenIndex: number;
+		sectionIdx: number;
+		bar: number;
+		beat: number;
+		chord: string | null;
+	}> = [];
+
+	// Melody-bar span tracking: one span is open at a time; it starts at the
+	// bar's first melody token and closes at its barline token (see hooks in
+	// the section loop). Padding/decoration tokens are never inside a span.
+	let openBar: { startTokenIndex: number; sectionIdx: number; bar: number } | null = null;
+	function openBarSpan(sectionIdx: number, bar: number): void {
+		openBar = { startTokenIndex: tokens.length, sectionIdx, bar };
+	}
+	function closeBarSpan(barlineTokenIndex: number): void {
+		if (!openBar) return;
+		pendingBarAnchors.push({
+			startTokenIndex: openBar.startTokenIndex,
+			barlineTokenIndex,
+			sectionIdx: openBar.sectionIdx,
+			bar: openBar.bar
+		});
+		openBar = null;
+	}
 
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
 		const note = el.note;
@@ -189,6 +259,10 @@ export function tuneToAbcWithMap(
 			pendingAnchors.push({
 				tokenIndex: tokens.length,
 				sourceIndex: el.sourceIndex,
+				// Absolute whole-note offset = the section's base offset plus the
+				// element's section-local offset (sectionBaseBars is this
+				// section's base while the body loop runs).
+				offset: sectionBaseBars * barDuration + fractionToFloat(el.note.offset),
 				// The MuseScore-style wavy connector is drawn over the SVG by
 				// NotationDisplay (abcjs has no native glissando).
 				...(el.note.gliss ? { gliss: true } : {})
@@ -240,8 +314,15 @@ export function tuneToAbcWithMap(
 	const isSounding = (t: number): boolean =>
 		soundSpans.some((sp) => t > sp.start - 1e-9 && t < sp.end + 1e-9);
 
-	/** One chord-voice bar: x under melody, z where silent, cut at anchors. */
-	function chordBar(barStartAbs: number): string {
+	/**
+	 * One chord-voice bar: x under melody, z where silent, cut at anchors.
+	 * Returns one token per segment (joined with ' ' by the caller for
+	 * byte-identity) plus the parallel per-segment slot metadata.
+	 */
+	function chordBar(barStartAbs: number): {
+		tokens: string[];
+		slots: { beat: number; chord: string | null }[];
+	} {
 		const be = barStartAbs + barDuration;
 		const cuts = new Set<number>([barStartAbs, be]);
 		for (const c of chordEvents) if (c.at > barStartAbs + 1e-9 && c.at < be - 1e-9) cuts.add(c.at);
@@ -262,9 +343,17 @@ export function tuneToAbcWithMap(
 				segs.push({ chord, silent, from: s0, to: s1 });
 			}
 		}
-		return segs
-			.map((sg) => `${sg.chord ? `"${sg.chord}"` : ''}${sg.silent ? 'z' : 'x'}${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`)
-			.join(' ');
+		// A "beat" is a denominator-note; beat = whole-notes-into-bar × den.
+		const beatsPerWhole = sheet.timeSignature[1];
+		return {
+			tokens: segs.map(
+				(sg) => `${sg.chord ? `"${sg.chord}"` : ''}${sg.silent ? 'z' : 'x'}${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`
+			),
+			slots: segs.map((sg) => ({
+				beat: Math.round((sg.from - barStartAbs) * beatsPerWhole * 1e6) / 1e6,
+				chord: sg.chord
+			}))
+		};
 	}
 
 	// ── Line management: each system emits a melody line + a chord line ──
@@ -272,6 +361,25 @@ export function tuneToAbcWithMap(
 	let linePadBars = 0;
 	let lineOpen = false;
 	let sectionBaseBars = 0;
+
+	// Base-bar table: sectionBases[i] = absolute bar where section i begins.
+	// Lets the chord-voice flush map any absolute bar back to its section.
+	const sectionBases: number[] = [];
+	{
+		let acc = 0;
+		for (const s of sheet.sections) {
+			sectionBases.push(acc);
+			acc += s.bars;
+		}
+	}
+	function absBarToSection(absBar: number): { sectionIdx: number; bar: number } {
+		let idx = 0;
+		for (let s = 0; s < sectionBases.length; s++) {
+			if (sectionBases[s] <= absBar) idx = s;
+			else break;
+		}
+		return { sectionIdx: idx, bar: absBar - sectionBases[idx] };
+	}
 
 	function openLine(padBars: number, startBar: number): void {
 		tokens.push('[V:M]');
@@ -285,9 +393,27 @@ export function tuneToAbcWithMap(
 		if (!lineOpen) return;
 		tokens.push('\n[V:H]');
 		if (linePadBars > 0) tokens.push(padToken(linePadBars));
-		const bars: string[] = [];
-		for (let b = lineStartBar; b < endBar; b++) bars.push(chordBar(b * barDuration));
-		tokens.push(bars.join(' | ') + ' |');
+		// Push each segment token individually while interleaving the exact
+		// same ' ' (between segments), ' | ' (between bars) and trailing ' |'
+		// separators the join produced, so the emitted string is byte-identical
+		// — and record a chord slot per segment token.
+		for (let b = lineStartBar; b < endBar; b++) {
+			if (b > lineStartBar) tokens.push(' | ');
+			const { tokens: segTokens, slots } = chordBar(b * barDuration);
+			const { sectionIdx, bar } = absBarToSection(b);
+			for (let s = 0; s < segTokens.length; s++) {
+				if (s > 0) tokens.push(' ');
+				pendingChordSlots.push({
+					tokenIndex: tokens.length,
+					sectionIdx,
+					bar,
+					beat: slots[s].beat,
+					chord: slots[s].chord
+				});
+				tokens.push(segTokens[s]);
+			}
+		}
+		tokens.push(' |');
 		tokens.push('\n');
 		lineOpen = false;
 	}
@@ -333,6 +459,9 @@ export function tuneToAbcWithMap(
 		}
 		if (sec.repeatStart) tokens.push('|:');
 		if (sec.ending) tokens.push(`[${sec.ending}`);
+		// The section body always opens at bar 0 (section-local offsets start
+		// at 0); the span begins after the |: / [n decorations above.
+		openBarSpan(secIdx, 0);
 
 		// ── Gap-fill: every bar renders, melody or not (invisible in this
 		// voice — visible rests come from the chord voice) ──────────────
@@ -378,6 +507,7 @@ export function tuneToAbcWithMap(
 			if (i > 0) {
 				if (bar > prevBar) {
 					tokens.push(' |');
+					closeBarSpan(tokens.length - 1);
 					if (bar % barsPerLine === 0) {
 						flushLine(sectionBaseBars + bar);
 						openLine(0, sectionBaseBars + bar);
@@ -385,6 +515,7 @@ export function tuneToAbcWithMap(
 						tokens.push(' ');
 					}
 					barState = initBarState(keySigAccidentals);
+					openBarSpan(secIdx, bar);
 				} else {
 					const minDur = shorterFraction(el.note.duration, prevDuration);
 					const groupDur = getBeamGroupDuration(sheet.timeSignature, minDur);
@@ -434,6 +565,7 @@ export function tuneToAbcWithMap(
 		else if (isLast) tokens.push(' |]');
 		else if (next?.ending) tokens.push(' |');
 		else tokens.push(' ||');
+		closeBarSpan(tokens.length - 1); // the section's last bar closes here
 
 		prevEndColumn =
 			lineColumn === 0
@@ -455,15 +587,34 @@ export function tuneToAbcWithMap(
 		charCursor += tokens[t].length;
 	}
 	const noteAnchors: PitchedNoteAnchor[] = pendingAnchors.map(
-		({ tokenIndex, sourceIndex, gliss }) => ({
+		({ tokenIndex, sourceIndex, offset, gliss }) => ({
 			startChar: bodyStart + tokenStarts[tokenIndex],
 			endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
 			sourceIndex,
+			offset,
 			...(gliss ? { gliss: true } : {})
 		})
 	);
+	const barAnchors: BarAnchor[] = pendingBarAnchors.map(
+		({ startTokenIndex, barlineTokenIndex, sectionIdx, bar }) => ({
+			startChar: bodyStart + tokenStarts[startTokenIndex],
+			endChar: bodyStart + tokenStarts[barlineTokenIndex] + tokens[barlineTokenIndex].length,
+			sectionIdx,
+			bar
+		})
+	);
+	const chordSlotAnchors: ChordSlotAnchor[] = pendingChordSlots.map(
+		({ tokenIndex, sectionIdx, bar, beat, chord }) => ({
+			startChar: bodyStart + tokenStarts[tokenIndex],
+			endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
+			sectionIdx,
+			bar,
+			beat,
+			chord
+		})
+	);
 
-	return { abc: headerStr + '\n' + tokens.join(''), noteAnchors };
+	return { abc: headerStr + '\n' + tokens.join(''), noteAnchors, barAnchors, chordSlotAnchors };
 }
 
 /** Generate an ABC string from a tune, discarding the click-anchor map. */

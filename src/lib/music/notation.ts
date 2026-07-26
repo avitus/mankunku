@@ -480,6 +480,12 @@ export interface PitchedNoteAnchor {
 	endChar: number;
 	/** Index into the original `phrase.notes` array. */
 	sourceIndex: number;
+	/**
+	 * Absolute whole-note offset of this note across the flattened tune, as a
+	 * float. Populated only on the tune path (`tuneToAbcWithMap`); the phrase
+	 * path leaves it undefined.
+	 */
+	offset?: number;
 	/** This note starts a glissando into the NEXT pitched note. */
 	gliss?: boolean;
 }
