@@ -142,6 +142,17 @@ After any `git push` to a PR branch — including the autofix commits themselves
 
 ---
 
+### Tune editor: MuseScore-style rail + implicit paging (2026-07-26)
+
+**What:** `/tunes/editor` is a two-column layout: sticky 16rem left entry rail (desktop) / fixed bottom dock (mobile, collapsible), chart-first main column. The ≤4-bar page selector is GONE — clicking any note/rest/bar in the chart moves the cursor (`cursorToFlattened`/`cursorToBar` in tune-entry), entry auto-advances across page/section boundaries with split-with-tie, and chords are typed directly onto the chart (beat hit-zones + inline input; Space advances, `k` opens from a selected note). `ChordEntryPanel.svelte` is deleted.
+
+**Standing facts:**
+- The step-entry 4-bar cap still exists and is still load-bearing for the lick editor — it's hidden, not lifted. All tune-side entry goes through `tuneAddNote`/`tuneAddRest`/`tuneEnterTiedNote` wrappers; raw step-entry calls in the tune editor are a bug (they bypass auto-advance and the entry cursor).
+- abcjs facts that shaped the design: clickListener only fires within 12 SVG units of a glyph (empty-space clicks need the hit rects); responsive mode is viewBox-based so SVG-appended rects rescale for free; hit rects must swallow mouse AND touch events (abcjs binds touchstart/touchend to the same proximity dispatch).
+- `tuneToAbcWithMap` returns `{ abc, noteAnchors, barAnchors, chordSlotAnchors }` — golden tests pin the ABC byte-identical; `phraseToAbc` untouched (hard rule). Geometry math lives in pure `src/lib/notation/chart-geometry.ts`; abcjs adaptation in `src/lib/notation/abcjs-adapter.ts`.
+- The shared panels reflow via Tailwind 4 container queries under named `@container/entry` wrappers — inert in the lick editor (no named container ancestor). Panel action props (`onAddNote` etc.) default to raw step-entry; only the tune editor passes wrappers.
+- Cursor-mode entry: overwrite rests, block on pitched collision, section-level occupancy, window-fit guard (the section-end overhang fix — final review's one blocker).
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`
