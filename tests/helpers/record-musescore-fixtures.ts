@@ -5,8 +5,8 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMuseScoreFile } from '../../src/lib/leadsheets/import/musescore';
-import { writtenSheetToConcert } from '../../src/lib/leadsheets/source-transposition';
+import { parseMuseScoreFile } from '../../src/lib/tunes/import/musescore';
+import { writtenSheetToConcert } from '../../src/lib/tunes/source-transposition';
 import { INSTRUMENTS } from '../../src/lib/types/instruments';
 import { CORPUS, CORPUS_INSTRUMENT } from './leadsheet-corpus';
 

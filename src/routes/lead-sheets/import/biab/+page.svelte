@@ -2,15 +2,15 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
-	import { importBandInABox } from '$lib/leadsheets/import/biab';
+	import { importBandInABox } from '$lib/tunes/import/biab';
 	import type { Tune } from '$lib/types/tune';
 	import { loadDraftForReview } from '$lib/state/lead-sheet-entry.svelte';
 	import { saveUserLeadSheet } from '$lib/persistence/user-lead-sheets';
-	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
+	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
-	import { writtenSheetToConcert, type SourceTransposition } from '$lib/leadsheets/source-transposition';
+	import { writtenSheetToConcert, type SourceTransposition } from '$lib/tunes/source-transposition';
 
 	let rawSheets = $state<Tune[]>([]);
 	// These formats are concert-pitch by definition, so the source defaults
@@ -45,7 +45,7 @@
 	}
 
 	function handleAdd(sheet: Tune): string {
-		const toSave: Tune = { ...sheet, difficulty: calculateDifficulty(leadSheetToPhrase(sheet)) };
+		const toSave: Tune = { ...sheet, difficulty: calculateDifficulty(tuneToPhrase(sheet)) };
 		return saveUserLeadSheet(toSave).id;
 	}
 </script>

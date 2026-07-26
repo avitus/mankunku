@@ -48,7 +48,7 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import { saveUserLeadSheet, getUserLeadSheetsLocal, getUserLeadSheets } from '$lib/persistence/user-lead-sheets';
-	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
+	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { buildEntryPlaybackOptions } from '$lib/step-entry/playback-options';
@@ -174,7 +174,7 @@
 		isPlaying = true;
 		try {
 			await playbackModule.playPhrase(
-				leadSheetToPhrase(draft, { expandRepeats: true }),
+				tuneToPhrase(draft, { expandRepeats: true }),
 				buildEntryPlaybackOptions({
 					tempo: settings.defaultTempo,
 					swing: settings.swing,
@@ -189,7 +189,7 @@
 	function handleSave(): void {
 		commitBuffer();
 		const sheet = buildDraftLeadSheet();
-		const phrase = leadSheetToPhrase(sheet);
+		const phrase = tuneToPhrase(sheet);
 		sheet.difficulty = calculateDifficulty(phrase);
 		const saved = saveUserLeadSheet(sheet);
 		initNewLeadSheet();

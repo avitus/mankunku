@@ -6,8 +6,8 @@ import type { DifficultyMetadata, HarmonicSegment, Note, PitchClass } from './mu
  * A lead sheet is a full song form — melody plus complete harmony — organized
  * into labeled sections (A, B, Intro, …) with repeat and ending markers.
  * Sections keep their own `notes`/`harmony` with SECTION-LOCAL offsets
- * (whole-note units, starting at [0,1]); `flattenLeadSheet` in
- * `$lib/leadsheets/flatten` produces the continuous form that the notation
+ * (whole-note units, starting at [0,1]); `flattenTune` in
+ * `$lib/tunes/flatten` produces the continuous form that the notation
  * renderer and backing-track engine consume.
  *
  * Like all phrase data, pitches and keys are CONCERT pitch — transposition to

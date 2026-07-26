@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import LeadSheetCard from '$lib/components/leadsheets/LeadSheetCard.svelte';
-	import { getAllLeadSheets, isCuratedLeadSheetId } from '$lib/leadsheets/library-loader';
+	import { getAllTunes, isCuratedTuneId } from '$lib/tunes/book-loader';
 	import { getAdoptedLeadSheetAuthorsLocal, getLeadSheetAdoptionsLocal } from '$lib/persistence/lead-sheet-community';
 	import type { Tune } from '$lib/types/tune';
 
@@ -22,7 +22,7 @@
 
 	const allSheets = $derived.by(() => {
 		void cacheVersion;
-		return getAllLeadSheets();
+		return getAllTunes();
 	});
 	const adoptedIds = $derived.by(() => {
 		void cacheVersion;
@@ -45,11 +45,11 @@
 		);
 	});
 
-	const mySheets = $derived(filtered.filter((s) => !isCuratedLeadSheetId(s.id)));
-	const curatedSheets = $derived(filtered.filter((s) => isCuratedLeadSheetId(s.id)));
+	const mySheets = $derived(filtered.filter((s) => !isCuratedTuneId(s.id)));
+	const curatedSheets = $derived(filtered.filter((s) => isCuratedTuneId(s.id)));
 
 	function badgeFor(sheet: Tune): string {
-		if (isCuratedLeadSheetId(sheet.id)) return 'Curated';
+		if (isCuratedTuneId(sheet.id)) return 'Curated';
 		if (adoptedIds.has(sheet.id)) return 'Adopted';
 		return '';
 	}

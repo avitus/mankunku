@@ -2,11 +2,11 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
-	import { parseMuseScoreFile } from '$lib/leadsheets/import/musescore';
+	import { parseMuseScoreFile } from '$lib/tunes/import/musescore';
 	import type { Tune } from '$lib/types/tune';
 	import { loadDraftForReview } from '$lib/state/lead-sheet-entry.svelte';
 	import { saveUserLeadSheet } from '$lib/persistence/user-lead-sheets';
-	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
+	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
@@ -14,7 +14,7 @@
 		defaultSourceTransposition,
 		writtenSheetToConcert,
 		type SourceTransposition
-	} from '$lib/leadsheets/source-transposition';
+	} from '$lib/tunes/source-transposition';
 
 	let rawSheets = $state<Tune[]>([]);
 	// The default is FILE-AWARE. A score that declares a transposing part is
@@ -68,7 +68,7 @@
 	}
 
 	function handleAdd(sheet: Tune): string {
-		const toSave: Tune = { ...sheet, difficulty: calculateDifficulty(leadSheetToPhrase(sheet)) };
+		const toSave: Tune = { ...sheet, difficulty: calculateDifficulty(tuneToPhrase(sheet)) };
 		return saveUserLeadSheet(toSave).id;
 	}
 </script>

@@ -9,8 +9,8 @@ import {
 	ANTHROPIC_LEAD_SHEET_MODEL,
 	ANTHROPIC_LEAD_SHEET_MAX_TOKENS
 } from '$lib/server/anthropic';
-import { claudeJsonToLeadSheet, extractionConsistencyScore } from '$lib/leadsheets/import/claude-pdf';
-import { barTilingIssues, isRestPitch } from '$lib/leadsheets/import/system-bar-validation';
+import { claudeJsonToTune, extractionConsistencyScore } from '$lib/tunes/import/claude-pdf';
+import { barTilingIssues, isRestPitch } from '$lib/tunes/import/system-bar-validation';
 
 /**
  * POST /api/lead-sheet-parse — extract a lead sheet (chords + melody) from an
@@ -20,7 +20,7 @@ import { barTilingIssues, isRestPitch } from '$lib/leadsheets/import/system-bar-
  * validation), with the monitoring route's manual byte-counting reader as
  * the REAL size gate — a PDF body can't trust the declared content-length.
  * The extraction result is strictly validated server-side
- * (claudeJsonToLeadSheet) and returned as a DRAFT for mandatory human
+ * (claudeJsonToTune) and returned as a DRAFT for mandatory human
  * review in the editor; this endpoint never writes to storage.
  */
 
@@ -301,7 +301,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	}
 
 	type Attempt =
-		| { ok: true; sheet: NonNullable<ReturnType<typeof claudeJsonToLeadSheet>['sheet']>; warnings: string[]; score: number }
+		| { ok: true; sheet: NonNullable<ReturnType<typeof claudeJsonToTune>['sheet']>; warnings: string[]; score: number }
 		| { ok: false; convErrors: string[] | null };
 
 	const runExtraction = async (model: string): Promise<Attempt> => {
@@ -351,7 +351,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 			return { ok: false, convErrors: null };
 		}
 
-		const { sheet, errors, warnings } = claudeJsonToLeadSheet(extracted);
+		const { sheet, errors, warnings } = claudeJsonToTune(extracted);
 		if (!sheet) {
 			console.warn('[lead-sheet-parse] conversion rejected:', errors.join('; '));
 			return { ok: false, convErrors: errors };

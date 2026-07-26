@@ -24,8 +24,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
-import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
+import { claudeJsonToTune } from '$lib/tunes/import/claude-pdf';
+import { writtenSheetToConcert } from '$lib/tunes/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
 
@@ -41,7 +41,7 @@ const PARSED = JSON.parse(readFileSync(fixture('fly-me-to-the-moon.parsed-sheet.
 
 describe('recorded Claude extraction converts cleanly', () => {
 	it('produces the committed route response (modulo the generated id)', () => {
-		const { sheet, errors, warnings } = claudeJsonToLeadSheet(RESPONSE);
+		const { sheet, errors, warnings } = claudeJsonToTune(RESPONSE);
 		expect(errors).toEqual([]);
 		expect(warnings).toEqual([]);
 		expect(sheet).not.toBeNull();
@@ -49,7 +49,7 @@ describe('recorded Claude extraction converts cleanly', () => {
 	});
 
 	it('reads the chart metadata as printed', () => {
-		const { sheet } = claudeJsonToLeadSheet(RESPONSE);
+		const { sheet } = claudeJsonToTune(RESPONSE);
 		expect(sheet!.title).toBe('Fly Me to the Moon');
 		expect(sheet!.composer).toBe('Bart Howard');
 		expect(sheet!.key).toBe('D'); // the chart is a written-pitch tenor part
@@ -61,7 +61,7 @@ describe('recorded Claude extraction converts cleanly', () => {
 	});
 
 	it('extracts every printed chord at its printed beat', () => {
-		const { sheet } = claudeJsonToLeadSheet(RESPONSE);
+		const { sheet } = claudeJsonToTune(RESPONSE);
 		const chords = (s: number) =>
 			sheet!.sections[s].harmony.map(
 				(h) => `${h.startOffset[0] / h.startOffset[1]}:${h.symbol}`
@@ -79,7 +79,7 @@ describe('recorded Claude extraction converts cleanly', () => {
 	});
 
 	it('reads the opening phrase exactly — the user-entered melody + 14 semitones', () => {
-		const { sheet } = claudeJsonToLeadSheet(RESPONSE);
+		const { sheet } = claudeJsonToTune(RESPONSE);
 		const extracted = sheet!.sections[0].notes.slice(0, 4);
 		const entered = ENTERED.sections[0].notes.slice(0, 4);
 		// "Fly me to the..." — same offsets, written a major ninth above the
@@ -101,7 +101,7 @@ describe('recorded Claude extraction converts cleanly', () => {
 		// user's instrument). This chart is a tenor part; declaring it Bb turns
 		// the printed D chart into the same concert-C sheet the user entered by
 		// hand.
-		const { sheet } = claudeJsonToLeadSheet(RESPONSE);
+		const { sheet } = claudeJsonToTune(RESPONSE);
 		const concert = writtenSheetToConcert(sheet!, 'Bb', INSTRUMENTS['tenor-sax']);
 
 		expect(concert.key).toBe('C');
@@ -122,7 +122,7 @@ describe('recorded Claude extraction converts cleanly', () => {
 	});
 
 	it('extracts a plausible full melody for human review', () => {
-		const { sheet } = claudeJsonToLeadSheet(RESPONSE);
+		const { sheet } = claudeJsonToTune(RESPONSE);
 		for (const sec of sheet!.sections) {
 			const pitched = sec.notes.filter((n) => n.pitch !== null);
 			// The entered ground truth has ~42 sounding notes per section

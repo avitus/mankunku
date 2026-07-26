@@ -7,19 +7,19 @@
 	import { saveLeadSheetPdf } from '$lib/persistence/lead-sheet-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
-	import { extractPdfSystems, type ExtractedSystem } from '$lib/leadsheets/import/pdf-system-extract';
+	import { extractPdfSystems, type ExtractedSystem } from '$lib/tunes/import/pdf-system-extract';
 	import {
 		assembleClaudeDoc,
 		importReviewNotes,
 		type ModelBar
-	} from '$lib/leadsheets/import/pdf-system-assemble';
+	} from '$lib/tunes/import/pdf-system-assemble';
 	import { setImportReview } from '$lib/state/lead-sheet-entry.svelte';
-	import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
+	import { claudeJsonToTune } from '$lib/tunes/import/claude-pdf';
 	import {
 		defaultSourceTransposition,
 		writtenSheetToConcert,
 		type SourceTransposition
-	} from '$lib/leadsheets/source-transposition';
+	} from '$lib/tunes/source-transposition';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 	const user = $derived(page.data?.user ?? null);
@@ -164,7 +164,7 @@
 				timeSignature: meter
 			}
 		);
-		const converted = claudeJsonToLeadSheet(doc);
+		const converted = claudeJsonToTune(doc);
 		if (!converted.sheet) return null;
 		converted.sheet.id = generateSheetId();
 		return {

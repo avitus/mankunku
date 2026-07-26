@@ -3,8 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { onDestroy } from 'svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
-	import { getLeadSheetById, isCuratedLeadSheetId, transposeLeadSheet } from '$lib/leadsheets/library-loader';
-	import { leadSheetToPhrase } from '$lib/leadsheets/to-phrase';
+	import { getTuneById, isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
+	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { getUserLeadSheetsLocal, deleteUserLeadSheet } from '$lib/persistence/user-lead-sheets';
 	import {
 		getLeadSheetAdoptionsLocal,
@@ -22,9 +22,9 @@
 
 	const baseSheet = $derived.by(() => {
 		void cacheVersion;
-		return getLeadSheetById(page.params.id ?? '');
+		return getTuneById(page.params.id ?? '');
 	});
-	const isCurated = $derived(baseSheet ? isCuratedLeadSheetId(baseSheet.id) : false);
+	const isCurated = $derived(baseSheet ? isCuratedTuneId(baseSheet.id) : false);
 	const isAdopted = $derived.by(() => {
 		void cacheVersion;
 		return baseSheet ? getLeadSheetAdoptionsLocal().has(baseSheet.id) : false;
@@ -41,7 +41,7 @@
 	/**
 	 * Key selector state is in WRITTEN pitch (what the user sees on their
 	 * instrument's sheet music), converted to concert at the
-	 * `transposeLeadSheet()` boundary.
+	 * `transposeTune()` boundary.
 	 */
 	let selectedWrittenKey: PitchClass | null = $state(null);
 
@@ -56,7 +56,7 @@
 
 	const sheet = $derived(
 		baseSheet
-			? transposeLeadSheet(baseSheet, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote())
+			? transposeTune(baseSheet, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote())
 			: undefined
 	);
 
@@ -78,7 +78,7 @@
 		await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 		isPlaying = true;
 		try {
-			await playbackModule.playPhrase(leadSheetToPhrase(sheet, { expandRepeats: true }), {
+			await playbackModule.playPhrase(tuneToPhrase(sheet, { expandRepeats: true }), {
 				tempo: settings.defaultTempo,
 				swing: settings.swing,
 				countInBeats: 0,

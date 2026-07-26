@@ -400,10 +400,10 @@ describe('initLeadSheetCommunityFromCloud', () => {
 	});
 });
 
-// ─── shape guard for the library-loader dependency ───────────────────
+// ─── shape guard for the book-loader dependency ───────────────────
 
 describe('getAdoptedLeadSheetsLocal', () => {
-	it('returns Tune objects usable by the library loader', async () => {
+	it('returns Tune objects usable by the book loader', async () => {
 		const sb = makeSupabaseMock({ user: ME, singleRows: { lead_sheets: makeSheetRow() } });
 		await adoptLeadSheet(sb as never, 'sheet-9-wxyz');
 		const sheets: Tune[] = getAdoptedLeadSheetsLocal();

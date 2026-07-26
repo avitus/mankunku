@@ -29,10 +29,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMuseScoreFile } from '$lib/leadsheets/import/musescore';
-import { parseBiabFile } from '$lib/leadsheets/import/biab';
-import { claudeJsonToLeadSheet } from '$lib/leadsheets/import/claude-pdf';
-import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
+import { parseMuseScoreFile } from '$lib/tunes/import/musescore';
+import { parseBiabFile } from '$lib/tunes/import/biab';
+import { claudeJsonToTune } from '$lib/tunes/import/claude-pdf';
+import { writtenSheetToConcert } from '$lib/tunes/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import type { Tune } from '$lib/types/tune';
@@ -143,7 +143,7 @@ describe('PDF extraction (Bb source) vs the dev data layer', () => {
 		readFileSync(fixture('fly-me-to-the-moon.claude-response.json'), 'utf8')
 	);
 	const sheet = writtenSheetToConcert(
-		claudeJsonToLeadSheet(RESPONSE).sheet!,
+		claudeJsonToTune(RESPONSE).sheet!,
 		'Bb',
 		INSTRUMENTS['tenor-sax']
 	);

@@ -57,7 +57,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
+import { writtenSheetToConcert } from '$lib/tunes/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import type { Tune } from '$lib/types/tune';

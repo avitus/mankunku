@@ -19,7 +19,7 @@ import type { Tune } from '$lib/types/tune';
 import { save, load } from './storage';
 import { getScopeGeneration } from './user-scope';
 import { cloudRowToLeadSheet } from './user-lead-sheets';
-import { validateAdoptedLeadSheet } from '$lib/leadsheets/adopted-lead-sheet-validator';
+import { validateAdoptedTune } from '$lib/tunes/adopted-tune-validator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 
@@ -298,7 +298,7 @@ export async function adoptLeadSheet(
 		console.warn('Adopted lead sheet but failed to fetch payload:', fetchError);
 	} else {
 		const sheet = stripForeignAssets(cloudRowToLeadSheet(row));
-		const validation = validateAdoptedLeadSheet(sheet);
+		const validation = validateAdoptedTune(sheet);
 		if (!validation.valid) {
 			console.warn(`Adopted lead sheet ${sheetId} failed validation; not caching payload:`, validation.errors);
 		} else {
@@ -446,7 +446,7 @@ export async function initLeadSheetCommunityFromCloud(
 		const validated: Tune[] = [];
 		for (const row of sheetRows ?? []) {
 			const sheet = stripForeignAssets(cloudRowToLeadSheet(row));
-			const validation = validateAdoptedLeadSheet(sheet);
+			const validation = validateAdoptedTune(sheet);
 			if (validation.valid) {
 				validatedRows.push(row);
 				validated.push(sheet);

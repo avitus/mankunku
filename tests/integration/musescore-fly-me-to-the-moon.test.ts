@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMuseScoreFile } from '$lib/leadsheets/import/musescore';
+import { parseMuseScoreFile } from '$lib/tunes/import/musescore';
 import type { Tune } from '$lib/types/tune';
 
 const fixture = (name: string): string =>

@@ -29,15 +29,15 @@ import {
 import { transposePitchClass } from '$lib/music/transposition';
 import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from '$lib/music/chord-symbol';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
-import { harmonicSegmentFromChordSymbol } from '$lib/leadsheets/segment-from-symbol';
+import { harmonicSegmentFromChordSymbol } from '$lib/tunes/segment-from-symbol';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 import { stepEntry, reset as resetStepEntry } from '$lib/state/step-entry.svelte';
-import { transposeLeadSheet } from '$lib/leadsheets/library-loader';
+import { transposeTune } from '$lib/tunes/book-loader';
 import {
 	defaultSourceTransposition,
 	sourceTranspositionSemitones,
 	type SourceTransposition
-} from '$lib/leadsheets/source-transposition';
+} from '$lib/tunes/source-transposition';
 
 /** Bars per editing page — matches step-entry's maximum bar capacity. */
 export const PAGE_BARS = 4;
@@ -521,7 +521,7 @@ export function setSheetWrittenKey(newKey: PitchClass, moveNotes: boolean): void
 			sections: leadSheetEntry.sections,
 			source: 'user'
 		};
-		const transposed = transposeLeadSheet(
+		const transposed = transposeTune(
 			carrier,
 			newConcert,
 			instrument.concertRangeLow,

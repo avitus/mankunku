@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseBiabFile } from '$lib/leadsheets/import/biab';
+import { parseBiabFile } from '$lib/tunes/import/biab';
 
 const FIXTURE = fileURLToPath(
 	new URL('../fixtures/leadsheets/fly-me-to-the-moon.sgu', import.meta.url)

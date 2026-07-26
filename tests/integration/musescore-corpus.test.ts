@@ -13,8 +13,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMuseScoreFile } from '$lib/leadsheets/import/musescore';
-import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
+import { parseMuseScoreFile } from '$lib/tunes/import/musescore';
+import { writtenSheetToConcert } from '$lib/tunes/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
 import { CORPUS, CORPUS_INSTRUMENT } from '../helpers/leadsheet-corpus';

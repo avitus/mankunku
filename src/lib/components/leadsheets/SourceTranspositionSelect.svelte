@@ -2,7 +2,7 @@
 	import {
 		SOURCE_TRANSPOSITIONS,
 		type SourceTransposition
-	} from '$lib/leadsheets/source-transposition';
+	} from '$lib/tunes/source-transposition';
 
 	interface Props {
 		value: SourceTransposition;

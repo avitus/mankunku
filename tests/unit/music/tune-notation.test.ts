@@ -1,0 +1,563 @@
+import { describe, it, expect } from 'vitest';
+import type { Tune, TuneSection } from '$lib/types/tune';
+import type { HarmonicSegment, Note } from '$lib/types/music';
+import { INSTRUMENTS } from '$lib/types/instruments';
+import { tuneToAbc, tuneToAbcWithMap } from '$lib/music/tune-notation';
+
+const TENOR = INSTRUMENTS['tenor-sax'];
+
+function seg(
+	root: HarmonicSegment['chord']['root'],
+	quality: HarmonicSegment['chord']['quality'],
+	startOffset: [number, number],
+	duration: [number, number],
+	symbol?: string
+): HarmonicSegment {
+	const s: HarmonicSegment = { chord: { root, quality }, scaleId: 'major.ionian', startOffset, duration };
+	if (symbol) s.symbol = symbol;
+	return s;
+}
+
+function section(overrides: Partial<TuneSection>): TuneSection {
+	return { label: 'A', bars: 4, notes: [], harmony: [], ...overrides };
+}
+
+function sheet(overrides: Partial<Tune>): Tune {
+	return {
+		id: 'ls-test',
+		title: 'Test Tune',
+		key: 'C',
+		timeSignature: [4, 4],
+		tags: [],
+		sections: [],
+		source: 'user',
+		...overrides
+	};
+}
+
+/** 2-bar sheet: whole-note C4 over Dm7→G7, then half-note D4 over Cmaj7 + rest. */
+function simpleSheet(): Tune {
+	const notes: Note[] = [
+		{ pitch: 60, duration: [1, 1], offset: [0, 1] },
+		{ pitch: 62, duration: [1, 2], offset: [1, 1] }
+	];
+	return sheet({
+		sections: [
+			section({
+				bars: 2,
+				notes,
+				harmony: [
+					seg('D', 'min7', [0, 1], [1, 2]),
+					seg('G', '7', [1, 2], [1, 2]),
+					seg('C', 'maj7', [1, 1], [1, 1])
+				]
+			})
+		]
+	});
+}
+
+describe('tuneToAbc — headers', () => {
+	it('emits X/T/M/L/K headers with the concert key when no instrument is given', () => {
+		const abc = tuneToAbc(simpleSheet());
+		expect(abc).toContain('X:1');
+		expect(abc).toContain('T:Test Tune');
+		expect(abc).toContain('M:4/4');
+		expect(abc).toContain('L:1/8');
+		expect(abc).toMatch(/^K:C$/m);
+	});
+
+	it('emits a composer line when present', () => {
+		const abc = tuneToAbc({ ...simpleSheet(), composer: 'Trad.' });
+		expect(abc).toMatch(/^C:Trad\.$/m);
+	});
+
+	it('transposes the key signature for a transposing instrument', () => {
+		const abc = tuneToAbc(simpleSheet(), TENOR);
+		expect(abc).toMatch(/^K:D$/m);
+	});
+});
+
+describe('tuneToAbc — chord symbols over the melody', () => {
+	it('keeps held notes whole — chords sit at their beats in the chord voice', () => {
+		const abc = tuneToAbc(simpleSheet());
+		// The whole note engraves as a whole note; both chords position over
+		// it from the invisible chord voice at beats 1 and 3, never stacked.
+		expect(abc).toContain('C8');
+		expect(abc).not.toContain('C4-');
+		expect(abc).toContain('"D-7"x4 "G7"x4');
+		expect(abc).not.toContain('"D-7""G7"');
+	});
+
+	it('positions a lone mid-bar chord over an untouched tied note', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [
+				section({
+					bars: 2,
+					notes: [
+						{ pitch: 60, duration: [1, 1], offset: [0, 1], tied: true },
+						{ pitch: 60, duration: [1, 1], offset: [1, 1] }
+					],
+					harmony: [seg('G', '7', [1, 2], [3, 2])]
+				})
+			]
+		}));
+		expect(abc).toContain('C8-');
+		expect(abc).toContain('x4 "G7"x4');
+	});
+
+	it('fills melody gaps with rests and closes with a final barline', () => {
+		const abc = tuneToAbc(simpleSheet());
+		// Second half of bar 2 has no melody → half-bar rest (in the chord
+		// voice, which owns visible rests); the melody line closes with |].
+		expect(abc).toContain('z4');
+		expect(abc).toContain(' |]');
+	});
+
+	it('transposes chord roots to written pitch for a transposing instrument', () => {
+		const abc = tuneToAbc(simpleSheet(), TENOR);
+		expect(abc).toContain('d8');
+		expect(abc).toContain('"E-7"x4 "A7"x4');
+		expect(abc).toContain('"DΔ7"');
+	});
+
+	it('places two chords in a bar side by side on their own beat-aligned rests', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [
+				section({
+					bars: 2,
+					harmony: [
+						seg('D', 'min7', [0, 1], [1, 2]),
+						seg('G', '7', [1, 2], [1, 2]),
+						seg('C', 'maj7', [1, 1], [1, 1])
+					]
+				})
+			]
+		}));
+		// Half-bar rests, each carrying its own chord — never stacked on one
+		// whole-bar rest.
+		expect(abc).toContain('"D-7"z4 "G7"z4');
+		expect(abc).not.toContain('"D-7""G7"');
+		expect(abc).toContain('"CΔ7"z8');
+	});
+
+	it('keeps a beat-3-only chord aligned to beat 3', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [
+				section({ bars: 1, harmony: [seg('G', '7', [1, 2], [1, 2])] })
+			]
+		}));
+		// First half of the bar is a bare rest; the chord opens the second half.
+		expect(abc).toContain('z4 "G7"z4');
+	});
+
+	it('annotates only the first bar of a multi-bar chord', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [
+				section({
+					bars: 3,
+					harmony: [
+						seg('F', 'maj7', [0, 1], [2, 1]),
+						seg('G', '7', [2, 1], [1, 1])
+					]
+				})
+			]
+		}));
+		expect(abc).toContain('"FΔ7"z8 | z8 | "G7"z8');
+	});
+
+	it('emits the partsbox directive so section labels render boxed', () => {
+		const abc = tuneToAbc(simpleSheet());
+		expect(abc).toMatch(/^%%partsbox 1$/m);
+	});
+
+	it('renders whole-bar rests with chords for harmony-only sections', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [
+				section({
+					bars: 2,
+					harmony: [seg('F', 'maj7', [0, 1], [1, 1]), seg('Bb', '7', [1, 1], [1, 1])]
+				})
+			]
+		}));
+		expect(abc).toContain('"FΔ7"z8');
+		expect(abc).toContain('"Bb7"z8');
+	});
+
+	it('canonicalizes parseable raw symbols to the compact display forms', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C^7')] })]
+		}));
+		expect(abc).toContain('"CΔ7"');
+	});
+
+	it('keeps an unparseable raw symbol verbatim when not transposing', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C(mystery)')] })]
+		}));
+		expect(abc).toContain('"C(mystery)"');
+	});
+
+	it('re-parses and transposes the raw symbol for a transposing instrument', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C^7')] })]
+		}), TENOR);
+		expect(abc).toContain('"DΔ7"');
+	});
+
+	it('falls back to the structured chord when the raw symbol is unparseable', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C(mystery)')] })]
+		}), TENOR);
+		expect(abc).toContain('"DΔ7"');
+	});
+
+	it('respells F# chord roots as Gb in flat key contexts', () => {
+		const abc = tuneToAbc(sheet({
+			key: 'F',
+			sections: [section({ bars: 1, harmony: [seg('F#', '7', [0, 1], [1, 1])] })]
+		}));
+		expect(abc).toContain('"Gb7"');
+	});
+});
+
+describe('tuneToAbc — sections, repeats, endings', () => {
+	function formSheet(): Tune {
+		return sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+				section({ label: 'B', bars: 2, harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })
+			]
+		});
+	}
+
+	it('emits part labels when the section label changes', () => {
+		const abc = tuneToAbc(formSheet());
+		expect(abc).toMatch(/^P:A$/m);
+		expect(abc).toMatch(/^P:B$/m);
+		// Three consecutive A-labeled sections produce a single P:A.
+		expect(abc.match(/^P:A$/gm)).toHaveLength(1);
+	});
+
+	it('opens a repeat at a repeatStart section', () => {
+		const abc = tuneToAbc(formSheet());
+		expect(abc).toMatch(/P:A\n\[V:M\]\|:/);
+	});
+
+	it('flows the first ending inline and stacks the second beneath it', () => {
+		const abc = tuneToAbc(formSheet());
+		// [1 continues the body's line (no newline before it)…
+		expect(abc).toMatch(/\| \[1/);
+		// …and [2 starts a fresh system padded with invisible bars so its
+		// bracket sits directly below [1 (body is 2 bars → 2 bars of padding)
+		// — in BOTH voices, so the alignment holds.
+		expect(abc).toMatch(/\[V:M\]x16 \[2/);
+		expect(abc).toMatch(/\[V:H\]x16 /);
+	});
+
+	it('needs no padding when the endings start at the left margin', () => {
+		const abc = tuneToAbc(sheet({
+			sections: [
+				section({ label: 'A', bars: 4, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [4, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+				section({ label: 'B', bars: 1, harmony: [seg('F', 'maj7', [0, 1], [1, 1])] })
+			]
+		}));
+		// A 4-bar body fills its line, so [1 opens the next system at column 0
+		// and [2 aligns beneath it with no invisible padding after the voice
+		// marker.
+		expect(abc).toMatch(/\[V:M\]\[1/);
+		expect(abc).toMatch(/\[V:M\]\[2/);
+	});
+
+	it('separates plain sections with a double bar and ends with a final bar', () => {
+		const abc = tuneToAbc(formSheet());
+		expect(abc).toMatch(/\|\|\n\[V:H\]/);
+		expect(abc).toMatch(/P:B\n\[V:M\]/);
+		// The melody line closes with the final barline; the chord voice's
+		// system line follows it.
+		expect(abc).toContain(' |]');
+	});
+});
+
+describe('tuneToAbc — multi-system reflow', () => {
+	it('breaks the body onto a new line every four bars', () => {
+		const notes: Note[] = Array.from({ length: 8 }, (_, bar) => ({
+			pitch: 60,
+			duration: [1, 1] as [number, number],
+			offset: [bar, 1] as [number, number]
+		}));
+		const abc = tuneToAbc(sheet({ sections: [section({ bars: 8, notes })] }));
+		const bodyLines = abc.split('\n').filter((l) => l.includes('C8'));
+		expect(bodyLines).toHaveLength(2);
+	});
+});
+
+describe('tuneToAbcWithMap — click anchors', () => {
+	it('anchors each pitched note, including its chord prefix, at exact char offsets', () => {
+		const { abc, noteAnchors } = tuneToAbcWithMap(simpleSheet());
+		// Chords live in the chord voice now — melody tokens carry no prefixes.
+		expect(noteAnchors).toHaveLength(2);
+		expect(abc.slice(noteAnchors[0].startChar, noteAnchors[0].endChar)).toBe('C8');
+		expect(abc.slice(noteAnchors[1].startChar, noteAnchors[1].endChar)).toBe('D4');
+		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 1]);
+	});
+
+	it('keeps anchors exact across line breaks', () => {
+		const notes: Note[] = Array.from({ length: 8 }, (_, bar) => ({
+			pitch: 60 + (bar % 3),
+			duration: [1, 1] as [number, number],
+			offset: [bar, 1] as [number, number]
+		}));
+		const { abc, noteAnchors } = tuneToAbcWithMap(sheet({ sections: [section({ bars: 8, notes })] }));
+		expect(noteAnchors).toHaveLength(8);
+		for (const anchor of noteAnchors) {
+			const token = abc.slice(anchor.startChar, anchor.endChar);
+			expect(token).toMatch(/^[CD_^=]*\d*.*8$/);
+		}
+		// The fifth note starts the second system; its anchor must still resolve.
+		expect(abc.slice(noteAnchors[4].startChar, noteAnchors[4].endChar)).toMatch(/8$/);
+	});
+
+	it('indexes anchors into the flattened note array across sections', () => {
+		const { noteAnchors } = tuneToAbcWithMap(sheet({
+			sections: [
+				section({ bars: 1, notes: [{ pitch: 60, duration: [1, 1], offset: [0, 1] }] }),
+				section({ label: 'B', bars: 1, notes: [{ pitch: 64, duration: [1, 1], offset: [0, 1] }] })
+			]
+		}));
+		expect(noteAnchors.map((a) => a.sourceIndex)).toEqual([0, 1]);
+	});
+});
+
+describe('tuneToAbc — chord-aware enharmonic spelling', () => {
+	it('spells notes diatonically to the governing chord, not the key signature', () => {
+		// Key Bb (a flat key): the old key-signature default spelled pc 1 as
+		// Db and pc 6 as Gb — but over A7 that note is the major third C#,
+		// and over Dmaj7 it is the major third F#.
+		const s = sheet({
+			key: 'Bb',
+			sections: [
+				section({
+					bars: 2,
+					notes: [
+						{ pitch: 61, duration: [1, 1], offset: [0, 1] },
+						{ pitch: 66, duration: [1, 1], offset: [1, 1] }
+					],
+					harmony: [
+						seg('A', '7', [0, 1], [1, 1]),
+						seg('D', 'maj7', [1, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const { abc } = tuneToAbcWithMap(s);
+		expect(abc).toContain('^C');
+		expect(abc).toContain('^F');
+		expect(abc).not.toContain('_D');
+		expect(abc).not.toContain('_G');
+	});
+
+	it('an explicit user spelling still overrides the chord preference', () => {
+		const s = sheet({
+			key: 'Bb',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 61, duration: [1, 1], offset: [0, 1], spelling: 'flat' }],
+					harmony: [seg('A', '7', [0, 1], [1, 1])]
+				})
+			]
+		});
+		const { abc } = tuneToAbcWithMap(s);
+		expect(abc).toContain('_D');
+	});
+
+	it('falls back to the key signature when no chord governs the note', () => {
+		const s = sheet({
+			key: 'Bb',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 61, duration: [1, 1], offset: [0, 1] }],
+					harmony: []
+				})
+			]
+		});
+		const { abc } = tuneToAbcWithMap(s);
+		expect(abc).toContain('_D'); // flat key default
+	});
+
+	it('judges the chord in WRITTEN pitch for transposing instruments', () => {
+		// Concert Ab on a tenor displays in written Bb — a flat key whose
+		// default would spell written C#5 as Db. Concert G7 shows as A7, and
+		// concert B (59) is its written third C#5 — spelled sharp.
+		const s = sheet({
+			key: 'Ab',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 59, duration: [1, 1], offset: [0, 1] }],
+					harmony: [seg('G', '7', [0, 1], [1, 1])]
+				})
+			]
+		});
+		const { abc } = tuneToAbcWithMap(s, TENOR);
+		expect(abc).toContain('"A7"');
+		expect(abc).toContain('^c');
+		expect(abc).not.toContain('_d');
+	});
+
+	it('spells minor-family thirds flat and dominant colors by their alteration', () => {
+		const s = sheet({
+			key: 'C',
+			sections: [
+				section({
+					bars: 3,
+					notes: [
+						{ pitch: 63, duration: [1, 1], offset: [0, 1] }, // b3 of C-7 → Eb
+						{ pitch: 63, duration: [1, 1], offset: [1, 1] }, // #9 of C7#9 → D#
+						{ pitch: 68, duration: [1, 1], offset: [2, 1] } // b13 of G7b13 → Ab (over G: pc 8)
+					],
+					harmony: [
+						seg('C', 'min7', [0, 1], [1, 1]),
+						seg('C', '7#9', [1, 1], [1, 1]),
+						seg('G', '7b13', [2, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const { abc } = tuneToAbcWithMap(s);
+		const body = abc.split('K:C')[1];
+		expect(body).toContain('_E'); // Eb over C-7
+		expect(body).toContain('^D'); // D# over C7#9
+		expect(body).toContain('_A'); // Ab over G7b13
+	});
+});
+
+describe('tuneToAbc — unlabeled sections', () => {
+	it('emits no part marker for a blank-labeled section (e.g. a pickup bar)', () => {
+		const s = sheet({
+			sections: [
+				section({ label: '', bars: 1, notes: [{ pitch: 55, duration: [1, 4], offset: [3, 4] }] }),
+				section({ label: 'A', bars: 2, notes: [{ pitch: 60, duration: [1, 1], offset: [0, 1] }] })
+			]
+		});
+		const { abc } = tuneToAbcWithMap(s);
+		expect(abc).not.toContain('P:\n');
+		expect(abc).toContain('P:A');
+	});
+});
+
+describe('tuneToAbc — sharp-key chord respelling', () => {
+	it('spells diatonic flat-named roots as the sharp key spells them', () => {
+		// Key A (3 sharps): the canonical Ab/Db roots are the diatonic G#/C#.
+		const abc = tuneToAbc(sheet({
+			key: 'A',
+			sections: [
+				section({
+					bars: 3,
+					harmony: [
+						seg('Ab', 'min7b5', [0, 1], [1, 1]),
+						seg('Db', '7b9', [1, 1], [1, 1]),
+						seg('Bb', '7', [2, 1], [1, 1]) // chromatic — keeps its flat name
+					]
+				})
+			]
+		}));
+		expect(abc).toContain('"G#-7b5"');
+		expect(abc).toContain('"C#7b9"');
+		expect(abc).toContain('"Bb7"');
+	});
+
+	it('spells notes against the respelled chord root', () => {
+		// C# over C#7b9 in key A: the root, covered by the key signature —
+		// never an explicit Db.
+		const abc = tuneToAbc(sheet({
+			key: 'A',
+			sections: [
+				section({
+					bars: 1,
+					notes: [{ pitch: 61, duration: [1, 1], offset: [0, 1] }],
+					harmony: [seg('Db', '7b9', [0, 1], [1, 1])]
+				})
+			]
+		}));
+		expect(abc).toContain('"C#7b9"');
+		expect(abc).toMatch(/\[V:M\]C8/);
+		expect(abc).not.toContain('_D');
+	});
+
+	it('leaves flat-key contexts untouched', () => {
+		const abc = tuneToAbc(sheet({
+			key: 'Bb',
+			sections: [
+				section({ bars: 1, harmony: [seg('Ab', '7', [0, 1], [1, 1])] })
+			]
+		}));
+		expect(abc).toContain('"Ab7"');
+	});
+});
+
+describe('glissando rendering', () => {
+	it('flags the source note anchor; the wavy connector is drawn over the SVG', () => {
+		const { abc, noteAnchors } = tuneToAbcWithMap(
+			sheet({
+				sections: [
+					section({
+						bars: 1,
+						notes: [
+							{ pitch: 69, duration: [1, 2], offset: [0, 1], gliss: true },
+							{ pitch: 72, duration: [1, 2], offset: [1, 2] }
+						]
+					})
+				]
+			})
+		);
+		// No ABC decoration — abcjs's !slide! renders a scoop, not a
+		// MuseScore-style glissando; NotationDisplay draws the wavy line.
+		expect(abc).not.toContain('!slide!');
+		expect(noteAnchors[0].gliss).toBe(true);
+		expect(noteAnchors[1].gliss).toBeUndefined();
+	});
+});
+
+describe('in-signature spelling priority', () => {
+	it('prefers the enharmonic that is IN the key signature over the chord preference', () => {
+		// Lady Bird bar 8: C#5 over F7 in D major. The chord preference
+		// says Db (the b13), but C# is in the signature — no accidental.
+		const abc = tuneToAbc(
+			sheet({
+				key: 'D',
+				sections: [
+					section({
+						bars: 1,
+						harmony: [seg('F', '7', [0, 1], [1, 1], 'F7')],
+						notes: [{ pitch: 73, duration: [1, 1], offset: [0, 1] }]
+					})
+				]
+			})
+		);
+		expect(abc).not.toContain('_d');
+		expect(abc).toMatch(/[^_^]c8/);
+	});
+
+	it('keeps the chord preference when neither spelling is in the signature', () => {
+		// The original request: C# over A7 in F major (Db not in F's sig).
+		const abc = tuneToAbc(
+			sheet({
+				key: 'F',
+				sections: [
+					section({
+						bars: 1,
+						harmony: [seg('A', '7', [0, 1], [1, 1], 'A7')],
+						notes: [{ pitch: 73, duration: [1, 1], offset: [0, 1] }]
+					})
+				]
+			})
+		);
+		expect(abc).toContain('^c');
+	});
+});
