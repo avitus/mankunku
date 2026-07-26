@@ -220,6 +220,31 @@ if [[ -d "$STAGE_IMMUTABLE" ]]; then
         RETAIN="${POOL_RETENTION_DAYS:-30}"
         find "$SHARED_IMMUTABLE" -type f -mtime "+${RETAIN}" -delete 2>/dev/null || true
         find "$SHARED_IMMUTABLE" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+
+        # Hydrate the staged release from the pool: hardlink every pooled
+        # chunk this build doesn't ship into the release's own client dir, so
+        # the NODE SERVER itself serves prior releases' chunks. Serving was
+        # designed to come from nginx's /_app/immutable/ alias onto the pool
+        # (nginx/mankunku.conf), but that block never went live on the box —
+        # verified 2026-07-25 when a 10-day-old chunk URL 404'd in production
+        # while this pool held 555MB of chunks nothing was serving. Node-side
+        # serving lives entirely in this script, so it cannot rot on the box;
+        # if the nginx alias ever lands it simply answers first for the same
+        # bytes. Hardlinks add no disk cost and keep serving even after pool
+        # eviction (the inode survives until its last link goes). Runs AFTER
+        # eviction so beyond-retention chunks are not resurrected, and inside
+        # the pool lock so a concurrent deploy's eviction can't race the link
+        # loop. `ln` falls back to `cp` for cross-filesystem layouts.
+        echo "==> Hydrating staged release from shared pool"
+        ( cd "$SHARED_IMMUTABLE" && find . -type f -print0 ) \
+            | while IFS= read -r -d '' rel; do
+                  dest="${STAGE_IMMUTABLE}/${rel}"
+                  if [[ ! -e "$dest" ]]; then
+                      mkdir -p "$(dirname "$dest")"
+                      ln "${SHARED_IMMUTABLE}/${rel}" "$dest" 2>/dev/null \
+                          || cp "${SHARED_IMMUTABLE}/${rel}" "$dest"
+                  fi
+              done
     )
 else
     echo "==> No _app/immutable in staged build; skipping shared pool merge"
