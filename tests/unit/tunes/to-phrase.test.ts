@@ -37,7 +37,7 @@ describe('tuneToPhrase', () => {
 		expect(phrase.notes).toHaveLength(1);
 		expect(phrase.harmony).toHaveLength(1);
 		expect(phrase.difficulty.lengthBars).toBe(2);
-		expect(phrase.source).toBe('lead-sheet');
+		expect(phrase.source).toBe('tune');
 	});
 
 	it('expands repeats for playback when asked', () => {

@@ -1,9 +1,9 @@
 import type { DifficultyMetadata, HarmonicSegment, Note, PitchClass } from './music';
 
 /**
- * Lead-sheet data model.
+ * Tune data model.
  *
- * A lead sheet is a full song form — melody plus complete harmony — organized
+ * A tune is a full song form — melody plus complete harmony — organized
  * into labeled sections (A, B, Intro, …) with repeat and ending markers.
  * Sections keep their own `notes`/`harmony` with SECTION-LOCAL offsets
  * (whole-note units, starting at [0,1]); `flattenTune` in
@@ -53,7 +53,7 @@ export interface Tune {
 	source: TuneSource;
 	difficulty?: DifficultyMetadata;
 	/**
-	 * Storage path of the original imported PDF in the `lead-sheets` bucket
+	 * Storage path of the original imported PDF in the `tunes` bucket
 	 * (`{uid}/{id}.pdf`), when this sheet came from a PDF import. Round-trips
 	 * through the cloud row so reconcile never clobbers it.
 	 */

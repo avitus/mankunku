@@ -3,7 +3,7 @@ import type { Tune } from '$lib/types/tune';
 import { flattenTune, type FlattenOptions } from './flatten';
 
 /**
- * Bridge a lead sheet into the app's `Phrase` shape so the existing playback
+ * Bridge a tune into the app's `Phrase` shape so the existing playback
  * and backing-track engines can consume it without new orchestration.
  * Pass `{ expandRepeats: true }` for playback order (repeats written out);
  * omit for notation order.
@@ -23,6 +23,6 @@ export function tuneToPhrase(sheet: Tune, options: FlattenOptions = {}): Phrase 
 		difficulty,
 		category: 'user',
 		tags: sheet.tags,
-		source: 'lead-sheet'
+		source: 'tune'
 	};
 }

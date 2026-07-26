@@ -25,12 +25,12 @@ import {
 } from './notation';
 
 /**
- * ABC generation for lead sheets — full song forms with chord symbols,
+ * ABC generation for tunes — full song forms with chord symbols,
  * section labels, repeats/endings, and multi-system reflow.
  *
  * Reuses notation.ts's low-level primitives (bar-persistent accidental state,
  * duration mapping, rest merging, beam grouping) but owns its orchestration:
- * unlike a lick, a lead sheet is bar-structured (every bar renders, melody or
+ * unlike a lick, a tune is bar-structured (every bar renders, melody or
  * not), sections decorate barlines, and the body spans multiple lines. The
  * melody-only `phraseToAbc` path is untouched.
  */
@@ -95,7 +95,7 @@ function respellFormat(cs: ChordSymbol, keyContext: PitchClass): string {
 }
 
 /**
- * Generate ABC for a lead sheet, with anchors mapping each pitched-note token
+ * Generate ABC for a tune, with anchors mapping each pitched-note token
  * (including its quoted chord prefix) back to its index in the flattened
  * note array (`flattenTune(sheet).notes` order).
  */
@@ -466,7 +466,7 @@ export function tuneToAbcWithMap(
 	return { abc: headerStr + '\n' + tokens.join(''), noteAnchors };
 }
 
-/** Generate an ABC string from a lead sheet, discarding the click-anchor map. */
+/** Generate an ABC string from a tune, discarding the click-anchor map. */
 export function tuneToAbc(
 	sheet: Tune,
 	instrument?: InstrumentConfig,

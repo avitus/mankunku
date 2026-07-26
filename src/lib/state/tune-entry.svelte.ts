@@ -1,8 +1,8 @@
 /**
- * Lead-sheet entry state — long-form manual entry built on top of the
+ * Tune entry state — long-form manual entry built on top of the
  * step-entry melody buffer.
  *
- * The model: a lead sheet is a list of sections; melody editing happens
+ * The model: a tune is a list of sections; melody editing happens
  * through the EXISTING `stepEntry` rune one PAGE at a time (a ≤4-bar window,
  * matching step-entry's capacity model), so `PitchEntryPanel`,
  * `DurationSelector`, and all keyboard entry work unmodified. The section

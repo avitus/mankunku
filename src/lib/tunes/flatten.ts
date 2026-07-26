@@ -3,9 +3,9 @@ import type { Tune, TuneSection } from '$lib/types/tune';
 import { addFractions, multiplyFraction } from '$lib/music/intervals';
 
 /**
- * Flattening a lead sheet's section list into one continuous melody + harmony
+ * Flattening a tune's section list into one continuous melody + harmony
  * timeline, so the notation renderer and backing-track engine can consume a
- * lead sheet exactly like a Phrase — no new orchestration.
+ * tune exactly like a Phrase — no new orchestration.
  */
 
 export interface FlattenedTune {
@@ -71,7 +71,7 @@ function expandSections(sections: TuneSection[]): TuneSection[] {
 }
 
 /**
- * Flatten a lead sheet's sections into a single continuous `notes[]` +
+ * Flatten a tune's sections into a single continuous `notes[]` +
  * `harmony[]`, shifting each section's local offsets by the cumulative bar
  * count before it (in whole-note units).
  */

@@ -7,7 +7,7 @@ import type { Tune } from '$lib/types/tune';
 /**
  * Source transposition — what pitch a chart being ADDED is written in.
  *
- * Lead sheets store concert pitch, but the chart in front of the user may be
+ * Tunes store concert pitch, but the chart in front of the user may be
  * a written-pitch part: a Bb book page, a tenor part, an Eb alto edition.
  * Every add method (manual entry + all importers) lets the user say which,
  * and the sheet is shifted to concert before it is stored.

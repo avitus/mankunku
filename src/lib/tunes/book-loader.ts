@@ -1,5 +1,5 @@
 /**
- * Lead-sheet library loader — merges the curated catalog with user-created
+ * Tune book loader — merges the curated catalog with user-created
  * and community-adopted sheets, mirroring `phrases/library-loader.ts`.
  *
  * Sheets are stored in their own concert key; `transposeTune` shifts to
@@ -23,7 +23,7 @@ for (const sheet of ALL_CURATED_TUNES) {
 }
 
 /**
- * All lead sheets: curated + user + adopted-community, deduped by id with the
+ * All tunes: curated + user + adopted-community, deduped by id with the
  * earlier source winning (curated > user > adopted).
  */
 export function getAllTunes(): Tune[] {
@@ -47,7 +47,7 @@ export function isCuratedTuneId(id: string): boolean {
 	return curatedById.has(id);
 }
 
-/** Get a single lead sheet by id (curated, user, or adopted). */
+/** Get a single tune by id (curated, user, or adopted). */
 export function getTuneById(id: string): Tune | undefined {
 	return (
 		curatedById.get(id) ??
@@ -61,7 +61,7 @@ const FALLBACK_RANGE_LOW = 60;
 const FALLBACK_RANGE_HIGH = 75;
 
 /**
- * Transpose a lead sheet to a target concert key.
+ * Transpose a tune to a target concert key.
  *
  * Shifts every pitched note and harmony root/bass by the key interval, then
  * applies one octave adjustment (computed over the whole sheet, so sections

@@ -390,7 +390,7 @@ function makeSheet(raw: string, plainScheme: boolean, warnings: string[]): Tune 
 
 /**
  * Parse an iReal Pro share URL (or any text containing one) into
- * harmony-only lead sheets.
+ * harmony-only tunes.
  */
 export function parseIRealUrl(input: string): IRealImportResult {
 	const warnings: string[] = [];

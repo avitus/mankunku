@@ -1,5 +1,5 @@
 /**
- * Structural validation for lead sheets entering from ANOTHER user
+ * Structural validation for tunes entering from ANOTHER user
  * (community adoption), mirroring `phrases/adopted-phrase-validator.ts`.
  *
  * This is a security/robustness gate, not a musical one: it enforces shape,
@@ -53,7 +53,7 @@ function isCleanString(v: unknown, maxLength: number): v is string {
 	return typeof v === 'string' && v.length <= maxLength && !DANGEROUS_CONTENT.test(v);
 }
 
-/** Validate an untrusted lead-sheet payload. */
+/** Validate an untrusted tune payload. */
 export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 	const errors: string[] = [];
 
