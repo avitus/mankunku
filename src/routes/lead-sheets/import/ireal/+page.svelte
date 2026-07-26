@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
+	import ImportResultList from '$lib/components/tunes/ImportResultList.svelte';
 	import { parseIRealUrl } from '$lib/tunes/import/ireal';
 	import type { Tune } from '$lib/types/tune';
 	import { loadDraftForReview } from '$lib/state/tune-entry.svelte';
@@ -8,7 +8,7 @@
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import { writtenSheetToConcert, type SourceTransposition } from '$lib/tunes/source-transposition';
 
 	let input = $state('');

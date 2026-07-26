@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import { CATEGORY_LABELS, type Phrase, type PhraseCategory } from '$lib/types/music';
 	import { community } from '$lib/state/community.svelte';
-	import CommunityLickCard from '$lib/components/library/CommunityLickCard.svelte';
+	import CommunityLickCard from '$lib/components/licks/CommunityLickCard.svelte';
 	import {
 		listCommunityLicks,
 		toggleFavorite,

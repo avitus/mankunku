@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import ImportResultList from '$lib/components/leadsheets/ImportResultList.svelte';
+	import ImportResultList from '$lib/components/tunes/ImportResultList.svelte';
 	import { parseMuseScoreFile } from '$lib/tunes/import/musescore';
 	import type { Tune } from '$lib/types/tune';
 	import { loadDraftForReview } from '$lib/state/tune-entry.svelte';
@@ -9,7 +9,7 @@
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import {
 		defaultSourceTransposition,
 		writtenSheetToConcert,

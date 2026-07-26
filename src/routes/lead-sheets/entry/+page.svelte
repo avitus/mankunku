@@ -5,9 +5,9 @@
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
-	import SectionConfigPanel from '$lib/components/lead-sheet-entry/SectionConfigPanel.svelte';
-	import ChordEntryPanel from '$lib/components/lead-sheet-entry/ChordEntryPanel.svelte';
-	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import SectionConfigPanel from '$lib/components/tune-entry/SectionConfigPanel.svelte';
+	import ChordEntryPanel from '$lib/components/tune-entry/ChordEntryPanel.svelte';
+	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import {
 		tuneEntry,
 		initNewTune,

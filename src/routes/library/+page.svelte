@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import LickCard from '$lib/components/library/LickCard.svelte';
+	import LickCard from '$lib/components/licks/LickCard.svelte';
 	import { licks } from '$lib/state/licks.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';

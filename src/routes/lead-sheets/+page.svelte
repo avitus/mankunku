@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import LeadSheetCard from '$lib/components/leadsheets/LeadSheetCard.svelte';
+	import TuneCard from '$lib/components/tunes/TuneCard.svelte';
 	import { getAllTunes, isCuratedTuneId } from '$lib/tunes/book-loader';
 	import { getAdoptedTuneAuthorsLocal, getTuneAdoptionsLocal } from '$lib/persistence/tune-community';
 	import type { Tune } from '$lib/types/tune';
@@ -98,7 +98,7 @@
 			</div>
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				{#each mySheets as sheet (sheet.id)}
-					<LeadSheetCard
+					<TuneCard
 						{sheet}
 						badge={badgeFor(sheet)}
 						authorName={adoptedAuthors[sheet.id]?.authorName ?? null}
@@ -117,7 +117,7 @@
 		{#if curatedSheets.length > 0}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				{#each curatedSheets as sheet (sheet.id)}
-					<LeadSheetCard {sheet} onclick={() => goto(`/lead-sheets/${sheet.id}`)} />
+					<TuneCard {sheet} onclick={() => goto(`/lead-sheets/${sheet.id}`)} />
 				{/each}
 			</div>
 		{:else}

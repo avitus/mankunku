@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onDestroy } from 'svelte';
-	import CommunityLeadSheetCard from '$lib/components/leadsheets/CommunityLeadSheetCard.svelte';
+	import CommunityTuneCard from '$lib/components/tunes/CommunityTuneCard.svelte';
 	import {
 		listCommunityTunes,
 		toggleTuneFavorite,
@@ -220,7 +220,7 @@
 		{#if sheets.length > 0}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				{#each sheets as item (item.sheet.id)}
-					<CommunityLeadSheetCard
+					<CommunityTuneCard
 						{item}
 						isOwnSheet={item.authorId === user?.id}
 						onclick={() => goto(`/lead-sheets/${item.sheet.id}`)}

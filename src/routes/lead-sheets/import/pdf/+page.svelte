@@ -6,7 +6,7 @@
 	import { loadFromTune } from '$lib/state/tune-entry.svelte';
 	import { saveTunePdf } from '$lib/persistence/tune-pdf-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import SourceTranspositionSelect from '$lib/components/leadsheets/SourceTranspositionSelect.svelte';
+	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import { extractPdfSystems, type ExtractedSystem } from '$lib/tunes/import/pdf-system-extract';
 	import {
 		assembleClaudeDoc,
