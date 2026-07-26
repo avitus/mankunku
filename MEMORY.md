@@ -129,6 +129,19 @@ After any `git push` to a PR branch — including the autofix commits themselves
 
 ---
 
+### Navigation failure & recovery reality (2026-07-25)
+
+**What:** Dead menu clicks ("prior screen stays loaded") were: dev = stale-module-graph 500s from a days-old dev server crossing renames; prod = stale chunks + clicks racing the deploy's PM2 restart gap. The amplifier was our own recovery: `location.reload()` in `handleError` re-renders the page the user was LEAVING (SvelteKit commits the URL only after loads resolve). Recovery now full-page navigates to `event.url` (the click target) — `navRecoveryAction` in `src/lib/util/stale-chunk.ts`.
+
+**Standing facts (verify before relying on the old assumptions):**
+- The nginx shared-immutable-pool for old chunks is **NOT serving on the droplet** (10-day-old chunk 404s on prod, checked 2026-07-25). Until fixed server-side, every deploy 404s all old chunk URLs.
+- Sentry debug-ID injection changes **every** chunk hash on **every** build — a one-line deploy invalidates the entire open-tab world.
+- The service worker is **dead in production**: SSR pages never register it, and (until this fix) the generated sw.js threw mid-eval on `createHandlerBoundToURL('/')` ('/' is never precached in an SSR app), silently killing the soundfont/Supabase routes. `workbox.navigateFallback: undefined` in vite.config.ts must stay until a prerendered offline shell exists. "Works fully offline" in docs is aspiration, not current fact.
+- Root `+error.svelte` now exists; before 2026-07-25 the app had NO error boundary and failed navs were invisible.
+- After large file renames, **restart `npm run dev`** — a long-lived dev server's stale graph kills all navigation in open tabs.
+
+---
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

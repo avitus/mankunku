@@ -35,7 +35,16 @@ export default defineConfig({
             ]
         },
         workbox: {
-            navigateFallbackDenylist: [/^\/auth/],
+            // No navigation fallback: without it @vite-pwa/sveltekit defaults to
+            // createHandlerBoundToURL('/'), and '/' is NOT precached (this app
+            // SSRs every page; only sitemap.xml is prerendered). Workbox then
+            // throws 'non-precached-url' MID-EVALUATION of sw.js, which silently
+            // killed every route registered after the NavigationRoute — the
+            // soundfont cache and the Supabase NetworkOnly guard below never
+            // took effect. Navigations simply go to the network, which is what
+            // an SSR app wants; offline navigation needs a prerendered shell
+            // and is a deliberate non-goal until one exists.
+            navigateFallback: undefined,
             globPatterns: [
                 '**/*.{js,css,html,svg,woff2}',
                 // @vite-pwa/sveltekit appends `prerendered/**/*.{html,json}`

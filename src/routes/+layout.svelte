@@ -29,10 +29,16 @@
 	// full-page load of the target instead of a client-side one, so a fresh HTML
 	// shell + manifest are fetched and the next lazy `import()` resolves to a
 	// chunk that still exists — heading off "error loading dynamically imported
-	// module" before it can happen. `handleStaleChunkReload` in hooks.client.ts
+	// module" before it can happen. `handleNavErrorRecovery` in hooks.client.ts
 	// is the reactive backstop for anything that slips past this.
+	//
+	// nav.cancel() stops the client-side navigation BEFORE handing off to the
+	// full-page load; without it the SvelteKit nav keeps running and races the
+	// document load (SvelteKit's own native_navigation() stalls the router the
+	// same way).
 	beforeNavigate((nav) => {
 		if (shouldHardReloadOnNavigation(nav, updated.current) && nav.to) {
+			nav.cancel();
 			location.href = nav.to.url.href;
 		}
 	});

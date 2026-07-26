@@ -5,7 +5,7 @@ import type { HandleClientError } from '@sveltejs/kit';
 import {
   isStaleChunkErrorMessage,
   shouldDropStaleChunkReport,
-  shouldReloadForStaleChunk
+  navRecoveryAction
 } from '$lib/util/stale-chunk';
 import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
 
@@ -143,33 +143,44 @@ Sentry.init({
 /**
  * After a deploy, an open tab's cached HTML may reference chunk hashes the
  * server no longer has. SvelteKit surfaces that as "error loading dynamically
- * imported module" — the page is broken until the user reloads. Force the
- * reload here instead of asking the user to do it. See Sentry MANKUNKU-8.
+ * imported module"; a click that races the deploy's server-restart window
+ * surfaces a generic fetch failure instead (NetworkError / Load failed /
+ * Failed to fetch). Either way the navigation dies and the prior screen stays
+ * rendered. Recover by doing a FULL-PAGE load of the URL the user clicked
+ * toward (`event.url` is the navigation target in client `handleError`) — a
+ * fresh shell + manifest from the server land them where they intended. A
+ * `location.reload()` here would re-render the PRIOR page instead, because
+ * SvelteKit commits the URL only after loads resolve — the click would appear
+ * to do nothing. See Sentry MANKUNKU-8 and MANKUNKU-10.
  *
- * The reload is gated per failing chunk URL (`shouldReloadForStaleChunk`) so
- * that if the SAME chunk is still missing after the reload (e.g. user is
- * offline, or a deploy is mid-flight and assets haven't propagated), the repeat
- * failure does NOT loop into another reload — it surfaces normally. A later,
- * DISTINCT stale chunk still gets its own reload attempt.
+ * Recovery is gated per failing chunk URL (`navRecoveryAction`) so that if
+ * the SAME chunk is still missing after the full-page load (e.g. user is
+ * offline, or a deploy is mid-flight and assets haven't propagated), the
+ * repeat failure does NOT loop into another navigation — it surfaces
+ * normally. A later, DISTINCT stale chunk still gets its own attempt.
  *
  * The same per-chunk record is read by `beforeSend` above so the first
- * occurrence for a chunk is dropped (the reload is the fix) and only the
- * reload-didn't-help case is reported.
+ * occurrence of a STALE-CHUNK error is dropped (the recovery is the fix) and
+ * only the recovery-didn't-help case is reported.
  *
- * Note: this reactive reload is a backstop. The proactive `beforeNavigate`
- * guard in +layout.svelte (driven by kit.version.pollInterval) reloads a stale
- * tab before the failing import can happen; this catches whatever slips past.
+ * Note: this reactive recovery is a backstop. SvelteKit itself full-page
+ * navigates to the target when a failed import coincides with a NEW app
+ * version (updated.check()), and the proactive `beforeNavigate` guard in
+ * +layout.svelte (driven by kit.version.pollInterval) hard-navigates a stale
+ * tab before the failing import can happen; this catches whatever slips past
+ * (version check unreachable or reporting no change — e.g. dev-server HMR
+ * churn, or a click landing inside the deploy's PM2 restart gap).
  */
-const handleStaleChunkReload: HandleClientError = ({ error }) => {
+const handleNavErrorRecovery: HandleClientError = ({ error, event }) => {
   const msg = (error as { message?: string } | null)?.message ?? '';
-  if (
-    typeof location !== 'undefined' &&
-    typeof sessionStorage !== 'undefined' &&
-    shouldReloadForStaleChunk(msg, sessionStorage)
-  ) {
+  if (typeof location === 'undefined' || typeof sessionStorage === 'undefined') return;
+  const action = navRecoveryAction(msg, sessionStorage, event?.url?.href ?? null);
+  if (action.kind === 'navigate') {
+    location.href = action.href;
+  } else if (action.kind === 'reload') {
     location.reload();
   }
 };
 
 // If you have a custom error handler, pass it to `handleErrorWithSentry`
-export const handleError = handleErrorWithSentry(handleStaleChunkReload);
+export const handleError = handleErrorWithSentry(handleNavErrorRecovery);
