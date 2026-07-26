@@ -127,6 +127,8 @@
 
 	let moveNotes = $state(true);
 	let setupOpen = $state(false);
+	/** Mobile dock: rows 2-4 (the entry panels) visible. */
+	let dockExpanded = $state(true);
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
 	let editHydrationActive = true;
@@ -261,13 +263,59 @@
 			goto('/tunes');
 		}
 	}
+
+	/** Panel delete: the shift invalidates any armed entry-cursor position. */
+	function handlePanelDelete(): void {
+		deleteSelectedNote();
+		clearEntryCursor();
+	}
 </script>
 
 <svelte:head>
 	<title>{isEditing ? 'Edit Tune' : 'Tune Editor'} — Mankunku</title>
 </svelte:head>
 
-<div class="mx-auto max-w-3xl space-y-4">
+{#snippet entryStatus()}
+	Section {currentSectionLabel}
+	{#if cursorPos}
+		· Bar {cursorPos.barInSection + 1}, Beat {Math.floor(cursorPos.beatInBar + 1e-9) + 1}
+	{/if}
+{/snippet}
+
+{#snippet meterNotice()}
+	This chart is in {tuneEntry.timeSignature[0]}/{tuneEntry.timeSignature[1]} — melody entry
+	supports 4/4 only. Tap a chord slot on the chart to edit chords; sections are editable in
+	Setup.
+{/snippet}
+
+<!-- Play / Save-or-Update / Cancel-or-Clear, sized by the hosting region.
+     Rendered bare (no wrapper) so the rail's grid and the dock's flex row
+     each lay the three buttons out themselves. -->
+{#snippet entryActions(sizing: string)}
+	<button
+		onclick={togglePlay}
+		class="flex items-center justify-center gap-1.5 rounded text-sm font-medium transition-colors {sizing}
+			{isPlaying
+				? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
+				: 'bg-[var(--color-accent)] hover:opacity-80'}"
+	>
+		{isPlaying ? 'Stop' : 'Play'}
+	</button>
+	<button
+		onclick={handleSave}
+		class="rounded bg-[var(--color-success)] text-sm font-medium text-black transition-opacity hover:opacity-80 {sizing}"
+	>
+		{isEditing ? 'Update' : 'Save'}
+	</button>
+	<button
+		onclick={handleCancel}
+		class="rounded bg-[var(--color-bg-tertiary)] text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)] {sizing}"
+	>
+		{isEditing ? 'Cancel' : 'Clear'}
+	</button>
+{/snippet}
+
+<div class="space-y-4 pb-64 md:pb-0">
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">{isEditing ? 'Fix a chart' : 'Chart a tune'}</div>
 		<h1 class="font-display text-3xl font-bold tracking-tight">
@@ -276,171 +324,199 @@
 		<div class="jazz-rule mt-2 max-w-[140px]"></div>
 	</div>
 
-	<!-- Live chart preview -->
-	<NotationDisplay
-		bind:this={notationRef}
-		tune={draft}
-		instrument={previewInstrument}
-		selectedIndex={previewSelectedIndex}
-		onSelect={handlePreviewSelect}
-		onBarClick={(pos) => cursorToBar(pos.sectionIdx, pos.bar)}
-		{chordEditor}
-	>
-		{#snippet titleArea()}
-			<input
-				bind:value={tuneEntry.title}
-				placeholder="Untitled"
-				aria-label="Tune title"
-				class="mb-2 w-full bg-transparent font-display text-xl font-semibold outline-none placeholder:text-[var(--color-text-secondary)]/60"
-			/>
-		{/snippet}
-	</NotationDisplay>
-
-	{#if tuneEntry.importReview}
-		<!-- Import review: the bars the pipeline knows are uncertain -->
-		<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] p-3 text-sm">
-			<div class="flex items-start justify-between gap-2">
-				<p class="font-medium text-[var(--color-brass)]">
-					Review {tuneEntry.importReview.suspectBars.length > 0
-						? `bar${tuneEntry.importReview.suspectBars.length === 1 ? '' : 's'} ${tuneEntry.importReview.suspectBars.join(', ')}`
-						: 'the flagged items'} — the import wasn't certain there.
-				</p>
-				<button
-					type="button"
-					onclick={() => (tuneEntry.importReview = null)}
-					class="shrink-0 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]"
-				>
-					Dismiss
-				</button>
-			</div>
-			<details class="mt-1 text-xs text-[var(--color-text-secondary)]">
-				<summary class="cursor-pointer">
-					{tuneEntry.importReview.warnings.length}
-					detail{tuneEntry.importReview.warnings.length === 1 ? '' : 's'}
-				</summary>
-				<ul class="mt-1 list-disc space-y-0.5 pl-4">
-					{#each tuneEntry.importReview.warnings as warning (warning)}
-						<li>{warning}</li>
-					{/each}
-				</ul>
-			</details>
-		</div>
-	{/if}
-
-	<!-- Status bar: where the next entered note lands -->
-	<div class="rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
-		<span>
-			Section {currentSectionLabel}
-			{#if cursorPos}
-				· Bar {cursorPos.barInSection + 1}, Beat {Math.floor(cursorPos.beatInBar + 1e-9) + 1}
-			{/if}
-		</span>
-	</div>
-
-	<!-- Setup: title details, key, sections -->
-	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
-		<button
-			type="button"
-			onclick={() => (setupOpen = !setupOpen)}
-			aria-expanded={setupOpen}
-			class="flex w-full items-center justify-between text-sm"
-		>
-			<span>
-				Setup · Key {tuneEntry.writtenKey} · {tuneEntry.sections.length}
-				section{tuneEntry.sections.length === 1 ? '' : 's'}
-			</span>
-			<span class="text-[var(--color-text-secondary)]">{setupOpen ? 'Done' : 'Edit'}</span>
-		</button>
-		{#if setupOpen}
-			<div class="mt-3 space-y-3">
-				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-					<input
-						bind:value={tuneEntry.composer}
-						placeholder="Composer"
-						aria-label="Composer"
-						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
-					/>
-					<input
-						bind:value={tuneEntry.style}
-						placeholder="Style (e.g. Medium Swing)"
-						aria-label="Style"
-						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
-					/>
-				</div>
-				<SourceTranspositionSelect
-					value={tuneEntry.sourceTransposition}
-					onchange={setSourceTransposition}
-				/>
-				<div class="flex flex-wrap items-center gap-3">
-					<label class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-						Key
-						<select
-							value={tuneEntry.writtenKey}
-							onchange={handleKeyChange}
-							class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none"
-						>
-							{#each PITCH_CLASSES as pc (pc)}
-								<option value={pc}>{pc}</option>
-							{/each}
-						</select>
-					</label>
-					{#if draft.sections.some((s) => s.notes.length > 0)}
-						<label class="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-							<input type="checkbox" bind:checked={moveNotes} />
-							Move notes with key
-						</label>
+	<div class="md:grid md:grid-cols-[16rem_minmax(0,1fr)] md:gap-6">
+		<!-- Desktop entry rail. Sticky sits on the INNER div: grid items
+		     stretch to the row height, which would keep the aside itself from
+		     ever leaving the viewport top. -->
+		<aside data-testid="entry-rail" aria-label="Entry controls" class="hidden md:block">
+			<div class="md:sticky md:top-6 md:max-h-[calc(100vh-3rem)] md:overflow-y-auto space-y-3 @container/entry">
+				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
+					<!-- Status: where the next entered note lands -->
+					<div class="mb-3 text-xs text-[var(--color-text-secondary)]">{@render entryStatus()}</div>
+					{#if melodyEditingSupported()}
+						<DurationSelector />
+						<hr class="my-3 border-[var(--color-bg-tertiary)]" />
+						<PitchEntryPanel
+							onAddNote={tuneAddNote}
+							onAddRest={tuneAddRest}
+							onTie={tuneEnterTiedNote}
+							onDelete={handlePanelDelete}
+						/>
+					{:else}
+						<p class="text-sm text-[var(--color-text-secondary)]">{@render meterNotice()}</p>
 					{/if}
 				</div>
-				<SectionConfigPanel />
+
+				<div class="grid grid-cols-3 gap-2">
+					{@render entryActions('px-2 py-2')}
+				</div>
+
+				<details class="text-xs text-[var(--color-text-secondary)]">
+					<summary class="cursor-pointer">Keyboard shortcuts</summary>
+					<p class="mt-2">
+						A–G add notes · 0 rest · 1–4 durations · T triplet · . dotted · [ flat · ] sharp ·
+						= / − octave · + tie · \ respell · ←/→ select · ↑/↓ move pitch · ⌫ delete · K — chord
+					</p>
+				</details>
+			</div>
+		</aside>
+
+		<div class="min-w-0 space-y-4">
+			<!-- Live chart preview -->
+			<NotationDisplay
+				bind:this={notationRef}
+				tune={draft}
+				instrument={previewInstrument}
+				selectedIndex={previewSelectedIndex}
+				onSelect={handlePreviewSelect}
+				onBarClick={(pos) => cursorToBar(pos.sectionIdx, pos.bar)}
+				{chordEditor}
+			>
+				{#snippet titleArea()}
+					<input
+						bind:value={tuneEntry.title}
+						placeholder="Untitled"
+						aria-label="Tune title"
+						class="mb-2 w-full bg-transparent font-display text-xl font-semibold outline-none placeholder:text-[var(--color-text-secondary)]/60"
+					/>
+				{/snippet}
+			</NotationDisplay>
+
+			{#if tuneEntry.importReview}
+				<!-- Import review: the bars the pipeline knows are uncertain -->
+				<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] p-3 text-sm">
+					<div class="flex items-start justify-between gap-2">
+						<p class="font-medium text-[var(--color-brass)]">
+							Review {tuneEntry.importReview.suspectBars.length > 0
+								? `bar${tuneEntry.importReview.suspectBars.length === 1 ? '' : 's'} ${tuneEntry.importReview.suspectBars.join(', ')}`
+								: 'the flagged items'} — the import wasn't certain there.
+						</p>
+						<button
+							type="button"
+							onclick={() => (tuneEntry.importReview = null)}
+							class="shrink-0 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]"
+						>
+							Dismiss
+						</button>
+					</div>
+					<details class="mt-1 text-xs text-[var(--color-text-secondary)]">
+						<summary class="cursor-pointer">
+							{tuneEntry.importReview.warnings.length}
+							detail{tuneEntry.importReview.warnings.length === 1 ? '' : 's'}
+						</summary>
+						<ul class="mt-1 list-disc space-y-0.5 pl-4">
+							{#each tuneEntry.importReview.warnings as warning (warning)}
+								<li>{warning}</li>
+							{/each}
+						</ul>
+					</details>
+				</div>
+			{/if}
+
+			<!-- Setup: title details, key, sections -->
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
+				<button
+					type="button"
+					onclick={() => (setupOpen = !setupOpen)}
+					aria-expanded={setupOpen}
+					class="flex w-full items-center justify-between text-sm"
+				>
+					<span>
+						Setup · Key {tuneEntry.writtenKey} · {tuneEntry.sections.length}
+						section{tuneEntry.sections.length === 1 ? '' : 's'}
+					</span>
+					<span class="text-[var(--color-text-secondary)]">{setupOpen ? 'Done' : 'Edit'}</span>
+				</button>
+				{#if setupOpen}
+					<div class="mt-3 space-y-3">
+						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+							<input
+								bind:value={tuneEntry.composer}
+								placeholder="Composer"
+								aria-label="Composer"
+								class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
+							/>
+							<input
+								bind:value={tuneEntry.style}
+								placeholder="Style (e.g. Medium Swing)"
+								aria-label="Style"
+								class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
+							/>
+						</div>
+						<SourceTranspositionSelect
+							value={tuneEntry.sourceTransposition}
+							onchange={setSourceTransposition}
+						/>
+						<div class="flex flex-wrap items-center gap-3">
+							<label class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+								Key
+								<select
+									value={tuneEntry.writtenKey}
+									onchange={handleKeyChange}
+									class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none"
+								>
+									{#each PITCH_CLASSES as pc (pc)}
+										<option value={pc}>{pc}</option>
+									{/each}
+								</select>
+							</label>
+							{#if draft.sections.some((s) => s.notes.length > 0)}
+								<label class="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+									<input type="checkbox" bind:checked={moveNotes} />
+									Move notes with key
+								</label>
+							{/if}
+						</div>
+						<SectionConfigPanel />
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+
+	<!-- Mobile entry dock -->
+	<div
+		data-testid="entry-dock"
+		class="md:hidden fixed inset-x-0 bottom-0 z-30 @container/entry border-t border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+	>
+		<div class="flex items-center gap-2">
+			<span class="min-w-0 flex-1 truncate text-xs text-[var(--color-text-secondary)]">
+				{@render entryStatus()}
+			</span>
+			{@render entryActions('min-h-11 shrink-0 px-3')}
+			<button
+				type="button"
+				onclick={() => (dockExpanded = !dockExpanded)}
+				aria-expanded={dockExpanded}
+				aria-label="{dockExpanded ? 'Collapse' : 'Expand'} entry controls"
+				class="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+			>
+				<svg
+					viewBox="0 0 16 16"
+					class="h-4 w-4 {dockExpanded ? '' : 'rotate-180'}"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.5"
+					aria-hidden="true"
+				>
+					<path d="M4 6.5 8 10.5 12 6.5" stroke-linecap="round" stroke-linejoin="round" />
+				</svg>
+			</button>
+		</div>
+		{#if dockExpanded}
+			<div class="mt-2 space-y-2">
+				{#if melodyEditingSupported()}
+					<DurationSelector />
+					<PitchEntryPanel
+						onAddNote={tuneAddNote}
+						onAddRest={tuneAddRest}
+						onTie={tuneEnterTiedNote}
+						onDelete={handlePanelDelete}
+					/>
+				{:else}
+					<p class="text-xs text-[var(--color-text-secondary)]">{@render meterNotice()}</p>
+				{/if}
 			</div>
 		{/if}
 	</div>
-
-	<!-- Melody entry (4/4 only — the step-entry buffer's assumption) -->
-	{#if melodyEditingSupported()}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
-			<DurationSelector />
-			<hr class="my-3 border-[var(--color-bg-tertiary)]" />
-			<PitchEntryPanel />
-		</div>
-	{:else}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 text-sm text-[var(--color-text-secondary)]">
-			This chart is in {tuneEntry.timeSignature[0]}/{tuneEntry.timeSignature[1]} —
-			melody entry currently supports 4/4 only. The imported melody and form are preserved;
-			chords and sections stay fully editable below.
-		</div>
-	{/if}
-
-	<!-- Actions -->
-	<div class="flex gap-2">
-		<button
-			onclick={togglePlay}
-			class="flex items-center gap-1.5 rounded px-4 py-2 text-sm font-medium transition-colors
-				{isPlaying
-					? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
-					: 'bg-[var(--color-accent)] hover:opacity-80'}"
-		>
-			{isPlaying ? 'Stop' : 'Play'}
-		</button>
-		<button
-			onclick={handleSave}
-			class="rounded bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-black transition-opacity hover:opacity-80"
-		>
-			{isEditing ? 'Update' : 'Save'}
-		</button>
-		<button
-			onclick={handleCancel}
-			class="rounded bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
-		>
-			{isEditing ? 'Cancel' : 'Clear'}
-		</button>
-	</div>
-
-	<details class="text-xs text-[var(--color-text-secondary)]">
-		<summary class="cursor-pointer">Keyboard shortcuts</summary>
-		<p class="mt-2">
-			A–G add notes · 0 rest · 1–4 durations · T triplet · . dotted · [ flat · ] sharp ·
-			= / − octave · + tie · \ respell · ←/→ select · ↑/↓ move pitch · ⌫ delete · K — chord
-		</p>
-	</details>
 </div>

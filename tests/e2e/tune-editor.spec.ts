@@ -94,8 +94,10 @@ test('adds a section with a repeat and sees it in the preview', async ({ page })
 	await expect(page.getByRole('textbox', { name: 'Section 2 label' })).toHaveValue('B');
 	await page.locator('label').filter({ hasText: '|: repeat' }).first().locator('input').check();
 
-	// Status bar tracks the section switch (Add navigates to the new section).
-	await expect(page.getByText(/Section B/)).toBeVisible();
+	// Status tracks the section switch (Add navigates to the new section).
+	// Scoped to the rail: the status also renders in the (display:none)
+	// mobile dock, which Playwright's text engine would still match.
+	await expect(page.getByTestId('entry-rail').getByText(/Section B/)).toBeVisible();
 
 	// The preview shows both part labels. Generous timeout: abcjs re-renders
 	// destructively on every state change, and WebKit under full-suite
