@@ -1326,7 +1326,10 @@ function loadTrio20260725Fixture(name: string): Trio20260725Fixture {
 describe('2026-07-25 trio: saved-readings replay (concert C, 105 BPM)', () => {
 	const BEAT = 60 / 105;
 
-	function runSavedPipeline(name: string, recordingTransportSeconds: number | null) {
+	function runSavedPipeline(
+		name: string,
+		recordingTransportSeconds: number | null
+	): DetectedNote[] {
 		const fx = loadTrio20260725Fixture(name);
 		const baseOnsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
 		const bleedOnsets =
@@ -1426,9 +1429,11 @@ describe('2026-07-25 trio: saved-readings replay (concert C, 105 BPM)', () => {
 			tags: [],
 			source: 'curated'
 		};
+		// Clicks observed at 0.387 + k·BEAT in recording time.
+		const rts = 16 * BEAT - 0.3874;
 
 		it('keeps the held final C whole (no articulation from the click hole)', () => {
-			const detected = runSavedPipeline('blue-step-down', 16 * BEAT - 0.3874);
+			const detected = runSavedPipeline('blue-step-down', rts);
 			expect(detected.map((n) => n.midi)).toEqual([67, 65, 63, 60]);
 			// The C spans from its attack to the end of the phrase window.
 			const c = detected[detected.length - 1];
@@ -1438,7 +1443,7 @@ describe('2026-07-25 trio: saved-readings replay (concert C, 105 BPM)', () => {
 
 		it('scores 4/5 with one honest MISS (saved: 0.634 with two pitch mismatches)', () => {
 			const fx = loadTrio20260725Fixture('blue-step-down');
-			const detected = runSavedPipeline('blue-step-down', 16 * BEAT - 0.3874);
+			const detected = runSavedPipeline('blue-step-down', rts);
 			const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
 			expect(score.pitchAccuracy).toBeCloseTo(0.8, 5);
 			expect(score.notesHit).toBe(4);
