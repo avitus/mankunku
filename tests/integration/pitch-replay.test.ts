@@ -4,7 +4,8 @@ import {
 	segmentNotes,
 	validateOnsets,
 	resolveOnsets,
-	findReArticulations
+	findReArticulations,
+	getMetronomeBleedOnsets
 } from '$lib/audio/note-segmenter';
 import { runScorePipeline } from '$lib/scoring/score-pipeline';
 import type { Phrase } from '$lib/types/music';
@@ -1317,4 +1318,202 @@ describe('pitch replay regression: Blue Monk tied final note (concert C, 2026-07
 		expect(result.chosen.overall).toBeGreaterThan(0.95);
 		expect(result.chosen.grade).toBe('perfect');
 	});
+});
+
+/**
+ * 2026-07-25 fixtures: three ear-training takes at 105 BPM (concert C, tenor
+ * sax) with the metronome mixed into the recording, each mis-scored by a
+ * different interaction of soft on-beat re-articulations and metronome
+ * clicks. The clicks sit exactly on the beat grid in recording time (the
+ * recorder mixes the metronome electrically, so scheduled time ≈ blob time):
+ * root-frame 0.449 + k·0.5714 s, blue-note-step-up 0.080 + k·0.5714 s,
+ * blue-step-down 0.387 + k·0.5714 s — reconstructed from the beat-spaced
+ * worklet bleed onsets each recording captured. The representative
+ * `recordingTransportSeconds` below reproduce those grids through
+ * getMetronomeBleedOnsets, mirroring the production ear-training path
+ * (metronome was on for all three takes).
+ *
+ * Three distinct root causes, all fixed at the detection layer:
+ *
+ *   1. Onset-guard provenance (root-frame): the 80 ms post-onset guard ate
+ *      five of the six B♭ frames of a segment whose boundary was a
+ *      PITCH-derived stable-run start (no amplitude attack to guard
+ *      against), letting a McLeod C3 subharmonic glitch win the segment
+ *      vote — the sandwich collapse then swallowed C–B♭–C into one long C.
+ *      segmentNotes now guards only amplitude-derived boundaries.
+ *
+ *   2. Click-fabricated attack evidence (root-frame, blue-step-down): a
+ *      click on a held note clears every HF-tier gate (hfRms spike, ~0.14 st
+ *      McLeod perturbation, sustained energy) and can silence the pitch
+ *      tracker for 150 ms+ on a decaying note (fabricating a bare-gap
+ *      re-articulation). The HF tier now suppresses spikes inside a
+ *      scheduled click's contamination window, and the bare-gap tier
+ *      requires energy sustain across the hole (a real tongue stop ends in
+ *      a fresh attack: the 2026-05-22 fixtures measure 0.94–0.97 post/pre;
+ *      the click-on-decay counterexample measures 0.67).
+ *
+ *   3. Envelope aliasing (both blue-note fixtures): the soft on-beat tongue
+ *      dips the raw envelope 30–45% for 20–30 ms, which the ~93 ms
+ *      window-level RMS smooths down to a 17% wiggle — under every
+ *      reading-level threshold. detectFrame now records `rmsMin` (min
+ *      sliding ~11.6 ms sub-window RMS) and findReArticulations' envelope
+ *      dip-recover pass detects the dip, corroborated by tongue noise
+ *      (hfRms) or a reed-reset pitch perturbation — corroborators a
+ *      metronome click (which only ADDS energy) cannot fake alongside a
+ *      dip, and which a breath pulse on a held note (Blue Monk, ~4.0 s)
+ *      lacks.
+ */
+describe('pitch replay regression: 2026-07-25 metronome-click / soft-tongue trio (concert C)', () => {
+	const TEMPO = 105;
+	const SWING = 0.6;
+	const BEAT = 60 / TEMPO;
+
+	interface TrioCase {
+		name: string;
+		file: string;
+		/** Reproduces the observed click grid via getMetronomeBleedOnsets. */
+		recordingTransportSeconds: number;
+		phrase: Phrase;
+		expectedMidis: number[];
+		/** [index, minOnset, maxOnset] checks on recovered re-articulations */
+		onsetWindows: [number, number, number][];
+		/** Pre-fix saved score, for documentation/regression context */
+		savedOverall: number;
+	}
+
+	const mkPhrase = (id: string, name: string, notes: Phrase['notes']): Phrase => ({
+		id,
+		name,
+		timeSignature: [4, 4],
+		key: 'C',
+		notes,
+		harmony: [],
+		difficulty: { level: 14, pitchComplexity: 16, rhythmComplexity: 12, lengthBars: 2 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	});
+
+	const cases: TrioCase[] = [
+		{
+			// blues-039 "Root Frame": C B♭ C G. Saved score 0.445 "try-again" on a
+			// clean take — B♭ swallowed (cause 1), held G split by the click at
+			// 2.74 s (cause 2/HF).
+			name: 'root-frame',
+			file: 'recordings/2026-07-25-root-frame.wav',
+			recordingTransportSeconds: 16 * BEAT - 0.44875,
+			phrase: mkPhrase('blues-039', 'Root Frame', [
+				{ pitch: 60, duration: [1, 8], offset: [0, 1] },
+				{ pitch: 58, duration: [1, 8], offset: [1, 8] },
+				{ pitch: 60, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 67, duration: [3, 2], offset: [1, 2] }
+			]),
+			expectedMidis: [60, 58, 60, 67],
+			onsetWindows: [[1, 0.25, 0.32]],
+			savedOverall: 0.445
+		},
+		{
+			// bbn-009_C "Blue Note Step-Up" after the day's tonality snapped the
+			// F♯ blue note down to F: F F G. Saved score 0.655 "fair" — the two
+			// tongued Fs merged (cause 3), second note MISSED.
+			name: 'blue-note-step-up',
+			file: 'recordings/2026-07-25-blue-note-step-up.wav',
+			recordingTransportSeconds: 16 * BEAT - 0.0803,
+			phrase: mkPhrase('bbn-009_C', 'Blue Note Step-Up', [
+				{ pitch: 53, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 53, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 55, duration: [1, 2], offset: [1, 2] }
+			]),
+			expectedMidis: [53, 53, 55],
+			onsetWindows: [[1, 0.6, 0.78]],
+			savedOverall: 0.655
+		},
+		{
+			// bbn-041 "Blue Step Down" after the same F♯→F snap: G F F E♭ C.
+			// Saved score 0.634 "fair" — repeated-F merge (cause 3) plus the
+			// held final C split by a click-induced 167 ms tracking hole
+			// (cause 2/bare-gap), cascading DTW into two pitch mismatches.
+			name: 'blue-step-down',
+			file: 'recordings/2026-07-25-blue-step-down.wav',
+			recordingTransportSeconds: 16 * BEAT - 0.3874,
+			phrase: mkPhrase('bbn-041', 'Blue Step Down', [
+				{ pitch: 67, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 65, duration: [1, 8], offset: [1, 4] },
+				{ pitch: 65, duration: [1, 8], offset: [3, 8] },
+				{ pitch: 63, duration: [1, 4], offset: [1, 2] },
+				{ pitch: 60, duration: [1, 2], offset: [3, 4] }
+			]),
+			expectedMidis: [67, 65, 65, 63, 60],
+			onsetWindows: [[2, 0.72, 0.9]],
+			savedOverall: 0.634
+		}
+	];
+
+	for (const c of cases) {
+		describe(c.name, () => {
+			function loadFixture(): FakeAudioBuffer {
+				const wav = loadWavFixture(c.file);
+				return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+			}
+
+			// Mirror the production ear-training path with metronome enabled:
+			// resolveOnsets → bleed onsets → findReArticulations(…, bleed) →
+			// segmentNotes(…, worklet, bleed, articulations).
+			async function detectFromFixture(): Promise<DetectedNote[]> {
+				const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+				const baseOnsets = resolveOnsets(onsets, readings);
+				const bleedOnsets = getMetronomeBleedOnsets(
+					c.recordingTransportSeconds,
+					TEMPO,
+					duration
+				);
+				const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+				const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+				return segmentNotes(
+					readings,
+					allOnsets,
+					duration,
+					undefined,
+					undefined,
+					undefined,
+					onsets,
+					bleedOnsets,
+					articulationOnsets
+				);
+			}
+
+			it('segments exactly the notes the user played — no merges, no click splits', async () => {
+				const detected = await detectFromFixture();
+				expect(detected.map((n) => n.midi)).toEqual(c.expectedMidis);
+				for (const [idx, min, max] of c.onsetWindows) {
+					expect(detected[idx].onsetTime).toBeGreaterThan(min);
+					expect(detected[idx].onsetTime).toBeLessThan(max);
+				}
+			});
+
+			it('scores every note as a hit with a high overall', async () => {
+				const detected = await detectFromFixture();
+				const result = runScorePipeline({
+					detected,
+					phrase: c.phrase,
+					tempo: TEMPO,
+					transportSeconds: 0,
+					swing: SWING,
+					bleedFilterEnabled: false,
+					octaveInsensitive: false
+				});
+
+				for (const nr of result.chosen.noteResults) {
+					expect(nr.missed).toBe(false);
+					expect(nr.extra).toBe(false);
+				}
+				expect(result.chosen.notesHit).toBe(c.phrase.notes.length);
+				expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+				// Every saved (pre-fix) score sat in the 0.44–0.66 band on what
+				// were clean takes; post-fix all three clear 0.9.
+				expect(result.chosen.overall).toBeGreaterThan(0.9);
+				expect(result.chosen.overall).toBeGreaterThan(c.savedOverall);
+			});
+		});
+	}
 });

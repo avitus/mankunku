@@ -98,6 +98,14 @@ export function segmentNotes(
 		? onsets
 		: [readings[0].time];
 
+	// Amplitude-derived boundary times, for the onset-guard provenance check
+	// below. Null when the caller supplies neither list (legacy callers) —
+	// in that mode every boundary is guarded, preserving prior behaviour.
+	const amplitudeOnsets =
+		workletOnsets !== undefined || articulationOnsets !== undefined
+			? [...(workletOnsets ?? []), ...(articulationOnsets ?? [])].sort((a, b) => a - b)
+			: null;
+
 	const notes: DetectedNote[] = [];
 
 	for (let i = 0; i < boundaries.length; i++) {
@@ -112,8 +120,19 @@ export function segmentNotes(
 		// Collect pitch readings within this segment.
 		// For segments after the first, skip readings within the onset guard
 		// window — the FFT buffer still contains audio from the previous note,
-		// so early readings report stale pitch values.
-		const guarded = i > 0;
+		// so early readings report stale pitch values. That rationale only
+		// holds for AMPLITUDE-derived boundaries (worklet or articulation
+		// onsets): a pitch-derived boundary (stable-run prepend, reading-gap
+		// or legato-transition onset) starts exactly where the readings
+		// already show the new pitch — guarding those throws away the very
+		// frames that define the note. The 2026-07-25 "root-frame" diagnostic
+		// is the reference: the guard ate five of the six B♭ frames of a
+		// stable-run segment, a McLeod C3 subharmonic glitch won the vote,
+		// and the sandwich collapse then swallowed C–B♭–C into one long C.
+		const guarded =
+			i > 0 &&
+			(amplitudeOnsets === null ||
+				hasOnsetNear(amplitudeOnsets, segStart, ONSET_GUARD_MATCH_WINDOW));
 		const effectiveStart = guarded ? segStart + onsetGuard : segStart;
 		let segReadings = readings.filter(
 			(r) => r.time >= effectiveStart && r.time < segEnd
@@ -213,6 +232,16 @@ export function segmentNotes(
 		bleedOnsets
 	);
 }
+
+/**
+ * Match window for deciding whether a segment boundary IS an amplitude
+ * onset (worklet or articulation). Boundaries inherit their exact float
+ * values from those lists when amplitude-derived, so this only needs to
+ * absorb resolveOnsets' dedup adjustments — deliberately much tighter than
+ * SAME_PITCH_ATTACK_WINDOW, which asks the different question "is there an
+ * attack anywhere NEAR this boundary".
+ */
+const ONSET_GUARD_MATCH_WINDOW = 0.02;
 
 /**
  * Window for treating a worklet onset as evidence of a real attack at a
@@ -1182,6 +1211,74 @@ const RE_ARTICULATION_GAP_ATTACK_RISE = 1.2;
 const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
 
 /**
+ * Energy-sustain floor for the bare-gap (≥ 150 ms) re-articulation tier.
+ * The tier's premise — "a sustained reed note never loses pitch tracking
+ * that long except at a tongue stop" — turned out to have a counterexample:
+ * a metronome click landing on a DECAYING note wipes out McLeod clarity for
+ * 150 ms+ (2026-07-25 "blue-step-down": click at 2.10 s on the fading final
+ * C → 167 ms hole, post/pre RMS 0.67 and still falling), which fabricated a
+ * re-articulation and split the held note. A real tongue stop ends in a
+ * fresh attack, so energy is sustained across the hole: the 2026-05-22
+ * curl-up fixtures (real ≥ 200 ms tongue stops) measure post/pre at 0.94
+ * and 0.97. The floor sits at 0.85 — comfortably below every measured true
+ * re-attack, comfortably above the decaying-note counterexample.
+ */
+const RE_ARTICULATION_GAP_SUSTAIN = 0.85;
+
+/**
+ * Suppression window for HF-tier candidates around a scheduled audible
+ * event (metronome click). The recorder mixes the metronome into the
+ * captured audio, and a click is a broadband burst that perturbs the
+ * McLeod pitch estimate — at the reading level it is indistinguishable
+ * from the softest legato tongue (hfRms spike + ~0.1 st fundamental
+ * wobble + sustained energy; the 2026-07-25 "root-frame" click matches
+ * every HF-tier gate). Scheduled click times are the one discriminator
+ * the signal itself cannot fake. The window is asymmetric: each reading's
+ * analysis window looks ~93 ms ahead (so readings BEFORE the click carry
+ * its burst), and the click's own bleed/latency can land it up to ~200 ms
+ * after its scheduled time.
+ */
+const HF_BLEED_SUPPRESS_BEFORE = 0.10;
+const HF_BLEED_SUPPRESS_AFTER = 0.28;
+
+/**
+ * Envelope dip-recover re-articulation tier. A tongue stop interrupts the
+ * airflow, dipping the raw envelope sharply (20–60 ms) before the re-attack
+ * restores it. The window-level `rms` (~93 ms average) smooths these dips
+ * out of existence — the 2026-07-25 "blue-note-step-up" tongue dips the raw
+ * envelope 45% while window RMS moves only 17%, under every existing tier's
+ * threshold. The per-reading `rmsMin` (min 128-sample-block RMS inside the
+ * analysis window, added 2026-07-25) preserves the true dip floor, so this
+ * pass detects: a same-MIDI run frame whose rmsMin falls below
+ * ENV_DIP_RATIO × the trailing local RMS level, recovering to
+ * ENV_RECOVER_RATIO × that level within a few frames.
+ *
+ * Two corroborators keep it specific — a bare amplitude dip also matches a
+ * breath pulse or diaphragm wobble on a held note (the 2026-07-23 Blue Monk
+ * held E contains a 42%/25 ms dip at ~4.0 s that must NOT split):
+ *   - a broadband burst (hfRms ≥ ENV_HF_CORROBORATION × run median: tongue
+ *     noise), OR
+ *   - a fundamental perturbation ≥ ENV_PITCH_PERTURB semitones against the
+ *     trailing local median (the reed resetting) — the 2026-07-25
+ *     "blue-step-down" tongue is nearly silent in hfRms but wobbles the
+ *     fundamental 0.12 st.
+ * A metronome click can fabricate the perturbation but never the dip
+ * (clicks ADD energy), so the pass is click-immune by construction.
+ *
+ * Dips that coincide with a reading gap ≥ READING_GAP_SPLIT_THRESHOLD are
+ * left to the gap tiers (they own that evidence class; double-firing here
+ * would bypass their warmup-bridge and sustain gates).
+ */
+const ENV_DIP_RATIO = 0.72;
+const ENV_RECOVER_RATIO = 0.9;
+const ENV_MAX_SPAN_FRAMES = 12;
+const ENV_RECOVER_WINDOW = 0.2;
+const ENV_LOCAL_FRAMES = 8;
+const ENV_MIN_LEVEL = 0.03;
+const ENV_HF_CORROBORATION = 2.0;
+const ENV_PITCH_PERTURB = 0.08;
+
+/**
  * High-frequency-transient re-articulation tier. The softest legato ("doodle")
  * tongue re-attacks leave NO reading gap, NO envelope dip (the airflow never
  * stops, so rms holds or rises), and a clarity dip too shallow to clear
@@ -1292,9 +1389,13 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
  */
 export function findReArticulations(
 	readings: PitchReading[],
-	baseOnsets: number[]
+	baseOnsets: number[],
+	bleedOnsets?: number[]
 ): number[] {
 	if (readings.length === 0) return [];
+
+	const sortedBleed =
+		bleedOnsets && bleedOnsets.length > 0 ? [...bleedOnsets].sort((a, b) => a - b) : [];
 
 	const onsets: number[] = [];
 	const runs = findSameMidiRuns(readings);
@@ -1302,7 +1403,9 @@ export function findReArticulations(
 		// Pass the FULL reading stream so the gap pass can distinguish a true
 		// detector silence from a warmup-bridged hole (findSameMidiRuns drops
 		// warmup frames, which can manufacture a phantom gap inside a run).
-		onsets.push(...findReArticulationsInSegment(run.readings, run.start, run.end, readings));
+		onsets.push(
+			...findReArticulationsInSegment(run.readings, run.start, run.end, readings, sortedBleed)
+		);
 	}
 
 	// Filter to those that would actually create a new boundary or
@@ -1364,7 +1467,8 @@ function findReArticulationsInSegment(
 	readings: PitchReading[],
 	segStart: number,
 	segEnd: number,
-	allReadings: PitchReading[]
+	allReadings: PitchReading[],
+	sortedBleed: number[] = []
 ): number[] {
 	// Restrict to the segment's stable-MIDI run. Skip warmup frames and a
 	// short post-onset guard so the segment-start attack transient isn't
@@ -1402,23 +1506,36 @@ function findReArticulationsInSegment(
 	// never loses tracking for >75 ms except at a tongue stop, so the gap
 	// stands in for the RMS dip the dip-and-rise scan below can't see (the
 	// readings stop being emitted before RMS bottoms out, then resume already
-	// recovered). A bare gap ≥ RE_ARTICULATION_READING_GAP fires on its own;
-	// a shorter gap (≥ READING_GAP_SPLIT_THRESHOLD, where the segmenter already
-	// splits) fires only when the RMS clearly steps up across it, which marks a
-	// re-attack and rules out a mid-sustain dropout. Anchor at the resumption
-	// of the gap, minus the attack-latency adjustment used elsewhere.
+	// recovered). A bare gap ≥ RE_ARTICULATION_READING_GAP fires when energy
+	// is sustained across the hole (a fresh attack — see
+	// RE_ARTICULATION_GAP_SUSTAIN); a shorter gap (≥
+	// READING_GAP_SPLIT_THRESHOLD, where the segmenter already splits) fires
+	// only when the RMS clearly steps up across it, which marks a re-attack
+	// and rules out a mid-sustain dropout. Anchor at the resumption of the
+	// gap, minus the attack-latency adjustment used elsewhere.
 	for (let g = 1; g < stable.length; g++) {
 		const gap = stable[g].time - stable[g - 1].time;
 		if (gap < READING_GAP_SPLIT_THRESHOLD) continue;
-		if (gap < RE_ARTICULATION_READING_GAP) {
+		if (gap >= RE_ARTICULATION_READING_GAP) {
+			// Bare-gap tier: a ≥ 150 ms hole is a tongue stop ONLY when the
+			// energy on the far side is consistent with a fresh attack. A
+			// metronome click on a decaying note wipes tracking just as long,
+			// but the note keeps fading — see RE_ARTICULATION_GAP_SUSTAIN.
+			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
+			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
+			if (preRms <= 0 || postRms < preRms * RE_ARTICULATION_GAP_SUSTAIN) {
+				continue;
+			}
+		} else {
 			// A genuine soft-tongue re-attack the worklet missed produces a
 			// true detector silence — no frames of any kind across the hole.
 			// If warmup frames bridge it, the gap is a stabilizer-reset
 			// artifact (findSameMidiRuns skipped them, manufacturing a phantom
 			// gap), not a missed attack, so the corroborated step-up tier must
-			// not fire. The ≥ 150 ms bare-gap tier stays unconditional: a long
-			// enough silence is a re-attack even when the stabilizer re-warms
-			// as the new note blooms.
+			// not fire. (The ≥ 150 ms bare-gap tier above skips this silence
+			// check: a long enough hole is meaningful even when the stabilizer
+			// re-warms as the new note blooms — it requires energy sustain
+			// across the hole instead.)
 			if (hasReadingInOpenInterval(allReadings, stable[g - 1].time, stable[g].time)) {
 				continue;
 			}
@@ -1455,6 +1572,25 @@ function findReArticulationsInSegment(
 					if ((stable[j].hfRms ?? 0) > (stable[peak].hfRms ?? 0)) peak = j;
 					j++;
 				}
+				// A scheduled click's broadband burst clears every gate below —
+				// hfRms spike, fundamental perturbation (the burst corrupts the
+				// McLeod estimate by the same ~0.1 st a reed reset does), and
+				// energy sustain — so the schedule is the only usable
+				// discriminator. Discard spikes inside a click's contamination
+				// window (see HF_BLEED_SUPPRESS_*). The 2026-07-25 "root-frame"
+				// diagnostic is the reference: the click at 2.74 s on the held G
+				// split it in two and dropped a clean take to "try-again".
+				if (
+					sortedBleed.length > 0 &&
+					sortedBleed.some(
+						(b) =>
+							stable[k].time <= b + HF_BLEED_SUPPRESS_AFTER &&
+							stable[j - 1].time >= b - HF_BLEED_SUPPRESS_BEFORE
+					)
+				) {
+					k = j;
+					continue;
+				}
 				// Measure the fundamental perturbation against a LOCAL baseline —
 				// the non-spike frames immediately bracketing the spike — not the
 				// whole-run median. A vibrato swing or an expressive bend moves the
@@ -1489,6 +1625,90 @@ function findReArticulationsInSegment(
 				}
 				k = j; // skip past this spike
 			}
+		}
+	}
+
+	// Envelope dip-recover pass (see the ENV_DIP_RATIO block comment). Uses
+	// the per-reading rmsMin sub-window floor, so it only runs on readings
+	// that carry it (2026-07-25+); older diagnostic JSON skips this pass.
+	if (stable.some((r) => r.rmsMin != null)) {
+		const runHf = median(stable.map((r) => r.hfRms ?? 0));
+		let e = ENV_LOCAL_FRAMES;
+		while (e < stable.length) {
+			const local = median(
+				stable.slice(Math.max(0, e - ENV_LOCAL_FRAMES), e).map((r) => r.rms)
+			);
+			if (local < ENV_MIN_LEVEL || (stable[e].rmsMin ?? Infinity) >= local * ENV_DIP_RATIO) {
+				e++;
+				continue;
+			}
+			// Span the contiguous dip evidence. Successive readings' analysis
+			// windows overlap the same physical dip, so a 20–30 ms dip shows
+			// up on several consecutive frames.
+			let j = e;
+			while (j < stable.length && (stable[j].rmsMin ?? Infinity) < local * ENV_DIP_RATIO) j++;
+
+			// Reading gaps in or around the span belong to the gap tiers —
+			// firing here too would bypass their warmup-bridge and energy
+			// gates. A span much longer than the dip evidence a tongue stop
+			// can produce is a fade or a bend, not an articulation.
+			let hasGap = false;
+			for (let k = Math.max(1, e - 1); k <= Math.min(stable.length - 1, j); k++) {
+				if (stable[k].time - stable[k - 1].time >= READING_GAP_SPLIT_THRESHOLD) {
+					hasGap = true;
+					break;
+				}
+			}
+			if (hasGap || j - e > ENV_MAX_SPAN_FRAMES) {
+				e = j + 1;
+				continue;
+			}
+
+			// Recovery: window-level RMS back near the pre-dip level shortly
+			// after the span. A note fading out (or ending) never recovers.
+			let recoveryIdx = -1;
+			for (
+				let k = j;
+				k < stable.length && stable[k].time - stable[j - 1].time <= ENV_RECOVER_WINDOW;
+				k++
+			) {
+				if (stable[k].rms >= local * ENV_RECOVER_RATIO) {
+					recoveryIdx = k;
+					break;
+				}
+			}
+			if (recoveryIdx === -1) {
+				e = j + 1;
+				continue;
+			}
+
+			// Corroborator: tongue noise (hfRms burst over the run baseline)
+			// or a reed reset (fundamental perturbation against the trailing
+			// local median). A breath pulse on a held note has neither.
+			let corroborated = false;
+			if (runHf > 0) {
+				for (let k = e; k < j && !corroborated; k++) {
+					if ((stable[k].hfRms ?? 0) >= runHf * ENV_HF_CORROBORATION) corroborated = true;
+				}
+			}
+			if (!corroborated) {
+				const localMf = median(
+					stable.slice(Math.max(0, e - ENV_LOCAL_FRAMES), e).map((r) => r.midiFloat)
+				);
+				for (let k = e; k < j && !corroborated; k++) {
+					if (Math.abs(stable[k].midiFloat - localMf) >= ENV_PITCH_PERTURB) corroborated = true;
+				}
+			}
+			if (!corroborated) {
+				e = j + 1;
+				continue;
+			}
+
+			const onsetTime = stable[recoveryIdx].time - RE_ARTICULATION_ATTACK_LATENCY;
+			if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
+				onsets.push(onsetTime);
+			}
+			e = recoveryIdx + 1;
 		}
 	}
 

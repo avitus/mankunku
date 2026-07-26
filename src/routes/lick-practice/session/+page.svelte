@@ -833,11 +833,11 @@
 			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
 
 		const baseOnsets = resolveOnsets(workletOnsets, rebased);
-		const articulationOnsets = findReArticulations(rebased, baseOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const bleedOnsets = settings.metronomeEnabled
 			? getMetronomeBleedOnsets(window.recordingTransportSeconds, lickPractice.currentTempo, phraseDuration)
 			: undefined;
+		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(rebased, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const bleedResult = window.schedule
 			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
