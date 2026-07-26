@@ -1,5 +1,5 @@
 /**
- * Guard-gate tests for /api/lead-sheet-parse. The validation gates are pure
+ * Guard-gate tests for /api/tune-parse. The validation gates are pure
  * logic tested exhaustively; the live-SDK document path is not unit-tested
  * (chat.test.ts precedent) beyond a mocked-create happy path.
  */
@@ -19,7 +19,7 @@ const mockCreate = vi.fn();
 let configured = true;
 
 function makeEvent(body: unknown, headers: Record<string, string> = {}, userId: string | null = null) {
-	const request = new Request('http://localhost/api/lead-sheet-parse', {
+	const request = new Request('http://localhost/api/tune-parse', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json', ...headers },
 		body: typeof body === 'string' ? body : JSON.stringify(body)
@@ -52,7 +52,7 @@ async function loadRoute() {
 		ANTHROPIC_LEAD_SHEET_MODEL: 'claude-test-model',
 		ANTHROPIC_LEAD_SHEET_MAX_TOKENS: 8192
 	}));
-	return await import('../../../src/routes/api/lead-sheet-parse/+server');
+	return await import('../../../src/routes/api/tune-parse/+server');
 }
 
 beforeEach(() => {
@@ -62,7 +62,7 @@ beforeEach(() => {
 
 const TINY_PDF_B64 = Buffer.from('%PDF-1.4 tiny').toString('base64');
 
-describe('POST /api/lead-sheet-parse — guards', () => {
+describe('POST /api/tune-parse — guards', () => {
 	it('503s when Anthropic is not configured', async () => {
 		configured = false;
 		const { POST } = await loadRoute();
@@ -126,7 +126,7 @@ describe('POST /api/lead-sheet-parse — guards', () => {
 	});
 });
 
-describe('POST /api/lead-sheet-parse — extraction path', () => {
+describe('POST /api/tune-parse — extraction path', () => {
 	it('returns the converted sheet with a generated id', async () => {
 		const { POST } = await loadRoute();
 		const doc = {
@@ -182,7 +182,7 @@ describe('POST /api/lead-sheet-parse — extraction path', () => {
 	});
 });
 
-describe('GET /api/lead-sheet-parse', () => {
+describe('GET /api/tune-parse', () => {
 	it('reports configuration state', async () => {
 		const { GET } = await loadRoute();
 		const res = await GET({} as Parameters<RequestHandler>[0]);
@@ -192,7 +192,7 @@ describe('GET /api/lead-sheet-parse', () => {
 	});
 });
 
-describe('POST /api/lead-sheet-parse — per-system mode', () => {
+describe('POST /api/tune-parse — per-system mode', () => {
 	const PNG_B64 = Buffer.from('fake-png').toString('base64');
 	const goodBars = [
 		{ startRepeat: true, endRepeat: false, pickup: false, melody: [[0, 4, 'C4']] },

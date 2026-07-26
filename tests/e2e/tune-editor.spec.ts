@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedLeadSheets } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 
 /**
  * Manual lead-sheet entry: melody via the step-entry panel, chords via the
@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('creates a lead sheet with melody and chords', async ({ page }) => {
-	await page.goto('/lead-sheets/entry');
+	await page.goto('/tunes/editor');
 
 	await expect(page.getByRole('heading', { name: 'Lead Sheet Entry' })).toBeVisible();
 	// Hydration barrier: the chart SVG only renders after mount, so its
@@ -38,14 +38,14 @@ test('creates a lead sheet with melody and chords', async ({ page }) => {
 	await page.getByRole('textbox', { name: 'Lead sheet title' }).fill('My First Chart');
 	await page.getByRole('button', { name: 'Save', exact: true }).click();
 
-	await page.waitForURL('**/lead-sheets/sheet-*');
+	await page.waitForURL('**/tunes/sheet-*');
 	await expect(page.getByRole('heading', { name: 'My First Chart' })).toBeVisible();
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D-7' }).first()).toBeVisible();
 });
 
 test('rejects an unparseable chord with an inline error flash', async ({ page }) => {
-	await page.goto('/lead-sheets/entry');
+	await page.goto('/tunes/editor');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
 	await page.getByRole('button', { name: 'Set chord at bar 2, beat 1' }).click();
@@ -60,8 +60,8 @@ test('rejects an unparseable chord with an inline error flash', async ({ page })
 });
 
 test('edits an existing sheet via ?edit= and updates in place', async ({ page }) => {
-	await seedLeadSheets(page);
-	await page.goto('/lead-sheets/entry?edit=e2e-user-sheet-1');
+	await seedTunes(page);
+	await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
 
 	await expect(page.getByRole('heading', { name: 'Edit Lead Sheet' })).toBeVisible();
 	const title = page.getByRole('textbox', { name: 'Lead sheet title' });
@@ -70,7 +70,7 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 	await title.fill('Test Session Tune v2');
 	await page.getByRole('button', { name: 'Update' }).click();
 
-	await page.waitForURL('**/lead-sheets/e2e-user-sheet-1');
+	await page.waitForURL('**/tunes/e2e-user-sheet-1');
 	await expect(page.getByRole('heading', { name: 'Test Session Tune v2' })).toBeVisible();
 
 	// The stored sheet kept its id and got the new title.
@@ -82,7 +82,7 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 });
 
 test('the source-pitch selector defaults to the instrument and re-labels the key', async ({ page }) => {
-	await page.goto('/lead-sheets/entry');
+	await page.goto('/tunes/editor');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
 	await page.getByRole('button', { name: /Setup · Key/ }).click();
@@ -98,7 +98,7 @@ test('the source-pitch selector defaults to the instrument and re-labels the key
 });
 
 test('adds a section with a repeat and sees it in the preview', async ({ page }) => {
-	await page.goto('/lead-sheets/entry');
+	await page.goto('/tunes/editor');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
 	// Open setup, add a B section, and mark the A section repeated.

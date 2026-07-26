@@ -69,13 +69,13 @@
 		</div>
 		<div class="flex shrink-0 gap-2">
 			<a
-				href="/lead-sheets/community"
+				href="/tunes/community"
 				class="rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
 			>
 				Browse Community
 			</a>
 			<a
-				href="/add-lead-sheets"
+				href="/tunes/add"
 				class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
 			>
 				+ Add Lead Sheet
@@ -102,7 +102,7 @@
 						{sheet}
 						badge={badgeFor(sheet)}
 						authorName={adoptedAuthors[sheet.id]?.authorName ?? null}
-						onclick={() => goto(`/lead-sheets/${sheet.id}`)}
+						onclick={() => goto(`/tunes/${sheet.id}`)}
 					/>
 				{/each}
 			</div>
@@ -117,7 +117,7 @@
 		{#if curatedSheets.length > 0}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				{#each curatedSheets as sheet (sheet.id)}
-					<TuneCard {sheet} onclick={() => goto(`/lead-sheets/${sheet.id}`)} />
+					<TuneCard {sheet} onclick={() => goto(`/tunes/${sheet.id}`)} />
 				{/each}
 			</div>
 		{:else}
@@ -132,13 +132,13 @@
 			</p>
 			<div class="mt-4 flex justify-center gap-2">
 				<a
-					href="/add-lead-sheets"
+					href="/tunes/add"
 					class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
 				>
 					Add a lead sheet
 				</a>
 				<a
-					href="/lead-sheets/community"
+					href="/tunes/community"
 					class="rounded bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
 				>
 					Browse community

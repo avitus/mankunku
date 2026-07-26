@@ -13,7 +13,7 @@ import { claudeJsonToTune, extractionConsistencyScore } from '$lib/tunes/import/
 import { barTilingIssues, isRestPitch } from '$lib/tunes/import/system-bar-validation';
 
 /**
- * POST /api/lead-sheet-parse — extract a lead sheet (chords + melody) from an
+ * POST /api/tune-parse — extract a lead sheet (chords + melody) from an
  * uploaded PDF via Claude's document understanding.
  *
  * Gate order mirrors /api/chat (config → auth+rate-limit → size guards →
@@ -136,7 +136,7 @@ async function readBodyBounded(request: Request): Promise<string> {
 	return new TextDecoder().decode(buffer);
 }
 
-/** Generate a lead-sheet id (same scheme as user-lead-sheets.ts). */
+/** Generate a lead-sheet id (same scheme as user-tunes.ts). */
 function generateSheetId(): string {
 	const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
 	let rand = '';

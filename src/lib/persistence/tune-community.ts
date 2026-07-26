@@ -51,7 +51,7 @@ export interface TuneCommunityFilters {
 	search?: string;
 	authorSearch?: string;
 	sort?: 'popular' | 'newest';
-	/** Omit sheets authored by this user (their own live under /lead-sheets). */
+	/** Omit sheets authored by this user (their own live under /tunes). */
 	excludeUserId?: string;
 }
 

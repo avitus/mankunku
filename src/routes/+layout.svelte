@@ -76,7 +76,7 @@
 		{ href: '/ear-training', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
 		{ href: '/licks', label: 'Licks', primary: false, tourKey: 'licks' },
-		{ href: '/lead-sheets', label: 'Lead Sheets', primary: false, tourKey: 'lead-sheets' },
+		{ href: '/tunes', label: 'Tunes', primary: false, tourKey: 'tunes' },
 		{ href: '/progress', label: 'Progress', primary: false, tourKey: 'progress' },
 		{ href: '/docs', label: 'Docs', primary: false, tourKey: 'docs' },
 		{ href: '/settings', label: 'Settings', primary: false, tourKey: 'settings' }

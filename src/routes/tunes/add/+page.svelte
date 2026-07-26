@@ -11,7 +11,7 @@
 
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 		<a
-			href="/lead-sheets/entry"
+			href="/tunes/editor"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			<!-- Brass staff-and-pen glyph -->
@@ -35,7 +35,7 @@
 		</a>
 
 		<a
-			href="/lead-sheets/import/pdf"
+			href="/tunes/import/pdf"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			<!-- Brass document glyph -->
@@ -60,7 +60,7 @@
 		</a>
 
 		<a
-			href="/lead-sheets/import/ireal"
+			href="/tunes/import/ireal"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			<!-- Brass link glyph -->
@@ -84,7 +84,7 @@
 		</a>
 
 		<a
-			href="/lead-sheets/import/biab"
+			href="/tunes/import/biab"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			<!-- Brass box glyph -->
@@ -108,7 +108,7 @@
 		</a>
 
 		<a
-			href="/lead-sheets/import/musescore"
+			href="/tunes/import/musescore"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			<!-- Brass quarter-note glyph -->

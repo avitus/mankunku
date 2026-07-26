@@ -40,7 +40,7 @@
 	onMount(async () => {
 		source = defaultSourceTransposition(getInstrument());
 		try {
-			const res = await fetch('/api/lead-sheet-parse');
+			const res = await fetch('/api/tune-parse');
 			configured = res.ok ? Boolean((await res.json()).configured) : false;
 		} catch {
 			configured = false;
@@ -78,7 +78,7 @@
 		timeSignature: [number, number],
 		first = false
 	): Promise<SystemModeResponse | null> {
-		const res = await fetch('/api/lead-sheet-parse', {
+		const res = await fetch('/api/tune-parse', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
@@ -203,7 +203,7 @@
 				progress = null;
 			}
 			if (!imported) {
-				const res = await fetch('/api/lead-sheet-parse', {
+				const res = await fetch('/api/tune-parse', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ pdf: toBase64(buffer), filename: file.name })
@@ -238,7 +238,7 @@
 			// saved until the user hits Update there.
 			loadFromTune(concert, getInstrument());
 			setImportReview({ warnings, suspectBars: imported.suspectBars ?? [] });
-			goto('/lead-sheets/entry');
+			goto('/tunes/editor');
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Upload failed.';
 		} finally {
@@ -254,7 +254,7 @@
 
 <div class="mx-auto max-w-3xl space-y-4">
 	<a
-		href="/add-lead-sheets"
+		href="/tunes/add"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
 		&larr; Add Lead Sheets
@@ -281,7 +281,7 @@
 	{#if configured === false}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]">
 			PDF import isn't available on this server (no AI key configured). You can still
-			<a href="/lead-sheets/entry" class="text-[var(--color-accent)] underline">enter the chart manually</a>.
+			<a href="/tunes/editor" class="text-[var(--color-accent)] underline">enter the chart manually</a>.
 		</div>
 	{:else}
 		<input

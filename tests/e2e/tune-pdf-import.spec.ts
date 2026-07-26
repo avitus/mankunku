@@ -18,7 +18,7 @@ const ROUTE_RESPONSE = readFileSync('tests/fixtures/leadsheets/fly-me-to-the-moo
 
 test.beforeEach(async ({ page }) => {
 	await seedOnboardedAnonymous(page);
-	await page.route('**/api/lead-sheet-parse', async (route) => {
+	await page.route('**/api/tune-parse', async (route) => {
 		if (route.request().method() === 'GET') {
 			await route.fulfill({
 				status: 200,
@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('a PDF chart lands in the editor for review and saves from there', async ({ page }) => {
-	await page.goto('/lead-sheets/import/pdf');
+	await page.goto('/tunes/import/pdf');
 
 	// The source-pitch selector defaults to the seeded tenor's family.
 	await expect(page.getByLabel('Chart written for')).toHaveValue('Bb');
@@ -42,7 +42,7 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
 
 	// The draft opens in the editor with the extracted content intact.
-	await page.waitForURL('**/lead-sheets/entry');
+	await page.waitForURL('**/tunes/editor');
 	await expect(page.getByRole('textbox', { name: 'Lead sheet title' })).toHaveValue('Fly Me to the Moon');
 	// The chart is printed at written pitch for tenor (D). The Bb default
 	// shifts it to concert C on import, and the editor re-displays it at the
@@ -54,7 +54,7 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	await expect(page.getByRole('button', { name: 'Update' })).toBeVisible();
 
 	await page.getByRole('button', { name: 'Update' }).click();
-	await page.waitForURL('**/lead-sheets/sheet-e2e-pdf-fixture');
+	await page.waitForURL('**/tunes/sheet-e2e-pdf-fixture');
 	await expect(page.getByRole('heading', { name: 'Fly Me to the Moon' })).toBeVisible();
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 
@@ -65,15 +65,15 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 });
 
 test('cancelling an unsaved PDF draft returns to the book, not a dead detail page', async ({ page }) => {
-	await page.goto('/lead-sheets/import/pdf');
+	await page.goto('/tunes/import/pdf');
 	const fileInput = page.getByLabel('Lead sheet PDF');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
 
-	await page.waitForURL('**/lead-sheets/entry');
+	await page.waitForURL('**/tunes/editor');
 	await expect(page.getByRole('textbox', { name: 'Lead sheet title' })).toHaveValue('Fly Me to the Moon');
 
 	await page.getByRole('button', { name: 'Cancel' }).click();
-	await page.waitForURL('**/lead-sheets');
+	await page.waitForURL('**/tunes');
 	await expect(page.getByRole('heading', { name: 'Lead Sheets' })).toBeVisible();
 });

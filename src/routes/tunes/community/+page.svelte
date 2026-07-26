@@ -155,7 +155,7 @@
 
 <div class="space-y-6">
 	<a
-		href="/lead-sheets"
+		href="/tunes"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
 		&larr; Lead Sheets
@@ -223,7 +223,7 @@
 					<CommunityTuneCard
 						{item}
 						isOwnSheet={item.authorId === user?.id}
-						onclick={() => goto(`/lead-sheets/${item.sheet.id}`)}
+						onclick={() => goto(`/tunes/${item.sheet.id}`)}
 						onfavorite={() => handleFavorite(item)}
 						onadopt={() => handleAdopt(item)}
 						onreturn={() => handleReturn(item)}
@@ -248,7 +248,7 @@
 					Be the first — enter a tune and it becomes shareable.
 				</p>
 				<a
-					href="/add-lead-sheets"
+					href="/tunes/add"
 					class="mt-4 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
 				>
 					Add a lead sheet

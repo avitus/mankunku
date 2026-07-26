@@ -29,7 +29,7 @@
 
 	function handleReview(sheet: Tune): void {
 		loadDraftForReview(sheet, getInstrument());
-		goto('/lead-sheets/entry');
+		goto('/tunes/editor');
 	}
 
 	function handleAdd(sheet: Tune): string {
@@ -44,7 +44,7 @@
 
 <div class="mx-auto max-w-3xl space-y-4">
 	<a
-		href="/add-lead-sheets"
+		href="/tunes/add"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
 		&larr; Add Lead Sheets

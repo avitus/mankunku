@@ -193,7 +193,7 @@
 		sheet.difficulty = calculateDifficulty(phrase);
 		const saved = saveUserTune(sheet);
 		initNewTune();
-		goto(`/lead-sheets/${saved.id}`);
+		goto(`/tunes/${saved.id}`);
 	}
 
 	function handleCancel(): void {
@@ -203,9 +203,9 @@
 		// An unsaved import draft carries an editingId with no stored sheet —
 		// its detail page would 404-shrug, so fall back to the book.
 		if (editId && getUserTunesLocal().some((s) => s.id === editId)) {
-			goto(`/lead-sheets/${editId}`);
+			goto(`/tunes/${editId}`);
 		} else {
-			goto('/lead-sheets');
+			goto('/tunes');
 		}
 	}
 </script>

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedLeadSheets } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 
 /**
  * Lead-sheet library, detail, and chart rendering (anonymous/local-first).
@@ -12,11 +12,11 @@ import { seedOnboardedAnonymous, seedLeadSheets } from './fixtures/storage';
 
 test.beforeEach(async ({ page }) => {
 	await seedOnboardedAnonymous(page);
-	await seedLeadSheets(page);
+	await seedTunes(page);
 });
 
 test('library lists curated tunes and the user book', async ({ page }) => {
-	await page.goto('/lead-sheets');
+	await page.goto('/tunes');
 
 	await expect(page.getByRole('heading', { name: 'Lead Sheets' })).toBeVisible();
 
@@ -30,7 +30,7 @@ test('library lists curated tunes and the user book', async ({ page }) => {
 });
 
 test('search filters the catalog', async ({ page }) => {
-	await page.goto('/lead-sheets');
+	await page.goto('/tunes');
 
 	await page.getByPlaceholder(/Search by title/).fill('amazing');
 	await expect(page.getByRole('button', { name: /Open Amazing Grace/ })).toBeVisible();
@@ -39,7 +39,7 @@ test('search filters the catalog', async ({ page }) => {
 });
 
 test('detail page renders a multi-system chart with transposed chord symbols', async ({ page }) => {
-	await page.goto('/lead-sheets/ls-when-the-saints');
+	await page.goto('/tunes/ls-when-the-saints');
 
 	await expect(page.getByRole('heading', { name: 'When the Saints Go Marching In' })).toBeVisible();
 
@@ -58,7 +58,7 @@ test('detail page renders a multi-system chart with transposed chord symbols', a
 });
 
 test('user sheet detail supports the two-stage delete', async ({ page }) => {
-	await page.goto('/lead-sheets/e2e-user-sheet-1');
+	await page.goto('/tunes/e2e-user-sheet-1');
 
 	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
 	// Chart renders with the repeat form; chords in written pitch + compact spelling (tenor: Dm7 → E-7).
@@ -69,7 +69,7 @@ test('user sheet detail supports the two-stage delete', async ({ page }) => {
 	await deleteButton.click();
 	await page.getByRole('button', { name: 'Confirm Delete' }).click();
 
-	await page.waitForURL('**/lead-sheets');
+	await page.waitForURL('**/tunes');
 	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toHaveCount(0);
 
 	// Gone from storage too, not just the view.
@@ -78,7 +78,7 @@ test('user sheet detail supports the two-stage delete', async ({ page }) => {
 });
 
 test('key selector re-transposes the chart', async ({ page }) => {
-	await page.goto('/lead-sheets/e2e-user-sheet-1');
+	await page.goto('/tunes/e2e-user-sheet-1');
 
 	// Tenor default: concert C sheet shows written D as the active key.
 	await expect(page.getByRole('button', { name: 'D', exact: true })).toBeVisible();

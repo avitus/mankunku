@@ -16,7 +16,7 @@
  * preference + the Bb source default for files claiming concert pitch; they
  * match the sheets in the user's dev environment). Each song's PDF — the
  * printed export of the same score — was run once through the live
- * /api/lead-sheet-parse route and the response recorded, so CI compares the
+ * /api/tune-parse route and the response recorded, so CI compares the
  * two pipelines deterministically. PDFs live in `Leadsheets/PDF/` for
  * re-recording.
  *

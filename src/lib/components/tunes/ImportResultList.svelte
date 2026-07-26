@@ -56,7 +56,7 @@
 				</div>
 				{#if added}
 					<a
-						href="/lead-sheets/{added}"
+						href="/tunes/{added}"
 						class="rounded bg-[var(--color-success)]/20 px-3 py-1.5 text-xs font-medium text-[var(--color-success)]"
 					>
 						&#10003; Added — view

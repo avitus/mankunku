@@ -100,7 +100,7 @@ export const SETTINGS_ONBOARDED = {
  */
 export const TOUR_DISMISSED = {
 	completed: [] as string[],
-	dismissed: ['welcome', 'home', 'ear-training', 'lick-practice', 'licks', 'lead-sheets', 'progress', 'settings', 'docs']
+	dismissed: ['welcome', 'home', 'ear-training', 'lick-practice', 'licks', 'tunes', 'progress', 'settings', 'docs']
 };
 
 /**
@@ -177,7 +177,7 @@ export async function seedUserLicks(
  * repeat, exercising the multi-system chart rendering. Shape matches
  * `Tune` (src/lib/types/tune.ts); loosely typed to avoid `$lib`.
  */
-export const SAMPLE_USER_LEAD_SHEETS: unknown[] = [
+export const SAMPLE_USER_TUNES: unknown[] = [
 	{
 		id: 'e2e-user-sheet-1',
 		title: 'Test Session Tune',
@@ -217,12 +217,14 @@ export const SAMPLE_USER_LEAD_SHEETS: unknown[] = [
 ];
 
 /**
- * Seed the user's lead-sheet book into localStorage. Call before page.goto().
- * Defaults to {@link SAMPLE_USER_LEAD_SHEETS}.
+ * Seed the user's tune book into localStorage. Call before page.goto().
+ * Defaults to {@link SAMPLE_USER_TUNES}.
  */
-export async function seedLeadSheets(
+export async function seedTunes(
 	page: Page,
-	sheets: unknown[] = SAMPLE_USER_LEAD_SHEETS
+	sheets: unknown[] = SAMPLE_USER_TUNES
 ): Promise<void> {
+	// NOTE: the 'user-leadsheets' storage key is the pre-rename persisted key;
+	// it flips to 'user-tunes' together with the schema-v3 storage migration.
 	await seedStorage(page, { 'user-leadsheets': sheets });
 }

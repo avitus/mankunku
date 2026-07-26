@@ -92,7 +92,7 @@
 
 	function handleEdit() {
 		if (!baseSheet) return;
-		goto(`/lead-sheets/entry?edit=${baseSheet.id}`);
+		goto(`/tunes/editor?edit=${baseSheet.id}`);
 	}
 
 	function handleDelete() {
@@ -102,7 +102,7 @@
 			return;
 		}
 		deleteUserTune(baseSheet.id);
-		goto('/lead-sheets');
+		goto('/tunes');
 	}
 
 	async function handleReturn() {
@@ -112,7 +112,7 @@
 			return;
 		}
 		const ok = await returnTune(supabase, baseSheet.id);
-		if (ok) goto('/lead-sheets');
+		if (ok) goto('/tunes');
 		else confirmingReturn = false;
 	}
 
@@ -129,7 +129,7 @@
 
 <div class="space-y-6">
 	<a
-		href="/lead-sheets"
+		href="/tunes"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
 		&larr; Lead Sheets
