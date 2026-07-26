@@ -844,3 +844,11 @@ Newest at the top.
 ## 2026-07-25 (cont. 7) — Chord-symbol warnings name their bar
 
 - Both MuseScore chord warnings (rootless symbol, unrecognized text) now carry the printed bar number, pickup-aware (pickups excluded from numbering, matching MuseScore's display). Body and Soul's empty harmony element is at bar 10.
+
+## 2026-07-25 (cont. 8) — Corpus expanded to 9 charts, data-driven test structure
+
+- New structure for growth: `tests/helpers/leadsheet-corpus.ts` is the single manifest (slug, mscz, pdf, knownDefects, floors) consumed by TWO suites: `musescore-corpus.test.ts` (EXACT golden-fixture match per chart — the MuseScore path is verified + deterministic, drift = regression; goldens regenerate via `npx tsx tests/helpers/record-musescore-fixtures.ts`) and the manifest-driven `pdf-vs-musescore.test.ts` (charts join automatically once their pdf fixture exists). Adding chart #10 = drop files, one manifest entry, record two fixtures.
+- CRITICAL recorder detail: the verified app flow applies writtenSheetToConcert when a file CLAIMS concert (declaredTransposition 0) — a direct parseMscx keeps written pitch. First regeneration flipped A Train to written D; the recorder now replicates the full flow. All 9 goldens at sensible concert keys.
+- New charts: All of Me (32 bars), Body and Soul (17), Lady Bird (16), On Green Dolphin Street (24). First PDF recordings: Lady Bird passes FORM+CHORDS strictly out of the gate, Green Dolphin passes chords; exact-melody .44-.57.
+- Body and Soul = hardest chart: FIRST geometry bar UNDERCOUNT (14/17, dense ballad layout — next geometry tuning target), Fable filter blocks it with a silently EMPTY response (fallback now broadened: ANY total first-attempt failure on Fable → baseline model), key misread on the fallback path. Expectations recorded honestly in the manifest.
+- Corpus count note: the user said 8 verified; 9 mscz+pdf pairs exist in Leadsheets/ — all 9 are covered.

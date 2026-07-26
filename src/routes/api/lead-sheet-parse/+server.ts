@@ -560,13 +560,15 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 	];
 
 	// Fable first for accuracy; its stricter output filter sometimes blocks
-	// transcription of well-known tunes, so a blocked call falls back to the
-	// baseline model. Failing bars get ONE retry with their exact rhythm
-	// deltas fed back (the Audiveris rhythm-QA loop), and the answer is
-	// merged PER BAR so a clean first-attempt bar can never regress.
+	// transcription of well-known tunes — as an explicit API error OR as a
+	// silently EMPTY response — so any total first-attempt failure falls
+	// back to the baseline model. Failing bars then get ONE retry with
+	// their exact rhythm deltas fed back (the Audiveris rhythm-QA loop),
+	// and the answer is merged PER BAR so a clean first-attempt bar can
+	// never regress.
 	let model = ANTHROPIC_LEAD_SHEET_MODEL;
 	let first = await ask(null, model);
-	if (!first && lastFailure.includes('content filtering')) {
+	if (!first && model !== ANTHROPIC_MODEL) {
 		model = ANTHROPIC_MODEL;
 		first = await ask(null, model);
 	}

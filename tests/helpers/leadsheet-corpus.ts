@@ -1,0 +1,110 @@
+/**
+ * The verified lead-sheet corpus: every chart the user has checked in the
+ * dev environment, with its MuseScore source and printed PDF under
+ * `Leadsheets/`. Two integration suites iterate this manifest:
+ *
+ *  - musescore-corpus.test.ts — the MuseScore import must match its golden
+ *    fixture EXACTLY (the import is verified correct; any drift is a
+ *    regression). Regenerate goldens after an intentional importer change:
+ *      npx tsx tests/helpers/record-musescore-fixtures.ts
+ *  - pdf-vs-musescore.test.ts — the PDF pipeline measured against the
+ *    MuseScore import, with per-chart expected-fail sets and floors.
+ *    Record a PDF fixture with the live dev server (per chart, ~3-5 min):
+ *      node <scratchpad>/e2e-system-import.mjs <probe-slug> \
+ *        tests/fixtures/leadsheets/pdf-vs-musescore/<slug>.pdf-import.json
+ *
+ * TO ADD A CHART: drop the .mscz and .pdf into Leadsheets/, append an entry
+ * here, record both fixtures, then tune knownDefects/floors to the first
+ * recording.
+ */
+import { INSTRUMENTS } from '$lib/types/instruments';
+
+export interface CorpusChart {
+	/** Fixture basename under tests/fixtures/leadsheets/pdf-vs-musescore/. */
+	slug: string;
+	/** Filename under Leadsheets/Musescore/. */
+	mscz: string;
+	/** Filename under Leadsheets/PDF/. */
+	pdf: string;
+	/** pdf-vs-musescore strict targets currently expected to fail. */
+	knownDefects: string[];
+	/** Regression floors pinned just under the recorded run's quality. */
+	floors: { chordSeq: number; pitchSeq: number };
+}
+
+/** The part-selection preference the user's verified imports ran with. */
+export const CORPUS_INSTRUMENT = {
+	name: INSTRUMENTS['tenor-sax'].name,
+	transpositionSemitones: INSTRUMENTS['tenor-sax'].transpositionSemitones
+};
+
+export const CORPUS: CorpusChart[] = [
+	{
+		slug: 'all-the-things-you-are',
+		mscz: 'All The Things You Are (with Lyrics).mscz',
+		pdf: 'All The Things You Are (with Lyrics).pdf',
+		knownDefects: ['melody', 'pitches'],
+		floors: { chordSeq: 0.95, pitchSeq: 0.4 }
+	},
+	{
+		slug: 'all-of-me',
+		mscz: 'All of Me.mscz',
+		pdf: 'All of Me.pdf',
+		knownDefects: ['form', 'chords', 'melody', 'pitches'],
+		floors: { chordSeq: 0.8, pitchSeq: 0.5 }
+	},
+	{
+		slug: 'autumn-leaves',
+		mscz: 'Autumn Leaves in E-.mscz',
+		pdf: 'Autumn Leaves in E.pdf',
+		knownDefects: ['chords', 'melody', 'pitches'],
+		floors: { chordSeq: 0.95, pitchSeq: 0.7 }
+	},
+	{
+		// The hardest chart in the corpus: dense ballad layout undercounts
+		// bars in the geometry (14/17 — the first undercount class, next
+		// tuning target), the model path runs on the content-filter
+		// fallback, and the key misreads. Expectations are honest until
+		// that work lands.
+		slug: 'body-and-soul',
+		mscz: 'Body and Soul.mscz',
+		pdf: 'Body and Soul.pdf',
+		knownDefects: ['key', 'bars', 'form', 'chords', 'melody', 'pitches'],
+		floors: { chordSeq: 0.2, pitchSeq: 0.2 }
+	},
+	{
+		slug: 'fly-me-to-the-moon',
+		mscz: 'Fly Me to the Moon (Mankunku version).mscz',
+		pdf: 'Fly Me to the Moon (Mankunku version)-T._Sax_(1).pdf',
+		knownDefects: ['chords', 'melody', 'pitches'],
+		floors: { chordSeq: 0.9, pitchSeq: 0.45 }
+	},
+	{
+		slug: 'lady-bird',
+		mscz: 'Lady Bird.mscz',
+		pdf: 'Lady Bird.pdf',
+		knownDefects: ['melody', 'pitches'],
+		floors: { chordSeq: 0.9, pitchSeq: 0.55 }
+	},
+	{
+		slug: 'on-green-dolphin-street',
+		mscz: 'On Green Dolphin Street.mscz',
+		pdf: 'On Green Dolphin Street.pdf',
+		knownDefects: ['form', 'melody', 'pitches'],
+		floors: { chordSeq: 0.9, pitchSeq: 0.45 }
+	},
+	{
+		slug: 'take-the-a-train',
+		mscz: 'Take the A Train.mscz',
+		pdf: 'Take the A Train.pdf',
+		knownDefects: ['melody', 'pitches'],
+		floors: { chordSeq: 0.8, pitchSeq: 0.6 }
+	},
+	{
+		slug: 'there-will-never-be-another-you',
+		mscz: 'There Will Never Be Another You.mscz',
+		pdf: 'There Will Never Be Another You.pdf',
+		knownDefects: ['chords', 'melody', 'pitches'],
+		floors: { chordSeq: 0.95, pitchSeq: 0.7 }
+	}
+];

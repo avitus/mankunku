@@ -1,5 +1,5 @@
 {
- "id": "ref-take-the-a-train",
+ "id": "",
  "title": "Take the A Train",
  "composer": "Billy Strayhorn",
  "key": "C",
@@ -46,7 +46,8 @@
      "offset": [
       9,
       8
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 55,
@@ -79,7 +80,8 @@
      "offset": [
       2,
       1
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 56,
@@ -91,7 +93,8 @@
       17,
       8
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "flat"
     },
     {
      "pitch": 56,
@@ -103,7 +106,8 @@
       9,
       4
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "flat"
     },
     {
      "pitch": 56,
@@ -114,7 +118,8 @@
      "offset": [
       3,
       1
-     ]
+     ],
+     "spelling": "flat"
     },
     {
      "pitch": 57,
@@ -158,7 +163,8 @@
      "offset": [
       21,
       4
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 64,
@@ -169,7 +175,8 @@
      "offset": [
       43,
       8
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 55,
@@ -191,7 +198,8 @@
      "offset": [
       45,
       8
-     ]
+     ],
+     "spelling": "flat"
     },
     {
      "pitch": 53,
@@ -213,7 +221,8 @@
      "offset": [
       47,
       8
-     ]
+     ],
+     "spelling": "flat"
     },
     {
      "pitch": 60,
@@ -236,7 +245,8 @@
       49,
       8
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "sharp"
     },
     {
      "pitch": 52,
@@ -248,7 +258,8 @@
       25,
       4
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "sharp"
     }
    ],
    "harmony": [
@@ -349,7 +360,8 @@
      "offset": [
       0,
       1
-     ]
+     ],
+     "spelling": "sharp"
     }
    ],
    "harmony": [
@@ -401,7 +413,8 @@
      "offset": [
       0,
       1
-     ]
+     ],
+     "spelling": "sharp"
     }
    ],
    "harmony": [
@@ -486,7 +499,8 @@
      "offset": [
       1,
       1
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 53,
@@ -530,7 +544,8 @@
      "offset": [
       2,
       1
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 57,
@@ -610,7 +625,8 @@
      "offset": [
       5,
       1
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 54,
@@ -621,7 +637,8 @@
      "offset": [
       41,
       8
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 57,
@@ -654,7 +671,8 @@
      "offset": [
       6,
       1
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 57,
@@ -700,7 +718,8 @@
      "offset": [
       15,
       2
-     ]
+     ],
+     "spelling": "flat"
     }
    ],
    "harmony": [
@@ -822,7 +841,8 @@
      "offset": [
       9,
       8
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 55,
@@ -855,7 +875,8 @@
      "offset": [
       2,
       1
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 56,
@@ -867,7 +888,8 @@
       17,
       8
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "flat"
     },
     {
      "pitch": 56,
@@ -879,7 +901,8 @@
       9,
       4
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "flat"
     },
     {
      "pitch": 56,
@@ -890,7 +913,8 @@
      "offset": [
       3,
       1
-     ]
+     ],
+     "spelling": "flat"
     },
     {
      "pitch": 57,
@@ -934,7 +958,8 @@
      "offset": [
       21,
       4
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 64,
@@ -945,7 +970,8 @@
      "offset": [
       43,
       8
-     ]
+     ],
+     "spelling": "sharp"
     },
     {
      "pitch": 55,
@@ -967,7 +993,8 @@
      "offset": [
       45,
       8
-     ]
+     ],
+     "spelling": "flat"
     },
     {
      "pitch": 53,
@@ -989,7 +1016,8 @@
      "offset": [
       47,
       8
-     ]
+     ],
+     "spelling": "flat"
     },
     {
      "pitch": 60,
@@ -1012,7 +1040,8 @@
       49,
       8
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "sharp"
     },
     {
      "pitch": 52,
@@ -1024,7 +1053,8 @@
       25,
       4
      ],
-     "tied": true
+     "tied": true,
+     "spelling": "sharp"
     },
     {
      "pitch": 52,
@@ -1035,7 +1065,8 @@
      "offset": [
       7,
       1
-     ]
+     ],
+     "spelling": "sharp"
     }
    ],
    "harmony": [

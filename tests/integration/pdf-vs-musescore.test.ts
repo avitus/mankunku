@@ -61,40 +61,24 @@ import { writtenSheetToConcert } from '$lib/leadsheets/source-transposition';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import type { LeadSheet } from '$lib/types/lead-sheet';
+import { existsSync } from 'node:fs';
+import { CORPUS } from '../helpers/leadsheet-corpus';
 
-const SONGS = [
-	'all-the-things-you-are',
-	'autumn-leaves',
-	'fly-me-to-the-moon',
-	'take-the-a-train',
-	'there-will-never-be-another-you'
-] as const;
-type Slug = (typeof SONGS)[number];
+// Charts whose PDF fixture has been recorded (new corpus entries join the
+// suite as soon as their fixture lands — see the corpus manifest header).
+const CHARTS = CORPUS.filter((c) =>
+	existsSync(
+		new URL(`../fixtures/leadsheets/pdf-vs-musescore/${c.slug}.pdf-import.json`, import.meta.url)
+	)
+);
 
-/** Which strict expectations each song currently fails (see header). */
-const KNOWN_DEFECTS: Record<Slug, Set<string>> = {
-	'all-the-things-you-are': new Set(['melody', 'pitches']),
-	'autumn-leaves': new Set(['chords', 'melody', 'pitches']),
-	'fly-me-to-the-moon': new Set(['chords', 'melody', 'pitches']),
-	'take-the-a-train': new Set(['melody', 'pitches']),
-	'there-will-never-be-another-you': new Set(['chords', 'melody', 'pitches'])
-};
 
-/** Regression floors pinned just under the recorded run's quality. */
-const FLOORS: Record<Slug, { chordSeq: number; pitchSeq: number }> = {
-	'all-the-things-you-are': { chordSeq: 0.95, pitchSeq: 0.4 },
-	'autumn-leaves': { chordSeq: 0.95, pitchSeq: 0.7 },
-	// Fly Me trips Fable's output filter and falls back to the baseline
-	// model; the notehead-evidence loop carries its floor anyway.
-	'fly-me-to-the-moon': { chordSeq: 0.9, pitchSeq: 0.45 },
-	'take-the-a-train': { chordSeq: 0.8, pitchSeq: 0.6 },
-	'there-will-never-be-another-you': { chordSeq: 0.95, pitchSeq: 0.7 }
-};
+
 
 const fixture = (name: string): string =>
 	fileURLToPath(new URL(`../fixtures/leadsheets/pdf-vs-musescore/${name}`, import.meta.url));
 
-function load(slug: Slug): { ref: LeadSheet; pdf: LeadSheet } {
+function load(slug: string): { ref: LeadSheet; pdf: LeadSheet } {
 	const ref = JSON.parse(readFileSync(fixture(`${slug}.musescore-import.json`), 'utf8')) as LeadSheet;
 	const res = JSON.parse(readFileSync(fixture(`${slug}.pdf-import.json`), 'utf8')) as {
 		sheet: LeadSheet;
@@ -166,9 +150,10 @@ const strictEq = <T>(x: T, y: T): boolean => JSON.stringify(x) === JSON.stringif
 const samePitch = (x: [number, number, number], y: [number, number, number]): boolean =>
 	x[1] === y[1];
 
-describe.each(SONGS)('%s — PDF import vs MuseScore import', (slug) => {
+describe.each(CHARTS)('$slug — PDF import vs MuseScore import', ({ slug, knownDefects, floors }) => {
 	const { ref, pdf } = load(slug);
-	const target = (id: string) => (KNOWN_DEFECTS[slug].has(id) ? it.fails : it);
+	const defects = new Set(knownDefects);
+	const target = (id: string) => (defects.has(id) ? it.fails : it);
 
 	// ── Strict targets: what a faithful PDF import must satisfy ─────────
 	it('agrees on the time signature', () => {
@@ -213,13 +198,13 @@ describe.each(SONGS)('%s — PDF import vs MuseScore import', (slug) => {
 	// ── Regression floors: the recorded run's quality must not sink ─────
 	it('chord-sequence agreement stays at or above the recorded floor', () => {
 		expect(agreement(chordSeq(ref), chordSeq(pdf), (a, b) => a === b)).toBeGreaterThanOrEqual(
-			FLOORS[slug].chordSeq
+			floors.chordSeq
 		);
 	});
 
 	it('melody pitch agreement stays at or above the recorded floor', () => {
-		expect(
-			agreement(melody(ref), melody(pdf), samePitch)
-		).toBeGreaterThanOrEqual(FLOORS[slug].pitchSeq);
+		expect(agreement(melody(ref), melody(pdf), samePitch)).toBeGreaterThanOrEqual(
+			floors.pitchSeq
+		);
 	});
 });
