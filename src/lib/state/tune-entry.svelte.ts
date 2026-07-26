@@ -194,7 +194,7 @@ function loadBuffer(sectionIdx: number, pageIdx: number): void {
 	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return;
 	// The shared buffer interprets typed pitches at the SOURCE's transposition
-	// while a lead sheet is being edited (cleared by suspendEntryBuffer).
+	// while a tune is being edited (cleared by suspendEntryBuffer).
 	stepEntry.transpositionOverride = entryTranspositionSemitones();
 	if (!melodyEditingSupported()) {
 		stepEntry.enteredNotes = [];
@@ -339,7 +339,7 @@ export function flattenedBufferBase(): number {
 /**
  * Park the editor when navigating away: commit the page into the section
  * list and empty the SHARED step-entry buffer so the lick entry page never
- * sees lead-sheet content. `resumeEntryBuffer` reloads the same page on
+ * sees tune content. `resumeEntryBuffer` reloads the same page on
  * return without re-committing (the buffer is empty at that point).
  */
 export function suspendEntryBuffer(): void {

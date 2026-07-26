@@ -1,5 +1,5 @@
 /**
- * Filter state for the lead-sheet community browse page. Global rune module
+ * Filter state for the tune community browse page. Global rune module
  * so the filters survive navigation away and back. Not persisted.
  */
 

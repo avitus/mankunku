@@ -17,7 +17,7 @@ const IREAL_URL =
 		'Imported Blues=Trad=Medium Swing=F=n={*AT44F7 |Bb7 |F7 |F7 |N1Bb7 |F7 } N2Bb7 |F6 Z'
 	);
 
-test('the add-lead-sheets chooser links all five methods', async ({ page }) => {
+test('the add-tunes chooser links all five methods', async ({ page }) => {
 	await page.goto('/tunes/add');
 	await expect(page.getByRole('heading', { name: 'Add Tunes' })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Editor/ })).toHaveAttribute('href', '/tunes/editor');

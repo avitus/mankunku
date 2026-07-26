@@ -173,7 +173,7 @@ export async function seedUserLicks(
 }
 
 /**
- * Sample user-entered lead sheet: a 2-section form with melody, chords, and a
+ * Sample user-entered tune: a 2-section form with melody, chords, and a
  * repeat, exercising the multi-system chart rendering. Shape matches
  * `Tune` (src/lib/types/tune.ts); loosely typed to avoid `$lib`.
  */

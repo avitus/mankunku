@@ -49,8 +49,8 @@ async function loadRoute() {
 					}
 				: null,
 		ANTHROPIC_MODEL: 'claude-test-model',
-		ANTHROPIC_LEAD_SHEET_MODEL: 'claude-test-model',
-		ANTHROPIC_LEAD_SHEET_MAX_TOKENS: 8192
+		ANTHROPIC_TUNE_MODEL: 'claude-test-model',
+		ANTHROPIC_TUNE_MAX_TOKENS: 8192
 	}));
 	return await import('../../../src/routes/api/tune-parse/+server');
 }

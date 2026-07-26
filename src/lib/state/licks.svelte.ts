@@ -1,7 +1,7 @@
 /**
  * Library state — filters for the user's personal lick collection.
  *
- * The library page now lists only the user's own (and adopted community) licks,
+ * The Licks page now lists only the user's own (and adopted community) licks,
  * so the curated-archive browse filters (category, difficulty, practice-only)
  * are gone. What remains is a search box plus a progression filter.
  *

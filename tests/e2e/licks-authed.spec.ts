@@ -17,7 +17,7 @@ test.describe('licks — authed', () => {
 		await seedUserLicks(signedInPage);
 
 		// Intercept any Supabase REST call from the browser client and return
-		// an empty result set. The library page tolerates empty cloud data
+		// an empty result set. The licks page tolerates empty cloud data
 		// (falls back to local). Without this, real Supabase calls would 401
 		// with our synthetic cookie.
 		await signedInPage.route('**/rest/v1/**', async (route) => {

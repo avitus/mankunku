@@ -841,7 +841,7 @@ export type Database = {
         ]
       }
       /**
-       * User-owned lead sheets (melody + full-harmony song forms).
+       * User-owned tunes (melody + full-harmony song forms).
        * Local-first: ids are client-generated TEXT (sheet-{timestamp}-{random})
        * so offline-created rows keep their id on first sync. Mirrors
        * user_licks' sync model (client_mtime clock + deleted_at tombstones).

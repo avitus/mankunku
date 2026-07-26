@@ -6,8 +6,8 @@ import {
 	getAnthropicClient,
 	isAnthropicConfigured,
 	ANTHROPIC_MODEL,
-	ANTHROPIC_LEAD_SHEET_MODEL,
-	ANTHROPIC_LEAD_SHEET_MAX_TOKENS
+	ANTHROPIC_TUNE_MODEL,
+	ANTHROPIC_TUNE_MAX_TOKENS
 } from '$lib/server/anthropic';
 import { claudeJsonToTune, extractionConsistencyScore } from '$lib/tunes/import/claude-pdf';
 import { barTilingIssues, isRestPitch } from '$lib/tunes/import/system-bar-validation';
@@ -311,8 +311,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 			// long (bar-wise transcription needs the 16k output ceiling).
 			const response = await client.messages.stream({
 				model,
-				max_tokens: ANTHROPIC_LEAD_SHEET_MAX_TOKENS,
-				...(model === ANTHROPIC_LEAD_SHEET_MODEL ? FABLE_THINKING : {}),
+				max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
+				...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
 				system: SYSTEM_PROMPT,
 				messages: [
 					{
@@ -335,7 +335,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 				.map((block) => (block as { text: string }).text)
 				.join('');
 		} catch (err) {
-			console.error('[lead-sheet-parse] extraction failed:', err);
+			console.error('[tune-parse] extraction failed:', err);
 			return { ok: false, convErrors: null };
 		}
 
@@ -347,13 +347,13 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 		try {
 			extracted = JSON.parse(jsonText);
 		} catch {
-			console.warn('[lead-sheet-parse] model returned non-JSON output');
+			console.warn('[tune-parse] model returned non-JSON output');
 			return { ok: false, convErrors: null };
 		}
 
 		const { sheet, errors, warnings } = claudeJsonToTune(extracted);
 		if (!sheet) {
-			console.warn('[lead-sheet-parse] conversion rejected:', errors.join('; '));
+			console.warn('[tune-parse] conversion rejected:', errors.join('; '));
 			return { ok: false, convErrors: errors };
 		}
 		return { ok: true, sheet, warnings, score: extractionConsistencyScore(warnings) };
@@ -362,17 +362,17 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	// Extraction has no temperature control on this model, and a bad sample
 	// loses bars. A structurally shaky attempt gets ONE retry; keep the
 	// steadier of the two.
-	let result = await runExtraction(ANTHROPIC_LEAD_SHEET_MODEL);
+	let result = await runExtraction(ANTHROPIC_TUNE_MODEL);
 	if (!result.ok || result.score >= 2) {
 		// The retry drops to the baseline model when the first attempt died
 		// outright (Fable's output filter blocks some well-known tunes).
-		const second = await runExtraction(result.ok ? ANTHROPIC_LEAD_SHEET_MODEL : ANTHROPIC_MODEL);
+		const second = await runExtraction(result.ok ? ANTHROPIC_TUNE_MODEL : ANTHROPIC_MODEL);
 		if (second.ok && (!result.ok || second.score < result.score)) result = second;
 	}
 
 	if (!result.ok) {
 		if (result.convErrors) {
-			throw error(422, `The chart could not be read as a lead sheet: ${result.convErrors.join('; ')}`);
+			throw error(422, `The chart could not be read as a tune: ${result.convErrors.join('; ')}`);
 		}
 		throw error(502, 'The PDF could not be processed. Try again, or enter the chart manually.');
 	}
@@ -500,11 +500,11 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 			const response = await client.messages
 				.stream({
 					model,
-					max_tokens: ANTHROPIC_LEAD_SHEET_MAX_TOKENS,
+					max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
 					// Fable thinks adaptively; high effort buys transcription
 					// accuracy, and the 32k ceiling keeps dense-system JSON
 					// clear of truncation under the thinking tokens.
-					...(model === ANTHROPIC_LEAD_SHEET_MODEL ? FABLE_THINKING : {}),
+					...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
 					system: SYSTEM_MODE_PROMPT,
 					messages: [
 						{
@@ -534,7 +534,7 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 				.map((block) => (block as { text: string }).text)
 				.join('');
 		} catch (err) {
-			console.error('[lead-sheet-parse] system-mode extraction failed:', err);
+			console.error('[tune-parse] system-mode extraction failed:', err);
 			lastFailure = `api: ${err instanceof Error ? err.message.slice(0, 200) : 'unknown'}`;
 			return null;
 		}
@@ -566,7 +566,7 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 	// their exact rhythm deltas fed back (the Audiveris rhythm-QA loop),
 	// and the answer is merged PER BAR so a clean first-attempt bar can
 	// never regress.
-	let model = ANTHROPIC_LEAD_SHEET_MODEL;
+	let model = ANTHROPIC_TUNE_MODEL;
 	let first = await ask(null, model);
 	if (!first && model !== ANTHROPIC_MODEL) {
 		model = ANTHROPIC_MODEL;
@@ -655,6 +655,6 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 export const GET: RequestHandler = async () => {
 	return json({
 		configured: isAnthropicConfigured(),
-		model: isAnthropicConfigured() ? ANTHROPIC_LEAD_SHEET_MODEL : null
+		model: isAnthropicConfigured() ? ANTHROPIC_TUNE_MODEL : null
 	});
 };

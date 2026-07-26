@@ -203,7 +203,7 @@ The user enters notes in their instrument's **written** pitch (what they see on 
 
 ### Community State (`src/lib/state/community.svelte.ts`)
 
-Filter and sort state for the `/community` browse view. **Not persisted.**
+Filter and sort state for the `/licks/community` browse view. **Not persisted.**
 
 ```typescript
 export const community = $state<{

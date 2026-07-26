@@ -34,21 +34,21 @@ export function isAnthropicConfigured(): boolean {
 export const ANTHROPIC_MODEL = 'claude-opus-4-8';
 
 /**
- * Model for lead-sheet PDF extraction. Music transcription is the hardest
+ * Model for tune PDF extraction. Music transcription is the hardest
  * vision task in the app — staff-position reading drove the melody error
  * rate on Opus 4.8 — so this rides the most capable tier independently of
  * the (cost-sensitive, high-volume) docs chat above.
  */
-export const ANTHROPIC_LEAD_SHEET_MODEL = 'claude-fable-5';
+export const ANTHROPIC_TUNE_MODEL = 'claude-fable-5';
 
 /** Cap on output tokens per chat response — keeps costs predictable. */
 export const ANTHROPIC_MAX_TOKENS = 1024;
 
 /**
- * Cap on output tokens for the lead-sheet PDF extraction. A full multi-page
+ * Cap on output tokens for the tune PDF extraction. A full multi-page
  * chart's chords + melody as JSON runs a few thousand tokens; 8192 leaves
  * headroom without letting a runaway response get expensive.
  */
 // Bar-wise transcription is verbose: ~40 bars × chords + melody tuples can
 // exceed 8k output tokens, and truncation means a JSON parse failure.
-export const ANTHROPIC_LEAD_SHEET_MAX_TOKENS = 32768;
+export const ANTHROPIC_TUNE_MAX_TOKENS = 32768;
