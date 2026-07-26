@@ -8,7 +8,7 @@ import { seedOnboardedAnonymous } from './fixtures/storage';
  * is reachable, and clicking a pitch button doesn't throw.
  */
 
-test.describe('step entry', () => {
+test.describe('lick editor', () => {
 	test.beforeEach(async ({ page }) => {
 		await seedOnboardedAnonymous(page);
 	});

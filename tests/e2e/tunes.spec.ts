@@ -2,7 +2,7 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 
 /**
- * Lead-sheet library, detail, and chart rendering (anonymous/local-first).
+ * Tune book, detail, and chart rendering (anonymous/local-first).
  *
  * The chart assertions double as a live abcjs check of the generated ABC:
  * a malformed body (bad repeat/ending syntax, broken chord tokens) surfaces
@@ -15,10 +15,22 @@ test.beforeEach(async ({ page }) => {
 	await seedTunes(page);
 });
 
-test('library lists curated tunes and the user book', async ({ page }) => {
+test('header links route to the community browse and the add chooser', async ({ page }) => {
+	await page.goto('/tunes');
+	await expect(page.getByRole('link', { name: /browse community/i }).first()).toHaveAttribute(
+		'href',
+		'/tunes/community'
+	);
+	await expect(page.getByRole('link', { name: /\+ add tune/i })).toHaveAttribute(
+		'href',
+		'/tunes/add'
+	);
+});
+
+test('tune book lists curated tunes and the user book', async ({ page }) => {
 	await page.goto('/tunes');
 
-	await expect(page.getByRole('heading', { name: 'Lead Sheets' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Tunes', exact: true })).toBeVisible();
 
 	// Seeded user sheet under "Your book".
 	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toBeVisible();

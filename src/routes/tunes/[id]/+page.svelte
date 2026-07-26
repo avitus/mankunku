@@ -124,7 +124,7 @@
 </script>
 
 <svelte:head>
-	<title>{baseSheet?.title ?? 'Lead Sheet'} — Mankunku</title>
+	<title>{baseSheet?.title ?? 'Tune'} — Mankunku</title>
 </svelte:head>
 
 <div class="space-y-6">
@@ -132,7 +132,7 @@
 		href="/tunes"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
-		&larr; Lead Sheets
+		&larr; Tunes
 	</a>
 
 	{#if sheet && baseSheet}
@@ -242,7 +242,7 @@
 		{/if}
 	{:else}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">
-			Lead sheet not found.
+			Tune not found.
 		</div>
 	{/if}
 </div>

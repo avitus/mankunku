@@ -211,14 +211,14 @@
 </script>
 
 <svelte:head>
-	<title>{isEditing ? 'Edit Lead Sheet' : 'Lead Sheet Entry'} — Mankunku</title>
+	<title>{isEditing ? 'Edit Tune' : 'Tune Editor'} — Mankunku</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl space-y-4">
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">{isEditing ? 'Fix a chart' : 'Chart a tune'}</div>
 		<h1 class="font-display text-3xl font-bold tracking-tight">
-			{isEditing ? 'Edit Lead Sheet' : 'Lead Sheet Entry'}
+			{isEditing ? 'Edit Tune' : 'Tune Editor'}
 		</h1>
 		<div class="jazz-rule mt-2 max-w-[140px]"></div>
 	</div>
@@ -234,7 +234,7 @@
 			<input
 				bind:value={tuneEntry.title}
 				placeholder="Untitled"
-				aria-label="Lead sheet title"
+				aria-label="Tune title"
 				class="mb-2 w-full bg-transparent font-display text-xl font-semibold outline-none placeholder:text-[var(--color-text-secondary)]/60"
 			/>
 		{/snippet}

@@ -56,16 +56,18 @@
 </script>
 
 <svelte:head>
-	<title>Lead Sheets — Mankunku</title>
+	<title>Tunes — Mankunku</title>
 </svelte:head>
 
 <div class="space-y-6">
 	<div class="flex flex-wrap items-center justify-between gap-3">
 		<div>
-			<h1 class="text-2xl font-bold">Lead Sheets</h1>
+			<div class="smallcaps text-[var(--color-brass)]">The Songbook</div>
+			<h1 class="font-display text-4xl font-bold tracking-tight">Tunes</h1>
 			<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
 				Full song forms — melody and changes — for your book.
 			</p>
+			<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		</div>
 		<div class="flex shrink-0 gap-2">
 			<a
@@ -78,7 +80,7 @@
 				href="/tunes/add"
 				class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
 			>
-				+ Add Lead Sheet
+				+ Add Tune
 			</a>
 		</div>
 	</div>
@@ -135,7 +137,7 @@
 					href="/tunes/add"
 					class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
 				>
-					Add a lead sheet
+					Add a tune
 				</a>
 				<a
 					href="/tunes/community"

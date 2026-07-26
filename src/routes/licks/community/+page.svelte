@@ -222,14 +222,20 @@
 </script>
 
 <svelte:head>
-	<title>Community — Mankunku</title>
+	<title>Community Licks — Mankunku</title>
 </svelte:head>
 
 <div class="space-y-6">
+	<a
+		href="/licks"
+		class="inline-block text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
+	>
+		&larr; Licks
+	</a>
 	<div class="flex items-end justify-between gap-4 flex-wrap">
 		<div>
 			<div class="smallcaps text-[var(--color-brass)]">The Jam</div>
-			<h1 class="font-display text-4xl font-bold tracking-tight">Community</h1>
+			<h1 class="font-display text-4xl font-bold tracking-tight">Community Licks</h1>
 			<div class="jazz-rule mt-2 max-w-[140px]"></div>
 		</div>
 		<span class="text-sm text-[var(--color-text-secondary)]">
@@ -240,7 +246,7 @@
 	{#if !session}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
 			<p class="italic text-[var(--color-text-secondary)]">
-				Sign in to browse the community library.
+				Sign in to browse community licks.
 			</p>
 			<a
 				href="/auth"
@@ -389,7 +395,7 @@
 					The Community library is just getting started.
 				</p>
 				<p class="text-sm text-[var(--color-text-secondary)]">
-					Record or step-enter a lick of your own to kick things off — other players will be able to steal it from here.
+					Record or write a lick of your own to kick things off — other players will be able to steal it from here.
 				</p>
 				<div class="flex justify-center gap-2 pt-2">
 					<a
@@ -402,7 +408,7 @@
 						href="/licks/editor"
 						class="rounded-full border border-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white transition-colors"
 					>
-						Step-enter a lick
+						Write a lick
 					</a>
 				</div>
 			</div>

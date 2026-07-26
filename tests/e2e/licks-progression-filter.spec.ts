@@ -36,7 +36,7 @@ function lick(id: string, name: string, category: Phrase['category']): Phrase {
 	};
 }
 
-test.describe('library progression filter', () => {
+test.describe('licks progression filter', () => {
 	test.beforeEach(async ({ page }) => {
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page, [

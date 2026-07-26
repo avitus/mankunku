@@ -303,7 +303,7 @@
 			<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		</div>
 		<div class="flex items-center gap-4">
-			<TourTrigger tourId="licks" steps={licksTour} label="How the library works" />
+			<TourTrigger tourId="licks" steps={licksTour} label="How your book works" />
 			<a
 				href="/licks/community"
 				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
@@ -317,7 +317,7 @@
 			>
 				+ Add a lick
 			</a>
-			<HelpLink href="/docs/user-guide#library" label="Library docs" />
+			<HelpLink href="/docs/user-guide#your-licks" label="Licks docs" />
 		</div>
 	</div>
 
@@ -334,10 +334,10 @@
 		</div>
 	{:else if myLicks.length === 0}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center">
-			<p class="font-display text-lg">Your library is empty.</p>
+			<p class="font-display text-lg">Your book is empty.</p>
 			<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
-				Record or step-enter the licks you want to learn, then tag them for practice to drill
-				them through all 12 keys in Lick Practice.
+				Record a lick or write one in the editor, then tag it for practice to drill it
+				through all 12 keys in Lick Practice.
 			</p>
 			<a
 				href="/licks/add"

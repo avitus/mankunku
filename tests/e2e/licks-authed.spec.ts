@@ -9,7 +9,7 @@ import { seedOnboardedAnonymous, seedUserLicks } from './fixtures/storage';
  * locally-seeded licks survive the empty-cloud merge and render.
  */
 
-test.describe('library — authed', () => {
+test.describe('licks — authed', () => {
 	test.beforeEach(async ({ signedInPage }) => {
 		await seedOnboardedAnonymous(signedInPage);
 		// Seed a personal collection — locally-saved licks with no owner stamp
@@ -46,7 +46,7 @@ test.describe('library — authed', () => {
 		await expect.poll(() => cardHeadings.count()).toBeGreaterThan(0);
 
 		// With licks present, the "empty" copy must never be the rendered state.
-		await expect(signedInPage.getByText('Your library is empty.')).toHaveCount(0);
+		await expect(signedInPage.getByText('Your book is empty.')).toHaveCount(0);
 	});
 
 	test('server-rendered HTML shows a loading state, never the empty copy', async ({
@@ -66,6 +66,6 @@ test.describe('library — authed', () => {
 		expect(res.ok()).toBeTruthy();
 		const html = await res.text();
 		expect(html).toContain('Loading your licks');
-		expect(html).not.toContain('Your library is empty.');
+		expect(html).not.toContain('Your book is empty.');
 	});
 });

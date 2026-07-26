@@ -19,8 +19,8 @@ const IREAL_URL =
 
 test('the add-lead-sheets chooser links all five methods', async ({ page }) => {
 	await page.goto('/tunes/add');
-	await expect(page.getByRole('heading', { name: 'Add Lead Sheets' })).toBeVisible();
-	await expect(page.getByRole('link', { name: /Manual Entry/ })).toHaveAttribute('href', '/tunes/editor');
+	await expect(page.getByRole('heading', { name: 'Add Tunes' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Editor/ })).toHaveAttribute('href', '/tunes/editor');
 	await expect(page.getByRole('link', { name: /PDF Upload/ })).toHaveAttribute('href', '/tunes/import/pdf');
 	await expect(page.getByRole('link', { name: /iReal Pro/ })).toHaveAttribute('href', '/tunes/import/ireal');
 	await expect(page.getByRole('link', { name: /Band-in-a-Box/ })).toHaveAttribute('href', '/tunes/import/biab');
@@ -52,8 +52,8 @@ test('iReal review flow opens the imported form in the editor', async ({ page })
 
 	await page.waitForURL('**/tunes/editor');
 	// Draft mode (create, not update) with the imported content hydrated.
-	await expect(page.getByRole('heading', { name: 'Lead Sheet Entry' })).toBeVisible();
-	await expect(page.getByRole('textbox', { name: 'Lead sheet title' })).toHaveValue('Imported Blues');
+	await expect(page.getByRole('heading', { name: 'Tune Editor' })).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Imported Blues');
 	await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
 	// The imported changes render in the preview (written pitch: F7 → G7).
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'G7' }).first()).toBeVisible();
@@ -166,7 +166,7 @@ test('the PDF import page renders a usable state', async ({ page }) => {
 	// (keyless environment) — never a blank page.
 	await expect(
 		page
-			.getByLabel('Lead sheet PDF')
+			.getByLabel('Tune PDF')
 			.or(page.getByText(/isn't available on this server/))
 			.first()
 	).toBeVisible();

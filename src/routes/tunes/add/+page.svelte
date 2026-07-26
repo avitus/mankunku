@@ -1,11 +1,11 @@
 <svelte:head>
-	<title>Add Lead Sheets — Mankunku</title>
+	<title>Add Tunes — Mankunku</title>
 </svelte:head>
 
 <div class="space-y-6">
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">Build your book</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight">Add Lead Sheets</h1>
+		<h1 class="font-display text-4xl font-bold tracking-tight">Add Tunes</h1>
 		<div class="jazz-rule mt-2 max-w-[140px]"></div>
 	</div>
 
@@ -27,7 +27,7 @@
 				<path d="M16.5 21l5-5-2.5-2.5-5 5V21z" fill="currentColor" stroke="none" />
 			</svg>
 			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				Manual Entry
+				Editor
 			</h2>
 			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
 				Chart a tune by hand — sections, melody, and changes.

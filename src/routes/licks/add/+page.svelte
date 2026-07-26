@@ -57,7 +57,7 @@
 				<rect x="13" y="5" width="2.5" height="8" fill="currentColor" stroke="none" />
 			</svg>
 			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				Step Entry
+				Editor
 			</h2>
 			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
 				Enter notes one at a time using your keyboard.

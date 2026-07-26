@@ -373,14 +373,14 @@
 </script>
 
 <svelte:head>
-	<title>{isEditing ? 'Edit Lick' : 'Step Entry'} — Mankunku</title>
+	<title>{isEditing ? 'Edit Lick' : 'Lick Editor'} — Mankunku</title>
 </svelte:head>
 
 <div class="mx-auto max-w-2xl space-y-4">
 	<!-- Header -->
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">{isEditing ? 'Fix a lick' : 'Write a lick'}</div>
-		<h1 class="font-display text-3xl font-bold tracking-tight">{isEditing ? 'Edit Lick' : 'Lick Entry'}</h1>
+		<h1 class="font-display text-3xl font-bold tracking-tight">{isEditing ? 'Edit Lick' : 'Lick Editor'}</h1>
 		<div class="jazz-rule mt-2 max-w-[120px]"></div>
 	</div>
 

@@ -122,7 +122,7 @@
 		// focused
 		if (availableLickCount === 0) {
 			return dailyLickCount > 0
-				? `No licks tagged for this progression — try Daily Practice or tag more in the library.`
+				? `No licks tagged for this progression — try Daily Practice or tag more in your book.`
 				: 'No licks tagged for practice yet.';
 		}
 		return `${availableLickCount} lick${availableLickCount === 1 ? '' : 's'} tagged for this progression · ~${config.durationMinutes} min`;
@@ -233,7 +233,7 @@
 						{:else if practiceTaggedLicks.length === 0}
 							<p class="text-xs text-[var(--color-text-secondary)]">
 								No licks tagged for practice yet.
-								<a href="/licks" class="text-[var(--color-accent)] underline">Browse the library</a>
+								<a href="/licks" class="text-[var(--color-accent)] underline">Browse your licks</a>
 								and tag a few first.
 							</p>
 						{:else}
@@ -350,7 +350,7 @@
 		</p>
 		{#if !canStart && dailyLickCount === 0}
 			<a href="/licks" class="text-xs text-[var(--color-accent)] underline">
-				Browse the library to tag licks
+				Browse your licks to tag more
 			</a>
 		{/if}
 	</div>

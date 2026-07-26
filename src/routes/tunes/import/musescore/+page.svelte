@@ -82,7 +82,7 @@
 		href="/tunes/add"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
-		&larr; Add Lead Sheets
+		&larr; Add Tunes
 	</a>
 
 	<div>

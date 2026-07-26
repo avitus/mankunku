@@ -150,7 +150,7 @@
 </script>
 
 <svelte:head>
-	<title>Community Lead Sheets — Mankunku</title>
+	<title>Community Tunes — Mankunku</title>
 </svelte:head>
 
 <div class="space-y-6">
@@ -158,11 +158,11 @@
 		href="/tunes"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
-		&larr; Lead Sheets
+		&larr; Tunes
 	</a>
 
 	<div>
-		<h1 class="text-2xl font-bold">Community Lead Sheets</h1>
+		<h1 class="text-2xl font-bold">Community Tunes</h1>
 		<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
 			Tunes shared by other players. Add one to your book to practice it.
 		</p>
@@ -170,7 +170,7 @@
 
 	{#if !session}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center">
-			<p class="text-sm text-[var(--color-text-secondary)]">Sign in to browse community lead sheets.</p>
+			<p class="text-sm text-[var(--color-text-secondary)]">Sign in to browse community tunes.</p>
 			<a
 				href="/auth"
 				class="mt-4 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
@@ -214,7 +214,7 @@
 		</div>
 
 		{#if loadError}
-			<p class="text-sm text-[var(--color-error)]">Failed to load community lead sheets.</p>
+			<p class="text-sm text-[var(--color-error)]">Failed to load community tunes.</p>
 		{/if}
 
 		{#if sheets.length > 0}
@@ -244,14 +244,14 @@
 		{:else if !loading}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center">
 				<p class="text-sm text-[var(--color-text-secondary)]">
-					No shared lead sheets yet{tuneCommunity.searchQuery ? ' matching that search' : ''}.
+					No shared tunes yet{tuneCommunity.searchQuery ? ' matching that search' : ''}.
 					Be the first — enter a tune and it becomes shareable.
 				</p>
 				<a
 					href="/tunes/add"
 					class="mt-4 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
 				>
-					Add a lead sheet
+					Add a tune
 				</a>
 			</div>
 		{/if}

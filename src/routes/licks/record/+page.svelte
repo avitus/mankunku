@@ -464,7 +464,7 @@
 					class="rounded bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
 						   hover:opacity-90 transition-opacity disabled:opacity-50"
 				>
-					{savedConfirmation ? 'Saved!' : 'Save to Library'}
+					{savedConfirmation ? 'Saved!' : 'Save to Book'}
 				</button>
 				<button
 					onclick={handleReRecord}

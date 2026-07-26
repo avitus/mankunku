@@ -257,7 +257,7 @@
 		href="/tunes/add"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 	>
-		&larr; Add Lead Sheets
+		&larr; Add Tunes
 	</a>
 
 	<div>
@@ -289,7 +289,7 @@
 			accept=".pdf,application/pdf"
 			disabled={uploading || configured === null}
 			onchange={handleFile}
-			aria-label="Lead sheet PDF"
+			aria-label="Tune PDF"
 			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
 		/>
 		{#if uploading}

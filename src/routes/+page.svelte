@@ -272,7 +272,7 @@
 						{/if}
 					{:else}
 						<div class="italic">
-							The book is blank. Tag a lick from the library to start.
+							The set list is blank. Tag a lick from your book to start.
 						</div>
 					{/if}
 				</div>
@@ -295,6 +295,12 @@
 			class="text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
 		>
 			Licks
+		</a>
+		<a
+			href="/tunes"
+			class="text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+		>
+			Tunes
 		</a>
 		<a
 			href="/progress"

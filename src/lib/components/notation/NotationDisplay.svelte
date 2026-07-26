@@ -62,7 +62,7 @@
 	/**
 	 * abcjs drops second-voice rests exactly TWO staff-line spacings below
 	 * the standard single-voice position (measured per rest type against a
-	 * single-voice reference render). Lead sheets render the READER's rests
+	 * single-voice reference render). Tunes render the READER's rests
 	 * from the invisible chord voice (V:H, voice index 1), so shift those
 	 * glyphs back up to the standard positions (eighth/quarter rests
 	 * centered on the staff, the semibreve rest in the C space).
@@ -167,9 +167,10 @@
 </script>
 
 <div class="notation-container rounded-lg bg-[var(--color-bg-secondary)] p-4" class:has-custom-title={titleArea}>
-	<!-- "Lead sheet" liner-note header — mirrors the typography of a Blue Note LP -->
+	<!-- "Chart" liner-note header — mirrors the typography of a Blue Note LP.
+	     "Chart" covers both renderable payloads (a lick phrase or a full tune). -->
 	<div class="mb-4 flex items-center gap-2">
-		<span class="smallcaps text-[var(--color-brass)]">Lead sheet</span>
+		<span class="smallcaps text-[var(--color-brass)]">Chart</span>
 		<div class="jazz-rule flex-1"></div>
 	</div>
 	{#if titleArea}

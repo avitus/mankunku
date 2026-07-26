@@ -10,10 +10,10 @@ test.beforeEach(async ({ page }) => {
 	await seedOnboardedAnonymous(page);
 });
 
-test('creates a lead sheet with melody and chords', async ({ page }) => {
+test('creates a tune with melody and chords', async ({ page }) => {
 	await page.goto('/tunes/editor');
 
-	await expect(page.getByRole('heading', { name: 'Lead Sheet Entry' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Tune Editor' })).toBeVisible();
 	// Hydration barrier: the chart SVG only renders after mount, so its
 	// presence proves the button handlers are attached (clicks on the
 	// server-rendered buttons before hydration are silent no-ops).
@@ -35,7 +35,7 @@ test('creates a lead sheet with melody and chords', async ({ page }) => {
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D-7' }).first()).toBeVisible();
 
 	// Title + save.
-	await page.getByRole('textbox', { name: 'Lead sheet title' }).fill('My First Chart');
+	await page.getByRole('textbox', { name: 'Tune title' }).fill('My First Chart');
 	await page.getByRole('button', { name: 'Save', exact: true }).click();
 
 	await page.waitForURL('**/tunes/sheet-*');
@@ -63,8 +63,8 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 	await seedTunes(page);
 	await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
 
-	await expect(page.getByRole('heading', { name: 'Edit Lead Sheet' })).toBeVisible();
-	const title = page.getByRole('textbox', { name: 'Lead sheet title' });
+	await expect(page.getByRole('heading', { name: 'Edit Tune' })).toBeVisible();
+	const title = page.getByRole('textbox', { name: 'Tune title' });
 	await expect(title).toHaveValue('Test Session Tune');
 
 	await title.fill('Test Session Tune v2');

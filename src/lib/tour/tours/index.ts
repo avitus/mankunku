@@ -16,7 +16,7 @@ export const TOURS: TourDefinition[] = [
 	{ id: 'welcome', title: 'Welcome to Mankunku', startsAt: '/', steps: welcomeTour },
 	{ id: 'ear-training', title: 'Ear Training', startsAt: '/ear-training', steps: earTrainingTour },
 	{ id: 'lick-practice', title: 'Lick Practice', startsAt: '/lick-practice', steps: lickPracticeTour },
-	{ id: 'licks', title: 'Library', startsAt: '/licks', steps: licksTour }
+	{ id: 'licks', title: 'Your Licks', startsAt: '/licks', steps: licksTour }
 ];
 
 export function getTour(tourId: string): TourDefinition | undefined {

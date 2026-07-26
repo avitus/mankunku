@@ -285,7 +285,7 @@
 			baseLick.id.startsWith('user-');
 		if (!looksUserAuthored) return null;
 		if (!isOwnLick) {
-			return 'This is a community copy you don’t own — use Return from the library list instead of Delete.';
+			return 'This is a community copy you don’t own — use Return from your book instead of Delete.';
 		}
 		return 'Can’t delete: this lick has an unexpected source. Open it in the step editor and re-save to normalize it.';
 	});
@@ -330,7 +330,7 @@
 </script>
 
 <svelte:head>
-	<title>{lick?.name ?? 'Lick'} — Mankunku Library</title>
+	<title>{lick?.name ?? 'Lick'} — Mankunku</title>
 </svelte:head>
 
 <div class="space-y-6">
@@ -339,7 +339,7 @@
 		href="/licks"
 		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
 	>
-		&larr; Library
+		&larr; Licks
 	</a>
 
 	{#if lick}
@@ -527,7 +527,7 @@
 				Lick not found: {page.params.id}
 			</p>
 			<a href="/licks" class="mt-2 inline-block text-sm text-[var(--color-accent)]">
-				Back to Library
+				Back to Licks
 			</a>
 		</div>
 	{/if}

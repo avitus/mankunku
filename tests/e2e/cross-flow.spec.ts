@@ -30,7 +30,7 @@ test.describe('cross-flow — signed-in journey', () => {
 		});
 	});
 
-	test('home → library → settings → progress all render authed', async ({
+	test('home → licks → settings → progress all render authed', async ({
 		signedInPage,
 		consoleCollector: _consoleCollector
 	}) => {
@@ -40,7 +40,7 @@ test.describe('cross-flow — signed-in journey', () => {
 		await expect(signedInPage.locator('main')).toBeVisible();
 
 		await signedInPage.getByRole('navigation').first()
-			.getByRole('link', { name: /^library$/i }).first().click();
+			.getByRole('link', { name: /^licks$/i }).first().click();
 		await expect(signedInPage).toHaveURL(/\/licks$/);
 		await expect(signedInPage.getByRole('heading', { name: /your licks/i })).toBeVisible();
 
