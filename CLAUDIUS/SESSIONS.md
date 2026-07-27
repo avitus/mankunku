@@ -916,3 +916,9 @@ Newest at the top.
 - Adversarial review of that commit before push: Ready, 4 minors — 3 fixed red-first in 0c0555c (m69b5 6/9-pair promotion leak, zero-bar [V:M]P: concatenation, stale comment), 1 parked (BiaB chorus form-length inference, a pre-existing limitation made consistent).
 - Close-out: 71-row disposition table posted as a PR comment (body findings can't be "resolved" — the table IS their visible close-out). Memory updated (feedback_coderabbit_finish_all_comments addendum): per-pass checklist = threads + body-section grep + disposition comment; and pair subagent report entries to threads by PATH, never index.
 - Verification at HEAD 0c0555c: check 0/0 · vitest 184 files / 3011 · chromium e2e on affected specs green · fixture re-recordings diff-reviewed (spellings + tempo glyphs only).
+
+## 2026-07-26 (cont. 3) — Round 5 + final clean pass
+
+- CodeRabbit's pass on the 68-file nitpick wave: 3 threads (incl. a heavy-lift lick-match DoS ask — fixed anyway with a bounded body reader, red-first) + 3 body-section items — all 6 fixed in 22d33b2, threads closed by PATH, body items dispositioned on the PR.
+- Next pass: check pass, zero unresolved threads, ZERO body sections — clean on both axes for the first time using the corrected checklist. CircleCI test+e2e green on the final commit.
+- PR #179 final state: 6 CodeRabbit rounds, 81 total findings processed (14+4+1+71-4dup... net: 78 fixed across 6 fix commits, 10 declined with rationale, 4 already-addressed), every one visibly dispositioned.
