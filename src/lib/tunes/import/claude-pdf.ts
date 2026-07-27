@@ -214,6 +214,10 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 						continue;
 					}
 					const [beat, durationBeats, pitch, tied] = m as unknown[];
+					// The prompts have the model tile each bar with notes AND
+					// rests; rests carry no event (gap-filled at render) and
+					// must not be flagged as unreadable pitches.
+					if (typeof pitch === 'string' && pitch.trim().toLowerCase() === 'rest') continue;
 					if (
 						!isFiniteNumber(beat) ||
 						!isFiniteNumber(durationBeats) ||

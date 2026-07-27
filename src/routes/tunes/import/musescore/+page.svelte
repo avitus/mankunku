@@ -42,23 +42,37 @@
 	}
 
 	async function handleFile(event: Event): Promise<void> {
-		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
 		if (!file) return;
-		// Multi-part scores: extract the part matching the user's instrument.
-		const inst = getInstrument();
-		const result = await parseMuseScoreFile(
-			{ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) },
-			{ name: inst.name, transpositionSemitones: inst.transpositionSemitones }
-		);
-		rawSheets = result.sheets;
-		warnings = result.warnings;
-		parsedOnce = true;
-		// Re-default from the file's own declaration — unless the user chose.
-		if (!sourceTouched) {
-			source =
-				result.declaredTransposition !== 0
-					? 'C'
-					: defaultSourceTransposition(getInstrument());
+		try {
+			// Multi-part scores: extract the part matching the user's instrument.
+			const inst = getInstrument();
+			const result = await parseMuseScoreFile(
+				{ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) },
+				{ name: inst.name, transpositionSemitones: inst.transpositionSemitones }
+			);
+			rawSheets = result.sheets;
+			warnings = result.warnings;
+			// Re-default from the file's own declaration — unless the user chose.
+			if (!sourceTouched) {
+				source =
+					result.declaredTransposition !== 0
+						? 'C'
+						: defaultSourceTransposition(getInstrument());
+			}
+		} catch (err) {
+			// The zip path reports its own warnings; this catches read failures
+			// and unexpected parser throws so the page never dies silently.
+			rawSheets = [];
+			warnings = [
+				`Could not read that file (${err instanceof Error ? err.message : 'unknown error'}).`
+			];
+		} finally {
+			parsedOnce = true;
+			// Clear the input so re-picking the SAME file (e.g. after fixing
+			// the score and re-exporting) fires `change` again.
+			input.value = '';
 		}
 	}
 

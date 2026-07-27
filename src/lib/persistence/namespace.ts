@@ -142,17 +142,24 @@ function uidFromCookie(): string | null {
  * v2 ends by stamping `__active` from the long-deleted v1 marker — re-running
  * it on a v2 device would stamp `'anon'` over a signed-in pointer.)
  *
- * Every step is idempotent and half-run-safe (copy-if-absent, then delete;
- * `__schema` stamped only after all steps succeed, so a crash simply re-runs).
+ * Every step is idempotent and half-run-safe (copy-if-absent, then delete),
+ * and `__schema` is stamped PER STEP as each one completes: a later step's
+ * failure retries only that step on the next load and can never rewind an
+ * earlier one (a v3 crash must not re-run the v2 body — see above).
  */
 export function runNamespaceUpgradeIfNeeded(): void {
 	if (!hasLocalStorage()) return;
 	try {
 		const stored = parseInt(rawGet(SCHEMA_KEY) ?? '0', 10) || 0;
 		if (stored >= CURRENT_SCHEMA) return;
-		if (stored < 2) upgradeV2();
-		if (stored < 3) upgradeV3();
-		rawSet(SCHEMA_KEY, String(CURRENT_SCHEMA));
+		if (stored < 2) {
+			upgradeV2();
+			rawSet(SCHEMA_KEY, '2');
+		}
+		if (stored < 3) {
+			upgradeV3();
+			rawSet(SCHEMA_KEY, '3');
+		}
 	} catch {
 		// Leave __schema unset/stale so the upgrade retries on the next load;
 		// the per-key copies are idempotent, so a partial run causes no loss.

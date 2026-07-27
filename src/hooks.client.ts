@@ -10,6 +10,7 @@ import {
   pendingNavTarget
 } from '$lib/util/stale-chunk';
 import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
+import { serverReachable } from '$lib/util/server-reachable';
 
 // `import.meta.env.DEV` is false for `npm run preview`, so a preview running
 // on localhost still shipped events with environment='production' (see Sentry
@@ -174,11 +175,12 @@ Sentry.init({
  *   clicked. Only failures matching the in-flight navigation recorded by the
  *   root layout's `beforeNavigate` (or a dying initial load) are recovered.
  *
- * - serverReachable: a full-page navigation while the server is down (deploy
- *   restart gap) or the device is offline would eject the user from the
- *   running local-first app onto a browser error page. Probe first; when
- *   unreachable, leave the app in place — the error boundary offers a manual
- *   Reload.
+ * - serverReachable ($lib/util/server-reachable, unit-tested): a full-page
+ *   navigation while the server is down (deploy restart gap) or the device is
+ *   offline would eject the user from the running local-first app onto a
+ *   browser error page. Probe first (time-bounded — a stalled probe must not
+ *   hang this awaited hook); when unreachable, leave the app in place — the
+ *   error boundary offers a manual Reload.
  *
  * Note: this reactive recovery is a backstop. SvelteKit itself full-page
  * navigates to the target when a failed import coincides with a NEW app
@@ -188,16 +190,6 @@ Sentry.init({
  * (version check unreachable or reporting no change — e.g. dev-server HMR
  * churn, or a click landing inside the deploy's PM2 restart gap).
  */
-async function serverReachable(href: string): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
-  try {
-    await fetch(href, { method: 'HEAD', cache: 'no-store' });
-    return true; // any HTTP response (even an error status) proves reachability
-  } catch {
-    return false;
-  }
-}
-
 const handleNavErrorRecovery: HandleClientError = async ({ error, event }) => {
   const msg = (error as { message?: string } | null)?.message ?? '';
   if (typeof location === 'undefined' || typeof sessionStorage === 'undefined') return;

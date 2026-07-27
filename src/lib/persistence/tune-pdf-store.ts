@@ -99,7 +99,16 @@ function migrateLegacyPdfDb(uid: string): Promise<void> {
 					db.close();
 				}
 			}
-			await idbReq(indexedDB.deleteDatabase(legacyName) as unknown as IDBRequest<unknown>);
+			// Best-effort cleanup: another tab still holding the legacy DB open
+			// makes deleteDatabase fire `blocked` with NO terminal event — that
+			// must never wedge the memoised migration promise (openDb awaits
+			// it). The delete completes on its own once that tab closes.
+			await new Promise<void>((resolve) => {
+				const req = indexedDB.deleteDatabase(legacyName);
+				req.onsuccess = () => resolve();
+				req.onerror = () => resolve();
+				req.onblocked = () => resolve();
+			});
 		} catch (error) {
 			console.warn('Legacy tune-PDF migration failed (cache only, safe to ignore):', error);
 		}

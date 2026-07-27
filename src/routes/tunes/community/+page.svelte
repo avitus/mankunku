@@ -74,12 +74,20 @@
 		const runId = effectRunId;
 		loading = true;
 		const nextOffset = pageOffset + TUNE_PAGE_SIZE;
-		const more = await listCommunityTunes(supabase, buildFilters(), nextOffset);
-		if (runId !== effectRunId) return;
-		sheets = [...sheets, ...more];
-		pageOffset = nextOffset;
-		hasMore = more.length === TUNE_PAGE_SIZE;
-		loading = false;
+		try {
+			const more = await listCommunityTunes(supabase, buildFilters(), nextOffset);
+			if (runId !== effectRunId) return;
+			sheets = [...sheets, ...more];
+			pageOffset = nextOffset;
+			hasMore = more.length === TUNE_PAGE_SIZE;
+		} catch (err) {
+			// A failed page must surface and re-enable the button, not leave
+			// it disabled on a permanently-stuck `loading` flag.
+			if (runId !== effectRunId) return;
+			loadError = String(err);
+		} finally {
+			if (runId === effectRunId) loading = false;
+		}
 	}
 
 	// 200ms debounce so the rune (and the re-query effect) only fires when

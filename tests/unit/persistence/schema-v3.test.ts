@@ -202,6 +202,39 @@ describe('schema v3 — lead-sheet key rename', () => {
 		expect(store['mankunku:__active']).toBe(JSON.stringify('anon'));
 	});
 
+	it('stamps each step as it completes so a v3 failure cannot rewind v2', () => {
+		// A v1 signed-in device: v2 will consume the __lastUserId marker. If a
+		// later v3 failure left __schema at 0, the NEXT load would re-run v2
+		// with the marker gone and stamp __active back to 'anon' — hiding the
+		// signed-in user's data behind the anon bucket.
+		store['mankunku:user-leadsheets'] = JSON.stringify([{ id: 'legacy' }]);
+		store['mankunku:__lastUserId'] = JSON.stringify('user-x');
+		// Quota pressure exactly at the v3 rename write. Restore in finally so
+		// a failing assertion can never leak the throwing mock into later tests.
+		localStorageMock.setItem.mockImplementation((key: string, value: string) => {
+			if (key.includes('user-tunes')) throw new Error('QuotaExceededError');
+			store[key] = value;
+		});
+		try {
+			runNamespaceUpgradeIfNeeded();
+		} finally {
+			localStorageMock.setItem.mockImplementation((key: string, value: string) => {
+				store[key] = value;
+			});
+		}
+
+		// v2 completed and was stamped BEFORE v3 blew up.
+		expect(store['mankunku:__schema']).toBe('2');
+		expect(store['mankunku:__active']).toBe(JSON.stringify('user-x'));
+
+		// Next load, quota pressure gone: only v3 re-runs; __active survives.
+		runNamespaceUpgradeIfNeeded();
+
+		expect(store['mankunku:__schema']).toBe('3');
+		expect(store['mankunku:__active']).toBe(JSON.stringify('user-x'));
+		expect(store['mankunku:u:user-x:user-tunes']).toBe(JSON.stringify([{ id: 'legacy' }]));
+	});
+
 	it('a v1 device runs both steps: legacy keys move into the user bucket AND get renamed', () => {
 		// Pre-namespace install with a lead-sheet key and the v1 last-user marker.
 		store['mankunku:user-leadsheets'] = JSON.stringify([{ id: 'legacy' }]);

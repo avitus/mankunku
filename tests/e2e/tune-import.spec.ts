@@ -159,6 +159,25 @@ test('a MuseScore file that CLAIMS concert defaults to the user instrument', asy
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()).toBeVisible();
 });
 
+test('a corrupt MuseScore file surfaces its warning and re-arms the input', async ({ page }) => {
+	await page.goto('/tunes/import/musescore');
+
+	const fileInput = page.getByLabel('MuseScore file');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles({
+		name: 'corrupt.mscz',
+		mimeType: 'application/octet-stream',
+		buffer: Buffer.from('not a zip archive at all')
+	});
+
+	// The failure surfaces instead of dying silently…
+	await expect(page.getByText(/Failed to read the \.mscz archive/)).toBeVisible();
+	await expect(page.getByText('Nothing importable found in that file.')).toBeVisible();
+	// …and the input value is cleared so picking the SAME file again (after
+	// re-exporting it from MuseScore) fires `change` a second time.
+	await expect(fileInput).toHaveValue('');
+});
+
 test('the PDF import page renders a usable state', async ({ page }) => {
 	await page.goto('/tunes/import/pdf');
 	await expect(page.getByRole('heading', { name: 'Import a PDF Chart' })).toBeVisible();

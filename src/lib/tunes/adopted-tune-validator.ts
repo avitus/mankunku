@@ -119,6 +119,10 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 		} else {
 			totalNotes += notes.length;
 			for (const n of notes) {
+				if (typeof n !== 'object' || n === null) {
+					errors.push(`section ${s}: malformed note element`);
+					break;
+				}
 				const note = n as Record<string, unknown>;
 				if (note.pitch !== null && (!Number.isInteger(note.pitch) || (note.pitch as number) < 0 || (note.pitch as number) > 127)) {
 					errors.push(`section ${s}: note pitch out of MIDI range`);
@@ -137,6 +141,10 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 		} else {
 			totalHarmony += harmony.length;
 			for (const h of harmony) {
+				if (typeof h !== 'object' || h === null) {
+					errors.push(`section ${s}: malformed harmony segment`);
+					break;
+				}
 				const seg = h as Record<string, unknown>;
 				const chord = seg.chord as Record<string, unknown> | undefined;
 				if (!chord || !PITCH_CLASSES.includes(chord.root as never)) {

@@ -77,6 +77,20 @@ describe('validateAdoptedTune', () => {
 		expect(validateAdoptedTune(badOffset).valid).toBe(false);
 	});
 
+	it('rejects null or non-object note and harmony elements without throwing', () => {
+		const nullNote = validSheet();
+		nullNote.sections[0].notes = [null] as never;
+		const noteResult = validateAdoptedTune(nullNote);
+		expect(noteResult.valid).toBe(false);
+		expect(noteResult.errors.join(' ')).toContain('malformed note');
+
+		const nullHarmony = validSheet();
+		nullHarmony.sections[0].harmony = [null] as never;
+		const harmonyResult = validateAdoptedTune(nullHarmony);
+		expect(harmonyResult.valid).toBe(false);
+		expect(harmonyResult.errors.join(' ')).toContain('malformed harmony');
+	});
+
 	it('rejects harmony with an unknown chord root or quality', () => {
 		const badRoot = validSheet();
 		badRoot.sections[0].harmony[0].chord.root = 'X' as never;

@@ -223,6 +223,20 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		]);
 	});
 
+	it('skips rest melody tuples silently, not as unreadable pitches', () => {
+		// The whole-PDF prompt tells the model bars are tiled by notes AND
+		// rests; a "rest" tuple is expected output, not a suspect bar.
+		const doc = barwiseDoc();
+		(doc.systems as Array<{ bars: Array<Record<string, unknown>> }>)[1].bars[1].melody = [
+			[0, 1, 'rest'],
+			[1, 3, 'F4']
+		];
+		const { sheet, warnings } = claudeJsonToTune(doc);
+		expect(warnings).toEqual([]);
+		const last = sheet!.sections[sheet!.sections.length - 1];
+		expect(last.notes.map((n) => n.pitch)).toEqual([65]);
+	});
+
 	it('skips malformed bar entries with warnings, keeping the rest', () => {
 		const doc = barwiseDoc();
 		(doc.systems as Array<{ bars: Array<Record<string, unknown>> }>)[0].bars[1].chords = [

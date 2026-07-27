@@ -196,6 +196,16 @@ describe('eventsByBar', () => {
 		);
 		expect(bars.map((b) => b.length)).toEqual([1, 2, 1]);
 	});
+
+	it('returns no bars for a system without barlines instead of crashing', () => {
+		// extractPdfSystems computes barEvidence for every detected system and
+		// only rejects barline-less ones afterwards — this must not throw.
+		const bars = eventsByBar(
+			[{ x: 150, anchorX: 162, position: 4, kind: 'stemmed' }],
+			system([])
+		);
+		expect(bars).toEqual([]);
+	});
 });
 
 describe('positionToLetter', () => {

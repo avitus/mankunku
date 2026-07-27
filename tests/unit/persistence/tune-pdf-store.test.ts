@@ -106,6 +106,29 @@ describe('legacy lead-sheet PDF database migration', () => {
 		const restored = await getTunePdf('sheet-dup');
 		expect(restored!.size).toBe(100);
 	});
+
+	it('settles even when another connection blocks the legacy-DB delete', async () => {
+		await seedLegacyDb('sheet-blocked', makePdfBlob(64));
+		// A second tab still holding the legacy DB open: deleteDatabase fires
+		// `blocked` and no terminal event until that connection closes. The
+		// migration must not wedge every PDF read/write behind it.
+		const holdOpen = await new Promise<IDBDatabase>((resolve, reject) => {
+			const req = indexedDB.open('mankunku-leadsheet-pdfs:anon', 1);
+			req.onsuccess = () => resolve(req.result);
+			req.onerror = () => reject(req.error);
+		});
+		__resetPdfMigrationCacheForTests();
+		try {
+			const restored = await Promise.race([
+				getTunePdf('sheet-blocked'),
+				new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1500))
+			]);
+			expect(restored).not.toBe('timeout');
+			expect((restored as Blob).size).toBe(64);
+		} finally {
+			holdOpen.close();
+		}
+	});
 });
 
 describe('local PDF cache round-trip', () => {

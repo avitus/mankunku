@@ -344,6 +344,9 @@ export function detectNoteEvents(
 /** Group events into bars by the system's barlines (bar i ends at
  * barlines[i]); events left of the first bar's content are ignored. */
 export function eventsByBar(events: NoteEvent[], system: SystemGeometry): NoteEvent[][] {
+	// extractPdfSystems computes evidence for every detected system before
+	// rejecting barline-less ones — an empty geometry must not index bars[-1].
+	if (system.barlines.length === 0) return [];
 	const bars: NoteEvent[][] = system.barlines.map(() => []);
 	for (const e of events) {
 		let bar = system.barlines.findIndex((b) => e.anchorX < b);

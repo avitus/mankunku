@@ -59,6 +59,30 @@ describe('curated lead-sheet library', () => {
 	);
 
 	it.each(ALL_CURATED_TUNES.map((s) => [s.title, s] as const))(
+		'%s has gap-free, non-overlapping harmony covering each section',
+		(_title, sheet) => {
+			const barDur = sheet.timeSignature[0] / sheet.timeSignature[1];
+			for (const sec of sheet.sections) {
+				if (sec.harmony.length === 0) continue;
+				const sorted = [...sec.harmony].sort(
+					(a, b) => fractionToFloat(a.startOffset) - fractionToFloat(b.startOffset)
+				);
+				let cursor = 0;
+				for (const h of sorted) {
+					// Each segment starts exactly where the previous one ended —
+					// no overlapping claims on a bar, no uncovered bars.
+					expect(
+						fractionToFloat(h.startOffset),
+						`${sec.label}: ${h.symbol} at ${fractionToFloat(h.startOffset)}`
+					).toBeCloseTo(cursor, 9);
+					cursor = fractionToFloat(h.startOffset) + fractionToFloat(h.duration);
+				}
+				expect(cursor, `${sec.label}: harmony end`).toBeCloseTo(sec.bars * barDur, 9);
+			}
+		}
+	);
+
+	it.each(ALL_CURATED_TUNES.map((s) => [s.title, s] as const))(
 		'%s flattens and renders for concert and tenor without throwing',
 		(_title, sheet) => {
 			const flat = flattenTune(sheet);

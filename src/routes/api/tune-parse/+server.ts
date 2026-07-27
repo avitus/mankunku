@@ -265,6 +265,15 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 		throw error(413, 'PDF too large — keep uploads under 10 MB.');
 	}
 
+	// Coarse PRE-READ limiter (CWE-770): the mode (pdf vs system) is only
+	// known after the body is parsed, so a dedicated bucket capped at the sum
+	// of both mode budgets refuses an over-budget client BEFORE up to 15 MB
+	// of body is buffered. It can never starve a request the mode-specific
+	// limiters below would admit — those still run, unchanged, post-parse.
+	if (isRateLimited(`${limitKey}:pre`, RATE_LIMIT_MAX + SYSTEM_RATE_LIMIT_MAX)) {
+		throw error(429, 'Too many requests. Take a breath, then try again in a minute.');
+	}
+
 	const raw = await readBodyBounded(request);
 	let body: unknown;
 	try {
@@ -473,8 +482,14 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 	) {
 		throw error(400, '`system.image` (base64 PNG) and `system.barCount` (1-32) are required.');
 	}
-	const meter = Array.isArray(system.timeSignature) ? system.timeSignature : [4, 4];
-	const beats = typeof meter[0] === 'number' && meter[0] >= 1 ? meter[0] : 4;
+	// The meter is interpolated into the model prompt: both members must be
+	// small positive integers or a client could inject arbitrary instructions
+	// (or an unbounded beat count) through `timeSignature`.
+	const rawMeter: unknown[] = Array.isArray(system.timeSignature) ? system.timeSignature : [];
+	const meterNum = (v: unknown, fallback: number): number =>
+		typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 32 ? v : fallback;
+	const meter: [number, number] = [meterNum(rawMeter[0], 4), meterNum(rawMeter[1], 4)];
+	const beats = meter[0];
 	const data = system.image.replace(/^data:image\/png;base64,/, '').replace(/\s/g, '');
 	if (data.length === 0 || !/^[A-Za-z0-9+/]+=*$/.test(data)) {
 		throw error(400, '`system.image` must be base64-encoded PNG data.');
@@ -517,7 +532,7 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 								{
 									type: 'text',
 									text:
-										`This system contains exactly ${system.barCount} bars in ${beats}/${meter[1] ?? 4} time. ` +
+										`This system contains exactly ${system.barCount} bars in ${beats}/${meter[1]} time. ` +
 										`Transcribe it as JSON per the schema.` +
 										(system.first === true
 											? ' This is the FIRST system of the chart: check carefully whether the notes before the first full bar form a partial PICKUP bar (pickup: true, notes at their real beats near the END of the bar).'

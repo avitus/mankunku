@@ -299,6 +299,38 @@ describe('non-4/4 time signatures (imported charts)', () => {
 		expect(buildDraftTune().timeSignature).toEqual([4, 4]);
 		expect(melodyEditingSupported()).toBe(true);
 	});
+
+	it('truncates against the meter-scaled section end, not the raw bar count', () => {
+		const sheet = waltzSheet();
+		sheet.sections[0].bars = 8;
+		// Bar 5 (0-based bar 4) of 3/4 starts at whole-note offset 3.0 —
+		// numerically BELOW the new bar count of 4, so a bar-unit filter
+		// would wrongly keep it past a 4-bar resize.
+		sheet.sections[0].notes = [
+			{ pitch: 65, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 67, duration: [1, 4], offset: [3, 1] }
+		];
+		loadFromTune(sheet, INSTRUMENTS['concert']);
+		setChord(0, 0, 0, 'F');
+		setChord(0, 4, 0, 'C7'); // bar 5 → startOffset [3, 1]
+		setSectionBars(0, 4);
+		expect(tuneEntry.sections[0].notes).toHaveLength(1);
+		expect(tuneEntry.sections[0].harmony).toHaveLength(1);
+		// The surviving chord runs to the 4-bar (3.0 whole-note) section end.
+		expect(tuneEntry.sections[0].harmony[0].duration).toEqual([3, 1]);
+	});
+
+	it('keeps content inside the resize when bars exceed a whole note (6/4)', () => {
+		const sheet = waltzSheet();
+		sheet.timeSignature = [6, 4];
+		sheet.sections[0].bars = 4;
+		// Bar 3 (0-based bar 2) of 6/4 spans 3.0–4.5 whole notes: a note at
+		// 4.0 survives a 3-bar resize, but a bar-unit filter would drop it.
+		sheet.sections[0].notes = [{ pitch: 65, duration: [1, 4], offset: [4, 1] }];
+		loadFromTune(sheet, INSTRUMENTS['concert']);
+		setSectionBars(0, 3);
+		expect(tuneEntry.sections[0].notes).toHaveLength(1);
+	});
 });
 
 describe('review handoff flag (import → editor navigation)', () => {

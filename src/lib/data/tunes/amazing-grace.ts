@@ -68,8 +68,8 @@ export const AMAZING_GRACE: Tune = {
 				{ chord: { root: 'D', quality: 'min7' }, scaleId: 'major.aeolian', startOffset: [9, 2], duration: [3, 4], symbol: 'Dm' },
 				{ chord: { root: 'C', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [21, 4], duration: [3, 2], symbol: 'C7' },
 				{ chord: { root: 'F', quality: 'maj6' }, scaleId: 'major.ionian', startOffset: [27, 4], duration: [3, 2], symbol: 'F' },
-				{ chord: { root: 'Bb', quality: 'maj6' }, scaleId: 'major.lydian', startOffset: [15, 2], duration: [3, 4], symbol: 'Bb' },
-				{ chord: { root: 'F', quality: 'maj6' }, scaleId: 'major.ionian', startOffset: [33, 4], duration: [3, 4], symbol: 'F' },
+				{ chord: { root: 'Bb', quality: 'maj6' }, scaleId: 'major.lydian', startOffset: [33, 4], duration: [3, 4], symbol: 'Bb' },
+				{ chord: { root: 'F', quality: 'maj6' }, scaleId: 'major.ionian', startOffset: [9, 1], duration: [3, 4], symbol: 'F' },
 				{ chord: { root: 'Bb', quality: 'maj6' }, scaleId: 'major.lydian', startOffset: [39, 4], duration: [3, 4], symbol: 'Bb' },
 				{ chord: { root: 'C', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [21, 2], duration: [3, 4], symbol: 'C7' },
 				{ chord: { root: 'F', quality: 'maj6' }, scaleId: 'major.ionian', startOffset: [45, 4], duration: [3, 2], symbol: 'F' }

@@ -397,6 +397,38 @@ describe('parseMscx — basics', () => {
 		]);
 		expect(notes[3].offset).toEqual([1, 4]);
 	});
+
+	it('scales rests inside tuplets by the tuplet ratio (cursor stays aligned)', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Tuplet>
+            <normalNotes>2</normalNotes>
+            <actualNotes>3</actualNotes>
+            <baseNote>eighth</baseNote>
+          </Tuplet>
+          ${CHORD(60, 'eighth')}
+          <Rest><durationType>eighth</durationType></Rest>
+          ${CHORD(64, 'eighth')}
+          <endTuplet/>
+          ${CHORD(65, 'quarter')}
+          <Rest><durationType>half</durationType></Rest>
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		const notes = sheets[0].sections[0].notes;
+		// The triplet-member rest advances the cursor by 1/12 (its scaled
+		// value), not a nominal 1/8 — otherwise every later note drifts.
+		expect(notes.map((n) => [n.pitch, n.offset])).toEqual([
+			[60, [0, 1]],
+			[64, [1, 6]],
+			[65, [1, 4]]
+		]);
+	});
 });
 
 describe('parseMscx — pickup bars', () => {

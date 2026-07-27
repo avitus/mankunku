@@ -1052,8 +1052,12 @@ export function setSectionBars(index: number, bars: number): void {
 	const clamped = Math.max(1, Math.min(MAX_SECTION_BARS, Math.round(bars)));
 	if (index === tuneEntry.currentSection) commitBuffer();
 	sec.bars = clamped;
-	sec.notes = sec.notes.filter((n) => fractionToFloat(n.offset) < clamped - 1e-9);
-	sec.harmony = sec.harmony.filter((h) => fractionToFloat(h.startOffset) < clamped - 1e-9);
+	// Offsets are whole-note fractions scaled by the meter (see chordOffset /
+	// recomputeHarmonyDurations) — the truncation bound must be too.
+	const [tsNum, tsDen] = tuneEntry.timeSignature;
+	const sectionEndF = (clamped * tsNum) / tsDen;
+	sec.notes = sec.notes.filter((n) => fractionToFloat(n.offset) < sectionEndF - 1e-9);
+	sec.harmony = sec.harmony.filter((h) => fractionToFloat(h.startOffset) < sectionEndF - 1e-9);
 	recomputeHarmonyDurations(sec);
 	if (index === tuneEntry.currentSection) {
 		const maxPage = Math.max(0, Math.ceil(clamped / PAGE_BARS) - 1);

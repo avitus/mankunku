@@ -412,7 +412,12 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 						break;
 					}
 					case 'Rest': {
-						const dur = resolveDuration(body, barLength, null);
+						// Rests inside a tuplet scale by the ratio exactly like
+						// notes — a nominal-value rest would drift the cursor.
+						const ratio = tupletStack.length
+							? tupletStack.reduce(multiplyFractions, [1, 1] as Fraction)
+							: null;
+						const dur = resolveDuration(body, barLength, ratio);
 						if (dur) cursor = addFractions(cursor, dur);
 						break;
 					}
