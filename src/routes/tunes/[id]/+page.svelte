@@ -12,22 +12,49 @@
 		returnTune
 	} from '$lib/persistence/tune-community';
 	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+	import { awaitHydration } from '$lib/state/hydration';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 
 	const supabase = $derived(page.data?.supabase ?? null);
+	const session = $derived(page.data?.session ?? null);
 
-	// The page's mutations (delete/return) navigate away, so the localStorage
-	// caches never need re-reading within a visit — plain deriveds suffice.
-	const baseSheet = $derived(getTuneById(page.params.id ?? ''));
+	// localStorage caches are non-reactive — the version counter forces a
+	// re-read after background cloud hydration lands (/tunes pattern). It
+	// races a deep-link mount: opening /tunes/<id> on a fresh device would
+	// otherwise stay on "Tune not found" (or stale badges/author) until a
+	// manual reload. awaitHydration() is the deterministic completion signal
+	// (bounded wait), not a guessed timer.
+	let cacheVersion = $state(0);
+
+	$effect(() => {
+		if (!session) return;
+		let live = true;
+		awaitHydration().then(() => {
+			if (live) cacheVersion++;
+		});
+		return () => {
+			live = false;
+		};
+	});
+
+	const baseSheet = $derived.by(() => {
+		void cacheVersion;
+		return getTuneById(page.params.id ?? '');
+	});
 	const isCurated = $derived(baseSheet ? isCuratedTuneId(baseSheet.id) : false);
-	const isAdopted = $derived(baseSheet ? getTuneAdoptionsLocal().has(baseSheet.id) : false);
-	const isOwnSheet = $derived(
-		baseSheet ? getUserTunesLocal().some((s) => s.id === baseSheet.id) : false
-	);
-	const authorName = $derived(
-		baseSheet ? getAdoptedTuneAuthorsLocal()[baseSheet.id]?.authorName ?? null : null
-	);
+	const isAdopted = $derived.by(() => {
+		void cacheVersion;
+		return baseSheet ? getTuneAdoptionsLocal().has(baseSheet.id) : false;
+	});
+	const isOwnSheet = $derived.by(() => {
+		void cacheVersion;
+		return baseSheet ? getUserTunesLocal().some((s) => s.id === baseSheet.id) : false;
+	});
+	const authorName = $derived.by(() => {
+		void cacheVersion;
+		return baseSheet ? getAdoptedTuneAuthorsLocal()[baseSheet.id]?.authorName ?? null : null;
+	});
 
 	/**
 	 * Key selector state is in WRITTEN pitch (what the user sees on their
@@ -56,6 +83,10 @@
 	// Guards the async start path (module import + instrument load): a second
 	// click during those awaits would otherwise start overlapping playback.
 	let starting = $state(false);
+	// Set by onDestroy: a navigation during the awaits above would otherwise
+	// let playback start AFTER teardown, with no Stop button left to end it
+	// (onDestroy's guard sees isPlaying still false at that point).
+	let destroyed = false;
 	let confirmingDelete = $state(false);
 	let confirmingReturn = $state(false);
 
@@ -76,6 +107,7 @@
 		} finally {
 			starting = false;
 		}
+		if (destroyed) return;
 		isPlaying = true;
 		try {
 			await playbackModule.playPhrase(tuneToPhrase(sheet, { expandRepeats: true }), {
@@ -117,6 +149,7 @@
 	}
 
 	onDestroy(() => {
+		destroyed = true;
 		if (playbackModule && isPlaying) {
 			playbackModule.stopPlayback();
 		}

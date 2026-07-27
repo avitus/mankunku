@@ -37,11 +37,12 @@ export interface CorpusChart {
 	floors: { chordSeq: number; pitchSeq: number };
 }
 
-/** The part-selection preference the user's verified imports ran with. */
-export const CORPUS_INSTRUMENT = {
-	name: INSTRUMENTS['tenor-sax'].name,
-	transpositionSemitones: INSTRUMENTS['tenor-sax'].transpositionSemitones
-};
+/**
+ * The instrument the user's verified imports ran with — the full tenor-sax
+ * config, shared by BOTH the parser (part selection) and the concert
+ * conversion below so the two can never use different transposition values.
+ */
+export const CORPUS_INSTRUMENT = INSTRUMENTS['tenor-sax'];
 
 /**
  * The verified app flow's concert-pitch resolution rule — shared by the
@@ -53,7 +54,7 @@ export const CORPUS_INSTRUMENT = {
 export function resolveConcertSheet(sheet: Tune, declaredTransposition: number): Tune {
 	return declaredTransposition !== 0
 		? sheet
-		: writtenSheetToConcert(sheet, 'Bb', INSTRUMENTS['tenor-sax']);
+		: writtenSheetToConcert(sheet, 'Bb', CORPUS_INSTRUMENT);
 }
 
 export const CORPUS: CorpusChart[] = [

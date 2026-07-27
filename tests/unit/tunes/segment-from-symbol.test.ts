@@ -24,6 +24,9 @@ describe('harmonicSegmentFromChordSymbol', () => {
 	it('formats a canonical symbol from the parsed struct (no raw text exists)', () => {
 		const cs = parseChordSymbol('Dmi7')!;
 		const seg = harmonicSegmentFromChordSymbol(cs, [0, 1], [1, 1]);
-		expect(seg.symbol).toBe(formatChordSymbol(cs));
+		// Literal expectations: comparing seg.symbol against formatChordSymbol
+		// alone would let a canonical-formatting regression pass unnoticed.
+		expect(formatChordSymbol(cs)).toBe('D-7');
+		expect(seg.symbol).toBe('D-7');
 	});
 });

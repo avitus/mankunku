@@ -36,9 +36,41 @@ const MAX_SEQUENCE_LENGTH = 512;
  * Route-level request-size gate. The adapter's global BODY_SIZE_LIMIT is 16M
  * (needed by /api/tune-parse); a maxed-out lick-match body (two 512-element
  * integer arrays) is ~10KB, so 64KB is generous — reject anything larger
- * before request.json() parses it.
+ * before it is parsed.
  */
 const MAX_REQUEST_BYTES = 65_536;
+
+/**
+ * Stream the body with a running byte count (the tune-parse pattern):
+ * Content-Length can be absent or lie, so the declared-size check in POST is
+ * only a fast path — this reader is the real gate. Returns null once the
+ * body exceeds MAX_REQUEST_BYTES; throws on a broken stream.
+ */
+async function readBodyBounded(request: Request): Promise<string | null> {
+	const body = request.body;
+	if (!body) return '';
+	const reader = body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		if (!value) continue;
+		total += value.byteLength;
+		if (total > MAX_REQUEST_BYTES) {
+			await reader.cancel();
+			return null;
+		}
+		chunks.push(value);
+	}
+	const buffer = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		buffer.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return new TextDecoder().decode(buffer);
+}
 
 interface RequestBody {
 	intervals: number[];
@@ -60,14 +92,25 @@ interface MatchResponse {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
+	// Fast path on the declared size; readBodyBounded below is the real gate.
 	const contentLength = Number(request.headers.get('content-length'));
 	if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
 		return json({ error: `request too large (max ${MAX_REQUEST_BYTES} bytes)` }, 413);
 	}
 
+	let raw: string | null;
+	try {
+		raw = await readBodyBounded(request);
+	} catch {
+		return json({ error: 'Malformed request body' }, 400);
+	}
+	if (raw === null) {
+		return json({ error: `request too large (max ${MAX_REQUEST_BYTES} bytes)` }, 413);
+	}
+
 	let body: unknown;
 	try {
-		body = await request.json();
+		body = JSON.parse(raw);
 	} catch {
 		return json({ error: 'Invalid JSON' }, 400);
 	}
