@@ -6,9 +6,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseMuseScoreFile } from '../../src/lib/tunes/import/musescore';
-import { writtenSheetToConcert } from '../../src/lib/tunes/source-transposition';
-import { INSTRUMENTS } from '../../src/lib/types/instruments';
-import { CORPUS, CORPUS_INSTRUMENT } from './leadsheet-corpus';
+import { CORPUS, CORPUS_INSTRUMENT, resolveConcertSheet } from './leadsheet-corpus';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -19,13 +17,7 @@ for (const chart of CORPUS) {
 		CORPUS_INSTRUMENT
 	);
 	if (sheets.length !== 1) throw new Error(`${chart.slug}: expected 1 sheet, got ${sheets.length}`);
-	// The verified app flow: a file DECLARING a transposing part is already
-	// concert after parsing; a file claiming concert pitch is treated as a
-	// written Bb chart for the tenor user and shifted to concert.
-	const sheet =
-		declaredTransposition !== 0
-			? sheets[0]
-			: writtenSheetToConcert(sheets[0], 'Bb', INSTRUMENTS['tenor-sax']);
+	const sheet = resolveConcertSheet(sheets[0], declaredTransposition);
 	const out = `${root}/tests/fixtures/leadsheets/pdf-vs-musescore/${chart.slug}.musescore-import.json`;
 	writeFileSync(out, JSON.stringify(sheet, null, 1) + '\n');
 	console.log(

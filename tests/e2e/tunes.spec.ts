@@ -64,9 +64,12 @@ test('detail page renders a multi-system chart with transposed chord symbols', a
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D6' }).first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'A7' }).first()).toBeVisible();
 
-	// The 16-bar form reflows across multiple systems (one <g> per staff line).
-	const staves = page.locator('.abcjs-container svg .abcjs-l0');
-	await expect.poll(() => staves.count()).toBeGreaterThanOrEqual(0);
+	// The 16-bar form reflows across multiple systems: abcjs stamps every
+	// element of line N with .abcjs-lN, so a second line existing (.abcjs-l1)
+	// proves the multi-system reflow actually rendered.
+	await expect
+		.poll(() => page.locator('.abcjs-container svg .abcjs-l1').count())
+		.toBeGreaterThan(0);
 });
 
 test('user sheet detail supports the two-stage delete', async ({ page }) => {

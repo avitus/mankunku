@@ -1,6 +1,6 @@
 # Two Practice Modes
 
-Mankunku splits practice into two modes — Side A and Side B — that solve different problems. Side A trains your ear; Side B drills a line into your fingers. They share the lick catalog, the difficulty system, and the progress tracking, but they ask different things of you in the room.
+Mankunku splits practice into two modes — Side A and Side B — that solve different problems. Side A trains your ear; Side B drills a line into your fingers. They share the difficulty system and the progress tracking, but they ask different things of you in the room.
 
 ## Side A — Ear Training
 
@@ -33,7 +33,7 @@ Side B is **depth-first**. It assumes the line is already in your ear and your j
 
 ## What they share
 
-Both modes pull from the same pool of licks and the same daily key system, and both contribute to your overall progress.
+Both modes use the same daily key system and contribute to the same progress tracking.
 
 - **The licks are shared.** Side A queries the catalog for variety; Side B picks the specific licks you've tagged in your book.
 - **The daily key** rotates once per day (more on this in [The Daily Key](./tonality-system.md)). Side A defaults to today's key but lets you override; Side B ignores the daily pick and drills each lick through its currently-unlocked keys, earning more keys toward the full 12 across successive sessions.

@@ -197,6 +197,14 @@ if [[ -d "$STAGE_IMMUTABLE" ]]; then
         echo "==> Merging immutable assets into shared pool: ${SHARED_IMMUTABLE}"
         mkdir -p "$SHARED_IMMUTABLE"
 
+        # Sweep temp files orphaned by a deploy killed between its atomic
+        # cp-to-tmp and mv below. Without this, a stranded *.tmp.<pid> would be
+        # hydrated (hardlinked) into every release built in the next 30 days —
+        # the hydration find also filters them, but the pool shouldn't keep
+        # them at all. Safe under the pool lock: no live deploy's tmp files
+        # can exist while we hold it.
+        find "$SHARED_IMMUTABLE" -type f -name '*.tmp.*' -delete 2>/dev/null || true
+
         # For each chunk this release ships: copy it in if the pool doesn't
         # already have it (a new hash), otherwise just refresh its mtime.
         # Refreshing the mtime makes the eviction below measure age from the
@@ -250,7 +258,7 @@ if [[ -d "$STAGE_IMMUTABLE" ]]; then
         # the pool lock so a concurrent deploy's eviction can't race the link
         # loop. `ln` falls back to `cp` for cross-filesystem layouts.
         echo "==> Hydrating staged release from shared pool"
-        ( cd "$SHARED_IMMUTABLE" && find . -type f -print0 ) \
+        ( cd "$SHARED_IMMUTABLE" && find . -type f -not -name '*.tmp.*' -print0 ) \
             | while IFS= read -r -d '' rel; do
                   dest="${STAGE_IMMUTABLE}/${rel}"
                   if [[ ! -e "$dest" ]]; then

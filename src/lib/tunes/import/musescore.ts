@@ -67,6 +67,28 @@ function plainText(source: string, tag: string): string | null {
 	return text.length > 0 ? text : null;
 }
 
+/**
+ * SMuFL metronome <sym> names → the glyphs MuseScore 4 renders (the
+ * project's notation reference). Tag-stripping alone would leave the glyph
+ * NAME in the text ("metNoteQuarterUp = 60").
+ */
+const SMUFL_SYM_GLYPHS: Record<string, string> = {
+	metNoteWholeUp: '𝅝',
+	metNoteHalfUp: '𝅗𝅥',
+	metNoteQuarterUp: '♩',
+	metNote8thUp: '♪',
+	metAugmentationDot: '.'
+};
+
+/** Like plainText, but maps metronome <sym> elements to their glyphs first. */
+function symText(source: string, tag: string): string | null {
+	const withGlyphs = source.replace(
+		/<sym>([\s\S]*?)<\/sym>/g,
+		(_, name: string) => SMUFL_SYM_GLYPHS[name.trim()] ?? name.trim()
+	);
+	return plainText(withGlyphs, tag);
+}
+
 /** First frame Text of the given style (VBox title/composer fallback). */
 function frameText(xml: string, style: string): string | null {
 	for (const t of xml.matchAll(/<Text>[\s\S]*?<\/Text>/g)) {
@@ -376,7 +398,7 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 						break;
 					case 'SystemText':
 					case 'Tempo':
-						style ??= plainText(body, 'text') ?? undefined;
+						style ??= symText(body, 'text') ?? undefined;
 						break;
 					case 'Tuplet': {
 						const normal = Number(xmlText(body, 'normalNotes') ?? '0');

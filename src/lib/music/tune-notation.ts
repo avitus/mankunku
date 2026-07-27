@@ -20,6 +20,7 @@ import {
 	midiToAbcPitch,
 	sameDuration,
 	shorterFraction,
+	signatureSpelling,
 	type KeySigMap,
 	type PitchedNoteAnchor
 } from './notation';
@@ -149,17 +150,6 @@ export function tuneToAbcWithMap(
 	const displayKey = instrument ? concertKeyToWritten(sheet.key, instrument) : sheet.key;
 	const useFlats = FLAT_KEYS.includes(displayKey);
 	const keySigAccidentals: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
-
-	// Black-key pitch class → the letter each enharmonic spelling uses.
-	const SHARP_LETTER: Record<number, keyof KeySigMap> = { 1: 'C', 3: 'D', 6: 'F', 8: 'G', 10: 'A' };
-	const FLAT_LETTER: Record<number, keyof KeySigMap> = { 1: 'D', 3: 'E', 6: 'G', 8: 'A', 10: 'B' };
-	function signatureSpelling(pc: number, sig: KeySigMap): 'sharp' | 'flat' | null {
-		const sl = SHARP_LETTER[pc];
-		const fl = FLAT_LETTER[pc];
-		if (sl && sig[sl] === '^') return 'sharp';
-		if (fl && sig[fl] === '_') return 'flat';
-		return null;
-	}
 
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
 
@@ -391,6 +381,12 @@ export function tuneToAbcWithMap(
 
 	function flushLine(endBar: number): void {
 		if (!lineOpen) return;
+		// A zero-bar line (possible on unvalidated drafts/curated data with a
+		// bars: 0 section) must not emit a stray empty chord-voice bar.
+		if (endBar <= lineStartBar) {
+			lineOpen = false;
+			return;
+		}
 		tokens.push('\n[V:H]');
 		if (linePadBars > 0) tokens.push(padToken(linePadBars));
 		// Push each segment token individually while interleaving the exact

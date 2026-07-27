@@ -434,7 +434,7 @@
 					autocomplete="off"
 					spellcheck="false"
 					data-testid="chord-input"
-					aria-label="Chord at section {chordEdit.sectionIdx}, bar {chordEdit.bar + 1}, beat {chordEdit.beat + 1}"
+					aria-label="Chord at section {chordEdit.sectionIdx + 1}, bar {chordEdit.bar + 1}, beat {chordEdit.beat + 1}"
 					style="left: {overlayBox.leftPct}%; top: {overlayBox.topPct}%; width: {overlayBox.widthPct}%"
 					class="absolute z-10 rounded px-1 py-0.5 text-center text-xs outline-none ring-2 {errorFlash
 						? 'bg-[var(--color-error)]/15 ring-[var(--color-error)]'

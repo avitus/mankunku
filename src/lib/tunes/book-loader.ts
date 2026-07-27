@@ -13,7 +13,7 @@ import { ALL_CURATED_TUNES } from '$lib/data/tunes/index';
 import { getUserTunesLocal } from '$lib/persistence/user-tunes';
 import { getAdoptedTunesLocal } from '$lib/persistence/tune-community';
 import { bestOctaveShift } from '$lib/phrases/library-loader';
-import { parseChordSymbol, formatChordSymbol } from '$lib/music/chord-symbol';
+import { transposeChordSymbol } from '$lib/music/chord-symbol';
 import { transposePitchClass, pitchClassInterval } from '$lib/music/transposition';
 
 /** Pre-built index for O(1) curated lookups */
@@ -91,17 +91,6 @@ export function transposeTune(
 
 	if (totalShift === 0 && semitones === 0) return sheet;
 
-	const shiftSymbol = (symbol: string | undefined): string | undefined => {
-		if (!symbol) return undefined;
-		const parsed = parseChordSymbol(symbol);
-		if (!parsed) return undefined;
-		return formatChordSymbol({
-			...parsed,
-			root: transposePitchClass(parsed.root, semitones),
-			bass: parsed.bass ? transposePitchClass(parsed.bass, semitones) : undefined
-		});
-	};
-
 	return {
 		...sheet,
 		id: `${sheet.id}_${targetKey}`,
@@ -112,18 +101,15 @@ export function transposeTune(
 				...n,
 				pitch: n.pitch !== null ? n.pitch + totalShift : null
 			})),
-			harmony: sec.harmony.map((h) => {
-				const symbol = shiftSymbol(h.symbol);
-				return {
-					...h,
-					chord: {
-						...h.chord,
-						root: transposePitchClass(h.chord.root, semitones),
-						bass: h.chord.bass ? transposePitchClass(h.chord.bass, semitones) : undefined
-					},
-					...(symbol !== undefined ? { symbol } : { symbol: undefined })
-				};
-			})
+			harmony: sec.harmony.map((h) => ({
+				...h,
+				chord: {
+					...h.chord,
+					root: transposePitchClass(h.chord.root, semitones),
+					bass: h.chord.bass ? transposePitchClass(h.chord.bass, semitones) : undefined
+				},
+				symbol: transposeChordSymbol(h.symbol, semitones)
+			}))
 		}))
 	};
 }

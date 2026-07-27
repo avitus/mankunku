@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { Note, HarmonicSegment } from '$lib/types/music';
-import type { Tune, TuneSection } from '$lib/types/tune';
+import type { Tune } from '$lib/types/tune';
 import type { PitchedNoteAnchor } from '$lib/music/notation';
+import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
 import { tuneToAbcWithMap, type BarAnchor, type ChordSlotAnchor } from '$lib/music/tune-notation';
 import {
 	matchLayoutItem,
@@ -305,53 +305,7 @@ describe('nextBeatPos / prevBeatPos — beat advance across the form', () => {
 	});
 });
 
-// ── Fixture helpers mirroring tests/unit/music/tune-notation.test.ts ──────────
-function seg(
-	root: HarmonicSegment['chord']['root'],
-	quality: HarmonicSegment['chord']['quality'],
-	startOffset: [number, number],
-	duration: [number, number]
-): HarmonicSegment {
-	return { chord: { root, quality }, scaleId: 'major.ionian', startOffset, duration };
-}
-
-function section(overrides: Partial<TuneSection>): TuneSection {
-	return { label: 'A', bars: 4, notes: [], harmony: [], ...overrides };
-}
-
-function sheet(overrides: Partial<Tune>): Tune {
-	return {
-		id: 'ls-test',
-		title: 'Test Tune',
-		key: 'C',
-		timeSignature: [4, 4],
-		tags: [],
-		sections: [],
-		source: 'user',
-		...overrides
-	};
-}
-
-/** 2-bar sheet: whole-note C4 over Dm7→G7, then half-note D4 over Cmaj7 + rest. */
-function simpleSheet(): Tune {
-	const notes: Note[] = [
-		{ pitch: 60, duration: [1, 1], offset: [0, 1] },
-		{ pitch: 62, duration: [1, 2], offset: [1, 1] }
-	];
-	return sheet({
-		sections: [
-			section({
-				bars: 2,
-				notes,
-				harmony: [
-					seg('D', 'min7', [0, 1], [1, 2]),
-					seg('G', '7', [1, 2], [1, 2]),
-					seg('C', 'maj7', [1, 1], [1, 1])
-				]
-			})
-		]
-	});
-}
+// ── Shared fixture helpers (tests/helpers/tune-fixtures.ts) ───────────────────
 
 describe('integration — real tuneToAbcWithMap anchors → zones', () => {
 	// Fabricate layout items from the anchors, x monotonic in char order (no

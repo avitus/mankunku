@@ -656,7 +656,12 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 				return bar.melody.filter((note) => !isRestPitch(note[2])).length === ev.count;
 			};
 			const merged: SystemBar[] = [];
-			const survivors: string[] = [...first.issues.global];
+			// The only global issue systemBarIssues emits is the bar-count
+			// line, and the merge can FIX the count — recompute it below
+			// instead of carrying the first attempt's stale copy.
+			const survivors: string[] = first.issues.global.filter(
+				(msg) => !/^expected \d+ bars/.test(msg)
+			);
 			const count = Math.max(first.bars.length, second.bars.length);
 			for (let i = 0; i < count; i++) {
 				const firstClean = first.bars[i] && (first.issues.perBar[i] ?? []).length === 0;
@@ -674,6 +679,11 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 					merged.push(second.bars[i]);
 					survivors.push(...(second.issues.perBar[i] ?? []));
 				}
+			}
+			if (merged.length !== system.barCount) {
+				survivors.unshift(
+					`expected ${system.barCount} bars but the transcription returned ${merged.length}`
+				);
 			}
 			bars = merged;
 			warnings = survivors;

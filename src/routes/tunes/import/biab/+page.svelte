@@ -28,15 +28,29 @@
 	});
 
 	async function handleFile(event: Event): Promise<void> {
-		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
 		if (!file) return;
-		const lower = file.name.toLowerCase();
-		const result = /\.(xml|musicxml|txt)$/.test(lower)
-			? importBandInABox({ name: file.name, text: await file.text() })
-			: importBandInABox({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
-		rawSheets = result.sheets;
-		warnings = result.warnings;
-		parsedOnce = true;
+		try {
+			const lower = file.name.toLowerCase();
+			const result = /\.(xml|musicxml|txt)$/.test(lower)
+				? importBandInABox({ name: file.name, text: await file.text() })
+				: importBandInABox({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
+			rawSheets = result.sheets;
+			warnings = result.warnings;
+		} catch (err) {
+			// The parser degrades failures to warnings itself; this catches
+			// read failures and unexpected throws so the page never dies silently.
+			rawSheets = [];
+			warnings = [
+				`Could not read that file (${err instanceof Error ? err.message : 'unknown error'}).`
+			];
+		} finally {
+			parsedOnce = true;
+			// Clear the input so re-picking the SAME file (e.g. after fixing
+			// the song and re-exporting) fires `change` again.
+			input.value = '';
+		}
 	}
 
 	function handleReview(sheet: Tune): void {

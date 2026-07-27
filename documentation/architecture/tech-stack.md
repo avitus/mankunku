@@ -96,9 +96,9 @@ The display serif **Fraunces** (variable font, weight 300–800, Latin subset, s
 
 Mankunku is a **local-first installable web app** with optional cloud sync:
 
-- **State persistence** — All user progress, settings, and session history are stored in `localStorage` first. An optional Supabase backend (`src/lib/supabase/`, `src/routes/api/account/`) provides authenticated cloud sync so the same data follows a user across devices.
+- **State persistence** — User progress, settings, and session history are stored in `localStorage` first; large binary blobs (tune PDFs, via `src/lib/persistence/tune-pdf-store.ts`) live in IndexedDB. An optional Supabase backend (`src/lib/supabase/`, `src/routes/api/account/`) provides authenticated cloud sync so the same data follows a user across devices.
 - **Audio pipeline** — Built entirely on Web Audio APIs. An `AudioWorklet` handles onset detection, an `AnalyserNode` feeds the pitch detector, and Tone.js manages transport scheduling for metronome and phrase playback.
-- **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 33-scale catalog and ~452-lick curated library are defined as typed data structures (plus additional runtime-generated combinations).
+- **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 33-scale catalog and ~452-lick curated catalog are defined as typed data structures (plus additional runtime-generated combinations).
 - **Deployment** — `adapter-node` produces a Node.js server bundle (deployed via rsync + PM2 to a Digital Ocean VM). Page loads require the network — there is no service worker (see "Installable web app" above); user data stays local-first.
 
 ## Why These Choices

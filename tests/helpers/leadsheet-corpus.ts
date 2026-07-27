@@ -17,7 +17,12 @@
  * here, record both fixtures, then tune knownDefects/floors to the first
  * recording.
  */
-import { INSTRUMENTS } from '$lib/types/instruments';
+// Relative imports, not $lib: record-musescore-fixtures.ts runs this file
+// standalone under `npx tsx`, where the alias only resolves if the generated
+// .svelte-kit/tsconfig.json exists (prepare swallows a failed svelte-kit sync).
+import { INSTRUMENTS } from '../../src/lib/types/instruments';
+import { writtenSheetToConcert } from '../../src/lib/tunes/source-transposition';
+import type { Tune } from '../../src/lib/types/tune';
 
 export interface CorpusChart {
 	/** Fixture basename under tests/fixtures/leadsheets/pdf-vs-musescore/. */
@@ -37,6 +42,19 @@ export const CORPUS_INSTRUMENT = {
 	name: INSTRUMENTS['tenor-sax'].name,
 	transpositionSemitones: INSTRUMENTS['tenor-sax'].transpositionSemitones
 };
+
+/**
+ * The verified app flow's concert-pitch resolution rule — shared by the
+ * fixture recorder and the corpus checker so it cannot drift: a file
+ * DECLARING a transposing part is already concert after parsing; a file
+ * claiming concert pitch is treated as a written Bb chart for the tenor
+ * user and shifted to concert.
+ */
+export function resolveConcertSheet(sheet: Tune, declaredTransposition: number): Tune {
+	return declaredTransposition !== 0
+		? sheet
+		: writtenSheetToConcert(sheet, 'Bb', INSTRUMENTS['tenor-sax']);
+}
 
 export const CORPUS: CorpusChart[] = [
 	{

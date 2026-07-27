@@ -1,4 +1,5 @@
 import type { ChordQuality, PitchClass } from '$lib/types/music';
+import { transposePitchClass } from '$lib/music/transposition';
 
 /**
  * Canonical chord-symbol model.
@@ -168,9 +169,17 @@ export function parseChordSymbol(input: string): ChordSymbol | null {
 			const sign = altMatch[1] === '♭' || altMatch[1] === 'b' || altMatch[1] === '-' || altMatch[1] === '−' ? 'b' : '#';
 			const degree = altMatch[2];
 			if (!ALTERABLE_DEGREES.has(degree)) return null;
-			// m7b5 is half-diminished, not "minor seventh with an alteration".
-			if (sign === 'b' && degree === '5' && quality === 'min' && extensions.includes('7')) {
+			// m7b5 (and m9b5, m11b5…) is half-diminished, not "minor seventh
+			// with an alteration". The seventh is implied by any stacked
+			// extension, so push it when absent (mirrors the ø handling).
+			if (
+				sign === 'b' &&
+				degree === '5' &&
+				quality === 'min' &&
+				['7', '9', '11', '13'].some((e) => extensions.includes(e))
+			) {
 				quality = 'halfdim';
+				if (!extensions.includes('7')) extensions.push('7');
 			} else {
 				alterations.push(`${sign}${degree}`);
 			}
@@ -213,9 +222,13 @@ export function formatChordSymbol(cs: ChordSymbol): string {
 		case 'dom':
 			core = extension || '7';
 			break;
-		case 'halfdim':
-			core = '-7b5';
+		case 'halfdim': {
+			// Keep the highest stacked extension (ø9 → -9b5); the implied
+			// seventh only prints when nothing sits above it.
+			const upper = cs.extensions.find((e) => e !== '7');
+			core = upper ? `-${upper}b5` : '-7b5';
 			break;
+		}
 		case 'dim':
 			core = `dim${extension}`;
 			break;
@@ -236,6 +249,25 @@ export function formatChordSymbol(cs: ChordSymbol): string {
 	const alterations = cs.alterations.join('');
 	const bass = cs.bass ? `/${cs.bass}` : '';
 	return `${cs.root}${core}${alterations}${bass}`;
+}
+
+/**
+ * Transpose a chord symbol's root (and slash bass) by pitch class and
+ * re-format canonically. Returns undefined for missing/unparseable text —
+ * callers drop the symbol rather than display a wrong-key one.
+ */
+export function transposeChordSymbol(
+	symbol: string | undefined,
+	semitones: number
+): string | undefined {
+	if (!symbol) return undefined;
+	const parsed = parseChordSymbol(symbol);
+	if (!parsed) return undefined;
+	return formatChordSymbol({
+		...parsed,
+		root: transposePitchClass(parsed.root, semitones),
+		bass: parsed.bass ? transposePitchClass(parsed.bass, semitones) : undefined
+	});
 }
 
 /** Dominant alterations that push toward a specific voiced quality. */

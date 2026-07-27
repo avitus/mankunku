@@ -21,7 +21,7 @@
 			{value}
 			onchange={(e) => onchange(e.currentTarget.value as SourceTransposition)}
 			aria-label="Chart written for"
-			class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none"
+			class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
 		>
 			{#each SOURCE_TRANSPOSITIONS as opt (opt.id)}
 				<option value={opt.id}>{opt.label}</option>

@@ -135,6 +135,24 @@ export const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	'Db': { B: '_', E: '_', A: '_', D: '_', G: '_' },
 };
 
+/** Black-key pitch class → the letter each enharmonic spelling uses. */
+export const SHARP_LETTER: Record<number, keyof KeySigMap> = { 1: 'C', 3: 'D', 6: 'F', 8: 'G', 10: 'A' };
+export const FLAT_LETTER: Record<number, keyof KeySigMap> = { 1: 'D', 3: 'E', 6: 'G', 8: 'A', 10: 'B' };
+
+/**
+ * The enharmonic spelling of a black-key pitch class that the key signature
+ * already covers (no accidental needed), or null when neither spelling is in
+ * the signature. A C# in D major must not print as Db: respelling a
+ * signature-covered note forces a needless accidental plus naturals.
+ */
+export function signatureSpelling(pc: number, sig: KeySigMap): 'sharp' | 'flat' | null {
+	const sl = SHARP_LETTER[pc];
+	const fl = FLAT_LETTER[pc];
+	if (sl && sig[sl] === '^') return 'sharp';
+	if (fl && sig[fl] === '_') return 'flat';
+	return null;
+}
+
 /**
  * When a natural note from the chromatic table conflicts with the key signature,
  * this maps the letter to its enharmonic flat-above spelling.
@@ -534,8 +552,9 @@ export function phraseToAbcWithMap(
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-		// Spelling priority: the user's explicit choice, then diatonic-to-the-
-		// governing-chord (judged at WRITTEN pitch), then the key signature.
+		// Spelling priority: explicit choice > the enharmonic that is IN the
+		// key signature (no accidental needed — a C# in D major must not
+		// print as Db) > chord-diatonic preference > key-side default.
 		const seg = governingSegment(phrase.harmony, fractionToFloat(note.offset));
 		const chordPref = seg
 			? chordSpellingPreference(
@@ -547,8 +566,11 @@ export function phraseToAbcWithMap(
 					seg.chord.quality
 				)
 			: null;
+		const sigPref = signatureSpelling(((midi % 12) + 12) % 12, keySigAccidentals);
 		const noteUseFlats = note.spelling === 'flat' ? true
 			: note.spelling === 'sharp' ? false
+			: sigPref === 'flat' ? true
+			: sigPref === 'sharp' ? false
 			: chordPref === 'flat' ? true
 			: chordPref === 'sharp' ? false
 			: useFlats;

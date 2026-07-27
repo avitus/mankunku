@@ -253,11 +253,13 @@ function parseMusicString(
 					if (prev) barChords = [...prev.chords];
 					barHasContent = true;
 				} else if (token.value === 'r') {
-					// Repeat the previous TWO bars.
+					// Repeat the previous TWO bars: push a copy of the first of
+					// the pair, and stage the second as the current bar.
 					const bars = allBars(sections, current);
 					if (bars.length >= 2) {
-						ensureSection().bars.push({ chords: [...bars[bars.length - 2].chords] });
-						barChords = [...allBars(sections, current)[allBars(sections, current).length - 2].chords];
+						const [first, second] = bars.slice(-2);
+						ensureSection().bars.push({ chords: [...first.chords] });
+						barChords = [...second.chords];
 					}
 					barHasContent = true;
 					warnings.push('iReal: two-bar repeat (r) approximated');

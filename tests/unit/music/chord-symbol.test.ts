@@ -149,6 +149,17 @@ describe('parseChordSymbol — qualities', () => {
 		expect(parseChordSymbol('Dø')).toEqual(expected);
 	});
 
+	it('keeps higher extensions on half-diminished chords (ø9, m9b5)', () => {
+		const expected: ChordSymbol = {
+			root: 'D', quality: 'halfdim', extensions: ['9', '7'], alterations: []
+		};
+		expect(parseChordSymbol('Dø9')).toEqual(expected);
+		// min + b5 with any stacked extension is half-diminished, not
+		// "minor with a b5 alteration" (which would voice as dim).
+		expect(parseChordSymbol('Dm9b5')).toEqual(expected);
+		expect(parseChordSymbol('D-9b5')).toEqual(expected);
+	});
+
 	it('parses diminished chords from dim, o, and °', () => {
 		expect(parseChordSymbol('Cdim')).toEqual({
 			root: 'C', quality: 'dim', extensions: [], alterations: []
@@ -285,6 +296,7 @@ describe('formatChordSymbol', () => {
 		expect(roundTrip('Dm7')).toBe('D-7');
 		expect(roundTrip('Dmin9')).toBe('D-9');
 		expect(roundTrip('Dø')).toBe('D-7b5');
+		expect(roundTrip('Dø9')).toBe('D-9b5');
 		expect(roundTrip('CmMaj7')).toBe('C-Δ7');
 		expect(roundTrip('C+')).toBe('Caug');
 		expect(roundTrip('C6/9')).toBe('C69');
@@ -296,6 +308,7 @@ describe('formatChordSymbol', () => {
 		const structs: ChordSymbol[] = [
 			{ root: 'C', quality: 'aug', extensions: ['7'], alterations: [] },
 			{ root: 'F#', quality: 'halfdim', extensions: ['7'], alterations: [] },
+			{ root: 'D', quality: 'halfdim', extensions: ['9', '7'], alterations: [] },
 			{ root: 'Bb', quality: 'dom', extensions: ['13'], alterations: ['b9'] },
 			{ root: 'Eb', quality: 'minmaj', extensions: ['7'], alterations: [], bass: 'Bb' }
 		];
@@ -350,6 +363,7 @@ describe('chordSymbolToQuality', () => {
 	it('maps half-diminished, diminished, and augmented chords', () => {
 		expect(q('Cm7b5')).toBe('min7b5');
 		expect(q('Cø')).toBe('min7b5');
+		expect(q('D-9b5')).toBe('min7b5');
 		expect(q('Cdim7')).toBe('dim7');
 		expect(q('Cdim')).toBe('dim');
 		expect(q('Caug')).toBe('aug');

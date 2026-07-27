@@ -72,8 +72,10 @@ export function barTilingIssues(
 	}
 	const end = Math.max(...events.map((e) => e.end));
 	if (end !== barUnits) {
+		// No "/4" clause: only the numerator is known here, and the caller's
+		// meter can be 6/8 etc. — naming a denominator would mislead the model.
 		issues.push(
-			`${label}: sums to ${fromUnits(end)} beats in ${beats}/4 time — the bar must fill exactly ${beats} beats`
+			`${label}: sums to ${fromUnits(end)} beats — the bar must fill exactly ${beats} beats`
 		);
 	}
 	return issues;

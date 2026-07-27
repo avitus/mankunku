@@ -292,7 +292,11 @@ describe('POST /api/tune-parse — per-system mode', () => {
 			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } })
 		);
 		expect(res.status).toBe(200);
-		expect((await res.json()).bars).toHaveLength(2);
+		const payload = await res.json();
+		expect(payload.bars).toHaveLength(2);
+		// The merge FIXED the bar count — the first attempt's stale
+		// "expected 2 bars but the transcription returned 1" must not survive.
+		expect(payload.warnings).toEqual([]);
 		expect(mockCreate).toHaveBeenCalledTimes(2);
 		const retryText = mockCreate.mock.calls[1][0].messages[0].content.find(
 			(b: { type: string }) => b.type === 'text'

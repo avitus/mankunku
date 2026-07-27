@@ -9,8 +9,10 @@ import { getScalesForChord } from '$lib/music/scales';
 
 /**
  * Shared builder turning chord symbols into HarmonicSegments — one place
- * where the quality mapping, default scale context, and canonical raw-symbol
- * stamping happen, used by manual entry and every importer.
+ * where the quality mapping, default scale context, and symbol stamping
+ * happen, used by manual entry and every importer. When the raw concert
+ * text exists (`harmonicSegmentFromSymbol`) it is stored verbatim for
+ * display fidelity; only the struct-based path formats a canonical symbol.
  */
 
 /** Default scale context for a voiced quality — derived from the scale table. */
@@ -41,6 +43,8 @@ export function harmonicSegmentFromChordSymbol(
 /**
  * Build a segment from CONCERT-pitch chord text. Returns null for
  * unparseable text — callers decide whether that's a skip or an error.
+ * The raw source text is stored as `symbol` (display fidelity — see
+ * HarmonicSegment.symbol); rendering re-canonicalizes parseable symbols.
  */
 export function harmonicSegmentFromSymbol(
 	concertText: string,
@@ -49,5 +53,8 @@ export function harmonicSegmentFromSymbol(
 ): HarmonicSegment | null {
 	const parsed = parseChordSymbol(concertText);
 	if (!parsed) return null;
-	return harmonicSegmentFromChordSymbol(parsed, startOffset, duration);
+	return {
+		...harmonicSegmentFromChordSymbol(parsed, startOffset, duration),
+		symbol: concertText
+	};
 }

@@ -86,7 +86,7 @@ describe('parseMscx — basics', () => {
 		]);
 		// Harmony: root TPC 13 = F (no transposition), anchored at the cursor.
 		expect(sheet.sections[0].harmony).toHaveLength(1);
-		expect(sheet.sections[0].harmony[0].symbol).toBe('F-7');
+		expect(sheet.sections[0].harmony[0].symbol).toBe('Fm7');
 		expect(sheet.sections[0].harmony[0].startOffset).toEqual([0, 1]);
 	});
 
@@ -108,7 +108,7 @@ describe('parseMscx — basics', () => {
 		// concert already and must pass through untouched.
 		const sec = sheets[0].sections[0];
 		expect(sec.harmony[0].chord.root).toBe('A');
-		expect(sec.harmony[0].symbol).toBe('A-7');
+		expect(sec.harmony[0].symbol).toBe('Am7');
 		expect(sec.notes[0].pitch).toBe(60);
 	});
 
@@ -126,7 +126,7 @@ describe('parseMscx — basics', () => {
     </Staff>`
 		}));
 		const seg = sheets[0].sections[0].harmony[0];
-		expect(seg.symbol).toBe('CΔ7/E');
+		expect(seg.symbol).toBe('Cmaj7/E');
 		expect(seg.chord.bass).toBe('E');
 	});
 
@@ -181,7 +181,7 @@ describe('parseMscx — basics', () => {
 		expect(warnings).toEqual([]);
 		const harmony = sheets[0].sections[0].harmony;
 		// ø canonicalizes to the app's compact minor-family spelling.
-		expect(harmony.map((h) => h.symbol)).toEqual(['EbΔ7', 'D-7b5', 'DΔ9']);
+		expect(harmony.map((h) => h.symbol)).toEqual(['EbΔ7', 'Dø7', 'DΔ9']);
 	});
 
 	it('captures the source spelling from tpc (sharp side, flat side, natural)', () => {
@@ -428,6 +428,23 @@ describe('parseMscx — basics', () => {
 			[64, [1, 6]],
 			[65, [1, 4]]
 		]);
+	});
+
+	it('maps SMuFL metronome syms in Tempo text to glyphs (♩ = 60)', () => {
+		// Plain tag-stripping would leave the glyph NAME in the style text
+		// ("metNoteQuarterUp = 60"); MuseScore 4 renders the note glyph.
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <Tempo><tempo>1</tempo><text><sym>metNoteQuarterUp</sym><font face="Edwin"></font> = 60</text></Tempo>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(sheets[0].style).toBe('♩ = 60');
 	});
 });
 
@@ -831,13 +848,13 @@ describe('parseMscx — structure', () => {
 		}));
 		const [a, b, c] = sheets[0].sections;
 		expect(a.harmony.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
-			['CΔ7', [0, 1], [1, 1]]
+			['Cmaj7', [0, 1], [1, 1]]
 		]);
 		expect(b.harmony.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
-			['CΔ7', [0, 1], [2, 1]]
+			['Cmaj7', [0, 1], [2, 1]]
 		]);
 		expect(c.harmony.map((h) => [h.symbol, h.startOffset, h.duration])).toEqual([
-			['CΔ7', [0, 1], [1, 1]]
+			['Cmaj7', [0, 1], [1, 1]]
 		]);
 	});
 
@@ -1140,7 +1157,7 @@ describe('parseMscx — part selection and frame-text fallback', () => {
 	it('defaults to the first staff when no instrument preference is given', () => {
 		const result = parseMscx(TWO_PART_SCORE);
 		expect(result.sheets[0].sections[0].notes[0].pitch).toBe(60);
-		expect(result.sheets[0].sections[0].harmony[0].symbol).toBe('A-7'); // written A, transpose 0
+		expect(result.sheets[0].sections[0].harmony[0].symbol).toBe('Am7'); // written A, transpose 0
 		expect(result.declaredTransposition).toBe(0);
 	});
 
@@ -1152,7 +1169,7 @@ describe('parseMscx — part selection and frame-text fallback', () => {
 		// Staff 2's melody (concert midi passes through) and ITS harmony,
 		// shifted by ITS transposition: written B-7 on tenor = concert A-7.
 		expect(result.sheets[0].sections[0].notes[0].pitch).toBe(57);
-		expect(result.sheets[0].sections[0].harmony[0].symbol).toBe('A-7');
+		expect(result.sheets[0].sections[0].harmony[0].symbol).toBe('Am7');
 		expect(result.declaredTransposition).toBe(-14);
 	});
 
@@ -1165,7 +1182,6 @@ describe('parseMscx — part selection and frame-text fallback', () => {
 		expect(result.sheets[0].sections[0].notes[0].pitch).toBe(57);
 		expect(result.declaredTransposition).toBe(-14);
 	});
-});
 
 	it('takes system-level structure from the top staff when extracting another part', () => {
 		// Repeats, voltas, and rehearsal marks serialize only on the FIRST
@@ -1230,6 +1246,7 @@ describe('parseMscx — part selection and frame-text fallback', () => {
 		expect(sheet.sections[0].notes[0].pitch).toBe(57);
 		expect(sheet.sections[1].notes[0].pitch).toBe(59);
 	});
+});
 
 describe('parseMscx — volta endings', () => {
 	it('imports 1st/2nd endings as ending sections inheriting the body label', () => {

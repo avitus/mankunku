@@ -17,26 +17,17 @@
 
 	const supabase = $derived(page.data?.supabase ?? null);
 
-	// localStorage caches are non-reactive — bump to re-read after mutations.
-	let cacheVersion = $state(0);
-
-	const baseSheet = $derived.by(() => {
-		void cacheVersion;
-		return getTuneById(page.params.id ?? '');
-	});
+	// The page's mutations (delete/return) navigate away, so the localStorage
+	// caches never need re-reading within a visit — plain deriveds suffice.
+	const baseSheet = $derived(getTuneById(page.params.id ?? ''));
 	const isCurated = $derived(baseSheet ? isCuratedTuneId(baseSheet.id) : false);
-	const isAdopted = $derived.by(() => {
-		void cacheVersion;
-		return baseSheet ? getTuneAdoptionsLocal().has(baseSheet.id) : false;
-	});
-	const isOwnSheet = $derived.by(() => {
-		void cacheVersion;
-		return baseSheet ? getUserTunesLocal().some((s) => s.id === baseSheet.id) : false;
-	});
-	const authorName = $derived.by(() => {
-		void cacheVersion;
-		return baseSheet ? getAdoptedTuneAuthorsLocal()[baseSheet.id]?.authorName ?? null : null;
-	});
+	const isAdopted = $derived(baseSheet ? getTuneAdoptionsLocal().has(baseSheet.id) : false);
+	const isOwnSheet = $derived(
+		baseSheet ? getUserTunesLocal().some((s) => s.id === baseSheet.id) : false
+	);
+	const authorName = $derived(
+		baseSheet ? getAdoptedTuneAuthorsLocal()[baseSheet.id]?.authorName ?? null : null
+	);
 
 	/**
 	 * Key selector state is in WRITTEN pitch (what the user sees on their
@@ -62,20 +53,29 @@
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
+	// Guards the async start path (module import + instrument load): a second
+	// click during those awaits would otherwise start overlapping playback.
+	let starting = $state(false);
 	let confirmingDelete = $state(false);
 	let confirmingReturn = $state(false);
 
 	async function togglePlay() {
-		if (!sheet) return;
-		if (!playbackModule) {
-			playbackModule = await import('$lib/audio/playback');
-		}
+		if (!sheet || starting) return;
 		if (isPlaying) {
-			playbackModule.stopPlayback();
+			// Playback running implies the module already loaded.
+			playbackModule?.stopPlayback();
 			isPlaying = false;
 			return;
 		}
-		await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+		starting = true;
+		try {
+			if (!playbackModule) {
+				playbackModule = await import('$lib/audio/playback');
+			}
+			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+		} finally {
+			starting = false;
+		}
 		isPlaying = true;
 		try {
 			await playbackModule.playPhrase(tuneToPhrase(sheet, { expandRepeats: true }), {

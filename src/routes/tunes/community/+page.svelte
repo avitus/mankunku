@@ -114,6 +114,10 @@
 
 	async function handleFavorite(item: CommunityTune) {
 		if (!supabase) return;
+		// Staleness guard (matching loadMore): a filter/sort change or sign-out
+		// mid-flight replaces `sheets`, and a rollback splice would insert a
+		// stale card into the new result set.
+		const runId = effectRunId;
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		const wasFavorited = item.isFavoritedByMe;
@@ -131,6 +135,7 @@
 		} catch (err) {
 			console.warn('Failed to toggle tune favorite:', err);
 		}
+		if (runId !== effectRunId) return;
 		if (nowFavorited !== !wasFavorited) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}
@@ -138,6 +143,7 @@
 
 	async function handleAdopt(item: CommunityTune) {
 		if (!supabase) return;
+		const runId = effectRunId;
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: true }, ...sheets.slice(idx + 1)];
@@ -147,6 +153,7 @@
 		} catch (err) {
 			console.warn('Failed to adopt tune:', err);
 		}
+		if (runId !== effectRunId) return;
 		if (!ok) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}
@@ -154,6 +161,7 @@
 
 	async function handleReturn(item: CommunityTune) {
 		if (!supabase) return;
+		const runId = effectRunId;
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: false }, ...sheets.slice(idx + 1)];
@@ -163,6 +171,7 @@
 		} catch (err) {
 			console.warn('Failed to return tune:', err);
 		}
+		if (runId !== effectRunId) return;
 		if (!ok) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}

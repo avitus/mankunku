@@ -209,7 +209,7 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		const a = sheet!.sections[1];
 		expect(a.harmony.map((h) => [h.symbol, h.startOffset])).toEqual([
 			['Bb6', [0, 1]],
-			['C-7', [1, 1]],
+			['Cm7', [1, 1]],
 			['F7', [3, 2]]
 		]);
 		expect(a.notes).toEqual([
@@ -314,7 +314,6 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		expect(sheet!.sections.reduce((a, s) => a + s.bars, 0)).toBe(6);
 	});
 
-});
 	it('cross-checks the declared system overview against the transcription', () => {
 		const doc = {
 			title: 'Overview Tune',
@@ -330,6 +329,7 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		expect(sheet).not.toBeNull();
 		expect(warnings.some((w) => /overview/.test(w))).toBe(true);
 	});
+});
 
 describe('extractionConsistencyScore', () => {
 	it('counts the warnings that indicate a shaky transcription', () => {

@@ -1,7 +1,7 @@
 import type { PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { transposePitchClass } from '$lib/music/transposition';
-import { parseChordSymbol, formatChordSymbol } from '$lib/music/chord-symbol';
+import { transposeChordSymbol } from '$lib/music/chord-symbol';
 import type { Tune } from '$lib/types/tune';
 
 /**
@@ -55,18 +55,6 @@ export function sourceTranspositionSemitones(
 	return pc;
 }
 
-/** Shift a chord symbol's root/bass by pitch class; null for unparseable text. */
-function shiftSymbol(symbol: string | undefined, semitones: number): string | undefined {
-	if (!symbol) return undefined;
-	const parsed = parseChordSymbol(symbol);
-	if (!parsed) return undefined;
-	return formatChordSymbol({
-		...parsed,
-		root: transposePitchClass(parsed.root, semitones),
-		bass: parsed.bass ? transposePitchClass(parsed.bass, semitones) : undefined
-	});
-}
-
 /**
  * Convert a sheet parsed at WRITTEN pitch to concert: melody down by the
  * exact source offset, key/chords down by its pitch class. Identity (same
@@ -97,7 +85,7 @@ export function writtenSheetToConcert(
 					root: transposePitchClass(h.chord.root, -semitones),
 					...(h.chord.bass ? { bass: transposePitchClass(h.chord.bass, -semitones) } : {})
 				},
-				symbol: shiftSymbol(h.symbol, -semitones)
+				symbol: transposeChordSymbol(h.symbol, -semitones)
 			}))
 		}))
 	};

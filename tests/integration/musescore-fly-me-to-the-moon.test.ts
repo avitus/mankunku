@@ -90,7 +90,7 @@ describe('MuseScore import — Fly Me to the Moon (.mscz)', () => {
 		// all a major ninth up from concert.
 		const first8 = a.harmony.filter((h) => h.startOffset[0] / h.startOffset[1] < 7.5);
 		expect(first8.map((h) => h.symbol)).toEqual([
-			'A-7', 'D-7', 'G7', 'CΔ7', 'FΔ7', 'B-7b5', 'E7b9', 'A-7'
+			'Am7', 'Dm7', 'G7', 'Cmaj7', 'Fmaj7', 'Bm7b5', 'E7b9', 'Am7'
 		]);
 		first8.forEach((h, bar) => expect(h.startOffset).toEqual([bar, 1]));
 	});
@@ -104,7 +104,7 @@ describe('MuseScore import — Fly Me to the Moon (.mscz)', () => {
 		const bar8 = a.harmony.filter(
 			(h) => h.startOffset[0] / h.startOffset[1] >= 7 && h.startOffset[0] / h.startOffset[1] < 8
 		);
-		expect(bar8.map((h) => h.symbol)).toEqual(['A-7', 'A7']);
+		expect(bar8.map((h) => h.symbol)).toEqual(['Am7', 'A7']);
 		expect(bar8[1].startOffset).toEqual([31, 4]);
 	});
 });

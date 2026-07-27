@@ -28,7 +28,7 @@ test('clicking a chord zone opens the inline input and Enter commits to the char
 	await page.locator('[data-chord-pos="0:0:0"]').click();
 	const input = page.getByTestId('chord-input');
 	await expect(input).toBeVisible();
-	await expect(input).toHaveAttribute('aria-label', 'Chord at section 0, bar 1, beat 1');
+	await expect(input).toHaveAttribute('aria-label', 'Chord at section 1, bar 1, beat 1');
 
 	await input.fill('Dm7');
 	await input.press('Enter');
@@ -50,7 +50,7 @@ test('Space commits and advances the input to the next beat', async ({ page }) =
 	await input.press(' ');
 
 	// The chord committed and the SAME input is now parked on beat 2.
-	await expect(input).toHaveAttribute('aria-label', 'Chord at section 0, bar 1, beat 2');
+	await expect(input).toHaveAttribute('aria-label', 'Chord at section 1, bar 1, beat 2');
 	await expect(
 		page.locator(`${CHART_SVG} text`).filter({ hasText: 'D-7' }).first()
 	).toBeVisible();
@@ -146,7 +146,7 @@ test('k opens the chord editor at the selected note and commits there', async ({
 
 	const input = page.getByTestId('chord-input');
 	await expect(input).toBeVisible();
-	await expect(input).toHaveAttribute('aria-label', 'Chord at section 0, bar 1, beat 1');
+	await expect(input).toHaveAttribute('aria-label', 'Chord at section 1, bar 1, beat 1');
 
 	await input.fill('C7');
 	await input.press('Enter');
@@ -184,7 +184,7 @@ test.describe('touch', () => {
 
 		const input = page.getByTestId('chord-input');
 		await expect(input).toHaveCount(1);
-		await expect(input).toHaveAttribute('aria-label', 'Chord at section 0, bar 3, beat 1');
+		await expect(input).toHaveAttribute('aria-label', 'Chord at section 1, bar 3, beat 1');
 		// The entry cursor did NOT move (a phantom bar dispatch would arm bar 3).
 		await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
 		expect(await touchLeaks(page)).toBe(0);

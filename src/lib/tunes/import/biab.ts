@@ -219,6 +219,7 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 		// Chord roots (packed root + bass) per beat cell.
 		let idx = 0;
 		let maxBeat = 0;
+		let streamsDisagree = false;
 		for (let beat = 0; beat < MAX_BARS * 4; ) {
 			const val = r.u8();
 			if (val === 0) beat += r.u8();
@@ -231,11 +232,14 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 					chords[idx].bass = bass;
 					idx++;
 				} else {
-					warnings.push('Chord root/extension streams disagree; some chords skipped.');
+					streamsDisagree = true;
 				}
 				if (beat > maxBeat) maxBeat = beat;
 				beat++;
 			}
+		}
+		if (streamsDisagree) {
+			warnings.push('Chord root/extension streams disagree; some chords skipped.');
 		}
 		if (idx !== chords.length) {
 			warnings.push('Chord extension count exceeds root count; trailing chords dropped.');
@@ -243,7 +247,9 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 		}
 
 		const [tsNum, tsDen] = style.timeSignature;
-		const bars = Math.floor((maxBeat + 4 - 1) / 4) + 1;
+		// maxBeat is a ZERO-based beat cell, so its bar index is floor(/4) and
+		// the (1-based) bar count is that + 1.
+		const bars = Math.floor(maxBeat / 4) + 1;
 		const barDuration: Fraction = [tsNum, tsDen];
 
 		// Chorus markers follow the streams as [start][end][repeats]. NB: the
@@ -330,7 +336,11 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 			}
 			const bassName = c.bass > 0 ? BIAB_ROOTS[c.bass] : undefined;
 			const suffix = BIAB_CHORD_SUFFIX[c.extension];
-			const text = `${rootName}${suffix ?? `?${c.extension}`}${bassName ? `/${bassName}` : ''}`;
+			// Unknown extension ids get the bare root (+bass) — leaking a
+			// synthetic `?<id>` token into the stored symbol would render on
+			// the chart, and the id's own digits could steer fallbackSegment's
+			// quality regex. The id is named in the approximation warning below.
+			const text = `${rootName}${suffix ?? ''}${bassName ? `/${bassName}` : ''}`;
 
 			const segment =
 				suffix !== undefined ? harmonicSegmentFromSymbol(text, offset, duration) : null;

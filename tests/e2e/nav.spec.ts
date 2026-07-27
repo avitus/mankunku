@@ -44,6 +44,10 @@ test.describe('global navigation', () => {
 		const nav = page.getByRole('navigation').first();
 		await expect(nav.getByRole('link', { name: /^community$/i })).toHaveCount(0);
 		await expect(nav.getByRole('link', { name: /add licks/i })).toHaveCount(0);
+		// The retired Library route must not keep a stale nav link either
+		// (smoke.spec.ts proves /library 404s at the HTTP level).
+		await expect(nav.locator('a[href="/library"]')).toHaveCount(0);
+		await expect(nav.getByRole('link', { name: /^library$/i })).toHaveCount(0);
 	});
 
 	test('"Sign in" link appears for anonymous users and routes to /auth', async ({

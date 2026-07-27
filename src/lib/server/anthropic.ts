@@ -45,10 +45,9 @@ export const ANTHROPIC_TUNE_MODEL = 'claude-fable-5';
 export const ANTHROPIC_MAX_TOKENS = 1024;
 
 /**
- * Cap on output tokens for the tune PDF extraction. A full multi-page
- * chart's chords + melody as JSON runs a few thousand tokens; 8192 leaves
- * headroom without letting a runaway response get expensive.
+ * Cap on output tokens for the tune PDF extraction. Bar-wise transcription
+ * is verbose — ~40 bars × chords + melody tuples can exceed 8k output
+ * tokens, and a truncated response means a JSON parse failure — so the
+ * ceiling is high; it only bounds a runaway response.
  */
-// Bar-wise transcription is verbose: ~40 bars × chords + melody tuples can
-// exceed 8k output tokens, and truncation means a JSON parse failure.
 export const ANTHROPIC_TUNE_MAX_TOKENS = 32768;

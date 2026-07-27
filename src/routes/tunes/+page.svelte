@@ -4,6 +4,7 @@
 	import TuneCard from '$lib/components/tunes/TuneCard.svelte';
 	import { getAllTunes, isCuratedTuneId } from '$lib/tunes/book-loader';
 	import { getAdoptedTuneAuthorsLocal, getTuneAdoptionsLocal } from '$lib/persistence/tune-community';
+	import { awaitHydration } from '$lib/state/hydration';
 	import type { Tune } from '$lib/types/tune';
 
 	const session = $derived(page.data?.session ?? null);
@@ -12,12 +13,19 @@
 
 	// localStorage caches are non-reactive — the version counter forces a
 	// re-read after hydration lands (the background cloud sync races mount).
+	// awaitHydration() is the deterministic completion signal (bounded wait),
+	// not a guessed timer.
 	let cacheVersion = $state(0);
 
 	$effect(() => {
 		if (!session) return;
-		const delayed = setTimeout(() => cacheVersion++, 2500);
-		return () => clearTimeout(delayed);
+		let live = true;
+		awaitHydration().then(() => {
+			if (live) cacheVersion++;
+		});
+		return () => {
+			live = false;
+		};
 	});
 
 	const allSheets = $derived.by(() => {

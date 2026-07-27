@@ -371,6 +371,19 @@ describe('initTuneCommunityFromCloud', () => {
 	});
 
 	it('returns false and prunes caches when the payload pull fails', async () => {
+		// Seed a stale adopted payload + author for an id the cloud no longer
+		// has in the adoption set.
+		const seedSb = makeSupabaseMock({
+			user: ME,
+			singleRows: {
+				tunes: makeSheetRow({ id: 'stale-1' }),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			}
+		});
+		await adoptTune(seedSb as never, 'stale-1');
+		expect(getAdoptedTunesLocal().some((s) => s.id === 'stale-1')).toBe(true);
+		expect(getAdoptedTuneAuthorsLocal()['stale-1']).toBeDefined();
+
 		const sb = makeSupabaseMock({
 			user: ME,
 			data: {
@@ -383,6 +396,9 @@ describe('initTuneCommunityFromCloud', () => {
 		expect(ok).toBe(false);
 		// The adoption set is authoritative even when payloads fail.
 		expect(getTuneAdoptionsLocal().has('kept')).toBe(true);
+		// The payload/author caches are pruned to the authoritative set.
+		expect(getAdoptedTunesLocal().some((s) => s.id === 'stale-1')).toBe(false);
+		expect(getAdoptedTuneAuthorsLocal()['stale-1']).toBeUndefined();
 	});
 
 	it('returns false when the adoptions pull fails', async () => {

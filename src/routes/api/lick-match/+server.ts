@@ -32,6 +32,14 @@ const MATCH_INDEX = assembleIndex();
 
 const MAX_SEQUENCE_LENGTH = 512;
 
+/**
+ * Route-level request-size gate. The adapter's global BODY_SIZE_LIMIT is 16M
+ * (needed by /api/tune-parse); a maxed-out lick-match body (two 512-element
+ * integer arrays) is ~10KB, so 64KB is generous — reject anything larger
+ * before request.json() parses it.
+ */
+const MAX_REQUEST_BYTES = 65_536;
+
 interface RequestBody {
 	intervals: number[];
 	iois: number[];
@@ -52,6 +60,11 @@ interface MatchResponse {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
+	const contentLength = Number(request.headers.get('content-length'));
+	if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+		return json({ error: `request too large (max ${MAX_REQUEST_BYTES} bytes)` }, 413);
+	}
+
 	let body: unknown;
 	try {
 		body = await request.json();

@@ -9,15 +9,6 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Tune } from '$lib/types/tune';
-import {
-	saveUserTune,
-	deleteUserTune,
-	getUserTunes,
-	getUserTunesLocal,
-	initTunesFromCloud,
-	flushTunesToCloud
-} from '$lib/persistence/user-tunes';
-import { setActiveUid, getActivePrefix, __resetNamespaceCacheForTests } from '$lib/persistence/namespace';
 
 // ─── Mock the outbox so enqueue is an inert no-op ─────────────────────────
 vi.mock('$lib/persistence/outbox', () => ({
@@ -32,7 +23,7 @@ vi.mock('$lib/persistence/tune-community', () => ({
 	getAdoptedTunesLocal: () => adoptedSheets
 }));
 
-// ─── localStorage mock ────────────────────────────────────────────────────
+// ─── localStorage mock — installed BEFORE the modules under test load ─────
 const store: Record<string, string> = {};
 const localStorageMock = {
 	getItem: vi.fn((key: string) => store[key] ?? null),
@@ -43,6 +34,20 @@ const localStorageMock = {
 	key: vi.fn((i: number) => Object.keys(store)[i] ?? null)
 };
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
+
+// Dynamic imports AFTER the mock: static imports are ESM-hoisted above the
+// defineProperty, so module-scope localStorage reads would miss the mock.
+const {
+	saveUserTune,
+	deleteUserTune,
+	getUserTunes,
+	getUserTunesLocal,
+	initTunesFromCloud,
+	flushTunesToCloud
+} = await import('$lib/persistence/user-tunes');
+const { setActiveUid, getActivePrefix, __resetNamespaceCacheForTests } = await import(
+	'$lib/persistence/namespace'
+);
 
 const CLOUD_UID = 'user-a';
 

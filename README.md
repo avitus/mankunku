@@ -2,7 +2,7 @@
 
 Jazz ear training progressive web app with call-and-response practice. The app plays a jazz phrase, you play it back on your instrument via microphone, and it scores your pitch and rhythm accuracy in real time.
 
-Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.wikipedia.org/wiki/Yakhal%27_Inkomo) — one of the greatest South African jazz recordings. Under the hood: real-time pitch detection at 60fps, Dynamic Time Warping for score alignment, a custom AudioWorklet for onset detection, adaptive difficulty that grows with you, and a local-first architecture that works offline.
+Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.wikipedia.org/wiki/Yakhal%27_Inkomo) — one of the greatest South African jazz recordings. Under the hood: real-time pitch detection at 60fps, Dynamic Time Warping for score alignment, a custom AudioWorklet for onset detection, adaptive difficulty that grows with you, and a local-first architecture that keeps your data on-device (page loads need the network).
 
 ## Features
 
@@ -72,7 +72,7 @@ src/
     state/          Svelte 5 runes state modules (.svelte.ts)
     persistence/    localStorage/IndexedDB storage + Supabase sync
     components/     UI components (audio, practice, licks, tunes, notation, onboarding)
-    supabase/       Client setup and generated DB types
+    supabase/       Client setup and hand-maintained DB types
     types/          TypeScript interfaces grouped by domain
     data/           Curated lick + tune catalogs and static data
   routes/           SvelteKit pages: practice, licks, tunes, progress, settings, auth

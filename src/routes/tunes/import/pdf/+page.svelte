@@ -40,7 +40,9 @@
 	onMount(async () => {
 		source = defaultSourceTransposition(getInstrument());
 		try {
-			const res = await fetch('/api/tune-parse');
+			// A stalled probe would leave `configured` null and the file input
+			// disabled forever — bound it; the catch routes a timeout to false.
+			const res = await fetch('/api/tune-parse', { signal: AbortSignal.timeout(10_000) });
 			configured = res.ok ? Boolean((await res.json()).configured) : false;
 		} catch {
 			configured = false;
@@ -109,6 +111,7 @@
 		const extraction = await extractPdfSystems(buffer);
 		if (!extraction) return null;
 		const { systems } = extraction;
+		if (systems.length === 0) return null;
 		progress = { phase: 'transcribing', done: 0, total: systems.length };
 
 		// The first system shows the printed meter; confirm it before fanning

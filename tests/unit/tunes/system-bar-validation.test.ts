@@ -55,12 +55,12 @@ describe('barTilingIssues', () => {
 
 	it('flags an overfull bar with its actual sum', () => {
 		const issues = barTilingIssues(bar([[0, 4, 'C4'], [4, 0.5, 'D4']]), 0, 4);
-		expect(issues.join(' ')).toMatch(/sums to 4\.5 beats in 4/);
+		expect(issues.join(' ')).toMatch(/sums to 4\.5 beats — the bar must fill exactly 4 beats/);
 	});
 
 	it('flags an underfull bar', () => {
 		const issues = barTilingIssues(bar([[0, 3, 'C4']]), 0, 4);
-		expect(issues.join(' ')).toMatch(/sums to 3 beats in 4/);
+		expect(issues.join(' ')).toMatch(/sums to 3 beats — the bar must fill exactly 4 beats/);
 	});
 
 	it('flags a missing leading rest on ordinary bars but allows it on pickups', () => {

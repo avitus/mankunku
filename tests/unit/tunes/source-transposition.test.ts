@@ -101,7 +101,8 @@ describe('writtenSheetToConcert', () => {
 		writtenSheetToConcert(sheet, 'Bb', INSTRUMENTS['tenor-sax']);
 		expect(sheet.key).toBe('D');
 		expect(sheet.sections[0].notes[0].pitch).toBe(74);
-		expect(sheet.sections[0].harmony[0].symbol).toBe('B-7');
+		// Raw source text is stored verbatim (not canonicalized to 'B-7').
+		expect(sheet.sections[0].harmony[0].symbol).toBe('Bm7');
 	});
 });
 

@@ -399,6 +399,70 @@ export const stepEntry = $state({
 
 ---
 
+## tune-entry.svelte.ts
+
+Long-form tune entry, built ON TOP of the shared `stepEntry` buffer: the section list (`tuneEntry.sections`) is authoritative and melody is edited one ≤4-bar PAGE at a time through step-entry, so `PitchEntryPanel` / `DurationSelector` / keyboard entry work unmodified. **Not persisted.**
+
+**Source:** `src/lib/state/tune-entry.svelte.ts`
+
+### `tuneEntry`
+
+```typescript
+export const tuneEntry = $state({
+  title: string,
+  composer: string,
+  style: string,
+  writtenKey: PitchClass,                  // WRITTEN key at the SOURCE's pitch
+  sourceTransposition: SourceTransposition, // what pitch the copied chart is written in
+  timeSignature: [number, number],          // manual entry is 4/4-only
+  tags: string[],
+  sections: TuneSection[],                  // authoritative section list (CONCERT pitch)
+  currentSection: number,
+  currentPage: number,
+  entryCursor: Fraction | null,             // page-local click-to-edit insertion offset
+  editingId: string | null,
+  editingSource: string | null,
+  editingPdfUrl: string | null,
+  reviewHandoff: boolean,                   // import flows hand a draft to the editor
+  importReview: { warnings: string[]; suspectBars: number[] } | null
+});
+```
+
+### Key functions
+
+- `initNewTune()` / `resetTuneEntry()` — Fresh single-section draft seeded from the user's instrument.
+- `loadFromTune(sheet, instrument)` — Hydrate for edit mode (concert storage → written-pitch editing surface); the PDF flow reuses it with a pre-assigned id so the stored PDF stays linked.
+- `loadDraftForReview(sheet, instrument)` / `setImportReview(...)` — Hydrate an unsaved import draft in create mode with review warnings/suspect bars.
+- `buildDraftTune(): Tune` — Assemble the concert-pitch `Tune` for save/preview.
+- `commitBuffer()` / `suspendEntryBuffer()` / `resumeEntryBuffer()` — Page buffer lifecycle; the buffer commits on page/section navigation and is suspended on route exit so `/licks/editor` never sees tune content.
+- `loadPage`, `advanceToNextPage`, `retreatToPrevPage`, `cursorToBar`, `cursorToFlattened`, `selectNextAcrossPages`, `selectPrevAcrossPages` — Chart-position navigation that maps clicks to (section, page) and moves the buffer along.
+- `tuneAddNote`, `tuneAddRest`, `tuneEnterTiedNote`, `clearEntryCursor` — Melody entry (gated by `melodyEditingSupported()`: only 4/4 sheets are melody-editable).
+- `addSection`, `removeSection`, `updateSectionMeta`, `setSectionBars` — Section list management.
+- `setChord(sectionIdx, bar, beat, symbolText)`, `removeChord`, `chordTextAt` — Chords typed as written-pitch text (`parseChordSymbol`), stored concert with re-derived change-point durations.
+- `setSheetWrittenKey(newKey, moveNotes)`, `setSourceTransposition(source)`, `entryTranspositionSemitones()` — Whole-sheet key/transposition control.
+
+---
+
+## tune-community.svelte.ts
+
+Filter state for the `/tunes/community` browse page. Global rune module so the filters survive navigation away and back. **Not persisted.**
+
+**Source:** `src/lib/state/tune-community.svelte.ts`
+
+### `tuneCommunity`
+
+```typescript
+export const tuneCommunity = $state<{
+  searchQuery: string;
+  authorQuery: string;
+  sort: TuneCommunitySort;  // 'popular' | 'newest'
+}>();
+```
+
+No exported functions — the community page reads/writes fields directly.
+
+---
+
 ## community.svelte.ts
 
 Filters and sort for the `/licks/community` browse view. **Not persisted** — resets on navigation.

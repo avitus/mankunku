@@ -266,7 +266,7 @@ The only thing that changes per domain is the **accent color**, applied via the 
 ## Edge cases
 
 - **`/progress`** — classified as ear-training because it shows the global ear-training session history. If lick-practice gets its own long-term progress page, that route can opt in separately.
-- **`/licks` and `/licks/add`** — neutral (no domain accent), even though `LickCard` renders per-lick metadata such as category, difficulty, and accent-colored progression-type chips (which inherit the domain accent — slate on the neutral licks page). Those chips identify a lick's musical attributes, not the page chrome.
+- **`/licks`, `/licks/add`, and `/licks/editor`** — neutral (no domain accent), even though `LickCard` renders per-lick metadata such as category, difficulty, and accent-colored progression-type chips (which inherit the domain accent — slate on the neutral licks page). Those chips identify a lick's musical attributes, not the page chrome.
 - **`/licks/record`** — neutral. Recording a phrase from the mic builds your book; it is not an ear-training session, so this route moved out of the blue ear-training domain when it became a licks subroute.
 - **`/diagnostics`** — neutral.
 - **Light mode** — every override has a `:root.light [data-domain='…']` equivalent so themes stay coherent.

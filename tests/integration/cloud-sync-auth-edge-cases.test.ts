@@ -699,6 +699,25 @@ describe('hydration timeout — fire-and-forget + bounded opt-in', () => {
 		).not.toMatch(/await\s+Promise\.race\(\s*\[\s*hydration/);
 	});
 
+	it('production +layout.ts fans out initializers via allSettled, not bare Promise.all', async () => {
+		const { readFileSync } = await import('node:fs');
+		const { fileURLToPath } = await import('node:url');
+		const src = readFileSync(
+			fileURLToPath(new URL('../../src/routes/+layout.ts', import.meta.url)),
+			'utf8'
+		);
+		// One rejecting initializer (e.g. initTunesFromCloud) must not abort the
+		// recompute → cloud-summary reconcile → drainOutbox chain for the session.
+		expect(
+			src,
+			'src/routes/+layout.ts must fan out the cloud initializers with Promise.allSettled so one failure cannot skip recompute/reconcile/drainOutbox.'
+		).toMatch(/Promise\.allSettled\(\s*\[\s*initFromCloud/);
+		expect(
+			src,
+			'src/routes/+layout.ts must not use a bare Promise.all for the initializer fan-out.'
+		).not.toMatch(/Promise\.all\(\s*\[\s*initFromCloud/);
+	});
+
 	it('the 2s bound lives in awaitHydration() so opt-in routes never hang', async () => {
 		const { readFileSync } = await import('node:fs');
 		const { fileURLToPath } = await import('node:url');

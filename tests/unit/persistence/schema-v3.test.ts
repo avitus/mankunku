@@ -32,10 +32,11 @@ const localStorageMock = {
 };
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
 
-import {
-	runNamespaceUpgradeIfNeeded,
-	__resetNamespaceCacheForTests
-} from '$lib/persistence/namespace';
+// Dynamic import AFTER the mock: a static import is ESM-hoisted above the
+// defineProperty, so module-scope localStorage reads would miss the mock.
+const { runNamespaceUpgradeIfNeeded, __resetNamespaceCacheForTests } = await import(
+	'$lib/persistence/namespace'
+);
 
 beforeEach(() => {
 	localStorageMock.clear();

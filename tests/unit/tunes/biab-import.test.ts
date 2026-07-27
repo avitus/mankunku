@@ -56,9 +56,67 @@ describe('parseBiabFile', () => {
 		expect(sheet.sections).toHaveLength(1);
 		expect(sheet.sections[0].bars).toBe(3);
 		expect(sheet.sections[0].notes).toEqual([]);
-		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['CΔ7', 'F7', 'F7/C']);
+		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['Cmaj7', 'F7', 'F7/C']);
 		expect(sheet.sections[0].harmony[1].startOffset).toEqual([1, 1]);
 		expect(warnings).toEqual([]);
+	});
+
+	it('stores the bare root (+bass) for unmapped extension ids and names the id in a warning', () => {
+		const bytes = syntheticSgu();
+		// Offset 20 = first chord-extension byte (17-byte header + 3-byte bar
+		// stream). 45 is absent from BIAB_CHORD_SUFFIX.
+		bytes[20] = 45;
+		const { sheets, warnings } = parseBiabFile(bytes);
+		const symbols = sheets[0].sections[0].harmony.map((h) => h.symbol);
+		// No synthetic `?45` token leaks into the displayed symbol…
+		expect(symbols[0]).toBe('C');
+		expect(symbols.some((s) => s?.includes('?'))).toBe(false);
+		// …and the unknown id is still surfaced in the approximation warning.
+		expect(warnings.some((w) => w.includes('Chord type 45'))).toBe(true);
+	});
+
+	it('does not add a trailing empty bar when the last chord sits mid-bar', () => {
+		// Same layout as syntheticSgu but the last chord lands on beat cell 9
+		// (cell 1 of bar 3): the form is still 3 bars, not 4.
+		const bytes: number[] = [];
+		bytes.push(0x44);
+		const title = 'Test Song';
+		bytes.push(title.length);
+		for (const ch of title) bytes.push(ch.charCodeAt(0));
+		bytes.push(0x00, 0x00);
+		bytes.push(0x01); // Jazz Swing (4/4)
+		bytes.push(0x04); // Eb
+		bytes.push(0x8c, 0x00);
+		bytes.push(0x01, 0x00, 0xfe); // bar types
+		// Extensions at beats 0, 4, 9.
+		bytes.push(6);
+		bytes.push(0x00, 0x03);
+		bytes.push(64);
+		bytes.push(0x00, 0x04);
+		bytes.push(64);
+		bytes.push(0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xf5); // to 1020
+		// Roots at beats 0, 4, 9.
+		bytes.push(1);
+		bytes.push(0x00, 0x03);
+		bytes.push(6);
+		bytes.push(0x00, 0x04);
+		bytes.push(240);
+		bytes.push(0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xf5);
+		bytes.push(0x01, 0x01, 0x03, 0x01); // pad + chorus 1..3 ×1
+		const { sheets, warnings } = parseBiabFile(new Uint8Array(bytes));
+		expect(warnings).toEqual([]);
+		expect(sheets[0].sections[0].bars).toBe(3);
+	});
+
+	it('warns once, not per beat cell, when the root/extension streams disagree', () => {
+		const bytes = syntheticSgu();
+		// Root-stream skip counts sit at offsets 37 and 40 (after the 15-byte
+		// extension stream). Shift the 2nd/3rd roots to beats 3 and 8 while
+		// the extensions stay on 4 and 8 → two mismatching cells.
+		bytes[37] = 0x02;
+		bytes[40] = 0x04;
+		const { warnings } = parseBiabFile(bytes);
+		expect(warnings.filter((w) => w.includes('disagree'))).toHaveLength(1);
 	});
 
 	it('reads waltz styles as 3/4', () => {
@@ -120,10 +178,10 @@ describe('parseBiabMusicXml', () => {
 		expect(sheet.source).toBe('imported-biab');
 		expect(sheet.sections[0].bars).toBe(3);
 		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual([
-			'D-7',
+			'Dm7',
 			'G7',
-			'CΔ7/E',
-			'Bb-7b5'
+			'Cmaj7/E',
+			'Bbm7b5'
 		]);
 		// Two chords in bar 1 split it evenly.
 		expect(sheet.sections[0].harmony[1].startOffset).toEqual([1, 2]);

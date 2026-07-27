@@ -14,10 +14,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseMuseScoreFile } from '$lib/tunes/import/musescore';
-import { writtenSheetToConcert } from '$lib/tunes/source-transposition';
-import { INSTRUMENTS } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
-import { CORPUS, CORPUS_INSTRUMENT } from '../helpers/leadsheet-corpus';
+import { CORPUS, CORPUS_INSTRUMENT, resolveConcertSheet } from '../helpers/leadsheet-corpus';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -29,13 +27,7 @@ describe.each(CORPUS)('MuseScore corpus — $slug', ({ slug, mscz }) => {
 			CORPUS_INSTRUMENT
 		);
 		expect(sheets).toHaveLength(1);
-		// The verified app flow: declared transposing parts are already
-		// concert; concert-claiming files are written Bb charts for the
-		// tenor user.
-		const sheet =
-			declaredTransposition !== 0
-				? sheets[0]
-				: writtenSheetToConcert(sheets[0], 'Bb', INSTRUMENTS['tenor-sax']);
+		const sheet = resolveConcertSheet(sheets[0], declaredTransposition);
 		const golden = JSON.parse(
 			readFileSync(
 				`${root}/tests/fixtures/leadsheets/pdf-vs-musescore/${slug}.musescore-import.json`,

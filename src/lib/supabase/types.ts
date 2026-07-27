@@ -870,7 +870,7 @@ export type Database = {
           difficulty: Json | null
           /** Origin discriminator: 'user' | 'imported-ireal' | 'imported-biab' | 'imported-pdf' */
           source: string
-          /** Storage path of the original imported PDF ({uid}/{id}.pdf in the lead-sheets bucket), nullable */
+          /** Storage path of the original imported PDF ({uid}/{id}.pdf in the tunes bucket), nullable */
           pdf_url: string | null
           /** Denormalized count of favorites (maintained by triggers on tune_favorites). Defaults to 0. */
           favorite_count: number

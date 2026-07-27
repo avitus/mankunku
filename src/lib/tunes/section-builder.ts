@@ -59,12 +59,18 @@ interface SectionBuilder {
 	endOffset: Fraction;
 }
 
+/**
+ * @param harmonies Chord change points; consumed in ascending-offset order
+ * (the dedupe, carried-chord lookup, and next-change end boundaries all
+ * assume it), so foreign/importer input is defensively sorted first.
+ */
 export function buildSections(
 	measures: BarStructure[],
 	notes: Note[],
 	harmonies: HarmonyChange[],
 	warnOnce: (msg: string) => void
 ): TuneSection[] {
+	harmonies = [...harmonies].sort((a, b) => compareFractions(a.offset, b.offset));
 	// Sections split at rehearsal marks AND at repeat barlines: a |: opens a
 	// section and a :| closes one, so a simple repeat is always representable
 	// (sections repeat as whole units). Unmarked sections get running letters.
@@ -127,7 +133,9 @@ export function buildSections(
 	builders.forEach((b, i) => {
 		if (b.startRepeat) hasStart = true;
 		if (b.endRepeat) {
-			if (!hasStart) builders[spanStart].startRepeat = true;
+			// spanStart can point past the end for a pickup-only form (a
+			// single '' -labelled bar carrying an orphan :|) — nothing to open.
+			if (!hasStart && builders[spanStart]) builders[spanStart].startRepeat = true;
 			spanStart = i + 1;
 			hasStart = false;
 		}
@@ -188,7 +196,12 @@ export function buildSections(
 					bar++;
 					if (m.pickup) pickups++;
 				}
-				warnOnce(`bar ${bar - pickups}: Chord "${h.text}" was not recognized and was skipped.`);
+				// Clamp: a chord anchored IN a pickup bar counts both bar++ and
+				// pickups++, which would print "bar 0"; attribute it to bar 1,
+				// the bar the pickup leads into.
+				warnOnce(
+					`bar ${Math.max(1, bar - pickups)}: Chord "${h.text}" was not recognized and was skipped.`
+				);
 				return [];
 			}
 			return [segment];

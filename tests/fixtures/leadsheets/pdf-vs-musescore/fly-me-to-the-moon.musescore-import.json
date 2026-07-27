@@ -627,7 +627,7 @@
       1,
       1
      ],
-     "symbol": "A-7"
+     "symbol": "Am7"
     },
     {
      "chord": {
@@ -643,7 +643,7 @@
       1,
       1
      ],
-     "symbol": "D-7"
+     "symbol": "Dm7"
     },
     {
      "chord": {
@@ -675,7 +675,7 @@
       1,
       1
      ],
-     "symbol": "CΔ7"
+     "symbol": "Cmaj7"
     },
     {
      "chord": {
@@ -691,7 +691,7 @@
       1,
       1
      ],
-     "symbol": "FΔ7"
+     "symbol": "Fmaj7"
     },
     {
      "chord": {
@@ -707,7 +707,7 @@
       1,
       1
      ],
-     "symbol": "B-7b5"
+     "symbol": "Bm7b5"
     },
     {
      "chord": {
@@ -739,7 +739,7 @@
       3,
       4
      ],
-     "symbol": "A-7"
+     "symbol": "Am7"
     },
     {
      "chord": {
@@ -771,7 +771,7 @@
       1,
       1
      ],
-     "symbol": "D-7"
+     "symbol": "Dm7"
     },
     {
      "chord": {
@@ -803,7 +803,7 @@
       1,
       1
      ],
-     "symbol": "CΔ7"
+     "symbol": "Cmaj7"
     },
     {
      "chord": {
@@ -835,7 +835,7 @@
       1,
       1
      ],
-     "symbol": "D-7"
+     "symbol": "Dm7"
     },
     {
      "chord": {
@@ -867,7 +867,7 @@
       1,
       1
      ],
-     "symbol": "CΔ7"
+     "symbol": "Cmaj7"
     },
     {
      "chord": {
@@ -883,7 +883,7 @@
       1,
       2
      ],
-     "symbol": "B-7b5"
+     "symbol": "Bm7b5"
     },
     {
      "chord": {
@@ -1482,7 +1482,7 @@
       1,
       1
      ],
-     "symbol": "A-7"
+     "symbol": "Am7"
     },
     {
      "chord": {
@@ -1498,7 +1498,7 @@
       1,
       1
      ],
-     "symbol": "D-7"
+     "symbol": "Dm7"
     },
     {
      "chord": {
@@ -1530,7 +1530,7 @@
       1,
       1
      ],
-     "symbol": "CΔ7"
+     "symbol": "Cmaj7"
     },
     {
      "chord": {
@@ -1546,7 +1546,7 @@
       1,
       1
      ],
-     "symbol": "FΔ7"
+     "symbol": "Fmaj7"
     },
     {
      "chord": {
@@ -1562,7 +1562,7 @@
       1,
       1
      ],
-     "symbol": "B-7b5"
+     "symbol": "Bmin7b5"
     },
     {
      "chord": {
@@ -1594,7 +1594,7 @@
       3,
       4
      ],
-     "symbol": "A-7"
+     "symbol": "Am7"
     },
     {
      "chord": {
@@ -1626,7 +1626,7 @@
       1,
       1
      ],
-     "symbol": "D-7"
+     "symbol": "Dm7"
     },
     {
      "chord": {
@@ -1658,7 +1658,7 @@
       1,
       1
      ],
-     "symbol": "E-7"
+     "symbol": "Em7"
     },
     {
      "chord": {
@@ -1690,7 +1690,7 @@
       1,
       1
      ],
-     "symbol": "D-7"
+     "symbol": "Dm7"
     },
     {
      "chord": {
@@ -1722,7 +1722,7 @@
       2,
       1
      ],
-     "symbol": "CΔ7"
+     "symbol": "Cmaj7"
     }
    ]
   }
