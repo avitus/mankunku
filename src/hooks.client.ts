@@ -5,7 +5,7 @@ import type { HandleClientError } from '@sveltejs/kit';
 import {
   isStaleChunkErrorMessage,
   shouldDropStaleChunkReport,
-  navRecoveryAction,
+  resolveNavRecovery,
   shouldAttemptNavRecovery,
   pendingNavTarget
 } from '$lib/util/stale-chunk';
@@ -157,7 +157,7 @@ Sentry.init({
  * SvelteKit commits the URL only after loads resolve — the click would appear
  * to do nothing. See Sentry MANKUNKU-8 and MANKUNKU-10.
  *
- * Recovery is gated per failing chunk URL (`navRecoveryAction`) so that if
+ * Recovery is gated per failing chunk URL (`resolveNavRecovery`) so that if
  * the SAME chunk is still missing after the full-page load (e.g. user is
  * offline, or a deploy is mid-flight and assets haven't propagated), the
  * repeat failure does NOT loop into another navigation — it surfaces
@@ -199,13 +199,20 @@ const handleNavErrorRecovery: HandleClientError = async ({ error, event }) => {
     location.href
   );
   if (!gate.proceed) return;
-  const action = navRecoveryAction(msg, sessionStorage, gate.targetHref);
-  if (action.kind === 'none') return;
-  const dest = action.kind === 'navigate' ? action.href : location.href;
-  if (!(await serverReachable(dest))) return;
+  // resolveNavRecovery ($lib/util/stale-chunk, unit-tested) runs the per-chunk
+  // one-attempt gate AND the reachability probe, rolling the attempt latch
+  // back when the probe aborts the recovery — an aborted attempt must not
+  // swallow (or mis-report) the next occurrence of the same chunk.
+  const action = await resolveNavRecovery(
+    msg,
+    sessionStorage,
+    gate.targetHref,
+    location.href,
+    serverReachable
+  );
   if (action.kind === 'navigate') {
     location.href = action.href;
-  } else {
+  } else if (action.kind === 'reload') {
     location.reload();
   }
 };

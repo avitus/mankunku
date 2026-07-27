@@ -126,6 +126,34 @@ export function navRecoveryAction(
 }
 
 /**
+ * Full recovery decision for a failed navigation, including the reachability
+ * probe. `navRecoveryAction` latches the attempt key as a side effect BEFORE
+ * the (async) probe can run, so when the probe reports the server unreachable
+ * — recovery abandoned without any navigation — the latch must be rolled
+ * back. Left in place it would (a) swallow the NEXT occurrence of the same
+ * key (`none`) despite no recovery ever having run, and (b) flip
+ * `shouldDropStaleChunkReport` to false, mis-reporting that occurrence to
+ * Sentry as "recovery didn't help". The probe is injected so this decision
+ * stays unit-testable away from fetch and the DOM.
+ */
+export async function resolveNavRecovery(
+	msg: string,
+	store: KeyValueStore,
+	targetHref: string | null | undefined,
+	currentHref: string,
+	probe: (href: string) => Promise<boolean>
+): Promise<NavRecovery> {
+	const action = navRecoveryAction(msg, store, targetHref);
+	if (action.kind === 'none') return action;
+	const dest = action.kind === 'navigate' ? action.href : currentHref;
+	if (!(await probe(dest))) {
+		clearNavRecoveryLatch(store);
+		return { kind: 'none' };
+	}
+	return action;
+}
+
+/**
  * Reset the one-attempt-per-key recovery latch. Call after a SUBSEQUENT
  * client-side navigation succeeds (nav type !== 'enter'), which proves the
  * tab is healthy: generic failures are keyed by message text (no URL), so

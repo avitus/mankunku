@@ -5,6 +5,7 @@ import {
 	staleChunkKey,
 	shouldDropStaleChunkReport,
 	navRecoveryAction,
+	resolveNavRecovery,
 	shouldAttemptNavRecovery,
 	clearNavRecoveryLatch,
 	shouldHardReloadOnNavigation,
@@ -177,6 +178,71 @@ describe('navRecoveryAction (dispatch order: beforeSend then handler)', () => {
 		expect(
 			navRecoveryAction('NetworkError when attempting to fetch resource.', store, TARGET)
 		).toEqual({ kind: 'navigate', href: TARGET });
+	});
+});
+
+describe('resolveNavRecovery (probe-gated recovery)', () => {
+	const TARGET = 'https://mankunkujazz.com/progress';
+	const CURRENT = 'https://mankunkujazz.com/settings';
+
+	it('returns the recovery action and keeps the latch when the server is reachable', async () => {
+		const store = makeStore();
+		const action = await resolveNavRecovery(URL_A, store, TARGET, CURRENT, async () => true);
+		expect(action).toEqual({ kind: 'navigate', href: TARGET });
+		expect(store.data[STALE_CHUNK_RELOAD_KEY]).toBe(staleChunkKey(URL_A));
+	});
+
+	it('probes the CURRENT page for reload recoveries (no nav target known)', async () => {
+		const store = makeStore();
+		const probed: string[] = [];
+		const action = await resolveNavRecovery(URL_A, store, null, CURRENT, async (href) => {
+			probed.push(href);
+			return true;
+		});
+		expect(action).toEqual({ kind: 'reload' });
+		expect(probed).toEqual([CURRENT]);
+	});
+
+	it('REGRESSION: rolls the latch back when the probe aborts the recovery', async () => {
+		// navRecoveryAction latches the attempt key as a side effect BEFORE the
+		// reachability probe runs. If the probe then aborts the recovery, keeping
+		// the latch would (a) swallow the next occurrence of the same key without
+		// ever having recovered, and (b) make beforeSend report it as "recovery
+		// didn't help" when no recovery ever ran.
+		const store = makeStore();
+		const aborted = await resolveNavRecovery(URL_A, store, TARGET, CURRENT, async () => false);
+		expect(aborted).toEqual({ kind: 'none' });
+		// nothing was recovered, so the attempt must not stay latched…
+		expect(store.data[STALE_CHUNK_RELOAD_KEY]).toBeUndefined();
+		// …the same episode still gets its one recovery once the server is back…
+		const retry = await resolveNavRecovery(URL_A, store, TARGET, CURRENT, async () => true);
+		expect(retry).toEqual({ kind: 'navigate', href: TARGET });
+		expect(store.data[STALE_CHUNK_RELOAD_KEY]).toBe(staleChunkKey(URL_A));
+	});
+
+	it('after an aborted recovery, beforeSend still drops the next occurrence', async () => {
+		const store = makeStore();
+		await resolveNavRecovery(URL_A, store, TARGET, CURRENT, async () => false);
+		// The next occurrence is a FIRST real attempt, not "recovery didn't help".
+		expect(shouldDropStaleChunkReport(URL_A, store)).toBe(true);
+	});
+
+	it('never probes for non-recoverable errors', async () => {
+		const store = makeStore();
+		const probed: string[] = [];
+		const action = await resolveNavRecovery(
+			'TypeError: x is not a function',
+			store,
+			TARGET,
+			CURRENT,
+			async (href) => {
+				probed.push(href);
+				return true;
+			}
+		);
+		expect(action).toEqual({ kind: 'none' });
+		expect(probed).toEqual([]);
+		expect(store.data[STALE_CHUNK_RELOAD_KEY]).toBeUndefined();
 	});
 });
 

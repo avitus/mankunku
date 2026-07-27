@@ -89,7 +89,10 @@ test.describe('smoke: every route renders cleanly', () => {
 			// request.get, not page.goto: rendering the 404 page would emit a
 			// "Failed to load resource" console error and trip the console
 			// fixture; the server status is all this test is about.
-			const response = await page.request.get(path);
+			// maxRedirects: 0 asserts the INITIAL response — with redirects
+			// followed (the default), a redirect shim landing on a 404 page
+			// would still satisfy the status check.
+			const response = await page.request.get(path, { maxRedirects: 0 });
 			expect(response.status(), `${path} should be dead, not redirected`).toBe(404);
 		});
 	}

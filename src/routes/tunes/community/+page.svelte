@@ -123,7 +123,14 @@
 			favoriteCount: item.favoriteCount + (wasFavorited ? -1 : 1)
 		};
 		sheets = [...sheets.slice(0, idx), optimistic, ...sheets.slice(idx + 1)];
-		const nowFavorited = await toggleTuneFavorite(supabase, item.sheet.id);
+		// A rejection must roll the optimistic card back just like a mismatched
+		// result — never surface as an unhandled rejection with the card stuck.
+		let nowFavorited = wasFavorited;
+		try {
+			nowFavorited = await toggleTuneFavorite(supabase, item.sheet.id);
+		} catch (err) {
+			console.warn('Failed to toggle tune favorite:', err);
+		}
 		if (nowFavorited !== !wasFavorited) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}
@@ -134,7 +141,12 @@
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: true }, ...sheets.slice(idx + 1)];
-		const ok = await adoptTune(supabase, item.sheet.id);
+		let ok = false;
+		try {
+			ok = await adoptTune(supabase, item.sheet.id);
+		} catch (err) {
+			console.warn('Failed to adopt tune:', err);
+		}
 		if (!ok) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}
@@ -145,7 +157,12 @@
 		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
 		if (idx < 0) return;
 		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: false }, ...sheets.slice(idx + 1)];
-		const ok = await returnTune(supabase, item.sheet.id);
+		let ok = false;
+		try {
+			ok = await returnTune(supabase, item.sheet.id);
+		} catch (err) {
+			console.warn('Failed to return tune:', err);
+		}
 		if (!ok) {
 			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
 		}

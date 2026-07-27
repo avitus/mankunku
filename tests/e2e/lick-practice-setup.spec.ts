@@ -33,6 +33,11 @@ test.describe('lick-practice setup', () => {
 		// Empty practice set → no "Start Session" button rendered.
 		await expect(page.getByRole('button', { name: /start session/i })).toHaveCount(0);
 		// Page should point users at the library to tag their first lick.
-		await expect(page.getByRole('link', { name: /licks/i }).first()).toBeVisible();
+		// Scope to <main> so the assertion proves the empty-state guidance link
+		// renders — an unscoped /licks/i locator would match the global nav's
+		// "Licks" link and pass even with the guidance missing.
+		await expect(
+			page.locator('main').getByRole('link', { name: /browse your licks/i })
+		).toBeVisible();
 	});
 });
