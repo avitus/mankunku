@@ -145,6 +145,32 @@ describe('POST /api/tune-parse — guards', () => {
 		}
 		expect(saw429).toBe(true);
 	});
+
+	it('never starves one mode with the other mode\'s traffic (pre-read ticket is refunded on classification)', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue({ content: [{ type: 'text', text: '{}' }] });
+		// Exhaust the PDF budget plus one over-budget attempt (the 6th 429s at
+		// the PDF limiter). None of these may eat the system mode's headroom.
+		for (let i = 0; i < 6; i++) {
+			try {
+				await POST(makeEvent({ pdf: TINY_PDF_B64 }, {}, 'user-crossmode'));
+			} catch (e) {
+				if (!isHttpError(e)) throw e; // 422 conversion / 429 sixth — both fine
+			}
+		}
+		// Every system request its own 60/min bucket admits must also pass the
+		// pre-read gate — no cross-mode starvation (CWE-770 refinement).
+		for (let i = 0; i < 60; i++) {
+			try {
+				await POST(makeEvent({ system: { kind: 'nonsense' } }, {}, 'user-crossmode'));
+			} catch (e) {
+				if (isHttpError(e) && e.status === 429) {
+					expect.fail(`system request ${i + 1}/60 was starved by cross-mode pre-read consumption`);
+				}
+				if (!isHttpError(e)) throw e; // system-mode validation 400s are fine
+			}
+		}
+	});
 });
 
 describe('POST /api/tune-parse — extraction path', () => {

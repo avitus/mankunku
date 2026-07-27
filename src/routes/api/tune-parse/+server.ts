@@ -75,17 +75,44 @@ function rateLimitKey(userId: string | null, getClientAddress: () => string): st
 	}
 }
 
-function isRateLimited(key: string, max = RATE_LIMIT_MAX): boolean {
+/** Prune a bucket to the window and return its live array (non-consuming). */
+function recentInWindow(key: string): number[] {
 	const now = Date.now();
-	const bucket = rateLimitBuckets.get(key) ?? [];
-	const recent = bucket.filter((ts) => ts > now - RATE_LIMIT_WINDOW_MS);
-	if (recent.length >= max) {
-		rateLimitBuckets.set(key, recent);
-		return true;
-	}
-	recent.push(now);
+	const recent = (rateLimitBuckets.get(key) ?? []).filter((ts) => ts > now - RATE_LIMIT_WINDOW_MS);
 	rateLimitBuckets.set(key, recent);
+	return recent;
+}
+
+function isRateLimited(key: string, max = RATE_LIMIT_MAX): boolean {
+	const recent = recentInWindow(key);
+	if (recent.length >= max) return true;
+	recent.push(Date.now());
 	return false;
+}
+
+/**
+ * Pre-read admission (CWE-770): consume a `:pre` ticket BEFORE the body is
+ * buffered; the caller refunds it once the request reaches mode
+ * classification. The `:pre` bucket therefore only ever accumulates requests
+ * that never reached a mode limiter (malformed floods), while admission also
+ * weighs both mode buckets non-consumingly — so a request the mode limiters
+ * would admit is never refused here, and mode-rejected requests starve
+ * nothing. Returns the ticket timestamp, or null when over budget.
+ */
+function takePreReadTicket(limitKey: string): number | null {
+	const pre = recentInWindow(`${limitKey}:pre`);
+	const used =
+		pre.length + recentInWindow(limitKey).length + recentInWindow(`${limitKey}:sys`).length;
+	if (used >= RATE_LIMIT_MAX + SYSTEM_RATE_LIMIT_MAX) return null;
+	const ts = Date.now();
+	pre.push(ts);
+	return ts;
+}
+
+function refundPreReadTicket(limitKey: string, ts: number): void {
+	const bucket = rateLimitBuckets.get(`${limitKey}:pre`);
+	const i = bucket?.lastIndexOf(ts) ?? -1;
+	if (bucket && i >= 0) bucket.splice(i, 1);
 }
 
 /**
@@ -265,12 +292,13 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 		throw error(413, 'PDF too large — keep uploads under 10 MB.');
 	}
 
-	// Coarse PRE-READ limiter (CWE-770): the mode (pdf vs system) is only
-	// known after the body is parsed, so a dedicated bucket capped at the sum
-	// of both mode budgets refuses an over-budget client BEFORE up to 15 MB
-	// of body is buffered. It can never starve a request the mode-specific
-	// limiters below would admit — those still run, unchanged, post-parse.
-	if (isRateLimited(`${limitKey}:pre`, RATE_LIMIT_MAX + SYSTEM_RATE_LIMIT_MAX)) {
+	// PRE-READ admission (CWE-770): the mode (pdf vs system) is only known
+	// after the body is parsed, so a ticket is consumed here — BEFORE up to
+	// 15 MB of body is buffered — and refunded at classification below.
+	// Malformed floods keep their tickets and get cut off; classified traffic
+	// is accounted solely by the mode-specific limiters.
+	const preTicket = takePreReadTicket(limitKey);
+	if (preTicket === null) {
 		throw error(429, 'Too many requests. Take a breath, then try again in a minute.');
 	}
 
@@ -284,6 +312,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	if (!body || typeof body !== 'object' || Array.isArray(body)) {
 		throw error(400, 'Expected a JSON object body.');
 	}
+	refundPreReadTicket(limitKey, preTicket);
 	const { system } = body as Partial<SystemRequestBody>;
 	if (system !== undefined) {
 		if (isRateLimited(`${limitKey}:sys`, SYSTEM_RATE_LIMIT_MAX)) {
