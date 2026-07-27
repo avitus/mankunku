@@ -176,6 +176,9 @@ export function parseChordSymbol(input: string): ChordSymbol | null {
 				sign === 'b' &&
 				degree === '5' &&
 				quality === 'min' &&
+				// A '9' contributed by a 6/9 pair implies no seventh — m69b5
+				// stays minor with an altered fifth, not half-diminished.
+				!extensions.includes('6') &&
 				['7', '9', '11', '13'].some((e) => extensions.includes(e))
 			) {
 				quality = 'halfdim';

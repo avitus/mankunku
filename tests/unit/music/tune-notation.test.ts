@@ -251,6 +251,20 @@ describe('tuneToAbc — multi-system reflow', () => {
 		const abc = tuneToAbc(sheet({ sections: [section({ bars: 0 })] }));
 		expect(abc).not.toMatch(/\[V:H\]\s*\|/);
 	});
+
+	it('keeps the next section header on its own line after a zero-bar section', () => {
+		// The zero-bar guard must still newline-terminate the dangling [V:M]
+		// open, or the following section's boxed P: label concatenates onto it.
+		const abc = tuneToAbc(
+			sheet({
+				sections: [
+					section({ label: 'A', bars: 0 }),
+					section({ label: 'B', bars: 2 })
+				]
+			})
+		);
+		expect(abc).not.toMatch(/\[V:M\][^\n]*P:/);
+	});
 });
 
 describe('tuneToAbcWithMap — click anchors', () => {

@@ -360,6 +360,19 @@ describe('chordSymbolToQuality', () => {
 		expect(q('C7#9b13')).toBe('7alt');
 	});
 
+	it('does not promote a 6/9 minor with a flat five to half-diminished', () => {
+		// The 9 of a 69 pair implies no seventh — m69b5 stays a minor 6/9
+		// with an altered fifth, and the symbol survives a parse→format→parse
+		// round trip (the promotion once collapsed it to C-6b5).
+		const parsed = parseChordSymbol('Cm69b5');
+		expect(parsed).not.toBeNull();
+		expect(parsed!.quality).not.toBe('halfdim');
+		const formatted = formatChordSymbol(parsed!);
+		const reparsed = parseChordSymbol(formatted);
+		expect(reparsed).not.toBeNull();
+		expect(formatChordSymbol(reparsed!)).toBe(formatted);
+	});
+
 	it('maps half-diminished, diminished, and augmented chords', () => {
 		expect(q('Cm7b5')).toBe('min7b5');
 		expect(q('Cø')).toBe('min7b5');

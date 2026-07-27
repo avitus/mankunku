@@ -180,7 +180,8 @@ describe('parseMscx — basics', () => {
 		}));
 		expect(warnings).toEqual([]);
 		const harmony = sheets[0].sections[0].harmony;
-		// ø canonicalizes to the app's compact minor-family spelling.
+		// Raw source spellings are preserved (ø kept verbatim); display
+		// canonicalizes at render via chordDisplayText.
 		expect(harmony.map((h) => h.symbol)).toEqual(['EbΔ7', 'Dø7', 'DΔ9']);
 	});
 

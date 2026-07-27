@@ -382,8 +382,11 @@ export function tuneToAbcWithMap(
 	function flushLine(endBar: number): void {
 		if (!lineOpen) return;
 		// A zero-bar line (possible on unvalidated drafts/curated data with a
-		// bars: 0 section) must not emit a stray empty chord-voice bar.
+		// bars: 0 section) must not emit a stray empty chord-voice bar — but
+		// the dangling [V:M] open must still be newline-terminated or the next
+		// section's boxed P: label concatenates onto it.
 		if (endBar <= lineStartBar) {
+			tokens.push('\n');
 			lineOpen = false;
 			return;
 		}
