@@ -1,0 +1,115 @@
+/**
+ * Tune book loader — merges the curated catalog with user-created
+ * and community-adopted sheets, mirroring `phrases/library-loader.ts`.
+ *
+ * Sheets are stored in their own concert key; `transposeTune` shifts to
+ * any target key at query time.
+ */
+
+import type { PitchClass } from '$lib/types/music';
+import type { Tune } from '$lib/types/tune';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { ALL_CURATED_TUNES } from '$lib/data/tunes/index';
+import { getUserTunesLocal } from '$lib/persistence/user-tunes';
+import { getAdoptedTunesLocal } from '$lib/persistence/tune-community';
+import { bestOctaveShift } from '$lib/phrases/library-loader';
+import { transposeChordSymbol } from '$lib/music/chord-symbol';
+import { transposePitchClass, pitchClassInterval } from '$lib/music/transposition';
+
+/** Pre-built index for O(1) curated lookups */
+const curatedById = new Map<string, Tune>();
+for (const sheet of ALL_CURATED_TUNES) {
+	curatedById.set(sheet.id, sheet);
+}
+
+/**
+ * All tunes: curated + user + adopted-community, deduped by id with the
+ * earlier source winning (curated > user > adopted).
+ */
+export function getAllTunes(): Tune[] {
+	const seen = new Set<string>(curatedById.keys());
+	const result: Tune[] = [...ALL_CURATED_TUNES];
+	for (const sheet of getUserTunesLocal()) {
+		if (seen.has(sheet.id)) continue;
+		seen.add(sheet.id);
+		result.push(sheet);
+	}
+	for (const sheet of getAdoptedTunesLocal()) {
+		if (seen.has(sheet.id)) continue;
+		seen.add(sheet.id);
+		result.push(sheet);
+	}
+	return result;
+}
+
+/** True when the id belongs to the built-in curated catalog. */
+export function isCuratedTuneId(id: string): boolean {
+	return curatedById.has(id);
+}
+
+/** Get a single tune by id (curated, user, or adopted). */
+export function getTuneById(id: string): Tune | undefined {
+	return (
+		curatedById.get(id) ??
+		getUserTunesLocal().find((s) => s.id === id) ??
+		getAdoptedTunesLocal().find((s) => s.id === id)
+	);
+}
+
+/** Fallback playable range when the caller doesn't pass instrument bounds. */
+const FALLBACK_RANGE_LOW = 60;
+const FALLBACK_RANGE_HIGH = 75;
+
+/**
+ * Transpose a tune to a target concert key.
+ *
+ * Shifts every pitched note and harmony root/bass by the key interval, then
+ * applies one octave adjustment (computed over the whole sheet, so sections
+ * stay in a consistent register). Raw chord symbols are re-derived in the new
+ * key via parse→shift→format; unparseable symbols are dropped rather than
+ * left displaying the old key's chord.
+ */
+export function transposeTune(
+	sheet: Tune,
+	targetKey: PitchClass,
+	rangeLow?: number,
+	rangeHigh?: number
+): Tune {
+	const semitones = pitchClassInterval(sheet.key, targetKey);
+	if (semitones === 0 && rangeLow == null && rangeHigh == null) return sheet;
+
+	const pitched = sheet.sections
+		.flatMap((sec) => sec.notes)
+		.map((n) => n.pitch)
+		.filter((p): p is number => p !== null)
+		.map((p) => p + semitones);
+
+	const low = rangeLow ?? FALLBACK_RANGE_LOW;
+	const high = rangeHigh ?? FALLBACK_RANGE_HIGH;
+	const octaveShift = bestOctaveShift(pitched, low, high);
+	const totalShift = semitones + octaveShift * 12;
+
+	if (totalShift === 0 && semitones === 0) return sheet;
+
+	return {
+		...sheet,
+		id: `${sheet.id}_${targetKey}`,
+		key: targetKey,
+		sections: sheet.sections.map((sec) => ({
+			...sec,
+			notes: sec.notes.map((n) => ({
+				...n,
+				pitch: n.pitch !== null ? n.pitch + totalShift : null
+			})),
+			harmony: sec.harmony.map((h) => ({
+				...h,
+				chord: {
+					...h.chord,
+					root: transposePitchClass(h.chord.root, semitones),
+					bass: h.chord.bass ? transposePitchClass(h.chord.bass, semitones) : undefined
+				},
+				symbol: transposeChordSymbol(h.symbol, semitones)
+			}))
+		}))
+	};
+}

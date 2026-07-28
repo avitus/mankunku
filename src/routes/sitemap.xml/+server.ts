@@ -6,10 +6,10 @@ const TOP_LEVEL_ROUTES: { path: string; priority: string; changefreq: string }[]
 	{ path: '/', priority: '1.0', changefreq: 'weekly' },
 	{ path: '/ear-training', priority: '0.9', changefreq: 'weekly' },
 	{ path: '/lick-practice', priority: '0.9', changefreq: 'weekly' },
-	{ path: '/library', priority: '0.8', changefreq: 'weekly' },
+	{ path: '/licks', priority: '0.8', changefreq: 'weekly' },
 	{ path: '/docs', priority: '0.8', changefreq: 'monthly' },
 	{ path: '/scales', priority: '0.7', changefreq: 'monthly' },
-	{ path: '/community', priority: '0.6', changefreq: 'weekly' }
+	{ path: '/licks/community', priority: '0.6', changefreq: 'weekly' }
 ];
 
 export const prerender = true;

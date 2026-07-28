@@ -1,5 +1,5 @@
 /**
- * Lick-suggestion state for the /entry page.
+ * Lick-suggestion state for the /licks/editor page.
  *
  * Holds the most recent descriptive fallback name and the server-returned
  * attribution candidates (if any). The fallback is computed locally and is

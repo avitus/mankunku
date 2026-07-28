@@ -129,6 +129,30 @@ After any `git push` to a PR branch — including the autofix commits themselves
 
 ---
 
+### Navigation failure & recovery reality (2026-07-25)
+
+**What:** Dead menu clicks ("prior screen stays loaded") were: dev = stale-module-graph 500s from a days-old dev server crossing renames; prod = stale chunks + clicks racing the deploy's PM2 restart gap. The amplifier was our own recovery: `location.reload()` in `handleError` re-renders the page the user was LEAVING (SvelteKit commits the URL only after loads resolve). Recovery now full-page navigates to `event.url` (the click target) — `navRecoveryAction` in `src/lib/util/stale-chunk.ts`.
+
+**Standing facts (verify before relying on the old assumptions):**
+- **Pool hydration** (f3560b8): release.sh hardlinks pooled chunks into each staged release's client dir, so Node itself serves prior releases' chunks — the nginx pool alias never went live on the box and is now optional. Takes effect once merged to main; the first such deploy backfills from the existing 555MB pool.
+- Sentry debug-ID injection changes **every** chunk hash on **every** build — a one-line deploy invalidates the entire open-tab world; the pool + hydration is what absorbs that.
+- **PWA removed** (534ac67): @vite-pwa/sveltekit is gone (its worker was never registered by SSR pages AND threw mid-eval on `createHandlerBoundToURL('/')`). `static/manifest.webmanifest` keeps installability; `static/sw.js` is a kill-switch that exorcises legacy zombie SWs — **keep it deployed indefinitely**. Real offline support = prerendered shell + injectManifest + explicit registration; never resurrect the old generateSW config.
+- Root `+error.svelte` now exists; before 2026-07-25 the app had NO error boundary and failed navs were invisible.
+- After large file renames, **restart `npm run dev`** — a long-lived dev server's stale graph kills all navigation in open tabs.
+
+---
+
+### Tune editor: MuseScore-style rail + implicit paging (2026-07-26)
+
+**What:** `/tunes/editor` is a two-column layout: sticky 16rem left entry rail (desktop) / fixed bottom dock (mobile, collapsible), chart-first main column. The ≤4-bar page selector is GONE — clicking any note/rest/bar in the chart moves the cursor (`cursorToFlattened`/`cursorToBar` in tune-entry), entry auto-advances across page/section boundaries with split-with-tie, and chords are typed directly onto the chart (beat hit-zones + inline input; Space advances, `k` opens from a selected note). `ChordEntryPanel.svelte` is deleted.
+
+**Standing facts:**
+- The step-entry 4-bar cap still exists and is still load-bearing for the lick editor — it's hidden, not lifted. All tune-side entry goes through `tuneAddNote`/`tuneAddRest`/`tuneEnterTiedNote` wrappers; raw step-entry calls in the tune editor are a bug (they bypass auto-advance and the entry cursor).
+- abcjs facts that shaped the design: clickListener only fires within 12 SVG units of a glyph (empty-space clicks need the hit rects); responsive mode is viewBox-based so SVG-appended rects rescale for free; hit rects must swallow mouse AND touch events (abcjs binds touchstart/touchend to the same proximity dispatch).
+- `tuneToAbcWithMap` returns `{ abc, noteAnchors, barAnchors, chordSlotAnchors }` — golden tests pin the ABC byte-identical; `phraseToAbc` untouched (hard rule). Geometry math lives in pure `src/lib/notation/chart-geometry.ts`; abcjs adaptation in `src/lib/notation/abcjs-adapter.ts`.
+- The shared panels reflow via Tailwind 4 container queries under named `@container/entry` wrappers — inert in the lick editor (no named container ancestor). Panel action props (`onAddNote` etc.) default to raw step-entry; only the tune editor passes wrappers.
+- Cursor-mode entry: overwrite rests, block on pitched collision, section-level occupancy, window-fit guard (the section-end overhang fix — final review's one blocker).
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

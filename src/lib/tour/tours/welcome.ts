@@ -40,17 +40,17 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: 'Side B — Lick Practice',
 			description:
-				"This side rotates a tagged lick across all 12 keys over a chord progression (ii–V–I, blues, rhythm changes…). Backing track keeps time. Tag licks from the Library to fill your set.",
+				"This side rotates a tagged lick across all 12 keys over a chord progression (ii–V–I, blues, rhythm changes…). Backing track keeps time. Tag licks from your book to fill your set.",
 			side: 'left',
 			align: 'start'
 		}
 	},
 	{
-		element: '[data-tour="nav-library"]',
+		element: '[data-tour="nav-licks"]',
 		popover: {
-			title: 'Library',
+			title: 'Your Licks',
 			description:
-				"Curated and user-recorded licks live here. Star a lick to tag it for Lick Practice, filter by category and difficulty, search by name.",
+				"Your lick book — everything you've recorded, written in the editor, or stolen from the community. Tag a lick here to send it to Lick Practice.",
 			side: 'bottom',
 			align: 'center'
 		}

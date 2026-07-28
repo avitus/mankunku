@@ -276,7 +276,7 @@ html {
 
 /* -------------------------------------------------------------------- */
 /* Fraunces — Blue Note-era display serif. Variable font, Latin subset. */
-/* Self-hosted for offline PWA support. License: SIL OFL 1.1.            */
+/* Self-hosted (no external font CDN dependency). License: SIL OFL 1.1.  */
 /* -------------------------------------------------------------------- */
 
 @font-face {

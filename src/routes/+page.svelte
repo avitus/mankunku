@@ -272,13 +272,13 @@
 						{/if}
 					{:else}
 						<div class="italic">
-							The book is blank. Tag a lick from the library to start.
+							The set list is blank. Tag a lick from your book to start.
 						</div>
 					{/if}
 				</div>
 
 				<a
-					href={taggedLickCount > 0 ? '/lick-practice' : '/library'}
+					href={taggedLickCount > 0 ? '/lick-practice' : '/licks'}
 					class="mt-auto flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
 				>
 					<BrassPlayGlyph size={11} class="text-white" />
@@ -291,16 +291,16 @@
 	<!-- Tertiary utility links -->
 	<div class="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2 text-sm">
 		<a
-			href="/library"
+			href="/licks"
 			class="text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
 		>
-			Library
+			Licks
 		</a>
 		<a
-			href="/add-licks"
+			href="/tunes"
 			class="text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
 		>
-			Add Licks
+			Tunes
 		</a>
 		<a
 			href="/progress"

@@ -1,5 +1,5 @@
 /**
- * Community page state — filters and sort for the /community browse view.
+ * Community page state — filters and sort for the /licks/community browse view.
  */
 import type { PhraseCategory } from '$lib/types/music';
 

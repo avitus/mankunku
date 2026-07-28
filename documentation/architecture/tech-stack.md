@@ -32,17 +32,23 @@
 | [Playwright](https://playwright.dev) | ^1.58 | End-to-end browser testing |
 | [@testing-library/svelte](https://testing-library.com/svelte) | ^5.3 | Component testing utilities |
 
-## PWA
+## Installable web app (no service worker)
 
-| Tool | Version | Role |
-|---|---|---|
-| [@vite-pwa/sveltekit](https://vite-pwa-org.netlify.app/frameworks/sveltekit.html) | ^1.1 | PWA integration with auto-update service worker |
+The @vite-pwa/sveltekit service-worker setup was **removed 2026-07-25**: its
+worker was never registered by SSR pages (the registration `<script>` is only
+injected into prerendered HTML, and this app SSRs everything), and the
+generated `sw.js` threw mid-evaluation (`createHandlerBoundToURL('/')` with
+`'/'` never precached), silently disabling its own runtime caching. What
+remains:
 
-The PWA is configured in `vite.config.ts` with:
-- `registerType: 'autoUpdate'` — service worker updates automatically
-- Workbox pre-caches JS, CSS, HTML, SVG, and WOFF2 files
-- SoundFont (`.sf2`) files use `CacheFirst` runtime caching (30-day expiry)
-- Standalone display mode with dark theme color (`#0f172a`)
+- `static/manifest.webmanifest` (linked from `app.html`) keeps the app
+  installable — standalone display, dark theme color (`#0f172a`), SVG icons.
+- `static/sw.js` is a **kill-switch worker**: devices that registered a worker
+  under older builds pick it up on their next update check; it deletes all
+  leftover caches, unregisters itself, and reloads its tabs. Keep it deployed.
+- Offline behavior: user *data* is local-first (localStorage/IndexedDB), but
+  page loads and code chunks need the network. Real offline support would need
+  a prerendered shell + an `injectManifest` worker, registered explicitly.
 
 ## Styling Approach
 
@@ -78,22 +84,22 @@ Mankunku uses **Tailwind CSS v4** with CSS custom properties for theming:
 
 Components reference these variables inline: `bg-[var(--color-bg-secondary)]`. Theme switching toggles the `.light` class on `<html>`. Route domain (`ear-training` / `lick-practice` / `neutral`) is derived in `+layout.svelte` and applied as `data-domain` on the layout root — flipping `--color-accent` re-colors every interactive surface. See `documentation/architecture/design-system.md`.
 
-The display serif **Fraunces** (variable font, weight 300–800, Latin subset, self-hosted for offline PWA support) is used for the wordmark, page titles, key/grade readouts, and the primary "Ear Training / Lick Practice" nav labels via the `.font-display` utility.
+The display serif **Fraunces** (variable font, weight 300–800, Latin subset, self-hosted, no external font CDN) is used for the wordmark, page titles, key/grade readouts, and the primary "Ear Training / Lick Practice" nav labels via the `.font-display` utility.
 
 ## Configuration Files
 
 - **`svelte.config.js`** — Enables runes mode for all non-node_modules files via `dynamicCompileOptions`. Uses `adapter-node` so the server can run authentication hooks and session middleware.
 - **`tsconfig.json`** — Extends SvelteKit's generated config. Strict mode enabled with bundler module resolution.
-- **`vite.config.ts`** — Registers Tailwind, SvelteKit, and PWA plugins. Test config points to `tests/unit/**/*.test.ts` with `node` environment.
+- **`vite.config.ts`** — Registers Sentry, Tailwind, and SvelteKit plugins. Test config points to `tests/unit/**/*.test.ts` with `node` environment.
 
 ## Architecture Summary
 
-Mankunku is a **local-first PWA** with optional cloud sync:
+Mankunku is a **local-first installable web app** with optional cloud sync:
 
-- **State persistence** — All user progress, settings, and session history are stored in `localStorage` first. An optional Supabase backend (`src/lib/supabase/`, `src/routes/api/account/`) provides authenticated cloud sync so the same data follows a user across devices.
+- **State persistence** — User progress, settings, and session history are stored in `localStorage` first; large binary blobs (tune PDFs, via `src/lib/persistence/tune-pdf-store.ts`) live in IndexedDB. An optional Supabase backend (`src/lib/supabase/`, `src/routes/api/account/`) provides authenticated cloud sync so the same data follows a user across devices.
 - **Audio pipeline** — Built entirely on Web Audio APIs. An `AudioWorklet` handles onset detection, an `AnalyserNode` feeds the pitch detector, and Tone.js manages transport scheduling for metronome and phrase playback.
-- **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 33-scale catalog and ~452-lick curated library are defined as typed data structures (plus additional runtime-generated combinations).
-- **Deployment** — `adapter-node` produces a Node.js server bundle (deployed via rsync + PM2 to a Digital Ocean VM). The PWA service worker still enables full offline functionality after initial load.
+- **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 33-scale catalog and ~452-lick curated catalog are defined as typed data structures (plus additional runtime-generated combinations).
+- **Deployment** — `adapter-node` produces a Node.js server bundle (deployed via rsync + PM2 to a Digital Ocean VM). Page loads require the network — there is no service worker (see "Installable web app" above); user data stays local-first.
 
 ## Why These Choices
 
@@ -102,4 +108,4 @@ Mankunku is a **local-first PWA** with optional cloud sync:
 - **smplr** over Tone.js sampler: Smaller bundle for GM SoundFont playback. Shares the same AudioContext.
 - **Pitchy** over Web Audio `AnalyserNode` alone: Implements the McLeod Pitch Method which is more accurate for monophonic instruments than simple FFT peak detection.
 - **ABC notation** over MusicXML: Text-based format is trivial to generate from MIDI data. abcjs renders it to SVG with no server required.
-- **Local-first with optional Supabase**: All writes hit `localStorage` first so the app works fully offline; an authenticated user's Supabase sync is background fire-and-forget, not a request path.
+- **Local-first with optional Supabase**: All writes hit `localStorage` first so user data survives offline; an authenticated user's Supabase sync is background fire-and-forget, not a request path.

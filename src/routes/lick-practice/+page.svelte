@@ -99,7 +99,7 @@
 			<ul class="space-y-1 px-3 pb-3 pt-1 text-xs">
 				{#each strandedLicks as lick (lick.id)}
 					<li>
-						<a href={`/library/${lick.id}`} class="text-[var(--color-accent)] underline">
+						<a href={`/licks/${lick.id}`} class="text-[var(--color-accent)] underline">
 							{lick.name}
 						</a>
 					</li>

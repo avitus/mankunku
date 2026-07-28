@@ -108,12 +108,12 @@ describe('chordTones', (): void => {
 });
 
 describe('chordSymbol', (): void => {
-	it("'C' + 'maj7' → 'Cmaj7'", (): void => {
-		expect(chordSymbol('C', 'maj7')).toBe('Cmaj7');
+	it("'C' + 'maj7' → 'CΔ7' (compact jazz spelling)", (): void => {
+		expect(chordSymbol('C', 'maj7')).toBe('CΔ7');
 	});
 
-	it("'D' + 'min7' → 'Dm7'", (): void => {
-		expect(chordSymbol('D', 'min7')).toBe('Dm7');
+	it("'D' + 'min7' → 'D-7' (compact jazz spelling)", (): void => {
+		expect(chordSymbol('D', 'min7')).toBe('D-7');
 	});
 
 	it("'G' + '7' → 'G7'", (): void => {

@@ -78,14 +78,14 @@ Session history is bounded to 100 entries (oldest trimmed on insert).
 
 **Streak tracking:** Compares `lastPracticeDate` to today's ISO date string. If yesterday → increment streak; if not today and not yesterday → reset to 1.
 
-### Library State (`src/lib/state/library.svelte.ts`)
+### Licks State (`src/lib/state/licks.svelte.ts`)
 
-Filter state for the user's personal lick collection (own + adopted community licks). **Not persisted.**
+Filter state for the Licks page (the user's book: own + adopted community licks). **Not persisted.**
 
 ```typescript
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 
-export const library = $state<{
+export const licks = $state<{
   searchQuery: string;
   progressionFilter: ChordProgressionType | null;
 }>({
@@ -155,14 +155,14 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 - `getPlannedKey(offset)`, `getUpcomingKeys()`, `getPlannedKeysForLick(lickIdx)` — Lookahead accessors for the preview strip and scroll animation.
 - `buildLickSuperPhrase(lickIdx)` — Concatenates all 12 keys (plus an optional demo in continuous mode) into one phrase so the whole lick can be scheduled in a single Tone.js pass.
 - `recordKeyAttempt(score)` — Appends a `LickPracticeKeyResult`; persists key progress and increments `passCount` only on green attempts (≥ `KEY_PROFICIENT_THRESHOLD` = 0.90).
-- `resetLick(phraseId)` — Wipes one lick's per-key scores, `passCount`, and unlock count (tempo → 60, one unlocked key) via `resetLickPersistence`, reassigning the reactive `progress` rune. Tags (`practice`, `prog:*`) are preserved. Local-only — no cloud sync. Surfaced from the post-session report (gated on try-again-band score) and the library detail page (gated on `hasLickProgress`).
+- `resetLick(phraseId)` — Wipes one lick's per-key scores, `passCount`, and unlock count (tempo → 60, one unlocked key) via `resetLickPersistence`, reassigning the reactive `progress` rune. Tags (`practice`, `prog:*`) are preserved. Local-only — no cloud sync. Surfaced from the post-session report (gated on try-again-band score) and the book detail page (gated on `hasLickProgress`).
 - `advance()` — Moves to the next key within the current lick; returns `'end-of-lick'` when out.
 - `startInterLickTransition()` — Archives results, applies the score-weighted tempo delta (and clamps the delta to ≤ 0 when any key in the session fell below `KEY_FLOOR_THRESHOLD`), decides whether to bump the unlock count via `shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount, floorHit })`, and advances to the next lick or marks `'complete'`.
 - `updateElapsedTime()`, `resetSession()`, `getSessionReport()`.
 
 ### Step Entry State (`src/lib/state/step-entry.svelte.ts`)
 
-UI state for manual lick entry (the `/entry` and `/add-licks` routes). **Not persisted** — the draft resets when the route unmounts; completed phrases are exported via `getCurrentPhrase()` and saved through `persistence/user-licks.ts`.
+UI state for manual lick entry in the editor (the `/licks/editor` and `/licks/add` routes). **Not persisted** — the draft resets when the route unmounts; completed phrases are exported via `getCurrentPhrase()` and saved through `persistence/user-licks.ts`.
 
 ```typescript
 export const stepEntry = $state({
@@ -199,11 +199,11 @@ The user enters notes in their instrument's **written** pitch (what they see on 
 - `getCurrentCursorOffset()`, `getRemainingCapacity()`, `canAddDuration(duration)`, `getCurrentBarAndBeat()` — Cursor helpers.
 - `getPaddedNotes()` — Pads entered notes with a final rest so partial bars render cleanly in notation.
 - `setBarCount(n)` (1–4, trims overflow; clears the selection if it now points past the end), `setDuration(id)`, `toggleTriplet()`, `toggleDotted()`, `setAccidental(acc)`, `adjustOctave(delta)`, `reset()`.
-- `loadFromPhrase(lick)` — Edit mode entry point. Hydrates the state from an existing lick (converts concert pitches back to written, restores key/bar count/name/category) and stamps `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save → Update label, skip duplicate-detection self-match, route category changes through `updateLickCategory` (preserving `prog:*` seeding), and redirect to `/library/<id>` on save. Mic-recorded licks are not editable — only `source === 'user-entered'`.
+- `loadFromPhrase(lick, instrument)` — Edit mode entry point. Hydrates the state from an existing lick (converts concert pitches back to written using the given instrument's transposition, restores key/bar count/name/category) and stamps `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/licks/editor` route branches on `editingId !== null` to swap the Save → Update label, skip duplicate-detection self-match, route category changes through `updateLickCategory` (preserving `prog:*` seeding), and redirect to `/licks/<id>` on save. Mic-recorded licks are not editable — only `source === 'user-entered'`.
 
 ### Community State (`src/lib/state/community.svelte.ts`)
 
-Filter and sort state for the `/community` browse view. **Not persisted.**
+Filter and sort state for the `/licks/community` browse view. **Not persisted.**
 
 ```typescript
 export const community = $state<{
@@ -266,7 +266,7 @@ Unlike auto-saving stores, Mankunku uses **explicit save calls**. This avoids ex
 - **Settings**: Saved on each user action (e.g., changing instrument, toggling metronome)
 - **Progress**: Saved after each completed attempt via `recordAttempt()`
 - **History**: Saved by `recomputeAllDailySummaries` after every write to `progress.sessions` or `lick-practice-sessions` (derive-on-write), plus on cloud-hydration rebuild
-- **Library**: Never persisted (filter state resets on navigation)
+- **Licks**: Never persisted (filter state resets on navigation)
 - **Lick Practice**: Live session state is ephemeral; per-lick/per-key progress is persisted by `persistence/lick-practice-store.ts` after each passed key, tempo adjustment, and session end
 - **Step Entry**: Never persisted — drafts are exported to `persistence/user-licks.ts` when the user saves
 - **Community**: Never persisted (browse filter/sort state resets on navigation)

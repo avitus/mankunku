@@ -23,7 +23,6 @@ Routes that belong to the ear-training domain:
 - `/ear-training` — main ear-training session (`/practice` is a 308 redirect to it)
 - `/ear-training/settings` — settings specific to ear-training practice (`/practice/settings` 308-redirects here)
 - `/scales` — scale practice (ear-training subset)
-- `/record` — recording mode for capturing user phrases
 - `/progress` — session history & adaptive difficulty
 
 **Identity color**: peacock teal. This is the default `--color-accent` — ear-training owns the unadorned `:root` palette.
@@ -56,8 +55,9 @@ Routes that belong to the lick-practice domain:
 Routes that belong to neither domain (or that serve both):
 
 - `/` — home
-- `/library`, `/library/[id]` — lick library (used by both modes)
-- `/add-licks`, `/entry` — adding new licks (used by both modes)
+- `/licks`, `/licks/[id]` — your lick book (used by both modes)
+- `/licks/add`, `/licks/editor`, `/licks/record` — adding new licks (book-building, not practice)
+- `/tunes` and its subroutes — the tune songbook
 - `/settings` — global app settings
 - `/auth`, `/diagnostics` — utility pages
 
@@ -188,15 +188,16 @@ In `src/routes/+layout.svelte`, derive a `dataDomain` value from the current pat
 
 ```ts
 const dataDomain = $derived.by(() => {
-    const path = page.url?.pathname ?? '/';
-    if (path.startsWith('/lick-practice')) return 'lick-practice';
-    if (
-        path.startsWith('/ear-training') ||
-        path.startsWith('/scales') ||
-        path.startsWith('/record') ||
-        path.startsWith('/progress')
-    ) return 'ear-training';
-    return 'neutral';
+	const path = page.url?.pathname ?? '/';
+	if (path.startsWith('/lick-practice')) return 'lick-practice';
+	if (
+		path.startsWith('/ear-training') ||
+		path.startsWith('/scales') ||
+		path.startsWith('/progress')
+	) {
+		return 'ear-training';
+	}
+	return 'neutral';
 });
 ```
 
@@ -238,7 +239,7 @@ Every component that uses `var(--color-accent)` flips for free when the domain c
 
 - **Active navigation underline** (`+layout.svelte`) — turns terracotta on lick-practice, slate on neutral
 - **Sign In link** in nav
-- **Primary CTA buttons** on `/practice`, `/lick-practice`, session reports
+- **Primary CTA buttons** on `/ear-training`, `/lick-practice`, session reports
 - **`KeyProgressRing`** (current key indicator)
 - **`ChordChart`** (active cell highlight, beat dots, progress bar)
 - **`UpcomingKeysDisplay`** ("Now"/"Listen" chip, recording-pulse shadow)
@@ -265,7 +266,8 @@ The only thing that changes per domain is the **accent color**, applied via the 
 ## Edge cases
 
 - **`/progress`** — classified as ear-training because it shows the global ear-training session history. If lick-practice gets its own long-term progress page, that route can opt in separately.
-- **`/library` and `/add-licks`** — neutral (no domain accent), even though `LickCard` renders per-lick metadata such as category, difficulty, and accent-colored progression-type chips (which inherit the domain accent — slate on the neutral library page). Those chips identify a lick's musical attributes, not the page chrome.
+- **`/licks`, `/licks/add`, and `/licks/editor`** — neutral (no domain accent), even though `LickCard` renders per-lick metadata such as category, difficulty, and accent-colored progression-type chips (which inherit the domain accent — slate on the neutral licks page). Those chips identify a lick's musical attributes, not the page chrome.
+- **`/licks/record`** — neutral. Recording a phrase from the mic builds your book; it is not an ear-training session, so this route moved out of the blue ear-training domain when it became a licks subroute.
 - **`/diagnostics`** — neutral.
 - **Light mode** — every override has a `:root.light [data-domain='…']` equivalent so themes stay coherent.
 
@@ -293,8 +295,9 @@ After changes, walk through these surfaces and confirm the accent is correct:
 | `/progress`                      | ear-training  | peacock teal                        |
 | `/lick-practice` setup           | lick-practice | terracotta                          |
 | `/lick-practice/session`         | lick-practice | terracotta                          |
-| `/library`, `/library/[id]`      | neutral       | slate                               |
-| `/add-licks`, `/entry`           | neutral       | slate                               |
+| `/licks`, `/licks/[id]`          | neutral       | slate                               |
+| `/licks/add`, `/licks/editor`    | neutral       | slate                               |
+| `/licks/record`, `/tunes`        | neutral       | slate                               |
 | `/settings`, `/auth`, `/diag…`   | neutral       | slate                               |
 
 For each page confirm:

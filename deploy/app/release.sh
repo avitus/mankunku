@@ -146,10 +146,14 @@ snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 # against an older deploy still requests that deploy's chunk hashes. Serving only
 # `current`'s assets 404s them ("error loading dynamically imported module").
 #
-# Keep every release's immutable assets in one shared, accumulating pool so a tab
-# on any recent version can still fetch its chunks. nginx serves /_app/immutable/
-# straight from this pool (see nginx/mankunku.conf), with Node as the fallback.
-# Content hashes never collide, so the union is always self-consistent.
+# Keep every release's immutable assets in one shared, accumulating pool so a
+# tab on any recent version can still fetch its chunks. The pool is SERVED by
+# hardlinking it into each staged release's own client dir (see the hydration
+# step below) — the Node server is the mechanism of record. nginx/mankunku.conf
+# has an alias that would serve the pool directly, but it never went live on
+# the box (discovered 2026-07-25 after months of the pool sitting unserved);
+# if it ever lands, it simply answers first for the same bytes. Content hashes
+# never collide, so the union is always self-consistent.
 SHARED_IMMUTABLE="${ROOT}/shared/_app/immutable"
 STAGE_IMMUTABLE="${STAGE}/build/client/_app/immutable"
 if [[ -d "$STAGE_IMMUTABLE" ]]; then
@@ -193,23 +197,41 @@ if [[ -d "$STAGE_IMMUTABLE" ]]; then
         echo "==> Merging immutable assets into shared pool: ${SHARED_IMMUTABLE}"
         mkdir -p "$SHARED_IMMUTABLE"
 
+        # Sweep temp files orphaned by a deploy killed between its atomic
+        # cp-to-tmp and mv below. Without this, a stranded *.tmp.<pid> would be
+        # hydrated (hardlinked) into every release built in the next 30 days —
+        # the hydration find also filters them, but the pool shouldn't keep
+        # them at all. Safe under the pool lock: no live deploy's tmp files
+        # can exist while we hold it.
+        find "$SHARED_IMMUTABLE" -type f -name '*.tmp.*' -delete 2>/dev/null || true
+
         # For each chunk this release ships: copy it in if the pool doesn't
-        # already have it (a new hash), otherwise just refresh its mtime. Copying
-        # only the missing files means an in-flight download of an existing
-        # (identical) chunk by another tab is never truncated. Refreshing the
-        # mtime makes the eviction below measure age from the last deploy that
-        # shipped a chunk, not the first time it appeared. `find -print0` is
-        # portable across BSD (macOS test harness) and GNU; `find -printf` is
-        # GNU-only — avoid it. (BSD `cp -n` exits non-zero when it skips, so we
-        # branch on existence ourselves rather than rely on a no-clobber flag.)
+        # already have it (a new hash), otherwise just refresh its mtime.
+        # Refreshing the mtime makes the eviction below measure age from the
+        # last deploy that shipped a chunk, not the first time it appeared.
+        # `find -print0` is portable across BSD (macOS test harness) and GNU;
+        # `find -printf` is GNU-only — avoid it.
+        #
+        # Writes are ATOMIC (copy to a temp name, then rename): the pool is now
+        # SERVED (hydrated into every release below), so a deploy killed
+        # mid-copy — OOM, dropped SSH, the crash class the stale-lock breaker
+        # above exists for — must never leave a truncated chunk under a
+        # content-hashed name where every future release would link and serve
+        # it. The rename also keeps in-flight downloads of an existing chunk
+        # safe, which the old skip-if-exists branch protected with plain cp.
+        # Existing entries are re-copied when their size disagrees with the
+        # staged file: that repairs any truncated entry from a pre-atomic-era
+        # crash the next time a build ships the same hash.
         ( cd "$STAGE_IMMUTABLE" && find . -type f -print0 ) \
             | while IFS= read -r -d '' rel; do
+                  src="${STAGE_IMMUTABLE}/${rel}"
                   dest="${SHARED_IMMUTABLE}/${rel}"
-                  if [[ -f "$dest" ]]; then
+                  if [[ -f "$dest" ]] && [[ "$(wc -c <"$dest")" -eq "$(wc -c <"$src")" ]]; then
                       touch -c "$dest"
                   else
                       mkdir -p "$(dirname "$dest")"
-                      cp "${STAGE_IMMUTABLE}/${rel}" "$dest"
+                      cp "$src" "${dest}.tmp.$$"
+                      mv -f "${dest}.tmp.$$" "$dest"
                   fi
               done
 
@@ -220,6 +242,31 @@ if [[ -d "$STAGE_IMMUTABLE" ]]; then
         RETAIN="${POOL_RETENTION_DAYS:-30}"
         find "$SHARED_IMMUTABLE" -type f -mtime "+${RETAIN}" -delete 2>/dev/null || true
         find "$SHARED_IMMUTABLE" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+
+        # Hydrate the staged release from the pool: hardlink every pooled
+        # chunk this build doesn't ship into the release's own client dir, so
+        # the NODE SERVER itself serves prior releases' chunks. Serving was
+        # designed to come from nginx's /_app/immutable/ alias onto the pool
+        # (nginx/mankunku.conf), but that block never went live on the box —
+        # verified 2026-07-25 when a 10-day-old chunk URL 404'd in production
+        # while this pool held 555MB of chunks nothing was serving. Node-side
+        # serving lives entirely in this script, so it cannot rot on the box;
+        # if the nginx alias ever lands it simply answers first for the same
+        # bytes. Hardlinks add no disk cost and keep serving even after pool
+        # eviction (the inode survives until its last link goes). Runs AFTER
+        # eviction so beyond-retention chunks are not resurrected, and inside
+        # the pool lock so a concurrent deploy's eviction can't race the link
+        # loop. `ln` falls back to `cp` for cross-filesystem layouts.
+        echo "==> Hydrating staged release from shared pool"
+        ( cd "$SHARED_IMMUTABLE" && find . -type f -not -name '*.tmp.*' -print0 ) \
+            | while IFS= read -r -d '' rel; do
+                  dest="${STAGE_IMMUTABLE}/${rel}"
+                  if [[ ! -e "$dest" ]]; then
+                      mkdir -p "$(dirname "$dest")"
+                      ln "${SHARED_IMMUTABLE}/${rel}" "$dest" 2>/dev/null \
+                          || cp "${SHARED_IMMUTABLE}/${rel}" "$dest"
+                  fi
+              done
     )
 else
     echo "==> No _app/immutable in staged build; skipping shared pool merge"

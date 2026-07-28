@@ -92,6 +92,29 @@ ok "old chunk still served after a newer deploy"
 [[ -f "${POOL}/2.BBBBBBB.js" ]] || fail "release 2 chunk not in pool"
 ok "new chunk pooled"
 
+# Hydration: the pool is only useful if something SERVES it. The nginx alias
+# onto the pool (nginx/mankunku.conf) was never live on the box — verified
+# 2026-07-25 when a 10-day-old chunk URL 404'd in production while the pool
+# held 555MB. So release.sh must hardlink pooled chunks this build doesn't
+# ship into the release's own client dir, where the Node server (sirv) serves
+# them with no box-side config at all.
+HYDRATED_A="${MANKUNKU_ROOT}/releases/${ID2}/build/client/_app/immutable/nodes/2.AAAAAAA.js"
+[[ -f "$HYDRATED_A" ]] \
+    || fail "old chunk not hydrated into new release's client dir (node can't serve it)"
+ok "old chunk hydrated into the new release's client dir"
+grep -q "2.AAAAAAA" "$HYDRATED_A" \
+    || fail "hydrated chunk content mismatch"
+ok "hydrated chunk carries the original content"
+# Pin the MECHANISM, not just the content: hydration must hardlink (same
+# inode), or a silent regression to the cp fallback would multiply the pool's
+# full size into every retained release.
+[[ "$HYDRATED_A" -ef "${POOL}/2.AAAAAAA.js" ]] \
+    || fail "hydrated chunk is not a hardlink to the pool inode"
+ok "hydrated chunk is a hardlink to the pool inode"
+[[ -f "${MANKUNKU_ROOT}/releases/${ID2}/build/client/_app/immutable/nodes/2.BBBBBBB.js" ]] \
+    || fail "release's own chunk clobbered by hydration"
+ok "release's own chunks untouched by hydration"
+
 # `current` points at the newest release.
 [[ "$(readlink "${MANKUNKU_ROOT}/current")" == "releases/${ID2}" ]] \
     || fail "current not swapped to release 2"
@@ -106,6 +129,24 @@ POOL_RETENTION_DAYS=30 bash "$RELEASE_SH" "$ID3" >/dev/null
 ok "stale chunk evicted past retention window"
 [[ -f "${POOL}/2.BBBBBBB.js" ]] || fail "still-shipped chunk wrongly evicted"
 ok "still-shipped chunk retained despite earlier age"
+# Ordering: eviction must run BEFORE hydration, so a beyond-retention chunk is
+# not resurrected into the fresh release's client dir.
+[[ ! -f "${MANKUNKU_ROOT}/releases/${ID3}/build/client/_app/immutable/nodes/2.AAAAAAA.js" ]] \
+    || fail "evicted chunk hydrated into new release (evict must precede hydrate)"
+ok "evicted chunk stays out of the new release"
+
+# Self-repair: a crashed deploy can leave a TRUNCATED file in the pool (the
+# copy is interrupted mid-write). Hydration now serves pool bytes, so a
+# poisoned entry would be linked into every future release for the whole
+# retention window. When a build ships the same hash again, the merge must
+# detect the size mismatch and replace the corrupt pool copy.
+ID3B="20260103-120000-c2c2c2c"
+printf 'trunc' > "${POOL}/2.BBBBBBB.js"   # simulate interrupted copy of chunk B
+stage_release "$ID3B" "2.BBBBBBB.js"       # next deploy ships pristine chunk B
+bash "$RELEASE_SH" "$ID3B" >/dev/null
+grep -q "2.BBBBBBB" "${POOL}/2.BBBBBBB.js" \
+    || fail "truncated pool chunk not repaired by a build shipping the same hash"
+ok "truncated pool chunk repaired from the next build that ships it"
 
 # Stale lock: a lock left behind by a crashed deploy must be broken, not block
 # the next deploy forever. Plant a lock older than the stale window and confirm

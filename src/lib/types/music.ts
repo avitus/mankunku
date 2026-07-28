@@ -60,6 +60,8 @@ export interface Note {
 	scaleDegree?: string;
 	/** Override enharmonic spelling for notation display */
 	spelling?: 'sharp' | 'flat';
+	/** Glissando/portamento INTO the next melody note (imported charts). */
+	gliss?: boolean;
 	/** True if this note is tied to the next note. Renders as an ABC tie (`-`)
 	 *  and plays as a single sustained pitch when the next note matches. */
 	tied?: boolean;
@@ -75,6 +77,13 @@ export interface HarmonicSegment {
 	scaleId: string;
 	startOffset: Fraction;
 	duration: Fraction;
+	/**
+	 * Original chord symbol as written in the source (e.g. "C7(b9,#11)").
+	 * Preserves display fidelity when the mapping onto the closed
+	 * `ChordQuality` union is imperfect. Display prefers this; audio uses
+	 * `chord`.
+	 */
+	symbol?: string;
 }
 
 export interface DifficultyMetadata {

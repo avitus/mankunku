@@ -30,7 +30,7 @@ export const tooltips = {
 			learnMore: '/docs/architecture/adaptive-difficulty'
 		},
 		tagged: {
-			text: 'Tagged licks are the ones in your practice book — Lick Practice rotates them across all 12 keys. Tag a lick from the Library to add it.'
+			text: 'Tagged licks are the ones in your practice book — Lick Practice rotates them across all 12 keys. Tag a lick from your Licks page to add it.'
 		},
 		bestTempo: {
 			text: 'The fastest tempo at which you’ve passed any tagged lick. Lick Practice steps you up by 5 BPM after each pass.'
@@ -62,26 +62,26 @@ export const tooltips = {
 			learnMore: '/docs/architecture/adaptive-difficulty'
 		},
 		settingsPhraseSource: {
-			text: 'Curated licks come from the bundled library. User licks are the ones you recorded yourself or step-entered. Both filter by today’s key.'
+			text: 'Curated licks come from the bundled catalog. User licks are the ones you recorded yourself or wrote in the editor. Both filter by today’s key.'
 		},
 		settingsScale: {
 			text: 'Override today’s scale to drill a specific tonality. Resets at midnight unless you re-pick.'
 		}
 	} satisfies TooltipMap,
 
-	library: {
+	licks: {
 		practiceStar: {
 			text: 'Star a lick to tag it for Lick Practice — Side B will rotate it through all 12 keys at increasing tempo.'
 		},
 		difficultyScale: {
-			text: 'Difficulty 1–100 reflects pitch range, rhythmic density, and harmonic complexity. The library filter caps what shows.',
+			text: 'Difficulty 1–100 reflects pitch range, rhythmic density, and harmonic complexity. The difficulty filter caps what shows.',
 			learnMore: '/docs/architecture/adaptive-difficulty'
 		},
 		category: {
 			text: 'Categories group licks by harmonic context — ii–V–I phrases, dominant lines, blues licks, etc. Filter to focus practice on one shape.'
 		},
 		community: {
-			text: 'Community licks are user-contributed — adopted into your library so you can practice them like the curated ones.'
+			text: 'Community licks are user-contributed — adopted into your book so you can practice them like the curated ones.'
 		}
 	} satisfies TooltipMap,
 
@@ -169,7 +169,7 @@ export const tooltips = {
 export type TooltipKey =
 	| keyof typeof tooltips.home
 	| keyof typeof tooltips.practice
-	| keyof typeof tooltips.library
+	| keyof typeof tooltips.licks
 	| keyof typeof tooltips.progress
 	| keyof typeof tooltips.lickPractice
 	| keyof typeof tooltips.settings

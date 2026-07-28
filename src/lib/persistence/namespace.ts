@@ -39,7 +39,7 @@ const ROOT = 'mankunku:';
 const SCHEMA_KEY = '__schema';
 const ACTIVE_KEY = '__active';
 const LEGACY_LAST_USER_ID_KEY = '__lastUserId';
-const CURRENT_SCHEMA = 2;
+const CURRENT_SCHEMA = 3;
 
 const ANON = 'anon';
 
@@ -136,55 +136,153 @@ function uidFromCookie(): string | null {
 }
 
 /**
- * One-time migration of pre-namespace keys (`mankunku:<key>`) into the active
- * user's bucket (`mankunku:u:<uid>:<key>`). Guarded by `__schema`; idempotent
- * and half-run-safe (copy-then-delete per key; `__schema` stamped only after
- * all copies succeed, so a crash simply re-runs).
+ * One-time storage migrations, guarded by `__schema` and structured as
+ * VERSIONED steps: only the steps above the stored version run, so a step's
+ * body never re-executes on a device that already passed it. (This matters:
+ * v2 ends by stamping `__active` from the long-deleted v1 marker — re-running
+ * it on a v2 device would stamp `'anon'` over a signed-in pointer.)
+ *
+ * Every step is idempotent and half-run-safe (copy-if-absent, then delete),
+ * and `__schema` is stamped PER STEP as each one completes: a later step's
+ * failure retries only that step on the next load and can never rewind an
+ * earlier one (a v3 crash must not re-run the v2 body — see above).
  */
 export function runNamespaceUpgradeIfNeeded(): void {
 	if (!hasLocalStorage()) return;
 	try {
-		if (rawGet(SCHEMA_KEY) === String(CURRENT_SCHEMA)) return;
+		const stored = parseInt(rawGet(SCHEMA_KEY) ?? '0', 10) || 0;
+		if (stored >= CURRENT_SCHEMA) return;
+		if (stored < 2) {
+			upgradeV2();
+			rawSet(SCHEMA_KEY, '2');
+		}
+		if (stored < 3) {
+			upgradeV3();
+			rawSet(SCHEMA_KEY, '3');
+		}
+	} catch {
+		// Leave __schema unset/stale so the upgrade retries on the next load;
+		// the per-key copies are idempotent, so a partial run causes no loss.
+	}
+}
 
-		const lastUserId = rawGetJSON<string>(LEGACY_LAST_USER_ID_KEY);
-		const target = typeof lastUserId === 'string' && lastUserId ? lastUserId : ANON;
+/**
+ * v2: migrate pre-namespace keys (`mankunku:<key>`) into the last user's
+ * bucket (`mankunku:u:<uid>:<key>`) and establish the `__active` pointer.
+ */
+function upgradeV2(): void {
+	const lastUserId = rawGetJSON<string>(LEGACY_LAST_USER_ID_KEY);
+	const target = typeof lastUserId === 'string' && lastUserId ? lastUserId : ANON;
 
-		// Snapshot the legacy keys first, then mutate — never iterate a store
-		// that is being modified.
-		const legacyKeys: string[] = [];
-		for (let i = 0; i < localStorage.length; i++) {
-			const full = localStorage.key(i);
-			if (!full || !full.startsWith(ROOT)) continue;
-			const k = full.slice(ROOT.length);
-			if (CONTROL_KEYS.has(k) || k.startsWith('u:')) continue;
-			legacyKeys.push(k);
+	// Snapshot the legacy keys first, then mutate — never iterate a store
+	// that is being modified.
+	const legacyKeys: string[] = [];
+	for (let i = 0; i < localStorage.length; i++) {
+		const full = localStorage.key(i);
+		if (!full || !full.startsWith(ROOT)) continue;
+		const k = full.slice(ROOT.length);
+		if (CONTROL_KEYS.has(k) || k.startsWith('u:')) continue;
+		legacyKeys.push(k);
+	}
+
+	// When the last user was a real account, move the bare legacy keys into
+	// their namespace. When there was no marker (anonymous-only device), the
+	// bare keys ARE the anon bucket and stay put — no move.
+	if (target !== ANON) {
+		for (const k of legacyKeys) {
+			const val = localStorage.getItem(ROOT + k);
+			if (val === null) continue;
+			const dest = ROOT + 'u:' + target + ':' + k;
+			if (localStorage.getItem(dest) === null) {
+				localStorage.setItem(dest, val);
+			}
+			localStorage.removeItem(ROOT + k);
+		}
+	}
+
+	rawSet(ACTIVE_KEY, JSON.stringify(target));
+	try {
+		localStorage.removeItem(ROOT + LEGACY_LAST_USER_ID_KEY);
+	} catch {
+		/* best effort */
+	}
+}
+
+/** v3 logical-key renames: the lead-sheet → tune nomenclature change. */
+const V3_KEY_RENAMES: Record<string, string> = {
+	'user-leadsheets': 'user-tunes',
+	'user-leadsheets-owners': 'user-tunes-owners',
+	'user-leadsheets-meta': 'user-tunes-meta',
+	'leadsheet-favorites': 'tune-favorites',
+	'leadsheet-adoptions': 'tune-adoptions',
+	'leadsheet-adopted-payloads': 'tune-adopted-payloads',
+	'leadsheet-adopted-authors': 'tune-adopted-authors'
+};
+
+/**
+ * v3: rename the persisted lead-sheet keys to their tune names in EVERY
+ * bucket (bare anon and each `u:<uid>:`, active or not), and rewrite any
+ * queued `leadSheets` outbox intent to `tunes`. Runs at storage.ts module
+ * eval, so it always precedes the first outbox read — the drain deletes
+ * unknown kinds as "handled", which is why this cannot be mapped lazily.
+ */
+function upgradeV3(): void {
+	// Snapshot first, then mutate.
+	const fullKeys: string[] = [];
+	for (let i = 0; i < localStorage.length; i++) {
+		const full = localStorage.key(i);
+		if (full && full.startsWith(ROOT)) fullKeys.push(full);
+	}
+
+	for (const full of fullKeys) {
+		const rootStripped = full.slice(ROOT.length);
+		if (CONTROL_KEYS.has(rootStripped)) continue;
+
+		// Split an optional `u:<uid>:` bucket prefix (uids carry no colons).
+		let prefix = '';
+		let logical = rootStripped;
+		if (rootStripped.startsWith('u:')) {
+			const sep = rootStripped.indexOf(':', 2);
+			if (sep < 0) continue;
+			prefix = rootStripped.slice(0, sep + 1);
+			logical = rootStripped.slice(sep + 1);
 		}
 
-		// When the last user was a real account, move the bare legacy keys into
-		// their namespace. When there was no marker (anonymous-only device), the
-		// bare keys ARE the anon bucket and stay put — no move.
-		if (target !== ANON) {
-			for (const k of legacyKeys) {
-				const val = localStorage.getItem(ROOT + k);
-				if (val === null) continue;
-				const dest = ROOT + 'u:' + target + ':' + k;
+		const renamed = V3_KEY_RENAMES[logical];
+		if (renamed) {
+			const val = localStorage.getItem(full);
+			if (val !== null) {
+				const dest = ROOT + prefix + renamed;
 				if (localStorage.getItem(dest) === null) {
 					localStorage.setItem(dest, val);
 				}
-				localStorage.removeItem(ROOT + k);
 			}
+			localStorage.removeItem(full);
+		} else if (logical === 'outbox') {
+			rewriteOutboxLeadSheetKind(full);
 		}
+	}
+}
 
-		rawSet(ACTIVE_KEY, JSON.stringify(target));
-		rawSet(SCHEMA_KEY, String(CURRENT_SCHEMA));
-		try {
-			localStorage.removeItem(ROOT + LEGACY_LAST_USER_ID_KEY);
-		} catch {
-			/* best effort */
+/**
+ * Rewrite a persisted outbox blob's `leadSheets` intent (map key AND the
+ * entry's own `kind` field) to `tunes`, preserving rev/attempts/backoff. A
+ * garbled blob is left untouched — the drain already tolerates junk.
+ */
+function rewriteOutboxLeadSheetKind(fullKey: string): void {
+	try {
+		const raw = localStorage.getItem(fullKey);
+		if (!raw) return;
+		const parsed = JSON.parse(raw) as Record<string, Record<string, unknown> | undefined>;
+		if (!parsed || typeof parsed !== 'object' || !('leadSheets' in parsed)) return;
+		const entry = parsed['leadSheets'];
+		delete parsed['leadSheets'];
+		if (!('tunes' in parsed) && entry && typeof entry === 'object') {
+			parsed['tunes'] = { ...entry, kind: 'tunes' };
 		}
+		localStorage.setItem(fullKey, JSON.stringify(parsed));
 	} catch {
-		// Leave __schema unset so the upgrade retries on the next load; the
-		// per-key copy is idempotent, so a partial run causes no loss.
+		/* garbled blob — leave as-is */
 	}
 }
 

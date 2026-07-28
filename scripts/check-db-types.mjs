@@ -42,6 +42,15 @@ const DELIBERATE_OVERRIDES = {
 			'`string | null` would widen the Map key type at the three ' +
 			'public_lick_authors call sites in persistence/community.ts for a value ' +
 			'that is structurally never null.'
+	},
+	'public_tune_authors.id': {
+		committed: 'string',
+		generated: 'string | null',
+		reason:
+			'Same shape as public_lick_authors.id: the view selects ' +
+			'user_profiles.id (NOT NULL primary key), which Postgres cannot prove ' +
+			'non-nullable through a view. The lead-sheet community layer keys its ' +
+			'author Map on this value, which is structurally never null.'
 	}
 };
 

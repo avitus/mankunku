@@ -1,0 +1,1639 @@
+{
+ "sheet": {
+  "id": "sheet-e2e-test",
+  "title": "There Will Never Be Another You",
+  "key": "F",
+  "timeSignature": [
+   4,
+   4
+  ],
+  "tags": [],
+  "sections": [
+   {
+    "label": "",
+    "bars": 1,
+    "notes": [
+     {
+      "pitch": 60,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       4
+      ]
+     }
+    ],
+    "harmony": []
+   },
+   {
+    "label": "A",
+    "bars": 8,
+    "notes": [
+     {
+      "pitch": 62,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       0,
+       1
+      ]
+     },
+     {
+      "pitch": 64,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       4
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       2
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       1
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       3,
+       8
+      ],
+      "offset": [
+       3,
+       2
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       15,
+       8
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       1
+      ],
+      "offset": [
+       2,
+       1
+      ],
+      "tied": true
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       3,
+       4
+      ],
+      "offset": [
+       3,
+       1
+      ]
+     },
+     {
+      "pitch": 73,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       15,
+       4
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       4,
+       1
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       17,
+       4
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       9,
+       2
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       19,
+       4
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       1
+      ]
+     },
+     {
+      "pitch": 77,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       21,
+       4
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       3,
+       8
+      ],
+      "offset": [
+       11,
+       2
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       47,
+       8
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       1
+      ],
+      "offset": [
+       6,
+       1
+      ],
+      "tied": true
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       3,
+       4
+      ],
+      "offset": [
+       7,
+       1
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       31,
+       4
+      ]
+     }
+    ],
+    "harmony": [
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "min7b5"
+      },
+      "scaleId": "major.locrian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "E-7b5"
+     },
+     {
+      "chord": {
+       "root": "A",
+       "quality": "7b9"
+      },
+      "scaleId": "melodic-minor.altered",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "A7b9"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "D-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "C-7"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "F7"
+     }
+    ]
+   },
+   {
+    "label": "B",
+    "bars": 8,
+    "notes": [
+     {
+      "pitch": 77,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       0,
+       1
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       4
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       2
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       1
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       2
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       7,
+       4
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       2,
+       1
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       9,
+       4
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       2
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       11,
+       4
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       1
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       13,
+       4
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       3,
+       8
+      ],
+      "offset": [
+       7,
+       2
+      ]
+     },
+     {
+      "pitch": 64,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       31,
+       8
+      ]
+     },
+     {
+      "pitch": 77,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       4,
+       1
+      ]
+     },
+     {
+      "pitch": 76,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       17,
+       4
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       9,
+       2
+      ]
+     },
+     {
+      "pitch": 71,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       19,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       1
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       21,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       11,
+       2
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       23,
+       4
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       1
+      ],
+      "offset": [
+       6,
+       1
+      ],
+      "tied": true
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       3,
+       4
+      ],
+      "offset": [
+       7,
+       1
+      ]
+     },
+     {
+      "pitch": 60,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       31,
+       4
+      ]
+     }
+    ],
+    "harmony": [
+     {
+      "chord": {
+       "root": "Bb",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "BbΔ7"
+     },
+     {
+      "chord": {
+       "root": "Eb",
+       "quality": "7#11"
+      },
+      "scaleId": "melodic-minor.lydian-dominant",
+      "startOffset": [
+       1,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "Eb9#11"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "D-7"
+     },
+     {
+      "chord": {
+       "root": "G",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "G7"
+     },
+     {
+      "chord": {
+       "root": "G",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "G-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "C7"
+     }
+    ]
+   },
+   {
+    "label": "A",
+    "bars": 8,
+    "notes": [
+     {
+      "pitch": 64,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       0,
+       1
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       4
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       2
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       4
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       1
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       3,
+       8
+      ],
+      "offset": [
+       3,
+       2
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       15,
+       8
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       1
+      ],
+      "offset": [
+       2,
+       1
+      ],
+      "tied": true
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       3,
+       4
+      ],
+      "offset": [
+       3,
+       1
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       15,
+       4
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       4,
+       1
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       17,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       9,
+       2
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       19,
+       4
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       1
+      ]
+     },
+     {
+      "pitch": 77,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       21,
+       4
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       3,
+       8
+      ],
+      "offset": [
+       11,
+       2
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       47,
+       8
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       1
+      ],
+      "offset": [
+       6,
+       1
+      ],
+      "tied": true
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       3,
+       4
+      ],
+      "offset": [
+       7,
+       1
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       31,
+       4
+      ]
+     }
+    ],
+    "harmony": [
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "min7b5"
+      },
+      "scaleId": "major.locrian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "E-7b5"
+     },
+     {
+      "chord": {
+       "root": "A",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "A7"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       2,
+       1
+      ],
+      "symbol": "D-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "C-7"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "F7"
+     }
+    ]
+   },
+   {
+    "label": "C",
+    "bars": 8,
+    "notes": [
+     {
+      "pitch": 77,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       0,
+       1
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       4
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       2
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       3,
+       4
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       1,
+       1
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       4
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       3,
+       8
+      ],
+      "offset": [
+       3,
+       2
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       8
+      ],
+      "offset": [
+       15,
+       8
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       2,
+       1
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       9,
+       4
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       2
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       11,
+       4
+      ]
+     },
+     {
+      "pitch": 76,
+      "duration": [
+       3,
+       4
+      ],
+      "offset": [
+       3,
+       1
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       15,
+       4
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       4,
+       1
+      ]
+     },
+     {
+      "pitch": 76,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       17,
+       4
+      ]
+     },
+     {
+      "pitch": 74,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       9,
+       2
+      ]
+     },
+     {
+      "pitch": 71,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       19,
+       4
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       5,
+       1
+      ]
+     },
+     {
+      "pitch": 64,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       21,
+       4
+      ]
+     },
+     {
+      "pitch": 72,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       11,
+       2
+      ]
+     },
+     {
+      "pitch": 69,
+      "duration": [
+       1,
+       4
+      ],
+      "offset": [
+       23,
+       4
+      ]
+     },
+     {
+      "pitch": 67,
+      "duration": [
+       1,
+       2
+      ],
+      "offset": [
+       6,
+       1
+      ]
+     },
+     {
+      "pitch": 70,
+      "duration": [
+       1,
+       2
+      ],
+      "offset": [
+       13,
+       2
+      ]
+     },
+     {
+      "pitch": 65,
+      "duration": [
+       1,
+       1
+      ],
+      "offset": [
+       7,
+       1
+      ]
+     }
+    ],
+    "harmony": [
+     {
+      "chord": {
+       "root": "Bb",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       0,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "BbΔ7"
+     },
+     {
+      "chord": {
+       "root": "Eb",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       1,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "Eb9"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       2,
+       1
+      ],
+      "duration": [
+       1,
+       1
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "B",
+       "quality": "min7b5"
+      },
+      "scaleId": "major.locrian",
+      "startOffset": [
+       3,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "B-7b5"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "7b9"
+      },
+      "scaleId": "melodic-minor.altered",
+      "startOffset": [
+       7,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "E7b9"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj7"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       4,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "FΔ7"
+     },
+     {
+      "chord": {
+       "root": "E",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       9,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "E7"
+     },
+     {
+      "chord": {
+       "root": "A",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       5,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "A-7"
+     },
+     {
+      "chord": {
+       "root": "D",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       11,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "D7"
+     },
+     {
+      "chord": {
+       "root": "G",
+       "quality": "min7"
+      },
+      "scaleId": "major.dorian",
+      "startOffset": [
+       6,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "G-7"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       13,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "C7"
+     },
+     {
+      "chord": {
+       "root": "F",
+       "quality": "maj6"
+      },
+      "scaleId": "major.ionian",
+      "startOffset": [
+       7,
+       1
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "F"
+     },
+     {
+      "chord": {
+       "root": "C",
+       "quality": "7"
+      },
+      "scaleId": "major.mixolydian",
+      "startOffset": [
+       15,
+       2
+      ],
+      "duration": [
+       1,
+       2
+      ],
+      "symbol": "C7"
+     }
+    ]
+   }
+  ],
+  "source": "imported-pdf"
+ },
+ "warnings": []
+}
