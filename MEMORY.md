@@ -155,6 +155,16 @@ After any `git push` to a PR branch — including the autofix commits themselves
 - The shared panels reflow via Tailwind 4 container queries under named `@container/entry` wrappers — inert in the lick editor (no named container ancestor). Panel action props (`onAddNote` etc.) default to raw step-entry; only the tune editor passes wrappers.
 - Cursor-mode entry: overwrite rests, block on pitched collision, section-level occupancy, window-fit guard (the section-end overhang fix — final review's one blocker).
 
+### Tune chart chord symbols: MuseScore-height drop pass (2026-07-28)
+
+**What:** abcjs anchors every chord in a system above the tallest ink of the WHOLE line (`set-upper-and-lower-elements.js` — one high bar lifts every chord; no option exists to change it). The app corrects this post-render: `chordSymbolDeltas` (pure, abcjs-adapter) drops each chord to MuseScore's default — baseline 2.5 staff-spaces above the top line (measured from the user's own .mscz styles/PDFs) — pushing a chord up only over x-overlapping ink, with 0.5-space clearance. Applied in NotationDisplay's `dropChordSymbols`, strictly BEFORE `buildHitZones` so band geometry measures final positions.
+
+**Standing facts:**
+- Every voice-H chord `<text>` is a CHILD of that segment's `g.abcjs-rest` group — even for invisible `x` spacers. Any transform on the group moves the chord with it; `normalizeChordVoiceRests` therefore shifts only the group's non-text children. This coupling was the hidden 2-extra-spacings bug that made all app chords ride high even on flat systems.
+- `getBBox()` is local (excludes own AND ancestor transforms); client rects include everything. Post-render passes that set transforms must keep the two spaces straight — measure obstacles/staff in untransformed local space only while ancestors are untransformed.
+- Regression pins: unit describe `chordSymbolDeltas` in abcjs-adapter.test.ts (per-chord independence, clearance, push-up-only, bracket veto); e2e `tune-chord-height.spec.ts` (high-bar tune, scale-invariant staff-space assertions).
+- **Stems (2026-07-28):** declaring a second voice WITHOUT `stem=` makes abcjs's `createVoice` (parse/tune-builder.js) splice a forced stem-up event into the MELODY voice — the two-real-voices convention, triggered purely by voice count. The header's `V:H stem=down` keeps `params.stem` truthy so that splice never happens and M gets pitch-based auto stems (head at/above middle line → down, below → up; on-line → down — matches MuseScore). Deliberate variance: abcjs decides BEAMED groups by the group's average pitch vs the middle line, MuseScore by the furthest note — user accepted the abcjs rule (2026-07-28). No `stem=auto`, `%%stemdir`, or inline stem directive exists in abcjs; don't go looking. E2E pin: `tune-stem-direction.spec.ts` (self-classifying rule check over every rendered stem).
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

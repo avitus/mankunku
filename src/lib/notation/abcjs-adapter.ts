@@ -307,6 +307,56 @@ export interface Box {
 	height: number;
 }
 
+/** One rendered chord `<text>` glyph: its alphabetic baseline + bounding box. */
+export interface ChordGlyphBox {
+	/** The glyph's baseline y (the `y` attribute abcjs set on the text). */
+	baselineY: number;
+	box: Box;
+}
+
+/** MuseScore's default chord-symbol baseline: 2.5 staff-spaces above the top line. */
+const CHORD_BASELINE_SPACINGS = 2.5;
+/** MuseScore's minimum clearance between a pushed chord and the ink below it. */
+const CHORD_CLEARANCE_SPACINGS = 0.5;
+
+/**
+ * Per-chord vertical corrections (translate dy) dropping abcjs's chord row
+ * to MuseScore's default: baseline 2.5 spacings above the top staff line,
+ * each chord pushed up individually — never placed closer — just far enough
+ * to keep half a spacing of clearance over x-overlapping ink that reaches
+ * into its box. abcjs anchors ALL chords in a system above the line's
+ * tallest element, so one high bar otherwise lifts every chord in the
+ * system. Ink floating wholly above the default box (ending brackets, which
+ * abcjs lays out above the chord row) must not veto the drop and is ignored.
+ */
+export function chordSymbolDeltas(
+	chords: ChordGlyphBox[],
+	obstacles: Box[],
+	topLineY: number,
+	spacing: number
+): number[] {
+	if (!Number.isFinite(spacing) || spacing <= 0 || !Number.isFinite(topLineY)) {
+		return chords.map(() => 0);
+	}
+	const targetBaseline = topLineY - CHORD_BASELINE_SPACINGS * spacing;
+	const clearance = CHORD_CLEARANCE_SPACINGS * spacing;
+	return chords.map(({ baselineY, box }) => {
+		if (!Number.isFinite(baselineY)) return 0;
+		const ascent = baselineY - box.y;
+		const descent = box.y + box.height - baselineY;
+		const defaultTop = targetBaseline - ascent;
+		const defaultBottom = targetBaseline + descent;
+		let bottom = defaultBottom;
+		for (const o of obstacles) {
+			if (o.x >= box.x + box.width || o.x + o.width <= box.x) continue;
+			const reachesUp = o.y < defaultBottom + clearance;
+			const reachesBelowBoxTop = o.y + o.height > defaultTop;
+			if (reachesUp && reachesBelowBoxTop) bottom = Math.min(bottom, o.y - clearance);
+		}
+		return bottom - descent - baselineY;
+	});
+}
+
 /**
  * MuseScore-style wavy glissando between two notehead boxes: half-waves of
  * ~0.8 spacing with ~0.22-spacing amplitude along the connector, padded a
