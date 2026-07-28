@@ -19,12 +19,17 @@
 
 -- DO UPDATE, not DO NOTHING: if the bucket was previously created out-of-band
 -- with public = true, DO NOTHING would silently retain that insecure state.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('lead-sheets', 'lead-sheets', false)
+-- Bucket-side caps back up the client checks: 16 MiB (the 10MB-PDF/15MB-
+-- request envelope) and PDF-only uploads — nothing else client-side limits
+-- what an authenticated session can PUT.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('lead-sheets', 'lead-sheets', false, 16777216, ARRAY['application/pdf'])
 ON CONFLICT (id) DO UPDATE
 SET
   name = EXCLUDED.name,
-  public = EXCLUDED.public;
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 DROP POLICY IF EXISTS "Users can upload own lead sheet PDFs" ON storage.objects;
 DROP POLICY IF EXISTS "Users can view own lead sheet PDFs" ON storage.objects;

@@ -351,7 +351,11 @@ export function buildDraftTune(): Tune {
 	const concertKey = transposePitchClass(tuneEntry.writtenKey, -entryTranspositionSemitones());
 	const sections = tuneEntry.sections.map((sec, i) => {
 		const clone = cloneSection(sec);
-		if (i === tuneEntry.currentSection) {
+		// Gate the virtual merge exactly like commitBuffer and
+		// effectiveSectionNotes: on a non-4/4 sheet the buffer is EMPTY by
+		// construction, and merging it would drop every stored note in the
+		// current page window from the draft (the save path).
+		if (i === tuneEntry.currentSection && melodyEditingSupported()) {
 			clone.notes = mergeWindow(
 				sec.notes,
 				stepEntry.enteredNotes,

@@ -285,6 +285,20 @@ describe('non-4/4 time signatures (imported charts)', () => {
 		expect(tuneEntry.sections[0].notes[0].offset).toEqual([0, 1]);
 	});
 
+	it('keeps the stored melody in the built draft (the save path)', () => {
+		// The editor's handleSave runs commitBuffer() (a guarded no-op here)
+		// then buildDraftTune(); the draft's virtual buffer merge must be
+		// gated the same way — an ungated mergeWindow against the EMPTY
+		// buffer would silently drop every stored note in the current page
+		// window from the saved sheet.
+		loadFromTune(waltzSheet(), INSTRUMENTS['concert']);
+		commitBuffer();
+		const draft = buildDraftTune();
+		expect(draft.sections[0].notes).toEqual([
+			{ pitch: 65, duration: [1, 4], offset: [0, 1] }
+		]);
+	});
+
 	it('places chords on the meter grid, not a hardcoded 4/4 grid', () => {
 		loadFromTune(waltzSheet(), INSTRUMENTS['concert']);
 		expect(setChord(0, 1, 2, 'F7')).toBe(true);

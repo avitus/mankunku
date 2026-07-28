@@ -507,7 +507,10 @@ export function tuneToAbcWithMap(
 				if (bar > prevBar) {
 					tokens.push(' |');
 					closeBarSpan(tokens.length - 1);
-					if (bar % barsPerLine === 0) {
+					// lineColumn + bar: an inline-flowed section (a first ending
+					// continuing the body's line) enters mid-line, so breaks track
+					// the ABSOLUTE column, not the section-local bar.
+					if ((lineColumn + bar) % barsPerLine === 0) {
 						flushLine(sectionBaseBars + bar);
 						openLine(0, sectionBaseBars + bar);
 					} else {
@@ -571,7 +574,10 @@ export function tuneToAbcWithMap(
 				? sec.bars % barsPerLine === 0
 					? barsPerLine
 					: sec.bars % barsPerLine
-				: lineColumn + sec.bars;
+				: // Wrapped-inline sections normalize too: a long first ending that
+					// broke onto later lines ends at its column WITHIN the last line
+					// (0 blocks inline flow just like barsPerLine does).
+					(lineColumn + sec.bars) % barsPerLine;
 		sectionBaseBars += sec.bars;
 	}
 	flushLine(sectionBaseBars);

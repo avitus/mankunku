@@ -187,8 +187,14 @@ describe('resolveNavRecovery (probe-gated recovery)', () => {
 
 	it('returns the recovery action and keeps the latch when the server is reachable', async () => {
 		const store = makeStore();
-		const action = await resolveNavRecovery(URL_A, store, TARGET, CURRENT, async () => true);
+		const probed: string[] = [];
+		const action = await resolveNavRecovery(URL_A, store, TARGET, CURRENT, async (href) => {
+			probed.push(href);
+			return true;
+		});
 		expect(action).toEqual({ kind: 'navigate', href: TARGET });
+		// The reachability probe must aim at the NAV TARGET, not the current page.
+		expect(probed).toEqual([TARGET]);
 		expect(store.data[STALE_CHUNK_RELOAD_KEY]).toBe(staleChunkKey(URL_A));
 	});
 

@@ -83,6 +83,10 @@
 		const res = await fetch('/api/tune-parse', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
+			// Bounded like the config probe: a stalled connection would
+			// otherwise hang the await and leave the file input disabled until
+			// reload. Model calls run tens of seconds — allow minutes.
+			signal: AbortSignal.timeout(180_000),
 			body: JSON.stringify({
 				system: {
 					image: sys.image,
@@ -209,6 +213,10 @@
 				const res = await fetch('/api/tune-parse', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
+					// Whole-PDF extraction (with its retry) runs longer than a
+					// single system call — but must still terminate, releasing
+					// the input via the outer finally.
+					signal: AbortSignal.timeout(300_000),
 					body: JSON.stringify({ pdf: toBase64(buffer), filename: file.name })
 				});
 				if (!res.ok) {

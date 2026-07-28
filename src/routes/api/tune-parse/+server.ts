@@ -75,11 +75,14 @@ function rateLimitKey(userId: string | null, getClientAddress: () => string): st
 	}
 }
 
-/** Prune a bucket to the window and return its live array (non-consuming). */
+/** Prune a bucket to the window and return its live array (non-consuming).
+ * Empty buckets are DELETED, not re-set — a rotating/spoofed-IP flood would
+ * otherwise grow the map with empty arrays for the life of the process. */
 function recentInWindow(key: string): number[] {
 	const now = Date.now();
 	const recent = (rateLimitBuckets.get(key) ?? []).filter((ts) => ts > now - RATE_LIMIT_WINDOW_MS);
-	rateLimitBuckets.set(key, recent);
+	if (recent.length === 0) rateLimitBuckets.delete(key);
+	else rateLimitBuckets.set(key, recent);
 	return recent;
 }
 
@@ -87,7 +90,32 @@ function isRateLimited(key: string, max = RATE_LIMIT_MAX): boolean {
 	const recent = recentInWindow(key);
 	if (recent.length >= max) return true;
 	recent.push(Date.now());
+	rateLimitBuckets.set(key, recent);
 	return false;
+}
+
+/**
+ * Size-gated sweep bounding total retention. Delete-on-empty alone cannot
+ * bound the map: a malformed flood never refunds its `:pre` ticket, so each
+ * rotating key leaves one entry holding a timestamp that no later call FOR
+ * THAT KEY ever prunes. Once the map crosses the threshold, one pass drops
+ * expired timestamps and empty buckets, so retention is bounded by keys
+ * active within the window.
+ */
+const RATE_LIMIT_SWEEP_THRESHOLD = 1000;
+function sweepExpiredBuckets(): void {
+	if (rateLimitBuckets.size < RATE_LIMIT_SWEEP_THRESHOLD) return;
+	const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+	for (const [key, bucket] of rateLimitBuckets) {
+		const live = bucket.filter((ts) => ts > cutoff);
+		if (live.length === 0) rateLimitBuckets.delete(key);
+		else if (live.length !== bucket.length) rateLimitBuckets.set(key, live);
+	}
+}
+
+/** Test-only: bucket-map cardinality (unbounded-growth regression guard). */
+export function _rateLimitBucketCountForTests(): number {
+	return rateLimitBuckets.size;
 }
 
 /**
@@ -100,12 +128,14 @@ function isRateLimited(key: string, max = RATE_LIMIT_MAX): boolean {
  * nothing. Returns the ticket timestamp, or null when over budget.
  */
 function takePreReadTicket(limitKey: string): number | null {
+	sweepExpiredBuckets();
 	const pre = recentInWindow(`${limitKey}:pre`);
 	const used =
 		pre.length + recentInWindow(limitKey).length + recentInWindow(`${limitKey}:sys`).length;
 	if (used >= RATE_LIMIT_MAX + SYSTEM_RATE_LIMIT_MAX) return null;
 	const ts = Date.now();
 	pre.push(ts);
+	rateLimitBuckets.set(`${limitKey}:pre`, pre);
 	return ts;
 }
 

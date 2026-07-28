@@ -121,8 +121,13 @@ describe('validateAdoptedTune', () => {
 			duration: [1, 4] as [number, number],
 			offset: [i, 4] as [number, number]
 		}));
+		// The 5001 offsets legitimately overrun any valid bar count, so the
+		// bars override also trips 'invalid bar count' — the message assertion
+		// below is what pins the NOTE cap specifically.
 		tooManyNotes.sections[0].bars = 10_000;
-		expect(validateAdoptedTune(tooManyNotes).valid).toBe(false);
+		const notesResult = validateAdoptedTune(tooManyNotes);
+		expect(notesResult.valid).toBe(false);
+		expect(notesResult.errors.join('; ')).toContain('too many notes');
 
 		const tooManySections = validSheet({
 			sections: Array.from({ length: MAX_SECTIONS_PER_ADOPTED_TUNE + 1 }, () => ({
@@ -137,6 +142,8 @@ describe('validateAdoptedTune', () => {
 				}]
 			}))
 		});
-		expect(validateAdoptedTune(tooManySections).valid).toBe(false);
+		const sectionsResult = validateAdoptedTune(tooManySections);
+		expect(sectionsResult.valid).toBe(false);
+		expect(sectionsResult.errors.join('; ')).toContain('too many sections');
 	});
 });

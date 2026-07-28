@@ -57,12 +57,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { writtenSheetToConcert } from '$lib/tunes/source-transposition';
-import { INSTRUMENTS } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import type { Tune } from '$lib/types/tune';
 import { existsSync } from 'node:fs';
-import { CORPUS } from '../helpers/leadsheet-corpus';
+import { CORPUS, resolveConcertSheet } from '../helpers/leadsheet-corpus';
 
 // Charts whose PDF fixture has been recorded (new corpus entries join the
 // suite as soon as their fixture lands — see the corpus manifest header).
@@ -84,7 +82,9 @@ function load(slug: string): { ref: Tune; pdf: Tune } {
 		sheet: Tune;
 	};
 	// The import page's default for a tenor user: the chart is a Bb part.
-	const pdf = writtenSheetToConcert(res.sheet, 'Bb', INSTRUMENTS['tenor-sax']);
+	// PDFs are always printed parts, so declaredTransposition is 0 — the
+	// shared corpus rule then applies the written-Bb → concert shift.
+	const pdf = resolveConcertSheet(res.sheet, 0);
 	return { ref, pdf };
 }
 

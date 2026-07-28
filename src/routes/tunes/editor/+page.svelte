@@ -133,6 +133,13 @@
 	let dockExpanded = $state(true);
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let isPlaying = $state(false);
+	// Guards the async start path (instrument load): a second click during
+	// the await would otherwise start overlapping playback.
+	let starting = $state(false);
+	// Set by onDestroy: a navigation during the await above would otherwise
+	// let playback start AFTER teardown, with no Stop button left to end it
+	// (onDestroy's guard sees isPlaying still false at that point).
+	let destroyed = false;
 	let editHydrationActive = true;
 
 	function handleKeyChange(event: Event): void {
@@ -177,6 +184,7 @@
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		editHydrationActive = false;
 		if (typeof window !== 'undefined') window.removeEventListener('keydown', handleKeydown);
 		if (playbackModule && isPlaying) playbackModule.stopPlayback();
@@ -219,15 +227,21 @@
 	}
 
 	async function togglePlay(): Promise<void> {
-		if (!playbackModule) return;
+		if (!playbackModule || starting) return;
 		if (isPlaying) {
 			playbackModule.stopPlayback();
 			isPlaying = false;
 			return;
 		}
-		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+		starting = true;
+		try {
+			if (!playbackModule.isInstrumentLoaded()) {
+				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+			}
+		} finally {
+			starting = false;
 		}
+		if (destroyed) return;
 		isPlaying = true;
 		try {
 			await playbackModule.playPhrase(

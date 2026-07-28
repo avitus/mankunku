@@ -50,22 +50,6 @@ export interface ColumnProfile {
 	offLine: number;
 }
 
-/** Group consecutive (or near-consecutive) indices into center positions. */
-function clusterCenters(indices: number[], maxGap: number): number[] {
-	const centers: number[] = [];
-	let start = -1;
-	let prev = -Infinity;
-	for (const i of indices) {
-		if (i - prev > maxGap) {
-			if (start >= 0) centers.push(Math.round((start + prev) / 2));
-			start = i;
-		}
-		prev = i;
-	}
-	if (start >= 0) centers.push(Math.round((start + prev) / 2));
-	return centers;
-}
-
 /**
  * Find five-line staves in a row-darkness profile.
  *
@@ -224,7 +208,7 @@ export function findBarlines(
 		if (isCandidate[x] && !chunky(x)) candidates.push(x);
 	}
 
-	// Group into boundaries; a group wider than 1.5 il is a blob, not a
+	// Group into boundaries; a group wider than 2.2 il is a blob, not a
 	// barline (thick+thin repeat pairs stay comfortably under that).
 	interface Boundary {
 		x: number;

@@ -135,7 +135,7 @@
 				aria-label="Octave down"
 				class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
 			>&minus;</button>
-			<span class="w-16 @max-[28rem]/entry:w-8 text-center text-sm font-medium tabular-nums"><span class="@max-[28rem]/entry:hidden">Oct</span> {stepEntry.selectedOctave}</span>
+			<span class="w-16 @max-[28rem]/entry:w-8 text-center text-sm font-medium tabular-nums"><span class="@max-[28rem]/entry:sr-only">Oct</span> {stepEntry.selectedOctave}</span>
 			<button
 				onclick={() => adjustOctave(1)}
 				aria-label="Octave up"

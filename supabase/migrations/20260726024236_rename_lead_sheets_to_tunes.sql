@@ -160,12 +160,17 @@ COMMENT ON VIEW public.public_tune_authors IS
 -- Storage API post-deploy (see header); a follow-up migration drops its
 -- four policies once it is deleted in the dashboard.
 
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('tunes', 'tunes', false)
+-- Bucket-side caps back up the client checks: 16 MiB (the 10MB-PDF/15MB-
+-- request envelope) and PDF-only uploads — nothing else client-side limits
+-- what an authenticated session can PUT.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('tunes', 'tunes', false, 16777216, ARRAY['application/pdf'])
 ON CONFLICT (id) DO UPDATE
 SET
   name = EXCLUDED.name,
-  public = EXCLUDED.public;
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 DROP POLICY IF EXISTS "Users can upload own tune PDFs" ON storage.objects;
 DROP POLICY IF EXISTS "Users can view own tune PDFs" ON storage.objects;

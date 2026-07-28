@@ -108,6 +108,45 @@ describe('parseBiabFile', () => {
 		expect(sheets[0].sections[0].bars).toBe(3);
 	});
 
+	it('ignores a part marker before bar 1 instead of emitting a negative-length section', () => {
+		// A corrupt/truncated bar-type stream can open with bar index 0; its
+		// marker maps to boundary -1, which must be filtered out — not become
+		// an unsorted boundary list with a bars: -1 section.
+		const bytes: number[] = [];
+		bytes.push(0x44);
+		const title = 'Test Song';
+		bytes.push(title.length);
+		for (const ch of title) bytes.push(ch.charCodeAt(0));
+		bytes.push(0x00, 0x00);
+		bytes.push(0x01); // Jazz Swing (4/4)
+		bytes.push(0x04); // Eb
+		bytes.push(0x8c, 0x00);
+		// Bar types: stream opens at bar 0 with a 'b' marker → boundary -1.
+		bytes.push(0x00, 0x02, 0x00, 0xff);
+		// Extensions at beats 0, 4, 8 (same as syntheticSgu).
+		bytes.push(6);
+		bytes.push(0x00, 0x03);
+		bytes.push(64);
+		bytes.push(0x00, 0x03);
+		bytes.push(64);
+		bytes.push(0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xf6);
+		// Roots at beats 0, 4, 8.
+		bytes.push(1);
+		bytes.push(0x00, 0x03);
+		bytes.push(6);
+		bytes.push(0x00, 0x03);
+		bytes.push(240);
+		bytes.push(0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xf6);
+		bytes.push(0x01, 0x01, 0x03, 0x01); // pad + chorus
+		const { sheets } = parseBiabFile(new Uint8Array(bytes));
+		const sections = sheets[0].sections;
+		for (const sec of sections) {
+			expect(sec.bars).toBeGreaterThanOrEqual(1);
+		}
+		// The section bar-spans still partition the 3-bar form exactly.
+		expect(sections.reduce((sum, s) => sum + s.bars, 0)).toBe(3);
+	});
+
 	it('warns once, not per beat cell, when the root/extension streams disagree', () => {
 		const bytes = syntheticSgu();
 		// Root-stream skip counts sit at offsets 37 and 40 (after the 15-byte

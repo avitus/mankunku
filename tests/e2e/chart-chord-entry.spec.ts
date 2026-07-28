@@ -180,7 +180,7 @@ test.describe('touch', () => {
 		await openEditor(page);
 		await armTouchLeakCounter(page);
 
-		await page.tap('[data-chord-pos="0:2:0"]');
+		await page.locator('[data-chord-pos="0:2:0"]').tap();
 
 		const input = page.getByTestId('chord-input');
 		await expect(input).toHaveCount(1);

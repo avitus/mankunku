@@ -276,7 +276,9 @@ export function parseBiabFile(bytes: Uint8Array): BiabImportResult {
 		}
 
 		// ── Sections from part markers ──────────────────────────────────
-		const boundaries = [...markers.keys()].filter((b) => b < bars).sort((a, b) => a - b);
+		// b >= 0: a corrupt stream can mark bar index 0, whose boundary (-1)
+		// would otherwise produce an unsorted list and a negative-length section.
+		const boundaries = [...markers.keys()].filter((b) => b >= 0 && b < bars).sort((a, b) => a - b);
 		if (boundaries.length === 0 || boundaries[0] !== 0) boundaries.unshift(0);
 
 		const sections = boundaries.map((startBar, i) => {

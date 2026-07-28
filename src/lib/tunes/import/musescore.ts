@@ -362,6 +362,11 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 			ending: endingByMeasure[measureIdx]
 		};
 
+		// MuseScore tuplets cannot cross barlines: a <Tuplet> whose <endTuplet/>
+		// is missing (truncated/malformed voice) must not leak its ratio into
+		// every later measure's durations — reset at each measure boundary.
+		tupletStack.length = 0;
+
 		const voice = xmlText(block, 'voice');
 		let cursor = addFractions(measureStart, pad);
 		if (voice) {

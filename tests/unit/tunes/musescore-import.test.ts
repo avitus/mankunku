@@ -431,6 +431,46 @@ describe('parseMscx — basics', () => {
 		]);
 	});
 
+	it('confines an unterminated tuplet ratio to its own measure', () => {
+		// A truncated/malformed voice can open a <Tuplet> with no matching
+		// <endTuplet/>. MuseScore tuplets cannot cross barlines, so the ratio
+		// must reset at the measure boundary — not silently compress every
+		// later bar's durations.
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Tuplet>
+            <normalNotes>2</normalNotes>
+            <actualNotes>3</actualNotes>
+            <baseNote>eighth</baseNote>
+          </Tuplet>
+          ${CHORD(60, 'eighth')}
+          ${CHORD(62, 'eighth')}
+          ${CHORD(64, 'eighth')}
+          <Rest><durationType>half</durationType></Rest>
+          <Rest><durationType>quarter</durationType></Rest>
+        </voice>
+      </Measure>
+      <Measure>
+        <voice>
+          ${CHORD(65, 'quarter')}
+          <Rest><durationType>half</durationType></Rest>
+          <Rest><durationType>quarter</durationType></Rest>
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		const notes = sheets[0].sections[0].notes;
+		// Bar 2's quarter note is a true quarter on the bar-2 downbeat — a
+		// leaked 2:3 ratio would shrink it to [1, 6].
+		expect(notes[3].pitch).toBe(65);
+		expect(notes[3].offset).toEqual([1, 1]);
+		expect(notes[3].duration).toEqual([1, 4]);
+	});
+
 	it('maps SMuFL metronome syms in Tempo text to glyphs (♩ = 60)', () => {
 		// Plain tag-stripping would leave the glyph NAME in the style text
 		// ("metNoteQuarterUp = 60"); MuseScore 4 renders the note glyph.

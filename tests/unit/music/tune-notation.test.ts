@@ -7,6 +7,18 @@ import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
 
 const TENOR = INSTRUMENTS['tenor-sax'];
 
+/** Repeat + numbered endings across four sections (A A[1 A[2 B). */
+function repeatsSheet(): Tune {
+	return sheet({
+		sections: [
+			section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+			section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+			section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+			section({ label: 'B', bars: 2, harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })
+		]
+	});
+}
+
 describe('tuneToAbc — headers', () => {
 	it('emits X/T/M/L/K headers with the concert key when no instrument is given', () => {
 		const abc = tuneToAbc(simpleSheet());
@@ -172,19 +184,8 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 });
 
 describe('tuneToAbc — sections, repeats, endings', () => {
-	function formSheet(): Tune {
-		return sheet({
-			sections: [
-				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
-				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
-				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
-				section({ label: 'B', bars: 2, harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })
-			]
-		});
-	}
-
 	it('emits part labels when the section label changes', () => {
-		const abc = tuneToAbc(formSheet());
+		const abc = tuneToAbc(repeatsSheet());
 		expect(abc).toMatch(/^P:A$/m);
 		expect(abc).toMatch(/^P:B$/m);
 		// Three consecutive A-labeled sections produce a single P:A.
@@ -192,12 +193,12 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 	});
 
 	it('opens a repeat at a repeatStart section', () => {
-		const abc = tuneToAbc(formSheet());
+		const abc = tuneToAbc(repeatsSheet());
 		expect(abc).toMatch(/P:A\n\[V:M\]\|:/);
 	});
 
 	it('flows the first ending inline and stacks the second beneath it', () => {
-		const abc = tuneToAbc(formSheet());
+		const abc = tuneToAbc(repeatsSheet());
 		// [1 continues the body's line (no newline before it)…
 		expect(abc).toMatch(/\| \[1/);
 		// …and [2 starts a fresh system padded with invisible bars so its
@@ -223,8 +224,26 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 		expect(abc).toMatch(/\[V:M\]\[2/);
 	});
 
+	it('breaks an inline-flowed first ending at the line width, not its section-local bar count', () => {
+		// The [1 flows inline after a 2-bar body, entering at column 2 — its
+		// line break must land after 2 inline bars (absolute column 4), not
+		// after 4 section-local bars, or the first system over-fills.
+		const abc = tuneToAbc(sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 6, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [6, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] })
+			]
+		}));
+		for (const line of abc.split('\n').filter((l) => l.startsWith('[V:M]'))) {
+			// One x8 token per melody bar (harmony-only sheet); every system
+			// must stay within the 4-bar line width.
+			expect((line.match(/x8/g) ?? []).length, line).toBeLessThanOrEqual(4);
+		}
+	});
+
 	it('separates plain sections with a double bar and ends with a final bar', () => {
-		const abc = tuneToAbc(formSheet());
+		const abc = tuneToAbc(repeatsSheet());
 		expect(abc).toMatch(/\|\|\n\[V:H\]/);
 		expect(abc).toMatch(/P:B\n\[V:M\]/);
 		// The melody line closes with the final barline; the chord voice's
@@ -544,18 +563,6 @@ function multiSystemSheet(): Tune {
 		offset: [bar, 1] as [number, number]
 	}));
 	return sheet({ sections: [section({ bars: 8, notes })] });
-}
-
-/** Repeat + numbered endings across four sections (A A[1 A[2 B). */
-function repeatsSheet(): Tune {
-	return sheet({
-		sections: [
-			section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
-			section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
-			section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
-			section({ label: 'B', bars: 2, harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })
-		]
-	});
 }
 
 /** 3/4 sheet: three quarter notes over Dm7/G7, then an empty bar under CΔ7. */

@@ -264,6 +264,26 @@ describe('tombstone propagation', () => {
 		expect(typeof readMeta()['X']?.deletedAt).toBe('number');
 	});
 
+	it('propagates a local tombstone that TIES a live cloud row on mtime', async () => {
+		// Cross-tab race artifact: a live local sheet coexisting with a local
+		// tombstone stamped at exactly the cloud row's mtime. Ties resolve
+		// local-wins everywhere else in this merge — the deletion must win
+		// here too (and push), not leave the cloud row live.
+		seedLive([makeSheet({ id: 'X', title: 'Zombie' })]);
+		seedMeta({ X: { mtime: 100, deletedAt: 100 } });
+		seedOwners({ X: CLOUD_UID });
+
+		const { client, tombstoneUpdates, upsertedRows } = createMockSupabase([
+			makeCloudRow({ id: 'X', deleted_at: null, client_mtime: 100 })
+		]);
+		await initTunesFromCloud(client);
+
+		expect(getUserTunesLocal().map((s) => s.id)).not.toContain('X');
+		expect(upsertedRows).toHaveLength(0);
+		expect(tombstoneUpdates).toHaveLength(1);
+		expect(tombstoneUpdates[0].client_mtime).toBe(100);
+	});
+
 	it('lets a newer cloud re-creation beat an older local tombstone', async () => {
 		seedLive([]);
 		seedMeta({ X: { mtime: 100, deletedAt: 100 } });
@@ -328,6 +348,24 @@ describe('live-vs-live edits resolve by client_mtime', () => {
 
 		expect(getUserTunesLocal().find((s) => s.id === 'X')?.title).toBe('LOCAL tie');
 		expect(upsertedRows).toHaveLength(0);
+	});
+});
+
+describe('owner-contamination defense', () => {
+	it('drops a local-only sheet stamped for a DIFFERENT user and never pushes it', async () => {
+		// Defense-in-depth for the 2026 cross-user contamination incident
+		// class: an entry left behind by a prior unfiltered-read regression
+		// must neither survive the merge nor be upserted into this user's
+		// cloud rows.
+		seedLive([makeSheet({ id: 'X', title: 'Not mine' })]);
+		seedOwners({ X: 'user-b' });
+
+		const { client, upsertedRows, tombstoneUpdates } = createMockSupabase([]);
+		await initTunesFromCloud(client);
+
+		expect(getUserTunesLocal()).toHaveLength(0);
+		expect(upsertedRows).toHaveLength(0);
+		expect(tombstoneUpdates).toHaveLength(0);
 	});
 });
 

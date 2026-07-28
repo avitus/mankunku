@@ -1,6 +1,6 @@
 import type { Fraction, PitchClass } from '$lib/types/music';
 import type { Tune, TuneSection } from '$lib/types/tune';
-import { addFractions, multiplyFraction } from '$lib/music/intervals';
+import { addFractions, multiplyFraction, subtractFractions } from '$lib/music/intervals';
 import { parseChordSymbol } from '$lib/music/chord-symbol';
 import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 
@@ -131,7 +131,11 @@ function tokenizeMusic(music: string, warnings: string[]): MusicToken[] {
 			tokens.push({ kind: 'chord', value: text });
 			i = j;
 		} else {
-			warnings.push(`iReal: skipped unrecognized character '${c}'`);
+			// One warning per DISTINCT character: a garbled/mis-descrambled
+			// music string would otherwise flood the user-facing list with
+			// thousands of near-identical rows.
+			const msg = `iReal: skipped unrecognized character '${c}'`;
+			if (!warnings.includes(msg)) warnings.push(msg);
 			i++;
 		}
 	}
@@ -321,10 +325,9 @@ function buildSection(
 	const sectionEnd = multiplyFraction(barDuration, builder.bars.length);
 	placed.forEach((p, idx) => {
 		const next = idx + 1 < placed.length ? placed[idx + 1].offset : sectionEnd;
-		const duration: Fraction = [
-			next[0] * p.offset[1] - p.offset[0] * next[1],
-			next[1] * p.offset[1]
-		];
+		// subtractFractions reduces (inline cross-multiplication left shapes
+		// like [2, 8] in stored durations) — consistent with the other importers.
+		const duration = subtractFractions(next, p.offset);
 		const segment = harmonicSegmentFromSymbol(normalizeIRealChord(p.text), p.offset, duration);
 		if (segment) section.harmony.push(segment);
 		else warnings.push(`iReal: skipped unparseable chord "${p.text}"`);

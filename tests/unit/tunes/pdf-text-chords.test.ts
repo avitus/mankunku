@@ -44,9 +44,10 @@ describe('extractSystemTexts', () => {
 		// "G<E18A>7" = GΔ7; "E9" + raised smaller "<E10C>11" = E9#11.
 		const [sys] = extractSystemTexts(
 			[
-				item('G7', 110, 450, 60, 90),
+				// \ue18a = MuseJazz major-seventh Delta glyph (PUA, invisible in most editors).
+				item('G\ue18a7', 110, 450, 60, 90),
 				item('E9', 420, 450, 60, 60),
-				item('11', 484, 426, 45, 60)
+				item('\ue10c11', 484, 426, 45, 60)
 			],
 			SYSTEMS
 		);
@@ -148,7 +149,7 @@ describe('extractSystemTexts', () => {
 		const [sys] = extractSystemTexts(
 			[
 				item('The', 200, 650, 44), // lyric: below the staff
-				item('', 150, 450, 79), // stray music glyph above
+				item('\ue262', 150, 450, 79), // stray music glyph above (SMuFL sharp, PUA)
 				item('D6', 110, 450, 60)
 			],
 			SYSTEMS
@@ -158,7 +159,8 @@ describe('extractSystemTexts', () => {
 
 	it('strips tall parentheses around optional chords', () => {
 		const [sys] = extractSystemTexts(
-			[item('', 700, 450, 62, 15), item('E-7', 720, 450, 60), item('A7)', 830, 450, 60)],
+			// \ue875 = MuseJazz tall left parenthesis glyph (PUA).
+			[item('\ue875', 700, 450, 62, 15), item('E-7', 720, 450, 60), item('A7)', 830, 450, 60)],
 			SYSTEMS
 		);
 		expect(sys.chords).toEqual([

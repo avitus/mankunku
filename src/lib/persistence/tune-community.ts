@@ -302,11 +302,14 @@ export async function adoptTune(
 		if (!validation.valid) {
 			console.warn(`Adopted lead sheet ${sheetId} failed validation; not caching payload:`, validation.errors);
 		} else {
+			// The in-hand payload is server-fresh and validated — replace any
+			// cached copy rather than keep it stale (the caches can diverge
+			// after a partially-failed return) until the next full hydration.
 			const payloads = getAdoptedTunesLocal();
-			if (!payloads.some((p) => p.id === sheetId)) {
-				payloads.push(sheet);
-				saveAdoptedPayloadsLocal(payloads);
-			}
+			const existingIdx = payloads.findIndex((p) => p.id === sheetId);
+			if (existingIdx === -1) payloads.push(sheet);
+			else payloads[existingIdx] = sheet;
+			saveAdoptedPayloadsLocal(payloads);
 
 			const { data: author } = await supabase
 				.from('public_tune_authors')

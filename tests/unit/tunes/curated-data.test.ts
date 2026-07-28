@@ -95,6 +95,10 @@ describe('curated lead-sheet library', () => {
 			expect(concert).toContain('"');
 			const tenor = tuneToAbc(sheet, INSTRUMENTS['tenor-sax']);
 			expect(tenor).toContain('K:');
+			// A Bb instrument's written key is concert +2 semitones, which never
+			// maps a pitch class to itself — the tenor render must actually
+			// transpose, not ignore its instrument argument.
+			expect(tenor.match(/^K:.*$/m)?.[0]).not.toBe(concert.match(/^K:.*$/m)?.[0]);
 		}
 	);
 });

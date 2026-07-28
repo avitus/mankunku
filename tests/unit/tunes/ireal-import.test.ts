@@ -125,6 +125,14 @@ describe('parseIRealUrl — cell semantics', () => {
 		expect(harmony[1].startOffset).toEqual([1, 2]);
 	});
 
+	it('warns once per distinct unrecognized character, not per occurrence', () => {
+		// A garbled/mis-descrambled music string repeats the same junk byte —
+		// the user-facing warning list must not flood with duplicates.
+		const url = 'irealbook://' + encodeURIComponent('X=Y=Swing=C=n=T44C^7 ?|G7 ?Z');
+		const { warnings } = parseIRealUrl(url);
+		expect(warnings.filter((w) => w.includes("unrecognized character '?'"))).toHaveLength(1);
+	});
+
 	it('repeats the previous bar for x and leaves N.C. bars empty', () => {
 		const sheet = sheetFor('T44C^7 |x |n |G7 Z');
 		expect(sheet.sections[0].bars).toBe(4);

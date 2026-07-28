@@ -244,6 +244,27 @@ describe('toggleTuneFavorite', () => {
 		expect(result).toBe(false);
 		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(false);
 	});
+
+	it('unfavorites on a second toggle and confirms on server success', async () => {
+		const sb = makeSupabaseMock({ user: ME });
+		await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		expect(result).toBe(false);
+		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(false);
+	});
+
+	it('re-adds the favorite when the server delete fails', async () => {
+		const okSb = makeSupabaseMock({ user: ME });
+		await toggleTuneFavorite(okSb as never, 'sheet-9-wxyz');
+
+		const sb = makeSupabaseMock({
+			user: ME,
+			onDelete: () => ({ error: new Error('offline') })
+		});
+		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		expect(result).toBe(true);
+		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(true);
+	});
 });
 
 // ─── adoptTune / returnTune ─────────────────────────────────
@@ -298,6 +319,31 @@ describe('adoptTune', () => {
 	it('fails without a session', async () => {
 		const sb = makeSupabaseMock({ user: null });
 		await expect(adoptTune(sb as never, 'sheet-9-wxyz')).resolves.toBe(false);
+	});
+
+	it('refreshes a stale cached payload when the caches have diverged', async () => {
+		// A partially-failed return can leave the payload cache holding the
+		// sheet while the adoption set no longer does. Re-adopting fetches a
+		// FRESH validated payload — the cache must take it over the stale copy.
+		const staleSb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow({ title: 'Stale Title' }) }
+		});
+		await adoptTune(staleSb as never, 'sheet-9-wxyz');
+		// Diverge: drop the adoption while the payload cache keeps the sheet.
+		const { save } = await import('$lib/persistence/storage');
+		save('tune-adoptions', []);
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+		expect(getAdoptedTunesLocal()[0]?.title).toBe('Stale Title');
+
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow({ title: 'Fresh Title' }) }
+		});
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz')).resolves.toBe(true);
+		const payloads = getAdoptedTunesLocal();
+		expect(payloads).toHaveLength(1);
+		expect(payloads[0].title).toBe('Fresh Title');
 	});
 });
 

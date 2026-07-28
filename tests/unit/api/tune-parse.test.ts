@@ -146,6 +146,29 @@ describe('POST /api/tune-parse — guards', () => {
 		expect(saw429).toBe(true);
 	});
 
+	it('bounds the rate-limit bucket map under a rotating-key malformed flood', async () => {
+		const { POST, _rateLimitBucketCountForTests } = await loadRoute();
+		// A malformed body 400s before its `:pre` ticket is refunded, so every
+		// rotating (spoofed-IP) key leaves a ticket behind that no later call
+		// for that key would prune — retention must be bounded by keys active
+		// within the 60s window, not grow monotonically for the process life.
+		vi.useFakeTimers();
+		try {
+			for (let i = 0; i < 1200; i++) {
+				try {
+					await POST(makeEvent('{nope', {}, `flood-user-${i}`));
+					expect.unreachable();
+				} catch (e) {
+					if (!isHttpError(e)) throw e; // 400s expected
+				}
+				vi.advanceTimersByTime(150); // the window rolls; old keys expire
+			}
+			expect(_rateLimitBucketCountForTests()).toBeLessThanOrEqual(1000);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('never starves one mode with the other mode\'s traffic (pre-read ticket is refunded on classification)', async () => {
 		const { POST } = await loadRoute();
 		mockCreate.mockResolvedValue({ content: [{ type: 'text', text: '{}' }] });
