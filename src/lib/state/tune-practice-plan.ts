@@ -196,6 +196,21 @@ export function strictnessKnobs(
 	}
 }
 
+/**
+ * The suggestion an insertion window scores against: the user's pick when it
+ * is a valid index, else the top-ranked suggestion, else null.
+ */
+export function resolvePickedSuggestion(
+	suggestions: readonly LickSuggestion[],
+	pickedIndex: number | undefined
+): LickSuggestion | null {
+	if (suggestions.length === 0) return null;
+	if (pickedIndex !== undefined && pickedIndex >= 0 && pickedIndex < suggestions.length) {
+		return suggestions[pickedIndex];
+	}
+	return suggestions[0];
+}
+
 export interface ResultTally {
 	results: InsertionResult[];
 	totalPoints: number;

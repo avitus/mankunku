@@ -8,13 +8,21 @@ import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { detectProgressions, selectNonOverlapping } from '$lib/tunes/progression-detector';
 import { buildLickMatcherDeps, suggestLicksForProgression } from '$lib/tunes/lick-matcher';
 import { transposeTune } from '$lib/tunes/book-loader';
-import { getBaseLickFromId, transposeLick } from '$lib/phrases/library-loader';
+import { getAllLicks, getBaseLickFromId, isCuratedLickId, transposeLick } from '$lib/phrases/library-loader';
+import {
+	getEffectivePracticeLickIds,
+	hasLickProgress,
+	loadLickPracticeProgress
+} from '$lib/persistence/lick-practice-store';
+import { buildBookIndex, type FreestyleBook } from '$lib/matching/book-index';
+import type { FreestyleMatch } from '$lib/matching/freestyle';
 import { addFractions, compareFractions, subtractFractions } from '$lib/music/intervals';
 import {
 	applyInsertionResult,
 	buildSessionPlan,
 	carveMelody,
 	emptyResultTally,
+	resolvePickedSuggestion,
 	type InsertionPoint,
 	type InsertionResult,
 	type TunePracticeMode,
@@ -71,6 +79,10 @@ export const tunePractice = $state<{
 	bestStreak: number;
 	/** Points mode: insertion id → chosen suggestion index (default 0). */
 	pickedSuggestion: Record<string, number>;
+	/** Freestyle: recognized known licks, in playing order. */
+	freestyleMatches: FreestyleMatch[];
+	/** Freestyle: the currently-showing applause card, if any. */
+	celebration: { name: string; score: number } | null;
 	startTime: number;
 	elapsedSeconds: number;
 }>({
@@ -94,6 +106,8 @@ export const tunePractice = $state<{
 	streak: 0,
 	bestStreak: 0,
 	pickedSuggestion: {},
+	freestyleMatches: [],
+	celebration: null,
 	startTime: 0,
 	elapsedSeconds: 0
 });
@@ -114,6 +128,8 @@ export function initTunePractice(sheet: Tune): void {
 	tunePractice.streak = 0;
 	tunePractice.bestStreak = 0;
 	tunePractice.pickedSuggestion = {};
+	tunePractice.freestyleMatches = [];
+	tunePractice.celebration = null;
 	tunePractice.elapsedSeconds = 0;
 }
 
@@ -204,6 +220,8 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	tunePractice.totalPoints = 0;
 	tunePractice.streak = 0;
 	tunePractice.bestStreak = 0;
+	tunePractice.freestyleMatches = [];
+	tunePractice.celebration = null;
 	tunePractice.startTime = Date.now();
 	tunePractice.elapsedSeconds = 0;
 	tunePractice.phase = 'count-in';
@@ -220,8 +238,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 export function expectedForWindow(
 	ip: InsertionPoint
 ): { phrase: Phrase; lickName: string } | null {
-	const pickedIdx = tunePractice.pickedSuggestion[ip.id] ?? 0;
-	const suggestion = ip.suggestions[pickedIdx] ?? ip.suggestions[0];
+	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
 	if (!suggestion) return null;
 	const lick = getBaseLickFromId(suggestion.lickId);
 	if (!lick) return null;
@@ -284,7 +301,33 @@ export function recordWindowResult(
 
 export function completeTunePracticeSession(): void {
 	tunePractice.windowOpen = false;
+	tunePractice.celebration = null;
 	tunePractice.phase = 'complete';
+}
+
+/**
+ * The freestyle recognition pool: licks the user actually KNOWS — practice
+ * set members, anything with practice progress, and the user's own or
+ * adopted licks — never the whole curated catalog (celebrating a lick the
+ * user has never seen would be noise). Read-only store access.
+ */
+export function buildFreestyleBook(ppq: number): FreestyleBook {
+	const licks = getAllLicks();
+	const practiceIds = getEffectivePracticeLickIds(licks);
+	const progress = loadLickPracticeProgress();
+	const known = licks.filter(
+		(l) => practiceIds.has(l.id) || hasLickProgress(progress, l.id) || !isCuratedLickId(l.id)
+	);
+	return buildBookIndex(known, ppq);
+}
+
+export function recordFreestyleMatch(match: FreestyleMatch): void {
+	tunePractice.freestyleMatches = [...tunePractice.freestyleMatches, match];
+	tunePractice.celebration = { name: match.name, score: match.score };
+}
+
+export function clearCelebration(): void {
+	tunePractice.celebration = null;
 }
 
 export function updateElapsedTime(): void {
@@ -303,6 +346,8 @@ export function resetTunePractice(): void {
 	tunePractice.streak = 0;
 	tunePractice.bestStreak = 0;
 	tunePractice.pickedSuggestion = {};
+	tunePractice.freestyleMatches = [];
+	tunePractice.celebration = null;
 	tunePractice.elapsedSeconds = 0;
 }
 

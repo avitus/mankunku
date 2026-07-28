@@ -3,6 +3,8 @@
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import InsertionCueStrip, { type CueEntry } from '$lib/components/tune-practice/InsertionCueStrip.svelte';
+	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
+	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
 	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
@@ -19,10 +21,16 @@
 		completeTunePracticeSession,
 		updateElapsedTime,
 		resetTunePractice,
+		pickSuggestion,
+		buildFreestyleBook,
+		recordFreestyleMatch,
+		clearCelebration,
 		type TunePracticeAudioPlan,
 		type InsertionPoint
 	} from '$lib/state/tune-practice.svelte';
-	import { strictnessKnobs } from '$lib/state/tune-practice-plan';
+	import { strictnessKnobs, type TunePracticeMode, type TunePracticeStrictness } from '$lib/state/tune-practice-plan';
+	import { createFreestyleRecognizer } from '$lib/matching/freestyle';
+	import type { FreestyleBook } from '$lib/matching/book-index';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import {
 		resolveOnsets,
@@ -90,9 +98,16 @@
 	}
 	let currentWindow: OpenWindow | null = null;
 
-	// Non-reactive tick anchors (ticks, never seconds — the hard rule).
-	let barTicksNR = 0;
+	// Tick anchors (ticks, never seconds — the hard rule). barTicks is $state
+	// because the freestyle report derives bar numbers from it; ppq stays a
+	// plain let (audio-path only).
+	let barTicksNR = $state(0);
 	let ppqNR = 0;
+
+	// Freestyle recognition (created per session; torn down in stopAll).
+	let freestyleBook: FreestyleBook | null = null;
+	let freestyleRecognizer: ReturnType<typeof createFreestyleRecognizer> | null = null;
+	let freestyleWindowSec = 0;
 
 	let isSessionRunning = $state(false);
 	let isLoading = $state(false);
@@ -153,6 +168,7 @@
 
 	const cueEntries = $derived.by<CueEntry[]>(() => {
 		if (tunePractice.phase !== 'count-in' && tunePractice.phase !== 'running') return [];
+		if (tunePractice.config.mode === 'freestyle') return [];
 		return tunePractice.plan
 			.map((ip, i) => ({ ip, i }))
 			.filter(({ i }) => i >= tunePractice.currentIndex)
@@ -175,6 +191,23 @@
 	const hitCount = $derived(
 		tunePractice.results.filter((r) => r.grade !== null && r.grade !== 'try-again').length
 	);
+
+	// Points mode: the pick card always targets the NEXT window to open (the
+	// open window already locked in its pick at open time).
+	const pickTargetIndex = $derived.by(() => {
+		if (tunePractice.config.mode !== 'points') return -1;
+		if (tunePractice.phase !== 'count-in' && tunePractice.phase !== 'running') return -1;
+		const idx = tunePractice.windowOpen ? tunePractice.currentIndex + 1 : tunePractice.currentIndex;
+		return idx < tunePractice.plan.length ? idx : -1;
+	});
+	const pickEntries = $derived.by<PickEntry[]>(() => {
+		if (pickTargetIndex < 0) return [];
+		return tunePractice.plan[pickTargetIndex].suggestions.map((s) => ({
+			name: s.lickName,
+			mastery: s.masteryTier,
+			writtenKey: concertKeyToWritten(s.targetKey, getInstrument())
+		}));
+	});
 
 	onMount(async () => {
 		playback = await import('$lib/audio/playback');
@@ -280,6 +313,23 @@
 		isSessionRunning = true;
 		startBeatTracking();
 
+		if (tunePractice.config.mode === 'freestyle') {
+			freestyleBook = buildFreestyleBook(ppqNR);
+			freestyleRecognizer = createFreestyleRecognizer({
+				book: freestyleBook,
+				tempo: tunePractice.config.tempo,
+				barTicks: barTicksNR
+			});
+			// The trailing capture window must fit the longest indexed lick plus
+			// a bar of headroom — a bound in musical time, not a new threshold.
+			const maxDurTicks = Math.max(0, ...freestyleBook.durationTicks.values());
+			freestyleWindowSec =
+				((maxDurTicks + barTicksNR) / ppqNR) * (60 / tunePractice.config.tempo);
+		} else {
+			freestyleBook = null;
+			freestyleRecognizer = null;
+		}
+
 		const skipMelody = tunePractice.config.mode === 'freestyle' || !tunePractice.config.playMelody;
 		try {
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
@@ -304,12 +354,44 @@
 				if (isSessionRunning) markRunning();
 			}, `${barTicksNR}i`)
 		);
+		if (tunePractice.config.mode === 'freestyle') {
+			// No pre-scheduled windows — a bar-cadence scan recognizes known
+			// licks from the live stream instead. transport.cancel() clears it.
+			scheduledEventIds.push(
+				transport.scheduleRepeat(() => runFreestyleScan(), `${barTicksNR}i`, `${barTicksNR}i`)
+			);
+			return;
+		}
 		tunePractice.plan.forEach((ip, i) => {
 			scheduledEventIds.push(
 				transport.scheduleOnce(() => openInsertionWindow(i), `${ip.openTick}i`),
 				transport.scheduleOnce(() => closeInsertionWindow(), `${ip.closeTick}i`)
 			);
 		});
+	}
+
+	/**
+	 * One freestyle scan: re-segment the trailing readings slice (pure batch —
+	 * pitch-derived onsets only; worklet/bleed refinement is scored-mode
+	 * machinery) and ask the recognizer. Runs on the audio clock per bar.
+	 */
+	function runFreestyleScan() {
+		if (!isSessionRunning || !pitchDetector || !freestyleRecognizer || !toneModule) return;
+		const readings = pitchDetector.getReadings();
+		if (readings.length === 0) return;
+		const nowSec = readings[readings.length - 1].time;
+		const sliceStart = Math.max(0, nowSec - freestyleWindowSec);
+		const slice: PitchReading[] = [];
+		for (let i = readings.length - 1; i >= 0; i--) {
+			if (readings[i].time < sliceStart) break;
+			slice.push({ ...readings[i], time: readings[i].time - sliceStart });
+		}
+		slice.reverse();
+		if (slice.length === 0) return;
+		const onsets = resolveOnsets([], slice);
+		const detected = segmentNotes(slice, onsets, nowSec - sliceStart);
+		const match = freestyleRecognizer.scan(detected, toneModule.getTransport().ticks);
+		if (match) recordFreestyleMatch(match);
 	}
 
 	function openInsertionWindow(index: number) {
@@ -436,6 +518,8 @@
 			captureModule?.stopMicCapture();
 			micCapture = null;
 		}
+		freestyleRecognizer = null;
+		freestyleBook = null;
 		cursorIndex = null;
 	}
 
@@ -490,6 +574,74 @@
 		</div>
 
 		<div class="space-y-4 rounded-lg bg-[var(--color-bg-secondary)] p-4">
+			<div class="flex items-start gap-3">
+				<span class="w-20 shrink-0 pt-1.5 text-sm text-[var(--color-text-secondary)]">Mode</span>
+				<div class="flex-1 space-y-1">
+					{#each [
+						{ id: 'suggest', label: 'Suggest', desc: 'Cued practice — the top lick is named at every insertion point.' },
+						{ id: 'points', label: 'Points', desc: 'Pick your lick and earn points; back-to-back hits score double.' },
+						{ id: 'freestyle', label: 'Freestyle', desc: 'Backing only. Take a solo — known licks earn applause.' }
+					] as const as mode (mode.id)}
+						<button
+							onclick={() => {
+								tunePractice.config.mode = mode.id as TunePracticeMode;
+							}}
+							class="flex w-full items-baseline gap-2 rounded px-2 py-1.5 text-left transition-colors
+								{tunePractice.config.mode === mode.id
+									? 'bg-[var(--color-accent)]/20 ring-1 ring-[var(--color-accent)]'
+									: 'hover:bg-[var(--color-bg-tertiary)]'}"
+						>
+							<span class="w-20 shrink-0 text-sm font-medium">{mode.label}</span>
+							<span class="text-xs text-[var(--color-text-secondary)]">{mode.desc}</span>
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="flex items-center gap-3">
+				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Strictness</span>
+				<div class="flex flex-wrap gap-1">
+					{#each [
+						{ id: 'guided', label: 'Guided' },
+						{ id: 'standard', label: 'Standard' },
+						{ id: 'solo', label: 'Solo' }
+					] as const as level (level.id)}
+						<button
+							onclick={() => {
+								tunePractice.config.strictness = level.id as TunePracticeStrictness;
+							}}
+							class="rounded-full px-3 py-1 text-xs transition-colors
+								{tunePractice.config.strictness === level.id
+									? 'bg-[var(--color-accent)] text-white'
+									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
+						>
+							{level.label}
+						</button>
+					{/each}
+				</div>
+				<span class="text-xs text-[var(--color-text-secondary)]">
+					{tunePractice.config.strictness === 'guided'
+						? 'full cues, any octave'
+						: tunePractice.config.strictness === 'standard'
+							? 'cues on approach, any octave'
+							: 'no cues, exact register'}
+				</span>
+			</div>
+
+			{#if tunePractice.config.mode !== 'freestyle'}
+				<div class="flex items-center gap-3">
+					<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Melody</span>
+					<label class="flex items-center gap-2 text-sm">
+						<input
+							type="checkbox"
+							bind:checked={tunePractice.config.playMelody}
+							class="accent-[var(--color-accent)]"
+						/>
+						Play the head (rests during your insertions)
+					</label>
+				</div>
+			{/if}
+
 			<div class="flex items-center gap-3">
 				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Key</span>
 				<div class="flex flex-wrap gap-1">
@@ -592,6 +744,11 @@
 				<p class="text-sm text-[var(--color-text-secondary)]">
 					{#if tunePractice.phase === 'count-in'}
 						Count-in…
+					{:else if tunePractice.config.mode === 'freestyle'}
+						<span class="font-medium text-[var(--color-brass)]">Your solo</span> —
+						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
+							? ''
+							: 's'} heard
 					{:else if tunePractice.windowOpen}
 						<span class="font-medium text-[var(--color-onair)]">Your turn — play the lick!</span>
 					{:else}
@@ -601,6 +758,14 @@
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
+				{#if tunePractice.config.mode === 'points'}
+					<span class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-sm font-medium">
+						{tunePractice.totalPoints} pts
+						{#if tunePractice.streak > 1}
+							<span class="text-[var(--color-brass)]">&middot; {tunePractice.streak}🔥</span>
+						{/if}
+					</span>
+				{/if}
 				<span class="font-mono text-sm text-[var(--color-text-secondary)]">
 					{formatElapsed(tunePractice.elapsedSeconds)}
 				</span>
@@ -613,7 +778,19 @@
 			</div>
 		</div>
 
+		{#if tunePractice.config.mode === 'freestyle'}
+			<LickCelebration celebration={tunePractice.celebration} onDismiss={clearCelebration} />
+		{/if}
+
 		<InsertionCueStrip entries={cueEntries} isRecording={tunePractice.windowOpen} cueLevel={knobs.cueLevel} />
+
+		{#if pickTargetIndex >= 0 && knobs.cueLevel !== 'none'}
+			<SuggestionPickCard
+				entries={pickEntries}
+				picked={tunePractice.pickedSuggestion[tunePractice.plan[pickTargetIndex].id] ?? 0}
+				onPick={(i) => pickSuggestion(tunePractice.plan[pickTargetIndex].id, i)}
+			/>
+		{/if}
 
 		{#if audioPlan}
 			<NotationDisplay
@@ -631,6 +808,34 @@
 			</span>
 		</div>
 
+		{#if tunePractice.config.mode === 'freestyle'}
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+				{#if tunePractice.freestyleMatches.length === 0}
+					<p class="text-sm text-[var(--color-text-secondary)]">
+						No known licks recognized this take — the band was listening, though.
+					</p>
+				{:else}
+					<p class="text-sm text-[var(--color-text-secondary)]">
+						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
+							? ''
+							: 's'} landed in the solo
+					</p>
+					<div class="mt-3 space-y-2">
+						{#each tunePractice.freestyleMatches as match, i (i)}
+							<div class="flex items-center gap-3 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
+								<span class="w-8 shrink-0 font-mono text-xs text-[var(--color-text-secondary)]">
+									b{Math.max(1, Math.floor((match.atTick - barTicksNR) / barTicksNR) + 1)}
+								</span>
+								<span class="min-w-0 flex-1 truncate">{match.name}</span>
+								<span class="shrink-0 text-xs font-medium text-[var(--color-brass)]">
+									{Math.round(match.score * 100)}%
+								</span>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{:else}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
 			<p class="text-sm text-[var(--color-text-secondary)]">
 				{hitCount} of {tunePractice.plan.length} insertion point{tunePractice.plan.length === 1
@@ -671,6 +876,7 @@
 				{/each}
 			</div>
 		</div>
+		{/if}
 
 		<div class="flex gap-3">
 			<button

@@ -41,4 +41,20 @@ test.describe('tune practice setup', () => {
 		await expect(page.getByText(/Short ii-V-I \(Maj\)/i)).toBeVisible();
 		await expect(page.getByText(/Turnaround/i)).toBeVisible();
 	});
+
+	test('mode selector swaps freestyle-specific config', async ({
+		page,
+		consoleCollector: _consoleCollector
+	}) => {
+		await page.goto('/tunes/ls-when-the-saints/practice');
+		// Suggest is the default and shows the melody toggle.
+		await expect(page.getByText(/play the head/i)).toBeVisible();
+		await page.getByRole('button', { name: /freestyle/i }).click();
+		await expect(page.getByText(/play the head/i)).toHaveCount(0);
+		// The mode button's accessible name includes its description line.
+		await page.getByRole('button', { name: /pick your lick and earn points/i }).click();
+		await expect(page.getByText(/play the head/i)).toBeVisible();
+		// Strictness pills present.
+		await expect(page.getByRole('button', { name: /^solo$/i })).toBeVisible();
+	});
 });

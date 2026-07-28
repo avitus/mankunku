@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { Score } from '$lib/types/scoring';
+import type { LickSuggestion } from '$lib/tunes/lick-matcher';
 import {
 	applyInsertionResult,
 	emptyResultTally,
+	resolvePickedSuggestion,
 	strictnessKnobs,
 	type ResultTally
 } from '$lib/state/tune-practice-plan';
@@ -93,5 +95,39 @@ describe('applyInsertionResult', () => {
 		expect(tally.results.every((r) => r.basePoints === 0 && r.connectionBonus === 0)).toBe(true);
 		// Streak still tracks proficient hits for the report.
 		expect(tally.streak).toBe(2);
+	});
+});
+
+describe('resolvePickedSuggestion', () => {
+	const suggestion = (lickId: string): LickSuggestion => ({
+		lickId,
+		lickName: lickId,
+		category: 'ii-V-I-major',
+		targetKey: 'C',
+		insertionOffset: [0, 1],
+		insertionBar: 0,
+		templateAlignmentOffset: [0, 1],
+		masteryTier: 'unknown',
+		matchSources: ['category'],
+		substitution: null,
+		inPracticeSet: false,
+		difficultyLevel: 20
+	});
+	const suggestions = [suggestion('a'), suggestion('b'), suggestion('c')];
+
+	it('defaults to the top suggestion when nothing was picked', () => {
+		expect(resolvePickedSuggestion(suggestions, undefined)?.lickId).toBe('a');
+	});
+
+	it('returns the picked suggestion when the index is valid', () => {
+		expect(resolvePickedSuggestion(suggestions, 2)?.lickId).toBe('c');
+	});
+
+	it('falls back to the top suggestion for an out-of-range pick', () => {
+		expect(resolvePickedSuggestion(suggestions, 7)?.lickId).toBe('a');
+	});
+
+	it('returns null when there are no suggestions', () => {
+		expect(resolvePickedSuggestion([], undefined)).toBeNull();
 	});
 });
