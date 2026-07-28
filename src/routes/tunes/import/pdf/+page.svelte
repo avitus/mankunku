@@ -301,7 +301,7 @@
 			disabled={uploading || configured === null}
 			onchange={handleFile}
 			aria-label="Tune PDF"
-			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
 		/>
 		{#if uploading}
 			<p class="text-sm text-[var(--color-text-secondary)]">
@@ -325,14 +325,14 @@
 	{/if}
 
 	{#if errorMessage}
-		<div class="rounded-lg bg-[var(--color-error)]/10 p-3 text-sm text-[var(--color-error)]">
+		<div class="rounded-lg bg-[var(--color-error)]/10 p-3 text-sm text-[var(--color-error-text)]">
 			{errorMessage}
 		</div>
 	{/if}
 
 	{#if importWarnings.length > 0}
 		<div class="rounded-lg bg-[var(--color-warning)]/10 p-3 text-xs text-[var(--color-text-secondary)]">
-			<div class="mb-1 font-medium text-[var(--color-warning)]">Extraction notes</div>
+			<div class="mb-1 font-medium text-[var(--color-warning-text)]">Extraction notes</div>
 			<ul class="list-inside list-disc space-y-0.5">
 				{#each importWarnings as w, i (i)}
 					<li>{w}</li>

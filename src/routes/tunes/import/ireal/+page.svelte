@@ -76,7 +76,7 @@
 		type="button"
 		onclick={handleParse}
 		disabled={!input.trim()}
-		class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+		class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
 	>
 		Read link
 	</button>

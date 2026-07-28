@@ -18,17 +18,13 @@
 			<svg
 				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
 				viewBox="0 0 24 24"
-				fill="currentColor"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
 				aria-hidden="true"
 			>
-				<path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z" />
-				<path
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.7"
-					stroke-linecap="round"
-					d="M7 11a5 5 0 0 0 10 0 M12 16v4 M9 20h6"
-				/>
+				<rect x="9" y="3" width="6" height="11" rx="3" />
+				<path d="M7 11a5 5 0 0 0 10 0 M12 16v4 M9 20h6" />
 			</svg>
 			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
 				Record

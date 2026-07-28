@@ -53,6 +53,7 @@
 						type="checkbox"
 						checked={sec.repeatStart ?? false}
 						onchange={(e) => updateSectionMeta(i, { repeatStart: (e.currentTarget as HTMLInputElement).checked || undefined })}
+						class="accent-[var(--color-accent)]"
 					/>
 					&#x7C;: repeat
 				</label>
@@ -61,6 +62,7 @@
 						type="checkbox"
 						checked={sec.repeatEnd ?? false}
 						onchange={(e) => updateSectionMeta(i, { repeatEnd: (e.currentTarget as HTMLInputElement).checked || undefined })}
+						class="accent-[var(--color-accent)]"
 					/>
 					:&#x7C; end
 				</label>
@@ -69,7 +71,7 @@
 					<select
 						value={sec.ending === 1 ? '1' : sec.ending === 2 ? '2' : ''}
 						onchange={(e) => handleEndingChange(i, e)}
-						class="rounded bg-[var(--color-bg-secondary)] px-1 py-1 outline-none"
+						class="rounded bg-[var(--color-bg-secondary)] px-1 py-1 outline-none ring-[var(--color-accent)] focus:ring-1"
 					>
 						<option value="">—</option>
 						<option value="1">1st</option>
@@ -81,7 +83,7 @@
 						type="button"
 						onclick={() => removeSection(i)}
 						aria-label="Remove section {sec.label}"
-						class="ml-auto rounded px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-error)]/20 hover:text-[var(--color-error)]"
+						class="ml-auto rounded px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-error)]/20 hover:text-[var(--color-error-text)]"
 					>
 						Remove
 					</button>

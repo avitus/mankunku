@@ -343,7 +343,7 @@
 	</a>
 
 	{#if lick}
-		<div class="flex items-start justify-between gap-4">
+		<div class="flex flex-wrap items-start justify-between gap-4">
 			<div>
 				<h1 class="text-2xl font-bold">{baseLick?.name}</h1>
 				<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]">
@@ -390,10 +390,10 @@
 					<span>{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}</span>
 				</div>
 			</div>
-			<div class="flex shrink-0 gap-2">
+			<div class="flex shrink-0 flex-wrap gap-2">
 				<button
 					onclick={togglePlay}
-					class="flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium transition-colors
+					class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors
 						{isPlaying
 							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
 							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -414,13 +414,13 @@
 				</button>
 				<button
 					onclick={practiceThis}
-					class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+					class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 				>
 					Practice
 				</button>
 				<button
 					onclick={handleTogglePracticeTag}
-					class="rounded px-3 py-2 text-sm font-medium transition-colors
+					class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
 						{isPracticeTagged
 							? 'bg-[var(--color-success)]/20 text-[var(--color-success)] hover:bg-[var(--color-success)]/30'
 							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -431,7 +431,7 @@
 				{#if hasProgress}
 					<button
 						onclick={handleReset}
-						class="rounded px-3 py-2 text-sm font-medium transition-colors
+						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
 							{confirmingResetId === baseLick?.id
 								? 'bg-[var(--color-warning)] text-black hover:opacity-80'
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -443,7 +443,7 @@
 				{#if canEdit}
 					<button
 						onclick={handleEdit}
-						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+						class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
 					>
 						Edit
 					</button>
@@ -451,7 +451,7 @@
 				{#if canDelete}
 					<button
 						onclick={handleDelete}
-						class="rounded px-3 py-2 text-sm font-medium transition-colors
+						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
 							{confirmingDelete
 								? 'bg-[var(--color-error)] text-white hover:opacity-80'
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -475,7 +475,7 @@
 				{#each PITCH_CLASSES as pc}
 					<button
 						onclick={() => { selectedWrittenKey = pc; }}
-						class="rounded px-2 py-0.5 text-xs transition-colors
+						class="rounded-full px-2 py-0.5 text-xs transition-colors
 							{writtenKey === pc
 								? 'bg-[var(--color-accent)] text-white'
 								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"

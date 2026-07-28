@@ -492,7 +492,7 @@
 				</p>
 				<a
 					href="/ear-training"
-					class="mt-3 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+					class="mt-3 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-80 transition-opacity"
 				>
 					Start Practicing
 				</a>
@@ -596,7 +596,7 @@
 					</p>
 					<a
 						href="/lick-practice"
-						class="mt-3 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+						class="mt-3 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-80 transition-opacity"
 					>
 						Start Lick Practice
 					</a>

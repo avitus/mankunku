@@ -1371,7 +1371,7 @@
 								{#each entry.progressions as progType}
 									<button
 										onclick={() => handleStartProgression(progType)}
-										class="rounded-md bg-[var(--color-accent)] px-2.5 py-1 text-xs font-bold hover:opacity-90 transition-opacity"
+										class="rounded-md bg-[var(--color-accent)] px-2.5 py-1 text-xs font-bold text-white hover:opacity-90 transition-opacity"
 									>
 										{PROGRESSION_TEMPLATES[progType].shortName}
 									</button>
@@ -1386,7 +1386,7 @@
 		<div class="flex gap-3">
 			<button
 				onclick={handleDone}
-				class="flex-1 rounded-lg bg-[var(--color-accent)] py-3 font-bold hover:opacity-90 transition-opacity"
+				class="flex-1 rounded-lg bg-[var(--color-accent)] py-3 font-bold text-white hover:opacity-90 transition-opacity"
 			>
 				New Session
 			</button>

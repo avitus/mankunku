@@ -18,19 +18,19 @@
 	const writtenKey = $derived(concertKeyToWritten(item.sheet.key, getInstrument()));
 </script>
 
-<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 transition-colors hover:bg-[var(--color-bg-tertiary)]">
 	<button
 		type="button"
 		{onclick}
 		class="block w-full text-left"
 		aria-label="Open {item.sheet.title}"
 	>
-		<div class="truncate font-semibold">{item.sheet.title}</div>
+		<h3 class="font-display text-lg font-semibold tracking-tight truncate">{item.sheet.title}</h3>
 		<div class="mt-0.5 truncate text-sm text-[var(--color-text-secondary)]">
 			{#if item.sheet.composer}{item.sheet.composer} &middot;{/if}
-			by {item.authorName ?? 'anonymous'}
+			<span class="text-xs italic">by {item.authorName ?? 'anonymous'}</span>
 		</div>
-		<div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+		<div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
 			<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5">Key of {writtenKey}</span>
 			<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5">
 				{item.sheet.timeSignature[0]}/{item.sheet.timeSignature[1]}
@@ -48,10 +48,10 @@
 			onclick={onfavorite}
 			aria-pressed={item.isFavoritedByMe}
 			aria-label="{item.isFavoritedByMe ? 'Unfavorite' : 'Favorite'} {item.sheet.title}"
-			class="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
+			class="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-colors
 				{item.isFavoritedByMe
 					? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]'
-					: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}"
 		>
 			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill={item.isFavoritedByMe ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
 				<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -60,13 +60,13 @@
 		</button>
 
 		{#if isOwnSheet}
-			<span class="smallcaps px-2 py-1 text-xs text-[var(--color-text-secondary)]">My sheet</span>
+			<span class="rounded-full bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)]">My sheet</span>
 		{:else if item.isAdoptedByMe}
 			<button
 				type="button"
 				onclick={onreturn}
 				aria-label="Return {item.sheet.title}"
-				class="rounded px-3 py-1 text-xs font-medium bg-[var(--color-success)]/20 text-[var(--color-success)] transition-colors hover:bg-[var(--color-success)]/30"
+				class="rounded-full bg-[var(--color-accent)]/20 px-3 py-0.5 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/30"
 			>
 				&#10003; In my book
 			</button>
@@ -75,7 +75,7 @@
 				type="button"
 				onclick={onadopt}
 				aria-label="Add {item.sheet.title} to my book"
-				class="rounded border border-[var(--color-accent)] px-3 py-1 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/10"
+				class="rounded-full border border-[var(--color-accent)] px-3 py-0.5 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white"
 			>
 				+ Add to my book
 			</button>

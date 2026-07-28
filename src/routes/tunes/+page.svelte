@@ -17,11 +17,22 @@
 	// not a guessed timer.
 	let cacheVersion = $state(0);
 
+	// False until the hydration wait has settled at least once. Gates the
+	// empty-book card so "Nothing in your book yet" never flashes while the
+	// cloud merge is still in flight (mirrors the /licks loading gate).
+	let loaded = $state(false);
+
 	$effect(() => {
-		if (!session) return;
+		if (!session) {
+			loaded = true;
+			return;
+		}
 		let live = true;
 		awaitHydration().then(() => {
-			if (live) cacheVersion++;
+			if (live) {
+				cacheVersion++;
+				loaded = true;
+			}
 		});
 		return () => {
 			live = false;
@@ -67,8 +78,8 @@
 	<title>Tunes — Mankunku</title>
 </svelte:head>
 
-<div class="space-y-6">
-	<div class="flex flex-wrap items-center justify-between gap-3">
+<div class="space-y-8">
+	<div class="flex flex-wrap items-end justify-between gap-4">
 		<div>
 			<div class="smallcaps text-[var(--color-brass)]">The Songbook</div>
 			<h1 class="font-display text-4xl font-bold tracking-tight">Tunes</h1>
@@ -77,27 +88,27 @@
 			</p>
 			<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		</div>
-		<div class="flex shrink-0 gap-2">
+		<div class="flex shrink-0 items-center gap-4">
 			<a
 				href="/tunes/community"
-				class="rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
 			>
 				Browse Community
 			</a>
 			<a
 				href="/tunes/add"
-				class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+				class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 			>
-				+ Add Tune
+				+ Add a tune
 			</a>
 		</div>
 	</div>
 
 	<input
 		type="search"
-		placeholder="Search by title, composer, style, or tag…"
+		placeholder="search by title, composer, style, or tag…"
 		bind:value={searchQuery}
-		class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2.5 text-sm outline-none ring-[var(--color-accent)] placeholder:text-[var(--color-text-secondary)] focus:ring-2"
+		class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
 	/>
 
 	{#if mySheets.length > 0}
@@ -131,25 +142,39 @@
 				{/each}
 			</div>
 		{:else}
-			<p class="text-sm text-[var(--color-text-secondary)]">No tunes match that search.</p>
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+				<p class="italic text-[var(--color-text-secondary)]">No tunes match that search.</p>
+			</div>
 		{/if}
 	</section>
 
-	{#if mySheets.length === 0 && !searchQuery}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center">
-			<p class="text-sm text-[var(--color-text-secondary)]">
-				Nothing in your book yet. Enter a tune by hand, import one, or adopt one from the community.
+	{#if mySheets.length === 0 && !searchQuery && !loaded}
+		<div
+			class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center"
+			aria-busy="true"
+		>
+			<p class="font-display text-lg text-[var(--color-text-secondary)]">Loading your tunes…</p>
+			<div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2" aria-hidden="true">
+				<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
+				<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
+			</div>
+		</div>
+	{:else if mySheets.length === 0 && !searchQuery}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center">
+			<p class="font-display text-lg">Nothing in your book yet.</p>
+			<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
+				Enter a tune by hand, import one, or adopt one from the community.
 			</p>
 			<div class="mt-4 flex justify-center gap-2">
 				<a
 					href="/tunes/add"
-					class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+					class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 				>
 					Add a tune
 				</a>
 				<a
 					href="/tunes/community"
-					class="rounded bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+					class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
 				>
 					Browse community
 				</a>

@@ -193,7 +193,7 @@
 			<div class="flex shrink-0 flex-wrap gap-2">
 				<button
 					onclick={togglePlay}
-					class="flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium transition-colors
+					class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors
 						{isPlaying
 							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
 							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -215,13 +215,13 @@
 				{#if isOwnSheet}
 					<button
 						onclick={handleEdit}
-						class="rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+						class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
 					>
 						Edit
 					</button>
 					<button
 						onclick={handleDelete}
-						class="rounded px-3 py-2 text-sm font-medium transition-colors
+						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
 							{confirmingDelete
 								? 'bg-[var(--color-error)] text-white hover:opacity-80'
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -231,7 +231,7 @@
 				{:else if isAdopted}
 					<button
 						onclick={handleReturn}
-						class="rounded px-3 py-2 text-sm font-medium transition-colors
+						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
 							{confirmingReturn
 								? 'bg-[var(--color-warning)] text-black hover:opacity-80'
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -250,7 +250,7 @@
 				{#each PITCH_CLASSES as pc (pc)}
 					<button
 						onclick={() => { selectedWrittenKey = pc; }}
-						class="rounded px-2 py-0.5 text-xs transition-colors
+						class="rounded-full px-2 py-0.5 text-xs transition-colors
 							{writtenKey === pc
 								? 'bg-[var(--color-accent)] text-white'
 								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
@@ -264,9 +264,9 @@
 		<!-- Notation: full multi-system chart with chord symbols -->
 		<NotationDisplay tune={sheet} instrument={getInstrument()} />
 
-		{#if baseSheet.tags.length > 0}
+		{#if baseSheet.tags.filter((t) => t !== 'practice' && t !== 'user-entered').length > 0}
 			<div class="flex flex-wrap gap-2">
-				{#each baseSheet.tags as tag (tag)}
+				{#each baseSheet.tags.filter((t) => t !== 'practice' && t !== 'user-entered') as tag (tag)}
 					<span class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">
 						#{tag}
 					</span>
@@ -274,8 +274,13 @@
 			</div>
 		{/if}
 	{:else}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center text-sm text-[var(--color-text-secondary)]">
-			Tune not found.
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+			<p class="text-[var(--color-text-secondary)]">
+				Tune not found: {page.params.id}
+			</p>
+			<a href="/tunes" class="mt-2 inline-block text-sm text-[var(--color-accent)]">
+				Back to Tunes
+			</a>
 		</div>
 	{/if}
 </div>

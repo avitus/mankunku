@@ -381,7 +381,7 @@
 	<div>
 		<div class="smallcaps text-[var(--color-brass)]">{isEditing ? 'Fix a lick' : 'Write a lick'}</div>
 		<h1 class="font-display text-3xl font-bold tracking-tight">{isEditing ? 'Edit Lick' : 'Lick Editor'}</h1>
-		<div class="jazz-rule mt-2 max-w-[120px]"></div>
+		<div class="jazz-rule mt-2 max-w-[140px]"></div>
 	</div>
 
 	<!-- Notation preview (written pitch for the user's instrument) -->
@@ -536,7 +536,7 @@
 			onclick={handlePlayBack}
 			disabled={!hasNotes || isPlaying}
 			class="flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white
-				hover:opacity-90 transition-opacity disabled:opacity-40"
+				transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
 		>
 			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
 				{#if isPlaying}
@@ -567,7 +567,7 @@
 		{#if isEditing}
 			<button
 				onclick={handleCancel}
-				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
+				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)]
 					hover:bg-[var(--color-bg-secondary)] transition-colors"
 			>
 				Cancel
@@ -576,7 +576,7 @@
 			<button
 				onclick={handleClear}
 				disabled={!hasNotes}
-				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
+				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)]
 					hover:bg-[var(--color-bg-secondary)] transition-colors disabled:opacity-40"
 			>
 				Clear
