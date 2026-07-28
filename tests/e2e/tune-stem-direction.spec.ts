@@ -106,8 +106,8 @@ async function measureStems(page: import('@playwright/test').Page): Promise<Meas
 				if (!head) continue;
 				const headCenter = (head.top + head.bottom) / 2;
 				const aboveSp = (middleY - headCenter) / spacing;
-				// Rule: below the middle line → up; at (±0.25 sp) or above → down.
-				const expected = aboveSp > 0.25 ? 'down' : aboveSp < -0.25 ? 'up' : 'down';
+				// Rule: below the middle line → up; at (within 0.25 sp) or above → down.
+				const expected = aboveSp < -0.25 ? 'up' : 'down';
 				const extendsAbove = head.top - s.top;
 				const extendsBelow = s.bottom - head.bottom;
 				const actual = extendsAbove > extendsBelow ? 'up' : 'down';
