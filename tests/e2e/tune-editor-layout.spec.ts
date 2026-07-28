@@ -149,7 +149,7 @@ test.describe('mobile', () => {
 		await openEditor(page);
 
 		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-		const setupCard = page.getByRole('button', { name: /Setup · Key/ }).locator('..');
+		const setupCard = page.getByRole('button', { name: /Setup Key/ }).locator('..');
 		const setupBox = await setupCard.boundingBox();
 		const dockBox = await page.getByTestId('entry-dock').boundingBox();
 		expect(setupBox).not.toBeNull();

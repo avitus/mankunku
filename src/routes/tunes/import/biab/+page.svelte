@@ -97,7 +97,7 @@
 		disabled={!mounted}
 		onchange={handleFile}
 		aria-label="Band-in-a-Box file"
-		class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+		class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
 	/>
 
 	{#if parsedOnce && sheets.length === 0}

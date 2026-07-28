@@ -300,6 +300,9 @@
 		<div>
 			<div class="smallcaps text-[var(--color-brass)]">The Book</div>
 			<h1 class="font-display text-4xl font-bold tracking-tight">Your Licks</h1>
+			<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
+				Short phrases — recorded, written, or stolen — for your book.
+			</p>
 			<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		</div>
 		<div class="flex items-center gap-4">
@@ -350,7 +353,7 @@
 		<!-- Search + progression filter -->
 		<div class="flex flex-col gap-2 sm:flex-row">
 			<input
-				type="text"
+				type="search"
 				placeholder="find a lick…"
 				bind:value={licks.searchQuery}
 				class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
@@ -404,8 +407,9 @@
 
 			{#if practiceSet.length > 0}
 				<section class="space-y-3" data-tour="practice-set">
-					<div class="flex items-baseline justify-between">
-						<h2 class="font-display text-xl font-semibold">Practice set</h2>
+					<div class="mb-3 flex items-center gap-2">
+						<h2 class="smallcaps text-[var(--color-brass)]">Practice set</h2>
+						<div class="jazz-rule flex-1"></div>
 						<span class="text-sm text-[var(--color-text-secondary)]">
 							{practiceSet.length} lick{practiceSet.length !== 1 ? 's' : ''}
 						</span>
@@ -416,8 +420,9 @@
 
 			{#if otherLicks.length > 0}
 				<section class="space-y-3">
-					<div class="flex items-baseline justify-between">
-						<h2 class="font-display text-xl font-semibold">Other licks</h2>
+					<div class="mb-3 flex items-center gap-2">
+						<h2 class="smallcaps text-[var(--color-brass)]">Other licks</h2>
+						<div class="jazz-rule flex-1"></div>
 						<span class="text-sm text-[var(--color-text-secondary)]">
 							{otherLicks.length} lick{otherLicks.length !== 1 ? 's' : ''}
 						</span>

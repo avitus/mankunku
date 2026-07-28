@@ -29,7 +29,7 @@
 
 {#if warnings.length > 0}
 	<div class="rounded-lg bg-[var(--color-warning)]/10 p-3 text-xs text-[var(--color-text-secondary)]">
-		<div class="mb-1 font-medium text-[var(--color-warning)]">Import notes</div>
+		<div class="mb-1 font-medium text-[var(--color-warning-text)]">Import notes</div>
 		<ul class="list-inside list-disc space-y-0.5">
 			{#each warnings as w, i (i)}
 				<li>{w}</li>
@@ -57,7 +57,7 @@
 				{#if added}
 					<a
 						href="/tunes/{added}"
-						class="rounded bg-[var(--color-success)]/20 px-3 py-1.5 text-xs font-medium text-[var(--color-success)]"
+						class="rounded-full bg-[var(--color-success)]/20 px-3 py-1.5 text-xs font-medium text-[var(--color-success)]"
 					>
 						&#10003; Added — view
 					</a>
@@ -66,7 +66,7 @@
 						<button
 							type="button"
 							onclick={() => onreview(sheet)}
-							class="rounded bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
+							class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 						>
 							Review &amp; edit
 						</button>
@@ -74,7 +74,7 @@
 							<button
 								type="button"
 								onclick={() => handleAdd(sheet, i)}
-								class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-primary)]"
+								class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg)]"
 							>
 								Add to book
 							</button>

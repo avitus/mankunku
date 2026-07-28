@@ -327,153 +327,167 @@
 	<title>Record Lick — Mankunku</title>
 </svelte:head>
 
-<div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
-	{#if recordState === 'idle'}
-		<!-- Idle: record button + tempo -->
-		<div class="text-center">
-			<div class="smallcaps text-[var(--color-brass)]">Put it on tape</div>
-			<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
-				Record a Lick
-			</h1>
-			<div class="jazz-rule mx-auto mt-2 max-w-[140px]"></div>
-			<p class="mt-3 text-sm italic text-[var(--color-text-secondary)]">
-				Play a phrase into your mic and we'll notate it.
-			</p>
-		</div>
-
-		<button
-			onclick={startRecording}
-			aria-label="Start recording"
-			class="group relative flex h-28 w-28 items-center justify-center rounded-full
-				   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
-				   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
+{#if recordState === 'review' && reviewPhrase}
+	<!-- Review: standard document shell, matching the tunes import pages -->
+	<div class="mx-auto max-w-3xl space-y-4">
+		<a
+			href="/licks/add"
+			class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 		>
-			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-				<circle cx="12" cy="12" r="6" />
-			</svg>
-		</button>
+			&larr; Add Licks
+		</a>
 
-		<!-- Tempo control -->
-		<div class="flex items-center gap-3">
-			<label for="tempo" class="text-sm text-[var(--color-text-secondary)]">Tempo</label>
+		<h1 class="font-display text-2xl font-bold">Review Your Lick</h1>
+
+		<!-- Sheet music -->
+		<NotationDisplay phrase={reviewPhrase} {instrument} />
+
+		<!-- Difficulty badge -->
+		<div class="text-sm text-[var(--color-text-secondary)]">
+			Difficulty {reviewPhrase.difficulty.level}
+			&middot; {reviewPhrase.difficulty.lengthBars} bar{reviewPhrase.difficulty.lengthBars > 1 ? 's' : ''}
+		</div>
+
+		<!-- Name input -->
+		<div class="flex items-center gap-2">
+			<label for="lick-name" class="text-sm shrink-0">Name</label>
+			<input
+				id="lick-name"
+				type="text"
+				bind:value={lickName}
+				class="flex-1 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus:ring-2"
+			/>
+		</div>
+
+		<PrivacyDisclosure />
+
+		<!-- Action buttons -->
+		<div class="flex gap-3">
 			<button
-				onclick={() => { tempo = Math.max(40, tempo - 5); }}
-				class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm hover:bg-[var(--color-bg-secondary)]"
-			>-</button>
-			<span class="w-16 text-center text-lg font-bold tabular-nums">{tempo}</span>
+				onclick={handlePlayBack}
+				class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+			>
+				Play Back
+			</button>
 			<button
-				onclick={() => { tempo = Math.min(240, tempo + 5); }}
-				class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm hover:bg-[var(--color-bg-secondary)]"
-			>+</button>
-			<span class="text-sm text-[var(--color-text-secondary)]">BPM</span>
+				onclick={handleSave}
+				disabled={savedConfirmation}
+				class="rounded px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50
+					{savedConfirmation
+						? 'bg-[var(--color-success)]'
+						: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
+			>
+				{savedConfirmation ? 'Saved!' : 'Save to Book'}
+			</button>
+			<button
+				onclick={handleReRecord}
+				class="rounded bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-bg-secondary)]"
+			>
+				Re-record
+			</button>
 		</div>
+	</div>
+{:else}
+	<a
+		href="/licks/add"
+		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
+	>
+		&larr; Add Licks
+	</a>
 
-		<p class="text-xs text-[var(--color-text-secondary)]">
-			Headphones recommended to avoid metronome bleed
-		</p>
+	<div class="mt-4 flex min-h-[75vh] flex-col items-center justify-center gap-6 px-4">
+		{#if recordState === 'idle'}
+			<!-- Idle: record button + tempo -->
+			<div class="text-center">
+				<div class="smallcaps text-[var(--color-brass)]">Put it on tape</div>
+				<h1 class="font-display text-3xl font-bold tracking-tight">
+					Record a Lick
+				</h1>
+				<div class="jazz-rule mx-auto mt-2 max-w-[140px]"></div>
+				<p class="mt-3 text-sm italic text-[var(--color-text-secondary)]">
+					Play a phrase into your mic and we'll notate it.
+				</p>
+			</div>
 
-	{:else if recordState === 'counting-in'}
-		<!-- Count-in: 2 bars of metronome -->
-		<div class="text-center">
-			<p class="text-lg font-medium text-[var(--color-accent)]">
-				Listen...
+			<button
+				onclick={startRecording}
+				aria-label="Start recording"
+				class="group relative flex h-28 w-28 items-center justify-center rounded-full
+					   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
+					   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
+			>
+				<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+					<circle cx="12" cy="12" r="6" />
+				</svg>
+			</button>
+
+			<!-- Tempo control -->
+			<div class="flex items-center gap-3">
+				<label for="tempo" class="text-sm text-[var(--color-text-secondary)]">Tempo</label>
+				<button
+					onclick={() => { tempo = Math.max(40, tempo - 5); }}
+					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm hover:bg-[var(--color-bg-secondary)]"
+				>-</button>
+				<span class="w-16 text-center text-lg font-bold tabular-nums">{tempo}</span>
+				<button
+					onclick={() => { tempo = Math.min(240, tempo + 5); }}
+					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm hover:bg-[var(--color-bg-secondary)]"
+				>+</button>
+				<span class="text-sm text-[var(--color-text-secondary)]">BPM</span>
+			</div>
+
+			<p class="text-xs text-[var(--color-text-secondary)]">
+				Headphones recommended to avoid metronome bleed
 			</p>
-			<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
-				Play on bar 3
-			</p>
-		</div>
 
-	{:else if recordState === 'recording'}
-		<!-- Recording -->
-		<div class="text-center">
-			{#if pitchName}
-				<div class="font-display text-5xl font-bold text-[var(--color-onair)]">
-					{pitchName}
-				</div>
-			{:else}
-				<div class="font-display text-5xl font-bold text-[var(--color-text-secondary)]">
-					---
-				</div>
-			{/if}
-			<p class="mt-2 text-sm italic text-[var(--color-onair)]">On tape&hellip;</p>
-		</div>
-
-		<button
-			onclick={stopRecording}
-			aria-label="Stop recording"
-			class="group relative flex h-28 w-28 items-center justify-center rounded-full
-				   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
-				   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
-		>
-			<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-				<rect x="6" y="6" width="12" height="12" rx="1" />
-			</svg>
-			<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-onair)] opacity-20"></span>
-		</button>
-
-	{:else if recordState === 'processing'}
-		<!-- Processing -->
-		<div class="text-center">
-			<svg class="mx-auto h-10 w-10 animate-spin text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none">
-				<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
-				<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"></path>
-			</svg>
-			<p class="mt-4 text-sm italic text-[var(--color-text-secondary)]">Rolling the tape back&hellip;</p>
-		</div>
-
-	{:else if recordState === 'review' && reviewPhrase}
-		<!-- Review -->
-		<div class="w-full max-w-2xl space-y-4">
-			<h2 class="font-display text-2xl font-bold text-center">Review Your Lick</h2>
-
-			<!-- Sheet music -->
-			<NotationDisplay phrase={reviewPhrase} {instrument} />
-
-			<!-- Difficulty badge -->
-			<div class="text-center text-sm text-[var(--color-text-secondary)]">
-				Difficulty {reviewPhrase.difficulty.level}
-				&middot; {reviewPhrase.difficulty.lengthBars} bar{reviewPhrase.difficulty.lengthBars > 1 ? 's' : ''}
+		{:else if recordState === 'counting-in'}
+			<!-- Count-in: 2 bars of metronome -->
+			<div class="text-center">
+				<p class="text-lg font-medium text-[var(--color-accent)]">
+					Listen...
+				</p>
+				<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
+					Play on bar 3
+				</p>
 			</div>
 
-			<!-- Name input -->
-			<div class="flex items-center gap-2">
-				<label for="lick-name" class="text-sm shrink-0">Name</label>
-				<input
-					id="lick-name"
-					type="text"
-					bind:value={lickName}
-					class="flex-1 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm
-						   border border-transparent focus:border-[var(--color-accent)] focus:outline-none"
-				/>
+		{:else if recordState === 'recording'}
+			<!-- Recording -->
+			<div class="text-center">
+				{#if pitchName}
+					<div class="font-display text-5xl font-bold text-[var(--color-onair)]">
+						{pitchName}
+					</div>
+				{:else}
+					<div class="font-display text-5xl font-bold text-[var(--color-text-secondary)]">
+						---
+					</div>
+				{/if}
+				<p class="mt-2 text-sm italic text-[var(--color-onair)]">On tape&hellip;</p>
 			</div>
 
-			<PrivacyDisclosure />
+			<button
+				onclick={stopRecording}
+				aria-label="Stop recording"
+				class="group relative flex h-28 w-28 items-center justify-center rounded-full
+					   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
+					   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
+			>
+				<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+					<rect x="6" y="6" width="12" height="12" rx="1" />
+				</svg>
+				<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-onair)] opacity-20"></span>
+			</button>
 
-			<!-- Action buttons -->
-			<div class="flex justify-center gap-3">
-				<button
-					onclick={handlePlayBack}
-					class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white
-						   hover:opacity-90 transition-opacity"
-				>
-					Play Back
-				</button>
-				<button
-					onclick={handleSave}
-					disabled={savedConfirmation}
-					class="rounded bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
-						   hover:opacity-90 transition-opacity disabled:opacity-50"
-				>
-					{savedConfirmation ? 'Saved!' : 'Save to Book'}
-				</button>
-				<button
-					onclick={handleReRecord}
-					class="rounded bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium
-						   hover:bg-[var(--color-bg-secondary)] transition-colors"
-				>
-					Re-record
-				</button>
+		{:else if recordState === 'processing'}
+			<!-- Processing -->
+			<div class="text-center">
+				<svg class="mx-auto h-10 w-10 animate-spin text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none">
+					<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
+					<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"></path>
+				</svg>
+				<p class="mt-4 text-sm italic text-[var(--color-text-secondary)]">Rolling the tape back&hellip;</p>
 			</div>
-		</div>
-	{/if}
-</div>
+		{/if}
+	</div>
+{/if}

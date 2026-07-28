@@ -72,7 +72,7 @@ test('the source-pitch selector defaults to the instrument and re-labels the key
 	await page.goto('/tunes/editor');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
-	await page.getByRole('button', { name: /Setup · Key/ }).click();
+	await page.getByRole('button', { name: /Setup Key/ }).click();
 	// Seeded tenor → the chart-written-for selector defaults to Bb.
 	const select = page.getByLabel('Chart written for');
 	await expect(select).toHaveValue('Bb');
@@ -81,7 +81,7 @@ test('the source-pitch selector defaults to the instrument and re-labels the key
 	// written key: written C for a Bb chart is concert Bb, which a concert
 	// chart labels Bb.
 	await select.selectOption('C');
-	await expect(page.getByRole('button', { name: /Setup · Key Bb/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Setup Key Bb/ })).toBeVisible();
 });
 
 test('adds a section with a repeat and sees it in the preview', async ({ page }) => {
@@ -89,7 +89,7 @@ test('adds a section with a repeat and sees it in the preview', async ({ page })
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
 	// Open setup, add a B section, and mark the A section repeated.
-	await page.getByRole('button', { name: /Setup · Key/ }).click();
+	await page.getByRole('button', { name: /Setup Key/ }).click();
 	await page.getByRole('button', { name: '+ Add section' }).click();
 	await expect(page.getByRole('textbox', { name: 'Section 2 label' })).toHaveValue('B');
 	await page.locator('label').filter({ hasText: '|: repeat' }).first().locator('input').check();

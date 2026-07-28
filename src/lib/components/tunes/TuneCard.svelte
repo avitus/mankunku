@@ -26,11 +26,11 @@
 >
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
-			<div class="truncate font-semibold">{sheet.title}</div>
+			<h3 class="font-display text-lg font-semibold tracking-tight truncate">{sheet.title}</h3>
 			<div class="mt-0.5 truncate text-sm text-[var(--color-text-secondary)]">
 				{#if sheet.composer}{sheet.composer}{/if}
 				{#if sheet.composer && authorName}&middot;{/if}
-				{#if authorName}shared by {authorName}{/if}
+				{#if authorName}<span class="text-xs italic">shared by {authorName}</span>{/if}
 			</div>
 		</div>
 		{#if badge}
@@ -39,7 +39,7 @@
 			</span>
 		{/if}
 	</div>
-	<div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+	<div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
 		<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5">Key of {writtenKey}</span>
 		<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5">
 			{sheet.timeSignature[0]}/{sheet.timeSignature[1]}

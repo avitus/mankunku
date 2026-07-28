@@ -310,22 +310,29 @@
 {#snippet entryActions(sizing: string)}
 	<button
 		onclick={togglePlay}
-		class="flex items-center justify-center gap-1.5 rounded text-sm font-medium transition-colors {sizing}
+		class="flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium text-white transition-colors {sizing}
 			{isPlaying
 				? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
-				: 'bg-[var(--color-accent)] hover:opacity-80'}"
+				: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
 	>
+		<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+			{#if isPlaying}
+				<rect x="6" y="6" width="12" height="12" rx="1" />
+			{:else}
+				<path d="M8 5v14l11-7z" />
+			{/if}
+		</svg>
 		{isPlaying ? 'Stop' : 'Play'}
 	</button>
 	<button
 		onclick={handleSave}
-		class="rounded bg-[var(--color-success)] text-sm font-medium text-black transition-opacity hover:opacity-80 {sizing}"
+		class="rounded-lg bg-[var(--color-success)] text-sm font-medium text-white transition-opacity hover:opacity-90 {sizing}"
 	>
 		{isEditing ? 'Update' : 'Save'}
 	</button>
 	<button
 		onclick={handleCancel}
-		class="rounded bg-[var(--color-bg-tertiary)] text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)] {sizing}"
+		class="rounded-lg bg-[var(--color-bg-tertiary)] text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)] {sizing}"
 	>
 		{isEditing ? 'Cancel' : 'Clear'}
 	</button>
@@ -348,7 +355,7 @@
 			<div class="md:sticky md:top-6 md:max-h-[calc(100vh-3rem)] md:overflow-y-auto space-y-3 @container/entry">
 				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
 					<!-- Status: where the next entered note lands -->
-					<div class="mb-3 text-xs text-[var(--color-text-secondary)]">{@render entryStatus()}</div>
+					<div class="mb-3 text-xs tabular-nums text-[var(--color-text-secondary)]">{@render entryStatus()}</div>
 					{#if melodyEditingSupported()}
 						<DurationSelector />
 						<hr class="my-3 border-[var(--color-bg-tertiary)]" />
@@ -368,11 +375,19 @@
 				</div>
 
 				<details class="text-xs text-[var(--color-text-secondary)]">
-					<summary class="cursor-pointer">Keyboard shortcuts</summary>
-					<p class="mt-2">
-						A–G add notes · 0 rest · 1–4 durations · T triplet · . dotted · [ flat · ] sharp ·
-						= / − octave · + tie · \ respell · ←/→ select · ↑/↓ move pitch · ⌫ delete · K — chord
-					</p>
+					<summary class="cursor-pointer hover:text-[var(--color-text)]">Keyboard shortcuts</summary>
+					<div class="mt-2 grid grid-cols-1 gap-y-1 pl-2">
+						<span><kbd>A</kbd>-<kbd>G</kbd> Enter note</span>
+						<span><kbd>0</kbd> Rest</span>
+						<span><kbd>1</kbd>-<kbd>4</kbd> Duration</span>
+						<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
+						<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
+						<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>
+						<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
+						<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Select note &middot; <kbd>Esc</kbd> Clear</span>
+						<span><kbd>Backspace</kbd>/<kbd>Delete</kbd> Delete selected</span>
+						<span><kbd>K</kbd> Edit chord</span>
+					</div>
 				</details>
 			</div>
 		</aside>
@@ -393,14 +408,17 @@
 						bind:value={tuneEntry.title}
 						placeholder="Untitled"
 						aria-label="Tune title"
-						class="mb-2 w-full bg-transparent font-display text-xl font-semibold outline-none placeholder:text-[var(--color-text-secondary)]/60"
+						class="mb-2 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
+							border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
+							focus:border-[var(--color-accent)] focus:outline-none
+							placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
 					/>
 				{/snippet}
 			</NotationDisplay>
 
 			{#if tuneEntry.importReview}
 				<!-- Import review: the bars the pipeline knows are uncertain -->
-				<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] p-3 text-sm">
+				<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 p-3 text-sm">
 					<div class="flex items-start justify-between gap-2">
 						<p class="font-medium text-[var(--color-brass)]">
 							Review {tuneEntry.importReview.suspectBars.length > 0
@@ -410,7 +428,7 @@
 						<button
 							type="button"
 							onclick={() => (tuneEntry.importReview = null)}
-							class="shrink-0 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-primary)]"
+							class="shrink-0 rounded-lg bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
 						>
 							Dismiss
 						</button>
@@ -430,21 +448,24 @@
 			{/if}
 
 			<!-- Setup: title details, key, sections -->
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
+			<div class="rounded-lg bg-[var(--color-bg-secondary)]">
 				<button
 					type="button"
 					onclick={() => (setupOpen = !setupOpen)}
 					aria-expanded={setupOpen}
-					class="flex w-full items-center justify-between text-sm"
+					class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm
+						hover:bg-[var(--color-bg-tertiary)] transition-colors"
 				>
-					<span>
-						Setup · Key {tuneEntry.writtenKey} · {tuneEntry.sections.length}
-						section{tuneEntry.sections.length === 1 ? '' : 's'}
+					<span class="flex items-center gap-3">
+						<span class="smallcaps text-[11px] text-[var(--color-text-secondary)]">Setup</span>
+						<span>Key {tuneEntry.writtenKey}</span>
+						<span class="text-[var(--color-text-secondary)]">·</span>
+						<span>{tuneEntry.sections.length} section{tuneEntry.sections.length === 1 ? '' : 's'}</span>
 					</span>
-					<span class="text-[var(--color-text-secondary)]">{setupOpen ? 'Done' : 'Edit'}</span>
+					<span class="text-xs text-[var(--color-text-secondary)]">{setupOpen ? 'Done' : 'Edit'}</span>
 				</button>
 				{#if setupOpen}
-					<div class="mt-3 space-y-3">
+					<div class="space-y-3 px-3 pt-1 pb-3">
 						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 							<input
 								bind:value={tuneEntry.composer}
@@ -469,7 +490,7 @@
 								<select
 									value={tuneEntry.writtenKey}
 									onchange={handleKeyChange}
-									class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none"
+									class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
 								>
 									{#each PITCH_CLASSES as pc (pc)}
 										<option value={pc}>{pc}</option>
@@ -478,7 +499,7 @@
 							</label>
 							{#if draft.sections.some((s) => s.notes.length > 0)}
 								<label class="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-									<input type="checkbox" bind:checked={moveNotes} />
+									<input type="checkbox" bind:checked={moveNotes} class="accent-[var(--color-accent)]" />
 									Move notes with key
 								</label>
 							{/if}
@@ -496,7 +517,7 @@
 		class="md:hidden fixed inset-x-0 bottom-0 z-30 @container/entry border-t border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
 	>
 		<div class="flex items-center gap-2">
-			<span class="min-w-0 flex-1 truncate text-xs text-[var(--color-text-secondary)]">
+			<span class="min-w-0 flex-1 truncate text-xs tabular-nums text-[var(--color-text-secondary)]">
 				{@render entryStatus()}
 			</span>
 			{@render entryActions('min-h-11 shrink-0 px-3')}
@@ -505,7 +526,7 @@
 				onclick={() => (dockExpanded = !dockExpanded)}
 				aria-expanded={dockExpanded}
 				aria-label="{dockExpanded ? 'Collapse' : 'Expand'} entry controls"
-				class="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+				class="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
 			>
 				<svg
 					viewBox="0 0 16 16"

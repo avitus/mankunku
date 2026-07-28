@@ -67,6 +67,8 @@ Durable principles (won't go stale as values evolve):
 
 **How to apply:** For the structural rules, enforce. If a request would deviate from them, push back and propose a spec amendment. For specific color/route values, look them up in `src/app.css` and `src/routes/+layout.svelte` rather than trusting a snapshot in this file.
 
+**Open item (2026-07-28, PR #181):** white text on accent fills fails WCAG AA on some domain/theme combinations (≈3.96:1 on default teal; worst on dark-mode neutral slate). Proposed fix parked for user decision: a `--color-on-accent` token per domain × theme, enforced by `tests/unit/ui/design-token-consistency.test.ts`. Until decided, `text-white` on accent fills remains the standardized convention.
+
 **Spec status (2026-04-20):** `documentation/architecture/design-system.md` was rewritten to match the current implementation — three-domain palette (peacock teal / terracotta / slate), brass decorative tokens, on-air red, Fraunces display serif, `.jazz-rule`/`.smallcaps`/`.grain-overlay` utilities. Before making design changes, still read `src/app.css` and `src/routes/+layout.svelte` — they remain ground truth.
 
 ### Never leave a bug unfixed — failing test first, then fix (TDD is a core tenet)

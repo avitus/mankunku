@@ -73,6 +73,7 @@
 		if (!supabase || loading) return;
 		const runId = effectRunId;
 		loading = true;
+		loadError = null;
 		const nextOffset = pageOffset + TUNE_PAGE_SIZE;
 		try {
 			const more = await listCommunityTunes(supabase, buildFilters(), nextOffset);
@@ -195,11 +196,20 @@
 		&larr; Tunes
 	</a>
 
-	<div>
-		<h1 class="text-2xl font-bold">Community Tunes</h1>
-		<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
-			Tunes shared by other players. Add one to your book to practice it.
-		</p>
+	<div class="flex items-end justify-between gap-4 flex-wrap">
+		<div>
+			<div class="smallcaps text-[var(--color-brass)]">The Session</div>
+			<h1 class="font-display text-4xl font-bold tracking-tight">Community Tunes</h1>
+			<div class="jazz-rule mt-2 max-w-[140px]"></div>
+			<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
+				Tunes shared by other players. Add one to your book to practice it.
+			</p>
+		</div>
+		{#if session}
+			<span class="text-sm text-[var(--color-text-secondary)]">
+				{sheets.length} sheet{sheets.length === 1 ? '' : 's'}{hasMore ? '+' : ''}
+			</span>
+		{/if}
 	</div>
 
 	{#if !session}
@@ -207,7 +217,7 @@
 			<p class="text-sm text-[var(--color-text-secondary)]">Sign in to browse community tunes.</p>
 			<a
 				href="/auth"
-				class="mt-4 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+				class="mt-4 inline-block rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 			>
 				Sign in
 			</a>
@@ -215,20 +225,26 @@
 	{:else}
 		<input
 			type="search"
-			placeholder="Search by title, composer, or tag…"
+			placeholder="search by title, composer, or tag…"
 			value={tuneCommunity.searchQuery}
 			oninput={onSearchInput}
-			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2.5 text-sm outline-none ring-[var(--color-accent)] placeholder:text-[var(--color-text-secondary)] focus:ring-2"
+			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
 		/>
 
 		<div class="flex flex-wrap items-center gap-3">
-			<input
-				type="search"
-				placeholder="Author…"
-				value={tuneCommunity.authorQuery}
-				oninput={onAuthorInput}
-				class="w-40 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] placeholder:text-[var(--color-text-secondary)] focus:ring-2"
-			/>
+			<div class="flex items-center gap-2">
+				<label for="author-search" class="text-sm text-[var(--color-text-secondary)]">
+					Author:
+				</label>
+				<input
+					id="author-search"
+					type="text"
+					placeholder="any"
+					value={tuneCommunity.authorQuery}
+					oninput={onAuthorInput}
+					class="w-40 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+				/>
+			</div>
 			<div class="flex gap-1">
 				{#each sortOptions as { id, label } (id)}
 					<button
@@ -242,16 +258,16 @@
 					</button>
 				{/each}
 			</div>
-			<span class="ml-auto text-xs text-[var(--color-text-secondary)]">
-				{sheets.length} sheet{sheets.length === 1 ? '' : 's'}{hasMore ? '+' : ''}
-			</span>
 		</div>
 
-		{#if loadError}
-			<p class="text-sm text-[var(--color-error)]">Failed to load community tunes.</p>
-		{/if}
-
-		{#if sheets.length > 0}
+		{#if loadError && sheets.length === 0}
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+				<p class="italic text-[var(--color-error-text)]">Failed to load community tunes.</p>
+			</div>
+		{:else if sheets.length > 0}
+			{#if loadError}
+				<p class="text-center text-sm italic text-[var(--color-error-text)]">Failed to load more tunes.</p>
+			{/if}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				{#each sheets as item (item.sheet.id)}
 					<CommunityTuneCard
@@ -269,24 +285,34 @@
 					<button
 						onclick={loadMore}
 						disabled={loading}
-						class="rounded bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)] disabled:opacity-50"
+						class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)] disabled:opacity-50"
 					>
 						{loading ? 'Loading…' : 'Load more'}
 					</button>
 				</div>
 			{/if}
-		{:else if !loading}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center">
+		{:else if loading}
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+				<p class="italic text-[var(--color-text-secondary)]">Loading…</p>
+			</div>
+		{:else if tuneCommunity.searchQuery.trim() || tuneCommunity.authorQuery.trim()}
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+				<p class="italic text-[var(--color-text-secondary)]">No shared tunes matching that search.</p>
+			</div>
+		{:else}
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center space-y-3">
+				<p class="italic text-[var(--color-text-secondary)]">No shared tunes yet.</p>
 				<p class="text-sm text-[var(--color-text-secondary)]">
-					No shared tunes yet{tuneCommunity.searchQuery ? ' matching that search' : ''}.
 					Be the first — enter a tune and it becomes shareable.
 				</p>
-				<a
-					href="/tunes/add"
-					class="mt-4 inline-block rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
-				>
-					Add a tune
-				</a>
+				<div class="flex justify-center gap-2 pt-2">
+					<a
+						href="/tunes/add"
+						class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+					>
+						Add a tune
+					</a>
+				</div>
 			</div>
 		{/if}
 	{/if}

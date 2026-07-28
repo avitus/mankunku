@@ -21,7 +21,7 @@ test('header links route to the community browse and the add chooser', async ({ 
 		'href',
 		'/tunes/community'
 	);
-	await expect(page.getByRole('link', { name: /\+ add tune/i })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: /\+ add a tune/i })).toHaveAttribute(
 		'href',
 		'/tunes/add'
 	);
@@ -44,7 +44,7 @@ test('tune book lists curated tunes and the user book', async ({ page }) => {
 test('search filters the catalog', async ({ page }) => {
 	await page.goto('/tunes');
 
-	await page.getByPlaceholder(/Search by title/).fill('amazing');
+	await page.getByPlaceholder(/search by title/i).fill('amazing');
 	await expect(page.getByRole('button', { name: /Open Amazing Grace/ })).toBeVisible();
 	await expect(page.getByRole('button', { name: /Open When the Saints/ })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toHaveCount(0);

@@ -250,7 +250,7 @@
 			</p>
 			<a
 				href="/auth"
-				class="mt-3 inline-block rounded-lg bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-80"
+				class="mt-3 inline-block rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 			>
 				Sign in
 			</a>
@@ -260,7 +260,7 @@
 		<label for="community-search" class="sr-only">Search licks</label>
 		<input
 			id="community-search"
-			type="text"
+			type="search"
 			placeholder="find a lick…"
 			oninput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
 			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
@@ -320,10 +320,10 @@
 							onclick={() => {
 								community.difficultyFilter = level;
 							}}
-							class="rounded px-2 py-0.5 text-xs transition-colors
+							class="rounded-full px-3 py-1 text-xs font-medium transition-colors
 								{community.difficultyFilter === level
 									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+									: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 						>
 							{level === null ? 'All' : `1-${level}`}
 						</button>
@@ -340,10 +340,10 @@
 							onclick={() => {
 								community.sort = opt.id as 'popular' | 'newest';
 							}}
-							class="rounded px-2 py-0.5 text-xs transition-colors
+							class="rounded-full px-3 py-1 text-xs font-medium transition-colors
 								{community.sort === opt.id
 									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+									: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 						>
 							{opt.label}
 						</button>
@@ -388,6 +388,11 @@
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
 				<p class="italic text-[var(--color-text-secondary)]">Loading…</p>
 			</div>
+		{:else if community.searchQuery.trim() || community.authorQuery.trim() || community.categoryFilter !== null || community.difficultyFilter !== null}
+			<!-- No-results state (search/filter miss) -->
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+				<p class="italic text-[var(--color-text-secondary)]">No licks match your search or filters.</p>
+			</div>
 		{:else}
 			<!-- Empty state -->
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center space-y-3">
@@ -400,7 +405,7 @@
 				<div class="flex justify-center gap-2 pt-2">
 					<a
 						href="/licks/record"
-						class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-80"
+						class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 					>
 						Record a lick
 					</a>
