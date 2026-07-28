@@ -921,7 +921,7 @@ Newest at the top.
 
 - CodeRabbit's pass on the 68-file nitpick wave: 3 threads (incl. a heavy-lift lick-match DoS ask — fixed anyway with a bounded body reader, red-first) + 3 body-section items — all 6 fixed in 22d33b2, threads closed by PATH, body items dispositioned on the PR.
 - Next pass: check pass, zero unresolved threads, ZERO body sections — clean on both axes for the first time using the corrected checklist. CircleCI test+e2e green on the final commit.
-- PR #179 final state: 6 CodeRabbit rounds, 81 total findings processed (14+4+1+71-4dup... net: 78 fixed across 6 fix commits, 10 declined with rationale, 4 already-addressed), every one visibly dispositioned.
+- PR #179 state after round 5: 96 findings processed (14 + 4 + 1 + 71 body-wave + 6 round-5): 82 fixed across 6 fix commits, 10 declined with rationale, 4 already-addressed — every one visibly dispositioned. (Totals corrected 2026-07-28 after CodeRabbit fact-checked this very line; later rounds keep their own tallies.)
 
 ## 2026-07-27 — The full review the user insisted on: a real Critical surfaced
 
