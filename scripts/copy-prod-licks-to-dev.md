@@ -27,9 +27,13 @@ anonymous on either side.
      just stay signed out.
    - Want it under a local dev account: sign into that account **first**,
      then import (it lands directly in that user's bucket).
-   Paste the import snippet into the console, then paste the copied JSON
-   between the final parentheses where `PASTE_EXPORTED_JSON_HERE` is, press
-   enter. It writes the stores into the active bucket and reloads.
+   Then two console steps, so the paste position can never produce a syntax
+   error:
+   1. Type `data = ` and paste the exported JSON straight after it, press
+      enter (the object echoes back).
+   2. Paste the import snippet below as-is, press enter. It writes the
+      stores into the active bucket, re-stamps lick owner ids to the active
+      dev account, and reloads.
 3. Verify: `/licks` shows your book, and a tune's Practice-licks setup screen
    now names your licks at the insertion points.
 
@@ -79,17 +83,33 @@ charts rather than only the curated three.
 })();
 ```
 
-## Import snippet (run on DEV at localhost:5173)
+## Import snippet (run on DEV at localhost:5173, AFTER `data = <paste>`)
 
 ```js
-((data) => {
+(() => {
 	const ROOT = 'mankunku:';
+	if (typeof data !== 'object' || data === null || !data['user-licks']) {
+		console.error('No export found — do step 1 first (data = <paste JSON>).');
+		return;
+	}
 	const active = JSON.parse(localStorage.getItem(ROOT + '__active') ?? '"anon"');
 	const prefix = active === 'anon' ? '' : 'u:' + active + ':';
-	for (const [k, v] of Object.entries(data)) localStorage.setItem(ROOT + prefix + k, v);
-	console.log(`Imported ${Object.keys(data).length} stores into bucket "${active}". Reloading…`);
+	// Owner stamps carry the PRODUCTION user id; re-stamp to the active dev
+	// account so cloud sync never treats the licks as someone else's.
+	if (active !== 'anon' && data['user-licks-owners']) {
+		const owners = JSON.parse(data['user-licks-owners']);
+		for (const id of Object.keys(owners)) owners[id] = active;
+		data['user-licks-owners'] = JSON.stringify(owners);
+	}
+	let n = 0;
+	for (const [k, v] of Object.entries(data)) {
+		localStorage.setItem(ROOT + prefix + k, v);
+		n++;
+	}
+	const own = JSON.parse(data['user-licks']).length;
+	console.log(`Imported ${n} stores (${own} own licks) into bucket "${active}". Reloading…`);
 	location.reload();
-})(PASTE_EXPORTED_JSON_HERE);
+})();
 ```
 
 Notes:
