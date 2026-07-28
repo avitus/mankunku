@@ -68,6 +68,8 @@ export interface SoundingNote {
 	articulation?: Articulation;
 	/** 0-based position within the sounding-note sequence */
 	index: number;
+	/** Index into the input notes[] of the chain's FIRST note (rests skipped, ties merged) */
+	sourceIndex: number;
 }
 
 export interface NoteExpression {
@@ -128,6 +130,7 @@ export function extractSoundingNotes(notes: Note[]): SoundingNote[] {
 	for (let i = 0; i < notes.length; i++) {
 		const note = notes[i];
 		if (note.pitch === null) continue;
+		const chainStart = i;
 		let combined: Fraction = note.duration;
 		while (notes[i].tied && i + 1 < notes.length && notes[i + 1].pitch === note.pitch) {
 			i++;
@@ -139,7 +142,8 @@ export function extractSoundingNotes(notes: Note[]): SoundingNote[] {
 			duration: combined,
 			velocity: note.velocity,
 			articulation: note.articulation,
-			index: index++
+			index: index++,
+			sourceIndex: chainStart
 		});
 	}
 	return out;

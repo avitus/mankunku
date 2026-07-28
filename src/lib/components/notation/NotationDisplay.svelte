@@ -32,6 +32,14 @@
 
 	type BeatPos = { sectionIdx: number; bar: number; beat: number };
 
+	/** Tinted bar-range band on a tune chart, in absolute notation bars. */
+	export interface RangeMarker {
+		id: string;
+		startBar: number;
+		endBarExclusive: number;
+		status: 'upcoming' | 'active' | 'hit' | 'missed';
+	}
+
 	interface Props {
 		phrase?: Phrase | null;
 		/**
@@ -44,6 +52,18 @@
 		instrument?: InstrumentConfig;
 		/** Source-array index of the note to highlight, or `null` for no highlight. */
 		selectedIndex?: number | null;
+		/**
+		 * Playback cursor (notation-order note index), styled distinctly from
+		 * `selectedIndex`. Unlike `selectedIndex`, changing it never re-renders
+		 * the chart — a dedicated effect swaps a CSS class on the stashed
+		 * anchors, so it is safe to drive per-note during playback.
+		 */
+		cursorIndex?: number | null;
+		/**
+		 * Insertion-point range bands (tune charts only). Status changes swap
+		 * a handful of overlay rects without re-rendering the chart.
+		 */
+		rangeMarkers?: RangeMarker[];
 		/** Fires when the user clicks a pitched note. Receives the source-array index. */
 		onSelect?: (sourceIndex: number) => void;
 		/**
@@ -70,6 +90,8 @@
 		tune = null,
 		instrument,
 		selectedIndex = null,
+		cursorIndex = null,
+		rangeMarkers,
 		onSelect,
 		onBarClick,
 		chordEditor,
@@ -98,6 +120,13 @@
 	let lastChordZones: ChordZone[] = [];
 	let systemBands: SystemBand[] = [];
 	let lastViewBox: { width: number; height: number } | null = null;
+	// Non-reactive per-render caches for the cursor + range-marker effects —
+	// they let those effects address the rendered SVG without re-running
+	// renderAbc (the render effect must never read cursorIndex/rangeMarkers).
+	let lastVisualObj: AdapterVisualObj | null = null;
+	let lastNoteAnchors: PitchedNoteAnchor[] = [];
+	let lastBarZones: ReturnType<typeof barZones> = [];
+	let prevCursorEl: SVGGraphicsElement | null = null;
 
 	onMount(async () => {
 		abcjs = await import('abcjs');
@@ -158,7 +187,77 @@
 		drawGlissandi(vo, noteAnchors);
 		applySelectionHighlight(vo, noteAnchors, selectedIndex);
 		buildHitZones(containerEl, vo, rendered);
+		// Stash for the cursor/marker effects. The cursor element belonged to
+		// the SVG this render just replaced, so forget it.
+		lastVisualObj = vo;
+		lastNoteAnchors = noteAnchors;
+		prevCursorEl = null;
 		untrack(() => (renderVersion += 1));
+	});
+
+	// Playback cursor — a class swap on the stashed render, never a re-render.
+	$effect(() => {
+		const idx = cursorIndex;
+		void renderVersion;
+		prevCursorEl?.classList.remove('cursor-note');
+		prevCursorEl = null;
+		if (idx === null || idx === undefined || !lastVisualObj) return;
+		const anchor = lastNoteAnchors.find((a) => a.sourceIndex === idx);
+		if (!anchor) return;
+		const el = elementForAnchor(lastVisualObj, anchor);
+		if (el) {
+			el.classList.add('cursor-note');
+			prevCursorEl = el;
+		}
+	});
+
+	// Insertion-point range bands — a handful of overlay rects per status
+	// change, inserted below the glyphs like the bar hit rects.
+	$effect(() => {
+		const markers = rangeMarkers;
+		void renderVersion;
+		const container = containerEl;
+		if (!container) return;
+		for (const stale of container.querySelectorAll('.range-marker')) stale.remove();
+		const sheet = tune;
+		if (!markers?.length || !sheet || systemBands.length === 0 || lastBarZones.length === 0) return;
+
+		const sectionBases: number[] = [];
+		let barsAcc = 0;
+		for (const sec of sheet.sections) {
+			sectionBases.push(barsAcc);
+			barsAcc += sec.bars;
+		}
+
+		for (const marker of markers) {
+			// Merge the marker's bar zones into one x-run per system row.
+			const runs = new Map<number, { x0: number; x1: number }>();
+			for (const zone of lastBarZones) {
+				const absBar = sectionBases[zone.sectionIdx] + zone.bar;
+				if (absBar < marker.startBar || absBar >= marker.endBarExclusive) continue;
+				const run = runs.get(zone.systemIdx);
+				if (run) {
+					run.x0 = Math.min(run.x0, zone.x0);
+					run.x1 = Math.max(run.x1, zone.x1);
+				} else {
+					runs.set(zone.systemIdx, { x0: zone.x0, x1: zone.x1 });
+				}
+			}
+			for (const [systemIdx, run] of runs) {
+				const band = systemBands[systemIdx];
+				if (!band) continue;
+				const spec = barHitRect(run, band);
+				const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+				rect.setAttribute('x', spec.x.toFixed(2));
+				rect.setAttribute('y', spec.y.toFixed(2));
+				rect.setAttribute('width', Math.max(0, spec.w).toFixed(2));
+				rect.setAttribute('height', Math.max(0, spec.h).toFixed(2));
+				rect.setAttribute('rx', '4');
+				rect.setAttribute('class', `range-marker marker-${marker.status}`);
+				rect.setAttribute('data-marker-id', marker.id);
+				band.wrapper.insertBefore(rect, band.wrapper.firstChild);
+			}
+		}
 	});
 
 	/**
@@ -263,8 +362,11 @@
 		lastChordZones = [];
 		systemBands = [];
 		lastViewBox = null;
+		lastBarZones = [];
 		const sheet = tune;
-		if (!sheet || (!onBarClick && !chordEditor)) return;
+		// Geometry (bands + bar zones) is measured for every tune render — the
+		// range-marker effect needs it even when no hit rects are requested.
+		if (!sheet) return;
 		const svg = container.querySelector('svg');
 		if (!svg) return;
 		const vb = svg.viewBox.baseVal;
@@ -281,8 +383,10 @@
 			systemBands.push({ wrapper, ...bandGeometry(wrapBox.y, staffBox.y, staffBox.height) });
 		}
 
+		lastBarZones = barZones(systems, anchors.barAnchors);
+
 		if (onBarClick) {
-			for (const zone of barZones(systems, anchors.barAnchors)) {
+			for (const zone of lastBarZones) {
 				const band = systemBands[zone.systemIdx];
 				if (!band) continue;
 				const rect = makeHitRect(barHitRect(zone, band), 'bar-hit');
@@ -505,10 +609,10 @@
 		width: 100%;
 		max-width: 100%;
 	}
-	/* Style abcjs SVG for dark mode (hit zones stay strokeless + fill-driven) */
+	/* Style abcjs SVG for dark mode (hit zones + markers stay strokeless) */
 	.notation-container :global(svg path),
 	.notation-container :global(svg line),
-	.notation-container :global(svg rect:not(.abcjs-note_selected):not(.hit-zone)) {
+	.notation-container :global(svg rect:not(.abcjs-note_selected):not(.hit-zone):not(.range-marker)) {
 		stroke: var(--color-text) !important;
 	}
 	.notation-container :global(svg text) {
@@ -553,5 +657,38 @@
 	}
 	.notation-container :global(.abcjs-note.selected-note line) {
 		stroke: var(--color-accent) !important;
+	}
+	/* Playback cursor — brass to contrast the accent-colored selection.
+	   Declared after selected-note so the cursor wins if both land on one note. */
+	.notation-container :global(.abcjs-note.cursor-note),
+	.notation-container :global(.abcjs-note.cursor-note path),
+	.notation-container :global(.abcjs-note.cursor-note ellipse),
+	.notation-container :global(.abcjs-note.cursor-note circle) {
+		fill: var(--color-brass) !important;
+		stroke: var(--color-brass) !important;
+	}
+	.notation-container :global(.abcjs-note.cursor-note line) {
+		stroke: var(--color-brass) !important;
+	}
+	/* Insertion-point range bands — translucent status tints under the glyphs. */
+	.notation-container :global(svg .range-marker) {
+		stroke: none;
+		pointer-events: none;
+	}
+	.notation-container :global(svg .range-marker.marker-upcoming) {
+		fill: var(--color-accent);
+		fill-opacity: 0.08;
+	}
+	.notation-container :global(svg .range-marker.marker-active) {
+		fill: var(--color-brass);
+		fill-opacity: 0.18;
+	}
+	.notation-container :global(svg .range-marker.marker-hit) {
+		fill: var(--color-success);
+		fill-opacity: 0.12;
+	}
+	.notation-container :global(svg .range-marker.marker-missed) {
+		fill: var(--color-error);
+		fill-opacity: 0.1;
 	}
 </style>

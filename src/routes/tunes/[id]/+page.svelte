@@ -212,6 +212,12 @@
 						Play
 					{/if}
 				</button>
+				<button
+					onclick={() => goto(`/tunes/${baseSheet.id}/practice`)}
+					class="rounded-full bg-[var(--color-brass)]/15 px-3 py-1.5 text-sm font-medium text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/25"
+				>
+					Practice licks
+				</button>
 				{#if isOwnSheet}
 					<button
 						onclick={handleEdit}
