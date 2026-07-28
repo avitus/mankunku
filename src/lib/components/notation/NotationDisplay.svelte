@@ -22,6 +22,7 @@
 		bandGeometry,
 		barHitRect,
 		chordHitRect,
+		chordSymbolDeltas,
 		glissandoWave,
 		type AdapterVisualObj,
 		type BandGeometry,
@@ -153,6 +154,7 @@
 		const vo = visualObj as unknown as AdapterVisualObj;
 
 		normalizeChordVoiceRests(containerEl);
+		dropChordSymbols(containerEl);
 		drawGlissandi(vo, noteAnchors);
 		applySelectionHighlight(vo, noteAnchors, selectedIndex);
 		buildHitZones(containerEl, vo, rendered);
@@ -353,7 +355,56 @@
 			const spacing = staff.getBBox().height / 4;
 			if (!Number.isFinite(spacing) || spacing <= 0) continue;
 			for (const rest of svg.querySelectorAll('.abcjs-rest.abcjs-v1')) {
-				rest.setAttribute('transform', `translate(0, ${-2 * spacing})`);
+				// The rest group ALSO carries the segment's chord <text> —
+				// translating the group would drag the chord symbol up with
+				// the rest glyph (and used to: every tune chord rode two
+				// extra spacings above abcjs's own row). Shift only the ink.
+				for (const child of rest.children) {
+					if (child.tagName !== 'text') {
+						child.setAttribute('transform', `translate(0, ${-2 * spacing})`);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Drop chord symbols to MuseScore's default height. abcjs parks every
+	 * chord in a system above the tallest element of the WHOLE line (one
+	 * high bar lifts them all); `chordSymbolDeltas` computes per-chord
+	 * corrections instead — baseline 2.5 spacings above the top line,
+	 * pushed up only over x-overlapping ink. Endings/parts/tempo float
+	 * above the chord row by abcjs's layout and rests never reach it, so
+	 * none of them count as obstacles (voice-H rests also carry stale
+	 * pre-transform boxes from the rest normalization). Must run BEFORE
+	 * buildHitZones so the band measurements see final chord positions.
+	 */
+	function dropChordSymbols(container: HTMLDivElement): void {
+		for (const svg of container.querySelectorAll('svg')) {
+			for (const wrapper of svg.querySelectorAll<SVGGElement>('g.abcjs-staff-wrapper')) {
+				const chordEls = [...wrapper.querySelectorAll<SVGTextElement>('text.abcjs-chord')];
+				if (chordEls.length === 0) continue;
+				const staffEl = wrapper.querySelector<SVGGraphicsElement>('.abcjs-staff');
+				if (!staffEl) continue;
+				const staffBox = staffEl.getBBox();
+				const chords = chordEls.map((el) => ({
+					baselineY: Number.parseFloat(el.getAttribute('y') ?? ''),
+					box: el.getBBox()
+				}));
+				const obstacles = [
+					...wrapper.querySelectorAll<SVGGraphicsElement>('path, ellipse, rect, circle, polygon, line, text')
+				]
+					.filter(
+						(leaf) =>
+							!leaf.closest('.abcjs-chord, .abcjs-ending, .abcjs-part, .abcjs-tempo, .abcjs-rest, .hit-zone')
+					)
+					.map((leaf) => leaf.getBBox());
+				const deltas = chordSymbolDeltas(chords, obstacles, staffBox.y, staffBox.height / 4);
+				chordEls.forEach((el, i) => {
+					if (Math.abs(deltas[i]) > 0.01) {
+						el.setAttribute('transform', `translate(0, ${deltas[i].toFixed(2)})`);
+					}
+				});
 			}
 		}
 	}

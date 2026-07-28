@@ -15,9 +15,11 @@ import {
 	bandGeometry,
 	barHitRect,
 	chordHitRect,
+	chordSymbolDeltas,
 	glissandoWave,
 	type AdapterVisualObj,
-	type AdapterVoiceItem
+	type AdapterVoiceItem,
+	type ChordGlyphBox
 } from '$lib/notation/abcjs-adapter';
 
 /** A rendered abcjs-shaped voice item (post-render: abselem carries x/w). */
@@ -402,6 +404,88 @@ describe('band + hit-rect geometry', () => {
 	it('chord hit rect covers band top down to the staff top', () => {
 		const band = bandGeometry(30, 100, 40);
 		expect(chordHitRect({ x0: 20, x1: 60 }, band)).toEqual({ x: 20, y: 30, w: 40, h: 70 });
+	});
+});
+
+describe('chordSymbolDeltas — MuseScore-style chord drop toward the staff', () => {
+	// Staff-space units: spacing 10, top staff line at y=100. The MuseScore
+	// default puts a chord's baseline 2.5 spacings above the top line → y=75.
+	const topLineY = 100;
+	const spacing = 10;
+
+	/** A chord <text> glyph: baseline (its y attr) + bbox (ascent 9, descent 3). */
+	function glyph(baselineY: number, x = 10, width = 30): ChordGlyphBox {
+		return { baselineY, box: { x, y: baselineY - 9, width, height: 12 } };
+	}
+
+	/** The chord's final baseline after applying its delta. */
+	function finalBaseline(g: ChordGlyphBox, obstacles: Parameters<typeof chordSymbolDeltas>[1]): number {
+		return g.baselineY + chordSymbolDeltas([g], obstacles, topLineY, spacing)[0];
+	}
+
+	it('drops an unobstructed chord to exactly 2.5 spacings above the top line', () => {
+		// abcjs parked the whole row 6 spacings up (baseline y=40).
+		expect(chordSymbolDeltas([glyph(40)], [], topLineY, spacing)).toEqual([35]);
+	});
+
+	it('is a no-op for a chord already at the target baseline', () => {
+		expect(chordSymbolDeltas([glyph(75)], [], topLineY, spacing)).toEqual([0]);
+	});
+
+	it('drops each chord independently: a high obstacle pushes only the chord above it', () => {
+		// The core regression: one high bar must NOT keep chords over OTHER
+		// bars riding high. A and B share abcjs's uniform row (baseline 40);
+		// the note run (ink top 5.3 spacings above the line) x-overlaps A only.
+		const a = glyph(40, 10);
+		const b = glyph(40, 200);
+		const noteRun = { x: 5, y: 47, width: 45, height: 60 };
+		const [dyA, dyB] = chordSymbolDeltas([a, b], [noteRun], topLineY, spacing);
+		expect(40 + dyB).toBe(75); // B lands at the 2.5-spacing default
+		expect(40 + dyA).toBeLessThan(75); // A stays pushed above the run
+	});
+
+	it('leaves exactly half a spacing of clearance over the obstructing ink', () => {
+		const g = glyph(40);
+		const noteRun = { x: 5, y: 47, width: 45, height: 60 };
+		const descent = 3; // box bottom − baseline in glyph()
+		expect(finalBaseline(g, [noteRun]) + descent).toBe(47 - spacing / 2);
+	});
+
+	it('the topmost of several intruders governs the push', () => {
+		const g = glyph(40);
+		const lower = { x: 5, y: 60, width: 45, height: 50 };
+		const higher = { x: 20, y: 47, width: 20, height: 60 };
+		expect(finalBaseline(g, [lower, higher]) + 3).toBe(47 - spacing / 2);
+	});
+
+	it('never places a baseline closer to the staff than 2.5 spacings', () => {
+		// Obstacle air would allow a lower spot; a glyph starting too low must
+		// come back UP to the default, and one starting high stops at it.
+		const shallowInk = { x: 5, y: 88, width: 45, height: 30 };
+		expect(finalBaseline(glyph(80), [shallowInk])).toBe(75);
+		expect(finalBaseline(glyph(40), [shallowInk])).toBe(75);
+	});
+
+	it('ignores obstacles that do not x-overlap the chord ink', () => {
+		const elsewhere = { x: 100, y: 47, width: 50, height: 60 };
+		expect(finalBaseline(glyph(40, 10, 30), [elsewhere])).toBe(75);
+	});
+
+	it('ignores ink floating wholly above the default chord box (ending brackets)', () => {
+		// Bracket at 4.5–5.8 spacings above the line: bottom (y=55) clears the
+		// default box top (y=66) — it must not veto the drop.
+		const bracket = { x: 5, y: 42, width: 45, height: 13 };
+		expect(finalBaseline(glyph(40), [bracket])).toBe(75);
+	});
+
+	it('returns zero deltas when spacing is non-positive or non-finite', () => {
+		expect(chordSymbolDeltas([glyph(40)], [], topLineY, 0)).toEqual([0]);
+		expect(chordSymbolDeltas([glyph(40)], [], topLineY, Number.NaN)).toEqual([0]);
+	});
+
+	it('returns a zero delta for a glyph with a non-finite baseline', () => {
+		const broken = { baselineY: Number.NaN, box: { x: 10, y: 31, width: 30, height: 12 } };
+		expect(chordSymbolDeltas([broken, glyph(40)], [], topLineY, spacing)).toEqual([0, 35]);
 	});
 });
 
