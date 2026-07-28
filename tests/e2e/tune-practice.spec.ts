@@ -26,9 +26,13 @@ test.describe('tune practice setup', () => {
 		await expect(page.getByText(/5 insertion points/i)).toBeVisible();
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
-		// The detector's bar ranges render as marker bands inside the chart SVG.
+		// The detector's bar ranges render as marker bands inside the chart SVG,
+		// each labeled with its progression name.
 		await expect(page.locator('svg rect.range-marker').first()).toBeVisible();
 		expect(await page.locator('svg rect.range-marker').count()).toBeGreaterThanOrEqual(5);
+		await expect(page.locator('svg text.range-marker-label').first()).toBeVisible();
+		const labels = await page.locator('svg text.range-marker-label').allTextContents();
+		expect(labels.join(' ')).toMatch(/Major|Dominant|Blues/);
 	});
 
 	test('mankunku blues previews its ii-V, turnarounds, and blues bars', async ({
@@ -42,18 +46,18 @@ test.describe('tune practice setup', () => {
 		await expect(page.getByText(/Turnaround/i)).toBeVisible();
 	});
 
-	test('mode selector swaps freestyle-specific config', async ({
+	test('mode selector and the head toggle', async ({
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/tunes/ls-when-the-saints/practice');
-		// Suggest is the default and shows the melody toggle.
-		await expect(page.getByText(/play the head/i)).toBeVisible();
+		// The play-the-head option applies to every mode.
+		await expect(page.getByText(/play the head first/i)).toBeVisible();
 		await page.getByRole('button', { name: /freestyle/i }).click();
-		await expect(page.getByText(/play the head/i)).toHaveCount(0);
+		await expect(page.getByText(/play the head first/i)).toBeVisible();
 		// The mode button's accessible name includes its description line.
 		await page.getByRole('button', { name: /pick your lick and earn points/i }).click();
-		await expect(page.getByText(/play the head/i)).toBeVisible();
+		await expect(page.getByText(/play the head first/i)).toBeVisible();
 		// Strictness pills present.
 		await expect(page.getByRole('button', { name: /^solo$/i })).toBeVisible();
 	});

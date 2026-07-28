@@ -37,7 +37,10 @@
 		id: string;
 		startBar: number;
 		endBarExclusive: number;
-		status: 'upcoming' | 'active' | 'hit' | 'missed';
+		/** 'playhead' is the moving current-bar band (never labeled). */
+		status: 'upcoming' | 'active' | 'hit' | 'missed' | 'playhead';
+		/** Text drawn inside the band below the staff (e.g. the lick's name). */
+		label?: string;
 	}
 
 	interface Props {
@@ -243,7 +246,9 @@
 					runs.set(zone.systemIdx, { x0: zone.x0, x1: zone.x1 });
 				}
 			}
-			for (const [systemIdx, run] of runs) {
+			let labelPlaced = false;
+			for (const systemIdx of [...runs.keys()].sort((a, b) => a - b)) {
+				const run = runs.get(systemIdx)!;
 				const band = systemBands[systemIdx];
 				if (!band) continue;
 				const spec = barHitRect(run, band);
@@ -256,6 +261,27 @@
 				rect.setAttribute('class', `range-marker marker-${marker.status}`);
 				rect.setAttribute('data-marker-id', marker.id);
 				band.wrapper.insertBefore(rect, band.wrapper.firstChild);
+
+				// Lick/progression name inside the band, below the staff — on the
+				// marker's first system only. Truncated to the run width so long
+				// names can't bleed into the next insertion point.
+				if (marker.label && marker.status !== 'playhead' && !labelPlaced) {
+					labelPlaced = true;
+					const fontSize = band.spacing * 1.8;
+					const maxChars = Math.max(3, Math.floor((run.x1 - run.x0 - band.spacing) / (fontSize * 0.58)));
+					const text =
+						marker.label.length > maxChars
+							? marker.label.slice(0, Math.max(1, maxChars - 1)) + '…'
+							: marker.label;
+					const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+					el.setAttribute('x', (run.x0 + band.spacing * 0.6).toFixed(2));
+					el.setAttribute('y', (band.staffBottom + band.spacing * 1.9).toFixed(2));
+					el.setAttribute('font-size', fontSize.toFixed(2));
+					el.setAttribute('class', `range-marker range-marker-label marker-label-${marker.status}`);
+					el.setAttribute('data-marker-id', marker.id);
+					el.textContent = text;
+					band.wrapper.appendChild(el);
+				}
 			}
 		}
 	});
@@ -690,5 +716,30 @@
 	.notation-container :global(svg .range-marker.marker-missed) {
 		fill: var(--color-error);
 		fill-opacity: 0.1;
+	}
+	/* Moving current-bar band — keeps the player's place on the chart. */
+	.notation-container :global(svg .range-marker.marker-playhead) {
+		fill: var(--color-brass);
+		fill-opacity: 0.1;
+	}
+	/* Band labels (lick / progression names) — colored to match their band.
+	   The dark-mode text rule targets svg text broadly, so these need !important
+	   to keep their band color. */
+	.notation-container :global(svg text.range-marker-label) {
+		stroke: none !important;
+		font-weight: 600;
+		pointer-events: none;
+	}
+	.notation-container :global(svg text.range-marker-label.marker-label-upcoming) {
+		fill: var(--color-accent) !important;
+	}
+	.notation-container :global(svg text.range-marker-label.marker-label-active) {
+		fill: var(--color-brass) !important;
+	}
+	.notation-container :global(svg text.range-marker-label.marker-label-hit) {
+		fill: var(--color-success) !important;
+	}
+	.notation-container :global(svg text.range-marker-label.marker-label-missed) {
+		fill: var(--color-error) !important;
 	}
 </style>

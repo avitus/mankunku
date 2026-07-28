@@ -17,10 +17,11 @@ import {
 import { buildBookIndex, type FreestyleBook } from '$lib/matching/book-index';
 import type { FreestyleMatch } from '$lib/matching/freestyle';
 import { addFractions, compareFractions, subtractFractions } from '$lib/music/intervals';
+import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 import {
 	applyInsertionResult,
+	buildSessionPhrase,
 	buildSessionPlan,
-	carveMelody,
 	emptyResultTally,
 	resolvePickedSuggestion,
 	type InsertionPoint,
@@ -44,20 +45,24 @@ export interface TunePracticeConfig {
 	/** Concert key the session sheet is transposed to (set via written-key pills). */
 	concertKey: PitchClass;
 	backingStyle: BackingStyle;
-	/** Play the written melody outside insertion windows (suggest/points). */
-	playMelody: boolean;
+	/** Play the head (the written melody, one chorus) before the practice chorus. */
+	playHead: boolean;
 }
 
 /** Everything the route's audio layer needs, returned by session start. */
 export interface TunePracticeAudioPlan {
 	/** Transposed session sheet — a stable reference for NotationDisplay. */
 	sheet: Tune;
-	/** Playback phrase (melody carved out of windows; full harmony intact). */
+	/** The same sheet with the melody cleared — shown once the head is done. */
+	changesSheet: Tune;
+	/** Head chorus melody (if any) + harmony across every chorus. */
 	playedPhrase: Phrase;
 	/** Playback-order flatten with provenance (cursor + window projection). */
 	flat: FlattenedTune;
 	/** Notation-order flatten (chart markers). */
 	notationFlat: FlattenedTune;
+	/** Bars before the practice chorus starts (0 without a head). */
+	leadBars: number;
 }
 
 const MAX_SUGGESTIONS = 5;
@@ -92,7 +97,7 @@ export const tunePractice = $state<{
 		tempo: 100,
 		concertKey: 'C',
 		backingStyle: 'swing',
-		playMelody: true
+		playHead: true
 	},
 	phase: 'setup',
 	tuneId: null,
@@ -137,8 +142,8 @@ export interface SessionPreview {
 	total: number;
 	byType: Partial<Record<ChordProgressionType, number>>;
 	uncategorizedCount: number;
-	/** Notation-order bar ranges for setup-screen chart markers. */
-	markers: { id: string; startBar: number; endBarExclusive: number }[];
+	/** Notation-order bar ranges + progression labels for setup-screen chart markers. */
+	markers: { id: string; startBar: number; endBarExclusive: number; label: string }[];
 }
 
 /**
@@ -166,7 +171,8 @@ export function previewSessionPlan(sheet: Tune): SessionPreview {
 		markers: detections.map((det, i) => ({
 			id: `preview-${i}`,
 			startBar: det.startBar,
-			endBarExclusive: det.endBarExclusive
+			endBarExclusive: det.endBarExclusive,
+			label: PROGRESSION_TEMPLATES[det.type].shortName
 		}))
 	};
 }
@@ -186,11 +192,17 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	const notationFlat = flattenTune(transposed);
 	const matcherDeps = buildLickMatcherDeps(transposed);
 
+	// A head chorus needs a melody — chords-only charts (iReal imports and
+	// most community tunes) would otherwise open with a full silent chorus.
+	const hasMelody = flat.notes.some((n) => n.pitch !== null);
+	const playHead = tunePractice.config.playHead && hasMelody;
+	const leadBars = playHead ? flat.totalBars : 0;
 	const plan = buildSessionPlan({
 		flat,
 		notationFlat,
 		timeSignature: transposed.timeSignature,
 		ppq,
+		leadBars,
 		detect: (f) => selectNonOverlapping(detectProgressions(f, transposed)),
 		match: (det) => {
 			const result = suggestLicksForProgression(det, matcherDeps, { limit: MAX_SUGGESTIONS });
@@ -198,17 +210,17 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		}
 	});
 
-	const mode = tunePractice.config.mode;
-	const carving = mode !== 'freestyle' && tunePractice.config.playMelody;
-	const playedPhrase = carving
-		? {
-				...phrase,
-				notes: carveMelody(
-					phrase.notes,
-					plan.map((ip) => ({ start: ip.startOffset, end: addFractions(ip.startOffset, ip.duration) }))
-				)
-			}
-		: phrase;
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead });
+	const playedPhrase: Phrase = {
+		...phrase,
+		notes: built.notes,
+		harmony: built.harmony,
+		difficulty: { ...phrase.difficulty, lengthBars: built.phraseBars }
+	};
+	const changesSheet: Tune = {
+		...transposed,
+		sections: transposed.sections.map((sec) => ({ ...sec, notes: [] }))
+	};
 
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
@@ -226,7 +238,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	tunePractice.elapsedSeconds = 0;
 	tunePractice.phase = 'count-in';
 
-	return { sheet: transposed, playedPhrase, flat, notationFlat };
+	return { sheet: transposed, changesSheet, playedPhrase, flat, notationFlat, leadBars };
 }
 
 /**
@@ -264,8 +276,20 @@ export function pickSuggestion(insertionId: string, index: number): void {
 	tunePractice.pickedSuggestion[insertionId] = index;
 }
 
+export function markHead(): void {
+	if (tunePractice.phase === 'count-in') tunePractice.phase = 'head';
+}
+
 export function markRunning(): void {
-	if (tunePractice.phase === 'count-in') tunePractice.phase = 'running';
+	if (tunePractice.phase === 'count-in' || tunePractice.phase === 'head') {
+		tunePractice.phase = 'running';
+	}
+}
+
+/** The name shown on the chart for an insertion point (pick-aware), if any. */
+export function suggestionNameFor(ip: InsertionPoint): string | null {
+	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
+	return suggestion?.lickName ?? null;
 }
 
 export function markWindowOpen(index: number): void {
@@ -331,7 +355,11 @@ export function clearCelebration(): void {
 }
 
 export function updateElapsedTime(): void {
-	if (tunePractice.phase === 'count-in' || tunePractice.phase === 'running') {
+	if (
+		tunePractice.phase === 'count-in' ||
+		tunePractice.phase === 'head' ||
+		tunePractice.phase === 'running'
+	) {
 		tunePractice.elapsedSeconds = Math.floor((Date.now() - tunePractice.startTime) / 1000);
 	}
 }

@@ -1,10 +1,16 @@
-import type { Fraction, Note, PitchClass } from '$lib/types/music';
+import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { Grade, Score } from '$lib/types/scoring';
 import type { FlattenedTune } from '$lib/tunes/flatten';
+import type { TuneSection } from '$lib/types/tune';
 import type { DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
-import { addFractions, compareFractions, fractionToFloat } from '$lib/music/intervals';
+import {
+	addFractions,
+	compareFractions,
+	fractionToFloat,
+	multiplyFraction
+} from '$lib/music/intervals';
 import { scoreToGrade } from '$lib/scoring/grades';
 import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 
@@ -17,7 +23,7 @@ import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 
 export type TunePracticeMode = 'suggest' | 'points' | 'freestyle';
 export type TunePracticeStrictness = 'guided' | 'standard' | 'solo';
-export type TunePracticePhase = 'setup' | 'count-in' | 'running' | 'complete';
+export type TunePracticePhase = 'setup' | 'count-in' | 'head' | 'running' | 'complete';
 
 export interface InsertionPoint {
 	id: string;
@@ -59,6 +65,8 @@ export interface BuildPlanDeps {
 	notationFlat: FlattenedTune;
 	timeSignature: [number, number];
 	ppq: number;
+	/** Bars played before the practice chorus (the optional head), default 0. */
+	leadBars?: number;
 	/** Detector composed with non-overlap selection by the caller. */
 	detect: (flat: FlattenedTune) => DetectedProgression[];
 	match: (detection: DetectedProgression) => {
@@ -81,7 +89,10 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const { flat, notationFlat, timeSignature, ppq, detect, match } = deps;
 	const barTicks = timeSignature[0] * ppq;
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
-	const formEndTick = barTicks + flat.totalBars * barTicks;
+	// Everything before the practice chorus: the 1-bar count-in plus the
+	// optional head chorus.
+	const leadTicks = barTicks + (deps.leadBars ?? 0) * barTicks;
+	const formEndTick = leadTicks + flat.totalBars * barTicks;
 	const ticksOf = (f: Fraction) => Math.round(fractionToFloat(f) * 4 * ppq);
 
 	const detections = [...detect(flat)].sort(
@@ -89,10 +100,10 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	);
 
 	return detections.map((det, i) => {
-		const openTick = barTicks + ticksOf(det.startOffset);
-		let closeTick = barTicks + ticksOf(addFractions(det.startOffset, det.duration)) + ppq;
+		const openTick = leadTicks + ticksOf(det.startOffset);
+		let closeTick = leadTicks + ticksOf(addFractions(det.startOffset, det.duration)) + ppq;
 		const next = detections[i + 1];
-		if (next) closeTick = Math.min(closeTick, barTicks + ticksOf(next.startOffset));
+		if (next) closeTick = Math.min(closeTick, leadTicks + ticksOf(next.startOffset));
 		closeTick = Math.min(closeTick, formEndTick);
 
 		const notationSegmentIndices = det.segmentIndices.map(
@@ -137,32 +148,62 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	});
 }
 
-export interface CarveWindow {
-	/** Whole-note units on the playback timeline, half-open [start, end). */
-	start: Fraction;
-	end: Fraction;
+/**
+ * The audio material for a session: an optional head chorus (the written
+ * melody, once through) followed by one melody-free practice chorus of the
+ * same changes. With a head, the harmony covers both choruses so the backing
+ * comps straight through; without one, the session is a single melody-free
+ * chorus. Melody notes exist only in the head, so `PlaybackEvent.sourceIndex`
+ * values always index `flat.notes` and provenance stays valid.
+ */
+export function buildSessionPhrase(args: {
+	flat: FlattenedTune;
+	timeSignature: [number, number];
+	playHead: boolean;
+}): { notes: Note[]; harmony: HarmonicSegment[]; phraseBars: number } {
+	const { flat, timeSignature, playHead } = args;
+	const barDuration: Fraction = [timeSignature[0], timeSignature[1]];
+	const harmony = flat.harmony.map((h) => ({ ...h, chord: { ...h.chord } }));
+	if (!playHead) {
+		return { notes: [], harmony, phraseBars: flat.totalBars };
+	}
+	const shift = multiplyFraction(barDuration, flat.totalBars);
+	const practiceChorus = flat.harmony.map((h) => ({
+		...h,
+		chord: { ...h.chord },
+		startOffset: addFractions(h.startOffset, shift)
+	}));
+	return {
+		notes: flat.notes.map((n) => ({ ...n })),
+		harmony: [...harmony, ...practiceChorus],
+		phraseBars: flat.totalBars * 2
+	};
 }
 
 /**
- * Null out the pitches of melody notes whose sounding span intersects any
- * window, so the instrument never plays over an open mic window. Strictly
- * index-preserving — rests are skipped at event-build time, so provenance
- * and `sourceIndex` values stay valid.
+ * Map a playback-form bar (0-based, within one pass of the expanded form) to
+ * its notation-chart bar via the flatten's `sectionMap`. Both passes of a
+ * repeated section land on the same chart bar. Returns null outside the form.
  */
-export function carveMelody(notes: readonly Note[], windows: readonly CarveWindow[]): Note[] {
-	const spans = windows.map((w) => ({
-		start: fractionToFloat(w.start),
-		end: fractionToFloat(w.end)
-	}));
-	return notes.map((note) => {
-		if (note.pitch === null) return { ...note };
-		const noteStart = fractionToFloat(note.offset);
-		const noteEnd = noteStart + fractionToFloat(note.duration);
-		const inWindow = spans.some(
-			(s) => noteStart < s.end - EPSILON && s.start < noteEnd - EPSILON
-		);
-		return inWindow ? { ...note, pitch: null } : { ...note };
-	});
+export function notationBarForPlaybackBar(
+	sectionMap: FlattenedTune['sectionMap'],
+	sections: readonly Pick<TuneSection, 'bars'>[],
+	playbackBar: number
+): number | null {
+	if (playbackBar < 0) return null;
+	const notationBases: number[] = [];
+	let acc = 0;
+	for (const sec of sections) {
+		notationBases.push(acc);
+		acc += sec.bars;
+	}
+	for (const entry of sectionMap) {
+		const bars = sections[entry.sourceSection]?.bars ?? 0;
+		if (playbackBar >= entry.barOffset && playbackBar < entry.barOffset + bars) {
+			return notationBases[entry.sourceSection] + (playbackBar - entry.barOffset);
+		}
+	}
+	return null;
 }
 
 export interface StrictnessKnobs {

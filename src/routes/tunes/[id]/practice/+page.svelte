@@ -2,7 +2,6 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
-	import InsertionCueStrip, { type CueEntry } from '$lib/components/tune-practice/InsertionCueStrip.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
 	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
@@ -15,6 +14,7 @@
 		previewSessionPlan,
 		startTunePracticeSession,
 		expectedForWindow,
+		markHead,
 		markRunning,
 		markWindowOpen,
 		recordWindowResult,
@@ -22,13 +22,19 @@
 		updateElapsedTime,
 		resetTunePractice,
 		pickSuggestion,
+		suggestionNameFor,
 		buildFreestyleBook,
 		recordFreestyleMatch,
 		clearCelebration,
 		type TunePracticeAudioPlan,
 		type InsertionPoint
 	} from '$lib/state/tune-practice.svelte';
-	import { strictnessKnobs, type TunePracticeMode, type TunePracticeStrictness } from '$lib/state/tune-practice-plan';
+	import {
+		notationBarForPlaybackBar,
+		strictnessKnobs,
+		type TunePracticeMode,
+		type TunePracticeStrictness
+	} from '$lib/state/tune-practice-plan';
 	import { createFreestyleRecognizer } from '$lib/matching/freestyle';
 	import type { FreestyleBook } from '$lib/matching/book-index';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
@@ -108,6 +114,10 @@
 	let freestyleBook: FreestyleBook | null = null;
 	let freestyleRecognizer: ReturnType<typeof createFreestyleRecognizer> | null = null;
 	let freestyleWindowSec = 0;
+	// Reading-time floor for freestyle slices: stamped when the practice
+	// chorus starts, so scans never reach back into count-in or head audio
+	// (the head melody through speakers would otherwise self-match).
+	let freestyleFloorSec = 0;
 
 	let isSessionRunning = $state(false);
 	let isLoading = $state(false);
@@ -137,55 +147,82 @@
 				: transposeTune(baseSheet, tunePractice.config.concertKey)
 			: null
 	);
+	const tuneHasMelody = $derived(
+		(baseSheet?.sections ?? []).some((sec) => sec.notes.some((n) => n.pitch !== null))
+	);
 	const previewMarkers = $derived<RangeMarker[]>(
 		(preview?.markers ?? []).map((m) => ({ ...m, status: 'upcoming' as const }))
 	);
 
 	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness, settings.bleedFilterEnabled));
 
+	// The chart shows the full melody through the head, then swaps to the
+	// changes-only sheet (one deliberate re-render at a musical boundary).
+	const displayedSheet = $derived.by(() => {
+		if (!audioPlan) return null;
+		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head')) {
+			return audioPlan.sheet;
+		}
+		return audioPlan.changesSheet;
+	});
+
 	// ── Running-screen derived state ──────────────────────────────────────────
+	// Insertion bands with on-chart lick labels (gated by strictness), plus a
+	// moving current-bar playhead so the player never loses their place.
 	const markers = $derived.by<RangeMarker[]>(() => {
+		const leadBars = audioPlan?.leadBars ?? 0;
 		const byKey = new Map<string, RangeMarker>();
 		tunePractice.plan.forEach((ip, i) => {
 			const result = tunePractice.results[i];
 			let status: RangeMarker['status'] = 'upcoming';
 			if (result) status = result.grade !== null && result.grade !== 'try-again' ? 'hit' : 'missed';
 			if (tunePractice.windowOpen && tunePractice.currentIndex === i) status = 'active';
+			const barsUntil = leadBars + ip.playbackBarRange.start - currentBar;
+			const showName =
+				tunePractice.config.mode !== 'freestyle' &&
+				(knobs.cueLevel === 'full' ||
+					(knobs.cueLevel === 'reduced' && (status === 'active' || barsUntil <= 2)));
+			const label = showName ? (suggestionNameFor(ip) ?? undefined) : undefined;
 			const existing = byKey.get(ip.markerKey);
 			if (!existing) {
 				byKey.set(ip.markerKey, {
 					id: ip.markerKey,
 					startBar: ip.notationBarRange.start,
 					endBarExclusive: ip.notationBarRange.endExclusive,
-					status
+					status,
+					label
 				});
-			} else if (status === 'active' || (existing.status === 'upcoming' && status !== 'upcoming')) {
-				existing.status = status;
+			} else {
+				if (status === 'active' || (existing.status === 'upcoming' && status !== 'upcoming')) {
+					existing.status = status;
+				}
+				// The active occurrence's (pick-aware) name wins the shared band.
+				if (label && (status === 'active' || !existing.label)) existing.label = label;
 			}
 		});
-		return [...byKey.values()];
-	});
+		const result: RangeMarker[] = [...byKey.values()];
 
-	const cueEntries = $derived.by<CueEntry[]>(() => {
-		if (tunePractice.phase !== 'count-in' && tunePractice.phase !== 'running') return [];
-		if (tunePractice.config.mode === 'freestyle') return [];
-		return tunePractice.plan
-			.map((ip, i) => ({ ip, i }))
-			.filter(({ i }) => i >= tunePractice.currentIndex)
-			.slice(0, 3)
-			.map(({ ip }) => {
-				const picked = tunePractice.pickedSuggestion[ip.id] ?? 0;
-				const top = ip.suggestions[picked] ?? ip.suggestions[0] ?? null;
-				return {
-					id: ip.id,
-					writtenKey: concertKeyToWritten(ip.localKey, getInstrument()),
-					progressionLabel: PROGRESSION_TEMPLATES[ip.progressionType].shortName,
-					degreeLabel: ip.degreeLabel,
-					lickName: top?.lickName ?? null,
-					mastery: top?.masteryTier ?? null,
-					barsUntil: ip.playbackBarRange.start - currentBar
-				};
-			});
+		// Current-bar playhead (both choruses land on the same chart bars).
+		if (audioPlan && (tunePractice.phase === 'head' || tunePractice.phase === 'running')) {
+			const formBars = audioPlan.flat.totalBars;
+			let formBar = currentBar >= leadBars ? currentBar - leadBars : currentBar;
+			if (formBar >= 0 && formBar < formBars) {
+				const chartBar = notationBarForPlaybackBar(
+					audioPlan.flat.sectionMap,
+					audioPlan.sheet.sections,
+					formBar
+				);
+				if (chartBar !== null) {
+					result.push({
+						id: '__playhead',
+						startBar: chartBar,
+						endBarExclusive: chartBar + 1,
+						status: 'playhead'
+					});
+				}
+			}
+		}
+		return result;
 	});
 
 	const hitCount = $derived(
@@ -196,7 +233,13 @@
 	// open window already locked in its pick at open time).
 	const pickTargetIndex = $derived.by(() => {
 		if (tunePractice.config.mode !== 'points') return -1;
-		if (tunePractice.phase !== 'count-in' && tunePractice.phase !== 'running') return -1;
+		if (
+			tunePractice.phase !== 'count-in' &&
+			tunePractice.phase !== 'head' &&
+			tunePractice.phase !== 'running'
+		) {
+			return -1;
+		}
 		const idx = tunePractice.windowOpen ? tunePractice.currentIndex + 1 : tunePractice.currentIndex;
 		return idx < tunePractice.plan.length ? idx : -1;
 	});
@@ -225,6 +268,20 @@
 		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
 			initTunePractice(baseSheet);
 			tunePractice.config.tempo = settings.defaultTempo;
+		}
+	});
+
+	// The state module outlives the route, but the audio plan does not: a
+	// remount that finds a mid-session phase with no plan is a zombie left by
+	// navigating away mid-take — return it to setup.
+	$effect(() => {
+		if (
+			!audioPlan &&
+			(tunePractice.phase === 'count-in' ||
+				tunePractice.phase === 'head' ||
+				tunePractice.phase === 'running')
+		) {
+			resetTunePractice();
 		}
 	});
 
@@ -310,6 +367,7 @@
 		barTicksNR = plan.sheet.timeSignature[0] * ppqNR;
 		currentBar = -1;
 		cursorIndex = null;
+		freestyleFloorSec = 0;
 		isSessionRunning = true;
 		startBeatTracking();
 
@@ -330,7 +388,7 @@
 			freestyleRecognizer = null;
 		}
 
-		const skipMelody = tunePractice.config.mode === 'freestyle' || !tunePractice.config.playMelody;
+		const skipMelody = !tunePractice.config.playHead;
 		try {
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
 				skipMelody,
@@ -347,18 +405,32 @@
 
 	/** Registered via onStarted so the events survive playPhrase's internal cancel. */
 	function scheduleInsertionWindows() {
-		if (!toneModule) return;
+		if (!toneModule || !audioPlan) return;
 		const transport = toneModule.getTransport();
+		const leadBars = audioPlan.leadBars;
+		const practiceStartTick = barTicksNR + leadBars * barTicksNR;
+		if (leadBars > 0) {
+			scheduledEventIds.push(
+				transport.scheduleOnce(() => {
+					if (isSessionRunning) markHead();
+				}, `${barTicksNR}i`)
+			);
+		}
 		scheduledEventIds.push(
 			transport.scheduleOnce(() => {
-				if (isSessionRunning) markRunning();
-			}, `${barTicksNR}i`)
+				if (!isSessionRunning) return;
+				markRunning();
+				if (micCapture) {
+					freestyleFloorSec = micCapture.context.currentTime - sessionPitchStartMicTime;
+				}
+			}, `${practiceStartTick}i`)
 		);
 		if (tunePractice.config.mode === 'freestyle') {
 			// No pre-scheduled windows — a bar-cadence scan recognizes known
-			// licks from the live stream instead. transport.cancel() clears it.
+			// licks from the live stream instead, starting once the head is
+			// done. transport.cancel() clears it.
 			scheduledEventIds.push(
-				transport.scheduleRepeat(() => runFreestyleScan(), `${barTicksNR}i`, `${barTicksNR}i`)
+				transport.scheduleRepeat(() => runFreestyleScan(), `${barTicksNR}i`, `${practiceStartTick}i`)
 			);
 			return;
 		}
@@ -380,7 +452,7 @@
 		const readings = pitchDetector.getReadings();
 		if (readings.length === 0) return;
 		const nowSec = readings[readings.length - 1].time;
-		const sliceStart = Math.max(0, nowSec - freestyleWindowSec);
+		const sliceStart = Math.max(0, nowSec - freestyleWindowSec, freestyleFloorSec);
 		const slice: PitchReading[] = [];
 		for (let i = readings.length - 1; i >= 0; i--) {
 			if (readings[i].time < sliceStart) break;
@@ -628,19 +700,22 @@
 				</span>
 			</div>
 
-			{#if tunePractice.config.mode !== 'freestyle'}
-				<div class="flex items-center gap-3">
-					<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Melody</span>
-					<label class="flex items-center gap-2 text-sm">
-						<input
-							type="checkbox"
-							bind:checked={tunePractice.config.playMelody}
-							class="accent-[var(--color-accent)]"
-						/>
-						Play the head (rests during your insertions)
-					</label>
-				</div>
-			{/if}
+			<div class="flex items-center gap-3">
+				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Head</span>
+				<label class="flex items-center gap-2 text-sm {tuneHasMelody ? '' : 'opacity-50'}">
+					<input
+						type="checkbox"
+						bind:checked={tunePractice.config.playHead}
+						disabled={!tuneHasMelody}
+						class="accent-[var(--color-accent)]"
+					/>
+					{#if tuneHasMelody}
+						Play the head first — melody once through, then the chart clears for your licks
+					{:else}
+						Play the head first (this chart has no melody)
+					{/if}
+				</label>
+			</div>
 
 			<div class="flex items-center gap-3">
 				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Key</span>
@@ -737,13 +812,16 @@
 		{#if previewSheet}
 			<NotationDisplay tune={previewSheet} instrument={getInstrument()} rangeMarkers={previewMarkers} />
 		{/if}
-	{:else if tunePractice.phase === 'count-in' || tunePractice.phase === 'running'}
+	{:else if tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'running'}
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<div>
 				<h1 class="text-xl font-bold">{tunePractice.tuneTitle}</h1>
 				<p class="text-sm text-[var(--color-text-secondary)]">
 					{#if tunePractice.phase === 'count-in'}
 						Count-in…
+					{:else if tunePractice.phase === 'head'}
+						<span class="font-medium text-[var(--color-brass)]">Head</span> — melody once
+						through, then it's yours
 					{:else if tunePractice.config.mode === 'freestyle'}
 						<span class="font-medium text-[var(--color-brass)]">Your solo</span> —
 						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
@@ -752,7 +830,7 @@
 					{:else if tunePractice.windowOpen}
 						<span class="font-medium text-[var(--color-onair)]">Your turn — play the lick!</span>
 					{:else}
-						Head — insertion {Math.min(tunePractice.currentIndex + 1, tunePractice.plan.length)}
+						Comping — insertion {Math.min(tunePractice.currentIndex + 1, tunePractice.plan.length)}
 						of {tunePractice.plan.length} coming up
 					{/if}
 				</p>
@@ -782,8 +860,6 @@
 			<LickCelebration celebration={tunePractice.celebration} onDismiss={clearCelebration} />
 		{/if}
 
-		<InsertionCueStrip entries={cueEntries} isRecording={tunePractice.windowOpen} cueLevel={knobs.cueLevel} />
-
 		{#if pickTargetIndex >= 0 && knobs.cueLevel !== 'none'}
 			<SuggestionPickCard
 				entries={pickEntries}
@@ -792,9 +868,9 @@
 			/>
 		{/if}
 
-		{#if audioPlan}
+		{#if displayedSheet}
 			<NotationDisplay
-				tune={audioPlan.sheet}
+				tune={displayedSheet}
 				instrument={getInstrument()}
 				{cursorIndex}
 				rangeMarkers={markers}
@@ -824,7 +900,7 @@
 						{#each tunePractice.freestyleMatches as match, i (i)}
 							<div class="flex items-center gap-3 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
 								<span class="w-8 shrink-0 font-mono text-xs text-[var(--color-text-secondary)]">
-									b{Math.max(1, Math.floor((match.atTick - barTicksNR) / barTicksNR) + 1)}
+									b{Math.min(audioPlan?.flat.totalBars ?? 1, Math.max(1, Math.floor((match.atTick - barTicksNR) / barTicksNR) - (audioPlan?.leadBars ?? 0) + 1))}
 								</span>
 								<span class="min-w-0 flex-1 truncate">{match.name}</span>
 								<span class="shrink-0 text-xs font-medium text-[var(--color-brass)]">

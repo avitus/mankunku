@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import type { Fraction, Note } from '$lib/types/music';
+import type { Note } from '$lib/types/music';
 import type { FlattenedTune } from '$lib/tunes/flatten';
 import type { DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
 import {
+	buildSessionPhrase,
 	buildSessionPlan,
-	carveMelody,
+	notationBarForPlaybackBar,
 	type BuildPlanDeps
 } from '$lib/state/tune-practice-plan';
-import { seg } from '../../helpers/tune-fixtures';
+import { flattenTune } from '$lib/tunes/flatten';
+import { seg, section, sheet } from '../../helpers/tune-fixtures';
 
 function mkFlat(overrides: Partial<FlattenedTune>): FlattenedTune {
 	return {
@@ -190,41 +192,102 @@ describe('buildSessionPlan — window tick math', () => {
 	});
 });
 
-describe('carveMelody', () => {
-	const quarter = (offset: Fraction, pitch: number | null = 60): Note => ({
-		pitch,
-		duration: [1, 4],
-		offset
+describe('buildSessionPlan — head-chorus lead bars', () => {
+	it('shifts every window by the head chorus length', () => {
+		const det = mkDet({ startOffset: [1, 1], duration: [2, 1], segmentIndices: [0] });
+		const flat = mkFlat({
+			totalBars: 8,
+			harmony: [seg('D', 'min7', [1, 1], [2, 1])],
+			segmentSourceIndices: [0]
+		});
+		const plan = buildSessionPlan(
+			planDeps({ flat, notationFlat: flat, detect: () => [det], leadBars: 8 })
+		);
+		// count-in (1920) + head chorus (8 * 1920) + start offset (1920)
+		expect(plan[0].openTick).toBe(1920 + 8 * 1920 + 1920);
+		expect(plan[0].closeTick).toBe(1920 + 8 * 1920 + 5760 + 480);
 	});
 
-	it('nulls pitches inside a window, preserving array length and offsets', () => {
-		const notes = [quarter([0, 1]), quarter([1, 1]), quarter([5, 4]), quarter([2, 1])];
-		const carved = carveMelody(notes, [{ start: [1, 1], end: [2, 1] }]);
-		expect(carved).toHaveLength(4);
-		expect(carved.map((n) => n.pitch)).toEqual([60, null, null, 60]);
-		expect(carved.map((n) => n.offset)).toEqual(notes.map((n) => n.offset));
+	it('clamps the lead-out to the shifted end of the form', () => {
+		const det = mkDet({
+			startOffset: [6, 1],
+			duration: [4, 1],
+			segmentIndices: [0],
+			wrapsAround: true
+		});
+		const flat = mkFlat({
+			totalBars: 8,
+			harmony: [seg('D', 'min7', [6, 1], [2, 1])],
+			segmentSourceIndices: [0]
+		});
+		const plan = buildSessionPlan(
+			planDeps({ flat, notationFlat: flat, detect: () => [det], leadBars: 8 })
+		);
+		expect(plan[0].closeTick).toBe(1920 + 8 * 1920 + 8 * 1920);
+	});
+});
+
+describe('buildSessionPhrase', () => {
+	const NOTE: Note = { pitch: 60, duration: [1, 4], offset: [0, 1] };
+	const flat = (): FlattenedTune =>
+		mkFlat({
+			totalBars: 2,
+			notes: [NOTE],
+			harmony: [seg('C', 'maj7', [0, 1], [1, 1]), seg('G', '7', [1, 1], [1, 1])]
+		});
+
+	it('with a head: melody plays once, harmony covers head + practice chorus', () => {
+		const built = buildSessionPhrase({ flat: flat(), timeSignature: [4, 4], playHead: true });
+		expect(built.notes).toHaveLength(1);
+		expect(built.notes[0].offset).toEqual([0, 1]);
+		expect(built.harmony).toHaveLength(4);
+		// Second chorus is the same changes shifted by the form length (2 bars).
+		expect(built.harmony[2].chord.root).toBe('C');
+		expect(built.harmony[2].startOffset).toEqual([2, 1]);
+		expect(built.harmony[3].startOffset).toEqual([3, 1]);
+		expect(built.phraseBars).toBe(4);
 	});
 
-	it('treats window bounds as half-open', () => {
-		// Note ending exactly at window start, and note starting exactly at
-		// window end — neither is carved.
-		const notes = [quarter([3, 4]), quarter([2, 1])];
-		const carved = carveMelody(notes, [{ start: [1, 1], end: [2, 1] }]);
-		expect(carved.map((n) => n.pitch)).toEqual([60, 60]);
+	it('without a head: no melody, one chorus of changes', () => {
+		const built = buildSessionPhrase({ flat: flat(), timeSignature: [4, 4], playHead: false });
+		expect(built.notes).toHaveLength(0);
+		expect(built.harmony).toHaveLength(2);
+		expect(built.harmony[1].startOffset).toEqual([1, 1]);
+		expect(built.phraseBars).toBe(2);
 	});
 
-	it('a note straddling the window open is carved', () => {
-		const notes = [{ pitch: 60, duration: [1, 2], offset: [3, 4] } as Note];
-		const carved = carveMelody(notes, [{ start: [1, 1], end: [2, 1] }]);
-		expect(carved[0].pitch).toBeNull();
+	it('shifts the practice chorus in whole-note units of the meter (3/4)', () => {
+		const f = mkFlat({
+			totalBars: 2,
+			harmony: [seg('C', 'maj7', [0, 1], [3, 2])]
+		});
+		const built = buildSessionPhrase({ flat: f, timeSignature: [3, 4], playHead: true });
+		// 2 bars of 3/4 = [3,2] whole notes.
+		expect(built.harmony[1].startOffset).toEqual([3, 2]);
+	});
+});
+
+describe('notationBarForPlaybackBar', () => {
+	// A(repeat, 1 bar) | E1(ending 1, 1 bar) | E2(ending 2, 1 bar):
+	// playback order A, E1, A, E2 = 4 bars over a 3-bar notation form.
+	const endingsSheet = sheet({
+		sections: [
+			section({ bars: 1, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+			section({ bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+			section({ bars: 1, ending: 2, harmony: [seg('F', 'maj7', [0, 1], [1, 1])] })
+		]
+	});
+	const flat = flattenTune(endingsSheet, { expandRepeats: true });
+
+	it('maps both passes of a repeated section to the same notation bar', () => {
+		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, 0)).toBe(0);
+		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, 1)).toBe(1);
+		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, 2)).toBe(0);
+		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, 3)).toBe(2);
 	});
 
-	it('leaves rests untouched and handles multiple windows', () => {
-		const notes = [quarter([0, 1], null), quarter([1, 1]), quarter([3, 1])];
-		const carved = carveMelody(notes, [
-			{ start: [1, 1], end: [2, 1] },
-			{ start: [3, 1], end: [4, 1] }
-		]);
-		expect(carved.map((n) => n.pitch)).toEqual([null, null, null]);
+	it('returns null outside the form', () => {
+		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, -1)).toBeNull();
+		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, 4)).toBeNull();
 	});
 });
