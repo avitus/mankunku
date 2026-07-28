@@ -80,19 +80,21 @@
 	for (const [p, n] of buckets) {
 		console.log('found user-licks in bucket "' + (p || 'anon') + '": ' + n + ' licks');
 	}
-	if (buckets.has(appPrefix)) {
-		console.log(
-			'Data is already in the bucket the app reads - hard-reload ' +
-			'(Cmd+Shift+R). Still empty? Report this output back.'
-		);
-		return;
-	}
-
-	// Move the lick key-set from the fullest bucket into the app bucket.
+	// Pick the fullest bucket as the source of truth. A mere EXISTENCE check
+	// on the app's bucket is not enough: the app writes an EMPTY user-licks
+	// store on first signed-in load, which is exactly the shadowing case.
 	let srcPrefix = '';
 	let best = -2;
 	for (const [p, n] of buckets) {
 		if (n > best) { best = n; srcPrefix = p; }
+	}
+	if (srcPrefix === appPrefix) {
+		console.log(
+			'The fullest lick store (' + best + ' licks) is already in the ' +
+			'bucket the app reads - hard-reload (Cmd+Shift+R). ' +
+			'Still empty? Report this output back.'
+		);
+		return;
 	}
 	let copied = 0;
 	for (const k of KEYS) {
