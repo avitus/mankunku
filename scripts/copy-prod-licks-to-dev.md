@@ -27,8 +27,8 @@ anonymous on either side.
      just stay signed out.
    - Want it under a local dev account: sign into that account **first**,
      then import (it lands directly in that user's bucket).
-   Then two console steps, so the paste position can never produce a syntax
-   error:
+   Then paste the shared helper (below) once, followed by two steps, so
+   the paste position can never produce a syntax error:
    1. Type `data = ` and paste the exported JSON straight after it, press
       enter (the object echoes back).
    2. Paste the import snippet below as-is, press enter. It writes the
@@ -46,6 +46,45 @@ signed in.
 Set `INCLUDE_TUNES = true` in the export snippet to also bring your own and
 adopted tunes across — useful for testing tune practice against your real
 charts rather than only the curated three.
+
+## Shared helper — paste this FIRST in any console using these snippets
+
+Resolves the bucket the app actually reads, exactly like
+`src/lib/persistence/namespace.ts` (`getActiveUid`): auth-cookie uid first,
+then the `__active` pointer, then anon. Using `__active` alone silently
+targets the wrong bucket when a Supabase auth cookie is present (the bug that
+made an import invisible on 2026-07-28).
+
+```js
+window.mankunkuActiveUid = () => {
+	const ROOT = 'mankunku:';
+	const cookieUid = (() => {
+		try {
+			const chunks = [];
+			for (const p of (document.cookie || '').split('; ')) {
+				const eq = p.indexOf('=');
+				if (eq < 0) continue;
+				const m = p.slice(0, eq).match(/^sb-.*-auth-token(?:\.(\d+))?$/);
+				if (m) chunks.push({ idx: m[1] ? parseInt(m[1], 10) : -1, val: decodeURIComponent(p.slice(eq + 1)) });
+			}
+			if (!chunks.length) return null;
+			chunks.sort((a, b) => a.idx - b.idx);
+			let raw = chunks.map((c) => c.val).join('');
+			if (raw.startsWith('base64-')) { try { raw = atob(raw.slice(7)); } catch {} }
+			const jwt = raw.match(/eyJ[\w-]+\.(eyJ[\w-]+)\.[\w-]+/);
+			if (jwt) {
+				const seg = jwt[1].replace(/-/g, '+').replace(/_/g, '/');
+				const payload = JSON.parse(atob(seg + '==='.slice((seg.length + 3) % 4)));
+				if (typeof payload?.sub === 'string' && payload.sub) return payload.sub;
+			}
+			return null;
+		} catch { return null; }
+	})();
+	let pointer = 'anon';
+	try { pointer = JSON.parse(localStorage.getItem(ROOT + '__active') ?? '"anon"') || 'anon'; } catch {}
+	return cookieUid ?? pointer;
+};
+```
 
 ## Export snippet (run on PRODUCTION — read-only)
 
@@ -66,7 +105,7 @@ charts rather than only the curated three.
 		'tune-adoptions', 'tune-adopted-payloads', 'tune-adopted-authors', 'tune-favorites'
 	];
 	const keys = INCLUDE_TUNES ? [...LICK_KEYS, ...TUNE_KEYS] : LICK_KEYS;
-	const active = JSON.parse(localStorage.getItem(ROOT + '__active') ?? '"anon"');
+	const active = mankunkuActiveUid();
 	const prefix = active === 'anon' ? '' : 'u:' + active + ':';
 	const out = {};
 	for (const k of keys) {
@@ -92,7 +131,7 @@ charts rather than only the curated three.
 		console.error('No export found — do step 1 first (data = <paste JSON>).');
 		return;
 	}
-	const active = JSON.parse(localStorage.getItem(ROOT + '__active') ?? '"anon"');
+	const active = mankunkuActiveUid();
 	const prefix = active === 'anon' ? '' : 'u:' + active + ':';
 	// Owner stamps carry the PRODUCTION user id; re-stamp to the active dev
 	// account so cloud sync never treats the licks as someone else's.
