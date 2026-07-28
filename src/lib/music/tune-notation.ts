@@ -168,7 +168,11 @@ export function tuneToAbcWithMap(
 		`%%score (M H)`,
 		`K:${displayKey}`,
 		`V:M`,
-		`V:H`
+		// The explicit stem= on H keeps abcjs's createVoice from splicing a
+		// forced stem-up into the MELODY (its two-real-voices convention,
+		// triggered by a second voice declared without one). M then follows
+		// the normal single-voice pitch rules; H draws no stems at all.
+		`V:H stem=down`
 	];
 
 	const tokens: string[] = [];
