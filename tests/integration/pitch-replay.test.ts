@@ -1517,3 +1517,104 @@ describe('pitch replay regression: 2026-07-25 metronome-click / soft-tongue trio
 		});
 	}
 });
+
+/**
+ * Regression recording: "Pent 1-3-2-5 / Dotted Quarter + Eighths" (concert F,
+ * 2026-07-28). A clean four-note take — F (dotted quarter) A (eighth) G C
+ * (quarters) on tenor sax at 105 BPM — whose final C was CUT OFF by the
+ * scoring path, not by any detection failure.
+ *
+ * The cause was upstream of the segmenter's algorithms entirely: the
+ * ear-training live and rescore paths passed the notional PHRASE duration
+ * (4 beats at 105 BPM = 2.286 s) as segmentNotes' `recordingDuration`. The
+ * recording deliberately runs past the phrase end (2 grace beats) because the
+ * user starts late by their reaction latency (~0.59 s here — later absorbed by
+ * the scorer's median latency correction). That shifted the final C's attack
+ * to 2.32 s, just past the phrase-length bound, so the segmenter clipped the
+ * G at 2.286 s and dropped the C entirely. DTW marked the last expected note
+ * MISSED and the saved score was 0.737 ("good", pitch 3/4) on a clean take.
+ * The fix segments over the full capture instead.
+ */
+describe('pitch replay regression: Pent 1-3-2-5 latency-shifted final note (concert F, 2026-07-28)', () => {
+	const TEMPO = 105;
+	const SWING = 0.6;
+	const BEAT = 60 / TEMPO;
+	// Metronome clicks observed at 0.0135 + k·BEAT in recording time
+	// (worklet onsets at 2.8706 and 3.4424 s, one beat apart, in the
+	// post-phrase tail where the user was no longer playing).
+	const rts = 16 * BEAT - 0.01346;
+
+	// cmb-sp-pent-skip_rp-4-dotted_F as the scorer saw it: F A G C.
+	const phrase: Phrase = {
+		id: 'cmb-sp-pent-skip_rp-4-dotted_F',
+		name: 'Pent 1-3-2-5 / Dotted Quarter + Eighths',
+		timeSignature: [4, 4],
+		key: 'F',
+		notes: [
+			{ pitch: 53, duration: [3, 8], offset: [0, 1] }, // F
+			{ pitch: 57, duration: [1, 8], offset: [3, 8] }, // A
+			{ pitch: 55, duration: [1, 4], offset: [1, 2] }, // G
+			{ pitch: 60, duration: [1, 4], offset: [3, 4] } // C
+		],
+		harmony: [],
+		difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 12, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: [],
+		source: 'curated'
+	};
+
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-07-28-pent-1-3-2-5.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// Mirror the production ear-training path with metronome enabled,
+	// segmenting over the FULL capture duration (the fix under test).
+	async function detectFromFixture(): Promise<DetectedNote[]> {
+		const { readings, onsets, duration } = await replayFromAudioBuffer(loadFixture());
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const bleedOnsets = getMetronomeBleedOnsets(rts, TEMPO, duration);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			bleedOnsets,
+			articulationOnsets
+		);
+	}
+
+	it('segments all four notes, with the final C past the notional phrase end', async () => {
+		const detected = await detectFromFixture();
+		expect(detected.map((n) => n.midi)).toEqual([53, 57, 55, 60]);
+		// The final C's attack lands AFTER the 4-beat phrase length — the
+		// exact region the pre-fix phrase-length bound discarded.
+		expect(detected[3].onsetTime).toBeGreaterThan(4 * BEAT);
+	});
+
+	it('scores every note as a hit (saved: 0.737 with the final C MISSED)', async () => {
+		const detected = await detectFromFixture();
+		const result = runScorePipeline({
+			detected,
+			phrase,
+			tempo: TEMPO,
+			transportSeconds: 0,
+			swing: SWING,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(4);
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+});

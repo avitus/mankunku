@@ -829,16 +829,19 @@
 		}
 
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
-		const phraseDuration =
-			playback?.getPhraseDuration(window.phrase, lickPractice.currentTempo) ?? 0;
+		// Segment over the full capture window, not the notional phrase length:
+		// the user starts late by their reaction latency, so the final note can
+		// land after the phrase end and a phrase-length bound truncates it.
+		const lastReading = rebased[rebased.length - 1];
+		const recordingDuration = lastReading ? lastReading.time + 0.1 : 0;
 
 		const baseOnsets = resolveOnsets(workletOnsets, rebased);
 		const bleedOnsets = settings.metronomeEnabled
-			? getMetronomeBleedOnsets(window.recordingTransportSeconds, lickPractice.currentTempo, phraseDuration)
+			? getMetronomeBleedOnsets(window.recordingTransportSeconds, lickPractice.currentTempo, recordingDuration)
 			: undefined;
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(rebased, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(rebased, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const bleedResult = window.schedule
 			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
 			: null;
