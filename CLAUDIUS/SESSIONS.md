@@ -943,3 +943,9 @@ Newest at the top.
 
 - The styling commit was pushed to `leadsheets` with the claim it "landed on PR #179" — but #179 had merged at 15:35Z that morning. The claim came from session notes written the night before, never re-verified with `gh` at push time. Exactly the staleness my own memory rules warn about, skipped at the one moment it mattered. (The merged PR itself was untouched — merged PRs are immutable; the commit was just homeless on the remote branch.)
 - User caught it. Remediation chosen: new PR #181 from `leadsheets` as-is (no git surgery). Memory updated with a hard rule: verify PR state before pushing or claiming; when the checked-out branch's PR has merged or the work is unrelated to the branch's name, ask about placement BEFORE committing.
+
+## 2026-07-28 (cont. 2) — PR #181 CodeRabbit loop: clean in one round
+
+- Round 1: 5 threads + 1 body nitpick. Adopted 4 (filter-aware no-results copy, record review-state h1, loadMore stale-error reset, explicit return type). Declined 2 with on-thread rationale: the inline-callback typing nitpick (CodeRabbit's own recorded inference exception, cited by itself in the same review), and the contrast Major.
+- **The contrast Major is the finding worth remembering**: white-on-accent is ≈3.96:1 on the default teal (below AA 4.5:1) and worse on the dark-mode neutral slate. Correct diagnosis, wrong altitude — it's a property of the entire three-domain palette, not the 6 flagged buttons (the sweep made those strictly better; they previously inherited near-black in light mode). PARKED as a proposed follow-up for the user: `--color-on-accent` token per domain × theme in app.css + tighten design-token-consistency.test.ts to require it. A palette change is the user's call, not a review-fix.
+- Round 2 (fix commit 57bbeaa): zero actionables, zero threads, empty body — clean on both axes. All PR checks green (CodeRabbit, CircleCI test + e2e, GitGuardian).
