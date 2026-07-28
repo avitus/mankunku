@@ -592,14 +592,14 @@ describe('tuneToAbc — golden guard (byte-identical output)', () => {
 	// after the anchor-emission restructure — that byte-identity is the point.
 	it('simple 2-bar sheet', () => {
 		expect(tuneToAbc(simpleSheet())).toBe(
-			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
 				'P:A\n[V:M]C8 | D4 x4 |]\n[V:H]"D-7"x4 "G7"x4 | "CΔ7"x4 z4 |\n'
 		);
 	});
 
 	it('multi-system 8-bar sheet', () => {
 		expect(tuneToAbc(multiSystemSheet())).toBe(
-			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
 				'P:A\n[V:M]C8 | C8 | C8 | C8 |\n[V:H]x8 | x8 | x8 | x8 |\n' +
 				'[V:M]C8 | C8 | C8 | C8 |]\n[V:H]x8 | x8 | x8 | x8 |\n'
 		);
@@ -607,7 +607,7 @@ describe('tuneToAbc — golden guard (byte-identical output)', () => {
 
 	it('repeats + numbered endings sheet', () => {
 		expect(tuneToAbc(repeatsSheet())).toBe(
-			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
 				'P:A\n[V:M]|:x8 | x8 | [1x8 :|\n[V:H]"CΔ7"z8 | z8 | "G7"z8 |\n' +
 				'[V:M]x16 [2x8 ||\n[V:H]x16 "CΔ7"z8 |\n' +
 				'P:B\n[V:M]x8 | x8 |]\n[V:H]"FΔ7"z8 | z8 |\n'
@@ -616,7 +616,7 @@ describe('tuneToAbc — golden guard (byte-identical output)', () => {
 
 	it('3/4 sheet', () => {
 		expect(tuneToAbc(threeFourSheet())).toBe(
-			'X:1\nT:Test Tune\nM:3/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H\n' +
+			'X:1\nT:Test Tune\nM:3/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
 				'P:A\n[V:M]C2 D2 E2 | x24/4 |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"z24/4 |\n'
 		);
 	});
