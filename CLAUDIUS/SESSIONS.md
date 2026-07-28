@@ -20,6 +20,14 @@ Newest at the top.
 - Explicit non-goals this round, flagged in the plan: persisting tune-practice results into the session log/daily summaries; pickup-bar alignment shift in the matcher; passing the detail page's selected key via query param; x/8 meter bar math (inherits playback's existing convention).
 - Uncommitted: nothing. Plan file lives at ~/.claude/plans/ (session-local).
 
+**Then — first live feedback round (suggest mode) → head-first rework (0d62b16, +label-guard fix):**
+
+- User verdict after a real take: the cue strip above the chart loses the player's place ("too difficult to keep my place in the tune while looking up at the licks"); wants lick names ON the leadsheet; wants a play-the-head-first option with the melody cleared afterwards; loves the progression-colored bands.
+- Rework: `playHead` option (all modes, auto-skipped + disabled for chords-only charts) — head chorus with full melody chart, then a changes-only sheet swap and one comped practice chorus; new 'head' phase; `buildSessionPlan.leadBars`; `buildSessionPhrase` (head melody + doubled harmony); lick names rendered as SVG text INSIDE the marker bands (truncated to band width, status-colored); a moving current-bar playhead band mapped playback→notation through `notationBarForPlaybackBar`; InsertionCueStrip deleted; `carveMelody` retired (the practice chorus is melody-free by design — the carved-melody middle ground was my invention and the user's model rejected it).
+- The adversarial review workflow (4 lenses × 2 refuters, 42 agents) earned its cost: eight confirmed defects I'd have shipped, incl. the elapsed clock freezing through the head, the points pick card vanishing during exactly the phase meant for picking, chords-only charts opening with a silent head chorus, and freestyle's first scans slicing head-melody speaker bleed into phantom b1 matches (fixed with a reading-time floor stamped at practice-chorus start).
+- Also this round, prod→dev lick copy tooling grew three hard-won rules: import/export must resolve the storage bucket cookie-first exactly like `namespace.ts` (`__active` alone shadowed a signed-in bucket); repair-by-fullest-store, never by store existence (the app writes an EMPTY user-licks on first signed-in load); and never let the user copy code from terminal chat rendering (hard-wrap breaks string literals) — ship files + `pbcopy`.
+- Still pending real-mic verification, now including: head→changes chart swap feel, label legibility at chart size, playhead band during a repeat form, freestyle floor behavior.
+
 ## 2026-07-22 — Lead sheets: the full stack in one branch (model → notation → sync → community → entry → importers)
 
 **What happened:**
