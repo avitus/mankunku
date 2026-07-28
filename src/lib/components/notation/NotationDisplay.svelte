@@ -263,9 +263,16 @@
 				band.wrapper.insertBefore(rect, band.wrapper.firstChild);
 
 				// Lick/progression name inside the band, below the staff — on the
-				// marker's first system only. Truncated to the run width so long
-				// names can't bleed into the next insertion point.
-				if (marker.label && marker.status !== 'playhead' && !labelPlaced) {
+				// marker's first system wide enough to hold any text (a
+				// degenerately narrow run passes the label on to the next system).
+				// Truncated to the run width so long names can't bleed into the
+				// next insertion point.
+				if (
+					marker.label &&
+					marker.status !== 'playhead' &&
+					!labelPlaced &&
+					run.x1 - run.x0 > band.spacing * 4
+				) {
 					labelPlaced = true;
 					const fontSize = band.spacing * 1.8;
 					const maxChars = Math.max(3, Math.floor((run.x1 - run.x0 - band.spacing) / (fontSize * 0.58)));
