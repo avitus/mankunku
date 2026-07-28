@@ -30,7 +30,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const files = walk(SRC);
-const rel = (path: string) => relative(SRC, path);
+const rel = (path: string): string => relative(SRC, path);
 
 /** All class="…" attribute values in a Svelte file, including multi-line
  * attributes and embedded {ternary} expressions (inner quotes are single). */

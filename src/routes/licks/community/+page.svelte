@@ -391,7 +391,7 @@
 		{:else if community.searchQuery.trim() || community.authorQuery.trim() || community.categoryFilter !== null || community.difficultyFilter !== null}
 			<!-- No-results state (search/filter miss) -->
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-text-secondary)]">No licks matching that search.</p>
+				<p class="italic text-[var(--color-text-secondary)]">No licks match your search or filters.</p>
 			</div>
 		{:else}
 			<!-- Empty state -->

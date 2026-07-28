@@ -73,6 +73,7 @@
 		if (!supabase || loading) return;
 		const runId = effectRunId;
 		loading = true;
+		loadError = null;
 		const nextOffset = pageOffset + TUNE_PAGE_SIZE;
 		try {
 			const more = await listCommunityTunes(supabase, buildFilters(), nextOffset);

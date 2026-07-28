@@ -337,7 +337,7 @@
 			&larr; Add Licks
 		</a>
 
-		<h2 class="font-display text-2xl font-bold">Review Your Lick</h2>
+		<h1 class="font-display text-2xl font-bold">Review Your Lick</h1>
 
 		<!-- Sheet music -->
 		<NotationDisplay phrase={reviewPhrase} {instrument} />
