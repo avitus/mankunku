@@ -43,6 +43,9 @@
 		label?: string;
 	}
 
+	/** Visual treatment for the current-bar playhead marker. */
+	export type PlayheadStyle = 'under-bar' | 'cursor-line' | 'box' | 'wash-strong' | 'underline-caret';
+
 	interface Props {
 		phrase?: Phrase | null;
 		/**
@@ -67,6 +70,8 @@
 		 * a handful of overlay rects without re-rendering the chart.
 		 */
 		rangeMarkers?: RangeMarker[];
+		/** Visual treatment for `status: 'playhead'` markers. Default 'under-bar'. */
+		playheadStyle?: PlayheadStyle;
 		/** Fires when the user clicks a pitched note. Receives the source-array index. */
 		onSelect?: (sourceIndex: number) => void;
 		/**
@@ -95,6 +100,7 @@
 		selectedIndex = null,
 		cursorIndex = null,
 		rangeMarkers,
+		playheadStyle = 'under-bar',
 		onSelect,
 		onBarClick,
 		chordEditor,
@@ -251,6 +257,14 @@
 				const run = runs.get(systemIdx)!;
 				const band = systemBands[systemIdx];
 				if (!band) continue;
+
+				// The playhead gets its own geometry per style; insertion bands
+				// stay a single translucent full-bar rect.
+				if (marker.status === 'playhead') {
+					drawPlayhead(band.wrapper, run.x0, run.x1, band, marker.id, playheadStyle);
+					continue;
+				}
+
 				const spec = barHitRect(run, band);
 				const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
 				rect.setAttribute('x', spec.x.toFixed(2));
@@ -267,12 +281,8 @@
 				// degenerately narrow run passes the label on to the next system).
 				// Truncated to the run width so long names can't bleed into the
 				// next insertion point.
-				if (
-					marker.label &&
-					marker.status !== 'playhead' &&
-					!labelPlaced &&
-					run.x1 - run.x0 > band.spacing * 4
-				) {
+				// (Playhead markers already `continue`d above — never labeled.)
+				if (marker.label && !labelPlaced && run.x1 - run.x0 > band.spacing * 4) {
 					labelPlaced = true;
 					const fontSize = band.spacing * 1.8;
 					const maxChars = Math.max(3, Math.floor((run.x1 - run.x0 - band.spacing) / (fontSize * 0.58)));
@@ -455,6 +465,78 @@
 				band.wrapper.appendChild(rect);
 			}
 		}
+	}
+
+	const SVG_NS = 'http://www.w3.org/2000/svg';
+	function svgEl(tag: string): SVGElement {
+		return document.createElementNS(SVG_NS, tag);
+	}
+
+	/**
+	 * Draw the current-bar playhead in the requested style. Every element is
+	 * classed `range-marker` so the marker effect's cleanup removes it, plus a
+	 * `playhead-{style}` class for CSS coloring. Colors and stroke live in the
+	 * component style block (theme-token driven, legible in light + dark).
+	 */
+	function drawPlayhead(
+		wrapper: SVGGElement,
+		x0: number,
+		x1: number,
+		band: SystemBand,
+		id: string,
+		style: PlayheadStyle
+	): void {
+		const sp = band.spacing;
+		const w = Math.max(0, x1 - x0);
+		const add = (el: SVGElement, extra?: string) => {
+			el.setAttribute('data-marker-id', id);
+			el.classList.add('range-marker', `playhead-${style}`);
+			if (extra) el.classList.add(extra);
+			wrapper.insertBefore(el, wrapper.firstChild);
+		};
+		const rect = (x: number, y: number, width: number, height: number, rx = 0) => {
+			const r = svgEl('rect');
+			r.setAttribute('x', x.toFixed(2));
+			r.setAttribute('y', y.toFixed(2));
+			r.setAttribute('width', Math.max(0, width).toFixed(2));
+			r.setAttribute('height', Math.max(0, height).toFixed(2));
+			if (rx) r.setAttribute('rx', rx.toFixed(2));
+			return r;
+		};
+
+		if (style === 'cursor-line') {
+			const top = band.staffTop - sp;
+			const line = svgEl('line');
+			line.setAttribute('x1', x0.toFixed(2));
+			line.setAttribute('x2', x0.toFixed(2));
+			line.setAttribute('y1', top.toFixed(2));
+			line.setAttribute('y2', (band.staffBottom + sp).toFixed(2));
+			add(line);
+			const fx = x0 + sp * 1.5;
+			const fy2 = top + sp * 1.1;
+			const flag = svgEl('path');
+			flag.setAttribute('d', ['M', x0, top, 'L', fx, top, 'L', x0, fy2, 'Z'].join(' '));
+			add(flag, 'playhead-solid');
+			return;
+		}
+		if (style === 'under-bar') {
+			add(rect(x0, band.staffBottom + sp * 0.35, w, sp * 1.3, sp * 0.35), 'playhead-solid');
+			return;
+		}
+		if (style === 'underline-caret') {
+			add(rect(x0, band.staffBottom + sp * 0.45, w, sp * 0.4, sp * 0.15), 'playhead-solid');
+			const cy = band.staffBottom + sp * 0.35;
+			const caret = svgEl('path');
+			caret.setAttribute(
+				'd',
+				['M', x0, cy, 'L', x0 + sp * 0.9, cy + sp * 0.55, 'L', x0, cy + sp * 1.1, 'Z'].join(' ')
+			);
+			add(caret, 'playhead-solid');
+			return;
+		}
+		// 'box' and 'wash-strong' both cover the full bar.
+		const spec = barHitRect({ x0, x1 }, band);
+		add(rect(spec.x, spec.y, spec.w, spec.h, 4));
 	}
 
 	function makeHitRect(spec: RectSpec, kind: string): SVGRectElement {
@@ -724,10 +806,39 @@
 		fill: var(--color-error);
 		fill-opacity: 0.1;
 	}
-	/* Moving current-bar band — keeps the player's place on the chart. */
-	.notation-container :global(svg .range-marker.marker-playhead) {
+	/* Moving current-bar playhead — geometry set in drawPlayhead(); these rules
+	   own the color. Class-specificity beats the global svg line/path stroke
+	   override even though both are !important, so lines/carets keep their
+	   color in dark mode. */
+	.notation-container :global(svg .playhead-under-bar) {
 		fill: var(--color-brass);
-		fill-opacity: 0.1;
+		fill-opacity: 0.9;
+		stroke: none !important;
+	}
+	.notation-container :global(svg .playhead-cursor-line) {
+		stroke: var(--color-onair) !important;
+		stroke-width: 2.6;
+		fill: var(--color-onair) !important;
+	}
+	.notation-container :global(svg .playhead-cursor-line.playhead-solid) {
+		stroke: none !important;
+	}
+	.notation-container :global(svg .playhead-box) {
+		fill: none;
+		stroke: var(--color-brass) !important;
+		stroke-width: 2;
+	}
+	.notation-container :global(svg .playhead-wash-strong) {
+		fill: var(--color-brass);
+		fill-opacity: 0.24;
+		stroke: var(--color-brass) !important;
+		stroke-width: 1;
+		stroke-opacity: 0.55;
+	}
+	.notation-container :global(svg .playhead-underline-caret) {
+		fill: var(--color-brass-soft);
+		fill-opacity: 0.95;
+		stroke: none !important;
 	}
 	/* Band labels (lick / progression names) — colored to match their band.
 	   The dark-mode text rule targets svg text broadly, so these need !important
