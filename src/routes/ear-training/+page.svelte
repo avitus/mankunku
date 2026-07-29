@@ -447,15 +447,20 @@
 		stopRecording();
 
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
-		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
+		// Segment over the full capture, not the notional phrase length: the
+		// recording deliberately runs past the phrase end (grace beats) because
+		// the user starts late by their reaction latency, so the final note can
+		// land after phraseDuration and a phrase-length bound truncates it.
+		const lastReading = readings[readings.length - 1];
+		const recordingDuration = lastReading ? lastReading.time + 0.1 : 0;
 
 		const baseOnsets = resolveOnsets(workletOnsets, readings);
 		const bleedOnsets = settings.metronomeEnabled
-			? getMetronomeBleedOnsets(recordingTransportSeconds, session.tempo, phraseDuration)
+			? getMetronomeBleedOnsets(recordingTransportSeconds, session.tempo, recordingDuration)
 			: undefined;
 		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(readings, onsets, phraseDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const schedule = getActiveSchedule();
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, recordingTransportSeconds)
@@ -565,7 +570,6 @@
 					});
 					rescoreFromBlob(
 						blob,
-						phraseDuration,
 						phraseForRescore,
 						tempoForRescore,
 						transportForRescore,
@@ -639,7 +643,6 @@
 	 */
 	async function rescoreFromBlob(
 		blob: Blob,
-		phraseDuration: number,
 		phrase: import('$lib/types/music').Phrase,
 		tempo: number,
 		transportSeconds: number,
@@ -658,12 +661,15 @@
 		if (replay.readings.length === 0) return;
 
 		const baseOnsets = resolveOnsets(replay.onsets, replay.readings);
+		// replay.duration is the full blob length — segment over all of it, not
+		// the notional phrase length, so a latency-shifted final note that lands
+		// past the phrase end isn't truncated (same rationale as the live path).
 		const bleedOnsets = metronomeEnabled
-			? getMetronomeBleedOnsets(transportSeconds, tempo, phraseDuration)
+			? getMetronomeBleedOnsets(transportSeconds, tempo, replay.duration)
 			: undefined;
 		const articulationOnsets = findReArticulations(replay.readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(replay.readings, onsets, phraseDuration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, transportSeconds)
 			: null;

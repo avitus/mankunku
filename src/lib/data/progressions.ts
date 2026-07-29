@@ -148,6 +148,42 @@ const TURNAROUND: HarmonicSegment[] = [
 	}
 ];
 
+// Extended turnaround: iii-VI-ii-V-I. The four cycle chords fill the first two
+// bars (half a bar each), resolving to a two-bar tonic — a 4-bar form, like the
+// long ii-V-I. VI is a secondary dominant (A7), voiced like TURNAROUND's.
+const III_VI_II_V_I: HarmonicSegment[] = [
+	{
+		chord: { root: 'E', quality: 'min7' },
+		scaleId: 'major.phrygian',
+		startOffset: [0, 1],
+		duration: [1, 2]
+	},
+	{
+		chord: { root: 'A', quality: '7' },
+		scaleId: 'melodic-minor.mixolydian-b6',
+		startOffset: [1, 2],
+		duration: [1, 2]
+	},
+	{
+		chord: { root: 'D', quality: 'min7' },
+		scaleId: 'major.dorian',
+		startOffset: [1, 1],
+		duration: [1, 2]
+	},
+	{
+		chord: { root: 'G', quality: '7' },
+		scaleId: 'major.mixolydian',
+		startOffset: [3, 2],
+		duration: [1, 2]
+	},
+	{
+		chord: { root: 'C', quality: 'maj7' },
+		scaleId: 'major.ionian',
+		startOffset: [2, 1],
+		duration: [2, 1]
+	}
+];
+
 // Blues licks are short phrases (typically 1–2 bars) that live over the I7
 // of a blues. Real-world practice loops a vamp of that one chord across all
 // 12 keys rather than playing through a full 12-bar form for every lick —
@@ -214,6 +250,13 @@ export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemp
 		name: 'Turnaround (I-VI-ii-V)',
 		shortName: 'Turnaround',
 		harmony: TURNAROUND,
+		bars: 4
+	},
+	'iii-VI-ii-V-I': {
+		type: 'iii-VI-ii-V-I',
+		name: 'iii-VI-ii-V-I',
+		shortName: 'iii-VI-ii-V-I',
+		harmony: III_VI_II_V_I,
 		bars: 4
 	},
 	blues: {
@@ -383,6 +426,13 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 		{ category: 'major-chord',    offset: [0, 1] }, // I = maj7 on bar 0
 		{ category: 'dominant-chord', offset: [1, 1] }, // VI7 on bar 1
 		{ category: 'minor-chord',    offset: [2, 1] }  // ii = min7 on bar 2
+	],
+	'iii-VI-ii-V-I': [
+		{ category: 'ii-V-I-major',   offset: [1, 1] }, // ii-V-I starts on bar 1 (Dm7 G7 | Cmaj7)
+		{ category: 'rhythm-changes', offset: [0, 1] },
+		{ category: 'minor-chord',    offset: [0, 1] }, // iii = min7 on bar 0
+		{ category: 'dominant-chord', offset: [1, 2] }, // VI7 on the second half of bar 0
+		{ category: 'major-chord',    offset: [2, 1] }  // I = maj7 starts bar 2
 	],
 	blues: [
 		{ category: 'blues',          offset: [0, 1] },

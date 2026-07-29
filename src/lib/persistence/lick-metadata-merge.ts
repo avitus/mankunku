@@ -17,7 +17,12 @@
  *    than the reset are dropped.
  *  - The reserved `__migrations` tag key is ALWAYS unioned, never LWW and never
  *    dropped, so the `prog-backfill-v1` marker can't be erased by a merge.
+ *  - `progressHistory[id]` — an append-only per-lick time series merged by a pure
+ *    per-`t` union (no mtime, no LWW). Append-only union is commutative and
+ *    idempotent, so it needs no recency signal and can't lose points on merge.
  */
+
+import type { LickProgressPoint } from '$lib/types/lick-practice';
 
 export interface LickMetaData {
 	lickTags: Record<string, string[]>;
@@ -25,6 +30,7 @@ export interface LickMetaData {
 	tagOverrides: Record<string, string[]>;
 	categoryOverrides: Record<string, string>;
 	unlockCounts: Record<string, number>;
+	progressHistory: Record<string, LickProgressPoint[]>;
 }
 
 export interface LickMergeMeta {
@@ -42,8 +48,31 @@ export interface LickMetaBundle {
 
 const MIGRATIONS_KEY = '__migrations';
 
+/** Cap on retained per-lick progress-history points (oldest dropped on merge). */
+const MAX_HISTORY_POINTS = 500;
+
 function unionStrings(a: readonly string[] = [], b: readonly string[] = []): string[] {
 	return [...new Set([...a, ...b])];
+}
+
+/**
+ * Per-lick append-only history union: dedupe by timestamp `t`, sort ascending,
+ * cap to the most recent MAX_HISTORY_POINTS. A same-`t` collision (effectively
+ * impossible across devices, since `t` is a wall-clock write time) resolves by a
+ * pure value tiebreak — higher bpm, then higher keys — so the merge stays
+ * commutative and idempotent regardless of push/pull direction.
+ */
+function unionHistory(
+	a: readonly LickProgressPoint[] = [],
+	b: readonly LickProgressPoint[] = []
+): LickProgressPoint[] {
+	const byT = new Map<number, LickProgressPoint>();
+	for (const p of [...a, ...b]) {
+		const ex = byT.get(p.t);
+		if (!ex || p.bpm > ex.bpm || (p.bpm === ex.bpm && p.keys > ex.keys)) byT.set(p.t, p);
+	}
+	const merged = [...byT.values()].sort((x, y) => x.t - y.t);
+	return merged.length > MAX_HISTORY_POINTS ? merged.slice(merged.length - MAX_HISTORY_POINTS) : merged;
 }
 
 function keysOf(...objs: Array<Record<string, unknown> | undefined>): string[] {
@@ -191,13 +220,24 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 		if (Object.keys(mergedKeys).length > 0) practiceProgress[id] = mergedKeys;
 	}
 
+	// ── progress_history: per-lick append-only union by timestamp (no mtime,
+	//    no reset tombstone — history is a durable record, preserved across a
+	//    per-lick reset so the graph shows the reset honestly). ──
+	const progressHistory: LickMetaData['progressHistory'] = {};
+	for (const id of keysOf(local.data.progressHistory, cloud.data.progressHistory)) {
+		if (isUnsafeKey(id)) continue;
+		const merged = unionHistory(local.data.progressHistory?.[id], cloud.data.progressHistory?.[id]);
+		if (merged.length > 0) progressHistory[id] = merged;
+	}
+
 	return {
 		data: {
 			lickTags,
 			practiceProgress,
 			tagOverrides: overridesMerge.vals,
 			categoryOverrides: catMerge.vals,
-			unlockCounts: unlockMerge.vals
+			unlockCounts: unlockMerge.vals,
+			progressHistory
 		},
 		mergeMeta: {
 			tags: tagsMerge.mtimes,

@@ -32,7 +32,7 @@ import type {
 	GradeDistribution
 } from '$lib/types/progress';
 import { PITCH_CLASSES, type Phrase, type PhraseCategory, type PitchClass } from '$lib/types/music';
-import type { LickPracticeProgress } from '$lib/types/lick-practice';
+import type { LickPracticeProgress, LickProgressHistory } from '$lib/types/lick-practice';
 import type { LickMergeMeta } from './lick-metadata-merge';
 import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
@@ -1024,6 +1024,7 @@ export interface LickMetadata {
 	tagOverrides: Record<string, string[]>;
 	categoryOverrides: Record<string, PhraseCategory>;
 	unlockCounts: Record<string, number>;
+	progressHistory: LickProgressHistory;
 }
 
 /**
@@ -1050,6 +1051,7 @@ export async function upsertLickMetadataRow(
 		tag_overrides: data.tagOverrides as unknown as Json,
 		category_overrides: data.categoryOverrides as unknown as Json,
 		unlock_counts: data.unlockCounts as unknown as Json,
+		progress_history: data.progressHistory as unknown as Json,
 		merge_meta: mergeMeta as unknown as Json,
 		updated_at: new Date().toISOString()
 	};
@@ -1115,7 +1117,9 @@ export async function loadLickMetadataFromCloud(
 			// `unlock_counts` is a column added in migration 00015; older cloud
 			// rows (pre-migration deploy) won't have it, so coalesce missing /
 			// null values to {} to keep loads resilient against schema drift.
-			unlockCounts: (data.unlock_counts ?? {}) as unknown as Record<string, number>
+			unlockCounts: (data.unlock_counts ?? {}) as unknown as Record<string, number>,
+			// `progress_history` is a later column; coalesce for older rows too.
+			progressHistory: (data.progress_history ?? {}) as unknown as LickProgressHistory
 		};
 		const mergeMeta = (data.merge_meta ?? {}) as unknown as LickMergeMeta;
 		return { status: 'ok', data: metadata, mergeMeta };

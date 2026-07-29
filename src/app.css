@@ -136,6 +136,25 @@
 	--medal-bronze-lo: color-mix(in srgb, var(--accuracy-bronze) 16%, transparent);
 	--medal-bronze-label: var(--accuracy-bronze);
 	--medal-bronze-rim: color-mix(in srgb, var(--accuracy-bronze) 24%, transparent);
+
+	/* Progression identity palette — one muted hue per chord progression, used
+	   on the library card (tinted category pill + dots) and carried through to
+	   the lick-practice session header so a lick reads as one thing across both.
+	   The hue encodes tonality as a cool→warm spectrum: minor progressions run
+	   teal→indigo, the bluesy / cyclic turnarounds sit violet→rose, and dominant
+	   / major run terracotta→gold. Consumed via progressionColor() in
+	   music/progression-display.ts. The :root.light block re-steps them darker
+	   for text/tint contrast on paper. */
+	--prog-minor-vamp: #3fa3ac;
+	--prog-ii-V-I-minor: #5f8fce;
+	--prog-ii-V-I-minor-long: #7c7fd0;
+	--prog-blues: #9d6fc4;
+	--prog-iii-VI-ii-V-I: #c06f9f;
+	--prog-turnaround: #cf7288;
+	--prog-dominant-vamp: #d5804e;
+	--prog-major-vamp: #cf9c3d;
+	--prog-ii-V-I-major: #bda94f;
+	--prog-ii-V-I-major-long: #a19b57;
 }
 
 [data-domain='lick-practice'] {
@@ -228,6 +247,20 @@
 	--medal-bronze-lo: color-mix(in srgb, var(--metal-bronze) 62%, #0a0f18);
 	--medal-bronze-label: color-mix(in srgb, var(--metal-bronze) 36%, #0a0f18);
 	--medal-bronze-rim: color-mix(in srgb, var(--metal-bronze) 48%, #0a0f18);
+
+	/* Progression identity palette re-stepped darker for legibility on paper —
+	   same cool→warm hue path as the dark set, tuned for ≥4.5:1 as text on the
+	   pale (tinted) card surfaces. */
+	--prog-minor-vamp: #1f7079;
+	--prog-ii-V-I-minor: #365f9e;
+	--prog-ii-V-I-minor-long: #4a4da8;
+	--prog-blues: #6f3f97;
+	--prog-iii-VI-ii-V-I: #8f3f72;
+	--prog-turnaround: #a03d57;
+	--prog-dominant-vamp: #a8501f;
+	--prog-major-vamp: #8a6410;
+	--prog-ii-V-I-major: #746615;
+	--prog-ii-V-I-major-long: #5f5a1a;
 }
 
 /* Lick-report medal chips — the gold/silver/bronze "squares" in the

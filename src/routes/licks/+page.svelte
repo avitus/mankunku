@@ -257,7 +257,7 @@
 	<title>Your Licks — Mankunku</title>
 </svelte:head>
 
-{#snippet lickGrid(licks: Phrase[], opts: { stats?: boolean; toggleLabel?: 'add' | 'remove' })}
+{#snippet lickGrid(licks: Phrase[], opts: { toggleLabel?: 'add' | 'remove' })}
 	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 		{#each licks as lick (lick.id)}
 			{@const isStolen = stolenIds.has(lick.id)}
@@ -268,8 +268,7 @@
 					onplay={() => handlePlay(lick)}
 					isPlaying={playingId === lick.id}
 					authorName={isStolen ? stolenAuthors[lick.id]?.authorName ?? null : null}
-					progress={opts.stats ? lickPractice.progress : null}
-					showStats={opts.stats ?? false}
+					progress={lickPractice.progress}
 				/>
 				<div class="absolute bottom-2 right-2 flex gap-2">
 					{#if opts.toggleLabel}
@@ -414,7 +413,7 @@
 							{practiceSet.length} lick{practiceSet.length !== 1 ? 's' : ''}
 						</span>
 					</div>
-					{@render lickGrid(practiceSet, { stats: true, toggleLabel: 'remove' })}
+					{@render lickGrid(practiceSet, { toggleLabel: 'remove' })}
 				</section>
 			{/if}
 

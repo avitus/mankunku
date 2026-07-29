@@ -1464,3 +1464,97 @@ describe('2026-07-25 trio: saved-readings replay (concert C, 105 BPM)', () => {
 		});
 	});
 });
+
+// ─── Pent 1-3-2-5 latency-shifted final note (concert F, 2026-07-28) ─────
+//
+// A clean F A G C take (dotted quarter + eighths, 105 BPM) whose final C was
+// dropped before scoring: the ear-training live/rescore paths passed the
+// notional PHRASE duration (4 beats = 2.286 s) as segmentNotes'
+// `recordingDuration`, but the user's reaction latency (~0.59 s, absorbed
+// later by the scorer's median correction) pushed the C's attack to 2.32 s —
+// past the bound — so the segmenter clipped the G and discarded the C. Saved
+// score: 0.737 ("good", pitch 3/4) with the last note MISSED. The fix passes
+// the true capture length; the second test pins the pre-fix failure shape.
+
+interface Pent1325Fixture {
+	context: { tempo: number; swing: number };
+	audio: { duration: number };
+	detection: {
+		rawWorkletOnsets: number[];
+		readings: PitchReading[];
+	};
+}
+
+function loadPent1325Fixture(): Pent1325Fixture {
+	const path = resolve(__dirname, '..', 'fixtures', 'recordings', '2026-07-28-pent-1-3-2-5.json');
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+describe('Pent 1-3-2-5 latency-shifted final note (concert F, 2026-07-28)', () => {
+	const BEAT = 60 / 105;
+	// Metronome clicks observed at 0.0135 + k·BEAT in recording time.
+	const rts = 16 * BEAT - 0.01346;
+
+	const phrase: Phrase = {
+		id: 'cmb-sp-pent-skip_rp-4-dotted_F',
+		name: 'Pent 1-3-2-5 / Dotted Quarter + Eighths',
+		timeSignature: [4, 4],
+		key: 'F',
+		notes: [
+			{ pitch: 53, duration: [3, 8], offset: [0, 1] }, // F
+			{ pitch: 57, duration: [1, 8], offset: [3, 8] }, // A
+			{ pitch: 55, duration: [1, 4], offset: [1, 2] }, // G
+			{ pitch: 60, duration: [1, 4], offset: [3, 4] } // C
+		],
+		harmony: [],
+		difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 12, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: [],
+		source: 'curated'
+	};
+
+	function runSavedPipeline(segmentationDuration: number): DetectedNote[] {
+		const fx = loadPent1325Fixture();
+		const baseOnsets = resolveOnsets(fx.detection.rawWorkletOnsets, fx.detection.readings);
+		const bleedOnsets = getMetronomeBleedOnsets(rts, fx.context.tempo, segmentationDuration);
+		const articulationOnsets = findReArticulations(
+			fx.detection.readings,
+			baseOnsets,
+			bleedOnsets
+		);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			fx.detection.readings,
+			onsets,
+			segmentationDuration,
+			undefined,
+			undefined,
+			undefined,
+			fx.detection.rawWorkletOnsets,
+			bleedOnsets,
+			articulationOnsets
+		);
+	}
+
+	it('keeps the final C when segmenting over the full capture', () => {
+		const fx = loadPent1325Fixture();
+		const detected = runSavedPipeline(fx.audio.duration);
+		expect(detected.map((n) => n.midi)).toEqual([53, 57, 55, 60]);
+		// The C's attack sits past the notional 4-beat phrase end.
+		expect(detected[3].onsetTime).toBeGreaterThan(4 * BEAT);
+	});
+
+	it('sanity: bounding segmentation at the phrase length reproduces the truncation', () => {
+		const detected = runSavedPipeline(4 * BEAT);
+		expect(detected.map((n) => n.midi)).toEqual([53, 57, 55]);
+	});
+
+	it('scores 4/4 from saved readings (saved: 0.737 with the final C MISSED)', () => {
+		const fx = loadPent1325Fixture();
+		const detected = runSavedPipeline(fx.audio.duration);
+		const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+		expect(score.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(score.notesHit).toBe(4);
+		expect(score.overall).toBeGreaterThan(0.9);
+	});
+});
