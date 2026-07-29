@@ -211,20 +211,21 @@ export function detectProgressions(
 }
 
 /**
- * Greedy non-overlapping selection for session planning: most specific shape
- * first (turnaround > long ii-V-I > short ii-V-I > blues > vamps), longer
- * spans first within a tier, kept only when its segment set is disjoint from
- * everything already kept (segment-set disjointness stays correct for wrapped
- * windows). Result is re-sorted into chart order. Deterministic regardless of
- * input order.
+ * Greedy non-overlapping selection for session planning: the LONGER
+ * progression always wins an overlap (a jazz-practice rule — a longer stretch
+ * of harmony is the better practice target), with shape specificity
+ * (turnaround > long ii-V-I > short ii-V-I > blues > vamps) breaking duration
+ * ties. Kept only when the segment set is disjoint from everything already
+ * kept (segment-set disjointness stays correct for wrapped windows). Result
+ * is re-sorted into chart order. Deterministic regardless of input order.
  */
 export function selectNonOverlapping(
 	detections: readonly DetectedProgression[]
 ): DetectedProgression[] {
 	const ranked = [...detections].sort(
 		(a, b) =>
-			SHAPE_PRIORITY[a.type] - SHAPE_PRIORITY[b.type] ||
 			fractionToFloat(b.duration) - fractionToFloat(a.duration) ||
+			SHAPE_PRIORITY[a.type] - SHAPE_PRIORITY[b.type] ||
 			compareFractions(a.startOffset, b.startOffset) ||
 			a.type.localeCompare(b.type)
 	);

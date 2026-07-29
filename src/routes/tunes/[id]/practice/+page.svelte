@@ -138,7 +138,9 @@
 
 	const preview = $derived.by(() => {
 		void cacheVersion;
-		return baseSheet && tunePractice.phase === 'setup' ? previewSessionPlan(baseSheet) : null;
+		return baseSheet && tunePractice.phase === 'setup'
+			? previewSessionPlan(baseSheet, tunePractice.config.playHead)
+			: null;
 	});
 	const previewSheet = $derived(
 		baseSheet && tunePractice.phase === 'setup'
@@ -177,12 +179,17 @@
 			let status: RangeMarker['status'] = 'upcoming';
 			if (result) status = result.grade !== null && result.grade !== 'try-again' ? 'hit' : 'missed';
 			if (tunePractice.windowOpen && tunePractice.currentIndex === i) status = 'active';
-			const barsUntil = leadBars + ip.playbackBarRange.start - currentBar;
+			// Session bar the window opens on, mode-agnostic (derived from ticks).
+			const barsUntil = Math.floor((ip.openTick - barTicksNR) / barTicksNR) - currentBar;
 			const showName =
 				tunePractice.config.mode !== 'freestyle' &&
 				(knobs.cueLevel === 'full' ||
 					(knobs.cueLevel === 'reduced' && (status === 'active' || barsUntil <= 2)));
-			const label = showName ? (suggestionNameFor(ip) ?? undefined) : undefined;
+			// When no lick meets the song's key/tempo requirements, the band still
+			// names its progression so the player knows what to blow over.
+			const label = showName
+				? (suggestionNameFor(ip) ?? PROGRESSION_TEMPLATES[ip.progressionType].shortName)
+				: undefined;
 			const existing = byKey.get(ip.markerKey);
 			if (!existing) {
 				byKey.set(ip.markerKey, {
@@ -202,10 +209,13 @@
 		});
 		const result: RangeMarker[] = [...byKey.values()];
 
-		// Current-bar playhead (both choruses land on the same chart bars).
+		// Current-bar playhead (repeat passes land on the same chart bars). On a
+		// duplicated-form session the practice chorus re-runs the form from 0;
+		// on a repeat-form chart the expanded timeline is already continuous.
 		if (audioPlan && (tunePractice.phase === 'head' || tunePractice.phase === 'running')) {
 			const formBars = audioPlan.flat.totalBars;
-			let formBar = currentBar >= leadBars ? currentBar - leadBars : currentBar;
+			const formBar =
+				audioPlan.duplicatedForm && currentBar >= leadBars ? currentBar - leadBars : currentBar;
 			if (formBar >= 0 && formBar < formBars) {
 				const chartBar = notationBarForPlaybackBar(
 					audioPlan.flat.sectionMap,
@@ -607,6 +617,22 @@
 		if (!timerInterval) timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	}
 
+	/** Chart bar (1-based) for a freestyle match's transport tick. */
+	function freestyleDisplayBar(atTick: number): number {
+		if (!audioPlan || barTicksNR <= 0) return 1;
+		const playBar = Math.floor((atTick - barTicksNR) / barTicksNR);
+		const formBar =
+			audioPlan.duplicatedForm && playBar >= audioPlan.leadBars
+				? playBar - audioPlan.leadBars
+				: playBar;
+		const chartBar = notationBarForPlaybackBar(
+			audioPlan.flat.sectionMap,
+			audioPlan.sheet.sections,
+			Math.max(0, Math.min(formBar, audioPlan.flat.totalBars - 1))
+		);
+		return (chartBar ?? 0) + 1;
+	}
+
 	function formatElapsed(seconds: number): string {
 		const m = Math.floor(seconds / 60);
 		const s = seconds % 60;
@@ -900,7 +926,7 @@
 						{#each tunePractice.freestyleMatches as match, i (i)}
 							<div class="flex items-center gap-3 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
 								<span class="w-8 shrink-0 font-mono text-xs text-[var(--color-text-secondary)]">
-									b{Math.min(audioPlan?.flat.totalBars ?? 1, Math.max(1, Math.floor((match.atTick - barTicksNR) / barTicksNR) - (audioPlan?.leadBars ?? 0) + 1))}
+									b{freestyleDisplayBar(match.atTick)}
 								</span>
 								<span class="min-w-0 flex-1 truncate">{match.name}</span>
 								<span class="shrink-0 text-xs font-medium text-[var(--color-brass)]">

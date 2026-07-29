@@ -4,10 +4,13 @@ import type { FlattenedTune } from '$lib/tunes/flatten';
 import type { DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
 import {
+	assignSuggestRotation,
 	buildSessionPhrase,
 	buildSessionPlan,
+	headBarsForFlat,
 	notationBarForPlaybackBar,
-	type BuildPlanDeps
+	type BuildPlanDeps,
+	type InsertionPoint
 } from '$lib/state/tune-practice-plan';
 import { flattenTune } from '$lib/tunes/flatten';
 import { seg, section, sheet } from '../../helpers/tune-fixtures';
@@ -192,8 +195,8 @@ describe('buildSessionPlan — window tick math', () => {
 	});
 });
 
-describe('buildSessionPlan — head-chorus lead bars', () => {
-	it('shifts every window by the head chorus length', () => {
+describe('buildSessionPlan — head chorus', () => {
+	it("shift mode (repeat-free chart): every window moves by the head's length", () => {
 		const det = mkDet({ startOffset: [1, 1], duration: [2, 1], segmentIndices: [0] });
 		const flat = mkFlat({
 			totalBars: 8,
@@ -201,14 +204,14 @@ describe('buildSessionPlan — head-chorus lead bars', () => {
 			segmentSourceIndices: [0]
 		});
 		const plan = buildSessionPlan(
-			planDeps({ flat, notationFlat: flat, detect: () => [det], leadBars: 8 })
+			planDeps({ flat, notationFlat: flat, detect: () => [det], head: { bars: 8, mode: 'shift' } })
 		);
 		// count-in (1920) + head chorus (8 * 1920) + start offset (1920)
 		expect(plan[0].openTick).toBe(1920 + 8 * 1920 + 1920);
 		expect(plan[0].closeTick).toBe(1920 + 8 * 1920 + 5760 + 480);
 	});
 
-	it('clamps the lead-out to the shifted end of the form', () => {
+	it('shift mode clamps the lead-out to the shifted end of the form', () => {
 		const det = mkDet({
 			startOffset: [6, 1],
 			duration: [4, 1],
@@ -221,9 +224,151 @@ describe('buildSessionPlan — head-chorus lead bars', () => {
 			segmentSourceIndices: [0]
 		});
 		const plan = buildSessionPlan(
-			planDeps({ flat, notationFlat: flat, detect: () => [det], leadBars: 8 })
+			planDeps({ flat, notationFlat: flat, detect: () => [det], head: { bars: 8, mode: 'shift' } })
 		);
 		expect(plan[0].closeTick).toBe(1920 + 8 * 1920 + 8 * 1920);
+	});
+
+	it('filter mode (repeat form): head-pass detections drop, solo-pass windows stay unshifted', () => {
+		// 8-bar expanded form; the head is pass one (bars 0-4), solos are pass two.
+		const headDet = mkDet({ startOffset: [1, 1], duration: [2, 1], segmentIndices: [0] });
+		const soloDet = mkDet({
+			startOffset: [5, 1],
+			duration: [2, 1],
+			segmentIndices: [1],
+			startBar: 5,
+			endBarExclusive: 7
+		});
+		const flat = mkFlat({
+			totalBars: 8,
+			harmony: [seg('D', 'min7', [1, 1], [2, 1]), seg('D', 'min7', [5, 1], [2, 1])],
+			segmentSourceIndices: [0, 0]
+		});
+		const plan = buildSessionPlan(
+			planDeps({
+				flat,
+				notationFlat: mkFlat({ harmony: [seg('D', 'min7', [1, 1], [2, 1])], segmentSourceIndices: [0] }),
+				detect: () => [headDet, soloDet],
+				head: { bars: 4, mode: 'filter' }
+			})
+		);
+		expect(plan).toHaveLength(1);
+		// Window ticks are absolute on the expanded timeline: count-in + 5 bars.
+		expect(plan[0].openTick).toBe(1920 + 5 * 1920);
+		expect(plan[0].closeTick).toBe(1920 + 7 * 1920 + 480);
+	});
+});
+
+describe('headBarsForFlat', () => {
+	// A whole-form repeat (mankunku shape): Intro, A(repeatStart),
+	// A-ending1(repeatEnd), A-ending2. Playback: Intro, A, e1, A, e2.
+	const wholeFormSections = [
+		{},
+		{ repeatStart: true },
+		{ repeatEnd: true, ending: 1 as const },
+		{ ending: 2 as const }
+	];
+	const wholeFormFlat = mkFlat({
+		totalBars: 28,
+		sectionMap: [
+			{ sourceSection: 0, barOffset: 0 },
+			{ sourceSection: 1, barOffset: 4 },
+			{ sourceSection: 2, barOffset: 14 },
+			{ sourceSection: 1, barOffset: 16 },
+			{ sourceSection: 3, barOffset: 26 }
+		]
+	});
+
+	it('splits head/solo at the second body pass of a whole-form repeat', () => {
+		expect(headBarsForFlat(wholeFormFlat, wholeFormSections)).toEqual({
+			headBars: 16,
+			formRepeats: true
+		});
+	});
+
+	it('a repeat-free chart heads through the whole form', () => {
+		const flat = mkFlat({
+			totalBars: 8,
+			sectionMap: [
+				{ sourceSection: 0, barOffset: 0 },
+				{ sourceSection: 1, barOffset: 4 }
+			]
+		});
+		expect(headBarsForFlat(flat, [{}, {}])).toEqual({ headBars: 8, formRepeats: false });
+	});
+
+	it('an internal repeat with form material after it is NOT a form outline', () => {
+		// AABA written `|: A :| B A` — the repeat only wraps the first A, then B
+		// and a final A follow. Head must cover the whole form, no split.
+		const sections = [
+			{ repeatStart: true, repeatEnd: true }, // A (internal repeat)
+			{}, // B
+			{} // A out
+		];
+		const flat = mkFlat({
+			totalBars: 12,
+			sectionMap: [
+				{ sourceSection: 0, barOffset: 0 },
+				{ sourceSection: 0, barOffset: 4 }, // second A (the internal repeat)
+				{ sourceSection: 1, barOffset: 8 },
+				{ sourceSection: 2, barOffset: 10 }
+			]
+		});
+		expect(headBarsForFlat(flat, sections)).toEqual({ headBars: 12, formRepeats: false });
+	});
+});
+
+describe('assignSuggestRotation', () => {
+	const mkIp = (
+		id: string,
+		type: InsertionPoint['progressionType'],
+		lickIds: string[]
+	): InsertionPoint => ({
+		id,
+		progressionType: type,
+		localKey: 'C',
+		degreeLabel: '1',
+		startOffset: [0, 1],
+		duration: [2, 1],
+		playbackBarRange: { start: 0, endExclusive: 2 },
+		notationSegmentIndices: [0],
+		notationBarRange: { start: 0, endExclusive: 2 },
+		markerKey: id,
+		suggestions: lickIds.map((lid) => mkSuggestion(lid)),
+		uncategorizedCount: 0,
+		openTick: 0,
+		closeTick: 1
+	});
+
+	it('cycles the shared lick pool across same-type points (least-used wins)', () => {
+		const pool = ['x', 'y', 'z'];
+		const plan = [
+			mkIp('a', 'blues', pool),
+			mkIp('b', 'ii-V-I-major', ['p', 'q']),
+			mkIp('c', 'blues', pool),
+			mkIp('d', 'blues', pool),
+			mkIp('e', 'blues', pool),
+			mkIp('f', 'ii-V-I-major', ['p', 'q'])
+		];
+		expect(assignSuggestRotation(plan)).toEqual({ a: 0, b: 0, c: 1, d: 2, e: 0, f: 1 });
+	});
+
+	it('surfaces a lick even when it is not first in every point (the index-modulo bug)', () => {
+		// Two points, same type, same two licks in DIFFERENT rank order. Positional
+		// modulo would pick index 0 at both → the practice-set lick never appears.
+		const plan = [mkIp('a', 'blues', ['known', 'other']), mkIp('b', 'blues', ['other', 'known'])];
+		const picks = assignSuggestRotation(plan);
+		// Point a picks 'known' (idx 0); point b then favors the unused 'other'
+		// (idx 0 there) — so BOTH distinct licks are surfaced.
+		const chosen = [
+			plan[0].suggestions[picks['a']].lickId,
+			plan[1].suggestions[picks['b']].lickId
+		];
+		expect(new Set(chosen)).toEqual(new Set(['known', 'other']));
+	});
+
+	it('skips insertion points with no suggestions', () => {
+		expect(assignSuggestRotation([mkIp('a', 'blues', [])])).toEqual({});
 	});
 });
 
@@ -235,21 +380,60 @@ describe('buildSessionPhrase', () => {
 			notes: [NOTE],
 			harmony: [seg('C', 'maj7', [0, 1], [1, 1]), seg('G', '7', [1, 1], [1, 1])]
 		});
+	const noRepeat = [{}];
 
-	it('with a head: melody plays once, harmony covers head + practice chorus', () => {
-		const built = buildSessionPhrase({ flat: flat(), timeSignature: [4, 4], playHead: true });
+	it('with a head (repeat-free): melody plays once, harmony covers head + practice chorus', () => {
+		const built = buildSessionPhrase({
+			flat: flat(),
+			sections: noRepeat,
+			timeSignature: [4, 4],
+			playHead: true
+		});
 		expect(built.notes).toHaveLength(1);
 		expect(built.notes[0].offset).toEqual([0, 1]);
 		expect(built.harmony).toHaveLength(4);
-		// Second chorus is the same changes shifted by the form length (2 bars).
 		expect(built.harmony[2].chord.root).toBe('C');
 		expect(built.harmony[2].startOffset).toEqual([2, 1]);
 		expect(built.harmony[3].startOffset).toEqual([3, 1]);
 		expect(built.phraseBars).toBe(4);
+		expect(built.duplicatedForm).toBe(true);
+	});
+
+	it('with a head (whole-form repeat): keeps pass-one melody only, no doubling', () => {
+		// Two-bar form repeated: sources [0,0], melody in both passes.
+		const f = mkFlat({
+			totalBars: 4,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 4], offset: [2, 1] } // second pass
+			],
+			harmony: [seg('C', 'maj7', [0, 1], [1, 1]), seg('C', 'maj7', [2, 1], [1, 1])],
+			sectionMap: [
+				{ sourceSection: 0, barOffset: 0 },
+				{ sourceSection: 0, barOffset: 2 }
+			]
+		});
+		const built = buildSessionPhrase({
+			flat: f,
+			sections: [{ repeatStart: true, repeatEnd: true }],
+			timeSignature: [4, 4],
+			playHead: true
+		});
+		// Only the first-pass note survives; harmony is untouched (no append).
+		expect(built.notes.map((n) => n.pitch)).toEqual([60]);
+		expect(built.harmony).toHaveLength(2);
+		expect(built.phraseBars).toBe(4);
+		expect(built.headBars).toBe(2);
+		expect(built.duplicatedForm).toBe(false);
 	});
 
 	it('without a head: no melody, one chorus of changes', () => {
-		const built = buildSessionPhrase({ flat: flat(), timeSignature: [4, 4], playHead: false });
+		const built = buildSessionPhrase({
+			flat: flat(),
+			sections: noRepeat,
+			timeSignature: [4, 4],
+			playHead: false
+		});
 		expect(built.notes).toHaveLength(0);
 		expect(built.harmony).toHaveLength(2);
 		expect(built.harmony[1].startOffset).toEqual([1, 1]);
@@ -261,7 +445,12 @@ describe('buildSessionPhrase', () => {
 			totalBars: 2,
 			harmony: [seg('C', 'maj7', [0, 1], [3, 2])]
 		});
-		const built = buildSessionPhrase({ flat: f, timeSignature: [3, 4], playHead: true });
+		const built = buildSessionPhrase({
+			flat: f,
+			sections: noRepeat,
+			timeSignature: [3, 4],
+			playHead: true
+		});
 		// 2 bars of 3/4 = [3,2] whole notes.
 		expect(built.harmony[1].startOffset).toEqual([3, 2]);
 	});

@@ -4,6 +4,14 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-07-28 — The notation was encoding the convention all along
+
+The user's correction — "a repeat around the entire song simply outlines the form: head → solo → … → head" — looked at first like it demanded new machinery. It demanded *less*. The expanded flatten of a whole-form-repeat chart (body, ending 1, body again, ending 2) IS the jazz performance already: pass one is the head taking the turnaround ending, pass two is the form again taking the out. All the head feature needed was a boundary — the first *revisited* section in `sectionMap` — and the harmony doubling I'd built became unnecessary for exactly the charts where the head matters most. The doubling survives only for repeat-free charts, where the notation genuinely contains one chorus.
+
+The general lesson: when a domain convention seems to require transforming the data, first check whether the notation already encodes the convention and the code has merely been reading it too literally. "Play the repeat" was the literal reading; "the repeat is the form" was the semantic one — and the semantic reading needed fewer moving parts, not more. This is the same genus as concert-vs-written pitch: the chart is a *notation system* with performance semantics layered on top, and every naive structural interpretation of it is a bug waiting for a musician to notice.
+
+Also filed permanently (user-instructed): head once; ending 1 = turnaround in, ending 2 = out. The tune-practice session now literally performs the form: head over pass one, solo windows only in pass two.
+
 ## 2026-07-28 — Detection had to abandon the spec's frame to satisfy the spec's intent
 
 The tune-practice spec said: compute each chord's degree *relative to the tune key* and match degree-shapes (ii=min7 on 2, V=7 on 5…). Implemented literally, that finds zero ii-V-Is in two of our three curated tunes — Mankunku Blues' only ii-Vs are a secondary cadence into the IV key and a cadence that resolves across the repeat barline. The correct detector binds a **local tonic from root motion inside the window** and uses the tune-key degree only as a *label* ("ii-V-I in the IV area"). The spec's own Phase 2 quietly knew this — it says to transpose licks "using the tune's local harmony root" — but its Phase 1 wording would have built a detector that starves Phase 2 of anything to transpose. The general shape: when a spec's phases disagree, the downstream phase usually encodes the real requirement, because it's written from the consumer's seat. Worth checking phase N against phase N+1's inputs before building N.

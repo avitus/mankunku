@@ -349,6 +349,50 @@ describe('suggestLicksForProgression — ranking, dedupe, limit', () => {
 	});
 });
 
+describe('suggestLicksForProgression — song requirements (tempo + key)', () => {
+	const licks = [
+		makePhrase({ id: 'ready', name: 'Ready Lick', category: 'ii-V-I-major' }),
+		makePhrase({ id: 'slow', name: 'Slow Lick', category: 'ii-V-I-major' }),
+		makePhrase({ id: 'never', name: 'Never Practiced', category: 'ii-V-I-major' })
+	];
+	// Target key for a short ii-V-I in C is C (non-chord-quality categories).
+	const progress: LickPracticeProgress = {
+		ready: { C: { currentTempo: 140, lastPracticedAt: 1, passCount: 3 } },
+		slow: { C: { currentTempo: 90, lastPracticedAt: 1, passCount: 3 } }
+	};
+
+	it('playableKeysOnly drops licks the user cannot yet play in the target key', () => {
+		const result = suggestLicksForProgression(detectShortInC(), makeDeps({ licks, progress }), {
+			playableKeysOnly: true
+		});
+		expect(result.suggestions.map((s) => s.lickId).sort()).toEqual(['ready', 'slow']);
+	});
+
+	it('sessionTempo drops licks below the song tempo at the target key', () => {
+		const result = suggestLicksForProgression(detectShortInC(), makeDeps({ licks, progress }), {
+			playableKeysOnly: true,
+			sessionTempo: 120
+		});
+		expect(result.suggestions.map((s) => s.lickId)).toEqual(['ready']);
+	});
+
+	it('falls back to the lick-wide tempo when the target key is untouched', () => {
+		// Practiced only in G at 130; the target key C is untouched but inside
+		// the 2-key unlock ramp from entry key C ([C, G]) → tier 'learning',
+		// and tempo capability falls back to getLickTempo's min (130).
+		const ramped = makePhrase({ id: 'ramped', name: 'Ramped', category: 'ii-V-I-major' });
+		const rampedProgress: LickPracticeProgress = {
+			ramped: { G: { currentTempo: 130, lastPracticedAt: 1, passCount: 2 } }
+		};
+		const result = suggestLicksForProgression(
+			detectShortInC(),
+			makeDeps({ licks: [ramped], progress: rampedProgress, unlockCounts: { ramped: 2 } }),
+			{ playableKeysOnly: true, sessionTempo: 120 }
+		);
+		expect(result.suggestions.map((s) => s.lickId)).toEqual(['ramped']);
+	});
+});
+
 describe('suggestLicksForTune', () => {
 	it('pairs each detection with its ranked result', () => {
 		const licks = [makePhrase({ id: 'l-251', name: 'Major 251', category: 'ii-V-I-major' })];

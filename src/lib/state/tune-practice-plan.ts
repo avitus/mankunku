@@ -65,8 +65,14 @@ export interface BuildPlanDeps {
 	notationFlat: FlattenedTune;
 	timeSignature: [number, number];
 	ppq: number;
-	/** Bars played before the practice chorus (the optional head), default 0. */
-	leadBars?: number;
+	/**
+	 * The optional head chorus. 'shift' (repeat-free charts): the practice
+	 * chorus is an appended duplicate, so every detection shifts by the head's
+	 * length. 'filter' (whole-form repeat charts): the expanded timeline
+	 * ALREADY contains head pass + solo pass — keep only detections in the
+	 * solo pass, unshifted.
+	 */
+	head?: { bars: number; mode: 'shift' | 'filter' };
 	/** Detector composed with non-overlap selection by the caller. */
 	detect: (flat: FlattenedTune) => DetectedProgression[];
 	match: (detection: DetectedProgression) => {
@@ -89,15 +95,23 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const { flat, notationFlat, timeSignature, ppq, detect, match } = deps;
 	const barTicks = timeSignature[0] * ppq;
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
-	// Everything before the practice chorus: the 1-bar count-in plus the
-	// optional head chorus.
-	const leadTicks = barTicks + (deps.leadBars ?? 0) * barTicks;
+	const head = deps.head;
+	// Ticks before the practice timeline's own zero: the 1-bar count-in, plus
+	// the head chorus when it is an appended-duplicate ('shift') head. A
+	// 'filter' head lives INSIDE the detection timeline, so only the count-in
+	// shifts.
+	const leadTicks = barTicks + (head?.mode === 'shift' ? head.bars * barTicks : 0);
 	const formEndTick = leadTicks + flat.totalBars * barTicks;
 	const ticksOf = (f: Fraction) => Math.round(fractionToFloat(f) * 4 * ppq);
 
-	const detections = [...detect(flat)].sort(
+	let detections = [...detect(flat)].sort(
 		(a, b) => compareFractions(a.startOffset, b.startOffset) || a.type.localeCompare(b.type)
 	);
+	if (head?.mode === 'filter') {
+		// Detections inside the head pass are heard, not practiced.
+		const boundary = head.bars * barWholeNotes;
+		detections = detections.filter((det) => fractionToFloat(det.startOffset) >= boundary - EPSILON);
+	}
 
 	return detections.map((det, i) => {
 		const openTick = leadTicks + ticksOf(det.startOffset);
@@ -148,24 +162,87 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	});
 }
 
+type RepeatMarkers = Pick<TuneSection, 'repeatStart' | 'repeatEnd' | 'ending'>;
+
+/**
+ * Where the head ends inside an expanded playback form. THE JAZZ FORM RULE:
+ * a repeat around the WHOLE tune outlines the form — head, then solo
+ * choruses, then head out — it does NOT mean "play the melody twice". The
+ * expanded flatten of such a chart is already "head with first ending, then
+ * the form again with second ending", so the head is pass one (everything
+ * before the second body begins) and the solo is pass two.
+ *
+ * The repeat must OUTLINE THE WHOLE FORM to count: a `repeatStart..repeatEnd`
+ * span whose only trailing sections are `ending: 2` (the out). An internal
+ * repeat with more form material after it (e.g. `|: A :| B A` in an AABA
+ * chart) is an ordinary play-twice repeat, NOT a form outline — those charts
+ * head through the whole form and get an appended solo chorus instead.
+ */
+export function headBarsForFlat(
+	flat: FlattenedTune,
+	sections: readonly RepeatMarkers[]
+): { headBars: number; formRepeats: boolean } {
+	const noRepeat = { headBars: flat.totalBars, formRepeats: false };
+
+	const startIdx = sections.findIndex((s) => s.repeatStart);
+	if (startIdx === -1) return noRepeat;
+	let endIdx = startIdx;
+	while (endIdx < sections.length && !sections[endIdx].repeatEnd) endIdx++;
+	if (endIdx >= sections.length) return noRepeat; // unbalanced — plays once
+	// A whole-form outline: nothing but the second ending follows the span.
+	for (let i = endIdx + 1; i < sections.length; i++) {
+		if (sections[i].ending !== 2) return noRepeat;
+	}
+	// Head = pass one: the bar where the second body pass begins (the first
+	// revisited section on the expanded timeline).
+	const seen = new Set<number>();
+	for (const entry of flat.sectionMap) {
+		if (seen.has(entry.sourceSection)) {
+			return { headBars: entry.barOffset, formRepeats: true };
+		}
+		seen.add(entry.sourceSection);
+	}
+	return noRepeat; // repeat span but no second pass materialized
+}
+
 /**
  * The audio material for a session: an optional head chorus (the written
- * melody, once through) followed by one melody-free practice chorus of the
- * same changes. With a head, the harmony covers both choruses so the backing
- * comps straight through; without one, the session is a single melody-free
- * chorus. Melody notes exist only in the head, so `PlaybackEvent.sourceIndex`
- * values always index `flat.notes` and provenance stays valid.
+ * melody, played ONCE — see `headBarsForFlat`) followed by melody-free solo
+ * material. On a whole-form-repeat chart the expanded timeline already holds
+ * head pass + solo pass, so only the second pass's melody is dropped; on a
+ * repeat-free chart the practice chorus is an appended duplicate of the
+ * changes. Melody notes are always a prefix of `flat.notes`, so
+ * `PlaybackEvent.sourceIndex` values keep indexing `flat.notes` and
+ * provenance stays valid.
  */
 export function buildSessionPhrase(args: {
 	flat: FlattenedTune;
+	sections: readonly RepeatMarkers[];
 	timeSignature: [number, number];
 	playHead: boolean;
-}): { notes: Note[]; harmony: HarmonicSegment[]; phraseBars: number } {
-	const { flat, timeSignature, playHead } = args;
+}): {
+	notes: Note[];
+	harmony: HarmonicSegment[];
+	phraseBars: number;
+	headBars: number;
+	duplicatedForm: boolean;
+} {
+	const { flat, sections, timeSignature, playHead } = args;
 	const barDuration: Fraction = [timeSignature[0], timeSignature[1]];
+	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const harmony = flat.harmony.map((h) => ({ ...h, chord: { ...h.chord } }));
 	if (!playHead) {
-		return { notes: [], harmony, phraseBars: flat.totalBars };
+		return { notes: [], harmony, phraseBars: flat.totalBars, headBars: 0, duplicatedForm: false };
+	}
+	const { headBars, formRepeats } = headBarsForFlat(flat, sections);
+	if (formRepeats) {
+		// The head is pass one of the timeline; keep only its melody (a prefix
+		// of flat.notes — sections are emitted in ascending-offset order).
+		const boundary = headBars * barWholeNotes;
+		const notes = flat.notes
+			.filter((n) => fractionToFloat(n.offset) < boundary - EPSILON)
+			.map((n) => ({ ...n }));
+		return { notes, harmony, phraseBars: flat.totalBars, headBars, duplicatedForm: false };
 	}
 	const shift = multiplyFraction(barDuration, flat.totalBars);
 	const practiceChorus = flat.harmony.map((h) => ({
@@ -176,8 +253,42 @@ export function buildSessionPhrase(args: {
 	return {
 		notes: flat.notes.map((n) => ({ ...n })),
 		harmony: [...harmony, ...practiceChorus],
-		phraseBars: flat.totalBars * 2
+		phraseBars: flat.totalBars * 2,
+		headBars,
+		duplicatedForm: true
 	};
+}
+
+/**
+ * Suggest-mode variety: cycle each progression type through its full eligible
+ * lick pool across the session's insertion points. Tracks how often each lick
+ * has been assigned per progression type and, at every point, picks the
+ * least-used eligible lick (ties broken by rank = list order). This surfaces
+ * genuinely-different licks even though each point's eligible list can differ
+ * in order and length — the target key varies per spot, so a positional
+ * index-modulo would repeat one lick and starve another.
+ */
+export function assignSuggestRotation(plan: readonly InsertionPoint[]): Record<string, number> {
+	const usesByType = new Map<ChordProgressionType, Map<string, number>>();
+	const picks: Record<string, number> = {};
+	for (const ip of plan) {
+		if (ip.suggestions.length === 0) continue;
+		const uses = usesByType.get(ip.progressionType) ?? new Map<string, number>();
+		let bestIdx = 0;
+		let bestUses = Infinity;
+		ip.suggestions.forEach((s, idx) => {
+			const u = uses.get(s.lickId) ?? 0;
+			if (u < bestUses) {
+				bestUses = u;
+				bestIdx = idx;
+			}
+		});
+		picks[ip.id] = bestIdx;
+		const chosen = ip.suggestions[bestIdx].lickId;
+		uses.set(chosen, (uses.get(chosen) ?? 0) + 1);
+		usesByType.set(ip.progressionType, uses);
+	}
+	return picks;
 }
 
 /**

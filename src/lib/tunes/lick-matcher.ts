@@ -18,6 +18,7 @@ import { planUnlockedKeys } from '$lib/music/key-ordering';
 import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
 import {
 	getEffectivePracticeLickIds,
+	getLickTempo,
 	getProgressionTags,
 	getUnlockedKeyCount,
 	hasLickProgress,
@@ -85,6 +86,13 @@ export interface SuggestLicksOptions {
 	enableSubstitutions?: boolean;
 	/** Cap the ranked list (applied after ranking and dedupe). */
 	limit?: number;
+	/**
+	 * Song tempo (BPM): exclude licks whose practiced tempo capability at the
+	 * target key (falling back to the lick-wide minimum) is below it.
+	 */
+	sessionTempo?: number;
+	/** Keep only licks the user can already play in the target key (known/learning). */
+	playableKeysOnly?: boolean;
 }
 
 const TIER_RANK: Record<MasteryTier, number> = { known: 0, learning: 1, unknown: 2 };
@@ -204,7 +212,20 @@ export function suggestLicksForProgression(
 		});
 	}
 
-	suggestions.sort(
+	// Song requirements: only licks the user can actually deploy here.
+	let eligible = suggestions;
+	if (options.playableKeysOnly) {
+		eligible = eligible.filter((s) => s.masteryTier !== 'unknown');
+	}
+	if (options.sessionTempo !== undefined) {
+		const sessionTempo = options.sessionTempo;
+		eligible = eligible.filter((s) => {
+			const atKey = deps.progress[s.lickId]?.[s.targetKey]?.currentTempo;
+			return (atKey ?? getLickTempo(deps.progress, s.lickId)) >= sessionTempo;
+		});
+	}
+
+	eligible.sort(
 		(a, b) =>
 			TIER_RANK[a.masteryTier] - TIER_RANK[b.masteryTier] ||
 			SOURCE_RANK[a.matchSources[0]] - SOURCE_RANK[b.matchSources[0]] ||
@@ -216,7 +237,7 @@ export function suggestLicksForProgression(
 	);
 
 	const seenBase = new Set<string>();
-	const deduped = suggestions.filter((s) => {
+	const deduped = eligible.filter((s) => {
 		const base = baseLickId(s.lickId);
 		if (seenBase.has(base)) return false;
 		seenBase.add(base);

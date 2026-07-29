@@ -40,8 +40,10 @@ test.describe('tune practice setup', () => {
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/tunes/ls-mankunku-blues/practice');
-		// Non-overlapping survivor set: 1 short ii-V-I + 2 turnarounds + 5 blues bars.
-		await expect(page.getByText(/8 insertion points/i)).toBeVisible();
+		// With the default head-first setting, only the SOLO pass of the
+		// whole-form repeat is practiceable (the jazz form rule): 3 blues bars +
+		// 1 short ii-V-I + 1 turnaround.
+		await expect(page.getByText(/5 insertion points/i)).toBeVisible();
 		await expect(page.getByText(/Short ii-V-I \(Maj\)/i)).toBeVisible();
 		await expect(page.getByText(/Turnaround/i)).toBeVisible();
 	});

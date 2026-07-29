@@ -20,9 +20,11 @@ import { addFractions, compareFractions, subtractFractions } from '$lib/music/in
 import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 import {
 	applyInsertionResult,
+	assignSuggestRotation,
 	buildSessionPhrase,
 	buildSessionPlan,
 	emptyResultTally,
+	headBarsForFlat,
 	resolvePickedSuggestion,
 	type InsertionPoint,
 	type InsertionResult,
@@ -61,8 +63,15 @@ export interface TunePracticeAudioPlan {
 	flat: FlattenedTune;
 	/** Notation-order flatten (chart markers). */
 	notationFlat: FlattenedTune;
-	/** Bars before the practice chorus starts (0 without a head). */
+	/** Bars before the practice material starts (0 without a head). */
 	leadBars: number;
+	/**
+	 * True when the practice chorus is an APPENDED duplicate of the form
+	 * (repeat-free chart). False on whole-form-repeat charts, where the
+	 * expanded timeline already holds head pass + solo pass — see the jazz
+	 * form rule in headBarsForFlat.
+	 */
+	duplicatedForm: boolean;
 }
 
 const MAX_SUGGESTIONS = 5;
@@ -147,34 +156,54 @@ export interface SessionPreview {
 }
 
 /**
- * Cheap setup-screen preview: how many insertion points the detector finds
+ * Setup-screen preview mirroring the REAL session plan: the same expanded
+ * flatten, non-overlap selection, and head filtering the session will use
  * (counts and bar ranges are transposition-invariant, so the base sheet
- * suffices) and how many user licks can't match anything for lack of prog
- * tags. Runs on the notation-order flatten — the detector's bar fields are
- * already chart bars.
+ * suffices), plus how many user licks can't match anything for lack of prog
+ * tags. Chart markers dedupe repeat occurrences by markerKey.
  */
-export function previewSessionPlan(sheet: Tune): SessionPreview {
-	const detections = selectNonOverlapping(detectProgressions(flattenTune(sheet), sheet));
+export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPreview {
+	const flat = flattenTune(sheet, { expandRepeats: true });
+	const notationFlat = flattenTune(sheet);
+	const hasMelody = flat.notes.some((n) => n.pitch !== null);
+	const effectiveHead = playHead && hasMelody;
+	const { headBars, formRepeats } = headBarsForFlat(flat, sheet.sections);
+	const plan = buildSessionPlan({
+		flat,
+		notationFlat,
+		timeSignature: sheet.timeSignature,
+		ppq: 480,
+		head: effectiveHead ? { bars: headBars, mode: formRepeats ? 'filter' : 'shift' } : undefined,
+		detect: (f) => selectNonOverlapping(detectProgressions(f, sheet)),
+		match: () => ({ suggestions: [], uncategorized: [] })
+	});
+
 	const byType: Partial<Record<ChordProgressionType, number>> = {};
-	for (const det of detections) {
-		byType[det.type] = (byType[det.type] ?? 0) + 1;
+	for (const ip of plan) {
+		byType[ip.progressionType] = (byType[ip.progressionType] ?? 0) + 1;
 	}
+
+	const markers: SessionPreview['markers'] = [];
+	const seenMarker = new Set<string>();
+	for (const ip of plan) {
+		if (seenMarker.has(ip.markerKey)) continue;
+		seenMarker.add(ip.markerKey);
+		markers.push({
+			id: ip.markerKey,
+			startBar: ip.notationBarRange.start,
+			endBarExclusive: ip.notationBarRange.endExclusive,
+			label: PROGRESSION_TEMPLATES[ip.progressionType].shortName
+		});
+	}
+
 	let uncategorizedCount = 0;
+	const detections = selectNonOverlapping(detectProgressions(notationFlat, sheet));
 	if (detections.length > 0) {
 		const deps = buildLickMatcherDeps(sheet);
 		uncategorizedCount = suggestLicksForProgression(detections[0], deps).uncategorized.length;
 	}
-	return {
-		total: detections.length,
-		byType,
-		uncategorizedCount,
-		markers: detections.map((det, i) => ({
-			id: `preview-${i}`,
-			startBar: det.startBar,
-			endBarExclusive: det.endBarExclusive,
-			label: PROGRESSION_TEMPLATES[det.type].shortName
-		}))
-	};
+
+	return { total: plan.length, byType, uncategorizedCount, markers };
 }
 
 /**
@@ -196,21 +225,35 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	// most community tunes) would otherwise open with a full silent chorus.
 	const hasMelody = flat.notes.some((n) => n.pitch !== null);
 	const playHead = tunePractice.config.playHead && hasMelody;
-	const leadBars = playHead ? flat.totalBars : 0;
+	const mode = tunePractice.config.mode;
+
+	const built = buildSessionPhrase({
+		flat,
+		sections: transposed.sections,
+		timeSignature: transposed.timeSignature,
+		playHead
+	});
 	const plan = buildSessionPlan({
 		flat,
 		notationFlat,
 		timeSignature: transposed.timeSignature,
 		ppq,
-		leadBars,
+		head: playHead
+			? { bars: built.headBars, mode: built.duplicatedForm ? 'shift' : 'filter' }
+			: undefined,
 		detect: (f) => selectNonOverlapping(detectProgressions(f, transposed)),
 		match: (det) => {
-			const result = suggestLicksForProgression(det, matcherDeps, { limit: MAX_SUGGESTIONS });
+			// Suggest mode cycles the FULL eligible list, restricted to licks the
+			// user can deploy at this song's tempo and in this spot's key.
+			const options =
+				mode === 'suggest'
+					? { playableKeysOnly: true, sessionTempo: tunePractice.config.tempo }
+					: { limit: MAX_SUGGESTIONS };
+			const result = suggestLicksForProgression(det, matcherDeps, options);
 			return { suggestions: result.suggestions, uncategorized: result.uncategorized };
 		}
 	});
 
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead });
 	const playedPhrase: Phrase = {
 		...phrase,
 		notes: built.notes,
@@ -225,6 +268,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.plan = plan;
+	tunePractice.pickedSuggestion = mode === 'suggest' ? assignSuggestRotation(plan) : {};
 	tunePractice.uncategorizedCount = plan[0]?.uncategorizedCount ?? 0;
 	tunePractice.currentIndex = 0;
 	tunePractice.windowOpen = false;
@@ -238,7 +282,15 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	tunePractice.elapsedSeconds = 0;
 	tunePractice.phase = 'count-in';
 
-	return { sheet: transposed, changesSheet, playedPhrase, flat, notationFlat, leadBars };
+	return {
+		sheet: transposed,
+		changesSheet,
+		playedPhrase,
+		flat,
+		notationFlat,
+		leadBars: built.headBars,
+		duplicatedForm: built.duplicatedForm
+	};
 }
 
 /**

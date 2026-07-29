@@ -424,4 +424,32 @@ describe('selectNonOverlapping', () => {
 		const [a, b] = [selectNonOverlapping(dets), selectNonOverlapping(shuffled)];
 		expect(b).toEqual(a);
 	});
+
+	it('always favors the longer progression when detections overlap', () => {
+		// A jazz-practice rule: a longer stretch of harmony beats a shorter,
+		// nominally more "specific" one. A 3-bar vamp must survive against an
+		// overlapping 1-bar blues detection despite blues's higher shape rank.
+		const mk = (over: Partial<DetectedProgression>): DetectedProgression => ({
+			type: 'blues',
+			slots: [],
+			segmentIndices: [0],
+			localKey: 'C',
+			tuneKeyDegree: { semitones: 0, degree: 1, accidental: null, label: '1' },
+			startOffset: [0, 1],
+			duration: [1, 1],
+			startBar: 0,
+			endBarExclusive: 1,
+			wrapsAround: false,
+			...over
+		});
+		const shortBlues = mk({ type: 'blues', segmentIndices: [1], startOffset: [1, 1] });
+		const longVamp = mk({
+			type: 'dominant-vamp',
+			segmentIndices: [0, 1, 2],
+			duration: [3, 1],
+			endBarExclusive: 3
+		});
+		const kept = selectNonOverlapping([shortBlues, longVamp]);
+		expect(kept.map((d) => d.type)).toEqual(['dominant-vamp']);
+	});
 });
