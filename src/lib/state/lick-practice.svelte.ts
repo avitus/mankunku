@@ -64,6 +64,8 @@ import {
 	getUnlockedKeyCount,
 	bumpUnlockedKeyCount,
 	shouldUnlockNextKey,
+	appendLickProgressPoint,
+	seedProgressHistoryFromSessions,
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo,
@@ -233,6 +235,10 @@ export async function hydrateLickPracticeProgress(
 		// Migrate legacy 'practice' markers from lick.tags + tag overrides
 		// into the new user-lick-tags store so getPracticeLicks can find them.
 		backfillPracticeTags(getAllLicks(), getLickTagOverrides());
+		// One-time: seed the per-lick progress-history graph from the local
+		// session log. Gated on cloud success for the same reason as the
+		// backfill above (don't push a partial blob over the intact cloud row).
+		seedProgressHistoryFromSessions();
 	} else {
 		console.warn(
 			'[lick-practice] cloud hydration failed — skipping tag backfill this mount'
@@ -1274,6 +1280,15 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				);
 			}
 			saveLickPracticeProgress(lickPractice.progress);
+
+			// Record a progress-history sample. Read the unlock count AFTER the
+			// possible bump above so a key just earned this session registers on
+			// the keys-unlocked graph.
+			appendLickProgressPoint(item.phraseId, {
+				t: now,
+				bpm: newTempo,
+				keys: getUnlockedKeyCount(lickPractice.progress, item.phraseId)
+			});
 		}
 
 		// Clear on both paths so getSessionReport's "include in-progress lick"
@@ -1359,6 +1374,15 @@ export function advanceSingleLickRound(): void {
 			);
 		}
 		saveLickPracticeProgress(lickPractice.progress);
+
+		// Record a progress-history sample at the bumped tempo. Single-lick
+		// deep practice drills the already-unlocked set, so the key count is
+		// the full refilled circle (it doesn't unlock new keys itself).
+		appendLickProgressPoint(item.phraseId, {
+			t: now,
+			bpm: newTempo,
+			keys: fullCircle.length
+		});
 
 		lickPractice.currentTempo = newTempo;
 		item.keys = fullCircle;

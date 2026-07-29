@@ -693,6 +693,8 @@ export type Database = {
           category_overrides: Json
           /** JSONB storing Record<lickId, number> — gradual key-unlock count (1-12) per lick */
           unlock_counts: Json
+          /** JSONB storing Record<lickId, LickProgressPoint[]> — append-only per-lick BPM/keys time series */
+          progress_history: Json
           /** JSONB per-entry merge metadata (tags/overrides/catOverrides/progressResets/unlockResets → id→mtime). Defaults to {}. */
           merge_meta: Json
           /** Timestamp of last update (ISO 8601) */
@@ -712,6 +714,8 @@ export type Database = {
           /** Defaults to '{}' in database */
           unlock_counts?: Json
           /** Defaults to '{}' in database */
+          progress_history?: Json
+          /** Defaults to '{}' in database */
           merge_meta?: Json
           updated_at?: string
         }
@@ -722,6 +726,7 @@ export type Database = {
           tag_overrides?: Json
           category_overrides?: Json
           unlock_counts?: Json
+          progress_history?: Json
           merge_meta?: Json
           updated_at?: string
         }

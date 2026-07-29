@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { CATEGORY_LABELS, type Phrase } from '$lib/types/music';
-	import { difficultyDisplay } from '$lib/difficulty/display';
 	import {
 		getProgressionTags,
-		getLickLastPracticed
+		getLickDisplayTempo
 	} from '$lib/persistence/lick-practice-store';
-	import type { LickPracticeProgress } from '$lib/types/lick-practice';
+	import { progressionColor } from '$lib/music/progression-display';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import type { LickPracticeProgress } from '$lib/types/lick-practice';
 
 	interface Props {
 		lick: Phrase;
@@ -15,13 +15,8 @@
 		isPlaying?: boolean;
 		/** When set, renders a "by <name>" attribution — used for stolen community licks. */
 		authorName?: string | null;
-		/**
-		 * Per-lick practice progress. When provided alongside `showStats`, the card
-		 * renders a "last practiced" line. Omit for the plain card.
-		 */
+		/** Per-lick practice progress — drives the current-BPM readout. */
 		progress?: LickPracticeProgress | null;
-		/** Render the last-practiced line (requires `progress`). */
-		showStats?: boolean;
 	}
 
 	let {
@@ -30,30 +25,20 @@
 		onplay,
 		isPlaying = false,
 		authorName = null,
-		progress = null,
-		showStats = false
+		progress = null
 	}: Props = $props();
 
-	const diff = $derived(difficultyDisplay(lick.difficulty.level));
 	const progTags = $derived(getProgressionTags(lick.id));
-
-	const lastPracticed = $derived(
-		showStats && progress ? getLickLastPracticed(progress, lick.id) : null
+	/** The lick's primary progression — drives the category-pill tint. */
+	const primaryProg = $derived(progTags[0] ?? null);
+	/** Additional progressions beyond the primary — rendered as colour dots. */
+	const extraProgs = $derived(progTags.slice(1));
+	/** Current practice tempo shown on the card. */
+	const tempo = $derived(getLickDisplayTempo(progress ?? {}, lick.id));
+	/** Free-text curated tags (excludes the practice/user-entered markers). */
+	const freeTags = $derived(
+		lick.tags.filter((t) => t !== 'practice' && t !== 'user-entered').slice(0, 4)
 	);
-
-	/** Coarse "Nd/Nh ago" label; "not started" for a zero timestamp. */
-	function relativeTime(ts: number): string {
-		if (!ts) return 'not started';
-		const elapsed = Date.now() - ts;
-		const day = 86_400_000;
-		const hour = 3_600_000;
-		if (elapsed < hour) return 'just now';
-		if (elapsed < day) return `${Math.floor(elapsed / hour)}h ago`;
-		const days = Math.floor(elapsed / day);
-		if (days < 30) return `${days}d ago`;
-		const months = Math.floor(days / 30);
-		return months < 12 ? `${months}mo ago` : `${Math.floor(months / 12)}y ago`;
-	}
 </script>
 
 {#snippet cardBody()}
@@ -65,33 +50,37 @@
 					by {authorName}
 				</p>
 			{/if}
-			<div class="mt-1 flex items-center gap-1.5 text-xs">
-				<span class="smallcaps border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">
-					{CATEGORY_LABELS[lick.category] ?? lick.category}
-				</span>
-				<span
-					class="rounded px-1.5 py-0.5"
-					style="background: color-mix(in srgb, {diff.color} 13%, transparent); color: {diff.color}"
-				>
-					{diff.name} ({lick.difficulty.level})
-				</span>
-			</div>
-			<div
-				class="mt-1 flex min-h-[1.375rem] items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs"
-			>
-				{#each progTags as pt}
-					{@const template = PROGRESSION_TEMPLATES[pt]}
-					<span class="rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[var(--color-accent)]">
-						{template?.shortName ?? pt}
+			<div class="mt-1 flex min-h-[1.375rem] items-center gap-x-2 text-xs">
+				{#if primaryProg}
+					{@const hue = progressionColor(primaryProg)}
+					<span
+						class="smallcaps rounded border px-1.5 py-0.5"
+						style="background: color-mix(in srgb, {hue} 15%, transparent); color: {hue}; border-color: color-mix(in srgb, {hue} 34%, transparent);"
+						title="{CATEGORY_LABELS[lick.category] ?? lick.category} · practice over {PROGRESSION_TEMPLATES[primaryProg]?.shortName ?? primaryProg}"
+					>
+						{CATEGORY_LABELS[lick.category] ?? lick.category}
 					</span>
+				{:else}
+					<span class="smallcaps rounded border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">
+						{CATEGORY_LABELS[lick.category] ?? lick.category}
+					</span>
+				{/if}
+				{#each extraProgs as pt}
+					<span
+						class="h-2 w-2 shrink-0 rounded-full"
+						style="background: {progressionColor(pt)}"
+						title="also: {PROGRESSION_TEMPLATES[pt]?.shortName ?? pt}"
+					></span>
 				{/each}
-				{#each lick.tags.filter(t => t !== 'practice' && t !== 'user-entered').slice(0, 4) as tag}
-					<span class="italic text-[var(--color-text-secondary)]">{tag}</span>
-				{/each}
+				<span class="ml-auto shrink-0 tabular-nums text-[var(--color-text)]">
+					{tempo} <span class="text-[var(--color-text-secondary)]">BPM</span>
+				</span>
 			</div>
-			{#if lastPracticed !== null}
-				<div class="mt-1.5 pl-1.5 text-xs text-[var(--color-text-secondary)]">
-					{relativeTime(lastPracticed)}
+			{#if freeTags.length > 0}
+				<div class="mt-1 flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs">
+					{#each freeTags as tag}
+						<span class="italic text-[var(--color-text-secondary)]">{tag}</span>
+					{/each}
 				</div>
 			{/if}
 		</div>

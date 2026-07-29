@@ -1,6 +1,12 @@
 import type { PitchClass, PhraseCategory } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
-import type { LickPracticeProgress, LickPracticeKeyProgress, ChordProgressionType } from '$lib/types/lick-practice';
+import type {
+	LickPracticeProgress,
+	LickPracticeKeyProgress,
+	ChordProgressionType,
+	LickProgressPoint,
+	LickProgressHistory
+} from '$lib/types/lick-practice';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { save, load } from './storage';
@@ -9,6 +15,7 @@ import { getScopeGeneration } from './user-scope';
 import { enqueue } from './outbox';
 import { mergeLickMetadata, type LickMergeMeta, type LickMetaBundle } from './lick-metadata-merge';
 import { getLickTagOverrides } from './user-licks';
+import { loadLickPracticeSessions } from './lick-practice-sessions';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
@@ -17,6 +24,10 @@ const CATEGORY_OVERRIDES_KEY = 'lick-category-overrides';
 const TAG_OVERRIDES_KEY = 'lick-tag-overrides';
 /** Per-entry merge metadata (mtimes + reset tombstones) for cross-device merge. */
 const MERGE_META_KEY = 'lick-merge-meta';
+/** Per-lick append-only BPM/keys-unlocked time series (powers the detail-page graph). */
+const HISTORY_KEY = 'lick-progress-history';
+/** Cap on retained history points per lick — keep in sync with the merge cap. */
+const MAX_HISTORY_POINTS = 500;
 const DEFAULT_TEMPO = 100;
 /** Starting BPM for any lick with no prior practice history. */
 export const NEW_LICK_DEFAULT_TEMPO = 60;
@@ -165,7 +176,8 @@ function currentLocalBundle(): LickMetaBundle {
 			practiceProgress: loadLickPracticeProgress() as LickMetaBundle['data']['practiceProgress'],
 			tagOverrides: load<Record<string, string[]>>(TAG_OVERRIDES_KEY) ?? {},
 			categoryOverrides: (load<Record<string, string>>(CATEGORY_OVERRIDES_KEY) ?? {}),
-			unlockCounts: loadUnlockCounts()
+			unlockCounts: loadUnlockCounts(),
+			progressHistory: loadLickProgressHistory()
 		},
 		mergeMeta: loadMergeMeta()
 	};
@@ -178,6 +190,7 @@ function saveLocalBundle(bundle: LickMetaBundle): void {
 	save(TAG_OVERRIDES_KEY, bundle.data.tagOverrides);
 	save(CATEGORY_OVERRIDES_KEY, bundle.data.categoryOverrides);
 	save(UNLOCK_KEY, bundle.data.unlockCounts);
+	save(HISTORY_KEY, bundle.data.progressHistory);
 	saveMergeMeta(bundle.mergeMeta);
 }
 
@@ -223,7 +236,7 @@ export async function flushLickMetadataToCloud(supabase: SupabaseClient<Database
 }
 
 function emptyMetaData(): LickMetaBundle['data'] {
-	return { lickTags: {}, practiceProgress: {}, tagOverrides: {}, categoryOverrides: {}, unlockCounts: {} };
+	return { lickTags: {}, practiceProgress: {}, tagOverrides: {}, categoryOverrides: {}, unlockCounts: {}, progressHistory: {} };
 }
 
 export function loadLickPracticeProgress(): LickPracticeProgress {
@@ -306,6 +319,107 @@ export function getLickLastPracticed(progress: LickPracticeProgress, phraseId: s
 /** Check if a lick has any stored per-key progress */
 export function hasLickProgress(progress: LickPracticeProgress, phraseId: string): boolean {
 	return !!progress[phraseId] && Object.keys(progress[phraseId]!).length > 0;
+}
+
+/**
+ * BPM to display for a lick on a card: the slowest unlocked-key tempo once the
+ * lick has been practiced (what the next session would resume at), else the
+ * new-lick starting tempo. Avoids `getLickTempo`'s DEFAULT_TEMPO (100) fallback,
+ * which would misreport a never-practiced lick as faster than it starts.
+ */
+export function getLickDisplayTempo(progress: LickPracticeProgress, phraseId: string): number {
+	return hasLickProgress(progress, phraseId)
+		? getLickTempo(progress, phraseId)
+		: NEW_LICK_DEFAULT_TEMPO;
+}
+
+// ── Progress history (per-lick BPM / keys-unlocked time series) ──────────────
+//
+// Append-only samples, one per session that changes tempo or unlocks a key.
+// Synced via the same user_lick_metadata merge as the other blobs, but merged
+// by a pure per-timestamp union (see lick-metadata-merge.ts) — no mtime, no
+// reset tombstone. Powers the library detail-page progress graph.
+
+export function loadLickProgressHistory(): LickProgressHistory {
+	return load<LickProgressHistory>(HISTORY_KEY) ?? {};
+}
+
+function saveLickProgressHistory(history: LickProgressHistory): void {
+	save(HISTORY_KEY, history);
+	enqueue('lickMeta');
+}
+
+/** All progress-history points for a lick, sorted oldest→newest. */
+export function getLickProgressHistory(phraseId: string): LickProgressPoint[] {
+	const points = loadLickProgressHistory()[phraseId] ?? [];
+	return [...points].sort((a, b) => a.t - b.t);
+}
+
+/**
+ * Append one progress-history sample for a lick. Idempotent on the timestamp
+ * `t` (a replayed write is a no-op), sorted, and capped at MAX_HISTORY_POINTS.
+ */
+export function appendLickProgressPoint(phraseId: string, point: LickProgressPoint): void {
+	const history = loadLickProgressHistory();
+	const existing = history[phraseId] ?? [];
+	if (existing.some((p) => p.t === point.t)) return;
+	const next = [...existing, point].sort((a, b) => a.t - b.t);
+	history[phraseId] =
+		next.length > MAX_HISTORY_POINTS ? next.slice(next.length - MAX_HISTORY_POINTS) : next;
+	saveLickProgressHistory(history);
+}
+
+/**
+ * Reserved key inside the lick-tags blob holding one-time migration markers.
+ * Always unioned by the merge (never LWW), so a marker survives cross-device
+ * sync — see lick-metadata-merge.ts.
+ */
+const MIGRATIONS_KEY = '__migrations';
+const PROGRESS_HISTORY_SEED_MARKER = 'progress-history-seed-v1';
+
+function hasMigrationMarker(name: string): boolean {
+	return loadUserLickTags()[MIGRATIONS_KEY]?.includes(name) ?? false;
+}
+
+function addMigrationMarker(name: string): void {
+	const tags = loadUserLickTags();
+	const current = tags[MIGRATIONS_KEY] ?? [];
+	if (current.includes(name)) return;
+	tags[MIGRATIONS_KEY] = [...current, name];
+	saveUserLickTags(tags);
+	syncLickTagsToCloud();
+}
+
+/**
+ * One-time seed: synthesise progress-history points from the local session log
+ * (`lick-practice-sessions`) so the detail-page BPM chart isn't empty on first
+ * release. `keys.length` approximates the unlocked-key count for standard-mode
+ * sessions (exact for going-forward points). Idempotent via the
+ * `progress-history-seed-v1` marker; the caller gates this on cloud hydration
+ * success so it never writes over a store that failed to hydrate.
+ */
+export function seedProgressHistoryFromSessions(): void {
+	if (hasMigrationMarker(PROGRESS_HISTORY_SEED_MARKER)) return;
+
+	const history = loadLickProgressHistory();
+	for (const entry of loadLickPracticeSessions()) {
+		for (const lick of entry.report.licks) {
+			const points = (history[lick.lickId] ??= []);
+			if (points.some((p) => p.t === entry.timestamp)) continue;
+			points.push({
+				t: entry.timestamp,
+				bpm: lick.newTempo ?? lick.tempo,
+				keys: lick.keys.length
+			});
+		}
+	}
+	for (const id of Object.keys(history)) {
+		const sorted = history[id].sort((a, b) => a.t - b.t);
+		history[id] =
+			sorted.length > MAX_HISTORY_POINTS ? sorted.slice(sorted.length - MAX_HISTORY_POINTS) : sorted;
+	}
+	saveLickProgressHistory(history);
+	addMigrationMarker(PROGRESS_HISTORY_SEED_MARKER);
 }
 
 /**
