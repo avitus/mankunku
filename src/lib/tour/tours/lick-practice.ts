@@ -10,7 +10,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Lick Practice — Side B',
 			description:
-				"Pick licks from the Library, tag them, and Mankunku will rotate each one through all 12 keys over a chord progression with a backing track. Builds the muscle memory for soloing across changes.",
+				"Pick licks from your book on the Licks page, tag them, and Mankunku will rotate each one through all 12 keys over a chord progression with a backing track. Builds the muscle memory for soloing across changes.",
 			side: 'over',
 			align: 'center'
 		}
@@ -19,7 +19,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: 'What does "tagged" mean?',
 			description:
-				"Tagging is how you mark a lick for the practice rotation. In the Library, click the star icon on any lick to tag it. The set persists — tag once, practice forever.",
+				"Tagging is how you mark a lick for the practice rotation. On the Licks page, click the star icon on any lick to tag it. The set persists — tag once, practice forever.",
 			side: 'over',
 			align: 'center'
 		}
@@ -55,7 +55,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: "When you're ready",
 			description:
-				"Daily Practice is the default — it rotates across every progression you've tagged, so just set a duration and go. Switch to Focused Session to drill one progression, or Deep Practice to master a single lick. If your set is empty, head to the Library and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM from 70%–84%, and -3 BPM below 70%.",
+				"Daily Practice is the default — it rotates across every progression you've tagged, so just set a duration and go. Switch to Focused Session to drill one progression, or Deep Practice to master a single lick. If your set is empty, head to your Licks page and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM from 70%–84%, and -3 BPM below 70%.",
 			side: 'over',
 			align: 'center'
 		}

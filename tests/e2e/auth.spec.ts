@@ -31,6 +31,15 @@ test.describe('auth — anonymous', () => {
 });
 
 test.describe('auth — signed in via test cookie', () => {
+	// Seed the signed-in user's bucket (the cookie routes seeding there) so
+	// (a) the onboarding modal doesn't overlay the page and (b) the __active
+	// namespace pointer is pre-stamped — without it, reconcileActiveUser
+	// schedules a re-home reload mid-test, a timing window Firefox/WebKit
+	// intermittently lost under full-suite load.
+	test.beforeEach(async ({ signedInPage }) => {
+		await seedOnboardedAnonymous(signedInPage);
+	});
+
 	test('home page renders authenticated state', async ({
 		signedInPage,
 		consoleCollector: _consoleCollector

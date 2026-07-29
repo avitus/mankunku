@@ -187,7 +187,7 @@ Uses `KEY_SIG_ACCIDENTALS` lookup table (maps each key to its altered pitch clas
 
 ### `phraseToAbcWithMap(phrase, instrument?, defaultLength?): { abc, noteAnchors }`
 
-Generate the same ABC string as `phraseToAbc`, plus a `noteAnchors: PitchedNoteAnchor[]` click-anchor map. Each anchor maps a rendered pitched-note token back to its index in `phrase.notes`, letting `NotationDisplay.svelte` resolve a click on a notehead to a source note (this powers click-to-select on the `/entry` staff). Rest elements are intentionally absent from `noteAnchors`.
+Generate the same ABC string as `phraseToAbc`, plus a `noteAnchors: PitchedNoteAnchor[]` click-anchor map. Each anchor maps a rendered pitched-note token back to its index in `phrase.notes`, letting `NotationDisplay.svelte` resolve a click on a notehead to a source note (this powers click-to-select on the `/licks/editor` staff). Rest elements are intentionally absent from `noteAnchors`.
 
 ```typescript
 export interface PitchedNoteAnchor {

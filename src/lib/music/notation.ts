@@ -1,7 +1,8 @@
-import type { Note, Phrase, PitchClass } from '$lib/types/music';
+import type { ChordQuality, HarmonicSegment, Note, Phrase, PitchClass } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals';
-import { concertToWritten, concertKeyToWritten } from './transposition';
+import { concertToWritten, concertKeyToWritten, transposePitchClass } from './transposition';
 
 /** Note letter names A–G */
 type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
@@ -10,7 +11,7 @@ type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
 type KeySigAccidental = '^' | '_';
 
 /** Map of note letters to their key-signature accidentals */
-type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
+export type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
 
 /**
  * ABC notation generation from Phrase data.
@@ -22,8 +23,89 @@ type KeySigMap = Partial<Record<NoteLetter, KeySigAccidental>>;
 const ABC_NOTE_NAMES_SHARP = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', 'A', '^A', 'B'];
 const ABC_NOTE_NAMES_FLAT = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A', '_B', 'B'];
 
+// ─── Chord-aware enharmonic spelling ─────────────────────────────────────
+
+/** Musical letter sequence for interval arithmetic (wraps G → A). */
+const LETTER_SEQUENCE: NoteLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+const LETTER_NATURAL_PC: Record<NoteLetter, number> = {
+	C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11
+};
+
+const MINOR_THIRD_QUALITIES: ReadonlySet<ChordQuality> = new Set([
+	'min7', 'min6', 'minMaj7', 'min7b5', 'dim7', 'dim'
+]);
+const FLAT_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set([
+	'min7b5', 'dim7', 'dim', '7alt'
+]);
+const SHARP_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set(['aug', 'aug7']);
+
+/**
+ * Preferred enharmonic spelling of a chromatic note against the chord that
+ * governs it — the third of A7 is C#, never Db; the minor third of C-7 is
+ * Eb, never D#. Uses proper interval spelling (letter steps from the chord
+ * root), and returns null when the note has no single-accidental spelling
+ * relative to the chord (natural letters, or spellings needing double
+ * accidentals) so the caller falls back to the key signature.
+ */
+export function chordSpellingPreference(
+	midi: number,
+	root: string,
+	quality: ChordQuality
+): 'sharp' | 'flat' | null {
+	const pc = midiToPitchClass(midi);
+	if (pc !== 1 && pc !== 3 && pc !== 6 && pc !== 8 && pc !== 10) return null;
+
+	// The root may be a display spelling ('G#', 'Gb') rather than a canonical
+	// pitch class — derive its pc from letter + accidental so the letter
+	// arithmetic follows the spelling the reader actually sees.
+	const rootLetter = root[0] as NoteLetter;
+	const rootNatural = LETTER_NATURAL_PC[rootLetter];
+	if (rootNatural === undefined) return null;
+	const accidental = root[1] === '#' ? 1 : root[1] === 'b' ? -1 : 0;
+	const rootPc = (rootNatural + accidental + 12) % 12;
+	const interval = (pc - rootPc + 12) % 12;
+
+	// Semitone interval → letter steps above the root letter. Quality decides
+	// the ambiguous degrees: b3 vs #9, b5 vs #11, #5 vs b13.
+	const steps = [
+		0, 1, 1,
+		MINOR_THIRD_QUALITIES.has(quality) ? 2 : 1,
+		2, 3,
+		FLAT_FIVE_QUALITIES.has(quality) ? 4 : 3,
+		4,
+		SHARP_FIVE_QUALITIES.has(quality) ? 4 : 5,
+		5, 6, 6
+	][interval];
+
+	const letter =
+		LETTER_SEQUENCE[(LETTER_SEQUENCE.indexOf(rootLetter) + steps) % 7];
+	const diff = (pc - LETTER_NATURAL_PC[letter] + 12) % 12;
+	if (diff === 1) return 'sharp';
+	if (diff === 11) return 'flat';
+	return null;
+}
+
+/**
+ * The chord governing a note offset: the last change at or before it.
+ * Segments are change points — a chord rules until the next one.
+ */
+export function governingSegment(
+	harmony: HarmonicSegment[],
+	offset: number
+): HarmonicSegment | null {
+	let governing: HarmonicSegment | null = null;
+	for (const seg of harmony) {
+		if (fractionToFloat(seg.startOffset) <= offset + 1e-9) {
+			if (!governing || fractionToFloat(seg.startOffset) >= fractionToFloat(governing.startOffset)) {
+				governing = seg;
+			}
+		}
+	}
+	return governing;
+}
+
 /** Keys that conventionally use flats */
-const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
+export const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
 
 /**
  * Key signature accidentals: maps each key to the set of note letters ('A'–'G')
@@ -35,7 +117,7 @@ const FLAT_KEYS: PitchClass[] = ['F', 'Bb', 'Eb', 'Ab', 'Db'];
  * differ require an explicit accidental (including '=' for naturals that cancel
  * a key-sig sharp or flat).
  */
-const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
+export const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	// Sharp keys — keyed by letter name that the key signature alters
 	'C':  {},
 	'G':  { F: '^' },
@@ -52,6 +134,24 @@ const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	'Ab': { B: '_', E: '_', A: '_', D: '_' },
 	'Db': { B: '_', E: '_', A: '_', D: '_', G: '_' },
 };
+
+/** Black-key pitch class → the letter each enharmonic spelling uses. */
+export const SHARP_LETTER: Record<number, keyof KeySigMap> = { 1: 'C', 3: 'D', 6: 'F', 8: 'G', 10: 'A' };
+export const FLAT_LETTER: Record<number, keyof KeySigMap> = { 1: 'D', 3: 'E', 6: 'G', 8: 'A', 10: 'B' };
+
+/**
+ * The enharmonic spelling of a black-key pitch class that the key signature
+ * already covers (no accidental needed), or null when neither spelling is in
+ * the signature. A C# in D major must not print as Db: respelling a
+ * signature-covered note forces a needless accidental plus naturals.
+ */
+export function signatureSpelling(pc: number, sig: KeySigMap): 'sharp' | 'flat' | null {
+	const sl = SHARP_LETTER[pc];
+	const fl = FLAT_LETTER[pc];
+	if (sl && sig[sl] === '^') return 'sharp';
+	if (fl && sig[fl] === '_') return 'flat';
+	return null;
+}
 
 /**
  * When a natural note from the chromatic table conflicts with the key signature,
@@ -73,9 +173,9 @@ const ENHARMONIC_FLAT_RESPELL: Partial<Record<NoteLetter, NoteLetter>> = {
  * letter. We use this state to decide whether an explicit accidental is
  * needed on each note.
  */
-type BarAccidentalState = Record<NoteLetter, '^' | '_' | '=' | ''>;
+export type BarAccidentalState = Record<NoteLetter, '^' | '_' | '=' | ''>;
 
-function initBarState(keySigAccidentals: KeySigMap): BarAccidentalState {
+export function initBarState(keySigAccidentals: KeySigMap): BarAccidentalState {
 	const letters: NoteLetter[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 	const state = {} as BarAccidentalState;
 	for (const l of letters) state[l] = keySigAccidentals[l] ?? '';
@@ -100,7 +200,7 @@ function initBarState(keySigAccidentals: KeySigMap): BarAccidentalState {
  *
  * ABC octave convention: C = middle C (C4), c = C5, c' = C6, C, = C3
  */
-function midiToAbcPitch(
+export function midiToAbcPitch(
 	midi: number,
 	useFlats: boolean,
 	keySigAccidentals: KeySigMap,
@@ -171,7 +271,7 @@ function midiToAbcPitch(
  * ABC default unit is 1/8. Duration multipliers:
  *   /2 = sixteenth, (none) = eighth, 2 = quarter, 4 = half, 8 = whole
  */
-function durationToAbc(duration: [number, number], defaultLength: [number, number]): string {
+export function durationToAbc(duration: [number, number], defaultLength: [number, number]): string {
 	const noteBeats = fractionToFloat(duration);
 	const unitBeats = fractionToFloat(defaultLength);
 	const ratio = noteBeats / unitBeats;
@@ -201,19 +301,19 @@ const TRIPLET_BASE: Array<{ triplet: [number, number]; base: [number, number] }>
 	{ triplet: [1, 12], base: [1, 8] },  // eighth-triplet → eighth
 ];
 
-function getTripletBase(d: [number, number]): [number, number] | null {
+export function getTripletBase(d: [number, number]): [number, number] | null {
 	for (const entry of TRIPLET_BASE) {
 		if (d[0] * entry.triplet[1] === entry.triplet[0] * d[1]) return entry.base;
 	}
 	return null;
 }
 
-function sameDuration(a: [number, number], b: [number, number]): boolean {
+export function sameDuration(a: [number, number], b: [number, number]): boolean {
 	return a[0] * b[1] === b[0] * a[1];
 }
 
 /** Return whichever of two fractions represents the shorter duration. */
-function shorterFraction(
+export function shorterFraction(
 	a: [number, number],
 	b: [number, number]
 ): [number, number] {
@@ -231,7 +331,7 @@ function shorterFraction(
  * per-beat beaming, since 16ths are conventionally grouped by beat.
  * All other time signatures keep per-beat beaming.
  */
-function getBeamGroupDuration(
+export function getBeamGroupDuration(
 	timeSignature: [number, number],
 	minDurationInGroup: [number, number]
 ): number {
@@ -251,7 +351,7 @@ function getBeamGroupDuration(
 const REST_DURATIONS: [number, number][] = [[1, 2], [1, 4], [1, 8], [1, 16]];
 
 /** Convert a float to the nearest standard musical fraction */
-function approxToFraction(f: number): [number, number] {
+export function approxToFraction(f: number): [number, number] {
 	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
 		const num = Math.round(f * den);
 		if (Math.abs(num / den - f) < 1e-9) return [num, den];
@@ -281,7 +381,7 @@ function isCompoundMeter(ts: [number, number]): boolean {
  * from, or `null` if `k` is a synthesized rest segment (one source rest can
  * fan out to several display rests; many source rests can collapse to one).
  */
-function mergeConsecutiveRests(
+export function mergeConsecutiveRests(
 	notes: readonly Note[],
 	timeSignature: [number, number]
 ): { display: Note[]; sourceMap: (number | null)[] } {
@@ -398,6 +498,14 @@ export interface PitchedNoteAnchor {
 	endChar: number;
 	/** Index into the original `phrase.notes` array. */
 	sourceIndex: number;
+	/**
+	 * Absolute whole-note offset of this note across the flattened tune, as a
+	 * float. Populated only on the tune path (`tuneToAbcWithMap`); the phrase
+	 * path leaves it undefined.
+	 */
+	offset?: number;
+	/** This note starts a glissando into the NEXT pitched note. */
+	gliss?: boolean;
 }
 
 /**
@@ -444,8 +552,27 @@ export function phraseToAbcWithMap(
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
+		// Spelling priority: explicit choice > the enharmonic that is IN the
+		// key signature (no accidental needed — a C# in D major must not
+		// print as Db) > chord-diatonic preference > key-side default.
+		const seg = governingSegment(phrase.harmony, fractionToFloat(note.offset));
+		const chordPref = seg
+			? chordSpellingPreference(
+					midi,
+					displayPitchClass(
+						instrument ? concertKeyToWritten(seg.chord.root, instrument) : seg.chord.root,
+						displayKey
+					),
+					seg.chord.quality
+				)
+			: null;
+		const sigPref = signatureSpelling(((midi % 12) + 12) % 12, keySigAccidentals);
 		const noteUseFlats = note.spelling === 'flat' ? true
 			: note.spelling === 'sharp' ? false
+			: sigPref === 'flat' ? true
+			: sigPref === 'sharp' ? false
+			: chordPref === 'flat' ? true
+			: chordPref === 'sharp' ? false
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const tieSuffix = note.tied ? '-' : '';
@@ -593,9 +720,34 @@ export function phraseToAbc(
  * Respell a pitch class for chord display in a given key context.
  * In flat keys, F# displays as Gb so chord roots stay consistent
  * (e.g. Dbmaj7 → Gbmaj7 → Ab7 rather than Dbmaj7 → F#maj7 → Ab7).
+ * In sharp keys, a canonical flat name that is DIATONIC to the key is
+ * spelled the way the key spells it (G#-7b5 in A, D#-7 in E) — chromatic
+ * roots keep their flat names (Bb7 in A major stays Bb7).
  */
+const SHARP_RESPELL: Partial<Record<PitchClass, string>> = {
+	Db: 'C#',
+	Eb: 'D#',
+	Ab: 'G#',
+	Bb: 'A#'
+};
+
+function isSharpKey(key: PitchClass): boolean {
+	const sig = KEY_SIG_ACCIDENTALS[key];
+	return sig !== undefined && Object.values(sig).includes('^');
+}
+
+const MAJOR_SCALE_STEPS = [0, 2, 4, 5, 7, 9, 11];
+
+function isDiatonic(pc: PitchClass, key: PitchClass): boolean {
+	const keyPc = PITCH_CLASSES.indexOf(key);
+	const target = PITCH_CLASSES.indexOf(pc);
+	return MAJOR_SCALE_STEPS.some((s) => (keyPc + s) % 12 === target);
+}
+
 export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): string {
 	if (pc === 'F#' && FLAT_KEYS.includes(keyContext)) return 'Gb';
+	const sharp = SHARP_RESPELL[pc];
+	if (sharp && isSharpKey(keyContext) && isDiatonic(pc, keyContext)) return sharp;
 	return pc;
 }
 

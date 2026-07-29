@@ -67,11 +67,11 @@ async function seedBothUsers(page: Page): Promise<void> {
 	);
 }
 
-/** Switch the signed-in user and land on a fresh /library, waiting for the app's re-home reload to settle. */
+/** Switch the signed-in user and land on a fresh /licks, waiting for the app's re-home reload to settle. */
 async function switchTo(page: Page, user: { id: string; email: string }): Promise<void> {
 	await page.context().clearCookies();
 	await setE2EAuthCookie(page, user);
-	await page.goto('/library');
+	await page.goto('/licks');
 	await page.waitForLoadState('networkidle');
 }
 
@@ -84,7 +84,7 @@ test.describe('per-user storage isolation', () => {
 
 		// Alice sees her lick.
 		await setE2EAuthCookie(page, USER_A);
-		await page.goto('/library');
+		await page.goto('/licks');
 		await page.waitForLoadState('networkidle');
 		await expect(page.getByText('Alice Only Lick')).toBeVisible();
 

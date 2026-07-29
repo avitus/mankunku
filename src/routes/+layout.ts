@@ -117,7 +117,9 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		const { initLickMetadataFromCloud } =
 			await import('$lib/persistence/lick-practice-store');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
+		const { initTunesFromCloud } = await import('$lib/persistence/user-tunes');
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');
+		const { initTuneCommunityFromCloud } = await import('$lib/persistence/tune-community');
 		const { setOutboxClient, drainOutbox } = await import('$lib/persistence/outbox');
 
 		// Register the client the durable outbox uses to flush queued cloud writes.
@@ -127,14 +129,26 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		// (progress.sessions, lick-practice-sessions) are populated; the cloud
 		// daily-summaries merge then layers cross-device and out-of-window rows on
 		// top, with anything local-newer pushed back.
-		const hydration = Promise.all([
+		// allSettled, not all: one failing initializer (e.g. a bad tune write in
+		// initTunesFromCloud) must not skip the summary recompute, the
+		// cloud-summary reconcile, or the outbox drain for the whole session.
+		const hydration = Promise.allSettled([
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
 			initLickMetadataFromCloud(supabase),
 			initUserLicksFromCloud(supabase),
-			initCommunityFromCloud(supabase)
+			initTunesFromCloud(supabase),
+			initCommunityFromCloud(supabase),
+			initTuneCommunityFromCloud(supabase)
 		])
-			.then(() => recomputeAllDailySummaries())
+			.then((results) => {
+				for (const result of results) {
+					if (result.status === 'rejected') {
+						console.warn('[hydration] cloud initializer failed:', result.reason);
+					}
+				}
+				recomputeAllDailySummaries();
+			})
 			.then(async () => {
 				const cloudSummaries = await loadDailySummariesFromCloud(supabase);
 				if (cloudSummaries == null) return;

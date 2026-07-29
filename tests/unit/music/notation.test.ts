@@ -525,3 +525,35 @@ describe('phraseToAbc tie suffix', () => {
 		expect(line).not.toMatch(/C2-/);
 	});
 });
+
+describe('phraseToAbc chord-aware enharmonic spelling', () => {
+	function phraseWithChord(midi: number, key: PitchClass, root: PitchClass, quality: '7' | 'min7' | 'maj7'): Phrase {
+		const p = singleNotePhrase(midi, key);
+		p.harmony = [
+			{ chord: { root, quality }, scaleId: 'major.mixolydian', startOffset: [0, 1], duration: [1, 1] }
+		];
+		return p;
+	}
+
+	it('spells the third of A7 as C# even in a flat key', () => {
+		// Key F (flat key) used to force _D; over A7 the note is the third.
+		expect(noteLine(phraseToAbc(phraseWithChord(61, 'F', 'A', '7')))).toContain('^C');
+	});
+
+	it('spells the minor third of C-7 as Eb even in a sharp key', () => {
+		expect(noteLine(phraseToAbc(phraseWithChord(63, 'D', 'C', 'min7')))).toContain('_E');
+	});
+
+	it('keeps the key-signature default when the phrase has no harmony', () => {
+		expect(noteLine(phraseToAbc(singleNotePhrase(61, 'F')))).toContain('_D');
+	});
+
+	it('keeps the key-signature spelling ahead of the chord preference', () => {
+		// Written C#5 in D major is IN the signature; over B♭-7 (whose minor
+		// third prefers the flat spelling) it must stay C# — printed with no
+		// accidental — not respell as Db, which would force an explicit flat.
+		const line = noteLine(phraseToAbc(phraseWithChord(73, 'D', 'Bb', 'min7')));
+		expect(line).not.toContain('_D');
+		expect(line).toContain('c');
+	});
+});

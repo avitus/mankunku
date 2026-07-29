@@ -60,6 +60,61 @@ describe('POST /api/lick-match', () => {
 		expect(body.matches).toEqual([]);
 	});
 
+	it('rejects an oversized request with 413 before parsing the body', async () => {
+		// The adapter's BODY_SIZE_LIMIT is a global 16M (for /api/tune-parse);
+		// this route's own gate must refuse big payloads up front.
+		const request = new Request('http://localhost/api/lick-match', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Content-Length': String(1_000_000)
+			},
+			body: JSON.stringify({ intervals: [-1, -1, -1], iois: [2, 2, 2] })
+		});
+		const response = await POST({ request } as Parameters<typeof POST>[0]);
+		expect(response.status).toBe(413);
+		const body = await response.json();
+		expect(body.error).toContain('too large');
+	});
+
+	it('rejects an oversized body with 413 even when content-length is absent', async () => {
+		// A constructed Request surfaces NO content-length header (chunked /
+		// headerless clients look the same), so the declared-size fast path is
+		// blind — only counting actual body bytes can enforce the route limit.
+		const payload = JSON.stringify({
+			intervals: [-1, -1, -1],
+			iois: [2, 2, 2],
+			pad: 'x'.repeat(100_000)
+		});
+		const request = new Request('http://localhost/api/lick-match', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: payload
+		});
+		expect(request.headers.get('content-length')).toBeNull();
+		const response = await POST({ request } as Parameters<typeof POST>[0]);
+		expect(response.status).toBe(413);
+		const body = await response.json();
+		expect(body.error).toContain('too large');
+	});
+
+	it('accepts a normal-sized body with an explicit content-length', async () => {
+		const payload = JSON.stringify({
+			intervals: [-1, -1, -1, -1, -1],
+			iois: [2, 2, 2, 2, 2]
+		});
+		const request = new Request('http://localhost/api/lick-match', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'Content-Length': String(new TextEncoder().encode(payload).length)
+			},
+			body: payload
+		});
+		const response = await POST({ request } as Parameters<typeof POST>[0]);
+		expect(response.status).toBe(200);
+	});
+
 	it('rejects malformed JSON with 400', async () => {
 		const request = new Request('http://localhost/api/lick-match', {
 			method: 'POST',

@@ -1,6 +1,6 @@
 # How to Practice
 
-Mankunku is a call-and-response app. The app plays you a phrase; you play it back; it scores your accuracy and either moves you on or hands you a retry. Around that loop are two main practice modes (Side A and Side B), a library, and a progress dashboard.
+Mankunku is a call-and-response app. The app plays you a phrase; you play it back; it scores your accuracy and either moves you on or hands you a retry. Around that loop are two main practice modes (Side A and Side B), your books of licks and tunes, and a progress dashboard.
 
 This page walks through the practice flow as it actually feels in the room — what to listen for, what to do with your horn in your hands, what each setting changes.
 
@@ -37,7 +37,7 @@ This is the call-and-response loop.
 | **Category** | Filter the lick pool to one harmonic context — ii-V-I major, blues, bebop lines, ballad, and so on. Or leave it on "all" and let the app rotate. |
 | **Difficulty** | 1–100, displayed as ten bands from Beginner to Virtuoso. Set it to a fixed value, or let the adaptive system steer. |
 | **Tempo** | 60–200 BPM. Most players start in the 80–110 range. |
-| **Source** | Curated (hand-written and combinatorial library), Generated (algorithmic, infinite variety), or Mixed. |
+| **Source** | Curated (hand-written and combinatorial catalog), Generated (algorithmic, infinite variety), or Mixed. |
 | **Bars** | 1–4 bars, applies only to generated phrases. |
 
 ### What's on screen while you're playing
@@ -58,7 +58,7 @@ This is the 12-key drill. It picks a lick from your **tagged** collection and ru
 
 ### Setting it up
 
-Before your first session, go to the **Library** and tap the star on a few licks you want to drill. Tagged licks become your Side B practice book. Each tagged lick also needs at least one **progression tag** (`prog:*`) — those are added automatically when the lick's category matches a progression (a ii-V-I lick gets `prog:ii-V-I-major`), and you can add or remove them by hand from the lick's detail page to drill the same line over a different progression.
+Before your first session, go to **Licks** and tap the star on a few licks you want to drill. Tagged licks become your Side B practice book. Each tagged lick also needs at least one **progression tag** (`prog:*`) — those are added automatically when the lick's category matches a progression (a ii-V-I lick gets `prog:ii-V-I-major`), and you can add or remove them by hand from the lick's detail page to drill the same line over a different progression.
 
 When you open Side B, you choose:
 
@@ -101,7 +101,7 @@ Once the session has cycled through every currently-unlocked key for the current
 
 ### Single-Lick Deep Practice
 
-Sometimes you don't want the rotation across your tagged book — you just want to *own* one specific line. Open a lick from the library, hit the **Practice** button on its detail page, and Side B launches in single-lick mode (also called Deep Practice in the session header).
+Sometimes you don't want the rotation across your tagged book — you just want to *own* one specific line. Open a lick from your book, hit the **Practice** button on its detail page, and Side B launches in single-lick mode (also called Deep Practice in the session header).
 
 It works the same as a normal session but pinned to one lick:
 
@@ -114,7 +114,7 @@ It works the same as a normal session but pinned to one lick:
 
 Side B is happy to grow with you. It's less helpful when a single lick has slipped so far that its current state — the keys it's unlocked, the tempo it's anchored to — doesn't match where you are anymore.
 
-For that, both the post-session report and the lick's detail page in the library show a **↺ Reset progress** action when the lick has practice history. Reset wipes that lick's per-key scores, its unlock count (back to one key — its home key), and resets the tempo to 60 BPM. Your tags stay; the lick stays in your practice book; only the progress against it clears. Use it when you've been stuck for weeks on a line you should be able to drill at a kinder pace.
+For that, both the post-session report and the lick’s detail page in your book show a **↺ Reset progress** action when the lick has practice history. Reset wipes that lick's per-key scores, its unlock count (back to one key — its home key), and resets the tempo to 60 BPM. Your tags stay; the lick stays in your practice book; only the progress against it clears. Use it when you've been stuck for weeks on a line you should be able to drill at a kinder pace.
 
 Use Deep Practice when there's a single line you want to drill into your fingers in one sitting. Use a standard Start Session when you want to spread time across everything you've tagged.
 
@@ -130,9 +130,9 @@ The shortest answer: every jazz player you admire could play their vocabulary in
 
 The longer answer is in [The Daily Key](./architecture/tonality-system.md).
 
-## The library
+## Your licks
 
-The **Library** is your practice book. It shows the licks *you* are working with — the ones you've step-entered, recorded, adopted from the community, plus anything you've added to your practice set from the broader catalog. The hundreds of curated ear-training licks the app uses to feed Side A live behind the scenes; the library page is for your stuff.
+The **Licks** page is your practice book. It shows the licks *you* are working with — the ones you’ve written in the editor, recorded, stolen from the community, plus anything you've added to your practice set from the broader catalog. The hundreds of curated ear-training licks the app uses to feed Side A live behind the scenes; the Licks page is for your stuff.
 
 ### Three sections
 
@@ -144,7 +144,7 @@ The page is organised into three groups, in this order:
 
 ### Search
 
-The search box filters across all three groups by name or tag. The category and difficulty browse filters that used to live on this page have been retired — they belonged to the old "browse the whole catalog" library; now that the library is focused on the practice book, search is enough.
+The search box filters across all three groups by name or tag. The category and difficulty browse filters that used to live on this page have been retired — they belonged to the old “browse the whole catalog” page; now that your book is the focus, search is enough.
 
 ### Lick detail
 
@@ -188,14 +188,14 @@ The global Settings page controls things that aren't specific to a single sessio
 
 Two ways in.
 
-- **Step entry** (`/entry`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (sharp, flat, or natural), and the cursor moves on. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓, delete it with Backspace/Delete, or flip its spelling with `\`, all without retyping the rest. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
-- **Record** (`/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out.
+- **The editor** (`/licks/editor`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (sharp, flat, or natural), and the cursor moves on. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓, delete it with Backspace/Delete, or flip its spelling with `\`, all without retyping the rest. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
+- **Record** (`/licks/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out.
 
-Either way, your lick joins the library alongside the curated ones and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
+Either way, your lick joins your book alongside your other licks — ones you recorded, wrote, or adopted from the community — and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
 
 ### Editing a step-entered lick
 
-Step-entered licks are editable after the fact. Open the lick from the library and an **Edit** button shows up (only for licks you authored via step entry — recorded-from-mic licks aren't editable in the staff editor). Editing reopens the lick in the same `/entry` flow with all your notes pre-loaded. Change anything you want — durations, pitches, name, category, bar count — and hit Update. The same lick id is preserved (so your practice history sticks with it), and changing the category re-seeds the progression tags so the lick lines up with the new harmonic context.
+Editor-written licks are editable after the fact. Open the lick from your book and an **Edit** button shows up (only for licks you authored in the editor — recorded-from-mic licks aren't editable in the staff editor). Editing reopens the lick in the same editor flow with all your notes pre-loaded. Change anything you want — durations, pitches, name, category, bar count — and hit Update. The same lick id is preserved (so your practice history sticks with it), and changing the category re-seeds the progression tags so the lick lines up with the new harmonic context.
 
 ## Tips that keep showing up
 
@@ -203,5 +203,5 @@ Step-entered licks are editable after the fact. Open the lick from the library a
 - **Listen, don't shadow.** Wait for the phrase to land before reaching for your horn — half of ear training is *receiving* the phrase, not playing it.
 - **Use the metronome.** Rhythm is 40% of your score. The click is your friend.
 - **Repeat the hard ones.** Try Again is a feature, not a punishment. The same phrase will replay until you pass.
-- **All 12 keys.** The library lets you transpose any lick to any key — work through the cycle of fifths, even on Side A.
+- **All 12 keys.** Your book lets you transpose any lick to any key — work through the cycle of fifths, even on Side A.
 - **Watch your tuning.** The pitch meter shows you flat or sharp in real time. Fix the room temperature, fix the embouchure, fix your reed; the score will rise on its own.

@@ -361,7 +361,7 @@
 	<!-- Start button -->
 	<button
 		onclick={startSession}
-		class="w-full rounded-lg bg-[var(--color-accent)] py-3 text-lg font-bold hover:opacity-80 transition-opacity"
+		class="w-full rounded-lg bg-[var(--color-accent)] py-3 text-lg font-bold text-white hover:opacity-80 transition-opacity"
 	>
 		Start Practice in {formatTonality(activeTonality, getInstrument())}
 	</button>

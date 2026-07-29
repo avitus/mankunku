@@ -11,9 +11,7 @@ const NAV_LINKS = [
 	{ name: /home/i, expectPath: '/' },
 	{ name: /ear training/i, expectPath: '/ear-training' },
 	{ name: /lick practice/i, expectPath: '/lick-practice' },
-	{ name: /^library$/i, expectPath: '/library' },
-	{ name: /^community$/i, expectPath: '/community' },
-	{ name: /add licks/i, expectPath: '/add-licks' },
+	{ name: /^licks$/i, expectPath: '/licks' },
 	{ name: /^progress$/i, expectPath: '/progress' },
 	{ name: /^docs$/i, expectPath: '/docs' },
 	{ name: /^settings$/i, expectPath: '/settings' }
@@ -36,6 +34,20 @@ test.describe('global navigation', () => {
 			await expect(page).toHaveURL(new RegExp(`${link.expectPath}$|${link.expectPath}/?\\?`));
 			await expect(page.locator('main')).toBeVisible();
 		}
+	});
+
+	test('Community and Add Licks no longer appear in the nav — they live on the type pages', async ({
+		page,
+		consoleCollector: _consoleCollector
+	}) => {
+		await page.goto('/');
+		const nav = page.getByRole('navigation').first();
+		await expect(nav.getByRole('link', { name: /^community$/i })).toHaveCount(0);
+		await expect(nav.getByRole('link', { name: /add licks/i })).toHaveCount(0);
+		// The retired Library route must not keep a stale nav link either
+		// (smoke.spec.ts proves /library 404s at the HTTP level).
+		await expect(nav.locator('a[href="/library"]')).toHaveCount(0);
+		await expect(nav.getByRole('link', { name: /^library$/i })).toHaveCount(0);
 	});
 
 	test('"Sign in" link appears for anonymous users and routes to /auth', async ({

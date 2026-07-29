@@ -41,7 +41,7 @@ const CLOUD_LICK: Row = {
 	updated_at: new Date().toISOString()
 };
 
-test('stub-cloud: a cloud-only user lick is pulled down and rendered on /library', async ({
+test('stub-cloud: a cloud-only user lick is pulled down and rendered on /licks', async ({
 	page,
 	baseURL,
 	consoleCollector: _consoleCollector
@@ -53,7 +53,7 @@ test('stub-cloud: a cloud-only user lick is pulled down and rendered on /library
 	// Onboarded locally, but NO local user-licks — the lick must arrive from cloud.
 	await seedStorage(page, { settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED });
 
-	await page.goto('/library');
+	await page.goto('/licks');
 	await page.waitForLoadState('networkidle');
 
 	// The library reconcile (in +layout hydration AND the page's own effect)

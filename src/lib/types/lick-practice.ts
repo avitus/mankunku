@@ -123,7 +123,7 @@ export interface LickPracticePlanItem {
 	progressionType: ChordProgressionType;
 	/**
 	 * Resolved Phrase captured at plan-build time. Used as a lookup fallback
-	 * for `getLickById` so user/community licks survive cache misses (e.g.
+	 * for `getLickById` so user/licks/community licks survive cache misses (e.g.
 	 * the lick was deleted from the local cache mid-session, or the entry
 	 * point passed in a Phrase that's not yet in `getAllLicks()`).
 	 */

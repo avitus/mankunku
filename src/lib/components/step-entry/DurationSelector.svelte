@@ -17,8 +17,10 @@
 	const resolvedName = $derived(DURATION_DISPLAY_NAMES[resolvedId]);
 </script>
 
-<div class="space-y-2">
-	<div class="flex gap-2">
+<!-- In a narrow named `entry` container (tune-editor dock) glyphs + toggles
+     merge onto one line; below 18rem (the rail) it stays stacked. -->
+<div class="space-y-2 @max-[28rem]/entry:flex @max-[28rem]/entry:items-stretch @max-[28rem]/entry:gap-2 @max-[28rem]/entry:space-y-0 @max-[18rem]/entry:block @max-[18rem]/entry:space-y-2">
+	<div class="flex gap-2 @max-[28rem]/entry:flex-1">
 		{#each BASE_DURATION_IDS as id}
 			<button
 				onclick={() => setDuration(id)}
@@ -57,7 +59,7 @@
 		{/each}
 	</div>
 
-	<div class="flex items-center gap-3">
+	<div class="flex flex-wrap items-center gap-3">
 		<button
 			onclick={toggleTriplet}
 			class="rounded border px-3 py-1.5 text-sm transition-colors
@@ -77,6 +79,6 @@
 		>
 			Dotted <span class="text-[10px] opacity-50">.</span>
 		</button>
-		<span class="text-sm text-[var(--color-text-secondary)]">{resolvedName}</span>
+		<span class="text-sm text-[var(--color-text-secondary)] @max-[28rem]/entry:hidden">{resolvedName}</span>
 	</div>
 </div>

@@ -52,7 +52,7 @@ const STEALS_KEY = 'community-adoptions';
 /**
  * localStorage key holding the Phrase payloads for stolen licks. Populated
  * from Supabase at startup; read synchronously by the library loader so the
- * `/library` page can show stolen licks offline.
+ * `/licks` page can show stolen licks offline.
  */
 const STOLEN_PAYLOADS_KEY = 'community-adopted-payloads';
 
@@ -94,7 +94,7 @@ export interface CommunityFilters {
 	/**
 	 * Omit licks authored by this user from the results — used on the community
 	 * browse page so you never see your own licks mixed with everyone else's.
-	 * Your own licks already live under /library, and self-stealing is blocked
+	 * Your own licks already live under /licks, and self-stealing is blocked
 	 * at the DB anyway.
 	 */
 	excludeUserId?: string;

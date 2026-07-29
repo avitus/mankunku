@@ -152,24 +152,24 @@ Manual save to localStorage.
 
 ---
 
-## library.svelte.ts
+## licks.svelte.ts
 
-Search state for the user's personal lick collection. **Not persisted** — resets on navigation.
+Filter state for the Licks page (the user's book: own + adopted community licks). **Not persisted** — resets on navigation.
 
-The library page now lists only the user's own (and adopted community) licks, so the old curated-archive browse filters (category, difficulty, key) were removed. What remains is a search box plus a progression filter that matches on each lick's explicit `prog:*` tags.
+The Licks page now lists only the user's own (and adopted community) licks, so the old curated-archive browse filters (category, difficulty, key) were removed. What remains is a search box plus a progression filter that matches on each lick's explicit `prog:*` tags.
 
-### `library`
+### `licks`
 
 ```typescript
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 
-export const library = $state<{
+export const licks = $state<{
   searchQuery: string;
   progressionFilter: ChordProgressionType | null;  // null = show all; matches lick's explicit prog:* tags
 }>();
 ```
 
-No exported functions — the library page binds `library.searchQuery` and `library.progressionFilter` directly.
+No exported functions — the Licks page binds `licks.searchQuery` and `licks.progressionFilter` directly.
 
 ---
 
@@ -320,7 +320,7 @@ export interface PlannedKey {
 ### Session control
 
 - `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ `KEY_PROFICIENT_THRESHOLD` (0.90, green tier). Yellow 0.75–0.89 is recorded but doesn't increment `passCount`. Below `KEY_FLOOR_THRESHOLD` (0.75) is red and blocks tempo increases + unlocks at session end.
-- `resetLick(phraseId): void` — Full-reset one lick's per-key scores, `passCount`, and unlock count back to never-practiced (tempo → 60, `passCount`s → 0, one unlocked key). Reassigns the reactive `progress` rune. `phraseId` must be the base lick id. Tags (`practice`, `prog:*`) are preserved. Local-only via `resetLickPersistence`; there is no `supabase?` parameter and reset performs no explicit cloud sync. Surfaced from the post-session report (gated on try-again-band scores) and the library detail page (gated on `hasLickProgress`).
+- `resetLick(phraseId): void` — Full-reset one lick's per-key scores, `passCount`, and unlock count back to never-practiced (tempo → 60, `passCount`s → 0, one unlocked key). Reassigns the reactive `progress` rune. `phraseId` must be the base lick id. Tags (`practice`, `prog:*`) are preserved. Local-only via `resetLickPersistence`; there is no `supabase?` parameter and reset performs no explicit cloud sync. Surfaced from the post-session report (gated on try-again-band scores) and the book detail page (gated on `hasLickProgress`).
 - `advance(): 'next-key' | 'end-of-lick'` — Move to the next key; returns `'end-of-lick'` when the current lick's keys are exhausted.
 - `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the score-weighted tempo adjustment (+5 BPM at ≥ 95%, +2 at ≥ 90%, -1 in the 75–89% yellow band, -3 below 75% — and any single key below `KEY_FLOOR_THRESHOLD` clamps the delta to ≤ 0 regardless of average), then move to the next lick or mark session complete.
 - `updateElapsedTime(): void`
@@ -331,7 +331,7 @@ export interface PlannedKey {
 
 ## step-entry.svelte.ts
 
-UI state for manual lick entry (`/entry`, `/add-licks`). **Not persisted** — drafts reset when the route unmounts; completed phrases are exported via `getCurrentPhrase()` and saved through `persistence/user-licks.ts`. The user enters notes in their instrument's **written** pitch; storage is canonical **concert** pitch.
+UI state for manual lick entry in the editor (`/licks/editor`, `/licks/add`). **Not persisted** — drafts reset when the route unmounts; completed phrases are exported via `getCurrentPhrase()` and saved through `persistence/user-licks.ts`. The user enters notes in their instrument's **written** pitch; storage is canonical **concert** pitch.
 
 ### `stepEntry`
 
@@ -395,13 +395,77 @@ export const stepEntry = $state({
 
 ### Edit mode
 
-- `loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void` — Hydrate the editor from an existing lick: copies the notes straight across in concert pitch, converts the lick's key back to written pitch via `concertKeyToWritten` (using the `instrument` arg) for the `phraseKey` dropdown, restores bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/entry` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the library detail page), and redirect to `/library/<id>` after saving.
+- `loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void` — Hydrate the editor from an existing lick: copies the notes straight across in concert pitch, converts the lick's key back to written pitch via `concertKeyToWritten` (using the `instrument` arg) for the `phraseKey` dropdown, restores bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/licks/editor` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the book detail page), and redirect to `/licks/<id>` after saving.
+
+---
+
+## tune-entry.svelte.ts
+
+Long-form tune entry, built ON TOP of the shared `stepEntry` buffer: the section list (`tuneEntry.sections`) is authoritative and melody is edited one ≤4-bar PAGE at a time through step-entry, so `PitchEntryPanel` / `DurationSelector` / keyboard entry work unmodified. **Not persisted.**
+
+**Source:** `src/lib/state/tune-entry.svelte.ts`
+
+### `tuneEntry`
+
+```typescript
+export const tuneEntry = $state({
+  title: string,
+  composer: string,
+  style: string,
+  writtenKey: PitchClass,                  // WRITTEN key at the SOURCE's pitch
+  sourceTransposition: SourceTransposition, // what pitch the copied chart is written in
+  timeSignature: [number, number],          // manual entry is 4/4-only
+  tags: string[],
+  sections: TuneSection[],                  // authoritative section list (CONCERT pitch)
+  currentSection: number,
+  currentPage: number,
+  entryCursor: Fraction | null,             // page-local click-to-edit insertion offset
+  editingId: string | null,
+  editingSource: string | null,
+  editingPdfUrl: string | null,
+  reviewHandoff: boolean,                   // import flows hand a draft to the editor
+  importReview: { warnings: string[]; suspectBars: number[] } | null
+});
+```
+
+### Key functions
+
+- `initNewTune()` / `resetTuneEntry()` — Fresh single-section draft seeded from the user's instrument.
+- `loadFromTune(sheet, instrument)` — Hydrate for edit mode (concert storage → written-pitch editing surface); the PDF flow reuses it with a pre-assigned id so the stored PDF stays linked.
+- `loadDraftForReview(sheet, instrument)` / `setImportReview(...)` — Hydrate an unsaved import draft in create mode with review warnings/suspect bars.
+- `buildDraftTune(): Tune` — Assemble the concert-pitch `Tune` for save/preview.
+- `commitBuffer()` / `suspendEntryBuffer()` / `resumeEntryBuffer()` — Page buffer lifecycle; the buffer commits on page/section navigation and is suspended on route exit so `/licks/editor` never sees tune content.
+- `loadPage`, `advanceToNextPage`, `retreatToPrevPage`, `cursorToBar`, `cursorToFlattened`, `selectNextAcrossPages`, `selectPrevAcrossPages` — Chart-position navigation that maps clicks to (section, page) and moves the buffer along.
+- `tuneAddNote`, `tuneAddRest`, `tuneEnterTiedNote`, `clearEntryCursor` — Melody entry (gated by `melodyEditingSupported()`: only 4/4 sheets are melody-editable).
+- `addSection`, `removeSection`, `updateSectionMeta`, `setSectionBars` — Section list management.
+- `setChord(sectionIdx, bar, beat, symbolText)`, `removeChord`, `chordTextAt` — Chords typed as written-pitch text (`parseChordSymbol`), stored concert with re-derived change-point durations.
+- `setSheetWrittenKey(newKey, moveNotes)`, `setSourceTransposition(source)`, `entryTranspositionSemitones()` — Whole-sheet key/transposition control.
+
+---
+
+## tune-community.svelte.ts
+
+Filter state for the `/tunes/community` browse page. Global rune module so the filters survive navigation away and back. **Not persisted.**
+
+**Source:** `src/lib/state/tune-community.svelte.ts`
+
+### `tuneCommunity`
+
+```typescript
+export const tuneCommunity = $state<{
+  searchQuery: string;
+  authorQuery: string;
+  sort: TuneCommunitySort;  // 'popular' | 'newest'
+}>();
+```
+
+No exported functions — the community page reads/writes fields directly.
 
 ---
 
 ## community.svelte.ts
 
-Filters and sort for the `/community` browse view. **Not persisted** — resets on navigation.
+Filters and sort for the `/licks/community` browse view. **Not persisted** — resets on navigation.
 
 ### `community`
 
@@ -421,7 +485,7 @@ No exported functions — the community page reads/writes fields directly.
 
 ## lick-suggestions.svelte.ts
 
-Attribution-suggestion state for the `/entry` page. Holds the locally-computed descriptive fallback name plus the server-returned attribution candidates. **Not persisted.**
+Attribution-suggestion state for the `/licks/editor` page. Holds the locally-computed descriptive fallback name plus the server-returned attribution candidates. **Not persisted.**
 
 ### `suggestions`
 

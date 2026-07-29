@@ -13,7 +13,12 @@ export default defineConfig({
 	workers: isCI ? 2 : undefined,
 	reporter: isCI ? [['html', { open: 'never' }], ['github']] : 'list',
 	timeout: 30_000,
-	expect: { timeout: 5_000 },
+	// 10s, up from the 5s Playwright default: with ~75 specs × 3 engines fully
+	// parallel on one machine (plus abcjs SVG re-renders on every lead-sheet
+	// state change), individually-instant assertions intermittently exceed 5s
+	// under full-suite CPU contention. Local retries are 0, so a single slow
+	// poll fails the run — the CI boxes run 2 workers and never hit this.
+	expect: { timeout: 10_000 },
 
 	use: {
 		baseURL: BASE_URL,

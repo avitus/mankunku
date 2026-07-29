@@ -1,6 +1,6 @@
 # Adding Curated Licks
 
-Step-by-step guide to adding new curated licks to Mankunku's library.
+Step-by-step guide to adding new curated licks to Mankunku's catalog.
 
 ## Overview
 
@@ -87,7 +87,7 @@ Each lick is a `Phrase` object. Here's an annotated example:
 
   category: 'ii-V-I-major',  // Must match PhraseCategory type
   tags: ['diatonic', 'ascending', 'resolution'],  // Searchable tags
-  source: 'curated'           // Always 'curated' for library licks
+  source: 'curated'           // Always 'curated' for catalog licks
 }
 ```
 
@@ -168,7 +168,7 @@ If creating a new file:
 
 Run the app and verify:
 
-1. The lick is selectable and plays in the ear-training practice flow (curated licks surface there, not on the Library page — which lists only your own and adopted-community licks)
+1. The lick is selectable and plays in the ear-training practice flow (curated licks surface there, not on the Licks page — which lists only your own and adopted-community licks)
 2. The sheet music renders correctly
 3. Playback sounds right
 4. Transposition to other keys works

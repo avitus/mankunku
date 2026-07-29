@@ -67,6 +67,8 @@ Durable principles (won't go stale as values evolve):
 
 **How to apply:** For the structural rules, enforce. If a request would deviate from them, push back and propose a spec amendment. For specific color/route values, look them up in `src/app.css` and `src/routes/+layout.svelte` rather than trusting a snapshot in this file.
 
+**Open item (2026-07-28, PR #181):** white text on accent fills fails WCAG AA on some domain/theme combinations (≈3.96:1 on default teal; worst on dark-mode neutral slate). Proposed fix parked for user decision: a `--color-on-accent` token per domain × theme, enforced by `tests/unit/ui/design-token-consistency.test.ts`. Until decided, `text-white` on accent fills remains the standardized convention.
+
 **Spec status (2026-04-20):** `documentation/architecture/design-system.md` was rewritten to match the current implementation — three-domain palette (peacock teal / terracotta / slate), brass decorative tokens, on-air red, Fraunces display serif, `.jazz-rule`/`.smallcaps`/`.grain-overlay` utilities. Before making design changes, still read `src/app.css` and `src/routes/+layout.svelte` — they remain ground truth.
 
 ### Never leave a bug unfixed — failing test first, then fix (TDD is a core tenet)
@@ -128,6 +130,40 @@ After any `git push` to a PR branch — including the autofix commits themselves
 - **Resolve the inline review threads** for issues that were actually fixed via the GraphQL `resolveReviewThread` mutation — keeps the PR view clean and signals to the user (and to CodeRabbit's next pass) that the finding is addressed.
 
 ---
+
+### Navigation failure & recovery reality (2026-07-25)
+
+**What:** Dead menu clicks ("prior screen stays loaded") were: dev = stale-module-graph 500s from a days-old dev server crossing renames; prod = stale chunks + clicks racing the deploy's PM2 restart gap. The amplifier was our own recovery: `location.reload()` in `handleError` re-renders the page the user was LEAVING (SvelteKit commits the URL only after loads resolve). Recovery now full-page navigates to `event.url` (the click target) — `navRecoveryAction` in `src/lib/util/stale-chunk.ts`.
+
+**Standing facts (verify before relying on the old assumptions):**
+- **Pool hydration** (f3560b8): release.sh hardlinks pooled chunks into each staged release's client dir, so Node itself serves prior releases' chunks — the nginx pool alias never went live on the box and is now optional. Takes effect once merged to main; the first such deploy backfills from the existing 555MB pool.
+- Sentry debug-ID injection changes **every** chunk hash on **every** build — a one-line deploy invalidates the entire open-tab world; the pool + hydration is what absorbs that.
+- **PWA removed** (534ac67): @vite-pwa/sveltekit is gone (its worker was never registered by SSR pages AND threw mid-eval on `createHandlerBoundToURL('/')`). `static/manifest.webmanifest` keeps installability; `static/sw.js` is a kill-switch that exorcises legacy zombie SWs — **keep it deployed indefinitely**. Real offline support = prerendered shell + injectManifest + explicit registration; never resurrect the old generateSW config.
+- Root `+error.svelte` now exists; before 2026-07-25 the app had NO error boundary and failed navs were invisible.
+- After large file renames, **restart `npm run dev`** — a long-lived dev server's stale graph kills all navigation in open tabs.
+
+---
+
+### Tune editor: MuseScore-style rail + implicit paging (2026-07-26)
+
+**What:** `/tunes/editor` is a two-column layout: sticky 16rem left entry rail (desktop) / fixed bottom dock (mobile, collapsible), chart-first main column. The ≤4-bar page selector is GONE — clicking any note/rest/bar in the chart moves the cursor (`cursorToFlattened`/`cursorToBar` in tune-entry), entry auto-advances across page/section boundaries with split-with-tie, and chords are typed directly onto the chart (beat hit-zones + inline input; Space advances, `k` opens from a selected note). `ChordEntryPanel.svelte` is deleted.
+
+**Standing facts:**
+- The step-entry 4-bar cap still exists and is still load-bearing for the lick editor — it's hidden, not lifted. All tune-side entry goes through `tuneAddNote`/`tuneAddRest`/`tuneEnterTiedNote` wrappers; raw step-entry calls in the tune editor are a bug (they bypass auto-advance and the entry cursor).
+- abcjs facts that shaped the design: clickListener only fires within 12 SVG units of a glyph (empty-space clicks need the hit rects); responsive mode is viewBox-based so SVG-appended rects rescale for free; hit rects must swallow mouse AND touch events (abcjs binds touchstart/touchend to the same proximity dispatch).
+- `tuneToAbcWithMap` returns `{ abc, noteAnchors, barAnchors, chordSlotAnchors }` — golden tests pin the ABC byte-identical; `phraseToAbc` untouched (hard rule). Geometry math lives in pure `src/lib/notation/chart-geometry.ts`; abcjs adaptation in `src/lib/notation/abcjs-adapter.ts`.
+- The shared panels reflow via Tailwind 4 container queries under named `@container/entry` wrappers — inert in the lick editor (no named container ancestor). Panel action props (`onAddNote` etc.) default to raw step-entry; only the tune editor passes wrappers.
+- Cursor-mode entry: overwrite rests, block on pitched collision, section-level occupancy, window-fit guard (the section-end overhang fix — final review's one blocker).
+
+### Tune chart chord symbols: MuseScore-height drop pass (2026-07-28)
+
+**What:** abcjs anchors every chord in a system above the tallest ink of the WHOLE line (`set-upper-and-lower-elements.js` — one high bar lifts every chord; no option exists to change it). The app corrects this post-render: `chordSymbolDeltas` (pure, abcjs-adapter) drops each chord to MuseScore's default — baseline 2.5 staff-spaces above the top line (measured from the user's own .mscz styles/PDFs) — pushing a chord up only over x-overlapping ink, with 0.5-space clearance. Applied in NotationDisplay's `dropChordSymbols`, strictly BEFORE `buildHitZones` so band geometry measures final positions.
+
+**Standing facts:**
+- Every voice-H chord `<text>` is a CHILD of that segment's `g.abcjs-rest` group — even for invisible `x` spacers. Any transform on the group moves the chord with it; `normalizeChordVoiceRests` therefore shifts only the group's non-text children. This coupling was the hidden 2-extra-spacings bug that made all app chords ride high even on flat systems.
+- `getBBox()` is local (excludes own AND ancestor transforms); client rects include everything. Post-render passes that set transforms must keep the two spaces straight — measure obstacles/staff in untransformed local space only while ancestors are untransformed.
+- Regression pins: unit describe `chordSymbolDeltas` in abcjs-adapter.test.ts (per-chord independence, clearance, push-up-only, bracket veto); e2e `tune-chord-height.spec.ts` (high-bar tune, scale-invariant staff-space assertions).
+- **Stems (2026-07-28):** declaring a second voice WITHOUT `stem=` makes abcjs's `createVoice` (parse/tune-builder.js) splice a forced stem-up event into the MELODY voice — the two-real-voices convention, triggered purely by voice count. The header's `V:H stem=down` keeps `params.stem` truthy so that splice never happens and M gets pitch-based auto stems (head at/above middle line → down, below → up; on-line → down — matches MuseScore). Deliberate variance: abcjs decides BEAMED groups by the group's average pitch vs the middle line, MuseScore by the furthest note — user accepted the abcjs rule (2026-07-28). No `stem=auto`, `%%stemdir`, or inline stem directive exists in abcjs; don't go looking. E2E pin: `tune-stem-direction.spec.ts` (self-classifying rule check over every rendered stem).
 
 ## Reference map
 

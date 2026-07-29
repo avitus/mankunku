@@ -1,0 +1,555 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import { onDestroy, onMount } from 'svelte';
+	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
+	import LickProgressChart from '$lib/components/licks/LickProgressChart.svelte';
+	import { getLickById, transposeLick } from '$lib/phrases/library-loader';
+	import {
+		lickPractice,
+		startSingleLickSession,
+		hydrateLickPracticeProgress,
+		resetLick
+	} from '$lib/state/lick-practice.svelte';
+	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { PITCH_CLASSES, CATEGORY_LABELS, type PitchClass, type PhraseCategory } from '$lib/types/music';
+	import type { Phrase } from '$lib/types/music';
+	import { difficultyDisplay } from '$lib/difficulty/display';
+	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
+	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
+	import {
+		isInPracticeSet,
+		resolvePracticeFallbackTags,
+		setPracticeTag as storeSetPracticeTag,
+		getProgressionTags,
+		toggleProgressionTag,
+		hasLickProgress,
+		getLickProgressHistory,
+		NEW_LICK_DEFAULT_TEMPO
+	} from '$lib/persistence/lick-practice-store';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import type { ChordProgressionType } from '$lib/types/lick-practice';
+
+	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
+	const supabase = $derived(page.data?.supabase ?? null);
+	const authSession = $derived(page.data?.session ?? null);
+	// Async state for user-recorded lick resolution (fallback when curated lookup fails)
+	let userLick: Phrase | null = $state(null);
+	let effectRunId = 0;
+
+	$effect(() => {
+		const id = page.params.id ?? '';
+		const sb = supabase;
+		const sess = authSession;
+
+		userLick = null;
+		const runId = ++effectRunId;
+
+		// Only search user licks if the curated lookup fails
+		if (!getLickById(id)) {
+			const assign = (licks: Phrase[]) => {
+				if (runId === effectRunId) {
+					userLick = licks.find(l => l.id === id) ?? null;
+				}
+			};
+			if (sess && sb) {
+				getUserLicks(sb)
+					.then(async (licks) => {
+						if (runId !== effectRunId) return;
+						const hit = licks.find((l) => l.id === id);
+						if (hit) {
+							assign(licks);
+							return;
+						}
+						// Community fallback: fetch the lick directly by id — RLS
+						// allows any authenticated user to read any user_licks row.
+						try {
+							const { data } = await sb
+								.from('user_licks')
+								.select('*')
+								.eq('id', id)
+								.single();
+							if (data && runId === effectRunId) {
+								userLick = {
+									id: data.id,
+									name: data.name,
+									key: data.key as PitchClass,
+									timeSignature: data.time_signature as [number, number],
+									notes: data.notes as unknown as Phrase['notes'],
+									harmony: data.harmony as unknown as Phrase['harmony'],
+									difficulty: data.difficulty as unknown as Phrase['difficulty'],
+									category: data.category as Phrase['category'],
+									tags: data.tags ?? [],
+									source: data.source
+								};
+							}
+						} catch {
+							// Offline or RLS blocked — give up silently
+						}
+					})
+					.catch(() => {
+						getUserLicks().then(assign);
+					});
+			} else {
+				getUserLicks().then(assign);
+			}
+		}
+	});
+
+	// Hydrate lick-practice progress so the per-lick "Reset progress" button can
+	// tell whether this lick has any stored progress (mirrors the lick-practice
+	// landing page). Local-first: localStorage populates synchronously, cloud
+	// metadata is best-effort.
+	onMount(() => {
+		// Cloud-backed mode requires both the client and a session; the gate
+		// lives inside hydrateLickPracticeProgress.
+		hydrateLickPracticeProgress(supabase, authSession);
+	});
+
+	let playbackModule: typeof import('$lib/audio/playback') | null = null;
+	let isPlaying = $state(false);
+	let confirmingDelete = $state(false);
+	// Id-scoped so a mid-confirm state can't carry over to a different lick if
+	// baseLick changes (client-side nav between licks reuses this component).
+	let confirmingResetId: string | null = $state(null);
+
+	/**
+	 * Key selector state is in WRITTEN pitch (what the user sees on their
+	 * instrument's sheet music). Stored here, converted to concert at the
+	 * `transposeLick()` boundary. Null means "use the lick's original key"
+	 * and is resolved to the written equivalent once baseLick loads.
+	 */
+	let selectedWrittenKey: PitchClass | null = $state(null);
+
+	let isPracticeTagged = $state(false);
+	let progressionTags = $state<ChordProgressionType[]>([]);
+	let currentCategory = $state<PhraseCategory | null>(null);
+	let categoryOpen = $state(false);
+	let categoryWrap: HTMLElement | undefined = $state();
+
+	$effect(() => {
+		if (!categoryOpen) return;
+		const onClick = (e: MouseEvent) => {
+			if (!categoryWrap?.contains(e.target as Node)) categoryOpen = false;
+		};
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') categoryOpen = false;
+		};
+		document.addEventListener('click', onClick);
+		document.addEventListener('keydown', onKey);
+		return () => {
+			document.removeEventListener('click', onClick);
+			document.removeEventListener('keydown', onKey);
+		};
+	});
+	const baseLick = $derived(getLickById(page.params.id ?? '') ?? userLick);
+
+	$effect(() => {
+		if (!baseLick) {
+			isPracticeTagged = false;
+			progressionTags = [];
+			currentCategory = null;
+			return;
+		}
+		// Treat the user-tags store as authoritative when an entry exists for
+		// the lick; fall back to the override-aware curated tags only when
+		// the user hasn't yet expressed intent (legacy data, fresh devices
+		// before backfill).
+		isPracticeTagged = isInPracticeSet(
+			baseLick.id,
+			resolvePracticeFallbackTags(baseLick.id, baseLick.tags)
+		);
+		progressionTags = getProgressionTags(baseLick.id);
+		currentCategory = baseLick.category;
+	});
+
+	const CATEGORY_ENTRIES = Object.entries(CATEGORY_LABELS).map(
+		([value, label]) => ({ value: value as PhraseCategory, label })
+	);
+
+	// Reset the key selector to the lick's own (written) key whenever
+	// baseLick changes — so the user sees it in its original key and the selector
+	// button matches the displayed key signature.
+	$effect(() => {
+		if (baseLick) {
+			selectedWrittenKey = concertKeyToWritten(baseLick.key, getInstrument());
+		}
+	});
+
+	// Resolved written key for display purposes (falls back to C before baseLick loads)
+	const writtenKey = $derived(selectedWrittenKey ?? 'C');
+	// Concert key passed to transposeLick
+	const concertKey = $derived(writtenKeyToConcert(writtenKey, getInstrument()));
+
+	const lick = $derived(
+		baseLick
+			? transposeLick(baseLick, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote())
+			: null
+	);
+
+	const ALL_PROGRESSION_TYPES = Object.values(PROGRESSION_TEMPLATES);
+
+	function handleTogglePracticeTag() {
+		if (!baseLick) return;
+		const newVal = !isPracticeTagged;
+		storeSetPracticeTag(baseLick.id, newVal);
+		isPracticeTagged = newVal;
+	}
+
+	function handleToggleProgressionTag(type: ChordProgressionType) {
+		if (!baseLick) return;
+		toggleProgressionTag(baseLick.id, type);
+		progressionTags = getProgressionTags(baseLick.id);
+	}
+
+	function handleSetCategory(c: PhraseCategory) {
+		categoryOpen = false;
+		if (!baseLick || currentCategory === c) return;
+		updateLickCategory(baseLick.id, c, supabase ?? undefined);
+		currentCategory = c;
+	}
+
+	function practiceThis() {
+		if (!lick) return;
+		const bump = lickPractice.config.tempoBumpBpm ?? 5;
+		if (startSingleLickSession(lick, bump)) goto('/lick-practice/session');
+	}
+
+	async function togglePlay() {
+		if (!lick) return;
+
+		if (!playbackModule) {
+			playbackModule = await import('$lib/audio/playback');
+		}
+
+		if (isPlaying) {
+			await playbackModule.stopPlayback();
+			isPlaying = false;
+			return;
+		}
+
+		if (!playbackModule.isInstrumentLoaded()) {
+			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+		}
+		setMasterVolume(settings.masterVolume);
+
+		isPlaying = true;
+		await playbackModule.playPhrase(lick, {
+			tempo: settings.defaultTempo,
+			swing: settings.swing,
+			countInBeats: 0,
+			metronomeEnabled: false,
+			metronomeVolume: 0
+		});
+		isPlaying = false;
+	}
+
+	/**
+	 * True only when the resolved lick is owned by the current user — i.e. it
+	 * lives in their own `user_licks` cache. Community-fallback licks (fetched
+	 * by id from any author) and stolen community licks both share the same
+	 * `source` values ('user-recorded' | 'user-entered') but are not owned,
+	 * so `source` alone is not a safe ownership signal.
+	 */
+	const isOwnLick = $derived(
+		baseLick != null && getUserLicksLocal().some((l) => l.id === baseLick.id)
+	);
+
+	const canDelete = $derived(
+		isOwnLick &&
+			baseLick != null &&
+			(baseLick.source === 'user-recorded' || baseLick.source === 'user-entered')
+	);
+
+	/**
+	 * Edit is offered only for step-entered licks. Mic-recorded licks have
+	 * arbitrary fractional durations that the step-entry rhythm palette can't
+	 * reproduce, so loading one into the editor would let the user fix pitches
+	 * but not preserve the original timing on any re-added notes.
+	 */
+	const canEdit = $derived(
+		isOwnLick && baseLick != null && baseLick.source === 'user-entered'
+	);
+
+	/**
+	 * Why Delete is unavailable for a lick that *looks* user-authored. Hiding the
+	 * button silently leaves users stuck ("why can't I delete this duplicate?").
+	 * Only surfaced for user-authored-looking licks — curated/generated licks are
+	 * never deletable by design and need no explanation.
+	 */
+	const deleteBlockedReason = $derived.by(() => {
+		if (canDelete || baseLick == null) return null;
+		const looksUserAuthored =
+			baseLick.source === 'user-recorded' ||
+			baseLick.source === 'user-entered' ||
+			baseLick.id.startsWith('user-');
+		if (!looksUserAuthored) return null;
+		if (!isOwnLick) {
+			return 'This is a community copy you don’t own — use Return from your book instead of Delete.';
+		}
+		return 'Can’t delete: this lick has an unexpected source. Open it in the step editor and re-save to normalize it.';
+	});
+
+	function handleDelete() {
+		if (!baseLick) return;
+		if (!confirmingDelete) {
+			confirmingDelete = true;
+			return;
+		}
+		deleteUserLick(baseLick.id, supabase ?? undefined);
+		goto('/licks');
+	}
+
+	function handleEdit() {
+		if (!baseLick) return;
+		goto(`/licks/editor?edit=${baseLick.id}`);
+	}
+
+	// Full-reset this lick's practice progress (two-stage inline confirm, like
+	// Delete). Gated on hasLickProgress, so the button vanishes after a reset —
+	// its own confirmation.
+	const hasProgress = $derived(
+		baseLick != null && hasLickProgress(lickPractice.progress, baseLick.id)
+	);
+
+	// Per-lick BPM / keys-unlocked time series for the progress graph. Re-derives
+	// on client-side nav between licks (page.params.id) and after cloud metadata
+	// hydrates — reading lickPractice.progress establishes that dependency, since
+	// hydrate merges the history blob into localStorage before writing progress.
+	const progressHistory = $derived.by(() => {
+		void lickPractice.progress;
+		return getLickProgressHistory(page.params.id ?? '');
+	});
+
+	function handleReset() {
+		if (!baseLick) return;
+		if (confirmingResetId !== baseLick.id) {
+			confirmingResetId = baseLick.id;
+			return;
+		}
+		resetLick(baseLick.id);
+		confirmingResetId = null;
+	}
+
+	onDestroy(() => {
+		if (playbackModule && isPlaying) {
+			playbackModule.stopPlayback();
+		}
+	});
+</script>
+
+<svelte:head>
+	<title>{lick?.name ?? 'Lick'} — Mankunku</title>
+</svelte:head>
+
+<div class="space-y-6">
+	<!-- Back link -->
+	<a
+		href="/licks"
+		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+	>
+		&larr; Licks
+	</a>
+
+	{#if lick}
+		<div class="flex flex-wrap items-start justify-between gap-4">
+			<div>
+				<h1 class="text-2xl font-bold">{baseLick?.name}</h1>
+				<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+					{#if isOwnLick && currentCategory}
+						<span bind:this={categoryWrap} class="relative inline-block">
+							<button
+								type="button"
+								onclick={() => (categoryOpen = !categoryOpen)}
+								aria-haspopup="listbox"
+								aria-expanded={categoryOpen}
+								class="smallcaps cursor-pointer border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)] transition-colors
+									{categoryOpen ? 'border-[var(--color-brass)] bg-[var(--color-brass)]/15' : ''}"
+							>
+								{CATEGORY_LABELS[currentCategory]}
+							</button>
+							{#if categoryOpen}
+								<ul
+									role="listbox"
+									aria-label="Category"
+									class="absolute left-0 top-full z-20 mt-1 max-h-72 min-w-full overflow-y-auto whitespace-nowrap border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] py-1 shadow-lg"
+								>
+									{#each CATEGORY_ENTRIES as { value, label } (value)}
+										{@const isActive = currentCategory === value}
+										<li>
+											<button
+												type="button"
+												role="option"
+												aria-selected={isActive}
+												onclick={() => handleSetCategory(value)}
+												class="smallcaps block w-full px-2 py-1 text-left text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/15
+													{isActive ? 'bg-[var(--color-brass)]/20' : ''}"
+											>
+												{label}
+											</button>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</span>
+						<span>&middot;</span>
+					{/if}
+					<span style="color: {difficultyDisplay(lick.difficulty.level).color}">{difficultyDisplay(lick.difficulty.level).name} ({lick.difficulty.level})</span>
+					<span>&middot;</span>
+					<span>{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}</span>
+				</div>
+			</div>
+			<div class="flex shrink-0 flex-wrap gap-2">
+				<button
+					onclick={togglePlay}
+					class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors
+						{isPlaying
+							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
+							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+					aria-label={isPlaying ? 'Stop' : 'Play'}
+				>
+					{#if isPlaying}
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+							<rect x="6" y="5" width="4" height="14" rx="1" />
+							<rect x="14" y="5" width="4" height="14" rx="1" />
+						</svg>
+						Stop
+					{:else}
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+							<path d="M8 5v14l11-7z" />
+						</svg>
+						Play
+					{/if}
+				</button>
+				<button
+					onclick={practiceThis}
+					class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+				>
+					Practice
+				</button>
+				<button
+					onclick={handleTogglePracticeTag}
+					class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
+						{isPracticeTagged
+							? 'bg-[var(--color-success)]/20 text-[var(--color-success)] hover:bg-[var(--color-success)]/30'
+							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					title={isPracticeTagged ? 'Remove from lick practice' : 'Add to lick practice'}
+				>
+					{isPracticeTagged ? '★ Practice Set' : '☆ Add to Practice'}
+				</button>
+				{#if hasProgress}
+					<button
+						onclick={handleReset}
+						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
+							{confirmingResetId === baseLick?.id
+								? 'bg-[var(--color-warning)] text-black hover:opacity-80'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+						title="Reset this lick's practice progress — tempo back to {NEW_LICK_DEFAULT_TEMPO} BPM, keys relocked"
+					>
+						{confirmingResetId === baseLick?.id ? 'Confirm Reset' : '↺ Reset Progress'}
+					</button>
+				{/if}
+				{#if canEdit}
+					<button
+						onclick={handleEdit}
+						class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+					>
+						Edit
+					</button>
+				{/if}
+				{#if canDelete}
+					<button
+						onclick={handleDelete}
+						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
+							{confirmingDelete
+								? 'bg-[var(--color-error)] text-white hover:opacity-80'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					>
+						{confirmingDelete ? 'Confirm Delete' : 'Delete'}
+					</button>
+				{/if}
+			</div>
+		</div>
+
+		<!-- Key selector — displayed in the user's WRITTEN pitch (what they
+		     see on sheet music and finger on their horn). Matches the key
+		     signature shown on the notation below. -->
+		{#if deleteBlockedReason}
+			<p class="text-xs text-[var(--color-text-secondary)]">{deleteBlockedReason}</p>
+		{/if}
+
+		<div class="flex items-center gap-3">
+			<span class="text-sm text-[var(--color-text-secondary)]">Key:</span>
+			<div class="flex flex-wrap gap-1">
+				{#each PITCH_CLASSES as pc}
+					<button
+						onclick={() => { selectedWrittenKey = pc; }}
+						class="rounded-full px-2 py-0.5 text-xs transition-colors
+							{writtenKey === pc
+								? 'bg-[var(--color-accent)] text-white'
+								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+					>
+						{pc}
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Practice over: progression tags -->
+		<div>
+			<span class="text-sm text-[var(--color-text-secondary)]">Practice over:</span>
+			<div class="mt-1.5 flex flex-wrap gap-1.5">
+				{#each ALL_PROGRESSION_TYPES as prog (prog.type)}
+					{@const isTagged = progressionTags.includes(prog.type)}
+					<button
+						onclick={() => handleToggleProgressionTag(prog.type)}
+						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
+							{isTagged
+								? 'bg-[var(--color-accent)] text-white'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+					>
+						{prog.shortName}
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Notation -->
+		<NotationDisplay phrase={lick} instrument={getInstrument()} />
+
+		<!-- Phrase info -->
+		<PhraseInfo phrase={lick} />
+
+		<!-- Progress over time -->
+		{#if progressHistory.length > 0}
+			<section class="space-y-3">
+				<h2 class="font-display text-lg font-semibold">Your progress</h2>
+				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+					<LickProgressChart points={progressHistory} />
+				</div>
+			</section>
+		{/if}
+
+		<!-- Tags -->
+		{#if baseLick && baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered').length > 0}
+			<div class="flex flex-wrap gap-2">
+				{#each baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag}
+					<span class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">
+						#{tag}
+					</span>
+				{/each}
+			</div>
+		{/if}
+	{:else}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+			<p class="text-[var(--color-text-secondary)]">
+				Lick not found: {page.params.id}
+			</p>
+			<a href="/licks" class="mt-2 inline-block text-sm text-[var(--color-accent)]">
+				Back to Licks
+			</a>
+		</div>
+	{/if}
+</div>

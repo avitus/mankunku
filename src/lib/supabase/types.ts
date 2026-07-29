@@ -24,6 +24,7 @@
  *   ScaleProficiency (progress.ts)     → scale_proficiency
  *   KeyProficiency (progress.ts)       → key_proficiency
  *   Phrase         (music.ts)          → user_licks
+ *   Tune      (tune.ts)           → tunes
  *   defaultSettings (settings.svelte.ts) → user_settings
  *   (new)                              → user_profiles
  */
@@ -844,6 +845,197 @@ export type Database = {
           }
         ]
       }
+      /**
+       * User-owned tunes (melody + full-harmony song forms).
+       * Local-first: ids are client-generated TEXT (sheet-{timestamp}-{random})
+       * so offline-created rows keep their id on first sync. Mirrors
+       * user_licks' sync model (client_mtime clock + deleted_at tombstones).
+       */
+      tunes: {
+        Row: {
+          /** TEXT primary key — generated client-side as sheet-{timestamp}-{random} */
+          id: string
+          /** UUID foreign key to auth.users.id */
+          user_id: string
+          /** Tune title */
+          title: string
+          /** Composer credit, nullable */
+          composer: string | null
+          /** Concert pitch key as PitchClass value */
+          key: string
+          /** PostgreSQL INTEGER[2] storing time signature tuple (e.g. [4, 4]) */
+          time_signature: number[]
+          /** Feel/style label (e.g. 'Medium Swing'), nullable */
+          style: string | null
+          /** PostgreSQL text[] array of descriptive tags */
+          tags: string[]
+          /** JSONB storing TuneSection[] — labels, bars, repeats/endings, notes, harmony */
+          sections: Json
+          /** JSONB storing DifficultyMetadata, nullable */
+          difficulty: Json | null
+          /** Origin discriminator: 'user' | 'imported-ireal' | 'imported-biab' | 'imported-pdf' */
+          source: string
+          /** Storage path of the original imported PDF ({uid}/{id}.pdf in the tunes bucket), nullable */
+          pdf_url: string | null
+          /** Denormalized count of favorites (maintained by triggers on tune_favorites). Defaults to 0. */
+          favorite_count: number
+          /** Soft-delete tombstone. NULL = live. Set instead of a hard DELETE so deletes propagate. */
+          deleted_at: string | null
+          /** Client-owned edit clock (ms). NOT touched by the updated_at trigger; the field the merge compares. Defaults to 0. */
+          client_mtime: number
+          /** Timestamp of sheet creation (ISO 8601) */
+          created_at: string
+          /** Timestamp of last sheet update (ISO 8601) */
+          updated_at: string
+        }
+        Insert: {
+          /** TEXT primary key — generated client-side, required on insert */
+          id: string
+          /** UUID foreign key to auth.users.id — required */
+          user_id: string
+          title: string
+          composer?: string | null
+          key: string
+          /** PostgreSQL INTEGER[2] — required, stores time signature tuple */
+          time_signature: number[]
+          style?: string | null
+          /** Defaults to empty array in database */
+          tags?: string[]
+          /** JSONB — defaults to empty array in database */
+          sections?: Json
+          difficulty?: Json | null
+          /** Defaults to 'user' in database */
+          source?: string
+          pdf_url?: string | null
+          /** Defaults to 0 in database; maintained by triggers on tune_favorites. Do not set manually. */
+          favorite_count?: number
+          /** NULL = live; set to a timestamp to tombstone */
+          deleted_at?: string | null
+          /** Client edit clock (ms). Defaults to 0. */
+          client_mtime?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          composer?: string | null
+          key?: string
+          time_signature?: number[]
+          style?: string | null
+          tags?: string[]
+          sections?: Json
+          difficulty?: Json | null
+          source?: string
+          pdf_url?: string | null
+          /** Maintained by triggers; do not set manually. */
+          favorite_count?: number
+          deleted_at?: string | null
+          client_mtime?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tunes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      /**
+       * Thumbs-up relation between users and lead sheets (community feature).
+       * Composite PK (user_id, tune_id) enforces idempotent favoriting.
+       * ON DELETE CASCADE on tune_id removes favorites when the author
+       * deletes the underlying sheet. No UPDATE policy on purpose.
+       */
+      tune_favorites: {
+        Row: {
+          /** UUID foreign key to auth.users.id — part of composite PK */
+          user_id: string
+          /** TEXT foreign key to tunes.id — part of composite PK */
+          tune_id: string
+          /** Timestamp of favorite creation (ISO 8601) */
+          created_at: string
+        }
+        Insert: {
+          /** UUID foreign key to auth.users.id — required, part of composite PK */
+          user_id: string
+          /** TEXT foreign key to tunes.id — required, part of composite PK */
+          tune_id: string
+          /** Auto-set by database default (now()) */
+          created_at?: string
+        }
+        Update: {
+          user_id?: string
+          tune_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tune_favorites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tune_favorites_tune_id_fkey"
+            columns: ["tune_id"]
+            isOneToOne: false
+            referencedRelation: "tunes"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      /**
+       * Add-to-my-library relation for community lead sheets. Adoption is a
+       * live reference, not a copy — the payload stays in tunes, so an
+       * author delete cascades to adopters. Fully owner-scoped RLS (including
+       * SELECT); self-adoption blocked in the INSERT policy's WITH CHECK.
+       */
+      tune_adoptions: {
+        Row: {
+          /** UUID foreign key to auth.users.id — part of composite PK */
+          user_id: string
+          /** TEXT foreign key to tunes.id — part of composite PK */
+          tune_id: string
+          /** Timestamp of adoption (ISO 8601) */
+          adopted_at: string
+        }
+        Insert: {
+          /** UUID foreign key to auth.users.id — required, part of composite PK */
+          user_id: string
+          /** TEXT foreign key to tunes.id — required, part of composite PK */
+          tune_id: string
+          /** Auto-set by database default (now()) */
+          adopted_at?: string
+        }
+        Update: {
+          user_id?: string
+          tune_id?: string
+          adopted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tune_adoptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tune_adoptions_tune_id_fkey"
+            columns: ["tune_id"]
+            isOneToOne: false
+            referencedRelation: "tunes"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       /**
@@ -852,6 +1044,31 @@ export type Database = {
        * display_name and avatar_url — no timestamps or other metadata.
        */
       public_lick_authors: {
+        Row: {
+          /** UUID — same as auth.users.id */
+          id: string
+          /** User's display name, nullable */
+          display_name: string | null
+          /** URL to avatar image, nullable */
+          avatar_url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      /**
+       * Column-restricted projection of user_profiles for lead-sheet
+       * community attribution. Readable by any authenticated user; exposes
+       * only display_name and avatar_url, and only for users with at least
+       * one live shared lead sheet.
+       */
+      public_tune_authors: {
         Row: {
           /** UUID — same as auth.users.id */
           id: string

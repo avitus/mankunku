@@ -7,8 +7,12 @@
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
 	import { welcomeTour } from '$lib/tour/tours/welcome';
 	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
-	import { beforeNavigate, invalidate } from '$app/navigation';
-	import { shouldHardReloadOnNavigation } from '$lib/util/stale-chunk';
+	import { afterNavigate, beforeNavigate, invalidate } from '$app/navigation';
+	import {
+		shouldHardReloadOnNavigation,
+		setPendingNavTarget,
+		clearNavRecoveryLatch
+	} from '$lib/util/stale-chunk';
 
 	interface Props {
 		children: import('svelte').Snippet;
@@ -29,11 +33,33 @@
 	// full-page load of the target instead of a client-side one, so a fresh HTML
 	// shell + manifest are fetched and the next lazy `import()` resolves to a
 	// chunk that still exists — heading off "error loading dynamically imported
-	// module" before it can happen. `handleStaleChunkReload` in hooks.client.ts
+	// module" before it can happen. `handleNavErrorRecovery` in hooks.client.ts
 	// is the reactive backstop for anything that slips past this.
+	//
+	// nav.cancel() stops the client-side navigation BEFORE handing off to the
+	// full-page load; without it the SvelteKit nav keeps running and races the
+	// document load (SvelteKit's own native_navigation() stalls the router the
+	// same way).
 	beforeNavigate((nav) => {
+		// Record the in-flight target so handleNavErrorRecovery (hooks.client.ts)
+		// can distinguish a failed NAVIGATION (recover toward this URL) from a
+		// failed hover/touch PRELOAD (do nothing).
+		setPendingNavTarget(nav.to?.url.href ?? null);
 		if (shouldHardReloadOnNavigation(nav, updated.current) && nav.to) {
+			nav.cancel();
 			location.href = nav.to.url.href;
+		}
+	});
+
+	afterNavigate((nav) => {
+		setPendingNavTarget(null);
+		// A completed client-side navigation (not the initial 'enter') proves the
+		// router is healthy — reset the one-attempt recovery latch so the next
+		// deploy-window episode recovers instead of dead-ending. Never reset on
+		// 'enter' alone: a page whose hydration keeps failing must stay latched
+		// or recovery would loop full-page navigations.
+		if (nav.type !== 'enter' && typeof sessionStorage !== 'undefined') {
+			clearNavRecoveryLatch(sessionStorage);
 		}
 	});
 
@@ -75,9 +101,8 @@
 		{ href: '/', label: 'Home', primary: false, tourKey: 'home' },
 		{ href: '/ear-training', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
-		{ href: '/library', label: 'Library', primary: false, tourKey: 'library' },
-		{ href: '/community', label: 'Community', primary: false, tourKey: 'community' },
-		{ href: '/add-licks', label: 'Add Licks', primary: false, tourKey: 'add-licks' },
+		{ href: '/licks', label: 'Licks', primary: false, tourKey: 'licks' },
+		{ href: '/tunes', label: 'Tunes', primary: false, tourKey: 'tunes' },
 		{ href: '/progress', label: 'Progress', primary: false, tourKey: 'progress' },
 		{ href: '/docs', label: 'Docs', primary: false, tourKey: 'docs' },
 		{ href: '/settings', label: 'Settings', primary: false, tourKey: 'settings' }
@@ -90,10 +115,10 @@
 	 * spec at documentation/architecture/design-system.md.
 	 *
 	 * - 'lick-practice' (green) — anything under /lick-practice
-	 * - 'ear-training' (blue, the default) — /ear-training, /scales, /record,
-	 *   /progress and their subroutes
-	 * - 'neutral' (slate) — everything else (Library, Add Licks, Settings,
-	 *   Home, Auth, Diagnostics, etc.)
+	 * - 'ear-training' (blue, the default) — /ear-training, /scales, /progress
+	 *   and their subroutes
+	 * - 'neutral' (slate) — everything else (Licks, Tunes, Settings, Home,
+	 *   Auth, Diagnostics, etc. — book management, not practice)
 	 */
 	const dataDomain = $derived.by(() => {
 		const path = page.url?.pathname ?? '/';
@@ -101,7 +126,6 @@
 		if (
 			path.startsWith('/ear-training') ||
 			path.startsWith('/scales') ||
-			path.startsWith('/record') ||
 			path.startsWith('/progress')
 		) {
 			return 'ear-training';
@@ -193,11 +217,6 @@
 
 	function isActive(href: string): boolean {
 		if (href === '/') return page.url?.pathname === '/';
-		if (href === '/add-licks') {
-			return ['/add-licks', '/record', '/entry'].some(
-				(p) => page.url?.pathname?.startsWith(p) ?? false
-			);
-		}
 		return page.url?.pathname?.startsWith(href) ?? false;
 	}
 

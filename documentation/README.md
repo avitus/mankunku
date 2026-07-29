@@ -6,14 +6,14 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 
 > **Last major docs update: 2026-07-14** — synced docs to reflect two features that landed after the 2026-06-23 sync: **entry-staff note selection** — click a notehead or step with ←/→ to select any pitched note, then ↑/↓ to pitch-shift, Backspace/Delete to delete, or `\` to flip its spelling in place (new `phraseToAbcWithMap` / `PitchedNoteAnchor` in `notation.ts`; `selectedNoteIndex` + `selectNote` / `deleteSelectedNote` / `adjustSelectedNotePitch` / `flipSelectedNoteSpelling` in step-entry state; `selectedIndex` / `onSelect` props on `NotationDisplay`); and the Side B **end-of-lick score-hold + ii-V transition cue** — the finished lick's last-key score dot (and all-clear brass glow) now holds on screen for a bar before a mode-matched ii-V comps into the next lick's key (`getTransitionCadenceChords` in `progressions.ts`, `playTransitionChords` in `backing-track.ts`).
 >
-> **2026-06-23** — soprano sax as a first-class instrument; the library refocus on the user's own practice book (`needsSetup` / `practiceSet` / `otherLicks`); per-lick **Reset progress** action; tighter Side B advancement gates (green ≥ 0.90, yellow 0.75–0.89, red < 0.75, with a single red key blocking tempo bumps and unlocks); Daily Practice mode; single-lick Deep Practice now respecting per-lick unlocks and deriving its progression from the chosen lick; explicit `prog:*` opt-in; step-entry lick editing; history derive-on-write; metronome-bleed suppression; and the same-pitch / octave-lock / re-articulation segmentation passes. Previous major update was 2026-05-09 (the rewrite-for-musicians pass).
+> **2026-06-23** — soprano sax as a first-class instrument; the Licks-page refocus on the user's own book (`needsSetup` / `practiceSet` / `otherLicks`); per-lick **Reset progress** action; tighter Side B advancement gates (green ≥ 0.90, yellow 0.75–0.89, red < 0.75, with a single red key blocking tempo bumps and unlocks); Daily Practice mode; single-lick Deep Practice now respecting per-lick unlocks and deriving its progression from the chosen lick; explicit `prog:*` opt-in; in-editor lick editing; history derive-on-write; metronome-bleed suppression; and the same-pitch / octave-lock / re-articulation segmentation passes. Previous major update was 2026-05-09 (the rewrite-for-musicians pass).
 
 ## Quick Links
 
 | Section | Description |
 |---|---|
 | [Getting Started](./getting-started.md) | For players: what the app does, what you need, your first session |
-| [User Guide](./user-guide.md) | How to use the app: practice, library, progress, settings |
+| [User Guide](./user-guide.md) | How to use the app: practice, your licks, progress, settings |
 | [Development Setup](./contributing/contributing.md#development-setup) | For developers: prerequisites, install, first run, local Supabase stack |
 
 ### Architecture
@@ -25,7 +25,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Data Model](./architecture/data-model.md) | Core TypeScript types with field documentation |
 | [Audio Pipeline](./architecture/audio-pipeline.md) | Playback, capture, detection, segmentation |
 | [Scoring Algorithm](./architecture/scoring-algorithm.md) | DTW alignment, pitch/rhythm scoring, grading |
-| [Phrase System](./architecture/phrase-system.md) | Library, generation, mutation, validation |
+| [Phrase System](./architecture/phrase-system.md) | Catalog, generation, mutation, validation |
 | [Lick Alignment](./architecture/lick-alignment.md) | Per-progression placement, `pickupBars`, tail extension, auto-inference |
 | [Adaptive Difficulty](./architecture/adaptive-difficulty.md) | Algorithm, leveling (1-100), difficulty profiles |
 | [Tonality System](./architecture/tonality-system.md) | Daily key/scale selection, progressive unlocking |
@@ -40,7 +40,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Music](./api-reference/music.md) | scales, chords, keys, intervals, notation, transposition |
 | [Phrases](./api-reference/phrases.md) | generator, mutator, validator, library-loader |
 | [Difficulty](./api-reference/difficulty.md) | adaptive, params |
-| [State](./api-reference/state.md) | session, settings, progress, history, library, lick-practice, step-entry state modules |
+| [State](./api-reference/state.md) | session, settings, progress, history, licks, lick-practice, step-entry, tune-entry, tune-community state modules |
 | [Components](./api-reference/components.md) | All Svelte components and route pages |
 
 ### Contributing
@@ -59,4 +59,4 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Glossary](./reference/glossary.md) | Jazz, audio, and technical terminology |
 | [Algorithm Details](./reference/algorithm-details.md) | DTW math, spectral flux, McLeod pitch method |
 | [Browser Compatibility](./reference/browser-compatibility.md) | Web Audio API support, PWA, mobile caveats |
-| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 33 scales + ~538 lick library (452 curated + ~86 combinatorial) with metadata |
+| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 33 scales + ~538 lick catalog (452 curated + ~86 combinatorial) with metadata |

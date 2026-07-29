@@ -1,0 +1,474 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Tune } from '$lib/types/tune';
+
+// ─── Mock sync dependencies ───────────────────────────────────────────
+vi.mock('$lib/persistence/user-scope', () => ({
+	getScopeGeneration: () => 0
+}));
+
+// ─── Mock localStorage ────────────────────────────────────────────────
+const store: Record<string, string> = {};
+const localStorageMock = {
+	getItem: vi.fn((key: string) => store[key] ?? null),
+	setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+	removeItem: vi.fn((key: string) => { delete store[key]; }),
+	clear: vi.fn(() => { for (const key of Object.keys(store)) delete store[key]; }),
+	get length() { return Object.keys(store).length; },
+	key: vi.fn((i: number) => Object.keys(store)[i] ?? null)
+};
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
+
+beforeEach(() => {
+	localStorageMock.clear();
+	vi.clearAllMocks();
+});
+
+// ─── Load module under test after mocks ───────────────────────────────
+const {
+	getTuneFavoritesLocal,
+	getTuneAdoptionsLocal,
+	getAdoptedTunesLocal,
+	getAdoptedTuneAuthorsLocal,
+	toggleTuneFavorite,
+	adoptTune,
+	returnTune,
+	listCommunityTunes,
+	initTuneCommunityFromCloud,
+	TUNE_PAGE_SIZE
+} = await import('$lib/persistence/tune-community');
+
+// ─── Supabase mock ────────────────────────────────────────────────────
+
+interface QueryState {
+	from: string;
+	filters: Array<{ op: string; args: unknown[] }>;
+	orderings: Array<{ col: string; asc: boolean }>;
+	range: [number, number] | null;
+}
+
+function makeSupabaseMock(response: {
+	user?: { id: string } | null;
+	data?: Record<string, unknown[]>;
+	errors?: Record<string, { message: string }>;
+	singleRows?: Record<string, unknown>;
+	onInsert?: (table: string, row: unknown) => { error: { code?: string; message?: string } | null } | null;
+	onDelete?: (table: string, filters: QueryState['filters']) => { error: Error | null } | null;
+	captureQueries?: QueryState[];
+}): unknown {
+	return {
+		auth: {
+			getUser: vi.fn().mockResolvedValue({ data: { user: response.user ?? null } })
+		},
+		from(table: string) {
+			const q: QueryState = { from: table, filters: [], orderings: [], range: null };
+			response.captureQueries?.push(q);
+			const chain = {
+				select() { return chain; },
+				eq(col: string, val: unknown) { q.filters.push({ op: 'eq', args: [col, val] }); return chain; },
+				neq(col: string, val: unknown) { q.filters.push({ op: 'neq', args: [col, val] }); return chain; },
+				is(col: string, val: unknown) { q.filters.push({ op: 'is', args: [col, val] }); return chain; },
+				in(col: string, vals: unknown[]) { q.filters.push({ op: 'in', args: [col, vals] }); return chain; },
+				lte(col: string, val: unknown) { q.filters.push({ op: 'lte', args: [col, val] }); return chain; },
+				or(str: string) { q.filters.push({ op: 'or', args: [str] }); return chain; },
+				order(col: string, opts?: { ascending?: boolean }) {
+					q.orderings.push({ col, asc: opts?.ascending ?? true });
+					return chain;
+				},
+				range(from: number, to: number) { q.range = [from, to]; return chain; },
+				single() {
+					const row = response.singleRows?.[table];
+					return Promise.resolve({ data: row ?? null, error: row ? null : new Error('no row') });
+				},
+				insert(row: unknown) {
+					const result = response.onInsert?.(table, row) ?? { error: null };
+					return Promise.resolve(result);
+				},
+				delete() {
+					return {
+						eq(col: string, val: unknown) {
+							q.filters.push({ op: 'eq', args: [col, val] });
+							return {
+								eq(col2: string, val2: unknown) {
+									q.filters.push({ op: 'eq', args: [col2, val2] });
+									const result = response.onDelete?.(table, q.filters) ?? { error: null };
+									return Promise.resolve(result);
+								}
+							};
+						}
+					};
+				},
+				then(
+					resolve: (v: { data: unknown[] | null; error: { message: string } | null }) => unknown,
+					reject?: (e: unknown) => unknown
+				) {
+					const err = response.errors?.[table] ?? null;
+					const data = err ? null : (response.data?.[table] ?? []);
+					return Promise.resolve({ data, error: err }).then(resolve, reject);
+				}
+			};
+			return chain;
+		}
+	};
+}
+
+function makeSheetRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return {
+		id: 'sheet-9-wxyz',
+		user_id: 'author-1',
+		title: 'Shared Tune',
+		composer: null,
+		key: 'C',
+		time_signature: [4, 4],
+		style: null,
+		tags: [],
+		sections: [{
+			label: 'A',
+			bars: 2,
+			notes: [{ pitch: 60, duration: [1, 4], offset: [0, 1] }],
+			harmony: [{
+				chord: { root: 'C', quality: 'maj7' },
+				scaleId: 'major.ionian',
+				startOffset: [0, 1],
+				duration: [1, 1]
+			}]
+		}],
+		difficulty: null,
+		source: 'user',
+		pdf_url: null,
+		favorite_count: 3,
+		deleted_at: null,
+		client_mtime: 100,
+		created_at: '2026-01-01T00:00:00.000Z',
+		updated_at: '2026-01-01T00:00:00.000Z',
+		...overrides
+	};
+}
+
+const ME = { id: 'me-1' };
+
+// ─── Local cache defaults ─────────────────────────────────────────────
+
+describe('local cache read helpers', () => {
+	it('return empty defaults when nothing is cached', () => {
+		expect(getTuneFavoritesLocal().size).toBe(0);
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+		expect(getAdoptedTuneAuthorsLocal()).toEqual({});
+	});
+});
+
+// ─── listCommunityTunes ──────────────────────────────────────────
+
+describe('listCommunityTunes', () => {
+	it('maps rows, resolves authors, and stamps local membership flags', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: {
+				tunes: [makeSheetRow()],
+				public_tune_authors: [{ id: 'author-1', display_name: 'Dizzy', avatar_url: null }]
+			}
+		});
+		const results = await listCommunityTunes(sb as never, {}, 0);
+		expect(results).toHaveLength(1);
+		expect(results[0].sheet.title).toBe('Shared Tune');
+		expect(results[0].authorName).toBe('Dizzy');
+		expect(results[0].favoriteCount).toBe(3);
+		expect(results[0].isFavoritedByMe).toBe(false);
+		expect(results[0].isAdoptedByMe).toBe(false);
+	});
+
+	it('filters out tombstoned rows server-side and excludes the requesting user', async () => {
+		const captured: QueryState[] = [];
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: { tunes: [], public_tune_authors: [] },
+			captureQueries: captured
+		});
+		await listCommunityTunes(sb as never, { excludeUserId: ME.id }, 0);
+		const q = captured.find((c) => c.from === 'tunes');
+		expect(q?.filters).toContainEqual({ op: 'is', args: ['deleted_at', null] });
+		expect(q?.filters).toContainEqual({ op: 'neq', args: ['user_id', ME.id] });
+		expect(q?.range).toEqual([0, TUNE_PAGE_SIZE - 1]);
+	});
+
+	it('sanitizes search terms before building the or() filter', async () => {
+		const captured: QueryState[] = [];
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: { tunes: [], public_tune_authors: [] },
+			captureQueries: captured
+		});
+		await listCommunityTunes(sb as never, { search: 'blue{s}, "50%"' }, 0);
+		const q = captured.find((c) => c.from === 'tunes');
+		const orFilter = q?.filters.find((f) => f.op === 'or');
+		expect(orFilter).toBeDefined();
+		// The structural %/,/{} of the or() clause are fine; the user TERM must
+		// have its literal-breaking characters ({, }, ", %, ,) stripped. The
+		// tags.cs.{...} array literal is where an unsanitized term would break.
+		const orStr = String(orFilter!.args[0]);
+		expect(orStr).not.toContain('"');
+		const tagsClause = /tags\.cs\.\{([^}]*)\}$/.exec(orStr);
+		expect(tagsClause).not.toBeNull();
+		expect(tagsClause![1]).not.toMatch(/[{}"%,\\]/u);
+	});
+
+	it('returns [] on a query error instead of throwing', async () => {
+		const sb = makeSupabaseMock({ user: ME, errors: { tunes: { message: 'boom' } } });
+		await expect(listCommunityTunes(sb as never)).resolves.toEqual([]);
+	});
+});
+
+// ─── toggleTuneFavorite ──────────────────────────────────────────
+
+describe('toggleTuneFavorite', () => {
+	it('optimistically favorites and confirms on server success', async () => {
+		const sb = makeSupabaseMock({ user: ME });
+		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		expect(result).toBe(true);
+		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(true);
+	});
+
+	it('reverts the optimistic write when the server rejects', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			onInsert: () => ({ error: { message: 'nope' } })
+		});
+		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		expect(result).toBe(false);
+		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(false);
+	});
+
+	it('reverts when there is no session', async () => {
+		const sb = makeSupabaseMock({ user: null });
+		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		expect(result).toBe(false);
+		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(false);
+	});
+
+	it('unfavorites on a second toggle and confirms on server success', async () => {
+		const sb = makeSupabaseMock({ user: ME });
+		await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		expect(result).toBe(false);
+		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(false);
+	});
+
+	it('re-adds the favorite when the server delete fails', async () => {
+		const okSb = makeSupabaseMock({ user: ME });
+		await toggleTuneFavorite(okSb as never, 'sheet-9-wxyz');
+
+		const sb = makeSupabaseMock({
+			user: ME,
+			onDelete: () => ({ error: new Error('offline') })
+		});
+		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
+		expect(result).toBe(true);
+		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(true);
+	});
+});
+
+// ─── adoptTune / returnTune ─────────────────────────────────
+
+describe('adoptTune', () => {
+	it('records the adoption, caches the validated payload and author', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: {
+				tunes: makeSheetRow(),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			}
+		});
+		const ok = await adoptTune(sb as never, 'sheet-9-wxyz');
+		expect(ok).toBe(true);
+		expect(getTuneAdoptionsLocal().has('sheet-9-wxyz')).toBe(true);
+		expect(getAdoptedTunesLocal().map((s) => s.id)).toContain('sheet-9-wxyz');
+		expect(getAdoptedTuneAuthorsLocal()['sheet-9-wxyz']?.authorName).toBe('Dizzy');
+	});
+
+	it('treats a unique-violation insert as success', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow() },
+			onInsert: () => ({ error: { code: '23505', message: 'duplicate' } })
+		});
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz')).resolves.toBe(true);
+	});
+
+	it('records the adoption but skips the cache for an invalid payload', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: {
+				tunes: makeSheetRow({ title: '<script>alert(1)</script>' })
+			}
+		});
+		const ok = await adoptTune(sb as never, 'sheet-9-wxyz');
+		expect(ok).toBe(true);
+		expect(getTuneAdoptionsLocal().has('sheet-9-wxyz')).toBe(true);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+	});
+
+	it('strips the author pdfUrl from cached foreign payloads', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow({ pdf_url: 'author-1/sheet-9-wxyz.pdf' }) }
+		});
+		await adoptTune(sb as never, 'sheet-9-wxyz');
+		expect(getAdoptedTunesLocal()[0]?.pdfUrl).toBeUndefined();
+	});
+
+	it('fails without a session', async () => {
+		const sb = makeSupabaseMock({ user: null });
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz')).resolves.toBe(false);
+	});
+
+	it('refreshes a stale cached payload when the caches have diverged', async () => {
+		// A partially-failed return can leave the payload cache holding the
+		// sheet while the adoption set no longer does. Re-adopting fetches a
+		// FRESH validated payload — the cache must take it over the stale copy.
+		const staleSb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow({ title: 'Stale Title' }) }
+		});
+		await adoptTune(staleSb as never, 'sheet-9-wxyz');
+		// Diverge: drop the adoption while the payload cache keeps the sheet.
+		const { save } = await import('$lib/persistence/storage');
+		save('tune-adoptions', []);
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+		expect(getAdoptedTunesLocal()[0]?.title).toBe('Stale Title');
+
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow({ title: 'Fresh Title' }) }
+		});
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz')).resolves.toBe(true);
+		const payloads = getAdoptedTunesLocal();
+		expect(payloads).toHaveLength(1);
+		expect(payloads[0].title).toBe('Fresh Title');
+	});
+});
+
+describe('returnTune', () => {
+	it('removes the adoption, cached payload, and author on server success', async () => {
+		const adoptSb = makeSupabaseMock({
+			user: ME,
+			singleRows: {
+				tunes: makeSheetRow(),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			}
+		});
+		await adoptTune(adoptSb as never, 'sheet-9-wxyz');
+
+		const sb = makeSupabaseMock({ user: ME });
+		const ok = await returnTune(sb as never, 'sheet-9-wxyz');
+		expect(ok).toBe(true);
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+		expect(getAdoptedTuneAuthorsLocal()).toEqual({});
+	});
+
+	it('keeps local caches when the server delete fails', async () => {
+		const adoptSb = makeSupabaseMock({ user: ME, singleRows: { tunes: makeSheetRow() } });
+		await adoptTune(adoptSb as never, 'sheet-9-wxyz');
+
+		const sb = makeSupabaseMock({
+			user: ME,
+			onDelete: () => ({ error: new Error('offline') })
+		});
+		const ok = await returnTune(sb as never, 'sheet-9-wxyz');
+		expect(ok).toBe(false);
+		expect(getTuneAdoptionsLocal().has('sheet-9-wxyz')).toBe(true);
+	});
+});
+
+// ─── initTuneCommunityFromCloud ──────────────────────────────────
+
+describe('initTuneCommunityFromCloud', () => {
+	it('hydrates favorites, adoptions, payloads, and authors', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: {
+				tune_favorites: [{ tune_id: 'fav-1' }],
+				tune_adoptions: [{ tune_id: 'sheet-9-wxyz' }],
+				tunes: [makeSheetRow()],
+				public_tune_authors: [{ id: 'author-1', display_name: 'Dizzy', avatar_url: null }]
+			}
+		});
+		const ok = await initTuneCommunityFromCloud(sb as never);
+		expect(ok).toBe(true);
+		expect(getTuneFavoritesLocal().has('fav-1')).toBe(true);
+		expect(getTuneAdoptionsLocal().has('sheet-9-wxyz')).toBe(true);
+		expect(getAdoptedTunesLocal().map((s) => s.id)).toEqual(['sheet-9-wxyz']);
+		expect(getAdoptedTuneAuthorsLocal()['sheet-9-wxyz']?.authorName).toBe('Dizzy');
+	});
+
+	it('affirmatively clears caches when the cloud adoption set is empty', async () => {
+		// Seed stale local caches from a previous session.
+		const adoptSb = makeSupabaseMock({ user: ME, singleRows: { tunes: makeSheetRow() } });
+		await adoptTune(adoptSb as never, 'sheet-9-wxyz');
+
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: { tune_favorites: [], tune_adoptions: [] }
+		});
+		const ok = await initTuneCommunityFromCloud(sb as never);
+		expect(ok).toBe(true);
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+	});
+
+	it('returns false and prunes caches when the payload pull fails', async () => {
+		// Seed a stale adopted payload + author for an id the cloud no longer
+		// has in the adoption set.
+		const seedSb = makeSupabaseMock({
+			user: ME,
+			singleRows: {
+				tunes: makeSheetRow({ id: 'stale-1' }),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			}
+		});
+		await adoptTune(seedSb as never, 'stale-1');
+		expect(getAdoptedTunesLocal().some((s) => s.id === 'stale-1')).toBe(true);
+		expect(getAdoptedTuneAuthorsLocal()['stale-1']).toBeDefined();
+
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: {
+				tune_favorites: [],
+				tune_adoptions: [{ tune_id: 'kept' }, { tune_id: 'sheet-9-wxyz' }]
+			},
+			errors: { tunes: { message: 'boom' } }
+		});
+		const ok = await initTuneCommunityFromCloud(sb as never);
+		expect(ok).toBe(false);
+		// The adoption set is authoritative even when payloads fail.
+		expect(getTuneAdoptionsLocal().has('kept')).toBe(true);
+		// The payload/author caches are pruned to the authoritative set.
+		expect(getAdoptedTunesLocal().some((s) => s.id === 'stale-1')).toBe(false);
+		expect(getAdoptedTuneAuthorsLocal()['stale-1']).toBeUndefined();
+	});
+
+	it('returns false when the adoptions pull fails', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: { tune_favorites: [] },
+			errors: { tune_adoptions: { message: 'boom' } }
+		});
+		await expect(initTuneCommunityFromCloud(sb as never)).resolves.toBe(false);
+	});
+
+	it('returns false without a session', async () => {
+		const sb = makeSupabaseMock({ user: null });
+		await expect(initTuneCommunityFromCloud(sb as never)).resolves.toBe(false);
+	});
+});
+
+// ─── shape guard for the book-loader dependency ───────────────────
+
+describe('getAdoptedTunesLocal', () => {
+	it('returns Tune objects usable by the book loader', async () => {
+		const sb = makeSupabaseMock({ user: ME, singleRows: { tunes: makeSheetRow() } });
+		await adoptTune(sb as never, 'sheet-9-wxyz');
+		const sheets: Tune[] = getAdoptedTunesLocal();
+		expect(sheets[0].sections[0].harmony[0].chord.root).toBe('C');
+	});
+});

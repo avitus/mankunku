@@ -143,7 +143,7 @@
 			<div class="space-y-3">
 				<button
 					onclick={restoreData}
-					class="w-full rounded-lg bg-[var(--color-accent)] p-4 font-medium transition-opacity hover:opacity-90"
+					class="w-full rounded-lg bg-[var(--color-accent)] p-4 font-medium text-white transition-opacity hover:opacity-90"
 				>
 					Restore My Progress
 				</button>
@@ -190,7 +190,7 @@
 					<button
 						onclick={requestMic}
 						disabled={micStatus === 'requesting'}
-						class="w-full rounded-lg bg-[var(--color-accent)] p-4 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+						class="w-full rounded-lg bg-[var(--color-accent)] p-4 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
 					>
 						{micStatus === 'requesting' ? 'Requesting...' : 'Allow Microphone'}
 					</button>
@@ -228,7 +228,7 @@
 				<a
 					href="/ear-training"
 					onclick={finish}
-					class="block w-full rounded-lg bg-[var(--color-accent)] p-4 text-center font-medium transition-opacity hover:opacity-90"
+					class="block w-full rounded-lg bg-[var(--color-accent)] p-4 text-center font-medium text-white transition-opacity hover:opacity-90"
 				>
 					Start Practicing
 				</a>

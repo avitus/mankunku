@@ -83,7 +83,7 @@ describe('one-time namespace upgrade', () => {
 		// legacy keys and the old marker are gone
 		expect(store['mankunku:progress']).toBeUndefined();
 		expect(store['mankunku:__lastUserId']).toBeUndefined();
-		expect(store['mankunku:__schema']).toBe('2');
+		expect(store['mankunku:__schema']).toBe('3');
 		expect(store['mankunku:__active']).toBe(JSON.stringify('user-x'));
 	});
 
@@ -92,7 +92,7 @@ describe('one-time namespace upgrade', () => {
 		runNamespaceUpgradeIfNeeded();
 		// Anon stays at the bare legacy path — no move, backward compatible.
 		expect(store['mankunku:user-licks']).toBe(JSON.stringify([{ id: 'x' }]));
-		expect(store['mankunku:__schema']).toBe('2');
+		expect(store['mankunku:__schema']).toBe('3');
 	});
 
 	it('is idempotent once the schema is stamped', () => {

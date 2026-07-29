@@ -85,6 +85,15 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 		return new Response('Malformed envelope', { status: 400 });
 	}
 
+	// E2e test mode (set only by playwright.config.ts): accept the envelope but
+	// never forward it. E2e browser sessions must not pollute real telemetry,
+	// and once ingest rate-limits the flood the resulting 502s surface as
+	// console errors that fail unrelated e2e tests. Checked after validation so
+	// the allow-list behavior stays testable in either mode.
+	if (process.env.PLAYWRIGHT === '1') {
+		return new Response(null, { status: 200 });
+	}
+
 	try {
 		const upstream = await fetch(`https://${SENTRY_HOST}/api/${projectId}/envelope/`, {
 			method: 'POST',

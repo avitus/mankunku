@@ -76,13 +76,13 @@
 	<div class="flex gap-2">
 		<button
 			onclick={onrepeat}
-			class="flex-1 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium hover:bg-[var(--color-accent)] transition-colors"
+			class="flex-1 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium hover:bg-[var(--color-accent)] hover:text-white transition-colors"
 		>
 			Try Again
 		</button>
 		<button
 			onclick={onnext}
-			class="flex-1 rounded bg-[var(--color-accent)] px-3 py-2 text-sm font-medium hover:opacity-80 transition-opacity"
+			class="flex-1 rounded bg-[var(--color-accent)] px-3 py-2 text-sm font-medium text-white hover:opacity-80 transition-opacity"
 		>
 			Next Phrase
 		</button>

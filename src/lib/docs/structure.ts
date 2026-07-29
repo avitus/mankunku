@@ -67,7 +67,7 @@ export const DOC_TREE: DocSection[] = [
 			},
 			{
 				slug: 'architecture/phrase-system',
-				title: 'The Lick Library',
+				title: 'The Lick Catalog',
 				blurb: 'Where the licks come from, what the categories mean, and how transposition keeps them on your horn.'
 			}
 		]

@@ -31,17 +31,28 @@ const ROUTES: RouteCheck[] = [
 	{ path: '/ear-training' },
 	{ path: '/practice', finalPath: '/ear-training', notes: '308 redirect to /ear-training' },
 	{ path: '/lick-practice' },
-	{ path: '/library' },
-	{ path: '/community' },
-	{ path: '/record' },
-	{ path: '/entry' },
-	{ path: '/add-licks' },
+	{ path: '/licks' },
+	{ path: '/licks/community' },
+	{ path: '/licks/record' },
+	{ path: '/licks/editor' },
+	{ path: '/licks/add' },
+	{ path: '/tunes' },
+	{ path: '/tunes/community' },
+	{ path: '/tunes/editor' },
+	{ path: '/tunes/add' },
 	{ path: '/progress' },
 	{ path: '/settings' },
 	{ path: '/scales' },
 	{ path: '/diagnostics' },
 	{ path: '/docs' }
 ];
+
+/**
+ * The pre-rename URLs must be dead, not redirected — the app is unlaunched
+ * and the rename deliberately ships without redirect shims. A 404 here proves
+ * no stale route directory or accidental alias survived the restructure.
+ */
+const RETIRED_PATHS = ['/library', '/community', '/entry', '/record', '/add-licks', '/lead-sheets', '/add-lead-sheets'];
 
 test.describe('smoke: every route renders cleanly', () => {
 	test.beforeEach(async ({ page }) => {
@@ -70,6 +81,19 @@ test.describe('smoke: every route renders cleanly', () => {
 			if (route.expectText) {
 				await expect(page.getByText(route.expectText).first()).toBeVisible();
 			}
+		});
+	}
+
+	for (const path of RETIRED_PATHS) {
+		test(`retired route ${path} returns 404`, async ({ page }) => {
+			// request.get, not page.goto: rendering the 404 page would emit a
+			// "Failed to load resource" console error and trip the console
+			// fixture; the server status is all this test is about.
+			// maxRedirects: 0 asserts the INITIAL response — with redirects
+			// followed (the default), a redirect shim landing on a 404 page
+			// would still satisfy the status check.
+			const response = await page.request.get(path, { maxRedirects: 0 });
+			expect(response.status(), `${path} should be dead, not redirected`).toBe(404);
 		});
 	}
 });
