@@ -4,6 +4,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
+	import LickProgressChart from '$lib/components/licks/LickProgressChart.svelte';
 	import { getLickById, transposeLick } from '$lib/phrases/library-loader';
 	import {
 		lickPractice,
@@ -25,6 +26,7 @@
 		getProgressionTags,
 		toggleProgressionTag,
 		hasLickProgress,
+		getLickProgressHistory,
 		NEW_LICK_DEFAULT_TEMPO
 	} from '$lib/persistence/lick-practice-store';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
@@ -312,6 +314,15 @@
 		baseLick != null && hasLickProgress(lickPractice.progress, baseLick.id)
 	);
 
+	// Per-lick BPM / keys-unlocked time series for the progress graph. Re-derives
+	// on client-side nav between licks (page.params.id) and after cloud metadata
+	// hydrates — reading lickPractice.progress establishes that dependency, since
+	// hydrate merges the history blob into localStorage before writing progress.
+	const progressHistory = $derived.by(() => {
+		void lickPractice.progress;
+		return getLickProgressHistory(page.params.id ?? '');
+	});
+
 	function handleReset() {
 		if (!baseLick) return;
 		if (confirmingResetId !== baseLick.id) {
@@ -510,6 +521,16 @@
 
 		<!-- Phrase info -->
 		<PhraseInfo phrase={lick} />
+
+		<!-- Progress over time -->
+		{#if progressHistory.length > 0}
+			<section class="space-y-3">
+				<h2 class="font-display text-lg font-semibold">Your progress</h2>
+				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+					<LickProgressChart points={progressHistory} />
+				</div>
+			</section>
+		{/if}
 
 		<!-- Tags -->
 		{#if baseLick && baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered').length > 0}

@@ -172,10 +172,17 @@ describe('getProgressionsForCategory', () => {
 		expect(getProgressionsForCategory('user')).toEqual([]);
 	});
 
-	it('returns the full list for minor-chord (5 progressions)', () => {
+	it('returns the full list for minor-chord (6 progressions)', () => {
 		const got = getProgressionsForCategory('minor-chord');
 		expect(new Set(got)).toEqual(
-			new Set(['minor-vamp', 'ii-V-I-minor', 'ii-V-I-major-long', 'ii-V-I-minor-long', 'turnaround'])
+			new Set([
+				'minor-vamp',
+				'ii-V-I-minor',
+				'ii-V-I-major-long',
+				'ii-V-I-minor-long',
+				'turnaround',
+				'iii-VI-ii-V-I'
+			])
 		);
 	});
 
@@ -653,5 +660,35 @@ describe('getTransitionCadenceChords', () => {
 				expect(cadence[1].quality).toBe('7');
 			}
 		}
+	});
+});
+
+describe('iii-VI-ii-V-I progression', () => {
+	it('is registered as a 4-bar template', () => {
+		const t = PROGRESSION_TEMPLATES['iii-VI-ii-V-I'];
+		expect(t).toBeDefined();
+		expect(t.type).toBe('iii-VI-ii-V-I');
+		expect(t.bars).toBe(4);
+	});
+
+	it('spells iii-VI-ii-V-I in C (Em7 A7 Dm7 G7 Cmaj7)', () => {
+		const roots = PROGRESSION_TEMPLATES['iii-VI-ii-V-I'].harmony.map((h) => h.chord.root);
+		expect(roots).toEqual(['E', 'A', 'D', 'G', 'C']);
+		const qualities = PROGRESSION_TEMPLATES['iii-VI-ii-V-I'].harmony.map((h) => h.chord.quality);
+		expect(qualities).toEqual(['min7', '7', 'min7', '7', 'maj7']);
+	});
+
+	it('transposes every chord root to a target key', () => {
+		// In F (up 5 semitones): Am7 D7 Gm7 C7 Fmaj7
+		const transposed = transposeProgression(PROGRESSION_TEMPLATES['iii-VI-ii-V-I'].harmony, 'F');
+		expect(transposed.map((h) => h.chord.root)).toEqual(['A', 'D', 'G', 'C', 'F']);
+	});
+
+	it('declares compatible lick categories with alignment offsets', () => {
+		const cats = getCompatibleLickCategories('iii-VI-ii-V-I');
+		expect(cats).toContain('ii-V-I-major');
+		expect(cats).toContain('major-chord');
+		// I (maj7) lands on bar 2
+		expect(getLickAlignmentOffset('iii-VI-ii-V-I', 'major-chord')).toEqual([2, 1]);
 	});
 });

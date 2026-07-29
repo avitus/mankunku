@@ -11,7 +11,8 @@ function bundle(partial: Partial<LickMetaBundle['data']>, mergeMeta: LickMetaBun
 			practiceProgress: partial.practiceProgress ?? {},
 			tagOverrides: partial.tagOverrides ?? {},
 			categoryOverrides: partial.categoryOverrides ?? {},
-			unlockCounts: partial.unlockCounts ?? {}
+			unlockCounts: partial.unlockCounts ?? {},
+			progressHistory: partial.progressHistory ?? {}
 		},
 		mergeMeta
 	};
@@ -195,5 +196,54 @@ describe('mergeLickMetadata', () => {
 		const ba = mergeLickMetadata(b, a);
 		expect(ab.data.lickTags.x).toEqual(ba.data.lickTags.x);
 		expect(ab.data.unlockCounts.x).toEqual(ba.data.unlockCounts.x);
+	});
+});
+
+describe('mergeLickMetadata — progressHistory', () => {
+	it('unions per-lick history points from both sides, sorted by t', () => {
+		const local = bundle({ progressHistory: { a: [{ t: 100, bpm: 60, keys: 1 }] } });
+		const cloud = bundle({ progressHistory: { a: [{ t: 200, bpm: 65, keys: 2 }] } });
+		const merged = mergeLickMetadata(local, cloud);
+		expect(merged.data.progressHistory.a).toEqual([
+			{ t: 100, bpm: 60, keys: 1 },
+			{ t: 200, bpm: 65, keys: 2 }
+		]);
+	});
+
+	it('dedupes points sharing a timestamp (idempotent on replay)', () => {
+		const pt = { t: 100, bpm: 60, keys: 1 };
+		const local = bundle({ progressHistory: { a: [pt] } });
+		const cloud = bundle({ progressHistory: { a: [pt] } });
+		const merged = mergeLickMetadata(local, cloud);
+		expect(merged.data.progressHistory.a).toEqual([pt]);
+		// merging the result with a side again changes nothing (idempotent)
+		const again = mergeLickMetadata(merged, local);
+		expect(again.data.progressHistory.a).toEqual([pt]);
+	});
+
+	it('is commutative even when a timestamp collides (value tiebreak)', () => {
+		const local = bundle({ progressHistory: { a: [{ t: 100, bpm: 60, keys: 1 }] } });
+		const cloud = bundle({ progressHistory: { a: [{ t: 100, bpm: 80, keys: 3 }] } });
+		const ab = mergeLickMetadata(local, cloud).data.progressHistory.a;
+		const ba = mergeLickMetadata(cloud, local).data.progressHistory.a;
+		expect(ab).toEqual(ba);
+		// tiebreak keeps the higher-bpm sample deterministically
+		expect(ab).toEqual([{ t: 100, bpm: 80, keys: 3 }]);
+	});
+
+	it('keeps history for licks present on only one side', () => {
+		const local = bundle({ progressHistory: { a: [{ t: 1, bpm: 60, keys: 1 }] } });
+		const cloud = bundle({ progressHistory: { b: [{ t: 2, bpm: 70, keys: 2 }] } });
+		const merged = mergeLickMetadata(local, cloud);
+		expect(merged.data.progressHistory.a).toHaveLength(1);
+		expect(merged.data.progressHistory.b).toHaveLength(1);
+	});
+
+	it('caps a lick to the most recent 500 points', () => {
+		const many = Array.from({ length: 600 }, (_, i) => ({ t: i, bpm: 60, keys: 1 }));
+		const merged = mergeLickMetadata(bundle({ progressHistory: { a: many } }), bundle({}));
+		expect(merged.data.progressHistory.a).toHaveLength(500);
+		expect(merged.data.progressHistory.a[0].t).toBe(100); // oldest 100 dropped
+		expect(merged.data.progressHistory.a[499].t).toBe(599);
 	});
 });

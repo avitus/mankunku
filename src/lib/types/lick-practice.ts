@@ -10,6 +10,7 @@ export type ChordProgressionType =
 	| 'ii-V-I-major-long'
 	| 'ii-V-I-minor-long'
 	| 'turnaround'
+	| 'iii-VI-ii-V-I'
 	| 'blues';
 
 /**
@@ -88,6 +89,23 @@ export interface LickPracticeKeyProgress {
 
 /** Per-lick, per-key progress stored in localStorage */
 export type LickPracticeProgress = Record<string, Partial<Record<PitchClass, LickPracticeKeyProgress>>>;
+
+/**
+ * One sample in a lick's practice-progress time series, appended whenever a
+ * session bumps tempo or unlocks a key. Powers the per-lick BPM-over-time and
+ * keys-unlocked-over-time graphs on the library detail page.
+ */
+export interface LickProgressPoint {
+	/** Wall-clock timestamp (ms) of the sample. Also the per-lick dedupe key. */
+	t: number;
+	/** Session tempo (BPM) at this point. */
+	bpm: number;
+	/** Unlocked-key count (1-12) at this point. */
+	keys: number;
+}
+
+/** Per-lick append-only progress time series, keyed by phraseId. */
+export type LickProgressHistory = Record<string, LickProgressPoint[]>;
 
 export interface LickPracticePlanItem {
 	phraseId: string;

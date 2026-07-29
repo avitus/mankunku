@@ -2,6 +2,7 @@
 	import type { PitchClass } from '$lib/types/music';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { progressionColor } from '$lib/music/progression-display';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
 
@@ -27,6 +28,7 @@
 	}: Props = $props();
 
 	const progressionName = $derived(PROGRESSION_TEMPLATES[progressionType].shortName);
+	const progressionHue = $derived(progressionColor(progressionType));
 	const instrument = $derived(getInstrument());
 	const writtenKey = $derived(concertKeyToWritten(currentKey, instrument));
 </script>
@@ -40,7 +42,10 @@
 			<h2 class="truncate text-lg font-bold">{phraseName}</h2>
 		</div>
 		<div class="mt-0.5 flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-			<span class="rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs">
+			<span
+				class="rounded px-2 py-0.5 text-xs font-medium"
+				style="background: color-mix(in srgb, {progressionHue} 18%, transparent); color: {progressionHue};"
+			>
 				{progressionName}
 			</span>
 			{#if substitutionLabel}
