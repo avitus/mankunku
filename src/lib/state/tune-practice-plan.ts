@@ -162,8 +162,6 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	});
 }
 
-type RepeatMarkers = Pick<TuneSection, 'repeatStart' | 'repeatEnd' | 'ending'>;
-
 /**
  * Where the head ends inside an expanded playback form. THE JAZZ FORM RULE:
  * a repeat around the WHOLE tune outlines the form — head, then solo
@@ -172,37 +170,43 @@ type RepeatMarkers = Pick<TuneSection, 'repeatStart' | 'repeatEnd' | 'ending'>;
  * the form again with second ending", so the head is pass one (everything
  * before the second body begins) and the solo is pass two.
  *
- * The repeat must OUTLINE THE WHOLE FORM to count: a `repeatStart..repeatEnd`
- * span whose only trailing sections are `ending: 2` (the out). An internal
- * repeat with more form material after it (e.g. `|: A :| B A` in an AABA
- * chart) is an ordinary play-twice repeat, NOT a form outline — those charts
+ * Detection reads the EXPANDED section map (the same expansion the audio and
+ * chart use) — never the raw repeat markers, which imported charts express
+ * inconsistently. A whole-form outline is a repeat where, once the second
+ * pass begins (the first revisited section), the replayed body runs to the
+ * end with only new tail sections (a second ending / coda) after it. An
+ * INTERNAL repeat (e.g. `|: A :| B A` in an AABA chart) interleaves NEW form
+ * material with the replayed body — a new section followed by a replayed one
+ * — and is an ordinary play-twice repeat, not a form outline; those charts
  * head through the whole form and get an appended solo chorus instead.
  */
-export function headBarsForFlat(
-	flat: FlattenedTune,
-	sections: readonly RepeatMarkers[]
-): { headBars: number; formRepeats: boolean } {
+export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRepeats: boolean } {
 	const noRepeat = { headBars: flat.totalBars, formRepeats: false };
+	const sm = flat.sectionMap;
 
-	const startIdx = sections.findIndex((s) => s.repeatStart);
-	if (startIdx === -1) return noRepeat;
-	let endIdx = startIdx;
-	while (endIdx < sections.length && !sections[endIdx].repeatEnd) endIdx++;
-	if (endIdx >= sections.length) return noRepeat; // unbalanced — plays once
-	// A whole-form outline: nothing but the second ending follows the span.
-	for (let i = endIdx + 1; i < sections.length; i++) {
-		if (sections[i].ending !== 2) return noRepeat;
-	}
-	// Head = pass one: the bar where the second body pass begins (the first
-	// revisited section on the expanded timeline).
 	const seen = new Set<number>();
-	for (const entry of flat.sectionMap) {
-		if (seen.has(entry.sourceSection)) {
-			return { headBars: entry.barOffset, formRepeats: true };
+	let revisitIdx = -1;
+	for (let i = 0; i < sm.length; i++) {
+		if (seen.has(sm[i].sourceSection)) {
+			revisitIdx = i;
+			break;
 		}
-		seen.add(entry.sourceSection);
+		seen.add(sm[i].sourceSection);
 	}
-	return noRepeat; // repeat span but no second pass materialized
+	if (revisitIdx === -1) return noRepeat;
+
+	// From the second pass onward, a NEW section (never seen in pass one)
+	// followed later by a replayed one means new form material is sandwiched
+	// inside the repeat → internal repeat, not a whole-form outline.
+	let sawNew = false;
+	for (let i = revisitIdx; i < sm.length; i++) {
+		if (seen.has(sm[i].sourceSection)) {
+			if (sawNew) return noRepeat;
+		} else {
+			sawNew = true;
+		}
+	}
+	return { headBars: sm[revisitIdx].barOffset, formRepeats: true };
 }
 
 /**
@@ -217,7 +221,6 @@ export function headBarsForFlat(
  */
 export function buildSessionPhrase(args: {
 	flat: FlattenedTune;
-	sections: readonly RepeatMarkers[];
 	timeSignature: [number, number];
 	playHead: boolean;
 }): {
@@ -227,14 +230,14 @@ export function buildSessionPhrase(args: {
 	headBars: number;
 	duplicatedForm: boolean;
 } {
-	const { flat, sections, timeSignature, playHead } = args;
+	const { flat, timeSignature, playHead } = args;
 	const barDuration: Fraction = [timeSignature[0], timeSignature[1]];
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const harmony = flat.harmony.map((h) => ({ ...h, chord: { ...h.chord } }));
 	if (!playHead) {
 		return { notes: [], harmony, phraseBars: flat.totalBars, headBars: 0, duplicatedForm: false };
 	}
-	const { headBars, formRepeats } = headBarsForFlat(flat, sections);
+	const { headBars, formRepeats } = headBarsForFlat(flat);
 	if (formRepeats) {
 		// The head is pass one of the timeline; keep only its melody (a prefix
 		// of flat.notes — sections are emitted in ascending-offset order).

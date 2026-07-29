@@ -167,7 +167,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPrevi
 	const notationFlat = flattenTune(sheet);
 	const hasMelody = flat.notes.some((n) => n.pitch !== null);
 	const effectiveHead = playHead && hasMelody;
-	const { headBars, formRepeats } = headBarsForFlat(flat, sheet.sections);
+	const { headBars, formRepeats } = headBarsForFlat(flat);
 	const plan = buildSessionPlan({
 		flat,
 		notationFlat,
@@ -227,12 +227,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	const playHead = tunePractice.config.playHead && hasMelody;
 	const mode = tunePractice.config.mode;
 
-	const built = buildSessionPhrase({
-		flat,
-		sections: transposed.sections,
-		timeSignature: transposed.timeSignature,
-		playHead
-	});
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead });
 	const plan = buildSessionPlan({
 		flat,
 		notationFlat,

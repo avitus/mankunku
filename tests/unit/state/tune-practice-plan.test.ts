@@ -260,14 +260,7 @@ describe('buildSessionPlan — head chorus', () => {
 });
 
 describe('headBarsForFlat', () => {
-	// A whole-form repeat (mankunku shape): Intro, A(repeatStart),
-	// A-ending1(repeatEnd), A-ending2. Playback: Intro, A, e1, A, e2.
-	const wholeFormSections = [
-		{},
-		{ repeatStart: true },
-		{ repeatEnd: true, ending: 1 as const },
-		{ ending: 2 as const }
-	];
+	// A whole-form repeat (mankunku shape): Intro, A, A-ending1 | A, A-ending2.
 	const wholeFormFlat = mkFlat({
 		totalBars: 28,
 		sectionMap: [
@@ -280,10 +273,7 @@ describe('headBarsForFlat', () => {
 	});
 
 	it('splits head/solo at the second body pass of a whole-form repeat', () => {
-		expect(headBarsForFlat(wholeFormFlat, wholeFormSections)).toEqual({
-			headBars: 16,
-			formRepeats: true
-		});
+		expect(headBarsForFlat(wholeFormFlat)).toEqual({ headBars: 16, formRepeats: true });
 	});
 
 	it('a repeat-free chart heads through the whole form', () => {
@@ -294,27 +284,39 @@ describe('headBarsForFlat', () => {
 				{ sourceSection: 1, barOffset: 4 }
 			]
 		});
-		expect(headBarsForFlat(flat, [{}, {}])).toEqual({ headBars: 8, formRepeats: false });
+		expect(headBarsForFlat(flat)).toEqual({ headBars: 8, formRepeats: false });
 	});
 
-	it('an internal repeat with form material after it is NOT a form outline', () => {
-		// AABA written `|: A :| B A` — the repeat only wraps the first A, then B
-		// and a final A follow. Head must cover the whole form, no split.
-		const sections = [
-			{ repeatStart: true, repeatEnd: true }, // A (internal repeat)
-			{}, // B
-			{} // A out
-		];
+	it('detects a whole-form repeat with a trailing coda (no reliance on markers)', () => {
+		// Intro, A, A, Coda — the repeat wraps A only, Coda follows once. The
+		// old marker heuristic misread the coda and replayed the head (the
+		// head-twice bug); the section-map test handles it.
 		const flat = mkFlat({
-			totalBars: 12,
+			totalBars: 22,
 			sectionMap: [
 				{ sourceSection: 0, barOffset: 0 },
-				{ sourceSection: 0, barOffset: 4 }, // second A (the internal repeat)
-				{ sourceSection: 1, barOffset: 8 },
-				{ sourceSection: 2, barOffset: 10 }
+				{ sourceSection: 1, barOffset: 4 },
+				{ sourceSection: 1, barOffset: 12 },
+				{ sourceSection: 2, barOffset: 20 }
 			]
 		});
-		expect(headBarsForFlat(flat, sections)).toEqual({ headBars: 12, formRepeats: false });
+		expect(headBarsForFlat(flat)).toEqual({ headBars: 12, formRepeats: true });
+	});
+
+	it('an internal repeat with new material after it is NOT a form outline', () => {
+		// `|: A :| B A` -> A A B A. The replayed A(0) reappears AFTER new B(1),
+		// so new form material is sandwiched inside — an ordinary play-twice
+		// repeat, not a form outline. Head covers the whole form, no split.
+		const flat = mkFlat({
+			totalBars: 16,
+			sectionMap: [
+				{ sourceSection: 0, barOffset: 0 },
+				{ sourceSection: 0, barOffset: 4 },
+				{ sourceSection: 1, barOffset: 8 },
+				{ sourceSection: 0, barOffset: 12 }
+			]
+		});
+		expect(headBarsForFlat(flat)).toEqual({ headBars: 16, formRepeats: false });
 	});
 });
 
@@ -380,15 +382,8 @@ describe('buildSessionPhrase', () => {
 			notes: [NOTE],
 			harmony: [seg('C', 'maj7', [0, 1], [1, 1]), seg('G', '7', [1, 1], [1, 1])]
 		});
-	const noRepeat = [{}];
-
 	it('with a head (repeat-free): melody plays once, harmony covers head + practice chorus', () => {
-		const built = buildSessionPhrase({
-			flat: flat(),
-			sections: noRepeat,
-			timeSignature: [4, 4],
-			playHead: true
-		});
+		const built = buildSessionPhrase({ flat: flat(), timeSignature: [4, 4], playHead: true });
 		expect(built.notes).toHaveLength(1);
 		expect(built.notes[0].offset).toEqual([0, 1]);
 		expect(built.harmony).toHaveLength(4);
@@ -413,12 +408,7 @@ describe('buildSessionPhrase', () => {
 				{ sourceSection: 0, barOffset: 2 }
 			]
 		});
-		const built = buildSessionPhrase({
-			flat: f,
-			sections: [{ repeatStart: true, repeatEnd: true }],
-			timeSignature: [4, 4],
-			playHead: true
-		});
+		const built = buildSessionPhrase({ flat: f, timeSignature: [4, 4], playHead: true });
 		// Only the first-pass note survives; harmony is untouched (no append).
 		expect(built.notes.map((n) => n.pitch)).toEqual([60]);
 		expect(built.harmony).toHaveLength(2);
@@ -428,12 +418,7 @@ describe('buildSessionPhrase', () => {
 	});
 
 	it('without a head: no melody, one chorus of changes', () => {
-		const built = buildSessionPhrase({
-			flat: flat(),
-			sections: noRepeat,
-			timeSignature: [4, 4],
-			playHead: false
-		});
+		const built = buildSessionPhrase({ flat: flat(), timeSignature: [4, 4], playHead: false });
 		expect(built.notes).toHaveLength(0);
 		expect(built.harmony).toHaveLength(2);
 		expect(built.harmony[1].startOffset).toEqual([1, 1]);
@@ -445,12 +430,7 @@ describe('buildSessionPhrase', () => {
 			totalBars: 2,
 			harmony: [seg('C', 'maj7', [0, 1], [3, 2])]
 		});
-		const built = buildSessionPhrase({
-			flat: f,
-			sections: noRepeat,
-			timeSignature: [3, 4],
-			playHead: true
-		});
+		const built = buildSessionPhrase({ flat: f, timeSignature: [3, 4], playHead: true });
 		// 2 bars of 3/4 = [3,2] whole notes.
 		expect(built.harmony[1].startOffset).toEqual([3, 2]);
 	});
