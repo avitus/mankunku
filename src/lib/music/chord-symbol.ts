@@ -249,7 +249,14 @@ export function formatChordSymbol(cs: ChordSymbol): string {
 			break;
 	}
 
-	const alterations = cs.alterations.join('');
+	// Single alteration stays bare (C7b9); two or more use parentheses
+	// (C7(b9,#11)) so the lead-sheet form stays readable without post-process.
+	const alterations =
+		cs.alterations.length === 0
+			? ''
+			: cs.alterations.length === 1
+				? cs.alterations[0]
+				: `(${cs.alterations.join(',')})`;
 	const bass = cs.bass ? `/${cs.bass}` : '';
 	return `${cs.root}${core}${alterations}${bass}`;
 }

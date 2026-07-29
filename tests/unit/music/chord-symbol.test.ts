@@ -300,7 +300,8 @@ describe('formatChordSymbol', () => {
 		expect(roundTrip('CmMaj7')).toBe('C-Δ7');
 		expect(roundTrip('C+')).toBe('Caug');
 		expect(roundTrip('C6/9')).toBe('C69');
-		expect(roundTrip('C7(b9,#11)')).toBe('C7b9#11');
+		// Multi-alts keep parentheses for lead-sheet readability.
+		expect(roundTrip('C7(b9,#11)')).toBe('C7(b9,#11)');
 		expect(roundTrip('Csus')).toBe('Csus4');
 	});
 

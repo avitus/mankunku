@@ -38,6 +38,12 @@ export interface InsertionPoint {
 	/** Projection onto the notation timeline (chart markers). */
 	notationSegmentIndices: number[];
 	notationBarRange: { start: number; endExclusive: number };
+	/**
+	 * Notation-timeline span in whole-note units (half-open). Used to clip
+	 * chart bands to mid-bar boundaries so abutted progressions split a bar
+	 * instead of stacking full-bar washes.
+	 */
+	notationTimeRange: { start: number; end: number };
 	/** Groups repeat occurrences: one notation marker ↔ N playback windows. */
 	markerKey: string;
 	suggestions: LickSuggestion[];
@@ -140,6 +146,12 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 					endExclusive: Math.ceil(notationEnd / barWholeNotes - EPSILON)
 				}
 			: { start: det.startBar, endExclusive: det.endBarExclusive };
+		const notationTimeRange = Number.isFinite(notationStart)
+			? { start: notationStart, end: notationEnd }
+			: {
+					start: fractionToFloat(det.startOffset),
+					end: fractionToFloat(addFractions(det.startOffset, det.duration))
+				};
 
 		const { suggestions, uncategorized } = match(det);
 
@@ -153,6 +165,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			playbackBarRange: { start: det.startBar, endExclusive: det.endBarExclusive },
 			notationSegmentIndices,
 			notationBarRange,
+			notationTimeRange,
 			markerKey: [...notationSegmentIndices].sort((a, b) => a - b).join(','),
 			suggestions,
 			uncategorizedCount: uncategorized.length,

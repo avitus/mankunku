@@ -156,6 +156,8 @@ export interface SessionPreview {
 		id: string;
 		startBar: number;
 		endBarExclusive: number;
+		/** Whole-note span for mid-bar band clipping (see RangeMarker.timeRange). */
+		timeRange: { start: number; end: number };
 		label: string;
 		progressionType: ChordProgressionType;
 	}[];
@@ -198,6 +200,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPrevi
 			id: ip.markerKey,
 			startBar: ip.notationBarRange.start,
 			endBarExclusive: ip.notationBarRange.endExclusive,
+			timeRange: ip.notationTimeRange,
 			label: PROGRESSION_TEMPLATES[ip.progressionType].shortName,
 			progressionType: ip.progressionType
 		});

@@ -482,4 +482,76 @@ describe('selectNonOverlapping', () => {
 		const kept = selectNonOverlapping([shortBlues, longVamp]);
 		expect(kept.map((d) => d.type)).toEqual(['dominant-vamp']);
 	});
+
+	it('keeps mid-bar abutted progressions when segment sets are disjoint', () => {
+		// Body & Soul turnaround shape: two cadences meet mid-bar and share no
+		// harmony segments — both are legitimate sequential practice windows.
+		const mk = (over: Partial<DetectedProgression>): DetectedProgression => ({
+			type: 'ii-V-I-major',
+			slots: [],
+			segmentIndices: [0],
+			localKey: 'C',
+			tuneKeyDegree: { semitones: 0, degree: 1, accidental: null, label: '1' },
+			startOffset: [0, 1],
+			duration: [1, 1],
+			startBar: 0,
+			endBarExclusive: 1,
+			wrapsAround: false,
+			...over
+		});
+		const longerMinor = mk({
+			type: 'ii-V-I-minor',
+			segmentIndices: [9, 10, 11],
+			startOffset: [5, 1],
+			duration: [3, 2],
+			startBar: 5,
+			endBarExclusive: 7,
+			localKey: 'Bb'
+		});
+		const shorterMajor = mk({
+			type: 'ii-V-I-major',
+			segmentIndices: [12, 13, 14],
+			startOffset: [13, 2],
+			duration: [1, 1],
+			startBar: 6,
+			endBarExclusive: 8,
+			localKey: 'Db'
+		});
+		const kept = selectNonOverlapping([shorterMajor, longerMinor]);
+		expect(kept.map((d) => d.type).sort()).toEqual(['ii-V-I-major', 'ii-V-I-minor']);
+	});
+
+	it('keeps abutted progressions that only touch at a barline', () => {
+		const mk = (over: Partial<DetectedProgression>): DetectedProgression => ({
+			type: 'blues',
+			slots: [],
+			segmentIndices: [0],
+			localKey: 'C',
+			tuneKeyDegree: { semitones: 0, degree: 1, accidental: null, label: '1' },
+			startOffset: [0, 1],
+			duration: [1, 1],
+			startBar: 0,
+			endBarExclusive: 1,
+			wrapsAround: false,
+			...over
+		});
+		const first = mk({
+			type: 'ii-V-I-major',
+			segmentIndices: [0, 1, 2],
+			startBar: 0,
+			endBarExclusive: 2,
+			duration: [2, 1]
+		});
+		const second = mk({
+			type: 'ii-V-I-major',
+			segmentIndices: [3, 4, 5],
+			startOffset: [2, 1],
+			startBar: 2,
+			endBarExclusive: 4,
+			duration: [2, 1]
+		});
+		const kept = selectNonOverlapping([first, second]);
+		expect(kept.map((d) => d.startBar)).toEqual([0, 2]);
+	});
 });
+

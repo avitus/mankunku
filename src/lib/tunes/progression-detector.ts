@@ -220,8 +220,14 @@ export function detectProgressions(
  * of harmony is the better practice target), with shape specificity
  * (turnaround > long ii-V-I > short ii-V-I > blues > vamps) breaking duration
  * ties. Kept only when the segment set is disjoint from everything already
- * kept (segment-set disjointness stays correct for wrapped windows). Result
- * is re-sorted into chart order. Deterministic regardless of input order.
+ * kept (segment-set disjointness stays correct for wrapped windows).
+ *
+ * Mid-bar abutted cadences (Body & Soul: minor ii-V-I ending mid-bar, major
+ * ii-V-I starting the same half-bar) share no segments and are BOTH kept —
+ * their windows open sequentially. Chart bands clip to each progression's
+ * time span so the shared bar is split, not double-painted.
+ *
+ * Result is re-sorted into chart order. Deterministic regardless of input order.
  */
 export function selectNonOverlapping(
 	detections: readonly DetectedProgression[]

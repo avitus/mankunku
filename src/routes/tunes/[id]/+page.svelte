@@ -267,8 +267,8 @@
 			</div>
 		</div>
 
-		<!-- Notation: full multi-system chart with chord symbols -->
-		<NotationDisplay tune={sheet} instrument={getInstrument()} />
+		<!-- Notation: print-style multi-system chart (Real Book masthead + jazz chords) -->
+		<NotationDisplay tune={sheet} instrument={getInstrument()} variant="print" />
 
 		{#if baseSheet.tags.filter((t) => t !== 'practice' && t !== 'user-entered').length > 0}
 			<div class="flex flex-wrap gap-2">

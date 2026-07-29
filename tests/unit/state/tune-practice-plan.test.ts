@@ -336,6 +336,7 @@ describe('assignSuggestRotation', () => {
 		playbackBarRange: { start: 0, endExclusive: 2 },
 		notationSegmentIndices: [0],
 		notationBarRange: { start: 0, endExclusive: 2 },
+		notationTimeRange: { start: 0, end: 2 },
 		markerKey: id,
 		suggestions: lickIds.map((lid) => mkSuggestion(lid)),
 		uncategorizedCount: 0,

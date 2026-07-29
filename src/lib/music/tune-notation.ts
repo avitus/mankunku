@@ -1,10 +1,22 @@
 import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
-import { fractionToFloat, gcd } from './intervals';
+import { fractionToFloat } from './intervals';
 import { concertKeyToWritten, concertToWritten, transposePitchClass } from './transposition';
 import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from './chord-symbol';
+import { noteArticulationPrefix } from './articulation-abc';
 import { CHORD_DEFINITIONS } from './chords';
+import {
+	emptyMelodyBars,
+	slashBarAbc,
+	suggestBarsPerLine
+} from './chart-layout';
+import {
+	advanceEndingLayout,
+	initialEndingLayoutState,
+	placeEndingSection,
+	type EndingPlacement
+} from './ending-layout';
 import {
 	FLAT_KEYS,
 	KEY_SIG_ACCIDENTALS,
@@ -24,6 +36,34 @@ import {
 	type KeySigMap,
 	type PitchedNoteAnchor
 } from './notation';
+
+// Re-export layout helpers so call sites can share one module surface.
+export {
+	CHART_STAFF_WIDTH,
+	suggestBarsPerLine,
+	slashBarAbc,
+	emptyMelodyBars,
+	multiRestRuns
+} from './chart-layout';
+export {
+	placeEndingSection,
+	planEndingPlacements,
+	endingAlignDx
+} from './ending-layout';
+// multiRestRuns is exported for callers/tests; empty bars currently engrave
+// as beat-aligned slashes (jazz idiom). Collapsing them to ABC Z{n} multi-
+// rests is deferred — it fights bar anchors, system reflow, and playhead zones.
+
+/**
+ * Hint for post-render alignment: a stacked second ending should shift so its
+ * left edge lines up under the first ending (no pad bars in the ABC).
+ */
+export interface EndingAlignHint {
+	/** Absolute form bar where the first ending starts. */
+	firstStartAbsBar: number;
+	/** Absolute form bar where the second ending starts. */
+	secondStartAbsBar: number;
+}
 
 /**
  * ABC generation for tunes — full song forms with chord symbols,
@@ -143,28 +183,42 @@ export function tuneToAbcWithMap(
 	noteAnchors: PitchedNoteAnchor[];
 	barAnchors: BarAnchor[];
 	chordSlotAnchors: ChordSlotAnchor[];
+	/** Stacked [1]/[2] pairs that need post-render horizontal indent. */
+	endingAlignHints: EndingAlignHint[];
 } {
 	const defaultLength = options.defaultLength ?? [1, 8];
-	const barsPerLine = options.barsPerLine ?? 4;
+	const barsPerLine = options.barsPerLine ?? suggestBarsPerLine(sheet);
 
 	const displayKey = instrument ? concertKeyToWritten(sheet.key, instrument) : sheet.key;
 	const useFlats = FLAT_KEYS.includes(displayKey);
 	const keySigAccidentals: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
 
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
+	// Melody-silent bars engrave as beat-aligned rhythm slashes (jazz chart
+	// idiom) instead of whole rests; the chord voice uses invisible spacers
+	// there so rests and slashes never double-print.
+	const slashAbsBars = emptyMelodyBars(sheet);
 
 	const headerLines: string[] = [
 		`X:1`,
 		`T:${sheet.title}`,
 		...(sheet.composer ? [`C:${sheet.composer}`] : []),
+		// R: is abcjs's left-of-title "rhythm" field — style/feel on the masthead.
+		...(sheet.style ? [`R:${sheet.style}`] : []),
 		`M:${sheet.timeSignature[0]}/${sheet.timeSignature[1]}`,
 		`L:${defaultLength[0]}/${defaultLength[1]}`,
-		// Box the P: section labels so they read as form markers, not chords.
+		// Boxed rehearsal marks [A] [B] — standard lead-sheet / Real Book form
+		// so section letters never read as chord symbols.
 		`%%partsbox 1`,
-		// Two voices merged onto ONE staff: M carries the melody untouched;
-		// H is an invisible rhythm voice that positions every chord symbol at
-		// its exact beat (visible rests where the melody is silent), so a
-		// mid-bar chord never forces a melody note to split or stack.
+		// Measure numbers at the start of every system (abcjs: 0 = each line).
+		`%%measurenb 0`,
+		// Don't stretch short systems (esp. stacked [2] endings) to full width —
+		// empty space under a full-width volta reads as a layout bug.
+		`%%stretchlast 0`,
+		// Two voices merged onto ONE staff: M carries the melody (and the
+		// reader's rests / slashes / multi-rests); H is an invisible spacer
+		// voice that only positions chord symbols — never draws rests — so
+		// mid-bar chords never force a melody note to split or stack.
 		`%%score (M H)`,
 		`K:${displayKey}`,
 		`V:M`,
@@ -212,10 +266,18 @@ export function tuneToAbcWithMap(
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
 		const note = el.note;
 		if (note.pitch === null) {
-			// Invisible in the melody voice — the READER's rest renders from
-			// the chord voice at normal staff position (a second voice shifts
-			// first-voice rests off-center).
-			return `x${durationToAbc(duration, defaultLength)}`;
+			const bar = Math.floor(fractionToFloat(note.offset) / barDuration + 1e-9);
+			const absBar = sectionBaseBars + bar;
+			// Whole empty bar → beat-aligned jazz slashes in the melody voice.
+			if (
+				slashAbsBars.has(absBar) &&
+				Math.abs(fractionToFloat(duration) - barDuration) < 1e-9
+			) {
+				return slashBarAbc(sheet.timeSignature, defaultLength);
+			}
+			// Partial rest inside a bar that has melody: visible rest in M
+			// (single-voice placement — H no longer draws rests).
+			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
 		// Spelling priority: the user's explicit choice, then diatonic-to-the-
@@ -244,8 +306,9 @@ export function tuneToAbcWithMap(
 			: chordPref === 'sharp' ? false
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
+		const art = noteArticulationPrefix(note);
 		const tieSuffix = note.tied ? '-' : '';
-		return `${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
+		return `${art}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {
@@ -267,17 +330,19 @@ export function tuneToAbcWithMap(
 
 	let flattenedNoteBase = 0;
 	let previousLabel: string | null = null;
-	// Line-position tracking for chart-style ending layout: [1 flows inline
-	// after the body, and [2 opens a fresh line padded with invisible bars so
-	// its bracket sits directly below [1.
+	// Ending placement: [1] may flow inline; [2] always starts a fresh system
+	// with NO pad bars (alignment under [1] is post-render).
+	let endingState = initialEndingLayoutState();
 	let lineColumn = 0; // bars into the current line where this section starts
-	let prevEndColumn = 0; // column after the previous section's last bar
-	let endingOneColumn = 0; // column where the current [1 bracket started
+	const endingAlignHints: EndingAlignHint[] = [];
+	/** Absolute bar where the open [1] started (for align hints). */
+	let firstEndingAbsBar: number | null = null;
 
-	// ── Global chord/silence timeline (absolute whole-note offsets) ──────
-	// The chord voice is built per system line from these.
+	// ── Global chord timeline (absolute whole-note offsets) ──────────────
+	// The chord voice is built per system line from these. Display text is
+	// the flat compact form; hierarchical stacking is applied post-render
+	// (ABC quoted chords cannot carry newlines safely).
 	const chordEvents: { at: number; text: string }[] = [];
-	const soundSpans: { start: number; end: number }[] = [];
 	{
 		let base = 0;
 		for (const sec of sheet.sections) {
@@ -288,60 +353,45 @@ export function tuneToAbcWithMap(
 				if (existing >= 0) chordEvents[existing] = { at, text };
 				else chordEvents.push({ at, text });
 			}
-			for (const n of sec.notes) {
-				if (n.pitch === null) continue;
-				const start = base + fractionToFloat(n.offset);
-				soundSpans.push({ start, end: start + fractionToFloat(n.duration) });
-			}
 			base += sec.bars * barDuration;
 		}
 		chordEvents.sort((a, b) => a.at - b.at);
 	}
 
-	const padToken = (bars: number): string => {
-		const num = sheet.timeSignature[0] * bars;
-		const den = sheet.timeSignature[1];
-		const g = gcd(num, den);
-		return `x${durationToAbc([num / g, den / g], defaultLength)} `;
-	};
-
-	const isSounding = (t: number): boolean =>
-		soundSpans.some((sp) => t > sp.start - 1e-9 && t < sp.end + 1e-9);
-
 	/**
-	 * One chord-voice bar: x under melody, z where silent, cut at anchors.
-	 * Returns one token per segment (joined with ' ' by the caller for
-	 * byte-identity) plus the parallel per-segment slot metadata.
+	 * One chord-voice bar: ALWAYS invisible spacers (`x`) with optional chord
+	 * annotations. Visible rests live in M so single-voice placement is
+	 * correct and we no longer need a post-render rest-shift on voice H.
 	 */
 	function chordBar(barStartAbs: number): {
 		tokens: string[];
 		slots: { beat: number; chord: string | null }[];
 	} {
 		const be = barStartAbs + barDuration;
+		// Cut only at chord events (and bar edges). H is spacer-only, so
+		// melody sound-span boundaries no longer affect the chord voice —
+		// mid-bar chords still land on their beat via the event cuts.
 		const cuts = new Set<number>([barStartAbs, be]);
 		for (const c of chordEvents) if (c.at > barStartAbs + 1e-9 && c.at < be - 1e-9) cuts.add(c.at);
-		for (const sp of soundSpans) {
-			if (sp.start > barStartAbs + 1e-9 && sp.start < be - 1e-9) cuts.add(sp.start);
-			if (sp.end > barStartAbs + 1e-9 && sp.end < be - 1e-9) cuts.add(sp.end);
-		}
 		const points = [...cuts].sort((a, b) => a - b);
-		const segs: { chord: string | null; silent: boolean; from: number; to: number }[] = [];
+		const segs: { chord: string | null; from: number; to: number }[] = [];
 		for (let i = 0; i + 1 < points.length; i++) {
 			const [s0, s1] = [points[i], points[i + 1]];
 			const chord = chordEvents.find((c) => Math.abs(c.at - s0) < 1e-9)?.text ?? null;
-			const silent = !isSounding((s0 + s1) / 2);
 			const prev = segs[segs.length - 1];
-			if (prev && chord === null && prev.silent === silent) {
-				prev.to = s1; // merge cosmetic cuts (ties, chordless boundaries)
+			// Merge consecutive chordless spacers (no event on either side).
+			if (prev && chord === null && prev.chord === null) {
+				prev.to = s1;
 			} else {
-				segs.push({ chord, silent, from: s0, to: s1 });
+				segs.push({ chord, from: s0, to: s1 });
 			}
 		}
 		// A "beat" is a denominator-note; beat = whole-notes-into-bar × den.
 		const beatsPerWhole = sheet.timeSignature[1];
 		return {
 			tokens: segs.map(
-				(sg) => `${sg.chord ? `"${sg.chord}"` : ''}${sg.silent ? 'z' : 'x'}${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`
+				(sg) =>
+					`${sg.chord ? `"${sg.chord}"` : ''}x${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`
 			),
 			slots: segs.map((sg) => ({
 				beat: Math.round((sg.from - barStartAbs) * beatsPerWhole * 1e6) / 1e6,
@@ -352,7 +402,6 @@ export function tuneToAbcWithMap(
 
 	// ── Line management: each system emits a melody line + a chord line ──
 	let lineStartBar = 0; // absolute bar where the open line begins
-	let linePadBars = 0;
 	let lineOpen = false;
 	let sectionBaseBars = 0;
 
@@ -375,11 +424,10 @@ export function tuneToAbcWithMap(
 		return { sectionIdx: idx, bar: absBar - sectionBases[idx] };
 	}
 
-	function openLine(padBars: number, startBar: number): void {
+	function openLine(startBar: number): void {
 		tokens.push('[V:M]');
-		if (padBars > 0) tokens.push(padToken(padBars));
+		// Never emit musical pad bars — indent for stacked endings is SVG-side.
 		lineStartBar = startBar;
-		linePadBars = padBars;
 		lineOpen = true;
 	}
 
@@ -395,7 +443,6 @@ export function tuneToAbcWithMap(
 			return;
 		}
 		tokens.push('\n[V:H]');
-		if (linePadBars > 0) tokens.push(padToken(linePadBars));
 		// Push each segment token individually while interleaving the exact
 		// same ' ' (between segments), ' | ' (between bars) and trailing ' |'
 		// separators the join produced, so the emitted string is byte-identical
@@ -424,27 +471,26 @@ export function tuneToAbcWithMap(
 	for (let secIdx = 0; secIdx < sheet.sections.length; secIdx++) {
 		const sec = sheet.sections[secIdx];
 		const sectionEnd = sec.bars * barDuration;
+		const prevSec = secIdx > 0 ? sheet.sections[secIdx - 1] : null;
+		const placement: EndingPlacement = placeEndingSection(
+			{ bars: sec.bars, ending: sec.ending },
+			prevSec ? { bars: prevSec.bars, ending: prevSec.ending } : null,
+			endingState,
+			barsPerLine
+		);
+		lineColumn = placement.startColumn;
 
-		// ── Line placement (the previous section closed with its barline) ──
-		let startsNewLine = true;
-		let padBars = 0;
-		if (secIdx > 0) {
-			const prev = sheet.sections[secIdx - 1];
-			if (sec.ending === 2) {
-				padBars = endingOneColumn;
-				lineColumn = endingOneColumn;
-			} else if (sec.ending === 1 && prevEndColumn > 0 && prevEndColumn < barsPerLine) {
-				startsNewLine = false;
-				lineColumn = prevEndColumn;
-			} else {
-				lineColumn = 0;
-			}
-			if (sec.ending === 1 && prev.ending !== 1) endingOneColumn = lineColumn;
-		} else {
-			lineColumn = 0;
+		if (sec.ending === 1) {
+			firstEndingAbsBar = sectionBaseBars;
+		}
+		if (sec.ending === 2 && placement.alignUnderFirstEnding && firstEndingAbsBar !== null) {
+			endingAlignHints.push({
+				firstStartAbsBar: firstEndingAbsBar,
+				secondStartAbsBar: sectionBaseBars
+			});
 		}
 
-		if (startsNewLine) {
+		if (placement.startsNewLine) {
 			flushLine(sectionBaseBars);
 			// Section prelude: part label between systems. Blank labels (pickup
 			// bars, front matter) get no marker and don't disturb the
@@ -455,7 +501,7 @@ export function tuneToAbcWithMap(
 				}
 				previousLabel = sec.label;
 			}
-			openLine(padBars, sectionBaseBars);
+			openLine(sectionBaseBars);
 		} else {
 			tokens.push(' ');
 			if (sec.label.trim() !== '') previousLabel = sec.label;
@@ -516,7 +562,7 @@ export function tuneToAbcWithMap(
 					// the ABSOLUTE column, not the section-local bar.
 					if ((lineColumn + bar) % barsPerLine === 0) {
 						flushLine(sectionBaseBars + bar);
-						openLine(0, sectionBaseBars + bar);
+						openLine(sectionBaseBars + bar);
 					} else {
 						tokens.push(' ');
 					}
@@ -565,23 +611,36 @@ export function tuneToAbcWithMap(
 		}
 
 		// ── Section close: barline decoration ────────────────────────────
+		// abcjs only sets endEnding (volta right hook + close) on NON-thin
+		// barlines while inEnding. Intermediate bars stay ' |' (thin); the
+		// section closer must be thick/double/repeat so [1]/[2] close cleanly.
 		const isLast = secIdx === sheet.sections.length - 1;
 		const next = isLast ? null : sheet.sections[secIdx + 1];
-		if (sec.repeatEnd) tokens.push(' :|');
-		else if (isLast) tokens.push(' |]');
-		else if (next?.ending) tokens.push(' |');
-		else tokens.push(' ||');
+		if (sec.repeatEnd) {
+			// First ending typically ends the repeat back to the start.
+			tokens.push(' :|');
+		} else if (sec.ending === 2) {
+			// Second ending: always a non-thin closer so the volta gets its
+			// right hook and the staff shows a real final barline (not an
+			// open-ended bracket line). Final section uses thin-thick; else
+			// double bar into the next section.
+			tokens.push(isLast ? ' |]' : ' ||');
+		} else if (isLast) {
+			tokens.push(' |]');
+		} else if (next?.ending) {
+			// Approach into a first ending — thin bar is fine (ending starts next).
+			tokens.push(' |');
+		} else {
+			tokens.push(' ||');
+		}
 		closeBarSpan(tokens.length - 1); // the section's last bar closes here
 
-		prevEndColumn =
-			lineColumn === 0
-				? sec.bars % barsPerLine === 0
-					? barsPerLine
-					: sec.bars % barsPerLine
-				: // Wrapped-inline sections normalize too: a long first ending that
-					// broke onto later lines ends at its column WITHIN the last line
-					// (0 blocks inline flow just like barsPerLine does).
-					(lineColumn + sec.bars) % barsPerLine;
+		endingState = advanceEndingLayout(
+			{ bars: sec.bars, ending: sec.ending },
+			placement,
+			endingState,
+			barsPerLine
+		);
 		sectionBaseBars += sec.bars;
 	}
 	flushLine(sectionBaseBars);
@@ -623,7 +682,13 @@ export function tuneToAbcWithMap(
 		})
 	);
 
-	return { abc: headerStr + '\n' + tokens.join(''), noteAnchors, barAnchors, chordSlotAnchors };
+	return {
+		abc: headerStr + '\n' + tokens.join(''),
+		noteAnchors,
+		barAnchors,
+		chordSlotAnchors,
+		endingAlignHints
+	};
 }
 
 /** Generate an ABC string from a tune, discarding the click-anchor map. */

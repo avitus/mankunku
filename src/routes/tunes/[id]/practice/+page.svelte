@@ -128,6 +128,12 @@
 	let cursorIndex = $state<number | null>(null);
 	/** 0-based playback bar (negative during the count-in). */
 	let currentBar = $state(-1);
+	/**
+	 * Fractional 0-based playback bar from transport ticks (e.g. 3.42).
+	 * Drives continuous chart follow-scroll; integer `currentBar` stays for
+	 * playhead markers and insertion-band clearing.
+	 */
+	let playheadBarF = $state(-1);
 
 	// ── Setup-screen derived state ────────────────────────────────────────────
 	let selectedWrittenKey: PitchClass | null = $state(null);
@@ -217,6 +223,7 @@
 					id: ip.markerKey,
 					startBar: ip.notationBarRange.start,
 					endBarExclusive: ip.notationBarRange.endExclusive,
+					timeRange: ip.notationTimeRange,
 					status,
 					label,
 					color: progressionColor(ip.progressionType)
@@ -255,6 +262,32 @@
 			}
 		}
 		return result;
+	});
+
+	/**
+	 * Notation-space fractional bar for continuous follow-scroll. Mirrors the
+	 * integer playhead mapping (duplicated-form offset + sectionMap remap) but
+	 * preserves the within-bar fraction so the chart drifts every frame.
+	 */
+	const playheadBarFraction = $derived.by(() => {
+		if (!audioPlan) return null;
+		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running') return null;
+		const leadBars = audioPlan.leadBars;
+		const formBars = audioPlan.flat.totalBars;
+		let formBarF =
+			audioPlan.duplicatedForm && playheadBarF >= leadBars
+				? playheadBarF - leadBars
+				: playheadBarF;
+		if (formBarF < 0 || formBarF >= formBars) return null;
+		const floorBar = Math.floor(formBarF);
+		const frac = formBarF - floorBar;
+		const chartBar = notationBarForPlaybackBar(
+			audioPlan.flat.sectionMap,
+			audioPlan.sheet.sections,
+			floorBar
+		);
+		if (chartBar === null) return null;
+		return chartBar + frac;
 	});
 
 	const hitCount = $derived(
@@ -398,6 +431,7 @@
 		audioPlan = plan;
 		barTicksNR = plan.sheet.timeSignature[0] * ppqNR;
 		currentBar = -1;
+		playheadBarF = -1;
 		cursorIndex = null;
 		freestyleFloorSec = 0;
 		isSessionRunning = true;
@@ -586,7 +620,12 @@
 		stopBeatTracking();
 		const loop = () => {
 			if (toneModule && barTicksNR > 0) {
-				const bar = Math.floor((toneModule.getTransport().ticks - barTicksNR) / barTicksNR);
+				// Fractional bar from ticks (tempo-independent) — same discipline
+				// as lick-practice scrollFraction. Integer floor feeds markers;
+				// the fraction feeds continuous chart follow-scroll.
+				const formBarF = (toneModule.getTransport().ticks - barTicksNR) / barTicksNR;
+				playheadBarF = formBarF;
+				const bar = Math.floor(formBarF);
 				if (bar !== currentBar) currentBar = bar;
 			}
 			beatAnimFrame = requestAnimationFrame(loop);
@@ -925,6 +964,7 @@
 				{cursorIndex}
 				rangeMarkers={markers}
 				autoScrollPlayhead
+				{playheadBarFraction}
 			/>
 		{/if}
 	{:else}

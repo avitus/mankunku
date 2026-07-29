@@ -3,6 +3,7 @@ import { PITCH_CLASSES } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals';
 import { concertToWritten, concertKeyToWritten, transposePitchClass } from './transposition';
+import { noteArticulationPrefix } from './articulation-abc';
 
 /** Note letter names A–G */
 type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
@@ -575,8 +576,9 @@ export function phraseToAbcWithMap(
 			: chordPref === 'sharp' ? false
 			: useFlats;
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
+		const art = noteArticulationPrefix(note);
 		const tieSuffix = note.tied ? '-' : '';
-		return `${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
+		return `${art}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
 	// ABC header
