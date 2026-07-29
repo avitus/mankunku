@@ -32,6 +32,7 @@
 	import {
 		notationBarForPlaybackBar,
 		strictnessKnobs,
+		insertionMarkerCleared,
 		type TunePracticeMode,
 		type TunePracticeStrictness
 	} from '$lib/state/tune-practice-plan';
@@ -174,22 +175,37 @@
 	});
 
 	// ── Running-screen derived state ──────────────────────────────────────────
-	// Insertion bands with on-chart lick labels (gated by strictness), plus a
-	// moving current-bar playhead so the player never loses their place.
+	// Bars past an insertion's scoring window before its band clears off the chart.
+	const CLEAR_AFTER_PLAYED_BARS = 1;
+	// Insertion bands with on-chart lick labels (annotated ahead, cleared shortly
+	// after playing), plus a moving current-bar playhead to hold the player's place.
 	const markers = $derived.by<RangeMarker[]>(() => {
 		const leadBars = audioPlan?.leadBars ?? 0;
 		const byKey = new Map<string, RangeMarker>();
 		tunePractice.plan.forEach((ip, i) => {
 			const result = tunePractice.results[i];
+			// Clear a played insertion shortly after its window passes (~1 bar past
+			// the window's final bar) so the chart behind the playhead stays clean
+			// and the eye is drawn to what is still coming. A later repeat pass of
+			// the same chart position re-annotates as its own upcoming occurrence.
+			if (
+				insertionMarkerCleared({
+					played: !!result,
+					closeTick: ip.closeTick,
+					barTicks: barTicksNR,
+					currentBar,
+					clearAfterBars: CLEAR_AFTER_PLAYED_BARS
+				})
+			)
+				return;
+
 			let status: RangeMarker['status'] = 'upcoming';
 			if (result) status = result.grade !== null && result.grade !== 'try-again' ? 'hit' : 'missed';
 			if (tunePractice.windowOpen && tunePractice.currentIndex === i) status = 'active';
-			// Session bar the window opens on, mode-agnostic (derived from ticks).
-			const barsUntil = Math.floor((ip.openTick - barTicksNR) / barTicksNR) - currentBar;
-			const showName =
-				tunePractice.config.mode !== 'freestyle' &&
-				(knobs.cueLevel === 'full' ||
-					(knobs.cueLevel === 'reduced' && (status === 'active' || barsUntil <= 2)));
+			// Annotate as far in advance as possible: whenever the mode/strictness
+			// reveals names at all, label every still-relevant point (no short
+			// countdown window). Solo (cueLevel 'none') and freestyle stay unlabeled.
+			const showName = tunePractice.config.mode !== 'freestyle' && knobs.cueLevel !== 'none';
 			// When no lick meets the song's key/tempo requirements, the band still
 			// names its progression so the player knows what to blow over.
 			const label = showName
@@ -901,18 +917,15 @@
 		{/if}
 
 		{#if displayedSheet}
-			<!-- Bounded scroll region: the chart auto-scrolls to the current line
-			     (NotationDisplay scrolls its nearest scrollable ancestor) while the
-			     status/pick header above stays fixed. -->
-			<div class="max-h-[62vh] overflow-y-auto overscroll-contain rounded-lg">
-				<NotationDisplay
-					tune={displayedSheet}
-					instrument={getInstrument()}
-					{cursorIndex}
-					rangeMarkers={markers}
-					autoScrollPlayhead
-				/>
-			</div>
+			<!-- The chart follows the playhead by translating within its own clipped
+			     viewport (no scrollbar), so the status/pick header above stays put. -->
+			<NotationDisplay
+				tune={displayedSheet}
+				instrument={getInstrument()}
+				{cursorIndex}
+				rangeMarkers={markers}
+				autoScrollPlayhead
+			/>
 		{/if}
 	{:else}
 		<div class="flex flex-wrap items-center justify-between gap-3">

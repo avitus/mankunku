@@ -414,3 +414,24 @@ export function applyInsertionResult(
 		bestStreak: Math.max(tally.bestStreak, streak)
 	};
 }
+
+/**
+ * Whether a played insertion's chart band has aged out — cleared shortly after
+ * its scoring window passes so the chart behind the playhead stays clean.
+ *
+ * `closeTick`/`barTicks` are absolute session ticks (they share the one-bar
+ * count-in offset), so `closeBar` and `currentBar` land in the same real-bar
+ * space. Unplayed points never clear; a later repeat pass of the same chart
+ * position re-annotates through its own (still-upcoming) occurrence.
+ */
+export function insertionMarkerCleared(args: {
+	played: boolean;
+	closeTick: number;
+	barTicks: number;
+	currentBar: number;
+	clearAfterBars: number;
+}): boolean {
+	if (!args.played || args.barTicks <= 0) return false;
+	const closeBar = Math.floor((args.closeTick - args.barTicks) / args.barTicks);
+	return args.currentBar - closeBar >= args.clearAfterBars;
+}

@@ -122,6 +122,10 @@
 	}: Props = $props();
 
 	let containerEl = $state<HTMLDivElement | undefined>(undefined);
+	/** Clipped viewport that the chart translates within when following playback. */
+	let viewportEl = $state<HTMLDivElement | undefined>(undefined);
+	/** Playback-follow vertical offset (px) applied to the chart; 0 = top. */
+	let followOffsetPx = $state(0);
 	let abcjs = $state<typeof import('abcjs') | null>(null);
 
 	// ── Inline chord editor state ────────────────────────────────────────────
@@ -150,9 +154,6 @@
 	let lastNoteAnchors: PitchedNoteAnchor[] = [];
 	let lastBarZones: ReturnType<typeof barZones> = [];
 	let prevCursorEl: SVGGraphicsElement | null = null;
-	// Auto-scroll bookkeeping: the system the playhead was last scrolled to, so
-	// the chart advances line-by-line (not on every bar within a line).
-	let lastScrolledSystem = -1;
 
 	/** Absolute-notation-bar start of each section (for marker/scroll mapping). */
 	function sectionBarBases(sheet: Tune): number[] {
@@ -229,7 +230,6 @@
 		lastVisualObj = vo;
 		lastNoteAnchors = noteAnchors;
 		prevCursorEl = null;
-		lastScrolledSystem = -1;
 		untrack(() => (renderVersion += 1));
 	});
 
@@ -249,26 +249,44 @@
 		}
 	});
 
-	// Auto-scroll the current system into view as the playhead advances, so a
-	// player following a running session never loses the current bar off-screen.
-	// Scrolls the nearest scrollable ancestor (a bounded container when the
-	// caller provides one, else the window). Fires only when the playhead
-	// crosses to a new system — advancing within a line does not re-scroll.
+	// Playback-follow scroll (teleprompter-style): translate the chart so the
+	// current system rides a fixed reading line near the top of a clipped
+	// viewport. No native scrollbar, and it drifts smoothly (CSS transition) as
+	// the playhead crosses into a new line. Mirrors the lick-practice
+	// UpcomingKeysDisplay transform model rather than scrollIntoView, which is
+	// unreliable when invoked on abcjs's SVG <g> system wrappers.
 	$effect(() => {
 		if (!autoScrollPlayhead) return;
 		const markers = rangeMarkers;
 		void renderVersion;
 		const sheet = tune;
 		const ph = markers?.find((m) => m.status === 'playhead');
-		if (!ph || !sheet || systemBands.length === 0 || lastBarZones.length === 0) {
-			lastScrolledSystem = -1;
+		if (
+			!ph ||
+			!sheet ||
+			!lastViewBox ||
+			!containerEl ||
+			!viewportEl ||
+			systemBands.length === 0 ||
+			lastBarZones.length === 0
+		) {
+			followOffsetPx = 0;
 			return;
 		}
 		const bases = sectionBarBases(sheet);
 		const zone = lastBarZones.find((z) => bases[z.sectionIdx] + z.bar === ph.startBar);
-		if (!zone || zone.systemIdx === lastScrolledSystem) return;
-		lastScrolledSystem = zone.systemIdx;
-		systemBands[zone.systemIdx]?.wrapper.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		const band = zone ? systemBands[zone.systemIdx] : undefined;
+		const svg = containerEl.querySelector('svg');
+		if (!band || !svg) return;
+		// systemBands geometry is SVG user-space (getBBox); the SVG is width:100%
+		// so it scales uniformly — convert the system's top to rendered pixels.
+		const READING_LINE = 0.28; // current line sits ~28% down the viewport
+		const contentPx = svg.getBoundingClientRect().height;
+		const scale = contentPx / lastViewBox.height;
+		const viewportPx = viewportEl.clientHeight;
+		const maxScroll = Math.max(0, contentPx - viewportPx);
+		const target = Math.min(maxScroll, Math.max(0, band.top * scale - viewportPx * READING_LINE));
+		followOffsetPx = -target;
 	});
 
 	// Insertion-point range bands — a handful of overlay rects per status
@@ -752,7 +770,13 @@
 	{/if}
 	{#if phrase || tune}
 		<div class="relative">
-			<div bind:this={containerEl} class="abcjs-container"></div>
+			<div bind:this={viewportEl} class="chart-scroll-viewport" class:following={autoScrollPlayhead}>
+				<div
+					bind:this={containerEl}
+					class="abcjs-container"
+					style={autoScrollPlayhead ? `transform: translateY(${followOffsetPx}px)` : undefined}
+				></div>
+			</div>
 			{#if chordEdit && overlayBox}
 				<input
 					bind:this={chordInputEl}
@@ -781,6 +805,22 @@
 	.notation-container :global(svg) {
 		width: 100%;
 		max-width: 100%;
+	}
+	/* Playback-follow viewport: only clips (and enables the transform drift)
+	   while following a running session — no scrollbar. Idle, it is inert so the
+	   chart lays out and the inline chord editor overlays exactly as before. */
+	.chart-scroll-viewport.following {
+		max-height: 60vh;
+		overflow: hidden;
+	}
+	.chart-scroll-viewport.following .abcjs-container {
+		transition: transform 480ms cubic-bezier(0.33, 1, 0.68, 1);
+		will-change: transform;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.chart-scroll-viewport.following .abcjs-container {
+			transition: none;
+		}
 	}
 	/* Style abcjs SVG for dark mode (hit zones + markers stay strokeless) */
 	.notation-container :global(svg path),

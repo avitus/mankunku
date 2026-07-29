@@ -8,6 +8,7 @@ import {
 	buildSessionPhrase,
 	buildSessionPlan,
 	headBarsForFlat,
+	insertionMarkerCleared,
 	notationBarForPlaybackBar,
 	type BuildPlanDeps,
 	type InsertionPoint
@@ -458,5 +459,36 @@ describe('notationBarForPlaybackBar', () => {
 	it('returns null outside the form', () => {
 		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, -1)).toBeNull();
 		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, 4)).toBeNull();
+	});
+});
+
+describe('insertionMarkerCleared', () => {
+	// 4/4 at ppq 480 → 1920 ticks/bar; one-bar count-in shifts real bar 0 to
+	// tick 1920. A window closing at tick 3840 lands on real bar 1.
+	const BAR = 1920;
+	const base = { closeTick: 2 * BAR, barTicks: BAR, clearAfterBars: 1 };
+
+	it('never clears an insertion that has not been played', () => {
+		expect(
+			insertionMarkerCleared({ ...base, played: false, currentBar: 100 })
+		).toBe(false);
+	});
+
+	it('keeps a played band until the playhead passes the clear lag', () => {
+		// closeBar = floor((3840 - 1920) / 1920) = 1.
+		expect(insertionMarkerCleared({ ...base, played: true, currentBar: 1 })).toBe(false);
+		expect(insertionMarkerCleared({ ...base, played: true, currentBar: 2 })).toBe(true);
+	});
+
+	it('honours a larger clear lag', () => {
+		const lag2 = { ...base, clearAfterBars: 2, played: true };
+		expect(insertionMarkerCleared({ ...lag2, currentBar: 2 })).toBe(false);
+		expect(insertionMarkerCleared({ ...lag2, currentBar: 3 })).toBe(true);
+	});
+
+	it('never clears when bar length is unknown (avoids a divide-by-zero flash)', () => {
+		expect(
+			insertionMarkerCleared({ played: true, closeTick: 0, barTicks: 0, currentBar: 50, clearAfterBars: 1 })
+		).toBe(false);
 	});
 });
