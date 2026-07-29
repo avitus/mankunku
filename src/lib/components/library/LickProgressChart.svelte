@@ -9,7 +9,8 @@
 
 	const sorted = $derived([...points].sort((a, b) => a.t - b.t));
 
-	// Shared SVG geometry (two stacked panels share the same x-axis by index).
+	// Shared SVG geometry (two stacked panels share the same x-axis, scaled by
+	// real elapsed time so a months-long gap reads wider than a same-day one).
 	const W = 400;
 	const H = 84;
 	const PAD_L = 26;
@@ -19,9 +20,14 @@
 	const chartW = W - PAD_L - PAD_R;
 	const chartH = H - PAD_T - PAD_B;
 
-	function xAt(i: number, n: number): number {
-		const step = n > 1 ? chartW / (n - 1) : 0;
-		return PAD_L + i * step;
+	const firstT = $derived(sorted[0]?.t ?? 0);
+	const lastT = $derived(sorted[sorted.length - 1]?.t ?? firstT);
+
+	// X position from a sample's timestamp within [firstT, lastT]. A zero span
+	// (single point or all-same-time) pins to the left edge.
+	function xAt(t: number): number {
+		const span = lastT - firstT;
+		return PAD_L + (span > 0 ? ((t - firstT) / span) * chartW : 0);
 	}
 
 	// ── BPM panel — auto-scaled with a padded, 10-BPM-snapped range so a flat
@@ -38,7 +44,7 @@
 		return PAD_T + chartH - ((v - bpmLo) / (bpmHi - bpmLo)) * chartH;
 	}
 	const bpmLine = $derived(
-		sorted.map((p, i) => `${xAt(i, sorted.length)},${bpmY(p.bpm)}`).join(' ')
+		sorted.map((p) => `${xAt(p.t)},${bpmY(p.bpm)}`).join(' ')
 	);
 
 	// ── Keys-unlocked panel — fixed 0–12 axis, drawn as a step line (the count
@@ -50,7 +56,7 @@
 	const keysStep = $derived.by(() => {
 		const pts: string[] = [];
 		sorted.forEach((p, i) => {
-			const x = xAt(i, sorted.length);
+			const x = xAt(p.t);
 			if (i > 0) pts.push(`${x},${keysY(sorted[i - 1].keys)}`); // hold, then step
 			pts.push(`${x},${keysY(p.keys)}`);
 		});
