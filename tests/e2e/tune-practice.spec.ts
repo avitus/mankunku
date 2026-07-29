@@ -42,10 +42,14 @@ test.describe('tune practice setup', () => {
 		await page.goto('/tunes/ls-mankunku-blues/practice');
 		// With the default head-first setting, only the SOLO pass of the
 		// whole-form repeat is practiceable (the jazz form rule): 3 blues bars +
-		// 1 short ii-V-I + 1 turnaround.
-		await expect(page.getByText(/5 insertion points/i)).toBeVisible();
-		await expect(page.getByText(/Short ii-V-I \(Maj\)/i)).toBeVisible();
-		await expect(page.getByText(/Turnaround/i)).toBeVisible();
+		// 1 short ii-V-I + 1 turnaround. Scope to the summary paragraph — the same
+		// progression names also render as on-chart marker labels (short ones like
+		// "Turnaround" un-truncated), so a bare getByText would match twice.
+		const summary = page.locator('p', { hasText: /insertion point/i });
+		await expect(summary).toContainText('5 insertion points');
+		await expect(summary).toContainText('Short ii-V-I (Maj)');
+		await expect(summary).toContainText('Turnaround');
+		await expect(summary).toContainText('Blues');
 	});
 
 	test('mode selector and the head toggle', async ({

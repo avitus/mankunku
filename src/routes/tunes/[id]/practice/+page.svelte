@@ -48,6 +48,7 @@
 	import { GRADE_LABELS } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { progressionColor } from '$lib/music/progression-display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { PlaybackOptions } from '$lib/types/audio';
@@ -153,7 +154,11 @@
 		(baseSheet?.sections ?? []).some((sec) => sec.notes.some((n) => n.pitch !== null))
 	);
 	const previewMarkers = $derived<RangeMarker[]>(
-		(preview?.markers ?? []).map((m) => ({ ...m, status: 'upcoming' as const }))
+		(preview?.markers ?? []).map((m) => ({
+			...m,
+			status: 'upcoming' as const,
+			color: progressionColor(m.progressionType)
+		}))
 	);
 
 	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness, settings.bleedFilterEnabled));
@@ -197,7 +202,8 @@
 					startBar: ip.notationBarRange.start,
 					endBarExclusive: ip.notationBarRange.endExclusive,
 					status,
-					label
+					label,
+					color: progressionColor(ip.progressionType)
 				});
 			} else {
 				if (status === 'active' || (existing.status === 'upcoming' && status !== 'upcoming')) {

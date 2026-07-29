@@ -26,10 +26,10 @@ function byType(dets: DetectedProgression[], type: ChordProgressionType): Detect
 }
 
 describe('progression shapes mirror PROGRESSION_TEMPLATES', () => {
-	it('covers all nine progression types exactly once', () => {
+	it('covers all ten progression types exactly once', () => {
 		const types = PROGRESSION_SHAPES.map((s) => s.type);
-		expect(new Set(types).size).toBe(9);
-		expect(types.length).toBe(9);
+		expect(new Set(types).size).toBe(10);
+		expect(types.length).toBe(10);
 	});
 
 	it('every slot matches its template segment (offset, root interval, quality membership)', () => {
@@ -155,6 +155,36 @@ describe('detectProgressions — synthetic harmony', () => {
 		expect(dets[0].localKey).toBe('G');
 		expect(dets[0].tuneKeyDegree.label).toBe('1');
 		expect(dets[0].segmentIndices).toEqual([0, 1, 2]);
+	});
+
+	it('detects the extended iii-VI-ii-V-I turnaround and favors it over the embedded ii-V-I', () => {
+		const tune = sheet({
+			key: 'C',
+			sections: [
+				section({
+					bars: 4,
+					harmony: [
+						seg('E', 'min7', [0, 1], [1, 2]), // iii
+						seg('A', '7', [1, 2], [1, 2]), // VI7 (secondary dominant, not a diatonic vi)
+						seg('D', 'min7', [1, 1], [1, 2]), // ii
+						seg('G', '7', [3, 2], [1, 2]), // V7
+						seg('C', 'maj7', [2, 1], [2, 1]) // I
+					]
+				})
+			]
+		});
+		const dets = byType(detect(tune), 'iii-VI-ii-V-I');
+		expect(dets).toHaveLength(1);
+		expect(dets[0].localKey).toBe('C');
+		expect(dets[0].tuneKeyDegree.label).toBe('1');
+		expect(dets[0].segmentIndices).toEqual([0, 1, 2, 3, 4]);
+		expect(dets[0].startBar).toBe(0);
+		expect(dets[0].endBarExclusive).toBe(4);
+		// The embedded Dm7-G7-Cmaj7 ii-V-I is detected too, but the longer,
+		// more specific shape wins the non-overlap selection.
+		expect(byType(detect(tune), 'ii-V-I-major')).toHaveLength(1);
+		const survivors = selectNonOverlapping(detect(tune));
+		expect(survivors.map((d) => d.type)).toEqual(['iii-VI-ii-V-I']);
 	});
 
 	it('measures slot durations in bars of the tune meter (3/4 long ii-V-I)', () => {

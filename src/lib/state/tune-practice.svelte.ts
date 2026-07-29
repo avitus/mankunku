@@ -152,7 +152,13 @@ export interface SessionPreview {
 	byType: Partial<Record<ChordProgressionType, number>>;
 	uncategorizedCount: number;
 	/** Notation-order bar ranges + progression labels for setup-screen chart markers. */
-	markers: { id: string; startBar: number; endBarExclusive: number; label: string }[];
+	markers: {
+		id: string;
+		startBar: number;
+		endBarExclusive: number;
+		label: string;
+		progressionType: ChordProgressionType;
+	}[];
 }
 
 /**
@@ -192,7 +198,8 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPrevi
 			id: ip.markerKey,
 			startBar: ip.notationBarRange.start,
 			endBarExclusive: ip.notationBarRange.endExclusive,
-			label: PROGRESSION_TEMPLATES[ip.progressionType].shortName
+			label: PROGRESSION_TEMPLATES[ip.progressionType].shortName,
+			progressionType: ip.progressionType
 		});
 	}
 

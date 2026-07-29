@@ -58,6 +58,10 @@ const ZERO: Fraction = [0, 1];
 
 /** Selection priority: most specific shapes first. Shared with `selectNonOverlapping`. */
 const SHAPE_PRIORITY: Record<ChordProgressionType, number> = {
+	// Five-chord iii-VI-ii-V-I is the most specific shape: it wins ties over the
+	// turnaround and the ii-V-I it embeds. Duration already favours it (4 bars vs
+	// the embedded cadence's ~1½), so this only settles equal-length overlaps.
+	'iii-VI-ii-V-I': 0,
 	turnaround: 0,
 	'ii-V-I-major-long': 1,
 	'ii-V-I-minor-long': 1,

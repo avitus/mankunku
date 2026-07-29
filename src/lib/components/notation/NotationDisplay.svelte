@@ -41,6 +41,13 @@
 		status: 'upcoming' | 'active' | 'hit' | 'missed' | 'playhead';
 		/** Text drawn inside the band below the staff (e.g. the lick's name). */
 		label?: string;
+		/**
+		 * Progression identity colour (a CSS colour, e.g. a `var(--prog-*)` ref).
+		 * When set it tints the band + label to the matched progression's hue for
+		 * `upcoming`/`active` states; `hit`/`missed` keep their semantic outcome
+		 * colours (green/red), and the playhead is never coloured this way.
+		 */
+		color?: string;
 	}
 
 	/** Visual treatment for the current-bar playhead marker. */
@@ -292,6 +299,12 @@
 				}
 			}
 			let labelPlaced = false;
+			// Progression hue overrides the neutral band/label fill while a lick is
+			// anticipated or live; scoring states keep their green/red outcome fill.
+			const bandTint =
+				marker.color && (marker.status === 'upcoming' || marker.status === 'active')
+					? marker.color
+					: null;
 			for (const systemIdx of [...runs.keys()].sort((a, b) => a - b)) {
 				const run = runs.get(systemIdx)!;
 				const band = systemBands[systemIdx];
@@ -313,6 +326,9 @@
 				rect.setAttribute('rx', '4');
 				rect.setAttribute('class', `range-marker marker-${marker.status}`);
 				rect.setAttribute('data-marker-id', marker.id);
+				// Inline fill beats the (non-important) per-status CSS fill; the
+				// per-status fill-opacity stays, so intensity still tracks status.
+				if (bandTint) rect.style.fill = bandTint;
 				band.wrapper.insertBefore(rect, band.wrapper.firstChild);
 
 				// Lick/progression name inside the band, below the staff — on the
@@ -335,6 +351,9 @@
 					el.setAttribute('font-size', fontSize.toFixed(2));
 					el.setAttribute('class', `range-marker range-marker-label marker-label-${marker.status}`);
 					el.setAttribute('data-marker-id', marker.id);
+					// The per-status label CSS fill is `!important`, so the tint must be
+					// too in order to win.
+					if (bandTint) el.style.setProperty('fill', bandTint, 'important');
 					el.textContent = text;
 					band.wrapper.appendChild(el);
 				}

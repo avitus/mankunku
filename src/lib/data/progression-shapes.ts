@@ -129,6 +129,22 @@ export const PROGRESSION_SHAPES: readonly ProgressionShape[] = [
 		]
 	},
 	{
+		// iii-VI-ii-V-I: the extended turnaround that opens on the iii chord and
+		// walks iii → VI7 → ii → V7 → I. Slots stay in template order (Em7 A7 Dm7
+		// G7 Cmaj7 relative to C) so `templateOffset` lines up with
+		// `PROGRESSION_TEMPLATES['iii-VI-ii-V-I']`. The four leading chords are the
+		// fast half-bar approach; the tonic is the arrival (tonicSlot 4).
+		type: 'iii-VI-ii-V-I',
+		tonicSlot: 4,
+		slots: [
+			{ rootOffset: 4, qualities: ['min7'], maxBars: 1, templateOffset: [0, 1] },
+			{ rootOffset: 9, qualities: DOMINANT_QUALITIES, maxBars: 1, templateOffset: [1, 2] },
+			{ rootOffset: 2, qualities: ['min7'], maxBars: 1, templateOffset: [1, 1] },
+			{ rootOffset: 7, qualities: DOMINANT_QUALITIES, maxBars: 1, templateOffset: [3, 2] },
+			{ rootOffset: 0, qualities: MAJOR_TONIC_QUALITIES, minBars: 0.5, templateOffset: [2, 1] }
+		]
+	},
+	{
 		type: 'turnaround',
 		tonicSlot: 0,
 		slots: [
