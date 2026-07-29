@@ -72,6 +72,12 @@
 		rangeMarkers?: RangeMarker[];
 		/** Visual treatment for `status: 'playhead'` markers. Default 'under-bar'. */
 		playheadStyle?: PlayheadStyle;
+		/**
+		 * Auto-scroll the current playhead's system into view (its nearest
+		 * scrollable ancestor) as the playhead advances line to line. Off by
+		 * default so multi-chart pages don't fight over the window scroll.
+		 */
+		autoScrollPlayhead?: boolean;
 		/** Fires when the user clicks a pitched note. Receives the source-array index. */
 		onSelect?: (sourceIndex: number) => void;
 		/**
@@ -101,6 +107,7 @@
 		cursorIndex = null,
 		rangeMarkers,
 		playheadStyle = 'under-bar',
+		autoScrollPlayhead = false,
 		onSelect,
 		onBarClick,
 		chordEditor,
@@ -136,6 +143,20 @@
 	let lastNoteAnchors: PitchedNoteAnchor[] = [];
 	let lastBarZones: ReturnType<typeof barZones> = [];
 	let prevCursorEl: SVGGraphicsElement | null = null;
+	// Auto-scroll bookkeeping: the system the playhead was last scrolled to, so
+	// the chart advances line-by-line (not on every bar within a line).
+	let lastScrolledSystem = -1;
+
+	/** Absolute-notation-bar start of each section (for marker/scroll mapping). */
+	function sectionBarBases(sheet: Tune): number[] {
+		const bases: number[] = [];
+		let acc = 0;
+		for (const sec of sheet.sections) {
+			bases.push(acc);
+			acc += sec.bars;
+		}
+		return bases;
+	}
 
 	onMount(async () => {
 		abcjs = await import('abcjs');
@@ -201,6 +222,7 @@
 		lastVisualObj = vo;
 		lastNoteAnchors = noteAnchors;
 		prevCursorEl = null;
+		lastScrolledSystem = -1;
 		untrack(() => (renderVersion += 1));
 	});
 
@@ -220,6 +242,28 @@
 		}
 	});
 
+	// Auto-scroll the current system into view as the playhead advances, so a
+	// player following a running session never loses the current bar off-screen.
+	// Scrolls the nearest scrollable ancestor (a bounded container when the
+	// caller provides one, else the window). Fires only when the playhead
+	// crosses to a new system — advancing within a line does not re-scroll.
+	$effect(() => {
+		if (!autoScrollPlayhead) return;
+		const markers = rangeMarkers;
+		void renderVersion;
+		const sheet = tune;
+		const ph = markers?.find((m) => m.status === 'playhead');
+		if (!ph || !sheet || systemBands.length === 0 || lastBarZones.length === 0) {
+			lastScrolledSystem = -1;
+			return;
+		}
+		const bases = sectionBarBases(sheet);
+		const zone = lastBarZones.find((z) => bases[z.sectionIdx] + z.bar === ph.startBar);
+		if (!zone || zone.systemIdx === lastScrolledSystem) return;
+		lastScrolledSystem = zone.systemIdx;
+		systemBands[zone.systemIdx]?.wrapper.scrollIntoView({ block: 'center', behavior: 'smooth' });
+	});
+
 	// Insertion-point range bands — a handful of overlay rects per status
 	// change, inserted below the glyphs like the bar hit rects.
 	$effect(() => {
@@ -231,12 +275,7 @@
 		const sheet = tune;
 		if (!markers?.length || !sheet || systemBands.length === 0 || lastBarZones.length === 0) return;
 
-		const sectionBases: number[] = [];
-		let barsAcc = 0;
-		for (const sec of sheet.sections) {
-			sectionBases.push(barsAcc);
-			barsAcc += sec.bars;
-		}
+		const sectionBases = sectionBarBases(sheet);
 
 		for (const marker of markers) {
 			// Merge the marker's bar zones into one x-run per system row.

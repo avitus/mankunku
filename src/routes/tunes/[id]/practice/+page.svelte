@@ -895,12 +895,18 @@
 		{/if}
 
 		{#if displayedSheet}
-			<NotationDisplay
-				tune={displayedSheet}
-				instrument={getInstrument()}
-				{cursorIndex}
-				rangeMarkers={markers}
-			/>
+			<!-- Bounded scroll region: the chart auto-scrolls to the current line
+			     (NotationDisplay scrolls its nearest scrollable ancestor) while the
+			     status/pick header above stays fixed. -->
+			<div class="max-h-[62vh] overflow-y-auto overscroll-contain rounded-lg">
+				<NotationDisplay
+					tune={displayedSheet}
+					instrument={getInstrument()}
+					{cursorIndex}
+					rangeMarkers={markers}
+					autoScrollPlayhead
+				/>
+			</div>
 		{/if}
 	{:else}
 		<div class="flex flex-wrap items-center justify-between gap-3">
