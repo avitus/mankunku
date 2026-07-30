@@ -475,16 +475,26 @@ export function mergeWholeNoteOctaveUpLocks(
 	readings: PitchReading[]
 ): DetectedNote[] {
 	if (notes.length === 0 || readings.length === 0) return notes;
+	// Notes and readings are both time-sorted and notes don't overlap, so a
+	// single moving read pointer keeps this O(n) rather than rescanning all
+	// readings per note (tune-practice recordings run to thousands of frames).
+	let ri = 0;
 	return notes.map((note) => {
 		const end = note.onsetTime + note.duration;
+		while (ri < readings.length && readings[ri].time < note.onsetTime) ri++;
 		let confident = 0;
 		let flagged = 0;
-		for (const r of readings) {
-			if (r.time < note.onsetTime) continue;
-			if (r.time >= end) break;
+		for (let k = ri; k < readings.length && readings[k].time < end; k++) {
+			const r = readings[k];
 			if (r.warmup) continue;
 			confident++;
-			if (r.octaveUp) flagged++;
+			// Only count a flag whose reported octave still MATCHES this note. An
+			// earlier octave-collapse pass (mergeOctaveBoundariesWithoutAttack /
+			// collapseSandwichArtifacts) may already have dropped a masked-fundamental
+			// note to its true octave while its time range still holds the flagged
+			// higher-octave frames; without this guard those stale flags would form a
+			// majority and drop the already-correct note a SECOND octave (E3 → E2).
+			if (r.octaveUp && r.midi === note.midi) flagged++;
 		}
 		if (confident < OCTAVE_UP_LOCK_MIN_FRAMES) return note;
 		if (flagged / confident < OCTAVE_UP_LOCK_MIN_FRACTION) return note;

@@ -9,8 +9,7 @@
 		tuneToAbcWithMap,
 		CHART_STAFF_WIDTH,
 		type BarAnchor,
-		type ChordSlotAnchor,
-		type EndingAlignHint
+		type ChordSlotAnchor
 	} from '$lib/music/tune-notation';
 	import { alignStackedEndingsInContainer } from '$lib/notation/ending-align-dom';
 	import { barZones, chordZones, clipBarSpanX, type ChordZone } from '$lib/notation/chart-geometry';
@@ -236,16 +235,14 @@
 			noteAnchors: PitchedNoteAnchor[];
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
-			endingAlignHints: EndingAlignHint[];
 		} = tune
 			? tuneToAbcWithMap(tune, instrument)
 			: {
 					...phraseToAbcWithMap(phrase!, instrument),
 					barAnchors: [],
-					chordSlotAnchors: [],
-					endingAlignHints: []
+					chordSlotAnchors: []
 				};
-		const { abc, noteAnchors, barAnchors, chordSlotAnchors, endingAlignHints } = rendered;
+		const { abc, noteAnchors, barAnchors, chordSlotAnchors } = rendered;
 		// Engraving house style: wider staff, jazz chord face, Real Book masthead
 		// fonts. jazzchords is intentionally OFF — its superscript markers
 		// mis-parse ASCII flats ("Bb7" → B + b7); MuseJazzText handles the look.
@@ -333,7 +330,10 @@
 		dropChordSymbols(containerEl);
 		nudgeChordSymbols(containerEl);
 		repositionPartLabels(containerEl);
-		alignStackedEndings(containerEl, endingAlignHints);
+		// Stacked second endings: map [2] onto [1]'s horizontal span (pure-translate
+		// glyphs, scale only volta/beam line art) — driven entirely from the rendered
+		// DOM geometry, no ABC-side hints.
+		alignStackedEndingsInContainer(containerEl);
 		drawGlissandi(vo, noteAnchors);
 		applySelectionHighlight(vo, noteAnchors, selectedIndex);
 		buildHitZones(containerEl, vo, rendered);
@@ -657,6 +657,17 @@
 			const wrapBox = wrapper.getBBox();
 			systemBands.push({ wrapper, ...bandGeometry(wrapBox.y, staffBox.y, staffBox.height) });
 		}
+		// Wrapper↔system alignment is load-bearing (follow-scroll + range markers
+		// index into systemBands by system number). A short count means the break
+		// above truncated — later zones would attach to the wrong system. Surface
+		// it loudly in dev rather than mis-placing silently if abcjs's SVG shape
+		// ever drifts.
+		if (import.meta.env.DEV && systemBands.length !== systems.length) {
+			console.warn(
+				`[NotationDisplay] staff-wrapper/system count mismatch: ${systemBands.length} bands vs ` +
+					`${systems.length} systems — follow-scroll and range markers may mis-attach.`
+			);
+		}
 
 		lastBarZones = barZones(systems, anchors.barAnchors);
 
@@ -922,18 +933,6 @@
 				});
 			}
 		}
-	}
-
-	/**
-	 * Stacked second endings: map [2] onto [1]'s horizontal span.
-	 * See {@link alignStackedEndingsInContainer} — pure-translate glyphs,
-	 * scale only volta/beam line art (never noteheads or the "2").
-	 */
-	function alignStackedEndings(
-		container: HTMLDivElement,
-		_hints: EndingAlignHint[]
-	): void {
-		alignStackedEndingsInContainer(container);
 	}
 
 	/**

@@ -139,8 +139,9 @@ export function advanceEndingLayout(
 }
 
 /**
- * Plan placements for a full form. Convenience for tests and callers that
- * want the whole sequence at once.
+ * Plan placements for a full form. A test scaffold that drives the real
+ * `placeEndingSection` / `advanceEndingLayout` logic over a whole section list
+ * at once (no production caller — the notation pass places sections inline).
  */
 export function planEndingPlacements(
 	sections: readonly EndingSectionShape[],
@@ -156,18 +157,6 @@ export function planEndingPlacements(
 		state = advanceEndingLayout(sec, placement, state, barsPerLine);
 	}
 	return out;
-}
-
-/**
- * Pure geometry for post-render indent: how far to shift second-ending content
- * so its left edge lines up under the first ending.
- */
-export function endingAlignDx(firstEndingLeftX: number, secondEndingLeftX: number): number {
-	if (!Number.isFinite(firstEndingLeftX) || !Number.isFinite(secondEndingLeftX)) return 0;
-	const dx = firstEndingLeftX - secondEndingLeftX;
-	// Ignore tiny jitter; never shift left (would shove [2] under the approach).
-	if (dx < 0.5) return 0;
-	return dx;
 }
 
 /**

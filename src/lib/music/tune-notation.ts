@@ -45,25 +45,10 @@ export {
 	emptyMelodyBars,
 	multiRestRuns
 } from './chart-layout';
-export {
-	placeEndingSection,
-	planEndingPlacements,
-	endingAlignDx
-} from './ending-layout';
+export { placeEndingSection } from './ending-layout';
 // multiRestRuns is exported for callers/tests; empty bars currently engrave
 // as beat-aligned slashes (jazz idiom). Collapsing them to ABC Z{n} multi-
 // rests is deferred — it fights bar anchors, system reflow, and playhead zones.
-
-/**
- * Hint for post-render alignment: a stacked second ending should shift so its
- * left edge lines up under the first ending (no pad bars in the ABC).
- */
-export interface EndingAlignHint {
-	/** Absolute form bar where the first ending starts. */
-	firstStartAbsBar: number;
-	/** Absolute form bar where the second ending starts. */
-	secondStartAbsBar: number;
-}
 
 /**
  * ABC generation for tunes — full song forms with chord symbols,
@@ -126,6 +111,24 @@ interface DisplayElement {
 }
 
 /** Build the display text for one harmony segment's chord symbol. */
+/**
+ * ABC chord annotations are delimited by double quotes (`"C7"`), so a raw
+ * imported symbol containing a `"` (or a newline / control char) would break the
+ * entire voice-line's parse. `HarmonicSegment.symbol` is free-form text from the
+ * iReal/MusicXML/BiaB/PDF importers and passes through verbatim when unparseable,
+ * so strip those characters before emission. Legitimate chord text never contains
+ * them, so this is lossless in practice.
+ */
+function escapeChordAnnotation(text: string): string {
+	let out = '';
+	for (const ch of text) {
+		// Drop the ABC annotation delimiter and any control char / newline.
+		if (ch === '"' || ch.charCodeAt(0) < 0x20) continue;
+		out += ch;
+	}
+	return out;
+}
+
 function chordDisplayText(
 	seg: HarmonicSegment,
 	instrument: InstrumentConfig | undefined,
@@ -183,8 +186,6 @@ export function tuneToAbcWithMap(
 	noteAnchors: PitchedNoteAnchor[];
 	barAnchors: BarAnchor[];
 	chordSlotAnchors: ChordSlotAnchor[];
-	/** Stacked [1]/[2] pairs that need post-render horizontal indent. */
-	endingAlignHints: EndingAlignHint[];
 } {
 	const defaultLength = options.defaultLength ?? [1, 8];
 	const barsPerLine = options.barsPerLine ?? suggestBarsPerLine(sheet);
@@ -334,9 +335,6 @@ export function tuneToAbcWithMap(
 	// with NO pad bars (alignment under [1] is post-render).
 	let endingState = initialEndingLayoutState();
 	let lineColumn = 0; // bars into the current line where this section starts
-	const endingAlignHints: EndingAlignHint[] = [];
-	/** Absolute bar where the open [1] started (for align hints). */
-	let firstEndingAbsBar: number | null = null;
 
 	// ── Global chord timeline (absolute whole-note offsets) ──────────────
 	// The chord voice is built per system line from these. Display text is
@@ -391,7 +389,7 @@ export function tuneToAbcWithMap(
 		return {
 			tokens: segs.map(
 				(sg) =>
-					`${sg.chord ? `"${sg.chord}"` : ''}x${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`
+					`${sg.chord ? `"${escapeChordAnnotation(sg.chord)}"` : ''}x${durationToAbc(approxToFraction(sg.to - sg.from), defaultLength)}`
 			),
 			slots: segs.map((sg) => ({
 				beat: Math.round((sg.from - barStartAbs) * beatsPerWhole * 1e6) / 1e6,
@@ -479,16 +477,6 @@ export function tuneToAbcWithMap(
 			barsPerLine
 		);
 		lineColumn = placement.startColumn;
-
-		if (sec.ending === 1) {
-			firstEndingAbsBar = sectionBaseBars;
-		}
-		if (sec.ending === 2 && placement.alignUnderFirstEnding && firstEndingAbsBar !== null) {
-			endingAlignHints.push({
-				firstStartAbsBar: firstEndingAbsBar,
-				secondStartAbsBar: sectionBaseBars
-			});
-		}
 
 		if (placement.startsNewLine) {
 			flushLine(sectionBaseBars);
@@ -689,8 +677,7 @@ export function tuneToAbcWithMap(
 		abc: headerStr + '\n' + tokens.join(''),
 		noteAnchors,
 		barAnchors,
-		chordSlotAnchors,
-		endingAlignHints
+		chordSlotAnchors
 	};
 }
 

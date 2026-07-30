@@ -66,6 +66,12 @@ export interface TunePracticeAudioPlan {
 	/** Bars before the practice material starts (0 without a head). */
 	leadBars: number;
 	/**
+	 * The EFFECTIVE head decision (`config.playHead && hasMelody`). Consumers
+	 * must read this rather than `config.playHead`, which ignores that a
+	 * melody-less chart never plays a head chorus.
+	 */
+	playHead: boolean;
+	/**
 	 * True when the practice chorus is an APPENDED duplicate of the form
 	 * (repeat-free chart). False on whole-form-repeat charts, where the
 	 * expanded timeline already holds head pass + solo pass — see the jazz
@@ -294,7 +300,8 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		flat,
 		notationFlat,
 		leadBars: built.headBars,
-		duplicatedForm: built.duplicatedForm
+		duplicatedForm: built.duplicatedForm,
+		playHead
 	};
 }
 

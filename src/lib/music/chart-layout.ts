@@ -200,8 +200,14 @@ export function suggestBarsPerLine(sheet: Tune): number {
 	let bpl = BARS_PER_LINE_DEFAULT;
 	if (denseShare >= 0.35 || avg >= 7 || maxNotes >= 12) bpl = 3;
 	else if (avg >= 5 || maxChords >= 3) bpl = 3;
-	else if (sparseShare >= 0.85 && avg === 0) bpl = 6;
-	else if (sparseShare >= 0.6 && avg === 0) bpl = 5;
+	// The dense/medium cases above have already diverted, so anything reaching
+	// here is genuinely sparse (avg < 5, no dense bars, maxNotes < 12). Grade the
+	// widening on the empty-bar share alone: gating this on `avg === 0` (as it was)
+	// made the 5-branch unreachable, since a fully melody-silent chart always has
+	// sparseShare === 1 and took the 6-branch. A mostly-empty chart with a few
+	// melodic bars still reads as sparse and should widen too.
+	else if (sparseShare >= 0.85) bpl = 6;
+	else if (sparseShare >= 0.6) bpl = 5;
 
 	return Math.min(BARS_PER_LINE_MAX, Math.max(BARS_PER_LINE_MIN, bpl));
 }

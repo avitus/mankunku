@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
 	planEndingPlacements,
-	endingAlignDx,
 	endingAlignTransform,
 	endingAlignMatrix,
 	endingGlyphTranslateDx,
@@ -70,18 +69,6 @@ describe('planEndingPlacements', () => {
 		);
 		expect(plan[2].startColumn).toBe(0);
 		expect(plan[2].alignUnderFirstEnding).toBe(true);
-	});
-});
-
-describe('endingAlignDx', () => {
-	it('returns the positive shift to bring [2] under [1]', () => {
-		expect(endingAlignDx(200, 80)).toBe(120);
-	});
-
-	it('returns 0 when [2] is already at or past [1]', () => {
-		expect(endingAlignDx(100, 100)).toBe(0);
-		expect(endingAlignDx(100, 150)).toBe(0);
-		expect(endingAlignDx(100, 99.6)).toBe(0);
 	});
 });
 

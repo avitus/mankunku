@@ -166,7 +166,13 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			notationSegmentIndices,
 			notationBarRange,
 			notationTimeRange,
-			markerKey: [...notationSegmentIndices].sort((a, b) => a - b).join(','),
+			// Group markers by their notation segment set; fall back to the unique
+			// insertion id when provenance is missing, so points with no segment
+			// indices don't all collapse under one empty '' key and mis-place.
+			markerKey:
+				notationSegmentIndices.length > 0
+					? [...notationSegmentIndices].sort((a, b) => a - b).join(',')
+					: `ip-${i}`,
 			suggestions,
 			uncategorizedCount: uncategorized.length,
 			openTick,
@@ -426,6 +432,22 @@ export function applyInsertionResult(
 		streak,
 		bestStreak: Math.max(tally.bestStreak, streak)
 	};
+}
+
+/**
+ * Index results by their `insertionId` for plan-point lookup. Results accrue in
+ * play order and a skipped window contributes none, so reading them by array
+ * position (`results[i]`) maps every later plan point to the WRONG result after
+ * any gap — grades, colours, and the report all shift by one. Keyed lookup is
+ * gap-safe; each plan entry's id (`ip-<i>`) is unique, so there are no
+ * collisions. Later writes for the same id win (a re-annotated repeat pass).
+ */
+export function indexResultsByInsertion(
+	results: readonly InsertionResult[]
+): Map<string, InsertionResult> {
+	const byId = new Map<string, InsertionResult>();
+	for (const r of results) byId.set(r.insertionId, r);
+	return byId;
 }
 
 /**

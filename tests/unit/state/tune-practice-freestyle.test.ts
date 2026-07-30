@@ -48,12 +48,25 @@ describe('createFreestyleRecognizer', () => {
 		expect(match).toEqual({ lickId: 'lick-a', name: 'Lick A', score: 0.92, atTick: 2000 });
 	});
 
-	it('skips scans when no new notes arrived (silence guard)', () => {
+	it('skips scans when the note stream is unchanged (identical content)', () => {
 		const search = vi.fn().mockReturnValue([result('lick-a', 0.95)]);
 		const rec = createFreestyleRecognizer({ book: mkBook(), tempo: 120, barTicks: BAR_TICKS, search });
 		expect(rec.scan(line(8), 1000)).not.toBeNull();
 		expect(rec.scan(line(8), 2000)).toBeNull();
 		expect(search).toHaveBeenCalledTimes(1);
+	});
+
+	it('re-evaluates a sliding window with the SAME count but different content', () => {
+		// The route feeds a bounded trailing slice, so as the window slides the note
+		// count can plateau while the content rolls over. A length-based guard would
+		// skip these — recognition would silently switch off after ~5 bars.
+		const search = vi.fn().mockReturnValue([]);
+		const rec = createFreestyleRecognizer({ book: mkBook(), tempo: 120, barTicks: BAR_TICKS, search });
+		const windowA = Array.from({ length: 8 }, (_, i) => note(60 + i, i * 0.25));
+		const windowB = Array.from({ length: 8 }, (_, i) => note(62 + i, i * 0.25)); // slid: same count, new pitches
+		rec.scan(windowA, 1000);
+		rec.scan(windowB, 2000);
+		expect(search).toHaveBeenCalledTimes(2);
 	});
 
 	it('never calls search below the 6-note matcher floor', () => {
@@ -112,5 +125,26 @@ describe('createFreestyleRecognizer', () => {
 		const match = rec.scan(notes, 5000);
 		expect(match?.lickId).toBe('lick-a');
 		expect(match!.score).toBeGreaterThanOrEqual(0.9);
+	});
+
+	it('does NOT fire a minimum-length lick played with loose rhythm (short-match precision)', () => {
+		// Same 5-interval lick, pitch-perfect, but one inter-onset gap is doubled so
+		// a single IOI falls outside tolerance → rhythmRatio 0.8 → score 0.92. That
+		// clears the old 0.9 bar but not the 0.95 short-match bar, so a loosely
+		// played shared fragment no longer celebrates.
+		const realBook: FreestyleBook = {
+			index: buildIndex(
+				[{ id: 'lick-a', kind: 'quote', performer: '', title: 'Lick A' }],
+				[{ sourceId: 'lick-a', startBar: 1, intervals: [2, 2, 1, 2, 2], iois: [2, 2, 2, 2, 2] }],
+				5
+			),
+			names: new Map([['lick-a', 'Lick A']]),
+			durationTicks: new Map([['lick-a', BAR_TICKS]])
+		};
+		const rec = createFreestyleRecognizer({ book: realBook, tempo: 120, barTicks: BAR_TICKS });
+		const midis = [60, 62, 64, 65, 67, 69];
+		const onsets = [0, 0.25, 0.5, 1.0, 1.25, 1.5]; // 3rd gap doubled → IOI 4 vs 2
+		const notes = midis.map((m, i) => note(m, onsets[i]));
+		expect(rec.scan(notes, 5000)).toBeNull();
 	});
 });

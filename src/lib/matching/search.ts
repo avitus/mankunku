@@ -97,6 +97,9 @@ export function searchMatches(
 	}
 
 	const candidates: MatchResult[] = [];
+	// Built once, not scanned per candidate — this runs over the full WJazzD
+	// corpus on the /api/lick-match path.
+	const sourceById = new Map(index.sources.map((s) => [s.id, s]));
 
 	for (const { phraseIndex, offset } of alignments) {
 		const phrase = index.phrases[phraseIndex];
@@ -112,7 +115,7 @@ export function searchMatches(
 
 		if (score < minScore) continue;
 
-		const source = index.sources.find((s) => s.id === phrase.sourceId);
+		const source = sourceById.get(phrase.sourceId);
 		if (!source) continue;
 
 		candidates.push({

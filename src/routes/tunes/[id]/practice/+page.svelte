@@ -33,6 +33,7 @@
 		notationBarForPlaybackBar,
 		strictnessKnobs,
 		insertionMarkerCleared,
+		indexResultsByInsertion,
 		type TunePracticeMode,
 		type TunePracticeStrictness
 	} from '$lib/state/tune-practice-plan';
@@ -94,7 +95,7 @@
 	let sessionPitchStartMicTime = 0;
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let beatAnimFrame: number | null = null;
-	let scheduledEventIds: number[] = [];
+	let mounted = true;
 
 	interface OpenWindow {
 		ip: InsertionPoint;
@@ -186,11 +187,15 @@
 	const CLEAR_AFTER_PLAYED_BARS = 1;
 	// Insertion bands with on-chart lick labels (annotated ahead, cleared shortly
 	// after playing), plus a moving current-bar playhead to hold the player's place.
+	// Look up each plan point's score by insertionId, not array position: a
+	// skipped window records no result, so a positional read would shift every
+	// later grade/colour by one (see indexResultsByInsertion).
+	const resultByInsertion = $derived(indexResultsByInsertion(tunePractice.results));
 	const markers = $derived.by<RangeMarker[]>(() => {
 		const leadBars = audioPlan?.leadBars ?? 0;
 		const byKey = new Map<string, RangeMarker>();
 		tunePractice.plan.forEach((ip, i) => {
-			const result = tunePractice.results[i];
+			const result = resultByInsertion.get(ip.id);
 			// Clear a played insertion shortly after its window passes (~1 bar past
 			// the window's final bar) so the chart behind the playhead stays clean
 			// and the eye is drawn to what is still coming. A later repeat pass of
@@ -326,6 +331,10 @@
 		backingTrack = await import('$lib/audio/backing-track');
 		toneModule = await import('tone');
 
+		// Unmounting during the dynamic imports above runs onDestroy while
+		// timerInterval is still null; without this guard the continuation would
+		// arm an interval nothing ever clears.
+		if (!mounted) return;
 		timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	});
 
@@ -352,6 +361,7 @@
 	});
 
 	onDestroy(() => {
+		mounted = false;
 		stopAll();
 	});
 
@@ -465,7 +475,9 @@
 			freestyleRecognizer = null;
 		}
 
-		const skipMelody = !tunePractice.config.playHead;
+		// Use the plan's EFFECTIVE head decision — config.playHead alone would try
+		// to play a head chorus on a melody-less chart.
+		const skipMelody = !plan.playHead;
 		try {
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
 				skipMelody,
@@ -487,35 +499,27 @@
 		const leadBars = audioPlan.leadBars;
 		const practiceStartTick = barTicksNR + leadBars * barTicksNR;
 		if (leadBars > 0) {
-			scheduledEventIds.push(
-				transport.scheduleOnce(() => {
-					if (isSessionRunning) markHead();
-				}, `${barTicksNR}i`)
-			);
-		}
-		scheduledEventIds.push(
 			transport.scheduleOnce(() => {
-				if (!isSessionRunning) return;
-				markRunning();
-				if (micCapture) {
-					freestyleFloorSec = micCapture.context.currentTime - sessionPitchStartMicTime;
-				}
-			}, `${practiceStartTick}i`)
-		);
+				if (isSessionRunning) markHead();
+			}, `${barTicksNR}i`);
+		}
+		transport.scheduleOnce(() => {
+			if (!isSessionRunning) return;
+			markRunning();
+			if (micCapture) {
+				freestyleFloorSec = micCapture.context.currentTime - sessionPitchStartMicTime;
+			}
+		}, `${practiceStartTick}i`);
 		if (tunePractice.config.mode === 'freestyle') {
 			// No pre-scheduled windows — a bar-cadence scan recognizes known
 			// licks from the live stream instead, starting once the head is
-			// done. transport.cancel() clears it.
-			scheduledEventIds.push(
-				transport.scheduleRepeat(() => runFreestyleScan(), `${barTicksNR}i`, `${practiceStartTick}i`)
-			);
+			// done. transport.cancel() (via stopPlayback) clears every event below.
+			transport.scheduleRepeat(() => runFreestyleScan(), `${barTicksNR}i`, `${practiceStartTick}i`);
 			return;
 		}
 		tunePractice.plan.forEach((ip, i) => {
-			scheduledEventIds.push(
-				transport.scheduleOnce(() => openInsertionWindow(i), `${ip.openTick}i`),
-				transport.scheduleOnce(() => closeInsertionWindow(), `${ip.closeTick}i`)
-			);
+			transport.scheduleOnce(() => openInsertionWindow(i), `${ip.openTick}i`);
+			transport.scheduleOnce(() => closeInsertionWindow(), `${ip.closeTick}i`);
 		});
 	}
 
@@ -658,7 +662,6 @@
 		stopBeatTracking();
 		pitchDetector?.stop();
 		pitchDetector = null;
-		scheduledEventIds = [];
 		if (wasRunning) {
 			void playback?.stopPlayback();
 		}
@@ -1031,8 +1034,8 @@
 			</p>
 
 			<div class="mt-3 space-y-2">
-				{#each tunePractice.plan as ip, i (ip.id)}
-					{@const result = tunePractice.results[i]}
+				{#each tunePractice.plan as ip (ip.id)}
+					{@const result = resultByInsertion.get(ip.id)}
 					<div class="flex items-center gap-3 rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
 						<span class="w-8 shrink-0 font-mono text-xs text-[var(--color-text-secondary)]">
 							b{ip.notationBarRange.start + 1}

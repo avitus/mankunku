@@ -171,6 +171,16 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 		expect(abc).toContain('"C(mystery)"');
 	});
 
+	it('strips a double-quote from an unparseable symbol so the ABC annotation stays intact', () => {
+		// A raw import symbol carrying a `"` would otherwise terminate the ABC
+		// chord annotation early and corrupt the whole voice line.
+		const abc = tuneToAbc(sheet({
+			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C"evil')] })]
+		}));
+		expect(abc).not.toContain('C"evil');
+		expect(abc).toContain('"Cevil"');
+	});
+
 	it('re-parses and transposes the raw symbol for a transposing instrument', () => {
 		const abc = tuneToAbc(sheet({
 			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C^7')] })]
@@ -253,12 +263,6 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 			const slashBars = (line.match(/!style=rhythm!/g) ?? []).length / 4;
 			expect(slashBars, line).toBeLessThanOrEqual(4);
 		}
-	});
-
-	it('records align hints when [2] should sit under an inline [1]', () => {
-		const { endingAlignHints } = tuneToAbcWithMap(repeatsSheet(), undefined, BPL4);
-		// Body 2 bars (abs 0–1), [1] at abs bar 2, [2] at abs bar 3.
-		expect(endingAlignHints).toEqual([{ firstStartAbsBar: 2, secondStartAbsBar: 3 }]);
 	});
 
 	it('closes the second ending with a non-thin barline (volta right hook)', () => {

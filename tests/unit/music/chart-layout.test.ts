@@ -102,4 +102,29 @@ describe('suggestBarsPerLine', () => {
 		});
 		expect(suggestBarsPerLine(s)).toBeGreaterThanOrEqual(5);
 	});
+
+	it('grades the widening: fully melody-silent → 6, mostly-empty → 5', () => {
+		const chords = (bars: number) =>
+			Array.from({ length: bars }, (_, b) => seg('F', '7', [b, 1], [1, 1]));
+
+		// 8 bars, no melody at all → sparseShare 1.0 → widest (6).
+		const silent = sheet({ sections: [section({ bars: 8, harmony: chords(8) })] });
+		expect(suggestBarsPerLine(silent)).toBe(6);
+
+		// 8 bars, 2 carry a single melody note → sparseShare 0.75 (in [0.6,0.85)) → 5.
+		// Before the fix both cases collapsed to 6 and the 5-branch was dead code.
+		const mostlyEmpty = sheet({
+			sections: [
+				section({
+					bars: 8,
+					harmony: chords(8),
+					notes: [
+						{ pitch: 65, duration: [1, 8], offset: [0, 8] },
+						{ pitch: 65, duration: [1, 8], offset: [8, 8] }
+					]
+				})
+			]
+		});
+		expect(suggestBarsPerLine(mostlyEmpty)).toBe(5);
+	});
 });

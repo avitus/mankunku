@@ -8,10 +8,12 @@ import {
 	buildSessionPhrase,
 	buildSessionPlan,
 	headBarsForFlat,
+	indexResultsByInsertion,
 	insertionMarkerCleared,
 	notationBarForPlaybackBar,
 	type BuildPlanDeps,
-	type InsertionPoint
+	type InsertionPoint,
+	type InsertionResult
 } from '$lib/state/tune-practice-plan';
 import { flattenTune } from '$lib/tunes/flatten';
 import { seg, section, sheet } from '../../helpers/tune-fixtures';
@@ -491,5 +493,31 @@ describe('insertionMarkerCleared', () => {
 		expect(
 			insertionMarkerCleared({ played: true, closeTick: 0, barTicks: 0, currentBar: 50, clearAfterBars: 1 })
 		).toBe(false);
+	});
+});
+
+describe('indexResultsByInsertion', () => {
+	const mk = (id: string, name: string): InsertionResult => ({
+		insertionId: id,
+		lickName: name,
+		score: null,
+		grade: null,
+		basePoints: 0,
+		connectionBonus: 0
+	});
+
+	it('maps results by insertionId, gap-safe when a window was skipped', () => {
+		// Plan ip-0, ip-1, ip-2; ip-1's window was skipped so only ip-0 and ip-2
+		// recorded a result. A positional read (results[2]) would be undefined and
+		// results[1] would wrongly return ip-2's result — the desync this prevents.
+		const byId = indexResultsByInsertion([mk('ip-0', 'A'), mk('ip-2', 'C')]);
+		expect(byId.get('ip-0')?.lickName).toBe('A');
+		expect(byId.get('ip-1')).toBeUndefined();
+		expect(byId.get('ip-2')?.lickName).toBe('C');
+	});
+
+	it('keeps the latest result when an id repeats (a re-annotated repeat pass)', () => {
+		const byId = indexResultsByInsertion([mk('ip-0', 'first'), mk('ip-0', 'second')]);
+		expect(byId.get('ip-0')?.lickName).toBe('second');
 	});
 });
