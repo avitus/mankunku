@@ -50,12 +50,8 @@ export function createFreestyleRecognizer(args: {
 			// The query is an ever-growing rolling buffer, so penalize by how much
 			// of the matched LICK aligned (not of the buffer) — otherwise a fully
 			// played short lick is dragged under the fire threshold once the buffer
-			// outgrows it. 0.6 pitch weight honours the 60/40 recognition convention.
-			const results = search(feature, book.index, {
-				topK: 3,
-				pitchWeight: 0.6,
-				lengthBasis: 'target'
-			});
+			// outgrows it. Pitch/rhythm weighting is the 60/40 default.
+			const results = search(feature, book.index, { topK: 3, lengthBasis: 'target' });
 			for (const result of results) {
 				if (result.score < QUOTE_CONFIDENCE_SCORE) continue;
 				if ((cooldownUntil.get(result.sourceId) ?? -Infinity) > nowTick) continue;

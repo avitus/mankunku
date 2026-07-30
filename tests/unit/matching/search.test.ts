@@ -68,8 +68,8 @@ describe('searchMatches', () => {
 		const results = searchMatches(q, INDEX, { minScore: 0.5 });
 		const s1 = results.find((r) => r.sourceId === 's1');
 		expect(s1).toBeDefined();
-		// Interval-perfect, rhythm-all-mismatch: 0.7*1 + 0.3*0 = 0.7
-		expect(s1!.score).toBeCloseTo(0.7, 5);
+		// Interval-perfect, rhythm-all-mismatch at the 60/40 default: 0.6*1 + 0.4*0.
+		expect(s1!.score).toBeCloseTo(0.6, 5);
 	});
 
 	it('returns nothing for an unrelated phrase', () => {
@@ -102,15 +102,17 @@ describe('searchMatches', () => {
 		expect(s3Matches).toHaveLength(1);
 	});
 
-	it('pitchWeight overrides the default 70/30 raw weighting', () => {
-		// Interval-perfect, rhythm-all-mismatch. Default 0.7 → 0.7 (see above);
-		// with pitchWeight 0.6 the same alignment scores 0.6*1 + 0.4*0.
+	it('defaults to 60/40 and honours an explicit pitchWeight override', () => {
+		// Interval-perfect, rhythm-all-mismatch isolates the weighting.
 		const q = feature([2, -1, -1, -1, 2, 2], [4, 4, 4, 4, 4, 4]);
-		const r = searchMatches(q, INDEX, { minScore: 0.1, pitchWeight: 0.6 }).find(
+		const def = searchMatches(q, INDEX, { minScore: 0.1 }).find((x) => x.sourceId === 's1');
+		const explicit = searchMatches(q, INDEX, { minScore: 0.1, pitchWeight: 0.7 }).find(
 			(x) => x.sourceId === 's1'
 		);
-		expect(r).toBeDefined();
-		expect(r!.score).toBeCloseTo(0.6, 5);
+		expect(def).toBeDefined();
+		expect(explicit).toBeDefined();
+		expect(def!.score).toBeCloseTo(0.6, 5); // 60/40 default
+		expect(explicit!.score).toBeCloseTo(0.7, 5); // the API's explicit 70/30 exception
 	});
 
 	it("lengthBasis 'target' scores a fully-matched lick ~1 regardless of extra query length", () => {

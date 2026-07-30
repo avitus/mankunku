@@ -26,9 +26,9 @@ export interface SearchOptions {
 	topK?: number;
 	/**
 	 * Interval/pitch share of the raw score; rhythm gets the remainder. Default
-	 * 0.7 (the tuned WJazzD-attribution weighting used by `/api/lick-match`).
-	 * Freestyle practice recognition passes 0.6 to honour the project's 60/40
-	 * pitch-rhythm convention.
+	 * 0.6, matching the project's 60/40 pitch-rhythm convention. `/api/lick-match`
+	 * passes 0.7 explicitly — its tuned WJazzD-attribution weighting is the one
+	 * documented exception.
 	 */
 	pitchWeight?: number;
 	/**
@@ -73,7 +73,7 @@ export function searchMatches(
 ): MatchResult[] {
 	const minScore = opts.minScore ?? 0.75;
 	const topK = opts.topK ?? 3;
-	const pitchWeight = opts.pitchWeight ?? 0.7;
+	const pitchWeight = opts.pitchWeight ?? 0.6;
 	const lengthBasis = opts.lengthBasis ?? 'query';
 	const n = index.ngramSize;
 	const q = query.intervals;
