@@ -69,6 +69,99 @@ describe('pitch replay regression: A4 → C5 lick', () => {
 });
 
 /**
+ * Same lick ("Sixth–Octave Lift", bc-008) a fourth lower — concert G, so
+ * E3 → G3 (MIDI 52 → 55) on Bb tenor sax (2026-07-29). The player performed it
+ * correctly, but the first note is a textbook octave-UP detection failure:
+ *
+ *   - E3's 165 Hz fundamental radiates only ~4% of the energy of its 330 Hz
+ *     2nd harmonic (the spectrum carries a full harmonic series rooted at
+ *     165 Hz — partials at 165, 331, 496, 663, 830, 996 Hz — with the
+ *     fundamental the weakest of them).
+ *   - McLeod locks onto the dominant 2nd harmonic, so all 93 confident frames
+ *     of the note report E4 (MIDI 64). `correctSubharmonic` only lifts
+ *     octave-DOWN picks and the segmenter's octave-boundary merge needs an
+ *     adjacent correctly-detected E3 segment to collapse toward — there is
+ *     none, the whole note is locked — so before the fix the note segmented as
+ *     E4 and scored 0 (saved pitchAccuracy 0.5, overall 0.670).
+ *
+ * The fix flags each frame with `isOctaveUpLock` — the spectral mirror of
+ * `correctSubharmonic`, whose odd-harmonic test (energy at 1.5f/2.5f ⇒ a real
+ * fundamental at f/2) fires on every locked frame here — and the segmenter drops
+ * the whole note an octave when a strong majority of its frames carry the flag
+ * (`mergeWholeNoteOctaveUpLocks`). The note-level majority is what keeps genuine
+ * low notes safe: the correctly-detected E3 in the Third–Fifth Rise fixture below
+ * (empty E2 odd bins) flags ~0% of its frames, and a mid-register note's lone
+ * attack-transient frame is outvoted rather than rewritten.
+ */
+describe('pitch replay regression: Sixth–Octave Lift octave-up lock (concert G, E3→G3)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-07-29-sixth-octave-lift.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// Two-note phrase: E3 (dotted half) → G3 (quarter). Concert G.
+	const expectedPhrase: Phrase = {
+		id: 'bc-008_G',
+		name: 'Sixth–Octave Lift',
+		timeSignature: [4, 4],
+		key: 'G',
+		notes: [
+			{ pitch: 52, duration: [3, 4], offset: [0, 1] }, // E3
+			{ pitch: 55, duration: [1, 4], offset: [3, 4] }  // G3
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	it('is deterministic across repeated replays', async () => {
+		const buffer = loadFixture();
+		const a = await replayFromAudioBuffer(buffer);
+		const b = await replayFromAudioBuffer(buffer);
+
+		expect(a.readings.length).toBe(b.readings.length);
+		expect(a.onsets).toEqual(b.onsets);
+		for (let i = 0; i < a.readings.length; i++) {
+			expect(a.readings[i]).toEqual(b.readings[i]);
+		}
+	});
+
+	it('detects the true fundamentals E3 (52) and G3 (55), not the 2nd-harmonic E4', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const validOnsets = validateOnsets(onsets, readings);
+		const detected = segmentNotes(readings, validOnsets, duration);
+		expect(detected.map((n) => n.midi)).toEqual([52, 55]);
+	});
+
+	it('scores both notes as pitch hits (was 0.5 pitch / 0.670 overall)', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const validOnsets = validateOnsets(onsets, readings);
+		const detected = segmentNotes(readings, validOnsets, duration);
+
+		// transportSeconds 0 reproduces the saved alignment: expected times
+		// [0, 1.714 s] vs detected onsets [0.151, 1.967 s] give a median offset
+		// of 0.202 s, exactly the saved latencyCorrectionMs (201.66).
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 105,
+			transportSeconds: 0,
+			swing: 0.6,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+});
+
+/**
  * Second regression recording: same lick (concert A3 → C4 on Bb tenor sax)
  * but captured with a noisy mic preamble. Pitchy locks onto ~82 Hz rumble
  * for the first 5 frames with clarity 1.00 before the user starts playing.

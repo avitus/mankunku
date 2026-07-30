@@ -62,6 +62,16 @@ export interface PitchReading {
 	 * steady-state readings.
 	 */
 	warmup?: boolean;
+	/**
+	 * True when the frame's spectrum looks like a 2nd-harmonic (octave-up)
+	 * lock — the reported pitch carries the full odd-harmonic signature of a
+	 * real fundamental an octave below (see `isOctaveUpLock`). Recorded per
+	 * frame but acted on only at the note level: the segmenter drops a note an
+	 * octave when a strong majority of its frames are flagged
+	 * (`mergeWholeNoteOctaveUpLocks`), so a stray attack-transient frame on a
+	 * genuine mid-register note is harmless. Omitted when not flagged.
+	 */
+	octaveUp?: boolean;
 }
 
 /**
@@ -142,6 +152,44 @@ const SUBHARMONIC_FUNDAMENTAL_RATIO = 0.1;
  * 2026-07-08 Four-to-Five). 0.12 sits ≥ 2.2× from both clusters.
  */
 const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
+
+/**
+ * Octave-up (2nd-harmonic) correction — the mirror of the subharmonic case.
+ *
+ * McLeod / autocorrelation pitch detection can also lock onto the HALVED period
+ * of a low sustained tone, reporting a frequency exactly an octave too HIGH,
+ * when the true fundamental radiates far less energy than its 2nd harmonic. This
+ * is the common failure mode on low tenor-sax notes: the 2026-07-29 Sixth–Octave
+ * Lift fixture is a concert E3 whose 165 Hz fundamental sat at ~4% of its 330 Hz
+ * 2nd harmonic, so every frame of the note was reported as E4 (MIDI 64) and
+ * scored a total miss.
+ *
+ * Unlike a subharmonic — whose reported bin is spectrally empty — a 2nd-harmonic
+ * lock reports a bin that carries real energy (it IS a harmonic), so mag(f) alone
+ * cannot tell it from a genuine note at f. The ODD harmonics can: for a genuine
+ * note at `f` the bins at 1.5f and 2.5f are non-harmonic and empty, while when
+ * the true fundamental is `g = f/2` those bins are its full-rank 3rd and 5th
+ * harmonics (3g, 5g). A single-bin Goertzel odd-harmonic rank,
+ *
+ *     (mag(1.5f) + mag(2.5f)) / (mag(f) + mag(2f)) ≥ OCTAVE_UP_ODD_HARMONIC_RATIO,
+ *
+ * fires only when a real fundamental lives an octave down. Measured per-frame on
+ * the fixture corpus, bucketed by the reported MIDI: genuine sustained notes at
+ * `f` top out at ~0.11; every 2nd-harmonic-lock frame sits ≥ 0.127; and a
+ * CORRECTLY-detected low E3 (reported at its own 165 Hz fundamental) reads
+ * ~0.01–0.03, because the odd bins of E2 are empty — so a real low note is never
+ * dragged down an octave.
+ *
+ * Bounded to a low reported-frequency window: 2nd-harmonic locks only occur on
+ * low tones (their reported freq is 2× a low fundamental). The [min, max] band
+ * keeps the extra Goertzels off the mid/high register and holds the corrected
+ * `g = f/2` at or above the supported minimum pitch. The max stops below G3's 2nd
+ * harmonic (~392 Hz): notes from ~G3 up detect their own strong fundamental and
+ * never mislock, so nothing above the band needs pulling down.
+ */
+const OCTAVE_UP_MIN_FREQUENCY = 160;
+const OCTAVE_UP_MAX_FREQUENCY = 370;
+const OCTAVE_UP_ODD_HARMONIC_RATIO = 0.12;
 
 /**
  * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
@@ -351,6 +399,37 @@ export function correctSubharmonic(buffer: Float32Array, frequency: number, samp
 }
 
 /**
+ * Whether the detected frequency looks like a 2nd-harmonic (octave-up) lock of a
+ * true fundamental an octave below. See the `OCTAVE_UP_*` constants for the
+ * odd-harmonic discriminator.
+ *
+ * This is a PREDICATE, not a correction: unlike `correctSubharmonic`, which
+ * rewrites the frequency in place, the octave-up decision is deferred to the
+ * segmenter. The reason is attack transients — the broadband energy at a note's
+ * onset transiently lifts the 1.5f / 2.5f bins, so an isolated attack frame of a
+ * GENUINE mid-register note can look like a lock for a frame or two. A true lock,
+ * by contrast, holds across the whole note. Rewriting per-frame would let those
+ * brief attack blips seed the octave stabilizer an octave low and manufacture
+ * phantom segments (the 2026-05-07 Locrian Descent regression). So each frame
+ * only records the evidence; the segmenter drops a note an octave only when a
+ * strong majority of its frames carry it (`mergeWholeNoteOctaveUpLocks`).
+ */
+export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRate: number): boolean {
+	if (frequency < OCTAVE_UP_MIN_FREQUENCY || frequency > OCTAVE_UP_MAX_FREQUENCY) {
+		return false;
+	}
+	// A genuine note at `f` has no energy at the odd half-multiples 1.5f / 2.5f;
+	// when the true fundamental is g = f/2 those bins are its 3rd / 5th harmonics.
+	const second = goertzelMagnitude(buffer, frequency, sampleRate); // 2g
+	const fourth = goertzelMagnitude(buffer, frequency * 2, sampleRate); // 4g
+	const third = goertzelMagnitude(buffer, frequency * 1.5, sampleRate); // 3g
+	const fifth = goertzelMagnitude(buffer, frequency * 2.5, sampleRate); // 5g
+	const even = second + fourth;
+	if (even <= 0) return false;
+	return (third + fifth) / even >= OCTAVE_UP_ODD_HARMONIC_RATIO;
+}
+
+/**
  * Run pitch detection on a single buffer and apply octave stabilization.
  *
  * @param buffer Time-domain samples (length must match detector's input size)
@@ -429,8 +508,16 @@ export function detectFrame(
 	const octaveCorrection = midi - rawMidi;
 	const midiFloat = rawMidiFloat + octaveCorrection;
 
+	// Octave-UP (2nd-harmonic) locks are only FLAGGED here, not rewritten — the
+	// segmenter drops the note an octave when a majority of its frames carry the
+	// flag (see `isOctaveUpLock`). Skip when the subharmonic pass already moved
+	// the pick: the two are mutually exclusive, and a doubled subharmonic sits an
+	// octave up by construction so it must not also be tagged as a lock.
+	const octaveUp = frequency === rawFrequency && isOctaveUpLock(buffer, frequency, opts.sampleRate);
+
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
 	if (stab.warmup) reading.warmup = true;
+	if (octaveUp) reading.octaveUp = true;
 
 	return { reading, rawClarity: clarity };
 }
