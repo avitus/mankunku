@@ -510,10 +510,19 @@ export function detectFrame(
 
 	// Octave-UP (2nd-harmonic) locks are only FLAGGED here, not rewritten — the
 	// segmenter drops the note an octave when a majority of its frames carry the
-	// flag (see `isOctaveUpLock`). Skip when the subharmonic pass already moved
-	// the pick: the two are mutually exclusive, and a doubled subharmonic sits an
-	// octave up by construction so it must not also be tagged as a lock.
-	const octaveUp = frequency === rawFrequency && isOctaveUpLock(buffer, frequency, opts.sampleRate);
+	// flag (see `isOctaveUpLock`). Two guards keep the flag from ever stacking a
+	// second octave correction on top of an existing one:
+	//   • `frequency === rawFrequency` — the subharmonic pass didn't already move
+	//     the pick (a doubled subharmonic sits an octave up by construction).
+	//   • `octaveCorrection === 0` — the stabilizer didn't already hold this frame
+	//     an octave down from its raw pick. Without this, a lock frame the
+	//     stabilizer has already pulled to the true fundamental (midi = rawMidi −
+	//     12) would still be flagged off its raw E4 spectrum, and the note-level
+	//     drop would take it a SECOND octave down (E3 → E2).
+	const octaveUp =
+		frequency === rawFrequency &&
+		octaveCorrection === 0 &&
+		isOctaveUpLock(buffer, frequency, opts.sampleRate);
 
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
 	if (stab.warmup) reading.warmup = true;

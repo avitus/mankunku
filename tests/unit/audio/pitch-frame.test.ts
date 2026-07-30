@@ -301,3 +301,56 @@ describe('detectFrame', () => {
 		expect(result2.reading).not.toBeNull();
 	});
 });
+
+describe('detectFrame octave-up flag', () => {
+	const sampleRate = 48000;
+
+	// Weak 165 Hz (E3) fundamental under a dominant 330 Hz (E4) 2nd harmonic plus
+	// full odd harmonics — a 2nd-harmonic lock: isOctaveUpLock is true when the
+	// detector reports 330 (E4), false when it reports the true 165 (E3).
+	function maskedE3Buffer(n = 4096): Float32Array {
+		const partials: Array<[number, number]> = [
+			[165, 0.02],
+			[330, 0.5],
+			[495, 0.09],
+			[660, 0.05],
+			[825, 0.06],
+		];
+		const out = new Float32Array(n);
+		for (let i = 0; i < n; i++) {
+			let s = 0;
+			for (const [f, a] of partials) s += a * Math.sin((2 * Math.PI * f * i) / sampleRate);
+			out[i] = s;
+		}
+		return out;
+	}
+
+	it('flags a steady 2nd-harmonic lock the stabilizer has NOT corrected (midi = rawMidi)', () => {
+		const buf = maskedE3Buffer();
+		const detector = makeMockDetector(330, 0.95); // reports E4 (64) every frame
+		const stab = createOctaveStabilizer();
+		// Warm up on the E4 pick, then a steady frame.
+		for (let i = 0; i < WARMUP_FRAMES; i++) detectFrame(buf, i * 0.016, detector as any, stab, { sampleRate });
+		const steady = detectFrame(buf, 1.0, detector as any, stab, { sampleRate });
+		expect(steady.reading!.warmup).toBeUndefined();
+		expect(steady.reading!.midi).toBe(64);
+		expect(steady.reading!.octaveUp).toBe(true);
+	});
+
+	it('does NOT flag a lock frame the stabilizer already pulled down an octave', () => {
+		// Regression: if the stabilizer is already holding E3 (52) while the raw
+		// pick is the E4 (64) lock, octaveCorrection is -12. Flagging here would let
+		// the note-level `mergeWholeNoteOctaveUpLocks` drop take the note a SECOND
+		// octave down (E3 → E2). The `octaveCorrection === 0` guard prevents it.
+		const buf = maskedE3Buffer();
+		const stab = createOctaveStabilizer();
+		// Seed a stable E3 (52) via warmup on the true fundamental.
+		const e3det = makeMockDetector(165, 0.95);
+		for (let i = 0; i < WARMUP_FRAMES; i++) detectFrame(buf, i * 0.016, e3det as any, stab, { sampleRate });
+		// A lock frame arrives: raw pick is E4 (64) but the stabilizer holds E3.
+		const lockDet = makeMockDetector(330, 0.95);
+		const held = detectFrame(buf, 1.0, lockDet as any, stab, { sampleRate });
+		expect(held.reading!.midi).toBe(52); // stabilizer held the true octave
+		expect(held.reading!.octaveUp).toBeUndefined(); // not flagged → no double drop
+	});
+});
