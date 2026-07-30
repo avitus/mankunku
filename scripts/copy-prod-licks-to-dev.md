@@ -29,7 +29,7 @@ anonymous on either side.
      then import (it lands directly in that user's bucket).
    Then paste the shared helper (below) once, followed by two steps, so
    the paste position can never produce a syntax error:
-   1. Type `data = ` and paste the exported JSON straight after it, press
+   1. Type `data =` and paste the exported JSON straight after it, press
       enter (the object echoes back).
    2. Paste the import snippet below as-is, press enter. It writes the
       stores into the active bucket, re-stamps lick owner ids to the active
@@ -116,6 +116,10 @@ window.mankunkuActiveUid = () => {
 	const adopted = JSON.parse(out['community-adopted-payloads'] ?? '[]').length;
 	console.log(`Exported ${Object.keys(out).length} stores from bucket "${active}": ` +
 		`${own} own licks, ${adopted} adopted.`);
+	// Record the full selected key-set (present or not) so a re-import can MIRROR
+	// the source — clearing dev stores the source no longer has, not just
+	// overwriting the ones it does.
+	out.__keys = keys;
 	const payload = JSON.stringify(out);
 	try { copy(payload); console.log('→ JSON copied to clipboard.'); }
 	catch { console.log('→ copy() unavailable — copy the next log line manually:'); console.log(payload); }
@@ -140,13 +144,25 @@ window.mankunkuActiveUid = () => {
 		for (const id of Object.keys(owners)) owners[id] = active;
 		data['user-licks-owners'] = JSON.stringify(owners);
 	}
+	// Mirror the source: the export's __keys lists every selected store, so we
+	// overwrite the ones present AND clear any the source lacks (older exports
+	// without __keys fall back to just the present stores).
+	const keys = Array.isArray(data.__keys)
+		? data.__keys
+		: Object.keys(data).filter((k) => k !== '__keys');
 	let n = 0;
-	for (const [k, v] of Object.entries(data)) {
-		localStorage.setItem(ROOT + prefix + k, v);
-		n++;
+	let cleared = 0;
+	for (const k of keys) {
+		if (typeof data[k] === 'string') {
+			localStorage.setItem(ROOT + prefix + k, data[k]);
+			n++;
+		} else if (localStorage.getItem(ROOT + prefix + k) !== null) {
+			localStorage.removeItem(ROOT + prefix + k);
+			cleared++;
+		}
 	}
 	const own = JSON.parse(data['user-licks']).length;
-	console.log(`Imported ${n} stores (${own} own licks) into bucket "${active}". Reloading…`);
+	console.log(`Imported ${n} stores (${own} own licks), cleared ${cleared} stale, into bucket "${active}". Reloading…`);
 	location.reload();
 })();
 ```

@@ -215,8 +215,11 @@ export function endingAlignTransform(
 	if (Math.abs(sx - 1) < 0.02 && Math.abs(tx) < 0.5 && Math.abs(first.x - second.x) < 0.5) {
 		return null;
 	}
-	// Never expand a translate-only shift leftward.
-	if (sx === 1 && tx < 0.5) return null;
+	// Never expand a translate-only shift leftward. Use the same near-1 tolerance
+	// as the no-op guard above: a naturally-computed ratio just off 1 (e.g. 1.01)
+	// otherwise slips past an exact `=== 1` check and pushes [2] left on a large
+	// negative tx — the case the comment says must never happen.
+	if (Math.abs(sx - 1) < 0.02 && tx < 0.5) return null;
 
 	return { sx, tx };
 }

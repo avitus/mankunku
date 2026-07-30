@@ -17,7 +17,7 @@ export interface FreestyleBook {
 	durationTicks: Map<string, number>;
 }
 
-const TICKS_PER_BEAT = (ppq: number) => ppq;
+const TICKS_PER_BEAT = (ppq: number): number => ppq;
 
 /**
  * Index every lick with enough pitched notes to be matchable (the n-gram

@@ -200,8 +200,8 @@ export function suggestBarsPerLine(sheet: Tune): number {
 	let bpl = BARS_PER_LINE_DEFAULT;
 	if (denseShare >= 0.35 || avg >= 7 || maxNotes >= 12) bpl = 3;
 	else if (avg >= 5 || maxChords >= 3) bpl = 3;
-	else if (sparseShare >= 0.6 && avg === 0) bpl = 5;
 	else if (sparseShare >= 0.85 && avg === 0) bpl = 6;
+	else if (sparseShare >= 0.6 && avg === 0) bpl = 5;
 
 	return Math.min(BARS_PER_LINE_MAX, Math.max(BARS_PER_LINE_MIN, bpl));
 }

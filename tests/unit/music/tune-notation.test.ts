@@ -278,6 +278,23 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 		expect(tuneToAbc(last, undefined, BPL4)).toMatch(/\[2[^\n]+\|\]/);
 	});
 
+	it('closes a first ending WITHOUT a repeat barline on a non-thin bar (volta right hook)', () => {
+		// A first ending that flows into [2] without repeating back must still
+		// close its own volta bracket. Before the fix it fell through to the thin
+		// ' |' used for "approach into an ending", leaving the [1] hook open-ended.
+		const noRepeatFirst = sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] })
+			]
+		});
+		const abc = tuneToAbc(noRepeatFirst, undefined, BPL4);
+		// [1] (not last, [2] follows) closes on a double bar, never a thin '|'.
+		expect(abc).toMatch(/\[1[^\n]*\|\|/);
+		expect(abc).not.toMatch(/\[1[^\n]* \|(?!\|)/);
+	});
+
 	it('separates plain sections with a double bar and ends with a final bar', () => {
 		const abc = tuneToAbc(repeatsSheet(), undefined, BPL4);
 		expect(abc).toMatch(/\|\|\n\[V:H\]/);

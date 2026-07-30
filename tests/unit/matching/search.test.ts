@@ -101,6 +101,33 @@ describe('searchMatches', () => {
 		const s3Matches = results.filter((r) => r.sourceId === 's3');
 		expect(s3Matches).toHaveLength(1);
 	});
+
+	it('pitchWeight overrides the default 70/30 raw weighting', () => {
+		// Interval-perfect, rhythm-all-mismatch. Default 0.7 → 0.7 (see above);
+		// with pitchWeight 0.6 the same alignment scores 0.6*1 + 0.4*0.
+		const q = feature([2, -1, -1, -1, 2, 2], [4, 4, 4, 4, 4, 4]);
+		const r = searchMatches(q, INDEX, { minScore: 0.1, pitchWeight: 0.6 }).find(
+			(x) => x.sourceId === 's1'
+		);
+		expect(r).toBeDefined();
+		expect(r!.score).toBeCloseTo(0.6, 5);
+	});
+
+	it("lengthBasis 'target' scores a fully-matched lick ~1 regardless of extra query length", () => {
+		// The whole s1 lick (6 intervals) followed by two unrelated intervals.
+		// Query-basis penalizes buffer coverage (sqrt(6/8) ≈ 0.87); target-basis
+		// sees the entire lick matched and holds the score at ~1 — the fix that
+		// keeps a played lick above the freestyle fire threshold in a long buffer.
+		const q = feature([2, -1, -1, -1, 2, 2, 9, 9]);
+		const qBasis = searchMatches(q, INDEX, { minScore: 0.5 }).find((r) => r.sourceId === 's1');
+		const tBasis = searchMatches(q, INDEX, { minScore: 0.5, lengthBasis: 'target' }).find(
+			(r) => r.sourceId === 's1'
+		);
+		expect(qBasis).toBeDefined();
+		expect(tBasis).toBeDefined();
+		expect(qBasis!.score).toBeLessThan(0.9);
+		expect(tBasis!.score).toBeCloseTo(1.0, 5);
+	});
 });
 
 describe('buildIndex', () => {

@@ -124,6 +124,7 @@
 	let isSessionRunning = $state(false);
 	let isLoading = $state(false);
 	let micError = $state(false);
+	let loadError = $state(false);
 	let audioPlan = $state<TunePracticeAudioPlan | null>(null);
 	let cursorIndex = $state<number | null>(null);
 	/** 0-based playback bar (negative during the count-in). */
@@ -405,6 +406,7 @@
 		if (!playback || !toneModule || !baseSheet || isLoading) return;
 		isLoading = true;
 		micError = false;
+		loadError = false;
 
 		const micOk = await ensureMicCapture();
 		if (!micOk) {
@@ -412,17 +414,26 @@
 			micError = true;
 			return;
 		}
-		if (!playback.isInstrumentLoaded()) {
-			await playback.loadInstrument(
-				settings.instrumentId,
-				settings.masterVolume,
-				settings.backingInstrument
-			);
-		} else if (backingTrack) {
-			await backingTrack.loadBackingInstruments(settings.backingInstrument);
+		// A rejected sample fetch or AudioWorklet error must still unwind
+		// isLoading, or the Start button stays disabled on "Setting up…" forever.
+		try {
+			if (!playback.isInstrumentLoaded()) {
+				await playback.loadInstrument(
+					settings.instrumentId,
+					settings.masterVolume,
+					settings.backingInstrument
+				);
+			} else if (backingTrack) {
+				await backingTrack.loadBackingInstruments(settings.backingInstrument);
+			}
+			setMasterVolume(settings.masterVolume);
+			await ensurePitchDetector();
+		} catch (err) {
+			console.error('[tune-practice] audio setup failed:', err);
+			isLoading = false;
+			loadError = true;
+			return;
 		}
-		setMasterVolume(settings.masterVolume);
-		await ensurePitchDetector();
 		isLoading = false;
 
 		const transport = toneModule.getTransport();
@@ -885,6 +896,12 @@
 		{#if micError}
 			<div class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]">
 				Microphone unavailable — check permissions and try again.
+			</div>
+		{/if}
+
+		{#if loadError}
+			<div class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]">
+				Audio setup failed — check your connection and try again.
 			</div>
 		{/if}
 

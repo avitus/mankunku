@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { DetectedNote } from '$lib/types/audio';
-import type { MatchResult } from '$lib/matching/search';
+import { buildIndex, type MatchResult } from '$lib/matching/search';
 import { createFreestyleRecognizer } from '$lib/matching/freestyle';
 import type { FreestyleBook } from '$lib/matching/book-index';
 
@@ -88,5 +88,29 @@ describe('createFreestyleRecognizer', () => {
 		expect(rec.scan(line(8), 0)?.lickId).toBe('lick-a');
 		search.mockReturnValue([result('lick-a', 0.95), result('lick-b', 0.93)]);
 		expect(rec.scan(line(9), BAR_TICKS / 2)?.lickId).toBe('lick-b');
+	});
+
+	it('fires a fully-played lick through the REAL matcher even in a longer buffer', () => {
+		// No injected search → exercises the real searchMatches with freestyle's
+		// target-basis options. A 6-note lick (intervals [2,2,1,2,2]) sits at the
+		// head of a 9-note rolling buffer. With the old query-length penalty a
+		// perfect match scored sqrt(5/8) ≈ 0.79 and never crossed the 0.9 bar.
+		const realBook: FreestyleBook = {
+			index: buildIndex(
+				[{ id: 'lick-a', kind: 'quote', performer: '', title: 'Lick A' }],
+				[{ sourceId: 'lick-a', startBar: 1, intervals: [2, 2, 1, 2, 2], iois: [2, 2, 2, 2, 2] }],
+				5
+			),
+			names: new Map([['lick-a', 'Lick A']]),
+			durationTicks: new Map([['lick-a', BAR_TICKS]])
+		};
+		const rec = createFreestyleRecognizer({ book: realBook, tempo: 120, barTicks: BAR_TICKS });
+		// midi diffs [2,2,1,2,2, 2,1,2]: the lick 5-gram is at offset 0. At tempo
+		// 120 a 0.25 s spacing quantizes to IOI 2, matching the indexed rhythm.
+		const midis = [60, 62, 64, 65, 67, 69, 71, 72, 74];
+		const notes = midis.map((m, i) => note(m, i * 0.25));
+		const match = rec.scan(notes, 5000);
+		expect(match?.lickId).toBe('lick-a');
+		expect(match!.score).toBeGreaterThanOrEqual(0.9);
 	});
 });

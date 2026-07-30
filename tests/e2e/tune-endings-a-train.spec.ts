@@ -208,9 +208,11 @@ test('Take the A Train: [2] volta number, chords, note shape, and closer', async
 	// Whole-note (or similar) not a vertical slit: width should be a decent
 	// fraction of height for noteheads in the layer.
 	const heads = report.noteAspects.filter((n) => n.w > 2 && n.h > 2);
-	if (heads.length > 0) {
-		const best = heads.reduce((a, b) => (a.aspect > b.aspect ? a : b));
-		// Squashed heads were ~0.05–0.15; a healthy whole note is often >0.5.
-		expect(best.aspect).toBeGreaterThan(0.35);
-	}
+	// Precondition: the layer must actually contain measurable noteheads, or the
+	// squash assertion below silently passes on an empty set (the exact no-op the
+	// file header warns about if the layer selector stops matching).
+	expect(heads.length, 'measurable noteheads present').toBeGreaterThan(0);
+	const best = heads.reduce((a, b) => (a.aspect > b.aspect ? a : b));
+	// Squashed heads were ~0.05–0.15; a healthy whole note is often >0.5.
+	expect(best.aspect).toBeGreaterThan(0.35);
 });

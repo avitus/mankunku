@@ -47,7 +47,15 @@ export function createFreestyleRecognizer(args: {
 			if (notes.length < DEFAULT_NGRAM_SIZE + 1) return null;
 
 			const feature = featureFromDetected(notes, tempo);
-			const results = search(feature, book.index, { topK: 3 });
+			// The query is an ever-growing rolling buffer, so penalize by how much
+			// of the matched LICK aligned (not of the buffer) — otherwise a fully
+			// played short lick is dragged under the fire threshold once the buffer
+			// outgrows it. 0.6 pitch weight honours the 60/40 recognition convention.
+			const results = search(feature, book.index, {
+				topK: 3,
+				pitchWeight: 0.6,
+				lengthBasis: 'target'
+			});
 			for (const result of results) {
 				if (result.score < QUOTE_CONFIDENCE_SCORE) continue;
 				if ((cooldownUntil.get(result.sourceId) ?? -Infinity) > nowTick) continue;

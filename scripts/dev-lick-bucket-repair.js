@@ -80,28 +80,65 @@
 	for (const [p, n] of buckets) {
 		console.log('found user-licks in bucket "' + (p || 'anon') + '": ' + n + ' licks');
 	}
-	// Pick the fullest bucket as the source of truth. A mere EXISTENCE check
-	// on the app's bucket is not enough: the app writes an EMPTY user-licks
-	// store on first signed-in load, which is exactly the shadowing case.
-	let srcPrefix = '';
-	let best = -2;
-	for (const [p, n] of buckets) {
-		if (n > best) { best = n; srcPrefix = p; }
+	// Choose the SOURCE bucket. A mere EXISTENCE check on the app's bucket is not
+	// enough: the app writes an EMPTY user-licks store on first signed-in load,
+	// so a single non-empty store must win over that empty shadow. But if MORE
+	// than one bucket is non-empty, auto-picking the fullest could silently pull
+	// a DIFFERENT local account's licks into the active one — and the re-stamp
+	// below would then sync them upstream as you. Refuse to guess: require the
+	// operator to name the source explicitly.
+	const nonEmpty = [...buckets].filter(([, n]) => n > 0);
+	const override = typeof window !== 'undefined' ? (window.__repairSourceBucket ?? null) : null;
+	let srcPrefix;
+	if (override !== null) {
+		srcPrefix = override === 'anon' ? '' : override;
+		if (!buckets.has(srcPrefix)) {
+			console.error(
+				'Override bucket "' + override + '" has no user-licks store here. Candidates: ' +
+				[...buckets.keys()].map((p) => '"' + (p || 'anon') + '"').join(', ')
+			);
+			return;
+		}
+	} else if (nonEmpty.length > 1) {
+		console.error(
+			'Multiple non-empty lick stores found — refusing to auto-pick, since the ' +
+			'fullest could be a DIFFERENT local account that would then be re-stamped ' +
+			'and synced as you. Set the source explicitly and re-run, e.g.:\n' +
+			nonEmpty
+				.map(([p, n]) => '  window.__repairSourceBucket = "' + (p || 'anon') + '"  // ' + n + ' licks')
+				.join('\n')
+		);
+		return;
+	} else {
+		// Zero or one non-empty bucket: the fullest is unambiguous.
+		srcPrefix = '';
+		let top = -2;
+		for (const [p, n] of buckets) {
+			if (n > top) { top = n; srcPrefix = p; }
+		}
 	}
+	const best = buckets.get(srcPrefix) ?? 0;
 	if (srcPrefix === appPrefix) {
 		console.log(
-			'The fullest lick store (' + best + ' licks) is already in the ' +
+			'The chosen lick store (' + best + ' licks) is already in the ' +
 			'bucket the app reads - hard-reload (Cmd+Shift+R). ' +
 			'Still empty? Report this output back.'
 		);
 		return;
 	}
+	// Mirror the source into the app's bucket: copy present stores, and CLEAR any
+	// predefined store the source lacks so stale tags / adoptions / progress from
+	// an earlier import don't linger in the destination.
 	let copied = 0;
+	let cleared = 0;
 	for (const k of KEYS) {
 		const v = localStorage.getItem(ROOT + srcPrefix + k);
 		if (v !== null) {
 			localStorage.setItem(ROOT + appPrefix + k, v);
 			copied++;
+		} else if (localStorage.getItem(ROOT + appPrefix + k) !== null) {
+			localStorage.removeItem(ROOT + appPrefix + k);
+			cleared++;
 		}
 	}
 	// Re-stamp owner ids to the active dev account so local cloud sync never
@@ -117,8 +154,8 @@
 		}
 	}
 	console.log(
-		'Moved ' + copied + ' stores from bucket "' + (srcPrefix || 'anon') +
-		'" to bucket "' + appUid + '". Reloading...'
+		'Moved ' + copied + ' stores (cleared ' + cleared + ' stale) from bucket "' +
+		(srcPrefix || 'anon') + '" to bucket "' + appUid + '". Reloading...'
 	);
 	location.reload();
 })();

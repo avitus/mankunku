@@ -619,11 +619,14 @@ export function tuneToAbcWithMap(
 		if (sec.repeatEnd) {
 			// First ending typically ends the repeat back to the start.
 			tokens.push(' :|');
-		} else if (sec.ending === 2) {
-			// Second ending: always a non-thin closer so the volta gets its
-			// right hook and the staff shows a real final barline (not an
-			// open-ended bracket line). Final section uses thin-thick; else
-			// double bar into the next section.
+		} else if (sec.ending === 1 || sec.ending === 2) {
+			// Any volta section with no repeat barline still needs a non-thin
+			// closer so abcjs gives the [1]/[2] bracket its right hook and a real
+			// barline (not an open-ended bracket line). Without this a first
+			// ending (ending === 1 && !repeatEnd) would fall through to the thin
+			// ' |' below and its volta would never close — the same regression the
+			// second-ending case was added to prevent. Final section uses
+			// thin-thick; otherwise a double bar into the next section/ending.
 			tokens.push(isLast ? ' |]' : ' ||');
 		} else if (isLast) {
 			tokens.push(' |]');

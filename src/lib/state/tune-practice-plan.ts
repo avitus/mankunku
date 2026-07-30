@@ -126,9 +126,9 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		if (next) closeTick = Math.min(closeTick, leadTicks + ticksOf(next.startOffset));
 		closeTick = Math.min(closeTick, formEndTick);
 
-		const notationSegmentIndices = det.segmentIndices.map(
-			(s) => flat.segmentSourceIndices[s]
-		);
+		const notationSegmentIndices = det.segmentIndices
+			.map((s) => flat.segmentSourceIndices[s])
+			.filter((idx): idx is number => idx !== undefined);
 		let notationStart = Infinity;
 		let notationEnd = -Infinity;
 		for (const idx of notationSegmentIndices) {
