@@ -1711,3 +1711,33 @@ describe('pitch replay regression: Pent 1-3-2-5 latency-shifted final note (conc
 		expect(result.chosen.overall).toBeGreaterThan(0.9);
 	});
 });
+
+/**
+ * "Climb to Five" (bbn-025, concert D — F3 G3 G3 A3), 2026-07-30. The player
+ * re-articulated the repeated G3 so softly that the second attack left NO
+ * detectable evidence — no worklet onset, no reading gap, no clarity dip, no
+ * hfRms spike, and only a ~13% envelope dip (below the 28% floor, and with no
+ * hf/pitch corroboration a deeper dip still wouldn't fire — that gate exists to
+ * reject breath swells). The segmenter therefore cannot split it from the held
+ * G3, so replay yields three notes: F3, G3, A3, and the second G3 scores as a
+ * MISS (saved 0.724).
+ *
+ * This test pins only the DETECTION fact. Whether the scorer should credit the
+ * PITCH of an un-rearticulated same-pitch repeat (the G3 was sounding across
+ * both onsets) is an open product decision that conflicts with the existing
+ * "a re-articulated repeat still needs two hits" contract (see
+ * audio-processing-pipeline.test.ts) — deferred to the maintainer.
+ */
+describe('pitch replay regression: Climb to Five soft G3 re-articulation (concert D)', () => {
+	async function detect(): Promise<DetectedNote[]> {
+		const wav = loadWavFixture('recordings/2026-07-30-climb-to-five.wav');
+		const { readings, onsets, duration } = await replayFromAudioBuffer(
+			makeFakeAudioBuffer(wav.channel, wav.sampleRate)
+		);
+		return segmentNotes(readings, resolveOnsets(onsets, readings), duration, undefined, undefined, undefined, onsets, []);
+	}
+
+	it('segments the three sounded notes (the soft G3 re-articulation is unsplittable)', async () => {
+		expect((await detect()).map((n) => n.midi)).toEqual([53, 55, 57]);
+	});
+});
