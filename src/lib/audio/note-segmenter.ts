@@ -206,7 +206,7 @@ export function segmentNotes(
 	const haveAttackEvidence =
 		(workletOnsets && workletOnsets.length > 0) ||
 		(articulationOnsets && articulationOnsets.length > 0);
-	if (!haveAttackEvidence) return sandwiched;
+	if (!haveAttackEvidence) return mergeWholeNoteOctaveUpLocks(sandwiched, readings);
 
 	const samePitchMerged = mergeSamePitchWithoutAttack(
 		sandwiched,
@@ -224,13 +224,19 @@ export function segmentNotes(
 	// multiple frames matching the lower segment's pitch (which they
 	// wouldn't if the upper octave were genuinely present in the audio),
 	// the upper segment is a stabilizer-locked harmonic. Collapse to lower.
-	return mergeOctaveBoundariesWithoutAttack(
+	const octaveMerged = mergeOctaveBoundariesWithoutAttack(
 		samePitchMerged,
 		readings,
 		workletOnsets ?? [],
 		undefined,
 		bleedOnsets
 	);
+
+	// Whole-note octave-up locks: a low note whose fundamental never surfaces as
+	// its own segment reads an octave high across the entire note, so the
+	// adjacent-segment merge above can't reach it. Drop it here on a strong
+	// majority of octave-up-flagged frames.
+	return mergeWholeNoteOctaveUpLocks(octaveMerged, readings);
 }
 
 /**
@@ -430,6 +436,70 @@ export function mergeOctaveBoundariesWithoutAttack(
 		result.push(cur);
 	}
 	return result;
+}
+
+/**
+ * A note is a whole-note 2nd-harmonic lock when at least this fraction of its
+ * confident (non-warmup) frames carry the octave-up flag. A genuine
+ * mid-register note only trips the per-frame spectral test on its 1–2 attack
+ * frames (broadband onset energy leaking into the odd-half bins), so its
+ * flagged fraction stays well under half; a real lock carries the flag on
+ * essentially every frame. 0.6 sits in the empty gap between the two.
+ */
+const OCTAVE_UP_LOCK_MIN_FRACTION = 0.6;
+/**
+ * Don't judge a lock on scant evidence — a note needs at least this many
+ * confident frames before the flagged-fraction vote can drop it an octave.
+ */
+const OCTAVE_UP_LOCK_MIN_FRAMES = 3;
+
+/**
+ * Drop a whole note an octave when a strong majority of its frames are flagged
+ * as a 2nd-harmonic (octave-up) lock (see `isOctaveUpLock` in pitch-frame.ts).
+ *
+ * This is the whole-note complement to `mergeOctaveBoundariesWithoutAttack`:
+ * that pass needs a correctly-detected lower-octave segment ADJACENT to the
+ * locked one to collapse toward, so it can't help when the ENTIRE note locks to
+ * the 2nd harmonic and no fundamental segment ever forms — the failure mode of a
+ * low note whose fundamental radiates almost nothing (the 2026-07-29 Sixth–Octave
+ * Lift fixture: a concert E3 detected as E4 across all 93 frames).
+ *
+ * Deciding at the note level — rather than rewriting each frame in pitch-frame —
+ * is what makes it safe: the per-frame test misfires on a note's attack
+ * transient, but those blips are a small minority of a genuine note's frames and
+ * never a majority, so the fraction gate ignores them. Cents is octave-invariant
+ * (deviation from the nearest semitone), so it carries over unchanged.
+ */
+export function mergeWholeNoteOctaveUpLocks(
+	notes: DetectedNote[],
+	readings: PitchReading[]
+): DetectedNote[] {
+	if (notes.length === 0 || readings.length === 0) return notes;
+	// Notes and readings are both time-sorted and notes don't overlap, so a
+	// single moving read pointer keeps this O(n) rather than rescanning all
+	// readings per note (tune-practice recordings run to thousands of frames).
+	let ri = 0;
+	return notes.map((note) => {
+		const end = note.onsetTime + note.duration;
+		while (ri < readings.length && readings[ri].time < note.onsetTime) ri++;
+		let confident = 0;
+		let flagged = 0;
+		for (let k = ri; k < readings.length && readings[k].time < end; k++) {
+			const r = readings[k];
+			if (r.warmup) continue;
+			confident++;
+			// Only count a flag whose reported octave still MATCHES this note. An
+			// earlier octave-collapse pass (mergeOctaveBoundariesWithoutAttack /
+			// collapseSandwichArtifacts) may already have dropped a masked-fundamental
+			// note to its true octave while its time range still holds the flagged
+			// higher-octave frames; without this guard those stale flags would form a
+			// majority and drop the already-correct note a SECOND octave (E3 → E2).
+			if (r.octaveUp && r.midi === note.midi) flagged++;
+		}
+		if (confident < OCTAVE_UP_LOCK_MIN_FRAMES) return note;
+		if (flagged / confident < OCTAVE_UP_LOCK_MIN_FRACTION) return note;
+		return { ...note, midi: note.midi - 12 };
+	});
 }
 
 /**

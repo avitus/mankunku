@@ -24,6 +24,24 @@ export interface MatchResult {
 export interface SearchOptions {
 	minScore?: number;
 	topK?: number;
+	/**
+	 * Interval/pitch share of the raw score; rhythm gets the remainder. Default
+	 * 0.6, matching the project's 60/40 pitch-rhythm convention. `/api/lick-match`
+	 * passes 0.7 explicitly — its tuned WJazzD-attribution weighting is the one
+	 * documented exception.
+	 */
+	pitchWeight?: number;
+	/**
+	 * Denominator for the coverage length-penalty:
+	 *   'query' (default) — penalize by how much of the QUERY aligned. Right for a
+	 *     bounded submitted phrase (the API), but wrong for a long rolling buffer:
+	 *     a fully-matched short lick inside a longer buffer would be suppressed
+	 *     below threshold purely because the buffer is long.
+	 *   'target' — penalize by how much of the matched LICK aligned, so a lick
+	 *     found in full scores ~1 regardless of surrounding buffer length. Used by
+	 *     freestyle, whose query is an ever-growing rolling note buffer.
+	 */
+	lengthBasis?: 'query' | 'target';
 }
 
 export function buildIndex(
@@ -41,6 +59,7 @@ export function buildIndex(
 	}
 	return {
 		sources,
+		sourceById: new Map(sources.map((s) => [s.id, s])),
 		phrases,
 		ngramIndex,
 		ngramSize,
@@ -55,6 +74,8 @@ export function searchMatches(
 ): MatchResult[] {
 	const minScore = opts.minScore ?? 0.75;
 	const topK = opts.topK ?? 3;
+	const pitchWeight = opts.pitchWeight ?? 0.6;
+	const lengthBasis = opts.lengthBasis ?? 'query';
 	const n = index.ngramSize;
 	const q = query.intervals;
 	const qIois = query.iois;
@@ -77,6 +98,9 @@ export function searchMatches(
 	}
 
 	const candidates: MatchResult[] = [];
+	// index.sourceById is built once with the index (buildIndex), so per-request
+	// (API) and per-scan (freestyle) searches don't rebuild this O(sources) map.
+	const sourceById = index.sourceById;
 
 	for (const { phraseIndex, offset } of alignments) {
 		const phrase = index.phrases[phraseIndex];
@@ -85,13 +109,14 @@ export function searchMatches(
 
 		const intervalRatio = aln.intervalHits / aln.matched;
 		const rhythmRatio = aln.rhythmHits / aln.matched;
-		const raw = 0.7 * intervalRatio + 0.3 * rhythmRatio;
-		const lengthPenalty = Math.sqrt(aln.matched / q.length);
+		const raw = pitchWeight * intervalRatio + (1 - pitchWeight) * rhythmRatio;
+		const penaltyDenom = lengthBasis === 'target' ? phrase.intervals.length : q.length;
+		const lengthPenalty = Math.sqrt(aln.matched / Math.max(1, penaltyDenom));
 		const score = raw * lengthPenalty;
 
 		if (score < minScore) continue;
 
-		const source = index.sources.find((s) => s.id === phrase.sourceId);
+		const source = sourceById.get(phrase.sourceId);
 		if (!source) continue;
 
 		candidates.push({

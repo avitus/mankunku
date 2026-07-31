@@ -212,6 +212,12 @@
 						Play
 					{/if}
 				</button>
+				<button
+					onclick={() => goto(`/tunes/${baseSheet.id}/practice`)}
+					class="rounded-full bg-[var(--color-brass)]/15 px-3 py-1.5 text-sm font-medium text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/25"
+				>
+					Practice licks
+				</button>
 				{#if isOwnSheet}
 					<button
 						onclick={handleEdit}
@@ -261,8 +267,8 @@
 			</div>
 		</div>
 
-		<!-- Notation: full multi-system chart with chord symbols -->
-		<NotationDisplay tune={sheet} instrument={getInstrument()} />
+		<!-- Notation: print-style multi-system chart (Real Book masthead + jazz chords) -->
+		<NotationDisplay tune={sheet} instrument={getInstrument()} variant="print" />
 
 		{#if baseSheet.tags.filter((t) => t !== 'practice' && t !== 'user-entered').length > 0}
 			<div class="flex flex-wrap gap-2">

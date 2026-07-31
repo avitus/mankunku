@@ -75,22 +75,30 @@ export function getLickById(id: string): Phrase | undefined {
 }
 
 /**
+ * Strip a trailing `_<KEY>` transposition suffix (where KEY is one of the 12
+ * pitch classes) from a lick id, if present. Transposition (via
+ * `transposeLick` / `transposeLickForTonality`) appends that suffix, so
+ * same-lick variants dedupe on this value.
+ */
+export function baseLickId(id: string): string {
+	const idx = id.lastIndexOf('_');
+	if (idx < 0) return id;
+	const suffix = id.slice(idx + 1);
+	return PITCH_CLASSES.includes(suffix as PitchClass) ? id.slice(0, idx) : id;
+}
+
+/**
  * Resolve a possibly-transposed phrase id back to a base lick.
  *
- * Transposition (via `transposeLick` / `transposeLickForTonality`) appends a
- * `_<key>` suffix to the lick id. Stored session results carry that suffixed
- * id, so direct lookup fails. This helper tries the id verbatim first, then
- * strips a trailing `_<KEY>` (where KEY is one of the 12 pitch classes) and
+ * Stored session results carry `_<key>`-suffixed ids, so direct lookup fails.
+ * This helper tries the id verbatim first, then strips the suffix and
  * retries. Returns undefined if neither hits.
  */
 export function getBaseLickFromId(id: string): Phrase | undefined {
 	const direct = getLickById(id);
 	if (direct) return direct;
-	const idx = id.lastIndexOf('_');
-	if (idx < 0) return undefined;
-	const suffix = id.slice(idx + 1);
-	if (!PITCH_CLASSES.includes(suffix as PitchClass)) return undefined;
-	return getLickById(id.slice(0, idx));
+	const base = baseLickId(id);
+	return base === id ? undefined : getLickById(base);
 }
 
 /** Get all licks in a category */

@@ -320,6 +320,91 @@ const CHORD_BASELINE_SPACINGS = 2.5;
 const CHORD_CLEARANCE_SPACINGS = 0.5;
 
 /**
+ * Rehearsal-mark placement (Real Book / MuseScore convention):
+ * system-start marks sit slightly right of the clef's left edge and *above*
+ * the clef's top (never through the G-clef curl). Mid-line marks keep their
+ * horizontal seat. Both drop from abcjs's high part-lane only as far as
+ * clearance against the staff, clef top, and bar numbers allows.
+ */
+/** Gap from clef left edge to mark left edge, in staff spaces. */
+const PART_CLEF_INSET_SPACINGS = 0.35;
+/** Clearance from mark bottom to top staff line (staff spaces). */
+const PART_STAFF_CLEARANCE_SPACINGS = 1.75;
+/** Clearance from mark bottom to top of the clef glyph (staff spaces). */
+const PART_CLEF_TOP_CLEARANCE_SPACINGS = 0.35;
+/** Clearance from mark bottom to any x-overlapping bar-number box. */
+const PART_BAR_NUMBER_CLEARANCE_SPACINGS = 0.3;
+/**
+ * If the mark's left edge is further right than this fraction of the staff
+ * width past the clef, treat it as mid-line (do not snap to the clef).
+ */
+const PART_SYSTEM_START_FRACTION = 0.28;
+
+/**
+ * Compute dx/dy to re-seat a rehearsal mark. Pure math for unit tests.
+ *
+ * @param partBox — bounding box of the part group (letter + box)
+ * @param clefBox — clef glyph box on the same system, or null
+ * @param staffTop — y of the top staff line
+ * @param staffWidth — full staff / system content width (for mid-line detect)
+ * @param spacing — one staff-space in user units
+ * @param obstacles — boxes that must stay clear (bar numbers on this system)
+ */
+export function partLabelDelta(
+	partBox: Box,
+	clefBox: Box | null,
+	staffTop: number,
+	staffWidth: number,
+	spacing: number,
+	obstacles: Box[] = []
+): { dx: number; dy: number } {
+	if (!Number.isFinite(spacing) || spacing <= 0 || !Number.isFinite(staffTop)) {
+		return { dx: 0, dy: 0 };
+	}
+
+	// Horizontal: only snap toward the clef when this looks like a system-start mark.
+	let dx = 0;
+	let systemStart = false;
+	if (clefBox && Number.isFinite(clefBox.x) && Number.isFinite(clefBox.width)) {
+		const systemStartLimit =
+			clefBox.x + Math.max(clefBox.width, staffWidth * PART_SYSTEM_START_FRACTION);
+		if (partBox.x <= systemStartLimit) {
+			systemStart = true;
+			const targetLeft = clefBox.x + PART_CLEF_INSET_SPACINGS * spacing;
+			dx = targetLeft - partBox.x;
+		}
+	}
+
+	// Final horizontal span after the snap (for obstacle / clef overlap tests).
+	const finalLeft = partBox.x + dx;
+	const finalRight = finalLeft + partBox.width;
+	const xOverlaps = (o: Box) => !(o.x >= finalRight || o.x + o.width <= finalLeft);
+
+	// Vertical ceiling for the mark's bottom edge: stay above staff, clef top
+	// (when co-located), and any bar numbers we would land on.
+	let targetBottom = staffTop - PART_STAFF_CLEARANCE_SPACINGS * spacing;
+	if (systemStart && clefBox && Number.isFinite(clefBox.y) && xOverlaps(clefBox)) {
+		targetBottom = Math.min(
+			targetBottom,
+			clefBox.y - PART_CLEF_TOP_CLEARANCE_SPACINGS * spacing
+		);
+	}
+	for (const o of obstacles) {
+		if (!xOverlaps(o)) continue;
+		targetBottom = Math.min(
+			targetBottom,
+			o.y - PART_BAR_NUMBER_CLEARANCE_SPACINGS * spacing
+		);
+	}
+
+	const dy = targetBottom - (partBox.y + partBox.height);
+	// Only drop; never raise (and never push into the staff past targetBottom
+	// with a positive overshoot — Math.max(0, dy) keeps high marks from going
+	// lower than allowed only when dy is already the correct drop).
+	return { dx, dy: Math.max(0, dy) };
+}
+
+/**
  * Per-chord vertical corrections (translate dy) dropping abcjs's chord row
  * to MuseScore's default: baseline 2.5 spacings above the top staff line,
  * each chord pushed up individually — never placed closer — just far enough
@@ -355,6 +440,62 @@ export function chordSymbolDeltas(
 		}
 		return bottom - descent - baselineY;
 	});
+}
+
+/** Minimum gap between adjacent chord symbols (in staff spaces). */
+const CHORD_H_GAP_SPACINGS = 0.35;
+/** Minimum clearance from a chord's left edge to x-overlapping staff ink. */
+const CHORD_H_INK_CLEARANCE_SPACINGS = 0.2;
+
+/**
+ * Per-chord horizontal corrections (translate dx) so neighbouring chords and
+ * tall staff ink (accidentals, flags) don't collide. Processes left→right;
+ * each chord may only shift right (never left past its natural seat), which
+ * preserves beat alignment for the first symbol of a bar.
+ *
+ * `boxes` are the chords' current bounding boxes (after any vertical drop).
+ * Returns one dx per chord.
+ */
+export function chordHorizontalNudges(
+	boxes: Box[],
+	obstacles: Box[],
+	spacing: number
+): number[] {
+	if (!Number.isFinite(spacing) || spacing <= 0 || boxes.length === 0) {
+		return boxes.map(() => 0);
+	}
+	const gap = CHORD_H_GAP_SPACINGS * spacing;
+	const inkClear = CHORD_H_INK_CLEARANCE_SPACINGS * spacing;
+	const dx = boxes.map(() => 0);
+	// Working left edges after prior nudges.
+	const left = boxes.map((b) => b.x);
+	const width = boxes.map((b) => b.width);
+
+	for (let i = 0; i < boxes.length; i++) {
+		let x = left[i];
+		// Clear prior chord.
+		if (i > 0) {
+			const prevRight = left[i - 1] + width[i - 1];
+			if (x < prevRight + gap) x = prevRight + gap;
+		}
+		// Clear x-overlapping ink that reaches into this chord's horizontal band
+		// (same y-band as the chord row — obstacles wholly below the staff top
+		// are still considered; the caller filters ending/part marks).
+		const top = boxes[i].y;
+		const bottom = boxes[i].y + boxes[i].height;
+		for (const o of obstacles) {
+			if (o.y + o.height < top - spacing || o.y > bottom + spacing) continue;
+			const oRight = o.x + o.width;
+			// If the obstacle overlaps our natural box and sits to our left
+			// edge, push past it.
+			if (oRight + inkClear > x && o.x < x + width[i]) {
+				if (oRight + inkClear > x) x = Math.max(x, oRight + inkClear);
+			}
+		}
+		dx[i] = x - boxes[i].x;
+		left[i] = x;
+	}
+	return dx;
 }
 
 /**

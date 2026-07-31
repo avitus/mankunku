@@ -15,6 +15,20 @@ export interface FlattenedTune {
 	harmony: HarmonicSegment[];
 	/** Total length in bars of the flattened form. */
 	totalBars: number;
+	/**
+	 * notes[i] ↔ index of the same authored note in the NOTATION-order flatten
+	 * (== the chart-anchor `sourceIndex` space of `tuneToAbcWithMap`).
+	 * Identity when `expandRepeats` is false; on an expanded timeline a
+	 * repeated section's second pass maps back to the same notation indices.
+	 */
+	noteSourceIndices: number[];
+	/** harmony[i] ↔ index in the notation-order flattened harmony. Identity when unexpanded. */
+	segmentSourceIndices: number[];
+	/**
+	 * One entry per emitted section in THIS timeline's order: which authored
+	 * section it came from and its bar offset on this timeline.
+	 */
+	sectionMap: { sourceSection: number; barOffset: number }[];
 }
 
 export interface FlattenOptions {
@@ -28,18 +42,30 @@ export interface FlattenOptions {
 }
 
 /**
- * Expand repeat structures into playback order. A span from `repeatStart` to
- * `repeatEnd` plays twice; consecutive `ending: 1` sections at the span's tail
- * play only on the first pass, and `ending: 2` sections following the span
- * play only on the second. An unbalanced `repeatStart` (no closing
- * `repeatEnd`) plays once rather than looping.
+ * Expand repeat structures into playback order, tracking each emitted
+ * section's authored index. A span from `repeatStart` to `repeatEnd` plays
+ * twice; consecutive `ending: 1` sections at the span's tail play only on the
+ * first pass, and `ending: 2` sections following the span play only on the
+ * second. An unbalanced `repeatStart` (no closing `repeatEnd`) plays once
+ * rather than looping.
  */
-function expandSections(sections: TuneSection[]): TuneSection[] {
+function expandSections(sections: TuneSection[]): {
+	sections: TuneSection[];
+	sourceIndices: number[];
+} {
 	const out: TuneSection[] = [];
+	const sourceIndices: number[] = [];
+	const pushRange = (from: number, to: number) => {
+		for (let k = from; k < to; k++) {
+			out.push(sections[k]);
+			sourceIndices.push(k);
+		}
+	};
+
 	let i = 0;
 	while (i < sections.length) {
 		if (!sections[i].repeatStart) {
-			out.push(sections[i]);
+			pushRange(i, i + 1);
 			i++;
 			continue;
 		}
@@ -48,59 +74,92 @@ function expandSections(sections: TuneSection[]): TuneSection[] {
 		while (end < sections.length && !sections[end].repeatEnd) end++;
 		if (end === sections.length) {
 			// Unbalanced repeat — play the remainder once.
-			out.push(...sections.slice(i));
+			pushRange(i, sections.length);
 			break;
 		}
 
-		const span = sections.slice(i, end + 1);
-		const firstEndingStart = span.findIndex((s) => s.ending === 1);
-		const body = firstEndingStart >= 0 ? span.slice(0, firstEndingStart) : span;
-		const firstEnding = firstEndingStart >= 0 ? span.slice(firstEndingStart) : [];
+		const spanEnd = end + 1;
+		let firstEndingStart = -1;
+		for (let k = i; k < spanEnd; k++) {
+			if (sections[k].ending === 1) {
+				firstEndingStart = k;
+				break;
+			}
+		}
+		const bodyEnd = firstEndingStart >= 0 ? firstEndingStart : spanEnd;
 
-		let next = end + 1;
-		const secondEnding: TuneSection[] = [];
+		let next = spanEnd;
+		pushRange(i, bodyEnd);
+		if (firstEndingStart >= 0) pushRange(firstEndingStart, spanEnd);
+		pushRange(i, bodyEnd);
 		while (next < sections.length && sections[next].ending === 2) {
-			secondEnding.push(sections[next]);
+			pushRange(next, next + 1);
 			next++;
 		}
-
-		out.push(...body, ...firstEnding, ...body, ...secondEnding);
 		i = next;
 	}
-	return out;
+	return { sections: out, sourceIndices };
 }
 
 /**
  * Flatten a tune's sections into a single continuous `notes[]` +
  * `harmony[]`, shifting each section's local offsets by the cumulative bar
- * count before it (in whole-note units).
+ * count before it (in whole-note units). Provenance arrays map every emitted
+ * note/segment back to its notation-order index (identity when unexpanded),
+ * so playback-timeline consumers can address chart anchors in O(1).
  */
 export function flattenTune(
 	sheet: Tune,
 	options: FlattenOptions = {}
 ): FlattenedTune {
 	const barDuration: Fraction = [sheet.timeSignature[0], sheet.timeSignature[1]];
-	const sequence = options.expandRepeats ? expandSections(sheet.sections) : sheet.sections;
+	const expanded = options.expandRepeats
+		? expandSections(sheet.sections)
+		: { sections: sheet.sections, sourceIndices: sheet.sections.map((_, i) => i) };
+
+	// Notation-order flat-index bases per authored section — the same
+	// accumulation the chart anchor map uses (tune-notation's
+	// flattenedNoteBase), which is what keeps provenance aligned with anchors.
+	const noteBase: number[] = [];
+	const segBase: number[] = [];
+	let nb = 0;
+	let sb = 0;
+	for (const sec of sheet.sections) {
+		noteBase.push(nb);
+		segBase.push(sb);
+		nb += sec.notes.length;
+		sb += sec.harmony.length;
+	}
 
 	const notes: Note[] = [];
 	const harmony: HarmonicSegment[] = [];
+	const noteSourceIndices: number[] = [];
+	const segmentSourceIndices: number[] = [];
+	const sectionMap: { sourceSection: number; barOffset: number }[] = [];
 	let barsBefore = 0;
 
-	for (const sec of sequence) {
-		if (barsBefore === 0) {
-			notes.push(...sec.notes.map((n) => ({ ...n })));
-			harmony.push(...sec.harmony.map((h) => ({ ...h, chord: { ...h.chord } })));
-		} else {
-			const shift = multiplyFraction(barDuration, barsBefore);
-			notes.push(...sec.notes.map((n) => ({ ...n, offset: addFractions(n.offset, shift) })));
-			harmony.push(...sec.harmony.map((h) => ({
-				...h,
-				chord: { ...h.chord },
-				startOffset: addFractions(h.startOffset, shift)
-			})));
+	for (let j = 0; j < expanded.sections.length; j++) {
+		const sec = expanded.sections[j];
+		const src = expanded.sourceIndices[j];
+		sectionMap.push({ sourceSection: src, barOffset: barsBefore });
+		const shift = barsBefore === 0 ? null : multiplyFraction(barDuration, barsBefore);
+
+		for (let n = 0; n < sec.notes.length; n++) {
+			const note = sec.notes[n];
+			notes.push(shift ? { ...note, offset: addFractions(note.offset, shift) } : { ...note });
+			noteSourceIndices.push(noteBase[src] + n);
+		}
+		for (let h = 0; h < sec.harmony.length; h++) {
+			const seg = sec.harmony[h];
+			harmony.push(
+				shift
+					? { ...seg, chord: { ...seg.chord }, startOffset: addFractions(seg.startOffset, shift) }
+					: { ...seg, chord: { ...seg.chord } }
+			);
+			segmentSourceIndices.push(segBase[src] + h);
 		}
 		barsBefore += sec.bars;
 	}
 
-	return { notes, harmony, totalBars: barsBefore };
+	return { notes, harmony, totalBars: barsBefore, noteSourceIndices, segmentSourceIndices, sectionMap };
 }

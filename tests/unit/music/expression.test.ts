@@ -57,6 +57,34 @@ describe('extractSoundingNotes', () => {
 		expect(sounding.map((s) => s.index)).toEqual([0, 1]);
 	});
 
+	it('reports sourceIndex as the input-array position, skipping rests', () => {
+		const notes: Note[] = [
+			{ pitch: null, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 60, duration: [1, 4], offset: [1, 4] },
+			{ pitch: null, duration: [1, 4], offset: [1, 2] },
+			{ pitch: 64, duration: [1, 4], offset: [3, 4] }
+		];
+		const sounding = extractSoundingNotes(notes);
+		expect(sounding.map((s) => s.sourceIndex)).toEqual([1, 3]);
+	});
+
+	it('reports the tie chain start as sourceIndex for merged chains', () => {
+		const notes: Note[] = [
+			{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 62, duration: [1, 2], offset: [1, 4], tied: true },
+			{ pitch: 62, duration: [1, 4], offset: [3, 4] },
+			{ pitch: 65, duration: [1, 4], offset: [1, 1] }
+		];
+		const sounding = extractSoundingNotes(notes);
+		expect(sounding.map((s) => s.pitch)).toEqual([60, 62, 65]);
+		expect(sounding.map((s) => s.sourceIndex)).toEqual([0, 1, 3]);
+	});
+
+	it('keeps sourceIndex identical to index for rest-free untied lines', () => {
+		const sounding = extractSoundingNotes(EIGHTH_LINE);
+		expect(sounding.map((s) => s.sourceIndex)).toEqual(sounding.map((s) => s.index));
+	});
+
 	it('merges a same-pitch tie chain into one sounding note with summed duration', () => {
 		const notes: Note[] = [
 			{ pitch: 60, duration: [1, 4], offset: [0, 1], tied: true },

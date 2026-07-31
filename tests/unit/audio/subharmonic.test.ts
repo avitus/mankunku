@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { correctSubharmonic, goertzelMagnitude } from '$lib/audio/pitch-frame';
+import { correctSubharmonic, isOctaveUpLock, goertzelMagnitude } from '$lib/audio/pitch-frame';
 
 const SR = 44100;
 const N = 4096;
@@ -98,5 +98,69 @@ describe('correctSubharmonic', () => {
 		// left alone (subharmonic locks only occur on low sustained tones).
 		const buf = makeTone([[1600, 0.5]]);
 		expect(correctSubharmonic(buf, 800, SR)).toBe(800);
+	});
+});
+
+describe('isOctaveUpLock', () => {
+	// The exact weak-fundamental E3 profile that fools McLeod into a
+	// 2nd-harmonic lock: fundamental ~4% of the 2nd harmonic, full odd
+	// harmonics (2026-07-29 Sixth–Octave Lift fixture, normalized to 2f).
+	const maskedE3 = (): Float32Array =>
+		makeTone([
+			[165, 0.02], // fundamental — spectrally almost absent
+			[330, 0.5], // dominant 2nd harmonic — what the detector locks onto
+			[495, 0.09], // real 3rd harmonic
+			[660, 0.05], // real 4th harmonic
+			[825, 0.06] // real 5th harmonic
+		]);
+
+	it('flags a 2nd-harmonic lock reported an octave above the true fundamental', () => {
+		// Detector reported 330 Hz (E4) but the audio is a weak-fundamental E3:
+		// energy at 1.5f (495) and 2.5f (825) proves a real fundamental at f/2.
+		expect(isOctaveUpLock(maskedE3(), 330, SR)).toBe(true);
+	});
+
+	it('does NOT flag the SAME note when reported at its true fundamental', () => {
+		// The safety mirror: when the detector correctly reports 165 Hz, the odd
+		// bins of E2 (247.5 / 412.5 Hz) are empty, so a real low note is never
+		// flagged for an octave drop. (correctSubharmonic keeps this same profile
+		// at 165 too — together they make the note octave-robust either way.)
+		expect(isOctaveUpLock(maskedE3(), 165, SR)).toBe(false);
+	});
+
+	it('does NOT flag a genuine note at f (no odd half-multiple energy)', () => {
+		// A real E4 (330 Hz) with an ordinary harmonic series has nothing at
+		// 1.5f (495) or 2.5f (825) — those are non-harmonic bins.
+		const buf = makeTone([
+			[330, 0.5],
+			[660, 0.25],
+			[990, 0.1]
+		]);
+		expect(isOctaveUpLock(buf, 330, SR)).toBe(false);
+	});
+
+	it('does not engage above the low-register bound', () => {
+		// 2nd-harmonic locks only happen on low tones; a note from ~G3 up detects
+		// its own strong fundamental. Even given the lock spectral shape, a high
+		// reported frequency is left alone.
+		const buf = makeTone([
+			[400, 0.02],
+			[800, 0.5],
+			[1200, 0.09],
+			[2000, 0.06]
+		]);
+		expect(isOctaveUpLock(buf, 800, SR)).toBe(false);
+	});
+
+	it('does not engage below the low-register bound', () => {
+		// Below the band the dropped f/2 would fall under the supported minimum
+		// pitch, so sub-160 Hz picks (stray attack/noise transients) are left alone.
+		const buf = makeTone([
+			[75, 0.02],
+			[150, 0.5],
+			[225, 0.09],
+			[375, 0.06]
+		]);
+		expect(isOctaveUpLock(buf, 150, SR)).toBe(false);
 	});
 });

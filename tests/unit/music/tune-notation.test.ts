@@ -70,9 +70,9 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 
 	it('fills melody gaps with rests and closes with a final barline', () => {
 		const abc = tuneToAbc(simpleSheet());
-		// Second half of bar 2 has no melody → half-bar rest (in the chord
-		// voice, which owns visible rests); the melody line closes with |].
-		expect(abc).toContain('z4');
+		// Second half of bar 2 has no melody → half-bar rest in M (H is
+		// spacer-only); the melody line closes with |].
+		expect(abc).toMatch(/D4 z4/);
 		expect(abc).toContain(' |]');
 	});
 
@@ -83,7 +83,7 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 		expect(abc).toContain('"DΔ7"');
 	});
 
-	it('places two chords in a bar side by side on their own beat-aligned rests', () => {
+	it('places two chords in a bar side by side on their own beat-aligned spacers', () => {
 		const abc = tuneToAbc(sheet({
 			sections: [
 				section({
@@ -96,11 +96,11 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 				})
 			]
 		}));
-		// Half-bar rests, each carrying its own chord — never stacked on one
-		// whole-bar rest.
-		expect(abc).toContain('"D-7"z4 "G7"z4');
+		// Empty bars → chord voice uses invisible x (slashes live in M);
+		// half-bar cells keep each chord on its own beat.
+		expect(abc).toContain('"D-7"x4 "G7"x4');
 		expect(abc).not.toContain('"D-7""G7"');
-		expect(abc).toContain('"CΔ7"z8');
+		expect(abc).toContain('"CΔ7"x8');
 	});
 
 	it('keeps a beat-3-only chord aligned to beat 3', () => {
@@ -109,8 +109,8 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 				section({ bars: 1, harmony: [seg('G', '7', [1, 2], [1, 2])] })
 			]
 		}));
-		// First half of the bar is a bare rest; the chord opens the second half.
-		expect(abc).toContain('z4 "G7"z4');
+		// Empty bar: invisible spacers in H; chord opens the second half.
+		expect(abc).toContain('x4 "G7"x4');
 	});
 
 	it('annotates only the first bar of a multi-bar chord', () => {
@@ -125,15 +125,17 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 				})
 			]
 		}));
-		expect(abc).toContain('"FΔ7"z8 | z8 | "G7"z8');
+		// Empty bars use x in H (M owns the slash marks).
+		expect(abc).toContain('"FΔ7"x8 | x8 | "G7"x8');
 	});
 
-	it('emits the partsbox directive so section labels render boxed', () => {
+	it('emits boxed rehearsal marks and system-start measure numbers', () => {
 		const abc = tuneToAbc(simpleSheet());
 		expect(abc).toMatch(/^%%partsbox 1$/m);
+		expect(abc).toMatch(/^%%measurenb 0$/m);
 	});
 
-	it('renders whole-bar rests with chords for harmony-only sections', () => {
+	it('uses rhythm slashes (not whole rests) for harmony-only bars', () => {
 		const abc = tuneToAbc(sheet({
 			sections: [
 				section({
@@ -142,8 +144,17 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 				})
 			]
 		}));
-		expect(abc).toContain('"FΔ7"z8');
-		expect(abc).toContain('"Bb7"z8');
+		// Melody voice: beat-aligned jazz slashes; chord voice: invisible
+		// spacers (x) so rests never double-print under the slashes.
+		expect(abc).toMatch(/!style=rhythm!z2/);
+		expect(abc).toContain('"FΔ7"x8');
+		expect(abc).toContain('"Bb7"x8');
+		expect(abc).not.toContain('"FΔ7"z8');
+	});
+
+	it('emits the style field on the masthead when present', () => {
+		const abc = tuneToAbc({ ...simpleSheet(), style: 'Medium Swing' });
+		expect(abc).toMatch(/^R:Medium Swing$/m);
 	});
 
 	it('canonicalizes parseable raw symbols to the compact display forms', () => {
@@ -158,6 +169,16 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C(mystery)')] })]
 		}));
 		expect(abc).toContain('"C(mystery)"');
+	});
+
+	it('strips a double-quote from an unparseable symbol so the ABC annotation stays intact', () => {
+		// A raw import symbol carrying a `"` would otherwise terminate the ABC
+		// chord annotation early and corrupt the whole voice line.
+		const abc = tuneToAbc(sheet({
+			sections: [section({ bars: 1, harmony: [seg('C', 'maj7', [0, 1], [1, 1], 'C"evil')] })]
+		}));
+		expect(abc).not.toContain('C"evil');
+		expect(abc).toContain('"Cevil"');
 	});
 
 	it('re-parses and transposes the raw symbol for a transposing instrument', () => {
@@ -183,9 +204,12 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 	});
 });
 
+/** Force classic 4 bars/line so layout assertions don't depend on density auto-pick. */
+const BPL4 = { barsPerLine: 4 } as const;
+
 describe('tuneToAbc — sections, repeats, endings', () => {
 	it('emits part labels when the section label changes', () => {
-		const abc = tuneToAbc(repeatsSheet());
+		const abc = tuneToAbc(repeatsSheet(), undefined, BPL4);
 		expect(abc).toMatch(/^P:A$/m);
 		expect(abc).toMatch(/^P:B$/m);
 		// Three consecutive A-labeled sections produce a single P:A.
@@ -193,22 +217,22 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 	});
 
 	it('opens a repeat at a repeatStart section', () => {
-		const abc = tuneToAbc(repeatsSheet());
+		const abc = tuneToAbc(repeatsSheet(), undefined, BPL4);
 		expect(abc).toMatch(/P:A\n\[V:M\]\|:/);
 	});
 
-	it('flows the first ending inline and stacks the second beneath it', () => {
-		const abc = tuneToAbc(repeatsSheet());
+	it('flows the first ending inline and stacks the second on a pad-free system', () => {
+		const abc = tuneToAbc(repeatsSheet(), undefined, BPL4);
 		// [1 continues the body's line (no newline before it)…
 		expect(abc).toMatch(/\| \[1/);
-		// …and [2 starts a fresh system padded with invisible bars so its
-		// bracket sits directly below [1 (body is 2 bars → 2 bars of padding)
-		// — in BOTH voices, so the alignment holds.
-		expect(abc).toMatch(/\[V:M\]x16 \[2/);
-		expect(abc).toMatch(/\[V:H\]x16 /);
+		// …and [2 starts a fresh system with NO invisible pad bars — indent
+		// under [1] is applied post-render in SVG.
+		expect(abc).toMatch(/\[V:M\]\[2/);
+		expect(abc).not.toMatch(/\[V:M\]x\d+ \[2/);
+		expect(abc).not.toMatch(/\[V:H\]x\d+ /);
 	});
 
-	it('needs no padding when the endings start at the left margin', () => {
+	it('opens both endings at the left margin when [1] starts a fresh system', () => {
 		const abc = tuneToAbc(sheet({
 			sections: [
 				section({ label: 'A', bars: 4, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [4, 1])] }),
@@ -216,10 +240,9 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
 				section({ label: 'B', bars: 1, harmony: [seg('F', 'maj7', [0, 1], [1, 1])] })
 			]
-		}));
+		}), undefined, BPL4);
 		// A 4-bar body fills its line, so [1 opens the next system at column 0
-		// and [2 aligns beneath it with no invisible padding after the voice
-		// marker.
+		// and [2 follows with no align-under indent needed.
 		expect(abc).toMatch(/\[V:M\]\[1/);
 		expect(abc).toMatch(/\[V:M\]\[2/);
 	});
@@ -234,16 +257,50 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 				section({ label: 'A', bars: 6, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [6, 1])] }),
 				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] })
 			]
-		}));
+		}), undefined, BPL4);
 		for (const line of abc.split('\n').filter((l) => l.startsWith('[V:M]'))) {
-			// One x8 token per melody bar (harmony-only sheet); every system
-			// must stay within the 4-bar line width.
-			expect((line.match(/x8/g) ?? []).length, line).toBeLessThanOrEqual(4);
+			// Empty bars emit one slash-bar token (4× style=rhythm); no pad bars.
+			const slashBars = (line.match(/!style=rhythm!/g) ?? []).length / 4;
+			expect(slashBars, line).toBeLessThanOrEqual(4);
 		}
 	});
 
+	it('closes the second ending with a non-thin barline (volta right hook)', () => {
+		// abcjs only ends an open volta on non-thin bars; a thin '|' would leave
+		// the [2] bracket open-ended with no staff barline at the close.
+		const abc = tuneToAbc(repeatsSheet(), undefined, BPL4);
+		// [2] section is not last (B follows) → double bar.
+		expect(abc).toMatch(/\[2[^\n]+\|\|/);
+		const last = sheet({
+			sections: [
+				section({ bars: 2, repeatStart: true }),
+				section({ bars: 1, ending: 1, repeatEnd: true }),
+				section({ bars: 1, ending: 2 })
+			]
+		});
+		// [2] is last → thin-thick final.
+		expect(tuneToAbc(last, undefined, BPL4)).toMatch(/\[2[^\n]+\|\]/);
+	});
+
+	it('closes a first ending WITHOUT a repeat barline on a non-thin bar (volta right hook)', () => {
+		// A first ending that flows into [2] without repeating back must still
+		// close its own volta bracket. Before the fix it fell through to the thin
+		// ' |' used for "approach into an ending", leaving the [1] hook open-ended.
+		const noRepeatFirst = sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] })
+			]
+		});
+		const abc = tuneToAbc(noRepeatFirst, undefined, BPL4);
+		// [1] (not last, [2] follows) closes on a double bar, never a thin '|'.
+		expect(abc).toMatch(/\[1[^\n]*\|\|/);
+		expect(abc).not.toMatch(/\[1[^\n]* \|(?!\|)/);
+	});
+
 	it('separates plain sections with a double bar and ends with a final bar', () => {
-		const abc = tuneToAbc(repeatsSheet());
+		const abc = tuneToAbc(repeatsSheet(), undefined, BPL4);
 		expect(abc).toMatch(/\|\|\n\[V:H\]/);
 		expect(abc).toMatch(/P:B\n\[V:M\]/);
 		// The melody line closes with the final barline; the chord voice's
@@ -253,13 +310,16 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 });
 
 describe('tuneToAbc — multi-system reflow', () => {
-	it('breaks the body onto a new line every four bars', () => {
+	it('breaks the body onto a new line every four bars by default', () => {
 		const notes: Note[] = Array.from({ length: 8 }, (_, bar) => ({
 			pitch: 60,
 			duration: [1, 1] as [number, number],
 			offset: [bar, 1] as [number, number]
 		}));
-		const abc = tuneToAbc(sheet({ sections: [section({ bars: 8, notes })] }));
+		// One whole note per bar is unremarkable density → 4 bars/line.
+		const abc = tuneToAbc(sheet({ sections: [section({ bars: 8, notes })] }), undefined, {
+			barsPerLine: 4
+		});
 		const bodyLines = abc.split('\n').filter((l) => l.includes('C8'));
 		expect(bodyLines).toHaveLength(2);
 	});
@@ -587,37 +647,48 @@ function threeFourSheet(): Tune {
 	});
 }
 
+const HDR =
+	'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%measurenb 0\n%%stretchlast 0\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n';
+
 describe('tuneToAbc — golden guard (byte-identical output)', () => {
 	// These pins capture the EXACT current output; they must hold before AND
 	// after the anchor-emission restructure — that byte-identity is the point.
 	it('simple 2-bar sheet', () => {
+		// Partial rest is visible in M; H is spacer-only and cuts only at
+		// chord events (one full-bar spacer under CΔ7).
 		expect(tuneToAbc(simpleSheet())).toBe(
-			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
-				'P:A\n[V:M]C8 | D4 x4 |]\n[V:H]"D-7"x4 "G7"x4 | "CΔ7"x4 z4 |\n'
+			HDR + 'P:A\n[V:M]C8 | D4 z4 |]\n[V:H]"D-7"x4 "G7"x4 | "CΔ7"x8 |\n'
 		);
 	});
 
 	it('multi-system 8-bar sheet', () => {
-		expect(tuneToAbc(multiSystemSheet())).toBe(
-			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
+		// Force 4 bars/line so the golden doesn't depend on density auto-pick.
+		expect(tuneToAbc(multiSystemSheet(), undefined, BPL4)).toBe(
+			HDR +
 				'P:A\n[V:M]C8 | C8 | C8 | C8 |\n[V:H]x8 | x8 | x8 | x8 |\n' +
 				'[V:M]C8 | C8 | C8 | C8 |]\n[V:H]x8 | x8 | x8 | x8 |\n'
 		);
 	});
 
 	it('repeats + numbered endings sheet', () => {
-		expect(tuneToAbc(repeatsSheet())).toBe(
-			'X:1\nT:Test Tune\nM:4/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
-				'P:A\n[V:M]|:x8 | x8 | [1x8 :|\n[V:H]"CΔ7"z8 | z8 | "G7"z8 |\n' +
-				'[V:M]x16 [2x8 ||\n[V:H]x16 "CΔ7"z8 |\n' +
-				'P:B\n[V:M]x8 | x8 |]\n[V:H]"FΔ7"z8 | z8 |\n'
+		// Empty bars engrave as beat-aligned rhythm slashes; H uses x (not z).
+		// [2] has no pad measures — post-render indent aligns it under [1].
+		const slash = '!style=rhythm!z2 !style=rhythm!z2 !style=rhythm!z2 !style=rhythm!z2';
+		expect(tuneToAbc(repeatsSheet(), undefined, BPL4)).toBe(
+			HDR +
+				`P:A\n[V:M]|:${slash} | ${slash} | [1${slash} :|\n[V:H]"CΔ7"x8 | x8 | "G7"x8 |\n` +
+				`[V:M][2${slash} ||\n[V:H]"CΔ7"x8 |\n` +
+				`P:B\n[V:M]${slash} | ${slash} |]\n[V:H]"FΔ7"x8 | x8 |\n`
 		);
 	});
 
 	it('3/4 sheet', () => {
+		// Second bar is melody-silent → three beat-aligned slashes; H uses x.
+		const slash34 = '!style=rhythm!z2 !style=rhythm!z2 !style=rhythm!z2';
+		const hdr34 =
+			'X:1\nT:Test Tune\nM:3/4\nL:1/8\n%%partsbox 1\n%%measurenb 0\n%%stretchlast 0\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n';
 		expect(tuneToAbc(threeFourSheet())).toBe(
-			'X:1\nT:Test Tune\nM:3/4\nL:1/8\n%%partsbox 1\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n' +
-				'P:A\n[V:M]C2 D2 E2 | x24/4 |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"z24/4 |\n'
+			hdr34 + `P:A\n[V:M]C2 D2 E2 | ${slash34} |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"x24/4 |\n`
 		);
 	});
 });
@@ -631,11 +702,11 @@ describe('tuneToAbcWithMap — bar anchors', () => {
 			[0, 1]
 		]);
 		expect(abc.slice(barAnchors[0].startChar, barAnchors[0].endChar)).toBe('C8 |');
-		expect(abc.slice(barAnchors[1].startChar, barAnchors[1].endChar)).toBe('D4 x4 |]');
+		expect(abc.slice(barAnchors[1].startChar, barAnchors[1].endChar)).toBe('D4 z4 |]');
 	});
 
 	it('resolves bar anchors across a system break without capturing the chord flush', () => {
-		const { abc, barAnchors } = tuneToAbcWithMap(multiSystemSheet());
+		const { abc, barAnchors } = tuneToAbcWithMap(multiSystemSheet(), undefined, BPL4);
 		expect(barAnchors).toHaveLength(8);
 		expect(barAnchors.map((b) => b.bar)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
 		for (const b of barAnchors) {
@@ -649,7 +720,7 @@ describe('tuneToAbcWithMap — bar anchors', () => {
 	});
 
 	it('starts repeat/ending bar spans after the |: and [n decorations', () => {
-		const { abc, barAnchors } = tuneToAbcWithMap(repeatsSheet());
+		const { abc, barAnchors } = tuneToAbcWithMap(repeatsSheet(), undefined, BPL4);
 		expect(barAnchors.map((b) => [b.sectionIdx, b.bar])).toEqual([
 			[0, 0],
 			[0, 1],
@@ -658,13 +729,14 @@ describe('tuneToAbcWithMap — bar anchors', () => {
 			[3, 0],
 			[3, 1]
 		]);
+		const slash = '!style=rhythm!z2 !style=rhythm!z2 !style=rhythm!z2 !style=rhythm!z2';
 		const s00 = abc.slice(barAnchors[0].startChar, barAnchors[0].endChar);
-		expect(s00).toBe('x8 |'); // opens after |:, not '|:x8 …'
+		expect(s00).toBe(`${slash} |`); // opens after |:, not '|:…'
 		const ending1 = abc.slice(barAnchors[2].startChar, barAnchors[2].endChar);
-		expect(ending1).toBe('x8 :|'); // opens after [1
+		expect(ending1).toBe(`${slash} :|`); // opens after [1
 		const ending2 = abc.slice(barAnchors[3].startChar, barAnchors[3].endChar);
-		expect(ending2).toBe('x8 ||'); // padded [2 line → section-local bar 0, no x16 pad
-		expect(ending2).not.toContain('x16');
+		// [2] system has no pad measures — bar 0 is the real ending bar only.
+		expect(ending2).toBe(`${slash} ||`);
 	});
 
 	it('emits an anchor for every bar including empty and pickup bars', () => {
@@ -689,16 +761,15 @@ describe('tuneToAbcWithMap — bar anchors', () => {
 describe('tuneToAbcWithMap — chord-slot anchors', () => {
 	it('emits one anchor per H-voice segment with beat + display text', () => {
 		const { abc, chordSlotAnchors } = tuneToAbcWithMap(simpleSheet());
+		// H cuts only at chord events — no phantom null slot for the partial rest.
 		expect(chordSlotAnchors.map((c) => [c.sectionIdx, c.bar, c.beat, c.chord])).toEqual([
 			[0, 0, 0, 'D-7'],
 			[0, 0, 2, 'G7'],
-			[0, 1, 0, 'CΔ7'],
-			[0, 1, 2, null]
+			[0, 1, 0, 'CΔ7']
 		]);
 		expect(abc.slice(chordSlotAnchors[0].startChar, chordSlotAnchors[0].endChar)).toBe('"D-7"x4');
 		expect(abc.slice(chordSlotAnchors[1].startChar, chordSlotAnchors[1].endChar)).toBe('"G7"x4');
-		expect(abc.slice(chordSlotAnchors[2].startChar, chordSlotAnchors[2].endChar)).toBe('"CΔ7"x4');
-		expect(abc.slice(chordSlotAnchors[3].startChar, chordSlotAnchors[3].endChar)).toBe('z4');
+		expect(abc.slice(chordSlotAnchors[2].startChar, chordSlotAnchors[2].endChar)).toBe('"CΔ7"x8');
 	});
 
 	it('scales chord-slot beats with a non-4/4 meter', () => {
@@ -723,6 +794,28 @@ describe('tuneToAbcWithMap — chord-slot anchors', () => {
 		const g7 = chordSlotAnchors.find((c) => c.chord === 'G7');
 		expect(g7).toBeDefined();
 		expect(g7!.beat).toBe(1.5);
+	});
+});
+
+describe('tuneToAbc — articulations', () => {
+	it('emits ABC decorations for accent and staccato', () => {
+		const abc = tuneToAbc(
+			sheet({
+				sections: [
+					section({
+						bars: 1,
+						notes: [
+							{ pitch: 60, duration: [1, 4], offset: [0, 1], articulation: 'accent' },
+							{ pitch: 62, duration: [1, 4], offset: [1, 4], articulation: 'staccato' },
+							{ pitch: 64, duration: [1, 2], offset: [1, 2] }
+						],
+						harmony: [seg('C', 'maj7', [0, 1], [1, 1])]
+					})
+				]
+			})
+		);
+		expect(abc).toContain('!>!C2');
+		expect(abc).toContain('.D2');
 	});
 });
 
