@@ -472,3 +472,26 @@ describe('detectFrame shapeBreak window anchoring', () => {
 		expect(startEvent).toBeLessThan(1.0 + 2000 / sampleRate + 0.015);
 	});
 });
+
+describe('measureShapeBreak silence handling', () => {
+	const sampleRate = 44100;
+
+	it('never reports an unmeasurable position as a real similarity', () => {
+		// A note ending into hard digital silence: positions whose LAGGED span
+		// is all zeros have no valid lag at all. Reporting the -1 sentinel for
+		// those would be a fabricated "total shape break" — and would drag the
+		// run's baseline median down, silently disabling the tier.
+		const buf = new Float32Array(4096);
+		for (let i = 0; i < 2200; i++) {
+			buf[i] = 0.3 * Math.sin((2 * Math.PI * 196 * i) / sampleRate);
+		}
+		const result = measureShapeBreak(buf, 196, sampleRate);
+		expect(result).not.toBeNull();
+		expect(result!.value).toBeGreaterThan(-1);
+		expect(Number.isFinite(result!.value)).toBe(true);
+	});
+
+	it('returns null when nothing in the buffer is measurable', () => {
+		expect(measureShapeBreak(new Float32Array(4096), 196, sampleRate)).toBeNull();
+	});
+});

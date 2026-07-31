@@ -1935,16 +1935,29 @@ function findReArticulationsInSegment(
 	// `shapeBreak` being present, so readings restored from pre-2026-07-30
 	// diagnostic JSON simply skip it.
 	if (stable.some((r) => r.shapeBreak != null)) {
-		const lastTime = stable[stable.length - 1].time;
 		const breakTime = (r: PitchReading): number => r.time + (r.shapeBreakAt ?? 0);
 		// A reading whose analysis window straddles the run's start or end
 		// measures the neighbouring note's transition, not this note — exclude
 		// those from both the baseline and the candidates.
+		//
+		// The END exclusion counts READINGS, not seconds, because it must hold
+		// under either window anchor. `breakTime` is a true audio time in both
+		// paths, but `segStart`/reading times are not: replay stamps a window by
+		// its start (so breakTime runs AHEAD of r.time) and the live path by its
+		// end (so breakTime runs ~93 ms BEHIND). A `breakTime <= lastReadingTime`
+		// test would therefore exclude nothing live, leaving the run's exit
+		// transition a candidate on exactly the path the fixtures don't cover.
+		// Reading index is anchor-free. The START gates below stay in seconds —
+		// they are physical (an attack blooms for 100–200 ms regardless of frame
+		// rate), and the anchor makes them STRICTER live, which is the safe
+		// direction: at worst a re-articulation waits for the authoritative
+		// rescore to be credited.
+		const lastCandidate = stable.length - 1 - SHAPE_MIN_TRAILING_FRAMES;
 		const interior = stable.filter(
-			(r) =>
+			(r, k) =>
 				r.shapeBreak != null &&
 				breakTime(r) >= segStart + SHAPE_EDGE_GUARD &&
-				breakTime(r) <= lastTime
+				k <= lastCandidate
 		);
 		const baseline = median(interior.map((r) => r.shapeBreak ?? 1));
 		if (interior.length >= RE_ARTICULATION_PRE_CONTEXT_FRAMES && baseline >= SHAPE_CLEAN_BASELINE) {
@@ -1977,11 +1990,12 @@ function findReArticulationsInSegment(
 				if (settledAfter.some((o) => o < t && t - o < SHAPE_SETTLE_TIME)) continue;
 
 				// Enough same-MIDI readings must follow for this to be a
-				// re-attack rather than the run's exit transition.
+				// re-attack rather than the run's exit transition. Counted by
+				// index for the anchor reason above; the `interior` filter
+				// already enforces it, and this keeps the requirement explicit
+				// at the point it is relied on.
 				const idx = stable.indexOf(candidate);
-				let trailing = 0;
-				for (const r of stable) if (r.time >= t) trailing++;
-				if (trailing < SHAPE_MIN_TRAILING_FRAMES) continue;
+				if (stable.length - 1 - idx < SHAPE_MIN_TRAILING_FRAMES) continue;
 
 				// A re-attack holds or adds energy; a release loses it.
 				const preRms = meanRms(stable, idx - RE_ARTICULATION_PRE_CONTEXT_FRAMES, idx);

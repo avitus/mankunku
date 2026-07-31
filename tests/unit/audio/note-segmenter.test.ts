@@ -107,8 +107,15 @@ describe('findReArticulations: waveform-shape tier', () => {
 		baseline?: number;
 		rmsAfter?: number;
 		frames?: number;
+		/**
+		 * Positive for replay's window-START anchor, negative for the live
+		 * path's window-END anchor (offset − fftSize/sampleRate). Both are
+		 * exercised: the gates must not depend on which one produced them.
+		 */
+		shapeBreakAt?: number;
 	}): PitchReading[] {
 		const baseline = opts.baseline ?? 0.99;
+		const shapeBreakAt = opts.shapeBreakAt ?? 0.045;
 		const frames = opts.frames ?? 45; // 0.75 s — comfortably past the settle gate
 		const out: PitchReading[] = [];
 		for (let i = 0; i < frames; i++) {
@@ -124,7 +131,7 @@ describe('findReArticulations: waveform-shape tier', () => {
 				hfRms: 0.008,
 				rmsMin: 0.095,
 				shapeBreak: broken ? (opts.breakValue ?? 0.955) : baseline,
-				shapeBreakAt: 0.045
+				shapeBreakAt
 			});
 		}
 		return out;
@@ -187,5 +194,64 @@ describe('findReArticulations: waveform-shape tier', () => {
 			return r as PitchReading;
 		});
 		expect(findReArticulations(readings, [])).toEqual([]);
+	});
+});
+
+/**
+ * The same tier under the LIVE path's window-END anchor, where `shapeBreakAt`
+ * is negative so a break's time precedes the reading that reported it. The
+ * run-exit gates must not quietly become inert there — the live score is what
+ * the player sees first, before the authoritative rescore.
+ */
+describe('findReArticulations: waveform-shape tier under the live window-end anchor', () => {
+	const LIVE_ANCHOR = 0.045 - 4096 / 44100; // ≈ −0.048 s
+
+	function liveRun(opts: {
+		breakIndex?: number;
+		breakValue?: number;
+		frames?: number;
+	}): PitchReading[] {
+		const frames = opts.frames ?? 45;
+		const out: PitchReading[] = [];
+		for (let i = 0; i < frames; i++) {
+			const broken = i === opts.breakIndex;
+			out.push({
+				midiFloat: 55,
+				midi: 55,
+				cents: 0,
+				clarity: 0.98,
+				time: 0.1 + i * (1 / 60),
+				frequency: 196,
+				rms: opts.breakIndex != null && i > opts.breakIndex ? 0.12 : 0.1,
+				hfRms: 0.008,
+				rmsMin: 0.095,
+				shapeBreak: broken ? (opts.breakValue ?? 0.955) : 0.99,
+				shapeBreakAt: LIVE_ANCHOR
+			});
+		}
+		return out;
+	}
+
+	it('still splits a shallow mid-run break', () => {
+		const onsets = findReArticulations(liveRun({ breakIndex: 30 }), []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.1 + 30 / 60 + LIVE_ANCHOR, 3);
+	});
+
+	it('does NOT split at the run exit', () => {
+		// Two independent gates cover this, which is why the tier survived the
+		// anchor bug the run-exit filter used to carry: the trailing-frames
+		// guard (now counted by reading INDEX, so it holds under either
+		// anchor — a `breakTime <= lastReadingTime` test excluded nothing here,
+		// since breakTime precedes its reading) AND the energy-sustain gate,
+		// which finds no readings after the break and so measures no sustain.
+		// The sustain gate is what actually rejects these two cases; the index
+		// guard is the structural statement of the same requirement.
+		expect(findReArticulations(liveRun({ breakIndex: 44 }), [])).toEqual([]);
+		expect(findReArticulations(liveRun({ breakIndex: 43 }), [])).toEqual([]);
+	});
+
+	it('still rejects a deep break', () => {
+		expect(findReArticulations(liveRun({ breakIndex: 30, breakValue: 0.33 }), [])).toEqual([]);
 	});
 });
