@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeWholeNoteOctaveUpLocks } from '$lib/audio/note-segmenter';
+import { findReArticulations, mergeWholeNoteOctaveUpLocks } from '$lib/audio/note-segmenter';
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from '$lib/audio/pitch-frame';
 
@@ -90,5 +90,102 @@ describe('mergeWholeNoteOctaveUpLocks', () => {
 			{ midi: 64, octaveUp: true, warmup: true }
 		]); // 3 confident (unflagged) + 3 flagged-but-warmup → 0/3 flagged
 		expect(mergeWholeNoteOctaveUpLocks(notes, readings)[0].midi).toBe(64);
+	});
+});
+
+/**
+ * Waveform-shape ("reed reset") re-articulation tier — see the SHAPE_* block
+ * comment in note-segmenter.ts. These pin the gates directly, so a future
+ * change to a threshold fails here with a named reason rather than only as a
+ * note-count diff in a WAV fixture.
+ */
+describe('findReArticulations: waveform-shape tier', () => {
+	/** A steady same-MIDI run at 60 fps, optionally broken at one reading. */
+	function shapeRun(opts: {
+		breakIndex?: number;
+		breakValue?: number;
+		baseline?: number;
+		rmsAfter?: number;
+		frames?: number;
+	}): PitchReading[] {
+		const baseline = opts.baseline ?? 0.99;
+		const frames = opts.frames ?? 45; // 0.75 s — comfortably past the settle gate
+		const out: PitchReading[] = [];
+		for (let i = 0; i < frames; i++) {
+			const broken = i === opts.breakIndex;
+			out.push({
+				midiFloat: 55,
+				midi: 55,
+				cents: 0,
+				clarity: 0.98,
+				time: 0.1 + i * (1 / 60),
+				frequency: 196,
+				rms: opts.breakIndex != null && i > opts.breakIndex ? (opts.rmsAfter ?? 0.12) : 0.1,
+				hfRms: 0.008,
+				rmsMin: 0.095,
+				shapeBreak: broken ? (opts.breakValue ?? 0.955) : baseline,
+				shapeBreakAt: 0.045
+			});
+		}
+		return out;
+	}
+
+	it('splits a shallow break on a clean run — the legato-tongue signature', () => {
+		const onsets = findReArticulations(shapeRun({ breakIndex: 30 }), []);
+		expect(onsets).toHaveLength(1);
+		// Anchored at the measured discontinuity, not the reading grid.
+		expect(onsets[0]).toBeCloseTo(0.1 + 30 / 60 + 0.045, 3);
+	});
+
+	it('does NOT split a steady run', () => {
+		expect(findReArticulations(shapeRun({}), [])).toEqual([]);
+	});
+
+	it('does NOT split a DEEP break — destroyed periodicity is impulsive contamination', () => {
+		// The crux of the tier. A click/thump/handling noise adds an
+		// uncorrelated signal and drives similarity toward zero; a legato
+		// tongue only reshapes an oscillation that never stops. Blue Monk's
+		// held E reads 0.33 here and must stay one note.
+		expect(findReArticulations(shapeRun({ breakIndex: 30, breakValue: 0.33 }), [])).toEqual([]);
+	});
+
+	it('does NOT split when the run is too noisy for the measure to mean anything', () => {
+		// A breathy tone's own similarity floor is lower than the effect being
+		// measured (the sustained-C fixture sits at 0.81).
+		expect(
+			findReArticulations(shapeRun({ breakIndex: 30, baseline: 0.9, breakValue: 0.88 }), [])
+		).toEqual([]);
+	});
+
+	it('does NOT split while the tone is still settling after the note attack', () => {
+		// A breathy attack blooms for 100-200 ms and reads as a shape break.
+		expect(findReArticulations(shapeRun({ breakIndex: 6 }), [])).toEqual([]);
+	});
+
+	it('does NOT split in the wake of an onset another tier already found', () => {
+		const readings = shapeRun({ breakIndex: 30 });
+		const breakTime = 0.1 + 30 / 60 + 0.045;
+		expect(findReArticulations(readings, [breakTime - 0.1])).toEqual([]);
+	});
+
+	it('does NOT split when energy falls across the break — that is a release', () => {
+		expect(
+			findReArticulations(shapeRun({ breakIndex: 30, rmsAfter: 0.08 }), [])
+		).toEqual([]);
+	});
+
+	it('does NOT split inside a scheduled metronome click window', () => {
+		const readings = shapeRun({ breakIndex: 30 });
+		const breakTime = 0.1 + 30 / 60 + 0.045;
+		expect(findReArticulations(readings, [], [breakTime - 0.05])).toEqual([]);
+	});
+
+	it('ignores readings with no shapeBreak (pre-2026-07-30 diagnostic JSON)', () => {
+		const readings = shapeRun({ breakIndex: 30 }).map(({ shapeBreak, shapeBreakAt, ...r }) => {
+			void shapeBreak;
+			void shapeBreakAt;
+			return r as PitchReading;
+		});
+		expect(findReArticulations(readings, [])).toEqual([]);
 	});
 });

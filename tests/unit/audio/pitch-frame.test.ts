@@ -7,6 +7,7 @@ import {
 	DEFAULT_CLARITY_THRESHOLD,
 	DEFAULT_MIN_FREQUENCY,
 	DEFAULT_MAX_FREQUENCY,
+	measureShapeBreak,
 } from '$lib/audio/pitch-frame';
 
 type MockDetector = { findPitch: () => [number, number] };
@@ -352,5 +353,122 @@ describe('detectFrame octave-up flag', () => {
 		const held = detectFrame(buf, 1.0, lockDet as any, stab, { sampleRate });
 		expect(held.reading!.midi).toBe(52); // stabilizer held the true octave
 		expect(held.reading!.octaveUp).toBeUndefined(); // not flagged → no double drop
+	});
+});
+
+describe('measureShapeBreak', () => {
+	const sampleRate = 44100;
+	const f0 = 196; // G3 — the "Climb to Five" pitch
+
+	/**
+	 * A three-harmonic reed-ish tone. `breakAt` optionally re-starts the
+	 * oscillator there with a different harmonic balance and a phase jump —
+	 * what a tongue does to the reed: same pitch, same amplitude, new shape.
+	 */
+	function tone(
+		length: number,
+		opts: { breakAt?: number; amplitudeAt?: (i: number) => number } = {}
+	): Float32Array {
+		const buf = new Float32Array(length);
+		for (let i = 0; i < length; i++) {
+			const restarted = opts.breakAt != null && i >= opts.breakAt;
+			const phase = restarted ? i - opts.breakAt! : i;
+			const t = phase / sampleRate;
+			const secondWeight = restarted ? 0.45 : 0.2;
+			const thirdWeight = restarted ? 0.25 : 0.1;
+			buf[i] =
+				(opts.amplitudeAt?.(i) ?? 1) *
+				(0.3 * Math.sin(2 * Math.PI * f0 * t) +
+					secondWeight * Math.sin(2 * Math.PI * f0 * 2 * t) +
+					thirdWeight * Math.sin(2 * Math.PI * f0 * 3 * t));
+		}
+		return buf;
+	}
+
+	it('reports near-perfect similarity for a steady tone', () => {
+		const result = measureShapeBreak(tone(4096), f0, sampleRate);
+		expect(result).not.toBeNull();
+		expect(result!.value).toBeGreaterThan(0.99);
+	});
+
+	it('stays near-perfect through a crescendo — amplitude change is not a shape break', () => {
+		// The signal this tier exists for RISES in amplitude across the
+		// articulation, so a loudness ramp on its own must not register.
+		const swell = tone(4096, { amplitudeAt: (i) => 0.5 + i / 4096 });
+		const result = measureShapeBreak(swell, f0, sampleRate);
+		expect(result!.value).toBeGreaterThan(0.98);
+	});
+
+	it('drops where the waveform shape restarts, and locates it', () => {
+		const breakAt = 2000;
+		const result = measureShapeBreak(tone(4096, { breakAt }), f0, sampleRate);
+		expect(result!.value).toBeLessThan(0.95);
+		// Localized to within a few milliseconds of the true discontinuity.
+		expect(result!.offsetSeconds).toBeGreaterThan(breakAt / sampleRate - 0.015);
+		expect(result!.offsetSeconds).toBeLessThan(breakAt / sampleRate + 0.015);
+	});
+
+	it('tolerates a slow bend — the lag search absorbs local period drift', () => {
+		// Without the lag search a 2% period drift decorrelates the upper
+		// harmonics and fakes a break on every expressive note.
+		const buf = new Float32Array(4096);
+		let phase = 0;
+		for (let i = 0; i < buf.length; i++) {
+			const f = f0 * (1 + 0.02 * (i / buf.length));
+			phase += (2 * Math.PI * f) / sampleRate;
+			buf[i] = 0.3 * Math.sin(phase) + 0.2 * Math.sin(2 * phase) + 0.1 * Math.sin(3 * phase);
+		}
+		expect(measureShapeBreak(buf, f0, sampleRate)!.value).toBeGreaterThan(0.98);
+	});
+
+	it('returns null when the pitch is too low for the window to hold a scan', () => {
+		expect(measureShapeBreak(tone(1024), 60, sampleRate)).toBeNull();
+		expect(measureShapeBreak(tone(4096), 0, sampleRate)).toBeNull();
+	});
+
+	it('is deterministic across calls despite the reused scratch buffer', () => {
+		const a = tone(4096, { breakAt: 1500 });
+		const b = tone(2048);
+		const first = measureShapeBreak(a, f0, sampleRate);
+		measureShapeBreak(b, f0, sampleRate); // different length, same scratch
+		const second = measureShapeBreak(a, f0, sampleRate);
+		expect(second).toEqual(first);
+	});
+});
+
+describe('detectFrame shapeBreak window anchoring', () => {
+	const sampleRate = 44100;
+
+	function brokenTone(): Float32Array {
+		const buf = new Float32Array(4096);
+		for (let i = 0; i < buf.length; i++) {
+			const restarted = i >= 2000;
+			const t = (restarted ? i - 2000 : i) / sampleRate;
+			buf[i] =
+				0.3 * Math.sin(2 * Math.PI * 196 * t) +
+				(restarted ? 0.45 : 0.2) * Math.sin(2 * Math.PI * 392 * t);
+		}
+		return buf;
+	}
+
+	it('points at the same instant of audio under either window anchor', () => {
+		const buf = brokenTone();
+		const det = makeMockDetector(196, 0.95);
+		// Replay: `time` is the window START, so the same physical window is
+		// timestamped windowSeconds later when anchored at its END.
+		const windowSeconds = buf.length / sampleRate;
+		const fromStart = detectFrame(buf, 1.0, det as any, null, { sampleRate });
+		const fromEnd = detectFrame(buf, 1.0 + windowSeconds, det as any, null, {
+			sampleRate,
+			windowAnchor: 'end'
+		});
+
+		expect(fromStart.reading!.shapeBreak).toBeCloseTo(fromEnd.reading!.shapeBreak!, 10);
+		const startEvent = fromStart.reading!.time + fromStart.reading!.shapeBreakAt!;
+		const endEvent = fromEnd.reading!.time + fromEnd.reading!.shapeBreakAt!;
+		expect(endEvent).toBeCloseTo(startEvent, 10);
+		// And it really is where the waveform restarted.
+		expect(startEvent).toBeGreaterThan(1.0 + 2000 / sampleRate - 0.015);
+		expect(startEvent).toBeLessThan(1.0 + 2000 / sampleRate + 0.015);
 	});
 });
