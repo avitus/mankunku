@@ -59,6 +59,7 @@ export function buildIndex(
 	}
 	return {
 		sources,
+		sourceById: new Map(sources.map((s) => [s.id, s])),
 		phrases,
 		ngramIndex,
 		ngramSize,
@@ -97,9 +98,9 @@ export function searchMatches(
 	}
 
 	const candidates: MatchResult[] = [];
-	// Built once, not scanned per candidate — this runs over the full WJazzD
-	// corpus on the /api/lick-match path.
-	const sourceById = new Map(index.sources.map((s) => [s.id, s]));
+	// index.sourceById is built once with the index (buildIndex), so per-request
+	// (API) and per-scan (freestyle) searches don't rebuild this O(sources) map.
+	const sourceById = index.sourceById;
 
 	for (const { phraseIndex, offset } of alignments) {
 		const phrase = index.phrases[phraseIndex];

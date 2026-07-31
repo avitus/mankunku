@@ -17,7 +17,7 @@ function line(n: number): DetectedNote[] {
 
 function mkBook(overrides: Partial<FreestyleBook> = {}): FreestyleBook {
 	return {
-		index: { sources: [], phrases: [], ngramIndex: {}, ngramSize: 5, builtAt: '' },
+		index: { sources: [], sourceById: new Map(), phrases: [], ngramIndex: {}, ngramSize: 5, builtAt: '' },
 		names: new Map([['lick-a', 'Lick A'], ['lick-b', 'Lick B']]),
 		durationTicks: new Map([
 			['lick-a', 3 * BAR_TICKS],

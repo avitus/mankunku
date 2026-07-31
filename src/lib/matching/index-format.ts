@@ -45,6 +45,8 @@ export interface IndexPhrase {
 
 export interface MatchIndex {
 	sources: SourceEntry[];
+	/** `sources` keyed by id — built once with the index (see buildIndex). */
+	sourceById: Map<string, SourceEntry>;
 	phrases: IndexPhrase[];
 	/**
 	 * Inverted index: interval n-gram (comma-joined, e.g. "2,-1,2,3,-2") →
