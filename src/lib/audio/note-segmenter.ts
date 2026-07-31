@@ -1389,6 +1389,64 @@ const HF_RE_ARTICULATION_SPIKE_RATIO = 3.0;
 const HF_RE_ARTICULATION_MIN_PITCH_PERTURB = 0.1;
 const HF_RE_ARTICULATION_MIN_RMS_SUSTAIN = 0.9;
 
+/**
+ * Waveform-shape ("reed reset") re-articulation tier — the last resort, for a
+ * legato tongue that leaves NO energy evidence whatsoever.
+ *
+ * Every tier above measures energy: a reading gap, an envelope dip, a
+ * high-frequency burst. The 2026-07-30 "Climb to Five" G3 pair defeats all of
+ * them because the player never interrupted the airflow. Across the second
+ * attack the period-synchronous envelope does not dip at all — it is still
+ * RISING (rms ×1.23) — brightness climbs smoothly over 130 ms instead of
+ * spiking, and the tracker never drops a frame. What the ear hears is purely
+ * timbral: the reed is damped and restarts, so the cycle-to-cycle waveform
+ * shape breaks for a few milliseconds and then settles into a new, brighter
+ * shape. `shapeBreak` (pitch-frame.ts) is the only reading-level signal that
+ * sees it — here 0.981 → 0.957.
+ *
+ * Four gates make it specific. They are not independent knobs; each rejects a
+ * distinct impostor that the others let through:
+ *
+ *   1. SHAPE_CLEAN_BASELINE — the run's own similarity floor must be high.
+ *      This is a precision instrument: on a breathy or noisy tone (the
+ *      "upper-neighbor-on-root" sustained C sits at 0.81, "sixth-octave-lift"
+ *      at 0.91) its measurement noise is larger than the effect, so it must
+ *      not be trusted there at all.
+ *   2. SHAPE_MIN_DROP — the dip must stand clear of that floor.
+ *   3. SHAPE_MIN_PERIODICITY — and it must NOT go deeper than this. The
+ *      inversion is the crux: an impulsive contaminant (a metronome click, a
+ *      key click, a thump) ADDS an uncorrelated signal and drives similarity
+ *      towards zero, while a legato tongue only reshapes an oscillation that
+ *      never stops, so it barely moves. Every false positive in the fixture
+ *      corpus is DEEP — Blue Monk's held E at 4.50 s 0.33, the root-frame
+ *      click 0.54, "third-fifth-rise" 0.86 — and both true legato tongues are
+ *      shallow (0.957, 0.961). Anything that destroys periodicity is either
+ *      contamination or a pitch instability, and belongs to another tier.
+ *   4. SHAPE_SETTLE_TIME — the tone must have been sounding steadily for this
+ *      long, measured from the run start AND from the most recent onset any
+ *      other tier emitted. A note's own attack settles over 100–200 ms
+ *      (Blue Monk's breathy G blooms until 1.39 s, 170 ms in) and reads as a
+ *      shape break; so does the tail of a re-attack another tier already
+ *      found ("blues-curl-down" 90 ms after its 0.481 s tongue).
+ *
+ * Plus energy sustain (SHAPE_MIN_SUSTAIN: a re-attack holds or adds energy —
+ * a release does not) and the same scheduled-click suppression the HF tier
+ * uses, as defence in depth.
+ *
+ * Tempo caveat, as for RE_ARTICULATION_READING_GAP: SHAPE_SETTLE_TIME is
+ * physical, not beat-relative. It admits the swung-eighth pair this tier was
+ * built for (0.34 s at 105 BPM) but not straight sixteenths at fast tempos.
+ * That is the intended conservatism for a last-resort tier — a re-articulation
+ * that fast will disturb the envelope enough for the tiers above to see it.
+ */
+const SHAPE_CLEAN_BASELINE = 0.975;
+const SHAPE_MIN_DROP = 0.015;
+const SHAPE_MIN_PERIODICITY = 0.9;
+const SHAPE_SETTLE_TIME = 0.2;
+const SHAPE_MIN_SUSTAIN = 1.0;
+const SHAPE_EDGE_GUARD = 0.1;
+const SHAPE_MIN_TRAILING_FRAMES = 2;
+
 /** Median of a numeric array; 0 if empty. Non-mutating. */
 function median(xs: number[]): number {
 	if (xs.length === 0) return 0;
@@ -1467,25 +1525,32 @@ export function findReArticulations(
 	const sortedBleed =
 		bleedOnsets && bleedOnsets.length > 0 ? [...bleedOnsets].sort((a, b) => a - b) : [];
 
+	const sortedBase = [...baseOnsets].sort((a, b) => a - b);
+
 	const onsets: number[] = [];
 	const runs = findSameMidiRuns(readings);
 	for (const run of runs) {
 		// Pass the FULL reading stream so the gap pass can distinguish a true
 		// detector silence from a warmup-bridged hole (findSameMidiRuns drops
 		// warmup frames, which can manufacture a phantom gap inside a run).
+		// `sortedBase` lets the shape pass treat an attack the baseline already
+		// found inside this run as the start of a settle window.
 		onsets.push(
-			...findReArticulationsInSegment(run.readings, run.start, run.end, readings, sortedBleed)
+			...findReArticulationsInSegment(
+				run.readings,
+				run.start,
+				run.end,
+				readings,
+				sortedBleed,
+				sortedBase
+			)
 		);
 	}
 
-	// Filter to those that would actually create a new boundary or
-	// reinforce a missed one — skip articulation onsets that coincide
-	// with an existing baseline onset (within ATTACK_DEDUP_WINDOW),
-	// since the boundary is already present; the articulation list is
-	// still useful as attack evidence so the merge pass keeps the split.
-	// We keep them in the output because the caller uses them as
-	// evidence — duplicates are harmless once sorted.
-	void baseOnsets;
+	// Articulation onsets that coincide with an existing baseline onset (within
+	// ATTACK_DEDUP_WINDOW) don't create a new boundary, but we keep them in the
+	// output because the caller uses the list as attack evidence so the merge
+	// pass keeps the split — duplicates are harmless once sorted.
 	return onsets;
 }
 
@@ -1538,7 +1603,8 @@ function findReArticulationsInSegment(
 	segStart: number,
 	segEnd: number,
 	allReadings: PitchReading[],
-	sortedBleed: number[] = []
+	sortedBleed: number[] = [],
+	sortedBaseOnsets: number[] = []
 ): number[] {
 	// Restrict to the segment's stable-MIDI run. Skip warmup frames and a
 	// short post-onset guard so the segment-start attack transient isn't
@@ -1860,6 +1926,106 @@ function findReArticulationsInSegment(
 			onsets.push(onsetTime);
 		}
 		i = recoveryIdx + 1;
+	}
+
+	// Waveform-shape ("reed reset") pass — see the SHAPE_* block comment. Runs
+	// LAST so its settle gate can see every onset the tiers above emitted for
+	// this run: a shape break in the wake of an attack one of them already
+	// found is that attack settling, not a second articulation. Gated on
+	// `shapeBreak` being present, so readings restored from pre-2026-07-30
+	// diagnostic JSON simply skip it.
+	if (stable.some((r) => r.shapeBreak != null)) {
+		const breakTime = (r: PitchReading): number => r.time + (r.shapeBreakAt ?? 0);
+		// A reading whose analysis window straddles the run's start or end
+		// measures the neighbouring note's transition, not this note — exclude
+		// those from both the baseline and the candidates.
+		//
+		// The END exclusion counts READINGS, not seconds, because it must hold
+		// under either window anchor. `breakTime` is a true audio time in both
+		// paths, but `segStart`/reading times are not: replay stamps a window by
+		// its start (so breakTime runs AHEAD of r.time) and the live path by its
+		// end (so breakTime runs ~93 ms BEHIND). A `breakTime <= lastReadingTime`
+		// test would therefore exclude nothing live, leaving the run's exit
+		// transition a candidate on exactly the path the fixtures don't cover.
+		// Reading index is anchor-free. The START gates below stay in seconds —
+		// they are physical (an attack blooms for 100–200 ms regardless of frame
+		// rate), and the anchor makes them STRICTER live, which is the safe
+		// direction: at worst a re-articulation waits for the authoritative
+		// rescore to be credited.
+		const lastCandidate = stable.length - 1 - SHAPE_MIN_TRAILING_FRAMES;
+		const interior = stable.filter(
+			(r, k) =>
+				r.shapeBreak != null &&
+				breakTime(r) >= segStart + SHAPE_EDGE_GUARD &&
+				k <= lastCandidate
+		);
+		const baseline = median(interior.map((r) => r.shapeBreak ?? 1));
+		if (interior.length >= RE_ARTICULATION_PRE_CONTEXT_FRAMES && baseline >= SHAPE_CLEAN_BASELINE) {
+			const settledAfter = [...onsets, ...sortedBaseOnsets].sort((a, b) => a - b);
+			let c = 0;
+			while (c < interior.length) {
+				if ((interior[c].shapeBreak ?? 1) > baseline - SHAPE_MIN_DROP) {
+					c++;
+					continue;
+				}
+				// Successive readings' windows overlap the same physical break,
+				// so span the contiguous evidence and judge its deepest frame.
+				let end = c;
+				let deepest = c;
+				while (end < interior.length && (interior[end].shapeBreak ?? 1) <= baseline - SHAPE_MIN_DROP) {
+					if ((interior[end].shapeBreak ?? 1) < (interior[deepest].shapeBreak ?? 1)) deepest = end;
+					end++;
+				}
+				const candidate = interior[deepest];
+				const t = breakTime(candidate);
+				c = end;
+
+				// Periodicity survived → a reed reset. Destroyed → impulsive
+				// contamination or a pitch instability; not this tier's business.
+				if ((candidate.shapeBreak ?? 1) < SHAPE_MIN_PERIODICITY) continue;
+
+				// The tone must have been steady this long — since the run began
+				// and since any attack the tiers above already found.
+				if (t < segStart + SHAPE_SETTLE_TIME) continue;
+				if (settledAfter.some((o) => o < t && t - o < SHAPE_SETTLE_TIME)) continue;
+
+				// Enough same-MIDI readings must follow for this to be a
+				// re-attack rather than the run's exit transition. Counted by
+				// index for the anchor reason above; the `interior` filter
+				// already enforces it, and this keeps the requirement explicit
+				// at the point it is relied on.
+				const idx = stable.indexOf(candidate);
+				if (stable.length - 1 - idx < SHAPE_MIN_TRAILING_FRAMES) continue;
+
+				// A re-attack holds or adds energy; a release loses it.
+				const preRms = meanRms(stable, idx - RE_ARTICULATION_PRE_CONTEXT_FRAMES, idx);
+				const postRms = meanRms(stable, idx + 2, idx + 2 + RE_ARTICULATION_PRE_CONTEXT_FRAMES);
+				if (preRms <= 0 || postRms < preRms * SHAPE_MIN_SUSTAIN) continue;
+
+				// A reading gap around the break is the gap tiers' evidence.
+				if (
+					idx > 0 &&
+					(stable[idx].time - stable[idx - 1].time >= READING_GAP_SPLIT_THRESHOLD ||
+						(idx + 1 < stable.length &&
+							stable[idx + 1].time - stable[idx].time >= READING_GAP_SPLIT_THRESHOLD))
+				) {
+					continue;
+				}
+
+				// Defence in depth: a scheduled click is broadband contamination.
+				// SHAPE_MIN_PERIODICITY already rejects every click measured in
+				// the corpus, but the schedule is free and unambiguous.
+				if (
+					sortedBleed.some(
+						(b) => t <= b + HF_BLEED_SUPPRESS_AFTER && t >= b - HF_BLEED_SUPPRESS_BEFORE
+					)
+				) {
+					continue;
+				}
+
+				onsets.push(t);
+			}
+		}
 	}
 
 	// Sort + dedupe within MIN_INTERVAL. The dip scan walks forward so it

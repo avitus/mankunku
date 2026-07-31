@@ -1713,31 +1713,100 @@ describe('pitch replay regression: Pent 1-3-2-5 latency-shifted final note (conc
 });
 
 /**
- * "Climb to Five" (bbn-025, concert D — F3 G3 G3 A3), 2026-07-30. The player
- * re-articulated the repeated G3 so softly that the second attack left NO
- * detectable evidence — no worklet onset, no reading gap, no clarity dip, no
- * hfRms spike, and only a ~13% envelope dip (below the 28% floor, and with no
- * hf/pitch corroboration a deeper dip still wouldn't fire — that gate exists to
- * reject breath swells). The segmenter therefore cannot split it from the held
- * G3, so replay yields three notes: F3, G3, A3, and the second G3 scores as a
- * MISS (saved 0.724).
+ * "Climb to Five" (bbn-025, concert D — F3 G3 G3 A3), 2026-07-30, 105 BPM
+ * tenor sax with the metronome mixed in (clicks at 0.479 + k·0.5714 s).
  *
- * This test pins only the DETECTION fact. Whether the scorer should credit the
- * PITCH of an un-rearticulated same-pitch repeat (the G3 was sounding across
- * both onsets) is an open product decision that conflicts with the existing
- * "a re-articulated repeat still needs two hits" contract (see
- * audio-processing-pipeline.test.ts) — deferred to the maintainer.
+ * The repeated G3 was re-articulated with a LEGATO ("doodle") tongue: the
+ * airflow never stops, so the amplitude envelope has no dip at all — it is
+ * still rising through the re-attack (period-synchronous envelope varies < 15%
+ * across the whole note, monotonically upward at the articulation). Every
+ * amplitude-domain tier is therefore blind to it, and so is every other
+ * existing one: no worklet onset (HFC is amplitude-weighted), no reading gap
+ * (the tracker never loses lock), no clarity dip, no hfRms spike (brightness
+ * rises 1.9× but smeared over 130 ms, nothing like the 3× burst the HF tier
+ * wants). Saved score 0.724 with the second G3 MISSED.
+ *
+ * What the ear hears — and what the waveform shows at 0.889 s — is the reed
+ * RESETTING: the cycle-to-cycle shape changes abruptly (deeper troughs, higher
+ * peaks, a brighter spectrum) with no loss of energy. That is a pure waveform
+ * discontinuity, and `shapeBreak` (see pitch-frame.ts) is the signal that
+ * exposes it: short-time period-to-period similarity drops 0.992 → 0.957 over
+ * ~6 ms here while rms RISES 1.23× across it.
  */
 describe('pitch replay regression: Climb to Five soft G3 re-articulation (concert D)', () => {
+	const TEMPO = 105;
+	const SWING = 0.6;
+	const BEAT = 60 / TEMPO;
+	// Clicks observed at 0.479 + k·BEAT in recording time.
+	const RECORDING_TRANSPORT_SECONDS = 16 * BEAT - 0.4793;
+
+	const phrase: Phrase = {
+		id: 'bbn-025_D',
+		name: 'Climb to Five',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 53, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 55, duration: [1, 8], offset: [1, 4] },
+			{ pitch: 55, duration: [1, 8], offset: [3, 8] },
+			{ pitch: 57, duration: [1, 2], offset: [1, 2] }
+		],
+		harmony: [],
+		difficulty: { level: 12, pitchComplexity: 12, rhythmComplexity: 10, lengthBars: 2 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Mirrors the production ear-training path with the metronome enabled.
 	async function detect(): Promise<DetectedNote[]> {
 		const wav = loadWavFixture('recordings/2026-07-30-climb-to-five.wav');
 		const { readings, onsets, duration } = await replayFromAudioBuffer(
 			makeFakeAudioBuffer(wav.channel, wav.sampleRate)
 		);
-		return segmentNotes(readings, resolveOnsets(onsets, readings), duration, undefined, undefined, undefined, onsets, []);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const bleedOnsets = getMetronomeBleedOnsets(RECORDING_TRANSPORT_SECONDS, TEMPO, duration);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			bleedOnsets,
+			articulationOnsets
+		);
 	}
 
-	it('segments the three sounded notes (the soft G3 re-articulation is unsplittable)', async () => {
-		expect((await detect()).map((n) => n.midi)).toEqual([53, 55, 57]);
+	it('splits the legato-tongued G3 pair the player actually played', async () => {
+		const detected = await detect();
+		expect(detected.map((n) => n.midi)).toEqual([53, 55, 55, 57]);
+		// The re-attack sits on the swung offbeat of the second beat.
+		expect(detected[2].onsetTime).toBeGreaterThan(0.83);
+		expect(detected[2].onsetTime).toBeLessThan(0.95);
+	});
+
+	it('scores every note as a hit (saved: 0.724 with the second G3 MISSED)', async () => {
+		const detected = await detect();
+		const result = runScorePipeline({
+			detected,
+			phrase,
+			tempo: TEMPO,
+			transportSeconds: 0,
+			swing: SWING,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(4);
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
 	});
 });

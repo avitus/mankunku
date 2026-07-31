@@ -106,8 +106,12 @@ export async function createPitchDetector(
 		analyser.getFloatTimeDomainData(buffer);
 		const time = analyser.context.currentTime - recordingStartTime;
 
+		// `time` is read AFTER getFloatTimeDomainData, so the analyser's window
+		// is the fftSize samples ENDING at it — unlike replay, which timestamps
+		// a window by its start. See FrameOptions.windowAnchor.
 		const { reading, rawClarity } = detectFrame(buffer, time, detector, stabilizer, {
-			sampleRate
+			sampleRate,
+			windowAnchor: 'end'
 		});
 
 		if (reading) {

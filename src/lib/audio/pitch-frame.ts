@@ -55,6 +55,25 @@ export interface PitchReading {
 	 */
 	rmsMin?: number;
 	/**
+	 * Lowest short-time period-to-period waveform similarity inside the
+	 * analysis window (0–1; ~0.99 on a steady reed tone). See
+	 * `measureShapeBreak`. This is the only reading-level signal that sees a
+	 * LEGATO ("doodle") tongue: the airflow never stops, so `rms`/`rmsMin`
+	 * hold or rise and `hfRms` never spikes, but the reed RESETS — the
+	 * cycle-to-cycle waveform shape breaks for a few milliseconds. Optional
+	 * so readings restored from pre-2026-07-30 diagnostic JSON (which lack
+	 * it) simply skip the pass that uses it.
+	 */
+	shapeBreak?: number;
+	/**
+	 * Offset from this reading's `time` to the centre of the `shapeBreak`
+	 * minimum, so the discontinuity sits at `time + shapeBreakAt` — precise to
+	 * ~3 ms, far finer than the 16.7 ms reading hop. Negative under the live
+	 * path's window-end anchor (see `FrameOptions.windowAnchor`). Omitted
+	 * whenever `shapeBreak` is.
+	 */
+	shapeBreakAt?: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -88,6 +107,32 @@ export interface PitchReading {
  */
 const RMS_MIN_BLOCK_SIZE = 128;
 const RMS_MIN_SPAN_BLOCKS = 4;
+
+/**
+ * `shapeBreak` scan geometry (see `measureShapeBreak`).
+ *
+ * SHAPE_HOP matches the worklet's render quantum (128 samples ≈ 2.9 ms), so a
+ * tongue is localized an order of magnitude finer than the 16.7 ms reading hop.
+ * SHAPE_LAG_TOLERANCE widens the lag search around the frame's detected period:
+ * the reported frequency is the McLeod average over the whole ~93 ms window, so
+ * on a bend or vibrato the LOCAL period drifts from it by up to ~3%. Without
+ * the search that drift alone would decorrelate the upper harmonics (the 8th
+ * partial turns 3% into 86° of phase error) and fake a break on every expressive
+ * note. SHAPE_MIN_POSITIONS keeps the minimum meaningful — with too few scan
+ * positions it degenerates into a single noisy sample.
+ */
+const SHAPE_HOP = 128;
+const SHAPE_LAG_TOLERANCE = 0.03;
+const SHAPE_MIN_POSITIONS = 6;
+
+/**
+ * Scratch buffers for `measureShapeBreak`'s prefix-sum tables and per-position
+ * running best, reused across frames so the 60 fps live path allocates nothing.
+ * Deterministic: each is fully rewritten on every call before it is read.
+ */
+let shapeEnergyScratch = new Float64Array(0);
+let shapeCrossScratch = new Float64Array(0);
+let shapeBestScratch = new Float64Array(0);
 
 /** Default clarity floor for accepting a reading */
 export const DEFAULT_CLARITY_THRESHOLD = 0.80;
@@ -211,6 +256,17 @@ export interface FrameOptions {
 	clarityThreshold?: number;
 	minFrequency?: number;
 	maxFrequency?: number;
+	/**
+	 * Which end of the analysis window `time` refers to. Replay hands in the
+	 * window's START (it steps a cursor through the buffer); the live rAF path
+	 * hands in `context.currentTime`, by which point the AnalyserNode holds the
+	 * PRECEDING fftSize samples — so its window ENDS at `time`. Only
+	 * `shapeBreakAt` depends on this, because it is the one field that points
+	 * at a specific instant INSIDE the window; it is emitted so that
+	 * `time + shapeBreakAt` is the discontinuity in the caller's own time base
+	 * either way (negative under the 'end' anchor). Defaults to 'start'.
+	 */
+	windowAnchor?: 'start' | 'end';
 }
 
 export interface StabilizerResult {
@@ -430,6 +486,113 @@ export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRa
 }
 
 /**
+ * Lowest short-time waveform self-similarity inside the analysis window —
+ * "did the reed restart?" measured in the time domain.
+ *
+ * Every other reading-level signal is an ENERGY measure averaged over the full
+ * ~93 ms window: `rms` (window mean), `rmsMin` (min ~11.6 ms sub-window),
+ * `hfRms` (window high-passed mean), `clarity` (McLeod over the whole window).
+ * A legato "doodle" tongue moves none of them. The player never interrupts the
+ * airflow, so the envelope holds or keeps rising and the brightness lift is
+ * spread over 100 ms+ rather than spiking; the tracker never even drops a
+ * frame. What the ear hears — and what the samples show — is the reed being
+ * damped and re-starting: for a few milliseconds consecutive cycles stop
+ * looking like each other, then a NEW steady shape (brighter, deeper troughs)
+ * takes over. That discontinuity is invisible to any amount of averaged energy
+ * and obvious in cycle-to-cycle correlation.
+ *
+ * The scan slides a two-period window in SHAPE_HOP steps and correlates it
+ * against the same window one period later, taking the best lag within
+ * SHAPE_LAG_TOLERANCE of the frame's detected period (see the constant — the
+ * search is what keeps bends and vibrato from faking a break). A steady tone
+ * scores ~0.99 everywhere; the minimum over the whole window is returned along
+ * with the offset (seconds from the window start) where it occurred, so the
+ * segmenter can place an onset far more precisely than the reading hop allows.
+ *
+ * Returns null when the pitch is too low (or the buffer too short) for the scan
+ * to have SHAPE_MIN_POSITIONS positions, so callers simply omit the field.
+ */
+export function measureShapeBreak(
+	buffer: Float32Array,
+	frequency: number,
+	sampleRate: number
+): { value: number; offsetSeconds: number } | null {
+	if (!(frequency > 0)) return null;
+	const period = Math.round(sampleRate / frequency);
+	if (period < 8) return null;
+
+	const span = 2 * period;
+	const minLag = Math.max(1, Math.round(period * (1 - SHAPE_LAG_TOLERANCE)));
+	const maxLag = Math.round(period * (1 + SHAPE_LAG_TOLERANCE));
+	const lastStart = buffer.length - span - maxLag;
+	if (lastStart < SHAPE_HOP * (SHAPE_MIN_POSITIONS - 1)) return null;
+
+	const positions = Math.floor(lastStart / SHAPE_HOP) + 1;
+	const crossEnd = lastStart + span;
+
+	// Both correlation terms reduce to prefix-sum lookups, which is what keeps
+	// this affordable in the LOW register — where period, lag range and span all
+	// grow together and the cost peaks. Energy is trivially cumulative. The cross
+	// term looks quadratic — every position against every lag over `span` samples
+	// — but with the LAG held fixed it is a sliding sum of the same product
+	// series x[n]·x[n+lag], so one prefix sum per lag makes every position O(1),
+	// turning positions×lags×span into lags×length.
+	//
+	// Measured at 4096 samples / 44.1 kHz: 0.79 → 0.44 ms per frame at the 80 Hz
+	// minimum-pitch floor (4.8% → 2.6% of a 60 fps frame), 0.30 ms at low-B♭
+	// tenor, ~0.2 ms mid-register. It costs ~0.04 ms above ~400 Hz, where the
+	// per-lag prefix write outweighs a span that has become short — irrelevant
+	// next to the low-end saving. The arithmetic is identical either way (no
+	// coarse-to-fine approximation), so the segmenter's SHAPE_* thresholds keep
+	// exactly the meaning they were measured against.
+	if (shapeEnergyScratch.length < buffer.length + 1) {
+		shapeEnergyScratch = new Float64Array(buffer.length + 1);
+		shapeCrossScratch = new Float64Array(buffer.length + 1);
+	}
+	if (shapeBestScratch.length < positions) shapeBestScratch = new Float64Array(positions);
+	const cumulative = shapeEnergyScratch;
+	const crossCumulative = shapeCrossScratch;
+	const bestPerPosition = shapeBestScratch;
+
+	cumulative[0] = 0;
+	for (let i = 0; i < buffer.length; i++) {
+		cumulative[i + 1] = cumulative[i] + buffer[i] * buffer[i];
+	}
+	// -Infinity marks "never measured" — distinct from a genuine negative
+	// similarity, and from the all-silent-lag case that must not be reported.
+	for (let p = 0; p < positions; p++) bestPerPosition[p] = -Infinity;
+
+	for (let lag = minLag; lag <= maxLag; lag++) {
+		crossCumulative[0] = 0;
+		for (let i = 0; i < crossEnd; i++) {
+			crossCumulative[i + 1] = crossCumulative[i] + buffer[i] * buffer[i + lag];
+		}
+		for (let p = 0; p < positions; p++) {
+			const start = p * SHAPE_HOP;
+			const selfEnergy = cumulative[start + span] - cumulative[start];
+			const laggedEnergy = cumulative[start + lag + span] - cumulative[start + lag];
+			if (selfEnergy <= 0 || laggedEnergy <= 0) continue;
+			const cross = crossCumulative[start + span] - crossCumulative[start];
+			const similarity = cross / Math.sqrt(selfEnergy * laggedEnergy);
+			if (similarity > bestPerPosition[p]) bestPerPosition[p] = similarity;
+		}
+	}
+
+	let worst = Infinity;
+	let worstStart = 0;
+	for (let p = 0; p < positions; p++) {
+		if (bestPerPosition[p] === -Infinity) continue; // no lag carried energy
+		if (bestPerPosition[p] < worst) {
+			worst = bestPerPosition[p];
+			worstStart = p * SHAPE_HOP;
+		}
+	}
+	if (worst === Infinity) return null;
+
+	return { value: worst, offsetSeconds: (worstStart + span / 2) / sampleRate };
+}
+
+/**
  * Run pitch detection on a single buffer and apply octave stabilization.
  *
  * @param buffer Time-domain samples (length must match detector's input size)
@@ -525,6 +688,14 @@ export function detectFrame(
 		isOctaveUpLock(buffer, frequency, opts.sampleRate);
 
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
+	const shape = measureShapeBreak(buffer, frequency, opts.sampleRate);
+	if (shape) {
+		reading.shapeBreak = shape.value;
+		reading.shapeBreakAt =
+			opts.windowAnchor === 'end'
+				? shape.offsetSeconds - buffer.length / opts.sampleRate
+				: shape.offsetSeconds;
+	}
 	if (stab.warmup) reading.warmup = true;
 	if (octaveUp) reading.octaveUp = true;
 

@@ -4,6 +4,26 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-07-30 — "No evidence" almost always means "no evidence in the domain I was looking at"
+
+The previous session searched for the soft G3 re-articulation across five signals — reading gaps, window RMS, `rmsMin`, `hfRms`, clarity — found nothing above threshold in any of them, and concluded the evidence didn't exist. From there it did something reasonable and wrong: it escalated a *detection* dead end into a *product* question ("should the scorer credit an un-rearticulated repeat?"), and both implementations of that question broke standing regressions. The dead end was real; the inference from it was not.
+
+What the five have in common is not one domain — three are RMS reductions, while clarity is McLeod's normalized autocorrelation peak and reading gaps are just clarity falling under threshold, so those two are periodicity, not energy. What all five share is the **93 ms analysis window**. Finding nothing in five views through one window is close to one negative result, not five.
+
+The tell was available the whole time: the user could hear it. A human ear resolving a 20 ms event through a 93 ms averaging window means the ear is using something the window destroys — which points at *time resolution* before it points anywhere else.
+
+And the sharpest version of that: `shapeBreak`, the signal that finally worked, is **clarity's near neighbour**. Both ask "do consecutive periods look alike?" The only material difference is that clarity answers it over 93 ms and `shapeBreak` answers it over 10 ms. The winning signal was sitting adjacent to one already being consulted, separated by a timescale rather than by a concept. That is worth remembering, because it means "we already measure something like that" is *not* evidence that a domain has been covered.
+
+I want to keep the generalization narrow enough to be useful: when a search fails, enumerate what the candidate signals have in *common* before concluding absence. If they share a timescale (the analysis window), a source (the same buffer reduction), or a domain, the search covered fewer hypotheses than it appeared to. And when a human can perceive what the instrument cannot, the instrument's limitation is the finding.
+
+## 2026-07-30 — The discriminator ran backwards, and that's what made it trustworthy
+
+I went in assuming a re-articulation would show a *large* discontinuity and the false positives would be small — so the gate would be "dip deeper than X". The corpus said the exact opposite: the two genuine legato tongues dip to 0.957 and 0.961, while Blue Monk's held E (must not split) dips to 0.33 and metronome clicks to ~0.54. Once stated physically it's obvious and it stops being a fitted threshold: a click *adds an uncorrelated signal*, which drives normalized similarity toward zero in proportion to the energy added; a tongue *modifies an oscillation that never stops*, so it barely moves. Depth measures contamination, not articulation.
+
+That inversion is why I trust this gate more than the numeric ones stacked around it. `SHAPE_CLEAN_BASELINE = 0.975` and `SHAPE_SETTLE_TIME = 0.2` are honest empirical fences and will need revisiting when a fixture arrives outside them. The 0.9 periodicity floor is a statement about what the signal *is*, and the failure mode it guards against — someone lowering it to "catch more articulations" and silently re-admitting every click — is exactly the kind that survives a green test suite. It got a named unit test for that reason.
+
+Worth noting where this leaves the tier stack: five tiers now, each owning a distinct evidence class (silence, envelope dip, HF burst, clarity dip, waveform shape). The 2026-06-21 prediction — "future fixes here will be a new *axis*, not a new threshold" — has now held four times running. The corollary I'd add: the axes are getting *cheaper to justify and harder to find*, which is the healthy direction. This one took going back to the raw samples, and I don't think it was findable from the reading stream at all.
+
 ## 2026-07-28 — The notation was encoding the convention all along
 
 The user's correction — "a repeat around the entire song simply outlines the form: head → solo → … → head" — looked at first like it demanded new machinery. It demanded *less*. The expanded flatten of a whole-form-repeat chart (body, ending 1, body again, ending 2) IS the jazz performance already: pass one is the head taking the turnaround ending, pass two is the form again taking the out. All the head feature needed was a boundary — the first *revisited* section in `sectionMap` — and the harmony doubling I'd built became unnecessary for exactly the charts where the head matters most. The doubling survives only for repeat-free charts, where the notation genuinely contains one chorus.
