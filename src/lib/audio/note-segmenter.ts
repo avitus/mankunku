@@ -1281,6 +1281,66 @@ const RE_ARTICULATION_GAP_ATTACK_RISE = 1.2;
 const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
 
 /**
+ * Slow-bloom acceptance for the same short-gap tier. The step-up test above
+ * compares the three frames straight after the hole (50 ms) against the three
+ * before it, which assumes the re-attack is already at full level when pitch
+ * tracking resumes. A reed attack BLOOMS: it takes 100–200 ms to pass the
+ * level the previous note was dying at, so whenever the hole swallows the
+ * whole attack transient the tier measures the wrong 50 ms and the note is
+ * lost.
+ *
+ * Reference: the 2026-08-01 "flat-five-chromatic-down" fixture (concert Bb,
+ * 105 BPM). The third note's attack lands under the metronome's DOWNBEAT KICK
+ * — a MembraneSynth thump sweeping ~2 kHz → 33 Hz over 40 ms with a 200 ms
+ * decay, an order of magnitude more disruptive than the ride clicks the
+ * earlier fixtures cover — which blanks pitch tracking for 100 ms. On
+ * resumption the new note reads 0.84× the pre-gap mean (step-up test: 0.89,
+ * rejected) and only peaks at 1.20× it 170 ms later. Saved score 0.655 with
+ * the third note MISSED.
+ *
+ * So the bloom path asks for the full V instead of an instantaneous step:
+ *
+ *   TROUGH  the hole ends BELOW where the note was (≤ 0.95× the pre-gap
+ *           mean) — a stop, not a swell. This is what keeps a crescendo
+ *           through a dropout from fabricating a note: a swell has no dip.
+ *   RISE    the peak within BLOOM_WINDOW of resumption stands ≥ 1.25× above
+ *           the resumption level — energy is climbing, i.e. something is
+ *           being attacked rather than tracked back on.
+ *   EXCEED  and that peak also clears the pre-gap mean by ≥ 1.10× — the
+ *           climb overtakes the previous note rather than merely recovering
+ *           to it.
+ *
+ * The counterexample the three gates are measured against is the kick-induced
+ * 117 ms hole in the same day's "down-to-the-third" fixture, mid-way through a
+ * genuinely held Db: trough 0.96 (passes), rise 1.03, exceed 0.99 — the note
+ * never climbs, because there is no attack. Measured margins on the two
+ * fixtures are 14% (rise) and 9% (exceed).
+ *
+ * This is an additional acceptance path, not a replacement: a sharp re-attack
+ * that IS at full level on resumption still passes through the step-up test
+ * above, which every fixture predating this one relies on.
+ */
+const RE_ARTICULATION_GAP_BLOOM_WINDOW = 0.2;
+const RE_ARTICULATION_GAP_BLOOM_TROUGH = 0.95;
+const RE_ARTICULATION_GAP_BLOOM_RISE = 1.25;
+const RE_ARTICULATION_GAP_BLOOM_EXCEED = 1.1;
+
+/**
+ * Envelope-floor gate the clarity dip-and-recover pass applies when a reading
+ * gap sits inside its span — see the block comment at that gate. A tongue stop
+ * silences the horn, so the ~11.6 ms `rmsMin` floor collapses well under the
+ * pre-gap floor; a click blanks tracking without touching the tone underneath,
+ * so the floor barely moves. Measured across an identical 117 ms hole:
+ * 2026-05-20 "blues-curl-up" (real tongue) 0.45, 2026-08-01
+ * "down-to-the-third" (downbeat kick on a held Db) 0.82.
+ */
+const RE_ARTICULATION_GAP_SPAN_FLOOR = 0.6;
+
+/** Instrument-band floor gate for `bandFloorDips` — see that function. */
+const BAND_FLOOR_DIP_RATIO = 0.9;
+const BAND_FLOOR_CONTEXT_FRAMES = 8;
+
+/**
  * Energy-sustain floor for the bare-gap (≥ 150 ms) re-articulation tier.
  * The tier's premise — "a sustained reed note never loses pitch tracking
  * that long except at a tongue stop" — turned out to have a counterexample:
@@ -1598,6 +1658,57 @@ function findSameMidiRuns(readings: PitchReading[]): SameMidiRun[] {
 	return runs;
 }
 
+/**
+ * Does the INSTRUMENT-band envelope floor dip across `stable[from..to)`?
+ *
+ * This is the one question a scheduled click cannot answer for itself. A click
+ * only ever ADDS energy, so it can raise the floor or leave it flat — it can
+ * never pull it down. In the full band it can also FILL a dip in, which is how
+ * a genuine tongue stop that lands on the beat disappears; `bandRmsMin`
+ * (250–5000 Hz, see pitch-frame.ts) removes that masking because nothing the
+ * metronome emits lives in that band.
+ *
+ * Measured across the corpus, floor against its own trailing median:
+ *
+ *   2026-07-25 root-frame, ride on a genuinely held G ......... 0.98  (flat)
+ *   2026-08-01 down-to-the-third, Eb tongued on a ride ........ 0.82  (dip)
+ *   2026-07-25 blue-note-step-up, soft tongue on a ride ....... 0.47
+ *   2026-05-20 / 05-22 blues-curl-up, tongue .................. 0.42 / 0.45
+ *
+ * The gate sits at 0.90 — clear of the flat control, clear of every tongue.
+ *
+ * Scope note: this only ever runs on HF-tier spikes inside a click window, and
+ * those are always CYMBAL clicks. The downbeat kick sweeps ~2 kHz → 33 Hz and
+ * so does contaminate the instrument band, which would make this measurement
+ * untrustworthy — but a kick cannot reach the HF tier in the first place:
+ * measured against each run's own hfRms median, the corpus's kicks come in at
+ * 0.95×–1.56×, nowhere near the 3× the tier requires. Rides, whose 8 kHz
+ * noise burst is exactly what that tier keys on, are 25 dB down in this band.
+ *
+ * Returns false when the readings carry no `bandRmsMin` (pre-2026-08-01
+ * diagnostic JSON), which preserves the unconditional suppression those
+ * payloads were measured under.
+ */
+function bandFloorDips(stable: PitchReading[], from: number, to: number): boolean {
+	const preStart = Math.max(0, from - BAND_FLOOR_CONTEXT_FRAMES);
+	const pre: number[] = [];
+	for (let i = preStart; i < from; i++) {
+		const v = stable[i].bandRmsMin;
+		if (v != null) pre.push(v);
+	}
+	if (pre.length === 0) return false;
+
+	let spanFloor = Infinity;
+	for (let i = from; i < to; i++) {
+		const v = stable[i].bandRmsMin;
+		if (v != null && v < spanFloor) spanFloor = v;
+	}
+	if (spanFloor === Infinity) return false;
+
+	const baseline = median(pre);
+	return baseline > 0 && spanFloor < baseline * BAND_FLOOR_DIP_RATIO;
+}
+
 function findReArticulationsInSegment(
 	readings: PitchReading[],
 	segStart: number,
@@ -1677,9 +1788,30 @@ function findReArticulationsInSegment(
 			}
 			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
 			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
-			if (preRms <= 0 || postRms < preRms * RE_ARTICULATION_GAP_ATTACK_RISE) {
-				continue;
+			if (preRms <= 0) continue;
+			const stepsUp = postRms >= preRms * RE_ARTICULATION_GAP_ATTACK_RISE;
+			// Slow-bloom path: the attack transient fell inside the hole, so the
+			// step-up window lands on a note still climbing. See the
+			// RE_ARTICULATION_GAP_BLOOM_* block comment.
+			let blooms = false;
+			if (!stepsUp) {
+				const resumeRms = stable[g].rms;
+				let bloomMax = resumeRms;
+				for (
+					let k = g + 1;
+					k < stable.length &&
+					stable[k].time - stable[g].time <= RE_ARTICULATION_GAP_BLOOM_WINDOW;
+					k++
+				) {
+					if (stable[k].rms > bloomMax) bloomMax = stable[k].rms;
+				}
+				blooms =
+					resumeRms > 0 &&
+					resumeRms <= preRms * RE_ARTICULATION_GAP_BLOOM_TROUGH &&
+					bloomMax >= resumeRms * RE_ARTICULATION_GAP_BLOOM_RISE &&
+					bloomMax >= preRms * RE_ARTICULATION_GAP_BLOOM_EXCEED;
 			}
+			if (!stepsUp && !blooms) continue;
 		}
 		const onsetTime = stable[g].time - RE_ARTICULATION_ATTACK_LATENCY;
 		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
@@ -1722,7 +1854,8 @@ function findReArticulationsInSegment(
 						(b) =>
 							stable[k].time <= b + HF_BLEED_SUPPRESS_AFTER &&
 							stable[j - 1].time >= b - HF_BLEED_SUPPRESS_BEFORE
-					)
+					) &&
+					!bandFloorDips(stable, k, j)
 				) {
 					k = j;
 					continue;
@@ -1896,6 +2029,56 @@ function findReArticulationsInSegment(
 		if (rmsDropRatio < RE_ARTICULATION_RMS_DROP_RATIO) {
 			i = clarityMinIdx + 1;
 			continue;
+		}
+
+		// Across a reading gap the clarity trigger is uninformative: tracking
+		// was LOST, which says nothing about whether the tone stopped. Any
+		// impulsive contaminant hands this pass a free trigger that way, and
+		// the RMS dip it then pairs with may be up to PAIR_WINDOW (200 ms)
+		// later — far enough to reach an unrelated trough. 2026-08-01
+		// "down-to-the-third": the metronome's downbeat kick at 2.190 s blanks
+		// 117 ms mid-way through a held Db whose envelope ripples ~4 Hz
+		// throughout; the pass married the two into a phantom onset at 2.28
+		// that split the note and slid DTW by one for the rest of the phrase.
+		//
+		// So when a gap sits in or around the span, fall back on the one piece
+		// of evidence a click cannot fake: a click only ADDS energy, so the
+		// note underneath keeps sounding, while a tongue stop drives the
+		// short-window envelope FLOOR (`rmsMin`, ~11.6 ms) toward silence.
+		// Measured against the pre-window floor: 2026-05-20 "blues-curl-up",
+		// a real tongue stop behind an identical 117 ms hole, collapses to
+		// 0.45; the down-to-the-third kick only reaches 0.82.
+		//
+		// Readings restored from pre-2026-07-25 diagnostic JSON carry no
+		// `rmsMin`; those keep the historical behaviour rather than being
+		// blocked on evidence they cannot supply.
+		let spanHasGap = false;
+		for (let k = Math.max(1, i - 1); k <= Math.min(stable.length - 1, rmsMinIdx); k++) {
+			if (stable[k].time - stable[k - 1].time >= READING_GAP_SPLIT_THRESHOLD) {
+				spanHasGap = true;
+				break;
+			}
+		}
+		if (spanHasGap) {
+			const preFloors: number[] = [];
+			for (let k = preStart; k < i; k++) {
+				if (stable[k].rmsMin != null) preFloors.push(stable[k].rmsMin as number);
+			}
+			let spanFloor = Infinity;
+			for (let k = i; k <= rmsMinIdx; k++) {
+				const f = stable[k].rmsMin;
+				if (f != null && f < spanFloor) spanFloor = f;
+			}
+			const preFloor = median(preFloors);
+			if (
+				preFloors.length > 0 &&
+				spanFloor !== Infinity &&
+				preFloor > 0 &&
+				spanFloor > preFloor * RE_ARTICULATION_GAP_SPAN_FLOOR
+			) {
+				i = rmsMinIdx + 1;
+				continue;
+			}
 		}
 
 		// Walk forward from the RMS min until rms crosses the onset

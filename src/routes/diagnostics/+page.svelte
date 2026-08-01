@@ -14,7 +14,7 @@
 	} from '$lib/persistence/audio-store';
 	import { replayFromBlob } from '$lib/audio/replay';
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
-	import { segmentNotes, resolveOnsets, findReArticulations } from '$lib/audio/note-segmenter';
+	import { segmentNotes, resolveOnsets, findReArticulations, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
@@ -126,9 +126,22 @@
 			const { readings, onsets, duration, sampleRate } = await replayFromBlob(full.blob, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
 			const baseOnsets = resolveOnsets(onsets, readings);
-			const articulationOnsets = findReArticulations(readings, baseOnsets);
+			// Reconstruct the click grid the app scored against. Without it the
+			// segmenter runs unsuppressed and this panel can disagree with the
+			// saved result — a phantom split on a click, most often — which is
+			// exactly backwards for a debugging tool. Recordings captured before
+			// the metadata carried these fields replay unsuppressed, as before.
+			const bleedOnsets =
+				full.metadata?.metronomeEnabled && full.metadata.transportSeconds != null
+					? getMetronomeBleedOnsets(
+							full.metadata.transportSeconds,
+							full.metadata.tempo,
+							duration
+						)
+					: undefined;
+			const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
 			const resolvedOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets, undefined, articulationOnsets);
+			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets, bleedOnsets, articulationOnsets);
 			replay = {
 				sessionId: id,
 				readings,
@@ -285,7 +298,12 @@
 					concertKey: md?.key ?? null,
 					tempo: md?.tempo ?? null,
 					swing: md?.swing ?? null,
-					backingTrackUsed: md?.backingTrackLog != null
+					backingTrackUsed: md?.backingTrackLog != null,
+					// Needed to reconstruct the metronome click grid offline —
+					// half of these investigations turn on whether a candidate
+					// onset sits under a click. Null on pre-2026-08-01 captures.
+					metronomeEnabled: md?.metronomeEnabled ?? null,
+					transportSeconds: md?.transportSeconds ?? null
 				},
 				audio: {
 					duration: replay.duration,

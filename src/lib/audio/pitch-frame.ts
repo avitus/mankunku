@@ -55,6 +55,25 @@ export interface PitchReading {
 	 */
 	rmsMin?: number;
 	/**
+	 * `rmsMin` computed on a 250–5000 Hz band-passed copy of the window — the
+	 * INSTRUMENT band. Everything the metronome contributes lives outside it:
+	 * the ride is high-passed at 8 kHz, the hi-hat at 6 kHz, and the downbeat
+	 * kick's MembraneSynth body sits under 250 Hz. A bare ride measures ~0.004
+	 * here against a horn at ~0.13 — 25 dB down.
+	 *
+	 * That matters because a click can only ever ADD energy, so it cannot
+	 * create an envelope dip — but in the full band it can FILL one in, hiding
+	 * a genuine tongue stop that happens to land on the beat. Since the beat is
+	 * exactly where notes start, that is the common case, not the corner case.
+	 * Measured on the 2026-08-01 "down-to-the-third" second Eb (tongued right
+	 * on a ride click): the band floor dips to 0.82 of its trailing median
+	 * while the full-band floor only reaches 0.98.
+	 *
+	 * Optional so readings restored from pre-2026-08-01 diagnostic JSON (which
+	 * lack it) simply fall back to the full-band evidence.
+	 */
+	bandRmsMin?: number;
+	/**
 	 * Lowest short-time period-to-period waveform similarity inside the
 	 * analysis window (0–1; ~0.99 on a steady reed tone). See
 	 * `measureShapeBreak`. This is the only reading-level signal that sees a
@@ -107,6 +126,116 @@ export interface PitchReading {
  */
 const RMS_MIN_BLOCK_SIZE = 128;
 const RMS_MIN_SPAN_BLOCKS = 4;
+
+/**
+ * Instrument-band corners for `bandRmsMin` (see the field doc). 250 Hz clears
+ * the kick's body while sitting under every pitch the app supports; 5 kHz
+ * keeps the horn's brightness — which is what a light tongue actually
+ * changes — while landing a full octave below the hi-hat's 6 kHz corner.
+ *
+ * The low-pass is cascaded four times (~-33 dB at 8 kHz) because a single
+ * 2-pole section leaves too much ride through to trust a dip. The high-pass
+ * is cascaded twice; the kick needs less rejection because its energy is
+ * concentrated well below the corner. Settling: the first block of each
+ * window is discarded, which is ~2.9 ms against a ~3 ms high-pass time
+ * constant, so the filter state's cold start cannot masquerade as a dip.
+ */
+const BAND_RMS_HP_HZ = 250;
+const BAND_RMS_LP_HZ = 5000;
+const BAND_RMS_HP_STAGES = 2;
+const BAND_RMS_LP_STAGES = 4;
+
+/** Scratch buffers for the band-passed copy and its block energies. */
+let bandScratch = new Float32Array(0);
+let bandBlockScratch = new Float64Array(0);
+
+/**
+ * One 2-pole Butterworth section applied in place over `buf[0..len)`.
+ * Q is fixed at 1/√2; cascading sections steepens the skirt without needing
+ * per-stage coefficients, which is all this measurement requires.
+ */
+function biquadInPlace(
+	buf: Float32Array,
+	len: number,
+	sampleRate: number,
+	cutoffHz: number,
+	kind: 'hp' | 'lp'
+): void {
+	const w0 = (2 * Math.PI * cutoffHz) / sampleRate;
+	const cosW = Math.cos(w0);
+	const alpha = Math.sin(w0) / Math.SQRT2;
+	const a0 = 1 + alpha;
+	const b0 = (kind === 'hp' ? (1 + cosW) / 2 : (1 - cosW) / 2) / a0;
+	const b1 = (kind === 'hp' ? -(1 + cosW) : 1 - cosW) / a0;
+	const b2 = b0;
+	const a1 = (-2 * cosW) / a0;
+	const a2 = (1 - alpha) / a0;
+
+	let x1 = 0,
+		x2 = 0,
+		y1 = 0,
+		y2 = 0;
+	for (let i = 0; i < len; i++) {
+		const x = buf[i];
+		const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+		x2 = x1;
+		x1 = x;
+		y2 = y1;
+		y1 = y;
+		buf[i] = y;
+	}
+}
+
+/**
+ * Minimum sliding sub-window RMS of the 250–5000 Hz band of `buffer`, using
+ * the same block geometry as `rmsMin` so the two are directly comparable.
+ * Returns null when the window is too short to hold a span after dropping
+ * the settling block.
+ */
+function measureBandRmsMin(buffer: Float32Array, sampleRate: number): number | null {
+	const len = buffer.length;
+	if (bandScratch.length < len) bandScratch = new Float32Array(len);
+	const work = bandScratch;
+	work.set(buffer.subarray(0, len));
+
+	for (let s = 0; s < BAND_RMS_HP_STAGES; s++) {
+		biquadInPlace(work, len, sampleRate, BAND_RMS_HP_HZ, 'hp');
+	}
+	for (let s = 0; s < BAND_RMS_LP_STAGES; s++) {
+		biquadInPlace(work, len, sampleRate, BAND_RMS_LP_HZ, 'lp');
+	}
+
+	// Skip the first block: the filters start from zero state on every window.
+	const totalBlocks = Math.floor(len / RMS_MIN_BLOCK_SIZE);
+	const usableBlocks = totalBlocks - 1;
+	if (usableBlocks < RMS_MIN_SPAN_BLOCKS) return null;
+
+	// Rolling span sum over per-block energies — each sample is squared once.
+	if (bandBlockScratch.length < usableBlocks) {
+		bandBlockScratch = new Float64Array(usableBlocks);
+	}
+	const blocks = bandBlockScratch;
+	for (let b = 0; b < usableBlocks; b++) {
+		const start = (b + 1) * RMS_MIN_BLOCK_SIZE;
+		let blockEnergy = 0;
+		for (let i = start; i < start + RMS_MIN_BLOCK_SIZE; i++) {
+			blockEnergy += work[i] * work[i];
+		}
+		blocks[b] = blockEnergy;
+	}
+
+	let spanEnergy = 0;
+	let minSpanEnergy = Infinity;
+	for (let b = 0; b < usableBlocks; b++) {
+		spanEnergy += blocks[b];
+		if (b >= RMS_MIN_SPAN_BLOCKS) spanEnergy -= blocks[b - RMS_MIN_SPAN_BLOCKS];
+		if (b >= RMS_MIN_SPAN_BLOCKS - 1 && spanEnergy < minSpanEnergy) {
+			minSpanEnergy = spanEnergy;
+		}
+	}
+	if (minSpanEnergy === Infinity) return null;
+	return Math.sqrt(minSpanEnergy / (RMS_MIN_SPAN_BLOCKS * RMS_MIN_BLOCK_SIZE));
+}
 
 /**
  * `shapeBreak` scan geometry (see `measureShapeBreak`).
@@ -688,6 +817,8 @@ export function detectFrame(
 		isOctaveUpLock(buffer, frequency, opts.sampleRate);
 
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
+	const bandRmsMin = measureBandRmsMin(buffer, opts.sampleRate);
+	if (bandRmsMin !== null) reading.bandRmsMin = bandRmsMin;
 	const shape = measureShapeBreak(buffer, frequency, opts.sampleRate);
 	if (shape) {
 		reading.shapeBreak = shape.value;

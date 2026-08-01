@@ -67,6 +67,33 @@ describe('saveRecording + retrieval round-trip', () => {
 		expect(summaries[0].metadata!.detectedNotes).toHaveLength(3);
 	});
 
+	it('round-trips the click schedule when the capture recorded one', async () => {
+		const metadata = makeMetadata({ transportSeconds: 9.142857, metronomeEnabled: true });
+		await saveRecording('session-schedule', makeBlob(), { metadata });
+
+		const full = await getRecordingFull('session-schedule');
+		expect(full!.metadata!.transportSeconds).toBeCloseTo(9.142857, 6);
+		expect(full!.metadata!.metronomeEnabled).toBe(true);
+	});
+
+	it('reads back recordings saved before the click schedule was captured', async () => {
+		// transportSeconds/metronomeEnabled are optional and there is no
+		// migration, so every recording taken before 2026-08-01 reads back
+		// without them. Consumers must branch on absence rather than assume a
+		// default — /diagnostics replays those unsuppressed, as it always did.
+		const metadata = makeMetadata();
+		delete metadata.transportSeconds;
+		delete metadata.metronomeEnabled;
+		await saveRecording('session-legacy', makeBlob(), { metadata });
+
+		const full = await getRecordingFull('session-legacy');
+		expect(full!.metadata).not.toBeNull();
+		expect(full!.metadata!.transportSeconds).toBeUndefined();
+		expect(full!.metadata!.metronomeEnabled).toBeUndefined();
+		// The rest of the metadata is unaffected.
+		expect(full!.metadata!.phraseId).toBe('test-phrase-1');
+	});
+
 	it('saves and retrieves full recording with blob and metadata', async () => {
 		const metadata = makeMetadata();
 		const blob = makeBlob(200);
