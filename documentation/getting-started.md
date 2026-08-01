@@ -6,17 +6,19 @@ The name is a tribute to [Winston "Mankunku" Ngozi](https://en.wikipedia.org/wik
 
 ## What's inside
 
-The app has two practice modes, set up like the two sides of an LP.
+The app has two core practice modes, set up like the two sides of an LP.
 
 **Side A — Ear Training.** The app plays a short phrase. You play it back on your horn. It listens through your microphone, scores how close you got on pitch and rhythm, and either moves you on or gives you a retry. Phrases come from a curated catalog of about 450 jazz licks, plus an algorithmic generator for variety. The difficulty rises as you do.
 
 **Side B — Lick Practice.** Pick a lick you want to own. The app cycles it through all 12 keys over a backing track — bass, comping, drums — and scores each pass. Get clean takes and the tempo bumps up by 5 BPM. Stumble and it eases off. This is the practice room version of working a line through the cycle of fifths.
 
-Around those two modes are the supporting rooms: a **Licks** page holding your personal book of licks; a **Tunes** page for full song forms — imported, hand-charted, or adopted from the community; a **progress** view where you can see your streak, a calendar heatmap of practice days, and trend graphs of pitch and rhythm complexity over time; a **scales** reference; and tools for **adding licks** of your own — either by writing them note by note in the editor, or by recording a phrase from your horn and letting the app transcribe it.
+Then there's the room where the two meet: **Tune Practice.** Open a full song form from your book and the app plays the rhythm section through it, finds the ii-Vs and turnarounds and vamps inside the changes, and hands you those spots to fill with the licks you've been drilling. Score them, chain them together for bonus points, or just take a solo and let the app tell you which of your lines it recognised. See [Playing Over Tunes](./tune-practice.md).
+
+Around those are the supporting rooms: a **Licks** page holding your personal book of lines; a **[Tunes](./tunes.md)** page for full song forms — hand-charted, imported from iReal Pro / Band-in-a-Box / MuseScore / a PDF, or adopted from the community; a **progress** view with your streak, a calendar heatmap of practice days, and trend graphs over time; a **scales** reference; and tools for **adding licks** of your own — either by writing them note by note in the editor, or by recording a phrase from your horn and letting the app transcribe it.
 
 ## What you'll need
 
-- A modern browser (the app is a PWA — install it like a native app if you want).
+- A modern browser. The app is installable — add it to your home screen or dock and it opens in its own window — but it isn't an offline app: loading a page still needs the network. Your practice data is written to *this device* first and works without an account; clearing your browser storage while signed out loses it. Sign in and it also syncs to the cloud, so it follows you between devices and survives a browser wipe.
 - A microphone the app can hear your horn through. A laptop's built-in mic works for most monophonic instruments. A USB condenser is better.
 - Headphones, ideally. The app plays a phrase out of your speakers, then listens; if your speakers are loud enough that the mic re-hears the phrase, the score gets confused. There is a "bleed filter" that helps, but headphones make life simpler.
 - A quiet room. Not silent — but the pitch detector listens for one note at a time, so a clattering dishwasher next door will trip it up.
@@ -39,7 +41,9 @@ Every player who's tried this app has the same instinct: start at level 50 becau
 ## Where to go from here
 
 - **[How to Practice](./user-guide.md)** — the practice loop, the buttons, the settings.
-- **[Two Practice Modes](./architecture/overview.md)** — when Side A vs Side B is the right tool.
+- **[The Practice Modes](./architecture/overview.md)** — when Side A, Side B, or a tune is the right tool.
+- **[Your Tunes](./tunes.md)** — building a songbook: charting, importing, adopting.
+- **[Playing Over Tunes](./tune-practice.md)** — putting your vocabulary into a real form.
 - **[How Scoring Works](./architecture/scoring-algorithm.md)** — what the app rewards and what it forgives.
 - **[The Daily Key](./architecture/tonality-system.md)** — why the key changes every day, and how new ones unlock.
 - **[Glossary](./reference/glossary.md)** — jazz terms used throughout the app.

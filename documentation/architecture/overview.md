@@ -1,6 +1,6 @@
-# Two Practice Modes
+# The Practice Modes
 
-Mankunku splits practice into two modes — Side A and Side B — that solve different problems. Side A trains your ear; Side B drills a line into your fingers. They share the difficulty system and the progress tracking, but they ask different things of you in the room.
+Mankunku splits practice into two scored modes — Side A and Side B — that solve different problems, plus a third surface where you apply what they teach you. Side A trains your ear; Side B drills a line into your fingers; Tune Practice puts those lines into a real song form. Side A and Side B share the difficulty system and the progress tracking, but they ask different things of you in the room.
 
 ## Side A — Ear Training
 
@@ -31,6 +31,21 @@ Side B is **depth-first**. It assumes the line is already in your ear and your j
 
 **Use Side B when** there's a specific line you want to internalize — a Bird quote, a turnaround, a ii-V-I lick from your transcription book, a phrase you stole from a record. Stagger Side B sessions across the week and you'll have the line in every key in a month or so.
 
+## Tune Practice — applying it
+
+The third surface, reached from **Practice licks** on any tune in your book. It isn't a fourth kind of drill; it's the place the other two pay off.
+
+- The app reads a tune's changes and **detects the progressions it knows** inside them — short and long ii-V-Is, turnarounds, iii-VI-ii-V-I, vamps, blues. Each match becomes an **insertion point**: a window in the form, in a specific local key.
+- The rhythm section plays the form. The head plays **once** (jazz form rule), then the staff clears and the chorus is yours.
+- At each insertion point the app suggests licks from *your* practice set that fit that progression in that key — ranked by what you've actually unlocked and drilled, so it never asks for a key you haven't earned.
+- Three modes: **Suggest** (the lick is named for you), **Points** (you pick, and consecutive clean insertions score double), and **Freestyle** (no windows — just solo, and the app applauds the licks it recognises).
+
+Tune Practice is **context-first**. It answers the question neither scored mode can: *can you find this line when a real form goes by at tempo?*
+
+**Use Tune Practice when** you've got vocabulary banked and want to test whether it's actually available — or when learning a new standard and you want to know which of your lines fit where.
+
+Its takes are deliberately **not written into progress**: no streak, no adaptive-level movement, no per-key lick scores. Scoring it would turn the applying-it room into another drilling room. See [Playing Over Tunes](../tune-practice.md).
+
 ## What they share
 
 Both modes use the same daily key system and contribute to the same progress tracking.
@@ -56,9 +71,10 @@ The deeper details — why the alignment is forgiving, what the grades mean, why
 
 ## A note on the design choice
 
-The two modes exist because two very different kinds of practice both happen on a horn:
+The modes exist because three very different kinds of practice all happen on a horn:
 
 - **Reading a melody you've never heard before** and reproducing it. Sight-singing for instrumentalists. This is Side A's job.
 - **Internalizing a memorized line** so it's available in any key under any tempo. The "vocabulary" half of jazz practice. This is Side B's job.
+- **Retrieving the right line at the right moment** while a form goes by. The part that only ever happened on a bandstand. This is Tune Practice's job.
 
-Trying to do both in one mode means picking which one to half-do. Splitting them lets the app commit fully to each — the listen-and-play loop on Side A doesn't need a backing track or a key cycle; the 12-key drill on Side B doesn't need to surprise you with new content.
+Trying to do them in one mode means picking which one to half-do. Splitting them lets the app commit fully to each — the listen-and-play loop on Side A doesn't need a backing track or a key cycle; the 12-key drill on Side B doesn't need to surprise you with new content; and the tune session doesn't need a grade book, because the two drilling modes already have one.

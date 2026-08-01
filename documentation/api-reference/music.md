@@ -207,6 +207,147 @@ Convert MIDI to display name (e.g. `60 → 'C4'`, `58 → 'Bb3'`). Defaults to f
 
 ---
 
+## tune-notation.ts
+
+ABC generation from a `Tune` — the multi-system leadsheet renderer. **A separate entry point from `notation.ts`**: `phraseToAbc` is untouched by anything here, so lick rendering can never regress from a chart change.
+
+### `tuneToAbc(sheet, instrument?, options?): string`
+
+Render a full song form: chord symbols above the staff, section letters, repeat barlines, numbered endings, slash bars for melody-silent measures, and density-aware multi-system reflow.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `sheet` | `Tune` | The tune to render |
+| `instrument` | `InstrumentConfig?` | If provided, transposes to that instrument's written pitch |
+| `options` | `TuneAbcOptions` | Layout overrides; defaults to `{}` |
+
+`instrument` is the **second** positional parameter, matching `phraseToAbc`. Passing options where the instrument belongs silently renders at concert pitch.
+
+```typescript
+interface TuneAbcOptions {
+  defaultLength?: Fraction;   // ABC L: field
+  barsPerLine?: number;       // Bars per system before a line break
+}
+```
+
+The chart is emitted as two voices: **M** (melody) and **H** (the chord line). Any `"` or control character in an imported `HarmonicSegment.symbol` is stripped before emission — ABC delimits chord annotations with double quotes, so a raw imported symbol containing one would break the whole voice-line's parse. Legitimate chord text never contains them, so this is lossless in practice.
+
+### `tuneToAbcWithMap(sheet, instrument?, options?): { abc, noteAnchors, barAnchors, chordSlotAnchors, … }`
+
+Same parameters as `tuneToAbc` — which is a thin wrapper that discards everything but `abc`. Returns the ABC plus `noteAnchors` (the same `PitchedNoteAnchor[]` shape `phraseToAbcWithMap` produces, indexing the notation-order flattened notes) and the char-span anchors the hit-zone layer maps onto rendered geometry:
+
+```typescript
+interface BarAnchor {         // one rendered melody bar (voice M)
+  startChar: number;          // first melody token of the bar
+  endChar: number;            // just past its closing barline token
+  sectionIdx: number;
+  bar: number;                // 0-based within the section
+}
+
+interface ChordSlotAnchor {   // one chord-voice segment (voice H)
+  startChar: number;          // includes the quoted "chord" prefix
+  endChar: number;
+  sectionIdx: number;
+  bar: number;
+  beat: number;               // segment start within the bar, float (off-beats like 1.5)
+  chord: string | null;       // display text when this segment starts a chord event
+}
+```
+
+Bar spans deliberately exclude leading `|:` / `[n` decorations and any inter-system chord flush. Chord segments are cut at chord events, sound-span boundaries, and bar edges, so one bar can hold several slots.
+
+These drive on-chart click-to-edit and the inline chord editor in `NotationDisplay.svelte`. See [Tune System](../architecture/tune-system.md#engraving).
+
+---
+
+## chart-layout.ts
+
+Pure engraving layout policy for tune charts.
+
+| Export | Purpose |
+|---|---|
+| `CHART_STAFF_WIDTH` | abcjs staff width in user units (750 — wider than the phrase default, for print-like density) |
+| `BARS_PER_LINE_MIN` / `_MAX` / `_DEFAULT` | 3 / 6 / 4 |
+| `suggestBarsPerLine(sheet)` | Density-aware reflow — dense sixteenth-note heads pack fewer bars per system, sparse intros pack more |
+| `slashCountForMeter(ts)` | Rhythmic slashes for an empty bar: one per beat in simple meters, one per compound beat in 6/8, 9/8, 12/8 (the jazz chart convention) |
+| `slashCellDuration(ts)`, `slashBarAbc(...)` | Emit the slash bar |
+| `emptyMelodyBars(sheet)` | Which printed bars have no melody |
+| `multiRestRuns(...)` | Consecutive-empty-bar runs, for multi-rest collapse |
+
+---
+
+## chord-layout.ts
+
+Structured chord-symbol layout, MuseScore Jazz style — root + quality on the main baseline, alterations stacked in a column **to the right of the quality** (never over the root), slash bass hanging below:
+
+```text
+E7  b9
+    #11
+   /G
+```
+
+`layoutChordParts` / `layoutFromChordSymbol` produce `ChordLayoutParts`; `chordTspanSpecs` turns those into positioned SVG tspans; `chordDisplayLine` / `chordAbcAnnotation` produce the flat-text forms. `CHORD_STACK_GAP_EM` and `alterationStackX` are the geometry constants.
+
+---
+
+## ending-layout.ts
+
+Pure first/second-ending (volta) placement policy, following Sibelius / Real Book convention:
+
+- `[1]` continues the approach system when there's room (inline).
+- `[2]` **always** opens a fresh system with no musical pad bars; its alignment under `[1]` is a post-render indent, not invisible measures inside the volta.
+- When `[1]` would start at the left margin, both endings start at column 0.
+- Stacked `[2]` glyphs are **repositioned, never horizontally scaled** — scaling noteheads and chords was the original source of squashing and "2"/chord collisions.
+
+`initialEndingLayoutState` / `placeEndingSection` / `advanceEndingLayout` drive the incremental walk; `planEndingPlacements` does it in one pass. `endingAlignTransform` / `endingAlignMatrix` produce the post-render transform applied by `notation/ending-align-dom.ts`.
+
+---
+
+## chord-symbol.ts
+
+The canonical chord model. `ChordSymbol` preserves what a lead sheet actually says — base quality, stacked extension, alterations, slash bass — independent of the closed `ChordQuality` union the audio layer voices.
+
+| Export | Purpose |
+|---|---|
+| `ChordBaseQuality` | `'maj' \| 'min' \| 'dom' \| 'dim' \| 'halfdim' \| 'aug' \| 'minmaj' \| 'sus4' \| 'sus2'` |
+| `parseChordSymbol(input)` | Text → `ChordSymbol`, or `null` when unparseable |
+| `formatChordSymbol(cs)` | `ChordSymbol` → canonical display text |
+| `transposeChordSymbol(cs, semitones, …)` | Transpose with correct re-spelling |
+| `chordSymbolToQuality(cs)` | Map onto the nearest playable `ChordQuality` for the audio layer |
+
+The raw source string travels separately in `HarmonicSegment.symbol`, so **display never loses fidelity** even where the enum mapping is lossy.
+
+---
+
+## progression-display.ts
+
+### `progressionColor(type): string`
+
+Each of the ten `ChordProgressionType` values has an identity hue, returned as a `var(--prog-*)` reference so it stays theme-aware (hues live in `src/app.css` for both themes, mirroring how `difficultyDisplay` returns `var(--difficulty-N)`).
+
+The backing map is an explicit `Record<ChordProgressionType, string>`, so **a new progression won't type-check until it has a colour**. Unknown/legacy tags fall back to `var(--color-accent)` rather than rendering an invalid colour.
+
+The colour is carried through the library card (tinted category pill + dots), the lick-practice session header, and the insertion-point bands on a tune chart — so a progression looks the same everywhere it appears.
+
+---
+
+## scale-degree.ts
+
+`scaleDegreeOf(...)` labels a pitch class against a tonic as a `ScaleDegree` (`'1'`, `'b3'`, `'#4'`, …). Used by the progression detector to label a detected local key against the tune's global key ("the IV key").
+
+---
+
+## Smaller modules
+
+| Module | Purpose |
+|---|---|
+| `harmony.ts` | Harmony lookup helpers shared by playback and scoring |
+| `swing.ts` | Swing-ratio math for eighth-note pairs |
+| `expression.ts` | Tier-1 musical expression (dynamics + articulation) applied as a pure pass at `phraseToEvents` |
+| `articulation-abc.ts` | Articulation → ABC decoration mapping |
+
+---
+
 ## transposition.ts
 
 Concert/written pitch conversion for transposing instruments.

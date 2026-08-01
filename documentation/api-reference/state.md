@@ -1,6 +1,8 @@
 # API Reference: State
 
-Ten reactive state modules using the Svelte 5 `$state` rune at module scope.
+Reactive state modules using the Svelte 5 `$state` rune at module scope, plus the plain (non-rune) logic modules that sit beneath them.
+
+The recurring pattern: a `.svelte.ts` module owns the rune and bridges UI to logic, while the testable planning/selection logic lives in a plain `.ts` module beside it — `lick-practice.svelte.ts` / `lick-practice-picker.ts`, and `tune-practice.svelte.ts` / `tune-practice-plan.ts`. Routes own audio orchestration; state modules never do.
 
 **Source:** `src/lib/state/`, `src/lib/persistence/`
 
@@ -460,6 +462,83 @@ export const tuneCommunity = $state<{
 ```
 
 No exported functions — the community page reads/writes fields directly.
+
+---
+
+## tune-practice.svelte.ts
+
+Scored tune-practice session state — a thin Svelte-5 runes wrapper over the pure logic in `tune-practice-plan.ts`, following the lick-practice split (state module bridges; plain modules carry the testable logic; the route owns audio orchestration). **Not persisted** — see [The Practice Modes](../architecture/overview.md) for why.
+
+**Source:** `src/lib/state/tune-practice.svelte.ts`
+
+### `tunePractice`
+
+```typescript
+export const tunePractice = $state<{
+  config: TunePracticeConfig;      // mode, strictness, tempo, concertKey, backingStyle, playHead
+  phase: TunePracticePhase;        // 'setup' | 'count-in' | 'head' | 'running' | 'complete'
+  tuneId: string | null;
+  tuneTitle: string;
+  plan: InsertionPoint[];
+  uncategorizedCount: number;      // Untagged user licks — needs-setup hint on the setup screen
+  currentIndex: number;            // Next-or-open insertion point
+  windowOpen: boolean;
+  results: InsertionResult[];
+  totalPoints: number;
+  streak: number;
+  bestStreak: number;
+  pickedSuggestion: Record<string, number>;  // Points mode: insertion id → suggestion index
+  freestyleMatches: FreestyleMatch[];
+  celebration: { name: string; score: number } | null;
+  startTime: number;
+  elapsedSeconds: number;
+}>();
+```
+
+### Session lifecycle
+
+- `initTunePractice(sheet): void` — Enter the setup phase (idempotent per tune; resets `config.concertKey` to the sheet's key on a tune change).
+- `previewSessionPlan(sheet, playHead): SessionPreview` — Detect progressions and count insertion points *without* starting audio. Drives the setup screen's "6 insertion points: 3× Short ii-V-I (Maj)…" summary and the preview chart markers.
+- `startTunePracticeSession(sheet, ppq): TunePracticeAudioPlan` — Build the plan and return everything the route's audio layer needs: the transposed session `sheet`, the melody-cleared `changesSheet`, the `playedPhrase`, both flattens (`flat` playback-order, `notationFlat` notation-order), `leadBars`, `duplicatedForm`, and the **effective** `playHead`.
+- `markHead()`, `markRunning()`, `markWindowOpen(index)`, `recordWindowResult(...)`, `completeTunePracticeSession()`, `resetTunePractice()`.
+
+> **Read `TunePracticeAudioPlan.playHead`, not `config.playHead`.** The former is `config.playHead && hasMelody`; the latter ignores that a melody-less chart never plays a head chorus.
+
+### Windows and suggestions
+
+- `expectedForWindow(...)` — The expected note sequence a closed window is scored against.
+- `pickSuggestion(insertionId, index)` / `suggestionNameFor(ip)` — Points-mode pick card.
+- `updateElapsedTime()`, `clearCelebration()`.
+
+### Freestyle
+
+- `buildFreestyleBook(ppq): FreestyleBook` — Index only licks the user actually knows (practice set + anything with practice progress + their own/adopted licks). Never the whole curated catalog.
+- `recordFreestyleMatch(match): void` — Append the match and raise the applause card.
+
+---
+
+## tune-practice-plan.ts
+
+Pure planning + accumulation logic behind the runes wrapper above. Plain module (no `.svelte.ts`), so it is unit-testable in Node — the same split as `lick-practice-picker.ts`.
+
+**Source:** `src/lib/state/tune-practice-plan.ts`
+
+| Export | Purpose |
+|---|---|
+| `buildSessionPlan(deps)` | Detected progressions → `InsertionPoint[]`, carrying both timelines, transport open/close ticks, ranked suggestions, and a `markerKey` grouping repeat occurrences |
+| `headBarsForFlat(flat)` | The jazz form rule — decides head length from the **expanded section map**, never raw repeat markers |
+| `buildSessionPhrase(args)` | Head chorus (melody once) + melody-free solo material; appends a duplicate chorus on repeat-free charts |
+| `assignSuggestRotation(plan)` | Least-used-first lick rotation per progression type |
+| `strictnessKnobs(strictness, userBleedFilterEnabled)` | Maps strictness onto existing pipeline knobs only — the grading scale never changes |
+| `resolvePickedSuggestion(suggestions, pickedIndex)` | The user's pick, else the top rank, else null |
+| `applyInsertionResult(tally, …)` | Points = `round(overall * 100)`, doubled when this and the previous window both clear `KEY_PROFICIENT_THRESHOLD` |
+| `indexResultsByInsertion(results)` | Keyed lookup — a skipped window contributes no result, so array-position lookup misaligns everything after a gap |
+| `insertionMarkerCleared(args)` | Whether a chart marker's every playback window has been cleared |
+| `notationBarForPlaybackBar(...)` | Project a playback bar onto its chart bar via `sectionMap` |
+
+Types: `TunePracticeMode` (`'suggest' | 'points' | 'freestyle'`), `TunePracticeStrictness` (`'guided' | 'standard' | 'solo'`), `TunePracticePhase`, `InsertionPoint`, `InsertionResult`, `StrictnessKnobs`, `ResultTally`.
+
+See [Tune System](../architecture/tune-system.md#session-planning) for the design rationale behind each.
 
 ---
 

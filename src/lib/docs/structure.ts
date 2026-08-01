@@ -38,12 +38,27 @@ export const DOC_TREE: DocSection[] = [
 		]
 	},
 	{
+		title: 'Tunes',
+		pages: [
+			{
+				slug: 'tunes',
+				title: 'Your Tunes',
+				blurb: 'Building a songbook — charting by hand, importing, and adopting whole song forms.'
+			},
+			{
+				slug: 'tune-practice',
+				title: 'Playing Over Tunes',
+				blurb: 'The scored session over a real form: insertion points, the three modes, and the head rule.'
+			}
+		]
+	},
+	{
 		title: 'How It Works',
 		pages: [
 			{
 				slug: 'architecture/overview',
-				title: 'Two Practice Modes',
-				blurb: 'Side A (Ear Training) and Side B (Lick Practice) — when to use each.'
+				title: 'The Practice Modes',
+				blurb: 'Side A (Ear Training), Side B (Lick Practice), and Tune Practice — when to use each.'
 			},
 			{
 				slug: 'architecture/scoring-algorithm',

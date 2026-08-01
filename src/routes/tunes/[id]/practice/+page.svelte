@@ -4,6 +4,9 @@
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
+	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
+	import HelpLink from '$lib/components/ui/HelpLink.svelte';
+	import { tunePracticeTour } from '$lib/tour/tours/tune-practice';
 	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
@@ -738,12 +741,23 @@
 			&larr; {baseSheet.title}
 		</a>
 
-		<div>
-			<h1 class="text-2xl font-bold">Practice licks</h1>
-			<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
-				The tune plays with the rhythm section; at each highlighted progression the melody rests
-				and you play a lick from your book. Every insertion is scored.
-			</p>
+		<div class="flex flex-wrap items-start justify-between gap-4">
+			<div class="min-w-0">
+				<h1 class="text-2xl font-bold">Practice licks</h1>
+				<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
+					The tune plays with the rhythm section; at each highlighted progression the melody rests
+					and you play a lick from your book. Every insertion is scored.
+				</p>
+			</div>
+			<div class="flex shrink-0 items-center gap-3">
+				<TourTrigger
+					tourId="tune-practice"
+					steps={tunePracticeTour}
+					label="How this works"
+					hideIfSeen={false}
+				/>
+				<HelpLink href="/docs/tune-practice" label="Tune practice docs" />
+			</div>
 		</div>
 
 		<div class="space-y-4 rounded-lg bg-[var(--color-bg-secondary)] p-4">
