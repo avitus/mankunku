@@ -138,7 +138,7 @@ Heavy libraries (Tone.js, smplr, Pitchy, abcjs) are dynamically imported to keep
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 feat: add retrograde mutation for lick variations
 fix: correct latency correction in scorer
 docs: add API reference for scoring module

@@ -211,9 +211,17 @@ Convert MIDI to display name (e.g. `60 → 'C4'`, `58 → 'Bb3'`). Defaults to f
 
 ABC generation from a `Tune` — the multi-system leadsheet renderer. **A separate entry point from `notation.ts`**: `phraseToAbc` is untouched by anything here, so lick rendering can never regress from a chart change.
 
-### `tuneToAbc(sheet, options?): string`
+### `tuneToAbc(sheet, instrument?, options?): string`
 
 Render a full song form: chord symbols above the staff, section letters, repeat barlines, numbered endings, slash bars for melody-silent measures, and density-aware multi-system reflow.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `sheet` | `Tune` | The tune to render |
+| `instrument` | `InstrumentConfig?` | If provided, transposes to that instrument's written pitch |
+| `options` | `TuneAbcOptions` | Layout overrides; defaults to `{}` |
+
+`instrument` is the **second** positional parameter, matching `phraseToAbc`. Passing options where the instrument belongs silently renders at concert pitch.
 
 ```typescript
 interface TuneAbcOptions {
@@ -224,9 +232,9 @@ interface TuneAbcOptions {
 
 The chart is emitted as two voices: **M** (melody) and **H** (the chord line). Any `"` or control character in an imported `HarmonicSegment.symbol` is stripped before emission — ABC delimits chord annotations with double quotes, so a raw imported symbol containing one would break the whole voice-line's parse. Legitimate chord text never contains them, so this is lossless in practice.
 
-### `tuneToAbcWithMap(sheet, options?): { abc, barAnchors, chordSlotAnchors, … }`
+### `tuneToAbcWithMap(sheet, instrument?, options?): { abc, noteAnchors, barAnchors, chordSlotAnchors, … }`
 
-The same ABC plus char-span anchors the hit-zone layer maps onto rendered geometry:
+Same parameters as `tuneToAbc` — which is a thin wrapper that discards everything but `abc`. Returns the ABC plus `noteAnchors` (the same `PitchedNoteAnchor[]` shape `phraseToAbcWithMap` produces, indexing the notation-order flattened notes) and the char-span anchors the hit-zone layer maps onto rendered geometry:
 
 ```typescript
 interface BarAnchor {         // one rendered melody bar (voice M)
@@ -272,7 +280,7 @@ Pure engraving layout policy for tune charts.
 
 Structured chord-symbol layout, MuseScore Jazz style — root + quality on the main baseline, alterations stacked in a column **to the right of the quality** (never over the root), slash bass hanging below:
 
-```
+```text
 E7  b9
     #11
    /G

@@ -1,6 +1,8 @@
 # Playing Over Tunes
 
-Side A trains your ear. Side B drills a line into your fingers in all 12 keys. **Tune practice** is the third thing — the one that actually connects them: the rhythm section plays a real song form, and at every spot in that form where your vocabulary fits, the app hands you the space and scores what you play.
+Side A trains your ear. Side B drills a line into your fingers in all 12 keys. **Tune practice** is the third thing — the one that actually connects them: the rhythm section plays a real song form, and at every spot in that form where your vocabulary fits, the app hands you the space.
+
+In **Suggest** and **Points** it scores what you play there. **Freestyle** drops the windows entirely — no scoring, just a solo the app listens to for licks it recognises.
 
 Open any tune from your book and hit **Practice licks**.
 
@@ -65,11 +67,13 @@ Strictness changes what the app *shows* you and how strictly it *listens*. It ne
 
 | Level | Cues | Listening |
 |---|---|---|
-| **Guided** | Full — every insertion point labelled ahead of time | Octave-insensitive, bleed filter on |
-| **Standard** | Reduced — cues appear on approach | Octave-insensitive, bleed filter on |
-| **Solo** | None | Exact register required; uses your own bleed-filter preference |
+| **Guided** | Full — every insertion point labelled ahead of time | Octave-insensitive; bleed filter forced on |
+| **Standard** | Reduced — cues appear on approach | Octave-insensitive; bleed filter forced on |
+| **Solo** | None | Exact register required; bleed filter follows the app-wide setting (off by default) |
 
 Guided and Standard match how continuous Side B sessions listen. Solo matches call-and-response strictness: play it in the right octave or it doesn't count.
+
+On the bleed filter: Guided and Standard switch it on regardless, which is the forgiving choice if you practise on speakers. Solo defers to the internal app-wide flag, which is off unless changed — there is no user-facing control for it. Either way it only matters on speakers; on headphones there's no bleed to filter.
 
 ## During the session
 
@@ -80,7 +84,9 @@ Guided and Standard match how continuous Side B sessions listen. Solo matches ca
 
 ## The report
 
-**Take complete** lists every insertion point in the form: the bar it started in, the local key (in your written pitch), the progression, the lick that was scored, and the grade. Windows where you didn't play read **No take** — a skip, not a failure. In Points mode you also get the total and your best streak; in Freestyle you get the list of licks the band heard.
+**Take complete** in Suggest and Points lists every insertion point in the form: the bar it started in, the local key (in your written pitch), the progression, the lick that was scored, and the grade. Windows where you didn't play read **No take** — a skip, not a failure. Points mode adds the total and your best streak.
+
+Freestyle has no insertion points to report, so its take instead lists every lick the app recognised, with the bar it landed in and how close the match was.
 
 Tune-practice takes are **not written into your progress history**. They don't move your adaptive level, don't touch per-lick key scores, and don't affect Side B unlocks. This is deliberate: this is the applying-it room, not the drilling room. Your streak and your levels come from Side A and Side B.
 

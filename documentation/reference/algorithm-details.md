@@ -16,7 +16,7 @@ Given:
 
 Build a cost matrix `dp[i][j]` of size `(N+1) x (M+1)`:
 
-```
+```text
 dp[0][0] = 0
 dp[i][0] = dp[i-1][0] + SKIP_COST          (skip all detected)
 dp[0][j] = dp[0][j-1] + SKIP_COST          (skip all expected)
@@ -30,7 +30,7 @@ dp[i][j] = min(
 
 Where `SKIP_COST = 2.0` and:
 
-```
+```text
 matchCost(e, d) = pitchDistance(e, d) + rhythmDistance(e, d)
 
 pitchDistance(e, d) = {
@@ -92,7 +92,7 @@ The McLeod Pitch Method is an autocorrelation-based algorithm optimized for mono
 
 ### MIDI Conversion
 
-```
+```text
 midiFloat = 12 * log2(frequency / 440) + 69
 midi = round(midiFloat)
 cents = round((midiFloat - midi) * 100)
@@ -108,7 +108,7 @@ An energy-based onset detector running on the audio thread via AudioWorklet.
 
 For each 128-sample frame:
 
-```
+```text
 HFC = sum(|sample[i]| * (i + 1)) / N
 ```
 
@@ -116,7 +116,7 @@ The weighting by `(i + 1)` emphasizes later samples in each frame, which corresp
 
 ### Detection Logic
 
-```
+```text
 EMA_new = alpha * EMA_old + (1 - alpha) * HFC     // alpha = 0.85
 ratio = HFC / EMA
 
@@ -163,7 +163,7 @@ The cents deviation *is* a median, but only over the readings that already match
 
 ### State Machine
 
-```
+```text
                   avg >= 85%
     ┌─────────────────────────────┐
     │                             ▼

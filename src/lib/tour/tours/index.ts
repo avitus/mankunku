@@ -27,7 +27,7 @@ export const TOURS: TourDefinition[] = [
 ];
 
 export function getTour(tourId: string): TourDefinition | undefined {
-	return TOURS.find((t) => t.id === tourId);
+	return TOURS.find((t: TourDefinition) => t.id === tourId);
 }
 
 export {

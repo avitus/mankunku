@@ -304,7 +304,7 @@ All parameters are positional (there is no `options` bag).
 | `onsetGuard` | `number` | `0.08` | Seconds after a segment start during which FFT-tainted readings from the previous note are skipped |
 | `minReadings` | `number` | `3` | Minimum pitch readings required to keep a segment |
 | `workletOnsets` | `number[]?` | — | Raw AudioWorklet onset times. Used by the same-pitch consolidation pass to tell artifact splits apart from real re-articulations. |
-| `bleedOnsets` | `number[]?` | — | Timestamps of scheduled metronome (and demo-playback) events. Worklet onsets that land inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a metronome click caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
+| `bleedOnsets` | `number[]?` | — | Timestamps of scheduled metronome clicks. In practice every caller supplies `getMetronomeBleedOnsets(...)` gated on `metronomeEnabled` (ear-training live + replay, lick-practice session, tune practice, diagnostics) — **no call site passes demo- or melody-playback events**, so the metronome grid is the only bleed source segmentation knows about. Worklet onsets landing inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a metronome click caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
 | `articulationOnsets` | `number[]?` | — | Articulation onset times used by the re-articulation detector. |
 
 **Algorithm:**
@@ -316,7 +316,7 @@ All parameters are positional (there is no `options` bag).
 6. **`mergeOctaveBoundariesWithoutAttack`** — Collapse a stray upper-octave segment back into its neighbour when ≥ 3 of the segment's raw frames match the lower fundamental (McLeod octave-lock artifact).
 7. **`mergeWholeNoteOctaveUpLocks`** — Drop a whole note an octave when a strong majority of its frames carry `octaveUp` (a 2nd-harmonic lock). Acted on at the note level, not the frame level, so a stray attack-transient frame on a genuine mid-register note is harmless.
 
-The merge passes are conservative: they require explicit absence-of-attack evidence, so genuine same-pitch re-articulations are preserved.
+The two **boundary** merge passes (5 and 6) are conservative: they require explicit absence-of-attack evidence at the boundary, so genuine same-pitch re-articulations are preserved. Pass 7 is not a boundary merge — it re-pitches a whole note on a majority of `octaveUp` frames and has no attack-evidence requirement.
 
 ### `findReArticulations(...)`
 

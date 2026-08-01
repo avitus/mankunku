@@ -18,7 +18,7 @@ Around those are the supporting rooms: a **Licks** page holding your personal bo
 
 ## What you'll need
 
-- A modern browser. The app is installable — add it to your home screen or dock and it opens in its own window — but it isn't an offline app: your *data* lives on your device, while loading a page still needs the network.
+- A modern browser. The app is installable — add it to your home screen or dock and it opens in its own window — but it isn't an offline app: loading a page still needs the network. Your practice data is written to *this device* first and works without an account; clearing your browser storage while signed out loses it. Sign in and it also syncs to the cloud, so it follows you between devices and survives a browser wipe.
 - A microphone the app can hear your horn through. A laptop's built-in mic works for most monophonic instruments. A USB condenser is better.
 - Headphones, ideally. The app plays a phrase out of your speakers, then listens; if your speakers are loud enough that the mic re-hears the phrase, the score gets confused. There is a "bleed filter" that helps, but headphones make life simpler.
 - A quiet room. Not silent — but the pitch detector listens for one note at a time, so a clattering dishwasher next door will trip it up.
