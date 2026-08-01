@@ -1951,54 +1951,16 @@ describe('pitch replay regression: 2026-08-01 downbeat-kick pair (concert Bb)', 
 		}
 	];
 
-	for (const c of cases) {
-		describe(c.name, () => {
-			// Mirrors the production ear-training path with the metronome enabled.
-			async function detect(): Promise<DetectedNote[]> {
-				const wav = loadWavFixture(c.file);
-				const { readings, onsets, duration } = await replayFromAudioBuffer(
-					makeFakeAudioBuffer(wav.channel, wav.sampleRate)
-				);
-				const baseOnsets = resolveOnsets(onsets, readings);
-				const bleedOnsets = getMetronomeBleedOnsets(
-					c.recordingTransportSeconds,
-					TEMPO,
-					duration
-				);
-				const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
-				const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-				return segmentNotes(
-					readings,
-					allOnsets,
-					duration,
-					undefined,
-					undefined,
-					undefined,
-					onsets,
-					bleedOnsets,
-					articulationOnsets
-				);
-			}
+	const [flatFiveCase, downToThirdCase] = cases;
 
-			it('segments exactly the notes the waveform says were played', async () => {
-				const detected = await detect();
-				expect(detected.map((n) => n.midi)).toEqual(c.expectedMidis);
-			});
-
-			it('is deterministic across repeated replays', async () => {
-				const a = await detect();
-				const b = await detect();
-				expect(a).toEqual(b);
-			});
-		});
-	}
-
-	// Detection-level specifics, kept separate from the shared table so each
-	// case can assert the thing its own bug was about.
-	describe('flat-five-chromatic-down specifics', () => {
-		const c = cases[0];
-
-		async function detect(): Promise<DetectedNote[]> {
+	/**
+	 * Mirrors the production ear-training path with the metronome enabled:
+	 * resolveOnsets → bleed onsets → findReArticulations(…, bleed) →
+	 * segmentNotes(…, worklet, bleed, articulations). Shared by every block
+	 * below so the nine-argument segmentNotes call cannot drift between them.
+	 */
+	function makeDetect(c: KickCase): () => Promise<DetectedNote[]> {
+		return async (): Promise<DetectedNote[]> => {
 			const wav = loadWavFixture(c.file);
 			const { readings, onsets, duration } = await replayFromAudioBuffer(
 				makeFakeAudioBuffer(wav.channel, wav.sampleRate)
@@ -2018,10 +1980,37 @@ describe('pitch replay regression: 2026-08-01 downbeat-kick pair (concert Bb)', 
 				bleedOnsets,
 				articulationOnsets
 			);
-		}
+		};
+	}
+
+	for (const c of cases) {
+		describe(c.name, () => {
+			const detect = makeDetect(c);
+
+			it('segments exactly the notes the waveform says were played', async () => {
+				const detected = await detect();
+				expect(detected.map((n) => n.midi)).toEqual(c.expectedMidis);
+			});
+
+			it('is deterministic across repeated replays', async () => {
+				const a = await detect();
+				const b = await detect();
+				expect(a).toEqual(b);
+			});
+		});
+	}
+
+	// Detection-level specifics, kept separate from the shared table so each
+	// case can assert the thing its own bug was about.
+	describe('flat-five-chromatic-down specifics', () => {
+		const c = flatFiveCase;
+		const detect = makeDetect(c);
 
 		it('recovers the third note under the kick, on the beat it was played', async () => {
 			const detected = await detect();
+			// Guard the index read: without it a regression to two notes reports
+			// a TypeError instead of the note count that explains it.
+			expect(detected).toHaveLength(3);
 			// Kick at 1.182 s; the re-attack sits within a frame or two of it.
 			expect(detected[2].onsetTime).toBeGreaterThan(1.12);
 			expect(detected[2].onsetTime).toBeLessThan(1.26);
@@ -2051,29 +2040,8 @@ describe('pitch replay regression: 2026-08-01 downbeat-kick pair (concert Bb)', 
 	});
 
 	describe('down-to-the-third specifics', () => {
-		const c = cases[1];
-
-		async function detect(): Promise<DetectedNote[]> {
-			const wav = loadWavFixture(c.file);
-			const { readings, onsets, duration } = await replayFromAudioBuffer(
-				makeFakeAudioBuffer(wav.channel, wav.sampleRate)
-			);
-			const baseOnsets = resolveOnsets(onsets, readings);
-			const bleedOnsets = getMetronomeBleedOnsets(c.recordingTransportSeconds, TEMPO, duration);
-			const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
-			const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-			return segmentNotes(
-				readings,
-				allOnsets,
-				duration,
-				undefined,
-				undefined,
-				undefined,
-				onsets,
-				bleedOnsets,
-				articulationOnsets
-			);
-		}
+		const c = downToThirdCase;
+		const detect = makeDetect(c);
 
 		it('splits the Eb pair tongued on the ride click', async () => {
 			const detected = await detect();

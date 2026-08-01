@@ -4,6 +4,8 @@ Newest at the top.
 
 ## 2026-07-31 — Clicks on the beat: three mis-scores, and two ways I fooled myself reading the waveform
 
+(Session ran on 2026-07-31 local; the recordings were captured just after midnight UTC, so every artifact — fixture filenames, `exportedAt`, the test suite name — is labelled **2026-08-01**.)
+
 Two ear-training diagnostics (bc-044_Bb 0.655, bbn-005_Bb 0.685), both concert Bb / 105 BPM / tenor. Reproduced both saved detections exactly through the production path before touching anything, which required reconstructing the metronome grid from the trailing click transients — the diagnostic JSON didn't record it. Both takes turned out to be clean: the player played both prompts note for note.
 
 - **The kick is a different animal from the ride.** Every metronome fixture in the corpus until now was a cymbal. `scheduleMetronome` puts a MembraneSynth C1 on beat 0 — `octaves: 6` means its pitch envelope sweeps ~2 kHz → 33 Hz over 40 ms with a 200 ms decay. Band-limited peak ~0.17 RMS vs ~0.09 for a ride, and it blanks pitch tracking for 100–150 ms rather than ~90. One per bar, locatable by band-passing 25–150 Hz where nothing else has energy.
