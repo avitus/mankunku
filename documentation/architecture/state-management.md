@@ -244,6 +244,44 @@ export const suggestions = $state<SuggestionsState>({
 
 The fallback name is computed locally from the entered phrase; the `matches` (quote / wjazzd attribution candidates) arrive asynchronously from the server and may be empty.
 
+### Tune Entry State (`src/lib/state/tune-entry.svelte.ts`)
+
+Long-form tune entry, built **on top of** the shared `stepEntry` buffer rather than beside it. The section list is authoritative; melody is edited one ≤4-bar *page* at a time through step-entry, so `PitchEntryPanel` / `DurationSelector` / keyboard entry all work unmodified. The buffer commits on page and section navigation, and is suspended (committed + emptied) on route exit so `/licks/editor` never sees tune content. **Not persisted.**
+
+Exports the `tuneEntry` rune plus `initNewTune` / `resetTuneEntry`, `loadFromTune`, `buildDraftTune`, and `loadDraftForReview` (hydrating an unsaved import draft in create mode; the PDF flow uses `loadFromTune` with a pre-assigned id so the stored PDF stays linked).
+
+Chords are typed as written-pitch text (`parseChordSymbol`) and stored concert with re-derived change-point durations. Manual entry is 4/4-only (`melodyEditingSupported`); imported charts in other meters keep their meter with melody editing gated off, since the 4/4 buffer would corrupt them.
+
+### Tune Practice State (`src/lib/state/tune-practice.svelte.ts`)
+
+Scored tune-practice session state. A thin runes wrapper over the pure logic in `tune-practice-plan.ts` — the same split as `lick-practice.svelte.ts` / `lick-practice-picker.ts`, with the route owning audio orchestration. **Not persisted**, deliberately: tune takes don't move the streak, the adaptive level, or per-lick key scores.
+
+```typescript
+export const tunePractice = $state<{
+  config: TunePracticeConfig;   // mode, strictness, tempo, concertKey, backingStyle, playHead
+  phase: TunePracticePhase;     // 'setup' | 'count-in' | 'head' | 'running' | 'complete'
+  plan: InsertionPoint[];
+  results: InsertionResult[];
+  totalPoints: number; streak: number; bestStreak: number;
+  freestyleMatches: FreestyleMatch[];
+  /* … */
+}>( /* defaults */ );
+```
+
+See [Tune System](./tune-system.md#session-planning) and [API Reference: State](../api-reference/state.md#tune-practicesveltets).
+
+### Tune Community State (`src/lib/state/tune-community.svelte.ts`)
+
+Filter and sort state for the `/tunes/community` browse view. Global rune module so filters survive navigating away and back. **Not persisted.**
+
+```typescript
+export const tuneCommunity = $state<{
+  searchQuery: string;
+  authorQuery: string;
+  sort: TuneCommunitySort;             // 'popular' | 'newest'
+}>( /* defaults */ );
+```
+
 ## Persistence Layer (`src/lib/persistence/storage.ts`)
 
 Thin wrapper around `localStorage` with JSON serialization:

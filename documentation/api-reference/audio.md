@@ -171,13 +171,32 @@ interface PitchReading {
   clarity: number;       // Detection confidence (0-1)
   time: number;          // Seconds from recording start
   frequency: number;     // Raw Hz
-  rms: number;           // RMS amplitude of the analysis window (segmenter re-articulation detector)
-  hfRms?: number;        // RMS of the first-difference high-pass; high-frequency-energy proxy (optional; absent in pre-2026-06-25 diagnostic JSON)
-  warmup?: boolean;      // True if captured during the octave-stabilizer warmup window (optional)
+  rms: number;           // RMS amplitude of the whole analysis window
+  hfRms?: number;        // RMS of the first-difference high-pass; high-frequency-energy proxy
+  rmsMin?: number;       // Minimum short-window RMS (~11.6 ms sub-windows) inside the window
+  bandRmsMin?: number;   // rmsMin on a 250-5000 Hz band-passed copy — the INSTRUMENT band
+  shapeBreak?: number;   // Lowest short-time period-to-period waveform similarity (0-1)
+  shapeBreakAt?: number; // Offset from `time` to the shapeBreak minimum (~3 ms precision)
+  warmup?: boolean;      // Captured during the octave-stabilizer warmup window
+  octaveUp?: boolean;    // Frame's spectrum looks like a 2nd-harmonic (octave-up) lock
 }
 ```
 
 > The `PitchReading` interface is defined in `pitch-frame.ts` (shared by the live rAF path and the offline replay path) and re-exported from `pitch-detector.ts`.
+
+Every optional field is optional **for replay compatibility**: readings restored from diagnostic JSON written before the field existed simply skip the segmenter pass that consumes it (`hfRms` pre-2026-06-25, `rmsMin` pre-2026-07-25, `shapeBreak`/`shapeBreakAt` pre-2026-07-30, `bandRmsMin` pre-2026-08-01). Never make one required without a migration.
+
+The four envelope/timbre fields exist because the re-articulation tiers each need a *different* kind of evidence — see [note-segmenter.ts](#note-segmenterts) below:
+
+| Field | Measures | Sees |
+|---|---|---|
+| `rms` | Whole ~93 ms window | Gross envelope motion |
+| `rmsMin` | Sliding ~11.6 ms sub-windows | A 20–30 ms tongue stop the window average smooths away |
+| `bandRmsMin` | Same, on 250–5000 Hz only | An envelope dip a metronome click would otherwise fill in — the ride is high-passed at 8 kHz, the hi-hat at 6 kHz, and the kick's body sits under 250 Hz, so a bare cymbal measures ~25 dB down against a horn |
+| `hfRms` | First-difference high-pass | A brightness burst from a light tongue that never dips the envelope |
+| `shapeBreak` | Period-to-period waveform similarity | A legato tongue that produces *no* energy evidence at all — only a reed reset |
+
+`FrameOptions.windowAnchor` (`'start' | 'end'`, default `'start'`) exists for `shapeBreakAt`: replay timestamps a reading at its window start, the live rAF path at its end, and `shapeBreakAt` is emitted such that `time + shapeBreakAt` is the discontinuity in either path's own time base.
 
 ### `PitchDetectorHandle` interface
 
@@ -295,8 +314,32 @@ All parameters are positional (there is no `options` bag).
 4. If no onsets detected, treat all readings as one note.
 5. **`mergeSamePitchWithoutAttack`** — Collapse adjacent same-MIDI segments whose boundary has no `workletOnsets` entry within ±75 ms. A worklet onset that *does* sit inside the bleed window after a `bleedOnsets` event is treated as bleed, not attack, so the split collapses anyway. Catches clarity dropouts and detector wobble that split a single held note.
 6. **`mergeOctaveBoundariesWithoutAttack`** — Collapse a stray upper-octave segment back into its neighbour when ≥ 3 of the segment's raw frames match the lower fundamental (McLeod octave-lock artifact).
+7. **`mergeWholeNoteOctaveUpLocks`** — Drop a whole note an octave when a strong majority of its frames carry `octaveUp` (a 2nd-harmonic lock). Acted on at the note level, not the frame level, so a stray attack-transient frame on a genuine mid-register note is harmless.
 
-Both cleanup passes are conservative: they require explicit absence-of-attack evidence, so genuine same-pitch re-articulations are preserved.
+The merge passes are conservative: they require explicit absence-of-attack evidence, so genuine same-pitch re-articulations are preserved.
+
+### `findReArticulations(...)`
+
+The counterpart to the merge passes — it *splits* a same-MIDI run where the player re-attacked but the worklet's amplitude-weighted HFC threshold missed it. Five tiers run in order of evidence strength, each rejecting an impostor the others let through:
+
+| Tier | Trigger | Key constants |
+|---|---|---|
+| Reading gap | Pitch track drops out, energy steps back up on resumption | `RE_ARTICULATION_READING_GAP`, `RE_ARTICULATION_GAP_ATTACK_RISE`, plus a **bloom** acceptance path — a reed attack blooms over 100–200 ms and can read *below* the pre-gap mean on resumption |
+| Clarity dip | Clarity drop paired with an RMS dip and recovery | `RE_ARTICULATION_CLARITY_DROP`, `RE_ARTICULATION_RMS_DROP_RATIO`, `RE_ARTICULATION_RMS_RECOVERY_RATIO` |
+| Envelope dip | `rmsMin` dips and recovers with no dropout | `ENV_DIP_RATIO`, `ENV_RECOVER_RATIO`, `ENV_HF_CORROBORATION` |
+| High-frequency spike | `hfRms` spikes ≥ 3× the run baseline with the envelope sustained | `HF_RE_ARTICULATION_SPIKE_RATIO`, `HF_RE_ARTICULATION_MIN_RMS_SUSTAIN` |
+| Waveform shape | `shapeBreak` dips — the legato-tongue last resort | `SHAPE_CLEAN_BASELINE`, `SHAPE_MIN_DROP`, `SHAPE_MIN_PERIODICITY`, `SHAPE_SETTLE_TIME`, `SHAPE_MIN_SUSTAIN` |
+
+Two non-obvious rules govern the last two tiers, and both are load-bearing:
+
+- **`SHAPE_MIN_PERIODICITY` is a floor, not a ceiling.** The tier fires on a *shallow* similarity dip and rejects deep ones. A genuine legato tongue only reshapes an oscillation that never stops, so similarity barely moves (0.957, 0.961 against ~0.99 baselines); an impulsive contaminant — a metronome click, a key click, a thump — *adds* an uncorrelated signal and drives similarity toward zero (0.33, 0.54, 0.86 in the fixture corpus). Anything that destroys periodicity belongs to another tier or to nothing at all. Inverting this gate reintroduces every click false-positive.
+- **The click-schedule veto is conditional, not unconditional.** The beat is exactly where notes start, so vetoing all HF evidence at a scheduled click discards real articulations. `bandRmsMin` resolves it: a click can only *add* energy, so a dip measured in the 250–5000 Hz instrument band is evidence no click can manufacture. The band-floor override is only ever consulted at cymbal clicks — kicks cannot reach the HF tier's 3× requirement in the first place.
+
+`SHAPE_SETTLE_TIME` (and `RE_ARTICULATION_READING_GAP`) are **physical, not beat-relative**. They admit the swung-eighth pair the tier was built for (0.34 s at 105 BPM) but not straight sixteenths at fast tempos — intended conservatism for last-resort tiers, since a re-articulation that fast disturbs the envelope enough for the tiers above to catch it.
+
+### `getMetronomeBleedOnsets(...)`
+
+Computes click times rather than reading them from a log: the metronome plays every beat, so click times are integer multiples of `60/tempo`. Onsets landing inside the 50–200 ms speaker→mic window (`BLEED_LATENCY_MIN` / `BLEED_LATENCY_MAX`) after a computed click aren't counted as attack evidence.
 
 ---
 

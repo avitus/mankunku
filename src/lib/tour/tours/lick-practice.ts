@@ -37,7 +37,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Progression types',
 			description:
-				"The harmony underneath each rotation. ii–V–I is the staple jazz cadence; turnaround adds a vi–ii–V loop; rhythm changes uses the I–vi–ii–V Gershwin pattern. Pick the one that matches the phrase you're drilling.",
+				"The harmony underneath each rotation. Ten of them: minor, major, and dominant vamps; short and long ii–V–I in major and minor; turnaround; iii–VI–ii–V–I; and blues. Pick the one that matches the phrase you're drilling — each progression has its own colour, and you'll see it again on the lick's card and on any tune chart where it turns up.",
 			side: 'over',
 			align: 'center'
 		}
@@ -55,7 +55,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: "When you're ready",
 			description:
-				"Daily Practice is the default — it rotates across every progression you've tagged, so just set a duration and go. Switch to Focused Session to drill one progression, or Deep Practice to master a single lick. If your set is empty, head to your Licks page and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM from 70%–84%, and -3 BPM below 70%.",
+				"Daily Practice is the default — it rotates across every progression you've tagged, so just set a duration and go. Switch to Focused Session to drill one progression, or Deep Practice to master a single lick. If your set is empty, head to your Licks page and tag a few licks first. After each lick, the tempo adjusts on your average across its keys: +5 BPM at 95%+, +2 at 90%+, −1 in the 75–89% band, and −3 below 75%. A single key under 75% blocks any INCREASE, even when the average looks fine.",
 			side: 'over',
 			align: 'center'
 		}

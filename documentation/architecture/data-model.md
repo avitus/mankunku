@@ -1,6 +1,8 @@
 # Data Model
 
-All core types live in `src/lib/types/`. This document describes every interface and type alias.
+All core types live in `src/lib/types/`. This document describes the interfaces and type aliases in that directory.
+
+Types that belong to one subsystem and are declared beside it — `FlattenedTune` and `InsertionPoint` (tunes), `PitchReading` (audio), `LickFeature` / `MatchIndex` (matching), `ChordSymbol` (notation) — are documented with their subsystem: see [Tune System](./tune-system.md), [API Reference: Audio](../api-reference/audio.md), and [API Reference: Music](../api-reference/music.md).
 
 ## Music Types (`src/lib/types/music.ts`)
 
@@ -76,10 +78,13 @@ interface HarmonicSegment {
   scaleId: string;             // References ScaleDefinition.id (e.g. 'major.dorian')
   startOffset: Fraction;
   duration: Fraction;
+  symbol?: string;             // Original chord text as written, e.g. "C7(b9,#11)"
 }
 ```
 
 Defines the harmonic context for a portion of a phrase — the chord and the associated scale.
+
+`symbol` preserves display fidelity where the mapping onto the closed `ChordQuality` union is imperfect: **display prefers `symbol`, audio uses `chord`**. It is populated by manual chord entry and every tune importer via `harmonicSegmentFromSymbol` (see [Tune System](./tune-system.md)).
 
 ### Phrase
 
@@ -115,6 +120,107 @@ interface ScaleDefinition {
   targetNotes: string[];               // Chord tones for generator to land on
 }
 ```
+
+## Tune Types (`src/lib/types/tune.ts`)
+
+### TuneSource
+
+```typescript
+type TuneSource =
+  | 'curated' | 'user'
+  | 'imported-ireal' | 'imported-biab' | 'imported-pdf'
+  | string;
+```
+
+### TuneSection
+
+```typescript
+interface TuneSection {
+  label: string;               // Section letter shown on the chart: 'A', 'B', 'Intro', 'Coda', …
+  bars: number;                // Authoritative even when melody is sparse or empty
+  repeatStart?: boolean;       // Opens |: at the start of this section
+  repeatEnd?: boolean;         // Closes :| at the end of this section
+  ending?: 1 | 2;              // Numbered volta ending
+  notes: Note[];               // SECTION-LOCAL offsets, starting at [0,1]
+  harmony: HarmonicSegment[];  // SECTION-LOCAL offsets
+}
+```
+
+### Tune
+
+```typescript
+interface Tune {
+  id: string;
+  title: string;
+  composer?: string;
+  key: PitchClass;                 // CONCERT pitch
+  timeSignature: [number, number];
+  style?: string;                  // Feel label, e.g. 'Medium Swing', 'Ballad'
+  tags: string[];
+  sections: TuneSection[];
+  source: TuneSource;
+  difficulty?: DifficultyMetadata;
+  pdfUrl?: string;                 // `{uid}/{id}.pdf` in the `tunes` bucket, for PDF imports
+}
+```
+
+A full song form: melody plus complete harmony, organized into labeled sections with repeat and ending markers.
+
+Two properties differ from `Phrase` and matter downstream:
+
+- **Tunes store their real concert key**, unlike licks, which are all stored in concert C and transposed at runtime.
+- **Section offsets are section-local.** Nothing consumes sections directly — `flattenTune` (`$lib/tunes/flatten`) produces the continuous form that the notation renderer and backing-track engine read, in either notation order or playback order.
+
+`pdfUrl` round-trips through the cloud row so reconcile never clobbers it.
+
+See [Tune System](./tune-system.md) for `FlattenedTune`, `DetectedProgression`, `LickSuggestion`, and `InsertionPoint`.
+
+## Lick Practice Types (`src/lib/types/lick-practice.ts`)
+
+### ChordProgressionType
+
+```typescript
+type ChordProgressionType =
+  | 'minor-vamp' | 'major-vamp' | 'dominant-vamp'
+  | 'ii-V-I-major' | 'ii-V-I-minor'
+  | 'ii-V-I-major-long' | 'ii-V-I-minor-long'
+  | 'turnaround' | 'iii-VI-ii-V-I' | 'blues';
+```
+
+The ten backing-track progressions. `PROGRESSION_TEMPLATES` (`$lib/data/progressions`) holds each one's harmony and bar count; `PROGRESSION_SHAPES` (`$lib/data/progression-shapes`) holds the degree patterns the tune detector scans for; `progressionColor` (`$lib/music/progression-display`) holds each one's identity hue. All three are exhaustive `Record`s, so adding a progression won't type-check until it has a template, a shape, and a colour.
+
+### LickPracticeKeyProgress / LickPracticeProgress
+
+```typescript
+interface LickPracticeKeyProgress {
+  currentTempo: number;
+  lastPracticedAt: number;
+  passCount: number;
+}
+
+type LickPracticeProgress =
+  Record<string, Partial<Record<PitchClass, LickPracticeKeyProgress>>>;
+```
+
+Per-lick, per-key progress, persisted to localStorage via `persistence/lick-practice-store.ts`.
+
+### LickProgressPoint / LickProgressHistory
+
+```typescript
+interface LickProgressPoint {
+  t: number;     // Wall-clock ms; also the per-lick dedupe key
+  bpm: number;   // Session tempo at this sample
+  keys: number;  // Unlocked-key count (1–12) at this sample
+}
+
+type LickProgressHistory = Record<string, LickProgressPoint[]>;
+```
+
+Append-only time series, sampled whenever a session bumps tempo or unlocks a key. Drives the two-panel progress chart on the lick detail page — plotted against real elapsed time, not sample index.
+
+### Other types in this module
+
+`LickPracticeMode` (`'continuous' | 'call-response'`), `LickPracticeSessionType` (`'daily' | 'focused' | 'deep'`), `LickPracticeConfig`, `ChordSubstitutionRule`, `LickPracticePlanItem`, `SingleLickRoundEntry`, `LickPracticePhase`, `LickPracticeKeyResult`, `LickReport`, `SessionReport`. See [API Reference: State](../api-reference/state.md#lick-practicesveltets).
 
 ## Audio Types (`src/lib/types/audio.ts`)
 

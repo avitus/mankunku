@@ -165,11 +165,25 @@ After any `git push` to a PR branch — including the autofix commits themselves
 - Regression pins: unit describe `chordSymbolDeltas` in abcjs-adapter.test.ts (per-chord independence, clearance, push-up-only, bracket veto); e2e `tune-chord-height.spec.ts` (high-bar tune, scale-invariant staff-space assertions).
 - **Stems (2026-07-28):** declaring a second voice WITHOUT `stem=` makes abcjs's `createVoice` (parse/tune-builder.js) splice a forced stem-up event into the MELODY voice — the two-real-voices convention, triggered purely by voice count. The header's `V:H stem=down` keeps `params.stem` truthy so that splice never happens and M gets pitch-based auto stems (head at/above middle line → down, below → up; on-line → down — matches MuseScore). Deliberate variance: abcjs decides BEAMED groups by the group's average pitch vs the middle line, MuseScore by the furthest note — user accepted the abcjs rule (2026-07-28). No `stem=auto`, `%%stemdir`, or inline stem directive exists in abcjs; don't go looking. E2E pin: `tune-stem-direction.spec.ts` (self-classifying rule check over every rendered stem).
 
+### Documentation has four surfaces, not one (2026-08-01)
+
+Adding or changing a player-facing doc means touching up to four places. Missing any one leaves the docs *internally* consistent and externally wrong, which is the hardest kind to notice.
+
+1. **`documentation/*.md`** — the file itself. Also the developer docs; `documentation/README.md` is the index and carries the "last major docs update" note.
+2. **`src/lib/docs/structure.ts` (`DOC_TREE`)** — the musician-facing subset surfaced at `/docs`. A slug absent here **404s**, so a new page is invisible until registered. Also feeds the sitemap.
+3. **`src/lib/docs/context.ts` (`CORE_DOC_SLUGS`)** — what the docs assistant gets as system context. Deliberately small (tokens per request), but a whole feature area missing here makes the assistant answer "not documented" — the exact failure the build-time bundling was added to fix (Sentry MANKUNKU-N). Both tune pages are in as of 2026-08-01.
+4. **`src/lib/tour/tours/*.ts`** — tour copy is user-facing prose that *no* docs audit looks at and no test or type-check validates. It went stale unnoticed (a lick category listed as a progression type; superseded tempo thresholds). Same blind spot covers empty states, error copy, and onboarding.
+
+Markdown is bundled via `import.meta.glob` at build time in **both** the `/docs` route loader and `context.ts` — reading from `process.cwd()` fails in prod because the deploy ships only `build/`.
+
+Audit direction matters: enumerate the product from `src/routes` + `src/lib` and ask "where is this documented". Reading the docs and asking "is this still true" finds drift but is structurally blind to *absence*, which is the larger failure. Cross-check docs against each other too — a contradiction between two pages is worse than either being wrong alone.
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`
 - **Architecture overview** (with module dependency diagram): `documentation/architecture/overview.md`
-- **All architecture docs**: `documentation/architecture/` (audio-pipeline, data-model, scoring-algorithm, state-management, tech-stack, tonality-system, adaptive-difficulty, phrase-system)
+- **All architecture docs**: `documentation/architecture/` (audio-pipeline, data-model, scoring-algorithm, state-management, tech-stack, tonality-system, adaptive-difficulty, phrase-system, tune-system, lick-alignment, pitch-rhythm-coupling, design-system)
+- **Player guides**: `documentation/getting-started.md`, `user-guide.md`, `tunes.md`, `tune-practice.md`
 - **PRD**: `PRD.md`
 - **Project conventions**: `CLAUDE.md`
 - **Independent observations**: `CLAUDIUS/observations.md`

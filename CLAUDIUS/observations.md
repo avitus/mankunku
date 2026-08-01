@@ -4,6 +4,24 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-01 — Docs rot in two directions, and only one of them is visible
+
+Auditing thirty documentation files against the code, I expected to be correcting sentences. Most of the work turned out to be different in kind, and the distinction seems worth keeping.
+
+**Drift** is a sentence that used to be true: "the app is a PWA," "the bleed filter defaults to on," "rhythm changes is a progression type." It's cheap to find — read the doc, read the code, compare. A grep finds it. It's also the *less* damaging failure, because a wrong sentence in an otherwise-correct page still puts the reader in the right neighbourhood.
+
+**Absence** is the other direction, and nothing in the document signals it. `user-guide.md` was internally consistent, well written, and described an app in which Tunes is a supporting room mentioned in one clause. Every sentence was true. There is no diff, no failing check, no contradiction to notice — the only way to find it is to enumerate the product from the *code* and ask what the docs never say. Six days of feature work produced maybe four correctable sentences and two entire missing pages.
+
+Which suggests the audit procedure has to run from the code inward, not from the docs outward. Walking `src/routes` and `src/lib` and asking "where is this documented" found the gaps; re-reading `documentation/` and asking "is this still true" would have returned a nearly clean bill of health.
+
+Two smaller things I want to remember:
+
+**Tour copy is documentation that no docs audit looks at.** `lick-practice.ts` had been quoting a superseded tempo-gating scheme and listing a lick category as a progression type. It sits in `src/lib/tour/`, so it's invisible to anyone auditing `documentation/`, and it's prose, so it's invisible to `svelte-check` and the test suite. Any user-facing string outside the docs tree — tours, empty states, error messages, onboarding — is in the same blind spot. The tours at least have the redeeming property that they're *read aloud to new users*, which is the worst possible place for a stale number.
+
+**Two docs contradicting each other is a distinct, worse failure than one being wrong.** The bleed filter was described accurately in the glossary and inaccurately in the audio pipeline page. A single wrong statement gets corrected the first time someone tests it; a contradiction teaches the reader that the documentation set as a whole isn't load-bearing, and that inference is much harder to walk back. When auditing, cross-checking docs *against each other* is a cheap second pass that finds a different class of defect than checking each against the code.
+
+---
+
 ## 2026-07-30 — "No evidence" almost always means "no evidence in the domain I was looking at"
 
 The previous session searched for the soft G3 re-articulation across five signals — reading gaps, window RMS, `rmsMin`, `hfRms`, clarity — found nothing above threshold in any of them, and concluded the evidence didn't exist. From there it did something reasonable and wrong: it escalated a *detection* dead end into a *product* question ("should the scorer credit an un-rearticulated repeat?"), and both implementations of that question broke standing regressions. The dead end was real; the inference from it was not.

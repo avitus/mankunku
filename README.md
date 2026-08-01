@@ -1,22 +1,41 @@
 # Mankunku
 
-Jazz ear training progressive web app with call-and-response practice. The app plays a jazz phrase, you play it back on your instrument via microphone, and it scores your pitch and rhythm accuracy in real time.
+Jazz ear-training web app with call-and-response practice. The app plays a jazz phrase, you play it back on your instrument via microphone, and it scores your pitch and rhythm accuracy in real time.
 
 Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.wikipedia.org/wiki/Yakhal%27_Inkomo) — one of the greatest South African jazz recordings. Under the hood: real-time pitch detection at 60fps, Dynamic Time Warping for score alignment, a custom AudioWorklet for onset detection, adaptive difficulty that grows with you, and a local-first architecture that keeps your data on-device (page loads need the network).
 
 ## Features
 
-- Call-and-response practice with automatic scoring
+**Practice**
+
+- Call-and-response ear training with automatic scoring
+- 12-key lick practice over a generated rhythm section, with per-lick gradual key unlocking and tempo adaptation
+- Tune practice: runtime progression detection inside a song form, mastery-aware lick suggestions at each insertion point, and freestyle solo recognition
+- Adaptive difficulty: proficiency levels 1-100, 10 content tiers
+- Guided tours on every main surface, replayable from Settings
+
+**Listening**
+
 - Real-time pitch detection (McLeod method via Pitchy, 60fps)
 - Note onset detection via custom AudioWorklet (HFC algorithm)
+- Five-tier re-articulation detection down to legato tonguing that leaves no energy evidence — only a waveform-shape break
+- Band-limited (250–5000 Hz) evidence so metronome clicks can neither mask nor fake an articulation
 - DTW alignment-based scoring (pitch 60% + rhythm 40%, with latency correction)
+
+**Content**
+
 - 33 scales and 452 curated jazz licks (ii-V-I, blues, bebop, modal, and more)
 - Combinatorial phrase generation from scale patterns and rhythm templates
-- Adaptive difficulty: proficiency levels 1-100, 10 content tiers
+- Full song forms with Real Book–style engraving: jazz chord stacking, section markers, repeats, stacked voltas, multi-system reflow
+- Tune importers: iReal Pro links, Band-in-a-Box `.SGU`/`.MGU` + MusicXML, MuseScore `.mscz`/`.mscx`, and AI-assisted PDF extraction with a review pass
+- Community sharing for both licks and tunes
+
+**Platform**
+
 - Concert pitch canonical — transposition to written pitch at display time only
 - Fraction-based rhythm representation (no floating-point drift with triplets or dotted notes)
 - Local-first: writes to localStorage/IndexedDB, optional Supabase cloud sync
-- Installable web app (manifest-based; user data is local-first, page loads need the network)
+- Installable web app (manifest-based; there is no service worker, so page loads need the network)
 - Cross-device progress sync via Supabase auth (optional)
 - Dark and light themes
 
@@ -63,26 +82,32 @@ npm run dev        # dev server now talks to the local stack at http://127.0.0.1
 ```text
 src/
   lib/
-    audio/          Audio pipeline: playback, capture, pitch detection, onset detection
+    audio/          Audio pipeline: playback, capture, pitch detection, onset detection, segmentation
     scoring/        DTW alignment and scoring engine
-    music/          Music theory: scales, keys, intervals, transposition, chords
+    music/          Music theory + engraving: scales, keys, intervals, transposition, chords, notation
     phrases/        Phrase generation, mutation, validation, library loading
+    tunes/          Tune domain: flatten, book loading, importers, progression detection, lick matching
+    notation/       DOM-adjacent chart geometry: hit zones, abcjs adapter, follow-scroll, ending alignment
+    matching/       N-gram melodic matcher (attribution + freestyle recognition)
     difficulty/     Adaptive difficulty algorithm and 10-tier profiles
     tonality/       Daily key/scale selection, progressive unlocking
-    state/          Svelte 5 runes state modules (.svelte.ts)
+    step-entry/     Manual note-entry helpers (durations, accidentals)
+    tour/           driver.js guided-tour definitions and config
+    docs/           In-app docs tree, markdown rendering, assistant context
+    state/          Svelte 5 runes state modules (.svelte.ts) + their plain logic modules
     persistence/    localStorage/IndexedDB storage + Supabase sync
-    components/     UI components (audio, practice, licks, tunes, notation, onboarding)
+    components/     UI components (audio, practice, licks, tunes, tune-practice, notation, console, ui)
     supabase/       Client setup and hand-maintained DB types
     types/          TypeScript interfaces grouped by domain
-    data/           Curated lick + tune catalogs and static data
-  routes/           SvelteKit pages: practice, licks, tunes, progress, settings, auth
+    data/           Curated lick + tune catalogs, progression templates and shapes
+  routes/           SvelteKit pages: ear-training, lick-practice, licks, tunes, progress, settings, docs, auth
 tests/
   unit/             Unit tests across 8 domains (audio, scoring, music, phrases, ...)
   integration/      Integration tests (auth route chain, etc.)
   e2e/              Playwright browser tests
 supabase/
-  migrations/       23 SQL migrations (profiles, progress, settings, licks, RLS, +evolutions)
-documentation/      Architecture docs, API reference, contributing guides
+  migrations/       SQL migrations (profiles, progress, settings, licks, tunes, RLS, +evolutions)
+documentation/      Player guides, architecture docs, API reference, contributing guides
 ```
 
 ## Architecture Highlights
@@ -96,6 +121,8 @@ documentation/      Architecture docs, API reference, contributing guides
 **AudioWorklet onset detection** — A custom AudioWorklet processor runs on the audio thread for low-latency onset detection using High-Frequency Content weighting with an adaptive threshold. Falls back to pitch-gap detection in browsers without AudioWorklet support.
 
 **Local-first with optional cloud** — All writes go to localStorage and IndexedDB first for instant feedback and offline resilience. Supabase sync runs in the background when the user opts in. The app is fully functional without any backend.
+
+**Tunes bridge into the Phrase pipeline** — Tunes were added without forking playback, scoring, or notation. `flattenTune` collapses a tune's sections into one continuous timeline (in notation order or repeat-expanded playback order, with index maps between them), and `tuneToPhrase` wraps that in a `Phrase` so the existing engines consume a song form with no new orchestration. See [Tune System](documentation/architecture/tune-system.md).
 
 See [Architecture Overview](documentation/architecture/overview.md) for detailed system design documentation.
 
