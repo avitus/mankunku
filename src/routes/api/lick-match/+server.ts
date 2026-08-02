@@ -167,7 +167,9 @@ export const POST: RequestHandler = async ({ request }) => {
 			keyPc: 0
 		},
 		MATCH_INDEX,
-		{ minScore: validatedMinScore, topK: validatedTopK }
+		// 0.7 is the tuned WJazzD-attribution weighting — the documented exception
+		// to the 60/40 default (see SearchOptions.pitchWeight).
+		{ minScore: validatedMinScore, topK: validatedTopK, pitchWeight: 0.7 }
 	);
 
 	const matches: MatchResponse[] = results.map((r) => ({

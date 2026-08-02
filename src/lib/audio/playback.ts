@@ -49,6 +49,21 @@ export interface PlaybackEvent {
 	/** Per-note lowpass cutoff in Hz (smplr `lpfCutoffHz`); 20000 = no per-note filter */
 	cutoffHz: number;
 	detune: number;
+	/** Index into phrase.notes of the sounding note's chain start (rests skipped, ties merged) */
+	sourceIndex: number;
+	/** Phrase-relative onset in transport ticks — numeric twin of `time`, post-swing/humanize */
+	ticks: number;
+}
+
+/** Payload for `PhrasePlaybackOpts.onNote` — fired per sounding melody note. */
+export interface PlaybackNoteEvent {
+	/** Index into phrase.notes of the first note of the (possibly tied) chain */
+	sourceIndex: number;
+	midi: number;
+	/** Phrase-relative onset in transport ticks (excludes the 1-bar count-in / startTick offset) */
+	ticks: number;
+	/** Sounding duration in seconds (after articulation durationScale) */
+	durationSec: number;
 }
 
 let tone: ToneModule | null = null;
@@ -463,7 +478,9 @@ export function phraseToEvents(phrase: Phrase, tempo: number, swing: number, ppq
 			layerVelocity: e.layerVelocity,
 			release: e.release,
 			cutoffHz: e.cutoffHz,
-			detune: getBreathDetune(s.pitch, k === 0)
+			detune: getBreathDetune(s.pitch, k === 0),
+			sourceIndex: s.sourceIndex,
+			ticks
 		});
 	}
 	return events;
@@ -576,6 +593,14 @@ export interface PhrasePlaybackOpts {
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
 	startTick?: number;
+	/**
+	 * Fired once per sounding melody note, on the UI thread at the audible
+	 * moment (Tone.Draw), for driving a notation cursor. Scheduled from the
+	 * same tick-anchored melody Part the audio uses, so cursor and sound
+	 * share one clock; a stale callback surviving stopPlayback is suppressed
+	 * by the schedule-generation guard. Never fires when skipMelody is set.
+	 */
+	onNote?: (event: PlaybackNoteEvent) => void;
 }
 
 /**
@@ -638,8 +663,20 @@ export async function playPhrase(
 	// preventing the perceived tempo glitch on the first phrase.
 	if (!skipMelody) {
 		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq);
+		const onNote = opts.onNote;
 		currentPart = new Tone.Part((time, event) => {
 			startNote({ ...event, time });
+			if (onNote) {
+				const info: PlaybackNoteEvent = {
+					sourceIndex: event.sourceIndex,
+					midi: event.midi,
+					ticks: event.ticks,
+					durationSec: event.duration
+				};
+				Tone.getDraw().schedule(() => {
+					if (scheduleId === currentScheduleId) onNote(info);
+				}, time);
+			}
 		}, events);
 		currentPart.start(`${barTicks}i`);
 	}
@@ -833,8 +870,20 @@ export async function scheduleNextPhrase(
 	// Swing is applied per-note inside phraseToEvents (triplet-safe).
 	if (!skipMelody) {
 		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq);
+		const onNote = opts.onNote;
 		currentPart = new Tone.Part((time, event) => {
 			startNote({ ...event, time });
+			if (onNote) {
+				const info: PlaybackNoteEvent = {
+					sourceIndex: event.sourceIndex,
+					midi: event.midi,
+					ticks: event.ticks,
+					durationSec: event.duration
+				};
+				Tone.getDraw().schedule(() => {
+					if (scheduleId === currentScheduleId) onNote(info);
+				}, time);
+			}
 		}, events);
 		currentPart.start(`${nextBarTicks}i`);
 	}

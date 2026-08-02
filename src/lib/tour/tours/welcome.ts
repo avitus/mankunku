@@ -2,8 +2,8 @@ import type { DriveStep } from 'driver.js';
 
 /**
  * First-run welcome tour — assumes the user is on the home page.
- * Covers the Side A / Side B split, the daily key concept, the level
- * system, and the auth panel, then ends with a CTA to start practicing.
+ * Covers the Side A / Side B split, the daily key concept, the books
+ * (licks and tunes), and progress, then ends with a CTA to start practicing.
  */
 export const welcomeTour: DriveStep[] = [
 	{
@@ -51,6 +51,16 @@ export const welcomeTour: DriveStep[] = [
 			title: 'Your Licks',
 			description:
 				"Your lick book — everything you've recorded, written in the editor, or stolen from the community. Tag a lick here to send it to Lick Practice.",
+			side: 'bottom',
+			align: 'center'
+		}
+	},
+	{
+		element: '[data-tour="nav-tunes"]',
+		popover: {
+			title: 'Your Tunes',
+			description:
+				"Whole song forms — charted by hand, imported from iReal Pro, Band-in-a-Box, MuseScore or a PDF, or adopted from the community. Open one and hit Practice licks: the app finds the ii-Vs and turnarounds in the changes and hands you those spots to fill from your practice set. It's where Side A and Side B pay off.",
 			side: 'bottom',
 			align: 'center'
 		}

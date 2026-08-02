@@ -16,6 +16,8 @@ import {
 	barHitRect,
 	chordHitRect,
 	chordSymbolDeltas,
+	chordHorizontalNudges,
+	partLabelDelta,
 	glissandoWave,
 	type AdapterVisualObj,
 	type AdapterVoiceItem,
@@ -486,6 +488,93 @@ describe('chordSymbolDeltas — MuseScore-style chord drop toward the staff', ()
 	it('returns a zero delta for a glyph with a non-finite baseline', () => {
 		const broken = { baselineY: Number.NaN, box: { x: 10, y: 31, width: 30, height: 12 } };
 		expect(chordSymbolDeltas([broken, glyph(40)], [], topLineY, spacing)).toEqual([0, 35]);
+	});
+});
+
+describe('partLabelDelta — seat rehearsal marks at the clef', () => {
+	const spacing = 10;
+	const staffTop = 100;
+	const staffWidth = 400;
+	// Clef extends well above the staff top (G-clef curl).
+	const clef = { x: 20, y: 55, width: 30, height: 55 };
+
+	it('snaps a system-start mark left toward the clef and drops toward the staff', () => {
+		// Mark parked high and right of the first bar (abcjs default).
+		const part = { x: 90, y: 10, width: 22, height: 22 };
+		const { dx, dy } = partLabelDelta(part, clef, staffTop, staffWidth, spacing);
+		// Target left ≈ clef.x + 0.35*spacing = 23.5
+		expect(part.x + dx).toBeCloseTo(23.5, 5);
+		// Must clear clef top (55 - 0.35*10 = 51.5) which is higher than
+		// staffTop - 1.75*10 = 82.5 → target bottom = 51.5
+		expect(part.y + part.height + dy).toBeCloseTo(51.5, 5);
+		expect(dy).toBeGreaterThan(0);
+	});
+
+	it('stays above an x-overlapping bar number', () => {
+		const part = { x: 90, y: 10, width: 22, height: 22 };
+		const barNum = { x: 22, y: 48, width: 12, height: 10 };
+		const { dx, dy } = partLabelDelta(part, clef, staffTop, staffWidth, spacing, [barNum]);
+		const finalBottom = part.y + part.height + dy;
+		const finalLeft = part.x + dx;
+		// After snap the mark overlaps the bar number in x → bottom ≤ barNum.y - 3
+		expect(finalLeft).toBeLessThan(barNum.x + barNum.width);
+		expect(finalBottom).toBeLessThanOrEqual(barNum.y - 0.3 * spacing + 1e-9);
+	});
+
+	it('does not snap a mid-line mark all the way to the clef', () => {
+		// Past 28% of staff width from clef → mid-line section letter.
+		const part = { x: 250, y: 10, width: 22, height: 22 };
+		const { dx, dy } = partLabelDelta(part, clef, staffTop, staffWidth, spacing);
+		expect(dx).toBe(0);
+		// Mid-line: staff clearance only (no clef x-overlap after dx=0... wait,
+		// part at 250 does not x-overlap clef, so target = staffTop - 1.75*sp = 82.5
+		expect(part.y + part.height + dy).toBeCloseTo(82.5, 5);
+	});
+
+	it('never raises a mark that is already at or below the target bottom', () => {
+		// Bottom already at 52, past clef-top clearance 51.5 → no further drop,
+		// and we never move upward (dy clamped ≥ 0).
+		const part = { x: 25, y: 32, width: 22, height: 20 }; // bottom = 52
+		const { dy } = partLabelDelta(part, clef, staffTop, staffWidth, spacing);
+		expect(dy).toBe(0);
+	});
+
+	it('drops only (no horizontal snap) when there is no clef', () => {
+		const part = { x: 90, y: 10, width: 22, height: 22 };
+		const { dx, dy } = partLabelDelta(part, null, staffTop, staffWidth, spacing);
+		expect(dx).toBe(0);
+		expect(part.y + part.height + dy).toBeCloseTo(82.5, 5);
+	});
+});
+
+describe('chordHorizontalNudges — neighbour + ink clearance', () => {
+	const spacing = 10;
+
+	it('leaves well-spaced chords unmoved', () => {
+		const boxes = [
+			{ x: 0, y: 0, width: 30, height: 12 },
+			{ x: 50, y: 0, width: 30, height: 12 }
+		];
+		expect(chordHorizontalNudges(boxes, [], spacing)).toEqual([0, 0]);
+	});
+
+	it('pushes a right chord past a left one that overlaps', () => {
+		const boxes = [
+			{ x: 0, y: 0, width: 30, height: 12 },
+			{ x: 25, y: 0, width: 30, height: 12 }
+		];
+		const [dx0, dx1] = chordHorizontalNudges(boxes, [], spacing);
+		expect(dx0).toBe(0);
+		// gap = 0.35 * 10 = 3.5 → left edge of #1 should be 30+3.5 = 33.5
+		expect(25 + dx1).toBeCloseTo(33.5, 5);
+	});
+
+	it('pushes a chord past x-overlapping tall ink on its left', () => {
+		const boxes = [{ x: 20, y: 0, width: 30, height: 12 }];
+		const ink = [{ x: 0, y: 0, width: 25, height: 40 }];
+		const [dx] = chordHorizontalNudges(boxes, ink, spacing);
+		// ink right 25 + clearance 2 → 27
+		expect(20 + dx).toBeCloseTo(27, 5);
 	});
 });
 

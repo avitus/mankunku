@@ -70,6 +70,19 @@ export interface RecordingMetadata {
 	detectedNotes: DetectedNote[];
 	backingTrackLog: BackingTrackLog | null;
 	bleedFilterLog: BleedFilterLog | null;
+	/**
+	 * Transport clock at the first sample of the blob, and whether the
+	 * metronome was audible. Together these let a replay reconstruct the
+	 * click grid via `getMetronomeBleedOnsets` — without them the segmenter
+	 * runs unsuppressed and /diagnostics can report a different segmentation
+	 * than the app actually scored (a phantom split on a click, most often).
+	 *
+	 * Optional: recordings captured before 2026-08-01 have neither, and the
+	 * metadata is a schema-less JSON blob, so readers must tolerate their
+	 * absence rather than a migration filling them in.
+	 */
+	transportSeconds?: number;
+	metronomeEnabled?: boolean;
 }
 
 export interface RecordingRecord {

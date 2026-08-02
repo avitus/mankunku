@@ -55,6 +55,44 @@ export interface PitchReading {
 	 */
 	rmsMin?: number;
 	/**
+	 * `rmsMin` computed on a 250–5000 Hz band-passed copy of the window — the
+	 * INSTRUMENT band. Everything the metronome contributes lives outside it:
+	 * the ride is high-passed at 8 kHz, the hi-hat at 6 kHz, and the downbeat
+	 * kick's MembraneSynth body sits under 250 Hz. A bare ride measures ~0.004
+	 * here against a horn at ~0.13 — 25 dB down.
+	 *
+	 * That matters because a click can only ever ADD energy, so it cannot
+	 * create an envelope dip — but in the full band it can FILL one in, hiding
+	 * a genuine tongue stop that happens to land on the beat. Since the beat is
+	 * exactly where notes start, that is the common case, not the corner case.
+	 * Measured on the 2026-08-01 "down-to-the-third" second Eb (tongued right
+	 * on a ride click): the band floor dips to 0.82 of its trailing median
+	 * while the full-band floor only reaches 0.98.
+	 *
+	 * Optional so readings restored from pre-2026-08-01 diagnostic JSON (which
+	 * lack it) simply fall back to the full-band evidence.
+	 */
+	bandRmsMin?: number;
+	/**
+	 * Lowest short-time period-to-period waveform similarity inside the
+	 * analysis window (0–1; ~0.99 on a steady reed tone). See
+	 * `measureShapeBreak`. This is the only reading-level signal that sees a
+	 * LEGATO ("doodle") tongue: the airflow never stops, so `rms`/`rmsMin`
+	 * hold or rise and `hfRms` never spikes, but the reed RESETS — the
+	 * cycle-to-cycle waveform shape breaks for a few milliseconds. Optional
+	 * so readings restored from pre-2026-07-30 diagnostic JSON (which lack
+	 * it) simply skip the pass that uses it.
+	 */
+	shapeBreak?: number;
+	/**
+	 * Offset from this reading's `time` to the centre of the `shapeBreak`
+	 * minimum, so the discontinuity sits at `time + shapeBreakAt` — precise to
+	 * ~3 ms, far finer than the 16.7 ms reading hop. Negative under the live
+	 * path's window-end anchor (see `FrameOptions.windowAnchor`). Omitted
+	 * whenever `shapeBreak` is.
+	 */
+	shapeBreakAt?: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -62,6 +100,16 @@ export interface PitchReading {
 	 * steady-state readings.
 	 */
 	warmup?: boolean;
+	/**
+	 * True when the frame's spectrum looks like a 2nd-harmonic (octave-up)
+	 * lock — the reported pitch carries the full odd-harmonic signature of a
+	 * real fundamental an octave below (see `isOctaveUpLock`). Recorded per
+	 * frame but acted on only at the note level: the segmenter drops a note an
+	 * octave when a strong majority of its frames are flagged
+	 * (`mergeWholeNoteOctaveUpLocks`), so a stray attack-transient frame on a
+	 * genuine mid-register note is harmless. Omitted when not flagged.
+	 */
+	octaveUp?: boolean;
 }
 
 /**
@@ -78,6 +126,142 @@ export interface PitchReading {
  */
 const RMS_MIN_BLOCK_SIZE = 128;
 const RMS_MIN_SPAN_BLOCKS = 4;
+
+/**
+ * Instrument-band corners for `bandRmsMin` (see the field doc). 250 Hz clears
+ * the kick's body while sitting under every pitch the app supports; 5 kHz
+ * keeps the horn's brightness — which is what a light tongue actually
+ * changes — while landing a full octave below the hi-hat's 6 kHz corner.
+ *
+ * The low-pass is cascaded four times (~-33 dB at 8 kHz) because a single
+ * 2-pole section leaves too much ride through to trust a dip. The high-pass
+ * is cascaded twice; the kick needs less rejection because its energy is
+ * concentrated well below the corner. Settling: the first block of each
+ * window is discarded, which is ~2.9 ms against a ~3 ms high-pass time
+ * constant, so the filter state's cold start cannot masquerade as a dip.
+ */
+const BAND_RMS_HP_HZ = 250;
+const BAND_RMS_LP_HZ = 5000;
+const BAND_RMS_HP_STAGES = 2;
+const BAND_RMS_LP_STAGES = 4;
+
+/** Scratch buffers for the band-passed copy and its block energies. */
+let bandScratch = new Float32Array(0);
+let bandBlockScratch = new Float64Array(0);
+
+/**
+ * One 2-pole Butterworth section applied in place over `buf[0..len)`.
+ * Q is fixed at 1/√2; cascading sections steepens the skirt without needing
+ * per-stage coefficients, which is all this measurement requires.
+ */
+function biquadInPlace(
+	buf: Float32Array,
+	len: number,
+	sampleRate: number,
+	cutoffHz: number,
+	kind: 'hp' | 'lp'
+): void {
+	const w0 = (2 * Math.PI * cutoffHz) / sampleRate;
+	const cosW = Math.cos(w0);
+	const alpha = Math.sin(w0) / Math.SQRT2;
+	const a0 = 1 + alpha;
+	const b0 = (kind === 'hp' ? (1 + cosW) / 2 : (1 - cosW) / 2) / a0;
+	const b1 = (kind === 'hp' ? -(1 + cosW) : 1 - cosW) / a0;
+	const b2 = b0;
+	const a1 = (-2 * cosW) / a0;
+	const a2 = (1 - alpha) / a0;
+
+	let x1 = 0,
+		x2 = 0,
+		y1 = 0,
+		y2 = 0;
+	for (let i = 0; i < len; i++) {
+		const x = buf[i];
+		const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+		x2 = x1;
+		x1 = x;
+		y2 = y1;
+		y1 = y;
+		buf[i] = y;
+	}
+}
+
+/**
+ * Minimum sliding sub-window RMS of the 250–5000 Hz band of `buffer`, using
+ * the same block geometry as `rmsMin` so the two are directly comparable.
+ * Returns null when the window is too short to hold a span after dropping
+ * the settling block.
+ */
+function measureBandRmsMin(buffer: Float32Array, sampleRate: number): number | null {
+	const len = buffer.length;
+	if (bandScratch.length < len) bandScratch = new Float32Array(len);
+	const work = bandScratch;
+	work.set(buffer.subarray(0, len));
+
+	for (let s = 0; s < BAND_RMS_HP_STAGES; s++) {
+		biquadInPlace(work, len, sampleRate, BAND_RMS_HP_HZ, 'hp');
+	}
+	for (let s = 0; s < BAND_RMS_LP_STAGES; s++) {
+		biquadInPlace(work, len, sampleRate, BAND_RMS_LP_HZ, 'lp');
+	}
+
+	// Skip the first block: the filters start from zero state on every window.
+	const totalBlocks = Math.floor(len / RMS_MIN_BLOCK_SIZE);
+	const usableBlocks = totalBlocks - 1;
+	if (usableBlocks < RMS_MIN_SPAN_BLOCKS) return null;
+
+	// Rolling span sum over per-block energies — each sample is squared once.
+	if (bandBlockScratch.length < usableBlocks) {
+		bandBlockScratch = new Float64Array(usableBlocks);
+	}
+	const blocks = bandBlockScratch;
+	for (let b = 0; b < usableBlocks; b++) {
+		const start = (b + 1) * RMS_MIN_BLOCK_SIZE;
+		let blockEnergy = 0;
+		for (let i = start; i < start + RMS_MIN_BLOCK_SIZE; i++) {
+			blockEnergy += work[i] * work[i];
+		}
+		blocks[b] = blockEnergy;
+	}
+
+	let spanEnergy = 0;
+	let minSpanEnergy = Infinity;
+	for (let b = 0; b < usableBlocks; b++) {
+		spanEnergy += blocks[b];
+		if (b >= RMS_MIN_SPAN_BLOCKS) spanEnergy -= blocks[b - RMS_MIN_SPAN_BLOCKS];
+		if (b >= RMS_MIN_SPAN_BLOCKS - 1 && spanEnergy < minSpanEnergy) {
+			minSpanEnergy = spanEnergy;
+		}
+	}
+	if (minSpanEnergy === Infinity) return null;
+	return Math.sqrt(minSpanEnergy / (RMS_MIN_SPAN_BLOCKS * RMS_MIN_BLOCK_SIZE));
+}
+
+/**
+ * `shapeBreak` scan geometry (see `measureShapeBreak`).
+ *
+ * SHAPE_HOP matches the worklet's render quantum (128 samples ≈ 2.9 ms), so a
+ * tongue is localized an order of magnitude finer than the 16.7 ms reading hop.
+ * SHAPE_LAG_TOLERANCE widens the lag search around the frame's detected period:
+ * the reported frequency is the McLeod average over the whole ~93 ms window, so
+ * on a bend or vibrato the LOCAL period drifts from it by up to ~3%. Without
+ * the search that drift alone would decorrelate the upper harmonics (the 8th
+ * partial turns 3% into 86° of phase error) and fake a break on every expressive
+ * note. SHAPE_MIN_POSITIONS keeps the minimum meaningful — with too few scan
+ * positions it degenerates into a single noisy sample.
+ */
+const SHAPE_HOP = 128;
+const SHAPE_LAG_TOLERANCE = 0.03;
+const SHAPE_MIN_POSITIONS = 6;
+
+/**
+ * Scratch buffers for `measureShapeBreak`'s prefix-sum tables and per-position
+ * running best, reused across frames so the 60 fps live path allocates nothing.
+ * Deterministic: each is fully rewritten on every call before it is read.
+ */
+let shapeEnergyScratch = new Float64Array(0);
+let shapeCrossScratch = new Float64Array(0);
+let shapeBestScratch = new Float64Array(0);
 
 /** Default clarity floor for accepting a reading */
 export const DEFAULT_CLARITY_THRESHOLD = 0.80;
@@ -144,6 +328,44 @@ const SUBHARMONIC_FUNDAMENTAL_RATIO = 0.1;
 const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
 
 /**
+ * Octave-up (2nd-harmonic) correction — the mirror of the subharmonic case.
+ *
+ * McLeod / autocorrelation pitch detection can also lock onto the HALVED period
+ * of a low sustained tone, reporting a frequency exactly an octave too HIGH,
+ * when the true fundamental radiates far less energy than its 2nd harmonic. This
+ * is the common failure mode on low tenor-sax notes: the 2026-07-29 Sixth–Octave
+ * Lift fixture is a concert E3 whose 165 Hz fundamental sat at ~4% of its 330 Hz
+ * 2nd harmonic, so every frame of the note was reported as E4 (MIDI 64) and
+ * scored a total miss.
+ *
+ * Unlike a subharmonic — whose reported bin is spectrally empty — a 2nd-harmonic
+ * lock reports a bin that carries real energy (it IS a harmonic), so mag(f) alone
+ * cannot tell it from a genuine note at f. The ODD harmonics can: for a genuine
+ * note at `f` the bins at 1.5f and 2.5f are non-harmonic and empty, while when
+ * the true fundamental is `g = f/2` those bins are its full-rank 3rd and 5th
+ * harmonics (3g, 5g). A single-bin Goertzel odd-harmonic rank,
+ *
+ *     (mag(1.5f) + mag(2.5f)) / (mag(f) + mag(2f)) ≥ OCTAVE_UP_ODD_HARMONIC_RATIO,
+ *
+ * fires only when a real fundamental lives an octave down. Measured per-frame on
+ * the fixture corpus, bucketed by the reported MIDI: genuine sustained notes at
+ * `f` top out at ~0.11; every 2nd-harmonic-lock frame sits ≥ 0.127; and a
+ * CORRECTLY-detected low E3 (reported at its own 165 Hz fundamental) reads
+ * ~0.01–0.03, because the odd bins of E2 are empty — so a real low note is never
+ * dragged down an octave.
+ *
+ * Bounded to a low reported-frequency window: 2nd-harmonic locks only occur on
+ * low tones (their reported freq is 2× a low fundamental). The [min, max] band
+ * keeps the extra Goertzels off the mid/high register and holds the corrected
+ * `g = f/2` at or above the supported minimum pitch. The max stops below G3's 2nd
+ * harmonic (~392 Hz): notes from ~G3 up detect their own strong fundamental and
+ * never mislock, so nothing above the band needs pulling down.
+ */
+const OCTAVE_UP_MIN_FREQUENCY = 160;
+const OCTAVE_UP_MAX_FREQUENCY = 370;
+const OCTAVE_UP_ODD_HARMONIC_RATIO = 0.12;
+
+/**
  * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
  * must persist before it is accepted. At ~60fps this is ~50 ms — long enough
  * to filter subharmonic glitches, short enough for genuine octave changes.
@@ -163,6 +385,17 @@ export interface FrameOptions {
 	clarityThreshold?: number;
 	minFrequency?: number;
 	maxFrequency?: number;
+	/**
+	 * Which end of the analysis window `time` refers to. Replay hands in the
+	 * window's START (it steps a cursor through the buffer); the live rAF path
+	 * hands in `context.currentTime`, by which point the AnalyserNode holds the
+	 * PRECEDING fftSize samples — so its window ENDS at `time`. Only
+	 * `shapeBreakAt` depends on this, because it is the one field that points
+	 * at a specific instant INSIDE the window; it is emitted so that
+	 * `time + shapeBreakAt` is the discontinuity in the caller's own time base
+	 * either way (negative under the 'end' anchor). Defaults to 'start'.
+	 */
+	windowAnchor?: 'start' | 'end';
 }
 
 export interface StabilizerResult {
@@ -351,6 +584,144 @@ export function correctSubharmonic(buffer: Float32Array, frequency: number, samp
 }
 
 /**
+ * Whether the detected frequency looks like a 2nd-harmonic (octave-up) lock of a
+ * true fundamental an octave below. See the `OCTAVE_UP_*` constants for the
+ * odd-harmonic discriminator.
+ *
+ * This is a PREDICATE, not a correction: unlike `correctSubharmonic`, which
+ * rewrites the frequency in place, the octave-up decision is deferred to the
+ * segmenter. The reason is attack transients — the broadband energy at a note's
+ * onset transiently lifts the 1.5f / 2.5f bins, so an isolated attack frame of a
+ * GENUINE mid-register note can look like a lock for a frame or two. A true lock,
+ * by contrast, holds across the whole note. Rewriting per-frame would let those
+ * brief attack blips seed the octave stabilizer an octave low and manufacture
+ * phantom segments (the 2026-05-07 Locrian Descent regression). So each frame
+ * only records the evidence; the segmenter drops a note an octave only when a
+ * strong majority of its frames carry it (`mergeWholeNoteOctaveUpLocks`).
+ */
+export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRate: number): boolean {
+	if (frequency < OCTAVE_UP_MIN_FREQUENCY || frequency > OCTAVE_UP_MAX_FREQUENCY) {
+		return false;
+	}
+	// A genuine note at `f` has no energy at the odd half-multiples 1.5f / 2.5f;
+	// when the true fundamental is g = f/2 those bins are its 3rd / 5th harmonics.
+	const second = goertzelMagnitude(buffer, frequency, sampleRate); // 2g
+	const fourth = goertzelMagnitude(buffer, frequency * 2, sampleRate); // 4g
+	const third = goertzelMagnitude(buffer, frequency * 1.5, sampleRate); // 3g
+	const fifth = goertzelMagnitude(buffer, frequency * 2.5, sampleRate); // 5g
+	const even = second + fourth;
+	if (even <= 0) return false;
+	return (third + fifth) / even >= OCTAVE_UP_ODD_HARMONIC_RATIO;
+}
+
+/**
+ * Lowest short-time waveform self-similarity inside the analysis window —
+ * "did the reed restart?" measured in the time domain.
+ *
+ * Every other reading-level signal is an ENERGY measure averaged over the full
+ * ~93 ms window: `rms` (window mean), `rmsMin` (min ~11.6 ms sub-window),
+ * `hfRms` (window high-passed mean), `clarity` (McLeod over the whole window).
+ * A legato "doodle" tongue moves none of them. The player never interrupts the
+ * airflow, so the envelope holds or keeps rising and the brightness lift is
+ * spread over 100 ms+ rather than spiking; the tracker never even drops a
+ * frame. What the ear hears — and what the samples show — is the reed being
+ * damped and re-starting: for a few milliseconds consecutive cycles stop
+ * looking like each other, then a NEW steady shape (brighter, deeper troughs)
+ * takes over. That discontinuity is invisible to any amount of averaged energy
+ * and obvious in cycle-to-cycle correlation.
+ *
+ * The scan slides a two-period window in SHAPE_HOP steps and correlates it
+ * against the same window one period later, taking the best lag within
+ * SHAPE_LAG_TOLERANCE of the frame's detected period (see the constant — the
+ * search is what keeps bends and vibrato from faking a break). A steady tone
+ * scores ~0.99 everywhere; the minimum over the whole window is returned along
+ * with the offset (seconds from the window start) where it occurred, so the
+ * segmenter can place an onset far more precisely than the reading hop allows.
+ *
+ * Returns null when the pitch is too low (or the buffer too short) for the scan
+ * to have SHAPE_MIN_POSITIONS positions, so callers simply omit the field.
+ */
+export function measureShapeBreak(
+	buffer: Float32Array,
+	frequency: number,
+	sampleRate: number
+): { value: number; offsetSeconds: number } | null {
+	if (!(frequency > 0)) return null;
+	const period = Math.round(sampleRate / frequency);
+	if (period < 8) return null;
+
+	const span = 2 * period;
+	const minLag = Math.max(1, Math.round(period * (1 - SHAPE_LAG_TOLERANCE)));
+	const maxLag = Math.round(period * (1 + SHAPE_LAG_TOLERANCE));
+	const lastStart = buffer.length - span - maxLag;
+	if (lastStart < SHAPE_HOP * (SHAPE_MIN_POSITIONS - 1)) return null;
+
+	const positions = Math.floor(lastStart / SHAPE_HOP) + 1;
+	const crossEnd = lastStart + span;
+
+	// Both correlation terms reduce to prefix-sum lookups, which is what keeps
+	// this affordable in the LOW register — where period, lag range and span all
+	// grow together and the cost peaks. Energy is trivially cumulative. The cross
+	// term looks quadratic — every position against every lag over `span` samples
+	// — but with the LAG held fixed it is a sliding sum of the same product
+	// series x[n]·x[n+lag], so one prefix sum per lag makes every position O(1),
+	// turning positions×lags×span into lags×length.
+	//
+	// Measured at 4096 samples / 44.1 kHz: 0.79 → 0.44 ms per frame at the 80 Hz
+	// minimum-pitch floor (4.8% → 2.6% of a 60 fps frame), 0.30 ms at low-B♭
+	// tenor, ~0.2 ms mid-register. It costs ~0.04 ms above ~400 Hz, where the
+	// per-lag prefix write outweighs a span that has become short — irrelevant
+	// next to the low-end saving. The arithmetic is identical either way (no
+	// coarse-to-fine approximation), so the segmenter's SHAPE_* thresholds keep
+	// exactly the meaning they were measured against.
+	if (shapeEnergyScratch.length < buffer.length + 1) {
+		shapeEnergyScratch = new Float64Array(buffer.length + 1);
+		shapeCrossScratch = new Float64Array(buffer.length + 1);
+	}
+	if (shapeBestScratch.length < positions) shapeBestScratch = new Float64Array(positions);
+	const cumulative = shapeEnergyScratch;
+	const crossCumulative = shapeCrossScratch;
+	const bestPerPosition = shapeBestScratch;
+
+	cumulative[0] = 0;
+	for (let i = 0; i < buffer.length; i++) {
+		cumulative[i + 1] = cumulative[i] + buffer[i] * buffer[i];
+	}
+	// -Infinity marks "never measured" — distinct from a genuine negative
+	// similarity, and from the all-silent-lag case that must not be reported.
+	for (let p = 0; p < positions; p++) bestPerPosition[p] = -Infinity;
+
+	for (let lag = minLag; lag <= maxLag; lag++) {
+		crossCumulative[0] = 0;
+		for (let i = 0; i < crossEnd; i++) {
+			crossCumulative[i + 1] = crossCumulative[i] + buffer[i] * buffer[i + lag];
+		}
+		for (let p = 0; p < positions; p++) {
+			const start = p * SHAPE_HOP;
+			const selfEnergy = cumulative[start + span] - cumulative[start];
+			const laggedEnergy = cumulative[start + lag + span] - cumulative[start + lag];
+			if (selfEnergy <= 0 || laggedEnergy <= 0) continue;
+			const cross = crossCumulative[start + span] - crossCumulative[start];
+			const similarity = cross / Math.sqrt(selfEnergy * laggedEnergy);
+			if (similarity > bestPerPosition[p]) bestPerPosition[p] = similarity;
+		}
+	}
+
+	let worst = Infinity;
+	let worstStart = 0;
+	for (let p = 0; p < positions; p++) {
+		if (bestPerPosition[p] === -Infinity) continue; // no lag carried energy
+		if (bestPerPosition[p] < worst) {
+			worst = bestPerPosition[p];
+			worstStart = p * SHAPE_HOP;
+		}
+	}
+	if (worst === Infinity) return null;
+
+	return { value: worst, offsetSeconds: (worstStart + span / 2) / sampleRate };
+}
+
+/**
  * Run pitch detection on a single buffer and apply octave stabilization.
  *
  * @param buffer Time-domain samples (length must match detector's input size)
@@ -429,8 +800,35 @@ export function detectFrame(
 	const octaveCorrection = midi - rawMidi;
 	const midiFloat = rawMidiFloat + octaveCorrection;
 
+	// Octave-UP (2nd-harmonic) locks are only FLAGGED here, not rewritten — the
+	// segmenter drops the note an octave when a majority of its frames carry the
+	// flag (see `isOctaveUpLock`). Two guards keep the flag from ever stacking a
+	// second octave correction on top of an existing one:
+	//   • `frequency === rawFrequency` — the subharmonic pass didn't already move
+	//     the pick (a doubled subharmonic sits an octave up by construction).
+	//   • `octaveCorrection === 0` — the stabilizer didn't already hold this frame
+	//     an octave down from its raw pick. Without this, a lock frame the
+	//     stabilizer has already pulled to the true fundamental (midi = rawMidi −
+	//     12) would still be flagged off its raw E4 spectrum, and the note-level
+	//     drop would take it a SECOND octave down (E3 → E2).
+	const octaveUp =
+		frequency === rawFrequency &&
+		octaveCorrection === 0 &&
+		isOctaveUpLock(buffer, frequency, opts.sampleRate);
+
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
+	const bandRmsMin = measureBandRmsMin(buffer, opts.sampleRate);
+	if (bandRmsMin !== null) reading.bandRmsMin = bandRmsMin;
+	const shape = measureShapeBreak(buffer, frequency, opts.sampleRate);
+	if (shape) {
+		reading.shapeBreak = shape.value;
+		reading.shapeBreakAt =
+			opts.windowAnchor === 'end'
+				? shape.offsetSeconds - buffer.length / opts.sampleRate
+				: shape.offsetSeconds;
+	}
 	if (stab.warmup) reading.warmup = true;
+	if (octaveUp) reading.octaveUp = true;
 
 	return { reading, rawClarity: clarity };
 }

@@ -90,7 +90,9 @@ describe('saveLickPracticeRecording', () => {
 			score: makeScore(),
 			detectedNotes: makeDetectedNotes(),
 			backingTrackLog: null,
-			bleedFilterLog: null
+			bleedFilterLog: null,
+			transportSeconds: 4.5,
+			metronomeEnabled: true
 		});
 
 		const summaries = await getAllRecordingSummaries();
@@ -109,7 +111,9 @@ describe('saveLickPracticeRecording', () => {
 			score: makeScore(0.72),
 			detectedNotes: [],
 			backingTrackLog: null,
-			bleedFilterLog: null
+			bleedFilterLog: null,
+			transportSeconds: 4.5,
+			metronomeEnabled: true
 		});
 
 		const full = await getRecordingFull('lp-session-2');
@@ -130,7 +134,9 @@ describe('saveLickPracticeRecording', () => {
 			score: makeScore(),
 			detectedNotes: [],
 			backingTrackLog: null,
-			bleedFilterLog: null
+			bleedFilterLog: null,
+			transportSeconds: 4.5,
+			metronomeEnabled: true
 		});
 
 		const full = await getRecordingFull('lp-session-3');
@@ -148,7 +154,9 @@ describe('saveLickPracticeRecording', () => {
 			score: makeScore(0.91),
 			detectedNotes: notes,
 			backingTrackLog: null,
-			bleedFilterLog: null
+			bleedFilterLog: null,
+			transportSeconds: 4.5,
+			metronomeEnabled: true
 		});
 
 		const full = await getRecordingFull('lp-session-4');
@@ -156,6 +164,26 @@ describe('saveLickPracticeRecording', () => {
 		expect(full!.metadata!.detectedNotes[0].midi).toBe(65);
 		expect(full!.metadata!.score!.pitchAccuracy).toBeCloseTo(0.9);
 		expect(full!.metadata!.swing).toBeCloseTo(0.6);
+	});
+
+	it('records the click schedule so a replay can reproduce the scored result', async () => {
+		await saveLickPracticeRecording({
+			sessionId: 'lp-session-schedule',
+			blob: makeBlob(),
+			phrase: makePhrase(),
+			tempo: 120,
+			swing: 0,
+			score: makeScore(),
+			detectedNotes: [],
+			backingTrackLog: null,
+			bleedFilterLog: null,
+			transportSeconds: 9.142857,
+			metronomeEnabled: true
+		});
+
+		const full = await getRecordingFull('lp-session-schedule');
+		expect(full!.metadata!.transportSeconds).toBeCloseTo(9.142857, 6);
+		expect(full!.metadata!.metronomeEnabled).toBe(true);
 	});
 
 	it('accepts null score for failed/empty windows without throwing', async () => {
@@ -169,7 +197,9 @@ describe('saveLickPracticeRecording', () => {
 				score: null,
 				detectedNotes: [],
 				backingTrackLog: null,
-				bleedFilterLog: null
+				bleedFilterLog: null,
+				transportSeconds: 0,
+				metronomeEnabled: false
 			})
 		).resolves.not.toThrow();
 
@@ -187,7 +217,9 @@ describe('saveLickPracticeRecording', () => {
 			score: makeScore(),
 			detectedNotes: [],
 			backingTrackLog: null,
-			bleedFilterLog: null
+			bleedFilterLog: null,
+			transportSeconds: 4.5,
+			metronomeEnabled: true
 		});
 		await saveLickPracticeRecording({
 			sessionId: 'lp-summary-2',
@@ -198,7 +230,9 @@ describe('saveLickPracticeRecording', () => {
 			score: makeScore(),
 			detectedNotes: [],
 			backingTrackLog: null,
-			bleedFilterLog: null
+			bleedFilterLog: null,
+			transportSeconds: 4.5,
+			metronomeEnabled: true
 		});
 
 		const summaries = await getAllRecordingSummaries();

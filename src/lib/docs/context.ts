@@ -17,9 +17,17 @@ const DOC_FILES = import.meta.glob<string>('/documentation/**/*.md', {
  * Keep this small — every token costs latency and money. Architecture
  * details and API reference are intentionally excluded; the assistant cites
  * them by URL when relevant.
+ *
+ * `tunes` and `tune-practice` earn their place despite the size rule: the
+ * tune half of the app has its own vocabulary (insertion points, the head
+ * rule, the importers) that appears nowhere else in the core set, so without
+ * them the assistant answers a third of the product with "not documented" —
+ * the same failure this module's bundling exists to prevent.
  */
 const CORE_DOC_SLUGS = [
 	'user-guide',
+	'tunes',
+	'tune-practice',
 	'architecture/overview',
 	'architecture/scoring-algorithm',
 	'architecture/adaptive-difficulty',

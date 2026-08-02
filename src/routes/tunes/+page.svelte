@@ -2,6 +2,9 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import TuneCard from '$lib/components/tunes/TuneCard.svelte';
+	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
+	import HelpLink from '$lib/components/ui/HelpLink.svelte';
+	import { tunesTour } from '$lib/tour/tours/tunes';
 	import { getAllTunes, isCuratedTuneId } from '$lib/tunes/book-loader';
 	import { getAdoptedTuneAuthorsLocal, getTuneAdoptionsLocal } from '$lib/persistence/tune-community';
 	import { awaitHydration } from '$lib/state/hydration';
@@ -88,19 +91,23 @@
 			</p>
 			<div class="jazz-rule mt-2 max-w-[160px]"></div>
 		</div>
-		<div class="flex shrink-0 items-center gap-4">
+		<div class="flex shrink-0 flex-wrap items-center gap-4">
+			<TourTrigger tourId="tunes" steps={tunesTour} label="How your songbook works" />
 			<a
 				href="/tunes/community"
+				data-tour="browse-tune-community"
 				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
 			>
 				Browse Community
 			</a>
 			<a
 				href="/tunes/add"
+				data-tour="add-tune"
 				class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
 			>
 				+ Add a tune
 			</a>
+			<HelpLink href="/docs/tunes" label="Tunes docs" />
 		</div>
 	</div>
 
@@ -108,6 +115,7 @@
 		type="search"
 		placeholder="search by title, composer, style, or tag…"
 		bind:value={searchQuery}
+		data-tour="tune-search"
 		class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
 	/>
 

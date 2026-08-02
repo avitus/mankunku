@@ -294,3 +294,38 @@ export function prevBeatPos(pos: BeatPosition, form: FormShape): BeatPosition | 
 	}
 	return null;
 }
+
+const CLIP_EPS = 1e-9;
+
+/**
+ * Clip a bar's horizontal span to the portion covered by a half-open time
+ * range in whole-note units. Used so mid-bar-abutted insertion markers split a
+ * shared bar instead of stacking two full-bar washes.
+ *
+ * @param x0 Left edge of the full bar zone (SVG user units)
+ * @param x1 Right edge of the full bar zone
+ * @param absBar 0-based absolute notation bar index
+ * @param barWholeNotes Length of one bar in whole notes (1 for 4/4, 0.75 for 3/4)
+ * @param rangeStart Inclusive start of the marker span (whole notes from form 0)
+ * @param rangeEnd Exclusive end of the marker span
+ * @returns Clipped `[x0, x1]` or null when the range misses this bar
+ */
+export function clipBarSpanX(
+	x0: number,
+	x1: number,
+	absBar: number,
+	barWholeNotes: number,
+	rangeStart: number,
+	rangeEnd: number
+): { x0: number; x1: number } | null {
+	if (!(barWholeNotes > 0) || !(x1 > x0)) return null;
+	const barStart = absBar * barWholeNotes;
+	const barEnd = barStart + barWholeNotes;
+	const t0 = Math.max(barStart, rangeStart);
+	const t1 = Math.min(barEnd, rangeEnd);
+	if (t1 <= t0 + CLIP_EPS) return null;
+	const w = x1 - x0;
+	const f0 = (t0 - barStart) / barWholeNotes;
+	const f1 = (t1 - barStart) / barWholeNotes;
+	return { x0: x0 + w * f0, x1: x0 + w * f1 };
+}

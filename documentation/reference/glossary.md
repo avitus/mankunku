@@ -38,6 +38,16 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Form** — The repeating chord structure of a tune. *Body and Soul* has an AABA form: an A section, repeated, a contrasting B section (the bridge), and a return to A.
 
+**Changes** — The chord progression of a tune, considered on its own. "Playing the changes" means improvising lines that follow the harmony rather than sitting on one scale. A chart with no melody is a *changes-only* chart.
+
+**Chorus** — One complete pass through the form. A solo is measured in choruses, not bars.
+
+**Head** — The written melody of a tune. Convention plays it once at the top, once at the end, and solos on the changes in between. Mankunku follows the once-at-the-top half of that rule literally.
+
+**Lead sheet / chart** — The one-page written form of a tune: melody on the staff, chord symbols above it, section letters and repeat markers defining the form.
+
+**Volta (first/second ending)** — Numbered endings on a repeated section: play the section, take ending 1, repeat back, then take ending 2. In jazz form terms ending 1 is usually the turnaround into the next chorus and ending 2 is the way out.
+
 **Ghost note** — A note played very softly, often barely audible. Adds rhythmic texture without melodic weight. Lester Young and Stan Getz are full of ghost notes.
 
 **ii-V-I** — The most common cadence in jazz. In C major: Dm7 → G7 → Cmaj7 (the ii, V, and I chords of the key). In C minor: Dm7b5 → G7alt → Cm7. The ii-V-I is the chord progression jazz musicians practice most.
@@ -125,6 +135,14 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 **Generated phrase** — A phrase produced by the algorithmic generator at runtime, based on your difficulty level and category settings.
 
 **Grade** — The label assigned to your overall percentage: Perfect (≥ 95%), Great (≥ 85%), Good (≥ 70%), Fair (≥ 55%), or Try Again (< 55%).
+
+**Insertion point** — A window inside a tune's form where a known progression was detected and a lick will fit. Tune Practice schedules one scored window per insertion point and suggests licks from your book that match the progression *and* its local key. See [Playing Over Tunes](../tune-practice.md).
+
+**Connection bonus** — Points mode's doubling rule: clear the 90% pass bar on two consecutive insertion points and the second one scores twice. Rewards coming out of one lick ready for the next.
+
+**Strictness** — How much Tune Practice tells you and how strictly it listens. Guided (full cues, any octave), Standard (cues on approach, any octave), Solo (no cues, exact register). It never changes the grading scale.
+
+**Progression colour** — Each of the ten progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
 
 **Pitch complexity / Rhythm complexity** — The two underlying numbers that average into your displayed level (a plain mean of the two). They climb (and fall) independently based on your accuracy in each dimension. See [Levels & Difficulty](../architecture/adaptive-difficulty.md).
 

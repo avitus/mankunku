@@ -561,7 +561,9 @@
 						score: provisionalScore,
 						detectedNotes: provisionalNotes,
 						backingTrackLog: attachedBackingLog,
-						bleedFilterLog: provisionalBleedLog
+						bleedFilterLog: provisionalBleedLog,
+						transportSeconds: transportForRescore,
+						metronomeEnabled: metronomeEnabledForRescore
 					};
 					await saveRecording(sessionId, blob, {
 						metadata: baseMetadata,

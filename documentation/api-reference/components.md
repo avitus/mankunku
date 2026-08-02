@@ -76,25 +76,36 @@ Play/stop button, tempo slider, and metronome toggle.
 
 **Path:** `src/lib/components/notation/NotationDisplay.svelte`
 
-Renders sheet music from a `Phrase` using [abcjs](https://paulrosen.github.io/abcjs/).
+Renders either a single-phrase staff or a full multi-system tune chart, using [abcjs](https://paulrosen.github.io/abcjs/). One component serves the lick editor, the practice pages, the tune detail chart, and the tune-practice session.
 
 | Prop | Type | Description |
 |---|---|---|
-| `phrase` | `Phrase \| null` | Phrase to render |
+| `phrase` | `Phrase \| null` | Single phrase to render |
+| `tune` | `Tune \| null` | Full song form — chord symbols, section markers, multi-system reflow. **Takes precedence over `phrase`**; click/highlight indices then refer to `flattenTune(sheet).notes` order |
 | `instrument` | `InstrumentConfig` | Optional; transposes to written pitch |
-| `selectedIndex` | `number \| null` | Optional; source-array index of the note to highlight (`null` = none). Defaults to `null` |
-| `onSelect` | `(sourceIndex: number) => void` | Optional; fires when the user clicks a pitched notehead, with the note's source-array index |
-| `titleArea` | `Snippet` | Optional; custom header rendered above the staff |
+| `variant` | `'practice' \| 'print'` | House style. `print` uses light ink + the engraved Real Book masthead; `practice` keeps the dark interactive chrome. Default `practice` |
+| `selectedIndex` | `number \| null` | Source-array index to highlight. Default `null` |
+| `cursorIndex` | `number \| null` | Playback cursor, styled distinctly from `selectedIndex` |
+| `rangeMarkers` | `RangeMarker[]` | Insertion-point bands (tune charts only) |
+| `playheadStyle` | `PlayheadStyle` | Visual treatment for `status: 'playhead'` markers. Default `'under-bar'` |
+| `autoScrollPlayhead` | `boolean` | Follow the playhead inside a clipped viewport. Default `false` so multi-chart pages don't fight over window scroll |
+| `playheadBarFraction` | `number \| null` | Fractional absolute notation bar (e.g. `3.42`) for continuous follow-scroll; without it, scroll keys off the discrete playhead marker |
+| `onSelect` | `(sourceIndex: number) => void` | Fires when the user clicks a pitched notehead |
+| `onBarClick` | `(pos: { sectionIdx, bar }) => void` | Fires on a bar's empty space, a rest, or a chord symbol; enables the per-bar hit rects |
+| `chordEditor` | `{ textAt, commit, clear }` | Inline on-chart chord editing. Enables per-beat hit rects above the staff; `commit` returning `false` flashes the input and keeps it open, blank input calls `clear` |
+| `titleArea` | `Snippet` | Custom header rendered above the staff |
 
 **Behavior:**
-- Lazy-loads `abcjs` on mount
-- Converts phrase to ABC notation via `phraseToAbcWithMap()` (which also returns per-note click anchors)
-- Renders to SVG with `abcjs.renderAbc()`
-- Responsive rendering (`responsive: 'resize'`)
-- Dark mode support: overrides SVG path/text colors via CSS
-- Registers an abcjs `clickListener`: clicking a pitched notehead calls `onSelect` with the note's source-array index (resolved through the anchor map); `selectedIndex` highlights that notehead (colored notehead + stem). Rests are not selectable. Used by the `/licks/editor` staff for click-to-select editing.
+- Lazy-loads `abcjs` on mount.
+- Phrases convert via `phraseToAbcWithMap()`; tunes via `tuneToAbcWithMap()`, which also returns bar and chord-slot anchors.
+- Responsive rendering (`responsive: 'resize'`); dark-mode support overrides SVG path/text colors via CSS.
+- Clicking a pitched notehead calls `onSelect` with the note's source-array index (resolved through the anchor map). Rests are not selectable.
 
-Shows "No phrase loaded" placeholder when `phrase` is null.
+**Re-render asymmetry — this is deliberate and load-bearing.** Changing `selectedIndex` re-renders the chart. Changing `cursorIndex` or a marker's `status` does **not**: a dedicated effect swaps a CSS class on the stashed anchors and a handful of overlay rects. That is what makes it safe to drive the cursor per-note and the bands per-window during playback without re-engraving a multi-system chart every frame.
+
+Hit-zone geometry, the abcjs adapter, follow-scroll math, and ending alignment all live in `src/lib/notation/` as DOM-free, Node-testable modules — see [Tune System](../architecture/tune-system.md#engraving).
+
+Shows "No phrase loaded" placeholder when both `phrase` and `tune` are null.
 
 ---
 
@@ -387,3 +398,190 @@ When all three auth props are provided, the component checks Supabase for existi
 4. **Ready** — Welcome message with "Start Practicing" and "Go to Dashboard" links
 
 The progress-dot UI shows 4 dots when cloud data is detected, 3 otherwise. Completion sets `settings.onboardingComplete = true` and saves.
+
+---
+
+## Tune Components
+
+**Path:** `src/lib/components/tunes/`
+
+### `TuneCard.svelte`
+
+Book-shelf card for a tune.
+
+| Prop | Type | Description |
+|---|---|---|
+| `sheet` | `Tune` | The tune |
+| `authorName` | `string \| null` | Attribution line for adopted community sheets |
+| `badge` | `string` | Origin badge — `'Curated'`, `'Adopted'`; empty string hides it |
+| `onclick` | `() => void` | Open handler |
+
+Shows total bars (summed across sections) and the key **in the player's written pitch**, not concert.
+
+### `CommunityTuneCard.svelte`
+
+Browse card for `/tunes/community`.
+
+| Prop | Type | Description |
+|---|---|---|
+| `item` | `CommunityTune` | Sheet plus its community metadata |
+| `isOwnSheet` | `boolean` | Suppresses adopt actions on your own publications |
+| `onclick` / `onfavorite` / `onadopt` / `onreturn` | `() => void` | Row actions |
+
+### `ImportResultList.svelte`
+
+Review list shown by every importer before anything is saved.
+
+| Prop | Type | Description |
+|---|---|---|
+| `sheets` | `Tune[]` | Parsed sheets (a playlist import yields many) |
+| `warnings` | `string[]` | Parser warnings; import warnings name the printed bar they refer to |
+| `onreview` | `(sheet: Tune) => void` | Load into the editor for correction before saving |
+| `onadd` | `(sheet: Tune) => string` | Save directly, returning the new id. **Omit to force review.** |
+
+### `SourceTranspositionSelect.svelte`
+
+"Chart written for" selector — declares what pitch the source chart is in so the importer can shift to concert.
+
+| Prop | Type | Description |
+|---|---|---|
+| `value` | `SourceTransposition` | Current selection |
+| `onchange` | `(value) => void` | Change handler |
+| `hint` | `string` | Optional method-specific guidance |
+
+---
+
+## Tune Practice Components
+
+**Path:** `src/lib/components/tune-practice/`
+
+### `SuggestionPickCard.svelte`
+
+Points-mode pick card for the next insertion point.
+
+| Prop | Type | Description |
+|---|---|---|
+| `entries` | `PickEntry[]` | Ranked suggestions |
+| `picked` | `number` | Selected index |
+| `onPick` | `(index: number) => void` | Selection handler |
+| `disabled` | `boolean` | Locked once the window opens — the take scores the pick made *before* it |
+
+Each row shows a mastery tier (Known / Learning / New) in the tier's colour.
+
+### `LickCelebration.svelte`
+
+Freestyle applause card raised when the recognizer identifies a known lick.
+
+| Prop | Type | Description |
+|---|---|---|
+| `celebration` | `{ name: string; score: number } \| null` | The recognized lick, or `null` when nothing is celebrating |
+| `onDismiss` | `() => void` | Dismiss handler |
+
+Captions are chosen by hashing the lick name — stable per lick, varied across licks, no RNG, so replays feel intentional. The component carries copy only; the confidence gate lives in the recognizer.
+
+---
+
+## Tune Entry Component
+
+### `SectionConfigPanel.svelte`
+
+**Path:** `src/lib/components/tune-entry/SectionConfigPanel.svelte`
+
+Section-list editor for the tune editor: add / remove sections, set label, bar count, repeat flags, and volta ending. Reads and mutates `tuneEntry` state directly (no props).
+
+---
+
+## Console Components
+
+**Path:** `src/lib/components/console/`
+
+The Settings page is styled as a studio console rather than a form. These three are the primitives; each carries the same keyboard and screen-reader behaviour as the plain input it replaces.
+
+### `Knob.svelte`
+
+| Prop | Type | Description |
+|---|---|---|
+| `value` / `min` / `max` / `step` | `number` | Range (step defaults to `0.01`) |
+| `label` | `string` | Engraved caption |
+| `displayValue` | `string` | Optional readout override |
+| `helpText` | `string` | Tooltip hint text |
+| `size` | `'sm' \| 'md' \| 'lg'` | Default `'md'` |
+| `ariaLabel` | `string` | Accessible name |
+| `onInput` | `(v: number) => void` | Live change |
+| `onCommit` | `() => void` | Fires on release — persist here, not on every frame |
+
+### `RockerSwitch.svelte`
+
+| Prop | Type | Description |
+|---|---|---|
+| `checked` | `boolean` | State |
+| `label` | `string` | Caption |
+| `ariaLabel` | `string` | Accessible name |
+| `onChange` | `(checked: boolean) => void` | Toggle handler |
+
+### `SelectorPad.svelte`
+
+Multi-option pad (instrument, theme, backing style).
+
+| Prop | Type | Description |
+|---|---|---|
+| `options` | `Option[]` | Choices |
+| `value` | `T` | Current value |
+| `ariaLabel` | `string` | Accessible name |
+| `size` | `'sm' \| 'md'` | Default `'md'` |
+| `columns` | `number` | Optional grid column count |
+| `onChange` | `(v: T) => void` | Change handler |
+
+---
+
+## Tour Components
+
+**Path:** `src/lib/components/ui/`
+
+Guided tours run on [driver.js](https://driverjs.com), configured in `src/lib/tour/driver-config.ts` and defined as step arrays in `src/lib/tour/tours/`. Completion state lives in [`tour.svelte.ts`](./state.md#toursveltets).
+
+### `Tour.svelte`
+
+Declarative driver. Bind `active` to start and stop a tour imperatively; it flips back to `false` on close.
+
+| Prop | Type | Description |
+|---|---|---|
+| `tourId` | `string` | Stable id recorded in `tourState` |
+| `steps` | `DriveStep[]` | Step definitions |
+| `active` | `boolean` (bindable) | Drive control |
+| `onComplete` / `onClose` | `() => void` | Lifecycle hooks |
+| `config` | `Partial<Config>` | driver.js overrides |
+
+### `TourBanner.svelte`
+
+First-run prompt. Offers the tour, or a Skip that records an explicit dismissal.
+
+### `TourTrigger.svelte`
+
+Inline "Need help? Take the tour" link.
+
+| Prop | Type | Description |
+|---|---|---|
+| `tourId` | `string` | Tour to run |
+| `steps` | `DriveStep[]` | Step definitions |
+| `label` | `string` | Link text |
+| `hideIfSeen` | `boolean` | Hide once completed or dismissed. Default `true` |
+
+> **Completion semantics.** `runTour` marks a tour complete **only** on natural completion (clicking Done on the last step). Closing early — Esc, the X, an overlay click — is "not finished yet", so the banner reappears. Explicit dismissal goes through `TourBanner`'s Skip button, never through driver.js.
+>
+> **Adding a tour:** write the steps in `src/lib/tour/tours/<name>.ts`, add `data-tour="…"` anchors to the route, and register the tour in `TOURS` (`src/lib/tour/tours/index.ts`) with the path it `startsAt`. Registration is all Settings → *Tours & Help* needs — it navigates to `startsAt`, waits for every step selector to mount, and drives.
+
+---
+
+## Other Components
+
+| Component | Path | Purpose |
+|---|---|---|
+| `LickProgressChart.svelte` | `licks/` | Two stacked SVG panels (BPM and unlocked keys) over a shared x-axis **scaled by real elapsed time**, so a months-long gap reads wider than a same-day one. Takes `points: LickProgressPoint[]` |
+| `CommunityLickCard.svelte` | `licks/` | Browse card for `/licks/community` |
+| `LickBreatherCard.svelte` | `lick-practice/` | The inter-lick score-hold card: finished lick's name, percentage in its accuracy-tier colour, and the next lick. Presentational only — the session page snapshots its content when the last key scores |
+| `LickKeyDetail.svelte` | `progress/` | Expandable per-key detail on the progress page, with per-note comparison and replay |
+| `PrivacyDisclosure.svelte` | `community/` | One-time acknowledgement that saved licks appear in the community browse |
+| `SuggestionCard.svelte` | `step-entry/` | Attribution name suggestions in the lick editor, from `lick-suggestions` state |
+| `BrassPlayGlyph.svelte` | `jazz/` | Decorative brass play glyph |
+| `Tooltip.svelte`, `TooltipHint.svelte`, `InfoIcon.svelte`, `HelpLink.svelte` | `ui/` | Shared help affordances |

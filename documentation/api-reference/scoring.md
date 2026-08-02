@@ -72,7 +72,7 @@ Per-note rhythm accuracy scoring.
 | `tempo` | `number` | — | BPM for timing conversion |
 | `swing` | `number` | `0.5` | Swing ratio (0.5 = straight, 0.67 = triplet, 0.8 = heavy) |
 
-```
+```text
 timingError = |detectedOnset - expectedOnset| / beatDuration
 penalty     = min(1.0, 0.5 + tempo / 300)
 rhythmScore = max(0, 1.0 - timingError * penalty)

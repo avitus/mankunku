@@ -929,6 +929,7 @@
 			const bleedLogForSave = result.bleedLog;
 			const tempoForSave = lickPractice.currentTempo;
 			const swingForSave = settings.swing;
+			const metronomeForSave = settings.metronomeEnabled;
 			const supabaseForSave = supabase;
 			const userIdForSave = user?.id;
 			void handle
@@ -945,6 +946,8 @@
 						detectedNotes: detectedForSave,
 						backingTrackLog: null,
 						bleedFilterLog: bleedLogForSave,
+						transportSeconds: windowForSave.recordingTransportSeconds,
+						metronomeEnabled: metronomeForSave,
 						supabase: supabaseForSave ?? undefined,
 						userId: userIdForSave
 					});

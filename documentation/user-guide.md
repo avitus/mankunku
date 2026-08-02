@@ -1,6 +1,6 @@
 # How to Practice
 
-Mankunku is a call-and-response app. The app plays you a phrase; you play it back; it scores your accuracy and either moves you on or hands you a retry. Around that loop are two main practice modes (Side A and Side B), your books of licks and tunes, and a progress dashboard.
+Mankunku is a call-and-response app. The app plays you a phrase; you play it back; it scores your accuracy and either moves you on or hands you a retry. Around that loop are two main practice modes (Side A and Side B), a third surface where you apply what they teach you over a real tune, your books of licks and tunes, and a progress dashboard.
 
 This page walks through the practice flow as it actually feels in the room — what to listen for, what to do with your horn in your hands, what each setting changes.
 
@@ -62,7 +62,7 @@ Before your first session, go to **Licks** and tap the star on a few licks you w
 
 When you open Side B, you choose:
 
-- **Progression type** — what the backing track plays underneath. ii-V-I major or minor, dominant or major vamp, turnaround, rhythm changes, blues. Each lick's category determines which progressions it lands cleanly on by default.
+- **Progression type** — what the backing track plays underneath. Ten of them: minor, major, and dominant vamps; short ii-V-I in major and minor; long ii-V-I in major and minor; turnaround; iii-VI-ii-V-I; and blues. Each lick's category determines which progressions it lands cleanly on by default.
 - **Substitutions** — toggle to introduce tritone subs and chromatic approaches. Same lick, harder harmony.
 - **Backing style** — swing for straight-ahead, bossa for Latin, ballad for slow with sustained comping, straight for rock/funk feel.
 - **Practice mode** — *Continuous* plays the lick once as a demo in the first key, then you play it through all 12 keys back-to-back over a non-stop backing track. *Call & Response* skips the upfront demo and instead, in every key, the app plays the lick first and you echo it on the next cycle, alternating through all 12 keys. Both modes score every key the user plays.
@@ -142,9 +142,20 @@ The page is organised into three groups, in this order:
 - **Practice set** — fully-configured practice licks, sorted by least-recently-practiced so the most overdue line sits at the top.
 - **Other licks** — everything else of yours that you haven't tagged for practice.
 
-### Search
+### Reading a lick card
 
-The search box filters across all three groups by name or tag. The category and difficulty browse filters that used to live on this page have been retired — they belonged to the old “browse the whole catalog” page; now that your book is the focus, search is enough.
+The cards are compact on purpose — the point is to scan a book, not read one card. Each shows:
+
+- The lick's **name**, and *by whom* if you adopted it from the community.
+- A **category pill tinted in its progression's colour**. Every progression has an identity hue, and it follows the lick everywhere: the pill here, the dots beside it, the session header while you're drilling it, and the bands on a tune chart when it turns up as a suggestion. A ii-V looks like a ii-V wherever you meet it.
+- **Colour dots** for any additional progressions the lick is tagged for.
+- The lick's **current practice tempo** in BPM — where Side B has got you to on this line.
+- Its free-text tags.
+- A play button, top right.
+
+### Search and filter
+
+The search box filters across all three groups by name or tag. A **progression filter** narrows to licks carrying a given `prog:*` tag — the fast way to answer "what have I got for turnarounds?" The category and difficulty browse filters that used to live on this page have been retired; they belonged to the old "browse the whole catalog" page, and now that your book is the focus, search plus progression is enough.
 
 ### Lick detail
 
@@ -153,6 +164,7 @@ Tap a lick to see:
 - Sheet music in your instrument's key.
 - A **key selector** so you can preview the lick in any of the 12 keys before tagging it.
 - Category, difficulty, bar count, and tags.
+- A **progress chart** once you've drilled it — two stacked panels sharing a time axis, showing how your tempo and your scores on this line have moved. The x-axis is scaled by real elapsed time, so a three-month gap reads as a gap rather than as one step.
 - A play button so you can hear it without dropping into a session.
 - A **practice star** — tap to tag the lick for Side B.
 - A **Practice** button to drop straight into single-lick Deep Practice.
@@ -160,6 +172,19 @@ Tap a lick to see:
 - An **Edit** button (step-entered, owned licks only) to reopen the lick in the staff editor.
 - A **↺ Reset progress** action once you've actually drilled the lick — wipes scores and unlock count back to a fresh start. See [Side B above](#when-a-lick-keeps-beating-you).
 - A **Delete** button for licks you authored. If the delete is blocked (a community copy of someone else's, for example), the page now tells you *why* inline instead of just hiding the button.
+
+## Your tunes
+
+The **Tunes** page is the other half of your library: whole song forms rather than one- and two-bar lines. Charts you wrote by hand, charts you imported (iReal Pro links, Band-in-a-Box songs, MuseScore scores, or a PDF the app reads for you), and charts you adopted from the community all shelve under *Your book*; the ones that ship with the app shelve under *Curated*.
+
+Open a tune and you can read it in any written key, hear it with the rhythm section, and — the part that matters — **practice licks over it**. The app reads the changes, finds the ii-Vs and turnarounds and vamps hiding in them, and hands you those spots to fill from your own practice set.
+
+Two pages cover this properly:
+
+- **[Your Tunes](./tunes.md)** — the book, the five ways to add a tune, the editor, and sharing.
+- **[Playing Over Tunes](./tune-practice.md)** — the scored session: modes, strictness, the head rule, and what the report tells you.
+
+Tune-practice takes deliberately don't count toward your streak, your level, or your Side B unlocks. That's the applying-it room; the drilling rooms are Side A and Side B.
 
 ## Progress
 
@@ -179,10 +204,16 @@ The global Settings page controls things that aren't specific to a single sessio
 |---|---|
 | **Instrument** | Concert pitch (C), soprano sax, tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
 | **Theme** | Dark (default) or light. |
+| **Master volume** | Overall output level; everything else is relative to it. |
 | **Default tempo** | Starting BPM for new ear-training sessions. |
 | **Metronome volume** and **swing** | The click's loudness and feel. Swing 0.5 is straight; 0.67 is triplet swing (most common); 0.8 is heavy. |
+| **Backing instrument** and **volume** | Piano or organ for the comping voice, and how loud the rhythm section sits under you. |
 | **Highest note** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
+| **Tours & Help** | Replay any guided tour, or reset your tour history so the first-run prompts come back. |
 | **Reset progress** | Destructive — wipes your local sessions and adaptive level. Cloud-synced data on the same account will resync if you stay signed in. |
+| **Delete account** | Removes your cloud account and its data. |
+
+The settings page is laid out as a studio console — knobs, rocker switches, and selector pads rather than form fields. Every control has the same keyboard and screen-reader behaviour as the plain input it replaces.
 
 ## Adding your own licks
 
@@ -205,3 +236,5 @@ Editor-written licks are editable after the fact. Open the lick from your book a
 - **Repeat the hard ones.** Try Again is a feature, not a punishment. The same phrase will replay until you pass.
 - **All 12 keys.** Your book lets you transpose any lick to any key — work through the cycle of fifths, even on Side A.
 - **Watch your tuning.** The pitch meter shows you flat or sharp in real time. Fix the room temperature, fix the embouchure, fix your reed; the score will rise on its own.
+- **Put the vocabulary in a tune.** A lick you can play in 12 keys and can't find on a real form isn't finished. Chart or import a standard and run [Tune Practice](./tune-practice.md) over it — the app will show you exactly where your lines fit.
+- **Take the tour.** Every main page has a guided walk-through. They run once automatically, and Settings → *Tours & Help* replays any of them whenever you want.

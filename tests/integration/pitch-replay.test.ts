@@ -69,6 +69,99 @@ describe('pitch replay regression: A4 → C5 lick', () => {
 });
 
 /**
+ * Same lick ("Sixth–Octave Lift", bc-008) a fourth lower — concert G, so
+ * E3 → G3 (MIDI 52 → 55) on Bb tenor sax (2026-07-29). The player performed it
+ * correctly, but the first note is a textbook octave-UP detection failure:
+ *
+ *   - E3's 165 Hz fundamental radiates only ~4% of the energy of its 330 Hz
+ *     2nd harmonic (the spectrum carries a full harmonic series rooted at
+ *     165 Hz — partials at 165, 331, 496, 663, 830, 996 Hz — with the
+ *     fundamental the weakest of them).
+ *   - McLeod locks onto the dominant 2nd harmonic, so all 93 confident frames
+ *     of the note report E4 (MIDI 64). `correctSubharmonic` only lifts
+ *     octave-DOWN picks and the segmenter's octave-boundary merge needs an
+ *     adjacent correctly-detected E3 segment to collapse toward — there is
+ *     none, the whole note is locked — so before the fix the note segmented as
+ *     E4 and scored 0 (saved pitchAccuracy 0.5, overall 0.670).
+ *
+ * The fix flags each frame with `isOctaveUpLock` — the spectral mirror of
+ * `correctSubharmonic`, whose odd-harmonic test (energy at 1.5f/2.5f ⇒ a real
+ * fundamental at f/2) fires on every locked frame here — and the segmenter drops
+ * the whole note an octave when a strong majority of its frames carry the flag
+ * (`mergeWholeNoteOctaveUpLocks`). The note-level majority is what keeps genuine
+ * low notes safe: the correctly-detected E3 in the Third–Fifth Rise fixture below
+ * (empty E2 odd bins) flags ~0% of its frames, and a mid-register note's lone
+ * attack-transient frame is outvoted rather than rewritten.
+ */
+describe('pitch replay regression: Sixth–Octave Lift octave-up lock (concert G, E3→G3)', () => {
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-07-29-sixth-octave-lift.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	// Two-note phrase: E3 (dotted half) → G3 (quarter). Concert G.
+	const expectedPhrase: Phrase = {
+		id: 'bc-008_G',
+		name: 'Sixth–Octave Lift',
+		timeSignature: [4, 4],
+		key: 'G',
+		notes: [
+			{ pitch: 52, duration: [3, 4], offset: [0, 1] }, // E3
+			{ pitch: 55, duration: [1, 4], offset: [3, 4] }  // G3
+		],
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 18, rhythmComplexity: 18, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	it('is deterministic across repeated replays', async () => {
+		const buffer = loadFixture();
+		const a = await replayFromAudioBuffer(buffer);
+		const b = await replayFromAudioBuffer(buffer);
+
+		expect(a.readings.length).toBe(b.readings.length);
+		expect(a.onsets).toEqual(b.onsets);
+		for (let i = 0; i < a.readings.length; i++) {
+			expect(a.readings[i]).toEqual(b.readings[i]);
+		}
+	});
+
+	it('detects the true fundamentals E3 (52) and G3 (55), not the 2nd-harmonic E4', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const validOnsets = validateOnsets(onsets, readings);
+		const detected = segmentNotes(readings, validOnsets, duration);
+		expect(detected.map((n) => n.midi)).toEqual([52, 55]);
+	});
+
+	it('scores both notes as pitch hits (was 0.5 pitch / 0.670 overall)', async () => {
+		const buffer = loadFixture();
+		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);
+		const validOnsets = validateOnsets(onsets, readings);
+		const detected = segmentNotes(readings, validOnsets, duration);
+
+		// transportSeconds 0 reproduces the saved alignment: expected times
+		// [0, 1.714 s] vs detected onsets [0.151, 1.967 s] give a median offset
+		// of 0.202 s, exactly the saved latencyCorrectionMs (201.66).
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 105,
+			transportSeconds: 0,
+			swing: 0.6,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+});
+
+/**
  * Second regression recording: same lick (concert A3 → C4 on Bb tenor sax)
  * but captured with a noisy mic preamble. Pitchy locks onto ~82 Hz rumble
  * for the first 5 frames with clarity 1.00 before the user starts playing.
@@ -1616,5 +1709,378 @@ describe('pitch replay regression: Pent 1-3-2-5 latency-shifted final note (conc
 		expect(result.chosen.notesHit).toBe(4);
 		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
 		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+});
+
+/**
+ * "Climb to Five" (bbn-025, concert D — F3 G3 G3 A3), 2026-07-30, 105 BPM
+ * tenor sax with the metronome mixed in (clicks at 0.479 + k·0.5714 s).
+ *
+ * The repeated G3 was re-articulated with a LEGATO ("doodle") tongue: the
+ * airflow never stops, so the amplitude envelope has no dip at all — it is
+ * still rising through the re-attack (period-synchronous envelope varies < 15%
+ * across the whole note, monotonically upward at the articulation). Every
+ * amplitude-domain tier is therefore blind to it, and so is every other
+ * existing one: no worklet onset (HFC is amplitude-weighted), no reading gap
+ * (the tracker never loses lock), no clarity dip, no hfRms spike (brightness
+ * rises 1.9× but smeared over 130 ms, nothing like the 3× burst the HF tier
+ * wants). Saved score 0.724 with the second G3 MISSED.
+ *
+ * What the ear hears — and what the waveform shows at 0.889 s — is the reed
+ * RESETTING: the cycle-to-cycle shape changes abruptly (deeper troughs, higher
+ * peaks, a brighter spectrum) with no loss of energy. That is a pure waveform
+ * discontinuity, and `shapeBreak` (see pitch-frame.ts) is the signal that
+ * exposes it: short-time period-to-period similarity drops 0.992 → 0.957 over
+ * ~6 ms here while rms RISES 1.23× across it.
+ */
+describe('pitch replay regression: Climb to Five soft G3 re-articulation (concert D)', () => {
+	const TEMPO = 105;
+	const SWING = 0.6;
+	const BEAT = 60 / TEMPO;
+	// Clicks observed at 0.479 + k·BEAT in recording time.
+	const RECORDING_TRANSPORT_SECONDS = 16 * BEAT - 0.4793;
+
+	const phrase: Phrase = {
+		id: 'bbn-025_D',
+		name: 'Climb to Five',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 53, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 55, duration: [1, 8], offset: [1, 4] },
+			{ pitch: 55, duration: [1, 8], offset: [3, 8] },
+			{ pitch: 57, duration: [1, 2], offset: [1, 2] }
+		],
+		harmony: [],
+		difficulty: { level: 12, pitchComplexity: 12, rhythmComplexity: 10, lengthBars: 2 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	// Mirrors the production ear-training path with the metronome enabled.
+	async function detect(): Promise<DetectedNote[]> {
+		const wav = loadWavFixture('recordings/2026-07-30-climb-to-five.wav');
+		const { readings, onsets, duration } = await replayFromAudioBuffer(
+			makeFakeAudioBuffer(wav.channel, wav.sampleRate)
+		);
+		const baseOnsets = resolveOnsets(onsets, readings);
+		const bleedOnsets = getMetronomeBleedOnsets(RECORDING_TRANSPORT_SECONDS, TEMPO, duration);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		return segmentNotes(
+			readings,
+			allOnsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			onsets,
+			bleedOnsets,
+			articulationOnsets
+		);
+	}
+
+	it('splits the legato-tongued G3 pair the player actually played', async () => {
+		const detected = await detect();
+		expect(detected.map((n) => n.midi)).toEqual([53, 55, 55, 57]);
+		// The re-attack sits on the swung offbeat of the second beat.
+		expect(detected[2].onsetTime).toBeGreaterThan(0.83);
+		expect(detected[2].onsetTime).toBeLessThan(0.95);
+	});
+
+	it('scores every note as a hit (saved: 0.724 with the second G3 MISSED)', async () => {
+		const detected = await detect();
+		const result = runScorePipeline({
+			detected,
+			phrase,
+			tempo: TEMPO,
+			transportSeconds: 0,
+			swing: SWING,
+			bleedFilterEnabled: false,
+			octaveInsensitive: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(4);
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+});
+
+/**
+ * 2026-08-01 pair: two ear-training takes at 105 BPM on Bb tenor (concert Bb),
+ * metronome on, both mis-scored — in opposite directions — by metronome clicks
+ * landing where the player articulated.
+ *
+ * The new hazard here is the DOWNBEAT KICK. It is not the ride/hi-hat these
+ * fixtures have covered so far: it is a MembraneSynth C1 whose pitch envelope
+ * sweeps ~2 kHz → 33 Hz over 40 ms with a 200 ms decay (see audio/metronome.ts),
+ * making it both far louder (band-limited peak ~0.17 RMS vs ~0.09 for a ride)
+ * and far longer than a cymbal. It fires once per bar exactly on the downbeat —
+ * exactly where a phrase's notes start — and wipes pitch tracking for 100–150 ms
+ * around it. Located in each fixture by band-passing 25–150 Hz, where only the
+ * kick has energy: 1.182 s and 2.190 s respectively.
+ *
+ * Both takes are CLEAN — the player played the prompt. Establishing that took
+ * two wrong turns worth recording, because both are easy to repeat:
+ *
+ *   `measureShapeBreak` is amplitude-NORMALISED, so it detects a reed RESET and
+ *   is structurally blind to a tongue that only interrupts the airflow. Reading
+ *   "no shape break" as "no articulation" is invalid, and it is what first hid
+ *   down-to-the-third's second Eb.
+ *
+ *   Envelope notch depth is only meaningful WITHIN a note. Down-to-the-third's
+ *   Db carries ~4 Hz vibrato rippling to ×0.66–0.85 throughout, while its Eb is
+ *   steady at ×0.89–0.95 with one isolated ×0.73 outlier at 1.040 s. Compared
+ *   across notes the Db's ripple looks "deeper" than the Eb's real tongue;
+ *   compared within each note the answer is unambiguous — the Eb has one
+ *   articulation, the Db has none.
+ *
+ * Three bugs, all rooted in a click sitting on top of the evidence:
+ *
+ *   1. False NEGATIVE (flat-five-chromatic-down). The third note's attack lands
+ *      under the kick, which blanks tracking for 100 ms. That gap falls in the
+ *      corroborated step-up tier's band (≥ 75 ms, < 150 ms), whose energy gate
+ *      compared the three frames after the hole against the three before it. A
+ *      reed re-attack BLOOMS over 100–200 ms: here the note is still 12% BELOW
+ *      the dying previous note when tracking resumes and only passes it 170 ms
+ *      later (peak 1.20× the pre-gap mean). The tier measured the wrong 50 ms
+ *      and the note vanished — saved 0.655 with the third note MISSED. The tier
+ *      now also accepts a bloom: dip below the pre-gap level, then climb clear
+ *      of both it and the resumption level within 200 ms.
+ *
+ *   2. False NEGATIVE (down-to-the-third). The second Eb is tongued right on a
+ *      RIDE click at 1.046 s. The HF tier found it — but its evidence (an hfRms
+ *      burst) is exactly what a cymbal fakes, so the click-schedule veto added
+ *      for the 2026-07-25 root-frame fixture discarded it. Since the beat is
+ *      where notes start, that veto costs real articulations. It is now
+ *      conditional on `bandRmsMin` (250–5000 Hz, the band no part of the
+ *      metronome occupies): a click can only ADD energy, so a dip in the
+ *      instrument-band envelope floor is evidence it cannot manufacture. Flat
+ *      on root-frame's held G (0.98), dipping here (0.82).
+ *
+ *   3. False POSITIVE (down-to-the-third). The kick at 2.190 s collapses clarity
+ *      for 117 ms in the middle of the held Db. The clarity dip-and-recover tier
+ *      triggered on that collapse and paired it with one of the Db's ordinary
+ *      vibrato troughs 100 ms later, inventing an onset at 2.28 that split the
+ *      note. DTW then slid the whole tail by one, reporting the second Eb as a
+ *      WRONG PITCH and wrecking rhythm (0.587, per-note offsets ±250–312 ms) on
+ *      a take that was in time. Across a reading gap the clarity trigger says
+ *      only that tracking was lost, so the tier now falls back on the same
+ *      click-immune evidence: the `rmsMin` floor must collapse (0.45 on the
+ *      2026-05-20 blues-curl-up tongue behind an identical 117 ms hole; the kick
+ *      here only reaches 0.82).
+  */
+describe('pitch replay regression: 2026-08-01 downbeat-kick pair (concert Bb)', () => {
+	const TEMPO = 105;
+	const SWING = 0.6;
+	const BEAT = 60 / TEMPO;
+
+	interface KickCase {
+		name: string;
+		file: string;
+		/** Reproduces the observed click grid through getMetronomeBleedOnsets. */
+		recordingTransportSeconds: number;
+		phrase: Phrase;
+		expectedMidis: number[];
+		savedOverall: number;
+	}
+
+	// Both prompts carry a b5 blue note in the catalog (bc-044: G F# F;
+	// bbn-005: G F# F Eb, in C). The day's tonality snapped F# down to F, so
+	// the phrases actually presented — and the ones the saved scores were
+	// computed against — have the repeated note these takes turn on. Both
+	// players' takes match their prompt note for note.
+	const cases: KickCase[] = [
+		{
+			// bc-044_Bb "Flat Five Chromatic Down" → F Eb Eb. Kick at 1.182 s,
+			// on the third note's attack. Saved 0.655 "fair", third note MISSED.
+			name: 'flat-five-chromatic-down',
+			file: 'recordings/2026-08-01-flat-five-chromatic-down.wav',
+			recordingTransportSeconds: 16 * BEAT - 0.0392,
+			phrase: {
+				id: 'bc-044_Bb',
+				name: 'Flat Five Chromatic Down',
+				timeSignature: [4, 4],
+				key: 'Bb',
+				notes: [
+					{ pitch: 65, duration: [1, 4], offset: [0, 1] },
+					{ pitch: 63, duration: [1, 4], offset: [1, 4] },
+					{ pitch: 63, duration: [1, 2], offset: [1, 2] }
+				],
+				harmony: [],
+				difficulty: { level: 15, pitchComplexity: 16, rhythmComplexity: 15, lengthBars: 1 },
+				category: 'blues',
+				tags: [],
+				source: 'curated'
+			},
+			expectedMidis: [65, 63, 63],
+			savedOverall: 0.655
+		},
+		{
+			// bbn-005_Bb "Down to the Third" → F Eb Eb Db. Two faults at once:
+			// the second Eb is tongued right on a RIDE click at 1.046 s and was
+			// suppressed, and the KICK at 2.190 s split the held Db. Saved 0.685
+			// "fair" with the third note reported as a wrong pitch.
+			name: 'down-to-the-third',
+			file: 'recordings/2026-08-01-down-to-the-third.wav',
+			recordingTransportSeconds: 16 * BEAT - 0.4750,
+			phrase: {
+				id: 'bbn-005_Bb',
+				name: 'Down to the Third',
+				timeSignature: [4, 4],
+				key: 'Bb',
+				notes: [
+					{ pitch: 65, duration: [1, 4], offset: [0, 1] },
+					{ pitch: 63, duration: [1, 4], offset: [1, 4] },
+					{ pitch: 63, duration: [1, 4], offset: [1, 2] },
+					{ pitch: 61, duration: [1, 2], offset: [3, 4] }
+				],
+				harmony: [],
+				difficulty: { level: 2, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+				category: 'blues',
+				tags: [],
+				source: 'curated'
+			},
+			expectedMidis: [65, 63, 63, 61],
+			savedOverall: 0.685
+		}
+	];
+
+	const [flatFiveCase, downToThirdCase] = cases;
+
+	/**
+	 * Mirrors the production ear-training path with the metronome enabled:
+	 * resolveOnsets → bleed onsets → findReArticulations(…, bleed) →
+	 * segmentNotes(…, worklet, bleed, articulations). Shared by every block
+	 * below so the nine-argument segmentNotes call cannot drift between them.
+	 */
+	function makeDetect(c: KickCase): () => Promise<DetectedNote[]> {
+		return async (): Promise<DetectedNote[]> => {
+			const wav = loadWavFixture(c.file);
+			const { readings, onsets, duration } = await replayFromAudioBuffer(
+				makeFakeAudioBuffer(wav.channel, wav.sampleRate)
+			);
+			const baseOnsets = resolveOnsets(onsets, readings);
+			const bleedOnsets = getMetronomeBleedOnsets(c.recordingTransportSeconds, TEMPO, duration);
+			const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+			const allOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+			return segmentNotes(
+				readings,
+				allOnsets,
+				duration,
+				undefined,
+				undefined,
+				undefined,
+				onsets,
+				bleedOnsets,
+				articulationOnsets
+			);
+		};
+	}
+
+	for (const c of cases) {
+		describe(c.name, () => {
+			const detect = makeDetect(c);
+
+			it('segments exactly the notes the waveform says were played', async () => {
+				const detected = await detect();
+				expect(detected.map((n) => n.midi)).toEqual(c.expectedMidis);
+			});
+
+			it('is deterministic across repeated replays', async () => {
+				const a = await detect();
+				const b = await detect();
+				expect(a).toEqual(b);
+			});
+		});
+	}
+
+	// Detection-level specifics, kept separate from the shared table so each
+	// case can assert the thing its own bug was about.
+	describe('flat-five-chromatic-down specifics', () => {
+		const c = flatFiveCase;
+		const detect = makeDetect(c);
+
+		it('recovers the third note under the kick, on the beat it was played', async () => {
+			const detected = await detect();
+			// Guard the index read: without it a regression to two notes reports
+			// a TypeError instead of the note count that explains it.
+			expect(detected).toHaveLength(3);
+			// Kick at 1.182 s; the re-attack sits within a frame or two of it.
+			expect(detected[2].onsetTime).toBeGreaterThan(1.12);
+			expect(detected[2].onsetTime).toBeLessThan(1.26);
+		});
+
+		it('scores a clean take clean (saved: 0.655 with the third note missed)', async () => {
+			const detected = await detect();
+			const result = runScorePipeline({
+				detected,
+				phrase: c.phrase,
+				tempo: TEMPO,
+				transportSeconds: 0,
+				swing: SWING,
+				bleedFilterEnabled: false,
+				octaveInsensitive: false
+			});
+
+			for (const nr of result.chosen.noteResults) {
+				expect(nr.missed).toBe(false);
+				expect(nr.extra).toBe(false);
+			}
+			expect(result.chosen.notesHit).toBe(3);
+			expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+			expect(result.chosen.overall).toBeGreaterThan(c.savedOverall);
+			expect(result.chosen.overall).toBeGreaterThan(0.9);
+		});
+	});
+
+	describe('down-to-the-third specifics', () => {
+		const c = downToThirdCase;
+		const detect = makeDetect(c);
+
+		it('splits the Eb pair tongued on the ride click', async () => {
+			const detected = await detect();
+			const eb = detected.filter((n) => n.midi === 63);
+			expect(eb).toHaveLength(2);
+			// Ride at 1.046 s; the second Eb was tongued right on it.
+			expect(eb[1].onsetTime).toBeGreaterThan(0.95);
+			expect(eb[1].onsetTime).toBeLessThan(1.15);
+		});
+
+		it('leaves the held Db whole — no phantom split at the kick', async () => {
+			const detected = await detect();
+			const db = detected.filter((n) => n.midi === 61);
+			expect(db).toHaveLength(1);
+			// One held note spanning the kick at 2.190, not two either side of it.
+			expect(db[0].onsetTime).toBeLessThan(1.7);
+			expect(db[0].onsetTime + db[0].duration).toBeGreaterThan(2.4);
+		});
+
+		it('scores a clean take clean (saved: 0.685, third note reported as a wrong pitch)', async () => {
+			const detected = await detect();
+			const result = runScorePipeline({
+				detected,
+				phrase: c.phrase,
+				tempo: TEMPO,
+				transportSeconds: 0,
+				swing: SWING,
+				bleedFilterEnabled: false,
+				octaveInsensitive: false
+			});
+
+			for (const nr of result.chosen.noteResults) {
+				expect(nr.missed).toBe(false);
+				expect(nr.extra).toBe(false);
+			}
+			expect(result.chosen.notesHit).toBe(4);
+			expect(result.chosen.pitchAccuracy).toBeCloseTo(1, 5);
+			expect(result.chosen.overall).toBeGreaterThan(c.savedOverall);
+			expect(result.chosen.overall).toBeGreaterThan(0.9);
+		});
 	});
 });

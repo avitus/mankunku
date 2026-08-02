@@ -29,7 +29,21 @@ After segmentation, the app does two cleanup passes that handle real-world failu
 
 These passes are deliberately conservative: they only fire when the absence-of-attack evidence is unambiguous, so genuine re-articulations of the same pitch still register as separate notes.
 
-Telling a glitch from a real re-articulation is the hard part. When you blow two notes of the same pitch back to back, the air column briefly destabilises between them — that shows up as a clarity dip plus an RMS dip, often with the McLeod pitch detector dropping signal for a frame or two. The segmenter watches for that *energy signature*, not just for a worklet onset: even when the onset detector misses a re-articulation, a clear clarity+RMS double-dip is enough to split the note. And when the gap between two same-pitch frames is short but the RMS clearly steps back up, the segmenter treats that as a re-articulation too. The net result: legato held notes stay one note, repeated notes stay separate, and you don't have to tongue overly hard to make the app hear what you're doing.
+### Telling a glitch from a real re-articulation
+
+This is the hard part, and it's where most of the app's listening intelligence lives. When you play two notes of the same pitch back to back, *something* changes between them — but what changes depends entirely on how you tongue, and a hard tongue and a legato "doodle" tongue leave almost nothing in common.
+
+So the segmenter looks for the re-attack in several different ways, from the most obvious evidence to the least, and takes the first one that fires:
+
+1. **The onset detector saw it.** A hard tongue puts a broadband spike in the signal and the worklet catches it. Done.
+2. **The signal dropped out.** The air column destabilised enough to break the pitch track for a frame or two, and the energy clearly steps back up afterwards.
+3. **The envelope dipped and recovered.** No dropout, but a real dip in the note's loudness — measured on a short sliding window, because the ~93 ms analysis window smooths a 20 ms tongue stop completely out of view.
+4. **The brightness spiked.** No envelope dip at all, but a burst of high-frequency energy — the signature of a light tongue that reshapes the tone without interrupting it.
+5. **The waveform shape broke.** Nothing above fires. This is the legato tongue: the airflow never stops, the note gets *louder* across the re-attack rather than quieter, brightness climbs smoothly instead of spiking. What the ear hears is the reed being damped and restarting — the cycle-to-cycle waveform shape breaks for a few milliseconds and then settles into a new, brighter shape. The app measures that similarity directly and can split the note on it alone.
+
+That last tier has an inverted rule that's worth knowing about, because it's counterintuitive: it fires on a **shallow** break, not a deep one. A genuine legato tongue only reshapes an oscillation that never stops, so waveform similarity barely moves. Anything that drives similarity *hard* toward zero — a metronome click, a key click, a thump on the stand — is a contaminant adding an unrelated signal, not a note you played. Deep breaks are rejected; shallow ones are the tell.
+
+The net result: legato held notes stay one note, repeated notes stay separate, and you don't have to tongue hard to make the app hear what you're doing.
 
 ## Why the room matters
 
@@ -51,11 +65,22 @@ If yes to all three, the filter drops the note as bleed. If your clarity is high
 
 The filter is conservative on purpose. False positives (dropping notes you actually played) are worse than false negatives (keeping a few bleed notes), so the threshold is biased toward keeping ambiguous notes.
 
-You can toggle the bleed filter in Settings. The default is on. If you're using headphones, leaving it on is harmless — there's no bleed to filter, so the filter does nothing.
+The filter always *runs* — it's how the `/diagnostics` A/B comparison gets its two scores — but whether its result becomes your actual score is a separate internal flag, currently off by default. Tune Practice turns it on for the Guided and Standard strictness levels and leaves it to that flag on Solo. If you're using headphones none of this matters: there's no bleed to filter, so the filter finds nothing either way.
 
 ### Metronome bleed
 
-The metronome click is its own kind of bleed. Even on headphones, the playback engine schedules the click on the same internal timeline the app records from — and a sharp, broad-spectrum click can light up the onset detector for an instant, fragmenting the surrounding played note into spurious extras. To prevent that, the segmenter computes when each metronome click fired rather than reading them from a log: the metronome plays on every beat, so click times are just integer multiples of `60/tempo` (see `getMetronomeBleedOnsets` in `note-segmenter.ts`). During segmentation, any onset that falls inside a tight 50–200 ms speaker→mic latency window after a computed click time is treated as bleed and won't split a note. Only metronome clicks are handled this way — demo and melody playback don't feed the bleed filter. The result: your sustained notes stay sustained, and the scorer doesn't penalise rhythm for phantom subdivisions you didn't actually play.
+The metronome click is its own kind of bleed, and it's a nastier problem than speaker bleed because of *where* it lands: on the beat, which is exactly where notes start.
+
+Even on headphones, the playback engine schedules the click on the same internal timeline the app records from. The segmenter therefore computes when each click fired rather than reading them from a log — the metronome plays on every beat, so click times are integer multiples of `60/tempo` (see `getMetronomeBleedOnsets` in `note-segmenter.ts`). Any onset landing inside a tight 50–200 ms speaker→mic latency window after a computed click is treated as bleed and won't split a note. Only metronome clicks are handled this way; demo and melody playback don't feed the filter.
+
+That handles a click *inventing* a note. The subtler failure is a click sitting **on top of the evidence** for a note you really did play, and it goes in both directions:
+
+- A click can **mask** a real articulation. The downbeat kick is the worst offender — a synth membrane sweeping ~2 kHz down to 33 Hz, roughly twice a ride cymbal's level, blanking pitch tracking for 100–150 ms once per bar. Tongue a note under one of those and the evidence for your attack is buried.
+- A click can **fake** one. The kick wipes clarity mid-note; the segmenter's clarity tier reads the wipe as a tongue stop, pairs it with a vibrato trough a moment later, and splits a held note in two — which slides the whole alignment by one and reports the *next* note as a wrong pitch.
+
+The fix is to measure in a band the metronome cannot reach. The ride is high-passed at 8 kHz, the hi-hat at 6 kHz, and the kick's body sits below 250 Hz — so a 250–5000 Hz "instrument band" hears your horn at full strength and a bare cymbal about 25 dB down. Since a click can only ever *add* energy, a dip in that band's floor is evidence no click can manufacture. The segmenter uses it to keep trusting real articulations that happen to land on the beat, and to stop believing dips that are just the kick.
+
+The result: your sustained notes stay sustained, your on-the-beat tonguing still registers, and the scorer doesn't penalise rhythm for phantom subdivisions you didn't play.
 
 ## Latency and reaction time
 
