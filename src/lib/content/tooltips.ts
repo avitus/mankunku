@@ -128,7 +128,7 @@ export const tooltips = {
 			text: 'Each tagged lick rotates through all 12 keys over the progression. Mastery means hitting it cleanly in every key, not just the comfortable ones.'
 		},
 		tempoStep: {
-			text: 'Average ≥ 90% across the keys you played and tempo edges up +1 BPM (+2 at ≥ 95%). Stumble and it backs off. Tracks per-lick, per-key.'
+			text: 'Average ≥ 90% across the keys you played — with no key under 75% — and tempo edges up +1 BPM (+2 at ≥ 95%). One key under 75% blocks the increase; a weak average backs the tempo off. Tracks per-lick, per-key.'
 		}
 	} satisfies TooltipMap,
 
