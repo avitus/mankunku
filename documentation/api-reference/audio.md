@@ -595,6 +595,26 @@ Per-bar `{ sectionIndex?, chorusIndex?, isSectionFinalBar, isFinalBar }`. A new 
 
 ---
 
+## backing-mix.ts
+
+Per-instrument mix levels for the backing track, persisted per device (localStorage key `backing-mix-levels`) so a mix tuned on `/diagnostics/backing-mixer` applies to every session. `bass`/`comp`/`drums` are linear gain multipliers layered on the overall backing volume; `kick`/`ride`/`hihat` are velocity multipliers applied at drum trigger time (the kit is one sampler, so voice balance can only be shaped through velocity). All values clamp to `[0, 3]`; `1` means "as generated".
+
+### `BackingMixLevels` interface, `DEFAULT_BACKING_MIX`
+
+### `normalizeBackingMix(value): BackingMixLevels`
+
+Merge an untrusted value over the defaults: known keys only, finite numbers only, clamped. Never throws.
+
+### `loadBackingMix()` / `saveBackingMix(mix)`
+
+localStorage round-trip; SSR-safe (defaults without storage).
+
+### `voiceVelocity(base, trim): number`
+
+Apply a voice trim to a generated drum velocity, clamped to `[0, 1]`.
+
+---
+
 ## backing-track-schedule.ts
 
 Queryable snapshot of a scheduled backing track. Used by the bleed filter to ask "what backing-track MIDI was active at transport time T?"
@@ -632,7 +652,11 @@ Backing-track scheduler: loads the instruments, calls `backing-generation.ts` fo
 - **Comp** — `SplendidGrandPiano` (Salamander) for piano, or `Soundfont('drawbar_organ', kit: 'MusyngKite')` for organ
 - **Drums** — `smplr.Sampler` driving the `DRUM_BUFFERS` (Virtuosity Drums, CC0)
 
-All three route through a shared internal gain node into `getMasterGain()`.
+**Gain graph:** bass and comp each have their own trim node (`bassGain`, `compGain`) feeding the shared `backingGain` (overall backing volume) into `getMasterGain()`; drums have their own node into master scaled by volume × drum trim. Per-instrument trims come from `backing-mix.ts` and are adjustable live via `setBackingMix`.
+
+### `getBackingMix()` / `setBackingMix(partial)`
+
+Read / update per-instrument mix levels. Updates apply to live gain nodes immediately (kick/ride/hihat velocity trims take effect from the next drum trigger) and persist via `saveBackingMix`. The `/diagnostics/backing-mixer` page is the UI over these.
 
 ### Diagnostics types
 

@@ -44,6 +44,7 @@ const ROUTES: RouteCheck[] = [
 	{ path: '/settings' },
 	{ path: '/scales' },
 	{ path: '/diagnostics' },
+	{ path: '/diagnostics/backing-mixer' },
 	{ path: '/docs' }
 ];
 

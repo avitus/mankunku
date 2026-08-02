@@ -26,6 +26,13 @@ import {
 	type DrumEvent
 } from './backing-generation';
 import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps';
+import {
+	loadBackingMix,
+	saveBackingMix,
+	normalizeBackingMix,
+	voiceVelocity,
+	type BackingMixLevels
+} from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
 
 // ── Diagnostics log ──────────────────────────────────────────
@@ -110,8 +117,42 @@ let compInstrument: CompInstrument | null = null;
 let bassInstrument: BassInstrument | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
 
-// Gain nodes for independent volume control
+// Gain nodes for independent volume control. `backingGain` carries the
+// overall backing volume into master; `bassGain` and `compGain` hang off
+// it so each instrument's mix trim is independent of the master level.
+// The drum kit has its own node into master, scaled by volume × trim.
 let backingGain: GainNode | null = null;
+let bassGain: GainNode | null = null;
+let compGain: GainNode | null = null;
+let currentBackingVolume = 0.5;
+
+// Per-instrument mix levels, persisted per device (see backing-mix.ts).
+let mixLevels: BackingMixLevels = loadBackingMix();
+
+/** Push the current volume + mix levels onto every live gain node. */
+function applyMixGains(): void {
+	if (backingGain) backingGain.gain.value = currentBackingVolume;
+	if (bassGain) bassGain.gain.value = mixLevels.bass;
+	if (compGain) compGain.gain.value = mixLevels.comp;
+	// Drums sit back in the mix by default (the 0.6).
+	if (drumGainNode) drumGainNode.gain.value = currentBackingVolume * 0.6 * mixLevels.drums;
+}
+
+/** Current per-instrument mix levels (copy). */
+export function getBackingMix(): BackingMixLevels {
+	return { ...mixLevels };
+}
+
+/**
+ * Update per-instrument mix levels, apply them to any live gain nodes
+ * immediately, and persist them for future sessions on this device.
+ * Kick/ride/hihat trims take effect from the next drum trigger.
+ */
+export function setBackingMix(partial: Partial<BackingMixLevels>): void {
+	mixLevels = normalizeBackingMix({ ...mixLevels, ...partial });
+	saveBackingMix(mixLevels);
+	applyMixGains();
+}
 
 // Drums: multi-sample kit loaded via smplr.Sampler with string aliases
 // (`kick`, `ride`, `hihat`) mapped to CC0 Virtuosity Drums recordings.
@@ -270,12 +311,21 @@ export async function loadBackingInstruments(
 	const audioCtx = await initAudio();
 	if (loadId !== currentLoadId) return;
 
-	// Create shared gain node if needed
+	// Create shared gain nodes if needed
 	if (!backingGain) {
 		backingGain = audioCtx.createGain();
-		backingGain.gain.value = 0.5;
+		backingGain.gain.value = currentBackingVolume;
 		backingGain.connect(getMasterGain());
 	}
+	if (!bassGain) {
+		bassGain = audioCtx.createGain();
+		bassGain.connect(backingGain);
+	}
+	if (!compGain) {
+		compGain = audioCtx.createGain();
+		compGain.connect(backingGain);
+	}
+	applyMixGains();
 
 	const { Soundfont, SplendidGrandPiano, Smolken } = await import('smplr');
 	if (loadId !== currentLoadId) return;
@@ -284,7 +334,7 @@ export async function loadBackingInstruments(
 	if (!bassInstrument) {
 		const bass = new Smolken(audioCtx, {
 			instrument: 'Pizzicato',
-			destination: backingGain
+			destination: bassGain
 		});
 		await bass.load;
 		if (loadId !== currentLoadId) {
@@ -297,11 +347,11 @@ export async function loadBackingInstruments(
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		const newComp: CompInstrument = instrumentType === 'piano'
-			? new SplendidGrandPiano(audioCtx, { destination: backingGain })
+			? new SplendidGrandPiano(audioCtx, { destination: compGain })
 			: new Soundfont(audioCtx, {
 				instrument: 'drawbar_organ',
 				kit: 'MusyngKite',
-				destination: backingGain
+				destination: compGain
 			});
 		await newComp.load;
 		if (loadId !== currentLoadId) {
@@ -671,10 +721,12 @@ export async function scheduleBackingTrack(
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
 	drumPart = new Tone.Part((time: number, event: DrumEvent) => {
-		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127.
+		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
+		// per-voice mix trim applies here because the kit is one sampler —
+		// velocity is the only per-voice level lever.
 		drumSampler?.start({
 			note: event.drum as DrumBufferName,
-			velocity: Math.round(event.velocity * 127),
+			velocity: Math.round(voiceVelocity(event.velocity, mixLevels[event.drum]) * 127),
 			time
 		});
 	}, drumEvents);
@@ -727,15 +779,22 @@ export function disposeBackingTrack(): void {
 		drumGainNode.disconnect();
 		drumGainNode = null;
 	}
+	if (bassGain) {
+		bassGain.disconnect();
+		bassGain = null;
+	}
+	if (compGain) {
+		compGain.disconnect();
+		compGain = null;
+	}
 	if (backingGain) {
 		backingGain.disconnect();
 		backingGain = null;
 	}
 }
 
-/** Adjust backing track volume at runtime. */
+/** Adjust backing track volume at runtime (per-instrument trims ride on top). */
 export function setBackingTrackVolume(volume: number): void {
-	const v = Math.max(0, Math.min(1, volume));
-	if (backingGain) backingGain.gain.value = v;
-	if (drumGainNode) drumGainNode.gain.value = v * 0.6; // drums sit back in the mix
+	currentBackingVolume = Math.max(0, Math.min(1, volume));
+	applyMixGains();
 }
