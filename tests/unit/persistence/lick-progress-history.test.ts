@@ -11,6 +11,7 @@ import {
 	type LickPracticeSessionLogEntry
 } from '$lib/persistence/lick-practice-sessions';
 import { __resetNamespaceCacheForTests } from '$lib/persistence/namespace';
+import { trickVariantKey } from '$lib/types/tricks';
 import type { LickPracticeProgress } from '$lib/types/lick-practice';
 
 // ─── Mock cloud + outbox so the store round-trips through localStorage only ──
@@ -126,7 +127,7 @@ describe('seedProgressHistoryFromSessions', () => {
 	});
 
 	it('skips trick entries — composite variant keys never seed the lick history', () => {
-		const trickKey = 'enclosures:beatPlacement=downbeat|noteCount=1';
+		const trickKey = trickVariantKey('enclosures', { beatPlacement: 'downbeat', noteCount: '1' });
 		saveLickPracticeSessions([
 			sessionEntry('s1', 1000, 'x', 60, 65, 2),
 			sessionEntry('s2', 2000, trickKey, 60, 65, 1)

@@ -6,6 +6,7 @@
 --            Shape of trick_state:
 --              {
 --                "selectedVariants": [variantKey, ...],
+--                "selectedUpdatedAt": epochMillis,
 --                "migrations": [markerName, ...],
 --                "progress": { variantKey: { pitchClass: { currentTempo,
 --                              lastPracticedAt, passCount } } },
@@ -22,4 +23,4 @@ ALTER TABLE public.user_settings
   ADD COLUMN IF NOT EXISTS trick_state JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 COMMENT ON COLUMN public.user_settings.trick_state IS
-  'JSONB record of trick practice state: { selectedVariants: string[], migrations: string[], progress: {}, unlockCounts: {}, history: {} }. Empty object = no trick practice yet.';
+  'JSONB record of trick practice state: { selectedVariants: string[], selectedUpdatedAt: number, migrations: string[], progress: {}, unlockCounts: {}, history: {} }. Empty object = no trick practice yet.';

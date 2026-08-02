@@ -164,7 +164,9 @@ for (const ladder of Object.values(TRICK_MASTERY_PATHS)) {
 
 /** The ordered variant ladder for a trick (empty for unknown trick ids). */
 export function getVariantsForTrick(trickId: string): TrickVariantDefinition[] {
-	return TRICK_MASTERY_PATHS[trickId] ?? [];
+	// Own-property check: the id arrives from the /tricks/[id] route param, and
+	// a prototype-chain key like 'constructor' would otherwise return a function.
+	return Object.hasOwn(TRICK_MASTERY_PATHS, trickId) ? TRICK_MASTERY_PATHS[trickId] : [];
 }
 
 /** Look up a variant definition by its composite variant key. */

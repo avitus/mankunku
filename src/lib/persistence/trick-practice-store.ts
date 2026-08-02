@@ -113,7 +113,7 @@ export function getTrickTempo(p: TrickPracticeProgress, variantKey: string): num
 export function getTrickLastPracticed(p: TrickPracticeProgress, variantKey: string): number {
 	const keyProgress = p[variantKey];
 	if (!keyProgress) return 0;
-	const times = Object.values(keyProgress).map((kp) => kp.lastPracticedAt);
+	const times = Object.values(keyProgress).map((kp) => kp?.lastPracticedAt ?? 0);
 	return times.length > 0 ? Math.max(...times) : 0;
 }
 
@@ -126,7 +126,7 @@ export function hasTrickProgress(p: TrickPracticeProgress, variantKey: string): 
 export function totalTrickPasses(p: TrickPracticeProgress, variantKey: string): number {
 	const keyProgress = p[variantKey];
 	if (!keyProgress) return 0;
-	return Object.values(keyProgress).reduce((sum, kp) => sum + kp.passCount, 0);
+	return Object.values(keyProgress).reduce((sum, kp) => sum + (kp?.passCount ?? 0), 0);
 }
 
 // ── Unlocked-key count ───────────────────────────────────────────────────────

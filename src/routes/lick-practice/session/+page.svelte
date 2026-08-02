@@ -874,7 +874,9 @@
 			const trick = getTrickById(windowItem.trickId);
 			const played =
 				settings.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
-			const key = getCurrentKey() ?? window.key;
+			// Window-scoped like every other input here: a close callback that
+			// fires after advance() must stay rooted at the window it recorded.
+			const key = window.key;
 			if (trick) {
 				score = scoreFluency({
 					played,
