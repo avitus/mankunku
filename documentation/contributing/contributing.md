@@ -10,11 +10,13 @@ Guidelines for contributing to Mankunku.
 
 ### Prerequisites
 
-- **Node 22 or newer.** This is enforced, not advisory: `package.json` declares
-  `engines.node: ">=22"` and `.npmrc` sets `engine-strict=true`, so `npm install`
-  fails with `EBADENGINE` on an older major rather than warning. `.nvmrc` pins
-  `22.14` to match CI (`cimg/node:22.14`) — run `nvm use` to switch to it.
-  Newer majors are fine and are what most local work happens on.
+- **Node 22.12 or newer.** This is enforced, not advisory: `package.json` declares
+  `engines.node: ">=22.12.0"` and `.npmrc` sets `engine-strict=true`, so `npm install`
+  fails with `EBADENGINE` on anything older rather than warning. The floor is
+  22.12 because Vite 8 requires `^20.19.0 || >=22.12.0`; 22.0–22.11 would install
+  a Vite that cannot run. `.nvmrc` pins `26.5.1` to match CI
+  (`cimg/node:26.5.1`) — run `nvm use` to switch to it. Any version at or above
+  the floor is fine, and newer majors are what most local work happens on.
 - **Docker**, only if you want the local Supabase stack. The app runs fine without it.
 - A **microphone**, to exercise anything in the audio pipeline by hand.
 

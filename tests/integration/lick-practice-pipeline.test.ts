@@ -274,8 +274,8 @@ describe('key progress persistence', () => {
 	});
 
 	it('computeAutoTempoAdjustment returns correct BPM deltas', () => {
-		expect(computeAutoTempoAdjustment(0.97)).toBe(5);   // >= 0.95
-		expect(computeAutoTempoAdjustment(0.90)).toBe(2);   // >= 0.90 (proficient)
+		expect(computeAutoTempoAdjustment(0.97)).toBe(2);   // >= 0.95
+		expect(computeAutoTempoAdjustment(0.90)).toBe(1);   // >= 0.90 (proficient)
 		expect(computeAutoTempoAdjustment(0.75)).toBe(-1);  // >= 0.75 (floor)
 		expect(computeAutoTempoAdjustment(0.50)).toBe(-3);  // < 0.75
 	});
@@ -407,9 +407,9 @@ describe('full session flow', () => {
 		// 6. Verify stored state
 		expect(loaded[lick.id]).toBeDefined();
 
-		// Key 0 (Bb): score 0.92 → +2 BPM (proficient) → tempo 102
+		// Key 0 (Bb): score 0.92 → +1 BPM (proficient) → tempo 101
 		const kp0 = getKeyProgress(loaded, lick.id, keys[0]);
-		expect(kp0.currentTempo).toBe(102);
+		expect(kp0.currentTempo).toBe(101);
 		expect(kp0.passCount).toBe(1);
 
 		// Key 1: score 0.88 → -1 BPM (between floor and proficient) → tempo 99

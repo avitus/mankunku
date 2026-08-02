@@ -11,7 +11,7 @@ parameters:
 jobs:
   test:
     docker:
-      - image: cimg/node:22.14
+      - image: cimg/node:26.5.1
     steps:
       - checkout
       - restore_cache:
@@ -34,7 +34,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/node:22.14
+      - image: cimg/node:26.5.1
     steps:
       - checkout
       - restore_cache:
@@ -63,7 +63,7 @@ jobs:
     # so no `npx playwright install` step is needed and there's no need to
     # apt-install browser deps. Tag matches @playwright/test in package.json.
     docker:
-      - image: mcr.microsoft.com/playwright:v1.58.2-noble
+      - image: mcr.microsoft.com/playwright:v1.62.1-noble
     steps:
       - checkout
       - restore_cache:
@@ -109,7 +109,7 @@ jobs:
             set -euo pipefail
             # Pin a known-stable CLI version. Bump deliberately; releases
             # at https://github.com/supabase/cli/releases.
-            SUPABASE_CLI_VERSION="2.95.5"
+            SUPABASE_CLI_VERSION="2.111.0"
             BASE_URL="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}"
             TARBALL="supabase_linux_amd64.tar.gz"
             CHECKSUMS="supabase_${SUPABASE_CLI_VERSION}_checksums.txt"

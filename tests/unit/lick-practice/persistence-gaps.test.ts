@@ -29,20 +29,20 @@ beforeEach(() => {
 });
 
 describe('computeAutoTempoAdjustment', () => {
-	it('returns +5 for score 1.0', () => {
-		expect(computeAutoTempoAdjustment(1.0)).toBe(5);
+	it('returns +2 for score 1.0', () => {
+		expect(computeAutoTempoAdjustment(1.0)).toBe(2);
 	});
 
-	it('returns +5 for score 0.95 (boundary)', () => {
-		expect(computeAutoTempoAdjustment(0.95)).toBe(5);
+	it('returns +2 for score 0.95 (boundary)', () => {
+		expect(computeAutoTempoAdjustment(0.95)).toBe(2);
 	});
 
-	it('returns +2 for score 0.94', () => {
-		expect(computeAutoTempoAdjustment(0.94)).toBe(2);
+	it('returns +1 for score 0.94', () => {
+		expect(computeAutoTempoAdjustment(0.94)).toBe(1);
 	});
 
-	it('returns +2 for score 0.90 (boundary — matches KEY_PROFICIENT_THRESHOLD)', (): void => {
-		expect(computeAutoTempoAdjustment(0.90)).toBe(2);
+	it('returns +1 for score 0.90 (boundary — matches KEY_PROFICIENT_THRESHOLD)', (): void => {
+		expect(computeAutoTempoAdjustment(0.90)).toBe(1);
 	});
 
 	it('returns -1 for score 0.89 (just below proficient)', (): void => {
@@ -96,20 +96,20 @@ describe('hasLickProgress', () => {
 });
 
 describe('shouldUnlockNextKey', () => {
-	it('exposes the documented thresholds (avg 0.90, passes 2)', () => {
+	it('exposes the documented thresholds (avg 0.90, passes 3)', () => {
 		expect(UNLOCK_AVG_THRESHOLD).toBe(0.9);
-		expect(UNLOCK_PASSES_REQUIRED).toBe(2);
+		expect(UNLOCK_PASSES_REQUIRED).toBe(3);
 	});
 
 	it('unlocks when both avg and passCount gates clear', () => {
 		expect(
-			shouldUnlockNextKey({ avgScore: 0.9, newestKeyPassCount: 2, unlockedCount: 1 })
+			shouldUnlockNextKey({ avgScore: 0.9, newestKeyPassCount: 3, unlockedCount: 1 })
 		).toBe(true);
 	});
 
 	it('does not unlock when avg meets the gate but passCount has not yet reached the requirement', () => {
 		expect(
-			shouldUnlockNextKey({ avgScore: 0.95, newestKeyPassCount: 1, unlockedCount: 1 })
+			shouldUnlockNextKey({ avgScore: 0.95, newestKeyPassCount: 2, unlockedCount: 1 })
 		).toBe(false);
 	});
 
@@ -121,7 +121,7 @@ describe('shouldUnlockNextKey', () => {
 
 	it('does not unlock at avg 0.85 (below the 0.90 proficient bar)', (): void => {
 		expect(
-			shouldUnlockNextKey({ avgScore: 0.85, newestKeyPassCount: 2, unlockedCount: 1 })
+			shouldUnlockNextKey({ avgScore: 0.85, newestKeyPassCount: 3, unlockedCount: 1 })
 		).toBe(false);
 	});
 
@@ -133,13 +133,13 @@ describe('shouldUnlockNextKey', () => {
 
 	it('treats the avg threshold as inclusive at exactly 0.90', () => {
 		expect(
-			shouldUnlockNextKey({ avgScore: 0.9, newestKeyPassCount: 2, unlockedCount: 1 })
+			shouldUnlockNextKey({ avgScore: 0.9, newestKeyPassCount: 3, unlockedCount: 1 })
 		).toBe(true);
 	});
 
 	it('rejects scores just below 0.90', () => {
 		expect(
-			shouldUnlockNextKey({ avgScore: 0.8999, newestKeyPassCount: 2, unlockedCount: 1 })
+			shouldUnlockNextKey({ avgScore: 0.8999, newestKeyPassCount: 3, unlockedCount: 1 })
 		).toBe(false);
 	});
 });
