@@ -23,6 +23,22 @@
  * failure. A readable centred popover beats a spotlight on empty space.
  */
 
+/**
+ * The `tourKey` of a nav entry in `+layout.svelte`. That file annotates its
+ * `navItems` array with this type, so the two cannot drift: renaming a nav
+ * entry's key without updating the tour step that points at it fails to
+ * compile, rather than silently resolving to nothing at runtime.
+ */
+export type NavTourKey =
+	| 'home'
+	| 'ear-training'
+	| 'lick-practice'
+	| 'licks'
+	| 'tunes'
+	| 'progress'
+	| 'docs'
+	| 'settings';
+
 /** One candidate element plus whether it is currently rendered on screen. */
 export interface NavCandidate<E> {
 	el: E;
@@ -70,7 +86,7 @@ export function isRendered(el: Element): boolean {
  * records that the published type is narrower than the actual contract;
  * everything below it (`resolveNavTarget`) keeps the honest `| undefined`.
  */
-export function navTourElement(tourKey: string): () => Element {
+export function navTourElement(tourKey: NavTourKey): () => Element {
 	const resolve = (): Element | undefined => {
 		if (typeof document === 'undefined') return undefined;
 		const matches = Array.from(document.querySelectorAll(`[data-tour="nav-${tourKey}"]`));

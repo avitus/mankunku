@@ -16,8 +16,20 @@ import { seedOnboardedAnonymous, seedStorage, SETTINGS_ONBOARDED } from './fixtu
 const MOBILE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 900 };
 
+interface ResolvedNav {
+	/** How many `data-tour="nav-*"` copies the layout rendered. */
+	total: number;
+	/** How many of those actually occupy space at this viewport. */
+	visibleCount: number;
+	/** The one `navTourElement` would hand driver.js, or null for none. */
+	picked: { visible: boolean; mobile: boolean } | null;
+}
+
 /** Run the page's own resolver and report what it picked. */
-async function resolvedNav(page: import('@playwright/test').Page, tourKey: string) {
+async function resolvedNav(
+	page: import('@playwright/test').Page,
+	tourKey: string
+): Promise<ResolvedNav> {
 	return page.evaluate((key: string) => {
 		const matches = Array.from(document.querySelectorAll(`[data-tour="nav-${key}"]`));
 		const rects = matches.map((el) => {
