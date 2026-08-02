@@ -132,6 +132,37 @@ async function getTone(): Promise<ToneModule> {
 	return tone;
 }
 
+/**
+ * Fetch + decode each drum sample, returning only the ones this browser can
+ * actually decode. A failed fetch or an unsupported codec drops that drum
+ * rather than throwing: the rest of the kit still plays, and smplr is handed
+ * AudioBuffers so it never falls back to fetching `/{name}.{format}`.
+ */
+async function decodeDrumBuffers(
+	audioCtx: AudioContext
+): Promise<Record<DrumBufferName, AudioBuffer>> {
+	const names = Object.keys(DRUM_BUFFERS) as DrumBufferName[];
+	const entries = await Promise.all(
+		names.map(async (name) => {
+			try {
+				const response = await fetch(DRUM_BUFFERS[name]);
+				if (!response.ok) return null;
+				// decodeAudioData detaches the ArrayBuffer, so each sample needs
+				// its own — never share one across drums.
+				const buffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
+				return [name, buffer] as const;
+			} catch {
+				// Unsupported codec (WebKit + Ogg Vorbis) or a network failure.
+				return null;
+			}
+		})
+	);
+	return Object.fromEntries(entries.filter((e) => e !== null)) as Record<
+		DrumBufferName,
+		AudioBuffer
+	>;
+}
+
 async function ensureDrums(): Promise<void> {
 	if (drumSampler) return;
 	if (drumLoadPromise) return drumLoadPromise;
@@ -147,12 +178,25 @@ async function ensureDrums(): Promise<void> {
 		gainNode.gain.value = 0.4;
 		gainNode.connect(getMasterGain());
 
+		// Decode the drum samples ourselves rather than handing smplr the URL
+		// map. Given URLs, smplr fetches each one and — whenever a decode
+		// yields no buffer — silently retries at `${baseUrl}/${name}.${format}`,
+		// which for our empty baseUrl is a site-root `/kick.ogg` that 404s.
+		// WebKit hits exactly that path: it fetches our OGG Vorbis fine (200)
+		// but `decodeAudioData` throws `EncodingError`, so every drum fell
+		// through to a bogus root request and a console error. Pre-decoded
+		// AudioBuffers skip smplr's fetch entirely, so a codec the browser
+		// can't read leaves the kit silent instead of chasing a missing file.
+		// (WebKit has no Ogg Vorbis support at all — see the format note in
+		// sample-maps.ts; restoring Safari audio needs a second encoding.)
+		const decoded = await decodeDrumBuffers(audioCtx);
+
 		// Explicit defaults required — smplr's samplerToSmplrJson puts
 		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
 		// undefined values clobber PARAM_DEFAULTS via object spread,
 		// producing NaN detune at playback and throwing inside Voice.
 		const sampler = new Sampler(audioCtx, {
-			buffers: DRUM_BUFFERS,
+			buffers: decoded,
 			destination: gainNode,
 			detune: 0,
 			decayTime: 0.3,
