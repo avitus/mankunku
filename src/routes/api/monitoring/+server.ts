@@ -65,6 +65,23 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 	const read = await readEnvelope(request);
 	if (read instanceof Response) return read;
 	const envelope = read;
+
+	// Empty body: nothing to validate, nothing to relay. The SDK flushes with
+	// keepalive/sendBeacon as a page tears down, and the browser can open the
+	// request without ever delivering the payload — measured at 33 KB queued
+	// client-side against 0 bytes read here. That is not a malformed envelope,
+	// and calling it one costs a 400 that the browser logs as a console error;
+	// in e2e that failed whichever test happened to be running (a ~40% flake on
+	// tune-practice's follow-scroll spec), and in production it is pure noise
+	// on every tab close.
+	//
+	// Safe by construction: with no bytes there is no DSN to honour and nothing
+	// forwarded upstream, so the allow-list below still gates every envelope
+	// that actually carries content.
+	if (envelope.trim() === '') {
+		return new Response(null, { status: 200 });
+	}
+
 	const headerLine = envelope.split('\n', 1)[0];
 
 	let projectId: string;

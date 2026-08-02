@@ -92,6 +92,39 @@ describe('POST /api/monitoring — allow-list rejection paths', () => {
 		expect(upstream).not.toHaveBeenCalled();
 	});
 
+	it('accepts an empty body as nothing-to-forward, not as malformed', async () => {
+		// A browser flushing a Sentry envelope with keepalive/sendBeacon as the
+		// page tears down can start the request and never deliver the body: the
+		// client shows ~33 KB queued, the server reads 0 bytes. Classifying that
+		// as `Malformed envelope` (400) makes the browser log
+		// "Failed to load resource: 400", which the e2e console-error fixture
+		// turns into a failure of whatever test happened to be running —
+		// observed as a ~40% flake on tune-practice's follow-scroll spec.
+		//
+		// There is no envelope to validate and nothing to relay, so 200 is the
+		// honest answer. This does NOT loosen the allow-list: every non-empty
+		// body still goes through DSN host + project-id checks below.
+		const upstream = vi.fn();
+		const res = await call(makeRequest(''), upstream as unknown as typeof fetch);
+		expect(res.status).toBe(200);
+		expect(upstream).not.toHaveBeenCalled();
+	});
+
+	it('treats a whitespace-only body the same way', async () => {
+		const upstream = vi.fn();
+		const res = await call(makeRequest('\n'), upstream as unknown as typeof fetch);
+		expect(res.status).toBe(200);
+		expect(upstream).not.toHaveBeenCalled();
+	});
+
+	it('still rejects a non-empty body with no DSN (the empty-body path is narrow)', async () => {
+		const upstream = vi.fn();
+		const res = await call(makeRequest('{}'), upstream as unknown as typeof fetch);
+		expect(res.status).toBe(400);
+		expect(await res.text()).toMatch(/Missing DSN/);
+		expect(upstream).not.toHaveBeenCalled();
+	});
+
 	it('rejects a body larger than the 1 MB cap with 413', async () => {
 		// Synthesize a 1.5 MB envelope; the streaming reader must abort
 		// once the running total crosses 1_000_000 bytes.
