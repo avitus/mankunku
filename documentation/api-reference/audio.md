@@ -444,9 +444,17 @@ Shell voicing: root + 3rd + 7th (guide tones). Falls back to root + 3rd + 5th fo
 
 Drop-2 voicing: 4-note close-position voicing with the second-from-top note dropped an octave. Default `registerMidi = 60` (C4).
 
+### `rootlessVoicingA(rootPc, quality, registerMidi?): number[]`
+
+Rootless "A-form" voicing: 3-5-7-9 stacked from the 3rd. Altered tensions read from `CHORD_DEFINITIONS` replace the plain tones they colour — b9/#9 in the 9-slot, #11/b13 in the 5-slot — so altered dominants voice their colour tones. Returns `[]` for triads with no 7th-slot tone (`aug`, `dim`). Default `registerMidi = 62`; output is clamped into the mid-piano band (lowest ≥ 48, highest ≤ 84) so the comp never collides with the bass.
+
+### `rootlessVoicingB(rootPc, quality, registerMidi?): number[]`
+
+Rootless "B-form" voicing: 7-9-3-13 stacked from the 7th. Plain dominants take the natural 13 on top (the classic 13 / 13b9 sound); a b13 or #11 in the definition takes the top slot instead; other qualities top with the 5th. Same register clamp and triad behavior as the A-form.
+
 ### `voiceLead(chords, voicingFn, registerMidi?): number[][]`
 
-Apply a voicing function across a sequence of chords and minimize total semitone movement between successive voicings. Searches ±12 semitones around `registerMidi` per chord and picks the candidate closest to the previous voicing. Note-count mismatches are penalized by 12 semitones each.
+Apply a voicing function across a sequence of chords and minimize total semitone movement between successive voicings. Searches ±12 semitones around `registerMidi` per chord and picks the candidate closest to the previous voicing. Note-count mismatches are penalized by 12 semitones each. `voicingFn` may also be an **array** of `VoicingFn` (one per chord) so the comping engine can mix shell/rootless/drop-2 shapes while voice-leading still drives the register choice.
 
 ---
 
@@ -489,42 +497,101 @@ Look up the tuning correction (cents) for a given MIDI + velocity in a `SampleMa
 
 ---
 
-## backing-styles.ts
+## generation-rng.ts
 
-Style definitions consumed by the backing track scheduler.
+Deterministic pseudo-random generation for the backing track engine (mulberry32, matching `util/seeded-shuffle.ts`). Every musical choice the generators make draws from a seeded stream so the same phrase at the same tempo reproduces the exact same backing.
 
-### `DrumHit` and `StyleDefinition` interfaces
+### `SeededRng` interface
 
 ```typescript
-interface DrumHit {
-  kick?: boolean;
-  ride?: boolean;
-  hihat?: boolean;
-  kickVelocity?: number;   // 0–1 (Tone synth gain)
-  rideVelocity?: number;
-  hihatVelocity?: number;
+interface SeededRng {
+  float(): number;                    // [0, 1)
+  int(min: number, max: number): number;  // inclusive bounds
+  chance(probability: number): boolean;
+  pick<T>(items: readonly T[]): T;
+  weighted<T>(entries: ReadonlyArray<{ value: T; weight: number }>): T;
 }
+```
+
+### `createRng(seed: number): SeededRng`
+
+### `seedFrom(...parts: Array<string | number>): number`
+
+FNV-1a hash over the joined parts. Callers pass e.g. `(phraseId, tempo, 'bass', barIndex)` so the same bar of the same phrase always seeds the same stream.
+
+---
+
+## backing-styles.ts
+
+Style definitions consumed by the backing generation engine. Patterns are generated one **bar** at a time from a `GenerationContext` — bar-level granularity is what lets a style state figures (Charleston, spang-a-lang, anticipations) that per-beat callbacks cannot express.
+
+### `GenerationContext`, `CompHitSpec`, `DrumHitSpec`, `StyleDefinition` interfaces
+
+```typescript
+interface GenerationContext {
+  barIndex: number;
+  beatsPerBar: number;
+  sectionIndex?: number;      // from Phrase.sectionMap (tunes only)
+  chorusIndex?: number;       // pass through the form
+  isSectionFinalBar: boolean;
+  isFinalBar: boolean;
+  swing: number;
+  rng: SeededRng;             // per-bar seeded stream
+  compOnsets?: number[];      // beat offsets, for drum accent alignment
+}
+
+interface CompHitSpec { beatOffset: number; velocity: number; durationBeats: number }
+interface DrumHitSpec { drum: 'kick' | 'ride' | 'hihat'; beatOffset: number; velocity: number }
 
 interface StyleDefinition {
   name: string;
-  defaultSwing: number;
-  drumPattern: (beat: number, beatsPerBar: number) => DrumHit;
-  compPattern: (beat: number, beatsPerBar: number) =>
-    { hit: boolean; velocity: number; duration: [number, number] };
+  defaultSwing: number;       // used when the session swing is straight
+  drumPattern: (ctx: GenerationContext) => DrumHitSpec[];  // one bar
+  compPattern: (ctx: GenerationContext) => CompHitSpec[];  // one bar
   bassStyle: 'walking' | 'pedal' | 'pattern';
 }
 ```
 
-> **Velocity scales:** Drum velocities are `0–1` (Tone.js `triggerAttackRelease` gain). Comp and bass velocities are MIDI `0–127` (smplr's convention). The two scales are intentionally different — don't swap them.
+`beatOffset` values of `x.5` are eighth off-beats — the generation layer places them late per the swing ratio.
+
+> **Velocity scales:** Drum velocities are `0–1` (converted to MIDI at trigger time). Comp and bass velocities are MIDI `0–127` (smplr's convention). The two scales are intentionally different — don't swap them.
 
 ### Constants
 
 - **`BACKING_STYLES: Record<BackingStyle, StyleDefinition>`** — Keys `swing`, `bossa-nova`, `ballad`, `straight`.
-  - **Swing** (default swing 0.67): ride on every beat, kick on 1, hi-hat on 2 & 4, walking bass, comping on off-beats 2/4 with occasional fills.
-  - **Bossa Nova** (straight): cross-stick on 2/4, hi-hat every beat, syncopated comping, `pattern` bass.
+  - **Swing** (default swing 0.67): ride "spang-a-lang" (quarters plus swung skip eighths after 2 and 4), hi-hat foot on 2 & 4, RNG-gated feathered kick, kick accents catching off-beat comp hits, additive setup figures on section-final bars. Comping rotates seeded per-bar figures — Charleston, off-beat pairs, bar-line anticipations, deliberate space — denser into section endings and later choruses.
+  - **Bossa Nova** (straight): cross-stick feel on 2/4, hi-hat every beat, on-beat clave comping (1, 3, 4), `pattern` bass.
   - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass.
   - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass.
 - **`BACKING_STYLE_NAMES: Record<BackingStyle, string>`** — Display names for UI menus.
+
+---
+
+## backing-generation.ts
+
+Pure, Node-testable backing event generation — no Tone.js, no Web Audio. `backing-track.ts` turns these events into scheduled parts. Beat offsets are laid out straight, swung at the beat→tick conversion (`applySwingToBeats` — off-beat eighths land late), then given a few milliseconds of seeded jitter on top.
+
+### `generateBacking(harmony, style, params): GeneratedBacking`
+
+Entry point: generates comp first (drums read its onsets for accents), then bass, then drums. `params` is `{ phraseId, tempo, ppq, beatsPerBar, swing, sectionMap? }`; the section map (from `Phrase.sectionMap`) drives section/chorus awareness, and bars are counted flat without it. Returns `{ bassEvents, compEvents, drumEvents }` — all carry tick-string `time` values plus a pre-swing `absBeat` for diagnostics and tests.
+
+### `generateWalkingBass(harmony, beatsPerBar, params): BassEvent[]`
+
+One quarter per beat, each bar planned as a path toward the next chord root: beat 1 is the root most of the time (occasionally 3rd or 5th), interior beats walk stepwise toward the target, and each segment's final beat approaches the next root by a seeded device — chromatic, dominant (5th above), scale step, or a two-beat enclosure. Sparse swung-eighth pickups and ghosted dead notes, all inside the upright band (E1–G3), leaps bounded.
+
+### `generateComping(harmony, beatsPerBar, style, params, barInfos)`
+
+A voicing type per chord (rootless A/B, shell, or drop-2 — seeded, quality-aware), voice-led across the sequence, placed by the style's per-bar figures. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
+
+### `generateDrums(beatsPerBar, style, params, barInfos, compOnsetsByBar): DrumEvent[]`
+
+### `buildBarInfos(totalBars, sectionMap?): BarInfo[]`
+
+Per-bar `{ sectionIndex?, chorusIndex?, isSectionFinalBar, isFinalBar }`. A new chorus starts wherever the emitted `sourceSection` sequence restarts (body, ending 1, body, ending 2). Bars past the last entry (harmony tail extension) belong to the last section.
+
+### `chordToneIntervalsForBass(quality)`
+
+`{ third, fifth, seventh | null }` semitone intervals read from `CHORD_DEFINITIONS` — min7b5 → b3/b5/b7, dim7 → b3/b5/bb7, aug7 → 3/#5/b7, sus4 → 4/5/b7. The natural 5th wins when the definition also carries a colour tone (7#11, 7b13); 6th chords walk their 6th in the 7th slot.
 
 ---
 
@@ -558,7 +625,7 @@ Collapse the internal bass and comp event arrays (tick-string `time` values, alr
 
 ## backing-track.ts
 
-Full backing-track engine: walking bass + piano/organ comping + drum pattern, scheduled against the Tone.js Transport.
+Backing-track scheduler: loads the instruments, calls `backing-generation.ts` for the events, and schedules them against the Tone.js Transport. Bass, comp **and drums** are all tick-placed `Tone.Part`s (drums moved off `Tone.Sequence` so their swung eighths share the swing grid). The effective swing is the session value when the user swings it, else the style's `defaultSwing` — so the swing style's ride pattern swings even while the melody setting sits straight.
 
 **Instruments:**
 - **Upright bass** — Smolken "Pizzicato" double-bass sample library
@@ -633,7 +700,7 @@ Return the schedule produced by the most recent `scheduleBackingTrack()` invocat
 
 ### `disposeBackingParts(): void`
 
-Stop and release the current `Tone.Part`s and drum sequence. Keeps the loaded instruments. Called between reschedules.
+Stop and release the current `Tone.Part`s (bass, comp, drums). Keeps the loaded instruments. Called between reschedules.
 
 ### `disposeBackingTrack(): void`
 

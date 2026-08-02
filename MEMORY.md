@@ -165,6 +165,18 @@ After any `git push` to a PR branch — including the autofix commits themselves
 - Regression pins: unit describe `chordSymbolDeltas` in abcjs-adapter.test.ts (per-chord independence, clearance, push-up-only, bracket veto); e2e `tune-chord-height.spec.ts` (high-bar tune, scale-invariant staff-space assertions).
 - **Stems (2026-07-28):** declaring a second voice WITHOUT `stem=` makes abcjs's `createVoice` (parse/tune-builder.js) splice a forced stem-up event into the MELODY voice — the two-real-voices convention, triggered purely by voice count. The header's `V:H stem=down` keeps `params.stem` truthy so that splice never happens and M gets pitch-based auto stems (head at/above middle line → down, below → up; on-line → down — matches MuseScore). Deliberate variance: abcjs decides BEAMED groups by the group's average pitch vs the middle line, MuseScore by the furthest note — user accepted the abcjs rule (2026-07-28). No `stem=auto`, `%%stemdir`, or inline stem directive exists in abcjs; don't go looking. E2E pin: `tune-stem-direction.spec.ts` (self-classifying rule check over every rendered stem).
 
+### Backing-track engine: seeded, section-aware, per-bar (2026-08-02)
+
+**What:** Backing generation lives in pure `src/lib/audio/backing-generation.ts` (Node-testable, no Tone/smplr); `backing-track.ts` only schedules. All randomness is seeded per (role, position) — `seedFrom(phraseId, tempo, 'bass'|'comp'|'drums'|'voicing', index)` — so replays are byte-identical and no generator's edits can shift another's output (independent streams, not one threaded stream).
+
+**Standing facts:**
+- `StyleDefinition.drumPattern`/`compPattern` are per-BAR functions: `(ctx: GenerationContext) => hit[]` with fractional `beatOffset`s. Per-beat callbacks can't state Charleston/spang-a-lang/anticipation figures — don't regress to them.
+- Swing applies at beat→tick conversion (`applySwingToBeats`; x.5 offsets land late), seeded jitter layers on top. Effective swing = `options.swing > 0.5 ? options.swing : style.defaultSwing` (session default is straight, so the style default is what usually swings the backing).
+- Drums are a `Tone.Part` (tick-placed events), NOT a `Sequence` — swung skip eighths need tick placement. The coverage/supersede tests identify the drum part by its events carrying a `drum` field.
+- `Phrase.sectionMap` (optional) flows from `tuneToPhrase` → engine; `buildBarInfos` derives sectionIndex/chorusIndex (chorus = sourceSection restart) and section-final bars (drum setup figures, comp density). Lick/ear-training phrases have none → flat fallback, no setups.
+- Off-beat comp hits voice the chord at the NEXT beat (anticipation). Bass reads real chord tones via `chordToneIntervalsForBass` (natural 5th preferred over 7#11/7b13 colour; 6th chords walk the 6th). Rootless voicings read tensions straight from `CHORD_DEFINITIONS`.
+- **Control-byte hazard is now a triple recurrence** (Edit 07-30, Write and a Bash heredoc 08-02): tools emitting escape-adjacent strings can land literal 0x00/0x1f bytes. Symptom: Edit can't match a line grep shows. Check with `od -c` / `file`; the Bash validator sometimes catches it, the Write tool does not.
+
 ### Documentation has four surfaces, not one (2026-08-01)
 
 Adding or changing a player-facing doc means touching up to four places. Missing any one leaves the docs *internally* consistent and externally wrong, which is the hardest kind to notice.

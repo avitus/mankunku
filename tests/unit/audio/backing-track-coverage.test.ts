@@ -142,6 +142,29 @@ function lastEventTick(events: unknown[]): number {
 	return max;
 }
 
+interface DrumEventLike {
+	drum?: string;
+	absBeat?: number;
+}
+
+/** Drums are the Part whose events carry a `drum` voice (bass/comp carry midi). */
+function findDrums(): Recorded | undefined {
+	return recorded.find(
+		(r) => r.kind === 'part' && (r.events[0] as DrumEventLike | undefined)?.drum !== undefined
+	);
+}
+
+/** Distinct integer beats carrying a ride hit — the quarter-note pulse. */
+function rideBeats(events: unknown[]): Set<number> {
+	const beats = new Set<number>();
+	for (const e of events as DrumEventLike[]) {
+		if (e.drum === 'ride' && e.absBeat !== undefined && Number.isInteger(e.absBeat)) {
+			beats.add(e.absBeat);
+		}
+	}
+	return beats;
+}
+
 describe('backing track covers the full phrase', () => {
 	beforeEach(() => {
 		vi.resetModules();
@@ -153,10 +176,10 @@ describe('backing track covers the full phrase', () => {
 		await mod.loadBackingInstruments('piano');
 		await mod.scheduleBackingTrack(PHRASE, OPTIONS, PPQ * BEATS_PER_BAR, false, () => true);
 
-		const drums = recorded.find((r) => r.kind === 'sequence');
+		const drums = findDrums();
 		expect(drums).toBeDefined();
-		// 3 bars × 4 beats. Harmony alone would have given 8.
-		expect(drums!.events).toHaveLength(12);
+		// Ride pulse on all 3 bars × 4 beats. Harmony alone would have given 8.
+		expect(rideBeats(drums!.events)).toEqual(new Set(Array.from({ length: 12 }, (_, i) => i)));
 	});
 
 	it('carries bass and comp into the final bar', async () => {
@@ -183,8 +206,8 @@ describe('backing track covers the full phrase', () => {
 		await mod.loadBackingInstruments('piano');
 		await mod.scheduleBackingTrack(lick!, OPTIONS, PPQ * BEATS_PER_BAR, false, () => true);
 
-		const drums = recorded.find((r) => r.kind === 'sequence');
-		expect(drums!.events).toHaveLength(bars * lick!.timeSignature[0]);
+		const drums = findDrums();
+		expect(rideBeats(drums!.events).size).toBe(bars * lick!.timeSignature[0]);
 	});
 
 	it('leaves a phrase whose harmony already covers the melody unchanged', async () => {
@@ -194,7 +217,8 @@ describe('backing track covers the full phrase', () => {
 		const shortMelody: Phrase = { ...PHRASE, notes: MELODY_3_BARS.slice(0, 8) };
 		await mod.scheduleBackingTrack(shortMelody, OPTIONS, PPQ * BEATS_PER_BAR, false, () => true);
 
-		const drums = recorded.find((r) => r.kind === 'sequence');
-		expect(drums!.events).toHaveLength(8); // 2 bars, no spurious extension
+		const drums = findDrums();
+		// 2 bars, no spurious extension.
+		expect(rideBeats(drums!.events)).toEqual(new Set(Array.from({ length: 8 }, (_, i) => i)));
 	});
 });
