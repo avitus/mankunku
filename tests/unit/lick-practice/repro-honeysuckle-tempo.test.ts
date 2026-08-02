@@ -7,7 +7,7 @@
  * 12 keys during Daily Practice yet the tempo stayed pinned at 100 BPM. Root
  * cause was `getLickTempo`'s unfiltered `Math.min` reading a stranded `Gb:100`
  * entry that no writer (recordKeyAttempt / the end-of-lick bump) can ever reach,
- * vetoing the +5 that every canonical key had already earned. The fix filters
+ * vetoing the bump that every canonical key had already earned. The fix filters
  * `getLickTempo` to the 12 canonical PitchClass spellings.
  *
  * The tests drive the REAL exported state functions, faithfully replaying what
@@ -151,35 +151,35 @@ describe('getLickTempo — canonical-key filtering', () => {
 });
 
 describe('Honeysuckle Rose full-12 daily-practice tempo bump', () => {
-	it('advances 100 -> 105 on a clean 12-key store (baseline)', () => {
+	it('advances 100 -> 102 on a clean 12-key store (baseline)', () => {
 		seedSession(100);
 		expect(lickPractice.currentTempo).toBe(100);
 
 		playFullLickAndAdvance();
 
-		expect(getLickTempo(lickPractice.progress, LICK_ID)).toBe(105);
+		expect(getLickTempo(lickPractice.progress, LICK_ID)).toBe(102);
 		const card = getSessionReport().licks[0];
 		expect(card?.tempo).toBe(100);
-		expect(card?.newTempo).toBe(105); // report shows "+5"
+		expect(card?.newTempo).toBe(102); // report shows "+2"
 	});
 
 	it('advances despite a legacy Gb phantom key pinning the old min (regression)', () => {
 		// Pre-fix, getLickTempo(min over ALL stored keys) returns 100 because the
-		// stranded Gb:100 out-votes the twelve keys the session bumped to 105 —
+		// stranded Gb:100 out-votes the twelve keys the session bumped to 102 —
 		// the report shows a flat 100 and the tempo never climbs.
 		seedSession(100, { key: 'Gb', tempo: 100 });
 		expect(lickPractice.currentTempo).toBe(100);
 
 		playFullLickAndAdvance();
 
-		// The Gb phantom is untouched at 100, but the canonical keys all reached 105.
+		// The Gb phantom is untouched at 100, but the canonical keys all reached 102.
 		expect(
 			(lickPractice.progress[LICK_ID] as Record<string, { currentTempo: number }>)['Gb'].currentTempo
 		).toBe(100);
-		expect(getLickTempo(lickPractice.progress, LICK_ID)).toBe(105);
+		expect(getLickTempo(lickPractice.progress, LICK_ID)).toBe(102);
 
 		const card = getSessionReport().licks[0];
 		expect(card?.tempo).toBe(100);
-		expect(card?.newTempo).toBe(105); // "+5" instead of the buggy flat 100
+		expect(card?.newTempo).toBe(102); // "+2" instead of the buggy flat 100
 	});
 });

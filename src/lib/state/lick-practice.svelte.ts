@@ -23,7 +23,7 @@
  * Scoring runs silently each key and appears only in the end-of-session
  * report. No retries. At the end of each lick, the average score across the
  * attempted keys is fed through `computeAutoTempoAdjustment` to produce a
- * signed BPM delta (+5/+2/−1/−3). That delta is added to the current tempo,
+ * signed BPM delta (+2/+1/−1/−3). That delta is added to the current tempo,
  * clamped to [MIN_TEMPO, MAX_TEMPO], and persisted for every key in the lick
  * so the whole set ratchets up or down together based on overall performance.
  * A per-key floor (`KEY_FLOOR_THRESHOLD`) caps the delta at 0 and blocks

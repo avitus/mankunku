@@ -10,7 +10,7 @@ The app has two core practice modes, set up like the two sides of an LP.
 
 **Side A — Ear Training.** The app plays a short phrase. You play it back on your horn. It listens through your microphone, scores how close you got on pitch and rhythm, and either moves you on or gives you a retry. Phrases come from a curated catalog of about 450 jazz licks, plus an algorithmic generator for variety. The difficulty rises as you do.
 
-**Side B — Lick Practice.** Pick a lick you want to own. The app cycles it through all 12 keys over a backing track — bass, comping, drums — and scores each pass. Get clean takes and the tempo bumps up by 5 BPM. Stumble and it eases off. This is the practice room version of working a line through the cycle of fifths.
+**Side B — Lick Practice.** Pick a lick you want to own. The app cycles it through its currently-unlocked keys over a backing track — bass, comping, drums — scores each pass, and gradually expands the rotation toward all 12 keys as you earn them. Get clean takes and the tempo edges up 1–2 BPM. Stumble and it eases off. This is the practice room version of working a line through the cycle of fifths.
 
 Then there's the room where the two meet: **Tune Practice.** Open a full song form from your book and the app plays the rhythm section through it, finds the ii-Vs and turnarounds and vamps inside the changes, and hands you those spots to fill with the licks you've been drilling. Score them, chain them together for bonus points, or just take a solo and let the app tell you which of your lines it recognised. See [Playing Over Tunes](./tune-practice.md).
 
