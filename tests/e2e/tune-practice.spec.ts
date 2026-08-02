@@ -66,15 +66,27 @@ async function expectChartVisibleInFollowViewport(page: Page): Promise<void> {
 	expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
 }
 
-/** Max the tempo slider and confirm the label updates (Svelte range bind). */
+/**
+ * Max the tempo slider and confirm the label updates (Svelte range bind).
+ *
+ * The dispatch is retried until the label actually moves. Callers reach here
+ * as soon as the Start button is VISIBLE, but visible is not hydrated: the
+ * setup screen is server-rendered, so a synthetic `input` event can land
+ * before Svelte has attached `bind:value` — the slider's own value changes,
+ * no handler runs, and `config.tempo` stays at its default. That produced a
+ * ~70% failure rate locally on `chart stays visible through first insertion`,
+ * with the misleading symptom of a missing "240 BPM" label.
+ */
 async function setTempoMax(page: Page): Promise<void> {
 	const slider = page.locator('input[type="range"]');
-	await slider.evaluate((el: HTMLInputElement) => {
-		el.value = el.max;
-		el.dispatchEvent(new Event('input', { bubbles: true }));
-		el.dispatchEvent(new Event('change', { bubbles: true }));
-	});
-	await expect(page.getByText(/240\s*BPM/i)).toBeVisible();
+	await expect(async () => {
+		await slider.evaluate((el: HTMLInputElement) => {
+			el.value = el.max;
+			el.dispatchEvent(new Event('input', { bubbles: true }));
+			el.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+		await expect(page.getByText(/240\s*BPM/i)).toBeVisible({ timeout: 1_000 });
+	}).toPass({ timeout: 15_000 });
 }
 
 /** Start a session and wait until the running chrome is up (not the setup chart). */
