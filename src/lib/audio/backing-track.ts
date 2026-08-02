@@ -31,6 +31,7 @@ import {
 	saveBackingMix,
 	normalizeBackingMix,
 	voiceVelocity,
+	BACKING_BASE_TRIMS,
 	type BackingMixLevels
 } from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
@@ -129,13 +130,14 @@ let currentBackingVolume = 0.5;
 // Per-instrument mix levels, persisted per device (see backing-mix.ts).
 let mixLevels: BackingMixLevels = loadBackingMix();
 
-/** Push the current volume + mix levels onto every live gain node. */
+/** Push the current volume + base trims + mix levels onto every live gain node. */
 function applyMixGains(): void {
 	if (backingGain) backingGain.gain.value = currentBackingVolume;
-	if (bassGain) bassGain.gain.value = mixLevels.bass;
-	if (compGain) compGain.gain.value = mixLevels.comp;
-	// Drums sit back in the mix by default (the 0.6).
-	if (drumGainNode) drumGainNode.gain.value = currentBackingVolume * 0.6 * mixLevels.drums;
+	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
+	if (compGain) compGain.gain.value = BACKING_BASE_TRIMS.comp * mixLevels.comp;
+	if (drumGainNode) {
+		drumGainNode.gain.value = currentBackingVolume * BACKING_BASE_TRIMS.drums * mixLevels.drums;
+	}
 }
 
 /** Current per-instrument mix levels (copy). */
@@ -722,11 +724,13 @@ export async function scheduleBackingTrack(
 
 	drumPart = new Tone.Part((time: number, event: DrumEvent) => {
 		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
-		// per-voice mix trim applies here because the kit is one sampler —
-		// velocity is the only per-voice level lever.
+		// per-voice base trim and mix trim apply here because the kit is one
+		// sampler — velocity is the only per-voice level lever.
 		drumSampler?.start({
 			note: event.drum as DrumBufferName,
-			velocity: Math.round(voiceVelocity(event.velocity, mixLevels[event.drum]) * 127),
+			velocity: Math.round(
+				voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
+			),
 			time
 		});
 	}, drumEvents);

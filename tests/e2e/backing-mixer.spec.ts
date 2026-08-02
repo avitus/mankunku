@@ -5,7 +5,7 @@ import { seedOnboardedAnonymous } from './fixtures/storage';
  * /diagnostics/backing-mixer — per-instrument backing levels.
  *
  * The page's contract is that slider moves reach the engine's persisted
- * mix (localStorage `backing-mix-levels`) and survive a reload, because
+ * mix (localStorage `backing-mix-levels-v2`) and survive a reload, because
  * that is what makes a tuned mix apply to every later practice session.
  * Audio output itself is not asserted here.
  */
@@ -27,7 +27,7 @@ test('mixer sliders persist to the engine mix and survive reload', async ({ page
 		.poll(async () => {
 			await page.getByTestId('mix-bass').fill('0.6');
 			return page.evaluate(
-				() => JSON.parse(localStorage.getItem('backing-mix-levels') ?? '{}').bass
+				() => JSON.parse(localStorage.getItem('backing-mix-levels-v2') ?? '{}').bass
 			);
 		})
 		.toBeCloseTo(0.6);
@@ -35,7 +35,7 @@ test('mixer sliders persist to the engine mix and survive reload', async ({ page
 	// Hydration is proven now; a plain fill suffices for the kick.
 	await page.getByTestId('mix-kick').fill('2');
 	const stored = await page.evaluate(() =>
-		JSON.parse(localStorage.getItem('backing-mix-levels') ?? '{}')
+		JSON.parse(localStorage.getItem('backing-mix-levels-v2') ?? '{}')
 	);
 	expect(stored.kick).toBeCloseTo(2);
 
@@ -48,7 +48,7 @@ test('mixer sliders persist to the engine mix and survive reload', async ({ page
 	await page.getByRole('button', { name: 'Reset to defaults' }).click();
 	await expect(page.getByTestId('mix-bass')).toHaveValue('1');
 	const reset = await page.evaluate(() =>
-		JSON.parse(localStorage.getItem('backing-mix-levels') ?? '{}')
+		JSON.parse(localStorage.getItem('backing-mix-levels-v2') ?? '{}')
 	);
 	expect(reset.kick).toBe(1);
 });

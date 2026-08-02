@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
 	DEFAULT_BACKING_MIX,
+	BACKING_BASE_TRIMS,
 	normalizeBackingMix,
 	loadBackingMix,
 	saveBackingMix,
@@ -75,13 +76,39 @@ describe('load/save round-trip', () => {
 
 	it('normalizes corrupted stored values instead of throwing', () => {
 		const store = stubStorage();
-		store['backing-mix-levels'] = '{"bass": 99, "comp": "loud"}';
+		store['backing-mix-levels-v2'] = '{"bass": 99, "comp": "loud"}';
 		const mix = loadBackingMix();
 		expect(mix.bass).toBe(3);
 		expect(mix.comp).toBe(DEFAULT_BACKING_MIX.comp);
 
-		store['backing-mix-levels'] = 'not json {{';
+		store['backing-mix-levels-v2'] = 'not json {{';
 		expect(loadBackingMix()).toEqual(DEFAULT_BACKING_MIX);
+	});
+
+	it('discards levels stored under the pre-base-trim key', () => {
+		// Values tuned against the old flat gains (bass at 5%, kit trims
+		// maxed) are exactly what BACKING_BASE_TRIMS now bakes in — loading
+		// them on top would double-apply the correction.
+		const store = stubStorage();
+		store['backing-mix-levels'] = '{"bass": 0.05, "drums": 3, "kick": 3}';
+		expect(loadBackingMix()).toEqual(DEFAULT_BACKING_MIX);
+		expect('backing-mix-levels' in store).toBe(false);
+	});
+});
+
+describe('BACKING_BASE_TRIMS', () => {
+	it('documents the sample-library balance: hot bass/comp, quiet kit', () => {
+		// Ear-tuned on /diagnostics/backing-mixer (2026-08-02). Exact values
+		// may move with future tuning; these shape assertions must hold.
+		expect(BACKING_BASE_TRIMS.bass).toBeLessThan(BACKING_BASE_TRIMS.comp);
+		expect(BACKING_BASE_TRIMS.comp).toBeLessThan(1);
+		expect(BACKING_BASE_TRIMS.drums).toBeGreaterThan(1);
+		expect(BACKING_BASE_TRIMS.kick).toBeGreaterThan(1);
+		expect(BACKING_BASE_TRIMS.hihat).toBeGreaterThan(1);
+		for (const v of Object.values(BACKING_BASE_TRIMS)) {
+			expect(Number.isFinite(v)).toBe(true);
+			expect(v).toBeGreaterThan(0);
+		}
 	});
 });
 

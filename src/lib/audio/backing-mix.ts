@@ -29,8 +29,34 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
 	hihat: 1
 };
 
+/**
+ * Baseline trims that equalize the raw sample-library loudness, tuned by
+ * ear on /diagnostics/backing-mixer (2026-08-02): the Smolken bass and the
+ * pianos run far hotter than the drum kit, whose kick and hi-hat samples
+ * are quiet even at full velocity. User mix levels MULTIPLY these bases,
+ * so 1.0 on every slider reproduces this tuned balance and the whole
+ * slider range stays available as headroom around it.
+ *
+ * bass/comp/drums are gain factors; kick/ride/hihat multiply generated
+ * drum velocities before the [0, 1] clamp.
+ */
+export const BACKING_BASE_TRIMS: Record<keyof BackingMixLevels, number> = {
+	bass: 0.05,
+	comp: 0.1,
+	drums: 1.8,
+	kick: 3,
+	ride: 1.55,
+	hihat: 3
+};
+
 const MIX_MAX = 3;
-const STORAGE_KEY = 'backing-mix-levels';
+const STORAGE_KEY = 'backing-mix-levels-v2';
+/**
+ * Pre-base-trim key. Levels stored there were tuned against the old flat
+ * gains — exactly the correction BACKING_BASE_TRIMS now bakes in — so
+ * loading them on top would double-apply it. Dropped, not migrated.
+ */
+const LEGACY_STORAGE_KEY = 'backing-mix-levels';
 
 /**
  * Merge an untrusted value over the defaults: known keys only, finite
@@ -52,6 +78,7 @@ export function normalizeBackingMix(value: unknown): BackingMixLevels {
 export function loadBackingMix(): BackingMixLevels {
 	if (typeof localStorage === 'undefined') return { ...DEFAULT_BACKING_MIX };
 	try {
+		localStorage.removeItem(LEGACY_STORAGE_KEY);
 		const raw = localStorage.getItem(STORAGE_KEY);
 		return raw ? normalizeBackingMix(JSON.parse(raw)) : { ...DEFAULT_BACKING_MIX };
 	} catch {

@@ -43,7 +43,7 @@
 		{ key: 'drums', label: 'Drum kit', hint: 'Whole kit level' }
 	];
 	const VOICE_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
-		{ key: 'kick', label: 'Kick', hint: 'Feathered quarters sit near-silent by design — trim up to taste' },
+		{ key: 'kick', label: 'Kick', hint: 'Feathered quarters — 100% is the ear-tuned baseline' },
 		{ key: 'ride', label: 'Ride', hint: 'Spang-a-lang voice' },
 		{ key: 'hihat', label: 'Hi-hat', hint: 'Foot on 2 and 4' }
 	];

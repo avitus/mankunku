@@ -601,6 +601,10 @@ Per-instrument mix levels for the backing track, persisted per device (localStor
 
 ### `BackingMixLevels` interface, `DEFAULT_BACKING_MIX`
 
+### `BACKING_BASE_TRIMS`
+
+Baseline trims that equalize the raw sample-library loudness (ear-tuned on the mixer page, 2026-08-02): the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain; kick/hihat velocities ×3, ride ×1.55 — the kit samples are quiet even at full velocity). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
+
 ### `normalizeBackingMix(value): BackingMixLevels`
 
 Merge an untrusted value over the defaults: known keys only, finite numbers only, clamped. Never throws.
