@@ -15,7 +15,7 @@ export type PhraseCategory =
 	| 'short-ii-V-I-major' | 'short-ii-V-I-minor'
 	| 'V-I-major' | 'V-I-minor'
 	| 'major-chord' | 'dominant-chord' | 'minor-chord' | 'diminished-chord'
-	| 'pentatonic' | 'enclosures' | 'digital-patterns'
+	| 'pentatonic' | 'enclosures' | 'digital-patterns' | 'triad-pairs'
 	| 'rhythm-changes' | 'ballad' | 'modal'
 	| 'user';
 
@@ -36,6 +36,7 @@ export const CATEGORY_LABELS: Record<PhraseCategory, string> = {
 	'pentatonic': 'Pentatonic',
 	'enclosures': 'Enclosures',
 	'digital-patterns': 'Digital Patterns',
+	'triad-pairs': 'Triad Pairs',
 	'rhythm-changes': 'Rhythm Changes',
 	'ballad': 'Ballad',
 	'modal': 'Modal',

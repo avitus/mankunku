@@ -74,6 +74,20 @@ import {
 } from '$lib/persistence/lick-practice-store';
 import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
+import type { TrickContext } from '$lib/types/tricks';
+import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
+import { getTrickById } from '$lib/tricks';
+import { getVariantByKey } from '$lib/tricks/mastery';
+import {
+	loadTrickPracticeProgress,
+	saveTrickPracticeProgress,
+	getTrickKeyProgress,
+	updateTrickKeyProgress,
+	getTrickTempo,
+	getTrickUnlockedKeyCount,
+	bumpTrickUnlockedKeyCount,
+	appendTrickProgressPoint
+} from '$lib/persistence/trick-practice-store';
 import {
 	PROGRESSION_TEMPLATES,
 	getProgressionsForCategory,
@@ -665,6 +679,91 @@ export function startSingleLickSession(
 	return true;
 }
 
+/**
+ * Start a trick drill session: one melodic-device variant (from
+ * `config.trickId` + `config.trickParameters`) cycled through its unlocked
+ * keys, reusing the whole single-lick round loop (mastery at ≥ 0.95,
+ * refill + tempo bump when the rotation clears).
+ *
+ * The plan item is a `kind: 'trick'` item whose `phraseId` is the composite
+ * variant key and whose `phrase` is a generated example built in a C-rooted
+ * context — key 'C', Cmaj7, Ionian — so the existing per-key transposition
+ * path works unchanged. All progress reads/writes go to the TRICK store
+ * (recordKeyAttempt / advanceSingleLickRound branch on `kind`); tricks never
+ * touch `lickPractice.progress`.
+ *
+ * Returns false when the config is incomplete, the trick is unknown, or
+ * example generation fails for the C context.
+ */
+export function startTrickSession(): boolean {
+	const { trickId, trickParameters } = lickPractice.config;
+	if (!trickId || !trickParameters) return false;
+	const trick = getTrickById(trickId);
+	if (!trick) return false;
+
+	// Defensive: clear single-lick state in case the user toggled into Tricks
+	// from a deep-practice configuration. Mirrors the other start functions.
+	lickPractice.config.singleLickId = undefined;
+
+	const variantKey = trickVariantKey(trickId, trickParameters);
+	const tempo = clampTempo(getTrickTempo(loadTrickPracticeProgress(), variantKey));
+
+	// Pinned C-rooted context: examples generate over Cmaj7/Ionian so the
+	// per-key path transposes from C exactly like a C-stored lick would.
+	const cContext: TrickContext = {
+		chordRoot: 'C',
+		chordQuality: 'maj7',
+		scaleId: 'major.ionian',
+		key: 'C',
+		timeSignature: [4, 4],
+		level: 50,
+		tempo,
+		swing: 0.5
+	};
+
+	const phrase = trick.generateExample(trickParameters, cContext);
+	if (!phrase) return false;
+
+	const variantLabel =
+		getVariantByKey(variantKey)?.label ?? normalizeParameterSignature(trickParameters);
+
+	lickPractice.plan = [
+		{
+			kind: 'trick',
+			// For trick items the composite variant key IS the phraseId — the
+			// stable progress key. getLickById misses on it by design; every
+			// helper falls back to `phrase`.
+			phraseId: variantKey,
+			phraseName: `${trick.name} · ${variantLabel}`,
+			phraseNumber: 1,
+			category: trick.category,
+			keys: unlockedCircleFrom('C', getTrickUnlockedKeyCount(variantKey)),
+			// Pinned: both tricks are maj7-compatible and the vamp gives a
+			// clean one-chord bed for the device.
+			progressionType: 'major-vamp',
+			phrase,
+			trickId,
+			trickParameters,
+			trickContext: cContext
+		}
+	];
+
+	lickPractice.mode = 'single-lick';
+	lickPractice.currentLickIndex = 0;
+	lickPractice.currentKeyIndex = 0;
+	lickPractice.keyResults = [];
+	lickPractice.allAttempts = [];
+	lickPractice.startTime = Date.now();
+	lickPractice.elapsedSeconds = 0;
+	lickPractice.roundNumber = 1;
+	lickPractice.masteredThisRound = [];
+	lickPractice.roundHistory = [];
+	lickPractice.currentTempo = tempo;
+
+	lickPractice.phase = 'count-in';
+	return true;
+}
+
 /** Get the current plan item */
 export function getCurrentPlanItem(): LickPracticePlanItem | null {
 	return lickPractice.plan[lickPractice.currentLickIndex] ?? null;
@@ -1171,17 +1270,31 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	});
 
 	if (passed) {
-		lickPractice.progress = updateKeyProgress(
-			lickPractice.progress,
-			item.phraseId,
-			key,
-			{
-				lastPracticedAt: Date.now(),
-				passCount: (lickPractice.progress[item.phraseId]?.[key]?.passCount ?? 0) + 1,
-				currentTempo: lickPractice.currentTempo
-			}
-		);
-		saveLickPracticeProgress(lickPractice.progress);
+		if (item.kind === 'trick') {
+			// Trick progress lives in the trick store, keyed by the composite
+			// variant key (item.phraseId) — never in lickPractice.progress.
+			const trickProgress = loadTrickPracticeProgress();
+			const prevPasses = getTrickKeyProgress(trickProgress, item.phraseId, key).passCount;
+			saveTrickPracticeProgress(
+				updateTrickKeyProgress(trickProgress, item.phraseId, key, {
+					lastPracticedAt: Date.now(),
+					passCount: prevPasses + 1,
+					currentTempo: lickPractice.currentTempo
+				})
+			);
+		} else {
+			lickPractice.progress = updateKeyProgress(
+				lickPractice.progress,
+				item.phraseId,
+				key,
+				{
+					lastPracticedAt: Date.now(),
+					passCount: (lickPractice.progress[item.phraseId]?.[key]?.passCount ?? 0) + 1,
+					currentTempo: lickPractice.currentTempo
+				}
+			);
+			saveLickPracticeProgress(lickPractice.progress);
+		}
 	}
 
 	// Single-lick deep practice: track keys cleared at "close to perfect" so
@@ -1352,42 +1465,84 @@ export function advanceSingleLickRound(): void {
 
 	if (survivors.length === 0) {
 		// Whole unlocked set cleared at the current tempo — bump and refill.
-		// Re-read the per-lick unlock count so any keys earned in a Standard
-		// session between rounds join on this cycle.
 		const bump = lickPractice.config.tempoBumpBpm ?? DEFAULT_TEMPO_BUMP_BPM;
 		const newTempo = clampTempo(lickPractice.currentTempo + bump);
-		const baseLick = resolveLickFor(item);
-		const refillStart = baseLick?.key ?? item.keys[0] ?? 'C';
-		const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
-		const fullCircle = unlockedCircleFrom(refillStart as PitchClass, unlockedCount);
-
-		// Persist the elevated tempo to every key for this lick so the next
-		// session resumes at this BPM (mirrors the per-key write the standard
-		// flow does at inter-lick rest).
 		const now = Date.now();
-		for (const key of fullCircle) {
-			lickPractice.progress = updateKeyProgress(
-				lickPractice.progress,
-				item.phraseId,
-				key,
-				{ currentTempo: newTempo, lastPracticedAt: now }
-			);
+
+		if (item.kind === 'trick') {
+			// Tricks have no other unlock path: clearing the whole rotation IS
+			// the unlock. Bump the count FIRST so the refilled circle includes
+			// the newly earned key, then persist the elevated tempo per key to
+			// the TRICK store — item.phraseId is a variant key, so the lick
+			// store must never see it.
+			const newCount = bumpTrickUnlockedKeyCount(item.phraseId);
+			const fullCircle = unlockedCircleFrom('C', newCount);
+			let trickProgress = loadTrickPracticeProgress();
+			for (const key of fullCircle) {
+				trickProgress = updateTrickKeyProgress(trickProgress, item.phraseId, key, {
+					currentTempo: newTempo,
+					lastPracticedAt: now
+				});
+			}
+			saveTrickPracticeProgress(trickProgress);
+			appendTrickProgressPoint(item.phraseId, {
+				t: now,
+				bpm: newTempo,
+				keys: fullCircle.length
+			});
+
+			lickPractice.currentTempo = newTempo;
+			item.keys = fullCircle;
+		} else {
+			// Re-read the per-lick unlock count so any keys earned in a Standard
+			// session between rounds join on this cycle.
+			const baseLick = resolveLickFor(item);
+			const refillStart = baseLick?.key ?? item.keys[0] ?? 'C';
+			const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
+			const fullCircle = unlockedCircleFrom(refillStart as PitchClass, unlockedCount);
+
+			// Persist the elevated tempo to every key for this lick so the next
+			// session resumes at this BPM (mirrors the per-key write the standard
+			// flow does at inter-lick rest).
+			for (const key of fullCircle) {
+				lickPractice.progress = updateKeyProgress(
+					lickPractice.progress,
+					item.phraseId,
+					key,
+					{ currentTempo: newTempo, lastPracticedAt: now }
+				);
+			}
+			saveLickPracticeProgress(lickPractice.progress);
+
+			// Record a progress-history sample at the bumped tempo. Single-lick
+			// deep practice drills the already-unlocked set, so the key count is
+			// the full refilled circle (it doesn't unlock new keys itself).
+			appendLickProgressPoint(item.phraseId, {
+				t: now,
+				bpm: newTempo,
+				keys: fullCircle.length
+			});
+
+			lickPractice.currentTempo = newTempo;
+			item.keys = fullCircle;
 		}
-		saveLickPracticeProgress(lickPractice.progress);
-
-		// Record a progress-history sample at the bumped tempo. Single-lick
-		// deep practice drills the already-unlocked set, so the key count is
-		// the full refilled circle (it doesn't unlock new keys itself).
-		appendLickProgressPoint(item.phraseId, {
-			t: now,
-			bpm: newTempo,
-			keys: fullCircle.length
-		});
-
-		lickPractice.currentTempo = newTempo;
-		item.keys = fullCircle;
 	} else {
 		item.keys = survivors;
+	}
+
+	// Tricks drill a formula, not a fixed phrase — regenerate the example on
+	// EVERY round boundary (refill and survivor paths alike) so successive
+	// rounds present fresh realizations at the current tempo. On a rare
+	// generation failure, keep last round's example rather than derail.
+	if (item.kind === 'trick' && item.trickId && item.trickParameters && item.trickContext) {
+		const trick = getTrickById(item.trickId);
+		if (trick) {
+			item.phrase =
+				trick.generateExample(item.trickParameters, {
+					...item.trickContext,
+					tempo: lickPractice.currentTempo
+				}) ?? item.phrase;
+		}
 	}
 
 	lickPractice.masteredThisRound = [];

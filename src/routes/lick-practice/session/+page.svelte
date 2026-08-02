@@ -40,6 +40,8 @@
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
+	import { scoreFluency } from '$lib/scoring/fluency';
+	import { getTrickById } from '$lib/tricks';
 	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -54,7 +56,8 @@
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
 	import { enqueue } from '$lib/persistence/outbox';
 	import { page } from '$app/state';
-	import type { PlaybackOptions } from '$lib/types/audio';
+	import type { DetectedNote, PlaybackOptions } from '$lib/types/audio';
+	import type { Score } from '$lib/types/scoring';
 	import type { ChordProgressionType, SessionReport } from '$lib/types/lick-practice';
 	import type { PitchDetectorHandle, PitchReading } from '$lib/audio/pitch-detector';
 	import type { MicCapture } from '$lib/audio/capture';
@@ -101,7 +104,16 @@
 	let confirmingResetId: string | null = $state(null);
 	let resetLickIds: string[] = $state([]);
 
+	// A trick report entry's "lickId" is the composite variant key, not a lick
+	// id — the plan (intact on the report screen) is the source of truth for
+	// which entries are trick items.
+	function isTrickReportEntry(lickId: string): boolean {
+		return lickPractice.plan.some((item) => item.kind === 'trick' && item.phraseId === lickId);
+	}
+
 	function handleReportReset(lickId: string): void {
+		// Trick progress reset is not offered from the report — variant keys must never enter the lick store's merge-meta/progress blobs.
+		if (isTrickReportEntry(lickId)) return;
 		if (confirmingResetId !== lickId) {
 			confirmingResetId = lickId;
 			return;
@@ -846,23 +858,63 @@
 			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
 			: null;
 
-		const result = runScorePipeline({
-			detected,
-			phrase: window.phrase,
-			tempo: lickPractice.currentTempo,
-			transportSeconds: window.recordingTransportSeconds,
-			swing: settings.swing,
-			bleedFilterEnabled: settings.bleedFilterEnabled,
-			bleedResult,
-			// Continuous mode: accept any octave of the right pitch class.
-			// Call-response stays strict so the user reproduces the demo
-			// register exactly, matching ear-training's contract.
-			octaveInsensitive: lickPractice.config.practiceMode === 'continuous'
-		});
+		// Trick items are scored for FLUENCY (conformance to the device
+		// formula in the current key), not exact-phrase reproduction — the
+		// generated example is disposable, so runScorePipeline's DTW against
+		// it would punish perfectly valid realizations of the same formula.
+		const windowItem = lickPractice.plan[window.lickIndex];
+		let score: Score | null = null;
+		let detectedNotes: DetectedNote[] = detected;
+		if (
+			windowItem?.kind === 'trick' &&
+			windowItem.trickId &&
+			windowItem.trickParameters &&
+			windowItem.trickContext
+		) {
+			const trick = getTrickById(windowItem.trickId);
+			const played =
+				settings.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+			const key = getCurrentKey() ?? window.key;
+			if (trick) {
+				score = scoreFluency({
+					played,
+					trick,
+					parameters: windowItem.trickParameters,
+					// Re-root the stored C context at the practiced key with the
+					// live session tempo/swing so expected slots land on this
+					// window's beat grid.
+					context: {
+						...windowItem.trickContext,
+						chordRoot: key,
+						key,
+						tempo: lickPractice.currentTempo,
+						swing: settings.swing
+					}
+				});
+			}
+			detectedNotes = played;
+			// The exact-phrase pipeline didn't run — don't fabricate its
+			// diagnostic output.
+			session.bleedFilterLog = null;
+		} else {
+			const result = runScorePipeline({
+				detected,
+				phrase: window.phrase,
+				tempo: lickPractice.currentTempo,
+				transportSeconds: window.recordingTransportSeconds,
+				swing: settings.swing,
+				bleedFilterEnabled: settings.bleedFilterEnabled,
+				bleedResult,
+				// Continuous mode: accept any octave of the right pitch class.
+				// Call-response stays strict so the user reproduces the demo
+				// register exactly, matching ear-training's contract.
+				octaveInsensitive: lickPractice.config.practiceMode === 'continuous'
+			});
 
-		session.bleedFilterLog = result.bleedLog;
-		const score = result.chosen;
-		const detectedNotes = result.useFiltered ? result.filteredNotes : result.detected;
+			session.bleedFilterLog = result.bleedLog;
+			score = result.chosen;
+			detectedNotes = result.useFiltered ? result.filteredNotes : result.detected;
+		}
 
 		// Record the attempt to the lick-practice-only progress store.
 		// We deliberately do NOT call the global ear-training recordAttempt
@@ -926,7 +978,9 @@
 			const windowForSave = window;
 			const scoreForSave = score;
 			const detectedForSave = detectedNotes;
-			const bleedLogForSave = result.bleedLog;
+			// Both scoring branches leave the log they produced on session state
+			// (null for trick windows — no pipeline ran).
+			const bleedLogForSave = session.bleedFilterLog;
 			const tempoForSave = lickPractice.currentTempo;
 			const swingForSave = settings.swing;
 			const metronomeForSave = settings.metronomeEnabled;
@@ -1233,7 +1287,9 @@
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
 				<div class="flex items-center justify-between">
 					<div>
-						<div class="smallcaps text-[var(--color-brass)]">Deep Practice</div>
+						<div class="smallcaps text-[var(--color-brass)]">
+							{lickPractice.plan[0]?.kind === 'trick' ? 'Trick Drill' : 'Deep Practice'}
+						</div>
 						<div class="text-base font-medium">{sl.lickName}</div>
 					</div>
 					<div class="flex gap-6 text-right tabular-nums">
@@ -1323,8 +1379,9 @@
 				</div>
 				<!-- Struggling-lick reset: offered only when this lick scored in the
 				     'try-again' band. Two-stage inline confirm; once reset, the card
-				     shows feedback in place of the button. -->
-				{#if scoreToGrade(lick.averageScore) === 'try-again'}
+				     shows feedback in place of the button. Never offered for trick
+				     entries — their ids are variant keys, not lick ids. -->
+				{#if scoreToGrade(lick.averageScore) === 'try-again' && !isTrickReportEntry(lick.lickId)}
 					<div class="flex items-center gap-2 pt-1 text-xs">
 						{#if resetLickIds.includes(lick.lickId)}
 							<span class="text-[var(--color-text-secondary)]">

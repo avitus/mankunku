@@ -404,6 +404,8 @@ export function seedProgressHistoryFromSessions(): void {
 	const history = loadLickProgressHistory();
 	for (const entry of loadLickPracticeSessions()) {
 		for (const lick of entry.report.licks) {
+			// Trick drills log sessions too; their composite ':' variant keys must not seed the LICK progress-history blob.
+			if (lick.lickId.includes(':')) continue;
 			const points = (history[lick.lickId] ??= []);
 			if (points.some((p) => p.t === entry.timestamp)) continue;
 			points.push({

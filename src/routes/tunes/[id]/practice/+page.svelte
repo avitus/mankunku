@@ -17,6 +17,7 @@
 		previewSessionPlan,
 		startTunePracticeSession,
 		expectedForWindow,
+		trickForWindow,
 		markHead,
 		markRunning,
 		markWindowOpen,
@@ -43,6 +44,7 @@
 	import { createFreestyleRecognizer } from '$lib/matching/freestyle';
 	import type { FreestyleBook } from '$lib/matching/book-index';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
+	import { scoreFluency } from '$lib/scoring/fluency';
 	import {
 		resolveOnsets,
 		segmentNotes,
@@ -53,6 +55,7 @@
 	import { GRADE_LABELS } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { fractionToFloat } from '$lib/music/intervals';
 	import { progressionColor } from '$lib/music/progression-display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
@@ -103,6 +106,8 @@
 	interface OpenWindow {
 		ip: InsertionPoint;
 		expected: { phrase: import('$lib/types/music').Phrase; lickName: string } | null;
+		/** Non-null when the picked suggestion is a trick — scored via Fluency. */
+		trickInfo: ReturnType<typeof trickForWindow>;
 		recordingTransportSeconds: number;
 		micStartTime: number;
 		readingsStartCount: number;
@@ -558,6 +563,7 @@
 		currentWindow = {
 			ip,
 			expected: expectedForWindow(ip),
+			trickInfo: trickForWindow(ip),
 			recordingTransportSeconds: playback.getTransportSeconds(),
 			micStartTime: micCapture.context.currentTime,
 			readingsStartCount: pitchDetector.getReadings().length,
@@ -617,6 +623,29 @@
 		const bleedResult = win.schedule
 			? filterBleed(detected, win.schedule, win.recordingTransportSeconds)
 			: null;
+		if (win.trickInfo) {
+			// Trick windows judge FLUENCY (conformance to the device's formula),
+			// not exact reproduction — route around runScorePipeline. Bleed
+			// handling collapses to the chosen-notes rule: filtered notes when
+			// the knob is on and a schedule produced them, raw notes otherwise.
+			let played = knobs.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+			// The window opens at the progression start but the trick is aligned
+			// to a later bar; Fluency slots start at 0, so played onsets must be
+			// rebased to the aligned bar (notes before it go negative and
+			// correctly fail to match).
+			const shiftSeconds = fractionToFloat(win.trickInfo.shift) * 4 * (60 / tempo);
+			if (shiftSeconds !== 0) {
+				played = played.map((n) => ({ ...n, onsetTime: n.onsetTime - shiftSeconds }));
+			}
+			const score = scoreFluency({
+				played,
+				trick: win.trickInfo.trick,
+				parameters: win.trickInfo.parameters,
+				context: { ...win.trickInfo.context, tempo, swing: settings.swing }
+			});
+			recordWindowResult(win.ip.id, win.expected.lickName, score);
+			return;
+		}
 		const result = runScorePipeline({
 			detected,
 			phrase: win.expected.phrase,
