@@ -105,7 +105,7 @@ Two 10-step ramps, both theme-aware (base in `:root`, re-stepped in `:root.light
 
 | Ramp | Tokens | Direction | Meaning | Where |
 | --- | --- | --- | --- | --- |
-| **Mastery** | `--mastery-1..10` | teal → brass | *Accomplishment* — high = brass you've earned | Tonal Mastery meter, scale-proficiency bars |
+| **Mastery** | `--mastery-1..10` | teal → brass | *Accomplishment* — high = brass you've earned | Tonal Mastery meter, scale-proficiency bars, lick phase bands (`difficulty/lick-phase.ts`) |
 | **Difficulty** | `--difficulty-1..10` | muted green → amber → muted brick-red | *How hard the material is* — high = jazz-hot, not alarm | Lick/level difficulty badges, adaptive Level readout |
 
 Access them via `masteryDisplay()` / `difficultyDisplay()` (`src/lib/difficulty/display.ts`), which return the band's `var(--…-N)` token — safe to drop into an inline `style`. **Proficiency always uses the mastery ramp, not the feedback tokens** (a low-proficiency key reads as low-teal, never danger-red).

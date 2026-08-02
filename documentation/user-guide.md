@@ -118,6 +118,21 @@ For that, both the post-session report and the lick’s detail page in your book
 
 Use Deep Practice when there's a single line you want to drill into your fingers in one sitting. Use a standard Start Session when you want to spread time across everything you've tagged.
 
+### Phases of expertise
+
+Every lick you drill sits in one of four phases, and the progress chart on its detail page draws them as bands so you can see which one you're in and what the next one costs:
+
+| Phase | You're there when |
+| --- | --- |
+| **new** | Fewer than 12 keys unlocked — however fast you're playing it |
+| **learning** | All 12 keys, under 120 BPM |
+| **proficient** | All 12 keys, 120–149 BPM |
+| **expert** | All 12 keys, 150 BPM and up |
+
+Coverage comes first: a lick you can rip at 160 in three keys is still **new**, because the point of the 12-key cycle is that you've actually heard the line everywhere. Once the twelfth key lands, the phase is purely a question of tempo, and reaching a threshold promotes you — a 5 BPM bump that lands exactly on 120 is the promotion it looks like.
+
+Phases are a mirror, not a gate. Nothing about them changes what Side B schedules, how keys unlock, or how tempo moves.
+
 ### Why gradual unlocks
 
 The 12-key cycle is the goal, not the start. A brand-new lick starts with just **one** key — its home key — and earns each next key in easiest-to-hardest order by accidental count, alternating sharps and flats from home. From C, that's: C, G (1♯), F (1♭), D (2♯), Bb (2♭), A (3♯), Eb (3♭), E (4♯), Ab (4♭), B (5♯), Db (5♭), F♯/G♭ (6). For other home keys, the same principle applies relative to the entry key.
@@ -164,7 +179,7 @@ Tap a lick to see:
 - Sheet music in your instrument's key.
 - A **key selector** so you can preview the lick in any of the 12 keys before tagging it.
 - Category, difficulty, bar count, and tags.
-- A **progress chart** once you've drilled it — two stacked panels sharing a time axis, showing how your tempo and your scores on this line have moved. The x-axis is scaled by real elapsed time, so a three-month gap reads as a gap rather than as one step.
+- A **progress chart** once you've drilled it — your tempo on this line over time, banded by [phase of expertise](#phases-of-expertise), with a small key marking every session that unlocked a new key. The x-axis is scaled by real elapsed time, so a three-month gap reads as a gap rather than as one step.
 - A play button so you can hear it without dropping into a session.
 - A **practice star** — tap to tag the lick for Side B.
 - A **Practice** button to drop straight into single-lick Deep Practice.
