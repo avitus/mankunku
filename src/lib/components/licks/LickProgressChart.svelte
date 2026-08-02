@@ -173,7 +173,10 @@
 	 */
 	const chartAriaLabel = $derived.by(() => {
 		const marked = markers.reduce((n, m) => n + (m.to - m.from), 0);
-		const keys = `${Math.min(latest.keys, ALL_KEYS)} of ${ALL_KEYS} keys unlocked`;
+		// `latest` is undefined for an empty series. Only the two-or-more-samples
+		// branch renders this label, but the fallback keeps the derivation
+		// self-contained rather than leaning on a guard in the template.
+		const keys = `${Math.min(latest?.keys ?? 0, ALL_KEYS)} of ${ALL_KEYS} keys unlocked`;
 		const unlocks = marked > 0 ? `, ${marked} of them marked on the line` : '';
 		return `Tempo over time, banded by phase of expertise. ${keys}${unlocks}.`;
 	});
