@@ -11,7 +11,6 @@ export const welcomeTour: DriveStep[] = [
 			title: 'Welcome to Mankunku',
 			description:
 				"A jazz ear-training practice tool. The app plays a phrase, you play it back on your instrument, and pitch + rhythm get scored in real time. Let's walk through the key spots.",
-			side: 'over',
 			align: 'center'
 		}
 	},

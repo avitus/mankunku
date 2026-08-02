@@ -11,7 +11,6 @@ export const licksTour: DriveStep[] = [
 			title: 'Your Licks',
 			description:
 				"This is your personal collection — the licks you've recorded, written in the editor, or stolen from the community. It's where you manage the lines you're learning for Lick Practice. (The app's built-in ear-training licks live inside Ear Training and Lick Practice, not here.)",
-			side: 'over',
 			align: 'center'
 		}
 	},
@@ -30,7 +29,6 @@ export const licksTour: DriveStep[] = [
 			title: 'Practice set',
 			description:
 				"Open a lick and tag it for practice to add it here. Each card shows when you last drilled it, and Lick Practice rotates this set through every key at increasing tempo.",
-			side: 'over',
 			align: 'center'
 		}
 	},
@@ -39,7 +37,6 @@ export const licksTour: DriveStep[] = [
 			title: 'Needs setup & community',
 			description:
 				"A lick tagged for practice but not yet assigned to a progression shows under “Needs setup” — open it to fix that. Steal more lines from the community page — Browse Community above — and they'll appear here too.",
-			side: 'over',
 			align: 'center'
 		}
 	}

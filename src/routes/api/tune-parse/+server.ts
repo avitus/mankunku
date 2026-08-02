@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit';
 // Wide RequestHandler (chat-route precedent) so guard tests can hand-roll
 // event objects without the route-narrowed generic fighting them.
 import type { RequestHandler } from '@sveltejs/kit';
+import type { Anthropic } from '@anthropic-ai/sdk';
 import {
 	getAnthropicClient,
 	isAnthropicConfigured,
@@ -205,13 +206,17 @@ function generateSheetId(): string {
 
 /**
  * Fable's thinking controls (the API rejects budget_tokens for this model:
- * adaptive thinking + output effort is the supported shape). Typed loosely
- * because the installed SDK predates output_config.
+ * adaptive thinking + output effort is the supported shape). The SDK types
+ * both fields, so this is checked against them rather than cast — a wrong
+ * effort level or thinking type is now a compile error, not a 400 at runtime.
  */
 const FABLE_THINKING = {
 	thinking: { type: 'adaptive' },
 	output_config: { effort: 'high' }
-} as unknown as Record<string, never>;
+} as const satisfies {
+	thinking: Anthropic.ThinkingConfigParam;
+	output_config: Anthropic.OutputConfig;
+};
 
 const SYSTEM_MODE_PROMPT = `You are a music COPYIST. The attached image is ONE SYSTEM (one printed line)
 of a lead sheet. The bar count is known and given — your only job is to transcribe what is printed

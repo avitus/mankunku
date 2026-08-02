@@ -11,7 +11,6 @@ export const earTrainingTour: DriveStep[] = [
 			title: 'How a session works',
 			description:
 				"Mankunku plays a phrase, then waits for you to play it back on your instrument. The mic captures your audio, segments it into notes, and scores each one against the original.",
-			side: 'over',
 			align: 'center'
 		}
 	},
@@ -50,7 +49,6 @@ export const earTrainingTour: DriveStep[] = [
 			title: 'How to improve',
 			description:
 				"Stumbling on rhythm? Lower the tempo in Settings. Stumbling on pitch? The app gradually expands intervals as you climb levels — back off difficulty to consolidate. The system adapts to your recent accuracy automatically.",
-			side: 'over',
 			align: 'center'
 		}
 	}
