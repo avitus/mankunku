@@ -132,11 +132,19 @@ async function getTone(): Promise<ToneModule> {
 	return tone;
 }
 
+/** Per-sample ceiling on the drum fetch, so one stalled request can't hang the kit. */
+const DRUM_FETCH_TIMEOUT_MS = 15_000;
+
 /**
  * Fetch + decode each drum sample, returning only the ones this browser can
  * actually decode. A failed fetch or an unsupported codec drops that drum
  * rather than throwing: the rest of the kit still plays, and smplr is handed
  * AudioBuffers so it never falls back to fetching `/{name}.{format}`.
+ *
+ * Each sample is raced against its own timer. Without one a stalled fetch never
+ * settles, and since the caller awaits `Promise.all` that would leave
+ * `ensureDrums()` — and every `loadBackingInstruments()` behind it — pending
+ * forever rather than starting the session without drums.
  */
 async function decodeDrumBuffers(
 	audioCtx: AudioContext
@@ -144,16 +152,33 @@ async function decodeDrumBuffers(
 	const names = Object.keys(DRUM_BUFFERS) as DrumBufferName[];
 	const entries = await Promise.all(
 		names.map(async (name) => {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const load = (async () => {
+				try {
+					const response = await fetch(DRUM_BUFFERS[name]);
+					if (!response.ok) return null;
+					// decodeAudioData detaches the ArrayBuffer, so each sample needs
+					// its own — never share one across drums.
+					return [name, await audioCtx.decodeAudioData(await response.arrayBuffer())] as const;
+				} catch {
+					// Undecodable codec or a network failure.
+					return null;
+				}
+			})();
+			// Stop *waiting* on a stalled sample rather than aborting it. An
+			// AbortController would be tidier, but WebKit surfaces the cancelled
+			// request as a console error, which is exactly the class of noise
+			// this whole function exists to remove — it reintroduced an
+			// intermittent failure in the e2e console fixture. Letting the
+			// request run on unobserved costs nothing: the buffer is simply
+			// dropped, and the kit plays without that drum.
+			const timeout = new Promise<null>((resolve) => {
+				timer = setTimeout(() => resolve(null), DRUM_FETCH_TIMEOUT_MS);
+			});
 			try {
-				const response = await fetch(DRUM_BUFFERS[name]);
-				if (!response.ok) return null;
-				// decodeAudioData detaches the ArrayBuffer, so each sample needs
-				// its own — never share one across drums.
-				const buffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
-				return [name, buffer] as const;
-			} catch {
-				// Unsupported codec (WebKit + Ogg Vorbis) or a network failure.
-				return null;
+				return await Promise.race([load, timeout]);
+			} finally {
+				clearTimeout(timer);
 			}
 		})
 	);
@@ -182,13 +207,19 @@ async function ensureDrums(): Promise<void> {
 		// map. Given URLs, smplr fetches each one and — whenever a decode
 		// yields no buffer — silently retries at `${baseUrl}/${name}.${format}`,
 		// which for our empty baseUrl is a site-root `/kick.ogg` that 404s.
-		// WebKit hits exactly that path: it fetches our OGG Vorbis fine (200)
-		// but `decodeAudioData` throws `EncodingError`, so every drum fell
-		// through to a bogus root request and a console error. Pre-decoded
-		// AudioBuffers skip smplr's fetch entirely, so a codec the browser
-		// can't read leaves the kit silent instead of chasing a missing file.
-		// (WebKit has no Ogg Vorbis support at all — see the format note in
-		// sample-maps.ts; restoring Safari audio needs a second encoding.)
+		// Playwright's WebKit hits exactly that path: it fetches our OGG Vorbis
+		// fine (200) but `decodeAudioData` throws `EncodingError`, so every drum
+		// fell through to a bogus root request and a console error that failed
+		// the e2e console fixture. Pre-decoded AudioBuffers skip smplr's fetch
+		// entirely, so a codec the browser can't read leaves the kit silent
+		// instead of chasing a missing file.
+		//
+		// Scope of the codec gap is genuinely uncertain: shipping Safari gained
+		// Ogg Vorbis in 18.4, yet the WebKit 26.0 build Playwright ships still
+		// fails to decode these files — so this may be a Playwright media-stack
+		// limitation rather than a Safari one. Worth measuring on real Safari
+		// before deciding whether the 199 OGGs in static/samples need a second
+		// encoding; the guard below is correct either way.
 		const decoded = await decodeDrumBuffers(audioCtx);
 
 		// Explicit defaults required — smplr's samplerToSmplrJson puts
