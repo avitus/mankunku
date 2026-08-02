@@ -115,6 +115,14 @@ describe('unlockEvents', () => {
 		expect(unlockEvents(points)).toStrictEqual([{ t: 300, bpm: 70, from: 4, to: 6 }]);
 	});
 
+	it('sorts before scanning, so an out-of-order series still pairs neighbours', () => {
+		const points = [pt(300, 70, 3), pt(100, 60, 1), pt(200, 65, 2)];
+		expect(unlockEvents(points)).toStrictEqual([
+			{ t: 200, bpm: 65, from: 1, to: 2 },
+			{ t: 300, bpm: 70, from: 2, to: 3 }
+		]);
+	});
+
 	it('records a multi-key jump as one event spanning the range', () => {
 		const points = [pt(100, 60, 2), pt(200, 65, 5)];
 		expect(unlockEvents(points)).toStrictEqual([{ t: 200, bpm: 65, from: 2, to: 5 }]);

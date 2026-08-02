@@ -163,9 +163,20 @@
 	const phaseInfo = $derived(phase ? phaseDisplay(phase) : null);
 
 	function dateLabel(t: number): string {
-		const d = new Date(t);
-		return `${d.getMonth() + 1}/${d.getDate()}`;
+		return new Date(t).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
 	}
+
+	/**
+	 * The panel is an atomic image to assistive tech, so its `<title>` tooltips
+	 * are never announced. The label carries what the retired keys panel used to
+	 * state in text: how many keys this lick has earned.
+	 */
+	const chartAriaLabel = $derived.by(() => {
+		const marked = markers.reduce((n, m) => n + (m.to - m.from), 0);
+		const keys = `${Math.min(latest.keys, ALL_KEYS)} of ${ALL_KEYS} keys unlocked`;
+		const unlocks = marked > 0 ? `, ${marked} of them marked on the line` : '';
+		return `Tempo over time, banded by phase of expertise. ${keys}${unlocks}.`;
+	});
 </script>
 
 {#snippet keyGlyph(color: string, opacity: number)}
@@ -209,7 +220,7 @@
 			viewBox="0 0 {W} {H}"
 			class="w-full"
 			role="img"
-			aria-label="Tempo over time, with phase bands and key unlocks"
+			aria-label={chartAriaLabel}
 		>
 			<!-- Tempo phase bands, clipped to after the lick left the "new" phase -->
 			{#each tempoBands as band (band.phase)}
