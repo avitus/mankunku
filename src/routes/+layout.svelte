@@ -6,6 +6,7 @@
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
 	import { welcomeTour } from '$lib/tour/tours/welcome';
+	import type { NavTourKey } from '$lib/tour/nav-target';
 	import { loadTourStateFromCloud } from '$lib/state/tour.svelte';
 	import { afterNavigate, beforeNavigate, invalidate } from '$app/navigation';
 	import {
@@ -97,7 +98,15 @@
 	// `primary: true` marks the two headline practice modes. They get
 	// display-serif treatment and sit visually separated from the utility
 	// nav so they read as the "Side A / Side B" of the app.
-	const navItems = [
+	// `tourKey` is typed, not free text: guided-tour steps resolve nav targets
+	// through `navTourElement(tourKey)`, so renaming a key here without updating
+	// the tour must fail to compile rather than silently highlight nothing.
+	const navItems: {
+		href: string;
+		label: string;
+		primary: boolean;
+		tourKey: NavTourKey;
+	}[] = [
 		{ href: '/', label: 'Home', primary: false, tourKey: 'home' },
 		{ href: '/ear-training', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
