@@ -117,6 +117,20 @@ describe('POST /api/monitoring — allow-list rejection paths', () => {
 		expect(upstream).not.toHaveBeenCalled();
 	});
 
+	it('treats an absent body (request.body === null) the same way', async () => {
+		// Distinct branch from the empty-string case above: `readEnvelope`
+		// returns early on `!body` without ever opening a reader. This is the
+		// closest analogue of the real failure — a teardown-time keepalive flush
+		// where the request arrives carrying no body at all.
+		const req = new Request('http://localhost/api/monitoring', { method: 'POST' });
+		expect(req.body).toBeNull();
+
+		const upstream = vi.fn();
+		const res = await call(req, upstream as unknown as typeof fetch);
+		expect(res.status).toBe(200);
+		expect(upstream).not.toHaveBeenCalled();
+	});
+
 	it('still rejects a non-empty body with no DSN (the empty-body path is narrow)', async () => {
 		const upstream = vi.fn();
 		const res = await call(makeRequest('{}'), upstream as unknown as typeof fetch);
