@@ -287,7 +287,7 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 		loadLoopData: true,
 		destination: getMasterGain()
 	});
-	await newInstrument.loaded();
+	await newInstrument.load;
 
 	if (loadId !== currentLoadId) {
 		newInstrument.disconnect();

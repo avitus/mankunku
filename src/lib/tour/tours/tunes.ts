@@ -14,7 +14,6 @@ export const tunesTour: DriveStep[] = [
 			title: 'Your Tunes',
 			description:
 				"Your songbook. Where the Licks page holds one- and two-bar lines, this holds whole song forms — melody, changes, sections, repeats, endings. Read them, hear them, and practice your vocabulary over them.",
-			side: 'over',
 			align: 'center'
 		}
 	},
@@ -53,7 +52,6 @@ export const tunesTour: DriveStep[] = [
 			title: 'Reading a chart',
 			description:
 				"Open any tune and it engraves Real Book style — jazz chord symbols, section letters, repeats, stacked first and second endings. The key selector reads in YOUR written pitch, so tap a key and the chart re-engraves where your horn reads it. Hit Play to hear it with the rhythm section.",
-			side: 'over',
 			align: 'center'
 		}
 	},
@@ -62,7 +60,6 @@ export const tunesTour: DriveStep[] = [
 			title: 'Then put your licks in it',
 			description:
 				"The Practice licks button on any tune is where the two halves of the app meet: Mankunku finds the ii-Vs and turnarounds hiding in the changes and hands you those spots to fill from your own practice set. Settings → Tours & Help has a walkthrough of that session.",
-			side: 'over',
 			align: 'center'
 		}
 	}
