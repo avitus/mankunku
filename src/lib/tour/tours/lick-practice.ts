@@ -28,7 +28,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Gradual 12-key unlock',
 			description:
-				"Each tagged lick starts in just one key — its home key — and earns the next key once you've passed it twice cleanly (avg session score ≥ 90%). Keys come in easiest-to-hardest order, one accidental at a time, alternating sharps and flats from home. You'll have all 12 in time; for now you only practice what you've earned.",
+				"Each tagged lick starts in just one key — its home key — and earns the next key once you've passed it three times cleanly (avg session score ≥ 90%). Keys come in easiest-to-hardest order, one accidental at a time, alternating sharps and flats from home. You'll have all 12 in time; for now you only practice what you've earned.",
 			side: 'over',
 			align: 'center'
 		}
@@ -55,7 +55,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: "When you're ready",
 			description:
-				"Daily Practice is the default — it rotates across every progression you've tagged, so just set a duration and go. Switch to Focused Session to drill one progression, or Deep Practice to master a single lick. If your set is empty, head to your Licks page and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +5 BPM at 95%+, +2 BPM at 85%+, -1 BPM from 70%–84%, and -3 BPM below 70%.",
+				"Daily Practice is the default — it rotates across every progression you've tagged, so just set a duration and go. Switch to Focused Session to drill one progression, or Deep Practice to master a single lick. If your set is empty, head to your Licks page and tag a few licks first. After each lick, the tempo adjusts based on your average across its keys: +2 BPM at 95%+, +1 BPM at 90%+, -1 BPM from 75%–89%, and -3 BPM below 75%.",
 			side: 'over',
 			align: 'center'
 		}

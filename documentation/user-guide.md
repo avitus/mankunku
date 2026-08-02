@@ -66,7 +66,7 @@ When you open Side B, you choose:
 - **Substitutions** — toggle to introduce tritone subs and chromatic approaches. Same lick, harder harmony.
 - **Backing style** — swing for straight-ahead, bossa for Latin, ballad for slow with sustained comping, straight for rock/funk feel.
 - **Practice mode** — *Continuous* plays the lick once as a demo in the first key, then you play it through all 12 keys back-to-back over a non-stop backing track. *Call & Response* skips the upfront demo and instead, in every key, the app plays the lick first and you echo it on the next cycle, alternating through all 12 keys. Both modes score every key the user plays.
-- **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +5 BPM at 95%+, +2 BPM at 90%+, -1 BPM in the 75–89% yellow band, and -3 BPM below 75%. A single key scored below 75% blocks *any* upward adjustment, even if the average looks good.
+- **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +2 BPM at 95%+, +1 BPM at 90%+, -1 BPM in the 75–89% yellow band, and -3 BPM below 75%. A single key scored below 75% blocks *any* upward adjustment, even if the average looks good.
 
 A single **Start** button sits at the bottom of the setup screen. Its label changes to match the **Session Type** you pick at the top of the screen, which offers three modes:
 
@@ -86,8 +86,8 @@ The session opens with a **count-in**, then the backing track starts. You see:
 
 You play the lick once per key, with no retries. After all of that lick's keys play through, two things happen:
 
-1. **Tempo adjusts** based on your average score for the lick: +5 BPM at 95%+, +2 BPM at 90%+, -1 BPM in the 75–89% yellow band, -3 BPM below 75%. Any single key under 75% blocks tempo *increases* but doesn't block decreases — you lose ground on a lick you can't hold together.
-2. **The next key may unlock.** New keys earn their way into the rotation only when both your average score is at least 90% *and* the most-recently-added key has been passed cleanly twice (≥ 90% per attempt). A floor failure (any key below 75%) blocks the unlock outright. Tempo can keep climbing without the rotation growing — so you'll often speed up on the keys you have before the next one appears.
+1. **Tempo adjusts** based on your average score for the lick: +2 BPM at 95%+, +1 BPM at 90%+, -1 BPM in the 75–89% yellow band, -3 BPM below 75%. Any single key under 75% blocks tempo *increases* but doesn't block decreases — you lose ground on a lick you can't hold together. The gain steps deliberately match the -1 loss step closely, so a lick hovering right at 90% holds its tempo instead of drifting upward on variance alone.
+2. **The next key may unlock.** New keys earn their way into the rotation only when both your average score is at least 90% *and* the most-recently-added key has been passed cleanly three times (≥ 90% per attempt, one attempt per session). A floor failure (any key below 75%) blocks the unlock outright. Tempo can keep climbing without the rotation growing — so you'll often speed up on the keys you have before the next one appears.
 
 ### The traffic-light tiers
 

@@ -83,7 +83,7 @@ export const UNLOCK_AVG_THRESHOLD = KEY_PROFICIENT_THRESHOLD;
  * the next key joins the rotation. Pairs with `UNLOCK_AVG_THRESHOLD` to
  * gate unlocks on both session quality and per-key consolidation.
  */
-export const UNLOCK_PASSES_REQUIRED = 2;
+export const UNLOCK_PASSES_REQUIRED = 3;
 
 /**
  * Module-level Supabase reference, set during cloud hydration.
@@ -427,8 +427,8 @@ export function seedProgressHistoryFromSessions(): void {
  * Returns the signed BPM delta.
  */
 export function computeAutoTempoAdjustment(averageScore: number): number {
-	if (averageScore >= 0.95) return 5;
-	if (averageScore >= KEY_PROFICIENT_THRESHOLD) return 2;
+	if (averageScore >= 0.95) return 2;
+	if (averageScore >= KEY_PROFICIENT_THRESHOLD) return 1;
 	if (averageScore >= KEY_FLOOR_THRESHOLD) return -1;
 	return -3;
 }

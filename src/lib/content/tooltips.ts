@@ -33,7 +33,7 @@ export const tooltips = {
 			text: 'Tagged licks are the ones in your practice book — Lick Practice rotates them across all 12 keys. Tag a lick from your Licks page to add it.'
 		},
 		bestTempo: {
-			text: 'The fastest tempo at which you’ve passed any tagged lick. Lick Practice steps you up by 5 BPM after each pass.'
+			text: 'The fastest tempo at which you’ve passed any tagged lick. Lick Practice steps you up by 1–2 BPM after each strong session.'
 		},
 		sideA: {
 			text: 'Side A — Ear Training. The app plays a phrase, you play it back. Pitch and rhythm scored in real time.'
@@ -128,7 +128,7 @@ export const tooltips = {
 			text: 'Each tagged lick rotates through all 12 keys over the progression. Mastery means hitting it cleanly in every key, not just the comfortable ones.'
 		},
 		tempoStep: {
-			text: 'Pass a key cleanly and the next attempt bumps tempo +5 BPM. Stumble and it backs off. Tracks per-lick, per-key.'
+			text: 'Average ≥ 90% across the keys you played and tempo edges up +1 BPM (+2 at ≥ 95%). Stumble and it backs off. Tracks per-lick, per-key.'
 		}
 	} satisfies TooltipMap,
 

@@ -172,7 +172,7 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(99);
 	});
 
-	it('increases tempo by 2 when average score is 90–94%', () => {
+	it('increases tempo by 1 when average score is 90–94%', () => {
 		setupLick({
 			currentTempo: 100,
 			results: [
@@ -181,10 +181,10 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 			]
 		});
 		startInterLickTransition();
-		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(102);
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(101);
 	});
 
-	it('increases tempo by 5 when average score is ≥ 95%', () => {
+	it('increases tempo by 2 when average score is ≥ 95%', () => {
 		setupLick({
 			currentTempo: 100,
 			results: [
@@ -193,7 +193,7 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 			]
 		});
 		startInterLickTransition();
-		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(105);
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(102);
 	});
 
 	it('never decreases below MIN_TEMPO = 50', () => {
@@ -301,33 +301,33 @@ describe('startInterLickTransition — unlock count bump', () => {
 	// gate to clear must seed `progress` to reflect what `recordKeyAttempt`
 	// would have written by the time `startInterLickTransition` runs.
 
-	it('unlocks when both avg ≥ 0.90 and newest-key passCount ≥ 2', () => {
+	it('unlocks when both avg ≥ 0.90 and newest-key passCount ≥ 3', () => {
 		setupLick({
 			currentTempo: 60,
 			results: [{ key: 'C', score: 0.92 }],
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 2 } }
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 3 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
 	});
 
-	it('does not unlock on a single strong session (passCount = 1) — gate enforces consolidation', () => {
+	it('does not unlock on two strong sessions (passCount = 2) — gate enforces consolidation', () => {
 		setupLick({
 			currentTempo: 60,
 			results: [{ key: 'C', score: 1.0 }],
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1 } }
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 2 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
 	});
 
-	it('does not unlock below the 0.90 proficient avg (avg 0.85) even with passCount ≥ 2', () => {
+	it('does not unlock below the 0.90 proficient avg (avg 0.85) even with passCount ≥ 3', () => {
 		setupLick({
 			currentTempo: 60,
 			results: [{ key: 'C', score: 0.85 }],
@@ -428,7 +428,7 @@ describe('startInterLickTransition — unlock count bump', () => {
 });
 
 describe('startInterLickTransition — slowed unlock cadence (brand-new lick walk-through)', () => {
-	it('two consecutive strong sessions produce exactly one unlock at session 2', () => {
+	it('three consecutive strong sessions produce exactly one unlock at session 3', () => {
 		// Session 1: brand-new lick, first time on the entry key C.
 		setupLick({
 			currentTempo: 60,
@@ -442,18 +442,31 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
-		// Tempo still climbs: avg 0.92 → +2 BPM. The user keeps speeding up
+		// Tempo still climbs: avg 0.92 → +1 BPM. The user keeps speeding up
 		// on the entry key without the rotation growing yet.
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(61);
+
+		// Session 2: passCount reaches 2 — still one short of the requirement.
+		setupLick({
+			currentTempo: 61,
+			results: [{ key: 'C', score: 0.92 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 61, lastPracticedAt: 0, passCount: 2 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(62);
 
-		// Session 2: same key, another strong score → passCount reaches 2 → unlock.
+		// Session 3: same key, another strong score → passCount reaches 3 → unlock.
 		setupLick({
 			currentTempo: 62,
 			results: [{ key: 'C', score: 0.92 }],
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 62, lastPracticedAt: 0, passCount: 2 } }
+			[LICK_ID]: { C: { currentTempo: 62, lastPracticedAt: 0, passCount: 3 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
@@ -475,7 +488,7 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 
 describe('startInterLickTransition — per-key floor (KEY_FLOOR_THRESHOLD = 0.75)', () => {
 	it('caps tempo delta at 0 when one played key is below 0.75 even if avg ≥ 0.90', () => {
-		// Three keys: two at 1.0, one at 0.70. avg = 0.90 → raw +2 BPM,
+		// Three keys: two at 1.0, one at 0.70. avg = 0.90 → raw +1 BPM,
 		// but worst (0.70) is below the 0.75 floor so the floor caps delta at 0.
 		setupLick({
 			currentTempo: 100,
@@ -505,7 +518,7 @@ describe('startInterLickTransition — per-key floor (KEY_FLOOR_THRESHOLD = 0.75
 
 	it('does not breach the floor when the worst key sits exactly at 0.75 (boundary is inclusive)', () => {
 		// Two keys at 1.0, one at 0.75 → worst = 0.75 (== floor, not below).
-		// avg = (1.0 + 1.0 + 0.75) / 3 ≈ 0.917 → raw +2 BPM, applied normally.
+		// avg = (1.0 + 1.0 + 0.75) / 3 ≈ 0.917 → raw +1 BPM, applied normally.
 		setupLick({
 			currentTempo: 100,
 			results: [
@@ -515,7 +528,7 @@ describe('startInterLickTransition — per-key floor (KEY_FLOOR_THRESHOLD = 0.75
 			]
 		});
 		startInterLickTransition();
-		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(102);
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(101);
 	});
 
 	it('blocks the next-key unlock when the floor is breached, even if the avg + passCount gates clear', () => {
