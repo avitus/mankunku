@@ -577,7 +577,7 @@ Inline "Need help? Take the tour" link.
 
 | Component | Path | Purpose |
 |---|---|---|
-| `LickProgressChart.svelte` | `licks/` | Two stacked SVG panels (BPM and unlocked keys) over a shared x-axis **scaled by real elapsed time**, so a months-long gap reads wider than a same-day one. Takes `points: LickProgressPoint[]` |
+| `LickProgressChart.svelte` | `licks/` | One SVG tempo panel over an x-axis **scaled by real elapsed time**, so a months-long gap reads wider than a same-day one. Washed with the lick's [phase bands](../../src/lib/difficulty/lick-phase.ts) — horizontal for the tempo phases, a vertical era for `new` (key-count-driven, so it precedes them) — and marked with a key glyph at each unlock, collapsing when they'd overlap. Takes `points: LickProgressPoint[]` |
 | `CommunityLickCard.svelte` | `licks/` | Browse card for `/licks/community` |
 | `LickBreatherCard.svelte` | `lick-practice/` | The inter-lick score-hold card: finished lick's name, percentage in its accuracy-tier colour, and the next lick. Presentational only — the session page snapshots its content when the last key scores |
 | `LickKeyDetail.svelte` | `progress/` | Expandable per-key detail on the progress page, with per-note comparison and replay |

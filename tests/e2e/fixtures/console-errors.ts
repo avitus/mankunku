@@ -73,8 +73,13 @@ export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
 			const text = msg.text();
 			const url = msg.location()?.url ?? '';
 			if (isIgnored(text, url)) return;
-			if (msg.type() === 'error') errors.push(text);
-			if (msg.type() === 'warning') warnings.push(text);
+			// Keep the URL in the recorded text. The browser's auto-emitted
+			// "Failed to load resource: ... 400" carries no URL in its message,
+			// so without this a failure reports a status and nothing else —
+			// which is not enough to act on, and cost a full debugging session.
+			const detail = url ? `${text}  [${url}]` : text;
+			if (msg.type() === 'error') errors.push(detail);
+			if (msg.type() === 'warning') warnings.push(detail);
 		};
 		const onPageError = (err: Error): void => {
 			const text = err.stack ?? err.message;

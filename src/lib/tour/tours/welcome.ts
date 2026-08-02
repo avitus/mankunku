@@ -1,9 +1,16 @@
 import type { DriveStep } from 'driver.js';
+import { navTourElement } from '$lib/tour/nav-target';
 
 /**
  * First-run welcome tour — assumes the user is on the home page.
  * Covers the Side A / Side B split, the daily key concept, the books
  * (licks and tunes), and progress, then ends with a CTA to start practicing.
+ *
+ * Nav steps resolve through `navTourElement` rather than a raw
+ * `[data-tour="nav-*"]` selector: the layout renders that attribute in both
+ * the desktop bar and the mobile menu, and driver.js's `querySelector` would
+ * always take the desktop one — invisible below the `sm` breakpoint. See
+ * `nav-target.ts`.
  */
 export const welcomeTour: DriveStep[] = [
 	{
@@ -45,7 +52,7 @@ export const welcomeTour: DriveStep[] = [
 		}
 	},
 	{
-		element: '[data-tour="nav-licks"]',
+		element: navTourElement('licks'),
 		popover: {
 			title: 'Your Licks',
 			description:
@@ -55,7 +62,7 @@ export const welcomeTour: DriveStep[] = [
 		}
 	},
 	{
-		element: '[data-tour="nav-tunes"]',
+		element: navTourElement('tunes'),
 		popover: {
 			title: 'Your Tunes',
 			description:
@@ -65,7 +72,7 @@ export const welcomeTour: DriveStep[] = [
 		}
 	},
 	{
-		element: '[data-tour="nav-progress"]',
+		element: navTourElement('progress'),
 		popover: {
 			title: 'Progress',
 			description:
@@ -75,7 +82,7 @@ export const welcomeTour: DriveStep[] = [
 		}
 	},
 	{
-		element: '[data-tour="nav-ear-training"]',
+		element: navTourElement('ear-training'),
 		popover: {
 			title: "Let's go.",
 			description:
