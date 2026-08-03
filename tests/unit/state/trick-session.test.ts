@@ -130,6 +130,34 @@ describe('startTrickSession', () => {
 		expect(lickPractice.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
 	});
 
+	it('drills a quality-specific triad-pair family over its own vamp', () => {
+		// The altered pair belongs on a dominant chord; the C-rooted context
+		// mirrors the dominant vamp's chord + scale so the example, the
+		// conformance scale set, and the rhythm section all agree.
+		lickPractice.config.trickId = 'triad-pairs';
+		lickPractice.config.trickParameters = { pair: 'minor-b9' };
+		expect(startTrickSession()).toBe(true);
+
+		const item = lickPractice.plan[0];
+		expect(item.progressionType).toBe('dominant-vamp');
+		expect(item.trickContext).toMatchObject({
+			chordRoot: 'C',
+			chordQuality: '7',
+			scaleId: 'major.mixolydian',
+			key: 'C'
+		});
+		expect(item.phrase!.key).toBe('C');
+		expect(item.phrase!.harmony[0].chord.quality).toBe('7');
+
+		// The tonic melodic-minor family drills over the minor vamp.
+		resetSession();
+		lickPractice.config.trickId = 'triad-pairs';
+		lickPractice.config.trickParameters = { pair: 'aug-major' };
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.plan[0].progressionType).toBe('minor-vamp');
+		expect(lickPractice.plan[0].trickContext!.chordQuality).toBe('min7');
+	});
+
 	it('clamps a corrupt stored tempo — mirrors resolveLickTempo', () => {
 		// A bad cloud merge or hand-edited localStorage could leave an absurd
 		// tempo in the trick store; the session must start within clamp bounds.

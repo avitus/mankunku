@@ -12,8 +12,10 @@ import {
 	PROGRESSION_LICK_CATEGORIES,
 	PROGRESSION_TEMPLATES,
 	getActiveSubstitution,
+	getChordRootAtOffset,
 	getCompatibleLickCategories,
 	resolveLickAlignmentOffset,
+	resolveQualityRoleEntry,
 	resolveTransposeTarget
 } from '$lib/data/progressions';
 import { compareFractions, fractionToFloat } from '$lib/music/intervals';
@@ -243,8 +245,9 @@ export function suggestLicksForProgression(
 
 	// Synthetic trick suggestions: each selected variant whose device category
 	// this progression registers competes exactly like a lick of that category
-	// — same alignment offset, slot mapping, transposition target, and the
-	// same downstream eligibility filters, ranking, and dedupe below.
+	// — same slot mapping and the same downstream eligibility filters,
+	// ranking, and dedupe below. Variants that declare chord qualities are
+	// additionally gated and aligned per quality (see inside the loop).
 	if (deps.selectedTrickVariants && deps.selectedTrickVariants.size > 0) {
 		const trickProgress = deps.trickProgress ?? {};
 		for (const variantKey of deps.selectedTrickVariants) {
@@ -254,22 +257,43 @@ export function suggestLicksForProgression(
 			if (!trick) continue;
 			if (!compatibleCategories.includes(trick.category)) continue;
 
-			const templateAlignmentOffset = resolveLickAlignmentOffset(
-				type,
-				trick.category,
-				enableSubstitutions
-			);
+			// Quality-declaring devices (triad-pair families) align to a
+			// progression chord matching one of the variant's qualities — most
+			// characteristic first — and transpose to THAT chord's root, so an
+			// altered pair lands re-rooted on the V bar of a long ii-V-I while
+			// a diatonic pair takes the I. No matching full-bar chord ⇒ the
+			// variant does not belong on this progression at all. Devices
+			// without the hook keep the category-registration alignment and the
+			// local key (enclosures adapt to any quality via chord tones).
+			let templateAlignmentOffset: Fraction;
+			let targetKey: PitchClass;
+			const variantQualities = trick.compatibleQualitiesFor?.(variant.params);
+			if (variantQualities) {
+				const role = resolveQualityRoleEntry(type, variantQualities);
+				if (!role) continue;
+				templateAlignmentOffset = role.offset;
+				// Substitutions deliberately bypassed: the family already
+				// encodes its own color; a substitution shift would distort it.
+				targetKey =
+					getChordRootAtOffset(type, detected.localKey, role.offset) ?? detected.localKey;
+			} else {
+				templateAlignmentOffset = resolveLickAlignmentOffset(
+					type,
+					trick.category,
+					enableSubstitutions
+				);
+				// Trick categories are not chord-quality categories, so this
+				// resolves to the detection's local key.
+				targetKey = resolveTransposeTarget(
+					detected.localKey,
+					trick.category,
+					type,
+					templateAlignmentOffset,
+					enableSubstitutions
+				);
+			}
 			const slot = slotAtTemplateOffset(detected, templateAlignmentOffset);
 			const insertionOffset = slot ? slot.startOffset : detected.startOffset;
-			// Trick categories are not chord-quality categories, so this resolves
-			// to the detection's local key.
-			const targetKey = resolveTransposeTarget(
-				detected.localKey,
-				trick.category,
-				type,
-				templateAlignmentOffset,
-				enableSubstitutions
-			);
 
 			// Harmonic context: the template chord the trick aligns to (falling
 			// back to the template's first chord), rooted at the target key.

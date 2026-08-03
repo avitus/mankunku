@@ -18,6 +18,7 @@
 import type { TrickParameters, TrickPracticeProgress } from '$lib/types/tricks';
 import { trickVariantKey } from '$lib/types/tricks';
 import { loadTrickPracticeProgress } from '$lib/persistence/trick-practice-store';
+import { TRIAD_PAIR_FAMILIES } from './devices/triad-pairs';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -110,47 +111,23 @@ const e8 = defineVariant(
 
 // ── Triad-pairs ladder ───────────────────────────────────────────────
 
-const t1 = defineVariant(
-	'triad-pairs',
-	{ pair: '4+5', order: 'low-first', beatPlacement: 'downbeat' },
-	'Pair on 4 & 5'
-);
-const t2 = defineVariant(
-	'triad-pairs',
-	{ pair: '4+5', order: 'high-first', beatPlacement: 'downbeat' },
-	'Pair on 4 & 5, upper triad first',
-	[needs([t1])]
-);
-const t3 = defineVariant(
-	'triad-pairs',
-	{ pair: '1+2', order: 'low-first', beatPlacement: 'downbeat' },
-	'Pair on 1 & 2',
-	[needs([t1])]
-);
-const t4 = defineVariant(
-	'triad-pairs',
-	{ pair: '5+6', order: 'low-first', beatPlacement: 'downbeat' },
-	'Pair on 5 & 6',
-	[needs([t3])]
-);
-const t5 = defineVariant(
-	'triad-pairs',
-	{ pair: '4+5', order: 'low-first', beatPlacement: 'offbeat' },
-	'Pair on 4 & 5, off the beat',
-	[needs([t2])]
-);
-const t6 = defineVariant(
-	'triad-pairs',
-	{ pair: '1+2', order: 'high-first', beatPlacement: 'offbeat' },
-	'Pair on 1 & 2, upper first, off the beat',
-	[needs([t3, t5])]
-);
+// A strictly linear chain over the pedagogical stage order pinned in
+// TRIAD_PAIR_FAMILIES (diatonic pairs → altered pairs → whole-tone): stage
+// n+1 unlocks after 3 total passes of stage n. Built from the family array
+// so ladder keys/labels can never drift from the device's parameter values.
+const triadPairLadder: TrickVariantDefinition[] = [];
+for (const family of TRIAD_PAIR_FAMILIES) {
+	const prev = triadPairLadder.at(-1);
+	triadPairLadder.push(
+		defineVariant('triad-pairs', { pair: family.value }, family.label, prev ? [needs([prev])] : [])
+	);
+}
 
 // ── Mastery paths ────────────────────────────────────────────────────
 
 export const TRICK_MASTERY_PATHS: Record<string, TrickVariantDefinition[]> = {
 	'enclosures': [e1, e2, e3, e4, e5, e6, e7, e8],
-	'triad-pairs': [t1, t2, t3, t4, t5, t6]
+	'triad-pairs': triadPairLadder
 };
 
 const VARIANTS_BY_KEY = new Map<string, TrickVariantDefinition>();

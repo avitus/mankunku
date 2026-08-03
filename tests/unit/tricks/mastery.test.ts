@@ -42,7 +42,7 @@ const EMPTY_CTX: TrickUnlockContext = { progress: {} };
 const enclosures = getVariantsForTrick('enclosures');
 const triadPairs = getVariantsForTrick('triad-pairs');
 const [e1, e2, e3, e4, e5, e6, e7, e8] = enclosures;
-const [t1, t2, t3, t4, t5, t6] = triadPairs;
+const [t1, t2, t3, t4, t5, t6, t7, t8] = triadPairs;
 
 // Pinned parameter names/values, copied verbatim from the tricks contract.
 const ENCLOSURE_PARAM_VALUES: Record<string, string[]> = {
@@ -52,9 +52,16 @@ const ENCLOSURE_PARAM_VALUES: Record<string, string[]> = {
 	beatPlacement: ['downbeat', 'offbeat']
 };
 const TRIAD_PAIR_PARAM_VALUES: Record<string, string[]> = {
-	pair: ['1+2', '4+5', '5+6'],
-	order: ['low-first', 'high-first'],
-	beatPlacement: ['downbeat', 'offbeat']
+	pair: [
+		'major-whole',
+		'major-minor',
+		'minor-whole',
+		'major-tritone',
+		'minor-b9',
+		'major-sharp11',
+		'aug-major',
+		'aug-whole'
+	]
 };
 
 // ── Ladder shape ─────────────────────────────────────────────────────
@@ -63,7 +70,11 @@ describe('TRICK_MASTERY_PATHS', () => {
 	it('contains both ladders with the pinned lengths', () => {
 		expect(Object.keys(TRICK_MASTERY_PATHS).sort()).toEqual(['enclosures', 'triad-pairs']);
 		expect(enclosures).toHaveLength(8);
-		expect(triadPairs).toHaveLength(6);
+		expect(triadPairs).toHaveLength(8);
+	});
+
+	it('triad-pair stages follow the pinned pedagogical order', () => {
+		expect(triadPairs.map((v) => v.params.pair)).toEqual(TRIAD_PAIR_PARAM_VALUES.pair);
 	});
 
 	it('returns an empty ladder for unknown trick ids', () => {
@@ -194,12 +205,17 @@ describe('isVariantUnlocked', () => {
 		).toBe(true);
 	});
 
-	it('t6 requires BOTH t3 and t5 to have 3 passes', () => {
-		expect(isVariantUnlocked(t6.key, ctxWith({ [t3.key]: { C: 3 } }))).toBe(false);
-		expect(isVariantUnlocked(t6.key, ctxWith({ [t5.key]: { C: 3 } }))).toBe(false);
-		expect(
-			isVariantUnlocked(t6.key, ctxWith({ [t3.key]: { C: 3 }, [t5.key]: { F: 3 } }))
-		).toBe(true);
+	it('the triad-pair ladder is a strict linear chain of the 8 stages', () => {
+		expect(t1.prerequisites).toEqual([]);
+		for (let i = 1; i < triadPairs.length; i++) {
+			expect(triadPairs[i].prerequisites).toEqual([
+				{ variants: [triadPairs[i - 1].key], passes: 3 }
+			]);
+		}
+		// Crossing 3 total passes on stage n unlocks stage n+1 and nothing later.
+		expect(isVariantUnlocked(t5.key, ctxWith({ [t4.key]: { C: 2 } }))).toBe(false);
+		expect(isVariantUnlocked(t5.key, ctxWith({ [t4.key]: { C: 2, G: 1 } }))).toBe(true);
+		expect(isVariantUnlocked(t6.key, ctxWith({ [t4.key]: { C: 3 } }))).toBe(false);
 	});
 });
 
@@ -220,7 +236,7 @@ describe('getUnlockedVariants', () => {
 describe('getNextLockedVariants', () => {
 	it('returns exactly the frontier for empty progress', () => {
 		expect(getNextLockedVariants('enclosures', EMPTY_CTX)).toEqual([e2]);
-		expect(getNextLockedVariants('triad-pairs', EMPTY_CTX)).toEqual([t2, t3]);
+		expect(getNextLockedVariants('triad-pairs', EMPTY_CTX)).toEqual([t2]);
 	});
 
 	it('shifts to e3 once e1 is mastered', () => {
@@ -257,22 +273,24 @@ describe('getNextLockedVariants', () => {
 		expect(getUnlockedVariants('enclosures', allEarned)).toEqual(enclosures);
 	});
 
-	it('walks the triad-pair frontier: t4/t5 after t3+t2, then t6', () => {
-		const midway = ctxWith({ [t1.key]: { C: 3 }, [t2.key]: { C: 3 }, [t3.key]: { C: 3 } });
-		// t2, t3, t4, t5 unlocked; t6 needs passes on t3 (has them) AND t5 (none).
-		expect(getNextLockedVariants('triad-pairs', midway)).toEqual([t6]);
-
+	it('walks the linear triad-pair frontier one stage at a time', () => {
 		const partial = ctxWith({ [t1.key]: { C: 3 } });
-		// t2, t3 unlocked; t4 (← t3) and t5 (← t2) are the frontier.
-		expect(getNextLockedVariants('triad-pairs', partial)).toEqual([t4, t5]);
+		// t2 unlocked but pass-less → t3 is the sole frontier entry.
+		expect(getNextLockedVariants('triad-pairs', partial)).toEqual([t3]);
+
+		const midway = ctxWith({ [t1.key]: { C: 3 }, [t2.key]: { C: 3 }, [t3.key]: { C: 3 } });
+		// t4 unlocked, pass-less → frontier is t5; t6-t8 have locked prereqs.
+		expect(getNextLockedVariants('triad-pairs', midway)).toEqual([t5]);
+		expect(getUnlockedVariants('triad-pairs', midway)).toEqual([t1, t2, t3, t4]);
 	});
 
 	// Sanity for the destructured ladder positions used throughout this file.
 	it('ladder destructuring matches the pinned ordering', () => {
-		expect([e4, e7, t4].every(Boolean)).toBe(true);
+		expect([e4, e7, t4, t7].every(Boolean)).toBe(true);
 		expect(e5.params.noteCount).toBe('3');
 		expect(e6.params.shape).toBe('double-chromatic');
 		expect(e8.params.targetTone).toBe('seventh');
-		expect(t5.params.beatPlacement).toBe('offbeat');
+		expect(t5.params.pair).toBe('minor-b9');
+		expect(t8.params.pair).toBe('aug-whole');
 	});
 });

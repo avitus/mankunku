@@ -390,11 +390,16 @@ export interface CompatibleLickCategory {
  * exactly like the chord-quality entries and mirror their offsets. They sit
  * at the END of each list on purpose: `categorySpecificity` ranks by
  * position, so tricks rank after a progression's native lick categories.
+ * For devices that declare per-variant chord qualities (triad-pair
+ * families), the entry is the gate ("tricks allowed here") and the ranking
+ * position; the actual alignment bar comes from `resolveQualityRoleEntry`,
+ * so e.g. an altered pair lands on the V bar of a long ii-V-I, not the I.
  */
 export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, CompatibleLickCategory[]> = {
 	'minor-vamp': [
 		{ category: 'minor-chord', offset: [0, 1] },
-		{ category: 'enclosures',  offset: [0, 1] }
+		{ category: 'enclosures',  offset: [0, 1] },
+		{ category: 'triad-pairs', offset: [0, 1] }
 	],
 	'major-vamp': [
 		{ category: 'major-chord', offset: [0, 1] },
@@ -417,7 +422,8 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 		{ category: 'ii-V-I-minor',       offset: [0, 1] },
 		{ category: 'short-ii-V-I-minor', offset: [0, 1] },
 		{ category: 'minor-chord',        offset: [1, 1] }, // I (min7) on bar 1
-		{ category: 'enclosures',         offset: [1, 1] }
+		{ category: 'enclosures',         offset: [1, 1] },
+		{ category: 'triad-pairs',        offset: [1, 1] }
 	],
 	'ii-V-I-major-long': [
 		{ category: 'ii-V-I-major',      offset: [0, 1] },
@@ -434,7 +440,8 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 		{ category: 'diminished-chord',  offset: [0, 1] }, // ii = min7b5 (half-dim)
 		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7alt
 		{ category: 'minor-chord',       offset: [2, 1] }, // I = min7 starts bar 2
-		{ category: 'enclosures',        offset: [2, 1] }  // the I bar, like minor-chord
+		{ category: 'enclosures',        offset: [2, 1] }, // the I bar, like minor-chord
+		{ category: 'triad-pairs',       offset: [2, 1] }
 	],
 	turnaround: [
 		{ category: 'ii-V-I-major',   offset: [0, 1] },
@@ -475,6 +482,33 @@ export function getCompatibleLickCategories(
 	progressionType: ChordProgressionType
 ): PhraseCategory[] {
 	return PROGRESSION_LICK_CATEGORIES[progressionType]?.map(e => e.category) ?? [];
+}
+
+/**
+ * Find the chord-role entry a quality-specific device should align to:
+ * qualities are tried in the caller's order (most characteristic first), and
+ * for each the progression's chord-quality entries are scanned for a chord
+ * of that quality that spans at least one whole note from its entry offset —
+ * a device cell fills a full 4/4 bar, so half-bar chords (e.g. the VI7 of a
+ * iii-VI-ii-V-I) never qualify. Returns null when nothing fits: the device
+ * variant simply does not belong on this progression.
+ */
+export function resolveQualityRoleEntry(
+	progressionType: ChordProgressionType,
+	qualities: readonly ChordQuality[]
+): CompatibleLickCategory | null {
+	const entries = PROGRESSION_LICK_CATEGORIES[progressionType] ?? [];
+	const template = PROGRESSION_TEMPLATES[progressionType];
+	for (const quality of qualities) {
+		for (const entry of entries) {
+			if (!isChordQualityCategory(entry.category)) continue;
+			const seg = template.harmony.find(s => fractionsEqual(s.startOffset, entry.offset));
+			if (!seg || seg.chord.quality !== quality) continue;
+			if (seg.duration[0] < seg.duration[1]) continue; // shorter than a whole note
+			return entry;
+		}
+	}
+	return null;
 }
 
 /**

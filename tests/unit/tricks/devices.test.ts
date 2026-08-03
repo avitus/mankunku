@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { DetectedNote } from '$lib/types/audio';
-import type { TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
+import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
 import { fractionToFloat } from '$lib/music/intervals';
 import { buildEnclosureSlots, enclosuresTrick } from '$lib/tricks/devices/enclosures';
-import { buildTriadPairSlots, triadPairsTrick } from '$lib/tricks/devices/triad-pairs';
+import { buildTriadPairSlots, getTriadPairFamily, triadPairsTrick } from '$lib/tricks/devices/triad-pairs';
 import { getTrickById, TRICKS } from '$lib/tricks';
 
 const baseContext: TrickContext = {
@@ -28,15 +28,33 @@ const ENCLOSURE_LADDER: [string, TrickParameters][] = [
 	['e8', { noteCount: '3', shape: 'double-chromatic', targetTone: 'seventh', beatPlacement: 'offbeat' }]
 ];
 
-/** Pinned mastery-ladder combos (contract t1-t6). */
+/** Pinned mastery-ladder combos (contract t1-t8, the pair-family stages). */
 const TRIAD_LADDER: [string, TrickParameters][] = [
-	['t1', { pair: '4+5', order: 'low-first', beatPlacement: 'downbeat' }],
-	['t2', { pair: '4+5', order: 'high-first', beatPlacement: 'downbeat' }],
-	['t3', { pair: '1+2', order: 'low-first', beatPlacement: 'downbeat' }],
-	['t4', { pair: '5+6', order: 'low-first', beatPlacement: 'downbeat' }],
-	['t5', { pair: '4+5', order: 'low-first', beatPlacement: 'offbeat' }],
-	['t6', { pair: '1+2', order: 'high-first', beatPlacement: 'offbeat' }]
+	['t1', { pair: 'major-whole' }],
+	['t2', { pair: 'major-minor' }],
+	['t3', { pair: 'minor-whole' }],
+	['t4', { pair: 'major-tritone' }],
+	['t5', { pair: 'minor-b9' }],
+	['t6', { pair: 'major-sharp11' }],
+	['t7', { pair: 'aug-major' }],
+	['t8', { pair: 'aug-whole' }]
 ];
+
+/**
+ * Pinned triad pcs per family over a C root (triad a = lower-rooted, led
+ * with; pcs in chord order root/third/fifth). Musical content of the table:
+ * C·D, C·Dm, Dm·Em, C·G♭, D♭m·E♭m, G♭·A♭, E♭+·F, C+·D+.
+ */
+const EXPECTED_TRIADS: Record<string, { a: number[]; b: number[] }> = {
+	'major-whole': { a: [0, 4, 7], b: [2, 6, 9] },
+	'major-minor': { a: [0, 4, 7], b: [2, 5, 9] },
+	'minor-whole': { a: [2, 5, 9], b: [4, 7, 11] },
+	'major-tritone': { a: [0, 4, 7], b: [6, 10, 1] },
+	'minor-b9': { a: [1, 4, 8], b: [3, 6, 10] },
+	'major-sharp11': { a: [6, 10, 1], b: [8, 0, 3] },
+	'aug-major': { a: [3, 7, 11], b: [5, 9, 0] },
+	'aug-whole': { a: [0, 4, 8], b: [2, 6, 10] }
+};
 
 /** Extra enclosure combos exercising shape↔noteCount coercion. */
 const ENCLOSURE_COERCION: [string, TrickParameters][] = [
@@ -50,15 +68,6 @@ const ALL_ENCLOSURE_COMBOS = [...ENCLOSURE_LADDER, ...ENCLOSURE_COERCION];
 
 /** Chord-tone pc for maj7 at C per targetTone. */
 const TARGET_PC: Record<string, number> = { root: 0, third: 4, fifth: 7, seventh: 11 };
-
-/** C major scale pcs. */
-const C_MAJOR = [0, 2, 4, 5, 7, 9, 11];
-
-/** Diatonic triad pcs on a 1-based degree of C major (alternate steps). */
-function cMajorTriad(degree: number): number[] {
-	const i = degree - 1;
-	return [C_MAJOR[i % 7], C_MAJOR[(i + 2) % 7], C_MAJOR[(i + 4) % 7]];
-}
 
 function makeDetected(midi: number, onsetTime: number): DetectedNote {
 	return { midi, cents: 0, onsetTime, duration: 0.3, clarity: 0.9 };
@@ -163,15 +172,12 @@ describe('buildTriadPairSlots', () => {
 		assertValidSlots(buildTriadPairSlots(params, baseContext));
 	});
 
-	it.each(TRIAD_LADDER)('%s alternates triads per order with pcs from the pair', (_name, params) => {
+	it.each(TRIAD_LADDER)('%s alternates the family triads, leading with the lower', (_name, params) => {
 		const slots = buildTriadPairSlots(params, baseContext);
 		expect(slots).toHaveLength(8);
 
-		const [lowDeg, highDeg] = params.pair.split('+').map(Number);
-		const low = cMajorTriad(lowDeg);
-		const high = cMajorTriad(highDeg);
-		const [triadA, triadB] = params.order === 'low-first' ? [low, high] : [high, low];
-		const union = new Set([...low, ...high]);
+		const { a: triadA, b: triadB } = EXPECTED_TRIADS[params.pair];
+		const union = new Set([...triadA, ...triadB]);
 
 		expect(slots.map((s) => s.role)).toEqual([
 			'triad-a', 'triad-a', 'triad-a',
@@ -192,23 +198,67 @@ describe('buildTriadPairSlots', () => {
 		}
 	});
 
-	it('offbeat shifts the cell an eighth later', () => {
-		const down = buildTriadPairSlots(TRIAD_LADDER[0][1], baseContext);
-		const off = buildTriadPairSlots(TRIAD_LADDER[4][1], baseContext);
-		expect(fractionToFloat(down[0].offset)).toBeCloseTo(0, 9);
-		expect(fractionToFloat(off[0].offset)).toBeCloseTo(1 / 8, 9);
-		off.forEach((slot, i) => {
-			expect(fractionToFloat(slot.offset)).toBeCloseTo(fractionToFloat(down[i].offset) + 1 / 8, 9);
-		});
+	it.each(TRIAD_LADDER)('%s: the two triads are disjoint pc sets', (_name, params) => {
+		const { a, b } = EXPECTED_TRIADS[params.pair];
+		expect(a.filter((pc) => b.includes(pc))).toEqual([]);
+	});
+
+	it('the cell sits on the straight eighth grid from the downbeat', () => {
+		for (const [, params] of TRIAD_LADDER) {
+			const slots = buildTriadPairSlots(params, baseContext);
+			slots.forEach((slot, i) => {
+				expect(fractionToFloat(slot.offset)).toBeCloseTo(i / 8, 9);
+			});
+		}
+	});
+});
+
+describe('triad-pair family applicability', () => {
+	it('pins per-family chord qualities, most characteristic first', () => {
+		const q = (value: string) => getTriadPairFamily(value)!.qualities;
+		expect(q('major-whole')).toEqual(['maj7', 'maj6', '7']); // the broad family
+		expect(q('major-minor')).toEqual(['maj7', 'maj6']);
+		expect(q('minor-whole')).toEqual(['maj7', 'maj6']);
+		expect(q('major-tritone')).toEqual(['7', '7b9', '7#9', '7#11']);
+		expect(q('minor-b9')).toEqual(['7alt', '7', '7b9', '7#9', '7#11', '7b13']);
+		expect(q('major-sharp11')).toEqual(['7alt', '7', '7b9', '7#9', '7#11', '7b13']);
+		expect(q('aug-major')).toEqual(['minMaj7', 'min6', 'min7']);
+		expect(q('aug-whole')).toEqual(['7', 'aug7', '7#11', '7b13']);
+	});
+
+	it('pins per-family practice beds', () => {
+		const bed = (value: string) => triadPairsTrick.practiceBed!({ pair: value });
+		expect(bed('major-whole')).toBe('major-vamp');
+		expect(bed('major-minor')).toBe('major-vamp');
+		expect(bed('minor-whole')).toBe('major-vamp');
+		expect(bed('major-tritone')).toBe('dominant-vamp');
+		expect(bed('minor-b9')).toBe('dominant-vamp');
+		expect(bed('major-sharp11')).toBe('dominant-vamp');
+		expect(bed('aug-major')).toBe('minor-vamp');
+		expect(bed('aug-whole')).toBe('dominant-vamp');
+	});
+
+	it('compatibleQualitiesFor mirrors the family and falls back to stage 1', () => {
+		expect(triadPairsTrick.compatibleQualitiesFor!({ pair: 'minor-b9' })).toEqual(
+			getTriadPairFamily('minor-b9')!.qualities
+		);
+		expect(triadPairsTrick.compatibleQualitiesFor!({})).toEqual(
+			getTriadPairFamily('major-whole')!.qualities
+		);
 	});
 });
 
 describe('generateExample (every pinned ladder combo)', () => {
-	const cases: [string, TrickParameters, typeof enclosuresTrick, (p: TrickParameters, c: TrickContext) => TrickSlotSpec[]][] = [
-		...ENCLOSURE_LADDER.map(([name, params]): [string, TrickParameters, typeof enclosuresTrick, (p: TrickParameters, c: TrickContext) => TrickSlotSpec[]] =>
-			[name, params, enclosuresTrick, buildEnclosureSlots]),
-		...TRIAD_LADDER.map(([name, params]): [string, TrickParameters, typeof triadPairsTrick, (p: TrickParameters, c: TrickContext) => TrickSlotSpec[]] =>
-			[name, params, triadPairsTrick, buildTriadPairSlots])
+	type Builder = (p: TrickParameters, c: TrickContext) => TrickSlotSpec[];
+	// Scramble shift per device: +6 breaks every enclosure, but the tritone
+	// and whole-tone pair families are symmetric under +6 (each triad lands
+	// on its partner ⇒ everything scores in-pattern), so triad pairs scramble
+	// by +1 — no family maps into itself or its partner a semitone up.
+	const cases: [string, TrickParameters, Trick, Builder, number][] = [
+		...ENCLOSURE_LADDER.map(([name, params]): [string, TrickParameters, Trick, Builder, number] =>
+			[name, params, enclosuresTrick, buildEnclosureSlots, 6]),
+		...TRIAD_LADDER.map(([name, params]): [string, TrickParameters, Trick, Builder, number] =>
+			[name, params, triadPairsTrick, buildTriadPairSlots, 1])
 	];
 
 	it.each(cases)('%s realizes a non-null phrase matching slot pcs', (_name, params, trick, build) => {
@@ -224,7 +274,7 @@ describe('generateExample (every pinned ladder combo)', () => {
 		});
 	});
 
-	it.each(cases)('%s: a perfect performance scores ≥ 0.99, scrambled < 0.6', (_name, params, trick, build) => {
+	it.each(cases)('%s: a perfect performance scores ≥ 0.99, scrambled < 0.6', (_name, params, trick, build, scramble) => {
 		const phrase = trick.generateExample(params, baseContext);
 		expect(phrase).not.toBeNull();
 
@@ -235,7 +285,7 @@ describe('generateExample (every pinned ladder combo)', () => {
 		const perfect = trick.scoreConformance(played, params, baseContext);
 		expect(perfect.patternScore).toBeGreaterThanOrEqual(0.99);
 
-		const scrambled = played.map((note) => ({ ...note, midi: note.midi + 6 }));
+		const scrambled = played.map((note) => ({ ...note, midi: note.midi + scramble }));
 		const bad = trick.scoreConformance(scrambled, params, baseContext);
 		expect(bad.patternScore).toBeLessThan(0.6);
 	});
