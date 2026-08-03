@@ -13,6 +13,7 @@
  */
 
 import { createBrowserClient } from '@supabase/ssr';
+import { nodeRealtimeFallback } from './node-websocket-fallback';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import type { Database } from './types';
 
@@ -40,5 +41,9 @@ import type { Database } from './types';
  * ```
  */
 export function createClient() {
-	return createBrowserClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
+	return createBrowserClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+		// Inert in browsers (native WebSocket exists); guards any SSR execution
+		// path on a Node < 22 host — see node-websocket-fallback.ts (MANKUNKU-1E).
+		...nodeRealtimeFallback()
+	});
 }
