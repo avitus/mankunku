@@ -36,18 +36,15 @@ import { gcd } from '$lib/music/intervals';
 import { scoreConformanceAgainstSpec } from '../conformance';
 import { realizeTrickExample } from '../example-generator';
 
-const PAIRS = [
-	'major-whole',
-	'major-minor',
-	'minor-whole',
-	'major-tritone',
-	'minor-b9',
-	'major-sharp11',
-	'aug-major',
-	'aug-whole'
-] as const;
-
-export type TriadPairValue = (typeof PAIRS)[number];
+export type TriadPairValue =
+	| 'major-whole'
+	| 'major-minor'
+	| 'minor-whole'
+	| 'major-tritone'
+	| 'minor-b9'
+	| 'major-sharp11'
+	| 'aug-major'
+	| 'aug-whole';
 
 type TriadQuality = 'major' | 'minor' | 'augmented';
 
@@ -180,6 +177,9 @@ export const TRIAD_PAIR_FAMILIES: readonly TriadPairFamily[] = [
 	}
 ];
 
+/** The `pair` parameter's allowed values, derived so the lists can't drift. */
+const PAIRS: readonly TriadPairValue[] = TRIAD_PAIR_FAMILIES.map((family) => family.value);
+
 const FAMILY_BY_VALUE = new Map<string, TriadPairFamily>(
 	TRIAD_PAIR_FAMILIES.map((family) => [family.value, family])
 );
@@ -199,6 +199,11 @@ function pick<T extends string>(
 	return (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
+/** Family for a parameter selection (invalid or missing `pair` → stage 1). */
+function familyFor(params: TrickParameters): TriadPairFamily {
+	return FAMILY_BY_VALUE.get(pick(params, 'pair', PAIRS, 'major-whole'))!;
+}
+
 function reduceFraction(num: number, den: number): Fraction {
 	if (num === 0) return [0, 1];
 	const g = gcd(num, den);
@@ -211,7 +216,7 @@ function triadPcs(rootPc: number, spec: TriadSpec): number[] {
 }
 
 export function buildTriadPairSlots(parameters: TrickParameters, context: TrickContext): TrickSlotSpec[] {
-	const family = FAMILY_BY_VALUE.get(pick(parameters, 'pair', PAIRS, 'major-whole'))!;
+	const family = familyFor(parameters);
 	const rootPc = PITCH_CLASSES.indexOf(context.chordRoot);
 	const triadA = triadPcs(rootPc, family.low);
 	const triadB = triadPcs(rootPc, family.high);
@@ -260,16 +265,16 @@ export const triadPairsTrick: Trick = {
 		}
 	],
 	practiceBed(parameters) {
-		return FAMILY_BY_VALUE.get(pick(parameters, 'pair', PAIRS, 'major-whole'))!.bed;
+		return familyFor(parameters).bed;
 	},
 	compatibleQualitiesFor(parameters) {
-		return [...FAMILY_BY_VALUE.get(pick(parameters, 'pair', PAIRS, 'major-whole'))!.qualities];
+		return [...familyFor(parameters).qualities];
 	},
 	scoreConformance(played, parameters, context) {
 		return scoreConformanceAgainstSpec(played, buildTriadPairSlots(parameters, context), context);
 	},
 	generateExample(parameters, context) {
-		const family = FAMILY_BY_VALUE.get(pick(parameters, 'pair', PAIRS, 'major-whole'))!;
+		const family = familyFor(parameters);
 		return realizeTrickExample({
 			trickId: 'triad-pairs',
 			name: `Triad pair ${family.label} over ${context.chordRoot}${context.chordQuality}`,
