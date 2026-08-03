@@ -116,6 +116,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			await import('$lib/persistence/sync');
 		const { initLickMetadataFromCloud } =
 			await import('$lib/persistence/lick-practice-store');
+		const { hydrateTrickStateFromCloud } = await import('$lib/state/tricks.svelte');
 		const { initUserLicksFromCloud } = await import('$lib/persistence/user-licks');
 		const { initTunesFromCloud } = await import('$lib/persistence/user-tunes');
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');
@@ -136,6 +137,9 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 			initFromCloud(supabase),
 			loadSettingsFromCloud(supabase),
 			initLickMetadataFromCloud(supabase),
+			// The state-module wrapper (not initTrickStateFromCloud directly): it
+			// re-seeds the reactive selection set from the merged local store.
+			hydrateTrickStateFromCloud(supabase),
 			initUserLicksFromCloud(supabase),
 			initTunesFromCloud(supabase),
 			initCommunityFromCloud(supabase),

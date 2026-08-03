@@ -1,5 +1,6 @@
 import type { PitchClass, PhraseCategory, ChordQuality, Phrase } from './music';
 import type { Score } from './scoring';
+import type { TrickContext, TrickParameters } from './tricks';
 
 export type ChordProgressionType =
 	| 'minor-vamp'
@@ -35,8 +36,10 @@ export type LickPracticeMode = 'continuous' | 'call-response';
  *   Calls `startSession`.
  * - 'deep': drill one lick endlessly through the circle of 4ths with
  *   tempo ramp. Calls `startSingleLickSession`.
+ * - 'trick': drill one melodic-device variant (trickId + trickParameters)
+ *   through its unlocked keys, scored for fluency. Calls `startTrickSession`.
  */
-export type LickPracticeSessionType = 'daily' | 'focused' | 'deep';
+export type LickPracticeSessionType = 'daily' | 'focused' | 'deep' | 'trick';
 
 export interface LickPracticeConfig {
 	/** Setup-page picker — see LickPracticeSessionType. */
@@ -62,6 +65,15 @@ export interface LickPracticeConfig {
 	singleLickId?: string;
 	/** BPM added to currentTempo each time all 12 keys are mastered. Default 5. */
 	tempoBumpBpm?: number;
+	/**
+	 * Trick (melodic device) to drill. Only meaningful when
+	 * `sessionType === 'trick'`. `trickId` selects the device from the TRICKS
+	 * catalog; together with `trickParameters` it forms the composite variant
+	 * key (`trickVariantKey`) that all trick progress is stored under.
+	 */
+	trickId?: string;
+	/** Parameter variant of the selected trick — see `trickId`. */
+	trickParameters?: TrickParameters;
 }
 
 /**
@@ -128,6 +140,24 @@ export interface LickPracticePlanItem {
 	 * point passed in a Phrase that's not yet in `getAllLicks()`).
 	 */
 	phrase?: Phrase;
+	/**
+	 * Item kind. Absent = 'lick' (every pre-tricks plan builder). For a
+	 * 'trick' item, `phraseId` IS the composite variant key
+	 * (`trickVariantKey(trickId, trickParameters)`) — `getLickById` simply
+	 * misses on it and every helper falls back to `phrase`, the generated
+	 * example realization.
+	 */
+	kind?: 'lick' | 'trick';
+	/** Trick id from the TRICKS catalog (trick items only). */
+	trickId?: string;
+	/** Parameter variant being drilled (trick items only). */
+	trickParameters?: TrickParameters;
+	/**
+	 * The C-rooted context `phrase` was generated in (trick items only).
+	 * Scoring re-roots it per practiced key: chordRoot/key ← the current key,
+	 * tempo/swing ← the live session values.
+	 */
+	trickContext?: TrickContext;
 }
 
 /**

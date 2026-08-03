@@ -141,6 +141,8 @@ export type Database = {
           backing_style: string | null
           /** A/B toggle: use bleed-filtered notes as primary score. NULL = false. */
           bleed_filter_enabled: boolean | null
+          /** Trick practice state: { selectedVariants, migrations, progress, unlockCounts, history } */
+          trick_state: Json
           /** Timestamp of last settings update (ISO 8601) */
           updated_at: string
         }
@@ -178,6 +180,8 @@ export type Database = {
           backing_style?: string | null
           /** NULL = false */
           bleed_filter_enabled?: boolean | null
+          /** Defaults to {} in database */
+          trick_state?: Json
           updated_at?: string
         }
         Update: {
@@ -198,6 +202,7 @@ export type Database = {
           tour_state?: Json
           backing_style?: string | null
           bleed_filter_enabled?: boolean | null
+          trick_state?: Json
           updated_at?: string
         }
         Relationships: [

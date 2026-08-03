@@ -1,5 +1,6 @@
-import type { Phrase, PitchClass } from '$lib/types/music';
+import type { Fraction, Phrase, PitchClass } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
+import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
 import type { Tune } from '$lib/types/tune';
 import type { BackingStyle } from '$lib/types/instruments';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
@@ -9,6 +10,7 @@ import { detectProgressions, selectNonOverlapping } from '$lib/tunes/progression
 import { buildLickMatcherDeps, suggestLicksForProgression } from '$lib/tunes/lick-matcher';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { getAllLicks, getBaseLickFromId, isCuratedLickId, transposeLick } from '$lib/phrases/library-loader';
+import { getTrickById } from '$lib/tricks';
 import {
 	getEffectivePracticeLickIds,
 	hasLickProgress,
@@ -316,9 +318,16 @@ export function expectedForWindow(
 ): { phrase: Phrase; lickName: string } | null {
 	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
 	if (!suggestion) return null;
-	const lick = getBaseLickFromId(suggestion.lickId);
-	if (!lick) return null;
-	const transposed = transposeLick(lick, suggestion.targetKey);
+	let transposed: Phrase;
+	if (suggestion.trick && suggestion.phrase) {
+		// Synthetic trick suggestion: the generated example is ALREADY in the
+		// target key — no transposeLick — but it shifts like any lick.
+		transposed = suggestion.phrase;
+	} else {
+		const lick = getBaseLickFromId(suggestion.lickId);
+		if (!lick) return null;
+		transposed = transposeLick(lick, suggestion.targetKey);
+	}
 	const shift = subtractFractions(suggestion.insertionOffset, ip.startOffset);
 	if (compareFractions(shift, [0, 1]) === 0) {
 		return { phrase: transposed, lickName: suggestion.lickName };
@@ -333,6 +342,30 @@ export function expectedForWindow(
 			}))
 		},
 		lickName: suggestion.lickName
+	};
+}
+
+/**
+ * Resolve the picked suggestion's trick parts for an insertion window, or
+ * null when the pick is not a trick (or its trick id is unknown). Windows
+ * with a non-null result score via Fluency instead of the exact-phrase
+ * pipeline. `shift` is the suggestion's alignment inside the window (the
+ * same math `expectedForWindow` applies to note offsets): the window opens
+ * at the progression start but the trick is aligned to a later bar, so the
+ * scorer's played onsets must be rebased by it.
+ */
+export function trickForWindow(
+	ip: InsertionPoint
+): { trick: Trick; parameters: TrickParameters; context: TrickContext; shift: Fraction } | null {
+	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
+	if (!suggestion?.trick) return null;
+	const trick = getTrickById(suggestion.trick.trickId);
+	if (!trick) return null;
+	return {
+		trick,
+		parameters: suggestion.trick.parameters,
+		context: suggestion.trick.context,
+		shift: subtractFractions(suggestion.insertionOffset, ip.startOffset)
 	};
 }
 

@@ -30,7 +30,8 @@ export type OutboxKind =
 	| 'settings'
 	| 'dailySummaries'
 	| 'userLicks'
-	| 'tunes';
+	| 'tunes'
+	| 'trickState';
 
 interface OutboxEntry {
 	kind: OutboxKind;
@@ -131,6 +132,11 @@ async function runKind(kind: OutboxKind, supabase: SupabaseClient<Database>): Pr
 		case 'tunes': {
 			const m = await import('./user-tunes');
 			await m.flushTunesToCloud(supabase);
+			return;
+		}
+		case 'trickState': {
+			const m = await import('./trick-practice-store');
+			await m.flushTrickStateToCloud(supabase);
 			return;
 		}
 		case 'dailySummaries': {

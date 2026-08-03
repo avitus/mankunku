@@ -13,6 +13,15 @@
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { getPracticeTaggedIds, getUnlockedKeyCount } from '$lib/persistence/lick-practice-store';
+	import { TRICKS, getTrickById } from '$lib/tricks';
+	import {
+		getUnlockedVariants,
+		getNextLockedVariants,
+		getVariantByKey,
+		loadTrickUnlockContext,
+		type TrickVariantDefinition
+	} from '$lib/tricks/mastery';
+	import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
 	import { lickPractice } from '$lib/state/lick-practice.svelte';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { circleOfFourthsFrom, planUnlockedKeys } from '$lib/music/key-ordering';
@@ -39,7 +48,8 @@
 	const sessionTypeOptions: { value: LickPracticeSessionType; label: string; sublabel: string }[] = [
 		{ value: 'daily', label: 'Daily Practice', sublabel: 'rotate all progressions' },
 		{ value: 'focused', label: 'Focused Session', sublabel: 'one progression at a time' },
-		{ value: 'deep', label: 'Deep Practice', sublabel: 'master one lick' }
+		{ value: 'deep', label: 'Deep Practice', sublabel: 'master one lick' },
+		{ value: 'trick', label: 'Tricks', sublabel: 'drill a melodic device' }
 	];
 
 	const practiceModeOptions: { value: LickPracticeMode; label: string }[] = [
@@ -94,21 +104,108 @@
 
 	const showSubstitutions = $derived(progressionHasSubstitutionTargets(config.progressionType));
 
+	// ── Trick drill setup (sessionType === 'trick') ──────────────────
+	// Variant unlock state lives in non-reactive storage; bump this counter
+	// on session-type changes (mirrors how the licks page uses
+	// practiceVersion) so returning to the Tricks branch re-reads any
+	// progress earned in the meantime.
+	let trickUnlockVersion = $state(0);
+
+	const trickUnlockCtx = $derived.by(() => {
+		void trickUnlockVersion;
+		return loadTrickUnlockContext();
+	});
+
+	const selectedTrick = $derived(config.trickId ? (getTrickById(config.trickId) ?? null) : null);
+
+	const unlockedVariants = $derived.by<TrickVariantDefinition[]>(() =>
+		selectedTrick ? getUnlockedVariants(selectedTrick.id, trickUnlockCtx) : []
+	);
+
+	const lockedFrontier = $derived.by<TrickVariantDefinition[]>(() =>
+		selectedTrick ? getNextLockedVariants(selectedTrick.id, trickUnlockCtx) : []
+	);
+
+	const selectedVariantKey = $derived(
+		config.trickId && config.trickParameters
+			? trickVariantKey(config.trickId, config.trickParameters)
+			: null
+	);
+
+	const selectedVariantUnlocked = $derived(
+		selectedVariantKey !== null && unlockedVariants.some((v) => v.key === selectedVariantKey)
+	);
+
+	// One-line hint for the unlock frontier, e.g.
+	// "Double chromatic → 7th, off the beat (needs 3 passes of ...)".
+	const frontierHint = $derived.by<string | null>(() => {
+		const next = lockedFrontier[0];
+		if (!next) return null;
+		const clause = next.prerequisites[0];
+		if (!clause) return next.label;
+		const prereqLabels = clause.variants
+			.map((k) => getVariantByKey(k)?.label ?? k)
+			.join(' + ');
+		return `${next.label} (needs ${clause.passes} passes of ${prereqLabels})`;
+	});
+
+	function handleTrickSelect(trickId: string): void {
+		// Seed the parameters from the trick's first unlocked variant so the
+		// selection always starts on a startable combination.
+		const first = getUnlockedVariants(trickId, loadTrickUnlockContext())[0];
+		onupdate({ trickId, trickParameters: first ? { ...first.params } : undefined });
+	}
+
+	/** Parameter values reachable through at least one unlocked variant. */
+	function allowedTrickValues(name: string): Set<string> {
+		const allowed = new Set<string>();
+		for (const v of unlockedVariants) {
+			const value = v.params[name];
+			if (value !== undefined) allowed.add(value);
+		}
+		return allowed;
+	}
+
+	function handleTrickParamChange(name: string, value: string): void {
+		if (!selectedTrick || !config.trickParameters) return;
+		const candidate: TrickParameters = { ...config.trickParameters, [name]: value };
+		const candidateKey = trickVariantKey(selectedTrick.id, candidate);
+		if (unlockedVariants.some((v) => v.key === candidateKey)) {
+			onupdate({ trickParameters: candidate });
+			return;
+		}
+		// The combination isn't an unlocked variant — snap to the first
+		// unlocked variant that carries the newly chosen value.
+		const snap = unlockedVariants.find((v) => v.params[name] === value);
+		if (snap) onupdate({ trickParameters: { ...snap.params } });
+	}
+
 	const canStart = $derived.by(() => {
+		if (config.sessionType === 'trick') return selectedVariantUnlocked;
 		if (config.sessionType === 'deep') return selectedLick !== null;
 		if (config.sessionType === 'daily') return dailyLickCount > 0;
 		return availableLickCount > 0;
 	});
 
 	const startLabel = $derived(
-		config.sessionType === 'deep'
-			? 'Start Drill'
-			: config.sessionType === 'daily'
-				? 'Start Daily Practice'
-				: 'Start Session'
+		config.sessionType === 'trick'
+			? 'Start Trick Drill'
+			: config.sessionType === 'deep'
+				? 'Start Drill'
+				: config.sessionType === 'daily'
+					? 'Start Daily Practice'
+					: 'Start Session'
 	);
 
 	const startCaption = $derived.by(() => {
+		if (config.sessionType === 'trick') {
+			if (!selectedTrick) return 'Pick a trick to drill.';
+			if (!selectedVariantUnlocked) return 'That variant is still locked — clear its prerequisites first.';
+			const variantLabel = selectedVariantKey
+				? (getVariantByKey(selectedVariantKey)?.label ?? null)
+				: null;
+			return `${variantLabel ?? selectedTrick.name} · ${unlockedVariants.length} variant${unlockedVariants.length === 1 ? '' : 's'} unlocked`;
+		}
 		if (config.sessionType === 'deep') {
 			if (!selectedLick) return 'Pick a lick to drill.';
 			return `${rotationKeys.length} unlocked key${rotationKeys.length === 1 ? '' : 's'}`;
@@ -142,7 +239,13 @@
 					ariaLabel="Session type"
 					value={config.sessionType}
 					options={sessionTypeOptions}
-					onChange={(v) => onupdate({ sessionType: v })}
+					onChange={(v) => {
+						// Unlock state is read from non-reactive storage — re-derive
+						// it whenever the user toggles session types so the Tricks
+						// branch reflects progress earned since the last visit.
+						trickUnlockVersion++;
+						onupdate({ sessionType: v });
+					}}
 				/>
 			</div>
 
@@ -207,7 +310,7 @@
 						/>
 					{/if}
 				</div>
-			{:else}
+			{:else if config.sessionType === 'deep'}
 				<!-- Deep practice: lick picker + tempo bump knob -->
 				<div class="space-y-3">
 					<!-- Lick picker -->
@@ -282,6 +385,52 @@
 						{#if rotationKeys.length > 0}
 							<p class="text-center text-xs text-[var(--color-text-secondary)]">
 								Rotation: {rotationKeys.map((k) => concertKeyToWritten(k, instrument)).join(' · ')}
+							</p>
+						{/if}
+					{/if}
+				</div>
+			{:else if config.sessionType === 'trick'}
+				<!-- Trick drill: device picker + one control per parameter,
+				     restricted to values reachable through unlocked variants. -->
+				<div class="space-y-3">
+					<div class="flex flex-col items-center gap-1.5">
+						<SelectorPad
+							ariaLabel="Trick"
+							value={config.trickId ?? ''}
+							options={TRICKS.map((t) => ({ value: t.id, label: t.name }))}
+							onChange={(v) => handleTrickSelect(v)}
+						/>
+						<span class="smallcaps console-engrave">Trick</span>
+					</div>
+
+					{#if selectedTrick && config.trickParameters}
+						{@const params = config.trickParameters}
+						<div class="flex flex-wrap items-end justify-center gap-x-8 gap-y-3">
+							{#each selectedTrick.parameters as def (def.name)}
+								{@const allowed = allowedTrickValues(def.name)}
+								<div class="flex flex-col items-center gap-1.5">
+									<SelectorPad
+										ariaLabel={def.label}
+										size="sm"
+										value={params[def.name] ?? ''}
+										options={def.values.map((v) => ({
+											value: v,
+											label: def.valueLabels?.[v] ?? v,
+											disabled: !allowed.has(v),
+											title: allowed.has(v)
+												? undefined
+												: 'Locked — earn it on the mastery ladder'
+										}))}
+										onChange={(v) => handleTrickParamChange(def.name, v)}
+									/>
+									<span class="smallcaps console-engrave">{def.label}</span>
+								</div>
+							{/each}
+						</div>
+
+						{#if frontierHint}
+							<p class="truncate text-center text-xs text-[var(--color-text-secondary)]">
+								Next unlock: {frontierHint}
 							</p>
 						{/if}
 					{/if}

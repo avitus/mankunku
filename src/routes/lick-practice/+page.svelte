@@ -11,7 +11,8 @@
 		getStrandedPracticeLicks,
 		startSession,
 		startDailyPracticeSession,
-		startSingleLickSession
+		startSingleLickSession,
+		startTrickSession
 	} from '$lib/state/lick-practice.svelte';
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
@@ -54,6 +55,10 @@
 
 	function handleStart() {
 		const { sessionType, singleLickId, tempoBumpBpm } = lickPractice.config;
+		if (sessionType === 'trick') {
+			if (startTrickSession()) goto('/lick-practice/session');
+			return;
+		}
 		if (sessionType === 'deep') {
 			if (!singleLickId) return;
 			const ok = startSingleLickSession(singleLickId, tempoBumpBpm ?? 5);

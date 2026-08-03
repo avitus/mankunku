@@ -33,6 +33,12 @@ import type {
 } from '$lib/types/progress';
 import { PITCH_CLASSES, type Phrase, type PhraseCategory, type PitchClass } from '$lib/types/music';
 import type { LickPracticeProgress, LickProgressHistory } from '$lib/types/lick-practice';
+import type {
+	TrickPracticeKeyProgress,
+	TrickPracticeProgress,
+	TrickProgressHistory,
+	TrickProgressPoint
+} from '$lib/types/tricks';
 import type { LickMergeMeta } from './lick-metadata-merge';
 import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
@@ -1125,6 +1131,294 @@ export async function loadLickMetadataFromCloud(
 		return { status: 'ok', data: metadata, mergeMeta };
 	} catch (error) {
 		console.warn('Failed to load lick metadata from cloud:', error);
+		return { status: 'error' };
+	}
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  Trick state sync
+// ═════════════════════════════════════════════════════════════════════
+
+/**
+ * Shape of the `trick_state` JSONB column on user_settings.
+ *
+ * Deliberately SIMPLE (single-user app — no per-record mtimes, no
+ * tombstones): every sub-field carries its own conflict rule in
+ * `mergeTrickState`, so a read-merge-write never destroys either side.
+ */
+export interface SyncableTrickState {
+	/** Composite variant keys the user has selected for practice (a set). */
+	selectedVariants: string[];
+	/**
+	 * Wall-clock ms of the last local selection edit — drives the LWW rule for
+	 * `selectedVariants` in `mergeTrickState`. 0 on legacy rows (pre-mtime).
+	 */
+	selectedUpdatedAt: number;
+	/** One-time migration markers — ALWAYS unioned, never last-writer-wins. */
+	migrations: string[];
+	/** Per-variant, per-key practice progress. */
+	progress: TrickPracticeProgress;
+	/** Per-variant unlocked-key counts (1-12). */
+	unlockCounts: Record<string, number>;
+	/** Per-variant BPM/keys time series, capped at 500 points per variant. */
+	history: TrickProgressHistory;
+}
+
+/** Cap on retained history points per variant — keep in sync with the store's cap. */
+const MAX_TRICK_HISTORY_POINTS = 500;
+
+function emptySyncableTrickState(): SyncableTrickState {
+	return {
+		selectedVariants: [],
+		selectedUpdatedAt: 0,
+		migrations: [],
+		progress: {},
+		unlockCounts: {},
+		history: {}
+	};
+}
+
+/**
+ * Merge two trick-state blobs. Pure and symmetric in coverage (nothing on
+ * either side is dropped), biased to LOCAL on exact ties:
+ *
+ *  - `selectedVariants` — last-writer-wins WHOLESALE by `selectedUpdatedAt`
+ *                         (union defeats removal — the same reason
+ *                         `resetTours` bypasses the unioning
+ *                         `syncTourStateToCloud` for `clearTourStateInCloud`:
+ *                         a deselected variant would be resurrected by every
+ *                         merge). Ties — including legacy both-0 rows —
+ *                         fall back to set union so pre-mtime data is never
+ *                         dropped; `selectedUpdatedAt` merges as the max.
+ *  - `migrations`       — set union (a completed migration is never undone).
+ *  - `progress`         — per (variantKey, PitchClass): the entry with the
+ *                         later `lastPracticedAt` wins; only canonical
+ *                         PITCH_CLASSES spellings are kept (phantom keys from
+ *                         legacy/corrupt data stay inert, as in the lick store).
+ *  - `unlockCounts`     — per variant: max (an unlock is never revoked).
+ *  - `history`          — per variant: union by `t` (local wins a duplicate
+ *                         timestamp), sorted oldest→newest, capped at 500
+ *                         newest points.
+ */
+export function mergeTrickState(
+	local: SyncableTrickState,
+	remote: SyncableTrickState
+): SyncableTrickState {
+	const selectedVariants =
+		remote.selectedUpdatedAt > local.selectedUpdatedAt
+			? [...new Set(remote.selectedVariants)]
+			: local.selectedUpdatedAt > remote.selectedUpdatedAt
+				? [...new Set(local.selectedVariants)]
+				: [...new Set([...local.selectedVariants, ...remote.selectedVariants])];
+	const selectedUpdatedAt = Math.max(local.selectedUpdatedAt, remote.selectedUpdatedAt);
+	const migrations = [...new Set([...local.migrations, ...remote.migrations])];
+
+	const progress: TrickPracticeProgress = {};
+	const variantKeys = new Set([...Object.keys(local.progress), ...Object.keys(remote.progress)]);
+	for (const variantKey of variantKeys) {
+		const merged: Partial<Record<PitchClass, TrickPracticeKeyProgress>> = {};
+		for (const key of PITCH_CLASSES) {
+			const l = local.progress[variantKey]?.[key];
+			const r = remote.progress[variantKey]?.[key];
+			const winner = !l ? r : !r ? l : r.lastPracticedAt > l.lastPracticedAt ? r : l;
+			if (winner) merged[key] = winner;
+		}
+		progress[variantKey] = merged;
+	}
+
+	const unlockCounts: Record<string, number> = {};
+	const unlockKeys = new Set([...Object.keys(local.unlockCounts), ...Object.keys(remote.unlockCounts)]);
+	for (const k of unlockKeys) {
+		unlockCounts[k] = Math.max(local.unlockCounts[k] ?? 0, remote.unlockCounts[k] ?? 0);
+	}
+
+	const history: TrickProgressHistory = {};
+	const historyKeys = new Set([...Object.keys(local.history), ...Object.keys(remote.history)]);
+	for (const k of historyKeys) {
+		const byT = new Map<number, TrickProgressPoint>();
+		for (const p of [...(local.history[k] ?? []), ...(remote.history[k] ?? [])]) {
+			if (!byT.has(p.t)) byT.set(p.t, p);
+		}
+		const points = [...byT.values()].sort((a, b) => a.t - b.t);
+		history[k] =
+			points.length > MAX_TRICK_HISTORY_POINTS
+				? points.slice(points.length - MAX_TRICK_HISTORY_POINTS)
+				: points;
+	}
+
+	return { selectedVariants, selectedUpdatedAt, migrations, progress, unlockCounts, history };
+}
+
+// ── Defensive narrowing of the trick_state column ────────────────────
+// The column is attacker-and-legacy-shaped JSON as far as we're concerned:
+// narrow every sub-field individually and drop anything malformed rather
+// than trusting the stored blob.
+
+function narrowStringArray(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function narrowTrickKeyProgress(value: unknown): TrickPracticeKeyProgress | null {
+	if (!isPlainObject(value)) return null;
+	if (
+		!isFiniteNumber(value.currentTempo) ||
+		!isFiniteNumber(value.lastPracticedAt) ||
+		!isFiniteNumber(value.passCount)
+	) {
+		return null;
+	}
+	return {
+		currentTempo: value.currentTempo,
+		lastPracticedAt: value.lastPracticedAt,
+		passCount: value.passCount
+	};
+}
+
+function narrowTrickProgress(value: unknown): TrickPracticeProgress {
+	if (!isPlainObject(value)) return {};
+	const out: TrickPracticeProgress = {};
+	for (const [variantKey, perKey] of Object.entries(value)) {
+		if (!isPlainObject(perKey)) continue;
+		const entry: Partial<Record<PitchClass, TrickPracticeKeyProgress>> = {};
+		for (const [key, kp] of Object.entries(perKey)) {
+			if (!VALID_KEYS.has(key)) continue;
+			const narrowed = narrowTrickKeyProgress(kp);
+			if (narrowed) entry[key as PitchClass] = narrowed;
+		}
+		out[variantKey] = entry;
+	}
+	return out;
+}
+
+function narrowTrickUnlockCounts(value: unknown): Record<string, number> {
+	if (!isPlainObject(value)) return {};
+	const out: Record<string, number> = {};
+	for (const [k, v] of Object.entries(value)) {
+		if (isFiniteNumber(v)) out[k] = v;
+	}
+	return out;
+}
+
+function narrowTrickHistory(value: unknown): TrickProgressHistory {
+	if (!isPlainObject(value)) return {};
+	const out: TrickProgressHistory = {};
+	for (const [k, pts] of Object.entries(value)) {
+		if (!Array.isArray(pts)) continue;
+		const narrowed: TrickProgressPoint[] = [];
+		for (const p of pts) {
+			if (!isPlainObject(p)) continue;
+			if (isFiniteNumber(p.t) && isFiniteNumber(p.bpm) && isFiniteNumber(p.keys)) {
+				narrowed.push({ t: p.t, bpm: p.bpm, keys: p.keys });
+			}
+		}
+		out[k] = narrowed;
+	}
+	return out;
+}
+
+/**
+ * Upsert trick practice state into the user_settings.trick_state column.
+ *
+ * Uses a partial upsert keyed on user_id so we don't clobber the rest of the
+ * settings row. Writes the column WHOLESALE — callers MUST fold the current
+ * cloud row in first (`loadTrickStateFromCloud` + `mergeTrickState`); both
+ * `initTrickStateFromCloud` and `flushTrickStateToCloud` in
+ * trick-practice-store.ts do exactly that.
+ *
+ * Unlike `syncTourStateToCloud` this THROWS on failure (unauthenticated or
+ * upsert error): it is the durable-outbox write path, and the drainer needs
+ * the throw to back off and retry — same contract as `upsertLickMetadataRow`.
+ */
+export async function syncTrickStateToCloud(
+	supabase: SupabaseDB,
+	state: SyncableTrickState
+): Promise<void> {
+	const userId = await getAuthUserId(supabase);
+	if (!userId) throw new Error('not authenticated — deferring trick state push');
+
+	const { error } = await supabase.from('user_settings').upsert(
+		{
+			user_id: userId,
+			trick_state: state as unknown as Json,
+			updated_at: new Date().toISOString()
+		},
+		{ onConflict: 'user_id' }
+	);
+
+	if (error) {
+		// Surface to the outbox so it retries; do not silently swallow.
+		throw new Error(`Failed to sync trick state to cloud: ${error.message}`);
+	}
+}
+
+/**
+ * Tri-state trick-state read result (the `LickMetadataLoadResult` convention):
+ *
+ *  - `ok`      — a settings row exists and was read successfully.
+ *  - `missing` — the read succeeded and there is affirmatively no row
+ *                (a brand-new account). Safe to merge against empty.
+ *  - `error`   — auth could not be verified or the query failed. The local
+ *                store may NOT reflect cloud truth; treating this like
+ *                `missing` is what lets a merge-against-empty clobber the
+ *                cloud column.
+ */
+export type TrickStateLoadResult =
+	| { status: 'ok'; data: SyncableTrickState }
+	| { status: 'missing' }
+	| { status: 'error' };
+
+/**
+ * Fetch trick practice state for the current user.
+ *
+ * Unauthenticated / unverifiable sessions report `error` rather than
+ * `missing` (the lick-metadata rule: callers only reach this with a session
+ * in hand, so a missing user here means verification failed, not that the
+ * account has no data). An existing row whose column has never been written
+ * reads `ok` with an all-empty state. Every sub-field is runtime-narrowed —
+ * the column is never trusted.
+ */
+export async function loadTrickStateFromCloud(
+	supabase: SupabaseDB
+): Promise<TrickStateLoadResult> {
+	try {
+		const userId = await getAuthUserId(supabase);
+		if (!userId) return { status: 'error' };
+
+		const { data, error } = await supabase
+			.from('user_settings')
+			.select('trick_state')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (error) {
+			console.warn('Failed to load trick state from cloud:', error);
+			return { status: 'error' };
+		}
+		if (!data) return { status: 'missing' };
+
+		const raw = data.trick_state as unknown;
+		if (!isPlainObject(raw)) return { status: 'ok', data: emptySyncableTrickState() };
+		return {
+			status: 'ok',
+			data: {
+				selectedVariants: narrowStringArray(raw.selectedVariants),
+				selectedUpdatedAt: isFiniteNumber(raw.selectedUpdatedAt) ? raw.selectedUpdatedAt : 0,
+				migrations: narrowStringArray(raw.migrations),
+				progress: narrowTrickProgress(raw.progress),
+				unlockCounts: narrowTrickUnlockCounts(raw.unlockCounts),
+				history: narrowTrickHistory(raw.history)
+			}
+		};
+	} catch (error) {
+		console.warn('Failed to load trick state from cloud:', error);
 		return { status: 'error' };
 	}
 }

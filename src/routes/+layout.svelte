@@ -111,6 +111,7 @@
 		{ href: '/ear-training', label: 'Ear Training', primary: true, tourKey: 'ear-training' },
 		{ href: '/lick-practice', label: 'Lick Practice', primary: true, tourKey: 'lick-practice' },
 		{ href: '/licks', label: 'Licks', primary: false, tourKey: 'licks' },
+		{ href: '/tricks', label: 'Tricks', primary: false, tourKey: 'tricks' },
 		{ href: '/tunes', label: 'Tunes', primary: false, tourKey: 'tunes' },
 		{ href: '/progress', label: 'Progress', primary: false, tourKey: 'progress' },
 		{ href: '/docs', label: 'Docs', primary: false, tourKey: 'docs' },
@@ -163,6 +164,8 @@
 				.finally(() => {
 					tourStateHydrated = true;
 				});
+			// Trick-state hydration runs inside +layout.ts's awaitHydration chain
+			// (with the other cloud inits), not here.
 		} else {
 			// Anonymous / signed-out: nothing to hydrate from, so unblock.
 			tourStateHydrated = true;

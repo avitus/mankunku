@@ -34,6 +34,7 @@ export type NavTourKey =
 	| 'ear-training'
 	| 'lick-practice'
 	| 'licks'
+	| 'tricks'
 	| 'tunes'
 	| 'progress'
 	| 'docs'
