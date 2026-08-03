@@ -385,40 +385,56 @@ export interface CompatibleLickCategory {
  *
  * Short progressions intentionally omit `V-I-*` (V only covers half a bar
  * there) and only list chord-quality roles whose chord spans a full bar.
+ *
+ * Trick categories (`enclosures`, `triad-pairs`) target a single chord
+ * exactly like the chord-quality entries and mirror their offsets. They sit
+ * at the END of each list on purpose: `categorySpecificity` ranks by
+ * position, so tricks rank after a progression's native lick categories.
  */
 export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, CompatibleLickCategory[]> = {
 	'minor-vamp': [
-		{ category: 'minor-chord', offset: [0, 1] }
+		{ category: 'minor-chord', offset: [0, 1] },
+		{ category: 'enclosures',  offset: [0, 1] }
 	],
 	'major-vamp': [
-		{ category: 'major-chord', offset: [0, 1] }
+		{ category: 'major-chord', offset: [0, 1] },
+		{ category: 'enclosures',  offset: [0, 1] },
+		{ category: 'triad-pairs', offset: [0, 1] }
 	],
 	'dominant-vamp': [
-		{ category: 'dominant-chord', offset: [0, 1] }
+		{ category: 'dominant-chord', offset: [0, 1] },
+		{ category: 'enclosures',     offset: [0, 1] },
+		{ category: 'triad-pairs',    offset: [0, 1] }
 	],
 	'ii-V-I-major': [
 		{ category: 'ii-V-I-major',       offset: [0, 1] },
 		{ category: 'short-ii-V-I-major', offset: [0, 1] },
-		{ category: 'major-chord',        offset: [1, 1] } // I (maj7) on bar 1
+		{ category: 'major-chord',        offset: [1, 1] }, // I (maj7) on bar 1
+		{ category: 'enclosures',         offset: [1, 1] }, // the I bar, like major-chord
+		{ category: 'triad-pairs',        offset: [1, 1] }
 	],
 	'ii-V-I-minor': [
 		{ category: 'ii-V-I-minor',       offset: [0, 1] },
 		{ category: 'short-ii-V-I-minor', offset: [0, 1] },
-		{ category: 'minor-chord',        offset: [1, 1] } // I (min7) on bar 1
+		{ category: 'minor-chord',        offset: [1, 1] }, // I (min7) on bar 1
+		{ category: 'enclosures',         offset: [1, 1] }
 	],
 	'ii-V-I-major-long': [
 		{ category: 'ii-V-I-major',      offset: [0, 1] },
 		{ category: 'V-I-major',         offset: [1, 1] }, // V starts bar 1
 		{ category: 'minor-chord',       offset: [0, 1] }, // ii = min7
 		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7
-		{ category: 'major-chord',       offset: [2, 1] }  // I = maj7 starts bar 2
+		{ category: 'major-chord',       offset: [2, 1] }, // I = maj7 starts bar 2
+		{ category: 'enclosures',        offset: [2, 1] }, // the I bar, like major-chord
+		{ category: 'triad-pairs',       offset: [2, 1] }
 	],
 	'ii-V-I-minor-long': [
 		{ category: 'ii-V-I-minor',      offset: [0, 1] },
 		{ category: 'V-I-minor',         offset: [1, 1] },
 		{ category: 'diminished-chord',  offset: [0, 1] }, // ii = min7b5 (half-dim)
 		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7alt
-		{ category: 'minor-chord',       offset: [2, 1] }  // I = min7 starts bar 2
+		{ category: 'minor-chord',       offset: [2, 1] }, // I = min7 starts bar 2
+		{ category: 'enclosures',        offset: [2, 1] }  // the I bar, like minor-chord
 	],
 	turnaround: [
 		{ category: 'ii-V-I-major',   offset: [0, 1] },

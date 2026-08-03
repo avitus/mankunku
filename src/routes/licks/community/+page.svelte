@@ -216,6 +216,7 @@
 		'bebop-lines',
 		'pentatonic',
 		'enclosures',
+		'triad-pairs',
 		'rhythm-changes',
 		'user'
 	];

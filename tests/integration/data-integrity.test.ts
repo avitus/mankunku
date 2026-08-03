@@ -19,7 +19,7 @@ const VALID_CATEGORIES: PhraseCategory[] = [
 	'short-ii-V-I-major', 'short-ii-V-I-minor',
 	'V-I-major', 'V-I-minor',
 	'major-chord', 'dominant-chord', 'minor-chord', 'diminished-chord',
-	'pentatonic', 'enclosures', 'digital-patterns',
+	'pentatonic', 'enclosures', 'digital-patterns', 'triad-pairs',
 	'rhythm-changes', 'ballad', 'modal',
 	'user'
 ];

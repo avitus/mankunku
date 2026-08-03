@@ -4,10 +4,13 @@ import type {
 	ChordSubstitutionRule,
 	LickPracticeProgress
 } from '$lib/types/lick-practice';
+import type { TrickContext, TrickParameters, TrickPracticeProgress } from '$lib/types/tricks';
 import type { Tune } from '$lib/types/tune';
 import type { DetectedProgression, DetectedSlot } from './progression-detector';
+import { trickVariantKey } from '$lib/types/tricks';
 import {
 	PROGRESSION_LICK_CATEGORIES,
+	PROGRESSION_TEMPLATES,
 	getActiveSubstitution,
 	getCompatibleLickCategories,
 	resolveLickAlignmentOffset,
@@ -16,6 +19,8 @@ import {
 import { compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { planUnlockedKeys } from '$lib/music/key-ordering';
 import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
+import { getTrickById } from '$lib/tricks';
+import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	getEffectivePracticeLickIds,
 	getLickTempo,
@@ -24,6 +29,12 @@ import {
 	hasLickProgress,
 	loadLickPracticeProgress
 } from '$lib/persistence/lick-practice-store';
+import {
+	getTrickTempo,
+	getTrickUnlockedKeyCount,
+	loadSelectedTrickVariants,
+	loadTrickPracticeProgress
+} from '$lib/persistence/trick-practice-store';
 
 /**
  * Bridge from detected tune progressions to ranked, mastery-aware lick
@@ -63,6 +74,18 @@ export interface LickSuggestion {
 	substitution: ChordSubstitutionRule | null;
 	inPracticeSet: boolean;
 	difficultyLevel: number;
+	/**
+	 * Present only on synthetic trick suggestions (`trick-suggestion:*` ids):
+	 * the device, its parameter selection, and the harmonic context the
+	 * window should be judged in (Fluency scoring, not exact reproduction).
+	 */
+	trick?: { trickId: string; parameters: TrickParameters; context: TrickContext };
+	/**
+	 * Present only on synthetic trick suggestions: the generated example
+	 * phrase, ALREADY transposed to `targetKey` — consumers must not run it
+	 * through `transposeLick`.
+	 */
+	phrase?: Phrase;
 }
 
 export interface LickSuggestionResult {
@@ -80,6 +103,12 @@ export interface LickMatcherDeps {
 	getProgressionTags: (lickId: string) => ChordProgressionType[];
 	getUnlockedKeyCount: (progress: LickPracticeProgress, lickId: string) => number;
 	practiceLickIds: ReadonlySet<string>;
+	/** Trick practice progress — mastery tiers + tempo capability for trick suggestions. */
+	trickProgress?: TrickPracticeProgress;
+	/** Composite trick variant keys the user selected; absent/empty = no trick suggestions. */
+	selectedTrickVariants?: ReadonlySet<string>;
+	/** Per-variant unlocked-key count (1-12) — the trick unlock ramp; absent = 1. */
+	getTrickUnlockedKeyCount?: (variantKey: string) => number;
 }
 
 export interface SuggestLicksOptions {
@@ -212,6 +241,92 @@ export function suggestLicksForProgression(
 		});
 	}
 
+	// Synthetic trick suggestions: each selected variant whose device category
+	// this progression registers competes exactly like a lick of that category
+	// — same alignment offset, slot mapping, transposition target, and the
+	// same downstream eligibility filters, ranking, and dedupe below.
+	if (deps.selectedTrickVariants && deps.selectedTrickVariants.size > 0) {
+		const trickProgress = deps.trickProgress ?? {};
+		for (const variantKey of deps.selectedTrickVariants) {
+			const variant = getVariantByKey(variantKey);
+			if (!variant) continue;
+			const trick = getTrickById(variant.trickId);
+			if (!trick) continue;
+			if (!compatibleCategories.includes(trick.category)) continue;
+
+			const templateAlignmentOffset = resolveLickAlignmentOffset(
+				type,
+				trick.category,
+				enableSubstitutions
+			);
+			const slot = slotAtTemplateOffset(detected, templateAlignmentOffset);
+			const insertionOffset = slot ? slot.startOffset : detected.startOffset;
+			// Trick categories are not chord-quality categories, so this resolves
+			// to the detection's local key.
+			const targetKey = resolveTransposeTarget(
+				detected.localKey,
+				trick.category,
+				type,
+				templateAlignmentOffset,
+				enableSubstitutions
+			);
+
+			// Harmonic context: the template chord the trick aligns to (falling
+			// back to the template's first chord), rooted at the target key.
+			const template = PROGRESSION_TEMPLATES[type];
+			const chord =
+				template.harmony.find(
+					(seg) => compareFractions(seg.startOffset, templateAlignmentOffset) === 0
+				) ?? template.harmony[0];
+			const context: TrickContext = {
+				chordRoot: targetKey,
+				chordQuality: chord.chord.quality,
+				scaleId: chord.scaleId,
+				key: targetKey,
+				timeSignature: deps.timeSignature,
+				level: 50,
+				tempo: options.sessionTempo ?? 120,
+				swing: 0.5
+			};
+			// A null preview must not produce an unplayable window — skip the variant.
+			const phrase = trick.generateExample(variant.params, context);
+			if (!phrase) continue;
+
+			// Mirror classifyMasteryTier's per-key rule (tricks pin the entry key
+			// to 'C'): a variant practiced only in C is NOT "learning" in Db
+			// unless the unlock ramp has reached it.
+			const perKey = trickProgress[variantKey];
+			const atKey = perKey?.[targetKey];
+			const unlockedCount = deps.getTrickUnlockedKeyCount?.(variantKey) ?? 1;
+			const masteryTier: MasteryTier = atKey
+				? atKey.passCount >= 1
+					? 'known'
+					: 'learning'
+				: perKey &&
+					  Object.keys(perKey).length > 0 &&
+					  planUnlockedKeys('C', unlockedCount).includes(targetKey)
+					? 'learning'
+					: 'unknown';
+
+			suggestions.push({
+				lickId: `trick-suggestion:${variantKey}`,
+				lickName: `${trick.name} · ${variant.label}`,
+				category: trick.category,
+				targetKey,
+				insertionOffset,
+				insertionBar: Math.floor(fractionToFloat(insertionOffset) / barFloat + EPSILON),
+				templateAlignmentOffset,
+				masteryTier,
+				matchSources: ['category'],
+				substitution: null,
+				inPracticeSet: true,
+				difficultyLevel: phrase.difficulty.level,
+				trick: { trickId: variant.trickId, parameters: variant.params, context },
+				phrase
+			});
+		}
+	}
+
 	// Song requirements: only licks the user can actually deploy here.
 	let eligible = suggestions;
 	if (options.playableKeysOnly) {
@@ -219,7 +334,15 @@ export function suggestLicksForProgression(
 	}
 	if (options.sessionTempo !== undefined) {
 		const sessionTempo = options.sessionTempo;
+		const trickProgress = deps.trickProgress ?? {};
 		eligible = eligible.filter((s) => {
+			if (s.trick) {
+				// Tricks carry their own progress store: at-key tempo first, then
+				// the variant-wide minimum (default 60) — the lick rule, mirrored.
+				const variantKey = trickVariantKey(s.trick.trickId, s.trick.parameters);
+				const atKey = trickProgress[variantKey]?.[s.targetKey]?.currentTempo;
+				return (atKey ?? getTrickTempo(trickProgress, variantKey)) >= sessionTempo;
+			}
 			const atKey = deps.progress[s.lickId]?.[s.targetKey]?.currentTempo;
 			return (atKey ?? getLickTempo(deps.progress, s.lickId)) >= sessionTempo;
 		});
@@ -273,6 +396,9 @@ export function buildLickMatcherDeps(tune: Pick<Tune, 'timeSignature'>): LickMat
 		progress: loadLickPracticeProgress(),
 		getProgressionTags,
 		getUnlockedKeyCount,
-		practiceLickIds: getEffectivePracticeLickIds(licks)
+		practiceLickIds: getEffectivePracticeLickIds(licks),
+		trickProgress: loadTrickPracticeProgress(),
+		selectedTrickVariants: new Set(loadSelectedTrickVariants()),
+		getTrickUnlockedKeyCount
 	};
 }
