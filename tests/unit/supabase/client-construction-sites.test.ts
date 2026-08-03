@@ -24,32 +24,54 @@ function walk(dir: string): string[] {
 	});
 }
 
+/**
+ * The argument list of the call whose opening paren sits at `openParen`,
+ * extracted by balanced-paren walk — binds assertions to THIS call, so
+ * matching text elsewhere in the file can never satisfy the check.
+ */
+function callArguments(text: string, openParen: number): string {
+	let depth = 0;
+	for (let i = openParen; i < text.length; i++) {
+		if (text[i] === '(') depth++;
+		else if (text[i] === ')' && --depth === 0) return text.slice(openParen + 1, i);
+	}
+	return text.slice(openParen + 1);
+}
+
+function unguardedCalls(text: string, file: string, pattern: RegExp): string[] {
+	const offenders: string[] = [];
+	let match: RegExpExecArray | null;
+	pattern.lastIndex = 0;
+	while ((match = pattern.exec(text)) !== null) {
+		// Skip import statements and doc comments — only real call sites.
+		const lineStart = text.lastIndexOf('\n', match.index) + 1;
+		const line = text.slice(lineStart, text.indexOf('\n', match.index));
+		if (/^\s*(import|\*|\/\/|\/\*)/.test(line)) continue;
+		const args = callArguments(text, match.index + match[0].length - 1);
+		if (!args.includes('...nodeRealtimeFallback()')) {
+			offenders.push(`${file}: ${line.trim()}`);
+		}
+	}
+	return offenders;
+}
+
 describe('supabase client construction sites', () => {
 	it('every createServerClient/createBrowserClient call spreads nodeRealtimeFallback()', () => {
-		const offenders: string[] = [];
-		for (const file of walk(SRC)) {
-			const text = readFileSync(file, 'utf8');
-			let match: RegExpExecArray | null;
-			CONSTRUCTORS.lastIndex = 0;
-			while ((match = CONSTRUCTORS.exec(text)) !== null) {
-				// Skip import statements and doc comments — only real call sites,
-				// which are followed by an options object within the next ~400 chars.
-				const lineStart = text.lastIndexOf('\n', match.index) + 1;
-				const line = text.slice(lineStart, text.indexOf('\n', match.index));
-				if (/^\s*(import|\*|\/\/|\/\*)/.test(line)) continue;
-				const window = text.slice(match.index, match.index + 400);
-				if (!window.includes('nodeRealtimeFallback()')) {
-					offenders.push(`${file.slice(SRC.length + 1)}: ${line.trim()}`);
-				}
-			}
-		}
+		const offenders = walk(SRC).flatMap((file) =>
+			unguardedCalls(readFileSync(file, 'utf8'), file.slice(SRC.length + 1), CONSTRUCTORS)
+		);
 		expect(offenders, `unguarded supabase client construction:\n${offenders.join('\n')}`).toEqual(
 			[]
 		);
 	});
 
-	it('createClient in admin.ts spreads nodeRealtimeFallback()', () => {
+	it('the createClient call in admin.ts spreads nodeRealtimeFallback()', () => {
 		const text = readFileSync(join(SRC, 'lib/supabase/admin.ts'), 'utf8');
-		expect(text).toContain('nodeRealtimeFallback()');
+		const offenders = unguardedCalls(
+			text,
+			'lib/supabase/admin.ts',
+			/\bcreateClient\s*(<[^>]*>)?\s*\(/g
+		);
+		expect(offenders).toEqual([]);
 	});
 });
