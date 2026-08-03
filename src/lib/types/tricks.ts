@@ -14,6 +14,8 @@
 
 import type { ChordQuality, Fraction, Phrase, PhraseCategory, PitchClass } from './music';
 import type { DetectedNote } from './audio';
+// Type-only, so the tricks ↔ lick-practice type cycle is erased at runtime.
+import type { ChordProgressionType } from './lick-practice';
 
 /** One configurable parameter of a trick and its allowed values. */
 export interface TrickParameterDefinition {
@@ -110,6 +112,22 @@ export interface Trick {
 	/** Chord qualities this trick can be practiced over */
 	compatibleQualities: ChordQuality[];
 	parameters: TrickParameterDefinition[];
+	/**
+	 * Optional: the one-chord vamp a parameter selection should be drilled
+	 * over (e.g. altered triad pairs over the dominant vamp). Omitted — or
+	 * absent entirely — means the session default, 'major-vamp'.
+	 */
+	practiceBed?(parameters: TrickParameters): ChordProgressionType;
+	/**
+	 * Optional: chord qualities the selected parameters belong on, most
+	 * characteristic first. When present, tune-practice suggestions align
+	 * the variant to a progression chord matching one of these qualities
+	 * (via `resolveQualityRoleEntry`) and skip progressions with none —
+	 * refining the trick-wide `compatibleQualities`, which stays the coarse
+	 * documentation-level union. Absent → suggestions gate on the trick's
+	 * category registration alone.
+	 */
+	compatibleQualitiesFor?(parameters: TrickParameters): ChordQuality[];
 	/**
 	 * PRIMARY: judge a played attempt against the formula for the selected
 	 * parameters. `played` is the recorded, segmented note stream.

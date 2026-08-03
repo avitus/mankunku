@@ -4,7 +4,11 @@ import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { TrickPracticeProgress } from '$lib/types/tricks';
 import type { DetectedProgression } from '$lib/tunes/progression-detector';
 import { scaleDegreeOf } from '$lib/music/scale-degree';
-import { getCompatibleLickCategories, getLickAlignmentOffset } from '$lib/data/progressions';
+import {
+	getCompatibleLickCategories,
+	getLickAlignmentOffset,
+	resolveQualityRoleEntry
+} from '$lib/data/progressions';
 import { suggestLicksForProgression, type LickMatcherDeps } from '$lib/tunes/lick-matcher';
 import { baseLickId } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
@@ -38,10 +42,14 @@ beforeEach(() => {
 	vi.clearAllMocks();
 });
 
-// Pinned mastery-ladder heads (contract e1/e2/t1).
+// Pinned mastery-ladder positions (contract e1/e2 and the t-stage families).
 const E1 = getVariantsForTrick('enclosures')[0];
 const E2 = getVariantsForTrick('enclosures')[1];
-const T1 = getVariantsForTrick('triad-pairs')[0];
+const T1 = getVariantsForTrick('triad-pairs')[0]; // major-whole — broad (maj + dom)
+const T2 = getVariantsForTrick('triad-pairs')[1]; // major-minor — major only
+const T4 = getVariantsForTrick('triad-pairs')[3]; // major-tritone — natural-5 dominants
+const T5 = getVariantsForTrick('triad-pairs')[4]; // minor-b9 — altered dominants
+const T7 = getVariantsForTrick('triad-pairs')[6]; // aug-major — tonic minor
 
 const TRICK_PREFIX = 'trick-suggestion:';
 
@@ -112,22 +120,41 @@ function shortIiVIDetection(localKey: PitchClass, startBar: number): DetectedPro
 	};
 }
 
+/** Long ii-V-I detection whose slots mirror the template offsets [0,1]/[1,1]/[2,1]. */
+function longIiVIDetection(
+	type: 'ii-V-I-major-long' | 'ii-V-I-minor-long',
+	localKey: PitchClass,
+	startBar: number
+): DetectedProgression {
+	return {
+		type,
+		slots: [
+			{ templateOffset: [0, 1], segmentIndices: [0], startOffset: [startBar, 1] },
+			{ templateOffset: [1, 1], segmentIndices: [1], startOffset: [startBar + 1, 1] },
+			{ templateOffset: [2, 1], segmentIndices: [2], startOffset: [startBar + 2, 1] }
+		],
+		segmentIndices: [0, 1, 2],
+		localKey,
+		tuneKeyDegree: scaleDegreeOf(localKey, 'C'),
+		startOffset: [startBar, 1],
+		duration: [4, 1],
+		startBar,
+		endBarExclusive: startBar + 4,
+		wrapsAround: false
+	};
+}
+
 describe('PROGRESSION_LICK_CATEGORIES trick registrations', () => {
 	it('registers the pinned trick categories per progression', () => {
-		expect(getCompatibleLickCategories('major-vamp')).toContain('enclosures');
-		expect(getCompatibleLickCategories('major-vamp')).toContain('triad-pairs');
-		expect(getCompatibleLickCategories('minor-vamp')).toContain('enclosures');
-		expect(getCompatibleLickCategories('minor-vamp')).not.toContain('triad-pairs');
-		expect(getCompatibleLickCategories('dominant-vamp')).toContain('enclosures');
-		expect(getCompatibleLickCategories('dominant-vamp')).toContain('triad-pairs');
-		expect(getCompatibleLickCategories('ii-V-I-major')).toContain('enclosures');
-		expect(getCompatibleLickCategories('ii-V-I-major')).toContain('triad-pairs');
-		expect(getCompatibleLickCategories('ii-V-I-minor')).toContain('enclosures');
-		expect(getCompatibleLickCategories('ii-V-I-minor')).not.toContain('triad-pairs');
-		expect(getCompatibleLickCategories('ii-V-I-major-long')).toContain('enclosures');
-		expect(getCompatibleLickCategories('ii-V-I-major-long')).toContain('triad-pairs');
-		expect(getCompatibleLickCategories('ii-V-I-minor-long')).toContain('enclosures');
-		expect(getCompatibleLickCategories('ii-V-I-minor-long')).not.toContain('triad-pairs');
+		// triad-pairs is registered on minor progressions too — the per-family
+		// quality gate decides which families actually surface there.
+		for (const type of [
+			'major-vamp', 'minor-vamp', 'dominant-vamp',
+			'ii-V-I-major', 'ii-V-I-minor', 'ii-V-I-major-long', 'ii-V-I-minor-long'
+		] as const) {
+			expect(getCompatibleLickCategories(type)).toContain('enclosures');
+			expect(getCompatibleLickCategories(type)).toContain('triad-pairs');
+		}
 	});
 
 	it('leaves unregistered progressions trick-free', () => {
@@ -139,13 +166,16 @@ describe('PROGRESSION_LICK_CATEGORIES trick registrations', () => {
 
 	it('mirrors the chord-quality offsets (tricks target the I bar of a ii-V-I)', () => {
 		expect(getLickAlignmentOffset('major-vamp', 'enclosures')).toEqual([0, 1]);
+		expect(getLickAlignmentOffset('minor-vamp', 'triad-pairs')).toEqual([0, 1]);
 		expect(getLickAlignmentOffset('dominant-vamp', 'triad-pairs')).toEqual([0, 1]);
 		expect(getLickAlignmentOffset('ii-V-I-major', 'enclosures')).toEqual([1, 1]);
 		expect(getLickAlignmentOffset('ii-V-I-major', 'triad-pairs')).toEqual([1, 1]);
 		expect(getLickAlignmentOffset('ii-V-I-minor', 'enclosures')).toEqual([1, 1]);
+		expect(getLickAlignmentOffset('ii-V-I-minor', 'triad-pairs')).toEqual([1, 1]);
 		expect(getLickAlignmentOffset('ii-V-I-major-long', 'enclosures')).toEqual([2, 1]);
 		expect(getLickAlignmentOffset('ii-V-I-major-long', 'triad-pairs')).toEqual([2, 1]);
 		expect(getLickAlignmentOffset('ii-V-I-minor-long', 'enclosures')).toEqual([2, 1]);
+		expect(getLickAlignmentOffset('ii-V-I-minor-long', 'triad-pairs')).toEqual([2, 1]);
 	});
 
 	it('ranks trick categories after native categories (list-position specificity)', () => {
@@ -153,6 +183,29 @@ describe('PROGRESSION_LICK_CATEGORIES trick registrations', () => {
 		expect(cats.indexOf('enclosures')).toBeGreaterThan(cats.indexOf('major-chord'));
 		const longCats = getCompatibleLickCategories('ii-V-I-major-long');
 		expect(longCats.indexOf('triad-pairs')).toBeGreaterThan(longCats.indexOf('major-chord'));
+	});
+
+	it('resolveQualityRoleEntry honours caller order and the full-bar guard', () => {
+		// Caller's quality order wins: maj7-first takes the I bar of a long
+		// ii-V-I, 7-first takes the V bar.
+		expect(resolveQualityRoleEntry('ii-V-I-major-long', ['maj7', '7'])).toEqual({
+			category: 'major-chord',
+			offset: [2, 1]
+		});
+		expect(resolveQualityRoleEntry('ii-V-I-major-long', ['7', 'maj7'])).toEqual({
+			category: 'dominant-chord',
+			offset: [1, 1]
+		});
+		// No matching quality anywhere → null.
+		expect(resolveQualityRoleEntry('major-vamp', ['min7'])).toBeNull();
+		// iii-VI-ii-V-I's iii and VI7 span half a bar each — too short for a
+		// one-bar device cell — while its full-bar maj7 I still resolves.
+		expect(resolveQualityRoleEntry('iii-VI-ii-V-I', ['7'])).toBeNull();
+		expect(resolveQualityRoleEntry('iii-VI-ii-V-I', ['min7'])).toBeNull();
+		expect(resolveQualityRoleEntry('iii-VI-ii-V-I', ['maj7'])).toEqual({
+			category: 'major-chord',
+			offset: [2, 1]
+		});
 	});
 });
 
@@ -226,14 +279,15 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 		expect(s.trick!.context.scaleId).toBe('major.ionian');
 	});
 
-	it('skips variants whose category the progression does not register', () => {
+	it('skips variants the progression does not admit (registration or quality gate)', () => {
 		// blues registers no trick categories at all.
 		const blues = suggestLicksForProgression(
 			vampDetection('blues', 'C', 0),
 			makeDeps({ selectedTrickVariants: new Set([E1.key, T1.key]) })
 		);
 		expect(trickSuggestions(blues)).toHaveLength(0);
-		// minor-vamp registers enclosures but not triad-pairs.
+		// minor-vamp registers triad-pairs, but the major-whole family's
+		// qualities (maj7/maj6/7) have no match on a min7 vamp → quality gate.
 		const minor = suggestLicksForProgression(
 			vampDetection('minor-vamp', 'D'),
 			makeDeps({ selectedTrickVariants: new Set([E1.key, T1.key]) })
@@ -388,5 +442,86 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 			'l-maj',
 			`${TRICK_PREFIX}${E1.key}`
 		]);
+	});
+});
+
+describe('per-family quality gating (triad pairs)', () => {
+	it('the broad family rides a dominant vamp; the major-only family does not', () => {
+		const result = suggestLicksForProgression(
+			vampDetection('dominant-vamp', 'Bb'),
+			makeDeps({ selectedTrickVariants: new Set([T1.key, T2.key]) })
+		);
+		const ids = trickSuggestions(result).map((s) => s.lickId);
+		expect(ids).toEqual([`${TRICK_PREFIX}${T1.key}`]);
+		const s = result.suggestions[0];
+		expect(s.targetKey).toBe('Bb');
+		expect(s.templateAlignmentOffset).toEqual([0, 1]);
+		expect(s.trick!.context.chordQuality).toBe('7');
+		expect(s.trick!.context.scaleId).toBe('major.mixolydian');
+	});
+
+	it('the altered family surfaces on a dominant vamp but never on a major one', () => {
+		const dom = suggestLicksForProgression(
+			vampDetection('dominant-vamp', 'F'),
+			makeDeps({ selectedTrickVariants: new Set([T5.key]) })
+		);
+		expect(trickSuggestions(dom).map((s) => s.lickId)).toEqual([`${TRICK_PREFIX}${T5.key}`]);
+
+		const maj = suggestLicksForProgression(
+			vampDetection('major-vamp', 'F'),
+			makeDeps({ selectedTrickVariants: new Set([T5.key]) })
+		);
+		expect(trickSuggestions(maj)).toHaveLength(0);
+	});
+
+	it('dominant families re-root on the V bar of a long major ii-V-I; major families take the I', () => {
+		const result = suggestLicksForProgression(
+			longIiVIDetection('ii-V-I-major-long', 'C', 8),
+			makeDeps({ selectedTrickVariants: new Set([T2.key, T4.key]) })
+		);
+		const byId = new Map(trickSuggestions(result).map((s) => [s.lickId, s]));
+		const tritone = byId.get(`${TRICK_PREFIX}${T4.key}`)!;
+		expect(tritone.templateAlignmentOffset).toEqual([1, 1]);
+		expect(tritone.insertionOffset).toEqual([9, 1]);
+		expect(tritone.targetKey).toBe('G');
+		expect(tritone.trick!.context.chordRoot).toBe('G');
+		expect(tritone.trick!.context.chordQuality).toBe('7');
+		expect(tritone.phrase!.key).toBe('G');
+		const diatonic = byId.get(`${TRICK_PREFIX}${T2.key}`)!;
+		expect(diatonic.templateAlignmentOffset).toEqual([2, 1]);
+		expect(diatonic.insertionOffset).toEqual([10, 1]);
+		expect(diatonic.targetKey).toBe('C');
+		expect(diatonic.trick!.context.chordQuality).toBe('maj7');
+	});
+
+	it('the minor-long V (7alt) admits the altered family but not the tritone pair', () => {
+		const result = suggestLicksForProgression(
+			longIiVIDetection('ii-V-I-minor-long', 'C', 4),
+			makeDeps({ selectedTrickVariants: new Set([T4.key, T5.key, T7.key]) })
+		);
+		const byId = new Map(trickSuggestions(result).map((s) => [s.lickId, s]));
+		// major-tritone keeps its natural 5 — no place on an altered V.
+		expect(byId.has(`${TRICK_PREFIX}${T4.key}`)).toBe(false);
+		const altered = byId.get(`${TRICK_PREFIX}${T5.key}`)!;
+		expect(altered.templateAlignmentOffset).toEqual([1, 1]);
+		expect(altered.targetKey).toBe('G');
+		expect(altered.trick!.context.chordQuality).toBe('7alt');
+		expect(altered.trick!.context.scaleId).toBe('melodic-minor.altered');
+		// The tonic-minor family lands on the min7 I bar.
+		const tonic = byId.get(`${TRICK_PREFIX}${T7.key}`)!;
+		expect(tonic.templateAlignmentOffset).toEqual([2, 1]);
+		expect(tonic.targetKey).toBe('C');
+		expect(tonic.trick!.context.chordQuality).toBe('min7');
+	});
+
+	it('the tonic-minor family surfaces on a minor vamp', () => {
+		const result = suggestLicksForProgression(
+			vampDetection('minor-vamp', 'D'),
+			makeDeps({ selectedTrickVariants: new Set([T7.key]) })
+		);
+		const ids = trickSuggestions(result).map((s) => s.lickId);
+		expect(ids).toEqual([`${TRICK_PREFIX}${T7.key}`]);
+		expect(result.suggestions[0].targetKey).toBe('D');
+		expect(result.suggestions[0].trick!.context.chordQuality).toBe('min7');
 	});
 });
