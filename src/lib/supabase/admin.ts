@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { nodeRealtimeFallback } from './node-websocket-fallback';
 import type { Database } from './types';
 import { env } from '$env/dynamic/private';
 
@@ -24,6 +25,9 @@ export function createAdminClient() {
 	}
 
 	return createClient<Database>(supabaseUrl, serviceRoleKey, {
+		// Keeps client construction from throwing on a Node < 22 host — see
+		// node-websocket-fallback.ts (Sentry MANKUNKU-1E).
+		...nodeRealtimeFallback(),
 		auth: {
 			autoRefreshToken: false,
 			persistSession: false

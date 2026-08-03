@@ -26,6 +26,7 @@
  */
 
 import { createServerClient } from '@supabase/ssr';
+import { nodeRealtimeFallback } from './node-websocket-fallback';
 import type { Database } from './types';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import type { Cookies } from '@sveltejs/kit';
@@ -63,6 +64,9 @@ import type { Cookies } from '@sveltejs/kit';
  */
 export function createClient(cookies: Cookies) {
 	return createServerClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+		// Keeps client construction from throwing on a Node < 22 host — see
+		// node-websocket-fallback.ts (Sentry MANKUNKU-1E).
+		...nodeRealtimeFallback(),
 		cookies: {
 			/**
 			 * Reads all cookies from the incoming HTTP request.
