@@ -40,3 +40,21 @@ describe('seededShuffle', () => {
 		expect(result).not.toEqual(items);
 	});
 });
+
+describe('seed 0 (stuck-stream guard)', () => {
+	it('still shuffles with seed 0', () => {
+		// The mulberry32 core is a pure xorshift-multiply: an unguarded zero
+		// state maps to zero forever, degenerating the shuffle into a fixed
+		// rotation driven by rng() === 0 on every draw.
+		const items = Array.from({ length: 12 }, (_, i) => i);
+		const shuffled = seededShuffle(items, 0);
+		expect([...shuffled].sort((a, b) => a - b)).toEqual(items);
+		expect(shuffled).not.toEqual(items);
+		// And it must differ from the degenerate always-swap-with-first order.
+		const degenerate = [...items];
+		for (let i = degenerate.length - 1; i > 0; i--) {
+			[degenerate[i], degenerate[0]] = [degenerate[0], degenerate[i]];
+		}
+		expect(shuffled).not.toEqual(degenerate);
+	});
+});

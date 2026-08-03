@@ -28,7 +28,7 @@ import {
 	voiceLead,
 	type VoicingFn
 } from './voicings';
-import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
+import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
 
 // ── Event shapes ─────────────────────────────────────────────
 
@@ -478,7 +478,16 @@ export function generateDrums(
 			compOnsets: compOnsetsByBar.get(bar),
 			...barInfos[bar]
 		};
+		// The feathered-kick, comp-accent, and section-final setup branches
+		// can collide on one offset; two sampler starts at the identical
+		// tick read as a doubled hit. Keep the louder one per (voice, beat).
+		const byOffset = new Map<string, DrumHitSpec>();
 		for (const hit of style.drumPattern(ctx)) {
+			const key = `${hit.drum}:${hit.beatOffset}`;
+			const prev = byOffset.get(key);
+			if (!prev || hit.velocity > prev.velocity) byOffset.set(key, hit);
+		}
+		for (const hit of byOffset.values()) {
 			const absBeat = bar * beatsPerBar + hit.beatOffset;
 			events.push({
 				time: `${beatToTicks(absBeat, swing, ppq, tempo, rng)}i`,

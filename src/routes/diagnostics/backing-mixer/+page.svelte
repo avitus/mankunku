@@ -59,13 +59,20 @@
 
 	let toneModule: typeof import('tone') | null = null;
 
+	// Generation counter: each start owns the transport only while it is the
+	// newest request, so rapid style/tempo changes supersede an in-flight
+	// restart instead of being dropped (same pattern as the diagnostics
+	// page's replayRequestId).
+	let playRequest = 0;
+
 	async function start(): Promise<void> {
-		if (loading) return;
+		const id = ++playRequest;
 		loading = true;
 		try {
 			await initAudio();
 			toneModule = await import('tone');
 			await loadBackingInstruments(instrument);
+			if (id !== playRequest) return;
 			const transport = toneModule.getTransport();
 			transport.stop();
 			transport.position = 0;
@@ -84,23 +91,28 @@
 					backingStyle: style
 				},
 				0,
-				true
+				true,
+				() => id === playRequest
 			);
+			if (id !== playRequest) return;
 			transport.start('+0.05');
 			playing = true;
 		} finally {
-			loading = false;
+			if (id === playRequest) loading = false;
 		}
 	}
 
 	function stop(): void {
+		playRequest++; // cancel any in-flight start
 		disposeBackingParts();
 		toneModule?.getTransport().stop();
 		playing = false;
 	}
 
 	async function restartIfPlaying(): Promise<void> {
-		if (!playing) return;
+		// `loading` covers the window where a start is in flight but
+		// `playing` hasn't flipped yet — a change there must restart too.
+		if (!playing && !loading) return;
 		stop();
 		await start();
 	}
@@ -121,9 +133,13 @@
 	}
 
 	async function copyMix(): Promise<void> {
-		await navigator.clipboard.writeText(JSON.stringify(mix, null, 2));
-		copied = true;
-		setTimeout(() => (copied = false), 1500);
+		try {
+			await navigator.clipboard.writeText(JSON.stringify(mix, null, 2));
+			copied = true;
+			setTimeout(() => (copied = false), 1500);
+		} catch (err) {
+			console.warn('clipboard copy failed', err);
+		}
 	}
 
 	const pct = (v: number) => `${Math.round(v * 100)}%`;

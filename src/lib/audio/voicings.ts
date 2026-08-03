@@ -140,8 +140,11 @@ function rootlessSlots(quality: ChordQuality): { third: number; fifth: number; s
 
 /** Stack ascending intervals over the root pitch class, near a register. */
 function stackNearRegister(rootNum: number, intervals: number[], targetLowest: number): number[] {
-	const rootRef = nearestTo(rootNum, targetLowest - intervals[0]);
-	const notes = intervals.map((i) => rootRef + i);
+	// Dedupe + sort: slot arithmetic can collide (sus2's 9-slot IS its sus
+	// tone an octave up), and a duplicate would trigger one MIDI note twice.
+	const stack = [...new Set(intervals)].sort((a, b) => a - b);
+	const rootRef = nearestTo(rootNum, targetLowest - stack[0]);
+	const notes = stack.map((i) => rootRef + i);
 	// Keep the voicing in the mid-piano band: above the bass, below the melody.
 	if (notes[0] < 48) return notes.map((n) => n + 12);
 	if (notes[notes.length - 1] > 84) return notes.map((n) => n - 12);

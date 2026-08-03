@@ -10,6 +10,18 @@ describe('createRng', () => {
 		expect(seqA).toEqual(seqB);
 	});
 
+	it('advances the stream for every seed, including 0', () => {
+		// The mulberry32 core is a pure xorshift-multiply: a zero state maps
+		// to zero forever, so an unguarded seed 0 (which seedFrom can emit)
+		// would freeze every draw at 0 — chance() always true, weighted()
+		// always the first entry.
+		for (const seed of [0, 1, 0xffffffff]) {
+			const rng = createRng(seed);
+			const draws = new Set(Array.from({ length: 16 }, () => rng.float()));
+			expect(draws.size).toBeGreaterThan(1);
+		}
+	});
+
 	it('produces different sequences for different seeds', () => {
 		const a = createRng(1);
 		const b = createRng(2);

@@ -286,6 +286,32 @@ describe('generateBacking', () => {
 		}
 	});
 
+	it('never triggers the same drum voice twice at one beat position', () => {
+		// The feathered-kick quarters, the comp-onset accent kicks, and the
+		// section-final setup figures can all land a kick on the same offset;
+		// two sampler starts at the identical tick read as one doubled hit.
+		// Sweep many section-final bars so the colliding branches actually
+		// co-occur somewhere in the deterministic stream.
+		const manySections = bars(...Array.from({ length: 64 }, (): [PitchClass, ChordQuality][] =>
+			[['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']]
+		).flat());
+		const sectionMap = Array.from({ length: 64 }, (_, i) => ({
+			sourceSection: 0,
+			barOffset: i * 4
+		}));
+		const { drumEvents } = generateBacking(
+			manySections,
+			BACKING_STYLES.swing,
+			params({ sectionMap })
+		);
+		const seen = new Set<string>();
+		for (const e of drumEvents) {
+			const key = `${e.drum}:${e.absBeat}`;
+			expect(seen.has(key), `duplicate ${key}`).toBe(false);
+			seen.add(key);
+		}
+	});
+
 	it('keeps any feathered kick quarters at whisper level', () => {
 		const { drumEvents } = generateBacking(FORM, BACKING_STYLES.swing, params());
 		// No sectionMap-driven setups here; integer-beat kicks are feathering.

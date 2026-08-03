@@ -25,7 +25,11 @@ export interface SeededRng {
 
 /** Mulberry32 PRNG stream with musical-choice helpers. */
 export function createRng(seed: number): SeededRng {
+	// The core is a pure xorshift-multiply: a zero state maps to zero
+	// forever, and seedFrom's hash can legitimately emit 0. Nudge it onto
+	// a real orbit without touching the algorithm for any other seed.
 	let s = seed | 0;
+	if (s === 0) s = 0x9e3779b9 | 0;
 	const float = (): number => {
 		s = Math.imul(s ^ (s >>> 16), 2246822507);
 		s = Math.imul(s ^ (s >>> 13), 3266489909);
