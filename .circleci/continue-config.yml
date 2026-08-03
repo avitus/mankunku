@@ -111,8 +111,13 @@ jobs:
             # at https://github.com/supabase/cli/releases.
             SUPABASE_CLI_VERSION="2.111.0"
             BASE_URL="https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}"
-            TARBALL="supabase_linux_amd64.tar.gz"
-            CHECKSUMS="supabase_${SUPABASE_CLI_VERSION}_checksums.txt"
+            # Asset naming changed at v2.111.0: the checksums file is now a
+            # plain checksums.txt, and it only covers the VERSIONED tarball
+            # (the unversioned supabase_linux_amd64.tar.gz is an uncovered
+            # legacy alias). Both names below must match that release's
+            # actual assets or this step 404s and blocks every deploy.
+            TARBALL="supabase_${SUPABASE_CLI_VERSION}_linux_amd64.tar.gz"
+            CHECKSUMS="checksums.txt"
             TMP_DIR="$(mktemp -d)"
             trap 'rm -rf "$TMP_DIR"' EXIT
             # Download archive + checksums file from the same release tag,
