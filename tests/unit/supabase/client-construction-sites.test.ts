@@ -38,8 +38,14 @@ function callArguments(text: string, openParen: number): string {
 	return text.slice(openParen + 1);
 }
 
-function unguardedCalls(text: string, file: string, pattern: RegExp): string[] {
-	const offenders: string[] = [];
+interface ScanResult {
+	/** Real (non-import, non-comment) construction calls found. */
+	matched: number;
+	offenders: string[];
+}
+
+function unguardedCalls(text: string, file: string, pattern: RegExp): ScanResult {
+	const result: ScanResult = { matched: 0, offenders: [] };
 	let match: RegExpExecArray | null;
 	pattern.lastIndex = 0;
 	while ((match = pattern.exec(text)) !== null) {
@@ -47,19 +53,25 @@ function unguardedCalls(text: string, file: string, pattern: RegExp): string[] {
 		const lineStart = text.lastIndexOf('\n', match.index) + 1;
 		const line = text.slice(lineStart, text.indexOf('\n', match.index));
 		if (/^\s*(import|\*|\/\/|\/\*)/.test(line)) continue;
+		result.matched++;
 		const args = callArguments(text, match.index + match[0].length - 1);
 		if (!args.includes('...nodeRealtimeFallback()')) {
-			offenders.push(`${file}: ${line.trim()}`);
+			result.offenders.push(`${file}: ${line.trim()}`);
 		}
 	}
-	return offenders;
+	return result;
 }
 
 describe('supabase client construction sites', () => {
 	it('every createServerClient/createBrowserClient call spreads nodeRealtimeFallback()', () => {
-		const offenders = walk(SRC).flatMap((file) =>
+		const scans = walk(SRC).map((file) =>
 			unguardedCalls(readFileSync(file, 'utf8'), file.slice(SRC.length + 1), CONSTRUCTORS)
 		);
+		// A zero-match scan means the pattern rotted (e.g. factories renamed) —
+		// that must fail, not pass vacuously.
+		const matched = scans.reduce((count, scan) => count + scan.matched, 0);
+		expect(matched).toBeGreaterThan(0);
+		const offenders = scans.flatMap((scan) => scan.offenders);
 		expect(offenders, `unguarded supabase client construction:\n${offenders.join('\n')}`).toEqual(
 			[]
 		);
@@ -67,11 +79,8 @@ describe('supabase client construction sites', () => {
 
 	it('the createClient call in admin.ts spreads nodeRealtimeFallback()', () => {
 		const text = readFileSync(join(SRC, 'lib/supabase/admin.ts'), 'utf8');
-		const offenders = unguardedCalls(
-			text,
-			'lib/supabase/admin.ts',
-			/\bcreateClient\s*(<[^>]*>)?\s*\(/g
-		);
-		expect(offenders).toEqual([]);
+		const scan = unguardedCalls(text, 'lib/supabase/admin.ts', /\bcreateClient\s*(<[^>]*>)?\s*\(/g);
+		expect(scan.matched).toBe(1);
+		expect(scan.offenders).toEqual([]);
 	});
 });
