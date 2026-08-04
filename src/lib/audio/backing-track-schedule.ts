@@ -197,7 +197,15 @@ export function buildSchedule(
 					if (t >= windowStart) out.push(t - recordingTransportSeconds);
 				}
 			}
-			return out;
+			// Dedupe across loop seams: an onset just before loop end and one
+			// just after the next pass's start can land within the same 30 ms
+			// mic window even though each pass was deduped on its own.
+			const deduped: number[] = [];
+			for (const t of out) {
+				const last = deduped[deduped.length - 1];
+				if (last === undefined || t - last > ONSET_DEDUPE_SECONDS) deduped.push(t);
+			}
+			return deduped;
 		}
 	};
 }
