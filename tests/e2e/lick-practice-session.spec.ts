@@ -34,8 +34,10 @@ test.describe('lick-practice session flow', () => {
 		);
 
 		// Instrument-sample loading + a 2-bar demo and response window at
-		// 60 BPM put the report ~40s out on a cold run.
-		test.setTimeout(120_000);
+		// 60 BPM put the report ~40s out on a cold run. The outer clock must
+		// exceed the sum of the phase waits below (90s listen + 30s record +
+		// 90s report), or it kills a run the inner budgets still allow.
+		test.setTimeout(240_000);
 
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
