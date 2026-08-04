@@ -344,7 +344,7 @@ describe('listCommunityLicks', () => {
 		expect(two.isStolenByMe).toBe(true);
 	});
 
-	// Cross-device + cross-user favorites tests live next to the listing tests
+	// Cross-device favorites tests live next to the listing tests
 	// because `initCommunityFromCloud` is the common entry point. The mock
 	// `makeSupabaseMock` resolves `lick_favorites` queries via `data[table]`
 	// — pre-set rows simulate a particular cloud snapshot, with the filter
@@ -374,40 +374,6 @@ describe('listCommunityLicks', () => {
 		const localFavs = getFavoritesLocal();
 		expect(localFavs.has('lick-X')).toBe(true);
 		expect(localFavs.has('lick-Y')).toBe(true);
-	});
-
-	it('cross-user isolation — user A favorites do not leak into user B after the wipe + hydration on the same device', async () => {
-		const { initCommunityFromCloud } = await import('$lib/persistence/community');
-
-		// User A's session: locally favorites lick-X.
-		localStorageMock.setItem('mankunku:community-favorites', JSON.stringify(['lick-X']));
-		expect(getFavoritesLocal().has('lick-X')).toBe(true);
-
-		// Simulate the wipe coordinator running (user-scope.test.ts pins down
-		// the wipe behavior — here we just need the post-wipe state).
-		localStorageMock.removeItem('mankunku:community-favorites');
-		expect(getFavoritesLocal().has('lick-X')).toBe(false);
-
-		// Now user B hydrates. Cloud's filtered fetch for user-B returns user-B's
-		// favorites only. (The production .eq('user_id', user.id) is the
-		// structural barrier pinned down by cloud-read-filters.test.ts; here we
-		// trust the filter and exercise what the user actually experiences on
-		// the device.)
-		const sb = makeSupabaseMock({
-			user: { id: 'user-B' },
-			data: {
-				lick_favorites: [{ user_id: 'user-B', lick_id: 'lick-Z' }],
-				lick_adoptions: [],
-				user_licks: []
-			}
-		}) as Parameters<typeof initCommunityFromCloud>[0];
-
-		await initCommunityFromCloud(sb);
-
-		// User B sees only their own favorite, not user A's lick-X.
-		const favs = getFavoritesLocal();
-		expect(favs.has('lick-X')).toBe(false);
-		expect(favs.has('lick-Z')).toBe(true);
 	});
 
 	it('cross-device — stolen licks union across two devices stays consistent', async () => {

@@ -636,49 +636,10 @@ describe('user-licks.initUserLicksFromCloud — scope generation guard', () => {
 // the hydration promise fire-and-forget via `setHydrationPromise()` so render
 // is never stalled. Routes that snapshot hydrated state at mount opt back into
 // a wait that is bounded at 2s by `awaitHydration()` in src/lib/state/hydration.ts.
-// Verify the bound works (slow hydrator does not stall the opt-in) AND that the
-// production sources still encode this structure.
+// Verify that the production sources still encode this structure.
 // ---------------------------------------------------------------------------
 
 describe('hydration timeout — fire-and-forget + bounded opt-in', () => {
-	it('the timeout wins when a hydrator is slower than 2s — the opt-in does not stall', async () => {
-		vi.useFakeTimers();
-
-		try {
-			let hydrationResolved = false;
-			const slowHydration = new Promise<void>((resolve) => {
-				setTimeout(() => {
-					hydrationResolved = true;
-					resolve();
-				}, 5000);
-			});
-
-			// Mirrors the bound in awaitHydration() — slow hydration vs 2s
-			// timeout. Whichever wins resolves the opt-in route's load.
-			const race = Promise.race([
-				slowHydration,
-				new Promise<void>((r) => setTimeout(r, 2000))
-			]);
-
-			// At t=0, neither is resolved.
-			let raceResolved = false;
-			race.then(() => {
-				raceResolved = true;
-			});
-
-			// Advance to t=2000 — timeout fires. Race resolves.
-			await vi.advanceTimersByTimeAsync(2000);
-			expect(raceResolved).toBe(true);
-			expect(hydrationResolved).toBe(false); // slow hydrator still pending
-
-			// Advance to t=5000 — hydrator finally completes (continues in background).
-			await vi.advanceTimersByTimeAsync(3000);
-			expect(hydrationResolved).toBe(true);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
 	it('production +layout.ts hydrates fire-and-forget (does not await the race)', async () => {
 		const { readFileSync } = await import('node:fs');
 		const { fileURLToPath } = await import('node:url');

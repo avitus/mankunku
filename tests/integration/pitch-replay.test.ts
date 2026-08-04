@@ -53,12 +53,6 @@ describe('pitch replay regression: A4 → C5 lick', () => {
 		}
 	});
 
-	it('detects at least one onset', async () => {
-		const buffer = loadFixture();
-		const { onsets } = await replayFromAudioBuffer(buffer);
-		expect(onsets.length).toBeGreaterThan(0);
-	});
-
 	it('detects the two notes the user actually played (A3, C4 concert)', async () => {
 		const buffer = loadFixture();
 		const { readings, onsets, duration } = await replayFromAudioBuffer(buffer);

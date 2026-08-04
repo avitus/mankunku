@@ -387,22 +387,6 @@ describe('rhythm scoring integration', () => {
 		expect(late).toBeGreaterThan(veryLate);
 	});
 
-	it('adjusts penalty based on tempo (gentler at slow tempos)', () => {
-		const expected = makeNote(60, [1, 4]); // beat 1
-		// 0.15s timing error
-		const detected = makeDetected(60, 0.65); // expected at 0.5s at 120bpm
-
-		const slowScore = scoreRhythm(expected, detected, 60);   // beat = 1.0s
-		const fastScore = scoreRhythm(expected, detected, 200);  // beat = 0.3s
-
-		// At slow tempo, 0.15s error is smaller fraction of beat → higher score
-		// But we need to compare properly — at 60bpm, expected onset = 1.0s,
-		// detected is 0.65 → -0.35s error (large)
-		// This comparison shows the penalty formula varies with tempo
-		expect(typeof slowScore).toBe('number');
-		expect(typeof fastScore).toBe('number');
-	});
-
 	it('returns 1.0 for rests', () => {
 		const rest = makeNote(null, [0, 1]);
 		const detected = makeDetected(60, 0.5);

@@ -69,6 +69,25 @@ describe('scoreRhythm — unit', () => {
 		expect(scoreRhythm(note, det, 120)).toBeCloseTo(0.0, 3);
 	});
 
+	it('penalizes the same absolute timing error more gently at slow tempos', () => {
+		const note: Note = { pitch: 60, duration: [1, 4], offset: [1, 4] };
+
+		// 0.15s late in both cases.
+		// 60 BPM: onset expected at 1.0s, error = 0.15 beats, penalty = 0.5 + 60/300 = 0.7
+		//   → 1 - 0.15 * 0.7 = 0.895
+		const slow: DetectedNote = { midi: 60, cents: 0, onsetTime: 1.15, duration: 0.4, clarity: 0.95 };
+		// 200 BPM: onset expected at 0.3s, error = 0.5 beats, penalty = min(1, 0.5 + 200/300) = 1.0
+		//   → 1 - 0.5 * 1.0 = 0.5
+		const fast: DetectedNote = { midi: 60, cents: 0, onsetTime: 0.45, duration: 0.4, clarity: 0.95 };
+
+		const slowScore = scoreRhythm(note, slow, 60);
+		const fastScore = scoreRhythm(note, fast, 200);
+
+		expect(slowScore).toBeCloseTo(0.895, 5);
+		expect(fastScore).toBeCloseTo(0.5, 5);
+		expect(slowScore).toBeGreaterThan(fastScore);
+	});
+
 	it('scores bar-2 note the same as bar-1 note for identical timing error', () => {
 		// Bar 1, note 2 at offset [1/4]
 		const bar1Note: Note = { pitch: 65, duration: [1, 4], offset: [1, 4] };

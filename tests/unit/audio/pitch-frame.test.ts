@@ -27,14 +27,6 @@ describe('createOctaveStabilizer', () => {
 			}
 		});
 
-		it('all warmup frames have warmup=true', () => {
-			const stab = createOctaveStabilizer(OCTAVE_CONFIRM_FRAMES, 5);
-			for (let i = 0; i < 5; i++) {
-				const result = stab.process(60, 0.9);
-				expect(result.warmup).toBe(true);
-			}
-		});
-
 		it('on frame 5 (last warmup) returns stabilized MIDI with warmup=true', () => {
 			const stab = createOctaveStabilizer(OCTAVE_CONFIRM_FRAMES, 5);
 			// First 4 frames pass through

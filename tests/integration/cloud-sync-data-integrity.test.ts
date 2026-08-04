@@ -180,10 +180,12 @@ describe('loadProgressFromCloud — malformed cloud data', () => {
 		expect(result.status).toBe('error');
 	});
 
-	it('survives malformed adaptive_state JSON without throwing', async () => {
+	it('completes the load when adaptive_state is malformed, keeping the row', async () => {
 		// The column is JSONB; a row from a forward-incompatible schema might
 		// contain unexpected nesting. The loader returns what it got — the
-		// contract is "no throw", not "validate the shape".
+		// contract is "pass it through and finish the load with status ok",
+		// not "validate the shape". A future validator that throws on bad
+		// shapes would flip this to status 'error' and fail here.
 		const supabase = supabaseWith('u1', {
 			user_progress: chainMock('user_progress', {
 				maybeSingle: {
@@ -205,7 +207,13 @@ describe('loadProgressFromCloud — malformed cloud data', () => {
 			key_proficiency: chainMock('key_proficiency', { select: { data: [], error: null } })
 		});
 
-		await expect(loadProgressFromCloud(supabase as never)).resolves.not.toThrow();
+		const result = await loadProgressFromCloud(supabase as never);
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') {
+			expect(result.data.adaptive).toBe('not-an-object');
+			expect(result.data.totalPracticeTime).toBe(42);
+			expect(result.data.streakDays).toBe(3);
+		}
 	});
 
 	it('ignores extra unknown columns on user_progress (forward-compat)', async () => {

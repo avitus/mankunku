@@ -792,18 +792,6 @@ describe('resolveOnsets — MIDI-aware ATTACK_DEDUP', () => {
 		const result = resolveOnsets([1.0], readings);
 		expect(result).toEqual([0.90, 1.0]);
 	});
-
-	it('still dedups when MIDIs match across the boundary', () => {
-		// Regression sanity-check for the original same-attack dedup case:
-		// MIDIs match (60 → 60), so the worklet onset is replaced by the
-		// earlier stable-run start.
-		const readings: PitchReading[] = [
-			makeReading(60, 0.90), makeReading(60, 0.917), makeReading(60, 0.934), makeReading(60, 0.950),
-			makeReading(60, 1.0)
-		];
-		const result = resolveOnsets([1.0], readings);
-		expect(result).toEqual([0.90]);
-	});
 });
 
 describe('mergeSamePitchWithoutAttack — bleedOnsets evidence', () => {

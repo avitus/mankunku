@@ -392,8 +392,10 @@ describe('user licks sync', () => {
 
 		await syncUserLicksToCloud(supabase as any, []);
 
-		// getUser is called but no upsert since array is empty
+		// Auth check ran (so the early return below is the length guard, not
+		// a missing user), but no table write was issued for the empty batch.
 		expect(supabase.auth.getUser).toHaveBeenCalled();
+		expect(supabase.from).not.toHaveBeenCalled();
 	});
 });
 
@@ -416,9 +418,10 @@ describe('recording upload/download', () => {
 		// Path traversal attempt
 		await uploadRecording(supabase as any, '../../../etc/passwd', blob);
 
-		// storage.from should not be called for upload with bad ID
-		// (getUser is called first, then ID is validated)
+		// Auth check ran, but the SAFE_ID_RE guard must block the upload
+		// before any storage access happens.
 		expect(supabase.auth.getUser).toHaveBeenCalled();
+		expect(supabase.storage.from).not.toHaveBeenCalled();
 	});
 
 	it('uploadRecording is a no-op when unauthenticated', async () => {
