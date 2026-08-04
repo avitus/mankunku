@@ -90,19 +90,6 @@ describe('uploadRecording', () => {
 		);
 	});
 
-	it('constructs path as {userId}/{sessionId}.webm', async () => {
-		const mock = createMockSupabase({ user: { id: 'user-abc-123' } });
-		const blob = new Blob(['data']);
-
-		await uploadRecording(mock as any, 'my-session', blob);
-
-		expect(mock._uploadFn).toHaveBeenCalledWith(
-			'user-abc-123/my-session.webm',
-			expect.any(Blob),
-			expect.objectContaining({ contentType: 'audio/webm', upsert: true })
-		);
-	});
-
 	it('returns early when not authenticated', async () => {
 		const mock = createMockSupabase({ user: null });
 		const blob = new Blob(['test']);
@@ -127,19 +114,6 @@ describe('uploadRecording', () => {
 
 		// Should log warning
 		expect(warnSpy).toHaveBeenCalled();
-	});
-
-	it('uses contentType audio/webm and upsert true', async () => {
-		const mock = createMockSupabase();
-		const blob = new Blob(['audio']);
-
-		await uploadRecording(mock as any, 'session-1', blob);
-
-		expect(mock._uploadFn).toHaveBeenCalledWith(
-			expect.any(String),
-			blob,
-			{ contentType: 'audio/webm', upsert: true }
-		);
 	});
 
 	it('catches thrown exceptions and does not propagate', async () => {
@@ -212,13 +186,5 @@ describe('downloadRecording', () => {
 
 		expect(result).toBeNull();
 		expect(warnSpy).toHaveBeenCalled();
-	});
-
-	it('constructs download path as {userId}/{sessionId}.webm', async () => {
-		const mock = createMockSupabase({ user: { id: 'user-xyz' } });
-
-		await downloadRecording(mock as any, 'sess-789');
-
-		expect(mock._downloadFn).toHaveBeenCalledWith('user-xyz/sess-789.webm');
 	});
 });

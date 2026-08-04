@@ -81,14 +81,15 @@ describe('transposeLick — rangeHigh constraint', () => {
 		expect(maxPitch).toBeLessThan(naiveMax);
 	});
 
-	it('applies octave shift for key C when rangeHigh is low', () => {
-		// Lick with notes above a low rangeHigh — key C should still optimize
-		const phrase = makePhrase([60, 64, 67, 72]);
-		const result = transposeLick(phrase, 'C', 60, 65);
-		const pitches = result.notes.map(n => n.pitch) as number[];
+	it('applies a same-key octave shift when the lick sits above the range', () => {
+		// No transposition (C → C), but passing a range skips the semitones===0
+		// early return: the lick lives at 72–84 while the range tops out at 72,
+		// so bestOctaveShift must drop it exactly one octave.
+		const phrase = makePhrase([72, 76, 79, 84]);
+		const result = transposeLick(phrase, 'C', 60, 72);
 
 		expect(result.key).toBe('C');
-		expect(pitches.length).toBe(4);
+		expect(result.notes.map(n => n.pitch)).toEqual([60, 64, 67, 72]);
 	});
 });
 

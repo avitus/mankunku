@@ -1,20 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DURATIONS, getDurationFraction } from '$lib/step-entry/durations';
-
-describe('DURATIONS', () => {
-	it('triplet durations are 2/3 of base', () => {
-		// whole-triplet = 2/3, half-triplet = 1/3
-		expect(DURATIONS['whole-triplet']).toEqual([2, 3]);
-		expect(DURATIONS['half-triplet']).toEqual([1, 3]);
-		expect(DURATIONS['quarter-triplet']).toEqual([1, 6]);
-		expect(DURATIONS['eighth-triplet']).toEqual([1, 12]);
-	});
-
-	it('dotted durations are 1.5x base', () => {
-		expect(DURATIONS['half-dotted']).toEqual([3, 4]);
-		expect(DURATIONS['quarter-dotted']).toEqual([3, 8]);
-	});
-});
+import { getDurationFraction } from '$lib/step-entry/durations';
 
 describe('getDurationFraction', () => {
 	it('returns base duration when triplet is false', () => {

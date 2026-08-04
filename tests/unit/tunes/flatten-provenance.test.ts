@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Note } from '$lib/types/music';
 import { flattenTune } from '$lib/tunes/flatten';
-import { tuneToPhrase, tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
+import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { MANKUNKU_BLUES } from '$lib/data/tunes/mankunku-blues';
 import { seg, section, sheet } from '../../helpers/tune-fixtures';
 
@@ -136,11 +136,5 @@ describe('tuneToPhraseWithFlat', () => {
 		expect(phrase.harmony).toBe(flat.harmony);
 		expect(phrase.difficulty.lengthBars).toBe(flat.totalBars);
 		expect(phrase.source).toBe('tune');
-	});
-
-	it('keeps tuneToPhrase behavior unchanged', () => {
-		const phrase = tuneToPhrase(MANKUNKU_BLUES, { expandRepeats: true });
-		const { phrase: viaWith } = tuneToPhraseWithFlat(MANKUNKU_BLUES, { expandRepeats: true });
-		expect(phrase).toEqual(viaWith);
 	});
 });

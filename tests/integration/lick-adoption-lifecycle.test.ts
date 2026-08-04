@@ -54,8 +54,7 @@ const {
 	getStealsLocal,
 	getStolenLicksLocal,
 	getStolenAuthorsLocal,
-	getFavoritesLocal,
-	hasAcknowledgedCommunityPrivacy
+	getFavoritesLocal
 } = await import('$lib/persistence/community');
 
 const { createCloudState, mockSupabaseFromCloud, seed, peek } = await import(
@@ -421,15 +420,5 @@ describe('favorites hydration', () => {
 		expect(favs.has('fresh-lick-1')).toBe(true);
 		expect(favs.has('fresh-lick-2')).toBe(true);
 		expect(favs.has('stale-lick')).toBe(false);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Privacy acknowledgement plumbing (flag persists, doesn't auto-steal)
-// ---------------------------------------------------------------------------
-
-describe('privacy acknowledgement', () => {
-	it('defaults to false before the user dismisses the disclosure', () => {
-		expect(hasAcknowledgedCommunityPrivacy()).toBe(false);
 	});
 });

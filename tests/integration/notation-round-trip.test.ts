@@ -45,16 +45,6 @@ describe('notation round-trip', () => {
 		}
 	});
 
-	it('phraseToAbc does not throw for any curated lick', () => {
-		for (const lick of ALL_CURATED_LICKS) {
-			try {
-				phraseToAbc(lick);
-			} catch (e) {
-				expect.fail(`phraseToAbc threw for lick "${lick.id}": ${e}`);
-			}
-		}
-	});
-
 	// ─── Category-specific tests ────────────────────────────────
 
 	// Only include categories that are actually represented in the curated

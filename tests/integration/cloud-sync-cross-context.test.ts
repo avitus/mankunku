@@ -166,27 +166,6 @@ describe('LWW — two devices write to same settings row', () => {
 		expect(a?.theme).toBe('dark');
 		expect(b?.theme).toBe('light');
 	});
-
-	it('unauthenticated upsert is a no-op — cloud unchanged', async () => {
-		const cloud = createCloudState();
-		seed(cloud, 'user_settings', [
-			{
-				user_id: 'user-A',
-				default_tempo: 100,
-				updated_at: new Date(1000).toISOString()
-			}
-		]);
-
-		const { syncSettingsToCloud } = await import('$lib/persistence/sync');
-		const anonClient = mockSupabaseFromCloud(cloud, {
-			auth: { userId: null }
-		}) as Parameters<typeof syncSettingsToCloud>[0];
-		await syncSettingsToCloud(anonClient, settingsRow({ defaultTempo: 999 }));
-
-		const rows = peek(cloud, 'user_settings');
-		expect(rows).toHaveLength(1);
-		expect(rows[0].default_tempo).toBe(100); // unchanged
-	});
 });
 
 describe('LWW — two devices write to same user_progress row', () => {

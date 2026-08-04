@@ -918,12 +918,12 @@ describe('syncUserLicksToCloud', () => {
 		expect(mock._fromFn).not.toHaveBeenCalled();
 	});
 
-	it('handles empty licks array gracefully', async () => {
+	it('skips the table write for an empty licks array', async () => {
 		const mock = createMockSupabase();
 
-		await expect(
-			syncUserLicksToCloud(mock as any, [])
-		).resolves.toBeUndefined();
+		await syncUserLicksToCloud(mock as any, []);
+
+		expect(mock._fromFn).not.toHaveBeenCalled();
 	});
 
 	it('catches errors and does not throw', async () => {

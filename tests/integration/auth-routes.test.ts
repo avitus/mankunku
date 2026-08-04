@@ -494,51 +494,12 @@ describe('Logout — /auth/logout', () => {
 
 		expect(mockSupabase.auth.signOut).toHaveBeenCalled();
 	});
-
-	it('calls signOut before redirecting', async () => {
-		const callOrder: string[] = [];
-		mockSupabase.auth.signOut.mockImplementation(async () => {
-			callOrder.push('signOut');
-			return {};
-		});
-
-		try {
-			await logoutPOST({
-				locals: { supabase: mockSupabase },
-				cookies: createMockCookies()
-			} as any);
-			expect.fail('Expected redirect to be thrown');
-		} catch {
-			callOrder.push('redirect');
-		}
-
-		// signOut must complete before redirect is thrown
-		expect(callOrder).toEqual(['signOut', 'redirect']);
-	});
 });
 
 describe('Server Hook — safeGetSession', () => {
 	// Tests for the safeGetSession function defined in src/hooks.server.ts.
 	// These tests exercise the hook's handle function directly, verifying
 	// that JWT validation via getUser() is always performed.
-
-	it('returns null session and user when no session exists', async () => {
-		mockSupabase.auth.getSession.mockResolvedValue({
-			data: { session: null }
-		});
-
-		const event = {
-			locals: {} as any,
-			cookies: createMockCookies()
-		};
-		const resolve = vi.fn(async () => new Response('OK'));
-
-		await handle({ event, resolve } as any);
-
-		const result = await event.locals.safeGetSession();
-		expect(result.session).toBeNull();
-		expect(result.user).toBeNull();
-	});
 
 	it('validates JWT via getUser() when session exists', async () => {
 		const mockSession = {

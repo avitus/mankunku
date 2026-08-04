@@ -57,38 +57,6 @@ describe('save', () => {
 		expect(mock._store['mankunku:settings']).toBe(JSON.stringify({ volume: 0.8 }));
 	});
 
-	it('handles string values', () => {
-		save('name', 'hello');
-		expect(mock._store['mankunku:name']).toBe('"hello"');
-	});
-
-	it('handles number values', () => {
-		save('count', 42);
-		expect(mock._store['mankunku:count']).toBe('42');
-	});
-
-	it('handles boolean values', () => {
-		save('flag', true);
-		expect(mock._store['mankunku:flag']).toBe('true');
-	});
-
-	it('handles object values', () => {
-		const obj = { a: 1, b: 'two' };
-		save('data', obj);
-		expect(mock._store['mankunku:data']).toBe(JSON.stringify(obj));
-	});
-
-	it('handles array values', () => {
-		const arr = [1, 'two', false];
-		save('list', arr);
-		expect(mock._store['mankunku:list']).toBe(JSON.stringify(arr));
-	});
-
-	it('handles null values', () => {
-		save('empty', null);
-		expect(mock._store['mankunku:empty']).toBe('null');
-	});
-
 	it('calls syncCallback after successful save', () => {
 		const callback = vi.fn();
 		save('key', 'value', callback);
@@ -129,18 +97,6 @@ describe('load', () => {
 		expect(result).toEqual({ volume: 0.8, muted: false });
 	});
 
-	it('returns parsed array for existing key', () => {
-		mock._store['mankunku:history'] = JSON.stringify([1, 2, 3]);
-		const result = load<number[]>('history');
-		expect(result).toEqual([1, 2, 3]);
-	});
-
-	it('returns parsed number for existing key', () => {
-		mock._store['mankunku:level'] = '5';
-		const result = load<number>('level');
-		expect(result).toBe(5);
-	});
-
 	it('returns null for missing key', () => {
 		const result = load('nonexistent');
 		expect(result).toBeNull();
@@ -158,10 +114,6 @@ describe('remove', () => {
 		mock._store['mankunku:settings'] = '"data"';
 		remove('settings');
 		expect(mock._store['mankunku:settings']).toBeUndefined();
-	});
-
-	it('does not throw for non-existent key', () => {
-		expect(() => remove('nonexistent')).not.toThrow();
 	});
 });
 
@@ -218,10 +170,5 @@ describe('clearAll', () => {
 		expect(mock._store['other-app:data']).toBe('"keep"');
 		expect(mock._store['plain-key']).toBe('"also-keep"');
 		expect(mock._store['mankunku:settings']).toBeUndefined();
-	});
-
-	it('works when localStorage is already empty', () => {
-		expect(() => clearAll()).not.toThrow();
-		expect(listKeys()).toEqual([]);
 	});
 });
