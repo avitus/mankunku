@@ -76,9 +76,17 @@
 
 <div class="space-y-3" data-testid="blind-ab">
 	<div class="flex flex-wrap items-center gap-3 text-sm">
-		<label class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 cursor-pointer">
-			{referenceName ?? 'Load reference WAV…'}
-			<input type="file" accept=".wav,audio/wav" class="hidden" onchange={loadReference} />
+		<label
+			class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 cursor-pointer focus-within:outline focus-within:outline-2 focus-within:outline-[var(--color-accent)]"
+		>
+			<span>{referenceName ?? 'Load reference WAV…'}</span>
+			<input
+				type="file"
+				accept=".wav,audio/wav"
+				class="sr-only"
+				aria-label="Load reference WAV"
+				onchange={loadReference}
+			/>
 		</label>
 		<button
 			onclick={startBlind}

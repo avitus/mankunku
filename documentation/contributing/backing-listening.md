@@ -25,8 +25,8 @@ The backing-track upgrade program ("professional session musicians") is verified
   loop literally cannot exhibit chorus-to-chorus behavior.
 - **Tempo presets**: 90 / 160 / 240 BPM — the protocol's three swing-feel anchors.
 - **Variation seed**: re-rolls every generation stream (the seed suffixes the phrase id,
-  which all seeds derive from). Seed 0 is canonical: the report, the golden fixtures and
-  reference bounces all use it.
+  which all seeds derive from). Seed 0 is canonical: the golden fixtures and the
+  reference bounces use it. The statistics report aggregates several seeds per preset.
 - **Bounce to WAV**: renders the exact events the live engine would schedule, through the
   same instruments and mix math. Keep dated bounces (the filename embeds preset, style,
   tempo and date) as references for later comparisons.

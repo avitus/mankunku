@@ -34,6 +34,10 @@
 		return v === 'pass' ? '✅' : v === 'fail' ? '❌' : v === 'skip' ? '➖' : '⬜';
 	}
 
+	function verdictLabel(v: ChecklistVerdict | undefined): string {
+		return v === 'pass' ? 'pass' : v === 'fail' ? 'fail' : v === 'skip' ? 'skipped' : 'unset';
+	}
+
 	async function copyReport(): Promise<void> {
 		const report = buildListeningReport({ presetLabel, style, tempo, seed, notes }, verdicts);
 		try {
@@ -59,8 +63,9 @@
 							onclick={() => cycle(item.id)}
 							class="w-full text-left rounded px-2 py-1 hover:bg-[var(--color-bg-tertiary)] transition-colors"
 							title={item.detail}
+							aria-label={`${item.prompt} — ${verdictLabel(verdicts[item.id])}`}
 						>
-							<span class="mr-2">{markFor(verdicts[item.id])}</span>
+							<span class="mr-2" aria-hidden="true">{markFor(verdicts[item.id])}</span>
 							<span class="text-sm">{item.prompt}</span>
 						</button>
 					</li>

@@ -56,7 +56,9 @@
 	let bounceName = $state<string | null>(null);
 
 	const preset = $derived(BACKING_LAB_PRESETS.find((p) => p.id === presetId) ?? BACKING_LAB_PRESETS[0]);
-	const phrase = $derived(labPhraseWithSeed(preset, seed));
+	// A cleared/dragged number input can yield null or out-of-range values.
+	const safeSeed = $derived(Math.min(99, Math.max(0, Math.trunc(Number(seed) || 0))));
+	const phrase = $derived(labPhraseWithSeed(preset, safeSeed));
 
 	let toneModule: typeof import('tone') | null = null;
 
@@ -118,6 +120,18 @@
 		await start();
 	}
 
+	function clearBounce(): void {
+		if (bounceUrl) URL.revokeObjectURL(bounceUrl);
+		bounceUrl = null;
+		bounceName = null;
+	}
+
+	/** Render parameters changed: the last bounce no longer represents them. */
+	async function onRenderParamsChanged(): Promise<void> {
+		clearBounce();
+		await restartIfPlaying();
+	}
+
 	function updateMix(key: keyof BackingMixLevels, value: number): void {
 		mix = { ...mix, [key]: value };
 		setBackingMix({ [key]: value });
@@ -170,7 +184,8 @@
 		a.href = url;
 		a.download = filename;
 		a.click();
-		URL.revokeObjectURL(url);
+		// Defer revocation so the browser can start reading the blob first.
+		setTimeout(() => URL.revokeObjectURL(url), 10_000);
 	}
 
 	function exportGoldenJson(): void {
@@ -226,7 +241,7 @@
 				<span class="block text-[var(--color-text-secondary)] mb-1">Progression</span>
 				<select
 					bind:value={presetId}
-					onchange={restartIfPlaying}
+					onchange={onRenderParamsChanged}
 					data-testid="lab-preset"
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5 max-w-64"
 				>
@@ -240,7 +255,7 @@
 				<span class="block text-[var(--color-text-secondary)] mb-1">Style</span>
 				<select
 					bind:value={style}
-					onchange={restartIfPlaying}
+					onchange={onRenderParamsChanged}
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5"
 				>
 					{#each Object.entries(BACKING_STYLE_NAMES) as [value, name] (value)}
@@ -253,7 +268,7 @@
 				<span class="block text-[var(--color-text-secondary)] mb-1">Instrument</span>
 				<select
 					bind:value={instrument}
-					onchange={restartIfPlaying}
+					onchange={onRenderParamsChanged}
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5"
 				>
 					<option value="piano">Piano</option>
@@ -268,7 +283,7 @@
 					min="0"
 					max="99"
 					bind:value={seed}
-					onchange={restartIfPlaying}
+					onchange={onRenderParamsChanged}
 					data-testid="lab-seed"
 					class="w-20 rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5"
 				/>
@@ -287,7 +302,7 @@
 						value={tempo}
 						onchange={(e) => {
 							tempo = e.currentTarget.valueAsNumber;
-							restartIfPlaying();
+							onRenderParamsChanged();
 						}}
 						class="w-40 accent-[var(--color-accent)]"
 					/>
@@ -295,7 +310,7 @@
 						<button
 							onclick={() => {
 								tempo = t;
-								restartIfPlaying();
+								onRenderParamsChanged();
 							}}
 							class="rounded-full px-2.5 py-0.5 text-xs transition-colors {tempo === t
 								? 'bg-[var(--color-accent)] text-white'
