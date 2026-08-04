@@ -681,11 +681,19 @@ export async function playPhrase(
 		currentPart.start(`${barTicks}i`);
 	}
 
-	// Schedule metronome if enabled
+	// Schedule metronome if enabled. When the backing track plays, the
+	// sampled kit is the timekeeper from bar 1 and the synth metronome only
+	// counts in — layering both was the loudest "machine" tell in the mix.
+	// The segmenter's bleed evidence follows the same rule (see
+	// bleed-evidence.ts): backing onsets replace the click grid, which
+	// would otherwise claim clicks on beats where none sounded.
 	if (options.metronomeEnabled) {
 		await setMetronomeVolume(options.metronomeVolume);
 		if (scheduleId !== currentScheduleId) return;
-		if (keepMetronome) {
+		const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
+		if (backingWillPlay) {
+			await scheduleMetronome(beatsPerBar, 1); // count-in bar only
+		} else if (keepMetronome) {
 			// Loop indefinitely — will keep playing during recording
 			await scheduleMetronome(beatsPerBar, null);
 		} else {

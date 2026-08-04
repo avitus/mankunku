@@ -12,7 +12,8 @@
 	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
-	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
+	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
+	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
@@ -320,7 +321,8 @@
 			metronomeVolume: settings.metronomeVolume,
 			backingTrackEnabled: settings.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
-			backingTrackVolume: settings.backingTrackVolume
+			backingTrackVolume: settings.backingTrackVolume,
+			backingStyle: settings.backingStyle
 		};
 	}
 
@@ -455,13 +457,18 @@
 		const recordingDuration = lastReading ? lastReading.time + 0.1 : 0;
 
 		const baseOnsets = resolveOnsets(workletOnsets, readings);
-		const bleedOnsets = settings.metronomeEnabled
-			? getMetronomeBleedOnsets(recordingTransportSeconds, session.tempo, recordingDuration)
-			: undefined;
+		const schedule = getActiveSchedule();
+		const bleedOnsets = resolveBleedEvidence({
+			schedule,
+			backingTrackEnabled: settings.backingTrackEnabled,
+			metronomeEnabled: settings.metronomeEnabled,
+			recordingTransportSeconds,
+			tempo: session.tempo,
+			recordingDuration
+		});
 		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
-		const schedule = getActiveSchedule();
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, recordingTransportSeconds)
 			: null;
@@ -660,15 +667,32 @@
 		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
 		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
 		const replay = await replayFromBlob(blob, ctx);
-		if (replay.readings.length === 0) return;
+		// Recording-relative backing onsets — computed from the decoded blob
+		// length, so persist them even when the replay yields no readings
+		// (a silent take should still carry its evidence for /diagnostics).
+		const backingBleedOnsets = schedule?.bleedEventsIn(transportSeconds, replay.duration);
+		if (replay.readings.length === 0) {
+			if (sessionId && baseMetadata) {
+				const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
+				await updateRecordingMetadata(sessionId, { ...baseMetadata, backingBleedOnsets });
+			}
+			return;
+		}
 
 		const baseOnsets = resolveOnsets(replay.onsets, replay.readings);
 		// replay.duration is the full blob length — segment over all of it, not
 		// the notional phrase length, so a latency-shifted final note that lands
 		// past the phrase end isn't truncated (same rationale as the live path).
-		const bleedOnsets = metronomeEnabled
-			? getMetronomeBleedOnsets(transportSeconds, tempo, replay.duration)
-			: undefined;
+		// The captured schedule doubles as the backing-was-playing flag: it is
+		// only snapshotted when backing was scheduled for this phrase.
+		const bleedOnsets = resolveBleedEvidence({
+			schedule,
+			backingTrackEnabled: schedule !== null,
+			metronomeEnabled,
+			recordingTransportSeconds: transportSeconds,
+			tempo,
+			recordingDuration: replay.duration
+		});
 		const articulationOnsets = findReArticulations(replay.readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
@@ -719,7 +743,10 @@
 				...baseMetadata,
 				score: result.chosen,
 				detectedNotes: authoritativeNotes,
-				bleedFilterLog: result.bleedLog
+				bleedFilterLog: result.bleedLog,
+				// Recording-relative backing onsets so /diagnostics replays this
+				// recording with the same bleed evidence the live path used.
+				backingBleedOnsets
 			});
 		}
 	}

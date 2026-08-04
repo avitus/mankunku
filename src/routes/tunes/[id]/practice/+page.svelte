@@ -45,12 +45,8 @@
 	import type { FreestyleBook } from '$lib/matching/book-index';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { scoreFluency } from '$lib/scoring/fluency';
-	import {
-		resolveOnsets,
-		segmentNotes,
-		getMetronomeBleedOnsets,
-		findReArticulations
-	} from '$lib/audio/note-segmenter';
+	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
+	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { GRADE_LABELS } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
@@ -597,9 +593,14 @@
 		const windowSeconds = ((win.ip.closeTick - win.ip.openTick) / ppqNR) * (60 / tempo);
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
 		const baseOnsets = resolveOnsets(workletOnsets, rebased);
-		const bleedOnsets = settings.metronomeEnabled
-			? getMetronomeBleedOnsets(win.recordingTransportSeconds, tempo, windowSeconds)
-			: undefined;
+		const bleedOnsets = resolveBleedEvidence({
+			schedule: win.schedule,
+			backingTrackEnabled: settings.backingTrackEnabled,
+			metronomeEnabled: settings.metronomeEnabled,
+			recordingTransportSeconds: win.recordingTransportSeconds,
+			tempo,
+			recordingDuration: windowSeconds
+		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(
