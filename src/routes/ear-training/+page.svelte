@@ -667,7 +667,17 @@
 		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
 		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
 		const replay = await replayFromBlob(blob, ctx);
-		if (replay.readings.length === 0) return;
+		// Recording-relative backing onsets — computed from the decoded blob
+		// length, so persist them even when the replay yields no readings
+		// (a silent take should still carry its evidence for /diagnostics).
+		const backingBleedOnsets = schedule?.bleedEventsIn(transportSeconds, replay.duration);
+		if (replay.readings.length === 0) {
+			if (sessionId && baseMetadata) {
+				const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
+				await updateRecordingMetadata(sessionId, { ...baseMetadata, backingBleedOnsets });
+			}
+			return;
+		}
 
 		const baseOnsets = resolveOnsets(replay.onsets, replay.readings);
 		// replay.duration is the full blob length — segment over all of it, not
@@ -736,7 +746,7 @@
 				bleedFilterLog: result.bleedLog,
 				// Recording-relative backing onsets so /diagnostics replays this
 				// recording with the same bleed evidence the live path used.
-				backingBleedOnsets: schedule?.bleedEventsIn(transportSeconds, replay.duration)
+				backingBleedOnsets
 			});
 		}
 	}

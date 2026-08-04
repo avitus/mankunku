@@ -307,7 +307,10 @@
 					// half of these investigations turn on whether a candidate
 					// onset sits under a click. Null on pre-2026-08-01 captures.
 					metronomeEnabled: md?.metronomeEnabled ?? null,
-					transportSeconds: md?.transportSeconds ?? null
+					transportSeconds: md?.transportSeconds ?? null,
+					// Recording-relative backing onsets — the bleed evidence the
+					// live path segmented with when backing was the time source.
+					backingBleedOnsets: md?.backingBleedOnsets ?? null
 				},
 				audio: {
 					duration: replay.duration,
