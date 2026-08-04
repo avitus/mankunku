@@ -120,7 +120,13 @@
 		await start();
 	}
 
+	// Generation counter for bounces, mirroring playRequest: a parameter
+	// change mid-render must discard the in-flight result, not publish it.
+	let bounceRequest = 0;
+
 	function clearBounce(): void {
+		bounceRequest++; // superseded in-flight renders discard their result
+		bouncing = false; // ...and their finally block no longer owns this flag
 		if (bounceUrl) URL.revokeObjectURL(bounceUrl);
 		bounceUrl = null;
 		bounceName = null;
@@ -162,19 +168,21 @@
 	}
 
 	async function bounce(): Promise<void> {
+		const id = ++bounceRequest;
 		bouncing = true;
 		bounceError = null;
 		try {
 			await initAudio();
 			const drumBuffers = await getDecodedDrumBuffersForBounce();
 			const result = await bounceBacking(bounceParams(), drumBuffers);
+			if (id !== bounceRequest) return; // superseded by a param change or newer bounce
 			if (bounceUrl) URL.revokeObjectURL(bounceUrl);
 			bounceUrl = URL.createObjectURL(result.blob);
 			bounceName = result.filename;
 		} catch (err) {
-			bounceError = err instanceof Error ? err.message : String(err);
+			if (id === bounceRequest) bounceError = err instanceof Error ? err.message : String(err);
 		} finally {
-			bouncing = false;
+			if (id === bounceRequest) bouncing = false;
 		}
 	}
 
@@ -379,7 +387,7 @@
 	<!-- ── Listening checklist ────────────────────────────── -->
 	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-4">
 		<h2 class="text-sm font-semibold text-[var(--color-text-secondary)]">Listening checklist</h2>
-		<ListeningChecklist presetLabel={preset.label} style={style} {tempo} {seed} />
+		<ListeningChecklist presetLabel={preset.label} style={style} {tempo} seed={safeSeed} />
 	</section>
 
 	<!-- ── Instrument levels ──────────────────────────────── -->

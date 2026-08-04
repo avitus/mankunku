@@ -13,7 +13,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { generateBacking, resolveEffectiveSwing } from '$lib/audio/backing-generation';
+import {
+	generateBacking,
+	resolveEffectiveSwing,
+	type BackingGenerationParams,
+	type GeneratedBacking
+} from '$lib/audio/backing-generation';
 import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
@@ -25,7 +30,10 @@ const GOLDEN_CASES: Array<{ presetId: string; tempo: number }> = [
 	{ presetId: 'lab-aaba-c', tempo: 160 }
 ];
 
-function generateCase(presetId: string, tempo: number) {
+function generateCase(
+	presetId: string,
+	tempo: number
+): { params: BackingGenerationParams & { style: string } } & GeneratedBacking {
 	const preset = BACKING_LAB_PRESETS.find((p) => p.id === presetId);
 	if (!preset) throw new Error(`Unknown preset ${presetId}`);
 	const style = BACKING_STYLES.swing;

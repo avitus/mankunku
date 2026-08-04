@@ -42,6 +42,14 @@
 		revealed = false;
 	}
 
+	// A new or cleared bounce invalidates an open comparison: one slot's
+	// source just changed (or was revoked), so any recorded verdict would
+	// refer to audio that no longer matches the labels.
+	$effect(() => {
+		void currentUrl;
+		resetComparison();
+	});
+
 	function slotUrl(slot: 'X' | 'Y'): string | null {
 		if (xIsCurrent === null) return null;
 		const isCurrent = slot === 'X' ? xIsCurrent : !xIsCurrent;
