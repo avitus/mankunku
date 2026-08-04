@@ -1,10 +1,10 @@
 <script lang="ts">
-	// Backing-mix test page: loop a ii-V-I-VI progression and balance the
-	// rhythm section per instrument. Levels persist on this device and apply
-	// to every session; "Copy values" hands the tuned mix back for baking
-	// into the defaults. Linked from /diagnostics.
+	// Backing listening lab + mixer. Loops a chosen progression preset,
+	// balances the rhythm section per instrument (levels persist on this
+	// device), bounces the current engine to WAV for blind A/B against a
+	// reference bounce, and hosts the listening checklist whose report
+	// gates the backing-track milestones. Linked from /diagnostics.
 	import { onDestroy } from 'svelte';
-	import type { Phrase } from '$lib/types/music';
 	import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 	import { initAudio } from '$lib/audio/audio-context';
 	import {
@@ -13,29 +13,20 @@
 		disposeBackingParts,
 		setBackingTrackVolume,
 		getBackingMix,
-		setBackingMix
+		setBackingMix,
+		getDecodedDrumBuffersForBounce
 	} from '$lib/audio/backing-track';
 	import { DEFAULT_BACKING_MIX, type BackingMixLevels } from '$lib/audio/backing-mix';
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
+	import {
+		BACKING_LAB_PRESETS,
+		LAB_TEMPO_PRESETS,
+		labPhraseWithSeed
+	} from '$lib/audio/backing-lab-presets';
+	import { bounceBacking, generateForBounce } from '$lib/audio/backing-bounce';
+	import BlindAbPlayer from '$lib/components/diagnostics/BlindAbPlayer.svelte';
+	import ListeningChecklist from '$lib/components/diagnostics/ListeningChecklist.svelte';
 	import { settings } from '$lib/state/settings.svelte';
-
-	const LOOP_PHRASE: Phrase = {
-		id: 'backing-mixer-loop',
-		name: 'Mixer Loop',
-		timeSignature: [4, 4],
-		key: 'C',
-		notes: [],
-		harmony: [
-			{ chord: { root: 'D', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [1, 1] },
-			{ chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [1, 1], duration: [1, 1] },
-			{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [2, 1], duration: [1, 1] },
-			{ chord: { root: 'A', quality: '7b9' }, scaleId: 'major.mixolydian', startOffset: [3, 1], duration: [1, 1] }
-		],
-		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 4 },
-		category: 'ii-V-I-major',
-		tags: [],
-		source: 'generated'
-	};
 
 	const GAIN_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'bass', label: 'Bass', hint: 'Upright bass level' },
@@ -53,9 +44,19 @@
 	let tempo = $state(140);
 	let style = $state<BackingStyle>(settings.backingStyle);
 	let instrument = $state<BackingInstrument>(settings.backingInstrument);
+	let presetId = $state(BACKING_LAB_PRESETS[0].id);
+	let seed = $state(0);
 	let playing = $state(false);
 	let loading = $state(false);
 	let copied = $state(false);
+
+	let bouncing = $state(false);
+	let bounceError = $state<string | null>(null);
+	let bounceUrl = $state<string | null>(null);
+	let bounceName = $state<string | null>(null);
+
+	const preset = $derived(BACKING_LAB_PRESETS.find((p) => p.id === presetId) ?? BACKING_LAB_PRESETS[0]);
+	const phrase = $derived(labPhraseWithSeed(preset, seed));
 
 	let toneModule: typeof import('tone') | null = null;
 
@@ -78,7 +79,7 @@
 			transport.position = 0;
 			transport.bpm.value = tempo;
 			await scheduleBackingTrack(
-				LOOP_PHRASE,
+				phrase,
 				{
 					tempo,
 					swing: settings.swing,
@@ -142,24 +143,64 @@
 		}
 	}
 
+	function bounceParams() {
+		return { phrase, style, tempo, swing: settings.swing, instrument, volume, mix };
+	}
+
+	async function bounce(): Promise<void> {
+		bouncing = true;
+		bounceError = null;
+		try {
+			await initAudio();
+			const drumBuffers = await getDecodedDrumBuffersForBounce();
+			const result = await bounceBacking(bounceParams(), drumBuffers);
+			if (bounceUrl) URL.revokeObjectURL(bounceUrl);
+			bounceUrl = URL.createObjectURL(result.blob);
+			bounceName = result.filename;
+		} catch (err) {
+			bounceError = err instanceof Error ? err.message : String(err);
+		} finally {
+			bouncing = false;
+		}
+	}
+
+	function downloadBlob(content: string, filename: string): void {
+		const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
+	function exportGoldenJson(): void {
+		const generated = generateForBounce(bounceParams());
+		downloadBlob(
+			JSON.stringify({ phraseId: phrase.id, style, tempo, ...generated }, null, 1),
+			`golden-${phrase.id.replace(/[^a-zA-Z0-9-]/g, '_')}-${tempo}.json`
+		);
+	}
+
 	const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 	onDestroy(() => {
 		if (playing) stop();
+		if (bounceUrl) URL.revokeObjectURL(bounceUrl);
 	});
 </script>
 
 <svelte:head>
-	<title>Backing Mixer — Mankunku</title>
+	<title>Backing Lab — Mankunku</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl px-4 py-6 space-y-6">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
-			<h1 class="text-2xl font-bold">Backing mixer</h1>
+			<h1 class="text-2xl font-bold">Backing lab</h1>
 			<p class="text-sm text-[var(--color-text-secondary)]">
-				Loops Dm7 – G7 – Cmaj7 – A7b9. Levels apply live, persist on this device, and shape
-				every practice session's backing.
+				Loop a preset, balance the band, bounce the engine to WAV, and run blind A/B
+				listening passes. Mix levels apply live, persist on this device, and shape every
+				practice session's backing.
 			</p>
 		</div>
 		<a
@@ -180,6 +221,20 @@
 			>
 				{loading ? 'Loading…' : playing ? 'Stop' : 'Play loop'}
 			</button>
+
+			<label class="text-sm">
+				<span class="block text-[var(--color-text-secondary)] mb-1">Progression</span>
+				<select
+					bind:value={presetId}
+					onchange={restartIfPlaying}
+					data-testid="lab-preset"
+					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5 max-w-64"
+				>
+					{#each BACKING_LAB_PRESETS as p (p.id)}
+						<option value={p.id} title={p.hint}>{p.label}</option>
+					{/each}
+				</select>
+			</label>
 
 			<label class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Style</span>
@@ -207,20 +262,50 @@
 			</label>
 
 			<label class="text-sm">
-				<span class="block text-[var(--color-text-secondary)] mb-1">Tempo: {tempo} BPM</span>
+				<span class="block text-[var(--color-text-secondary)] mb-1">Variation seed</span>
 				<input
-					type="range"
-					min="60"
-					max="260"
-					step="5"
-					value={tempo}
-					onchange={(e) => {
-						tempo = e.currentTarget.valueAsNumber;
-						restartIfPlaying();
-					}}
-					class="w-40 accent-[var(--color-accent)]"
+					type="number"
+					min="0"
+					max="99"
+					bind:value={seed}
+					onchange={restartIfPlaying}
+					data-testid="lab-seed"
+					class="w-20 rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5"
 				/>
 			</label>
+		</div>
+
+		<div class="flex flex-wrap items-end gap-4">
+			<div class="text-sm">
+				<span class="block text-[var(--color-text-secondary)] mb-1">Tempo: {tempo} BPM</span>
+				<div class="flex items-center gap-2">
+					<input
+						type="range"
+						min="60"
+						max="260"
+						step="5"
+						value={tempo}
+						onchange={(e) => {
+							tempo = e.currentTarget.valueAsNumber;
+							restartIfPlaying();
+						}}
+						class="w-40 accent-[var(--color-accent)]"
+					/>
+					{#each LAB_TEMPO_PRESETS as t (t)}
+						<button
+							onclick={() => {
+								tempo = t;
+								restartIfPlaying();
+							}}
+							class="rounded-full px-2.5 py-0.5 text-xs transition-colors {tempo === t
+								? 'bg-[var(--color-accent)] text-white'
+								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
+						>
+							{t}
+						</button>
+					{/each}
+				</div>
+			</div>
 
 			<label class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Overall volume: {pct(volume)}</span>
@@ -235,6 +320,51 @@
 				/>
 			</label>
 		</div>
+	</section>
+
+	<!-- ── Bounce + A/B ───────────────────────────────────── -->
+	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-4">
+		<h2 class="text-sm font-semibold text-[var(--color-text-secondary)]">Bounce &amp; blind A/B</h2>
+		<div class="flex flex-wrap items-center gap-3">
+			<button
+				onclick={bounce}
+				disabled={bouncing}
+				data-testid="lab-bounce"
+				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50"
+			>
+				{bouncing ? 'Rendering…' : 'Bounce to WAV'}
+			</button>
+			{#if bounceUrl && bounceName}
+				<a
+					href={bounceUrl}
+					download={bounceName}
+					class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)] transition-colors"
+				>
+					Download {bounceName}
+				</a>
+			{/if}
+			<button
+				onclick={exportGoldenJson}
+				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)] transition-colors"
+			>
+				Export events JSON
+			</button>
+			{#if bounceError}
+				<span class="text-sm text-red-500">{bounceError}</span>
+			{/if}
+		</div>
+		<p class="text-xs text-[var(--color-text-secondary)]">
+			The bounce renders the exact events the live engine schedules, through the same
+			instruments and mix. Long presets take a moment. Keep dated bounces as references:
+			the blind player shuffles current-vs-reference behind X/Y labels.
+		</p>
+		<BlindAbPlayer currentUrl={bounceUrl} currentLabel={bounceName ?? 'Current bounce'} />
+	</section>
+
+	<!-- ── Listening checklist ────────────────────────────── -->
+	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-4">
+		<h2 class="text-sm font-semibold text-[var(--color-text-secondary)]">Listening checklist</h2>
+		<ListeningChecklist presetLabel={preset.label} style={style} {tempo} {seed} />
 	</section>
 
 	<!-- ── Instrument levels ──────────────────────────────── -->
