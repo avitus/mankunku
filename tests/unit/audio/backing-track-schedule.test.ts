@@ -12,7 +12,7 @@ function comp(ticks: number, notes: number[], duration: number = 0.3) {
 }
 
 // Helper: create a drum event at a given tick
-function drum(ticks: number) {
+function drum(ticks: number): { time: string } {
 	return { time: `${ticks}i` };
 }
 
@@ -109,6 +109,15 @@ describe('activeMidiAt', () => {
 		expect(looped.activeMidiAt(6.2, 0)).toEqual([]);
 		// Pre-loop (count-in) time passes through unwrapped.
 		expect(looped.activeMidiAt(0.2, 0)).toEqual([]);
+	});
+
+	it('matches a pass-start note from a query just before the seam', () => {
+		// Same loop: the bass starts at 0.5s of each pass (the pass boundary
+		// sits at 0.5 + 2k). A query just BEFORE the next pass's start must
+		// reach that note's tolerance window across the seam: transport 4.45s
+		// is 50ms before pass 2's bass at 4.5s.
+		const looped = buildSchedule([bass(0, 40, 0.5)], [], [], TICK_OFFSET, PPQ, TEMPO, 1920);
+		expect(looped.activeMidiAt(4.45, 0.15)).toContain(40);
 	});
 });
 

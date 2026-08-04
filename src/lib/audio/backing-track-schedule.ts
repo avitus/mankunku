@@ -145,11 +145,14 @@ export function buildSchedule(
 		loopSeconds,
 		activeMidiAt(transportSeconds: number, tolerance: number = 0.15): number[] {
 			const wrapped = wrapToFirstPass(transportSeconds);
-			// A note ringing across the loop seam (started near the end of the
-			// previous pass) is caught by also probing one period later.
+			// Loop-seam handling is symmetric: a query near the start of a pass
+			// can match a note ringing from the END of the previous pass (probe
+			// one period later), and a query near the END of a pass can match
+			// the tolerance window of a note at the START of the next pass
+			// (probe one period earlier).
 			const probes =
 				loopSeconds !== null && wrapped !== transportSeconds
-					? [wrapped, wrapped + loopSeconds]
+					? [wrapped, wrapped + loopSeconds, wrapped - loopSeconds]
 					: [wrapped];
 			const result: number[] = [];
 			for (const probe of probes) {
