@@ -78,6 +78,16 @@ export interface BackingGenerationParams {
 	sectionMap?: SectionMapEntry[];
 }
 
+/**
+ * Effective swing for the backing: the session value when the user swings
+ * the melody, else the style's default — so the swing style's ride pattern
+ * swings even while the melody setting sits straight. Scoring is untouched
+ * (it shares only the melody's options.swing).
+ */
+export function resolveEffectiveSwing(userSwing: number, style: StyleDefinition): number {
+	return userSwing > 0.5 ? userSwing : style.defaultSwing;
+}
+
 // ── Bar contexts ─────────────────────────────────────────────
 
 export interface BarInfo {
