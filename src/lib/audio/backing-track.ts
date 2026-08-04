@@ -21,6 +21,7 @@ import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedu
 import { BACKING_STYLES } from './backing-styles';
 import {
 	generateBacking,
+	resolveEffectiveSwing,
 	type BassEvent,
 	type CompEvent,
 	type DrumEvent
@@ -234,6 +235,19 @@ async function decodeDrumBuffers(
 		DrumBufferName,
 		AudioBuffer
 	>;
+}
+
+/**
+ * Decode the drum kit for an offline bounce (listening lab). Independent of
+ * the live sampler: buffers are fetched fresh (HTTP-cached) and handed to an
+ * OfflineAudioContext-bound Sampler by the caller. AudioBuffers are
+ * context-independent, so decoding against the live context is fine.
+ */
+export async function getDecodedDrumBuffersForBounce(): Promise<
+	Partial<Record<DrumBufferName, AudioBuffer>>
+> {
+	const audioCtx = await initAudio();
+	return decodeDrumBuffers(audioCtx);
 }
 
 async function ensureDrums(): Promise<void> {
@@ -654,11 +668,7 @@ export async function scheduleBackingTrack(
 	disposeBackingParts();
 
 	// ── Generate bass + comp + drum events ──────────────────
-	// Swing: the session value when the user swings it, else the style's
-	// default — so the swing style's ride pattern swings even while the
-	// melody setting sits straight. Placement math applies this per event;
-	// scoring is untouched (it shares only the melody's options.swing).
-	const swing = options.swing > 0.5 ? options.swing : style.defaultSwing;
+	const swing = resolveEffectiveSwing(options.swing, style);
 	const { bassEvents, compEvents, drumEvents } = generateBacking(harmony, style, {
 		phraseId: phrase.id,
 		tempo: options.tempo,

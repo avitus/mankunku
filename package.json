@@ -14,6 +14,8 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest run",
+		"backing:report": "UPDATE_BACKING_REPORT=1 vitest run tests/unit/audio/backing-report.test.ts",
+		"backing:golden": "UPDATE_BACKING_GOLDEN=1 vitest run tests/unit/audio/backing-golden.test.ts",
 		"test:deploy": "bash deploy/app/release.test.sh",
 		"test:watch": "vitest",
 		"test:e2e": "playwright test",
