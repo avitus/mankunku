@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { fractionToFloat } from '$lib/music/intervals';
+import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import {
 	BACKING_LAB_PRESETS,
 	LAB_TEMPO_PRESETS,
@@ -90,7 +91,7 @@ describe('backing lab presets', () => {
 			swing: 0.5,
 			instrument: 'piano' as const,
 			volume: 0.6,
-			mix: { bass: 1, comp: 1, drums: 1, kick: 1, ride: 1, hihat: 1 }
+			mix: DEFAULT_BACKING_MIX
 		};
 		const a = generateForBounce({ ...base, phrase: labPhraseWithSeed(preset, 0) });
 		const b = generateForBounce({ ...base, phrase: labPhraseWithSeed(preset, 0) });

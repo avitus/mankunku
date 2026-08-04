@@ -22,7 +22,7 @@ import {
 	type GeneratedBacking
 } from './backing-generation';
 import { BACKING_BASE_TRIMS, voiceVelocity, type BackingMixLevels } from './backing-mix';
-import type { DrumBufferName } from './sample-maps';
+import { drumBufferForVelocity, type DrumBufferName } from './sample-maps';
 
 /**
  * Tone.js Transport PPQ default — the live engine reads `transport.PPQ`, so
@@ -166,9 +166,11 @@ export async function bounceBacking(
 				}
 			}
 			for (const e of generated.drumEvents) {
-				if (!(e.drum in drumBuffers)) continue;
+				// Same velocity-layer selection as the live trigger path.
+				const buffer = drumBufferForVelocity(e.drum, e.velocity);
+				if (!(buffer in drumBuffers)) continue;
 				drums.start({
-					note: e.drum,
+					note: buffer,
 					velocity: Math.round(
 						voiceVelocity(e.velocity * BACKING_BASE_TRIMS[e.drum], mix[e.drum]) * 127
 					),

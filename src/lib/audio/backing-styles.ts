@@ -19,7 +19,15 @@
 import type { BackingStyle } from '$lib/types/instruments';
 import type { SeededRng } from './generation-rng';
 
-export type DrumVoice = 'kick' | 'ride' | 'hihat';
+export type DrumVoice =
+	| 'kick'
+	| 'ride'
+	| 'hihat'
+	| 'hihat-pedal'
+	| 'snare'
+	| 'crossstick'
+	| 'ride-bell'
+	| 'crash';
 
 /**
  * Everything a pattern function may condition on for one bar. Section and
@@ -137,21 +145,26 @@ const swing: StyleDefinition = {
 		}
 
 		// Section-final setup: a small additive figure into the next section,
-		// varied per chorus through the seeded RNG. Built only from the kit's
-		// three voices — a CC0 snare/brush sample under static/samples/drums/
-		// would allow fuller fills here later.
+		// varied per chorus through the seeded RNG. The snare figures use the
+		// Virtuosity snare (velocity-layered at trigger time); the fuller
+		// fill vocabulary waits for the drum-vocabulary increment.
 		if (ctx.isSectionFinalBar && !ctx.isFinalBar && beatsPerBar >= 3) {
 			const last = beatsPerBar - 1;
-			const setup = rng.int(0, 2);
+			const setup = rng.int(0, 3);
 			if (setup === 0) {
 				hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.4 + rng.float() * 0.1 });
 			} else if (setup === 1) {
 				hits.push({ drum: 'hihat', beatOffset: last - 0.5, velocity: 0.35 });
 				hits.push({ drum: 'hihat', beatOffset: last + 0.5, velocity: 0.55 });
 				hits.push({ drum: 'kick', beatOffset: last, velocity: 0.35 });
-			} else {
+			} else if (setup === 2) {
 				hits.push({ drum: 'ride', beatOffset: last - 0.5, velocity: 0.5 });
 				hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.38 });
+			} else {
+				// Snare setup: soft lead-in on the and-of-3, answer on the
+				// and-of-4 — the classic "here comes the next section".
+				hits.push({ drum: 'snare', beatOffset: last - 0.5, velocity: 0.28 + rng.float() * 0.04 });
+				hits.push({ drum: 'snare', beatOffset: last + 0.5, velocity: 0.4 + rng.float() * 0.08 });
 			}
 		}
 
