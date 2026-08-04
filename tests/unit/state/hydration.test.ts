@@ -4,7 +4,8 @@
  * This module is the contract the cold-load speedup rests on: the root layout
  * registers its background cloud-hydration promise here and snapshotting routes
  * (e.g. /ear-training) opt back in via `awaitHydration()`. The behaviours
- * locked here are: rejections are swallowed (awaiters never throw), and the
+ * locked here are: the promise is resolved by default (anonymous/SSR loads
+ * never block), rejections are swallowed (awaiters never throw), and the
  * wait is bounded (slow/offline degrades to local state instead of hanging).
  */
 
@@ -17,6 +18,17 @@ beforeEach(() => {
 });
 
 describe('hydration handle', () => {
+	it('defaults to already-resolved before any registration', async () => {
+		// The beforeEach registers a promise on the statically imported
+		// instance, so a fresh module copy is the only way to observe the
+		// documented default: anonymous / offline / SSR loads that never call
+		// setHydrationPromise must not block.
+		vi.resetModules();
+		const fresh = await import('$lib/state/hydration');
+		await expect(fresh.whenHydrated()).resolves.toBeUndefined();
+		await expect(fresh.awaitHydration()).resolves.toBeUndefined();
+	});
+
 	it('whenHydrated() tracks a registered promise', async () => {
 		let resolve!: () => void;
 		const pending = new Promise<void>((r) => {
