@@ -126,19 +126,23 @@
 			const { readings, onsets, duration, sampleRate } = await replayFromBlob(full.blob, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
 			const baseOnsets = resolveOnsets(onsets, readings);
-			// Reconstruct the click grid the app scored against. Without it the
-			// segmenter runs unsuppressed and this panel can disagree with the
-			// saved result — a phantom split on a click, most often — which is
-			// exactly backwards for a debugging tool. Recordings captured before
-			// the metadata carried these fields replay unsuppressed, as before.
+			// Reconstruct the bleed evidence the app scored against. Backing
+			// recordings store their transient onsets directly (the metronome
+			// is count-in only when backing plays, so the click grid would be
+			// false evidence); older/metronome-only recordings reconstruct the
+			// click grid. Without either, the segmenter runs unsuppressed and
+			// this panel can disagree with the saved result — a phantom split
+			// on a click, most often — which is exactly backwards for a
+			// debugging tool.
 			const bleedOnsets =
-				full.metadata?.metronomeEnabled && full.metadata.transportSeconds != null
+				full.metadata?.backingBleedOnsets ??
+				(full.metadata?.metronomeEnabled && full.metadata.transportSeconds != null
 					? getMetronomeBleedOnsets(
 							full.metadata.transportSeconds,
 							full.metadata.tempo,
 							duration
 						)
-					: undefined;
+					: undefined);
 			const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
 			const resolvedOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets, bleedOnsets, articulationOnsets);

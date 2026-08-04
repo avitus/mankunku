@@ -684,8 +684,18 @@ export async function scheduleBackingTrack(
 	// ── Capture diagnostics log ─────────────────────────────
 	captureLog(phrase, harmony, bassEvents, compEvents, drumEvents, options.tempo);
 
-	// ── Build queryable schedule for bleed filter ───────────
-	activeSchedule = buildSchedule(bassEvents, compEvents, tickOffset, ppq, options.tempo);
+	// ── Build queryable schedule for bleed filter + segmenter ──
+	// Drums enter the transient-onset evidence only (unpitched — never the
+	// pitch list); loop mode makes the schedule wrap with the Parts.
+	activeSchedule = buildSchedule(
+		bassEvents,
+		compEvents,
+		drumEvents,
+		tickOffset,
+		ppq,
+		options.tempo,
+		loop ? harmonyTicks : null
+	);
 
 	// Schedule bass — Part starts at tickOffset with relative event times.
 	// This matches the melody Part pattern (start at offset, events

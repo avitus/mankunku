@@ -37,6 +37,8 @@ export interface SaveLickPracticeRecordingInput {
 	transportSeconds: number;
 	/** Whether the metronome was audible during this window. */
 	metronomeEnabled: boolean;
+	/** Recording-relative backing transient onsets (see RecordingMetadata). */
+	backingBleedOnsets?: number[];
 	/** Optional Supabase client for cloud sync. */
 	supabase?: SupabaseClient<Database>;
 	/** Authenticated user ID, paired with `supabase`. */
@@ -62,7 +64,8 @@ export async function saveLickPracticeRecording(
 		backingTrackLog: input.backingTrackLog,
 		bleedFilterLog: input.bleedFilterLog,
 		transportSeconds: input.transportSeconds,
-		metronomeEnabled: input.metronomeEnabled
+		metronomeEnabled: input.metronomeEnabled,
+		backingBleedOnsets: input.backingBleedOnsets
 	};
 	await saveRecording(input.sessionId, input.blob, {
 		metadata,

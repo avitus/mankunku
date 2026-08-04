@@ -42,7 +42,8 @@
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { scoreFluency } from '$lib/scoring/fluency';
 	import { getTrickById } from '$lib/tricks';
-	import { resolveOnsets, segmentNotes, getMetronomeBleedOnsets, findReArticulations } from '$lib/audio/note-segmenter';
+	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
+	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
@@ -848,9 +849,14 @@
 		const recordingDuration = lastReading ? lastReading.time + 0.1 : 0;
 
 		const baseOnsets = resolveOnsets(workletOnsets, rebased);
-		const bleedOnsets = settings.metronomeEnabled
-			? getMetronomeBleedOnsets(window.recordingTransportSeconds, lickPractice.currentTempo, recordingDuration)
-			: undefined;
+		const bleedOnsets = resolveBleedEvidence({
+			schedule: window.schedule,
+			backingTrackEnabled: settings.backingTrackEnabled,
+			metronomeEnabled: settings.metronomeEnabled,
+			recordingTransportSeconds: window.recordingTransportSeconds,
+			tempo: lickPractice.currentTempo,
+			recordingDuration
+		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(rebased, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
@@ -986,6 +992,15 @@
 			const tempoForSave = lickPractice.currentTempo;
 			const swingForSave = settings.swing;
 			const metronomeForSave = settings.metronomeEnabled;
+			// Backing onsets for replay parity — only when backing actually
+			// drove this window's bleed evidence (see resolveBleedEvidence).
+			const backingOnsetsForSave =
+				settings.backingTrackEnabled && windowForSave.schedule
+					? windowForSave.schedule.bleedEventsIn(
+							windowForSave.recordingTransportSeconds,
+							recordingDuration
+						)
+					: undefined;
 			const supabaseForSave = supabase;
 			const userIdForSave = user?.id;
 			void handle
@@ -1004,6 +1019,7 @@
 						bleedFilterLog: bleedLogForSave,
 						transportSeconds: windowForSave.recordingTransportSeconds,
 						metronomeEnabled: metronomeForSave,
+						backingBleedOnsets: backingOnsetsForSave,
 						supabase: supabaseForSave ?? undefined,
 						userId: userIdForSave
 					});
