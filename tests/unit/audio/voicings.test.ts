@@ -3,6 +3,8 @@ import {
 	pitchClassToNumber,
 	shellVoicing,
 	drop2Voicing,
+	rootlessVoicingA,
+	rootlessVoicingB,
 	voiceLead
 } from '$lib/audio/voicings';
 import type { PitchClass, ChordQuality } from '$lib/types/music';
@@ -106,6 +108,139 @@ describe('drop2Voicing', () => {
 		const voicing = drop2Voicing('C', 'maj7', 60);
 		const spread = voicing[voicing.length - 1] - voicing[0];
 		expect(spread).toBeGreaterThan(12);
+	});
+});
+
+describe('rootlessVoicingA (3-5-7-9 shape)', () => {
+	const pcs = (v: number[]) => v.map((m) => ((m % 12) + 12) % 12);
+
+	it('voices Cmaj7 as E-G-B-D with no root', () => {
+		const v = rootlessVoicingA('C', 'maj7');
+		expect(v).toHaveLength(4);
+		expect(new Set(pcs(v))).toEqual(new Set([4, 7, 11, 2]));
+		expect(pcs(v)).not.toContain(0);
+	});
+
+	it('voices Dm7 as F-A-C-E', () => {
+		const v = rootlessVoicingA('D', 'min7');
+		expect(new Set(pcs(v))).toEqual(new Set([5, 9, 0, 4]));
+	});
+
+	it('voices the b9 colour tone on C7b9', () => {
+		expect(pcs(rootlessVoicingA('C', '7b9'))).toContain(1); // Db
+	});
+
+	it('voices the #9 colour tone on C7#9', () => {
+		const p = pcs(rootlessVoicingA('C', '7#9'));
+		expect(p).toContain(3); // D#
+		expect(p).toContain(4); // major 3rd stays
+	});
+
+	it('voices the b13 colour tone on C7b13', () => {
+		expect(pcs(rootlessVoicingA('C', '7b13'))).toContain(8); // Ab
+	});
+
+	it('voices the #11 colour tone on C7#11', () => {
+		expect(pcs(rootlessVoicingA('C', '7#11'))).toContain(6); // F#
+	});
+
+	it('voices min7b5 correctly (Eb-Gb-Bb-D over C)', () => {
+		expect(new Set(pcs(rootlessVoicingA('C', 'min7b5')))).toEqual(new Set([3, 6, 10, 2]));
+	});
+
+	it('returns ascending notes within the mid-piano register', () => {
+		const qualities: ChordQuality[] = ['maj7', 'min7', '7', 'min7b5', 'dim7', 'maj6', 'min6', '7b9', '7#9', '7#11', '7b13', 'aug7', 'sus4', 'sus2', 'minMaj7'];
+		for (const q of qualities) {
+			for (const root of ['C', 'F#', 'Bb'] as PitchClass[]) {
+				const v = rootlessVoicingA(root, q, 62);
+				expect(v.length).toBe(4);
+				for (let i = 1; i < v.length; i++) expect(v[i]).toBeGreaterThan(v[i - 1]);
+				expect(v[0]).toBeGreaterThanOrEqual(48);
+				expect(v[v.length - 1]).toBeLessThanOrEqual(84);
+			}
+		}
+	});
+
+	it('returns empty for triads with no seventh-slot tone', () => {
+		expect(rootlessVoicingA('C', 'aug')).toEqual([]);
+		expect(rootlessVoicingA('C', 'dim')).toEqual([]);
+	});
+});
+
+describe('rootlessVoicingB (7-9-3-13 shape)', () => {
+	const pcs = (v: number[]) => v.map((m) => ((m % 12) + 12) % 12);
+
+	it('voices C7 as Bb-D-E-A (13 on top)', () => {
+		expect(new Set(pcs(rootlessVoicingB('C', '7')))).toEqual(new Set([10, 2, 4, 9]));
+	});
+
+	it('voices Cmaj7 as B-D-E-G', () => {
+		expect(new Set(pcs(rootlessVoicingB('C', 'maj7')))).toEqual(new Set([11, 2, 4, 7]));
+	});
+
+	it('keeps the 13 with the b9 on C7b9 (13b9 sound)', () => {
+		const p = pcs(rootlessVoicingB('C', '7b9'));
+		expect(p).toContain(1); // Db
+		expect(p).toContain(9); // A
+	});
+
+	it('tops C7b13 with the b13, not the natural 13', () => {
+		const p = pcs(rootlessVoicingB('C', '7b13'));
+		expect(p).toContain(8); // Ab
+		expect(p).not.toContain(9);
+	});
+
+	it('returns ascending notes within the mid-piano register', () => {
+		const qualities: ChordQuality[] = ['maj7', 'min7', '7', 'min7b5', 'dim7', '7b9', '7#9', '7#11', '7b13', 'aug7', 'sus4', 'sus2'];
+		for (const q of qualities) {
+			for (const root of ['C', 'E', 'Ab'] as PitchClass[]) {
+				const v = rootlessVoicingB(root, q, 62);
+				// sus2 legitimately collapses to 3 notes: its 9 IS its sus tone
+				// an octave up, and the duplicate is dropped rather than
+				// triggering the same MIDI note twice.
+				expect(v.length).toBeGreaterThanOrEqual(3);
+				for (let i = 1; i < v.length; i++) expect(v[i]).toBeGreaterThan(v[i - 1]);
+				expect(v[0]).toBeGreaterThanOrEqual(48);
+				expect(v[v.length - 1]).toBeLessThanOrEqual(84);
+			}
+		}
+	});
+
+	it('returns empty for triads with no seventh-slot tone', () => {
+		expect(rootlessVoicingB('C', 'aug')).toEqual([]);
+		expect(rootlessVoicingB('C', 'dim')).toEqual([]);
+	});
+});
+
+describe('voiceLead with per-chord voicing functions', () => {
+	it('accepts an array of voicing functions, one per chord', () => {
+		const chords = [
+			{ root: 'D' as PitchClass, quality: 'min7' as ChordQuality },
+			{ root: 'G' as PitchClass, quality: '7' as ChordQuality },
+			{ root: 'C' as PitchClass, quality: 'maj7' as ChordQuality }
+		];
+		const result = voiceLead(chords, [rootlessVoicingA, rootlessVoicingB, rootlessVoicingA], 62);
+		expect(result).toHaveLength(3);
+		// Dm7 A-form: F-A-C-E
+		expect(new Set(result[0].map((m) => m % 12))).toEqual(new Set([5, 9, 0, 4]));
+		// G7 B-form: F-A-B-E
+		expect(new Set(result[1].map((m) => m % 12))).toEqual(new Set([5, 9, 11, 4]));
+	});
+
+	it('keeps movement small across a rootless ii-V-I', () => {
+		const chords = [
+			{ root: 'D' as PitchClass, quality: 'min7' as ChordQuality },
+			{ root: 'G' as PitchClass, quality: '7' as ChordQuality },
+			{ root: 'C' as PitchClass, quality: 'maj7' as ChordQuality }
+		];
+		const result = voiceLead(chords, [rootlessVoicingA, rootlessVoicingB, rootlessVoicingA], 62);
+		for (let i = 1; i < result.length; i++) {
+			const movement = result[i].reduce(
+				(sum, note, idx) => sum + Math.abs(note - (result[i - 1][idx] ?? note)),
+				0
+			);
+			expect(movement).toBeLessThan(16);
+		}
 	});
 });
 

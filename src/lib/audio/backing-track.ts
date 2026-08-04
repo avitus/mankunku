@@ -16,11 +16,24 @@ import type { PlaybackOptions } from '$lib/types/audio';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { initAudio, getMasterGain, getAudioContext } from './audio-context';
-import { pitchClassToNumber, shellVoicing, voiceLead } from './voicings';
 import { chordSymbol } from '$lib/music/chords';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
-import { BACKING_STYLES, type StyleDefinition } from './backing-styles';
+import { BACKING_STYLES } from './backing-styles';
+import {
+	generateBacking,
+	type BassEvent,
+	type CompEvent,
+	type DrumEvent
+} from './backing-generation';
 import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps';
+import {
+	loadBackingMix,
+	saveBackingMix,
+	normalizeBackingMix,
+	voiceVelocity,
+	BACKING_BASE_TRIMS,
+	type BackingMixLevels
+} from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
 
 // ── Diagnostics log ──────────────────────────────────────────
@@ -105,8 +118,43 @@ let compInstrument: CompInstrument | null = null;
 let bassInstrument: BassInstrument | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
 
-// Gain nodes for independent volume control
+// Gain nodes for independent volume control. `backingGain` carries the
+// overall backing volume into master; `bassGain` and `compGain` hang off
+// it so each instrument's mix trim is independent of the master level.
+// The drum kit has its own node into master, scaled by volume × trim.
 let backingGain: GainNode | null = null;
+let bassGain: GainNode | null = null;
+let compGain: GainNode | null = null;
+let currentBackingVolume = 0.5;
+
+// Per-instrument mix levels, persisted per device (see backing-mix.ts).
+let mixLevels: BackingMixLevels = loadBackingMix();
+
+/** Push the current volume + base trims + mix levels onto every live gain node. */
+function applyMixGains(): void {
+	if (backingGain) backingGain.gain.value = currentBackingVolume;
+	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
+	if (compGain) compGain.gain.value = BACKING_BASE_TRIMS.comp * mixLevels.comp;
+	if (drumGainNode) {
+		drumGainNode.gain.value = currentBackingVolume * BACKING_BASE_TRIMS.drums * mixLevels.drums;
+	}
+}
+
+/** Current per-instrument mix levels (copy). */
+export function getBackingMix(): BackingMixLevels {
+	return { ...mixLevels };
+}
+
+/**
+ * Update per-instrument mix levels, apply them to any live gain nodes
+ * immediately, and persist them for future sessions on this device.
+ * Kick/ride/hihat trims take effect from the next drum trigger.
+ */
+export function setBackingMix(partial: Partial<BackingMixLevels>): void {
+	mixLevels = normalizeBackingMix({ ...mixLevels, ...partial });
+	saveBackingMix(mixLevels);
+	applyMixGains();
+}
 
 // Drums: multi-sample kit loaded via smplr.Sampler with string aliases
 // (`kick`, `ride`, `hihat`) mapped to CC0 Virtuosity Drums recordings.
@@ -119,7 +167,7 @@ let drumLoadPromise: Promise<void> | null = null;
 // Scheduled parts
 let bassPart: import('tone').Part<BassEvent> | null = null;
 let compPart: import('tone').Part<CompEvent> | null = null;
-let drumSequence: import('tone').Sequence<number> | null = null;
+let drumPart: import('tone').Part<DrumEvent> | null = null;
 let activeSchedule: BackingTrackSchedule | null = null;
 
 /** Monotonically increasing ID for cancelling stale loads. */
@@ -265,12 +313,21 @@ export async function loadBackingInstruments(
 	const audioCtx = await initAudio();
 	if (loadId !== currentLoadId) return;
 
-	// Create shared gain node if needed
+	// Create shared gain nodes if needed
 	if (!backingGain) {
 		backingGain = audioCtx.createGain();
-		backingGain.gain.value = 0.5;
+		backingGain.gain.value = currentBackingVolume;
 		backingGain.connect(getMasterGain());
 	}
+	if (!bassGain) {
+		bassGain = audioCtx.createGain();
+		bassGain.connect(backingGain);
+	}
+	if (!compGain) {
+		compGain = audioCtx.createGain();
+		compGain.connect(backingGain);
+	}
+	applyMixGains();
 
 	const { Soundfont, SplendidGrandPiano, Smolken } = await import('smplr');
 	if (loadId !== currentLoadId) return;
@@ -279,7 +336,7 @@ export async function loadBackingInstruments(
 	if (!bassInstrument) {
 		const bass = new Smolken(audioCtx, {
 			instrument: 'Pizzicato',
-			destination: backingGain
+			destination: bassGain
 		});
 		await bass.load;
 		if (loadId !== currentLoadId) {
@@ -292,11 +349,11 @@ export async function loadBackingInstruments(
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		const newComp: CompInstrument = instrumentType === 'piano'
-			? new SplendidGrandPiano(audioCtx, { destination: backingGain })
+			? new SplendidGrandPiano(audioCtx, { destination: compGain })
 			: new Soundfont(audioCtx, {
 				instrument: 'drawbar_organ',
 				kit: 'MusyngKite',
-				destination: backingGain
+				destination: compGain
 			});
 		await newComp.load;
 		if (loadId !== currentLoadId) {
@@ -330,182 +387,6 @@ export async function loadBackingInstruments(
 /** Check if backing instruments are loaded and ready. */
 export function isBackingLoaded(): boolean {
 	return bassInstrument !== null && compInstrument !== null;
-}
-
-// ── Bass generation ──────────────────────────────────────────
-
-const BASS_REGISTER = 40; // E2 — center of upright bass range
-
-/** Find nearest bass-register MIDI note for a pitch class. */
-function nearestBassNote(pc: number, center: number): number {
-	const centerPc = ((center % 12) + 12) % 12;
-	let midi = center + ((pc - centerPc + 6 + 12) % 12 - 6);
-	// Clamp to reasonable bass range (E1=28 to G3=55)
-	if (midi < 28) midi += 12;
-	if (midi > 55) midi -= 12;
-	return midi;
-}
-
-/** Pick a chord tone for bass on a given beat index. */
-function chordToneForBass(rootPc: number, quality: string, center: number, beatIndex: number): number {
-	// Compute chord-tone intervals from quality
-	const hasMinor3rd = quality.startsWith('min') || quality.includes('dim');
-	const hasDim5th = quality.includes('dim') || quality.includes('b5');
-	const hasAug5th = quality.includes('aug');
-
-	const thirdInterval = hasMinor3rd ? 3 : 4;
-	const fifthInterval = hasDim5th ? 6 : hasAug5th ? 8 : 7;
-
-	// Chord tones ordered for melodic variety by beat position
-	const tones = beatIndex % 2 === 1
-		? [fifthInterval, thirdInterval, 0]
-		: [thirdInterval, fifthInterval, 0];
-	const offset = tones[beatIndex % tones.length];
-	const pc = (rootPc + offset) % 12;
-	return nearestBassNote(pc, center);
-}
-
-/** Chromatic approach note (half step below or above target). */
-function approachNote(targetMidi: number): number {
-	return Math.random() < 0.6 ? targetMidi - 1 : targetMidi + 1;
-}
-
-/** Subtle timing humanization for backing track (tighter than melody). */
-function humanizeBeatTicks(ticks: number, ppq: number, tempo: number): number {
-	const baseMs = 3;
-	const tempoScale = 120 / tempo;
-	const maxDeviationMs = baseMs * tempoScale;
-	const msPerTick = (60 / tempo / ppq) * 1000;
-	const maxDeviationTicks = Math.round(maxDeviationMs / msPerTick);
-	const deviation = (Math.random() - 0.5) * 2 * maxDeviationTicks;
-	return Math.max(0, Math.round(ticks + deviation));
-}
-
-interface BassEvent {
-	time: string;
-	midi: number;
-	duration: number;
-	velocity: number;
-}
-
-/**
- * Generate walking bass notes for the chord progression.
- * Uses chord tones on interior beats and chromatic approach notes
- * on the last beat of each segment to lead into the next root.
- */
-function generateWalkingBass(
-	harmony: HarmonicSegment[],
-	beatsPerBar: number,
-	tempo: number,
-	ppq: number
-): BassEvent[] {
-	const events: BassEvent[] = [];
-	const beatDuration = 60 / tempo;
-
-	for (let segIdx = 0; segIdx < harmony.length; segIdx++) {
-		const seg = harmony[segIdx];
-		const rootPc = pitchClassToNumber(seg.chord.root);
-		const rootMidi = nearestBassNote(rootPc, BASS_REGISTER);
-
-		const segStartBeats = fractionToFloat(seg.startOffset) * 4;
-		const segDurationBeats = fractionToFloat(seg.duration) * 4;
-		const totalBeats = Math.round(segDurationBeats);
-
-		// Next segment's root for approach notes (no wrapping on last segment)
-		const hasNext = segIdx + 1 < harmony.length;
-		const nextRootPc = hasNext ? pitchClassToNumber(harmony[segIdx + 1].chord.root) : rootPc;
-		const nextRootMidi = hasNext ? nearestBassNote(nextRootPc, BASS_REGISTER) : rootMidi;
-
-		for (let beat = 0; beat < totalBeats; beat++) {
-			const beatOffset = segStartBeats + beat;
-			const ticks = Math.round(beatOffset * ppq);
-			let midi: number;
-
-			if (beat === 0) {
-				// Beat 1: always the root
-				midi = rootMidi;
-			} else if (beat === totalBeats - 1 && totalBeats > 1) {
-				// Last beat: chromatic approach to next root
-				midi = approachNote(nextRootMidi);
-			} else if (beat === 1) {
-				// Beat 2: chord tone (3rd or 5th)
-				midi = chordToneForBass(rootPc, seg.chord.quality, BASS_REGISTER, 1);
-			} else {
-				// Beat 3+: alternate chord tones
-				midi = chordToneForBass(rootPc, seg.chord.quality, BASS_REGISTER, beat);
-			}
-
-			// Subtle velocity humanization
-			const velocity = 80 + Math.round((Math.random() - 0.5) * 10);
-
-			events.push({
-				time: `${humanizeBeatTicks(ticks, ppq, tempo)}i`,
-				midi,
-				duration: beatDuration * 0.85, // Slightly detached
-				velocity
-			});
-		}
-	}
-
-	return events;
-}
-
-// ── Comping generation ───────────────────────────────────────
-
-interface CompEvent {
-	time: string;
-	notes: number[];
-	duration: number;
-	velocity: number;
-}
-
-/**
- * Generate comp (chord) events with voice-led voicings.
- * Uses style definition to determine comping pattern.
- */
-function generateComping(
-	harmony: HarmonicSegment[],
-	beatsPerBar: number,
-	tempo: number,
-	ppq: number,
-	style: StyleDefinition
-): CompEvent[] {
-	const events: CompEvent[] = [];
-	const beatDuration = 60 / tempo;
-
-	// Voice-lead the chord sequence
-	const chords = harmony.map(seg => ({ root: seg.chord.root, quality: seg.chord.quality }));
-	const voicings = voiceLead(chords, shellVoicing, 54);
-
-	for (let segIdx = 0; segIdx < harmony.length; segIdx++) {
-		const seg = harmony[segIdx];
-		const voicing = voicings[segIdx];
-		if (!voicing || voicing.length === 0) continue;
-
-		const segStartBeats = fractionToFloat(seg.startOffset) * 4;
-		const segDurationBeats = fractionToFloat(seg.duration) * 4;
-		const totalBeats = Math.round(segDurationBeats);
-
-		for (let beat = 0; beat < totalBeats; beat++) {
-			const beatInBar = Math.round(segStartBeats + beat) % beatsPerBar;
-			const compResult = style.compPattern(beatInBar, beatsPerBar);
-
-			if (!compResult.hit) continue;
-
-			const beatOffset = segStartBeats + beat;
-			const ticks = Math.round(beatOffset * ppq);
-
-			const compDurationBeats = compResult.duration[0] / compResult.duration[1];
-			events.push({
-				time: `${humanizeBeatTicks(ticks, ppq, tempo)}i`,
-				notes: voicing,
-				duration: beatDuration * compDurationBeats,
-				velocity: compResult.velocity
-			});
-		}
-	}
-
-	return events;
 }
 
 // ── Harmony fallback ─────────────────────────────────────────
@@ -592,24 +473,31 @@ function captureLog(
 	harmony: HarmonicSegment[],
 	bassEvents: BassEvent[],
 	compEvents: CompEvent[],
-	beatsPerBar: number,
-	ppq: number,
+	drumEvents: DrumEvent[],
 	tempo: number
 ): void {
-	// Index bass events by their beat position
+	// Index bass events by their beat position (quarters only — swung
+	// pickups and ghosts belong to the beat they decorate).
 	const bassByBeat = new Map<number, BassEvent>();
 	for (const e of bassEvents) {
-		const ticks = parseInt(e.time);
-		const beat = Math.round(ticks / ppq);
-		bassByBeat.set(beat, e);
+		if (e.absBeat % 1 !== 0) continue;
+		bassByBeat.set(e.absBeat, e);
 	}
 
 	// Index comp events by their beat position
 	const compByBeat = new Map<number, CompEvent>();
 	for (const e of compEvents) {
-		const ticks = parseInt(e.time);
-		const beat = Math.round(ticks / ppq);
-		compByBeat.set(beat, e);
+		compByBeat.set(Math.floor(e.absBeat), e);
+	}
+
+	// Index drum hits by the beat they fall in (swung eighths included).
+	const DRUM_LABELS: Record<DrumEvent['drum'], string> = { kick: 'Kick', ride: 'Ride', hihat: 'HH' };
+	const drumsByBeat = new Map<number, Set<string>>();
+	for (const e of drumEvents) {
+		const beat = Math.floor(e.absBeat);
+		const set = drumsByBeat.get(beat) ?? new Set<string>();
+		set.add(DRUM_LABELS[e.drum]);
+		drumsByBeat.set(beat, set);
 	}
 
 	// Index melody notes by beat position
@@ -628,22 +516,16 @@ function captureLog(
 
 		for (let b = 0; b < durationBeats; b++) {
 			const globalBeat = startBeat + b;
-			const beatInBar = globalBeat % beatsPerBar;
 
 			const bassEvent = bassByBeat.get(globalBeat);
 			const compEvent = compByBeat.get(globalBeat);
-
-			const drumParts: string[] = [];
-			if (beatInBar === 0) drumParts.push('Kick');
-			drumParts.push('Ride');
-			if (beatInBar === 1 || beatInBar === 3) drumParts.push('HH');
 
 			beats.push({
 				beat: globalBeat + 1, // 1-based for display
 				bassMidi: bassEvent?.midi ?? -1,
 				compMidi: compEvent?.notes ?? null,
 				compVelocity: compEvent?.velocity ?? null,
-				drumParts,
+				drumParts: [...(drumsByBeat.get(globalBeat) ?? [])],
 				melodyMidi: melodyByBeat.get(globalBeat) ?? null
 			});
 		}
@@ -685,9 +567,9 @@ export function disposeBackingParts(): void {
 		compPart.dispose();
 		compPart = null;
 	}
-	if (drumSequence) {
-		drumSequence.dispose();
-		drumSequence = null;
+	if (drumPart) {
+		drumPart.dispose();
+		drumPart = null;
 	}
 	bassInstrument?.stop();
 	compInstrument?.stop();
@@ -771,15 +653,26 @@ export async function scheduleBackingTrack(
 
 	disposeBackingParts();
 
-	// ── Bass + Comp events ──────────────────────────────────
-	const bassEvents = generateWalkingBass(harmony, beatsPerBar, options.tempo, ppq);
-	const compEvents = generateComping(harmony, beatsPerBar, options.tempo, ppq, style);
+	// ── Generate bass + comp + drum events ──────────────────
+	// Swing: the session value when the user swings it, else the style's
+	// default — so the swing style's ride pattern swings even while the
+	// melody setting sits straight. Placement math applies this per event;
+	// scoring is untouched (it shares only the melody's options.swing).
+	const swing = options.swing > 0.5 ? options.swing : style.defaultSwing;
+	const { bassEvents, compEvents, drumEvents } = generateBacking(harmony, style, {
+		phraseId: phrase.id,
+		tempo: options.tempo,
+		ppq,
+		beatsPerBar,
+		swing,
+		sectionMap: phrase.sectionMap
+	});
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
 	const harmonyTicks = Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
 
 	// ── Capture diagnostics log ─────────────────────────────
-	captureLog(phrase, harmony, bassEvents, compEvents, beatsPerBar, ppq, options.tempo);
+	captureLog(phrase, harmony, bassEvents, compEvents, drumEvents, options.tempo);
 
 	// ── Build queryable schedule for bleed filter ───────────
 	activeSchedule = buildSchedule(bassEvents, compEvents, tickOffset, ppq, options.tempo);
@@ -824,36 +717,28 @@ export async function scheduleBackingTrack(
 	// ── Drums ───────────────────────────────────────────────
 	// The kit is already loaded and the supersession check already passed
 	// above, before any state was touched — see the comment there.
+	// Drums are a Part like bass and comp (not a per-beat Sequence): the
+	// swung ride eighths and section-final setups are tick-placed events,
+	// generated up front so the whole kit shares the swing grid.
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
-	const drumCallback = (time: number, beat: number) => {
-		const hits = style.drumPattern(beat, beatsPerBar);
-		const sampler = drumSampler;
-		if (!sampler) return;
-		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127.
-		const trigger = (note: DrumBufferName, velocity: number) => {
-			sampler.start({ note, velocity: Math.round(velocity * 127), time });
-		};
-		if (hits.kick) trigger('kick', hits.kickVelocity ?? 0.5);
-		if (hits.ride) trigger('ride', hits.rideVelocity ?? 0.4);
-		if (hits.hihat) trigger('hihat', hits.hihatVelocity ?? 0.5);
-	};
-
-	const pattern = Array.from({ length: beatsPerBar }, (_, i) => i);
-
-	if (!loop) {
-		// Finite: phrase-length beats, aligned with pitched backing
-		const phraseBars = Math.ceil(harmonyDurationBeats / beatsPerBar);
-		const totalBeats = beatsPerBar * phraseBars;
-		const allBeats = Array.from({ length: totalBeats }, (_, i) => i % beatsPerBar);
-
-		drumSequence = new Tone.Sequence(drumCallback, allBeats, '4n');
-		drumSequence.start(`${tickOffset}i`);
-		drumSequence.loop = false;
-	} else {
-		drumSequence = new Tone.Sequence(drumCallback, pattern, '4n');
-		drumSequence.start(`${tickOffset}i`);
-		drumSequence.loop = true;
+	drumPart = new Tone.Part((time: number, event: DrumEvent) => {
+		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
+		// per-voice base trim and mix trim apply here because the kit is one
+		// sampler — velocity is the only per-voice level lever.
+		drumSampler?.start({
+			note: event.drum as DrumBufferName,
+			velocity: Math.round(
+				voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
+			),
+			time
+		});
+	}, drumEvents);
+	drumPart.start(`${tickOffset}i`);
+	drumPart.loop = loop;
+	if (loop) {
+		drumPart.loopStart = 0;
+		drumPart.loopEnd = `${harmonyTicks}i`;
 	}
 }
 
@@ -898,15 +783,22 @@ export function disposeBackingTrack(): void {
 		drumGainNode.disconnect();
 		drumGainNode = null;
 	}
+	if (bassGain) {
+		bassGain.disconnect();
+		bassGain = null;
+	}
+	if (compGain) {
+		compGain.disconnect();
+		compGain = null;
+	}
 	if (backingGain) {
 		backingGain.disconnect();
 		backingGain = null;
 	}
 }
 
-/** Adjust backing track volume at runtime. */
+/** Adjust backing track volume at runtime (per-instrument trims ride on top). */
 export function setBackingTrackVolume(volume: number): void {
-	const v = Math.max(0, Math.min(1, volume));
-	if (backingGain) backingGain.gain.value = v;
-	if (drumGainNode) drumGainNode.gain.value = v * 0.6; // drums sit back in the mix
+	currentBackingVolume = Math.max(0, Math.min(1, volume));
+	applyMixGains();
 }

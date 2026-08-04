@@ -31,7 +31,8 @@ export function tuneToPhraseWithFlat(
 			difficulty,
 			category: 'user',
 			tags: sheet.tags,
-			source: 'tune'
+			source: 'tune',
+			sectionMap: flat.sectionMap
 		},
 		flat
 	};

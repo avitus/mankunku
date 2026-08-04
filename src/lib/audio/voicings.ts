@@ -113,23 +113,106 @@ export function drop2Voicing(rootPc: PitchClass, quality: ChordQuality, register
 }
 
 /**
+ * Rootless voicing degree slots, derived from CHORD_DEFINITIONS intervals.
+ *
+ * Disambiguation rules the definitions force:
+ * - `7#9` carries both 3 (the #9) and 4 (the major 3rd): when both are
+ *   present the 3rd is 4 and the 9-slot is 15 (#9 up an octave).
+ * - `7b13`/`aug7` carry 8; `7#11`/`min7b5`/`dim7`/`7alt` carry 6 — either
+ *   replaces the 5-slot so altered dominants voice their colour tone.
+ * - maj6/min6 (interval 9) and dim7 (bb7, also 9) share the 7-slot: both
+ *   are the chord's fourth stacked tone, which is exactly what the slot
+ *   voices. Triads with no 9/10/11 interval are not voiceable rootless.
+ */
+function rootlessSlots(quality: ChordQuality): { third: number; fifth: number; seventh: number; ninth: number } | null {
+	const def = CHORD_DEFINITIONS[quality];
+	if (!def) return null;
+	const has = (n: number) => def.intervals.includes(n);
+
+	const seventh = def.intervals.find((i) => i >= 9 && i <= 11);
+	if (seventh === undefined) return null;
+
+	const third = has(4) ? 4 : has(3) ? 3 : has(5) ? 5 : 2;
+	const fifth = has(8) ? 8 : has(6) ? 6 : 7;
+	const ninth = has(1) ? 13 : has(3) && has(4) ? 15 : 14;
+	return { third, fifth, seventh, ninth };
+}
+
+/** Stack ascending intervals over the root pitch class, near a register. */
+function stackNearRegister(rootNum: number, intervals: number[], targetLowest: number): number[] {
+	// Dedupe + sort: slot arithmetic can collide (sus2's 9-slot IS its sus
+	// tone an octave up), and a duplicate would trigger one MIDI note twice.
+	const stack = [...new Set(intervals)].sort((a, b) => a - b);
+	const rootRef = nearestTo(rootNum, targetLowest - stack[0]);
+	const notes = stack.map((i) => rootRef + i);
+	// Keep the voicing in the mid-piano band: above the bass, below the melody.
+	if (notes[0] < 48) return notes.map((n) => n + 12);
+	if (notes[notes.length - 1] > 84) return notes.map((n) => n - 12);
+	return notes;
+}
+
+/**
+ * Rootless "A-form" voicing: 3-5-7-9 stacked from the 3rd, with altered
+ * tensions replacing the plain tones they colour (b9/#9 in the 9-slot,
+ * #11/b13 in the 5-slot). Returns [] for triads with no 7th-slot tone.
+ *
+ * @param rootPc - PitchClass name of the chord root
+ * @param quality - Chord quality
+ * @param registerMidi - Approximate center MIDI (default 62)
+ */
+export function rootlessVoicingA(rootPc: PitchClass, quality: ChordQuality, registerMidi: number = 62): number[] {
+	const slots = rootlessSlots(quality);
+	if (!slots) return [];
+	const rootNum = pitchClassToNumber(rootPc);
+	return stackNearRegister(rootNum, [slots.third, slots.fifth, slots.seventh, slots.ninth], registerMidi - 9);
+}
+
+/**
+ * Rootless "B-form" voicing: 7-9-3-13 stacked from the 7th. Plain dominants
+ * take the natural 13 on top (the classic 13 / 13b9 sound); a b13 or #11 in
+ * the definition takes the top slot instead; other qualities top with the
+ * 5th. Returns [] for triads with no 7th-slot tone.
+ *
+ * @param rootPc - PitchClass name of the chord root
+ * @param quality - Chord quality
+ * @param registerMidi - Approximate center MIDI (default 62)
+ */
+export function rootlessVoicingB(rootPc: PitchClass, quality: ChordQuality, registerMidi: number = 62): number[] {
+	const slots = rootlessSlots(quality);
+	if (!slots) return [];
+	const isDominant = slots.seventh === 10 && slots.third === 4;
+	const top =
+		slots.fifth === 8 ? 20 :
+		slots.fifth === 6 ? 18 :
+		isDominant ? 21 : slots.fifth + 12;
+	const rootNum = pitchClassToNumber(rootPc);
+	return stackNearRegister(rootNum, [slots.seventh, slots.ninth, slots.third + 12, top], registerMidi - 15);
+}
+
+/** A voicing builder: (root, quality, register) → ascending MIDI notes. */
+export type VoicingFn = (root: PitchClass, quality: ChordQuality, register: number) => number[];
+
+/**
  * Voice-lead a sequence of chords: each voicing minimizes total
  * semitone movement from the previous voicing.
  *
  * @param chords - Array of [rootPc, quality] pairs
- * @param voicingFn - Voicing function to use
+ * @param voicingFn - Voicing function, or one function per chord (same length
+ *   as `chords`) so the comping engine can mix shell/rootless/drop-2 shapes
+ *   while voice-leading still drives the register choice
  * @param registerMidi - Starting register center
  * @returns Array of MIDI note arrays
  */
 export function voiceLead(
 	chords: Array<{ root: PitchClass; quality: ChordQuality }>,
-	voicingFn: (root: PitchClass, quality: ChordQuality, register: number) => number[],
+	voicingFn: VoicingFn | VoicingFn[],
 	registerMidi: number = 54
 ): number[][] {
 	if (chords.length === 0) return [];
+	const fnFor = (i: number): VoicingFn => (Array.isArray(voicingFn) ? voicingFn[i] : voicingFn);
 
 	const result: number[][] = [];
-	let prevVoicing = voicingFn(chords[0].root, chords[0].quality, registerMidi);
+	let prevVoicing = fnFor(0)(chords[0].root, chords[0].quality, registerMidi);
 	result.push(prevVoicing);
 
 	for (let i = 1; i < chords.length; i++) {
@@ -139,7 +222,7 @@ export function voiceLead(
 		let bestCost = Infinity;
 
 		for (let reg = registerMidi - 12; reg <= registerMidi + 12; reg += 1) {
-			const candidate = voicingFn(chord.root, chord.quality, reg);
+			const candidate = fnFor(i)(chord.root, chord.quality, reg);
 			if (candidate.length === 0) continue;
 
 			const cost = totalMovement(prevVoicing, candidate);

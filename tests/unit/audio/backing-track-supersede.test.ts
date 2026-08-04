@@ -162,9 +162,11 @@ describe('scheduleBackingTrack supersession', () => {
 		await mod.loadBackingInstruments('piano');
 		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 480, false, () => true);
 
+		// Bass, comp and drums are all tick-placed Parts (drums moved off
+		// Sequence so their swung eighths share the swing grid).
 		const started = parts.filter((p) => p.started);
-		expect(started.filter((p) => p.kind === 'part')).toHaveLength(2); // bass + comp
-		expect(started.filter((p) => p.kind === 'sequence')).toHaveLength(1); // drums
+		expect(started.filter((p) => p.kind === 'part')).toHaveLength(3);
+		expect(started.filter((p) => p.kind === 'sequence')).toHaveLength(0);
 	});
 
 	it('starts NOTHING when superseded at the kit checkpoint', async () => {

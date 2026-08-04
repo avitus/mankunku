@@ -116,6 +116,16 @@ export interface Phrase {
 	category: PhraseCategory;
 	tags: string[];
 	source: 'curated' | 'generated' | string;
+	/**
+	 * Section layout of the flattened tune this phrase was built from, in
+	 * THIS timeline's order (structurally `FlattenedTune.sectionMap`): which
+	 * authored section each emitted section came from and its bar offset.
+	 * Present only on tune-derived phrases; the backing-track engine uses it
+	 * to derive section/chorus positions and section-final bars, falling back
+	 * to flat bar counting when absent. Licks and generated phrases leave it
+	 * unset.
+	 */
+	sectionMap?: { sourceSection: number; barOffset: number }[];
 }
 
 export type ScaleFamily =

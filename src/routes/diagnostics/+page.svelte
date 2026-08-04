@@ -437,12 +437,20 @@
 <div class="mx-auto max-w-5xl px-4 py-6 space-y-6">
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold">Diagnostics</h1>
-		<button
-			onclick={refresh}
-			class="rounded-full bg-[var(--color-bg-secondary)] px-3 py-1 text-sm hover:bg-[var(--color-bg-tertiary)] transition-colors"
-		>
-			Refresh
-		</button>
+		<div class="flex items-center gap-2">
+			<a
+				href="/diagnostics/backing-mixer"
+				class="rounded-full bg-[var(--color-bg-secondary)] px-3 py-1 text-sm hover:bg-[var(--color-bg-tertiary)] transition-colors"
+			>
+				Backing mixer
+			</a>
+			<button
+				onclick={refresh}
+				class="rounded-full bg-[var(--color-bg-secondary)] px-3 py-1 text-sm hover:bg-[var(--color-bg-tertiary)] transition-colors"
+			>
+				Refresh
+			</button>
+		</div>
 	</div>
 
 	<!-- ── Summary ────────────────────────────────────────── -->
