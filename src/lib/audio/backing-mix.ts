@@ -54,7 +54,7 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
  * the render-audio diagnostic, not by any level-blind unit test.
  *
  * Current values re-express the ear-tuned 2026-08-02 balance against the
- * −3 dBFS-normalized kit via the sqrt rule (kick 3→2.09, ride 1.55→0.71;
+ * −3 dBFS-normalized kit via the sqrt rule (kick 3→2.0 — rounded down from 2.09 so no musical velocity can clamp; ride 1.55→0.71;
  * hi-hat was velocity-clamped pre-normalization, so its target is the old
  * CLAMPED loudness → 0.81). Timekeeping-range velocities (≤ 0.5) stay
  * unclamped; the loudest setup accents may just kiss the ceiling. Voices
@@ -65,7 +65,7 @@ export const BACKING_BASE_TRIMS: Record<keyof BackingMixLevels, number> = {
 	bass: 0.05,
 	comp: 0.1,
 	drums: 1.8,
-	kick: 2.09,
+	kick: 2.0,
 	ride: 0.71,
 	hihat: 0.81,
 	'hihat-pedal': 0.81,

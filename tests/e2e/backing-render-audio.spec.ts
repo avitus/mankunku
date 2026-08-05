@@ -14,7 +14,7 @@ import { join } from 'node:path';
 
 test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, browserName }) => {
 	test.skip(!!process.env.CI, 'needs CDN instrument fetches — local diagnostic only');
-	test.skip(browserName !== 'chromium', 'one engine is enough for an audio-presence check');
+	test.skip(browserName === 'firefox', 'Tone-less render path — verify on Chromium and WebKit, the engines with divergent audio stacks');
 	test.setTimeout(300_000);
 
 	await seedOnboardedAnonymous(page);
@@ -89,9 +89,15 @@ test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, bro
 		timeout: 240_000
 	});
 	await expect
-		.poll(async () => page.evaluate(() => (window as unknown as { __blobs: Blob[] }).__blobs.length), {
-			timeout: 240_000
-		})
+		.poll(
+			async () =>
+				page.evaluate(
+					() =>
+						(window as unknown as { __blobs: Blob[] }).__blobs.filter((b) => b.type === 'audio/wav')
+							.length
+				),
+			{ timeout: 240_000 }
+		)
 		.toBeGreaterThanOrEqual(2);
 	const golden = await profileOfLastBlob(18);
 	console.log(`golden-JSON: peak=${golden.peak.toFixed(3)} coverage=${golden.coverage.toFixed(2)}`);

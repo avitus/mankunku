@@ -129,7 +129,7 @@ describe('BACKING_BASE_TRIMS', () => {
 			// setup accents may approach it. smplr's velocity→gain is
 			// quadratic, so trims sit higher in velocity space than a linear
 			// intuition suggests.
-			expect(0.5 * BACKING_BASE_TRIMS[key]).toBeLessThanOrEqual(1.05);
+			expect(0.5 * BACKING_BASE_TRIMS[key]).toBeLessThanOrEqual(1);
 		}
 		for (const v of Object.values(BACKING_BASE_TRIMS)) {
 			expect(Number.isFinite(v)).toBe(true);

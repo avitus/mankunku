@@ -141,7 +141,8 @@ export async function renderEventsToWav(
 	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
 	opts: RenderOpts
 ): Promise<Blob> {
-	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler } = await import('smplr');
+	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler, Scheduler } =
+		await import('smplr');
 	const { tempo, volume, mix, durationSeconds } = opts;
 
 	const result = await renderOffline(
@@ -166,14 +167,26 @@ export async function renderEventsToWav(
 			drumGain.gain.value = volume * BACKING_BASE_TRIMS.drums * mix.drums;
 			drumGain.connect(context.destination);
 
+			// smplr dispatches a note synchronously only when its time is within
+			// the scheduler's lookahead of currentTime; later notes sit in a
+			// queue pumped by setInterval — wall clock, which never fires while
+			// an offline render completes in milliseconds ("one beat of music").
+			// A shared scheduler whose lookahead exceeds the whole render makes
+			// every start dispatch synchronously onto the graph. (The earlier
+			// OfflineAudioContext.suspend-checkpoint approach worked on Chromium
+			// but Safari doesn't implement suspend on offline contexts.)
+			const scheduler = new Scheduler(context, {
+				lookaheadMs: (durationSeconds + 10) * 1000
+			});
 			const [bass, comp, drums] = await Promise.all([
-				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain }).load,
+				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain, scheduler }).load,
 				opts.instrument === 'piano'
-					? new SplendidGrandPiano(context, { destination: compGain }).load
+					? new SplendidGrandPiano(context, { destination: compGain, scheduler }).load
 					: new Soundfont(context, {
 							instrument: 'drawbar_organ',
 							kit: 'MusyngKite',
-							destination: compGain
+							destination: compGain,
+							scheduler
 						}).load,
 				// Explicit defaults for the same reason as the live kit: undefined
 				// values clobber smplr's PARAM_DEFAULTS and NaN the voice.
@@ -182,71 +195,36 @@ export async function renderEventsToWav(
 					destination: drumGain,
 					detune: 0,
 					decayTime: 0.3,
-					lpfCutoffHz: 20000
+					lpfCutoffHz: 20000,
+					scheduler
 				}).load
 			]);
 
-			// smplr dispatches a note straight onto the graph only when its time
-			// is within ~200 ms of `currentTime`; anything further out sits in
-			// an internal queue pumped by setInterval — wall-clock, which never
-			// fires while an offline render completes in milliseconds. Result:
-			// only the first lookahead window sounded ("one beat of music").
-			// Fix: register suspend checkpoints every 150 ms of RENDER time and
-			// fire each event at the checkpoint just before it falls due, so
-			// every start lands inside the lookahead of the then-current time.
-			type Fire = { t: number; fire: () => void };
-			const fires: Fire[] = [];
 			for (const e of generated.bassEvents) {
-				const t = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
-				fires.push({
-					t,
-					fire: () => bass.start({ note: e.midi, velocity: e.velocity, duration: e.duration, time: t })
+				bass.start({
+					note: e.midi,
+					velocity: e.velocity,
+					duration: e.duration,
+					time: eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo)
 				});
 			}
 			for (const e of generated.compEvents) {
-				const t = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
+				const time = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
 				for (const midi of e.notes) {
-					fires.push({
-						t,
-						fire: () => comp.start({ note: midi, velocity: e.velocity, duration: e.duration, time: t })
-					});
+					comp.start({ note: midi, velocity: e.velocity, duration: e.duration, time });
 				}
 			}
 			for (const e of generated.drumEvents) {
 				// Same velocity-layer selection as the live trigger path.
 				const buffer = drumBufferForVelocity(e.drum, e.velocity);
 				if (!(buffer in drumBuffers)) continue;
-				const t = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
-				fires.push({
-					t,
-					fire: () =>
-						drums.start({
-							note: buffer,
-							velocity: Math.round(
-								voiceVelocity(e.velocity * BACKING_BASE_TRIMS[e.drum], mix[e.drum]) * 127
-							),
-							time: t
-						})
+				drums.start({
+					note: buffer,
+					velocity: Math.round(
+						voiceVelocity(e.velocity * BACKING_BASE_TRIMS[e.drum], mix[e.drum]) * 127
+					),
+					time: eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo)
 				});
-			}
-			fires.sort((a, b) => a.t - b.t);
-
-			const WINDOW = 0.15; // safely inside smplr's 200 ms lookahead
-			let next = 0;
-			const fireDue = (until: number) => {
-				while (next < fires.length && fires[next].t < until) fires[next++].fire();
-			};
-			fireDue(WINDOW);
-			for (let t = WINDOW; t < durationSeconds - 0.01; t += WINDOW) {
-				void context
-					.suspend(t)
-					.then(() => {
-						fireDue(t + WINDOW);
-						return context.resume();
-					})
-					.catch(() => {
-						/* a checkpoint past the render end is harmless */
-					});
 			}
 		},
 		{ duration: durationSeconds, sampleRate: 44100 }
