@@ -153,7 +153,12 @@ export function scoreFluency(args: {
 	// realization (real pitches/offsets/durations); when it fails or its
 	// note count disagrees with the slot count, fall back to degenerate
 	// per-slot placeholders that still yield exact rhythm scores.
-	const example = trick.generateExample(parameters, context);
+	// Prefer an example realized for the style the player actually used —
+	// multi-style tricks report the best-of winner on conformance.style.
+	const example = trick.generateExample(parameters, {
+		...context,
+		exampleStyle: conformance.style ?? context.exampleStyle
+	});
 	const exampleNotes = example?.notes.filter((n) => n.pitch !== null) ?? null;
 	const haveRealNotes = exampleNotes !== null && exampleNotes.length === slotCount;
 	const expected: Note[] = haveRealNotes
