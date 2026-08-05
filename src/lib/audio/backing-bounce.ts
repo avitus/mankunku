@@ -186,31 +186,67 @@ export async function renderEventsToWav(
 				}).load
 			]);
 
+			// smplr dispatches a note straight onto the graph only when its time
+			// is within ~200 ms of `currentTime`; anything further out sits in
+			// an internal queue pumped by setInterval — wall-clock, which never
+			// fires while an offline render completes in milliseconds. Result:
+			// only the first lookahead window sounded ("one beat of music").
+			// Fix: register suspend checkpoints every 150 ms of RENDER time and
+			// fire each event at the checkpoint just before it falls due, so
+			// every start lands inside the lookahead of the then-current time.
+			type Fire = { t: number; fire: () => void };
+			const fires: Fire[] = [];
 			for (const e of generated.bassEvents) {
-				bass.start({
-					note: e.midi,
-					velocity: e.velocity,
-					duration: e.duration,
-					time: eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo)
+				const t = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
+				fires.push({
+					t,
+					fire: () => bass.start({ note: e.midi, velocity: e.velocity, duration: e.duration, time: t })
 				});
 			}
 			for (const e of generated.compEvents) {
-				const time = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
+				const t = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
 				for (const midi of e.notes) {
-					comp.start({ note: midi, velocity: e.velocity, duration: e.duration, time });
+					fires.push({
+						t,
+						fire: () => comp.start({ note: midi, velocity: e.velocity, duration: e.duration, time: t })
+					});
 				}
 			}
 			for (const e of generated.drumEvents) {
 				// Same velocity-layer selection as the live trigger path.
 				const buffer = drumBufferForVelocity(e.drum, e.velocity);
 				if (!(buffer in drumBuffers)) continue;
-				drums.start({
-					note: buffer,
-					velocity: Math.round(
-						voiceVelocity(e.velocity * BACKING_BASE_TRIMS[e.drum], mix[e.drum]) * 127
-					),
-					time: eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo)
+				const t = eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo);
+				fires.push({
+					t,
+					fire: () =>
+						drums.start({
+							note: buffer,
+							velocity: Math.round(
+								voiceVelocity(e.velocity * BACKING_BASE_TRIMS[e.drum], mix[e.drum]) * 127
+							),
+							time: t
+						})
 				});
+			}
+			fires.sort((a, b) => a.t - b.t);
+
+			const WINDOW = 0.15; // safely inside smplr's 200 ms lookahead
+			let next = 0;
+			const fireDue = (until: number) => {
+				while (next < fires.length && fires[next].t < until) fires[next++].fire();
+			};
+			fireDue(WINDOW);
+			for (let t = WINDOW; t < durationSeconds - 0.01; t += WINDOW) {
+				void context
+					.suspend(t)
+					.then(() => {
+						fireDue(t + WINDOW);
+						return context.resume();
+					})
+					.catch(() => {
+						/* a checkpoint past the render end is harmless */
+					});
 			}
 		},
 		{ duration: durationSeconds, sampleRate: 44100 }
