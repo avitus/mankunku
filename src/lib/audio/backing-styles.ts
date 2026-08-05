@@ -61,6 +61,12 @@ export interface GenerationContext {
 	rng: SeededRng;
 	/** Comp onsets this bar (beat offsets), so drums can align accents. */
 	compOnsets?: number[];
+	/**
+	 * Planned comp figure for this bar (styles with `compPlanning`), already
+	 * resolved to concrete hits by the planner: the pattern function only
+	 * realizes velocity/articulation.
+	 */
+	plannedComp?: { hits: Array<{ b: number; d: number }>; tags: string[]; guideTones: boolean };
 }
 
 export interface CompHitSpec {
@@ -93,6 +99,12 @@ export interface StyleDefinition {
 	swingModel: 'tempo' | 'fixed';
 	/** Per-role ensemble microtiming profiles (see backing-timing.ts). */
 	timing: Record<TimingRole, TimingProfile>;
+	/**
+	 * When true, `generateComping` plans figures across the whole phrase
+	 * (backing-comp-figures.ts: anti-repetition memory, phrase-position
+	 * rules) and hands each bar's hits in via `ctx.plannedComp`.
+	 */
+	compPlanning?: boolean;
 	/** Generate one bar of drum hits. */
 	drumPattern: (ctx: GenerationContext) => DrumHitSpec[];
 	/** Generate one bar of comp hits. */
@@ -201,8 +213,32 @@ const swing: StyleDefinition = {
 			return hits;
 		}
 
-		// Bias the figure choice by position: set up section arrivals with a
-		// busier figure, keep later choruses a touch more active than the first.
+		// Planned path: the figure planner already chose this bar's rhythm
+		// (with anti-repetition memory and phrase-position rules); realize
+		// velocity and articulation here.
+		const planned = ctx.plannedComp;
+		if (planned) {
+			const isPush = planned.tags.includes('push');
+			const isPad = planned.tags.includes('pad');
+			return planned.hits.map((h) => {
+				const offBeat = h.b % 1 !== 0;
+				const cadencePush =
+					ctx.isSectionFinalBar && !ctx.isFinalBar && offBeat && isPush ? 6 : 0;
+				// Articulation: pads sustain as written, pushes keep enough
+				// length to audibly tie across the barline, everything else
+				// stabs short.
+				let d = h.d * (0.9 + rng.float() * 0.2);
+				if (!isPad && offBeat && !isPush) d = Math.min(d, 0.7);
+				if (isPush && h.b >= beatsPerBar - 0.5) d = Math.max(d, 1.1);
+				return {
+					beatOffset: h.b,
+					velocity: rng.int(56, 68) + (offBeat ? 6 : 0) + cadencePush,
+					durationBeats: d
+				};
+			});
+		}
+
+		// Legacy stateless path (styles without planning, and a safety net).
 		const busyBias = (ctx.isSectionFinalBar ? 1.5 : 1) * ((ctx.chorusIndex ?? 0) > 0 ? 1.2 : 1);
 		let figure = rng.weighted(
 			SWING_COMP_FIGURES.map((f) => ({ value: f, weight: f.busy >= 2 ? f.weight * busyBias : f.weight }))
@@ -230,6 +266,7 @@ const swing: StyleDefinition = {
 		}
 		return hits;
 	},
+	compPlanning: true,
 	bassStyle: 'walking'
 };
 
