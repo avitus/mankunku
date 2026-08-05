@@ -106,12 +106,17 @@ export function placeEventTicks(
 	return Math.max(0, Math.round(swungTicks + (offsetMs + jitterMs) / msPerTick));
 }
 
+/** Per-(role, bar) timing streams for one generation pass. */
+export interface TimingStreams {
+	for(role: TimingRole, barIndex: number): SeededRng;
+}
+
 /**
- * Lazy per-(role, bar) timing streams for one generation pass. Two
- * contexts built from the same params produce identical draws, so each
- * generator can own one without sharing state.
+ * Lazy per-(role, bar) timing streams. Two contexts built from the same
+ * params produce identical draws, so each generator can own one without
+ * sharing state.
  */
-export function createTimingStreams(phraseId: string, tempo: number) {
+export function createTimingStreams(phraseId: string, tempo: number): TimingStreams {
 	const rngs = new Map<string, SeededRng>();
 	return {
 		for(role: TimingRole, barIndex: number): SeededRng {
@@ -125,5 +130,3 @@ export function createTimingStreams(phraseId: string, tempo: number) {
 		}
 	};
 }
-
-export type TimingStreams = ReturnType<typeof createTimingStreams>;

@@ -254,8 +254,10 @@ export async function renderGoldenJsonToWav(
 		throw new Error('Not an events JSON: expected bassEvents/compEvents/drumEvents arrays');
 	}
 	const tempo = json.tempo ?? json.params?.tempo;
-	if (!tempo || !Number.isFinite(tempo)) {
-		throw new Error('Events JSON carries no tempo (expected `tempo` or `params.tempo`)');
+	// Guard degenerate tempi too: a 0/negative/near-zero value would blow up
+	// the duration math (Infinity-second renders) rather than fail readably.
+	if (!tempo || !Number.isFinite(tempo) || tempo < 20) {
+		throw new Error('Events JSON carries no usable tempo (expected `tempo` or `params.tempo` ≥ 20)');
 	}
 	const generated: GeneratedBacking = {
 		bassEvents: json.bassEvents,

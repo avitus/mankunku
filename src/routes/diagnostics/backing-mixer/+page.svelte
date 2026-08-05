@@ -424,6 +424,7 @@
 					accept=".json,application/json"
 					class="sr-only"
 					aria-label="Render WAV from events JSON"
+					disabled={refRenderBusy}
 					onchange={renderReferenceJson}
 				/>
 			</label>

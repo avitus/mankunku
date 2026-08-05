@@ -167,6 +167,11 @@ describe('golden JSON rendering', () => {
 			{ bassEvents: [], compEvents: [], drumEvents: [] },
 			{},
 			{ instrument: 'piano', volume: 0.6, mix: DEFAULT_BACKING_MIX }
-		)).rejects.toThrow(/no tempo/);
+		)).rejects.toThrow(/no usable tempo/);
+		await expect(renderGoldenJsonToWav(
+			{ bassEvents: [], compEvents: [], drumEvents: [], tempo: -60 },
+			{},
+			{ instrument: 'piano', volume: 0.6, mix: DEFAULT_BACKING_MIX }
+		)).rejects.toThrow(/no usable tempo/);
 	});
 });
