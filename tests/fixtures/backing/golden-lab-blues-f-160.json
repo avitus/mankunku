@@ -420,110 +420,108 @@
    "absBeat": 17.5
   },
   {
-   "time": "4179i",
-   "notes": [
-    62,
-    65,
-    68,
-    73
-   ],
-   "duration": 0.23318093837820925,
-   "velocity": 70,
-   "absBeat": 21.5
-  },
-  {
-   "time": "4565i",
+   "time": "4755i",
    "notes": [
     57,
-    60,
-    63,
-    67
+    63
    ],
-   "duration": 0.41250000000000003,
-   "velocity": 69,
-   "absBeat": 23.5
-  },
-  {
-   "time": "4947i",
-   "notes": [
-    57,
-    60,
-    63,
-    67
-   ],
-   "duration": 0.22284187066485178,
+   "duration": 0.259982182442327,
    "velocity": 71,
-   "absBeat": 25.5
+   "absBeat": 24.5
   },
   {
-   "time": "5383i",
-   "notes": [
-    54,
-    57,
-    60,
-    63
-   ],
-   "duration": 0.6940989032713697,
-   "velocity": 57,
-   "absBeat": 28
-  },
-  {
-   "time": "5714i",
-   "notes": [
-    54,
-    57,
-    60,
-    63
-   ],
-   "duration": 0.1392587411426939,
-   "velocity": 64,
-   "absBeat": 29.5
-  },
-  {
-   "time": "6291i",
+   "time": "6150i",
    "notes": [
     53,
     58,
     62,
     67
    ],
-   "duration": 0.26249999999999996,
-   "velocity": 65,
-   "absBeat": 32.5
+   "duration": 0.7293139583151789,
+   "velocity": 59,
+   "absBeat": 32
   },
   {
-   "time": "7685i",
+   "time": "6483i",
+   "notes": [
+    53,
+    58,
+    62,
+    67
+   ],
+   "duration": 0.13989763117628173,
+   "velocity": 71,
+   "absBeat": 33.5
+  },
+  {
+   "time": "7303i",
+   "notes": [
+    58,
+    62,
+    64,
+    69
+   ],
+   "duration": 0.309943616562523,
+   "velocity": 60,
+   "absBeat": 38
+  },
+  {
+   "time": "7636i",
    "notes": [
     53,
     57,
     63
    ],
-   "duration": 0.6147634163335897,
-   "velocity": 66,
-   "absBeat": 40
+   "duration": 0.4161117965611629,
+   "velocity": 63,
+   "absBeat": 39.5
   },
   {
-   "time": "8019i",
+   "time": "8018i",
    "notes": [
     60,
     63,
     66,
     71
    ],
-   "duration": 0.15946347685530782,
-   "velocity": 68,
+   "duration": 0.17076761564821935,
+   "velocity": 72,
    "absBeat": 41.5
   },
   {
-   "time": "8839i",
+   "time": "8262i",
+   "notes": [
+    60,
+    63,
+    66,
+    71
+   ],
+   "duration": 0.23919521528296173,
+   "velocity": 62,
+   "absBeat": 43
+  },
+  {
+   "time": "8455i",
+   "notes": [
+    58,
+    62,
+    65,
+    69
+   ],
+   "duration": 0.735312681121286,
+   "velocity": 60,
+   "absBeat": 44
+  },
+  {
+   "time": "8789i",
    "notes": [
     60,
     64,
     70
    ],
-   "duration": 0.5719098630943336,
-   "velocity": 60,
-   "absBeat": 46
+   "duration": 0.14057199075585233,
+   "velocity": 63,
+   "absBeat": 45.5
   }
  ],
  "drumEvents": [

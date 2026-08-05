@@ -115,12 +115,16 @@ describe('planned comp end-to-end', () => {
 				swing: 0.733,
 				sectionMap: aaba.phrase.sectionMap
 			});
+			let sawGuideHits = false;
 			for (const bar of guideBars) {
 				const inBar = compEvents.filter((e) => Math.floor(e.absBeat / 4) === bar);
+				if (inBar.length > 0) sawGuideHits = true;
 				for (const e of inBar) {
-					expect(e.notes.length, `guide-tone bar ${bar}`).toBeLessThanOrEqual(2);
+					expect(e.notes.length, `guide-tone bar ${bar}`).toBe(2);
 				}
 			}
+			// Guard against vacuous success: at least one guide bar sounded.
+			expect(sawGuideHits).toBe(true);
 		}
 		expect(found).toBe(true);
 	});

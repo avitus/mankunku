@@ -115,22 +115,6 @@ export interface StyleDefinition {
 
 // ── Swing ────────────────────────────────────────────────────
 
-/**
- * One-bar comp figures for 4/4 swing. `busy` ranks density so section
- * position can bias the choice: section-final bars lean busy (setting up
- * the arrival), ordinary bars keep space in the rotation.
- */
-const SWING_COMP_FIGURES: Array<{ hits: Array<{ b: number; d: number }>; weight: number; busy: number }> = [
-	{ hits: [{ b: 0, d: 2 }, { b: 1.5, d: 0.5 }], weight: 3, busy: 2 }, // Charleston
-	{ hits: [{ b: 2, d: 1 }, { b: 3.5, d: 1 }], weight: 2, busy: 2 }, // late Charleston, pushing on
-	{ hits: [{ b: 1, d: 0.6 }, { b: 3, d: 0.6 }], weight: 3, busy: 2 }, // 2 and 4
-	{ hits: [{ b: 1.5, d: 1 }], weight: 2, busy: 1 }, // and-of-2 alone
-	{ hits: [{ b: 0.5, d: 0.5 }, { b: 2.5, d: 0.6 }], weight: 2, busy: 2 }, // off-beat pair
-	{ hits: [{ b: 3.5, d: 1.2 }], weight: 2, busy: 1 }, // anticipation across the bar line
-	{ hits: [{ b: 1, d: 0.6 }, { b: 2.5, d: 0.5 }], weight: 2, busy: 2 },
-	{ hits: [], weight: 2, busy: 0 } // deliberate space
-];
-
 const swing: StyleDefinition = {
 	name: 'Swing',
 	defaultSwing: 0.67,
@@ -238,33 +222,11 @@ const swing: StyleDefinition = {
 			});
 		}
 
-		// Legacy stateless path (styles without planning, and a safety net).
-		const busyBias = (ctx.isSectionFinalBar ? 1.5 : 1) * ((ctx.chorusIndex ?? 0) > 0 ? 1.2 : 1);
-		let figure = rng.weighted(
-			SWING_COMP_FIGURES.map((f) => ({ value: f, weight: f.busy >= 2 ? f.weight * busyBias : f.weight }))
-		);
-
-		// The very first bar states the harmony: guarantee an early hit.
-		if (ctx.barIndex === 0 && !figure.hits.some((h) => h.b <= 1)) {
-			figure = SWING_COMP_FIGURES[0];
-		}
-
-		const hits: CompHitSpec[] = [];
-		for (const h of figure.hits) {
-			// Nothing follows the final bar — an anticipation there would hang.
-			if (ctx.isFinalBar && h.b >= beatsPerBar - 0.5) continue;
-			const offBeat = h.b % 1 !== 0;
-			hits.push({
-				beatOffset: h.b,
-				velocity: rng.int(56, 68) + (offBeat ? 6 : 0),
-				durationBeats: h.d
-			});
-		}
-		// A final bar whose figure was pure anticipation resolves instead.
-		if (ctx.isFinalBar && hits.length === 0 && figure.hits.length > 0) {
-			hits.push({ beatOffset: 0, velocity: rng.int(56, 66), durationBeats: 2 });
-		}
-		return hits;
+		// Planned hits always arrive for 4/4 swing (generateComping gates the
+		// planner); reaching here without them means a non-4/4 meter, which
+		// returned from the early fallback above, or a caller outside the
+		// engine — state the harmony simply rather than guessing.
+		return [{ beatOffset: 0, velocity: rng.int(56, 66), durationBeats: 1.5 }];
 	},
 	compPlanning: true,
 	bassStyle: 'walking'

@@ -39,7 +39,7 @@ import {
 	voiceLead,
 	type VoicingFn
 } from './voicings';
-import { planCompFigures, hitsForPlannedBar, compFigureById } from './backing-comp-figures';
+import { planCompFigures, hitsForPlannedBar, headFigureFor } from './backing-comp-figures';
 import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
 import { generateBassLine as generateBassLine2 } from './backing-bass';
 
@@ -273,12 +273,15 @@ export function generateComping(
 	});
 	const voicings = voiceLead(chords, fns, COMP_REGISTER);
 
-	// Figure planning (swing): one pass over the phrase with anti-repetition
-	// memory; each bar's plan resolves to concrete hits here so the style's
-	// pattern function only realizes velocity/articulation.
-	const compPlan = style.compPlanning
-		? planCompFigures(barInfos, beatsPerBar, phraseId, tempo)
-		: null;
+	// Figure planning (swing, 4/4 only — the vocabulary is written for four
+	// beats; other meters use the style's own fallback): one pass over the
+	// phrase with anti-repetition memory; each bar's plan resolves to
+	// concrete hits here so the style's pattern function only realizes
+	// velocity/articulation.
+	const compPlan =
+		style.compPlanning && beatsPerBar === 4
+			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo)
+			: null;
 
 	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
 	const totalBars = barInfos.length;
@@ -286,12 +289,7 @@ export function generateComping(
 	for (let bar = 0; bar < totalBars; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'comp', bar));
 		const planned = compPlan?.[bar];
-		const headFigure =
-			planned && planned.figureId !== 'cont'
-				? compFigureById(planned.figureId)
-				: planned
-					? compFigureById(compPlan![bar - 1]?.figureId as string)
-					: undefined;
+		const headFigure = compPlan ? headFigureFor(compPlan, bar) : undefined;
 		const ctx: GenerationContext = {
 			barIndex: bar,
 			beatsPerBar,
@@ -299,9 +297,9 @@ export function generateComping(
 			rng,
 			...barInfos[bar],
 			plannedComp:
-				planned && beatsPerBar === 4
+				planned && compPlan
 					? {
-							hits: hitsForPlannedBar(planned, compPlan!, bar, barInfos[bar], beatsPerBar),
+							hits: hitsForPlannedBar(planned, compPlan, bar, barInfos[bar], beatsPerBar),
 							tags: headFigure?.tags ?? [],
 							guideTones: planned.guideTones
 						}

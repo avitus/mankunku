@@ -1,9 +1,9 @@
 /**
  * Jazz chord voicing utilities.
  *
- * Generates shell voicings (root + guide tones) and drop-2 voicings
- * for comping instruments, with voice-leading to minimize movement
- * between successive chords.
+ * Shell, drop-2, rootless A/B, guide-tone and quartal voicing builders for
+ * comping instruments, with voice-leading to minimize movement between
+ * successive chords.
  */
 
 import type { ChordQuality, PitchClass } from '$lib/types/music';
@@ -286,7 +286,9 @@ export function guideToneVoicing(rootPc: PitchClass, quality: ChordQuality, regi
 export function quartalVoicing(rootPc: PitchClass, quality: ChordQuality, registerMidi: number = 62): number[] {
 	const def = CHORD_DEFINITIONS[quality];
 	if (!def) return [];
-	if (['7alt', '7b9', '7#9', '7#11', '7b13', 'dim7', 'dim', 'aug', 'aug7'].includes(quality)) {
+	// min7b5 joins the exclusions: the stack's natural 5 clashes with the
+	// defining b5 — an audibly wrong chord, not a color.
+	if (['7alt', '7b9', '7#9', '7#11', '7b13', 'dim7', 'dim', 'aug', 'aug7', 'min7b5'].includes(quality)) {
 		return [];
 	}
 	const rootNum = pitchClassToNumber(rootPc);

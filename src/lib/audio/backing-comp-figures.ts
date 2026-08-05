@@ -5,9 +5,10 @@
  * Pros vary their comping per phrase and never loop one pattern — the old
  * stateless per-bar draw could (and did) deal the same figure three bars
  * running. The planner keeps each bar's `comp-figure` seed stream intact
- * (memory only reshapes WEIGHTS — derived state, not RNG state), so bar 7's
- * plan is reproducible without generating bars 0–6, and adding a figure to
- * the library shifts selection without touching realization streams.
+ * (memory only reshapes WEIGHTS — derived state, not RNG state): the plan
+ * itself is sequential, but each bar's DRAWS are stream-isolated, so
+ * recomputing a prefix costs a few float draws per bar and adding a figure
+ * to the library shifts selection without touching realization streams.
  *
  * Figure grammar: hits are (beatOffset, durationBeats) on the x.0/x.5
  * eighth grid — the anticipated-next-chord voicing on pushes in
@@ -20,15 +21,27 @@ import type { BarInfo } from './backing-generation';
 
 export type FigureTag = 'early' | 'push' | 'pad';
 
+/** One comp hit: beat offset within the bar + duration, both in beats. */
+export interface CompFigureHit {
+	b: number;
+	d: number;
+}
+
 export interface CompFigure {
 	id: string;
 	bars: 1 | 2;
 	/** Per-bar hit lists: hits[0] is the figure's first bar, hits[1] its second. */
-	hits: Array<Array<{ b: number; d: number }>>;
+	hits: CompFigureHit[][];
 	weight: number;
 	/** Density rank 0–2; biased by section position (and, later, intensity). */
 	busy: 0 | 1 | 2;
 	tags: FigureTag[];
+	/**
+	 * Memory identity for anti-repetition: figures whose opening bar SOUNDS
+	 * like another figure share its key (charleston-answer opens note-for-
+	 * note as charleston), so id-hopping can't smuggle three identical bars.
+	 */
+	repeatKey?: string;
 }
 
 export const COMP_FIGURES: CompFigure[] = [
@@ -62,22 +75,32 @@ export const COMP_FIGURES: CompFigure[] = [
 		],
 		weight: 2,
 		busy: 2,
-		tags: ['early', 'push']
+		tags: ['early', 'push'],
+		repeatKey: 'charleston'
 	},
 	{ id: 'sparse-2bar', bars: 2, hits: [[{ b: 0.5, d: 0.7 }], []], weight: 1.5, busy: 1, tags: [] }
 ];
 
 const BY_ID = new Map(COMP_FIGURES.map((f) => [f.id, f]));
+const REST_FIGURE = COMP_FIGURES.find((f) => f.id === 'rest')!;
 
 export function compFigureById(id: string): CompFigure | undefined {
 	return BY_ID.get(id);
 }
 
 export interface PlannedBar {
-	/** Figure sounding in this bar, or 'cont' when a 2-bar figure's tail. */
-	figureId: string | 'cont';
+	/** Figure id sounding in this bar; the literal 'cont' marks a 2-bar figure's tail. */
+	figureId: string;
 	/** This bar voices only guide tones (the "leave space" color). */
 	guideTones: boolean;
+}
+
+/** The CompFigure sounding in a planned bar (resolving 2-bar 'cont' tails). */
+export function headFigureFor(plan: PlannedBar[], barIndex: number): CompFigure | undefined {
+	const planned = plan[barIndex];
+	if (!planned) return undefined;
+	const id = planned.figureId === 'cont' ? plan[barIndex - 1]?.figureId : planned.figureId;
+	return id !== undefined && id !== 'cont' ? BY_ID.get(id) : undefined;
 }
 
 /**
@@ -111,7 +134,6 @@ export function planCompFigures(
 			barInfos[bar + 1].isSectionFinalBar &&
 			!barInfos[bar + 1].isFinalBar;
 		const weighted = COMP_FIGURES.filter((f) => {
-			if (beatsPerBar !== 4 && f.id !== 'rest' && f.id !== 'pad-whole') return false;
 			if (f.bars === 2 && !sameSectionNext) return false;
 			// A 2-bar figure's tail would swallow the cadence bar and bypass
 			// its push weighting — only push-tagged figures may land there.
@@ -122,35 +144,50 @@ export function planCompFigures(
 			if (info.isFinalBar && f.id === 'rest') return false;
 			return true;
 		}).map((f) => {
+			const isCadenceBar = info.isSectionFinalBar && !info.isFinalBar;
 			let weight = f.weight;
-			// Anti-repetition: same as previous ×0.25; twice in the last three
-			// ×0.5; a third consecutive repeat is forbidden outright.
+			// Anti-repetition on the figure's MEMORY key (repeatKey lets
+			// sound-alike figures share one identity): same as previous
+			// ×0.25; twice in the last three ×0.5; a third consecutive
+			// repeat is forbidden outright.
+			const key = f.repeatKey ?? f.id;
 			const prev = recent[recent.length - 1];
 			const prev2 = recent[recent.length - 2];
-			if (f.id === prev && f.id === prev2) weight = 0;
-			else if (f.id === prev) weight *= 0.25;
-			else if (recent.slice(-3).filter((r) => r === f.id).length >= 2) weight *= 0.5;
+			if (key === prev && key === prev2) weight = 0;
+			else if (key === prev) weight *= 0.25;
+			else if (recent.slice(-3).filter((r) => r === key).length >= 2) weight *= 0.5;
 			// Cadence bars set up the arrival with a push. The boost must beat
 			// a large non-push pool (2-bar figures are filtered out at section
 			// boundaries), so pushes are strongly favored AND the rest damped.
-			if (info.isSectionFinalBar && !info.isFinalBar) {
+			if (isCadenceBar) {
 				weight *= f.tags.includes('push') ? 5 : 0.5;
+			}
+			// Density shape (adapted from the pre-planner engine's busyBias,
+			// flat values until the intensity increment wires chorus arcs in):
+			// section-final bars lean busier, later choruses a touch more
+			// active than the first.
+			if (f.busy >= 2) {
+				if (isCadenceBar) weight *= 1.3;
+				if ((info.chorusIndex ?? 0) > 0) weight *= 1.15;
 			}
 			return { value: f, weight };
 		}).filter((w) => w.weight > 0);
 
-		const figure =
-			weighted.length > 0 ? rng.weighted(weighted) : (BY_ID.get('rest') as CompFigure);
+		const figure = weighted.length > 0 ? rng.weighted(weighted) : REST_FIGURE;
 
-		// The "leave space" color: occasionally a bar speaks in guide tones only.
+		// The "leave space" color: occasionally a bar speaks in guide tones
+		// only. Conditional draw (rest bars consume one draw, others two) —
+		// safe because nothing draws from this bar's stream afterwards.
 		const guideTones = figure.id !== 'rest' && rng.chance(0.06);
 
 		plan.push({ figureId: figure.id, guideTones });
-		recent.push(figure.id);
+		recent.push(figure.repeatKey ?? figure.id);
 		if (figure.bars === 2) {
 			plan.push({ figureId: 'cont', guideTones });
 		}
 	}
+	// Defensive only: a 2-bar head is never selectable on the last bar
+	// (sameSectionNext requires a next bar), so the plan cannot overrun.
 	return plan.slice(0, barInfos.length);
 }
 
@@ -165,19 +202,15 @@ export function hitsForPlannedBar(
 	barIndex: number,
 	info: BarInfo,
 	beatsPerBar: number
-): Array<{ b: number; d: number }> {
-	let hits: Array<{ b: number; d: number }>;
-	if (planned.figureId === 'cont') {
-		// Second bar of the 2-bar figure planned on the previous bar.
-		const head = plan[barIndex - 1];
-		const figure = head ? BY_ID.get(head.figureId as string) : undefined;
-		hits = figure?.hits[1] ?? [];
-	} else {
-		hits = BY_ID.get(planned.figureId)?.hits[0] ?? [];
-	}
+): CompFigureHit[] {
+	const figure = headFigureFor(plan, barIndex);
+	const hits = (planned.figureId === 'cont' ? figure?.hits[1] : figure?.hits[0]) ?? [];
 	if (info.isFinalBar) {
 		const kept = hits.filter((h) => h.b < beatsPerBar - 0.5);
-		if (kept.length === 0 && hits.length > 0) return [{ b: 0, d: 2.0 }];
+		// The phrase's final bar never falls silent: 'rest' is excluded at
+		// plan time, and an empty result here (a stripped pure-push figure
+		// or sparse-2bar's empty tail) resolves instead.
+		if (kept.length === 0) return [{ b: 0, d: 2.0 }];
 		return kept;
 	}
 	return hits;

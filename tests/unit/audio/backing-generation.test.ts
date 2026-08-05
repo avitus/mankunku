@@ -7,6 +7,7 @@ import {
 	type BackingGenerationParams
 } from '$lib/audio/backing-generation';
 import { BACKING_STYLES, type GenerationContext } from '$lib/audio/backing-styles';
+import { COMP_FIGURES } from '$lib/audio/backing-comp-figures';
 import { SWING_TIMING } from '$lib/audio/backing-timing';
 import { createRng } from '$lib/audio/generation-rng';
 import { pitchClassToNumber } from '$lib/audio/voicings';
@@ -288,29 +289,47 @@ describe('swing style patterns', () => {
 		expect(finalBar.slice(0, plain.length)).toEqual(plain);
 	});
 
-	it('never lets the comp anticipate past the final bar', () => {
-		for (let seed = 0; seed < 60; seed++) {
-			const hits = BACKING_STYLES.swing.compPattern(ctxFor({ rng: createRng(seed), isFinalBar: true }));
-			for (const h of hits) expect(h.beatOffset).toBeLessThan(3.5);
+	it('never lets the comp anticipate past the final bar (end-to-end)', () => {
+		for (let seed = 0; seed < 30; seed++) {
+			const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7']);
+			const { compEvents } = generateBacking(harmony, BACKING_STYLES.swing, params({ phraseId: `final-probe#${seed}` }));
+			const lastBarStart = 2 * 4;
+			for (const e of compEvents) {
+				if (e.absBeat >= lastBarStart) expect(e.absBeat - lastBarStart).toBeLessThan(3.5);
+			}
+			// ...and the final bar is never silent.
+			expect(compEvents.some((e) => e.absBeat >= lastBarStart)).toBe(true);
 		}
 	});
 
-	it('always states the harmony early in the very first bar', () => {
-		for (let seed = 0; seed < 60; seed++) {
-			const hits = BACKING_STYLES.swing.compPattern(ctxFor({ rng: createRng(seed), barIndex: 0 }));
-			expect(hits.some((h) => h.beatOffset <= 1)).toBe(true);
+	it('always states the harmony early in the very first bar (end-to-end)', () => {
+		for (let seed = 0; seed < 30; seed++) {
+			const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
+			const { compEvents } = generateBacking(harmony, BACKING_STYLES.swing, params({ phraseId: `early-probe#${seed}` }));
+			expect(compEvents.some((e) => e.absBeat <= 1)).toBe(true);
 		}
 	});
 
-	it('keeps every comp hit inside the bar with sane velocity and length', () => {
-		for (let seed = 0; seed < 60; seed++) {
-			const hits = BACKING_STYLES.swing.compPattern(ctxFor({ rng: createRng(seed) }));
-			for (const h of hits) {
-				expect(h.beatOffset).toBeGreaterThanOrEqual(0);
-				expect(h.beatOffset).toBeLessThan(4);
-				expect(h.durationBeats).toBeGreaterThan(0);
-				expect(h.velocity).toBeGreaterThanOrEqual(1);
-				expect(h.velocity).toBeLessThanOrEqual(127);
+	it('realizes every planned figure with sane velocity, length and articulation', () => {
+		for (const figure of COMP_FIGURES) {
+			for (let seed = 0; seed < 20; seed++) {
+				const hits = BACKING_STYLES.swing.compPattern(
+					ctxFor({
+						rng: createRng(seed),
+						plannedComp: { hits: figure.hits[0], tags: figure.tags, guideTones: false }
+					})
+				);
+				for (const h of hits) {
+					expect(h.beatOffset).toBeGreaterThanOrEqual(0);
+					expect(h.beatOffset).toBeLessThan(4);
+					expect(h.durationBeats).toBeGreaterThan(0);
+					expect(h.velocity).toBeGreaterThanOrEqual(1);
+					expect(h.velocity).toBeLessThanOrEqual(127);
+					// Pushes must hold long enough to audibly tie across the barline.
+					if (figure.tags.includes('push') && h.beatOffset >= 3.5) {
+						expect(h.durationBeats).toBeGreaterThanOrEqual(1.1);
+					}
+				}
 			}
 		}
 	});
