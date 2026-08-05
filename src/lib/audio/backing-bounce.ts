@@ -216,7 +216,28 @@ export async function renderEventsToWav(
 		{ duration: durationSeconds, sampleRate: 44100 }
 	);
 
-	return result.toWav16();
+	// Peak-normalize the bounce to −1 dBFS. The live mix is anchored ~20 dB
+	// down by the CDN instrument trims (system volume compensates there),
+	// but a WAV at that level reads as silence in a media player. Pure gain
+	// on the rendered buffer: relative balance — the thing a listening pass
+	// judges — is untouched, and both sides of an A/B normalize to the same
+	// ceiling. Amplification is capped so a genuinely empty render stays
+	// silent instead of becoming amplified noise floor.
+	const { audioBufferToWav16 } = await import('smplr');
+	const buffer = result.audioBuffer;
+	let peak = 0;
+	for (let c = 0; c < buffer.numberOfChannels; c++) {
+		const data = buffer.getChannelData(c);
+		for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+	}
+	const gain = Math.min(50, peak > 0 ? 0.891 / peak : 1);
+	if (gain !== 1) {
+		for (let c = 0; c < buffer.numberOfChannels; c++) {
+			const data = buffer.getChannelData(c);
+			for (let i = 0; i < data.length; i++) data[i] *= gain;
+		}
+	}
+	return audioBufferToWav16(buffer);
 }
 
 /** Shape of an exported/committed golden events JSON. */
