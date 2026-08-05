@@ -4,7 +4,6 @@ import {
 	buildBarInfos,
 	chordToneIntervalsForBass,
 	generateBacking,
-	generateWalkingBass,
 	type BackingGenerationParams
 } from '$lib/audio/backing-generation';
 import { BACKING_STYLES, type GenerationContext } from '$lib/audio/backing-styles';
@@ -117,80 +116,6 @@ describe('chordToneIntervalsForBass', () => {
 });
 
 // ── Walking bass ─────────────────────────────────────────────
-
-describe('generateWalkingBass', () => {
-	const II_V_I = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
-
-	it('is deterministic for the same inputs', () => {
-		const a = generateWalkingBass(II_V_I, 4, params());
-		const b = generateWalkingBass(II_V_I, 4, params());
-		expect(a).toEqual(b);
-	});
-
-	it('walks a quarter note on every beat', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		const onBeats = new Set(events.filter((e) => e.absBeat % 1 === 0).map((e) => e.absBeat));
-		for (let beat = 0; beat < 16; beat++) expect(onBeats).toContain(beat);
-	});
-
-	it('stays inside the upright bass band', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		for (const e of events) {
-			expect(e.midi).toBeGreaterThanOrEqual(28);
-			expect(e.midi).toBeLessThanOrEqual(55);
-		}
-	});
-
-	it('avoids large leaps between consecutive quarters', () => {
-		const quarters = generateWalkingBass(II_V_I, 4, params()).filter((e) => e.absBeat % 1 === 0);
-		for (let i = 1; i < quarters.length; i++) {
-			expect(Math.abs(quarters[i].midi - quarters[i - 1].midi)).toBeLessThanOrEqual(12);
-		}
-	});
-
-	it('lands a chord tone (root, 3rd or 5th) on every segment downbeat', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		const segRoots: Array<[number, PitchClass, ChordQuality]> = [
-			[0, 'D', 'min7'], [4, 'G', '7'], [8, 'C', 'maj7'], [12, 'C', 'maj7']
-		];
-		for (const [beat, root, quality] of segRoots) {
-			const e = events.find((ev) => ev.absBeat === beat)!;
-			const tones = chordToneIntervalsForBass(quality);
-			const rootNum = pitchClassToNumber(root);
-			const allowed = [rootNum, (rootNum + tones.third) % 12, (rootNum + tones.fifth) % 12];
-			expect(allowed).toContain(pc(e.midi));
-		}
-	});
-
-	it('approaches each next root closely on the segment-final beat', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		const pairs: Array<[number, PitchClass]> = [[3, 'G'], [7, 'C'], [11, 'C']];
-		for (const [beat, nextRoot] of pairs) {
-			const e = events.find((ev) => ev.absBeat === beat)!;
-			const rootNum = pitchClassToNumber(nextRoot);
-			// Distance to the nearest instance of the next root.
-			let diff = (((rootNum - pc(e.midi)) % 12) + 12) % 12;
-			if (diff > 6) diff -= 12;
-			expect(Math.abs(diff)).toBeLessThanOrEqual(7);
-		}
-	});
-
-	it('swings any added eighth-note pickups late', () => {
-		// Sweep many segments so seeded pickups actually occur somewhere.
-		const long = bars(...Array.from({ length: 24 }, (_, i): [PitchClass, ChordQuality] =>
-			i % 2 === 0 ? ['D', 'min7'] : ['G', '7']
-		));
-		const events = generateWalkingBass(long, 4, params());
-		const eighths = events.filter((e) => e.absBeat % 1 !== 0);
-		expect(eighths.length).toBeGreaterThan(0);
-		for (const e of eighths) {
-			// swing 0.67 shifts the off-beat by +0.17 beats ≈ 82 ticks; jitter ≤ ~4.
-			expect(ticksOf(e) - e.absBeat * PPQ).toBeGreaterThanOrEqual(60);
-		}
-	});
-});
-
-// ── Full generation ──────────────────────────────────────────
 
 describe('generateBacking', () => {
 	const FORM = bars(

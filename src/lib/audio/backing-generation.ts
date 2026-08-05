@@ -38,6 +38,7 @@ import {
 	type VoicingFn
 } from './voicings';
 import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
+import { generateBassLine as generateBassLine2 } from './backing-bass';
 
 // ── Event shapes ─────────────────────────────────────────────
 
@@ -209,195 +210,9 @@ function segmentIndexAt(segments: SegmentInfo[], beat: number): number {
 }
 
 // ── Walking bass ─────────────────────────────────────────────
-
-const BASS_LOW = 28; // E1
-const BASS_HIGH = 55; // G3
-const BASS_CENTER = 40; // E2
-
-/**
- * Chord-tone intervals the bass outlines, read from CHORD_DEFINITIONS so
- * every quality gets its true tones: min7b5 → b3/b5/b7, dim7 → b3/b5/bb7,
- * aug7 → 3/#5/b7, sus4 → 4/5/b7. The natural 5th is preferred when the
- * definition carries both (7#11, 7b13) — colour tones belong to the comp,
- * not the walking line. 6th chords walk their 6th in the 7th slot; plain
- * triads have none.
- */
-export function chordToneIntervalsForBass(quality: ChordQuality): {
-	third: number;
-	fifth: number;
-	seventh: number | null;
-} {
-	const def = CHORD_DEFINITIONS[quality];
-	const iv = def?.intervals ?? [0, 4, 7];
-	const has = (n: number) => iv.includes(n);
-	const third = has(4) ? 4 : has(3) ? 3 : has(5) ? 5 : has(2) ? 2 : 4;
-	const fifth = has(7) ? 7 : (iv.find((i) => i >= 6 && i <= 8) ?? 7);
-	const seventh = iv.find((i) => i >= 9 && i <= 11) ?? null;
-	return { third, fifth, seventh };
-}
-
-/** Nearest MIDI with the given pitch class to `target`, kept in the bass band. */
-function nearestBassPc(pc: number, target: number): number {
-	const targetPc = ((target % 12) + 12) % 12;
-	let diff = (((pc - targetPc) % 12) + 12) % 12;
-	if (diff > 6) diff -= 12;
-	let midi = target + diff;
-	while (midi < BASS_LOW) midi += 12;
-	while (midi > BASS_HIGH) midi -= 12;
-	return midi;
-}
-
-/**
- * Like nearestBassPc but kept two semitones inside the band, so chromatic
- * and scale-step devices built around the result stay in range too.
- */
-function nearestBassPcSoft(pc: number, target: number): number {
-	let midi = nearestBassPc(pc, target);
-	if (midi > BASS_HIGH - 2) midi -= 12;
-	if (midi < BASS_LOW + 2) midi += 12;
-	return midi;
-}
-
-/**
- * Generate a walking bass line: one quarter per beat, each bar planned as a
- * path from the current chord toward the next root. Beat 1 is the root most
- * of the time (occasionally 3rd or 5th), interior beats walk stepwise toward
- * the target, and the last beat of each segment approaches the next root by
- * a seeded choice of device — chromatic, dominant (5th above), scale step,
- * or a two-beat enclosure. Sparse swung-eighth pickups and ghosted dead
- * notes keep it human without turning it into a solo.
- */
-export function generateWalkingBass(
-	harmony: HarmonicSegment[],
-	beatsPerBar: number,
-	params: BackingGenerationParams
-): BassEvent[] {
-	const { phraseId, tempo } = params;
-	const segments = toSegmentInfos(harmony);
-	const events: BassEvent[] = [];
-	const beatDuration = 60 / tempo;
-	const streams = createTimingStreams(phraseId, tempo);
-
-	let prevMidi: number | null = null;
-
-	for (let segIdx = 0; segIdx < segments.length; segIdx++) {
-		const seg = segments[segIdx];
-		const rng = createRng(seedFrom(phraseId, tempo, 'bass', segIdx));
-		const tones = chordToneIntervalsForBass(seg.quality);
-		const hasNext = segIdx + 1 < segments.length;
-		const nextRootPc = hasNext ? segments[segIdx + 1].rootPc : seg.rootPc;
-
-		const notes: number[] = new Array(seg.totalBeats);
-		const L = seg.totalBeats - 1;
-
-		// Beat 1: the root most of the time; a 3rd or 5th for variety once
-		// the line is underway.
-		const rootHere = nearestBassPc(seg.rootPc, prevMidi ?? BASS_CENTER);
-		if (segIdx === 0 || prevMidi === null || rng.chance(0.8)) {
-			notes[0] = rootHere;
-		} else {
-			const alt = rng.chance(0.5) ? tones.third : tones.fifth;
-			notes[0] = nearestBassPc((seg.rootPc + alt) % 12, prevMidi);
-		}
-
-		// Approach into the next root on the segment's final beat(s).
-		const target = nearestBassPcSoft(nextRootPc, notes[0]);
-		let enclosureStart = -1;
-		if (L >= 1 && hasNext) {
-			if (seg.totalBeats >= 4 && rng.chance(0.18)) {
-				// Two-beat enclosure around the next root.
-				enclosureStart = L - 1;
-				const upperFirst = rng.chance(0.5);
-				notes[L - 1] = target + (upperFirst ? 1 : -1);
-				notes[L] = target + (upperFirst ? -1 : 1);
-			} else {
-				notes[L] = rng.weighted([
-					{ value: target - 1, weight: 3 }, // chromatic from below
-					{ value: target + 1, weight: 2 }, // chromatic from above
-					{ value: nearestBassPc((nextRootPc + 7) % 12, target), weight: 2 }, // dominant
-					{ value: target + (rng.chance(0.6) ? -2 : 2), weight: 2 } // scale step
-				]);
-			}
-		} else if (L >= 1) {
-			// Final segment: settle on a chord tone instead of approaching.
-			notes[L] = nearestBassPc((seg.rootPc + (L % 2 === 1 ? tones.fifth : 0)) % 12, notes[0]);
-		}
-
-		// Interior beats: stepwise walk toward the approach target.
-		const interiorEnd = enclosureStart >= 0 ? enclosureStart : L;
-		for (let beat = 1; beat < interiorEnd; beat++) {
-			const prev = notes[beat - 1];
-			const chordPcs = [0, tones.third, tones.fifth, ...(tones.seventh !== null ? [tones.seventh] : [])]
-				.map((i) => (seg.rootPc + i) % 12);
-			const candidates = new Set<number>();
-			for (const pc of chordPcs) candidates.add(nearestBassPc(pc, prev));
-			candidates.add(prev + 1);
-			candidates.add(prev - 1);
-			candidates.add(prev + 2);
-			candidates.add(prev - 2);
-
-			const goal = enclosureStart >= 0 ? target : (notes[L] ?? target);
-			const weighted: Array<{ value: number; weight: number }> = [];
-			for (const cand of candidates) {
-				if (cand < BASS_LOW || cand > BASS_HIGH) continue;
-				if (cand === prev) continue; // no lazy repeats
-				const leap = Math.abs(cand - prev);
-				if (leap > 7) continue;
-				let weight = 1;
-				if (leap <= 2) weight += 2;
-				if (Math.sign(goal - cand) === Math.sign(goal - prev) && Math.abs(goal - cand) < Math.abs(goal - prev)) {
-					weight += 2; // progress toward the target
-				}
-				if (chordPcs.includes(((cand % 12) + 12) % 12)) weight += 1;
-				weighted.push({ value: cand, weight });
-			}
-			notes[beat] = weighted.length > 0 ? rng.weighted(weighted) : nearestBassPc(seg.rootPc, prev);
-		}
-
-		// Emit the quarters.
-		const ghostBeat = seg.totalBeats >= 3 && rng.chance(0.1) ? rng.int(1, Math.max(1, L - 1)) : -1;
-		const pickup = hasNext && rng.chance(0.12);
-		for (let beat = 0; beat < seg.totalBeats; beat++) {
-			const absBeat = seg.startBeats + beat;
-			const beatInBar = Math.round(absBeat) % beatsPerBar;
-			const isLast = beat === L;
-			events.push({
-				time: place(absBeat, 'bass', params, streams, beatsPerBar),
-				midi: notes[beat],
-				duration: beatDuration * (isLast && pickup ? 0.45 : 0.85),
-				velocity: rng.int(76, 88) + (beatInBar === 0 ? 4 : 0),
-				absBeat
-			});
-			// Ghosted "dead" repeat — felt more than heard.
-			if (beat === ghostBeat) {
-				events.push({
-					time: place(absBeat + 0.5, 'bass', params, streams, beatsPerBar),
-					midi: notes[beat],
-					duration: beatDuration * 0.2,
-					velocity: rng.int(36, 44),
-					absBeat: absBeat + 0.5
-				});
-			}
-		}
-
-		// Swung-eighth pickup into the next downbeat.
-		if (pickup) {
-			const absBeat = seg.startBeats + seg.totalBeats - 0.5;
-			const nextTarget = nearestBassPcSoft(nextRootPc, notes[L]);
-			events.push({
-				time: place(absBeat, 'bass', params, streams, beatsPerBar),
-				midi: rng.pick([notes[L], nextTarget - 1, nextTarget + 1]),
-				duration: beatDuration * 0.3,
-				velocity: rng.int(52, 60),
-				absBeat
-			});
-		}
-
-		prevMidi = notes[L] ?? notes[0];
-	}
-
-	return events;
-}
+// Lives in backing-bass.ts (phrase-aware contour planner). Re-exported
+// here so existing consumers/tests keep one import surface.
+export { chordToneIntervalsForBass, generateBassLine } from './backing-bass';
 
 // ── Comping ──────────────────────────────────────────────────
 
@@ -560,7 +375,7 @@ export function generateBacking(
 
 	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
 	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
-	const bassEvents = generateWalkingBass(harmony, beatsPerBar, timedParams);
+	const { events: bassEvents } = generateBassLine2(harmony, beatsPerBar, timedParams, barInfos);
 	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar);
 
 	return { bassEvents, compEvents, drumEvents };
