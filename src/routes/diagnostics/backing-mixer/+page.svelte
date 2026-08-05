@@ -23,7 +23,7 @@
 		LAB_TEMPO_PRESETS,
 		labPhraseWithSeed
 	} from '$lib/audio/backing-lab-presets';
-	import { bounceBacking, generateForBounce } from '$lib/audio/backing-bounce';
+	import { bounceBacking, generateForBounce, renderGoldenJsonToWav } from '$lib/audio/backing-bounce';
 	import BlindAbPlayer from '$lib/components/diagnostics/BlindAbPlayer.svelte';
 	import ListeningChecklist from '$lib/components/diagnostics/ListeningChecklist.svelte';
 	import { settings } from '$lib/state/settings.svelte';
@@ -188,6 +188,44 @@
 			if (id === bounceRequest) bounceError = err instanceof Error ? err.message : String(err);
 		} finally {
 			if (id === bounceRequest) bouncing = false;
+		}
+	}
+
+	let refRenderBusy = $state(false);
+	let refRenderError = $state<string | null>(null);
+
+	/**
+	 * Render a committed/exported golden events JSON to WAV — the "old
+	 * engine" side of a blind A/B, reproduced from data instead of keeping
+	 * old generator code alive. Downloads the WAV; load it into the blind
+	 * player's reference slot.
+	 */
+	async function renderReferenceJson(e: Event): Promise<void> {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		refRenderBusy = true;
+		refRenderError = null;
+		try {
+			await initAudio();
+			const drumBuffers = await getDecodedDrumBuffersForBounce();
+			const json: unknown = JSON.parse(await file.text());
+			const { blob, label } = await renderGoldenJsonToWav(json, drumBuffers, {
+				instrument,
+				volume,
+				mix
+			});
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `reference-${label.replace(/[^a-zA-Z0-9@-]/g, '_')}.wav`;
+			a.click();
+			setTimeout(() => URL.revokeObjectURL(url), 10_000);
+		} catch (err) {
+			refRenderError = err instanceof Error ? err.message : String(err);
+		} finally {
+			refRenderBusy = false;
 		}
 	}
 
@@ -377,6 +415,22 @@
 			>
 				Export events JSON
 			</button>
+			<label
+				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm cursor-pointer hover:bg-[var(--color-bg-secondary)] transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-[var(--color-accent)]"
+			>
+				<span>{refRenderBusy ? 'Rendering JSON…' : 'Render WAV from events JSON…'}</span>
+				<input
+					type="file"
+					accept=".json,application/json"
+					class="sr-only"
+					aria-label="Render WAV from events JSON"
+					disabled={refRenderBusy}
+					onchange={renderReferenceJson}
+				/>
+			</label>
+			{#if refRenderError}
+				<span class="text-sm text-red-500">{refRenderError}</span>
+			{/if}
 			{#if bounceError}
 				<span class="text-sm text-red-500">{bounceError}</span>
 			{/if}

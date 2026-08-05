@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import {
 	generateBacking,
-	resolveEffectiveSwing,
+	resolveBackingSwing,
 	type BackingGenerationParams,
 	type GeneratedBacking
 } from '$lib/audio/backing-generation';
@@ -42,7 +42,7 @@ function generateCase(
 		tempo,
 		ppq: 192,
 		beatsPerBar: 4,
-		swing: resolveEffectiveSwing(0.5, style),
+		swing: resolveBackingSwing(0.5, style, tempo),
 		sectionMap: preset.phrase.sectionMap
 	};
 	return { params: { ...params, style: 'swing' }, ...generateBacking(preset.phrase.harmony, style, params) };

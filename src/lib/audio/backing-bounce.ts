@@ -18,7 +18,7 @@ import { fractionToFloat } from '$lib/music/intervals';
 import { BACKING_STYLES } from './backing-styles';
 import {
 	generateBacking,
-	resolveEffectiveSwing,
+	resolveBackingSwing,
 	type GeneratedBacking
 } from './backing-generation';
 import { BACKING_BASE_TRIMS, voiceVelocity, type BackingMixLevels } from './backing-mix';
@@ -88,9 +88,17 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		tempo,
 		ppq: BOUNCE_PPQ,
 		beatsPerBar: phrase.timeSignature[0],
-		swing: resolveEffectiveSwing(params.swing, style),
+		swing: resolveBackingSwing(params.swing, style, tempo),
 		sectionMap: phrase.sectionMap
 	});
+}
+
+export interface RenderOpts {
+	tempo: number;
+	instrument: BackingInstrument;
+	volume: number;
+	mix: BackingMixLevels;
+	durationSeconds: number;
 }
 
 /**
@@ -102,12 +110,40 @@ export async function bounceBacking(
 	params: BounceParams,
 	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>
 ): Promise<BounceResult> {
-	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler } = await import('smplr');
-
 	const generated = generateForBounce(params);
-	const { tempo, volume, mix } = params;
-	const beatSeconds = 60 / tempo;
-	const durationSeconds = harmonyDurationBeats(params.phrase) * beatSeconds + BOUNCE_TAIL_SECONDS;
+	const durationSeconds =
+		harmonyDurationBeats(params.phrase) * (60 / params.tempo) + BOUNCE_TAIL_SECONDS;
+	const blob = await renderEventsToWav(generated, drumBuffers, {
+		tempo: params.tempo,
+		instrument: params.instrument,
+		volume: params.volume,
+		mix: params.mix,
+		durationSeconds
+	});
+	return {
+		blob,
+		filename: bounceFilename(params.phrase.id, params.style, params.tempo),
+		generated,
+		durationSeconds
+	};
+}
+
+/**
+ * Render pre-generated events to WAV. This is what lets a committed golden
+ * events JSON — the permanent record of any past engine's output — become
+ * the "old" side of a blind A/B without keeping old generator code alive.
+ * Note: events render through the CURRENT mix trims and samples, so level
+ * balance reflects today's chain; the comparison surface is placement,
+ * swing and vocabulary, which live entirely in the events.
+ */
+export async function renderEventsToWav(
+	generated: GeneratedBacking,
+	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
+	opts: RenderOpts
+): Promise<Blob> {
+	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler, Scheduler } =
+		await import('smplr');
+	const { tempo, volume, mix, durationSeconds } = opts;
 
 	const result = await renderOffline(
 		async (context) => {
@@ -131,14 +167,26 @@ export async function bounceBacking(
 			drumGain.gain.value = volume * BACKING_BASE_TRIMS.drums * mix.drums;
 			drumGain.connect(context.destination);
 
+			// smplr dispatches a note synchronously only when its time is within
+			// the scheduler's lookahead of currentTime; later notes sit in a
+			// queue pumped by setInterval — wall clock, which never fires while
+			// an offline render completes in milliseconds ("one beat of music").
+			// A shared scheduler whose lookahead exceeds the whole render makes
+			// every start dispatch synchronously onto the graph. (The earlier
+			// OfflineAudioContext.suspend-checkpoint approach worked on Chromium
+			// but Safari doesn't implement suspend on offline contexts.)
+			const scheduler = new Scheduler(context, {
+				lookaheadMs: (durationSeconds + 10) * 1000
+			});
 			const [bass, comp, drums] = await Promise.all([
-				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain }).load,
-				params.instrument === 'piano'
-					? new SplendidGrandPiano(context, { destination: compGain }).load
+				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain, scheduler }).load,
+				opts.instrument === 'piano'
+					? new SplendidGrandPiano(context, { destination: compGain, scheduler }).load
 					: new Soundfont(context, {
 							instrument: 'drawbar_organ',
 							kit: 'MusyngKite',
-							destination: compGain
+							destination: compGain,
+							scheduler
 						}).load,
 				// Explicit defaults for the same reason as the live kit: undefined
 				// values clobber smplr's PARAM_DEFAULTS and NaN the voice.
@@ -147,7 +195,8 @@ export async function bounceBacking(
 					destination: drumGain,
 					detune: 0,
 					decayTime: 0.3,
-					lpfCutoffHz: 20000
+					lpfCutoffHz: 20000,
+					scheduler
 				}).load
 			]);
 
@@ -181,10 +230,79 @@ export async function bounceBacking(
 		{ duration: durationSeconds, sampleRate: 44100 }
 	);
 
-	return {
-		blob: result.toWav16(),
-		filename: bounceFilename(params.phrase.id, params.style, tempo),
-		generated,
-		durationSeconds
+	// Peak-normalize the bounce to −1 dBFS. The live mix is anchored ~20 dB
+	// down by the CDN instrument trims (system volume compensates there),
+	// but a WAV at that level reads as silence in a media player. Pure gain
+	// on the rendered buffer: relative balance — the thing a listening pass
+	// judges — is untouched, and both sides of an A/B normalize to the same
+	// ceiling. Amplification is capped so a genuinely empty render stays
+	// silent instead of becoming amplified noise floor.
+	const { audioBufferToWav16 } = await import('smplr');
+	const buffer = result.audioBuffer;
+	let peak = 0;
+	for (let c = 0; c < buffer.numberOfChannels; c++) {
+		const data = buffer.getChannelData(c);
+		for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+	}
+	const gain = Math.min(50, peak > 0 ? 0.891 / peak : 1);
+	if (gain !== 1) {
+		for (let c = 0; c < buffer.numberOfChannels; c++) {
+			const data = buffer.getChannelData(c);
+			for (let i = 0; i < data.length; i++) data[i] *= gain;
+		}
+	}
+	return audioBufferToWav16(buffer);
+}
+
+/** Shape of an exported/committed golden events JSON. */
+export interface GoldenEventsJson extends GeneratedBacking {
+	phraseId?: string;
+	style?: string;
+	tempo?: number;
+	params?: { tempo?: number };
+}
+
+/** Duration covering every event plus ring-out. */
+export function eventsDurationSeconds(generated: GeneratedBacking, tempo: number): number {
+	let maxEnd = 0;
+	for (const e of [...generated.bassEvents, ...generated.compEvents]) {
+		maxEnd = Math.max(maxEnd, eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo) + e.duration);
+	}
+	for (const e of generated.drumEvents) {
+		maxEnd = Math.max(maxEnd, eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo) + 2);
+	}
+	return maxEnd + BOUNCE_TAIL_SECONDS;
+}
+
+/**
+ * Parse an exported golden events JSON (from the lab's "Export events
+ * JSON" or a committed tests/fixtures/backing file) and render it to WAV.
+ * Throws with a readable message on shape mismatch.
+ */
+export async function renderGoldenJsonToWav(
+	raw: unknown,
+	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
+	opts: Omit<RenderOpts, 'durationSeconds' | 'tempo'>
+): Promise<{ blob: Blob; tempo: number; label: string }> {
+	const json = raw as GoldenEventsJson;
+	if (!Array.isArray(json?.bassEvents) || !Array.isArray(json?.compEvents) || !Array.isArray(json?.drumEvents)) {
+		throw new Error('Not an events JSON: expected bassEvents/compEvents/drumEvents arrays');
+	}
+	const tempo = json.tempo ?? json.params?.tempo;
+	// Guard degenerate tempi too: a 0/negative/near-zero value would blow up
+	// the duration math (Infinity-second renders) rather than fail readably.
+	if (!tempo || !Number.isFinite(tempo) || tempo < 20) {
+		throw new Error('Events JSON carries no usable tempo (expected `tempo` or `params.tempo` ≥ 20)');
+	}
+	const generated: GeneratedBacking = {
+		bassEvents: json.bassEvents,
+		compEvents: json.compEvents,
+		drumEvents: json.drumEvents
 	};
+	const blob = await renderEventsToWav(generated, drumBuffers, {
+		...opts,
+		tempo,
+		durationSeconds: eventsDurationSeconds(generated, tempo)
+	});
+	return { blob, tempo, label: `${json.phraseId ?? 'events'}@${tempo}` };
 }

@@ -124,9 +124,12 @@ describe('BACKING_BASE_TRIMS', () => {
 		expect(BACKING_BASE_TRIMS.kick).toBeGreaterThan(BACKING_BASE_TRIMS.hihat);
 		const voiceKeys = ['kick', 'ride', 'hihat', 'hihat-pedal', 'snare', 'crossstick', 'ride-bell', 'crash'] as const;
 		for (const key of voiceKeys) {
-			// Highest musically generated velocity is well under 0.65; even a
-			// full-scale 1.0 must clear the clamp with the kick's trim.
-			expect(0.65 * BACKING_BASE_TRIMS[key]).toBeLessThanOrEqual(1);
+			// Timekeeping-range velocities (≤ 0.5 — ride quarters, feathered
+			// kick, hats) must never hit the [0, 1] clamp; only the loudest
+			// setup accents may approach it. smplr's velocity→gain is
+			// quadratic, so trims sit higher in velocity space than a linear
+			// intuition suggests.
+			expect(0.5 * BACKING_BASE_TRIMS[key]).toBeLessThanOrEqual(1);
 		}
 		for (const v of Object.values(BACKING_BASE_TRIMS)) {
 			expect(Number.isFinite(v)).toBe(true);

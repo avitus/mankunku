@@ -593,9 +593,17 @@ Per-bar `{ sectionIndex?, chorusIndex?, isSectionFinalBar, isFinalBar }`. A new 
 
 `{ third, fifth, seventh | null }` semitone intervals read from `CHORD_DEFINITIONS` — min7b5 → b3/b5/b7, dim7 → b3/b5/bb7, aug7 → 3/#5/b7, sus4 → 4/5/b7. The natural 5th wins when the definition also carries a colour tone (7#11, 7b13); 6th chords walk their 6th in the 7th slot.
 
-### `resolveEffectiveSwing(userSwing, style): number`
+### `resolveBackingSwing(userSwing, style, tempo): number`
 
-The backing's swing value: the session swing when the user swings the melody (`> 0.5`), else the style's `defaultSwing` — so the swing style's ride pattern swings even while the melody setting sits straight. Shared by the live scheduler and the listening-lab bounce; scoring never sees this value (it uses only the melody's `options.swing`).
+The backing's swing value: the session swing when the user swings the melody (`> 0.5` — the band must share the soloist's grid), else the style's `swingModel` — `'tempo'` follows `swingForTempo(bpm)` in `music/swing.ts` (Friberg–Sundström: constant ~100 ms short eighth, ≈3.5:1 cap below ~132 BPM, straight by 300), `'fixed'` uses `defaultSwing`. Shared by the live scheduler and the listening-lab bounce; scoring never sees this value (it uses only the melody's `options.swing`, and `swingForTempo` is banned from playback/scoring/tricks modules by a unit test).
+
+---
+
+## backing-timing.ts
+
+Per-role ensemble microtiming: placement = straight beat → `applySwingToBeats` → role offset → triangular jitter → clamp ≥ 0, in ticks. `SWING_TIMING` profiles (ms): ride/bell 0±4 (the reference clock), hats 0±3, kick +2±6, snare/cross-stick +4±7, crash 0±5, bass −3±5 ("on top"), comp +12±8 (lays back). Offsets are constant milliseconds — compressed to 4% of the beat at fast tempi — and jitter is constant-ms too (the old `humanizeTicks` scaled with `120/tempo`, making slow tempi sloppier and fast tempi robotic). `BALLAD_TIMING` (looser, comp +18), `BOSSA_TIMING` (on-grid, tight), `STRAIGHT_TIMING` (halved) attach per style via `StyleDefinition.timing`.
+
+Jitter draws come from dedicated per-`(role, bar)` streams (`seedFrom(phraseId, tempo, '<role>-time', barIndex)` via `createTimingStreams`), so musical probability checks in a generator can never reshuffle another voice's — or later notes' — timing.
 
 ---
 

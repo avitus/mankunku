@@ -44,29 +44,35 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
  * gain factors; the drum-voice entries multiply generated velocities
  * before the [0, 1] clamp.
  *
- * The drum-voice values changed with the 2026-08-04 sample normalization:
- * every kit buffer is now peak-normalized to −3 dBFS offline, so these
- * trims re-express the ear-tuned 2026-08-02 balance against the new flat
- * asset levels (old trim × old file peak = new trim × 0.708). The old ×3
- * values existed to push quiet source files up and clipped the top half of
- * the velocity range against the [0, 1] clamp; at −3 dBFS assets the whole
- * musical velocity range is audible and the clamp no longer engages.
- * Voices the generator doesn't emit yet (snare landed with the section
- * setups; pedal/cross-stick/bell/crash await the vocabulary increment)
- * start at family-matched estimates for the milestone listening pass.
+ * ⚠️ Drum-voice trims live in VELOCITY space, and smplr maps velocity to
+ * gain QUADRATICALLY (`(vel/127)²` — midiVelToGain). Converting a trim
+ * between sample-level regimes therefore goes through a square root:
+ * equal audible level means `amp_old × (v·t_old)² = amp_new × (v·t_new)²`,
+ * i.e. `t_new = t_old × √(amp_old / amp_new)`. The first post-
+ * normalization values here (2026-08-04) preserved the linear product
+ * instead, which collapsed the kit by an order of magnitude — caught by
+ * the render-audio diagnostic, not by any level-blind unit test.
+ *
+ * Current values re-express the ear-tuned 2026-08-02 balance against the
+ * −3 dBFS-normalized kit via the sqrt rule (kick 3→2.0 — rounded down from 2.09 so no musical velocity can clamp; ride 1.55→0.71;
+ * hi-hat was velocity-clamped pre-normalization, so its target is the old
+ * CLAMPED loudness → 0.81). Timekeeping-range velocities (≤ 0.5) stay
+ * unclamped; the loudest setup accents may just kiss the ceiling. Voices
+ * the generator barely emits yet start at family-matched estimates for
+ * the milestone listening pass.
  */
 export const BACKING_BASE_TRIMS: Record<keyof BackingMixLevels, number> = {
 	bass: 0.05,
 	comp: 0.1,
 	drums: 1.8,
-	kick: 1.45,
-	ride: 0.33,
-	hihat: 0.33,
-	'hihat-pedal': 0.33,
-	snare: 0.55,
-	crossstick: 0.5,
-	'ride-bell': 0.35,
-	crash: 0.5
+	kick: 2.0,
+	ride: 0.71,
+	hihat: 0.81,
+	'hihat-pedal': 0.81,
+	snare: 1.0,
+	crossstick: 1.0,
+	'ride-bell': 0.7,
+	crash: 0.9
 };
 
 const MIX_MAX = 3;

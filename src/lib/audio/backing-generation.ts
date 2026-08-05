@@ -8,15 +8,24 @@
  * generates the same backing while different bars (and different passes
  * through a tune's form) vary.
  *
- * Timing: beat offsets are laid out on a straight grid, swung at the
- * beat→tick conversion via `applySwingToBeats` (off-beat eighths land
- * late), then given a few milliseconds of seeded jitter on top
- * (`humanizeTicks`) — jitter layers over swing, it never replaces it.
+ * Timing: beat offsets are laid out on a straight grid, then placed by
+ * backing-timing.ts — swing at the beat→tick conversion, plus per-role
+ * ensemble offsets (bass/ride on top, comp behind) and triangular jitter
+ * from dedicated `<role>-time` streams. Jitter layers over swing, never
+ * replaces it; musical draws and timing never share a stream.
  */
 
 import type { HarmonicSegment, ChordQuality } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
-import { applySwingToBeats } from '$lib/music/swing';
+import { swingForTempo } from '$lib/music/swing';
+import {
+	SWING_TIMING,
+	createTimingStreams,
+	placeEventTicks,
+	type TimingProfile,
+	type TimingRole,
+	type TimingStreams
+} from './backing-timing';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { createRng, seedFrom, type SeededRng } from './generation-rng';
 import {
@@ -73,19 +82,28 @@ export interface BackingGenerationParams {
 	tempo: number;
 	ppq: number;
 	beatsPerBar: number;
-	/** Effective swing ratio (session swing when swung, else the style default). */
+	/** Effective swing ratio (see `resolveBackingSwing`). */
 	swing: number;
 	sectionMap?: SectionMapEntry[];
+	/** Per-role microtiming profiles (style.timing); SWING_TIMING when absent. */
+	timing?: Record<TimingRole, TimingProfile>;
 }
 
 /**
  * Effective swing for the backing: the session value when the user swings
- * the melody, else the style's default — so the swing style's ride pattern
- * swings even while the melody setting sits straight. Scoring is untouched
- * (it shares only the melody's options.swing).
+ * the melody (the band must share the soloist's grid), else the style's
+ * model — 'tempo' follows the Friberg–Sundström curve (`swingForTempo`),
+ * 'fixed' uses the style default. Scoring is untouched: it shares only the
+ * melody's options.swing, and `swingForTempo` is banned from scorer
+ * modules by a unit test.
  */
-export function resolveEffectiveSwing(userSwing: number, style: StyleDefinition): number {
-	return userSwing > 0.5 ? userSwing : style.defaultSwing;
+export function resolveBackingSwing(
+	userSwing: number,
+	style: StyleDefinition,
+	tempo: number
+): number {
+	if (userSwing > 0.5) return userSwing;
+	return style.swingModel === 'tempo' ? swingForTempo(tempo) : style.defaultSwing;
 }
 
 // ── Bar contexts ─────────────────────────────────────────────
@@ -137,25 +155,30 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[])
 }
 
 // ── Timing ───────────────────────────────────────────────────
+// Placement lives in backing-timing.ts: swung grid + per-role ensemble
+// offset + triangular jitter from dedicated `<role>-time` streams, so
+// musical draws and timing never share a stream.
 
-/**
- * Subtle timing humanization for backing track (tighter than melody).
- * Seeded so replays are identical.
- */
-function humanizeTicks(ticks: number, ppq: number, tempo: number, rng: SeededRng): number {
-	const baseMs = 3;
-	const tempoScale = 120 / tempo;
-	const maxDeviationMs = baseMs * tempoScale;
-	const msPerTick = (60 / tempo / ppq) * 1000;
-	const maxDeviationTicks = Math.round(maxDeviationMs / msPerTick);
-	const deviation = (rng.float() - 0.5) * 2 * maxDeviationTicks;
-	return Math.max(0, Math.round(ticks + deviation));
+function timingTableOf(params: BackingGenerationParams): Record<TimingRole, TimingProfile> {
+	return params.timing ?? SWING_TIMING;
 }
 
-/** Straight beat position → swung, humanized Transport ticks. */
-function beatToTicks(absBeat: number, swing: number, ppq: number, tempo: number, rng: SeededRng): number {
-	const swung = applySwingToBeats(absBeat, swing);
-	return humanizeTicks(Math.round(swung * ppq), ppq, tempo, rng);
+function place(
+	absBeat: number,
+	role: TimingRole,
+	params: BackingGenerationParams,
+	streams: TimingStreams,
+	beatsPerBar: number
+): string {
+	const ticks = placeEventTicks(
+		absBeat,
+		params.swing,
+		params.ppq,
+		params.tempo,
+		timingTableOf(params)[role],
+		streams.for(role, Math.floor(absBeat / beatsPerBar))
+	);
+	return `${ticks}i`;
 }
 
 // ── Harmony helpers ──────────────────────────────────────────
@@ -249,10 +272,11 @@ export function generateWalkingBass(
 	beatsPerBar: number,
 	params: BackingGenerationParams
 ): BassEvent[] {
-	const { phraseId, tempo, ppq, swing } = params;
+	const { phraseId, tempo } = params;
 	const segments = toSegmentInfos(harmony);
 	const events: BassEvent[] = [];
 	const beatDuration = 60 / tempo;
+	const streams = createTimingStreams(phraseId, tempo);
 
 	let prevMidi: number | null = null;
 
@@ -338,7 +362,7 @@ export function generateWalkingBass(
 			const beatInBar = Math.round(absBeat) % beatsPerBar;
 			const isLast = beat === L;
 			events.push({
-				time: `${beatToTicks(absBeat, swing, ppq, tempo, rng)}i`,
+				time: place(absBeat, 'bass', params, streams, beatsPerBar),
 				midi: notes[beat],
 				duration: beatDuration * (isLast && pickup ? 0.45 : 0.85),
 				velocity: rng.int(76, 88) + (beatInBar === 0 ? 4 : 0),
@@ -347,7 +371,7 @@ export function generateWalkingBass(
 			// Ghosted "dead" repeat — felt more than heard.
 			if (beat === ghostBeat) {
 				events.push({
-					time: `${beatToTicks(absBeat + 0.5, swing, ppq, tempo, rng)}i`,
+					time: place(absBeat + 0.5, 'bass', params, streams, beatsPerBar),
 					midi: notes[beat],
 					duration: beatDuration * 0.2,
 					velocity: rng.int(36, 44),
@@ -361,7 +385,7 @@ export function generateWalkingBass(
 			const absBeat = seg.startBeats + seg.totalBeats - 0.5;
 			const nextTarget = nearestBassPcSoft(nextRootPc, notes[L]);
 			events.push({
-				time: `${beatToTicks(absBeat, swing, ppq, tempo, rng)}i`,
+				time: place(absBeat, 'bass', params, streams, beatsPerBar),
 				midi: rng.pick([notes[L], nextTarget - 1, nextTarget + 1]),
 				duration: beatDuration * 0.3,
 				velocity: rng.int(52, 60),
@@ -398,11 +422,12 @@ export function generateComping(
 	params: BackingGenerationParams,
 	barInfos: BarInfo[]
 ): { events: CompEvent[]; onsetsByBar: Map<number, number[]> } {
-	const { phraseId, tempo, ppq, swing } = params;
+	const { phraseId, tempo, swing } = params;
 	const segments = toSegmentInfos(harmony);
 	const beatDuration = 60 / tempo;
 	const events: CompEvent[] = [];
 	const onsetsByBar = new Map<number, number[]>();
+	const streams = createTimingStreams(phraseId, tempo);
 
 	// Voicing selection per chord, then voice-lead the whole sequence.
 	const chords = harmony.map((seg) => ({ root: seg.chord.root, quality: seg.chord.quality }));
@@ -450,7 +475,7 @@ export function generateComping(
 			if (!voicing || voicing.length === 0) continue;
 
 			events.push({
-				time: `${beatToTicks(absBeat, swing, ppq, tempo, rng)}i`,
+				time: place(absBeat, 'comp', params, streams, beatsPerBar),
 				notes: voicing,
 				duration: beatDuration * hit.durationBeats,
 				velocity: hit.velocity,
@@ -475,8 +500,9 @@ export function generateDrums(
 	barInfos: BarInfo[],
 	compOnsetsByBar: Map<number, number[]>
 ): DrumEvent[] {
-	const { phraseId, tempo, ppq, swing } = params;
+	const { phraseId, tempo, swing } = params;
 	const events: DrumEvent[] = [];
+	const streams = createTimingStreams(phraseId, tempo);
 
 	for (let bar = 0; bar < barInfos.length; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'drums', bar));
@@ -500,7 +526,7 @@ export function generateDrums(
 		for (const hit of byOffset.values()) {
 			const absBeat = bar * beatsPerBar + hit.beatOffset;
 			events.push({
-				time: `${beatToTicks(absBeat, swing, ppq, tempo, rng)}i`,
+				time: place(absBeat, hit.drum, params, streams, beatsPerBar),
 				drum: hit.drum,
 				velocity: hit.velocity,
 				absBeat
@@ -532,9 +558,10 @@ export function generateBacking(
 	const totalBars = Math.max(1, Math.ceil(harmonyBeats / beatsPerBar));
 	const barInfos = buildBarInfos(totalBars, params.sectionMap);
 
-	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, params, barInfos);
-	const bassEvents = generateWalkingBass(harmony, beatsPerBar, params);
-	const drumEvents = generateDrums(beatsPerBar, style, params, barInfos, onsetsByBar);
+	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
+	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
+	const bassEvents = generateWalkingBass(harmony, beatsPerBar, timedParams);
+	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar);
 
 	return { bassEvents, compEvents, drumEvents };
 }

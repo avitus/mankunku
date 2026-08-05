@@ -18,6 +18,14 @@
 
 import type { BackingStyle } from '$lib/types/instruments';
 import type { SeededRng } from './generation-rng';
+import {
+	SWING_TIMING,
+	BALLAD_TIMING,
+	BOSSA_TIMING,
+	STRAIGHT_TIMING,
+	type TimingProfile,
+	type TimingRole
+} from './backing-timing';
 
 export type DrumVoice =
 	| 'kick'
@@ -76,6 +84,15 @@ export interface StyleDefinition {
 	name: string;
 	/** Swing ratio used when the session swing is straight (0.5). */
 	defaultSwing: number;
+	/**
+	 * How the effective backing swing resolves when the session swing sits
+	 * straight: 'tempo' follows the Friberg–Sundström tempo curve
+	 * (`swingForTempo`); 'fixed' always uses `defaultSwing` — a 60 BPM
+	 * ballad must not inherit a 3.5:1 grid.
+	 */
+	swingModel: 'tempo' | 'fixed';
+	/** Per-role ensemble microtiming profiles (see backing-timing.ts). */
+	timing: Record<TimingRole, TimingProfile>;
 	/** Generate one bar of drum hits. */
 	drumPattern: (ctx: GenerationContext) => DrumHitSpec[];
 	/** Generate one bar of comp hits. */
@@ -105,6 +122,8 @@ const SWING_COMP_FIGURES: Array<{ hits: Array<{ b: number; d: number }>; weight:
 const swing: StyleDefinition = {
 	name: 'Swing',
 	defaultSwing: 0.67,
+	swingModel: 'tempo',
+	timing: SWING_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
 		const hits: DrumHitSpec[] = [];
@@ -219,6 +238,8 @@ const swing: StyleDefinition = {
 const bossaNova: StyleDefinition = {
 	name: 'Bossa Nova',
 	defaultSwing: 0.5,
+	swingModel: 'fixed',
+	timing: BOSSA_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
 		const hits: DrumHitSpec[] = [];
@@ -252,6 +273,8 @@ const bossaNova: StyleDefinition = {
 const ballad: StyleDefinition = {
 	name: 'Ballad',
 	defaultSwing: 0.55,
+	swingModel: 'fixed',
+	timing: BALLAD_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { beatsPerBar } = ctx;
 		// Sparse: soft ride on every beat, minimal kick on 1 only
@@ -278,6 +301,8 @@ const ballad: StyleDefinition = {
 const straight: StyleDefinition = {
 	name: 'Straight',
 	defaultSwing: 0.5,
+	swingModel: 'fixed',
+	timing: STRAIGHT_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { beatsPerBar } = ctx;
 		// Even feel: ride every beat, hi-hat on 2 and 4, kick on 1 and 3

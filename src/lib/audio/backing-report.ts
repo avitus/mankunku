@@ -16,7 +16,7 @@
 import { BACKING_STYLES } from './backing-styles';
 import {
 	generateBacking,
-	resolveEffectiveSwing,
+	resolveBackingSwing,
 	type GeneratedBacking
 } from './backing-generation';
 import { pitchClassToNumber } from './voicings';
@@ -72,7 +72,7 @@ function intervalBucket(semitones: number): string {
 
 function collect(preset: BackingLabPreset, tempo: number, seeds: number[]): PresetStats {
 	const style = BACKING_STYLES.swing;
-	const swing = resolveEffectiveSwing(0.5, style);
+	const swing = resolveBackingSwing(0.5, style, tempo);
 	const beatsPerBar = 4;
 	const totalBars = preset.bars;
 

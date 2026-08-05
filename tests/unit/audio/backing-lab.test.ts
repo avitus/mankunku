@@ -143,3 +143,35 @@ describe('listening checklist', () => {
 		expect(report).toContain('ride too loud');
 	});
 });
+
+describe('golden JSON rendering', () => {
+	it('computes duration covering every event plus ring-out', async () => {
+		const { eventsDurationSeconds } = await import('$lib/audio/backing-bounce');
+		const generated = {
+			bassEvents: [{ time: '384i', midi: 40, duration: 0.5, velocity: 80, absBeat: 2 }],
+			compEvents: [],
+			drumEvents: [{ time: '768i', drum: 'ride' as const, velocity: 0.4, absBeat: 4 }]
+		};
+		// At 120 BPM ppq 192: drum at 2s (+2 ring) dominates bass at 1s+0.5.
+		expect(eventsDurationSeconds(generated, 120)).toBeCloseTo(4 + 2.5, 6);
+	});
+
+	it('rejects malformed golden JSON with readable messages', async () => {
+		const { renderGoldenJsonToWav } = await import('$lib/audio/backing-bounce');
+		await expect(renderGoldenJsonToWav({ nope: true }, {}, {
+			instrument: 'piano',
+			volume: 0.6,
+			mix: DEFAULT_BACKING_MIX
+		})).rejects.toThrow(/Not an events JSON/);
+		await expect(renderGoldenJsonToWav(
+			{ bassEvents: [], compEvents: [], drumEvents: [] },
+			{},
+			{ instrument: 'piano', volume: 0.6, mix: DEFAULT_BACKING_MIX }
+		)).rejects.toThrow(/no usable tempo/);
+		await expect(renderGoldenJsonToWav(
+			{ bassEvents: [], compEvents: [], drumEvents: [], tempo: -60 },
+			{},
+			{ instrument: 'piano', volume: 0.6, mix: DEFAULT_BACKING_MIX }
+		)).rejects.toThrow(/no usable tempo/);
+	});
+});
