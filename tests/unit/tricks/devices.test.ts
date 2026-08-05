@@ -11,7 +11,7 @@ import {
 	TRIAD_PAIR_STYLES,
 	triadPairsTrick
 } from '$lib/tricks/devices/triad-pairs';
-import { getTrickById, TRICKS } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById, TRICKS } from '$lib/tricks';
 
 const baseContext: TrickContext = {
 	chordRoot: 'C',
@@ -477,5 +477,18 @@ describe('trick catalog', () => {
 		expect(getTrickById('triad-pairs')).toBe(triadPairsTrick);
 		expect(getTrickById('digital-patterns')).toBeUndefined();
 		expect(getTrickById('')).toBeUndefined();
+	});
+
+	it('exampleStyleForRound rotates triad-pair styles and cycles', () => {
+		expect(exampleStyleForRound(triadPairsTrick, 1)).toBe('cell');
+		expect(exampleStyleForRound(triadPairsTrick, 2)).toBe('triplets');
+		expect(exampleStyleForRound(triadPairsTrick, 3)).toBe('four-eighths');
+		expect(exampleStyleForRound(triadPairsTrick, 4)).toBe('cell');
+		expect(exampleStyleForRound(triadPairsTrick, 7)).toBe('cell');
+	});
+
+	it('exampleStyleForRound is undefined for single-style tricks and clamps bad rounds', () => {
+		expect(exampleStyleForRound(enclosuresTrick, 1)).toBeUndefined();
+		expect(exampleStyleForRound(triadPairsTrick, 0)).toBe('cell');
 	});
 });

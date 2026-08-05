@@ -76,7 +76,7 @@ import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
 import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
-import { getTrickById } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	loadTrickPracticeProgress,
@@ -721,7 +721,10 @@ export function startTrickSession(): boolean {
 		swing: 0.5
 	};
 
-	const phrase = trick.generateExample(trickParameters, cContext);
+	const phrase = trick.generateExample(trickParameters, {
+		...cContext,
+		exampleStyle: exampleStyleForRound(trick, 1)
+	});
 	if (!phrase) return false;
 
 	const variantLabel =
@@ -1540,7 +1543,10 @@ export function advanceSingleLickRound(): void {
 			item.phrase =
 				trick.generateExample(item.trickParameters, {
 					...item.trickContext,
-					tempo: lickPractice.currentTempo
+					tempo: lickPractice.currentTempo,
+					// roundNumber increments just below — the regenerated demo
+					// belongs to the round being entered.
+					exampleStyle: exampleStyleForRound(trick, lickPractice.roundNumber + 1)
 				}) ?? item.phrase;
 		}
 	}
