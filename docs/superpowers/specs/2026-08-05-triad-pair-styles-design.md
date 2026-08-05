@@ -37,8 +37,11 @@ Feasibility notes verified up front:
   offsets (n+1/3, n+2/3) are immune by construction — a swung context cannot
   distort the triplet spec.
 - `notation.ts` maps `[1,12]` → eighth-triplet, so rotated previews render.
-- `realizeTrickExample` passes slot offsets/durations through verbatim, and
-  its validation is only range/interval rails — triplet specs realize fine.
+- `realizeTrickExample` passes slot offsets/durations through verbatim. One
+  rail needs loosening: it validates with `maxConsecutiveLeaps: 8`, and a
+  12-note triplet arpeggio line has 11 consecutive leaps (leap = > 2
+  semitones), which would silently null the triplet preview. Raise the cap
+  to 12 — for trick examples it only guards runaway generation, not shapes.
 
 ## Decisions and their rationale
 
