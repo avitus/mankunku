@@ -17,114 +17,107 @@
   },
   {
    "time": "190i",
-   "midi": 36,
+   "midi": 39,
    "duration": 0.36428571428571427,
-   "velocity": 86,
+   "velocity": 78,
    "absBeat": 1
   },
   {
    "time": "383i",
-   "midi": 38,
+   "midi": 41,
    "duration": 0.36428571428571427,
    "velocity": 82,
    "absBeat": 2
   },
   {
    "time": "574i",
-   "midi": 44,
-   "duration": 0.19285714285714284,
-   "velocity": 80,
+   "midi": 42,
+   "duration": 0.36428571428571427,
+   "velocity": 76,
    "absBeat": 3
-  },
-  {
-   "time": "721i",
-   "midi": 44,
-   "duration": 0.12857142857142856,
-   "velocity": 52,
-   "absBeat": 3.5
   },
   {
    "time": "768i",
    "midi": 43,
    "duration": 0.36428571428571427,
-   "velocity": 86,
+   "velocity": 81,
    "absBeat": 4
   },
   {
    "time": "959i",
-   "midi": 45,
+   "midi": 38,
    "duration": 0.36428571428571427,
-   "velocity": 85,
+   "velocity": 87,
    "absBeat": 5
   },
   {
    "time": "1150i",
-   "midi": 43,
+   "midi": 39,
    "duration": 0.36428571428571427,
-   "velocity": 79,
+   "velocity": 83,
    "absBeat": 6
   },
   {
    "time": "1344i",
-   "midi": 47,
+   "midi": 35,
    "duration": 0.36428571428571427,
-   "velocity": 80,
+   "velocity": 82,
    "absBeat": 7
   },
   {
    "time": "1535i",
-   "midi": 48,
+   "midi": 36,
    "duration": 0.36428571428571427,
-   "velocity": 87,
+   "velocity": 84,
    "absBeat": 8
   },
   {
    "time": "1726i",
-   "midi": 47,
+   "midi": 40,
    "duration": 0.36428571428571427,
-   "velocity": 77,
+   "velocity": 83,
    "absBeat": 9
   },
   {
    "time": "1918i",
-   "midi": 46,
+   "midi": 44,
    "duration": 0.36428571428571427,
-   "velocity": 83,
+   "velocity": 81,
    "absBeat": 10
   },
   {
    "time": "2110i",
    "midi": 46,
    "duration": 0.36428571428571427,
-   "velocity": 80,
+   "velocity": 88,
    "absBeat": 11
   },
   {
    "time": "2302i",
    "midi": 45,
    "duration": 0.36428571428571427,
-   "velocity": 82,
+   "velocity": 86,
    "absBeat": 12
   },
   {
    "time": "2494i",
-   "midi": 40,
+   "midi": 49,
    "duration": 0.36428571428571427,
-   "velocity": 82,
+   "velocity": 77,
    "absBeat": 13
   },
   {
    "time": "2686i",
-   "midi": 45,
+   "midi": 48,
    "duration": 0.36428571428571427,
-   "velocity": 77,
+   "velocity": 90,
    "absBeat": 14
   },
   {
    "time": "2879i",
-   "midi": 40,
+   "midi": 45,
    "duration": 0.36428571428571427,
-   "velocity": 88,
+   "velocity": 83,
    "absBeat": 15
   }
  ],
