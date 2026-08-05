@@ -43,7 +43,13 @@ For each milestone (A, B, C):
 
 1. Bounce the current engine at 90, 160 and 240 BPM on the blues preset, plus 160 BPM on
    the 3-chorus AABA preset (seed 0).
-2. Blind-A/B each against the corresponding baseline/previous-milestone bounce.
+2. Blind-A/B each against the corresponding baseline/previous-milestone bounce. If you
+   don't have a dated reference WAV, reproduce one from data: grab the golden events JSON
+   for the engine you want to compare against out of git history
+   (`git show <commit>:tests/fixtures/backing/golden-<preset>-<tempo>.json > old.json`),
+   then use the lab's **Render WAV from events JSON** — it plays any past engine's exact
+   events through today's instruments and mix, so the comparison surface is placement,
+   swing and vocabulary rather than level balance.
 3. Work through the checklist at each tempo; copy the reports.
 4. Paste the reports below (newest first) and into the PR that closes the milestone.
 

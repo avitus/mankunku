@@ -93,6 +93,14 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 	});
 }
 
+export interface RenderOpts {
+	tempo: number;
+	instrument: BackingInstrument;
+	volume: number;
+	mix: BackingMixLevels;
+	durationSeconds: number;
+}
+
 /**
  * Render `params` to a WAV blob. `drumBuffers` come from
  * `getDecodedDrumBuffersForBounce()` in backing-track.ts (same decode path
@@ -102,12 +110,39 @@ export async function bounceBacking(
 	params: BounceParams,
 	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>
 ): Promise<BounceResult> {
-	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler } = await import('smplr');
-
 	const generated = generateForBounce(params);
-	const { tempo, volume, mix } = params;
-	const beatSeconds = 60 / tempo;
-	const durationSeconds = harmonyDurationBeats(params.phrase) * beatSeconds + BOUNCE_TAIL_SECONDS;
+	const durationSeconds =
+		harmonyDurationBeats(params.phrase) * (60 / params.tempo) + BOUNCE_TAIL_SECONDS;
+	const blob = await renderEventsToWav(generated, drumBuffers, {
+		tempo: params.tempo,
+		instrument: params.instrument,
+		volume: params.volume,
+		mix: params.mix,
+		durationSeconds
+	});
+	return {
+		blob,
+		filename: bounceFilename(params.phrase.id, params.style, params.tempo),
+		generated,
+		durationSeconds
+	};
+}
+
+/**
+ * Render pre-generated events to WAV. This is what lets a committed golden
+ * events JSON — the permanent record of any past engine's output — become
+ * the "old" side of a blind A/B without keeping old generator code alive.
+ * Note: events render through the CURRENT mix trims and samples, so level
+ * balance reflects today's chain; the comparison surface is placement,
+ * swing and vocabulary, which live entirely in the events.
+ */
+export async function renderEventsToWav(
+	generated: GeneratedBacking,
+	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
+	opts: RenderOpts
+): Promise<Blob> {
+	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler } = await import('smplr');
+	const { tempo, volume, mix, durationSeconds } = opts;
 
 	const result = await renderOffline(
 		async (context) => {
@@ -133,7 +168,7 @@ export async function bounceBacking(
 
 			const [bass, comp, drums] = await Promise.all([
 				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain }).load,
-				params.instrument === 'piano'
+				opts.instrument === 'piano'
 					? new SplendidGrandPiano(context, { destination: compGain }).load
 					: new Soundfont(context, {
 							instrument: 'drawbar_organ',
@@ -181,10 +216,56 @@ export async function bounceBacking(
 		{ duration: durationSeconds, sampleRate: 44100 }
 	);
 
-	return {
-		blob: result.toWav16(),
-		filename: bounceFilename(params.phrase.id, params.style, tempo),
-		generated,
-		durationSeconds
+	return result.toWav16();
+}
+
+/** Shape of an exported/committed golden events JSON. */
+export interface GoldenEventsJson extends GeneratedBacking {
+	phraseId?: string;
+	style?: string;
+	tempo?: number;
+	params?: { tempo?: number };
+}
+
+/** Duration covering every event plus ring-out. */
+export function eventsDurationSeconds(generated: GeneratedBacking, tempo: number): number {
+	let maxEnd = 0;
+	for (const e of [...generated.bassEvents, ...generated.compEvents]) {
+		maxEnd = Math.max(maxEnd, eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo) + e.duration);
+	}
+	for (const e of generated.drumEvents) {
+		maxEnd = Math.max(maxEnd, eventTicksToSeconds(e.time, BOUNCE_PPQ, tempo) + 2);
+	}
+	return maxEnd + BOUNCE_TAIL_SECONDS;
+}
+
+/**
+ * Parse an exported golden events JSON (from the lab's "Export events
+ * JSON" or a committed tests/fixtures/backing file) and render it to WAV.
+ * Throws with a readable message on shape mismatch.
+ */
+export async function renderGoldenJsonToWav(
+	raw: unknown,
+	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
+	opts: Omit<RenderOpts, 'durationSeconds' | 'tempo'>
+): Promise<{ blob: Blob; tempo: number; label: string }> {
+	const json = raw as GoldenEventsJson;
+	if (!Array.isArray(json?.bassEvents) || !Array.isArray(json?.compEvents) || !Array.isArray(json?.drumEvents)) {
+		throw new Error('Not an events JSON: expected bassEvents/compEvents/drumEvents arrays');
+	}
+	const tempo = json.tempo ?? json.params?.tempo;
+	if (!tempo || !Number.isFinite(tempo)) {
+		throw new Error('Events JSON carries no tempo (expected `tempo` or `params.tempo`)');
+	}
+	const generated: GeneratedBacking = {
+		bassEvents: json.bassEvents,
+		compEvents: json.compEvents,
+		drumEvents: json.drumEvents
 	};
+	const blob = await renderEventsToWav(generated, drumBuffers, {
+		...opts,
+		tempo,
+		durationSeconds: eventsDurationSeconds(generated, tempo)
+	});
+	return { blob, tempo, label: `${json.phraseId ?? 'events'}@${tempo}` };
 }
