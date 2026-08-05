@@ -381,11 +381,25 @@ export function generateBassLine(
 		// octave toward it when that stays near the arc.
 		const center = centerAt(seg.startBeats);
 		let downbeat = nearestPc((seg.rootPc + plan.downbeatOffset) % 12, center);
+		// A 3rd/5th-colored downbeat that lands exactly on the note just
+		// played reads as a stutter, not color — fall back to the root (the
+		// root is never the previous segment's approach target's repeat in a
+		// progression that actually moves).
+		if (prevMidi !== null && downbeat === prevMidi && plan.downbeatOffset !== 0) {
+			downbeat = nearestPc(seg.rootPc, center);
+		}
 		if (prevMidi !== null && Math.abs(downbeat - prevMidi) > 7) {
 			const nudged = downbeat + (prevMidi > downbeat ? 12 : -12);
-			if (Math.abs(nudged - center) <= 9 && nudged >= BASS_LOW && nudged <= BASS_HIGH) {
+			// The nudge tames leaps but must not fold ONTO the previous note —
+			// trading an octave displacement (clean, idiomatic) for a stutter.
+			if (
+				nudged !== prevMidi &&
+				Math.abs(nudged - center) <= 9 &&
+				nudged >= BASS_LOW &&
+				nudged <= BASS_HIGH
+			) {
 				downbeat = nudged;
-			} else {
+			} else if (Math.abs(downbeat - prevMidi) > 12) {
 				// The arc pulls hard, but never more than an octave at once.
 				while (downbeat - prevMidi > 12 && downbeat - 12 >= BASS_LOW) downbeat -= 12;
 				while (prevMidi - downbeat > 12 && downbeat + 12 <= BASS_HIGH) downbeat += 12;
@@ -399,7 +413,7 @@ export function generateBassLine(
 		// a bassist approaches the note they are about to play, so when the
 		// planner colors a downbeat with the 3rd or 5th, the device leads
 		// there, not to a root that never arrives.
-		const nextTarget = hasNext
+		const nextTarget: number = hasNext
 			? nearestPc(downbeatPc(segIdx + 1), centerAt(next.startBeats))
 			: nearestPc((seg.rootPc + (L % 2 === 1 ? chordToneIntervalsForBass(seg.quality).fifth : 0)) % 12, downbeat);
 		let deviceStart = seg.totalBeats; // exclusive of device beats by default
@@ -412,7 +426,14 @@ export function generateBassLine(
 			// device pitches stay exactly as designed — folding them by
 			// octaves here octave-displaced approaches into lurches.
 			for (let i = 0; i < beats; i++) {
-				notes[deviceStart + i] = pitches[pitches.length - beats + i];
+				let pitch = pitches[pitches.length - beats + i];
+				// A single-beat device directly after the downbeat must not
+				// restate it (dominant-of-the-approached-pitch can collide,
+				// e.g. A7 root → Dm7 fifth → dominant-of-D = A three times).
+				if (beats === 1 && deviceStart === 1 && pitch === notes[0]) {
+					pitch = nextTarget - 1;
+				}
+				notes[deviceStart + i] = pitch;
 			}
 		} else if (!hasNext && L >= 1) {
 			notes[L] = nextTarget; // final segment settles
@@ -422,7 +443,10 @@ export function generateBassLine(
 		// line can respond to them: an octave skip applied after the walk was
 		// chosen stomped handoffs and orphaned its neighbors.
 		const ghostBeat = seg.totalBeats >= 3 && rng.chance(0.1) ? rng.int(1, Math.max(1, L - 1)) : -1;
-		const pickup = hasNext && rng.chance(0.12);
+		// The pickup only sounds in a walking-four bar — resolve that ONCE so
+		// the final note's duration and the emission agree (a two-feel bar was
+		// shortening its last note for a pickup that never sounded).
+		const pickupActive = hasNext && rng.chance(0.12) && feelAt(seg.startBeats + L) === 'four';
 		const octaveSkipBeat =
 			deviceStart >= 3 && rng.chance(0.06) ? rng.int(1, deviceStart - 2) : -1;
 
@@ -506,11 +530,15 @@ export function generateBassLine(
 					midi =
 						changeNext && rng.chance(0.15)
 							? nextTarget - 1
-							: rng.weighted([
-									{ value: nearestPc((seg.rootPc + tones.fifth) % 12, notes[0]!), weight: 55 },
-									{ value: nearestPc((seg.rootPc + tones.third) % 12, notes[0]!), weight: 20 },
-									{ value: notes[0]! + 12 <= BASS_HIGH ? notes[0]! + 12 : notes[0]! - 12, weight: 10 }
-								]);
+							: rng.weighted(
+									[
+										{ value: nearestPc((seg.rootPc + tones.fifth) % 12, notes[0]!), weight: 55 },
+										{ value: nearestPc((seg.rootPc + tones.third) % 12, notes[0]!), weight: 20 },
+										{ value: notes[0]! + 12 <= BASS_HIGH ? notes[0]! + 12 : notes[0]! - 12, weight: 10 }
+									// Beat 3 restates motion, not the downbeat pitch — a
+									// fifth-colored downbeat made "the fifth" a repeat.
+									].filter((o) => o.value !== notes[0])
+								);
 				} else {
 					continue; // two-feel rest beats
 				}
@@ -522,7 +550,7 @@ export function generateBassLine(
 			push(
 				absBeat,
 				midi,
-				beatDuration * (isTwoFeelRoot ? 1.7 : beat === L && pickup ? 0.45 : 0.85),
+				beatDuration * (isTwoFeelRoot ? 1.7 : beat === L && pickupActive ? 0.45 : 0.85),
 				velocity
 			);
 
@@ -536,7 +564,7 @@ export function generateBassLine(
 		}
 
 		// Swung-eighth pickup into the next downbeat.
-		if (pickup && feelAt(seg.startBeats + L) === 'four') {
+		if (pickupActive) {
 			const absBeat = seg.startBeats + seg.totalBeats - 0.5;
 			push(
 				absBeat,
@@ -548,9 +576,11 @@ export function generateBassLine(
 
 		// Section-final triplet fill on the last beat — a small "here we go"
 		// that the swung grid never touches (triplet offsets are swing-immune
-		// by construction).
+		// by construction). Mutually exclusive with the pickup: two ornaments
+		// stacked on one beat is clutter, not conversation.
 		const lastInfo = infoAt(seg.startBeats + L);
 		if (
+			!pickupActive &&
 			hasNext &&
 			lastInfo.isSectionFinalBar &&
 			!lastInfo.isFinalBar &&

@@ -44,16 +44,26 @@ describe('generateBassLine properties (blues, many seeds)', () => {
 	const seeds = [0, 1, 2, 3, 4, 5, 6, 7];
 
 	it('stays in the upright band and never machine-guns a pitch', () => {
-		for (const seed of seeds) {
-			const p = params({ phraseId: `bass-probe#${seed}` });
-			const line = quarterLine(blues.phrase.harmony, p);
+		const aabaPreset = BACKING_LAB_PRESETS.find((x) => x.id === 'lab-aaba-c')!;
+		const forms: Array<[string, typeof blues]> = [
+			['blues', blues],
+			['aaba', aabaPreset]
+		];
+		for (const tempo of [90, 140, 160, 240])
+		for (const [label, preset] of forms) for (const seed of seeds) {
+			const p = params({
+				phraseId: `bass-probe-${label}#${seed}`,
+				tempo,
+				sectionMap: preset.phrase.sectionMap
+			});
+			const line = quarterLine(preset.phrase.harmony, p);
 			let run = 1;
 			for (let i = 0; i < line.length; i++) {
 				expect(line[i].midi).toBeGreaterThanOrEqual(28);
 				expect(line[i].midi).toBeLessThanOrEqual(55);
 				if (i > 0) {
 					run = line[i].midi === line[i - 1].midi ? run + 1 : 1;
-					expect(run, `pitch ${line[i].midi} repeated ${run}x at beat ${line[i].absBeat} (seed ${seed})`).toBeLessThanOrEqual(2);
+					expect(run, `${label}@${tempo}: pitch ${line[i].midi} repeated ${run}x at beat ${line[i].absBeat} (seed ${seed})`).toBeLessThanOrEqual(2);
 				}
 			}
 		}

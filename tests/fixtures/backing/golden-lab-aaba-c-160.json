@@ -305,7 +305,7 @@
   },
   {
    "time": "11518i",
-   "midi": 45,
+   "midi": 33,
    "duration": 0.31875,
    "velocity": 85,
    "absBeat": 60
@@ -389,14 +389,14 @@
   },
   {
    "time": "15742i",
-   "midi": 42,
+   "midi": 33,
    "duration": 0.31875,
    "velocity": 78,
    "absBeat": 82
   },
   {
    "time": "16512i",
-   "midi": 42,
+   "midi": 33,
    "duration": 0.31875,
    "velocity": 86,
    "absBeat": 86
@@ -2356,7 +2356,7 @@
   },
   {
    "time": "70079i",
-   "midi": 36,
+   "midi": 40,
    "duration": 0.31875,
    "velocity": 77,
    "absBeat": 365
