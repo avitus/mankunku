@@ -2,7 +2,7 @@ BACKING GENERATION REPORT
 Deterministic statistics over the listening-lab presets. Regenerate with
 `npm run backing:report` after any engine change and review the diff.
 
-── Jazz blues in F (12 bars) @ 90 BPM (swing 0.670, 5 seeds) ──
+── Jazz blues in F (12 bars) @ 90 BPM (swing 0.780, 5 seeds) ──
   bass interval |Δst| distribution:
       0 █·······················   2.1%
       1 ███████·················  31.1%
@@ -21,7 +21,7 @@ Deterministic statistics over the listening-lab presets. Regenerate with
   drums hits/bar: hihat 2.00 · kick 3.03 · ride 6.00
   drums: off-beat share  20.2%
 
-── Jazz blues in F (12 bars) @ 160 BPM (swing 0.670, 5 seeds) ──
+── Jazz blues in F (12 bars) @ 160 BPM (swing 0.733, 5 seeds) ──
   bass interval |Δst| distribution:
       0 █·······················   3.0%
       1 ████████················  32.3%
@@ -40,7 +40,7 @@ Deterministic statistics over the listening-lab presets. Regenerate with
   drums hits/bar: hihat 2.00 · kick 3.15 · ride 6.00
   drums: off-beat share  20.5%
 
-── Jazz blues in F (12 bars) @ 240 BPM (swing 0.670, 5 seeds) ──
+── Jazz blues in F (12 bars) @ 240 BPM (swing 0.600, 5 seeds) ──
   bass interval |Δst| distribution:
       0 █·······················   3.4%
       1 ████████················  32.3%
@@ -59,7 +59,7 @@ Deterministic statistics over the listening-lab presets. Regenerate with
   drums hits/bar: hihat 2.00 · kick 3.23 · ride 6.00
   drums: off-beat share  20.5%
 
-── AABA in C — 3 choruses (96 bars) @ 90 BPM (swing 0.670, 5 seeds) ──
+── AABA in C — 3 choruses (96 bars) @ 90 BPM (swing 0.780, 5 seeds) ──
   bass interval |Δst| distribution:
       0 █·······················   4.1%
       1 ████████················  34.5%
@@ -78,7 +78,7 @@ Deterministic statistics over the listening-lab presets. Regenerate with
   drums hits/bar: hihat 2.06 · kick 3.24 · ride 6.04 · snare 0.05
   drums: off-beat share  21.7%
 
-── AABA in C — 3 choruses (96 bars) @ 160 BPM (swing 0.670, 5 seeds) ──
+── AABA in C — 3 choruses (96 bars) @ 160 BPM (swing 0.733, 5 seeds) ──
   bass interval |Δst| distribution:
       0 █·······················   3.9%
       1 ███████·················  30.4%
@@ -97,7 +97,7 @@ Deterministic statistics over the listening-lab presets. Regenerate with
   drums hits/bar: hihat 2.04 · kick 3.08 · ride 6.03 · snare 0.07
   drums: off-beat share  22.4%
 
-── AABA in C — 3 choruses (96 bars) @ 240 BPM (swing 0.670, 5 seeds) ──
+── AABA in C — 3 choruses (96 bars) @ 240 BPM (swing 0.600, 5 seeds) ──
   bass interval |Δst| distribution:
       0 █·······················   4.2%
       1 ████████················  32.7%

@@ -18,7 +18,7 @@ import { fractionToFloat } from '$lib/music/intervals';
 import { BACKING_STYLES } from './backing-styles';
 import {
 	generateBacking,
-	resolveEffectiveSwing,
+	resolveBackingSwing,
 	type GeneratedBacking
 } from './backing-generation';
 import { BACKING_BASE_TRIMS, voiceVelocity, type BackingMixLevels } from './backing-mix';
@@ -88,7 +88,7 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		tempo,
 		ppq: BOUNCE_PPQ,
 		beatsPerBar: phrase.timeSignature[0],
-		swing: resolveEffectiveSwing(params.swing, style),
+		swing: resolveBackingSwing(params.swing, style, tempo),
 		sectionMap: phrase.sectionMap
 	});
 }

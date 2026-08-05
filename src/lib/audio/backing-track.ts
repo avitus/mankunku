@@ -21,7 +21,7 @@ import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedu
 import { BACKING_STYLES } from './backing-styles';
 import {
 	generateBacking,
-	resolveEffectiveSwing,
+	resolveBackingSwing,
 	type BassEvent,
 	type CompEvent,
 	type DrumEvent
@@ -677,7 +677,7 @@ export async function scheduleBackingTrack(
 	disposeBackingParts();
 
 	// ── Generate bass + comp + drum events ──────────────────
-	const swing = resolveEffectiveSwing(options.swing, style);
+	const swing = resolveBackingSwing(options.swing, style, options.tempo);
 	const { bassEvents, compEvents, drumEvents } = generateBacking(harmony, style, {
 		phraseId: phrase.id,
 		tempo: options.tempo,

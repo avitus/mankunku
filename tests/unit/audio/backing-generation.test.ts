@@ -8,6 +8,7 @@ import {
 	type BackingGenerationParams
 } from '$lib/audio/backing-generation';
 import { BACKING_STYLES, type GenerationContext } from '$lib/audio/backing-styles';
+import { SWING_TIMING } from '$lib/audio/backing-timing';
 import { createRng } from '$lib/audio/generation-rng';
 import { pitchClassToNumber } from '$lib/audio/voicings';
 
@@ -258,18 +259,35 @@ describe('generateBacking', () => {
 		}
 	});
 
-	it('swings all off-beat eighths late, straight when swing is 0.5', () => {
+	it('swings all off-beat eighths late, stays near the grid when swing is 0.5', () => {
+		// Per-role deviation allowance: ensemble offset + triangular jitter
+		// bound (SWING_TIMING, in ms), converted to ticks at the test tempo.
+		const msTicks = (ms: number) => (ms / (60_000 / 120)) * PPQ;
+		const allowance = (role: 'bass' | 'comp' | import('$lib/audio/backing-styles').DrumVoice) =>
+			msTicks(Math.abs(SWING_TIMING[role].offsetMs) + SWING_TIMING[role].jitterMs) + 1;
+		const roleOf = (e: { drum?: string }, fallback: 'bass' | 'comp') =>
+			((e as { drum?: string }).drum ?? fallback) as 'bass' | 'comp';
+
 		const swung = generateBacking(FORM, BACKING_STYLES.swing, params());
-		const all = [...swung.bassEvents, ...swung.compEvents, ...swung.drumEvents];
-		const offBeats = all.filter((e) => e.absBeat % 1 !== 0);
+		const offBeats = [...swung.bassEvents, ...swung.compEvents, ...swung.drumEvents].filter(
+			(e) => e.absBeat % 1 !== 0
+		);
 		expect(offBeats.length).toBeGreaterThan(0);
 		for (const e of offBeats) {
+			// Swing shift at 0.67 is ~82 ticks; even the widest role personality
+			// cannot pull an off-beat back near the straight grid.
 			expect(ticksOf(e) - e.absBeat * PPQ).toBeGreaterThanOrEqual(60);
 		}
 
 		const straightGen = generateBacking(FORM, BACKING_STYLES.swing, params({ swing: 0.5 }));
-		for (const e of [...straightGen.bassEvents, ...straightGen.compEvents, ...straightGen.drumEvents]) {
-			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(6);
+		for (const e of straightGen.bassEvents) {
+			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(allowance('bass'));
+		}
+		for (const e of straightGen.compEvents) {
+			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(allowance('comp'));
+		}
+		for (const e of straightGen.drumEvents) {
+			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(allowance(roleOf(e, 'comp')));
 		}
 	});
 

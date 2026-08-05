@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applySwingToBeats } from '$lib/music/swing';
+import { applySwingToBeats, swingForTempo } from '$lib/music/swing';
 
 describe('applySwingToBeats', () => {
 	it('passes through downbeats unchanged at any swing', () => {
@@ -44,5 +44,35 @@ describe('applySwingToBeats', () => {
 		expect(applySwingToBeats(0.25, 0.67)).toBeCloseTo(0.25, 6);
 		expect(applySwingToBeats(0.75, 0.67)).toBeCloseTo(0.75, 6);
 		expect(applySwingToBeats(1.75, 0.67)).toBeCloseTo(1.75, 6);
+	});
+});
+
+describe('swingForTempo (backing-track only)', () => {
+	it('matches the Friberg–Sundström anchors', () => {
+		expect(swingForTempo(60)).toBeCloseTo(0.78, 6); // capped ≈3.5:1
+		expect(swingForTempo(120)).toBeCloseTo(0.78, 6); // still capped
+		expect(swingForTempo(160)).toBeCloseTo(1 - 160 / 600, 6); // ≈0.733
+		expect(swingForTempo(200)).toBeCloseTo(2 / 3, 3); // triplet feel
+		expect(swingForTempo(240)).toBeCloseTo(0.6, 6);
+		expect(swingForTempo(300)).toBe(0.5); // straight
+		expect(swingForTempo(400)).toBe(0.5); // floor holds
+	});
+
+	it('is monotone non-increasing across the playable range', () => {
+		let prev = Infinity;
+		for (let bpm = 40; bpm <= 400; bpm += 5) {
+			const s = swingForTempo(bpm);
+			expect(s).toBeLessThanOrEqual(prev);
+			expect(s).toBeGreaterThanOrEqual(0.5);
+			expect(s).toBeLessThanOrEqual(0.78);
+			prev = s;
+		}
+	});
+
+	it('keeps the short eighth at ~100ms in the uncapped band', () => {
+		for (const bpm of [140, 180, 220, 260]) {
+			const shortEighthMs = (1 - swingForTempo(bpm)) * (60_000 / bpm);
+			expect(shortEighthMs).toBeCloseTo(100, 6);
+		}
 	});
 });
