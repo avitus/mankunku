@@ -3,10 +3,12 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
 import { fractionToFloat } from '$lib/music/intervals';
 import { buildEnclosureSlots, enclosuresTrick } from '$lib/tricks/devices/enclosures';
+import { trickVariantKey } from '$lib/types/tricks';
 import {
 	buildFourEighthsSlots,
 	buildTriadPairSlots,
 	buildTripletSlots,
+	TRIAD_PAIR_STYLES,
 	triadPairsTrick
 } from '$lib/tricks/devices/triad-pairs';
 import { getTrickById, TRICKS } from '$lib/tricks';
@@ -282,6 +284,98 @@ describe('buildFourEighthsSlots', () => {
 		const off = buildFourEighthsSlots(TRIAD_LADDER[4][1], baseContext);
 		expect(off.map((s) => fractionToFloat(s.offset))).toEqual(
 			down.map((s) => fractionToFloat(s.offset))
+		);
+	});
+});
+
+describe('triad-pairs best-of style scoring', () => {
+	const params = TRIAD_LADDER[0][1]; // 4+5, low-first, downbeat
+	const offParams = TRIAD_LADDER[4][1]; // 4+5, low-first, offbeat
+
+	/** Play a spec's canonical pcs near middle C at each slot's onset. */
+	function playSpec(slots: TrickSlotSpec[]): DetectedNote[] {
+		return slots.map((slot) => makeDetected(60 + slot.generatePc!, slotOnsetSeconds(slot)));
+	}
+
+	it('declares the three styles in canonical order', () => {
+		expect(TRIAD_PAIR_STYLES).toEqual(['cell', 'triplets', 'four-eighths']);
+		expect(triadPairsTrick.exampleStyles).toEqual(['cell', 'triplets', 'four-eighths']);
+		expect(enclosuresTrick.exampleStyles).toBeUndefined();
+	});
+
+	it('a perfect cell performance wins as "cell" with patternScore 1', () => {
+		const result = triadPairsTrick.scoreConformance(
+			playSpec(buildTriadPairSlots(params, baseContext)),
+			params,
+			baseContext
+		);
+		expect(result.style).toBe('cell');
+		expect(result.patternScore).toBe(1);
+		expect(result.slots).toHaveLength(8);
+	});
+
+	it('a perfect alternating-triplet performance wins as "triplets" with patternScore 1', () => {
+		const result = triadPairsTrick.scoreConformance(
+			playSpec(buildTripletSlots(params, baseContext)),
+			params,
+			baseContext
+		);
+		expect(result.style).toBe('triplets');
+		expect(result.patternScore).toBe(1);
+		expect(result.slots).toHaveLength(12);
+		expect(result.extraCount).toBe(0);
+	});
+
+	it('the motivating C-E-G-E / D-F#-A-F# line scores 1 as "four-eighths" (4+5 in G)', () => {
+		const gContext: TrickContext = { ...baseContext, chordRoot: 'G', key: 'G' };
+		const played = [60, 64, 67, 64, 62, 66, 69, 66].map((midi, i) =>
+			makeDetected(midi, i * 0.25)
+		);
+		const result = triadPairsTrick.scoreConformance(played, params, gContext);
+		expect(result.style).toBe('four-eighths');
+		expect(result.patternScore).toBe(1);
+	});
+
+	it('any inversion/combination within each four-eighths half still scores 1', () => {
+		const gContext: TrickContext = { ...baseContext, chordRoot: 'G', key: 'G' };
+		const played = [64, 67, 60, 67, 66, 69, 62, 69].map((midi, i) =>
+			makeDetected(midi, i * 0.25)
+		);
+		const result = triadPairsTrick.scoreConformance(played, params, gContext);
+		expect(result.style).toBe('four-eighths');
+		expect(result.patternScore).toBe(1);
+	});
+
+	it('offbeat variants accept the shifted cell AND on-beat alternates', () => {
+		const shiftedCell = triadPairsTrick.scoreConformance(
+			playSpec(buildTriadPairSlots(offParams, baseContext)),
+			offParams,
+			baseContext
+		);
+		expect(shiftedCell.style).toBe('cell');
+		expect(shiftedCell.patternScore).toBe(1);
+
+		const onBeatTriplets = triadPairsTrick.scoreConformance(
+			playSpec(buildTripletSlots(offParams, baseContext)),
+			offParams,
+			baseContext
+		);
+		expect(onBeatTriplets.style).toBe('triplets');
+		expect(onBeatTriplets.patternScore).toBe(1);
+	});
+
+	it('eight eighths all from triad A earn only partial credit', () => {
+		const slots = buildFourEighthsSlots(params, baseContext);
+		const aOnly = slots.map((slot, i) =>
+			makeDetected(60 + slots[i % 4].generatePc!, slotOnsetSeconds(slot))
+		);
+		const result = triadPairsTrick.scoreConformance(aOnly, params, baseContext);
+		expect(result.patternScore).toBeLessThan(0.9);
+	});
+
+	it('style never enters the variant key', () => {
+		expect(trickVariantKey('triad-pairs', params)).toBe(
+			'triad-pairs:beatPlacement=downbeat,order=low-first,pair=4+5'
 		);
 	});
 });

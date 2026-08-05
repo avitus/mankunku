@@ -113,6 +113,13 @@ export interface Trick {
 	compatibleQualities: ChordQuality[];
 	parameters: TrickParameterDefinition[];
 	/**
+	 * Demo styles in preview rotation order, when the device accepts several
+	 * playing styles. Absent for single-style devices. Values are hints for
+	 * TrickContext.exampleStyle; they are NOT parameters and never enter the
+	 * variant key.
+	 */
+	exampleStyles?: readonly string[];
+	/**
 	 * PRIMARY: judge a played attempt against the formula for the selected
 	 * parameters. `played` is the recorded, segmented note stream.
 	 */

@@ -30,7 +30,7 @@ import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/t
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 import { gcd } from '$lib/music/intervals';
-import { scoreConformanceAgainstSpec } from '../conformance';
+import { scoreConformanceAgainstSpecs } from '../conformance';
 import { realizeTrickExample } from '../example-generator';
 
 const PAIRS = ['1+2', '4+5', '5+6'] as const;
@@ -180,6 +180,19 @@ export function buildFourEighthsSlots(
 	return slots;
 }
 
+/** Accepted playing styles, canonical (tie-break + rotation) order. */
+export const TRIAD_PAIR_STYLES = ['cell', 'triplets', 'four-eighths'] as const;
+export type TriadPairStyle = (typeof TRIAD_PAIR_STYLES)[number];
+
+const STYLE_BUILDERS: Record<
+	TriadPairStyle,
+	(parameters: TrickParameters, context: TrickContext) => TrickSlotSpec[]
+> = {
+	cell: buildTriadPairSlots,
+	triplets: buildTripletSlots,
+	'four-eighths': buildFourEighthsSlots
+};
+
 export const triadPairsTrick: Trick = {
 	id: 'triad-pairs',
 	name: 'Triad Pairs',
@@ -212,8 +225,16 @@ export const triadPairsTrick: Trick = {
 			valueLabels: { downbeat: 'On the beat', offbeat: 'Off the beat' }
 		}
 	],
+	exampleStyles: TRIAD_PAIR_STYLES,
 	scoreConformance(played, parameters, context) {
-		return scoreConformanceAgainstSpec(played, buildTriadPairSlots(parameters, context), context);
+		return scoreConformanceAgainstSpecs(
+			played,
+			TRIAD_PAIR_STYLES.map((style) => ({
+				style,
+				slots: STYLE_BUILDERS[style](parameters, context)
+			})),
+			context
+		);
 	},
 	generateExample(parameters, context) {
 		const pair = pick(parameters, 'pair', PAIRS, '4+5');
