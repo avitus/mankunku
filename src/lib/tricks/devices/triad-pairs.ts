@@ -11,6 +11,11 @@
  * triad of the pair starts (`low-first` = the lower scale degree's triad is
  * A). `beatPlacement: 'offbeat'` shifts the whole cell an eighth later.
  *
+ * Two further styles are accepted best-of at scoring time (see the trick's
+ * scoreConformance): alternating eighth-note-triplet groups (A-B-A-B, one
+ * per beat) and four eighths per triad (A×4 then B×4). Both always sit on
+ * the beat — beatPlacement shapes only the cell.
+ *
  * Triads are derived by stacking alternate steps of the context scale
  * realized at the chord root (degrees d, d+2, d+4). When the scale is
  * unknown or has fewer than 7 degrees, major-scale (ionian) intervals at the
@@ -68,16 +73,50 @@ function triadOnDegree(scalePcs: number[], degree: number): number[] {
 	return [...new Set(pcs)];
 }
 
-export function buildTriadPairSlots(parameters: TrickParameters, context: TrickContext): TrickSlotSpec[] {
+interface TriadPair {
+	triadA: number[];
+	triadB: number[];
+}
+
+/** Resolve the pair/order parameters to concrete triad pcs (A starts). */
+function derivePair(parameters: TrickParameters, context: TrickContext): TriadPair {
 	const pair = pick(parameters, 'pair', PAIRS, '4+5');
 	const order = pick(parameters, 'order', ORDERS, 'low-first');
-	const beatPlacement = pick(parameters, 'beatPlacement', BEAT_PLACEMENTS, 'downbeat');
-
 	const scalePcs = scaleDegreePcs(context);
 	const [lowDegree, highDegree] = (pair as Pair).split('+').map(Number);
 	const lowTriad = triadOnDegree(scalePcs, lowDegree);
 	const highTriad = triadOnDegree(scalePcs, highDegree);
 	const [triadA, triadB] = order === 'low-first' ? [lowTriad, highTriad] : [highTriad, lowTriad];
+	return { triadA, triadB };
+}
+
+/** One spec slot: exact = own triad (specific pc first), pattern = the other triad. */
+function buildSlot(
+	step: { pc: number; triad: 'a' | 'b' },
+	offset: Fraction,
+	duration: Fraction,
+	pair: TriadPair
+): TrickSlotSpec {
+	const own = step.triad === 'a' ? pair.triadA : pair.triadB;
+	const other = step.triad === 'a' ? pair.triadB : pair.triadA;
+	const exactPcs = [step.pc, ...own.filter((pc) => pc !== step.pc)];
+	return {
+		offset,
+		duration,
+		exactPcs,
+		patternPcs: other.filter((pc) => !exactPcs.includes(pc)),
+		generatePc: step.pc,
+		role: step.triad === 'a' ? 'triad-a' : 'triad-b'
+	};
+}
+
+export function buildTriadPairSlots(
+	parameters: TrickParameters,
+	context: TrickContext
+): TrickSlotSpec[] {
+	const beatPlacement = pick(parameters, 'beatPlacement', BEAT_PLACEMENTS, 'downbeat');
+	const pair = derivePair(parameters, context);
+	const { triadA, triadB } = pair;
 
 	// Standard alternating cell: A ascending, B ascending, first two of A again.
 	const cell: { pc: number; triad: 'a' | 'b' }[] = [
@@ -88,20 +127,57 @@ export function buildTriadPairSlots(parameters: TrickParameters, context: TrickC
 	];
 
 	const shift = beatPlacement === 'offbeat' ? 1 : 0;
+	return cell.map((step, i) => buildSlot(step, reduceFraction(i + shift, 8), [1, 8], pair));
+}
 
-	return cell.map((step, i) => {
-		const own = step.triad === 'a' ? triadA : triadB;
-		const other = step.triad === 'a' ? triadB : triadA;
-		const exactPcs = [step.pc, ...own.filter((pc) => pc !== step.pc)];
-		return {
-			offset: reduceFraction(i + shift, 8),
-			duration: [1, 8] as Fraction,
-			exactPcs,
-			patternPcs: other.filter((pc) => !exactPcs.includes(pc)),
-			generatePc: step.pc,
-			role: step.triad === 'a' ? 'triad-a' : 'triad-b'
-		};
-	});
+/**
+ * Alternating-triplet style: four eighth-note-triplet groups, one per beat,
+ * A-B-A-B. Always on the beat — beatPlacement has no natural triplet form.
+ */
+export function buildTripletSlots(
+	parameters: TrickParameters,
+	context: TrickContext
+): TrickSlotSpec[] {
+	const pair = derivePair(parameters, context);
+	const slots: TrickSlotSpec[] = [];
+	for (let group = 0; group < 4; group++) {
+		const triad = group % 2 === 0 ? ('a' as const) : ('b' as const);
+		const own = triad === 'a' ? pair.triadA : pair.triadB;
+		for (let k = 0; k < 3; k++) {
+			slots.push(
+				buildSlot({ pc: own[k % own.length], triad }, reduceFraction(group * 3 + k, 12), [1, 12], pair)
+			);
+		}
+	}
+	return slots;
+}
+
+/**
+ * Four-eighths style: four eighths of triad A then four of triad B, canonical
+ * contour root-3rd-5th-3rd (C-E-G-E, D-F#-A-F#). Always on the beat.
+ */
+export function buildFourEighthsSlots(
+	parameters: TrickParameters,
+	context: TrickContext
+): TrickSlotSpec[] {
+	const pair = derivePair(parameters, context);
+	const contour = [0, 1, 2, 1];
+	const slots: TrickSlotSpec[] = [];
+	for (let half = 0; half < 2; half++) {
+		const triad = half === 0 ? ('a' as const) : ('b' as const);
+		const own = triad === 'a' ? pair.triadA : pair.triadB;
+		for (let k = 0; k < 4; k++) {
+			slots.push(
+				buildSlot(
+					{ pc: own[contour[k] % own.length], triad },
+					reduceFraction(half * 4 + k, 8),
+					[1, 8],
+					pair
+				)
+			);
+		}
+	}
+	return slots;
 }
 
 export const triadPairsTrick: Trick = {

@@ -3,7 +3,12 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
 import { fractionToFloat } from '$lib/music/intervals';
 import { buildEnclosureSlots, enclosuresTrick } from '$lib/tricks/devices/enclosures';
-import { buildTriadPairSlots, triadPairsTrick } from '$lib/tricks/devices/triad-pairs';
+import {
+	buildFourEighthsSlots,
+	buildTriadPairSlots,
+	buildTripletSlots,
+	triadPairsTrick
+} from '$lib/tricks/devices/triad-pairs';
 import { getTrickById, TRICKS } from '$lib/tricks';
 
 const baseContext: TrickContext = {
@@ -200,6 +205,84 @@ describe('buildTriadPairSlots', () => {
 		off.forEach((slot, i) => {
 			expect(fractionToFloat(slot.offset)).toBeCloseTo(fractionToFloat(down[i].offset) + 1 / 8, 9);
 		});
+	});
+});
+
+describe('buildTripletSlots', () => {
+	it.each(TRIAD_LADDER)('produces valid slots for %s', (_name, params) => {
+		assertValidSlots(buildTripletSlots(params, baseContext));
+	});
+
+	it.each(TRIAD_LADDER)(
+		'%s: four beat-aligned triplet groups alternating triads per order',
+		(_name, params) => {
+			const slots = buildTripletSlots(params, baseContext);
+			expect(slots).toHaveLength(12);
+
+			const [lowDeg, highDeg] = params.pair.split('+').map(Number);
+			const low = cMajorTriad(lowDeg);
+			const high = cMajorTriad(highDeg);
+			const [triadA, triadB] = params.order === 'low-first' ? [low, high] : [high, low];
+
+			slots.forEach((slot, i) => {
+				expect(fractionToFloat(slot.offset)).toBeCloseTo(i / 12, 9);
+				expect(fractionToFloat(slot.duration)).toBeCloseTo(1 / 12, 9);
+				const group = Math.floor(i / 3);
+				const own = group % 2 === 0 ? triadA : triadB;
+				const other = group % 2 === 0 ? triadB : triadA;
+				expect(slot.role).toBe(group % 2 === 0 ? 'triad-a' : 'triad-b');
+				expect(new Set(slot.exactPcs)).toEqual(new Set(own));
+				expect(new Set(slot.patternPcs)).toEqual(new Set(other));
+				expect(slot.generatePc).toBe(own[i % 3]);
+			});
+		}
+	);
+
+	it('ignores beatPlacement: offbeat variants keep triplets on the beat', () => {
+		const down = buildTripletSlots(TRIAD_LADDER[0][1], baseContext); // downbeat
+		const off = buildTripletSlots(TRIAD_LADDER[4][1], baseContext); // offbeat
+		expect(off.map((s) => fractionToFloat(s.offset))).toEqual(
+			down.map((s) => fractionToFloat(s.offset))
+		);
+	});
+});
+
+describe('buildFourEighthsSlots', () => {
+	it.each(TRIAD_LADDER)('produces valid slots for %s', (_name, params) => {
+		assertValidSlots(buildFourEighthsSlots(params, baseContext));
+	});
+
+	it.each(TRIAD_LADDER)(
+		'%s: four eighths of triad A then four of triad B, contour root-3rd-5th-3rd',
+		(_name, params) => {
+			const slots = buildFourEighthsSlots(params, baseContext);
+			expect(slots).toHaveLength(8);
+
+			const [lowDeg, highDeg] = params.pair.split('+').map(Number);
+			const low = cMajorTriad(lowDeg);
+			const high = cMajorTriad(highDeg);
+			const [triadA, triadB] = params.order === 'low-first' ? [low, high] : [high, low];
+			const contour = [0, 1, 2, 1];
+
+			slots.forEach((slot, i) => {
+				expect(fractionToFloat(slot.offset)).toBeCloseTo(i / 8, 9);
+				expect(fractionToFloat(slot.duration)).toBeCloseTo(1 / 8, 9);
+				const own = i < 4 ? triadA : triadB;
+				const other = i < 4 ? triadB : triadA;
+				expect(slot.role).toBe(i < 4 ? 'triad-a' : 'triad-b');
+				expect(new Set(slot.exactPcs)).toEqual(new Set(own));
+				expect(new Set(slot.patternPcs)).toEqual(new Set(other));
+				expect(slot.generatePc).toBe(own[contour[i % 4]]);
+			});
+		}
+	);
+
+	it('ignores beatPlacement: offbeat variants keep the eighths on the beat', () => {
+		const down = buildFourEighthsSlots(TRIAD_LADDER[0][1], baseContext);
+		const off = buildFourEighthsSlots(TRIAD_LADDER[4][1], baseContext);
+		expect(off.map((s) => fractionToFloat(s.offset))).toEqual(
+			down.map((s) => fractionToFloat(s.offset))
+		);
 	});
 });
 
