@@ -98,6 +98,8 @@ export interface ConformanceResult {
 	extraCount: number;
 	/** Latency correction applied before per-slot timing, in ms */
 	latencyCorrectionMs: number;
+	/** Winning spec-variant name when judged best-of several styles (multi-spec devices only) */
+	style?: string;
 }
 
 /** A melodic device with configurable parameters and the two contracts. */

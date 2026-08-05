@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { scoreConformanceAgainstSpec, playedDegreeLabel } from '$lib/tricks/conformance';
+import {
+	scoreConformanceAgainstSpec,
+	scoreConformanceAgainstSpecs,
+	playedDegreeLabel
+} from '$lib/tricks/conformance';
 import type { TrickContext, TrickSlotSpec } from '$lib/types/tricks';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Fraction } from '$lib/types/music';
@@ -229,5 +233,62 @@ describe('playedDegreeLabel', () => {
 		expect(playedDegreeLabel(73, 'A')).toBe('3');
 		// Bb over D is 8 semitones up → 'b6'.
 		expect(playedDegreeLabel(70, 'D')).toBe('b6');
+	});
+});
+
+describe('scoreConformanceAgainstSpecs', () => {
+	// Second spec: D F A C on the same eighth grid — pc-disjoint from the
+	// C E G B arp on three of four slots, so winners are unambiguous.
+	const dfacSlots: TrickSlotSpec[] = [
+		makeSlot([0, 1], [2], [5, 9, 0]),
+		makeSlot([1, 8], [5], [2, 9, 0]),
+		makeSlot([2, 8], [9], [2, 5, 0]),
+		makeSlot([3, 8], [0], [2, 5, 9])
+	];
+	const variants = [
+		{ style: 'x', slots: arpSlots },
+		{ style: 'y', slots: dfacSlots }
+	];
+
+	it('returns the variant with the higher patternScore, tagged with its style', () => {
+		const xWins = scoreConformanceAgainstSpecs(perfectPlayed, variants, context);
+		expect(xWins.style).toBe('x');
+		expect(xWins.patternScore).toBe(1);
+		expect(xWins.slots).toHaveLength(4);
+
+		const dfacPlayed = [
+			makeDetected(62, 0),
+			makeDetected(65, 0.25),
+			makeDetected(69, 0.5),
+			makeDetected(72, 0.75)
+		];
+		const yWins = scoreConformanceAgainstSpecs(dfacPlayed, variants, context);
+		expect(yWins.style).toBe('y');
+		expect(yWins.patternScore).toBe(1);
+	});
+
+	it('breaks patternScore ties toward the earliest variant', () => {
+		const tied = scoreConformanceAgainstSpecs(
+			perfectPlayed,
+			[
+				{ style: 'first', slots: arpSlots },
+				{ style: 'second', slots: [...arpSlots] }
+			],
+			context
+		);
+		expect(tied.style).toBe('first');
+	});
+
+	it('handles an empty variants list gracefully (no style, all extras)', () => {
+		const result = scoreConformanceAgainstSpecs(perfectPlayed, [], context);
+		expect(result.style).toBeUndefined();
+		expect(result.slots).toHaveLength(0);
+		expect(result.patternScore).toBe(0);
+		expect(result.extraCount).toBe(4);
+	});
+
+	it('leaves the single-spec result untagged', () => {
+		const result = scoreConformanceAgainstSpec(perfectPlayed, arpSlots, context);
+		expect(result.style).toBeUndefined();
 	});
 });
