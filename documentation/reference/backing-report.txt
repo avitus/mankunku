@@ -75,8 +75,8 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       3 ························   0.0%
      4+ ························   0.0%
   comp: off-beat share  52.5% · rest bars   8.8%
-  drums hits/bar: hihat 2.08 · kick 3.26 · ride 6.04
-  drums: off-beat share  21.6%
+  drums hits/bar: hihat 2.06 · kick 3.24 · ride 6.04 · snare 0.05
+  drums: off-beat share  21.7%
 
 ── AABA in C — 3 choruses (96 bars) @ 160 BPM (swing 0.670, 5 seeds) ──
   bass interval |Δst| distribution:
@@ -94,8 +94,8 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       3 ························   0.0%
      4+ ························   0.0%
   comp: off-beat share  51.4% · rest bars  11.3%
-  drums hits/bar: hihat 2.07 · kick 3.10 · ride 6.05
-  drums: off-beat share  22.3%
+  drums hits/bar: hihat 2.04 · kick 3.08 · ride 6.03 · snare 0.07
+  drums: off-beat share  22.4%
 
 ── AABA in C — 3 choruses (96 bars) @ 240 BPM (swing 0.670, 5 seeds) ──
   bass interval |Δst| distribution:
@@ -113,6 +113,6 @@ Deterministic statistics over the listening-lab presets. Regenerate with
       3 ························   0.0%
      4+ ························   0.0%
   comp: off-beat share  53.0% · rest bars   9.2%
-  drums hits/bar: hihat 2.08 · kick 3.18 · ride 6.04
+  drums hits/bar: hihat 2.04 · kick 3.16 · ride 6.03 · snare 0.07
   drums: off-beat share  21.8%
 

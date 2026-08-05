@@ -34,8 +34,10 @@ test.describe('lick-practice session flow', () => {
 		);
 
 		// Instrument-sample loading + a 2-bar demo and response window at
-		// 60 BPM put the report ~40s out on a cold run.
-		test.setTimeout(120_000);
+		// 60 BPM put the report ~40s out on a cold run. The outer clock must
+		// exceed the sum of the phase waits below (90s listen + 30s record +
+		// 90s report), or it kills a run the inner budgets still allow.
+		test.setTimeout(240_000);
 
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
@@ -64,9 +66,11 @@ test.describe('lick-practice session flow', () => {
 		await expect(ring.locator('text', { hasText: /^60$/ })).toBeVisible();
 
 		// Round phase 1 — the demo cycle: the active row chips "Listen" while
-		// the app plays the lick. Generous timeout: this is where instrument
-		// samples load and the transport spins up.
-		await expect(page.locator('.listen-tag')).toBeVisible({ timeout: 45_000 });
+		// the app plays the lick. Generous timeout: this is where the CDN
+		// piano/bass samples and the 12-buffer drum kit load and the transport
+		// spins up — WebKit on shared CI runners has crossed 45s (PR #205),
+		// so this window matches the report wait below.
+		await expect(page.locator('.listen-tag')).toBeVisible({ timeout: 90_000 });
 
 		// Round phase 2 — the user window: the active chart flags recording
 		// while the mocked mic captures the response.

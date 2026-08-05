@@ -276,22 +276,88 @@ export const SAMPLE_MAPS: Record<string, SampleMap> = {
 /**
  * Jazz drum kit samples for the backing track.
  *
- * Single-velocity-layer sampler with string aliases (smplr maps each
- * non-MIDI key to an internal alias at load time). Source: Karoryfer/
- * Versilian "Virtuosity Drums" v0.924 (CC0). Converted from FLAC to
- * OGG Vorbis q5 for web delivery.
- *
- * - kick:  felt-beater acoustic kick (close mic)
- * - ride:  ride cymbal bow stroke (overhead mic, full sustain)
- * - hihat: closed hi-hat (overhead mic)
+ * One Sampler with string aliases (smplr maps each non-MIDI key to an
+ * internal alias at load time). Source: Karoryfer/Versilian "Virtuosity
+ * Drums" v0.924 (CC0) — see static/samples/drums/ATTRIBUTION.md for the
+ * exact source file of every buffer and the offline normalization (all
+ * peaks at −3 dBFS, Ogg Opus VBR 128k). Ride and snare carry velocity
+ * layers; the rest are single hits.
  */
-export type DrumBufferName = 'kick' | 'ride' | 'hihat';
+export type DrumBufferName =
+	| 'kick'
+	| 'ride'
+	| 'ride_soft'
+	| 'ride_acc'
+	| 'ride_bell'
+	| 'hihat'
+	| 'hihat_pedal'
+	| 'snare_ghost'
+	| 'snare_med'
+	| 'snare_acc'
+	| 'crossstick'
+	| 'crash';
 
 export const DRUM_BUFFERS: Record<DrumBufferName, string> = {
 	kick: '/samples/drums/kick.ogg',
 	ride: '/samples/drums/ride.ogg',
-	hihat: '/samples/drums/hihat.ogg'
+	ride_soft: '/samples/drums/ride_soft.ogg',
+	ride_acc: '/samples/drums/ride_acc.ogg',
+	ride_bell: '/samples/drums/ride_bell.ogg',
+	hihat: '/samples/drums/hihat.ogg',
+	hihat_pedal: '/samples/drums/hihat_pedal.ogg',
+	snare_ghost: '/samples/drums/snare_ghost.ogg',
+	snare_med: '/samples/drums/snare_med.ogg',
+	snare_acc: '/samples/drums/snare_acc.ogg',
+	crossstick: '/samples/drums/crossstick.ogg',
+	crash: '/samples/drums/crash.ogg'
 };
+
+/**
+ * Velocity-layer selection per semantic drum voice: generation emits a
+ * voice + a musical velocity; the trigger picks the buffer whose layer
+ * band the velocity falls in (same idea as the sax `velocitySplit`).
+ * Layers exist where a soft and a hard stroke differ in TIMBRE, not just
+ * level — a ghosted snare is a different sound from a quiet accent, and a
+ * feathered ride stroke from a dug-in one. All buffers are peak-normalized
+ * to −3 dBFS offline, so velocity (scaled by the mix trims) is the only
+ * level control.
+ */
+export interface DrumLayer {
+	buffer: DrumBufferName;
+	/** Upper velocity bound (inclusive) for this layer, 0–1. */
+	maxVelocity: number;
+}
+
+export const DRUM_ARTICULATIONS: Record<import('./backing-styles').DrumVoice, DrumLayer[]> = {
+	kick: [{ buffer: 'kick', maxVelocity: 1 }],
+	ride: [
+		{ buffer: 'ride_soft', maxVelocity: 0.38 },
+		{ buffer: 'ride', maxVelocity: 0.72 },
+		{ buffer: 'ride_acc', maxVelocity: 1 }
+	],
+	hihat: [{ buffer: 'hihat', maxVelocity: 1 }],
+	'hihat-pedal': [{ buffer: 'hihat_pedal', maxVelocity: 1 }],
+	snare: [
+		{ buffer: 'snare_ghost', maxVelocity: 0.3 },
+		{ buffer: 'snare_med', maxVelocity: 0.62 },
+		{ buffer: 'snare_acc', maxVelocity: 1 }
+	],
+	crossstick: [{ buffer: 'crossstick', maxVelocity: 1 }],
+	'ride-bell': [{ buffer: 'ride_bell', maxVelocity: 1 }],
+	crash: [{ buffer: 'crash', maxVelocity: 1 }]
+};
+
+/** Buffer for a voice at a generated (pre-trim) velocity. */
+export function drumBufferForVelocity(
+	voice: import('./backing-styles').DrumVoice,
+	velocity: number
+): DrumBufferName {
+	const layers = DRUM_ARTICULATIONS[voice];
+	for (const layer of layers) {
+		if (velocity <= layer.maxVelocity) return layer.buffer;
+	}
+	return layers[layers.length - 1].buffer;
+}
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 

@@ -35,8 +35,13 @@
 	];
 	const VOICE_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'kick', label: 'Kick', hint: 'Feathered quarters — 100% is the ear-tuned baseline' },
-		{ key: 'ride', label: 'Ride', hint: 'Spang-a-lang voice' },
-		{ key: 'hihat', label: 'Hi-hat', hint: 'Foot on 2 and 4' }
+		{ key: 'ride', label: 'Ride', hint: 'Spang-a-lang voice (3 velocity layers)' },
+		{ key: 'hihat', label: 'Hi-hat', hint: 'Foot on 2 and 4' },
+		{ key: 'snare', label: 'Snare', hint: 'Section setups now; comping ghosts later (3 layers)' },
+		{ key: 'crash', label: 'Crash', hint: 'Section-boundary punctuation (vocabulary increment)' },
+		{ key: 'crossstick', label: 'Cross-stick', hint: 'Bossa clave / sparse color (vocabulary increment)' },
+		{ key: 'ride-bell', label: 'Ride bell', hint: 'Accent color (vocabulary increment)' },
+		{ key: 'hihat-pedal', label: 'Hi-hat pedal', hint: 'Foot chick alternative (vocabulary increment)' }
 	];
 
 	let mix = $state<BackingMixLevels>(getBackingMix());

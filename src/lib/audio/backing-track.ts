@@ -26,7 +26,7 @@ import {
 	type CompEvent,
 	type DrumEvent
 } from './backing-generation';
-import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps';
+import { DRUM_BUFFERS, drumBufferForVelocity, type DrumBufferName } from './sample-maps';
 import {
 	loadBackingMix,
 	saveBackingMix,
@@ -505,7 +505,16 @@ function captureLog(
 	}
 
 	// Index drum hits by the beat they fall in (swung eighths included).
-	const DRUM_LABELS: Record<DrumEvent['drum'], string> = { kick: 'Kick', ride: 'Ride', hihat: 'HH' };
+	const DRUM_LABELS: Record<DrumEvent['drum'], string> = {
+		kick: 'Kick',
+		ride: 'Ride',
+		hihat: 'HH',
+		'hihat-pedal': 'HH-Pedal',
+		snare: 'Snare',
+		crossstick: 'X-Stick',
+		'ride-bell': 'Bell',
+		crash: 'Crash'
+	};
 	const drumsByBeat = new Map<number, Set<string>>();
 	for (const e of drumEvents) {
 		const beat = Math.floor(e.absBeat);
@@ -745,9 +754,13 @@ export async function scheduleBackingTrack(
 	drumPart = new Tone.Part((time: number, event: DrumEvent) => {
 		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
 		// per-voice base trim and mix trim apply here because the kit is one
-		// sampler — velocity is the only per-voice level lever.
+		// sampler — velocity is the only per-voice level lever. The buffer is
+		// picked from the voice's velocity layers by the GENERATED velocity
+		// (musical intent), before trims touch the level. A buffer the
+		// browser failed to decode makes the start a silent no-op, exactly
+		// like the old single-buffer path.
 		drumSampler?.start({
-			note: event.drum as DrumBufferName,
+			note: drumBufferForVelocity(event.drum, event.velocity),
 			velocity: Math.round(
 				voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
 			),
