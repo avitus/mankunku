@@ -197,7 +197,7 @@ export const triadPairsTrick: Trick = {
 	id: 'triad-pairs',
 	name: 'Triad Pairs',
 	description:
-		'Alternate two neighbouring diatonic triads to build angular, modern-sounding lines from just six notes.',
+		'Alternate two neighbouring diatonic triads to build angular, modern-sounding lines from just six notes. Answer in the demo cell, alternating triplets, or four eighths per triad — every style scores.',
 	category: 'triad-pairs',
 	tags: ['trick', 'triad-pair'],
 	compatibleQualities: ['maj7', '7', 'min7', 'maj6'],
@@ -237,13 +237,17 @@ export const triadPairsTrick: Trick = {
 		);
 	},
 	generateExample(parameters, context) {
+		const hinted = context.exampleStyle ?? '';
+		const style: TriadPairStyle = (TRIAD_PAIR_STYLES as readonly string[]).includes(hinted)
+			? (hinted as TriadPairStyle)
+			: 'cell';
 		const pair = pick(parameters, 'pair', PAIRS, '4+5');
 		return realizeTrickExample({
 			trickId: 'triad-pairs',
 			name: `Triad pair ${pair} over ${context.chordRoot}${context.chordQuality}`,
 			category: 'triad-pairs',
 			tags: ['trick', 'triad-pair'],
-			slots: buildTriadPairSlots(parameters, context),
+			slots: STYLE_BUILDERS[style](parameters, context),
 			parameters,
 			context
 		});

@@ -48,6 +48,12 @@ export interface TrickContext {
 	tempo: number;
 	/** Swing ratio (0.5 = straight); defaults to 0.5 when omitted */
 	swing?: number;
+	/**
+	 * Which playing style generateExample should demonstrate, from the trick's
+	 * exampleStyles. Device-interpreted; unknown or absent ⇒ device default.
+	 * Scoring ignores it (all styles are always accepted).
+	 */
+	exampleStyle?: string;
 }
 
 /**

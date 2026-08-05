@@ -380,6 +380,55 @@ describe('triad-pairs best-of style scoring', () => {
 	});
 });
 
+describe('triad-pairs generateExample styles', () => {
+	const params = TRIAD_LADDER[0][1];
+
+	it('honors exampleStyle "triplets": 12 notes on the triplet grid', () => {
+		const phrase = triadPairsTrick.generateExample(params, {
+			...baseContext,
+			exampleStyle: 'triplets'
+		});
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes).toHaveLength(12);
+		const slots = buildTripletSlots(params, baseContext);
+		phrase!.notes.forEach((note, i) => {
+			expect(fractionToFloat(note.offset)).toBeCloseTo(i / 12, 9);
+			expect(fractionToFloat(note.duration)).toBeCloseTo(1 / 12, 9);
+			expect(((note.pitch! % 12) + 12) % 12).toBe(slots[i].generatePc);
+		});
+	});
+
+	it('honors exampleStyle "four-eighths" with the root-3rd-5th-3rd contour', () => {
+		const phrase = triadPairsTrick.generateExample(params, {
+			...baseContext,
+			exampleStyle: 'four-eighths'
+		});
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes).toHaveLength(8);
+		const slots = buildFourEighthsSlots(params, baseContext);
+		phrase!.notes.forEach((note, i) => {
+			expect(fractionToFloat(note.offset)).toBeCloseTo(i / 8, 9);
+			expect(((note.pitch! % 12) + 12) % 12).toBe(slots[i].generatePc);
+		});
+	});
+
+	it('defaults to the cell when exampleStyle is absent or unknown', () => {
+		const absent = triadPairsTrick.generateExample(params, baseContext);
+		const unknown = triadPairsTrick.generateExample(params, {
+			...baseContext,
+			exampleStyle: 'nope'
+		});
+		const cellSlots = buildTriadPairSlots(params, baseContext);
+		for (const phrase of [absent, unknown]) {
+			expect(phrase).not.toBeNull();
+			expect(phrase!.notes).toHaveLength(8);
+			// Cell slot 3 is triad B's root — distinct from four-eighths' slot 3
+			// (triad A's 3rd), so this pins the cell shape specifically.
+			expect(((phrase!.notes[3].pitch! % 12) + 12) % 12).toBe(cellSlots[3].generatePc);
+		}
+	});
+});
+
 describe('generateExample (every pinned ladder combo)', () => {
 	const cases: [string, TrickParameters, typeof enclosuresTrick, (p: TrickParameters, c: TrickContext) => TrickSlotSpec[]][] = [
 		...ENCLOSURE_LADDER.map(([name, params]): [string, TrickParameters, typeof enclosuresTrick, (p: TrickParameters, c: TrickContext) => TrickSlotSpec[]] =>
