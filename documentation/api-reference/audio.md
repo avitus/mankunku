@@ -662,7 +662,7 @@ Jitter draws come from dedicated per-`(role, bar)` streams (`seedFrom(phraseId, 
 
 ## backing-mix.ts
 
-Per-instrument mix levels for the backing track, persisted per device (localStorage key `backing-mix-levels`) so a mix tuned on `/diagnostics/backing-mixer` applies to every session. `bass`/`comp`/`drums` are linear gain multipliers layered on the overall backing volume; `kick`/`ride`/`hihat` are velocity multipliers applied at drum trigger time (the kit is one sampler, so voice balance can only be shaped through velocity). All values clamp to `[0, 3]`; `1` means "as generated".
+Per-instrument mix levels for the backing track, persisted per device (localStorage key `backing-mix-levels-v2`) so a mix tuned on `/diagnostics/backing-mixer` applies to every session. `bass`/`comp`/`drums`/`room` are linear gain multipliers layered on the overall backing volume; the drum-voice keys are velocity multipliers applied at drum trigger time (voices share their family sampler's output, so within-family balance can only be shaped through velocity). All values clamp to `[0, 3]`; `1` means "as generated".
 
 ### `BackingMixLevels` interface, `DEFAULT_BACKING_MIX`
 

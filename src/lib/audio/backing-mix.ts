@@ -1,10 +1,11 @@
 /**
  * Per-instrument mix levels for the backing track.
  *
- * `bass`, `comp` and `drums` are linear gain multipliers layered on top of
- * the overall backing volume; the drum-voice keys are velocity multipliers
- * applied at drum trigger time — the kit is one sampler, so voice balance
- * can only be shaped through velocity.
+ * `bass`, `comp`, `drums` and `room` are linear gain multipliers layered
+ * on top of the overall backing volume; the drum-voice keys are velocity
+ * multipliers applied at drum trigger time — voices share their family's
+ * sampler output, so within-family balance can only be shaped through
+ * velocity.
  *
  * Levels persist to localStorage so a mix tuned on the
  * /diagnostics/backing-mixer page applies to every session on this device.

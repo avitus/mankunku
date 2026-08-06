@@ -425,6 +425,9 @@ async function ensureDrums(): Promise<void> {
 	flight = (async () => {
 		const audioCtx = await initAudio();
 		const { Sampler } = await import('smplr');
+		// Disposed while awaiting? Abort BEFORE ensureBackingGraph — a stale
+		// flight must not resurrect a fresh bus onto master.
+		if (epoch !== graphEpoch) return;
 
 		// Build the graph locally first — only promote to module-level
 		// refs on successful load so a rejection or a concurrent winner
