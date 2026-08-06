@@ -280,6 +280,7 @@ function ctxFor(overrides: Partial<GenerationContext> = {}): GenerationContext {
 		isSectionFirstBar: false,
 		isSectionFinalBar: false,
 		isFinalBar: false,
+		intensity: 0.5,
 		swing: 0.67,
 		rng: createRng(42),
 		...overrides

@@ -26,6 +26,7 @@ import {
 	type TimingProfile,
 	type TimingRole
 } from './backing-timing';
+import { lerp } from './backing-intensity';
 import {
 	chooseRideMode,
 	rideBar,
@@ -63,6 +64,8 @@ export interface GenerationContext {
 	chorusIndex?: number;
 	/** True on a section's first bar (a form arrival — the crash's home). */
 	isSectionFirstBar: boolean;
+	/** Ensemble intensity for this bar (backing-intensity.ts), in [0.2, 0.9]. */
+	intensity: number;
 	/** True when this bar is the last bar of a section (incl. the form's last bar). */
 	isSectionFinalBar: boolean;
 	/** True on the phrase's very last bar — nothing follows to anticipate. */
@@ -147,7 +150,7 @@ const swing: StyleDefinition = {
 		// bass/comp coupling are ADDITIONS capped at one voice per offset;
 		// fills/setups/crash draw from the separate `drum-fill` stream so a
 		// vocabulary change can never reshuffle the timekeeping.
-		const mode = chooseRideMode(rng);
+		const mode = chooseRideMode(rng, ctx.intensity);
 		const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
 		const fillRng = ctx.fillRng ?? rng;
 		const { hits: fills, crashOnOne } = fillBar(ctx, fillRng);
@@ -155,7 +158,7 @@ const swing: StyleDefinition = {
 			// A crash on the section downbeat replaces that beat's ride.
 			...(crashOnOne ? ride.filter((h) => h.beatOffset !== 0) : ride),
 			...hihatBar(beatsPerBar, rng),
-			...featherBar(beatsPerBar, rng)
+			...featherBar(beatsPerBar, rng, ctx.intensity)
 		];
 		// Call order (snare → coupling) is the `drums` stream draw order and
 		// must not change; the ARRAY order is occupancy priority — form-marking
@@ -195,7 +198,8 @@ const swing: StyleDefinition = {
 				if (isPush && h.b >= beatsPerBar - 0.5) d = Math.max(d, 1.1);
 				return {
 					beatOffset: h.b,
-					velocity: rng.int(56, 68) + (offBeat ? 6 : 0) + cadencePush,
+					velocity:
+						rng.int(56, 68) + (offBeat ? 6 : 0) + cadencePush + Math.round(lerp(-4, 6, ctx.intensity)),
 					durationBeats: d
 				};
 			});
