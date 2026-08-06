@@ -596,7 +596,10 @@ interface StyleDefinition {
   compPlanning?: boolean;     // comp figures planned phrase-wide
   drumPattern: (ctx: GenerationContext) => DrumHitSpec[];  // one bar
   compPattern: (ctx: GenerationContext) => CompHitSpec[];  // one bar
-  bass: 'auto' | 'pattern';   // walking planner | bossa ostinato
+  bass: 'auto' | 'two' | 'pattern';  // walking | permanent two-feel | bossa ostinato
+  intensityCap?: number;             // ceiling on the ensemble arc (ballad: 0.6)
+  voicingBias?: Partial<Record<     // comp voicing-weight multipliers
+    'rootlessA' | 'rootlessB' | 'shell' | 'drop2' | 'quartal', number>>;
 }
 ```
 
