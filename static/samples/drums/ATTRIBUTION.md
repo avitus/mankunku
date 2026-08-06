@@ -33,7 +33,7 @@ Ogg **Opus**, VBR 128 kbps, 48 kHz, source channel count preserved. Every file
 (including the original three) is **peak-normalized to −3 dBFS** with trailing
 silence trimmed at −70 dBFS:
 
-```
+```bash
 ffmpeg -i <src> -af "volume=<gain>dB,areverse,silenceremove=start_periods=1:start_threshold=-70dB,areverse" \
   -c:a libopus -b:a 128k -vbr on <out>.ogg
 ```
@@ -58,7 +58,7 @@ sat ~18 dB above the ride bed for bars on end — the one jarring element in the
 Milestone B listening pass. `crash.ogg` is now the **vl1 soft-stroke** hit with
 the decay shortened to ~3.1 s before normalization:
 
-```
+```bash
 ffmpeg -i oh_crash_crash_vl1_rr1.flac \
   -af "atrim=0:3.2,afade=t=out:st=1.0:d=2.2:curve=tri,volume=25.2dB,areverse,silenceremove=start_periods=1:start_threshold=-70dB,areverse" \
   -c:a libopus -b:a 128k -vbr on crash.ogg
