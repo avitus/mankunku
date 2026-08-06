@@ -8,6 +8,24 @@
  * generates the same backing while different bars (and different passes
  * through a tune's form) vary.
  *
+ * Seed-stream registry (role key x index -> consumer). Streams are
+ * isolated: a draw added to one can never reshuffle another. Intensity
+ * (backing-intensity.ts) is RNG-free and only reshapes weights at these
+ * sites, so it is invisible to the registry.
+ *
+ *   bass-arc     | 4-bar group | register contour
+ *   bass-feel    | chorusIndex | two/four feel
+ *   bass-feel-escape | barIndex | walk-escape from a two-feel bar
+ *   bass-target  | segment     | downbeat note choice
+ *   bass-appr    | segment     | approach device
+ *   bass         | segment     | interior fill, spice, velocity
+ *   voicing      | chord index | comp voicing choice
+ *   comp-figure  | barIndex    | figure planning (weights only)
+ *   comp         | barIndex    | comp realization
+ *   drums        | barIndex    | ride mode, feather, snare, coupling
+ *   drum-fill    | barIndex    | fills, setups, crash
+ *   <role>-time  | barIndex    | timing jitter (backing-timing.ts)
+ *
  * Timing: beat offsets are laid out on a straight grid, then placed by
  * backing-timing.ts — swing at the beat→tick conversion, plus per-role
  * ensemble offsets (bass/ride on top, comp behind) and triangular jitter
@@ -28,6 +46,7 @@ import {
 } from './backing-timing';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { createRng, seedFrom, type SeededRng } from './generation-rng';
+import { barIntensity, lerp } from './backing-intensity';
 import {
 	pitchClassToNumber,
 	shellVoicing,
@@ -115,8 +134,12 @@ export function resolveBackingSwing(
 export interface BarInfo {
 	sectionIndex?: number;
 	chorusIndex?: number;
+	/** True on the first bar of a section (always true on bar 0 of a mapped phrase). */
+	isSectionFirstBar: boolean;
 	isSectionFinalBar: boolean;
 	isFinalBar: boolean;
+	/** Ensemble intensity for this bar (backing-intensity.ts), in [0.2, 0.9]. */
+	intensity: number;
 }
 
 /**
@@ -130,7 +153,12 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[])
 	const infos: BarInfo[] = [];
 	if (!sectionMap || sectionMap.length === 0) {
 		for (let b = 0; b < totalBars; b++) {
-			infos.push({ isSectionFinalBar: false, isFinalBar: b === totalBars - 1 });
+			infos.push({
+				isSectionFirstBar: false,
+				isSectionFinalBar: false,
+				isFinalBar: b === totalBars - 1,
+				intensity: barIntensity({ isSectionFinalBar: false, barIndex: b, totalBars })
+			});
 		}
 		return infos;
 	}
@@ -148,11 +176,19 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[])
 			if (sectionMap[i].barOffset <= b) k = i;
 		}
 		const nextOffset = k + 1 < sectionMap.length ? sectionMap[k + 1].barOffset : totalBars;
+		const isSectionFinalBar = b === nextOffset - 1;
 		infos.push({
 			sectionIndex: k,
 			chorusIndex: chorusOf[k],
-			isSectionFinalBar: b === nextOffset - 1,
-			isFinalBar: b === totalBars - 1
+			isSectionFirstBar: b === sectionMap[k].barOffset,
+			isSectionFinalBar,
+			isFinalBar: b === totalBars - 1,
+			intensity: barIntensity({
+				chorusIndex: chorusOf[k],
+				isSectionFinalBar,
+				barIndex: b,
+				totalBars
+			})
 		});
 	}
 	return infos;
@@ -252,6 +288,14 @@ export function generateComping(
 	// (they return [] for altered/diminished colors, which would silence
 	// the hit rather than falling through).
 	const chords = harmony.map((seg) => ({ root: seg.chord.root, quality: seg.chord.quality }));
+	// Each chord reads the intensity of the bar it starts in: sparse shells
+	// early, quartal color as the band digs in, and the register center
+	// drifting up — voiceLead's closeness-to-previous keeps the drift smooth.
+	const chordIntensity = segments.map(
+		(seg) =>
+			barInfos[Math.min(Math.floor(seg.startBeats / beatsPerBar), barInfos.length - 1)]
+				?.intensity ?? 0.5
+	);
 	const fns: VoicingFn[] = chords.map((c, i) => {
 		const rng = createRng(seedFrom(phraseId, tempo, 'voicing', i));
 		if (!hasSeventhSlot(c.quality)) {
@@ -263,15 +307,19 @@ export function generateComping(
 		const options: Array<{ value: VoicingFn; weight: number }> = [
 			{ value: rootlessVoicingA, weight: 4 },
 			{ value: rootlessVoicingB, weight: 3 },
-			{ value: shellVoicing, weight: 2 },
+			{ value: shellVoicing, weight: 2 * lerp(1.5, 0.6, chordIntensity[i]) },
 			{ value: drop2Voicing, weight: 1 }
 		];
 		if (quartalVoicing(c.root, c.quality).length > 0) {
-			options.push({ value: quartalVoicing, weight: 1 });
+			options.push({ value: quartalVoicing, weight: lerp(0.5, 1.5, chordIntensity[i]) });
 		}
 		return rng.weighted<VoicingFn>(options);
 	});
-	const voicings = voiceLead(chords, fns, COMP_REGISTER);
+	const voicings = voiceLead(
+		chords,
+		fns,
+		chordIntensity.map((n) => Math.round(lerp(58, 66, n)))
+	);
 
 	// Figure planning (swing, 4/4 only — the vocabulary is written for four
 	// beats; other meters use the style's own fallback): one pass over the
@@ -341,14 +389,18 @@ export function generateComping(
 
 /**
  * Generate drum events from the style's per-bar pattern. Receives the comp
- * onsets so the pattern can catch strong comp hits with kick accents.
+ * and bass onsets so the pattern can talk to the band (snare echoes, kick
+ * catches and pickup doubles), and hands each bar a dedicated
+ * `('drum-fill', bar)` stream so form punctuation never reshuffles the
+ * timekeeping draws.
  */
 export function generateDrums(
 	beatsPerBar: number,
 	style: StyleDefinition,
 	params: BackingGenerationParams,
 	barInfos: BarInfo[],
-	compOnsetsByBar: Map<number, number[]>
+	compOnsetsByBar: Map<number, number[]>,
+	bassOnsetsByBar?: Map<number, number[]>
 ): DrumEvent[] {
 	const { phraseId, tempo, swing } = params;
 	const events: DrumEvent[] = [];
@@ -362,6 +414,8 @@ export function generateDrums(
 			swing,
 			rng,
 			compOnsets: compOnsetsByBar.get(bar),
+			bassOnsets: bassOnsetsByBar?.get(bar),
+			fillRng: createRng(seedFrom(phraseId, tempo, 'drum-fill', bar)),
 			...barInfos[bar]
 		};
 		// The feathered-kick, comp-accent, and section-final setup branches
@@ -410,8 +464,13 @@ export function generateBacking(
 
 	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
 	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
-	const { events: bassEvents } = generateBassLine2(harmony, beatsPerBar, timedParams, barInfos);
-	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar);
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } = generateBassLine2(
+		harmony,
+		beatsPerBar,
+		timedParams,
+		barInfos
+	);
+	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
 
 	return { bassEvents, compEvents, drumEvents };
 }

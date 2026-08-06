@@ -60,6 +60,26 @@ item that a previous milestone flipped to ✅ has regressed to ❌.
 
 <!-- Paste listening reports below, newest first. -->
 
+### Milestone B — 2026-08-06 — verdict: NEW preferred at all three tempi
+
+Blind pairs (increment-4 engine vs increments 5–8, 3-chorus AABA at 90/160/240,
+both sides rendered through identical samples/mix, produced headlessly at
+`~/Desktop/milestone-b/`): "a good improvement — I preferred the new easily in
+all three tests." Gate result: **pass** — the vocabulary increments (walking
+bass planner, comping engine, drum vocabulary, plus the intensity arc)
+dominate perception, bearing out the Milestone A hypothesis.
+
+One finding: "a very loud (and long) crash/ride cymbal at the end of choruses
+or sections." Investigated: the crash *placement* (section-first downbeat after
+the setup fill, more often deeper into the form) is idiomatic and kept; the
+jarring quality was three stacked engineering causes — the asset kept its full
+11.8 s natural decay (≈ 8 bars at 160), peak normalization put its sustained
+body ~18 dB above the ride bed, and the trigger gain stacked another +4–6 dB.
+Fixed in increment 8.5: soft-layer (vl1) crash re-export with decay shortened
+to ~3 s, `BACKING_BASE_TRIMS.crash` 0.9 → 0.55 (see
+`static/samples/drums/ATTRIBUTION.md`, "Crash exception"). Generation was
+deliberately untouched, so goldens and the report are unchanged.
+
 ### Milestone A — 2026-08-05 — verdict: tie (no perceived difference)
 
 Blind pairs (pre-#206 vs increment-4, blues 90/160/240 + AABA 160, both sides

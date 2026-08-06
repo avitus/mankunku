@@ -130,7 +130,7 @@
     72
    ],
    "duration": 0.8020165295300207,
-   "velocity": 59,
+   "velocity": 60,
    "absBeat": 0
   },
   {
@@ -141,7 +141,7 @@
     72
    ],
    "duration": 0.1882748594268092,
-   "velocity": 67,
+   "velocity": 68,
    "absBeat": 1.5
   },
   {
@@ -152,7 +152,7 @@
     77
    ],
    "duration": 0.1953037228135924,
-   "velocity": 69,
+   "velocity": 70,
    "absBeat": 5.5
   },
   {
@@ -163,7 +163,7 @@
     77
    ],
    "duration": 0.24690040243656508,
-   "velocity": 59,
+   "velocity": 60,
    "absBeat": 7
   },
   {
@@ -175,7 +175,7 @@
     67
    ],
    "duration": 0.19379976845479435,
-   "velocity": 65,
+   "velocity": 67,
    "absBeat": 8.5
   },
   {
@@ -187,7 +187,7 @@
     67
    ],
    "duration": 0.25201638310748553,
-   "velocity": 74,
+   "velocity": 76,
    "absBeat": 10.5
   },
   {
@@ -199,7 +199,7 @@
     70
    ],
    "duration": 0.7083568444967803,
-   "velocity": 61,
+   "velocity": 63,
    "absBeat": 12
   },
   {
@@ -211,7 +211,7 @@
     70
    ],
    "duration": 0.17595273068706904,
-   "velocity": 62,
+   "velocity": 64,
    "absBeat": 13.5
   }
  ],
@@ -219,266 +219,278 @@
   {
    "time": "1i",
    "drum": "ride",
-   "velocity": 0.3933864319231361,
+   "velocity": 0.46924617457203566,
    "absBeat": 0
   },
   {
    "time": "192i",
    "drum": "ride",
-   "velocity": 0.4992461745720357,
+   "velocity": 0.47848518457263706,
    "absBeat": 1
+  },
+  {
+   "time": "385i",
+   "drum": "ride",
+   "velocity": 0.38745344683527944,
+   "absBeat": 2
+  },
+  {
+   "time": "575i",
+   "drum": "ride",
+   "velocity": 0.45609999052248895,
+   "absBeat": 3
   },
   {
    "time": "340i",
    "drum": "ride",
-   "velocity": 0.3579802460968495,
+   "velocity": 0.2730727108102292,
    "absBeat": 1.5
-  },
-  {
-   "time": "383i",
-   "drum": "ride",
-   "velocity": 0.40745344683527945,
-   "absBeat": 2
-  },
-  {
-   "time": "577i",
-   "drum": "ride",
-   "velocity": 0.47609999052248897,
-   "absBeat": 3
   },
   {
    "time": "723i",
    "drum": "ride",
-   "velocity": 0.29045816864818336,
+   "velocity": 0.28561855933163316,
    "absBeat": 3.5
   },
   {
    "time": "191i",
    "drum": "hihat",
-   "velocity": 0.47561855933163316,
+   "velocity": 0.4548552800854668,
    "absBeat": 1
   },
   {
    "time": "576i",
    "drum": "hihat",
-   "velocity": 0.47681175391189756,
+   "velocity": 0.5253586136852391,
    "absBeat": 3
   },
   {
    "time": "768i",
    "drum": "ride",
-   "velocity": 0.4278805124247447,
+   "velocity": 0.4108910827618092,
    "absBeat": 4
   },
   {
    "time": "959i",
    "drum": "ride",
-   "velocity": 0.49089108276180926,
+   "velocity": 0.4313125238986686,
    "absBeat": 5
+  },
+  {
+   "time": "1153i",
+   "drum": "ride",
+   "velocity": 0.41822648839093746,
+   "absBeat": 6
+  },
+  {
+   "time": "1344i",
+   "drum": "ride",
+   "velocity": 0.4495531892543658,
+   "absBeat": 7
   },
   {
    "time": "1108i",
    "drum": "ride",
-   "velocity": 0.2950833651982248,
+   "velocity": 0.3495375107647851,
    "absBeat": 5.5
-  },
-  {
-   "time": "1152i",
-   "drum": "ride",
-   "velocity": 0.4382264883909375,
-   "absBeat": 6
-  },
-  {
-   "time": "1344i",
-   "drum": "ride",
-   "velocity": 0.46955318925436584,
-   "absBeat": 7
   },
   {
    "time": "1490i",
    "drum": "ride",
-   "velocity": 0.35163000861182814,
+   "velocity": 0.3339210728555918,
    "absBeat": 7.5
+  },
+  {
+   "time": "1299i",
+   "drum": "ride",
+   "velocity": 0.27079428584780546,
+   "absBeat": 6.5
   },
   {
    "time": "960i",
    "drum": "hihat",
-   "velocity": 0.5239210728555918,
+   "velocity": 0.491804028886836,
    "absBeat": 5
   },
   {
    "time": "1344i",
    "drum": "hihat",
-   "velocity": 0.5423994390992448,
+   "velocity": 0.44315249971812587,
    "absBeat": 7
   },
   {
-   "time": "769i",
-   "drum": "kick",
-   "velocity": 0.13314032102469356,
-   "absBeat": 4
-  },
-  {
-   "time": "961i",
-   "drum": "kick",
-   "velocity": 0.1106857691006735,
-   "absBeat": 5
-  },
-  {
-   "time": "1152i",
-   "drum": "kick",
-   "velocity": 0.15464373500552028,
-   "absBeat": 6
-  },
-  {
-   "time": "1345i",
-   "drum": "kick",
-   "velocity": 0.13027660302817823,
-   "absBeat": 7
+   "time": "1299i",
+   "drum": "snare",
+   "velocity": 0.1810689608193934,
+   "absBeat": 6.5
   },
   {
    "time": "1537i",
    "drum": "ride",
-   "velocity": 0.3901052491320297,
+   "velocity": 0.4035276377527043,
    "absBeat": 8
   },
   {
    "time": "1728i",
    "drum": "ride",
-   "velocity": 0.48352763775270435,
+   "velocity": 0.4277491630800068,
    "absBeat": 9
   },
   {
-   "time": "1874i",
+   "time": "1919i",
    "drum": "ride",
-   "velocity": 0.29033221744000914,
-   "absBeat": 9.5
-  },
-  {
-   "time": "1920i",
-   "drum": "ride",
-   "velocity": 0.3866690053930506,
+   "velocity": 0.3666690053930506,
    "absBeat": 10
   },
   {
-   "time": "2113i",
+   "time": "2112i",
    "drum": "ride",
-   "velocity": 0.47069685902446506,
+   "velocity": 0.45069685902446505,
    "absBeat": 11
+  },
+  {
+   "time": "1876i",
+   "drum": "ride",
+   "velocity": 0.3072427478292957,
+   "absBeat": 9.5
   },
   {
    "time": "2258i",
    "drum": "ride",
-   "velocity": 0.3177941982634366,
+   "velocity": 0.3197179268719629,
    "absBeat": 11.5
   },
   {
    "time": "1728i",
    "drum": "hihat",
-   "velocity": 0.5097179268719628,
+   "velocity": 0.5413796842424199,
    "absBeat": 9
   },
   {
    "time": "2113i",
    "drum": "hihat",
-   "velocity": 0.5433689878787845,
+   "velocity": 0.4517567258933559,
    "absBeat": 11
   },
   {
    "time": "1535i",
    "drum": "kick",
-   "velocity": 0.11887055849190802,
+   "velocity": 0.07379198643378915,
    "absBeat": 8
   },
   {
    "time": "1727i",
    "drum": "kick",
-   "velocity": 0.10379198643378915,
+   "velocity": 0.08473545928485693,
    "absBeat": 9
   },
   {
    "time": "1920i",
    "drum": "kick",
-   "velocity": 0.11473545928485693,
+   "velocity": 0.10815695040859283,
    "absBeat": 10
   },
   {
    "time": "2113i",
    "drum": "kick",
-   "velocity": 0.13815695040859283,
+   "velocity": 0.09583451111335307,
    "absBeat": 11
+  },
+  {
+   "time": "1877i",
+   "drum": "snare",
+   "velocity": 0.17518005655379965,
+   "absBeat": 9.5
   },
   {
    "time": "2304i",
    "drum": "ride",
-   "velocity": 0.4222364312456921,
+   "velocity": 0.37898277588654306,
    "absBeat": 12
   },
   {
    "time": "2496i",
    "drum": "ride",
-   "velocity": 0.45898277588654307,
+   "velocity": 0.45301589836366474,
    "absBeat": 13
+  },
+  {
+   "time": "2687i",
+   "drum": "ride",
+   "velocity": 0.41667952079325915,
+   "absBeat": 14
+  },
+  {
+   "time": "2881i",
+   "drum": "ride",
+   "velocity": 0.43630810237023976,
+   "absBeat": 15
   },
   {
    "time": "2643i",
    "drum": "ride",
-   "velocity": 0.3240211978182197,
+   "velocity": 0.3333459281269461,
    "absBeat": 13.5
-  },
-  {
-   "time": "2689i",
-   "drum": "ride",
-   "velocity": 0.43667952079325917,
-   "absBeat": 14
-  },
-  {
-   "time": "2880i",
-   "drum": "ride",
-   "velocity": 0.4563081023702398,
-   "absBeat": 15
   },
   {
    "time": "3027i",
    "drum": "ride",
-   "velocity": 0.3386767425015569,
+   "velocity": 0.30479846260510385,
    "absBeat": 15.5
+  },
+  {
+   "time": "2452i",
+   "drum": "ride",
+   "velocity": 0.27746185433585197,
+   "absBeat": 12.5
   },
   {
    "time": "2496i",
    "drum": "hihat",
-   "velocity": 0.49479846260510385,
+   "velocity": 0.5057395032187924,
    "absBeat": 13
   },
   {
    "time": "2880i",
    "drum": "hihat",
-   "velocity": 0.46534685157239436,
+   "velocity": 0.42016534022288393,
    "absBeat": 15
   },
   {
    "time": "2304i",
    "drum": "kick",
-   "velocity": 0.13957207840867342,
+   "velocity": 0.11064259476959706,
    "absBeat": 12
   },
   {
    "time": "2496i",
    "drum": "kick",
-   "velocity": 0.1000763108721003,
+   "velocity": 0.10260955525096507,
    "absBeat": 13
   },
   {
    "time": "2689i",
    "drum": "kick",
-   "velocity": 0.11198127542622388,
+   "velocity": 0.11430195821914822,
    "absBeat": 14
   },
   {
    "time": "2880i",
    "drum": "kick",
-   "velocity": 0.14064259476959706,
+   "velocity": 0.1042562446417287,
    "absBeat": 15
+  },
+  {
+   "time": "2646i",
+   "drum": "kick",
+   "velocity": 0.27685107965022326,
+   "absBeat": 13.5
+  },
+  {
+   "time": "2452i",
+   "drum": "snare",
+   "velocity": 0.19823979231761768,
+   "absBeat": 12.5
   }
  ]
 }

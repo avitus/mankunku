@@ -31,6 +31,7 @@ import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { createRng, seedFrom, type SeededRng } from './generation-rng';
+import { lerp } from './backing-intensity';
 import { pitchClassToNumber } from './voicings';
 import { createTimingStreams, placeEventTicks, SWING_TIMING } from './backing-timing';
 import type { BassEvent, BackingGenerationParams, BarInfo } from './backing-generation';
@@ -441,14 +442,19 @@ export function generateBassLine(
 
 		// Spice draws (fixed order for determinism), BEFORE the walk so the
 		// line can respond to them: an octave skip applied after the walk was
-		// chosen stomped handoffs and orphaned its neighbors.
-		const ghostBeat = seg.totalBeats >= 3 && rng.chance(0.1) ? rng.int(1, Math.max(1, L - 1)) : -1;
+		// chosen stomped handoffs and orphaned its neighbors. Ornament
+		// probabilities scale with the segment's bar intensity — the line
+		// stays plain early and talks more as the band digs in.
+		const spice = lerp(0.6, 1.4, infoAt(seg.startBeats).intensity);
+		const ghostBeat =
+			seg.totalBeats >= 3 && rng.chance(0.1 * spice) ? rng.int(1, Math.max(1, L - 1)) : -1;
 		// The pickup only sounds in a walking-four bar — resolve that ONCE so
 		// the final note's duration and the emission agree (a two-feel bar was
 		// shortening its last note for a pickup that never sounded).
-		const pickupActive = hasNext && rng.chance(0.12) && feelAt(seg.startBeats + L) === 'four';
+		const pickupActive =
+			hasNext && rng.chance(0.12 * spice) && feelAt(seg.startBeats + L) === 'four';
 		const octaveSkipBeat =
-			deviceStart >= 3 && rng.chance(0.06) ? rng.int(1, deviceStart - 2) : -1;
+			deviceStart >= 3 && rng.chance(0.06 * spice) ? rng.int(1, deviceStart - 2) : -1;
 
 		// Interior walk toward the device start (or the settle note).
 		const goal = notes[deviceStart] ?? notes[L] ?? nextTarget;
@@ -585,7 +591,7 @@ export function generateBassLine(
 			lastInfo.isSectionFinalBar &&
 			!lastInfo.isFinalBar &&
 			Math.round(seg.startBeats + L) % beatsPerBar === beatsPerBar - 1 &&
-			rng.chance(0.22)
+			rng.chance(0.22 * lerp(0.6, 1.4, lastInfo.intensity))
 		) {
 			const base = notes[L] ?? prevMidi ?? downbeat;
 			push(seg.startBeats + L + 1 / 3, base + (rng.chance(0.5) ? 1 : -1), beatDuration * 0.18, 58);
