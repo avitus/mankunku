@@ -495,7 +495,8 @@ type DrumBufferName = 'kick' | 'ride' | 'hihat';
 - **`ALTO_SAX_SAMPLES: SampleMap`** — Alto sax multi-samples with per-note tuning corrections.
 - **`SOPRANO_SAX_SAMPLES: SampleMap`** — Soprano sax multi-samples with per-note tuning corrections.
 - **`SAMPLE_MAPS: Record<string, SampleMap>`** — Registry keyed by instrument id. Currently `'tenor-sax'`, `'alto-sax'`, and `'soprano-sax'` (mapping to `TENOR_SAX_SAMPLES`, `ALTO_SAX_SAMPLES`, and `SOPRANO_SAX_SAMPLES` respectively).
-- **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0). Keys: `kick`, `ride`, `hihat`.
+- **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0), one per velocity layer/articulation (kick, three ride layers + bell, hats + pedal, three snare layers, cross-stick, crash).
+- **`DRUM_FAMILY_BY_VOICE`** / **`DRUM_BUFFER_FAMILY`** — which sampler family (kick / snare / cymbals — see `DrumFamily` in backing-mix.ts) plays each semantic voice; the buffer-level table is derived from `DRUM_ARTICULATIONS` so a future velocity layer lands in its voice's family automatically.
 
 ### `layerToBuffers(layer): Record<string, string>`
 
@@ -615,6 +616,10 @@ Pure, Node-testable backing event generation — no Tone.js, no Web Audio. `back
 
 Entry point: generates comp first (drums read its onsets for accents), then bass, then drums. `params` is `{ phraseId, tempo, ppq, beatsPerBar, swing, sectionMap? }`; the section map (from `Phrase.sectionMap`) drives section/chorus awareness, and bars are counted flat without it. Returns `{ bassEvents, compEvents, drumEvents }` — all carry tick-string `time` values plus a pre-swing `absBeat` for diagnostics and tests.
 
+### `generateBackingCached(harmony, style, params): GeneratedBacking`
+
+`generateBacking` behind a 4-entry LRU — provably safe because generation is deterministic in its inputs. The live scheduler uses this (lick-practice loops and per-key restarts regenerate the identical backing many times per session); cache hits are re-parsed from serialized JSON so every caller gets fresh objects. Keys include the full harmony content; styles key by `name`.
+
 ### `generateBassLine(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
 
 Lives in `backing-bass.ts` (re-exported here): the phrase-aware contour planner — register arcs per 4-bar group, coherent approach devices targeting the pitch the next downbeat will actually sound, scale-aware interior walk with anti-stutter guards, two-feel first choruses latching open to four, ornament probabilities (ghosts, pickups, octave skips, cadence triplet) scaled ×lerp(0.6, 1.4, intensity). Upright band E1–G3, leaps ≤ an octave (the octave-drop device's 13-semitone resolve excepted). `onsetsByBar` feeds the drum vocabulary's bass/kick coupling.
@@ -655,6 +660,8 @@ Per-instrument mix levels for the backing track, persisted per device (localStor
 
 ### `BackingMixLevels` interface, `DEFAULT_BACKING_MIX`
 
+`bass`/`comp`/`drums`/`room` are linear gain multipliers; the drum-voice keys are velocity multipliers applied at trigger time. `room` (increment 9) scales the ambience return; pre-room persisted mixes normalize to its default rather than going dry.
+
 ### `BACKING_BASE_TRIMS`
 
 Baseline trims that equalize the raw sample-library loudness: the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain plus per-voice velocity trims — kick 2.0, ride 0.71, hi-hat 0.81, etc. — re-expressing the ear-tuned 2026-08-02 balance against the −3 dBFS-normalized samples). The crash trim (`0.51`) sits deliberately below its family estimate: peak normalization is blind to sustain, and the crash's sustained body would otherwise ride far above the ride bed (Milestone B finding; see `static/samples/drums/ATTRIBUTION.md`, "Crash exception"). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
@@ -670,6 +677,10 @@ localStorage round-trip; SSR-safe (defaults without storage).
 ### `voiceVelocity(base, trim): number`
 
 Apply a voice trim to a generated drum velocity, clamped to `[0, 1]`.
+
+### Spatial + bus policy (`DrumFamily`, `BACKING_PANS`, `ROOM_SENDS`, `ROOM_RETURN_GAIN`, `ROOM_IR_URL`, `BACKING_BUS_COMPRESSOR`)
+
+One place for every number the live graph (backing-track.ts) and the offline bounce (backing-bounce.ts) must agree on, so a lab WAV keeps sounding like the app: the kit's three sampler families and their stereo positions (bass/kick centered — low frequencies pull the image; comp −0.2, snare −0.1, cymbals +0.25), per-source room-send levels (low end nearly dry), the −18 dB room return, the IR path, and the backing-bus glue-compressor parameters.
 
 ---
 
@@ -719,9 +730,11 @@ Backing-track scheduler: loads the instruments, calls `backing-generation.ts` fo
 **Instruments:**
 - **Upright bass** — Smolken "Pizzicato" double-bass sample library
 - **Comp** — `SplendidGrandPiano` (Salamander) for piano, or `Soundfont('drawbar_organ', kit: 'MusyngKite')` for organ
-- **Drums** — `smplr.Sampler` driving the `DRUM_BUFFERS` (Virtuosity Drums, CC0)
+- **Drums** — three `smplr.Sampler`s (kick / snare-family / cymbals, partitioned by `DRUM_BUFFER_FAMILY`) driving the `DRUM_BUFFERS` (Virtuosity Drums, CC0)
 
-**Gain graph:** bass and comp each have their own trim node (`bassGain`, `compGain`) feeding the shared `backingGain` (overall backing volume) into `getMasterGain()`; drums have their own node into master scaled by volume × drum trim. Per-instrument trims come from `backing-mix.ts` and are adjustable live via `setBackingMix`.
+The CDN libraries (bass, piano, organ) load through smplr's `CacheStorage` (versioned cache `mankunku-samples-v1`) when the Cache API is available, so revisits skip the network and the instruments work offline after a first load.
+
+**The backing bus** (increment 9): everything backing flows through `backingGain` (the volume fader) into a gentle glue `DynamicsCompressor` (`BACKING_BUS_COMPRESSOR`) and only then into `getMasterGain()` — master itself is untouched and carries the melody dry. Comp is panned (`BACKING_PANS.comp`), the three drum-family samplers sit behind their own `StereoPanner`s on a shared `drumBus` (gain = kit trim; the volume lives upstream on `backingGain`), and a small-room `ConvolverNode` (IR fetched best-effort from `ROOM_IR_URL` — failure leaves the backing dry) takes post-pan sends per `ROOM_SENDS` and returns at `ROOM_RETURN_GAIN × mix.room` into the bus. The decoded IR is cached module-wide and survives `disposeBackingTrack`; the graph around it rebuilds on the next load. Per-instrument trims come from `backing-mix.ts` and are adjustable live via `setBackingMix`.
 
 ### `getBackingMix()` / `setBackingMix(partial)`
 
@@ -841,7 +854,7 @@ Swing drum vocabulary: composable per-bar passes the swing `drumPattern` assembl
 The backing **listening lab** (see `documentation/contributing/backing-listening.md` for the protocol). All four modules are pure/Node-testable except the render call itself.
 
 - **backing-lab-presets.ts** — `BACKING_LAB_PRESETS` (ii-V-I-VI loop, 12-bar F blues, rhythm-changes A, 3-chorus AABA with a `sectionMap`), `LAB_TEMPO_PRESETS` (90/160/240), `labPhraseWithSeed(preset, seed)` (suffixes the phrase id — all generation streams derive from it, so a suffix re-rolls every stream), and `buildChorusedForm(sections, choruses)` which emits the flattened harmony plus a sectionMap whose `sourceSection` restart marks each chorus boundary.
-- **backing-bounce.ts** — `generateForBounce(params)` (the exact generation call the live scheduler makes, at `BOUNCE_PPQ = 192`), `bounceBacking(params, drumBuffers)` (renders to a WAV blob via smplr `renderOffline`, mirroring the live gain graph and per-voice velocity trims), `eventTicksToSeconds`, `harmonyDurationBeats`. Drum buffers come from `getDecodedDrumBuffersForBounce()` in backing-track.ts — the same decode path as the live kit.
+- **backing-bounce.ts** — `generateForBounce(params)` (the exact generation call the live scheduler makes, at `BOUNCE_PPQ = 192`), `bounceBacking(params, drumBuffers, roomIr?)` (renders to a WAV blob via smplr `renderOffline`, mirroring the live bus: volume → glue compressor, panned comp, three panned drum-family samplers, optional room-convolver sends, per-voice velocity trims), `eventTicksToSeconds`, `harmonyDurationBeats`. Drum buffers come from `getDecodedDrumBuffersForBounce()` and the IR from `getDecodedRoomIrForBounce()` in backing-track.ts — the same decode paths as the live graph, so a bounce with no IR renders dry exactly like the app would.
 - **backing-report.ts** — `buildBackingReport()`: deterministic ASCII statistics over lab presets × tempi × seeds (bass intervals/stepwise/downbeat-root, comp density/placement, drum voice activity). Snapshot at `documentation/reference/backing-report.txt`, regenerated by `npm run backing:report` and pinned by `tests/unit/audio/backing-report.test.ts`; golden event fixtures live under `tests/fixtures/backing/` via `npm run backing:golden`.
 - **backing-listening-checklist.ts** — `LISTENING_CHECKLIST` (the single source of truth for human listening items), `buildListeningReport(meta, verdicts)` → markdown for PRs and the listening log.
 
