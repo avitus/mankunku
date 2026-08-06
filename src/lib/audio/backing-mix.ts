@@ -75,7 +75,9 @@ export const BACKING_BASE_TRIMS: Record<keyof BackingMixLevels, number> = {
 	// Ear-tuned at Milestone B (2026-08-06): the peak-normalized crash body
 	// sits far above the ride bed (peak normalization is blind to sustain),
 	// so its trim is the one drum entry set well below its family estimate.
-	crash: 0.55
+	// Refined on the confirm listen: 85% of the 0.55 calibration's level,
+	// converted through the sqrt rule above (0.55 × √0.85 ≈ 0.51).
+	crash: 0.51
 };
 
 const MIX_MAX = 3;

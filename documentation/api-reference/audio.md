@@ -657,7 +657,7 @@ Per-instrument mix levels for the backing track, persisted per device (localStor
 
 ### `BACKING_BASE_TRIMS`
 
-Baseline trims that equalize the raw sample-library loudness: the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain plus per-voice velocity trims — kick 2.0, ride 0.71, hi-hat 0.81, etc. — re-expressing the ear-tuned 2026-08-02 balance against the −3 dBFS-normalized samples). The crash trim (`0.55`) sits deliberately below its family estimate: peak normalization is blind to sustain, and the crash's sustained body would otherwise ride far above the ride bed (Milestone B finding; see `static/samples/drums/ATTRIBUTION.md`, "Crash exception"). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
+Baseline trims that equalize the raw sample-library loudness: the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain plus per-voice velocity trims — kick 2.0, ride 0.71, hi-hat 0.81, etc. — re-expressing the ear-tuned 2026-08-02 balance against the −3 dBFS-normalized samples). The crash trim (`0.51`) sits deliberately below its family estimate: peak normalization is blind to sustain, and the crash's sustained body would otherwise ride far above the ride bed (Milestone B finding; see `static/samples/drums/ATTRIBUTION.md`, "Crash exception"). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
 
 ### `normalizeBackingMix(value): BackingMixLevels`
 
