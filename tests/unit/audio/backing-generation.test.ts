@@ -402,3 +402,36 @@ describe('other styles under the context signature', () => {
 		expect(drums.filter((h) => h.drum === 'hihat')).toHaveLength(0);
 	});
 });
+
+describe('generateBackingCached', () => {
+	it('returns events deep-equal to the uncached path, as fresh objects', async () => {
+		const { generateBackingCached } = await import('$lib/audio/backing-generation');
+		const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
+		const p = params();
+		const direct = generateBacking(harmony, BACKING_STYLES.swing, p);
+		const first = generateBackingCached(harmony, BACKING_STYLES.swing, p);
+		const second = generateBackingCached(harmony, BACKING_STYLES.swing, p);
+		expect(first).toEqual(direct);
+		expect(second).toEqual(direct);
+		// A hit must hand out fresh objects — callers must not be able to
+		// corrupt the cache (or each other) through a shared reference.
+		expect(second).not.toBe(first);
+		expect(second.drumEvents).not.toBe(first.drumEvents);
+	});
+
+	it('misses on any key ingredient changing', async () => {
+		const { generateBackingCached } = await import('$lib/audio/backing-generation');
+		const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
+		const base = generateBackingCached(harmony, BACKING_STYLES.swing, params());
+		const otherTempo = generateBackingCached(harmony, BACKING_STYLES.swing, params({ tempo: 200 }));
+		const otherStyle = generateBackingCached(harmony, BACKING_STYLES.straight, params());
+		const otherHarmony = generateBackingCached(
+			bars(['F', 'maj7'], ['F', 'maj7'], ['F', 'maj7'], ['F', 'maj7']),
+			BACKING_STYLES.swing,
+			params()
+		);
+		expect(otherTempo).not.toEqual(base);
+		expect(otherStyle.drumEvents).not.toEqual(base.drumEvents);
+		expect(otherHarmony.bassEvents).not.toEqual(base.bassEvents);
+	});
+});

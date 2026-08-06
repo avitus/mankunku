@@ -474,3 +474,40 @@ export function generateBacking(
 
 	return { bassEvents, compEvents, drumEvents };
 }
+
+// ── Memoized entry point ─────────────────────────────────────
+
+const GENERATION_CACHE_LIMIT = 4;
+/** key → serialized result. Values are stored as JSON and re-parsed per
+ *  hit so every caller gets fresh objects — no shared-mutation hazard. */
+const generationCache = new Map<string, string>();
+
+/**
+ * `generateBacking` behind a small LRU — provably safe because generation
+ * is deterministic in (harmony, style, params): same key, same events.
+ * Serves the live scheduler, where lick-practice loops and tempo retries
+ * regenerate the identical backing many times per session. The key
+ * includes the full harmony content (styles are keyed by name — their
+ * functions aren't serializable, and name identifies the vocabulary).
+ */
+export function generateBackingCached(
+	harmony: HarmonicSegment[],
+	style: StyleDefinition,
+	params: BackingGenerationParams
+): GeneratedBacking {
+	const key = JSON.stringify([style.name, params, harmony]);
+	const hit = generationCache.get(key);
+	if (hit !== undefined) {
+		// Refresh recency (Map preserves insertion order).
+		generationCache.delete(key);
+		generationCache.set(key, hit);
+		return JSON.parse(hit) as GeneratedBacking;
+	}
+	const generated = generateBacking(harmony, style, params);
+	const serialized = JSON.stringify(generated);
+	generationCache.set(key, serialized);
+	if (generationCache.size > GENERATION_CACHE_LIMIT) {
+		generationCache.delete(generationCache.keys().next().value as string);
+	}
+	return generated;
+}
