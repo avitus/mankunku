@@ -108,10 +108,13 @@ describe('ballad ceiling', () => {
 			...params({ phraseId: 'ballad-cap' }),
 			sectionMap: aaba.phrase.sectionMap
 		});
-		// Base velocity range is rng.int(42, 54) + lean; with the cap the
-		// ceiling is 54 + round(lerp(-2, 4, 0.6)) + cadence(+3) = 59.
+		// Base velocity is rng.int(42, 54) + intensity lean. Capped at 0.6
+		// the lean tops out at round(lerp(-2, 4, 0.6)) = +2 → pad ceiling
+		// 56; UNCAPPED chorus-2 bars run intensity ≥ 0.75 → lean +3 → 57,
+		// so this bound provably fails without the cap (the cadence lean
+		// subtracts 4 and can never exceed pads).
 		for (const e of compEvents) {
-			expect(e.velocity).toBeLessThanOrEqual(59);
+			expect(e.velocity).toBeLessThanOrEqual(56);
 		}
 	});
 });

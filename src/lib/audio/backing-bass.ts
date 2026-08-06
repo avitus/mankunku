@@ -445,8 +445,12 @@ export function generateBassLine(
 				}
 				notes[deviceStart + i] = pitch;
 			}
-		} else if (!hasNext && L >= 1) {
-			notes[L] = nextTarget; // final segment settles
+		} else if (!hasNext && L >= 1 && feelAt(seg.startBeats + L) === 'four') {
+			// Final segment settles on the last beat — walking feel only. A
+			// two-feel ending already rests after its half-note pair; a settle
+			// note here doubled the beat-3 fifth back-to-back (the stutter the
+			// candidate weights guard against everywhere else).
+			notes[L] = nextTarget;
 		}
 
 		// Spice draws (fixed order for determinism), BEFORE the walk so the
@@ -537,7 +541,20 @@ export function generateBassLine(
 			const feel = feelAt(absBeat);
 			let midi = notes[beat];
 			if (midi === null) {
-				if (feel === 'two' && beatInBar === 2) {
+				if (feel === 'two' && beatInBar === 0) {
+					// Interior downbeat of a held chord: a two-feel bassist
+					// restates the anchor every bar — the original downbeat
+					// pitch, with the fifth on alternating bars for motion.
+					// Deterministic (no draw), so the stream's later choices
+					// are untouched; this fixes silent bar-2 downbeats in BOTH
+					// the ballad override and swing's chorus-0 two-feel.
+					const tones = chordToneIntervalsForBass(seg.quality);
+					const barOfSeg = Math.floor(beat / beatsPerBar);
+					midi =
+						barOfSeg % 2 === 1
+							? nearestPc((seg.rootPc + tones.fifth) % 12, notes[0]!)
+							: notes[0]!;
+				} else if (feel === 'two' && beatInBar === 2) {
 					// Two-feel beat 3: mostly the 5th, sometimes 3rd/octave, or an
 					// early approach when the chord changes at the next barline.
 					const tones = chordToneIntervalsForBass(seg.quality);
@@ -550,22 +567,30 @@ export function generateBassLine(
 										{ value: nearestPc((seg.rootPc + tones.fifth) % 12, notes[0]!), weight: 55 },
 										{ value: nearestPc((seg.rootPc + tones.third) % 12, notes[0]!), weight: 20 },
 										{ value: notes[0]! + 12 <= BASS_HIGH ? notes[0]! + 12 : notes[0]! - 12, weight: 10 }
-									// Beat 3 restates motion, not the downbeat pitch — a
-									// fifth-colored downbeat made "the fifth" a repeat.
-									].filter((o) => o.value !== notes[0])
+									// Beat 3 restates motion, not the downbeat pitch — filter
+									// the SEGMENT downbeat (a fifth-colored one made "the
+									// fifth" a repeat) AND the note just played (an interior
+									// bar's restated fifth downbeat would machine-gun with a
+									// fifth fill). Three distinct values, two filters: the
+									// list can never empty.
+									].filter((o) => o.value !== notes[0] && o.value !== prevMidi)
 								);
 				} else {
 					continue; // two-feel rest beats
 				}
 			}
 
-			const isTwoFeelRoot = feel === 'two' && beatInBar === 0;
+			// Two-feel halves sustain: the downbeat always, and — under the
+			// ballad override — the beat-3 half too (swing's chorus-0 two-feel
+			// keeps its detached beat 3; that articulation is the style).
+			const isTwoFeelHalf =
+				feel === 'two' && (beatInBar === 0 || (feelOverride !== undefined && beatInBar === 2));
 			const velocity =
 				rng.int(76, 88) + (beatInBar === 0 ? 4 : 0) + (beatInBar === 2 ? 2 : 0);
 			push(
 				absBeat,
 				midi,
-				beatDuration * (isTwoFeelRoot ? 1.7 : beat === L && pickupActive ? 0.45 : 0.85),
+				beatDuration * (isTwoFeelHalf ? 1.7 : beat === L && pickupActive ? 0.45 : 0.85),
 				velocity
 			);
 
@@ -592,9 +617,11 @@ export function generateBassLine(
 		// Section-final triplet fill on the last beat — a small "here we go"
 		// that the swung grid never touches (triplet offsets are swing-immune
 		// by construction). Mutually exclusive with the pickup: two ornaments
-		// stacked on one beat is clutter, not conversation.
+		// stacked on one beat is clutter, not conversation. Gated off under
+		// the permanent two-feel override — a ballad's sections end still.
 		const lastInfo = infoAt(seg.startBeats + L);
 		if (
+			feelOverride === undefined &&
 			!pickupActive &&
 			hasNext &&
 			lastInfo.isSectionFinalBar &&

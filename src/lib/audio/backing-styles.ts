@@ -424,9 +424,13 @@ const ballad: StyleDefinition = {
 		} else if (figure === 'late-pad') {
 			hits.push({ beatOffset: 2, velocity: vel() - 2, durationBeats: 1.8 });
 		}
-		// Cadence lean: a soft push across a section boundary, tied over.
+		// Cadence lean: a soft SHORT pickup into the section boundary. The
+		// x.5 anticipation voices the coming chord, and the next bar's
+		// anchor pad re-attacks it on the downbeat — so the lean must
+		// release before the barline (a tied push would flam against that
+		// re-attack at ballad tempi).
 		if (ctx.isSectionFinalBar && !ctx.isFinalBar && rng.chance(0.35)) {
-			hits.push({ beatOffset: 3.5, velocity: vel() + 3, durationBeats: 1.3 });
+			hits.push({ beatOffset: 3.5, velocity: vel() - 4, durationBeats: 0.45 });
 		}
 		return hits;
 	},
