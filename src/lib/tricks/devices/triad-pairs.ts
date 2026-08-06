@@ -33,10 +33,17 @@
  * right triad, wrong member still counts as exact per the pinned design;
  * patternPcs = the other triad's pcs (right pair, wrong triad ⇒ in-pattern).
  */
-import type { ChordQuality, Fraction } from '$lib/types/music';
+import type { ChordQuality, Fraction, Phrase } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
-import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
+import type { DetectedNote } from '$lib/types/audio';
+import type {
+	ConformanceResult,
+	Trick,
+	TrickContext,
+	TrickParameters,
+	TrickSlotSpec
+} from '$lib/types/tricks';
 import { gcd } from '$lib/music/intervals';
 import { scoreConformanceAgainstSpecs } from '../conformance';
 import { realizeTrickExample } from '../example-generator';
@@ -356,7 +363,11 @@ export const triadPairsTrick: Trick = {
 	compatibleQualitiesFor(parameters) {
 		return [...familyFor(parameters).qualities];
 	},
-	scoreConformance(played, parameters, context) {
+	scoreConformance(
+		played: DetectedNote[],
+		parameters: TrickParameters,
+		context: TrickContext
+	): ConformanceResult {
 		return scoreConformanceAgainstSpecs(
 			played,
 			TRIAD_PAIR_STYLES.map((style) => ({
@@ -366,7 +377,7 @@ export const triadPairsTrick: Trick = {
 			context
 		);
 	},
-	generateExample(parameters, context) {
+	generateExample(parameters: TrickParameters, context: TrickContext): Phrase | null {
 		const hinted = context.exampleStyle ?? '';
 		const style: TriadPairStyle = (TRIAD_PAIR_STYLES as readonly string[]).includes(hinted)
 			? (hinted as TriadPairStyle)

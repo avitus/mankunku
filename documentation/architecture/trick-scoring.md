@@ -85,7 +85,7 @@ previews rotate through `Trick.exampleStyles` round by round
 
 `src/lib/scoring/fluency.ts`
 
-```
+```text
 overall = 0.7 × patternScore + 0.3 × rhythmAccuracy
 ```
 
@@ -114,7 +114,7 @@ credit, `notesHit` = slots earning ≥ 0.7 (exact or in-pattern), plus the raw
 
 ## What each trick puts in its slots
 
-This is where the two feel different to play — they populate
+This is where the two feel different when played — they populate
 `exactPcs`/`patternPcs` with opposite philosophies.
 
 ### Triad pairs — lenient on the note, strict on the triad

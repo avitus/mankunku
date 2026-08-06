@@ -3,6 +3,17 @@
 **Date:** 2026-08-05
 **Status:** Approved (auto-accept + engine-level API + rotating previews chosen by Andy)
 
+> **Post-merge note (2026-08-05):** this spec was written against the
+> scale-degree triad-pair device (`pair` 1+2/4+5/5+6 + `order` +
+> `beatPlacement`). Mid-implementation, origin/main's pair-family rewrite
+> (PR #208) replaced that scheme with a single family `pair` parameter and
+> **removed beat placement entirely**, so every reference below to `order`,
+> `beatPlacement`, offbeat variants, or the shifted cell is historical —
+> as built, all three styles sit on the beat and triads derive from family
+> specs, not scale degrees. The living description is
+> `documentation/architecture/trick-scoring.md`; the as-built integration
+> is the "Merge origin/main: re-apply triad-pair styles" commit.
+
 ## Goal
 
 Triad-pair trick practice should accept three playing styles as fully

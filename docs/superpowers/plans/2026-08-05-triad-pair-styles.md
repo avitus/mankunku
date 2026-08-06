@@ -10,6 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-05-triad-pair-styles-design.md`
 
+> **Post-merge note (2026-08-05):** this plan was executed as written, then
+> origin/main's pair-family rewrite (PR #208) landed mid-PR and removed the
+> `order`/`beatPlacement` parameters. References below to offbeat variants,
+> the shifted cell, or `TRIAD_LADDER` order/placement combos are the
+> historical execution record; the re-integration onto the family-based
+> device (all styles on the beat, triads from family specs) is in the
+> "Merge origin/main: re-apply triad-pair styles" commit, and
+> `documentation/architecture/trick-scoring.md` is the living description.
+
 ## Global Constraints
 
 - Style must NEVER enter `TrickParameters` — parameters feed `normalizeParameterSignature`, which forms the progress variant key. One variant key covers all three styles.
@@ -405,7 +414,7 @@ export function buildFourEighthsSlots(
 
 In the module-header comment (lines 1-22), after the cell-design paragraph, add:
 
-```
+```text
  * Two further styles are accepted best-of at scoring time (see the trick's
  * scoreConformance): alternating eighth-note-triplet groups (A-B-A-B, one
  * per beat) and four eighths per triad (A×4 then B×4). Both always sit on
@@ -732,7 +741,7 @@ In `src/lib/tricks/example-generator.ts`, the validation call caps consecutive l
 
 and replace the last sentence of the preceding comment ("Keep only the safety rails: instrument range and a sane cap on any single interval.") with:
 
-```
+```text
  * examples by design. Keep only the safety rails: instrument range and a
  * sane cap on any single interval. The consecutive-leap cap sits at 12
  * because the longest device shape — the 12-note alternating-triplet
