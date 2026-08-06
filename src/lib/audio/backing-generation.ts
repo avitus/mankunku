@@ -334,7 +334,7 @@ export function generateComping(
 	// velocity/articulation.
 	const compPlan =
 		style.compPlanning && beatsPerBar === 4
-			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo)
+			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo, style.compFigureBias)
 			: null;
 
 	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);

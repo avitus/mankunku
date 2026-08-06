@@ -161,40 +161,52 @@ export interface StyleDefinition {
 	voicingBias?: Partial<
 		Record<'rootlessA' | 'rootlessB' | 'shell' | 'drop2' | 'quartal', number>
 	>;
+	/**
+	 * Multipliers over the comp figure-planner weights, keyed by figure id
+	 * (backing-comp-figures.ts) — how a `compPlanning` style leans the
+	 * shared library: straight rests more (`rest: 1.3`).
+	 */
+	compFigureBias?: Partial<Record<string, number>>;
 }
 
 // ── Swing ────────────────────────────────────────────────────
+
+/**
+ * The composed swing-vocabulary drum bar (backing-drum-vocab.ts): the
+ * ostinato (ride mode + hats + feather) is the fabric; snare comping and
+ * bass/comp coupling are ADDITIONS capped at one voice per offset; fills/
+ * setups/crash draw from the separate `drum-fill` stream so a vocabulary
+ * change can never reshuffle the timekeeping. Shared by swing and — at
+ * ratio 0.5 with `extraColor` (the cross-stick) — the straight style.
+ * `extraColor` joins the additions LAST, so it never displaces
+ * form-marking fills, coupling kicks, or the snare's chatter.
+ */
+function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = []): DrumHitSpec[] {
+	const { rng, beatsPerBar } = ctx;
+	const mode = chooseRideMode(rng, ctx.intensity);
+	const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
+	const fillRng = ctx.fillRng ?? rng;
+	const { hits: fills, crashOnOne } = fillBar(ctx, fillRng);
+	const ostinato = [
+		// A crash on the section downbeat replaces that beat's ride.
+		...(crashOnOne ? ride.filter((h) => h.beatOffset !== 0) : ride),
+		...hihatBar(beatsPerBar, rng),
+		...featherBar(beatsPerBar, rng, ctx.intensity)
+	];
+	// Call order (snare → coupling) is the `drums` stream draw order and
+	// must not change; the ARRAY order is occupancy priority — form-marking
+	// fills first, then coupling kicks, then ghost chatter.
+	const snare = snareBar(ctx, rng);
+	const coupling = couplingBar(ctx, rng);
+	return capAdditionsPerOffset(ostinato, [...fills, ...coupling, ...snare, ...extraColor]);
+}
 
 const swing: StyleDefinition = {
 	name: 'Swing',
 	defaultSwing: 0.67,
 	swingModel: 'tempo',
 	timing: SWING_TIMING,
-	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
-		const { rng, beatsPerBar } = ctx;
-
-		// Composed vocabulary passes (backing-drum-vocab.ts): the ostinato
-		// (ride mode + hats + feather) is the fabric; snare comping and
-		// bass/comp coupling are ADDITIONS capped at one voice per offset;
-		// fills/setups/crash draw from the separate `drum-fill` stream so a
-		// vocabulary change can never reshuffle the timekeeping.
-		const mode = chooseRideMode(rng, ctx.intensity);
-		const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
-		const fillRng = ctx.fillRng ?? rng;
-		const { hits: fills, crashOnOne } = fillBar(ctx, fillRng);
-		const ostinato = [
-			// A crash on the section downbeat replaces that beat's ride.
-			...(crashOnOne ? ride.filter((h) => h.beatOffset !== 0) : ride),
-			...hihatBar(beatsPerBar, rng),
-			...featherBar(beatsPerBar, rng, ctx.intensity)
-		];
-		// Call order (snare → coupling) is the `drums` stream draw order and
-		// must not change; the ARRAY order is occupancy priority — form-marking
-		// fills first, then coupling kicks, then ghost chatter.
-		const snare = snareBar(ctx, rng);
-		const coupling = couplingBar(ctx, rng);
-		return capAdditionsPerOffset(ostinato, [...fills, ...coupling, ...snare]);
-	},
+	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => swingVocabularyBar(ctx),
 	compPattern: (ctx: GenerationContext): CompHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
 
@@ -444,26 +456,24 @@ const straight: StyleDefinition = {
 	defaultSwing: 0.5,
 	swingModel: 'fixed',
 	timing: STRAIGHT_TIMING,
+	// The straight style IS the swing library played at ratio 0.5 with the
+	// halved timing profile: the whole vocabulary — ride modes, snare
+	// dialogue, fills, the planner's phrase memory — lands on even eighths.
+	// Two leans distinguish it: the planner rests a little more (even
+	// eighths clutter faster than swung ones), and a cross-stick on beat 4
+	// colors the even feel.
+	compPlanning: true,
+	compFigureBias: { rest: 1.3 },
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
-		const { beatsPerBar } = ctx;
-		// Even feel: ride every beat, hi-hat on 2 and 4, kick on 1 and 3
-		const hits: DrumHitSpec[] = [];
-		for (let b = 0; b < beatsPerBar; b++) {
-			hits.push({ drum: 'ride', beatOffset: b, velocity: 0.35 });
-			if (b === 0 || b === 2) hits.push({ drum: 'kick', beatOffset: b, velocity: 0.4 });
-			if (b === 1 || b === 3) hits.push({ drum: 'hihat', beatOffset: b, velocity: 0.4 });
+		// The color draw comes FIRST from the drums stream (documented draw
+		// order for this style), then the shared vocabulary body runs.
+		const color: DrumHitSpec[] = [];
+		if (ctx.beatsPerBar === 4 && ctx.rng.chance(0.35)) {
+			color.push({ drum: 'crossstick', beatOffset: 3, velocity: 0.28 + ctx.rng.float() * 0.05 });
 		}
-		return hits;
+		return swingVocabularyBar(ctx, color);
 	},
-	compPattern: (ctx: GenerationContext): CompHitSpec[] => {
-		const { rng, beatsPerBar } = ctx;
-		// Even quarter-note comping
-		const hits: CompHitSpec[] = [];
-		for (let b = 0; b < beatsPerBar; b++) {
-			hits.push({ beatOffset: b, velocity: 55 + rng.int(0, 8), durationBeats: 1 / 3 });
-		}
-		return hits;
-	},
+	compPattern: swing.compPattern,
 	bass: 'auto'
 };
 
