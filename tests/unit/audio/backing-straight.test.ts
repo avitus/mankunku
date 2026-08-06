@@ -6,6 +6,7 @@ import {
 	type BackingGenerationParams
 } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { COMP_FIGURES } from '$lib/audio/backing-comp-figures';
 import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 
 /** One-bar-per-chord 4/4 harmony builder. */
@@ -86,8 +87,11 @@ describe('straight style', () => {
 
 	it('rests more than swing under the figure bias', () => {
 		// Deterministic seeds: count zero-comp bars for both styles over the
-		// same phrases. The 1.3× rest bias must show up in the totals.
+		// same phrases (the planner streams are style-blind, so the ONLY
+		// difference is the 1.3× rest weight). 96 bars is the AABA form's
+		// static size — no inference from event extents.
 		const aaba = BACKING_LAB_PRESETS.find((p) => p.id === 'lab-aaba-c')!;
+		const TOTAL_BARS = 96;
 		const restBars = (style: 'swing' | 'straight'): number => {
 			let rests = 0;
 			for (let seed = 0; seed < 4; seed++) {
@@ -96,11 +100,20 @@ describe('straight style', () => {
 					sectionMap: aaba.phrase.sectionMap
 				});
 				const sounding = new Set(compEvents.map((e) => Math.floor(e.absBeat / 4)));
-				const total = Math.ceil(Math.max(...compEvents.map((e) => e.absBeat)) / 4);
-				rests += total - sounding.size;
+				rests += TOTAL_BARS - sounding.size;
 			}
 			return rests;
 		};
 		expect(restBars('straight')).toBeGreaterThan(restBars('swing'));
+	});
+
+	it('every compFigureBias key of every style names a real figure', () => {
+		// The bias map is string-keyed — a typo'd id would silently no-op.
+		const figureIds = new Set(COMP_FIGURES.map((f) => f.id));
+		for (const style of Object.values(BACKING_STYLES)) {
+			for (const key of Object.keys(style.compFigureBias ?? {})) {
+				expect(figureIds.has(key), `${style.name} biases unknown figure '${key}'`).toBe(true);
+			}
+		}
 	});
 });

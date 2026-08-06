@@ -327,8 +327,9 @@ export function generateComping(
 		chordIntensity.map((n) => Math.round(lerp(58, 66, n)))
 	);
 
-	// Figure planning (swing, 4/4 only — the vocabulary is written for four
-	// beats; other meters use the style's own fallback): one pass over the
+	// Figure planning (compPlanning styles — swing and straight — 4/4 only:
+	// the vocabulary is written for four beats; other meters use the
+	// style's own fallback): one pass over the
 	// phrase with anti-repetition memory; each bar's plan resolves to
 	// concrete hits here so the style's pattern function only realizes
 	// velocity/articulation.
