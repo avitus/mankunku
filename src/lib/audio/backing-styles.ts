@@ -89,6 +89,13 @@ export interface GenerationContext {
 	 * realizes velocity/articulation.
 	 */
 	plannedComp?: { hits: Array<{ b: number; d: number }>; tags: string[]; guideTones: boolean };
+	/**
+	 * Which clave side even-indexed bars carry — drawn ONCE per phrase from
+	 * the `clave` stream, constant across bars (a clave that flips
+	 * mid-phrase is simply wrong). '32' = even bars take the 3-side.
+	 * Only the bossa pattern reads it.
+	 */
+	clavePhase?: '32' | '23';
 }
 
 export interface CompHitSpec {
@@ -131,8 +138,15 @@ export interface StyleDefinition {
 	drumPattern: (ctx: GenerationContext) => DrumHitSpec[];
 	/** Generate one bar of comp hits. */
 	compPattern: (ctx: GenerationContext) => CompHitSpec[];
-	/** Bass style: 'walking' = chord-tone walking, 'pedal' = root pedal, 'pattern' = rhythmic pattern */
-	bassStyle: 'walking' | 'pedal' | 'pattern';
+	/**
+	 * Which bass engine the style uses: 'auto' = the walking planner
+	 * (two-feel first chorus latching open to four); 'pattern' = the bossa
+	 * root–fifth ostinato (`generateBossaBass`; non-4/4 falls back to the
+	 * walking planner). The union grows as the remaining style PRs land
+	 * (ballad's permanent two-feel next) — values are added WITH their
+	 * implementation, never speculatively.
+	 */
+	bass: 'auto' | 'pattern';
 }
 
 // ── Swing ────────────────────────────────────────────────────
@@ -212,10 +226,23 @@ const swing: StyleDefinition = {
 		return [{ beatOffset: 0, velocity: rng.int(56, 66), durationBeats: 1.5 }];
 	},
 	compPlanning: true,
-	bassStyle: 'walking'
+	bass: 'auto'
 };
 
 // ── Bossa Nova ───────────────────────────────────────────────
+
+/** Bossa rim-click clave, per side. The 3-side is 1, and-of-2, 4; the
+ *  2-side is the Brazilian variant 2, and-of-3 (not son clave's 2-3). */
+const BOSSA_CLAVE: Record<'three' | 'two', number[]> = {
+	three: [0, 1.5, 3],
+	two: [1, 2.5]
+};
+
+/** Which clave side a bar carries, given the phrase's drawn phase. */
+function bossaClaveSide(barIndex: number, phase: '32' | '23'): 'three' | 'two' {
+	const evenIsThree = phase === '32';
+	return barIndex % 2 === 0 ? (evenIsThree ? 'three' : 'two') : evenIsThree ? 'two' : 'three';
+}
 
 const bossaNova: StyleDefinition = {
 	name: 'Bossa Nova',
@@ -224,30 +251,78 @@ const bossaNova: StyleDefinition = {
 	timing: BOSSA_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
-		const hits: DrumHitSpec[] = [];
-		// Cross-stick rim feel on 2 and 4, hi-hat on every beat with syncopation
-		for (let b = 0; b < beatsPerBar; b++) {
-			const isRimBeat = b === 1 || b === 3;
-			if (b === 0 || b === 2) {
-				hits.push({ drum: 'kick', beatOffset: b, velocity: b === 0 ? 0.4 : 0.3 });
+
+		// Non-4/4 fallback: the clave is a 4/4 statement — keep simple time.
+		if (beatsPerBar !== 4) {
+			const hits: DrumHitSpec[] = [{ drum: 'kick', beatOffset: 0, velocity: 0.35 }];
+			for (let b = 0; b < beatsPerBar; b++) {
+				hits.push({ drum: 'hihat', beatOffset: b, velocity: 0.28 + rng.float() * 0.04 });
 			}
-			hits.push({ drum: 'hihat', beatOffset: b, velocity: (isRimBeat ? 0.6 : 0.3) + rng.float() * 0.04 });
+			return hits;
+		}
+
+		const hits: DrumHitSpec[] = [];
+		// Surdo-derived kick: the dotted root–fifth foundation the bass rides
+		// (1, and-of-2, 3, and-of-4), felt more than heard.
+		hits.push({ drum: 'kick', beatOffset: 0, velocity: 0.3 + rng.float() * 0.04 });
+		hits.push({ drum: 'kick', beatOffset: 1.5, velocity: 0.2 + rng.float() * 0.03 });
+		hits.push({ drum: 'kick', beatOffset: 2, velocity: 0.27 + rng.float() * 0.04 });
+		hits.push({ drum: 'kick', beatOffset: 3.5, velocity: 0.2 + rng.float() * 0.03 });
+		// Steady eighth hats — the ride of this style — quarters lightly
+		// accented so the pulse stays legible under the syncopation.
+		for (let e = 0; e < beatsPerBar * 2; e++) {
+			const off = e / 2;
+			hits.push({
+				drum: 'hihat',
+				beatOffset: off,
+				velocity: (off % 1 === 0 ? 0.26 : 0.19) + rng.float() * 0.04
+			});
+		}
+		// Rim-click clave: side chosen by the phrase-level phase draw —
+		// steady, hypnotic, NEVER varied per bar (a wandering clave is the
+		// one unforgivable bossa mistake).
+		const side = bossaClaveSide(ctx.barIndex, ctx.clavePhase ?? '32');
+		for (const off of BOSSA_CLAVE[side]) {
+			hits.push({ drum: 'crossstick', beatOffset: off, velocity: 0.38 + rng.float() * 0.05 });
 		}
 		return hits;
 	},
 	compPattern: (ctx: GenerationContext): CompHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
-		// Syncopated guitar-style pattern: hits on 1, 3, and 4
-		const bossaHits = [true, false, true, true];
+
+		// Non-4/4 fallback: state the harmony on the downbeat.
+		if (beatsPerBar !== 4) {
+			return [{ beatOffset: 0, velocity: rng.int(50, 60), durationBeats: 1.2 }];
+		}
+
+		// João-style comp: short syncopated chords tracking the clave side,
+		// so guitar-hand and rim speak the same sentence. The and-of-3 push
+		// on the 2-side rides the engine's next-beat anticipation voicing.
+		const side = bossaClaveSide(ctx.barIndex, ctx.clavePhase ?? '32');
+		const figure =
+			side === 'three'
+				? [
+						{ b: 0, d: 0.8 },
+						{ b: 1.5, d: 0.9 },
+						{ b: 3, d: 0.7 }
+					]
+				: [
+						{ b: 1, d: 0.8 },
+						{ b: 2.5, d: 1.1 }
+					];
 		const hits: CompHitSpec[] = [];
-		for (let b = 0; b < beatsPerBar; b++) {
-			if (bossaHits[b % 4]) {
-				hits.push({ beatOffset: b, velocity: 55 + rng.int(0, 8), durationBeats: 0.5 });
-			}
+		for (const { b, d } of figure) {
+			// Breathe: occasionally thin a non-anchor hit.
+			if (b !== figure[0].b && rng.chance(0.12)) continue;
+			hits.push({
+				beatOffset: b,
+				velocity: rng.int(50, 60) + (b % 1 !== 0 ? 4 : 0),
+				durationBeats: d * (0.9 + rng.float() * 0.2)
+			});
 		}
 		return hits;
 	},
-	bassStyle: 'pattern'
+	bass: 'pattern'
 };
 
 // ── Ballad ───────────────────────────────────────────────────
@@ -275,7 +350,7 @@ const ballad: StyleDefinition = {
 		}
 		return hits;
 	},
-	bassStyle: 'walking'
+	bass: 'auto'
 };
 
 // ── Straight ─────────────────────────────────────────────────
@@ -305,7 +380,7 @@ const straight: StyleDefinition = {
 		}
 		return hits;
 	},
-	bassStyle: 'walking'
+	bass: 'auto'
 };
 
 export const BACKING_STYLES: Record<BackingStyle, StyleDefinition> = {
@@ -321,3 +396,7 @@ export const BACKING_STYLE_NAMES: Record<BackingStyle, string> = {
 	ballad: 'Ballad',
 	straight: 'Straight'
 };
+
+/** The style ids, in display order — the one list every style picker and
+ *  validator should consume instead of hand-copying the union. */
+export const BACKING_STYLE_IDS = Object.keys(BACKING_STYLES) as BackingStyle[];

@@ -601,3 +601,116 @@ export function generateBassLine(
 
 	return { events, onsetsByBar };
 }
+
+// ── Bossa pattern bass ───────────────────────────────────────
+
+/**
+ * Bossa nova bass: the surdo-derived root–fifth ostinato, not a walking
+ * line. Each 4/4 bar states the root on 1 and the (true, quality-aware)
+ * fifth on 3, with soft eighth pickups on the and-of-2 and and-of-4 — the
+ * dotted lilt that carries the style. The and-of-4 pickup on a segment's
+ * last bar becomes an approach into the NEXT chord's root (chromatic from
+ * below/above, or its fifth); "variation drops" thin the pickups and the
+ * occasional beat-3 fifth so the pattern breathes without ever losing the
+ * anchor. Register sits flat around E2 (no arc — bossa sits, it doesn't
+ * climb), and events go through the same per-role timing placement as the
+ * walking line. Draws come from the `bass` role keyed by BAR index (the
+ * walking planner keys it by segment; the two generators never run on the
+ * same phrase, so the role is shared safely).
+ *
+ * 4/4 only by contract — `generateBacking` falls back to the walking
+ * planner for other meters.
+ */
+export function generateBossaBass(
+	harmony: HarmonicSegment[],
+	beatsPerBar: number,
+	params: BackingGenerationParams,
+	barInfos: BarInfo[]
+): BassLineResult {
+	const { phraseId, tempo, ppq, swing } = params;
+	const timing = params.timing ?? SWING_TIMING;
+	const streams = createTimingStreams(phraseId, tempo);
+	const segments = toBassSegments(harmony);
+	const beatDuration = 60 / tempo;
+	const totalBars = barInfos.length;
+
+	const events: BassEvent[] = [];
+	const onsetsByBar = new Map<number, number[]>();
+	const push = (absBeat: number, midi: number, duration: number, velocity: number): void => {
+		const bar = Math.floor(absBeat / beatsPerBar);
+		events.push({
+			time: `${placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
+			midi: Math.max(BASS_LOW, Math.min(BASS_HIGH, midi)),
+			duration,
+			velocity,
+			absBeat
+		});
+		const list = onsetsByBar.get(bar) ?? [];
+		list.push(absBeat - bar * beatsPerBar);
+		onsetsByBar.set(bar, list);
+	};
+
+	/** The fifth sits below the root when the band allows it — the classic
+	 *  surdo drop — else above. */
+	const fifthFor = (rootMidi: number, seg: BassSegment): number => {
+		const interval = chordToneIntervalsForBass(seg.quality).fifth;
+		const below = rootMidi + interval - 12;
+		return below >= BASS_LOW ? below : rootMidi + interval;
+	};
+
+	for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+		const seg = segments[segIdx];
+		const hasNext = segIdx + 1 < segments.length;
+		const nextRootPc = hasNext ? segments[segIdx + 1].rootPc : seg.rootPc;
+		const rootMidi = nearestPc(seg.rootPc, ARC_CENTER_BASE);
+		const fifthMidi = fifthFor(rootMidi, seg);
+		const segBars = Math.max(1, Math.round(seg.totalBeats / beatsPerBar));
+
+		for (let barInSeg = 0; barInSeg < segBars; barInSeg++) {
+			const barStart = seg.startBeats + barInSeg * beatsPerBar;
+			const bar = Math.floor(barStart / beatsPerBar);
+			const rng = createRng(seedFrom(phraseId, tempo, 'bass', bar));
+			const isSegFinalBar = barInSeg === segBars - 1;
+			const isPhraseFinalBar = bar >= totalBars - 1;
+
+			// Beat 1: the anchor, always.
+			push(barStart, rootMidi, beatDuration * 1.4, rng.int(72, 80));
+
+			if (isPhraseFinalBar) {
+				// Settle: long root, optional soft fifth on 3, no pickup out.
+				if (rng.chance(0.5)) {
+					push(barStart + 2, fifthMidi, beatDuration * 1.6, rng.int(62, 70));
+				}
+				continue;
+			}
+
+			// And-of-2 pickup into the fifth (soft, feminine half of the lilt).
+			if (rng.chance(0.6)) {
+				push(barStart + 1.5, fifthMidi, beatDuration * 0.35, rng.int(56, 63));
+			}
+
+			// Beat 3: the fifth — occasionally rested so the root rings a
+			// whole bar (the "variation drop").
+			if (rng.chance(0.9)) {
+				push(barStart + 2, fifthMidi, beatDuration * 1.4, rng.int(68, 76));
+			}
+
+			// And-of-4 pickup: back toward the root — or, leaving the segment,
+			// an approach into the next chord.
+			if (rng.chance(0.7)) {
+				let pickup = rootMidi;
+				if (isSegFinalBar && hasNext && nextRootPc !== seg.rootPc) {
+					const nextRootMidi = nearestPc(nextRootPc, ARC_CENTER_BASE);
+					pickup = rng.weighted([
+						{ value: nextRootMidi - 1, weight: 2 }, // chromatic below
+						{ value: nextRootMidi + 1, weight: 1 }, // chromatic above
+						{ value: fifthFor(nextRootMidi, segments[segIdx + 1]), weight: 1 }
+					]);
+				}
+				push(barStart + 3.5, pickup, beatDuration * 0.35, rng.int(58, 65));
+			}
+		}
+	}
+
+	return { events, onsetsByBar };
+}

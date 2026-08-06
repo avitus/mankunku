@@ -607,10 +607,12 @@ interface StyleDefinition {
 
 - **`BACKING_STYLES: Record<BackingStyle, StyleDefinition>`** — Keys `swing`, `bossa-nova`, `ballad`, `straight`.
   - **Swing** (tempo-curve swing, 0.67 fallback; density/dynamics shaped per bar by `ctx.intensity`): drums are composed vocabulary passes (backing-drum-vocab.ts) — per-bar ride modes (standard spang-a-lang / breathing quarters-only / skip-plus / broken), hi-hat foot on 2 & 4, feathered kick under the felt-not-heard ceiling, sparse snare ghosts in dialogue with the comp, kick coupling to comp pushes and bass pickups, fills and setups marking the 4/8-bar form, and a crash replacing the downbeat ride on section arrivals — with added voices capped at one per beat offset. Comping is phrase-planned (`compPlanning` → backing-comp-figures.ts): the pattern function realizes the planned figure's velocity and articulation.
-  - **Bossa Nova** (straight): cross-stick feel on 2/4, hi-hat every beat, on-beat clave comping (1, 3, 4), `pattern` bass.
-  - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass.
-  - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass.
+  - **Bossa Nova** (straight, tight timing): rim-click clave on the cross-stick — 3-side `{1, 2&, 4}` / 2-side `{2, 3&}` (the Brazilian variant), the side per bar set by a **phrase-level phase draw** (`clavePhaseFor`, `clave` stream) shared by comp and drums so rim and guitar-hand never disagree; steady eighth hats with quarter accents over the surdo-derived kick `{1, 2&, 3, 4&}`; João-style comp figures tracking the clave side (the 2-side's and-of-3 push rides the anticipation voicing); `bass: 'pattern'` → `generateBossaBass`.
+  - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass. (Style parity pass pending — next PR.)
+  - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass. (Style parity pass pending.)
 - **`BACKING_STYLE_NAMES: Record<BackingStyle, string>`** — Display names for UI menus.
+- **`BACKING_STYLE_IDS: BackingStyle[]`** — The ids in display order; every style picker and validator derives from this (tune-practice buttons, settings validation) instead of hand-copying the union.
+- **`StyleDefinition.bass`** — which bass engine the style uses: `'auto'` = the walking planner, `'pattern'` = the bossa ostinato (non-4/4 falls back to walking). The union grows per style PR, values added only with their implementation.
 
 ---
 
@@ -625,6 +627,14 @@ Entry point: generates comp first (drums read its onsets for accents), then bass
 ### `generateBackingCached(harmony, style, params): GeneratedBacking`
 
 `generateBacking` behind a 4-entry LRU — provably safe because generation is deterministic in its inputs. The live scheduler uses this (lick-practice loops and per-key restarts regenerate the identical backing many times per session); cache hits are re-parsed from serialized JSON so every caller gets fresh objects. Keys include the full harmony content; styles key by `name`.
+
+### `clavePhaseFor(phraseId, tempo): '32' | '23'`
+
+The phrase-level bossa clave phase — one draw from the dedicated `clave` stream, deterministic in `(phraseId, tempo)` so the comp and drum generators (which each compute it) always agree. `'32'` = even-indexed bars carry the 3-side.
+
+### `generateBossaBass(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
+
+Lives in `backing-bass.ts` (dispatched via `StyleDefinition.bass === 'pattern'`): the surdo-derived root–fifth ostinato — root on 1, quality-aware fifth on 3 (below the root when the band allows), soft eighth pickups on the and-of-2/and-of-4, the segment-final and-of-4 becoming an approach into the next chord (chromatic neighbour or its fifth), variation drops thinning pickups so the pattern breathes. Register sits flat around E2; events go through the same per-role timing placement as the walking line. 4/4 only — other meters fall back to the walking planner.
 
 ### `generateBassLine(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
 

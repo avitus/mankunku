@@ -388,10 +388,21 @@ describe('other styles under the context signature', () => {
 		}
 	});
 
-	it('bossa keeps its on-beat clave shape (no swung eighths)', () => {
+	it('bossa comp states a clave-side figure with its anchor intact', () => {
+		// Deep bossa behavior lives in backing-bossa.test.ts; here just pin
+		// the pattern-function contract: the offsets are exactly one clave
+		// side's figure (which side depends on ctx.barIndex parity), with
+		// that side's anchor hit always present.
 		const style = BACKING_STYLES['bossa-nova'];
 		const comp = style.compPattern(ctxFor({ rng: createRng(1) }));
-		expect(comp.map((h) => h.beatOffset)).toEqual([0, 2, 3]);
+		const offsets = comp.map((h) => h.beatOffset);
+		const sides = [
+			[0, 1.5, 3],
+			[1, 2.5]
+		];
+		const side = sides.find((s) => offsets.every((o) => s.includes(o)));
+		expect(side, `offsets ${offsets} fit one clave side`).toBeDefined();
+		expect(offsets).toContain(side![0]);
 	});
 
 	it('ballad stays sparse: one soft kick, ride quarters', () => {
