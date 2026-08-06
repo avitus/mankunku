@@ -51,8 +51,10 @@ describe('straight style', () => {
 			sectionMap: aaba.phrase.sectionMap
 		});
 		// The time never stops (the swing suite's own invariant, straight).
-		const bars = Math.ceil(Math.max(...drumEvents.map((e) => e.absBeat)) / 4);
-		for (let bar = 0; bar < bars; bar++) {
+		// floor + 1 counts the bar CONTAINING the latest event — ceil would
+		// drop the final bar whenever the last event sits on a beat boundary.
+		const barCount = Math.floor(Math.max(...drumEvents.map((e) => e.absBeat)) / 4) + 1;
+		for (let bar = 0; bar < barCount; bar++) {
 			for (let b = 0; b < 4; b++) {
 				const abs = bar * 4 + b;
 				expect(
