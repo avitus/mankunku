@@ -601,3 +601,135 @@ export function generateBassLine(
 
 	return { events, onsetsByBar };
 }
+
+// ── Bossa pattern bass ───────────────────────────────────────
+
+/**
+ * Bossa nova bass: the surdo-derived root–fifth ostinato, not a walking
+ * line. The pattern lives on the BAR grid — the same grid the clave and
+ * kick are locked to — with a per-beat chord lookup, so split bars
+ * (|Dm7 G7|) state the new root at the change point instead of floating
+ * the ostinato off the barline: root of the sounding chord on 1; on 3
+ * the mid-bar chord's root when the harmony moves there (always stated),
+ * else the quality-aware fifth; soft eighth pickups on the and-of-2
+ * (leading beat 3 — a chromatic approach when the chord changes there)
+ * and the and-of-4 (leading the next bar — an approach when the barline
+ * brings a new chord). Variation drops thin the pickups and the beat-3
+ * fifth so the pattern breathes without losing the anchor. Register sits
+ * flat around E2 (no arc — bossa sits, it doesn't climb); the fifth
+ * takes the surdo drop below the root, which the register policy
+ * guarantees stays in band. Events go through the same per-role timing
+ * placement as the walking line, drawing from the `bass` role keyed by
+ * bar index (the walking planner keys it by segment; the two generators
+ * never run on the same phrase).
+ *
+ * 4/4 only by contract — `generateBacking` falls back to the walking
+ * planner for other meters.
+ */
+export function generateBossaBass(
+	harmony: HarmonicSegment[],
+	beatsPerBar: number,
+	params: BackingGenerationParams,
+	barInfos: BarInfo[]
+): BassLineResult {
+	const { phraseId, tempo, ppq, swing } = params;
+	const timing = params.timing ?? SWING_TIMING;
+	const streams = createTimingStreams(phraseId, tempo);
+	const segments = toBassSegments(harmony);
+	// Empty harmony → empty line (chordAt would index segments[0]).
+	if (segments.length === 0) return { events: [], onsetsByBar: new Map() };
+	const beatDuration = 60 / tempo;
+	const totalBars = barInfos.length;
+
+	const events: BassEvent[] = [];
+	const onsetsByBar = new Map<number, number[]>();
+	const push = (absBeat: number, midi: number, duration: number, velocity: number): void => {
+		const bar = Math.floor(absBeat / beatsPerBar);
+		events.push({
+			time: `${placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
+			midi: Math.max(BASS_LOW, Math.min(BASS_HIGH, midi)),
+			duration,
+			velocity,
+			absBeat
+		});
+		const list = onsetsByBar.get(bar) ?? [];
+		list.push(absBeat - bar * beatsPerBar);
+		onsetsByBar.set(bar, list);
+	};
+
+	/** The chord sounding at a beat: last segment starting at or before it
+	 *  (segments are sorted and contiguous; beats past the end clamp). */
+	const chordAt = (absBeat: number): BassSegment => {
+		let current = segments[0];
+		for (const seg of segments) {
+			if (seg.startBeats <= absBeat + 1e-6) current = seg;
+			else break;
+		}
+		return current;
+	};
+	const rootFor = (seg: BassSegment): number => nearestPc(seg.rootPc, ARC_CENTER_BASE);
+	/** The surdo drop: the quality-aware fifth below the root (the register
+	 *  policy pins roots ≥ 34, so the drop always stays in band). */
+	const fifthFor = (rootMidi: number, seg: BassSegment): number =>
+		rootMidi + chordToneIntervalsForBass(seg.quality).fifth - 12;
+
+	for (let bar = 0; bar < totalBars; bar++) {
+		const barStart = bar * beatsPerBar;
+		const rng = createRng(seedFrom(phraseId, tempo, 'bass', bar));
+		const isPhraseFinalBar = bar === totalBars - 1;
+		const segAt0 = chordAt(barStart);
+		const segAt2 = chordAt(barStart + 2);
+		// Content comparison, not identity: a repeated chord written as two
+		// segments (|F F|) is a held chord, not a change.
+		const changesMidBar = segAt2.rootPc !== segAt0.rootPc || segAt2.quality !== segAt0.quality;
+		const root0 = rootFor(segAt0);
+		const beat3Midi = changesMidBar ? rootFor(segAt2) : fifthFor(root0, segAt0);
+
+		// Beat 1: the sounding chord's root, always.
+		push(barStart, root0, beatDuration * 1.4, rng.int(72, 80));
+
+		if (isPhraseFinalBar) {
+			// Settle: long root, no pickup out. A real mid-bar change still
+			// sounds unconditionally — "always stated" holds on every bar —
+			// only the held-chord fifth restatement is optional here.
+			if (changesMidBar || rng.chance(0.5)) {
+				push(barStart + 2, beat3Midi, beatDuration * 1.6, rng.int(62, 70));
+			}
+			continue;
+		}
+
+		// And-of-2 pickup leading beat 3: a chromatic approach when the
+		// chord changes there, else the fifth (the feminine half of the lilt).
+		if (rng.chance(0.6)) {
+			const pickup = changesMidBar
+				? beat3Midi + (rng.chance(0.67) ? -1 : 1)
+				: beat3Midi;
+			push(barStart + 1.5, pickup, beatDuration * 0.35, rng.int(56, 63));
+		}
+
+		// Beat 3: a mid-bar chord change is ALWAYS stated; a held chord's
+		// fifth occasionally rests so the root rings (the variation drop).
+		if (changesMidBar || rng.chance(0.9)) {
+			push(barStart + 2, beat3Midi, beatDuration * 1.4, rng.int(68, 76));
+		}
+
+		// And-of-4 pickup into the next bar: an approach when the barline
+		// brings a new chord, else the sounding root again.
+		if (rng.chance(0.7)) {
+			const nextSeg = chordAt(barStart + beatsPerBar);
+			const soundingRoot = changesMidBar ? rootFor(segAt2) : root0;
+			let pickup = soundingRoot;
+			if (nextSeg.rootPc !== segAt2.rootPc) {
+				const nextRootMidi = rootFor(nextSeg);
+				pickup = rng.weighted([
+					{ value: nextRootMidi - 1, weight: 2 }, // chromatic below
+					{ value: nextRootMidi + 1, weight: 1 }, // chromatic above
+					{ value: fifthFor(nextRootMidi, nextSeg), weight: 1 }
+				]);
+			}
+			push(barStart + 3.5, pickup, beatDuration * 0.35, rng.int(58, 65));
+		}
+	}
+
+	return { events, onsetsByBar };
+}

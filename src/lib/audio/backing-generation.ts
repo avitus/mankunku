@@ -19,6 +19,8 @@
  *   bass-target  | segment     | downbeat note choice
  *   bass-appr    | segment     | approach device
  *   bass         | segment     | interior fill, spice, velocity
+ *                | barIndex    | (bossa pattern engine: pickups, drops, approach)
+ *   clave        | 0           | bossa clave phase (one draw per phrase)
  *   voicing      | chord index | comp voicing choice
  *   comp-figure  | barIndex    | figure planning (weights only)
  *   comp         | barIndex    | comp realization
@@ -60,7 +62,7 @@ import {
 } from './voicings';
 import { planCompFigures, hitsForPlannedBar, headFigureFor } from './backing-comp-figures';
 import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
-import { generateBassLine as generateBassLine2 } from './backing-bass';
+import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 
 // ── Event shapes ─────────────────────────────────────────────
 
@@ -334,6 +336,7 @@ export function generateComping(
 	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
 	const totalBars = barInfos.length;
 
+	const clavePhase = clavePhaseFor(phraseId, tempo);
 	for (let bar = 0; bar < totalBars; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'comp', bar));
 		const planned = compPlan?.[bar];
@@ -343,6 +346,7 @@ export function generateComping(
 			beatsPerBar,
 			swing,
 			rng,
+			clavePhase,
 			...barInfos[bar],
 			plannedComp:
 				planned && compPlan
@@ -385,6 +389,18 @@ export function generateComping(
 	return { events, onsetsByBar };
 }
 
+/**
+ * One phrase-level draw from the dedicated `clave` stream: the bossa clave
+ * side must be constant across the whole phrase AND across the comp and
+ * drum generators (a rim and a guitar-hand on different sides is the one
+ * unforgivable bossa mistake — caught by a property test when the phase
+ * initially lived only in the drum ctx). Deterministic in (phraseId,
+ * tempo), so every caller computes the identical phase.
+ */
+export function clavePhaseFor(phraseId: string, tempo: number): '32' | '23' {
+	return createRng(seedFrom(phraseId, tempo, 'clave', 0)).chance(0.5) ? '32' : '23';
+}
+
 // ── Drums ────────────────────────────────────────────────────
 
 /**
@@ -405,6 +421,7 @@ export function generateDrums(
 	const { phraseId, tempo, swing } = params;
 	const events: DrumEvent[] = [];
 	const streams = createTimingStreams(phraseId, tempo);
+	const clavePhase = clavePhaseFor(phraseId, tempo);
 
 	for (let bar = 0; bar < barInfos.length; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'drums', bar));
@@ -416,6 +433,7 @@ export function generateDrums(
 			compOnsets: compOnsetsByBar.get(bar),
 			bassOnsets: bassOnsetsByBar?.get(bar),
 			fillRng: createRng(seedFrom(phraseId, tempo, 'drum-fill', bar)),
+			clavePhase,
 			...barInfos[bar]
 		};
 		// The feathered-kick, comp-accent, and section-final setup branches
@@ -464,12 +482,12 @@ export function generateBacking(
 
 	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
 	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
-	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } = generateBassLine2(
-		harmony,
-		beatsPerBar,
-		timedParams,
-		barInfos
-	);
+	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
+	// other meters (and every 'auto' style) take the walking planner.
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } =
+		style.bass === 'pattern' && beatsPerBar === 4
+			? generateBossaBass(harmony, beatsPerBar, timedParams, barInfos)
+			: generateBassLine2(harmony, beatsPerBar, timedParams, barInfos);
 	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
 
 	return { bassEvents, compEvents, drumEvents };
