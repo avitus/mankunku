@@ -44,5 +44,5 @@ export function barIntensity(input: BarIntensityInput): number {
 		return Math.min(0.9, Math.max(0.2, raw));
 	}
 	const t = input.totalBars > 0 ? input.barIndex / input.totalBars : 0;
-	return Math.min(0.45 + 0.25 * t, 0.7);
+	return Math.min(0.7, Math.max(0.2, 0.45 + 0.25 * t));
 }
