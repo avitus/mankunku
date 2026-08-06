@@ -551,6 +551,8 @@ interface GenerationContext {
     tags: string[];
     guideTones: boolean;
   };
+  bassOnsets?: number[];      // beat offsets, for kick/bass pickup coupling
+  fillRng?: SeededRng;        // dedicated drum-fill stream (form punctuation)
 }
 
 interface CompHitSpec { beatOffset: number; velocity: number; durationBeats: number }
@@ -577,7 +579,7 @@ interface StyleDefinition {
 ### Constants
 
 - **`BACKING_STYLES: Record<BackingStyle, StyleDefinition>`** — Keys `swing`, `bossa-nova`, `ballad`, `straight`.
-  - **Swing** (tempo-curve swing, 0.67 fallback): ride "spang-a-lang" (quarters plus swung skip eighths after 2 and 4), hi-hat foot on 2 & 4, RNG-gated feathered kick, kick accents catching off-beat comp hits, additive setup figures (incl. snare) on section-final bars. Comping is phrase-planned (`compPlanning` → backing-comp-figures.ts): the pattern function realizes the planned figure's velocity and articulation.
+  - **Swing** (tempo-curve swing, 0.67 fallback): drums are composed vocabulary passes (backing-drum-vocab.ts) — per-bar ride modes (standard spang-a-lang / breathing quarters-only / skip-plus / broken), hi-hat foot on 2 & 4, feathered kick under the felt-not-heard ceiling, sparse snare ghosts in dialogue with the comp, kick coupling to comp pushes and bass pickups, fills and setups marking the 4/8-bar form, and a crash replacing the downbeat ride on section arrivals — with added voices capped at one per beat offset. Comping is phrase-planned (`compPlanning` → backing-comp-figures.ts): the pattern function realizes the planned figure's velocity and articulation.
   - **Bossa Nova** (straight): cross-stick feel on 2/4, hi-hat every beat, on-beat clave comping (1, 3, 4), `pattern` bass.
   - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass.
   - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass.
@@ -601,11 +603,13 @@ Lives in `backing-bass.ts` (re-exported here): the phrase-aware contour planner 
 
 A voicing type per chord (rootless A/B, shell, drop-2, or quartal where the quality suits it — seeded, quality-aware), voice-led across the sequence, placed by the style's per-bar figures; for `compPlanning` styles in 4/4 the figures come from the phrase-wide planner and guide-tone bars thin the voicing to the 3rd+7th. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
 
-### `generateDrums(beatsPerBar, style, params, barInfos, compOnsetsByBar): DrumEvent[]`
+### `generateDrums(beatsPerBar, style, params, barInfos, compOnsetsByBar, bassOnsetsByBar?): DrumEvent[]`
+
+Per-bar pattern calls with a context carrying that bar's comp and bass onsets (for dialogue/coupling) and a dedicated `('drum-fill', bar)` stream (`ctx.fillRng`) so form punctuation never reshuffles the timekeeping draws. Duplicate same-voice hits at one offset resolve loudest-wins.
 
 ### `buildBarInfos(totalBars, sectionMap?): BarInfo[]`
 
-Per-bar `{ sectionIndex?, chorusIndex?, isSectionFinalBar, isFinalBar }`. A new chorus starts wherever the emitted `sourceSection` sequence restarts (body, ending 1, body, ending 2). Bars past the last entry (harmony tail extension) belong to the last section.
+Per-bar `{ sectionIndex?, chorusIndex?, isSectionFirstBar, isSectionFinalBar, isFinalBar }`. A new chorus starts wherever the emitted `sourceSection` sequence restarts (body, ending 1, body, ending 2). Bars past the last entry (harmony tail extension) belong to the last section.
 
 ### `chordToneIntervalsForBass(quality)`
 
@@ -633,7 +637,7 @@ Per-instrument mix levels for the backing track, persisted per device (localStor
 
 ### `BACKING_BASE_TRIMS`
 
-Baseline trims that equalize the raw sample-library loudness (ear-tuned on the mixer page, 2026-08-02): the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain; kick/hihat velocities ×3, ride ×1.55 — the kit samples are quiet even at full velocity). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
+Baseline trims that equalize the raw sample-library loudness: the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain plus per-voice velocity trims — kick 2.0, ride 0.71, hi-hat 0.81, etc. — re-expressing the ear-tuned 2026-08-02 balance against the −3 dBFS-normalized samples). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
 
 ### `normalizeBackingMix(value): BackingMixLevels`
 
@@ -795,6 +799,20 @@ Stab times **must** be near-now (within smplr's ~200 ms lookahead) so a later `c
 ## backing-comp-figures.ts
 
 Swing comping vocabulary: `COMP_FIGURES` (13 one- and two-bar figures — Charleston family, off-beat pairs, pushes, pads, 2-bar Red Garland / call-answer shapes, deliberate rest — all hits on the x.0/x.5 eighth grid the anticipation convention requires) and `planCompFigures(barInfos, beatsPerBar, phraseId, tempo): PlannedBar[]`, a sequential planner whose anti-repetition memory reshapes WEIGHTS only — each bar keeps its own `('comp-figure', bar)` seed stream, so plans are reproducible per bar and the stream-isolation guarantee holds. Plan rules: no figure three choices running; bar 0 must open with an `early` figure; cadence (section-final, non-final) bars strongly favor `push` figures with the rest damped, and a non-push 2-bar figure may not land its tail on a cadence bar; `busy ≥ 2` figures lean in on cadences and later choruses; the phrase's final bar may not rest; occasional guide-tone bars (p 0.06). `hitsForPlannedBar` resolves a bar's concrete hits (handling 2-bar `'cont'` tails and final-bar suppression with a resolution-pad fallback). Consumed by `generateComping` for styles with `StyleDefinition.compPlanning`, which hand the resolved hits to the pattern function via `ctx.plannedComp` for velocity/articulation realization (pads sustain, stabs clamp ≤ 0.7 beats, pushes hold ≥ 1.1 beats to tie across the barline).
+
+---
+
+## backing-drum-vocab.ts
+
+Swing drum vocabulary: composable per-bar passes the swing `drumPattern` assembles, splitting the kit into a timekeeping **ostinato** (ride + hats + feathered kick) and sparse **additions** (snare dialogue, coupling kicks, fills) capped at one added voice per beat offset. All randomness flows through the caller's per-bar `drums` stream except form punctuation, which draws from the dedicated `drum-fill` stream (`ctx.fillRng`).
+
+- **`chooseRideMode(rng)` / `rideBar(mode, barIndex, beatsPerBar, rng)`** — per-bar ride flavor (`standard` w5 / `quarters-only` w2 / `skip-plus` w1.5 / `broken` w1): quarters on every beat (velocity 0.36–0.44, backbeats favored, a +0.05 shade on every 4th bar's downbeat), skip eighths per mode — standard after 2 and 4, skip-plus adds one after 1 or 3, broken drops one backbeat skip and speaks after 1 instead.
+- **`hihatBar(beatsPerBar, rng)`** — foot on 2 & 4, the one non-negotiable.
+- **`featherBar(beatsPerBar, rng)`** — feathered kick quarters at velocity 0.07–0.13 (felt, never heard); some bars sit out entirely (p 0.3).
+- **`snareBar(ctx, rng)`** — conversational comping: nothing / single ghost / ghost pair / and-of-4 accent (the accent only before a 4-bar group boundary — a setup, not a habit), plus a p 0.25 echo ghost one beat after an off-beat comp onset.
+- **`couplingBar(ctx, rng)`** — kick catches off-beat comp pushes (p 0.35) and doubles swung bass pickups from `ctx.bassOnsets` (p 0.25).
+- **`fillBar(ctx, fillRng)`** — form punctuation: light snare markers at 4-bar boundaries (p 0.18), one of four setup figures on every section-final bar (incl. a snare triplet whose 1/3-beat offsets the swing conversion never touches), and a crash on section-first downbeats (p 0.6 from chorus 1, else 0.25) that **replaces** the downbeat ride via the returned `crashOnOne` flag.
+- **`capAdditionsPerOffset(ostinato, additions)`** — the anti-clutter ledger: first addition wins each beat offset; ostinato hits don't count against it.
 
 ---
 

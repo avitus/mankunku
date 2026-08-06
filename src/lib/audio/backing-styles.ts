@@ -26,6 +26,16 @@ import {
 	type TimingProfile,
 	type TimingRole
 } from './backing-timing';
+import {
+	chooseRideMode,
+	rideBar,
+	hihatBar,
+	featherBar,
+	snareBar,
+	couplingBar,
+	fillBar,
+	capAdditionsPerOffset
+} from './backing-drum-vocab';
 
 export type DrumVoice =
 	| 'kick'
@@ -61,6 +71,13 @@ export interface GenerationContext {
 	rng: SeededRng;
 	/** Comp onsets this bar (beat offsets), so drums can align accents. */
 	compOnsets?: number[];
+	/** Bass onsets this bar (beat offsets), for kick/bass pickup coupling. */
+	bassOnsets?: number[];
+	/**
+	 * Dedicated per-bar stream for fills/setups/crashes (`drum-fill` role),
+	 * so form punctuation can never reshuffle the timekeeping draws.
+	 */
+	fillRng?: SeededRng;
 	/**
 	 * Planned comp figure for this bar (styles with `compPlanning`), already
 	 * resolved to concrete hits by the planner: the pattern function only
@@ -122,68 +139,24 @@ const swing: StyleDefinition = {
 	timing: SWING_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
-		const hits: DrumHitSpec[] = [];
 
-		// Ride "spang-a-lang": a quarter on every beat, with the swung skip
-		// eighth after the backbeats (2 and 4 in 4/4). Backbeats sit a shade
-		// stronger — that's where the time lives.
-		for (let b = 0; b < beatsPerBar; b++) {
-			const backbeat = b % 2 === 1;
-			hits.push({
-				drum: 'ride',
-				beatOffset: b,
-				velocity: (backbeat ? 0.44 : 0.38) + rng.float() * 0.06
-			});
-			if (backbeat && b + 0.5 < beatsPerBar) {
-				hits.push({ drum: 'ride', beatOffset: b + 0.5, velocity: 0.28 + rng.float() * 0.08 });
-			}
-		}
-
-		// Hi-hat (foot) on the backbeats.
-		for (let b = 1; b < beatsPerBar; b += 2) {
-			hits.push({ drum: 'hihat', beatOffset: b, velocity: 0.45 + rng.float() * 0.1 });
-		}
-
-		// Feathered kick: barely-there quarters, some bars only.
-		if (rng.chance(0.7)) {
-			for (let b = 0; b < beatsPerBar; b++) {
-				hits.push({ drum: 'kick', beatOffset: b, velocity: 0.1 + rng.float() * 0.06 });
-			}
-		}
-
-		// Catch a strong comp push now and then: a kick under an off-beat
-		// comp hit reads as the drummer hearing the piano.
-		for (const onset of ctx.compOnsets ?? []) {
-			if (onset % 1 !== 0 && rng.chance(0.35)) {
-				hits.push({ drum: 'kick', beatOffset: onset, velocity: 0.26 + rng.float() * 0.08 });
-			}
-		}
-
-		// Section-final setup: a small additive figure into the next section,
-		// varied per chorus through the seeded RNG. The snare figures use the
-		// Virtuosity snare (velocity-layered at trigger time); the fuller
-		// fill vocabulary waits for the drum-vocabulary increment.
-		if (ctx.isSectionFinalBar && !ctx.isFinalBar && beatsPerBar >= 3) {
-			const last = beatsPerBar - 1;
-			const setup = rng.int(0, 3);
-			if (setup === 0) {
-				hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.4 + rng.float() * 0.1 });
-			} else if (setup === 1) {
-				hits.push({ drum: 'hihat', beatOffset: last - 0.5, velocity: 0.35 });
-				hits.push({ drum: 'hihat', beatOffset: last + 0.5, velocity: 0.55 });
-				hits.push({ drum: 'kick', beatOffset: last, velocity: 0.35 });
-			} else if (setup === 2) {
-				hits.push({ drum: 'ride', beatOffset: last - 0.5, velocity: 0.5 });
-				hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.38 });
-			} else {
-				// Snare setup: soft lead-in on the and-of-3, answer on the
-				// and-of-4 — the classic "here comes the next section".
-				hits.push({ drum: 'snare', beatOffset: last - 0.5, velocity: 0.28 + rng.float() * 0.04 });
-				hits.push({ drum: 'snare', beatOffset: last + 0.5, velocity: 0.4 + rng.float() * 0.08 });
-			}
-		}
-
-		return hits;
+		// Composed vocabulary passes (backing-drum-vocab.ts): the ostinato
+		// (ride mode + hats + feather) is the fabric; snare comping and
+		// bass/comp coupling are ADDITIONS capped at one voice per offset;
+		// fills/setups/crash draw from the separate `drum-fill` stream so a
+		// vocabulary change can never reshuffle the timekeeping.
+		const mode = chooseRideMode(rng);
+		const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
+		const fillRng = ctx.fillRng ?? rng;
+		const { hits: fills, crashOnOne } = fillBar(ctx, fillRng);
+		const ostinato = [
+			// A crash on the section downbeat replaces that beat's ride.
+			...(crashOnOne ? ride.filter((h) => h.beatOffset !== 0) : ride),
+			...hihatBar(beatsPerBar, rng),
+			...featherBar(beatsPerBar, rng)
+		];
+		const additions = [...snareBar(ctx, rng), ...couplingBar(ctx, rng), ...fills];
+		return capAdditionsPerOffset(ostinato, additions);
 	},
 	compPattern: (ctx: GenerationContext): CompHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;

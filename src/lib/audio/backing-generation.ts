@@ -115,6 +115,8 @@ export function resolveBackingSwing(
 export interface BarInfo {
 	sectionIndex?: number;
 	chorusIndex?: number;
+	/** True on the first bar of a section (always true on bar 0 of a mapped phrase). */
+	isSectionFirstBar: boolean;
 	isSectionFinalBar: boolean;
 	isFinalBar: boolean;
 }
@@ -130,7 +132,7 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[])
 	const infos: BarInfo[] = [];
 	if (!sectionMap || sectionMap.length === 0) {
 		for (let b = 0; b < totalBars; b++) {
-			infos.push({ isSectionFinalBar: false, isFinalBar: b === totalBars - 1 });
+			infos.push({ isSectionFirstBar: false, isSectionFinalBar: false, isFinalBar: b === totalBars - 1 });
 		}
 		return infos;
 	}
@@ -151,6 +153,7 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[])
 		infos.push({
 			sectionIndex: k,
 			chorusIndex: chorusOf[k],
+			isSectionFirstBar: b === sectionMap[k].barOffset,
 			isSectionFinalBar: b === nextOffset - 1,
 			isFinalBar: b === totalBars - 1
 		});
@@ -348,7 +351,8 @@ export function generateDrums(
 	style: StyleDefinition,
 	params: BackingGenerationParams,
 	barInfos: BarInfo[],
-	compOnsetsByBar: Map<number, number[]>
+	compOnsetsByBar: Map<number, number[]>,
+	bassOnsetsByBar?: Map<number, number[]>
 ): DrumEvent[] {
 	const { phraseId, tempo, swing } = params;
 	const events: DrumEvent[] = [];
@@ -362,6 +366,8 @@ export function generateDrums(
 			swing,
 			rng,
 			compOnsets: compOnsetsByBar.get(bar),
+			bassOnsets: bassOnsetsByBar?.get(bar),
+			fillRng: createRng(seedFrom(phraseId, tempo, 'drum-fill', bar)),
 			...barInfos[bar]
 		};
 		// The feathered-kick, comp-accent, and section-final setup branches
@@ -410,8 +416,13 @@ export function generateBacking(
 
 	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
 	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
-	const { events: bassEvents } = generateBassLine2(harmony, beatsPerBar, timedParams, barInfos);
-	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar);
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } = generateBassLine2(
+		harmony,
+		beatsPerBar,
+		timedParams,
+		barInfos
+	);
+	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
 
 	return { bassEvents, compEvents, drumEvents };
 }
