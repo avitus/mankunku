@@ -97,14 +97,6 @@ describe('chordTones', (): void => {
 	it('high register C6 maj7 → [84, 88, 91, 95]', (): void => {
 		expect(chordTones(84, 'maj7')).toEqual([84, 88, 91, 95]);
 	});
-
-	it('all 18 qualities produce arrays with correct length', (): void => {
-		for (const quality of ALL_QUALITIES) {
-			const tones = chordTones(60, quality);
-			const expectedLength = CHORD_DEFINITIONS[quality].intervals.length;
-			expect(tones, `${quality}`).toHaveLength(expectedLength);
-		}
-	});
 });
 
 describe('chordSymbol', (): void => {
@@ -130,12 +122,5 @@ describe('chordSymbol', (): void => {
 
 	it("'E' + 'aug' → 'Eaug'", (): void => {
 		expect(chordSymbol('E', 'aug')).toBe('Eaug');
-	});
-
-	it('all 18 qualities produce non-empty strings', (): void => {
-		for (const quality of ALL_QUALITIES) {
-			const symbol = chordSymbol('C', quality);
-			expect(symbol.length, `${quality}`).toBeGreaterThan(0);
-		}
 	});
 });

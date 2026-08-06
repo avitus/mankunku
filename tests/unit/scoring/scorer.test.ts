@@ -108,11 +108,14 @@ describe('scoreAttempt', () => {
 		expect(score.notesTotal).toBe(2); // rest excluded
 	});
 
-	it('assigns a grade based on overall score', () => {
+	it('derives the grade from the overall score', () => {
 		const phrase = makePhrase([makeNote(60, [0, 1])]);
 		const detected = [makeDetected(60, 0)];
 		const score = scoreAttempt(phrase, detected, TEMPO);
-		expect(['perfect', 'great', 'good', 'fair', 'try-again']).toContain(score.grade);
+		// A perfect attempt must map through scoreToGrade to the top grade;
+		// the threshold boundaries themselves are covered in grades.test.ts.
+		expect(score.overall).toBeCloseTo(1.0, 5);
+		expect(score.grade).toBe('perfect');
 	});
 
 	it('populates timing diagnostics', () => {

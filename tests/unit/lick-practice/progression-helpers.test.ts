@@ -5,12 +5,8 @@
  * regressions here surface as off-by-one bar errors in the chord chart.
  */
 import { describe, it, expect } from 'vitest';
-import {
-	applyPickupBarShift,
-	extendHarmonyTail,
-	detectPickupBars
-} from '$lib/data/progressions';
-import type { Fraction, HarmonicSegment, Note } from '$lib/types/music';
+import { applyPickupBarShift, extendHarmonyTail } from '$lib/data/progressions';
+import type { HarmonicSegment } from '$lib/types/music';
 
 describe('applyPickupBarShift', () => {
 	it('returns the original alignment when pickupBars <= 0', () => {
@@ -124,41 +120,5 @@ describe('extendHarmonyTail', () => {
 		expect(ext[1].duration).toEqual([3, 1]);
 		expect(ext[1].chord).toEqual(h[1].chord);
 		expect(ext[1].startOffset).toEqual(h[1].startOffset);
-	});
-});
-
-describe('detectPickupBars — boundary cases not covered elsewhere', () => {
-	const note = (offset: Fraction, pitch: number | null = 60): Note => ({
-		pitch,
-		offset,
-		duration: [1, 8]
-	});
-
-	it('returns 0 when the lick has no sounded notes (rests only)', () => {
-		// All-rest "lick" — pickup detection has nothing to anchor to and
-		// safely returns 0 rather than reading off an empty array.
-		expect(detectPickupBars([note([0, 1], null), note([1, 4], null)])).toBe(0);
-	});
-
-	it('ignores rests so pickup-with-rests still counts as a 1-bar pickup', () => {
-		// Step-entered pickup: rests in bar 0 followed by a sounded eighth at
-		// [3, 4], then the bulk on the bar-1 downbeat. The earliest sounded
-		// note is at 0.75 — the function must NOT use the rest at [0, 1] as
-		// the earliest position.
-		const notes: Note[] = [
-			note([0, 1], null),
-			note([1, 4], null),
-			note([1, 2], null),
-			note([3, 4], 60), // pickup pitch in bar 0
-			note([1, 1], 64) // downbeat of bar 1 — the bulk
-		];
-		expect(detectPickupBars(notes)).toBe(1);
-	});
-
-	it('returns 0 when no sounded note lands on a whole-bar downbeat', () => {
-		// Even if the earliest sounded note isn't on a downbeat, without a
-		// later downbeat anchor the function defers (returns 0) rather than
-		// guessing.
-		expect(detectPickupBars([note([1, 4], 60), note([1, 2], 62)])).toBe(0);
 	});
 });

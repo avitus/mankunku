@@ -83,6 +83,14 @@ export interface RecordingMetadata {
 	 */
 	transportSeconds?: number;
 	metronomeEnabled?: boolean;
+	/**
+	 * Recording-relative backing-track transient onsets (bass + comp +
+	 * drums), captured from the live schedule so a /diagnostics replay uses
+	 * the same bleed evidence the app scored with. Absent on recordings made
+	 * without backing or before 2026-08-04 — readers fall back to the
+	 * metronome grid reconstruction, then to unsuppressed.
+	 */
+	backingBleedOnsets?: number[];
 }
 
 export interface RecordingRecord {

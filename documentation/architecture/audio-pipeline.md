@@ -67,11 +67,16 @@ The filter is conservative on purpose. False positives (dropping notes you actua
 
 The filter always *runs* — it's how the `/diagnostics` A/B comparison gets its two scores — but whether its result becomes your actual score is a separate internal flag, currently off by default. Tune Practice turns it on for the Guided and Standard strictness levels and leaves it to that flag on Solo. If you're using headphones none of this matters: there's no bleed to filter, so the filter finds nothing either way.
 
-### Metronome bleed
+### Metronome and backing-track bleed
 
 The metronome click is its own kind of bleed, and it's a nastier problem than speaker bleed because of *where* it lands: on the beat, which is exactly where notes start.
 
-Even on headphones, the playback engine schedules the click on the same internal timeline the app records from. The segmenter therefore computes when each click fired rather than reading them from a log — the metronome plays on every beat, so click times are integer multiples of `60/tempo` (see `getMetronomeBleedOnsets` in `note-segmenter.ts`). Any onset landing inside a tight 50–200 ms speaker→mic latency window after a computed click is treated as bleed and won't split a note. Only metronome clicks are handled this way; demo and melody playback don't feed the filter.
+Even on headphones, the playback engine schedules the click on the same internal timeline the app records from. The segmenter therefore computes when each audible event fired rather than reading them from a log. Which events those are follows one rule (`resolveBleedEvidence` in `bleed-evidence.ts`):
+
+- **Backing track playing.** The sampled band is the audible time source — the synth metronome only plays the count-in bar (`playback.ts`), because layering both was audible doubling. The backing's own transient onsets (bass, comp *and* drums, including swung ride eighths and off-beat comp pushes) come straight from the generated schedule (`bleedEventsIn` in `backing-track-schedule.ts`), exact to the tick each sampler trigger is scheduled at, loop-aware across passes. The old quarter-note click grid would be false evidence here — it claims clicks on beats where none sounded, and it never covered off-beat backing content at all.
+- **Metronome only.** Click times are integer multiples of `60/tempo` (`getMetronomeBleedOnsets` in `note-segmenter.ts`), exactly as before.
+
+Any onset landing inside a tight 50–200 ms speaker→mic latency window after a computed event is treated as bleed and won't split a note. Demo and melody playback don't feed the filter. Recordings store their backing onsets in metadata (`backingBleedOnsets`) so `/diagnostics` replays segment with the same evidence the live path used.
 
 That handles a click *inventing* a note. The subtler failure is a click sitting **on top of the evidence** for a note you really did play, and it goes in both directions:
 
@@ -81,6 +86,8 @@ That handles a click *inventing* a note. The subtler failure is a click sitting 
 The fix is to measure in a band the metronome cannot reach. The ride is high-passed at 8 kHz, the hi-hat at 6 kHz, and the kick's body sits below 250 Hz — so a 250–5000 Hz "instrument band" hears your horn at full strength and a bare cymbal about 25 dB down. Since a click can only ever *add* energy, a dip in that band's floor is evidence no click can manufacture. The segmenter uses it to keep trusting real articulations that happen to land on the beat, and to stop believing dips that are just the kick.
 
 The result: your sustained notes stay sustained, your on-the-beat tonguing still registers, and the scorer doesn't penalise rhythm for phantom subdivisions you didn't play.
+
+One honest caveat: the instrument-band reasoning above is calibrated against the *metronome's* voices. The backing track's piano, bass and (future) snare do carry energy in that 250–5000 Hz band, so through loud speakers they can fill or fake the dips this tier reads. The onset-window suppression covers the common cases; if speaker practice with backing ever shows phantom splits, the diagnostics recordings carry the evidence to tighten the band tiers (the designs are staged in the backing upgrade plan). Headphones sidestep all of it.
 
 ## Latency and reaction time
 

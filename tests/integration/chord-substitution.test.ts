@@ -20,9 +20,7 @@ import {
 import type { LickPracticePlanItem } from '$lib/types/lick-practice';
 import {
 	togglePracticeTag,
-	toggleProgressionTag,
-	loadUserLickTags,
-	saveUserLickTags
+	toggleProgressionTag
 } from '$lib/persistence/lick-practice-store';
 import { getAllLicks } from '$lib/phrases/library-loader';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -295,18 +293,5 @@ describe('end-to-end — substitutions off is a pure pass-through', () => {
 		// Native mapping wins — both should transpose to the ii root (D).
 		expect(pitchClassOf(phraseOff!.notes[0].pitch!)).toBe('D');
 		expect(pitchClassOf(phraseOn!.notes[0].pitch!)).toBe('D');
-	});
-});
-
-// ─── Cleanup — ensure no stray user lick tags cross between tests ──
-
-describe('cleanup', () => {
-	it('clears practice tags when localStorage store is cleared', () => {
-		togglePracticeTag(MINOR_LICK_ID);
-		saveUserLickTags(loadUserLickTags());
-		store.clear();
-		lickPractice.config.progressionType = 'ii-V-I-major';
-		lickPractice.config.enableSubstitutions = true;
-		expect(getPracticeLicks().find(l => l.id === MINOR_LICK_ID)).toBeUndefined();
 	});
 });

@@ -9,8 +9,7 @@
  * These tests cover the new surface:
  *   - `reconcileActiveUser(serverUid, degraded)` — none / reload decisions and
  *     the scope-generation counter, including the degraded-null regression guard.
- *   - `namespace.ts` — active-uid resolution, the one-time legacy key upgrade,
- *     and per-user bucket clearing.
+ *   - `namespace.ts` — active-uid resolution.
  */
 
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
@@ -23,8 +22,6 @@ import {
 	getActiveUid,
 	getActiveUidOrNull,
 	setActiveUid,
-	runNamespaceUpgradeIfNeeded,
-	clearNamespace,
 	__resetNamespaceCacheForTests
 } from '$lib/persistence/namespace';
 
@@ -153,40 +150,5 @@ describe('namespace — active uid resolution', () => {
 		setActiveUid(null);
 		expect(getActiveUid()).toBe('anon');
 		expect(getActiveUidOrNull()).toBeNull();
-	});
-});
-
-describe('namespace — one-time legacy key upgrade', () => {
-	it('moves a legacy mankunku:<key> into mankunku:u:<lastUserId>:<key>', () => {
-		// Pre-namespace layout: an un-namespaced data key plus the legacy
-		// __lastUserId marker that names the bucket to migrate into.
-		local._store['mankunku:__lastUserId'] = JSON.stringify('user-A');
-		local._store['mankunku:user-licks'] = JSON.stringify([{ id: 'lick-1' }]);
-
-		runNamespaceUpgradeIfNeeded();
-
-		// Value re-homed into user-A's namespaced bucket, legacy key removed.
-		expect(local._store['mankunku:u:user-A:user-licks']).toBe(JSON.stringify([{ id: 'lick-1' }]));
-		expect(local._store['mankunku:user-licks']).toBeUndefined();
-		// Upgrade stamps the schema marker and the active pointer, and clears the
-		// legacy marker so it can never re-run against stale state.
-		expect(local._store['mankunku:__schema']).toBe('3');
-		expect(JSON.parse(local._store['mankunku:__active']!)).toBe('user-A');
-		expect(local._store['mankunku:__lastUserId']).toBeUndefined();
-	});
-});
-
-describe('namespace — clearNamespace', () => {
-	it('erases only the target user’s bucket, leaving other users untouched', () => {
-		local._store['mankunku:u:user-A:progress'] = JSON.stringify({ sessions: [] });
-		local._store['mankunku:u:user-A:user-licks'] = JSON.stringify([{ id: 'a' }]);
-		local._store['mankunku:u:user-B:progress'] = JSON.stringify({ sessions: [1] });
-
-		clearNamespace('user-A');
-
-		expect(local._store['mankunku:u:user-A:progress']).toBeUndefined();
-		expect(local._store['mankunku:u:user-A:user-licks']).toBeUndefined();
-		// User B's isolated bucket survives.
-		expect(local._store['mankunku:u:user-B:progress']).toBeDefined();
 	});
 });

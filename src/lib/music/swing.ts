@@ -19,3 +19,25 @@ export function applySwingToBeats(beats: number, swing: number): number {
 	}
 	return beats;
 }
+
+/**
+ * BACKING-TRACK swing position as a function of tempo, after Friberg &
+ * Sundström: jazz drummers keep the SHORT (second) eighth roughly constant
+ * at ~100 ms across tempi, capping the long-short ratio near 3.5:1 at slow
+ * tempi and converging to straight eighths around 300 BPM. With the swing
+ * parameter expressed as "position of the off-beat eighth within the beat",
+ * a 100 ms short eighth means `1 − s = bpm / 600`.
+ *
+ * Anchors: 60→0.78 (cap, ≈3.5:1) · 160→0.733 · 200→0.667 (triplet) ·
+ * 240→0.60 · ≥300→0.5 (straight). The cap engages below ~132 BPM.
+ *
+ * This drives ONLY the backing track's own placement (see
+ * `resolveBackingSwing` in backing-generation.ts). It must never be
+ * imported by playback, scoring, or tricks modules: the melody the user
+ * plays — and is scored against — always uses the session swing through
+ * `applySwingToBeats` above, so what the scorer expects of the player is
+ * untouched by tempo (guarded by a unit test).
+ */
+export function swingForTempo(bpm: number): number {
+	return Math.min(0.78, Math.max(0.5, 1 - bpm / 600));
+}

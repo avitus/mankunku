@@ -304,7 +304,7 @@ All parameters are positional (there is no `options` bag).
 | `onsetGuard` | `number` | `0.08` | Seconds after a segment start during which FFT-tainted readings from the previous note are skipped |
 | `minReadings` | `number` | `3` | Minimum pitch readings required to keep a segment |
 | `workletOnsets` | `number[]?` | — | Raw AudioWorklet onset times. Used by the same-pitch consolidation pass to tell artifact splits apart from real re-articulations. |
-| `bleedOnsets` | `number[]?` | — | Timestamps of scheduled metronome clicks. In practice every caller supplies `getMetronomeBleedOnsets(...)` gated on `metronomeEnabled` (ear-training live + replay, lick-practice session, tune practice, diagnostics) — **no call site passes demo- or melody-playback events**, so the metronome grid is the only bleed source segmentation knows about. Worklet onsets landing inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a metronome click caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
+| `bleedOnsets` | `number[]?` | — | Timestamps of scheduled audible events. Every caller supplies `resolveBleedEvidence(...)` (see `bleed-evidence.ts`): backing-track transient onsets when backing is enabled and a schedule exists (the metronome is count-in only under backing), else the metronome click grid via `getMetronomeBleedOnsets(...)` when the metronome is enabled, else `undefined` — **no call site passes demo- or melody-playback events**. Worklet onsets landing inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a click or backing hit caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
 | `articulationOnsets` | `number[]?` | — | Articulation onset times used by the re-articulation detector. |
 
 **Algorithm:**
@@ -452,6 +452,14 @@ Rootless "A-form" voicing: 3-5-7-9 stacked from the 3rd. Altered tensions read f
 
 Rootless "B-form" voicing: 7-9-3-13 stacked from the 7th. Plain dominants take the natural 13 on top (the classic 13 / 13b9 sound); a b13 or #11 in the definition takes the top slot instead; other qualities top with the 5th. Same register clamp and triad behavior as the A-form.
 
+### `guideToneVoicing(rootPc, quality, registerMidi?): number[]`
+
+Just the 3rd and 7th — the two notes that define the harmony (3rd + 5th for triads). The comping planner's occasional guide-tone bars use this for the "leave space" color.
+
+### `quartalVoicing(rootPc, quality, registerMidi?): number[]`
+
+Fourth-stack on 9-5-1 (root on top), the modal McCoy-flavored shape; min7/min6/minMaj7/sus qualities add the 11 as a fourth voice. Returns `[]` for altered/diminished/augmented qualities — fourth-stacks blur exactly the tensions those chords exist to state — so voicing selection falls through to the rootless shapes.
+
 ### `voiceLead(chords, voicingFn, registerMidi?): number[][]`
 
 Apply a voicing function across a sequence of chords and minimize total semitone movement between successive voicings. Searches ±12 semitones around `registerMidi` per chord and picks the candidate closest to the previous voicing. Note-count mismatches are penalized by 12 semitones each. `voicingFn` may also be an **array** of `VoicingFn` (one per chord) so the comping engine can mix shell/rootless/drop-2 shapes while voice-leading still drives the register choice.
@@ -538,14 +546,24 @@ interface GenerationContext {
   swing: number;
   rng: SeededRng;             // per-bar seeded stream
   compOnsets?: number[];      // beat offsets, for drum accent alignment
+  plannedComp?: {             // resolved figure for compPlanning styles
+    hits: Array<{ b: number; d: number }>;
+    tags: string[];
+    guideTones: boolean;
+  };
 }
 
 interface CompHitSpec { beatOffset: number; velocity: number; durationBeats: number }
-interface DrumHitSpec { drum: 'kick' | 'ride' | 'hihat'; beatOffset: number; velocity: number }
+interface DrumHitSpec { drum: DrumVoice; beatOffset: number; velocity: number }
+// DrumVoice: 'kick' | 'ride' | 'hihat' | 'hihat-pedal' | 'snare' |
+//            'crossstick' | 'ride-bell' | 'crash'
 
 interface StyleDefinition {
   name: string;
-  defaultSwing: number;       // used when the session swing is straight
+  defaultSwing: number;       // used when the session swing sits straight
+  swingModel: 'tempo' | 'fixed';  // 'tempo' → swingForTempo curve
+  timing: Record<TimingRole, TimingProfile>;  // ensemble microtiming
+  compPlanning?: boolean;     // comp figures planned phrase-wide
   drumPattern: (ctx: GenerationContext) => DrumHitSpec[];  // one bar
   compPattern: (ctx: GenerationContext) => CompHitSpec[];  // one bar
   bassStyle: 'walking' | 'pedal' | 'pattern';
@@ -559,7 +577,7 @@ interface StyleDefinition {
 ### Constants
 
 - **`BACKING_STYLES: Record<BackingStyle, StyleDefinition>`** — Keys `swing`, `bossa-nova`, `ballad`, `straight`.
-  - **Swing** (default swing 0.67): ride "spang-a-lang" (quarters plus swung skip eighths after 2 and 4), hi-hat foot on 2 & 4, RNG-gated feathered kick, kick accents catching off-beat comp hits, additive setup figures on section-final bars. Comping rotates seeded per-bar figures — Charleston, off-beat pairs, bar-line anticipations, deliberate space — denser into section endings and later choruses.
+  - **Swing** (tempo-curve swing, 0.67 fallback): ride "spang-a-lang" (quarters plus swung skip eighths after 2 and 4), hi-hat foot on 2 & 4, RNG-gated feathered kick, kick accents catching off-beat comp hits, additive setup figures (incl. snare) on section-final bars. Comping is phrase-planned (`compPlanning` → backing-comp-figures.ts): the pattern function realizes the planned figure's velocity and articulation.
   - **Bossa Nova** (straight): cross-stick feel on 2/4, hi-hat every beat, on-beat clave comping (1, 3, 4), `pattern` bass.
   - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass.
   - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass.
@@ -575,13 +593,13 @@ Pure, Node-testable backing event generation — no Tone.js, no Web Audio. `back
 
 Entry point: generates comp first (drums read its onsets for accents), then bass, then drums. `params` is `{ phraseId, tempo, ppq, beatsPerBar, swing, sectionMap? }`; the section map (from `Phrase.sectionMap`) drives section/chorus awareness, and bars are counted flat without it. Returns `{ bassEvents, compEvents, drumEvents }` — all carry tick-string `time` values plus a pre-swing `absBeat` for diagnostics and tests.
 
-### `generateWalkingBass(harmony, beatsPerBar, params): BassEvent[]`
+### `generateBassLine(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
 
-One quarter per beat, each bar planned as a path toward the next chord root: beat 1 is the root most of the time (occasionally 3rd or 5th), interior beats walk stepwise toward the target, and each segment's final beat approaches the next root by a seeded device — chromatic, dominant (5th above), scale step, or a two-beat enclosure. Sparse swung-eighth pickups and ghosted dead notes, all inside the upright band (E1–G3), leaps bounded.
+Lives in `backing-bass.ts` (re-exported here): the phrase-aware contour planner — register arcs per 4-bar group, coherent approach devices targeting the pitch the next downbeat will actually sound, scale-aware interior walk with anti-stutter guards, two-feel first choruses latching open to four. Upright band E1–G3, leaps ≤ an octave (the octave-drop device's 13-semitone resolve excepted). `onsetsByBar` feeds the drum vocabulary's bass/kick coupling.
 
 ### `generateComping(harmony, beatsPerBar, style, params, barInfos)`
 
-A voicing type per chord (rootless A/B, shell, or drop-2 — seeded, quality-aware), voice-led across the sequence, placed by the style's per-bar figures. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
+A voicing type per chord (rootless A/B, shell, drop-2, or quartal where the quality suits it — seeded, quality-aware), voice-led across the sequence, placed by the style's per-bar figures; for `compPlanning` styles in 4/4 the figures come from the phrase-wide planner and guide-tone bars thin the voicing to the 3rd+7th. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
 
 ### `generateDrums(beatsPerBar, style, params, barInfos, compOnsetsByBar): DrumEvent[]`
 
@@ -592,6 +610,18 @@ Per-bar `{ sectionIndex?, chorusIndex?, isSectionFinalBar, isFinalBar }`. A new 
 ### `chordToneIntervalsForBass(quality)`
 
 `{ third, fifth, seventh | null }` semitone intervals read from `CHORD_DEFINITIONS` — min7b5 → b3/b5/b7, dim7 → b3/b5/bb7, aug7 → 3/#5/b7, sus4 → 4/5/b7. The natural 5th wins when the definition also carries a colour tone (7#11, 7b13); 6th chords walk their 6th in the 7th slot.
+
+### `resolveBackingSwing(userSwing, style, tempo): number`
+
+The backing's swing value: the session swing when the user swings the melody (`> 0.5` — the band must share the soloist's grid), else the style's `swingModel` — `'tempo'` follows `swingForTempo(bpm)` in `music/swing.ts` (Friberg–Sundström: constant ~100 ms short eighth, ≈3.5:1 cap below ~132 BPM, straight by 300), `'fixed'` uses `defaultSwing`. Shared by the live scheduler and the listening-lab bounce; scoring never sees this value (it uses only the melody's `options.swing`, and `swingForTempo` is banned from playback/scoring/tricks modules by a unit test).
+
+---
+
+## backing-timing.ts
+
+Per-role ensemble microtiming: placement = straight beat → `applySwingToBeats` → role offset → triangular jitter → clamp ≥ 0, in ticks. `SWING_TIMING` profiles (ms): ride/bell 0±4 (the reference clock), hats 0±3, kick +2±6, snare/cross-stick +4±7, crash 0±5, bass −3±5 ("on top"), comp +12±8 (lays back). Offsets are constant milliseconds — compressed to 4% of the beat at fast tempi — and jitter is constant-ms too (the old `humanizeTicks` scaled with `120/tempo`, making slow tempi sloppier and fast tempi robotic). `BALLAD_TIMING` (looser, comp +18), `BOSSA_TIMING` (on-grid, tight), `STRAIGHT_TIMING` (halved) attach per style via `StyleDefinition.timing`.
+
+Jitter draws come from dedicated per-`(role, bar)` streams (`seedFrom(phraseId, tempo, '<role>-time', barIndex)` via `createTimingStreams`), so musical probability checks in a generator can never reshuffle another voice's — or later notes' — timing.
 
 ---
 
@@ -621,7 +651,7 @@ Apply a voice trim to a generated drum velocity, clamped to `[0, 1]`.
 
 ## backing-track-schedule.ts
 
-Queryable snapshot of a scheduled backing track. Used by the bleed filter to ask "what backing-track MIDI was active at transport time T?"
+Queryable snapshot of a scheduled backing track. Two consumers: the pitch-based bleed filter asks "what backing-track MIDI was active at transport time T?" (`activeMidiAt`), and the note segmenter asks "when do backing transients land inside this recording window?" (`bleedEventsIn` — the backing replaces the metronome grid as computed bleed evidence once the click is count-in only).
 
 ### `BackingScheduleNote`, `BackingTrackSchedule` interfaces
 
@@ -636,14 +666,25 @@ interface BackingScheduleNote {
 interface BackingTrackSchedule {
   notes: BackingScheduleNote[];
   activeMidiAt(transportSeconds: number, tolerance?: number): number[];
+  transientOnsets: number[];      // every audible start (bass+comp+drums), deduped 30ms
+  loopSeconds: number | null;     // loop period when the parts loop
+  bleedEventsIn(recordingTransportSeconds: number, recordingDuration: number): number[];
 }
 ```
 
-`activeMidiAt` defaults `tolerance` to `0.15` seconds. Notes are sorted by `startSeconds`, so the lookup short-circuits once past the query window.
+`activeMidiAt` defaults `tolerance` to `0.15` seconds; in loop mode it wraps the query onto the first generated pass (and probes one period later for notes ringing across the seam). `bleedEventsIn` returns recording-relative onsets with the same 250 ms pre-recording lookback as `getMetronomeBleedOnsets`, repeated across loop passes — previously coverage silently ended after the first pass of a looped recording.
 
-### `buildSchedule(bassEvents, compEvents, tickOffset, ppq, tempo): BackingTrackSchedule`
+### `buildSchedule(bassEvents, compEvents, drumEvents, tickOffset, ppq, tempo, loopTicks?): BackingTrackSchedule`
 
-Collapse the internal bass and comp event arrays (tick-string `time` values, already generated by the backing track engine) into a flat, sorted `BackingScheduleNote[]`. Comp chords are expanded so each voice becomes an individual schedule note. `tickOffset` adds the count-in bar.
+Collapse the generated event arrays (tick-string `time` values) into the schedule. Comp chords are expanded so each voice becomes an individual schedule note; drum events feed the transient-onset lists only (unpitched — never the pitch list). `tickOffset` adds the count-in bar; `loopTicks` (default null) enables loop-aware queries.
+
+---
+
+## bleed-evidence.ts
+
+### `resolveBleedEvidence(ctx): number[] | undefined`
+
+The one rule for what bleed evidence the segmenter receives, shared by all recording surfaces (ear training, lick practice, tune practice, diagnostics replay). `ctx` is `{ schedule, backingTrackEnabled, metronomeEnabled, recordingTransportSeconds, tempo, recordingDuration }`. Backing enabled + schedule present → the schedule's `bleedEventsIn(...)` (the synth metronome is count-in only under backing, so the quarter-note click grid would be false evidence — and it never covered off-beat backing content); else metronome enabled → `getMetronomeBleedOnsets(...)`; else `undefined`. This also closes the old hole where metronome-off + backing-on produced no suppression at all.
 
 ---
 
@@ -748,6 +789,23 @@ Trigger one-off chord stabs directly on the module-level comp instrument, outsid
 | `velocity` | `number` | `65` | MIDI velocity (0–127) |
 
 Stab times **must** be near-now (within smplr's ~200 ms lookahead) so a later `compInstrument.stop()` (`disposeBackingParts` / teardown) can cut them. Schedule far-future stabs as Transport events that call this at fire time instead.
+
+---
+
+## backing-comp-figures.ts
+
+Swing comping vocabulary: `COMP_FIGURES` (13 one- and two-bar figures — Charleston family, off-beat pairs, pushes, pads, 2-bar Red Garland / call-answer shapes, deliberate rest — all hits on the x.0/x.5 eighth grid the anticipation convention requires) and `planCompFigures(barInfos, beatsPerBar, phraseId, tempo): PlannedBar[]`, a sequential planner whose anti-repetition memory reshapes WEIGHTS only — each bar keeps its own `('comp-figure', bar)` seed stream, so plans are reproducible per bar and the stream-isolation guarantee holds. Plan rules: no figure three choices running; bar 0 must open with an `early` figure; cadence (section-final, non-final) bars strongly favor `push` figures with the rest damped, and a non-push 2-bar figure may not land its tail on a cadence bar; `busy ≥ 2` figures lean in on cadences and later choruses; the phrase's final bar may not rest; occasional guide-tone bars (p 0.06). `hitsForPlannedBar` resolves a bar's concrete hits (handling 2-bar `'cont'` tails and final-bar suppression with a resolution-pad fallback). Consumed by `generateComping` for styles with `StyleDefinition.compPlanning`, which hand the resolved hits to the pattern function via `ctx.plannedComp` for velocity/articulation realization (pads sustain, stabs clamp ≤ 0.7 beats, pushes hold ≥ 1.1 beats to tie across the barline).
+
+---
+
+## backing-lab-presets.ts / backing-bounce.ts / backing-report.ts / backing-listening-checklist.ts
+
+The backing **listening lab** (see `documentation/contributing/backing-listening.md` for the protocol). All four modules are pure/Node-testable except the render call itself.
+
+- **backing-lab-presets.ts** — `BACKING_LAB_PRESETS` (ii-V-I-VI loop, 12-bar F blues, rhythm-changes A, 3-chorus AABA with a `sectionMap`), `LAB_TEMPO_PRESETS` (90/160/240), `labPhraseWithSeed(preset, seed)` (suffixes the phrase id — all generation streams derive from it, so a suffix re-rolls every stream), and `buildChorusedForm(sections, choruses)` which emits the flattened harmony plus a sectionMap whose `sourceSection` restart marks each chorus boundary.
+- **backing-bounce.ts** — `generateForBounce(params)` (the exact generation call the live scheduler makes, at `BOUNCE_PPQ = 192`), `bounceBacking(params, drumBuffers)` (renders to a WAV blob via smplr `renderOffline`, mirroring the live gain graph and per-voice velocity trims), `eventTicksToSeconds`, `harmonyDurationBeats`. Drum buffers come from `getDecodedDrumBuffersForBounce()` in backing-track.ts — the same decode path as the live kit.
+- **backing-report.ts** — `buildBackingReport()`: deterministic ASCII statistics over lab presets × tempi × seeds (bass intervals/stepwise/downbeat-root, comp density/placement, drum voice activity). Snapshot at `documentation/reference/backing-report.txt`, regenerated by `npm run backing:report` and pinned by `tests/unit/audio/backing-report.test.ts`; golden event fixtures live under `tests/fixtures/backing/` via `npm run backing:golden`.
+- **backing-listening-checklist.ts** — `LISTENING_CHECKLIST` (the single source of truth for human listening items), `buildListeningReport(meta, verdicts)` → markdown for PRs and the listening log.
 
 ---
 

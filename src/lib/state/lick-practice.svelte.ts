@@ -687,8 +687,8 @@ export function startSingleLickSession(
  *
  * The plan item is a `kind: 'trick'` item whose `phraseId` is the composite
  * variant key and whose `phrase` is a generated example built in a C-rooted
- * context — key 'C', Cmaj7, Ionian — so the existing per-key transposition
- * path works unchanged. All progress reads/writes go to the TRICK store
+ * context — key 'C', over the chord/scale of the device's preferred vamp —
+ * so the existing per-key transposition path works unchanged. All progress reads/writes go to the TRICK store
  * (recordKeyAttempt / advanceSingleLickRound branch on `kind`); tricks never
  * touch `lickPractice.progress`.
  *
@@ -708,12 +708,19 @@ export function startTrickSession(): boolean {
 	const variantKey = trickVariantKey(trickId, trickParameters);
 	const tempo = clampTempo(getTrickTempo(loadTrickPracticeProgress(), variantKey));
 
-	// Pinned C-rooted context: examples generate over Cmaj7/Ionian so the
-	// per-key path transposes from C exactly like a C-stored lick would.
+	// The device picks the vamp its selected variant sounds correct over
+	// (e.g. altered triad pairs drill on the dominant vamp); default
+	// major-vamp for devices without a preference (enclosures).
+	const progressionType = trick.practiceBed?.(trickParameters) ?? 'major-vamp';
+	const bed = PROGRESSION_TEMPLATES[progressionType].harmony[0];
+
+	// C-rooted context mirroring that vamp's chord + scale, so examples and
+	// conformance agree with what the rhythm section plays and the per-key
+	// path transposes from C exactly like a C-stored lick would.
 	const cContext: TrickContext = {
 		chordRoot: 'C',
-		chordQuality: 'maj7',
-		scaleId: 'major.ionian',
+		chordQuality: bed.chord.quality,
+		scaleId: bed.scaleId,
 		key: 'C',
 		timeSignature: [4, 4],
 		level: 50,
@@ -741,9 +748,7 @@ export function startTrickSession(): boolean {
 			phraseNumber: 1,
 			category: trick.category,
 			keys: unlockedCircleFrom('C', getTrickUnlockedKeyCount(variantKey)),
-			// Pinned: both tricks are maj7-compatible and the vamp gives a
-			// clean one-chord bed for the device.
-			progressionType: 'major-vamp',
+			progressionType,
 			phrase,
 			trickId,
 			trickParameters,

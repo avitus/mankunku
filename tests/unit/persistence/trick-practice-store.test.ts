@@ -209,9 +209,9 @@ describe('progress history', () => {
 
 	it('keeps histories for different variants separate', () => {
 		appendTrickProgressPoint(V1, { t: 1, bpm: 60, keys: 1 });
-		appendTrickProgressPoint('triad-pairs:pair=4+5', { t: 1, bpm: 72, keys: 3 });
+		appendTrickProgressPoint('triad-pairs:pair=major-whole', { t: 1, bpm: 72, keys: 3 });
 		expect(getTrickProgressHistory(V1)).toHaveLength(1);
-		expect(getTrickProgressHistory('triad-pairs:pair=4+5')[0].bpm).toBe(72);
+		expect(getTrickProgressHistory('triad-pairs:pair=major-whole')[0].bpm).toBe(72);
 	});
 });
 

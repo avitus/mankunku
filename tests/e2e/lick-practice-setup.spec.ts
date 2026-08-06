@@ -2,27 +2,15 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 
 /**
- * /lick-practice setup page — exercises the configuration UI without
- * starting a real session (which requires audio + tagged licks). The
- * full session flow is covered by lick-practice-session.spec.ts in the
- * audio-mocked layer.
+ * /lick-practice setup page — exercises the empty practice-set state
+ * without starting a real session (which requires audio + tagged licks).
+ * Basic route rendering is covered by smoke.spec.ts; the full session flow
+ * (start → round → scored report) by lick-practice-session.spec.ts.
  */
 
 test.describe('lick-practice setup', () => {
 	test.beforeEach(async ({ page }) => {
 		await seedOnboardedAnonymous(page);
-	});
-
-	test('renders the setup heading and config form', async ({
-		page,
-		consoleCollector: _consoleCollector
-	}) => {
-		await page.goto('/lick-practice');
-		await expect(page.getByRole('heading', { name: /lick practice/i })).toBeVisible();
-		// PracticeSetup component renders inside main with the config controls.
-		// At least a few interactive controls should be visible.
-		const buttons = page.locator('main button');
-		expect(await buttons.count()).toBeGreaterThan(2);
 	});
 
 	test('shows tag-some-licks guidance when no licks are tagged', async ({

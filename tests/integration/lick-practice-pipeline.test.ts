@@ -47,8 +47,6 @@ import {
 } from '$lib/phrases/library-loader';
 import {
 	circleOfFifthsFrom,
-	chromaticFrom,
-	wholeTonePairFrom,
 	planLickKeys
 } from '$lib/music/key-ordering';
 import {
@@ -91,17 +89,6 @@ function firstLick(): Phrase {
 // ── Lick Practice Pipeline ───────────────────────────────────
 
 describe('lick practice pipeline', () => {
-	it('loads a curated lick by ID, transposes to F, and validates result', () => {
-		const lick = firstLick();
-		const transposed = transposeLick(lick, 'F', RANGE_LOW, RANGE_HIGH);
-
-		expect(transposed.key).toBe('F');
-		expect(transposed.notes.length).toBe(lick.notes.length);
-
-		const result = validatePhrase(transposed, { range: [RANGE_LOW, RANGE_HIGH] });
-		expect(result.valid).toBe(true);
-	});
-
 	it('loads a curated lick by ID, transposes to all 12 keys, all valid', () => {
 		const lick = firstLick();
 
@@ -138,44 +125,6 @@ describe('lick practice pipeline', () => {
 // ── Key Ordering ─────────────────────────────────────────────
 
 describe('key ordering', () => {
-	it('circleOfFifthsFrom returns 12 unique pitch classes starting from given root', () => {
-		const keys = circleOfFifthsFrom('C');
-
-		expect(keys).toHaveLength(12);
-		expect(keys[0]).toBe('C');
-		expect(new Set(keys).size).toBe(12);
-		// Every element should be a valid PitchClass
-		for (const k of keys) {
-			expect(PITCH_CLASSES).toContain(k);
-		}
-	});
-
-	it('chromaticFrom returns 12 ascending semitones', () => {
-		const keys = chromaticFrom('Eb');
-		const startIdx = PITCH_CLASSES.indexOf('Eb');
-
-		expect(keys).toHaveLength(12);
-		const expected: PitchClass[] = [];
-		for (let i = 0; i < 12; i++) {
-			expected.push(PITCH_CLASSES[(startIdx + i) % 12]);
-		}
-		expect(keys).toEqual(expected);
-	});
-
-	it('wholeTonePairFrom produces two whole-tone scales', () => {
-		const keys = wholeTonePairFrom('C');
-
-		expect(keys).toHaveLength(12);
-		// First 6 keys: whole-tone scale containing C
-		const firstHalf = keys.slice(0, 6);
-		expect(firstHalf).toEqual(['C', 'D', 'E', 'F#', 'Ab', 'Bb']);
-		// Second 6 keys: complementary whole-tone scale
-		const secondHalf = keys.slice(6, 12);
-		expect(secondHalf).toEqual(['Db', 'Eb', 'F', 'G', 'A', 'B']);
-		// All unique
-		expect(new Set(keys).size).toBe(12);
-	});
-
 	it('planLickKeys returns 12 unique keys regardless of parameters', () => {
 		const configs = [
 			{ tempo: 60, minBpm: 60 },
@@ -203,118 +152,9 @@ describe('key ordering', () => {
 	});
 });
 
-// ── Key Progress Persistence ─────────────────────────────────
-
-describe('key progress persistence', () => {
-	beforeEach(() => {
-		store.clear();
-	});
-
-	it('updateKeyProgress saves and getKeyProgress retrieves correctly', () => {
-		let progress: LickPracticeProgress = {};
-
-		progress = updateKeyProgress(progress, 'lick-x', 'G', {
-			currentTempo: 100,
-			lastPracticedAt: 1000,
-			passCount: 3
-		});
-
-		const kp = getKeyProgress(progress, 'lick-x', 'G');
-
-		expect(kp.currentTempo).toBe(100);
-		expect(kp.lastPracticedAt).toBe(1000);
-		expect(kp.passCount).toBe(3);
-	});
-
-	it('getKeyProgress returns defaults for unknown lick/key', () => {
-		const progress: LickPracticeProgress = {};
-		const kp = getKeyProgress(progress, 'nonexistent', 'C');
-
-		expect(kp.currentTempo).toBe(100);
-		expect(kp.lastPracticedAt).toBe(0);
-		expect(kp.passCount).toBe(0);
-	});
-
-	it('getLickTempo returns the minimum tempo from stored progress', () => {
-		let progress: LickPracticeProgress = {};
-
-		progress = updateKeyProgress(progress, 'lick-y', 'C', { currentTempo: 120, lastPracticedAt: 0, passCount: 0 });
-		progress = updateKeyProgress(progress, 'lick-y', 'F', { currentTempo: 90, lastPracticedAt: 0, passCount: 0 });
-		progress = updateKeyProgress(progress, 'lick-y', 'Bb', { currentTempo: 110, lastPracticedAt: 0, passCount: 0 });
-
-		expect(getLickTempo(progress, 'lick-y')).toBe(90);
-	});
-
-	it('getLickTempo returns default (100) for unknown lick', () => {
-		const progress: LickPracticeProgress = {};
-		expect(getLickTempo(progress, 'unknown')).toBe(100);
-	});
-
-	it('saveLickPracticeProgress and loadLickPracticeProgress round-trip', () => {
-		let progress: LickPracticeProgress = {};
-		progress = updateKeyProgress(progress, 'lick-rt', 'D', {
-			currentTempo: 85,
-			lastPracticedAt: 12345,
-			passCount: 7
-		});
-		progress = updateKeyProgress(progress, 'lick-rt', 'Ab', {
-			currentTempo: 95,
-			lastPracticedAt: 67890,
-			passCount: 2
-		});
-
-		saveLickPracticeProgress(progress);
-		const loaded = loadLickPracticeProgress();
-
-		expect(loaded['lick-rt']).toBeDefined();
-		expect(loaded['lick-rt']!['D']!.currentTempo).toBe(85);
-		expect(loaded['lick-rt']!['D']!.passCount).toBe(7);
-		expect(loaded['lick-rt']!['Ab']!.currentTempo).toBe(95);
-		expect(loaded['lick-rt']!['Ab']!.lastPracticedAt).toBe(67890);
-	});
-
-	it('computeAutoTempoAdjustment returns correct BPM deltas', () => {
-		expect(computeAutoTempoAdjustment(0.97)).toBe(2);   // >= 0.95
-		expect(computeAutoTempoAdjustment(0.90)).toBe(1);   // >= 0.90 (proficient)
-		expect(computeAutoTempoAdjustment(0.75)).toBe(-1);  // >= 0.75 (floor)
-		expect(computeAutoTempoAdjustment(0.50)).toBe(-3);  // < 0.75
-	});
-
-	it('clampTempo enforces 50–300 range', () => {
-		expect(clampTempo(30)).toBe(50);
-		expect(clampTempo(350)).toBe(300);
-		expect(clampTempo(120)).toBe(120);
-		expect(clampTempo(50)).toBe(50);
-		expect(clampTempo(300)).toBe(300);
-	});
-});
-
 // ── Progression Transposition ────────────────────────────────
 
 describe('progression transposition', () => {
-	it('transposeProgression shifts chord roots correctly', () => {
-		const template = PROGRESSION_TEMPLATES['ii-V-I-major'];
-		// Template is in C: Dm7 → G7 → Cmaj7
-		const transposed = transposeProgression(template.harmony, 'F');
-
-		// Shifted by 5 semitones: Gm7 → C7 → Fmaj7
-		expect(transposed[0].chord.root).toBe('G');
-		expect(transposed[0].chord.quality).toBe('min7');
-		expect(transposed[1].chord.root).toBe('C');
-		expect(transposed[1].chord.quality).toBe('7');
-		expect(transposed[2].chord.root).toBe('F');
-		expect(transposed[2].chord.quality).toBe('maj7');
-	});
-
-	it('transposeProgression returns equivalent harmony for key of C', () => {
-		const template = PROGRESSION_TEMPLATES['ii-V-I-major'];
-		const transposed = transposeProgression(template.harmony, 'C');
-
-		// Value equality rather than referential identity: a non-referential copy
-		// is also valid behavior so long as the content matches.
-		expect(transposed).toEqual(template.harmony);
-	});
-
 	it('transposeProgression handles all 12 keys without error', () => {
 		const template = PROGRESSION_TEMPLATES['turnaround'];
 

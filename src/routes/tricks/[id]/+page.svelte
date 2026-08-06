@@ -5,6 +5,7 @@
 	import LickProgressChart from '$lib/components/licks/LickProgressChart.svelte';
 	import TrickMasteryTree from '$lib/components/tricks/TrickMasteryTree.svelte';
 	import { getTrickById } from '$lib/tricks';
+	import { getTriadPairFamily } from '$lib/tricks/devices/triad-pairs';
 	import {
 		getVariantsForTrick,
 		getUnlockedVariants,
@@ -126,13 +127,9 @@
 			return `${body}, ${landing}.`;
 		}
 		if (t.id === 'triad-pairs') {
-			const [low, high] = (params.pair ?? '4+5').split('+');
-			const leadDegree = params.order === 'high-first' ? high : low;
-			const start =
-				params.beatPlacement === 'offbeat'
-					? 'starting an eighth after the beat'
-					: 'starting on the beat';
-			return `Alternate the diatonic triads on scale degrees ${low} and ${high}, leading with the triad on ${leadDegree}, ${start}.`;
+			const family = getTriadPairFamily(params.pair ?? '');
+			if (!family) return t.description;
+			return `Alternate ${family.description}, leading with the lower triad — ${family.application}.`;
 		}
 		return t.description;
 	}

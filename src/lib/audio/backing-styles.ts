@@ -18,8 +18,24 @@
 
 import type { BackingStyle } from '$lib/types/instruments';
 import type { SeededRng } from './generation-rng';
+import {
+	SWING_TIMING,
+	BALLAD_TIMING,
+	BOSSA_TIMING,
+	STRAIGHT_TIMING,
+	type TimingProfile,
+	type TimingRole
+} from './backing-timing';
 
-export type DrumVoice = 'kick' | 'ride' | 'hihat';
+export type DrumVoice =
+	| 'kick'
+	| 'ride'
+	| 'hihat'
+	| 'hihat-pedal'
+	| 'snare'
+	| 'crossstick'
+	| 'ride-bell'
+	| 'crash';
 
 /**
  * Everything a pattern function may condition on for one bar. Section and
@@ -45,6 +61,12 @@ export interface GenerationContext {
 	rng: SeededRng;
 	/** Comp onsets this bar (beat offsets), so drums can align accents. */
 	compOnsets?: number[];
+	/**
+	 * Planned comp figure for this bar (styles with `compPlanning`), already
+	 * resolved to concrete hits by the planner: the pattern function only
+	 * realizes velocity/articulation.
+	 */
+	plannedComp?: { hits: Array<{ b: number; d: number }>; tags: string[]; guideTones: boolean };
 }
 
 export interface CompHitSpec {
@@ -68,6 +90,21 @@ export interface StyleDefinition {
 	name: string;
 	/** Swing ratio used when the session swing is straight (0.5). */
 	defaultSwing: number;
+	/**
+	 * How the effective backing swing resolves when the session swing sits
+	 * straight: 'tempo' follows the Friberg–Sundström tempo curve
+	 * (`swingForTempo`); 'fixed' always uses `defaultSwing` — a 60 BPM
+	 * ballad must not inherit a 3.5:1 grid.
+	 */
+	swingModel: 'tempo' | 'fixed';
+	/** Per-role ensemble microtiming profiles (see backing-timing.ts). */
+	timing: Record<TimingRole, TimingProfile>;
+	/**
+	 * When true, `generateComping` plans figures across the whole phrase
+	 * (backing-comp-figures.ts: anti-repetition memory, phrase-position
+	 * rules) and hands each bar's hits in via `ctx.plannedComp`.
+	 */
+	compPlanning?: boolean;
 	/** Generate one bar of drum hits. */
 	drumPattern: (ctx: GenerationContext) => DrumHitSpec[];
 	/** Generate one bar of comp hits. */
@@ -78,25 +115,11 @@ export interface StyleDefinition {
 
 // ── Swing ────────────────────────────────────────────────────
 
-/**
- * One-bar comp figures for 4/4 swing. `busy` ranks density so section
- * position can bias the choice: section-final bars lean busy (setting up
- * the arrival), ordinary bars keep space in the rotation.
- */
-const SWING_COMP_FIGURES: Array<{ hits: Array<{ b: number; d: number }>; weight: number; busy: number }> = [
-	{ hits: [{ b: 0, d: 2 }, { b: 1.5, d: 0.5 }], weight: 3, busy: 2 }, // Charleston
-	{ hits: [{ b: 2, d: 1 }, { b: 3.5, d: 1 }], weight: 2, busy: 2 }, // late Charleston, pushing on
-	{ hits: [{ b: 1, d: 0.6 }, { b: 3, d: 0.6 }], weight: 3, busy: 2 }, // 2 and 4
-	{ hits: [{ b: 1.5, d: 1 }], weight: 2, busy: 1 }, // and-of-2 alone
-	{ hits: [{ b: 0.5, d: 0.5 }, { b: 2.5, d: 0.6 }], weight: 2, busy: 2 }, // off-beat pair
-	{ hits: [{ b: 3.5, d: 1.2 }], weight: 2, busy: 1 }, // anticipation across the bar line
-	{ hits: [{ b: 1, d: 0.6 }, { b: 2.5, d: 0.5 }], weight: 2, busy: 2 },
-	{ hits: [], weight: 2, busy: 0 } // deliberate space
-];
-
 const swing: StyleDefinition = {
 	name: 'Swing',
 	defaultSwing: 0.67,
+	swingModel: 'tempo',
+	timing: SWING_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
 		const hits: DrumHitSpec[] = [];
@@ -137,21 +160,26 @@ const swing: StyleDefinition = {
 		}
 
 		// Section-final setup: a small additive figure into the next section,
-		// varied per chorus through the seeded RNG. Built only from the kit's
-		// three voices — a CC0 snare/brush sample under static/samples/drums/
-		// would allow fuller fills here later.
+		// varied per chorus through the seeded RNG. The snare figures use the
+		// Virtuosity snare (velocity-layered at trigger time); the fuller
+		// fill vocabulary waits for the drum-vocabulary increment.
 		if (ctx.isSectionFinalBar && !ctx.isFinalBar && beatsPerBar >= 3) {
 			const last = beatsPerBar - 1;
-			const setup = rng.int(0, 2);
+			const setup = rng.int(0, 3);
 			if (setup === 0) {
 				hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.4 + rng.float() * 0.1 });
 			} else if (setup === 1) {
 				hits.push({ drum: 'hihat', beatOffset: last - 0.5, velocity: 0.35 });
 				hits.push({ drum: 'hihat', beatOffset: last + 0.5, velocity: 0.55 });
 				hits.push({ drum: 'kick', beatOffset: last, velocity: 0.35 });
-			} else {
+			} else if (setup === 2) {
 				hits.push({ drum: 'ride', beatOffset: last - 0.5, velocity: 0.5 });
 				hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.38 });
+			} else {
+				// Snare setup: soft lead-in on the and-of-3, answer on the
+				// and-of-4 — the classic "here comes the next section".
+				hits.push({ drum: 'snare', beatOffset: last - 0.5, velocity: 0.28 + rng.float() * 0.04 });
+				hits.push({ drum: 'snare', beatOffset: last + 0.5, velocity: 0.4 + rng.float() * 0.08 });
 			}
 		}
 
@@ -169,35 +197,38 @@ const swing: StyleDefinition = {
 			return hits;
 		}
 
-		// Bias the figure choice by position: set up section arrivals with a
-		// busier figure, keep later choruses a touch more active than the first.
-		const busyBias = (ctx.isSectionFinalBar ? 1.5 : 1) * ((ctx.chorusIndex ?? 0) > 0 ? 1.2 : 1);
-		let figure = rng.weighted(
-			SWING_COMP_FIGURES.map((f) => ({ value: f, weight: f.busy >= 2 ? f.weight * busyBias : f.weight }))
-		);
-
-		// The very first bar states the harmony: guarantee an early hit.
-		if (ctx.barIndex === 0 && !figure.hits.some((h) => h.b <= 1)) {
-			figure = SWING_COMP_FIGURES[0];
-		}
-
-		const hits: CompHitSpec[] = [];
-		for (const h of figure.hits) {
-			// Nothing follows the final bar — an anticipation there would hang.
-			if (ctx.isFinalBar && h.b >= beatsPerBar - 0.5) continue;
-			const offBeat = h.b % 1 !== 0;
-			hits.push({
-				beatOffset: h.b,
-				velocity: rng.int(56, 68) + (offBeat ? 6 : 0),
-				durationBeats: h.d
+		// Planned path: the figure planner already chose this bar's rhythm
+		// (with anti-repetition memory and phrase-position rules); realize
+		// velocity and articulation here.
+		const planned = ctx.plannedComp;
+		if (planned) {
+			const isPush = planned.tags.includes('push');
+			const isPad = planned.tags.includes('pad');
+			return planned.hits.map((h) => {
+				const offBeat = h.b % 1 !== 0;
+				const cadencePush =
+					ctx.isSectionFinalBar && !ctx.isFinalBar && offBeat && isPush ? 6 : 0;
+				// Articulation: pads sustain as written, pushes keep enough
+				// length to audibly tie across the barline, everything else
+				// stabs short.
+				let d = h.d * (0.9 + rng.float() * 0.2);
+				if (!isPad && offBeat && !isPush) d = Math.min(d, 0.7);
+				if (isPush && h.b >= beatsPerBar - 0.5) d = Math.max(d, 1.1);
+				return {
+					beatOffset: h.b,
+					velocity: rng.int(56, 68) + (offBeat ? 6 : 0) + cadencePush,
+					durationBeats: d
+				};
 			});
 		}
-		// A final bar whose figure was pure anticipation resolves instead.
-		if (ctx.isFinalBar && hits.length === 0 && figure.hits.length > 0) {
-			hits.push({ beatOffset: 0, velocity: rng.int(56, 66), durationBeats: 2 });
-		}
-		return hits;
+
+		// Planned hits always arrive for 4/4 swing (generateComping gates the
+		// planner); reaching here without them means a non-4/4 meter, which
+		// returned from the early fallback above, or a caller outside the
+		// engine — state the harmony simply rather than guessing.
+		return [{ beatOffset: 0, velocity: rng.int(56, 66), durationBeats: 1.5 }];
 	},
+	compPlanning: true,
 	bassStyle: 'walking'
 };
 
@@ -206,6 +237,8 @@ const swing: StyleDefinition = {
 const bossaNova: StyleDefinition = {
 	name: 'Bossa Nova',
 	defaultSwing: 0.5,
+	swingModel: 'fixed',
+	timing: BOSSA_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
 		const hits: DrumHitSpec[] = [];
@@ -239,6 +272,8 @@ const bossaNova: StyleDefinition = {
 const ballad: StyleDefinition = {
 	name: 'Ballad',
 	defaultSwing: 0.55,
+	swingModel: 'fixed',
+	timing: BALLAD_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { beatsPerBar } = ctx;
 		// Sparse: soft ride on every beat, minimal kick on 1 only
@@ -265,6 +300,8 @@ const ballad: StyleDefinition = {
 const straight: StyleDefinition = {
 	name: 'Straight',
 	defaultSwing: 0.5,
+	swingModel: 'fixed',
+	timing: STRAIGHT_TIMING,
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
 		const { beatsPerBar } = ctx;
 		// Even feel: ride every beat, hi-hat on 2 and 4, kick on 1 and 3

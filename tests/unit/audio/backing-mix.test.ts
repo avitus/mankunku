@@ -62,7 +62,19 @@ describe('normalizeBackingMix', () => {
 describe('load/save round-trip', () => {
 	it('round-trips through localStorage', () => {
 		stubStorage();
-		const tuned: BackingMixLevels = { bass: 0.7, comp: 1.4, drums: 1.1, kick: 2.2, ride: 0.9, hihat: 1 };
+		const tuned: BackingMixLevels = {
+			bass: 0.7,
+			comp: 1.4,
+			drums: 1.1,
+			kick: 2.2,
+			ride: 0.9,
+			hihat: 1,
+			'hihat-pedal': 1,
+			snare: 1.3,
+			crossstick: 1,
+			'ride-bell': 0.8,
+			crash: 1
+		};
 		saveBackingMix(tuned);
 		expect(loadBackingMix()).toEqual(tuned);
 	});
@@ -97,14 +109,28 @@ describe('load/save round-trip', () => {
 });
 
 describe('BACKING_BASE_TRIMS', () => {
-	it('documents the sample-library balance: hot bass/comp, quiet kit', () => {
-		// Ear-tuned on /diagnostics/backing-mixer (2026-08-02). Exact values
-		// may move with future tuning; these shape assertions must hold.
+	it('documents the balance: hot bass/comp trims down, normalized kit stays unclamped', () => {
+		// Bass/comp are CDN libraries far hotter than the balance point; the
+		// kit assets are peak-normalized to −3 dBFS offline (2026-08-04), so
+		// voice trims are modest and — the point of the normalization — no
+		// musical velocity (≤ 1) times its trim may hit the [0, 1] clamp that
+		// used to flatten the top half of the range. Exact values may move
+		// with future tuning; these shape assertions must hold.
 		expect(BACKING_BASE_TRIMS.bass).toBeLessThan(BACKING_BASE_TRIMS.comp);
 		expect(BACKING_BASE_TRIMS.comp).toBeLessThan(1);
 		expect(BACKING_BASE_TRIMS.drums).toBeGreaterThan(1);
-		expect(BACKING_BASE_TRIMS.kick).toBeGreaterThan(1);
-		expect(BACKING_BASE_TRIMS.hihat).toBeGreaterThan(1);
+		// Close-mic kick thumps hotter than the overhead-mic cymbal voices.
+		expect(BACKING_BASE_TRIMS.kick).toBeGreaterThan(BACKING_BASE_TRIMS.ride);
+		expect(BACKING_BASE_TRIMS.kick).toBeGreaterThan(BACKING_BASE_TRIMS.hihat);
+		const voiceKeys = ['kick', 'ride', 'hihat', 'hihat-pedal', 'snare', 'crossstick', 'ride-bell', 'crash'] as const;
+		for (const key of voiceKeys) {
+			// Timekeeping-range velocities (≤ 0.5 — ride quarters, feathered
+			// kick, hats) must never hit the [0, 1] clamp; only the loudest
+			// setup accents may approach it. smplr's velocity→gain is
+			// quadratic, so trims sit higher in velocity space than a linear
+			// intuition suggests.
+			expect(0.5 * BACKING_BASE_TRIMS[key]).toBeLessThanOrEqual(1);
+		}
 		for (const v of Object.values(BACKING_BASE_TRIMS)) {
 			expect(Number.isFinite(v)).toBe(true);
 			expect(v).toBeGreaterThan(0);

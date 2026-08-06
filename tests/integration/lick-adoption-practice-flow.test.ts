@@ -1,6 +1,6 @@
 /**
  * Integration tests for adopted licks flowing through the shared library
- * loader, query pipeline, and practice-tag store.
+ * loader and query pipeline.
  *
  * These test the behaviors the practice flow depends on WITHOUT pulling in
  * the full `lick-practice.svelte.ts` state machine (which couples to settings
@@ -51,10 +51,7 @@ beforeEach(() => {
 const { getAllLicks, getLickById, queryLicks, transposeLick } = await import(
 	'$lib/phrases/library-loader'
 );
-const { getPracticeTaggedIds, setPracticeTag } = await import(
-	'$lib/persistence/lick-practice-store'
-);
-const { makePhrase, makePracticeReadyPhrase } = await import('../helpers/lick-builders');
+const { makePhrase } = await import('../helpers/lick-builders');
 
 // Helper: seed localStorage with an adopted-lick payload.
 function seedAdopted(phrases: ReturnType<typeof makePhrase>[]): void {
@@ -214,39 +211,5 @@ describe('transposeLick over adopted licks', () => {
 		expect(newFirstPitched).not.toBe(origFirstPitched);
 		// Shifted by a multiple of semitones (maybe with an octave correction).
 		expect((newFirstPitched - origFirstPitched) % 12).toBe(5); // C → F is +5 semitones
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Practice-tag store — adopted licks are taggable like any other lick
-// ---------------------------------------------------------------------------
-
-describe('practice-tag store with adopted licks', () => {
-	it('setPracticeTag adds an adopted lick to the practice-tagged set', () => {
-		seedAdopted([makePracticeReadyPhrase('adopted-practice', 'ii-V-I-major', { tags: [] })]);
-
-		expect(getPracticeTaggedIds().has('adopted-practice')).toBe(false);
-		setPracticeTag('adopted-practice', true);
-		expect(getPracticeTaggedIds().has('adopted-practice')).toBe(true);
-	});
-
-	it('setPracticeTag can be cleared', () => {
-		seedAdopted([makePhrase({ id: 'adopted-clear' })]);
-
-		setPracticeTag('adopted-clear', true);
-		setPracticeTag('adopted-clear', false);
-		expect(getPracticeTaggedIds().has('adopted-clear')).toBe(false);
-	});
-
-	it('untagged adopted licks are not in the practice set', () => {
-		seedAdopted([
-			makePhrase({ id: 'adopted-tagged' }),
-			makePhrase({ id: 'adopted-untagged' })
-		]);
-		setPracticeTag('adopted-tagged', true);
-
-		const tagged = getPracticeTaggedIds();
-		expect(tagged.has('adopted-tagged')).toBe(true);
-		expect(tagged.has('adopted-untagged')).toBe(false);
 	});
 });

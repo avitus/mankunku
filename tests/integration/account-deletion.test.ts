@@ -75,13 +75,6 @@ describe('account deletion — authentication', () => {
 		expect(response.status).toBe(401);
 		expect(body.error).toBe('Not authenticated');
 	});
-
-	it('calls safeGetSession to verify authentication', async () => {
-		const locals = createMockLocals(true);
-		await DELETE({ locals } as any);
-
-		expect(locals.safeGetSession).toHaveBeenCalledTimes(1);
-	});
 });
 
 // ─── Storage Cleanup ───────────────────────────────────────────

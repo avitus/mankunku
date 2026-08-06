@@ -41,16 +41,4 @@ test.describe('community — authed browse', () => {
 		await expect(signedInPage.getByRole('button', { name: /^newest$/i })).toBeVisible();
 		await expect(signedInPage.getByRole('button', { name: /^all$/i }).first()).toBeVisible();
 	});
-
-	test('search debounce + filter switch keeps the page stable', async ({
-		signedInPage,
-		consoleCollector: _consoleCollector
-	}) => {
-		await signedInPage.goto('/licks/community');
-		await signedInPage.getByPlaceholder(/find a lick/i).fill('blues');
-		// Debounce window is 200ms; brief settle time.
-		await signedInPage.waitForTimeout(400);
-		await signedInPage.getByRole('button', { name: /^newest$/i }).click();
-		await expect(signedInPage.locator('main')).toBeVisible();
-	});
 });

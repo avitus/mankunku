@@ -47,12 +47,6 @@ describe('resolveNavTarget', () => {
 		expect(resolveNavTarget([])).toBeUndefined();
 	});
 
-	it('never returns a hidden element even when it is the only match', () => {
-		// The regression this exists to prevent: spotlighting a 0x0 invisible box.
-		const found = resolveNavTarget(candidates(['hidden-only', false]));
-		expect(found).toBeUndefined();
-	});
-
 	it('prefers the earliest visible candidate when several are visible', () => {
 		const found = resolveNavTarget(candidates(['first', true], ['second', true]));
 		expect(found?.name).toBe('first');

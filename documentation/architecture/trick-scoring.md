@@ -65,7 +65,7 @@ pairs accept three, judged best-of via
 
 | Style | Structure | Slots |
 |---|---|---|
-| `cell` | A asc + B asc + first two of A (the classic cell; respects off-beat placement) | 8 |
+| `cell` | A asc + B asc + first two of A (the classic cell) | 8 |
 | `triplets` | four eighth-note-triplet groups per bar, alternating A-B-A-B (always on the beat) | 12 |
 | `four-eighths` | four eighths of A then four of B, e.g. C-E-G-E, D-F#-A-F# (always on the beat) | 8 |
 

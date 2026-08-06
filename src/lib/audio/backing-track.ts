@@ -21,11 +21,12 @@ import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedu
 import { BACKING_STYLES } from './backing-styles';
 import {
 	generateBacking,
+	resolveBackingSwing,
 	type BassEvent,
 	type CompEvent,
 	type DrumEvent
 } from './backing-generation';
-import { DRUM_BUFFERS, type DrumBufferName } from './sample-maps';
+import { DRUM_BUFFERS, drumBufferForVelocity, type DrumBufferName } from './sample-maps';
 import {
 	loadBackingMix,
 	saveBackingMix,
@@ -234,6 +235,19 @@ async function decodeDrumBuffers(
 		DrumBufferName,
 		AudioBuffer
 	>;
+}
+
+/**
+ * Decode the drum kit for an offline bounce (listening lab). Independent of
+ * the live sampler: buffers are fetched fresh (HTTP-cached) and handed to an
+ * OfflineAudioContext-bound Sampler by the caller. AudioBuffers are
+ * context-independent, so decoding against the live context is fine.
+ */
+export async function getDecodedDrumBuffersForBounce(): Promise<
+	Partial<Record<DrumBufferName, AudioBuffer>>
+> {
+	const audioCtx = await initAudio();
+	return decodeDrumBuffers(audioCtx);
 }
 
 async function ensureDrums(): Promise<void> {
@@ -491,7 +505,16 @@ function captureLog(
 	}
 
 	// Index drum hits by the beat they fall in (swung eighths included).
-	const DRUM_LABELS: Record<DrumEvent['drum'], string> = { kick: 'Kick', ride: 'Ride', hihat: 'HH' };
+	const DRUM_LABELS: Record<DrumEvent['drum'], string> = {
+		kick: 'Kick',
+		ride: 'Ride',
+		hihat: 'HH',
+		'hihat-pedal': 'HH-Pedal',
+		snare: 'Snare',
+		crossstick: 'X-Stick',
+		'ride-bell': 'Bell',
+		crash: 'Crash'
+	};
 	const drumsByBeat = new Map<number, Set<string>>();
 	for (const e of drumEvents) {
 		const beat = Math.floor(e.absBeat);
@@ -654,11 +677,7 @@ export async function scheduleBackingTrack(
 	disposeBackingParts();
 
 	// ── Generate bass + comp + drum events ──────────────────
-	// Swing: the session value when the user swings it, else the style's
-	// default — so the swing style's ride pattern swings even while the
-	// melody setting sits straight. Placement math applies this per event;
-	// scoring is untouched (it shares only the melody's options.swing).
-	const swing = options.swing > 0.5 ? options.swing : style.defaultSwing;
+	const swing = resolveBackingSwing(options.swing, style, options.tempo);
 	const { bassEvents, compEvents, drumEvents } = generateBacking(harmony, style, {
 		phraseId: phrase.id,
 		tempo: options.tempo,
@@ -674,8 +693,18 @@ export async function scheduleBackingTrack(
 	// ── Capture diagnostics log ─────────────────────────────
 	captureLog(phrase, harmony, bassEvents, compEvents, drumEvents, options.tempo);
 
-	// ── Build queryable schedule for bleed filter ───────────
-	activeSchedule = buildSchedule(bassEvents, compEvents, tickOffset, ppq, options.tempo);
+	// ── Build queryable schedule for bleed filter + segmenter ──
+	// Drums enter the transient-onset evidence only (unpitched — never the
+	// pitch list); loop mode makes the schedule wrap with the Parts.
+	activeSchedule = buildSchedule(
+		bassEvents,
+		compEvents,
+		drumEvents,
+		tickOffset,
+		ppq,
+		options.tempo,
+		loop ? harmonyTicks : null
+	);
 
 	// Schedule bass — Part starts at tickOffset with relative event times.
 	// This matches the melody Part pattern (start at offset, events
@@ -725,9 +754,13 @@ export async function scheduleBackingTrack(
 	drumPart = new Tone.Part((time: number, event: DrumEvent) => {
 		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
 		// per-voice base trim and mix trim apply here because the kit is one
-		// sampler — velocity is the only per-voice level lever.
+		// sampler — velocity is the only per-voice level lever. The buffer is
+		// picked from the voice's velocity layers by the GENERATED velocity
+		// (musical intent), before trims touch the level. A buffer the
+		// browser failed to decode makes the start a silent no-op, exactly
+		// like the old single-buffer path.
 		drumSampler?.start({
-			note: event.drum as DrumBufferName,
+			note: drumBufferForVelocity(event.drum, event.velocity),
 			velocity: Math.round(
 				voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
 			),

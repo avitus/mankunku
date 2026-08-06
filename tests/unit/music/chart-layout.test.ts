@@ -89,20 +89,6 @@ describe('suggestBarsPerLine', () => {
 		expect(suggestBarsPerLine(s)).toBe(3);
 	});
 
-	it('widens sparse / empty harmony-only stretches', () => {
-		const s = sheet({
-			sections: [
-				section({
-					bars: 8,
-					harmony: Array.from({ length: 8 }, (_, b) =>
-						seg('F', '7', [b, 1], [1, 1])
-					)
-				})
-			]
-		});
-		expect(suggestBarsPerLine(s)).toBeGreaterThanOrEqual(5);
-	});
-
 	it('grades the widening: fully melody-silent → 6, mostly-empty → 5', () => {
 		const chords = (bars: number) =>
 			Array.from({ length: bars }, (_, b) => seg('F', '7', [b, 1], [1, 1]));

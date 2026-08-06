@@ -1,13 +1,10 @@
-import { test, expect } from './fixtures/auth';
+import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 
 /**
- * Auth flows — exercises both the anonymous sign-in form and authenticated
- * page state via the env-gated test cookie (see src/hooks.server.ts).
- *
- * The sign-in form's actual Supabase POST is intercepted via page.route so
- * we can verify the form posts the expected payload without depending on
- * a live Supabase project.
+ * Auth flows — exercises the anonymous sign-in form. Route-level rendering
+ * of /auth is covered by smoke.spec.ts; this spec asserts the form's
+ * credential fields actually mount.
  */
 
 test.describe('auth — anonymous', () => {
@@ -27,40 +24,5 @@ test.describe('auth — anonymous', () => {
 		const passwordInputs = page.locator('input[type="password"], input[name="password"]');
 		expect(await emailInputs.count()).toBeGreaterThan(0);
 		expect(await passwordInputs.count()).toBeGreaterThan(0);
-	});
-});
-
-test.describe('auth — signed in via test cookie', () => {
-	// Seed the signed-in user's bucket (the cookie routes seeding there) so
-	// (a) the onboarding modal doesn't overlay the page and (b) the __active
-	// namespace pointer is pre-stamped — without it, reconcileActiveUser
-	// schedules a re-home reload mid-test, a timing window Firefox/WebKit
-	// intermittently lost under full-suite load.
-	test.beforeEach(async ({ signedInPage }) => {
-		await seedOnboardedAnonymous(signedInPage);
-	});
-
-	test('home page renders authenticated state', async ({
-		signedInPage,
-		consoleCollector: _consoleCollector
-	}) => {
-		await signedInPage.goto('/');
-		await expect(signedInPage.locator('main')).toBeVisible();
-		// Anonymous users see a "Sign in" link in the layout; signed-in users
-		// see their email prefix instead. The exact text depends on the
-		// fixture user, so just assert the sign-in CTA is GONE.
-		const signInLink = signedInPage.getByRole('link', { name: /^sign in$/i });
-		await expect(signInLink).toHaveCount(0);
-	});
-
-	test('settings page renders without crashing for authed user', async ({
-		signedInPage,
-		consoleCollector: _consoleCollector
-	}) => {
-		await signedInPage.goto('/settings');
-		await expect(signedInPage.locator('main')).toBeVisible();
-		// Settings has an "Account" section that's only rendered when authed.
-		// The literal heading varies; use a generous matcher.
-		await expect(signedInPage.getByText(/account/i).first()).toBeVisible();
 	});
 });

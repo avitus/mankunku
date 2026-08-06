@@ -14,6 +14,7 @@ const TICK_OFFSET = 480;
 const schedule = buildSchedule(
 	[{ time: '0i', midi: 40, duration: 0.5 }],
 	[{ time: '480i', notes: [60, 64], duration: 0.3 }],
+	[],
 	TICK_OFFSET, PPQ, TEMPO
 );
 
@@ -91,7 +92,7 @@ describe('filterBleed', () => {
 	});
 
 	it('returns all notes when schedule is empty', () => {
-		const emptySchedule = buildSchedule([], [], TICK_OFFSET, PPQ, TEMPO);
+		const emptySchedule = buildSchedule([], [], [], TICK_OFFSET, PPQ, TEMPO);
 		const detected = [note(40, 0.0, 0.83), note(60, 0.5, 0.85)];
 		const { kept, filtered } = filterBleed(detected, emptySchedule, RECORDING_TRANSPORT);
 		expect(kept).toHaveLength(2);

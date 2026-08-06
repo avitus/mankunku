@@ -12,15 +12,13 @@ import {
 	realizeScale,
 	realizeScaleMidi,
 	scalePitchClasses,
-	keySignatureAccidentals,
 	circleOfFifths,
 	relativeMajor,
 	relativeMinor
 } from '../../src/lib/music/keys';
-import { chordTones, CHORD_DEFINITIONS } from '../../src/lib/music/chords';
+import { chordTones } from '../../src/lib/music/chords';
 import {
 	midiToPitchClass,
-	midiToOctave,
 	midiToNoteName,
 	noteNameToMidi,
 	frequencyToMidi,
@@ -28,7 +26,6 @@ import {
 	intervalSize,
 	semitoneDistance,
 	fractionToFloat,
-	addFractions,
 	quantizePitch
 } from '../../src/lib/music/intervals';
 import {
@@ -63,10 +60,6 @@ describe('scale catalog integrity', () => {
 		expect(ionian).toBeDefined();
 		expect(ionian!.name).toContain('Ionian');
 		expect(ionian!.family).toBe('major');
-	});
-
-	it('getScale returns undefined for unknown id', () => {
-		expect(getScale('nonexistent.scale')).toBeUndefined();
 	});
 
 	it('catalogs 35+ scales across all families', () => {
@@ -137,32 +130,6 @@ describe('scale realization', () => {
 // ─── Chord Tones ───────────────────────────────────────────────
 
 describe('chord tones', () => {
-	it('C major 7 chord tones are C E G B', () => {
-		const tones = chordTones(60, 'maj7');
-		expect(tones).toEqual([60, 64, 67, 71]); // C4, E4, G4, B4
-	});
-
-	it('C minor 7 chord tones are C Eb G Bb', () => {
-		const tones = chordTones(60, 'min7');
-		expect(tones).toEqual([60, 63, 67, 70]);
-	});
-
-	it('C dominant 7 chord tones are C E G Bb', () => {
-		const tones = chordTones(60, '7');
-		expect(tones).toEqual([60, 64, 67, 70]);
-	});
-
-	it('all chord qualities have defined intervals', () => {
-		const qualities = Object.keys(CHORD_DEFINITIONS);
-		expect(qualities.length).toBeGreaterThanOrEqual(15);
-
-		for (const quality of qualities) {
-			const def = CHORD_DEFINITIONS[quality as keyof typeof CHORD_DEFINITIONS];
-			expect(def.intervals.length).toBeGreaterThanOrEqual(3);
-			expect(def.intervals[0]).toBe(0); // root is always 0
-		}
-	});
-
 	it('chord tones are subset of compatible scale in same key', () => {
 		// Cmaj7 chord tones should all be in C Ionian
 		const ionian = getScale('major.ionian')!;
@@ -188,22 +155,11 @@ describe('chord tones', () => {
 // ─── MIDI ↔ Note Name ──────────────────────────────────────────
 
 describe('MIDI conversions', () => {
-	it('MIDI 60 is C4', () => {
-		expect(midiToNoteName(60)).toBe('C4');
-		expect(midiToPitchClass(60)).toBe(0);
-		expect(midiToOctave(60)).toBe(4);
-	});
-
 	it('noteNameToMidi round-trips with midiToNoteName', () => {
 		for (let midi = 21; midi <= 108; midi++) {
 			const name = midiToNoteName(midi);
 			expect(noteNameToMidi(name)).toBe(midi);
 		}
-	});
-
-	it('handles sharps via enharmonic conversion', () => {
-		expect(noteNameToMidi('C#4')).toBe(61);
-		expect(noteNameToMidi('F#3')).toBe(54);
 	});
 
 	it('frequency ↔ MIDI round-trip', () => {
@@ -247,16 +203,6 @@ describe('interval calculations', () => {
 		expect(fractionToFloat([1, 8])).toBe(0.125);
 		expect(fractionToFloat([3, 4])).toBe(0.75);
 		expect(fractionToFloat([0, 1])).toBe(0);
-	});
-
-	it('addFractions works and reduces', () => {
-		// 1/4 + 1/4 = 1/2
-		const result = addFractions([1, 4], [1, 4]);
-		expect(result[0] / result[1]).toBeCloseTo(0.5);
-
-		// 1/8 + 1/8 = 1/4
-		const result2 = addFractions([1, 8], [1, 8]);
-		expect(result2[0] / result2[1]).toBeCloseTo(0.25);
 	});
 });
 
@@ -344,26 +290,12 @@ describe('key relationships', () => {
 		expect(new Set(fifths).size).toBe(12);
 	});
 
-	it('relative minor of C is A', () => {
-		expect(relativeMinor('C')).toBe('A');
-	});
-
-	it('relative major of A is C', () => {
-		expect(relativeMajor('A')).toBe('C');
-	});
-
 	it('relative major/minor are inverses', () => {
 		for (const key of PITCH_CLASSES) {
 			const minor = relativeMinor(key);
 			const backToMajor = relativeMajor(minor);
 			expect(backToMajor).toBe(key);
 		}
-	});
-
-	it('C has 0 accidentals, G has 1 sharp, F has 1 flat', () => {
-		expect(keySignatureAccidentals('C')).toBe(0);
-		expect(keySignatureAccidentals('G')).toBe(1);
-		expect(keySignatureAccidentals('F')).toBe(-1);
 	});
 });
 

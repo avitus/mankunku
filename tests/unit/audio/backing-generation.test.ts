@@ -4,10 +4,11 @@ import {
 	buildBarInfos,
 	chordToneIntervalsForBass,
 	generateBacking,
-	generateWalkingBass,
 	type BackingGenerationParams
 } from '$lib/audio/backing-generation';
 import { BACKING_STYLES, type GenerationContext } from '$lib/audio/backing-styles';
+import { COMP_FIGURES } from '$lib/audio/backing-comp-figures';
+import { SWING_TIMING } from '$lib/audio/backing-timing';
 import { createRng } from '$lib/audio/generation-rng';
 import { pitchClassToNumber } from '$lib/audio/voicings';
 
@@ -117,80 +118,6 @@ describe('chordToneIntervalsForBass', () => {
 
 // ── Walking bass ─────────────────────────────────────────────
 
-describe('generateWalkingBass', () => {
-	const II_V_I = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
-
-	it('is deterministic for the same inputs', () => {
-		const a = generateWalkingBass(II_V_I, 4, params());
-		const b = generateWalkingBass(II_V_I, 4, params());
-		expect(a).toEqual(b);
-	});
-
-	it('walks a quarter note on every beat', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		const onBeats = new Set(events.filter((e) => e.absBeat % 1 === 0).map((e) => e.absBeat));
-		for (let beat = 0; beat < 16; beat++) expect(onBeats).toContain(beat);
-	});
-
-	it('stays inside the upright bass band', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		for (const e of events) {
-			expect(e.midi).toBeGreaterThanOrEqual(28);
-			expect(e.midi).toBeLessThanOrEqual(55);
-		}
-	});
-
-	it('avoids large leaps between consecutive quarters', () => {
-		const quarters = generateWalkingBass(II_V_I, 4, params()).filter((e) => e.absBeat % 1 === 0);
-		for (let i = 1; i < quarters.length; i++) {
-			expect(Math.abs(quarters[i].midi - quarters[i - 1].midi)).toBeLessThanOrEqual(12);
-		}
-	});
-
-	it('lands a chord tone (root, 3rd or 5th) on every segment downbeat', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		const segRoots: Array<[number, PitchClass, ChordQuality]> = [
-			[0, 'D', 'min7'], [4, 'G', '7'], [8, 'C', 'maj7'], [12, 'C', 'maj7']
-		];
-		for (const [beat, root, quality] of segRoots) {
-			const e = events.find((ev) => ev.absBeat === beat)!;
-			const tones = chordToneIntervalsForBass(quality);
-			const rootNum = pitchClassToNumber(root);
-			const allowed = [rootNum, (rootNum + tones.third) % 12, (rootNum + tones.fifth) % 12];
-			expect(allowed).toContain(pc(e.midi));
-		}
-	});
-
-	it('approaches each next root closely on the segment-final beat', () => {
-		const events = generateWalkingBass(II_V_I, 4, params());
-		const pairs: Array<[number, PitchClass]> = [[3, 'G'], [7, 'C'], [11, 'C']];
-		for (const [beat, nextRoot] of pairs) {
-			const e = events.find((ev) => ev.absBeat === beat)!;
-			const rootNum = pitchClassToNumber(nextRoot);
-			// Distance to the nearest instance of the next root.
-			let diff = (((rootNum - pc(e.midi)) % 12) + 12) % 12;
-			if (diff > 6) diff -= 12;
-			expect(Math.abs(diff)).toBeLessThanOrEqual(7);
-		}
-	});
-
-	it('swings any added eighth-note pickups late', () => {
-		// Sweep many segments so seeded pickups actually occur somewhere.
-		const long = bars(...Array.from({ length: 24 }, (_, i): [PitchClass, ChordQuality] =>
-			i % 2 === 0 ? ['D', 'min7'] : ['G', '7']
-		));
-		const events = generateWalkingBass(long, 4, params());
-		const eighths = events.filter((e) => e.absBeat % 1 !== 0);
-		expect(eighths.length).toBeGreaterThan(0);
-		for (const e of eighths) {
-			// swing 0.67 shifts the off-beat by +0.17 beats ≈ 82 ticks; jitter ≤ ~4.
-			expect(ticksOf(e) - e.absBeat * PPQ).toBeGreaterThanOrEqual(60);
-		}
-	});
-});
-
-// ── Full generation ──────────────────────────────────────────
-
 describe('generateBacking', () => {
 	const FORM = bars(
 		['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7'],
@@ -258,18 +185,35 @@ describe('generateBacking', () => {
 		}
 	});
 
-	it('swings all off-beat eighths late, straight when swing is 0.5', () => {
+	it('swings all off-beat eighths late, stays near the grid when swing is 0.5', () => {
+		// Per-role deviation allowance: ensemble offset + triangular jitter
+		// bound (SWING_TIMING, in ms), converted to ticks at the test tempo.
+		const msTicks = (ms: number) => (ms / (60_000 / 120)) * PPQ;
+		const allowance = (role: 'bass' | 'comp' | import('$lib/audio/backing-styles').DrumVoice) =>
+			msTicks(Math.abs(SWING_TIMING[role].offsetMs) + SWING_TIMING[role].jitterMs) + 1;
+		const roleOf = (e: { drum?: string }, fallback: 'bass' | 'comp') =>
+			((e as { drum?: string }).drum ?? fallback) as 'bass' | 'comp';
+
 		const swung = generateBacking(FORM, BACKING_STYLES.swing, params());
-		const all = [...swung.bassEvents, ...swung.compEvents, ...swung.drumEvents];
-		const offBeats = all.filter((e) => e.absBeat % 1 !== 0);
+		const offBeats = [...swung.bassEvents, ...swung.compEvents, ...swung.drumEvents].filter(
+			(e) => e.absBeat % 1 !== 0
+		);
 		expect(offBeats.length).toBeGreaterThan(0);
 		for (const e of offBeats) {
+			// Swing shift at 0.67 is ~82 ticks; even the widest role personality
+			// cannot pull an off-beat back near the straight grid.
 			expect(ticksOf(e) - e.absBeat * PPQ).toBeGreaterThanOrEqual(60);
 		}
 
 		const straightGen = generateBacking(FORM, BACKING_STYLES.swing, params({ swing: 0.5 }));
-		for (const e of [...straightGen.bassEvents, ...straightGen.compEvents, ...straightGen.drumEvents]) {
-			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(6);
+		for (const e of straightGen.bassEvents) {
+			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(allowance('bass'));
+		}
+		for (const e of straightGen.compEvents) {
+			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(allowance('comp'));
+		}
+		for (const e of straightGen.drumEvents) {
+			expect(Math.abs(ticksOf(e) - e.absBeat * PPQ)).toBeLessThanOrEqual(allowance(roleOf(e, 'comp')));
 		}
 	});
 
@@ -345,29 +289,47 @@ describe('swing style patterns', () => {
 		expect(finalBar.slice(0, plain.length)).toEqual(plain);
 	});
 
-	it('never lets the comp anticipate past the final bar', () => {
-		for (let seed = 0; seed < 60; seed++) {
-			const hits = BACKING_STYLES.swing.compPattern(ctxFor({ rng: createRng(seed), isFinalBar: true }));
-			for (const h of hits) expect(h.beatOffset).toBeLessThan(3.5);
+	it('never lets the comp anticipate past the final bar (end-to-end)', () => {
+		for (let seed = 0; seed < 30; seed++) {
+			const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7']);
+			const { compEvents } = generateBacking(harmony, BACKING_STYLES.swing, params({ phraseId: `final-probe#${seed}` }));
+			const lastBarStart = 2 * 4;
+			for (const e of compEvents) {
+				if (e.absBeat >= lastBarStart) expect(e.absBeat - lastBarStart).toBeLessThan(3.5);
+			}
+			// ...and the final bar is never silent.
+			expect(compEvents.some((e) => e.absBeat >= lastBarStart)).toBe(true);
 		}
 	});
 
-	it('always states the harmony early in the very first bar', () => {
-		for (let seed = 0; seed < 60; seed++) {
-			const hits = BACKING_STYLES.swing.compPattern(ctxFor({ rng: createRng(seed), barIndex: 0 }));
-			expect(hits.some((h) => h.beatOffset <= 1)).toBe(true);
+	it('always states the harmony early in the very first bar (end-to-end)', () => {
+		for (let seed = 0; seed < 30; seed++) {
+			const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
+			const { compEvents } = generateBacking(harmony, BACKING_STYLES.swing, params({ phraseId: `early-probe#${seed}` }));
+			expect(compEvents.some((e) => e.absBeat <= 1)).toBe(true);
 		}
 	});
 
-	it('keeps every comp hit inside the bar with sane velocity and length', () => {
-		for (let seed = 0; seed < 60; seed++) {
-			const hits = BACKING_STYLES.swing.compPattern(ctxFor({ rng: createRng(seed) }));
-			for (const h of hits) {
-				expect(h.beatOffset).toBeGreaterThanOrEqual(0);
-				expect(h.beatOffset).toBeLessThan(4);
-				expect(h.durationBeats).toBeGreaterThan(0);
-				expect(h.velocity).toBeGreaterThanOrEqual(1);
-				expect(h.velocity).toBeLessThanOrEqual(127);
+	it('realizes every planned figure with sane velocity, length and articulation', () => {
+		for (const figure of COMP_FIGURES) {
+			for (let seed = 0; seed < 20; seed++) {
+				const hits = BACKING_STYLES.swing.compPattern(
+					ctxFor({
+						rng: createRng(seed),
+						plannedComp: { hits: figure.hits[0], tags: figure.tags, guideTones: false }
+					})
+				);
+				for (const h of hits) {
+					expect(h.beatOffset).toBeGreaterThanOrEqual(0);
+					expect(h.beatOffset).toBeLessThan(4);
+					expect(h.durationBeats).toBeGreaterThan(0);
+					expect(h.velocity).toBeGreaterThanOrEqual(1);
+					expect(h.velocity).toBeLessThanOrEqual(127);
+					// Pushes must hold long enough to audibly tie across the barline.
+					if (figure.tags.includes('push') && h.beatOffset >= 3.5) {
+						expect(h.durationBeats).toBeGreaterThanOrEqual(1.1);
+					}
+				}
 			}
 		}
 	});
