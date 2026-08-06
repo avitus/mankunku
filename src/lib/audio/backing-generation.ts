@@ -298,22 +298,26 @@ export function generateComping(
 			barInfos[Math.min(Math.floor(seg.startBeats / beatsPerBar), barInfos.length - 1)]
 				?.intensity ?? 0.5
 	);
+	const bias = style.voicingBias ?? {};
 	const fns: VoicingFn[] = chords.map((c, i) => {
 		const rng = createRng(seedFrom(phraseId, tempo, 'voicing', i));
 		if (!hasSeventhSlot(c.quality)) {
 			return rng.weighted<VoicingFn>([
-				{ value: shellVoicing, weight: 2 },
-				{ value: drop2Voicing, weight: 1 }
+				{ value: shellVoicing, weight: 2 * (bias.shell ?? 1) },
+				{ value: drop2Voicing, weight: 1 * (bias.drop2 ?? 1) }
 			]);
 		}
 		const options: Array<{ value: VoicingFn; weight: number }> = [
-			{ value: rootlessVoicingA, weight: 4 },
-			{ value: rootlessVoicingB, weight: 3 },
-			{ value: shellVoicing, weight: 2 * lerp(1.5, 0.6, chordIntensity[i]) },
-			{ value: drop2Voicing, weight: 1 }
+			{ value: rootlessVoicingA, weight: 4 * (bias.rootlessA ?? 1) },
+			{ value: rootlessVoicingB, weight: 3 * (bias.rootlessB ?? 1) },
+			{ value: shellVoicing, weight: 2 * lerp(1.5, 0.6, chordIntensity[i]) * (bias.shell ?? 1) },
+			{ value: drop2Voicing, weight: 1 * (bias.drop2 ?? 1) }
 		];
 		if (quartalVoicing(c.root, c.quality).length > 0) {
-			options.push({ value: quartalVoicing, weight: lerp(0.5, 1.5, chordIntensity[i]) });
+			options.push({
+				value: quartalVoicing,
+				weight: lerp(0.5, 1.5, chordIntensity[i]) * (bias.quartal ?? 1)
+			});
 		}
 		return rng.weighted<VoicingFn>(options);
 	});
@@ -478,16 +482,30 @@ export function generateBacking(
 		0
 	);
 	const totalBars = Math.max(1, Math.ceil(harmonyBeats / beatsPerBar));
-	const barInfos = buildBarInfos(totalBars, params.sectionMap);
+	let barInfos = buildBarInfos(totalBars, params.sectionMap);
+	// A style may cap the ensemble arc (ballad: never dig in past 0.6);
+	// applied to the whole timeline so every generator reads the same
+	// ceiling.
+	if (style.intensityCap !== undefined) {
+		const cap = style.intensityCap;
+		barInfos = barInfos.map((info) => ({ ...info, intensity: Math.min(info.intensity, cap) }));
+	}
 
 	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
 	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
 	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
-	// other meters (and every 'auto' style) take the walking planner.
+	// 'two' pins the walking planner to permanent two-feel (ballad); other
+	// meters (and every 'auto' style) take the plain walking planner.
 	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } =
 		style.bass === 'pattern' && beatsPerBar === 4
 			? generateBossaBass(harmony, beatsPerBar, timedParams, barInfos)
-			: generateBassLine2(harmony, beatsPerBar, timedParams, barInfos);
+			: generateBassLine2(
+					harmony,
+					beatsPerBar,
+					timedParams,
+					barInfos,
+					style.bass === 'two' ? 'two' : undefined
+				);
 	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
 
 	return { bassEvents, compEvents, drumEvents };

@@ -596,7 +596,10 @@ interface StyleDefinition {
   compPlanning?: boolean;     // comp figures planned phrase-wide
   drumPattern: (ctx: GenerationContext) => DrumHitSpec[];  // one bar
   compPattern: (ctx: GenerationContext) => CompHitSpec[];  // one bar
-  bass: 'auto' | 'pattern';   // walking planner | bossa ostinato
+  bass: 'auto' | 'two' | 'pattern';  // walking | permanent two-feel | bossa ostinato
+  intensityCap?: number;             // ceiling on the ensemble arc (ballad: 0.6)
+  voicingBias?: Partial<Record<     // comp voicing-weight multipliers
+    'rootlessA' | 'rootlessB' | 'shell' | 'drop2' | 'quartal', number>>;
 }
 ```
 
@@ -609,11 +612,13 @@ interface StyleDefinition {
 - **`BACKING_STYLES: Record<BackingStyle, StyleDefinition>`** — Keys `swing`, `bossa-nova`, `ballad`, `straight`.
   - **Swing** (tempo-curve swing, 0.67 fallback; density/dynamics shaped per bar by `ctx.intensity`): drums are composed vocabulary passes (backing-drum-vocab.ts) — per-bar ride modes (standard spang-a-lang / breathing quarters-only / skip-plus / broken), hi-hat foot on 2 & 4, feathered kick under the felt-not-heard ceiling, sparse snare ghosts in dialogue with the comp, kick coupling to comp pushes and bass pickups, fills and setups marking the 4/8-bar form, and a crash replacing the downbeat ride on section arrivals — with added voices capped at one per beat offset. Comping is phrase-planned (`compPlanning` → backing-comp-figures.ts): the pattern function realizes the planned figure's velocity and articulation.
   - **Bossa Nova** (straight, tight timing): rim-click clave on the cross-stick — 3-side `{1, 2&, 4}` / 2-side `{2, 3&}` (the Brazilian variant), the side per bar set by a **phrase-level phase draw** (`clavePhaseFor`, `clave` stream) shared by comp and drums so rim and guitar-hand never disagree; steady eighth hats with quarter accents over the surdo-derived kick `{1, 2&, 3, 4&}`; João-style comp figures tracking the clave side (the 2-side's and-of-3 push rides the anticipation voicing); `bass: 'pattern'` → `generateBossaBass`.
-  - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass. (Style parity pass pending — next PR.)
+  - **Ballad** (fixed swing 0.55, loose timing, `intensityCap: 0.6`): the library has no brushes, so the kit speaks in the quietest stick voices — soft ride quarters, the hi-hat FOOT on 2 & 4, whisper kick, cross-stick / ghost-snare color, a cross-stick lean marking section ends. Comp is pads and space (whole-bar sustains, half pads, late pads, deliberate rests — section arrivals always sound) with `voicingBias` leaning drop-2 and quartal. `bass: 'two'` pins the walking planner to permanent two-feel: no chorus latch, no walk escapes, half notes all night.
   - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass. (Style parity pass pending.)
 - **`BACKING_STYLE_NAMES: Record<BackingStyle, string>`** — Display names for UI menus.
 - **`BACKING_STYLE_IDS: BackingStyle[]`** — The ids in display order; every style picker and validator derives from this (tune-practice buttons, settings validation) instead of hand-copying the union.
-- **`StyleDefinition.bass`** — which bass engine the style uses: `'auto'` = the walking planner, `'pattern'` = the bossa ostinato (non-4/4 falls back to walking). The union grows per style PR, values added only with their implementation.
+- **`StyleDefinition.bass`** — which bass engine the style uses: `'auto'` = the walking planner, `'two'` = the planner pinned to permanent two-feel (ballad), `'pattern'` = the bossa ostinato (non-4/4 falls back to walking). Values are added only with their implementation.
+- **`StyleDefinition.intensityCap`** — optional ceiling on the per-bar ensemble arc, applied to the whole BarInfo timeline before any generator reads it (ballad: 0.6).
+- **`StyleDefinition.voicingBias`** — optional multipliers over the comp voicing-choice weights (rootless A/B, shell, drop-2, quartal); how a style colors its harmony.
 
 ---
 

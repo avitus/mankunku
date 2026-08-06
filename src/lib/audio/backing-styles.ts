@@ -140,13 +140,27 @@ export interface StyleDefinition {
 	compPattern: (ctx: GenerationContext) => CompHitSpec[];
 	/**
 	 * Which bass engine the style uses: 'auto' = the walking planner
-	 * (two-feel first chorus latching open to four); 'pattern' = the bossa
-	 * root–fifth ostinato (`generateBossaBass`; non-4/4 falls back to the
-	 * walking planner). The union grows as the remaining style PRs land
-	 * (ballad's permanent two-feel next) — values are added WITH their
-	 * implementation, never speculatively.
+	 * (two-feel first chorus latching open to four); 'two' = the planner
+	 * pinned to permanent two-feel (ballad — half notes all night, no walk
+	 * escapes); 'pattern' = the bossa root–fifth ostinato
+	 * (`generateBossaBass`; non-4/4 falls back to the walking planner).
+	 * Values are added WITH their implementation, never speculatively.
 	 */
-	bass: 'auto' | 'pattern';
+	bass: 'auto' | 'two' | 'pattern';
+	/**
+	 * Ceiling on the per-bar ensemble intensity (backing-intensity.ts),
+	 * applied to the whole BarInfo timeline before any generator reads it:
+	 * a ballad never digs in past 0.6 no matter how deep the form runs.
+	 */
+	intensityCap?: number;
+	/**
+	 * Multipliers over the comp voicing-choice weights (rootless A/B,
+	 * shell, drop-2, quartal) — how a style colors its harmony: the ballad
+	 * leans into drop-2 spread and quartal openness.
+	 */
+	voicingBias?: Partial<
+		Record<'rootlessA' | 'rootlessB' | 'shell' | 'drop2' | 'quartal', number>
+	>;
 }
 
 // ── Swing ────────────────────────────────────────────────────
@@ -332,25 +346,95 @@ const ballad: StyleDefinition = {
 	defaultSwing: 0.55,
 	swingModel: 'fixed',
 	timing: BALLAD_TIMING,
+	intensityCap: 0.6,
+	voicingBias: { drop2: 2.5, quartal: 2.2, rootlessA: 0.7 },
 	drumPattern: (ctx: GenerationContext): DrumHitSpec[] => {
-		const { beatsPerBar } = ctx;
-		// Sparse: soft ride on every beat, minimal kick on 1 only
-		const hits: DrumHitSpec[] = [{ drum: 'kick', beatOffset: 0, velocity: 0.3 }];
+		const { rng, beatsPerBar } = ctx;
+		const hits: DrumHitSpec[] = [];
+
+		// The library has no brushes (sticks only — see ATTRIBUTION.md), so
+		// the ballad kit speaks in the quietest stick voices instead: soft
+		// ride quarters, the hi-hat FOOT on 2 & 4, a barely-there kick, and
+		// cross-stick / ghost-snare color in place of brush taps.
 		for (let b = 0; b < beatsPerBar; b++) {
-			hits.push({ drum: 'ride', beatOffset: b, velocity: 0.25 });
+			const backbeat = b % 2 === 1;
+			hits.push({
+				drum: 'ride',
+				beatOffset: b,
+				velocity: (backbeat ? 0.24 : 0.2) + rng.float() * 0.04
+			});
+		}
+		for (let b = 1; b < beatsPerBar; b += 2) {
+			hits.push({ drum: 'hihat-pedal', beatOffset: b, velocity: 0.24 + rng.float() * 0.04 });
+		}
+		if (rng.chance(0.8)) {
+			hits.push({ drum: 'kick', beatOffset: 0, velocity: 0.13 + rng.float() * 0.04 });
+		}
+		if (beatsPerBar === 4 && rng.chance(0.25)) {
+			hits.push({ drum: 'kick', beatOffset: 2, velocity: 0.11 + rng.float() * 0.03 });
+		}
+
+		if (beatsPerBar === 4) {
+			// Color, sparse: a cross-stick on 4 or a ghost tap on a soft spot —
+			// never both, never loud.
+			if (rng.chance(0.22)) {
+				hits.push({ drum: 'crossstick', beatOffset: 3, velocity: 0.26 + rng.float() * 0.05 });
+			} else if (rng.chance(0.18)) {
+				hits.push({
+					drum: 'snare',
+					beatOffset: rng.pick([1.5, 2.5]),
+					velocity: 0.12 + rng.float() * 0.04
+				});
+			}
+			// Gentle section marking from the fill stream: a cross-stick lean
+			// into the barline — a ballad "setup" whispers.
+			const fillRng = ctx.fillRng ?? rng;
+			if (ctx.isSectionFinalBar && !ctx.isFinalBar && fillRng.chance(0.55)) {
+				hits.push({ drum: 'crossstick', beatOffset: 3.5, velocity: 0.28 + fillRng.float() * 0.04 });
+			}
 		}
 		return hits;
 	},
 	compPattern: (ctx: GenerationContext): CompHitSpec[] => {
-		const { rng } = ctx;
-		// Whole-note / half-note sustains: hit on beat 1, occasionally on 3
-		const hits: CompHitSpec[] = [{ beatOffset: 0, velocity: 45 + rng.int(0, 8), durationBeats: 1.5 }];
-		if (ctx.beatsPerBar >= 3 && rng.chance(0.3)) {
-			hits.push({ beatOffset: 2, velocity: 40, durationBeats: 1 });
+		const { rng, beatsPerBar } = ctx;
+
+		// Non-4/4 fallback: one sustained statement.
+		if (beatsPerBar !== 4) {
+			return [{ beatOffset: 0, velocity: rng.int(42, 52), durationBeats: beatsPerBar * 0.9 }];
+		}
+
+		// Pads and space: whole-bar sustains, half pads, a late pad answering
+		// the bar, or silence — the pianist breathes with the singer. Section
+		// and phrase downbeats always sound (the harmony must arrive).
+		type Figure = 'pad-whole' | 'pads-halves' | 'late-pad' | 'rest';
+		const anchor = ctx.barIndex === 0 || ctx.isSectionFirstBar;
+		const figure = rng.weighted<Figure>([
+			{ value: 'pad-whole', weight: 3 },
+			{ value: 'pads-halves', weight: 2 },
+			{ value: 'late-pad', weight: anchor ? 0 : 1 },
+			{ value: 'rest', weight: anchor ? 0 : 1.2 }
+		]);
+		const vel = (): number => rng.int(42, 54) + Math.round(lerp(-2, 4, ctx.intensity));
+		const hits: CompHitSpec[] = [];
+		if (figure === 'pad-whole') {
+			hits.push({ beatOffset: 0, velocity: vel(), durationBeats: 3.6 });
+		} else if (figure === 'pads-halves') {
+			hits.push({ beatOffset: 0, velocity: vel(), durationBeats: 1.8 });
+			hits.push({ beatOffset: 2, velocity: vel() - 3, durationBeats: 1.7 });
+		} else if (figure === 'late-pad') {
+			hits.push({ beatOffset: 2, velocity: vel() - 2, durationBeats: 1.8 });
+		}
+		// Cadence lean: a soft SHORT pickup into the section boundary. The
+		// x.5 anticipation voices the coming chord, and the next bar's
+		// anchor pad re-attacks it on the downbeat — so the lean must
+		// release before the barline (a tied push would flam against that
+		// re-attack at ballad tempi).
+		if (ctx.isSectionFinalBar && !ctx.isFinalBar && rng.chance(0.35)) {
+			hits.push({ beatOffset: 3.5, velocity: vel() - 4, durationBeats: 0.45 });
 		}
 		return hits;
 	},
-	bass: 'auto'
+	bass: 'two'
 };
 
 // ── Straight ─────────────────────────────────────────────────

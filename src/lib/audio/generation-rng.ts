@@ -19,7 +19,10 @@ export interface SeededRng {
 	chance(probability: number): boolean;
 	/** Uniformly chosen member of a non-empty list. */
 	pick<T>(items: readonly T[]): T;
-	/** Weighted choice; zero-weight entries are never returned. */
+	/** Weighted choice; zero-weight entries are never returned while any
+	 *  positive weight exists. Caller contract: at least one entry must
+	 *  carry positive weight — an ALL-zero table silently returns the last
+	 *  entry (it draws exactly once either way, so determinism holds). */
 	weighted<T>(entries: ReadonlyArray<{ value: T; weight: number }>): T;
 }
 

@@ -31,7 +31,8 @@ const GOLDEN_CASES: Array<{ presetId: string; tempo: number; style?: BackingStyl
 	{ presetId: 'backing-mixer-loop', tempo: 140 },
 	{ presetId: 'lab-blues-f', tempo: 160 },
 	{ presetId: 'lab-aaba-c', tempo: 160 },
-	{ presetId: 'lab-blues-f', tempo: 130, style: 'bossa-nova' }
+	{ presetId: 'lab-blues-f', tempo: 130, style: 'bossa-nova' },
+	{ presetId: 'lab-aaba-c', tempo: 72, style: 'ballad' }
 ];
 
 function generateCase(
