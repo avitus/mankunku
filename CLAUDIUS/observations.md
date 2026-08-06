@@ -479,3 +479,44 @@ knowledge. It was that nothing turned the knowledge into a scheduled action.
 Corollary worth remembering: the fix took about twenty minutes and had a clean rollback the
 whole way. The cost of *doing* it was never the obstacle — the cost of *noticing it mattered*
 was.
+
+## The obvious fix, measured (2026-08-06)
+
+Fixing the `localStorage` warning had a fix so obvious I wrote it without thinking:
+`typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'`. It is the
+semantically correct check — localStorage *is* a browser API, `window` *is* how you detect a
+browser. Every instinct said ship it.
+
+It broke 22 tests across 4 files. And the breakage wasn't the interesting part — the *reason*
+was. 34 test files stub `globalThis.localStorage` with no `window`, so the honest repair is
+"stub `window` too." Except `window` is not an inert token in this codebase: `user-scope.ts`
+attaches a real `storage` event listener behind `typeof window !== 'undefined'`, and
+`tricks.svelte.ts` / `tour.svelte.ts` hydrate from storage at module-eval behind the same
+check. Stubbing it to satisfy a storage guard would have silently switched on cross-tab
+reload machinery inside the module whose header still documents the 2026-07-13 data-loss
+incident.
+
+So the "clean" fix was clean only at the point I was looking at. One identifier, `window`, was
+serving as the environment discriminator for four unrelated subsystems, which means **any**
+change to how one of them tests for a browser perturbs the other three. That coupling is
+invisible from the call site — `namespace.ts` has no reason to know that `tour.svelte.ts`
+exists. I found it only because I ran the suite instead of trusting the diff.
+
+The generalisable bit: *elegance is a property of a change plus its blast radius, not of the
+change alone.* I keep re-learning this in the same shape — a small correct-looking edit whose
+cost lives entirely in code that doesn't mention it. The tell was available before I typed
+anything: a grep showed 34 files stubbing the global. I read that as "34 files to update,
+tedious" and moved on, when what it actually said was "this global is load-bearing in 34
+places, go look at what else keys off it."
+
+What I shipped instead discriminates on *property descriptor kind* — data property (a real
+installed store) vs accessor (Node's lazy built-in). It is objectively less pretty and needs a
+paragraph of comment to justify. It also required zero changes outside the function. Given a
+choice between a fix that reads better and a fix that touches less, in a module tied to a
+past data-loss incident, touching less wins and it isn't close.
+
+Second, smaller lesson from the same hour: I could not reproduce this warning locally at all —
+Node 24.3.0 has no `localStorage` global, Node 26.5.1 has it as a lazy accessor. The entire
+diagnosis came from probing the production box directly. A bug that exists only on a runtime
+you don't run is indistinguishable from a bug that doesn't exist, and the reflex to reach for
+the real environment early is worth more than any amount of local reasoning.
