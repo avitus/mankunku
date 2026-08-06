@@ -4,9 +4,11 @@
  * color — the band starts settled and builds chorus over chorus the way a
  * rhythm section actually plays a form.
  *
- * Intensity is derived state, never drawn state: it multiplies WEIGHTS
- * and probabilities at the existing draw sites (the draw counts per
- * stream are unchanged), so it can never reshuffle a seed stream. The
+ * Intensity is derived state, never drawn state: it consumes no draws
+ * itself and only multiplies WEIGHTS and probabilities at existing draw
+ * sites, so it can never reshuffle a DIFFERENT stream. (Within a stream,
+ * a flipped outcome can change dependent draw counts — exactly as any
+ * weight tweak would; cross-stream isolation is the invariant.) The
  * ×lerp(...) hooks staged across the bass/comp/drum increments all read
  * this value.
  */
@@ -29,9 +31,11 @@ export interface BarIntensityInput {
 
 /**
  * The arc: mapped phrases build by chorus — 0.35 base, +0.20 per chorus
- * (capped at the third), +0.08 on cadence bars, clamped to [0.2, 0.9].
- * Sectionless phrases (4-bar loops, flat lick beds) ramp gently across
- * their length instead, capped at 0.7 — a loop should breathe, not peak.
+ * (capped at the third), +0.08 on cadence bars — reaching 0.35–0.83 in
+ * practice (the [0.2, 0.9] clamp is defensive, for out-of-contract
+ * inputs). Sectionless phrases (4-bar loops, flat lick beds) ramp gently
+ * across their length instead, staying under 0.7 — a loop should
+ * breathe, not peak.
  */
 export function barIntensity(input: BarIntensityInput): number {
 	if (input.chorusIndex !== undefined) {

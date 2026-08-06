@@ -34,7 +34,7 @@ export interface CompFigure {
 	/** Per-bar hit lists: hits[0] is the figure's first bar, hits[1] its second. */
 	hits: CompFigureHit[][];
 	weight: number;
-	/** Density rank 0–2; biased by section position (and, later, intensity). */
+	/** Density rank 0–2; rank 2 leans in and rank 0 thins out with the intensity arc. */
 	busy: 0 | 1 | 2;
 	tags: FigureTag[];
 	/**

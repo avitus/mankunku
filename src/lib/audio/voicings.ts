@@ -212,6 +212,11 @@ export function voiceLead(
 	registerMidi: number | number[] = 54
 ): number[][] {
 	if (chords.length === 0) return [];
+	if (Array.isArray(registerMidi) && registerMidi.length !== chords.length) {
+		// Fail loudly: a short array would give NaN search bounds and emit
+		// silent empty voicings instead of comp hits.
+		throw new Error(`voiceLead: ${registerMidi.length} registers for ${chords.length} chords`);
+	}
 	const fnFor = (i: number): VoicingFn => (Array.isArray(voicingFn) ? voicingFn[i] : voicingFn);
 	const regFor = (i: number): number => (Array.isArray(registerMidi) ? registerMidi[i] : registerMidi);
 

@@ -3,6 +3,7 @@ import { generateBacking, buildBarInfos } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { BACKING_LAB_PRESETS, labPhraseWithSeed } from '$lib/audio/backing-lab-presets';
 import { capAdditionsPerOffset } from '$lib/audio/backing-drum-vocab';
+import { createRng } from '$lib/audio/generation-rng';
 import type { BackingGenerationParams } from '$lib/audio/backing-generation';
 
 const aaba = BACKING_LAB_PRESETS.find((p) => p.id === 'lab-aaba-c')!;
@@ -155,33 +156,45 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 
 	it('is deterministic, and fills never reshuffle the timekeeping stream', () => {
 		expect(gen(0)).toEqual(gen(0));
-		// Same phrase with a sectionMap vs without: section-dependent fills
-		// change, but ride/hat draws on ordinary mid-section bars survive
-		// because fills live on the dedicated drum-fill stream.
-		const withMap = gen(1).drumEvents;
-		const params: BackingGenerationParams = {
-			phraseId: labPhraseWithSeed(aaba, 1).id,
-			tempo: 160,
-			ppq: 192,
+		// Direct pattern calls: same `drums` stream, same intensity, only the
+		// section context (and fill stream) differs. The ostinato — integer-
+		// offset ride/hat draws and feather kicks — must be identical because
+		// fills draw exclusively from the dedicated drum-fill stream. (A
+		// mapped-vs-flat comparison via generateBacking cannot pin this:
+		// intensity legitimately differs between those runs and may flip
+		// ride-mode or feather outcomes.)
+		const base = {
+			barIndex: 3,
 			beatsPerBar: 4,
-			swing: 0.733
+			isSectionFirstBar: false,
+			isSectionFinalBar: false,
+			isFinalBar: false,
+			intensity: 0.55,
+			swing: 0.733,
+			rng: createRng(11),
+			fillRng: createRng(12)
 		};
-		const flat = generateBacking(aaba.phrase.harmony, BACKING_STYLES.swing, params).drumEvents;
-		const ordinaryBar = 1; // mid-section in both
-		const key = (e: { drum: string; absBeat: number }) => `${e.drum}@${e.absBeat}`;
-		// Ride, hats, and feather kicks only: coupling kicks react to comp
-		// onsets, and comp PLANNING is section-aware, so they are legitimately
-		// not invariant between the mapped and flat runs.
-		const timekeeping = (events: typeof withMap) =>
-			events
+		const plain = BACKING_STYLES.swing.drumPattern(base);
+		const sectionFinal = BACKING_STYLES.swing.drumPattern({
+			...base,
+			rng: createRng(11),
+			fillRng: createRng(99),
+			isSectionFinalBar: true
+		});
+		// Integer-offset ride/hat plus feather kicks, with velocities: setup
+		// figures only add off-grid hits and kicks >= 0.32, so any difference
+		// here is a genuine drums-stream reshuffle.
+		const timekeeping = (hits: typeof plain) =>
+			hits
 				.filter(
-					(e) =>
-						Math.floor(e.absBeat / 4) === ordinaryBar &&
-						(e.drum === 'ride' || e.drum === 'hihat' || (e.drum === 'kick' && e.velocity < 0.2))
+					(h) =>
+						((h.drum === 'ride' || h.drum === 'hihat') && h.beatOffset % 1 === 0) ||
+						(h.drum === 'kick' && h.velocity < 0.2)
 				)
-				.map(key)
+				.map((h) => `${h.drum}@${h.beatOffset}:${h.velocity.toFixed(6)}`)
 				.sort();
-		expect(timekeeping(withMap)).toEqual(timekeeping(flat));
+		expect(timekeeping(sectionFinal)).toEqual(timekeeping(plain));
+		expect(timekeeping(plain).length).toBeGreaterThanOrEqual(6); // 4 ride quarters + 2 hats
 	});
 });
 

@@ -15,6 +15,7 @@
  *
  *   bass-arc     | 4-bar group | register contour
  *   bass-feel    | chorusIndex | two/four feel
+ *   bass-feel-escape | barIndex | walk-escape from a two-feel bar
  *   bass-target  | segment     | downbeat note choice
  *   bass-appr    | segment     | approach device
  *   bass         | segment     | interior fill, spice, velocity

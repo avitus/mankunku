@@ -39,14 +39,19 @@ describe('barIntensity', () => {
 		}
 	});
 
-	it('ramps gently across sectionless phrases, capped at 0.7', () => {
+	it('ramps gently across sectionless phrases, always under the 0.7 ceiling', () => {
 		expect(barIntensity({ isSectionFinalBar: false, barIndex: 0, totalBars: 8 })).toBeCloseTo(0.45);
 		expect(barIntensity({ isSectionFinalBar: false, barIndex: 7, totalBars: 8 })).toBeCloseTo(
 			0.45 + (0.25 * 7) / 8
 		);
+		// barIndex < totalBars always, so the ramp approaches 0.7 from below
+		// (the Math.min is defensive, for out-of-contract bar indices).
 		expect(barIntensity({ isSectionFinalBar: false, barIndex: 63, totalBars: 64 })).toBeCloseTo(
-			0.7
-		); // long loop hits the cap
+			0.45 + (0.25 * 63) / 64
+		);
+		expect(
+			barIntensity({ isSectionFinalBar: false, barIndex: 63, totalBars: 64 })
+		).toBeLessThan(0.7);
 		expect(barIntensity({ isSectionFinalBar: false, barIndex: 0, totalBars: 0 })).toBeCloseTo(
 			0.45
 		); // degenerate guard
