@@ -308,12 +308,19 @@ function devicePitches(
 /**
  * Generate the bass line. Drop-in replacement for the old
  * `generateWalkingBass`, plus per-bar onsets for the drummer's ears.
+ *
+ * `feelOverride: 'two'` (the ballad engine, `StyleDefinition.bass ===
+ * 'two'`) pins EVERY bar to the two-feel — no chorus latch, no 4-bar
+ * walk escapes, no section-final walk: a ballad states half notes all
+ * night. The `bass-feel`/`bass-feel-escape` streams go unconsumed under
+ * the override (they're dedicated, so nothing else reshuffles).
  */
 export function generateBassLine(
 	harmony: HarmonicSegment[],
 	beatsPerBar: number,
 	params: BackingGenerationParams,
-	barInfos: BarInfo[]
+	barInfos: BarInfo[],
+	feelOverride?: 'two'
 ): BassLineResult {
 	const { phraseId, tempo, ppq, swing } = params;
 	const timing = params.timing ?? SWING_TIMING;
@@ -324,7 +331,7 @@ export function generateBassLine(
 	const downbeatPc = (idx: number): number =>
 		(segments[idx].rootPc + plans[idx].downbeatOffset) % 12;
 	const centers = planArc(barInfos.length, barInfos, phraseId, tempo);
-	const feels = planFeel(barInfos, phraseId, tempo);
+	const feels = feelOverride ? null : planFeel(barInfos, phraseId, tempo);
 	const beatDuration = 60 / tempo;
 
 	const events: BassEvent[] = [];
@@ -335,11 +342,13 @@ export function generateBassLine(
 	const infoAt = (absBeat: number): BarInfo =>
 		barInfos[Math.min(Math.floor(absBeat / beatsPerBar), barInfos.length - 1)];
 	const feelAt = (absBeat: number): 'two' | 'four' => {
-		const bar = Math.min(Math.floor(absBeat / beatsPerBar), feels.length - 1);
+		if (feelOverride) return feelOverride;
+		const fs = feels as Array<'two' | 'four'>;
+		const bar = Math.min(Math.floor(absBeat / beatsPerBar), fs.length - 1);
 		const info = infoAt(absBeat);
 		// A two-feel chorus still walks where the form needs motion: the last
 		// bar of each 4-bar group sometimes, section-final bars always.
-		if (feels[bar] === 'two') {
+		if (fs[bar] === 'two') {
 			if (info.isSectionFinalBar) return 'four';
 			if (bar % 4 === 3) {
 				const rng = createRng(seedFrom(phraseId, tempo, 'bass-feel-escape', bar));

@@ -405,12 +405,21 @@ describe('other styles under the context signature', () => {
 		expect(offsets).toContain(side![0]);
 	});
 
-	it('ballad stays sparse: one soft kick, ride quarters', () => {
+	it('ballad stays sparse and quiet: soft ride quarters, foot hats, whisper kick', () => {
+		// Deep ballad behavior lives in backing-ballad.test.ts; pin the
+		// pattern-function contract across seeds.
 		const style = BACKING_STYLES.ballad;
-		const drums = style.drumPattern(ctxFor({ rng: createRng(1) }));
-		expect(drums.filter((h) => h.drum === 'kick')).toHaveLength(1);
-		expect(drums.filter((h) => h.drum === 'ride')).toHaveLength(4);
-		expect(drums.filter((h) => h.drum === 'hihat')).toHaveLength(0);
+		for (let seed = 0; seed < 10; seed++) {
+			const drums = style.drumPattern(ctxFor({ rng: createRng(seed) }));
+			expect(drums.filter((h) => h.drum === 'ride').map((h) => h.beatOffset)).toEqual([0, 1, 2, 3]);
+			expect(drums.filter((h) => h.drum === 'hihat-pedal').map((h) => h.beatOffset)).toEqual([1, 3]);
+			for (const h of drums) {
+				if (h.drum === 'kick') expect(h.velocity).toBeLessThan(0.2);
+				if (h.drum === 'snare') expect(h.velocity).toBeLessThan(0.2);
+				expect(h.velocity).toBeLessThan(0.4);
+			}
+			expect(drums.some((h) => h.drum === 'hihat' || h.drum === 'crash')).toBe(false);
+		}
 	});
 });
 

@@ -1,0 +1,7059 @@
+{
+ "params": {
+  "phraseId": "lab-aaba-c",
+  "tempo": 72,
+  "ppq": 192,
+  "beatsPerBar": 4,
+  "swing": 0.55,
+  "sectionMap": [
+   {
+    "sourceSection": 0,
+    "barOffset": 0
+   },
+   {
+    "sourceSection": 1,
+    "barOffset": 8
+   },
+   {
+    "sourceSection": 2,
+    "barOffset": 16
+   },
+   {
+    "sourceSection": 3,
+    "barOffset": 24
+   },
+   {
+    "sourceSection": 0,
+    "barOffset": 32
+   },
+   {
+    "sourceSection": 1,
+    "barOffset": 40
+   },
+   {
+    "sourceSection": 2,
+    "barOffset": 48
+   },
+   {
+    "sourceSection": 3,
+    "barOffset": 56
+   },
+   {
+    "sourceSection": 0,
+    "barOffset": 64
+   },
+   {
+    "sourceSection": 1,
+    "barOffset": 72
+   },
+   {
+    "sourceSection": 2,
+    "barOffset": 80
+   },
+   {
+    "sourceSection": 3,
+    "barOffset": 88
+   }
+  ],
+  "style": "ballad"
+ },
+ "bassEvents": [
+  {
+   "time": "0i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 0
+  },
+  {
+   "time": "383i",
+   "midi": 31,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 2
+  },
+  {
+   "time": "769i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 4
+  },
+  {
+   "time": "1151i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 6
+  },
+  {
+   "time": "1536i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 8
+  },
+  {
+   "time": "1919i",
+   "midi": 48,
+   "duration": 0.7083333333333334,
+   "velocity": 83,
+   "absBeat": 10
+  },
+  {
+   "time": "2303i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 12
+  },
+  {
+   "time": "2687i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 14
+  },
+  {
+   "time": "3071i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 16
+  },
+  {
+   "time": "3456i",
+   "midi": 53,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 18
+  },
+  {
+   "time": "3840i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 82,
+   "absBeat": 20
+  },
+  {
+   "time": "4223i",
+   "midi": 34,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 22
+  },
+  {
+   "time": "4607i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 24
+  },
+  {
+   "time": "4991i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 26
+  },
+  {
+   "time": "5375i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 28
+  },
+  {
+   "time": "5759i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 88,
+   "absBeat": 30
+  },
+  {
+   "time": "6016i",
+   "midi": 42,
+   "duration": 0.15,
+   "velocity": 58,
+   "absBeat": 31.333333333333332
+  },
+  {
+   "time": "6080i",
+   "midi": 35,
+   "duration": 0.15,
+   "velocity": 66,
+   "absBeat": 31.666666666666668
+  },
+  {
+   "time": "6143i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 82,
+   "absBeat": 32
+  },
+  {
+   "time": "6527i",
+   "midi": 40,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 34
+  },
+  {
+   "time": "6912i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 83,
+   "absBeat": 36
+  },
+  {
+   "time": "7296i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 38
+  },
+  {
+   "time": "7680i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 40
+  },
+  {
+   "time": "8064i",
+   "midi": 31,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 42
+  },
+  {
+   "time": "8447i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 85,
+   "absBeat": 44
+  },
+  {
+   "time": "8833i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 46
+  },
+  {
+   "time": "9214i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 48
+  },
+  {
+   "time": "9600i",
+   "midi": 36,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 50
+  },
+  {
+   "time": "9983i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 52
+  },
+  {
+   "time": "10368i",
+   "midi": 34,
+   "duration": 0.7083333333333334,
+   "velocity": 79,
+   "absBeat": 54
+  },
+  {
+   "time": "10751i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 89,
+   "absBeat": 56
+  },
+  {
+   "time": "11134i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 58
+  },
+  {
+   "time": "11520i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 88,
+   "absBeat": 60
+  },
+  {
+   "time": "11905i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 62
+  },
+  {
+   "time": "12287i",
+   "midi": 40,
+   "duration": 1.4166666666666667,
+   "velocity": 80,
+   "absBeat": 64
+  },
+  {
+   "time": "12671i",
+   "midi": 44,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 66
+  },
+  {
+   "time": "13439i",
+   "midi": 44,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 70
+  },
+  {
+   "time": "13823i",
+   "midi": 40,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 72
+  },
+  {
+   "time": "14207i",
+   "midi": 37,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 74
+  },
+  {
+   "time": "14976i",
+   "midi": 37,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 78
+  },
+  {
+   "time": "15360i",
+   "midi": 42,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 80
+  },
+  {
+   "time": "15743i",
+   "midi": 45,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 82
+  },
+  {
+   "time": "16512i",
+   "midi": 45,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 86
+  },
+  {
+   "time": "16896i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 82,
+   "absBeat": 88
+  },
+  {
+   "time": "17278i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 90
+  },
+  {
+   "time": "17662i",
+   "midi": 43,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 92
+  },
+  {
+   "time": "18048i",
+   "midi": 38,
+   "duration": 0.7083333333333334,
+   "velocity": 86,
+   "absBeat": 94
+  },
+  {
+   "time": "18304i",
+   "midi": 37,
+   "duration": 0.15,
+   "velocity": 58,
+   "absBeat": 95.33333333333333
+  },
+  {
+   "time": "18367i",
+   "midi": 35,
+   "duration": 0.15,
+   "velocity": 66,
+   "absBeat": 95.66666666666667
+  },
+  {
+   "time": "18431i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 96
+  },
+  {
+   "time": "18815i",
+   "midi": 31,
+   "duration": 0.7083333333333334,
+   "velocity": 86,
+   "absBeat": 98
+  },
+  {
+   "time": "19198i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 89,
+   "absBeat": 100
+  },
+  {
+   "time": "19583i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 102
+  },
+  {
+   "time": "19968i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 82,
+   "absBeat": 104
+  },
+  {
+   "time": "20351i",
+   "midi": 47,
+   "duration": 0.7083333333333334,
+   "velocity": 82,
+   "absBeat": 106
+  },
+  {
+   "time": "20735i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 108
+  },
+  {
+   "time": "21119i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 110
+  },
+  {
+   "time": "21504i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 112
+  },
+  {
+   "time": "21887i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 114
+  },
+  {
+   "time": "22271i",
+   "midi": 29,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 116
+  },
+  {
+   "time": "22654i",
+   "midi": 34,
+   "duration": 0.7083333333333334,
+   "velocity": 88,
+   "absBeat": 118
+  },
+  {
+   "time": "23040i",
+   "midi": 31,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 120
+  },
+  {
+   "time": "23422i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 122
+  },
+  {
+   "time": "23807i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 88,
+   "absBeat": 124
+  },
+  {
+   "time": "24191i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 126
+  },
+  {
+   "time": "24575i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 83,
+   "absBeat": 128
+  },
+  {
+   "time": "24959i",
+   "midi": 37,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 130
+  },
+  {
+   "time": "25343i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 88,
+   "absBeat": 132
+  },
+  {
+   "time": "25727i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 83,
+   "absBeat": 134
+  },
+  {
+   "time": "26111i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 88,
+   "absBeat": 136
+  },
+  {
+   "time": "26496i",
+   "midi": 48,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 138
+  },
+  {
+   "time": "26878i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 80,
+   "absBeat": 140
+  },
+  {
+   "time": "27263i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 142
+  },
+  {
+   "time": "27647i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 144
+  },
+  {
+   "time": "28031i",
+   "midi": 36,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 146
+  },
+  {
+   "time": "28416i",
+   "midi": 32,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 148
+  },
+  {
+   "time": "28801i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 150
+  },
+  {
+   "time": "29183i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 152
+  },
+  {
+   "time": "29568i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 80,
+   "absBeat": 154
+  },
+  {
+   "time": "29951i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 156
+  },
+  {
+   "time": "30337i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 158
+  },
+  {
+   "time": "30719i",
+   "midi": 40,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 160
+  },
+  {
+   "time": "31104i",
+   "midi": 40,
+   "duration": 0.7083333333333334,
+   "velocity": 86,
+   "absBeat": 162
+  },
+  {
+   "time": "31488i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 164
+  },
+  {
+   "time": "31872i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 166
+  },
+  {
+   "time": "32256i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 168
+  },
+  {
+   "time": "32640i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 88,
+   "absBeat": 170
+  },
+  {
+   "time": "33023i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 83,
+   "absBeat": 172
+  },
+  {
+   "time": "33408i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 174
+  },
+  {
+   "time": "33792i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 176
+  },
+  {
+   "time": "34175i",
+   "midi": 45,
+   "duration": 0.7083333333333334,
+   "velocity": 78,
+   "absBeat": 178
+  },
+  {
+   "time": "34559i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 180
+  },
+  {
+   "time": "34944i",
+   "midi": 46,
+   "duration": 0.7083333333333334,
+   "velocity": 83,
+   "absBeat": 182
+  },
+  {
+   "time": "35327i",
+   "midi": 40,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 184
+  },
+  {
+   "time": "35711i",
+   "midi": 45,
+   "duration": 0.7083333333333334,
+   "velocity": 80,
+   "absBeat": 186
+  },
+  {
+   "time": "36095i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 80,
+   "absBeat": 188
+  },
+  {
+   "time": "36479i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 83,
+   "absBeat": 190
+  },
+  {
+   "time": "36864i",
+   "midi": 35,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 192
+  },
+  {
+   "time": "37247i",
+   "midi": 47,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 194
+  },
+  {
+   "time": "38015i",
+   "midi": 32,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 198
+  },
+  {
+   "time": "38398i",
+   "midi": 33,
+   "duration": 1.4166666666666667,
+   "velocity": 82,
+   "absBeat": 200
+  },
+  {
+   "time": "38783i",
+   "midi": 37,
+   "duration": 0.7083333333333334,
+   "velocity": 78,
+   "absBeat": 202
+  },
+  {
+   "time": "39551i",
+   "midi": 28,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 206
+  },
+  {
+   "time": "39936i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 85,
+   "absBeat": 208
+  },
+  {
+   "time": "40320i",
+   "midi": 42,
+   "duration": 0.7083333333333334,
+   "velocity": 79,
+   "absBeat": 210
+  },
+  {
+   "time": "41087i",
+   "midi": 42,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 214
+  },
+  {
+   "time": "41471i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 216
+  },
+  {
+   "time": "41855i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 82,
+   "absBeat": 218
+  },
+  {
+   "time": "42240i",
+   "midi": 31,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 220
+  },
+  {
+   "time": "42623i",
+   "midi": 38,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 222
+  },
+  {
+   "time": "42880i",
+   "midi": 37,
+   "duration": 0.15,
+   "velocity": 58,
+   "absBeat": 223.33333333333334
+  },
+  {
+   "time": "42944i",
+   "midi": 47,
+   "duration": 0.15,
+   "velocity": 66,
+   "absBeat": 223.66666666666666
+  },
+  {
+   "time": "43007i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 224
+  },
+  {
+   "time": "43391i",
+   "midi": 31,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 226
+  },
+  {
+   "time": "43776i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 228
+  },
+  {
+   "time": "44160i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 230
+  },
+  {
+   "time": "44543i",
+   "midi": 40,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 232
+  },
+  {
+   "time": "44927i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 234
+  },
+  {
+   "time": "45311i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 236
+  },
+  {
+   "time": "45695i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 238
+  },
+  {
+   "time": "46080i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 83,
+   "absBeat": 240
+  },
+  {
+   "time": "46463i",
+   "midi": 36,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 242
+  },
+  {
+   "time": "46846i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 88,
+   "absBeat": 244
+  },
+  {
+   "time": "47232i",
+   "midi": 34,
+   "duration": 0.7083333333333334,
+   "velocity": 78,
+   "absBeat": 246
+  },
+  {
+   "time": "47615i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 248
+  },
+  {
+   "time": "47999i",
+   "midi": 33,
+   "duration": 0.7083333333333334,
+   "velocity": 79,
+   "absBeat": 250
+  },
+  {
+   "time": "48383i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 80,
+   "absBeat": 252
+  },
+  {
+   "time": "48767i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 254
+  },
+  {
+   "time": "49151i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 256
+  },
+  {
+   "time": "49535i",
+   "midi": 31,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 258
+  },
+  {
+   "time": "49920i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 88,
+   "absBeat": 260
+  },
+  {
+   "time": "50302i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 262
+  },
+  {
+   "time": "50688i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 264
+  },
+  {
+   "time": "51071i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 266
+  },
+  {
+   "time": "51456i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 268
+  },
+  {
+   "time": "51840i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 89,
+   "absBeat": 270
+  },
+  {
+   "time": "52223i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 272
+  },
+  {
+   "time": "52606i",
+   "midi": 40,
+   "duration": 0.7083333333333334,
+   "velocity": 82,
+   "absBeat": 274
+  },
+  {
+   "time": "52991i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 276
+  },
+  {
+   "time": "53376i",
+   "midi": 34,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 278
+  },
+  {
+   "time": "53759i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 280
+  },
+  {
+   "time": "54142i",
+   "midi": 37,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 282
+  },
+  {
+   "time": "54528i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 80,
+   "absBeat": 284
+  },
+  {
+   "time": "54912i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 79,
+   "absBeat": 286
+  },
+  {
+   "time": "55295i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 288
+  },
+  {
+   "time": "55680i",
+   "midi": 37,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 290
+  },
+  {
+   "time": "56063i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 292
+  },
+  {
+   "time": "56446i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 294
+  },
+  {
+   "time": "56831i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 296
+  },
+  {
+   "time": "57215i",
+   "midi": 52,
+   "duration": 0.7083333333333334,
+   "velocity": 90,
+   "absBeat": 298
+  },
+  {
+   "time": "57599i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 300
+  },
+  {
+   "time": "57984i",
+   "midi": 45,
+   "duration": 0.7083333333333334,
+   "velocity": 88,
+   "absBeat": 302
+  },
+  {
+   "time": "58368i",
+   "midi": 33,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 304
+  },
+  {
+   "time": "58750i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 82,
+   "absBeat": 306
+  },
+  {
+   "time": "59134i",
+   "midi": 44,
+   "duration": 1.4166666666666667,
+   "velocity": 81,
+   "absBeat": 308
+  },
+  {
+   "time": "59519i",
+   "midi": 46,
+   "duration": 0.7083333333333334,
+   "velocity": 86,
+   "absBeat": 310
+  },
+  {
+   "time": "59903i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 312
+  },
+  {
+   "time": "60286i",
+   "midi": 45,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 314
+  },
+  {
+   "time": "60672i",
+   "midi": 50,
+   "duration": 1.4166666666666667,
+   "velocity": 82,
+   "absBeat": 316
+  },
+  {
+   "time": "61055i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 86,
+   "absBeat": 318
+  },
+  {
+   "time": "61440i",
+   "midi": 47,
+   "duration": 1.4166666666666667,
+   "velocity": 88,
+   "absBeat": 320
+  },
+  {
+   "time": "61824i",
+   "midi": 44,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 322
+  },
+  {
+   "time": "62592i",
+   "midi": 44,
+   "duration": 0.7083333333333334,
+   "velocity": 80,
+   "absBeat": 326
+  },
+  {
+   "time": "62975i",
+   "midi": 45,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 328
+  },
+  {
+   "time": "63359i",
+   "midi": 40,
+   "duration": 0.7083333333333334,
+   "velocity": 86,
+   "absBeat": 330
+  },
+  {
+   "time": "64127i",
+   "midi": 40,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 334
+  },
+  {
+   "time": "64512i",
+   "midi": 33,
+   "duration": 1.4166666666666667,
+   "velocity": 84,
+   "absBeat": 336
+  },
+  {
+   "time": "64896i",
+   "midi": 30,
+   "duration": 0.7083333333333334,
+   "velocity": 82,
+   "absBeat": 338
+  },
+  {
+   "time": "65664i",
+   "midi": 45,
+   "duration": 0.7083333333333334,
+   "velocity": 78,
+   "absBeat": 342
+  },
+  {
+   "time": "66048i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 344
+  },
+  {
+   "time": "66431i",
+   "midi": 50,
+   "duration": 0.7083333333333334,
+   "velocity": 83,
+   "absBeat": 346
+  },
+  {
+   "time": "66816i",
+   "midi": 43,
+   "duration": 1.4166666666666667,
+   "velocity": 91,
+   "absBeat": 348
+  },
+  {
+   "time": "67199i",
+   "midi": 47,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 350
+  },
+  {
+   "time": "67585i",
+   "midi": 48,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 352
+  },
+  {
+   "time": "67968i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 82,
+   "absBeat": 354
+  },
+  {
+   "time": "68352i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 85,
+   "absBeat": 356
+  },
+  {
+   "time": "68737i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 358
+  },
+  {
+   "time": "69119i",
+   "midi": 40,
+   "duration": 1.4166666666666667,
+   "velocity": 92,
+   "absBeat": 360
+  },
+  {
+   "time": "69504i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 362
+  },
+  {
+   "time": "69887i",
+   "midi": 36,
+   "duration": 1.4166666666666667,
+   "velocity": 90,
+   "absBeat": 364
+  },
+  {
+   "time": "70271i",
+   "midi": 41,
+   "duration": 0.7083333333333334,
+   "velocity": 84,
+   "absBeat": 366
+  },
+  {
+   "time": "70655i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 86,
+   "absBeat": 368
+  },
+  {
+   "time": "71040i",
+   "midi": 53,
+   "duration": 0.7083333333333334,
+   "velocity": 85,
+   "absBeat": 370
+  },
+  {
+   "time": "71423i",
+   "midi": 41,
+   "duration": 1.4166666666666667,
+   "velocity": 85,
+   "absBeat": 372
+  },
+  {
+   "time": "71807i",
+   "midi": 46,
+   "duration": 0.7083333333333334,
+   "velocity": 81,
+   "absBeat": 374
+  },
+  {
+   "time": "72191i",
+   "midi": 43,
+   "duration": 1.4166666666666667,
+   "velocity": 82,
+   "absBeat": 376
+  },
+  {
+   "time": "72576i",
+   "midi": 37,
+   "duration": 0.7083333333333334,
+   "velocity": 88,
+   "absBeat": 378
+  },
+  {
+   "time": "72960i",
+   "midi": 38,
+   "duration": 1.4166666666666667,
+   "velocity": 87,
+   "absBeat": 380
+  },
+  {
+   "time": "73343i",
+   "midi": 43,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 382
+  },
+  {
+   "time": "73535i",
+   "midi": 38,
+   "duration": 0.7083333333333334,
+   "velocity": 87,
+   "absBeat": 383
+  }
+ ],
+ "compEvents": [
+  {
+   "time": "4i",
+   "notes": [
+    52,
+    55,
+    59,
+    62
+   ],
+   "duration": 3,
+   "velocity": 45,
+   "absBeat": 0
+  },
+  {
+   "time": "772i",
+   "notes": [
+    52,
+    57,
+    62,
+    67
+   ],
+   "duration": 3,
+   "velocity": 52,
+   "absBeat": 4
+  },
+  {
+   "time": "2309i",
+   "notes": [
+    48,
+    51,
+    58
+   ],
+   "duration": 3,
+   "velocity": 51,
+   "absBeat": 12
+  },
+  {
+   "time": "3077i",
+   "notes": [
+    57,
+    60,
+    64,
+    67
+   ],
+   "duration": 1.5,
+   "velocity": 46,
+   "absBeat": 16
+  },
+  {
+   "time": "3460i",
+   "notes": [
+    57,
+    60,
+    64,
+    67
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 46,
+   "absBeat": 18
+  },
+  {
+   "time": "3844i",
+   "notes": [
+    55,
+    60,
+    65,
+    70
+   ],
+   "duration": 3,
+   "velocity": 44,
+   "absBeat": 20
+  },
+  {
+   "time": "6146i",
+   "notes": [
+    72,
+    76,
+    83
+   ],
+   "duration": 3,
+   "velocity": 54,
+   "absBeat": 32
+  },
+  {
+   "time": "7302i",
+   "notes": [
+    69,
+    74,
+    79
+   ],
+   "duration": 1.5,
+   "velocity": 50,
+   "absBeat": 38
+  },
+  {
+   "time": "7685i",
+   "notes": [
+    64,
+    67,
+    71,
+    74
+   ],
+   "duration": 3,
+   "velocity": 47,
+   "absBeat": 40
+  },
+  {
+   "time": "8453i",
+   "notes": [
+    58,
+    62,
+    63,
+    67
+   ],
+   "duration": 3,
+   "velocity": 50,
+   "absBeat": 44
+  },
+  {
+   "time": "9222i",
+   "notes": [
+    53,
+    60,
+    64,
+    69
+   ],
+   "duration": 3,
+   "velocity": 44,
+   "absBeat": 48
+  },
+  {
+   "time": "9986i",
+   "notes": [
+    51,
+    55,
+    56,
+    60
+   ],
+   "duration": 3,
+   "velocity": 44,
+   "absBeat": 52
+  },
+  {
+   "time": "10755i",
+   "notes": [
+    50,
+    55,
+    60
+   ],
+   "duration": 1.5,
+   "velocity": 48,
+   "absBeat": 56
+  },
+  {
+   "time": "11140i",
+   "notes": [
+    59,
+    64,
+    69
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 50,
+   "absBeat": 58
+  },
+  {
+   "time": "11524i",
+   "notes": [
+    65,
+    69,
+    72,
+    76
+   ],
+   "duration": 3,
+   "velocity": 52,
+   "absBeat": 60
+  },
+  {
+   "time": "12205i",
+   "notes": [
+    64,
+    68,
+    74
+   ],
+   "duration": 1.0833333333333335,
+   "velocity": 50,
+   "absBeat": 63.5
+  },
+  {
+   "time": "12292i",
+   "notes": [
+    64,
+    68,
+    74
+   ],
+   "duration": 3,
+   "velocity": 42,
+   "absBeat": 64
+  },
+  {
+   "time": "13828i",
+   "notes": [
+    59,
+    64,
+    69
+   ],
+   "duration": 3,
+   "velocity": 43,
+   "absBeat": 72
+  },
+  {
+   "time": "14597i",
+   "notes": [
+    59,
+    64,
+    69
+   ],
+   "duration": 1.5,
+   "velocity": 53,
+   "absBeat": 76
+  },
+  {
+   "time": "14979i",
+   "notes": [
+    59,
+    64,
+    69
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 51,
+   "absBeat": 78
+  },
+  {
+   "time": "15363i",
+   "notes": [
+    64,
+    69,
+    74
+   ],
+   "duration": 3,
+   "velocity": 49,
+   "absBeat": 80
+  },
+  {
+   "time": "16516i",
+   "notes": [
+    64,
+    69,
+    74
+   ],
+   "duration": 1.5,
+   "velocity": 41,
+   "absBeat": 86
+  },
+  {
+   "time": "16901i",
+   "notes": [
+    64,
+    69,
+    74,
+    79
+   ],
+   "duration": 1.5,
+   "velocity": 48,
+   "absBeat": 88
+  },
+  {
+   "time": "17286i",
+   "notes": [
+    64,
+    69,
+    74,
+    79
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 46,
+   "absBeat": 90
+  },
+  {
+   "time": "18051i",
+   "notes": [
+    67,
+    71,
+    77
+   ],
+   "duration": 1.5,
+   "velocity": 43,
+   "absBeat": 94
+  },
+  {
+   "time": "18350i",
+   "notes": [
+    64,
+    71,
+    72,
+    79
+   ],
+   "duration": 1.0833333333333335,
+   "velocity": 50,
+   "absBeat": 95.5
+  },
+  {
+   "time": "18435i",
+   "notes": [
+    64,
+    71,
+    72,
+    79
+   ],
+   "duration": 3,
+   "velocity": 48,
+   "absBeat": 96
+  },
+  {
+   "time": "19206i",
+   "notes": [
+    62,
+    69,
+    72,
+    77
+   ],
+   "duration": 1.5,
+   "velocity": 53,
+   "absBeat": 100
+  },
+  {
+   "time": "19590i",
+   "notes": [
+    67,
+    71,
+    77
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 45,
+   "absBeat": 102
+  },
+  {
+   "time": "19971i",
+   "notes": [
+    59,
+    62,
+    64,
+    67
+   ],
+   "duration": 3,
+   "velocity": 49,
+   "absBeat": 104
+  },
+  {
+   "time": "20739i",
+   "notes": [
+    58,
+    62,
+    63,
+    67
+   ],
+   "duration": 3,
+   "velocity": 43,
+   "absBeat": 108
+  },
+  {
+   "time": "21506i",
+   "notes": [
+    53,
+    57,
+    64
+   ],
+   "duration": 1.5,
+   "velocity": 43,
+   "absBeat": 112
+  },
+  {
+   "time": "21893i",
+   "notes": [
+    53,
+    57,
+    64
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 49,
+   "absBeat": 114
+  },
+  {
+   "time": "22276i",
+   "notes": [
+    53,
+    60,
+    63,
+    68
+   ],
+   "duration": 1.5,
+   "velocity": 52,
+   "absBeat": 116
+  },
+  {
+   "time": "22660i",
+   "notes": [
+    62,
+    65,
+    68,
+    72
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 49,
+   "absBeat": 118
+  },
+  {
+   "time": "23426i",
+   "notes": [
+    59,
+    64,
+    69
+   ],
+   "duration": 1.5,
+   "velocity": 52,
+   "absBeat": 122
+  },
+  {
+   "time": "23814i",
+   "notes": [
+    64,
+    69,
+    74,
+    79
+   ],
+   "duration": 1.5,
+   "velocity": 49,
+   "absBeat": 124
+  },
+  {
+   "time": "24196i",
+   "notes": [
+    53,
+    57,
+    59,
+    64
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 49,
+   "absBeat": 126
+  },
+  {
+   "time": "24579i",
+   "notes": [
+    48,
+    52,
+    59
+   ],
+   "duration": 3,
+   "velocity": 45,
+   "absBeat": 128
+  },
+  {
+   "time": "26883i",
+   "notes": [
+    51,
+    55,
+    58,
+    62
+   ],
+   "duration": 1.5,
+   "velocity": 54,
+   "absBeat": 140
+  },
+  {
+   "time": "27269i",
+   "notes": [
+    51,
+    55,
+    57,
+    62
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 50,
+   "absBeat": 142
+  },
+  {
+   "time": "27651i",
+   "notes": [
+    57,
+    60,
+    64,
+    67
+   ],
+   "duration": 3,
+   "velocity": 49,
+   "absBeat": 144
+  },
+  {
+   "time": "28422i",
+   "notes": [
+    53,
+    60,
+    63,
+    68
+   ],
+   "duration": 1.5,
+   "velocity": 51,
+   "absBeat": 148
+  },
+  {
+   "time": "28805i",
+   "notes": [
+    62,
+    65,
+    68,
+    72
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 44,
+   "absBeat": 150
+  },
+  {
+   "time": "29189i",
+   "notes": [
+    60,
+    64,
+    71
+   ],
+   "duration": 3,
+   "velocity": 53,
+   "absBeat": 152
+  },
+  {
+   "time": "30340i",
+   "notes": [
+    55,
+    59,
+    65
+   ],
+   "duration": 1.5,
+   "velocity": 45,
+   "absBeat": 158
+  },
+  {
+   "time": "30638i",
+   "notes": [
+    52,
+    55,
+    59,
+    62
+   ],
+   "duration": 1.0833333333333335,
+   "velocity": 55,
+   "absBeat": 159.5
+  },
+  {
+   "time": "30727i",
+   "notes": [
+    52,
+    55,
+    59,
+    62
+   ],
+   "duration": 3,
+   "velocity": 51,
+   "absBeat": 160
+  },
+  {
+   "time": "31493i",
+   "notes": [
+    50,
+    53,
+    60
+   ],
+   "duration": 3,
+   "velocity": 50,
+   "absBeat": 164
+  },
+  {
+   "time": "33026i",
+   "notes": [
+    51,
+    55,
+    58,
+    62
+   ],
+   "duration": 3,
+   "velocity": 53,
+   "absBeat": 172
+  },
+  {
+   "time": "34564i",
+   "notes": [
+    56,
+    60,
+    63,
+    67
+   ],
+   "duration": 3,
+   "velocity": 54,
+   "absBeat": 180
+  },
+  {
+   "time": "35330i",
+   "notes": [
+    50,
+    55,
+    60
+   ],
+   "duration": 3,
+   "velocity": 47,
+   "absBeat": 184
+  },
+  {
+   "time": "36483i",
+   "notes": [
+    55,
+    59,
+    65
+   ],
+   "duration": 1.5,
+   "velocity": 44,
+   "absBeat": 190
+  },
+  {
+   "time": "36868i",
+   "notes": [
+    56,
+    62,
+    64,
+    71
+   ],
+   "duration": 1.5,
+   "velocity": 44,
+   "absBeat": 192
+  },
+  {
+   "time": "37252i",
+   "notes": [
+    56,
+    62,
+    64,
+    71
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 40,
+   "absBeat": 194
+  },
+  {
+   "time": "37636i",
+   "notes": [
+    56,
+    62,
+    64,
+    71
+   ],
+   "duration": 1.5,
+   "velocity": 50,
+   "absBeat": 196
+  },
+  {
+   "time": "38018i",
+   "notes": [
+    56,
+    62,
+    64,
+    71
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 43,
+   "absBeat": 198
+  },
+  {
+   "time": "38403i",
+   "notes": [
+    55,
+    59,
+    61,
+    66
+   ],
+   "duration": 3,
+   "velocity": 46,
+   "absBeat": 200
+  },
+  {
+   "time": "39173i",
+   "notes": [
+    55,
+    59,
+    61,
+    66
+   ],
+   "duration": 3,
+   "velocity": 46,
+   "absBeat": 204
+  },
+  {
+   "time": "40326i",
+   "notes": [
+    54,
+    60,
+    62,
+    69
+   ],
+   "duration": 1.5,
+   "velocity": 42,
+   "absBeat": 210
+  },
+  {
+   "time": "40707i",
+   "notes": [
+    54,
+    60,
+    62,
+    69
+   ],
+   "duration": 3,
+   "velocity": 50,
+   "absBeat": 212
+  },
+  {
+   "time": "41858i",
+   "notes": [
+    50,
+    53,
+    60
+   ],
+   "duration": 1.5,
+   "velocity": 41,
+   "absBeat": 218
+  },
+  {
+   "time": "43011i",
+   "notes": [
+    48,
+    55,
+    59,
+    64
+   ],
+   "duration": 3,
+   "velocity": 49,
+   "absBeat": 224
+  },
+  {
+   "time": "43781i",
+   "notes": [
+    52,
+    57,
+    62,
+    67
+   ],
+   "duration": 1.5,
+   "velocity": 45,
+   "absBeat": 228
+  },
+  {
+   "time": "44165i",
+   "notes": [
+    53,
+    57,
+    59,
+    64
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 50,
+   "absBeat": 230
+  },
+  {
+   "time": "44548i",
+   "notes": [
+    50,
+    55,
+    60
+   ],
+   "duration": 3,
+   "velocity": 48,
+   "absBeat": 232
+  },
+  {
+   "time": "46466i",
+   "notes": [
+    53,
+    57,
+    64
+   ],
+   "duration": 1.5,
+   "velocity": 46,
+   "absBeat": 242
+  },
+  {
+   "time": "46852i",
+   "notes": [
+    53,
+    56,
+    63
+   ],
+   "duration": 1.5,
+   "velocity": 55,
+   "absBeat": 244
+  },
+  {
+   "time": "47236i",
+   "notes": [
+    50,
+    53,
+    56,
+    60
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 52,
+   "absBeat": 246
+  },
+  {
+   "time": "47619i",
+   "notes": [
+    47,
+    50,
+    52,
+    55
+   ],
+   "duration": 3,
+   "velocity": 48,
+   "absBeat": 248
+  },
+  {
+   "time": "48772i",
+   "notes": [
+    59,
+    62,
+    65,
+    69
+   ],
+   "duration": 1.5,
+   "velocity": 43,
+   "absBeat": 254
+  },
+  {
+   "time": "49156i",
+   "notes": [
+    59,
+    62,
+    64,
+    67
+   ],
+   "duration": 3,
+   "velocity": 53,
+   "absBeat": 256
+  },
+  {
+   "time": "50310i",
+   "notes": [
+    59,
+    62,
+    65,
+    69
+   ],
+   "duration": 1.5,
+   "velocity": 45,
+   "absBeat": 262
+  },
+  {
+   "time": "51076i",
+   "notes": [
+    59,
+    62,
+    64,
+    67
+   ],
+   "duration": 1.5,
+   "velocity": 49,
+   "absBeat": 266
+  },
+  {
+   "time": "51460i",
+   "notes": [
+    55,
+    60,
+    63,
+    70
+   ],
+   "duration": 1.5,
+   "velocity": 55,
+   "absBeat": 268
+  },
+  {
+   "time": "51843i",
+   "notes": [
+    57,
+    60,
+    63,
+    67
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 53,
+   "absBeat": 270
+  },
+  {
+   "time": "52228i",
+   "notes": [
+    52,
+    55,
+    57,
+    60
+   ],
+   "duration": 1.5,
+   "velocity": 54,
+   "absBeat": 272
+  },
+  {
+   "time": "52613i",
+   "notes": [
+    52,
+    55,
+    57,
+    60
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 46,
+   "absBeat": 274
+  },
+  {
+   "time": "52996i",
+   "notes": [
+    55,
+    60,
+    65,
+    70
+   ],
+   "duration": 1.5,
+   "velocity": 48,
+   "absBeat": 276
+  },
+  {
+   "time": "53379i",
+   "notes": [
+    58,
+    62,
+    68
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 47,
+   "absBeat": 278
+  },
+  {
+   "time": "53765i",
+   "notes": [
+    59,
+    64,
+    67,
+    72
+   ],
+   "duration": 3,
+   "velocity": 49,
+   "absBeat": 280
+  },
+  {
+   "time": "54534i",
+   "notes": [
+    60,
+    64,
+    65,
+    69
+   ],
+   "duration": 3,
+   "velocity": 49,
+   "absBeat": 284
+  },
+  {
+   "time": "55299i",
+   "notes": [
+    59,
+    62,
+    64,
+    67
+   ],
+   "duration": 1.5,
+   "velocity": 49,
+   "absBeat": 288
+  },
+  {
+   "time": "55684i",
+   "notes": [
+    59,
+    62,
+    64,
+    67
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 42,
+   "absBeat": 290
+  },
+  {
+   "time": "56067i",
+   "notes": [
+    53,
+    57,
+    60,
+    64
+   ],
+   "duration": 3,
+   "velocity": 53,
+   "absBeat": 292
+  },
+  {
+   "time": "56837i",
+   "notes": [
+    52,
+    55,
+    59,
+    62
+   ],
+   "duration": 1.5,
+   "velocity": 55,
+   "absBeat": 296
+  },
+  {
+   "time": "57222i",
+   "notes": [
+    52,
+    55,
+    59,
+    62
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 41,
+   "absBeat": 298
+  },
+  {
+   "time": "57604i",
+   "notes": [
+    51,
+    55,
+    58,
+    62
+   ],
+   "duration": 1.5,
+   "velocity": 53,
+   "absBeat": 300
+  },
+  {
+   "time": "57987i",
+   "notes": [
+    55,
+    60,
+    65
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 42,
+   "absBeat": 302
+  },
+  {
+   "time": "58372i",
+   "notes": [
+    52,
+    55,
+    57,
+    60
+   ],
+   "duration": 1.5,
+   "velocity": 46,
+   "absBeat": 304
+  },
+  {
+   "time": "58755i",
+   "notes": [
+    52,
+    55,
+    57,
+    60
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 42,
+   "absBeat": 306
+  },
+  {
+   "time": "59141i",
+   "notes": [
+    55,
+    60,
+    65,
+    70
+   ],
+   "duration": 1.5,
+   "velocity": 44,
+   "absBeat": 308
+  },
+  {
+   "time": "59525i",
+   "notes": [
+    62,
+    65,
+    68,
+    72
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 41,
+   "absBeat": 310
+  },
+  {
+   "time": "59907i",
+   "notes": [
+    60,
+    64,
+    71
+   ],
+   "duration": 3,
+   "velocity": 44,
+   "absBeat": 312
+  },
+  {
+   "time": "60677i",
+   "notes": [
+    64,
+    69,
+    74,
+    79
+   ],
+   "duration": 1.5,
+   "velocity": 50,
+   "absBeat": 316
+  },
+  {
+   "time": "61059i",
+   "notes": [
+    65,
+    71,
+    74,
+    79
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 45,
+   "absBeat": 318
+  },
+  {
+   "time": "61443i",
+   "notes": [
+    68,
+    71,
+    74,
+    78
+   ],
+   "duration": 1.5,
+   "velocity": 53,
+   "absBeat": 320
+  },
+  {
+   "time": "61827i",
+   "notes": [
+    68,
+    71,
+    74,
+    78
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 45,
+   "absBeat": 322
+  },
+  {
+   "time": "62596i",
+   "notes": [
+    68,
+    71,
+    74,
+    78
+   ],
+   "duration": 1.5,
+   "velocity": 48,
+   "absBeat": 326
+  },
+  {
+   "time": "63364i",
+   "notes": [
+    61,
+    64,
+    67,
+    71
+   ],
+   "duration": 1.5,
+   "velocity": 49,
+   "absBeat": 330
+  },
+  {
+   "time": "63749i",
+   "notes": [
+    61,
+    64,
+    67,
+    71
+   ],
+   "duration": 3,
+   "velocity": 48,
+   "absBeat": 332
+  },
+  {
+   "time": "64517i",
+   "notes": [
+    62,
+    66,
+    72
+   ],
+   "duration": 3,
+   "velocity": 48,
+   "absBeat": 336
+  },
+  {
+   "time": "65283i",
+   "notes": [
+    62,
+    66,
+    72
+   ],
+   "duration": 3,
+   "velocity": 45,
+   "absBeat": 340
+  },
+  {
+   "time": "66051i",
+   "notes": [
+    60,
+    64,
+    65,
+    69
+   ],
+   "duration": 1.5,
+   "velocity": 45,
+   "absBeat": 344
+  },
+  {
+   "time": "66434i",
+   "notes": [
+    60,
+    64,
+    65,
+    69
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 52,
+   "absBeat": 346
+  },
+  {
+   "time": "67202i",
+   "notes": [
+    55,
+    59,
+    65
+   ],
+   "duration": 1.5,
+   "velocity": 54,
+   "absBeat": 350
+  },
+  {
+   "time": "67590i",
+   "notes": [
+    52,
+    55,
+    59,
+    62
+   ],
+   "duration": 3,
+   "velocity": 44,
+   "absBeat": 352
+  },
+  {
+   "time": "68357i",
+   "notes": [
+    53,
+    57,
+    60,
+    64
+   ],
+   "duration": 1.5,
+   "velocity": 52,
+   "absBeat": 356
+  },
+  {
+   "time": "68740i",
+   "notes": [
+    57,
+    62,
+    67
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 46,
+   "absBeat": 358
+  },
+  {
+   "time": "69125i",
+   "notes": [
+    59,
+    62,
+    64,
+    67
+   ],
+   "duration": 3,
+   "velocity": 53,
+   "absBeat": 360
+  },
+  {
+   "time": "69891i",
+   "notes": [
+    55,
+    60,
+    63,
+    70
+   ],
+   "duration": 1.5,
+   "velocity": 46,
+   "absBeat": 364
+  },
+  {
+   "time": "70278i",
+   "notes": [
+    53,
+    60,
+    63,
+    69
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 52,
+   "absBeat": 366
+  },
+  {
+   "time": "70662i",
+   "notes": [
+    53,
+    60,
+    64,
+    69
+   ],
+   "duration": 3,
+   "velocity": 55,
+   "absBeat": 368
+  },
+  {
+   "time": "71428i",
+   "notes": [
+    53,
+    56,
+    63
+   ],
+   "duration": 1.5,
+   "velocity": 45,
+   "absBeat": 372
+  },
+  {
+   "time": "71813i",
+   "notes": [
+    48,
+    53,
+    58
+   ],
+   "duration": 1.4166666666666667,
+   "velocity": 49,
+   "absBeat": 374
+  },
+  {
+   "time": "72966i",
+   "notes": [
+    50,
+    53,
+    60
+   ],
+   "duration": 3,
+   "velocity": 54,
+   "absBeat": 380
+  }
+ ],
+ "drumEvents": [
+  {
+   "time": "0i",
+   "drum": "ride",
+   "velocity": 0.20519194799475374,
+   "absBeat": 0
+  },
+  {
+   "time": "193i",
+   "drum": "ride",
+   "velocity": 0.25711645904928443,
+   "absBeat": 1
+  },
+  {
+   "time": "384i",
+   "drum": "ride",
+   "velocity": 0.21806559026241304,
+   "absBeat": 2
+  },
+  {
+   "time": "576i",
+   "drum": "ride",
+   "velocity": 0.24971907472237945,
+   "absBeat": 3
+  },
+  {
+   "time": "192i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25020187406800687,
+   "absBeat": 1
+  },
+  {
+   "time": "576i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2497769783064723,
+   "absBeat": 3
+  },
+  {
+   "time": "0i",
+   "drum": "kick",
+   "velocity": 0.1629188154451549,
+   "absBeat": 0
+  },
+  {
+   "time": "577i",
+   "drum": "crossstick",
+   "velocity": 0.280188027434051,
+   "absBeat": 3
+  },
+  {
+   "time": "767i",
+   "drum": "ride",
+   "velocity": 0.21607167636044325,
+   "absBeat": 4
+  },
+  {
+   "time": "960i",
+   "drum": "ride",
+   "velocity": 0.25974189188331365,
+   "absBeat": 5
+  },
+  {
+   "time": "1151i",
+   "drum": "ride",
+   "velocity": 0.23390637358650568,
+   "absBeat": 6
+  },
+  {
+   "time": "1344i",
+   "drum": "ride",
+   "velocity": 0.2745167056657374,
+   "absBeat": 7
+  },
+  {
+   "time": "960i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24594842195510863,
+   "absBeat": 5
+  },
+  {
+   "time": "1345i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25952533969655633,
+   "absBeat": 7
+  },
+  {
+   "time": "769i",
+   "drum": "kick",
+   "velocity": 0.15028471768833698,
+   "absBeat": 4
+  },
+  {
+   "time": "1344i",
+   "drum": "crossstick",
+   "velocity": 0.3081415789574385,
+   "absBeat": 7
+  },
+  {
+   "time": "1536i",
+   "drum": "ride",
+   "velocity": 0.21532409041188658,
+   "absBeat": 8
+  },
+  {
+   "time": "1728i",
+   "drum": "ride",
+   "velocity": 0.24957946939393877,
+   "absBeat": 9
+  },
+  {
+   "time": "1920i",
+   "drum": "ride",
+   "velocity": 0.2015399258863181,
+   "absBeat": 10
+  },
+  {
+   "time": "2111i",
+   "drum": "ride",
+   "velocity": 0.26006490947678684,
+   "absBeat": 11
+  },
+  {
+   "time": "1728i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2588034611567855,
+   "absBeat": 9
+  },
+  {
+   "time": "2111i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2454029690288007,
+   "absBeat": 11
+  },
+  {
+   "time": "1536i",
+   "drum": "kick",
+   "velocity": 0.14306579234078526,
+   "absBeat": 8
+  },
+  {
+   "time": "2303i",
+   "drum": "ride",
+   "velocity": 0.22919600958935918,
+   "absBeat": 12
+  },
+  {
+   "time": "2495i",
+   "drum": "ride",
+   "velocity": 0.2569658039789647,
+   "absBeat": 13
+  },
+  {
+   "time": "2688i",
+   "drum": "ride",
+   "velocity": 0.21030937644653022,
+   "absBeat": 14
+  },
+  {
+   "time": "2879i",
+   "drum": "ride",
+   "velocity": 0.2539872780628502,
+   "absBeat": 15
+  },
+  {
+   "time": "2496i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24509654350578783,
+   "absBeat": 13
+  },
+  {
+   "time": "2880i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26931271160021425,
+   "absBeat": 15
+  },
+  {
+   "time": "2793i",
+   "drum": "snare",
+   "velocity": 0.15418699149973691,
+   "absBeat": 14.5
+  },
+  {
+   "time": "3071i",
+   "drum": "ride",
+   "velocity": 0.20515214517712593,
+   "absBeat": 16
+  },
+  {
+   "time": "3264i",
+   "drum": "ride",
+   "velocity": 0.2594781948253512,
+   "absBeat": 17
+  },
+  {
+   "time": "3457i",
+   "drum": "ride",
+   "velocity": 0.22502916285768151,
+   "absBeat": 18
+  },
+  {
+   "time": "3648i",
+   "drum": "ride",
+   "velocity": 0.2661409708671272,
+   "absBeat": 19
+  },
+  {
+   "time": "3264i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24198651241138577,
+   "absBeat": 17
+  },
+  {
+   "time": "3648i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24160091438330708,
+   "absBeat": 19
+  },
+  {
+   "time": "3648i",
+   "drum": "crossstick",
+   "velocity": 0.270085078002885,
+   "absBeat": 19
+  },
+  {
+   "time": "3841i",
+   "drum": "ride",
+   "velocity": 0.23088509421795608,
+   "absBeat": 20
+  },
+  {
+   "time": "4032i",
+   "drum": "ride",
+   "velocity": 0.25114944614470003,
+   "absBeat": 21
+  },
+  {
+   "time": "4225i",
+   "drum": "ride",
+   "velocity": 0.22672787266783417,
+   "absBeat": 22
+  },
+  {
+   "time": "4416i",
+   "drum": "ride",
+   "velocity": 0.262428772309795,
+   "absBeat": 23
+  },
+  {
+   "time": "4032i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27778022846207023,
+   "absBeat": 21
+  },
+  {
+   "time": "4416i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27835904295556246,
+   "absBeat": 23
+  },
+  {
+   "time": "4608i",
+   "drum": "ride",
+   "velocity": 0.214986618347466,
+   "absBeat": 24
+  },
+  {
+   "time": "4799i",
+   "drum": "ride",
+   "velocity": 0.26915118895471096,
+   "absBeat": 25
+  },
+  {
+   "time": "4992i",
+   "drum": "ride",
+   "velocity": 0.20017420555464924,
+   "absBeat": 26
+  },
+  {
+   "time": "5184i",
+   "drum": "ride",
+   "velocity": 0.26075826048851014,
+   "absBeat": 27
+  },
+  {
+   "time": "4800i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26270248838700355,
+   "absBeat": 25
+  },
+  {
+   "time": "5184i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2575495223142207,
+   "absBeat": 27
+  },
+  {
+   "time": "4609i",
+   "drum": "kick",
+   "velocity": 0.16160511972382666,
+   "absBeat": 24
+  },
+  {
+   "time": "5377i",
+   "drum": "ride",
+   "velocity": 0.22307324118912222,
+   "absBeat": 28
+  },
+  {
+   "time": "5567i",
+   "drum": "ride",
+   "velocity": 0.27589427180588244,
+   "absBeat": 29
+  },
+  {
+   "time": "5761i",
+   "drum": "ride",
+   "velocity": 0.20397599092684687,
+   "absBeat": 30
+  },
+  {
+   "time": "5951i",
+   "drum": "ride",
+   "velocity": 0.2553554692212492,
+   "absBeat": 31
+  },
+  {
+   "time": "5569i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2792366189416498,
+   "absBeat": 29
+  },
+  {
+   "time": "5951i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24347455978393553,
+   "absBeat": 31
+  },
+  {
+   "time": "5761i",
+   "drum": "kick",
+   "velocity": 0.12054539769655094,
+   "absBeat": 30
+  },
+  {
+   "time": "6059i",
+   "drum": "crossstick",
+   "velocity": 0.2915688931103796,
+   "absBeat": 31.5
+  },
+  {
+   "time": "6143i",
+   "drum": "ride",
+   "velocity": 0.22438366669230164,
+   "absBeat": 32
+  },
+  {
+   "time": "6337i",
+   "drum": "ride",
+   "velocity": 0.26624182851053774,
+   "absBeat": 33
+  },
+  {
+   "time": "6528i",
+   "drum": "ride",
+   "velocity": 0.21545985093340278,
+   "absBeat": 34
+  },
+  {
+   "time": "6721i",
+   "drum": "ride",
+   "velocity": 0.24789126571267842,
+   "absBeat": 35
+  },
+  {
+   "time": "6336i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27108643742278216,
+   "absBeat": 33
+  },
+  {
+   "time": "6720i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27170422893948853,
+   "absBeat": 35
+  },
+  {
+   "time": "6144i",
+   "drum": "kick",
+   "velocity": 0.14358094274997713,
+   "absBeat": 32
+  },
+  {
+   "time": "6912i",
+   "drum": "ride",
+   "velocity": 0.20861000834964216,
+   "absBeat": 36
+  },
+  {
+   "time": "7104i",
+   "drum": "ride",
+   "velocity": 0.24320618962869048,
+   "absBeat": 37
+  },
+  {
+   "time": "7296i",
+   "drum": "ride",
+   "velocity": 0.22723057820461692,
+   "absBeat": 38
+  },
+  {
+   "time": "7487i",
+   "drum": "ride",
+   "velocity": 0.2569594103004783,
+   "absBeat": 39
+  },
+  {
+   "time": "7103i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25824725586920977,
+   "absBeat": 37
+  },
+  {
+   "time": "7488i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2543166167195886,
+   "absBeat": 39
+  },
+  {
+   "time": "7488i",
+   "drum": "crossstick",
+   "velocity": 0.2735173547663726,
+   "absBeat": 39
+  },
+  {
+   "time": "7680i",
+   "drum": "ride",
+   "velocity": 0.2073989104293287,
+   "absBeat": 40
+  },
+  {
+   "time": "7871i",
+   "drum": "ride",
+   "velocity": 0.2686320238187909,
+   "absBeat": 41
+  },
+  {
+   "time": "8064i",
+   "drum": "ride",
+   "velocity": 0.2236536089051515,
+   "absBeat": 42
+  },
+  {
+   "time": "8256i",
+   "drum": "ride",
+   "velocity": 0.2400646189134568,
+   "absBeat": 43
+  },
+  {
+   "time": "7871i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2772072952147573,
+   "absBeat": 41
+  },
+  {
+   "time": "8255i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25790790176019074,
+   "absBeat": 43
+  },
+  {
+   "time": "8449i",
+   "drum": "ride",
+   "velocity": 0.21484222349710763,
+   "absBeat": 44
+  },
+  {
+   "time": "8641i",
+   "drum": "ride",
+   "velocity": 0.258994685029611,
+   "absBeat": 45
+  },
+  {
+   "time": "8832i",
+   "drum": "ride",
+   "velocity": 0.2283454257529229,
+   "absBeat": 46
+  },
+  {
+   "time": "9024i",
+   "drum": "ride",
+   "velocity": 0.24873632319271563,
+   "absBeat": 47
+  },
+  {
+   "time": "8640i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2793882424198091,
+   "absBeat": 45
+  },
+  {
+   "time": "9025i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24083348949439823,
+   "absBeat": 47
+  },
+  {
+   "time": "8447i",
+   "drum": "kick",
+   "velocity": 0.1321572295110673,
+   "absBeat": 44
+  },
+  {
+   "time": "8832i",
+   "drum": "kick",
+   "velocity": 0.11708962276112288,
+   "absBeat": 46
+  },
+  {
+   "time": "9026i",
+   "drum": "crossstick",
+   "velocity": 0.3067986822477542,
+   "absBeat": 47
+  },
+  {
+   "time": "9216i",
+   "drum": "ride",
+   "velocity": 0.21836669097654524,
+   "absBeat": 48
+  },
+  {
+   "time": "9408i",
+   "drum": "ride",
+   "velocity": 0.27098809741437435,
+   "absBeat": 49
+  },
+  {
+   "time": "9600i",
+   "drum": "ride",
+   "velocity": 0.22907484338618816,
+   "absBeat": 50
+  },
+  {
+   "time": "9792i",
+   "drum": "ride",
+   "velocity": 0.24247913470491766,
+   "absBeat": 51
+  },
+  {
+   "time": "9408i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2615996201150119,
+   "absBeat": 49
+  },
+  {
+   "time": "9792i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27675086713396013,
+   "absBeat": 51
+  },
+  {
+   "time": "9984i",
+   "drum": "ride",
+   "velocity": 0.2246892514638603,
+   "absBeat": 52
+  },
+  {
+   "time": "10176i",
+   "drum": "ride",
+   "velocity": 0.25974116462282837,
+   "absBeat": 53
+  },
+  {
+   "time": "10369i",
+   "drum": "ride",
+   "velocity": 0.21668064182624222,
+   "absBeat": 54
+  },
+  {
+   "time": "10560i",
+   "drum": "ride",
+   "velocity": 0.27780533030629156,
+   "absBeat": 55
+  },
+  {
+   "time": "10176i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2735190781764686,
+   "absBeat": 53
+  },
+  {
+   "time": "10561i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26502219668589533,
+   "absBeat": 55
+  },
+  {
+   "time": "9985i",
+   "drum": "kick",
+   "velocity": 0.16356556037440897,
+   "absBeat": 52
+  },
+  {
+   "time": "10562i",
+   "drum": "crossstick",
+   "velocity": 0.28561550464015456,
+   "absBeat": 55
+  },
+  {
+   "time": "10752i",
+   "drum": "ride",
+   "velocity": 0.22959738982841374,
+   "absBeat": 56
+  },
+  {
+   "time": "10944i",
+   "drum": "ride",
+   "velocity": 0.24131357578560708,
+   "absBeat": 57
+  },
+  {
+   "time": "11137i",
+   "drum": "ride",
+   "velocity": 0.23063591391779484,
+   "absBeat": 58
+  },
+  {
+   "time": "11328i",
+   "drum": "ride",
+   "velocity": 0.24491716661490498,
+   "absBeat": 59
+  },
+  {
+   "time": "10944i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24122188312001525,
+   "absBeat": 57
+  },
+  {
+   "time": "11328i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24531315120868383,
+   "absBeat": 59
+  },
+  {
+   "time": "10752i",
+   "drum": "kick",
+   "velocity": 0.15860007653944194,
+   "absBeat": 56
+  },
+  {
+   "time": "11520i",
+   "drum": "ride",
+   "velocity": 0.2054146442282945,
+   "absBeat": 60
+  },
+  {
+   "time": "11712i",
+   "drum": "ride",
+   "velocity": 0.25334840927273033,
+   "absBeat": 61
+  },
+  {
+   "time": "11904i",
+   "drum": "ride",
+   "velocity": 0.21273873080499472,
+   "absBeat": 62
+  },
+  {
+   "time": "12095i",
+   "drum": "ride",
+   "velocity": 0.2589957519713789,
+   "absBeat": 63
+  },
+  {
+   "time": "11713i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26141569902189077,
+   "absBeat": 61
+  },
+  {
+   "time": "12095i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27565994500182567,
+   "absBeat": 63
+  },
+  {
+   "time": "11521i",
+   "drum": "kick",
+   "velocity": 0.13731263671070337,
+   "absBeat": 60
+  },
+  {
+   "time": "12097i",
+   "drum": "crossstick",
+   "velocity": 0.2868793075461872,
+   "absBeat": 63
+  },
+  {
+   "time": "12201i",
+   "drum": "crossstick",
+   "velocity": 0.31129939706064763,
+   "absBeat": 63.5
+  },
+  {
+   "time": "12288i",
+   "drum": "ride",
+   "velocity": 0.23626330330967904,
+   "absBeat": 64
+  },
+  {
+   "time": "12481i",
+   "drum": "ride",
+   "velocity": 0.26235599905252455,
+   "absBeat": 65
+  },
+  {
+   "time": "12672i",
+   "drum": "ride",
+   "velocity": 0.22828285384923222,
+   "absBeat": 66
+  },
+  {
+   "time": "12863i",
+   "drum": "ride",
+   "velocity": 0.24508762475103138,
+   "absBeat": 67
+  },
+  {
+   "time": "12480i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2491949427500367,
+   "absBeat": 65
+  },
+  {
+   "time": "12863i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2724915654119104,
+   "absBeat": 67
+  },
+  {
+   "time": "12289i",
+   "drum": "kick",
+   "velocity": 0.16417491057887673,
+   "absBeat": 64
+  },
+  {
+   "time": "13057i",
+   "drum": "ride",
+   "velocity": 0.21566627493128182,
+   "absBeat": 68
+  },
+  {
+   "time": "13248i",
+   "drum": "ride",
+   "velocity": 0.26967999562621114,
+   "absBeat": 69
+  },
+  {
+   "time": "13440i",
+   "drum": "ride",
+   "velocity": 0.22017756779678166,
+   "absBeat": 70
+  },
+  {
+   "time": "13632i",
+   "drum": "ride",
+   "velocity": 0.2598577390052378,
+   "absBeat": 71
+  },
+  {
+   "time": "13248i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24126515551470218,
+   "absBeat": 69
+  },
+  {
+   "time": "13632i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2465367940533906,
+   "absBeat": 71
+  },
+  {
+   "time": "13056i",
+   "drum": "kick",
+   "velocity": 0.16865255863405765,
+   "absBeat": 68
+  },
+  {
+   "time": "13634i",
+   "drum": "crossstick",
+   "velocity": 0.26820086961612105,
+   "absBeat": 71
+  },
+  {
+   "time": "13824i",
+   "drum": "ride",
+   "velocity": 0.22555325478315355,
+   "absBeat": 72
+  },
+  {
+   "time": "14015i",
+   "drum": "ride",
+   "velocity": 0.27339615676552054,
+   "absBeat": 73
+  },
+  {
+   "time": "14208i",
+   "drum": "ride",
+   "velocity": 0.21043514749966563,
+   "absBeat": 74
+  },
+  {
+   "time": "14400i",
+   "drum": "ride",
+   "velocity": 0.26232231309637427,
+   "absBeat": 75
+  },
+  {
+   "time": "14016i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24610548230819404,
+   "absBeat": 73
+  },
+  {
+   "time": "14400i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25715152624994514,
+   "absBeat": 75
+  },
+  {
+   "time": "13824i",
+   "drum": "kick",
+   "velocity": 0.1544706696458161,
+   "absBeat": 72
+  },
+  {
+   "time": "14210i",
+   "drum": "kick",
+   "velocity": 0.1230741453031078,
+   "absBeat": 74
+  },
+  {
+   "time": "14593i",
+   "drum": "ride",
+   "velocity": 0.23208813381381332,
+   "absBeat": 76
+  },
+  {
+   "time": "14784i",
+   "drum": "ride",
+   "velocity": 0.24319365090690553,
+   "absBeat": 77
+  },
+  {
+   "time": "14976i",
+   "drum": "ride",
+   "velocity": 0.2275683872960508,
+   "absBeat": 78
+  },
+  {
+   "time": "15169i",
+   "drum": "ride",
+   "velocity": 0.27054925858974455,
+   "absBeat": 79
+  },
+  {
+   "time": "14784i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2557579391822219,
+   "absBeat": 77
+  },
+  {
+   "time": "15168i",
+   "drum": "hihat-pedal",
+   "velocity": 0.250783518133685,
+   "absBeat": 79
+  },
+  {
+   "time": "14593i",
+   "drum": "kick",
+   "velocity": 0.13934542993083596,
+   "absBeat": 76
+  },
+  {
+   "time": "15084i",
+   "drum": "snare",
+   "velocity": 0.13961555764079092,
+   "absBeat": 78.5
+  },
+  {
+   "time": "15359i",
+   "drum": "ride",
+   "velocity": 0.22656276314519347,
+   "absBeat": 80
+  },
+  {
+   "time": "15552i",
+   "drum": "ride",
+   "velocity": 0.24286927867680788,
+   "absBeat": 81
+  },
+  {
+   "time": "15744i",
+   "drum": "ride",
+   "velocity": 0.2312540397513658,
+   "absBeat": 82
+  },
+  {
+   "time": "15936i",
+   "drum": "ride",
+   "velocity": 0.27097723552025854,
+   "absBeat": 83
+  },
+  {
+   "time": "15551i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27489420779049395,
+   "absBeat": 81
+  },
+  {
+   "time": "15935i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24756983587518333,
+   "absBeat": 83
+  },
+  {
+   "time": "15361i",
+   "drum": "kick",
+   "velocity": 0.14781950457952917,
+   "absBeat": 80
+  },
+  {
+   "time": "16128i",
+   "drum": "ride",
+   "velocity": 0.23512836376205087,
+   "absBeat": 84
+  },
+  {
+   "time": "16320i",
+   "drum": "ride",
+   "velocity": 0.24297608349472283,
+   "absBeat": 85
+  },
+  {
+   "time": "16513i",
+   "drum": "ride",
+   "velocity": 0.22824494534172118,
+   "absBeat": 86
+  },
+  {
+   "time": "16703i",
+   "drum": "ride",
+   "velocity": 0.26099380891770124,
+   "absBeat": 87
+  },
+  {
+   "time": "16321i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24577277184464036,
+   "absBeat": 85
+  },
+  {
+   "time": "16704i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26495152317918835,
+   "absBeat": 87
+  },
+  {
+   "time": "16128i",
+   "drum": "kick",
+   "velocity": 0.15936849444173276,
+   "absBeat": 84
+  },
+  {
+   "time": "16896i",
+   "drum": "ride",
+   "velocity": 0.2312815667781979,
+   "absBeat": 88
+  },
+  {
+   "time": "17088i",
+   "drum": "ride",
+   "velocity": 0.24610016112215816,
+   "absBeat": 89
+  },
+  {
+   "time": "17281i",
+   "drum": "ride",
+   "velocity": 0.23230710229836404,
+   "absBeat": 90
+  },
+  {
+   "time": "17471i",
+   "drum": "ride",
+   "velocity": 0.24200081089511513,
+   "absBeat": 91
+  },
+  {
+   "time": "17087i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2598476218059659,
+   "absBeat": 89
+  },
+  {
+   "time": "17472i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2663446963299066,
+   "absBeat": 91
+  },
+  {
+   "time": "16897i",
+   "drum": "kick",
+   "velocity": 0.13369121906347572,
+   "absBeat": 88
+  },
+  {
+   "time": "17387i",
+   "drum": "snare",
+   "velocity": 0.1552775933779776,
+   "absBeat": 90.5
+  },
+  {
+   "time": "17663i",
+   "drum": "ride",
+   "velocity": 0.21223680001683534,
+   "absBeat": 92
+  },
+  {
+   "time": "17857i",
+   "drum": "ride",
+   "velocity": 0.2683745230641216,
+   "absBeat": 93
+  },
+  {
+   "time": "18049i",
+   "drum": "ride",
+   "velocity": 0.2081374507211149,
+   "absBeat": 94
+  },
+  {
+   "time": "18240i",
+   "drum": "ride",
+   "velocity": 0.24736883299425244,
+   "absBeat": 95
+  },
+  {
+   "time": "17856i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2568851561378688,
+   "absBeat": 93
+  },
+  {
+   "time": "18239i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2593591503240168,
+   "absBeat": 95
+  },
+  {
+   "time": "17664i",
+   "drum": "kick",
+   "velocity": 0.15316778264939784,
+   "absBeat": 92
+  },
+  {
+   "time": "18346i",
+   "drum": "crossstick",
+   "velocity": 0.3112710335291922,
+   "absBeat": 95.5
+  },
+  {
+   "time": "18432i",
+   "drum": "ride",
+   "velocity": 0.2378768444247544,
+   "absBeat": 96
+  },
+  {
+   "time": "18624i",
+   "drum": "ride",
+   "velocity": 0.26134719165973364,
+   "absBeat": 97
+  },
+  {
+   "time": "18817i",
+   "drum": "ride",
+   "velocity": 0.2023050186596811,
+   "absBeat": 98
+  },
+  {
+   "time": "19008i",
+   "drum": "ride",
+   "velocity": 0.273578911870718,
+   "absBeat": 99
+  },
+  {
+   "time": "18624i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25331508507952094,
+   "absBeat": 97
+  },
+  {
+   "time": "19008i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2512217494752258,
+   "absBeat": 99
+  },
+  {
+   "time": "19200i",
+   "drum": "ride",
+   "velocity": 0.23181595785543324,
+   "absBeat": 100
+  },
+  {
+   "time": "19392i",
+   "drum": "ride",
+   "velocity": 0.24227541597560048,
+   "absBeat": 101
+  },
+  {
+   "time": "19583i",
+   "drum": "ride",
+   "velocity": 0.21871710986830295,
+   "absBeat": 102
+  },
+  {
+   "time": "19776i",
+   "drum": "ride",
+   "velocity": 0.24341901262290774,
+   "absBeat": 103
+  },
+  {
+   "time": "19392i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2430628287512809,
+   "absBeat": 101
+  },
+  {
+   "time": "19776i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24338674794882534,
+   "absBeat": 103
+  },
+  {
+   "time": "19202i",
+   "drum": "kick",
+   "velocity": 0.1410284547880292,
+   "absBeat": 100
+  },
+  {
+   "time": "19690i",
+   "drum": "snare",
+   "velocity": 0.122054060138762,
+   "absBeat": 102.5
+  },
+  {
+   "time": "19968i",
+   "drum": "ride",
+   "velocity": 0.20035425620153546,
+   "absBeat": 104
+  },
+  {
+   "time": "20159i",
+   "drum": "ride",
+   "velocity": 0.2418891131784767,
+   "absBeat": 105
+  },
+  {
+   "time": "20351i",
+   "drum": "ride",
+   "velocity": 0.2036740947328508,
+   "absBeat": 106
+  },
+  {
+   "time": "20544i",
+   "drum": "ride",
+   "velocity": 0.2637683674134314,
+   "absBeat": 107
+  },
+  {
+   "time": "20160i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26717867251485583,
+   "absBeat": 105
+  },
+  {
+   "time": "20544i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27888940992765127,
+   "absBeat": 107
+  },
+  {
+   "time": "19970i",
+   "drum": "kick",
+   "velocity": 0.1617614198476076,
+   "absBeat": 104
+  },
+  {
+   "time": "20737i",
+   "drum": "ride",
+   "velocity": 0.20210767117328943,
+   "absBeat": 108
+  },
+  {
+   "time": "20929i",
+   "drum": "ride",
+   "velocity": 0.2663921556714922,
+   "absBeat": 109
+  },
+  {
+   "time": "21121i",
+   "drum": "ride",
+   "velocity": 0.20061231856234374,
+   "absBeat": 110
+  },
+  {
+   "time": "21312i",
+   "drum": "ride",
+   "velocity": 0.255150907356292,
+   "absBeat": 111
+  },
+  {
+   "time": "20929i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2756603573914617,
+   "absBeat": 109
+  },
+  {
+   "time": "21312i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24638212795369327,
+   "absBeat": 111
+  },
+  {
+   "time": "20737i",
+   "drum": "kick",
+   "velocity": 0.15355928909033537,
+   "absBeat": 108
+  },
+  {
+   "time": "21504i",
+   "drum": "ride",
+   "velocity": 0.22930660150013865,
+   "absBeat": 112
+  },
+  {
+   "time": "21697i",
+   "drum": "ride",
+   "velocity": 0.27939052709378304,
+   "absBeat": 113
+  },
+  {
+   "time": "21888i",
+   "drum": "ride",
+   "velocity": 0.21484095748513937,
+   "absBeat": 114
+  },
+  {
+   "time": "22080i",
+   "drum": "ride",
+   "velocity": 0.2637375705130398,
+   "absBeat": 115
+  },
+  {
+   "time": "21696i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24299340481869874,
+   "absBeat": 113
+  },
+  {
+   "time": "22080i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27376738232560455,
+   "absBeat": 115
+  },
+  {
+   "time": "22083i",
+   "drum": "crossstick",
+   "velocity": 0.30053235024912284,
+   "absBeat": 115
+  },
+  {
+   "time": "22273i",
+   "drum": "ride",
+   "velocity": 0.23669908712618054,
+   "absBeat": 116
+  },
+  {
+   "time": "22464i",
+   "drum": "ride",
+   "velocity": 0.26557820237241686,
+   "absBeat": 117
+  },
+  {
+   "time": "22656i",
+   "drum": "ride",
+   "velocity": 0.2002761229593307,
+   "absBeat": 118
+  },
+  {
+   "time": "22848i",
+   "drum": "ride",
+   "velocity": 0.2632092481572181,
+   "absBeat": 119
+  },
+  {
+   "time": "22464i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2664740998763591,
+   "absBeat": 117
+  },
+  {
+   "time": "22847i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24895088722929357,
+   "absBeat": 119
+  },
+  {
+   "time": "22272i",
+   "drum": "kick",
+   "velocity": 0.16501911403611302,
+   "absBeat": 116
+  },
+  {
+   "time": "22848i",
+   "drum": "crossstick",
+   "velocity": 0.2982354341680184,
+   "absBeat": 119
+  },
+  {
+   "time": "23040i",
+   "drum": "ride",
+   "velocity": 0.20450484058819712,
+   "absBeat": 120
+  },
+  {
+   "time": "23233i",
+   "drum": "ride",
+   "velocity": 0.26279112057760357,
+   "absBeat": 121
+  },
+  {
+   "time": "23425i",
+   "drum": "ride",
+   "velocity": 0.2193588512018323,
+   "absBeat": 122
+  },
+  {
+   "time": "23616i",
+   "drum": "ride",
+   "velocity": 0.2558488218393177,
+   "absBeat": 123
+  },
+  {
+   "time": "23231i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25428529610857364,
+   "absBeat": 121
+  },
+  {
+   "time": "23616i",
+   "drum": "hihat-pedal",
+   "velocity": 0.275938560385257,
+   "absBeat": 123
+  },
+  {
+   "time": "23040i",
+   "drum": "kick",
+   "velocity": 0.13023485107347368,
+   "absBeat": 120
+  },
+  {
+   "time": "23426i",
+   "drum": "kick",
+   "velocity": 0.1380025161919184,
+   "absBeat": 122
+  },
+  {
+   "time": "23617i",
+   "drum": "crossstick",
+   "velocity": 0.30523759685689583,
+   "absBeat": 123
+  },
+  {
+   "time": "23807i",
+   "drum": "ride",
+   "velocity": 0.21968445567414166,
+   "absBeat": 124
+  },
+  {
+   "time": "24000i",
+   "drum": "ride",
+   "velocity": 0.2514369018375873,
+   "absBeat": 125
+  },
+  {
+   "time": "24193i",
+   "drum": "ride",
+   "velocity": 0.2292464371211827,
+   "absBeat": 126
+  },
+  {
+   "time": "24384i",
+   "drum": "ride",
+   "velocity": 0.2762706324923784,
+   "absBeat": 127
+  },
+  {
+   "time": "24000i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24589430594816802,
+   "absBeat": 125
+  },
+  {
+   "time": "24384i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27279447004199026,
+   "absBeat": 127
+  },
+  {
+   "time": "23808i",
+   "drum": "kick",
+   "velocity": 0.14767447390593588,
+   "absBeat": 124
+  },
+  {
+   "time": "24575i",
+   "drum": "ride",
+   "velocity": 0.21174267744645478,
+   "absBeat": 128
+  },
+  {
+   "time": "24767i",
+   "drum": "ride",
+   "velocity": 0.2499991330411285,
+   "absBeat": 129
+  },
+  {
+   "time": "24960i",
+   "drum": "ride",
+   "velocity": 0.2340605162549764,
+   "absBeat": 130
+  },
+  {
+   "time": "25152i",
+   "drum": "ride",
+   "velocity": 0.26735438241623344,
+   "absBeat": 131
+  },
+  {
+   "time": "24768i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27739331890828905,
+   "absBeat": 129
+  },
+  {
+   "time": "25151i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24823382672853767,
+   "absBeat": 131
+  },
+  {
+   "time": "24576i",
+   "drum": "kick",
+   "velocity": 0.15847659849561752,
+   "absBeat": 128
+  },
+  {
+   "time": "25344i",
+   "drum": "ride",
+   "velocity": 0.21167036125436425,
+   "absBeat": 132
+  },
+  {
+   "time": "25535i",
+   "drum": "ride",
+   "velocity": 0.27238312892615796,
+   "absBeat": 133
+  },
+  {
+   "time": "25729i",
+   "drum": "ride",
+   "velocity": 0.21321043480187657,
+   "absBeat": 134
+  },
+  {
+   "time": "25920i",
+   "drum": "ride",
+   "velocity": 0.2416873538121581,
+   "absBeat": 135
+  },
+  {
+   "time": "25537i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24180738418363035,
+   "absBeat": 133
+  },
+  {
+   "time": "25919i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26484808283858,
+   "absBeat": 135
+  },
+  {
+   "time": "25344i",
+   "drum": "kick",
+   "velocity": 0.14923847001045942,
+   "absBeat": 132
+  },
+  {
+   "time": "25730i",
+   "drum": "kick",
+   "velocity": 0.1197479798202403,
+   "absBeat": 134
+  },
+  {
+   "time": "26111i",
+   "drum": "ride",
+   "velocity": 0.23515936897136272,
+   "absBeat": 136
+  },
+  {
+   "time": "26304i",
+   "drum": "ride",
+   "velocity": 0.2534598655812442,
+   "absBeat": 137
+  },
+  {
+   "time": "26497i",
+   "drum": "ride",
+   "velocity": 0.23345240625552835,
+   "absBeat": 138
+  },
+  {
+   "time": "26687i",
+   "drum": "ride",
+   "velocity": 0.2435132228396833,
+   "absBeat": 139
+  },
+  {
+   "time": "26304i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2741632323339581,
+   "absBeat": 137
+  },
+  {
+   "time": "26688i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2418357230350375,
+   "absBeat": 139
+  },
+  {
+   "time": "26497i",
+   "drum": "kick",
+   "velocity": 0.13458202667301522,
+   "absBeat": 138
+  },
+  {
+   "time": "26880i",
+   "drum": "ride",
+   "velocity": 0.22823436208069325,
+   "absBeat": 140
+  },
+  {
+   "time": "27073i",
+   "drum": "ride",
+   "velocity": 0.2690221655089408,
+   "absBeat": 141
+  },
+  {
+   "time": "27264i",
+   "drum": "ride",
+   "velocity": 0.22516563209705057,
+   "absBeat": 142
+  },
+  {
+   "time": "27457i",
+   "drum": "ride",
+   "velocity": 0.27385917087085543,
+   "absBeat": 143
+  },
+  {
+   "time": "27073i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2515268768277019,
+   "absBeat": 141
+  },
+  {
+   "time": "27457i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2595505724847317,
+   "absBeat": 143
+  },
+  {
+   "time": "27457i",
+   "drum": "crossstick",
+   "velocity": 0.30861490081530063,
+   "absBeat": 143
+  },
+  {
+   "time": "27647i",
+   "drum": "ride",
+   "velocity": 0.23338498330675067,
+   "absBeat": 144
+  },
+  {
+   "time": "27841i",
+   "drum": "ride",
+   "velocity": 0.25841288337484003,
+   "absBeat": 145
+  },
+  {
+   "time": "28033i",
+   "drum": "ride",
+   "velocity": 0.23971150271594527,
+   "absBeat": 146
+  },
+  {
+   "time": "28224i",
+   "drum": "ride",
+   "velocity": 0.2623660701699555,
+   "absBeat": 147
+  },
+  {
+   "time": "27841i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2599852182157338,
+   "absBeat": 145
+  },
+  {
+   "time": "28225i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25122820379212496,
+   "absBeat": 147
+  },
+  {
+   "time": "28223i",
+   "drum": "crossstick",
+   "velocity": 0.28517311573028564,
+   "absBeat": 147
+  },
+  {
+   "time": "28417i",
+   "drum": "ride",
+   "velocity": 0.23952677465975286,
+   "absBeat": 148
+  },
+  {
+   "time": "28608i",
+   "drum": "ride",
+   "velocity": 0.27179322926327587,
+   "absBeat": 149
+  },
+  {
+   "time": "28800i",
+   "drum": "ride",
+   "velocity": 0.23681579247117043,
+   "absBeat": 150
+  },
+  {
+   "time": "28992i",
+   "drum": "ride",
+   "velocity": 0.27079215933568773,
+   "absBeat": 151
+  },
+  {
+   "time": "28609i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25643819276243446,
+   "absBeat": 149
+  },
+  {
+   "time": "28991i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26188566370867195,
+   "absBeat": 151
+  },
+  {
+   "time": "28415i",
+   "drum": "kick",
+   "velocity": 0.1650272257439792,
+   "absBeat": 148
+  },
+  {
+   "time": "29183i",
+   "drum": "ride",
+   "velocity": 0.2043631900008768,
+   "absBeat": 152
+  },
+  {
+   "time": "29377i",
+   "drum": "ride",
+   "velocity": 0.26836206515319644,
+   "absBeat": 153
+  },
+  {
+   "time": "29568i",
+   "drum": "ride",
+   "velocity": 0.2033210579212755,
+   "absBeat": 154
+  },
+  {
+   "time": "29760i",
+   "drum": "ride",
+   "velocity": 0.2563705567829311,
+   "absBeat": 155
+  },
+  {
+   "time": "29377i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27645469922572374,
+   "absBeat": 153
+  },
+  {
+   "time": "29760i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26911733286455275,
+   "absBeat": 155
+  },
+  {
+   "time": "29185i",
+   "drum": "kick",
+   "velocity": 0.15396763258613647,
+   "absBeat": 152
+  },
+  {
+   "time": "29673i",
+   "drum": "snare",
+   "velocity": 0.1255801634117961,
+   "absBeat": 154.5
+  },
+  {
+   "time": "29952i",
+   "drum": "ride",
+   "velocity": 0.22202997979708017,
+   "absBeat": 156
+  },
+  {
+   "time": "30143i",
+   "drum": "ride",
+   "velocity": 0.2600518208928406,
+   "absBeat": 157
+  },
+  {
+   "time": "30336i",
+   "drum": "ride",
+   "velocity": 0.23030597522854807,
+   "absBeat": 158
+  },
+  {
+   "time": "30528i",
+   "drum": "ride",
+   "velocity": 0.2552222107443958,
+   "absBeat": 159
+  },
+  {
+   "time": "30144i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2515163779631257,
+   "absBeat": 157
+  },
+  {
+   "time": "30528i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27072246721945703,
+   "absBeat": 159
+  },
+  {
+   "time": "30721i",
+   "drum": "ride",
+   "velocity": 0.21824559634551408,
+   "absBeat": 160
+  },
+  {
+   "time": "30912i",
+   "drum": "ride",
+   "velocity": 0.25576530962251126,
+   "absBeat": 161
+  },
+  {
+   "time": "31105i",
+   "drum": "ride",
+   "velocity": 0.23506389900110664,
+   "absBeat": 162
+  },
+  {
+   "time": "31296i",
+   "drum": "ride",
+   "velocity": 0.24251322126947342,
+   "absBeat": 163
+  },
+  {
+   "time": "30912i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2584547758568078,
+   "absBeat": 161
+  },
+  {
+   "time": "31297i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26633214186877013,
+   "absBeat": 163
+  },
+  {
+   "time": "30719i",
+   "drum": "kick",
+   "velocity": 0.13732498995028436,
+   "absBeat": 160
+  },
+  {
+   "time": "31487i",
+   "drum": "ride",
+   "velocity": 0.20584532260894778,
+   "absBeat": 164
+  },
+  {
+   "time": "31680i",
+   "drum": "ride",
+   "velocity": 0.26228034785948695,
+   "absBeat": 165
+  },
+  {
+   "time": "31872i",
+   "drum": "ride",
+   "velocity": 0.2241621767077595,
+   "absBeat": 166
+  },
+  {
+   "time": "32064i",
+   "drum": "ride",
+   "velocity": 0.2467031594365835,
+   "absBeat": 167
+  },
+  {
+   "time": "31680i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2449750408437103,
+   "absBeat": 165
+  },
+  {
+   "time": "32064i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25876535478979346,
+   "absBeat": 167
+  },
+  {
+   "time": "31489i",
+   "drum": "kick",
+   "velocity": 0.14427627561613918,
+   "absBeat": 164
+  },
+  {
+   "time": "32256i",
+   "drum": "ride",
+   "velocity": 0.21076292182318868,
+   "absBeat": 168
+  },
+  {
+   "time": "32447i",
+   "drum": "ride",
+   "velocity": 0.24003866233862936,
+   "absBeat": 169
+  },
+  {
+   "time": "32640i",
+   "drum": "ride",
+   "velocity": 0.2039032367989421,
+   "absBeat": 170
+  },
+  {
+   "time": "32833i",
+   "drum": "ride",
+   "velocity": 0.24877924945205449,
+   "absBeat": 171
+  },
+  {
+   "time": "32449i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2616048767697066,
+   "absBeat": 169
+  },
+  {
+   "time": "32832i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26398380883969363,
+   "absBeat": 171
+  },
+  {
+   "time": "32746i",
+   "drum": "snare",
+   "velocity": 0.15049308490008115,
+   "absBeat": 170.5
+  },
+  {
+   "time": "33025i",
+   "drum": "ride",
+   "velocity": 0.20684711053036153,
+   "absBeat": 172
+  },
+  {
+   "time": "33216i",
+   "drum": "ride",
+   "velocity": 0.2690298961382359,
+   "absBeat": 173
+  },
+  {
+   "time": "33409i",
+   "drum": "ride",
+   "velocity": 0.21632188052870335,
+   "absBeat": 174
+  },
+  {
+   "time": "33600i",
+   "drum": "ride",
+   "velocity": 0.25975948343053457,
+   "absBeat": 175
+  },
+  {
+   "time": "33216i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2565545823052525,
+   "absBeat": 173
+  },
+  {
+   "time": "33601i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2504374112561345,
+   "absBeat": 175
+  },
+  {
+   "time": "33025i",
+   "drum": "kick",
+   "velocity": 0.1569752300065011,
+   "absBeat": 172
+  },
+  {
+   "time": "33793i",
+   "drum": "ride",
+   "velocity": 0.21110084511339666,
+   "absBeat": 176
+  },
+  {
+   "time": "33983i",
+   "drum": "ride",
+   "velocity": 0.2672100986354053,
+   "absBeat": 177
+  },
+  {
+   "time": "34176i",
+   "drum": "ride",
+   "velocity": 0.21191942917183043,
+   "absBeat": 178
+  },
+  {
+   "time": "34367i",
+   "drum": "ride",
+   "velocity": 0.2590880415495485,
+   "absBeat": 179
+  },
+  {
+   "time": "33984i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25557675106450917,
+   "absBeat": 177
+  },
+  {
+   "time": "34368i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2730859178118408,
+   "absBeat": 179
+  },
+  {
+   "time": "33792i",
+   "drum": "kick",
+   "velocity": 0.14938872336409986,
+   "absBeat": 176
+  },
+  {
+   "time": "34561i",
+   "drum": "ride",
+   "velocity": 0.22424872408621013,
+   "absBeat": 180
+  },
+  {
+   "time": "34752i",
+   "drum": "ride",
+   "velocity": 0.2752179938647896,
+   "absBeat": 181
+  },
+  {
+   "time": "34944i",
+   "drum": "ride",
+   "velocity": 0.21293205714784563,
+   "absBeat": 182
+  },
+  {
+   "time": "35136i",
+   "drum": "ride",
+   "velocity": 0.24226850317791104,
+   "absBeat": 183
+  },
+  {
+   "time": "34752i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2490517767611891,
+   "absBeat": 181
+  },
+  {
+   "time": "35136i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2756736954860389,
+   "absBeat": 183
+  },
+  {
+   "time": "34560i",
+   "drum": "kick",
+   "velocity": 0.15584949603304268,
+   "absBeat": 180
+  },
+  {
+   "time": "35328i",
+   "drum": "ride",
+   "velocity": 0.22466009169816972,
+   "absBeat": 184
+  },
+  {
+   "time": "35519i",
+   "drum": "ride",
+   "velocity": 0.2558844294119626,
+   "absBeat": 185
+  },
+  {
+   "time": "35712i",
+   "drum": "ride",
+   "velocity": 0.22478051653131845,
+   "absBeat": 186
+  },
+  {
+   "time": "35903i",
+   "drum": "ride",
+   "velocity": 0.2533261603116989,
+   "absBeat": 187
+  },
+  {
+   "time": "35520i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27179851761087775,
+   "absBeat": 185
+  },
+  {
+   "time": "35904i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2527592483256012,
+   "absBeat": 187
+  },
+  {
+   "time": "36096i",
+   "drum": "ride",
+   "velocity": 0.22704504312016072,
+   "absBeat": 188
+  },
+  {
+   "time": "36289i",
+   "drum": "ride",
+   "velocity": 0.24562501494772732,
+   "absBeat": 189
+  },
+  {
+   "time": "36480i",
+   "drum": "ride",
+   "velocity": 0.22888260636478663,
+   "absBeat": 190
+  },
+  {
+   "time": "36672i",
+   "drum": "ride",
+   "velocity": 0.27985602270811794,
+   "absBeat": 191
+  },
+  {
+   "time": "36288i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2531722310371697,
+   "absBeat": 189
+  },
+  {
+   "time": "36672i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24392331682145596,
+   "absBeat": 191
+  },
+  {
+   "time": "36097i",
+   "drum": "kick",
+   "velocity": 0.13246647177264095,
+   "absBeat": 188
+  },
+  {
+   "time": "36481i",
+   "drum": "kick",
+   "velocity": 0.1120144157903269,
+   "absBeat": 190
+  },
+  {
+   "time": "36863i",
+   "drum": "ride",
+   "velocity": 0.22581566167995334,
+   "absBeat": 192
+  },
+  {
+   "time": "37057i",
+   "drum": "ride",
+   "velocity": 0.24531125465407966,
+   "absBeat": 193
+  },
+  {
+   "time": "37249i",
+   "drum": "ride",
+   "velocity": 0.22944865157827737,
+   "absBeat": 194
+  },
+  {
+   "time": "37441i",
+   "drum": "ride",
+   "velocity": 0.25911147383041677,
+   "absBeat": 195
+  },
+  {
+   "time": "37055i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26854905867017803,
+   "absBeat": 193
+  },
+  {
+   "time": "37441i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24531251882202923,
+   "absBeat": 195
+  },
+  {
+   "time": "36865i",
+   "drum": "kick",
+   "velocity": 0.13192752800881863,
+   "absBeat": 192
+  },
+  {
+   "time": "37250i",
+   "drum": "kick",
+   "velocity": 0.12802118019899353,
+   "absBeat": 194
+  },
+  {
+   "time": "37440i",
+   "drum": "crossstick",
+   "velocity": 0.3010554052796215,
+   "absBeat": 195
+  },
+  {
+   "time": "37631i",
+   "drum": "ride",
+   "velocity": 0.20296238773502412,
+   "absBeat": 196
+  },
+  {
+   "time": "37824i",
+   "drum": "ride",
+   "velocity": 0.25603435387834905,
+   "absBeat": 197
+  },
+  {
+   "time": "38016i",
+   "drum": "ride",
+   "velocity": 0.2330006680916995,
+   "absBeat": 198
+  },
+  {
+   "time": "38209i",
+   "drum": "ride",
+   "velocity": 0.27648197043687106,
+   "absBeat": 199
+  },
+  {
+   "time": "37824i",
+   "drum": "hihat-pedal",
+   "velocity": 0.259181788302958,
+   "absBeat": 197
+  },
+  {
+   "time": "38208i",
+   "drum": "hihat-pedal",
+   "velocity": 0.256042128643021,
+   "absBeat": 199
+  },
+  {
+   "time": "38400i",
+   "drum": "ride",
+   "velocity": 0.2195869444124401,
+   "absBeat": 200
+  },
+  {
+   "time": "38592i",
+   "drum": "ride",
+   "velocity": 0.24835814959369598,
+   "absBeat": 201
+  },
+  {
+   "time": "38784i",
+   "drum": "ride",
+   "velocity": 0.21263117546215654,
+   "absBeat": 202
+  },
+  {
+   "time": "38977i",
+   "drum": "ride",
+   "velocity": 0.24619269924238324,
+   "absBeat": 203
+  },
+  {
+   "time": "38592i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2450320651382208,
+   "absBeat": 201
+  },
+  {
+   "time": "38975i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26232841652818023,
+   "absBeat": 203
+  },
+  {
+   "time": "38401i",
+   "drum": "kick",
+   "velocity": 0.1545126923918724,
+   "absBeat": 200
+  },
+  {
+   "time": "39168i",
+   "drum": "ride",
+   "velocity": 0.21840565505437554,
+   "absBeat": 204
+  },
+  {
+   "time": "39360i",
+   "drum": "ride",
+   "velocity": 0.2426320021878928,
+   "absBeat": 205
+  },
+  {
+   "time": "39552i",
+   "drum": "ride",
+   "velocity": 0.2226439919322729,
+   "absBeat": 206
+  },
+  {
+   "time": "39744i",
+   "drum": "ride",
+   "velocity": 0.279882053360343,
+   "absBeat": 207
+  },
+  {
+   "time": "39360i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25364945020526647,
+   "absBeat": 205
+  },
+  {
+   "time": "39744i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2594059290830046,
+   "absBeat": 207
+  },
+  {
+   "time": "39168i",
+   "drum": "kick",
+   "velocity": 0.14741631378419698,
+   "absBeat": 204
+  },
+  {
+   "time": "39552i",
+   "drum": "kick",
+   "velocity": 0.1271097973641008,
+   "absBeat": 206
+  },
+  {
+   "time": "39936i",
+   "drum": "ride",
+   "velocity": 0.2044895813986659,
+   "absBeat": 208
+  },
+  {
+   "time": "40129i",
+   "drum": "ride",
+   "velocity": 0.25977028588764367,
+   "absBeat": 209
+  },
+  {
+   "time": "40319i",
+   "drum": "ride",
+   "velocity": 0.2231742805056274,
+   "absBeat": 210
+  },
+  {
+   "time": "40512i",
+   "drum": "ride",
+   "velocity": 0.2453362121246755,
+   "absBeat": 211
+  },
+  {
+   "time": "40128i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24497106820344924,
+   "absBeat": 209
+  },
+  {
+   "time": "40511i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2506505653169006,
+   "absBeat": 211
+  },
+  {
+   "time": "39937i",
+   "drum": "kick",
+   "velocity": 0.1489537762105465,
+   "absBeat": 208
+  },
+  {
+   "time": "40234i",
+   "drum": "snare",
+   "velocity": 0.125762301068753,
+   "absBeat": 209.5
+  },
+  {
+   "time": "40705i",
+   "drum": "ride",
+   "velocity": 0.22566114510409535,
+   "absBeat": 212
+  },
+  {
+   "time": "40895i",
+   "drum": "ride",
+   "velocity": 0.2624180720094591,
+   "absBeat": 213
+  },
+  {
+   "time": "41087i",
+   "drum": "ride",
+   "velocity": 0.20398014228791,
+   "absBeat": 214
+  },
+  {
+   "time": "41279i",
+   "drum": "ride",
+   "velocity": 0.24686274011619389,
+   "absBeat": 215
+  },
+  {
+   "time": "40897i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2599887058790773,
+   "absBeat": 213
+  },
+  {
+   "time": "41280i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2615042347088456,
+   "absBeat": 215
+  },
+  {
+   "time": "41473i",
+   "drum": "ride",
+   "velocity": 0.2340366709046066,
+   "absBeat": 216
+  },
+  {
+   "time": "41664i",
+   "drum": "ride",
+   "velocity": 0.271648325715214,
+   "absBeat": 217
+  },
+  {
+   "time": "41857i",
+   "drum": "ride",
+   "velocity": 0.2067094391770661,
+   "absBeat": 218
+  },
+  {
+   "time": "42048i",
+   "drum": "ride",
+   "velocity": 0.24583866178058086,
+   "absBeat": 219
+  },
+  {
+   "time": "41663i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2599323090165853,
+   "absBeat": 217
+  },
+  {
+   "time": "42048i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2656890206411481,
+   "absBeat": 219
+  },
+  {
+   "time": "41474i",
+   "drum": "kick",
+   "velocity": 0.14462383138015866,
+   "absBeat": 216
+  },
+  {
+   "time": "42240i",
+   "drum": "ride",
+   "velocity": 0.22078763666562737,
+   "absBeat": 220
+  },
+  {
+   "time": "42432i",
+   "drum": "ride",
+   "velocity": 0.2653277811501175,
+   "absBeat": 221
+  },
+  {
+   "time": "42624i",
+   "drum": "ride",
+   "velocity": 0.21820660232566297,
+   "absBeat": 222
+  },
+  {
+   "time": "42815i",
+   "drum": "ride",
+   "velocity": 0.24606561459600926,
+   "absBeat": 223
+  },
+  {
+   "time": "42432i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26762401461601254,
+   "absBeat": 221
+  },
+  {
+   "time": "42816i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2744787813071161,
+   "absBeat": 223
+  },
+  {
+   "time": "42241i",
+   "drum": "kick",
+   "velocity": 0.1323906363453716,
+   "absBeat": 220
+  },
+  {
+   "time": "42816i",
+   "drum": "crossstick",
+   "velocity": 0.28435834633652124,
+   "absBeat": 223
+  },
+  {
+   "time": "42923i",
+   "drum": "crossstick",
+   "velocity": 0.2858136219345033,
+   "absBeat": 223.5
+  },
+  {
+   "time": "43009i",
+   "drum": "ride",
+   "velocity": 0.22033398735336962,
+   "absBeat": 224
+  },
+  {
+   "time": "43200i",
+   "drum": "ride",
+   "velocity": 0.2672955427598208,
+   "absBeat": 225
+  },
+  {
+   "time": "43392i",
+   "drum": "ride",
+   "velocity": 0.2065084913931787,
+   "absBeat": 226
+  },
+  {
+   "time": "43584i",
+   "drum": "ride",
+   "velocity": 0.2583043327368796,
+   "absBeat": 227
+  },
+  {
+   "time": "43200i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2671826172340661,
+   "absBeat": 225
+  },
+  {
+   "time": "43584i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24325462323613464,
+   "absBeat": 227
+  },
+  {
+   "time": "43008i",
+   "drum": "kick",
+   "velocity": 0.1611913367919624,
+   "absBeat": 224
+  },
+  {
+   "time": "43585i",
+   "drum": "crossstick",
+   "velocity": 0.2654323315154761,
+   "absBeat": 227
+  },
+  {
+   "time": "43777i",
+   "drum": "ride",
+   "velocity": 0.2007874064706266,
+   "absBeat": 228
+  },
+  {
+   "time": "43968i",
+   "drum": "ride",
+   "velocity": 0.27878571272827685,
+   "absBeat": 229
+  },
+  {
+   "time": "44159i",
+   "drum": "ride",
+   "velocity": 0.23085362422280015,
+   "absBeat": 230
+  },
+  {
+   "time": "44352i",
+   "drum": "ride",
+   "velocity": 0.27105787923559543,
+   "absBeat": 231
+  },
+  {
+   "time": "43968i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25710643757134677,
+   "absBeat": 229
+  },
+  {
+   "time": "44352i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25641585468314587,
+   "absBeat": 231
+  },
+  {
+   "time": "44544i",
+   "drum": "ride",
+   "velocity": 0.2326761687640101,
+   "absBeat": 232
+  },
+  {
+   "time": "44737i",
+   "drum": "ride",
+   "velocity": 0.27715159247629345,
+   "absBeat": 233
+  },
+  {
+   "time": "44928i",
+   "drum": "ride",
+   "velocity": 0.21670688582584263,
+   "absBeat": 234
+  },
+  {
+   "time": "45119i",
+   "drum": "ride",
+   "velocity": 0.27519773521460594,
+   "absBeat": 235
+  },
+  {
+   "time": "44735i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27966916535981,
+   "absBeat": 233
+  },
+  {
+   "time": "45119i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24643023944459855,
+   "absBeat": 235
+  },
+  {
+   "time": "44545i",
+   "drum": "kick",
+   "velocity": 0.1522712204605341,
+   "absBeat": 232
+  },
+  {
+   "time": "44928i",
+   "drum": "kick",
+   "velocity": 0.13931488280650228,
+   "absBeat": 234
+  },
+  {
+   "time": "45121i",
+   "drum": "crossstick",
+   "velocity": 0.3059183555212803,
+   "absBeat": 235
+  },
+  {
+   "time": "45312i",
+   "drum": "ride",
+   "velocity": 0.23393323545344175,
+   "absBeat": 236
+  },
+  {
+   "time": "45504i",
+   "drum": "ride",
+   "velocity": 0.2432334111817181,
+   "absBeat": 237
+  },
+  {
+   "time": "45695i",
+   "drum": "ride",
+   "velocity": 0.22865282390266659,
+   "absBeat": 238
+  },
+  {
+   "time": "45888i",
+   "drum": "ride",
+   "velocity": 0.2574731652252376,
+   "absBeat": 239
+  },
+  {
+   "time": "45504i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24976689107716082,
+   "absBeat": 237
+  },
+  {
+   "time": "45888i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2720978780835867,
+   "absBeat": 239
+  },
+  {
+   "time": "45313i",
+   "drum": "kick",
+   "velocity": 0.1311376668419689,
+   "absBeat": 236
+  },
+  {
+   "time": "45889i",
+   "drum": "crossstick",
+   "velocity": 0.2605938912159763,
+   "absBeat": 239
+  },
+  {
+   "time": "46079i",
+   "drum": "ride",
+   "velocity": 0.22780931481160224,
+   "absBeat": 240
+  },
+  {
+   "time": "46272i",
+   "drum": "ride",
+   "velocity": 0.25557830586098135,
+   "absBeat": 241
+  },
+  {
+   "time": "46463i",
+   "drum": "ride",
+   "velocity": 0.20608962758444252,
+   "absBeat": 242
+  },
+  {
+   "time": "46656i",
+   "drum": "ride",
+   "velocity": 0.2427837096620351,
+   "absBeat": 243
+  },
+  {
+   "time": "46272i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24208553542383016,
+   "absBeat": 241
+  },
+  {
+   "time": "46657i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2555521354731172,
+   "absBeat": 243
+  },
+  {
+   "time": "46080i",
+   "drum": "kick",
+   "velocity": 0.13883608778938653,
+   "absBeat": 240
+  },
+  {
+   "time": "46464i",
+   "drum": "kick",
+   "velocity": 0.11545914521440864,
+   "absBeat": 242
+  },
+  {
+   "time": "46656i",
+   "drum": "crossstick",
+   "velocity": 0.29941239167470485,
+   "absBeat": 243
+  },
+  {
+   "time": "46849i",
+   "drum": "ride",
+   "velocity": 0.225610483950004,
+   "absBeat": 244
+  },
+  {
+   "time": "47039i",
+   "drum": "ride",
+   "velocity": 0.2631484540365636,
+   "absBeat": 245
+  },
+  {
+   "time": "47232i",
+   "drum": "ride",
+   "velocity": 0.22214795297011736,
+   "absBeat": 246
+  },
+  {
+   "time": "47423i",
+   "drum": "ride",
+   "velocity": 0.241883626524359,
+   "absBeat": 247
+  },
+  {
+   "time": "47040i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26120014317333695,
+   "absBeat": 245
+  },
+  {
+   "time": "47424i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2768787487503141,
+   "absBeat": 247
+  },
+  {
+   "time": "46847i",
+   "drum": "kick",
+   "velocity": 0.15674566426314415,
+   "absBeat": 244
+  },
+  {
+   "time": "47617i",
+   "drum": "ride",
+   "velocity": 0.23340717582032086,
+   "absBeat": 248
+  },
+  {
+   "time": "47808i",
+   "drum": "ride",
+   "velocity": 0.2617414179816842,
+   "absBeat": 249
+  },
+  {
+   "time": "47999i",
+   "drum": "ride",
+   "velocity": 0.2018151283171028,
+   "absBeat": 250
+  },
+  {
+   "time": "48192i",
+   "drum": "ride",
+   "velocity": 0.2609313455037773,
+   "absBeat": 251
+  },
+  {
+   "time": "47809i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2748082895856351,
+   "absBeat": 249
+  },
+  {
+   "time": "48192i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2425496440846473,
+   "absBeat": 251
+  },
+  {
+   "time": "47616i",
+   "drum": "kick",
+   "velocity": 0.1326662179734558,
+   "absBeat": 248
+  },
+  {
+   "time": "48000i",
+   "drum": "kick",
+   "velocity": 0.12892200173810126,
+   "absBeat": 250
+  },
+  {
+   "time": "48192i",
+   "drum": "crossstick",
+   "velocity": 0.2945054066856392,
+   "absBeat": 251
+  },
+  {
+   "time": "48385i",
+   "drum": "ride",
+   "velocity": 0.2353609485179186,
+   "absBeat": 252
+  },
+  {
+   "time": "48575i",
+   "drum": "ride",
+   "velocity": 0.273949436834082,
+   "absBeat": 253
+  },
+  {
+   "time": "48769i",
+   "drum": "ride",
+   "velocity": 0.20421443453989924,
+   "absBeat": 254
+  },
+  {
+   "time": "48959i",
+   "drum": "ride",
+   "velocity": 0.2793398356344551,
+   "absBeat": 255
+  },
+  {
+   "time": "48576i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24077362414449452,
+   "absBeat": 253
+  },
+  {
+   "time": "48960i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26465391524136067,
+   "absBeat": 255
+  },
+  {
+   "time": "48384i",
+   "drum": "kick",
+   "velocity": 0.14347185685299338,
+   "absBeat": 252
+  },
+  {
+   "time": "48874i",
+   "drum": "snare",
+   "velocity": 0.12270836915820836,
+   "absBeat": 254.5
+  },
+  {
+   "time": "49151i",
+   "drum": "ride",
+   "velocity": 0.23335897485725582,
+   "absBeat": 256
+  },
+  {
+   "time": "49344i",
+   "drum": "ride",
+   "velocity": 0.2651914895977825,
+   "absBeat": 257
+  },
+  {
+   "time": "49536i",
+   "drum": "ride",
+   "velocity": 0.2392706901486963,
+   "absBeat": 258
+  },
+  {
+   "time": "49727i",
+   "drum": "ride",
+   "velocity": 0.25770295361988244,
+   "absBeat": 259
+  },
+  {
+   "time": "49344i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24281034382060168,
+   "absBeat": 257
+  },
+  {
+   "time": "49728i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2569791103433818,
+   "absBeat": 259
+  },
+  {
+   "time": "49153i",
+   "drum": "kick",
+   "velocity": 0.16223551399074496,
+   "absBeat": 256
+  },
+  {
+   "time": "49729i",
+   "drum": "crossstick",
+   "velocity": 0.26237808550009506,
+   "absBeat": 259
+  },
+  {
+   "time": "49920i",
+   "drum": "ride",
+   "velocity": 0.21116963223554194,
+   "absBeat": 260
+  },
+  {
+   "time": "50112i",
+   "drum": "ride",
+   "velocity": 0.2539431998506188,
+   "absBeat": 261
+  },
+  {
+   "time": "50304i",
+   "drum": "ride",
+   "velocity": 0.23820589465089143,
+   "absBeat": 262
+  },
+  {
+   "time": "50495i",
+   "drum": "ride",
+   "velocity": 0.24456266363151372,
+   "absBeat": 263
+  },
+  {
+   "time": "50112i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25002850421704353,
+   "absBeat": 261
+  },
+  {
+   "time": "50496i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2634301965776831,
+   "absBeat": 263
+  },
+  {
+   "time": "49920i",
+   "drum": "kick",
+   "velocity": 0.15514244013465942,
+   "absBeat": 260
+  },
+  {
+   "time": "50497i",
+   "drum": "crossstick",
+   "velocity": 0.3083234971063212,
+   "absBeat": 263
+  },
+  {
+   "time": "50688i",
+   "drum": "ride",
+   "velocity": 0.22884056071750822,
+   "absBeat": 264
+  },
+  {
+   "time": "50880i",
+   "drum": "ride",
+   "velocity": 0.2435326058510691,
+   "absBeat": 265
+  },
+  {
+   "time": "51072i",
+   "drum": "ride",
+   "velocity": 0.2384730878379196,
+   "absBeat": 266
+  },
+  {
+   "time": "51264i",
+   "drum": "ride",
+   "velocity": 0.24823294200934468,
+   "absBeat": 267
+  },
+  {
+   "time": "50881i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26897182854823765,
+   "absBeat": 265
+  },
+  {
+   "time": "51264i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25042033434845506,
+   "absBeat": 267
+  },
+  {
+   "time": "50688i",
+   "drum": "kick",
+   "velocity": 0.1630055689625442,
+   "absBeat": 264
+  },
+  {
+   "time": "51072i",
+   "drum": "kick",
+   "velocity": 0.13459111513569952,
+   "absBeat": 266
+  },
+  {
+   "time": "51457i",
+   "drum": "ride",
+   "velocity": 0.2120993616990745,
+   "absBeat": 268
+  },
+  {
+   "time": "51647i",
+   "drum": "ride",
+   "velocity": 0.2442749897018075,
+   "absBeat": 269
+  },
+  {
+   "time": "51841i",
+   "drum": "ride",
+   "velocity": 0.2063251676782966,
+   "absBeat": 270
+  },
+  {
+   "time": "52032i",
+   "drum": "ride",
+   "velocity": 0.24820089502260087,
+   "absBeat": 271
+  },
+  {
+   "time": "51647i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27350563783198595,
+   "absBeat": 269
+  },
+  {
+   "time": "52032i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2551449220348149,
+   "absBeat": 271
+  },
+  {
+   "time": "51839i",
+   "drum": "kick",
+   "velocity": 0.13156202431302516,
+   "absBeat": 270
+  },
+  {
+   "time": "52224i",
+   "drum": "ride",
+   "velocity": 0.2036145376600325,
+   "absBeat": 272
+  },
+  {
+   "time": "52416i",
+   "drum": "ride",
+   "velocity": 0.24515073332004247,
+   "absBeat": 273
+  },
+  {
+   "time": "52608i",
+   "drum": "ride",
+   "velocity": 0.23864635932259262,
+   "absBeat": 274
+  },
+  {
+   "time": "52799i",
+   "drum": "ride",
+   "velocity": 0.2534887040872127,
+   "absBeat": 275
+  },
+  {
+   "time": "52417i",
+   "drum": "hihat-pedal",
+   "velocity": 0.278547855662182,
+   "absBeat": 273
+  },
+  {
+   "time": "52800i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2415019473992288,
+   "absBeat": 275
+  },
+  {
+   "time": "52223i",
+   "drum": "kick",
+   "velocity": 0.13536557430401444,
+   "absBeat": 272
+  },
+  {
+   "time": "52608i",
+   "drum": "kick",
+   "velocity": 0.12007858464960008,
+   "absBeat": 274
+  },
+  {
+   "time": "52801i",
+   "drum": "crossstick",
+   "velocity": 0.30655480399960655,
+   "absBeat": 275
+  },
+  {
+   "time": "52992i",
+   "drum": "ride",
+   "velocity": 0.23482400891371072,
+   "absBeat": 276
+  },
+  {
+   "time": "53183i",
+   "drum": "ride",
+   "velocity": 0.27188108474016187,
+   "absBeat": 277
+  },
+  {
+   "time": "53376i",
+   "drum": "ride",
+   "velocity": 0.22827543880790474,
+   "absBeat": 278
+  },
+  {
+   "time": "53568i",
+   "drum": "ride",
+   "velocity": 0.27640748403035104,
+   "absBeat": 279
+  },
+  {
+   "time": "53185i",
+   "drum": "hihat-pedal",
+   "velocity": 0.266295009450987,
+   "absBeat": 277
+  },
+  {
+   "time": "53568i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2562849328573793,
+   "absBeat": 279
+  },
+  {
+   "time": "52993i",
+   "drum": "kick",
+   "velocity": 0.16990309895016253,
+   "absBeat": 276
+  },
+  {
+   "time": "53377i",
+   "drum": "kick",
+   "velocity": 0.11566326231928542,
+   "absBeat": 278
+  },
+  {
+   "time": "53760i",
+   "drum": "ride",
+   "velocity": 0.20804811224341394,
+   "absBeat": 280
+  },
+  {
+   "time": "53952i",
+   "drum": "ride",
+   "velocity": 0.26224072980694474,
+   "absBeat": 281
+  },
+  {
+   "time": "54143i",
+   "drum": "ride",
+   "velocity": 0.2200099902506918,
+   "absBeat": 282
+  },
+  {
+   "time": "54337i",
+   "drum": "ride",
+   "velocity": 0.27330606371164323,
+   "absBeat": 283
+  },
+  {
+   "time": "53952i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25638159276917577,
+   "absBeat": 281
+  },
+  {
+   "time": "54336i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2519568643067032,
+   "absBeat": 283
+  },
+  {
+   "time": "53760i",
+   "drum": "kick",
+   "velocity": 0.15226597130298614,
+   "absBeat": 280
+  },
+  {
+   "time": "54528i",
+   "drum": "ride",
+   "velocity": 0.22028210792690517,
+   "absBeat": 284
+  },
+  {
+   "time": "54719i",
+   "drum": "ride",
+   "velocity": 0.27439493813551963,
+   "absBeat": 285
+  },
+  {
+   "time": "54911i",
+   "drum": "ride",
+   "velocity": 0.2070753481052816,
+   "absBeat": 286
+  },
+  {
+   "time": "55105i",
+   "drum": "ride",
+   "velocity": 0.2574434840120375,
+   "absBeat": 287
+  },
+  {
+   "time": "54720i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24681335194036363,
+   "absBeat": 285
+  },
+  {
+   "time": "55104i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24470260401256383,
+   "absBeat": 287
+  },
+  {
+   "time": "54528i",
+   "drum": "kick",
+   "velocity": 0.1388355786073953,
+   "absBeat": 284
+  },
+  {
+   "time": "54911i",
+   "drum": "kick",
+   "velocity": 0.13701257986482232,
+   "absBeat": 286
+  },
+  {
+   "time": "55018i",
+   "drum": "snare",
+   "velocity": 0.14482753308489918,
+   "absBeat": 286.5
+  },
+  {
+   "time": "55297i",
+   "drum": "ride",
+   "velocity": 0.2216659576445818,
+   "absBeat": 288
+  },
+  {
+   "time": "55488i",
+   "drum": "ride",
+   "velocity": 0.263077259901911,
+   "absBeat": 289
+  },
+  {
+   "time": "55680i",
+   "drum": "ride",
+   "velocity": 0.2290534939058125,
+   "absBeat": 290
+  },
+  {
+   "time": "55872i",
+   "drum": "ride",
+   "velocity": 0.2512361040432006,
+   "absBeat": 291
+  },
+  {
+   "time": "55488i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25140920143574474,
+   "absBeat": 289
+  },
+  {
+   "time": "55872i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27062668385915456,
+   "absBeat": 291
+  },
+  {
+   "time": "55295i",
+   "drum": "kick",
+   "velocity": 0.15811430791392922,
+   "absBeat": 288
+  },
+  {
+   "time": "55682i",
+   "drum": "kick",
+   "velocity": 0.1155891176732257,
+   "absBeat": 290
+  },
+  {
+   "time": "56064i",
+   "drum": "ride",
+   "velocity": 0.22795659788884223,
+   "absBeat": 292
+  },
+  {
+   "time": "56256i",
+   "drum": "ride",
+   "velocity": 0.2606441581621766,
+   "absBeat": 293
+  },
+  {
+   "time": "56448i",
+   "drum": "ride",
+   "velocity": 0.21868817030452192,
+   "absBeat": 294
+  },
+  {
+   "time": "56640i",
+   "drum": "ride",
+   "velocity": 0.24359089288860558,
+   "absBeat": 295
+  },
+  {
+   "time": "56256i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27656666197814045,
+   "absBeat": 293
+  },
+  {
+   "time": "56641i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26384155269712206,
+   "absBeat": 295
+  },
+  {
+   "time": "56556i",
+   "drum": "snare",
+   "velocity": 0.13057536304928363,
+   "absBeat": 294.5
+  },
+  {
+   "time": "56831i",
+   "drum": "ride",
+   "velocity": 0.23457225520163777,
+   "absBeat": 296
+  },
+  {
+   "time": "57023i",
+   "drum": "ride",
+   "velocity": 0.2638266858365387,
+   "absBeat": 297
+  },
+  {
+   "time": "57216i",
+   "drum": "ride",
+   "velocity": 0.236285834601149,
+   "absBeat": 298
+  },
+  {
+   "time": "57409i",
+   "drum": "ride",
+   "velocity": 0.24786485793069005,
+   "absBeat": 299
+  },
+  {
+   "time": "57024i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25658209031447765,
+   "absBeat": 297
+  },
+  {
+   "time": "57408i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2711255827732384,
+   "absBeat": 299
+  },
+  {
+   "time": "57600i",
+   "drum": "ride",
+   "velocity": 0.23263954960741104,
+   "absBeat": 300
+  },
+  {
+   "time": "57793i",
+   "drum": "ride",
+   "velocity": 0.2723753618076444,
+   "absBeat": 301
+  },
+  {
+   "time": "57984i",
+   "drum": "ride",
+   "velocity": 0.22919672747142614,
+   "absBeat": 302
+  },
+  {
+   "time": "58176i",
+   "drum": "ride",
+   "velocity": 0.26498276621103284,
+   "absBeat": 303
+  },
+  {
+   "time": "57792i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24323541527613995,
+   "absBeat": 301
+  },
+  {
+   "time": "58175i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25466987256892026,
+   "absBeat": 303
+  },
+  {
+   "time": "57601i",
+   "drum": "kick",
+   "velocity": 0.16369432128965855,
+   "absBeat": 300
+  },
+  {
+   "time": "58368i",
+   "drum": "ride",
+   "velocity": 0.2221262347418815,
+   "absBeat": 304
+  },
+  {
+   "time": "58560i",
+   "drum": "ride",
+   "velocity": 0.26316564015112814,
+   "absBeat": 305
+  },
+  {
+   "time": "58753i",
+   "drum": "ride",
+   "velocity": 0.2025731204543263,
+   "absBeat": 306
+  },
+  {
+   "time": "58943i",
+   "drum": "ride",
+   "velocity": 0.24517556300386786,
+   "absBeat": 307
+  },
+  {
+   "time": "58560i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24011534227989614,
+   "absBeat": 305
+  },
+  {
+   "time": "58944i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25257874723523854,
+   "absBeat": 307
+  },
+  {
+   "time": "58368i",
+   "drum": "kick",
+   "velocity": 0.15246715959161522,
+   "absBeat": 304
+  },
+  {
+   "time": "58947i",
+   "drum": "crossstick",
+   "velocity": 0.2932709980779328,
+   "absBeat": 307
+  },
+  {
+   "time": "59135i",
+   "drum": "ride",
+   "velocity": 0.22850565185770394,
+   "absBeat": 308
+  },
+  {
+   "time": "59328i",
+   "drum": "ride",
+   "velocity": 0.26500597121194003,
+   "absBeat": 309
+  },
+  {
+   "time": "59521i",
+   "drum": "ride",
+   "velocity": 0.2197772235516459,
+   "absBeat": 310
+  },
+  {
+   "time": "59712i",
+   "drum": "ride",
+   "velocity": 0.2797576385177672,
+   "absBeat": 311
+  },
+  {
+   "time": "59328i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25444876538589595,
+   "absBeat": 309
+  },
+  {
+   "time": "59712i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24011097797192632,
+   "absBeat": 311
+  },
+  {
+   "time": "59136i",
+   "drum": "kick",
+   "velocity": 0.13057492634281517,
+   "absBeat": 308
+  },
+  {
+   "time": "59904i",
+   "drum": "ride",
+   "velocity": 0.2208167800307274,
+   "absBeat": 312
+  },
+  {
+   "time": "60096i",
+   "drum": "ride",
+   "velocity": 0.2681802479829639,
+   "absBeat": 313
+  },
+  {
+   "time": "60288i",
+   "drum": "ride",
+   "velocity": 0.20928208531811834,
+   "absBeat": 314
+  },
+  {
+   "time": "60479i",
+   "drum": "ride",
+   "velocity": 0.26738706019707026,
+   "absBeat": 315
+  },
+  {
+   "time": "60095i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24960984813980758,
+   "absBeat": 313
+  },
+  {
+   "time": "60480i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26452699597924945,
+   "absBeat": 315
+  },
+  {
+   "time": "59906i",
+   "drum": "kick",
+   "velocity": 0.1341102320700884,
+   "absBeat": 312
+  },
+  {
+   "time": "60289i",
+   "drum": "kick",
+   "velocity": 0.13094936862355097,
+   "absBeat": 314
+  },
+  {
+   "time": "60672i",
+   "drum": "ride",
+   "velocity": 0.217505106208846,
+   "absBeat": 316
+  },
+  {
+   "time": "60865i",
+   "drum": "ride",
+   "velocity": 0.24457568164914845,
+   "absBeat": 317
+  },
+  {
+   "time": "61055i",
+   "drum": "ride",
+   "velocity": 0.2185824418719858,
+   "absBeat": 318
+  },
+  {
+   "time": "61249i",
+   "drum": "ride",
+   "velocity": 0.24762062259949744,
+   "absBeat": 319
+  },
+  {
+   "time": "60863i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25598390453495085,
+   "absBeat": 317
+  },
+  {
+   "time": "61247i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24685951510444282,
+   "absBeat": 319
+  },
+  {
+   "time": "60672i",
+   "drum": "kick",
+   "velocity": 0.14566684861667456,
+   "absBeat": 316
+  },
+  {
+   "time": "61163i",
+   "drum": "snare",
+   "velocity": 0.1289092110376805,
+   "absBeat": 318.5
+  },
+  {
+   "time": "61440i",
+   "drum": "ride",
+   "velocity": 0.2055306405480951,
+   "absBeat": 320
+  },
+  {
+   "time": "61632i",
+   "drum": "ride",
+   "velocity": 0.24034777287393808,
+   "absBeat": 321
+  },
+  {
+   "time": "61824i",
+   "drum": "ride",
+   "velocity": 0.2360125038865954,
+   "absBeat": 322
+  },
+  {
+   "time": "62017i",
+   "drum": "ride",
+   "velocity": 0.27227823520079253,
+   "absBeat": 323
+  },
+  {
+   "time": "61633i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26924770667217673,
+   "absBeat": 321
+  },
+  {
+   "time": "62016i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2438152541965246,
+   "absBeat": 323
+  },
+  {
+   "time": "61440i",
+   "drum": "kick",
+   "velocity": 0.15136142378672957,
+   "absBeat": 320
+  },
+  {
+   "time": "62208i",
+   "drum": "ride",
+   "velocity": 0.20853548582643272,
+   "absBeat": 324
+  },
+  {
+   "time": "62400i",
+   "drum": "ride",
+   "velocity": 0.2656624082662165,
+   "absBeat": 325
+  },
+  {
+   "time": "62592i",
+   "drum": "ride",
+   "velocity": 0.2332495092879981,
+   "absBeat": 326
+  },
+  {
+   "time": "62784i",
+   "drum": "ride",
+   "velocity": 0.270579646686092,
+   "absBeat": 327
+  },
+  {
+   "time": "62400i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2676329331938177,
+   "absBeat": 325
+  },
+  {
+   "time": "62783i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2629404448904097,
+   "absBeat": 327
+  },
+  {
+   "time": "62208i",
+   "drum": "kick",
+   "velocity": 0.1442552633024752,
+   "absBeat": 324
+  },
+  {
+   "time": "62594i",
+   "drum": "kick",
+   "velocity": 0.12230121400440112,
+   "absBeat": 326
+  },
+  {
+   "time": "62976i",
+   "drum": "ride",
+   "velocity": 0.21089908913709224,
+   "absBeat": 328
+  },
+  {
+   "time": "63167i",
+   "drum": "ride",
+   "velocity": 0.2524813067354262,
+   "absBeat": 329
+  },
+  {
+   "time": "63360i",
+   "drum": "ride",
+   "velocity": 0.21082052618265154,
+   "absBeat": 330
+  },
+  {
+   "time": "63551i",
+   "drum": "ride",
+   "velocity": 0.2510435952525586,
+   "absBeat": 331
+  },
+  {
+   "time": "63168i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27876263748854396,
+   "absBeat": 329
+  },
+  {
+   "time": "63551i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27077404550276696,
+   "absBeat": 331
+  },
+  {
+   "time": "62976i",
+   "drum": "kick",
+   "velocity": 0.13468490739353,
+   "absBeat": 328
+  },
+  {
+   "time": "63467i",
+   "drum": "snare",
+   "velocity": 0.15542165067978203,
+   "absBeat": 330.5
+  },
+  {
+   "time": "63745i",
+   "drum": "ride",
+   "velocity": 0.2002167609985918,
+   "absBeat": 332
+  },
+  {
+   "time": "63936i",
+   "drum": "ride",
+   "velocity": 0.273318252088502,
+   "absBeat": 333
+  },
+  {
+   "time": "64128i",
+   "drum": "ride",
+   "velocity": 0.21552557175047696,
+   "absBeat": 334
+  },
+  {
+   "time": "64320i",
+   "drum": "ride",
+   "velocity": 0.27467799197882414,
+   "absBeat": 335
+  },
+  {
+   "time": "63936i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2729922794457525,
+   "absBeat": 333
+  },
+  {
+   "time": "64320i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2549205721262842,
+   "absBeat": 335
+  },
+  {
+   "time": "63744i",
+   "drum": "kick",
+   "velocity": 0.13579291299916804,
+   "absBeat": 332
+  },
+  {
+   "time": "64042i",
+   "drum": "snare",
+   "velocity": 0.1512827348150313,
+   "absBeat": 333.5
+  },
+  {
+   "time": "64513i",
+   "drum": "ride",
+   "velocity": 0.22709046945907177,
+   "absBeat": 336
+  },
+  {
+   "time": "64703i",
+   "drum": "ride",
+   "velocity": 0.274645661143586,
+   "absBeat": 337
+  },
+  {
+   "time": "64896i",
+   "drum": "ride",
+   "velocity": 0.22108853503130377,
+   "absBeat": 338
+  },
+  {
+   "time": "65088i",
+   "drum": "ride",
+   "velocity": 0.2635012136492878,
+   "absBeat": 339
+  },
+  {
+   "time": "64704i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2400565899722278,
+   "absBeat": 337
+  },
+  {
+   "time": "65089i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2442431922443211,
+   "absBeat": 339
+  },
+  {
+   "time": "64513i",
+   "drum": "kick",
+   "velocity": 0.14662731996737421,
+   "absBeat": 336
+  },
+  {
+   "time": "65281i",
+   "drum": "ride",
+   "velocity": 0.200350695932284,
+   "absBeat": 340
+  },
+  {
+   "time": "65472i",
+   "drum": "ride",
+   "velocity": 0.24661041982471943,
+   "absBeat": 341
+  },
+  {
+   "time": "65664i",
+   "drum": "ride",
+   "velocity": 0.22111560793593527,
+   "absBeat": 342
+  },
+  {
+   "time": "65857i",
+   "drum": "ride",
+   "velocity": 0.27128997943364086,
+   "absBeat": 343
+  },
+  {
+   "time": "65472i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27431718037463726,
+   "absBeat": 341
+  },
+  {
+   "time": "65856i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2524695652537048,
+   "absBeat": 343
+  },
+  {
+   "time": "65280i",
+   "drum": "kick",
+   "velocity": 0.13607976665720345,
+   "absBeat": 340
+  },
+  {
+   "time": "65769i",
+   "drum": "snare",
+   "velocity": 0.12133385439403355,
+   "absBeat": 342.5
+  },
+  {
+   "time": "66047i",
+   "drum": "ride",
+   "velocity": 0.21683806475251916,
+   "absBeat": 344
+  },
+  {
+   "time": "66241i",
+   "drum": "ride",
+   "velocity": 0.2604573802743107,
+   "absBeat": 345
+  },
+  {
+   "time": "66432i",
+   "drum": "ride",
+   "velocity": 0.2318251556903124,
+   "absBeat": 346
+  },
+  {
+   "time": "66625i",
+   "drum": "ride",
+   "velocity": 0.27186124155297875,
+   "absBeat": 347
+  },
+  {
+   "time": "66240i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2718838290963322,
+   "absBeat": 345
+  },
+  {
+   "time": "66624i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2535485134925693,
+   "absBeat": 347
+  },
+  {
+   "time": "66626i",
+   "drum": "crossstick",
+   "velocity": 0.29288390937959774,
+   "absBeat": 347
+  },
+  {
+   "time": "66815i",
+   "drum": "ride",
+   "velocity": 0.22752144677564504,
+   "absBeat": 348
+  },
+  {
+   "time": "67007i",
+   "drum": "ride",
+   "velocity": 0.24963565880432725,
+   "absBeat": 349
+  },
+  {
+   "time": "67200i",
+   "drum": "ride",
+   "velocity": 0.23251543604768815,
+   "absBeat": 350
+  },
+  {
+   "time": "67393i",
+   "drum": "ride",
+   "velocity": 0.27259923034347594,
+   "absBeat": 351
+  },
+  {
+   "time": "67008i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2658061980269849,
+   "absBeat": 349
+  },
+  {
+   "time": "67392i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2421072700060904,
+   "absBeat": 351
+  },
+  {
+   "time": "67201i",
+   "drum": "kick",
+   "velocity": 0.13612895421218127,
+   "absBeat": 350
+  },
+  {
+   "time": "67499i",
+   "drum": "crossstick",
+   "velocity": 0.2876090124435723,
+   "absBeat": 351.5
+  },
+  {
+   "time": "67583i",
+   "drum": "ride",
+   "velocity": 0.20821916355751455,
+   "absBeat": 352
+  },
+  {
+   "time": "67776i",
+   "drum": "ride",
+   "velocity": 0.2410720058903098,
+   "absBeat": 353
+  },
+  {
+   "time": "67968i",
+   "drum": "ride",
+   "velocity": 0.2293795935250819,
+   "absBeat": 354
+  },
+  {
+   "time": "68159i",
+   "drum": "ride",
+   "velocity": 0.267440438689664,
+   "absBeat": 355
+  },
+  {
+   "time": "67777i",
+   "drum": "hihat-pedal",
+   "velocity": 0.251858849581331,
+   "absBeat": 353
+  },
+  {
+   "time": "68160i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24412839288823307,
+   "absBeat": 355
+  },
+  {
+   "time": "67585i",
+   "drum": "kick",
+   "velocity": 0.15986041102558374,
+   "absBeat": 352
+  },
+  {
+   "time": "68353i",
+   "drum": "ride",
+   "velocity": 0.2341829368378967,
+   "absBeat": 356
+  },
+  {
+   "time": "68543i",
+   "drum": "ride",
+   "velocity": 0.2601076442096382,
+   "absBeat": 357
+  },
+  {
+   "time": "68736i",
+   "drum": "ride",
+   "velocity": 0.23912392660975457,
+   "absBeat": 358
+  },
+  {
+   "time": "68927i",
+   "drum": "ride",
+   "velocity": 0.2655478439107537,
+   "absBeat": 359
+  },
+  {
+   "time": "68544i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2676401466410607,
+   "absBeat": 357
+  },
+  {
+   "time": "68928i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2637765664514154,
+   "absBeat": 359
+  },
+  {
+   "time": "68351i",
+   "drum": "kick",
+   "velocity": 0.14681914992630482,
+   "absBeat": 356
+  },
+  {
+   "time": "68842i",
+   "drum": "snare",
+   "velocity": 0.15457965392619372,
+   "absBeat": 358.5
+  },
+  {
+   "time": "69120i",
+   "drum": "ride",
+   "velocity": 0.21520738654769958,
+   "absBeat": 360
+  },
+  {
+   "time": "69312i",
+   "drum": "ride",
+   "velocity": 0.26957463113591074,
+   "absBeat": 361
+  },
+  {
+   "time": "69504i",
+   "drum": "ride",
+   "velocity": 0.23407447787933053,
+   "absBeat": 362
+  },
+  {
+   "time": "69696i",
+   "drum": "ride",
+   "velocity": 0.2484997392538935,
+   "absBeat": 363
+  },
+  {
+   "time": "69313i",
+   "drum": "hihat-pedal",
+   "velocity": 0.26659439186565576,
+   "absBeat": 361
+  },
+  {
+   "time": "69696i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27965971544384954,
+   "absBeat": 363
+  },
+  {
+   "time": "69887i",
+   "drum": "ride",
+   "velocity": 0.23323192621581257,
+   "absBeat": 364
+  },
+  {
+   "time": "70079i",
+   "drum": "ride",
+   "velocity": 0.2620567107293755,
+   "absBeat": 365
+  },
+  {
+   "time": "70272i",
+   "drum": "ride",
+   "velocity": 0.21350782533176244,
+   "absBeat": 366
+  },
+  {
+   "time": "70464i",
+   "drum": "ride",
+   "velocity": 0.2673827957641333,
+   "absBeat": 367
+  },
+  {
+   "time": "70080i",
+   "drum": "hihat-pedal",
+   "velocity": 0.254039385728538,
+   "absBeat": 365
+  },
+  {
+   "time": "70464i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24012487514875827,
+   "absBeat": 367
+  },
+  {
+   "time": "69888i",
+   "drum": "kick",
+   "velocity": 0.13057666098698975,
+   "absBeat": 364
+  },
+  {
+   "time": "70273i",
+   "drum": "kick",
+   "velocity": 0.13536461884854362,
+   "absBeat": 366
+  },
+  {
+   "time": "70463i",
+   "drum": "crossstick",
+   "velocity": 0.26254821571288633,
+   "absBeat": 367
+  },
+  {
+   "time": "70656i",
+   "drum": "ride",
+   "velocity": 0.21845681766979397,
+   "absBeat": 368
+  },
+  {
+   "time": "70849i",
+   "drum": "ride",
+   "velocity": 0.25276650817133484,
+   "absBeat": 369
+  },
+  {
+   "time": "71039i",
+   "drum": "ride",
+   "velocity": 0.202205410245806,
+   "absBeat": 370
+  },
+  {
+   "time": "71231i",
+   "drum": "ride",
+   "velocity": 0.2688228593114763,
+   "absBeat": 371
+  },
+  {
+   "time": "70848i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25643652693368496,
+   "absBeat": 369
+  },
+  {
+   "time": "71232i",
+   "drum": "hihat-pedal",
+   "velocity": 0.2695556554198265,
+   "absBeat": 371
+  },
+  {
+   "time": "71233i",
+   "drum": "crossstick",
+   "velocity": 0.29198583438061176,
+   "absBeat": 371
+  },
+  {
+   "time": "71424i",
+   "drum": "ride",
+   "velocity": 0.21735446658916774,
+   "absBeat": 372
+  },
+  {
+   "time": "71617i",
+   "drum": "ride",
+   "velocity": 0.27244872947223486,
+   "absBeat": 373
+  },
+  {
+   "time": "71809i",
+   "drum": "ride",
+   "velocity": 0.2198093103338033,
+   "absBeat": 374
+  },
+  {
+   "time": "71999i",
+   "drum": "ride",
+   "velocity": 0.24282783092930912,
+   "absBeat": 375
+  },
+  {
+   "time": "71617i",
+   "drum": "hihat-pedal",
+   "velocity": 0.27778548528440294,
+   "absBeat": 373
+  },
+  {
+   "time": "72000i",
+   "drum": "hihat-pedal",
+   "velocity": 0.25284150417894125,
+   "absBeat": 375
+  },
+  {
+   "time": "71423i",
+   "drum": "kick",
+   "velocity": 0.14139320897869767,
+   "absBeat": 372
+  },
+  {
+   "time": "72192i",
+   "drum": "ride",
+   "velocity": 0.21455740996636452,
+   "absBeat": 376
+  },
+  {
+   "time": "72384i",
+   "drum": "ride",
+   "velocity": 0.24059014542028306,
+   "absBeat": 377
+  },
+  {
+   "time": "72577i",
+   "drum": "ride",
+   "velocity": 0.2111229524202645,
+   "absBeat": 378
+  },
+  {
+   "time": "72768i",
+   "drum": "ride",
+   "velocity": 0.2593475347198546,
+   "absBeat": 379
+  },
+  {
+   "time": "72383i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24507683421485124,
+   "absBeat": 377
+  },
+  {
+   "time": "72767i",
+   "drum": "hihat-pedal",
+   "velocity": 0.271018986441195,
+   "absBeat": 379
+  },
+  {
+   "time": "72192i",
+   "drum": "kick",
+   "velocity": 0.1571945040486753,
+   "absBeat": 376
+  },
+  {
+   "time": "72577i",
+   "drum": "kick",
+   "velocity": 0.12968521100701763,
+   "absBeat": 378
+  },
+  {
+   "time": "72769i",
+   "drum": "crossstick",
+   "velocity": 0.27751733577111737,
+   "absBeat": 379
+  },
+  {
+   "time": "72960i",
+   "drum": "ride",
+   "velocity": 0.23082368433475495,
+   "absBeat": 380
+  },
+  {
+   "time": "73153i",
+   "drum": "ride",
+   "velocity": 0.27865425954572853,
+   "absBeat": 381
+  },
+  {
+   "time": "73345i",
+   "drum": "ride",
+   "velocity": 0.22563577682711186,
+   "absBeat": 382
+  },
+  {
+   "time": "73536i",
+   "drum": "ride",
+   "velocity": 0.24235297504812478,
+   "absBeat": 383
+  },
+  {
+   "time": "73153i",
+   "drum": "hihat-pedal",
+   "velocity": 0.24688483680598436,
+   "absBeat": 381
+  },
+  {
+   "time": "73536i",
+   "drum": "hihat-pedal",
+   "velocity": 0.275464199539274,
+   "absBeat": 383
+  },
+  {
+   "time": "72960i",
+   "drum": "kick",
+   "velocity": 0.15235489017330112,
+   "absBeat": 380
+  }
+ ]
+}
