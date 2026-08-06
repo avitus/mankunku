@@ -14,7 +14,8 @@
 		setBackingTrackVolume,
 		getBackingMix,
 		setBackingMix,
-		getDecodedDrumBuffersForBounce
+		getDecodedDrumBuffersForBounce,
+		getDecodedRoomIrForBounce
 	} from '$lib/audio/backing-track';
 	import { DEFAULT_BACKING_MIX, type BackingMixLevels } from '$lib/audio/backing-mix';
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
@@ -31,7 +32,8 @@
 	const GAIN_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'bass', label: 'Bass', hint: 'Upright bass level' },
 		{ key: 'comp', label: 'Piano / Organ', hint: 'Comping instrument level' },
-		{ key: 'drums', label: 'Drum kit', hint: 'Whole kit level' }
+		{ key: 'drums', label: 'Drum kit', hint: 'Whole kit level' },
+		{ key: 'room', label: 'Room', hint: 'Ambience return — 0 is fully dry' }
 	];
 	const VOICE_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'kick', label: 'Kick', hint: 'Feathered quarters — 100% is the ear-tuned baseline' },
@@ -179,7 +181,8 @@
 		try {
 			await initAudio();
 			const drumBuffers = await getDecodedDrumBuffersForBounce();
-			const result = await bounceBacking(bounceParams(), drumBuffers);
+			const roomIr = await getDecodedRoomIrForBounce();
+			const result = await bounceBacking(bounceParams(), drumBuffers, roomIr);
 			if (id !== bounceRequest) return; // superseded by a param change or newer bounce
 			if (bounceUrl) URL.revokeObjectURL(bounceUrl);
 			bounceUrl = URL.createObjectURL(result.blob);
@@ -210,11 +213,13 @@
 		try {
 			await initAudio();
 			const drumBuffers = await getDecodedDrumBuffersForBounce();
+			const roomIr = await getDecodedRoomIrForBounce();
 			const json: unknown = JSON.parse(await file.text());
 			const { blob, label } = await renderGoldenJsonToWav(json, drumBuffers, {
 				instrument,
 				volume,
-				mix
+				mix,
+				roomIr
 			});
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
