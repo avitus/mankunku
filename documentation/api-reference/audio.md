@@ -486,7 +486,13 @@ interface SampleMap {
   velocitySplit: number;
 }
 
-type DrumBufferName = 'kick' | 'ride' | 'hihat';
+type DrumBufferName =
+  | 'kick'
+  | 'ride' | 'ride_soft' | 'ride_acc' | 'ride_bell'
+  | 'hihat' | 'hihat_pedal'
+  | 'snare_ghost' | 'snare_med' | 'snare_acc'
+  | 'crossstick'
+  | 'crash';
 ```
 
 ### Constants

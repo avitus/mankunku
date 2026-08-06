@@ -24,7 +24,12 @@
 		LAB_TEMPO_PRESETS,
 		labPhraseWithSeed
 	} from '$lib/audio/backing-lab-presets';
-	import { bounceBacking, generateForBounce, renderGoldenJsonToWav } from '$lib/audio/backing-bounce';
+	import {
+		bounceBacking,
+		generateForBounce,
+		renderGoldenJsonToWav,
+		BOUNCE_SAMPLE_RATE
+	} from '$lib/audio/backing-bounce';
 	import BlindAbPlayer from '$lib/components/diagnostics/BlindAbPlayer.svelte';
 	import ListeningChecklist from '$lib/components/diagnostics/ListeningChecklist.svelte';
 	import { settings } from '$lib/state/settings.svelte';
@@ -181,7 +186,7 @@
 		try {
 			await initAudio();
 			const drumBuffers = await getDecodedDrumBuffersForBounce();
-			const roomIr = await getDecodedRoomIrForBounce();
+			const roomIr = await getDecodedRoomIrForBounce(BOUNCE_SAMPLE_RATE);
 			const result = await bounceBacking(bounceParams(), drumBuffers, roomIr);
 			if (id !== bounceRequest) return; // superseded by a param change or newer bounce
 			if (bounceUrl) URL.revokeObjectURL(bounceUrl);
@@ -213,7 +218,7 @@
 		try {
 			await initAudio();
 			const drumBuffers = await getDecodedDrumBuffersForBounce();
-			const roomIr = await getDecodedRoomIrForBounce();
+			const roomIr = await getDecodedRoomIrForBounce(BOUNCE_SAMPLE_RATE);
 			const json: unknown = JSON.parse(await file.text());
 			const { blob, label } = await renderGoldenJsonToWav(json, drumBuffers, {
 				instrument,

@@ -44,6 +44,12 @@ import {
  */
 export const BOUNCE_PPQ = 192;
 
+/** Offline render rate. The room IR must be decoded AT this rate
+ *  (`getDecodedRoomIrForBounce(BOUNCE_SAMPLE_RATE)`): ConvolverNode.buffer
+ *  throws NotSupportedError on a rate mismatch, unlike source-node
+ *  buffers, which resample freely. */
+export const BOUNCE_SAMPLE_RATE = 44100;
+
 /** Seconds of tail after the last bar so releases and the room ring out. */
 const BOUNCE_TAIL_SECONDS = 2.5;
 
@@ -206,7 +212,10 @@ export async function renderEventsToWav(
 				drumPans[family] = pan;
 			}
 
-			if (opts.roomIr) {
+			// Rate guard: a mismatched IR would make `convolver.buffer =` THROW
+			// (killing the whole render, not just the room) — render dry
+			// instead, exactly like the live graph does without an IR.
+			if (opts.roomIr && opts.roomIr.sampleRate === context.sampleRate) {
 				const convolver = context.createConvolver();
 				convolver.buffer = opts.roomIr;
 				const roomReturn = context.createGain();
@@ -306,7 +315,7 @@ export async function renderEventsToWav(
 				});
 			}
 		},
-		{ duration: durationSeconds, sampleRate: 44100 }
+		{ duration: durationSeconds, sampleRate: BOUNCE_SAMPLE_RATE }
 	);
 
 	// Peak-normalize the bounce to −1 dBFS. The live mix is anchored ~20 dB

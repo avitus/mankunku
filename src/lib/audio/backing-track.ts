@@ -78,7 +78,7 @@ export interface BackingTrackLog {
 }
 
 // Each entry indexes every beat of a full take; 10 is plenty of history
-// for the diagnostics page and caps the IndexedDB/serialization cost.
+// for the diagnostics page and caps the sessionStorage/serialization cost.
 const MAX_LOG_ENTRIES = 10;
 const LOG_STORAGE_KEY = 'backing-track-log';
 
@@ -219,8 +219,9 @@ function ensureBackingGraph(audioCtx: AudioContext): void {
 }
 
 /**
- * Fetch + decode the room IR once, best-effort: any failure leaves the
- * backing permanently dry for the session (the graph works without it).
+ * Fetch + decode the room IR once, best-effort: on failure the backing
+ * plays dry, and the next `loadBackingInstruments` retries the fetch
+ * (the graph works without it either way).
  */
 function ensureRoomIr(audioCtx: AudioContext): Promise<void> {
 	if (roomIrBuffer) return Promise.resolve();
@@ -298,6 +299,9 @@ let drumBus: GainNode | null = null;
 /** Shared in-flight load promise so concurrent callers don't race and
  *  leak a gain node / sampler graph (single-flight pattern). */
 let drumLoadPromise: Promise<void> | null = null;
+/** Bumped by `disposeBackingTrack` so async flights that started against
+ *  the previous graph refuse to promote their nodes onto the corpse. */
+let graphEpoch = 0;
 
 // Scheduled parts
 let bassPart: import('tone').Part<BassEvent> | null = null;
@@ -385,20 +389,40 @@ export async function getDecodedDrumBuffersForBounce(): Promise<
 }
 
 /**
- * Decoded room IR for an offline bounce, or null when it can't be loaded —
- * the bounce then renders dry, matching what the live graph would do.
+ * Decoded room IR for an offline bounce, at the bounce's sample rate, or
+ * null when it can't be loaded — the bounce then renders dry, matching
+ * what the live graph would do without an IR.
+ *
+ * Decoded on a throwaway OfflineAudioContext pinned to `sampleRate`, NOT
+ * the live context (and deliberately not sharing `ensureRoomIr`'s cache):
+ * `decodeAudioData` resamples to its own context's rate, and
+ * `ConvolverNode.buffer` THROWS on a rate mismatch — a live context at
+ * 48 kHz (most modern output devices) would kill a 44.1 kHz render
+ * outright. Source-node buffers resample freely, which is why the drum
+ * buffers can keep decoding on the live context.
  */
-export async function getDecodedRoomIrForBounce(): Promise<AudioBuffer | null> {
-	const audioCtx = await initAudio();
-	await ensureRoomIr(audioCtx);
-	return roomIrBuffer;
+export async function getDecodedRoomIrForBounce(sampleRate: number): Promise<AudioBuffer | null> {
+	try {
+		const response = await fetch(ROOM_IR_URL);
+		if (!response.ok) return null;
+		const decodeCtx = new OfflineAudioContext(2, 1, sampleRate);
+		return await decodeCtx.decodeAudioData(await response.arrayBuffer());
+	} catch {
+		return null;
+	}
 }
 
 async function ensureDrums(): Promise<void> {
 	if (drumSamplers) return;
 	if (drumLoadPromise) return drumLoadPromise;
 
-	drumLoadPromise = (async () => {
+	// Epoch capture: if `disposeBackingTrack` runs while the samples load,
+	// promoting this flight's nodes would resurrect a dead graph (silent
+	// drums that block every later `ensureDrums`, or stale pans tapped into
+	// a rebuilt room). The flight checks the epoch before promoting.
+	const epoch = graphEpoch;
+	let flight: Promise<void> | null = null;
+	flight = (async () => {
 		const audioCtx = await initAudio();
 		const { Sampler } = await import('smplr');
 
@@ -465,6 +489,14 @@ async function ensureDrums(): Promise<void> {
 
 		try {
 			await Promise.all(Object.values(samplers).map((s) => s.load));
+			if (epoch !== graphEpoch) {
+				// Disposed mid-load: tear down this flight's local nodes and let
+				// the next ensureDrums build against the live graph.
+				for (const s of Object.values(samplers)) s.disconnect();
+				for (const p of Object.values(pans)) p.disconnect();
+				bus.disconnect();
+				return;
+			}
 			drumBus = bus;
 			drumPans = pans;
 			drumSamplers = samplers;
@@ -478,11 +510,14 @@ async function ensureDrums(): Promise<void> {
 			bus.disconnect();
 			throw error;
 		} finally {
-			drumLoadPromise = null;
+			// Only clear our own registration — a dispose may already have
+			// cleared it and a NEWER flight may own the slot by now.
+			if (drumLoadPromise === flight) drumLoadPromise = null;
 		}
 	})();
 
-	return drumLoadPromise;
+	drumLoadPromise = flight;
+	return flight;
 }
 
 /**
@@ -514,7 +549,24 @@ export async function loadBackingInstruments(
 	// offline use after a first load) skip the network. Versioned name: bump
 	// it if a library swap ever needs to invalidate the cache. The Cache API
 	// needs a secure context; elsewhere smplr's default HttpStorage applies.
-	const storage = typeof caches !== 'undefined' ? new CacheStorage('mankunku-samples-v1') : undefined;
+	//
+	// Wrapped: smplr's CacheStorage caches whatever the network returns —
+	// the Cache API happily stores a 404/500 — so a single transient CDN
+	// error would otherwise serve that error forever. On a not-ok response
+	// (cached or fresh), retry the network directly instead of serving it.
+	const storage =
+		typeof caches !== 'undefined'
+			? (() => {
+					const cache = new CacheStorage('mankunku-samples-v1');
+					return {
+						fetch: async (url: string) => {
+							const response = await cache.fetch(url);
+							// StorageResponse exposes status, not ok.
+							return response.status >= 200 && response.status < 300 ? response : fetch(url);
+						}
+					};
+				})()
+			: undefined;
 
 	// Load bass if not already loaded — pizzicato upright bass samples
 	if (!bassInstrument) {
@@ -976,6 +1028,10 @@ export async function startBackingTrack(
 
 /** Full cleanup: dispose parts and instruments. */
 export function disposeBackingTrack(): void {
+	// Invalidate in-flight async loads (kit, IR) so they tear their local
+	// nodes down instead of promoting onto the disposed graph.
+	graphEpoch++;
+	drumLoadPromise = null;
 	disposeBackingParts();
 	if (bassInstrument) {
 		bassInstrument.disconnect();
