@@ -87,7 +87,7 @@ The fix is to measure in a band the metronome cannot reach. The ride is high-pas
 
 The result: your sustained notes stay sustained, your on-the-beat tonguing still registers, and the scorer doesn't penalise rhythm for phantom subdivisions you didn't play.
 
-One honest caveat: the instrument-band reasoning above is calibrated against the *metronome's* voices. The backing track's piano, bass and (future) snare do carry energy in that 250–5000 Hz band, so through loud speakers they can fill or fake the dips this tier reads. The onset-window suppression covers the common cases; if speaker practice with backing ever shows phantom splits, the diagnostics recordings carry the evidence to tighten the band tiers (the designs are staged in the backing upgrade plan). Headphones sidestep all of it.
+One honest caveat: the instrument-band reasoning above is calibrated against the *metronome's* voices. The backing track's piano, bass and snare do carry energy in that 250–5000 Hz band, so through loud speakers they can fill or fake the dips this tier reads. The onset-window suppression covers the common cases; if speaker practice with backing ever shows phantom splits, the diagnostics recordings carry the evidence to tighten the band tiers (the designs are staged in the backing upgrade plan). Headphones sidestep all of it.
 
 ## Latency and reaction time
 

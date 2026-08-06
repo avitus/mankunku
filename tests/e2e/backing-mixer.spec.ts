@@ -17,8 +17,8 @@ test('mixer sliders persist to the engine mix and survive reload', async ({ page
 	await page.goto('/diagnostics/backing-mixer');
 	await expect(page.getByRole('heading', { name: 'Backing lab' })).toBeVisible();
 
-	// All six sliders render.
-	for (const key of ['bass', 'comp', 'drums', 'kick', 'ride', 'hihat']) {
+	// The gain sliders (incl. the room return) and core voice sliders render.
+	for (const key of ['bass', 'comp', 'drums', 'room', 'kick', 'ride', 'hihat']) {
 		await expect(page.getByTestId(`mix-${key}`)).toBeVisible();
 	}
 

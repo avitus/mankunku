@@ -64,7 +64,8 @@ vi.mock('tone', () => ({
 	getTransport: () => ({ PPQ: 480 })
 }));
 
-/** How many Sampler (drum kit) instances were constructed. */
+/** How many Sampler (drum-family) instances were constructed — one kit
+ *  load builds three (kick / snare / cymbals). */
 let drumKitLoads = 0;
 /** When true the kit load rejects, so the kit stays unloaded after preload. */
 let failDrumLoad = false;
@@ -91,7 +92,8 @@ vi.mock('smplr', () => ({
 	},
 	Smolken: class extends FakeInstrument {},
 	SplendidGrandPiano: class extends FakeInstrument {},
-	Soundfont: class extends FakeInstrument {}
+	Soundfont: class extends FakeInstrument {},
+	CacheStorage: class {}
 }));
 
 /**
@@ -111,11 +113,14 @@ function fakeGain() {
 	return { gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() };
 }
 
-vi.mock('$lib/audio/audio-context', () => ({
-	initAudio: async () => ({ createGain: fakeGain, currentTime: 0 }),
-	getAudioContext: () => ({ createGain: fakeGain, currentTime: 0 }),
-	getMasterGain: () => fakeGain()
-}));
+vi.mock('$lib/audio/audio-context', async () => {
+	const { fakeAudioContext } = await import('../../helpers/fake-audio-context');
+	return {
+		initAudio: async () => fakeAudioContext(),
+		getAudioContext: () => fakeAudioContext(),
+		getMasterGain: () => fakeGain()
+	};
+});
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -197,13 +202,14 @@ describe('scheduleBackingTrack supersession', () => {
 
 	it('preloads the drum kit with the pitched instruments', async () => {
 		// The kit await now precedes the first audible commit, so it must not be
-		// a cold sample fetch on a running transport.
+		// a cold sample fetch on a running transport. One kit load constructs
+		// the three family samplers (kick / snare / cymbals).
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
-		expect(drumKitLoads).toBe(1);
+		expect(drumKitLoads).toBe(3);
 
 		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 480, false, () => true);
-		expect(drumKitLoads).toBe(1); // scheduling reused it, no second load
+		expect(drumKitLoads).toBe(3); // scheduling reused the kit, no second load
 	});
 
 	it('survives a drum kit preload failure without blocking bass and comp', async () => {

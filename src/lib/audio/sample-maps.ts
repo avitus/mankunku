@@ -359,6 +359,41 @@ export function drumBufferForVelocity(
 	return layers[layers.length - 1].buffer;
 }
 
+/**
+ * Which sampler family plays each semantic voice (see `DrumFamily` in
+ * backing-mix.ts): the kit splits into kick / snare-family / cymbals so
+ * each family can carry its own pan position and room send.
+ */
+export const DRUM_FAMILY_BY_VOICE: Record<
+	import('./backing-styles').DrumVoice,
+	import('./backing-mix').DrumFamily
+> = {
+	kick: 'kick',
+	snare: 'snare',
+	crossstick: 'snare',
+	ride: 'cymbals',
+	'ride-bell': 'cymbals',
+	hihat: 'cymbals',
+	'hihat-pedal': 'cymbals',
+	crash: 'cymbals'
+};
+
+/**
+ * Buffer → family, DERIVED from voice ownership in `DRUM_ARTICULATIONS` so
+ * a future velocity layer lands in its voice's family automatically rather
+ * than silently missing from a hand-kept table.
+ */
+export const DRUM_BUFFER_FAMILY: Record<DrumBufferName, import('./backing-mix').DrumFamily> =
+	(() => {
+		const out = {} as Record<DrumBufferName, import('./backing-mix').DrumFamily>;
+		for (const [voice, layers] of Object.entries(DRUM_ARTICULATIONS)) {
+			for (const layer of layers) {
+				out[layer.buffer] = DRUM_FAMILY_BY_VOICE[voice as import('./backing-styles').DrumVoice];
+			}
+		}
+		return out;
+	})();
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 /** Convert MIDI number to note name (e.g. 60 → "C4", 44 → "G#2"). */
