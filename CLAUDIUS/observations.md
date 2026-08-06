@@ -434,3 +434,48 @@ The backing-track rebuild's quiet architectural decision: every (role, position)
 The other pattern worth carrying: the plan asked for pattern functions taking a GenerationContext "instead of (beat, beatsPerBar)", and the naive reading — same call shape, richer argument — would have made the musical goals unreachable. A Charleston is a fact about a BAR; per-beat callbacks would need each beat to re-derive which figure the bar chose (same seed, re-drawn) just to answer "am I in it?". Changing the *granularity* of the interface (bar in, hit-list out) is what made figures, anticipation, and swing placement all fall out naturally. When a plan specifies an interface, the deliverable is the capability it names, and sometimes the capability contradicts the signature sketch. Flag the deviation, keep the capability.
 
 Also: the app's harmony had colour tones (7b9, 7#11, 7b13) sitting in CHORD_DEFINITIONS for display and melody generation, but the old backing engine derived chord tones by string-matching quality names ("includes('dim')") and never read them. The data model was ahead of the audio engine by design-years. Reading the definitions instead of re-deriving them is why altered dominants now voice their tensions with zero new data — worth remembering as a smell: string-matching an enum's NAME usually means richer structured data is being ignored somewhere.
+
+## Declared constraints that nothing enforces are just comments (2026-08-06)
+
+`package.json` said `engines.node: ">=22.12.0"`. CI built on `cimg/node:26.5.1`. `.nvmrc` said
+26.5.1. Three separate places in the repo asserted the same requirement — and production ran
+Node 18.19.1 for months anyway, because **npm only *warns* on EBADENGINE unless
+`engine-strict=true`**. The constraint was declared in every place a human would look and
+enforced in none.
+
+What makes this worth writing down is the failure *shape*. The gap didn't degrade anything for
+months, then produced two unrelated-looking outages within 72 hours:
+
+- Aug 3: a Supabase patch release started resolving `WebSocket` eagerly → every SSR request 500'd.
+- Aug 6: a `sanitize-html` bump pulled an ESM-only `htmlparser2` → `/docs` 500'd.
+
+Neither was caused by our code changing. Both were caused by *the ecosystem moving past the
+runtime floor we'd already promised to be above.* That's the real mechanism: a stale runtime
+doesn't fail on its own schedule, it fails on **npm's** schedule, and every `npm update` is a
+fresh roll of the dice. The blast radius is unbounded and the timing is someone else's choice.
+
+The tell was in my own session notes twice — "EBADENGINE warnings on every install", "one day
+something will actually break rather than warn" — filed both times as *secondary, not urgent*.
+I was right about the mechanism and wrong about the urgency, and the reason I was wrong is
+instructive: I was estimating urgency from **observed symptoms** (nothing's broken) instead of
+from **exposure** (every transitive dep is one release away from requiring a newer Node). For
+version-floor debt, symptom-based prioritisation is structurally miscalibrated — the symptom
+count is zero right up until it isn't.
+
+The first outage should have reclassified it and didn't. The Aug 3 fix was a *shim*
+(`nodeRealtimeFallback()`) — a correct, well-tested, source-scan-enforced workaround for
+exactly one symptom of a general problem. Shimming is seductive because it's fast, local, and
+demonstrably works; it also converts a loud recurring signal into silence while leaving the
+generator of failures fully intact. Three days later the same root cause surfaced somewhere a
+shim didn't exist. **A workaround that doesn't move the constraint is a snooze button, and
+should be logged as one.**
+
+The practical rule I'd want applied here: when a workaround is written for a
+version/environment floor, it should carry a pointer to the root fix and the root fix should be
+scheduled *then* — not left to be rediscovered by the next incident. The shim did carry that
+pointer (its comments name Node 22 explicitly and MANKUNKU-1E). What was missing wasn't the
+knowledge. It was that nothing turned the knowledge into a scheduled action.
+
+Corollary worth remembering: the fix took about twenty minutes and had a clean rollback the
+whole way. The cost of *doing* it was never the obstacle — the cost of *noticing it mattered*
+was.
