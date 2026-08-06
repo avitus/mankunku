@@ -452,6 +452,14 @@ Rootless "A-form" voicing: 3-5-7-9 stacked from the 3rd. Altered tensions read f
 
 Rootless "B-form" voicing: 7-9-3-13 stacked from the 7th. Plain dominants take the natural 13 on top (the classic 13 / 13b9 sound); a b13 or #11 in the definition takes the top slot instead; other qualities top with the 5th. Same register clamp and triad behavior as the A-form.
 
+### `guideToneVoicing(rootPc, quality, registerMidi?): number[]`
+
+Just the 3rd and 7th — the two notes that define the harmony (3rd + 5th for triads). The comping planner's occasional guide-tone bars use this for the "leave space" color.
+
+### `quartalVoicing(rootPc, quality, registerMidi?): number[]`
+
+Fourth-stack on 9-5-1 (root on top), the modal McCoy-flavored shape; min7/min6/minMaj7/sus qualities add the 11 as a fourth voice. Returns `[]` for altered/diminished/augmented qualities — fourth-stacks blur exactly the tensions those chords exist to state — so voicing selection falls through to the rootless shapes.
+
 ### `voiceLead(chords, voicingFn, registerMidi?): number[][]`
 
 Apply a voicing function across a sequence of chords and minimize total semitone movement between successive voicings. Searches ±12 semitones around `registerMidi` per chord and picks the candidate closest to the previous voicing. Note-count mismatches are penalized by 12 semitones each. `voicingFn` may also be an **array** of `VoicingFn` (one per chord) so the comping engine can mix shell/rootless/drop-2 shapes while voice-leading still drives the register choice.
@@ -538,14 +546,24 @@ interface GenerationContext {
   swing: number;
   rng: SeededRng;             // per-bar seeded stream
   compOnsets?: number[];      // beat offsets, for drum accent alignment
+  plannedComp?: {             // resolved figure for compPlanning styles
+    hits: Array<{ b: number; d: number }>;
+    tags: string[];
+    guideTones: boolean;
+  };
 }
 
 interface CompHitSpec { beatOffset: number; velocity: number; durationBeats: number }
-interface DrumHitSpec { drum: 'kick' | 'ride' | 'hihat'; beatOffset: number; velocity: number }
+interface DrumHitSpec { drum: DrumVoice; beatOffset: number; velocity: number }
+// DrumVoice: 'kick' | 'ride' | 'hihat' | 'hihat-pedal' | 'snare' |
+//            'crossstick' | 'ride-bell' | 'crash'
 
 interface StyleDefinition {
   name: string;
-  defaultSwing: number;       // used when the session swing is straight
+  defaultSwing: number;       // used when the session swing sits straight
+  swingModel: 'tempo' | 'fixed';  // 'tempo' → swingForTempo curve
+  timing: Record<TimingRole, TimingProfile>;  // ensemble microtiming
+  compPlanning?: boolean;     // comp figures planned phrase-wide
   drumPattern: (ctx: GenerationContext) => DrumHitSpec[];  // one bar
   compPattern: (ctx: GenerationContext) => CompHitSpec[];  // one bar
   bassStyle: 'walking' | 'pedal' | 'pattern';
@@ -559,7 +577,7 @@ interface StyleDefinition {
 ### Constants
 
 - **`BACKING_STYLES: Record<BackingStyle, StyleDefinition>`** — Keys `swing`, `bossa-nova`, `ballad`, `straight`.
-  - **Swing** (default swing 0.67): ride "spang-a-lang" (quarters plus swung skip eighths after 2 and 4), hi-hat foot on 2 & 4, RNG-gated feathered kick, kick accents catching off-beat comp hits, additive setup figures on section-final bars. Comping rotates seeded per-bar figures — Charleston, off-beat pairs, bar-line anticipations, deliberate space — denser into section endings and later choruses.
+  - **Swing** (tempo-curve swing, 0.67 fallback): ride "spang-a-lang" (quarters plus swung skip eighths after 2 and 4), hi-hat foot on 2 & 4, RNG-gated feathered kick, kick accents catching off-beat comp hits, additive setup figures (incl. snare) on section-final bars. Comping is phrase-planned (`compPlanning` → backing-comp-figures.ts): the pattern function realizes the planned figure's velocity and articulation.
   - **Bossa Nova** (straight): cross-stick feel on 2/4, hi-hat every beat, on-beat clave comping (1, 3, 4), `pattern` bass.
   - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass.
   - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass.
@@ -575,13 +593,13 @@ Pure, Node-testable backing event generation — no Tone.js, no Web Audio. `back
 
 Entry point: generates comp first (drums read its onsets for accents), then bass, then drums. `params` is `{ phraseId, tempo, ppq, beatsPerBar, swing, sectionMap? }`; the section map (from `Phrase.sectionMap`) drives section/chorus awareness, and bars are counted flat without it. Returns `{ bassEvents, compEvents, drumEvents }` — all carry tick-string `time` values plus a pre-swing `absBeat` for diagnostics and tests.
 
-### `generateWalkingBass(harmony, beatsPerBar, params): BassEvent[]`
+### `generateBassLine(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
 
-One quarter per beat, each bar planned as a path toward the next chord root: beat 1 is the root most of the time (occasionally 3rd or 5th), interior beats walk stepwise toward the target, and each segment's final beat approaches the next root by a seeded device — chromatic, dominant (5th above), scale step, or a two-beat enclosure. Sparse swung-eighth pickups and ghosted dead notes, all inside the upright band (E1–G3), leaps bounded.
+Lives in `backing-bass.ts` (re-exported here): the phrase-aware contour planner — register arcs per 4-bar group, coherent approach devices targeting the pitch the next downbeat will actually sound, scale-aware interior walk with anti-stutter guards, two-feel first choruses latching open to four. Upright band E1–G3, leaps ≤ an octave (the octave-drop device's 13-semitone resolve excepted). `onsetsByBar` feeds the drum vocabulary's bass/kick coupling.
 
 ### `generateComping(harmony, beatsPerBar, style, params, barInfos)`
 
-A voicing type per chord (rootless A/B, shell, or drop-2 — seeded, quality-aware), voice-led across the sequence, placed by the style's per-bar figures. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
+A voicing type per chord (rootless A/B, shell, drop-2, or quartal where the quality suits it — seeded, quality-aware), voice-led across the sequence, placed by the style's per-bar figures; for `compPlanning` styles in 4/4 the figures come from the phrase-wide planner and guide-tone bars thin the voicing to the 3rd+7th. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
 
 ### `generateDrums(beatsPerBar, style, params, barInfos, compOnsetsByBar): DrumEvent[]`
 
@@ -771,6 +789,12 @@ Trigger one-off chord stabs directly on the module-level comp instrument, outsid
 | `velocity` | `number` | `65` | MIDI velocity (0–127) |
 
 Stab times **must** be near-now (within smplr's ~200 ms lookahead) so a later `compInstrument.stop()` (`disposeBackingParts` / teardown) can cut them. Schedule far-future stabs as Transport events that call this at fire time instead.
+
+---
+
+## backing-comp-figures.ts
+
+Swing comping vocabulary: `COMP_FIGURES` (13 one- and two-bar figures — Charleston family, off-beat pairs, pushes, pads, 2-bar Red Garland / call-answer shapes, deliberate rest — all hits on the x.0/x.5 eighth grid the anticipation convention requires) and `planCompFigures(barInfos, beatsPerBar, phraseId, tempo): PlannedBar[]`, a sequential planner whose anti-repetition memory reshapes WEIGHTS only — each bar keeps its own `('comp-figure', bar)` seed stream, so plans are reproducible per bar and the stream-isolation guarantee holds. Plan rules: no figure three choices running; bar 0 must open with an `early` figure; cadence (section-final, non-final) bars strongly favor `push` figures with the rest damped, and a non-push 2-bar figure may not land its tail on a cadence bar; `busy ≥ 2` figures lean in on cadences and later choruses; the phrase's final bar may not rest; occasional guide-tone bars (p 0.06). `hitsForPlannedBar` resolves a bar's concrete hits (handling 2-bar `'cont'` tails and final-bar suppression with a resolution-pad fallback). Consumed by `generateComping` for styles with `StyleDefinition.compPlanning`, which hand the resolved hits to the pattern function via `ctx.plannedComp` for velocity/articulation realization (pads sustain, stabs clamp ≤ 0.7 beats, pushes hold ≥ 1.1 beats to tie across the barline).
 
 ---
 

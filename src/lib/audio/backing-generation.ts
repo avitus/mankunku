@@ -34,9 +34,12 @@ import {
 	drop2Voicing,
 	rootlessVoicingA,
 	rootlessVoicingB,
+	quartalVoicing,
+	guideToneVoicing,
 	voiceLead,
 	type VoicingFn
 } from './voicings';
+import { planCompFigures, hitsForPlannedBar, headFigureFor } from './backing-comp-figures';
 import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
 import { generateBassLine as generateBassLine2 } from './backing-bass';
 
@@ -245,6 +248,9 @@ export function generateComping(
 	const streams = createTimingStreams(phraseId, tempo);
 
 	// Voicing selection per chord, then voice-lead the whole sequence.
+	// Quartal shapes join the rotation only for the qualities they suit
+	// (they return [] for altered/diminished colors, which would silence
+	// the hit rather than falling through).
 	const chords = harmony.map((seg) => ({ root: seg.chord.root, quality: seg.chord.quality }));
 	const fns: VoicingFn[] = chords.map((c, i) => {
 		const rng = createRng(seedFrom(phraseId, tempo, 'voicing', i));
@@ -254,26 +260,50 @@ export function generateComping(
 				{ value: drop2Voicing, weight: 1 }
 			]);
 		}
-		return rng.weighted<VoicingFn>([
+		const options: Array<{ value: VoicingFn; weight: number }> = [
 			{ value: rootlessVoicingA, weight: 4 },
 			{ value: rootlessVoicingB, weight: 3 },
 			{ value: shellVoicing, weight: 2 },
 			{ value: drop2Voicing, weight: 1 }
-		]);
+		];
+		if (quartalVoicing(c.root, c.quality).length > 0) {
+			options.push({ value: quartalVoicing, weight: 1 });
+		}
+		return rng.weighted<VoicingFn>(options);
 	});
 	const voicings = voiceLead(chords, fns, COMP_REGISTER);
+
+	// Figure planning (swing, 4/4 only — the vocabulary is written for four
+	// beats; other meters use the style's own fallback): one pass over the
+	// phrase with anti-repetition memory; each bar's plan resolves to
+	// concrete hits here so the style's pattern function only realizes
+	// velocity/articulation.
+	const compPlan =
+		style.compPlanning && beatsPerBar === 4
+			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo)
+			: null;
 
 	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
 	const totalBars = barInfos.length;
 
 	for (let bar = 0; bar < totalBars; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'comp', bar));
+		const planned = compPlan?.[bar];
+		const headFigure = compPlan ? headFigureFor(compPlan, bar) : undefined;
 		const ctx: GenerationContext = {
 			barIndex: bar,
 			beatsPerBar,
 			swing,
 			rng,
-			...barInfos[bar]
+			...barInfos[bar],
+			plannedComp:
+				planned && compPlan
+					? {
+							hits: hitsForPlannedBar(planned, compPlan, bar, barInfos[bar], beatsPerBar),
+							tags: headFigure?.tags ?? [],
+							guideTones: planned.guideTones
+						}
+					: undefined
 		};
 		const hits = style.compPattern(ctx);
 		onsetsByBar.set(bar, hits.map((h) => h.beatOffset));
@@ -286,7 +316,12 @@ export function generateComping(
 			let segIdx = segmentIndexAt(segments, Math.min(lookup, harmonyEnd - 0.001));
 			if (segIdx < 0) segIdx = segmentIndexAt(segments, absBeat);
 			if (segIdx < 0) continue;
-			const voicing = voicings[segIdx];
+			// Guide-tone bars thin the voicing to the 3rd+7th — the "leave
+			// space" color — regardless of the chord's led shape.
+			const chord = chords[segIdx];
+			const voicing = ctx.plannedComp?.guideTones
+				? guideToneVoicing(chord.root, chord.quality, COMP_REGISTER)
+				: voicings[segIdx];
 			if (!voicing || voicing.length === 0) continue;
 
 			events.push({

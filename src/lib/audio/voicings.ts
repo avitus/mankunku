@@ -1,9 +1,9 @@
 /**
  * Jazz chord voicing utilities.
  *
- * Generates shell voicings (root + guide tones) and drop-2 voicings
- * for comping instruments, with voice-leading to minimize movement
- * between successive chords.
+ * Shell, drop-2, rootless A/B, guide-tone and quartal voicing builders for
+ * comping instruments, with voice-leading to minimize movement between
+ * successive chords.
  */
 
 import type { ChordQuality, PitchClass } from '$lib/types/music';
@@ -249,4 +249,50 @@ function totalMovement(a: number[], b: number[]): number {
 	// Penalize note count mismatch
 	sum += Math.abs(a.length - b.length) * 12;
 	return sum;
+}
+
+/**
+ * Guide-tone voicing: just the 3rd and 7th — the two notes that define the
+ * harmony. The "pro leaves space" color: a comper thinning out under a busy
+ * soloist or at low intensity. Triads (no 7th slot) get 3rd + 5th.
+ *
+ * @param rootPc - PitchClass name of the chord root
+ * @param quality - Chord quality
+ * @param registerMidi - Approximate center MIDI (default 62)
+ */
+export function guideToneVoicing(rootPc: PitchClass, quality: ChordQuality, registerMidi: number = 62): number[] {
+	const def = CHORD_DEFINITIONS[quality];
+	if (!def) return [];
+	const rootNum = pitchClassToNumber(rootPc);
+	const intervals = def.intervals;
+	const third = intervals.find((i) => i >= 3 && i <= 5) ?? intervals[1] ?? 4;
+	const seventh = intervals.find((i) => i >= 9 && i <= 11);
+	const second = seventh ?? intervals.find((i) => i >= 6 && i <= 8) ?? 7;
+	return stackNearRegister(rootNum, [third, second], registerMidi - 4);
+}
+
+/**
+ * Quartal voicing: a fourth-stack on 9-5-1 (root on top), the modal
+ * McCoy-flavored shape. min7/min6/sus qualities add the 11 as a fourth
+ * voice. Altered/diminished/augmented qualities return [] — fourth-stacks
+ * blur exactly the tensions those chords exist to state — so selection
+ * falls through to the rootless shapes (same convention as rootless
+ * voicings returning [] for triads).
+ *
+ * @param rootPc - PitchClass name of the chord root
+ * @param quality - Chord quality
+ * @param registerMidi - Approximate center MIDI (default 62)
+ */
+export function quartalVoicing(rootPc: PitchClass, quality: ChordQuality, registerMidi: number = 62): number[] {
+	const def = CHORD_DEFINITIONS[quality];
+	if (!def) return [];
+	// min7b5 joins the exclusions: the stack's natural 5 clashes with the
+	// defining b5 — an audibly wrong chord, not a color.
+	if (['7alt', '7b9', '7#9', '7#11', '7b13', 'dim7', 'dim', 'aug', 'aug7', 'min7b5'].includes(quality)) {
+		return [];
+	}
+	const rootNum = pitchClassToNumber(rootPc);
+	const addEleventh = ['min7', 'min6', 'minMaj7', 'sus4', 'sus2'].includes(quality);
+	const stack = addEleventh ? [2, 7, 12, 17] : [2, 7, 12];
+	return stackNearRegister(rootNum, stack, registerMidi - 5);
 }
