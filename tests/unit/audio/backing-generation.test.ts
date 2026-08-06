@@ -217,17 +217,23 @@ describe('generateBacking', () => {
 		}
 	});
 
-	it('produces the swing ride figure and 2-and-4 hi-hat in every bar', () => {
+	it('keeps ride quarters and 2-and-4 hats in every bar; skips breathe per mode', () => {
 		const { drumEvents } = generateBacking(FORM, BACKING_STYLES.swing, params());
+		let barsWithSkips = 0;
 		for (let bar = 0; bar < 8; bar++) {
 			const inBar = drumEvents.filter((e) => e.absBeat >= bar * 4 && e.absBeat < (bar + 1) * 4);
 			const rides = inBar.filter((e) => e.drum === 'ride').map((e) => e.absBeat - bar * 4);
-			// Spang-a-lang: quarters on every beat plus the swung skip after 2 and 4.
-			for (const b of [0, 1, 2, 3, 1.5, 3.5]) expect(rides).toContain(b);
+			// The time never stops: a ride quarter on every beat (beat 1 may be
+			// replaced by a crash on section arrivals — none in this flat form).
+			for (const b of [0, 1, 2, 3]) expect(rides).toContain(b);
+			if (rides.some((b) => b % 1 !== 0)) barsWithSkips++;
 			const hats = inBar.filter((e) => e.drum === 'hihat').map((e) => e.absBeat - bar * 4);
 			expect(hats).toContain(1);
 			expect(hats).toContain(3);
 		}
+		// Ride modes vary the skips (quarters-only bars breathe), but the
+		// spang-a-lang remains the dominant sentence.
+		expect(barsWithSkips).toBeGreaterThanOrEqual(4);
 	});
 
 	it('never triggers the same drum voice twice at one beat position', () => {
@@ -271,6 +277,7 @@ function ctxFor(overrides: Partial<GenerationContext> = {}): GenerationContext {
 	return {
 		barIndex: 1,
 		beatsPerBar: 4,
+		isSectionFirstBar: false,
 		isSectionFinalBar: false,
 		isFinalBar: false,
 		swing: 0.67,
@@ -280,13 +287,25 @@ function ctxFor(overrides: Partial<GenerationContext> = {}): GenerationContext {
 }
 
 describe('swing style patterns', () => {
-	it('adds a setup figure on section-final bars (same seed, appended hits)', () => {
-		const plain = BACKING_STYLES.swing.drumPattern(ctxFor({ rng: createRng(7) }));
+	it('adds a setup figure on section-final bars without touching the timekeeping', () => {
+		const plain = BACKING_STYLES.swing.drumPattern(ctxFor({ rng: createRng(7), fillRng: createRng(7) }));
 		const finalBar = BACKING_STYLES.swing.drumPattern(
-			ctxFor({ rng: createRng(7), isSectionFinalBar: true, sectionIndex: 0, chorusIndex: 0 })
+			ctxFor({
+				rng: createRng(7),
+				fillRng: createRng(7),
+				isSectionFinalBar: true,
+				sectionIndex: 0,
+				chorusIndex: 0
+			})
 		);
-		expect(finalBar.length).toBeGreaterThan(plain.length);
-		expect(finalBar.slice(0, plain.length)).toEqual(plain);
+		// The setup ADDS activity in the bar's last-beat region...
+		const lateHits = (hits: typeof plain) => hits.filter((h) => h.beatOffset >= 2.5).length;
+		expect(lateHits(finalBar)).toBeGreaterThan(lateHits(plain));
+		// ...while the ostinato (ride quarters + hats), drawn from the same
+		// timekeeping stream, is identical — fills live on their own stream.
+		const timekeeping = (hits: typeof plain) =>
+			hits.filter((h) => (h.drum === 'ride' || h.drum === 'hihat') && h.beatOffset % 1 === 0);
+		expect(timekeeping(finalBar)).toEqual(timekeeping(plain));
 	});
 
 	it('never lets the comp anticipate past the final bar (end-to-end)', () => {
