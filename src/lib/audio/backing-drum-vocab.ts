@@ -123,7 +123,9 @@ export function snareBar(ctx: GenerationContext, rng: SeededRng): DrumHitSpec[] 
 	]);
 
 	if (choice === 'ghost') {
-		hits.push({ drum: 'snare', beatOffset: rng.pick([0.5, 1.5, 2.5]), velocity: ghostVel() });
+		// Meter guard: in 2/4 the 2.5 slot falls outside the bar.
+		const slots = [0.5, 1.5, 2.5].filter((o) => o < beatsPerBar);
+		hits.push({ drum: 'snare', beatOffset: rng.pick(slots), velocity: ghostVel() });
 	} else if (choice === 'pair') {
 		// Both hits off-beat ("and of 1 + and of 3" / "and of 2 + and of 4");
 		// the answer is dropped rather than leaked past a short bar's barline.

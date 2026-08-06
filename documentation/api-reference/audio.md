@@ -541,6 +541,7 @@ interface GenerationContext {
   beatsPerBar: number;
   sectionIndex?: number;      // from Phrase.sectionMap (tunes only)
   chorusIndex?: number;       // pass through the form
+  isSectionFirstBar: boolean; // section-arrival crash gate
   isSectionFinalBar: boolean;
   isFinalBar: boolean;
   swing: number;

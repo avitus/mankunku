@@ -277,6 +277,7 @@ function ctxFor(overrides: Partial<GenerationContext> = {}): GenerationContext {
 	return {
 		barIndex: 1,
 		beatsPerBar: 4,
+		isSectionFirstBar: false,
 		isSectionFinalBar: false,
 		isFinalBar: false,
 		swing: 0.67,

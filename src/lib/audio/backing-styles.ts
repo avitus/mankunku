@@ -61,6 +61,8 @@ export interface GenerationContext {
 	sectionIndex?: number;
 	/** 0-based pass through the form, derived from sectionMap form restarts. */
 	chorusIndex?: number;
+	/** True on a section's first bar (a form arrival — the crash's home). */
+	isSectionFirstBar: boolean;
 	/** True when this bar is the last bar of a section (incl. the form's last bar). */
 	isSectionFinalBar: boolean;
 	/** True on the phrase's very last bar — nothing follows to anticipate. */
