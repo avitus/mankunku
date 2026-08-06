@@ -101,52 +101,24 @@
   },
   {
    "time": "2592i",
-   "midi": 31,
-   "duration": 0.16153846153846155,
-   "velocity": 61,
-   "absBeat": 13.5
-  },
-  {
-   "time": "2688i",
-   "midi": 31,
-   "duration": 0.6461538461538462,
-   "velocity": 73,
-   "absBeat": 14
-  },
-  {
-   "time": "2976i",
    "midi": 40,
    "duration": 0.16153846153846155,
-   "velocity": 60,
-   "absBeat": 15.5
+   "velocity": 56,
+   "absBeat": 13.5
   },
   {
    "time": "2688i",
    "midi": 41,
    "duration": 0.6461538461538462,
-   "velocity": 78,
+   "velocity": 73,
    "absBeat": 14
   },
   {
    "time": "2976i",
-   "midi": 36,
-   "duration": 0.16153846153846155,
-   "velocity": 61,
-   "absBeat": 15.5
-  },
-  {
-   "time": "3072i",
-   "midi": 36,
-   "duration": 0.6461538461538462,
-   "velocity": 73,
-   "absBeat": 16
-  },
-  {
-   "time": "3360i",
    "midi": 45,
    "duration": 0.16153846153846155,
    "velocity": 60,
-   "absBeat": 17.5
+   "absBeat": 15.5
   },
   {
    "time": "3072i",
@@ -269,38 +241,17 @@
   },
   {
    "time": "7968i",
-   "midi": 36,
+   "midi": 37,
    "duration": 0.16153846153846155,
-   "velocity": 56,
+   "velocity": 57,
    "absBeat": 41.5
-  },
-  {
-   "time": "8064i",
-   "midi": 36,
-   "duration": 0.6461538461538462,
-   "velocity": 70,
-   "absBeat": 42
   },
   {
    "time": "8064i",
    "midi": 38,
    "duration": 0.6461538461538462,
-   "velocity": 76,
-   "absBeat": 42
-  },
-  {
-   "time": "8352i",
-   "midi": 33,
-   "duration": 0.16153846153846155,
-   "velocity": 56,
-   "absBeat": 43.5
-  },
-  {
-   "time": "8448i",
-   "midi": 33,
-   "duration": 0.6461538461538462,
    "velocity": 70,
-   "absBeat": 44
+   "absBeat": 42
   },
   {
    "time": "8448i",
@@ -310,25 +261,11 @@
    "absBeat": 44
   },
   {
-   "time": "8831i",
-   "midi": 38,
-   "duration": 0.7384615384615385,
-   "velocity": 65,
-   "absBeat": 46
-  },
-  {
-   "time": "8833i",
+   "time": "8832i",
    "midi": 36,
-   "duration": 0.6461538461538462,
-   "velocity": 74,
-   "absBeat": 46
-  },
-  {
-   "time": "9216i",
-   "midi": 31,
    "duration": 0.7384615384615385,
    "velocity": 65,
-   "absBeat": 48
+   "absBeat": 46
   }
  ],
  "compEvents": [

@@ -390,9 +390,9 @@ describe('other styles under the context signature', () => {
 
 	it('bossa comp states a clave-side figure with its anchor intact', () => {
 		// Deep bossa behavior lives in backing-bossa.test.ts; here just pin
-		// the pattern-function contract: the offsets are exactly one clave
-		// side's figure (which side depends on ctx.barIndex parity), with
-		// that side's anchor hit always present.
+		// the pattern-function contract: the offsets are a SUBSET of one
+		// clave side's figure (thinning may drop non-anchor hits), with that
+		// side's anchor always present.
 		const style = BACKING_STYLES['bossa-nova'];
 		const comp = style.compPattern(ctxFor({ rng: createRng(1) }));
 		const offsets = comp.map((h) => h.beatOffset);

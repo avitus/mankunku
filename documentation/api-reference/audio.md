@@ -595,7 +595,7 @@ interface StyleDefinition {
   compPlanning?: boolean;     // comp figures planned phrase-wide
   drumPattern: (ctx: GenerationContext) => DrumHitSpec[];  // one bar
   compPattern: (ctx: GenerationContext) => CompHitSpec[];  // one bar
-  bassStyle: 'walking' | 'pedal' | 'pattern';
+  bass: 'auto' | 'pattern';   // walking planner | bossa ostinato
 }
 ```
 
@@ -634,7 +634,7 @@ The phrase-level bossa clave phase — one draw from the dedicated `clave` strea
 
 ### `generateBossaBass(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
 
-Lives in `backing-bass.ts` (dispatched via `StyleDefinition.bass === 'pattern'`): the surdo-derived root–fifth ostinato — root on 1, quality-aware fifth on 3 (below the root when the band allows), soft eighth pickups on the and-of-2/and-of-4, the segment-final and-of-4 becoming an approach into the next chord (chromatic neighbour or its fifth), variation drops thinning pickups so the pattern breathes. Register sits flat around E2; events go through the same per-role timing placement as the walking line. 4/4 only — other meters fall back to the walking planner.
+Lives in `backing-bass.ts` (dispatched via `StyleDefinition.bass === 'pattern'`): the surdo-derived root–fifth ostinato on the BAR grid with a per-beat chord lookup, so split bars (|Dm7 G7|) state the new root at the change point — root of the sounding chord on 1; on 3 the mid-bar chord's root when the harmony moves there (always stated), else the quality-aware fifth (the surdo drop below the root, guaranteed in band by the register policy); eighth pickups on the and-of-2 (chromatic approach when the chord changes at 3) and and-of-4 (approach when the barline brings a new chord); variation drops thin the pickups so the pattern breathes. Register sits flat around E2; events go through the same per-role timing placement as the walking line. 4/4 only — other meters fall back to the walking planner.
 
 ### `generateBassLine(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
 

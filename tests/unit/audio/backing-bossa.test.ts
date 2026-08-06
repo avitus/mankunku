@@ -124,32 +124,114 @@ describe('bossa bass (pattern engine)', () => {
 	});
 
 	it('turns the and-of-4 pickup into an approach at chord changes', () => {
-		// Across seeds, collect segment-final pickups and check each leads the
-		// next chord (chromatic neighbour of its root, or its fifth).
+		// Minor-third root motion, so the CURRENT root is never in the next
+		// chord's approach set — a regression that skips the approach branch
+		// and restates the root cannot pass (in circle-of-fifths motion the
+		// current root IS the next chord's fifth, which would mask it).
+		const chromatic = bars(['C', 'maj7'], ['Eb', '7'], ['F#', 'maj7'], ['A', '7']);
 		let checked = 0;
 		for (let seed = 0; seed < 8; seed++) {
-			const { bassEvents } = gen({ phraseId: `bossa-appr-${seed}` });
+			const { bassEvents } = generateBacking(
+				chromatic,
+				BACKING_STYLES['bossa-nova'],
+				params({ phraseId: `bossa-appr-${seed}` })
+			);
 			for (let bar = 0; bar < 3; bar++) {
 				const pickup = bassEvents.find(
 					(e) => Math.floor(e.absBeat / 4) === bar && offsetInBar(e.absBeat) === 3.5
 				);
 				if (!pickup) continue;
-				const nextRootPc = pitchClassToNumber(HARMONY[bar + 1].chord.root);
+				const currentRootPc = pitchClassToNumber(chromatic[bar].chord.root);
+				const nextRootPc = pitchClassToNumber(chromatic[bar + 1].chord.root);
 				const nextFifthPc =
-					(nextRootPc + chordToneIntervalsForBass(HARMONY[bar + 1].chord.quality).fifth) % 12;
+					(nextRootPc + chordToneIntervalsForBass(chromatic[bar + 1].chord.quality).fifth) % 12;
 				const p = pc(pickup.midi);
 				expect(
-					[
-						(nextRootPc + 1) % 12,
-						(nextRootPc + 11) % 12,
-						nextFifthPc
-					].includes(p),
+					[(nextRootPc + 1) % 12, (nextRootPc + 11) % 12, nextFifthPc].includes(p),
 					`pickup pc ${p} approaches next root ${nextRootPc}`
 				).toBe(true);
+				expect(p).not.toBe(currentRootPc);
 				checked++;
 			}
 		}
 		expect(checked).toBeGreaterThan(8);
+	});
+
+	it('lives on the bar grid over split bars: no collisions, changes stated', () => {
+		// |Fmaj7 . Bb7 .| shapes — two 2-beat segments per bar, the most
+		// common jazz harmony shape and the one the first implementation
+		// broke on (segment-relative ostinatos collided at change points).
+		const split: HarmonicSegment[] = [];
+		const chords: Array<[PitchClass, ChordQuality]> = [
+			['F', 'maj7'],
+			['Bb', '7'],
+			['A', 'min7'],
+			['D', '7'],
+			['G', 'min7'],
+			['C', '7'],
+			['F', 'maj7'],
+			['F', 'maj7']
+		];
+		for (let i = 0; i < chords.length; i++) {
+			split.push({
+				chord: { root: chords[i][0], quality: chords[i][1] },
+				scaleId: 'major.ionian',
+				startOffset: [i, 2],
+				duration: [1, 2]
+			});
+		}
+		for (let seed = 0; seed < 6; seed++) {
+			const { bassEvents } = generateBacking(
+				split,
+				BACKING_STYLES['bossa-nova'],
+				params({ phraseId: `bossa-split-${seed}` })
+			);
+			// No two bass events share a beat, and nothing spills past the form.
+			const beats = bassEvents.map((e) => e.absBeat);
+			expect(new Set(beats).size).toBe(beats.length);
+			for (const b of beats) expect(b).toBeLessThan(16);
+			// Every bar: downbeat states the chord sounding at beat 0, and the
+			// mid-bar change is ALWAYS stated at beat 3 with its own root.
+			for (let bar = 0; bar < 4; bar++) {
+				const at0 = bassEvents.find((e) => e.absBeat === bar * 4);
+				expect(at0, `bar ${bar} downbeat`).toBeDefined();
+				expect(pc(at0!.midi)).toBe(pitchClassToNumber(chords[bar * 2][0]));
+				const at2 = bassEvents.find((e) => e.absBeat === bar * 4 + 2);
+				if (bar < 3) {
+					// Chord changes mid-bar in bars 0-2 — must be stated.
+					expect(at2, `bar ${bar} change at beat 3`).toBeDefined();
+					expect(pc(at2!.midi)).toBe(pitchClassToNumber(chords[bar * 2 + 1][0]));
+				}
+			}
+		}
+	});
+
+	it('holds one chord across multiple bars without inventing changes', () => {
+		const twoBar: HarmonicSegment[] = [
+			{
+				chord: { root: 'F', quality: 'maj7' },
+				scaleId: 'major.ionian',
+				startOffset: [0, 1],
+				duration: [2, 1]
+			},
+			{
+				chord: { root: 'G', quality: '7' },
+				scaleId: 'major.ionian',
+				startOffset: [2, 1],
+				duration: [2, 1]
+			}
+		];
+		const { bassEvents } = generateBacking(twoBar, BACKING_STYLES['bossa-nova'], params());
+		const fPc = pitchClassToNumber('F');
+		const fFifthPc = (fPc + chordToneIntervalsForBass('maj7').fifth) % 12;
+		// Both F bars anchor on F; beat 3, when present, is the fifth (no
+		// phantom mid-bar "change" on a held chord).
+		for (const bar of [0, 1]) {
+			const at0 = bassEvents.find((e) => e.absBeat === bar * 4);
+			expect(pc(at0!.midi)).toBe(fPc);
+			const at2 = bassEvents.find((e) => e.absBeat === bar * 4 + 2);
+			if (at2) expect(pc(at2.midi)).toBe(fFifthPc);
+		}
 	});
 });
 
