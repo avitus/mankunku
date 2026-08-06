@@ -778,7 +778,7 @@ interface BackingTrackLog {
 
 ### `getBackingTrackLog(count?): BackingTrackLog[]`
 
-Return the most recent backing-track schedules (newest first). Defaults to 20 entries; internal cap is 30. Backed by `sessionStorage` so `/diagnostics` can render schedules from prior phrase playbacks.
+Return the most recent backing-track schedules (newest first). Default and internal cap are both `MAX_LOG_ENTRIES` (10). Backed by `sessionStorage` so `/diagnostics` can render schedules from prior phrase playbacks.
 
 ### `loadBackingInstruments(instrumentType?): Promise<void>`
 

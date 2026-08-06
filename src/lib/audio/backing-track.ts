@@ -102,7 +102,7 @@ function saveLog(log: BackingTrackLog[]): void {
 const backingTrackLog: BackingTrackLog[] = loadLog();
 
 /** Get the backing track diagnostics log (newest first). */
-export function getBackingTrackLog(count = 20): BackingTrackLog[] {
+export function getBackingTrackLog(count = MAX_LOG_ENTRIES): BackingTrackLog[] {
 	// Re-read from storage to handle SSR/hydration boundary
 	if (backingTrackLog.length === 0 && typeof sessionStorage !== 'undefined') {
 		const fresh = loadLog();
@@ -556,16 +556,27 @@ export async function loadBackingInstruments(
 	// Wrapped: smplr's CacheStorage caches whatever the network returns —
 	// the Cache API happily stores a 404/500 — so a single transient CDN
 	// error would otherwise serve that error forever. On a not-ok response
-	// (cached or fresh), retry the network directly instead of serving it.
+	// (StorageResponse exposes status, not ok), retry the network and
+	// self-heal the cache: a good retry replaces the poisoned entry, a bad
+	// one deletes it so the next load takes a clean path.
 	const storage =
 		typeof caches !== 'undefined'
 			? (() => {
-					const cache = new CacheStorage('mankunku-samples-v1');
+					const CACHE_NAME = 'mankunku-samples-v1';
+					const cache = new CacheStorage(CACHE_NAME);
 					return {
 						fetch: async (url: string) => {
 							const response = await cache.fetch(url);
-							// StorageResponse exposes status, not ok.
-							return response.status >= 200 && response.status < 300 ? response : fetch(url);
+							if (response.status >= 200 && response.status < 300) return response;
+							const retried = await fetch(url);
+							try {
+								const store = await caches.open(CACHE_NAME);
+								if (retried.ok) await store.put(url, retried.clone());
+								else await store.delete(url);
+							} catch {
+								// Cache maintenance is best-effort (quota, private mode).
+							}
+							return retried;
 						}
 					};
 				})()
