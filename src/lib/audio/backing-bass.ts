@@ -636,6 +636,8 @@ export function generateBossaBass(
 	const timing = params.timing ?? SWING_TIMING;
 	const streams = createTimingStreams(phraseId, tempo);
 	const segments = toBassSegments(harmony);
+	// Empty harmony → empty line (chordAt would index segments[0]).
+	if (segments.length === 0) return { events: [], onsetsByBar: new Map() };
 	const beatDuration = 60 / tempo;
 	const totalBars = barInfos.length;
 
@@ -687,8 +689,10 @@ export function generateBossaBass(
 		push(barStart, root0, beatDuration * 1.4, rng.int(72, 80));
 
 		if (isPhraseFinalBar) {
-			// Settle: long root, optional soft beat 3, no pickup out.
-			if (rng.chance(0.5)) {
+			// Settle: long root, no pickup out. A real mid-bar change still
+			// sounds unconditionally — "always stated" holds on every bar —
+			// only the held-chord fifth restatement is optional here.
+			if (changesMidBar || rng.chance(0.5)) {
 				push(barStart + 2, beat3Midi, beatDuration * 1.6, rng.int(62, 70));
 			}
 			continue;

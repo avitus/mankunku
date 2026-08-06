@@ -580,6 +580,7 @@ interface GenerationContext {
   };
   bassOnsets?: number[];      // beat offsets, for kick/bass pickup coupling
   fillRng?: SeededRng;        // dedicated drum-fill stream (form punctuation)
+  clavePhase?: '32' | '23';   // phrase-level bossa clave phase (clavePhaseFor)
 }
 
 interface CompHitSpec { beatOffset: number; velocity: number; durationBeats: number }
