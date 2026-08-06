@@ -9,7 +9,8 @@ samples; the codec pin in `tests/unit/audio/sample-formats.test.ts` covers it).
 recording, public domain (CC0).
 
 Synthesized rather than sampled so provenance is a seed, not a license: six
-asymmetric early-reflection taps (5–24 ms, 4 ms pre-delay) over decorrelated
+asymmetric early-reflection taps (offsets 5.2–23.5 ms on top of a 4 ms
+pre-delay, so 9–28 ms absolute) over decorrelated
 exponentially-decaying Gaussian noise (T60 0.32 s), one-pole low-pass at
 5.5 kHz (air/wall absorption) and high-pass at 150 Hz (low-end reverb reads
 as mud), peak-normalized to −6 dBFS. `ConvolverNode.normalize` (default true)
