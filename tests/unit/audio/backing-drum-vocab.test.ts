@@ -138,8 +138,16 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 			const pickupBeats = new Set(
 				bassEvents.filter((e) => e.absBeat % 1 !== 0).map((e) => e.absBeat)
 			);
+			// The pickup-double's fixed 0.3 velocity is the marker (comp-catch
+			// kicks draw from 0.26–0.34 and could coincide with a pickup beat,
+			// so a wide band would let them masquerade as bass coupling). If a
+			// future change jitters this velocity, the test fails loudly —
+			// update the marker with it.
 			coupled += drumEvents.filter(
-				(e) => e.drum === 'kick' && e.velocity === 0.3 && pickupBeats.has(e.absBeat)
+				(e) =>
+					e.drum === 'kick' &&
+					Math.abs(e.velocity - 0.3) < 1e-9 &&
+					pickupBeats.has(e.absBeat)
 			).length;
 		}
 		expect(coupled).toBeGreaterThan(0);
@@ -161,12 +169,15 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 		const flat = generateBacking(aaba.phrase.harmony, BACKING_STYLES.swing, params).drumEvents;
 		const ordinaryBar = 1; // mid-section in both
 		const key = (e: { drum: string; absBeat: number }) => `${e.drum}@${e.absBeat}`;
+		// Ride, hats, and feather kicks only: coupling kicks react to comp
+		// onsets, and comp PLANNING is section-aware, so they are legitimately
+		// not invariant between the mapped and flat runs.
 		const timekeeping = (events: typeof withMap) =>
 			events
 				.filter(
 					(e) =>
 						Math.floor(e.absBeat / 4) === ordinaryBar &&
-						(e.drum === 'ride' || e.drum === 'hihat' || e.drum === 'kick')
+						(e.drum === 'ride' || e.drum === 'hihat' || (e.drum === 'kick' && e.velocity < 0.2))
 				)
 				.map(key)
 				.sort();

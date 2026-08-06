@@ -344,7 +344,10 @@ export function generateComping(
 
 /**
  * Generate drum events from the style's per-bar pattern. Receives the comp
- * onsets so the pattern can catch strong comp hits with kick accents.
+ * and bass onsets so the pattern can talk to the band (snare echoes, kick
+ * catches and pickup doubles), and hands each bar a dedicated
+ * `('drum-fill', bar)` stream so form punctuation never reshuffles the
+ * timekeeping draws.
  */
 export function generateDrums(
 	beatsPerBar: number,

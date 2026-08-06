@@ -806,13 +806,13 @@ Swing comping vocabulary: `COMP_FIGURES` (13 one- and two-bar figures — Charle
 
 Swing drum vocabulary: composable per-bar passes the swing `drumPattern` assembles, splitting the kit into a timekeeping **ostinato** (ride + hats + feathered kick) and sparse **additions** (snare dialogue, coupling kicks, fills) capped at one added voice per beat offset. All randomness flows through the caller's per-bar `drums` stream except form punctuation, which draws from the dedicated `drum-fill` stream (`ctx.fillRng`).
 
-- **`chooseRideMode(rng)` / `rideBar(mode, barIndex, beatsPerBar, rng)`** — per-bar ride flavor (`standard` w5 / `quarters-only` w2 / `skip-plus` w1.5 / `broken` w1): quarters on every beat (velocity 0.36–0.44, backbeats favored, a +0.05 shade on every 4th bar's downbeat), skip eighths per mode — standard after 2 and 4, skip-plus adds one after 1 or 3, broken drops one backbeat skip and speaks after 1 instead.
+- **`chooseRideMode(rng)` / `rideBar(mode, barIndex, beatsPerBar, rng)`** — per-bar ride flavor (`standard` w5 / `quarters-only` w2 / `skip-plus` w1.5 / `broken` w1): quarters on every beat (velocity 0.36–0.48, backbeats favored, a +0.05 shade on every 4th bar's downbeat), skip eighths per mode — standard after 2 and 4, skip-plus adds one after 1 or 3, broken drops one backbeat skip and speaks after 1 instead.
 - **`hihatBar(beatsPerBar, rng)`** — foot on 2 & 4, the one non-negotiable.
 - **`featherBar(beatsPerBar, rng)`** — feathered kick quarters at velocity 0.07–0.13 (felt, never heard); some bars sit out entirely (p 0.3).
 - **`snareBar(ctx, rng)`** — conversational comping: nothing / single ghost / ghost pair / and-of-4 accent (the accent only before a 4-bar group boundary — a setup, not a habit), plus a p 0.25 echo ghost one beat after an off-beat comp onset.
-- **`couplingBar(ctx, rng)`** — kick catches off-beat comp pushes (p 0.35) and doubles swung bass pickups from `ctx.bassOnsets` (p 0.25).
+- **`couplingBar(ctx, rng)`** — kick catches off-beat comp pushes (p 0.35) and doubles swung-eighth (x.5) bass pickups from `ctx.bassOnsets` (p 0.25); the bass's triplet ornaments are deliberately not doubled.
 - **`fillBar(ctx, fillRng)`** — form punctuation: light snare markers at 4-bar boundaries (p 0.18), one of four setup figures on every section-final bar (incl. a snare triplet whose 1/3-beat offsets the swing conversion never touches), and a crash on section-first downbeats (p 0.6 from chorus 1, else 0.25) that **replaces** the downbeat ride via the returned `crashOnOne` flag.
-- **`capAdditionsPerOffset(ostinato, additions)`** — the anti-clutter ledger: first addition wins each beat offset; ostinato hits don't count against it.
+- **`capAdditionsPerOffset(ostinato, additions)`** — the anti-clutter ledger: first addition wins each beat offset (the caller passes fills first, then coupling kicks, then snare chatter, so form-marking hits take contested slots); ostinato hits don't count against it.
 
 ---
 

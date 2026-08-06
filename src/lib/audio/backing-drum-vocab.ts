@@ -22,8 +22,8 @@ import type { DrumHitSpec, GenerationContext } from './backing-styles';
 export type RideMode = 'standard' | 'quarters-only' | 'skip-plus' | 'broken';
 
 /**
- * Choose this bar's ride flavor. Weights are flat until the intensity
- * increment wires chorus arcs in.
+ * Choose this bar's ride flavor. Weights are static across the form until
+ * the intensity increment wires chorus arcs in.
  */
 export function chooseRideMode(rng: SeededRng): RideMode {
 	return rng.weighted<RideMode>([
@@ -119,16 +119,20 @@ export function snareBar(ctx: GenerationContext, rng: SeededRng): DrumHitSpec[] 
 		{ value: 'none', weight: 4.25 },
 		{ value: 'ghost', weight: 3 },
 		{ value: 'pair', weight: 1.2 },
-		{ value: 'accent4', weight: preGroupEnd ? 1 : 0 }
+		{ value: 'accent4', weight: preGroupEnd && beatsPerBar === 4 ? 1 : 0 }
 	]);
 
 	if (choice === 'ghost') {
 		hits.push({ drum: 'snare', beatOffset: rng.pick([0.5, 1.5, 2.5]), velocity: ghostVel() });
 	} else if (choice === 'pair') {
+		// Both hits off-beat ("and of 1 + and of 3" / "and of 2 + and of 4");
+		// the answer is dropped rather than leaked past a short bar's barline.
 		const first = rng.pick([0.5, 1.5]);
 		hits.push({ drum: 'snare', beatOffset: first, velocity: ghostVel() });
-		hits.push({ drum: 'snare', beatOffset: first + 1.5, velocity: ghostVel() + 0.03 });
-	} else if (choice === 'accent4' && beatsPerBar === 4) {
+		if (first + 2 < beatsPerBar) {
+			hits.push({ drum: 'snare', beatOffset: first + 2, velocity: ghostVel() + 0.03 });
+		}
+	} else if (choice === 'accent4') {
 		hits.push({ drum: 'snare', beatOffset: 3.5, velocity: 0.4 });
 	}
 
@@ -154,7 +158,10 @@ export function couplingBar(ctx: GenerationContext, rng: SeededRng): DrumHitSpec
 		}
 	}
 	for (const onset of ctx.bassOnsets ?? []) {
-		if (onset % 1 !== 0 && rng.chance(0.25)) {
+		// Swung eighth pickups only (x.5): the bass's triplet ornaments and
+		// their 1/3-beat offsets are left alone — doubling those would clutter,
+		// and off-grid floats would collide unreliably in the occupancy ledger.
+		if (onset % 1 === 0.5 && rng.chance(0.25)) {
 			hits.push({ drum: 'kick', beatOffset: onset, velocity: 0.3 });
 		}
 	}
@@ -222,10 +229,12 @@ export function fillBar(
 }
 
 /**
- * Cap ADDED (non-ostinato) voices at one per beat offset: if the kick
- * caught a comp push there, the snare stays out of that slot. Ostinato
- * hits (ride/hats/feather quarters) don't count against the ledger —
- * they're the fabric the additions sit on.
+ * Cap ADDED (non-ostinato) voices at one per beat offset — first addition
+ * wins, so the caller's array order is the priority order (fills before
+ * coupling before snare chatter: if the kick caught a comp push at an
+ * offset, a ghost stays out of that slot). Ostinato hits (ride/hats/
+ * feather quarters) don't count against the ledger — they're the fabric
+ * the additions sit on.
  */
 export function capAdditionsPerOffset(
 	ostinato: DrumHitSpec[],

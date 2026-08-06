@@ -155,8 +155,12 @@ const swing: StyleDefinition = {
 			...hihatBar(beatsPerBar, rng),
 			...featherBar(beatsPerBar, rng)
 		];
-		const additions = [...snareBar(ctx, rng), ...couplingBar(ctx, rng), ...fills];
-		return capAdditionsPerOffset(ostinato, additions);
+		// Call order (snare → coupling) is the `drums` stream draw order and
+		// must not change; the ARRAY order is occupancy priority — form-marking
+		// fills first, then coupling kicks, then ghost chatter.
+		const snare = snareBar(ctx, rng);
+		const coupling = couplingBar(ctx, rng);
+		return capAdditionsPerOffset(ostinato, [...fills, ...coupling, ...snare]);
 	},
 	compPattern: (ctx: GenerationContext): CompHitSpec[] => {
 		const { rng, beatsPerBar } = ctx;
