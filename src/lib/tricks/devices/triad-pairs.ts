@@ -24,16 +24,28 @@
  * lower-rooted triad, which is what "beginning on ♭9 / ♯11" means for the
  * altered families.
  *
+ * Two further styles are accepted best-of at scoring time (see the trick's
+ * scoreConformance): alternating eighth-note-triplet groups (A-B-A-B, one
+ * per beat) and four eighths per triad (A×4 then B×4). Like the cell, both
+ * sit on the straight eighth/triplet grid from the downbeat.
+ *
  * Slot pcs: exactPcs = the slot's own triad (specific expected pc first) —
  * right triad, wrong member still counts as exact per the pinned design;
  * patternPcs = the other triad's pcs (right pair, wrong triad ⇒ in-pattern).
  */
-import type { ChordQuality, Fraction } from '$lib/types/music';
+import type { ChordQuality, Fraction, Phrase } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
-import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
+import type { DetectedNote } from '$lib/types/audio';
+import type {
+	ConformanceResult,
+	Trick,
+	TrickContext,
+	TrickParameters,
+	TrickSlotSpec
+} from '$lib/types/tricks';
 import { gcd } from '$lib/music/intervals';
-import { scoreConformanceAgainstSpec } from '../conformance';
+import { scoreConformanceAgainstSpecs } from '../conformance';
 import { realizeTrickExample } from '../example-generator';
 
 export type TriadPairValue =
@@ -215,11 +227,44 @@ function triadPcs(rootPc: number, spec: TriadSpec): number[] {
 	return TRIAD_INTERVALS[spec.quality].map((iv) => (rootPc + spec.offset + iv) % 12);
 }
 
-export function buildTriadPairSlots(parameters: TrickParameters, context: TrickContext): TrickSlotSpec[] {
+interface TriadPair {
+	triadA: number[];
+	triadB: number[];
+}
+
+/** The family's two triads realized above the context chord root (A = lower). */
+function pairTriads(parameters: TrickParameters, context: TrickContext): TriadPair {
 	const family = familyFor(parameters);
 	const rootPc = PITCH_CLASSES.indexOf(context.chordRoot);
-	const triadA = triadPcs(rootPc, family.low);
-	const triadB = triadPcs(rootPc, family.high);
+	return {
+		triadA: triadPcs(rootPc, family.low),
+		triadB: triadPcs(rootPc, family.high)
+	};
+}
+
+/** One spec slot: exact = own triad (specific pc first), pattern = the other triad. */
+function buildSlot(
+	step: { pc: number; triad: 'a' | 'b' },
+	offset: Fraction,
+	duration: Fraction,
+	pair: TriadPair
+): TrickSlotSpec {
+	const own = step.triad === 'a' ? pair.triadA : pair.triadB;
+	const other = step.triad === 'a' ? pair.triadB : pair.triadA;
+	const exactPcs = [step.pc, ...own.filter((pc) => pc !== step.pc)];
+	return {
+		offset,
+		duration,
+		exactPcs,
+		patternPcs: other.filter((pc) => !exactPcs.includes(pc)),
+		generatePc: step.pc,
+		role: step.triad === 'a' ? 'triad-a' : 'triad-b'
+	};
+}
+
+export function buildTriadPairSlots(parameters: TrickParameters, context: TrickContext): TrickSlotSpec[] {
+	const pair = pairTriads(parameters, context);
+	const { triadA, triadB } = pair;
 
 	// Standard alternating cell: A ascending, B ascending, first two of A again.
 	const cell: { pc: number; triad: 'a' | 'b' }[] = [
@@ -229,26 +274,73 @@ export function buildTriadPairSlots(parameters: TrickParameters, context: TrickC
 		{ pc: triadA[1], triad: 'a' as const }
 	];
 
-	return cell.map((step, i) => {
-		const own = step.triad === 'a' ? triadA : triadB;
-		const other = step.triad === 'a' ? triadB : triadA;
-		const exactPcs = [step.pc, ...own.filter((pc) => pc !== step.pc)];
-		return {
-			offset: reduceFraction(i, 8),
-			duration: [1, 8] as Fraction,
-			exactPcs,
-			patternPcs: other.filter((pc) => !exactPcs.includes(pc)),
-			generatePc: step.pc,
-			role: step.triad === 'a' ? 'triad-a' : 'triad-b'
-		};
-	});
+	return cell.map((step, i) => buildSlot(step, reduceFraction(i, 8), [1, 8], pair));
 }
+
+/**
+ * Alternating-triplet style: four eighth-note-triplet groups, one per beat,
+ * A-B-A-B — each group any inversion of its triad (exactPcs covers the whole
+ * triad, so scoring already allows that).
+ */
+export function buildTripletSlots(
+	parameters: TrickParameters,
+	context: TrickContext
+): TrickSlotSpec[] {
+	const pair = pairTriads(parameters, context);
+	const slots: TrickSlotSpec[] = [];
+	for (let group = 0; group < 4; group++) {
+		const triad = group % 2 === 0 ? ('a' as const) : ('b' as const);
+		const own = triad === 'a' ? pair.triadA : pair.triadB;
+		for (let k = 0; k < 3; k++) {
+			slots.push(
+				buildSlot({ pc: own[k], triad }, reduceFraction(group * 3 + k, 12), [1, 12], pair)
+			);
+		}
+	}
+	return slots;
+}
+
+/**
+ * Four-eighths style: four eighths of triad A then four of triad B, canonical
+ * contour root-3rd-5th-3rd (C-E-G-E, D-F#-A-F# for the major-whole family).
+ */
+export function buildFourEighthsSlots(
+	parameters: TrickParameters,
+	context: TrickContext
+): TrickSlotSpec[] {
+	const pair = pairTriads(parameters, context);
+	const contour = [0, 1, 2, 1];
+	const slots: TrickSlotSpec[] = [];
+	for (let half = 0; half < 2; half++) {
+		const triad = half === 0 ? ('a' as const) : ('b' as const);
+		const own = triad === 'a' ? pair.triadA : pair.triadB;
+		for (let k = 0; k < 4; k++) {
+			slots.push(
+				buildSlot({ pc: own[contour[k]], triad }, reduceFraction(half * 4 + k, 8), [1, 8], pair)
+			);
+		}
+	}
+	return slots;
+}
+
+/** Accepted playing styles, canonical (tie-break + rotation) order. */
+export const TRIAD_PAIR_STYLES = ['cell', 'triplets', 'four-eighths'] as const;
+export type TriadPairStyle = (typeof TRIAD_PAIR_STYLES)[number];
+
+const STYLE_BUILDERS: Record<
+	TriadPairStyle,
+	(parameters: TrickParameters, context: TrickContext) => TrickSlotSpec[]
+> = {
+	cell: buildTriadPairSlots,
+	triplets: buildTripletSlots,
+	'four-eighths': buildFourEighthsSlots
+};
 
 export const triadPairsTrick: Trick = {
 	id: 'triad-pairs',
 	name: 'Triad Pairs',
 	description:
-		'Alternate the two triads of a pair — from diatonic neighbours to altered and whole-tone colours — to build angular, modern-sounding lines from just six notes.',
+		'Alternate the two triads of a pair — from diatonic neighbours to altered and whole-tone colours — to build angular, modern-sounding lines from just six notes. Answer in the demo cell, alternating triplets, or four eighths per triad — every style scores.',
 	category: 'triad-pairs',
 	tags: ['trick', 'triad-pair'],
 	// Union of the per-family sets; suggestion gating uses the per-family
@@ -264,23 +356,39 @@ export const triadPairsTrick: Trick = {
 			)
 		}
 	],
+	exampleStyles: TRIAD_PAIR_STYLES,
 	practiceBed(parameters) {
 		return familyFor(parameters).bed;
 	},
 	compatibleQualitiesFor(parameters) {
 		return [...familyFor(parameters).qualities];
 	},
-	scoreConformance(played, parameters, context) {
-		return scoreConformanceAgainstSpec(played, buildTriadPairSlots(parameters, context), context);
+	scoreConformance(
+		played: DetectedNote[],
+		parameters: TrickParameters,
+		context: TrickContext
+	): ConformanceResult {
+		return scoreConformanceAgainstSpecs(
+			played,
+			TRIAD_PAIR_STYLES.map((style) => ({
+				style,
+				slots: STYLE_BUILDERS[style](parameters, context)
+			})),
+			context
+		);
 	},
-	generateExample(parameters, context) {
+	generateExample(parameters: TrickParameters, context: TrickContext): Phrase | null {
+		const hinted = context.exampleStyle ?? '';
+		const style: TriadPairStyle = (TRIAD_PAIR_STYLES as readonly string[]).includes(hinted)
+			? (hinted as TriadPairStyle)
+			: 'cell';
 		const family = familyFor(parameters);
 		return realizeTrickExample({
 			trickId: 'triad-pairs',
 			name: `Triad pair ${family.label} over ${context.chordRoot}${context.chordQuality}`,
 			category: 'triad-pairs',
 			tags: ['trick', 'triad-pair'],
-			slots: buildTriadPairSlots(parameters, context),
+			slots: STYLE_BUILDERS[style](parameters, context),
 			parameters,
 			context
 		});

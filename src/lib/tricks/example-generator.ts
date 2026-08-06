@@ -199,11 +199,14 @@ export function realizeTrickExample(args: TrickExampleArgs): Phrase | null {
 	// the scalar contour rules (step ratio, leap recovery, direction changes)
 	// that keep generated LICKS idiomatic would reject well-formed trick
 	// examples by design. Keep only the safety rails: instrument range and a
-	// sane cap on any single interval.
+	// sane cap on any single interval. The consecutive-leap cap sits at 12
+	// because the longest device shape — the 12-note alternating-triplet
+	// triad-pair spec — is wall-to-wall leaps (11 in a row); the rail guards
+	// runaway generation, not legitimate device shapes.
 	const profile = getProfile(context.level);
 	const validation = validatePhrase(phrase, {
 		maxInterval: Math.max(profile.maxInterval, 9),
-		maxConsecutiveLeaps: 8,
+		maxConsecutiveLeaps: 12,
 		minStepRatio: 0,
 		leapRecovery: false,
 		minDirectionChanges: 0,

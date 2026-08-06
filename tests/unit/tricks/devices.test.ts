@@ -3,8 +3,16 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
 import { fractionToFloat } from '$lib/music/intervals';
 import { buildEnclosureSlots, enclosuresTrick } from '$lib/tricks/devices/enclosures';
-import { buildTriadPairSlots, getTriadPairFamily, triadPairsTrick } from '$lib/tricks/devices/triad-pairs';
-import { getTrickById, TRICKS } from '$lib/tricks';
+import { trickVariantKey } from '$lib/types/tricks';
+import {
+	buildFourEighthsSlots,
+	buildTriadPairSlots,
+	buildTripletSlots,
+	getTriadPairFamily,
+	TRIAD_PAIR_STYLES,
+	triadPairsTrick
+} from '$lib/tricks/devices/triad-pairs';
+import { exampleStyleForRound, getTrickById, TRICKS } from '$lib/tricks';
 
 const baseContext: TrickContext = {
 	chordRoot: 'C',
@@ -213,6 +221,181 @@ describe('buildTriadPairSlots', () => {
 	});
 });
 
+describe('buildTripletSlots', () => {
+	it.each(TRIAD_LADDER)('produces valid slots for %s', (_name, params) => {
+		assertValidSlots(buildTripletSlots(params, baseContext));
+	});
+
+	it.each(TRIAD_LADDER)(
+		'%s: four beat-aligned triplet groups alternating the family triads',
+		(_name, params) => {
+			const slots = buildTripletSlots(params, baseContext);
+			expect(slots).toHaveLength(12);
+
+			const { a: triadA, b: triadB } = EXPECTED_TRIADS[params.pair];
+
+			slots.forEach((slot, i) => {
+				expect(fractionToFloat(slot.offset)).toBeCloseTo(i / 12, 9);
+				expect(fractionToFloat(slot.duration)).toBeCloseTo(1 / 12, 9);
+				const group = Math.floor(i / 3);
+				const own = group % 2 === 0 ? triadA : triadB;
+				const other = group % 2 === 0 ? triadB : triadA;
+				expect(slot.role).toBe(group % 2 === 0 ? 'triad-a' : 'triad-b');
+				expect(new Set(slot.exactPcs)).toEqual(new Set(own));
+				expect(new Set(slot.patternPcs)).toEqual(new Set(other));
+				expect(slot.generatePc).toBe(own[i % 3]);
+			});
+		}
+	);
+});
+
+describe('buildFourEighthsSlots', () => {
+	it.each(TRIAD_LADDER)('produces valid slots for %s', (_name, params) => {
+		assertValidSlots(buildFourEighthsSlots(params, baseContext));
+	});
+
+	it.each(TRIAD_LADDER)(
+		'%s: four eighths of triad A then four of triad B, contour root-3rd-5th-3rd',
+		(_name, params) => {
+			const slots = buildFourEighthsSlots(params, baseContext);
+			expect(slots).toHaveLength(8);
+
+			const { a: triadA, b: triadB } = EXPECTED_TRIADS[params.pair];
+			const contour = [0, 1, 2, 1];
+
+			slots.forEach((slot, i) => {
+				expect(fractionToFloat(slot.offset)).toBeCloseTo(i / 8, 9);
+				expect(fractionToFloat(slot.duration)).toBeCloseTo(1 / 8, 9);
+				const own = i < 4 ? triadA : triadB;
+				const other = i < 4 ? triadB : triadA;
+				expect(slot.role).toBe(i < 4 ? 'triad-a' : 'triad-b');
+				expect(new Set(slot.exactPcs)).toEqual(new Set(own));
+				expect(new Set(slot.patternPcs)).toEqual(new Set(other));
+				expect(slot.generatePc).toBe(own[contour[i % 4]]);
+			});
+		}
+	);
+});
+
+describe('triad-pairs best-of style scoring', () => {
+	// major-whole over C = C·D majors — the motivating C-E-G-E, D-F#-A-F# pair.
+	const params: TrickParameters = { pair: 'major-whole' };
+
+	/** Play a spec's canonical pcs near middle C at each slot's onset. */
+	function playSpec(slots: TrickSlotSpec[]): DetectedNote[] {
+		return slots.map((slot) => makeDetected(60 + slot.generatePc!, slotOnsetSeconds(slot)));
+	}
+
+	it('declares the three styles in canonical order', () => {
+		expect(TRIAD_PAIR_STYLES).toEqual(['cell', 'triplets', 'four-eighths']);
+		expect(triadPairsTrick.exampleStyles).toEqual(['cell', 'triplets', 'four-eighths']);
+		expect(enclosuresTrick.exampleStyles).toBeUndefined();
+	});
+
+	it('a perfect cell performance wins as "cell" with patternScore 1', () => {
+		const result = triadPairsTrick.scoreConformance(
+			playSpec(buildTriadPairSlots(params, baseContext)),
+			params,
+			baseContext
+		);
+		expect(result.style).toBe('cell');
+		expect(result.patternScore).toBe(1);
+		expect(result.slots).toHaveLength(8);
+	});
+
+	it('a perfect alternating-triplet performance scores 1 with no extras', () => {
+		const result = triadPairsTrick.scoreConformance(
+			playSpec(buildTripletSlots(params, baseContext)),
+			params,
+			baseContext
+		);
+		expect(result.style).toBe('triplets');
+		expect(result.patternScore).toBe(1);
+		expect(result.slots).toHaveLength(12);
+		expect(result.extraCount).toBe(0);
+	});
+
+	it('the motivating C-E-G-E / D-F#-A-F# line scores 1 as "four-eighths"', () => {
+		const played = [60, 64, 67, 64, 62, 66, 69, 66].map((midi, i) =>
+			makeDetected(midi, i * 0.25)
+		);
+		const result = triadPairsTrick.scoreConformance(played, params, baseContext);
+		expect(result.style).toBe('four-eighths');
+		expect(result.patternScore).toBe(1);
+	});
+
+	it('any inversion/combination within each four-eighths half still scores 1', () => {
+		const played = [64, 67, 60, 67, 66, 69, 62, 69].map((midi, i) =>
+			makeDetected(midi, i * 0.25)
+		);
+		const result = triadPairsTrick.scoreConformance(played, params, baseContext);
+		expect(result.style).toBe('four-eighths');
+		expect(result.patternScore).toBe(1);
+	});
+
+	it('eight eighths all from triad A earn only partial credit', () => {
+		const slots = buildFourEighthsSlots(params, baseContext);
+		const aOnly = slots.map((slot, i) =>
+			makeDetected(60 + slots[i % 4].generatePc!, slotOnsetSeconds(slot))
+		);
+		const result = triadPairsTrick.scoreConformance(aOnly, params, baseContext);
+		expect(result.patternScore).toBeLessThan(0.9);
+	});
+
+	it('style never enters the variant key', () => {
+		expect(trickVariantKey('triad-pairs', params)).toBe('triad-pairs:pair=major-whole');
+	});
+});
+
+describe('triad-pairs generateExample styles', () => {
+	const params: TrickParameters = { pair: 'major-whole' };
+
+	it('honors exampleStyle "triplets": 12 notes on the triplet grid', () => {
+		const phrase = triadPairsTrick.generateExample(params, {
+			...baseContext,
+			exampleStyle: 'triplets'
+		});
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes).toHaveLength(12);
+		const slots = buildTripletSlots(params, baseContext);
+		phrase!.notes.forEach((note, i) => {
+			expect(fractionToFloat(note.offset)).toBeCloseTo(i / 12, 9);
+			expect(fractionToFloat(note.duration)).toBeCloseTo(1 / 12, 9);
+			expect(((note.pitch! % 12) + 12) % 12).toBe(slots[i].generatePc);
+		});
+	});
+
+	it('honors exampleStyle "four-eighths" with the root-3rd-5th-3rd contour', () => {
+		const phrase = triadPairsTrick.generateExample(params, {
+			...baseContext,
+			exampleStyle: 'four-eighths'
+		});
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes).toHaveLength(8);
+		const slots = buildFourEighthsSlots(params, baseContext);
+		phrase!.notes.forEach((note, i) => {
+			expect(fractionToFloat(note.offset)).toBeCloseTo(i / 8, 9);
+			expect(((note.pitch! % 12) + 12) % 12).toBe(slots[i].generatePc);
+		});
+	});
+
+	it('defaults to the cell when exampleStyle is absent or unknown', () => {
+		const absent = triadPairsTrick.generateExample(params, baseContext);
+		const unknown = triadPairsTrick.generateExample(params, {
+			...baseContext,
+			exampleStyle: 'nope'
+		});
+		const cellSlots = buildTriadPairSlots(params, baseContext);
+		for (const phrase of [absent, unknown]) {
+			expect(phrase).not.toBeNull();
+			expect(phrase!.notes).toHaveLength(8);
+			// Cell slot 3 is triad B's root — distinct from four-eighths' slot 3
+			// (triad A's 3rd), so this pins the cell shape specifically.
+			expect(((phrase!.notes[3].pitch! % 12) + 12) % 12).toBe(cellSlots[3].generatePc);
+		}
+	});
+});
+
 describe('triad-pair family applicability', () => {
 	it('pins per-family chord qualities, most characteristic first', () => {
 		const q = (value: string) => getTriadPairFamily(value)!.qualities;
@@ -301,5 +484,18 @@ describe('trick catalog', () => {
 		expect(getTrickById('triad-pairs')).toBe(triadPairsTrick);
 		expect(getTrickById('digital-patterns')).toBeUndefined();
 		expect(getTrickById('')).toBeUndefined();
+	});
+
+	it('exampleStyleForRound rotates triad-pair styles and cycles', () => {
+		expect(exampleStyleForRound(triadPairsTrick, 1)).toBe('cell');
+		expect(exampleStyleForRound(triadPairsTrick, 2)).toBe('triplets');
+		expect(exampleStyleForRound(triadPairsTrick, 3)).toBe('four-eighths');
+		expect(exampleStyleForRound(triadPairsTrick, 4)).toBe('cell');
+		expect(exampleStyleForRound(triadPairsTrick, 7)).toBe('cell');
+	});
+
+	it('exampleStyleForRound is undefined for single-style tricks and clamps bad rounds', () => {
+		expect(exampleStyleForRound(enclosuresTrick, 1)).toBeUndefined();
+		expect(exampleStyleForRound(triadPairsTrick, 0)).toBe('cell');
 	});
 });

@@ -5,7 +5,10 @@ import {
 	FLUENCY_PATTERN_WEIGHT,
 	FLUENCY_RHYTHM_WEIGHT
 } from '$lib/scoring/fluency';
-import { scoreConformanceAgainstSpec } from '$lib/tricks/conformance';
+import {
+	scoreConformanceAgainstSpec,
+	scoreConformanceAgainstSpecs
+} from '$lib/tricks/conformance';
 import type { Trick, TrickContext, TrickSlotSpec } from '$lib/types/tricks';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Fraction, Note, Phrase } from '$lib/types/music';
@@ -237,6 +240,65 @@ describe('scoreFluency', () => {
 		expect(score.noteResults.map((r) => r.expected.pitch)).toEqual([60, 64, 67, 71]);
 		expect(score.noteResults.map((r) => r.expected.offset)).toEqual(notes.map((n) => n.offset));
 		expect(score.rhythmAccuracy).toBeCloseTo(1, 5);
+		expect(score.overall).toBeCloseTo(1, 5);
+	});
+
+	it('generates expected notes for the winning style, not the demo style', () => {
+		// Two-style trick: 'demo' expects D F A on quarters; 'alt' is the C E G B
+		// eighth arp. generateExample yields a real phrase ONLY when asked for
+		// 'alt' — exactly how a device realizes the style it is hinted with.
+		const demoSlots: TrickSlotSpec[] = [
+			{ offset: [0, 1], duration: [1, 4], exactPcs: [2], role: 'target' },
+			{ offset: [1, 4], duration: [1, 4], exactPcs: [5], role: 'target' },
+			{ offset: [2, 4], duration: [1, 4], exactPcs: [9], role: 'target' }
+		];
+		const altNotes: Note[] = [
+			{ pitch: 60, offset: [0, 1], duration: [1, 8] },
+			{ pitch: 64, offset: [1, 8], duration: [1, 8] },
+			{ pitch: 67, offset: [2, 8], duration: [1, 8] },
+			{ pitch: 71, offset: [3, 8], duration: [1, 8] }
+		];
+		const altPhrase: Phrase = {
+			id: 'alt-style-example',
+			name: 'Alt Style Example',
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: altNotes,
+			harmony: [
+				{
+					chord: { root: 'C', quality: 'maj7' },
+					scaleId: 'major.ionian',
+					startOffset: [0, 1],
+					duration: [1, 1]
+				}
+			],
+			difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
+			category: 'triad-pairs',
+			tags: ['trick'],
+			source: 'generated'
+		};
+		const trick: Trick = {
+			...makeTrick(arpSlots),
+			exampleStyles: ['demo', 'alt'],
+			scoreConformance: (played, _parameters, ctx) =>
+				scoreConformanceAgainstSpecs(
+					played,
+					[
+						{ style: 'demo', slots: demoSlots },
+						{ style: 'alt', slots: arpSlots }
+					],
+					ctx
+				),
+			generateExample: (_parameters, ctx) => (ctx.exampleStyle === 'alt' ? altPhrase : null)
+		};
+		const score = scoreFluency({ played: perfectPlayed, trick, parameters: {}, context });
+		expect(score.conformance.style).toBe('alt');
+		// Real example offsets — NOT the [0,1]-pinned fallback placeholders that
+		// a demo-style (null) example would force.
+		expect(score.noteResults.map((r) => r.expected.offset)).toEqual(
+			altNotes.map((n) => n.offset)
+		);
+		expect(score.noteResults.map((r) => r.expected.pitch)).toEqual([60, 64, 67, 71]);
 		expect(score.overall).toBeCloseTo(1, 5);
 	});
 });

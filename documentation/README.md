@@ -31,6 +31,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Data Model](./architecture/data-model.md) | Core TypeScript types with field documentation |
 | [Audio Pipeline](./architecture/audio-pipeline.md) | Playback, capture, detection, segmentation, re-articulation tiers |
 | [Scoring Algorithm](./architecture/scoring-algorithm.md) | DTW alignment, pitch/rhythm scoring, grading |
+| [Trick Scoring](./architecture/trick-scoring.md) | Conformance tiers, fluency weighting, per-device slot philosophy |
 | [Phrase System](./architecture/phrase-system.md) | Catalog, generation, mutation, validation |
 | [Tune System](./architecture/tune-system.md) | Tune model, flatten timelines, importers, engraving, progression detection, lick matching, session planning |
 | [Lick Alignment](./architecture/lick-alignment.md) | Per-progression placement, `pickupBars`, tail extension, auto-inference |

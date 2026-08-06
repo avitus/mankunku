@@ -262,3 +262,36 @@ export function scoreConformanceAgainstSpec(
 		latencyCorrectionMs: latencyCorrection * 1000
 	};
 }
+
+/** One named slot spec submitted to best-of multi-spec judging. */
+export interface ConformanceSpecVariant {
+	style: string;
+	slots: TrickSlotSpec[];
+}
+
+/**
+ * Judge a played attempt against several spec variants (playing styles) and
+ * return the best result — highest patternScore, ties resolved toward the
+ * earliest variant, so callers list the canonical style first. The winner's
+ * name is reported as `style`. An empty variants list degrades to the
+ * single-spec empty-slots result (everything played is extra, no style).
+ */
+export function scoreConformanceAgainstSpecs(
+	played: DetectedNote[],
+	variants: ConformanceSpecVariant[],
+	context: TrickContext
+): ConformanceResult {
+	if (variants.length === 0) {
+		return scoreConformanceAgainstSpec(played, [], context);
+	}
+	let best: ConformanceResult | null = null;
+	let bestStyle = variants[0].style;
+	for (const variant of variants) {
+		const result = scoreConformanceAgainstSpec(played, variant.slots, context);
+		if (best === null || result.patternScore > best.patternScore) {
+			best = result;
+			bestStyle = variant.style;
+		}
+	}
+	return { ...(best as ConformanceResult), style: bestStyle };
+}

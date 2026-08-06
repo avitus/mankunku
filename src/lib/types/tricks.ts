@@ -50,6 +50,12 @@ export interface TrickContext {
 	tempo: number;
 	/** Swing ratio (0.5 = straight); defaults to 0.5 when omitted */
 	swing?: number;
+	/**
+	 * Which playing style generateExample should demonstrate, from the trick's
+	 * exampleStyles. Device-interpreted; unknown or absent ⇒ device default.
+	 * Scoring ignores it (all styles are always accepted).
+	 */
+	exampleStyle?: string;
 }
 
 /**
@@ -100,6 +106,8 @@ export interface ConformanceResult {
 	extraCount: number;
 	/** Latency correction applied before per-slot timing, in ms */
 	latencyCorrectionMs: number;
+	/** Winning spec-variant name when judged best-of several styles (multi-spec devices only) */
+	style?: string;
 }
 
 /** A melodic device with configurable parameters and the two contracts. */
@@ -112,6 +120,13 @@ export interface Trick {
 	/** Chord qualities this trick can be practiced over */
 	compatibleQualities: ChordQuality[];
 	parameters: TrickParameterDefinition[];
+	/**
+	 * Demo styles in preview rotation order, when the device accepts several
+	 * playing styles. Absent for single-style devices. Values are hints for
+	 * TrickContext.exampleStyle; they are NOT parameters and never enter the
+	 * variant key.
+	 */
+	exampleStyles?: readonly string[];
 	/**
 	 * Optional: the one-chord vamp a parameter selection should be drilled
 	 * over (e.g. altered triad pairs over the dominant vamp). Omitted — or
