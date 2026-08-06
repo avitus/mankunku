@@ -200,19 +200,23 @@ export type VoicingFn = (root: PitchClass, quality: ChordQuality, register: numb
  * @param voicingFn - Voicing function, or one function per chord (same length
  *   as `chords`) so the comping engine can mix shell/rootless/drop-2 shapes
  *   while voice-leading still drives the register choice
- * @param registerMidi - Starting register center
+ * @param registerMidi - Register center, or one per chord (same length as
+ *   `chords`) — a per-chord center only re-centers that chord's ±12 search
+ *   window, so closeness to the previous voicing still dominates and an
+ *   intensity arc drifts the comp gradually rather than jumping registers
  * @returns Array of MIDI note arrays
  */
 export function voiceLead(
 	chords: Array<{ root: PitchClass; quality: ChordQuality }>,
 	voicingFn: VoicingFn | VoicingFn[],
-	registerMidi: number = 54
+	registerMidi: number | number[] = 54
 ): number[][] {
 	if (chords.length === 0) return [];
 	const fnFor = (i: number): VoicingFn => (Array.isArray(voicingFn) ? voicingFn[i] : voicingFn);
+	const regFor = (i: number): number => (Array.isArray(registerMidi) ? registerMidi[i] : registerMidi);
 
 	const result: number[][] = [];
-	let prevVoicing = fnFor(0)(chords[0].root, chords[0].quality, registerMidi);
+	let prevVoicing = fnFor(0)(chords[0].root, chords[0].quality, regFor(0));
 	result.push(prevVoicing);
 
 	for (let i = 1; i < chords.length; i++) {
@@ -221,7 +225,7 @@ export function voiceLead(
 		let bestVoicing: number[] = [];
 		let bestCost = Infinity;
 
-		for (let reg = registerMidi - 12; reg <= registerMidi + 12; reg += 1) {
+		for (let reg = regFor(i) - 12; reg <= regFor(i) + 12; reg += 1) {
 			const candidate = fnFor(i)(chord.root, chord.quality, reg);
 			if (candidate.length === 0) continue;
 

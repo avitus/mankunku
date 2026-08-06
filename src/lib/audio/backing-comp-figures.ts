@@ -17,6 +17,7 @@
  */
 
 import { createRng, seedFrom } from './generation-rng';
+import { lerp } from './backing-intensity';
 import type { BarInfo } from './backing-generation';
 
 export type FigureTag = 'early' | 'push' | 'pad';
@@ -162,23 +163,21 @@ export function planCompFigures(
 			if (isCadenceBar) {
 				weight *= f.tags.includes('push') ? 5 : 0.5;
 			}
-			// Density shape (adapted from the pre-planner engine's busyBias,
-			// flat values until the intensity increment wires chorus arcs in):
-			// section-final bars lean busier, later choruses a touch more
-			// active than the first.
-			if (f.busy >= 2) {
-				if (isCadenceBar) weight *= 1.3;
-				if ((info.chorusIndex ?? 0) > 0) weight *= 1.15;
-			}
+			// Density arc: busy figures lean in and deliberate rest thins out
+			// as intensity builds through the form (cadence bars already run
+			// hotter — the arc adds +0.08 there).
+			if (f.busy >= 2) weight *= lerp(0.7, 1.7, info.intensity);
+			if (f.busy === 0) weight *= lerp(2.2, 0.6, info.intensity);
 			return { value: f, weight };
 		}).filter((w) => w.weight > 0);
 
 		const figure = weighted.length > 0 ? rng.weighted(weighted) : REST_FIGURE;
 
 		// The "leave space" color: occasionally a bar speaks in guide tones
-		// only. Conditional draw (rest bars consume one draw, others two) —
+		// only — a low-intensity color that mostly retires as the band digs
+		// in. Conditional draw (rest bars consume one draw, others two) —
 		// safe because nothing draws from this bar's stream afterwards.
-		const guideTones = figure.id !== 'rest' && rng.chance(0.06);
+		const guideTones = figure.id !== 'rest' && rng.chance(0.06 * lerp(1.6, 0.4, info.intensity));
 
 		plan.push({ figureId: figure.id, guideTones });
 		recent.push(figure.repeatKey ?? figure.id);

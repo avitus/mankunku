@@ -18,18 +18,20 @@
 
 import type { SeededRng } from './generation-rng';
 import type { DrumHitSpec, GenerationContext } from './backing-styles';
+import { lerp } from './backing-intensity';
 
 export type RideMode = 'standard' | 'quarters-only' | 'skip-plus' | 'broken';
 
 /**
- * Choose this bar's ride flavor. Weights are static across the form until
- * the intensity increment wires chorus arcs in.
+ * Choose this bar's ride flavor. Intensity tilts the deal — breathing
+ * quarters-only bars thin out as the band leans in, busier skip-plus bars
+ * take their place — without changing the draw count.
  */
-export function chooseRideMode(rng: SeededRng): RideMode {
+export function chooseRideMode(rng: SeededRng, intensity: number): RideMode {
 	return rng.weighted<RideMode>([
 		{ value: 'standard', weight: 5 },
-		{ value: 'quarters-only', weight: 2 },
-		{ value: 'skip-plus', weight: 1.5 },
+		{ value: 'quarters-only', weight: 2 * lerp(1.6, 0.5, intensity) },
+		{ value: 'skip-plus', weight: 1.5 * lerp(0.5, 1.8, intensity) },
 		{ value: 'broken', weight: 1 }
 	]);
 }
@@ -91,9 +93,10 @@ export function hihatBar(beatsPerBar: number, rng: SeededRng): DrumHitSpec[] {
 	return hits;
 }
 
-/** Feathered kick: quarters felt, never heard. Some bars sit out entirely. */
-export function featherBar(beatsPerBar: number, rng: SeededRng): DrumHitSpec[] {
-	if (!rng.chance(0.7)) return [];
+/** Feathered kick: quarters felt, never heard. Some bars sit out entirely
+ * (fewer as the band digs in). */
+export function featherBar(beatsPerBar: number, rng: SeededRng, intensity: number): DrumHitSpec[] {
+	if (!rng.chance(lerp(0.55, 0.9, intensity))) return [];
 	const hits: DrumHitSpec[] = [];
 	for (let b = 0; b < beatsPerBar; b++) {
 		hits.push({ drum: 'kick', beatOffset: b, velocity: 0.07 + rng.float() * 0.06 });
@@ -116,7 +119,7 @@ export function snareBar(ctx: GenerationContext, rng: SeededRng): DrumHitSpec[] 
 	const preGroupEnd = (ctx.barIndex + 1) % 4 === 0;
 	type SnareChoice = 'none' | 'ghost' | 'pair' | 'accent4';
 	const choice = rng.weighted<SnareChoice>([
-		{ value: 'none', weight: 4.25 },
+		{ value: 'none', weight: lerp(6, 2.5, ctx.intensity) },
 		{ value: 'ghost', weight: 3 },
 		{ value: 'pair', weight: 1.2 },
 		{ value: 'accent4', weight: preGroupEnd && beatsPerBar === 4 ? 1 : 0 }
@@ -187,7 +190,7 @@ export function fillBar(
 
 	// Crash punctuates a section arrival — more often deeper into the form.
 	if (ctx.isSectionFirstBar && ctx.barIndex > 0) {
-		const p = (ctx.chorusIndex ?? 0) >= 1 ? 0.6 : 0.25;
+		const p = ((ctx.chorusIndex ?? 0) >= 1 ? 0.6 : 0.25) * lerp(0.9, 1.08, ctx.intensity);
 		if (fillRng.chance(p)) {
 			hits.push({ drum: 'crash', beatOffset: 0, velocity: 0.5 + fillRng.float() * 0.1 });
 			crashOnOne = true;
@@ -217,7 +220,11 @@ export function fillBar(
 			hits.push({ drum: 'ride', beatOffset: last - 0.5, velocity: 0.5 });
 			hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.38 });
 		}
-	} else if (!ctx.isFinalBar && (ctx.barIndex + 1) % 4 === 0 && fillRng.chance(0.18)) {
+	} else if (
+		!ctx.isFinalBar &&
+		(ctx.barIndex + 1) % 4 === 0 &&
+		fillRng.chance(0.18 * lerp(0.9, 1.08, ctx.intensity))
+	) {
 		// Light 4-bar phrase marker.
 		if (fillRng.chance(0.5)) {
 			hits.push({ drum: 'snare', beatOffset: last + 0.5, velocity: 0.35 });
