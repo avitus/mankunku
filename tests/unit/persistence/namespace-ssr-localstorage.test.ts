@@ -1,13 +1,12 @@
 /**
  * SSR must never *evaluate* the bare `localStorage` global.
  *
- * Recent Node versions install `localStorage` on globalThis as a lazy accessor
- * (present on 26.5.1, absent on 24.3.0). Reading it without `--localstorage-file`
- * resolves to `undefined` AND emits `ExperimentalWarning: localStorage is not
- * available…` — once per process, into the production PM2 log. The guard in
- * namespace.ts must therefore decide "no storage here" WITHOUT touching it.
+ * Some server runtimes expose `localStorage` on globalThis as a lazy
+ * accessor whose evaluation has host-dependent side effects (warnings, or
+ * throwing when no backing store is configured). The guard in namespace.ts
+ * must therefore decide "no storage here" WITHOUT touching it.
  *
- * The accessor is synthesised here rather than relying on the host Node, so the
+ * The accessor is synthesised here rather than relying on the host, so the
  * regression is caught on any version the suite happens to run under.
  *
  * This file deliberately does NOT install the usual data-property localStorage
@@ -15,9 +14,10 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// ─── Reproduce Node 22+'s lazy accessor ───────────────────────────────
-// A getter that records access and resolves to undefined, exactly like Node's
-// built-in does when --localstorage-file was not provided.
+// ─── Synthetic lazy-accessor fixture ──────────────────────────────────
+// A getter that records access and resolves to undefined — a stand-in for a
+// host-provided lazy accessor, not an exact replica of any Node version's
+// implementation. What matters is only that evaluation is observable.
 const accessorReads = vi.fn(() => undefined);
 Object.defineProperty(globalThis, 'localStorage', {
 	get: accessorReads,
@@ -30,7 +30,7 @@ beforeEach(() => {
 	accessorReads.mockClear();
 });
 
-describe('namespace guards under an SSR (Node 22+) runtime', () => {
+describe('namespace guards under an SSR runtime with a lazy localStorage accessor', () => {
 	it('reports no storage without evaluating the lazy localStorage accessor', () => {
 		expect(anonBucketNonEmpty()).toBe(false);
 		expect(accessorReads).not.toHaveBeenCalled();

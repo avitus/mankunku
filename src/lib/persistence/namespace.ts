@@ -49,20 +49,20 @@ const CONTROL_KEYS = new Set([SCHEMA_KEY, ACTIVE_KEY, LEGACY_LAST_USER_ID_KEY]);
 let _cachedUid: string | null = null;
 
 /**
- * True when a usable localStorage exists — WITHOUT ever evaluating a lazy
- * `localStorage` accessor.
+ * True when a usable localStorage exists — WITHOUT ever evaluating a
+ * host-provided `localStorage` accessor.
  *
- * Recent Node versions install `localStorage` on globalThis as a lazy accessor
- * (present on 26.5.1, absent on 24.3.0). Reading it without `--localstorage-file`
- * resolves to `undefined` AND emits `ExperimentalWarning: localStorage is not
- * available…` into the process log — so a bare `typeof localStorage` check is no
- * longer side-effect free on the server (it surfaced in the production PM2 log
- * right after the droplet moved to Node 26).
+ * Some server runtimes expose `localStorage` on globalThis as a lazy
+ * accessor whose evaluation has side effects that vary by host and version
+ * (warnings, or even throwing when no backing file is configured) — so a
+ * bare `typeof localStorage` check is not reliably side-effect free on the
+ * server. The guard's contract: decide "no storage here" without touching
+ * the accessor.
  *
  * Browsers go through `window`. Anything else (SSR, unit tests, polyfilled
  * hosts) is decided from the property descriptor: a real installed store is a
- * DATA property, whereas Node's built-in is an ACCESSOR — and `in`/descriptor
- * lookups never invoke it.
+ * DATA property, whereas a host-provided built-in is an ACCESSOR — and
+ * `in`/descriptor lookups never invoke it.
  */
 function hasLocalStorage(): boolean {
 	try {

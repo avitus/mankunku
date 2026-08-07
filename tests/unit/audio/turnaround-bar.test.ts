@@ -17,7 +17,9 @@ import { fractionToFloat } from '$lib/music/intervals';
 
 const PPQ = 480;
 
-function build(overrides: Partial<Parameters<typeof buildTurnaroundBarEvents>[0]> = {}) {
+function build(
+	overrides: Partial<Parameters<typeof buildTurnaroundBarEvents>[0]> = {}
+): TurnaroundEvent[] {
 	return buildTurnaroundBarEvents({
 		progressionType: 'ii-V-I-major',
 		targetKey: 'F',
