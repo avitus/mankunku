@@ -69,9 +69,12 @@ import {
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo,
+	updateRollingScore,
+	getRollingScore,
 	KEY_PROFICIENT_THRESHOLD,
 	KEY_FLOOR_THRESHOLD
 } from '$lib/persistence/lick-practice-store';
+import { sortKeysWorstFirst, shouldDemoHeadKey } from './lick-practice-rotation';
 import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
@@ -144,10 +147,13 @@ export interface PlannedKey {
 	lickId: string;
 }
 
-/** What follows the inter-lick pause, for the breather card. */
+/**
+ * What follows the inter-lick pause, for the breather card. Standard/Daily
+ * only — single-lick deep practice has no breather (cycles join over a
+ * continuous turnaround bar).
+ */
 export type LickBreatherNext =
 	| { kind: 'next'; name: string } // standard/daily: another lick is queued
-	| { kind: 'round'; round: number } // single-lick deep practice: same lick, next round
 	| { kind: 'done' }; // last lick in the plan — the completion report follows
 
 /**
@@ -185,6 +191,26 @@ export const lickPractice = $state<{
 	masteredThisRound: PitchClass[];
 	/** Single-lick mode: per-round mastery log, populated at end-of-round for the report. */
 	roundHistory: SingleLickRoundEntry[];
+	/**
+	 * Single-lick mode: should the next cycle open with the app playing the
+	 * lick in the head (worst) key? True for the first cycle of every session;
+	 * afterwards true only while the head key's rolling score is below
+	 * proficient (continuous mode; tricks always demo).
+	 */
+	demoNextCycle: boolean;
+	/**
+	 * Single-lick mode: latest result per key across the WHOLE session —
+	 * survives the round boundary that clears `keyResults`, so the
+	 * KeyProgressRing keeps its dots through the continuous flow.
+	 */
+	latestKeyResults: Partial<Record<PitchClass, LickPracticeKeyResult>>;
+	/**
+	 * Single-lick mode: the full unlocked circle in stable circle-of-4ths
+	 * order — the ring's anchor. `plan[0].keys` shrinks as keys master out
+	 * and reorders worst-first every cycle; this doesn't (it only grows when
+	 * a refill picks up a newly unlocked key).
+	 */
+	sessionKeys: PitchClass[];
 }>({
 	config: {
 		// Daily Practice is the front door: it rotates every progression the
@@ -209,7 +235,10 @@ export const lickPractice = $state<{
 	mode: 'standard',
 	roundNumber: 0,
 	masteredThisRound: [],
-	roundHistory: []
+	roundHistory: [],
+	demoNextCycle: true,
+	latestKeyResults: {},
+	sessionKeys: []
 });
 
 /**
@@ -648,13 +677,19 @@ export function startSingleLickSession(
 	const progressionType = resolveSingleLickProgression(lick);
 
 	const unlockedCount = getUnlockedKeyCount(lickPractice.progress, lick.id);
+	const circle = unlockedCircleFrom(lick.key, unlockedCount);
 	lickPractice.plan = [
 		{
 			phraseId: lick.id,
 			phraseName: lick.name,
 			phraseNumber: 1,
 			category: lick.category,
-			keys: unlockedCircleFrom(lick.key, unlockedCount),
+			// Worst-first from the persisted rolling scores, so keys[0] — the
+			// key the demo plays and the user answers first — is the one the
+			// user struggles with most. No rolling data → stable circle order.
+			keys: sortKeysWorstFirst(circle, (k) =>
+				getRollingScore(lickPractice.progress, lick.id, k)
+			),
 			progressionType,
 			// Persist the resolved Phrase so the helpers below survive a
 			// `getLickById` miss for user/community licks not (yet) indexed
@@ -673,6 +708,11 @@ export function startSingleLickSession(
 	lickPractice.roundNumber = 1;
 	lickPractice.masteredThisRound = [];
 	lickPractice.roundHistory = [];
+	// First cycle always demos (a session-start reminder of the lick), even
+	// when every key is already proficient.
+	lickPractice.demoNextCycle = true;
+	lickPractice.latestKeyResults = {};
+	lickPractice.sessionKeys = circle;
 	lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, lick.id);
 
 	lickPractice.phase = 'count-in';
@@ -737,6 +777,7 @@ export function startTrickSession(): boolean {
 	const variantLabel =
 		getVariantByKey(variantKey)?.label ?? normalizeParameterSignature(trickParameters);
 
+	const trickCircle = unlockedCircleFrom('C', getTrickUnlockedKeyCount(variantKey));
 	lickPractice.plan = [
 		{
 			kind: 'trick',
@@ -747,7 +788,7 @@ export function startTrickSession(): boolean {
 			phraseName: `${trick.name} · ${variantLabel}`,
 			phraseNumber: 1,
 			category: trick.category,
-			keys: unlockedCircleFrom('C', getTrickUnlockedKeyCount(variantKey)),
+			keys: trickCircle,
 			progressionType,
 			phrase,
 			trickId,
@@ -766,6 +807,11 @@ export function startTrickSession(): boolean {
 	lickPractice.roundNumber = 1;
 	lickPractice.masteredThisRound = [];
 	lickPractice.roundHistory = [];
+	// Tricks demo every cycle: the example phrase regenerates each round, so
+	// the ear reference is always new.
+	lickPractice.demoNextCycle = true;
+	lickPractice.latestKeyResults = {};
+	lickPractice.sessionKeys = trickCircle;
 	lickPractice.currentTempo = tempo;
 
 	lickPractice.phase = 'count-in';
@@ -1033,7 +1079,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	// that fit, otherwise extends to host a long lick's pickup + tail.
 	const lickBars = getLickBars(baseLick, progressionType, enableSubstitutions);
 	const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
-	const demoBars = mode === 'continuous' ? lickBars : 0;
+	const demoBars = demoBarsForItem(item, lickBars);
 	const instrument = getInstrument();
 	const highestNote = getEffectiveHighestNote();
 
@@ -1067,8 +1113,9 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	// Continuous-mode demo: the app plays the lick once in keys[0] before
 	// the user starts. The lick's notes go in at offset [0, lengthBars] and
 	// the harmony for keys[0] goes in at offset [0, P]. The user phase below
-	// is then shifted by `demoBars`.
-	if (mode === 'continuous') {
+	// is then shifted by `demoBars`. Skipped (demoBars = 0) on deep-practice
+	// cycles whose head key is already proficient — see demoBarsForItem.
+	if (demoBars > 0) {
 		const firstKey = item.keys[0];
 		const demoHarmony = harmonyForLick(baseLick, firstKey, progressionType, enableSubstitutions);
 		for (const seg of demoHarmony) {
@@ -1231,6 +1278,45 @@ function harmonyForLick(
 }
 
 /**
+ * How many demo bars a plan item's next cycle carries. Continuous mode
+ * normally opens every lick/round with a `lickBars`-long demo of keys[0];
+ * deep-practice lick cycles drop it (0 bars) once the head key is
+ * proficient (`demoNextCycle` false), so strong cycles flow back-to-back.
+ * Tricks and standard sessions always demo; call-response never does
+ * (each key embeds its own app half).
+ */
+function demoBarsForItem(item: LickPracticePlanItem, lickBars: number): number {
+	if (lickPractice.config.practiceMode !== 'continuous') return 0;
+	if (
+		lickPractice.mode === 'single-lick' &&
+		item.kind !== 'trick' &&
+		!lickPractice.demoNextCycle
+	) {
+		return 0;
+	}
+	return lickBars;
+}
+
+/**
+ * Demo-bar count for the plan item at `lickIdx` — the single source the
+ * session page's anchors/window scheduler and `buildLickSuperPhrase` share,
+ * so a skipped demo shortens the audio and the recording windows in
+ * lockstep.
+ */
+export function getDemoBars(lickIdx: number): number {
+	const item = lickPractice.plan[lickIdx];
+	if (!item) return 0;
+	const lick = resolveLickFor(item);
+	if (!lick) return 0;
+	const lickBars = getLickBars(
+		lick,
+		item.progressionType,
+		lickPractice.config.enableSubstitutions ?? false
+	);
+	return demoBarsForItem(item, lickBars);
+}
+
+/**
  * Number of bars each key occupies for the current lick + practice mode.
  * Continuous: lickBars (the lick's effective cycle, ≥ progressionBars).
  * Call-response: 2 × lickBars (app phase + user response).
@@ -1266,7 +1352,7 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 
 	const passed = score.overall >= PASS_THRESHOLD;
 
-	lickPractice.keyResults.push({
+	const result: LickPracticeKeyResult = {
 		key,
 		passed,
 		score: score.overall,
@@ -1275,12 +1361,18 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 		attempts: 1,
 		tempo: lickPractice.currentTempo,
 		sessionId
-	});
+	};
+	lickPractice.keyResults.push(result);
+	if (lickPractice.mode === 'single-lick') {
+		// Session-long per-key latest result — feeds the KeyProgressRing across
+		// round boundaries (keyResults itself is cleared every cycle).
+		lickPractice.latestKeyResults = { ...lickPractice.latestKeyResults, [key]: result };
+	}
 
-	if (passed) {
-		if (item.kind === 'trick') {
-			// Trick progress lives in the trick store, keyed by the composite
-			// variant key (item.phraseId) — never in lickPractice.progress.
+	if (item.kind === 'trick') {
+		// Trick progress lives in the trick store, keyed by the composite
+		// variant key (item.phraseId) — never in lickPractice.progress.
+		if (passed) {
 			const trickProgress = loadTrickPracticeProgress();
 			const prevPasses = getTrickKeyProgress(trickProgress, item.phraseId, key).passCount;
 			saveTrickPracticeProgress(
@@ -1290,19 +1382,28 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 					currentTempo: lickPractice.currentTempo
 				})
 			);
-		} else {
-			lickPractice.progress = updateKeyProgress(
-				lickPractice.progress,
-				item.phraseId,
-				key,
-				{
-					lastPracticedAt: Date.now(),
-					passCount: (lickPractice.progress[item.phraseId]?.[key]?.passCount ?? 0) + 1,
-					currentTempo: lickPractice.currentTempo
-				}
-			);
-			saveLickPracticeProgress(lickPractice.progress);
 		}
+	} else {
+		// Persist on EVERY attempt — the rolling score must see failures (it
+		// ranks keys worst-first for the deep-practice demo), and an attempt
+		// is practice for recency purposes. currentTempo is written explicitly
+		// because updateKeyProgress merges over getKeyProgress's 100-BPM
+		// default: an implicit write on a failed first attempt would seed a
+		// brand-new lick at 100 and override the 60-BPM new-lick tempo.
+		// passCount stays pass-gated.
+		const prev = lickPractice.progress[item.phraseId]?.[key];
+		lickPractice.progress = updateKeyProgress(
+			lickPractice.progress,
+			item.phraseId,
+			key,
+			{
+				lastPracticedAt: Date.now(),
+				currentTempo: lickPractice.currentTempo,
+				rollingScore: updateRollingScore(prev?.rollingScore, score.overall),
+				...(passed ? { passCount: (prev?.passCount ?? 0) + 1 } : {})
+			}
+		);
+		saveLickPracticeProgress(lickPractice.progress);
 	}
 
 	// Single-lick deep practice: track keys cleared at "close to perfect" so
@@ -1501,6 +1602,7 @@ export function advanceSingleLickRound(): void {
 
 			lickPractice.currentTempo = newTempo;
 			item.keys = fullCircle;
+			lickPractice.sessionKeys = fullCircle;
 		} else {
 			// Re-read the per-lick unlock count so any keys earned in a Standard
 			// session between rounds join on this cycle.
@@ -1533,9 +1635,31 @@ export function advanceSingleLickRound(): void {
 
 			lickPractice.currentTempo = newTempo;
 			item.keys = fullCircle;
+			// Refresh the ring anchor — the refill may have picked up a key
+			// unlocked elsewhere since the session started.
+			lickPractice.sessionKeys = fullCircle;
 		}
 	} else {
 		item.keys = survivors;
+	}
+
+	if (item.kind === 'trick') {
+		// Tricks demo every cycle (fresh example each round) and keep their
+		// rotation order — the worst-first policy is a lick concept.
+		lickPractice.demoNextCycle = true;
+	} else {
+		// Sort the next cycle worst-first from the rolling scores — which at
+		// this point already include this cycle's attempts — so the demo (and
+		// the user's first answer) land on the struggling key. Then decide
+		// whether that key still needs the demo at all: once the head key is
+		// proficient, cycles run back-to-back with no listening interlude.
+		// Call-response mode has its own per-key call, so never demos here.
+		item.keys = sortKeysWorstFirst(item.keys, (k) =>
+			getRollingScore(lickPractice.progress, item.phraseId, k)
+		);
+		lickPractice.demoNextCycle =
+			lickPractice.config.practiceMode === 'continuous' &&
+			shouldDemoHeadKey(getRollingScore(lickPractice.progress, item.phraseId, item.keys[0]));
 	}
 
 	// Tricks drill a formula, not a fixed phrase — regenerate the example on
@@ -1583,6 +1707,9 @@ export function resetSession(): void {
 	lickPractice.roundNumber = 0;
 	lickPractice.masteredThisRound = [];
 	lickPractice.roundHistory = [];
+	lickPractice.demoNextCycle = true;
+	lickPractice.latestKeyResults = {};
+	lickPractice.sessionKeys = [];
 	lickPractice.config.singleLickId = undefined;
 }
 

@@ -97,6 +97,16 @@ export interface LickPracticeKeyProgress {
 	currentTempo: number;
 	lastPracticedAt: number;
 	passCount: number;
+	/**
+	 * EWMA of this key's attempt scores (0-1), updated on EVERY scored attempt
+	 * — not just passes — so single-lick Deep Practice can rank keys
+	 * worst-first and aim the per-cycle demo at the struggling key. Absent on
+	 * entries written before the field existed (treated as unknown, which
+	 * ranks as "worst" so unfamiliar keys get demoed). Under the per-(lick,key)
+	 * LWW cloud merge each device's EWMA only saw its own attempts since the
+	 * last sync — an accepted approximation.
+	 */
+	rollingScore?: number;
 }
 
 /** Per-lick, per-key progress stored in localStorage */
@@ -175,7 +185,6 @@ export type LickPracticePhase =
 	| 'count-in'
 	| 'lick-running'
 	| 'inter-lick-rest'
-	| 'round-complete'
 	| 'complete';
 
 export interface LickPracticeKeyResult {

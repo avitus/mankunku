@@ -86,6 +86,42 @@ export const UNLOCK_AVG_THRESHOLD = KEY_PROFICIENT_THRESHOLD;
 export const UNLOCK_PASSES_REQUIRED = 3;
 
 /**
+ * EWMA weight of the NEWEST attempt in a key's `rollingScore`. At 0.4 a
+ * single result moves the average noticeably (a struggling key surfaces
+ * within a round or two) while one fluke can't erase a solid history.
+ * Cross-device note: the per-(lick,key) cloud merge is LWW, so each
+ * device's EWMA reflects only the attempts it saw since the last sync —
+ * an accepted approximation, since the next few attempts re-converge it.
+ */
+export const ROLLING_SCORE_ALPHA = 0.4;
+
+/**
+ * Fold one attempt score (0-1) into a key's rolling EWMA. Seeds with the
+ * first score when no prior value exists.
+ */
+export function updateRollingScore(
+	prev: number | undefined,
+	score: number,
+	alpha: number = ROLLING_SCORE_ALPHA
+): number {
+	if (prev === undefined) return score;
+	return alpha * score + (1 - alpha) * prev;
+}
+
+/**
+ * Read a key's rolling score. Undefined when the key has never been
+ * attempted on this device (or its entry predates the field) — callers
+ * treat unknown as "needs work" so unfamiliar keys rank worst.
+ */
+export function getRollingScore(
+	progress: LickPracticeProgress,
+	phraseId: string,
+	key: PitchClass
+): number | undefined {
+	return progress[phraseId]?.[key]?.rollingScore;
+}
+
+/**
  * Module-level Supabase reference, set during cloud hydration.
  * Used by write functions that don't receive a client parameter directly
  * (e.g. saveLickPracticeProgress called from session state).

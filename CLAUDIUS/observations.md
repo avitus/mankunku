@@ -520,3 +520,13 @@ Node 24.3.0 has no `localStorage` global, Node 26.5.1 has it as a lazy accessor.
 diagnosis came from probing the production box directly. A bug that exists only on a runtime
 you don't run is indistinguishable from a bug that doesn't exist, and the reflex to reach for
 the real environment early is worth more than any amount of local reasoning.
+
+## 2026-08-06 — The cheapest fix was a sort (Deep Practice continuous flow)
+
+Two things from this feature worth keeping as patterns:
+
+**Explore until the problem gets smaller.** "Track the struggling key and play the lick in it" sounded like a per-key call-response scheduler — variable bar budgets, per-key demo blocks, scroll-math surgery. The exploration found the demo was already hard-coded to `keys[0]` and the rotation order was just an array. At that point the feature became: *sort the array, and make the demo conditional*. The gap between the feature-as-imagined and the feature-as-implemented was one `Array.prototype.sort` with a stable comparator. Most of the eventual diff is persistence (rolling score) and boundary timing — the headline behavior is nearly free. When a feature looks expensive, look harder for the pivot point where existing machinery already does 90% of it.
+
+**A pass-gated metric cannot measure struggle.** The per-key store only wrote on scores ≥ 0.9, so the data needed to find weak keys was systematically discarded — the store recorded success and was blind to failure by construction. Worth generalizing: whenever a metric exists to drive *remediation*, check whether its write path filters out exactly the events the remediation needs. (Same shape as the nginx fallback observation from this morning: the system's own design hides the signal you need.)
+
+Also, an honest accounting: the synchronous-boundary hang risk (scoring early-return would have stranded the session) was caught by reading the guard clause during plan review, not by any test — the unit suite can't see it (it's a scheduling topology bug) and only the new e2e pins it. The class of bug where "the next step is scheduled by the previous step's success" needs the scheduling to be *unconditional* is worth a reflexive check anywhere it appears: the chain is only as alive as its weakest callback.

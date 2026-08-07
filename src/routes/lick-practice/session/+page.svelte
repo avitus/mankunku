@@ -16,6 +16,7 @@
 		getPlannedKeysForLick,
 		buildLickSuperPhrase,
 		getKeyBars,
+		getDemoBars,
 		recordKeyAttempt,
 		advance,
 		startInterLickTransition,
@@ -35,6 +36,8 @@
 		PROGRESSION_TEMPLATES
 	} from '$lib/data/progressions';
 	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
+	import { resolveNextCycleStart, planCycleWindows } from '$lib/state/lick-practice-rotation';
+	import { buildTurnaroundBarEvents, type BackingHit } from '$lib/audio/turnaround-bar';
 	import type { PlannedKey, LickBreatherInfo } from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
@@ -59,7 +62,11 @@
 	import { page } from '$app/state';
 	import type { DetectedNote, PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
-	import type { ChordProgressionType, SessionReport } from '$lib/types/lick-practice';
+	import type {
+		ChordProgressionType,
+		LickPracticeKeyResult,
+		SessionReport
+	} from '$lib/types/lick-practice';
 	import type { PitchDetectorHandle, PitchReading } from '$lib/audio/pitch-detector';
 	import type { MicCapture } from '$lib/audio/capture';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
@@ -154,6 +161,16 @@
 	// the hold begins so the card's content stays stable while it fades out
 	// (by the next bar currentLickIndex has advanced and keyResults cleared).
 	let breatherInfo = $state<LickBreatherInfo | null>(null);
+	// Single-lick inline feedback: the just-scored key's result, flashed as a
+	// tier-colored chip on its chart row without interrupting the scroll.
+	// `at` keys the CSS animation so back-to-back flashes restart it.
+	let scoreFlash = $state<{ key: PitchClass; score: number; at: number } | null>(null);
+	let scoreFlashTimeout: ReturnType<typeof setTimeout> | null = null;
+	// Idempotence guard for the single-lick cycle boundary: the tick whose
+	// boundary already ran. A cancelled-but-dequeued close event firing after
+	// stopAll is blocked by isSessionRunning; this guards a hypothetical
+	// double fire of the same boundary within a running session.
+	let lastBoundaryTick: number | null = null;
 	// Non-reactive tick-based timing anchors. Updated only at lick start,
 	// then read each animation frame to compute scrollFraction and
 	// currentBeat. Using ticks instead of seconds avoids the constant-BPM
@@ -184,13 +201,18 @@
 	let lickPracticeSessionLogId = '';
 	let lickPracticeSessionStartTs = 0;
 
-	// Inter-lick rest: 2 bars of backing-only between licks. The rest is
-	// split visually: the first SCORE_HOLD_BARS keep the finished lick on
-	// screen so the last key's score dot is actually seen (it lands at the
-	// same tick the lick ends), then the display flips to the next lick
-	// while a ii-V cue into its key fills the final rest bar.
+	// Inter-lick rest (STANDARD mode only): 2 bars of backing-only between
+	// licks. The rest is split visually: the first SCORE_HOLD_BARS keep the
+	// finished lick on screen so the last key's score dot is actually seen
+	// (it lands at the same tick the lick ends), then the display flips to
+	// the next lick while a ii-V cue into its key fills the final rest bar.
 	const INTER_LICK_REST_BARS = 2;
 	const SCORE_HOLD_BARS = 1;
+	// Single-lick deep practice has no rest at all: cycles join over ONE bar
+	// of full rhythm-section turnaround (ii-V into the next head key), so the
+	// band never stops and the user keeps playing. The bar doubles as the
+	// scheduling lead for the next cycle's audio.
+	const TURNAROUND_BARS = 1;
 
 	/**
 	 * Recording window — captures the state needed to score a single key's
@@ -219,6 +241,23 @@
 
 	const currentItem = $derived(getCurrentPlanItem());
 	const currentKey = $derived(getCurrentKey());
+
+	// Ring props fork by mode. Single-lick renders the STABLE session key set
+	// with session-long latest results — `plan[0].keys` shrinks as keys
+	// master out and reorders worst-first every cycle, which would make dots
+	// jump and vanish; `sessionKeys`/`latestKeyResults` don't. The current
+	// key is then matched by key (currentKeyIndex indexes the rotation, not
+	// the ring).
+	const ringKeys = $derived(
+		lickPractice.mode === 'single-lick' ? lickPractice.sessionKeys : (currentItem?.keys ?? [])
+	);
+	const ringResults = $derived(
+		lickPractice.mode === 'single-lick'
+			? Object.values(lickPractice.latestKeyResults).filter(
+					(r): r is LickPracticeKeyResult => r !== undefined
+				)
+			: lickPractice.keyResults
+	);
 	const currentPhrase = $derived(getCurrentPhrase());
 	const currentProgressionType = $derived(getCurrentProgressionType());
 	const instrument = $derived(getInstrument());
@@ -417,11 +456,12 @@
 		// for licks that fit, longer for licks with extension. Drives demo
 		// length and (in C&R mode) the offset between the app and user halves.
 		const lickBars = mode === 'call-response' ? keyBars / 2 : keyBars;
-		// In continuous mode, the lick's audio begins with a demo cycle of
-		// `lickBars` bars (the app plays the lick once in keys[0]).
-		// In C&R mode there's no separate demo (each key has its own
-		// app-then-user pattern), so demoBars = 0.
-		const demoBars = mode === 'continuous' ? lickBars : 0;
+		// Demo block length — normally `lickBars` in continuous mode, but 0 on
+		// deep-practice cycles whose head key is already proficient (the state
+		// module's demoNextCycle decision) and always 0 in C&R mode (each key
+		// has its own app-then-user pattern). getDemoBars is the same source
+		// buildLickSuperPhrase reads, so audio and windows stay in lockstep.
+		const demoBars = getDemoBars(lickIdx);
 
 		// Build the planned-keys stack and timing anchors for the continuous
 		// scroll preview. Both update on every lick boundary so the scroll
@@ -437,9 +477,9 @@
 		// left over from the previous lick so the breather card cross-fades
 		// back to the sliding chart.
 		inScoreHold = false;
-		// Continuous mode is in "demo" state at the start of every lick
-		// until the first user recording window opens.
-		isDemoing = mode === 'continuous';
+		// "Demo" state until the first user recording window opens — only when
+		// this cycle actually carries a demo block.
+		isDemoing = demoBars > 0;
 
 		if (isFirstLick) {
 			isSessionRunning = true;
@@ -536,46 +576,61 @@
 		if (!item) return;
 
 		const mode = lickPractice.config.practiceMode;
-		const keyTicks = keyBars * ticksPerBar;
-		// Demo cycle (continuous mode only) — the app plays the lick once
-		// in keys[0] before the user starts. The first user window opens
-		// `demoBars` bars after the audio starts.
-		const demoBars = mode === 'continuous' ? lickBars : 0;
-		const lickStartTick = audioStartTick + demoBars * ticksPerBar;
+		// Demo block (if any) precedes the first user window. Same source as
+		// startLick and buildLickSuperPhrase (getDemoBars), so a skipped
+		// demo shortens the audio and the windows in lockstep.
+		const demoBars = getDemoBars(lickIdx);
 		// In call-response mode the user's bars start `lickBars` into each
-		// key window (after the app has played its half).
+		// key window (after the app has played its half); continuous-mode
+		// users play the full window.
 		const userBarsOffset = mode === 'call-response' ? lickBars * ticksPerBar : 0;
 
-		for (let i = 0; i < item.keys.length; i++) {
-			const keyStartTick = lickStartTick + i * keyTicks;
-			// In continuous mode the user plays the full keyTicks window.
-			// In call-response mode the user plays only the second half.
-			const recordingOpenTick = keyStartTick + userBarsOffset;
-			const recordingCloseTick = keyStartTick + keyTicks;
+		const windows = planCycleWindows({
+			audioStartTick,
+			demoBars,
+			keyBars,
+			ticksPerBar,
+			keyCount: item.keys.length,
+			userBarsOffsetTicks: userBarsOffset
+		});
+		const lickEndTick = windows.cycleEndTick;
+		lickEndFreezeTick = lickEndTick;
 
+		for (let i = 0; i < item.keys.length; i++) {
 			const keyIndexForCallback = i;
+			const isLastKey = i === item.keys.length - 1;
 
 			const openId = transport.scheduleOnce((time: number) => {
 				openRecordingWindow(lickIdx, keyIndexForCallback, time);
-			}, `${recordingOpenTick}i`);
+			}, `${windows.opens[i]}i`);
 			scheduledEventIds.push(openId);
 
 			const closeId = transport.scheduleOnce((time: number) => {
 				closeAndScoreWindow(time);
-			}, `${recordingCloseTick}i`);
+				// Single-lick: the cycle boundary runs HERE — synchronously
+				// after the last key scores, from the scheduled callback
+				// rather than inside closeAndScoreWindow's guarded body, so a
+				// scoring early-return can never leave the session hanging
+				// with no next cycle scheduled.
+				if (isLastKey && lickPractice.mode === 'single-lick') {
+					handleSingleLickCycleBoundary(lickEndTick, ticksPerBar);
+				}
+			}, `${windows.closes[i]}i`);
 			scheduledEventIds.push(closeId);
 		}
 
-		// End of lick: the last key's score lands in keyResults at
-		// lickEndTick (its close callback fires there), so the transition
-		// waits SCORE_HOLD_BARS before flipping the display — flipping at
-		// lickEndTick would wipe the final dot's colour in the same frame
-		// it appears. The pre-computed nextLickStartTick is passed through
-		// so scheduleNextPhrase can land the audio on the correct bar
+		// Single-lick mode joins cycles via the synchronous boundary above —
+		// no rest, no delayed transition event.
+		if (lickPractice.mode === 'single-lick') return;
+
+		// End of lick (standard mode): the last key's score lands in
+		// keyResults at lickEndTick (its close callback fires there), so the
+		// transition waits SCORE_HOLD_BARS before flipping the display —
+		// flipping at lickEndTick would wipe the final dot's colour in the
+		// same frame it appears. The pre-computed nextLickStartTick is passed
+		// through so scheduleNextPhrase can land the audio on the correct bar
 		// boundary regardless of when the callback fires.
-		const lickEndTick = lickStartTick + item.keys.length * keyTicks;
 		const nextLickStartTick = lickEndTick + INTER_LICK_REST_BARS * ticksPerBar;
-		lickEndFreezeTick = lickEndTick;
 
 		const restId = transport.scheduleOnce(() => {
 			handleLickComplete(nextLickStartTick, ticksPerBar);
@@ -584,12 +639,14 @@
 	}
 
 	/**
-	 * Called SCORE_HOLD_BARS into the inter-lick rest (the finished lick,
-	 * with its last key's score dot, stays on screen for that bar) —
-	 * archives results, bumps tempo if all 12 keys passed, and either
-	 * transitions to the next lick or completes the session. The
-	 * pre-computed nextLickStartTick ensures the audio lands on the
-	 * correct bar boundary however late the callback fires.
+	 * STANDARD mode only. Called SCORE_HOLD_BARS into the inter-lick rest
+	 * (the finished lick, with its last key's score dot, stays on screen for
+	 * that bar) — archives results, bumps tempo if all 12 keys passed, and
+	 * either transitions to the next lick or completes the session. The
+	 * pre-computed nextLickStartTick ensures the audio lands on the correct
+	 * bar boundary however late the callback fires. Single-lick sessions
+	 * never schedule this — their cycles join synchronously in
+	 * handleSingleLickCycleBoundary.
 	 */
 	async function handleLickComplete(
 		nextLickStartTick: number,
@@ -598,15 +655,6 @@
 		// A cancelled event can still fire if it was already dequeued when
 		// End Session ran — never restart audio after stopAll().
 		if (!isSessionRunning) return;
-		if (lickPractice.mode === 'single-lick') {
-			// Endless drill mode: drop mastered keys, possibly bump tempo + refill,
-			// then keep going. There's no 'complete' branch — only the user's
-			// End Session button stops the session.
-			advanceSingleLickRound();
-			await startLick(0, false, nextLickStartTick);
-			scheduleTransitionCue(nextLickStartTick, ticksPerBar);
-			return;
-		}
 		const result = startInterLickTransition();
 		if (result === 'complete') {
 			finishSession();
@@ -617,6 +665,94 @@
 		// even though this callback fires a bar earlier.
 		await startLick(lickPractice.currentLickIndex, false, nextLickStartTick);
 		scheduleTransitionCue(nextLickStartTick, ticksPerBar);
+	}
+
+	/**
+	 * SINGLE-LICK cycle boundary — runs at lickEndTick, in the same JS task
+	 * as the last key's closeAndScoreWindow (so the final score is already
+	 * in). One synchronous pass: round bookkeeping (which sorts the next
+	 * rotation worst-first and decides whether it opens with a demo), then
+	 * scheduling the next cycle's audio + windows one turnaround bar out,
+	 * then the turnaround band into the new head key. The band never stops
+	 * and no per-round card ever shows — "rounds" stay invisible until the
+	 * final report.
+	 *
+	 * startLick's non-first branch is synchronous through scheduleLickWindows
+	 * (its scheduleNextPhrase is void-called), which gives the audio ~1 bar +
+	 * Tone's lookahead of lead — the same lead the standard flow provides.
+	 */
+	function handleSingleLickCycleBoundary(lickEndTick: number, ticksPerBar: number): void {
+		// A cancelled event can still fire if it was already dequeued when
+		// End Session ran — never restart audio after stopAll().
+		if (!isSessionRunning || !toneModule) return;
+		if (lastBoundaryTick === lickEndTick) return;
+		lastBoundaryTick = lickEndTick;
+
+		// Bookkeeping first: drops mastered keys, sorts survivors worst-first
+		// from the rolling scores (including the attempt just recorded), sets
+		// demoNextCycle, and bumps tempo + refills on a full clear. The next
+		// cycle's layout and the turnaround's target key both depend on it.
+		advanceSingleLickRound();
+
+		// Late-callback degrade: if a stalled main thread left less than a
+		// beat of lead before the ideal downbeat, push the start forward by
+		// whole bars — the turnaround stretches rather than clipping audio.
+		const transport = toneModule.getTransport();
+		const nextStartTick = resolveNextCycleStart(
+			lickEndTick + TURNAROUND_BARS * ticksPerBar,
+			transport.ticks,
+			ticksPerBar,
+			transport.PPQ
+		);
+
+		void startLick(0, false, nextStartTick);
+		scheduleTurnaroundBand(nextStartTick, ticksPerBar);
+	}
+
+	/**
+	 * One bar of full rhythm section (ii-V into the next cycle's head key)
+	 * filling the single-lick turnaround. Same transport-event + near-now
+	 * trigger pattern as scheduleTransitionCue — and for the same reason:
+	 * startLick's scheduleNextPhrase runs a deferred disposeBackingParts()
+	 * that would destroy anything riding the backing Parts, and one-off
+	 * events stay cancellable by End Session's transport.cancel(). Anchored
+	 * to the LAST bar before the downbeat, so when a late boundary stretched
+	 * the turnaround the band still resolves straight into the new cycle.
+	 */
+	function scheduleTurnaroundBand(nextLickStartTick: number, ticksPerBar: number): void {
+		if (!toneModule || !backingTrack) return;
+		if (!settings.backingTrackEnabled || !backingTrack.isBackingLoaded()) return;
+		const item = getCurrentPlanItem();
+		// startLick has just rebuilt plannedKeysForLick for the NEW cycle, so
+		// row 0 is the key the turnaround resolves into.
+		const nextKey = plannedKeysForLick[0]?.key ?? item?.keys[0];
+		if (!item || !nextKey) return;
+
+		const transport = toneModule.getTransport();
+		const ppq = transport.PPQ;
+		const events = buildTurnaroundBarEvents({
+			progressionType: item.progressionType,
+			targetKey: nextKey,
+			backingStyle: lickPractice.config.backingStyle ?? 'swing',
+			tempo: lickPractice.currentTempo,
+			swing: settings.swing,
+			ppq,
+			beatsPerBar: Math.round(ticksPerBar / ppq)
+		});
+
+		const barStartTick = nextLickStartTick - ticksPerBar;
+		const hitsByTick = new Map<number, BackingHit[]>();
+		for (const ev of events) {
+			const hits = hitsByTick.get(ev.tickOffset);
+			if (hits) hits.push(ev.hit);
+			else hitsByTick.set(ev.tickOffset, [ev.hit]);
+		}
+		for (const [tickOffset, hits] of hitsByTick) {
+			const id = transport.scheduleOnce((time: number) => {
+				backingTrack?.playBackingHitsNow(hits, time);
+			}, `${barStartTick + tickOffset}i`);
+			scheduledEventIds.push(id);
+		}
 	}
 
 	/**
@@ -947,6 +1083,17 @@
 			} catch (err) {
 				console.warn('[lick-practice] recordKeyAttempt failed:', err);
 			}
+			// Single-lick inline feedback: flash the scored key's tier + percent
+			// on its chart row. Replaces the per-round breather card — the flow
+			// never stops, so feedback rides the scroll instead of pausing it.
+			if (lickPractice.mode === 'single-lick') {
+				scoreFlash = { key: window.key, score: score.overall, at: Date.now() };
+				if (scoreFlashTimeout) clearTimeout(scoreFlashTimeout);
+				scoreFlashTimeout = setTimeout(() => {
+					scoreFlash = null;
+					scoreFlashTimeout = null;
+				}, 2200);
+			}
 			try {
 				// Split the running report into per-progression slices so the
 				// session log records each progression actually practiced. For
@@ -1034,21 +1181,26 @@
 		// Advance the key index. The scheduler has already scheduled the
 		// next key's window open callback, so the UI just needs to update.
 		const step = advance();
-		if (step === 'end-of-lick') {
-			// The last key just scored — enter the score-hold. Snapshot the
-			// finished lick now, before the delayed handleLickComplete (a bar
-			// later) advances currentLickIndex and clears keyResults. The
-			// cross-fade swaps the frozen chart for the breather card.
+		if (step === 'end-of-lick' && lickPractice.mode !== 'single-lick') {
+			// Standard mode: the last key just scored — enter the score-hold.
+			// Snapshot the finished lick now, before the delayed
+			// handleLickComplete (a bar later) advances currentLickIndex and
+			// clears keyResults. The cross-fade swaps the frozen chart for the
+			// breather card. Single-lick mode has no hold at all — its cycle
+			// boundary runs synchronously right after this function returns
+			// (see scheduleLickWindows) and the score flash above is the only
+			// feedback.
 			breatherInfo = buildBreatherInfo();
 			inScoreHold = true;
 		}
 	}
 
 	/**
-	 * Snapshot the just-finished lick for the breather card. Called from
-	 * closeAndScoreWindow the moment the last key scores, while keyResults
-	 * still holds the full finished lick and currentLickIndex still points at
-	 * it (both change a bar later in the transition).
+	 * Snapshot the just-finished lick for the breather card (standard mode
+	 * only). Called from closeAndScoreWindow the moment the last key scores,
+	 * while keyResults still holds the full finished lick and
+	 * currentLickIndex still points at it (both change a bar later in the
+	 * transition).
 	 */
 	function buildBreatherInfo(): LickBreatherInfo {
 		const item = getCurrentPlanItem();
@@ -1058,17 +1210,10 @@
 				? results.reduce((sum, r) => sum + r.score, 0) / results.length
 				: 0;
 
-		let next: LickBreatherInfo['next'];
-		if (lickPractice.mode === 'single-lick') {
-			// Endless drill: same lick, next round. roundNumber still holds the
-			// round just finished, so the upcoming round is +1.
-			next = { kind: 'round', round: lickPractice.roundNumber + 1 };
-		} else {
-			const nextItem = lickPractice.plan[lickPractice.currentLickIndex + 1];
-			next = nextItem
-				? { kind: 'next', name: nextItem.phraseName }
-				: { kind: 'done' };
-		}
+		const nextItem = lickPractice.plan[lickPractice.currentLickIndex + 1];
+		const next: LickBreatherInfo['next'] = nextItem
+			? { kind: 'next', name: nextItem.phraseName }
+			: { kind: 'done' };
 
 		return { lickName: item?.phraseName ?? '', scorePct, next };
 	}
@@ -1094,7 +1239,11 @@
 		// archived the lick — run the archival now so tempo adjustments,
 		// key unlocks, and round bookkeeping aren't lost. Idempotent: the
 		// transition clears keyResults, so a repeat call can't match the
-		// full-lick length again.
+		// full-lick length again. The single-lick arm is defensively dead
+		// since the boundary went synchronous (advanceSingleLickRound runs in
+		// the same JS task that records the last key's score, so keyResults
+		// can never sit at full length between tasks) — kept because it costs
+		// nothing and guards any future re-sequencing of that boundary.
 		const heldItem = getCurrentPlanItem();
 		if (heldItem && lickPractice.keyResults.length >= heldItem.keys.length) {
 			if (lickPractice.mode === 'single-lick') {
@@ -1103,6 +1252,14 @@
 				startInterLickTransition();
 			}
 		}
+		// Kill any in-flight score flash so a stale chip can't outlive the
+		// session into the report screen or a restart.
+		if (scoreFlashTimeout) {
+			clearTimeout(scoreFlashTimeout);
+			scoreFlashTimeout = null;
+		}
+		scoreFlash = null;
+		lastBoundaryTick = null;
 		// Capture whether the session was actually running.  Resources
 		// created during initializeSession() (mic, detectors, timers)
 		// can exist while isSessionRunning is still false, so we always
@@ -1515,6 +1672,7 @@
 					isPlaying={isSessionRunning}
 					{isRecording}
 					{isDemoing}
+					{scoreFlash}
 					{instrument}
 				/>
 			</div>
@@ -1533,9 +1691,10 @@
 		<!-- Key progress ring -->
 		<div class="flex justify-center">
 			<KeyProgressRing
-				keys={currentItem.keys}
+				keys={ringKeys}
 				currentKeyIndex={lickPractice.currentKeyIndex}
-				keyResults={lickPractice.keyResults}
+				currentKey={lickPractice.mode === 'single-lick' ? currentKey : undefined}
+				keyResults={ringResults}
 				tempo={lickPractice.currentTempo}
 			/>
 		</div>

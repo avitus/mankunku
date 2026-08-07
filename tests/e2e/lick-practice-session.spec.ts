@@ -101,4 +101,63 @@ test.describe('lick-practice session flow', () => {
 		// The report offers the restart path.
 		await expect(page.getByRole('button', { name: /new session/i })).toBeVisible();
 	});
+
+	/**
+	 * Single-lick Deep Practice continuous flow. The critical regression this
+	 * pins is the synchronous cycle boundary: the last key's close event must
+	 * itself schedule the next cycle (advance → sort → startLick → turnaround)
+	 * with NO rest bars, NO breather card, and NO user interaction — a bug
+	 * there strands the session silent after one cycle. So the strongest
+	 * assertion available is a SECOND recording window opening on its own
+	 * after the first one closed. The inline score flash replaces the old
+	 * per-round card as the only feedback surface.
+	 */
+	test('deep practice joins cycles continuously with inline score feedback', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+
+		// Two full cycles at 60 BPM (demo + user window + turnaround, ~20s each
+		// warm) after cold sample loading — same budget shape as the daily test.
+		test.setTimeout(240_000);
+
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await installAudioMock(page);
+
+		// Deep Practice launches from the lick's detail page.
+		await page.goto('/licks/e2e-user-lick-bebop');
+		await page.getByRole('button', { name: /^practice$/i }).click();
+		await expect(page).toHaveURL(/\/lick-practice\/session$/);
+		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible({
+			timeout: 20_000
+		});
+
+		// Cycle 1 opens with the session's one guaranteed demo (Listen chip),
+		// then the user window. Generous first wait — CDN samples load here.
+		await expect(page.locator('.listen-tag')).toBeVisible({ timeout: 90_000 });
+		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 30_000 });
+
+		// The window closes and scores silently: the tier-colored flash is the
+		// only feedback — no breather card, no pause. (The mocked mic scores
+		// whatever it scores; the flash's presence is the contract, not its value.)
+		await expect(page.locator('.chart-wrap.recording')).toBeHidden({ timeout: 60_000 });
+		await expect(page.locator('.score-flash')).toBeVisible({ timeout: 10_000 });
+
+		// The boundary must have scheduled cycle 2 on its own: a new recording
+		// window opens with zero interaction. This is the no-stoppage proof —
+		// under the old flow 2 rest bars + a breather card sat here; under a
+		// boundary regression nothing would ever open again.
+		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
+
+		// Endless by design: still running, no report, no round card.
+		await expect(page.getByRole('heading', { name: /session report/i })).not.toBeVisible();
+		await expect(page.getByText(/keep going/i)).not.toBeVisible();
+		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
+	});
 });

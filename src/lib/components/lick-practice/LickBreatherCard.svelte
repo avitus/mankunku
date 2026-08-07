@@ -33,8 +33,6 @@
 	<div class="mt-1 text-base font-medium text-[var(--color-text-secondary)]">
 		{#if next.kind === 'next'}
 			Next up: <span class="text-[var(--color-text)]">{next.name}</span>
-		{:else if next.kind === 'round'}
-			Round {next.round} — keep going
 		{:else}
 			That's the set — nice work!
 		{/if}
