@@ -388,17 +388,70 @@ describe('other styles under the context signature', () => {
 		}
 	});
 
-	it('bossa keeps its on-beat clave shape (no swung eighths)', () => {
+	it('bossa comp states a clave-side figure with its anchor intact', () => {
+		// Deep bossa behavior lives in backing-bossa.test.ts; here just pin
+		// the pattern-function contract: the offsets are a SUBSET of one
+		// clave side's figure (thinning may drop non-anchor hits), with that
+		// side's anchor always present.
 		const style = BACKING_STYLES['bossa-nova'];
 		const comp = style.compPattern(ctxFor({ rng: createRng(1) }));
-		expect(comp.map((h) => h.beatOffset)).toEqual([0, 2, 3]);
+		const offsets = comp.map((h) => h.beatOffset);
+		const sides = [
+			[0, 1.5, 3],
+			[1, 2.5]
+		];
+		const side = sides.find((s) => offsets.every((o) => s.includes(o)));
+		expect(side, `offsets ${offsets} fit one clave side`).toBeDefined();
+		expect(offsets).toContain(side![0]);
 	});
 
-	it('ballad stays sparse: one soft kick, ride quarters', () => {
+	it('ballad stays sparse and quiet: soft ride quarters, foot hats, whisper kick', () => {
+		// Deep ballad behavior lives in backing-ballad.test.ts; pin the
+		// pattern-function contract across seeds.
 		const style = BACKING_STYLES.ballad;
-		const drums = style.drumPattern(ctxFor({ rng: createRng(1) }));
-		expect(drums.filter((h) => h.drum === 'kick')).toHaveLength(1);
-		expect(drums.filter((h) => h.drum === 'ride')).toHaveLength(4);
-		expect(drums.filter((h) => h.drum === 'hihat')).toHaveLength(0);
+		for (let seed = 0; seed < 10; seed++) {
+			const drums = style.drumPattern(ctxFor({ rng: createRng(seed) }));
+			expect(drums.filter((h) => h.drum === 'ride').map((h) => h.beatOffset)).toEqual([0, 1, 2, 3]);
+			expect(drums.filter((h) => h.drum === 'hihat-pedal').map((h) => h.beatOffset)).toEqual([1, 3]);
+			for (const h of drums) {
+				if (h.drum === 'kick') expect(h.velocity).toBeLessThan(0.2);
+				if (h.drum === 'snare') expect(h.velocity).toBeLessThan(0.2);
+				expect(h.velocity).toBeLessThan(0.4);
+			}
+			expect(drums.some((h) => h.drum === 'hihat' || h.drum === 'crash')).toBe(false);
+		}
+	});
+});
+
+describe('generateBackingCached', () => {
+	it('returns events deep-equal to the uncached path, as fresh objects', async () => {
+		const { generateBackingCached } = await import('$lib/audio/backing-generation');
+		const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
+		const p = params();
+		const direct = generateBacking(harmony, BACKING_STYLES.swing, p);
+		const first = generateBackingCached(harmony, BACKING_STYLES.swing, p);
+		const second = generateBackingCached(harmony, BACKING_STYLES.swing, p);
+		expect(first).toEqual(direct);
+		expect(second).toEqual(direct);
+		// A hit must hand out fresh objects — callers must not be able to
+		// corrupt the cache (or each other) through a shared reference.
+		expect(second).not.toBe(first);
+		expect(second.drumEvents).not.toBe(first.drumEvents);
+	});
+
+	it('misses on any key ingredient changing', async () => {
+		const { generateBackingCached } = await import('$lib/audio/backing-generation');
+		const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
+		const base = generateBackingCached(harmony, BACKING_STYLES.swing, params());
+		const otherTempo = generateBackingCached(harmony, BACKING_STYLES.swing, params({ tempo: 200 }));
+		const otherStyle = generateBackingCached(harmony, BACKING_STYLES.straight, params());
+		const otherHarmony = generateBackingCached(
+			bars(['F', 'maj7'], ['F', 'maj7'], ['F', 'maj7'], ['F', 'maj7']),
+			BACKING_STYLES.swing,
+			params()
+		);
+		expect(otherTempo).not.toEqual(base);
+		expect(otherStyle.drumEvents).not.toEqual(base.drumEvents);
+		expect(otherHarmony.bassEvents).not.toEqual(base.bassEvents);
 	});
 });

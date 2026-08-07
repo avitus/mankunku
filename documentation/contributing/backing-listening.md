@@ -78,7 +78,11 @@ body ~18 dB above the ride bed, and the trigger gain stacked another +4–6 dB.
 Fixed in increment 8.5: soft-layer (vl1) crash re-export with decay shortened
 to ~3 s, `BACKING_BASE_TRIMS.crash` 0.9 → 0.55 (see
 `static/samples/drums/ATTRIBUTION.md`, "Crash exception"). Generation was
-deliberately untouched, so goldens and the report are unchanged.
+deliberately untouched, so goldens and the report are unchanged. Confirm
+listen verdict (2026-08-06, post-fix): better, and best at 85% of the fixed
+level — trim refined 0.55 → 0.51. (smplr's velocity→gain curve is quadratic,
+so × √0.85 in velocity space is × 0.85 in output *amplitude* — the sqrt rule
+documented at `BACKING_BASE_TRIMS`.)
 
 ### Milestone A — 2026-08-05 — verdict: tie (no perceived difference)
 

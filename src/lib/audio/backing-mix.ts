@@ -1,10 +1,11 @@
 /**
  * Per-instrument mix levels for the backing track.
  *
- * `bass`, `comp` and `drums` are linear gain multipliers layered on top of
- * the overall backing volume; the drum-voice keys are velocity multipliers
- * applied at drum trigger time — the kit is one sampler, so voice balance
- * can only be shaped through velocity.
+ * `bass`, `comp`, `drums` and `room` are linear gain multipliers layered
+ * on top of the overall backing volume; the drum-voice keys are velocity
+ * multipliers applied at drum trigger time — voices share their family's
+ * sampler output, so within-family balance can only be shaped through
+ * velocity.
  *
  * Levels persist to localStorage so a mix tuned on the
  * /diagnostics/backing-mixer page applies to every session on this device.
@@ -23,6 +24,9 @@ export interface BackingMixLevels {
 	crossstick: number;
 	'ride-bell': number;
 	crash: number;
+	/** Room-reverb return level (0 = dry). Added 2026-08; older persisted
+	 *  mixes lack the key and normalize to the default. */
+	room: number;
 }
 
 export const DEFAULT_BACKING_MIX: BackingMixLevels = {
@@ -36,7 +40,8 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
 	snare: 1,
 	crossstick: 1,
 	'ride-bell': 1,
-	crash: 1
+	crash: 1,
+	room: 1
 };
 
 /**
@@ -61,7 +66,7 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
  * the generator barely emits yet start at family-matched estimates for
  * the milestone listening pass.
  */
-export const BACKING_BASE_TRIMS: Record<keyof BackingMixLevels, number> = {
+export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room'>, number> = {
 	bass: 0.05,
 	comp: 0.1,
 	drums: 1.8,
@@ -75,7 +80,9 @@ export const BACKING_BASE_TRIMS: Record<keyof BackingMixLevels, number> = {
 	// Ear-tuned at Milestone B (2026-08-06): the peak-normalized crash body
 	// sits far above the ride bed (peak normalization is blind to sustain),
 	// so its trim is the one drum entry set well below its family estimate.
-	crash: 0.55
+	// Refined on the confirm listen: 85% of the 0.55 calibration's level,
+	// converted through the sqrt rule above (0.55 × √0.85 ≈ 0.51).
+	crash: 0.51
 };
 
 const MIX_MAX = 3;
@@ -129,3 +136,58 @@ export function saveBackingMix(mix: BackingMixLevels): void {
 export function voiceVelocity(base: number, trim: number): number {
 	return Math.max(0, Math.min(1, base * trim));
 }
+
+// ── Spatial + bus policy (increment 9) ───────────────────────
+//
+// One place for every number the live graph (backing-track.ts) and the
+// offline bounce (backing-bounce.ts) must AGREE on, so a lab WAV keeps
+// sounding like the app. Values are Web Audio units: pans in [-1, 1],
+// sends/returns linear gain, compressor params in the units
+// DynamicsCompressorNode takes.
+
+/** The drum kit splits into three sampler families, each with its own
+ *  pan position (a kit is wide; one mono point-source is an amateur tell). */
+export type DrumFamily = 'kick' | 'snare' | 'cymbals';
+
+/** Stereo positions per backing source. Bass and kick anchor the center
+ *  (low frequencies pull the image); comp sits slightly left like a
+ *  pianist across the room, snare just off-center, cymbals right. */
+export const BACKING_PANS: Record<'bass' | 'comp' | DrumFamily, number> = {
+	bass: 0,
+	comp: -0.2,
+	kick: 0,
+	snare: -0.1,
+	cymbals: 0.25
+};
+
+/** Per-source room-reverb send levels (pre-return linear gain). Snare and
+ *  comp speak in the room; bass and kick stay nearly dry — low-end reverb
+ *  reads as mud, not space. */
+export const ROOM_SENDS: Record<'bass' | 'comp' | DrumFamily, number> = {
+	bass: 0.04,
+	comp: 0.12,
+	kick: 0.02,
+	snare: 0.15,
+	cymbals: 0.12
+};
+
+/** Room return into the backing bus: ≈ −18 dB, scaled by `mix.room`. */
+export const ROOM_RETURN_GAIN = 0.126;
+
+/** Path to the small-room impulse response (Opus, same fetch+decode path
+ *  as the drum samples). Load is best-effort: no IR → dry backing. */
+export const ROOM_IR_URL = '/samples/ir/room.ogg';
+
+/**
+ * Glue compressor on the backing bus only (master carries the melody and
+ * stays untouched): gentle 2:1 over a soft knee, fast-ish attack to catch
+ * stacked transients (crash + comp push + bass on a downbeat), musical
+ * release. Values are the DynamicsCompressorNode AudioParam targets.
+ */
+export const BACKING_BUS_COMPRESSOR = {
+	threshold: -24,
+	knee: 30,
+	ratio: 2,
+	attack: 0.01,
+	release: 0.25
+} as const;

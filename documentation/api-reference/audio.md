@@ -486,7 +486,13 @@ interface SampleMap {
   velocitySplit: number;
 }
 
-type DrumBufferName = 'kick' | 'ride' | 'hihat';
+type DrumBufferName =
+  | 'kick'
+  | 'ride' | 'ride_soft' | 'ride_acc' | 'ride_bell'
+  | 'hihat' | 'hihat_pedal'
+  | 'snare_ghost' | 'snare_med' | 'snare_acc'
+  | 'crossstick'
+  | 'crash';
 ```
 
 ### Constants
@@ -495,7 +501,8 @@ type DrumBufferName = 'kick' | 'ride' | 'hihat';
 - **`ALTO_SAX_SAMPLES: SampleMap`** — Alto sax multi-samples with per-note tuning corrections.
 - **`SOPRANO_SAX_SAMPLES: SampleMap`** — Soprano sax multi-samples with per-note tuning corrections.
 - **`SAMPLE_MAPS: Record<string, SampleMap>`** — Registry keyed by instrument id. Currently `'tenor-sax'`, `'alto-sax'`, and `'soprano-sax'` (mapping to `TENOR_SAX_SAMPLES`, `ALTO_SAX_SAMPLES`, and `SOPRANO_SAX_SAMPLES` respectively).
-- **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0). Keys: `kick`, `ride`, `hihat`.
+- **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0), one per velocity layer/articulation (kick, three ride layers + bell, hats + pedal, three snare layers, cross-stick, crash).
+- **`DRUM_FAMILY_BY_VOICE`** / **`DRUM_BUFFER_FAMILY`** — which sampler family (kick / snare / cymbals — see `DrumFamily` in backing-mix.ts) plays each semantic voice; the buffer-level table is derived from `DRUM_ARTICULATIONS` so a future velocity layer lands in its voice's family automatically.
 
 ### `layerToBuffers(layer): Record<string, string>`
 
@@ -573,6 +580,7 @@ interface GenerationContext {
   };
   bassOnsets?: number[];      // beat offsets, for kick/bass pickup coupling
   fillRng?: SeededRng;        // dedicated drum-fill stream (form punctuation)
+  clavePhase?: '32' | '23';   // phrase-level bossa clave phase (clavePhaseFor)
 }
 
 interface CompHitSpec { beatOffset: number; velocity: number; durationBeats: number }
@@ -588,7 +596,11 @@ interface StyleDefinition {
   compPlanning?: boolean;     // comp figures planned phrase-wide
   drumPattern: (ctx: GenerationContext) => DrumHitSpec[];  // one bar
   compPattern: (ctx: GenerationContext) => CompHitSpec[];  // one bar
-  bassStyle: 'walking' | 'pedal' | 'pattern';
+  bass: 'auto' | 'two' | 'pattern';  // walking | permanent two-feel | bossa ostinato
+  intensityCap?: number;             // ceiling on the ensemble arc (ballad: 0.6)
+  voicingBias?: Partial<Record<     // comp voicing-weight multipliers
+    'rootlessA' | 'rootlessB' | 'shell' | 'drop2' | 'quartal', number>>;
+  compFigureBias?: Partial<Record<string, number>>; // figure-planner weight multipliers
 }
 ```
 
@@ -600,10 +612,15 @@ interface StyleDefinition {
 
 - **`BACKING_STYLES: Record<BackingStyle, StyleDefinition>`** — Keys `swing`, `bossa-nova`, `ballad`, `straight`.
   - **Swing** (tempo-curve swing, 0.67 fallback; density/dynamics shaped per bar by `ctx.intensity`): drums are composed vocabulary passes (backing-drum-vocab.ts) — per-bar ride modes (standard spang-a-lang / breathing quarters-only / skip-plus / broken), hi-hat foot on 2 & 4, feathered kick under the felt-not-heard ceiling, sparse snare ghosts in dialogue with the comp, kick coupling to comp pushes and bass pickups, fills and setups marking the 4/8-bar form, and a crash replacing the downbeat ride on section arrivals — with added voices capped at one per beat offset. Comping is phrase-planned (`compPlanning` → backing-comp-figures.ts): the pattern function realizes the planned figure's velocity and articulation.
-  - **Bossa Nova** (straight): cross-stick feel on 2/4, hi-hat every beat, on-beat clave comping (1, 3, 4), `pattern` bass.
-  - **Ballad** (swing 0.55): sparse ride, minimal kick, whole-note / half-note comping, walking bass.
-  - **Straight** (straight): even 8ths drum feel, even quarter-note comping, walking bass.
+  - **Bossa Nova** (straight, tight timing): rim-click clave on the cross-stick — 3-side `{1, 2&, 4}` / 2-side `{2, 3&}` (the Brazilian variant), the side per bar set by a **phrase-level phase draw** (`clavePhaseFor`, `clave` stream) shared by comp and drums so rim and guitar-hand never disagree; steady eighth hats with quarter accents over the surdo-derived kick `{1, 2&, 3, 4&}`; João-style comp figures tracking the clave side (the 2-side's and-of-3 push rides the anticipation voicing); `bass: 'pattern'` → `generateBossaBass`.
+  - **Ballad** (fixed swing 0.55, loose timing, `intensityCap: 0.6`): the library has no brushes, so the kit speaks in the quietest stick voices — soft ride quarters, the hi-hat FOOT on 2 & 4, whisper kick, cross-stick / ghost-snare color, a cross-stick lean marking section ends. Comp is pads and space (whole-bar sustains, half pads, late pads, deliberate rests — section arrivals always sound) with `voicingBias` leaning drop-2 and quartal. `bass: 'two'` pins the walking planner to permanent two-feel: no chorus latch, no walk escapes, half notes all night.
+  - **Straight** (fixed 0.5, halved timing offsets): the swing library played on even eighths — the full drum vocabulary and the phrase-planned comping run unchanged at ratio 0.5, with two leans: the figure planner rests more (`compFigureBias: { rest: 1.3 }` — even eighths clutter faster than swung ones) and a cross-stick colors beat 4. Walking bass (`'auto'`).
 - **`BACKING_STYLE_NAMES: Record<BackingStyle, string>`** — Display names for UI menus.
+- **`BACKING_STYLE_IDS: BackingStyle[]`** — The ids in display order; every style picker and validator derives from this (tune-practice buttons, settings validation) instead of hand-copying the union.
+- **`StyleDefinition.bass`** — which bass engine the style uses: `'auto'` = the walking planner, `'two'` = the planner pinned to permanent two-feel (ballad), `'pattern'` = the bossa ostinato (non-4/4 falls back to walking). Values are added only with their implementation.
+- **`StyleDefinition.intensityCap`** — optional ceiling on the per-bar ensemble arc, applied to the whole BarInfo timeline before any generator reads it (ballad: 0.6).
+- **`StyleDefinition.voicingBias`** — optional multipliers over the comp voicing-choice weights (rootless A/B, shell, drop-2, quartal); how a style colors its harmony.
+- **`StyleDefinition.compFigureBias`** — optional multipliers over the comp figure-planner weights, keyed by figure id; how a `compPlanning` style leans the shared library (straight: `rest: 1.3`).
 
 ---
 
@@ -614,6 +631,18 @@ Pure, Node-testable backing event generation — no Tone.js, no Web Audio. `back
 ### `generateBacking(harmony, style, params): GeneratedBacking`
 
 Entry point: generates comp first (drums read its onsets for accents), then bass, then drums. `params` is `{ phraseId, tempo, ppq, beatsPerBar, swing, sectionMap? }`; the section map (from `Phrase.sectionMap`) drives section/chorus awareness, and bars are counted flat without it. Returns `{ bassEvents, compEvents, drumEvents }` — all carry tick-string `time` values plus a pre-swing `absBeat` for diagnostics and tests.
+
+### `generateBackingCached(harmony, style, params): GeneratedBacking`
+
+`generateBacking` behind a 4-entry LRU — provably safe because generation is deterministic in its inputs. The live scheduler uses this (lick-practice loops and per-key restarts regenerate the identical backing many times per session); cache hits are re-parsed from serialized JSON so every caller gets fresh objects. Keys include the full harmony content; styles key by `name`.
+
+### `clavePhaseFor(phraseId, tempo): '32' | '23'`
+
+The phrase-level bossa clave phase — one draw from the dedicated `clave` stream, deterministic in `(phraseId, tempo)` so the comp and drum generators (which each compute it) always agree. `'32'` = even-indexed bars carry the 3-side.
+
+### `generateBossaBass(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
+
+Lives in `backing-bass.ts` (dispatched via `StyleDefinition.bass === 'pattern'`): the surdo-derived root–fifth ostinato on the BAR grid with a per-beat chord lookup, so split bars (|Dm7 G7|) state the new root at the change point — root of the sounding chord on 1; on 3 the mid-bar chord's root when the harmony moves there (always stated), else the quality-aware fifth (the surdo drop below the root, guaranteed in band by the register policy); eighth pickups on the and-of-2 (chromatic approach when the chord changes at 3) and and-of-4 (approach when the barline brings a new chord); variation drops thin the pickups so the pattern breathes. Register sits flat around E2; events go through the same per-role timing placement as the walking line. 4/4 only — other meters fall back to the walking planner.
 
 ### `generateBassLine(harmony, beatsPerBar, params, barInfos): { events, onsetsByBar }`
 
@@ -651,13 +680,15 @@ Jitter draws come from dedicated per-`(role, bar)` streams (`seedFrom(phraseId, 
 
 ## backing-mix.ts
 
-Per-instrument mix levels for the backing track, persisted per device (localStorage key `backing-mix-levels`) so a mix tuned on `/diagnostics/backing-mixer` applies to every session. `bass`/`comp`/`drums` are linear gain multipliers layered on the overall backing volume; `kick`/`ride`/`hihat` are velocity multipliers applied at drum trigger time (the kit is one sampler, so voice balance can only be shaped through velocity). All values clamp to `[0, 3]`; `1` means "as generated".
+Per-instrument mix levels for the backing track, persisted per device (localStorage key `backing-mix-levels-v2`) so a mix tuned on `/diagnostics/backing-mixer` applies to every session. `bass`/`comp`/`drums`/`room` are linear gain multipliers layered on the overall backing volume; the drum-voice keys are velocity multipliers applied at drum trigger time (voices share their family sampler's output, so within-family balance can only be shaped through velocity). All values clamp to `[0, 3]`; `1` means "as generated".
 
 ### `BackingMixLevels` interface, `DEFAULT_BACKING_MIX`
 
+`bass`/`comp`/`drums`/`room` are linear gain multipliers; the drum-voice keys are velocity multipliers applied at trigger time. `room` (increment 9) scales the ambience return; pre-room persisted mixes normalize to its default rather than going dry.
+
 ### `BACKING_BASE_TRIMS`
 
-Baseline trims that equalize the raw sample-library loudness: the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain plus per-voice velocity trims — kick 2.0, ride 0.71, hi-hat 0.81, etc. — re-expressing the ear-tuned 2026-08-02 balance against the −3 dBFS-normalized samples). The crash trim (`0.55`) sits deliberately below its family estimate: peak normalization is blind to sustain, and the crash's sustained body would otherwise ride far above the ride bed (Milestone B finding; see `static/samples/drums/ATTRIBUTION.md`, "Crash exception"). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
+Baseline trims that equalize the raw sample-library loudness: the Smolken bass (`0.05`) and pianos (`0.1`) run far hotter than the drum kit (`1.8` gain plus per-voice velocity trims — kick 2.0, ride 0.71, hi-hat 0.81, etc. — re-expressing the ear-tuned 2026-08-02 balance against the −3 dBFS-normalized samples). The crash trim (`0.51`) sits deliberately below its family estimate: peak normalization is blind to sustain, and the crash's sustained body would otherwise ride far above the ride bed (Milestone B finding; see `static/samples/drums/ATTRIBUTION.md`, "Crash exception"). User mix levels multiply these bases, so `1.0` on every slider reproduces the tuned balance. Levels saved under the pre-trim storage key are discarded on load — they'd double-apply the correction.
 
 ### `normalizeBackingMix(value): BackingMixLevels`
 
@@ -670,6 +701,10 @@ localStorage round-trip; SSR-safe (defaults without storage).
 ### `voiceVelocity(base, trim): number`
 
 Apply a voice trim to a generated drum velocity, clamped to `[0, 1]`.
+
+### Spatial + bus policy (`DrumFamily`, `BACKING_PANS`, `ROOM_SENDS`, `ROOM_RETURN_GAIN`, `ROOM_IR_URL`, `BACKING_BUS_COMPRESSOR`)
+
+One place for every number the live graph (backing-track.ts) and the offline bounce (backing-bounce.ts) must agree on, so a lab WAV keeps sounding like the app: the kit's three sampler families and their stereo positions (bass/kick centered — low frequencies pull the image; comp −0.2, snare −0.1, cymbals +0.25), per-source room-send levels (low end nearly dry), the −18 dB room return, the IR path, and the backing-bus glue-compressor parameters.
 
 ---
 
@@ -719,9 +754,11 @@ Backing-track scheduler: loads the instruments, calls `backing-generation.ts` fo
 **Instruments:**
 - **Upright bass** — Smolken "Pizzicato" double-bass sample library
 - **Comp** — `SplendidGrandPiano` (Salamander) for piano, or `Soundfont('drawbar_organ', kit: 'MusyngKite')` for organ
-- **Drums** — `smplr.Sampler` driving the `DRUM_BUFFERS` (Virtuosity Drums, CC0)
+- **Drums** — three `smplr.Sampler`s (kick / snare-family / cymbals, partitioned by `DRUM_BUFFER_FAMILY`) driving the `DRUM_BUFFERS` (Virtuosity Drums, CC0)
 
-**Gain graph:** bass and comp each have their own trim node (`bassGain`, `compGain`) feeding the shared `backingGain` (overall backing volume) into `getMasterGain()`; drums have their own node into master scaled by volume × drum trim. Per-instrument trims come from `backing-mix.ts` and are adjustable live via `setBackingMix`.
+The CDN libraries (bass, piano, organ) load through smplr's `CacheStorage` (versioned cache `mankunku-samples-v1`) when the Cache API is available, so revisits skip the network and the instruments work offline after a first load.
+
+**The backing bus** (increment 9): everything backing flows through `backingGain` (the volume fader) into a gentle glue `DynamicsCompressor` (`BACKING_BUS_COMPRESSOR`) and only then into `getMasterGain()` — master itself is untouched and carries the melody dry. Comp is panned (`BACKING_PANS.comp`), the three drum-family samplers sit behind their own `StereoPanner`s on a shared `drumBus` (gain = kit trim; the volume lives upstream on `backingGain`), and a small-room `ConvolverNode` (IR fetched best-effort from `ROOM_IR_URL` — failure leaves the backing dry) takes post-pan sends per `ROOM_SENDS` and returns at `ROOM_RETURN_GAIN × mix.room` into the bus. The decoded IR is cached module-wide and survives `disposeBackingTrack`; the graph around it rebuilds on the next load. Per-instrument trims come from `backing-mix.ts` and are adjustable live via `setBackingMix`.
 
 ### `getBackingMix()` / `setBackingMix(partial)`
 
@@ -759,7 +796,7 @@ interface BackingTrackLog {
 
 ### `getBackingTrackLog(count?): BackingTrackLog[]`
 
-Return the most recent backing-track schedules (newest first). Defaults to 20 entries; internal cap is 30. Backed by `sessionStorage` so `/diagnostics` can render schedules from prior phrase playbacks.
+Return the most recent backing-track schedules (newest first). Default and internal cap are both `MAX_LOG_ENTRIES` (10). Backed by `sessionStorage` so `/diagnostics` can render schedules from prior phrase playbacks.
 
 ### `loadBackingInstruments(instrumentType?): Promise<void>`
 
@@ -818,7 +855,7 @@ Stab times **must** be near-now (within smplr's ~200 ms lookahead) so a later `c
 
 ## backing-comp-figures.ts
 
-Swing comping vocabulary: `COMP_FIGURES` (13 one- and two-bar figures — Charleston family, off-beat pairs, pushes, pads, 2-bar Red Garland / call-answer shapes, deliberate rest — all hits on the x.0/x.5 eighth grid the anticipation convention requires) and `planCompFigures(barInfos, beatsPerBar, phraseId, tempo): PlannedBar[]`, a sequential planner whose anti-repetition memory reshapes WEIGHTS only — each bar keeps its own `('comp-figure', bar)` seed stream, so plans are reproducible per bar and the stream-isolation guarantee holds. Plan rules: no figure three choices running; bar 0 must open with an `early` figure; cadence (section-final, non-final) bars strongly favor `push` figures with the rest damped, and a non-push 2-bar figure may not land its tail on a cadence bar; rank-2 (busiest) figures lean in (×lerp(0.7, 1.7, intensity)) and deliberate rest thins out (×lerp(2.2, 0.6)) as the arc builds; the phrase's final bar may not rest; occasional guide-tone bars (p 0.06 × lerp(1.6, 0.4) — a low-intensity color that mostly retires as the band digs in). `hitsForPlannedBar` resolves a bar's concrete hits (handling 2-bar `'cont'` tails and final-bar suppression with a resolution-pad fallback). Consumed by `generateComping` for styles with `StyleDefinition.compPlanning`, which hand the resolved hits to the pattern function via `ctx.plannedComp` for velocity/articulation realization (pads sustain, stabs clamp ≤ 0.7 beats, pushes hold ≥ 1.1 beats to tie across the barline).
+Swing comping vocabulary: `COMP_FIGURES` (13 one- and two-bar figures — Charleston family, off-beat pairs, pushes, pads, 2-bar Red Garland / call-answer shapes, deliberate rest — all hits on the x.0/x.5 eighth grid the anticipation convention requires) and `planCompFigures(barInfos, beatsPerBar, phraseId, tempo, figureBias?): PlannedBar[]`, a sequential planner (the optional `figureBias` — `StyleDefinition.compFigureBias` — multiplies figure weights per id) whose anti-repetition memory reshapes WEIGHTS only — each bar keeps its own `('comp-figure', bar)` seed stream, so plans are reproducible per bar and the stream-isolation guarantee holds. Plan rules: no figure three choices running; bar 0 must open with an `early` figure; cadence (section-final, non-final) bars strongly favor `push` figures with the rest damped, and a non-push 2-bar figure may not land its tail on a cadence bar; rank-2 (busiest) figures lean in (×lerp(0.7, 1.7, intensity)) and deliberate rest thins out (×lerp(2.2, 0.6)) as the arc builds; the phrase's final bar may not rest; occasional guide-tone bars (p 0.06 × lerp(1.6, 0.4) — a low-intensity color that mostly retires as the band digs in). `hitsForPlannedBar` resolves a bar's concrete hits (handling 2-bar `'cont'` tails and final-bar suppression with a resolution-pad fallback). Consumed by `generateComping` for styles with `StyleDefinition.compPlanning`, which hand the resolved hits to the pattern function via `ctx.plannedComp` for velocity/articulation realization (pads sustain, stabs clamp ≤ 0.7 beats, pushes hold ≥ 1.1 beats to tie across the barline).
 
 ---
 
@@ -841,7 +878,7 @@ Swing drum vocabulary: composable per-bar passes the swing `drumPattern` assembl
 The backing **listening lab** (see `documentation/contributing/backing-listening.md` for the protocol). All four modules are pure/Node-testable except the render call itself.
 
 - **backing-lab-presets.ts** — `BACKING_LAB_PRESETS` (ii-V-I-VI loop, 12-bar F blues, rhythm-changes A, 3-chorus AABA with a `sectionMap`), `LAB_TEMPO_PRESETS` (90/160/240), `labPhraseWithSeed(preset, seed)` (suffixes the phrase id — all generation streams derive from it, so a suffix re-rolls every stream), and `buildChorusedForm(sections, choruses)` which emits the flattened harmony plus a sectionMap whose `sourceSection` restart marks each chorus boundary.
-- **backing-bounce.ts** — `generateForBounce(params)` (the exact generation call the live scheduler makes, at `BOUNCE_PPQ = 192`), `bounceBacking(params, drumBuffers)` (renders to a WAV blob via smplr `renderOffline`, mirroring the live gain graph and per-voice velocity trims), `eventTicksToSeconds`, `harmonyDurationBeats`. Drum buffers come from `getDecodedDrumBuffersForBounce()` in backing-track.ts — the same decode path as the live kit.
+- **backing-bounce.ts** — `generateForBounce(params)` (the exact generation call the live scheduler makes, at `BOUNCE_PPQ = 192`), `bounceBacking(params, drumBuffers, roomIr?)` (renders to a WAV blob via smplr `renderOffline`, mirroring the live bus: volume → glue compressor, panned comp, three panned drum-family samplers, optional room-convolver sends, per-voice velocity trims), `eventTicksToSeconds`, `harmonyDurationBeats`. Drum buffers come from `getDecodedDrumBuffersForBounce()` and the IR from `getDecodedRoomIrForBounce()` in backing-track.ts — the same decode paths as the live graph, so a bounce with no IR renders dry exactly like the app would.
 - **backing-report.ts** — `buildBackingReport()`: deterministic ASCII statistics over lab presets × tempi × seeds (bass intervals/stepwise/downbeat-root, comp density/placement, drum voice activity). Snapshot at `documentation/reference/backing-report.txt`, regenerated by `npm run backing:report` and pinned by `tests/unit/audio/backing-report.test.ts`; golden event fixtures live under `tests/fixtures/backing/` via `npm run backing:golden`.
 - **backing-listening-checklist.ts** — `LISTENING_CHECKLIST` (the single source of truth for human listening items), `buildListeningReport(meta, verdicts)` → markdown for PRs and the listening log.
 

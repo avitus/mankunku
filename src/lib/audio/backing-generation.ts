@@ -19,6 +19,8 @@
  *   bass-target  | segment     | downbeat note choice
  *   bass-appr    | segment     | approach device
  *   bass         | segment     | interior fill, spice, velocity
+ *                | barIndex    | (bossa pattern engine: pickups, drops, approach)
+ *   clave        | 0           | bossa clave phase (one draw per phrase)
  *   voicing      | chord index | comp voicing choice
  *   comp-figure  | barIndex    | figure planning (weights only)
  *   comp         | barIndex    | comp realization
@@ -60,7 +62,7 @@ import {
 } from './voicings';
 import { planCompFigures, hitsForPlannedBar, headFigureFor } from './backing-comp-figures';
 import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
-import { generateBassLine as generateBassLine2 } from './backing-bass';
+import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 
 // ── Event shapes ─────────────────────────────────────────────
 
@@ -296,22 +298,26 @@ export function generateComping(
 			barInfos[Math.min(Math.floor(seg.startBeats / beatsPerBar), barInfos.length - 1)]
 				?.intensity ?? 0.5
 	);
+	const bias = style.voicingBias ?? {};
 	const fns: VoicingFn[] = chords.map((c, i) => {
 		const rng = createRng(seedFrom(phraseId, tempo, 'voicing', i));
 		if (!hasSeventhSlot(c.quality)) {
 			return rng.weighted<VoicingFn>([
-				{ value: shellVoicing, weight: 2 },
-				{ value: drop2Voicing, weight: 1 }
+				{ value: shellVoicing, weight: 2 * (bias.shell ?? 1) },
+				{ value: drop2Voicing, weight: 1 * (bias.drop2 ?? 1) }
 			]);
 		}
 		const options: Array<{ value: VoicingFn; weight: number }> = [
-			{ value: rootlessVoicingA, weight: 4 },
-			{ value: rootlessVoicingB, weight: 3 },
-			{ value: shellVoicing, weight: 2 * lerp(1.5, 0.6, chordIntensity[i]) },
-			{ value: drop2Voicing, weight: 1 }
+			{ value: rootlessVoicingA, weight: 4 * (bias.rootlessA ?? 1) },
+			{ value: rootlessVoicingB, weight: 3 * (bias.rootlessB ?? 1) },
+			{ value: shellVoicing, weight: 2 * lerp(1.5, 0.6, chordIntensity[i]) * (bias.shell ?? 1) },
+			{ value: drop2Voicing, weight: 1 * (bias.drop2 ?? 1) }
 		];
 		if (quartalVoicing(c.root, c.quality).length > 0) {
-			options.push({ value: quartalVoicing, weight: lerp(0.5, 1.5, chordIntensity[i]) });
+			options.push({
+				value: quartalVoicing,
+				weight: lerp(0.5, 1.5, chordIntensity[i]) * (bias.quartal ?? 1)
+			});
 		}
 		return rng.weighted<VoicingFn>(options);
 	});
@@ -321,19 +327,21 @@ export function generateComping(
 		chordIntensity.map((n) => Math.round(lerp(58, 66, n)))
 	);
 
-	// Figure planning (swing, 4/4 only — the vocabulary is written for four
-	// beats; other meters use the style's own fallback): one pass over the
+	// Figure planning (compPlanning styles — swing and straight — 4/4 only:
+	// the vocabulary is written for four beats; other meters use the
+	// style's own fallback): one pass over the
 	// phrase with anti-repetition memory; each bar's plan resolves to
 	// concrete hits here so the style's pattern function only realizes
 	// velocity/articulation.
 	const compPlan =
 		style.compPlanning && beatsPerBar === 4
-			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo)
+			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo, style.compFigureBias)
 			: null;
 
 	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
 	const totalBars = barInfos.length;
 
+	const clavePhase = clavePhaseFor(phraseId, tempo);
 	for (let bar = 0; bar < totalBars; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'comp', bar));
 		const planned = compPlan?.[bar];
@@ -343,6 +351,7 @@ export function generateComping(
 			beatsPerBar,
 			swing,
 			rng,
+			clavePhase,
 			...barInfos[bar],
 			plannedComp:
 				planned && compPlan
@@ -385,6 +394,18 @@ export function generateComping(
 	return { events, onsetsByBar };
 }
 
+/**
+ * One phrase-level draw from the dedicated `clave` stream: the bossa clave
+ * side must be constant across the whole phrase AND across the comp and
+ * drum generators (a rim and a guitar-hand on different sides is the one
+ * unforgivable bossa mistake — caught by a property test when the phase
+ * initially lived only in the drum ctx). Deterministic in (phraseId,
+ * tempo), so every caller computes the identical phase.
+ */
+export function clavePhaseFor(phraseId: string, tempo: number): '32' | '23' {
+	return createRng(seedFrom(phraseId, tempo, 'clave', 0)).chance(0.5) ? '32' : '23';
+}
+
 // ── Drums ────────────────────────────────────────────────────
 
 /**
@@ -405,6 +426,7 @@ export function generateDrums(
 	const { phraseId, tempo, swing } = params;
 	const events: DrumEvent[] = [];
 	const streams = createTimingStreams(phraseId, tempo);
+	const clavePhase = clavePhaseFor(phraseId, tempo);
 
 	for (let bar = 0; bar < barInfos.length; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'drums', bar));
@@ -416,6 +438,7 @@ export function generateDrums(
 			compOnsets: compOnsetsByBar.get(bar),
 			bassOnsets: bassOnsetsByBar?.get(bar),
 			fillRng: createRng(seedFrom(phraseId, tempo, 'drum-fill', bar)),
+			clavePhase,
 			...barInfos[bar]
 		};
 		// The feathered-kick, comp-accent, and section-final setup branches
@@ -460,17 +483,68 @@ export function generateBacking(
 		0
 	);
 	const totalBars = Math.max(1, Math.ceil(harmonyBeats / beatsPerBar));
-	const barInfos = buildBarInfos(totalBars, params.sectionMap);
+	let barInfos = buildBarInfos(totalBars, params.sectionMap);
+	// A style may cap the ensemble arc (ballad: never dig in past 0.6);
+	// applied to the whole timeline so every generator reads the same
+	// ceiling.
+	if (style.intensityCap !== undefined) {
+		const cap = style.intensityCap;
+		barInfos = barInfos.map((info) => ({ ...info, intensity: Math.min(info.intensity, cap) }));
+	}
 
 	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
 	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
-	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } = generateBassLine2(
-		harmony,
-		beatsPerBar,
-		timedParams,
-		barInfos
-	);
+	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
+	// 'two' pins the walking planner to permanent two-feel (ballad); other
+	// meters (and every 'auto' style) take the plain walking planner.
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } =
+		style.bass === 'pattern' && beatsPerBar === 4
+			? generateBossaBass(harmony, beatsPerBar, timedParams, barInfos)
+			: generateBassLine2(
+					harmony,
+					beatsPerBar,
+					timedParams,
+					barInfos,
+					style.bass === 'two' ? 'two' : undefined
+				);
 	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
 
 	return { bassEvents, compEvents, drumEvents };
+}
+
+// ── Memoized entry point ─────────────────────────────────────
+
+const GENERATION_CACHE_LIMIT = 4;
+/** key → serialized result. Values are stored as JSON and re-parsed per
+ *  hit so every caller gets fresh objects — no shared-mutation hazard. */
+const generationCache = new Map<string, string>();
+
+/**
+ * `generateBacking` behind a small LRU — provably safe because generation
+ * is deterministic in (harmony, style, params): same key, same events.
+ * Serves the live scheduler, where lick-practice loops and tempo retries
+ * regenerate the identical backing many times per session. The key
+ * includes the full harmony content (styles are keyed by name — their
+ * functions aren't serializable, and name identifies the vocabulary).
+ */
+export function generateBackingCached(
+	harmony: HarmonicSegment[],
+	style: StyleDefinition,
+	params: BackingGenerationParams
+): GeneratedBacking {
+	const key = JSON.stringify([style.name, params, harmony]);
+	const hit = generationCache.get(key);
+	if (hit !== undefined) {
+		// Refresh recency (Map preserves insertion order).
+		generationCache.delete(key);
+		generationCache.set(key, hit);
+		return JSON.parse(hit) as GeneratedBacking;
+	}
+	const generated = generateBacking(harmony, style, params);
+	const serialized = JSON.stringify(generated);
+	generationCache.set(key, serialized);
+	if (generationCache.size > GENERATION_CACHE_LIMIT) {
+		generationCache.delete(generationCache.keys().next().value as string);
+	}
+	return generated;
 }

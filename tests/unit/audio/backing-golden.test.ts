@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import type { BackingStyle } from '$lib/types/instruments';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import {
 	generateBacking,
@@ -24,19 +25,25 @@ import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const fixtureDir = join(repoRoot, 'tests', 'fixtures', 'backing');
 
-const GOLDEN_CASES: Array<{ presetId: string; tempo: number }> = [
+// Swing cases keep their original filenames; non-swing styles carry the
+// style id in the name so each style PR pins its own fixture.
+const GOLDEN_CASES: Array<{ presetId: string; tempo: number; style?: BackingStyle }> = [
 	{ presetId: 'backing-mixer-loop', tempo: 140 },
 	{ presetId: 'lab-blues-f', tempo: 160 },
-	{ presetId: 'lab-aaba-c', tempo: 160 }
+	{ presetId: 'lab-aaba-c', tempo: 160 },
+	{ presetId: 'lab-blues-f', tempo: 130, style: 'bossa-nova' },
+	{ presetId: 'lab-aaba-c', tempo: 72, style: 'ballad' },
+	{ presetId: 'lab-blues-f', tempo: 140, style: 'straight' }
 ];
 
 function generateCase(
 	presetId: string,
-	tempo: number
+	tempo: number,
+	styleId: BackingStyle
 ): { params: BackingGenerationParams & { style: string } } & GeneratedBacking {
 	const preset = BACKING_LAB_PRESETS.find((p) => p.id === presetId);
 	if (!preset) throw new Error(`Unknown preset ${presetId}`);
-	const style = BACKING_STYLES.swing;
+	const style = BACKING_STYLES[styleId];
 	const params = {
 		phraseId: preset.phrase.id,
 		tempo,
@@ -45,14 +52,15 @@ function generateCase(
 		swing: resolveBackingSwing(0.5, style, tempo),
 		sectionMap: preset.phrase.sectionMap
 	};
-	return { params: { ...params, style: 'swing' }, ...generateBacking(preset.phrase.harmony, style, params) };
+	return { params: { ...params, style: styleId }, ...generateBacking(preset.phrase.harmony, style, params) };
 }
 
 describe('golden backing fixtures', () => {
-	for (const { presetId, tempo } of GOLDEN_CASES) {
-		it(`${presetId} @ ${tempo} BPM matches the committed fixture`, () => {
-			const current = generateCase(presetId, tempo);
-			const fixturePath = join(fixtureDir, `golden-${presetId}-${tempo}.json`);
+	for (const { presetId, tempo, style = 'swing' } of GOLDEN_CASES) {
+		it(`${presetId} (${style}) @ ${tempo} BPM matches the committed fixture`, () => {
+			const current = generateCase(presetId, tempo, style);
+			const suffix = style === 'swing' ? '' : `-${style}`;
+			const fixturePath = join(fixtureDir, `golden-${presetId}${suffix}-${tempo}.json`);
 
 			if (process.env.UPDATE_BACKING_GOLDEN === '1') {
 				mkdirSync(fixtureDir, { recursive: true });

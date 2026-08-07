@@ -6,10 +6,10 @@
  * `renderOffline` (no Tone.js: event ticks convert to absolute seconds by
  * plain math, which is all the Transport would do for a fixed tempo).
  *
- * The audio graph mirrors the live one: bass/comp gains inside the backing
- * gain, drums on their own gain with per-voice velocity trims applied at
- * trigger time. A bounce therefore sounds like the app, not an idealized
- * render.
+ * The audio graph mirrors the live one: volume → glue compressor bus with
+ * panned comp, the kit split into three panned family samplers, optional
+ * room-convolver sends, and per-voice velocity trims applied at trigger
+ * time. A bounce therefore sounds like the app, not an idealized render.
  */
 
 import type { Phrase } from '$lib/types/music';
@@ -21,14 +21,34 @@ import {
 	resolveBackingSwing,
 	type GeneratedBacking
 } from './backing-generation';
-import { BACKING_BASE_TRIMS, voiceVelocity, type BackingMixLevels } from './backing-mix';
-import { drumBufferForVelocity, type DrumBufferName } from './sample-maps';
+import {
+	BACKING_BASE_TRIMS,
+	BACKING_PANS,
+	BACKING_BUS_COMPRESSOR,
+	ROOM_SENDS,
+	ROOM_RETURN_GAIN,
+	voiceVelocity,
+	type BackingMixLevels,
+	type DrumFamily
+} from './backing-mix';
+import {
+	DRUM_BUFFER_FAMILY,
+	DRUM_FAMILY_BY_VOICE,
+	drumBufferForVelocity,
+	type DrumBufferName
+} from './sample-maps';
 
 /**
  * Tone.js Transport PPQ default — the live engine reads `transport.PPQ`, so
  * the bounce must use the same resolution for tick-identical placement.
  */
 export const BOUNCE_PPQ = 192;
+
+/** Offline render rate. The room IR must be decoded AT this rate
+ *  (`getDecodedRoomIrForBounce(BOUNCE_SAMPLE_RATE)`): ConvolverNode.buffer
+ *  throws NotSupportedError on a rate mismatch, unlike source-node
+ *  buffers, which resample freely. */
+export const BOUNCE_SAMPLE_RATE = 44100;
 
 /** Seconds of tail after the last bar so releases and the room ring out. */
 const BOUNCE_TAIL_SECONDS = 2.5;
@@ -99,6 +119,9 @@ export interface RenderOpts {
 	volume: number;
 	mix: BackingMixLevels;
 	durationSeconds: number;
+	/** Decoded room IR (from `getDecodedRoomIrForBounce`). Absent → dry,
+	 *  exactly like the live graph when the IR fails to load. */
+	roomIr?: AudioBuffer | null;
 }
 
 /**
@@ -108,7 +131,8 @@ export interface RenderOpts {
  */
 export async function bounceBacking(
 	params: BounceParams,
-	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>
+	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
+	roomIr?: AudioBuffer | null
 ): Promise<BounceResult> {
 	const generated = generateForBounce(params);
 	const durationSeconds =
@@ -118,7 +142,8 @@ export async function bounceBacking(
 		instrument: params.instrument,
 		volume: params.volume,
 		mix: params.mix,
-		durationSeconds
+		durationSeconds,
+		roomIr
 	});
 	return {
 		blob,
@@ -147,25 +172,69 @@ export async function renderEventsToWav(
 
 	const result = await renderOffline(
 		async (context) => {
-			// Mirror the live graph (see backing-track.ts): backingGain carries
-			// the overall level for bass+comp; drums ride their own gain into
-			// the destination, scaled by volume × trim, with per-voice velocity
-			// trims at trigger time.
+			// Mirror the live graph (see the bus diagram in backing-track.ts):
+			// everything flows through backingGain (volume) into the glue
+			// compressor; comp is panned, the kit splits into three panned
+			// family samplers on a shared drum bus, and the room convolver —
+			// when an IR is provided — takes post-pan sends and returns into
+			// the bus. Per-voice velocity trims still apply at trigger time.
+			const busCompressor = context.createDynamicsCompressor();
+			busCompressor.threshold.value = BACKING_BUS_COMPRESSOR.threshold;
+			busCompressor.knee.value = BACKING_BUS_COMPRESSOR.knee;
+			busCompressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
+			busCompressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
+			busCompressor.release.value = BACKING_BUS_COMPRESSOR.release;
+			busCompressor.connect(context.destination);
+
 			const backingGain = context.createGain();
 			backingGain.gain.value = volume;
-			backingGain.connect(context.destination);
+			backingGain.connect(busCompressor);
 
 			const bassGain = context.createGain();
 			bassGain.gain.value = BACKING_BASE_TRIMS.bass * mix.bass;
 			bassGain.connect(backingGain);
 
+			const compPan = context.createStereoPanner();
+			compPan.pan.value = BACKING_PANS.comp;
+			compPan.connect(backingGain);
 			const compGain = context.createGain();
 			compGain.gain.value = BACKING_BASE_TRIMS.comp * mix.comp;
-			compGain.connect(backingGain);
+			compGain.connect(compPan);
 
-			const drumGain = context.createGain();
-			drumGain.gain.value = volume * BACKING_BASE_TRIMS.drums * mix.drums;
-			drumGain.connect(context.destination);
+			const drumBus = context.createGain();
+			drumBus.gain.value = BACKING_BASE_TRIMS.drums * mix.drums;
+			drumBus.connect(backingGain);
+			const drumPans = {} as Record<DrumFamily, StereoPannerNode>;
+			for (const family of ['kick', 'snare', 'cymbals'] as const) {
+				const pan = context.createStereoPanner();
+				pan.pan.value = BACKING_PANS[family];
+				pan.connect(drumBus);
+				drumPans[family] = pan;
+			}
+
+			// Rate guard: a mismatched IR would make `convolver.buffer =` THROW
+			// (killing the whole render, not just the room) — render dry
+			// instead, exactly like the live graph does without an IR.
+			if (opts.roomIr && opts.roomIr.sampleRate === context.sampleRate) {
+				const convolver = context.createConvolver();
+				convolver.buffer = opts.roomIr;
+				const roomReturn = context.createGain();
+				roomReturn.gain.value = ROOM_RETURN_GAIN * mix.room;
+				convolver.connect(roomReturn);
+				roomReturn.connect(backingGain);
+				const kitSend = BACKING_BASE_TRIMS.drums * mix.drums;
+				const tap = (source: AudioNode, key: keyof typeof ROOM_SENDS, scale: number): void => {
+					const send = context.createGain();
+					send.gain.value = ROOM_SENDS[key] * scale;
+					source.connect(send);
+					send.connect(convolver);
+				};
+				tap(bassGain, 'bass', 1);
+				tap(compPan, 'comp', 1);
+				tap(drumPans.kick, 'kick', kitSend);
+				tap(drumPans.snare, 'snare', kitSend);
+				tap(drumPans.cymbals, 'cymbals', kitSend);
+			}
 
 			// smplr dispatches a note synchronously only when its time is within
 			// the scheduler's lookahead of currentTime; later notes sit in a
@@ -178,7 +247,27 @@ export async function renderEventsToWav(
 			const scheduler = new Scheduler(context, {
 				lookaheadMs: (durationSeconds + 10) * 1000
 			});
-			const [bass, comp, drums] = await Promise.all([
+			// Partition the kit into its family samplers, mirroring ensureDrums.
+			const byFamily: Record<DrumFamily, Record<string, AudioBuffer>> = {
+				kick: {},
+				snare: {},
+				cymbals: {}
+			};
+			for (const [name, buffer] of Object.entries(drumBuffers)) {
+				if (buffer) byFamily[DRUM_BUFFER_FAMILY[name as DrumBufferName]][name] = buffer;
+			}
+			const familySampler = (family: DrumFamily) =>
+				// Explicit defaults for the same reason as the live kit: undefined
+				// values clobber smplr's PARAM_DEFAULTS and NaN the voice.
+				new Sampler(context, {
+					buffers: byFamily[family],
+					destination: drumPans[family],
+					detune: 0,
+					decayTime: 0.3,
+					lpfCutoffHz: 20000,
+					scheduler
+				}).load;
+			const [bass, comp, kickSampler, snareSampler, cymbalSampler] = await Promise.all([
 				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain, scheduler }).load,
 				opts.instrument === 'piano'
 					? new SplendidGrandPiano(context, { destination: compGain, scheduler }).load
@@ -188,17 +277,15 @@ export async function renderEventsToWav(
 							destination: compGain,
 							scheduler
 						}).load,
-				// Explicit defaults for the same reason as the live kit: undefined
-				// values clobber smplr's PARAM_DEFAULTS and NaN the voice.
-				new Sampler(context, {
-					buffers: drumBuffers as Record<string, AudioBuffer>,
-					destination: drumGain,
-					detune: 0,
-					decayTime: 0.3,
-					lpfCutoffHz: 20000,
-					scheduler
-				}).load
+				familySampler('kick'),
+				familySampler('snare'),
+				familySampler('cymbals')
 			]);
+			const drumSamplers: Record<DrumFamily, typeof kickSampler> = {
+				kick: kickSampler,
+				snare: snareSampler,
+				cymbals: cymbalSampler
+			};
 
 			for (const e of generated.bassEvents) {
 				bass.start({
@@ -215,10 +302,11 @@ export async function renderEventsToWav(
 				}
 			}
 			for (const e of generated.drumEvents) {
-				// Same velocity-layer selection as the live trigger path.
+				// Same velocity-layer selection and family routing as the live
+				// trigger path.
 				const buffer = drumBufferForVelocity(e.drum, e.velocity);
 				if (!(buffer in drumBuffers)) continue;
-				drums.start({
+				drumSamplers[DRUM_FAMILY_BY_VOICE[e.drum]].start({
 					note: buffer,
 					velocity: Math.round(
 						voiceVelocity(e.velocity * BACKING_BASE_TRIMS[e.drum], mix[e.drum]) * 127
@@ -227,7 +315,7 @@ export async function renderEventsToWav(
 				});
 			}
 		},
-		{ duration: durationSeconds, sampleRate: 44100 }
+		{ duration: durationSeconds, sampleRate: BOUNCE_SAMPLE_RATE }
 	);
 
 	// Peak-normalize the bounce to −1 dBFS. The live mix is anchored ~20 dB

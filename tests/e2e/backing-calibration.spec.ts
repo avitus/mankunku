@@ -26,10 +26,13 @@ test('measure per-voice render peaks', async ({ page, browserName }) => {
 		}) as typeof URL.createObjectURL;
 	});
 	await page.goto('/diagnostics/backing-mixer');
-	// Neutralize persisted mix state: every slider to exactly 1.
+	// Neutralize persisted mix state: gain sliders to 1, and the room
+	// return to 0 so per-voice level probes measure the dry voice alone
+	// (the bus compressor still applies — calibrate with that in mind).
 	for (const key of ['bass', 'comp', 'drums', 'kick', 'ride', 'hihat']) {
 		await page.getByTestId(`mix-${key}`).fill('1');
 	}
+	await page.getByTestId('mix-room').fill('0');
 
 	const input = page.locator('input[aria-label="Render WAV from events JSON"]');
 	let rendered = 0;

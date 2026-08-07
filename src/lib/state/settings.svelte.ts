@@ -7,9 +7,10 @@ import type { Database } from '$lib/supabase/types';
 import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } from '$lib/persistence/sync';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 import { enqueue } from '$lib/persistence/outbox';
+import { BACKING_STYLE_IDS } from '$lib/audio/backing-styles';
 
 const STORAGE_KEY = 'settings';
-const VALID_BACKING_STYLES = new Set<string>(['swing', 'bossa-nova', 'ballad', 'straight']);
+const VALID_BACKING_STYLES = new Set<string>(BACKING_STYLE_IDS);
 
 function loadSettings() {
 	const saved = load<typeof defaultSettings>(STORAGE_KEY);

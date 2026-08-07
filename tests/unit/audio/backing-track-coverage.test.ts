@@ -67,18 +67,22 @@ vi.mock('smplr', () => ({
 	Sampler: class extends FakeInstrument {},
 	Smolken: class extends FakeInstrument {},
 	SplendidGrandPiano: class extends FakeInstrument {},
-	Soundfont: class extends FakeInstrument {}
+	Soundfont: class extends FakeInstrument {},
+	CacheStorage: class {}
 }));
 
 function fakeGain() {
 	return { gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() };
 }
 
-vi.mock('$lib/audio/audio-context', () => ({
-	initAudio: async () => ({ createGain: fakeGain, currentTime: 0 }),
-	getAudioContext: () => ({ createGain: fakeGain, currentTime: 0 }),
-	getMasterGain: () => fakeGain()
-}));
+vi.mock('$lib/audio/audio-context', async () => {
+	const { fakeAudioContext } = await import('../../helpers/fake-audio-context');
+	return {
+		initAudio: async () => fakeAudioContext(),
+		getAudioContext: () => fakeAudioContext(),
+		getMasterGain: () => fakeGain()
+	};
+});
 
 // ── Fixture: 3 bars of melody over 2 bars of harmony (the ballad-005 shape) ──
 

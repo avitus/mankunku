@@ -64,7 +64,7 @@ When you open Side B, you choose:
 
 - **Progression type** — what the backing track plays underneath. Ten of them: minor, major, and dominant vamps; short ii-V-I in major and minor; long ii-V-I in major and minor; turnaround; iii-VI-ii-V-I; and blues. Each lick's category determines which progressions it lands cleanly on by default.
 - **Substitutions** — toggle to introduce tritone subs and chromatic approaches. Same lick, harder harmony.
-- **Backing style** — swing for straight-ahead, bossa for Latin, ballad for slow with sustained comping, straight for rock/funk feel.
+- **Backing style** — swing for straight-ahead, bossa for Latin (rim-click clave and the root–fifth bass), ballad for slow two-feel with sustained pads, straight for the same band playing even eighths.
 - **Practice mode** — *Continuous* plays the lick once as a demo in the first key, then you play it through all 12 keys back-to-back over a non-stop backing track. *Call & Response* skips the upfront demo and instead, in every key, the app plays the lick first and you echo it on the next cycle, alternating through all 12 keys. Both modes score every key the user plays.
 - **Tempo** — starting BPM for this lick. After each lick, the tempo adjusts based on your average score across that lick's keys: +2 BPM at 95%+, +1 BPM at 90%+, -1 BPM in the 75–89% yellow band, and -3 BPM below 75%. A single key scored below 75% blocks *any* upward adjustment, even if the average looks good.
 

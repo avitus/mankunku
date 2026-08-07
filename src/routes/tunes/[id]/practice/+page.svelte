@@ -10,6 +10,7 @@
 	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
+	import { BACKING_STYLE_IDS } from '$lib/audio/backing-styles';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
@@ -895,7 +896,7 @@
 			<div class="flex items-center gap-3">
 				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Backing</span>
 				<div class="flex flex-wrap gap-1">
-					{#each ['swing', 'bossa-nova', 'ballad', 'straight'] as const as style (style)}
+					{#each BACKING_STYLE_IDS as style (style)}
 						<button
 							onclick={() => {
 								tunePractice.config.backingStyle = style;

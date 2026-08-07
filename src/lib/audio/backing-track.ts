@@ -20,13 +20,19 @@ import { chordSymbol } from '$lib/music/chords';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
 import { BACKING_STYLES } from './backing-styles';
 import {
-	generateBacking,
+	generateBackingCached,
 	resolveBackingSwing,
 	type BassEvent,
 	type CompEvent,
 	type DrumEvent
 } from './backing-generation';
-import { DRUM_BUFFERS, drumBufferForVelocity, type DrumBufferName } from './sample-maps';
+import {
+	DRUM_BUFFERS,
+	DRUM_BUFFER_FAMILY,
+	DRUM_FAMILY_BY_VOICE,
+	drumBufferForVelocity,
+	type DrumBufferName
+} from './sample-maps';
 import type { BackingHit } from './turnaround-bar';
 import {
 	loadBackingMix,
@@ -34,7 +40,13 @@ import {
 	normalizeBackingMix,
 	voiceVelocity,
 	BACKING_BASE_TRIMS,
-	type BackingMixLevels
+	BACKING_PANS,
+	BACKING_BUS_COMPRESSOR,
+	ROOM_SENDS,
+	ROOM_RETURN_GAIN,
+	ROOM_IR_URL,
+	type BackingMixLevels,
+	type DrumFamily
 } from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
 
@@ -66,7 +78,9 @@ export interface BackingTrackLog {
 	segments: BackingTrackSegmentLog[];
 }
 
-const MAX_LOG_ENTRIES = 30;
+// Each entry indexes every beat of a full take; 10 is plenty of history
+// for the diagnostics page and caps the sessionStorage/serialization cost.
+const MAX_LOG_ENTRIES = 10;
 const LOG_STORAGE_KEY = 'backing-track-log';
 
 function loadLog(): BackingTrackLog[] {
@@ -89,7 +103,7 @@ function saveLog(log: BackingTrackLog[]): void {
 const backingTrackLog: BackingTrackLog[] = loadLog();
 
 /** Get the backing track diagnostics log (newest first). */
-export function getBackingTrackLog(count = 20): BackingTrackLog[] {
+export function getBackingTrackLog(count = MAX_LOG_ENTRIES): BackingTrackLog[] {
 	// Re-read from storage to handle SSR/hydration boundary
 	if (backingTrackLog.length === 0 && typeof sessionStorage !== 'undefined') {
 		const fresh = loadLog();
@@ -120,14 +134,34 @@ let compInstrument: CompInstrument | null = null;
 let bassInstrument: BassInstrument | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
 
-// Gain nodes for independent volume control. `backingGain` carries the
-// overall backing volume into master; `bassGain` and `compGain` hang off
-// it so each instrument's mix trim is independent of the master level.
-// The drum kit has its own node into master, scaled by volume × trim.
+// The backing bus (increment 9). Everything backing — bass, panned comp,
+// the split drum kit and the room return — flows through `backingGain`
+// (the volume fader) into a gentle glue compressor and only then into
+// master, which itself stays untouched (it carries the melody):
+//
+//   bassGain ──────────────────────► backingGain ─► busCompressor ─► master
+//   compGain ─► compPan ───────────►      ▲
+//   drum samplers ─► pans ─► drumBus ─────┤
+//   sends ─► roomConvolver ─► roomReturn ─┘
+//
+// Room sends tap post-pan (post-trim for bass/comp) so the wet image and
+// balance track the dry signal; drum-family sends are scaled by the kit
+// trim in `applyMixGains` because `drumBus` sits downstream of the taps.
 let backingGain: GainNode | null = null;
+let busCompressor: DynamicsCompressorNode | null = null;
 let bassGain: GainNode | null = null;
 let compGain: GainNode | null = null;
+let compPan: StereoPannerNode | null = null;
 let currentBackingVolume = 0.5;
+
+// Room ambience. The decoded IR is cached forever (AudioBuffers are
+// context-independent); the convolver graph is rebuilt with the rest of
+// the bus after a dispose.
+let roomIrBuffer: AudioBuffer | null = null;
+let roomIrLoadPromise: Promise<void> | null = null;
+let roomConvolver: ConvolverNode | null = null;
+let roomReturn: GainNode | null = null;
+let roomSends: Partial<Record<'bass' | 'comp' | DrumFamily, GainNode>> = {};
 
 // Per-instrument mix levels, persisted per device (see backing-mix.ts).
 let mixLevels: BackingMixLevels = loadBackingMix();
@@ -137,9 +171,108 @@ function applyMixGains(): void {
 	if (backingGain) backingGain.gain.value = currentBackingVolume;
 	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
 	if (compGain) compGain.gain.value = BACKING_BASE_TRIMS.comp * mixLevels.comp;
-	if (drumGainNode) {
-		drumGainNode.gain.value = currentBackingVolume * BACKING_BASE_TRIMS.drums * mixLevels.drums;
+	if (drumBus) drumBus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
+	if (roomReturn) roomReturn.gain.value = ROOM_RETURN_GAIN * mixLevels.room;
+	// Bass/comp taps sit post-trim, so their sends are the raw policy level;
+	// the drum taps sit pre-drumBus, so the kit trim applies here instead.
+	const kitSend = BACKING_BASE_TRIMS.drums * mixLevels.drums;
+	for (const key of ['bass', 'comp', 'kick', 'snare', 'cymbals'] as const) {
+		const send = roomSends[key];
+		if (!send) continue;
+		send.gain.value = ROOM_SENDS[key] * (key === 'bass' || key === 'comp' ? 1 : kitSend);
 	}
+}
+
+/**
+ * Create the shared backing bus (volume fader → glue compressor → master)
+ * and the bass/comp branches, idempotently. Both `loadBackingInstruments`
+ * and `ensureDrums` call this, so whichever runs first builds the bus.
+ */
+function ensureBackingGraph(audioCtx: AudioContext): void {
+	if (!backingGain) {
+		const compressor = audioCtx.createDynamicsCompressor();
+		compressor.threshold.value = BACKING_BUS_COMPRESSOR.threshold;
+		compressor.knee.value = BACKING_BUS_COMPRESSOR.knee;
+		compressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
+		compressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
+		compressor.release.value = BACKING_BUS_COMPRESSOR.release;
+		compressor.connect(getMasterGain());
+		const gain = audioCtx.createGain();
+		gain.gain.value = currentBackingVolume;
+		gain.connect(compressor);
+		busCompressor = compressor;
+		backingGain = gain;
+	}
+	if (!bassGain) {
+		bassGain = audioCtx.createGain();
+		bassGain.connect(backingGain);
+	}
+	if (!compPan) {
+		compPan = audioCtx.createStereoPanner();
+		compPan.pan.value = BACKING_PANS.comp;
+		compPan.connect(backingGain);
+	}
+	if (!compGain) {
+		compGain = audioCtx.createGain();
+		compGain.connect(compPan);
+	}
+	buildRoomGraph(audioCtx);
+}
+
+/**
+ * Fetch + decode the room IR once, best-effort: on failure the backing
+ * plays dry, and the next `loadBackingInstruments` retries the fetch
+ * (the graph works without it either way).
+ */
+function ensureRoomIr(audioCtx: AudioContext): Promise<void> {
+	if (roomIrBuffer) return Promise.resolve();
+	if (roomIrLoadPromise) return roomIrLoadPromise;
+	roomIrLoadPromise = (async () => {
+		try {
+			const response = await fetch(ROOM_IR_URL);
+			if (!response.ok) return;
+			roomIrBuffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
+			buildRoomGraph(audioCtx);
+		} catch {
+			// Undecodable or unreachable IR → dry backing.
+		} finally {
+			roomIrLoadPromise = null;
+		}
+	})();
+	return roomIrLoadPromise;
+}
+
+/**
+ * Wire the convolver + return and connect a send from every source branch
+ * that exists. Idempotent and incremental: called again as later branches
+ * (the drum kit, or the IR itself) come up. A no-op until both the IR and
+ * the bus exist — including after a dispose, when `backingGain` is null
+ * and a late IR decode must not wire nodes onto a dead graph.
+ */
+function buildRoomGraph(audioCtx: AudioContext): void {
+	if (!roomIrBuffer || !backingGain) return;
+	if (!roomConvolver) {
+		roomConvolver = audioCtx.createConvolver();
+		roomConvolver.buffer = roomIrBuffer;
+		roomReturn = audioCtx.createGain();
+		roomConvolver.connect(roomReturn);
+		roomReturn.connect(backingGain);
+	}
+	const tap = (source: AudioNode | null, key: 'bass' | 'comp' | DrumFamily): void => {
+		if (!source || roomSends[key]) return;
+		const send = audioCtx.createGain();
+		source.connect(send);
+		send.connect(roomConvolver as ConvolverNode);
+		roomSends[key] = send;
+	};
+	tap(bassGain, 'bass');
+	tap(compPan, 'comp');
+	if (drumPans) {
+		tap(drumPans.kick, 'kick');
+		tap(drumPans.snare, 'snare');
+		tap(drumPans.cymbals, 'cymbals');
+	}
+	applyMixGains();
 }
 
 /** Current per-instrument mix levels (copy). */
@@ -158,13 +291,18 @@ export function setBackingMix(partial: Partial<BackingMixLevels>): void {
 	applyMixGains();
 }
 
-// Drums: multi-sample kit loaded via smplr.Sampler with string aliases
-// (`kick`, `ride`, `hihat`) mapped to CC0 Virtuosity Drums recordings.
-let drumSampler: SmplrSampler | null = null;
-let drumGainNode: GainNode | null = null;
+// Drums: the CC0 Virtuosity kit split into three smplr Samplers — kick /
+// snare-family / cymbals — each behind its own StereoPanner into the
+// shared drum bus, so the kit spreads across the image like a kit.
+let drumSamplers: Record<DrumFamily, SmplrSampler> | null = null;
+let drumPans: Record<DrumFamily, StereoPannerNode> | null = null;
+let drumBus: GainNode | null = null;
 /** Shared in-flight load promise so concurrent callers don't race and
  *  leak a gain node / sampler graph (single-flight pattern). */
 let drumLoadPromise: Promise<void> | null = null;
+/** Bumped by `disposeBackingTrack` so async flights that started against
+ *  the previous graph refuse to promote their nodes onto the corpse. */
+let graphEpoch = 0;
 
 // Scheduled parts
 let bassPart: import('tone').Part<BassEvent> | null = null;
@@ -251,20 +389,61 @@ export async function getDecodedDrumBuffersForBounce(): Promise<
 	return decodeDrumBuffers(audioCtx);
 }
 
+/**
+ * Decoded room IR for an offline bounce, at the bounce's sample rate, or
+ * null when it can't be loaded — the bounce then renders dry, matching
+ * what the live graph would do without an IR.
+ *
+ * Decoded on a throwaway OfflineAudioContext pinned to `sampleRate`, NOT
+ * the live context (and deliberately not sharing `ensureRoomIr`'s cache):
+ * `decodeAudioData` resamples to its own context's rate, and
+ * `ConvolverNode.buffer` THROWS on a rate mismatch — a live context at
+ * 48 kHz (most modern output devices) would kill a 44.1 kHz render
+ * outright. Source-node buffers resample freely, which is why the drum
+ * buffers can keep decoding on the live context.
+ */
+export async function getDecodedRoomIrForBounce(sampleRate: number): Promise<AudioBuffer | null> {
+	try {
+		const response = await fetch(ROOM_IR_URL);
+		if (!response.ok) return null;
+		const decodeCtx = new OfflineAudioContext(2, 1, sampleRate);
+		return await decodeCtx.decodeAudioData(await response.arrayBuffer());
+	} catch {
+		return null;
+	}
+}
+
 async function ensureDrums(): Promise<void> {
-	if (drumSampler) return;
+	if (drumSamplers) return;
 	if (drumLoadPromise) return drumLoadPromise;
 
-	drumLoadPromise = (async () => {
+	// Epoch capture: if `disposeBackingTrack` runs while the samples load,
+	// promoting this flight's nodes would resurrect a dead graph (silent
+	// drums that block every later `ensureDrums`, or stale pans tapped into
+	// a rebuilt room). The flight checks the epoch before promoting.
+	const epoch = graphEpoch;
+	let flight: Promise<void> | null = null;
+	flight = (async () => {
 		const audioCtx = await initAudio();
 		const { Sampler } = await import('smplr');
+		// Disposed while awaiting? Abort BEFORE ensureBackingGraph — a stale
+		// flight must not resurrect a fresh bus onto master.
+		if (epoch !== graphEpoch) return;
 
 		// Build the graph locally first — only promote to module-level
 		// refs on successful load so a rejection or a concurrent winner
-		// can't leave an orphaned gain node wired to master.
-		const gainNode = audioCtx.createGain();
-		gainNode.gain.value = 0.4;
-		gainNode.connect(getMasterGain());
+		// can't leave an orphaned gain node wired to the bus.
+		ensureBackingGraph(audioCtx);
+		const bus = audioCtx.createGain();
+		bus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
+		bus.connect(backingGain as GainNode);
+		const pans = {} as Record<DrumFamily, StereoPannerNode>;
+		for (const family of ['kick', 'snare', 'cymbals'] as const) {
+			const pan = audioCtx.createStereoPanner();
+			pan.pan.value = BACKING_PANS[family];
+			pan.connect(bus);
+			pans[family] = pan;
+		}
 
 		// Decode the drum samples ourselves rather than handing smplr the URL
 		// map. Given URLs, smplr fetches each one and — whenever a decode
@@ -285,32 +464,64 @@ async function ensureDrums(): Promise<void> {
 		// encoding; the guard below is correct either way.
 		const decoded = await decodeDrumBuffers(audioCtx);
 
+		// Partition the decoded buffers into their sampler families. A family
+		// whose buffers all failed to decode still gets an (empty) sampler —
+		// its starts become silent no-ops, like the old single-sampler path.
+		const byFamily: Record<DrumFamily, Record<string, AudioBuffer>> = {
+			kick: {},
+			snare: {},
+			cymbals: {}
+		};
+		for (const [name, buffer] of Object.entries(decoded)) {
+			byFamily[DRUM_BUFFER_FAMILY[name as DrumBufferName]][name] = buffer;
+		}
+
 		// Explicit defaults required — smplr's samplerToSmplrJson puts
 		// options.detune/decayTime/lpfCutoffHz into json.defaults, and
 		// undefined values clobber PARAM_DEFAULTS via object spread,
 		// producing NaN detune at playback and throwing inside Voice.
-		const sampler = new Sampler(audioCtx, {
-			buffers: decoded,
-			destination: gainNode,
-			detune: 0,
-			decayTime: 0.3,
-			lpfCutoffHz: 20000
-		});
+		const samplers = {} as Record<DrumFamily, SmplrSampler>;
+		for (const family of ['kick', 'snare', 'cymbals'] as const) {
+			samplers[family] = new Sampler(audioCtx, {
+				buffers: byFamily[family],
+				destination: pans[family],
+				detune: 0,
+				decayTime: 0.3,
+				lpfCutoffHz: 20000
+			});
+		}
 
 		try {
-			await sampler.load;
-			drumGainNode = gainNode;
-			drumSampler = sampler;
+			await Promise.all(Object.values(samplers).map((s) => s.load));
+			if (epoch !== graphEpoch) {
+				// Disposed mid-load: tear down this flight's local nodes and let
+				// the next ensureDrums build against the live graph.
+				for (const s of Object.values(samplers)) s.disconnect();
+				for (const p of Object.values(pans)) p.disconnect();
+				bus.disconnect();
+				return;
+			}
+			drumBus = bus;
+			drumPans = pans;
+			drumSamplers = samplers;
+			// The kit's pans now exist — give them their room sends if the IR
+			// beat the kit here (otherwise the IR's own decode completion will).
+			buildRoomGraph(audioCtx);
+			applyMixGains();
 		} catch (error) {
-			sampler.disconnect();
-			gainNode.disconnect();
+			for (const s of Object.values(samplers)) s.disconnect();
+			for (const p of Object.values(pans)) p.disconnect();
+			bus.disconnect();
 			throw error;
 		} finally {
-			drumLoadPromise = null;
+			// Only clear our own registration — a dispose may already have
+			// cleared it and a NEWER flight may own the slot by now.
+			if (drumLoadPromise === flight) drumLoadPromise = null;
 		}
 	})();
 
-	return drumLoadPromise;
+	drumLoadPromise = flight;
+	return flight;
 }
 
 /**
@@ -328,30 +539,56 @@ export async function loadBackingInstruments(
 	const audioCtx = await initAudio();
 	if (loadId !== currentLoadId) return;
 
-	// Create shared gain nodes if needed
-	if (!backingGain) {
-		backingGain = audioCtx.createGain();
-		backingGain.gain.value = currentBackingVolume;
-		backingGain.connect(getMasterGain());
-	}
-	if (!bassGain) {
-		bassGain = audioCtx.createGain();
-		bassGain.connect(backingGain);
-	}
-	if (!compGain) {
-		compGain = audioCtx.createGain();
-		compGain.connect(backingGain);
-	}
+	ensureBackingGraph(audioCtx);
 	applyMixGains();
 
-	const { Soundfont, SplendidGrandPiano, Smolken } = await import('smplr');
+	// Room IR: best-effort background load, never awaited on the schedule
+	// path — the backing simply plays dry until (unless) it decodes.
+	void ensureRoomIr(audioCtx);
+
+	const { Soundfont, SplendidGrandPiano, Smolken, CacheStorage } = await import('smplr');
 	if (loadId !== currentLoadId) return;
+
+	// Cache the CDN sample libraries in CacheStorage so revisits (and full
+	// offline use after a first load) skip the network. Versioned name: bump
+	// it if a library swap ever needs to invalidate the cache. The Cache API
+	// needs a secure context; elsewhere smplr's default HttpStorage applies.
+	//
+	// Wrapped: smplr's CacheStorage caches whatever the network returns —
+	// the Cache API happily stores a 404/500 — so a single transient CDN
+	// error would otherwise serve that error forever. On a not-ok response
+	// (StorageResponse exposes status, not ok), retry the network and
+	// self-heal the cache: a good retry replaces the poisoned entry, a bad
+	// one deletes it so the next load takes a clean path.
+	const storage =
+		typeof caches !== 'undefined'
+			? (() => {
+					const CACHE_NAME = 'mankunku-samples-v1';
+					const cache = new CacheStorage(CACHE_NAME);
+					return {
+						fetch: async (url: string) => {
+							const response = await cache.fetch(url);
+							if (response.status >= 200 && response.status < 300) return response;
+							const retried = await fetch(url);
+							try {
+								const store = await caches.open(CACHE_NAME);
+								if (retried.ok) await store.put(url, retried.clone());
+								else await store.delete(url);
+							} catch {
+								// Cache maintenance is best-effort (quota, private mode).
+							}
+							return retried;
+						}
+					};
+				})()
+			: undefined;
 
 	// Load bass if not already loaded — pizzicato upright bass samples
 	if (!bassInstrument) {
 		const bass = new Smolken(audioCtx, {
 			instrument: 'Pizzicato',
-			destination: bassGain
+			destination: bassGain as GainNode,
+			storage
 		});
 		await bass.load;
 		if (loadId !== currentLoadId) {
@@ -364,11 +601,12 @@ export async function loadBackingInstruments(
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		const newComp: CompInstrument = instrumentType === 'piano'
-			? new SplendidGrandPiano(audioCtx, { destination: compGain })
+			? new SplendidGrandPiano(audioCtx, { destination: compGain as GainNode, storage })
 			: new Soundfont(audioCtx, {
 				instrument: 'drawbar_organ',
 				kit: 'MusyngKite',
-				destination: compGain
+				destination: compGain as GainNode,
+				storage
 			});
 		await newComp.load;
 		if (loadId !== currentLoadId) {
@@ -597,7 +835,9 @@ export function disposeBackingParts(): void {
 	}
 	bassInstrument?.stop();
 	compInstrument?.stop();
-	drumSampler?.stop();
+	if (drumSamplers) {
+		for (const sampler of Object.values(drumSamplers)) sampler.stop();
+	}
 	activeSchedule = null;
 }
 
@@ -661,7 +901,10 @@ export function playBackingHitsNow(hits: BackingHit[], time: number): void {
 				}
 				break;
 			case 'drum':
-				drumSampler?.start({
+				// Mirrors the drum Part callback: buffer picked by generated
+				// velocity, level shaped through velocity, hit routed to its
+				// family's sampler (kick / snare / cymbals).
+				drumSamplers?.[DRUM_FAMILY_BY_VOICE[hit.drum]].start({
 					note: drumBufferForVelocity(hit.drum, hit.velocity),
 					velocity: Math.round(
 						voiceVelocity(hit.velocity * BACKING_BASE_TRIMS[hit.drum], mixLevels[hit.drum]) * 127
@@ -723,7 +966,10 @@ export async function scheduleBackingTrack(
 
 	// ── Generate bass + comp + drum events ──────────────────
 	const swing = resolveBackingSwing(options.swing, style, options.tempo);
-	const { bassEvents, compEvents, drumEvents } = generateBacking(harmony, style, {
+	// Cached: lick-practice loops and per-key restarts reschedule the same
+	// (phrase, tempo, style) many times — the LRU returns the identical
+	// events without re-running the planners.
+	const { bassEvents, compEvents, drumEvents } = generateBackingCached(harmony, style, {
 		phraseId: phrase.id,
 		tempo: options.tempo,
 		ppq,
@@ -798,13 +1044,14 @@ export async function scheduleBackingTrack(
 
 	drumPart = new Tone.Part((time: number, event: DrumEvent) => {
 		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
-		// per-voice base trim and mix trim apply here because the kit is one
-		// sampler — velocity is the only per-voice level lever. The buffer is
-		// picked from the voice's velocity layers by the GENERATED velocity
-		// (musical intent), before trims touch the level. A buffer the
-		// browser failed to decode makes the start a silent no-op, exactly
-		// like the old single-buffer path.
-		drumSampler?.start({
+		// per-voice base trim and mix trim apply here because voice balance
+		// within a family sampler can only be shaped through velocity. The
+		// buffer is picked from the voice's velocity layers by the GENERATED
+		// velocity (musical intent), before trims touch the level, and the
+		// hit routes to its family's sampler (kick / snare / cymbals — each
+		// with its own pan). A buffer the browser failed to decode makes the
+		// start a silent no-op, exactly like the old single-buffer path.
+		drumSamplers?.[DRUM_FAMILY_BY_VOICE[event.drum]].start({
 			note: drumBufferForVelocity(event.drum, event.velocity),
 			velocity: Math.round(
 				voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
@@ -843,6 +1090,10 @@ export async function startBackingTrack(
 
 /** Full cleanup: dispose parts and instruments. */
 export function disposeBackingTrack(): void {
+	// Invalidate in-flight async loads (kit, IR) so they tear their local
+	// nodes down instead of promoting onto the disposed graph.
+	graphEpoch++;
+	drumLoadPromise = null;
 	disposeBackingParts();
 	if (bassInstrument) {
 		bassInstrument.disconnect();
@@ -853,14 +1104,30 @@ export function disposeBackingTrack(): void {
 		compInstrument = null;
 		currentInstrumentType = null;
 	}
-	if (drumSampler) {
-		drumSampler.disconnect();
-		drumSampler = null;
+	if (drumSamplers) {
+		for (const sampler of Object.values(drumSamplers)) sampler.disconnect();
+		drumSamplers = null;
 	}
-	if (drumGainNode) {
-		drumGainNode.disconnect();
-		drumGainNode = null;
+	if (drumPans) {
+		for (const pan of Object.values(drumPans)) pan.disconnect();
+		drumPans = null;
 	}
+	if (drumBus) {
+		drumBus.disconnect();
+		drumBus = null;
+	}
+	for (const send of Object.values(roomSends)) send?.disconnect();
+	roomSends = {};
+	if (roomConvolver) {
+		roomConvolver.disconnect();
+		roomConvolver = null;
+	}
+	if (roomReturn) {
+		roomReturn.disconnect();
+		roomReturn = null;
+	}
+	// `roomIrBuffer` deliberately survives — the decoded IR is
+	// context-independent and the next graph rebuild reuses it for free.
 	if (bassGain) {
 		bassGain.disconnect();
 		bassGain = null;
@@ -869,9 +1136,17 @@ export function disposeBackingTrack(): void {
 		compGain.disconnect();
 		compGain = null;
 	}
+	if (compPan) {
+		compPan.disconnect();
+		compPan = null;
+	}
 	if (backingGain) {
 		backingGain.disconnect();
 		backingGain = null;
+	}
+	if (busCompressor) {
+		busCompressor.disconnect();
+		busCompressor = null;
 	}
 }
 

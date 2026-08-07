@@ -308,12 +308,19 @@ function devicePitches(
 /**
  * Generate the bass line. Drop-in replacement for the old
  * `generateWalkingBass`, plus per-bar onsets for the drummer's ears.
+ *
+ * `feelOverride: 'two'` (the ballad engine, `StyleDefinition.bass ===
+ * 'two'`) pins EVERY bar to the two-feel — no chorus latch, no 4-bar
+ * walk escapes, no section-final walk: a ballad states half notes all
+ * night. The `bass-feel`/`bass-feel-escape` streams go unconsumed under
+ * the override (they're dedicated, so nothing else reshuffles).
  */
 export function generateBassLine(
 	harmony: HarmonicSegment[],
 	beatsPerBar: number,
 	params: BackingGenerationParams,
-	barInfos: BarInfo[]
+	barInfos: BarInfo[],
+	feelOverride?: 'two'
 ): BassLineResult {
 	const { phraseId, tempo, ppq, swing } = params;
 	const timing = params.timing ?? SWING_TIMING;
@@ -324,7 +331,7 @@ export function generateBassLine(
 	const downbeatPc = (idx: number): number =>
 		(segments[idx].rootPc + plans[idx].downbeatOffset) % 12;
 	const centers = planArc(barInfos.length, barInfos, phraseId, tempo);
-	const feels = planFeel(barInfos, phraseId, tempo);
+	const feels = feelOverride ? null : planFeel(barInfos, phraseId, tempo);
 	const beatDuration = 60 / tempo;
 
 	const events: BassEvent[] = [];
@@ -335,11 +342,13 @@ export function generateBassLine(
 	const infoAt = (absBeat: number): BarInfo =>
 		barInfos[Math.min(Math.floor(absBeat / beatsPerBar), barInfos.length - 1)];
 	const feelAt = (absBeat: number): 'two' | 'four' => {
-		const bar = Math.min(Math.floor(absBeat / beatsPerBar), feels.length - 1);
+		if (feelOverride) return feelOverride;
+		const fs = feels as Array<'two' | 'four'>;
+		const bar = Math.min(Math.floor(absBeat / beatsPerBar), fs.length - 1);
 		const info = infoAt(absBeat);
 		// A two-feel chorus still walks where the form needs motion: the last
 		// bar of each 4-bar group sometimes, section-final bars always.
-		if (feels[bar] === 'two') {
+		if (fs[bar] === 'two') {
 			if (info.isSectionFinalBar) return 'four';
 			if (bar % 4 === 3) {
 				const rng = createRng(seedFrom(phraseId, tempo, 'bass-feel-escape', bar));
@@ -436,8 +445,12 @@ export function generateBassLine(
 				}
 				notes[deviceStart + i] = pitch;
 			}
-		} else if (!hasNext && L >= 1) {
-			notes[L] = nextTarget; // final segment settles
+		} else if (!hasNext && L >= 1 && feelAt(seg.startBeats + L) === 'four') {
+			// Final segment settles on the last beat — walking feel only. A
+			// two-feel ending already rests after its half-note pair; a settle
+			// note here doubled the beat-3 fifth back-to-back (the stutter the
+			// candidate weights guard against everywhere else).
+			notes[L] = nextTarget;
 		}
 
 		// Spice draws (fixed order for determinism), BEFORE the walk so the
@@ -528,7 +541,20 @@ export function generateBassLine(
 			const feel = feelAt(absBeat);
 			let midi = notes[beat];
 			if (midi === null) {
-				if (feel === 'two' && beatInBar === 2) {
+				if (feel === 'two' && beatInBar === 0) {
+					// Interior downbeat of a held chord: a two-feel bassist
+					// restates the anchor every bar — the original downbeat
+					// pitch, with the fifth on alternating bars for motion.
+					// Deterministic (no draw), so the stream's later choices
+					// are untouched; this fixes silent bar-2 downbeats in BOTH
+					// the ballad override and swing's chorus-0 two-feel.
+					const tones = chordToneIntervalsForBass(seg.quality);
+					const barOfSeg = Math.floor(beat / beatsPerBar);
+					midi =
+						barOfSeg % 2 === 1
+							? nearestPc((seg.rootPc + tones.fifth) % 12, notes[0]!)
+							: notes[0]!;
+				} else if (feel === 'two' && beatInBar === 2) {
 					// Two-feel beat 3: mostly the 5th, sometimes 3rd/octave, or an
 					// early approach when the chord changes at the next barline.
 					const tones = chordToneIntervalsForBass(seg.quality);
@@ -541,22 +567,30 @@ export function generateBassLine(
 										{ value: nearestPc((seg.rootPc + tones.fifth) % 12, notes[0]!), weight: 55 },
 										{ value: nearestPc((seg.rootPc + tones.third) % 12, notes[0]!), weight: 20 },
 										{ value: notes[0]! + 12 <= BASS_HIGH ? notes[0]! + 12 : notes[0]! - 12, weight: 10 }
-									// Beat 3 restates motion, not the downbeat pitch — a
-									// fifth-colored downbeat made "the fifth" a repeat.
-									].filter((o) => o.value !== notes[0])
+									// Beat 3 restates motion, not the downbeat pitch — filter
+									// the SEGMENT downbeat (a fifth-colored one made "the
+									// fifth" a repeat) AND the note just played (an interior
+									// bar's restated fifth downbeat would machine-gun with a
+									// fifth fill). Three distinct values, two filters: the
+									// list can never empty.
+									].filter((o) => o.value !== notes[0] && o.value !== prevMidi)
 								);
 				} else {
 					continue; // two-feel rest beats
 				}
 			}
 
-			const isTwoFeelRoot = feel === 'two' && beatInBar === 0;
+			// Two-feel halves sustain: the downbeat always, and — under the
+			// ballad override — the beat-3 half too (swing's chorus-0 two-feel
+			// keeps its detached beat 3; that articulation is the style).
+			const isTwoFeelHalf =
+				feel === 'two' && (beatInBar === 0 || (feelOverride !== undefined && beatInBar === 2));
 			const velocity =
 				rng.int(76, 88) + (beatInBar === 0 ? 4 : 0) + (beatInBar === 2 ? 2 : 0);
 			push(
 				absBeat,
 				midi,
-				beatDuration * (isTwoFeelRoot ? 1.7 : beat === L && pickupActive ? 0.45 : 0.85),
+				beatDuration * (isTwoFeelHalf ? 1.7 : beat === L && pickupActive ? 0.45 : 0.85),
 				velocity
 			);
 
@@ -583,9 +617,11 @@ export function generateBassLine(
 		// Section-final triplet fill on the last beat — a small "here we go"
 		// that the swung grid never touches (triplet offsets are swing-immune
 		// by construction). Mutually exclusive with the pickup: two ornaments
-		// stacked on one beat is clutter, not conversation.
+		// stacked on one beat is clutter, not conversation. Gated off under
+		// the permanent two-feel override — a ballad's sections end still.
 		const lastInfo = infoAt(seg.startBeats + L);
 		if (
+			feelOverride === undefined &&
 			!pickupActive &&
 			hasNext &&
 			lastInfo.isSectionFinalBar &&
@@ -596,6 +632,138 @@ export function generateBassLine(
 			const base = notes[L] ?? prevMidi ?? downbeat;
 			push(seg.startBeats + L + 1 / 3, base + (rng.chance(0.5) ? 1 : -1), beatDuration * 0.18, 58);
 			push(seg.startBeats + L + 2 / 3, nextTarget - 1, beatDuration * 0.18, 66);
+		}
+	}
+
+	return { events, onsetsByBar };
+}
+
+// ── Bossa pattern bass ───────────────────────────────────────
+
+/**
+ * Bossa nova bass: the surdo-derived root–fifth ostinato, not a walking
+ * line. The pattern lives on the BAR grid — the same grid the clave and
+ * kick are locked to — with a per-beat chord lookup, so split bars
+ * (|Dm7 G7|) state the new root at the change point instead of floating
+ * the ostinato off the barline: root of the sounding chord on 1; on 3
+ * the mid-bar chord's root when the harmony moves there (always stated),
+ * else the quality-aware fifth; soft eighth pickups on the and-of-2
+ * (leading beat 3 — a chromatic approach when the chord changes there)
+ * and the and-of-4 (leading the next bar — an approach when the barline
+ * brings a new chord). Variation drops thin the pickups and the beat-3
+ * fifth so the pattern breathes without losing the anchor. Register sits
+ * flat around E2 (no arc — bossa sits, it doesn't climb); the fifth
+ * takes the surdo drop below the root, which the register policy
+ * guarantees stays in band. Events go through the same per-role timing
+ * placement as the walking line, drawing from the `bass` role keyed by
+ * bar index (the walking planner keys it by segment; the two generators
+ * never run on the same phrase).
+ *
+ * 4/4 only by contract — `generateBacking` falls back to the walking
+ * planner for other meters.
+ */
+export function generateBossaBass(
+	harmony: HarmonicSegment[],
+	beatsPerBar: number,
+	params: BackingGenerationParams,
+	barInfos: BarInfo[]
+): BassLineResult {
+	const { phraseId, tempo, ppq, swing } = params;
+	const timing = params.timing ?? SWING_TIMING;
+	const streams = createTimingStreams(phraseId, tempo);
+	const segments = toBassSegments(harmony);
+	// Empty harmony → empty line (chordAt would index segments[0]).
+	if (segments.length === 0) return { events: [], onsetsByBar: new Map() };
+	const beatDuration = 60 / tempo;
+	const totalBars = barInfos.length;
+
+	const events: BassEvent[] = [];
+	const onsetsByBar = new Map<number, number[]>();
+	const push = (absBeat: number, midi: number, duration: number, velocity: number): void => {
+		const bar = Math.floor(absBeat / beatsPerBar);
+		events.push({
+			time: `${placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
+			midi: Math.max(BASS_LOW, Math.min(BASS_HIGH, midi)),
+			duration,
+			velocity,
+			absBeat
+		});
+		const list = onsetsByBar.get(bar) ?? [];
+		list.push(absBeat - bar * beatsPerBar);
+		onsetsByBar.set(bar, list);
+	};
+
+	/** The chord sounding at a beat: last segment starting at or before it
+	 *  (segments are sorted and contiguous; beats past the end clamp). */
+	const chordAt = (absBeat: number): BassSegment => {
+		let current = segments[0];
+		for (const seg of segments) {
+			if (seg.startBeats <= absBeat + 1e-6) current = seg;
+			else break;
+		}
+		return current;
+	};
+	const rootFor = (seg: BassSegment): number => nearestPc(seg.rootPc, ARC_CENTER_BASE);
+	/** The surdo drop: the quality-aware fifth below the root (the register
+	 *  policy pins roots ≥ 34, so the drop always stays in band). */
+	const fifthFor = (rootMidi: number, seg: BassSegment): number =>
+		rootMidi + chordToneIntervalsForBass(seg.quality).fifth - 12;
+
+	for (let bar = 0; bar < totalBars; bar++) {
+		const barStart = bar * beatsPerBar;
+		const rng = createRng(seedFrom(phraseId, tempo, 'bass', bar));
+		const isPhraseFinalBar = bar === totalBars - 1;
+		const segAt0 = chordAt(barStart);
+		const segAt2 = chordAt(barStart + 2);
+		// Content comparison, not identity: a repeated chord written as two
+		// segments (|F F|) is a held chord, not a change.
+		const changesMidBar = segAt2.rootPc !== segAt0.rootPc || segAt2.quality !== segAt0.quality;
+		const root0 = rootFor(segAt0);
+		const beat3Midi = changesMidBar ? rootFor(segAt2) : fifthFor(root0, segAt0);
+
+		// Beat 1: the sounding chord's root, always.
+		push(barStart, root0, beatDuration * 1.4, rng.int(72, 80));
+
+		if (isPhraseFinalBar) {
+			// Settle: long root, no pickup out. A real mid-bar change still
+			// sounds unconditionally — "always stated" holds on every bar —
+			// only the held-chord fifth restatement is optional here.
+			if (changesMidBar || rng.chance(0.5)) {
+				push(barStart + 2, beat3Midi, beatDuration * 1.6, rng.int(62, 70));
+			}
+			continue;
+		}
+
+		// And-of-2 pickup leading beat 3: a chromatic approach when the
+		// chord changes there, else the fifth (the feminine half of the lilt).
+		if (rng.chance(0.6)) {
+			const pickup = changesMidBar
+				? beat3Midi + (rng.chance(0.67) ? -1 : 1)
+				: beat3Midi;
+			push(barStart + 1.5, pickup, beatDuration * 0.35, rng.int(56, 63));
+		}
+
+		// Beat 3: a mid-bar chord change is ALWAYS stated; a held chord's
+		// fifth occasionally rests so the root rings (the variation drop).
+		if (changesMidBar || rng.chance(0.9)) {
+			push(barStart + 2, beat3Midi, beatDuration * 1.4, rng.int(68, 76));
+		}
+
+		// And-of-4 pickup into the next bar: an approach when the barline
+		// brings a new chord, else the sounding root again.
+		if (rng.chance(0.7)) {
+			const nextSeg = chordAt(barStart + beatsPerBar);
+			const soundingRoot = changesMidBar ? rootFor(segAt2) : root0;
+			let pickup = soundingRoot;
+			if (nextSeg.rootPc !== segAt2.rootPc) {
+				const nextRootMidi = rootFor(nextSeg);
+				pickup = rng.weighted([
+					{ value: nextRootMidi - 1, weight: 2 }, // chromatic below
+					{ value: nextRootMidi + 1, weight: 1 }, // chromatic above
+					{ value: fifthFor(nextRootMidi, nextSeg), weight: 1 }
+				]);
+			}
+			push(barStart + 3.5, pickup, beatDuration * 0.35, rng.int(58, 65));
 		}
 	}
 

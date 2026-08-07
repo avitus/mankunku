@@ -57,6 +57,15 @@ describe('normalizeBackingMix', () => {
 		expect(mix).toEqual({ ...DEFAULT_BACKING_MIX, bass: 0.5 });
 		expect('master' in mix).toBe(false);
 	});
+
+	it('fills the room key with its default for pre-room persisted mixes', () => {
+		// Mixes saved before increment 9 have no `room` — they must load with
+		// the default return level rather than dropping the key or going dry.
+		const mix = normalizeBackingMix({ bass: 0.7, kick: 1.5 });
+		expect(mix.room).toBe(DEFAULT_BACKING_MIX.room);
+		expect(normalizeBackingMix({ room: 2.5 }).room).toBe(2.5);
+		expect(normalizeBackingMix({ room: -4 }).room).toBe(0);
+	});
 });
 
 describe('load/save round-trip', () => {
@@ -73,7 +82,8 @@ describe('load/save round-trip', () => {
 			snare: 1.3,
 			crossstick: 1,
 			'ride-bell': 0.8,
-			crash: 1
+			crash: 1,
+			room: 1.2
 		};
 		saveBackingMix(tuned);
 		expect(loadBackingMix()).toEqual(tuned);
@@ -135,6 +145,46 @@ describe('BACKING_BASE_TRIMS', () => {
 			expect(Number.isFinite(v)).toBe(true);
 			expect(v).toBeGreaterThan(0);
 		}
+	});
+});
+
+describe('spatial + bus policy tables', () => {
+	it('covers every drum buffer with a family (derived table is total)', async () => {
+		const { DRUM_BUFFERS, DRUM_BUFFER_FAMILY, DRUM_FAMILY_BY_VOICE } = await import(
+			'$lib/audio/sample-maps'
+		);
+		for (const buffer of Object.keys(DRUM_BUFFERS)) {
+			expect(
+				DRUM_BUFFER_FAMILY[buffer as keyof typeof DRUM_BUFFER_FAMILY],
+				`buffer ${buffer} has no family`
+			).toBeDefined();
+		}
+		// Low anchors stay centered; the kit actually spreads.
+		expect(DRUM_FAMILY_BY_VOICE.kick).toBe('kick');
+		expect(DRUM_FAMILY_BY_VOICE.crash).toBe('cymbals');
+		expect(DRUM_FAMILY_BY_VOICE.crossstick).toBe('snare');
+	});
+
+	it('keeps pans in [-1, 1] with low anchors centered, and sends modest', async () => {
+		const { BACKING_PANS, ROOM_SENDS, ROOM_RETURN_GAIN, BACKING_BUS_COMPRESSOR } = await import(
+			'$lib/audio/backing-mix'
+		);
+		for (const [source, pan] of Object.entries(BACKING_PANS)) {
+			expect(Math.abs(pan), `pan ${source}`).toBeLessThanOrEqual(1);
+		}
+		expect(BACKING_PANS.bass).toBe(0);
+		expect(BACKING_PANS.kick).toBe(0);
+		for (const [source, send] of Object.entries(ROOM_SENDS)) {
+			expect(send, `send ${source}`).toBeGreaterThan(0);
+			expect(send, `send ${source}`).toBeLessThan(0.5);
+		}
+		// Low end stays nearly dry — reverb below the low mids is mud.
+		expect(ROOM_SENDS.bass).toBeLessThan(ROOM_SENDS.comp);
+		expect(ROOM_SENDS.kick).toBeLessThan(ROOM_SENDS.snare);
+		expect(ROOM_RETURN_GAIN).toBeLessThan(0.2);
+		// Gentle glue, not limiting.
+		expect(BACKING_BUS_COMPRESSOR.ratio).toBeLessThanOrEqual(3);
+		expect(BACKING_BUS_COMPRESSOR.knee).toBeGreaterThan(0);
 	});
 });
 
