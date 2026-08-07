@@ -114,7 +114,10 @@ export function planCompFigures(
 	barInfos: BarInfo[],
 	beatsPerBar: number,
 	phraseId: string,
-	tempo: number
+	tempo: number,
+	/** Per-figure weight multipliers (`StyleDefinition.compFigureBias`) —
+	 *  how a style leans the shared library, e.g. straight rests more. */
+	figureBias?: Partial<Record<string, number>>
 ): PlannedBar[] {
 	const plan: PlannedBar[] = [];
 	const recent: string[] = []; // last selections, newest last
@@ -146,7 +149,7 @@ export function planCompFigures(
 			return true;
 		}).map((f) => {
 			const isCadenceBar = info.isSectionFinalBar && !info.isFinalBar;
-			let weight = f.weight;
+			let weight = f.weight * (figureBias?.[f.id] ?? 1);
 			// Anti-repetition on the figure's MEMORY key (repeatKey lets
 			// sound-alike figures share one identity): same as previous
 			// ×0.25; twice in the last three ×0.5; a third consecutive

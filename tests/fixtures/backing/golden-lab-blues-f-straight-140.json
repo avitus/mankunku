@@ -1,0 +1,1497 @@
+{
+ "params": {
+  "phraseId": "lab-blues-f",
+  "tempo": 140,
+  "ppq": 192,
+  "beatsPerBar": 4,
+  "swing": 0.5,
+  "style": "straight"
+ },
+ "bassEvents": [
+  {
+   "time": "0i",
+   "midi": 41,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 0
+  },
+  {
+   "time": "191i",
+   "midi": 36,
+   "duration": 0.36428571428571427,
+   "velocity": 76,
+   "absBeat": 1
+  },
+  {
+   "time": "384i",
+   "midi": 38,
+   "duration": 0.36428571428571427,
+   "velocity": 84,
+   "absBeat": 2
+  },
+  {
+   "time": "576i",
+   "midi": 33,
+   "duration": 0.36428571428571427,
+   "velocity": 88,
+   "absBeat": 3
+  },
+  {
+   "time": "769i",
+   "midi": 34,
+   "duration": 0.36428571428571427,
+   "velocity": 81,
+   "absBeat": 4
+  },
+  {
+   "time": "959i",
+   "midi": 35,
+   "duration": 0.36428571428571427,
+   "velocity": 85,
+   "absBeat": 5
+  },
+  {
+   "time": "1151i",
+   "midi": 38,
+   "duration": 0.36428571428571427,
+   "velocity": 78,
+   "absBeat": 6
+  },
+  {
+   "time": "1345i",
+   "midi": 42,
+   "duration": 0.36428571428571427,
+   "velocity": 84,
+   "absBeat": 7
+  },
+  {
+   "time": "1537i",
+   "midi": 41,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 8
+  },
+  {
+   "time": "1727i",
+   "midi": 45,
+   "duration": 0.36428571428571427,
+   "velocity": 82,
+   "absBeat": 9
+  },
+  {
+   "time": "1919i",
+   "midi": 46,
+   "duration": 0.36428571428571427,
+   "velocity": 86,
+   "absBeat": 10
+  },
+  {
+   "time": "2112i",
+   "midi": 49,
+   "duration": 0.36428571428571427,
+   "velocity": 78,
+   "absBeat": 11
+  },
+  {
+   "time": "2304i",
+   "midi": 48,
+   "duration": 0.36428571428571427,
+   "velocity": 80,
+   "absBeat": 12
+  },
+  {
+   "time": "2495i",
+   "midi": 46,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 13
+  },
+  {
+   "time": "2687i",
+   "midi": 48,
+   "duration": 0.36428571428571427,
+   "velocity": 78,
+   "absBeat": 14
+  },
+  {
+   "time": "2881i",
+   "midi": 39,
+   "duration": 0.36428571428571427,
+   "velocity": 88,
+   "absBeat": 15
+  },
+  {
+   "time": "3071i",
+   "midi": 41,
+   "duration": 0.36428571428571427,
+   "velocity": 86,
+   "absBeat": 16
+  },
+  {
+   "time": "3264i",
+   "midi": 38,
+   "duration": 0.36428571428571427,
+   "velocity": 79,
+   "absBeat": 17
+  },
+  {
+   "time": "3454i",
+   "midi": 36,
+   "duration": 0.36428571428571427,
+   "velocity": 90,
+   "absBeat": 18
+  },
+  {
+   "time": "3646i",
+   "midi": 36,
+   "duration": 0.36428571428571427,
+   "velocity": 87,
+   "absBeat": 19
+  },
+  {
+   "time": "3840i",
+   "midi": 35,
+   "duration": 0.36428571428571427,
+   "velocity": 87,
+   "absBeat": 20
+  },
+  {
+   "time": "4032i",
+   "midi": 32,
+   "duration": 0.36428571428571427,
+   "velocity": 81,
+   "absBeat": 21
+  },
+  {
+   "time": "4223i",
+   "midi": 38,
+   "duration": 0.36428571428571427,
+   "velocity": 82,
+   "absBeat": 22
+  },
+  {
+   "time": "4414i",
+   "midi": 40,
+   "duration": 0.19285714285714284,
+   "velocity": 86,
+   "absBeat": 23
+  },
+  {
+   "time": "4510i",
+   "midi": 40,
+   "duration": 0.12857142857142856,
+   "velocity": 53,
+   "absBeat": 23.5
+  },
+  {
+   "time": "4608i",
+   "midi": 41,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 24
+  },
+  {
+   "time": "4798i",
+   "midi": 36,
+   "duration": 0.36428571428571427,
+   "velocity": 77,
+   "absBeat": 25
+  },
+  {
+   "time": "4992i",
+   "midi": 41,
+   "duration": 0.36428571428571427,
+   "velocity": 78,
+   "absBeat": 26
+  },
+  {
+   "time": "5183i",
+   "midi": 37,
+   "duration": 0.36428571428571427,
+   "velocity": 76,
+   "absBeat": 27
+  },
+  {
+   "time": "5376i",
+   "midi": 38,
+   "duration": 0.36428571428571427,
+   "velocity": 84,
+   "absBeat": 28
+  },
+  {
+   "time": "5566i",
+   "midi": 37,
+   "duration": 0.36428571428571427,
+   "velocity": 85,
+   "absBeat": 29
+  },
+  {
+   "time": "5759i",
+   "midi": 36,
+   "duration": 0.36428571428571427,
+   "velocity": 82,
+   "absBeat": 30
+  },
+  {
+   "time": "5951i",
+   "midi": 38,
+   "duration": 0.36428571428571427,
+   "velocity": 79,
+   "absBeat": 31
+  },
+  {
+   "time": "6143i",
+   "midi": 43,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 32
+  },
+  {
+   "time": "6337i",
+   "midi": 55,
+   "duration": 0.36428571428571427,
+   "velocity": 80,
+   "absBeat": 33
+  },
+  {
+   "time": "6528i",
+   "midi": 31,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 34
+  },
+  {
+   "time": "6721i",
+   "midi": 35,
+   "duration": 0.36428571428571427,
+   "velocity": 78,
+   "absBeat": 35
+  },
+  {
+   "time": "6913i",
+   "midi": 36,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 36
+  },
+  {
+   "time": "7104i",
+   "midi": 35,
+   "duration": 0.36428571428571427,
+   "velocity": 87,
+   "absBeat": 37
+  },
+  {
+   "time": "7297i",
+   "midi": 40,
+   "duration": 0.36428571428571427,
+   "velocity": 84,
+   "absBeat": 38
+  },
+  {
+   "time": "7489i",
+   "midi": 36,
+   "duration": 0.19285714285714284,
+   "velocity": 84,
+   "absBeat": 39
+  },
+  {
+   "time": "7582i",
+   "midi": 40,
+   "duration": 0.12857142857142856,
+   "velocity": 57,
+   "absBeat": 39.5
+  },
+  {
+   "time": "7679i",
+   "midi": 41,
+   "duration": 0.36428571428571427,
+   "velocity": 91,
+   "absBeat": 40
+  },
+  {
+   "time": "7873i",
+   "midi": 41,
+   "duration": 0.36428571428571427,
+   "velocity": 82,
+   "absBeat": 41
+  },
+  {
+   "time": "8062i",
+   "midi": 42,
+   "duration": 0.36428571428571427,
+   "velocity": 87,
+   "absBeat": 42
+  },
+  {
+   "time": "8255i",
+   "midi": 42,
+   "duration": 0.36428571428571427,
+   "velocity": 85,
+   "absBeat": 43
+  },
+  {
+   "time": "8447i",
+   "midi": 43,
+   "duration": 0.36428571428571427,
+   "velocity": 82,
+   "absBeat": 44
+  },
+  {
+   "time": "8640i",
+   "midi": 42,
+   "duration": 0.19285714285714284,
+   "velocity": 87,
+   "absBeat": 45
+  },
+  {
+   "time": "8736i",
+   "midi": 44,
+   "duration": 0.12857142857142856,
+   "velocity": 55,
+   "absBeat": 45.5
+  },
+  {
+   "time": "8830i",
+   "midi": 43,
+   "duration": 0.36428571428571427,
+   "velocity": 83,
+   "absBeat": 46
+  },
+  {
+   "time": "9024i",
+   "midi": 44,
+   "duration": 0.36428571428571427,
+   "velocity": 87,
+   "absBeat": 47
+  }
+ ],
+ "compEvents": [
+  {
+   "time": "3i",
+   "notes": [
+    53,
+    60,
+    63,
+    69
+   ],
+   "duration": 0.7121342239276107,
+   "velocity": 68,
+   "absBeat": 0
+  },
+  {
+   "time": "289i",
+   "notes": [
+    53,
+    60,
+    63,
+    69
+   ],
+   "duration": 0.17243579795850172,
+   "velocity": 66,
+   "absBeat": 1.5
+  },
+  {
+   "time": "1155i",
+   "notes": [
+    56,
+    60,
+    62,
+    67
+   ],
+   "duration": 0.6459921681694687,
+   "velocity": 59,
+   "absBeat": 6
+  },
+  {
+   "time": "1442i",
+   "notes": [
+    57,
+    60,
+    63,
+    67
+   ],
+   "duration": 0.4896924614374127,
+   "velocity": 70,
+   "absBeat": 7.5
+  },
+  {
+   "time": "1541i",
+   "notes": [
+    57,
+    63
+   ],
+   "duration": 1.5106500553579203,
+   "velocity": 65,
+   "absBeat": 8
+  },
+  {
+   "time": "2498i",
+   "notes": [
+    60,
+    63,
+    70
+   ],
+   "duration": 0.19697008306227093,
+   "velocity": 64,
+   "absBeat": 13
+  },
+  {
+   "time": "2884i",
+   "notes": [
+    57,
+    60,
+    63,
+    67
+   ],
+   "duration": 0.22125564438756556,
+   "velocity": 57,
+   "absBeat": 15
+  },
+  {
+   "time": "3171i",
+   "notes": [
+    58,
+    62,
+    68
+   ],
+   "duration": 0.3,
+   "velocity": 70,
+   "absBeat": 16.5
+  },
+  {
+   "time": "4612i",
+   "notes": [
+    57,
+    60,
+    63,
+    67
+   ],
+   "duration": 0.8329916617966124,
+   "velocity": 70,
+   "absBeat": 24
+  },
+  {
+   "time": "4993i",
+   "notes": [
+    57,
+    60,
+    63,
+    67
+   ],
+   "duration": 0.7240029742236116,
+   "velocity": 68,
+   "absBeat": 26
+  },
+  {
+   "time": "5379i",
+   "notes": [
+    60,
+    63,
+    66,
+    71
+   ],
+   "duration": 0.7078108692847724,
+   "velocity": 58,
+   "absBeat": 28
+  },
+  {
+   "time": "5667i",
+   "notes": [
+    60,
+    63,
+    66,
+    71
+   ],
+   "duration": 0.1656817875084068,
+   "velocity": 65,
+   "absBeat": 29.5
+  },
+  {
+   "time": "6533i",
+   "notes": [
+    58,
+    62,
+    65,
+    69
+   ],
+   "duration": 0.36202504147908515,
+   "velocity": 70,
+   "absBeat": 34
+  },
+  {
+   "time": "6820i",
+   "notes": [
+    64,
+    67,
+    70,
+    74
+   ],
+   "duration": 0.4898978520557284,
+   "velocity": 68,
+   "absBeat": 35.5
+  },
+  {
+   "time": "6913i",
+   "notes": [
+    64,
+    67,
+    70,
+    74
+   ],
+   "duration": 1.6888183913459733,
+   "velocity": 61,
+   "absBeat": 36
+  },
+  {
+   "time": "8355i",
+   "notes": [
+    70,
+    74,
+    77,
+    81
+   ],
+   "duration": 0.6251706681081227,
+   "velocity": 69,
+   "absBeat": 43.5
+  },
+  {
+   "time": "8451i",
+   "notes": [
+    70,
+    74,
+    77,
+    81
+   ],
+   "duration": 1.55520685092413,
+   "velocity": 66,
+   "absBeat": 44
+  }
+ ],
+ "drumEvents": [
+  {
+   "time": "1i",
+   "drum": "ride",
+   "velocity": 0.4383070497680455,
+   "absBeat": 0
+  },
+  {
+   "time": "192i",
+   "drum": "ride",
+   "velocity": 0.44570401978679,
+   "absBeat": 1
+  },
+  {
+   "time": "385i",
+   "drum": "ride",
+   "velocity": 0.3912271435232833,
+   "absBeat": 2
+  },
+  {
+   "time": "577i",
+   "drum": "ride",
+   "velocity": 0.443238726966083,
+   "absBeat": 3
+  },
+  {
+   "time": "288i",
+   "drum": "ride",
+   "velocity": 0.31333935115486383,
+   "absBeat": 1.5
+  },
+  {
+   "time": "672i",
+   "drum": "ride",
+   "velocity": 0.2811766486056149,
+   "absBeat": 3.5
+  },
+  {
+   "time": "193i",
+   "drum": "hihat",
+   "velocity": 0.4716192677384242,
+   "absBeat": 1
+  },
+  {
+   "time": "575i",
+   "drum": "hihat",
+   "velocity": 0.5283625069377013,
+   "absBeat": 3
+  },
+  {
+   "time": "0i",
+   "drum": "kick",
+   "velocity": 0.11898985663894565,
+   "absBeat": 0
+  },
+  {
+   "time": "193i",
+   "drum": "kick",
+   "velocity": 0.11262094142846764,
+   "absBeat": 1
+  },
+  {
+   "time": "385i",
+   "drum": "kick",
+   "velocity": 0.09857584327924997,
+   "absBeat": 2
+  },
+  {
+   "time": "578i",
+   "drum": "kick",
+   "velocity": 0.0728183377860114,
+   "absBeat": 3
+  },
+  {
+   "time": "289i",
+   "drum": "kick",
+   "velocity": 0.29036930214613677,
+   "absBeat": 1.5
+  },
+  {
+   "time": "576i",
+   "drum": "crossstick",
+   "velocity": 0.2841478129453026,
+   "absBeat": 3
+  },
+  {
+   "time": "768i",
+   "drum": "ride",
+   "velocity": 0.4052446486148983,
+   "absBeat": 4
+  },
+  {
+   "time": "960i",
+   "drum": "ride",
+   "velocity": 0.42486344172153623,
+   "absBeat": 5
+  },
+  {
+   "time": "1152i",
+   "drum": "ride",
+   "velocity": 0.4171284959418699,
+   "absBeat": 6
+  },
+  {
+   "time": "1345i",
+   "drum": "ride",
+   "velocity": 0.4455115149496123,
+   "absBeat": 7
+  },
+  {
+   "time": "1439i",
+   "drum": "ride",
+   "velocity": 0.326594966663979,
+   "absBeat": 7.5
+  },
+  {
+   "time": "866i",
+   "drum": "ride",
+   "velocity": 0.3192955451225862,
+   "absBeat": 4.5
+  },
+  {
+   "time": "960i",
+   "drum": "hihat",
+   "velocity": 0.5121279844711535,
+   "absBeat": 5
+  },
+  {
+   "time": "1344i",
+   "drum": "hihat",
+   "velocity": 0.4730349504598416,
+   "absBeat": 7
+  },
+  {
+   "time": "768i",
+   "drum": "kick",
+   "velocity": 0.10082672074437142,
+   "absBeat": 4
+  },
+  {
+   "time": "963i",
+   "drum": "kick",
+   "velocity": 0.10438324415124953,
+   "absBeat": 5
+  },
+  {
+   "time": "1151i",
+   "drum": "kick",
+   "velocity": 0.08174004467204214,
+   "absBeat": 6
+  },
+  {
+   "time": "1342i",
+   "drum": "kick",
+   "velocity": 0.11436786279082299,
+   "absBeat": 7
+  },
+  {
+   "time": "1439i",
+   "drum": "kick",
+   "velocity": 0.32662157230079175,
+   "absBeat": 7.5
+  },
+  {
+   "time": "1346i",
+   "drum": "crossstick",
+   "velocity": 0.32697273739147936,
+   "absBeat": 7
+  },
+  {
+   "time": "1535i",
+   "drum": "ride",
+   "velocity": 0.361259070164524,
+   "absBeat": 8
+  },
+  {
+   "time": "1728i",
+   "drum": "ride",
+   "velocity": 0.42529000712558623,
+   "absBeat": 9
+  },
+  {
+   "time": "1920i",
+   "drum": "ride",
+   "velocity": 0.3627978963498026,
+   "absBeat": 10
+  },
+  {
+   "time": "2112i",
+   "drum": "ride",
+   "velocity": 0.4240078459773213,
+   "absBeat": 11
+  },
+  {
+   "time": "2209i",
+   "drum": "ride",
+   "velocity": 0.2684768719272688,
+   "absBeat": 11.5
+  },
+  {
+   "time": "1631i",
+   "drum": "ride",
+   "velocity": 0.34376872551161797,
+   "absBeat": 8.5
+  },
+  {
+   "time": "1729i",
+   "drum": "hihat",
+   "velocity": 0.49379335343139247,
+   "absBeat": 9
+  },
+  {
+   "time": "2112i",
+   "drum": "hihat",
+   "velocity": 0.43893866524798797,
+   "absBeat": 11
+  },
+  {
+   "time": "2305i",
+   "drum": "ride",
+   "velocity": 0.41132939596194773,
+   "absBeat": 12
+  },
+  {
+   "time": "2496i",
+   "drum": "ride",
+   "velocity": 0.46638890946283934,
+   "absBeat": 13
+  },
+  {
+   "time": "2688i",
+   "drum": "ride",
+   "velocity": 0.3981414436083287,
+   "absBeat": 14
+  },
+  {
+   "time": "2880i",
+   "drum": "ride",
+   "velocity": 0.445610377904959,
+   "absBeat": 15
+  },
+  {
+   "time": "2593i",
+   "drum": "ride",
+   "velocity": 0.3543305253284052,
+   "absBeat": 13.5
+  },
+  {
+   "time": "2977i",
+   "drum": "ride",
+   "velocity": 0.28896266060415654,
+   "absBeat": 15.5
+  },
+  {
+   "time": "2496i",
+   "drum": "hihat",
+   "velocity": 0.4219626011233777,
+   "absBeat": 13
+  },
+  {
+   "time": "2881i",
+   "drum": "hihat",
+   "velocity": 0.49259816743200646,
+   "absBeat": 15
+  },
+  {
+   "time": "2306i",
+   "drum": "kick",
+   "velocity": 0.10827928097452968,
+   "absBeat": 12
+  },
+  {
+   "time": "2497i",
+   "drum": "kick",
+   "velocity": 0.10184746354818344,
+   "absBeat": 13
+  },
+  {
+   "time": "2688i",
+   "drum": "kick",
+   "velocity": 0.11547957556322218,
+   "absBeat": 14
+  },
+  {
+   "time": "2880i",
+   "drum": "kick",
+   "velocity": 0.07128232769668102,
+   "absBeat": 15
+  },
+  {
+   "time": "3072i",
+   "drum": "ride",
+   "velocity": 0.42974876950494945,
+   "absBeat": 16
+  },
+  {
+   "time": "3266i",
+   "drum": "ride",
+   "velocity": 0.45567915732041,
+   "absBeat": 17
+  },
+  {
+   "time": "3456i",
+   "drum": "ride",
+   "velocity": 0.3791311740037054,
+   "absBeat": 18
+  },
+  {
+   "time": "3648i",
+   "drum": "ride",
+   "velocity": 0.47387202418874946,
+   "absBeat": 19
+  },
+  {
+   "time": "3360i",
+   "drum": "ride",
+   "velocity": 0.34415442928671836,
+   "absBeat": 17.5
+  },
+  {
+   "time": "3168i",
+   "drum": "ride",
+   "velocity": 0.35559938616584985,
+   "absBeat": 16.5
+  },
+  {
+   "time": "3264i",
+   "drum": "hihat",
+   "velocity": 0.5301040380634368,
+   "absBeat": 17
+  },
+  {
+   "time": "3648i",
+   "drum": "hihat",
+   "velocity": 0.4465974460728466,
+   "absBeat": 19
+  },
+  {
+   "time": "3071i",
+   "drum": "kick",
+   "velocity": 0.12216092621441932,
+   "absBeat": 16
+  },
+  {
+   "time": "3264i",
+   "drum": "kick",
+   "velocity": 0.08296411713585258,
+   "absBeat": 17
+  },
+  {
+   "time": "3458i",
+   "drum": "kick",
+   "velocity": 0.09952776428777725,
+   "absBeat": 18
+  },
+  {
+   "time": "3648i",
+   "drum": "kick",
+   "velocity": 0.0803811767185107,
+   "absBeat": 19
+  },
+  {
+   "time": "3649i",
+   "drum": "crossstick",
+   "velocity": 0.2995147171849385,
+   "absBeat": 19
+  },
+  {
+   "time": "3841i",
+   "drum": "ride",
+   "velocity": 0.3674707729322836,
+   "absBeat": 20
+  },
+  {
+   "time": "4032i",
+   "drum": "ride",
+   "velocity": 0.44308376028668134,
+   "absBeat": 21
+  },
+  {
+   "time": "4225i",
+   "drum": "ride",
+   "velocity": 0.39051544896326956,
+   "absBeat": 22
+  },
+  {
+   "time": "4417i",
+   "drum": "ride",
+   "velocity": 0.4316337005747482,
+   "absBeat": 23
+  },
+  {
+   "time": "4127i",
+   "drum": "ride",
+   "velocity": 0.32593477511778474,
+   "absBeat": 21.5
+  },
+  {
+   "time": "4511i",
+   "drum": "ride",
+   "velocity": 0.29501457457896324,
+   "absBeat": 23.5
+  },
+  {
+   "time": "4032i",
+   "drum": "hihat",
+   "velocity": 0.4806740503758192,
+   "absBeat": 21
+  },
+  {
+   "time": "4415i",
+   "drum": "hihat",
+   "velocity": 0.5274425207753666,
+   "absBeat": 23
+  },
+  {
+   "time": "3842i",
+   "drum": "kick",
+   "velocity": 0.07288236422464252,
+   "absBeat": 20
+  },
+  {
+   "time": "4033i",
+   "drum": "kick",
+   "velocity": 0.07063507365528494,
+   "absBeat": 21
+  },
+  {
+   "time": "4226i",
+   "drum": "kick",
+   "velocity": 0.12190181178972126,
+   "absBeat": 22
+  },
+  {
+   "time": "4416i",
+   "drum": "kick",
+   "velocity": 0.08995635309256614,
+   "absBeat": 23
+  },
+  {
+   "time": "4513i",
+   "drum": "kick",
+   "velocity": 0.3,
+   "absBeat": 23.5
+  },
+  {
+   "time": "4607i",
+   "drum": "ride",
+   "velocity": 0.40725572748575356,
+   "absBeat": 24
+  },
+  {
+   "time": "4800i",
+   "drum": "ride",
+   "velocity": 0.4594741424499079,
+   "absBeat": 25
+  },
+  {
+   "time": "4991i",
+   "drum": "ride",
+   "velocity": 0.4018586704926565,
+   "absBeat": 26
+  },
+  {
+   "time": "5184i",
+   "drum": "ride",
+   "velocity": 0.4554275051085278,
+   "absBeat": 27
+  },
+  {
+   "time": "4895i",
+   "drum": "ride",
+   "velocity": 0.34970046730246396,
+   "absBeat": 25.5
+  },
+  {
+   "time": "5279i",
+   "drum": "ride",
+   "velocity": 0.3575769449025393,
+   "absBeat": 27.5
+  },
+  {
+   "time": "4799i",
+   "drum": "hihat",
+   "velocity": 0.49441093107918277,
+   "absBeat": 25
+  },
+  {
+   "time": "5184i",
+   "drum": "hihat",
+   "velocity": 0.4490028561442159,
+   "absBeat": 27
+  },
+  {
+   "time": "4608i",
+   "drum": "kick",
+   "velocity": 0.09471436050254853,
+   "absBeat": 24
+  },
+  {
+   "time": "4801i",
+   "drum": "kick",
+   "velocity": 0.11173974634613842,
+   "absBeat": 25
+  },
+  {
+   "time": "4990i",
+   "drum": "kick",
+   "velocity": 0.11840855113230646,
+   "absBeat": 26
+  },
+  {
+   "time": "5183i",
+   "drum": "kick",
+   "velocity": 0.0778806490590796,
+   "absBeat": 27
+  },
+  {
+   "time": "4707i",
+   "drum": "snare",
+   "velocity": 0.18524058733368293,
+   "absBeat": 24.5
+  },
+  {
+   "time": "5376i",
+   "drum": "ride",
+   "velocity": 0.40668673873879013,
+   "absBeat": 28
+  },
+  {
+   "time": "5569i",
+   "drum": "ride",
+   "velocity": 0.45649747112765904,
+   "absBeat": 29
+  },
+  {
+   "time": "5760i",
+   "drum": "ride",
+   "velocity": 0.41150245210155845,
+   "absBeat": 30
+  },
+  {
+   "time": "5951i",
+   "drum": "ride",
+   "velocity": 0.44528888870961963,
+   "absBeat": 31
+  },
+  {
+   "time": "5665i",
+   "drum": "ride",
+   "velocity": 0.28940017823129893,
+   "absBeat": 29.5
+  },
+  {
+   "time": "6049i",
+   "drum": "ride",
+   "velocity": 0.30609551851172,
+   "absBeat": 31.5
+  },
+  {
+   "time": "5567i",
+   "drum": "hihat",
+   "velocity": 0.547374145751819,
+   "absBeat": 29
+  },
+  {
+   "time": "5952i",
+   "drum": "hihat",
+   "velocity": 0.5158779114834033,
+   "absBeat": 31
+  },
+  {
+   "time": "5376i",
+   "drum": "kick",
+   "velocity": 0.0852060469891876,
+   "absBeat": 28
+  },
+  {
+   "time": "5570i",
+   "drum": "kick",
+   "velocity": 0.07319404801819474,
+   "absBeat": 29
+  },
+  {
+   "time": "5760i",
+   "drum": "kick",
+   "velocity": 0.10808017653413118,
+   "absBeat": 30
+  },
+  {
+   "time": "5952i",
+   "drum": "kick",
+   "velocity": 0.0972018123511225,
+   "absBeat": 31
+  },
+  {
+   "time": "5954i",
+   "drum": "snare",
+   "velocity": 0.3,
+   "absBeat": 31
+  },
+  {
+   "time": "6049i",
+   "drum": "kick",
+   "velocity": 0.32,
+   "absBeat": 31.5
+  },
+  {
+   "time": "6143i",
+   "drum": "ride",
+   "velocity": 0.46065529753454026,
+   "absBeat": 32
+  },
+  {
+   "time": "6336i",
+   "drum": "ride",
+   "velocity": 0.45612687218002973,
+   "absBeat": 33
+  },
+  {
+   "time": "6528i",
+   "drum": "ride",
+   "velocity": 0.4010186068061739,
+   "absBeat": 34
+  },
+  {
+   "time": "6720i",
+   "drum": "ride",
+   "velocity": 0.42098249348346145,
+   "absBeat": 35
+  },
+  {
+   "time": "6432i",
+   "drum": "ride",
+   "velocity": 0.32485335831530393,
+   "absBeat": 33.5
+  },
+  {
+   "time": "6815i",
+   "drum": "ride",
+   "velocity": 0.3154424790898338,
+   "absBeat": 35.5
+  },
+  {
+   "time": "6240i",
+   "drum": "ride",
+   "velocity": 0.29407751976046714,
+   "absBeat": 32.5
+  },
+  {
+   "time": "6336i",
+   "drum": "hihat",
+   "velocity": 0.5227509762533009,
+   "absBeat": 33
+  },
+  {
+   "time": "6720i",
+   "drum": "hihat",
+   "velocity": 0.47113987209275365,
+   "absBeat": 35
+  },
+  {
+   "time": "6143i",
+   "drum": "kick",
+   "velocity": 0.07583042045589537,
+   "absBeat": 32
+  },
+  {
+   "time": "6335i",
+   "drum": "kick",
+   "velocity": 0.07335627325810493,
+   "absBeat": 33
+  },
+  {
+   "time": "6528i",
+   "drum": "kick",
+   "velocity": 0.09053763666655869,
+   "absBeat": 34
+  },
+  {
+   "time": "6721i",
+   "drum": "kick",
+   "velocity": 0.07019936785567553,
+   "absBeat": 35
+  },
+  {
+   "time": "6816i",
+   "drum": "kick",
+   "velocity": 0.2999088534153998,
+   "absBeat": 35.5
+  },
+  {
+   "time": "6430i",
+   "drum": "snare",
+   "velocity": 0.19268581235781312,
+   "absBeat": 33.5
+  },
+  {
+   "time": "6913i",
+   "drum": "ride",
+   "velocity": 0.3994420168083161,
+   "absBeat": 36
+  },
+  {
+   "time": "7104i",
+   "drum": "ride",
+   "velocity": 0.478883218774572,
+   "absBeat": 37
+  },
+  {
+   "time": "7296i",
+   "drum": "ride",
+   "velocity": 0.3797396318055689,
+   "absBeat": 38
+  },
+  {
+   "time": "7489i",
+   "drum": "ride",
+   "velocity": 0.45292470609303564,
+   "absBeat": 39
+  },
+  {
+   "time": "7200i",
+   "drum": "ride",
+   "velocity": 0.3492445057164878,
+   "absBeat": 37.5
+  },
+  {
+   "time": "7585i",
+   "drum": "ride",
+   "velocity": 0.3064482514653355,
+   "absBeat": 39.5
+  },
+  {
+   "time": "7104i",
+   "drum": "hihat",
+   "velocity": 0.5241561755677685,
+   "absBeat": 37
+  },
+  {
+   "time": "7488i",
+   "drum": "hihat",
+   "velocity": 0.5191694520693272,
+   "absBeat": 39
+  },
+  {
+   "time": "6914i",
+   "drum": "kick",
+   "velocity": 0.08274952671024949,
+   "absBeat": 36
+  },
+  {
+   "time": "7104i",
+   "drum": "kick",
+   "velocity": 0.07163805885240436,
+   "absBeat": 37
+  },
+  {
+   "time": "7296i",
+   "drum": "kick",
+   "velocity": 0.12869665494654328,
+   "absBeat": 38
+  },
+  {
+   "time": "7489i",
+   "drum": "kick",
+   "velocity": 0.07716971476562322,
+   "absBeat": 39
+  },
+  {
+   "time": "7203i",
+   "drum": "snare",
+   "velocity": 0.21760561188450084,
+   "absBeat": 37.5
+  },
+  {
+   "time": "7586i",
+   "drum": "snare",
+   "velocity": 0.2427302452060394,
+   "absBeat": 39.5
+  },
+  {
+   "time": "7681i",
+   "drum": "ride",
+   "velocity": 0.39711803584825245,
+   "absBeat": 40
+  },
+  {
+   "time": "7872i",
+   "drum": "ride",
+   "velocity": 0.4590549858799204,
+   "absBeat": 41
+  },
+  {
+   "time": "8064i",
+   "drum": "ride",
+   "velocity": 0.37819854592904445,
+   "absBeat": 42
+  },
+  {
+   "time": "8257i",
+   "drum": "ride",
+   "velocity": 0.46883767569903284,
+   "absBeat": 43
+  },
+  {
+   "time": "7968i",
+   "drum": "ride",
+   "velocity": 0.34801239002496004,
+   "absBeat": 41.5
+  },
+  {
+   "time": "8352i",
+   "drum": "ride",
+   "velocity": 0.3439889620896429,
+   "absBeat": 43.5
+  },
+  {
+   "time": "7776i",
+   "drum": "ride",
+   "velocity": 0.34949756212532523,
+   "absBeat": 40.5
+  },
+  {
+   "time": "7873i",
+   "drum": "hihat",
+   "velocity": 0.44377235584892333,
+   "absBeat": 41
+  },
+  {
+   "time": "8256i",
+   "drum": "hihat",
+   "velocity": 0.4953603112674318,
+   "absBeat": 43
+  },
+  {
+   "time": "8353i",
+   "drum": "kick",
+   "velocity": 0.32907685330137615,
+   "absBeat": 43.5
+  },
+  {
+   "time": "8259i",
+   "drum": "crossstick",
+   "velocity": 0.32401546492008493,
+   "absBeat": 43
+  },
+  {
+   "time": "8449i",
+   "drum": "ride",
+   "velocity": 0.39776223622262474,
+   "absBeat": 44
+  },
+  {
+   "time": "8641i",
+   "drum": "ride",
+   "velocity": 0.43516668221913274,
+   "absBeat": 45
+  },
+  {
+   "time": "8832i",
+   "drum": "ride",
+   "velocity": 0.3656829439708963,
+   "absBeat": 46
+  },
+  {
+   "time": "9025i",
+   "drum": "ride",
+   "velocity": 0.45638549242168663,
+   "absBeat": 47
+  },
+  {
+   "time": "8736i",
+   "drum": "ride",
+   "velocity": 0.28382543550338596,
+   "absBeat": 45.5
+  },
+  {
+   "time": "9120i",
+   "drum": "ride",
+   "velocity": 0.3418308853311464,
+   "absBeat": 47.5
+  },
+  {
+   "time": "8545i",
+   "drum": "ride",
+   "velocity": 0.32557851319666953,
+   "absBeat": 44.5
+  },
+  {
+   "time": "8639i",
+   "drum": "hihat",
+   "velocity": 0.43328655906021596,
+   "absBeat": 45
+  },
+  {
+   "time": "9024i",
+   "drum": "hihat",
+   "velocity": 0.47399248036323116,
+   "absBeat": 47
+  },
+  {
+   "time": "8447i",
+   "drum": "kick",
+   "velocity": 0.10304728850722314,
+   "absBeat": 44
+  },
+  {
+   "time": "8641i",
+   "drum": "kick",
+   "velocity": 0.09871050552465022,
+   "absBeat": 45
+  },
+  {
+   "time": "8831i",
+   "drum": "kick",
+   "velocity": 0.11603658756241203,
+   "absBeat": 46
+  },
+  {
+   "time": "9024i",
+   "drum": "kick",
+   "velocity": 0.0956955707864836,
+   "absBeat": 47
+  }
+ ]
+}
