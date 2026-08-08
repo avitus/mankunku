@@ -81,8 +81,9 @@ export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room'>,
 	// sits far above the ride bed (peak normalization is blind to sustain),
 	// so its trim is the one drum entry set well below its family estimate.
 	// Refined on the confirm listen: 85% of the 0.55 calibration's level,
-	// converted through the sqrt rule above (0.55 × √0.85 ≈ 0.51).
-	crash: 0.51
+	// converted through the sqrt rule above (0.55 × √0.85 ≈ 0.51). Still
+	// hot on the 2026-08-08 listen — one more 85% step (0.51 × √0.85 ≈ 0.47).
+	crash: 0.47
 };
 
 const MIX_MAX = 3;
