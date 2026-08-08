@@ -9,11 +9,21 @@
 	interface Props {
 		keys: PitchClass[];
 		currentKeyIndex: number;
+		/**
+		 * Match the "current" dot by key instead of by index. Single-lick deep
+		 * practice passes this because its ring shows the stable session key
+		 * set while currentKeyIndex indexes the (sorted, shrinking) rotation.
+		 */
+		currentKey?: PitchClass;
 		keyResults: LickPracticeKeyResult[];
 		tempo: number;
 	}
 
-	let { keys, currentKeyIndex, keyResults, tempo }: Props = $props();
+	let { keys, currentKeyIndex, currentKey = undefined, keyResults, tempo }: Props = $props();
+
+	function isCurrent(key: PitchClass): boolean {
+		return currentKey !== undefined ? key === currentKey : keys.indexOf(key) === currentKeyIndex;
+	}
 
 	const instrument = $derived(getInstrument());
 
@@ -70,7 +80,7 @@
 					: null;
 			return { kind: 'scored', color: tier.color, medal };
 		}
-		if (keys.indexOf(key) === currentKeyIndex) return { kind: 'current' };
+		if (isCurrent(key)) return { kind: 'current' };
 		return { kind: 'pending' };
 	}
 
@@ -183,6 +193,19 @@
 							stroke="var(--color-brass)"
 							stroke-width="2"
 							opacity="0.75"
+						/>
+					{:else if isCurrent(key)}
+						<!-- A scored dot that is ALSO the current key (session-long
+						     results in single-lick mode): keep its tier fill and mark
+						     position with the same pulsing outline the unscored
+						     current dot gets. -->
+						<circle
+							cx={pos.x} cy={pos.y} r={DOT_RADIUS + 3}
+							fill="none"
+							stroke="var(--color-brass-soft)"
+							stroke-width="2"
+							opacity="0.55"
+							class="animate-pulse"
 						/>
 					{/if}
 					{#if visual.medal}

@@ -1,6 +1,5 @@
 import { createBrowserClient, createServerClient, isBrowser } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import { nodeRealtimeFallback } from '$lib/supabase/node-websocket-fallback';
 import { setHydrationPromise } from '$lib/state/hydration';
 import type { LayoutLoad } from './$types';
 import type { Database } from '$lib/supabase/types';
@@ -54,16 +53,11 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	 */
 	const supabase = isBrowser()
 		? createBrowserClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-				// Inert in browsers; see node-websocket-fallback.ts (MANKUNKU-1E).
-				...nodeRealtimeFallback(),
 				global: {
 					fetch
 				}
 			})
 		: createServerClient<Database>(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-				// This universal load ALSO runs on the server during SSR — the
-				// branch that kept 500ing after the hooks-only fix (MANKUNKU-1E).
-				...nodeRealtimeFallback(),
 				global: {
 					fetch
 				},

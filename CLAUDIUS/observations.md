@@ -434,3 +434,99 @@ The backing-track rebuild's quiet architectural decision: every (role, position)
 The other pattern worth carrying: the plan asked for pattern functions taking a GenerationContext "instead of (beat, beatsPerBar)", and the naive reading — same call shape, richer argument — would have made the musical goals unreachable. A Charleston is a fact about a BAR; per-beat callbacks would need each beat to re-derive which figure the bar chose (same seed, re-drawn) just to answer "am I in it?". Changing the *granularity* of the interface (bar in, hit-list out) is what made figures, anticipation, and swing placement all fall out naturally. When a plan specifies an interface, the deliverable is the capability it names, and sometimes the capability contradicts the signature sketch. Flag the deviation, keep the capability.
 
 Also: the app's harmony had colour tones (7b9, 7#11, 7b13) sitting in CHORD_DEFINITIONS for display and melody generation, but the old backing engine derived chord tones by string-matching quality names ("includes('dim')") and never read them. The data model was ahead of the audio engine by design-years. Reading the definitions instead of re-deriving them is why altered dominants now voice their tensions with zero new data — worth remembering as a smell: string-matching an enum's NAME usually means richer structured data is being ignored somewhere.
+
+## Declared constraints that nothing enforces are just comments (2026-08-06)
+
+`package.json` said `engines.node: ">=22.12.0"`. CI built on `cimg/node:26.5.1`. `.nvmrc` said
+26.5.1. Three separate places in the repo asserted the same requirement — and production ran
+Node 18.19.1 for months anyway, because **npm only *warns* on EBADENGINE unless
+`engine-strict=true`**. The constraint was declared in every place a human would look and
+enforced in none.
+
+What makes this worth writing down is the failure *shape*. The gap didn't degrade anything for
+months, then produced two unrelated-looking outages within 72 hours:
+
+- Aug 3: a Supabase patch release started resolving `WebSocket` eagerly → every SSR request 500'd.
+- Aug 6: a `sanitize-html` bump pulled an ESM-only `htmlparser2` → `/docs` 500'd.
+
+Neither was caused by our code changing. Both were caused by *the ecosystem moving past the
+runtime floor we'd already promised to be above.* That's the real mechanism: a stale runtime
+doesn't fail on its own schedule, it fails on **npm's** schedule, and every `npm update` is a
+fresh roll of the dice. The blast radius is unbounded and the timing is someone else's choice.
+
+The tell was in my own session notes twice — "EBADENGINE warnings on every install", "one day
+something will actually break rather than warn" — filed both times as *secondary, not urgent*.
+I was right about the mechanism and wrong about the urgency, and the reason I was wrong is
+instructive: I was estimating urgency from **observed symptoms** (nothing's broken) instead of
+from **exposure** (every transitive dep is one release away from requiring a newer Node). For
+version-floor debt, symptom-based prioritisation is structurally miscalibrated — the symptom
+count is zero right up until it isn't.
+
+The first outage should have reclassified it and didn't. The Aug 3 fix was a *shim*
+(`nodeRealtimeFallback()`) — a correct, well-tested, source-scan-enforced workaround for
+exactly one symptom of a general problem. Shimming is seductive because it's fast, local, and
+demonstrably works; it also converts a loud recurring signal into silence while leaving the
+generator of failures fully intact. Three days later the same root cause surfaced somewhere a
+shim didn't exist. **A workaround that doesn't move the constraint is a snooze button, and
+should be logged as one.**
+
+The practical rule I'd want applied here: when a workaround is written for a
+version/environment floor, it should carry a pointer to the root fix and the root fix should be
+scheduled *then* — not left to be rediscovered by the next incident. The shim did carry that
+pointer (its comments name Node 22 explicitly and MANKUNKU-1E). What was missing wasn't the
+knowledge. It was that nothing turned the knowledge into a scheduled action.
+
+Corollary worth remembering: the fix took about twenty minutes and had a clean rollback the
+whole way. The cost of *doing* it was never the obstacle — the cost of *noticing it mattered*
+was.
+
+## The obvious fix, measured (2026-08-06)
+
+Fixing the `localStorage` warning had a fix so obvious I wrote it without thinking:
+`typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'`. It is the
+semantically correct check — localStorage *is* a browser API, `window` *is* how you detect a
+browser. Every instinct said ship it.
+
+It broke 22 tests across 4 files. And the breakage wasn't the interesting part — the *reason*
+was. 34 test files stub `globalThis.localStorage` with no `window`, so the honest repair is
+"stub `window` too." Except `window` is not an inert token in this codebase: `user-scope.ts`
+attaches a real `storage` event listener behind `typeof window !== 'undefined'`, and
+`tricks.svelte.ts` / `tour.svelte.ts` hydrate from storage at module-eval behind the same
+check. Stubbing it to satisfy a storage guard would have silently switched on cross-tab
+reload machinery inside the module whose header still documents the 2026-07-13 data-loss
+incident.
+
+So the "clean" fix was clean only at the point I was looking at. One identifier, `window`, was
+serving as the environment discriminator for four unrelated subsystems, which means **any**
+change to how one of them tests for a browser perturbs the other three. That coupling is
+invisible from the call site — `namespace.ts` has no reason to know that `tour.svelte.ts`
+exists. I found it only because I ran the suite instead of trusting the diff.
+
+The generalisable bit: *elegance is a property of a change plus its blast radius, not of the
+change alone.* I keep re-learning this in the same shape — a small correct-looking edit whose
+cost lives entirely in code that doesn't mention it. The tell was available before I typed
+anything: a grep showed 34 files stubbing the global. I read that as "34 files to update,
+tedious" and moved on, when what it actually said was "this global is load-bearing in 34
+places, go look at what else keys off it."
+
+What I shipped instead discriminates on *property descriptor kind* — data property (a real
+installed store) vs accessor (Node's lazy built-in). It is objectively less pretty and needs a
+paragraph of comment to justify. It also required zero changes outside the function. Given a
+choice between a fix that reads better and a fix that touches less, in a module tied to a
+past data-loss incident, touching less wins and it isn't close.
+
+Second, smaller lesson from the same hour: I could not reproduce this warning locally at all —
+Node 24.3.0 has no `localStorage` global, Node 26.5.1 has it as a lazy accessor. The entire
+diagnosis came from probing the production box directly. A bug that exists only on a runtime
+you don't run is indistinguishable from a bug that doesn't exist, and the reflex to reach for
+the real environment early is worth more than any amount of local reasoning.
+
+## 2026-08-06 — The cheapest fix was a sort (Deep Practice continuous flow)
+
+Two things from this feature worth keeping as patterns:
+
+**Explore until the problem gets smaller.** "Track the struggling key and play the lick in it" sounded like a per-key call-response scheduler — variable bar budgets, per-key demo blocks, scroll-math surgery. The exploration found the demo was already hard-coded to `keys[0]` and the rotation order was just an array. At that point the feature became: *sort the array, and make the demo conditional*. The gap between the feature-as-imagined and the feature-as-implemented was one `Array.prototype.sort` with a stable comparator. Most of the eventual diff is persistence (rolling score) and boundary timing — the headline behavior is nearly free. When a feature looks expensive, look harder for the pivot point where existing machinery already does 90% of it.
+
+**A pass-gated metric cannot measure struggle.** The per-key store only wrote on scores ≥ 0.9, so the data needed to find weak keys was systematically discarded — the store recorded success and was blind to failure by construction. Worth generalizing: whenever a metric exists to drive *remediation*, check whether its write path filters out exactly the events the remediation needs. (Same shape as the nginx fallback observation from this morning: the system's own design hides the signal you need.)
+
+Also, an honest accounting: the synchronous-boundary hang risk (scoring early-return would have stranded the session) was caught by reading the guard clause during plan review, not by any test — the unit suite can't see it (it's a scheduling topology bug) and only the new e2e pins it. The class of bug where "the next step is scheduled by the previous step's success" needs the scheduling to be *unconditional* is worth a reflexive check anywhere it appears: the chain is only as alive as its weakest callback.

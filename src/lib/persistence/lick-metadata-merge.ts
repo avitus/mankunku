@@ -26,7 +26,13 @@ import type { LickProgressPoint } from '$lib/types/lick-practice';
 
 export interface LickMetaData {
 	lickTags: Record<string, string[]>;
-	practiceProgress: Record<string, Record<string, { currentTempo: number; lastPracticedAt: number; passCount: number }>>;
+	practiceProgress: Record<
+		string,
+		Record<
+			string,
+			{ currentTempo: number; lastPracticedAt: number; passCount: number; rollingScore?: number }
+		>
+	>;
 	tagOverrides: Record<string, string[]>;
 	categoryOverrides: Record<string, string>;
 	unlockCounts: Record<string, number>;
@@ -201,7 +207,10 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 		const resetTime = progressResets[id] ?? 0;
 		const localKeys = local.data.practiceProgress?.[id] ?? {};
 		const cloudKeys = cloud.data.practiceProgress?.[id] ?? {};
-		const mergedKeys: Record<string, { currentTempo: number; lastPracticedAt: number; passCount: number }> = {};
+		const mergedKeys: Record<
+			string,
+			{ currentTempo: number; lastPracticedAt: number; passCount: number; rollingScore?: number }
+		> = {};
 		for (const key of keysOf(localKeys, cloudKeys)) {
 			const lk = localKeys[key];
 			const ck = cloudKeys[key];

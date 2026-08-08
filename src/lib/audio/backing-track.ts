@@ -33,6 +33,7 @@ import {
 	drumBufferForVelocity,
 	type DrumBufferName
 } from './sample-maps';
+import type { BackingHit } from './turnaround-bar';
 import {
 	loadBackingMix,
 	saveBackingMix,
@@ -864,6 +865,53 @@ export function playTransitionChords(
 	for (const stab of stabs) {
 		for (const note of stab.notes) {
 			compInstrument.start({ note, velocity, duration: stab.duration, time: stab.time });
+		}
+	}
+}
+
+/**
+ * Trigger a batch of full-rhythm-section hits (bass/comp/drums) outside any
+ * Tone.Part — the deep-practice turnaround bar. Same near-now contract as
+ * playTransitionChords: `time` must be within smplr's lookahead so the
+ * voices exist immediately and teardown's instrument .stop() can always cut
+ * them. Callers schedule each batch as a transport event and pass the
+ * callback's `time` through. Lives here because the drum velocity-layer and
+ * trim mapping (drumBufferForVelocity, BACKING_BASE_TRIMS, mixLevels) is
+ * module-private — this mirrors the backing Parts' trigger callbacks.
+ */
+export function playBackingHitsNow(hits: BackingHit[], time: number): void {
+	for (const hit of hits) {
+		switch (hit.kind) {
+			case 'bass':
+				bassInstrument?.start({
+					note: hit.midi,
+					velocity: hit.velocity,
+					duration: hit.duration,
+					time
+				});
+				break;
+			case 'comp':
+				for (const note of hit.notes) {
+					compInstrument?.start({
+						note,
+						velocity: hit.velocity,
+						duration: hit.duration,
+						time
+					});
+				}
+				break;
+			case 'drum':
+				// Mirrors the drum Part callback: buffer picked by generated
+				// velocity, level shaped through velocity, hit routed to its
+				// family's sampler (kick / snare / cymbals).
+				drumSamplers?.[DRUM_FAMILY_BY_VOICE[hit.drum]].start({
+					note: drumBufferForVelocity(hit.drum, hit.velocity),
+					velocity: Math.round(
+						voiceVelocity(hit.velocity * BACKING_BASE_TRIMS[hit.drum], mixLevels[hit.drum]) * 127
+					),
+					time
+				});
+				break;
 		}
 	}
 }

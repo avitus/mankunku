@@ -22,7 +22,6 @@ import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import type { Database } from '$lib/supabase/types';
-import { nodeRealtimeFallback } from '$lib/supabase/node-websocket-fallback';
 import { isAuthVerificationUnavailable } from '$lib/supabase/auth-errors';
 
 /**
@@ -178,9 +177,6 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
         PUBLIC_SUPABASE_URL,
         PUBLIC_SUPABASE_ANON_KEY,
         {
-            // Keeps client construction from throwing on a Node < 22 host — see
-            // node-websocket-fallback.ts (Sentry MANKUNKU-1E).
-            ...nodeRealtimeFallback(),
             cookies: {
                 getAll: () => event.cookies.getAll(),
                 setAll: (cookiesToSet) => {

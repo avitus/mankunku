@@ -1,6 +1,8 @@
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
+	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import type { InstrumentConfig } from '$lib/types/instruments';
+	import type { PitchClass } from '$lib/types/music';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 
 	interface Props {
@@ -24,6 +26,14 @@
 		 * to signal that the user should listen, not play.
 		 */
 		isDemoing?: boolean;
+		/**
+		 * Just-scored key result to flash as a tier-colored chip on that
+		 * key's row (single-lick continuous flow — feedback rides the scroll
+		 * instead of pausing it). Matched by key, so the chip follows its row
+		 * and survives the stack swap when the key stays in rotation. `at`
+		 * keys the fade animation so back-to-back flashes restart it.
+		 */
+		scoreFlash?: { key: PitchClass; score: number; at: number } | null;
 		instrument: InstrumentConfig;
 	}
 
@@ -34,6 +44,7 @@
 		isPlaying,
 		isRecording,
 		isDemoing = false,
+		scoreFlash = null,
 		instrument
 	}: Props = $props();
 
@@ -85,6 +96,18 @@
 						key={pk.key}
 						{instrument}
 					/>
+					{#if scoreFlash && scoreFlash.key === pk.key}
+						{@const tier = accuracyTierInfo(scoreFlash.score)}
+						{#key scoreFlash.at}
+							<div
+								class="score-flash"
+								style="--flash-color: {tier.color};"
+								aria-live="polite"
+							>
+								{Math.round(scoreFlash.score * 100)}%
+							</div>
+						{/key}
+					{/if}
 				</div>
 			</div>
 		{/each}
@@ -112,10 +135,43 @@
 		opacity: 1;
 	}
 	.chart-wrap {
+		position: relative;
 		border-radius: 0.5rem;
 	}
 	.chart-wrap.recording {
 		box-shadow: 0 0 0 2px var(--color-accent);
+	}
+	/* Transient per-key score chip: fades in over the just-scored row, holds,
+	   fades out — sized and placed to never obscure the chord boxes' text. */
+	.score-flash {
+		position: absolute;
+		top: 0.4rem;
+		right: 0.6rem;
+		padding: 0.15rem 0.5rem;
+		border-radius: 0.375rem;
+		font-size: 0.85rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--flash-color);
+		background: color-mix(in srgb, var(--flash-color) 18%, var(--color-bg));
+		animation: score-flash-fade 2.2s ease forwards;
+		pointer-events: none;
+	}
+	@keyframes score-flash-fade {
+		0% {
+			opacity: 0;
+			transform: translateY(-3px);
+		}
+		10% {
+			opacity: 1;
+			transform: translateY(0);
+		}
+		75% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
 	}
 	.row-label {
 		position: absolute;

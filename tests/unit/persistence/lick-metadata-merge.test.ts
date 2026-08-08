@@ -106,6 +106,43 @@ describe('mergeLickMetadata', () => {
 		expect(merged.data.practiceProgress.a?.C?.lastPracticedAt).toBe(150);
 	});
 
+	it('practice_progress: the winning entry carries its rollingScore through the merge', () => {
+		const local = bundle({
+			practiceProgress: {
+				a: { C: { currentTempo: 100, lastPracticedAt: 50, passCount: 3, rollingScore: 0.6 } }
+			}
+		});
+		const cloud = bundle({
+			practiceProgress: {
+				a: { C: { currentTempo: 120, lastPracticedAt: 80, passCount: 1, rollingScore: 0.85 } }
+			}
+		});
+		const merged = mergeLickMetadata(local, cloud);
+		// Newer entry wins wholesale (except max passCount) → its rollingScore rides along.
+		expect(merged.data.practiceProgress.a.C.rollingScore).toBe(0.85);
+		// Symmetric.
+		expect(mergeLickMetadata(cloud, local).data.practiceProgress.a.C.rollingScore).toBe(0.85);
+	});
+
+	it('practice_progress: a winner from an old client without rollingScore stays without one', () => {
+		const local = bundle({
+			practiceProgress: {
+				a: { C: { currentTempo: 100, lastPracticedAt: 90, passCount: 1 } } // newer, legacy client
+			}
+		});
+		const cloud = bundle({
+			practiceProgress: {
+				a: { C: { currentTempo: 90, lastPracticedAt: 50, passCount: 2, rollingScore: 0.7 } }
+			}
+		});
+		const merged = mergeLickMetadata(local, cloud);
+		// LWW is wholesale: the newer (legacy) entry wins and its missing rollingScore
+		// is NOT backfilled from the loser — recency of the score matters more than
+		// keeping a stale value.
+		expect(merged.data.practiceProgress.a.C.rollingScore).toBeUndefined();
+		expect(merged.data.practiceProgress.a.C.passCount).toBe(2);
+	});
+
 	it('preserves a legacy cloud value that has no merge_meta (both clocks 0)', () => {
 		// An existing user's tags written before merge_meta existed: cloud holds
 		// them with NO mtime; a fresh device has empty local. The value must NOT
