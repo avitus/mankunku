@@ -61,6 +61,11 @@ chmod +x "${STUB_BIN}/pm2"
 # pins a different id to simulate a stale process still serving the old build.
 cat > "${STUB_BIN}/curl" <<'EOF'
 #!/bin/sh
+# CURL_STUB_DELAY stands in for real curl burning up to its --max-time against
+# an app that accepts connections but never answers.
+if [ -n "${CURL_STUB_DELAY:-}" ]; then
+    sleep "$CURL_STUB_DELAY"
+fi
 if [ -n "${CURL_STUB_DOWN:-}" ]; then
     exit 7   # curl's "failed to connect"
 fi
@@ -72,6 +77,14 @@ printf '{"status":"ok","version":"abc123","releaseId":"%s","node":"v26.5.1"}' "$
 exit 0
 EOF
 chmod +x "${STUB_BIN}/curl"
+# node stub — release.sh records the Node version alongside the lockfile so a
+# runtime upgrade invalidates the shared dependency tree. NODE_STUB_VERSION lets
+# a test simulate the box being upgraded under an unchanged lockfile.
+cat > "${STUB_BIN}/node" <<'EOF'
+#!/bin/sh
+echo "${NODE_STUB_VERSION:-v26.5.1}"
+EOF
+chmod +x "${STUB_BIN}/node"
 # macOS lacks sha256sum (release.sh's snapshot helper uses it); shim via shasum.
 if ! command -v sha256sum >/dev/null 2>&1; then
     cat > "${STUB_BIN}/sha256sum" <<'EOF'
@@ -294,6 +307,19 @@ NPM_STUB_CALLS="$CALLS" bash "$RELEASE_SH" "$ID14" >/dev/null
 grep -q "npm ci" "$CALLS" || fail "reused a tree from an install that failed"
 ok "a failed install is not recorded as satisfied"
 
+# A Node upgrade must invalidate the shared tree even when the lockfile has not
+# moved: native bindings are compiled against a Node ABI, and nothing in the
+# lockfile records which runtime built them. This box went 18 -> 26 on
+# 2026-08-06 and has a history of Node-skew incidents (MANKUNKU-1F, 1G), so
+# "same deps, different runtime" is a real state, not a hypothetical.
+ID19="20260119-000000-555dddd"
+: > "$CALLS"
+stage_release "$ID19" "2.SSSSSSS.js" "deps-v3"   # identical lockfile to ID14
+NPM_STUB_CALLS="$CALLS" NODE_STUB_VERSION="v28.0.0" \
+    bash "$RELEASE_SH" "$ID19" >/dev/null
+grep -q "npm ci" "$CALLS" || fail "shared tree reused across a Node version change"
+ok "install runs again when the Node version changes"
+
 # The stage now contains a SYMLINK into shared/deps. Cleanup must unlink it,
 # never follow it — wiping the shared tree on every failed deploy would be far
 # worse than the leak the cleanup exists to fix. Needs a failure that lands
@@ -341,7 +367,11 @@ ok "failure output names the health check"
 ID16="20260116-000000-999aaaa"
 stage_release "$ID16" "2.PPPPPPP.js"
 set +e
-CURL_STUB_RELEASE="$LIVE_BEFORE_SMOKE" HEALTH_TIMEOUT_SECS=1 \
+# Strip the `releases/` prefix that readlink returns: the stub only strips it on
+# its default branch, so passing the raw value would make the "stale process"
+# report a MALFORMED id. That still fails the deploy — but for the wrong reason,
+# and the point here is a well-formed id belonging to the previous release.
+CURL_STUB_RELEASE="${LIVE_BEFORE_SMOKE#releases/}" HEALTH_TIMEOUT_SECS=1 \
     bash "$RELEASE_SH" "$ID16" >/dev/null 2>&1
 rc=$?
 set -e
@@ -353,6 +383,24 @@ ok "deploy fails when the app reports a different release id"
 [[ -d "${MANKUNKU_ROOT}/releases/${ID16}" ]] \
     || fail "smoke-check failure deleted the release current points at"
 ok "smoke-check failure leaves the live release in place"
+
+# The budget is WALL CLOCK, not accumulated sleep. curl can burn its --max-time
+# against an app that accepts connections but never answers, so counting only
+# sleeps overran badly: at a 3s budget with a 3s-per-call curl the old loop took
+# ~13s (3+2+3+2+3), and at the 60s default roughly 3.5 minutes.
+ID18="20260118-000000-666cccc"
+stage_release "$ID18" "2.RRRRRRR.js"
+smoke_start=$SECONDS
+set +e
+CURL_STUB_DOWN=1 CURL_STUB_DELAY=3 HEALTH_TIMEOUT_SECS=3 \
+    bash "$RELEASE_SH" "$ID18" >/dev/null 2>&1
+rc=$?
+set -e
+smoke_elapsed=$(( SECONDS - smoke_start ))
+[[ $rc -ne 0 ]] || fail "deploy went green against an app that never answered"
+(( smoke_elapsed <= 8 )) \
+    || fail "health check overran its 3s budget: ${smoke_elapsed}s elapsed (counting sleeps, not wall clock?)"
+ok "health-check budget measures wall clock, not accumulated sleep (${smoke_elapsed}s)"
 
 # --- Whole-deploy lock (2026-07-13 incident) ---
 # Two release.sh runs must serialize: concurrent npm ci's memory-thrashed the

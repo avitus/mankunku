@@ -186,15 +186,27 @@ snapshot_ecosystem "after rsync" "${STAGE}/ecosystem.config.cjs"
 # an older release gives it the newer deps. That is the standard Capistrano
 # bargain, and the alternative — a 378MB tree per retained release — is what
 # put `releases/` at 4.5GB.
+#
+# Keyed on the Node version as well as the lockfile. Native bindings are
+# compiled against a Node ABI and nothing in the lockfile records which runtime
+# built them, so a runtime upgrade under an unchanged lockfile would silently
+# reuse a tree built for the old ABI. Not hypothetical here: this box went
+# 18 -> 26 on 2026-08-06, Node upgrades are a manual step, and two production
+# incidents (MANKUNKU-1F, 1G) were Node skew.
 DEPS_DIR="${ROOT}/shared/deps"
 INSTALLED_LOCK="${DEPS_DIR}/.installed-package-lock.json"
+INSTALLED_NODE="${DEPS_DIR}/.installed-node-version"
 mkdir -p "$DEPS_DIR"
 
-if [[ -d "${DEPS_DIR}/node_modules" ]] && cmp -s "${STAGE}/package-lock.json" "$INSTALLED_LOCK"; then
-    echo "==> Dependencies unchanged; reusing shared/deps/node_modules"
+node_version="$(node --version 2>/dev/null || echo unknown)"
+
+if [[ -d "${DEPS_DIR}/node_modules" ]] \
+    && cmp -s "${STAGE}/package-lock.json" "$INSTALLED_LOCK" \
+    && [[ "$(cat "$INSTALLED_NODE" 2>/dev/null)" == "$node_version" ]]; then
+    echo "==> Dependencies unchanged (${node_version}); reusing shared/deps/node_modules"
 else
-    echo "==> Dependencies changed; installing into shared/deps"
-    rm -f "$INSTALLED_LOCK"
+    echo "==> Dependencies or runtime changed; installing into shared/deps (${node_version})"
+    rm -f "$INSTALLED_LOCK" "$INSTALLED_NODE"
     cp "${STAGE}/package.json" "${STAGE}/package-lock.json" "${DEPS_DIR}/"
     # `9>&-` here and on the PM2 subshell below: don't let child processes
     # inherit the deploy-lock fd. A child that outlives this script (the PM2
@@ -206,7 +218,10 @@ else
         cd "$DEPS_DIR"
         npm ci --omit=dev
     ) 9>&-
+    # Both records written only AFTER a successful install, so a killed one
+    # (the 2026-08-07/08 OOMs) can never look satisfied.
     cp "${STAGE}/package-lock.json" "$INSTALLED_LOCK"
+    printf '%s\n' "$node_version" > "$INSTALLED_NODE"
 fi
 
 # Replace rather than link into: a release staged before this change has a real
@@ -440,6 +455,11 @@ else
     echo "==> Health check: ${HEALTH_URL} (expecting release ${RELEASE_ID})"
     health_body=""
     health_ok=0
+    # Measure WALL CLOCK via bash's SECONDS, not accumulated sleep time. Each
+    # curl can burn up to its --max-time before the 2s sleep, so counting only
+    # sleeps would let a 60s budget run ~3.5 minutes against an app that
+    # accepts connections but never answers.
+    health_started=$SECONDS
     waited=0
     while true; do
         # The endpoint is our own JSON.stringify output, so an exact substring
@@ -449,11 +469,11 @@ else
             health_ok=1
             break
         fi
+        waited=$(( SECONDS - health_started ))
         if (( waited >= HEALTH_TIMEOUT_SECS )); then
             break
         fi
         sleep 2
-        waited=$((waited + 2))
     done
 
     if (( health_ok != 1 )); then
