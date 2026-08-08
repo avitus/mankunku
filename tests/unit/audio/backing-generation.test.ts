@@ -77,6 +77,33 @@ describe('buildBarInfos', () => {
 		expect(infos[4].chorusIndex).toBe(0);
 		expect(infos[8].chorusIndex).toBe(1);
 		expect(infos[12].chorusIndex).toBe(1);
+		// Chorus boundaries: bar 7 hands off to the second pass; bar 15 is the
+		// phrase's final bar, so nothing follows to hand off to.
+		expect(infos.map((i) => i.isChorusFirstBar)).toEqual(
+			infos.map((_, b) => b === 0 || b === 8)
+		);
+		expect(infos.map((i) => i.isChorusFinalBar)).toEqual(infos.map((_, b) => b === 7));
+	});
+
+	it('flags chorus boundaries across a 3-chorus AABA form', () => {
+		const sections = [0, 1, 2, 3];
+		const map = Array.from({ length: 12 }, (_, k) => ({
+			sourceSection: sections[k % 4],
+			barOffset: k * 8
+		}));
+		const infos = buildBarInfos(96, map);
+		const chorusFirsts = infos.flatMap((i, b) => (i.isChorusFirstBar ? [b] : []));
+		const chorusFinals = infos.flatMap((i, b) => (i.isChorusFinalBar ? [b] : []));
+		expect(chorusFirsts).toEqual([0, 32, 64]);
+		// Bar 95 is the phrase's final bar — no next chorus, so not flagged.
+		expect(chorusFinals).toEqual([31, 63]);
+	});
+
+	it('leaves chorus flags unset without a sectionMap', () => {
+		for (const info of buildBarInfos(4)) {
+			expect(info.isChorusFirstBar).toBeFalsy();
+			expect(info.isChorusFinalBar).toBeFalsy();
+		}
 	});
 
 	it('extends the last section over a harmony tail', () => {

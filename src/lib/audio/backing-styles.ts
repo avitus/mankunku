@@ -68,6 +68,10 @@ export interface GenerationContext {
 	intensity: number;
 	/** True when this bar is the last bar of a section (incl. the form's last bar). */
 	isSectionFinalBar: boolean;
+	/** True on the first bar of a chorus pass (bar 0 of a mapped phrase included). */
+	isChorusFirstBar?: boolean;
+	/** True on the last bar of a chorus when another chorus follows — the long fill's home. */
+	isChorusFinalBar?: boolean;
 	/** True on the phrase's very last bar — nothing follows to anticipate. */
 	isFinalBar: boolean;
 	/** Effective swing ratio used for placement math (0.5 straight … 0.8 heavy). */

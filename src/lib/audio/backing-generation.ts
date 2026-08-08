@@ -139,6 +139,10 @@ export interface BarInfo {
 	/** True on the first bar of a section (always true on bar 0 of a mapped phrase). */
 	isSectionFirstBar: boolean;
 	isSectionFinalBar: boolean;
+	/** True on the first bar of a chorus pass (bar 0 of a mapped phrase included). */
+	isChorusFirstBar?: boolean;
+	/** True on the last bar of a chorus when another chorus follows (never the phrase's final bar). */
+	isChorusFinalBar?: boolean;
 	isFinalBar: boolean;
 	/** Ensemble intensity for this bar (backing-intensity.ts), in [0.2, 0.9]. */
 	intensity: number;
@@ -184,6 +188,10 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[])
 			chorusIndex: chorusOf[k],
 			isSectionFirstBar: b === sectionMap[k].barOffset,
 			isSectionFinalBar,
+			isChorusFirstBar:
+				b === sectionMap[k].barOffset && (k === 0 || chorusOf[k] > chorusOf[k - 1]),
+			isChorusFinalBar:
+				isSectionFinalBar && k + 1 < sectionMap.length && chorusOf[k + 1] > chorusOf[k],
 			isFinalBar: b === totalBars - 1,
 			intensity: barIntensity({
 				chorusIndex: chorusOf[k],
