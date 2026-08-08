@@ -61,7 +61,7 @@ import {
 	type VoicingFn
 } from './voicings';
 import { planCompFigures, hitsForPlannedBar, headFigureFor } from './backing-comp-figures';
-import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
+import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 
 // ── Event shapes ─────────────────────────────────────────────
@@ -139,6 +139,10 @@ export interface BarInfo {
 	/** True on the first bar of a section (always true on bar 0 of a mapped phrase). */
 	isSectionFirstBar: boolean;
 	isSectionFinalBar: boolean;
+	/** True on the first bar of a chorus pass (bar 0 of a mapped phrase included). */
+	isChorusFirstBar?: boolean;
+	/** True on the last bar of a chorus when another chorus follows (never the phrase's final bar). */
+	isChorusFinalBar?: boolean;
 	isFinalBar: boolean;
 	/** Ensemble intensity for this bar (backing-intensity.ts), in [0.2, 0.9]. */
 	intensity: number;
@@ -184,6 +188,10 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[])
 			chorusIndex: chorusOf[k],
 			isSectionFirstBar: b === sectionMap[k].barOffset,
 			isSectionFinalBar,
+			isChorusFirstBar:
+				b === sectionMap[k].barOffset && (k === 0 || chorusOf[k] > chorusOf[k - 1]),
+			isChorusFinalBar:
+				isSectionFinalBar && k + 1 < sectionMap.length && chorusOf[k + 1] > chorusOf[k],
 			isFinalBar: b === totalBars - 1,
 			intensity: barIntensity({
 				chorusIndex: chorusOf[k],
@@ -427,6 +435,7 @@ export function generateDrums(
 	const events: DrumEvent[] = [];
 	const streams = createTimingStreams(phraseId, tempo);
 	const clavePhase = clavePhaseFor(phraseId, tempo);
+	const byAbsBeat = new Map<string, { drum: DrumVoice; velocity: number; absBeat: number }>();
 
 	for (let bar = 0; bar < barInfos.length; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'drums', bar));
@@ -442,23 +451,43 @@ export function generateDrums(
 			...barInfos[bar]
 		};
 		// The feathered-kick, comp-accent, and section-final setup branches
-		// can collide on one offset; two sampler starts at the identical
-		// tick read as a doubled hit. Keep the louder one per (voice, beat).
-		const byOffset = new Map<string, DrumHitSpec>();
+		// can collide on one offset — and the anticipated push (a negative
+		// offset emitted by the NEXT bar) lands inside the previous bar,
+		// where that bar's own kick may sit. Two sampler starts at the
+		// identical tick read as a doubled hit, so the ledger spans bars:
+		// keep the louder one per (voice, absBeat). Map insertion order is
+		// emission order, which fixes each hit's jitter-draw index.
 		for (const hit of style.drumPattern(ctx)) {
-			const key = `${hit.drum}:${hit.beatOffset}`;
-			const prev = byOffset.get(key);
-			if (!prev || hit.velocity > prev.velocity) byOffset.set(key, hit);
-		}
-		for (const hit of byOffset.values()) {
 			const absBeat = bar * beatsPerBar + hit.beatOffset;
-			events.push({
-				time: place(absBeat, hit.drum, params, streams, beatsPerBar),
-				drum: hit.drum,
-				velocity: hit.velocity,
-				absBeat
-			});
+			const key = `${hit.drum}:${absBeat}`;
+			const prev = byAbsBeat.get(key);
+			if (!prev || hit.velocity > prev.velocity) {
+				byAbsBeat.set(key, { drum: hit.drum, velocity: hit.velocity, absBeat });
+			}
 		}
+	}
+
+	// A crash is the right hand leaving the ride — wherever one lands, a
+	// tick-coincident ride or hat stroke would need a third limb. Downbeat
+	// crashes already displace their ride at the pattern level
+	// (suppressDownbeatRide), but the anticipated push lands inside the
+	// PREVIOUS bar, on top of its ride skip (and sometimes a setup hat) at
+	// the same swung eighth — only this cross-bar sweep can see that. Kick
+	// and snare stay: crash-with-shot is idiomatic, crash-with-ride is
+	// impossible.
+	for (const { drum, absBeat } of [...byAbsBeat.values()]) {
+		if (drum !== 'crash') continue;
+		byAbsBeat.delete(`ride:${absBeat}`);
+		byAbsBeat.delete(`hihat:${absBeat}`);
+	}
+
+	for (const { drum, velocity, absBeat } of byAbsBeat.values()) {
+		events.push({
+			time: place(absBeat, drum, params, streams, beatsPerBar),
+			drum,
+			velocity,
+			absBeat
+		});
 	}
 
 	return events;

@@ -68,6 +68,10 @@ export interface GenerationContext {
 	intensity: number;
 	/** True when this bar is the last bar of a section (incl. the form's last bar). */
 	isSectionFinalBar: boolean;
+	/** True on the first bar of a chorus pass (bar 0 of a mapped phrase included). */
+	isChorusFirstBar?: boolean;
+	/** True on the last bar of a chorus when another chorus follows — the long fill's home. */
+	isChorusFinalBar?: boolean;
 	/** True on the phrase's very last bar — nothing follows to anticipate. */
 	isFinalBar: boolean;
 	/** Effective swing ratio used for placement math (0.5 straight … 0.8 heavy). */
@@ -186,12 +190,16 @@ function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = 
 	const mode = chooseRideMode(rng, ctx.intensity);
 	const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
 	const fillRng = ctx.fillRng ?? rng;
-	const { hits: fills, crashOnOne } = fillBar(ctx, fillRng);
+	const { hits: fills, suppressDownbeatRide, anticipated } = fillBar(ctx, fillRng);
 	const ostinato = [
-		// A crash on the section downbeat replaces that beat's ride.
-		...(crashOnOne ? ride.filter((h) => h.beatOffset !== 0) : ride),
+		// A crash (or bell) on the section downbeat replaces that beat's ride.
+		...(suppressDownbeatRide ? ride.filter((h) => h.beatOffset !== 0) : ride),
 		...hihatBar(beatsPerBar, rng),
-		...featherBar(beatsPerBar, rng, ctx.intensity)
+		...featherBar(beatsPerBar, rng, ctx.intensity),
+		// Anticipated hits live at negative offsets (the previous bar's
+		// and-of-4) — ostinato-bound so the one-per-offset ledger can't
+		// drop the push's kick under its crash.
+		...anticipated
 	];
 	// Call order (snare → coupling) is the `drums` stream draw order and
 	// must not change; the ARRAY order is occupancy priority — form-marking
