@@ -39,6 +39,44 @@ if [[ ! -d "$STAGE" ]]; then
     exit 2
 fi
 
+# --- Clean up a failed deploy's staged release ---
+#
+# `npm ci` and the pool merge both run BEFORE the `current` swap, while the
+# prune pass runs only at the very END of a successful deploy. So a failure
+# anywhere in between used to strand this release's staged dir (~600MB) on the
+# box permanently — the two OOM-killed deploys on 2026-08-07/08 did exactly
+# that. Disk is the small part: prune retains the NEWEST ${KEEP_RELEASES} dirs,
+# so stranded failures occupy rollback slots and evict releases that work.
+#
+# The one dir we must never remove is the one `current` points at. After the
+# swap below, the staged release IS production, and a later failure (PM2
+# refusing to start, say) must leave it alone — deleting it would escalate a
+# failed deploy into an outage. `-ef` compares device+inode through the
+# symlink, so the guard holds whether `current` is relative or absolute, and
+# fails safe (no match, nothing live here) when `current` doesn't exist yet.
+#
+# EXIT only, deliberately. Every `set -e` path funnels through it, including a
+# child killed by the OOM killer — bash does not run this trap inside the
+# `( ... )` subshells, so it fires exactly once, in the main shell. A SIGKILL
+# of release.sh itself is untrappable by anyone; that orphan simply ages out of
+# the prune window as newer releases land. RELEASE_ID is regex-validated above,
+# which is what makes $STAGE a known-safe path to hand to `rm -rf`.
+cleanup_failed_stage() {
+    local rc=$?
+    if (( rc == 0 )); then
+        return 0
+    fi
+    if [[ "${ROOT}/current" -ef "$STAGE" ]]; then
+        echo "==> Deploy failed after the current swap; keeping releases/${RELEASE_ID} (it is live)" >&2
+        return 0
+    fi
+    if [[ -d "$STAGE" ]]; then
+        echo "==> Deploy failed; removing staged releases/${RELEASE_ID}" >&2
+        rm -rf -- "$STAGE"
+    fi
+}
+trap cleanup_failed_stage EXIT
+
 # --- Whole-deploy serialization ---
 #
 # CI does not serialize deploys: two merges landing close together run two
@@ -130,11 +168,66 @@ snapshot_ecosystem "after rsync" "${STAGE}/ecosystem.config.cjs"
 # lifecycle script) would keep the flock held forever, timing out every
 # subsequent deploy. Closing the fd in the subshell doesn't release the
 # parent's lock — flock lives on the parent's open file description.
-echo "==> Installing production dependencies in staged release"
-(
-    cd "$STAGE"
-    npm ci --omit=dev
-) 9>&-
+# --- Production dependencies, shared across releases ---
+#
+# `npm ci --omit=dev` installs 378MB across ~22k files and peaks near 500MB
+# RSS, on a 961MB droplet. It was the OOM victim on 2026-08-07/08 — and the
+# lockfile was byte-identical across all three of those deploys, so it rebuilt
+# the identical tree from scratch every time, twice fatally. Most deploys ship
+# code, not dependencies.
+#
+# So install once into shared/deps and symlink that into each release, keyed on
+# the lockfile ITSELF rather than a separate hash file that could drift from
+# what is actually installed. The recorded copy is cleared before an install
+# and written only after one succeeds, so a half-finished tree (or another OOM
+# kill) can never be mistaken for a satisfied one.
+#
+# Deliberate tradeoff: releases share one tree, so flipping `current` back to
+# an older release gives it the newer deps. That is the standard Capistrano
+# bargain, and the alternative — a 378MB tree per retained release — is what
+# put `releases/` at 4.5GB.
+#
+# Keyed on the Node version as well as the lockfile. Native bindings are
+# compiled against a Node ABI and nothing in the lockfile records which runtime
+# built them, so a runtime upgrade under an unchanged lockfile would silently
+# reuse a tree built for the old ABI. Not hypothetical here: this box went
+# 18 -> 26 on 2026-08-06, Node upgrades are a manual step, and two production
+# incidents (MANKUNKU-1F, 1G) were Node skew.
+DEPS_DIR="${ROOT}/shared/deps"
+INSTALLED_LOCK="${DEPS_DIR}/.installed-package-lock.json"
+INSTALLED_NODE="${DEPS_DIR}/.installed-node-version"
+mkdir -p "$DEPS_DIR"
+
+node_version="$(node --version 2>/dev/null || echo unknown)"
+
+if [[ -d "${DEPS_DIR}/node_modules" ]] \
+    && cmp -s "${STAGE}/package-lock.json" "$INSTALLED_LOCK" \
+    && [[ "$(cat "$INSTALLED_NODE" 2>/dev/null)" == "$node_version" ]]; then
+    echo "==> Dependencies unchanged (${node_version}); reusing shared/deps/node_modules"
+else
+    echo "==> Dependencies or runtime changed; installing into shared/deps (${node_version})"
+    rm -f "$INSTALLED_LOCK" "$INSTALLED_NODE"
+    cp "${STAGE}/package.json" "${STAGE}/package-lock.json" "${DEPS_DIR}/"
+    # `9>&-` here and on the PM2 subshell below: don't let child processes
+    # inherit the deploy-lock fd. A child that outlives this script (the PM2
+    # God daemon when `pm2 start` has to spawn it; in principle an npm
+    # lifecycle script) would keep the flock held forever, timing out every
+    # subsequent deploy. Closing the fd in the subshell doesn't release the
+    # parent's lock — flock lives on the parent's open file description.
+    (
+        cd "$DEPS_DIR"
+        npm ci --omit=dev
+    ) 9>&-
+    # Both records written only AFTER a successful install, so a killed one
+    # (the 2026-08-07/08 OOMs) can never look satisfied.
+    cp "${STAGE}/package-lock.json" "$INSTALLED_LOCK"
+    printf '%s\n' "$node_version" > "$INSTALLED_NODE"
+fi
+
+# Replace rather than link into: a release staged before this change has a real
+# node_modules directory here, and `ln -s` at an existing dir nests inside it.
+rm -rf -- "${STAGE}/node_modules"
+ln -s "${DEPS_DIR}/node_modules" "${STAGE}/node_modules"
 
 snapshot_ecosystem "after npm ci" "${STAGE}/ecosystem.config.cjs"
 
@@ -332,6 +425,66 @@ echo "==> Restarting PM2 against new release"
     pm2 start ecosystem.config.cjs --env production
     pm2 save
 ) 9>&-
+
+# --- Post-restart smoke check ---
+#
+# `pm2 start` returns 0 the moment the process is SPAWNED, not when it serves.
+# Without this, a build that dies on boot leaves PM2 restart-looping while the
+# deploy reports success: production down, pipeline green. Both 2026 Node-skew
+# incidents (MANKUNKU-1F, MANKUNKU-1G) had exactly that shape, and the
+# 2026-08-07/08 OOM was its mirror image — a red deploy nobody was told about.
+#
+# We compare the RELEASE ID, not just liveness. An old process still holding
+# the port answers 200 perfectly happily; only the id proves that THIS build is
+# the one serving traffic. /api/health reports it for precisely this reason.
+#
+# Failure leaves `current` on the new release rather than rolling back: the
+# cleanup trap above spares it (it is what `current` points at), and an
+# automatic rollback onto a release whose shared deps have since changed is a
+# worse failure mode than stopping loudly with the command to do it by hand.
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/health}"
+HEALTH_TIMEOUT_SECS="${HEALTH_TIMEOUT_SECS:-60}"
+# Same numeric guard as the deploy-lock budget: a non-integer would make (( ))
+# false forever and poll past the CircleCI no-output kill.
+[[ "$HEALTH_TIMEOUT_SECS" =~ ^[0-9]+$ ]] || HEALTH_TIMEOUT_SECS=60
+HEALTH_TIMEOUT_SECS=$(( 10#$HEALTH_TIMEOUT_SECS ))
+
+if ! command -v curl >/dev/null 2>&1; then
+    echo "warn: curl not found; skipping the post-restart health check" >&2
+else
+    echo "==> Health check: ${HEALTH_URL} (expecting release ${RELEASE_ID})"
+    health_body=""
+    health_ok=0
+    # Measure WALL CLOCK via bash's SECONDS, not accumulated sleep time. Each
+    # curl can burn up to its --max-time before the 2s sleep, so counting only
+    # sleeps would let a 60s budget run ~3.5 minutes against an app that
+    # accepts connections but never answers.
+    health_started=$SECONDS
+    waited=0
+    while true; do
+        # The endpoint is our own JSON.stringify output, so an exact substring
+        # match is safe here — no whitespace variation to accommodate.
+        if health_body="$(curl -fsS --max-time 5 "$HEALTH_URL" 2>/dev/null)" \
+            && [[ "$health_body" == *"\"releaseId\":\"${RELEASE_ID}\""* ]]; then
+            health_ok=1
+            break
+        fi
+        waited=$(( SECONDS - health_started ))
+        if (( waited >= HEALTH_TIMEOUT_SECS )); then
+            break
+        fi
+        sleep 2
+    done
+
+    if (( health_ok != 1 )); then
+        echo "error: health check failed after ${waited}s — the app is not serving releases/${RELEASE_ID}" >&2
+        echo "       last response: ${health_body:-<none>}" >&2
+        echo "       check 'pm2 logs mankunku'; roll back with:" >&2
+        echo "         ln -sfn releases/<previous-id> ${ROOT}/current && pm2 restart mankunku" >&2
+        exit 1
+    fi
+    echo "==> Health check passed: ${health_body}"
+fi
 
 echo "==> Pruning old releases (keep last ${KEEP_RELEASES:-5})"
 KEEP="${KEEP_RELEASES:-5}"

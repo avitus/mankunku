@@ -26,6 +26,12 @@ mkdir -p "$STUB_BIN"
 # deploy-lock tests below can prove two npm ci's never overlap.
 cat > "${STUB_BIN}/npm" <<'EOF'
 #!/bin/sh
+# Record every invocation so tests can assert an install was SKIPPED, and
+# materialise node_modules the way a real `npm ci` would.
+if [ -n "${NPM_STUB_CALLS:-}" ]; then
+    echo "npm $*" >> "$NPM_STUB_CALLS"
+fi
+mkdir -p node_modules && echo "installed" > node_modules/.stub-marker
 if [ -n "${NPM_STUB_LOG:-}" ]; then
     echo "$(date +%s) start ${NPM_STUB_MARKER:-npm}" >> "$NPM_STUB_LOG"
 fi
@@ -35,14 +41,50 @@ fi
 if [ -n "${NPM_STUB_LOG:-}" ]; then
     echo "$(date +%s) end ${NPM_STUB_MARKER:-npm}" >> "$NPM_STUB_LOG"
 fi
-exit 0
+# NPM_STUB_EXIT lets a test simulate the install failing — the real-world case
+# being the OOM kill that broke deploys on 2026-08-07/08.
+exit "${NPM_STUB_EXIT:-0}"
 EOF
 chmod +x "${STUB_BIN}/npm"
 cat > "${STUB_BIN}/pm2" <<'EOF'
 #!/bin/sh
-exit 0
+# PM2_STUB_EXIT simulates a restart failure, which happens AFTER `current` has
+# been swapped onto the staged release.
+exit "${PM2_STUB_EXIT:-0}"
 EOF
 chmod +x "${STUB_BIN}/pm2"
+# curl stub for the post-restart smoke check, standing in for /api/health.
+#
+# By default it reports whatever `current` points at, which is what a correctly
+# restarted app does — so every pre-existing test keeps passing untouched.
+# CURL_STUB_DOWN=1 simulates an app that never comes up; CURL_STUB_RELEASE
+# pins a different id to simulate a stale process still serving the old build.
+cat > "${STUB_BIN}/curl" <<'EOF'
+#!/bin/sh
+# CURL_STUB_DELAY stands in for real curl burning up to its --max-time against
+# an app that accepts connections but never answers.
+if [ -n "${CURL_STUB_DELAY:-}" ]; then
+    sleep "$CURL_STUB_DELAY"
+fi
+if [ -n "${CURL_STUB_DOWN:-}" ]; then
+    exit 7   # curl's "failed to connect"
+fi
+rel="${CURL_STUB_RELEASE:-}"
+if [ -z "$rel" ]; then
+    rel=$(readlink "${MANKUNKU_ROOT}/current" 2>/dev/null | sed 's|^releases/||')
+fi
+printf '{"status":"ok","version":"abc123","releaseId":"%s","node":"v26.5.1"}' "$rel"
+exit 0
+EOF
+chmod +x "${STUB_BIN}/curl"
+# node stub — release.sh records the Node version alongside the lockfile so a
+# runtime upgrade invalidates the shared dependency tree. NODE_STUB_VERSION lets
+# a test simulate the box being upgraded under an unchanged lockfile.
+cat > "${STUB_BIN}/node" <<'EOF'
+#!/bin/sh
+echo "${NODE_STUB_VERSION:-v26.5.1}"
+EOF
+chmod +x "${STUB_BIN}/node"
 # macOS lacks sha256sum (release.sh's snapshot helper uses it); shim via shasum.
 if ! command -v sha256sum >/dev/null 2>&1; then
     cat > "${STUB_BIN}/sha256sum" <<'EOF'
@@ -61,14 +103,20 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "ok - $*"; pass=$((pass + 1)); }
 
 # Build a staged release dir shipping a single immutable chunk.
+#
+# $3 is the package-lock.json payload. Deps are installed into a shared dir and
+# reused while the lockfile is unchanged, so tests that care about whether an
+# install RAN vary this; everything else takes the default and shares one tree.
 stage_release() {
-    local id="$1" chunk="$2"
+    local id="$1" chunk="$2" lock="${3:-baseline-deps}"
     local dir="${MANKUNKU_ROOT}/releases/${id}"
     mkdir -p "${dir}/build/client/_app/immutable/nodes"
     echo "// ${chunk}" > "${dir}/build/client/_app/immutable/nodes/${chunk}"
     echo "console.log('server')" > "${dir}/build/index.js"
     printf 'module.exports = { apps: [{ name: "mankunku", script: "build/index.js", cwd: "." }] }\n' \
         > "${dir}/ecosystem.config.cjs"
+    printf '{"name":"mankunku","version":"0.0.1"}\n' > "${dir}/package.json"
+    printf '{"lockfileVersion":3,"payload":"%s"}\n' "$lock" > "${dir}/package-lock.json"
 }
 
 ID1="20260101-000000-aaaaaaa"
@@ -163,6 +211,197 @@ ok "stale lock broken; deploy proceeded"
 [[ ! -d "$LOCK" ]] || fail "lock not released after deploy"
 ok "lock released after deploy"
 
+# --- Failed deploys must not leak their staged release (2026-08-08) ---
+# `npm ci` runs on the server and was OOM-killed on two consecutive deploys.
+# Pruning happens at the END of a successful run, so each failure stranded a
+# ~600MB staged dir forever. Worse than the disk cost: `ls -1t | tail -n +N`
+# retains the NEWEST releases, so stranded failures occupy retention slots and
+# push genuinely-working releases out of the rollback window.
+LIVE_BEFORE="$(readlink "${MANKUNKU_ROOT}/current")"
+ID8="20260108-000000-8888888"
+# Distinct lockfile so the install actually RUNS and can be made to fail — with
+# the shared-deps cache an unchanged lockfile skips npm ci entirely.
+stage_release "$ID8" "2.HHHHHHH.js" "deps-failing-install"
+set +e
+NPM_STUB_EXIT=1 bash "$RELEASE_SH" "$ID8" >/dev/null 2>&1
+rc=$?
+set -e
+[[ $rc -ne 0 ]] || fail "deploy reported success despite npm ci failing"
+ok "deploy fails when npm ci fails"
+[[ ! -d "${MANKUNKU_ROOT}/releases/${ID8}" ]] \
+    || fail "failed deploy leaked its staged release dir"
+ok "failed deploy cleans up its staged release"
+[[ "$(readlink "${MANKUNKU_ROOT}/current")" == "$LIVE_BEFORE" ]] \
+    || fail "failed deploy moved current away from the live release"
+ok "failed deploy leaves current on the previous release"
+
+# The guard that makes the cleanup safe. Once `current` has been swapped onto
+# the staged release, that dir IS production — a later failure (PM2 refusing to
+# start) must NOT delete it, or the cleanup would take the site down harder
+# than the failure it is tidying up after.
+ID9="20260109-000000-9999999"
+stage_release "$ID9" "2.IIIIIII.js"
+set +e
+PM2_STUB_EXIT=1 bash "$RELEASE_SH" "$ID9" >/dev/null 2>&1
+rc=$?
+set -e
+[[ $rc -ne 0 ]] || fail "deploy reported success despite pm2 failing"
+ok "deploy fails when pm2 restart fails"
+[[ -d "${MANKUNKU_ROOT}/releases/${ID9}" ]] \
+    || fail "cleanup deleted the release that current points at (would break prod)"
+ok "cleanup spares a staged release that current already points at"
+[[ -f "${MANKUNKU_ROOT}/releases/${ID9}/build/index.js" ]] \
+    || fail "live release left incomplete by cleanup"
+ok "spared release still has its build intact"
+
+# --- Shared node_modules, reinstalled only when the lockfile changes ---
+# `npm ci` peaks around 500MB installing 378MB/22k files, on a 961MB box. It
+# was the OOM victim on 2026-08-07/08 — and the lockfile was byte-identical
+# across all three of those deploys, so it rebuilt the same tree every time.
+CALLS="${WORK}/npm-calls.log"
+
+ID10="20260110-000000-aaa1111"
+: > "$CALLS"
+stage_release "$ID10" "2.JJJJJJJ.js" "deps-v1"
+NPM_STUB_CALLS="$CALLS" bash "$RELEASE_SH" "$ID10" >/dev/null
+grep -q "npm ci" "$CALLS" || fail "first deploy on a new lockfile did not install"
+ok "install runs when the shared tree is cold"
+[[ -e "${MANKUNKU_ROOT}/releases/${ID10}/node_modules/.stub-marker" ]] \
+    || fail "release cannot reach node_modules"
+# Pin the MECHANISM: a per-release copy would defeat the whole point, so the
+# release must reach deps through a symlink into the shared tree.
+[[ -L "${MANKUNKU_ROOT}/releases/${ID10}/node_modules" ]] \
+    || fail "release node_modules is a real directory, not a link to the shared tree"
+[[ "${MANKUNKU_ROOT}/releases/${ID10}/node_modules" -ef "${MANKUNKU_ROOT}/shared/deps/node_modules" ]] \
+    || fail "release node_modules does not resolve to the shared tree"
+ok "release resolves node_modules through the shared tree"
+
+ID11="20260111-000000-bbb2222"
+: > "$CALLS"
+stage_release "$ID11" "2.KKKKKKK.js" "deps-v1"   # same lockfile as ID10
+NPM_STUB_CALLS="$CALLS" bash "$RELEASE_SH" "$ID11" >/dev/null
+[[ ! -s "$CALLS" ]] || fail "npm ci ran again for an unchanged lockfile: $(cat "$CALLS")"
+ok "install is skipped when the lockfile is unchanged"
+[[ -e "${MANKUNKU_ROOT}/releases/${ID11}/node_modules/.stub-marker" ]] \
+    || fail "reused deps not reachable from the new release"
+ok "reused deps reachable from the new release"
+
+ID12="20260112-000000-ccc3333"
+: > "$CALLS"
+stage_release "$ID12" "2.LLLLLLL.js" "deps-v2"   # dependencies actually changed
+NPM_STUB_CALLS="$CALLS" bash "$RELEASE_SH" "$ID12" >/dev/null
+grep -q "npm ci" "$CALLS" || fail "npm ci skipped despite a changed lockfile"
+ok "install runs again when the lockfile changes"
+
+# A failed install must not be recorded as satisfying the new lockfile, or the
+# next deploy would happily reuse a half-installed tree.
+ID13="20260113-000000-ddd4444"
+stage_release "$ID13" "2.MMMMMMM.js" "deps-v3"
+set +e
+NPM_STUB_EXIT=1 bash "$RELEASE_SH" "$ID13" >/dev/null 2>&1
+set -e
+: > "$CALLS"
+ID14="20260114-000000-eee5555"
+stage_release "$ID14" "2.NNNNNNN.js" "deps-v3"   # same lockfile the install died on
+NPM_STUB_CALLS="$CALLS" bash "$RELEASE_SH" "$ID14" >/dev/null
+grep -q "npm ci" "$CALLS" || fail "reused a tree from an install that failed"
+ok "a failed install is not recorded as satisfied"
+
+# A Node upgrade must invalidate the shared tree even when the lockfile has not
+# moved: native bindings are compiled against a Node ABI, and nothing in the
+# lockfile records which runtime built them. This box went 18 -> 26 on
+# 2026-08-06 and has a history of Node-skew incidents (MANKUNKU-1F, 1G), so
+# "same deps, different runtime" is a real state, not a hypothetical.
+ID19="20260119-000000-555dddd"
+: > "$CALLS"
+stage_release "$ID19" "2.SSSSSSS.js" "deps-v3"   # identical lockfile to ID14
+NPM_STUB_CALLS="$CALLS" NODE_STUB_VERSION="v28.0.0" \
+    bash "$RELEASE_SH" "$ID19" >/dev/null
+grep -q "npm ci" "$CALLS" || fail "shared tree reused across a Node version change"
+ok "install runs again when the Node version changes"
+
+# The stage now contains a SYMLINK into shared/deps. Cleanup must unlink it,
+# never follow it — wiping the shared tree on every failed deploy would be far
+# worse than the leak the cleanup exists to fix. Needs a failure that lands
+# after deps are linked but before the current swap, and there is a real one:
+# release.sh refuses to swap when `current` is a directory instead of a symlink.
+PREV_CURRENT="$(readlink "${MANKUNKU_ROOT}/current")"
+ID17="20260117-000000-777bbbb"
+stage_release "$ID17" "2.QQQQQQQ.js"
+rm -f "${MANKUNKU_ROOT}/current"
+mkdir -p "${MANKUNKU_ROOT}/current"
+set +e
+bash "$RELEASE_SH" "$ID17" >/dev/null 2>&1
+rc=$?
+set -e
+rmdir "${MANKUNKU_ROOT}/current"
+ln -sfn "$PREV_CURRENT" "${MANKUNKU_ROOT}/current"
+[[ $rc -ne 0 ]] || fail "deploy swapped current even though it was a real directory"
+ok "deploy refuses to swap when current is not a symlink"
+[[ ! -d "${MANKUNKU_ROOT}/releases/${ID17}" ]] \
+    || fail "failure after dependency linking leaked its stage"
+ok "stage cleaned up after a failure that follows dependency linking"
+[[ -e "${MANKUNKU_ROOT}/shared/deps/node_modules/.stub-marker" ]] \
+    || fail "cleanup followed the symlink and destroyed the shared dependency tree"
+ok "cleanup unlinks node_modules rather than following it into shared/deps"
+
+# --- Post-restart smoke check ---
+# `pm2 start` returns 0 the moment the process is SPAWNED. Without a check, an
+# app that crashes on boot (missing secret, bad build, Node skew — MANKUNKU-1F
+# and 1G were both that) leaves PM2 restart-looping and the deploy GREEN.
+LIVE_BEFORE_SMOKE="$(readlink "${MANKUNKU_ROOT}/current")"
+ID15="20260115-000000-fff6666"
+stage_release "$ID15" "2.OOOOOOO.js"
+set +e
+OUT=$(CURL_STUB_DOWN=1 HEALTH_TIMEOUT_SECS=1 bash "$RELEASE_SH" "$ID15" 2>&1)
+rc=$?
+set -e
+[[ $rc -ne 0 ]] || fail "deploy went green while the app never answered"
+ok "deploy fails when the restarted app never answers"
+echo "$OUT" | grep -qi "health" || fail "no health-check diagnostic in the failure output"
+ok "failure output names the health check"
+
+# The stale-process case: the app answers, but is still serving the OLD build.
+# A plain "is it up?" check passes here — only comparing the release id catches
+# it, which is the whole reason /api/health reports one.
+ID16="20260116-000000-999aaaa"
+stage_release "$ID16" "2.PPPPPPP.js"
+set +e
+# Strip the `releases/` prefix that readlink returns: the stub only strips it on
+# its default branch, so passing the raw value would make the "stale process"
+# report a MALFORMED id. That still fails the deploy — but for the wrong reason,
+# and the point here is a well-formed id belonging to the previous release.
+CURL_STUB_RELEASE="${LIVE_BEFORE_SMOKE#releases/}" HEALTH_TIMEOUT_SECS=1 \
+    bash "$RELEASE_SH" "$ID16" >/dev/null 2>&1
+rc=$?
+set -e
+[[ $rc -ne 0 ]] || fail "deploy went green while the app served a different release"
+ok "deploy fails when the app reports a different release id"
+
+# And the staged release must survive both smoke-check failures — `current`
+# already points at it, so the cleanup guard has to hold here too.
+[[ -d "${MANKUNKU_ROOT}/releases/${ID16}" ]] \
+    || fail "smoke-check failure deleted the release current points at"
+ok "smoke-check failure leaves the live release in place"
+
+# The budget is WALL CLOCK, not accumulated sleep. curl can burn its --max-time
+# against an app that accepts connections but never answers, so counting only
+# sleeps overran badly: at a 3s budget with a 3s-per-call curl the old loop took
+# ~13s (3+2+3+2+3), and at the 60s default roughly 3.5 minutes.
+ID18="20260118-000000-666cccc"
+stage_release "$ID18" "2.RRRRRRR.js"
+smoke_start=$SECONDS
+set +e
+CURL_STUB_DOWN=1 CURL_STUB_DELAY=3 HEALTH_TIMEOUT_SECS=3 \
+    bash "$RELEASE_SH" "$ID18" >/dev/null 2>&1
+rc=$?
+set -e
+smoke_elapsed=$(( SECONDS - smoke_start ))
+[[ $rc -ne 0 ]] || fail "deploy went green against an app that never answered"
+(( smoke_elapsed <= 8 )) \
+    || fail "health check overran its 3s budget: ${smoke_elapsed}s elapsed (counting sleeps, not wall clock?)"
+ok "health-check budget measures wall clock, not accumulated sleep (${smoke_elapsed}s)"
+
 # --- Whole-deploy lock (2026-07-13 incident) ---
 # Two release.sh runs must serialize: concurrent npm ci's memory-thrashed the
 # droplet when two merges deployed at once. Gated on flock availability — the
@@ -171,8 +410,11 @@ ok "lock released after deploy"
 if command -v flock >/dev/null 2>&1; then
     ID5="20260105-000000-eeeeeee"
     ID6="20260106-000000-fffffff"
-    stage_release "$ID5" "2.EEEEEEE.js"
-    stage_release "$ID6" "2.FFFFFFF.js"
+    # Distinct lockfiles so BOTH deploys really run npm ci — this test exists to
+    # prove two installs never overlap, and the shared-deps cache would
+    # otherwise skip the second one and quietly hollow the test out.
+    stage_release "$ID5" "2.EEEEEEE.js" "deps-serialize-a"
+    stage_release "$ID6" "2.FFFFFFF.js" "deps-serialize-b"
     NPM_LOG="${WORK}/npm-stub.log"
     : > "$NPM_LOG"
 
