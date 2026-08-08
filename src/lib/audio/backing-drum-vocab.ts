@@ -174,11 +174,17 @@ export function couplingBar(ctx: GenerationContext, rng: SeededRng): DrumHitSpec
 }
 
 /**
- * Form punctuation from the dedicated `drum-fill` stream: light snare
- * fills at 4-bar boundaries, fuller setups into new sections (the two
- * PR-201 figures kept, plus two snare shapes incl. a swing-immune
- * triplet), and a crash on section arrivals that REPLACES the downbeat
- * ride (the caller removes it via the returned flag).
+ * Form punctuation from the dedicated `drum-fill` stream:
+ * - light markers at 4-bar boundaries (two snare shapes, the Philly Joe
+ *   kick bomb, the Moanin' side-stick);
+ * - five setup figures into new sections (the two PR-201 figures, two
+ *   snare shapes incl. a swing-immune triplet, and the hard-bop
+ *   hand-to-foot triplet);
+ * - a long fill on chorus-final bars, rolling over the barline;
+ * - section-arrival punctuation that REPLACES the downbeat ride via the
+ *   returned flag: a crash — occasionally anticipated onto the previous
+ *   bar's final and, with the kick, where the ride keeps the downbeat
+ *   instead — or, when the crash draw fails, a Blakey bell accent.
  */
 export function fillBar(
 	ctx: GenerationContext,
@@ -200,6 +206,27 @@ export function fillBar(
 		if (fillRng.chance(p)) {
 			hits.push({ drum: 'crash', beatOffset: 0, velocity: 0.5 + fillRng.float() * 0.1 });
 			suppressDownbeatRide = true;
+			// Big-band anticipated push: sometimes the crash arrives EARLY,
+			// with the foot, on the previous bar's final and — and the ride
+			// keeps the downbeat. Chorus tops are excluded: the top of a new
+			// chorus wants the classic downbeat crash (and may carry the long
+			// fill rolling into it).
+			if (!ctx.isChorusFirstBar && fillRng.chance(0.3)) {
+				hits.pop();
+				suppressDownbeatRide = false;
+				anticipated.push({
+					drum: 'crash',
+					beatOffset: -0.5,
+					velocity: 0.45 + fillRng.float() * 0.1
+				});
+				anticipated.push({ drum: 'kick', beatOffset: -0.5, velocity: 0.36 });
+			}
+		} else if (fillRng.chance(0.35)) {
+			// No crash — mark the arrival Blakey-style with the bell instead
+			// (the library has no open hi-hat to bark, the bell is the
+			// closest voice), replacing the downbeat ride like the crash does.
+			hits.push({ drum: 'ride-bell', beatOffset: 0, velocity: 0.5 + fillRng.float() * 0.08 });
+			suppressDownbeatRide = true;
 		}
 	}
 
@@ -207,36 +234,65 @@ export function fillBar(
 	const last = beatsPerBar - 1;
 
 	if (ctx.isSectionFinalBar && !ctx.isFinalBar) {
-		const setup = fillRng.int(0, 3);
-		if (setup === 0) {
-			// Snare triplet into the barline — offsets the swung grid never
-			// touches (triplet fractions are swing-immune by construction).
-			hits.push({ drum: 'snare', beatOffset: last, velocity: 0.3 });
+		if (ctx.isChorusFinalBar && fillRng.chance(0.6)) {
+			// Chorus-top long fill: a two-beat build rolling over the barline
+			// into the next chorus's arrival (which crashes on its downbeat
+			// 60% from chorus 1). Ghost–accent–ghost snares alternate the
+			// sample layers (boundary at 0.30) so the roll never machine-guns
+			// on the single snare buffer; the foot lands the final triplet
+			// partial. Replaces the ordinary setup draw.
+			hits.push({ drum: 'snare', beatOffset: last - 0.5, velocity: 0.24 });
+			hits.push({ drum: 'snare', beatOffset: last, velocity: 0.34 });
 			hits.push({ drum: 'snare', beatOffset: last + 1 / 3, velocity: 0.24 });
-			hits.push({ drum: 'snare', beatOffset: last + 2 / 3, velocity: 0.4 });
-		} else if (setup === 1) {
-			hits.push({ drum: 'snare', beatOffset: last - 0.5, velocity: 0.28 });
-			hits.push({ drum: 'kick', beatOffset: last, velocity: 0.32 });
-			hits.push({ drum: 'snare', beatOffset: last + 0.5, velocity: 0.42 });
-		} else if (setup === 2) {
-			hits.push({ drum: 'hihat', beatOffset: last - 0.5, velocity: 0.35 });
-			hits.push({ drum: 'hihat', beatOffset: last + 0.5, velocity: 0.55 });
-			hits.push({ drum: 'kick', beatOffset: last, velocity: 0.35 });
+			hits.push({ drum: 'kick', beatOffset: last + 2 / 3, velocity: 0.36 });
 		} else {
-			hits.push({ drum: 'ride', beatOffset: last - 0.5, velocity: 0.5 });
-			hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.38 });
+			const setup = fillRng.int(0, 4);
+			if (setup === 0) {
+				// Snare triplet into the barline — offsets the swung grid never
+				// touches (triplet fractions are swing-immune by construction).
+				hits.push({ drum: 'snare', beatOffset: last, velocity: 0.3 });
+				hits.push({ drum: 'snare', beatOffset: last + 1 / 3, velocity: 0.24 });
+				hits.push({ drum: 'snare', beatOffset: last + 2 / 3, velocity: 0.4 });
+			} else if (setup === 1) {
+				hits.push({ drum: 'snare', beatOffset: last - 0.5, velocity: 0.28 });
+				hits.push({ drum: 'kick', beatOffset: last, velocity: 0.32 });
+				hits.push({ drum: 'snare', beatOffset: last + 0.5, velocity: 0.42 });
+			} else if (setup === 2) {
+				hits.push({ drum: 'hihat', beatOffset: last - 0.5, velocity: 0.35 });
+				hits.push({ drum: 'hihat', beatOffset: last + 0.5, velocity: 0.55 });
+				hits.push({ drum: 'kick', beatOffset: last, velocity: 0.35 });
+			} else if (setup === 3) {
+				hits.push({ drum: 'ride', beatOffset: last - 0.5, velocity: 0.5 });
+				hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.38 });
+			} else {
+				// Hand-to-foot triplet — the hard-bop cell (hand, hand, foot),
+				// the kick landing INTO the barline. Swing-immune offsets.
+				hits.push({ drum: 'snare', beatOffset: last, velocity: 0.3 });
+				hits.push({ drum: 'snare', beatOffset: last + 1 / 3, velocity: 0.26 });
+				hits.push({ drum: 'kick', beatOffset: last + 2 / 3, velocity: 0.34 });
+			}
 		}
 	} else if (
 		!ctx.isFinalBar &&
 		(ctx.barIndex + 1) % 4 === 0 &&
 		fillRng.chance(0.18 * lerp(0.9, 1.08, ctx.intensity))
 	) {
-		// Light 4-bar phrase marker.
-		if (fillRng.chance(0.5)) {
+		// Light 4-bar phrase marker. The pool grew but the 0.18 gate did not:
+		// more variety, same density.
+		const marker = fillRng.int(0, 3);
+		if (marker === 0) {
 			hits.push({ drum: 'snare', beatOffset: last + 0.5, velocity: 0.35 });
-		} else {
+		} else if (marker === 1) {
 			hits.push({ drum: 'snare', beatOffset: last, velocity: 0.3 });
 			hits.push({ drum: 'kick', beatOffset: last + 0.5, velocity: 0.32 });
+		} else if (marker === 2) {
+			// Philly Joe bomb: one accented kick dropped on the and of the
+			// third beat — comping as punctuation, no snare at all. (0.34,
+			// not 0.30 — exactly 0.30 is the bass-coupling marker velocity.)
+			hits.push({ drum: 'kick', beatOffset: last - 0.5, velocity: 0.34 });
+		} else {
+			// Moanin' side-stick: the cross-stick leans on the last beat.
+			hits.push({ drum: 'crossstick', beatOffset: last, velocity: 0.3 });
 		}
 	}
 

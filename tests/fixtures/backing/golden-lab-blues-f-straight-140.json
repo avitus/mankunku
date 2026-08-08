@@ -1165,15 +1165,9 @@
   },
   {
    "time": "5954i",
-   "drum": "snare",
+   "drum": "crossstick",
    "velocity": 0.3,
    "absBeat": 31
-  },
-  {
-   "time": "6049i",
-   "drum": "kick",
-   "velocity": 0.32,
-   "absBeat": 31.5
   },
   {
    "time": "6143i",

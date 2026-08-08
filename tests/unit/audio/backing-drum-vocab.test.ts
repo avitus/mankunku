@@ -44,14 +44,17 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 		}
 	});
 
-	it('the time never stops: a ride quarter (or crash on one) on every beat', () => {
+	it('the time never stops: a ride quarter (or crash/bell on one) on every beat', () => {
 		for (const seed of seeds) {
 			const { drumEvents } = gen(seed);
 			for (let bar = 0; bar < aaba.bars; bar++) {
 				for (let b = 0; b < 4; b++) {
 					const abs = bar * 4 + b;
 					const covered = drumEvents.some(
-						(e) => e.absBeat === abs && (e.drum === 'ride' || (b === 0 && e.drum === 'crash'))
+						(e) =>
+							e.absBeat === abs &&
+							(e.drum === 'ride' ||
+								(b === 0 && (e.drum === 'crash' || e.drum === 'ride-bell')))
 					);
 					expect(covered, `no timekeeping at beat ${abs} (seed ${seed})`).toBe(true);
 				}
@@ -59,20 +62,61 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 		}
 	});
 
-	it('crashes land only on section-first downbeats and replace that ride', () => {
+	it('crashes land on section-first downbeats (ride replaced) or anticipate them', () => {
 		for (const seed of seeds) {
 			const { drumEvents } = gen(seed);
 			for (const e of drumEvents) {
 				if (e.drum !== 'crash') continue;
 				const bar = Math.floor(e.absBeat / 4);
+				if (e.absBeat % 4 === 0) {
+					expect(infos[bar].isSectionFirstBar, `crash mid-section at bar ${bar}`).toBe(true);
+					expect(
+						drumEvents.some((r) => r.drum === 'ride' && r.absBeat === e.absBeat),
+						`crash and ride doubled at ${e.absBeat}`
+					).toBe(false);
+				} else {
+					// Anticipated push: the final and BEFORE a section arrival,
+					// paired with the foot; the arrival keeps its ride and takes
+					// no second crash.
+					expect(e.absBeat % 4, `crash off the form at ${e.absBeat}`).toBe(3.5);
+					expect(infos[bar + 1]?.isSectionFirstBar, `push into mid-section ${bar + 1}`).toBe(
+						true
+					);
+					expect(
+						drumEvents.some((k) => k.drum === 'kick' && k.absBeat === e.absBeat),
+						`push without its kick at ${e.absBeat}`
+					).toBe(true);
+					expect(
+						drumEvents.some((r) => r.drum === 'ride' && r.absBeat === (bar + 1) * 4),
+						`anticipated push lost the arrival ride at ${(bar + 1) * 4}`
+					).toBe(true);
+					expect(
+						drumEvents.some((c) => c.drum === 'crash' && c.absBeat === (bar + 1) * 4),
+						`double crash around the arrival at ${(bar + 1) * 4}`
+					).toBe(false);
+				}
+			}
+		}
+	});
+
+	it('ride-bell accents land only on section-first downbeats and replace that ride', () => {
+		let bells = 0;
+		for (const seed of seeds) {
+			const { drumEvents } = gen(seed);
+			for (const e of drumEvents) {
+				if (e.drum !== 'ride-bell') continue;
+				bells++;
+				const bar = Math.floor(e.absBeat / 4);
 				expect(e.absBeat % 4).toBe(0);
-				expect(infos[bar].isSectionFirstBar, `crash mid-section at bar ${bar}`).toBe(true);
+				expect(infos[bar].isSectionFirstBar, `bell mid-section at bar ${bar}`).toBe(true);
 				expect(
 					drumEvents.some((r) => r.drum === 'ride' && r.absBeat === e.absBeat),
-					`crash and ride doubled at ${e.absBeat}`
+					`bell and ride doubled at ${e.absBeat}`
 				).toBe(false);
 			}
 		}
+		// The accent actually occurs somewhere across the seed sweep.
+		expect(bells).toBeGreaterThan(0);
 	});
 
 	it('snare activity is sparse dialogue, never a backbeat habit', () => {
@@ -117,6 +161,53 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 				}
 			}
 		}
+	});
+
+	it('the long fill lives only on chorus-final bars, rolling into the arrival', () => {
+		// Signature: the roll's opening ghost — a snare on an and (x.5) at
+		// exactly 0.24. Ghost chatter is drawn from [0.15, 0.25) and setup 0's
+		// 0.24 stroke sits on a triplet offset, so the constant is unique to
+		// the roll on the eighth grid.
+		let rolls = 0;
+		for (const seed of seeds) {
+			const { drumEvents } = gen(seed);
+			for (const e of drumEvents) {
+				if (e.drum !== 'snare' || e.absBeat % 1 !== 0.5) continue;
+				if (Math.abs(e.velocity - 0.24) > 1e-9) continue;
+				rolls++;
+				const bar = Math.floor(e.absBeat / 4);
+				expect(infos[bar].isChorusFinalBar, `long fill off chorus-final at ${e.absBeat}`).toBe(
+					true
+				);
+				// The build lands its foot on the final triplet partial.
+				expect(
+					drumEvents.some(
+						(k) => k.drum === 'kick' && Math.abs(k.absBeat - (bar * 4 + 3 + 2 / 3)) < 1e-9
+					),
+					`roll without its landing foot in bar ${bar}`
+				).toBe(true);
+			}
+		}
+		expect(rolls).toBeGreaterThan(0);
+	});
+
+	it('the hand-to-foot triplet and the Philly Joe bomb both speak across seeds', () => {
+		let handToFoot = 0;
+		let bombs = 0;
+		for (const seed of seeds) {
+			const { drumEvents } = gen(seed);
+			for (const e of drumEvents) {
+				// 0.34 is shared by both new kicks and by nothing else: the
+				// comp-catch band [0.26, 0.34) is upper-exclusive, coupling is
+				// pinned at 0.30, setups use 0.32/0.35/0.36/0.38.
+				if (e.drum !== 'kick' || Math.abs(e.velocity - 0.34) > 1e-9) continue;
+				const frac = e.absBeat % 1;
+				if (Math.abs(frac - 2 / 3) < 1e-9) handToFoot++;
+				else if (frac === 0.5) bombs++;
+			}
+		}
+		expect(handToFoot).toBeGreaterThan(0);
+		expect(bombs).toBeGreaterThan(0);
 	});
 
 	it('every section-final bar carries a setup figure', () => {

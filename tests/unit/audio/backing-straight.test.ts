@@ -59,7 +59,10 @@ describe('straight style', () => {
 				const abs = bar * 4 + b;
 				expect(
 					drumEvents.some(
-						(e) => e.absBeat === abs && (e.drum === 'ride' || (b === 0 && e.drum === 'crash'))
+						(e) =>
+							e.absBeat === abs &&
+							(e.drum === 'ride' ||
+								(b === 0 && (e.drum === 'crash' || e.drum === 'ride-bell')))
 					),
 					`no timekeeping at beat ${abs}`
 				).toBe(true);
