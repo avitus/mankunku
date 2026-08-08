@@ -63,21 +63,27 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 	});
 
 	it('crashes land on section-first downbeats (ride replaced) or anticipate them', () => {
+		let pushes = 0;
 		for (const seed of seeds) {
 			const { drumEvents } = gen(seed);
 			for (const e of drumEvents) {
 				if (e.drum !== 'crash') continue;
 				const bar = Math.floor(e.absBeat / 4);
+				// One right hand: no ride or hat stroke may share a crash's
+				// instant, downbeat or anticipated (the cross-bar sweep).
+				expect(
+					drumEvents.some(
+						(r) => (r.drum === 'ride' || r.drum === 'hihat') && r.absBeat === e.absBeat
+					),
+					`crash and ride/hat doubled at ${e.absBeat}`
+				).toBe(false);
 				if (e.absBeat % 4 === 0) {
 					expect(infos[bar].isSectionFirstBar, `crash mid-section at bar ${bar}`).toBe(true);
-					expect(
-						drumEvents.some((r) => r.drum === 'ride' && r.absBeat === e.absBeat),
-						`crash and ride doubled at ${e.absBeat}`
-					).toBe(false);
 				} else {
 					// Anticipated push: the final and BEFORE a section arrival,
 					// paired with the foot; the arrival keeps its ride and takes
 					// no second crash.
+					pushes++;
 					expect(e.absBeat % 4, `crash off the form at ${e.absBeat}`).toBe(3.5);
 					expect(infos[bar + 1]?.isSectionFirstBar, `push into mid-section ${bar + 1}`).toBe(
 						true
@@ -97,6 +103,8 @@ describe('drum vocabulary properties (3-chorus AABA, many seeds)', () => {
 				}
 			}
 		}
+		// The push actually occurs somewhere across the seed sweep.
+		expect(pushes).toBeGreaterThan(0);
 	});
 
 	it('ride-bell accents land only on section-first downbeats and replace that ride', () => {

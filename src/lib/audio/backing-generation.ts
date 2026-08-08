@@ -467,6 +467,20 @@ export function generateDrums(
 		}
 	}
 
+	// A crash is the right hand leaving the ride — wherever one lands, a
+	// tick-coincident ride or hat stroke would need a third limb. Downbeat
+	// crashes already displace their ride at the pattern level
+	// (suppressDownbeatRide), but the anticipated push lands inside the
+	// PREVIOUS bar, on top of its ride skip (and sometimes a setup hat) at
+	// the same swung eighth — only this cross-bar sweep can see that. Kick
+	// and snare stay: crash-with-shot is idiomatic, crash-with-ride is
+	// impossible.
+	for (const { drum, absBeat } of [...byAbsBeat.values()]) {
+		if (drum !== 'crash') continue;
+		byAbsBeat.delete(`ride:${absBeat}`);
+		byAbsBeat.delete(`hihat:${absBeat}`);
+	}
+
 	for (const { drum, velocity, absBeat } of byAbsBeat.values()) {
 		events.push({
 			time: place(absBeat, drum, params, streams, beatsPerBar),
