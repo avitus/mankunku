@@ -190,12 +190,16 @@ function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = 
 	const mode = chooseRideMode(rng, ctx.intensity);
 	const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
 	const fillRng = ctx.fillRng ?? rng;
-	const { hits: fills, crashOnOne } = fillBar(ctx, fillRng);
+	const { hits: fills, suppressDownbeatRide, anticipated } = fillBar(ctx, fillRng);
 	const ostinato = [
-		// A crash on the section downbeat replaces that beat's ride.
-		...(crashOnOne ? ride.filter((h) => h.beatOffset !== 0) : ride),
+		// A crash (or bell) on the section downbeat replaces that beat's ride.
+		...(suppressDownbeatRide ? ride.filter((h) => h.beatOffset !== 0) : ride),
 		...hihatBar(beatsPerBar, rng),
-		...featherBar(beatsPerBar, rng, ctx.intensity)
+		...featherBar(beatsPerBar, rng, ctx.intensity),
+		// Anticipated hits live at negative offsets (the previous bar's
+		// and-of-4) — ostinato-bound so the one-per-offset ledger can't
+		// drop the push's kick under its crash.
+		...anticipated
 	];
 	// Call order (snare → coupling) is the `drums` stream draw order and
 	// must not change; the ARRAY order is occupancy priority — form-marking

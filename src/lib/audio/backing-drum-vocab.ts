@@ -183,21 +183,27 @@ export function couplingBar(ctx: GenerationContext, rng: SeededRng): DrumHitSpec
 export function fillBar(
 	ctx: GenerationContext,
 	fillRng: SeededRng
-): { hits: DrumHitSpec[]; crashOnOne: boolean } {
+): { hits: DrumHitSpec[]; suppressDownbeatRide: boolean; anticipated: DrumHitSpec[] } {
 	const { beatsPerBar } = ctx;
 	const hits: DrumHitSpec[] = [];
-	let crashOnOne = false;
+	// Hits at negative offsets (the anticipated push lands on the PREVIOUS
+	// bar's and-of-4). Kept off the `hits` channel because the occupancy
+	// ledger caps additions at one voice per offset — it would silently
+	// drop the push's kick under its crash. The caller splices these into
+	// the ostinato; the cross-bar dedupe in generateDrums guards collisions.
+	const anticipated: DrumHitSpec[] = [];
+	let suppressDownbeatRide = false;
 
 	// Crash punctuates a section arrival — more often deeper into the form.
 	if (ctx.isSectionFirstBar && ctx.barIndex > 0) {
 		const p = ((ctx.chorusIndex ?? 0) >= 1 ? 0.6 : 0.25) * lerp(0.9, 1.08, ctx.intensity);
 		if (fillRng.chance(p)) {
 			hits.push({ drum: 'crash', beatOffset: 0, velocity: 0.5 + fillRng.float() * 0.1 });
-			crashOnOne = true;
+			suppressDownbeatRide = true;
 		}
 	}
 
-	if (beatsPerBar < 3) return { hits, crashOnOne };
+	if (beatsPerBar < 3) return { hits, suppressDownbeatRide, anticipated };
 	const last = beatsPerBar - 1;
 
 	if (ctx.isSectionFinalBar && !ctx.isFinalBar) {
@@ -234,7 +240,7 @@ export function fillBar(
 		}
 	}
 
-	return { hits, crashOnOne };
+	return { hits, suppressDownbeatRide, anticipated };
 }
 
 /**

@@ -272,20 +272,26 @@ describe('generateBacking', () => {
 		const manySections = bars(...Array.from({ length: 64 }, (): [PitchClass, ChordQuality][] =>
 			[['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']]
 		).flat());
-		const sectionMap = Array.from({ length: 64 }, (_, i) => ({
-			sourceSection: 0,
-			barOffset: i * 4
-		}));
-		const { drumEvents } = generateBacking(
-			manySections,
-			BACKING_STYLES.swing,
-			params({ sectionMap })
-		);
-		const seen = new Set<string>();
-		for (const e of drumEvents) {
-			const key = `${e.drum}:${e.absBeat}`;
-			expect(seen.has(key), `duplicate ${key}`).toBe(false);
-			seen.add(key);
+		// Two forms: all-restart (every section is chorus-first) and a cycling
+		// 4-section form whose interior arrivals are MID-chorus — the only
+		// place the anticipated push can fire, colliding its kick with the
+		// previous bar's own kick at the same absBeat across the bar seam.
+		const sectionMaps = [
+			Array.from({ length: 64 }, (_, i) => ({ sourceSection: 0, barOffset: i * 4 })),
+			Array.from({ length: 64 }, (_, i) => ({ sourceSection: i % 4, barOffset: i * 4 }))
+		];
+		for (const sectionMap of sectionMaps) {
+			const { drumEvents } = generateBacking(
+				manySections,
+				BACKING_STYLES.swing,
+				params({ sectionMap })
+			);
+			const seen = new Set<string>();
+			for (const e of drumEvents) {
+				const key = `${e.drum}:${e.absBeat}`;
+				expect(seen.has(key), `duplicate ${key}`).toBe(false);
+				seen.add(key);
+			}
 		}
 	});
 

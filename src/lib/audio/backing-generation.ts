@@ -61,7 +61,7 @@ import {
 	type VoicingFn
 } from './voicings';
 import { planCompFigures, hitsForPlannedBar, headFigureFor } from './backing-comp-figures';
-import type { StyleDefinition, GenerationContext, DrumVoice, DrumHitSpec } from './backing-styles';
+import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 
 // ── Event shapes ─────────────────────────────────────────────
@@ -435,6 +435,7 @@ export function generateDrums(
 	const events: DrumEvent[] = [];
 	const streams = createTimingStreams(phraseId, tempo);
 	const clavePhase = clavePhaseFor(phraseId, tempo);
+	const byAbsBeat = new Map<string, { drum: DrumVoice; velocity: number; absBeat: number }>();
 
 	for (let bar = 0; bar < barInfos.length; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'drums', bar));
@@ -450,23 +451,29 @@ export function generateDrums(
 			...barInfos[bar]
 		};
 		// The feathered-kick, comp-accent, and section-final setup branches
-		// can collide on one offset; two sampler starts at the identical
-		// tick read as a doubled hit. Keep the louder one per (voice, beat).
-		const byOffset = new Map<string, DrumHitSpec>();
+		// can collide on one offset — and the anticipated push (a negative
+		// offset emitted by the NEXT bar) lands inside the previous bar,
+		// where that bar's own kick may sit. Two sampler starts at the
+		// identical tick read as a doubled hit, so the ledger spans bars:
+		// keep the louder one per (voice, absBeat). Map insertion order is
+		// emission order, which fixes each hit's jitter-draw index.
 		for (const hit of style.drumPattern(ctx)) {
-			const key = `${hit.drum}:${hit.beatOffset}`;
-			const prev = byOffset.get(key);
-			if (!prev || hit.velocity > prev.velocity) byOffset.set(key, hit);
-		}
-		for (const hit of byOffset.values()) {
 			const absBeat = bar * beatsPerBar + hit.beatOffset;
-			events.push({
-				time: place(absBeat, hit.drum, params, streams, beatsPerBar),
-				drum: hit.drum,
-				velocity: hit.velocity,
-				absBeat
-			});
+			const key = `${hit.drum}:${absBeat}`;
+			const prev = byAbsBeat.get(key);
+			if (!prev || hit.velocity > prev.velocity) {
+				byAbsBeat.set(key, { drum: hit.drum, velocity: hit.velocity, absBeat });
+			}
 		}
+	}
+
+	for (const { drum, velocity, absBeat } of byAbsBeat.values()) {
+		events.push({
+			time: place(absBeat, drum, params, streams, beatsPerBar),
+			drum,
+			velocity,
+			absBeat
+		});
 	}
 
 	return events;
