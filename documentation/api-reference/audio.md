@@ -568,6 +568,8 @@ interface GenerationContext {
   chorusIndex?: number;       // pass through the form
   isSectionFirstBar: boolean; // section-arrival crash gate
   isSectionFinalBar: boolean;
+  isChorusFirstBar?: boolean; // first bar of a chorus pass (downbeat crash stays home)
+  isChorusFinalBar?: boolean; // last bar of a chorus when another follows — the long fill's home
   isFinalBar: boolean;
   intensity: number;          // ensemble arc (backing-intensity.ts), [0.2, 0.9]
   swing: number;
