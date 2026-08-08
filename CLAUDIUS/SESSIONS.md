@@ -2,6 +2,19 @@
 
 Newest at the top.
 
+## 2026-08-08 — A red pipeline nobody was told about, and its mirror image
+
+Opened as "pr 217 merge is failing in ci." It wasn't the merge — PR 217 merged cleanly. The `deploy` job was failing, and had been since **PR #216**, so production had been serving the PR #215 build for two days with `test`, `e2e`, `build` and `db-migrate` all green.
+
+- **Root cause: the OOM killer, confirmed in `dmesg`.** `npm ci --omit=dev` runs *on the server*, peaks near 500 MB, and the droplet is 961 MB with **zero swap** and ~546 MB already resident (app 215, PM2 55, journald 51, fwupd 41, multipathd 27). 500 > 414 available, nothing to page to, kernel kills it. Both kills logged `constraint=CONSTRAINT_NONE … global_oom`, and the first was invoked by `node-V8Worker` — npm 11's parallel tarball extraction is where the peak comes from.
+- **The decisive evidence was three `git rev-parse` calls.** `package.json` and `package-lock.json` are the *same git blob* (`a2aaa5d…`) across the last success and both failures. Same Node, same npm, identical install workload — which converts "something changed" into "nothing in the repo changed, so it's the box," before reading a line of deploy code. The flock comment at `release.sh:44` then confirmed the box had been marginal at this exact step since the 2026-07-13 incident.
+- **Fixed with 2 GB of swap, then verified it was causal rather than lucky.** A green rerun alone proves nothing when the fix is "add capacity and retry" — the box could simply have had a quieter moment. `/proc/vmstat` showed `pswpout 77123` ≈ **301 MB paged out**, on a since-boot counter that had no swap device to write to before. Side benefit: `available` rose 371 → 463 MB as swappiness=10 evicted cold daemon pages.
+- **Then the two structural fixes, both TDD'd** (`release.test.sh` 20 → 37 assertions). (1) A failed deploy stranded its staged release forever, because prune runs at the *end* of a successful run — and stranded dirs occupy `KEEP_RELEASES` slots, so they evict releases that work. (2) `pm2 start` returns 0 when the process is *spawned*: a crash-on-boot left PM2 restart-looping with a **green** pipeline. release.sh now polls `/api/health` comparing the **release id**, because a stale process holding port 3000 answers 200 perfectly happily.
+- **Dependencies are now shared across releases**, keyed on the lockfile itself rather than a hash file that could drift, cleared before an install and recorded only after success so a killed install can never look satisfied. Given the lockfile was identical across all three deploys here, most deploys will now install nothing at all.
+- **Measured the install rather than estimating it:** 378 MB / 22,044 files. `@sentry/sveltekit` declares `vite` and `@sentry/vite-plugin` as ordinary `dependencies`, so a *production* install carries rolldown (44 MB) and typescript (24 MB); `pdfjs-dist` pulls `@napi-rs/canvas` (53 MB). Cross-referencing `build/server`'s actual import list, ~156 MB of the 378 is never imported by the running server.
+- Verified on Ubuntu 24.04 in Docker, not just macOS — the four flock-gated tests skip locally and are exactly where the new cleanup trap had room to misfire. Also ran the built server and curled `/api/health` rather than trusting `npm run check`. Full suite 3849 green, shellcheck clean.
+- **One correction mid-session:** I told Andy `test:deploy` was never wired into CI. It is — the `test` job calls the npm script, and my grep looked for the file path.
+
 ## 2026-08-01 — Documentation sync: the tune half of the app had no docs at all
 
 Full audit of `documentation/` (30 files) against the code, then a sync pass. The docs had last been touched 2026-07-26; the six days since had landed tune practice end to end (progression detection, mastery-aware lick matching, three modes, the head rule), Real Book engraving with stacked voltas, follow-scroll, compact lick cards, and two audio releases — none of it written down.

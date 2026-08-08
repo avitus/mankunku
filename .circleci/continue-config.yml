@@ -222,6 +222,38 @@ jobs:
 
             ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "bash -l -c \"trap 'rm -f ${REMOTE_SCRIPT}' EXIT; bash ${REMOTE_SCRIPT} ${RELEASE_ID}\""
+      - run:
+          name: Verify production serves this commit
+          command: |
+            set -euo pipefail
+
+            # release.sh already health-checked the app on the box against
+            # 127.0.0.1. This proves the PUBLIC path agrees — nginx, TLS, and
+            # the origin all serving the commit CI just built.
+            #
+            # Worth having even though the box-side check passed: it is the
+            # only step that would catch nginx pointing somewhere stale, and it
+            # turns "the pipeline went green" into a statement about what users
+            # actually receive. /api/health reports `version` as SvelteKit's
+            # app version, pinned to CIRCLE_SHA1 in svelte.config.js.
+            URL="${PRODUCTION_URL:-https://mankunkujazz.com}/api/health"
+
+            for attempt in $(seq 1 6); do
+              BODY="$(curl -fsS --max-time 10 "$URL" || true)"
+              case "$BODY" in
+                *"\"version\":\"${CIRCLE_SHA1}\""*)
+                  echo "Production is serving ${CIRCLE_SHA1}"
+                  echo "$BODY"
+                  exit 0
+                  ;;
+              esac
+              echo "attempt ${attempt}/6: not serving ${CIRCLE_SHA1} yet (got: ${BODY:-<no response>})"
+              sleep 5
+            done
+
+            echo "error: ${URL} never reported ${CIRCLE_SHA1}" >&2
+            echo "       the deploy script reported success, so check nginx and 'pm2 logs mankunku'" >&2
+            exit 1
 
   nginx-deploy:
     docker:
