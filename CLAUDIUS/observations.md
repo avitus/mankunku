@@ -622,3 +622,62 @@ dedupe pass and a cap. The user wanted one sentence and a button.
 Tell: I wrote "at most 2-3 so it isn't a wall of advice" into the brief myself. When you find
 yourself designing a mechanism to protect the user from the volume of your own output, the
 output is the problem, not the volume.
+
+## 2026-08-08 (cont.) — Two generators, and the one that was never alive
+
+The user asked why an entire code path does nothing. The answer turned out to be
+better than "someone forgot," and it reframes the whole day.
+
+`generator.ts` was added 2026-03-18 in the bulk "Phases 4-7" commit. In **that
+same commit**: the practice page overwrote `session.phrase` on mount
+unconditionally, so generated output never reached playback; `pickClosest`
+already contained the collapse bug (it offers `prev` as a candidate at distance
+zero, and targets *are* chord tones); and `generateScaleFragment`, the fallback
+that hides the failure, was written alongside it. It was not a feature that
+rotted. **It was never once alive.**
+
+Two days later `combiner.ts` shipped, with a commit message that is the whole
+answer: *"filling the sparse low-difficulty gap. Zero downstream changes —
+combined licks inject into ALL_CURATED_LICKS."* Same problem, simpler route,
+straight into the path that already worked. The second attempt superseded the
+first inside 48 hours and nobody deleted the first.
+
+Three things worth keeping.
+
+**A broken thing that degrades gracefully, whose output is then discarded, is
+undetectable by construction.** Two independent concealment layers stacked. Either
+alone would eventually have surfaced — a collapsed `[60,60,60,60]` line is
+obvious the moment you hear it, and a missing phrase is obvious the moment you
+don't. Together they cancelled into perfect silence for five months. I keep
+finding this shape (nginx `try_files`, pass-gated `rollingScore`), but this is the
+purest instance: the failure and the mask were authored in the same commit, by
+the same hand, in the same hour.
+
+**I misdiagnosed the user's problem and the user corrected me from memory.** I
+had measured `generatePhrase`'s 100% fallback and reported it as *the* generator
+story, and I'd have left it there. The user said "my recollection was that the
+generator combines scale patterns with rhythm patterns" — and that was
+`combiner.ts`, a module I hadn't looked at, doing exactly what they described,
+five feet from the one I'd been reporting on. My measurement was correct and my
+framing was wrong, which is the more dangerous combination, because the numbers
+lend the framing credibility it hasn't earned. The tell was available: I'd noted
+"one production call site" for generator and moved on without asking what *else*
+filled the catalog. When a subsystem appears dead, the right next question is
+never only "why is this dead" — it's "then what is doing this job?" Something
+usually is.
+
+**The repetitiveness had nothing to do with either generator's code.** It was
+input starvation: four of the six ear-training categories had zero scale
+patterns, an exact-note-count guard discarded 72% of the grid, and pentatonic —
+half the entire pattern vocabulary — wasn't in the ear-training pool at all. The
+fix was data plus one relaxed guard, and the pool went 86 → 471. The most
+valuable thing I built there isn't the patterns; it's
+`ear-training-categories.ts` plus the test asserting the join between the
+categories ear training *demands* and the patterns that *supply* them. That hole
+was structurally invisible — the route couldn't see the pattern tables and the
+pattern tables couldn't see the route — which is the same failure as the
+duration estimate this morning, one level up. **A contract with no shared
+artifact isn't a contract; it's a coincidence that has held so far.**
+
+Net for the day: -1155 lines of dead code deleted, +385 licks generated, four
+bugs fixed. The deletion and the expansion are the same insight arriving twice.
