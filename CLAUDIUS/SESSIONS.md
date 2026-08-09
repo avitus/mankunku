@@ -1322,3 +1322,27 @@ unnoticed. That is a gap, not a fixed bug.
 
 Final: 248 files / 3938 unit+integration green, check 0/0, and all five PR checks green
 (CircleCI test + e2e, path-filtering, GitGuardian, CodeRabbit).
+
+### Closeout — PR #221 merged as 28467fb
+
+Shipped: sixteenth notes + dotted eighths in both editors (the ask), and the PDF-import NDJSON
+heartbeat with partial results that had been sitting uncommitted from the previous session.
+Five commits, 3938 unit+integration green, all five PR checks green, two CodeRabbit rounds —
+8 findings, 7 adopted, 1 rejected and withdrawn by the reviewer.
+
+Two process notes from the closeout itself:
+
+- **I was told the PR was merged and it was not.** `gh pr view` said `state=OPEN`,
+  `merged=false`, and `main` was still on #220's merge commit. Easy mistake to make — #220 is
+  also a dev→main PR merged the same day — but "someone says it's done" is a claim like any
+  other, and the whole session had been about claims that survive checking. Reported it rather
+  than closing out on it; the real merge landed a minute later.
+- **Merged ≠ deployed here.** The deploy job runs only on main and has silently died in the
+  OOM killer before while every other job stayed green, leaving prod on a two-day-old build.
+  So closeout isn't "merged", it's `/api/health` returning the new commit SHA. Watching that
+  rather than declaring victory at the merge button.
+
+The one thing I'd want a future session to pick up: **the whole-PDF fallback has no e2e
+coverage.** Not a regression — partial results removed the trigger — but the stub sat there
+wrong and unobservable, and I fixed the stub while leaving the hole. Saved as a memory so
+"the PDF e2e suite passes" is never read as "the fallback works."
