@@ -117,7 +117,13 @@ export function combine(
 	// Guard: the shape, laid `repeat` times, must fill the rhythm exactly.
 	// A partial fit is not a near miss — it would either truncate the melodic
 	// idea or pad it arbitrarily, and both read worse than emitting nothing.
+	// `step` indexes the scale tone pool, so a fractional value would produce
+	// fractional degrees, and realizeScalePattern's bounds check (idx < 0 ||
+	// idx >= pool.length) passes a fractional index straight through to
+	// pool[idx] === undefined — yielding a Phrase with undefined pitches
+	// rather than the null this function promises.
 	if (!Number.isInteger(repeat) || repeat < 1) return null;
+	if (!Number.isInteger(step)) return null;
 	if (sp.degrees.length * repeat !== rp.noteCount) return null;
 
 	// Guard: check compatible scale families

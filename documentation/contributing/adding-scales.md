@@ -75,7 +75,7 @@ If the scale should be suggested for certain chord qualities:
 To generate licks over the scale:
 
 1. Ensure the scale's family is in the `scaleTypes` array of the appropriate `DifficultyProfile` in `params.ts`
-2. Add the scale's family to the `compatibleFamilies` of the relevant entries in `data/patterns/scale-patterns.ts`, and point the category's `CATEGORY_CONTEXT` entry in `phrases/combiner.ts` at the scale's ID
+2. Add the scale's family to the `compatibleFamilies` of the relevant entries in `src/lib/data/patterns/scale-patterns.ts`, and point the category's `CATEGORY_CONTEXT` entry in `src/lib/phrases/combiner.ts` at the scale's ID
 
 ## Verification
 

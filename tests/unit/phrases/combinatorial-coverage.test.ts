@@ -138,6 +138,17 @@ describe('combine — filling a longer rhythm by repetition', () => {
 		expect(new Set([exact.id, repeated.id, sequenced.id]).size).toBe(3);
 	});
 
+	it('refuses a fractional step rather than emitting undefined pitches', () => {
+		// A fractional degree slips past realizeScalePattern's range check and
+		// indexes the pool at a non-integer, so the guard has to be here.
+		const phrase = combine(sp3, rp6, 'major.ionian', 'C', CMAJ_HARMONY, { repeat: 2, step: 0.5 });
+		expect(phrase).toBeNull();
+	});
+
+	it('refuses a fractional repeat', () => {
+		expect(combine(sp3, rp6, 'major.ionian', 'C', CMAJ_HARMONY, { repeat: 1.5, step: 1 })).toBeNull();
+	});
+
 	it('returns null when a sequence walks off the end of the pool', () => {
 		const wide = { ...sp3, degrees: [0, 2, 40] };
 		expect(combine(wide, rp6, 'major.ionian', 'C', CMAJ_HARMONY, { repeat: 2, step: 30 })).toBeNull();

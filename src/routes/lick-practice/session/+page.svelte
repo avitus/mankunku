@@ -1450,6 +1450,11 @@
 		lickEndFreezeTick = null;
 		phaseTimeline = [];
 		phaseCue = IDLE_CUE;
+		// finishSession() can leave the score hold up, and the new plan renders
+		// before startLick() clears it — without this the incoming session
+		// briefly shows the previous one's breather card over its chart.
+		inScoreHold = false;
+		breatherInfo = null;
 	}
 
 	let isRestarting = false;

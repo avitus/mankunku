@@ -9,7 +9,7 @@
  * The 18-30 band was originally applied to ALL 40 lines, including 15- to
  * 21-note ones: the ratings scored harmony but not length, and length is its
  * own memory load in play-by-ear. The long lines now sit at the `maxNotes`
- * floor for their tier (up to level 53) per the calibration guard; the short
+ * floor for their tier (up to level 54) per the calibration guard; the short
  * ones are unchanged and still carry the intermediate band.
  *
  * STRICTLY DIATONIC by design: levels 18-30 sit in content tiers 3-4

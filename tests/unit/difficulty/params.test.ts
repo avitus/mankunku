@@ -7,29 +7,6 @@ import {
 	DIFFICULTY_PROFILES
 } from '$lib/difficulty/params';
 
-describe('getProfileForTier', () => {
-	it('returns correct profile for content tiers 1-10', () => {
-		expect(getProfileForTier(1).name).toBe('Roots & 5ths');
-		expect(getProfileForTier(7).name).toBe('Bebop Lines');
-		expect(getProfileForTier(10).name).toBe('No Limits');
-	});
-
-	it('throws for an invalid tier', () => {
-		expect(() => getProfileForTier(0)).toThrow();
-	});
-});
-
-describe('getProfileForLevel', () => {
-	it('maps player levels (1-100) to content tiers', () => {
-		expect(getProfileForLevel(1).name).toBe('Roots & 5ths');   // tier 1
-		expect(getProfileForLevel(10).name).toBe('Full Pentatonic'); // tier 2
-		expect(getProfileForLevel(15).name).toBe('Swing 8ths');    // tier 3
-		expect(getProfileForLevel(50).name).toBe('Enclosures');     // tier 6
-		expect(getProfileForLevel(70).name).toBe('Altered Harmony'); // tier 8
-		expect(getProfileForLevel(100).name).toBe('No Limits');     // tier 10
-	});
-});
-
 /**
  * The player-facing level scale (1-100) must map into content tiers
  * monotonically over its WHOLE range. The bug this pins: a single
@@ -44,6 +21,14 @@ describe('player level → profile', () => {
 		expect(profile.level).toBe(levelToContentTier(10)); // tier 2
 		expect(profile.name).toBe('Full Pentatonic');
 		expect(profile.maxNotes).toBeLessThan(Number.POSITIVE_INFINITY);
+	});
+
+	it('names the content each slider position selects', () => {
+		expect(getProfileForLevel(1).name).toBe('Roots & 5ths');      // tier 1
+		expect(getProfileForLevel(15).name).toBe('Swing 8ths');       // tier 3
+		expect(getProfileForLevel(50).name).toBe('Enclosures');       // tier 6
+		expect(getProfileForLevel(70).name).toBe('Altered Harmony');  // tier 8
+		expect(getProfileForLevel(100).name).toBe('No Limits');       // tier 10
 	});
 
 	it('the bottom of the slider stays in the bottom tiers', () => {
@@ -86,6 +71,12 @@ describe('content tier → profile', () => {
 		for (let tier = 1; tier <= 10; tier++) {
 			expect(getProfileForTier(tier).level).toBe(tier);
 		}
+	});
+
+	it('names the tier it returns', () => {
+		expect(getProfileForTier(1).name).toBe('Roots & 5ths');
+		expect(getProfileForTier(7).name).toBe('Bebop Lines');
+		expect(getProfileForTier(10).name).toBe('No Limits');
 	});
 
 	it('rejects values outside 1-10 rather than guessing', () => {

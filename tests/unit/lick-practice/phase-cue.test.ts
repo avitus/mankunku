@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { planCycleWindows } from '$lib/state/lick-practice-rotation';
+import { planCycleWindows, type CycleWindowPlan } from '$lib/state/lick-practice-rotation';
 import {
 	buildPhaseTimeline,
 	phaseCueAt,
@@ -23,7 +23,11 @@ const PPQ = 192;
 const TICKS_PER_BAR = 4 * PPQ;
 
 /** Continuous mode: a `demoBars` demo block, then `keyCount` keys of 4 bars. */
-function continuousWindows(demoBars: number, keyCount = 3, audioStartTick = 0) {
+function continuousWindows(
+	demoBars: number,
+	keyCount: number = 3,
+	audioStartTick: number = 0
+): CycleWindowPlan {
 	return planCycleWindows({
 		audioStartTick,
 		demoBars,

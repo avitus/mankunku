@@ -49,7 +49,7 @@ export function calculateDifficulty(phrase: Phrase): DifficultyMetadata {
 	const lengthBars = Math.max(1, Math.ceil(maxEnd));
 
 	// ═══════════════════════════════════════════════════════════════
-	//  PITCH COMPLEXITY  (raw 0~75, scaled 0~100)
+	//  PITCH COMPLEXITY  (raw 0~100, scaled 0~100)
 	// ═══════════════════════════════════════════════════════════════
 
 	// 1. Note count  (max 35 pts)

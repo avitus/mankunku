@@ -39,6 +39,7 @@
 	let selectedCategory: PhraseCategory | 'random' = $state('random');
 	let selectedDifficulty = $state(30);
 	let tempo = $state(settings.defaultTempo);
+	let startError = $state<string | null>(null);
 	const diffDisp = $derived(difficultyDisplay(selectedDifficulty));
 
 	// Tonality state
@@ -84,9 +85,19 @@
 		session.tempo = tempo;
 		settings.defaultTempo = tempo;
 
-		const category: PhraseCategory = selectedCategory === 'random'
-			? EAR_TRAINING_CATEGORIES[Math.floor(Math.random() * EAR_TRAINING_CATEGORIES.length)]
-			: selectedCategory;
+		// Random starts at a uniformly-chosen category and falls through the
+		// rest, so one empty category doesn't cost the user their session.
+		// An explicit category gets exactly one attempt — silently practising
+		// something else is worse than saying nothing matched.
+		const candidates: PhraseCategory[] =
+			selectedCategory === 'random'
+				? (() => {
+						const start = Math.floor(Math.random() * EAR_TRAINING_CATEGORIES.length);
+						return EAR_TRAINING_CATEGORIES.map(
+							(_, i) => EAR_TRAINING_CATEGORIES[(start + i) % EAR_TRAINING_CATEGORIES.length]
+						);
+					})()
+				: [selectedCategory];
 
 		// Use the active tonality's key for transposition
 		const sessionKey = activeTonality.key;
@@ -94,19 +105,34 @@
 		const rangeHigh = getEffectiveHighestNote();
 		const rangeLow = getInstrument().concertRangeLow;
 
-		const phrase = pickRandomLick(
-			{ category, maxDifficulty: selectedDifficulty },
-			sessionKey,
-			rangeLow,
-			rangeHigh
-		);
-
-		if (phrase) {
-			session.phrase = phrase;
-			session.lastScore = null;
-			saveSettings();
-			goto('/ear-training');
+		let phrase = null;
+		for (const category of candidates) {
+			phrase = pickRandomLick(
+				{ category, maxDifficulty: selectedDifficulty },
+				sessionKey,
+				rangeLow,
+				rangeHigh
+			);
+			if (phrase) break;
 		}
+
+		// pickRandomLick returns null when nothing clears the category,
+		// difficulty and range filters together. Without this the Start button
+		// is simply inert, which reads as a broken app rather than an empty
+		// query — and there is no longer a generator to fall back on.
+		if (!phrase) {
+			startError =
+				selectedCategory === 'random'
+					? `No licks at difficulty ${selectedDifficulty} fit your range in any category. Raise the difficulty to widen the pool.`
+					: `No ${CATEGORY_LABELS[selectedCategory] ?? selectedCategory} licks at difficulty ${selectedDifficulty} fit your range. Raise the difficulty, or pick another category.`;
+			return;
+		}
+
+		startError = null;
+		session.phrase = phrase;
+		session.lastScore = null;
+		saveSettings();
+		goto('/ear-training');
 	}
 </script>
 
@@ -287,6 +313,15 @@
 	</div>
 
 	<!-- Start button -->
+	{#if startError}
+		<p
+			role="alert"
+			class="rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-secondary)]"
+		>
+			{startError}
+		</p>
+	{/if}
+
 	<button
 		onclick={startSession}
 		class="w-full rounded-lg bg-[var(--color-accent)] py-3 text-lg font-bold text-white hover:opacity-80 transition-opacity"

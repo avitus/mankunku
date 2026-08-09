@@ -91,7 +91,7 @@ The pairing rules are what keep the results musical:
 - **The shape must fill the bar exactly.** A shape either matches the template's note count, or it fits a whole number of times (twice or three times) and is laid end-to-end. A partial fit is refused — truncating or padding a melodic idea reads worse than emitting nothing.
 - **Repetitions may be sequenced.** When a shape repeats, each pass can sit a scale step above or below the last. That's the ordinary jazz sequence — "1-2-3, 2-3-4" — and it's what makes a listener hear a repeat as musical rather than as padding. Three passes is the cap; past that the bar is a drill, not a lick.
 - **Scale families must be compatible.** A pentatonic shape won't be realized against a bebop scale, so you never get a shape stretched over a pool it wasn't written for.
-- **Sequences that run off the end of the horn's range are dropped**, not clamped.
+- **Sequences that run off the end of the MIDI realization pool (36–96) are dropped**, not clamped. Fitting the result to your horn is octave centering's job, further down.
 
 Difficulty is then computed from the finished phrase, so a generated lick sits in the same difficulty scale as a hand-written one and is gated the same way.
 

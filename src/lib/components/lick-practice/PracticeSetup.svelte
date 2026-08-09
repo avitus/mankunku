@@ -280,7 +280,7 @@
 					<Knob
 						label="Duration"
 						ariaLabel="Practice time"
-						helpText="Upper limit on session length. Mankunku queues licks until the budget fills — with a small book the session ends sooner, and the caption under Start shows what it will actually take."
+						helpText="Target session length. Mankunku queues licks until the budget fills — with a small book the session ends sooner, and a single lick longer than the whole budget still gets queued on its own. The caption under Start shows what it will actually take."
 						value={config.durationMinutes}
 						min={3}
 						max={20}
@@ -317,7 +317,7 @@
 					<Knob
 						label="Duration"
 						ariaLabel="Practice time"
-						helpText="Upper limit on session length. Licks are queued until the budget fills — with a small book the session ends sooner, and the caption under Start shows what it will actually take."
+						helpText="Target session length. Licks are queued until the budget fills — with a small book the session ends sooner, and a single lick longer than the whole budget still gets queued on its own. The caption under Start shows what it will actually take."
 						value={config.durationMinutes}
 						min={3}
 						max={20}
