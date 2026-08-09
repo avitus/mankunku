@@ -4,13 +4,11 @@
  * Verifies that rangeHigh is respected across:
  *   - transposeLick / transposeLickForTonality (library-loader)
  *   - octaveDisplacement / mutateLick (mutator)
- *   - generatePhrase (generator)
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { transposeLick, transposeLickForTonality, pickRandomLick } from '$lib/phrases/library-loader';
+import { transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
 import { octaveDisplacement, mutateLick } from '$lib/phrases/mutator';
-import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
 import type { Phrase } from '$lib/types/music';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
@@ -289,70 +287,6 @@ describe('mutateLick — rangeHigh constraint', () => {
 					expect(n.pitch).toBeLessThanOrEqual(73);
 				}
 			}
-		}
-	});
-});
-
-// ─── generatePhrase with rangeHigh ──────────────────────────
-
-describe('generatePhrase — rangeHigh option', () => {
-	it('generates notes within custom rangeHigh', () => {
-		const harmony = getDefaultHarmony('ii-V-I-major', 'C');
-
-		for (let i = 0; i < 10; i++) {
-			const phrase = generatePhrase({
-				key: 'C',
-				category: 'ii-V-I-major',
-				difficulty: 5,
-				harmony,
-				bars: 2,
-				rangeHigh: 70
-			});
-
-			const pitched = phrase.notes.filter(n => n.pitch !== null);
-			for (const note of pitched) {
-				expect(note.pitch!).toBeGreaterThanOrEqual(44);
-				expect(note.pitch!).toBeLessThanOrEqual(70);
-			}
-		}
-	});
-
-	it('default rangeHigh matches original tenor sax range (75)', () => {
-		const harmony = getDefaultHarmony('blues', 'C');
-
-		for (let i = 0; i < 5; i++) {
-			const phrase = generatePhrase({
-				key: 'C',
-				category: 'blues',
-				difficulty: 3,
-				harmony,
-				bars: 2
-			});
-
-			const pitched = phrase.notes.filter(n => n.pitch !== null);
-			for (const note of pitched) {
-				expect(note.pitch!).toBeGreaterThanOrEqual(44);
-				expect(note.pitch!).toBeLessThanOrEqual(75);
-			}
-		}
-	});
-
-	it('higher rangeHigh allows altissimo notes', () => {
-		const harmony = getDefaultHarmony('ii-V-I-major', 'C');
-
-		const phrase = generatePhrase({
-			key: 'C',
-			category: 'ii-V-I-major',
-			difficulty: 5,
-			harmony,
-			bars: 2,
-			rangeHigh: 85
-		});
-
-		const pitched = phrase.notes.filter(n => n.pitch !== null);
-		for (const note of pitched) {
-			expect(note.pitch!).toBeGreaterThanOrEqual(44);
-			expect(note.pitch!).toBeLessThanOrEqual(85);
 		}
 	});
 });

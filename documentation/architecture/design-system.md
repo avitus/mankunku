@@ -21,7 +21,6 @@ The guiding principle is **subtle but unmissable**. The domain color must be obv
 Routes that belong to the ear-training domain:
 
 - `/ear-training` — main ear-training session (`/practice` is a 308 redirect to it)
-- `/ear-training/settings` — settings specific to ear-training practice (`/practice/settings` 308-redirects here)
 - `/scales` — scale practice (ear-training subset)
 - `/progress` — session history & adaptive difficulty
 
@@ -202,7 +201,7 @@ const dataDomain = $derived.by(() => {
 });
 ```
 
-It's applied as `data-domain={dataDomain}` on the layout's outermost element. The grain overlay and peripheral stripe both live on that same wrapper. (`/practice` and `/practice/settings` are not referenced in this client domain logic — they exist only as server-side 308 redirects to `/ear-training` and `/ear-training/settings`.)
+It's applied as `data-domain={dataDomain}` on the layout's outermost element. The grain overlay and peripheral stripe both live on that same wrapper. (`/practice` is not referenced in this client domain logic — it exists only as a server-side 308 redirect to `/ear-training`.)
 
 ### CSS (actual, as in `src/app.css`)
 
@@ -291,7 +290,6 @@ After changes, walk through these surfaces and confirm the accent is correct:
 | -------------------------------- | ------------- | ----------------------------------- |
 | `/` home                         | neutral       | slate                               |
 | `/ear-training` (mid-session)    | ear-training  | peacock teal                        |
-| `/ear-training/settings`         | ear-training  | peacock teal                        |
 | `/scales`                        | ear-training  | peacock teal                        |
 | `/progress`                      | ear-training  | peacock teal                        |
 | `/lick-practice` setup           | lick-practice | terracotta                          |

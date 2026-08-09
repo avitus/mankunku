@@ -45,7 +45,7 @@ Ear Training has no in-page settings panel — everything it uses comes from the
 | **Metronome** | On/off, plus a level knob when it's on. |
 | **Backing** | On/off, the comping voice (Piano or Organ), and a level knob. Despite living in this section, these apply to the *backing track* — Lick Practice and Tune Practice — not to Ear Training, which never plays one. |
 
-What you **can't** set: the phrase pool. The app draws from the curated catalog plus your own and adopted licks, caps it at your proficiency level in the active scale, filters it for scale compatibility (see below), and shuffles. There's no category, difficulty, or bar-count dial — difficulty is the adaptive system's job. (An old session-settings screen with those pickers still exists at `/ear-training/settings`, but nothing links to it and its choices no longer survive the trip back to the practice loop. Ignore it; the tonality controls on the main Settings page are the ones that work.)
+What you **can't** set: the phrase pool. The app draws from the curated catalog plus your own and adopted licks, caps it at your proficiency level in the active scale, filters it for scale compatibility (see below), and shuffles. There's no category, difficulty, or bar-count dial — difficulty is the adaptive system's job. The tonality controls on the main Settings page are the ones that shape what you hear.
 
 ### What's on screen while you're playing
 

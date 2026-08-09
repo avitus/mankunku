@@ -1,61 +1,8 @@
 # API Reference: Phrases
 
-Phrase generation, mutation, validation, and curated library loading.
+Phrase mutation, validation, and curated library loading.
 
 **Source:** `src/lib/phrases/`
-
----
-
-## generator.ts
-
-Algorithmic phrase generator — 5-stage pipeline.
-
-### `GeneratorOptions` interface
-
-```typescript
-interface GeneratorOptions {
-  key: PitchClass;
-  category: PhraseCategory;
-  difficulty: number;
-  harmony: HarmonicSegment[];
-  bars: number;
-  timeSignature?: [number, number];  // default [4, 4]
-}
-```
-
-### `generatePhrase(options): Phrase`
-
-Generate a phrase using the 5-stage pipeline. Retries up to 5 times if validation fails; falls back to a simple scale fragment.
-
-**Stages:**
-
-1. **Target note selection** — Place chord tones on strong beats (every 2 beats). Voice-lead by picking the chord tone closest to the previous target across multiple octaves. Constrained to MIDI 44–75 by default (tenor-sax concert range, overridable via `rangeHigh`/`rangeLow`).
-
-2. **Approach patterns** — Fill gaps between targets using one of three strategies:
-   - **Scale run** (easy/common): Diatonic notes between targets
-   - **Chromatic approach** (medium, `r < 0.8`): 1–2 chromatic notes before target
-   - **Arpeggio fill** (harder, `r >= 0.8`): Chord tones between targets
-
-3. **Rhythm cell selection** — Assign durations based on the difficulty profile's allowed rhythm types. Last note gets longer duration. Target notes get higher velocity (100 vs 80).
-
-4. *(Reserved)* — Skipped in current implementation.
-
-5. **Articulation** — At difficulty >= 4, adds markings:
-   - Accent (30% chance) on target notes with velocity >= 100
-   - Ghost note (20% chance) on weak-beat passing tones
-   - Legato (30% chance) on consecutive stepwise motion
-
-### `getDefaultHarmony(category, key): HarmonicSegment[]`
-
-Standard harmonic progressions for generating phrases.
-
-| Category | Progression |
-|---|---|
-| `'ii-V-I-major'` | ii min7 → V 7 → I maj7 |
-| `'ii-V-I-minor'` | ii min7b5 → V 7alt → i min7 |
-| `'blues'` | I7 (static) |
-| `'bebop-lines'` | I maj7 (static) |
-| Other | I maj7 (static) |
 
 ---
 
@@ -167,7 +114,6 @@ interface LibraryQuery {
 | `getLicksByCategory` | `(category) → Phrase[]` | Pre-built category index |
 | `getCategories` | `() → { category, count }[]` | Categories sorted by count (descending) |
 | `queryLicks` | `(query) → Phrase[]` | Multi-filter query |
-| `pickRandomLick` | `(query?, key?) → Phrase \| null` | Random selection with optional transposition |
 
 ### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`
 

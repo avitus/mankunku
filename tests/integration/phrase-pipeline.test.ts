@@ -1,13 +1,11 @@
 /**
  * Integration tests for the phrase generation pipeline.
  *
- * Tests the full flow: GeneratorOptions → generatePhrase() → Phrase,
- * combiner (scale × rhythm → Phrase), mutator transformations,
+ * Tests the combiner (scale × rhythm → Phrase), mutator transformations,
  * difficulty calculation, and phrase validation.
  */
 
 import { describe, it, expect } from 'vitest';
-import { generatePhrase, getDefaultHarmony } from '../../src/lib/phrases/generator';
 import { combine, realizeScalePattern, generateAllCombinations } from '../../src/lib/phrases/combiner';
 import { rhythmicDisplacement, retrograde, truncate } from '../../src/lib/phrases/mutator';
 import { validatePhrase, rulesForDifficulty, isInRange } from '../../src/lib/phrases/validator';
@@ -41,112 +39,6 @@ function makePhrase(notes: Note[]): Phrase {
 		source: 'curated'
 	};
 }
-
-// ─── Phrase Generator ──────────────────────────────────────────
-
-describe('phrase generator — end-to-end', () => {
-	it('generates a valid phrase for ii-V-I-major in C', () => {
-		const harmony = getDefaultHarmony('ii-V-I-major', 'C');
-		const phrase = generatePhrase({
-			key: 'C',
-			category: 'ii-V-I-major',
-			difficulty: 3,
-			harmony,
-			bars: 2
-		});
-
-		expect(phrase).toBeDefined();
-		expect(phrase.key).toBe('C');
-		expect(phrase.category).toBe('ii-V-I-major');
-		expect(phrase.notes.length).toBeGreaterThan(0);
-		expect(phrase.timeSignature).toEqual([4, 4]);
-		expect(phrase.harmony.length).toBeGreaterThan(0);
-	});
-
-	it('generates phrases for all categories', () => {
-		const categories = ['ii-V-I-major', 'ii-V-I-minor', 'blues', 'bebop-lines'] as const;
-
-		for (const category of categories) {
-			const harmony = getDefaultHarmony(category, 'C');
-			const phrase = generatePhrase({
-				key: 'C',
-				category,
-				difficulty: 3,
-				harmony,
-				bars: 2
-			});
-
-			expect(phrase.notes.length).toBeGreaterThan(0);
-			expect(phrase.category).toBe(category);
-		}
-	});
-
-	it('generates phrases at different difficulty levels', () => {
-		const harmony = getDefaultHarmony('ii-V-I-major', 'C');
-
-		const easy = generatePhrase({ key: 'C', category: 'ii-V-I-major', difficulty: 1, harmony, bars: 1 });
-		const hard = generatePhrase({ key: 'C', category: 'ii-V-I-major', difficulty: 7, harmony, bars: 2 });
-
-		expect(easy.notes.length).toBeGreaterThan(0);
-		expect(hard.notes.length).toBeGreaterThan(0);
-	});
-
-	it('generates phrases in different keys', () => {
-		const keys = ['C', 'F', 'Bb', 'Eb', 'Ab'] as const;
-
-		for (const key of keys) {
-			const harmony = getDefaultHarmony('blues', key);
-			const phrase = generatePhrase({
-				key,
-				category: 'blues',
-				difficulty: 3,
-				harmony,
-				bars: 2
-			});
-
-			expect(phrase.key).toBe(key);
-			expect(phrase.notes.length).toBeGreaterThan(0);
-		}
-	});
-
-	it('generated phrases have notes within tenor sax range', () => {
-		const harmony = getDefaultHarmony('ii-V-I-major', 'C');
-
-		for (let i = 0; i < 5; i++) {
-			const phrase = generatePhrase({
-				key: 'C',
-				category: 'ii-V-I-major',
-				difficulty: 5,
-				harmony,
-				bars: 2
-			});
-
-			const pitched = phrase.notes.filter(n => n.pitch !== null);
-			for (const note of pitched) {
-				expect(note.pitch!).toBeGreaterThanOrEqual(44); // Ab2
-				expect(note.pitch!).toBeLessThanOrEqual(75);   // Eb5
-			}
-		}
-	});
-
-	it('getDefaultHarmony returns correct chord progressions', () => {
-		const major = getDefaultHarmony('ii-V-I-major', 'C');
-		expect(major).toHaveLength(3);
-		expect(major[0].chord.quality).toBe('min7');   // ii
-		expect(major[1].chord.quality).toBe('7');      // V
-		expect(major[2].chord.quality).toBe('maj7');   // I
-
-		const minor = getDefaultHarmony('ii-V-I-minor', 'C');
-		expect(minor).toHaveLength(3);
-		expect(minor[0].chord.quality).toBe('min7b5'); // ii°
-		expect(minor[1].chord.quality).toBe('7alt');   // V alt
-		expect(minor[2].chord.quality).toBe('min7');   // i
-
-		const blues = getDefaultHarmony('blues', 'C');
-		expect(blues).toHaveLength(1);
-		expect(blues[0].chord.quality).toBe('7');
-	});
-});
 
 // ─── Combiner ──────────────────────────────────────────────────
 

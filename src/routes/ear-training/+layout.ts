@@ -3,8 +3,8 @@ import { awaitHydration } from '$lib/state/hydration';
 import type { LayoutLoad } from './$types';
 
 /**
- * Ear Training (and its settings/ subpage) pin the daily key, tempo, and lick
- * roster ONCE at mount — a deliberate session-start snapshot. The root layout
+ * Ear Training pins the daily key, tempo, and lick roster ONCE at mount — a
+ * deliberate session-start snapshot. The root layout
  * now hydrates cloud state in the background, so a cold load straight to this
  * route could snapshot pre-cloud localStorage (wrong daily key, stale tempo,
  * cloud-only licks missing from the rotation). Opt back into a bounded wait so

@@ -70,12 +70,9 @@ If the scale should be suggested for certain chord qualities:
 1. Add the chord quality to the scale's `chordApplications` array
 2. The `getScalesForChord()` function will then return it
 
-## Step 6: Use in Phrase Generation (optional)
+## Step 6: Use in difficulty tiering (optional)
 
-To use the scale in the algorithmic generator:
-
-1. Ensure the scale's family is in the `scaleTypes` array of the appropriate `DifficultyProfile` in `params.ts`
-2. Create or update `HarmonicSegment` templates in `generator.ts:getDefaultHarmony()` to reference the scale's ID
+Ensure the scale's family is in the `scaleTypes` array of the appropriate `DifficultyProfile` in `params.ts`, so the scale becomes eligible at the intended level.
 
 ## Verification
 

@@ -28,10 +28,14 @@ A web-based jazz ear training app modeled on PitchBop Pro but with more customiz
 
 ### Routes
 
+The route map as originally specced. It has since diverged — `/practice` became
+`/ear-training`, `/library` became `/licks`, `/practice/settings` was removed
+outright, and Tunes / Tricks / Lick Practice were added. See the Routes section
+of `CLAUDE.md` for the current list.
+
 ```
 /                    -> Dashboard (recent sessions, stats)
 /practice            -> Main call-and-response screen
-/practice/settings   -> Session configuration
 /library             -> Browse lick library by category
 /library/[id]        -> Individual lick detail/practice
 /scales              -> Scale reference and practice
