@@ -99,8 +99,11 @@ async function stubParseRoute(
 		}
 		// The page asks for NDJSON on the whole-PDF fallback too, and the route
 		// answers with a heartbeat stream there — it is the longest single call
-		// in the system. A plain-JSON stub here still parses, but it would
-		// exercise a path production no longer takes.
+		// in the system. NOTE: nothing in this file currently reaches this
+		// branch (partial results mean a failed line no longer triggers the
+		// fallback), so it is stubbed for fidelity, not coverage — a plain-JSON
+		// body here would throw in `readNdjsonResult`, which only accepts a
+		// typed `result` line, and no test would have told us.
 		await route.fulfill({
 			status: 200,
 			contentType: 'application/x-ndjson',

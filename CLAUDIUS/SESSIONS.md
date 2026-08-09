@@ -1306,8 +1306,19 @@ answered it with evidence. Three things are worth keeping.
 Also adopted: stale nginx comment (the fallback heartbeats now), a `cancel()` handler on the
 heartbeat stream (loop condition extended too, else writes are merely suppressed while the
 timer keeps ticking), `_heartbeatMsForTests()` replacing a hard-coded 3.4s sleep, and the e2e
-whole-PDF stub now speaking NDJSON — it passed only because `readNdjsonResult` tolerates an
-untyped line as terminal, so the fallback tests silently never touched the streamed path.
+whole-PDF stub now speaking NDJSON.
+
+I got the *reason* for that last one wrong, twice over, and CodeRabbit caught it on the review
+of this very entry. I wrote that the plain-JSON stub "passed because `readNdjsonResult`
+tolerates an untyped line as terminal." It does not: `handle()` returns a value only for
+`type === 'result'`, and an untyped line falls through to `null`, ending in *"The transcription
+stream ended before returning a result."* So the old stub would have **thrown** if it were ever
+used. I then instrumented the branch and ran the suite: **zero hits.** The truth is that no e2e
+test reaches the whole-PDF fallback at all — partial results mean a failed line no longer
+triggers it — so the stub was dead code, and its wrongness was unobservable because nothing
+executed it. Fixing it is still right (fidelity for when it *is* reached), but the honest note
+is that **the fallback path has no e2e coverage**, which is why a broken stub sat there
+unnoticed. That is a gap, not a fixed bug.
 
 Final: 248 files / 3938 unit+integration green, check 0/0, and all five PR checks green
 (CircleCI test + e2e, path-filtering, GitGuardian, CodeRabbit).

@@ -866,3 +866,34 @@ and the outcomes diverged completely. It withdrew the second on evidence.
 The lesson isn't "trust reviewers" or "trust yourself." It's that agreement and disagreement
 are both cheap, and the only thing that moved either case was running something. I have now
 logged this shape three times today under different names. Perhaps that is the whole job.
+
+### Addendum — I asserted a mechanism I had not read to the end
+
+Within an hour of writing *"the only thing that moved either case was running something,"* I
+shipped an explanation built on a function I had read the first 60 lines of. I claimed
+`readNdjsonResult` tolerates an untyped line as terminal. It does the opposite: only
+`type === 'result'` returns, everything else falls through to `null`, and the stream ends in an
+explicit throw. CodeRabbit caught it — reviewing my session note, not my code.
+
+What makes this worth recording is not the error but its *shape*. I had a genuine puzzle in
+front of me: the old stub sent plain JSON, production takes the NDJSON path, and every test
+passed. Three facts, one of which had to give. I resolved it with the first hypothesis that
+made the contradiction disappear — the reader must be lenient — and never checked it, because
+a resolved contradiction stops itching.
+
+The real answer was the possibility I never enumerated: **the branch is not executed at all.**
+Zero hits when I instrumented it. No e2e test reaches the whole-PDF fallback, because partial
+results removed the thing that used to trigger it. So the stub was dead, and a dead stub cannot
+be wrong in any way a test can detect.
+
+Which lands me, for the fourth time today, on the same structure — nginx `try_files` masking a
+dead pool, the generator whose output was discarded, the budget guard the fixture never
+reached, and now a stub nothing calls. **Code that never runs is indistinguishable from code
+that works.** I keep finding it because I keep looking for broken things, and this failure mode
+is not broken; it is absent. The question that would have caught all four is the same one:
+*what would I expect to see if this were never executed — and is that different from what I am
+seeing?* Here it was not different at all.
+
+Corollary I should act on rather than admire: the whole-PDF fallback now has **no e2e coverage
+whatsoever**. I fixed the stub's fidelity and left the hole. Noting it as a gap rather than
+quietly implying it is tested.
