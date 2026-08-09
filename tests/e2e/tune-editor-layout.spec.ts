@@ -120,6 +120,18 @@ test.describe('desktop', () => {
 test.describe('mobile', () => {
 	test.use({ viewport: { width: 375, height: 667 } });
 
+	test('all five duration glyphs fit the dock without horizontal overflow', async ({ page }) => {
+		await openEditor(page);
+
+		// A tighter constraint than the desktop rail: at this width the dock
+		// container puts the glyph row and the modifier toggles on ONE line
+		// (@max-[28rem]/entry), so the five glyphs share the width with them.
+		const dock = page.getByTestId('entry-dock');
+		const row = dock.getByRole('button', { name: 'Whole Note' }).locator('..');
+		const fits = await row.evaluate((el) => el.scrollWidth <= el.clientWidth);
+		expect(fits).toBe(true);
+	});
+
 	test('dock pinned to the bottom, rail hidden, dock C enters a note', async ({ page }) => {
 		await openEditor(page);
 

@@ -227,6 +227,11 @@ async function readBodyBounded(request: Request): Promise<string> {
  */
 const HEARTBEAT_MS = 3_000;
 
+/** Test-only: the heartbeat interval, so tests need not hard-code it. */
+export function _heartbeatMsForTests(): number {
+	return HEARTBEAT_MS;
+}
+
 /**
  * Opt-in: the import page asks for the heartbeat stream, everything else
  * (tests, the e2e route stub, any direct caller) keeps the plain JSON body.
@@ -258,13 +263,20 @@ interface WorkTick {
 function ndjsonResponse(work: Promise<unknown>, tick: WorkTick): Response {
 	const encoder = new TextEncoder();
 	const startedAt = Date.now();
+	// A cancelled stream calls cancel() but does not reliably make a later
+	// enqueue throw, so without this the loop would run to the next failed
+	// write instead of stopping on the first disconnect.
+	let cancelled = false;
 	const stream = new ReadableStream<Uint8Array>({
+		cancel(): void {
+			cancelled = true;
+		},
 		async start(controller) {
 			// A disconnected client makes enqueue throw; that is a normal end to
 			// a heartbeat, not an error worth propagating out of start().
 			let open = true;
 			const write = (line: unknown): void => {
-				if (!open) return;
+				if (!open || cancelled) return;
 				try {
 					controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
 				} catch {
@@ -282,7 +294,7 @@ function ndjsonResponse(work: Promise<unknown>, tick: WorkTick): Response {
 					return { ok: false as const, err };
 				}
 			);
-			while (!settled && open) {
+			while (!settled && open && !cancelled) {
 				let timer: ReturnType<typeof setTimeout> | undefined;
 				try {
 					await Promise.race([

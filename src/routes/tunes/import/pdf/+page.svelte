@@ -461,14 +461,14 @@
 			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
 		/>
 		{#if uploading}
-			<div
-				class="rounded-lg bg-[var(--color-bg-secondary)] p-4"
-				role="status"
-				aria-live="polite"
-				data-testid="import-progress"
-			>
+			<!-- The live region is the PHASE SENTENCE only. It used to wrap the
+			     whole panel, which includes a clock ticking every 500ms and a
+			     per-line list that changes as systems settle — a screen reader
+			     re-announced the entire panel twice a second for the several
+			     minutes an import can take. -->
+			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4" data-testid="import-progress">
 				<div class="flex items-baseline justify-between gap-3">
-					<p class="text-sm font-medium">
+					<p class="text-sm font-medium" role="status" aria-live="polite">
 						{#if phase === 'reading'}
 							Reading the page{pageProgress && pageProgress.total > 1
 								? ` — ${pageProgress.page} of ${pageProgress.total}`
@@ -485,6 +485,9 @@
 							Starting
 						{/if}
 					</p>
+					<!-- Deliberately NOT aria-hidden: it sits outside the live
+					     region now, so it is never auto-announced, and a reader
+					     who wants the elapsed time can still reach it. -->
 					<span class="shrink-0 font-mono text-xs tabular-nums text-[var(--color-text-secondary)]">
 						{formatDuration(elapsedMs)}
 					</span>

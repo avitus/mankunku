@@ -569,7 +569,7 @@ describe('POST /api/tune-parse — request duration', () => {
 	});
 
 	it('streams heartbeats then one terminal result line when NDJSON is requested', async () => {
-		const { POST } = await loadRoute();
+		const { POST, _heartbeatMsForTests } = await loadRoute();
 		let release: () => void = () => {};
 		const held = new Promise<void>((resolve) => {
 			release = resolve;
@@ -589,9 +589,12 @@ describe('POST /api/tune-parse — request duration', () => {
 		);
 		const res = await pending;
 		expect(res.headers.get('content-type')).toContain('application/x-ndjson');
-		// Read the stream while the model call is still held open.
+		// Read the stream while the model call is still held open. The wait is
+		// derived from the route's own interval, not a copied constant — a
+		// hard-coded 3.4s would fail as a confusing "no progress lines" after
+		// the full timeout if HEARTBEAT_MS ever grew.
 		const reading = ndjsonLines(res);
-		await new Promise((r) => setTimeout(r, 3_400));
+		await new Promise((r) => setTimeout(r, _heartbeatMsForTests() + 400));
 		release();
 		const lines = await reading;
 
@@ -654,37 +657,69 @@ describe('POST /api/tune-parse — request duration', () => {
 		expect(terminal.sheet).toBeTruthy();
 	});
 
+	/**
+	 * Structurally shaky on TWO counts, so `extractionConsistencyScore` is 2
+	 * and the retry is genuinely on offer — leaving the budget as the only
+	 * thing that can withhold it.
+	 *
+	 * System 2 declares printed bar 9 when only 2 bars precede it (a resync
+	 * warning, 6 placeholder bars inserted), which then puts the total at 10
+	 * against the overview's declared 8 (a second warning). A fixture with a
+	 * single warning scores 1, and every assertion below would pass without
+	 * the budget guard ever being consulted.
+	 */
+	const SHAKY_DOC = {
+		title: 'Test',
+		keySignature: { fifths: 0 },
+		timeSignature: [4, 4],
+		systemsOverview: [4, 4],
+		systems: [
+			{
+				bars: [
+					{ chords: [[0, 'C']], melody: [[0, 4, 'C4']] },
+					{ chords: [[0, 'F']], melody: [[0, 4, 'A4']] }
+				]
+			},
+			{
+				firstBarNumber: 9,
+				bars: [
+					{ chords: [[0, 'G']], melody: [[0, 4, 'B4']] },
+					{ chords: [[0, 'C']], melody: [[0, 4, 'C5']] }
+				]
+			}
+		]
+	};
+
+	/** Answer with the shaky document, advancing the clock by `elapsedMs`. */
+	function mockShakyExtraction(elapsedMs: number): void {
+		mockCreate.mockImplementation(async () => {
+			vi.setSystemTime(Date.now() + elapsedMs);
+			return { content: [{ type: 'text', text: JSON.stringify(SHAKY_DOC) }] };
+		});
+	}
+
+	it('buys a second whole-PDF extraction while the budget remains', async () => {
+		vi.useFakeTimers();
+		try {
+			const { POST } = await loadRoute();
+			mockShakyExtraction(1_000);
+			const res = await POST(makeEvent({ pdf: TINY_PDF_B64 }));
+			expect(res.status).toBe(200);
+			// The control for the test below: same shaky output, budget intact,
+			// so the steadying second pass IS bought.
+			expect(mockCreate).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('does not start a second whole-PDF extraction once the budget is gone', async () => {
 		vi.useFakeTimers();
 		try {
 			const { POST } = await loadRoute();
-			// Structurally shaky: the declared overview disagrees with what was
-			// transcribed twice over, so extractionConsistencyScore >= 2 and a
-			// second full-document pass would normally be bought.
-			mockCreate.mockImplementation(async () => {
-				vi.setSystemTime(Date.now() + 200_000);
-				return {
-					content: [
-						{
-							type: 'text',
-							text: JSON.stringify({
-								title: 'Test',
-								keySignature: { fifths: 0 },
-								timeSignature: [4, 4],
-								systemsOverview: [4, 4],
-								systems: [
-									{
-										bars: [
-											{ chords: [[0, 'C']], melody: [[0, 4, 'C4']] },
-											{ chords: [[0, 'F']], melody: [[0, 4, 'A4']] }
-										]
-									}
-								]
-							})
-						}
-					]
-				};
-			});
+			// Identical shaky output — only the elapsed time differs, so a
+			// single call proves the BUDGET withheld the retry.
+			mockShakyExtraction(200_000);
 			const res = await POST(makeEvent({ pdf: TINY_PDF_B64 }));
 			expect(res.status).toBe(200);
 			expect(mockCreate).toHaveBeenCalledTimes(1);

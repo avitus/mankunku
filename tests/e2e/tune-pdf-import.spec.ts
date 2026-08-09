@@ -97,7 +97,18 @@ async function stubParseRoute(
 			});
 			return;
 		}
-		await route.fulfill({ status: 200, contentType: 'application/json', body: ROUTE_RESPONSE });
+		// The page asks for NDJSON on the whole-PDF fallback too, and the route
+		// answers with a heartbeat stream there — it is the longest single call
+		// in the system. A plain-JSON stub here still parses, but it would
+		// exercise a path production no longer takes.
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/x-ndjson',
+			body: ndjson(
+				{ type: 'progress', elapsedMs: 3_000, attempt: 1 },
+				{ type: 'result', ...(JSON.parse(ROUTE_RESPONSE) as Record<string, unknown>) }
+			)
+		});
 	});
 }
 
