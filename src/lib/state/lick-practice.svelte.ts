@@ -79,7 +79,7 @@ import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
 import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
-import { exampleStyleForRound, getTrickById } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById, trickContextFor } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	loadTrickPracticeProgress,
@@ -752,21 +752,12 @@ export function startTrickSession(): boolean {
 	// (e.g. altered triad pairs drill on the dominant vamp); default
 	// major-vamp for devices without a preference (enclosures).
 	const progressionType = trick.practiceBed?.(trickParameters) ?? 'major-vamp';
-	const bed = PROGRESSION_TEMPLATES[progressionType].harmony[0];
 
 	// C-rooted context mirroring that vamp's chord + scale, so examples and
 	// conformance agree with what the rhythm section plays and the per-key
-	// path transposes from C exactly like a C-stored lick would.
-	const cContext: TrickContext = {
-		chordRoot: 'C',
-		chordQuality: bed.chord.quality,
-		scaleId: bed.scaleId,
-		key: 'C',
-		timeSignature: [4, 4],
-		level: 50,
-		tempo,
-		swing: 0.5
-	};
+	// path transposes from C exactly like a C-stored lick would. Shared with
+	// the trick page's preview via trickContextFor so the two cannot drift.
+	const cContext: TrickContext = trickContextFor(trick, trickParameters, 'C', tempo);
 
 	const phrase = trick.generateExample(trickParameters, {
 		...cContext,
