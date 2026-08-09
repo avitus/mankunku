@@ -7,6 +7,7 @@
 	import { saveTunePdf } from '$lib/persistence/tune-pdf-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
+	import TimeSignatureSelect from '$lib/components/tunes/TimeSignatureSelect.svelte';
 	import { extractPdfSystems, type ExtractedSystem } from '$lib/tunes/import/pdf-system-extract';
 	import {
 		assembleClaudeDoc,
@@ -15,6 +16,11 @@
 	} from '$lib/tunes/import/pdf-system-assemble';
 	import { setImportReview } from '$lib/state/tune-entry.svelte';
 	import { claudeJsonToTune } from '$lib/tunes/import/claude-pdf';
+	import {
+		runSystemTranscriptions,
+		type SystemProgress
+	} from '$lib/tunes/import/pdf-import-run';
+	import { readNdjsonResult } from '$lib/tunes/import/ndjson-result';
 	import {
 		defaultSourceTransposition,
 		writtenSheetToConcert,
@@ -26,16 +32,82 @@
 
 	const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
+	/**
+	 * Silence budget per system request. The server heartbeats every 3s for
+	 * as long as the model is thinking, so this measures a DEAD connection,
+	 * not a slow one — the previous 180s total-elapsed abort killed healthy
+	 * transcriptions (measured up to 345s on a 4-bar system) and took the
+	 * whole run down with them.
+	 */
+	const SYSTEM_SILENCE_MS = 45_000;
+	/** Systems are independent; fanning out narrows the wait to the slowest
+	 * one rather than the slowest of ceil(n/3) waves. */
+	const SYSTEM_CONCURRENCY = 8;
+	const SYSTEM_ATTEMPTS = 2;
+
 	let configured = $state<boolean | null>(null);
 	let uploading = $state(false);
-	let progress = $state<{ phase: 'reading' | 'transcribing'; done: number; total: number } | null>(
-		null
-	);
+	let phase = $state<'idle' | 'reading' | 'transcribing' | 'whole-pdf' | 'assembling'>('idle');
+	let pageProgress = $state<{ page: number; total: number } | null>(null);
+	let systemStates = $state<SystemProgress[]>([]);
+	/** Server-reported time-in-flight per line, from its heartbeats. */
+	let systemElapsed = $state<number[]>([]);
+	let wholePdfElapsedMs = $state(0);
+	let startedAt = $state(0);
+	let elapsedMs = $state(0);
+	let elapsedTimer: ReturnType<typeof setInterval> | undefined;
+	let cancelController: AbortController | null = null;
 	let errorMessage = $state<string | null>(null);
 	let importWarnings = $state<string[]>([]);
+
+	const doneCount = $derived(systemStates.filter((s) => s.status === 'done').length);
+	const failedCount = $derived(systemStates.filter((s) => s.status === 'failed').length);
+	const settledCount = $derived(doneCount + failedCount);
+
+	function formatDuration(ms: number): string {
+		const total = Math.floor(ms / 1000);
+		const mins = Math.floor(total / 60);
+		const secs = total % 60;
+		return mins > 0 ? `${mins}m ${String(secs).padStart(2, '0')}s` : `${secs}s`;
+	}
+
+	function startClock(): void {
+		startedAt = Date.now();
+		elapsedMs = 0;
+		clearInterval(elapsedTimer);
+		elapsedTimer = setInterval(() => (elapsedMs = Date.now() - startedAt), 500);
+	}
+
+	function stopClock(): void {
+		clearInterval(elapsedTimer);
+		elapsedTimer = undefined;
+	}
+
+	function cancelImport(): void {
+		cancelController?.abort();
+	}
+
+	function statusDotClass(status: SystemProgress['status']): string {
+		switch (status) {
+			case 'done':
+				return 'bg-[var(--color-success)]';
+			case 'failed':
+				return 'bg-[var(--color-error)]';
+			case 'running':
+				return 'animate-pulse bg-[var(--color-accent)]';
+			default:
+				return 'bg-[var(--color-bg-tertiary)]';
+		}
+	}
 	// Printed charts are usually parts for the user's own horn — default the
 	// source pitch to their instrument (set on mount, after settings hydrate).
 	let source = $state<SourceTransposition>('C');
+	/**
+	 * Declared before upload, so every line can be prompted at once. Reading
+	 * it off a transcription of line 1 used to serialise the whole import
+	 * behind that one call.
+	 */
+	let meter = $state<[number, number]>([4, 4]);
 
 	onMount(async () => {
 		source = defaultSourceTransposition(getInstrument());
@@ -78,15 +150,20 @@
 	async function transcribeSystem(
 		sys: ExtractedSystem,
 		timeSignature: [number, number],
-		first = false
-	): Promise<SystemModeResponse | null> {
+		index: number,
+		first: boolean,
+		signal: AbortSignal
+	): Promise<SystemModeResponse> {
 		const res = await fetch('/api/tune-parse', {
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			// Bounded like the config probe: a stalled connection would
-			// otherwise hang the await and leave the file input disabled until
-			// reload. Model calls run tens of seconds — allow minutes.
-			signal: AbortSignal.timeout(180_000),
+			headers: {
+				'content-type': 'application/json',
+				// Opt in to the heartbeat stream: a system call can think for
+				// minutes, and a silent socket is what nginx and the browser
+				// mistake for a dead one.
+				accept: 'application/x-ndjson'
+			},
+			signal,
 			body: JSON.stringify({
 				system: {
 					image: sys.image,
@@ -97,52 +174,88 @@
 				}
 			})
 		});
-		if (!res.ok) return null;
-		return (await res.json()) as SystemModeResponse;
+		if (!res.ok) {
+			const body = (await res.json().catch(() => null)) as { message?: string } | null;
+			throw new Error(body?.message ?? `Transcription failed (${res.status}).`);
+		}
+		return await readNdjsonResult<SystemModeResponse>(res, {
+			inactivityMs: SYSTEM_SILENCE_MS,
+			signal,
+			onProgress: (p) => {
+				if (typeof p.elapsedMs === 'number') {
+					systemElapsed[index] = p.elapsedMs;
+					systemElapsed = [...systemElapsed];
+				}
+			}
+		});
 	}
 
 	/**
 	 * Deterministic per-system import: geometry supplies the bar counts, the
 	 * text layer supplies the chords, and the model transcribes each system
-	 * crop separately. Returns null when any stage fails — the caller falls
-	 * back to the whole-PDF extraction.
+	 * crop separately.
+	 *
+	 * A system that fails every attempt no longer sinks the run. Its bars are
+	 * padded to empty by `assembleClaudeDoc` and flagged for review — the
+	 * chords and bar layout still come from the page, so the user gets a
+	 * draft to finish rather than an eight-minute wait and an error. Only a
+	 * failure of the GEOMETRY (not a chart, or a scan the pass can't read) or
+	 * of every single system falls back to whole-PDF extraction.
 	 */
 	async function importViaSystems(
 		buffer: ArrayBuffer,
-		filename: string
+		filename: string,
+		signal: AbortSignal
 	): Promise<{ sheet: Tune; warnings: string[]; suspectBars: number[] } | null> {
-		progress = { phase: 'reading', done: 0, total: 1 };
-		const extraction = await extractPdfSystems(buffer);
+		phase = 'reading';
+		const extraction = await extractPdfSystems(buffer, (page, total) => {
+			pageProgress = { page, total };
+		});
 		if (!extraction) return null;
 		const { systems } = extraction;
 		if (systems.length === 0) return null;
-		progress = { phase: 'transcribing', done: 0, total: systems.length };
 
-		// The first system shows the printed meter; confirm it before fanning
-		// out the rest with a small concurrency cap.
-		const first = await transcribeSystem(systems[0], [4, 4], true);
-		if (!first) return null;
-		progress = { phase: 'transcribing', done: 1, total: systems.length };
-		const meter = first.timeSignature ?? [4, 4];
+		phase = 'transcribing';
+		systemElapsed = new Array(systems.length).fill(0);
+		systemStates = systems.map((sys, index) => ({
+			index,
+			status: 'pending' as const,
+			attempts: 0,
+			error: null
+		}));
 
-		const rest: Array<SystemModeResponse | null> = new Array(systems.length - 1).fill(null);
-		const CONCURRENCY = 3;
-		let next = 0;
-		let completed = 1;
-		const workers = Array.from({ length: Math.min(CONCURRENCY, rest.length) }, async () => {
-			while (next < rest.length) {
-				const i = next++;
-				rest[i] = await transcribeSystem(systems[i + 1], meter);
-				completed++;
-				progress = { phase: 'transcribing', done: completed, total: systems.length };
-			}
+		// Every line goes out at once: the meter came from the user, so nothing
+		// has to wait on a transcription to learn it.
+		const run = await runSystemTranscriptions<SystemModeResponse>({
+			count: systems.length,
+			concurrency: SYSTEM_CONCURRENCY,
+			attempts: SYSTEM_ATTEMPTS,
+			signal,
+			onProgress: (states) => (systemStates = states),
+			transcribe: (index, _attempt, sig) =>
+				transcribeSystem(systems[index], meter, index, index === 0, sig)
 		});
-		await Promise.all(workers);
-		const responses = [first, ...rest];
-		if (responses.some((r) => r === null)) return null;
+		if (run.aborted) throw new Error('Import cancelled.');
+		if (run.failed.length === systems.length) return null;
 
-		// Reviewer-facing notes: warnings on ABSOLUTE bars plus bars where
-		// the transcription still disagrees with the detected noteheads.
+		phase = 'assembling';
+		const responses = run.results;
+
+		// Free cross-check on the declaration: systems that PRINT a meter still
+		// report one, so a wrong pick is caught rather than silently shaping
+		// every bar. Not fatal, and not a re-run — the draft is reviewed anyway,
+		// and re-importing with the right meter is one control away.
+		const printed = responses.find((r) => r?.timeSignature)?.timeSignature;
+		const meterMismatch =
+			printed && (printed[0] !== meter[0] || printed[1] !== meter[1])
+				? `the chart looks like it is in ${printed[0]}/${printed[1]}, but the import was ` +
+					`told ${meter[0]}/${meter[1]} — if the bars come out wrong, re-import with the ` +
+					`right time signature`
+				: null;
+
+		// Reviewer-facing notes: warnings on ABSOLUTE bars, bars where the
+		// transcription disagrees with the detected noteheads, and whole
+		// systems the model never returned.
 		const isRest = (pitch: string): boolean => pitch.trim().toLowerCase() === 'rest';
 		const { warnings, suspectBars } = importReviewNotes(
 			systems.map((sys, i) => ({
@@ -151,7 +264,8 @@
 				modelNoteCounts: (responses[i]?.bars ?? []).map(
 					(b) => b.melody.filter((note) => !isRest(note[2])).length
 				),
-				evidenceCounts: sys.evidence.map((e) => e.count)
+				evidenceCounts: sys.evidence.map((e) => e.count),
+				untranscribed: responses[i] === null
 			}))
 		);
 
@@ -176,7 +290,9 @@
 		converted.sheet.id = generateSheetId();
 		return {
 			sheet: converted.sheet,
-			warnings: [...warnings, ...converted.warnings],
+			// The meter note goes FIRST — every other warning is downstream of
+			// the beat grid being right.
+			warnings: [...(meterMismatch ? [meterMismatch] : []), ...warnings, ...converted.warnings],
 			suspectBars
 		};
 	}
@@ -195,38 +311,65 @@
 		}
 
 		uploading = true;
+		cancelController = new AbortController();
+		const signal = cancelController.signal;
+		startClock();
 		try {
 			const buffer = await file.arrayBuffer();
 
 			// Deterministic per-system pipeline first; whole-PDF extraction is
-			// the fallback for scans the geometry can't read.
-			let imported: { sheet: Tune; warnings: string[]; suspectBars?: number[] } | null =
-				null;
+			// the fallback for scans the geometry can't read. A per-system run
+			// that PARTLY succeeded is kept — see importViaSystems.
+			let imported: { sheet: Tune; warnings: string[]; suspectBars?: number[] } | null = null;
+			let systemsFailure: string | null = null;
 			try {
-				imported = await importViaSystems(buffer, file.name);
+				imported = await importViaSystems(buffer, file.name, signal);
 			} catch (err) {
+				if (signal.aborted) throw err;
+				systemsFailure = err instanceof Error ? err.message : String(err);
 				console.warn('[pdf-import] per-system pipeline failed, falling back:', err);
-			} finally {
-				progress = null;
 			}
 			if (!imported) {
+				phase = 'whole-pdf';
 				const res = await fetch('/api/tune-parse', {
 					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					// Whole-PDF extraction (with its retry) runs longer than a
-					// single system call — but must still terminate, releasing
-					// the input via the outer finally.
-					signal: AbortSignal.timeout(300_000),
+					headers: { 'content-type': 'application/json', accept: 'application/x-ndjson' },
+					signal,
 					body: JSON.stringify({ pdf: toBase64(buffer), filename: file.name })
 				});
 				if (!res.ok) {
 					const body = (await res.json().catch(() => null)) as { message?: string } | null;
-					errorMessage = body?.message ?? `Extraction failed (${res.status}).`;
+					errorMessage = [systemsFailure, body?.message ?? `Extraction failed (${res.status}).`]
+						.filter(Boolean)
+						.join(' — ');
 					return;
 				}
-				imported = (await res.json()) as { sheet: Tune; warnings: string[] };
+				try {
+					imported = await readNdjsonResult<{ sheet: Tune; warnings: string[] }>(res, {
+						inactivityMs: SYSTEM_SILENCE_MS,
+						signal,
+						onProgress: (p) => {
+							if (typeof p.elapsedMs === 'number') wholePdfElapsedMs = p.elapsedMs;
+						}
+					});
+				} catch (err) {
+					errorMessage = [systemsFailure, err instanceof Error ? err.message : String(err)]
+						.filter(Boolean)
+						.join(' — ');
+					return;
+				}
 			}
 			const { sheet, warnings } = imported;
+			// The whole-PDF fallback reads the meter off the document itself
+			// rather than being told — so the declaration gets the same
+			// cross-check the per-line path applies, and never disagrees with
+			// the saved sheet in silence.
+			if (sheet.timeSignature[0] !== meter[0] || sheet.timeSignature[1] !== meter[1]) {
+				warnings.unshift(
+					`the chart was read as ${sheet.timeSignature[0]}/${sheet.timeSignature[1]}, but the ` +
+						`import was told ${meter[0]}/${meter[1]} — check the bar lengths`
+				);
+			}
 			importWarnings = warnings;
 
 			// The route returns the chart as PRINTED; shift it to concert per
@@ -251,9 +394,17 @@
 			setImportReview({ warnings, suspectBars: imported.suspectBars ?? [] });
 			goto('/tunes/editor');
 		} catch (err) {
-			errorMessage = err instanceof Error ? err.message : 'Upload failed.';
+			errorMessage = signal.aborted
+				? 'Import cancelled.'
+				: err instanceof Error
+					? err.message
+					: 'Upload failed.';
 		} finally {
+			stopClock();
 			uploading = false;
+			phase = 'idle';
+			pageProgress = null;
+			cancelController = null;
 			inputEl.value = '';
 		}
 	}
@@ -289,6 +440,12 @@
 		hint="Pick before uploading — the chart is converted to concert on import."
 	/>
 
+	<TimeSignatureSelect
+		value={meter}
+		onchange={(v) => (meter = v)}
+		hint="Read it off the chart — this lets every line be read at once."
+	/>
+
 	{#if configured === false}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]">
 			PDF import isn't available on this server (no AI key configured). You can still
@@ -304,23 +461,83 @@
 			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
 		/>
 		{#if uploading}
-			<p class="text-sm text-[var(--color-text-secondary)]">
-				{#if progress?.phase === 'transcribing'}
-					Transcribing system {Math.min(progress.done + 1, progress.total)} of {progress.total}…
-				{:else if progress?.phase === 'reading'}
-					Reading pages — staves, barlines, chords, noteheads…
-				{:else}
-					Reading the chart — this can take a minute…
-				{/if}
-			</p>
-			{#if progress?.phase === 'transcribing'}
-				<div class="mt-2 h-1.5 w-full overflow-hidden rounded bg-[var(--color-bg-tertiary)]">
-					<div
-						class="h-full rounded bg-[var(--color-accent)] transition-all"
-						style="width: {Math.round((100 * progress.done) / Math.max(1, progress.total))}%"
-					></div>
+			<div
+				class="rounded-lg bg-[var(--color-bg-secondary)] p-4"
+				role="status"
+				aria-live="polite"
+				data-testid="import-progress"
+			>
+				<div class="flex items-baseline justify-between gap-3">
+					<p class="text-sm font-medium">
+						{#if phase === 'reading'}
+							Reading the page{pageProgress && pageProgress.total > 1
+								? ` — ${pageProgress.page} of ${pageProgress.total}`
+								: ''} — staves, barlines, chords, noteheads
+						{:else if phase === 'transcribing'}
+							Transcribing {settledCount} of {systemStates.length} lines
+						{:else if phase === 'assembling'}
+							Assembling the chart
+						{:else if phase === 'whole-pdf'}
+							Reading the whole chart in one pass — the line-by-line pass didn't work here{wholePdfElapsedMs
+								? ` (${formatDuration(wholePdfElapsedMs)})`
+								: ''}
+						{:else}
+							Starting
+						{/if}
+					</p>
+					<span class="shrink-0 font-mono text-xs tabular-nums text-[var(--color-text-secondary)]">
+						{formatDuration(elapsedMs)}
+					</span>
 				</div>
-			{/if}
+
+				<p class="mt-1 text-xs text-[var(--color-text-secondary)]">
+					Transcription is slow by design — the AI reads each line of music closely, which can
+					take a couple of minutes for a dense chart. Lines it can't read are left blank for you
+					to fill in; nothing is lost.
+				</p>
+
+				{#if phase === 'transcribing' && systemStates.length > 0}
+					<div class="mt-3 h-1.5 w-full overflow-hidden rounded bg-[var(--color-bg-tertiary)]">
+						<div
+							class="h-full rounded bg-[var(--color-accent)] transition-all"
+							style="width: {Math.round((100 * settledCount) / systemStates.length)}%"
+						></div>
+					</div>
+					<ul class="mt-3 space-y-1">
+						{#each systemStates as sys (sys.index)}
+							<li class="flex items-center gap-2 text-xs">
+								<span
+									class="inline-block h-2 w-2 shrink-0 rounded-full {statusDotClass(sys.status)}"
+								></span>
+								<span class="w-14 shrink-0 text-[var(--color-text-secondary)]">
+									Line {sys.index + 1}
+								</span>
+								<span class="text-[var(--color-text-secondary)]">
+									{#if sys.status === 'done'}
+										read
+									{:else if sys.status === 'running'}
+										reading{sys.attempts > 1 ? ' — second try' : ''}{systemElapsed[sys.index]
+											? ` — ${formatDuration(systemElapsed[sys.index])}`
+											: ''}
+									{:else if sys.status === 'failed'}
+										couldn't read — left blank for you
+									{:else}
+										waiting
+									{/if}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+
+				<button
+					type="button"
+					onclick={cancelImport}
+					class="mt-3 rounded px-2 py-1 text-xs text-[var(--color-text-secondary)] underline transition-colors hover:text-[var(--color-text)]"
+				>
+					Cancel import
+				</button>
+			</div>
 		{/if}
 	{/if}
 

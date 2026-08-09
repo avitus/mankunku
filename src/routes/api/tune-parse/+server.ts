@@ -155,6 +155,28 @@ function refundPreReadTicket(limitKey: string, ts: number): void {
 const MAX_PDF_REQUEST_BYTES = 15_000_000;
 
 /**
+ * Wall-clock budgets. Measured 2026-08-09 against the live API: ONE
+ * system-mode call on a 4-bar crop ran 15s at low effort and 109s / 180s /
+ * 345s at high, on identical input — Fable spends 7k-23k adaptive thinking
+ * tokens to produce a ~250-token answer, and the spread is the model's, not
+ * the chart's. Stacking the QA re-read on top of an already-slow first pass
+ * is what pushed a single request past the browser's abort and past nginx's
+ * proxy_read_timeout, and a request that dies takes its transcription with
+ * it.
+ *
+ * So the extra call is bought only when the first one came back quickly.
+ * Past the budget the route returns the shaky transcription WITH a warning
+ * naming the skip — the bars land in the editor flagged for review, which
+ * beats losing the system.
+ *
+ * The model FALLBACK is deliberately not budgeted: it only runs when there
+ * is no transcription at all, so the alternative to spending the time is
+ * returning nothing.
+ */
+const SYSTEM_RETRY_BUDGET_MS = 45_000;
+const WHOLE_PDF_RETRY_BUDGET_MS = 150_000;
+
+/**
  * Stream the request body with a running byte count (monitoring-route
  * pattern) — true enforcement, independent of the declared content-length.
  * Throws SvelteKit errors; never returns partial data.
@@ -192,6 +214,113 @@ async function readBodyBounded(request: Request): Promise<string> {
 		offset += chunk.byteLength;
 	}
 	return new TextDecoder().decode(buffer);
+}
+
+/**
+ * Heartbeat cadence for the NDJSON response. A Fable system call can think
+ * for minutes without emitting anything the client can see, and a silent
+ * socket is indistinguishable from a dead one — to nginx (`proxy_read_timeout`
+ * counts the gap BETWEEN reads, not the total), to the browser, and to the
+ * user watching a spinner. A line every few seconds makes the wait legible
+ * and means no timeout along the path has to be tuned against the model's
+ * unbounded tail.
+ */
+const HEARTBEAT_MS = 3_000;
+
+/**
+ * Opt-in: the import page asks for the heartbeat stream, everything else
+ * (tests, the e2e route stub, any direct caller) keeps the plain JSON body.
+ */
+function wantsNdjson(request: Request): boolean {
+	return (request.headers.get('accept') ?? '').includes('application/x-ndjson');
+}
+
+/**
+ * What a heartbeat can honestly report while a model call is in flight.
+ *
+ * Deliberately not a token count: probed 2026-08-09, `thinking: adaptive`
+ * emits `message_start` and then NOTHING for the whole think (170s on a
+ * 4-bar system), delivering every content delta and the usage figure in the
+ * final second. Any "tokens so far" display would sit frozen at the
+ * message_start value and read as a hang — the opposite of the point.
+ */
+interface WorkTick {
+	attempt: number;
+}
+
+/**
+ * Wrap in-flight work in a newline-delimited JSON stream: `progress` lines
+ * until it settles, then exactly one terminal `result` or `error` line.
+ *
+ * Validation must happen BEFORE this is called — once the stream opens the
+ * status code is committed, so a 400 can no longer be expressed as a status.
+ */
+function ndjsonResponse(work: Promise<unknown>, tick: WorkTick): Response {
+	const encoder = new TextEncoder();
+	const startedAt = Date.now();
+	const stream = new ReadableStream<Uint8Array>({
+		async start(controller) {
+			// A disconnected client makes enqueue throw; that is a normal end to
+			// a heartbeat, not an error worth propagating out of start().
+			let open = true;
+			const write = (line: unknown): void => {
+				if (!open) return;
+				try {
+					controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+				} catch {
+					open = false;
+				}
+			};
+			let settled = false;
+			const finished = work.then(
+				(value) => {
+					settled = true;
+					return { ok: true as const, value };
+				},
+				(err: unknown) => {
+					settled = true;
+					return { ok: false as const, err };
+				}
+			);
+			while (!settled && open) {
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				try {
+					await Promise.race([
+						finished,
+						new Promise((resolve) => {
+							timer = setTimeout(resolve, HEARTBEAT_MS);
+						})
+					]);
+				} finally {
+					// Left pending, this keeps a handle alive for up to one
+					// interval after the work is done — per request, per attempt.
+					clearTimeout(timer);
+				}
+				if (settled) break;
+				write({ type: 'progress', elapsedMs: Date.now() - startedAt, attempt: tick.attempt });
+			}
+			const outcome = await finished;
+			if (outcome.ok) {
+				write({ type: 'result', ...(outcome.value as Record<string, unknown>) });
+			} else {
+				const e = outcome.err as { status?: number; body?: { message?: string }; message?: string };
+				write({
+					type: 'error',
+					status: typeof e?.status === 'number' ? e.status : 500,
+					message: e?.body?.message ?? e?.message ?? 'Transcription failed.'
+				});
+			}
+			if (open) controller.close();
+		}
+	});
+	return new Response(stream, {
+		headers: {
+			'content-type': 'application/x-ndjson',
+			'cache-control': 'no-store',
+			// Belt and braces for any proxy that buffers despite the site config.
+			'x-accel-buffering': 'no'
+		}
+	});
 }
 
 /** Generate a lead-sheet id (same scheme as user-tunes.ts). */
@@ -353,7 +482,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 		if (isRateLimited(`${limitKey}:sys`, SYSTEM_RATE_LIMIT_MAX)) {
 			throw error(429, 'Too many transcription calls. Try again in a minute.');
 		}
-		return await handleSystemMode(system);
+		return await handleSystemMode(system, request.signal, wantsNdjson(request));
 	}
 
 	if (isRateLimited(limitKey)) {
@@ -373,36 +502,73 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 		throw error(503, 'PDF import is not configured.');
 	}
 
+	// Same split as system mode: validation above (status codes), model work
+	// below (wrapped by the heartbeat when the caller asked for a stream).
+	const tick: WorkTick = { attempt: 0 };
+	const work = extractWholePdf({ data, client, clientSignal: request.signal, tick });
+	if (!wantsNdjson(request)) return json((await work) as Record<string, unknown>);
+	return ndjsonResponse(work, tick);
+};
+
+interface ExtractWholePdfArgs {
+	/** Validated base64 PDF payload, data-URL prefix already stripped. */
+	data: string;
+	client: NonNullable<ReturnType<typeof getAnthropicClient>>;
+	clientSignal: AbortSignal;
+	tick: WorkTick;
+}
+
+/**
+ * Whole-document fallback, for charts whose geometry the client pass cannot
+ * read at all. The model has to find the systems and count the bars itself
+ * here, which is its main failure mode — hence the steadying second pass,
+ * and hence this being the fallback rather than the main road.
+ */
+async function extractWholePdf({
+	data,
+	client,
+	clientSignal,
+	tick
+}: ExtractWholePdfArgs): Promise<Record<string, unknown>> {
 	type Attempt =
 		| { ok: true; sheet: NonNullable<ReturnType<typeof claudeJsonToTune>['sheet']>; warnings: string[]; score: number }
 		| { ok: false; convErrors: string[] | null };
 
+	const startedAt = Date.now();
 	const runExtraction = async (model: string): Promise<Attempt> => {
+		tick.attempt += 1;
 		let responseText: string;
 		try {
 			// Streamed: the SDK refuses non-streaming requests big enough to run
 			// long (bar-wise transcription needs the 16k output ceiling).
-			const response = await client.messages.stream({
-				model,
-				max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
-				...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
-				system: SYSTEM_PROMPT,
-				messages: [
-					{
-						role: 'user',
-						content: [
-							{
-								type: 'document',
-								source: { type: 'base64', media_type: 'application/pdf', data }
-							},
-							{
-								type: 'text',
-								text: 'Extract this lead sheet as JSON per the schema. Return ONLY the JSON object.'
-							}
-						]
-					}
-				]
-			}).finalMessage();
+			const response = await client.messages.stream(
+				{
+					model,
+					max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
+					...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
+					system: SYSTEM_PROMPT,
+					messages: [
+						{
+							role: 'user',
+							content: [
+								{
+									type: 'document',
+									source: { type: 'base64', media_type: 'application/pdf', data }
+								},
+								{
+									type: 'text',
+									text: 'Extract this lead sheet as JSON per the schema. Return ONLY the JSON object.'
+								}
+							]
+						}
+					]
+				},
+				// Abandoned request → abandoned model call. Without this the
+				// browser's abort leaves the upstream stream running to
+				// completion on a single-fork server, billing for output
+				// nobody will read.
+				{ signal: clientSignal }
+			).finalMessage();
 			responseText = response.content
 				.filter((block) => block.type === 'text')
 				.map((block) => (block as { text: string }).text)
@@ -436,7 +602,10 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	// loses bars. A structurally shaky attempt gets ONE retry; keep the
 	// steadier of the two.
 	let result = await runExtraction(ANTHROPIC_TUNE_MODEL);
-	if (!result.ok || result.score >= 2) {
+	// A steadying second pass is worth having, but not at the cost of the
+	// whole request: past the budget, keep what the first pass produced.
+	// A failed first attempt still falls back — there is nothing to keep.
+	if (!result.ok || (result.score >= 2 && Date.now() - startedAt < WHOLE_PDF_RETRY_BUDGET_MS)) {
 		// The retry drops to the baseline model when the first attempt died
 		// outright (Fable's output filter blocks some well-known tunes).
 		const second = await runExtraction(result.ok ? ANTHROPIC_TUNE_MODEL : ANTHROPIC_MODEL);
@@ -451,8 +620,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	}
 	result.sheet.id = generateSheetId();
 
-	return json({ sheet: result.sheet, warnings: result.warnings });
-};
+	return { sheet: result.sheet, warnings: result.warnings };
+}
 
 /** One bar entry of a system-mode response, structurally screened. */
 interface SystemBar {
@@ -534,7 +703,11 @@ function screenSystemBars(parsed: unknown): {
 	return { fifths, timeSignature, bars };
 }
 
-async function handleSystemMode(system: SystemRequestBody['system']): Promise<Response> {
+async function handleSystemMode(
+	system: SystemRequestBody['system'],
+	clientSignal: AbortSignal,
+	stream: boolean
+): Promise<Response> {
 	if (
 		!system ||
 		typeof system.image !== 'string' ||
@@ -564,6 +737,40 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		throw error(503, 'PDF import is not configured.');
 	}
 
+	// Everything above this line is validation and must keep expressing its
+	// failures as HTTP status codes — once the NDJSON stream opens, 200 is
+	// already committed. The model work below it is what the heartbeat wraps.
+	const tick: WorkTick = { attempt: 0 };
+	const work = transcribeSystem({ system, data, meter, beats, client, clientSignal, tick });
+	if (!stream) return json((await work) as Record<string, unknown>);
+	return ndjsonResponse(work, tick);
+}
+
+interface TranscribeSystemArgs {
+	system: SystemRequestBody['system'];
+	/** Validated base64 PNG payload, data-URL prefix already stripped. */
+	data: string;
+	meter: [number, number];
+	beats: number;
+	client: NonNullable<ReturnType<typeof getAnthropicClient>>;
+	clientSignal: AbortSignal;
+	tick: WorkTick;
+}
+
+/**
+ * The model half of system mode: ask, validate the rhythm, re-read the bars
+ * that disagree (budget permitting), merge per bar. Throws a 502 only when
+ * there is no transcription at all.
+ */
+async function transcribeSystem({
+	system,
+	data,
+	meter,
+	beats,
+	client,
+	clientSignal,
+	tick
+}: TranscribeSystemArgs): Promise<Record<string, unknown>> {
 	let lastFailure = 'unknown';
 	const ask = async (
 		feedback: string | null,
@@ -575,38 +782,44 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		issues: { global: string[]; perBar: string[][] };
 	} | null> => {
 		let responseText: string;
+		tick.attempt += 1;
 		try {
 			const response = await client.messages
-				.stream({
-					model,
-					max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
-					// Fable thinks adaptively; high effort buys transcription
-					// accuracy, and the 32k ceiling keeps dense-system JSON
-					// clear of truncation under the thinking tokens.
-					...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
-					system: SYSTEM_MODE_PROMPT,
-					messages: [
-						{
-							role: 'user',
-							content: [
-								{
-									type: 'image',
-									source: { type: 'base64', media_type: 'image/png', data }
-								},
-								{
-									type: 'text',
-									text:
-										`This system contains exactly ${system.barCount} bars in ${beats}/${meter[1]} time. ` +
-										`Transcribe it as JSON per the schema.` +
-										(system.first === true
-											? ' This is the FIRST system of the chart: check carefully whether the notes before the first full bar form a partial PICKUP bar (pickup: true, notes at their real beats near the END of the bar).'
-											: '') +
-										(feedback ? ` Your previous attempt had problems — re-read the image carefully: ${feedback}` : '')
-								}
-							]
-						}
-					]
-				})
+				.stream(
+					{
+						model,
+						max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
+						// Fable thinks adaptively; high effort buys transcription
+						// accuracy, and the 32k ceiling keeps dense-system JSON
+						// clear of truncation under the thinking tokens.
+						...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
+						system: SYSTEM_MODE_PROMPT,
+						messages: [
+							{
+								role: 'user',
+								content: [
+									{
+										type: 'image',
+										source: { type: 'base64', media_type: 'image/png', data }
+									},
+									{
+										type: 'text',
+										text:
+											`This system contains exactly ${system.barCount} bars in ${beats}/${meter[1]} time. ` +
+											`Transcribe it as JSON per the schema.` +
+											(system.first === true
+												? ' This is the FIRST system of the chart: check carefully whether the notes before the first full bar form a partial PICKUP bar (pickup: true, notes at their real beats near the END of the bar).'
+												: '') +
+											(feedback ? ` Your previous attempt had problems — re-read the image carefully: ${feedback}` : '')
+									}
+								]
+							}
+						]
+					},
+					// See the whole-PDF path: an abandoned request must not leave
+					// a model call running behind it.
+					{ signal: clientSignal }
+				)
 				.finalMessage();
 			responseText = response.content
 				.filter((block) => block.type === 'text')
@@ -645,6 +858,7 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 	// their exact rhythm deltas fed back (the Audiveris rhythm-QA loop),
 	// and the answer is merged PER BAR so a clean first-attempt bar can
 	// never regress.
+	const startedAt = Date.now();
 	let model = ANTHROPIC_TUNE_MODEL;
 	let first = await ask(null, model);
 	if (!first && model !== ANTHROPIC_MODEL) {
@@ -673,7 +887,18 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 	let bars = first?.bars ?? [];
 	let warnings = first ? flatIssues(first) : [];
 	const firstEvidenceIssues = first ? evidenceDisagreements(first.bars) : [];
-	if (!first || warnings.length > 0 || firstEvidenceIssues.length > 0) {
+	const wantsReread = !first || warnings.length > 0 || firstEvidenceIssues.length > 0;
+	// The re-read is a quality bonus; the transcription in hand is the
+	// product. Buy the bonus only while there is budget for it.
+	const elapsed = Date.now() - startedAt;
+	const canAffordReread = !first || elapsed < SYSTEM_RETRY_BUDGET_MS;
+	if (wantsReread && !canAffordReread) {
+		warnings.push(
+			`this system was not re-read — the first pass took ${Math.round(elapsed / 1000)}s, ` +
+				`so the usual second look was skipped; check these bars against the print`
+		);
+	}
+	if (wantsReread && canAffordReread) {
 		const second = await ask(
 			first ? [...warnings, ...firstEvidenceIssues].join('; ') : null,
 			model
@@ -732,12 +957,12 @@ async function handleSystemMode(system: SystemRequestBody['system']): Promise<Re
 		...bar,
 		melody: bar.melody.filter((note) => !isRestPitch(note[2]))
 	}));
-	return json({
+	return {
 		keySignature: result.fifths === null ? null : { fifths: result.fifths },
 		timeSignature: result.timeSignature,
 		bars: stripped,
 		warnings
-	});
+	};
 }
 
 /** Config probe so the upload page can render a not-configured state. */

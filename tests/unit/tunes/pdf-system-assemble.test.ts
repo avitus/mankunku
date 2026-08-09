@@ -470,4 +470,34 @@ describe('importReviewNotes', () => {
 			])
 		).toEqual({ warnings: [], suspectBars: [] });
 	});
+
+	it('flags every bar of a system that could not be transcribed', () => {
+		// A system the model never returned is padded to empty bars by
+		// assembleClaudeDoc — which is a usable draft ONLY if the reviewer is
+		// told those bars are blank by failure rather than blank on the page.
+		const result = importReviewNotes([
+			{ barCount: 2, warnings: [], modelNoteCounts: [1, 2], evidenceCounts: [1, 2] },
+			{
+				barCount: 3,
+				warnings: [],
+				modelNoteCounts: [],
+				evidenceCounts: [2, 2, 2],
+				untranscribed: true
+			}
+		]);
+		expect(result.suspectBars).toEqual([3, 4, 5]);
+		expect(result.warnings.join(' ')).toMatch(/could not be transcribed/i);
+		// One line for the system, not one per bar.
+		expect(result.warnings).toHaveLength(1);
+		expect(result.warnings[0]).toContain('bars 3-5');
+	});
+
+	it('names a single untranscribed bar without a range', () => {
+		const result = importReviewNotes([
+			{ barCount: 1, warnings: [], modelNoteCounts: [], evidenceCounts: [1], untranscribed: true }
+		]);
+		expect(result.warnings[0]).toContain('bar 1');
+		expect(result.warnings[0]).not.toContain('-');
+		expect(result.suspectBars).toEqual([1]);
+	});
 });

@@ -293,6 +293,12 @@ export interface SystemReviewInput {
 	modelNoteCounts: number[];
 	/** Detected notehead counts per bar. */
 	evidenceCounts: number[];
+	/**
+	 * The model never returned this system (every attempt failed). Its bars
+	 * are padded to empty by `assembleClaudeDoc`, so the reviewer has to be
+	 * told they are blank by FAILURE and not blank on the page.
+	 */
+	untranscribed?: boolean;
 }
 
 /**
@@ -311,6 +317,18 @@ export function importReviewNotes(systems: SystemReviewInput[]): {
 	const suspects = new Set<number>();
 	let offset = 0;
 	for (const sys of systems) {
+		if (sys.untranscribed) {
+			const from = offset + 1;
+			const to = offset + sys.barCount;
+			warnings.push(
+				`${from === to ? `bar ${from}` : `bars ${from}-${to}`}: this line could not be ` +
+					`transcribed — the chords and bar layout are from the page, but the melody is empty ` +
+					`and needs entering by hand`
+			);
+			for (let i = from; i <= to; i++) suspects.add(i);
+			offset += sys.barCount;
+			continue;
+		}
 		for (const warning of sys.warnings) {
 			const m = /^bar (\d+):\s*(.*)$/.exec(warning);
 			if (m) {
