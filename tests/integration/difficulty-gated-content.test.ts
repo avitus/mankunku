@@ -14,7 +14,8 @@ import {
 	WINDOW_SIZE
 } from '../../src/lib/difficulty/adaptive';
 import {
-	getProfile,
+	getProfileForLevel,
+	getProfileForTier,
 	levelToContentTier,
 	DIFFICULTY_PROFILES
 } from '../../src/lib/difficulty/params';
@@ -64,7 +65,7 @@ function processN(
 
 describe('content tier profiles', () => {
 	it('tier 1 has restricted scale types (no bebop or altered)', () => {
-		const profile = getProfile(1);
+		const profile = getProfileForTier(1);
 		expect(profile.scaleTypes).not.toContain('bebop');
 		expect(profile.scaleTypes).not.toContain('melodic-minor');
 		expect(profile.scaleTypes).not.toContain('harmonic-minor');
@@ -72,7 +73,7 @@ describe('content tier profiles', () => {
 	});
 
 	it('tier 1 has restricted rhythm types (quarter notes only)', () => {
-		const profile = getProfile(1);
+		const profile = getProfileForTier(1);
 		expect(profile.rhythmTypes).toEqual(['quarter']);
 		expect(profile.rhythmTypes).not.toContain('eighth');
 		expect(profile.rhythmTypes).not.toContain('triplet');
@@ -80,24 +81,24 @@ describe('content tier profiles', () => {
 	});
 
 	it('tier 1 restricts to easy keys', () => {
-		const profile = getProfile(1);
+		const profile = getProfileForTier(1);
 		expect(profile.keys).toEqual(expect.arrayContaining(['C', 'F', 'G']));
 		expect(profile.keys.length).toBeLessThanOrEqual(5);
 	});
 
 	it('tier 5 unlocks more scale types than tier 1', () => {
-		const tier1 = getProfile(1);
-		const tier5 = getProfile(40); // level 40 maps to tier 5
+		const tier1 = getProfileForTier(1);
+		const tier5 = getProfileForLevel(40); // level 40 maps to tier 5
 		expect(tier5.scaleTypes.length).toBeGreaterThan(tier1.scaleTypes.length);
 	});
 
 	it('tier 7+ unlocks all 12 keys', () => {
-		const profile = getProfile(65); // level 65 maps to tier 7
+		const profile = getProfileForLevel(65); // level 65 maps to tier 7
 		expect(profile.keys.length).toBe(12);
 	});
 
 	it('tier 10 has maximum intervals allowed', () => {
-		const profile = getProfile(95); // level 95 maps to tier 10
+		const profile = getProfileForLevel(95); // level 95 maps to tier 10
 		expect(profile.maxInterval).toBe(24);
 		// Verify it is the largest across all tiers
 		for (const p of DIFFICULTY_PROFILES) {
@@ -106,12 +107,12 @@ describe('content tier profiles', () => {
 	});
 
 	it('each successive tier has equal or more content than the previous', () => {
-		// getProfile(1..10) intentionally treats its argument as a tier index
-		// directly when <= 10 (see params.ts). Passing tier numbers here is
-		// the correct way to walk tiers 1..10.
+		// Walking content tiers takes the tier-indexed lookup. Feeding 1..10 to
+		// getProfileForLevel() would walk the bottom of the PLAYER scale and
+		// never leave tier 2 — the two scales are no longer interchangeable.
 		for (let tier = 2; tier <= 10; tier++) {
-			const prev = getProfile(tier - 1);
-			const curr = getProfile(tier);
+			const prev = getProfileForTier(tier - 1);
+			const curr = getProfileForTier(tier);
 
 			expect(curr.scaleTypes.length).toBeGreaterThanOrEqual(prev.scaleTypes.length);
 			expect(curr.keys.length).toBeGreaterThanOrEqual(prev.keys.length);
@@ -391,5 +392,51 @@ describe('difficulty calculation consistency', () => {
 		const diff = calculateDifficulty(makePhrase(notes));
 
 		expect(diff.lengthBars).toBe(2);
+	});
+});
+
+// ─── Slider Position → Selected Content ───────────────────────────
+
+/**
+ * The ear-training settings slider is min=1 max=100 and its raw value is
+ * resolved with getProfileForLevel(). While that lookup inferred its scale
+ * from the argument's magnitude, the bottom tenth of the track was INVERTED:
+ * dragging to 10 — visually at the Beginner end — selected content tier 10,
+ * "No Limits", the hardest profile in the app. Walk the whole track so no
+ * slider position can regress again.
+ */
+describe('slider position selects the content it implies', () => {
+	it('the Beginner end of the track selects beginner content', () => {
+		const atTen = getProfileForLevel(10);
+		expect(atTen.level).toBe(2);
+		expect(atTen.name).toBe('Full Pentatonic');
+		expect(atTen.rhythmTypes).toEqual(['quarter']);
+		expect(atTen.maxInterval).toBeLessThanOrEqual(getProfileForTier(3).maxInterval);
+		expect(atTen.maxNotes).toBeLessThan(Number.POSITIVE_INFINITY);
+	});
+
+	it('the bottom tenth of the track is not the top of the tier ladder', () => {
+		// The exact inversion that was shipped: every one of these resolved to a
+		// tier equal to its own value, so 10 landed on "No Limits".
+		for (let level = 1; level <= 10; level++) {
+			const profile = getProfileForLevel(level);
+			expect(profile.name, `slider at ${level}`).not.toBe('No Limits');
+			expect(profile.level, `slider at ${level}`).toBeLessThanOrEqual(2);
+		}
+	});
+
+	it('selected content never regresses as the slider rises', () => {
+		let prev = 0;
+		for (let level = 1; level <= 100; level++) {
+			const tier = getProfileForLevel(level).level;
+			expect(tier, `slider at ${level}`).toBeGreaterThanOrEqual(prev);
+			prev = tier;
+		}
+		expect(prev).toBe(10);
+	});
+
+	it('both ends of the track reach the ends of the tier ladder', () => {
+		expect(getProfileForLevel(1).level).toBe(1);
+		expect(getProfileForLevel(100).level).toBe(10);
 	});
 });

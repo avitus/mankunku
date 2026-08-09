@@ -7,7 +7,7 @@
 	import { INSTRUMENTS } from '$lib/types/instruments';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader';
-	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
+	import { EAR_TRAINING_CATEGORIES } from '$lib/data/ear-training-categories';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import {
 		type Tonality,
@@ -36,17 +36,10 @@
 			.map(([value, label]) => ({ value: value as PhraseCategory, label }))
 	];
 
-	const PHRASE_SOURCES = [
-		{ value: 'curated', label: 'Curated Licks' },
-		{ value: 'generated', label: 'Generated' },
-		{ value: 'mixed', label: 'Mixed' }
-	] as const;
-
 	let selectedCategory: PhraseCategory | 'random' = $state('random');
 	let selectedDifficulty = $state(30);
-	let selectedSource: 'curated' | 'generated' | 'mixed' = $state('mixed');
 	let tempo = $state(settings.defaultTempo);
-	let bars = $state(2);
+	let startError = $state<string | null>(null);
 	const diffDisp = $derived(difficultyDisplay(selectedDifficulty));
 
 	// Tonality state
@@ -92,52 +85,54 @@
 		session.tempo = tempo;
 		settings.defaultTempo = tempo;
 
-		// Categories with enough curated phrases for reliable random selection.
-		// Excludes long variants, niche categories, and 'user'.
-		const randomPool: PhraseCategory[] = [
-			'ii-V-I-major', 'blues', 'bebop-lines', 'ii-V-I-minor',
-			'short-ii-V-I-major', 'short-ii-V-I-minor'
-		];
-		const category: PhraseCategory = selectedCategory === 'random'
-			? randomPool[Math.floor(Math.random() * randomPool.length)]
-			: selectedCategory;
+		// Random starts at a uniformly-chosen category and falls through the
+		// rest, so one empty category doesn't cost the user their session.
+		// An explicit category gets exactly one attempt — silently practising
+		// something else is worse than saying nothing matched.
+		const candidates: PhraseCategory[] =
+			selectedCategory === 'random'
+				? (() => {
+						const start = Math.floor(Math.random() * EAR_TRAINING_CATEGORIES.length);
+						return EAR_TRAINING_CATEGORIES.map(
+							(_, i) => EAR_TRAINING_CATEGORIES[(start + i) % EAR_TRAINING_CATEGORIES.length]
+						);
+					})()
+				: [selectedCategory];
 
 		// Use the active tonality's key for transposition
 		const sessionKey = activeTonality.key;
 
-		let phrase = null;
-
 		const rangeHigh = getEffectiveHighestNote();
 		const rangeLow = getInstrument().concertRangeLow;
 
-		if (selectedSource === 'curated' || selectedSource === 'mixed') {
+		let phrase = null;
+		for (const category of candidates) {
 			phrase = pickRandomLick(
 				{ category, maxDifficulty: selectedDifficulty },
 				sessionKey,
 				rangeLow,
 				rangeHigh
 			);
+			if (phrase) break;
 		}
 
-		if (!phrase && (selectedSource === 'generated' || selectedSource === 'mixed')) {
-			const harmony = getDefaultHarmony(category, sessionKey);
-			phrase = generatePhrase({
-				key: sessionKey,
-				category,
-				difficulty: selectedDifficulty,
-				harmony,
-				bars,
-				rangeLow,
-				rangeHigh
-			});
+		// pickRandomLick returns null when nothing clears the category,
+		// difficulty and range filters together. Without this the Start button
+		// is simply inert, which reads as a broken app rather than an empty
+		// query — and there is no longer a generator to fall back on.
+		if (!phrase) {
+			startError =
+				selectedCategory === 'random'
+					? `No licks at difficulty ${selectedDifficulty} fit your range in any category. Raise the difficulty to widen the pool.`
+					: `No ${CATEGORY_LABELS[selectedCategory] ?? selectedCategory} licks at difficulty ${selectedDifficulty} fit your range. Raise the difficulty, or pick another category.`;
+			return;
 		}
 
-		if (phrase) {
-			session.phrase = phrase;
-			session.lastScore = null;
-			saveSettings();
-			goto('/ear-training');
-		}
+		startError = null;
+		session.phrase = phrase;
+		session.lastScore = null;
+		saveSettings();
+		goto('/ear-training');
 	}
 </script>
 
@@ -315,50 +310,18 @@
 			</div>
 		</div>
 
-		<!-- Source -->
-		<div>
-			<label class="mb-2 inline-flex items-center gap-1 text-sm font-medium">
-				Phrase Source
-				<TooltipHint
-					text={tooltips.practice.settingsPhraseSource.text}
-					position="right"
-				/>
-			</label>
-			<div class="flex gap-2">
-				{#each PHRASE_SOURCES as { value, label }}
-					<button
-						onclick={() => { selectedSource = value; }}
-						class="rounded-full px-3 py-1 text-sm transition-colors
-							{selectedSource === value
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
-					>
-						{label}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<!-- Bars (for generated) -->
-		{#if selectedSource !== 'curated'}
-			<div>
-				<label for="settings-bars" class="mb-2 block text-sm font-medium">
-					Bars: {bars}
-				</label>
-				<input
-					id="settings-bars"
-					type="range"
-					min="1"
-					max="4"
-					step="1"
-					bind:value={bars}
-					class="w-full accent-[var(--color-accent)]"
-				/>
-			</div>
-		{/if}
 	</div>
 
 	<!-- Start button -->
+	{#if startError}
+		<p
+			role="alert"
+			class="rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-secondary)]"
+		>
+			{startError}
+		</p>
+	{/if}
+
 	<button
 		onclick={startSession}
 		class="w-full rounded-lg bg-[var(--color-accent)] py-3 text-lg font-bold text-white hover:opacity-80 transition-opacity"

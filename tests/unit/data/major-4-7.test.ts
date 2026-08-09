@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { MAJOR_4_7_LICKS } from '$lib/data/licks/major-4-7';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index';
 import { isLickCompatible } from '$lib/tonality/scale-compatibility';
+import { noteCountFloorLevel, levelToContentTier } from '$lib/difficulty/params';
 import type { Fraction } from '$lib/types/music';
 
 const val = (f: Fraction): number => f[0] / f[1];
@@ -33,8 +34,18 @@ describe('major 4th & 7th licks', () => {
 			const chromatic = lick.notes.some(
 				(n) => n.pitch !== null && !DIATONIC_C.has(n.pitch % 12)
 			);
+			// LENGTH is the one thing allowed to push a diatonic lick out of the
+			// 1-20 band: a 17-note line is a memory task no beginner can do,
+			// however diatonic it is. Then it sits in the tier its note count
+			// demands, and no higher. Nothing else may leave the band.
+			const noteCount = lick.notes.filter((n) => n.pitch !== null).length;
 			expect(lick.difficulty.level, lick.id).toBeGreaterThanOrEqual(chromatic ? 31 : 1);
-			expect(lick.difficulty.level, lick.id).toBeLessThanOrEqual(chromatic ? 100 : 20);
+			if (!chromatic && lick.difficulty.level > 20) {
+				expect(levelToContentTier(lick.difficulty.level), lick.id).toBe(
+					levelToContentTier(noteCountFloorLevel(noteCount))
+				);
+			}
+			expect(lick.difficulty.level, lick.id).toBeLessThanOrEqual(100);
 		}
 	});
 

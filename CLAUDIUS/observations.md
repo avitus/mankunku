@@ -548,3 +548,136 @@ Two things from this feature worth keeping as patterns:
 **A pass-gated metric cannot measure struggle.** The per-key store only wrote on scores ≥ 0.9, so the data needed to find weak keys was systematically discarded — the store recorded success and was blind to failure by construction. Worth generalizing: whenever a metric exists to drive *remediation*, check whether its write path filters out exactly the events the remediation needs. (Same shape as the nginx fallback observation from this morning: the system's own design hides the signal you need.)
 
 Also, an honest accounting: the synchronous-boundary hang risk (scoring early-return would have stranded the session) was caught by reading the guard clause during plan review, not by any test — the unit suite can't see it (it's a scheduling topology bug) and only the new e2e pins it. The class of bug where "the next step is scheduled by the previous step's success" needs the scheduling to be *unconditional* is worth a reflexive check anywhere it appears: the chain is only as alive as its weakest callback.
+
+## 2026-08-08 — Four complaints, one shape: the model that stopped matching the thing
+
+Four unrelated user complaints landed in one session. Three of them turned out to be the
+same bug in different clothing, and the shape is worth naming because I keep meeting it.
+
+**The system holds a model of itself, and nothing is responsible for noticing when the
+model stops matching.**
+
+- *Difficulty* claimed to rate licks for a player level. It gated scale families, intervals,
+  subdivisions, bars, tempo — and never counted notes. A 13-note line was rated 19 while the
+  system's own estimator, given the same phrase, said 51. Both numbers lived in the same
+  repo. Nothing compared them.
+- *The daily-practice time estimate* was not an estimate. `~{config.durationMinutes} min` —
+  it echoed the input knob back at the user. The plan is capped by tagged licks, not by the
+  budget, so turning the knob changed only the promise. 15 minutes displayed, 7.23 actual,
+  +107%. The countdown was still showing seven minutes remaining at the report screen, every
+  session, for however long this has been shipping.
+- *The difficulty slider* runs 1-100 and `getProfile` guesses from magnitude: ≤10 means
+  content tier, >10 means player level. So the bottom tenth of a beginner-to-virtuoso track
+  is inverted, and sliding toward "Beginner" hands you "No Limits."
+
+Each of these is individually a small bug. Together they say something sharper: **this app is
+full of numbers that describe other numbers, and none of the describing numbers are tested
+against the thing they describe.** The estimate was never diffed against the scheduler. The
+stored difficulty was never diffed against the estimator. The slider's units were never
+asserted at the boundary. All three were discoverable by a single test that asks "does this
+still agree?" — and none of those tests existed.
+
+The generalisable fix isn't "be more careful." It's structural, and one of today's fixes got
+it right: the duration cost model is now a module that the *scheduler itself* imports its bar
+constants from. Not a second formula kept in sync by discipline — one formula, two callers.
+Divergence becomes impossible rather than unlikely. That's the same move as `history.svelte.ts`
+derive-on-write, and the same move as `getDemoBars` being the single source for both
+super-phrase layout and window scheduling. The codebase already knows this pattern. It just
+hadn't been applied to the places where the second copy was a *display string* rather than a
+piece of logic — display feels harmless, so it escapes the rule.
+
+**Corollary worth keeping: a number shown to the user is production logic.** The estimate was
+"just a caption." That's exactly why nobody diffed it against reality, and exactly why it was
+wrong by a factor of two.
+
+### The counter-example: what a good change costs
+
+Item 2 was not this shape, and it's instructive. Continuous Deep Practice (2026-08-06) was
+correct — the user shouldn't know rounds exist — and it removed a real cost. But the score
+card *was* the mode indicator. Killing the stoppage killed the signal that came free with it,
+and the user hit that within two days: "the switches happen quickly and aren't clearly
+signalled."
+
+So the debt wasn't a mistake, it was the *price* of the improvement, and it went unbilled
+because the thing removed was doing two jobs and only one of them was named. Before removing
+an interruption, worth asking what the interruption was silently communicating. Interruptions
+are where users read state; take them out and state becomes invisible.
+
+The repair got one thing right that I want to keep: the new cue derives its timeline from the
+**actual scheduled recording windows**, not from a fixed listen/play pattern. Which means the
+cue cannot disagree with the microphone — including in the case that would certainly have
+broken a pattern-based version, the demo being skipped once the head key clears 0.90. That's
+the lesson from above applied prospectively: don't build a second model of when the app is
+listening, read the one that already decides it.
+
+### On scoping
+
+The user cut item 4 from six rules to one, mid-review, after seeing the plan. The plan wasn't
+wasted — its research section (what can actually be started in one tap; the discovery that
+deep practice provably *never* unlocks a key) is what made the one surviving rule correct.
+But the six-rule version was me solving the problem I found interesting rather than the one
+asked for. "Recommend next steps" got answered with a ranking system, a priority queue, a
+dedupe pass and a cap. The user wanted one sentence and a button.
+
+Tell: I wrote "at most 2-3 so it isn't a wall of advice" into the brief myself. When you find
+yourself designing a mechanism to protect the user from the volume of your own output, the
+output is the problem, not the volume.
+
+## 2026-08-08 (cont.) — Two generators, and the one that was never alive
+
+The user asked why an entire code path does nothing. The answer turned out to be
+better than "someone forgot," and it reframes the whole day.
+
+`generator.ts` was added 2026-03-18 in the bulk "Phases 4-7" commit. In **that
+same commit**: the practice page overwrote `session.phrase` on mount
+unconditionally, so generated output never reached playback; `pickClosest`
+already contained the collapse bug (it offers `prev` as a candidate at distance
+zero, and targets *are* chord tones); and `generateScaleFragment`, the fallback
+that hides the failure, was written alongside it. It was not a feature that
+rotted. **It was never once alive.**
+
+Two days later `combiner.ts` shipped, with a commit message that is the whole
+answer: *"filling the sparse low-difficulty gap. Zero downstream changes —
+combined licks inject into ALL_CURATED_LICKS."* Same problem, simpler route,
+straight into the path that already worked. The second attempt superseded the
+first inside 48 hours and nobody deleted the first.
+
+Three things worth keeping.
+
+**A broken thing that degrades gracefully, whose output is then discarded, is
+undetectable by construction.** Two independent concealment layers stacked. Either
+alone would eventually have surfaced — a collapsed `[60,60,60,60]` line is
+obvious the moment you hear it, and a missing phrase is obvious the moment you
+don't. Together they cancelled into perfect silence for five months. I keep
+finding this shape (nginx `try_files`, pass-gated `rollingScore`), but this is the
+purest instance: the failure and the mask were authored in the same commit, by
+the same hand, in the same hour.
+
+**I misdiagnosed the user's problem and the user corrected me from memory.** I
+had measured `generatePhrase`'s 100% fallback and reported it as *the* generator
+story, and I'd have left it there. The user said "my recollection was that the
+generator combines scale patterns with rhythm patterns" — and that was
+`combiner.ts`, a module I hadn't looked at, doing exactly what they described,
+five feet from the one I'd been reporting on. My measurement was correct and my
+framing was wrong, which is the more dangerous combination, because the numbers
+lend the framing credibility it hasn't earned. The tell was available: I'd noted
+"one production call site" for generator and moved on without asking what *else*
+filled the catalog. When a subsystem appears dead, the right next question is
+never only "why is this dead" — it's "then what is doing this job?" Something
+usually is.
+
+**The repetitiveness had nothing to do with either generator's code.** It was
+input starvation: four of the six ear-training categories had zero scale
+patterns, an exact-note-count guard discarded 72% of the grid, and pentatonic —
+half the entire pattern vocabulary — wasn't in the ear-training pool at all. The
+fix was data plus one relaxed guard, and the pool went 86 → 471. The most
+valuable thing I built there isn't the patterns; it's
+`ear-training-categories.ts` plus the test asserting the join between the
+categories ear training *demands* and the patterns that *supply* them. That hole
+was structurally invisible — the route couldn't see the pattern tables and the
+pattern tables couldn't see the route — which is the same failure as the
+duration estimate this morning, one level up. **A contract with no shared
+artifact isn't a contract; it's a coincidence that has held so far.**
+
+Net for the day: -1155 lines of dead code deleted, +385 licks generated, four
+bugs fixed. The deletion and the expansion are the same insight arriving twice.

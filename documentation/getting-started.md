@@ -8,7 +8,7 @@ The name is a tribute to [Winston "Mankunku" Ngozi](https://en.wikipedia.org/wik
 
 The app has two core practice modes, set up like the two sides of an LP.
 
-**Side A — Ear Training.** The app plays a short phrase. You play it back on your horn. It listens through your microphone, scores how close you got on pitch and rhythm, and either moves you on or gives you a retry. Phrases come from a curated catalog of about 450 jazz licks, plus an algorithmic generator for variety. The difficulty rises as you do.
+**Side A — Ear Training.** The app plays a short phrase. You play it back on your horn. It listens through your microphone, scores how close you got on pitch and rhythm, and either moves you on or gives you a retry. Phrases come from a catalog of about 920 jazz licks — roughly half hand-written, half built by pairing melodic shapes with rhythm templates. The difficulty rises as you do.
 
 **Side B — Lick Practice.** Pick a lick you want to own. The app cycles it through its currently-unlocked keys over a backing track — bass, comping, drums — scores each pass, and gradually expands the rotation toward all 12 keys as you earn them. Get clean takes and the tempo edges up 1–2 BPM. Stumble and it eases off. This is the practice room version of working a line through the cycle of fifths.
 

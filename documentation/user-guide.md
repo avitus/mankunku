@@ -37,8 +37,6 @@ This is the call-and-response loop.
 | **Category** | Filter the lick pool to one harmonic context — ii-V-I major, blues, bebop lines, ballad, and so on. Or leave it on "all" and let the app rotate. |
 | **Difficulty** | 1–100, displayed as ten bands from Beginner to Virtuoso. Set it to a fixed value, or let the adaptive system steer. |
 | **Tempo** | 60–200 BPM. Most players start in the 80–110 range. |
-| **Source** | Curated (hand-written and combinatorial catalog), Generated (algorithmic, infinite variety), or Mixed. |
-| **Bars** | 1–4 bars, applies only to generated phrases. |
 
 ### What's on screen while you're playing
 

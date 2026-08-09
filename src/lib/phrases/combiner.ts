@@ -78,15 +78,53 @@ export function realizeScalePattern(
  * Combine a scale pattern with a rhythm pattern to produce a Phrase.
  * Returns null if note counts don't match or realization fails.
  */
+export interface CombineOptions {
+	/**
+	 * How many times the melodic shape is laid end-to-end to fill the rhythm.
+	 * 1 (the default) is the exact-match case.
+	 */
+	repeat?: number;
+	/**
+	 * Scale steps each successive repetition is displaced by. 0 repeats the
+	 * cell literally; 1 walks it up the scale, which is the ordinary jazz
+	 * sequence — "1-2-3, 2-3-4" — and the reason repetition is worth having at
+	 * all. Ignored when `repeat` is 1.
+	 */
+	step?: number;
+}
+
+/** Lay a melodic shape end-to-end `repeat` times, displacing each pass by `step`. */
+function expandDegrees(degrees: number[], repeat: number, step: number): number[] {
+	if (repeat === 1) return degrees;
+	const out: number[] = [];
+	for (let r = 0; r < repeat; r++) {
+		for (const d of degrees) out.push(d + r * step);
+	}
+	return out;
+}
+
 export function combine(
 	sp: ScalePattern,
 	rp: RhythmPattern,
 	scaleId: string,
 	key: PitchClass,
-	harmony: HarmonicSegment[]
+	harmony: HarmonicSegment[],
+	opts: CombineOptions = {}
 ): Phrase | null {
-	// Guard: note count must match
-	if (sp.degrees.length !== rp.noteCount) return null;
+	const repeat = opts.repeat ?? 1;
+	const step = opts.step ?? 0;
+
+	// Guard: the shape, laid `repeat` times, must fill the rhythm exactly.
+	// A partial fit is not a near miss — it would either truncate the melodic
+	// idea or pad it arbitrarily, and both read worse than emitting nothing.
+	// `step` indexes the scale tone pool, so a fractional value would produce
+	// fractional degrees, and realizeScalePattern's bounds check (idx < 0 ||
+	// idx >= pool.length) passes a fractional index straight through to
+	// pool[idx] === undefined — yielding a Phrase with undefined pitches
+	// rather than the null this function promises.
+	if (!Number.isInteger(repeat) || repeat < 1) return null;
+	if (!Number.isInteger(step)) return null;
+	if (sp.degrees.length * repeat !== rp.noteCount) return null;
 
 	// Guard: check compatible scale families
 	if (sp.compatibleFamilies) {
@@ -94,8 +132,10 @@ export function combine(
 		if (!scale || !sp.compatibleFamilies.includes(scale.family)) return null;
 	}
 
-	// Realize pitches
-	const pitches = realizeScalePattern(sp.degrees, scaleId, key);
+	// Realize pitches. A sequence can walk off the top of the tone pool, in
+	// which case realizeScalePattern returns null and this combination is
+	// simply not offered.
+	const pitches = realizeScalePattern(expandDegrees(sp.degrees, repeat, step), scaleId, key);
 	if (!pitches) return null;
 
 	// Zip pitches with rhythm slots
@@ -105,17 +145,23 @@ export function combine(
 		offset: slot.offset
 	}));
 
+	const sequenced = repeat > 1 && step !== 0;
+	const extraTags = repeat === 1 ? [] : sequenced ? ['sequence'] : ['repeated'];
+	const suffix = repeat === 1 ? '' : sequenced ? ` Sequence x${repeat}` : ` x${repeat}`;
+
 	// Build phrase with placeholder difficulty
 	const phrase: Phrase = {
-		id: `cmb-${sp.id}_${rp.id}`,
-		name: `${sp.name} / ${rp.name}`,
+		// The repeat spec is part of the identity: the same shape and rhythm
+		// yield a different lick repeated than sequenced, and both may exist.
+		id: repeat === 1 ? `cmb-${sp.id}_${rp.id}` : `cmb-${sp.id}_${rp.id}_x${repeat}s${step}`,
+		name: `${sp.name}${suffix} / ${rp.name}`,
 		timeSignature: rp.timeSignature,
 		key,
 		notes,
 		harmony,
 		difficulty: { level: 0, pitchComplexity: 0, rhythmComplexity: 0, lengthBars: rp.bars },
 		category: sp.category,
-		tags: [...new Set([...sp.tags, ...rp.tags, 'combined'])],
+		tags: [...new Set([...sp.tags, ...rp.tags, ...extraTags, 'combined'])],
 		source: 'combined'
 	};
 
@@ -124,6 +170,14 @@ export function combine(
 
 	return phrase;
 }
+
+/**
+ * Displacements tried when a shape is repeated to fill a longer rhythm:
+ * the literal repeat, and the sequence a step up and a step down. Larger
+ * leaps stop sounding like the same idea restated, which is the only reason
+ * a listener hears a repetition as musical rather than as padding.
+ */
+const REPEAT_STEPS = [0, 1, -1];
 
 /** Generate all valid scale × rhythm combinations */
 export function generateAllCombinations(): Phrase[] {
@@ -141,8 +195,18 @@ export function generateAllCombinations(): Phrase[] {
 		}];
 
 		for (const rp of RHYTHM_PATTERNS) {
-			const phrase = combine(sp, rp, ctx.scaleId, 'C', harmony);
-			if (phrase) phrases.push(phrase);
+			// Exact fit first.
+			const exact = combine(sp, rp, ctx.scaleId, 'C', harmony);
+			if (exact) phrases.push(exact);
+
+			// Then the shape laid twice or three times to fill a longer cell.
+			// Capped at 3 passes: beyond that the bar is a drill, not a lick.
+			const repeat = rp.noteCount / sp.degrees.length;
+			if (!Number.isInteger(repeat) || repeat < 2 || repeat > 3) continue;
+			for (const step of REPEAT_STEPS) {
+				const phrase = combine(sp, rp, ctx.scaleId, 'C', harmony, { repeat, step });
+				if (phrase) phrases.push(phrase);
+			}
 		}
 	}
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateDifficulty } from '$lib/difficulty/calculate';
+import { calculateDifficulty, effectiveDifficultyLevel } from '$lib/difficulty/calculate';
+import { noteCountFloorLevel } from '$lib/difficulty/params';
 import type { Phrase, Note, Fraction, HarmonicSegment } from '$lib/types/music';
 
 function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [1, 4]): Note {
@@ -140,5 +141,61 @@ describe('calculateDifficulty', () => {
 		]);
 		const diff = calculateDifficulty(phrase);
 		expect(diff.level).toBeGreaterThanOrEqual(1);
+	});
+
+	/**
+	 * A diatonic eighth-note run of a fixed 4-note cell: every dimension other
+	 * than length (range, intervals, chromaticism, subdivision, notes-per-bar)
+	 * is held constant, so only note count can move the score.
+	 */
+	function makeRun(noteCount: number): Phrase {
+		const cell = [60, 62, 64, 65];
+		return makePhrase(
+			Array.from({ length: noteCount }, (_, i) =>
+				makeNote(cell[i % cell.length], [i, 8], [1, 8])
+			)
+		);
+	}
+
+	it('more notes means more difficulty', () => {
+		expect(calculateDifficulty(makeRun(8)).level).toBeGreaterThan(
+			calculateDifficulty(makeRun(4)).level
+		);
+	});
+
+	it('note count keeps raising difficulty past 14 notes', () => {
+		// Length is the dominant memory load in play-by-ear: a 20-note line is
+		// materially harder than a 14-note one, and a 26-note one harder again.
+		const at14 = calculateDifficulty(makeRun(14)).level;
+		const at20 = calculateDifficulty(makeRun(20)).level;
+		const at26 = calculateDifficulty(makeRun(26)).level;
+		expect(at20).toBeGreaterThan(at14);
+		expect(at26).toBeGreaterThan(at20);
+	});
+});
+
+describe('effectiveDifficultyLevel', () => {
+	it('keeps the stored level when it already clears the note-count floor', () => {
+		const phrase = makePhrase([makeNote(60, [0, 1]), makeNote(62, [1, 4])]);
+		phrase.difficulty = { level: 30, pitchComplexity: 30, rhythmComplexity: 30, lengthBars: 1 };
+		expect(effectiveDifficultyLevel(phrase)).toBe(30);
+	});
+
+	it('lifts an under-rated long lick to its note-count floor', () => {
+		const notes = Array.from({ length: 13 }, (_, i) => makeNote(60 + (i % 5), [i, 8], [1, 8]));
+		const phrase = makePhrase(notes);
+		phrase.difficulty = { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 2 };
+		expect(effectiveDifficultyLevel(phrase)).toBe(noteCountFloorLevel(13));
+		expect(effectiveDifficultyLevel(phrase)).toBeGreaterThan(20);
+	});
+
+	it('ignores rests when counting notes', () => {
+		const notes: Note[] = [
+			...Array.from({ length: 4 }, (_, i) => makeNote(60 + i, [i, 8], [1, 8])),
+			...Array.from({ length: 12 }, (_, i) => makeNote(null, [4 + i, 8], [1, 8]))
+		];
+		const phrase = makePhrase(notes);
+		phrase.difficulty = { level: 3, pitchComplexity: 3, rhythmComplexity: 3, lengthBars: 2 };
+		expect(effectiveDifficultyLevel(phrase)).toBe(3);
 	});
 });

@@ -44,7 +44,7 @@ import { chordTones } from '$lib/music/chords';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 import { gcd } from '$lib/music/intervals';
-import { getProfile } from '$lib/difficulty/params';
+import { getProfileForLevel } from '$lib/difficulty/params';
 import { scoreConformanceAgainstSpec } from '../conformance';
 import { realizeTrickExample } from '../example-generator';
 
@@ -215,7 +215,7 @@ export function buildEnclosureSlots(parameters: TrickParameters, context: TrickC
 	const k = approaches.length;
 
 	// Eighth-note grid, or quarters at tiers whose profile lacks eighths.
-	const den = getProfile(context.level).rhythmTypes.includes('eighth') ? 8 : 4;
+	const den = getProfileForLevel(context.level).rhythmTypes.includes('eighth') ? 8 : 4;
 	const shift = beatPlacement === 'offbeat' ? 1 : 0;
 	const unit: Fraction = [1, den];
 

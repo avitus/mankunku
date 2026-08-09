@@ -61,9 +61,6 @@ export const tooltips = {
 			text: 'Lock the difficulty level for filtering licks, or let the adaptive system choose. Higher levels expose harder pitch and rhythm content.',
 			learnMore: '/docs/architecture/adaptive-difficulty'
 		},
-		settingsPhraseSource: {
-			text: 'Curated licks come from the bundled catalog. User licks are the ones you recorded yourself or wrote in the editor. Both filter by today’s key.'
-		},
 		settingsScale: {
 			text: 'Override today’s scale to drill a specific tonality. Resets at midnight unless you re-pick.'
 		}

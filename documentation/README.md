@@ -47,7 +47,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Audio](./api-reference/audio.md) | audio-context, playback, capture, pitch-detector/pitch-frame, onset-detector, note-segmenter, metronome |
 | [Scoring](./api-reference/scoring.md) | alignment, pitch-scoring, rhythm-scoring, scorer, grades |
 | [Music](./api-reference/music.md) | scales, chords, keys, intervals, notation, tune-notation, chart/chord/ending layout, chord-symbol, transposition |
-| [Phrases](./api-reference/phrases.md) | generator, mutator, validator, library-loader |
+| [Phrases](./api-reference/phrases.md) | combiner, validator, library-loader |
 | [Difficulty](./api-reference/difficulty.md) | adaptive, params |
 | [State](./api-reference/state.md) | session, settings, progress, history, licks, lick-practice, step-entry, tune-entry, tune-community, tune-practice, tour state modules |
 | [Components](./api-reference/components.md) | All Svelte components and route pages |

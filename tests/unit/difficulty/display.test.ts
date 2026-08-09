@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { difficultyBand, difficultyColor, difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
+import { getProfileForLevel } from '$lib/difficulty/params';
 
 describe('difficultyBand', () => {
 	it('maps 1 → 1 (lower bound of band 1)', () => {
@@ -166,5 +167,48 @@ describe('masteryDisplay', () => {
 	it('clamps out-of-range values like difficultyBand does', () => {
 		expect(masteryDisplay(0).color).toBe('var(--mastery-1)');
 		expect(masteryDisplay(999).color).toBe('var(--mastery-10)');
+	});
+});
+
+/**
+ * The ear-training settings slider shows difficultyDisplay(value).name beside
+ * the value while the lick pool is filtered with getProfileForLevel(value).
+ * Those are two different 10-step ramps over the same 1-100 input, so nothing
+ * structural keeps them honest — and when getProfile() still inferred its
+ * scale from the argument's magnitude they disagreed wildly: at value 10 the
+ * label read "Beginner" while the lookup returned tier 10, "No Limits". Pin
+ * them together.
+ */
+describe('displayed difficulty name matches the content it selects', () => {
+	it('never diverges from the selected content tier by more than one step', () => {
+		for (let level = 1; level <= 100; level++) {
+			const band = difficultyDisplay(level).band;
+			const tier = getProfileForLevel(level).level;
+			expect(Math.abs(band - tier), `level ${level}: band ${band} vs tier ${tier}`).toBeLessThanOrEqual(1);
+		}
+	});
+
+	it('the Beginner end of the slider selects beginner content', () => {
+		expect(difficultyDisplay(10).name).toBe('Beginner');
+		expect(getProfileForLevel(10).name).toBe('Full Pentatonic');
+		expect(getProfileForLevel(10).name).not.toBe('No Limits');
+	});
+
+	it('the Virtuoso end of the slider selects the top tier', () => {
+		expect(difficultyDisplay(100).name).toBe('Virtuoso');
+		expect(getProfileForLevel(100).name).toBe('No Limits');
+	});
+
+	it('both ramps rise together across the slider', () => {
+		let prevBand = 0;
+		let prevTier = 0;
+		for (let level = 1; level <= 100; level++) {
+			const band = difficultyDisplay(level).band;
+			const tier = getProfileForLevel(level).level;
+			expect(band).toBeGreaterThanOrEqual(prevBand);
+			expect(tier).toBeGreaterThanOrEqual(prevTier);
+			prevBand = band;
+			prevTier = tier;
+		}
 	});
 });

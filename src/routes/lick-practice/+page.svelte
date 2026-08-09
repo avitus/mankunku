@@ -12,7 +12,8 @@
 		startSession,
 		startDailyPracticeSession,
 		startSingleLickSession,
-		startTrickSession
+		startTrickSession,
+		previewSessionSeconds
 	} from '$lib/state/lick-practice.svelte';
 	import type { LickPracticeConfig } from '$lib/types/lick-practice';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
@@ -39,6 +40,23 @@
 	const dailyLickCount = $derived.by(() => {
 		void lickPractice.progress;
 		return getDailyPracticeLicks().length;
+	});
+
+	// What the configured session would actually cost: the licks that would be
+	// planned and how long playing them takes. A standard session plays its
+	// plan once and stops, so this — not the duration knob — is the estimate
+	// worth showing; with a typical book the plan is capped by tagged licks
+	// long before the budget bites. Re-derives on any config/progress change
+	// because the underlying reads (tags, unlock counts, tempos) are
+	// non-reactive localStorage.
+	const sessionPreview = $derived.by(() => {
+		lickPractice.config.sessionType;
+		lickPractice.config.progressionType;
+		lickPractice.config.practiceMode;
+		lickPractice.config.durationMinutes;
+		lickPractice.config.enableSubstitutions;
+		void lickPractice.progress;
+		return previewSessionSeconds();
 	});
 
 	// Practice-tagged licks with no progression mapping at all. They never
@@ -117,6 +135,8 @@
 		config={lickPractice.config}
 		{availableLickCount}
 		{dailyLickCount}
+		plannedLickCount={sessionPreview.lickCount}
+		plannedSeconds={sessionPreview.seconds}
 		onstart={handleStart}
 		onupdate={handleUpdate}
 	/>
