@@ -22,6 +22,7 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import type { BackingTrackLog } from '$lib/audio/backing-track';
 import { getActiveUid } from './namespace';
+import { MAX_SESSIONS } from './limits';
 
 /**
  * The IndexedDB database is namespaced per user (`mankunku-audio:<uid>`), so
@@ -32,7 +33,8 @@ import { getActiveUid } from './namespace';
 const DB_NAME_BASE = 'mankunku-audio';
 const STORE_NAME = 'recordings';
 const DB_VERSION = 1;
-const MAX_RECORDINGS = 100;
+/** One recording per retained session — a recording with no session is unreachable. */
+const MAX_RECORDINGS = MAX_SESSIONS;
 
 function dbNameFor(uid: string): string {
 	return `${DB_NAME_BASE}:${uid}`;

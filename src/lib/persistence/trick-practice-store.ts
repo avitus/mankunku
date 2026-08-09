@@ -32,6 +32,8 @@ import {
 } from './sync';
 import { getScopeGeneration } from './user-scope';
 import { enqueue } from './outbox';
+import { MAX_HISTORY_POINTS } from './limits';
+import { MAX_UNLOCKED_KEYS } from '$lib/music/key-ordering';
 
 const PROGRESS_KEY = 'trick-practice-progress';
 const HISTORY_KEY = 'trick-progress-history';
@@ -44,10 +46,6 @@ const SELECTED_MTIME_KEY = 'trick-selected-variants-mtime';
  *  always unioned by the cloud merge, so a completed migration never replays. */
 const MIGRATIONS_KEY = 'trick-migrations';
 
-/** Cap on retained history points per variant — keep in sync with the merge cap in sync.ts. */
-const MAX_HISTORY_POINTS = 500;
-/** Maximum unlocked keys per variant (full 12-key circle). */
-const MAX_UNLOCKED_KEYS = 12;
 
 /** Starting BPM for any trick variant with no prior practice history. */
 export const TRICK_DEFAULT_TEMPO = 60;

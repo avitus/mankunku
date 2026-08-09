@@ -23,6 +23,7 @@
  */
 
 import type { LickProgressPoint } from '$lib/types/lick-practice';
+import { MAX_HISTORY_POINTS } from './limits';
 
 export interface LickMetaData {
 	lickTags: Record<string, string[]>;
@@ -54,8 +55,6 @@ export interface LickMetaBundle {
 
 const MIGRATIONS_KEY = '__migrations';
 
-/** Cap on retained per-lick progress-history points (oldest dropped on merge). */
-const MAX_HISTORY_POINTS = 500;
 
 function unionStrings(a: readonly string[] = [], b: readonly string[] = []): string[] {
 	return [...new Set([...a, ...b])];
