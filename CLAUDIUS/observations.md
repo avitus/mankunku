@@ -811,3 +811,58 @@ shipped an indicator that would have shown *nothing happening* while everything 
 I nearly diagnosed *something broken* from an animation working exactly as designed. Same root:
 **a rendered surface sampled at an arbitrary instant is evidence about that instant, not about
 the state.** Read the state — `aria-pressed` — and use the pixels to check taste, not truth.
+
+## 2026-08-09 (cont. 2) — I fixed the reassurance for one audience and broke it for another
+
+This morning I caught myself about to ship a live token counter that would have sat frozen at
+5 for 170 seconds — an indicator proving the system was alive that would have read as a hang.
+I wrote it up as *measure your progress indicator before shipping it as reassurance.*
+
+The same panel carried `role="status"` + `aria-live="polite"` on its outer div, wrapping a
+clock that ticks every 500ms and a per-line list that mutates as systems settle. For a screen
+reader user that is the entire panel re-announced twice a second, for the several minutes an
+import legitimately takes.
+
+So in one sitting I removed a signal that would have under-reported life, and shipped one that
+over-reports it into a firehose. Both are the same error — **I evaluated the indicator by
+imagining it, not by running it** — and my correction only covered the audience I could
+picture. The screenshot I *did* take was of pixels. There is no equivalent glance for a live
+region; you have to reason about it deliberately or you will never see it, because the visual
+rendering of the bug is *identical to the correct version*.
+
+That's the durable bit. A visual defect is caught by looking. An aria-live defect has no
+visual manifestation at all, so "it looks right" carries exactly zero information about it.
+Anywhere a live region wraps a container rather than a sentence, the question to ask is not
+"does this look right" but **"how often does anything inside this change, and would I sit
+through hearing it?"**
+
+### A test that asserts a guard it never reaches
+
+The review's best finding was a test I'd have defended on sight: `does not start a second
+whole-PDF extraction once the budget is gone`, asserting one model call. True assertion, real
+guard, wrong reason. The retry is gated on `score >= 2 && elapsed < BUDGET`, and the fixture
+produced exactly one warning — so the score was 1 and the budget was never consulted. Advance
+the clock or don't; the test passes either way.
+
+I only established this by dumping the fixture's actual warnings and score from a throwaway
+test. Reading the fixture, I'd have believed the comment above it, which asserted "the
+declared overview disagrees with what was transcribed twice over" — written by me, plausible,
+and false. **The comment described the intent; the fixture implemented something weaker; and
+the assertion couldn't tell the difference.** That gap is invisible to inspection precisely
+because the inspector reads the comment.
+
+The general form, which I now think is the single most reliable tell for a hollow test: *if I
+deleted the mechanism under test, would this still pass?* Here, deleting the budget check
+entirely leaves the test green. A guard test needs its control — the case that fires — or it
+is only asserting that some unrelated condition happens to be false.
+
+### On being wrong in public and being right in public
+
+Two findings in one review: one where the reviewer was right and I'd have shrugged it off
+(the vacuous test), one where the reviewer was wrong and cited *my own PR text* as saying the
+opposite of what it says (clear the modifiers). Both required the same move — go and check —
+and the outcomes diverged completely. It withdrew the second on evidence.
+
+The lesson isn't "trust reviewers" or "trust yourself." It's that agreement and disagreement
+are both cheap, and the only thing that moved either case was running something. I have now
+logged this shape three times today under different names. Perhaps that is the whole job.

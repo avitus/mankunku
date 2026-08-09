@@ -1272,3 +1272,42 @@ Long session. Three arcs:
   not the code, and `aria-pressed` was the better assertion anyway. And my first screenshot
   showed *two* glyphs lit: I'd caught `transition-colors` mid-flight. The computed colours
   were intermediate values on a 150ms fade, and I nearly filed a correct UI as broken.
+
+### 2026-08-09 (cont.) — the review round on #221
+
+Seven findings, six adopted, one rejected and then **withdrawn by CodeRabbit** after I
+answered it with evidence. Three things are worth keeping.
+
+- **The most valuable finding was a test that asserted a guard it never reached.** The budget
+  test was named "does not start a second whole-PDF extraction once the budget is gone" and
+  passed — but its fixture yielded exactly one consistency warning, so the score was 1 where
+  the retry requires ≥ 2. The retry was never on offer; the elapsed clock was irrelevant. I
+  found this by *measuring* the fixture (dumped `warnings` + `extractionConsistencyScore` from
+  a throwaway test) rather than reading the code and nodding. Getting to 2 needed a warning of
+  a different kind, because the two overview warnings are mutually exclusive (`else if`), so
+  the fixture now also declares printed bar 9 after 2 bars — resync, +6 placeholders, total 10
+  against a declared 8. Then added the control the review asked for: same fixture, budget
+  intact, asserts the second pass IS bought.
+- **The rejected finding cited "PR objectives" that say the opposite.** It wanted incompatible
+  modifiers cleared on duration change, filed Major / Functional Correctness. My PR text
+  explicitly specifies resumption, and nothing there can produce a wrong note. I answered with
+  the quote, the `resolveDurationId` argument, and the dotted-8th/16th keystroke count; it
+  replied *"I misread the intended modifier contract… I withdraw the finding."* Worth
+  remembering that a sharp reviewer still confabulates a justification, and that evidence
+  moves it.
+- **I shipped an accessibility bug this morning while fixing its sighted twin.** Same panel.
+  I replaced a frozen token counter because it would read as a hang — and left
+  `role="status"` + `aria-live="polite"` around a clock ticking every 500ms, which makes a
+  screen reader re-announce the whole panel twice a second for the minutes an import runs. I
+  declined the suggested `aria-hidden` on the clock and the per-line list: once the region is
+  narrowed to the phase sentence they are no longer announced, so hiding them would delete
+  content rather than fix anything. CodeRabbit agreed and recorded it.
+
+Also adopted: stale nginx comment (the fallback heartbeats now), a `cancel()` handler on the
+heartbeat stream (loop condition extended too, else writes are merely suppressed while the
+timer keeps ticking), `_heartbeatMsForTests()` replacing a hard-coded 3.4s sleep, and the e2e
+whole-PDF stub now speaking NDJSON — it passed only because `readNdjsonResult` tolerates an
+untyped line as terminal, so the fallback tests silently never touched the streamed path.
+
+Final: 248 files / 3938 unit+integration green, check 0/0, and all five PR checks green
+(CircleCI test + e2e, path-filtering, GitGuardian, CodeRabbit).
