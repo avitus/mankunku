@@ -7,7 +7,6 @@
 	import { INSTRUMENTS } from '$lib/types/instruments';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader';
-	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
 	import { EAR_TRAINING_CATEGORIES } from '$lib/data/ear-training-categories';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import {
@@ -37,17 +36,9 @@
 			.map(([value, label]) => ({ value: value as PhraseCategory, label }))
 	];
 
-	const PHRASE_SOURCES = [
-		{ value: 'curated', label: 'Curated Licks' },
-		{ value: 'generated', label: 'Generated' },
-		{ value: 'mixed', label: 'Mixed' }
-	] as const;
-
 	let selectedCategory: PhraseCategory | 'random' = $state('random');
 	let selectedDifficulty = $state(30);
-	let selectedSource: 'curated' | 'generated' | 'mixed' = $state('mixed');
 	let tempo = $state(settings.defaultTempo);
-	let bars = $state(2);
 	const diffDisp = $derived(difficultyDisplay(selectedDifficulty));
 
 	// Tonality state
@@ -100,32 +91,15 @@
 		// Use the active tonality's key for transposition
 		const sessionKey = activeTonality.key;
 
-		let phrase = null;
-
 		const rangeHigh = getEffectiveHighestNote();
 		const rangeLow = getInstrument().concertRangeLow;
 
-		if (selectedSource === 'curated' || selectedSource === 'mixed') {
-			phrase = pickRandomLick(
-				{ category, maxDifficulty: selectedDifficulty },
-				sessionKey,
-				rangeLow,
-				rangeHigh
-			);
-		}
-
-		if (!phrase && (selectedSource === 'generated' || selectedSource === 'mixed')) {
-			const harmony = getDefaultHarmony(category, sessionKey);
-			phrase = generatePhrase({
-				key: sessionKey,
-				category,
-				difficulty: selectedDifficulty,
-				harmony,
-				bars,
-				rangeLow,
-				rangeHigh
-			});
-		}
+		const phrase = pickRandomLick(
+			{ category, maxDifficulty: selectedDifficulty },
+			sessionKey,
+			rangeLow,
+			rangeHigh
+		);
 
 		if (phrase) {
 			session.phrase = phrase;
@@ -310,47 +284,6 @@
 			</div>
 		</div>
 
-		<!-- Source -->
-		<div>
-			<label class="mb-2 inline-flex items-center gap-1 text-sm font-medium">
-				Phrase Source
-				<TooltipHint
-					text={tooltips.practice.settingsPhraseSource.text}
-					position="right"
-				/>
-			</label>
-			<div class="flex gap-2">
-				{#each PHRASE_SOURCES as { value, label }}
-					<button
-						onclick={() => { selectedSource = value; }}
-						class="rounded-full px-3 py-1 text-sm transition-colors
-							{selectedSource === value
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
-					>
-						{label}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<!-- Bars (for generated) -->
-		{#if selectedSource !== 'curated'}
-			<div>
-				<label for="settings-bars" class="mb-2 block text-sm font-medium">
-					Bars: {bars}
-				</label>
-				<input
-					id="settings-bars"
-					type="range"
-					min="1"
-					max="4"
-					step="1"
-					bind:value={bars}
-					class="w-full accent-[var(--color-accent)]"
-				/>
-			</div>
-		{/if}
 	</div>
 
 	<!-- Start button -->

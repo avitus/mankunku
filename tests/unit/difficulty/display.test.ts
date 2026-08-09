@@ -172,12 +172,12 @@ describe('masteryDisplay', () => {
 
 /**
  * The ear-training settings slider shows difficultyDisplay(value).name beside
- * the value while generatePhrase() selects content with
- * getProfileForLevel(value). Those are two different 10-step ramps over the
- * same 1-100 input, so nothing structural keeps them honest — and when
- * getProfile() still inferred its scale from the argument's magnitude they
- * disagreed wildly: at value 10 the label read "Beginner" while the generator
- * selected tier 10, "No Limits". Pin them together.
+ * the value while the lick pool is filtered with getProfileForLevel(value).
+ * Those are two different 10-step ramps over the same 1-100 input, so nothing
+ * structural keeps them honest — and when getProfile() still inferred its
+ * scale from the argument's magnitude they disagreed wildly: at value 10 the
+ * label read "Beginner" while the lookup returned tier 10, "No Limits". Pin
+ * them together.
  */
 describe('displayed difficulty name matches the content it selects', () => {
 	it('never diverges from the selected content tier by more than one step', () => {

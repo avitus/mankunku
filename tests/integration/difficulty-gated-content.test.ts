@@ -398,18 +398,12 @@ describe('difficulty calculation consistency', () => {
 // ─── Slider Position → Selected Content ───────────────────────────
 
 /**
- * The ear-training settings slider is min=1 max=100 and hands its raw value to
- * generatePhrase({ difficulty }), which resolves it with getProfileForLevel().
- * While that lookup inferred its scale from the argument's magnitude, the
- * bottom tenth of the track was INVERTED: dragging to 10 — visually at the
- * Beginner end — selected content tier 10, "No Limits", the hardest profile in
- * the app. Walk the whole track so no slider position can regress again.
- *
- * NOTE: these assert on the profile the slider selects rather than on
- * generatePhrase() output, because the 5-stage pipeline currently never passes
- * its own validator and every generated phrase is the generateScaleFragment
- * fallback (see the report accompanying this change) — output-level assertions
- * would pass vacuously and prove nothing.
+ * The ear-training settings slider is min=1 max=100 and its raw value is
+ * resolved with getProfileForLevel(). While that lookup inferred its scale
+ * from the argument's magnitude, the bottom tenth of the track was INVERTED:
+ * dragging to 10 — visually at the Beginner end — selected content tier 10,
+ * "No Limits", the hardest profile in the app. Walk the whole track so no
+ * slider position can regress again.
  */
 describe('slider position selects the content it implies', () => {
 	it('the Beginner end of the track selects beginner content', () => {

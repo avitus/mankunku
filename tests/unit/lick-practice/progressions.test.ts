@@ -85,9 +85,8 @@ describe('PROGRESSION_TEMPLATES', () => {
 
 	it('blues is a 2-bar I7 vamp (single dominant chord)', () => {
 		// Blues licks practice as a vamp drill, not the full 12-bar form.
-		// The lick library's BLUES_HARMONY (a 2-bar C7) and the generator's
-		// getDefaultHarmony('blues') already declare this shape; the
-		// progression template aligns with them.
+		// The lick library's BLUES_HARMONY (a 2-bar C7) already declares this
+		// shape; the progression template aligns with it.
 		const t = PROGRESSION_TEMPLATES['blues'];
 		expect(t.bars).toBe(2);
 		expect(t.harmony).toHaveLength(1);

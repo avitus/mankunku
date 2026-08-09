@@ -132,7 +132,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Difficulty band** — The 10-color name for a difficulty range. Beginner, Elementary, Easy, Moderate, Intermediate, Challenging, Advanced, Expert, Master, Virtuoso.
 
-**Generated phrase** — A phrase produced by the algorithmic generator at runtime, based on your difficulty level and category settings.
+**Combinatorial lick** — A catalog phrase built by pairing a melodic shape (written as scale degrees) with a rhythm template, rather than written out by hand. About half the catalog. Indistinguishable from a hand-written lick in use: same difficulty scale, same transposition, same scoring.
 
 **Grade** — The label assigned to your overall percentage: Perfect (≥ 95%), Great (≥ 85%), Good (≥ 70%), Fair (≥ 55%), or Try Again (< 55%).
 

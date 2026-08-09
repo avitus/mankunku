@@ -1,91 +1,11 @@
 # API Reference: Phrases
 
-Phrase generation, mutation, validation, and curated library loading.
+Phrase validation, curated library loading, and combinatorial generation.
 
 **Source:** `src/lib/phrases/`
 
 ---
 
-## generator.ts
-
-Algorithmic phrase generator — 5-stage pipeline.
-
-### `GeneratorOptions` interface
-
-```typescript
-interface GeneratorOptions {
-  key: PitchClass;
-  category: PhraseCategory;
-  difficulty: number;
-  harmony: HarmonicSegment[];
-  bars: number;
-  timeSignature?: [number, number];  // default [4, 4]
-}
-```
-
-### `generatePhrase(options): Phrase`
-
-Generate a phrase using the 5-stage pipeline. Retries up to 5 times if validation fails; falls back to a simple scale fragment.
-
-**Stages:**
-
-1. **Target note selection** — Place chord tones on strong beats (every 2 beats). Voice-lead by picking the chord tone closest to the previous target across multiple octaves. Constrained to MIDI 44–75 by default (tenor-sax concert range, overridable via `rangeHigh`/`rangeLow`).
-
-2. **Approach patterns** — Fill gaps between targets using one of three strategies:
-   - **Scale run** (easy/common): Diatonic notes between targets
-   - **Chromatic approach** (medium, `r < 0.8`): 1–2 chromatic notes before target
-   - **Arpeggio fill** (harder, `r >= 0.8`): Chord tones between targets
-
-3. **Rhythm cell selection** — Assign durations based on the difficulty profile's allowed rhythm types. Last note gets longer duration. Target notes get higher velocity (100 vs 80).
-
-4. *(Reserved)* — Skipped in current implementation.
-
-5. **Articulation** — At difficulty >= 4, adds markings:
-   - Accent (30% chance) on target notes with velocity >= 100
-   - Ghost note (20% chance) on weak-beat passing tones
-   - Legato (30% chance) on consecutive stepwise motion
-
-### `getDefaultHarmony(category, key): HarmonicSegment[]`
-
-Standard harmonic progressions for generating phrases.
-
-| Category | Progression |
-|---|---|
-| `'ii-V-I-major'` | ii min7 → V 7 → I maj7 |
-| `'ii-V-I-minor'` | ii min7b5 → V 7alt → i min7 |
-| `'blues'` | I7 (static) |
-| `'bebop-lines'` | I maj7 (static) |
-| Other | I maj7 (static) |
-
----
-
-## mutator.ts
-
-Transforms existing licks to create variations.
-
-### `mutateLick(lick, rangeHigh?): Phrase | null`
-
-Apply a random mutation. Returns `null` if the result fails validation. `rangeHigh` (default tenor-sax top) is forwarded to `octaveDisplacement`.
-
-Randomly selects from:
-
-### `rhythmicDisplacement(lick): Phrase`
-
-Shift all note onsets forward by an eighth note, creating syncopation. ID suffix: `_displaced`.
-
-### `octaveDisplacement(lick, rangeHigh?): Phrase`
-
-Randomly shift ~25% of notes up or down an octave. Skips first and last pitched notes. Constrains to MIDI 44–`rangeHigh` (default 84). ID suffix: `_octdispl`.
-
-### `truncate(lick, maxNotes?): Phrase`
-
-Keep the first ~60% of notes (or `maxNotes`). Recalculates bar count. Requires at least 4 pitched notes to operate. ID suffix: `_trunc`.
-
-### `retrograde(lick): Phrase`
-
-Reverse the pitch sequence while keeping the rhythm intact. ID suffix: `_retro`.
-
----
 
 ## validator.ts
 
@@ -207,18 +127,19 @@ Combinatorial lick generation — pairs scale patterns with rhythm patterns (fro
 
 Map scale-degree indices to MIDI pitches against a scale in the given key. Anchors the root closest to C4 (MIDI 60) and indexes up/down from there through a MIDI 36–96 pool. Returns `null` if the scale is unknown, the root isn't in the pool, or any degree falls outside the pool bounds.
 
-### `combine(sp, rp, scaleId, key, harmony): Phrase | null`
+### `combine(sp, rp, scaleId, key, harmony, opts?): Phrase | null`
 
 Pair a `ScalePattern` with a `RhythmPattern` and build a `Phrase`.
 
-- Note counts must match (`sp.degrees.length === rp.noteCount`).
+- `opts.repeat` (default 1) is how many times the shape is laid end-to-end; `opts.step` displaces each pass by that many scale degrees (0 = literal repeat, 1 = sequence up a step). `sp.degrees.length * repeat` must equal `rp.noteCount` exactly — a partial fit returns `null` rather than truncating or padding the melodic idea.
 - If the scale pattern declares `compatibleFamilies`, the scale's family must be one of them.
+- Returns `null` when a sequence walks off the end of the tone pool.
 - Difficulty is computed via `calculateDifficulty()` on the finished phrase.
-- Phrases are tagged with `'combined'` and `source: 'combined'`. IDs are `cmb-<scale-pattern-id>_<rhythm-pattern-id>`.
+- Phrases are tagged with `'combined'` and `source: 'combined'`, plus `'repeated'` or `'sequence'` when repeated. IDs are `cmb-<scale-pattern-id>_<rhythm-pattern-id>`, suffixed `_x<repeat>s<step>` for repeats.
 
 ### `generateAllCombinations(): Phrase[]`
 
-Iterate over every `(ScalePattern, RhythmPattern)` cross-product whose category is mapped in the internal category→scale context table. Called once at module import time.
+Iterate over every `(ScalePattern, RhythmPattern)` cross-product whose category is mapped in the internal category→scale context table. For each pair it emits the exact fit, plus — when the rhythm holds a whole number (2 or 3) of the shape — one phrase per displacement in `REPEAT_STEPS` (literal, up a step, down a step). Called once at module import time.
 
 ### `COMBINED_LICKS: Phrase[]`
 

@@ -198,7 +198,7 @@ Each lick has a difficulty level (1–100), displayed as one of ten bands.
 | 81–90 | Master |
 | 91–100 | Virtuoso |
 
-Most curated licks live in the 10–75 range; the bands above 75 are mostly populated by the algorithmic generator at high difficulty levels. The Licks page itself filters only by free-text search and by progression (over your own book), not by difficulty band — the band table above is just the reference for reading a lick's difficulty label.
+Most curated licks live in the 10–75 range; the bands above 75 are sparse, and are mostly reached by long combinatorial lines whose note count lifts them there. The Licks page itself filters only by free-text search and by progression (over your own book), not by difficulty band — the band table above is just the reference for reading a lick's difficulty label.
 
 The bands are also color-coded throughout the app — the difficulty tag on each lick card and the level indicator on your dashboard both use the same palette (the `--difficulty-N` / `--mastery-N` CSS custom properties).
 

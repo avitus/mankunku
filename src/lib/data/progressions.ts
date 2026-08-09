@@ -189,8 +189,7 @@ const III_VI_II_V_I: HarmonicSegment[] = [
 // 12 keys rather than playing through a full 12-bar form for every lick —
 // the form would balloon a 2-bar phrase into ~5 minutes per lick. The
 // vamp matches what every blues lick in the library already declares as
-// its native harmony, and what `getDefaultHarmony('blues')` returns for
-// the phrase generator.
+// its native harmony.
 const BLUES: HarmonicSegment[] = [
 	{ chord: { root: 'C', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [2, 1] }
 ];
