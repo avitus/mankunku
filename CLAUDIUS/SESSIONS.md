@@ -1205,3 +1205,70 @@ Long session. Three arcs:
 - Feedback without stoppage: a 2.2s tier-colored percent flash on the just-scored chart row, and the ring now shows session-long `latestKeyResults` against a stable `sessionKeys` circle (the rotation shrinks and reorders — dots would have jumped and vanished).
 - Verified: 239 files / 3813 unit+integration green, check 0/0, production build clean, both lick-practice e2e specs green on Chromium including the new continuous-flow test (35s of real browser proving the boundary self-schedules).
 - Deliberately unchanged: Standard/Daily keeps its 2-bar rest + breather card (the card announces the *next lick* there — different job), report still shows rounds (they're an honest internal unit; just invisible mid-session), and no unlock/tempo rule moved.
+
+## 2026-08-09 — PDF import: the timeout was a distribution, not a number
+
+- Complaint, two parts: *"The PDF input frequently times out. It also gives very little feedback so it is impossible to know what is going on."*
+- I refused to guess and measured against the live API first. That decided everything. One system-mode call on the SAME 4-bar Lady Bird crop: **15.6s at `effort: 'low'`, 40s at `'medium'`, 108.8s and 179.8s on two `'high'` runs.** Output tokens 989 / 2,601 / 7,218 / 11,948 — for an answer that is ~250 tokens. The client aborted every system request at `AbortSignal.timeout(180_000)`. So a healthy call landed **0.2 seconds** under the abort, on the simplest system in the corpus. Full-chart runs later showed 345s (Lady Bird sys 3) and 231s (A Train sys 6). The timeout wasn't mistuned; it was placed inside the model's own latency distribution.
+- The consequence was the real bug. One system's abort rejected out of `Promise.all`, which **discarded every system that had already succeeded** and restarted on whole-PDF extraction (up to two full-document passes, 300s client abort, 330s nginx `proxy_read_timeout`). So the modal failure was: wait 3 minutes, throw away good work, wait 5 more, show a bare "signal timed out". Two of the three concealment layers were the *recovery* paths.
+- I nearly shipped the obvious fix. Lady Bird said `low` beat `high` on accuracy AND was 6.8× faster — a free win, and I was one commit from taking it. Running a **second** chart flipped it: A Train `high` .618/.574 vs `low` .485/.397. n=1 per cell either way, so the honest conclusion is that effort is not a safe lever without a proper study — and the user, shown both, said leave it alone and fix the plumbing. Right call. The complaint was never about accuracy.
+- The fix that follows from "latency is unbounded and unknowable" is not a bigger number, it's **removing the need for a number**:
+  - The route answers on an **NDJSON heartbeat stream** (opt-in via `Accept`, so tests and the e2e stub keep plain JSON). `proxy_read_timeout` measures the gap between reads, so a 3s heartbeat makes nginx's value irrelevant to the model's tail; and the client's deadline becomes an **inactivity** budget, which is the thing that actually distinguishes "slow" from "dead".
+  - `pdf-import-run.ts` — a pure, Node-testable runner (the `tune-practice-plan.ts` shape). Serial first system for the meter, fan-out 8 (was 3, so wall clock is now the slowest system rather than the slowest of ⌈n/3⌉ waves), per-system retry, and **partial results kept**.
+  - Per-request call budget: the QA re-read is bought only if the first pass returned inside 45s, and it says so in the warnings when it skips. The model fallback stays unbudgeted — it only runs when there is nothing at all.
+  - `{ signal: request.signal }` into the SDK: an abandoned request no longer leaves a model call streaming to completion on a single-fork droplet.
+- **The capability was already there and the caller threw it away.** `assembleClaudeDoc` has always padded missing systems to empty bars, and chords/bar-layout come from the deterministic text+geometry pass — so a partial transcription was always a usable draft. The client's `if (responses.some(r => r === null)) return null` discarded it. The fix was five lines plus an `untranscribed` flag on `importReviewNotes` so blank-by-failure is distinguishable from blank-on-the-page.
+- One honest-signal decision I'm glad I checked: I first put a live token count in the heartbeat. It sat at 5. Probing the raw event stream showed `thinking: adaptive` emits `message_start`, then **nothing for 170 seconds**, then every delta at once. A frozen counter reads as a hang — worse than no counter. Replaced with the server's authoritative per-line elapsed. *Measure your progress indicator before shipping it as reassurance.*
+- Verified: 247 files / 3918 unit+integration green, check 0/0, production build clean, 4/4 PDF e2e on Chromium (two new: partial-failure keeps the draft; the progress panel reports per line and cancels).
+- **The live run is the headline number.** Real browser, real API, Lady Bird (4 systems), `effort: 'high'`: **line 1 alone took 263s.** The old client aborted at 180s — so this exact import was structurally guaranteed to fail before today, and it would have burned another 5 minutes on the fallback to say so. It now completes, with per-line elapsed visible the whole way. Lines 2-4 then ran together: 100s / 271s / 273s+.
+- Two honest caveats I'm recording rather than burying. **(1)** My pre-fix estimate to the user was "typical 1-2 min, worst ~6"; this run was ~10 min. The variance is worse than my benchmark suggested (line 1: 108s and 180s on the bench, 263s live) and I should have quoted a range, not a typical. **(2)** ~43% of that wall clock is the *serial first system*, which exists only to learn the printed meter before the others are prompted with it. Fanning out all systems on a 4/4 assumption and re-running only when system 1 disagrees would nearly halve the common case — real, in reach, and deliberately not done unasked because it trades a correctness risk on 3/4 charts for speed.
+- I also wasted a cycle testing against `localhost:5173`, which is a `vite dev` the user has had running since Aug 6 — my own `npm run dev` had silently taken 5174 after finding 5173 busy. Check the port the server actually bound, not the one you asked for.
+
+## 2026-08-09 (cont.) — Sixteenths: the editor could read a rhythm it could not write
+
+- Ask: *"The tune edit page should handle 1/16th notes."* The gap turned out to be one array
+  literal wide. `src/lib/step-entry/durations.ts` is the single source of truth and
+  `BASE_DURATION_IDS` stopped at `eighth`; both editors and `DurationSelector` read from it.
+- **Everything downstream already supported 16ths.** `durationToAbc` maps `[1,16]` → `/2`;
+  `getBeamGroupDuration` carries an explicit rule that any 16th in a span reverts it to
+  per-beat beaming; `REST_DURATIONS` includes `[1,16]`; `musescore.ts:130` maps `'16th'` →
+  `[1,16]`; the Claude PDF path snaps over denominators `[…8,12,16,24]`. So a tune could
+  *arrive* with 16ths, render correctly, and survive an edit round-trip — the user just
+  couldn't type one. The import path was strictly richer than the entry path.
+- Settled with the user: 16th + dotted eighth (the dotted-8th/16th pair is the figure a bare
+  16th can't express), no 16th triplet, both editors rather than a tune-only prop.
+- **The latent bug this surfaced.** `getDurationFraction` guarded `isDotted` against
+  `DOTTED_BASES` but applied `isTriplet` unconditionally — safe only because every base
+  happened to have a triplet variant. Add one that doesn't and
+  `getDurationFraction('sixteenth', true)` returns `DURATIONS['sixteenth-triplet']` —
+  `undefined`, straight into a note's duration. Fixed by making the dotted special-case a
+  principle: `TRIPLET_BASES` mirroring `DOTTED_BASES`, so the resolver is total by
+  construction. A totality test over every base × triplet × dotted pins it.
+- **Two implementations of one rule.** `DurationSelector` rebuilt the DurationId itself, with
+  its own copy of the dotted-beats-triplet precedence, purely to look up a display name. It
+  agreed with `getDurationFraction` by luck; adding `sixteenth` would have split them (the
+  component would have produced `sixteenth-triplet` and rendered an undefined label).
+  Extracted `resolveDurationId()` as the one resolver both go through.
+- **A disabled button is not a guard.** Both editors bind `t` / `.` straight to
+  `toggleTriplet` / `toggleDotted`, bypassing the DOM entirely. So the refusal lives in the
+  state module where click and keypress meet; the `disabled` attribute is only its visual
+  echo. Turning a modifier *off* stays allowed, so a flag left over from another base is
+  still clearable — the flag persists across base changes and resumes when you return to a
+  base that supports it.
+- Layout: the 16rem rail leaves ~232px of content box, and flex items refuse to shrink below
+  their content, so five buttons at `px-3` would have overflowed rather than wrapped. Dropped
+  to `px-2`/`gap-1.5` and pinned it with an e2e that measures `scrollWidth <= clientWidth`
+  rather than trusting my arithmetic.
+- Stale copy hunted across surfaces: `1`-`4` → `1`-`5` in *both* editors' shortcut help, plus
+  the `DurationSelector` entry in `documentation/api-reference/components.md` and the duration
+  table in `adding-licks.md`.
+- Verified: 248 files / 3932 unit+integration green, check 0 errors 0 warnings, production
+  build clean, 59 e2e green on Chromium (tune editor × 3 specs, chart chord entry, licks,
+  smoke) including four new tests — glyph-row overflow, a full bar of 16ths + a
+  dotted-8th/16th pair, Triplet inert on a sixteenth from button *and* keyboard, and the
+  dotted-8th/16th ABC rendering.
+- Two of my own errors worth recording. My first e2e asserted on the resolved-name text, which
+  is `@max-[28rem]/entry:hidden` — deliberately hidden in the narrow rail. The test was wrong,
+  not the code, and `aria-pressed` was the better assertion anyway. And my first screenshot
+  showed *two* glyphs lit: I'd caught `transition-colors` mid-flight. The computed colours
+  were intermediate values on a 150ms fade, and I nearly filed a correct UI as broken.

@@ -681,3 +681,133 @@ artifact isn't a contract; it's a coincidence that has held so far.**
 
 Net for the day: -1155 lines of dead code deleted, +385 licks generated, four
 bugs fixed. The deletion and the expansion are the same insight arriving twice.
+
+## 2026-08-09 — A timeout is a claim about a distribution you have not measured
+
+The PDF import's 180s client abort was not a bad number. It was a number at all,
+placed against a quantity that has no stable value: the same 4-bar image, same
+prompt, same model, returned in 109s and 180s on consecutive runs, and 345s in
+another chart's run. Fable at `effort: 'high'` decides how long to think, and
+the spread is 12× on identical input.
+
+Every timeout in the path had been tuned by the same method — pick a number
+comfortably above what you saw once. Client 180s per system, client 300s for
+the fallback, nginx 330s. Each looked generous. Each was inside the
+distribution.
+
+**The move that fixes this class is not a bigger number, it's changing what is
+being measured.** A heartbeat converts "how long may this take?" — unanswerable
+— into "how long may it go silent?" — answerable, because the server controls
+it. `proxy_read_timeout` stops mattering. The client's deadline stops being a
+guess. The only remaining question is one the system can actually answer about
+itself.
+
+I want to keep the tell, because it generalises past timeouts: **when a
+constant has to be tuned against something you don't control, you are measuring
+the wrong quantity.** Retry counts against flaky infra, buffer sizes against
+user input, poll intervals against remote jobs — same shape, same fix, which is
+to find the quantity your own code determines and measure that instead.
+
+### The recovery path was two thirds of the damage
+
+Timing out was one bug. What the code did *about* it was worse: `Promise.all`
+rejected on the first abort, which discarded every system that had already
+transcribed, and fell back to the slowest path in the system — which then
+usually also timed out. Three minutes of good work thrown away to buy five
+minutes of a worse attempt.
+
+And `assembleClaudeDoc` had **always** padded missing systems to empty bars. The
+chords and bar structure come from the deterministic geometry+text pass, not
+the model. A partial transcription was a usable draft the entire time; the
+caller just refused to look at it. This is the third instance I've logged of
+*the capability exists, the caller discards it* (nginx `try_files` serving a
+pool nobody could stat; pass-gated `rollingScore` unable to see failure) — and
+the common thread is that the discarding code was written by someone reasoning
+about the happy path, where the discarded thing is always empty anyway.
+
+### Measure the reassurance too
+
+I put a live token count in the heartbeat, because "4,200 tokens" is more
+convincing evidence of life than a spinner. It displayed 5. Probing the event
+stream: `thinking: adaptive` sends `message_start`, then nothing for 170
+seconds, then every delta in the final second. The counter I added to prove the
+system was alive would have sat frozen for the entire wait — an *anti*-signal,
+strictly worse than nothing, and I would have shipped it as the fix to "no
+feedback."
+
+Two-sample lesson from the same session: I also nearly shipped `effort: 'low'`
+off one chart where it was both faster and more accurate. The second chart
+reversed the accuracy verdict. Both mistakes are the same one — **a measurement
+that confirms the change you wanted is the one to repeat**, and the cheapest
+repetition is a second instance, not a second reading.
+
+## 2026-08-09 (cont.) — A special case is a principle that hasn't been asked the second question
+
+`getDurationFraction` guarded one modifier and not the other:
+
+```ts
+if (isDotted && DOTTED_BASES.has(baseId)) return DURATIONS[`${baseId}-dotted`];
+const key = isTriplet ? `${baseId}-triplet` : baseId;   // no guard
+```
+
+That asymmetry is not sloppiness. It is exactly correct for the vocabulary it was written
+against: two of the four bases had dotted variants, and *all four* had triplets. The author
+guarded the thing that needed guarding. The dotted set exists because dotted was partial;
+triplet needed no set because triplet was total.
+
+The trouble is that "triplet is total" was a fact about the data, and it was recorded
+nowhere. It lived only in the shape of the `DURATIONS` literal. Adding a fifth base with no
+triplet variant silently converted a correct line into one that returns `undefined` — and
+`undefined` as a `Fraction` doesn't throw at the call site, it flows into a note and detonates
+somewhere downstream in the ABC layer.
+
+**The tell is a guard that exists for one member of a pair and not the other.** Not "this
+code is wrong" — it isn't — but "this code encodes a fact about today's data as an absence."
+The fix isn't a bigger guard, it's promoting the special case to a principle: `TRIPLET_BASES`
+alongside `DOTTED_BASES`, so the resolver is total by construction and the vocabulary can grow
+without anyone having to remember. Then the test asserts the property (every base × triplet ×
+dotted yields a real fraction) rather than the instances.
+
+### The same lesson, one day later, one file over
+
+Yesterday I wrote: *"A contract with no shared artifact isn't a contract; it's a coincidence
+that has held so far."* That was about ear-training categories and the pattern tables that
+supply them — two modules that couldn't see each other.
+
+Today it was two functions **twelve lines apart**. `DurationSelector` built the DurationId
+itself to get a display name, carrying its own copy of the dotted-beats-triplet precedence
+rule; `getDurationFraction` built it again to get a fraction. Both correct. Both agreeing by
+coincidence. Adding `sixteenth` would have split them — the fraction path would have fallen
+back to `[1,16]` while the component displayed `undefined`.
+
+So the shared-artifact problem doesn't need distance to hide in. I'd assumed it was a
+consequence of module boundaries, of things being far apart. It isn't. It's a consequence of
+a rule being *expressed twice*, and proximity offers no protection at all — arguably less,
+because two adjacent copies look like they're obviously in sync.
+
+### A disabled attribute is a claim about the DOM, not about the system
+
+The Triplet button is `disabled` on a sixteenth. That is honest and it is useless as a
+guarantee, because both editors bind `t` directly to `toggleTriplet` — the keyboard never
+touches the button. Guarding at the widget would have produced the worst outcome available:
+the click path refuses, the key path succeeds, and the resulting flag lies dormant until you
+switch to a base where it *does* apply and get a triplet you never asked for.
+
+Same shape as the deep-practice cue that reads the actual scheduled recording windows instead
+of modelling them: **put the rule where the paths converge, and let the UI be its echo.** The
+question to ask of any UI-level validation is not "is this correct?" but "what else can reach
+this state?" Here the answer was sitting in the same file, two hundred lines down, in a
+`keydown` handler.
+
+### Postscript: my screenshot lied to me
+
+I read computed background colours off five buttons and found two of them lit. The state was
+correct; I had caught a 150ms `transition-colors` mid-fade, and the intermediate RGB values
+were plausible enough to look like a real bug. (I confirmed it by solving for the accent
+colour from the two transitioning values — they were consistent with a single fade at ~31%.)
+
+Worth keeping because it's the inverse of the token-counter mistake from this morning. There I
+shipped an indicator that would have shown *nothing happening* while everything was fine; here
+I nearly diagnosed *something broken* from an animation working exactly as designed. Same root:
+**a rendered surface sampled at an arbitrary instant is evidence about that instant, not about
+the state.** Read the state — `aria-pressed` — and use the pixels to check taste, not truth.
