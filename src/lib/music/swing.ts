@@ -1,4 +1,15 @@
 /**
+ * The straight-eighths ratio: the off-beat eighth sits exactly halfway
+ * through the beat. Also the floor of the user's swing setting and the
+ * value every "no swing" branch tests against — it was previously written
+ * as a bare 0.5 in four unrelated modules.
+ */
+export const STRAIGHT_SWING = 0.5;
+
+/** Heaviest swing the settings UI allows. */
+export const MAX_SWING = 0.8;
+
+/**
  * Swing timing for off-beat 8th notes.
  *
  * Triplet-eighth positions are immune by construction: they land at
@@ -12,7 +23,7 @@
  * @returns Shifted beat position
  */
 export function applySwingToBeats(beats: number, swing: number): number {
-	if (swing <= 0.5) return beats;
+	if (swing <= STRAIGHT_SWING) return beats;
 	const fractional = beats - Math.floor(beats);
 	if (Math.abs(fractional - 0.5) < 0.001) {
 		return beats + (swing - 0.5);

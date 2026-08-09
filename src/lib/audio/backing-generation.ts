@@ -37,7 +37,7 @@
 
 import type { HarmonicSegment, ChordQuality } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
-import { swingForTempo } from '$lib/music/swing';
+import { swingForTempo, STRAIGHT_SWING } from '$lib/music/swing';
 import {
 	SWING_TIMING,
 	createTimingStreams,
@@ -115,20 +115,32 @@ export interface BackingGenerationParams {
 }
 
 /**
- * Effective swing for the backing: the session value when the user swings
- * the melody (the band must share the soloist's grid), else the style's
- * model — 'tempo' follows the Friberg–Sundström curve (`swingForTempo`),
- * 'fixed' uses the style default. Scoring is untouched: it shares only the
- * melody's options.swing, and `swingForTempo` is banned from scorer
- * modules by a unit test.
+ * Effective swing for the backing.
+ *
+ * The style owns the grid. A 'fixed' style (straight, bossa nova, ballad)
+ * declares a genre whose eighth-note placement is not a matter of taste —
+ * a bossa is straight — so its `defaultSwing` wins outright. Only the
+ * 'tempo' style (swing) defers to the user's knob, falling back to the
+ * Friberg–Sundström curve (`swingForTempo`) when that knob sits straight.
+ *
+ * This used to be inverted: any `userSwing > STRAIGHT_SWING` overrode the
+ * style, and because the knob's first step off its 0.5 minimum is 0.55,
+ * every non-default knob position silently swung Straight and Bossa Nova.
+ * The old rule existed to keep the band on the soloist's grid; that
+ * invariant is preserved by `resolveMelodySwing`, which moves the melody
+ * onto the style's grid instead of dragging the band onto the melody's.
+ *
+ * `swingForTempo` stays banned from playback, scoring, and tricks modules
+ * by a unit test — hence the melody-side resolver lives in backing-styles.ts
+ * and never references it.
  */
 export function resolveBackingSwing(
 	userSwing: number,
 	style: StyleDefinition,
 	tempo: number
 ): number {
-	if (userSwing > 0.5) return userSwing;
-	return style.swingModel === 'tempo' ? swingForTempo(tempo) : style.defaultSwing;
+	if (style.swingModel === 'fixed') return style.defaultSwing;
+	return userSwing > STRAIGHT_SWING ? userSwing : swingForTempo(tempo);
 }
 
 // ── Bar contexts ─────────────────────────────────────────────

@@ -39,6 +39,17 @@ describe('straight style', () => {
 		}
 	});
 
+	it('ignores the user swing knob — the style owns the grid', () => {
+		// Regression: the knob used to override any fixed-grid style, and its
+		// first step off the 0.5 minimum is 0.55, so every non-default knob
+		// position silently swung Straight and Bossa Nova.
+		for (const userSwing of [0.55, 0.62, 0.8]) {
+			for (const tempo of [60, 140, 240]) {
+				expect(resolveBackingSwing(userSwing, BACKING_STYLES.straight, tempo)).toBe(0.5);
+			}
+		}
+	});
+
 	it('is deterministic', () => {
 		const gen = () => generateBacking(HARMONY, BACKING_STYLES.straight, params());
 		expect(gen()).toEqual(gen());

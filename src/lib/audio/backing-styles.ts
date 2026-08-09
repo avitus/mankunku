@@ -502,3 +502,26 @@ export const BACKING_STYLE_NAMES: Record<BackingStyle, string> = {
 /** The style ids, in display order — the one list every style picker and
  *  validator should consume instead of hand-copying the union. */
 export const BACKING_STYLE_IDS = Object.keys(BACKING_STYLES) as BackingStyle[];
+
+/**
+ * Effective swing for the MELODY — the phrase the app plays back and the
+ * grid the scorer expects the player to land on.
+ *
+ * Soloist and band must share one grid. `resolveBackingSwing` puts the
+ * band on the style's grid for 'fixed' styles, so the melody follows it
+ * here: over a bossa, both play straight. For the 'tempo' style (swing)
+ * the user's knob still rules, exactly as before.
+ *
+ * Deliberately NOT tempo-dependent, and deliberately free of any reference
+ * to `swingForTempo`: what the scorer asks of the player must not shift
+ * with tempo, and a unit test enforces that by scanning playback, scoring,
+ * and tricks sources for that identifier.
+ */
+export function resolveMelodySwing(userSwing: number, style: StyleDefinition): number {
+	return style.swingModel === 'fixed' ? style.defaultSwing : userSwing;
+}
+
+/** `resolveMelodySwing` by style id, for the routes that hold one. */
+export function melodySwingForStyle(userSwing: number, style: BackingStyle): number {
+	return resolveMelodySwing(userSwing, BACKING_STYLES[style]);
+}
