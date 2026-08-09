@@ -6,6 +6,8 @@
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
 	import UpcomingKeysDisplay from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
 	import LickBreatherCard from '$lib/components/lick-practice/LickBreatherCard.svelte';
+	import PhaseCueBar from '$lib/components/lick-practice/PhaseCueBar.svelte';
+	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
 	import {
 		lickPractice,
 		getCurrentPlanItem,
@@ -25,8 +27,10 @@
 		resetSession,
 		resetLick,
 		startSession,
+		startSingleLickSession,
 		getSessionReport,
-		getUpcomingLicks
+		getUpcomingLicks,
+		getNextStep
 	} from '$lib/state/lick-practice.svelte';
 	import { scoreToGrade } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
@@ -37,8 +41,22 @@
 	} from '$lib/data/progressions';
 	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
 	import { resolveNextCycleStart, planCycleWindows } from '$lib/state/lick-practice-rotation';
+	import {
+		INTER_LICK_REST_BARS,
+		SCORE_HOLD_BARS
+	} from '$lib/state/lick-practice-duration';
+	import {
+		buildPhaseTimeline,
+		phaseCueAt,
+		type PhaseCue,
+		type PhaseSegment
+	} from '$lib/state/lick-practice-phase';
 	import { buildTurnaroundBarEvents, type BackingHit } from '$lib/audio/turnaround-bar';
-	import type { PlannedKey, LickBreatherInfo } from '$lib/state/lick-practice.svelte';
+	import type {
+		PlannedKey,
+		LickBreatherInfo,
+		NextStepAction
+	} from '$lib/state/lick-practice.svelte';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
@@ -191,6 +209,18 @@
 	// through phantom beats while its results stay on screen.
 	let lickEndFreezeTick: number | null = null;
 
+	// Listen/play signalling. The timeline is a non-reactive tick anchor
+	// (rebuilt from the SAME window plan the recorder is scheduled against,
+	// so the cue can never disagree with the microphone); `phaseCue` is the
+	// reactive read of it, refreshed from the beat tracker's rAF loop and
+	// assigned only when the rendered fields actually change.
+	let phaseTimeline: PhaseSegment[] = [];
+	const IDLE_CUE: PhaseCue = { phase: 'idle', next: null, beatsUntilNext: null, countdown: 0 };
+	let phaseCue = $state<PhaseCue>(IDLE_CUE);
+	// True through the lead-in bar before the user's window opens — used to
+	// pre-light the chart so the eye is already on the right row at the switch.
+	const isArming = $derived(phaseCue.countdown > 0 && phaseCue.next === 'play');
+
 	// Stable base id + start timestamp for this session's log entries.
 	// Generated once at session start in initializeSession(); each scored
 	// key upserts one row per practiced progression under the composite
@@ -201,13 +231,15 @@
 	let lickPracticeSessionLogId = '';
 	let lickPracticeSessionStartTs = 0;
 
-	// Inter-lick rest (STANDARD mode only): 2 bars of backing-only between
-	// licks. The rest is split visually: the first SCORE_HOLD_BARS keep the
-	// finished lick on screen so the last key's score dot is actually seen
-	// (it lands at the same tick the lick ends), then the display flips to
-	// the next lick while a ii-V cue into its key fills the final rest bar.
-	const INTER_LICK_REST_BARS = 2;
-	const SCORE_HOLD_BARS = 1;
+	// Inter-lick rest (STANDARD mode only): INTER_LICK_REST_BARS of
+	// backing-only between licks. The rest is split visually: the first
+	// SCORE_HOLD_BARS keep the finished lick on screen so the last key's score
+	// dot is actually seen (it lands at the same tick the lick ends), then the
+	// display flips to the next lick while a ii-V cue into its key fills the
+	// final rest bar. Both constants live in lick-practice-duration.ts, where
+	// the session-length estimate reads them — the estimate and the scheduler
+	// must never hold separate copies of this layout.
+	//
 	// Single-lick deep practice has no rest at all: cycles join over ONE bar
 	// of full rhythm-section turnaround (ii-V into the next head key), so the
 	// band never stops and the user keeps playing. The bar doubles as the
@@ -261,7 +293,17 @@
 	const currentPhrase = $derived(getCurrentPhrase());
 	const currentProgressionType = $derived(getCurrentProgressionType());
 	const instrument = $derived(getInstrument());
-	const totalSeconds = $derived(lickPractice.config.durationMinutes * 60);
+	// Countdown total = how long the PLAN takes, not the duration budget. A
+	// standard session plays its plan once and stops; with a typical book the
+	// plan runs out well before the budget does, so counting down from
+	// `durationMinutes` used to leave minutes on the clock at the report
+	// screen. Falls back to the budget only if a plan somehow carries no
+	// estimate (e.g. state restored from an older session shape).
+	const totalSeconds = $derived(
+		lickPractice.plannedSeconds > 0
+			? Math.round(lickPractice.plannedSeconds)
+			: lickPractice.config.durationMinutes * 60
+	);
 
 	// Label shown in the header when the current lick is playing via a
 	// harmonic substitution (e.g. minor lick shifted over a dominant chord).
@@ -515,7 +557,8 @@
 						ticksPerBar,
 						keyBars,
 						lickBars,
-						ticksPerBar
+						ticksPerBar,
+						/* countInBars */ 1
 					);
 				}
 			});
@@ -568,7 +611,10 @@
 		audioStartTick: number,
 		keyBars: number,
 		lickBars: number,
-		ticksPerBar: number
+		ticksPerBar: number,
+		/** Count-in bars preceding `audioStartTick` — 1 for the session's first
+		 *  lick (the transport opens on a count-in bar), 0 thereafter. */
+		countInBars: number = 0
 	): void {
 		if (!toneModule) return;
 		const transport = toneModule.getTransport();
@@ -595,6 +641,20 @@
 		});
 		const lickEndTick = windows.cycleEndTick;
 		lickEndFreezeTick = lickEndTick;
+
+		// Listen/play timeline for this cycle, derived from the very windows
+		// scheduled above. Single-lick cycles join over one turnaround bar;
+		// standard licks over the two-bar inter-lick rest — either way the
+		// trailing segment keeps the cue counting into the next entrance
+		// instead of going blank between cycles.
+		phaseTimeline = buildPhaseTimeline({
+			audioStartTick,
+			windows,
+			ticksPerBar,
+			countInBars,
+			trailingBars:
+				lickPractice.mode === 'single-lick' ? TURNAROUND_BARS : INTER_LICK_REST_BARS
+		});
 
 		for (let i = 0; i < item.keys.length; i++) {
 			const keyIndexForCallback = i;
@@ -851,6 +911,18 @@
 					const elapsedTicks = ticks - lickAudioStartTick;
 					const phrasePos = elapsedTicks < 0 ? 0 : elapsedTicks / ppq;
 					currentBeat = beatLoopBeats > 0 ? phrasePos % beatLoopBeats : 0;
+				}
+
+				// Listen/play cue. Re-read every frame (so the countdown lands
+				// on the beat) but only committed when a rendered field moves —
+				// a fresh object each frame would re-render the bar at 60fps.
+				const nextCue = phaseCueAt(ticks, phaseTimeline, ppq);
+				if (
+					nextCue.phase !== phaseCue.phase ||
+					nextCue.next !== phaseCue.next ||
+					nextCue.countdown !== phaseCue.countdown
+				) {
+					phaseCue = nextCue;
 				}
 
 				// Continuous scroll position for the upcoming-keys preview.
@@ -1260,6 +1332,10 @@
 		}
 		scoreFlash = null;
 		lastBoundaryTick = null;
+		// Drop the listen/play cue so a stale "Play" can't outlive the session
+		// on the report screen or into a restart.
+		phaseTimeline = [];
+		phaseCue = IDLE_CUE;
 		// Capture whether the session was actually running.  Resources
 		// created during initializeSession() (mic, detectors, timers)
 		// can exist while isSessionRunning is still false, so we always
@@ -1357,32 +1433,45 @@
 		goto('/lick-practice');
 	}
 
+	// Page-local session state outlives the prior session's stopAll; clear it
+	// before any reactive read can render stale UI between the start call
+	// (which sets phase to 'count-in') and startLick (which writes fresh
+	// values). Every restart-in-place path must run this in full — a missed
+	// field leaves the new session animating against the old session's ticks.
+	function resetPageLocalSessionState(): void {
+		plannedKeysForLick = [];
+		scrollFraction = 0;
+		isDemoing = false;
+		currentBeat = 0;
+		lickStartTick = 0;
+		lickAudioStartTick = 0;
+		ticksPerKey = 0;
+		beatLoopBeats = 0;
+		lickEndFreezeTick = null;
+		phaseTimeline = [];
+		phaseCue = IDLE_CUE;
+	}
+
 	let isRestarting = false;
-	async function handleStartProgression(progressionType: ChordProgressionType) {
+
+	/**
+	 * Shared restart-in-place body for every report-screen start button.
+	 * `start` installs the new plan and flips the phase; anything else means it
+	 * bailed (no plan, unresolvable lick) and we fall back to setup rather than
+	 * leaving the user on a screen whose report has already been cleared.
+	 */
+	async function restartInPlace(start: () => boolean): Promise<void> {
 		// Re-entrancy guard: a fast double-click would otherwise race two
 		// initializeSession() calls against the same shared state.
 		if (isRestarting) return;
 		isRestarting = true;
 		try {
-			lickPractice.config.progressionType = progressionType;
 			resetSession();
 			sessionReport = null;
 			clearReportResetState();
-			// Page-local session state outlives the prior session's stopAll; clear
-			// it before any reactive read can render stale UI between startSession
-			// (sets phase to 'count-in') and startLick (writes fresh values).
-			plannedKeysForLick = [];
-			scrollFraction = 0;
-			isDemoing = false;
-			currentBeat = 0;
-			lickStartTick = 0;
-			lickAudioStartTick = 0;
-			ticksPerKey = 0;
-			beatLoopBeats = 0;
-			lickEndFreezeTick = null;
-			startSession();
-			if (lickPractice.phase !== 'count-in') {
-				// startSession bailed (no plan for this progression) — fall back to setup.
+			resetPageLocalSessionState();
+			const started = start();
+			if (!started || lickPractice.phase !== 'count-in') {
 				goto('/lick-practice');
 				return;
 			}
@@ -1397,6 +1486,25 @@
 		} finally {
 			isRestarting = false;
 		}
+	}
+
+	async function handleStartProgression(progressionType: ChordProgressionType) {
+		await restartInPlace(() => {
+			lickPractice.config.progressionType = progressionType;
+			startSession();
+			// startSession has no return value; the phase check in restartInPlace
+			// catches the "no plan for this progression" bail.
+			return true;
+		});
+	}
+
+	// Tee up the report's single recommendation. Deep practice aims itself:
+	// it sorts the rotation worst-first by rolling score and demos the head
+	// key while it is below proficient, so no key argument is needed. The
+	// plan item's resolved Phrase is preferred over the bare id because
+	// `getLickById` misses for user/community licks.
+	async function handleStartNextStep(action: NextStepAction) {
+		await restartInPlace(() => startSingleLickSession(action.phrase ?? action.lickId));
 	}
 
 	const RELATIVE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -1587,6 +1695,13 @@
 			</div>
 		{/if}
 
+		<!-- One recommendation, grounded in the numbers above and startable in a
+		     tap. Null only when the session recorded nothing at all. -->
+		{@const nextStep = getNextStep(sessionReport)}
+		{#if nextStep}
+			<NextStepCard step={nextStep} onstart={handleStartNextStep} />
+		{/if}
+
 		{@const upcoming = getUpcomingLicks()}
 		{#if upcoming.length > 0}
 			<details class="group rounded-lg bg-[var(--color-bg-secondary)]">
@@ -1653,6 +1768,11 @@
 			{substitutionLabel}
 		/>
 
+		<!-- Listen / play cue. Sits directly above the scrolling chart because
+		     that is where the eyes already are, and counts the user into every
+		     entrance so a switch is anticipated rather than discovered. -->
+		<PhaseCueBar cue={phaseCue} />
+
 		<!-- Continuous chord-block scroll: the lick's full key stack drifts
 		     upward at exactly one row per key duration. During the inter-lick
 		     score-hold bar the frozen last-key chart cross-fades out and the
@@ -1672,6 +1792,7 @@
 					isPlaying={isSessionRunning}
 					{isRecording}
 					{isDemoing}
+					{isArming}
 					{scoreFlash}
 					{instrument}
 				/>

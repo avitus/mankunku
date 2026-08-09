@@ -120,8 +120,11 @@ import {
 	DEFAULT_PROGRESSION,
 	type UpcomingLickEntry
 } from './lick-practice-picker';
+import { buildNextStep, type NextStep } from './lick-practice-next-steps';
+import { concertKeyToWritten } from '$lib/music/transposition';
 
 export type { UpcomingLickEntry };
+export type { NextStep, NextStepAction } from './lick-practice-next-steps';
 
 /**
  * Per-key pass bar — score at or above which a key counts as "passed"
@@ -381,6 +384,25 @@ export function getUpcomingLicks(): UpcomingLickEntry[] {
 		candidates,
 		progress: lickPractice.progress,
 		getProgressionTags
+	});
+}
+
+/**
+ * Resolve the session-complete screen's single next-step recommendation —
+ * runes wrapper that supplies the still-intact plan (the source of truth for
+ * which report entries are trick items) and the user's written-pitch spelling,
+ * then delegates to the pure `buildNextStep`.
+ *
+ * Takes the report the caller already built rather than calling
+ * `getSessionReport()` again, so the card can never disagree with the numbers
+ * rendered beside it.
+ */
+export function getNextStep(report: SessionReport): NextStep | null {
+	const instrument = getInstrument();
+	return buildNextStep({
+		report,
+		plan: lickPractice.plan,
+		formatKey: (key) => concertKeyToWritten(key, instrument)
 	});
 }
 
