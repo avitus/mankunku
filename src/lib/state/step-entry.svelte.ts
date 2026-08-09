@@ -1,7 +1,7 @@
 import type { Note, Fraction, PitchClass, Phrase, PhraseCategory } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { BaseDurationId } from '$lib/step-entry/durations';
-import { getDurationFraction } from '$lib/step-entry/durations';
+import { DOTTED_BASES, TRIPLET_BASES, getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
 import { concertKeyToWritten, transposePitchClass } from '$lib/music/transposition';
@@ -467,12 +467,21 @@ export function setDuration(id: BaseDurationId): void {
 	stepEntry.currentDuration = id;
 }
 
+/**
+ * Turning a modifier ON is refused when the current base has no such variant
+ * (no sixteenth triplet, no dotted whole note) — otherwise the keyboard would
+ * set a flag the disabled button forbids, and it would silently take effect on
+ * the next base that does support it. Turning one OFF is always allowed, so a
+ * flag left over from another base can still be cleared.
+ */
 export function toggleTriplet(): void {
+	if (!stepEntry.tripletMode && !TRIPLET_BASES.has(stepEntry.currentDuration)) return;
 	stepEntry.tripletMode = !stepEntry.tripletMode;
 	if (stepEntry.tripletMode) stepEntry.dottedMode = false;
 }
 
 export function toggleDotted(): void {
+	if (!stepEntry.dottedMode && !DOTTED_BASES.has(stepEntry.currentDuration)) return;
 	stepEntry.dottedMode = !stepEntry.dottedMode;
 	if (stepEntry.dottedMode) stepEntry.tripletMode = false;
 }

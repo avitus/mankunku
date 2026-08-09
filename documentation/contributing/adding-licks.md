@@ -103,6 +103,7 @@ Durations and offsets are fractions of a **whole note**:
 | Eighth note | `[1, 8]` | |
 | Dotted quarter | `[3, 8]` | |
 | Triplet eighth | `[1, 12]` | |
+| Dotted eighth | `[3, 16]` | |
 | Sixteenth | `[1, 16]` | |
 
 Offsets work the same way. Beat positions in 4/4:

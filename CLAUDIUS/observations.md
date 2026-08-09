@@ -681,3 +681,219 @@ artifact isn't a contract; it's a coincidence that has held so far.**
 
 Net for the day: -1155 lines of dead code deleted, +385 licks generated, four
 bugs fixed. The deletion and the expansion are the same insight arriving twice.
+
+## 2026-08-09 — A timeout is a claim about a distribution you have not measured
+
+The PDF import's 180s client abort was not a bad number. It was a number at all,
+placed against a quantity that has no stable value: the same 4-bar image, same
+prompt, same model, returned in 109s and 180s on consecutive runs, and 345s in
+another chart's run. Fable at `effort: 'high'` decides how long to think, and
+the spread is 12× on identical input.
+
+Every timeout in the path had been tuned by the same method — pick a number
+comfortably above what you saw once. Client 180s per system, client 300s for
+the fallback, nginx 330s. Each looked generous. Each was inside the
+distribution.
+
+**The move that fixes this class is not a bigger number, it's changing what is
+being measured.** A heartbeat converts "how long may this take?" — unanswerable
+— into "how long may it go silent?" — answerable, because the server controls
+it. `proxy_read_timeout` stops mattering. The client's deadline stops being a
+guess. The only remaining question is one the system can actually answer about
+itself.
+
+I want to keep the tell, because it generalises past timeouts: **when a
+constant has to be tuned against something you don't control, you are measuring
+the wrong quantity.** Retry counts against flaky infra, buffer sizes against
+user input, poll intervals against remote jobs — same shape, same fix, which is
+to find the quantity your own code determines and measure that instead.
+
+### The recovery path was two thirds of the damage
+
+Timing out was one bug. What the code did *about* it was worse: `Promise.all`
+rejected on the first abort, which discarded every system that had already
+transcribed, and fell back to the slowest path in the system — which then
+usually also timed out. Three minutes of good work thrown away to buy five
+minutes of a worse attempt.
+
+And `assembleClaudeDoc` had **always** padded missing systems to empty bars. The
+chords and bar structure come from the deterministic geometry+text pass, not
+the model. A partial transcription was a usable draft the entire time; the
+caller just refused to look at it. This is the third instance I've logged of
+*the capability exists, the caller discards it* (nginx `try_files` serving a
+pool nobody could stat; pass-gated `rollingScore` unable to see failure) — and
+the common thread is that the discarding code was written by someone reasoning
+about the happy path, where the discarded thing is always empty anyway.
+
+### Measure the reassurance too
+
+I put a live token count in the heartbeat, because "4,200 tokens" is more
+convincing evidence of life than a spinner. It displayed 5. Probing the event
+stream: `thinking: adaptive` sends `message_start`, then nothing for 170
+seconds, then every delta in the final second. The counter I added to prove the
+system was alive would have sat frozen for the entire wait — an *anti*-signal,
+strictly worse than nothing, and I would have shipped it as the fix to "no
+feedback."
+
+Two-sample lesson from the same session: I also nearly shipped `effort: 'low'`
+off one chart where it was both faster and more accurate. The second chart
+reversed the accuracy verdict. Both mistakes are the same one — **a measurement
+that confirms the change you wanted is the one to repeat**, and the cheapest
+repetition is a second instance, not a second reading.
+
+## 2026-08-09 (cont.) — A special case is a principle that hasn't been asked the second question
+
+`getDurationFraction` guarded one modifier and not the other:
+
+```ts
+if (isDotted && DOTTED_BASES.has(baseId)) return DURATIONS[`${baseId}-dotted`];
+const key = isTriplet ? `${baseId}-triplet` : baseId;   // no guard
+```
+
+That asymmetry is not sloppiness. It is exactly correct for the vocabulary it was written
+against: two of the four bases had dotted variants, and *all four* had triplets. The author
+guarded the thing that needed guarding. The dotted set exists because dotted was partial;
+triplet needed no set because triplet was total.
+
+The trouble is that "triplet is total" was a fact about the data, and it was recorded
+nowhere. It lived only in the shape of the `DURATIONS` literal. Adding a fifth base with no
+triplet variant silently converted a correct line into one that returns `undefined` — and
+`undefined` as a `Fraction` doesn't throw at the call site, it flows into a note and detonates
+somewhere downstream in the ABC layer.
+
+**The tell is a guard that exists for one member of a pair and not the other.** Not "this
+code is wrong" — it isn't — but "this code encodes a fact about today's data as an absence."
+The fix isn't a bigger guard, it's promoting the special case to a principle: `TRIPLET_BASES`
+alongside `DOTTED_BASES`, so the resolver is total by construction and the vocabulary can grow
+without anyone having to remember. Then the test asserts the property (every base × triplet ×
+dotted yields a real fraction) rather than the instances.
+
+### The same lesson, one day later, one file over
+
+Yesterday I wrote: *"A contract with no shared artifact isn't a contract; it's a coincidence
+that has held so far."* That was about ear-training categories and the pattern tables that
+supply them — two modules that couldn't see each other.
+
+Today it was two functions **twelve lines apart**. `DurationSelector` built the DurationId
+itself to get a display name, carrying its own copy of the dotted-beats-triplet precedence
+rule; `getDurationFraction` built it again to get a fraction. Both correct. Both agreeing by
+coincidence. Adding `sixteenth` would have split them — the fraction path would have fallen
+back to `[1,16]` while the component displayed `undefined`.
+
+So the shared-artifact problem doesn't need distance to hide in. I'd assumed it was a
+consequence of module boundaries, of things being far apart. It isn't. It's a consequence of
+a rule being *expressed twice*, and proximity offers no protection at all — arguably less,
+because two adjacent copies look like they're obviously in sync.
+
+### A disabled attribute is a claim about the DOM, not about the system
+
+The Triplet button is `disabled` on a sixteenth. That is honest and it is useless as a
+guarantee, because both editors bind `t` directly to `toggleTriplet` — the keyboard never
+touches the button. Guarding at the widget would have produced the worst outcome available:
+the click path refuses, the key path succeeds, and the resulting flag lies dormant until you
+switch to a base where it *does* apply and get a triplet you never asked for.
+
+Same shape as the deep-practice cue that reads the actual scheduled recording windows instead
+of modelling them: **put the rule where the paths converge, and let the UI be its echo.** The
+question to ask of any UI-level validation is not "is this correct?" but "what else can reach
+this state?" Here the answer was sitting in the same file, two hundred lines down, in a
+`keydown` handler.
+
+### Postscript: my screenshot lied to me
+
+I read computed background colours off five buttons and found two of them lit. The state was
+correct; I had caught a 150ms `transition-colors` mid-fade, and the intermediate RGB values
+were plausible enough to look like a real bug. (I confirmed it by solving for the accent
+colour from the two transitioning values — they were consistent with a single fade at ~31%.)
+
+Worth keeping because it's the inverse of the token-counter mistake from this morning. There I
+shipped an indicator that would have shown *nothing happening* while everything was fine; here
+I nearly diagnosed *something broken* from an animation working exactly as designed. Same root:
+**a rendered surface sampled at an arbitrary instant is evidence about that instant, not about
+the state.** Read the state — `aria-pressed` — and use the pixels to check taste, not truth.
+
+## 2026-08-09 (cont. 2) — I fixed the reassurance for one audience and broke it for another
+
+This morning I caught myself about to ship a live token counter that would have sat frozen at
+5 for 170 seconds — an indicator proving the system was alive that would have read as a hang.
+I wrote it up as *measure your progress indicator before shipping it as reassurance.*
+
+The same panel carried `role="status"` + `aria-live="polite"` on its outer div, wrapping a
+clock that ticks every 500ms and a per-line list that mutates as systems settle. For a screen
+reader user that is the entire panel re-announced twice a second, for the several minutes an
+import legitimately takes.
+
+So in one sitting I removed a signal that would have under-reported life, and shipped one that
+over-reports it into a firehose. Both are the same error — **I evaluated the indicator by
+imagining it, not by running it** — and my correction only covered the audience I could
+picture. The screenshot I *did* take was of pixels. There is no equivalent glance for a live
+region; you have to reason about it deliberately or you will never see it, because the visual
+rendering of the bug is *identical to the correct version*.
+
+That's the durable bit. A visual defect is caught by looking. An aria-live defect has no
+visual manifestation at all, so "it looks right" carries exactly zero information about it.
+Anywhere a live region wraps a container rather than a sentence, the question to ask is not
+"does this look right" but **"how often does anything inside this change, and would I sit
+through hearing it?"**
+
+### A test that asserts a guard it never reaches
+
+The review's best finding was a test I'd have defended on sight: `does not start a second
+whole-PDF extraction once the budget is gone`, asserting one model call. True assertion, real
+guard, wrong reason. The retry is gated on `score >= 2 && elapsed < BUDGET`, and the fixture
+produced exactly one warning — so the score was 1 and the budget was never consulted. Advance
+the clock or don't; the test passes either way.
+
+I only established this by dumping the fixture's actual warnings and score from a throwaway
+test. Reading the fixture, I'd have believed the comment above it, which asserted "the
+declared overview disagrees with what was transcribed twice over" — written by me, plausible,
+and false. **The comment described the intent; the fixture implemented something weaker; and
+the assertion couldn't tell the difference.** That gap is invisible to inspection precisely
+because the inspector reads the comment.
+
+The general form, which I now think is the single most reliable tell for a hollow test: *if I
+deleted the mechanism under test, would this still pass?* Here, deleting the budget check
+entirely leaves the test green. A guard test needs its control — the case that fires — or it
+is only asserting that some unrelated condition happens to be false.
+
+### On being wrong in public and being right in public
+
+Two findings in one review: one where the reviewer was right and I'd have shrugged it off
+(the vacuous test), one where the reviewer was wrong and cited *my own PR text* as saying the
+opposite of what it says (clear the modifiers). Both required the same move — go and check —
+and the outcomes diverged completely. It withdrew the second on evidence.
+
+The lesson isn't "trust reviewers" or "trust yourself." It's that agreement and disagreement
+are both cheap, and the only thing that moved either case was running something. I have now
+logged this shape three times today under different names. Perhaps that is the whole job.
+
+### Addendum — I asserted a mechanism I had not read to the end
+
+Within an hour of writing *"the only thing that moved either case was running something,"* I
+shipped an explanation built on a function I had read the first 60 lines of. I claimed
+`readNdjsonResult` tolerates an untyped line as terminal. It does the opposite: only
+`type === 'result'` returns, everything else falls through to `null`, and the stream ends in an
+explicit throw. CodeRabbit caught it — reviewing my session note, not my code.
+
+What makes this worth recording is not the error but its *shape*. I had a genuine puzzle in
+front of me: the old stub sent plain JSON, production takes the NDJSON path, and every test
+passed. Three facts, one of which had to give. I resolved it with the first hypothesis that
+made the contradiction disappear — the reader must be lenient — and never checked it, because
+a resolved contradiction stops itching.
+
+The real answer was the possibility I never enumerated: **the branch is not executed at all.**
+Zero hits when I instrumented it. No e2e test reaches the whole-PDF fallback, because partial
+results removed the thing that used to trigger it. So the stub was dead, and a dead stub cannot
+be wrong in any way a test can detect.
+
+Which lands me, for the fourth time today, on the same structure — nginx `try_files` masking a
+dead pool, the generator whose output was discarded, the budget guard the fixture never
+reached, and now a stub nothing calls. **Code that never runs is indistinguishable from code
+that works.** I keep finding it because I keep looking for broken things, and this failure mode
+is not broken; it is absent. The question that would have caught all four is the same one:
+*what would I expect to see if this were never executed — and is that different from what I am
+seeing?* Here it was not different at all.
+
+Corollary I should act on rather than admire: the whole-PDF fallback now has **no e2e coverage
+whatsoever**. I fixed the stub's fidelity and left the hole. Noting it as a gap rather than
+quietly implying it is tested.

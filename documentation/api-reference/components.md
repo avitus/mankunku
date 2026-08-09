@@ -365,7 +365,9 @@ Key (`stepEntry.phraseKey`) and bar-count (1–4 via `setBarCount`) selectors.
 
 **Path:** `src/lib/components/step-entry/DurationSelector.svelte`
 
-Duration picker (whole / half / quarter / eighth) with keyboard shortcuts `1`–`4` and a triplet toggle (`T`).
+Duration picker (whole / half / quarter / eighth / sixteenth) with keyboard shortcuts `1`–`5`, a triplet toggle (`T`) and a dotted toggle (`.`).
+
+A modifier the current base has no variant for is disabled and rendered inert — there is no sixteenth triplet and no dotted whole note in this vocabulary. `resolveDurationId()` in `src/lib/step-entry/durations.ts` is the single resolver for both the entered fraction and this component's label, so the two cannot disagree; `toggleTriplet`/`toggleDotted` refuse to switch an inapplicable modifier *on*, since the keyboard bypasses the disabled button.
 
 ### `PitchEntryPanel.svelte`
 

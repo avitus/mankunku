@@ -379,7 +379,7 @@
 					<div class="mt-2 grid grid-cols-1 gap-y-1 pl-2">
 						<span><kbd>A</kbd>-<kbd>G</kbd> Enter note</span>
 						<span><kbd>0</kbd> Rest</span>
-						<span><kbd>1</kbd>-<kbd>4</kbd> Duration</span>
+						<span><kbd>1</kbd>-<kbd>5</kbd> Duration</span>
 						<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
 						<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
 						<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>

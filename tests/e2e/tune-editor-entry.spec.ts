@@ -113,3 +113,54 @@ test('arrow keys cross the page boundary', async ({ page }) => {
 	await page.keyboard.press('ArrowRight');
 	await expect.poll(() => selectedNoteIndex(page)).toBe(16);
 });
+
+test('enters sixteenths and a dotted-eighth/sixteenth pair, filling one bar', async ({ page }) => {
+	await openEditor(page);
+	const rail = page.getByTestId('entry-rail');
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	// The resolved-name label is hidden in the narrow rail, so the glyph
+	// buttons' aria-pressed is the readable signal for the active duration.
+	const glyph = (name: string) => rail.getByRole('button', { name });
+
+	// Beat 1: four sixteenths (key 5 is the new glyph).
+	await page.keyboard.press('5');
+	await expect(glyph('Sixteenth Note')).toHaveAttribute('aria-pressed', 'true');
+	for (let i = 0; i < 4; i++) await page.keyboard.press('c');
+	await expect(notes).toHaveCount(4);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
+
+	// Beat 2: dotted eighth + sixteenth. Dotted is only legal once the base is
+	// back on an eighth, which is the pairing this feature exists for.
+	await page.keyboard.press('4');
+	await page.keyboard.press('.');
+	await expect(glyph('Eighth Note')).toHaveAttribute('aria-pressed', 'true');
+	await expect(rail.getByRole('button', { name: /Dotted/ })).toHaveAttribute('aria-pressed', 'true');
+	await page.keyboard.press('c');
+	await page.keyboard.press('.');
+	await page.keyboard.press('5');
+	await page.keyboard.press('c');
+	await expect(notes).toHaveCount(6);
+
+	// 4×1/16 + 3/16 + 1/16 = 1/2 — exactly two beats of 4/4.
+	await expect(rail.getByText(/Section A · Bar 1, Beat 3/)).toBeVisible();
+});
+
+test('Triplet is inert on a sixteenth, from both the button and the keyboard', async ({ page }) => {
+	await openEditor(page);
+	const rail = page.getByTestId('entry-rail');
+	const triplet = rail.getByRole('button', { name: /Triplet/ });
+
+	await page.keyboard.press('5');
+	await expect(triplet).toBeDisabled();
+
+	// The keyboard bypasses the disabled button, so the state module has to
+	// refuse it too — otherwise the flag would lie in wait for the next base.
+	await page.keyboard.press('t');
+	await page.keyboard.press('4');
+	await expect(triplet).toBeEnabled();
+	await expect(triplet).toHaveAttribute('aria-pressed', 'false');
+
+	// An eighth, not an eighth triplet: three notes must not fill a whole beat.
+	for (let i = 0; i < 2; i++) await page.keyboard.press('c');
+	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
+});
