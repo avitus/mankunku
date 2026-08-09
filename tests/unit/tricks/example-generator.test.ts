@@ -198,4 +198,23 @@ describe('allowedSubdivisions', () => {
 		expect(allowedSubdivisions(50)).toEqual(['quarter', 'eighth', 'triplet']);
 		expect(allowedSubdivisions(100)).toContain('sixteenth');
 	});
+
+	it('reads its argument as a PLAYER level across the whole 1-100 range', () => {
+		// Levels 1-12 map to tiers 1-2, which are quarter-notes-only. The old
+		// magnitude heuristic read 1-10 as tier indices, so a level of 10
+		// returned tier 10's full vocabulary — sixteenths included.
+		for (let level = 1; level <= 12; level++) {
+			expect(allowedSubdivisions(level), `level ${level}`).toEqual(['quarter']);
+		}
+		expect(allowedSubdivisions(13)).toContain('eighth');
+	});
+
+	it('widens monotonically as the level rises', () => {
+		let prev = 0;
+		for (let level = 1; level <= 100; level++) {
+			const count = allowedSubdivisions(level).length;
+			expect(count, `level ${level}`).toBeGreaterThanOrEqual(prev);
+			prev = count;
+		}
+	});
 });

@@ -22,6 +22,21 @@ export interface DifficultyProfile {
 	syncopation: boolean;
 	/** Bars per phrase range [min, max] */
 	barsRange: [number, number];
+	/**
+	 * Most pitched notes a phrase at this tier may contain.
+	 *
+	 * Length is a difficulty dimension in its own right — playing back a
+	 * 13-note line by ear is a memory task, however diatonic and slow the
+	 * notes are — and it is the one dimension nothing else here bounds
+	 * (`barsRange` limits duration, not density). Curated ratings are checked
+	 * against these ceilings in tests/unit/data/difficulty-calibration.test.ts.
+	 *
+	 * Calibrated against the licks whose stored level was produced by
+	 * `calculateDifficulty` rather than assigned by hand: their longest lines
+	 * per tier run 2, 4, 9, 9, 11, 17, 16, 13, so these ceilings sit at or just
+	 * above the catalogue the app itself rated.
+	 */
+	maxNotes: number;
 	/** Tempo range [min, max] */
 	tempoRange: [number, number];
 	/** Available keys */
@@ -43,6 +58,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: false,
 		syncopation: false,
 		barsRange: [1, 1],
+		maxNotes: 5,
 		tempoRange: [60, 80],
 		keys: EASY_KEYS
 	},
@@ -55,6 +71,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: false,
 		syncopation: false,
 		barsRange: [1, 1],
+		maxNotes: 7,
 		tempoRange: [60, 90],
 		keys: MEDIUM_KEYS
 	},
@@ -67,6 +84,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: false,
 		barsRange: [1, 2],
+		maxNotes: 9,
 		tempoRange: [70, 100],
 		keys: SEVEN_KEYS
 	},
@@ -79,6 +97,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: true,
 		barsRange: [1, 2],
+		maxNotes: 11,
 		tempoRange: [80, 120],
 		keys: ALL_KEYS
 	},
@@ -91,6 +110,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: true,
 		barsRange: [2, 2],
+		maxNotes: 13,
 		tempoRange: [90, 140],
 		keys: ALL_KEYS
 	},
@@ -103,6 +123,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: true,
 		barsRange: [2, 2],
+		maxNotes: 17,
 		tempoRange: [100, 160],
 		keys: ALL_KEYS
 	},
@@ -115,6 +136,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: true,
 		barsRange: [2, 4],
+		maxNotes: 21,
 		tempoRange: [120, 180],
 		keys: ALL_KEYS
 	},
@@ -128,6 +150,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: true,
 		barsRange: [2, 4],
+		maxNotes: 25,
 		tempoRange: [140, 200],
 		keys: ALL_KEYS
 	},
@@ -140,6 +163,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: true,
 		barsRange: [2, 4],
+		maxNotes: 30,
 		tempoRange: [160, 240],
 		keys: ALL_KEYS
 	},
@@ -152,6 +176,7 @@ export const DIFFICULTY_PROFILES: DifficultyProfile[] = [
 		swing: true,
 		syncopation: true,
 		barsRange: [4, 4],
+		maxNotes: Number.POSITIVE_INFINITY, // 'No Limits' — length is unbounded here
 		tempoRange: [180, 300],
 		keys: ALL_KEYS
 	}
@@ -186,14 +211,71 @@ export function levelToContentTier(level: number): number {
 }
 
 /**
- * Get the difficulty profile for a given level.
- * Accepts either a content tier (1-10) directly or a player level (1-100)
- * which is mapped to a content tier.
+ * Get the profile for a CONTENT TIER (1-10).
+ *
+ * Use this only when the caller genuinely holds a tier index. If the number
+ * came from a player-facing control, stored `difficulty.level`, or anything
+ * else on the 1-100 scale, use getProfileForLevel() instead.
+ *
+ * Throws on anything outside 1-10 rather than guessing: the two scales overlap
+ * on 1-10, so a single function that inferred the scale from the argument's
+ * magnitude inverted the bottom tenth of the 1-100 range — a player level of
+ * 10 selected tier 10 ("No Limits"), the hardest content in the app.
  */
-export function getProfile(level: number): DifficultyProfile {
-	// If the level is > 10, map it to a content tier
-	const tier = level > 10 ? levelToContentTier(level) : level;
-	const profile = DIFFICULTY_PROFILES.find((p) => p.level === tier);
-	if (!profile) throw new Error(`Invalid difficulty level: ${level} (tier ${tier})`);
+export function getProfileForTier(tier: number): DifficultyProfile {
+	const profile = Number.isInteger(tier)
+		? DIFFICULTY_PROFILES.find((p) => p.level === tier)
+		: undefined;
+	if (!profile) throw new Error(`Invalid content tier: ${tier} (expected an integer 1-10)`);
 	return profile;
+}
+
+/**
+ * Get the profile for a PLAYER LEVEL (1-100), via levelToContentTier().
+ *
+ * Total over the whole real line: levels are clamped into 1-100 first, mirroring
+ * difficultyBand() in difficulty/display.ts so the name shown next to a control
+ * and the content it selects can never disagree about an out-of-range value.
+ * Non-finite input falls to tier 1 — every comparison against NaN is false, so
+ * letting it reach levelToContentTier() would fall through to tier 10.
+ */
+export function getProfileForLevel(level: number): DifficultyProfile {
+	const clamped = Number.isFinite(level) ? Math.max(1, Math.min(100, Math.round(level))) : 1;
+	return getProfileForTier(levelToContentTier(clamped));
+}
+
+/**
+ * Lowest player level (1-100) in each content tier, derived from
+ * levelToContentTier() so re-tuned tier boundaries track automatically.
+ * Index = tier - 1.
+ */
+const TIER_FLOOR_LEVELS: number[] = (() => {
+	const floors: number[] = [];
+	for (let level = 1; level <= 100; level++) {
+		const tier = levelToContentTier(level);
+		if (floors[tier - 1] === undefined) floors[tier - 1] = level;
+	}
+	return floors;
+})();
+
+/** Profiles in ascending tier order — this filter runs per lick, so sort once. */
+const PROFILES_BY_TIER: DifficultyProfile[] = [...DIFFICULTY_PROFILES].sort(
+	(a, b) => a.level - b.level
+);
+
+/**
+ * Lowest player level whose content tier admits a phrase of `noteCount`
+ * pitched notes.
+ *
+ * This is the length half of the difficulty rubric: a level-gated pool must
+ * not serve a line longer than its tier's `maxNotes`, no matter how simple
+ * the notes are. Monotonic in `noteCount` by construction, since `maxNotes`
+ * never decreases as tiers rise.
+ */
+export function noteCountFloorLevel(noteCount: number): number {
+	for (const profile of PROFILES_BY_TIER) {
+		if (noteCount <= profile.maxNotes) return TIER_FLOOR_LEVELS[profile.level - 1];
+	}
+	// Unreachable while the top tier is unbounded; falls back to its floor.
+	return TIER_FLOOR_LEVELS[PROFILES_BY_TIER[PROFILES_BY_TIER.length - 1].level - 1];
 }

@@ -3,13 +3,18 @@
  * pentatonic gap (it otherwise carries no 4th or 7th).
  *
  * These deliberately feature the 4th (F in concert C) and 7th (B) so a major
- * session covers the full scale. Diatonic content is front-loaded to
+ * session covers the full scale. SHORT diatonic content is front-loaded to
  * difficulty levels 1-20, which is where the pool was previously almost
  * entirely pentatonic. Chromatic ii-V-I vocabulary is rated per the content
  * tier floors in difficulty/params.ts (chromaticism enters at tier 5 = level
  * 31+), matching the calibration of ii-V-I-major.ts — the ear-training filter
  * gates on difficulty.level alone, so a low level would put bebop chromaticism
  * on beginner ears (see tests/unit/data/difficulty-calibration.test.ts).
+ *
+ * LENGTH is rated the same way. The original ratings here scored harmony and
+ * chromaticism but not note count, which put 13- and 17-note lines in front of
+ * level-16 players; every lick now also sits at or above the `maxNotes` floor
+ * for its tier, which is what pushed the long lines up into tiers 4-6.
  *
  * Two harmonic frames, ~20 each:
  *
@@ -206,7 +211,7 @@ const SINGLE_CHORD_LICKS: Phrase[] = [
 			{ pitch: 72, duration: [1, 8], offset: [7, 8] }  // C5 (8)
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 8, pitchComplexity: 9, rhythmComplexity: 8, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 13, rhythmComplexity: 8, lengthBars: 1 },
 		category: 'bebop-lines',
 		tags: ['major', '4th', '7th', 'scalar', 'full-scale', 'ascending'],
 		source: 'curated'
@@ -227,7 +232,7 @@ const SINGLE_CHORD_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 8], offset: [7, 8] }  // C4 (1)
 		],
 		harmony: CMAJ_1BAR,
-		difficulty: { level: 8, pitchComplexity: 9, rhythmComplexity: 8, lengthBars: 1 },
+		difficulty: { level: 13, pitchComplexity: 13, rhythmComplexity: 8, lengthBars: 1 },
 		category: 'bebop-lines',
 		tags: ['major', '4th', '7th', 'scalar', 'full-scale', 'descending'],
 		source: 'curated'
@@ -472,7 +477,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }  // C4  — resolve
 		],
 		harmony: II_V_I,
-		difficulty: { level: 11, pitchComplexity: 12, rhythmComplexity: 8, lengthBars: 3 },
+		difficulty: { level: 13, pitchComplexity: 13, rhythmComplexity: 8, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'arpeggio'],
 		source: 'curated'
@@ -502,7 +507,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }  // E4  — 3rd of Cmaj7
 		],
 		harmony: II_V_I,
-		difficulty: { level: 16, pitchComplexity: 13, rhythmComplexity: 14, lengthBars: 3 },
+		difficulty: { level: 41, pitchComplexity: 41, rhythmComplexity: 14, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'scalar', 'eighth-notes'],
 		source: 'curated'
@@ -720,7 +725,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 2], offset: [9, 4] }  // C4  — root resolution
 		],
 		harmony: II_V_I,
-		difficulty: { level: 18, pitchComplexity: 16, rhythmComplexity: 13, lengthBars: 3 },
+		difficulty: { level: 21, pitchComplexity: 21, rhythmComplexity: 13, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'enclosure'],
 		source: 'curated'
@@ -772,7 +777,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 60, duration: [1, 1], offset: [2, 1] }  // C4  — resolve
 		],
 		harmony: II_V_I,
-		difficulty: { level: 19, pitchComplexity: 16, rhythmComplexity: 16, lengthBars: 3 },
+		difficulty: { level: 31, pitchComplexity: 31, rhythmComplexity: 16, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'scalar', 'eighth-notes'],
 		source: 'curated'
@@ -876,7 +881,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }  // E4  — resolve
 		],
 		harmony: II_V_I,
-		difficulty: { level: 19, pitchComplexity: 15, rhythmComplexity: 18, lengthBars: 3 },
+		difficulty: { level: 21, pitchComplexity: 21, rhythmComplexity: 18, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'triplet', 'arpeggio'],
 		source: 'curated'
@@ -902,7 +907,7 @@ const II_V_I_LICKS: Phrase[] = [
 			{ pitch: 64, duration: [1, 1], offset: [2, 1] }  // E4  — resolve (3)
 		],
 		harmony: II_V_I,
-		difficulty: { level: 16, pitchComplexity: 14, rhythmComplexity: 13, lengthBars: 3 },
+		difficulty: { level: 31, pitchComplexity: 31, rhythmComplexity: 13, lengthBars: 3 },
 		category: 'ii-V-I-major',
 		tags: ['major', '4th', '7th', 'pentatonic', 'line'],
 		source: 'curated'

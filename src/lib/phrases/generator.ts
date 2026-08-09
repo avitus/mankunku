@@ -20,7 +20,7 @@ import { chordTones } from '$lib/music/chords';
 import { realizeScaleMidi } from '$lib/music/keys';
 import { addFractions, fractionToFloat } from '$lib/music/intervals';
 import { findHarmonyAt } from '$lib/music/harmony';
-import { getProfile, type DifficultyProfile } from '$lib/difficulty/params';
+import { getProfileForLevel, type DifficultyProfile } from '$lib/difficulty/params';
 import { validatePhrase, rulesForDifficulty } from './validator';
 
 export interface GeneratorOptions {
@@ -46,7 +46,7 @@ let idCounter = 0;
  */
 export function generatePhrase(options: GeneratorOptions): Phrase {
 	const timeSig: [number, number] = options.timeSignature ?? [4, 4];
-	const profile = getProfile(options.difficulty);
+	const profile = getProfileForLevel(options.difficulty);
 	const rules = rulesForDifficulty(options.difficulty);
 
 	for (let attempt = 0; attempt < 5; attempt++) {

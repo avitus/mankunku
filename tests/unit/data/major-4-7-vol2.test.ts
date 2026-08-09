@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { MAJOR_4_7_VOL2_LICKS } from '$lib/data/licks/major-4-7-vol2';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index';
 import { isLickCompatible } from '$lib/tonality/scale-compatibility';
+import { noteCountFloorLevel, levelToContentTier } from '$lib/difficulty/params';
 import type { Fraction } from '$lib/types/music';
 
 const val = (f: Fraction): number => f[0] / f[1];
@@ -28,10 +29,19 @@ describe('major 4th & 7th licks, volume 2', () => {
 		}
 	});
 
-	it('every lick sits in the intermediate band, difficulty level 18-30', () => {
+	it('every lick sits in the intermediate band, difficulty level 18-30, unless its length says otherwise', () => {
 		for (const lick of MAJOR_4_7_VOL2_LICKS) {
+			// The band was originally applied to all 40 lines including 15- to
+			// 21-note ones. Length is its own memory load, so the long lines ride
+			// their note-count floor instead — and only as far as the tier that
+			// floor lands in. Nothing else may leave the band.
+			const noteCount = lick.notes.filter((n) => n.pitch !== null).length;
 			expect(lick.difficulty.level, lick.id).toBeGreaterThanOrEqual(18);
-			expect(lick.difficulty.level, lick.id).toBeLessThanOrEqual(30);
+			if (lick.difficulty.level > 30) {
+				expect(levelToContentTier(lick.difficulty.level), lick.id).toBe(
+					levelToContentTier(noteCountFloorLevel(noteCount))
+				);
+			}
 		}
 	});
 

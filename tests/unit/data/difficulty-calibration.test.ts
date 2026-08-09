@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index';
 import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 import { PROGRESSION_CATEGORIES } from '$lib/phrases/library-loader';
-import { DIFFICULTY_PROFILES, levelToContentTier } from '$lib/difficulty/params';
+import { DIFFICULTY_PROFILES, levelToContentTier, noteCountFloorLevel, getProfileForLevel } from '$lib/difficulty/params';
 import { PITCH_CLASSES } from '$lib/types/music';
 
 /**
@@ -55,6 +55,32 @@ describe('curated lick difficulty calibration', () => {
 				violations.push(
 					`${lick.id} "${lick.name}": level ${lick.difficulty.level} < ${CHROMATIC_FLOOR} ` +
 						`(tier ${chromaticTier} floor) but has non-diatonic pitch classes [${outside.join(', ')}]`
+				);
+			}
+		}
+		expect(violations).toEqual([]);
+	});
+
+	/**
+	 * Length is its own difficulty dimension. The ear-training pool gates on
+	 * difficulty.level alone, so a long line rated below the tier that admits
+	 * its note count lands on a beginner: the reported case was a 13-note
+	 * major line served at proficiency 20. Hand-written ratings in the lick
+	 * data files can't see this; the tier ceilings can.
+	 */
+	it('curated licks are rated at or above the floor for their note count', () => {
+		const violations: string[] = [];
+		for (const lick of ALL_CURATED_LICKS) {
+			const noteCount = lick.notes.filter((n) => n.pitch !== null).length;
+			const floor = noteCountFloorLevel(noteCount);
+			if (lick.difficulty.level < floor) {
+				// A stored difficulty.level is a PLAYER level, so it resolves through
+				// the level-taking lookup — no tier mapping at the call site.
+				const profile = getProfileForLevel(lick.difficulty.level);
+				violations.push(
+					`${lick.id} "${lick.name}": ${noteCount} notes rated level ` +
+						`${lick.difficulty.level}, below the level-${floor} floor ` +
+						`(tier ${profile.level} admits ${profile.maxNotes})`
 				);
 			}
 		}
