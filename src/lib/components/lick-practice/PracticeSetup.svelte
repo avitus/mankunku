@@ -36,11 +36,33 @@
 		config: LickPracticeConfig;
 		availableLickCount: number;
 		dailyLickCount: number;
+		/** Licks the plan would actually contain (≤ the eligible count above). */
+		plannedLickCount: number;
+		/** Seconds that plan takes to play — the real session-length estimate. */
+		plannedSeconds: number;
 		onstart: () => void;
 		onupdate: (config: Partial<LickPracticeConfig>) => void;
 	}
 
-	let { config, availableLickCount, dailyLickCount, onstart, onupdate }: Props = $props();
+	let {
+		config,
+		availableLickCount,
+		dailyLickCount,
+		plannedLickCount,
+		plannedSeconds,
+		onstart,
+		onupdate
+	}: Props = $props();
+
+	/**
+	 * Session length for the start caption. Whole minutes at a minute or more,
+	 * seconds below it — a single-lick book runs ~24 s, and rounding that up to
+	 * "~1 min" would repeat the overstatement this estimate exists to remove.
+	 */
+	function formatEstimate(seconds: number): string {
+		if (seconds < 60) return `~${Math.max(10, Math.round(seconds / 10) * 10)} sec`;
+		return `~${Math.round(seconds / 60)} min`;
+	}
 
 	const progressionTypes = Object.values(PROGRESSION_TEMPLATES);
 	const backingStyles = Object.keys(BACKING_STYLE_NAMES) as BackingStyle[];
@@ -214,7 +236,10 @@
 			if (dailyLickCount === 0) {
 				return 'No licks tagged for practice yet.';
 			}
-			return `${dailyLickCount} lick${dailyLickCount === 1 ? '' : 's'} across your tagged progressions · ~${config.durationMinutes} min`;
+			// The planned count, not the eligible count: the budget can cut the
+			// rotation short, and quoting the full tally next to a shorter time
+			// reads as a contradiction.
+			return `${plannedLickCount} lick${plannedLickCount === 1 ? '' : 's'} across your tagged progressions · ${formatEstimate(plannedSeconds)}`;
 		}
 		// focused
 		if (availableLickCount === 0) {
@@ -222,7 +247,7 @@
 				? `No licks tagged for this progression — try Daily Practice or tag more in your book.`
 				: 'No licks tagged for practice yet.';
 		}
-		return `${availableLickCount} lick${availableLickCount === 1 ? '' : 's'} tagged for this progression · ~${config.durationMinutes} min`;
+		return `${plannedLickCount} lick${plannedLickCount === 1 ? '' : 's'} on this progression · ${formatEstimate(plannedSeconds)}`;
 	});
 </script>
 
@@ -255,7 +280,7 @@
 					<Knob
 						label="Duration"
 						ariaLabel="Practice time"
-						helpText="Total session length. Mankunku rotates progressions to fit this budget."
+						helpText="Upper limit on session length. Mankunku queues licks until the budget fills — with a small book the session ends sooner, and the caption under Start shows what it will actually take."
 						value={config.durationMinutes}
 						min={3}
 						max={20}
@@ -292,7 +317,7 @@
 					<Knob
 						label="Duration"
 						ariaLabel="Practice time"
-						helpText="Session length in minutes. Licks are queued until the budget fills."
+						helpText="Upper limit on session length. Licks are queued until the budget fills — with a small book the session ends sooner, and the caption under Start shows what it will actually take."
 						value={config.durationMinutes}
 						min={3}
 						max={20}
