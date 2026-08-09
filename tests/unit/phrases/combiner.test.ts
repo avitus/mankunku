@@ -109,16 +109,21 @@ describe('generateAllCombinations', () => {
 		const phrases = generateAllCombinations();
 		expect(phrases.length).toBeGreaterThan(0);
 
-		// Count expected: for each scale pattern, count rhythm patterns with matching noteCount
-		let expectedCount = 0;
+		// Upper bound: an exact fit, plus — when the rhythm holds a whole number
+		// of the shape (2x or 3x) — one phrase per repeat displacement. Actual
+		// lands below this because of scale-family filtering and sequences that
+		// walk off the end of the tone pool.
+		const REPEAT_DISPLACEMENTS = 3; // literal, up a step, down a step
+		let upperBound = 0;
 		for (const sp of SCALE_PATTERNS) {
 			for (const rp of RHYTHM_PATTERNS) {
-				if (sp.degrees.length === rp.noteCount) expectedCount++;
+				if (sp.degrees.length === rp.noteCount) upperBound++;
+				const repeat = rp.noteCount / sp.degrees.length;
+				if (Number.isInteger(repeat) && repeat >= 2 && repeat <= 3) upperBound += REPEAT_DISPLACEMENTS;
 			}
 		}
-		// Actual may be <= expected due to family compatibility filtering
-		expect(phrases.length).toBeLessThanOrEqual(expectedCount);
-		expect(phrases.length).toBeGreaterThan(expectedCount * 0.5); // at least half should pass
+		expect(phrases.length).toBeLessThanOrEqual(upperBound);
+		expect(phrases.length).toBeGreaterThan(upperBound * 0.5);
 	});
 
 	it('all phrases have valid difficulty metadata', () => {

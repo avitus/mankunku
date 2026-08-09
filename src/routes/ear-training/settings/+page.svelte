@@ -8,6 +8,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { queryLicks, transposeLick, pickRandomLick } from '$lib/phrases/library-loader';
 	import { generatePhrase, getDefaultHarmony } from '$lib/phrases/generator';
+	import { EAR_TRAINING_CATEGORIES } from '$lib/data/ear-training-categories';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import {
 		type Tonality,
@@ -92,14 +93,8 @@
 		session.tempo = tempo;
 		settings.defaultTempo = tempo;
 
-		// Categories with enough curated phrases for reliable random selection.
-		// Excludes long variants, niche categories, and 'user'.
-		const randomPool: PhraseCategory[] = [
-			'ii-V-I-major', 'blues', 'bebop-lines', 'ii-V-I-minor',
-			'short-ii-V-I-major', 'short-ii-V-I-minor'
-		];
 		const category: PhraseCategory = selectedCategory === 'random'
-			? randomPool[Math.floor(Math.random() * randomPool.length)]
+			? EAR_TRAINING_CATEGORIES[Math.floor(Math.random() * EAR_TRAINING_CATEGORIES.length)]
 			: selectedCategory;
 
 		// Use the active tonality's key for transposition
