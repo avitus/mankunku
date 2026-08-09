@@ -140,6 +140,62 @@ Raw sub-scores are multiplied by a **1.5× scaling factor** to stretch into the 
 
 ---
 
+## lick-phase.ts
+
+Phases of expertise for a **single lick** — the four-step ladder shown on the
+lick detail page's progress chart. Everything here is a pure derivation over a
+lick's `LickProgressPoint[]` series; nothing in this module gates practice,
+unlocks a key, or moves tempo (those rules live in
+`state/lick-practice.svelte.ts`).
+
+### `LickPhase` and its thresholds
+
+```typescript
+type LickPhase = 'new' | 'learning' | 'proficient' | 'expert';
+
+export const ALL_KEYS = 12;
+export const PROFICIENT_BPM = 120;
+export const EXPERT_BPM = 150;
+```
+
+| Phase | Condition |
+|---|---|
+| `new` | fewer than `ALL_KEYS` keys unlocked — **however fast** the lick is played |
+| `learning` | all 12 keys, below `PROFICIENT_BPM` |
+| `proficient` | all 12 keys, `PROFICIENT_BPM` up to `EXPERT_BPM` |
+| `expert` | all 12 keys, at or above `EXPERT_BPM` |
+
+Reaching a threshold promotes (`>=`, not `>`), so a 5-BPM bump landing exactly
+on 120 is the promotion it feels like. The first phase is decided by
+*coverage*, the rest by *tempo* — a lick played fast in three keys is still
+new.
+
+| Function | Signature | Description |
+|---|---|---|
+| `lickPhase` | `(bpm, keys) → LickPhase` | The rule table above |
+| `currentLickPhase` | `(points) → LickPhase \| null` | Phase implied by the newest sample; `null` for an empty series |
+| `phaseDisplay` | `(phase) → LickPhaseDisplay` | `{ phase, label, color }`; colour is a `var(--mastery-N)` band, **not** the difficulty ramp — a phase is accomplishment earned, not material hardness |
+| `allKeysUnlockedAt` | `(points) → number \| null` | Timestamp the series first reached 12 keys |
+| `unlockEvents` | `(points) → UnlockEvent[]` | Every `from → to` key-count jump in the series |
+| `collapseUnlockMarkers` | `(...) → UnlockMarker[]` | Merges unlock events that would overplot into one marker |
+| `unlockMarkerLabel` | `(marker) → string` | Tooltip text — one key by ordinal, several as a range |
+| `bpmAxisRange` | `(values) → { lo, hi }` | Y-range for the BPM panel, widened so a nearby threshold stays on screen |
+| `bpmBandSlices` | `(lo, hi) → BpmBandSlice[]` | The visible slice of each tempo band, for the shaded backdrop |
+
+---
+
+## level-signal.ts
+
+Tiny presentation helper for level-change feedback.
+
+### `levelSignalDirection(prevPrimary, nextPrimary, prevScale, nextScale): LevelSignalDirection | null`
+
+`'up'` if either the primary level or the scale level rose, `'down'` if either
+fell (up wins ties), else `null`. Lets the UI animate a level move without
+re-deriving it from adaptive state.
+
+---
+
 ## display.ts
 
 Difficulty display utilities — maps 1-100 values to 10 color-coded bands (1–10, 11–20, …, 91–100).

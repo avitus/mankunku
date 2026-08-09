@@ -12,11 +12,13 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Avoid note** — A note that's in the scale but tends to clash if held over a chord. The 4th degree of Ionian over a major-7 chord is the classic example: it's diatonic, but landing on F over a Cmaj7 sounds wrong because it's a half step above the 3rd. You can pass through it; you just don't sit on it.
 
-**Backing track** — The accompaniment the app generates on Side B: bass, comping (piano or organ), and drums. Plays underneath your practice.
+**Backing track** — The accompaniment the app generates for Side B, Tricks, and Tune Practice: bass, comping (piano or organ), and drums. It's generated fresh each time from a seeded engine, not a looped sample. Four styles: Swing, Bossa Nova, Ballad, Straight.
 
 **Bebop** — The style of jazz that came out of the early 1940s — Charlie Parker, Dizzy Gillespie, Bud Powell. Fast tempos, complex harmony, eighth-note lines built on chromatic approach notes and bebop scales (eight-note scales engineered so chord tones land on strong beats).
 
 **Blue note** — A note slightly out of the key — usually the b3, b5, or b7 — that gives blues and jazz their characteristic color. The b5 in particular is the signature blues color.
+
+**Bomb** — A single accented bass-drum hit dropped off the grid, used as punctuation rather than timekeeping. Philly Joe Jones' signature; the app's drummer plays them on the and-of-3 at four-bar boundaries.
 
 **Call and response** — A musical conversation: one voice plays a phrase, another answers. The app's Side A is built around this — the app calls, you respond.
 
@@ -26,7 +28,11 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Circle of fifths** — The ordering of all 12 keys by ascending fifths: C → G → D → A → E → B → F# → C# → G# → D# → A# → F → C. The app unlocks new keys in roughly this order, slightly modified for pedagogical reasons.
 
+**Clave** — The two-bar rhythmic key that organises Afro-Cuban and Brazilian music. The app's bossa plays it on the rim of the snare, and picks one side of it (the "3-side" or the "2-side") for the whole phrase rather than flipping mid-stream.
+
 **Comping** — Accompaniment played by a piano or guitar — the chordal "comping" that fills in the harmony underneath a soloist.
+
+**Cross-stick** (also *side-stick*) — Laying the stick across the drumhead and striking the rim: a dry, woody click instead of a snare crack. It's the bossa's clave voice, the ballad's colour, and the "Moanin'" figure on beat 4.
 
 **Concert pitch** — The actual pitch sounding in the air, regardless of what your instrument's sheet music reads. A B♭ tenor sax reading a written C is sounding a concert B♭. The app stores everything in concert pitch internally and translates to your written pitch only at display time.
 
@@ -34,7 +40,9 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Dominant** — A chord (or scale) with a major 3rd and a minor 7th. The V chord in a major key. Wants to resolve down a fifth to the I.
 
-**Enclosure** — Surrounding a target note with notes above and below it before resolving. A common bebop figure is to enclose the 3rd of a chord by playing the note above, the note below, and then the 3rd itself.
+**Enclosure** — Surrounding a target note with notes above and below it before resolving. A common bebop figure is to enclose the 3rd of a chord by playing the note above, the note below, and then the 3rd itself. One of the app's two [tricks](../tricks.md).
+
+**Fill** — A short drum figure that marks a seam in the form — the end of a section, the turn into a new chorus — rather than keeping time. In Mankunku, fills only fire on tunes, because a two-bar vamp has no seams to mark.
 
 **Form** — The repeating chord structure of a tune. *Body and Soul* has an AABA form: an A section, repeated, a contrasting B section (the bridge), and a return to A.
 
@@ -49,6 +57,8 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 **Volta (first/second ending)** — Numbered endings on a repeated section: play the section, take ending 1, repeat back, then take ending 2. In jazz form terms ending 1 is usually the turnaround into the next chorus and ending 2 is the way out.
 
 **Ghost note** — A note played very softly, often barely audible. Adds rhythmic texture without melodic weight. Lester Young and Stan Getz are full of ghost notes.
+
+**Guide tones** — The 3rd and 7th of a chord: the two notes that actually define its quality and that move by step from one chord to the next. A comper who plays nothing but guide tones still spells the changes, which is why the app's piano thins down to them on the sparser bars.
 
 **ii-V-I** — The most common cadence in jazz. In C major: Dm7 → G7 → Cmaj7 (the ii, V, and I chords of the key). In C minor: Dm7b5 → G7alt → Cm7. The ii-V-I is the chord progression jazz musicians practice most.
 
@@ -70,9 +80,13 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Phrasing** — How you shape a line — where you breathe, where you accent, where you let notes hang. Two players can play the same notes and make completely different phrases out of them.
 
+**Push** (also *anticipation*) — Landing an arrival a half beat early, on the and-of-4 of the bar before, and letting it tie over the barline. Both the app's piano (off-beat comp hits voice the *next* chord) and its drummer (crash plus kick on the and-of-4 into a new section) do it.
+
 **Quartal** — Built from fourths instead of thirds. McCoy Tyner is the canonical quartal pianist; quartal voicings have a more open, modal sound than triadic voicings.
 
 **Reharmonization** — Changing the chords underneath a melody. The same melody can be played over many different chord progressions. Bill Evans was a master of reharmonization.
+
+**Ride bell** — Striking the raised bell of the ride cymbal instead of the bow. Hard, cutting, and used to mark an arrival — Art Blakey's calling card. The app reaches for it when it doesn't crash.
 
 **Rhythm changes** — Shorthand for the 32-bar form of George Gershwin's *I Got Rhythm*. AABA structure, with the A sections moving I-vi-ii-V repeatedly and the B section cycling dominant 7 chords down a major third. The other big "standard form" alongside the 12-bar blues. *Oleo*, *Anthropology*, *Cotton Tail*, and many bebop heads use rhythm changes.
 
@@ -80,7 +94,9 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Sequence** — A melodic pattern repeated at different pitches. Playing 1-2-3, then 2-3-4, then 3-4-5 is a sequence.
 
-**Side A / Side B** — The app's two practice modes. Side A is Ear Training (call and response). Side B is Lick Practice (12-key drill over a backing track). Named for the two sides of an LP, in keeping with the Blue Note Records aesthetic.
+**Side A / Side B** — Two of the app's practice modes. Side A is Ear Training (call and response). Side B is Lick Practice (12-key drill over a backing track). Named for the two sides of an LP, in keeping with the Blue Note Records aesthetic. Tricks and Tune Practice sit alongside them.
+
+**Spang-a-lang** — The standard swing ride pattern: quarter notes on every beat with a "skip" eighth added after 2 and 4. Onomatopoeia, and the closest thing jazz has to a metronome.
 
 **Standard** — A jazz tune that's part of the shared repertoire — *All the Things You Are*, *Stella by Starlight*, *Autumn Leaves*. Hundreds of them. Knowing standards is what lets a group of strangers sit down and play together.
 
@@ -96,11 +112,17 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Tonality** — A key plus a scale type. *C major* is one tonality; *C Dorian* is another; *G blues* is another. The app rotates one tonality per day on Side A (the "daily key").
 
+**Triad pair** — Two triads that share no notes, alternated to build angular lines out of a six-note palette — C and D over a Cmaj7, or D♭m and E♭m over a C7alt. A staple of post-bop and one of the app's two [tricks](../tricks.md).
+
 **Transposing instrument** — An instrument whose written notes don't match concert pitch. Tenor sax is in B♭: when you read a C, you sound a B♭ (a major 9th lower than written, when treated as the same octave; actually a major 2nd lower in the same staff position). Alto sax is in E♭. Trumpet is in B♭. The app handles transposition automatically — you read in your written key, the app stores in concert.
 
-**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat.
+**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat. Mankunku also plays a one-bar ii-V turnaround between cycles of a Deep Practice or Tricks drill, aimed at the key you're about to play.
 
-**Vamp** — A repeating chord (or short pattern) sustained for a while. *So What* opens with a vamp. *A Night in Tunisia* has a vamp at the end of each chorus.
+**Two-feel** — Playing half notes in the bass instead of walking quarters, giving a section a lighter, more open lift. Jazz convention often puts the head in 2 and opens up to 4 for the solos. Mankunku's ballad style is permanently in 2; swing and straight may sit in 2 for the first chorus of a tune and then latch into 4 for the rest of the take.
+
+**Vamp** — A repeating chord (or short pattern) sustained for a while. *So What* opens with a vamp. *A Night in Tunisia* has a vamp at the end of each chorus. Lick Practice and Tricks drill over two-bar vamps.
+
+**Walking bass** — A bass line in steady quarter notes that connects each chord to the next, usually approaching the coming downbeat by a step or a half step. The default bass behaviour in the swing and straight styles.
 
 **Voice leading** — Smooth connection between notes, particularly across chord changes — picking the closest available pitch on the next chord. Good voice leading is what makes a chord progression sound inevitable instead of jumpy.
 
@@ -120,7 +142,9 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Adaptive level** — The 1–100 number that reflects how complex the material the app is feeding you is. Climbs when you're consistently above 85% accuracy in the rolling window; falls when you're consistently below 50%. See [Levels & Difficulty](../architecture/adaptive-difficulty.md).
 
-**Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. Applied automatically during scoring; there's no user-facing toggle (an internal `bleedFilterEnabled` flag, off by default, controls whether its result becomes the primary score).
+**Backing style** — Which band you practice with: Swing, Bossa Nova, Ballad, or Straight. Chosen per session on the Lick Practice and tune-practice setup screens (not in Settings). Ear Training never plays one.
+
+**Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at Guided and Standard strictness, and nothing else does. There is no user-facing toggle.
 
 **Combinatorial lick** — A lick generated by pairing a scale pattern with a rhythm template. About 86 of these in the catalog, alongside the roughly 450 hand-written ones.
 
@@ -130,7 +154,13 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Detected note** — A note the app heard through your microphone. Each detected note has a pitch, an onset time, a duration, and a clarity score.
 
+**Deep Practice** — The single-lick drill launched from a lick's Practice button (or as a session type on the Lick Practice page). Continuous cycles through that lick's unlocked keys, worst key first, joined by a one-bar turnaround, with keys dropping out as you clear them at 95%.
+
 **Difficulty band** — The 10-color name for a difficulty range. Beginner, Elementary, Easy, Moderate, Intermediate, Challenging, Advanced, Expert, Master, Virtuoso.
+
+**Fluency score** — How a trick is graded: formula conformance at 70% plus rhythm at 30%, instead of a lick's 60/40 pitch and rhythm. Same 0–100 scale, same grade boundaries.
+
+**Conformance** — Whether a note you played belongs to a trick's formula, judged by pitch class alone (octave never matters). Full credit for exactly what the formula calls for, 0.7 for the right device but the wrong member, 0.4 for something merely in the scale, 0.1 for a chromatic miss, 0 for a note you didn't play.
 
 **Generated phrase** — A phrase produced by the algorithmic generator at runtime, based on your difficulty level and category settings.
 
@@ -155,3 +185,9 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 **Tonality** — A key plus a scale type. See *Tonality* under the jazz vocabulary above.
 
 **Transposition (in the app)** — The runtime shift of a curated lick from concert C (where it's stored) to whatever key the day is in (or whatever key you chose).
+
+**Trick** — A parameterized melodic device — an enclosure or a triad pair — practiced for fluency rather than exact reproduction. See [Practicing Tricks](../tricks.md).
+
+**Variant** — One specific setting of a trick's parameters (*Enclose the 3rd, above then below*; *Minor pair from the ♭9*). Variants are what you unlock, star, and track progress against — eight per device, arranged on a **mastery ladder**.
+
+**Pass (on the mastery ladder)** — One attempt at 90% or better inside a Trick Drill. Three passes of a variant, counted across all keys, unlocks the next rung. Not to be confused with the 95% needed to clear a key out of the rotation.

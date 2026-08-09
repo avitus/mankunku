@@ -84,7 +84,8 @@ export function rideBar(
 	return hits;
 }
 
-/** Hi-hat foot on 2 & 4 — the one non-negotiable. */
+/** Hi-hat on 2 & 4 — the one non-negotiable. Emits the stick voice
+ *  (`hihat`), not `hihat-pedal`; the pedal voice belongs to the ballad kit. */
 export function hihatBar(beatsPerBar: number, rng: SeededRng): DrumHitSpec[] {
 	const hits: DrumHitSpec[] = [];
 	for (let b = 1; b < beatsPerBar; b += 2) {

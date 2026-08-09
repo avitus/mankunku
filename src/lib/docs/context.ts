@@ -22,10 +22,14 @@ const DOC_FILES = import.meta.glob<string>('/documentation/**/*.md', {
  * tune half of the app has its own vocabulary (insertion points, the head
  * rule, the importers) that appears nowhere else in the core set, so without
  * them the assistant answers a third of the product with "not documented" —
- * the same failure this module's bundling exists to prevent.
+ * the same failure this module's bundling exists to prevent. `tricks` is here
+ * for the same reason: it is a whole practice mode, and its vocabulary
+ * (variants, the mastery ladder, conformance vs. exact reproduction, the
+ * fluency score) appears in no other core doc.
  */
 const CORE_DOC_SLUGS = [
 	'user-guide',
+	'tricks',
 	'tunes',
 	'tune-practice',
 	'architecture/overview',

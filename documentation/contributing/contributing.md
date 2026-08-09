@@ -153,21 +153,33 @@ test: add capture module unit tests
 - One feature/fix per PR
 - Include description of what changed and why
 - Reference any related issues
-- Ensure all tests pass (`npm test`)
+- Ensure all tests pass (`npm test`; plus `npm run test:deploy` if you touched `deploy/`)
 - Ensure build succeeds (`npm run build`)
+- Ensure types are clean (`npm run check`) — `svelte-check` prints its error count
+  *before* the word ERRORS, so gate on the exit code, never on the summary line
 
 ## Running Tests
 
 ```bash
-# Unit + integration tests
+# Unit + integration tests (Vitest, Node)
 npm test
 
 # Watch mode
-npx vitest
+npm run test:watch
 
 # Specific test file
 npx vitest tests/unit/audio/capture.test.ts
+
+# Real-browser flows (Chromium, Firefox, WebKit)
+npm run test:e2e
+
+# The server-side release script's invariants (bash, stubbed binaries)
+npm run test:deploy
 ```
+
+`npm test` does **not** cover the last two — CI runs `npm run test:deploy` inside
+the same job as vitest, and `npx playwright test` in its own job. There is no
+coverage tooling installed.
 
 See [Testing Guide](testing-guide.md) for patterns and conventions.
 

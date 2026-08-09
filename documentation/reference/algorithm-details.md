@@ -45,9 +45,15 @@ rhythmDistance(e, d) = min(1.0, |e.onset - d.onset| / beatDuration)
 
 Starting from `dp[N][M]`, trace back to `dp[0][0]` by checking which of the three options (match, skip expected, skip detected) produced each cell's value. This produces an `AlignmentPair[]`.
 
+`alignNotes` also takes an `octaveInsensitive` flag (used by lick-practice continuous mode, where the player may legitimately drop a line an octave to keep it on the horn). With it set, `pitchDistance` compares pitch *classes* on the cyclic distance `min(d, 12 − d)` instead of absolute MIDI.
+
 ### Complexity
 
 Time: O(N * M). Space: O(N * M). For typical phrase sizes (4–16 notes), this is negligible.
+
+### The conformance variant
+
+`src/lib/tricks/conformance.ts` runs the same DP skeleton — same `SKIP_COST = 2.0`, same three-way recurrence, same diagonal-first backtrack — but replaces `pitchDistance` with a **tiered conformance cost** against a slot's accepted pitch-class sets (exact 0.0 / in-pattern 0.3 / in-scale 0.6 / out-of-scale 1.0). It is a deliberate clone rather than a parameterization: the two cost models have nothing in common beyond the DP, and merging them would put trick semantics in the path of every lick score. See [Trick Scoring](../architecture/trick-scoring.md).
 
 ## Latency Correction
 

@@ -144,6 +144,79 @@ interface TimingDiagnostics {
 
 ---
 
+## score-pipeline.ts
+
+The orchestration layer above `scoreAttempt` — bleed filtering plus the A/B
+bookkeeping, kept out of the routes so every practice surface scores the same
+way. Pure: it takes already-segmented notes and returns scores.
+
+### `runScorePipeline(inputs): ScorePipelineResult`
+
+```typescript
+interface ScorePipelineInputs {
+  detected: DetectedNote[];
+  phrase: Phrase;
+  tempo: number;
+  transportSeconds: number;
+  swing: number;
+  bleedFilterEnabled: boolean;
+  bleedResult?: { kept: DetectedNote[]; filtered: DetectedNote[] } | null;
+  octaveInsensitive?: boolean;   // default false; lick-practice continuous mode passes true
+}
+
+interface ScorePipelineResult {
+  detected: DetectedNote[];
+  filteredNotes: DetectedNote[];
+  unfilteredScore: Score;
+  filteredScore: Score | null;
+  chosen: Score;                 // the one the caller should surface
+  useFiltered: boolean;
+  bleedLog: BleedFilterLog | null;
+}
+```
+
+The unfiltered score is **always** computed. When `bleedResult` is supplied
+the filtered score is computed too and `bleedLog` is populated; the
+`bleedFilterEnabled` toggle only decides which one lands in `chosen`. Both
+come back either way, so `/diagnostics` can show the A/B without re-scoring.
+
+---
+
+## fluency.ts
+
+The trick (melodic-device) scorer. Produces a **`Score`-compatible** result so
+grades, points, `recordKeyAttempt`, and `applyInsertionResult` all work
+unchanged. See [Trick Scoring](../architecture/trick-scoring.md) for the
+design.
+
+### `scoreFluency({ played, trick, parameters, context }): FluencyScore`
+
+```text
+overall = FLUENCY_PATTERN_WEIGHT × patternScore + FLUENCY_RHYTHM_WEIGHT × rhythmAccuracy
+        = 0.7 × patternScore + 0.3 × rhythmAccuracy
+```
+
+Deliberately not the 0.6/0.4 split of `scoreAttempt` — a trick is judged first
+on landing the formula's shape. `pitchAccuracy` is the conformance
+`patternScore`, per-note `pitchScore` is the slot's tiered credit, and
+`notesHit` counts slots earning ≥ 0.7 (exact or in-pattern). `FluencyScore`
+extends `Score` with the raw `conformance: ConformanceResult` for per-slot
+display.
+
+Expected notes come from `trick.generateExample(...)` re-run with
+`exampleStyle: conformance.style` — the **winning** playing style, not the
+style the round demoed — so the report's expected notes match what the player
+actually did. If generation fails or returns a different note count, per-slot
+placeholder notes are substituted rather than dropping the report.
+
+### `FLUENCY_GRADE_THRESHOLDS` / `scoreToFluencyGrade(overall)`
+
+Same boundaries as `scoreToGrade` today (0.95 / 0.85 / 0.70 / 0.55) but
+defined locally, so trick grading can drift later without touching lick
+grading.
+
+---
+
 ## grades.ts
 
 Score-to-grade mapping and display constants.

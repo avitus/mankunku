@@ -141,7 +141,7 @@ export type Database = {
           backing_style: string | null
           /** A/B toggle: use bleed-filtered notes as primary score. NULL = false. */
           bleed_filter_enabled: boolean | null
-          /** Trick practice state: { selectedVariants, migrations, progress, unlockCounts, history } */
+          /** Trick practice state: { selectedVariants, selectedUpdatedAt, migrations, progress, unlockCounts, history } */
           trick_state: Json
           /** Timestamp of last settings update (ISO 8601) */
           updated_at: string

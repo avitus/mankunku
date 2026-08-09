@@ -471,7 +471,7 @@ export function computeAutoTempoAdjustment(averageScore: number): number {
 	return -3;
 }
 
-/** Clamp a tempo to the allowed range (40–300 BPM). */
+/** Clamp a tempo to the allowed range (50–300 BPM). */
 export function clampTempo(tempo: number): number {
 	return Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, tempo));
 }

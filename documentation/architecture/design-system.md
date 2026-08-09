@@ -58,8 +58,9 @@ Routes that belong to neither domain (or that serve both):
 - `/licks`, `/licks/[id]` — your lick book (used by both modes)
 - `/licks/add`, `/licks/editor`, `/licks/record` — adding new licks (book-building, not practice)
 - `/tunes` and its subroutes — the tune songbook
+- `/tricks`, `/tricks/[id]` — the melodic-device catalog and its mastery ladders (the *session* they launch runs under `/lick-practice`, which is where the terracotta appears)
 - `/settings` — global app settings
-- `/auth`, `/diagnostics` — utility pages
+- `/auth`, `/diagnostics` and its subroutes — utility pages
 
 **Identity color**: slate / desaturated. The neutral domain has no strong accent — interactive elements use `--color-text-secondary` or a slate neutral, and CTAs typically use `--color-bg-tertiary` backgrounds instead of an accent fill.
 

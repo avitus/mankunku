@@ -23,7 +23,9 @@ Pitch is weighted more heavily than rhythm — 60/40 — because in practice it'
 | **Fair** | ≥ 55% | Off the changes here and there. The same phrase will retry. |
 | **Try Again** | < 55% | Take it again from the top. |
 
-On **Side A**, the pass line is **70%** — at that threshold the app moves you on, and below it the same phrase replays so you can take another swing. **Side B** is tighter: each key is graded on a green/yellow/red scale (green ≥ 90%, yellow 75–89%, red < 75%). Green earns tempo bumps and key unlocks; yellow holds the line without earning either; a single red key blocks tempo *increases* and unlocks until you bring it back up. See [Two Practice Modes](./overview.md) and [How to Practice](../user-guide.md). The grades themselves don't gate anything — the per-mode thresholds are what move the practice forward.
+On **Side A**, the pass line is **70%** — at that threshold the app moves you on, and below it the same phrase replays so you can take another swing. **Side B** is tighter: each key is graded on a green/yellow/red scale (green ≥ 90%, yellow 75–89%, red < 75%). Green earns tempo bumps and key unlocks; yellow holds the line without earning either; a single red key blocks tempo *increases* and unlocks until you bring it back up. See [The Practice Modes](./overview.md) and [How to Practice](../user-guide.md). The grades themselves don't gate anything — the per-mode thresholds are what move the practice forward.
+
+**Tricks** are scored on a different axis again — not "did you play these exact notes" but "does what you played obey the device's formula". The percentage and the grades come out on the same scale, so a Great is a Great; what feeds them is described in [Practicing Tricks](../tricks.md).
 
 Each grade picks one of about ten captions from a pool, mixing Blue Note one-liners with quotes from the giants of the genre — so the feedback stays fresh across a session.
 
@@ -111,7 +113,7 @@ The score is a tool for tracking your accuracy on the *content* of the phrase. O
 
 If you don't use headphones, your microphone may pick up the playback or the backing track and mistake it for notes you played. To prevent that, the app runs a bleed filter on the detected notes before scoring: notes that line up with active backing-track pitches are dropped if the signal is weak. The filter is conservative — it only drops what looks like room bleed, not what looks like you playing the same note as the backing track.
 
-You can toggle the bleed filter in Settings. Leave it on unless you're investigating an unexpected score.
+There is **no user-facing switch** for it. The filter always runs, but whether its result becomes your score is decided for you: Tune Practice turns it on at the Guided and Standard strictness levels, and everywhere else the app scores the unfiltered notes. On headphones none of this matters — there's no bleed to find.
 
 ## When the score doesn't match how it felt
 

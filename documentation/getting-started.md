@@ -12,7 +12,9 @@ The app has two core practice modes, set up like the two sides of an LP.
 
 **Side B — Lick Practice.** Pick a lick you want to own. The app cycles it through its currently-unlocked keys over a backing track — bass, comping, drums — scores each pass, and gradually expands the rotation toward all 12 keys as you earn them. Get clean takes and the tempo edges up 1–2 BPM. Stumble and it eases off. This is the practice room version of working a line through the cycle of fifths.
 
-Then there's the room where the two meet: **Tune Practice.** Open a full song form from your book and the app plays the rhythm section through it, finds the ii-Vs and turnarounds and vamps inside the changes, and hands you those spots to fill with the licks you've been drilling. Score them, chain them together for bonus points, or just take a solo and let the app tell you which of your lines it recognised. See [Playing Over Tunes](./tune-practice.md).
+Alongside them is a third drill: **Tricks.** Not lines but *devices* — enclosures and triad pairs, the formulas that generate lines. The app plays you an example, but it isn't asking for the example back; it's asking for the device, laid out however you choose, and it scores whether what you played obeys the formula. Each device is a ladder of eight variants that unlock as you earn them. See [Practicing Tricks](./tricks.md).
+
+Then there's the room where all of it meets: **Tune Practice.** Open a full song form from your book and the app plays the rhythm section through it, finds the ii-Vs and turnarounds and vamps inside the changes, and hands you those spots to fill with the licks you've been drilling. Score them, chain them together for bonus points, or just take a solo and let the app tell you which of your lines it recognised. See [Playing Over Tunes](./tune-practice.md).
 
 Around those are the supporting rooms: a **Licks** page holding your personal book of lines; a **[Tunes](./tunes.md)** page for full song forms — hand-charted, imported from iReal Pro / Band-in-a-Box / MuseScore / a PDF, or adopted from the community; a **progress** view with your streak, a calendar heatmap of practice days, and trend graphs over time; a **scales** reference; and tools for **adding licks** of your own — either by writing them note by note in the editor, or by recording a phrase from your horn and letting the app transcribe it.
 
@@ -41,7 +43,8 @@ Every player who's tried this app has the same instinct: start at level 50 becau
 ## Where to go from here
 
 - **[How to Practice](./user-guide.md)** — the practice loop, the buttons, the settings.
-- **[The Practice Modes](./architecture/overview.md)** — when Side A, Side B, or a tune is the right tool.
+- **[The Practice Modes](./architecture/overview.md)** — when Side A, Side B, Tricks, or a tune is the right tool.
+- **[Practicing Tricks](./tricks.md)** — enclosures and triad pairs, drilled for fluency.
 - **[Your Tunes](./tunes.md)** — building a songbook: charting, importing, adopting.
 - **[Playing Over Tunes](./tune-practice.md)** — putting your vocabulary into a real form.
 - **[How Scoring Works](./architecture/scoring-algorithm.md)** — what the app rewards and what it forgives.
