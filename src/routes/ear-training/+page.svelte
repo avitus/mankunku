@@ -445,13 +445,18 @@
 		// Record the mic + master mix from the same instant, so the blob the
 		// authoritative rescore replays covers the attack too.
 		if (micCapture) {
+			let armed: RecorderHandle | null = null;
 			try {
-				const armed = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
+				armed = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
 				armed.start();
 				recorderHandle = armed;
 			} catch (err) {
-				console.warn('Audio recording unavailable:', err);
+				// createRecorder wires its nodes into the graph before start() is
+				// ever called, so a throw from start() leaves them connected —
+				// dispose rather than dropping the reference.
+				armed?.dispose();
 				recorderHandle = null;
+				console.warn('Audio recording unavailable:', err);
 			}
 		}
 		awaitingInput = true;
