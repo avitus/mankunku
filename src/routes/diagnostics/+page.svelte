@@ -48,6 +48,12 @@
 		segmented: DetectedNote[];
 		duration: number;
 		sampleRate: number;
+		/**
+		 * Lead-in `trimToPerformance` removed from the decoded blob. Everything
+		 * else on this object is in the trimmed frame; the blob and the WAV
+		 * download are not, so anything correlating the two needs this.
+		 */
+		trimOffset: number;
 	}
 
 	onMount(async () => {
@@ -163,7 +169,8 @@
 				resolvedOnsets,
 				segmented,
 				duration,
-				sampleRate
+				sampleRate,
+				trimOffset: trimmed.offset
 			};
 		} catch (err) {
 			if (requestId === replayRequestId && expandedId === id) {
@@ -317,14 +324,27 @@
 					// half of these investigations turn on whether a candidate
 					// onset sits under a click. Null on pre-2026-08-01 captures.
 					metronomeEnabled: md?.metronomeEnabled ?? null,
-					transportSeconds: md?.transportSeconds ?? null,
+					// Trimmed frame, matching `detection` below — the stored
+					// metadata value describes the blob's first sample, so the
+					// lead-in this replay discarded is added back on. Consumers
+					// can hand this straight to getMetronomeBleedOnsets.
+					transportSeconds:
+						md?.transportSeconds != null ? md.transportSeconds + replay.trimOffset : null,
 					// Recording-relative backing onsets — the bleed evidence the
 					// live path segmented with when backing was the time source.
 					backingBleedOnsets: md?.backingBleedOnsets ?? null
 				},
 				audio: {
 					duration: replay.duration,
-					sampleRate: replay.sampleRate
+					sampleRate: replay.sampleRate,
+					/**
+					 * Seconds `trimToPerformance` dropped off the front. The
+					 * sibling .wav download is the UNTRIMMED blob, so a test
+					 * replaying it has to trim before its timeline matches the
+					 * `detection` block here. 0 for anything captured before
+					 * ear-training pre-armed its mic.
+					 */
+					captureTrimSeconds: replay.trimOffset
 				},
 				detection: {
 					rawWorkletOnsets: replay.onsets,
