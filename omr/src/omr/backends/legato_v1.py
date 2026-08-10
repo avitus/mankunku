@@ -116,9 +116,11 @@ class LegatoV1Backend:
             return self.requested_device
         if torch.cuda.is_available():
             return "cuda"
-        mps = getattr(torch.backends, "mps", None)
-        if mps is not None and mps.is_available():
-            return "mps"
+        # NEVER auto-select MPS: torch 2.6's MPS backend aborts the whole
+        # process (SIGABRT, "LLVM ERROR: Failed to infer result type(s)" in
+        # mps.matmul) on this model's cross-attention — verified on a 2023
+        # Mac Studio, 2026-08-09. A process abort is uncatchable, so MPS is
+        # opt-in only (--device mps), at the caller's own risk.
         return "cpu"
 
     def _load(self) -> None:

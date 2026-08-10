@@ -85,11 +85,15 @@ repo. A missing grant fails loudly with the exact URL to visit
 
 ## Hardware
 
-- **CPU**: works, slow (beam search over 2,048 tokens).
-- **Apple Silicon (MPS)**: auto-selected when available; upstream never
-  tested MPS, so generation failures trigger a documented one-time CPU
-  fallback (`MPS_FALLBACK` warning). Escape hatch: `--device cpu --beams 1`.
-- **CUDA**: upstream's tested path (CUDA 12.4).
+- **CPU**: the default on Macs — works, slower (beam search over up to
+  2,048 tokens). `--beams 1` trades accuracy for speed.
+- **Apple Silicon (MPS)**: **broken on torch 2.6 — do not use.** Generation
+  aborts the entire process (SIGABRT, `LLVM ERROR: Failed to infer result
+  type(s)` in `mps.matmul` on the Mllama cross-attention; verified on a
+  2023 Mac Studio, 2026-08-09). Because a process abort cannot be caught,
+  `--device auto` never selects MPS; `--device mps` remains available for
+  retesting after a torch upgrade, at your own risk.
+- **CUDA**: upstream's tested path (CUDA 12.4); auto-selected when present.
 - **Never the production droplet** (961MB RAM — `npm ci` alone has OOM-killed
   it). OMR inference is a local/dev tool; if it ever serves production it
   runs as a separate GPU service behind the same `OMRBackend` seam.
@@ -147,10 +151,12 @@ happens downstream, on top of this record, never inside it.
   LEGATO 2 capability.
 - Whole-page recognition with a 2,048-token output cap; dense pages risk
   tail truncation (`POSSIBLE_TRUNCATION` fires from real token counts).
-- Out-of-domain: trained on classical/piano corpora (PDMX-Synth); jazz
-  lead sheets — swing notation, slash regions, colored practice highlights
-  on our corpus PDFs — are unlike its training data. Expect low melody
-  scores; the benchmark quantifies rather than assumes.
+- Out-of-domain caveat, now measured: despite classical/piano training data
+  (PDMX-Synth), melody reading on clean typeset jazz charts is strong —
+  94.8% MIDI pitch, 96.8% exact rhythm, 100% measure alignment on the
+  first recorded benchmark ([baseline](benchmark-2026-08-09-legato-v1.md)).
+  The dominant residual errors are enharmonic spelling slips. Scans/photos
+  remain unmeasured (no scanned fixture yet).
 - Multi-voice model output keeps the first voice (warned); grand-staff
   charts are out of scope.
 - The current benchmark corpus is digital-born PDFs. The strongest case for

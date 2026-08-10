@@ -98,6 +98,19 @@ text-aware tokenizer should restore.
   ({gyang1, nasmith}@cs.washington.edu per the paper) asking about the
   release timeline.
 
+## Milestone report: the proven inference path (2026-08-09)
+
+The "first deliverable" facts, measured on real hardware with the real model:
+
+- **Repository**: [github.com/guang-yng/legato](https://github.com/guang-yng/legato), vendored at commit `179c228d3d5f67113cf739b44891b3abe046f1dc` (MIT).
+- **Checkpoint**: `guangyangmusic/legato` @ `2d07c5d0e73186f2c0b12e35ea187bbc30dec18c` (MIT, gated auto) — decoder + projection only (429MB); the frozen vision encoder streams from the gated `meta-llama/Llama-3.2-11B-Vision` repo (≈20GB repo download; loaded model is 0.94B params total in F32, ≈3.6GB peak RSS).
+- **Runtime**: Python 3.12.2, torch 2.6.0, transformers 4.54.0, macOS (2023 Mac Studio).
+- **Hardware used**: **CPU** — ≈36s per lead-sheet page (300 DPI, beam 5). MPS is unusable on torch 2.6: generation aborts the process (SIGABRT, `LLVM ERROR` in `mps.matmul` on Mllama cross-attention), so device auto-selection never picks it. CUDA untested here (no NVIDIA hardware) but is upstream's tested path.
+- **Input**: 300-DPI lossless PNG renders of the PDF page (pypdfium2), conservative preprocessing only.
+- **Output**: ABC notation, verbatim-preserved; per-page token counts recorded (Lady Bird page 1: well under the 2,048 cap, no truncation).
+- **Transcription quality** (3-chart benchmark, [full report](benchmark-2026-08-09-legato-v1.md)): melody pitch **94.8%** (MIDI) / 87.0% (strict spelling incl. octave), accidental spelling 91.7%, rhythm (exact onset+duration) **96.8%**, measure alignment **100%** (73/73 measures), key and time signature **100%**, printed repeat structure **F1 1.0** (A-Train's `:|` + both endings read exactly). All charts: zero measure-count errors, zero validation warnings.
+- **Limitations, observed**: chord symbols **0/60** and rehearsal marks 0.0 — every text span became `<|text|>`, precisely as the LEGATO 2 paper documents for v1. This is the measured, quantified argument for LEGATO 2: on clean typeset jazz charts v1's *melody* reading is already strong (the out-of-domain concern did not materialize there, even with the corpus PDFs' colored practice-highlight boxes), and the entire remaining gap is text — the exact capability the unreleased text-aware tokenizer adds. Enharmonic slips (Db-vs-C# class errors) account for most of the strict-vs-MIDI pitch spread.
+
 ## Interim reality (LEGATO v1)
 
 The stub's error message points users at `--backend legato_v1` for

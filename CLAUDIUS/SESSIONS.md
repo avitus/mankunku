@@ -1390,3 +1390,23 @@ from the page). Files stay "reviewed": false until full human review.
 Blocked at the finish line by auth, not code: the checkpoint is gated (auto-approve,
 but a login is a thing only the user can do). Real inference + the first recorded
 benchmark run await an HF_TOKEN.
+
+### Addendum — the slice ran, and the numbers surprised me in both directions
+
+Auth was a three-gate saga (HF login → legato terms → Meta's Llama form; the checkpoint
+turned out to be decoder-only with the encoder streaming from Meta's gated repo — a fact
+no model card states). Two real bugs fell out of the first live run: our pinned revision
+propagated into the nested meta-llama fetch (fixed: snapshot-download locally, load from
+path; regression-pinned), and MPS generation SIGABRTs the whole process on torch 2.6
+(LLVM shape-inference failure in mps.matmul — uncatchable, so device auto-selection now
+never picks MPS; that's also what silently killed the first pytest run, whose exit code 0
+was tail's, not pytest's. Pipe exit codes lie about upstream deaths).
+
+Then the milestone, measured on CPU (~36s/page): melody MIDI 94.8%, rhythm 96.8%,
+measure alignment 73/73, keys/meters 100%, A-Train's printed repeat structure F1 1.0 —
+and chords 0/60, rehearsal marks 0.0, title/composer elided. The out-of-domain fear was
+wrong for typeset melody; the text-elision prediction was exactly right. One GT lesson:
+the fixture marked a start-repeat the page never printed (implicit from-the-top repeat)
+— the MODEL was right and my ground truth was wrong. Baseline recorded at
+docs/omr/benchmark-2026-08-09-legato-v1.md; user feedback twice this session: action
+items must LEAD the message, isolated and labeled — never embedded in explanation prose.

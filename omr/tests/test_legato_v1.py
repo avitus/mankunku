@@ -33,9 +33,15 @@ def _stub_torch(monkeypatch, *, cuda: bool, mps: bool) -> None:
 
 @pytest.mark.parametrize(
     "cuda,mps,expected",
-    [(True, True, "cuda"), (False, True, "mps"), (False, False, "cpu")],
+    [(True, True, "cuda"), (False, True, "cpu"), (False, False, "cpu")],
 )
-def test_device_auto_resolution(monkeypatch, cuda: bool, mps: bool, expected: str) -> None:
+def test_device_auto_resolution_never_selects_mps(
+    monkeypatch, cuda: bool, mps: bool, expected: str
+) -> None:
+    # MPS hard-crashes the process (SIGABRT in mps.matmul, torch 2.6 +
+    # Mllama cross-attention — verified on a 2023 Mac Studio 2026-08-09).
+    # A process abort cannot be caught in-process, so `auto` must never
+    # choose MPS; it stays opt-in via an explicit device="mps".
     _stub_torch(monkeypatch, cuda=cuda, mps=mps)
     assert LegatoV1Backend()._resolve_device() == expected
 
@@ -43,6 +49,7 @@ def test_device_auto_resolution(monkeypatch, cuda: bool, mps: bool, expected: st
 def test_explicit_device_wins(monkeypatch) -> None:
     _stub_torch(monkeypatch, cuda=True, mps=True)
     assert LegatoV1Backend(device="cpu")._resolve_device() == "cpu"
+    assert LegatoV1Backend(device="mps")._resolve_device() == "mps"
 
 
 def test_model_info_before_load_needs_no_torch() -> None:
