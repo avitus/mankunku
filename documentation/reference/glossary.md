@@ -58,7 +58,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Ghost note** — A note played very softly, often barely audible. Adds rhythmic texture without melodic weight. Lester Young and Stan Getz are full of ghost notes.
 
-**Guide tones** — The 3rd and 7th of a chord: the two notes that actually define its quality and that move by step from one chord to the next. A comper who plays nothing but guide tones still spells the changes, which is why the app's piano thins down to them on the sparser bars.
+**Guide tones** — The 3rd and 7th of a chord: the two notes that actually define its quality and that move by step from one chord to the next. A comping instrument that plays nothing but guide tones still spells the changes, which is why the app's piano thins down to them on the sparser bars.
 
 **ii-V-I** — The most common cadence in jazz. In C major: Dm7 → G7 → Cmaj7 (the ii, V, and I chords of the key). In C minor: Dm7b5 → G7alt → Cm7. The ii-V-I is the chord progression jazz musicians practice most.
 
