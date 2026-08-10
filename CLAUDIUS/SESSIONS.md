@@ -1346,3 +1346,47 @@ The one thing I'd want a future session to pick up: **the whole-PDF fallback has
 coverage.** Not a regression — partial results removed the trigger — but the stub sat there
 wrong and unobservable, and I fixed the stub while leaving the hole. Saved as a memory so
 "the PDF e2e suite passes" is never read as "the fallback works."
+
+## 2026-08-09 (cont. 2) — LEGATO 2: the release that wasn't, and the subsystem built to receive it
+
+The ask: replace direct vision-LLM reading of lead sheets with a proper OMR stage using
+LEGATO 2 — with an explicit order to VERIFY availability first and never pass off a
+substitute. The verification was the whole ballgame. The paper (arXiv:2607.05769, July 7)
+is real and good: YOLO system segmentation → 113.7M-trainable VLM decoding system-by-system
+conditioned on previous systems' ABC → rule-based merge, with a text-aware tokenizer that
+finally transcribes titles and annotations. But it says, verbatim, "We will enable
+reproduction by releasing data and code upon publication" — and it's a preprint. No code
+URL exists. The author's HF profile has `legato-1.5` (0.9B, gated *manual*, zero license,
+zero model card, zero downloads) uploaded five months BEFORE the paper — development
+artifacts wearing a public URL. I documented all eight of the user's availability questions
+with receipts in docs/omr/legato2.md and reported the blocker instead of improvising around it.
+
+What got built (all green: 147 hermetic pytest, ruff clean, app's 3938 vitest untouched):
+`omr/` — a uv-managed Python 3.12 project, first Python in this repo ever. OMRBackend
+protocol + registry (lazy imports), pypdfium2 rendering, conservative preprocessing that
+refuses to trim when content touches the page edge, a malformation-resilient ABC parser
+(one bad span costs one measure, kept verbatim — never the score), enharmonic-preserving
+chord parser (all 18 required jazz symbols), no-inference normalizer, deterministic
+validation, debug artifact dirs that never fabricate (no systems/ for a whole-page model),
+CLI with honest exit codes (legato2 → exit 3 with the blocker message), and a benchmark
+harness whose every ratio prints its denominator. LegatoV1Backend vendors the MIT model
+code (pinned SHA), pins the checkpoint revision, auto-selects cuda→mps→cpu with a loud
+MPS fallback. CI gets a path-filtered omr-changed job mirroring nginx-changed.
+
+The finding that matters most for THIS app: LEGATO v1 replaces every text span with a
+single <|text|> token — and in ABC, chord symbols ARE text. So the released model reads
+melody but is structurally blind to the half of a lead sheet this application cares most
+about. Every v1 result carries a standing TEXT_ELIDED_BY_MODEL warning; the benchmark's
+chord metrics will read ≈0 by design. That number is the argument for LEGATO 2, measured.
+
+Ground truth: converted 3 corpus charts from the concert-pitch MuseScore fixtures
+(+14 semitones — the tenor rule, the transposition wrinkle made explicit as a flag),
+then visually reviewed each against its rendered PDF. Caught my own converter inventing
+rehearsal marks from section labels that aren't printed on Lady Bird's page — exactly
+the recognized-vs-inferred line the whole design draws, crossed by my own tooling.
+Fixed: converters emit no marks; humans add printed ones (I added A-Train's boxed A/B/A
+from the page). Files stay "reviewed": false until full human review.
+
+Blocked at the finish line by auth, not code: the checkpoint is gated (auto-approve,
+but a login is a thing only the user can do). Real inference + the first recorded
+benchmark run await an HF_TOKEN.

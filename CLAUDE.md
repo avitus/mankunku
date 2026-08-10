@@ -14,6 +14,8 @@ npm test               # Unit + integration tests (Vitest)
 npm run test:watch     # Vitest watch mode
 npm run test:e2e       # Playwright E2E tests
 npx vitest run tests/unit/music/scales.test.ts   # Run a single test file
+cd omr && uv run pytest                          # OMR subsystem tests (Python, hermetic)
+cd omr && uv run pytest -m omr_integration       # OMR real-model tests (downloads 429MB, needs HF auth)
 ```
 
 CI pipeline (CircleCI): test → (build, db-migrate) → deploy (main branch only). Deploy rsyncs to a Digital Ocean server and restarts via PM2; db-migrate runs `supabase link` + `supabase db push --linked` against the production database, authenticated via the `SUPABASE_ACCESS_TOKEN` env var (no DB password needed).
@@ -94,6 +96,10 @@ ear-training/ (call-and-response practice, also reachable via `practice/` 308-re
 
 - **Vitest** (`tests/unit/`, `tests/integration/`) — unit + integration tests for pure logic (audio algorithms, scoring, music theory, persistence, lick generation). Runs in Node, no browser. Mocks Supabase via fixtures in `tests/helpers/`. CI: `npx vitest run`.
 - **Playwright E2E** (`tests/e2e/`) — real-browser tests for user flows on Chromium, Firefox, and WebKit. Mocks the audio pipeline via `fixtures/audio.ts` (replaces `MediaRecorder` + `getUserMedia`) and synthesizes auth via the `e2e-test-user` cookie + the `PLAYWRIGHT=1` env-gated branch in `src/hooks.server.ts`. CI: `npx playwright test`. See `tests/e2e/README.md`.
+
+## OMR subsystem (`omr/` — Python, standalone)
+
+A uv-managed Python 3.12 project (own `pyproject.toml`/`uv.lock`/`.venv`) that transcribes lead-sheet PDFs/images to symbolic notation — the future replacement for direct vision-LLM reading in PDF import. **Nothing in the app calls it yet**; `/api/tune-parse` is untouched. Docs: `docs/omr/README.md` + `docs/omr/legato2.md`. Key invariants: everything depends on the `OMRBackend` protocol (`backends/base.py`), never a concrete engine; raw model output is preserved verbatim and never "fixed"; the normalizer records only what was recognized (absent = `None`, chords kept as raw text, Db never respelled to C#); validation flags, never rewrites. **LEGATO 2 is unreleased** (paper-only as of 2026-08-09) — `Legato2Backend` is a documented stub, and `LegatoV1Backend` (vendored MIT code in `vendor/legato/`, pinned checkpoint) is experimentation-only: it transcribes NO text, so **chord symbols are absent by design** (standing `TEXT_ELIDED_BY_MODEL` warning; benchmark chord metrics ≈ 0). Unit tests are hermetic (no downloads); model tests are behind `pytest -m omr_integration` and need HF auth (gated checkpoint). CI runs the hermetic suite via the path-filtered `omr-changed` parameter, mirroring `nginx-changed`. The 961MB droplet can never run inference — local/dev only. Ground-truth files under `omr/tests/benchmark/ground_truth/` are written-pitch-as-printed; converted ones stay `"reviewed": false` until checked against the printed page.
 
 ## Code conventions
 

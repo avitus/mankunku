@@ -1,0 +1,519 @@
+{
+  "slug": "lady-bird",
+  "source_pdf": "Leadsheets/PDF/Lady Bird.pdf",
+  "reviewed": false,
+  "provenance": {
+    "method": "convert_musescore",
+    "semitones": 14,
+    "concert_key": "C",
+    "spot_check": "key, chords (DΔ7/G-7/C7), and opening melody visually spot-checked against the printed page 2026-08-09; full-chart review pending"
+  },
+  "key_signature": "D",
+  "time_signature": [
+    4,
+    4
+  ],
+  "measures": [
+    {
+      "number": 1,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "DΔ7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": "1/2",
+          "duration_beats": "3/2",
+          "pitch": "A4"
+        },
+        {
+          "beat": 2,
+          "duration_beats": 1,
+          "pitch": "A4"
+        },
+        {
+          "beat": 3,
+          "duration_beats": 1,
+          "pitch": "A4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 2,
+      "chords": [],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": "3/2",
+          "pitch": "A4"
+        },
+        {
+          "beat": "3/2",
+          "duration_beats": "1/2",
+          "pitch": "A4"
+        },
+        {
+          "beat": "5/2",
+          "duration_beats": "3/2",
+          "pitch": "A4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 3,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "G-7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 2,
+          "pitch": "C5"
+        },
+        {
+          "beat": 2,
+          "duration_beats": "2/3",
+          "pitch": "A#4"
+        },
+        {
+          "beat": "8/3",
+          "duration_beats": "2/3",
+          "pitch": "F4"
+        },
+        {
+          "beat": "10/3",
+          "duration_beats": "2/3",
+          "pitch": "D4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 4,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "C7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 1,
+          "pitch": "A4"
+        },
+        {
+          "beat": 1,
+          "duration_beats": 3,
+          "pitch": "G4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 5,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "DΔ7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": "1/2",
+          "duration_beats": "3/2",
+          "pitch": "A4"
+        },
+        {
+          "beat": 2,
+          "duration_beats": 1,
+          "pitch": "A4"
+        },
+        {
+          "beat": 3,
+          "duration_beats": 1,
+          "pitch": "A4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 6,
+      "chords": [],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": "3/2",
+          "pitch": "A4"
+        },
+        {
+          "beat": "3/2",
+          "duration_beats": "1/2",
+          "pitch": "A4"
+        },
+        {
+          "beat": "5/2",
+          "duration_beats": "3/2",
+          "pitch": "A4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 7,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "C-7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 2,
+          "pitch": "D5"
+        },
+        {
+          "beat": 2,
+          "duration_beats": "2/3",
+          "pitch": "A#4"
+        },
+        {
+          "beat": "8/3",
+          "duration_beats": "2/3",
+          "pitch": "G4"
+        },
+        {
+          "beat": "10/3",
+          "duration_beats": "2/3",
+          "pitch": "D#4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 8,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "F7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 1,
+          "pitch": "D5"
+        },
+        {
+          "beat": 1,
+          "duration_beats": 3,
+          "pitch": "C#5"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 9,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "A#Δ7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": "1/2",
+          "duration_beats": "3/2",
+          "pitch": "C5"
+        },
+        {
+          "beat": 2,
+          "duration_beats": 1,
+          "pitch": "B4"
+        },
+        {
+          "beat": 3,
+          "duration_beats": 1,
+          "pitch": "A#4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 10,
+      "chords": [],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 1,
+          "pitch": "C5"
+        },
+        {
+          "beat": 1,
+          "duration_beats": "1/2",
+          "pitch": "B4"
+        },
+        {
+          "beat": "3/2",
+          "duration_beats": "1/2",
+          "pitch": "A#4",
+          "tied": true
+        },
+        {
+          "beat": 2,
+          "duration_beats": 2,
+          "pitch": "A#4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 11,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "B-7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": "1/2",
+          "duration_beats": "3/2",
+          "pitch": "C#5"
+        },
+        {
+          "beat": 2,
+          "duration_beats": 1,
+          "pitch": "C5"
+        },
+        {
+          "beat": 3,
+          "duration_beats": 1,
+          "pitch": "B4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 12,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "E7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 1,
+          "pitch": "C#5"
+        },
+        {
+          "beat": 1,
+          "duration_beats": "1/2",
+          "pitch": "C5"
+        },
+        {
+          "beat": "3/2",
+          "duration_beats": "1/2",
+          "pitch": "B4",
+          "tied": true
+        },
+        {
+          "beat": 2,
+          "duration_beats": 2,
+          "pitch": "B4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 13,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "E-7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 2,
+          "pitch": "D5",
+          "tied": true
+        },
+        {
+          "beat": 2,
+          "duration_beats": "2/3",
+          "pitch": "D5"
+        },
+        {
+          "beat": "8/3",
+          "duration_beats": "2/3",
+          "pitch": "B4"
+        },
+        {
+          "beat": "10/3",
+          "duration_beats": "2/3",
+          "pitch": "G4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 14,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "A7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 2,
+          "pitch": "F#4"
+        },
+        {
+          "beat": 2,
+          "duration_beats": 1,
+          "pitch": "D#4"
+        },
+        {
+          "beat": 3,
+          "duration_beats": 1,
+          "pitch": "E4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 15,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "DΔ7"
+        },
+        {
+          "beat": 2,
+          "symbol": "F7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 1,
+          "pitch": "A4"
+        },
+        {
+          "beat": 1,
+          "duration_beats": 1,
+          "pitch": "A4"
+        },
+        {
+          "beat": 2,
+          "duration_beats": 1,
+          "pitch": "G4"
+        },
+        {
+          "beat": 3,
+          "duration_beats": 1,
+          "pitch": "F4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    },
+    {
+      "number": 16,
+      "chords": [
+        {
+          "beat": 0,
+          "symbol": "A#Δ7"
+        },
+        {
+          "beat": 2,
+          "symbol": "D#Δ7"
+        }
+      ],
+      "melody": [
+        {
+          "beat": 0,
+          "duration_beats": 1,
+          "pitch": "G4"
+        },
+        {
+          "beat": 1,
+          "duration_beats": 1,
+          "pitch": "G4"
+        },
+        {
+          "beat": 2,
+          "duration_beats": 1,
+          "pitch": "F4"
+        },
+        {
+          "beat": 3,
+          "duration_beats": 1,
+          "pitch": "D#4"
+        }
+      ],
+      "start_repeat": false,
+      "end_repeat": false,
+      "ending": null,
+      "rehearsal_mark": null
+    }
+  ]
+}

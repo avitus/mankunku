@@ -190,6 +190,17 @@ Markdown is bundled via `import.meta.glob` at build time in **both** the `/docs`
 
 Audit direction matters: enumerate the product from `src/routes` + `src/lib` and ask "where is this documented". Reading the docs and asking "is this still true" finds drift but is structurally blind to *absence*, which is the larger failure. Cross-check docs against each other too — a contradiction between two pages is worse than either being wrong alone.
 
+### OMR subsystem: LEGATO 2 unreleased, v1 is chord-blind (2026-08-09)
+
+**What:** `omr/` is a standalone uv-managed Python 3.12 subsystem (first Python in the repo) for lead-sheet OMR, built to receive LEGATO 2 — which is **paper-only** (arXiv:2607.05769; "code upon publication"; the gated, unlicensed `legato-1.5` HF uploads are NOT a release). `Legato2Backend` is a documented stub; `LegatoV1Backend` (vendored MIT code, pinned checkpoint `guangyangmusic/legato@2d07c5d`) is experimentation-only.
+
+**Standing facts:**
+- **LEGATO v1 transcribes no text** — `<|text|>` replaces titles, annotations, AND chord symbols (chords are quoted text in ABC). Benchmark chord metrics ≈0 by design; the standing `TEXT_ELIDED_BY_MODEL` warning encodes this. The text-aware tokenizer is the LEGATO-2-only capability this app most needs.
+- Everything depends on the `OMRBackend` protocol, never a concrete engine; raw output is preserved verbatim; the normalizer records only what is printed (absent = None; Db never respelled to C#); validation flags, never rewrites; debug dirs never fabricate (no `systems/` for whole-page models).
+- The checkpoint is **gated (auto)**: needs an HF login + accepted terms + `HF_TOKEN`. Unit suite is hermetic (no torch — the `legato` extra is separate); model tests behind `pytest -m omr_integration`. CI runs the hermetic suite via the `omr-changed` path filter (mirrors `nginx-changed`); no HF token in CI ever.
+- Ground truth is **written pitch as printed** (tenor rule: written = concert + 14 semitones). The converter deliberately emits NO rehearsal marks — section labels are an app concept, not printed ink (my converter initially invented marks; the printed page falsified it). Converted GT stays `"reviewed": false` until human-reviewed; A-Train's boxed A/B/A marks were added from the page.
+- Watch list for the LEGATO 2 release + definition-of-ready: `docs/omr/legato2.md`.
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

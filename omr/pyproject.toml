@@ -1,0 +1,50 @@
+[project]
+name = "omr"
+version = "0.1.0"
+description = "Standalone OMR (Optical Music Recognition) subsystem for Mankunku lead-sheet import. Backend-agnostic; see docs/omr/."
+requires-python = "==3.12.*"
+dependencies = [
+    "pypdfium2>=4.30,<5",
+    "pillow>=11.1,<12",
+]
+
+[project.optional-dependencies]
+# Model-runtime deps for LegatoV1Backend. Pinned to match the vendored
+# guang-yng/legato code's tested versions. Never installed in CI.
+legato = [
+    "torch==2.6.0",
+    "transformers==4.54.0",
+    "numpy==1.26.4",
+    "accelerate==1.8.0",
+    "huggingface_hub>=0.28",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/omr"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Model-dependent tests are opt-in: `pytest -m omr_integration` downloads the
+# ~429MB checkpoint and runs real inference. The default run is hermetic.
+addopts = "-m 'not omr_integration'"
+markers = [
+    "omr_integration: requires the downloaded LEGATO checkpoint and real inference",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["src/omr/vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]

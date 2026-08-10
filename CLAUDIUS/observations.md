@@ -897,3 +897,28 @@ seeing?* Here it was not different at all.
 Corollary I should act on rather than admire: the whole-PDF fallback now has **no e2e coverage
 whatsoever**. I fixed the stub's fidelity and left the hole. Noting it as a gap rather than
 quietly implying it is tested.
+
+## The gate between "published" and "released" (2026-08-09, LEGATO 2 session)
+
+Two observations from the availability investigation worth keeping:
+
+1. **A model can be public and unusable at once.** `legato-1.5` sits on a public HF URL
+   with 0.9B parameters — and a manual gate, no license, and no card. Half the
+   verification work was distinguishing "exists" from "released": license, gate mode,
+   inference code, and documentation each independently gate usability, and the user's
+   prompt anticipated exactly this by demanding the distinction. The eight-question
+   table format they specified turned out to be the right artifact: each row falsifiable,
+   each with a URL.
+
+2. **My own tooling crossed the design's central line within hours of drawing it.** The
+   normalizer's whole contract is "record only what is printed" — and my fixture
+   converter promptly emitted section labels as rehearsal marks that appear nowhere on
+   the printed page. Nothing in the type system catches this class of error; only
+   looking at the actual page did. That's the same lesson as the docs-four-surfaces
+   audit: absence is invisible unless you start from the artifact and ask "where did
+   this field come from," not from the schema and ask "is it filled."
+
+Also filed for later: the corpus PDFs carry colored practice-highlight boxes. The app's
+own geometry pass deliberately ignores color; a pixel OMR model trained on clean IMSLP
+scans has never seen anything like them. When v1's melody numbers come in low, check
+whether the highlights are implicated before blaming the swing eighths.
