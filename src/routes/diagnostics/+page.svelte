@@ -15,6 +15,7 @@
 	import { replayFromBlob } from '$lib/audio/replay';
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
 	import { segmentNotes, resolveOnsets, findReArticulations, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
+	import { trimToPerformance } from '$lib/audio/capture-window';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
@@ -123,8 +124,17 @@
 			localAudioUrl = URL.createObjectURL(full.blob);
 			audioUrl = localAudioUrl;
 			const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
-			const { readings, onsets, duration, sampleRate } = await replayFromBlob(full.blob, ctx);
+			const raw = await replayFromBlob(full.blob, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
+			// Trim the armed lead-in off exactly as the scoring paths do, so this
+			// panel reproduces the saved result instead of disagreeing with it.
+			// Recordings captured before the capture was pre-armed have their
+			// first reading at ~0, so the offset clamps to 0 and they are
+			// untouched. `metadata.transportSeconds` always describes the blob's
+			// first sample, hence the offset is added back on top of it.
+			const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
+			const { readings, workletOnsets: onsets, duration } = trimmed;
+			const sampleRate = raw.sampleRate;
 			const baseOnsets = resolveOnsets(onsets, readings);
 			// Reconstruct the bleed evidence the app scored against. Backing
 			// recordings store their transient onsets directly (the metronome
@@ -138,7 +148,7 @@
 				full.metadata?.backingBleedOnsets ??
 				(full.metadata?.metronomeEnabled && full.metadata.transportSeconds != null
 					? getMetronomeBleedOnsets(
-							full.metadata.transportSeconds,
+							full.metadata.transportSeconds + trimmed.offset,
 							full.metadata.tempo,
 							duration
 						)
