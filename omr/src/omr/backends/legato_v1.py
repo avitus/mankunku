@@ -42,6 +42,16 @@ _AUTH_HINT = (
     "environment variable (or run `hf auth login`)"
 )
 
+# The 429MB checkpoint stores only the trained decoder + projection. The
+# frozen vision encoder streams from Meta's SEPARATELY gated repo at load
+# time — a second access grant is unavoidable for real inference.
+_ENCODER_HINT = (
+    "the LEGATO v1 vision encoder loads from the gated "
+    "meta-llama/Llama-3.2-11B-Vision repository: request access at "
+    "https://huggingface.co/meta-llama/Llama-3.2-11B-Vision (Meta's license "
+    "form; approval is usually granted within minutes-to-hours), then retry"
+)
+
 
 def _elision_warning() -> OMRWarning:
     return OMRWarning(
@@ -122,21 +132,27 @@ class LegatoV1Backend:
                 "in omr/ first"
             ) from e
 
+        from huggingface_hub import snapshot_download
         from transformers import AutoProcessor
 
         from omr.vendor.legato.models import LegatoModel  # registers Auto* classes
 
         token = os.environ.get("HF_TOKEN")
         try:
-            model = LegatoModel.from_pretrained(
+            # Resolve the pinned revision HERE and load from the local path.
+            # Passing revision= into from_pretrained would propagate it into
+            # the nested MllamaVisionModel.from_pretrained('meta-llama/...')
+            # encoder load, where our legato revision does not exist.
+            local_path = snapshot_download(
                 self.model_id, revision=self.revision, token=token
             )
-            processor = AutoProcessor.from_pretrained(
-                self.model_id, revision=self.revision, token=token
-            )
+            model = LegatoModel.from_pretrained(local_path, token=token)
+            processor = AutoProcessor.from_pretrained(local_path)
         except Exception as e:
             lowered = str(e).lower()
             auth_markers = ("gated", "401", "403", "authoriz", "credential", "token")
+            if "meta-llama" in lowered:
+                raise BackendUnavailableError(f"{_ENCODER_HINT} (underlying: {e})") from e
             if any(marker in lowered for marker in auth_markers):
                 raise BackendUnavailableError(f"{_AUTH_HINT} (underlying: {e})") from e
             raise

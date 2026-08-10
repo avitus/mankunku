@@ -19,4 +19,9 @@
   refresh must revisit these pins together.
 - **Checkpoint**: `guangyangmusic/legato` on Hugging Face (MIT, gated "auto"),
   pinned to revision `2d07c5d0e73186f2c0b12e35ea187bbc30dec18c` in
-  `omr/src/omr/backends/legato_v1.py`.
+  `omr/src/omr/backends/legato_v1.py`. NOT self-contained: `modeling_legato.py`
+  loads the frozen vision encoder from `meta-llama/Llama-3.2-11B-Vision`
+  (separately gated, Llama 3.2 Community License) inside `from_pretrained`.
+  The backend therefore resolves the pin via `snapshot_download` and loads
+  from the local path — passing `revision=` to `from_pretrained` would
+  propagate our revision into the meta-llama fetch, where it does not exist.

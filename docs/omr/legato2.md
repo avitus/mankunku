@@ -61,7 +61,12 @@ LEGATO 1 is never presented as LEGATO 2.
 - **Official (vendored)**: `omr/src/omr/vendor/legato/models/` — LEGATO 1's
   model classes, byte-identical from MIT upstream at commit `179c228d`
   (provenance in `VENDORED.md`); checkpoint `guangyangmusic/legato` pinned
-  to revision `2d07c5d0e73186f2c0b12e35ea187bbc30dec18c`.
+  to revision `2d07c5d0e73186f2c0b12e35ea187bbc30dec18c`. The checkpoint is
+  **not self-contained**: it stores only the trained decoder + projection,
+  and `LegatoModel.from_pretrained` loads the frozen vision encoder from the
+  separately-gated `meta-llama/Llama-3.2-11B-Vision` repo (Llama 3.2
+  Community License) at run time — a second access grant every deployment
+  needs, and a fact LEGATO 2 will likely inherit (same architecture family).
 
 ## Definition of ready (to implement `Legato2Backend`)
 

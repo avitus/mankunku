@@ -61,16 +61,27 @@ Python 3.12 (pinned in `.python-version`), uv-managed (`uv.lock`).
 
 ### Model access (one-time, for `--extra legato`)
 
-The checkpoint `guangyangmusic/legato` (MIT, 107M params, ~429MB) is gated
-"auto" on Hugging Face:
+Real inference needs access to **two** gated Hugging Face repos. The LEGATO
+checkpoint (MIT, ~429MB) stores only the trained decoder + projection; its
+**frozen vision encoder streams from Meta's separately-gated
+`meta-llama/Llama-3.2-11B-Vision` repo at load time**. The complete
+checklist — all steps required before the first run works:
 
-1. Log in at huggingface.co (create an account if needed).
-2. Open https://huggingface.co/guangyangmusic/legato and accept the
-   conditions (auto-approved).
-3. Provide a token: `export HF_TOKEN=hf_...` or `uvx hf auth login`.
+1. Log in at https://huggingface.co (create an account if needed).
+2. Open https://huggingface.co/guangyangmusic/legato → accept the
+   conditions (gate mode "auto": approved instantly).
+3. Open https://huggingface.co/meta-llama/Llama-3.2-11B-Vision → fill
+   Meta's license form ("request access"). Approval usually lands within
+   minutes-to-hours. Note: Meta does not license Llama 3.2 vision models in
+   some regions (notably the EU).
+4. Create a read token at https://huggingface.co/settings/tokens and run
+   `omr/.venv/bin/hf auth login --token hf_...` (or `export HF_TOKEN=hf_...`).
 
 Weights download once into the standard HF cache (`~/.cache/huggingface`,
-`HF_HOME` respected). Nothing model-sized ever lands in the repo.
+`HF_HOME` respected) — the LEGATO decoder (~429MB) plus the encoder shards
+from the meta-llama repo (several GB). Nothing model-sized ever lands in the
+repo. A missing grant fails loudly with the exact URL to visit
+(`_AUTH_HINT` / `_ENCODER_HINT` in `backends/legato_v1.py`).
 
 ## Hardware
 

@@ -65,6 +65,35 @@ def test_auth_hint_is_actionable() -> None:
     assert "HF_TOKEN" in _AUTH_HINT
 
 
+def test_meta_encoder_hint_is_actionable() -> None:
+    # The checkpoint is NOT self-contained: the frozen vision encoder streams
+    # from Meta's separately-gated repo, and the error must say so.
+    from omr.backends.legato_v1 import _ENCODER_HINT
+
+    assert "meta-llama/Llama-3.2-11B-Vision" in _ENCODER_HINT
+    assert "request access" in _ENCODER_HINT.lower()
+
+
+def test_revision_pin_must_not_reach_encoder_repo() -> None:
+    # Regression pin for the load path: passing revision= into
+    # LegatoModel.from_pretrained propagates it into the nested
+    # MllamaVisionModel.from_pretrained('meta-llama/...') call, where our
+    # legato revision does not exist. The backend must therefore resolve the
+    # pinned revision via snapshot_download and load from the local path.
+    import inspect
+
+    from omr.backends import legato_v1
+
+    source = inspect.getsource(legato_v1.LegatoV1Backend._load)
+    assert "snapshot_download" in source
+    assert "from_pretrained(local_path" in source
+    # revision may only ever be passed to snapshot_download, never from_pretrained
+    for line in source.splitlines():
+        code = line.split("#", 1)[0]
+        if "from_pretrained" in code:
+            assert "revision" not in code
+
+
 def test_standing_elision_warning() -> None:
     warning = _elision_warning()
     assert warning.code == "TEXT_ELIDED_BY_MODEL"
