@@ -71,7 +71,7 @@ This is the 12-key drill. It picks a lick from your **tagged** collection and ru
 
 ### Setting it up
 
-Before your first session, go to **Licks** and tap the star on a few licks you want to drill. Tagged licks become your Side B practice book. Each tagged lick also needs at least one **progression tag** — the *Practice over* pills on its detail page, which say which backing tracks it plays cleanly over. They're set automatically when the lick's category matches a progression (a ii-V-I lick gets ii-V-I major), and you can add or remove them by hand to drill the same line over a different progression.
+Before your first session, go to **Licks** and tap the star on a few licks you want to drill. Tagged licks become your Side B practice book. Each tagged lick also needs at least one **progression tag** — the *Practice over* pills on its detail page, which say which backing tracks it plays cleanly over. A tag gets seeded for you the first time you set a lick's category, when that category maps cleanly onto a progression (a ii-V-I lick gets ii-V-I major). That is a one-time write, not an ongoing guess: the app never infers a missing tag later, so a lick with no tag stays out of Side B, and a tag you delete stays deleted.
 
 When you open Side B, you choose:
 

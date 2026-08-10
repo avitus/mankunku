@@ -101,7 +101,7 @@ This is the only place the rhythm section gets to hear a *form*, and it uses it.
 - **Crashes on section arrivals** — and about a third of the time the crash arrives *early*, on the and-of-4 of the previous bar, with the kick underneath it. That's the push a big-band drummer plays into a new section. When the crash doesn't fire, you'll sometimes get a ride-bell accent on the downbeat instead.
 - **Setup figures on the last bar of a section** — snare triplets into the barline, the hard-bop hand-to-foot triplet, a ride-and-kick lean.
 - **The long fill over a chorus turn** — a two-beat build rolling across the barline into the next chorus, with the downbeat crash landing on top of it.
-- **The band builds.** The ensemble digs in over the first three choruses and then holds: the ride gets busier, the kick stops sitting out bars, the comper plays denser figures in a higher register and takes fewer rests. Ballads are capped — they never dig in past the middle of that range.
+- **The band builds.** The ensemble digs in over the first three choruses and then holds: the ride gets busier, the kick stops sitting out bars, the comping instrument plays denser figures in a higher register and takes fewer rests. Ballads are capped — they never dig in past the middle of that range.
 
 None of this happens in Lick Practice, because a two-bar vamp has no form to mark.
 

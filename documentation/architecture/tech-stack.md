@@ -100,7 +100,7 @@ Mankunku is a **local-first installable web app** with optional cloud sync:
 - **State persistence** — User progress, settings, and session history are stored in `localStorage` first; large binary blobs (tune PDFs, via `src/lib/persistence/tune-pdf-store.ts`) live in IndexedDB. An optional Supabase backend (`src/lib/supabase/`, `src/routes/api/account/`) provides authenticated cloud sync so the same data follows a user across devices.
 - **Audio pipeline** — Built entirely on Web Audio APIs. An `AudioWorklet` handles onset detection, an `AnalyserNode` feeds the pitch detector, and Tone.js manages transport scheduling for metronome and phrase playback.
 - **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 33-scale catalog and ~452-lick curated catalog are defined as typed data structures (plus additional runtime-generated combinations).
-- **Deployment** — `adapter-node` produces a Node.js server bundle, promoted into place by an atomic-release script on a Digital Ocean VM and run under PM2 (see "Deployment" below). Page loads require the network — there is no service worker (see "Installable web app" above); user data stays local-first.
+- **Deployment** — `adapter-node` produces a Node.js server bundle, promoted into place by a symlink-swap release script on a Digital Ocean VM and run under PM2 (see "Deployment" below). Page loads require the network — there is no service worker (see "Installable web app" above); user data stays local-first.
 
 ## Deployment
 
@@ -151,7 +151,10 @@ from an incident:
 - **A failed deploy removes its own staged release — unless `current` already
   points at it**, in which case that directory *is* production and deleting it
   would turn a failed deploy into an outage. Cleanup unlinks the `node_modules`
-  symlink; it never follows it into `shared/deps`.
+  symlink; it never follows it into `shared/deps`. Best-effort, not guaranteed:
+  the handler cannot run if the script is `SIGKILL`ed or OOM-killed — the exact
+  failure that motivated shared deps — so an orphaned staged release can survive
+  until a later prune.
 - **`pm2 start` returning 0 is not a deploy.** It only means a process spawned. A
   stale process still holding port 3000 answers 200 happily, so `release.sh` polls
   `/api/health` and compares the **release id** — within a wall-clock budget, not

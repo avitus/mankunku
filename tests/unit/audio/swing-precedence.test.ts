@@ -13,9 +13,14 @@ import type { BackingStyle } from '$lib/types/instruments';
  * Who owns the eighth-note grid, style or user?
  *
  * The rule: a 'fixed' style declares a genre whose eighth-note placement is
- * not a matter of taste, so it wins outright. Only the 'tempo' style (swing)
- * defers to the user's knob. Both the band and the melody resolve through
- * that same rule, so a soloist is never swinging over a straight band.
+ * not a matter of taste, so it wins outright — and band and melody both take
+ * it, so a soloist never swings over a straight bossa. Only the 'tempo' style
+ * (swing) defers to the user's knob.
+ *
+ * Band and melody agree for 'fixed' styles, NOT universally: on the swing
+ * style with the knob straight the band follows the tempo curve while the
+ * melody stays even (asserted below). That divergence is deliberate — the grid
+ * the scorer expects must never move with tempo.
  *
  * These tests exist because the original rule was inverted and had no
  * coverage above STRAIGHT_SWING — the knob's very first step (0.55) silently
