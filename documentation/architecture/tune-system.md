@@ -80,7 +80,54 @@ All five add-paths converge on the same `Tune` shape. Two shared modules do the 
 | `import/ireal.ts` | `irealbook://` and `irealb://` URLs | Includes the 50-char-chunk unscrambler for the `irealb://` variant (the transform is an involution). Playlists yield many sheets. Harmony only — iReal charts have no melody. |
 | `import/biab.ts` | `.SGU`/`.MGU` binary, or BIAB MusicXML | Binary reader follows MuseScore's `importexport/bb` layout (version byte, pascal title, style/key/tempo, RLE chord-extension streams over a 255-bar × 4-beat grid). MusicXML is the recommended fallback when the binary read comes out wrong. Harmony only. |
 | `import/musescore.ts` | `.mscz` / `.mscx` | The richest and only **lossless** import. Reads staff 1 voice 1 as melody, `<Harmony>` as changes. Resolves both pitch conventions exactly: `<Note><pitch>` is already concert; `<Harmony>` roots are written-pitch and get shifted back by `<transposeChromatic>`; `<KeySig><concertKey>` gives the concert key directly. |
-| `import/claude-pdf.ts` + `import/pdf-*.ts` | A PDF, via `/api/tune-parse` | Geometry detection (staves, barlines, chord text, noteheads) feeds Claude's transcription; `claudeJsonToTune` converts the returned JSON. `extractionConsistencyScore` counts structural warnings (resyncs, bar-count mismatches, overview disagreements) and the route retries once when it's high. Output always lands in a review panel — warnings name the *printed bar* they refer to. |
+| `import/claude-pdf.ts` + `import/pdf-*.ts` | A PDF, via `/api/tune-parse` | Geometry detection (staves, barlines, chord text, noteheads) feeds Claude's transcription one **system** at a time; `claudeJsonToTune` converts the returned JSON. `extractionConsistencyScore` counts structural warnings (resyncs, bar-count mismatches, overview disagreements) and the route buys a steadying second pass when it's high *and* the clock allows. Output always lands in a review panel — warnings name the *printed bar* they refer to. See "PDF import timing" below. |
+
+### PDF import timing and partial results
+
+Transcription latency is set by the model, not the chart. Measured 2026-08-09
+against the live API, one system-mode call on the same 4-bar crop ran **15s at
+`effort: 'low'` and 109s / 180s / 345s at `'high'`** — Fable spends 7k–23k
+adaptive thinking tokens to produce a ~250-token answer, and `thinking:
+adaptive` emits nothing at all between `message_start` and the final second.
+Three consequences shape the design, and none of them are tunable by guessing a
+bigger number:
+
+- **The response is an NDJSON heartbeat stream** (`Accept:
+  application/x-ndjson`; plain JSON otherwise). A `progress` line every 3s,
+  then exactly one terminal `result` or `error`. nginx's `proxy_read_timeout`
+  measures the gap *between* reads, and a browser cannot tell a thinking model
+  from a dead socket — the heartbeat answers both. The client's deadline is
+  therefore an **inactivity** budget, never a total elapsed time.
+- **No single request stacks model calls without budget.** The per-bar QA
+  re-read is bought only if the first pass returned inside
+  `SYSTEM_RETRY_BUDGET_MS`; past it the shaky transcription is returned with a
+  warning naming the skip. The model *fallback* is unbudgeted — it only runs
+  when there is no transcription at all.
+- **A failed system costs only that system.** `pdf-import-run.ts` fans the
+  systems out, retries each independently, and keeps what succeeded.
+  `assembleClaudeDoc` pads a missing system to empty bars, so the chords and
+  bar layout still come from the page and `importReviewNotes` flags those bars
+  as untranscribed. Only a geometry failure — or every system failing — drops
+  to whole-PDF extraction. The earlier `Promise.all` fan-out did the opposite:
+  one abort discarded every completed system and restarted on the slowest path.
+
+**The meter is declared, not discovered.** Every per-line prompt needs the beat
+grid, so the meter has to be known before the first request goes out. It used
+to be read off a *full transcription of line 1*, which serialised the entire
+import behind one model call — 263s of a 604s run, 43%, to learn something the
+user can read at a glance. `TimeSignatureSelect` now asks up front, beside the
+source-pitch control, and every line goes out at once.
+
+Detection was considered and rejected as the primary source: MuseScore exports
+put the meter in the PDF **text layer** as SMuFL `timeSig*` glyphs (`U+E084`
+stacked, right after `gClef` `U+E050`) — present in 9 of the 10 reference
+charts, and `pdf-text-chords.ts` already walks that exact item list — but the
+tenth is a Sibelius/Inkpen2 export whose music font is not SMuFL and carries no
+such glyphs. Asking is universal; detection would have needed the ask as a
+fallback anyway. The model still *reports* the printed meter for systems that
+show one, and that is used as a free cross-check: a declaration contradicting
+the print becomes the first review warning rather than silently reshaping every
+bar.
 
 `source-transposition.ts` handles a question every add-path has to ask: the chart in front of the user may be a written-pitch part (a Bb book page, an Eb alto edition). Every add method lets the user declare the source pitch, and this module shifts to concert on the way in.
 

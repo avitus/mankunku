@@ -56,6 +56,7 @@ export const tooltips = {
 		},
 		statusText: {
 			text: 'Tells you what to do right now. "Listen" while the phrase plays, "Your turn" when it’s your move, "Listening" while the mic captures.'
+
 		}
 	} satisfies TooltipMap,
 

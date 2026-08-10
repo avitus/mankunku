@@ -1,13 +1,12 @@
 /**
  * Integration tests for the phrase assembly pipeline.
  *
- * Tests the combiner (scale × rhythm → Phrase), mutator transformations,
- * difficulty calculation, and phrase validation.
+ * Tests the full flow: combiner (scale × rhythm → Phrase), difficulty
+ * calculation, and phrase validation.
  */
 
 import { describe, it, expect } from 'vitest';
 import { combine, realizeScalePattern, generateAllCombinations } from '../../src/lib/phrases/combiner';
-import { rhythmicDisplacement, retrograde, truncate } from '../../src/lib/phrases/mutator';
 import { validatePhrase, rulesForDifficulty, isInRange } from '../../src/lib/phrases/validator';
 import { calculateDifficulty } from '../../src/lib/difficulty/calculate';
 import { getScale } from '../../src/lib/music/scales';
@@ -40,7 +39,6 @@ function makePhrase(notes: Note[]): Phrase {
 	};
 }
 
-// ─── Combiner ──────────────────────────────────────────────────
 
 describe('combiner — scale × rhythm', () => {
 	it('produces null when note counts do not match', () => {
@@ -117,72 +115,6 @@ describe('combiner — scale × rhythm', () => {
 	});
 });
 
-// ─── Mutator ───────────────────────────────────────────────────
-
-describe('mutator transformations', () => {
-	it('rhythmic displacement shifts all offsets by an 8th note', () => {
-		const notes = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-			makeNote(67, [1, 2]),
-		];
-		const phrase = makePhrase(notes);
-
-		const displaced = rhythmicDisplacement(phrase);
-
-		expect(displaced.id).toContain('displaced');
-		// Each note offset should be shifted by [1, 8]
-		// [0,1] + [1,8] = [1,8]
-		expect(displaced.notes[0].offset[0] / displaced.notes[0].offset[1])
-			.toBeCloseTo(0 + 1 / 8);
-	});
-
-	it('retrograde reverses pitch sequence preserving rhythm', () => {
-		const notes = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-			makeNote(67, [1, 2]),
-		];
-		const phrase = makePhrase(notes);
-
-		const retro = retrograde(phrase);
-
-		expect(retro.notes[0].pitch).toBe(67);
-		expect(retro.notes[1].pitch).toBe(64);
-		expect(retro.notes[2].pitch).toBe(60);
-
-		// Rhythm (offsets) should be preserved
-		expect(retro.notes[0].offset).toEqual(notes[0].offset);
-		expect(retro.notes[1].offset).toEqual(notes[1].offset);
-		expect(retro.notes[2].offset).toEqual(notes[2].offset);
-	});
-
-	it('truncate reduces note count', () => {
-		const notes = Array.from({ length: 8 }, (_, i) =>
-			makeNote(60 + i, [i, 4] as [number, number])
-		);
-		const phrase = makePhrase(notes);
-
-		const truncated = truncate(phrase, 4);
-
-		expect(truncated.notes).toHaveLength(4);
-		expect(truncated.id).toContain('trunc');
-	});
-
-	it('truncate does not reduce phrases with <= 4 notes', () => {
-		const notes = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-			makeNote(67, [1, 2]),
-		];
-		const phrase = makePhrase(notes);
-
-		const result = truncate(phrase);
-		expect(result.notes).toHaveLength(3);
-	});
-});
-
-// ─── Validator ─────────────────────────────────────────────────
 
 describe('phrase validation', () => {
 	it('accepts a well-formed phrase within tenor sax range', () => {

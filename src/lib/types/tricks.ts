@@ -44,7 +44,7 @@ export interface TrickContext {
 	/** Concert-pitch target key of the practice window */
 	key: PitchClass;
 	timeSignature: [number, number];
-	/** Player-facing difficulty level 1-100 (drives getProfile bounds) */
+	/** Player-facing difficulty level 1-100 (drives getProfileForLevel bounds) */
 	level: number;
 	/** Playback tempo in BPM — needed to place expected slots in seconds */
 	tempo: number;

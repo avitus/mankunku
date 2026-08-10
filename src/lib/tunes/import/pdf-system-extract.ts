@@ -62,7 +62,11 @@ function installSumPrecisePolyfill(): void {
  * is found (not a chart, or a scan too degraded for the geometry) — the
  * caller falls back to whole-PDF extraction.
  */
-export async function extractPdfSystems(buffer: ArrayBuffer): Promise<PdfSystemExtraction | null> {
+export async function extractPdfSystems(
+	buffer: ArrayBuffer,
+	/** Reports page-by-page progress; rendering a dense chart is not instant. */
+	onProgress?: (page: number, totalPages: number) => void
+): Promise<PdfSystemExtraction | null> {
 	installSumPrecisePolyfill();
 	// Fake-worker mode: the worker module runs on the main thread, where the
 	// polyfill above covers it. Import PDFs are small; parse time is fine.
@@ -78,6 +82,7 @@ export async function extractPdfSystems(buffer: ArrayBuffer): Promise<PdfSystemE
 	const farItems: Array<PageTextItem & { page: number }> = [];
 
 	for (let p = 1; p <= doc.numPages; p++) {
+		onProgress?.(p, doc.numPages);
 		const pg = await doc.getPage(p);
 		const vp = pg.getViewport({ scale: SCALE });
 		const canvas = document.createElement('canvas');

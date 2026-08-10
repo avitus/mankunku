@@ -70,9 +70,12 @@ If the scale should be suggested for certain chord qualities:
 1. Add the chord quality to the scale's `chordApplications` array
 2. The `getScalesForChord()` function will then return it
 
-## Step 6: Use in difficulty tiering (optional)
+## Step 6: Use in combinatorial lick generation (optional)
 
-Ensure the scale's family is in the `scaleTypes` array of the appropriate `DifficultyProfile` in `params.ts`, so the scale becomes eligible at the intended level.
+To build combinatorial licks over the scale:
+
+1. Ensure the scale's family is in the `scaleTypes` array of the appropriate `DifficultyProfile` in `params.ts`
+2. Add the scale's family to the `compatibleFamilies` of the relevant entries in `src/lib/data/patterns/scale-patterns.ts`, and point the category's `CATEGORY_CONTEXT` entry in `src/lib/phrases/combiner.ts` at the scale's ID
 
 ## Verification
 

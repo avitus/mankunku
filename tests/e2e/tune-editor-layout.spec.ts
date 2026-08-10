@@ -99,10 +99,38 @@ test.describe('desktop', () => {
 		await expect(page.locator(`${CHART_SVG} .abcjs-note`)).toHaveCount(20);
 		await expect(rail.getByText(/Section A · Bar 6, Beat 1/)).toBeVisible();
 	});
+
+	test('all five duration glyphs fit the rail without horizontal overflow', async ({ page }) => {
+		await openEditor(page);
+
+		const rail = page.getByTestId('entry-rail');
+		for (const name of ['Whole Note', 'Half Note', 'Quarter Note', 'Eighth Note', 'Sixteenth Note']) {
+			await expect(rail.getByRole('button', { name })).toBeVisible();
+		}
+
+		// The 16rem rail leaves ~232px of content box. Flex items refuse to
+		// shrink below their content, so too much button padding overflows
+		// rather than wrapping — measure it instead of trusting the arithmetic.
+		const row = rail.getByRole('button', { name: 'Whole Note' }).locator('..');
+		const fits = await row.evaluate((el) => el.scrollWidth <= el.clientWidth);
+		expect(fits).toBe(true);
+	});
 });
 
 test.describe('mobile', () => {
 	test.use({ viewport: { width: 375, height: 667 } });
+
+	test('all five duration glyphs fit the dock without horizontal overflow', async ({ page }) => {
+		await openEditor(page);
+
+		// A tighter constraint than the desktop rail: at this width the dock
+		// container puts the glyph row and the modifier toggles on ONE line
+		// (@max-[28rem]/entry), so the five glyphs share the width with them.
+		const dock = page.getByTestId('entry-dock');
+		const row = dock.getByRole('button', { name: 'Whole Note' }).locator('..');
+		const fits = await row.evaluate((el) => el.scrollWidth <= el.clientWidth);
+		expect(fits).toBe(true);
+	});
 
 	test('dock pinned to the bottom, rail hidden, dock C enters a note', async ({ page }) => {
 		await openEditor(page);

@@ -3,12 +3,10 @@
  *
  * Verifies that rangeHigh is respected across:
  *   - transposeLick / transposeLickForTonality (library-loader)
- *   - octaveDisplacement / mutateLick (mutator)
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
-import { octaveDisplacement, mutateLick } from '$lib/phrases/mutator';
 import type { Phrase } from '$lib/types/music';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
@@ -37,10 +35,6 @@ function makePhrase(pitches: (number | null)[], category: string = 'pentatonic')
 		source: 'curated'
 	} as Phrase;
 }
-
-afterEach(() => {
-	vi.restoreAllMocks();
-});
 
 // ─── transposeLick with rangeHigh ───────────────────────────
 
@@ -171,122 +165,3 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 	});
 });
 
-// ─── octaveDisplacement with rangeHigh ───────────────────────
-
-describe('octaveDisplacement — rangeHigh constraint', () => {
-	it('rejects upward displacement that would exceed rangeHigh', () => {
-		// 6 notes, inner 4 eligible for displacement. With rangeHigh=70,
-		// a note at 65 shifted +12 = 77 > 70, so it should be rejected.
-		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
-
-		// Mock Math.random to always trigger displacement (< 0.25) and always go up (> 0.5)
-		const randomValues = [0.1, 0.6]; // 0.1 = triggers displacement, 0.6 = direction up (+12)
-		let callIdx = 0;
-		vi.spyOn(Math, 'random').mockImplementation(() => {
-			return randomValues[callIdx++ % randomValues.length];
-		});
-
-		const result = octaveDisplacement(phrase, 70);
-		for (const n of result.notes) {
-			if (n.pitch !== null) {
-				expect(n.pitch).toBeLessThanOrEqual(70);
-				expect(n.pitch).toBeGreaterThanOrEqual(44);
-			}
-		}
-	});
-
-	it('allows downward displacement within range', () => {
-		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
-
-		// Mock Math.random: triggers displacement (< 0.25) and goes down (< 0.5)
-		const randomValues = [0.1, 0.3]; // 0.1 = triggers, 0.3 = direction down (-12)
-		let callIdx = 0;
-		vi.spyOn(Math, 'random').mockImplementation(() => {
-			return randomValues[callIdx++ % randomValues.length];
-		});
-
-		const result = octaveDisplacement(phrase, 70);
-		for (const n of result.notes) {
-			if (n.pitch !== null) {
-				expect(n.pitch).toBeGreaterThanOrEqual(44);
-			}
-		}
-	});
-
-	it('default rangeHigh (84) allows higher displacement', () => {
-		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
-
-		// Mock: always displace up
-		const randomValues = [0.1, 0.6];
-		let callIdx = 0;
-		vi.spyOn(Math, 'random').mockImplementation(() => {
-			return randomValues[callIdx++ % randomValues.length];
-		});
-
-		const result = octaveDisplacement(phrase);
-		for (const n of result.notes) {
-			if (n.pitch !== null) {
-				expect(n.pitch).toBeLessThanOrEqual(84);
-				expect(n.pitch).toBeGreaterThanOrEqual(44);
-			}
-		}
-		// At least some inner notes should have been displaced up
-		const innerPitches = result.notes.slice(1, -1).map(n => n.pitch!);
-		const originalInner = [62, 64, 65, 67];
-		const someDisplaced = innerPitches.some((p, i) => p !== originalInner[i]);
-		expect(someDisplaced).toBe(true);
-	});
-});
-
-// ─── mutateLick with rangeHigh ───────────────────────────────
-
-describe('mutateLick — rangeHigh constraint', () => {
-	it('validates mutations against the custom range', () => {
-		const phrase = makePhrase([60, 62, 64, 65, 67, 70]);
-
-		// Mock Math.random to select octaveDisplacement (index 1) and displace up
-		// mutateLick picks mutation via Math.floor(Math.random() * 4)
-		// We want index 1 (octaveDisplacement): Math.random() returns 0.3 → floor(0.3*4)=1
-		// Then within octaveDisplacement: 0.1 (trigger), 0.6 (up)
-		const sequence = [0.3, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6];
-		let callIdx = 0;
-		vi.spyOn(Math, 'random').mockImplementation(() => {
-			return sequence[callIdx++ % sequence.length];
-		});
-
-		const result = mutateLick(phrase, 72);
-		if (result !== null) {
-			for (const n of result.notes) {
-				if (n.pitch !== null) {
-					expect(n.pitch).toBeLessThanOrEqual(72);
-					expect(n.pitch).toBeGreaterThanOrEqual(44);
-				}
-			}
-		}
-	});
-
-	it('returns null when mutation violates range', () => {
-		// All notes near ceiling — upward octave displacement will exceed range,
-		// and the validation should reject it
-		const phrase = makePhrase([68, 69, 70, 71, 72, 73]);
-
-		// Force octaveDisplacement (index 1) with upward displacement
-		const sequence = [0.3, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6, 0.1, 0.6];
-		let callIdx = 0;
-		vi.spyOn(Math, 'random').mockImplementation(() => {
-			return sequence[callIdx++ % sequence.length];
-		});
-
-		// With rangeHigh=73, displaced notes (e.g. 69+12=81) exceed range
-		// but octaveDisplacement rejects individual displacements > rangeHigh,
-		// so the result may be unchanged or null depending on validation
-		const result = mutateLick(phrase, 73);
-		if (result !== null) {
-			for (const n of result.notes) {
-				if (n.pitch !== null) {
-					expect(n.pitch).toBeLessThanOrEqual(73);
-				}
-			}
-		}
-	});
-});

@@ -459,6 +459,25 @@ describe('phraseToAbc beam grouping', () => {
 		// The four eighths on beats 3-4 still beam as a single group of 4.
 		expect(line).toMatch(/CCCC\s*\|]/);
 	});
+
+	it('renders a dotted-eighth/sixteenth pair against an L:1/8 unit', () => {
+		// The step-entry vocabulary can produce [3,16] and [1,16] directly, so
+		// pin the ABC they emit: against the 1/8 default length a dotted eighth
+		// is 3/2 units and a sixteenth is 1/2.
+		const notes: Phrase['notes'] = [
+			{ pitch: 60, duration: [3, 16], offset: [0, 16] },
+			{ pitch: 60, duration: [1, 16], offset: [3, 16] },
+			{ pitch: 60, duration: [1, 8], offset: [2, 8] },
+			{ pitch: 60, duration: [1, 8], offset: [3, 8] },
+			{ pitch: 60, duration: [1, 2], offset: [1, 2] }
+		];
+		const phrase: Phrase = { ...eighthsPhrase(0, [4, 4]), notes };
+		const line = noteLine(phraseToAbc(phrase));
+		expect(line).toContain('C3/2');
+		expect(line).toContain('C/2');
+		// Beat 1 holds a 16th, so that half-bar beams per beat rather than as 4.
+		expect(beamGroups(phraseToAbc(phrase))).toEqual(['C3/2C/2', 'CC', 'C4']);
+	});
 });
 
 describe('midiToDisplayName key-aware spelling', () => {

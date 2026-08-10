@@ -27,6 +27,12 @@
 		 */
 		isDemoing?: boolean;
 		/**
+		 * True through the lead-in bar before the user's recording window
+		 * opens. Pre-lights the active row's ring so the eye is already on the
+		 * right chart when the switch lands, rather than hunting for it after.
+		 */
+		isArming?: boolean;
+		/**
 		 * Just-scored key result to flash as a tier-colored chip on that
 		 * key's row (single-lick continuous flow — feedback rides the scroll
 		 * instead of pausing it). Matched by key, so the chip follows its row
@@ -44,6 +50,7 @@
 		isPlaying,
 		isRecording,
 		isDemoing = false,
+		isArming = false,
 		scoreFlash = null,
 		instrument
 	}: Props = $props();
@@ -85,9 +92,14 @@
 				</div>
 				{/if}
 				<!-- Recording ring wraps just the chord chart, not the row
-				     label, so the blue border sits below the label rather
-				     than above it. -->
-				<div class="chart-wrap" class:recording={isCurrent && isRecording}>
+				     label, so the ring sits below the label rather than above
+				     it. Dashed while arming, solid once the mic is live — a
+				     shape change, so the state reads without relying on colour. -->
+				<div
+					class="chart-wrap"
+					class:recording={isCurrent && isRecording}
+					class:arming={isCurrent && isArming && !isRecording}
+				>
 					<ChordChart
 						harmony={pk.harmony}
 						currentBeat={isCurrent ? currentBeat : 0}
@@ -138,8 +150,15 @@
 		position: relative;
 		border-radius: 0.5rem;
 	}
+	/* Live mic — the recording-booth red the rest of the app uses for "on air". */
 	.chart-wrap.recording {
-		box-shadow: 0 0 0 2px var(--color-accent);
+		box-shadow: 0 0 0 2px var(--color-onair);
+	}
+	/* Lead-in: same ring, dashed and dimmed, so the row the user is about to
+	   play is already marked a bar before the switch. */
+	.chart-wrap.arming {
+		outline: 2px dashed color-mix(in srgb, var(--color-onair) 55%, transparent);
+		outline-offset: 0;
 	}
 	/* Transient per-key score chip: fades in over the just-scored row, holds,
 	   fades out — sized and placed to never obscure the chord boxes' text. */

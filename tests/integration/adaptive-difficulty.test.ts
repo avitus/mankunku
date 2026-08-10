@@ -16,7 +16,7 @@ import {
 	processKeyAttempt,
 	getAdaptiveSummary
 } from '../../src/lib/difficulty/adaptive';
-import { getProfile, levelToContentTier, DIFFICULTY_PROFILES } from '../../src/lib/difficulty/params';
+import { getProfileForTier, levelToContentTier, DIFFICULTY_PROFILES } from '../../src/lib/difficulty/params';
 import { difficultyBand, difficultyDisplay } from '../../src/lib/difficulty/display';
 
 // ─── Initial State ─────────────────────────────────────────────
@@ -312,9 +312,9 @@ describe('difficulty profile mapping', () => {
 		expect(levelToContentTier(100)).toBe(10);
 	});
 
-	it('getProfile returns valid profiles for all tiers', () => {
+	it('getProfileForTier returns valid profiles for all tiers', () => {
 		for (let tier = 1; tier <= 10; tier++) {
-			const profile = getProfile(tier);
+			const profile = getProfileForTier(tier);
 			expect(profile.level).toBe(tier);
 			expect(profile.scaleTypes.length).toBeGreaterThan(0);
 			expect(profile.keys.length).toBeGreaterThan(0);
@@ -323,8 +323,8 @@ describe('difficulty profile mapping', () => {
 	});
 
 	it('higher tiers unlock more musical content', () => {
-		const tier1 = getProfile(1);
-		const tier10 = getProfile(10);
+		const tier1 = getProfileForTier(1);
+		const tier10 = getProfileForTier(10);
 
 		expect(tier10.scaleTypes.length).toBeGreaterThan(tier1.scaleTypes.length);
 		expect(tier10.keys.length).toBeGreaterThanOrEqual(tier1.keys.length);

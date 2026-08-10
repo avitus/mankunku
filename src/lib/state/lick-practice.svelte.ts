@@ -75,6 +75,12 @@ import {
 	KEY_FLOOR_THRESHOLD
 } from '$lib/persistence/lick-practice-store';
 import { sortKeysWorstFirst, shouldDemoHeadKey } from './lick-practice-rotation';
+import {
+	estimateLickSeconds,
+	estimateSessionSeconds,
+	lickAudioBars,
+	type LickTimingSpec
+} from './lick-practice-duration';
 import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
@@ -114,8 +120,11 @@ import {
 	DEFAULT_PROGRESSION,
 	type UpcomingLickEntry
 } from './lick-practice-picker';
+import { buildNextStep, type NextStep } from './lick-practice-next-steps';
+import { concertKeyToWritten } from '$lib/music/transposition';
 
 export type { UpcomingLickEntry };
+export type { NextStep, NextStepAction } from './lick-practice-next-steps';
 
 /**
  * Per-key pass bar — score at or above which a key counts as "passed"
@@ -175,6 +184,15 @@ export const lickPractice = $state<{
 	config: LickPracticeConfig;
 	phase: LickPracticePhase;
 	plan: LickPracticePlanItem[];
+	/**
+	 * How long the active plan will take, in seconds — the in-session
+	 * countdown's total. NOT `config.durationMinutes`: a standard session plays
+	 * its plan once and stops, and the plan is usually capped by how many licks
+	 * are tagged rather than by the budget, so counting down from the budget
+	 * left minutes on the clock at the report screen. Zero for the endless
+	 * deep-practice and trick sessions, which show no countdown.
+	 */
+	plannedSeconds: number;
 	currentLickIndex: number;
 	currentKeyIndex: number;
 	currentTempo: number;
@@ -224,6 +242,7 @@ export const lickPractice = $state<{
 	},
 	phase: 'setup',
 	plan: [],
+	plannedSeconds: 0,
 	currentLickIndex: 0,
 	currentKeyIndex: 0,
 	currentTempo: 100,
@@ -369,6 +388,25 @@ export function getUpcomingLicks(): UpcomingLickEntry[] {
 }
 
 /**
+ * Resolve the session-complete screen's single next-step recommendation —
+ * runes wrapper that supplies the still-intact plan (the source of truth for
+ * which report entries are trick items) and the user's written-pitch spelling,
+ * then delegates to the pure `buildNextStep`.
+ *
+ * Takes the report the caller already built rather than calling
+ * `getSessionReport()` again, so the card can never disagree with the numbers
+ * rendered beside it.
+ */
+export function getNextStep(report: SessionReport): NextStep | null {
+	const instrument = getInstrument();
+	return buildNextStep({
+		report,
+		plan: lickPractice.plan,
+		formatKey: (key) => concertKeyToWritten(key, instrument)
+	});
+}
+
+/**
  * Thin wrapper around `selectInitialProgression` (in lick-practice-picker.ts)
  * that resolves the runtime dependencies — practice-tagged ids, full lick
  * library, current progress, session log, progression-tags lookup. The
@@ -402,8 +440,60 @@ export function resolveLickTempo(progress: LickPracticeProgress, phraseId: strin
 	return clampTempo(getLickTempo(progress, phraseId));
 }
 
-/** Build a session plan sorted by least-recently-practiced, filling the time budget */
-export function buildSessionPlan(): void {
+/**
+ * Cost one plan item on the session timeline: the bars its super phrase spans
+ * plus the lead-in and score-hold bars around it, at the lick's own tempo and
+ * time signature. Returns null when the lick can't be resolved (a plan item
+ * pointing at a lick that has since been deleted) so the caller can skip it
+ * rather than charge a guessed cost.
+ */
+function timingSpecForItem(item: LickPracticePlanItem): LickTimingSpec | null {
+	const lick = resolveLickFor(item);
+	if (!lick) return null;
+	const lickBars = getLickBars(
+		lick,
+		item.progressionType,
+		lickPractice.config.enableSubstitutions ?? false
+	);
+	return {
+		audioBars: lickAudioBars({
+			keyCount: item.keys.length,
+			lickBars,
+			mode: lickPractice.config.practiceMode
+		}),
+		beatsPerBar: lick.timeSignature[0],
+		tempo: resolveLickTempo(lickPractice.progress, item.phraseId)
+	};
+}
+
+/**
+ * How long a standard / Daily Practice plan will actually take, in seconds.
+ *
+ * This is THE session estimate: a standard session plays its plan once and
+ * stops, so the plan — not `config.durationMinutes` — determines the length.
+ * Costed with the same helpers the plan builders use to fill the budget, so
+ * the number the user is shown and the number the planner budgets against can
+ * never drift apart.
+ *
+ * Deep-practice and trick sessions are endless by design and have no
+ * meaningful total; they don't call this.
+ */
+export function estimatePlanSeconds(plan: readonly LickPracticePlanItem[]): number {
+	const specs: LickTimingSpec[] = [];
+	for (const item of plan) {
+		const spec = timingSpecForItem(item);
+		if (spec) specs.push(spec);
+	}
+	return estimateSessionSeconds(specs);
+}
+
+/**
+ * Compute a Focused-session plan sorted by least-recently-practiced, filling
+ * the time budget. Pure with respect to session state (it reads config +
+ * progress but writes nothing), so the setup screen can price a session
+ * without starting one — see `previewSessionSeconds`.
+ */
+export function computeSessionPlan(): LickPracticePlanItem[] {
 	const licks = getPracticeLicks();
 	const progress = lickPractice.progress;
 	const progressionType = lickPractice.config.progressionType;
@@ -419,7 +509,7 @@ export function buildSessionPlan(): void {
 	const plan: LickPracticePlanItem[] = [];
 	let estimatedTime = 0;
 
-	for (let i = 0; i < sorted.length && estimatedTime < totalSeconds; i++) {
+	for (let i = 0; i < sorted.length; i++) {
 		const lick = sorted[i];
 		const tempo = resolveLickTempo(progress, lick.id);
 		const unlockedCount = getUnlockedKeyCount(progress, lick.id);
@@ -435,26 +525,41 @@ export function buildSessionPlan(): void {
 					minBpm: NEW_LICK_DEFAULT_TEMPO,
 					instrument: getInstrument()
 				});
+		// Cost the lick before appending, on the same model
+		// `estimatePlanSeconds` reports to the user — see
+		// lick-practice-duration.ts for the bar layout it mirrors. Costing
+		// after the append (and gating only the NEXT iteration) is what used
+		// to let one over-budget lick through.
+		const lickSeconds = estimateLickSeconds({
+			audioBars: lickAudioBars({
+				keyCount: keys.length,
+				lickBars: getLickBars(lick, progressionType, enableSubstitutions),
+				mode: lickPractice.config.practiceMode
+			}),
+			beatsPerBar: lick.timeSignature[0],
+			tempo
+		});
+		// A lick that alone outruns the budget still gets planned when it would
+		// otherwise leave the plan empty — an empty plan makes Start a no-op.
+		if (plan.length > 0 && estimatedTime + lickSeconds > totalSeconds) break;
+
 		plan.push({
 			phraseId: lick.id,
 			phraseName: lick.name,
-			phraseNumber: i + 1,
+			phraseNumber: plan.length + 1,
 			category: lick.category,
 			keys,
 			progressionType
 		});
-		// Mirror the runtime layout: each key consumes `keyBars` (= lickBars in
-		// continuous mode, 2 × lickBars in C&R) and continuous mode prepends a
-		// demo cycle of `lickBars` before the keys.
-		const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
-		const mode = lickPractice.config.practiceMode;
-		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
-		const demoBars = mode === 'continuous' ? lickBars : 0;
-		const totalBars = keys.length * keyBars + demoBars;
-		estimatedTime += (totalBars * 4 * 60) / tempo + 5;
+		estimatedTime += lickSeconds;
 	}
 
-	lickPractice.plan = plan;
+	return plan;
+}
+
+/** Build a Focused-session plan and install it as the active plan. */
+export function buildSessionPlan(): void {
+	lickPractice.plan = computeSessionPlan();
 }
 
 /** Start the practice session */
@@ -466,6 +571,7 @@ export function startSession(): void {
 	buildSessionPlan();
 	if (lickPractice.plan.length === 0) return;
 
+	lickPractice.plannedSeconds = estimatePlanSeconds(lickPractice.plan);
 	lickPractice.mode = 'standard';
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;
@@ -504,8 +610,11 @@ export function getDailyPracticeLicks(): Phrase[] {
  * least-recently-practiced compatible progression, and greedily fill the
  * duration budget. Mirrors `buildSessionPlan` but rotates progressions
  * across the lick set instead of pinning to a single one.
+ *
+ * Pure with respect to session state, so the setup screen can price a Daily
+ * session without starting one — see `previewSessionSeconds`.
  */
-export function buildDailyPracticePlan(): void {
+export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 	const licks = getDailyPracticeLicks();
 	const progress = lickPractice.progress;
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
@@ -544,16 +653,20 @@ export function buildDailyPracticePlan(): void {
 				});
 
 		// Cost the lick *before* appending so the plan never overshoots the
-		// configured duration budget by an extra lick. The previous loop gate
-		// (`estimatedTime < totalSeconds`) only blocked the *next* iteration,
-		// which let one lick that exceeded the remaining budget through.
-		const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
-		const mode = lickPractice.config.practiceMode;
-		const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
-		const demoBars = mode === 'continuous' ? lickBars : 0;
-		const totalBars = keys.length * keyBars + demoBars;
-		const lickSeconds = (totalBars * 4 * 60) / tempo + 5;
-		if (estimatedTime + lickSeconds > totalSeconds) break;
+		// configured duration budget by an extra lick, on the same model
+		// `estimatePlanSeconds` reports to the user (lick-practice-duration.ts).
+		const lickSeconds = estimateLickSeconds({
+			audioBars: lickAudioBars({
+				keyCount: keys.length,
+				lickBars: getLickBars(lick, progressionType, enableSubstitutions),
+				mode: lickPractice.config.practiceMode
+			}),
+			beatsPerBar: lick.timeSignature[0],
+			tempo
+		});
+		// A lick that alone outruns the budget still gets planned when it would
+		// otherwise leave the plan empty — an empty plan makes Start a no-op.
+		if (plan.length > 0 && estimatedTime + lickSeconds > totalSeconds) break;
 
 		plan.push({
 			phraseId: lick.id,
@@ -566,7 +679,32 @@ export function buildDailyPracticePlan(): void {
 		estimatedTime += lickSeconds;
 	}
 
-	lickPractice.plan = plan;
+	return plan;
+}
+
+/** Build a Daily Practice plan and install it as the active plan. */
+export function buildDailyPracticePlan(): void {
+	lickPractice.plan = computeDailyPracticePlan();
+}
+
+/**
+ * Preview what a session of `config.sessionType` would cost right now, without
+ * touching session state: the licks that would actually be planned and how
+ * long playing them takes. The setup screen shows this instead of the duration
+ * knob, because the plan is normally capped by how many licks the user has
+ * tagged rather than by the budget — a 13-lick book runs ~7 minutes however
+ * high the knob is set.
+ *
+ * Only meaningful for the two multi-lick session types; deep practice and
+ * trick drills are endless and return zero.
+ */
+export function previewSessionSeconds(): { lickCount: number; seconds: number } {
+	const sessionType = lickPractice.config.sessionType;
+	if (sessionType !== 'daily' && sessionType !== 'focused') {
+		return { lickCount: 0, seconds: 0 };
+	}
+	const plan = sessionType === 'daily' ? computeDailyPracticePlan() : computeSessionPlan();
+	return { lickCount: plan.length, seconds: estimatePlanSeconds(plan) };
 }
 
 /**
@@ -584,6 +722,7 @@ export function startDailyPracticeSession(): void {
 	buildDailyPracticePlan();
 	if (lickPractice.plan.length === 0) return;
 
+	lickPractice.plannedSeconds = estimatePlanSeconds(lickPractice.plan);
 	lickPractice.mode = 'standard';
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;
@@ -698,6 +837,7 @@ export function startSingleLickSession(
 		}
 	];
 
+	lickPractice.plannedSeconds = 0;
 	lickPractice.mode = 'single-lick';
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;
@@ -788,6 +928,7 @@ export function startTrickSession(): boolean {
 		}
 	];
 
+	lickPractice.plannedSeconds = 0;
 	lickPractice.mode = 'single-lick';
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;
@@ -1688,6 +1829,7 @@ export function updateElapsedTime(): void {
 export function resetSession(): void {
 	lickPractice.phase = 'setup';
 	lickPractice.plan = [];
+	lickPractice.plannedSeconds = 0;
 	lickPractice.currentLickIndex = 0;
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.keyResults = [];

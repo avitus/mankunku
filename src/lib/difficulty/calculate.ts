@@ -15,6 +15,7 @@
  */
 
 import type { Phrase, DifficultyMetadata, Fraction } from '$lib/types/music';
+import { noteCountFloorLevel } from '$lib/difficulty/params';
 
 /** C-major pitch classes — the "home" diatonic set */
 const DIATONIC_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
@@ -48,12 +49,16 @@ export function calculateDifficulty(phrase: Phrase): DifficultyMetadata {
 	const lengthBars = Math.max(1, Math.ceil(maxEnd));
 
 	// ═══════════════════════════════════════════════════════════════
-	//  PITCH COMPLEXITY  (raw 0~65, scaled 0~100)
+	//  PITCH COMPLEXITY  (raw 0~100, scaled 0~100)
 	// ═══════════════════════════════════════════════════════════════
 
-	// 1. Note count  (max 25 pts)
-	//    2 notes = trivial, 14+ = demanding
-	const noteCountPts = norm(pitches.length, 2, 14) * 25;
+	// 1. Note count  (max 35 pts)
+	//    2 notes = trivial, 14 = demanding, and beyond that the memory load
+	//    keeps climbing — a 21-note line is not a 14-note line. Without the
+	//    overflow term the score is flat past 14 notes, which let long lines
+	//    be rated as beginner content.
+	const noteCountPts =
+		norm(pitches.length, 2, 14) * 25 + norm(pitches.length, 14, 26) * 10;
 
 	// 2. Intervals  (max 30 pts)
 	const intervals: number[] = [];
@@ -169,4 +174,24 @@ export function calculateDifficulty(phrase: Phrase): DifficultyMetadata {
 		rhythmComplexity,
 		lengthBars
 	};
+}
+
+/**
+ * The level a phrase should be gated at, which is its stored level unless that
+ * sits below the floor its note count demands.
+ *
+ * Stored levels come from three places that can all be wrong about length:
+ * hand-written entries in the curated data files, community rows (the adopted
+ * validator only range-checks `difficulty.level`, it never recomputes it), and
+ * older phrases rated before a rubric change. Selection paths that gate on
+ * level should use this rather than `phrase.difficulty.level` directly, so a
+ * long line can never be served as beginner content.
+ *
+ * Deliberately not folded into `calculateDifficulty`: that function also rates
+ * whole tunes (`tuneToPhrase`), where hundreds of notes would peg every chart
+ * at the top tier and destroy the spread.
+ */
+export function effectiveDifficultyLevel(phrase: Phrase): number {
+	const pitchedCount = phrase.notes.filter((n) => n.pitch !== null).length;
+	return Math.max(phrase.difficulty.level, noteCountFloorLevel(pitchedCount));
 }

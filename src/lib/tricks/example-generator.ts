@@ -21,7 +21,7 @@ import { chordSymbol, chordTones } from '$lib/music/chords';
 import { getScale, getScalesForChord } from '$lib/music/scales';
 import { realizeScaleMidi } from '$lib/music/keys';
 import { fractionToFloat } from '$lib/music/intervals';
-import { getProfile } from '$lib/difficulty/params';
+import { getProfileForLevel } from '$lib/difficulty/params';
 import { calculateDifficulty } from '$lib/difficulty/calculate';
 import { validatePhrase } from '$lib/phrases/validator';
 
@@ -48,7 +48,7 @@ export interface TrickExampleArgs {
 export function allowedSubdivisions(
 	level: number
 ): ('whole' | 'half' | 'quarter' | 'eighth' | 'triplet' | 'sixteenth')[] {
-	return [...getProfile(level).rhythmTypes];
+	return [...getProfileForLevel(level).rhythmTypes];
 }
 
 /**
@@ -108,7 +108,7 @@ function realizePitches(
 ): number[] | null {
 	const pool = buildScalePool(context, low, high);
 	const poolPcs = new Set(pool.map((m) => m % 12));
-	const maxInterval = getProfile(context.level).maxInterval;
+	const maxInterval = getProfileForLevel(context.level).maxInterval;
 
 	const pitches: number[] = [];
 	let prev: number | null = null;
@@ -203,7 +203,7 @@ export function realizeTrickExample(args: TrickExampleArgs): Phrase | null {
 	// because the longest device shape — the 12-note alternating-triplet
 	// triad-pair spec — is wall-to-wall leaps (11 in a row); the rail guards
 	// runaway generation, not legitimate device shapes.
-	const profile = getProfile(context.level);
+	const profile = getProfileForLevel(context.level);
 	const validation = validatePhrase(phrase, {
 		maxInterval: Math.max(profile.maxInterval, 9),
 		maxConsecutiveLeaps: 12,

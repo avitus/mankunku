@@ -18,6 +18,15 @@ function isHttpError(e: unknown): e is HttpErrorShape {
 const mockCreate = vi.fn();
 let configured = true;
 
+/** Collect an NDJSON body into its parsed lines. */
+async function ndjsonLines(res: Response): Promise<Array<Record<string, unknown>>> {
+	const text = await res.text();
+	return text
+		.split('\n')
+		.filter((l) => l.trim().length > 0)
+		.map((l) => JSON.parse(l) as Record<string, unknown>);
+}
+
 function makeEvent(body: unknown, headers: Record<string, string> = {}, userId: string | null = null) {
 	const request = new Request('http://localhost/api/tune-parse', {
 		method: 'POST',
@@ -43,8 +52,12 @@ async function loadRoute() {
 						messages: {
 							create: mockCreate,
 							// The route streams (large max_tokens); the mock resolves the
-							// same payload through finalMessage().
-							stream: (req: unknown) => ({ finalMessage: () => mockCreate(req) })
+							// same payload through finalMessage(). The second argument is
+							// the SDK's per-request options — the route passes the
+							// client's abort signal through it.
+							stream: (req: unknown, opts?: unknown) => ({
+								finalMessage: () => mockCreate(req, opts)
+							})
 						}
 					}
 				: null,
@@ -474,5 +487,244 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		await expect(POST(makeEvent({ system: { image: PNG_B64 } }))).rejects.toMatchObject({
 			status: 400
 		});
+	});
+});
+
+/**
+ * Wall-clock discipline. Measured 2026-08-09 against the live API: one
+ * system-mode call on a 4-bar crop ran 15s at low effort and 109s / 180s /
+ * 345s at high, on IDENTICAL input. Stacking a QA retry on top of a slow
+ * first attempt is what pushed a single request past the client's abort and
+ * (in production) past nginx's 330s proxy_read_timeout.
+ */
+describe('POST /api/tune-parse — request duration', () => {
+	const PNG_B64 = Buffer.from('fake-png').toString('base64');
+	/** Out of meter, so the QA retry would fire if the budget allowed it. */
+	const shakyBars = [
+		{ startRepeat: false, endRepeat: false, pickup: false, melody: [[0, 3, 'C4']] }
+	];
+	const shakyResponse = {
+		content: [
+			{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: shakyBars }) }
+		]
+	};
+
+	it('passes the client abort signal through to the SDK', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue(shakyResponse);
+		const event = makeEvent({ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } });
+		await POST(event);
+		// Without this the model call outlives the request that asked for it:
+		// the browser gives up at its timeout and the server keeps streaming.
+		expect(mockCreate.mock.calls[0][1]?.signal).toBe(event.request.signal);
+	});
+
+	it('skips the QA retry when the first attempt already spent the budget', async () => {
+		vi.useFakeTimers();
+		try {
+			const { POST } = await loadRoute();
+			mockCreate.mockImplementation(async () => {
+				vi.setSystemTime(Date.now() + 120_000);
+				return shakyResponse;
+			});
+			const res = await POST(
+				makeEvent({ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } })
+			);
+			expect(res.status).toBe(200);
+			expect(mockCreate).toHaveBeenCalledTimes(1);
+			// The user still gets the shaky transcription plus the reason it
+			// was not re-read — silently dropping the retry would look like a
+			// clean extraction.
+			const payload = await res.json();
+			expect(payload.warnings.join(' ')).toMatch(/bar 1/);
+			expect(payload.warnings.join(' ')).toMatch(/not re-read/i);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('still retries when the first attempt was quick', async () => {
+		vi.useFakeTimers();
+		try {
+			const { POST } = await loadRoute();
+			mockCreate.mockImplementation(async () => {
+				vi.setSystemTime(Date.now() + 5_000);
+				return shakyResponse;
+			});
+			await POST(makeEvent({ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } }));
+			expect(mockCreate).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps the plain JSON body for callers that do not ask for the stream', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue(shakyResponse);
+		const res = await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } })
+		);
+		expect(res.headers.get('content-type')).toContain('application/json');
+		expect((await res.json()).bars).toHaveLength(1);
+	});
+
+	it('streams heartbeats then one terminal result line when NDJSON is requested', async () => {
+		const { POST, _heartbeatMsForTests } = await loadRoute();
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let call = 0;
+		mockCreate.mockImplementation(async () => {
+			// Hold the FIRST model call open long enough to force heartbeats;
+			// a silent socket is exactly what nginx and the browser time out on.
+			if (call++ === 0) await held;
+			return shakyResponse;
+		});
+		const pending = POST(
+			makeEvent(
+				{ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } },
+				{ accept: 'application/x-ndjson' }
+			)
+		);
+		const res = await pending;
+		expect(res.headers.get('content-type')).toContain('application/x-ndjson');
+		// Read the stream while the model call is still held open. The wait is
+		// derived from the route's own interval, not a copied constant — a
+		// hard-coded 3.4s would fail as a confusing "no progress lines" after
+		// the full timeout if HEARTBEAT_MS ever grew.
+		const reading = ndjsonLines(res);
+		await new Promise((r) => setTimeout(r, _heartbeatMsForTests() + 400));
+		release();
+		const lines = await reading;
+
+		expect(lines.filter((l) => l.type === 'progress').length).toBeGreaterThan(0);
+		const terminal = lines[lines.length - 1];
+		expect(terminal.type).toBe('result');
+		expect(terminal.bars).toHaveLength(1);
+		// Exactly one terminal line, and nothing after it.
+		expect(lines.filter((l) => l.type === 'result' || l.type === 'error')).toHaveLength(1);
+	}, 15_000);
+
+	it('reports a total transcription failure as an error line, not a dead stream', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockRejectedValue(new Error('upstream exploded'));
+		const res = await POST(
+			makeEvent(
+				{ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } },
+				{ accept: 'application/x-ndjson' }
+			)
+		);
+		const lines = await ndjsonLines(res);
+		const terminal = lines[lines.length - 1];
+		expect(terminal.type).toBe('error');
+		expect(terminal.status).toBe(502);
+		// The real reason travels to the UI instead of being swallowed.
+		expect(String(terminal.message)).toContain('upstream exploded');
+	});
+
+	it('still rejects an invalid request with a status code, not an error line', async () => {
+		const { POST } = await loadRoute();
+		// Validation must happen before the stream opens — once it does, 200
+		// is committed and a 400 can no longer be expressed.
+		await expect(
+			POST(makeEvent({ system: { image: PNG_B64 } }, { accept: 'application/x-ndjson' }))
+		).rejects.toMatchObject({ status: 400 });
+	});
+
+	it('streams the whole-PDF fallback too — it is the longest single call', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue({
+			content: [
+				{
+					type: 'text',
+					text: JSON.stringify({
+						title: 'Test',
+						keySignature: { fifths: 0 },
+						timeSignature: [4, 4],
+						systems: [{ bars: [{ chords: [[0, 'C']], melody: [[0, 4, 'C4']] }] }]
+					})
+				}
+			]
+		});
+		const res = await POST(
+			makeEvent({ pdf: TINY_PDF_B64 }, { accept: 'application/x-ndjson' })
+		);
+		expect(res.headers.get('content-type')).toContain('application/x-ndjson');
+		const lines = await ndjsonLines(res);
+		const terminal = lines[lines.length - 1];
+		expect(terminal.type).toBe('result');
+		expect(terminal.sheet).toBeTruthy();
+	});
+
+	/**
+	 * Structurally shaky on TWO counts, so `extractionConsistencyScore` is 2
+	 * and the retry is genuinely on offer — leaving the budget as the only
+	 * thing that can withhold it.
+	 *
+	 * System 2 declares printed bar 9 when only 2 bars precede it (a resync
+	 * warning, 6 placeholder bars inserted), which then puts the total at 10
+	 * against the overview's declared 8 (a second warning). A fixture with a
+	 * single warning scores 1, and every assertion below would pass without
+	 * the budget guard ever being consulted.
+	 */
+	const SHAKY_DOC = {
+		title: 'Test',
+		keySignature: { fifths: 0 },
+		timeSignature: [4, 4],
+		systemsOverview: [4, 4],
+		systems: [
+			{
+				bars: [
+					{ chords: [[0, 'C']], melody: [[0, 4, 'C4']] },
+					{ chords: [[0, 'F']], melody: [[0, 4, 'A4']] }
+				]
+			},
+			{
+				firstBarNumber: 9,
+				bars: [
+					{ chords: [[0, 'G']], melody: [[0, 4, 'B4']] },
+					{ chords: [[0, 'C']], melody: [[0, 4, 'C5']] }
+				]
+			}
+		]
+	};
+
+	/** Answer with the shaky document, advancing the clock by `elapsedMs`. */
+	function mockShakyExtraction(elapsedMs: number): void {
+		mockCreate.mockImplementation(async () => {
+			vi.setSystemTime(Date.now() + elapsedMs);
+			return { content: [{ type: 'text', text: JSON.stringify(SHAKY_DOC) }] };
+		});
+	}
+
+	it('buys a second whole-PDF extraction while the budget remains', async () => {
+		vi.useFakeTimers();
+		try {
+			const { POST } = await loadRoute();
+			mockShakyExtraction(1_000);
+			const res = await POST(makeEvent({ pdf: TINY_PDF_B64 }));
+			expect(res.status).toBe(200);
+			// The control for the test below: same shaky output, budget intact,
+			// so the steadying second pass IS bought.
+			expect(mockCreate).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('does not start a second whole-PDF extraction once the budget is gone', async () => {
+		vi.useFakeTimers();
+		try {
+			const { POST } = await loadRoute();
+			// Identical shaky output — only the elapsed time differs, so a
+			// single call proves the BUDGET withheld the retry.
+			mockShakyExtraction(200_000);
+			const res = await POST(makeEvent({ pdf: TINY_PDF_B64 }));
+			expect(res.status).toBe(200);
+			expect(mockCreate).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

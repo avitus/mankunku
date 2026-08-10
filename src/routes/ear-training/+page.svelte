@@ -21,6 +21,7 @@
 	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
+	import { effectiveDifficultyLevel } from '$lib/difficulty/calculate';
 	import { levelSignalDirection } from '$lib/difficulty/level-signal';
 	import { loadBackingInstruments, getActiveSchedule } from '$lib/audio/backing-track';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
@@ -76,8 +77,12 @@
 	);
 
 	const allLicksRaw = getAllLicks();
+	// Gate on the EFFECTIVE level, not the stored one: a lick's rated level can
+	// sit below the floor its note count demands (hand-written curated ratings,
+	// community rows the adopted validator only range-checks), and this filter
+	// is the only thing standing between that and a beginner's ears.
 	const difficultyFiltered = $derived(
-		allLicksRaw.filter(lick => lick.difficulty.level <= scaleProfLevel)
+		allLicksRaw.filter(lick => effectiveDifficultyLevel(lick) <= scaleProfLevel)
 	);
 	const scaleFilteredLicks = $derived(
 		difficultyFiltered.filter(lick => isLickCompatible(lick, activeTonality.scaleType))

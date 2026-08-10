@@ -50,7 +50,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Audio](./api-reference/audio.md) | audio-context, playback, capture, pitch-detector/pitch-frame, onset-detector, note-segmenter, metronome, and the whole backing-track engine (generation, styles, drum vocabulary, timing, mix/bus, bounce) |
 | [Scoring](./api-reference/scoring.md) | alignment, pitch-scoring, rhythm-scoring, scorer, score-pipeline, fluency, grades |
 | [Music](./api-reference/music.md) | scales, chords, keys, intervals, notation, tune-notation, chart/chord/ending layout, chord-symbol, transposition |
-| [Phrases](./api-reference/phrases.md) | generator, mutator, validator, library-loader |
+| [Phrases](./api-reference/phrases.md) | combiner, validator, library-loader, duplicate-detection, adopted-phrase-validator |
 | [Difficulty](./api-reference/difficulty.md) | adaptive, params, lick-phase, level-signal, calculate, display |
 | [State](./api-reference/state.md) | session, settings, progress, history, licks, lick-practice (+ rotation), tricks, step-entry, tune-entry, tune-community, tune-practice, tour state modules |
 | [Components](./api-reference/components.md) | All Svelte components, by domain |

@@ -3,6 +3,7 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
 import { fractionToFloat } from '$lib/music/intervals';
 import { buildEnclosureSlots, enclosuresTrick } from '$lib/tricks/devices/enclosures';
+import { allowedSubdivisions } from '$lib/tricks/example-generator';
 import { trickVariantKey } from '$lib/types/tricks';
 import {
 	buildFourEighthsSlots,
@@ -166,12 +167,22 @@ describe('buildEnclosureSlots', () => {
 	});
 
 	it('falls back to quarter notes when the level profile lacks eighths', () => {
-		// getProfile treats levels ≤ 10 as content tiers; tier 2 has no eighths.
-		const slots = buildEnclosureSlots(ENCLOSURE_LADDER[0][1], { ...baseContext, level: 2 });
+		// context.level is a PLAYER level (1-100), never a content tier. Levels
+		// 1-12 map to tiers 1-2, neither of which has eighths; tier 3 (from level
+		// 13) is where they arrive. Pin both sides of that boundary so the
+		// fallback is shown to track the level, not a coincidence of magnitude.
+		expect(allowedSubdivisions(12)).not.toContain('eighth');
+		expect(allowedSubdivisions(13)).toContain('eighth');
+
+		const slots = buildEnclosureSlots(ENCLOSURE_LADDER[0][1], { ...baseContext, level: 12 });
 		assertValidSlots(slots);
 		for (const slot of slots) {
 			expect(fractionToFloat(slot.duration)).toBeCloseTo(0.25, 9);
 		}
+
+		const eighths = buildEnclosureSlots(ENCLOSURE_LADDER[0][1], { ...baseContext, level: 13 });
+		assertValidSlots(eighths);
+		expect(eighths.some((s) => fractionToFloat(s.duration) === 0.125)).toBe(true);
 	});
 });
 
