@@ -10,6 +10,7 @@ import {
 import { runScorePipeline } from '$lib/scoring/score-pipeline';
 import type { Phrase } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
+import { trimToPerformance } from '$lib/audio/capture-window';
 import { loadWavFixture, makeFakeAudioBuffer, type FakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
@@ -2076,5 +2077,141 @@ describe('pitch replay regression: 2026-08-01 downbeat-kick pair (concert Bb)', 
 			expect(result.chosen.overall).toBeGreaterThan(c.savedOverall);
 			expect(result.chosen.overall).toBeGreaterThan(0.9);
 		});
+	});
+});
+
+/**
+ * 2026-08-10 "Pent 1-2-3-5 / Eighth Run + Hold" — concert C pentatonic run
+ * C-D-E-G on Bb tenor, 105 BPM, swing 0.6, metronome on, no backing track.
+ *
+ * This is the authoritative path: the live score is provisional and gets
+ * overwritten by exactly this replay of the saved blob, so the 0.522
+ * ("try-again") the user saw was produced here.
+ *
+ * The WAV opens mid-note — RMS 0.039 at the first sample, no attack transient,
+ * no leading silence — because the capture used to be armed by the very note
+ * it was meant to record. 190 ms of the C was already gone. That is fixed in
+ * the capture layer and cannot be fixed in a recording that never contained
+ * the audio, so this fixture still detects three notes rather than four; what
+ * it pins is the second defect, which is what turned a one-note loss into a
+ * three-note one.
+ *
+ * The metronome click at 0.856 s wiped McLeod clarity for 167 ms on the held
+ * final G, and the bare-gap tier fabricated a re-articulation at 1.08 s. The
+ * phantom G restored the detected count to four, so DTW found a clean 1:1
+ * diagonal shifted one position — 60→62, 62→64, 64→67 — and scored pitch at
+ * 0.25 with one note of four hit.
+ */
+describe('pitch replay regression: pent run, metronome click on the held G (2026-08-10)', () => {
+	const TRANSPORT_SECONDS = 289.4296145124717;
+	const TEMPO = 105;
+	const SWING = 0.6;
+
+	function loadFixture(): FakeAudioBuffer {
+		const wav = loadWavFixture('recordings/2026-08-10-pent-1-2-3-5-eighth-run-hold.wav');
+		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
+	}
+
+	const expectedPhrase: Phrase = {
+		id: 'cmb-sp-pent-run-4_rp-4-eighths-hold',
+		name: 'Pent 1-2-3-5 / Eighth Run + Hold',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] },
+			{ pitch: 62, duration: [1, 8], offset: [1, 8] },
+			{ pitch: 64, duration: [1, 8], offset: [1, 4] },
+			{ pitch: 67, duration: [5, 8], offset: [3, 8] }
+		],
+		harmony: [],
+		difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
+		category: 'bebop',
+		tags: [],
+		source: 'curated'
+	};
+
+	/** The ear-training rescore path. `bleed: false` models the evidence going missing. */
+	async function replayPipeline(bleed: boolean) {
+		const raw = await replayFromAudioBuffer(loadFixture());
+		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
+		const bleedOnsets = bleed
+			? getMetronomeBleedOnsets(TRANSPORT_SECONDS + trimmed.offset, TEMPO, trimmed.duration)
+			: undefined;
+		const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
+		const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			trimmed.readings,
+			onsets,
+			trimmed.duration,
+			undefined,
+			undefined,
+			undefined,
+			trimmed.workletOnsets,
+			bleedOnsets,
+			articulationOnsets
+		);
+		return { trimmed, articulationOnsets, detected };
+	}
+
+	it('leaves a pre-fix recording untrimmed', async () => {
+		// Captured before the mic was pre-armed, so the audio already starts at
+		// the performance and there is no lead-in to remove. Every recording
+		// saved before that change must replay exactly as it always did.
+		const { trimmed } = await replayPipeline(true);
+		expect(trimmed.offset).toBe(0);
+	});
+
+	it('keeps the held G in one piece across the click', async () => {
+		const { articulationOnsets, detected, trimmed } = await replayPipeline(true);
+
+		expect(articulationOnsets.filter((t) => t > 0.85 && t < 1.2)).toEqual([]);
+		expect(detected.map((n) => n.midi)).toEqual([62, 64, 67]);
+
+		const heldG = detected[2];
+		expect(heldG.onsetTime).toBeCloseTo(0.733, 2);
+		expect(heldG.onsetTime + heldG.duration).toBeCloseTo(trimmed.duration, 2);
+	});
+
+	it('scores one missed note instead of three wrong ones', async () => {
+		const { detected } = await replayPipeline(true);
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+
+		// Saved diagnostic: pitch 0.250, overall 0.522, 1 of 4 hit.
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(0.75, 5);
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.overall).toBeGreaterThan(0.70);
+		expect(result.chosen.noteResults[0].missed).toBe(true);
+		expect(result.chosen.noteResults.slice(1).map((r) => r.detected?.midi)).toEqual([62, 64, 67]);
+	});
+
+	it('reproduces the shipped bug exactly when the bleed evidence is missing', async () => {
+		// The suppression is driven entirely by the scheduled click times, and
+		// no production caller passes them to `resolveOnsets` — the evidence
+		// reaching `findReArticulations` and `segmentNotes` is what does the
+		// work. Dropping it at a call site silently restores the split, so pin
+		// that this is the load-bearing input rather than a happy accident.
+		const { articulationOnsets, detected } = await replayPipeline(false);
+
+		expect(articulationOnsets).toContainEqual(expect.closeTo(1.08, 2));
+		expect(detected.map((n) => n.midi)).toEqual([62, 64, 67, 67]);
+
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+		expect(result.chosen.pitchAccuracy).toBeCloseTo(0.25, 5);
+		expect(result.chosen.overall).toBeCloseTo(0.522, 2);
 	});
 });
