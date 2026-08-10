@@ -1356,6 +1356,52 @@ const BAND_FLOOR_CONTEXT_FRAMES = 8;
 const RE_ARTICULATION_GAP_SUSTAIN = 0.85;
 
 /**
+ * Energy floor the bare-gap tier demands instead when a scheduled click sits
+ * INSIDE the hole — the note must have got louder across it, not merely held.
+ *
+ * `RE_ARTICULATION_GAP_SUSTAIN` separates a click-wiped sustain from a real
+ * tongue stop by how much energy survives the hole, and the two populations it
+ * was cut between are close: the decaying-note counterexample measured 0.67,
+ * true re-attacks 0.94 and 0.97. The 2026-08-10 pent-run capture landed
+ * between them at ~0.85 — a metronome click on a *held* (not decaying) G, so
+ * the note neither faded enough to be vetoed nor stepped up like an attack.
+ * It split the held G in two, and the phantom note restored the count to four,
+ * which let DTW find a clean 1:1 diagonal one position off and turn a single
+ * missed note into three wrong ones.
+ *
+ * Rather than squeeze the floor further into that gap, the click supplies an
+ * orthogonal fact the ratio cannot: a click only ever ADDS energy and masks
+ * tracking — it can never make the note louder. So when one lands in the hole,
+ * demand the same genuine step-up the short-gap tier requires
+ * (`RE_ARTICULATION_GAP_ATTACK_RISE`). A real tongue re-attack on the beat
+ * still clears it; a masked sustain cannot.
+ *
+ * Blast radius, measured across the fixture corpus: exactly one recording has
+ * a scheduled click inside a bare gap — the pent run this was written for.
+ */
+const RE_ARTICULATION_GAP_CLICK_RISE = RE_ARTICULATION_GAP_ATTACK_RISE;
+
+/**
+ * Allowance for a click that lands just before the last reading of a run.
+ *
+ * Readings are timestamped at the END of their analyser window
+ * (`windowAnchor: 'end'`), so a click arriving slightly ahead of the final
+ * clean reading is already inside that window and is still what wiped the
+ * tracking that follows. One bleed-latency floor is enough to cover it.
+ */
+const GAP_CLICK_LEAD_ALLOWANCE = BLEED_LATENCY_MIN;
+
+/** Whether a scheduled bleed event lands inside a reading hole. */
+function hasBleedInsideGap(sortedBleed: number[], gapStart: number, gapEnd: number): boolean {
+	const from = gapStart - GAP_CLICK_LEAD_ALLOWANCE;
+	for (const t of sortedBleed) {
+		if (t > gapEnd) return false;
+		if (t >= from) return true;
+	}
+	return false;
+}
+
+/**
  * Suppression window for HF-tier candidates around a scheduled audible
  * event (metronome click). The recorder mixes the metronome into the
  * captured audio, and a click is a broadband burst that perturbs the
@@ -1770,7 +1816,12 @@ function findReArticulationsInSegment(
 			// but the note keeps fading — see RE_ARTICULATION_GAP_SUSTAIN.
 			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
 			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
-			if (preRms <= 0 || postRms < preRms * RE_ARTICULATION_GAP_SUSTAIN) {
+			// When a click lands in the hole ITSELF the ratio can't settle it,
+			// so demand a real step-up — see RE_ARTICULATION_GAP_CLICK_RISE.
+			const energyFloor = hasBleedInsideGap(sortedBleed, stable[g - 1].time, stable[g].time)
+				? RE_ARTICULATION_GAP_CLICK_RISE
+				: RE_ARTICULATION_GAP_SUSTAIN;
+			if (preRms <= 0 || postRms < preRms * energyFloor) {
 				continue;
 			}
 		} else {

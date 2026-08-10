@@ -13,6 +13,7 @@
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
+	import { trimToPerformance } from '$lib/audio/capture-window';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
@@ -252,8 +253,7 @@
 		clearTimeout(levelSignalTimer);
 		onsetDetector?.dispose();
 		onsetDetector = null;
-		recorderHandle?.dispose();
-		recorderHandle = null;
+		disposeArmedRecorder();
 	});
 
 	// ─── Mic + Detection ─────────────────────────────────────
@@ -345,6 +345,7 @@
 		starting = true;
 		session.lastScore = null;
 		awaitingInput = false;
+		disposeArmedRecorder();
 		failCount = 0;
 
 		try {
@@ -400,14 +401,29 @@
 		failCount = 0;
 		await playback.stopPlayback();
 		stopRecording();
-		recorderHandle?.dispose();
-		recorderHandle = null;
+		disposeArmedRecorder();
 		awaitingInput = false;
 		session.engineState = 'ready';
 	}
 
 	// ─── Recording ───────────────────────────────────────────
 
+	/**
+	 * Arm the capture and wait for the user to come in.
+	 *
+	 * Everything that defines the capture's t=0 — the pitch detector, the onset
+	 * worklet, the MediaRecorder and the transport snapshot — starts HERE, one
+	 * decay-wait after the call phrase ends, rather than when the user's first
+	 * note is detected. Arming on first detection could never capture that
+	 * note's attack: the trigger is a confident pitch reading, and a reading
+	 * only becomes confident once the note fills most of the 4096-sample
+	 * analyser window, so the attack is always already in the past by the time
+	 * it fires (~190 ms on the 2026-08-10 pent-run capture, which lost 56% of
+	 * its first note and scored it as three wrong notes).
+	 *
+	 * `finishRecording` trims the resulting lead-in back off — see
+	 * `trimToPerformance`.
+	 */
 	async function enterAwaitingInput() {
 		if (!pitchModule || !captureModule) return;
 		if (!(await ensureMicCapture())) return;
@@ -416,34 +432,52 @@
 		}
 		// Stop detector during cooldown so playback decay isn't captured
 		pitchDetector?.stop();
+		disposeArmedRecorder();
 		session.engineState = 'recording';
 		// Wait for acoustic decay + AnalyserNode buffer to flush (~85ms buffer + margin)
 		await new Promise(resolve => setTimeout(resolve, 150));
 		if (session.engineState !== 'recording') return; // bail if user stopped
 		// Restart fresh — buffer now has only ambient/user audio
 		pitchDetector?.start();
-		awaitingInput = true;
-	}
-
-	function beginRecording() {
-		if (!pitchDetector || !session.phrase) return;
 		recordingTransportSeconds = playback?.getTransportSeconds() ?? 0;
-		session.isRecording = true;
-		session.recordedNotes = [];
-		const recordingStartTime = micCapture?.context.currentTime ?? 0;
-		onsetDetector?.reset(recordingStartTime);
-		pitchDetector.stop();
-		pitchDetector.start();
+		onsetDetector?.reset(micCapture?.context.currentTime ?? 0);
 
-		// Start recording mic + metronome mix
+		// Record the mic + master mix from the same instant, so the blob the
+		// authoritative rescore replays covers the attack too.
 		if (micCapture) {
+			let armed: RecorderHandle | null = null;
 			try {
-				recorderHandle = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
-				recorderHandle.start();
+				armed = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
+				armed.start();
+				recorderHandle = armed;
 			} catch (err) {
+				// createRecorder wires its nodes into the graph before start() is
+				// ever called, so a throw from start() leaves them connected —
+				// dispose rather than dropping the reference.
+				armed?.dispose();
+				recorderHandle = null;
 				console.warn('Audio recording unavailable:', err);
 			}
 		}
+		awaitingInput = true;
+	}
+
+	/** Tear down a recorder armed for a listening window the user never entered. */
+	function disposeArmedRecorder() {
+		if (!recorderHandle) return;
+		const armed = recorderHandle;
+		recorderHandle = null;
+		armed.stop().catch(() => { /* nothing was captured */ }).finally(() => armed.dispose());
+	}
+
+	/**
+	 * The user has come in. The capture is already running — this only marks
+	 * the take as live and bounds how long it runs for.
+	 */
+	function beginRecording() {
+		if (!pitchDetector || !session.phrase) return;
+		session.isRecording = true;
+		session.recordedNotes = [];
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 		const graceTime = 2 * (60 / session.tempo);
 		recordingTimeout = setTimeout(finishRecording, (phraseDuration + graceTime) * 1000);
@@ -458,16 +492,27 @@
 
 	function finishRecording() {
 		if (!session.isRecording || !session.phrase || !pitchDetector) return;
-		const readings = pitchDetector.getReadings();
+		const rawReadings = pitchDetector.getReadings();
 		stopRecording();
 
-		const workletOnsets = onsetDetector?.getOnsets() ?? [];
+		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
 		// Segment over the full capture, not the notional phrase length: the
 		// recording deliberately runs past the phrase end (grace beats) because
 		// the user starts late by their reaction latency, so the final note can
 		// land after phraseDuration and a phrase-length bound truncates it.
-		const lastReading = readings[readings.length - 1];
-		const recordingDuration = lastReading ? lastReading.time + 0.1 : 0;
+		const rawLastReading = rawReadings[rawReadings.length - 1];
+		const rawDuration = rawLastReading ? rawLastReading.time + 0.1 : 0;
+
+		// Discard the lead-in between arming the capture and the user coming in,
+		// keeping a fixed pre-roll so the first note's attack survives. The
+		// stored blob keeps the lead-in — `recordingTransportSeconds` still
+		// describes its first sample — so every replay path re-derives this
+		// offset from the audio rather than trusting a persisted value.
+		const trimmed = trimToPerformance(rawReadings, rawWorkletOnsets, rawDuration);
+		const readings = trimmed.readings;
+		const workletOnsets = trimmed.workletOnsets;
+		const recordingDuration = trimmed.duration;
+		const transportSeconds = recordingTransportSeconds + trimmed.offset;
 
 		const baseOnsets = resolveOnsets(workletOnsets, readings);
 		const schedule = getActiveSchedule();
@@ -475,7 +520,7 @@
 			schedule,
 			backingTrackEnabled: settings.backingTrackEnabled,
 			metronomeEnabled: settings.metronomeEnabled,
-			recordingTransportSeconds,
+			recordingTransportSeconds: transportSeconds,
 			tempo: session.tempo,
 			recordingDuration
 		});
@@ -483,14 +528,14 @@
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const bleedResult = schedule
-			? filterBleed(detected, schedule, recordingTransportSeconds)
+			? filterBleed(detected, schedule, transportSeconds)
 			: null;
 
 		const result = runScorePipeline({
 			detected,
 			phrase: session.phrase,
 			tempo: session.tempo,
-			transportSeconds: recordingTransportSeconds,
+			transportSeconds,
 			swing: effectiveSwing,
 			bleedFilterEnabled: settings.bleedFilterEnabled,
 			bleedResult
@@ -679,11 +724,21 @@
 		const { replayFromBlob } = await import('$lib/audio/replay');
 		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
 		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
-		const replay = await replayFromBlob(blob, ctx);
+		const rawReplay = await replayFromBlob(blob, ctx);
+		// Same trim the live path applied, re-derived from the blob rather than
+		// carried across — `transportSeconds` describes the blob's first sample,
+		// so the offset has to be added back on top of it here.
+		const trimmed = trimToPerformance(rawReplay.readings, rawReplay.onsets, rawReplay.duration);
+		const replay = {
+			readings: trimmed.readings,
+			onsets: trimmed.workletOnsets,
+			duration: trimmed.duration
+		};
+		const trimmedTransportSeconds = transportSeconds + trimmed.offset;
 		// Recording-relative backing onsets — computed from the decoded blob
 		// length, so persist them even when the replay yields no readings
 		// (a silent take should still carry its evidence for /diagnostics).
-		const backingBleedOnsets = schedule?.bleedEventsIn(transportSeconds, replay.duration);
+		const backingBleedOnsets = schedule?.bleedEventsIn(trimmedTransportSeconds, replay.duration);
 		if (replay.readings.length === 0) {
 			if (sessionId && baseMetadata) {
 				const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
@@ -702,7 +757,7 @@
 			schedule,
 			backingTrackEnabled: schedule !== null,
 			metronomeEnabled,
-			recordingTransportSeconds: transportSeconds,
+			recordingTransportSeconds: trimmedTransportSeconds,
 			tempo,
 			recordingDuration: replay.duration
 		});
@@ -710,14 +765,14 @@
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
 		const bleedResult = schedule
-			? filterBleed(detected, schedule, transportSeconds)
+			? filterBleed(detected, schedule, trimmedTransportSeconds)
 			: null;
 
 		const result = runScorePipeline({
 			detected,
 			phrase,
 			tempo,
-			transportSeconds,
+			transportSeconds: trimmedTransportSeconds,
 			swing,
 			bleedFilterEnabled,
 			bleedResult
