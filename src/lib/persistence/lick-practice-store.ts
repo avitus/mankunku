@@ -47,7 +47,6 @@ const PROG_TAG_PREFIX = 'prog:';
  */
 const PRACTICE_REMOVED_TAG = 'practice:removed';
 
-
 /**
  * Score at or above which a key is considered "proficient" — drives the
  * green tier in the UI, increments `passCount`, and matches the avg gate

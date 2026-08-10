@@ -80,7 +80,6 @@ interface SyncableSettings {
 
 // ── Constants ────────────────────────────────────────────────────────
 
-
 /** Pattern for allowed session ID characters (alphanumeric, hyphen, underscore). */
 const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
@@ -1162,7 +1161,6 @@ export interface SyncableTrickState {
 	/** Per-variant BPM/keys time series, capped at 500 points per variant. */
 	history: TrickProgressHistory;
 }
-
 
 function emptySyncableTrickState(): SyncableTrickState {
 	return {

@@ -14,8 +14,12 @@ export interface EntryPlaybackSettings {
 /**
  * Build playback options for previewing a lick on the entry/edit page.
  *
- * Swing comes from the user's setting so the preview matches how the lick
- * sounds everywhere else (library, ear training). There is no count-in and
+ * Swing is the user's raw setting. This preview schedules no backing track,
+ * so there is no band for it to disagree with and no style to defer to —
+ * unlike the scored surfaces, which resolve swing against the selected
+ * backing style (see `resolveMelodySwing`). On a ballad or bossa the same
+ * lick will therefore preview here on a slightly different grid than it is
+ * played on in a session. There is no count-in and
  * the metronome is off — the preview is a bare "hear what I just entered"
  * play — but the metronome volume still tracks the user's setting so a click
  * would sound at the right level if one is ever added here.

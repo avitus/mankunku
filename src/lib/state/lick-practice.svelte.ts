@@ -79,7 +79,7 @@ import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
 import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
-import { exampleStyleForRound, getTrickById, trickContextFor } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById, trickContextFor, trickPracticeBed } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	loadTrickPracticeProgress,
@@ -751,7 +751,7 @@ export function startTrickSession(): boolean {
 	// The device picks the vamp its selected variant sounds correct over
 	// (e.g. altered triad pairs drill on the dominant vamp); default
 	// major-vamp for devices without a preference (enclosures).
-	const progressionType = trick.practiceBed?.(trickParameters) ?? 'major-vamp';
+	const progressionType = trickPracticeBed(trick, trickParameters);
 
 	// C-rooted context mirroring that vamp's chord + scale, so examples and
 	// conformance agree with what the rhythm section plays and the per-key

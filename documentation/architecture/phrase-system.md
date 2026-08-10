@@ -1,6 +1,6 @@
 # The Lick Catalog
 
-Mankunku ships with a catalog of about 540 jazz phrases, spread across many harmonic categories, plus an algorithmic generator that can make new phrases on demand. This page covers what's in the catalog, where each piece comes from, what the categories mean musically, and how the catalog handles transposition so a lick stays on your horn no matter what key the day is in.
+Mankunku ships with a catalog of about 540 jazz phrases, spread across many harmonic categories. This page covers what's in the catalog, where each piece comes from, what the categories mean musically, and how the catalog handles transposition so a lick stays on your horn no matter what key the day is in.
 
 ## What's in the catalog
 
@@ -58,7 +58,7 @@ Storing in C makes a few things much easier:
 - **Transposition is a single operation.** Shift every note's MIDI number by the interval from C to your target key, shift the chord roots by the same interval, and the lick is in your target key.
 - **Octave centering** can keep the result on your horn (more on this below).
 
-The "stored in C" rule also applies to the algorithmic generator and the combinatorial engine. They work in C and the same transposition pipeline carries the result to your active key.
+The "stored in C" rule also applies to the combinatorial engine and to the generator that realizes a trick's example. They work in C and the same transposition pipeline carries the result to your active key.
 
 ## Octave centering — keeping licks on the horn
 
@@ -83,19 +83,11 @@ For practice sessions, the transposition logic gets one more layer of nuance. Di
 
 You don't have to think about any of this while you play. It happens automatically when the daily key changes or when you switch scale types in settings.
 
-## The algorithmic generator
+## Where phrases come from
 
-The generator can produce new phrases on demand — infinite variety, at any difficulty. It isn't reachable from practice today; this is what it does when it is asked. The pipeline:
+Everything you practice is a real lick: hand-written entries from the catalog, combinatorial phrases built by pairing a scale pattern with a rhythm pattern, and your own recorded or written licks. There is no algorithmic phrase generator any more — one existed, reachable only from a settings screen whose choices were discarded before a note played, and both were removed on 2026-08-09.
 
-1. **Pick target notes for the strong beats.** Every two beats, the generator chooses a chord tone to land on — picking by voice leading from the previous target so the line moves smoothly across chord changes.
-2. **Connect the targets with approach patterns.** Three strategies the generator picks between: a diatonic scale run, a chromatic approach (one or two half-step approaches into the target), or an arpeggio fill (chord tones between the two targets). The mix of strategies depends on the difficulty level.
-3. **Assign rhythms** to the resulting note sequence, using rhythm types allowed by the current difficulty tier (quarters at level 1; eighths at level 3; triplets at level 5; sixteenths at level 7).
-4. **Add articulation** at higher levels — accents on target notes, ghost notes on weak-beat passing tones, legato on stepwise motion.
-5. **Validate** the result against contour rules (no excessive leaps without recovery, no wandering off the instrument's range, enough stepwise motion). If validation fails, retry up to five times. If all five fail, fall back to a simple scale fragment so you always get a phrase.
-
-It never repeats itself exactly — every phrase it makes is genuinely new — and at higher difficulty levels it produces lines that hold up against the curated catalog.
-
-A separate, narrower generator *is* live: the one that realizes a [trick's](../tricks.md) example each round from the device's formula. It follows the same validation rules, only relaxed — triad pairs are leapy on purpose, and the contour checker would otherwise throw them out.
+One narrow generator *is* live: the one that realizes a [trick's](../tricks.md) example each round from the device's formula. It follows the same validation rules, only relaxed — triad pairs are leapy on purpose, and the contour checker would otherwise throw them out.
 
 ## The mutator
 
@@ -106,7 +98,7 @@ There's also a **mutator** that can take an existing lick and produce variations
 - **Truncation** — keep the first 60% of the lick for a shorter practice fragment.
 - **Retrograde** — reverse the pitch sequence while keeping the rhythm.
 
-The mutator exists as a utility (currently exercised only in tests) — it isn't wired into any live flow. Mixed mode selects a curated lick and otherwise falls back to the algorithmic generator; it never mutates. Each mutation is validated internally; if the result violates contour rules it gets thrown away.
+The mutator exists as a utility (currently exercised only in tests) — it isn't wired into any live flow. Each mutation is validated internally; if the result violates contour rules it gets thrown away.
 
 ## Adding your own licks
 

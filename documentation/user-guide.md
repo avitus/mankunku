@@ -101,7 +101,7 @@ The rhythm section is generated, not looped: bass, comping (piano or organ, your
 
 Two things about **swing feel** are worth knowing:
 
-- The **Swing** knob in Settings governs what *you* are asked to play. If you set it above 0.50, the band adopts your number too — a rhythm section can't be on a different grid from the soloist. So "Straight" or "Bossa Nova" will still swing if your Swing knob is at 0.65. Put the knob back to 0.50 to hear those styles straight.
+- The **Swing** knob in Settings applies to the **Swing** style only. Bossa Nova, Ballad and Straight each declare their own eighth-note feel — a bossa is straight whatever the knob says — and both you and the band are held to it, because a rhythm section can't be on a different grid from the soloist. So on those three styles the knob does nothing, and Ballad will lean very slightly (0.55) even with the knob at 0.50.
 - With the knob at 0.50, Swing chooses its own ratio *from the tempo*, the way players actually do: deep and loping at slow tempos (about 3.5:1 up to 132 BPM), relaxing toward an even triplet feel by 200, and nearly straight above 240. This applies to the band only — what the scorer expects from you never changes with tempo.
 
 **What the drummer does and doesn't do here.** In Lick Practice you'll hear the ride and snare conversation, the odd Philly Joe bomb (a lone accented kick off the grid) or a side-stick lean at four-bar boundaries, and the kick catching the piano's pushes. What you *won't* hear is the big stuff — crashes on section arrivals, setup fills, the long fill over a chorus turn. Those hang off a tune's form, so they only show up in [Tune Practice](./tune-practice.md), where the band also builds chorus over chorus.
@@ -267,7 +267,7 @@ The global Settings page controls things that aren't specific to a single sessio
 | **Theme** | Dark (default) or light. |
 | **Key Center** / **Scale Type** | Override the daily tonality, or leave it alone. Locked keys and scales are visible but disabled with their unlock requirement in a tooltip; a **Reset to daily** link appears once you've overridden. |
 | **Tempo** | 60–200 BPM. The starting tempo for new practice sessions. |
-| **Swing** | 0.50 (straight) to 0.80 (heavy). 0.67 is the usual triplet swing. This is what *you* are asked to play — and, when it's above 0.50, the band matches you. |
+| **Swing** | 0.50 (straight) to 0.80 (heavy). 0.67 is the usual triplet swing. Applies to the **Swing** backing style — you and the band both play it. Bossa Nova, Ballad and Straight set their own feel and ignore this. |
 | **Metronome** + **Metro Vol** | The click on or off, and its level. |
 | **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live under the Ear Training heading but apply to Lick Practice and Tune Practice — Ear Training never plays a backing track. |
 | **Tours & Help** | Replay any guided tour, or reset your tour history so the first-run prompts come back. |

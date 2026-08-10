@@ -1,8 +1,9 @@
 /**
  * IndexedDB storage for recorded audio blobs.
- * Keeps at most 100 recordings (locally), pruning oldest on save —
- * matched to the MAX_SESSIONS=100 cap on session reports so /progress can
- * drill from a logged session's key chip back to its original recording.
+ * Keeps at most 100 recordings (locally), pruning oldest on save. That
+ * number is chosen to sit alongside the 100-session report cap so /progress
+ * can usually drill from a logged session's key chip back to its original
+ * recording — but see MAX_RECORDINGS: it is not a derived 1:1 pairing.
  *
  * When a Supabase client and userId are provided, recordings are also
  * uploaded to the Supabase Storage bucket `recordings` for cross-device
@@ -22,7 +23,6 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import type { BackingTrackLog } from '$lib/audio/backing-track';
 import { getActiveUid } from './namespace';
-import { MAX_SESSIONS } from './limits';
 
 /**
  * The IndexedDB database is namespaced per user (`mankunku-audio:<uid>`), so
@@ -33,8 +33,16 @@ import { MAX_SESSIONS } from './limits';
 const DB_NAME_BASE = 'mankunku-audio';
 const STORE_NAME = 'recordings';
 const DB_VERSION = 1;
-/** One recording per retained session — a recording with no session is unreachable. */
-const MAX_RECORDINGS = MAX_SESSIONS;
+/**
+ * Deliberately its OWN number, not derived from MAX_SESSIONS.
+ *
+ * Recordings are per practice WINDOW, not per session — one 12-key
+ * deep-practice cycle writes 12 rows — and MAX_SESSIONS bounds two separate
+ * logs, so the two caps are not 1:1 in either direction. They happen to share
+ * the value 100; deriving one from the other would mean a bump to a cheap
+ * JSON cap silently doubled the IndexedDB blob budget.
+ */
+const MAX_RECORDINGS = 100;
 
 function dbNameFor(uid: string): string {
 	return `${DB_NAME_BASE}:${uid}`;

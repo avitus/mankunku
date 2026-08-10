@@ -162,7 +162,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Conformance** — Whether a note you played belongs to a trick's formula, judged by pitch class alone (octave never matters). Full credit for exactly what the formula calls for, 0.7 for the right device but the wrong member, 0.4 for something merely in the scale, 0.1 for a chromatic miss, 0 for a note you didn't play.
 
-**Generated phrase** — A phrase produced by the algorithmic generator at runtime, based on your difficulty level and category settings.
+**Combinatorial phrase** — A catalog phrase built by pairing a scale pattern with a rhythm pattern of the same note count, rather than written out by hand.
 
 **Grade** — The label assigned to your overall percentage: Perfect (≥ 95%), Great (≥ 85%), Good (≥ 70%), Fair (≥ 55%), or Try Again (< 55%).
 

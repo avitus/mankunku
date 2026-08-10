@@ -55,7 +55,6 @@ export interface LickMetaBundle {
 
 const MIGRATIONS_KEY = '__migrations';
 
-
 function unionStrings(a: readonly string[] = [], b: readonly string[] = []): string[] {
 	return [...new Set([...a, ...b])];
 }

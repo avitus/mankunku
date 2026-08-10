@@ -60,11 +60,11 @@ Tapping a trick card opens its page. Top to bottom:
 
 - **Variant** pills — one per rung, in ladder order. Locked ones show a padlock.
 - **Practice this variant** and a **☆ Suggest in tunes** star (more on the star below).
-- A **Key** row, and underneath it **The formula** — one plain sentence describing the variant ("Approach the 3rd from above (scale) then below (chromatic), landing on the downbeat") and a notated example.
+- A **Preview key** row, and underneath it **The formula** — one plain sentence describing the variant ("Approach the 3rd from above (scale) then below (chromatic), landing on the downbeat") and a notated example.
 - The **Mastery path**.
 - **Your progress** — a tempo-over-time chart, once you have any.
 
-Two honest caveats about that page. The **Key** pills only change the notated preview; a drill always starts in concert C and grows from there. And the preview is always drawn over a major-7 chord, so the altered triad-pair families are notated over a Cmaj7 there even though the drill puts them over a dominant vamp. Read the preview for the *shape*, not the harmony.
+One thing to know about that page: the **Preview key** pills only re-notate the example so you can read it in your own key. They don't set the drill key — a drill always starts in concert C and grows outward along the circle of fifths. The example itself is drawn over the same harmony the drill uses, so an altered or whole-tone triad pair is notated over a dominant chord, not a major one.
 
 **Practice this variant** doesn't start a session. It carries your choice over to the Lick Practice page and leaves you at the setup screen, where you still have to press **Start Trick Drill**. (You can also get there directly: pick **Tricks** as the Session Type on the Lick Practice page and choose the device and its parameters there. Values you haven't earned are disabled with "Locked — earn it on the mastery ladder", and a *Next unlock* line tells you what's next.)
 

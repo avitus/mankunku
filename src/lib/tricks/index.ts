@@ -4,6 +4,7 @@
  */
 import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
 import type { PitchClass } from '$lib/types/music';
+import type { ChordProgressionType } from '$lib/types/lick-practice';
 import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 import { enclosuresTrick } from './devices/enclosures';
 import { triadPairsTrick } from './devices/triad-pairs';
@@ -44,9 +45,22 @@ export function trickBedHarmony(
 	trick: Trick,
 	parameters: TrickParameters
 ): Pick<TrickContext, 'chordQuality' | 'scaleId'> {
-	const progressionType = trick.practiceBed?.(parameters) ?? 'major-vamp';
-	const bed = PROGRESSION_TEMPLATES[progressionType].harmony[0];
+	const bed = PROGRESSION_TEMPLATES[trickPracticeBed(trick, parameters)].harmony[0];
 	return { chordQuality: bed.chord.quality, scaleId: bed.scaleId };
+}
+
+/**
+ * The progression a variant drills over. The `'major-vamp'` fallback for
+ * devices with no `practiceBed` (enclosures) lives HERE and nowhere else —
+ * the session needs the id to schedule the rhythm section while the preview
+ * needs only the harmony, and having each derive the default separately is
+ * the drift this module exists to prevent.
+ */
+export function trickPracticeBed(
+	trick: Trick,
+	parameters: TrickParameters
+): ChordProgressionType {
+	return trick.practiceBed?.(parameters) ?? 'major-vamp';
 }
 
 /** A full `TrickContext` rooted at `key`, over the variant's own practice bed. */

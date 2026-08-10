@@ -1,5 +1,5 @@
 /**
- * Integration tests for the phrase generation pipeline.
+ * Integration tests for the phrase assembly pipeline.
  *
  * Tests the combiner (scale × rhythm → Phrase), mutator transformations,
  * difficulty calculation, and phrase validation.

@@ -94,7 +94,7 @@
 	 * against the same grid the take was played on.
 	 */
 	const effectiveSwing = $derived(
-		melodySwingForStyle(settings.swing, lickPractice.config.backingStyle ?? 'swing')
+		melodySwingForStyle(settings.swing, lickPractice.config.backingStyle)
 	);
 
 	let micCapture: MicCapture | null = null;

@@ -30,7 +30,7 @@ The window of 25 is long enough to smooth out lucky guesses and unlucky stumbles
 
 ## What each level tier adds musically
 
-The app groups levels into ten **content tiers**. Each tier expands what's available — what scales the algorithmic generator can use, what rhythms it can produce, what tempos it'll target, what keys it'll choose. Curated licks from the catalog are stamped with their own complexity rating, so as your level climbs, more challenging catalog material starts showing up.
+The app groups levels into ten **content tiers**. Each tier expands what's available — which scales are in play, which rhythms you'll meet, what tempos it'll target, what keys it'll choose. Curated licks from the catalog are stamped with their own complexity rating, so as your level climbs, more challenging catalog material starts showing up.
 
 Roughly:
 

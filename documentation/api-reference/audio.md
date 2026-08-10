@@ -594,7 +594,7 @@ interface DrumHitSpec { drum: DrumVoice; beatOffset: number; velocity: number }
 
 interface StyleDefinition {
   name: string;
-  defaultSwing: number;       // used when the session swing sits straight
+  defaultSwing: number;       // the style's own grid; wins outright when swingModel is 'fixed'
   swingModel: 'tempo' | 'fixed';  // 'tempo' → swingForTempo curve
   timing: Record<TimingRole, TimingProfile>;  // ensemble microtiming
   compPlanning?: boolean;     // comp figures planned phrase-wide
@@ -675,7 +675,17 @@ Per-bar `{ sectionIndex?, chorusIndex?, isSectionFirstBar, isSectionFinalBar, is
 
 ### `resolveBackingSwing(userSwing, style, tempo): number`
 
-The backing's swing value: the session swing when the user swings the melody (`> 0.5` — the band must share the soloist's grid), else the style's `swingModel` — `'tempo'` follows `swingForTempo(bpm)` in `music/swing.ts` (Friberg–Sundström: constant ~100 ms short eighth, ≈3.5:1 cap below ~132 BPM, straight by 300), `'fixed'` uses `defaultSwing`. Shared by the live scheduler and the listening-lab bounce; scoring never sees this value (it uses only the melody's `options.swing`, and `swingForTempo` is banned from playback/scoring/tricks modules by a unit test).
+The backing's swing value. **The style owns the grid:** a `swingModel: 'fixed'` style (straight, bossa-nova, ballad) returns its `defaultSwing` unconditionally, because a bossa is straight regardless of the user's taste. Only `'tempo'` (the swing style) defers to the knob — `userSwing` when above `STRAIGHT_SWING`, otherwise `swingForTempo(bpm)` in `music/swing.ts` (Friberg–Sundström: constant ~100 ms short eighth, ≈3.5:1 cap below ~132 BPM, straight by 300).
+
+This was inverted until 2026-08-09: any `userSwing > 0.5` overrode the style, and since the knob's minimum *is* 0.5 with a 0.05 step, every non-default position silently swung Straight and Bossa Nova. The old rule existed to keep the band on the soloist's grid; that invariant is now upheld from the other side by `resolveMelodySwing` (see backing-styles.ts) rather than by dragging the band onto the melody.
+
+Shared by the live scheduler and the listening-lab bounce. `swingForTempo` remains banned from playback/scoring/tricks modules by a unit test, so the grid the scorer expects never varies with tempo.
+
+### `resolveMelodySwing(userSwing, style): number` · `melodySwingForStyle(userSwing, styleId): number`
+
+In `backing-styles.ts`. The melody's swing — what playback shifts and what the scorer expects. `'fixed'` styles return `defaultSwing` so the soloist shares the band's grid; `'tempo'` returns `userSwing` untouched. Deliberately tempo-independent and free of any `swingForTempo` reference.
+
+Consumed by the three routes where a non-swing style is selectable (lick-practice session, ear-training, tune practice), including the swing value persisted with a recording and the one used to rescore it — otherwise a rescore would grade a take against a different grid than it was played on. Note ballad's `defaultSwing` is 0.55, so on ballad the melody grid differs from the raw knob even at the knob's 0.50 default.
 
 ---
 
@@ -762,7 +772,7 @@ The one rule for what bleed evidence the segmenter receives, shared by all recor
 
 ## backing-track.ts
 
-Backing-track scheduler: loads the instruments, calls `backing-generation.ts` for the events, and schedules them against the Tone.js Transport. Bass, comp **and drums** are all tick-placed `Tone.Part`s (drums moved off `Tone.Sequence` so their swung eighths share the swing grid). The effective swing comes from `resolveBackingSwing(options.swing, style, options.tempo)` — the session value when the user swings the melody, otherwise the style's swing model. So the swing style's ride pattern swings even while the melody setting sits straight, and it swings by the *tempo curve*, not by `defaultSwing` (which only applies to `swingModel: 'fixed'` styles).
+Backing-track scheduler: loads the instruments, calls `backing-generation.ts` for the events, and schedules them against the Tone.js Transport. Bass, comp **and drums** are all tick-placed `Tone.Part`s (drums moved off `Tone.Sequence` so their swung eighths share the swing grid). The effective swing comes from `resolveBackingSwing(options.swing, style, options.tempo)` — the style's own grid for `swingModel: 'fixed'`, the user's knob (or the tempo curve when it sits straight) for `'tempo'`. So the swing style's ride pattern swings even while the melody setting sits straight, and it swings by the *tempo curve*, not by `defaultSwing`.
 
 **Instruments:**
 - **Upright bass** — Smolken "Pizzicato" double-bass sample library

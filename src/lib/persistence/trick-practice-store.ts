@@ -46,7 +46,6 @@ const SELECTED_MTIME_KEY = 'trick-selected-variants-mtime';
  *  always unioned by the cloud merge, so a completed migration never replays. */
 const MIGRATIONS_KEY = 'trick-migrations';
 
-
 /** Starting BPM for any trick variant with no prior practice history. */
 export const TRICK_DEFAULT_TEMPO = 60;
 
