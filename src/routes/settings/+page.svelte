@@ -5,6 +5,7 @@
 	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte';
 	import { concertKeyToWritten, concertToWritten } from '$lib/music/transposition';
 	import { midiToDisplayName } from '$lib/music/notation';
+	import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 	import type { PitchClass } from '$lib/types/music';
 	import Knob from '$lib/components/console/Knob.svelte';
 	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
@@ -451,10 +452,10 @@
 				<Knob
 					label="Swing"
 					ariaLabel="Swing feel"
-					helpText="Eighth-note swing ratio. 0.50 is straight eighths, 0.80 is heavy swing."
+					helpText="Eighth-note swing ratio for the Swing backing style. 0.50 is straight eighths, 0.80 is heavy swing. Bossa Nova, Ballad and Straight set their own feel and ignore this."
 					value={settings.swing}
-					min={0.5}
-					max={0.8}
+					min={STRAIGHT_SWING}
+					max={MAX_SWING}
 					step={0.05}
 					displayValue={settings.swing.toFixed(2)}
 					onInput={(v) => (settings.swing = v)}

@@ -30,10 +30,11 @@ A missed note is not pitch information: no pitch was heard, so there is nothing 
 
 ### 2. Phrase content never selectively stresses one dimension
 
-The practice settings page feeds a single `selectedDifficulty` into both paths:
+A single difficulty number drives selection on the one surviving path:
 
-- Curated lick selection filters on the combined `level` field: `library-loader.ts:124` (inside `queryLicks`) — `l.difficulty.level <= query.maxDifficulty`.
-- The generator copies that number into `pitchComplexity` directly but caps `rhythmComplexity` at 80: `generator.ts:63-64` (`pitchComplexity: options.difficulty`, `rhythmComplexity: Math.min(options.difficulty, 80)`). Below difficulty 80 the two are identical; above 80 they diverge — a minor exception to "content never selectively stresses one dimension," but only at the very top of the range.
+- Curated lick selection filters on the combined `level` field: `library-loader.ts` (inside `queryLicks`) — `l.difficulty.level <= query.maxDifficulty`. That `level` is one scalar; it does not separate the two dimensions.
+
+(The algorithmic phrase generator used to be the second path here, and it *did* diverge slightly above difficulty 80 by capping `rhythmComplexity`. It was removed along with the ear-training settings page that was its only caller, so the coupling is now total rather than near-total.)
 
 So nothing the user ever plays is deliberately pitch-easy / rhythm-hard or vice versa. Without differentiated challenge, the two accuracy signals lack the opportunity to diverge.
 

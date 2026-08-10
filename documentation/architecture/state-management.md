@@ -1,6 +1,6 @@
 # State Management
 
-Mankunku uses **Svelte 5 runes** for reactive state management with localStorage persistence. There are ten state modules, each a `.svelte.ts` file.
+Mankunku uses **Svelte 5 runes** for reactive state management with localStorage persistence. There are fourteen state modules, each a `.svelte.ts` file, plus the plain (non-rune) logic modules that sit beneath the two practice flows — `lick-practice-picker.ts`, `lick-practice-rotation.ts`, `tune-practice-plan.ts` — which stay Node-testable precisely because they own no rune.
 
 ## State Modules
 
@@ -128,8 +128,8 @@ Active state for the multi-key lick-practice flow: configuration, session plan, 
 ```typescript
 export const lickPractice = $state<{
   config: LickPracticeConfig;
-  phase: LickPracticePhase;            // 'setup' | 'count-in' | 'playing' | 'inter-lick-rest' | 'complete'
-  plan: LickPracticePlanItem[];         // Ordered licks + planned keys (12 per lick)
+  phase: LickPracticePhase;            // 'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'complete'
+  plan: LickPracticePlanItem[];         // Ordered licks + planned keys
   currentLickIndex: number;
   currentKeyIndex: number;
   currentTempo: number;
@@ -138,8 +138,20 @@ export const lickPractice = $state<{
   startTime: number;
   elapsedSeconds: number;
   progress: LickPracticeProgress;       // Cumulative per-lick per-key data
+  mode: 'standard' | 'single-lick';
+  demoNextCycle: boolean;               // Deep practice: does the next cycle open with a demo?
+  latestKeyResults: Partial<Record<PitchClass, LickPracticeKeyResult>>;
+  sessionKeys: PitchClass[];
 }>( /* defaults */ );
 ```
+
+**Continuous cycles (Deep Practice).** Single-lick sessions never stop between cycles — no rest bars, no per-round card. The last key's close event runs the cycle boundary synchronously: advance the round, re-sort the rotation **worst-first**, schedule the next cycle a bar out, and drop a 1-bar full-rhythm-section ii-V turnaround into the gap, targeting the key the next cycle opens on. It must be synchronous because the final score has to be in `rollingScore` before the sort, and the turnaround's target is only known after it.
+
+Worst-first ordering comes from a per-key `rollingScore` — an EWMA (alpha 0.4) over **every** scored attempt, passes and failures alike, persisted in `LickPracticeKeyProgress`. An absent score counts as unknown and sorts worst, so an unfamiliar key still gets demoed. The demo itself is **skipped** once the head key's rolling score reaches 0.90: the point of a demo is the key you can't play yet. Tricks always demo (their phrase is regenerated each round), standard sessions always demo, and the first cycle of any session always demos as a reminder of the lick.
+
+`latestKeyResults` and `sessionKeys` exist for the progress ring specifically. `keyResults` is cleared every cycle and the plan item's `keys` array shrinks and reorders as keys master out — a ring bound to either would lose dots and jump around. `sessionKeys` holds the stable circle-of-4ths key set; `latestKeyResults` holds the newest result per key for the whole session.
+
+The pure policy — `sortKeysWorstFirst`, `shouldDemoHeadKey`, `resolveNextCycleStart`, `planCycleWindows` — lives in `state/lick-practice-rotation.ts` so it can be tested without a transport.
 
 A practice-tagged lick is only eligible for a session if it also carries an explicit `prog:<progressionType>` tag for that progression. Those tags are added automatically when the lick's curated category matches the progression (e.g. `ii-V-I-major` licks get `prog:ii-V-I-major`), and the user can add/remove them by hand to drill a lick over a non-default progression.
 
@@ -149,11 +161,11 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 - `getDailyPracticeLicks()` — All practice-tagged licks with at least one `prog:*` tag, regardless of progression. Powers Daily Practice mode.
 - `buildSessionPlan()` — Standard mode. Sorts licks by least-recently-practiced and packs the time budget. Each lick's planned key list is the first N keys of the alternating sharp/flat ramp where N is its current unlock count (capped at 12, then handed off to `planLickKeys` for staged variety). Called by `startSession()`.
 - `buildDailyPracticePlan()` — Daily Practice mode. Pools every lick from `getDailyPracticeLicks()`, sorts least-recently-practiced first, picks each lick's least-recently-practiced compatible progression via `pickProgressionForLick`, and packs the duration budget. Each plan item carries its own `progressionType` instead of inheriting from config. When the session ends, the writer in `persistence/lick-practice-sessions.ts` calls `splitReportByProgression` to log one session entry per progression — the picker's least-recently-practiced lookup stays accurate even when a single Daily Practice run touched several progressions.
-- `startSession()`, `startDailyPracticeSession()`, `startSingleLickSession(lickId, tempoBumpBpm?)` — The three entry points; all converge on the same playback engine. Single-lick (Deep Practice) cycles only the lick's currently-unlocked keys and **derives its progression from the chosen lick's own `prog:*` tags** rather than `config.progressionType` — fixes the case where a major lick gets stuck over a minor vamp because the setup screen was set that way.
+- `startSession()`, `startDailyPracticeSession()`, `startSingleLickSession(lickId, tempoBumpBpm?)`, `startTrickSession()` — The four entry points; all converge on the same playback engine. Single-lick (Deep Practice) cycles only the lick's currently-unlocked keys and **derives its progression from the chosen lick's own `prog:*` tags** rather than `config.progressionType` — fixes the case where a major lick gets stuck over a minor vamp because the setup screen was set that way. `startTrickSession` rides the same round loop with a single `kind: 'trick'` plan item whose phrase is regenerated every round; see [Trick Scoring](./trick-scoring.md).
 - `getCurrentPlanItem()`, `getCurrentKey()`, `getCurrentPhrase()`, `getCurrentHarmony()` — Cursor accessors for the active lick/key.
 - `getPhraseFor(lickIdx, keyIdx)` — Pure variant used when scoring a key that has just finished.
 - `getPlannedKey(offset)`, `getUpcomingKeys()`, `getPlannedKeysForLick(lickIdx)` — Lookahead accessors for the preview strip and scroll animation.
-- `buildLickSuperPhrase(lickIdx)` — Concatenates all 12 keys (plus an optional demo in continuous mode) into one phrase so the whole lick can be scheduled in a single Tone.js pass.
+- `buildLickSuperPhrase(lickIdx)` — Concatenates the plan item's keys (plus an optional demo in continuous mode) into one phrase so the whole lick can be scheduled in a single Tone.js pass. `getDemoBars(lickIdx)` is the single source for the demo's length, used by both this layout and the route's window scheduling, so a skipped demo shortens the audio and the recording windows together.
 - `recordKeyAttempt(score)` — Appends a `LickPracticeKeyResult`; persists key progress and increments `passCount` only on green attempts (≥ `KEY_PROFICIENT_THRESHOLD` = 0.90).
 - `resetLick(phraseId)` — Wipes one lick's per-key scores, `passCount`, and unlock count (tempo → 60, one unlocked key) via `resetLickPersistence`, reassigning the reactive `progress` rune. Tags (`practice`, `prog:*`) are preserved. Local-only — no cloud sync. Surfaced from the post-session report (gated on try-again-band score) and the book detail page (gated on `hasLickProgress`).
 - `advance()` — Moves to the next key within the current lick; returns `'end-of-lick'` when out.
@@ -214,6 +226,20 @@ export const community = $state<{
   sort: CommunitySort;                 // 'popular' | 'newest'
 }>( /* defaults */ );
 ```
+
+### Trick State (`src/lib/state/tricks.svelte.ts`)
+
+Which melodic-device variants the user has starred for practice. **Persisted** through `persistence/trick-practice-store.ts` and cloud-synced as part of the single `user_settings.trick_state` JSONB blob.
+
+```typescript
+export const trickState = $state({
+  selectedVariants: new SvelteSet<string>()   // composite `${trickId}:${paramSignature}` keys
+});
+```
+
+Trick progress lives in its **own** storage keys, never in the lick store — a composite variant key inside a lick blob would look like a lick id to everything downstream, and there are explicit guards in the report-reset and history-seed paths against it leaking there.
+
+Selection merges last-writer-wins by `selectedUpdatedAt` rather than by union, because a union would resurrect variants the user un-starred on another device. `hydrateTrickStateFromCloud` therefore re-seeds the reactive set from the merged local store instead of adding to it, and deliberately does not re-save (which would stamp a fresh mtime and make this device "newest" without a real user edit).
 
 ### Tour State (`src/lib/state/tour.svelte.ts`)
 
@@ -305,7 +331,8 @@ Unlike auto-saving stores, Mankunku uses **explicit save calls**. This avoids ex
 - **Progress**: Saved after each completed attempt via `recordAttempt()`
 - **History**: Saved by `recomputeAllDailySummaries` after every write to `progress.sessions` or `lick-practice-sessions` (derive-on-write), plus on cloud-hydration rebuild
 - **Licks**: Never persisted (filter state resets on navigation)
-- **Lick Practice**: Live session state is ephemeral; per-lick/per-key progress is persisted by `persistence/lick-practice-store.ts` after each passed key, tempo adjustment, and session end
+- **Lick Practice**: Live session state is ephemeral; per-lick/per-key progress is persisted by `persistence/lick-practice-store.ts` after **every** scored key (the rolling score needs failures too), plus each tempo adjustment and session end
+- **Tricks**: Selection saved on every toggle via `persistence/trick-practice-store.ts`, which enqueues an outbox push; per-variant progress written on each pass
 - **Step Entry**: Never persisted — drafts are exported to `persistence/user-licks.ts` when the user saves
 - **Community**: Never persisted (browse filter/sort state resets on navigation)
 - **Tour**: Saved via `saveTourState()` whenever a tour is completed or dismissed; cloud-synced when signed in

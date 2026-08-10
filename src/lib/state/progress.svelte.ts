@@ -18,9 +18,9 @@ import { syncProgressToCloud, loadProgressFromCloud, deleteProgressDetailsFromCl
 import { recomputeDailySummary, clearHistory, localDateStr } from '$lib/state/history.svelte';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 import { enqueue } from '$lib/persistence/outbox';
+import { MAX_SESSIONS } from '$lib/persistence/limits';
 
 const STORAGE_KEY = 'progress';
-const MAX_SESSIONS = 100; // keep last 100 sessions
 
 /**
  * Collision-resistant session id. Replaces the old `${Date.now()}-${random4}`

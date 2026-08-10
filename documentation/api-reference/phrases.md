@@ -87,7 +87,6 @@ interface LibraryQuery {
 | `getLicksByCategory` | `(category) → Phrase[]` | Pre-built category index |
 | `getCategories` | `() → { category, count }[]` | Categories sorted by count (descending) |
 | `queryLicks` | `(query) → Phrase[]` | Multi-filter query |
-| `pickRandomLick` | `(query?, key?) → Phrase \| null` | Random selection with optional transposition |
 
 ### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`
 
@@ -144,3 +143,63 @@ Iterate over every `(ScalePattern, RhythmPattern)` cross-product whose category 
 ### `COMBINED_LICKS: Phrase[]`
 
 Pre-computed array of all valid combinatorial licks (~evaluated at import). Consumed by the library loader to seed the in-memory lick index.
+
+---
+
+## duplicate-detection.ts
+
+Recognizes that the phrase being typed already exists in the library, so the
+editor can offer *adopt* instead of a second copy. A duplicate means **same
+melody + same rhythm, regardless of key or octave**.
+
+### `pitchClassContour(phrase): ContourEntry[]`
+
+Reduce a phrase to one entry per note: `[pitch % 12, reducedDuration]` for
+pitched notes, `[null, reducedDuration]` for rests. Octave is collapsed;
+rhythm is kept exactly. **Trailing rests are stripped**, because a saved lick
+is stored padded out to the bar (`getPaddedNotes()`) while the phrase being
+typed is not — without that, no in-progress entry would ever match.
+
+### `contoursMatchAnyKey(a, b): boolean`
+
+True when `b` is a transposition of `a`. It does not try all 12 rotations: the
+shift is *derived* from the first pitched index in `a` and its counterpart in
+`b`, then verified across the whole contour. A rest where a pitch should be
+fails immediately — no rotation can repair a pitch/rest disagreement.
+
+### `findDuplicateLick(entered, library): Phrase | null`
+
+The first library lick matching `entered`, or `null`. Returns `null` outright
+below 4 pitched notes — short fragments collide constantly and the warning
+would be noise. Candidates sharing `entered`'s id are skipped, so re-opening a
+saved lick for edit never flags itself.
+
+---
+
+## adopted-phrase-validator.ts
+
+Structural validation for phrases arriving from **outside** this browser —
+community adoption and cloud hydration. Local generation is trusted; foreign
+payloads are not.
+
+### `validateAdoptedPhrase(input: unknown): AdoptedPhraseValidation`
+
+Returns `{ valid, errors }`. Checks shape (notes, harmony, offsets, non-overlapping
+harmony segments within tolerance), enforces the size caps below, and rejects
+dangerous-looking strings in names and tags.
+
+| Constant | Value | Why |
+|---|---|---|
+| `MAX_NOTES_PER_ADOPTED_PHRASE` | 2000 | A malicious author could otherwise schedule enough Tone.js events to freeze the practice UI |
+| `MAX_ADOPTED_NAME_LENGTH` | 200 | Long names break layout and signal abuse |
+| `MAX_ADOPTED_TAG_LENGTH` | 80 | Matches common tag-UI conventions |
+
+The dangerous-content pattern (`<[a-z]`, `javascript:`, `on\w+\s*=`) is
+**defense in depth**, not the primary defense — Svelte escapes interpolated
+strings at render time. It is deliberately narrow enough that `"V - I"` and
+`"I<3 jazz"` pass.
+
+Two things it deliberately does **not** reject: an unknown `category` (unknown
+categories simply render as "user") and a `scaleId` missing from the local scale
+library (the practice pipeline already has a fallback). Rejecting either would
+break adoption across app versions for no safety gain.

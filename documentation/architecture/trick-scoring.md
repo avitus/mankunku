@@ -149,6 +149,50 @@ still earns 0.7. Target and chord-tone slots have `exactPcs` = the target pc
 and `patternPcs` = the other chord tones, so landing on a chord tone that
 isn't the intended target earns 0.7.
 
+## The ladders, and where a variant is allowed to land
+
+`src/lib/tricks/mastery.ts` holds one ordered ladder per trick in
+`TRICK_MASTERY_PATHS`. Prerequisites follow the `SCALE_PREREQUISITES` model
+from `tonality.ts`: the outer array is an AND of clauses, and every variant
+in a clause needs `totalVariantPasses >= passes` (default `DEFAULT_PASSES =
+3`, summed across all keys). Ladder keys are computed with
+`trickVariantKey(trickId, params)` from the parameter objects themselves, so
+they cannot drift from the device's parameters.
+
+The two ladders have different shapes. Enclosures is a branching graph of 8
+hand-written variants (the last one requires two prerequisites at once).
+Triad pairs is a **strict linear chain** built by looping the 8 families
+pinned in `TRIAD_PAIR_FAMILIES` — diatonic pairs, then altered pairs, then
+whole-tone — so stage *n+1* opens after three passes of stage *n*:
+
+| # | `pair` | Triads (offset from chord root) | Practice bed |
+|---|---|---|---|
+| 1 | `major-whole` | maj on 0 · maj on 2 | `major-vamp` |
+| 2 | `major-minor` | maj on 0 · min on 2 | `major-vamp` |
+| 3 | `minor-whole` | min on 2 · min on 4 | `major-vamp` |
+| 4 | `major-tritone` | maj on 0 · maj on 6 | `dominant-vamp` |
+| 5 | `minor-b9` | min on 1 · min on 3 | `dominant-vamp` |
+| 6 | `major-sharp11` | maj on 6 · maj on 8 | `dominant-vamp` |
+| 7 | `aug-major` | aug on 3 · maj on 5 | `minor-vamp` |
+| 8 | `aug-whole` | aug on 0 · aug on 2 | `dominant-vamp` |
+
+`pair` is the *only* triad-pair parameter. The family also carries the bed a
+practice session should drill it over (`Trick.practiceBed`, falling back to
+`'major-vamp'`) and the chord qualities it actually belongs on
+(`Trick.compatibleQualitiesFor`), listed most-characteristic-first.
+
+That quality list is what keeps tune-practice suggestions honest. A variant
+declaring `compatibleQualitiesFor` is matched by `resolveQualityRoleEntry`
+(`src/lib/data/progressions.ts`) against the progression's chord-quality
+slots, **skipping any segment shorter than a whole note** — a device cell fills
+a full 4/4 bar, so the half-bar VI7 of a iii-VI-ii-V-I never qualifies — and is then
+re-rooted onto *that* chord rather than the progression's tonic — so an
+altered pair lands on the V of a long ii-V-I, not on the I. When nothing
+matches, the variant is simply skipped for that progression rather than
+suggested somewhere it doesn't belong. Chord substitutions are deliberately
+bypassed on this path; devices with no `compatibleQualitiesFor` keep the
+ordinary category-registration alignment.
+
 ## Summary
 
 An enclosure attempt is judged note-by-note against a specific figure with

@@ -30,7 +30,9 @@ The window of 25 is long enough to smooth out lucky guesses and unlucky stumbles
 
 ## What each level tier adds musically
 
-The app groups levels into ten **content tiers**. Each tier expands what's available — which scale families are in play, which rhythms, what tempos it'll target, what keys it'll choose, and how many notes a phrase may run to. Every lick in the catalog is stamped with its own complexity rating, so as your level climbs, more challenging material starts showing up.
+The app groups levels into ten **content tiers** describing how difficulty opens up — which scale families come into play, which rhythms, what tempos and keys, and how many notes a phrase may run to.
+
+How that reaches you differs by mode. On **Side A**, the tier table is a description rather than a selector: every lick carries its own complexity rating, and Ear Training simply admits licks at or below your level in the active scale, then filters for scale fit and shuffles. So harder material surfaces as your level climbs, but nothing consults the tier directly. **Tricks** do read the tier — the profile for your level sets the rhythms, interval span and note counts a generated example may use.
 
 Roughly:
 

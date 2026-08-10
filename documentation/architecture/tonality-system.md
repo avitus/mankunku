@@ -66,11 +66,13 @@ Major Pentatonic is the only scale free at start. Minor Pentatonic, Major, and B
 
 ## Overriding the daily pick
 
-The daily rotation is the default, but you don't have to use it. Side A's settings have a tonality picker:
+The daily rotation is the default, but you don't have to use it. The tonality picker lives on the global **Settings** page, under *Ear Training* — not on the Ear Training screen itself, which is deliberately free of controls:
 
-- **Key selector** in a circle-of-fifths layout. Locked keys show a lock icon and a tooltip explaining what proficiency level unlocks them. Pick any unlocked key.
-- **Scale type selector**. Same idea — locked scales are visible but disabled, with their unlock requirements shown.
-- **Reset to daily** — restores the automatic pick.
+- A status line naming your current tonality and whether it's the daily pick or a **Custom override**.
+- **Key Center** — a pad of all 12 keys in unlock order. Locked keys are visible but disabled, with a tooltip naming the proficiency level that unlocks them ("Requires G proficiency level 25").
+- **Scale Type** — same idea. Locked scales are disabled and their tooltip names the prerequisite scale and level.
+- **Reset to daily** — appears once you've overridden, and restores the automatic pick.
+- A counter underneath: how many of the 12 keys and 12 scales you've unlocked so far.
 
 The override persists in your settings. If you need to grind in F Lydian for a week, you can. The app will keep that override active until you reset.
 
@@ -96,6 +98,8 @@ If filtering would leave you with too few licks at your current difficulty, the 
 
 ## Watching for unlocks
 
-The Settings page and the daily-tonality picker both show your current proficiency on each key and each scale, along with the threshold needed for the next unlock. If you've been working hard on Mixolydian and you're getting close, you can see how close from the proficiency bar.
+The tonality picker in Settings is where you watch for this. Locked keys and scales aren't hidden — they sit there greyed out, and hovering one tells you exactly what it costs ("Requires Minor Pentatonic level 15"). The running counter underneath tells you how far you've got overall.
 
-When a new tonality unlocks, the app surfaces it the next time you open Side A. New tonalities don't displace today's pick — the rotation continues, but the new tonality joins the pool starting tomorrow.
+When a new tonality unlocks, it joins the pool. It doesn't displace today's pick — the rotation continues, and the new tonality becomes eligible from the next block.
+
+Side B and Tricks have their own, separate key ladders (per lick and per trick variant), so unlocking a key here doesn't unlock it there and vice versa.

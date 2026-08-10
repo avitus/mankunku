@@ -50,7 +50,7 @@ The net result: legato held notes stay one note, repeated notes stay separate, a
 The pitch detector works best when it's clearly hearing one note at a time. Three things commonly degrade that:
 
 - **Background noise.** A loud HVAC hum, a fan, traffic outside — these add broadband energy that drops the clarity score and confuses the autocorrelation. The app raises the clarity threshold to 0.80 specifically to filter out signals that aren't periodic enough to trust, which means in a noisy room the detector will simply *miss* notes rather than report wrong ones.
-- **Speaker bleed.** If your speakers play the original phrase loudly enough that the mic re-hears it, the detector treats those notes as if you played them. The bleed filter (see below) helps, but headphones eliminate the problem entirely. Earbuds work fine for this purpose.
+- **Speaker bleed.** If your speakers play the original phrase loudly enough that the mic re-hears it, the detector treats those notes as if you played them. The bleed filter (see below) helps, but headphones eliminate the problem entirely. Earbuds work fine for this purpose. Worth knowing: the rhythm section is deliberately mixed to sound like a band in a small room — the snare and piano carry an ambience send, and the instruments are spread across the stereo field. That's the right choice for your ears and the wrong one for your microphone, so if you're on speakers, keep the backing level modest.
 - **Multiple sources.** Two horns playing at once will trip up the pitch detector — it's designed for monophonic signals. So is most other pitch detection software; this is a fundamental limit of the autocorrelation technique, not a Mankunku-specific issue.
 
 ## The bleed filter
@@ -71,12 +71,12 @@ The filter always *runs* — it's how the `/diagnostics` A/B comparison gets its
 
 The metronome click is its own kind of bleed, and it's a nastier problem than speaker bleed because of *where* it lands: on the beat, which is exactly where notes start.
 
-Even on headphones, the playback engine schedules the click on the same internal timeline the app records from. The segmenter therefore computes when each audible event fired rather than reading them from a log. Which events those are follows one rule (`resolveBleedEvidence` in `bleed-evidence.ts`):
+Even on headphones, the playback engine schedules the click on the same internal timeline the app records from. So rather than logging what it played, the app *computes* when each audible event must have fired, and treats those moments as suspect:
 
-- **Backing track playing.** The sampled band is the audible time source — the synth metronome only plays the count-in bar (`playback.ts`), because layering both was audible doubling. The backing's own transient onsets (bass, comp *and* drums, including swung ride eighths and off-beat comp pushes) come straight from the generated schedule (`bleedEventsIn` in `backing-track-schedule.ts`), exact to the tick each sampler trigger is scheduled at, loop-aware across passes. The old quarter-note click grid would be false evidence here — it claims clicks on beats where none sounded, and it never covered off-beat backing content at all.
-- **Metronome only.** Click times are integer multiples of `60/tempo` (`getMetronomeBleedOnsets` in `note-segmenter.ts`), exactly as before.
+- **With the band playing**, the band is the time source. The click only sounds for the count-in bar and then stops, so what the microphone can hear from that point on is the rhythm section — and the app knows the exact instant every bass note, comp chord and drum stroke was triggered, including swung ride eighths and off-beat piano pushes. (A plain quarter-note click grid would be worse than useless here: it claims a click on beats where none sounded, and never covers the off-beat content that actually bleeds.)
+- **With the metronome alone**, the clicks land on exact multiples of the beat, which is trivial to compute from the tempo.
 
-Any onset landing inside a tight 50–200 ms speaker→mic latency window after a computed event is treated as bleed and won't split a note. Demo and melody playback don't feed the filter. Recordings store their backing onsets in metadata (`backingBleedOnsets`) so `/diagnostics` replays segment with the same evidence the live path used.
+Any onset landing inside a tight 50–200 ms speaker-to-microphone window after one of those moments is treated as bleed and won't split a note. Demo and melody playback don't feed the filter. Recordings keep their backing onsets alongside the audio, so replaying one on the diagnostics page segments it with exactly the evidence the live take had.
 
 That handles a click *inventing* a note. The subtler failure is a click sitting **on top of the evidence** for a note you really did play, and it goes in both directions:
 
@@ -87,7 +87,7 @@ The fix is to measure in a band the metronome cannot reach. The ride is high-pas
 
 The result: your sustained notes stay sustained, your on-the-beat tonguing still registers, and the scorer doesn't penalise rhythm for phantom subdivisions you didn't play.
 
-One honest caveat: the instrument-band reasoning above is calibrated against the *metronome's* voices. The backing track's piano, bass and snare do carry energy in that 250–5000 Hz band, so through loud speakers they can fill or fake the dips this tier reads. The onset-window suppression covers the common cases; if speaker practice with backing ever shows phantom splits, the diagnostics recordings carry the evidence to tighten the band tiers (the designs are staged in the backing upgrade plan). Headphones sidestep all of it.
+One honest caveat: the instrument-band reasoning above is calibrated against the *metronome's* voices. The backing track's piano, bass and snare do carry energy in that 250–5000 Hz band, so through loud speakers they can fill or fake the dips this tier reads. Suppressing onsets near known backing events covers the common cases, but if you practise on speakers with the band up and see notes splitting where you didn't tongue, that's the reason. Headphones sidestep all of it.
 
 ## Latency and reaction time
 

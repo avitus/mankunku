@@ -56,13 +56,7 @@ export const tooltips = {
 		},
 		statusText: {
 			text: 'Tells you what to do right now. "Listen" while the phrase plays, "Your turn" when it’s your move, "Listening" while the mic captures.'
-		},
-		settingsDifficulty: {
-			text: 'Lock the difficulty level for filtering licks, or let the adaptive system choose. Higher levels expose harder pitch and rhythm content.',
-			learnMore: '/docs/architecture/adaptive-difficulty'
-		},
-		settingsScale: {
-			text: 'Override today’s scale to drill a specific tonality. Resets at midnight unless you re-pick.'
+
 		}
 	} satisfies TooltipMap,
 
@@ -115,7 +109,7 @@ export const tooltips = {
 			text: 'Adds tritone subs and chromatic approaches to the progression. Same melodic lick, more harmonic challenge.'
 		},
 		backingStyle: {
-			text: 'Swing for straight-ahead jazz, bossa nova for Latin feel, ballad for slow tempos with sustained comping, straight for rock/funk feel.',
+			text: 'Swing for straight-ahead jazz. Bossa nova for Latin feel. Ballad for slow tempos with two-feel bass and sustained comping. Straight is the same jazz band playing even eighths — not a rock kit. Bossa, ballad and straight set their own eighth-note feel and ignore the Swing setting.',
 			learnMore: '/docs/architecture/audio-pipeline'
 		},
 		practiceMode: {
@@ -132,9 +126,6 @@ export const tooltips = {
 	settings: {
 		instrument: {
 			text: 'Sets transposition. Notation displays in your written pitch (Bb tenor sees C as written D); audio always plays at concert pitch.'
-		},
-		bleedFilter: {
-			text: 'Filters out audio bleed from the playback feed in your mic input. A/B test toggle — leave on unless you’re debugging detection.'
 		},
 		highestNote: {
 			text: 'Caps how high licks can transpose. Set this to your real high note so the app doesn’t generate phrases above your range.'

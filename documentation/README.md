@@ -4,7 +4,9 @@ Mankunku is a jazz ear training web app built around **call and response**: the 
 
 Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) iconic 1968 album *Yakhal' Inkomo*, this app targets jazz musicians practicing ear training, transcription, and improvisation vocabulary.
 
-> **Last major docs update: 2026-08-01** — synced docs to the **tune half of the app**, which had grown without documentation since the 2026-07-26 pass. New player-facing pages [Your Tunes](./tunes.md) and [Playing Over Tunes](./tune-practice.md) (both surfaced in `/docs` and bundled into the docs assistant's context); new [Tune System](./architecture/tune-system.md) developer doc covering flatten's two timelines, the five importers, engraving, progression detection, mastery-aware lick matching, and session planning. Also: `overview.md` reframed around three practice surfaces rather than two; the audio pipeline's five-tier re-articulation detection and band-limited metronome-bleed handling written up (user-facing and in the audio API reference); `PitchReading`'s four envelope/timbre fields documented; Tune and lick-practice types added to the data model; tune, tune-practice, console, and tour components added to the component reference; `tuneToAbc` and the chart/chord/ending layout modules added to the music reference; new guided tours for Tunes and Tune Practice. Corrected two stale claims: the app is installable but has **no service worker** (so no offline page loads), and the bleed filter has **no Settings toggle**.
+> **Last major docs update: 2026-08-08** — synced the developer docs to the ~160 commits since the tune pass. The big ones: the **backing-track engine** grew four styles at parity (swing, bossa nova, ballad, straight), a composed drum vocabulary with six classic jazz fills, an ensemble intensity arc, per-role microtiming and tempo-dependent swing, and a real signal path (split-kit panning, glue compressor, convolution room, offline bounce) — see [Audio](./api-reference/audio.md) and [Backing-track listening](./contributing/backing-listening.md). **Tricks** (parameterized melodic devices) landed with their own conformance/fluency scoring, an 8-stage triad-pair family ladder and quality-aware tune suggestions — [Trick Scoring](./architecture/trick-scoring.md). **Deep Practice** became continuous: worst-first key rotation by rolling score, a skipped demo once a key is proficient, and a ii-V turnaround joining the cycles — [State Management](./architecture/state-management.md). And the **deploy path** was rebuilt around an on-server release script with shared dependencies, self-cleaning failures, and an `/api/health` release-id check — [Tech Stack](./architecture/tech-stack.md).
+>
+> **2026-08-01** — synced docs to the **tune half of the app**, which had grown without documentation since the 2026-07-26 pass. New player-facing pages [Your Tunes](./tunes.md) and [Playing Over Tunes](./tune-practice.md) (both surfaced in `/docs` and bundled into the docs assistant's context); new [Tune System](./architecture/tune-system.md) developer doc covering flatten's two timelines, the five importers, engraving, progression detection, mastery-aware lick matching, and session planning. Also: `overview.md` reframed around three practice surfaces rather than two; the audio pipeline's five-tier re-articulation detection and band-limited metronome-bleed handling written up (user-facing and in the audio API reference); `PitchReading`'s four envelope/timbre fields documented; Tune and lick-practice types added to the data model; tune, tune-practice, console, and tour components added to the component reference; `tuneToAbc` and the chart/chord/ending layout modules added to the music reference; new guided tours for Tunes and Tune Practice. Corrected two stale claims: the app is installable but has **no service worker** (so no offline page loads), and the bleed filter has **no Settings toggle**.
 >
 > **2026-07-26** — the Tunes / Licks restructure (routes, storage, and nomenclature moved off "lead sheets"), the tune editor's entry rail, and the deploy/PWA overhaul.
 >
@@ -20,6 +22,7 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [User Guide](./user-guide.md) | How to use the app: practice, your licks, progress, settings |
 | [Your Tunes](./tunes.md) | For players: building a songbook — charting, importing, adopting |
 | [Playing Over Tunes](./tune-practice.md) | For players: the scored session over a real form |
+| [Practicing Tricks](./tricks.md) | For players: drilling melodic devices for fluency, not reproduction |
 | [Development Setup](./contributing/contributing.md#development-setup) | For developers: prerequisites, install, first run, local Supabase stack |
 
 ### Architecture
@@ -44,13 +47,13 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 
 | Document | Description |
 |---|---|
-| [Audio](./api-reference/audio.md) | audio-context, playback, capture, pitch-detector/pitch-frame, onset-detector, note-segmenter, metronome |
-| [Scoring](./api-reference/scoring.md) | alignment, pitch-scoring, rhythm-scoring, scorer, grades |
+| [Audio](./api-reference/audio.md) | audio-context, playback, capture, pitch-detector/pitch-frame, onset-detector, note-segmenter, metronome, and the whole backing-track engine (generation, styles, drum vocabulary, timing, mix/bus, bounce) |
+| [Scoring](./api-reference/scoring.md) | alignment, pitch-scoring, rhythm-scoring, scorer, score-pipeline, fluency, grades |
 | [Music](./api-reference/music.md) | scales, chords, keys, intervals, notation, tune-notation, chart/chord/ending layout, chord-symbol, transposition |
-| [Phrases](./api-reference/phrases.md) | combiner, validator, library-loader |
-| [Difficulty](./api-reference/difficulty.md) | adaptive, params |
-| [State](./api-reference/state.md) | session, settings, progress, history, licks, lick-practice, step-entry, tune-entry, tune-community, tune-practice, tour state modules |
-| [Components](./api-reference/components.md) | All Svelte components and route pages |
+| [Phrases](./api-reference/phrases.md) | combiner, validator, library-loader, duplicate-detection, adopted-phrase-validator |
+| [Difficulty](./api-reference/difficulty.md) | adaptive, params, lick-phase, level-signal, calculate, display |
+| [State](./api-reference/state.md) | session, settings, progress, history, licks, lick-practice (+ rotation), tricks, step-entry, tune-entry, tune-community, tune-practice, tour state modules |
+| [Components](./api-reference/components.md) | All Svelte components, by domain |
 
 ### Contributing
 
@@ -59,7 +62,8 @@ Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_M
 | [Contributing Guide](./contributing/contributing.md) | Workflow, branch naming, PR process, code style |
 | [Adding Licks](./contributing/adding-licks.md) | Step-by-step guide to adding curated licks |
 | [Adding Scales](./contributing/adding-scales.md) | Extending the scale catalog |
-| [Testing Guide](./contributing/testing-guide.md) | Test patterns, mocking audio, writing new tests |
+| [Testing Guide](./contributing/testing-guide.md) | The four suites, test patterns, mocking audio, writing new tests |
+| [Backing-track Listening](./contributing/backing-listening.md) | The listening lab, milestone protocol, and committed engine artifacts |
 
 ### Reference
 

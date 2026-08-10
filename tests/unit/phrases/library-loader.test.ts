@@ -144,8 +144,7 @@ const {
 	getBaseLickFromId,
 	getLicksByCategory,
 	getCategories,
-	queryLicks,
-	pickRandomLick
+	queryLicks
 } = await import('$lib/phrases/library-loader');
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -461,47 +460,5 @@ describe('queryLicks', () => {
 	it('returns empty array when no licks match', () => {
 		const results = queryLicks({ search: 'nonexistent-term-xyz' });
 		expect(results).toEqual([]);
-	});
-});
-
-describe('pickRandomLick', () => {
-	it('returns null when no licks match query', () => {
-		const result = pickRandomLick({ search: 'nonexistent-term-xyz' });
-		expect(result).toBeNull();
-	});
-
-	it('returns a phrase from the matching set', () => {
-		const result = pickRandomLick({ category: 'blues' });
-		expect(result).not.toBeNull();
-		// The source lick is lick-2 (Blues Riff) — transposed to default key C
-		expect(result!.name).toBe('Blues Riff');
-	});
-
-	it('returns a transposed lick with modified ID when key differs', () => {
-		// lick-1 is in key C; transposing to G should change the ID
-		const result = pickRandomLick({ category: 'pentatonic' }, 'G');
-		expect(result).not.toBeNull();
-		expect(result!.id).toContain('lick-4');
-		expect(result!.key).toBe('G');
-	});
-
-	it('returns lick as-is when transposing to same key with no custom range', () => {
-		const result = pickRandomLick({ category: 'pentatonic' }, 'C');
-		expect(result).not.toBeNull();
-		expect(result!.id).toBe('lick-4');
-		expect(result!.key).toBe('C');
-	});
-
-	it('applies range parameters when provided', () => {
-		// Force a single match for determinism
-		const result = pickRandomLick({ category: 'pentatonic' }, 'C', 48, 72);
-		expect(result).not.toBeNull();
-		// All pitched notes should be within the requested range
-		for (const note of result!.notes) {
-			if (note.pitch !== null) {
-				expect(note.pitch).toBeGreaterThanOrEqual(48);
-				expect(note.pitch).toBeLessThanOrEqual(72);
-			}
-		}
 	});
 });

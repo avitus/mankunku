@@ -11,7 +11,7 @@ Mankunku relies on modern Web APIs. This page documents compatibility requiremen
 | AudioWorklet | Onset detection | 66+ | 76+ | 14.1+ | 79+ |
 | `Permissions.query` | Mic permission check | 43+ | 46+ | 16+ | 79+ |
 | `localStorage` | Settings, progress | All | All | All | All |
-| `CacheStorage` | Service worker asset caching | 40+ | 41+ | 11.1+ | 79+ |
+| `CacheStorage` | Backing-instrument sample cache (optional — falls back to plain `fetch`) | 40+ | 41+ | 11.1+ | 79+ |
 | `requestAnimationFrame` | Pitch detection loop | 10+ | 23+ | 6.1+ | 12+ |
 | CSS Custom Properties | Theming | 49+ | 31+ | 9.1+ | 15+ |
 | ES2022+ | Async/await, modules | 89+ | 89+ | 15+ | 89+ |
@@ -72,7 +72,9 @@ The worklet is authored as a plain JavaScript file (`onset-worklet.js`) delibera
 
 ### SoundFont Loading
 
-The default sax instruments (tenor/alto/soprano) load from bundled local `/samples/<instrument>/*.ogg` audio files served as static assets — there is no separate download step. (There is no service worker, so the samples are not SW-cached; the browser HTTP cache still serves them on repeat visits.) Instruments without a bundled sample map fall back to smplr's MusyngKite kit, which smplr fetches as remote JavaScript soundfont files (`{name}-{ogg|mp3}.js`) from `gleitz.github.io` using a plain `fetch` (smplr's `HttpStorage`) — the app does not enable smplr's optional `CacheStorage` backing. A loading indicator shows while an instrument loads.
+The default sax instruments (tenor/alto/soprano) load from bundled local `/samples/<instrument>/*.ogg` audio files served as static assets — there is no separate download step. (There is no service worker, so the samples are not SW-cached; the browser HTTP cache still serves them on repeat visits.) Instruments without a bundled sample map fall back to smplr's MusyngKite kit, which smplr fetches as remote JavaScript soundfont files (`{name}-{ogg|mp3}.js`) from `gleitz.github.io` using a plain `fetch` (smplr's `HttpStorage`) — the melody path does not enable smplr's optional `CacheStorage` backing. A loading indicator shows while an instrument loads.
+
+The **backing** instruments (upright bass, pianos) do use it: they load through a wrapped smplr `CacheStorage` under the versioned cache name `mankunku-samples-v1`, so revisits skip the network. Two caveats worth knowing when debugging: the Cache API requires a secure context, and browsers without it silently fall back to `HttpStorage`; and the wrapper exists because the Cache API will happily store a 404 or 500, which would then be served forever — a non-2xx response is retried over the network and the poisoned entry replaced or deleted. Drum samples take a different path entirely: they are fetched and `decodeAudioData`'d directly, each bounded by a 15 s timeout, and a drum that fails simply drops out of the kit.
 
 ### Pitch Detection Accuracy
 

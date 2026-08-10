@@ -52,6 +52,7 @@
 		type PhaseSegment
 	} from '$lib/state/lick-practice-phase';
 	import { buildTurnaroundBarEvents, type BackingHit } from '$lib/audio/turnaround-bar';
+	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import type {
 		PlannedKey,
 		LickBreatherInfo,
@@ -101,6 +102,18 @@
 	let onsetModule: typeof import('$lib/audio/onset-detector') | null = null;
 	let backingTrack: typeof import('$lib/audio/backing-track') | null = null;
 	let toneModule: typeof import('tone') | null = null;
+
+	/**
+	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
+	 * ballad) pin it; only the swing style defers to the user's knob. Every
+	 * path that would otherwise read `settings.swing` — playback, scoring,
+	 * the turnaround bar, and the swing persisted with the recording — goes
+	 * through this, so melody and band never disagree and a rescore grades
+	 * against the same grid the take was played on.
+	 */
+	const effectiveSwing = $derived(
+		melodySwingForStyle(settings.swing, lickPractice.config.backingStyle)
+	);
 
 	let micCapture: MicCapture | null = null;
 	let pitchDetector: PitchDetectorHandle | null = null;
@@ -352,7 +365,7 @@
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: lickPractice.currentTempo,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
@@ -795,7 +808,7 @@
 			targetKey: nextKey,
 			backingStyle: lickPractice.config.backingStyle ?? 'swing',
 			tempo: lickPractice.currentTempo,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			ppq,
 			beatsPerBar: Math.round(ticksPerBar / ppq)
 		});
@@ -1104,7 +1117,7 @@
 						chordRoot: key,
 						key,
 						tempo: lickPractice.currentTempo,
-						swing: settings.swing
+						swing: effectiveSwing
 					}
 				});
 			}
@@ -1118,7 +1131,7 @@
 				phrase: window.phrase,
 				tempo: lickPractice.currentTempo,
 				transportSeconds: window.recordingTransportSeconds,
-				swing: settings.swing,
+				swing: effectiveSwing,
 				bleedFilterEnabled: settings.bleedFilterEnabled,
 				bleedResult,
 				// Continuous mode: accept any octave of the right pitch class.
@@ -1209,7 +1222,7 @@
 			// (null for trick windows — no pipeline ran).
 			const bleedLogForSave = session.bleedFilterLog;
 			const tempoForSave = lickPractice.currentTempo;
-			const swingForSave = settings.swing;
+			const swingForSave = effectiveSwing;
 			const metronomeForSave = settings.metronomeEnabled;
 			// Backing onsets for replay parity — only when backing actually
 			// drove this window's bleed evidence (see resolveBleedEvidence).

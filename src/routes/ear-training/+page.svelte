@@ -24,6 +24,7 @@
 	import { effectiveDifficultyLevel } from '$lib/difficulty/calculate';
 	import { levelSignalDirection } from '$lib/difficulty/level-signal';
 	import { loadBackingInstruments, getActiveSchedule } from '$lib/audio/backing-track';
+	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
@@ -61,6 +62,13 @@
 	}
 
 	const activeTonality = $derived(settings.tonalityOverride ?? sessionDailyTonality);
+	/**
+	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
+	 * ballad) pin it; only the swing style defers to the user's knob. Must
+	 * be used everywhere `settings.swing` would otherwise flow into playback
+	 * or scoring, so the melody and the band never disagree.
+	 */
+	const effectiveSwing = $derived(melodySwingForStyle(settings.swing, settings.backingStyle));
 	const instrument = $derived(getInstrument());
 	const writtenKey = $derived(concertKeyToWritten(activeTonality.key, instrument));
 	// Use per-scale proficiency level for lick filtering
@@ -320,7 +328,7 @@
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: session.tempo,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
@@ -483,7 +491,7 @@
 			phrase: session.phrase,
 			tempo: session.tempo,
 			transportSeconds: recordingTransportSeconds,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			bleedFilterEnabled: settings.bleedFilterEnabled,
 			bleedResult
 		});
@@ -534,7 +542,7 @@
 			const phraseForRescore = session.phrase;
 			const tempoForRescore = session.tempo;
 			const transportForRescore = recordingTransportSeconds;
-			const swingForRescore = settings.swing;
+			const swingForRescore = effectiveSwing;
 			const scheduleForRescore = getActiveSchedule();
 			const bleedFilterEnabled = settings.bleedFilterEnabled;
 			const metronomeEnabledForRescore = settings.metronomeEnabled;

@@ -110,6 +110,14 @@ export interface PlanLickKeysArgs {
 }
 
 /**
+ * The full circle: every pitch class is a key, so twelve is the ceiling on
+ * any per-item unlocked-key count. Lives here rather than in the persistence
+ * layer because it is a fact about music, not about storage — the stores that
+ * clamp their unlock counters import it from this module.
+ */
+export const MAX_UNLOCKED_KEYS = 12;
+
+/**
  * Build the gradually-unlocked key set for a lick that hasn't reached its
  * full 12-key range yet. Adds keys easiest-to-hardest by accidental count,
  * alternating sharp- and flat-side neighbours of `entryKey` on the circle
@@ -122,7 +130,7 @@ export function planUnlockedKeys(
 	entryKey: PitchClass,
 	unlockedCount: number
 ): PitchClass[] {
-	const clamped = Math.min(12, Math.max(1, unlockedCount));
+	const clamped = Math.min(MAX_UNLOCKED_KEYS, Math.max(1, unlockedCount));
 	const fifths = circleOfFifthsFrom(entryKey);
 	// fifths[k] is +k fifths from entry; fifths[12-k] is -k fifths from entry.
 	const order: PitchClass[] = [fifths[0]];

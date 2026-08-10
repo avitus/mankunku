@@ -6,8 +6,8 @@
  * - Default :root keeps the historical blue accent — that IS the
  *   ear-training identity color, so /ear-training, /scales, /progress, etc.
  *   inherit it without any override.
- * - [data-domain='lick-practice'] overrides the accent to green for the
- *   /lick-practice routes.
+ * - [data-domain='lick-practice'] overrides the accent to warm terracotta
+ *   for the /lick-practice routes.
  * - [data-domain='neutral'] overrides the accent to slate for shared
  *   pages (Library, Add Licks, Settings, Home, Auth, Diagnostics).
  *
