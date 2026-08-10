@@ -163,6 +163,31 @@ happens downstream, on top of this record, never inside it.
   pixel OMR is **scans/photos**, where the app's existing text-layer chord
   reading has nothing to read — a scanned fixture is a planned addition.
 
+## Using a transcription in the app (hybrid import)
+
+The PDF import page (`/tunes/import/pdf`) accepts an optional `.omr.json`
+alongside the PDF:
+
+```sh
+cd omr && uv run python -m omr transcribe "../Leadsheets/PDF/Lady Bird.pdf"
+# → lady-bird.omr.json — attach it via "OMR transcription (optional)" on the
+#   import page, then pick the PDF as usual
+```
+
+Fusion rules (implemented in `src/lib/tunes/import/omr-transcription.ts`):
+the OMR transcription supplies **melody** for every line it covers (those
+lines never call the AI); the page's text layer keeps chord symbols, marks,
+and endings; page geometry keeps bar counts; notehead evidence still flags
+suspect bars for review. Lines the transcription can't cover fall back to
+the AI reader — or stay blank for hand entry when no AI key is configured,
+which makes OMR-assisted import work entirely offline.
+
+Recorded result vs the MuseScore references (see the OMR family in
+`tests/integration/pdf-vs-musescore.test.ts`): melody pitch agreement
+0.89–1.0 (the AI reader's recorded floors: 0.5–0.6), chord sequences
+0.96–1.0 with exact printed positions on two of three charts, and full
+repeat/ending form strict-exact on Take the A Train.
+
 ## Benchmark
 
 Ground truth lives in `omr/tests/benchmark/ground_truth/<slug>.json` —

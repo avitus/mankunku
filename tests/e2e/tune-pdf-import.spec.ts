@@ -264,3 +264,48 @@ test('cancelling an unsaved PDF draft returns to the book, not a dead detail pag
 	await page.waitForURL('**/tunes');
 	await expect(page.getByRole('heading', { name: 'Tunes', exact: true })).toBeVisible();
 });
+
+test('an attached OMR transcription supplies the melody with zero AI calls', async ({ page }) => {
+	// The .omr.json is a REAL recorded LEGATO v1 transcription of this chart
+	// (deterministic; see docs/omr/). Lines it covers never touch the network.
+	const seenMeters: Array<[number, number]> = [];
+	await stubParseRoute(page, { seenMeters });
+	await page.goto('/tunes/import/pdf');
+
+	const omrInput = page.getByLabel('OMR transcription (optional)');
+	await expect(omrInput).toBeEnabled();
+	await omrInput.setInputFiles('tests/fixtures/leadsheets/omr/lady-bird.omr.json');
+	await expect(page.getByText(/Using OMR melody from lady-bird\.omr\.json/)).toBeVisible();
+
+	const fileInput = page.getByLabel('Tune PDF');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles('Leadsheets/PDF/Lady Bird.pdf');
+
+	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(/Lady Bird/);
+	// Every line was covered by the OMR transcription: not one system-mode
+	// request reached the parse route.
+	expect(seenMeters).toHaveLength(0);
+	// The chart content arrived: notation is rendered for review.
+	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
+});
+
+test('a non-OMR JSON file is rejected inline and the import is not blocked', async ({ page }) => {
+	await page.goto('/tunes/import/pdf');
+
+	const omrInput = page.getByLabel('OMR transcription (optional)');
+	await expect(omrInput).toBeEnabled();
+	await omrInput.setInputFiles({
+		name: 'not-omr.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from(JSON.stringify({ hello: 'world' }))
+	});
+	await expect(page.getByText(/Not a usable OMR transcription/)).toBeVisible();
+
+	// The PDF path still works without the attachment.
+	const fileInput = page.getByLabel('Tune PDF');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await page.waitForURL('**/tunes/editor');
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
+});

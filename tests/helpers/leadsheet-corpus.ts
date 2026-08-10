@@ -35,6 +35,15 @@ export interface CorpusChart {
 	knownDefects: string[];
 	/** Regression floors pinned just under the recorded run's quality. */
 	floors: { chordSeq: number; pitchSeq: number };
+	/**
+	 * OMR-fused import (LEGATO melody + text-layer chords; see docs/omr/):
+	 * strict targets expected to fail and floors for the recorded
+	 * `<slug>.omr-import.json` fixture. Present only for charts with a
+	 * committed OMR fixture. Re-record with tests/e2e's recorder flow after
+	 * an intentional fusion change.
+	 */
+	omrKnownDefects?: string[];
+	omrFloors?: { chordSeq: number; pitchSeq: number };
 }
 
 /**
@@ -70,7 +79,9 @@ export const CORPUS: CorpusChart[] = [
 		mscz: 'All of Me.mscz',
 		pdf: 'All of Me.pdf',
 		knownDefects: ['form', 'chords', 'melody', 'pitches'],
-		floors: { chordSeq: 0.8, pitchSeq: 0.5 }
+		floors: { chordSeq: 0.8, pitchSeq: 0.5 },
+		omrKnownDefects: ['form', 'chords', 'melody'],
+		omrFloors: { chordSeq: 0.9, pitchSeq: 0.95 }
 	},
 	{
 		slug: 'autumn-leaves',
@@ -103,7 +114,9 @@ export const CORPUS: CorpusChart[] = [
 		mscz: 'Lady Bird.mscz',
 		pdf: 'Lady Bird.pdf',
 		knownDefects: ['melody', 'pitches'],
-		floors: { chordSeq: 0.9, pitchSeq: 0.55 }
+		floors: { chordSeq: 0.9, pitchSeq: 0.55 },
+		omrKnownDefects: ['melody', 'pitches'],
+		omrFloors: { chordSeq: 0.95, pitchSeq: 0.85 }
 	},
 	{
 		slug: 'on-green-dolphin-street',
@@ -117,7 +130,9 @@ export const CORPUS: CorpusChart[] = [
 		mscz: 'Take the A Train.mscz',
 		pdf: 'Take the A Train.pdf',
 		knownDefects: ['melody', 'pitches'],
-		floors: { chordSeq: 0.8, pitchSeq: 0.6 }
+		floors: { chordSeq: 0.8, pitchSeq: 0.6 },
+		omrKnownDefects: ['melody', 'pitches'],
+		omrFloors: { chordSeq: 0.95, pitchSeq: 0.9 }
 	},
 	{
 		slug: 'there-will-never-be-another-you',

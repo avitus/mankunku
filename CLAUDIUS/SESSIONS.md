@@ -1410,3 +1410,36 @@ the fixture marked a start-repeat the page never printed (implicit from-the-top 
 — the MODEL was right and my ground truth was wrong. Baseline recorded at
 docs/omr/benchmark-2026-08-09-legato-v1.md; user feedback twice this session: action
 items must LEAD the message, isolated and labeled — never embedded in explanation prose.
+
+## 2026-08-10 — The hybrid: each pipeline's blind spot covered by the other's eye
+
+Same-day follow-through on yesterday's benchmark finding. The user asked whether the
+current solution and LEGATO could combine; the answer turned out to be almost
+embarrassingly yes, because the import pipeline was ALREADY an evidence-fusion system
+with authority rules — Claude merely occupied the "melody model" slot, and that slot
+has a transport-agnostic callback seam (`pdf-import-run`'s design, paying off months
+later). LEGATO's normalized JSON slides into the same `ModelBar` shape Claude produces;
+`assembleClaudeDoc` and `claudeJsonToTune` never knew anything changed.
+
+The whole bridge is one new pure module (`omr-transcription.ts`): untrusted-input
+validation in the adopted-validator style, key-name→fifths with enharmonics and minors,
+and the two unit conversions that matter (flat measure list → per-system chunks by
+geometry bar counts; whole-note fractions → declared-denominator beats). Plus one page
+wiring: an optional second file input, fused responses resolving instantly, Claude only
+for uncovered systems — and a keyless server can now import via OMR alone, which fell
+out of the design rather than being designed.
+
+Recorded against the MuseScore references (the suite's own metrics, no new yardstick):
+melody pitch agreement 0.887 / 0.956 / 1.000 where the Claude floors were 0.55 / 0.6 /
+0.5 — and chords at EXACT printed positions on two of three charts, with A-Train's
+full repeat form (sections, repeats, both endings) passing the strict target that no
+chart ever passed on the AI path. All of Me passed strict pitch-sequence: every printed
+pitch, in order, recovered. The provisional knownDefects I pinned before running the
+suite turned out exactly right — 85 passed, 35 expected-fail, zero surprises, which
+is what it feels like when the measurement system was built before the feature.
+
+Process notes: the fused-fixture recorder is COMMITTED and env-gated
+(RECORD_OMR_FIXTURES=1) — a deliberate correction of the original corpus recorder
+living uncommitted in a scratchpad, which the corpus header itself laments. And the
+zero-network e2e asserts `seenMeters` stays empty — the cheapest possible proof that
+fusion actually replaced the API call rather than racing it.

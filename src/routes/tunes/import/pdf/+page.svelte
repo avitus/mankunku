@@ -22,6 +22,12 @@
 	} from '$lib/tunes/import/pdf-import-run';
 	import { readNdjsonResult } from '$lib/tunes/import/ndjson-result';
 	import {
+		omrNormalized,
+		omrSystemResponses,
+		validateOmrTranscription,
+		type OmrNormalized
+	} from '$lib/tunes/import/omr-transcription';
+	import {
 		defaultSourceTransposition,
 		writtenSheetToConcert,
 		type SourceTransposition
@@ -31,6 +37,8 @@
 	const user = $derived(page.data?.user ?? null);
 
 	const MAX_PDF_BYTES = 10 * 1024 * 1024;
+	/** OMR transcriptions are small JSON (~30KB); the cap is pure DoS hygiene. */
+	const MAX_OMR_BYTES = 2 * 1024 * 1024;
 
 	/**
 	 * Silence budget per system request. The server heartbeats every 3s for
@@ -58,6 +66,11 @@
 	let elapsedTimer: ReturnType<typeof setInterval> | undefined;
 	let cancelController: AbortController | null = null;
 	let errorMessage = $state<string | null>(null);
+	/** Melody from a locally-run OMR transcription (`python -m omr transcribe`),
+	 * attached BEFORE the PDF — lines it covers skip the AI call entirely. */
+	let omrDoc = $state<OmrNormalized | null>(null);
+	let omrFileName = $state<string | null>(null);
+	let omrError = $state<string | null>(null);
 	let importWarnings = $state<string[]>([]);
 
 	const doneCount = $derived(systemStates.filter((s) => s.status === 'done').length);
@@ -224,6 +237,17 @@
 			error: null
 		}));
 
+		// An attached OMR transcription supplies melody for the lines it covers
+		// — those resolve instantly and never touch the network. Lines it can't
+		// cover fall back to the AI reader (when configured).
+		const fused = omrDoc
+			? omrSystemResponses(
+					omrDoc,
+					systems.map((sys) => sys.geometry.barlines.length),
+					meter
+				)
+			: null;
+
 		// Every line goes out at once: the meter came from the user, so nothing
 		// has to wait on a transcription to learn it.
 		const run = await runSystemTranscriptions<SystemModeResponse>({
@@ -232,14 +256,38 @@
 			attempts: SYSTEM_ATTEMPTS,
 			signal,
 			onProgress: (states) => (systemStates = states),
-			transcribe: (index, _attempt, sig) =>
-				transcribeSystem(systems[index], meter, index, index === 0, sig)
+			transcribe: (index, _attempt, sig) => {
+				const fromOmr = fused?.responses[index];
+				if (fromOmr) return Promise.resolve(fromOmr);
+				if (configured === false) return Promise.resolve(null);
+				return transcribeSystem(systems[index], meter, index, index === 0, sig);
+			}
 		});
 		if (run.aborted) throw new Error('Import cancelled.');
 		if (run.failed.length === systems.length) return null;
 
 		phase = 'assembling';
 		const responses = run.results;
+
+		// Provenance note when fusing: which lines came from the OMR
+		// transcription, which needed the AI, which stayed empty.
+		const fusionNotes: string[] = [];
+		if (fused) {
+			const omrCount = fused.responses.filter(
+				(response, i) => response !== null && responses[i] !== null
+			).length;
+			const aiCount = responses.filter(
+				(response, i) => response !== null && fused.responses[i] === null
+			).length;
+			const emptyCount = responses.filter((response) => response === null).length;
+			fusionNotes.push(
+				`melody from the attached OMR transcription for ${omrCount} of ${systems.length} ` +
+					`line(s)` +
+					(aiCount ? `; ${aiCount} read by the AI` : '') +
+					(emptyCount ? `; ${emptyCount} left blank` : '')
+			);
+			fusionNotes.push(...fused.warnings);
+		}
 
 		// Free cross-check on the declaration: systems that PRINT a meter still
 		// report one, so a wrong pick is caught rather than silently shaping
@@ -292,9 +340,45 @@
 			sheet: converted.sheet,
 			// The meter note goes FIRST — every other warning is downstream of
 			// the beat grid being right.
-			warnings: [...(meterMismatch ? [meterMismatch] : []), ...warnings, ...converted.warnings],
+			warnings: [
+				...(meterMismatch ? [meterMismatch] : []),
+				...fusionNotes,
+				...warnings,
+				...converted.warnings
+			],
 			suspectBars
 		};
+	}
+
+	async function handleOmrFile(event: Event): Promise<void> {
+		const inputEl = event.currentTarget as HTMLInputElement;
+		const file = inputEl.files?.[0];
+		omrError = null;
+		omrDoc = null;
+		omrFileName = null;
+		if (!file) return;
+
+		if (file.size > MAX_OMR_BYTES) {
+			omrError = 'OMR transcription too large — expected a small .omr.json file.';
+			inputEl.value = '';
+			return;
+		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(await file.text());
+		} catch {
+			omrError = 'Not valid JSON — attach the .omr.json written by `python -m omr transcribe`.';
+			inputEl.value = '';
+			return;
+		}
+		const validation = validateOmrTranscription(parsed);
+		if (!validation.valid) {
+			omrError = `Not a usable OMR transcription: ${validation.errors[0]}`;
+			inputEl.value = '';
+			return;
+		}
+		omrDoc = omrNormalized(parsed);
+		omrFileName = file.name;
 	}
 
 	async function handleFile(event: Event): Promise<void> {
@@ -328,6 +412,18 @@
 				if (signal.aborted) throw err;
 				systemsFailure = err instanceof Error ? err.message : String(err);
 				console.warn('[pdf-import] per-system pipeline failed, falling back:', err);
+			}
+			if (!imported && configured === false) {
+				// No AI key: the OMR-only path was the only reader. Surface why
+				// rather than firing a whole-PDF call that cannot succeed.
+				errorMessage = [
+					systemsFailure,
+					'the attached OMR transcription did not match the page layout, and the ' +
+						'whole-chart fallback needs an AI key'
+				]
+					.filter(Boolean)
+					.join(' — ');
+				return;
 			}
 			if (!imported) {
 				phase = 'whole-pdf';
@@ -448,14 +544,37 @@
 
 	{#if configured === false}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]">
-			PDF import isn't available on this server (no AI key configured). You can still
-			<a href="/tunes/editor" class="text-[var(--color-accent)] underline">enter the chart manually</a>.
+			This server has no AI key, so the AI reader is unavailable. You can still
+			<a href="/tunes/editor" class="text-[var(--color-accent)] underline">enter the chart manually</a>
+			— or attach an OMR transcription below and import without the AI (lines it doesn't
+			cover are left blank for hand entry).
 		</div>
-	{:else}
+	{/if}
+	{#if configured !== null}
+		<div class="space-y-1">
+			<input
+				type="file"
+				accept=".json,application/json"
+				disabled={uploading}
+				onchange={handleOmrFile}
+				aria-label="OMR transcription (optional)"
+				class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-bg-tertiary)] file:px-3 file:py-1.5 file:text-sm file:font-medium disabled:opacity-50"
+			/>
+			<p class="text-xs text-[var(--color-text-secondary)]">
+				Optional: a <code>.omr.json</code> from <code>python -m omr transcribe</code> supplies
+				the melody for every line it covers — those lines skip the AI entirely.
+			</p>
+			{#if omrFileName && !omrError}
+				<p class="text-xs text-[var(--color-accent)]">Using OMR melody from {omrFileName}.</p>
+			{/if}
+			{#if omrError}
+				<p class="text-xs text-[var(--color-error,#c0392b)]">{omrError}</p>
+			{/if}
+		</div>
 		<input
 			type="file"
 			accept=".pdf,application/pdf"
-			disabled={uploading || configured === null}
+			disabled={uploading || (configured === false && !omrDoc)}
 			onchange={handleFile}
 			aria-label="Tune PDF"
 			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
