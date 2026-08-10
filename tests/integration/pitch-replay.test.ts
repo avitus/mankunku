@@ -2125,7 +2125,7 @@ describe('pitch replay regression: pent run, metronome click on the held G (2026
 		],
 		harmony: [],
 		difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
-		category: 'bebop',
+		category: 'pentatonic',
 		tags: [],
 		source: 'curated'
 	};

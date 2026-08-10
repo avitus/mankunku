@@ -1677,7 +1677,7 @@ describe('2026-08-10 pent run: a metronome click must not split the held G', () 
 			],
 			harmony: [],
 			difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
-			category: 'bebop',
+			category: 'pentatonic',
 			tags: [],
 			source: 'curated'
 		};
