@@ -1695,3 +1695,89 @@ describe('2026-08-10 pent run: a metronome click must not split the held G', () 
 		expect(score.noteResults[3].detected?.midi).toBe(67);
 	});
 });
+
+// ─── 2026-08-11 tongued same-pitch pairs ─────────────────────────────────────
+//
+// Two ear-training takes from the same session (concert G, 105 BPM, swing 0.6,
+// metronome on, no backing track) where a subtle same-pitch re-articulation
+// merged and the second note was scored MISSED. These replay the SAVED live
+// readings — the trim-consistent export shipped in #223, so `transportSeconds`
+// describes the untrimmed blob and `captureTrimSeconds` must be added back to
+// phase the click grid. The WAV twins in pitch-replay.test.ts pin the
+// authoritative blob-rescore path; these pin the same evidence class on the
+// saved-readings path.
+describe('2026-08-11 tongued same-pitch pairs: saved-readings replay', () => {
+	interface TonguedPairFixture {
+		context: { tempo: number; swing: number; transportSeconds: number };
+		audio: { duration: number; captureTrimSeconds: number };
+		detection: { rawWorkletOnsets: number[]; readings: PitchReading[] };
+	}
+
+	function loadTake(file: string): TonguedPairFixture {
+		const path = resolve(__dirname, '..', 'fixtures', 'recordings', file);
+		return JSON.parse(readFileSync(path, 'utf8'));
+	}
+
+	/** The ear-training path, metronome on: bleed evidence reaches both stages. */
+	function runPipeline(fx: TonguedPairFixture) {
+		const readings = fx.detection.readings;
+		const worklet = fx.detection.rawWorkletOnsets;
+		const duration = fx.audio.duration;
+		const bleedOnsets = getMetronomeBleedOnsets(
+			fx.context.transportSeconds + fx.audio.captureTrimSeconds,
+			fx.context.tempo,
+			duration
+		);
+		const baseOnsets = resolveOnsets(worklet, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			onsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			worklet,
+			bleedOnsets,
+			articulationOnsets
+		);
+		return { detected, articulationOnsets };
+	}
+
+	// "Curl to the Floor" (bbn-019_G): D4, C4 C4 (swung eighths), Bb3, G3. The
+	// tongue stop's band-floor collapse precedes the hfRms spike (tracking was
+	// blanked through the attack), and a click 219 ms before the spike put it
+	// inside the HF suppression window — bandFloorDips' pre-span stop-and-
+	// recover shape is what rescues it. Saved score 0.747 with the second C4
+	// MISSED; the merged C4 was a single 0.55 s note at 0.900.
+	it('Curl to the Floor: the tongued C4 eighth pair splits despite the adjacent click', () => {
+		const { detected, articulationOnsets } = runPipeline(
+			loadTake('2026-08-11-curl-to-the-floor.json')
+		);
+
+		expect(articulationOnsets.some((t) => t > 1.28 && t < 1.42)).toBe(true);
+		expect(detected.map((n) => n.midi)).toEqual([62, 60, 60, 58, 55]);
+		expect(detected[1].onsetTime).toBeCloseTo(0.9, 1);
+		expect(detected[2].onsetTime).toBeGreaterThan(1.28);
+		expect(detected[2].onsetTime).toBeLessThan(1.42);
+	});
+
+	// "Blue Note Climb" (bbn-001_G): C4, C4, D4 halves. The soft on-beat
+	// tongue leaves a 133 ms tracking hole, stretched past the bare-gap floor
+	// only by the warmup frames findSameMidiRuns skips, and the post-gap
+	// energy holds 1.19× — under the 1.2 step-up the short-gap tier would
+	// demand if the gap ever measured below 150 ms. Scored 0.666 by a stale
+	// pre-#223 client with the second C4 MISSED; current code must keep it
+	// split at the bare-gap articulation.
+	it('Blue Note Climb: the tongued C4 half pair splits at the bare-gap articulation', () => {
+		const { detected, articulationOnsets } = runPipeline(
+			loadTake('2026-08-11-blue-note-climb.json')
+		);
+
+		expect(articulationOnsets.some((t) => t > 1.4 && t < 1.6)).toBe(true);
+		expect(detected.map((n) => n.midi)).toEqual([60, 60, 62]);
+		expect(detected[1].onsetTime).toBeGreaterThan(1.4);
+		expect(detected[1].onsetTime).toBeLessThan(1.6);
+	});
+});
