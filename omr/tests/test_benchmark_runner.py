@@ -7,6 +7,7 @@ from conftest import FakeBackend
 from PIL import Image
 
 from omr.benchmark.runner import run_benchmark
+from omr.models import OMRWarning
 
 
 def _write_gt(root: Path) -> Path:
@@ -88,3 +89,24 @@ def test_parse_detected_text_elision_adds_the_chord_metrics_note(tmp_path: Path)
 
     notes = outcome["results"][0]["notes"]
     assert any("does not transcribe text" in n for n in notes)
+
+
+def test_backend_standing_elision_warning_adds_the_note(tmp_path: Path) -> None:
+    # The other elision source: a backend's own standing warning in
+    # result.warnings (LEGATO v1's behavior), with no tokens in the ABC.
+    class ElidingBackend(FakeBackend):
+        def transcribe(self, source):
+            result = super().transcribe(source)
+            result.warnings.append(
+                OMRWarning(code="TEXT_ELIDED_BY_MODEL", message="standing backend warning")
+            )
+            return result
+
+    gt_path = _write_gt(tmp_path)
+
+    outcome = run_benchmark(
+        ElidingBackend(), [gt_path], repo_root=tmp_path, out_dir=tmp_path / "out"
+    )
+
+    notes = outcome["results"][0]["notes"]
+    assert sum("does not transcribe text" in n for n in notes) == 1
