@@ -37,12 +37,13 @@ describe('addNote selects the appended note', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(2);
 	});
 
-	it('does not change selection when a rest is added', () => {
+	it('selects the appended rest, same as a pitched note', () => {
 		addNote(0, 4, 'natural'); // selection = 0
 		expect(stepEntry.selectedNoteIndex).toBe(0);
 		addRest();
-		// Selection sticks to the pitched note; the rest is non-selectable.
-		expect(stepEntry.selectedNoteIndex).toBe(0);
+		// Rests are first-class elements: entry moves selection onto them so an
+		// immediate Backspace removes the rest just entered.
+		expect(stepEntry.selectedNoteIndex).toBe(1);
 	});
 
 	it('enterTiedNote selects the appended tied duplicate', () => {
@@ -61,11 +62,11 @@ describe('selectNote / selectPrev / selectNext', () => {
 		stepEntry.selectedNoteIndex = null;
 	});
 
-	it('selectNote validates the target is a pitched note', () => {
+	it('selectNote accepts any in-range element, rest or note', () => {
 		selectNote(0);
 		expect(stepEntry.selectedNoteIndex).toBe(0);
-		selectNote(1); // rest — should be ignored
-		expect(stepEntry.selectedNoteIndex).toBe(0);
+		selectNote(1); // rest — selectable like any element
+		expect(stepEntry.selectedNoteIndex).toBe(1);
 		selectNote(2);
 		expect(stepEntry.selectedNoteIndex).toBe(2);
 		selectNote(null);
@@ -74,15 +75,24 @@ describe('selectNote / selectPrev / selectNext', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(null);
 	});
 
-	it('selectPrev from null lands on the last pitched note', () => {
+	it('selectPrev from null lands on the last element', () => {
 		selectPrev();
 		expect(stepEntry.selectedNoteIndex).toBe(3);
 	});
 
-	it('selectPrev skips rests', () => {
+	it('selectPrev from null lands on a trailing rest', () => {
+		addRest(); // 4: rest at the end
+		stepEntry.selectedNoteIndex = null;
+		selectPrev();
+		expect(stepEntry.selectedNoteIndex).toBe(4);
+	});
+
+	it('selectPrev stops on rests (MuseScore-style)', () => {
 		selectNote(2); // E4
 		selectPrev();
-		expect(stepEntry.selectedNoteIndex).toBe(0); // skipped the rest at index 1
+		expect(stepEntry.selectedNoteIndex).toBe(1); // the rest
+		selectPrev();
+		expect(stepEntry.selectedNoteIndex).toBe(0);
 	});
 
 	it('selectPrev is a no-op at the start', () => {
@@ -91,15 +101,17 @@ describe('selectNote / selectPrev / selectNext', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(0);
 	});
 
-	it('selectNext from null lands on the first pitched note', () => {
+	it('selectNext from null lands on the first element', () => {
 		selectNext();
 		expect(stepEntry.selectedNoteIndex).toBe(0);
 	});
 
-	it('selectNext skips rests', () => {
+	it('selectNext stops on rests (MuseScore-style)', () => {
 		selectNote(0);
 		selectNext();
-		expect(stepEntry.selectedNoteIndex).toBe(2); // skipped the rest
+		expect(stepEntry.selectedNoteIndex).toBe(1); // the rest
+		selectNext();
+		expect(stepEntry.selectedNoteIndex).toBe(2);
 	});
 
 	it('selectNext is a no-op at the end', () => {
@@ -185,7 +197,7 @@ describe('deleteSelectedNote', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(null);
 	});
 
-	it('falls back to last pitched when no explicit selection', () => {
+	it('falls back to the last element when no explicit selection', () => {
 		selectNote(null);
 		deleteSelectedNote();
 		expect(stepEntry.enteredNotes).toHaveLength(3);
@@ -205,6 +217,86 @@ describe('deleteSelectedNote', () => {
 		deleteSelectedNote();
 		expect(stepEntry.enteredNotes).toHaveLength(2);
 		expect(stepEntry.enteredNotes[0].tied).toBe(false);
+	});
+});
+
+describe('rest selection and deletion', () => {
+	beforeEach(() => {
+		setDuration('quarter');
+	});
+
+	it('Backspace with no selection deletes a trailing rest, not the note before it', () => {
+		addNote(0, 4, 'natural'); // 0: C4
+		addNote(2, 4, 'natural'); // 1: D4
+		addRest();                 // 2: rest
+		selectNote(null);
+		deleteSelectedNote();
+		// The historical bug: this used to delete D4 and orphan the rest.
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 62]);
+		expect(stepEntry.selectedNoteIndex).toBe(null);
+	});
+
+	it('deletes a selected mid-list rest and shifts subsequent offsets left', () => {
+		addNote(0, 4, 'natural'); // 0: C4
+		addRest();                 // 1: rest
+		addNote(4, 4, 'natural'); // 2: E4
+		addNote(7, 4, 'natural'); // 3: G4
+		selectNote(1);
+		deleteSelectedNote();
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 64, 67]);
+		expect(stepEntry.enteredNotes[0].offset).toEqual([0, 1]);
+		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
+		expect(stepEntry.enteredNotes[2].offset).toEqual([1, 2]);
+		expect(stepEntry.selectedNoteIndex).toBe(0); // previous element
+	});
+
+	it('post-delete reselection can land on a neighboring rest', () => {
+		addNote(0, 4, 'natural'); // 0: C4
+		addRest();                 // 1: rest
+		addNote(4, 4, 'natural'); // 2: E4
+		addNote(7, 4, 'natural'); // 3: G4
+		selectNote(2); // E4 — not at the end, so reselection runs
+		deleteSelectedNote();
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 67]);
+		expect(stepEntry.selectedNoteIndex).toBe(1); // the rest, not C4
+	});
+
+	it('deleting a rest after a tied pair leaves the tie intact', () => {
+		addNote(0, 4, 'natural'); // 0: C4
+		enterTiedNote();           // 1: C4 tied-from 0
+		addRest();                 // 2: rest
+		addNote(2, 4, 'natural'); // 3: D4
+		selectNote(2);
+		deleteSelectedNote();
+		expect(stepEntry.enteredNotes).toHaveLength(3);
+		expect(stepEntry.enteredNotes[0].tied).toBe(true);
+	});
+
+	it('adjustSelectedNotePitch on a selected rest changes nothing', () => {
+		addNote(0, 4, 'natural'); // 0: C4
+		addRest();                 // 1: rest
+		addNote(4, 4, 'natural'); // 2: E4
+		selectNote(1);
+		adjustSelectedNotePitch(1);
+		// Hard no-op: no silent retarget to a pitched note.
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 64]);
+	});
+
+	it('flipSelectedNoteSpelling on a selected rest changes nothing', () => {
+		addNote(0, 4, 'sharp');   // 0: C#4 (flippable)
+		addRest();                 // 1: rest
+		selectNote(1);
+		flipSelectedNoteSpelling();
+		expect(stepEntry.enteredNotes[0].spelling).toBeUndefined();
+	});
+
+	it('pitch ops with no selection still target the last pitched note past a trailing rest', () => {
+		addNote(7, 4, 'natural'); // 0: G4 (67)
+		addRest();                 // 1: rest
+		selectNote(null);
+		adjustSelectedNotePitch(-1);
+		expect(stepEntry.enteredNotes[0].pitch).toBe(66);
+		expect(stepEntry.enteredNotes[1].pitch).toBe(null);
 	});
 });
 

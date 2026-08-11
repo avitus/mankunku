@@ -74,7 +74,7 @@ test('entry auto-advances across the page boundary without manual paging', async
 	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 6, Beat 1/)).toBeVisible();
 });
 
-test('clicking a rest jumps the entry cursor to that bar', async ({ page }) => {
+test('clicking a gap rest jumps the entry cursor to that bar', async ({ page }) => {
 	await openEditor(page);
 
 	// Half-fill bar 1, then park the cursor elsewhere.
@@ -84,12 +84,44 @@ test('clicking a rest jumps the entry cursor to that bar', async ({ page }) => {
 	await clickBarZone(page, '0:3');
 	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 4, Beat 1/)).toBeVisible();
 
-	// The reader's rest in partly-filled bar 1 is a click target: the cursor
-	// jumps back to that bar (and no chord editor opens — rests share the
-	// chord voice, but only chord TEXT clicks mean "edit the chord").
+	// The trailing rest in partly-filled bar 1 is a pure GAP — no stored
+	// element behind it, so it carries no note anchor and the click falls
+	// through to the bar: the cursor jumps back to that bar (and no chord
+	// editor opens — only chord TEXT clicks mean "edit the chord").
 	await page.locator(`${CHART_SVG} .abcjs-rest`).first().click();
 	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
 	await expect(page.getByTestId('chord-input')).toHaveCount(0);
+});
+
+test('clicking an entered rest selects it; Backspace deletes it in place', async ({ page }) => {
+	await openEditor(page);
+
+	// Quarter entry: note, explicit rest, note → bar 1 holds C · rest · C
+	// plus a trailing gap rest on beat 4. (Slash bars elsewhere also render
+	// .abcjs-rest glyphs, so assertions avoid whole-chart rest counts; the
+	// bar-1 rest is first in document order.)
+	await page.keyboard.press('3');
+	await page.keyboard.press('c');
+	await page.keyboard.press('0');
+	await page.keyboard.press('c');
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const rests = page.locator(`${CHART_SVG} .abcjs-rest`);
+	const rail = page.getByTestId('entry-rail');
+	await expect(notes).toHaveCount(2);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 4/)).toBeVisible();
+
+	// The ENTERED rest is a stored element with a note anchor: clicking it
+	// selects it — the entry cursor does not jump (contrast the gap-rest
+	// test above).
+	await rests.first().click();
+	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 4/)).toBeVisible();
+
+	// Backspace removes just the rest — both notes survive, the second pulls
+	// onto beat 2, and the append cursor lands on beat 3.
+	await page.keyboard.press('Backspace');
+	await expect(notes).toHaveCount(2);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 3/)).toBeVisible();
 });
 
 test('arrow keys cross the page boundary', async ({ page }) => {

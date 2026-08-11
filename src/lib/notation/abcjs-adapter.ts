@@ -6,7 +6,7 @@ import {
 	type LayoutItem,
 	type SystemLayout
 } from '$lib/notation/chart-geometry';
-import type { PitchedNoteAnchor } from '$lib/music/notation';
+import type { NoteAnchor } from '$lib/music/notation';
 import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
 
 /**
@@ -241,7 +241,7 @@ export type ChartClickTarget =
  */
 export function resolveChartClick(
 	startChar: number,
-	noteAnchors: PitchedNoteAnchor[],
+	noteAnchors: NoteAnchor[],
 	chordSlotAnchors: ChordSlotAnchor[],
 	barAnchors: BarAnchor[]
 ): ChartClickTarget | null {

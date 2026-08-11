@@ -64,10 +64,12 @@ export const stepEntry = $state({
 	phraseName: '',
 	category: 'user' as PhraseCategory,
 	practiceTag: false,
-	// Index into `enteredNotes` of the user-selected pitched note. The selected
-	// note is the target of ↑/↓ pitch shift, Backspace delete, and `\` spell
-	// flip. `null` means "no explicit selection" — those operations fall back
-	// to the last pitched note (the historical last-note behavior).
+	// Index into `enteredNotes` of the user-selected element — note OR rest.
+	// The selection is the target of Backspace delete (any element) and of
+	// ↑/↓ pitch shift and `\` spell flip (pitched notes only; those are hard
+	// no-ops on a selected rest). `null` means "no explicit selection" —
+	// delete then falls back to the last element, pitch ops to the last
+	// pitched note (the historical last-note behavior).
 	selectedNoteIndex: null as number | null,
 	// When non-null, the page is editing an existing lick rather than creating
 	// a new one. The save path replaces the lick at this id and preserves the
@@ -240,21 +242,37 @@ export function addRest(): boolean {
 		duration,
 		offset
 	});
+	stepEntry.selectedNoteIndex = stepEntry.enteredNotes.length - 1;
 	return true;
 }
 
 /**
- * Resolve which note any "selected-note" operation should act on.
- * Returns the explicit selection when it points at a valid pitched note,
- * otherwise falls back to the last pitched note (the legacy behavior
- * preserved by aliases like `deleteLastNote`). Returns `null` if there
- * is nothing pitched in the phrase.
+ * Resolve which element a DELETE should act on. Any element — note or rest —
+ * is a valid explicit selection; with no selection, fall back to the last
+ * element of any kind (so Backspace in the append flow always removes what
+ * was entered last, rests included). Returns `null` on an empty phrase.
  */
-function resolveTargetNoteIndex(): number | null {
+function resolveDeleteTargetIndex(): number | null {
 	const notes = stepEntry.enteredNotes;
 	const sel = stepEntry.selectedNoteIndex;
-	if (sel !== null && sel >= 0 && sel < notes.length && notes[sel].pitch !== null) {
+	if (sel !== null && sel >= 0 && sel < notes.length) {
 		return sel;
+	}
+	return notes.length > 0 ? notes.length - 1 : null;
+}
+
+/**
+ * Resolve which note a PITCH operation (↑/↓ shift, spelling flip) should act
+ * on. A selected rest is a hard no-op — never silently retarget a different
+ * note than the one highlighted. With no selection, fall back to the last
+ * pitched note (the legacy behavior preserved by aliases like
+ * `adjustLastNotePitch`). Returns `null` if there is nothing to act on.
+ */
+function resolvePitchedTargetIndex(): number | null {
+	const notes = stepEntry.enteredNotes;
+	const sel = stepEntry.selectedNoteIndex;
+	if (sel !== null && sel >= 0 && sel < notes.length) {
+		return notes[sel].pitch !== null ? sel : null;
 	}
 	for (let i = notes.length - 1; i >= 0; i--) {
 		if (notes[i].pitch !== null) return i;
@@ -262,55 +280,49 @@ function resolveTargetNoteIndex(): number | null {
 	return null;
 }
 
-/** Set the selected note. Pass `null` to clear; non-pitched indices are ignored. */
+/** Set the selected element — note or rest. Pass `null` to clear; out-of-range indices are ignored. */
 export function selectNote(index: number | null): void {
 	if (index === null) {
 		stepEntry.selectedNoteIndex = null;
 		return;
 	}
 	const notes = stepEntry.enteredNotes;
-	if (index < 0 || index >= notes.length || notes[index].pitch === null) return;
+	if (index < 0 || index >= notes.length) return;
 	stepEntry.selectedNoteIndex = index;
 }
 
-/** Step selection to the previous pitched note (skipping rests). No-op at the start. */
+/** Step selection to the previous element (MuseScore-style: stops on rests). No-op at the start. */
 export function selectPrev(): void {
 	const notes = stepEntry.enteredNotes;
-	const start = stepEntry.selectedNoteIndex !== null
+	const target = stepEntry.selectedNoteIndex !== null
 		? stepEntry.selectedNoteIndex - 1
 		: notes.length - 1;
-	for (let i = start; i >= 0; i--) {
-		if (notes[i].pitch !== null) {
-			stepEntry.selectedNoteIndex = i;
-			return;
-		}
+	if (target >= 0 && target < notes.length) {
+		stepEntry.selectedNoteIndex = target;
 	}
 }
 
-/** Step selection to the next pitched note (skipping rests). No-op at the end. */
+/** Step selection to the next element (MuseScore-style: stops on rests). No-op at the end. */
 export function selectNext(): void {
 	const notes = stepEntry.enteredNotes;
-	const start = stepEntry.selectedNoteIndex !== null
+	const target = stepEntry.selectedNoteIndex !== null
 		? stepEntry.selectedNoteIndex + 1
 		: 0;
-	for (let i = start; i < notes.length; i++) {
-		if (notes[i].pitch !== null) {
-			stepEntry.selectedNoteIndex = i;
-			return;
-		}
+	if (target >= 0 && target < notes.length) {
+		stepEntry.selectedNoteIndex = target;
 	}
 }
 
 /**
- * Remove the selected note (or the last pitched note if no explicit selection).
- * Shifts subsequent offsets left by the deleted duration, repairs any tie that
- * straddled the deletion, and advances selection to a neighboring pitched note
- * unless the deletion was from the end (in which case selection clears so the
- * append-cursor flow resumes).
+ * Remove the selected element — note or rest — (or the last element if no
+ * explicit selection). Shifts subsequent offsets left by the deleted duration,
+ * repairs any tie that straddled the deletion, and advances selection to a
+ * neighboring element unless the deletion was from the end (in which case
+ * selection clears so the append-cursor flow resumes).
  */
 export function deleteSelectedNote(): void {
 	const notes = stepEntry.enteredNotes;
-	const target = resolveTargetNoteIndex();
+	const target = resolveDeleteTargetIndex();
 	if (target === null) return;
 
 	const wasAtEnd = target === notes.length - 1;
@@ -337,16 +349,10 @@ export function deleteSelectedNote(): void {
 		return;
 	}
 
-	let newSelection: number | null = null;
-	for (let i = target - 1; i >= 0; i--) {
-		if (notes[i].pitch !== null) { newSelection = i; break; }
-	}
-	if (newSelection === null) {
-		for (let i = target; i < notes.length; i++) {
-			if (notes[i].pitch !== null) { newSelection = i; break; }
-		}
-	}
-	stepEntry.selectedNoteIndex = newSelection;
+	// Re-select the nearest surviving element of any kind: previous first,
+	// else the one that slid into the deleted slot (non-end deletion, so the
+	// list is never empty here).
+	stepEntry.selectedNoteIndex = target > 0 ? target - 1 : 0;
 }
 
 /** Backward-compat alias — delegates to `deleteSelectedNote`. */
@@ -419,7 +425,7 @@ export function loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void
  */
 export function adjustSelectedNotePitch(semitones: number): void {
 	const notes = stepEntry.enteredNotes;
-	const target = resolveTargetNoteIndex();
+	const target = resolvePitchedTargetIndex();
 	if (target === null) return;
 	const note = notes[target];
 	if (note.pitch === null) return;
@@ -503,7 +509,7 @@ const FLAT_KEYS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db']);
 /** Toggle the enharmonic spelling of the selected note (or last pitched note). */
 export function flipSelectedNoteSpelling(): void {
 	const notes = stepEntry.enteredNotes;
-	const target = resolveTargetNoteIndex();
+	const target = resolvePitchedTargetIndex();
 	if (target === null) return;
 	const note = notes[target];
 	if (note.pitch === null) return;

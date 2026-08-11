@@ -144,6 +144,24 @@ describe('cursorToFlattened', () => {
 		expect(tuneEntry.entryCursor).toBeNull();
 	});
 
+	it('addresses a stored rest by flattened index', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: null, duration: [1, 1], offset: [4, 1] },
+				{ pitch: 64, duration: [1, 4], offset: [5, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		expect(cursorToFlattened(1)).toBe(true);
+		expect(tuneEntry.currentPage).toBe(1);
+		expect(stepEntry.selectedNoteIndex).toBe(0);
+		expect(stepEntry.enteredNotes[0].pitch).toBeNull();
+		expect(tuneEntry.entryCursor).toBeNull();
+	});
+
 	it('commits a dirty buffer before a cross-page hop', () => {
 		loadFromTune(sheet([{
 			label: 'A',
@@ -853,7 +871,7 @@ describe('selectNextAcrossPages / selectPrevAcrossPages', () => {
 		expect(tuneEntry.entryCursor).toBeNull();
 	});
 
-	it('hops across the page boundary in both directions', () => {
+	it('hops across the page boundary in both directions, stopping on gap rests', () => {
 		loadFromTune(sheet([{
 			label: 'A',
 			bars: 8,
@@ -867,9 +885,38 @@ describe('selectNextAcrossPages / selectPrevAcrossPages', () => {
 		selectNextAcrossPages();
 		expect(tuneEntry.currentPage).toBe(1);
 		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(64);
-		selectPrevAcrossPages(); // on the buffer's first pitched note → cross back
+		// First press stops on the synthesized leading gap rest (bar 4→5),
+		// MuseScore-style — same page.
+		selectPrevAcrossPages();
+		expect(tuneEntry.currentPage).toBe(1);
+		expect(stepEntry.selectedNoteIndex).toBe(0);
+		expect(stepEntry.enteredNotes[0].pitch).toBeNull();
+		// Second press crosses back to page 0.
+		selectPrevAcrossPages();
 		expect(tuneEntry.currentPage).toBe(0);
 		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(60);
+	});
+
+	it('cross-page hop lands on a stored rest', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: null, duration: [1, 1], offset: [4, 1] },
+				{ pitch: 64, duration: [1, 4], offset: [5, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		expect(cursorToFlattened(0)).toBe(true);
+		selectNextAcrossPages();
+		// The stored whole-bar rest at bar 4 is a real flattened element — the
+		// hop navigates to page 1 and selects it (slash bars render without a
+		// click anchor, so arrow keys are how this element is reached).
+		expect(tuneEntry.currentPage).toBe(1);
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBeNull();
+		selectNextAcrossPages();
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(64);
 	});
 
 	it('skips an entirely empty middle page', () => {

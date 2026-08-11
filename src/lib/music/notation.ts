@@ -385,7 +385,7 @@ function isCompoundMeter(ts: [number, number]): boolean {
 export function mergeConsecutiveRests(
 	notes: readonly Note[],
 	timeSignature: [number, number]
-): { display: Note[]; sourceMap: (number | null)[] } {
+): { display: Note[]; sourceMap: (number | null)[]; sourceEndMap: (number | null)[] } {
 	const barDur = timeSignature[0] / timeSignature[1];
 	const compound = isCompoundMeter(timeSignature);
 
@@ -408,12 +408,14 @@ export function mergeConsecutiveRests(
 
 	const display: Note[] = [];
 	const sourceMap: (number | null)[] = [];
+	const sourceEndMap: (number | null)[] = [];
 	let i = 0;
 
 	while (i < notes.length) {
 		if (notes[i].pitch !== null || getTripletBase(notes[i].duration) !== null) {
 			display.push(notes[i]);
 			sourceMap.push(i);
+			sourceEndMap.push(i);
 			i++;
 			continue;
 		}
@@ -430,11 +432,29 @@ export function mergeConsecutiveRests(
 
 		const before = display.length;
 		fillRests(display, fractionToFloat(notes[i].offset), spanEnd, barDur, splitDur, useSplit, restPalette, timeSignature);
-		for (let k = display.length - before; k > 0; k--) sourceMap.push(null);
+		// Map each emitted segment back to the source rests it overlaps: the
+		// first overlapping index is the representative (click/delete target),
+		// the last closes the range so a swallowed rest can still highlight.
+		for (let k = before; k < display.length; k++) {
+			const segStart = fractionToFloat(display[k].offset);
+			const segEnd = segStart + fractionToFloat(display[k].duration);
+			let first: number | null = null;
+			let last: number | null = null;
+			for (let s = i; s < j; s++) {
+				const sStart = fractionToFloat(notes[s].offset);
+				const sEnd = sStart + fractionToFloat(notes[s].duration);
+				if (sStart < segEnd - 1e-9 && sEnd > segStart + 1e-9) {
+					if (first === null) first = s;
+					last = s;
+				}
+			}
+			sourceMap.push(first);
+			sourceEndMap.push(last);
+		}
 		i = j;
 	}
 
-	return { display, sourceMap };
+	return { display, sourceMap, sourceEndMap };
 }
 
 /** Recursively decompose a rest span into properly grouped rests */
@@ -488,17 +508,25 @@ function fillRests(
 }
 
 /**
- * Anchor that maps a pitched-note element in the rendered ABC back to its
+ * Anchor that maps a note or rest element in the rendered ABC back to its
  * source-array index. Consumed by NotationDisplay's clickListener to resolve
  * a click on the staff to a `phrase.notes[]` index.
  */
-export interface PitchedNoteAnchor {
+export interface NoteAnchor {
 	/** Character index in the ABC string where this note's token begins. */
 	startChar: number;
 	/** Character index just past the end of this note's token. */
 	endChar: number;
 	/** Index into the original `phrase.notes` array. */
 	sourceIndex: number;
+	/** Present (true) when this anchor covers a rest element. */
+	rest?: true;
+	/**
+	 * A display rest that swallowed a run of source rests anchors the whole
+	 * run: `sourceIndex` is the first (the representative click/delete
+	 * target) and this is the last. Absent for single-source anchors.
+	 */
+	sourceIndexEnd?: number;
 	/**
 	 * Absolute whole-note offset of this note across the flattened tune, as a
 	 * float. Populated only on the tune path (`tuneToAbcWithMap`); the phrase
@@ -511,9 +539,10 @@ export interface PitchedNoteAnchor {
 
 /**
  * Generate an ABC notation string from a Phrase, alongside a list of anchors
- * pointing each emitted pitched-note element back at the source index. Rest
- * elements are intentionally absent from `noteAnchors` — synthesized merged
- * rests have no single source-note origin.
+ * pointing each emitted element — pitched note or rest — back at a source
+ * index. A merged display rest is anchored to a REPRESENTATIVE source rest
+ * (the first one it overlaps), with `sourceIndexEnd` closing the range when
+ * the segment swallowed several.
  *
  * Inserts barlines at bar boundaries, groups notes within beats for proper
  * beam grouping, merges consecutive rests, and emits ABC (3-style triplet
@@ -527,7 +556,7 @@ export function phraseToAbcWithMap(
 	phrase: Phrase,
 	instrument?: InstrumentConfig,
 	defaultLength: [number, number] = [1, 8]
-): { abc: string; noteAnchors: PitchedNoteAnchor[] } {
+): { abc: string; noteAnchors: NoteAnchor[] } {
 	const displayKey = instrument
 		? concertKeyToWritten(phrase.key, instrument)
 		: phrase.key;
@@ -542,8 +571,8 @@ export function phraseToAbcWithMap(
 
 	// Preprocess: merge consecutive rests into standard groupings.
 	// `sourceMap[k]` maps display index k back to the original `phrase.notes`
-	// index (or `null` for synthesized merged-rest segments).
-	const { display: displayNotes, sourceMap } = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
+	// index — for merged rest segments, the first overlapping source rest.
+	const { display: displayNotes, sourceMap, sourceEndMap } = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
 
 	// Per-bar accidental state — reset when crossing a barline below
 	let barState: BarAccidentalState = initBarState(keySigAccidentals);
@@ -591,16 +620,30 @@ export function phraseToAbcWithMap(
 	];
 
 	// Body assembly: each token-and-anchor pair lets us compute the final
-	// character offset of every pitched note in the assembled ABC string.
+	// character offset of every anchored element in the assembled ABC string.
 	const tokens: string[] = [];
 	// Pending anchors carry source indices keyed by the eventual token index.
-	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number }> = [];
+	const pendingAnchors: Array<{
+		tokenIndex: number;
+		sourceIndex: number;
+		rest?: true;
+		sourceIndexEnd?: number;
+	}> = [];
 
 	function emitElement(displayIdx: number, duration: [number, number]): void {
 		const note = displayNotes[displayIdx];
 		const source = sourceMap[displayIdx];
-		if (note.pitch !== null && source !== null) {
-			pendingAnchors.push({ tokenIndex: tokens.length, sourceIndex: source });
+		if (source !== null) {
+			const pending: (typeof pendingAnchors)[number] = {
+				tokenIndex: tokens.length,
+				sourceIndex: source
+			};
+			if (note.pitch === null) {
+				pending.rest = true;
+				const end = sourceEndMap[displayIdx];
+				if (end !== null && end !== source) pending.sourceIndexEnd = end;
+			}
+			pendingAnchors.push(pending);
 		}
 		tokens.push(renderNote(note, duration));
 	}
@@ -695,10 +738,10 @@ export function phraseToAbcWithMap(
 		tokenStarts[t] = cursor;
 		cursor += tokens[t].length;
 	}
-	const noteAnchors: PitchedNoteAnchor[] = pendingAnchors.map(({ tokenIndex, sourceIndex }) => ({
+	const noteAnchors: NoteAnchor[] = pendingAnchors.map(({ tokenIndex, ...fields }) => ({
 		startChar: bodyStart + tokenStarts[tokenIndex],
 		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
-		sourceIndex
+		...fields
 	}));
 
 	const abc = headerStr + '\n' + tokens.join('');

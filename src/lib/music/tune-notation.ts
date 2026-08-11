@@ -34,7 +34,7 @@ import {
 	shorterFraction,
 	signatureSpelling,
 	type KeySigMap,
-	type PitchedNoteAnchor
+	type NoteAnchor
 } from './notation';
 
 // Re-export layout helpers so call sites can share one module surface.
@@ -183,7 +183,7 @@ export function tuneToAbcWithMap(
 	options: TuneAbcOptions = {}
 ): {
 	abc: string;
-	noteAnchors: PitchedNoteAnchor[];
+	noteAnchors: NoteAnchor[];
 	barAnchors: BarAnchor[];
 	chordSlotAnchors: ChordSlotAnchor[];
 } {
@@ -231,7 +231,13 @@ export function tuneToAbcWithMap(
 	];
 
 	const tokens: string[] = [];
-	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number; offset: number; gliss?: boolean }> = [];
+	const pendingAnchors: Array<{
+		tokenIndex: number;
+		sourceIndex: number;
+		offset: number;
+		rest?: true;
+		gliss?: boolean;
+	}> = [];
 	const pendingBarAnchors: Array<{
 		startTokenIndex: number;
 		barlineTokenIndex: number;
@@ -264,16 +270,23 @@ export function tuneToAbcWithMap(
 		openBar = null;
 	}
 
+	// Whole empty bar → beat-aligned jazz slashes in the melody voice. Shared
+	// by renderElement (what to draw) and emitElement (slash bars are never
+	// anchored — clicking one keeps arming the bar cursor) so the two can't
+	// drift.
+	function isSlashBarRest(note: Note, duration: Fraction): boolean {
+		if (note.pitch !== null) return false;
+		const bar = Math.floor(fractionToFloat(note.offset) / barDuration + 1e-9);
+		return (
+			slashAbsBars.has(sectionBaseBars + bar) &&
+			Math.abs(fractionToFloat(duration) - barDuration) < 1e-9
+		);
+	}
+
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
 		const note = el.note;
 		if (note.pitch === null) {
-			const bar = Math.floor(fractionToFloat(note.offset) / barDuration + 1e-9);
-			const absBar = sectionBaseBars + bar;
-			// Whole empty bar → beat-aligned jazz slashes in the melody voice.
-			if (
-				slashAbsBars.has(absBar) &&
-				Math.abs(fractionToFloat(duration) - barDuration) < 1e-9
-			) {
+			if (isSlashBarRest(note, duration)) {
 				return slashBarAbc(sheet.timeSignature, defaultLength);
 			}
 			// Partial rest inside a bar that has melody: visible rest in M
@@ -313,7 +326,7 @@ export function tuneToAbcWithMap(
 	}
 
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {
-		if (el.note.pitch !== null && el.sourceIndex !== null) {
+		if (el.sourceIndex !== null && !isSlashBarRest(el.note, duration)) {
 			pendingAnchors.push({
 				tokenIndex: tokens.length,
 				sourceIndex: el.sourceIndex,
@@ -321,6 +334,7 @@ export function tuneToAbcWithMap(
 				// element's section-local offset (sectionBaseBars is this
 				// section's base while the body loop runs).
 				offset: sectionBaseBars * barDuration + fractionToFloat(el.note.offset),
+				...(el.note.pitch === null ? { rest: true as const } : {}),
 				// The MuseScore-style wavy connector is drawn over the SVG by
 				// NotationDisplay (abcjs has no native glissando).
 				...(el.note.gliss ? { gliss: true } : {})
@@ -645,15 +659,11 @@ export function tuneToAbcWithMap(
 		tokenStarts[t] = charCursor;
 		charCursor += tokens[t].length;
 	}
-	const noteAnchors: PitchedNoteAnchor[] = pendingAnchors.map(
-		({ tokenIndex, sourceIndex, offset, gliss }) => ({
-			startChar: bodyStart + tokenStarts[tokenIndex],
-			endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
-			sourceIndex,
-			offset,
-			...(gliss ? { gliss: true } : {})
-		})
-	);
+	const noteAnchors: NoteAnchor[] = pendingAnchors.map(({ tokenIndex, ...fields }) => ({
+		startChar: bodyStart + tokenStarts[tokenIndex],
+		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
+		...fields
+	}));
 	const barAnchors: BarAnchor[] = pendingBarAnchors.map(
 		({ startTokenIndex, barlineTokenIndex, sectionIdx, bar }) => ({
 			startChar: bodyStart + tokenStarts[startTokenIndex],

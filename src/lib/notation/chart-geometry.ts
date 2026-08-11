@@ -1,5 +1,5 @@
 import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
-import type { PitchedNoteAnchor } from '$lib/music/notation';
+import type { NoteAnchor } from '$lib/music/notation';
 
 /**
  * Pure hit-zone geometry for the leadsheet editor. Turns the char-span anchors
@@ -77,7 +77,7 @@ export interface FormShape {
 export interface ChordZoneInputs {
 	systems: SystemLayout[];
 	barAnchors: BarAnchor[];
-	noteAnchors: PitchedNoteAnchor[];
+	noteAnchors: NoteAnchor[];
 	chordSlotAnchors: ChordSlotAnchor[];
 	beatsPerBar: number;
 	/** Whole-note duration of one bar, i.e. `timeSig[0] / timeSig[1]`. */
