@@ -60,11 +60,21 @@ export interface LickPracticeConfig {
 	 * Phrase id of the lick to drill. Only meaningful when
 	 * `sessionType === 'deep'`, which cycles this lick endlessly through the
 	 * circle of 4ths, drops keys mastered at score ≥ 0.95, and bumps tempo by
-	 * `tempoBumpBpm` once all 12 are cleared.
+	 * `tempoBumpPercent` once all 12 are cleared.
 	 */
 	singleLickId?: string;
-	/** BPM added to currentTempo each time all 12 keys are mastered. Default 5. */
-	tempoBumpBpm?: number;
+	/**
+	 * Percent of the session tempo added each time the whole rotation is
+	 * cleared, rounded up to a whole BPM. Default 1 — see
+	 * `DEFAULT_TEMPO_BUMP_PERCENT` and `nextCycleTempo` in
+	 * `state/lick-practice-rotation.ts`. A percentage rather than a fixed BPM
+	 * so the same knob reads the same at 60 BPM and at 200. Governs trick
+	 * drills too: they ride the same round loop.
+	 *
+	 * The session tempo it ramps is NOT the lick's stored tempo — deep
+	 * practice deliberately leaves that where it found it.
+	 */
+	tempoBumpPercent?: number;
 	/**
 	 * Trick (melodic device) to drill. Only meaningful when
 	 * `sessionType === 'trick'`. `trickId` selects the device from the TRICKS

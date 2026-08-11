@@ -255,7 +255,7 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 ```typescript
 export const lickPractice = $state<{
   config: LickPracticeConfig;          // sessionType, progressionType, durationMinutes, practiceMode,
-                                       //   backingStyle, enableSubstitutions?, singleLickId?, tempoBumpBpm?,
+                                       //   backingStyle, enableSubstitutions?, singleLickId?, tempoBumpPercent?,
                                        //   trickId?, trickParameters?
   phase: LickPracticePhase;            // 'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'complete'
   plan: LickPracticePlanItem[];         // Ordered licks + planned keys
@@ -307,7 +307,9 @@ export interface PlannedKey {
 - `buildDailyPracticePlan(): void` — Daily Practice mode. Pools every Daily-eligible lick, assigns each its own least-recently-practiced compatible progression, and packs the budget. Each plan item carries its own `progressionType` instead of inheriting from config.
 - `startSession(): void` — Standard entry: sets `mode` to `'standard'`, transitions to `count-in`, resets indices, stamps `startTime`, resolves first-lick tempo.
 - `startDailyPracticeSession(): void` — Daily-Practice entry. Clears `config.singleLickId`, calls `buildDailyPracticePlan`, sets `mode` to `'standard'`, then starts.
-- `startSingleLickSession(lickOrId: string | Phrase, tempoBumpBpm = 5): boolean` — Single-lick entry. Accepts a `Phrase` or a lick id; returns `false` if the lick can't be resolved. Builds the per-lick plan inline: cycles the lick through its *currently-unlocked* keys via `unlockedCircleFrom(lick.key, unlockedCount)` (not all 12), derives the backing progression from the lick's own `prog:*` tags via `resolveSingleLickProgression`, sets `mode` to `'single-lick'`, seeds `sessionKeys` with the **unsorted** circle while the plan item's `keys` get the worst-first sort, and transitions to `count-in`. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpBpm` (default 5) once every unlocked key clears and the rotation refills.
+- `startSingleLickSession(lickOrId: string | Phrase, tempoBumpPercent = 1): boolean` — Single-lick entry. Accepts a `Phrase` or a lick id; returns `false` if the lick can't be resolved. Builds the per-lick plan inline: cycles the lick through its *currently-unlocked* keys via `unlockedCircleFrom(lick.key, unlockedCount)` (not all 12), derives the backing progression from the lick's own `prog:*` tags via `resolveSingleLickProgression`, sets `mode` to `'single-lick'`, seeds `sessionKeys` with the **unsorted** circle while the plan item's `keys` get the worst-first sort, and transitions to `count-in`. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpPercent` (default 1%, rounded up to a whole BPM) once every unlocked key clears and the rotation refills.
+
+  **The tempo is session-local.** The session opens at `deepPracticeStartTempo(resolveLickTempo(...))` — 2% under the lick's stored tempo, applied here rather than inside the shared `resolveLickTempo` so it can't leak into Daily/Focused — and nothing on the deep path writes `LickPracticeKeyProgress.currentTempo` or appends a progress-history sample. `recordKeyAttempt` detects the mode and persists the lick's *baseline* (the key's existing tempo, or `resolveLickTempo` for a first-ever entry) instead of the ramped session value; it cannot simply omit the field, because `updateKeyProgress` merges over `getKeyProgress`'s 100-BPM default. Rolling score, `passCount` and `lastPracticedAt` are still written normally.
 - `startTrickSession(): boolean` — Trick entry, driven by `config.trickId` + `config.trickParameters`. Resolves the device from the `TRICKS` catalog, picks its practice bed (`trick.practiceBed?.(params) ?? 'major-vamp'`), builds a C-rooted `TrickContext` from that vamp's first harmony segment, and generates the round-1 example phrase. The plan item is a single `kind: 'trick'` entry whose `phraseId` **is the composite variant key** — `getLickById` misses on it by design and every helper falls back to the item's `phrase`. Trick items always demo, are never re-sorted worst-first, and never write to the lick store.
 
 ### Cursor accessors
@@ -332,7 +334,7 @@ export interface PlannedKey {
 
 Single-lick (Deep Practice) sessions do **not** stop between cycles: there are no rest bars and no per-round card. `scheduleLickWindows` returns early for `mode === 'single-lick'` before it would schedule an inter-lick rest, and `closeAndScoreWindow` skips the breather overlay for it. The last key's close event runs the cycle boundary **synchronously**, in this order:
 
-1. `advanceSingleLickRound()` — drop keys mastered at ≥ 0.95, archive the round, re-sort the rotation worst-first, decide `demoNextCycle`, and on a full clear bump tempo by `tempoBumpBpm` and refill.
+1. `advanceSingleLickRound()` — drop keys mastered at ≥ 0.95, archive the round, re-sort the rotation worst-first, decide `demoNextCycle`, and on a full clear bump tempo by `tempoBumpPercent` (via `nextCycleTempo`) and refill. The two branches differ on persistence by design: the trick branch writes the bumped tempo to the trick store because clearing the rotation *is* the trick unlock, while the lick branch writes nothing at all.
 2. `resolveNextCycleStart(...)` — pick the next downbeat, a whole bar at a time, so a stalled main thread stretches the turnaround instead of scheduling audio in the past.
 3. Schedule the next cycle's audio and windows.
 4. Schedule the ii-V turnaround into the **last bar before** that downbeat.

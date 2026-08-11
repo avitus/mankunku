@@ -145,7 +145,8 @@ How a cycle works:
 - **The worst key comes first.** Each cycle is re-sorted so the key you've been scoring lowest on over your whole history with this lick sits at the top. Keys you've never played sit ahead of everything.
 - **The demo is conditional.** While that head key is still below 90%, the cycle opens with the app playing the lick to you in it — call and response on precisely the key that needs ear work. Once you're consistently at 90% or better in it, the demo is dropped and cycles run straight into each other. So the app stops talking as soon as you stop needing it to.
 - Keys you score ≥ 95% on are **mastered** for the round and drop out of the rotation, so each cycle gets shorter and concentrates on what's left.
-- When the last key clears, the round completes: tempo bumps by 5 BPM (adjustable on the setup screen) and the rotation refills with the full unlocked set.
+- When the last key clears, the round completes: tempo bumps by 1% of where it currently sits, rounded up to a whole BPM (adjustable on the setup screen), and the rotation refills with the full unlocked set.
+- **The session starts 2% below the lick's saved tempo, and never changes it.** You usually arrive here from the report, on the lick that just graded worst — dropping straight back in at the tempo it failed at just repeats the failure, so the drill eases in and you earn the difference back over the first couple of clears. And however far you ramp during the drill, the lick's saved tempo is exactly where you left it when you next meet it in Daily Practice. That's deliberate: one lick with a demo and your worst key first is a different exercise from a dozen licks cold, and a tempo you can hold in the first shouldn't decide the second.
 - The progression and substitution settings are **derived from the lick itself** — its own progression tags pick the backing harmony, so a major lick won't get stuck over a minor vamp because the setup screen happened to be set that way.
 
 The end-of-session report is where the rounds show up: how many you completed, your final tempo and how far it moved, and a line per round listing which keys you mastered at which BPM.
@@ -169,7 +170,7 @@ Every lick you drill sits in one of four phases, and the progress chart on its d
 | **proficient** | All 12 keys, 120–149 BPM |
 | **expert** | All 12 keys, 150 BPM and up |
 
-Coverage comes first: a lick you can rip at 160 in three keys is still **new**, because the point of the 12-key cycle is that you've actually heard the line everywhere. Once the twelfth key lands, the phase is purely a question of tempo, and reaching a threshold promotes you — a 5 BPM bump that lands exactly on 120 is the promotion it looks like.
+Coverage comes first: a lick you can rip at 160 in three keys is still **new**, because the point of the 12-key cycle is that you've actually heard the line everywhere. Once the twelfth key lands, the phase is purely a question of tempo, and reaching a threshold promotes you — a bump that lands exactly on 120 is the promotion it looks like.
 
 Phases are a mirror, not a gate. Nothing about them changes what Side B schedules, how keys unlock, or how tempo moves.
 

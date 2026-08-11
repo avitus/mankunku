@@ -213,8 +213,9 @@
 
 	function practiceThis() {
 		if (!lick) return;
-		const bump = lickPractice.config.tempoBumpBpm ?? 5;
-		if (startSingleLickSession(lick, bump)) goto('/lick-practice/session');
+		// Undefined falls through to the function's own default (1%).
+		if (startSingleLickSession(lick, lickPractice.config.tempoBumpPercent))
+			goto('/lick-practice/session');
 	}
 
 	async function togglePlay() {

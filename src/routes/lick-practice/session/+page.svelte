@@ -74,7 +74,7 @@
 		upsertLickPracticeSession,
 		splitReportByProgression
 	} from '$lib/persistence/lick-practice-sessions';
-	import { NEW_LICK_DEFAULT_TEMPO } from '$lib/persistence/lick-practice-store';
+	import { NEW_LICK_DEFAULT_TEMPO, getLickTempo } from '$lib/persistence/lick-practice-store';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
 	import { enqueue } from '$lib/persistence/outbox';
@@ -1584,7 +1584,17 @@
 
 		{#if sessionReport.roundsCompleted !== undefined && sessionReport.licks[0]}
 			{@const sl = sessionReport.licks[0]}
+			{@const isTrick = lickPractice.plan[0]?.kind === 'trick'}
 			{@const tempoDelta = sl.newTempo != null ? sl.newTempo - sl.tempo : 0}
+			<!--
+			  Only a trick drill's ramp is a real gain: it persists, so the green
+			  delta describes something the user keeps. Deep practice opens 2%
+			  under the lick's saved tempo and rewinds to it, so the same delta
+			  would read as progress the user did not make — worse, clearing one
+			  rotation on a 120 lick would show "+2" for having climbed 118 → 120.
+			  The lick branch shows the range plainly and names the saved tempo.
+			-->
+			{@const savedTempo = isTrick ? null : getLickTempo(lickPractice.progress, sl.lickId)}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
 				<div class="flex items-center justify-between">
 					<div>
@@ -1601,16 +1611,29 @@
 						<div>
 							<div class="font-display text-2xl font-bold">
 								{sessionReport.finalTempo}
-								{#if tempoDelta !== 0}
+								{#if isTrick && tempoDelta !== 0}
 									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}">
 										({tempoDelta > 0 ? '+' : ''}{tempoDelta})
 									</span>
+								{:else if !isTrick && tempoDelta !== 0}
+									<span class="ml-1 text-xs font-medium text-[var(--color-text-secondary)]">
+										(from {sl.tempo})
+									</span>
 								{/if}
 							</div>
-							<div class="smallcaps text-[var(--color-text-secondary)]">Final BPM</div>
+							<div class="smallcaps text-[var(--color-text-secondary)]">
+								{isTrick ? 'Final BPM' : 'Session BPM'}
+							</div>
 						</div>
 					</div>
 				</div>
+				{#if savedTempo != null}
+					<p class="text-xs text-[var(--color-text-secondary)]">
+						Deep practice starts just under your saved tempo and ramps from there.
+						{sl.lickName} stays saved at <span class="tabular-nums">{savedTempo}</span> BPM
+						for daily practice.
+					</p>
+				{/if}
 				{#if sessionReport.keysMasteredByRound && sessionReport.keysMasteredByRound.length > 0}
 					<div class="space-y-1">
 						{#each sessionReport.keysMasteredByRound as r (r.round)}
