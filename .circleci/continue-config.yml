@@ -80,10 +80,9 @@ jobs:
       - run:
           name: Install dependencies
           command: npm ci
-      - save_cache:
-          key: deps-v1-{{ checksum "package-lock.json" }}
-          paths:
-            - node_modules
+      # No save_cache here: with parallelism, all shards would race to write
+      # the same immutable key and lose to first-write-wins. The non-parallel
+      # `test` job (which runs on every push) owns the dependency cache.
       - run:
           name: Run Playwright E2E (all browsers, sharded)
           # The Playwright config's webServer block runs `npm run build &&
