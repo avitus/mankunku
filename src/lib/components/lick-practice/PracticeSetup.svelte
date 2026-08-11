@@ -23,6 +23,7 @@
 	} from '$lib/tricks/mastery';
 	import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
 	import { lickPractice } from '$lib/state/lick-practice.svelte';
+	import { DEFAULT_TEMPO_BUMP_PERCENT } from '$lib/state/lick-practice-rotation';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { circleOfFourthsFrom, planUnlockedKeys } from '$lib/music/key-ordering';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -397,13 +398,13 @@
 							<Knob
 								label="Tempo Bump"
 								ariaLabel="Tempo bump per cleared rotation"
-								helpText="BPM added each time you clear the whole rotation."
-								value={config.tempoBumpBpm ?? 5}
-								min={1}
-								max={20}
-								step={1}
-								displayValue={`+${config.tempoBumpBpm ?? 5}`}
-								onInput={(v) => onupdate({ tempoBumpBpm: v })}
+								helpText="Percent added each time you clear the whole rotation, rounded up to a whole BPM. Deep Practice starts 2% below the lick's saved tempo and leaves it there — it never changes the tempo your daily practice uses. This knob also governs Trick Drills, which do save their bumps."
+								value={config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT}
+								min={0.5}
+								max={5}
+								step={0.5}
+								displayValue={`+${config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT}%`}
+								onInput={(v) => onupdate({ tempoBumpPercent: v })}
 							/>
 						</div>
 

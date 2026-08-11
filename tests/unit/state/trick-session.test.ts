@@ -36,6 +36,10 @@ import {
 	TRICK_DEFAULT_TEMPO
 } from '$lib/persistence/trick-practice-store';
 import { clampTempo } from '$lib/persistence/lick-practice-store';
+import {
+	nextCycleTempo,
+	DEFAULT_TEMPO_BUMP_PERCENT
+} from '$lib/state/lick-practice-rotation';
 import type { Score } from '$lib/types/scoring';
 
 // ── localStorage stub shared by the trick / lick / outbox stores ──
@@ -85,7 +89,7 @@ beforeEach(() => {
 	lickPractice.progress = {};
 	lickPractice.config.trickId = 'enclosures';
 	lickPractice.config.trickParameters = { ...E1_PARAMS };
-	lickPractice.config.tempoBumpBpm = undefined;
+	lickPractice.config.tempoBumpPercent = undefined;
 });
 
 describe('startTrickSession', () => {
@@ -219,17 +223,21 @@ describe('advanceSingleLickRound on a trick item', () => {
 		expect(getTrickUnlockedKeyCount(E1_KEY)).toBe(2);
 		expect(item.keys).toEqual(['C', 'G']);
 
-		// Default 5 BPM bump, persisted per refilled key to the TRICK store.
-		expect(lickPractice.currentTempo).toBe(TRICK_DEFAULT_TEMPO + 5);
+		// Default 1% bump (rounded up to a whole BPM), persisted per refilled
+		// key to the TRICK store. Tricks DO persist, unlike deep lick practice:
+		// clearing the rotation is a trick's only advancement path, and there
+		// is no daily session to hand a surprise tempo to.
+		const bumped = nextCycleTempo(TRICK_DEFAULT_TEMPO, DEFAULT_TEMPO_BUMP_PERCENT);
+		expect(lickPractice.currentTempo).toBe(bumped);
 		const trickProgress = loadTrickPracticeProgress();
-		expect(trickProgress[E1_KEY]?.C?.currentTempo).toBe(TRICK_DEFAULT_TEMPO + 5);
-		expect(trickProgress[E1_KEY]?.G?.currentTempo).toBe(TRICK_DEFAULT_TEMPO + 5);
+		expect(trickProgress[E1_KEY]?.C?.currentTempo).toBe(bumped);
+		expect(trickProgress[E1_KEY]?.G?.currentTempo).toBe(bumped);
 		// The lick store never sees the variant key.
 		expect(lickPractice.progress).toEqual({});
 
 		const history = getTrickProgressHistory(E1_KEY);
 		expect(history).toHaveLength(1);
-		expect(history[0]).toMatchObject({ bpm: TRICK_DEFAULT_TEMPO + 5, keys: 2 });
+		expect(history[0]).toMatchObject({ bpm: bumped, keys: 2 });
 
 		// The disposable example is regenerated each round.
 		expect(item.phrase).toBeDefined();

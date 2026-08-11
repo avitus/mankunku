@@ -5,10 +5,15 @@
  * it exists to capture. Passes alone would bias the EWMA upward and hide
  * exactly the keys the feature is meant to find.
  *
- * The write must carry the SESSION tempo explicitly: updateKeyProgress
- * merges over getKeyProgress's default `{currentTempo: 100}`, so an
- * implicit write on a failed first attempt would seed a brand-new lick at
- * 100 BPM and override resolveLickTempo's 60 BPM new-lick default.
+ * The write must carry a tempo explicitly: updateKeyProgress merges over
+ * getKeyProgress's default `{currentTempo: 100}`, so an implicit write on a
+ * failed first attempt would seed a brand-new lick at 100 BPM and override
+ * resolveLickTempo's 60 BPM new-lick default.
+ *
+ * Which tempo it carries depends on the mode. In a deep-practice session it
+ * is the lick's own BASELINE, never `lickPractice.currentTempo` — that value
+ * is the session's ease-in-and-ramp figure, and persisting it would leave
+ * Daily Practice resuming the lick at a tempo it was never graded at.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -19,6 +24,7 @@ import {
 	resetSession
 } from '$lib/state/lick-practice.svelte';
 import { NEW_LICK_DEFAULT_TEMPO } from '$lib/persistence/lick-practice-store';
+import { deepPracticeStartTempo } from '$lib/state/lick-practice-rotation';
 import type { PitchClass, Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
 
@@ -69,9 +75,10 @@ beforeEach(() => {
 });
 
 describe('recordKeyAttempt every-attempt persistence', () => {
-	it('persists a FAILED attempt: rolling score + practiced-at + session tempo, no passCount', () => {
+	it('persists a FAILED attempt: rolling score + practiced-at + baseline tempo, no passCount', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
-		expect(lickPractice.currentTempo).toBe(NEW_LICK_DEFAULT_TEMPO);
+		// Deep practice eases in below the lick's tempo.
+		expect(lickPractice.currentTempo).toBe(deepPracticeStartTempo(NEW_LICK_DEFAULT_TEMPO));
 
 		recordKeyAttempt(makeScore(0.6));
 
@@ -80,9 +87,12 @@ describe('recordKeyAttempt every-attempt persistence', () => {
 		expect(entry!.rollingScore).toBeCloseTo(0.6, 10);
 		expect(entry!.passCount).toBe(0);
 		expect(entry!.lastPracticedAt).toBeGreaterThan(0);
-		// The 100-BPM default-leak guard: the entry must carry the session
-		// tempo (60 for a brand-new lick), not getKeyProgress's default.
+		// Two guards at once. The 100-BPM default-leak guard: the entry must
+		// carry a real tempo, not getKeyProgress's default. And the deep-
+		// practice guard: it must be the lick's 60-BPM baseline, NOT the
+		// eased-in session tempo the ramp starts from.
 		expect(entry!.currentTempo).toBe(NEW_LICK_DEFAULT_TEMPO);
+		expect(entry!.currentTempo).not.toBe(lickPractice.currentTempo);
 	});
 
 	it('persists a PASSING attempt with passCount and rolling score', () => {

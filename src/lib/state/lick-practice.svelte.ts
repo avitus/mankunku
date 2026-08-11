@@ -29,6 +29,13 @@
  * A per-key floor (`KEY_FLOOR_THRESHOLD`) caps the delta at 0 and blocks
  * the next-key unlock whenever any played key in the session falls below
  * the floor — a strong average can't drag a single weak key along.
+ *
+ * **That ratchet is standard/daily/focused only.** Single-lick Deep Practice
+ * runs its own tempo rule (`deepPracticeStartTempo` / `nextCycleTempo`): it
+ * opens 2% below the lick's stored tempo and climbs 1% per cleared rotation,
+ * entirely in session state. It writes no tempo and no progress-history
+ * sample, so a hard drill session can't hand Daily Practice a lick ramped
+ * far past the tempo its grades were earned at.
  */
 
 import { untrack } from 'svelte';
@@ -74,7 +81,13 @@ import {
 	KEY_PROFICIENT_THRESHOLD,
 	KEY_FLOOR_THRESHOLD
 } from '$lib/persistence/lick-practice-store';
-import { sortKeysWorstFirst, shouldDemoHeadKey } from './lick-practice-rotation';
+import {
+	sortKeysWorstFirst,
+	shouldDemoHeadKey,
+	deepPracticeStartTempo,
+	nextCycleTempo,
+	DEFAULT_TEMPO_BUMP_PERCENT
+} from './lick-practice-rotation';
 import {
 	estimateLickSeconds,
 	estimateSessionSeconds,
@@ -142,8 +155,6 @@ const PASS_THRESHOLD = KEY_PROFICIENT_THRESHOLD;
  * `src/lib/scoring/grades.ts`.
  */
 const MASTERY_THRESHOLD = 0.95;
-/** Default tempo bump applied when all 12 keys are mastered in single-lick mode. */
-const DEFAULT_TEMPO_BUMP_BPM = 5;
 
 /** A key within the plan (may cross lick boundaries when looking ahead). */
 export interface PlannedKey {
@@ -790,24 +801,33 @@ function resolveSingleLickProgression(lick: Phrase): ChordProgressionType {
 /**
  * Start a single-lick deep-practice session: cycle the chosen lick through
  * its per-lick unlocked keys (in circle-of-4ths order from the lick's home
- * key), drop keys at score ≥ 0.95, bump tempo by `tempoBumpBpm` once the
+ * key), drop keys at score ≥ 0.95, bump tempo by `tempoBumpPercent` once the
  * set is cleared, and repeat until the user ends the session.
  *
  * The session has no time budget — `durationMinutes` is ignored. Mastery
  * does NOT persist between sessions (each visit re-starts with the unlocked
- * set), but the elevated tempo IS persisted via `LickPracticeKeyProgress.currentTempo`.
- * Refills re-read the per-lick unlock count, so any unlocks earned in a
- * Standard-mode session between rounds join on the next cycle.
+ * set). Refills re-read the per-lick unlock count, so any unlocks earned in
+ * a Standard-mode session between rounds join on the next cycle.
+ *
+ * **The tempo ramp is session-local and deliberately unpersisted.** The
+ * session opens `DEEP_PRACTICE_START_DISCOUNT` below the lick's stored tempo
+ * and climbs from there, but nothing here writes that tempo back to
+ * `LickPracticeKeyProgress.currentTempo` — see the guard in
+ * `recordKeyAttempt` and the lick branch of `advanceSingleLickRound`. Deep
+ * practice is one lick with a demo and a worst-first rotation; Daily
+ * Practice is a dozen licks cold. Letting the drill's ramp set the daily
+ * tempo hands the user a materially harder exercise than the one their
+ * progress was graded on.
  */
 export function startSingleLickSession(
 	lickOrId: string | Phrase,
-	tempoBumpBpm: number = DEFAULT_TEMPO_BUMP_BPM
+	tempoBumpPercent: number = DEFAULT_TEMPO_BUMP_PERCENT
 ): boolean {
 	const lick = typeof lickOrId === 'string' ? getLickById(lickOrId) : lickOrId;
 	if (!lick) return false;
 
 	lickPractice.config.singleLickId = lick.id;
-	lickPractice.config.tempoBumpBpm = tempoBumpBpm;
+	lickPractice.config.tempoBumpPercent = tempoBumpPercent;
 
 	// Deep Practice drills one chosen lick, so the backing progression must be
 	// derived from that lick rather than inherited from `config.progressionType`
@@ -853,7 +873,12 @@ export function startSingleLickSession(
 	lickPractice.demoNextCycle = true;
 	lickPractice.latestKeyResults = {};
 	lickPractice.sessionKeys = circle;
-	lickPractice.currentTempo = resolveLickTempo(lickPractice.progress, lick.id);
+	// Ease in below the stored tempo. Applied HERE and not inside
+	// `resolveLickTempo`, which every other session type also calls — a
+	// discount buried in the shared resolver would quietly slow Daily too.
+	lickPractice.currentTempo = deepPracticeStartTempo(
+		resolveLickTempo(lickPractice.progress, lick.id)
+	);
 
 	lickPractice.phase = 'count-in';
 	return true;
@@ -1524,13 +1549,25 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 		// brand-new lick at 100 and override the 60-BPM new-lick tempo.
 		// passCount stays pass-gated.
 		const prev = lickPractice.progress[item.phraseId]?.[key];
+		// Deep practice must not ratchet the lick's stored tempo: the session
+		// opens below it and ramps, and resuming Daily Practice at that ramped
+		// BPM is a different exercise from the one the user's progress was
+		// graded on. Keep whatever the key already held — a first-ever entry
+		// is seeded from the lick's own baseline rather than the ramped
+		// session value, so the 100-BPM default-leak the explicit write exists
+		// to prevent stays shut. `mode === 'single-lick'` means deep LICK
+		// practice here; trick items took the branch above.
+		const persistedTempo =
+			lickPractice.mode === 'single-lick'
+				? prev?.currentTempo ?? resolveLickTempo(lickPractice.progress, item.phraseId)
+				: lickPractice.currentTempo;
 		lickPractice.progress = updateKeyProgress(
 			lickPractice.progress,
 			item.phraseId,
 			key,
 			{
 				lastPracticedAt: Date.now(),
-				currentTempo: lickPractice.currentTempo,
+				currentTempo: persistedTempo,
 				rollingScore: updateRollingScore(prev?.rollingScore, score.overall),
 				...(passed ? { passCount: (prev?.passCount ?? 0) + 1 } : {})
 			}
@@ -1677,9 +1714,16 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
  * archives the round's results to `allAttempts`, and:
  *   - If any keys remain, the next round cycles through the survivors at
  *     the same tempo.
- *   - If all 12 keys cleared, the tempo bumps by `config.tempoBumpBpm` (or
- *     the default of 5 BPM), the rotation refills with a fresh circle of
- *     4ths from the lick's home key, and a new round begins.
+ *   - If all 12 keys cleared, the tempo bumps by `config.tempoBumpPercent`
+ *     (default 1%, rounded up to a whole BPM), the rotation refills with a
+ *     fresh circle of 4ths from the lick's home key, and a new round begins.
+ *
+ * The two branches diverge on persistence, and the asymmetry is deliberate.
+ * Tricks write the bumped tempo to the trick store because clearing the
+ * rotation IS the trick unlock — there is no other advancement path, and no
+ * daily session to hand a surprise tempo to. The lick branch writes nothing:
+ * the ramp is session-local so returning to Daily Practice finds the lick at
+ * the tempo it was actually graded at.
  *
  * Mutates `plan[0].keys` so `buildLickSuperPhrase` and `getCurrentPhrase`
  * see the updated active-key list on the next cycle.
@@ -1706,8 +1750,8 @@ export function advanceSingleLickRound(): void {
 
 	if (survivors.length === 0) {
 		// Whole unlocked set cleared at the current tempo — bump and refill.
-		const bump = lickPractice.config.tempoBumpBpm ?? DEFAULT_TEMPO_BUMP_BPM;
-		const newTempo = clampTempo(lickPractice.currentTempo + bump);
+		const bumpPercent = lickPractice.config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT;
+		const newTempo = nextCycleTempo(lickPractice.currentTempo, bumpPercent);
 		const now = Date.now();
 
 		if (item.kind === 'trick') {
@@ -1743,27 +1787,14 @@ export function advanceSingleLickRound(): void {
 			const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
 			const fullCircle = unlockedCircleFrom(refillStart as PitchClass, unlockedCount);
 
-			// Persist the elevated tempo to every key for this lick so the next
-			// session resumes at this BPM (mirrors the per-key write the standard
-			// flow does at inter-lick rest).
-			for (const key of fullCircle) {
-				lickPractice.progress = updateKeyProgress(
-					lickPractice.progress,
-					item.phraseId,
-					key,
-					{ currentTempo: newTempo, lastPracticedAt: now }
-				);
-			}
-			saveLickPracticeProgress(lickPractice.progress);
-
-			// Record a progress-history sample at the bumped tempo. Single-lick
-			// deep practice drills the already-unlocked set, so the key count is
-			// the full refilled circle (it doesn't unlock new keys itself).
-			appendLickProgressPoint(item.phraseId, {
-				t: now,
-				bpm: newTempo,
-				keys: fullCircle.length
-			});
+			// Nothing is persisted here. The bumped tempo stays in session state
+			// so the report can show what the user reached, but it never reaches
+			// `LickPracticeKeyProgress.currentTempo` — Daily Practice must resume
+			// the lick where it left it. No `appendLickProgressPoint` either: a
+			// history sample at a BPM the lick never actually holds would promote
+			// it across the display-only `lick-phase.ts` thresholds while Daily
+			// still runs it slower. `recordKeyAttempt` already wrote the rolling
+			// score and lastPracticedAt for every key actually played.
 
 			lickPractice.currentTempo = newTempo;
 			item.keys = fullCircle;

@@ -436,6 +436,12 @@ export function seedProgressHistoryFromSessions(): void {
 
 	const history = loadLickProgressHistory();
 	for (const entry of loadLickPracticeSessions()) {
+		// Single-lick sessions (deep practice and trick drills both set
+		// roundsCompleted) ramp tempo WITHIN the session without persisting it.
+		// Their logged tempo is therefore a figure the lick never actually held,
+		// and seeding it here would reintroduce exactly the phantom history point
+		// `advanceSingleLickRound` deliberately stopped writing.
+		if (entry.report.roundsCompleted !== undefined) continue;
 		for (const lick of entry.report.licks) {
 			// Trick drills log sessions too; their composite ':' variant keys must not seed the LICK progress-history blob.
 			if (lick.lickId.includes(':')) continue;

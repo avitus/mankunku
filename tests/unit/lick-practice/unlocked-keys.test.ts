@@ -20,6 +20,7 @@ import {
 	resetSession
 } from '$lib/state/lick-practice.svelte';
 import { bumpUnlockedKeyCount } from '$lib/persistence/lick-practice-store';
+import { nextCycleTempo } from '$lib/state/lick-practice-rotation';
 import type { PitchClass, Phrase } from '$lib/types/music';
 
 // Node test env has no real localStorage; stub a Map-backed one so the
@@ -121,7 +122,7 @@ describe('startSingleLickSession unlocked-key filter', () => {
 describe('advanceSingleLickRound refill', () => {
 	it('refills with the same per-lick unlocked subset after the set is cleared', () => {
 		setUnlockedCount('lick-c', 3); // {C, G, F}
-		startSingleLickSession(makeLick('C', 'lick-c'), 5);
+		startSingleLickSession(makeLick('C', 'lick-c'));
 		const initialKeys = [...lickPractice.plan[0].keys];
 		expect(initialKeys.sort()).toEqual(['C', 'F', 'G']);
 
@@ -129,15 +130,15 @@ describe('advanceSingleLickRound refill', () => {
 		lickPractice.masteredThisRound = [...initialKeys];
 		advanceSingleLickRound();
 
-		// Tempo should have bumped by the configured amount.
-		expect(lickPractice.currentTempo).toBe(initialTempo + 5);
+		// Tempo bumps by the default 1%, rounded up to a whole BPM.
+		expect(lickPractice.currentTempo).toBe(nextCycleTempo(initialTempo, 1));
 		// Refilled rotation respects the per-lick unlock count, unchanged.
 		expect([...lickPractice.plan[0].keys].sort()).toEqual(['C', 'F', 'G']);
 	});
 
 	it('picks up newly unlocked keys on refill', () => {
 		setUnlockedCount('lick-c', 3); // {C, G, F}
-		startSingleLickSession(makeLick('C', 'lick-c'), 5);
+		startSingleLickSession(makeLick('C', 'lick-c'));
 		const initialKeys = [...lickPractice.plan[0].keys];
 
 		// Between rounds, a Standard-mode session in another tab unlocks the

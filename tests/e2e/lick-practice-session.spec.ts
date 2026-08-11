@@ -122,8 +122,10 @@ test.describe('lick-practice session flow', () => {
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
 
-		// Two full cycles at 60 BPM (demo + user window + turnaround, ~20s each
+		// Two full cycles at ~60 BPM (demo + user window + turnaround, ~20s each
 		// warm) after cold sample loading — same budget shape as the daily test.
+		// Deep practice eases in 2% under the lick's stored tempo, so a fresh
+		// lick opens at 59 rather than 60; the budget absorbs the difference.
 		test.setTimeout(240_000);
 
 		await seedOnboardedAnonymous(page);
