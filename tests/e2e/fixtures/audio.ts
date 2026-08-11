@@ -154,3 +154,104 @@ export async function installAudioMock(
 		[fixtureBytes, fixtureMime] as [number[], string]
 	);
 }
+
+// ── CDN instrument-sample stub ──────────────────────────────────────────────
+
+/**
+ * Build a tiny valid WAV (10ms of 44.1kHz mono PCM16 silence). Every browser
+ * decodes PCM WAV — including Playwright's WebKit, whose media stack rejects
+ * the OGG Vorbis the real CDNs serve. `decodeAudioData` sniffs content, not
+ * URL extension, so serving these bytes for a `.ogg`/`.m4a` request is fine.
+ */
+function silentWavBuffer(): Buffer {
+	const sampleRate = 44100;
+	const numSamples = 441;
+	const dataSize = numSamples * 2;
+	const buf = Buffer.alloc(44 + dataSize); // zero-filled data = silence
+	buf.write('RIFF', 0);
+	buf.writeUInt32LE(36 + dataSize, 4);
+	buf.write('WAVE', 8);
+	buf.write('fmt ', 12);
+	buf.writeUInt32LE(16, 16);
+	buf.writeUInt16LE(1, 20); // PCM
+	buf.writeUInt16LE(1, 22); // mono
+	buf.writeUInt32LE(sampleRate, 24);
+	buf.writeUInt32LE(sampleRate * 2, 28);
+	buf.writeUInt16LE(2, 32);
+	buf.writeUInt16LE(16, 34);
+	buf.write('data', 36);
+	buf.writeUInt32LE(dataSize, 40);
+	return buf;
+}
+
+/**
+ * Minimal SFZ manifest replacing the Smolken double-bass definition: one
+ * region spanning the whole keyboard, pointing at a single sample that the
+ * audio route below serves as silence. Keeps smplr's real sfz→preset→fetch
+ * path exercised (regions exist, buffers decode) instead of special-casing
+ * an empty instrument.
+ */
+const SFZ_STUB = '<region> sample=stub.wav lokey=0 hikey=127 pitch_keycenter=60\n';
+
+/**
+ * Fake midi-js soundfont file (the gleitz.github.io format smplr parses in
+ * `midiJsToJson`): full chromatic range, every note the same silent WAV data
+ * URI. The trailing comma after the last entry is REQUIRED — the parser
+ * slices to `lastIndexOf(",")` and appends `}` itself.
+ */
+function soundfontJsStub(wavBase64: string): string {
+	const PCS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+	const entries: string[] = [];
+	for (let oct = 0; oct <= 7; oct++) {
+		for (const pc of PCS) {
+			entries.push(`"${pc}${oct}": "data:audio/wav;base64,${wavBase64}",`);
+		}
+	}
+	return `MIDI.Soundfont.stub = {\n${entries.join('\n')}\n}`;
+}
+
+/**
+ * Intercept the external sample CDNs and serve tiny silent WAVs instead.
+ *
+ * Three hosts, all load-bearing for wall-clock time in CI:
+ *  - smpldsnds.github.io — SplendidGrandPiano fetches ~250 sample files (16
+ *    velocity layers, no note filtering) and the Smolken bass fetches an
+ *    .sfz manifest + samples. This is the cold-start cost that pushed WebKit
+ *    past 45s of sample loading per test (PR #205).
+ *  - gleitz.github.io — WebKit can't decode the local OGG tenor-sax samples,
+ *    so playback.ts falls back to a multi-MB base64-mp3 MusyngKite soundfont
+ *    from here on EVERY WebKit test that plays melody.
+ *  - goldst.dev — soundfont loop metadata (loadLoopData: true).
+ *
+ * OPT-IN PER SPEC, and only for flow tests that never assert audible output.
+ * Specs that verify produced audio (backing-render RMS coverage checks,
+ * sample decode tests) must keep loading the real samples.
+ *
+ * Call BEFORE page.goto().
+ */
+export async function stubCdnInstrumentSamples(page: Page): Promise<void> {
+	const wav = silentWavBuffer();
+	const soundfontJs = soundfontJsStub(wav.toString('base64'));
+	// Fulfilled cross-origin fetches still go through CORS checks.
+	const CORS = { 'access-control-allow-origin': '*' };
+
+	await page.route('https://smpldsnds.github.io/**', (route) => {
+		const url = route.request().url();
+		if (url.endsWith('.sfz')) {
+			return route.fulfill({ headers: CORS, contentType: 'text/plain', body: SFZ_STUB });
+		}
+		return route.fulfill({ headers: CORS, contentType: 'audio/wav', body: wav });
+	});
+
+	await page.route('https://gleitz.github.io/**', (route) =>
+		route.fulfill({
+			headers: CORS,
+			contentType: 'application/javascript',
+			body: soundfontJs
+		})
+	);
+
+	await page.route('https://goldst.dev/**', (route) =>
+		route.fulfill({ headers: CORS, contentType: 'application/json', body: '{}' })
+	);
+}

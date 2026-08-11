@@ -64,6 +64,13 @@ jobs:
     # apt-install browser deps. Tag matches @playwright/test in package.json.
     docker:
       - image: mcr.microsoft.com/playwright:v1.62.1-noble
+    # Shard the spec × browser matrix across containers — this job is the
+    # pipeline's critical path (~12.5 min unsharded vs ~1.5 min for every
+    # other job). Each shard rebuilds the app via the config's webServer
+    # (~90s); that duplication is deliberate. Reusing the `build` job's
+    # output instead would serialize build → e2e and end up SLOWER, and
+    # `build` only runs on main anyway. Reports/artifacts are per-shard.
+    parallelism: 6
     steps:
       - checkout
       - restore_cache:
@@ -73,15 +80,15 @@ jobs:
       - run:
           name: Install dependencies
           command: npm ci
-      - save_cache:
-          key: deps-v1-{{ checksum "package-lock.json" }}
-          paths:
-            - node_modules
+      # No save_cache here: with parallelism, all shards would race to write
+      # the same immutable key and lose to first-write-wins. The non-parallel
+      # `test` job (which runs on every push) owns the dependency cache.
       - run:
-          name: Run Playwright E2E (all browsers)
+          name: Run Playwright E2E (all browsers, sharded)
           # The Playwright config's webServer block runs `npm run build &&
           # npm run preview` itself — no need to start it here separately.
-          command: npx playwright test
+          # CIRCLE_NODE_INDEX is 0-based; Playwright shards are 1-based.
+          command: npx playwright test --shard=$((CIRCLE_NODE_INDEX + 1))/${CIRCLE_NODE_TOTAL}
       - store_artifacts:
           # Surface the HTML report and any captured traces/videos/screenshots
           # — the Firefox console-error capture is the whole point of this job.
