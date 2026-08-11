@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
-import { installAudioMock } from './fixtures/audio';
+import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 const autumnLeavesFixture = JSON.parse(
 	readFileSync(
@@ -184,6 +184,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 
 		await seedOnboardedAnonymous(page);
 		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/tunes/ls-mankunku-blues/practice');
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
@@ -232,6 +233,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await seedOnboardedAnonymous(page);
 		await seedTunes(page, [autumnLeaves]);
 		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/tunes/e2e-autumn-leaves/practice');
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
