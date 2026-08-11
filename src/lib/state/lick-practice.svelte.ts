@@ -32,10 +32,11 @@
  *
  * **That ratchet is standard/daily/focused only.** Single-lick Deep Practice
  * runs its own tempo rule (`deepPracticeStartTempo` / `nextCycleTempo`): it
- * opens 2% below the lick's stored tempo and climbs 1% per cleared rotation,
- * entirely in session state. It writes no tempo and no progress-history
- * sample, so a hard drill session can't hand Daily Practice a lick ramped
- * far past the tempo its grades were earned at.
+ * opens 2% below the lick's stored tempo and climbs by `config.tempoBumpPercent`
+ * per cleared rotation — 1% by default, 0.5–5% from the setup knob — entirely
+ * in session state. It writes no tempo and no progress-history sample, so a
+ * hard drill session can't hand Daily Practice a lick ramped far past the
+ * tempo its grades were earned at.
  */
 
 import { untrack } from 'svelte';
