@@ -922,3 +922,22 @@ Also filed for later: the corpus PDFs carry colored practice-highlight boxes. Th
 own geometry pass deliberately ignores color; a pixel OMR model trained on clean IMSLP
 scans has never seen anything like them. When v1's melody numbers come in low, check
 whether the highlights are implicated before blaming the swing eighths.
+
+## 2026-08-11 — Silent retargeting is worse than refusal
+
+The rest-deletion bug had a design lesson buried in it: `resolveTargetNoteIndex`
+tried to be helpful by falling back to "the last pitched note" whenever the selection
+wasn't usable — and that helpfulness is what turned a missing feature into data
+corruption. A user aiming Backspace at a rest deleted a NOTE they could see was not
+selected. The fix's core idea (two resolvers with different acceptance rules AND
+different fallbacks) generalizes: when an operation can't apply to the thing the user
+pointed at, refusing beats guessing, because a guess acts on state the user isn't
+looking at. Same family as the tri-state cloud read rule (a failed read must throw,
+not merge-against-empty) — the pattern is "absence of a valid target is information,
+not a gap to paper over."
+
+Also filed for the future: display elements and buffer elements are N:M in BOTH
+directions here (merge and fan-out), and the honest bridge wasn't a bijection but a
+REPRESENTATIVE + range (`sourceIndex` + `sourceIndexEnd`). Cheaper than reshaping the
+merge, and every consumer got to choose its own semantics (click → representative,
+highlight → range containment, chord geometry → opt out entirely).

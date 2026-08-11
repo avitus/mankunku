@@ -1443,3 +1443,42 @@ Process notes: the fused-fixture recorder is COMMITTED and env-gated
 living uncommitted in a scratchpad, which the corpus header itself laments. And the
 zero-network e2e asserts `seenMeters` stays empty — the cheapest possible proof that
 fusion actually replaced the API call rather than racing it.
+
+## 2026-08-11 — Rests become first-class: four layers of "pitched only" unwound
+
+User report, one line: "When editing tunes, it is not possible to select and delete
+rests." Exploration showed the exclusion wasn't one guard but FOUR independent layers
+agreeing rests don't exist — anchors never emitted (notation.ts / tune-notation.ts),
+click resolution falling through to the bar (abcjs-adapter), state guards
+(selectNote / selectPrev / selectNext / resolveTargetNoteIndex), and highlight CSS
+scoped to `.abcjs-note` when abcjs classes rests `.abcjs-rest`. The nastiest part was
+none of these: `resolveTargetNoteIndex` FELL BACK to the last pitched note, so
+Backspace aimed at a trailing rest silently deleted the note before it and orphaned
+the rest. Saved licks carry a persisted trailing pad rest, so re-editing a lick hit
+this exactly.
+
+Shape of the fix: split the conflated target resolver in two
+(`resolveDeleteTargetIndex` — any element, fallback last element;
+`resolvePitchedTargetIndex` — rest selection is a HARD no-op, never a retarget),
+arrows stop on rests MuseScore-style, `addRest` now selects its rest like `addNote`
+does, and `mergeConsecutiveRests` gained representative source indices (first
+overlapping source rest per display segment, `sourceEndMap` closing the range) so
+display rests — N:M with buffer rests — finally have an honest click target.
+`PitchedNoteAnchor` renamed `NoteAnchor` with `rest?: true`. Slash bars stay bar
+clicks (whole-bar stored rests are arrow-reachable, not clickable); pure gaps have no
+stored element and still fall to the bar cursor — the tune editor's gap-rest
+click-to-arm-cursor e2e passes UNCHANGED, now documenting the distinction rather
+than the limitation.
+
+Two e2e lessons worth keeping: slash bars render `.abcjs-rest` glyphs too, so
+whole-chart rest counts are brittle (30 rests on an 8-bar form with two real ones);
+and the lick editor has NO client-only artifact to wait on (the chart doesn't render
+until the buffer has content), so bare keypresses race SSR hydration — the fix is
+poll-clicking a duration button until `aria-pressed` reacts. Also geometric comedy:
+an eighth rest's bbox center sits ON the middle staff line, which intercepts the
+pointer; quarter rests clear it.
+
+TDD throughout: every layer's tests written and watched fail first; the two ABC
+characterization pins (phrase + tune paths, inline snapshots filled BEFORE
+implementation) prove anchoring changed rendering by zero bytes. 4007 unit tests,
+33 affected e2e green, check clean.
