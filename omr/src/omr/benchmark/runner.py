@@ -54,7 +54,10 @@ def run_benchmark(
             f"{len(bundle.normalized.warnings)} parse warning(s), "
             f"{len(bundle.validation_warnings)} validation warning(s)"
         ]
-        for warning in bundle.result.warnings:
+        # The elision signal lives in TWO places: a backend's standing
+        # warning (result.warnings) and the parser's token detection
+        # (normalized.warnings). Either one justifies the note, once.
+        for warning in [*bundle.result.warnings, *bundle.normalized.warnings]:
             if warning.code == "TEXT_ELIDED_BY_MODEL":
                 notes.append(
                     "chord metrics reflect a model limitation: this backend does not "

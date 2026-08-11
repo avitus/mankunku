@@ -73,3 +73,18 @@ def test_duplicate_ground_truth_slugs_are_rejected(tmp_path: Path) -> None:
         run_benchmark(
             FakeBackend(), [gt_path, dup], repo_root=tmp_path, out_dir=tmp_path / "out"
         )
+
+
+def test_parse_detected_text_elision_adds_the_chord_metrics_note(tmp_path: Path) -> None:
+    # The elision warning can come from the BACKEND (LEGATO's standing
+    # warning, in result.warnings) or from the PARSER spotting <|text|>
+    # tokens (normalized.warnings). The report note must fire for both.
+    gt_path = _write_gt(tmp_path)
+    abc = 'X:1\nT:Fake Tune\nM:4/4\nL:1/8\nK:C\n"<|text|>" C2 E2 G2 E2 | D2 F2 A2 F2 |]\n'
+
+    outcome = run_benchmark(
+        FakeBackend(abc=abc), [gt_path], repo_root=tmp_path, out_dir=tmp_path / "out"
+    )
+
+    notes = outcome["results"][0]["notes"]
+    assert any("does not transcribe text" in n for n in notes)

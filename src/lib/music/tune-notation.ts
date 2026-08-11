@@ -549,7 +549,7 @@ export function tuneToAbcWithMap(
 		flattenedNoteBase += sec.notes.length;
 
 		const { display, sourceMap, sourceEndMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
-		const elements: DisplayElement[] = display.map((note, k) => {
+		const elements: DisplayElement[] = display.map((note: Note, k: number): DisplayElement => {
 			// A merged display rest can cover several input elements — gaps
 			// (inputSources null) and stored rests interleaved. Anchor it to
 			// the stored elements it covers: first as the click/delete target,
@@ -691,7 +691,7 @@ export function tuneToAbcWithMap(
 		tokenStarts[t] = charCursor;
 		charCursor += tokens[t].length;
 	}
-	const noteAnchors: NoteAnchor[] = pendingAnchors.map(({ tokenIndex, ...fields }) => ({
+	const noteAnchors: NoteAnchor[] = pendingAnchors.map(({ tokenIndex, ...fields }): NoteAnchor => ({
 		startChar: bodyStart + tokenStarts[tokenIndex],
 		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
 		...fields
