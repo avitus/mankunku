@@ -30,7 +30,7 @@ def test_benchmark_runs_and_reports(tmp_path: Path) -> None:
         LegatoV1Backend(), [GT], repo_root=REPO_ROOT, out_dir=tmp_path / "results"
     )
 
-    report = outcome["report_md"].read_text()
+    report = outcome["report_md"].read_text(encoding="utf-8")
     assert "lady-bird" in report
     metrics = outcome["results"][0]["metrics"]
     # The denominators must reflect the real chart, whatever the scores are.

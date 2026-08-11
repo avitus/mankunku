@@ -71,3 +71,26 @@ def test_output_marked_unreviewed_with_provenance() -> None:
 
     assert gt["reviewed"] is False
     assert gt["provenance"]["semitones"] == 14
+
+
+def test_out_of_range_events_are_reported_not_silently_dropped() -> None:
+    fixture = {
+        **FIXTURE,
+        "sections": [
+            {
+                "label": "A",
+                "bars": 1,
+                "notes": [
+                    {"pitch": 60, "duration": [1, 4], "offset": [0, 1]},
+                    {"pitch": 62, "duration": [1, 4], "offset": [3, 2]},  # beyond bar 1
+                ],
+                "harmony": [{"symbol": "C7", "startOffset": [2, 1], "duration": [1, 1]}],
+            }
+        ],
+    }
+    gt = convert_fixture(fixture, semitones=14, slug="t", source_pdf="x.pdf")
+    skipped = gt["provenance"]["skipped_events"]
+    assert len(skipped) == 2
+    assert any("3/2" in s for s in skipped)
+    # In-range content still converts.
+    assert len(gt["measures"][0]["melody"]) == 1

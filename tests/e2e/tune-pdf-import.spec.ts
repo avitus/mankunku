@@ -61,13 +61,16 @@ async function stubParseRoute(
 	{
 		failFirstSystem = false,
 		printedMeter = [4, 4] as [number, number],
-		seenMeters
+		seenMeters,
+		posts
 	}: {
 		failFirstSystem?: boolean;
 		/** Meter the stub claims is PRINTED, for the declaration cross-check. */
 		printedMeter?: [number, number];
 		/** Collects the meter each per-line request was prompted with. */
 		seenMeters?: Array<[number, number]>;
+		/** Records the shape of EVERY non-GET request ('system' | 'pdf' | 'other'). */
+		posts?: string[];
 	} = {}
 ): Promise<void> {
 	await page.route('**/api/tune-parse', async (route) => {
@@ -81,6 +84,7 @@ async function stubParseRoute(
 			return;
 		}
 		const body = (request.postDataJSON() ?? {}) as SystemRequest;
+		posts?.push(body.system ? 'system' : (body as { pdf?: unknown }).pdf ? 'pdf' : 'other');
 		if (body.system) {
 			if (seenMeters && body.system.timeSignature) seenMeters.push(body.system.timeSignature);
 			const failing = failFirstSystem && body.system.first === true;
@@ -269,7 +273,8 @@ test('an attached OMR transcription supplies the melody with zero AI calls', asy
 	// The .omr.json is a REAL recorded LEGATO v1 transcription of this chart
 	// (deterministic; see docs/omr/). Lines it covers never touch the network.
 	const seenMeters: Array<[number, number]> = [];
-	await stubParseRoute(page, { seenMeters });
+	const posts: string[] = [];
+	await stubParseRoute(page, { seenMeters, posts });
 	await page.goto('/tunes/import/pdf');
 
 	const omrInput = page.getByLabel('OMR transcription (optional)');
@@ -283,9 +288,10 @@ test('an attached OMR transcription supplies the melody with zero AI calls', asy
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(/Lady Bird/);
-	// Every line was covered by the OMR transcription: not one system-mode
-	// request reached the parse route.
+	// Every line was covered by the OMR transcription: no request of ANY
+	// shape reached the parse route — system-mode or whole-PDF fallback.
 	expect(seenMeters).toHaveLength(0);
+	expect(posts).toHaveLength(0);
 	// The chart content arrived: notation is rendered for review.
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 });

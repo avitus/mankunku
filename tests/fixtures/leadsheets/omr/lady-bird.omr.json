@@ -1183,29 +1183,11 @@
         "warnings": []
       }
     ],
-    "text_annotations": [
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>",
-      "|text|>"
-    ],
+    "text_annotations": [],
     "warnings": [
       {
         "code": "TEXT_ELIDED_BY_MODEL",
-        "message": "2 <|text|> token(s): the model replaced printed text (titles, annotations, chord symbols) with a placeholder",
+        "message": "21 <|text|> token(s): the model replaced printed text (titles, annotations, chord symbols) with a placeholder",
         "page": null,
         "measure": null,
         "raw": null

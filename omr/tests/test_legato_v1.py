@@ -4,6 +4,7 @@ The real-inference smoke test lives in tests/integration/test_legato_v1.py
 behind the omr_integration marker.
 """
 
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -14,13 +15,15 @@ from omr.backends.legato_v1 import _AUTH_HINT, LegatoV1Backend, _elision_warning
 
 def test_module_import_is_lazy() -> None:
     # Importing the backend module must not pull in torch/transformers —
-    # the default (model-free) install has neither.
-    torch_was_loaded = "torch" in sys.modules
-    import omr.backends.legato_v1  # noqa: F401
-
-    if not torch_was_loaded:
-        assert "torch" not in sys.modules
-        assert "transformers" not in sys.modules
+    # the default (model-free) install has neither. A fresh interpreter is
+    # the only honest check: in-process, collection-time imports could have
+    # loaded torch already and the assertion would silently not run.
+    code = (
+        "import sys; import omr.backends.legato_v1; "
+        "assert 'torch' not in sys.modules; "
+        "assert 'transformers' not in sys.modules"
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def _stub_torch(monkeypatch, *, cuda: bool, mps: bool) -> None:

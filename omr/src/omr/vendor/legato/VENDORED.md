@@ -25,3 +25,25 @@
   The backend therefore resolves the pin via `snapshot_download` and loads
   from the local path — passing `revision=` to `from_pretrained` would
   propagate our revision into the meta-llama fetch, where it does not exist.
+- **Known upstream quirks (not patched — files stay byte-identical)**:
+  - `processing_legato.py` names its `_defaults` modality key `image_kwargs`;
+    transformers' `ProcessingKwargs._merge_kwargs` expects `images_kwargs`, so
+    the `max_image_tiles: 4` default is ignored and the processor default
+    applies instead (harmless today — Mllama's own default is also 4).
+  - Both processing modules guard invariants with bare `assert`, which
+    vanishes under `python -O`/`PYTHONOPTIMIZE`. Accepted: this repo never
+    runs the vendored code optimized.
+  - `models/__init__.py` registers with string keys; under
+    `transformers==4.54.0` config-type lookup wants `LegatoConfig` and
+    `AutoModel._model_mapping` is private — class-name lookup still works,
+    which is the path `from_pretrained` uses here.
+  - `modeling_legato.py` checks `isinstance(outputs, typing.Tuple)`
+    (deprecated as a runtime target; behaves as `tuple` today).
+  - `modeling_legato.py`'s
+  `save_pretrained` filters state-dict keys by the `vision_model.` prefix,
+  but under the pinned `transformers==4.54.0` the encoder lives at
+  `model.vision_model.`, so the filter matches nothing and a save would
+  include the full encoder weights. This repo never calls `save_pretrained`
+  (inference only), and the files stay byte-identical to upstream by policy
+  — anyone fine-tuning from this vendored copy must fix the prefix (or
+  filter on both) before saving checkpoints.

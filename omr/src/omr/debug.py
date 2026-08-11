@@ -46,8 +46,8 @@ def write_debug_artifacts(
     raw_dir = root / "raw"
     raw_dir.mkdir(exist_ok=True)
     for raw_page in bundle.result.raw_pages:
-        (raw_dir / f"page-{raw_page.page_index + 1:03d}.abc").write_text(raw_page.text)
-    (raw_dir / "full.abc").write_text(bundle.result.raw_transcription)
+        (raw_dir / f"page-{raw_page.page_index + 1:03d}.abc").write_text(raw_page.text, encoding="utf-8")
+    (raw_dir / "full.abc").write_text(bundle.result.raw_transcription, encoding="utf-8")
 
     if backend.supports_system_segmentation():
         system_images = bundle.result.metadata.get("system_images", [])
@@ -58,10 +58,12 @@ def write_debug_artifacts(
                 image.save(systems_dir / name)
 
     (root / "normalized.json").write_text(
-        json.dumps(bundle.normalized.to_dict(), indent=2, ensure_ascii=False)
+        json.dumps(bundle.normalized.to_dict(), indent=2, ensure_ascii=False),
+        encoding="utf-8",
     )
     (root / "validation.json").write_text(
-        json.dumps([w.to_dict() for w in bundle.validation_warnings], indent=2)
+        json.dumps([w.to_dict() for w in bundle.validation_warnings], indent=2),
+        encoding="utf-8",
     )
     (root / "run.json").write_text(
         json.dumps(

@@ -104,8 +104,14 @@ export interface ChordSlotAnchor {
 
 interface DisplayElement {
 	note: Note;
-	/** Index into the flattened (notation-order) note array, or null for rests. */
+	/**
+	 * Index into the flattened (notation-order) note array — for a merged
+	 * display rest, the FIRST stored element it covers. Null when the element
+	 * covers no stored source (a pure melody gap).
+	 */
 	sourceIndex: number | null;
+	/** Last stored flattened index a merged display rest covers (else = sourceIndex). */
+	sourceIndexEnd: number | null;
 	/** The harmony segment governing this element's offset, for spelling. */
 	governing: HarmonicSegment | null;
 }
@@ -236,6 +242,7 @@ export function tuneToAbcWithMap(
 		sourceIndex: number;
 		offset: number;
 		rest?: true;
+		sourceIndexEnd?: number;
 		gliss?: boolean;
 	}> = [];
 	const pendingBarAnchors: Array<{
@@ -335,6 +342,11 @@ export function tuneToAbcWithMap(
 				// section's base while the body loop runs).
 				offset: sectionBaseBars * barDuration + fractionToFloat(el.note.offset),
 				...(el.note.pitch === null ? { rest: true as const } : {}),
+				...(el.note.pitch === null &&
+				el.sourceIndexEnd !== null &&
+				el.sourceIndexEnd !== el.sourceIndex
+					? { sourceIndexEnd: el.sourceIndexEnd }
+					: {}),
 				// The MuseScore-style wavy connector is drawn over the SVG by
 				// NotationDisplay (abcjs has no native glissando).
 				...(el.note.gliss ? { gliss: true } : {})
@@ -536,12 +548,32 @@ export function tuneToAbcWithMap(
 		}
 		flattenedNoteBase += sec.notes.length;
 
-		const { display, sourceMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
-		const elements: DisplayElement[] = display.map((note, k) => ({
-			note,
-			sourceIndex: sourceMap[k] === null ? null : inputSources[sourceMap[k]!],
-			governing: governingSegment(sec.harmony, fractionToFloat(note.offset))
-		}));
+		const { display, sourceMap, sourceEndMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
+		const elements: DisplayElement[] = display.map((note, k) => {
+			// A merged display rest can cover several input elements — gaps
+			// (inputSources null) and stored rests interleaved. Anchor it to
+			// the stored elements it covers: first as the click/delete target,
+			// last to close the highlight range. All-gap coverage → unanchored.
+			const lo = sourceMap[k];
+			const hi = sourceEndMap[k];
+			let sourceIndex: number | null = null;
+			let sourceIndexEnd: number | null = null;
+			if (lo !== null && hi !== null) {
+				for (let s = lo; s <= hi; s++) {
+					const src = inputSources[s];
+					if (src !== null) {
+						if (sourceIndex === null) sourceIndex = src;
+						sourceIndexEnd = src;
+					}
+				}
+			}
+			return {
+				note,
+				sourceIndex,
+				sourceIndexEnd,
+				governing: governingSegment(sec.harmony, fractionToFloat(note.offset))
+			};
+		});
 
 		// ── Bar-structured emission (mirrors the phrase loop's beam/triplet rules) ──
 		let barState = initBarState(keySigAccidentals);

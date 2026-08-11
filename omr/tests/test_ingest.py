@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from omr.errors import UnsupportedInputError
+from omr.errors import CorruptedInputError, UnsupportedInputError
 from omr.ingest import load_score
 
 
@@ -44,3 +44,21 @@ def test_unsupported_extension_raises(tmp_path: Path) -> None:
 def test_missing_file_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_score(tmp_path / "nope.png")
+
+
+def test_truncated_image_maps_to_corrupted_input(tmp_path: Path) -> None:
+    good = tmp_path / "good.png"
+    Image.new("RGB", (600, 600), "white").save(good)
+    data = good.read_bytes()
+    bad = tmp_path / "bad.png"
+    bad.write_bytes(data[: int(len(data) * 0.6)])  # header intact, data truncated
+
+    with pytest.raises(CorruptedInputError):
+        load_score(bad)
+
+
+def test_non_positive_dpi_falls_back_to_default(tmp_path: Path) -> None:
+    p = tmp_path / "zero-dpi.png"
+    Image.new("RGB", (60, 60), "white").save(p, dpi=(0, 0))
+    # PNG preserves a zero pHYs resolution; the loader must not record 0 dpi.
+    assert load_score(p).pages[0].dpi == 72.0

@@ -257,7 +257,13 @@ class _BodyParser:
         self.current.events.append(event)
 
     def _note_event(
-        self, acc: str | None, letter: str, octave_marks: str, dur: str | None
+        self,
+        acc: str | None,
+        letter: str,
+        octave_marks: str,
+        dur: str | None,
+        *,
+        apply_modifiers: bool = True,
     ) -> AbcEvent:
         octave = 4 if letter.isupper() else 5
         octave += octave_marks.count("'") - octave_marks.count(",")
@@ -271,7 +277,15 @@ class _BodyParser:
             accidental = self.measure_acc.get((upper, octave), self.key_acc.get(upper, ""))
 
         spelled, midi = _spell(upper, accidental, octave)
-        duration = self.unit * self._apply_broken(_parse_duration_suffix(dur))
+        raw = _parse_duration_suffix(dur)
+        if not apply_modifiers:
+            # Chord clusters build their member notes bare: the cluster as a
+            # whole is ONE rhythmic event, so broken-rhythm and tuplet state
+            # apply exactly once to the retained top note, not per member.
+            return AbcEvent(
+                kind="note", spelled_pitch=spelled, midi=midi, duration=self.unit * raw
+            )
+        duration = self.unit * self._apply_broken(raw)
         duration, tuplet = self._apply_tuplet(duration)
         return AbcEvent(
             kind="note", spelled_pitch=spelled, midi=midi, duration=duration, tuplet=tuplet
@@ -342,13 +356,17 @@ class _BodyParser:
 
             m = _TEXT_TOKEN_RE.match(line, pos)
             if m:
-                self.text_elided += 1
-                pos = m.end()
+                pos = m.end()  # counted globally in parse_abc
                 continue
 
             m = _STRING_RE.match(line, pos)
             if m:
-                self.pending_strings.append(m.group(1))
+                # A quoted "<|text|>" is elided text (usually a chord symbol
+                # position), not content — keep only what remains after
+                # stripping the placeholder.
+                stripped_string, _ = _strip_text_tokens(m.group(1))
+                if stripped_string:
+                    self.pending_strings.append(stripped_string)
                 pos = m.end()
                 continue
 
@@ -469,6 +487,7 @@ class _BodyParser:
                     note_match.group(2),
                     note_match.group(3) or "",
                     note_match.group(4),
+                    apply_modifiers=False,
                 )
             )
         if not events:
@@ -541,7 +560,6 @@ def _strip_text_tokens(value: str) -> tuple[str | None, int]:
 def parse_abc(text: str) -> tuple[AbcScore, list[OMRWarning]]:
     warnings: list[OMRWarning] = []
     header = AbcHeader()
-    header_elided = 0
 
     if not text.strip():
         warnings.append(
@@ -562,8 +580,7 @@ def parse_abc(text: str) -> tuple[AbcScore, list[OMRWarning]]:
             in_header = False
             break
         letter, raw_value = m.group(1), m.group(2).strip()
-        value, elided = _strip_text_tokens(raw_value)
-        header_elided += elided
+        value, _ = _strip_text_tokens(raw_value)
         if value is None:
             continue  # the field held only elided text — nothing recognized
         if letter == "T":
@@ -593,7 +610,10 @@ def parse_abc(text: str) -> tuple[AbcScore, list[OMRWarning]]:
 
     assert not in_header
     parser = _BodyParser(header, warnings)
-    parser.text_elided = header_elided
+    # One global count: placeholders appear bare, inside quoted strings, on
+    # skipped lyric lines, and in header/voice fields — counting at each
+    # consumption site undercounts whatever a site skips wholesale.
+    parser.text_elided = len(_TEXT_TOKEN_RE.findall(text))
     for line in lines[body_start:]:
         stripped = line.strip()
         if not stripped:
@@ -611,8 +631,7 @@ def parse_abc(text: str) -> tuple[AbcScore, list[OMRWarning]]:
                 parser.apply_field(letter, field_match.group(2))
                 continue
             if letter == "T":
-                subtitle, elided = _strip_text_tokens(field_match.group(2).strip())
-                parser.text_elided += elided
+                subtitle, _ = _strip_text_tokens(field_match.group(2).strip())
                 if subtitle:
                     header.subtitles.append(subtitle)
                 continue

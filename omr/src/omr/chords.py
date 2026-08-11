@@ -86,9 +86,10 @@ def _parse_quality(rest: str) -> tuple[str, list[str]] | None:  # noqa: PLR0911
             if end == -1:
                 return None
             group = text[start + 1 : end]
-            if _MAJ_MARKER_RE.match(group):
+            maj_match = _MAJ_MARKER_RE.match(group)
+            if maj_match:
                 has_maj_marker = True
-                tail = group[_MAJ_MARKER_RE.match(group).end() :]
+                tail = group[maj_match.end() :]
                 if tail not in ("", "7"):
                     return None
             else:

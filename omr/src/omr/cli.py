@@ -28,7 +28,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     t = sub.add_parser("transcribe", help="transcribe a lead-sheet PDF or image")
     t.add_argument("path", type=Path)
-    t.add_argument("--backend", default="legato_v1", help="OMR backend name")
+    t.add_argument(
+        "--backend", default="legato_v1", help=f"OMR backend name (available: {_available()})"
+    )
     t.add_argument("--output", type=Path, default=None, help="output JSON path")
     t.add_argument("--raw", action="store_true", help="print the verbatim raw transcription")
     t.add_argument("--debug", action="store_true", help="write a debug artifact directory")
@@ -46,7 +48,9 @@ def _build_parser() -> argparse.ArgumentParser:
     t.set_defaults(func=_cmd_transcribe)
 
     b = sub.add_parser("benchmark", help="run the lead-sheet benchmark against a backend")
-    b.add_argument("--backend", default="legato_v1", help="OMR backend name")
+    b.add_argument(
+        "--backend", default="legato_v1", help=f"OMR backend name (available: {_available()})"
+    )
     b.add_argument(
         "--gt-dir",
         type=Path,
@@ -139,7 +143,12 @@ def _cmd_transcribe(args: argparse.Namespace) -> int:
         "normalized": bundle.normalized.to_dict(),
         "validation_warnings": [w.to_dict() for w in bundle.validation_warnings],
     }
-    output.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    except OSError as e:
+        print(f"error: cannot write {output}: {e}", file=sys.stderr)
+        return 2
 
     if args.raw:
         print(bundle.result.raw_transcription)

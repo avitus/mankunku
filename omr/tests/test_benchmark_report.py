@@ -43,3 +43,29 @@ def test_unreviewed_ground_truth_flagged_in_markdown() -> None:
     md = render_markdown(results, _backend_info())
 
     assert "NOT been human-reviewed" in md
+
+
+def test_chart_without_chords_renders_na_and_stays_out_of_the_aggregate() -> None:
+    # "No chords to score" (den 0 → None → "n/a") must stay distinct from
+    # "scored zero" — the point of the Ratio design.
+    chordless = [
+        type(m)(
+            number=m.number,
+            notes=list(m.notes),
+            chords=[],
+            start_repeat=m.start_repeat,
+            end_repeat=m.end_repeat,
+            rehearsal_mark=m.rehearsal_mark,
+        )
+        for m in GT
+    ]
+    metrics = evaluate_chart(
+        chordless, chordless, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4)
+    )
+    results = [{"slug": "no-chords", "reviewed": True, "metrics": metrics, "notes": []}]
+
+    md = render_markdown(results, _backend_info())
+    assert "n/a" in md
+
+    data = render_json(results, _backend_info())
+    assert data["aggregate"]["chord_exact"] is None

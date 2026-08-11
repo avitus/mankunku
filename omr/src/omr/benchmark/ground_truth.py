@@ -53,6 +53,10 @@ class GroundTruth:
 
 
 def to_fraction(value: Any) -> Fraction:
+    if isinstance(value, Fraction):
+        return value
+    if isinstance(value, bool):  # bool subclasses int — True is not a beat value
+        raise ValueError(f"cannot read beat value {value!r}")
     if isinstance(value, int):
         return Fraction(value)
     if isinstance(value, str):
@@ -71,7 +75,7 @@ def spelled_to_midi(spelled: str) -> int:
 
 
 def load_ground_truth(path: Path) -> GroundTruth:
-    data = json.loads(Path(path).read_text())
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
     ts = data.get("time_signature")
     time_signature = (ts[0], ts[1]) if ts else None
     beat_unit = Fraction(1, time_signature[1]) if time_signature else Fraction(1, 4)

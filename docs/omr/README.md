@@ -7,8 +7,10 @@ belongs to downstream consumers — eventually an LLM that receives the
 symbolic transcription *alongside* the page image instead of being asked to
 read pixels itself.
 
-**Status**: transcription milestone only. Nothing in the SvelteKit app calls
-this yet; the Claude-based `/api/tune-parse` import pipeline is untouched.
+**Status**: standalone OMR subsystem with an optional SvelteKit hybrid
+import: `/tunes/import/pdf` accepts a `.omr.json` produced by `python -m omr
+transcribe` and bypasses `/api/tune-parse` for the systems it covers
+(uncovered systems still fall back to Claude).
 The intended engine — **LEGATO 2 — is not publicly released** (see
 [legato2.md](legato2.md)); a clearly-labeled LEGATO **v1** backend exists for
 experimentation, with a hard limitation: **it transcribes no text, so chord
@@ -246,5 +248,8 @@ uv run pytest -m omr_integration    # opt-in: downloads checkpoint, real inferen
 
 CI runs the hermetic suite only, in a path-filtered job that triggers on
 `omr/**` changes (`.circleci/continue-config.yml`, mirroring the
-`nginx-changed` pattern). The repo's Vitest/Playwright suites are untouched
-by and blind to this subsystem.
+`nginx-changed` pattern). The Python suite runs separately from the app's
+tests; on the app side, the hybrid `.omr.json` import path has its own
+Vitest coverage (`tests/unit/tunes/omr-*.test.ts`, `pdf-vs-musescore`'s OMR
+family) and an env-gated Playwright fixture recorder
+(`tests/e2e/record-omr-fixtures.spec.ts`).

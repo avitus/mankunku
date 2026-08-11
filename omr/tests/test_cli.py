@@ -156,3 +156,28 @@ def test_benchmark_no_ground_truth_exits_2(tmp_path: Path, capsys) -> None:
 
     assert code == 2
     assert "ground truth" in capsys.readouterr().err
+
+
+def test_transcribe_creates_missing_output_directory(png_score: Path, tmp_path: Path) -> None:
+    out = tmp_path / "nested" / "dir" / "result.json"
+    code = main(["transcribe", str(png_score), "--backend", "fake", "--output", str(out)])
+    assert code == 0
+    assert out.exists()
+
+
+def test_unwritable_output_maps_to_exit_2(png_score: Path, tmp_path: Path, capsys) -> None:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a file, not a directory")
+    out = blocker / "result.json"  # parent is a file — the write cannot succeed
+    code = main(["transcribe", str(png_score), "--backend", "fake", "--output", str(out)])
+    assert code == 2
+    assert "cannot write" in capsys.readouterr().err
+
+
+def test_out_of_range_page_selection_exits_2(pdf_score: Path, tmp_path: Path, capsys) -> None:
+    out = tmp_path / "r.json"
+    code = main(
+        ["transcribe", str(pdf_score), "--backend", "fake", "--output", str(out), "--pages", "9"]
+    )
+    assert code == 2
+    assert "matches no page" in capsys.readouterr().err

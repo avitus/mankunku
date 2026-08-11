@@ -39,9 +39,11 @@ def _load_image_page(path: Path) -> PageImage:
             # Apply EXIF orientation so a phone photo arrives upright.
             upright = ImageOps.exif_transpose(img)
             upright.load()
-    except UnidentifiedImageError as e:
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as e:
         raise CorruptedInputError(f"cannot decode image {path.name}: {e}") from e
 
     dpi_pair = upright.info.get("dpi")
     dpi = float(dpi_pair[0]) if dpi_pair else 72.0
+    if dpi <= 0:
+        dpi = 72.0  # a recorded zero/negative resolution is metadata noise
     return PageImage(index=0, image=upright, dpi=dpi, source_page=0)

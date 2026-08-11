@@ -13,6 +13,7 @@ from pathlib import Path
 
 from omr.abc_parser import parse_abc
 from omr.backends.base import OMRBackend
+from omr.errors import UnsupportedInputError
 from omr.ingest import load_score
 from omr.models import NormalizedScore, OMRResult, OMRWarning, ScoreInput
 from omr.normalize import normalize
@@ -44,6 +45,11 @@ def transcribe_file(
     if pages:
         wanted = set(pages)  # 1-based page numbers
         kept = tuple(p for p in source.pages if p.source_page + 1 in wanted)
+        if not kept:
+            raise UnsupportedInputError(
+                f"page selection {sorted(wanted)} matches no page in {source.path} "
+                f"({len(source.pages)} page(s) available)"
+            )
         source = ScoreInput(path=source.path, kind=source.kind, pages=kept)
     if preprocess:
         source = ScoreInput(

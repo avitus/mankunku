@@ -4,7 +4,9 @@ import json
 from fractions import Fraction
 from pathlib import Path
 
-from omr.benchmark.ground_truth import load_ground_truth
+import pytest
+
+from omr.benchmark.ground_truth import load_ground_truth, spelled_to_midi, to_fraction
 
 SAMPLE = {
     "slug": "test-chart",
@@ -71,3 +73,19 @@ def test_flags_and_metadata(tmp_path: Path) -> None:
     assert gt.key_signature == "D"
     assert gt.measures[0].start_repeat is True
     assert gt.measures[1].ending == 2
+
+
+def test_unreadable_pitch_rejected() -> None:
+    with pytest.raises(ValueError, match="H9"):
+        spelled_to_midi("H9")
+
+
+def test_unreadable_beat_value_rejected() -> None:
+    with pytest.raises(ValueError):
+        to_fraction(None)
+
+
+def test_to_fraction_accepts_fraction_and_rejects_bool() -> None:
+    assert to_fraction(Fraction(1, 3)) == Fraction(1, 3)
+    with pytest.raises(ValueError):
+        to_fraction(True)

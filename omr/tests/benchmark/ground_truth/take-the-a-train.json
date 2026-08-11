@@ -7,7 +7,7 @@
     "semitones": 14,
     "concert_key": "C",
     "hand_edits": "rehearsal marks A/B/A added from the printed page (visual review 2026-08-09); m1 start_repeat cleared — the printed page has no |: at bar 1 (implicit from-the-top repeat), and GT records printed ink only",
-    "spot_check": "key, chords (D6/E9#11), repeat/endings, and marks visually spot-checked against the printed page 2026-08-09; full-chart review pending"
+    "spot_check": "key, chords (D6/E9#11), repeat/endings, and marks visually spot-checked against the printed page 2026-08-09; full-chart review pending; 2026-08-11 review question: the semitones=14 transposition emits sharp spellings (A#/D#) where a printed Bb chart most likely prints flats (Bb/Eb) — verify accidental spelling against the printed page ('printed ink only') — A#4 in measures 3 and 20, D#5 in measures 6 and 23"
   },
   "key_signature": "D",
   "time_signature": [

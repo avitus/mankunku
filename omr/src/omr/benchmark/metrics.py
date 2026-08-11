@@ -154,22 +154,23 @@ def _chord_metrics(
     pred_for_gt = dict(alignment)
     exact = root = quality = alterations_num = 0
     rq_matched = 0
-    matched_pred_ids: set[int] = set()
+    matched_pred: set[tuple[int, int]] = set()
     gt_total = 0
 
     for gi, gm in enumerate(gt_measures):
-        pm = pred_measures[pred_for_gt[gi]] if gi in pred_for_gt else None
+        pi = pred_for_gt.get(gi)
+        pm = pred_measures[pi] if pi is not None else None
         for gt_chord in gm.chords:
             gt_total += 1
             pred_chord = None
             if pm is not None:
-                for candidate in pm.chords:
-                    if candidate.onset == gt_chord.onset and id(candidate) not in matched_pred_ids:
+                for ci, candidate in enumerate(pm.chords):
+                    if candidate.onset == gt_chord.onset and (pi, ci) not in matched_pred:
                         pred_chord = candidate
+                        matched_pred.add((pi, ci))
                         break
             if pred_chord is None:
                 continue
-            matched_pred_ids.add(id(pred_chord))
 
             if _text_match(gt_chord.raw, pred_chord.raw):
                 exact += 1
@@ -189,7 +190,7 @@ def _chord_metrics(
         "root": Ratio(root, gt_total),
         "quality": Ratio(quality, gt_total),
         "alterations": Ratio(alterations_num, rq_matched),
-        "insertions": total_pred - len(matched_pred_ids),
+        "insertions": total_pred - len(matched_pred),
     }
 
 

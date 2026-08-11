@@ -165,3 +165,41 @@ def test_raw_text_never_mutated_by_parsing() -> None:
     raw = WELL_FORMED
     parse_abc(raw)
     assert raw == WELL_FORMED
+
+
+def test_chord_cluster_consumes_one_tuplet_slot() -> None:
+    # (3[CEG]DE — the cluster is ONE tuplet member; D and E share the factor.
+    score, _ = parse_abc("X:1\nL:1/4\nK:C\n(3[CEG]DE F2 |]\n")
+    events = score.bars[0].events
+    assert [e.spelled_pitch for e in events] == ["G4", "D4", "E4", "F4"]
+    assert [e.duration for e in events[:3]] == [Fraction(1, 6)] * 3
+    assert all(e.tuplet == (3, 2) for e in events[:3])
+    assert events[3].tuplet is None
+
+
+def test_broken_rhythm_applies_once_across_a_cluster() -> None:
+    # C>[DF] — the > must scale the RETAINED top note, exactly once.
+    score, _ = parse_abc("X:1\nL:1/4\nK:C\nC>[DF] E2 |]\n")
+    events = score.bars[0].events
+    assert [e.spelled_pitch for e in events] == ["C4", "F4", "E4"]
+    assert events[0].duration == Fraction(3, 8)
+    assert events[1].duration == Fraction(1, 8)
+
+
+def test_quoted_text_tokens_stripped_and_total_count_reported() -> None:
+    # LEGATO emits the placeholder bare, inside quoted strings, and on lyric
+    # lines. None of them may surface as content, and the warning must count
+    # every occurrence (1 title + 1 quoted + 2 lyric-line = 4).
+    abc = 'X:1\nT:<|text|>\nK:C\n"<|text|>" C D E F |]\nw: <|text|> <|text|>\n'
+    score, warnings = parse_abc(abc)
+    strings = [s for b in score.bars for e in b.events for s in e.strings]
+    assert strings == []
+    elided = [w for w in warnings if w.code == "TEXT_ELIDED_BY_MODEL"]
+    assert len(elided) == 1
+    assert elided[0].message.startswith("4 ")
+
+
+def test_quoted_string_with_partial_text_token_keeps_remainder() -> None:
+    score, _ = parse_abc('X:1\nL:1/4\nK:C\n"A7<|text|>" C D E F |]\n')
+    strings = [s for b in score.bars for e in b.events for s in e.strings]
+    assert strings == ["A7"]

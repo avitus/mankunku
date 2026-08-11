@@ -79,3 +79,15 @@ def test_grayscale_mode_preserved() -> None:
     out = preprocess_page(_page(img)).image
 
     assert out.mode == "L"
+
+
+def test_midtones_are_not_binarized() -> None:
+    # The module invariant says pixels are never binarized — enforce it with
+    # actual mid-tone values, which a thresholding step would destroy.
+    img = Image.new("L", (1400, 1400), 255)
+    for i, level in enumerate((64, 128, 192)):
+        img.putpixel((700 + i, 700), level)
+
+    out = preprocess_page(_page(img), trim=False, min_short_side=0).image
+
+    assert sorted(set(out.getdata())) == [64, 128, 192, 255]

@@ -96,6 +96,44 @@ describe('validateOmrTranscription', () => {
 		expect(validateOmrTranscription(badPitch).valid).toBe(false);
 	});
 
+	it('rejects malformed measure-level fields the mapper consumes', () => {
+		// A non-array `warnings` would make the mapper's for..of throw at
+		// fusion time — long after validation claimed the payload was fine.
+		expect(validateOmrTranscription(payload([measure(1, [], { warnings: {} })])).valid).toBe(false);
+		expect(
+			validateOmrTranscription(payload([measure(1, [], { warnings: [{ message: 5 }] })])).valid
+		).toBe(false);
+		expect(
+			validateOmrTranscription(payload([measure(1, [], { raw_unparsed: 'junk' })])).valid
+		).toBe(false);
+		expect(
+			validateOmrTranscription(payload([measure(1, [], { start_repeat: 'true' })])).valid
+		).toBe(false);
+		expect(validateOmrTranscription(payload([measure(1, [], { end_repeat: 1 })])).valid).toBe(
+			false
+		);
+		expect(
+			validateOmrTranscription(payload([measure(1, [], { ending: 'first' })])).valid
+		).toBe(false);
+	});
+
+	it('rejects string booleans on note flags — truthy coercion would drop notes or invent ties', () => {
+		const restStr = payload([measure(1, [note('C4', [0, 1], [1, 4], { is_rest: 'false' })])]);
+		expect(validateOmrTranscription(restStr).valid).toBe(false);
+
+		const tieStr = payload([
+			measure(1, [note('C4', [0, 1], [1, 4], { tied_to_next: 'false' })])
+		]);
+		expect(validateOmrTranscription(tieStr).valid).toBe(false);
+	});
+
+	it('accepts absent optional measure fields (mapper defaults cover them)', () => {
+		const bare = payload([
+			{ number: 1, notes: [note('C4', [0, 1], [1, 4])] } // no flags, no warnings
+		]);
+		expect(validateOmrTranscription(bare).valid).toBe(true);
+	});
+
 	it('enforces DoS caps on measure and note counts', () => {
 		const tooManyMeasures = payload(
 			Array.from({ length: 513 }, (_, i) => measure(i + 1, []))

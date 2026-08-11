@@ -72,6 +72,12 @@ function isCleanStringOrNull(v: unknown, maxLength: number): boolean {
 	return typeof v === 'string' && v.length <= maxLength && !DANGEROUS_CONTENT.test(v);
 }
 
+/** Absent is fine (the mapper defaults it); present must be a real boolean —
+ * a string "false" is truthy and would silently drop notes or invent ties. */
+function isBooleanOrAbsent(v: unknown): boolean {
+	return v === undefined || v === null || typeof v === 'boolean';
+}
+
 function isFraction(v: unknown, allowZeroNumerator: boolean): v is [number, number] {
 	return (
 		Array.isArray(v) &&
@@ -123,6 +129,40 @@ export function validateOmrTranscription(input: unknown): OmrValidation {
 		if (!Number.isInteger(m.number) || (m.number as number) < 1) {
 			errors.push(`measure ${index + 1} has an invalid number`);
 		}
+		// Every field the system mapper consumes must hold its declared type —
+		// the mapper iterates `warnings`, reads `.length` off `raw_unparsed`,
+		// and passes repeat flags/`ending` straight into ModelBar.
+		if (!isBooleanOrAbsent(m.start_repeat)) errors.push(`measure ${index + 1} has an invalid start_repeat`);
+		if (!isBooleanOrAbsent(m.end_repeat)) errors.push(`measure ${index + 1} has an invalid end_repeat`);
+		if (
+			m.ending !== undefined &&
+			m.ending !== null &&
+			(!Number.isInteger(m.ending) || (m.ending as number) < 1 || (m.ending as number) > 8)
+		) {
+			errors.push(`measure ${index + 1} has an invalid ending`);
+		}
+		if (m.raw_unparsed !== undefined && m.raw_unparsed !== null) {
+			if (
+				!Array.isArray(m.raw_unparsed) ||
+				!(m.raw_unparsed as unknown[]).every((s) => isCleanStringOrNull(s, MAX_OMR_TEXT_LENGTH) && s !== null)
+			) {
+				errors.push(`measure ${index + 1} has invalid raw_unparsed content`);
+			}
+		}
+		if (m.warnings !== undefined && m.warnings !== null) {
+			if (
+				!Array.isArray(m.warnings) ||
+				!(m.warnings as unknown[]).every(
+					(w) =>
+						typeof w === 'object' &&
+						w !== null &&
+						typeof (w as Record<string, unknown>).message === 'string' &&
+						isCleanStringOrNull((w as Record<string, unknown>).message, MAX_OMR_TEXT_LENGTH)
+				)
+			) {
+				errors.push(`measure ${index + 1} has invalid warnings`);
+			}
+		}
 		if (!Array.isArray(m.notes)) {
 			errors.push(`measure ${index + 1} notes is not an array`);
 			continue;
@@ -146,6 +186,12 @@ export function validateOmrTranscription(input: unknown): OmrValidation {
 			if (!isFraction(n.onset, true)) errors.push(`measure ${index + 1} note ${noteIndex + 1} has an invalid onset`);
 			if (!isFraction(n.duration, false)) {
 				errors.push(`measure ${index + 1} note ${noteIndex + 1} has an invalid duration`);
+			}
+			if (!isBooleanOrAbsent(n.is_rest)) {
+				errors.push(`measure ${index + 1} note ${noteIndex + 1} has an invalid is_rest`);
+			}
+			if (!isBooleanOrAbsent(n.tied_to_next)) {
+				errors.push(`measure ${index + 1} note ${noteIndex + 1} has an invalid tied_to_next`);
 			}
 		}
 		if (errors.length > 40) {

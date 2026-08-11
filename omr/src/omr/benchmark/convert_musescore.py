@@ -89,6 +89,7 @@ def convert_fixture(
     beat_unit = Fraction(1, denominator)
 
     measures: list[dict[str, Any]] = []
+    skipped_events: list[str] = []
     number = 0
     for section in fixture["sections"]:
         section_start_number = number
@@ -122,6 +123,10 @@ def convert_fixture(
             offset = Fraction(*note["offset"])
             slot = place(offset)
             if slot is None:
+                skipped_events.append(
+                    f"note at offset {offset} beyond section "
+                    f"'{section.get('label', '?')}' ({section['bars']} bars)"
+                )
                 continue
             measure, beat = slot
             midi = note.get("pitch")
@@ -138,6 +143,10 @@ def convert_fixture(
             offset = Fraction(*chord["startOffset"])
             slot = place(offset)
             if slot is None:
+                skipped_events.append(
+                    f"chord '{chord['symbol']}' at offset {offset} beyond section "
+                    f"'{section.get('label', '?')}' ({section['bars']} bars)"
+                )
                 continue
             measure, beat = slot
             measure["chords"].append(
@@ -155,6 +164,9 @@ def convert_fixture(
             "method": "convert_musescore",
             "semitones": semitones,
             "concert_key": concert_key,
+            # Out-of-range events are truncated GROUND TRUTH — surface them
+            # where the human reviewer looks instead of dropping silently.
+            **({"skipped_events": skipped_events} if skipped_events else {}),
         },
         "key_signature": written_key,
         "time_signature": [numerator, denominator],
@@ -173,13 +185,20 @@ def main() -> int:
     parser.add_argument("--slug", default=None)
     args = parser.parse_args()
 
-    fixture = json.loads(args.fixture.read_text())
+    fixture = json.loads(args.fixture.read_text(encoding="utf-8"))
     slug = args.slug or args.output.stem
     result = convert_fixture(
         fixture, semitones=args.semitones, slug=slug, source_pdf=args.source_pdf
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+    args.output.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    skipped = result["provenance"].get("skipped_events", [])
+    if skipped:
+        print(f"WARNING: {len(skipped)} event(s) fell outside their section and were skipped:")
+        for entry in skipped:
+            print(f"  - {entry}")
     print(
         f"wrote {args.output} — reviewed: false. Check it against the printed "
         f"PDF and set \"reviewed\": true before trusting benchmark numbers."

@@ -24,8 +24,17 @@ def run_benchmark(
     out_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
 
-    for gt_path in ground_truth_paths:
-        gt = load_ground_truth(gt_path)
+    # Slugs key both the report's chart map and the artifact filenames — a
+    # duplicate would silently overwrite an earlier chart's results.
+    loaded = [load_ground_truth(p) for p in ground_truth_paths]
+    seen: dict[str, int] = {}
+    for gt in loaded:
+        seen[gt.slug] = seen.get(gt.slug, 0) + 1
+    duplicates = sorted(slug for slug, n in seen.items() if n > 1)
+    if duplicates:
+        raise ValueError(f"duplicate ground-truth slug(s): {', '.join(duplicates)}")
+
+    for gt in loaded:
         pdf_path = repo_root / gt.source_pdf
         if not pdf_path.exists():
             raise FileNotFoundError(f"{gt.slug}: source PDF not found at {pdf_path}")
@@ -54,9 +63,12 @@ def run_benchmark(
                 break
 
         (out_dir / f"{gt.slug}.normalized.json").write_text(
-            json.dumps(bundle.normalized.to_dict(), indent=2, ensure_ascii=False)
+            json.dumps(bundle.normalized.to_dict(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
         )
-        (out_dir / f"{gt.slug}.raw.abc").write_text(bundle.result.raw_transcription)
+        (out_dir / f"{gt.slug}.raw.abc").write_text(
+            bundle.result.raw_transcription, encoding="utf-8"
+        )
 
         results.append(
             {"slug": gt.slug, "reviewed": gt.reviewed, "metrics": metrics, "notes": notes}
@@ -65,8 +77,10 @@ def run_benchmark(
     backend_info = backend.model_info()
     report_md = render_markdown(results, backend_info)
     report_json = render_json(results, backend_info)
-    (out_dir / "report.md").write_text(report_md)
-    (out_dir / "report.json").write_text(json.dumps(report_json, indent=2, ensure_ascii=False))
+    (out_dir / "report.md").write_text(report_md, encoding="utf-8")
+    (out_dir / "report.json").write_text(
+        json.dumps(report_json, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     return {
         "results": results,

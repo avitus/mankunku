@@ -6,7 +6,7 @@
     "method": "convert_musescore",
     "semitones": 14,
     "concert_key": "C",
-    "spot_check": "key, chords (D6/F#7), and opening melody (D5 A4 F#4~) visually spot-checked against the printed page 2026-08-09; full-chart review pending"
+    "spot_check": "key, chords (D6/F#7), and opening melody (D5 A4 F#4~) visually spot-checked against the printed page 2026-08-09; full-chart review pending; 2026-08-11 review question: the semitones=14 transposition emits sharp spellings (A#/D#) where a printed Bb chart most likely prints flats (Bb/Eb) — verify accidental spelling against the printed page ('printed ink only') — A#4 melody spellings in measures 10 and 19"
   },
   "key_signature": "D",
   "time_signature": [

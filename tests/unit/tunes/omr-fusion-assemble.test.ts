@@ -8,6 +8,7 @@
  * supplies chords, geometry supplies bar counts — and the existing
  * converters produce a valid written-pitch Tune without modification.
  */
+import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
@@ -23,7 +24,10 @@ import {
 import type { SystemGeometry } from '$lib/tunes/import/pdf-geometry';
 
 const payload = JSON.parse(
-	readFileSync('tests/fixtures/leadsheets/omr/lady-bird.omr.json', 'utf8')
+	readFileSync(
+		fileURLToPath(new URL('../../fixtures/leadsheets/omr/lady-bird.omr.json', import.meta.url)),
+		'utf8'
+	)
 );
 
 // Lady Bird's printed layout: 4 systems × 4 bars.

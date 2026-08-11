@@ -1482,3 +1482,23 @@ TDD throughout: every layer's tests written and watched fail first; the two ABC
 characterization pins (phrase + tune paths, inline snapshots filled BEFORE
 implementation) prove anchoring changed rendering by zero bytes. 4007 unit tests,
 33 affected e2e green, check clean.
+
+### Addendum — CodeRabbit round on PR #226 (same day)
+
+First-ever review pass over the OMR subsystem (it landed on dev without a PR
+window) surfaced real bugs: chord clusters double-applied tuplet/broken-rhythm
+modifiers and drained tuplet slots; the quoted "<|text|>" placeholder was
+truncated to "|text|>" by ABC's position-marker rule and stored as
+ANNOTATION CONTENT (23/17/20 junk entries across the fixtures) while the
+elided-count warning said "2" because w:-lyric lines are skipped wholesale —
+fixed by one global count plus stripping tokens at the string-capture site,
+fixtures regenerated from their verbatim raw transcriptions (parse → normalize
+→ validate — never hand-edited). Also: every artifact read/write pinned to
+UTF-8 (reports carry Δ and ·), pypdfium2 images copied before the document
+closes, id()-based chord de-dup replaced with positional keys, and the
+tune-notation merged-rest anchors upgraded to range ownership (a display rest
+merging a gap with a stored rest now anchors the STORED element). Rejected
+with rationale: patching byte-identical vendored LEGATO files (quirks
+documented in VENDORED.md instead), and CodeRabbit's cross-page index claim —
+commitBuffer materializes the buffer verbatim, so base+index arithmetic is
+exact post-commit.

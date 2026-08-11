@@ -912,3 +912,54 @@ describe('tuneToAbcWithMap — rest anchors', () => {
 		`);
 	});
 });
+
+describe('tuneToAbcWithMap — merged rest source ownership', () => {
+	it('adjacent stored rests merged into one display rest anchor the full range', () => {
+		// Beats 3+4 of bar 0 hold TWO stored quarter rests → one display half
+		// rest. The anchor must own both flattened indices so arrow-selecting
+		// the swallowed second rest still highlights.
+		const { noteAnchors } = tuneToAbcWithMap(
+			sheet({
+				sections: [
+					section({
+						bars: 2,
+						notes: [
+							{ pitch: 60, duration: [1, 2], offset: [0, 1] },
+							{ pitch: null, duration: [1, 4], offset: [1, 2] },
+							{ pitch: null, duration: [1, 4], offset: [3, 4] },
+							{ pitch: 62, duration: [1, 1], offset: [1, 1] }
+						]
+					})
+				]
+			})
+		);
+		const restAnchor = noteAnchors.find((a) => a.rest);
+		expect(restAnchor).toBeDefined();
+		expect(restAnchor!.sourceIndex).toBe(1);
+		expect(restAnchor!.sourceIndexEnd).toBe(2);
+	});
+
+	it('a display rest merging a gap with a stored rest anchors the stored rest', () => {
+		// Beat 4 holds a stored rest behind a pure gap (beats 2-3). The merged
+		// display rest must anchor the STORED element, not vanish because the
+		// first overlapping input was synthetic.
+		const { noteAnchors } = tuneToAbcWithMap(
+			sheet({
+				sections: [
+					section({
+						bars: 2,
+						notes: [
+							{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+							{ pitch: null, duration: [1, 4], offset: [3, 4] },
+							{ pitch: 62, duration: [1, 1], offset: [1, 1] }
+						]
+					})
+				]
+			})
+		);
+		const restAnchors = noteAnchors.filter((a) => a.rest);
+		expect(restAnchors).toHaveLength(1);
+		expect(restAnchors[0].sourceIndex).toBe(1);
+		expect(restAnchors[0].sourceIndexEnd).toBeUndefined();
+	});
+});

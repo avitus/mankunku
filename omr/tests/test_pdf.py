@@ -59,3 +59,17 @@ def test_corrupted_pdf_raises(tmp_path: Path) -> None:
 
     with pytest.raises(CorruptedInputError):
         render_pdf(p)
+
+
+def test_rendered_images_are_independent_of_document_lifetime(tmp_path: Path) -> None:
+    # to_pil() can share the PDFium bitmap buffer; render_pdf must hand back
+    # copies so pixel access stays valid after the document is closed.
+    p = tmp_path / "one.pdf"
+    _make_pdf(p, ["red"])
+    import gc
+
+    pages = render_pdf(p, dpi=72)
+    gc.collect()
+    img = pages[0].image
+    img.load()
+    assert _dominant_channel(img) == 0

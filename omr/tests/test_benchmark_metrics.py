@@ -126,7 +126,7 @@ def test_chord_metrics_distinguish_root_quality_exact() -> None:
     ]
     m = evaluate_chart(GT, pred, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4))
 
-    # exact: only nothing matches exactly (CΔ7 != Cmaj7 as text, C#7 != Db7, Gm7 != G7)
+    # exact: nothing matches exactly (CΔ7 != Cmaj7 as text, C#7 != Db7, Gm7 != G7)
     assert m.chord_exact.num == 0 and m.chord_exact.den == 3
     # root: Cmaj7/CΔ7 match, G7/Gm7 match; Db7 vs C#7 is an enharmonic MISS
     assert m.chord_root.num == 2 and m.chord_root.den == 3
@@ -165,3 +165,21 @@ def test_structure_mismatches() -> None:
     assert m.time_signature_match is False
     assert m.repeat_f1 == 0.0  # both repeat events missed
     assert m.rehearsal_f1 == 0.0
+
+
+def test_chord_metrics_do_not_alias_repeated_chord_instances() -> None:
+    # The same ChordSymbol INSTANCE reused across predicted measures must be
+    # matched positionally — identity-keyed de-duplication would silently
+    # skip the second occurrence and report a phantom insertion.
+    shared = _chord("Cmaj7", 0)
+    pred = [
+        _measure(1, notes=list(GT[0].notes), chords=[shared], start_repeat=True, rehearsal_mark="A"),
+        _measure(2, notes=list(GT[1].notes), chords=[shared], end_repeat=True),
+    ]
+    gt = [
+        _measure(1, notes=list(GT[0].notes), chords=[_chord("Cmaj7", 0)], start_repeat=True, rehearsal_mark="A"),
+        _measure(2, notes=list(GT[1].notes), chords=[_chord("Cmaj7", 0)], end_repeat=True),
+    ]
+    m = evaluate_chart(gt, pred, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4))
+    assert m.chord_exact.num == 2 and m.chord_exact.den == 2
+    assert m.chord_insertions == 0
