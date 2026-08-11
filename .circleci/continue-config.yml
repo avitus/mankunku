@@ -70,7 +70,7 @@ jobs:
     # (~90s); that duplication is deliberate. Reusing the `build` job's
     # output instead would serialize build → e2e and end up SLOWER, and
     # `build` only runs on main anyway. Reports/artifacts are per-shard.
-    parallelism: 4
+    parallelism: 6
     steps:
       - checkout
       - restore_cache:
