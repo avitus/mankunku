@@ -74,7 +74,7 @@ It runs on the same engine as [single-lick Deep Practice](./user-guide.md#single
 
 - **The bed.** Two bars of one chord, vamping. Enclosures always drill over a **major** vamp. Triad pairs use whatever their family wants: major for the three diatonic pairs, **dominant** for the altered and whole-tone ones, **minor** for the melodic-minor pair. The chip in the session header names it.
 - **The key.** A new variant starts with one key — concert C — and earns more the way licks do, spreading outward around the circle. Keys are displayed in your written pitch.
-- **The tempo.** 60 BPM to start. Clear every key in the rotation and it goes up 5 BPM. In a Trick Drill the tempo **only ever goes up** — a bad round costs you the round, not the tempo.
+- **The tempo.** 60 BPM to start. Clear every key in the rotation and it goes up 1%, rounded up to a whole BPM — so at least 1 BPM, and more as you get faster. In a Trick Drill the tempo **only ever goes up** — a bad round costs you the round, not the tempo — and unlike Deep Practice it **is** saved, because clearing the rotation is the only way a variant advances at all.
 - **Every round opens with the demo.** Two bars of the app playing an example in the current key, then you answer. Unlike Deep Practice, the demo never gets dropped, because the figure is regenerated fresh every round — there's always something new to hear.
 - **Two bars per key**, back to back, with your percentage flashing on the chart row as each window closes. Keys you score **95% or better** on drop out of the rotation for the rest of the session, so the cycle keeps getting shorter and lands on what's still shaky.
 - **One bar of turnaround** joins the rounds, and then it starts again.
@@ -144,5 +144,5 @@ Honest notes, so you don't waste time looking for things that aren't there:
 - There is **no guided tour** for Tricks and no help link on the pages.
 - The **Progress** page has no trick content. Trick drills count toward your streak and your practice calendar, but the per-variant history only lives on the trick's own page — and that chart only gains a point when you clear a whole rotation, so it can stay empty for a long time.
 - Two different thresholds are at work and neither is labelled: **90%** is a pass (it feeds the ladder), **95%** clears a key (it feeds tempo and key unlocks).
-- The **Tempo Bump** knob that controls the +5 BPM only appears on the Deep Practice setup, but its value governs trick drills too.
+- The **Tempo Bump** knob that controls the +1% only appears on the Deep Practice setup, but its value governs trick drills too. Unlike Deep Practice, a trick drill *does* save its bumped tempo — clearing the rotation is the only way a trick advances at all.
 - Your drill tempo is the **lowest** tempo stored across the variant's keys, so one key left sitting at a slow BPM pins the whole variant there.
