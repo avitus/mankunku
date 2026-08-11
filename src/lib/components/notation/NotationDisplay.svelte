@@ -4,7 +4,7 @@
 	import type { Phrase } from '$lib/types/music';
 	import type { Tune } from '$lib/types/tune';
 	import type { InstrumentConfig } from '$lib/types/instruments';
-	import { phraseToAbcWithMap, type PitchedNoteAnchor } from '$lib/music/notation';
+	import { phraseToAbcWithMap, type NoteAnchor } from '$lib/music/notation';
 	import {
 		tuneToAbcWithMap,
 		CHART_STAFF_WIDTH,
@@ -127,11 +127,12 @@
 		 * playhead range marker instead.
 		 */
 		playheadBarFraction?: number | null;
-		/** Fires when the user clicks a pitched note. Receives the source-array index. */
+		/** Fires when the user clicks a note or an anchored rest. Receives the source-array index. */
 		onSelect?: (sourceIndex: number) => void;
 		/**
-		 * Fires when the user clicks a bar's empty space, a rest, or a chord
-		 * symbol on a tune chart. Enables the invisible per-bar hit rects.
+		 * Fires when the user clicks a bar's empty space, an UNANCHORED rest
+		 * (slash bar or pure melody gap), or a chord symbol on a tune chart.
+		 * Enables the invisible per-bar hit rects.
 		 */
 		onBarClick?: (pos: { sectionIdx: number; bar: number }) => void;
 		/**
@@ -198,7 +199,7 @@
 	// they let those effects address the rendered SVG without re-running
 	// renderAbc (the render effect must never read cursorIndex/rangeMarkers).
 	let lastVisualObj: AdapterVisualObj | null = null;
-	let lastNoteAnchors: PitchedNoteAnchor[] = [];
+	let lastNoteAnchors: NoteAnchor[] = [];
 	let lastBarZones: ReturnType<typeof barZones> = [];
 	let prevCursorEl: SVGGraphicsElement | null = null;
 
@@ -232,7 +233,7 @@
 
 		const rendered: {
 			abc: string;
-			noteAnchors: PitchedNoteAnchor[];
+			noteAnchors: NoteAnchor[];
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
 		} = tune
@@ -629,7 +630,7 @@
 		container: HTMLDivElement,
 		visualObj: AdapterVisualObj,
 		anchors: {
-			noteAnchors: PitchedNoteAnchor[];
+			noteAnchors: NoteAnchor[];
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
 		}
@@ -690,7 +691,9 @@
 			lastChordZones = chordZones({
 				systems,
 				barAnchors: anchors.barAnchors,
-				noteAnchors: anchors.noteAnchors,
+				// Beat-edge interpolation samples pitched notes only, keeping the
+				// chord hit-rect geometry identical to the pre-rest-anchor layout.
+				noteAnchors: anchors.noteAnchors.filter((a) => !a.rest),
 				chordSlotAnchors: anchors.chordSlotAnchors,
 				beatsPerBar: sheet.timeSignature[0],
 				barDurationWholeNotes: sheet.timeSignature[0] / sheet.timeSignature[1]
@@ -1048,7 +1051,7 @@
 	/** The rendered SVG group for an anchor's note, resolved by charspan. */
 	function elementForAnchor(
 		visualObj: AdapterVisualObj,
-		anchor: PitchedNoteAnchor
+		anchor: NoteAnchor
 	): SVGGraphicsElement | null {
 		const el = findVoiceItem(visualObj, anchor.startChar)?.abselem?.elemset?.[0];
 		return el instanceof SVGGraphicsElement ? el : null;
@@ -1060,11 +1063,13 @@
 	 * target is the next pitched note. Pairs split across rendered lines
 	 * are skipped, as are pairs too close to fit a wave.
 	 */
-	function drawGlissandi(visualObj: AdapterVisualObj, anchors: PitchedNoteAnchor[]): void {
+	function drawGlissandi(visualObj: AdapterVisualObj, anchors: NoteAnchor[]): void {
 		anchors.forEach((anchor, i) => {
-			if (!anchor.gliss || i + 1 >= anchors.length) return;
+			if (!anchor.gliss) return;
+			const tgtAnchor = anchors.slice(i + 1).find((a) => !a.rest);
+			if (!tgtAnchor) return;
 			const src = elementForAnchor(visualObj, anchor);
-			const tgt = elementForAnchor(visualObj, anchors[i + 1]);
+			const tgt = elementForAnchor(visualObj, tgtAnchor);
 			if (!src || !tgt) return;
 			const svg = src.ownerSVGElement;
 			if (!svg || tgt.ownerSVGElement !== svg) return;
@@ -1086,16 +1091,29 @@
 		});
 	}
 
-	/** Colour the selected note's group, resolved from its anchor charspan. */
+	/** Colour the selected element's group(s), resolved from anchor charspans. */
 	function applySelectionHighlight(
 		visualObj: AdapterVisualObj,
-		anchors: PitchedNoteAnchor[],
+		anchors: NoteAnchor[],
 		index: number | null
 	): void {
 		if (index === null) return;
-		const anchor = anchors.find((a) => a.sourceIndex === index);
-		if (!anchor) return;
-		elementForAnchor(visualObj, anchor)?.classList.add('selected-note');
+		// A fanned-out source rest owns several display segments — highlight all
+		// of them. A source rest swallowed by a merged display rest has no exact
+		// anchor; fall back to the rest anchor whose source range contains it.
+		let targets = anchors.filter((a) => a.sourceIndex === index);
+		if (targets.length === 0) {
+			targets = anchors.filter(
+				(a) =>
+					a.rest &&
+					a.sourceIndexEnd !== undefined &&
+					index >= a.sourceIndex &&
+					index <= a.sourceIndexEnd
+			);
+		}
+		for (const anchor of targets) {
+			elementForAnchor(visualObj, anchor)?.classList.add('selected-note');
+		}
 	}
 </script>
 
@@ -1391,17 +1409,21 @@
 	.chart-practice :global(.abcjs-rhythm) {
 		display: none;
 	}
-	/* Cursor affordance: every pitched note is clickable */
-	.notation-container :global(.abcjs-note) {
+	/* Cursor affordance: notes and rests are clickable */
+	.notation-container :global(.abcjs-note),
+	.notation-container :global(.abcjs-rest) {
 		cursor: pointer;
 	}
-	/* User-selected note — colored notehead + stem so it stands out on the staff.
-	   Includes the .abcjs-note group itself in case abcjs renders the notehead
-	   directly on that element rather than on a child path/ellipse/circle. */
+	/* User-selected element — colored notehead + stem (or rest glyph) so it
+	   stands out on the staff. Includes the group itself in case abcjs renders
+	   the glyph directly on that element rather than on a child path/ellipse/
+	   circle. abcjs classes rests .abcjs-rest, not .abcjs-note. */
 	.notation-container :global(.abcjs-note.selected-note),
 	.notation-container :global(.abcjs-note.selected-note path),
 	.notation-container :global(.abcjs-note.selected-note ellipse),
-	.notation-container :global(.abcjs-note.selected-note circle) {
+	.notation-container :global(.abcjs-note.selected-note circle),
+	.notation-container :global(.abcjs-rest.selected-note),
+	.notation-container :global(.abcjs-rest.selected-note path) {
 		fill: var(--color-accent) !important;
 		stroke: var(--color-accent) !important;
 	}

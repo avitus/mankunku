@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Tune } from '$lib/types/tune';
-import type { PitchedNoteAnchor } from '$lib/music/notation';
+import type { NoteAnchor } from '$lib/music/notation';
 import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
 import { tuneToAbcWithMap, type BarAnchor, type ChordSlotAnchor } from '$lib/music/tune-notation';
 import {
@@ -200,7 +200,7 @@ describe('chordZones — one cell per (system × bar × beat)', () => {
 		];
 		const barAnchors: BarAnchor[] = [{ startChar: 0, endChar: 6, sectionIdx: 0, bar: 0 }];
 		// offset 0.5 whole-notes in 4/4 → beat 2.
-		const noteAnchors: PitchedNoteAnchor[] = [
+		const noteAnchors: NoteAnchor[] = [
 			{ startChar: 0, endChar: 2, sourceIndex: 0, offset: 0 },
 			{ startChar: 2, endChar: 4, sourceIndex: 1, offset: 0.5 }
 		];

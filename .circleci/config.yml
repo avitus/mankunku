@@ -24,8 +24,11 @@ workflows:
           # A file matches if any regex fires. Multiple rules may fire per
           # path. If no rule fires, parameters keep their defaults (false).
           # .circleci/* is routed to nginx-changed so that updates to this
-          # pipeline itself trigger a nginx deploy verification on main.
+          # pipeline itself trigger a nginx deploy verification on main,
+          # and to omr-changed so edits to the omr-test job validate it.
           mapping: |
             ^nginx/.*                 nginx-changed  true
             ^deploy/nginx/.*          nginx-changed  true
             ^\.circleci/.*            nginx-changed  true
+            ^omr/.*                   omr-changed    true
+            ^\.circleci/.*            omr-changed    true

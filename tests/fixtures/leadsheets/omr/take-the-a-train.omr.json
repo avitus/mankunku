@@ -1,0 +1,1498 @@
+{
+  "omr_version": "0.1.0",
+  "backend": {
+    "name": "legato_v1",
+    "model_id": "guangyangmusic/legato",
+    "revision": "2d07c5d0e73186f2c0b12e35ea187bbc30dec18c",
+    "version": "0.1.0",
+    "device": "cpu",
+    "details": {
+      "note": "LEGATO v1 experimentation backend — NOT LEGATO 2",
+      "license": "MIT",
+      "max_length": 2048,
+      "num_beams": 5,
+      "repetition_penalty": 1.1
+    }
+  },
+  "result": {
+    "raw_transcription": "X:1\nT:<|text|>\nC:<|text|>\nL:1/8\nM:4/4\nI:linebreak $\nK:D\nV:1 treble nm=<|text|> snm=<|text|>\nV:1\n\"<|text|>\"\"<|text|>\" A8- | A f3 A2 d2 |\"<|text|>\" f_B- B6- | B8 |$\"<|text|>\" B8 | %5\n\"<|text|>\" B=c^cf A_AG_e |\"<|text|>\" dF- F6- |1\"<|text|>\" F8 :|2 F8\"<|text|>\" ||$\"<|text|>\" Bd- d6 | %10\n f G3 B2 d2 | f B3- (B4 | B8) |$\"<|text|>\" BB- d6 | f ^G3 B2 d2 | %15\n\"<|text|>\" f B3- (B4 |\"<|text|>\" B4)\"<|text|>\" _B4 ||$\"<|text|>\"\"<|text|>\" A8- | A f3 A2 d2 |\"<|text|>\" f_B- B6- | %20\n B8 |$\"<|text|>\" B8 |\"<|text|>\" B=c^cf A_AG_e |\"<|text|>\" dF- F6- |\"<|text|>\" F8 |] %25\n",
+    "format": "abc",
+    "raw_pages": [
+      {
+        "page_index": 0,
+        "text": "X:1\nT:<|text|>\nC:<|text|>\nL:1/8\nM:4/4\nI:linebreak $\nK:D\nV:1 treble nm=<|text|> snm=<|text|>\nV:1\n\"<|text|>\"\"<|text|>\" A8- | A f3 A2 d2 |\"<|text|>\" f_B- B6- | B8 |$\"<|text|>\" B8 | %5\n\"<|text|>\" B=c^cf A_AG_e |\"<|text|>\" dF- F6- |1\"<|text|>\" F8 :|2 F8\"<|text|>\" ||$\"<|text|>\" Bd- d6 | %10\n f G3 B2 d2 | f B3- (B4 | B8) |$\"<|text|>\" BB- d6 | f ^G3 B2 d2 | %15\n\"<|text|>\" f B3- (B4 |\"<|text|>\" B4)\"<|text|>\" _B4 ||$\"<|text|>\"\"<|text|>\" A8- | A f3 A2 d2 |\"<|text|>\" f_B- B6- | %20\n B8 |$\"<|text|>\" B8 |\"<|text|>\" B=c^cf A_AG_e |\"<|text|>\" dF- F6- |\"<|text|>\" F8 |] %25\n",
+        "token_count": 242
+      }
+    ],
+    "backend": {
+      "name": "legato_v1",
+      "model_id": "guangyangmusic/legato",
+      "revision": "2d07c5d0e73186f2c0b12e35ea187bbc30dec18c",
+      "version": "0.1.0",
+      "device": "cpu",
+      "details": {
+        "note": "LEGATO v1 experimentation backend — NOT LEGATO 2",
+        "license": "MIT",
+        "max_length": 2048,
+        "num_beams": 5,
+        "repetition_penalty": 1.1
+      }
+    },
+    "warnings": [
+      {
+        "code": "TEXT_ELIDED_BY_MODEL",
+        "message": "LEGATO v1 replaces all printed text (titles, annotations, and chord symbols) with <|text|> placeholders — chord symbols are not transcribed by this backend",
+        "page": null,
+        "measure": null,
+        "raw": null
+      }
+    ],
+    "metadata": {
+      "source": "../Leadsheets/PDF/Take the A Train.pdf",
+      "pages": 1
+    }
+  },
+  "normalized": {
+    "title": null,
+    "composer": null,
+    "key_signature": "D",
+    "time_signature": [
+      4,
+      4
+    ],
+    "tempo": null,
+    "measures": [
+      {
+        "number": 1,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 2,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              3,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              3,
+              4
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 3,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Bb4",
+            "midi": 70,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Bb4",
+            "midi": 70,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              4
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 4,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 5,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 6,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "C5",
+            "midi": 72,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "C#5",
+            "midi": 73,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              3,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Ab4",
+            "midi": 68,
+            "onset": [
+              5,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "G4",
+            "midi": 67,
+            "onset": [
+              3,
+              4
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Eb5",
+            "midi": 75,
+            "onset": [
+              7,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 7,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#4",
+            "midi": 66,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#4",
+            "midi": 66,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              4
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 8,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#4",
+            "midi": 66,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": true,
+        "ending": 1,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 9,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#4",
+            "midi": 66,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": 2,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 10,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 11,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "G4",
+            "midi": 67,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              3,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              3,
+              4
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 12,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              3,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              2
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 13,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 14,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 15,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "G#4",
+            "midi": 68,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              3,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              3,
+              4
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 16,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              3,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              2
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 17,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              2
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Bb4",
+            "midi": 70,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              2
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 18,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 19,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              3,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              3,
+              4
+            ],
+            "duration": [
+              1,
+              4
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 20,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Bb4",
+            "midi": 70,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Bb4",
+            "midi": 70,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              4
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 21,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 22,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 23,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "B4",
+            "midi": 71,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "C5",
+            "midi": 72,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "C#5",
+            "midi": 73,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#5",
+            "midi": 78,
+            "onset": [
+              3,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "A4",
+            "midi": 69,
+            "onset": [
+              1,
+              2
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Ab4",
+            "midi": 68,
+            "onset": [
+              5,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "G4",
+            "midi": 67,
+            "onset": [
+              3,
+              4
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "Eb5",
+            "midi": 75,
+            "onset": [
+              7,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 24,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "D5",
+            "midi": 74,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#4",
+            "midi": 66,
+            "onset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          },
+          {
+            "spelled_pitch": "F#4",
+            "midi": 66,
+            "onset": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              4
+            ],
+            "tied_to_next": true,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      },
+      {
+        "number": 25,
+        "chords": [],
+        "notes": [
+          {
+            "spelled_pitch": "F#4",
+            "midi": 66,
+            "onset": [
+              0,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "tied_to_next": false,
+            "tuplet": null,
+            "is_rest": false
+          }
+        ],
+        "start_repeat": false,
+        "end_repeat": false,
+        "ending": null,
+        "rehearsal_mark": null,
+        "meter": [
+          4,
+          4
+        ],
+        "raw_unparsed": [],
+        "warnings": []
+      }
+    ],
+    "text_annotations": [],
+    "warnings": [
+      {
+        "code": "TEXT_ELIDED_BY_MODEL",
+        "message": "24 <|text|> token(s): the model replaced printed text (titles, annotations, chord symbols) with a placeholder",
+        "page": null,
+        "measure": null,
+        "raw": null
+      }
+    ]
+  },
+  "validation_warnings": []
+}

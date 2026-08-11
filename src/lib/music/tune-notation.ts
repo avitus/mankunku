@@ -34,7 +34,7 @@ import {
 	shorterFraction,
 	signatureSpelling,
 	type KeySigMap,
-	type PitchedNoteAnchor
+	type NoteAnchor
 } from './notation';
 
 // Re-export layout helpers so call sites can share one module surface.
@@ -104,8 +104,14 @@ export interface ChordSlotAnchor {
 
 interface DisplayElement {
 	note: Note;
-	/** Index into the flattened (notation-order) note array, or null for rests. */
+	/**
+	 * Index into the flattened (notation-order) note array — for a merged
+	 * display rest, the FIRST stored element it covers. Null when the element
+	 * covers no stored source (a pure melody gap).
+	 */
 	sourceIndex: number | null;
+	/** Last stored flattened index a merged display rest covers (else = sourceIndex). */
+	sourceIndexEnd: number | null;
 	/** The harmony segment governing this element's offset, for spelling. */
 	governing: HarmonicSegment | null;
 }
@@ -183,7 +189,7 @@ export function tuneToAbcWithMap(
 	options: TuneAbcOptions = {}
 ): {
 	abc: string;
-	noteAnchors: PitchedNoteAnchor[];
+	noteAnchors: NoteAnchor[];
 	barAnchors: BarAnchor[];
 	chordSlotAnchors: ChordSlotAnchor[];
 } {
@@ -231,7 +237,14 @@ export function tuneToAbcWithMap(
 	];
 
 	const tokens: string[] = [];
-	const pendingAnchors: Array<{ tokenIndex: number; sourceIndex: number; offset: number; gliss?: boolean }> = [];
+	const pendingAnchors: Array<{
+		tokenIndex: number;
+		sourceIndex: number;
+		offset: number;
+		rest?: true;
+		sourceIndexEnd?: number;
+		gliss?: boolean;
+	}> = [];
 	const pendingBarAnchors: Array<{
 		startTokenIndex: number;
 		barlineTokenIndex: number;
@@ -264,16 +277,23 @@ export function tuneToAbcWithMap(
 		openBar = null;
 	}
 
+	// Whole empty bar → beat-aligned jazz slashes in the melody voice. Shared
+	// by renderElement (what to draw) and emitElement (slash bars are never
+	// anchored — clicking one keeps arming the bar cursor) so the two can't
+	// drift.
+	function isSlashBarRest(note: Note, duration: Fraction): boolean {
+		if (note.pitch !== null) return false;
+		const bar = Math.floor(fractionToFloat(note.offset) / barDuration + 1e-9);
+		return (
+			slashAbsBars.has(sectionBaseBars + bar) &&
+			Math.abs(fractionToFloat(duration) - barDuration) < 1e-9
+		);
+	}
+
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
 		const note = el.note;
 		if (note.pitch === null) {
-			const bar = Math.floor(fractionToFloat(note.offset) / barDuration + 1e-9);
-			const absBar = sectionBaseBars + bar;
-			// Whole empty bar → beat-aligned jazz slashes in the melody voice.
-			if (
-				slashAbsBars.has(absBar) &&
-				Math.abs(fractionToFloat(duration) - barDuration) < 1e-9
-			) {
+			if (isSlashBarRest(note, duration)) {
 				return slashBarAbc(sheet.timeSignature, defaultLength);
 			}
 			// Partial rest inside a bar that has melody: visible rest in M
@@ -313,7 +333,7 @@ export function tuneToAbcWithMap(
 	}
 
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {
-		if (el.note.pitch !== null && el.sourceIndex !== null) {
+		if (el.sourceIndex !== null && !isSlashBarRest(el.note, duration)) {
 			pendingAnchors.push({
 				tokenIndex: tokens.length,
 				sourceIndex: el.sourceIndex,
@@ -321,6 +341,12 @@ export function tuneToAbcWithMap(
 				// element's section-local offset (sectionBaseBars is this
 				// section's base while the body loop runs).
 				offset: sectionBaseBars * barDuration + fractionToFloat(el.note.offset),
+				...(el.note.pitch === null ? { rest: true as const } : {}),
+				...(el.note.pitch === null &&
+				el.sourceIndexEnd !== null &&
+				el.sourceIndexEnd !== el.sourceIndex
+					? { sourceIndexEnd: el.sourceIndexEnd }
+					: {}),
 				// The MuseScore-style wavy connector is drawn over the SVG by
 				// NotationDisplay (abcjs has no native glissando).
 				...(el.note.gliss ? { gliss: true } : {})
@@ -522,12 +548,32 @@ export function tuneToAbcWithMap(
 		}
 		flattenedNoteBase += sec.notes.length;
 
-		const { display, sourceMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
-		const elements: DisplayElement[] = display.map((note, k) => ({
-			note,
-			sourceIndex: sourceMap[k] === null ? null : inputSources[sourceMap[k]!],
-			governing: governingSegment(sec.harmony, fractionToFloat(note.offset))
-		}));
+		const { display, sourceMap, sourceEndMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
+		const elements: DisplayElement[] = display.map((note: Note, k: number): DisplayElement => {
+			// A merged display rest can cover several input elements — gaps
+			// (inputSources null) and stored rests interleaved. Anchor it to
+			// the stored elements it covers: first as the click/delete target,
+			// last to close the highlight range. All-gap coverage → unanchored.
+			const lo = sourceMap[k];
+			const hi = sourceEndMap[k];
+			let sourceIndex: number | null = null;
+			let sourceIndexEnd: number | null = null;
+			if (lo !== null && hi !== null) {
+				for (let s = lo; s <= hi; s++) {
+					const src = inputSources[s];
+					if (src !== null) {
+						if (sourceIndex === null) sourceIndex = src;
+						sourceIndexEnd = src;
+					}
+				}
+			}
+			return {
+				note,
+				sourceIndex,
+				sourceIndexEnd,
+				governing: governingSegment(sec.harmony, fractionToFloat(note.offset))
+			};
+		});
 
 		// ── Bar-structured emission (mirrors the phrase loop's beam/triplet rules) ──
 		let barState = initBarState(keySigAccidentals);
@@ -645,15 +691,11 @@ export function tuneToAbcWithMap(
 		tokenStarts[t] = charCursor;
 		charCursor += tokens[t].length;
 	}
-	const noteAnchors: PitchedNoteAnchor[] = pendingAnchors.map(
-		({ tokenIndex, sourceIndex, offset, gliss }) => ({
-			startChar: bodyStart + tokenStarts[tokenIndex],
-			endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
-			sourceIndex,
-			offset,
-			...(gliss ? { gliss: true } : {})
-		})
-	);
+	const noteAnchors: NoteAnchor[] = pendingAnchors.map(({ tokenIndex, ...fields }): NoteAnchor => ({
+		startChar: bodyStart + tokenStarts[tokenIndex],
+		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
+		...fields
+	}));
 	const barAnchors: BarAnchor[] = pendingBarAnchors.map(
 		({ startTokenIndex, barlineTokenIndex, sectionIdx, bar }) => ({
 			startChar: bodyStart + tokenStarts[startTokenIndex],

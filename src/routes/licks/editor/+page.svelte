@@ -595,7 +595,7 @@
 			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
 			<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>
 			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
-			<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Select note &middot; <kbd>Esc</kbd> Clear</span>
+			<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Select note/rest &middot; <kbd>Esc</kbd> Clear</span>
 			<span><kbd>Backspace</kbd>/<kbd>Delete</kbd> Delete selected</span>
 		</div>
 	</details>

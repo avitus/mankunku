@@ -208,3 +208,87 @@ describe.each(CHARTS)('$slug — PDF import vs MuseScore import', ({ slug, known
 		);
 	});
 });
+
+// ─── OMR-fused import (LEGATO melody + text-layer chords) ──────────────────
+//
+// Fixtures recorded through the real import page with the committed
+// `tests/fixtures/leadsheets/omr/<slug>.omr.json` transcriptions attached —
+// fully deterministic and network-free (the recorder aborts on any parse-
+// route POST). The saved sheet is already concert pitch (the page applies
+// the written-Bb shift on save), so no transposition here.
+
+const OMR_CHARTS = CORPUS.filter(
+	(c) =>
+		c.omrFloors &&
+		existsSync(
+			new URL(`../fixtures/leadsheets/pdf-vs-musescore/${c.slug}.omr-import.json`, import.meta.url)
+		)
+);
+
+function loadOmr(slug: string): { ref: Tune; omr: Tune } {
+	const ref = JSON.parse(readFileSync(fixture(`${slug}.musescore-import.json`), 'utf8')) as Tune;
+	const res = JSON.parse(readFileSync(fixture(`${slug}.omr-import.json`), 'utf8')) as {
+		sheet: Tune;
+	};
+	return { ref, omr: res.sheet };
+}
+
+describe.each(OMR_CHARTS)(
+	'$slug — OMR-fused import vs MuseScore import',
+	({ slug, omrKnownDefects, omrFloors }) => {
+		const { ref, omr } = loadOmr(slug);
+		const defects = new Set(omrKnownDefects ?? []);
+		const target = (id: string) => (defects.has(id) ? it.fails : it);
+
+		it('agrees on the time signature', () => {
+			expect(omr.timeSignature).toEqual(ref.timeSignature);
+		});
+
+		target('key')('agrees on the concert key', () => {
+			expect(omr.key).toBe(ref.key);
+		});
+
+		target('bars')('agrees on the total bar count', () => {
+			expect(totalBars(omr)).toBe(totalBars(ref));
+		});
+
+		target('form')('agrees on the form (sections, repeats, endings)', () => {
+			const form = (s: Tune) =>
+				s.sections.map((sec) => [
+					sec.bars,
+					sec.repeatStart ?? false,
+					sec.repeatEnd ?? false,
+					sec.ending ?? 0
+				]);
+			expect(form(omr)).toEqual(form(ref));
+		});
+
+		target('chords')('recovers every chord change at its printed position', () => {
+			expect(chords(omr)).toEqual(chords(ref));
+		});
+
+		target('melody')('recovers the full melody note-for-note', () => {
+			expect(agreement(melody(ref), melody(omr), strictEq)).toBe(1);
+		});
+
+		target('pitches')('recovers the melody pitch sequence', () => {
+			expect(agreement(melody(ref), melody(omr), samePitch)).toBe(1);
+		});
+
+		target('any-melody')('extracts a non-trivial melody (at least half the notes)', () => {
+			expect(melody(omr).length).toBeGreaterThanOrEqual(melody(ref).length / 2);
+		});
+
+		it('chord-sequence agreement stays at or above the recorded floor', () => {
+			expect(agreement(chordSeq(ref), chordSeq(omr), (a, b) => a === b)).toBeGreaterThanOrEqual(
+				omrFloors!.chordSeq
+			);
+		});
+
+		it('melody pitch agreement stays at or above the recorded floor', () => {
+			expect(agreement(melody(ref), melody(omr), samePitch)).toBeGreaterThanOrEqual(
+				omrFloors!.pitchSeq
+			);
+		});
+	}
+);

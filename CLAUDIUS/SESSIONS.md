@@ -1322,3 +1322,183 @@ unnoticed. That is a gap, not a fixed bug.
 
 Final: 248 files / 3938 unit+integration green, check 0/0, and all five PR checks green
 (CircleCI test + e2e, path-filtering, GitGuardian, CodeRabbit).
+
+### Closeout — PR #221 merged as 28467fb
+
+Shipped: sixteenth notes + dotted eighths in both editors (the ask), and the PDF-import NDJSON
+heartbeat with partial results that had been sitting uncommitted from the previous session.
+Five commits, 3938 unit+integration green, all five PR checks green, two CodeRabbit rounds —
+8 findings, 7 adopted, 1 rejected and withdrawn by the reviewer.
+
+Two process notes from the closeout itself:
+
+- **I was told the PR was merged and it was not.** `gh pr view` said `state=OPEN`,
+  `merged=false`, and `main` was still on #220's merge commit. Easy mistake to make — #220 is
+  also a dev→main PR merged the same day — but "someone says it's done" is a claim like any
+  other, and the whole session had been about claims that survive checking. Reported it rather
+  than closing out on it; the real merge landed a minute later.
+- **Merged ≠ deployed here.** The deploy job runs only on main and has silently died in the
+  OOM killer before while every other job stayed green, leaving prod on a two-day-old build.
+  So closeout isn't "merged", it's `/api/health` returning the new commit SHA. Watching that
+  rather than declaring victory at the merge button.
+
+The one thing I'd want a future session to pick up: **the whole-PDF fallback has no e2e
+coverage.** Not a regression — partial results removed the trigger — but the stub sat there
+wrong and unobservable, and I fixed the stub while leaving the hole. Saved as a memory so
+"the PDF e2e suite passes" is never read as "the fallback works."
+
+## 2026-08-09 (cont. 2) — LEGATO 2: the release that wasn't, and the subsystem built to receive it
+
+The ask: replace direct vision-LLM reading of lead sheets with a proper OMR stage using
+LEGATO 2 — with an explicit order to VERIFY availability first and never pass off a
+substitute. The verification was the whole ballgame. The paper (arXiv:2607.05769, July 7)
+is real and good: YOLO system segmentation → 113.7M-trainable VLM decoding system-by-system
+conditioned on previous systems' ABC → rule-based merge, with a text-aware tokenizer that
+finally transcribes titles and annotations. But it says, verbatim, "We will enable
+reproduction by releasing data and code upon publication" — and it's a preprint. No code
+URL exists. The author's HF profile has `legato-1.5` (0.9B, gated *manual*, zero license,
+zero model card, zero downloads) uploaded five months BEFORE the paper — development
+artifacts wearing a public URL. I documented all eight of the user's availability questions
+with receipts in docs/omr/legato2.md and reported the blocker instead of improvising around it.
+
+What got built (all green: 147 hermetic pytest, ruff clean, app's 3938 vitest untouched):
+`omr/` — a uv-managed Python 3.12 project, first Python in this repo ever. OMRBackend
+protocol + registry (lazy imports), pypdfium2 rendering, conservative preprocessing that
+refuses to trim when content touches the page edge, a malformation-resilient ABC parser
+(one bad span costs one measure, kept verbatim — never the score), enharmonic-preserving
+chord parser (all 18 required jazz symbols), no-inference normalizer, deterministic
+validation, debug artifact dirs that never fabricate (no systems/ for a whole-page model),
+CLI with honest exit codes (legato2 → exit 3 with the blocker message), and a benchmark
+harness whose every ratio prints its denominator. LegatoV1Backend vendors the MIT model
+code (pinned SHA), pins the checkpoint revision, auto-selects cuda→mps→cpu with a loud
+MPS fallback. CI gets a path-filtered omr-changed job mirroring nginx-changed.
+
+The finding that matters most for THIS app: LEGATO v1 replaces every text span with a
+single <|text|> token — and in ABC, chord symbols ARE text. So the released model reads
+melody but is structurally blind to the half of a lead sheet this application cares most
+about. Every v1 result carries a standing TEXT_ELIDED_BY_MODEL warning; the benchmark's
+chord metrics will read ≈0 by design. That number is the argument for LEGATO 2, measured.
+
+Ground truth: converted 3 corpus charts from the concert-pitch MuseScore fixtures
+(+14 semitones — the tenor rule, the transposition wrinkle made explicit as a flag),
+then visually reviewed each against its rendered PDF. Caught my own converter inventing
+rehearsal marks from section labels that aren't printed on Lady Bird's page — exactly
+the recognized-vs-inferred line the whole design draws, crossed by my own tooling.
+Fixed: converters emit no marks; humans add printed ones (I added A-Train's boxed A/B/A
+from the page). Files stay "reviewed": false until full human review.
+
+Blocked at the finish line by auth, not code: the checkpoint is gated (auto-approve,
+but a login is a thing only the user can do). Real inference + the first recorded
+benchmark run await an HF_TOKEN.
+
+### Addendum — the slice ran, and the numbers surprised me in both directions
+
+Auth was a three-gate saga (HF login → legato terms → Meta's Llama form; the checkpoint
+turned out to be decoder-only with the encoder streaming from Meta's gated repo — a fact
+no model card states). Two real bugs fell out of the first live run: our pinned revision
+propagated into the nested meta-llama fetch (fixed: snapshot-download locally, load from
+path; regression-pinned), and MPS generation SIGABRTs the whole process on torch 2.6
+(LLVM shape-inference failure in mps.matmul — uncatchable, so device auto-selection now
+never picks MPS; that's also what silently killed the first pytest run, whose exit code 0
+was tail's, not pytest's. Pipe exit codes lie about upstream deaths).
+
+Then the milestone, measured on CPU (~36s/page): melody MIDI 94.8%, rhythm 96.8%,
+measure alignment 73/73, keys/meters 100%, A-Train's printed repeat structure F1 1.0 —
+and chords 0/60, rehearsal marks 0.0, title/composer elided. The out-of-domain fear was
+wrong for typeset melody; the text-elision prediction was exactly right. One GT lesson:
+the fixture marked a start-repeat the page never printed (implicit from-the-top repeat)
+— the MODEL was right and my ground truth was wrong. Baseline recorded at
+docs/omr/benchmark-2026-08-09-legato-v1.md; user feedback twice this session: action
+items must LEAD the message, isolated and labeled — never embedded in explanation prose.
+
+## 2026-08-10 — The hybrid: each pipeline's blind spot covered by the other's eye
+
+Same-day follow-through on yesterday's benchmark finding. The user asked whether the
+current solution and LEGATO could combine; the answer turned out to be almost
+embarrassingly yes, because the import pipeline was ALREADY an evidence-fusion system
+with authority rules — Claude merely occupied the "melody model" slot, and that slot
+has a transport-agnostic callback seam (`pdf-import-run`'s design, paying off months
+later). LEGATO's normalized JSON slides into the same `ModelBar` shape Claude produces;
+`assembleClaudeDoc` and `claudeJsonToTune` never knew anything changed.
+
+The whole bridge is one new pure module (`omr-transcription.ts`): untrusted-input
+validation in the adopted-validator style, key-name→fifths with enharmonics and minors,
+and the two unit conversions that matter (flat measure list → per-system chunks by
+geometry bar counts; whole-note fractions → declared-denominator beats). Plus one page
+wiring: an optional second file input, fused responses resolving instantly, Claude only
+for uncovered systems — and a keyless server can now import via OMR alone, which fell
+out of the design rather than being designed.
+
+Recorded against the MuseScore references (the suite's own metrics, no new yardstick):
+melody pitch agreement 0.887 / 0.956 / 1.000 where the Claude floors were 0.55 / 0.6 /
+0.5 — and chords at EXACT printed positions on two of three charts, with A-Train's
+full repeat form (sections, repeats, both endings) passing the strict target that no
+chart ever passed on the AI path. All of Me passed strict pitch-sequence: every printed
+pitch, in order, recovered. The provisional knownDefects I pinned before running the
+suite turned out exactly right — 85 passed, 35 expected-fail, zero surprises, which
+is what it feels like when the measurement system was built before the feature.
+
+Process notes: the fused-fixture recorder is COMMITTED and env-gated
+(RECORD_OMR_FIXTURES=1) — a deliberate correction of the original corpus recorder
+living uncommitted in a scratchpad, which the corpus header itself laments. And the
+zero-network e2e asserts `seenMeters` stays empty — the cheapest possible proof that
+fusion actually replaced the API call rather than racing it.
+
+## 2026-08-11 — Rests become first-class: four layers of "pitched only" unwound
+
+User report, one line: "When editing tunes, it is not possible to select and delete
+rests." Exploration showed the exclusion wasn't one guard but FOUR independent layers
+agreeing rests don't exist — anchors never emitted (notation.ts / tune-notation.ts),
+click resolution falling through to the bar (abcjs-adapter), state guards
+(selectNote / selectPrev / selectNext / resolveTargetNoteIndex), and highlight CSS
+scoped to `.abcjs-note` when abcjs classes rests `.abcjs-rest`. The nastiest part was
+none of these: `resolveTargetNoteIndex` FELL BACK to the last pitched note, so
+Backspace aimed at a trailing rest silently deleted the note before it and orphaned
+the rest. Saved licks carry a persisted trailing pad rest, so re-editing a lick hit
+this exactly.
+
+Shape of the fix: split the conflated target resolver in two
+(`resolveDeleteTargetIndex` — any element, fallback last element;
+`resolvePitchedTargetIndex` — rest selection is a HARD no-op, never a retarget),
+arrows stop on rests MuseScore-style, `addRest` now selects its rest like `addNote`
+does, and `mergeConsecutiveRests` gained representative source indices (first
+overlapping source rest per display segment, `sourceEndMap` closing the range) so
+display rests — N:M with buffer rests — finally have an honest click target.
+`PitchedNoteAnchor` renamed `NoteAnchor` with `rest?: true`. Slash bars stay bar
+clicks (whole-bar stored rests are arrow-reachable, not clickable); pure gaps have no
+stored element and still fall to the bar cursor — the tune editor's gap-rest
+click-to-arm-cursor e2e passes UNCHANGED, now documenting the distinction rather
+than the limitation.
+
+Two e2e lessons worth keeping: slash bars render `.abcjs-rest` glyphs too, so
+whole-chart rest counts are brittle (30 rests on an 8-bar form with two real ones);
+and the lick editor has NO client-only artifact to wait on (the chart doesn't render
+until the buffer has content), so bare keypresses race SSR hydration — the fix is
+poll-clicking a duration button until `aria-pressed` reacts. Also geometric comedy:
+an eighth rest's bbox center sits ON the middle staff line, which intercepts the
+pointer; quarter rests clear it.
+
+TDD throughout: every layer's tests written and watched fail first; the two ABC
+characterization pins (phrase + tune paths, inline snapshots filled BEFORE
+implementation) prove anchoring changed rendering by zero bytes. 4007 unit tests,
+33 affected e2e green, check clean.
+
+### Addendum — CodeRabbit round on PR #226 (same day)
+
+First-ever review pass over the OMR subsystem (it landed on dev without a PR
+window) surfaced real bugs: chord clusters double-applied tuplet/broken-rhythm
+modifiers and drained tuplet slots; the quoted "<|text|>" placeholder was
+truncated to "|text|>" by ABC's position-marker rule and stored as
+ANNOTATION CONTENT (23/17/20 junk entries across the fixtures) while the
+elided-count warning said "2" because w:-lyric lines are skipped wholesale —
+fixed by one global count plus stripping tokens at the string-capture site,
+fixtures regenerated from their verbatim raw transcriptions (parse → normalize
+→ validate — never hand-edited). Also: every artifact read/write pinned to
+UTF-8 (reports carry Δ and ·), pypdfium2 images copied before the document
+closes, id()-based chord de-dup replaced with positional keys, and the
+tune-notation merged-rest anchors upgraded to range ownership (a display rest
+merging a gap with a stored rest now anchors the STORED element). Rejected
+with rationale: patching byte-identical vendored LEGATO files (quirks
+documented in VENDORED.md instead), and CodeRabbit's cross-page index claim —
+commitBuffer materializes the buffer verbatim, so base+index arithmetic is
+exact post-commit.

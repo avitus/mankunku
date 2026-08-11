@@ -897,3 +897,47 @@ seeing?* Here it was not different at all.
 Corollary I should act on rather than admire: the whole-PDF fallback now has **no e2e coverage
 whatsoever**. I fixed the stub's fidelity and left the hole. Noting it as a gap rather than
 quietly implying it is tested.
+
+## The gate between "published" and "released" (2026-08-09, LEGATO 2 session)
+
+Two observations from the availability investigation worth keeping:
+
+1. **A model can be public and unusable at once.** `legato-1.5` sits on a public HF URL
+   with 0.9B parameters — and a manual gate, no license, and no card. Half the
+   verification work was distinguishing "exists" from "released": license, gate mode,
+   inference code, and documentation each independently gate usability, and the user's
+   prompt anticipated exactly this by demanding the distinction. The eight-question
+   table format they specified turned out to be the right artifact: each row falsifiable,
+   each with a URL.
+
+2. **My own tooling crossed the design's central line within hours of drawing it.** The
+   normalizer's whole contract is "record only what is printed" — and my fixture
+   converter promptly emitted section labels as rehearsal marks that appear nowhere on
+   the printed page. Nothing in the type system catches this class of error; only
+   looking at the actual page did. That's the same lesson as the docs-four-surfaces
+   audit: absence is invisible unless you start from the artifact and ask "where did
+   this field come from," not from the schema and ask "is it filled."
+
+Also filed for later: the corpus PDFs carry colored practice-highlight boxes. The app's
+own geometry pass deliberately ignores color; a pixel OMR model trained on clean IMSLP
+scans has never seen anything like them. When v1's melody numbers come in low, check
+whether the highlights are implicated before blaming the swing eighths.
+
+## 2026-08-11 — Silent retargeting is worse than refusal
+
+The rest-deletion bug had a design lesson buried in it: `resolveTargetNoteIndex`
+tried to be helpful by falling back to "the last pitched note" whenever the selection
+wasn't usable — and that helpfulness is what turned a missing feature into data
+corruption. A user aiming Backspace at a rest deleted a NOTE they could see was not
+selected. The fix's core idea (two resolvers with different acceptance rules AND
+different fallbacks) generalizes: when an operation can't apply to the thing the user
+pointed at, refusing beats guessing, because a guess acts on state the user isn't
+looking at. Same family as the tri-state cloud read rule (a failed read must throw,
+not merge-against-empty) — the pattern is "absence of a valid target is information,
+not a gap to paper over."
+
+Also filed for the future: display elements and buffer elements are N:M in BOTH
+directions here (merge and fan-out), and the honest bridge wasn't a bijection but a
+REPRESENTATIVE + range (`sourceIndex` + `sourceIndexEnd`). Cheaper than reshaping the
+merge, and every consumer got to choose its own semantics (click → representative,
+highlight → range containment, chord geometry → opt out entirely).

@@ -7,6 +7,9 @@ parameters:
   nginx-changed:
     type: boolean
     default: false
+  omr-changed:
+    type: boolean
+    default: false
 
 jobs:
   test:
@@ -31,6 +34,35 @@ jobs:
       - run:
           name: Test the atomic-release deploy script
           command: npm run test:deploy
+
+  omr-test:
+    # Hermetic OMR (Python) suite only: `uv sync --frozen` installs the base
+    # deps, NOT the `legato` extra, so no torch and no model download can
+    # ever happen here. No HF token exists in CI by design.
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - omr-uv-v1-{{ checksum "omr/uv.lock" }}
+            - omr-uv-v1-
+      - run:
+          name: Install uv
+          command: pip install --user uv
+      - run:
+          name: Sync hermetic environment
+          command: cd omr && uv sync --frozen
+      - save_cache:
+          key: omr-uv-v1-{{ checksum "omr/uv.lock" }}
+          paths:
+            - ~/.cache/uv
+      - run:
+          name: Lint (ruff)
+          command: cd omr && uv run ruff check src tests
+      - run:
+          name: Run hermetic OMR tests
+          command: cd omr && uv run pytest
 
   build:
     docker:
@@ -348,3 +380,11 @@ workflows:
           filters:
             branches:
               only: main
+
+  # OMR pipeline — hermetic Python tests, on any branch, only when omr/
+  # (or the CI config itself) changed. Never deploys anywhere: the OMR
+  # subsystem is a local/dev tool (the droplet cannot run inference).
+  omr:
+    when: << pipeline.parameters.omr-changed >>
+    jobs:
+      - omr-test

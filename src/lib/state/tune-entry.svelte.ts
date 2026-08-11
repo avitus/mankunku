@@ -492,8 +492,11 @@ export function cursorToFlattened(flatIdx: number): boolean {
 	if (!melodyEditingSupported()) return true;
 
 	const local = subtractFractions(note.offset, pageStartFraction(pageIdx));
+	// Kind- and pitch-exact: extractWindow copies stored elements verbatim, so
+	// a stored rest matches the buffer rest at the same offset (a synthesized
+	// gap rest can share the offset only when the stored one isn't in-window).
 	const bufferIdx = stepEntry.enteredNotes.findIndex(
-		(n) => n.pitch !== null && compareFractions(n.offset, local) === 0
+		(n) => n.pitch === note.pitch && compareFractions(n.offset, local) === 0
 	);
 	if (bufferIdx >= 0) selectNote(bufferIdx);
 	tuneEntry.entryCursor = null;
@@ -931,60 +934,52 @@ function flattenedStoredNotes(): Note[] {
 }
 
 /**
- * Step the selection to the next pitched note, crossing page and section
- * boundaries. Delegates to step-entry's selectNext while a later pitched
- * note exists in the buffer (preserving its null-selection start-at-0
- * fallback); otherwise commits and hops to the tune's next pitched note,
- * skipping empty pages and sections. No-op at the tune's last pitched note.
+ * Step the selection to the next element — note or rest, MuseScore-style —
+ * crossing page and section boundaries. Delegates to step-entry's selectNext
+ * while a later element exists in the buffer (preserving its null-selection
+ * start-at-0 fallback); otherwise commits and hops to the tune's next stored
+ * element. Pure gaps have no stored element, so empty pages and sections are
+ * still skipped. No-op at the tune's last element.
  */
 export function selectNextAcrossPages(): void {
 	if (!melodyEditingSupported()) return;
 	const notes = stepEntry.enteredNotes;
 	const sel = stepEntry.selectedNoteIndex;
 	const start = sel !== null ? sel + 1 : 0;
-	for (let i = start; i < notes.length; i++) {
-		if (notes[i].pitch !== null) {
-			selectNext();
-			tuneEntry.entryCursor = null; // selection and cursor are exclusive
-			return;
-		}
+	if (start < notes.length) {
+		selectNext();
+		tuneEntry.entryCursor = null; // selection and cursor are exclusive
+		return;
 	}
 	commitBuffer();
 	const startFlat = flattenedBufferBase() + (sel !== null ? sel + 1 : notes.length);
 	const flat = flattenedStoredNotes();
-	for (let f = startFlat; f < flat.length; f++) {
-		if (flat[f].pitch !== null) {
-			cursorToFlattened(f);
-			return;
-		}
+	if (startFlat < flat.length) {
+		cursorToFlattened(startFlat);
 	}
 }
 
 /**
  * Symmetric counterpart of selectNextAcrossPages: preserves selectPrev's
  * null-selection select-last-in-buffer behavior, crossing pages only from
- * the buffer's first pitched note (or an empty buffer).
+ * the buffer's first element (or an empty buffer).
  */
 export function selectPrevAcrossPages(): void {
 	if (!melodyEditingSupported()) return;
 	const notes = stepEntry.enteredNotes;
 	const sel = stepEntry.selectedNoteIndex;
 	const end = sel !== null ? sel : notes.length;
-	for (let i = end - 1; i >= 0; i--) {
-		if (notes[i].pitch !== null) {
-			selectPrev();
-			tuneEntry.entryCursor = null; // selection and cursor are exclusive
-			return;
-		}
+	if (end - 1 >= 0) {
+		selectPrev();
+		tuneEntry.entryCursor = null; // selection and cursor are exclusive
+		return;
 	}
 	commitBuffer();
 	const startFlat = flattenedBufferBase() + (sel ?? 0) - 1;
 	const flat = flattenedStoredNotes();
-	for (let f = Math.min(startFlat, flat.length - 1); f >= 0; f--) {
-		if (flat[f].pitch !== null) {
-			cursorToFlattened(f);
-			return;
-		}
+	const f = Math.min(startFlat, flat.length - 1);
+	if (f >= 0) {
+		cursorToFlattened(f);
 	}
 }
 

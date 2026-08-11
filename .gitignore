@@ -44,3 +44,12 @@ supabase/.temp/
 .chunk/sidecar.json
 .chunk/sidecar.*.json
 .prod-backup.*
+
+# Python (omr/ subsystem)
+__pycache__/
+*.py[cod]
+omr/.venv/
+.pytest_cache/
+.ruff_cache/
+omr/debug_runs/
+omr/benchmark_results/

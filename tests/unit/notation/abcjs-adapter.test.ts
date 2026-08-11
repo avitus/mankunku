@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { LayoutItem } from '$lib/notation/chart-geometry';
 import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
-import type { PitchedNoteAnchor } from '$lib/music/notation';
+import type { NoteAnchor } from '$lib/music/notation';
 import {
 	systemsFromVisualObj,
 	toSystemLayouts,
@@ -261,7 +261,7 @@ describe('nextBarStart / prevBarStart — Tab targets at bar granularity', () =>
 });
 
 describe('resolveChartClick — clicked charspan → note select or bar target', () => {
-	const noteAnchors: PitchedNoteAnchor[] = [
+	const noteAnchors: NoteAnchor[] = [
 		{ startChar: 100, endChar: 103, sourceIndex: 7 },
 		{ startChar: 103, endChar: 106, sourceIndex: 8 }
 	];
@@ -294,7 +294,20 @@ describe('resolveChartClick — clicked charspan → note select or bar target',
 		});
 	});
 
-	it('resolves an unmatched melody charspan (a rest) to its bar anchor', () => {
+	it('resolves an anchored rest to its source element, before the bar fallback', () => {
+		// The rest's charspan sits INSIDE bar anchor 3 — the note anchor must
+		// still win so a rest click selects rather than arming the bar cursor.
+		const withRest: NoteAnchor[] = [
+			...noteAnchors,
+			{ startChar: 106, endChar: 109, sourceIndex: 9, rest: true }
+		];
+		expect(resolveChartClick(107, withRest, chordSlotAnchors, barAnchors)).toEqual({
+			kind: 'note',
+			sourceIndex: 9
+		});
+	});
+
+	it('resolves an unmatched melody charspan (slash bar or pure gap) to its bar anchor', () => {
 		expect(resolveChartClick(108, noteAnchors, chordSlotAnchors, barAnchors)).toEqual({
 			kind: 'bar',
 			pos: { sectionIdx: 0, bar: 3 }
