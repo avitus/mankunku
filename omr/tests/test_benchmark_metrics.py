@@ -173,11 +173,19 @@ def test_chord_metrics_do_not_alias_repeated_chord_instances() -> None:
     # skip the second occurrence and report a phantom insertion.
     shared = _chord("Cmaj7", 0)
     pred = [
-        _measure(1, notes=list(GT[0].notes), chords=[shared], start_repeat=True, rehearsal_mark="A"),
+        _measure(
+            1, notes=list(GT[0].notes), chords=[shared], start_repeat=True, rehearsal_mark="A"
+        ),
         _measure(2, notes=list(GT[1].notes), chords=[shared], end_repeat=True),
     ]
     gt = [
-        _measure(1, notes=list(GT[0].notes), chords=[_chord("Cmaj7", 0)], start_repeat=True, rehearsal_mark="A"),
+        _measure(
+            1,
+            notes=list(GT[0].notes),
+            chords=[_chord("Cmaj7", 0)],
+            start_repeat=True,
+            rehearsal_mark="A",
+        ),
         _measure(2, notes=list(GT[1].notes), chords=[_chord("Cmaj7", 0)], end_repeat=True),
     ]
     m = evaluate_chart(gt, pred, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4))

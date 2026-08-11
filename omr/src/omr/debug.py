@@ -46,7 +46,9 @@ def write_debug_artifacts(
     raw_dir = root / "raw"
     raw_dir.mkdir(exist_ok=True)
     for raw_page in bundle.result.raw_pages:
-        (raw_dir / f"page-{raw_page.page_index + 1:03d}.abc").write_text(raw_page.text, encoding="utf-8")
+        (raw_dir / f"page-{raw_page.page_index + 1:03d}.abc").write_text(
+            raw_page.text, encoding="utf-8"
+        )
     (raw_dir / "full.abc").write_text(bundle.result.raw_transcription, encoding="utf-8")
 
     if backend.supports_system_segmentation():
