@@ -1,6 +1,24 @@
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedUserLicks, seedStorage } from './fixtures/storage';
-import { installAudioMock } from './fixtures/audio';
+import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
+
+/**
+ * Stored per-key progress pinning the session tempo at 180 BPM. These tests
+ * ran at the new-lick default of 60 BPM for months and were the two slowest
+ * specs in the entire suite (115s/108s on CI WebKit) — the flow is real-time
+ * transport playback, so bar time IS test time and 180 cuts it 3×. The
+ * 60-BPM default itself is unit-tested (resolveLickTempo); what these tests
+ * pin is the round loop, which is tempo-independent. Only key C exists and
+ * no unlock counts are seeded, so the plan still holds exactly one key.
+ */
+const FAST_TEMPO = 180;
+const SEEDED_PROGRESS = {
+	'lick-practice-progress': {
+		'e2e-user-lick-bebop': {
+			C: { currentTempo: FAST_TEMPO, lastPracticedAt: 1754000000000, passCount: 0 }
+		}
+	}
+};
 
 /**
  * Full lick-practice session flow.
@@ -8,8 +26,8 @@ import { installAudioMock } from './fixtures/audio';
  * Seeds one practice-tagged lick (`practice` + `prog:ii-V-I-major` in the
  * user-lick-tags blob), starts a Daily Practice session from the setup page,
  * and lets the engine run a complete round on its own: demo cycle, then one
- * recorded key window at the new-lick default 60 BPM. A fresh lick plans a
- * single unlocked key, so when that window closes and scores, the plan is
+ * recorded key window at the seeded 180 BPM. The lick plans a single
+ * unlocked key, so when that window closes and scores, the plan is
  * exhausted and the Session Report renders without any further interaction —
  * reaching it proves the whole round loop (playback → recording → scoring →
  * advance → report) actually ran.
@@ -33,18 +51,19 @@ test.describe('lick-practice session flow', () => {
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
 
-		// Instrument-sample loading + a 2-bar demo and response window at
-		// 60 BPM put the report ~40s out on a cold run. The outer clock must
-		// exceed the sum of the phase waits below (90s listen + 30s record +
-		// 90s report), or it kills a run the inner budgets still allow.
+		// The outer clock must exceed the sum of the phase waits below (90s
+		// listen + 30s record + 90s report), or it kills a run the inner
+		// budgets still allow.
 		test.setTimeout(240_000);
 
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
 		await seedStorage(page, {
-			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] }
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...SEEDED_PROGRESS
 		});
 		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/lick-practice');
 
@@ -60,16 +79,15 @@ test.describe('lick-practice session flow', () => {
 			timeout: 20_000
 		});
 
-		// Tempo UI: the progress ring centers on the current tempo, which for a
-		// never-practiced lick must be the new-lick default of 60 BPM.
+		// Tempo UI: the progress ring centers on the current tempo, resolved
+		// from the seeded key-C progress (the slowest stored key tempo).
 		const ring = page.locator('svg').filter({ hasText: 'BPM' });
-		await expect(ring.locator('text', { hasText: /^60$/ })).toBeVisible();
+		await expect(ring.locator('text', { hasText: /^180$/ })).toBeVisible();
 
 		// Round phase 1 — the demo cycle: the active row chips "Listen" while
-		// the app plays the lick. Generous timeout: this is where the CDN
-		// piano/bass samples and the 12-buffer drum kit load and the transport
-		// spins up — WebKit on shared CI runners has crossed 45s (PR #205),
-		// so this window matches the report wait below.
+		// the app plays the lick. The instrument samples are served by the
+		// CDN stub, so the old 45s WebKit cold-load (PR #205) is gone; the
+		// generous timeout stays as headroom for shared-runner contention.
 		await expect(page.locator('.listen-tag')).toBeVisible({ timeout: 90_000 });
 
 		// Round phase 2 — the user window: the active chart flags recording
@@ -122,13 +140,17 @@ test.describe('lick-practice session flow', () => {
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
 
-		// Two full cycles at 60 BPM (demo + user window + turnaround, ~20s each
-		// warm) after cold sample loading — same budget shape as the daily test.
+		// Two full cycles (demo + user window + turnaround) at the seeded
+		// tempo — same budget shape as the daily test. Deep practice eases
+		// in 2% under the lick's stored tempo, so it opens at 176 rather
+		// than the seeded 180; the budget absorbs the difference.
 		test.setTimeout(240_000);
 
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
+		await seedStorage(page, SEEDED_PROGRESS);
 		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
 
 		// Deep Practice launches from the lick's detail page.
 		await page.goto('/licks/e2e-user-lick-bebop');
@@ -139,7 +161,8 @@ test.describe('lick-practice session flow', () => {
 		});
 
 		// Cycle 1 opens with the session's one guaranteed demo (Listen chip),
-		// then the user window. Generous first wait — CDN samples load here.
+		// then the user window. Samples come from the CDN stub; the generous
+		// first wait is headroom for shared-runner contention.
 		await expect(page.locator('.listen-tag')).toBeVisible({ timeout: 90_000 });
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 30_000 });
 

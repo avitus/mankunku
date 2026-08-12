@@ -186,6 +186,12 @@ Eligibility keys off `prog:*` tags first. Category *overrides* are write-only at
 
 Each `LickSuggestion` carries the target key, the insertion offset and bar, the template alignment offset, the match source (`prog-tag` | `category` | `substitution`), and a `masteryTier` (`known` | `learning` | `unknown`) derived from the lick's unlocked-key count and practice history — which is what stops the app suggesting a line in a key the player hasn't earned.
 
+### Trick suggestions
+
+The same matcher also emits suggestions for the melodic-device variants the user has *selected* (`state/tricks.svelte.ts`), and they are gated more tightly than licks. A variant whose device implements `compatibleQualitiesFor` is matched by `resolveQualityRoleEntry` against a **full-bar** progression chord of one of its qualities, in the device's own most-characteristic-first order, and is then re-rooted onto **that** chord rather than the progression's tonic — so an altered triad pair lands on the V of a long ii-V-I. When no chord in the progression qualifies, the variant is skipped for that progression rather than placed somewhere it doesn't belong. Chord substitutions are deliberately bypassed on this path, and devices that don't implement the hook fall back to ordinary category-registration alignment.
+
+Scoring a trick window goes through `scoring/fluency.ts` rather than the exact-phrase scorer, with the played onsets rebased by the insertion's alignment shift. See [Trick Scoring](./trick-scoring.md).
+
 ## Session planning
 
 The lick-practice split is mirrored exactly: pure logic in a plain module, a thin runes wrapper, and the route owning audio orchestration.

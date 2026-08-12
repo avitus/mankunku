@@ -4,7 +4,7 @@
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import LickProgressChart from '$lib/components/licks/LickProgressChart.svelte';
 	import TrickMasteryTree from '$lib/components/tricks/TrickMasteryTree.svelte';
-	import { getTrickById } from '$lib/tricks';
+	import { getTrickById, trickContextFor } from '$lib/tricks';
 	import { getTriadPairFamily } from '$lib/tricks/devices/triad-pairs';
 	import {
 		getVariantsForTrick,
@@ -19,7 +19,6 @@
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { lickPractice } from '$lib/state/lick-practice.svelte';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 
 	const trick = $derived(getTrickById(page.params.id ?? ''));
 
@@ -70,27 +69,20 @@
 	const writtenKey = $derived(selectedWrittenKey ?? concertKeyToWritten('C', getInstrument()));
 	const concertKey = $derived(writtenKeyToConcert(writtenKey, getInstrument()));
 
-	// Example context derived from the variant's own practice bed (the same
-	// lookup startTrickSession uses), so a minor-type enclosure previews over
-	// min7/dorian and an altered triad pair over its dominant vamp — all
-	// realized at the chosen concert key (scaleIds are rooted at chordRoot).
-	const exampleContext = $derived.by<TrickContext>(() => {
-		const bedType = (trick && selectedVariant && trick.practiceBed?.(selectedVariant.params)) ?? 'major-vamp';
-		const bed = PROGRESSION_TEMPLATES[bedType].harmony[0];
-		return {
-			chordRoot: concertKey,
-			chordQuality: bed.chord.quality,
-			scaleId: bed.scaleId,
-			key: concertKey,
-			timeSignature: [4, 4],
-			level: 50,
-			tempo: 120,
-			swing: 0.5
-		};
-	});
+	// Preview over the harmony the variant is ACTUALLY drilled on — the same
+	// derivation the practice session uses, so the chord above the staff and
+	// the notes under it match what you will hear (a minor-type enclosure
+	// previews over min7/dorian, an altered triad pair over its dominant
+	// vamp). Previously pinned to maj7, which misrepresented five of the
+	// eight triad-pair families.
+	const exampleContext = $derived<TrickContext | null>(
+		trick && selectedVariant
+			? trickContextFor(trick, selectedVariant.params, concertKey, 120)
+			: null
+	);
 
 	const example = $derived.by(() => {
-		if (!trick || !selectedVariant) return null;
+		if (!trick || !selectedVariant || !exampleContext) return null;
 		return trick.generateExample(selectedVariant.params, exampleContext);
 	});
 
@@ -249,10 +241,13 @@
 			</div>
 		{/if}
 
-		<!-- Key selector — displayed in the user's WRITTEN pitch (what they
-		     see on sheet music and finger on their horn). -->
-		<div class="flex items-center gap-3">
-			<span class="text-sm text-[var(--color-text-secondary)]">Key:</span>
+		<!-- Preview key — displayed in the user's WRITTEN pitch (what they see
+		     on sheet music and finger on their horn). This re-renders the
+		     example only; it does NOT set the drill key, which always starts
+		     at C and unlocks outward along the circle of fifths. Labelled
+		     accordingly so the control doesn't imply otherwise. -->
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+			<span class="text-sm text-[var(--color-text-secondary)]">Preview key:</span>
 			<div class="flex flex-wrap gap-1">
 				{#each PITCH_CLASSES as pc}
 					<button
@@ -266,6 +261,10 @@
 					</button>
 				{/each}
 			</div>
+			<p class="w-full text-xs text-[var(--color-text-secondary)]">
+				Reads the example in your key. Drills always start in C and unlock outward along the
+				circle of fifths.
+			</p>
 		</div>
 
 		<!-- Formula: what the selected variant asks for, plus a rendered example -->

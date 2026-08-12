@@ -21,7 +21,6 @@ The guiding principle is **subtle but unmissable**. The domain color must be obv
 Routes that belong to the ear-training domain:
 
 - `/ear-training` — main ear-training session (`/practice` is a 308 redirect to it)
-- `/ear-training/settings` — settings specific to ear-training practice (`/practice/settings` 308-redirects here)
 - `/scales` — scale practice (ear-training subset)
 - `/progress` — session history & adaptive difficulty
 
@@ -58,8 +57,9 @@ Routes that belong to neither domain (or that serve both):
 - `/licks`, `/licks/[id]` — your lick book (used by both modes)
 - `/licks/add`, `/licks/editor`, `/licks/record` — adding new licks (book-building, not practice)
 - `/tunes` and its subroutes — the tune songbook
+- `/tricks`, `/tricks/[id]` — the melodic-device catalog and its mastery ladders (the *session* they launch runs under `/lick-practice`, which is where the terracotta appears)
 - `/settings` — global app settings
-- `/auth`, `/diagnostics` — utility pages
+- `/auth`, `/diagnostics` and its subroutes — utility pages
 
 **Identity color**: slate / desaturated. The neutral domain has no strong accent — interactive elements use `--color-text-secondary` or a slate neutral, and CTAs typically use `--color-bg-tertiary` backgrounds instead of an accent fill.
 
@@ -201,7 +201,7 @@ const dataDomain = $derived.by(() => {
 });
 ```
 
-It's applied as `data-domain={dataDomain}` on the layout's outermost element. The grain overlay and peripheral stripe both live on that same wrapper. (`/practice` and `/practice/settings` are not referenced in this client domain logic — they exist only as server-side 308 redirects to `/ear-training` and `/ear-training/settings`.)
+It's applied as `data-domain={dataDomain}` on the layout's outermost element. The grain overlay and peripheral stripe both live on that same wrapper. (`/practice` is not referenced in this client domain logic — it exists only as a server-side 308 redirect to `/ear-training`.)
 
 ### CSS (actual, as in `src/app.css`)
 
@@ -290,7 +290,6 @@ After changes, walk through these surfaces and confirm the accent is correct:
 | -------------------------------- | ------------- | ----------------------------------- |
 | `/` home                         | neutral       | slate                               |
 | `/ear-training` (mid-session)    | ear-training  | peacock teal                        |
-| `/ear-training/settings`         | ear-training  | peacock teal                        |
 | `/scales`                        | ear-training  | peacock teal                        |
 | `/progress`                      | ear-training  | peacock teal                        |
 | `/lick-practice` setup           | lick-practice | terracotta                          |

@@ -53,7 +53,21 @@ const ROUTES: RouteCheck[] = [
  * and the rename deliberately ships without redirect shims. A 404 here proves
  * no stale route directory or accidental alias survived the restructure.
  */
-const RETIRED_PATHS = ['/library', '/community', '/entry', '/record', '/add-licks', '/lead-sheets', '/add-lead-sheets'];
+const RETIRED_PATHS = [
+	'/library',
+	'/community',
+	'/entry',
+	'/record',
+	'/add-licks',
+	'/lead-sheets',
+	'/add-lead-sheets',
+	// The ear-training settings page was deleted outright: its unique controls
+	// (category / difficulty / source / bars) were discarded on arrival at
+	// /ear-training, and its working ones live on /settings. The /practice
+	// shim went with it — /practice itself still redirects.
+	'/practice/settings',
+	'/ear-training/settings'
+];
 
 test.describe('smoke: every route renders cleanly', () => {
 	test.beforeEach(async ({ page }) => {

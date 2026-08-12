@@ -36,6 +36,7 @@ import type {
 	DailySummary
 } from '$lib/types/progress';
 import type { Phrase } from '$lib/types/music';
+import { MAX_SESSIONS } from '$lib/persistence/limits';
 
 // ═════════════════════════════════════════════════════════════════════
 //  Mock Supabase Client Factory
@@ -305,7 +306,7 @@ describe('syncProgressToCloud', () => {
 		warnSpy.mockRestore();
 	});
 
-	it('only syncs the latest 200 sessions (respecting MAX_SESSIONS cap)', async () => {
+	it('only syncs the latest MAX_SESSIONS sessions', async () => {
 		const mock = createMockSupabase();
 
 		// Build progress with 250 sessions
@@ -329,7 +330,9 @@ describe('syncProgressToCloud', () => {
 		);
 
 		expect(sessionUpsertCalls.length).toBeGreaterThan(0);
-		expect(sessionUpsertCalls[0][0].length).toBeLessThanOrEqual(200);
+		// Was `toBeLessThanOrEqual(200)` against a cap of 100 — it passed no
+		// matter what the cap did. Pinned to the shared constant instead.
+		expect(sessionUpsertCalls[0][0].length).toBe(MAX_SESSIONS);
 	});
 
 	it('upserts scale proficiency entries', async () => {

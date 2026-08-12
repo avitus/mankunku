@@ -13,6 +13,7 @@
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
+	import { trimToPerformance } from '$lib/audio/capture-window';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
@@ -24,6 +25,7 @@
 	import { effectiveDifficultyLevel } from '$lib/difficulty/calculate';
 	import { levelSignalDirection } from '$lib/difficulty/level-signal';
 	import { loadBackingInstruments, getActiveSchedule } from '$lib/audio/backing-track';
+	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
@@ -61,6 +63,13 @@
 	}
 
 	const activeTonality = $derived(settings.tonalityOverride ?? sessionDailyTonality);
+	/**
+	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
+	 * ballad) pin it; only the swing style defers to the user's knob. Must
+	 * be used everywhere `settings.swing` would otherwise flow into playback
+	 * or scoring, so the melody and the band never disagree.
+	 */
+	const effectiveSwing = $derived(melodySwingForStyle(settings.swing, settings.backingStyle));
 	const instrument = $derived(getInstrument());
 	const writtenKey = $derived(concertKeyToWritten(activeTonality.key, instrument));
 	// Use per-scale proficiency level for lick filtering
@@ -131,6 +140,20 @@
 	 */
 	let scoredAttemptCount = $state(0);
 	let bottomQuote = $state('');
+
+	/**
+	 * Publish a take's score to the visible strip (and refresh the rotating
+	 * quote at its 10-attempt boundary). Called once per take with the FINAL
+	 * score — the authoritative replay rescore when one runs, the provisional
+	 * live score only when no replay score exists — so the number on screen
+	 * never changes after it appears.
+	 */
+	function revealScore(score: Score) {
+		persistentScore = score;
+		if ((scoredAttemptCount - 1) % 10 === 0) {
+			bottomQuote = getGradeCaption(score.grade);
+		}
+	}
 
 	/**
 	 * Transient, very subtle acknowledgement of a level change. Set when the
@@ -244,8 +267,7 @@
 		clearTimeout(levelSignalTimer);
 		onsetDetector?.dispose();
 		onsetDetector = null;
-		recorderHandle?.dispose();
-		recorderHandle = null;
+		disposeArmedRecorder();
 	});
 
 	// ─── Mic + Detection ─────────────────────────────────────
@@ -320,7 +342,7 @@
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: session.tempo,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
@@ -337,6 +359,7 @@
 		starting = true;
 		session.lastScore = null;
 		awaitingInput = false;
+		disposeArmedRecorder();
 		failCount = 0;
 
 		try {
@@ -392,14 +415,29 @@
 		failCount = 0;
 		await playback.stopPlayback();
 		stopRecording();
-		recorderHandle?.dispose();
-		recorderHandle = null;
+		disposeArmedRecorder();
 		awaitingInput = false;
 		session.engineState = 'ready';
 	}
 
 	// ─── Recording ───────────────────────────────────────────
 
+	/**
+	 * Arm the capture and wait for the user to come in.
+	 *
+	 * Everything that defines the capture's t=0 — the pitch detector, the onset
+	 * worklet, the MediaRecorder and the transport snapshot — starts HERE, one
+	 * decay-wait after the call phrase ends, rather than when the user's first
+	 * note is detected. Arming on first detection could never capture that
+	 * note's attack: the trigger is a confident pitch reading, and a reading
+	 * only becomes confident once the note fills most of the 4096-sample
+	 * analyser window, so the attack is always already in the past by the time
+	 * it fires (~190 ms on the 2026-08-10 pent-run capture, which lost 56% of
+	 * its first note and scored it as three wrong notes).
+	 *
+	 * `finishRecording` trims the resulting lead-in back off — see
+	 * `trimToPerformance`.
+	 */
 	async function enterAwaitingInput() {
 		if (!pitchModule || !captureModule) return;
 		if (!(await ensureMicCapture())) return;
@@ -408,34 +446,52 @@
 		}
 		// Stop detector during cooldown so playback decay isn't captured
 		pitchDetector?.stop();
+		disposeArmedRecorder();
 		session.engineState = 'recording';
 		// Wait for acoustic decay + AnalyserNode buffer to flush (~85ms buffer + margin)
 		await new Promise(resolve => setTimeout(resolve, 150));
 		if (session.engineState !== 'recording') return; // bail if user stopped
 		// Restart fresh — buffer now has only ambient/user audio
 		pitchDetector?.start();
-		awaitingInput = true;
-	}
-
-	function beginRecording() {
-		if (!pitchDetector || !session.phrase) return;
 		recordingTransportSeconds = playback?.getTransportSeconds() ?? 0;
-		session.isRecording = true;
-		session.recordedNotes = [];
-		const recordingStartTime = micCapture?.context.currentTime ?? 0;
-		onsetDetector?.reset(recordingStartTime);
-		pitchDetector.stop();
-		pitchDetector.start();
+		onsetDetector?.reset(micCapture?.context.currentTime ?? 0);
 
-		// Start recording mic + metronome mix
+		// Record the mic + master mix from the same instant, so the blob the
+		// authoritative rescore replays covers the attack too.
 		if (micCapture) {
+			let armed: RecorderHandle | null = null;
 			try {
-				recorderHandle = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
-				recorderHandle.start();
+				armed = createRecorder(micCapture.source, getMasterGain(), micCapture.context);
+				armed.start();
+				recorderHandle = armed;
 			} catch (err) {
+				// createRecorder wires its nodes into the graph before start() is
+				// ever called, so a throw from start() leaves them connected —
+				// dispose rather than dropping the reference.
+				armed?.dispose();
+				recorderHandle = null;
 				console.warn('Audio recording unavailable:', err);
 			}
 		}
+		awaitingInput = true;
+	}
+
+	/** Tear down a recorder armed for a listening window the user never entered. */
+	function disposeArmedRecorder() {
+		if (!recorderHandle) return;
+		const armed = recorderHandle;
+		recorderHandle = null;
+		armed.stop().catch(() => { /* nothing was captured */ }).finally(() => armed.dispose());
+	}
+
+	/**
+	 * The user has come in. The capture is already running — this only marks
+	 * the take as live and bounds how long it runs for.
+	 */
+	function beginRecording() {
+		if (!pitchDetector || !session.phrase) return;
+		session.isRecording = true;
+		session.recordedNotes = [];
 		const phraseDuration = playback?.getPhraseDuration(session.phrase, session.tempo) ?? 10;
 		const graceTime = 2 * (60 / session.tempo);
 		recordingTimeout = setTimeout(finishRecording, (phraseDuration + graceTime) * 1000);
@@ -450,16 +506,27 @@
 
 	function finishRecording() {
 		if (!session.isRecording || !session.phrase || !pitchDetector) return;
-		const readings = pitchDetector.getReadings();
+		const rawReadings = pitchDetector.getReadings();
 		stopRecording();
 
-		const workletOnsets = onsetDetector?.getOnsets() ?? [];
+		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
 		// Segment over the full capture, not the notional phrase length: the
 		// recording deliberately runs past the phrase end (grace beats) because
 		// the user starts late by their reaction latency, so the final note can
 		// land after phraseDuration and a phrase-length bound truncates it.
-		const lastReading = readings[readings.length - 1];
-		const recordingDuration = lastReading ? lastReading.time + 0.1 : 0;
+		const rawLastReading = rawReadings[rawReadings.length - 1];
+		const rawDuration = rawLastReading ? rawLastReading.time + 0.1 : 0;
+
+		// Discard the lead-in between arming the capture and the user coming in,
+		// keeping a fixed pre-roll so the first note's attack survives. The
+		// stored blob keeps the lead-in — `recordingTransportSeconds` still
+		// describes its first sample — so every replay path re-derives this
+		// offset from the audio rather than trusting a persisted value.
+		const trimmed = trimToPerformance(rawReadings, rawWorkletOnsets, rawDuration);
+		const readings = trimmed.readings;
+		const workletOnsets = trimmed.workletOnsets;
+		const recordingDuration = trimmed.duration;
+		const transportSeconds = recordingTransportSeconds + trimmed.offset;
 
 		const baseOnsets = resolveOnsets(workletOnsets, readings);
 		const schedule = getActiveSchedule();
@@ -467,7 +534,7 @@
 			schedule,
 			backingTrackEnabled: settings.backingTrackEnabled,
 			metronomeEnabled: settings.metronomeEnabled,
-			recordingTransportSeconds,
+			recordingTransportSeconds: transportSeconds,
 			tempo: session.tempo,
 			recordingDuration
 		});
@@ -475,15 +542,15 @@
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
 		const bleedResult = schedule
-			? filterBleed(detected, schedule, recordingTransportSeconds)
+			? filterBleed(detected, schedule, transportSeconds)
 			: null;
 
 		const result = runScorePipeline({
 			detected,
 			phrase: session.phrase,
 			tempo: session.tempo,
-			transportSeconds: recordingTransportSeconds,
-			swing: settings.swing,
+			transportSeconds,
+			swing: effectiveSwing,
 			bleedFilterEnabled: settings.bleedFilterEnabled,
 			bleedResult
 		});
@@ -493,11 +560,7 @@
 		session.lastScore = result.chosen;
 
 		if (session.lastScore) {
-			persistentScore = session.lastScore;
 			scoredAttemptCount++;
-			if ((scoredAttemptCount - 1) % 10 === 0) {
-				bottomQuote = getGradeCaption(persistentScore.grade);
-			}
 			// The daily session is scale-focused, so report the current scale's
 			// proficiency level: compare it before/after the attempt and surface
 			// the actual level reached (up or down).
@@ -525,16 +588,21 @@
 		// Save audio recording in the background, then re-score from the
 		// saved blob. The replay path is deterministic (no rAF jitter,
 		// no AudioWorklet scheduling); live readings drift across runs even
-		// on identical audio, so the replay score is authoritative. UI
-		// shows the provisional live score immediately and swaps to the
-		// authoritative one when replay resolves (~200–500 ms).
+		// on identical audio, so the replay score is authoritative. The UI
+		// holds the previous take's score until the replay resolves
+		// (~200–500 ms) and shows only the authoritative result — the
+		// provisional score used to render first and then silently change
+		// under the user's eyes when the rescore landed. The provisional
+		// score is still what gets persisted immediately (recordAttempt
+		// above; corrected by updateSessionScore) and is the fallback
+		// display whenever the replay can't produce a score.
 		if (recorderHandle) {
 			const handle = recorderHandle;
 			const sessionId = progress.sessions[0]?.id;
 			const phraseForRescore = session.phrase;
 			const tempoForRescore = session.tempo;
 			const transportForRescore = recordingTransportSeconds;
-			const swingForRescore = settings.swing;
+			const swingForRescore = effectiveSwing;
 			const scheduleForRescore = getActiveSchedule();
 			const bleedFilterEnabled = settings.bleedFilterEnabled;
 			const metronomeEnabledForRescore = settings.metronomeEnabled;
@@ -543,6 +611,13 @@
 			const provisionalBleedLog = $state.snapshot(session.bleedFilterLog);
 			const rescoreId = ++latestRescoreId;
 			recorderHandle = null;
+			// Shows the provisional live score when the authoritative replay
+			// never produces one (empty blob, decode/save failure, silent
+			// replay). Guarded on rescoreId so a slow old take can't clobber
+			// a newer take's strip.
+			const revealProvisionalFallback = () => {
+				if (rescoreId === latestRescoreId && provisionalScore) revealScore(provisionalScore);
+			};
 			handle.stop().then(async (blob) => {
 				handle.dispose();
 				if (blob.size > 0 && sessionId) {
@@ -582,7 +657,7 @@
 						supabase,
 						userId: user?.id
 					});
-					rescoreFromBlob(
+					const produced = await rescoreFromBlob(
 						blob,
 						phraseForRescore,
 						tempoForRescore,
@@ -594,9 +669,24 @@
 						sessionId,
 						baseMetadata,
 						rescoreId
-					).catch((err) => console.warn('post-hoc rescore failed', err));
+					).catch((err) => {
+						console.warn('post-hoc rescore failed', err);
+						return false;
+					});
+					if (!produced) revealProvisionalFallback();
+				} else {
+					revealProvisionalFallback();
 				}
-			}).catch(console.error);
+			}).catch((err) => {
+				console.error(err);
+				revealProvisionalFallback();
+			});
+		} else if (session.lastScore) {
+			// No recorder → no rescore is coming; the live score IS the final
+			// one. Bump the id so a still-in-flight rescore chain from an
+			// earlier take goes stale rather than clobbering this reveal.
+			++latestRescoreId;
+			revealScore(session.lastScore);
 		}
 
 		if (looping && session.lastScore) {
@@ -649,11 +739,11 @@
 	}
 
 	/**
-	 * Replay the saved recording through the offline pipeline and overwrite
-	 * the live score. Deterministic, so identical recordings always yield
-	 * identical scores. If replay fails (decode error, no onsets, etc.) we
-	 * keep the provisional live score and log a warning — the user sees no
-	 * visible regression.
+	 * Replay the saved recording through the offline pipeline and publish the
+	 * result as the take's one visible score. Deterministic, so identical
+	 * recordings always yield identical scores. Returns whether a score was
+	 * produced — `false` (silent replay) or a rejection tells the caller to
+	 * fall back to revealing the provisional live score instead.
 	 */
 	async function rescoreFromBlob(
 		blob: Blob,
@@ -667,21 +757,31 @@
 		sessionId: string | null = null,
 		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
 		rescoreId: number = latestRescoreId
-	) {
+	): Promise<boolean> {
 		const { replayFromBlob } = await import('$lib/audio/replay');
 		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
 		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
-		const replay = await replayFromBlob(blob, ctx);
+		const rawReplay = await replayFromBlob(blob, ctx);
+		// Same trim the live path applied, re-derived from the blob rather than
+		// carried across — `transportSeconds` describes the blob's first sample,
+		// so the offset has to be added back on top of it here.
+		const trimmed = trimToPerformance(rawReplay.readings, rawReplay.onsets, rawReplay.duration);
+		const replay = {
+			readings: trimmed.readings,
+			onsets: trimmed.workletOnsets,
+			duration: trimmed.duration
+		};
+		const trimmedTransportSeconds = transportSeconds + trimmed.offset;
 		// Recording-relative backing onsets — computed from the decoded blob
 		// length, so persist them even when the replay yields no readings
 		// (a silent take should still carry its evidence for /diagnostics).
-		const backingBleedOnsets = schedule?.bleedEventsIn(transportSeconds, replay.duration);
+		const backingBleedOnsets = schedule?.bleedEventsIn(trimmedTransportSeconds, replay.duration);
 		if (replay.readings.length === 0) {
 			if (sessionId && baseMetadata) {
 				const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
 				await updateRecordingMetadata(sessionId, { ...baseMetadata, backingBleedOnsets });
 			}
-			return;
+			return false;
 		}
 
 		const baseOnsets = resolveOnsets(replay.onsets, replay.readings);
@@ -694,7 +794,7 @@
 			schedule,
 			backingTrackEnabled: schedule !== null,
 			metronomeEnabled,
-			recordingTransportSeconds: transportSeconds,
+			recordingTransportSeconds: trimmedTransportSeconds,
 			tempo,
 			recordingDuration: replay.duration
 		});
@@ -702,14 +802,14 @@
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
 		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
 		const bleedResult = schedule
-			? filterBleed(detected, schedule, transportSeconds)
+			? filterBleed(detected, schedule, trimmedTransportSeconds)
 			: null;
 
 		const result = runScorePipeline({
 			detected,
 			phrase,
 			tempo,
-			transportSeconds,
+			transportSeconds: trimmedTransportSeconds,
 			swing,
 			bleedFilterEnabled,
 			bleedResult
@@ -724,36 +824,38 @@
 			session.bleedFilterLog = result.bleedLog;
 			session.recordedNotes = authoritativeNotes;
 			session.lastScore = result.chosen;
-			persistentScore = result.chosen;
-			// If this attempt was a quote-refresh boundary, the provisional
-			// grade may have driven a now-stale caption — re-pull from the
-			// authoritative grade so the bottom band matches what's shown.
-			if ((scoredAttemptCount - 1) % 10 === 0) {
-				bottomQuote = getGradeCaption(persistentScore.grade);
+			revealScore(result.chosen);
+		}
+
+		// Past this point the score is on screen — a persistence failure must
+		// not escape as a rejection, or the caller would read it as "no score
+		// produced" and flip the display back to the provisional value.
+		try {
+			// Align the persisted session entry with the authoritative score so
+			// the progress page matches what the user just saw on screen. Keyed
+			// by id (not the live UI), so a stale rescore that finishes after a
+			// newer take still correctly fixes its own session entry — same
+			// rationale as the recording-metadata update below.
+			if (sessionId) {
+				updateSessionScore(sessionId, result.chosen, supabase);
 			}
-		}
 
-		// Align the persisted session entry with the authoritative score so
-		// the progress page matches what the user just saw on screen. Keyed
-		// by id (not the live UI), so a stale rescore that finishes after a
-		// newer take still correctly fixes its own session entry — same
-		// rationale as the recording-metadata update below.
-		if (sessionId) {
-			updateSessionScore(sessionId, result.chosen, supabase);
+			if (sessionId && baseMetadata) {
+				const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
+				await updateRecordingMetadata(sessionId, {
+					...baseMetadata,
+					score: result.chosen,
+					detectedNotes: authoritativeNotes,
+					bleedFilterLog: result.bleedLog,
+					// Recording-relative backing onsets so /diagnostics replays this
+					// recording with the same bleed evidence the live path used.
+					backingBleedOnsets
+				});
+			}
+		} catch (err) {
+			console.warn('post-rescore persistence failed', err);
 		}
-
-		if (sessionId && baseMetadata) {
-			const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
-			await updateRecordingMetadata(sessionId, {
-				...baseMetadata,
-				score: result.chosen,
-				detectedNotes: authoritativeNotes,
-				bleedFilterLog: result.bleedLog,
-				// Recording-relative backing onsets so /diagnostics replays this
-				// recording with the same bleed evidence the live path used.
-				backingBleedOnsets
-			});
-		}
+		return true;
 	}
 
 	// ─── Navigation ──────────────────────────────────────────

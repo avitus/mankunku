@@ -3,11 +3,10 @@
  *
  * Verifies that rangeHigh is respected across:
  *   - transposeLick / transposeLickForTonality (library-loader)
- *   - pickRandomLick (library-loader)
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { transposeLick, transposeLickForTonality, pickRandomLick } from '$lib/phrases/library-loader';
+import { describe, it, expect } from 'vitest';
+import { transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
 import type { Phrase } from '$lib/types/music';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
@@ -36,10 +35,6 @@ function makePhrase(pitches: (number | null)[], category: string = 'pentatonic')
 		source: 'curated'
 	} as Phrase;
 }
-
-afterEach(() => {
-	vi.restoreAllMocks();
-});
 
 // ─── transposeLick with rangeHigh ───────────────────────────
 
@@ -169,3 +164,4 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 		expect(clampedPitches.length).toBe(defaultPitches.length);
 	});
 });
+

@@ -196,6 +196,7 @@ interface LickPracticeKeyProgress {
   currentTempo: number;
   lastPracticedAt: number;
   passCount: number;
+  rollingScore?: number;   // EWMA over EVERY scored attempt (alpha 0.4)
 }
 
 type LickPracticeProgress =
@@ -203,6 +204,16 @@ type LickPracticeProgress =
 ```
 
 Per-lick, per-key progress, persisted to localStorage via `persistence/lick-practice-store.ts`.
+
+`passCount` counts only *passes* (≥ 0.90), at most one per session — it drives
+unlocking. `rollingScore` is different on purpose: it is updated on **every**
+scored attempt including failures, so deep-practice can rank a lick's keys
+worst-first and aim the per-cycle demo at the key that actually needs it. It is
+optional because entries written before the field existed have none; absent is
+treated as *unknown*, which sorts as worst so an unfamiliar key still gets
+demoed. Under the per-`(lick, key)` last-writer-wins cloud merge each device's
+EWMA only ever saw its own attempts since the last sync — an accepted
+approximation, not a bug.
 
 ### LickProgressPoint / LickProgressHistory
 
@@ -220,7 +231,99 @@ Append-only time series, sampled whenever a session bumps tempo or unlocks a key
 
 ### Other types in this module
 
-`LickPracticeMode` (`'continuous' | 'call-response'`), `LickPracticeSessionType` (`'daily' | 'focused' | 'deep'`), `LickPracticeConfig`, `ChordSubstitutionRule`, `LickPracticePlanItem`, `SingleLickRoundEntry`, `LickPracticePhase`, `LickPracticeKeyResult`, `LickReport`, `SessionReport`. See [API Reference: State](../api-reference/state.md#lick-practicesveltets).
+`LickPracticeMode` (`'continuous' | 'call-response'`), `LickPracticeSessionType` (`'daily' | 'focused' | 'deep' | 'trick'`), `LickPracticeConfig`, `ChordSubstitutionRule`, `LickPracticePlanItem`, `SingleLickRoundEntry`, `LickPracticePhase` (`'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'complete'`), `LickPracticeKeyResult`, `LickReport`, `SessionReport`. See [API Reference: State](../api-reference/state.md#lick-practicesveltets).
+
+`LickPracticePlanItem` carries an optional `kind: 'lick' | 'trick'` (absent means
+`'lick'`). For a trick item, `phraseId` **is** the composite trick variant key, and
+the item additionally carries `trickId`, `trickParameters`, and the C-rooted
+`trickContext` the generated `phrase` was realized in. `getLickById` simply misses
+on a variant key, so every helper falls back to the item's own `phrase` — which is
+why a trick can ride the lick-practice engine without the lick catalog knowing it
+exists.
+
+## Trick Types (`src/lib/types/tricks.ts`)
+
+The melodic-device domain model. See [Trick Scoring](./trick-scoring.md) for how
+these are consumed.
+
+### `TrickParameters` and the variant key
+
+```typescript
+type TrickParameters = Record<string, string>;   // parameter name → chosen value
+
+function normalizeParameterSignature(params: TrickParameters): string;  // 'a=1,b=2', keys sorted
+function trickVariantKey(trickId: string, params: TrickParameters): string;  // `${trickId}:${sig}`
+```
+
+**All** trick progress is keyed by the composite variant key — never by the id of a
+generated preview phrase, which is disposable and regenerated every round. The
+signature sorts its keys so two equal selections can never produce two keys.
+
+### `TrickSlotSpec`
+
+```typescript
+interface TrickSlotSpec {
+  offset: Fraction;        // as in Note.offset
+  duration: Fraction;      // as in Note.duration
+  exactPcs: number[];      // pitch classes 0-11 that satisfy this slot exactly
+  patternPcs?: number[];   // right device, wrong member
+  generatePc?: number;     // the one pc the example generator realizes; scoring ignores it
+  role: string;            // diagnostic label, e.g. 'target', 'chromatic-below', 'triad-a'
+}
+```
+
+Everything is **pitch classes**, never MIDI: a trick is a shape, not a register.
+
+### `ConformanceResult` / `SlotConformanceResult`
+
+```typescript
+type SlotConformanceTier = 'exact' | 'in-pattern' | 'in-scale' | 'out-of-scale' | 'missed';
+
+interface ConformanceResult {
+  slots: SlotConformanceResult[];
+  patternScore: number;        // mean slot credit over ALL slots (misses drag it down)
+  extraCount: number;          // played notes matched to no slot
+  latencyCorrectionMs: number;
+  style?: string;              // winning spec variant, multi-style devices only
+}
+```
+
+### `Trick`
+
+The device interface. Two required contracts — `scoreConformance` (primary) and
+`generateExample` (secondary) — plus three optional hooks: `exampleStyles` (demo
+rotation order), `practiceBed(params)` (which one-chord vamp to drill over), and
+`compatibleQualitiesFor(params)` (per-variant chord qualities, refining the
+trick-wide `compatibleQualities`).
+
+### `TrickPracticeKeyProgress` / `TrickPracticeProgress` / `TrickProgressPoint`
+
+Mirror the lick-practice shapes field-for-field (`currentTempo`,
+`lastPracticedAt`, `passCount`; `{ t, bpm, keys }` history points), but keyed by
+variant key instead of phrase id — and they live in **separate storage**
+(`persistence/trick-practice-store.ts`), never in the lick blobs. A composite key
+leaking into a lick store would look like a lick id to everything downstream;
+there are explicit guards against it in the report-reset and history-seed paths.
+
+Locally the state is six localStorage keys (`trick-practice-progress`,
+`trick-progress-history`, `trick-unlock-count`, `trick-selected-variants`,
+`trick-selected-variants-mtime`, `trick-migrations`); in the cloud it is a single
+`user_settings.trick_state` JSONB column, assembled and fanned back out by the
+store. The merge rules for that blob differ per field on purpose:
+
+| Field | Merge rule | Why |
+|---|---|---|
+| `selectedVariants` | wholesale LWW by `selectedUpdatedAt` (union on an exact tie) | A union would resurrect variants the user un-starred on another device |
+| `selectedUpdatedAt` | `max` | — |
+| `migrations` | set union | A completed migration must never replay |
+| `progress` | per `(variant, key)`, later `lastPracticedAt` wins | — |
+| `unlockCounts` | per variant, `max` | An unlock is never revoked |
+| `history` | union by `t`, capped at the newest 500 points | Append-only series |
+
+The cloud read is **tri-state** (`ok` / `missing` / `error`). `missing` is a
+brand-new account and merges safely against empty; `error` throws in the outbox
+path rather than merging, because treating a failed read as "no remote data"
+is exactly the 2026-07-13 incident class.
 
 ## Audio Types (`src/lib/types/audio.ts`)
 
@@ -282,6 +385,13 @@ interface Score {
   timing: TimingDiagnostics;   // Bias, spread, and per-note offsets
 }
 ```
+
+The 0.6/0.4 weighting is `scoreAttempt`'s. Trick attempts produce a
+`Score`-compatible result too — `FluencyScore`, from `scoring/fluency.ts` — but
+weight it 0.7 pattern / 0.3 rhythm, with `pitchAccuracy` carrying the
+conformance `patternScore`. Every downstream consumer (grades, points,
+`recordKeyAttempt`, `applyInsertionResult`) is unchanged either way, which is
+the whole reason it conforms to this interface.
 
 ### TimingDiagnostics
 

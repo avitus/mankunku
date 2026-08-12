@@ -342,7 +342,8 @@ The colour is carried through the library card (tinted category pill + dots), th
 | Module | Purpose |
 |---|---|
 | `harmony.ts` | Harmony lookup helpers shared by playback and scoring |
-| `swing.ts` | Swing-ratio math for eighth-note pairs |
+| `swing.ts` | Swing-ratio math for eighth-note pairs. `applySwingToBeats(beats, swing)` shifts only off-beat eighths (triplets are immune by construction) and is shared by playback, scoring and backing. `swingForTempo(bpm)` is the Friberg–Sundström curve, `min(0.78, max(0.5, 1 − bpm/600))`. The uncapped `1 − bpm/600` term is what holds the short eighth near 100 ms; the 0.78 clamp overrides it below ~132 BPM, pinning the ratio at ≈3.5:1 and letting the short eighth grow in absolute terms (≈220 ms at 60 BPM). Straight by 300. It belongs only to the **backing** engine: a unit test bans it from playback, scoring and tricks, because the band's feel must never move the grid the player is graded against |
+| `key-ordering.ts` | `planUnlockedKeys` — the alternating sharp/flat-side ramp out from a lick's entry key on the circle of fifths, returning the first N keys while a lick has fewer than 12; `planLickKeys` takes over for staged variety once all 12 are earned. Also the raw orderings (`circleOfFifthsFrom`, `circleOfFourthsFrom`, `chromaticFrom`, `wholeTonePairFrom`, `shufflePitchClasses`) and the tempo-gated `unlockedStages` |
 | `expression.ts` | Tier-1 musical expression (dynamics + articulation) applied as a pure pass at `phraseToEvents` |
 | `articulation-abc.ts` | Articulation → ABC decoration mapping |
 

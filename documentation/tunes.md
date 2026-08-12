@@ -63,7 +63,9 @@ Manual melody entry is **4/4 only**. Imported charts in other meters keep their 
 
 ## Sharing and adopting
 
-**Browse Community** shows charts other players have published. Adopt one and it lands in your book with an *Adopted* badge and the original author's name — you can read it, transpose it, and practice over it, but it's still theirs; **Return to community** removes your copy. Charts you publish work the same way from the other side.
+**Browse Community** shows charts other players have shared. Adopt one and it lands in your book with an *Adopted* badge and the original author's name — you can read it, transpose it, and practice over it, but it's still theirs; **Return to community** removes your copy.
+
+There is **no publish button**, and this is worth knowing before you chart anything you'd rather keep to yourself: if you're signed in, every tune you save syncs to your account and appears in other players' Browse Community list under your display name. Sharing is the default, not a step. (The same is true of licks you write or record — the lick editor says so the first time.)
 
 ## Where tunes fit in your practice
 

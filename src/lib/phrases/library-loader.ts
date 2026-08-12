@@ -377,19 +377,3 @@ export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string, 
 		}))
 	};
 }
-
-/**
- * Pick a random lick matching the query, optionally transposed to a key.
- */
-export function pickRandomLick(
-	query: LibraryQuery = {},
-	key: PitchClass = 'C',
-	rangeLow?: number,
-	rangeHigh?: number
-): Phrase | null {
-	const matches = queryLicks(query);
-	if (matches.length === 0) return null;
-
-	const pick = matches[Math.floor(Math.random() * matches.length)];
-	return transposeLick(pick, key, rangeLow, rangeHigh);
-}

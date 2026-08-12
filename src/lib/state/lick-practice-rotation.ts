@@ -20,10 +20,15 @@
  * whole bars when a late callback (stalled main thread) has eaten that
  * lead, and `planCycleWindows` computes the recording windows for any
  * demo-bars/key-bars layout so the scheduler stays declarative.
+ *
+ * The tempo helpers (`deepPracticeStartTempo`, `nextCycleTempo`) shape the
+ * ramp: a session eases in below the lick's stored tempo and climbs back by
+ * a percentage of wherever it currently sits, so the same rule reads the
+ * same at 60 BPM and at 200.
  */
 
 import type { PitchClass } from '$lib/types/music';
-import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
+import { KEY_PROFICIENT_THRESHOLD, clampTempo } from '$lib/persistence/lick-practice-store';
 
 /**
  * Order keys ascending by rolling score, never-practiced (undefined) first.
@@ -52,6 +57,45 @@ export function shouldDemoHeadKey(
 	threshold: number = KEY_PROFICIENT_THRESHOLD
 ): boolean {
 	return headRolling === undefined || headRolling < threshold;
+}
+
+/**
+ * How far below the lick's stored tempo a deep-practice session opens.
+ *
+ * Deep practice is most often entered from the report's recommendation, on
+ * the lick that just graded worst. Dropping straight in at the tempo the
+ * lick failed at repeats the failure; a small step down makes the first
+ * cycle a re-entry rather than a cold sprint, and `nextCycleTempo` earns the
+ * difference back over the first couple of clears.
+ */
+export const DEEP_PRACTICE_START_DISCOUNT = 0.02;
+
+/** Percent of the current tempo added each time the whole rotation clears. */
+export const DEFAULT_TEMPO_BUMP_PERCENT = 1;
+
+/**
+ * Opening tempo for a deep-practice session, given the lick's stored tempo.
+ *
+ * The `persisted - 1` arm guarantees a real step down: at low tempos 2%
+ * rounds back to the input (60 → 59 is fine, but 50 → 50 would silently
+ * disable the ease-in), and a discount that doesn't move is worse than none
+ * because it reads as working.
+ */
+export function deepPracticeStartTempo(persisted: number): number {
+	const eased = Math.round(persisted * (1 - DEEP_PRACTICE_START_DISCOUNT));
+	return clampTempo(Math.min(persisted - 1, eased));
+}
+
+/**
+ * Tempo for the next cycle after the whole rotation cleared.
+ *
+ * Rounded UP, because 1% of anything under 100 BPM floors to zero — a bump
+ * that never fires would strand every lick below 100 at its opening tempo
+ * forever. The cost is that a 1% rule is really "1%, or 1 BPM, whichever is
+ * more", which at 60 BPM is closer to 1.7%.
+ */
+export function nextCycleTempo(current: number, percent: number): number {
+	return clampTempo(current + Math.ceil(current * (percent / 100)));
 }
 
 /**

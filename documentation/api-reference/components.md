@@ -493,6 +493,64 @@ Section-list editor for the tune editor: add / remove sections, set label, bar c
 
 ---
 
+## Trick Components
+
+**Path:** `src/lib/components/tricks/`
+
+The melodic-device ("trick") practice surface at `/tricks` and `/tricks/[id]`. See [Trick Scoring](../architecture/trick-scoring.md) for the domain model.
+
+### `TrickCard.svelte`
+
+Catalog tile for one device on `/tricks`, showing its name, description, and an unlocked-of-total variant count.
+
+| Prop | Type | Description |
+|---|---|---|
+| `trick` | `Trick` | The device from the `TRICKS` catalog |
+| `onclick` | `() => void` | Optional activation handler |
+
+### `TrickMasteryTree.svelte`
+
+The variant ladder on `/tricks/[id]`: unlocked variants, the next locked ones, and each one's total pass count against its prerequisite.
+
+| Prop | Type | Description |
+|---|---|---|
+| `trickId` | `string` | Which ladder to render |
+| `selectedKey` | `string?` | Variant key highlighted as the parent's current selection |
+| `onSelect` | `(variantKey: string) => void` | Called when an **unlocked** row is clicked |
+| `version` | `number` | Bumped by the parent after a practice-state change to force a re-read |
+
+`version` exists because persisted progress isn't reactive — the tree re-reads `loadTrickUnlockContext()` inside a `$derived.by` that touches `version`. It is SSR-safe: storage reads return `null` on the server, so it renders the empty-progress state rather than throwing.
+
+---
+
+## Diagnostics Components
+
+**Path:** `src/lib/components/diagnostics/`
+
+Used only by `/diagnostics/backing-mixer`, the backing-track listening lab. The protocol they serve is [Backing-track listening](../contributing/backing-listening.md).
+
+### `BlindAbPlayer.svelte`
+
+Blind A/B between the current engine's bounce and a reference WAV the user loads. On "Start blind comparison" the two are shuffled behind neutral X/Y labels and the verdict (`X` / `Y` / `tie`) is recorded **before** the mapping is revealed — which is the entire point: it keeps the author's expectations out of the judgment.
+
+| Prop | Type | Description |
+|---|---|---|
+| `currentUrl` | `string \| null` | Object URL of the current bounce; changing or clearing it resets any open comparison |
+| `currentLabel` | `string` | Label shown after the reveal (default `'Current bounce'`) |
+
+### `ListeningChecklist.svelte`
+
+Renders `LISTENING_CHECKLIST` from `$lib/audio/backing-listening-checklist` — the single source of truth, so the lab UI and the protocol doc cannot drift. Each item cycles blank → ✅ → ❌ → ➖; "Copy report" emits the markdown block pasted into the PR and the listening log.
+
+| Prop | Type | Description |
+|---|---|---|
+| `presetLabel` | `string` | Stamped into the report header |
+| `style` | `string` | Backing style under test |
+| `tempo` | `number` | Tempo under test |
+| `seed` | `number` | Variation seed under test |
+
+---
+
 ## Console Components
 
 **Path:** `src/lib/components/console/`

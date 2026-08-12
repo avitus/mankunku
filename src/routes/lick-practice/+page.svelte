@@ -72,14 +72,16 @@
 	}
 
 	function handleStart() {
-		const { sessionType, singleLickId, tempoBumpBpm } = lickPractice.config;
+		const { sessionType, singleLickId, tempoBumpPercent } = lickPractice.config;
 		if (sessionType === 'trick') {
 			if (startTrickSession()) goto('/lick-practice/session');
 			return;
 		}
 		if (sessionType === 'deep') {
 			if (!singleLickId) return;
-			const ok = startSingleLickSession(singleLickId, tempoBumpBpm ?? 5);
+			// Undefined falls through to the function's own default, so the
+			// 1% figure lives in exactly one place.
+			const ok = startSingleLickSession(singleLickId, tempoBumpPercent);
 			if (ok) goto('/lick-practice/session');
 			return;
 		}

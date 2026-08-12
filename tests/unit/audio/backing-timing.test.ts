@@ -132,9 +132,13 @@ describe('ensemble ordering in generated output', () => {
 });
 
 describe('scorer independence guard', () => {
-	it('swingForTempo is never imported by playback, scoring, or tricks', () => {
+	it('swingForTempo is never imported by playback, scoring, tricks, or the melody resolver', () => {
 		const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
-		const files: string[] = ['src/lib/audio/playback.ts'];
+		// backing-styles.ts is in scope because it owns resolveMelodySwing — the
+		// single source of the grid the scorer expects. Its prose was scrubbed of
+		// the identifier so it could be covered here rather than sitting outside
+		// the only mechanism enforcing the invariant.
+		const files: string[] = ['src/lib/audio/playback.ts', 'src/lib/audio/backing-styles.ts'];
 		for (const dir of ['src/lib/scoring', 'src/lib/tricks']) {
 			for (const f of readdirSync(join(repoRoot, dir), { recursive: true }) as string[]) {
 				if (String(f).endsWith('.ts')) files.push(join(dir, String(f)));

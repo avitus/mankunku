@@ -20,9 +20,9 @@ import type {
 	SessionReport
 } from '$lib/types/lick-practice';
 import { save, load } from './storage';
+import { MAX_SESSIONS } from './limits';
 
 const STORAGE_KEY = 'lick-practice-sessions';
-const MAX_SESSIONS = 100;
 
 export interface LickPracticeSessionLogEntry {
 	id: string;

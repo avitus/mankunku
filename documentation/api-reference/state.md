@@ -2,7 +2,7 @@
 
 Reactive state modules using the Svelte 5 `$state` rune at module scope, plus the plain (non-rune) logic modules that sit beneath them.
 
-The recurring pattern: a `.svelte.ts` module owns the rune and bridges UI to logic, while the testable planning/selection logic lives in a plain `.ts` module beside it — `lick-practice.svelte.ts` / `lick-practice-picker.ts`, and `tune-practice.svelte.ts` / `tune-practice-plan.ts`. Routes own audio orchestration; state modules never do.
+The recurring pattern: a `.svelte.ts` module owns the rune and bridges UI to logic, while the testable planning/selection logic lives in a plain `.ts` module beside it — `lick-practice.svelte.ts` / `lick-practice-picker.ts` / `lick-practice-rotation.ts`, and `tune-practice.svelte.ts` / `tune-practice-plan.ts`. Routes own audio orchestration; state modules never do.
 
 **Source:** `src/lib/state/`, `src/lib/persistence/`
 
@@ -255,24 +255,31 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 ```typescript
 export const lickPractice = $state<{
   config: LickPracticeConfig;          // sessionType, progressionType, durationMinutes, practiceMode,
-                                       //   backingStyle, enableSubstitutions?, singleLickId?, tempoBumpBpm?
-  phase: LickPracticePhase;            // 'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'round-complete' | 'complete'
+                                       //   backingStyle, enableSubstitutions?, singleLickId?, tempoBumpPercent?,
+                                       //   trickId?, trickParameters?
+  phase: LickPracticePhase;            // 'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'complete'
   plan: LickPracticePlanItem[];         // Ordered licks + planned keys
   currentLickIndex: number;
   currentKeyIndex: number;
   currentTempo: number;
-  keyResults: LickPracticeKeyResult[];  // Results for the current lick
+  keyResults: LickPracticeKeyResult[];  // Results for the current lick (cleared each cycle)
   allAttempts: LickPracticeKeyResult[][]; // Archived results per lick
   startTime: number;
   elapsedSeconds: number;
   progress: LickPracticeProgress;       // Persisted per-lick per-key data
   mode: 'standard' | 'single-lick';     // 'standard' = multi-lick rotation; 'single-lick' = endless deep practice
   // Single-lick-mode only:
-  roundNumber: number;                  // Completed full cycles
+  roundNumber: number;                  // Completed full cycles (also drives the trick demo-style rotation)
   masteredThisRound: PitchClass[];      // Keys cleared at ≥ 0.95 in the current round
   roundHistory: SingleLickRoundEntry[]; // Per-round summary (tempo + which keys cleared)
+  demoNextCycle: boolean;               // Whether the next cycle opens with a demo (see "Continuous cycles")
+  latestKeyResults: Partial<Record<PitchClass, LickPracticeKeyResult>>;  // Session-long, for the ring
+  sessionKeys: PitchClass[];            // Stable circle-of-4ths key set, for the ring
 }>();
 ```
+
+`config.sessionType` is `'daily' | 'focused' | 'deep' | 'trick'` — the setup-page
+picker, which also decides which start function the page dispatches to.
 
 ### `PlannedKey` interface
 
@@ -300,7 +307,10 @@ export interface PlannedKey {
 - `buildDailyPracticePlan(): void` — Daily Practice mode. Pools every Daily-eligible lick, assigns each its own least-recently-practiced compatible progression, and packs the budget. Each plan item carries its own `progressionType` instead of inheriting from config.
 - `startSession(): void` — Standard entry: sets `mode` to `'standard'`, transitions to `count-in`, resets indices, stamps `startTime`, resolves first-lick tempo.
 - `startDailyPracticeSession(): void` — Daily-Practice entry. Clears `config.singleLickId`, calls `buildDailyPracticePlan`, sets `mode` to `'standard'`, then starts.
-- `startSingleLickSession(lickOrId: string | Phrase, tempoBumpBpm = 5): boolean` — Single-lick entry. Accepts a `Phrase` or a lick id; returns `false` if the lick can't be resolved. Builds the per-lick plan inline: cycles the lick through its *currently-unlocked* keys via `unlockedCircleFrom(lick.key, unlockedCount)` (not all 12), derives the backing progression from the lick's own `prog:*` tags via `resolveSingleLickProgression`, sets `mode` to `'single-lick'`, and transitions to `count-in`. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpBpm` (default 5) once every unlocked key clears and the rotation refills.
+- `startSingleLickSession(lickOrId: string | Phrase, tempoBumpPercent = 1): boolean` — Single-lick entry. Accepts a `Phrase` or a lick id; returns `false` if the lick can't be resolved. Builds the per-lick plan inline: cycles the lick through its *currently-unlocked* keys via `unlockedCircleFrom(lick.key, unlockedCount)` (not all 12), derives the backing progression from the lick's own `prog:*` tags via `resolveSingleLickProgression`, sets `mode` to `'single-lick'`, seeds `sessionKeys` with the **unsorted** circle while the plan item's `keys` get the worst-first sort, and transitions to `count-in`. Mastered keys (score ≥ 0.95) drop from the next round; tempo bumps by `tempoBumpPercent` (default 1%, rounded up to a whole BPM) once every unlocked key clears and the rotation refills.
+
+  **The tempo is session-local.** The session opens at `deepPracticeStartTempo(resolveLickTempo(...))` — 2% under the lick's stored tempo, applied here rather than inside the shared `resolveLickTempo` so it can't leak into Daily/Focused — and nothing on the deep path writes `LickPracticeKeyProgress.currentTempo` or appends a progress-history sample. `recordKeyAttempt` detects the mode and persists the lick's *baseline* (the key's existing tempo, or `resolveLickTempo` for a first-ever entry) instead of the ramped session value; it cannot simply omit the field, because `updateKeyProgress` merges over `getKeyProgress`'s 100-BPM default. Rolling score, `passCount` and `lastPracticedAt` are still written normally.
+- `startTrickSession(): boolean` — Trick entry, driven by `config.trickId` + `config.trickParameters`. Resolves the device from the `TRICKS` catalog, picks its practice bed (`trick.practiceBed?.(params) ?? 'major-vamp'`), builds a C-rooted `TrickContext` from that vamp's first harmony segment, and generates the round-1 example phrase. The plan item is a single `kind: 'trick'` entry whose `phraseId` **is the composite variant key** — `getLickById` misses on it by design and every helper falls back to the item's `phrase`. Trick items always demo, are never re-sorted worst-first, and never write to the lick store.
 
 ### Cursor accessors
 
@@ -315,19 +325,69 @@ export interface PlannedKey {
 
 ### Phrase assembly
 
-- `buildLickSuperPhrase(lickIdx): Phrase | null` — Concatenates all 12 keys (plus an optional continuous-mode demo) into a single `Phrase`, so a lick's entire backing track can be scheduled in one Tone.js pass.
+- `buildLickSuperPhrase(lickIdx): Phrase | null` — Concatenates the plan item's keys (plus an optional continuous-mode demo) into a single `Phrase`, so a lick's entire backing track can be scheduled in one Tone.js pass.
+- `getDemoBars(lickIdx): number` — Bars the demo occupies, or `0`. The **single source** for both super-phrase layout and window scheduling, so a skipped demo shortens the audio and the recording windows in lockstep. Returns `0` outside continuous mode; in single-lick mode a non-trick item also returns `0` when `demoNextCycle` is false.
 - `getKeyBars(): number` — Bars per key for the current mode (progression bars, doubled in call-and-response).
 - `getProgressionBars(): number` — Bars in one chord-progression cycle.
 
+### Continuous deep-practice cycles
+
+Single-lick (Deep Practice) sessions do **not** stop between cycles: there are no rest bars and no per-round card. `scheduleLickWindows` returns early for `mode === 'single-lick'` before it would schedule an inter-lick rest, and `closeAndScoreWindow` skips the breather overlay for it. The last key's close event runs the cycle boundary **synchronously**, in this order:
+
+1. `advanceSingleLickRound()` — drop keys mastered at ≥ 0.95, archive the round, re-sort the rotation worst-first, decide `demoNextCycle`, and on a full clear bump tempo by `tempoBumpPercent` (via `nextCycleTempo`) and refill. The two branches differ on persistence by design: the trick branch writes the bumped tempo to the trick store because clearing the rotation *is* the trick unlock, while the lick branch writes nothing at all.
+2. `resolveNextCycleStart(...)` — pick the next downbeat, a whole bar at a time, so a stalled main thread stretches the turnaround instead of scheduling audio in the past.
+3. Schedule the next cycle's audio and windows.
+4. Schedule the ii-V turnaround into the **last bar before** that downbeat.
+
+It has to be synchronous because the final score must already be folded into `rollingScore` before the worst-first sort runs, and because the turnaround's target key — the next cycle's first key — is only knowable after the sort.
+
+The rotation policy itself is pure and lives in [`lick-practice-rotation.ts`](#lick-practice-rotationts). The turnaround bar is built by `audio/turnaround-bar.ts` and played through `playBackingHitsNow` as standalone transport events rather than a `Tone.Part` — `scheduleNextPhrase`'s deferred `disposeBackingParts()` would destroy Part-scheduled events at exactly the moment the turnaround should sound.
+
 ### Session control
 
-- `recordKeyAttempt(score): void` — Append a key result; persist per-key progress and bump pass count on score ≥ `KEY_PROFICIENT_THRESHOLD` (0.90, green tier). Yellow 0.75–0.89 is recorded but doesn't increment `passCount`. Below `KEY_FLOOR_THRESHOLD` (0.75) is red and blocks tempo increases + unlocks at session end.
+- `recordKeyAttempt(score, sessionId?): void` — Append a key result and persist per-key progress. `passCount` increments only on score ≥ `KEY_PROFICIENT_THRESHOLD` (0.90, green tier); yellow 0.75–0.89 is recorded but doesn't earn, and below `KEY_FLOOR_THRESHOLD` (0.75) is red and blocks tempo increases + unlocks at session end. `rollingScore` and `lastPracticedAt`, by contrast, are written on **every** attempt including failures — always with an explicit `currentTempo`, because the store's 100-BPM default would otherwise leak into a brand-new lick whose first attempt failed and pin it via `getLickTempo`'s `Math.min`. Trick items never touch the lick store: they write to `persistence/trick-practice-store.ts`, and only on a pass.
 - `resetLick(phraseId): void` — Full-reset one lick's per-key scores, `passCount`, and unlock count back to never-practiced (tempo → 60, `passCount`s → 0, one unlocked key). Reassigns the reactive `progress` rune. `phraseId` must be the base lick id. Tags (`practice`, `prog:*`) are preserved. Local-only via `resetLickPersistence`; there is no `supabase?` parameter and reset performs no explicit cloud sync. Surfaced from the post-session report (gated on try-again-band scores) and the book detail page (gated on `hasLickProgress`).
 - `advance(): 'next-key' | 'end-of-lick'` — Move to the next key; returns `'end-of-lick'` when the current lick's keys are exhausted.
 - `startInterLickTransition(): 'next-lick' | 'complete'` — Archive results, apply the score-weighted tempo adjustment (+2 BPM at ≥ 95%, +1 at ≥ 90%, -1 in the 75–89% yellow band, -3 below 75% — and any single key below `KEY_FLOOR_THRESHOLD` clamps the delta to ≤ 0 regardless of average), then move to the next lick or mark session complete.
 - `updateElapsedTime(): void`
 - `resetSession(): void`
 - `getSessionReport(): SessionReport` — Build the end-of-session report from archived attempts, including any in-progress lick.
+
+---
+
+## lick-practice-rotation.ts
+
+Pure cycle policy behind single-lick Deep Practice. Plain module (no rune, no state imports), so it is unit-testable in Node — the same split as `lick-practice-picker.ts`.
+
+**Source:** `src/lib/state/lick-practice-rotation.ts`
+
+| Export | Signature | Policy |
+|---|---|---|
+| `sortKeysWorstFirst` | `(keys, rollingFor) → PitchClass[]` | Ascending by rolling score, with an **unknown score coerced to −1** so a never-practiced key sorts worst and gets demoed. Copies the input; relies on a stable sort, so ties keep incoming circle-of-4ths order. |
+| `shouldDemoHeadKey` | `(headRolling, threshold = KEY_PROFICIENT_THRESHOLD) → boolean` | Demo while the head key is unknown or **strictly below** 0.90. At 0.90+ the demo is skipped — the user answers in the struggling key immediately. |
+| `resolveNextCycleStart` | `(idealStartTick, currentTick, ticksPerBar, minLeadTicks) → number` | Pushes the start forward **by whole bars** until it is at least `minLeadTicks` ahead. A late callback stretches the turnaround; it never schedules audio in the past and never leaves the bar grid. |
+| `planCycleWindows` | `({ audioStartTick, demoBars, keyBars, ticksPerBar, keyCount, userBarsOffsetTicks }) → CycleWindowPlan` | Per-key recording `opens[]` / `closes[]` plus `cycleEndTick`. `userBarsOffsetTicks` is non-zero only in call-and-response, where the app plays the first half of each key slot. |
+
+## tricks.svelte.ts
+
+Which trick variants the user has starred for practice. **Persisted** through `persistence/trick-practice-store.ts` (localStorage key `trick-selected-variants`), cloud-synced inside the `user_settings.trick_state` blob.
+
+**Source:** `src/lib/state/tricks.svelte.ts`
+
+```typescript
+export const trickState = $state({
+  selectedVariants: new SvelteSet<string>()   // composite `${trickId}:${paramSignature}` keys
+});
+```
+
+`SvelteSet`, not a plain `Set`, so `.add()` / `.delete()` drive the selection UI reactively.
+
+### Functions
+
+- `isVariantSelected(variantKey): boolean`
+- `setVariantSelected(variantKey, selected): void` — Local save first, then enqueue an outbox push.
+- `toggleVariantSelected(variantKey): boolean` — Returns the new state.
+- `hydrateTrickStateFromCloud(supabase): Promise<void>` — Delegates the pull-merge to `initTrickStateFromCloud`, then **re-seeds** the reactive set from the merged local store. Deliberately not a union with the live set: selection is last-writer-wins, and a union would resurrect variants deselected on another device. It also does not re-save, which would stamp a fresh selection mtime and make this device "newest" without a real user edit. Guarded by the scope generation so a mid-flight user switch can't write the previous user's state.
 
 ---
 

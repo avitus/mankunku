@@ -1558,3 +1558,226 @@ describe('Pent 1-3-2-5 latency-shifted final note (concert F, 2026-07-28)', () =
 		expect(score.overall).toBeGreaterThan(0.9);
 	});
 });
+
+// ─── 2026-08-10 "Pent 1-2-3-5 / Eighth Run + Hold" ───────────────────────────
+//
+// Concert C major pentatonic run C-D-E-G on Bb tenor, 105 BPM, swing 0.6,
+// metronome on, no backing track. The performance was correct; the saved score
+// was 0.522 ("try-again") with one note of four hit.
+//
+// Two independent defects stacked:
+//
+//   1. The capture was armed by the user's first note, so it began 190 ms into
+//      that note — the WAV opens mid-C at RMS 0.039 with no attack transient.
+//      The C never formed a note. (Fixed in the capture layer; this fixture's
+//      readings still start mid-C, because that is what was recorded.)
+//
+//   2. The metronome click at 0.856 s wiped McLeod clarity for 167 ms on the
+//      HELD final G. The bare-gap tier read post/pre RMS at ~0.85 — right on
+//      RE_ARTICULATION_GAP_SUSTAIN's floor, between the 0.67 decaying-note
+//      counterexample it was cut against and the 0.94/0.97 of real tongue
+//      stops — and manufactured a re-articulation at 1.08 s, splitting the
+//      held G in two.
+//
+// Defect 2 is what made defect 1 catastrophic rather than merely costly: the
+// phantom G restored the detected count to four, so DTW found a clean 1:1
+// diagonal shifted one position (60→62, 62→64, 64→67) and a single missed note
+// became three wrong ones. With the split repaired the same take scores 0.742.
+describe('2026-08-10 pent run: a metronome click must not split the held G', () => {
+	interface PentRunFixture {
+		context: { tempo: number; swing: number; transportSeconds: number };
+		detection: { rawWorkletOnsets: number[]; readings: PitchReading[] };
+	}
+
+	function loadPentRunFixture(): PentRunFixture {
+		const path = resolve(
+			__dirname,
+			'..',
+			'fixtures',
+			'recordings',
+			'2026-08-10-pent-1-2-3-5-eighth-run-hold.json'
+		);
+		return JSON.parse(readFileSync(path, 'utf8'));
+	}
+
+	/** The ear-training path, metronome on: bleed evidence reaches both stages. */
+	function runPipeline(fx: PentRunFixture) {
+		const readings = fx.detection.readings;
+		const worklet = fx.detection.rawWorkletOnsets;
+		const duration = readings[readings.length - 1].time + 0.1;
+		const bleedOnsets = getMetronomeBleedOnsets(
+			fx.context.transportSeconds,
+			fx.context.tempo,
+			duration
+		);
+		const baseOnsets = resolveOnsets(worklet, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			onsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			worklet,
+			bleedOnsets,
+			articulationOnsets
+		);
+		return { detected, articulationOnsets, bleedOnsets, duration };
+	}
+
+	it('the worklet onsets are all metronome clicks, one beat apart', () => {
+		const fx = loadPentRunFixture();
+		const beat = 60 / fx.context.tempo;
+		const raw = fx.detection.rawWorkletOnsets;
+
+		for (let i = 1; i < raw.length; i++) {
+			const beats = (raw[i] - raw[i - 1]) / beat;
+			expect(Math.abs(beats - Math.round(beats))).toBeLessThan(0.02);
+		}
+	});
+
+	it('no re-articulation is manufactured inside the click-wiped gap', () => {
+		const { articulationOnsets } = runPipeline(loadPentRunFixture());
+
+		// The gap runs 0.850 → 1.017; the phantom landed at 1.08.
+		expect(articulationOnsets.filter((t) => t > 0.85 && t < 1.2)).toEqual([]);
+	});
+
+	it('the held G stays one note', () => {
+		const { detected, duration } = runPipeline(loadPentRunFixture());
+
+		// Still missing the C the capture never recorded — that is defect 1, and
+		// this fixture predates the fix for it — but D, E and a single held G.
+		expect(detected.map((n) => n.midi)).toEqual([62, 64, 67]);
+
+		// The G runs unbroken from its attack to the end of the readings, across
+		// the click at 0.856 that used to cut it in two. (These are the LIVE
+		// readings, which stop at ~1.98 s; the diagnostic's saved note is longer
+		// because it came from the replay pass over the full 3.47 s blob.)
+		const heldG = detected[detected.length - 1];
+		expect(heldG.onsetTime).toBeCloseTo(0.733, 2);
+		expect(heldG.onsetTime + heldG.duration).toBeCloseTo(duration, 2);
+	});
+
+	it('scores as one missed note rather than three wrong ones', () => {
+		const fx = loadPentRunFixture();
+		const { detected } = runPipeline(fx);
+		const phrase: Phrase = {
+			id: 'cmb-sp-pent-run-4_rp-4-eighths-hold',
+			name: 'Pent 1-2-3-5 / Eighth Run + Hold',
+			key: 'C',
+			timeSignature: [4, 4],
+			notes: [
+				{ pitch: 60, offset: [0, 1], duration: [1, 8] },
+				{ pitch: 62, offset: [1, 8], duration: [1, 8] },
+				{ pitch: 64, offset: [1, 4], duration: [1, 8] },
+				{ pitch: 67, offset: [3, 8], duration: [5, 8] }
+			],
+			harmony: [],
+			difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
+			category: 'pentatonic',
+			tags: [],
+			source: 'curated'
+		};
+
+		const score = scoreAttempt(phrase, detected, fx.context.tempo, 0, fx.context.swing);
+
+		// Saved diagnostic: pitch 0.250, overall 0.522, 1 of 4 hit — the whole
+		// line aligned one position off. D, E and G now match where they should.
+		expect(score.pitchAccuracy).toBeCloseTo(0.75, 5);
+		expect(score.notesHit).toBe(3);
+		expect(score.overall).toBeGreaterThan(0.70);
+		expect(score.noteResults[0].missed).toBe(true);
+		expect(score.noteResults[1].detected?.midi).toBe(62);
+		expect(score.noteResults[2].detected?.midi).toBe(64);
+		expect(score.noteResults[3].detected?.midi).toBe(67);
+	});
+});
+
+// ─── 2026-08-11 tongued same-pitch pairs ─────────────────────────────────────
+//
+// Two ear-training takes from the same session (concert G, 105 BPM, swing 0.6,
+// metronome on, no backing track) where a subtle same-pitch re-articulation
+// merged and the second note was scored MISSED. These replay the SAVED live
+// readings — the trim-consistent export shipped in #223, so `transportSeconds`
+// describes the untrimmed blob and `captureTrimSeconds` must be added back to
+// phase the click grid. The WAV twins in pitch-replay.test.ts pin the
+// authoritative blob-rescore path; these pin the same evidence class on the
+// saved-readings path.
+describe('2026-08-11 tongued same-pitch pairs: saved-readings replay', () => {
+	interface TonguedPairFixture {
+		context: { tempo: number; swing: number; transportSeconds: number };
+		audio: { duration: number; captureTrimSeconds: number };
+		detection: { rawWorkletOnsets: number[]; readings: PitchReading[] };
+	}
+
+	function loadTake(file: string): TonguedPairFixture {
+		const path = resolve(__dirname, '..', 'fixtures', 'recordings', file);
+		return JSON.parse(readFileSync(path, 'utf8'));
+	}
+
+	/** The ear-training path, metronome on: bleed evidence reaches both stages. */
+	function runPipeline(fx: TonguedPairFixture) {
+		const readings = fx.detection.readings;
+		const worklet = fx.detection.rawWorkletOnsets;
+		const duration = fx.audio.duration;
+		const bleedOnsets = getMetronomeBleedOnsets(
+			fx.context.transportSeconds + fx.audio.captureTrimSeconds,
+			fx.context.tempo,
+			duration
+		);
+		const baseOnsets = resolveOnsets(worklet, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			onsets,
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			worklet,
+			bleedOnsets,
+			articulationOnsets
+		);
+		return { detected, articulationOnsets };
+	}
+
+	// "Curl to the Floor" (bbn-019_G): D4, C4 C4 (swung eighths), Bb3, G3. The
+	// tongue stop's band-floor collapse precedes the hfRms spike (tracking was
+	// blanked through the attack), and a click 219 ms before the spike put it
+	// inside the HF suppression window — bandFloorDips' pre-span stop-and-
+	// recover shape is what rescues it. Saved score 0.747 with the second C4
+	// MISSED; the merged C4 was a single 0.55 s note at 0.900.
+	it('Curl to the Floor: the tongued C4 eighth pair splits despite the adjacent click', () => {
+		const { detected, articulationOnsets } = runPipeline(
+			loadTake('2026-08-11-curl-to-the-floor.json')
+		);
+
+		expect(articulationOnsets.some((t) => t > 1.28 && t < 1.42)).toBe(true);
+		expect(detected.map((n) => n.midi)).toEqual([62, 60, 60, 58, 55]);
+		expect(detected[1].onsetTime).toBeCloseTo(0.9, 1);
+		expect(detected[2].onsetTime).toBeGreaterThan(1.28);
+		expect(detected[2].onsetTime).toBeLessThan(1.42);
+	});
+
+	// "Blue Note Climb" (bbn-001_G): C4, C4, D4 halves. The soft on-beat
+	// tongue leaves a 133 ms tracking hole, stretched past the bare-gap floor
+	// only by the warmup frames findSameMidiRuns skips, and the post-gap
+	// energy holds 1.19× — under the 1.2 step-up the short-gap tier would
+	// demand if the gap ever measured below 150 ms. Scored 0.666 by a stale
+	// pre-#223 client with the second C4 MISSED; current code must keep it
+	// split at the bare-gap articulation.
+	it('Blue Note Climb: the tongued C4 half pair splits at the bare-gap articulation', () => {
+		const { detected, articulationOnsets } = runPipeline(
+			loadTake('2026-08-11-blue-note-climb.json')
+		);
+
+		expect(articulationOnsets.some((t) => t > 1.4 && t < 1.6)).toBe(true);
+		expect(detected.map((n) => n.midi)).toEqual([60, 60, 62]);
+		expect(detected[1].onsetTime).toBeGreaterThan(1.4);
+		expect(detected[1].onsetTime).toBeLessThan(1.6);
+	});
+});

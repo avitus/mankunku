@@ -8,6 +8,7 @@ import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } 
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 import { enqueue } from '$lib/persistence/outbox';
 import { BACKING_STYLE_IDS } from '$lib/audio/backing-styles';
+import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 
 const STORAGE_KEY = 'settings';
 const VALID_BACKING_STYLES = new Set<string>(BACKING_STYLE_IDS);
@@ -16,7 +17,7 @@ function loadSettings() {
 	const saved = load<typeof defaultSettings>(STORAGE_KEY);
 	const result = saved ? { ...defaultSettings, ...saved } : { ...defaultSettings };
 	// Clamp swing to valid range (0.5 straight → 0.8 heavy swing)
-	result.swing = Math.max(0.5, Math.min(0.8, result.swing));
+	result.swing = Math.max(STRAIGHT_SWING, Math.min(MAX_SWING, result.swing));
 	if (!VALID_BACKING_STYLES.has(result.backingStyle)) {
 		result.backingStyle = 'swing';
 	}
@@ -122,7 +123,7 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		// Merge cloud settings with defaults, preferring cloud values
 		const merged = { ...defaultSettings, ...cloudSettings };
 		// Clamp swing to valid range (same as loadSettings)
-		merged.swing = Math.max(0.5, Math.min(0.8, merged.swing as number));
+		merged.swing = Math.max(STRAIGHT_SWING, Math.min(MAX_SWING, merged.swing as number));
 		if (!VALID_BACKING_STYLES.has(merged.backingStyle as string)) {
 			merged.backingStyle = 'swing';
 		}

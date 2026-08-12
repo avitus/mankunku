@@ -16,6 +16,8 @@ import { enqueue } from './outbox';
 import { mergeLickMetadata, type LickMergeMeta, type LickMetaBundle } from './lick-metadata-merge';
 import { getLickTagOverrides } from './user-licks';
 import { loadLickPracticeSessions } from './lick-practice-sessions';
+import { MAX_HISTORY_POINTS } from './limits';
+import { MAX_UNLOCKED_KEYS } from '$lib/music/key-ordering';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
@@ -26,8 +28,6 @@ const TAG_OVERRIDES_KEY = 'lick-tag-overrides';
 const MERGE_META_KEY = 'lick-merge-meta';
 /** Per-lick append-only BPM/keys-unlocked time series (powers the detail-page graph). */
 const HISTORY_KEY = 'lick-progress-history';
-/** Cap on retained history points per lick — keep in sync with the merge cap. */
-const MAX_HISTORY_POINTS = 500;
 const DEFAULT_TEMPO = 100;
 /** Starting BPM for any lick with no prior practice history. */
 export const NEW_LICK_DEFAULT_TEMPO = 60;
@@ -46,9 +46,6 @@ const PROG_TAG_PREFIX = 'prog:';
  * "explicit removal" and would silently drop the lick from `/lick-practice`.
  */
 const PRACTICE_REMOVED_TAG = 'practice:removed';
-/** Maximum unlocked keys per lick (full 12-key circle). */
-const MAX_UNLOCKED_KEYS = 12;
-
 
 /**
  * Score at or above which a key is considered "proficient" — drives the
@@ -439,6 +436,12 @@ export function seedProgressHistoryFromSessions(): void {
 
 	const history = loadLickProgressHistory();
 	for (const entry of loadLickPracticeSessions()) {
+		// Single-lick sessions (deep practice and trick drills both set
+		// roundsCompleted) ramp tempo WITHIN the session without persisting it.
+		// Their logged tempo is therefore a figure the lick never actually held,
+		// and seeding it here would reintroduce exactly the phantom history point
+		// `advanceSingleLickRound` deliberately stopped writing.
+		if (entry.report.roundsCompleted !== undefined) continue;
 		for (const lick of entry.report.licks) {
 			// Trick drills log sessions too; their composite ':' variant keys must not seed the LICK progress-history blob.
 			if (lick.lickId.includes(':')) continue;
@@ -471,7 +474,7 @@ export function computeAutoTempoAdjustment(averageScore: number): number {
 	return -3;
 }
 
-/** Clamp a tempo to the allowed range (40–300 BPM). */
+/** Clamp a tempo to the allowed range (50–300 BPM). */
 export function clampTempo(tempo: number): number {
 	return Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, tempo));
 }

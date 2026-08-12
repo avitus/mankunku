@@ -33,9 +33,33 @@ The backing-track upgrade program ("professional session musicians") is verified
 - **Blind A/B**: load a reference WAV, bounce the current engine, start the comparison —
   slots are shuffled behind X/Y labels and the verdict is recorded before revealing which
   is which.
+- **Export events JSON**: dumps the exact generated event streams (bass / comp / drums
+  plus the generation params) for the current preset+tempo+seed. This is the format the
+  golden fixtures use and the input the WAV renderer takes, so it is how you freeze
+  "what the engine played today" independently of "how it sounded".
+- **Render WAV from events JSON**: the inverse — plays any past engine's exact events
+  through *today's* instruments and mix. Validates shape and rejects a tempo below
+  20 BPM (a degenerate tempo would ask for an Infinity-second render).
 - **Checklist**: the items live in `src/lib/audio/backing-listening-checklist.ts` (single
-  source of truth). Cycle each item through ✅ / ❌ / ➖, add notes, and "Copy listening
-  report" produces the markdown block to paste below and into the milestone PR.
+  source of truth — 19 items across swing-feel / bass / comp / drums / ensemble / mix).
+  Cycle each item through ✅ / ❌ / ➖, add notes, and "Copy listening report" produces
+  the markdown block to paste below and into the milestone PR.
+
+### Producing a comparison set headlessly
+
+Clicking through eight bounces by hand is how the first milestone went; don't repeat it.
+`tests/e2e/backing-milestone-render.spec.ts` drives the lab in a real browser and saves
+one WAV per events JSON:
+
+```sh
+RENDER_DIR=tests/fixtures/backing/milestone-a OUT_DIR=~/Desktop/milestone-a \
+  npx playwright test tests/e2e/backing-milestone-render.spec.ts --project=chromium
+```
+
+It self-skips unless both env vars are set, it is not running in CI, and the project is
+Chromium — so it never fires as part of an ordinary `npm run test:e2e`. The committed
+Milestone A set lives at `tests/fixtures/backing/milestone-a/` (old/new × blues at
+90/160/240 + AABA at 160).
 
 ## Milestone procedure
 
@@ -82,7 +106,8 @@ deliberately untouched, so goldens and the report are unchanged. Confirm
 listen verdict (2026-08-06, post-fix): better, and best at 85% of the fixed
 level — trim refined 0.55 → 0.51. (smplr's velocity→gain curve is quadratic,
 so × √0.85 in velocity space is × 0.85 in output *amplitude* — the sqrt rule
-documented at `BACKING_BASE_TRIMS`.)
+documented at `BACKING_BASE_TRIMS`.) A second confirm listen (2026-08-08)
+took one more 85% step, 0.51 → **0.47**, which is the value at HEAD.
 
 ### Milestone A — 2026-08-05 — verdict: tie (no perceived difference)
 

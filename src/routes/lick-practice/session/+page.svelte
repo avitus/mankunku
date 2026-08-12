@@ -52,6 +52,7 @@
 		type PhaseSegment
 	} from '$lib/state/lick-practice-phase';
 	import { buildTurnaroundBarEvents, type BackingHit } from '$lib/audio/turnaround-bar';
+	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import type {
 		PlannedKey,
 		LickBreatherInfo,
@@ -73,7 +74,7 @@
 		upsertLickPracticeSession,
 		splitReportByProgression
 	} from '$lib/persistence/lick-practice-sessions';
-	import { NEW_LICK_DEFAULT_TEMPO } from '$lib/persistence/lick-practice-store';
+	import { NEW_LICK_DEFAULT_TEMPO, getLickTempo } from '$lib/persistence/lick-practice-store';
 	import { bumpStreakForToday } from '$lib/state/progress.svelte';
 	import { recomputeDailySummary, localDateStr } from '$lib/state/history.svelte';
 	import { enqueue } from '$lib/persistence/outbox';
@@ -101,6 +102,18 @@
 	let onsetModule: typeof import('$lib/audio/onset-detector') | null = null;
 	let backingTrack: typeof import('$lib/audio/backing-track') | null = null;
 	let toneModule: typeof import('tone') | null = null;
+
+	/**
+	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
+	 * ballad) pin it; only the swing style defers to the user's knob. Every
+	 * path that would otherwise read `settings.swing` — playback, scoring,
+	 * the turnaround bar, and the swing persisted with the recording — goes
+	 * through this, so melody and band never disagree and a rescore grades
+	 * against the same grid the take was played on.
+	 */
+	const effectiveSwing = $derived(
+		melodySwingForStyle(settings.swing, lickPractice.config.backingStyle)
+	);
 
 	let micCapture: MicCapture | null = null;
 	let pitchDetector: PitchDetectorHandle | null = null;
@@ -352,7 +365,7 @@
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: lickPractice.currentTempo,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
@@ -795,7 +808,7 @@
 			targetKey: nextKey,
 			backingStyle: lickPractice.config.backingStyle ?? 'swing',
 			tempo: lickPractice.currentTempo,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			ppq,
 			beatsPerBar: Math.round(ticksPerBar / ppq)
 		});
@@ -1104,7 +1117,7 @@
 						chordRoot: key,
 						key,
 						tempo: lickPractice.currentTempo,
-						swing: settings.swing
+						swing: effectiveSwing
 					}
 				});
 			}
@@ -1118,7 +1131,7 @@
 				phrase: window.phrase,
 				tempo: lickPractice.currentTempo,
 				transportSeconds: window.recordingTransportSeconds,
-				swing: settings.swing,
+				swing: effectiveSwing,
 				bleedFilterEnabled: settings.bleedFilterEnabled,
 				bleedResult,
 				// Continuous mode: accept any octave of the right pitch class.
@@ -1209,7 +1222,7 @@
 			// (null for trick windows — no pipeline ran).
 			const bleedLogForSave = session.bleedFilterLog;
 			const tempoForSave = lickPractice.currentTempo;
-			const swingForSave = settings.swing;
+			const swingForSave = effectiveSwing;
 			const metronomeForSave = settings.metronomeEnabled;
 			// Backing onsets for replay parity — only when backing actually
 			// drove this window's bleed evidence (see resolveBleedEvidence).
@@ -1571,7 +1584,17 @@
 
 		{#if sessionReport.roundsCompleted !== undefined && sessionReport.licks[0]}
 			{@const sl = sessionReport.licks[0]}
+			{@const isTrick = lickPractice.plan[0]?.kind === 'trick'}
 			{@const tempoDelta = sl.newTempo != null ? sl.newTempo - sl.tempo : 0}
+			<!--
+			  Only a trick drill's ramp is a real gain: it persists, so the green
+			  delta describes something the user keeps. Deep practice opens 2%
+			  under the lick's saved tempo and rewinds to it, so the same delta
+			  would read as progress the user did not make — worse, clearing one
+			  rotation on a 120 lick would show "+2" for having climbed 118 → 120.
+			  The lick branch shows the range plainly and names the saved tempo.
+			-->
+			{@const savedTempo = isTrick ? null : getLickTempo(lickPractice.progress, sl.lickId)}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
 				<div class="flex items-center justify-between">
 					<div>
@@ -1588,16 +1611,29 @@
 						<div>
 							<div class="font-display text-2xl font-bold">
 								{sessionReport.finalTempo}
-								{#if tempoDelta !== 0}
+								{#if isTrick && tempoDelta !== 0}
 									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}">
 										({tempoDelta > 0 ? '+' : ''}{tempoDelta})
 									</span>
+								{:else if !isTrick && tempoDelta !== 0}
+									<span class="ml-1 text-xs font-medium text-[var(--color-text-secondary)]">
+										(from {sl.tempo})
+									</span>
 								{/if}
 							</div>
-							<div class="smallcaps text-[var(--color-text-secondary)]">Final BPM</div>
+							<div class="smallcaps text-[var(--color-text-secondary)]">
+								{isTrick ? 'Final BPM' : 'Session BPM'}
+							</div>
 						</div>
 					</div>
 				</div>
+				{#if savedTempo != null}
+					<p class="text-xs text-[var(--color-text-secondary)]">
+						Deep practice starts just under your saved tempo and ramps from there.
+						{sl.lickName} stays saved at <span class="tabular-nums">{savedTempo}</span> BPM
+						for daily practice.
+					</p>
+				{/if}
 				{#if sessionReport.keysMasteredByRound && sessionReport.keysMasteredByRound.length > 0}
 					<div class="space-y-1">
 						{#each sessionReport.keysMasteredByRound as r (r.round)}

@@ -42,6 +42,7 @@ import type {
 import type { LickMergeMeta } from './lick-metadata-merge';
 import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
+import { MAX_HISTORY_POINTS as MAX_TRICK_HISTORY_POINTS, MAX_SESSIONS } from './limits';
 
 // ── Type alias for convenience ───────────────────────────────────────
 
@@ -78,9 +79,6 @@ interface SyncableSettings {
 }
 
 // ── Constants ────────────────────────────────────────────────────────
-
-/** Maximum session results to sync — matches MAX_SESSIONS in progress.svelte.ts. */
-const MAX_SESSIONS = 100;
 
 /** Pattern for allowed session ID characters (alphanumeric, hyphen, underscore). */
 const SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
@@ -1163,9 +1161,6 @@ export interface SyncableTrickState {
 	/** Per-variant BPM/keys time series, capped at 500 points per variant. */
 	history: TrickProgressHistory;
 }
-
-/** Cap on retained history points per variant — keep in sync with the store's cap. */
-const MAX_TRICK_HISTORY_POINTS = 500;
 
 function emptySyncableTrickState(): SyncableTrickState {
 	return {

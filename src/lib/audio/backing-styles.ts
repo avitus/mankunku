@@ -121,13 +121,23 @@ export interface DrumHitSpec {
 
 export interface StyleDefinition {
 	name: string;
-	/** Swing ratio used when the session swing is straight (0.5). */
+	/**
+	 * The style's own eighth-note ratio. For a 'fixed' style this IS the
+	 * grid — for both the band and the soloist — regardless of the user's
+	 * swing setting.
+	 */
 	defaultSwing: number;
 	/**
-	 * How the effective backing swing resolves when the session swing sits
-	 * straight: 'tempo' follows the Friberg–Sundström tempo curve
-	 * (`swingForTempo`); 'fixed' always uses `defaultSwing` — a 60 BPM
-	 * ballad must not inherit a 3.5:1 grid.
+	 * Who owns the eighth-note grid.
+	 *
+	 * 'fixed' — the style does, unconditionally: a bossa is straight and a
+	 * ballad leans 0.55 whatever the user's knob says. Both the backing and
+	 * the melody resolve to `defaultSwing`.
+	 *
+	 * 'tempo' — the user does, and when their knob sits straight the backing
+	 * falls back to the Friberg–Sundström tempo curve in `music/swing.ts`
+	 * (the melody never does; see `resolveMelodySwing`). A 60 BPM ballad
+	 * must not inherit a 3.5:1 grid, which is why it is 'fixed' and not this.
 	 */
 	swingModel: 'tempo' | 'fixed';
 	/** Per-role ensemble microtiming profiles (see backing-timing.ts). */
@@ -502,3 +512,37 @@ export const BACKING_STYLE_NAMES: Record<BackingStyle, string> = {
 /** The style ids, in display order — the one list every style picker and
  *  validator should consume instead of hand-copying the union. */
 export const BACKING_STYLE_IDS = Object.keys(BACKING_STYLES) as BackingStyle[];
+
+/**
+ * Effective swing for the MELODY — the phrase the app plays back and the
+ * grid the scorer expects the player to land on.
+ *
+ * For a 'fixed' style, soloist and band share one grid: `resolveBackingSwing`
+ * puts the band on `defaultSwing`, and the melody follows it here, so over a
+ * bossa both play straight. Note this bites at the knob's DEFAULT position
+ * too — ballad is 0.55, so its melody grid differs from a raw 0.50 knob.
+ *
+ * For 'tempo' (the swing style) the user's knob rules the melody, exactly as
+ * before. The two deliberately diverge there: with the knob straight the band
+ * follows the tempo curve while the melody stays even, so the grid the scorer
+ * expects never shifts with tempo. That is the invariant this function exists
+ * to protect, and it is why nothing here consults tempo. A unit test enforces
+ * it by scanning playback, scoring, tricks and this module for the tempo
+ * curve's identifier — keep that name out of this file, prose included.
+ */
+export function resolveMelodySwing(userSwing: number, style: StyleDefinition): number {
+	return style.swingModel === 'fixed' ? style.defaultSwing : userSwing;
+}
+
+/**
+ * `resolveMelodySwing` by style id, for the routes that hold one.
+ *
+ * Falls back to the swing style on an unrecognised id rather than indexing
+ * blind. Unreachable today — settings are validated against
+ * `BACKING_STYLE_IDS` on both load paths and the two session configs default
+ * to 'swing' — but the callers are route components where a bad throw would
+ * blank the practice page mid-session, and the cost of the guard is nil.
+ */
+export function melodySwingForStyle(userSwing: number, style: BackingStyle): number {
+	return resolveMelodySwing(userSwing, BACKING_STYLES[style] ?? BACKING_STYLES.swing);
+}

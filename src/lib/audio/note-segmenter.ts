@@ -1341,6 +1341,50 @@ const BAND_FLOOR_DIP_RATIO = 0.9;
 const BAND_FLOOR_CONTEXT_FRAMES = 8;
 
 /**
+ * Gates for `bandFloorDips`' second acceptance shape: the tongue stop that
+ * PRECEDES the spike. The in-span test above assumes the dip and the spike
+ * coincide within window resolution (2026-08-01 "down-to-the-third": both on
+ * the same frames). But the stop physically comes first — and when the attack
+ * transient also blanks pitch tracking, the spike frames don't appear until
+ * tracking resumes AFTER the re-attack, so the dip sits entirely in the
+ * frames BEFORE the span. The in-span test then measures its baseline from
+ * exactly the dipped frames and sees a floor that only ever RISES.
+ *
+ * Reference: 2026-08-11 "curl-to-the-floor" (concert G, 105 BPM, metronome).
+ * Second of two tongued C4 eighths: band floor collapses 0.080 → 0.020
+ * (0.25×) over the ~120 ms before the spike, the re-attack's tongue noise
+ * spikes hfRms at the resumption frame, and the span floor recovers to 0.046
+ * (2.3× the collapse). A click 219 ms earlier put the spike inside the
+ * suppression window and the in-span test failed to rescue it, so the two
+ * C4s merged and the second was scored MISSED.
+ *
+ * The stop gate reuses the 0.6 tongue-vs-click cut established for
+ * RE_ARTICULATION_GAP_SPAN_FLOOR (real tongue stops measure ≤ 0.47 against
+ * their pre-stop level, clicks on held notes ≥ 0.82 — and in the instrument
+ * band a click contributes nothing at all). The recovery gates are what
+ * exclude the one impostor the stop gate alone would admit — a note
+ * DECAYING toward silence under a click: its floor keeps falling, so it
+ * neither climbs back over the collapse (curl-to-the-floor measures 2.3×
+ * against the 1.5 gate; a monotone decay sits ≤ ~1.0) nor back toward the
+ * pre-stop sustain level (0.57× measured, against the 0.4 gate — this is
+ * the gate a shallow stop-and-keep-falling shape can't fake, since ratios
+ * off the collapse bottom say nothing about where the note ended up).
+ *
+ * All three are ratios, so at noise-floor levels they'd be satisfied by
+ * measurement jitter alone — a bare ride measures ~0.004 in this band, and
+ * jitter around that clears 0.6×/1.5× trivially. The absolute sustain
+ * minimum is the ENV_MIN_LEVEL analog that keeps the shape anchored to a
+ * note that was actually SOUNDING in-band before the stop: 0.02 sits 4×
+ * over the ride/noise level and 4× under curl-to-the-floor's measured
+ * 0.080 sustain. Below it the click keeps its suppression — the
+ * conservative direction, and where a quiet-playing fixture would tune.
+ */
+const BAND_FLOOR_STOP_RATIO = 0.6;
+const BAND_FLOOR_STOP_RECOVER = 1.5;
+const BAND_FLOOR_STOP_RECOVER_TO_SUSTAIN = 0.4;
+const BAND_FLOOR_STOP_MIN_SUSTAIN = 0.02;
+
+/**
  * Energy-sustain floor for the bare-gap (≥ 150 ms) re-articulation tier.
  * The tier's premise — "a sustained reed note never loses pitch tracking
  * that long except at a tongue stop" — turned out to have a counterexample:
@@ -1354,6 +1398,52 @@ const BAND_FLOOR_CONTEXT_FRAMES = 8;
  * re-attack, comfortably above the decaying-note counterexample.
  */
 const RE_ARTICULATION_GAP_SUSTAIN = 0.85;
+
+/**
+ * Energy floor the bare-gap tier demands instead when a scheduled click sits
+ * INSIDE the hole — the note must have got louder across it, not merely held.
+ *
+ * `RE_ARTICULATION_GAP_SUSTAIN` separates a click-wiped sustain from a real
+ * tongue stop by how much energy survives the hole, and the two populations it
+ * was cut between are close: the decaying-note counterexample measured 0.67,
+ * true re-attacks 0.94 and 0.97. The 2026-08-10 pent-run capture landed
+ * between them at ~0.85 — a metronome click on a *held* (not decaying) G, so
+ * the note neither faded enough to be vetoed nor stepped up like an attack.
+ * It split the held G in two, and the phantom note restored the count to four,
+ * which let DTW find a clean 1:1 diagonal one position off and turn a single
+ * missed note into three wrong ones.
+ *
+ * Rather than squeeze the floor further into that gap, the click supplies an
+ * orthogonal fact the ratio cannot: a click only ever ADDS energy and masks
+ * tracking — it can never make the note louder. So when one lands in the hole,
+ * demand the same genuine step-up the short-gap tier requires
+ * (`RE_ARTICULATION_GAP_ATTACK_RISE`). A real tongue re-attack on the beat
+ * still clears it; a masked sustain cannot.
+ *
+ * Blast radius, measured across the fixture corpus: exactly one recording has
+ * a scheduled click inside a bare gap — the pent run this was written for.
+ */
+const RE_ARTICULATION_GAP_CLICK_RISE = RE_ARTICULATION_GAP_ATTACK_RISE;
+
+/**
+ * Allowance for a click that lands just before the last reading of a run.
+ *
+ * Readings are timestamped at the END of their analyser window
+ * (`windowAnchor: 'end'`), so a click arriving slightly ahead of the final
+ * clean reading is already inside that window and is still what wiped the
+ * tracking that follows. One bleed-latency floor is enough to cover it.
+ */
+const GAP_CLICK_LEAD_ALLOWANCE = BLEED_LATENCY_MIN;
+
+/** Whether a scheduled bleed event lands inside a reading hole. */
+function hasBleedInsideGap(sortedBleed: number[], gapStart: number, gapEnd: number): boolean {
+	const from = gapStart - GAP_CLICK_LEAD_ALLOWANCE;
+	for (const t of sortedBleed) {
+		if (t > gapEnd) return false;
+		if (t >= from) return true;
+	}
+	return false;
+}
 
 /**
  * Suppression window for HF-tier candidates around a scheduled audible
@@ -1706,7 +1796,31 @@ function bandFloorDips(stable: PitchReading[], from: number, to: number): boolea
 	if (spanFloor === Infinity) return false;
 
 	const baseline = median(pre);
-	return baseline > 0 && spanFloor < baseline * BAND_FLOOR_DIP_RATIO;
+	if (baseline > 0 && spanFloor < baseline * BAND_FLOOR_DIP_RATIO) return true;
+
+	// Second shape: the stop PRECEDED the spike (see BAND_FLOOR_STOP_RATIO).
+	// The dip lives in the pre-span frames, measured against the sustain
+	// level before THEM; the span floor must climb back over the collapse,
+	// which a decaying note under a click never does.
+	const earlyStart = Math.max(0, preStart - BAND_FLOOR_CONTEXT_FRAMES);
+	const early: number[] = [];
+	for (let i = earlyStart; i < preStart; i++) {
+		const v = stable[i].bandRmsMin;
+		if (v != null) early.push(v);
+	}
+	if (early.length === 0) return false;
+
+	const stopFloor = Math.min(...pre);
+	const sustain = median(early);
+	// The sustain-relative recovery gate also keeps the collapse-relative one
+	// meaningful when the collapse bottomed out at or near zero — a ratio
+	// against zero proves nothing on its own.
+	return (
+		sustain >= BAND_FLOOR_STOP_MIN_SUSTAIN &&
+		stopFloor < sustain * BAND_FLOOR_STOP_RATIO &&
+		spanFloor >= stopFloor * BAND_FLOOR_STOP_RECOVER &&
+		spanFloor >= sustain * BAND_FLOOR_STOP_RECOVER_TO_SUSTAIN
+	);
 }
 
 function findReArticulationsInSegment(
@@ -1770,7 +1884,12 @@ function findReArticulationsInSegment(
 			// but the note keeps fading — see RE_ARTICULATION_GAP_SUSTAIN.
 			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
 			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
-			if (preRms <= 0 || postRms < preRms * RE_ARTICULATION_GAP_SUSTAIN) {
+			// When a click lands in the hole ITSELF the ratio can't settle it,
+			// so demand a real step-up — see RE_ARTICULATION_GAP_CLICK_RISE.
+			const energyFloor = hasBleedInsideGap(sortedBleed, stable[g - 1].time, stable[g].time)
+				? RE_ARTICULATION_GAP_CLICK_RISE
+				: RE_ARTICULATION_GAP_SUSTAIN;
+			if (preRms <= 0 || postRms < preRms * energyFloor) {
 				continue;
 			}
 		} else {

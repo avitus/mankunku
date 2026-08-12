@@ -27,9 +27,7 @@ import type {
 } from '$lib/types/tricks';
 import { trickVariantKey } from '$lib/types/tricks';
 import type { SyncableTrickState } from './sync';
-
-/** Keep in sync with the history caps in trick-practice-store.ts and sync.ts. */
-const MAX_HISTORY_POINTS = 500;
+import { MAX_HISTORY_POINTS } from './limits';
 
 /**
  * The exact parameter set every pre-`type` enclosure ladder variant carried.

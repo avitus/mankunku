@@ -10,7 +10,7 @@
 	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
-	import { BACKING_STYLE_IDS } from '$lib/audio/backing-styles';
+	import { BACKING_STYLE_IDS, melodySwingForStyle } from '$lib/audio/backing-styles';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
@@ -64,6 +64,15 @@
 	import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 
 	const session = $derived(page.data?.session ?? null);
+	/**
+	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
+	 * ballad) pin it; only the swing style defers to the user's knob. Used
+	 * everywhere `settings.swing` would otherwise reach playback or scoring,
+	 * so melody and band never disagree.
+	 */
+	const effectiveSwing = $derived(
+		melodySwingForStyle(settings.swing, tunePractice.config.backingStyle)
+	);
 
 	// localStorage caches are non-reactive — re-read after cloud hydration
 	// lands (the /tunes/[id] pattern).
@@ -373,7 +382,7 @@
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: tunePractice.config.tempo,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
@@ -643,7 +652,7 @@
 				played,
 				trick: win.trickInfo.trick,
 				parameters: win.trickInfo.parameters,
-				context: { ...win.trickInfo.context, tempo, swing: settings.swing }
+				context: { ...win.trickInfo.context, tempo, swing: effectiveSwing }
 			});
 			recordWindowResult(win.ip.id, win.expected.lickName, score);
 			return;
@@ -653,7 +662,7 @@
 			phrase: win.expected.phrase,
 			tempo,
 			transportSeconds: win.recordingTransportSeconds,
-			swing: settings.swing,
+			swing: effectiveSwing,
 			bleedFilterEnabled: knobs.bleedFilterEnabled,
 			bleedResult,
 			octaveInsensitive: knobs.octaveInsensitive

@@ -124,7 +124,7 @@
 	 * `--color-accent` override defined in app.css. See the design system
 	 * spec at documentation/architecture/design-system.md.
 	 *
-	 * - 'lick-practice' (green) — anything under /lick-practice
+	 * - 'lick-practice' (warm terracotta) — anything under /lick-practice
 	 * - 'ear-training' (blue, the default) — /ear-training, /scales, /progress
 	 *   and their subroutes
 	 * - 'neutral' (slate) — everything else (Licks, Tunes, Settings, Home,

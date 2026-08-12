@@ -38,6 +38,17 @@ export const DOC_TREE: DocSection[] = [
 		]
 	},
 	{
+		title: 'Tricks',
+		pages: [
+			{
+				slug: 'tricks',
+				title: 'Practicing Tricks',
+				blurb:
+					'Melodic devices — enclosures and triad pairs — drilled for fluency rather than exact reproduction.'
+			}
+		]
+	},
+	{
 		title: 'Tunes',
 		pages: [
 			{

@@ -16,6 +16,18 @@ The setup screen tells you what it found before you start: *"6 insertion points:
 
 It also warns you if licks in your book can't be suggested because they have no progression tag, with a link to go fix them.
 
+### Tricks in the mix
+
+Licks aren't the only thing that can fill a window. Any [trick](./tricks.md) variant you've **starred** — the *Suggest in tunes* toggle on its page — joins the suggestion list too, and gets scored on fluency rather than exact reproduction when you play it.
+
+Where they can appear is deliberately narrow:
+
+- Only over **vamps and ii-V-Is** (major and minor, short and long). Never over a turnaround, a iii-VI-ii-V-I, or a blues.
+- Always **ranked below** licks written for that progression, so a real ii-V-I lick is named first.
+- **Triad pairs get re-rooted onto the chord they belong on.** The app looks through the progression for a full bar whose chord quality suits the pair — so an altered pair lands on the V of a long ii-V-I rather than on the tonic. If nothing in the progression fits, that pair is quietly skipped.
+
+A trick played here earns points and counts toward your take, but it writes **nothing** back to the trick: no passes, no key unlocks, no tempo. That's the drill's job.
+
 ## The setup screen
 
 | Setting | What it does |
@@ -25,7 +37,7 @@ It also warns you if licks in your book can't be suggested because they have no 
 | **Head** | Play the melody once through before the practice chorus. Greyed out on charts with no melody. |
 | **Key** | The written key you want to read the chart in. |
 | **Tempo** | 50–240 BPM. |
-| **Backing** | Swing, bossa nova, ballad, or straight. |
+| **Backing** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). |
 
 Below the settings, the chart previews with the insertion points shaded in, so you can see where in the form you'll be playing before you commit.
 
@@ -81,6 +93,17 @@ On the bleed filter: Guided and Standard switch it on regardless, which is the f
 - Insertion points show as **coloured bands** on the chart, each in its progression's identity colour — the same colour that progression carries on your lick cards and in Side B's session header. A ii-V looks like a ii-V wherever you meet it.
 - The status line tells you where you are: *Count-in…*, *Head — melody once through, then it's yours*, *Comping — insertion 3 of 6 coming up*, and then **Your turn — play the lick!** when a window opens.
 - The **End** button stops the take whenever you want.
+
+### The band plays the form, not a loop
+
+This is the only place the rhythm section gets to hear a *form*, and it uses it. Things you'll hear here and nowhere else in the app:
+
+- **Crashes on section arrivals** — and about a third of the time the crash arrives *early*, on the and-of-4 of the previous bar, with the kick underneath it. That's the push a big-band drummer plays into a new section. When the crash doesn't fire, you'll sometimes get a ride-bell accent on the downbeat instead.
+- **Setup figures on the last bar of a section** — snare triplets into the barline, the hard-bop hand-to-foot triplet, a ride-and-kick lean.
+- **The long fill over a chorus turn** — a two-beat build rolling across the barline into the next chorus, with the downbeat crash landing on top of it.
+- **The band builds.** The ensemble digs in over the first three choruses and then holds: the ride gets busier, the kick stops sitting out bars, the comping instrument plays denser figures in a higher register and takes fewer rests. Ballads are capped — they never dig in past the middle of that range.
+
+None of this happens in Lick Practice, because a two-bar vamp has no form to mark.
 
 ## The report
 

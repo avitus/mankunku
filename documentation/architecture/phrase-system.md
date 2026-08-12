@@ -30,7 +30,7 @@ The counts below are aggregate totals across the whole curated set (`ALL_CURATED
 | **Digital Patterns** | Numbered-pattern vocabulary (1-2-3-5, etc.) that sequences through the changes. | 28 |
 | **Modal** | Sustained-mode vocabulary (Dorian, Mixolydian, Lydian) for static-harmony tunes — *So What*, *Impressions*, *Maiden Voyage* territory. | 27 |
 | **Major Chord** | Single-chord major vocabulary — arpeggios and scale color over one maj7 chord. | 14 |
-| **Enclosures** | Chromatic enclosure figures that wrap a target chord tone from above and below. | 11 |
+| **Enclosures** | Chromatic enclosure figures that wrap a target chord tone from above and below. Written-out examples; to drill the *device* rather than a fixed figure, see [Tricks](../tricks.md). | 11 |
 | **Rhythm Changes** | The Gershwin "I Got Rhythm" cycle — I-vi-ii-V repeating. The bebop test for technical command at speed. | 7 |
 | **Ballad** | Slower, more lyrical phrases with sustained notes and space. | 7 |
 | **V-I Major** | Dominant-to-tonic resolutions in major. | 3 |
@@ -39,7 +39,7 @@ The counts below are aggregate totals across the whole curated set (`ALL_CURATED
 | **V-I Minor** | Dominant-to-tonic resolutions in minor. | 2 |
 | **Diminished Chord** | Single-chord diminished vocabulary over one dim7 chord. | 2 |
 
-Counts are approximate and derived from the source files listed in `src/lib/data/licks/index.ts`; they'll drift as licks are added.
+Counts are approximate and will drift as licks are added.
 
 The **beginner cells** aren't a category of their own. They're an on-ramp subset — 55 two- and three-note minimal cells for difficulty levels 1–5 (pentatonic intervals, blues fragments, neighbor-tone patterns) — filed under the existing **Pentatonic** (45) and **Blues** (10) categories, and already included in the totals above.
 

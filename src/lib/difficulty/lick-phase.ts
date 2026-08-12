@@ -9,7 +9,7 @@
  *   proficient  — all 12 keys, PROFICIENT_BPM up to EXPERT_BPM
  *   expert      — all 12 keys, at or above EXPERT_BPM
  *
- * Reaching a threshold tempo promotes you (>= not >), so a 5-BPM bump that lands
+ * Reaching a threshold tempo promotes you (>= not >), so a bump that lands
  * exactly on 120 is the promotion it feels like.
  *
  * Phases are a *display* concept — nothing here gates practice, unlocks keys, or
