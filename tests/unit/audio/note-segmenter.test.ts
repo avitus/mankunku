@@ -200,8 +200,9 @@ describe('findReArticulations: waveform-shape tier', () => {
 /**
  * The same tier under the LIVE path's window-END anchor, where `shapeBreakAt`
  * is negative so a break's time precedes the reading that reported it. The
- * run-exit gates must not quietly become inert there — the live score is what
- * the player sees first, before the authoritative rescore.
+ * run-exit gates must not quietly become inert there — the live score is
+ * what gets persisted immediately, and it is the display fallback whenever
+ * the authoritative rescore can't produce a score.
  */
 describe('findReArticulations: waveform-shape tier under the live window-end anchor', () => {
 	const LIVE_ANCHOR = 0.045 - 4096 / 44100; // ≈ −0.048 s
