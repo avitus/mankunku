@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
 import { fractionToFloat } from '$lib/music/intervals';
-import { buildEnclosureSlots, enclosuresTrick } from '$lib/tricks/devices/enclosures';
+import {
+	buildEnclosureCompactSlots,
+	buildEnclosureFigure,
+	buildEnclosureSlots,
+	ENCLOSURE_TYPES,
+	enclosuresTrick
+} from '$lib/tricks/devices/enclosures';
 import { allowedSubdivisions } from '$lib/tricks/example-generator';
 import { trickVariantKey } from '$lib/types/tricks';
 import {
@@ -25,16 +31,16 @@ const baseContext: TrickContext = {
 	tempo: 120
 };
 
-/** Pinned mastery-ladder combos (contract e1-e8). */
+/** Pinned mastery-ladder combos (contract e1-e8, major chain). */
 const ENCLOSURE_LADDER: [string, TrickParameters][] = [
-	['e1', { noteCount: '1', shape: 'chromatic-below', targetTone: 'root', beatPlacement: 'downbeat' }],
-	['e2', { noteCount: '1', shape: 'scale-above', targetTone: 'third', beatPlacement: 'downbeat' }],
-	['e3', { noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat' }],
-	['e4', { noteCount: '2', shape: 'below-above', targetTone: 'fifth', beatPlacement: 'downbeat' }],
-	['e5', { noteCount: '3', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat' }],
-	['e6', { noteCount: '2', shape: 'double-chromatic', targetTone: 'third', beatPlacement: 'downbeat' }],
-	['e7', { noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'offbeat' }],
-	['e8', { noteCount: '3', shape: 'double-chromatic', targetTone: 'seventh', beatPlacement: 'offbeat' }]
+	['e1', { noteCount: '1', shape: 'chromatic-below', targetTone: 'root', beatPlacement: 'downbeat', type: 'major' }],
+	['e2', { noteCount: '1', shape: 'scale-above', targetTone: 'third', beatPlacement: 'downbeat', type: 'major' }],
+	['e3', { noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat', type: 'major' }],
+	['e4', { noteCount: '2', shape: 'below-above', targetTone: 'fifth', beatPlacement: 'downbeat', type: 'major' }],
+	['e5', { noteCount: '3', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat', type: 'major' }],
+	['e6', { noteCount: '2', shape: 'double-chromatic', targetTone: 'third', beatPlacement: 'downbeat', type: 'major' }],
+	['e7', { noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'offbeat', type: 'major' }],
+	['e8', { noteCount: '3', shape: 'double-chromatic', targetTone: 'seventh', beatPlacement: 'offbeat', type: 'major' }]
 ];
 
 /** Pinned mastery-ladder combos (contract t1-t8, the pair-family stages). */
@@ -65,12 +71,17 @@ const EXPECTED_TRIADS: Record<string, { a: number[]; b: number[] }> = {
 	'aug-whole': { a: [0, 4, 8], b: [2, 6, 10] }
 };
 
-/** Extra enclosure combos exercising shape↔noteCount coercion. */
+/**
+ * Extra enclosure combos exercising shape↔noteCount coercion. The minor and
+ * dominant `type` values here also pin that the slot builder ignores `type`
+ * entirely (quality/scale arrive via the context, so these still build maj7
+ * figures under baseContext).
+ */
 const ENCLOSURE_COERCION: [string, TrickParameters][] = [
-	['1+double-chromatic→chromatic-below', { noteCount: '1', shape: 'double-chromatic', targetTone: 'fifth', beatPlacement: 'downbeat' }],
-	['1+above-below→scale-above', { noteCount: '1', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat' }],
+	['1+double-chromatic→chromatic-below', { noteCount: '1', shape: 'double-chromatic', targetTone: 'fifth', beatPlacement: 'downbeat', type: 'minor' }],
+	['1+above-below→scale-above', { noteCount: '1', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat', type: 'dominant' }],
 	['3+chromatic-below→double-chromatic', { noteCount: '3', shape: 'chromatic-below', targetTone: 'root', beatPlacement: 'downbeat' }],
-	['2+scale-above→above-below', { noteCount: '2', shape: 'scale-above', targetTone: 'seventh', beatPlacement: 'offbeat' }]
+	['2+scale-above→above-below', { noteCount: '2', shape: 'scale-above', targetTone: 'seventh', beatPlacement: 'offbeat', type: 'major' }]
 ];
 
 const ALL_ENCLOSURE_COMBOS = [...ENCLOSURE_LADDER, ...ENCLOSURE_COERCION];
@@ -141,20 +152,118 @@ describe('buildEnclosureSlots', () => {
 		}
 	);
 
-	it('targets land on the strong-beat grid, an eighth later when offbeat', () => {
-		const down = buildEnclosureSlots(ENCLOSURE_LADDER[2][1], baseContext);
-		const downTargets = down.filter((s) => s.role === 'target');
-		expect(downTargets.map((s) => fractionToFloat(s.offset) * 4)).toEqual([2, 4]);
+	it('lays out four groups: k approaches at the preceding bar tail, target on the content-bar downbeat', () => {
+		for (const [, params] of ENCLOSURE_LADDER.filter(([, p]) => p.beatPlacement === 'downbeat')) {
+			const slots = buildEnclosureSlots(params, baseContext);
+			const targets = slots.filter((s) => s.role === 'target');
+			const approaches = slots.filter((s) => s.role !== 'target');
+			const k = approaches.length / 4;
 
-		const off = buildEnclosureSlots(ENCLOSURE_LADDER[6][1], baseContext);
+			// Targets on the downbeats of content bars 1-4 (bar 0 is the pickup bar).
+			expect(targets.map((s) => fractionToFloat(s.offset))).toEqual([1, 2, 3, 4]);
+			expect(slots).toHaveLength(4 * (k + 1));
+
+			// Each group's approaches fill the last k eighths before its target.
+			targets.forEach((target, g) => {
+				const group = approaches.slice(g * k, (g + 1) * k);
+				group.forEach((slot, i) => {
+					expect(fractionToFloat(slot.offset)).toBeCloseTo(g + 1 - (k - i) / 8, 9);
+					expect(slot.duration).toEqual([1, 8]);
+				});
+				expect(fractionToFloat(target.offset)).toBe(g + 1);
+			});
+		}
+	});
+
+	it('targets land an eighth after the downbeats when offbeat', () => {
+		const off = buildEnclosureSlots(ENCLOSURE_LADDER[6][1], baseContext); // e7, k=2
 		const offTargets = off.filter((s) => s.role === 'target');
-		expect(offTargets.map((s) => fractionToFloat(s.offset) * 4)).toEqual([2.5, 4.5]);
+		expect(offTargets.map((s) => fractionToFloat(s.offset))).toEqual([
+			1 + 1 / 8,
+			2 + 1 / 8,
+			3 + 1 / 8,
+			4 + 1 / 8
+		]);
+		// The last approach of each group lands exactly on the barline downbeat.
+		const approaches = off.filter((s) => s.role !== 'target');
+		expect([1, 3, 5, 7].map((i) => fractionToFloat(approaches[i].offset))).toEqual([1, 2, 3, 4]);
+	});
+
+	it('everything before the first target is exactly the first approach group', () => {
+		for (const [, params] of ENCLOSURE_LADDER) {
+			const slots = buildEnclosureSlots(params, baseContext);
+			const k = slots.filter((s) => s.role !== 'target').length / 4;
+			expect(slots.findIndex((s) => s.role === 'target')).toBe(k);
+			// The anacrusis starts k eighths (minus the offbeat shift) before bar 1.
+			const shift = params.beatPlacement === 'offbeat' ? 1 : 0;
+			expect(fractionToFloat(slots[0].offset)).toBeCloseTo((8 - k + shift) / 8, 9);
+			// Downbeat figures keep the whole anacrusis inside the pickup bar;
+			// offbeat ones let the last approach land ON the bar-1 downbeat.
+			for (const slot of slots.slice(0, k - shift)) {
+				expect(fractionToFloat(slot.offset)).toBeLessThan(1);
+			}
+		}
+	});
+
+	it('non-final targets ring toward the next group; the final target is a half note', () => {
+		// den=8 ring table: k=1 → dotted half, k=2 → dotted half, k=3 → half.
+		const ringByCount: Record<string, [number, number]> = {
+			'1': [3, 4],
+			'2': [3, 4],
+			'3': [1, 2]
+		};
+		for (const [, params] of ENCLOSURE_LADDER) {
+			const slots = buildEnclosureSlots(params, baseContext);
+			const targets = slots.filter((s) => s.role === 'target');
+			for (const target of targets.slice(0, -1)) {
+				expect(target.duration).toEqual(ringByCount[params.noteCount]);
+			}
+			expect(targets.at(-1)!.duration).toEqual([1, 2]);
+		}
+	});
+
+	it('spans a pickup bar plus four content bars (figure metadata pins it)', () => {
+		for (const [, params] of ENCLOSURE_LADDER) {
+			const { slots, pickupBars } = buildEnclosureFigure(params, baseContext);
+			expect(pickupBars).toBe(1);
+			const maxEnd = Math.max(
+				...slots.map((s) => fractionToFloat(s.offset) + fractionToFloat(s.duration))
+			);
+			expect(maxEnd).toBeGreaterThan(4);
+			expect(maxEnd).toBeLessThanOrEqual(5);
+		}
+	});
+
+	it('offbeat single-approach figures rebase to offset 0 with no pickup bar', () => {
+		// k=1 offbeat puts the lone approach ON the bar-1 downbeat, leaving the
+		// pickup bar empty — the figure shifts back a whole bar instead.
+		const params: TrickParameters = {
+			noteCount: '1',
+			shape: 'chromatic-below',
+			targetTone: 'root',
+			beatPlacement: 'offbeat',
+			type: 'major'
+		};
+		const { slots, pickupBars } = buildEnclosureFigure(params, baseContext);
+		expect(pickupBars).toBe(0);
+		expect(fractionToFloat(slots[0].offset)).toBe(0);
+		const targets = slots.filter((s) => s.role === 'target');
+		expect(targets.map((s) => fractionToFloat(s.offset))).toEqual([
+			1 / 8,
+			1 + 1 / 8,
+			2 + 1 / 8,
+			3 + 1 / 8
+		]);
+		const maxEnd = Math.max(
+			...slots.map((s) => fractionToFloat(s.offset) + fractionToFloat(s.duration))
+		);
+		expect(maxEnd).toBeLessThanOrEqual(4);
 	});
 
 	it('double-chromatic (noteCount 2) yields two chromatic-below pcs per group', () => {
 		const slots = buildEnclosureSlots(ENCLOSURE_LADDER[5][1], baseContext); // e6, target = 3rd (pc 4)
 		const chromatic = slots.filter((s) => s.role === 'chromatic-below');
-		expect(chromatic.map((s) => s.exactPcs[0])).toEqual([2, 3, 2, 3]);
+		expect(chromatic.map((s) => s.exactPcs[0])).toEqual([2, 3, 2, 3, 2, 3, 2, 3]);
 	});
 
 	it('every target slot is exactly the chosen chord tone', () => {
@@ -166,7 +275,7 @@ describe('buildEnclosureSlots', () => {
 		}
 	});
 
-	it('falls back to quarter notes when the level profile lacks eighths', () => {
+	it('falls back to quarter notes when the level profile lacks eighths, keeping the 5-bar shape', () => {
 		// context.level is a PLAYER level (1-100), never a content tier. Levels
 		// 1-12 map to tiers 1-2, neither of which has eighths; tier 3 (from level
 		// 13) is where they arrive. Pin both sides of that boundary so the
@@ -176,13 +285,128 @@ describe('buildEnclosureSlots', () => {
 
 		const slots = buildEnclosureSlots(ENCLOSURE_LADDER[0][1], { ...baseContext, level: 12 });
 		assertValidSlots(slots);
-		for (const slot of slots) {
-			expect(fractionToFloat(slot.duration)).toBeCloseTo(0.25, 9);
+		// Approaches are quarters; targets still land on content-bar downbeats.
+		for (const slot of slots.filter((s) => s.role !== 'target')) {
+			expect(slot.duration).toEqual([1, 4]);
 		}
+		const targets = slots.filter((s) => s.role === 'target');
+		expect(targets.map((s) => fractionToFloat(s.offset))).toEqual([1, 2, 3, 4]);
+		expect(targets.at(-1)!.duration).toEqual([1, 2]);
 
 		const eighths = buildEnclosureSlots(ENCLOSURE_LADDER[0][1], { ...baseContext, level: 13 });
 		assertValidSlots(eighths);
 		expect(eighths.some((s) => fractionToFloat(s.duration) === 0.125)).toBe(true);
+	});
+});
+
+describe('enclosure compact figure (tune insertion)', () => {
+	const compactContext: TrickContext = { ...baseContext, figure: 'compact' };
+
+	it('preserves the legacy 2-bar layout: opening statement, targets at beats 2 and 4', () => {
+		const slots = buildEnclosureSlots(ENCLOSURE_LADDER[2][1], compactContext); // e3, k=2
+		expect(slots).toHaveLength(7); // opening + 2 × (2 approaches + target)
+		expect(slots[0].role).toBe('chord-tone');
+		expect(fractionToFloat(slots[0].offset)).toBe(0);
+
+		const targets = slots.filter((s) => s.role === 'target');
+		expect(targets.map((s) => fractionToFloat(s.offset) * 4)).toEqual([2, 4]);
+		expect(targets.at(-1)!.duration).toEqual([1, 4]);
+	});
+
+	it('buildEnclosureCompactSlots is the same layout the dispatcher serves', () => {
+		const params = ENCLOSURE_LADDER[6][1]; // e7, offbeat
+		expect(buildEnclosureSlots(params, compactContext)).toEqual(
+			buildEnclosureCompactSlots(params, baseContext)
+		);
+		const targets = buildEnclosureCompactSlots(params, baseContext).filter(
+			(s) => s.role === 'target'
+		);
+		expect(targets.map((s) => fractionToFloat(s.offset) * 4)).toEqual([2.5, 4.5]);
+	});
+
+	it('reports no pickup bar', () => {
+		expect(buildEnclosureFigure(ENCLOSURE_LADDER[2][1], compactContext).pickupBars).toBe(0);
+	});
+
+	it('scoreConformance honors the figure hint, so spec and demo always match', () => {
+		const params = ENCLOSURE_LADDER[2][1]; // e3
+		const compactSlots = buildEnclosureSlots(params, compactContext);
+		const played = compactSlots.map((slot) =>
+			makeDetected(60 + slot.generatePc!, slotOnsetSeconds(slot))
+		);
+
+		const compactScore = enclosuresTrick.scoreConformance(played, params, compactContext);
+		expect(compactScore.patternScore).toBe(1);
+
+		// The same performance judged against the default FULL figure misses
+		// most of its 12 slots — the hint is load-bearing for tune windows.
+		const fullScore = enclosuresTrick.scoreConformance(played, params, baseContext);
+		expect(fullScore.patternScore).toBeLessThan(0.7);
+	});
+});
+
+describe('enclosure type applicability', () => {
+	it('declares the three types in the pinned order with their beds', () => {
+		expect(ENCLOSURE_TYPES.map((t) => t.value)).toEqual(['major', 'minor', 'dominant']);
+		const bed = (type: string) => enclosuresTrick.practiceBed!({ type });
+		expect(bed('major')).toBe('major-vamp');
+		expect(bed('minor')).toBe('minor-vamp');
+		expect(bed('dominant')).toBe('dominant-vamp');
+	});
+
+	it('defaults to major when type is absent or unknown', () => {
+		expect(enclosuresTrick.practiceBed!({})).toBe('major-vamp');
+		expect(enclosuresTrick.practiceBed!({ type: 'nope' })).toBe('major-vamp');
+		expect(enclosuresTrick.compatibleQualitiesFor!({})).toEqual(['maj7', 'maj6']);
+	});
+
+	it('pins per-type chord qualities, most characteristic first', () => {
+		const q = (type: string) => enclosuresTrick.compatibleQualitiesFor!({ type });
+		expect(q('major')).toEqual(['maj7', 'maj6']);
+		expect(q('minor')).toEqual(['min7', 'min6', 'minMaj7']);
+		// 7alt deliberately excluded: no natural 5th to target.
+		expect(q('dominant')).toEqual(['7', '7b9', '7#9', '7#11', '7b13']);
+	});
+
+	it('compatibleQualities is the union of the per-type lists', () => {
+		expect(enclosuresTrick.compatibleQualities).toEqual([
+			'maj7', 'maj6', 'min7', 'min6', 'minMaj7', '7', '7b9', '7#9', '7#11', '7b13'
+		]);
+	});
+
+	it('type enters the variant key, sorted after targetTone', () => {
+		expect(trickVariantKey('enclosures', ENCLOSURE_LADDER[0][1])).toBe(
+			'enclosures:beatPlacement=downbeat,noteCount=1,shape=chromatic-below,targetTone=root,type=major'
+		);
+	});
+
+	it('the builder reads quality from the context, not the type parameter', () => {
+		// Same params; the pcs follow the context's chord/scale. min7 third = Eb
+		// (pc 3), dorian neighbour above = F (5); C7 seventh = Bb (pc 10),
+		// mixolydian neighbour above = C (0).
+		const minorCtx: TrickContext = {
+			...baseContext,
+			chordQuality: 'min7',
+			scaleId: 'major.dorian'
+		};
+		const minorSlots = buildEnclosureSlots(
+			{ ...ENCLOSURE_LADDER[2][1], type: 'minor' },
+			minorCtx
+		);
+		expect(minorSlots.filter((s) => s.role === 'target')[0].exactPcs).toEqual([3]);
+		expect(minorSlots[0].exactPcs).toEqual([5]); // scale-above approach from dorian
+
+		const dominantCtx: TrickContext = {
+			...baseContext,
+			chordQuality: '7',
+			scaleId: 'major.mixolydian'
+		};
+		const domSlots = buildEnclosureSlots(
+			{ noteCount: '2', shape: 'above-below', targetTone: 'seventh', beatPlacement: 'downbeat', type: 'dominant' },
+			dominantCtx
+		);
+		expect(domSlots.filter((s) => s.role === 'target')[0].exactPcs).toEqual([10]);
+		expect(domSlots[0].exactPcs).toEqual([0]);
 	});
 });
 
@@ -442,6 +666,47 @@ describe('triad-pair family applicability', () => {
 	});
 });
 
+describe('enclosure generateExample metadata', () => {
+	it.each(ALL_ENCLOSURE_COMBOS)(
+		'%s: 5 bars with an explicit 1-bar pickup and a [5,1] harmony span',
+		(_name, params) => {
+			const phrase = enclosuresTrick.generateExample(params, baseContext);
+			expect(phrase).not.toBeNull();
+			expect(phrase!.difficulty.lengthBars).toBe(5);
+			expect(phrase!.difficulty.pickupBars).toBe(1);
+			expect(phrase!.harmony[0].duration).toEqual([5, 1]);
+		}
+	);
+
+	it('the rebased offbeat single-approach figure reports 4 bars and no pickup', () => {
+		const phrase = enclosuresTrick.generateExample(
+			{ noteCount: '1', shape: 'chromatic-below', targetTone: 'root', beatPlacement: 'offbeat', type: 'major' },
+			baseContext
+		);
+		expect(phrase).not.toBeNull();
+		expect(phrase!.difficulty.lengthBars).toBe(4);
+		expect(phrase!.difficulty.pickupBars).toBe(0);
+	});
+
+	it('ring residues become explicit rests: k=1 and k=3 carry them, k=2 is seamless', () => {
+		const restCount = (params: TrickParameters) =>
+			enclosuresTrick
+				.generateExample(params, baseContext)!
+				.notes.filter((n) => n.pitch === null).length;
+		// den=8: k=1 rings a dotted half against a 7-eighth gap (1 rest × 3),
+		// k=3 rings a half against 5 (1 rest × 3), k=2 rings 6 against 6 (none).
+		expect(restCount(ENCLOSURE_LADDER[0][1])).toBe(3); // e1, k=1
+		expect(restCount(ENCLOSURE_LADDER[2][1])).toBe(0); // e3, k=2
+		expect(restCount(ENCLOSURE_LADDER[4][1])).toBe(3); // e5, k=3
+		// The quarter grid rings flush for every k.
+		expect(
+			enclosuresTrick
+				.generateExample(ENCLOSURE_LADDER[0][1], { ...baseContext, level: 12 })!
+				.notes.every((n) => n.pitch !== null)
+		).toBe(true);
+	});
+});
+
 describe('generateExample (every pinned ladder combo)', () => {
 	type Builder = (p: TrickParameters, c: TrickContext) => TrickSlotSpec[];
 	// Scramble shift per device: +6 breaks every enclosure, but the tritone
@@ -459,12 +724,15 @@ describe('generateExample (every pinned ladder combo)', () => {
 		const phrase = trick.generateExample(params, baseContext);
 		expect(phrase).not.toBeNull();
 
+		// Pitched notes only: the generator may add explicit rests to bridge
+		// gaps between slots (they carry no pitch content).
 		const slots = build(params, baseContext);
-		expect(phrase!.notes).toHaveLength(slots.length);
-		phrase!.notes.forEach((note, i) => {
-			expect(note.pitch).not.toBeNull();
+		const pitched = phrase!.notes.filter((n) => n.pitch !== null);
+		expect(pitched).toHaveLength(slots.length);
+		pitched.forEach((note, i) => {
 			const pc = ((note.pitch! % 12) + 12) % 12;
 			expect(pc).toBe(slots[i].generatePc ?? slots[i].exactPcs[0]);
+			expect(note.offset).toEqual(slots[i].offset);
 		});
 	});
 
@@ -473,7 +741,8 @@ describe('generateExample (every pinned ladder combo)', () => {
 		expect(phrase).not.toBeNull();
 
 		const slots = build(params, baseContext);
-		const played = phrase!.notes.map((note, i) =>
+		const pitched = phrase!.notes.filter((n) => n.pitch !== null);
+		const played = pitched.map((note, i) =>
 			makeDetected(note.pitch!, slotOnsetSeconds(slots[i]))
 		);
 		const perfect = trick.scoreConformance(played, params, baseContext);

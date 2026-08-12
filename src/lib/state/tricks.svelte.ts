@@ -4,7 +4,8 @@ import type { Database } from '$lib/supabase/types';
 import {
 	loadSelectedTrickVariants,
 	saveSelectedTrickVariants,
-	initTrickStateFromCloud
+	initTrickStateFromCloud,
+	runLocalTrickMigrations
 } from '$lib/persistence/trick-practice-store';
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 
@@ -65,8 +66,15 @@ export async function hydrateTrickStateFromCloud(
 ): Promise<void> {
 	const gen = getScopeGeneration();
 	try {
-		await initTrickStateFromCloud(supabase);
+		const hydrated = await initTrickStateFromCloud(supabase);
 		if (gen !== getScopeGeneration()) return;
+
+		// One-time local migrations run ONLY after a successful hydrate: a
+		// failed cloud read leaves local truth unknown, and rewriting + pushing
+		// over it is the 2026-07-13 incident class (same gate as
+		// backfillPracticeTags). Until a successful hydrate the user just sees
+		// pre-migration keys (three unlocked e1s at worst) — never data loss.
+		if (hydrated) runLocalTrickMigrations();
 
 		trickState.selectedVariants.clear();
 		for (const id of loadSelectedTrickVariants()) trickState.selectedVariants.add(id);

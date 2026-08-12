@@ -18,6 +18,7 @@
 import type { TrickParameters, TrickPracticeProgress } from '$lib/types/tricks';
 import { trickVariantKey } from '$lib/types/tricks';
 import { loadTrickPracticeProgress } from '$lib/persistence/trick-practice-store';
+import { ENCLOSURE_TYPES } from './devices/enclosures';
 import { TRIAD_PAIR_FAMILIES } from './devices/triad-pairs';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -61,53 +62,86 @@ function needs(
 
 // ── Enclosures ladder ────────────────────────────────────────────────
 
-const e1 = defineVariant(
-	'enclosures',
-	{ noteCount: '1', shape: 'chromatic-below', targetTone: 'root', beatPlacement: 'downbeat' },
-	'Single chromatic approach'
-);
-const e2 = defineVariant(
-	'enclosures',
-	{ noteCount: '1', shape: 'scale-above', targetTone: 'third', beatPlacement: 'downbeat' },
-	'Scale step down to the 3rd',
-	[needs([e1])]
-);
-const e3 = defineVariant(
-	'enclosures',
-	{ noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat' },
-	'Enclose the 3rd, above then below',
-	[needs([e2])]
-);
-const e4 = defineVariant(
-	'enclosures',
-	{ noteCount: '2', shape: 'below-above', targetTone: 'fifth', beatPlacement: 'downbeat' },
-	'Enclose the 5th, below then above',
-	[needs([e3])]
-);
-const e5 = defineVariant(
-	'enclosures',
-	{ noteCount: '3', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat' },
-	'Three-note enclosure of the 3rd',
-	[needs([e3])]
-);
-const e6 = defineVariant(
-	'enclosures',
-	{ noteCount: '2', shape: 'double-chromatic', targetTone: 'third', beatPlacement: 'downbeat' },
-	'Double chromatic to the 3rd',
-	[needs([e3])]
-);
-const e7 = defineVariant(
-	'enclosures',
-	{ noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'offbeat' },
-	'Enclosed 3rd landing off the beat',
-	[needs([e3])]
-);
-const e8 = defineVariant(
-	'enclosures',
-	{ noteCount: '3', shape: 'double-chromatic', targetTone: 'seventh', beatPlacement: 'offbeat' },
-	'Double chromatic → 7th, off the beat',
-	[needs([e5, e6])]
-);
+/** One pedagogical step of the enclosure ladder, without the chord-type axis. */
+interface EnclosureStepDef {
+	/** Step id ('e1'…'e8') — referenced by later steps' `needs` clauses. */
+	id: string;
+	params: TrickParameters;
+	label: string;
+	/** AND of clauses; each clause lists step ids within the SAME type chain. */
+	needs: string[][];
+}
+
+const ENCLOSURE_STEPS: EnclosureStepDef[] = [
+	{
+		id: 'e1',
+		params: { noteCount: '1', shape: 'chromatic-below', targetTone: 'root', beatPlacement: 'downbeat' },
+		label: 'Single chromatic approach',
+		needs: []
+	},
+	{
+		id: 'e2',
+		params: { noteCount: '1', shape: 'scale-above', targetTone: 'third', beatPlacement: 'downbeat' },
+		label: 'Scale step down to the 3rd',
+		needs: [['e1']]
+	},
+	{
+		id: 'e3',
+		params: { noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat' },
+		label: 'Enclose the 3rd, above then below',
+		needs: [['e2']]
+	},
+	{
+		id: 'e4',
+		params: { noteCount: '2', shape: 'below-above', targetTone: 'fifth', beatPlacement: 'downbeat' },
+		label: 'Enclose the 5th, below then above',
+		needs: [['e3']]
+	},
+	{
+		id: 'e5',
+		params: { noteCount: '3', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat' },
+		label: 'Three-note enclosure of the 3rd',
+		needs: [['e3']]
+	},
+	{
+		id: 'e6',
+		params: { noteCount: '2', shape: 'double-chromatic', targetTone: 'third', beatPlacement: 'downbeat' },
+		label: 'Double chromatic to the 3rd',
+		needs: [['e3']]
+	},
+	{
+		id: 'e7',
+		params: { noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'offbeat' },
+		label: 'Enclosed 3rd landing off the beat',
+		needs: [['e3']]
+	},
+	{
+		id: 'e8',
+		params: { noteCount: '3', shape: 'double-chromatic', targetTone: 'seventh', beatPlacement: 'offbeat' },
+		label: 'Double chromatic → 7th, off the beat',
+		needs: [['e5', 'e6']]
+	}
+];
+
+// Three parallel self-contained chains — one per chord type from the device's
+// ENCLOSURE_TYPES table, identical internal prerequisites, NO cross-type
+// gating: each chain's e1 starts unlocked so all three types are selectable
+// from day one. Built from the table so keys/labels can never drift from the
+// device's parameter values (the triad-pairs pattern below).
+const enclosureLadder: TrickVariantDefinition[] = [];
+for (const family of ENCLOSURE_TYPES) {
+	const byId = new Map<string, TrickVariantDefinition>();
+	for (const step of ENCLOSURE_STEPS) {
+		const variant = defineVariant(
+			'enclosures',
+			{ ...step.params, type: family.value },
+			`${step.label} — ${family.label.toLowerCase()}`,
+			step.needs.map((ids) => needs(ids.map((id) => byId.get(id)!)))
+		);
+		byId.set(step.id, variant);
+		enclosureLadder.push(variant);
+	}
+}
 
 // ── Triad-pairs ladder ───────────────────────────────────────────────
 
@@ -126,7 +160,7 @@ for (const family of TRIAD_PAIR_FAMILIES) {
 // ── Mastery paths ────────────────────────────────────────────────────
 
 export const TRICK_MASTERY_PATHS: Record<string, TrickVariantDefinition[]> = {
-	'enclosures': [e1, e2, e3, e4, e5, e6, e7, e8],
+	'enclosures': enclosureLadder,
 	'triad-pairs': triadPairLadder
 };
 

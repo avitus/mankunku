@@ -1,7 +1,7 @@
 import type { ChordQuality, HarmonicSegment, Note, Phrase, PitchClass } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
-import { midiToPitchClass, midiToOctave, fractionToFloat } from './intervals';
+import { midiToPitchClass, midiToOctave, fractionToFloat, gcd } from './intervals';
 import { concertToWritten, concertKeyToWritten, transposePitchClass } from './transposition';
 import { noteArticulationPrefix } from './articulation-abc';
 
@@ -286,9 +286,10 @@ export function durationToAbc(duration: [number, number], defaultLength: [number
 	if (ratio === 3) return '3';
 	if (ratio === 1.5) return '3/2';
 
-	// General case
-	const num = duration[0] * defaultLength[1];
-	const den = duration[1] * defaultLength[0];
+	// General case — reduced, so a dotted half at L:1/8 prints as 6, not 24/4
+	const g = gcd(duration[0] * defaultLength[1], duration[1] * defaultLength[0]);
+	const num = (duration[0] * defaultLength[1]) / g;
+	const den = (duration[1] * defaultLength[0]) / g;
 	if (den === 1) return `${num}`;
 	if (num === 1) return `/${den}`;
 	return `${num}/${den}`;

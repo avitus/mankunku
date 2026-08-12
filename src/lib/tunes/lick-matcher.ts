@@ -261,10 +261,10 @@ export function suggestLicksForProgression(
 			// progression chord matching one of the variant's qualities — most
 			// characteristic first — and transpose to THAT chord's root, so an
 			// altered pair lands re-rooted on the V bar of a long ii-V-I while
-			// a diatonic pair takes the I. No matching full-bar chord ⇒ the
-			// variant does not belong on this progression at all. Devices
-			// without the hook keep the category-registration alignment and the
-			// local key (enclosures adapt to any quality via chord tones).
+			// a diatonic pair takes the I, and a minor-type enclosure lands on
+			// a full-bar min7 chord. No matching full-bar chord ⇒ the variant
+			// does not belong on this progression at all. Devices without the
+			// hook keep the category-registration alignment and the local key.
 			let templateAlignmentOffset: Fraction;
 			let targetKey: PitchClass;
 			const variantQualities = trick.compatibleQualitiesFor?.(variant.params);
@@ -310,7 +310,11 @@ export function suggestLicksForProgression(
 				timeSignature: deps.timeSignature,
 				level: 50,
 				tempo: options.sessionTempo ?? 120,
-				swing: 0.5
+				swing: 0.5,
+				// Tune windows are sized by the detected progression span, so
+				// devices with a span distinction demo AND score their short
+				// insertion gesture here — never the multi-bar drill figure.
+				figure: 'compact'
 			};
 			// A null preview must not produce an unplayable window — skip the variant.
 			const phrase = trick.generateExample(variant.params, context);

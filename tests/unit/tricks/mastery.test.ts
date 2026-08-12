@@ -41,7 +41,11 @@ const EMPTY_CTX: TrickUnlockContext = { progress: {} };
 
 const enclosures = getVariantsForTrick('enclosures');
 const triadPairs = getVariantsForTrick('triad-pairs');
-const [e1, e2, e3, e4, e5, e6, e7, e8] = enclosures;
+// Three parallel 8-step chains, grouped major → minor → dominant.
+const majorChain = enclosures.slice(0, 8);
+const minorChain = enclosures.slice(8, 16);
+const dominantChain = enclosures.slice(16, 24);
+const [e1, e2, e3, e4, e5, e6, e7, e8] = majorChain;
 const [t1, t2, t3, t4, t5, t6, t7, t8] = triadPairs;
 
 // Pinned parameter names/values, copied verbatim from the tricks contract.
@@ -49,7 +53,8 @@ const ENCLOSURE_PARAM_VALUES: Record<string, string[]> = {
 	noteCount: ['1', '2', '3'],
 	shape: ['chromatic-below', 'scale-above', 'above-below', 'below-above', 'double-chromatic'],
 	targetTone: ['root', 'third', 'fifth', 'seventh'],
-	beatPlacement: ['downbeat', 'offbeat']
+	beatPlacement: ['downbeat', 'offbeat'],
+	type: ['major', 'minor', 'dominant']
 };
 const TRIAD_PAIR_PARAM_VALUES: Record<string, string[]> = {
 	pair: [
@@ -69,8 +74,40 @@ const TRIAD_PAIR_PARAM_VALUES: Record<string, string[]> = {
 describe('TRICK_MASTERY_PATHS', () => {
 	it('contains both ladders with the pinned lengths', () => {
 		expect(Object.keys(TRICK_MASTERY_PATHS).sort()).toEqual(['enclosures', 'triad-pairs']);
-		expect(enclosures).toHaveLength(8);
+		expect(enclosures).toHaveLength(24);
 		expect(triadPairs).toHaveLength(8);
+	});
+
+	it('groups the enclosure chains by type in pinned order', () => {
+		expect(majorChain.every((v) => v.params.type === 'major')).toBe(true);
+		expect(minorChain.every((v) => v.params.type === 'minor')).toBe(true);
+		expect(dominantChain.every((v) => v.params.type === 'dominant')).toBe(true);
+	});
+
+	it('the three chains mirror the same 8 steps, differing only in type', () => {
+		const shapeOf = (v: (typeof enclosures)[number]) => {
+			const { type: _type, ...rest } = v.params;
+			return rest;
+		};
+		for (const chain of [minorChain, dominantChain]) {
+			expect(chain.map(shapeOf)).toEqual(majorChain.map(shapeOf));
+		}
+	});
+
+	it('every prerequisite stays within the variant\'s own type chain', () => {
+		for (const variant of enclosures) {
+			for (const clause of variant.prerequisites) {
+				for (const prereqKey of clause.variants) {
+					expect(getVariantByKey(prereqKey)!.params.type).toBe(variant.params.type);
+				}
+			}
+		}
+	});
+
+	it('chain labels carry the type so 24 rows stay tellable apart', () => {
+		expect(e1.label).toBe('Single chromatic approach — major');
+		expect(minorChain[2].label).toBe('Enclose the 3rd, above then below — minor');
+		expect(dominantChain[7].label).toBe('Double chromatic → 7th, off the beat — dominant');
 	});
 
 	it('triad-pair stages follow the pinned pedagogical order', () => {
@@ -144,6 +181,7 @@ describe('getVariantByKey', () => {
 	it('keys are order-independent over parameter insertion order', () => {
 		// Same params as e1 but with keys in a different insertion order.
 		const shuffled = trickVariantKey('enclosures', {
+			type: 'major',
 			beatPlacement: 'downbeat',
 			targetTone: 'root',
 			shape: 'chromatic-below',
@@ -174,17 +212,30 @@ describe('totalVariantPasses', () => {
 // ── Unlock semantics ─────────────────────────────────────────────────
 
 describe('isVariantUnlocked', () => {
-	it('unlocks the first variant of each ladder with empty progress', () => {
-		expect(e1.prerequisites).toEqual([]);
-		expect(t1.prerequisites).toEqual([]);
-		expect(isVariantUnlocked(e1.key, EMPTY_CTX)).toBe(true);
-		expect(isVariantUnlocked(t1.key, EMPTY_CTX)).toBe(true);
+	it('unlocks the first variant of every chain with empty progress — all three types from day one', () => {
+		for (const first of [e1, minorChain[0], dominantChain[0], t1]) {
+			expect(first.prerequisites).toEqual([]);
+			expect(isVariantUnlocked(first.key, EMPTY_CTX)).toBe(true);
+		}
 	});
 
 	it('keeps every non-first variant locked with empty progress', () => {
-		for (const variant of [...enclosures.slice(1), ...triadPairs.slice(1)]) {
+		const firsts = new Set([e1.key, minorChain[0].key, dominantChain[0].key, t1.key]);
+		for (const variant of [...enclosures, ...triadPairs].filter((v) => !firsts.has(v.key))) {
 			expect(isVariantUnlocked(variant.key, EMPTY_CTX)).toBe(false);
 		}
+	});
+
+	it('mastering one chain never unlocks another type\'s steps', () => {
+		const majorDone = ctxWith(
+			Object.fromEntries(majorChain.map((v) => [v.key, { C: 3 } as Partial<Record<PitchClass, number>>]))
+		);
+		expect(isVariantUnlocked(minorChain[1].key, majorDone)).toBe(false);
+		expect(isVariantUnlocked(dominantChain[1].key, majorDone)).toBe(false);
+		// Passes on the minor chain's own e1 unlock its e2 as usual.
+		expect(isVariantUnlocked(minorChain[1].key, ctxWith({ [minorChain[0].key]: { C: 3 } }))).toBe(
+			true
+		);
 	});
 
 	it('unlocks exactly when the prerequisite crosses 3 total passes', () => {
@@ -220,28 +271,42 @@ describe('isVariantUnlocked', () => {
 });
 
 describe('getUnlockedVariants', () => {
-	it('returns only the first variant of each ladder for empty progress', () => {
-		expect(getUnlockedVariants('enclosures', EMPTY_CTX)).toEqual([e1]);
+	it('returns the first variant of every chain for empty progress', () => {
+		expect(getUnlockedVariants('enclosures', EMPTY_CTX)).toEqual([
+			e1,
+			minorChain[0],
+			dominantChain[0]
+		]);
 		expect(getUnlockedVariants('triad-pairs', EMPTY_CTX)).toEqual([t1]);
 	});
 
-	it('grows in ladder order as prerequisites are met', () => {
+	it('grows in ladder order as prerequisites are met, without touching other chains', () => {
 		const ctx = ctxWith({ [e1.key]: { C: 3 }, [e2.key]: { C: 3 } });
-		expect(getUnlockedVariants('enclosures', ctx)).toEqual([e1, e2, e3]);
+		expect(getUnlockedVariants('enclosures', ctx)).toEqual([
+			e1,
+			e2,
+			e3,
+			minorChain[0],
+			dominantChain[0]
+		]);
 	});
 });
 
 // ── Frontier ─────────────────────────────────────────────────────────
 
+// The other chains' pass-less e1s keep their e2s permanently on the frontier
+// until practiced, so every enclosure frontier below carries them as a tail.
+const CHAIN_TAIL = [minorChain[1], dominantChain[1]];
+
 describe('getNextLockedVariants', () => {
 	it('returns exactly the frontier for empty progress', () => {
-		expect(getNextLockedVariants('enclosures', EMPTY_CTX)).toEqual([e2]);
+		expect(getNextLockedVariants('enclosures', EMPTY_CTX)).toEqual([e2, ...CHAIN_TAIL]);
 		expect(getNextLockedVariants('triad-pairs', EMPTY_CTX)).toEqual([t2]);
 	});
 
 	it('shifts to e3 once e1 is mastered', () => {
 		const ctx = ctxWith({ [e1.key]: { C: 3 } });
-		expect(getNextLockedVariants('enclosures', ctx)).toEqual([e3]);
+		expect(getNextLockedVariants('enclosures', ctx)).toEqual([e3, ...CHAIN_TAIL]);
 	});
 
 	it('fans out to the e4-e7 tier once e3 unlocks, excluding e8', () => {
@@ -249,18 +314,18 @@ describe('getNextLockedVariants', () => {
 		// e3 is unlocked (its prereq e2 has 3 passes) but has no passes of its
 		// own, so e4-e7 are locked with an unlocked prerequisite: the frontier.
 		// e8's prereqs e5/e6 are still locked, so e8 is excluded.
-		expect(getNextLockedVariants('enclosures', ctx)).toEqual([e4, e5, e6, e7]);
+		expect(getNextLockedVariants('enclosures', ctx)).toEqual([e4, e5, e6, e7, ...CHAIN_TAIL]);
 	});
 
 	it('surfaces e8 only when both its prerequisites are unlocked, and drops it once earned', () => {
 		// e3 mastered → e4-e7 unlocked (prereq e3 has 3 passes), e5/e6 unlocked
-		// but pass-less → e8 is the sole frontier entry.
+		// but pass-less → e8 is the major chain's sole frontier entry.
 		const ladderDone = ctxWith({
 			[e1.key]: { C: 3 },
 			[e2.key]: { C: 3 },
 			[e3.key]: { C: 3 }
 		});
-		expect(getNextLockedVariants('enclosures', ladderDone)).toEqual([e8]);
+		expect(getNextLockedVariants('enclosures', ladderDone)).toEqual([e8, ...CHAIN_TAIL]);
 
 		const allEarned = ctxWith({
 			[e1.key]: { C: 3 },
@@ -269,8 +334,12 @@ describe('getNextLockedVariants', () => {
 			[e5.key]: { C: 3 },
 			[e6.key]: { C: 3 }
 		});
-		expect(getNextLockedVariants('enclosures', allEarned)).toEqual([]);
-		expect(getUnlockedVariants('enclosures', allEarned)).toEqual(enclosures);
+		expect(getNextLockedVariants('enclosures', allEarned)).toEqual(CHAIN_TAIL);
+		expect(getUnlockedVariants('enclosures', allEarned)).toEqual([
+			...majorChain,
+			minorChain[0],
+			dominantChain[0]
+		]);
 	});
 
 	it('walks the linear triad-pair frontier one stage at a time', () => {

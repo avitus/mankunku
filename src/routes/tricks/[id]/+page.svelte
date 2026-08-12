@@ -19,6 +19,7 @@
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { lickPractice } from '$lib/state/lick-practice.svelte';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 
 	const trick = $derived(getTrickById(page.params.id ?? ''));
 
@@ -69,17 +70,23 @@
 	const writtenKey = $derived(selectedWrittenKey ?? concertKeyToWritten('C', getInstrument()));
 	const concertKey = $derived(writtenKeyToConcert(writtenKey, getInstrument()));
 
-	// Pinned example context: both tricks are maj7-compatible, so previews are
-	// always rendered over a major-7 chord in the chosen concert key.
-	const exampleContext = $derived<TrickContext>({
-		chordRoot: concertKey,
-		chordQuality: 'maj7',
-		scaleId: 'major.ionian',
-		key: concertKey,
-		timeSignature: [4, 4],
-		level: 50,
-		tempo: 120,
-		swing: 0.5
+	// Example context derived from the variant's own practice bed (the same
+	// lookup startTrickSession uses), so a minor-type enclosure previews over
+	// min7/dorian and an altered triad pair over its dominant vamp — all
+	// realized at the chosen concert key (scaleIds are rooted at chordRoot).
+	const exampleContext = $derived.by<TrickContext>(() => {
+		const bedType = (trick && selectedVariant && trick.practiceBed?.(selectedVariant.params)) ?? 'major-vamp';
+		const bed = PROGRESSION_TEMPLATES[bedType].harmony[0];
+		return {
+			chordRoot: concertKey,
+			chordQuality: bed.chord.quality,
+			scaleId: bed.scaleId,
+			key: concertKey,
+			timeSignature: [4, 4],
+			level: 50,
+			tempo: 120,
+			swing: 0.5
+		};
 	});
 
 	const example = $derived.by(() => {
@@ -124,7 +131,13 @@
 					: `Two chromatic steps from below into the ${target}`
 			};
 			const body = shapeText[params.shape ?? ''] ?? `Enclose the ${target} with neighbour tones`;
-			return `${body}, ${landing}.`;
+			const chordType: Record<string, string> = {
+				major: 'a major chord',
+				minor: 'a minor chord',
+				dominant: 'a dominant chord'
+			};
+			const over = chordType[params.type ?? ''] ?? 'a major chord';
+			return `${body}, ${landing}, over ${over}.`;
 		}
 		if (t.id === 'triad-pairs') {
 			const family = getTriadPairFamily(params.pair ?? '');

@@ -23,7 +23,8 @@ import {
 	startTrickSession,
 	recordKeyAttempt,
 	advanceSingleLickRound,
-	resetSession
+	resetSession,
+	getLickBars
 } from '$lib/state/lick-practice.svelte';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
 import { getTrickById } from '$lib/tricks';
@@ -51,12 +52,13 @@ vi.stubGlobal('localStorage', {
 	clear: vi.fn(() => store.clear())
 });
 
-// First rung of the enclosures ladder — always unlocked.
+// First rung of the enclosures major chain — always unlocked.
 const E1_PARAMS: TrickParameters = {
 	noteCount: '1',
 	shape: 'chromatic-below',
 	targetTone: 'root',
-	beatPlacement: 'downbeat'
+	beatPlacement: 'downbeat',
+	type: 'major'
 };
 const E1_KEY = trickVariantKey('enclosures', E1_PARAMS);
 
@@ -128,6 +130,30 @@ describe('startTrickSession', () => {
 		expect(lickPractice.roundNumber).toBe(1);
 		expect(lickPractice.phase).toBe('count-in');
 		expect(lickPractice.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
+	});
+
+	it('drills a minor-type enclosure over the minor vamp with a 5-bar window', () => {
+		lickPractice.config.trickParameters = { ...E1_PARAMS, type: 'minor' };
+		expect(startTrickSession()).toBe(true);
+
+		const item = lickPractice.plan[0];
+		// The type parameter picks the bed; the C context mirrors its chord/scale.
+		expect(item.progressionType).toBe('minor-vamp');
+		expect(item.trickContext).toMatchObject({
+			chordRoot: 'C',
+			chordQuality: 'min7',
+			scaleId: 'major.dorian',
+			key: 'C'
+		});
+		expect(item.phrase!.harmony[0].chord.quality).toBe('min7');
+		// Progress/tempo key under the minor chain's own variant key.
+		expect(item.phraseId).toBe(trickVariantKey('enclosures', { ...E1_PARAMS, type: 'minor' }));
+
+		// The full drill figure: anacrusis + 4 content bars stretches the
+		// 2-bar vamp to a 5-bar per-key window.
+		expect(item.phrase!.difficulty.lengthBars).toBe(5);
+		expect(item.phrase!.difficulty.pickupBars).toBe(1);
+		expect(getLickBars(item.phrase!, item.progressionType, false)).toBe(5);
 	});
 
 	it('drills a quality-specific triad-pair family over its own vamp', () => {

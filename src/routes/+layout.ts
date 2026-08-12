@@ -181,6 +181,15 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		// renders at mount; the background chain re-runs recompute + overlays
 		// any cloud-only summaries reactively when it lands.
 		recomputeAllDailySummaries();
+	} else if (isBrowser()) {
+		// Anonymous local-only session: no cloud to hydrate against, so the
+		// one-time trick migrations (variant-key rewrites) run directly. The
+		// signed-in path runs them inside hydrateTrickStateFromCloud, gated on
+		// a successful cloud read; if this user later signs in, the merge-seam
+		// normalization in init/flushTrickStateToCloud folds any legacy-key
+		// cloud data even though the local marker is already set.
+		const { runLocalTrickMigrations } = await import('$lib/persistence/trick-practice-store');
+		runLocalTrickMigrations();
 	}
 
 	return { supabase, session, user, isAdmin };

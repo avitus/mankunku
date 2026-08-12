@@ -32,6 +32,7 @@ import {
 } from './sync';
 import { getScopeGeneration } from './user-scope';
 import { enqueue } from './outbox';
+import { migrateTrickState } from './trick-state-migrations';
 
 const PROGRESS_KEY = 'trick-practice-progress';
 const HISTORY_KEY = 'trick-progress-history';
@@ -43,6 +44,9 @@ const SELECTED_MTIME_KEY = 'trick-selected-variants-mtime';
 /** One-time migration markers (string[]) — kept OUTSIDE the other blobs and
  *  always unioned by the cloud merge, so a completed migration never replays. */
 const MIGRATIONS_KEY = 'trick-migrations';
+
+/** Marker for the enclosure `type` variant-key rewrite (see trick-state-migrations.ts). */
+const ENCLOSURE_TYPE_MIGRATION = 'enclosure-type-v1';
 
 /** Cap on retained history points per variant — keep in sync with the merge cap in sync.ts. */
 const MAX_HISTORY_POINTS = 500;
@@ -237,6 +241,31 @@ export function addTrickMigrationMarker(name: string): void {
 	enqueue('trickState');
 }
 
+// ── One-time local migrations ────────────────────────────────────────────────
+
+/**
+ * Marker-gated local variant-key rewrite (currently `enclosure-type-v1`).
+ * Rewrites the four keyed local blobs in place and stamps the marker, which
+ * also enqueues the cloud push. The selection mtime is deliberately NOT
+ * stamped — a mechanical rewrite is not a user edit and must not win the
+ * selection LWW race against another device.
+ *
+ * Callers gate this on hydration state: after a SUCCESSFUL cloud hydrate for
+ * signed-in users (never over a store that failed to hydrate — the 2026-07-13
+ * incident class), or directly for anonymous local-only sessions. Legacy keys
+ * arriving later from old-code devices are folded by the merge seams in
+ * init/flushTrickStateToCloud, so the marker never needs to re-run.
+ */
+export function runLocalTrickMigrations(): void {
+	if (hasTrickMigrationMarker(ENCLOSURE_TYPE_MIGRATION)) return;
+	const migrated = migrateTrickState(snapshotLocalTrickState());
+	save(SELECTED_KEY, migrated.selectedVariants);
+	save(PROGRESS_KEY, migrated.progress);
+	save(UNLOCK_KEY, migrated.unlockCounts);
+	save(HISTORY_KEY, migrated.history);
+	addTrickMigrationMarker(ENCLOSURE_TYPE_MIGRATION); // saves + enqueues the push
+}
+
 // ── Cloud sync (one JSONB blob, merged per-field) ────────────────────────────
 
 /** Snapshot the current local trick state as one syncable blob. */
@@ -291,9 +320,12 @@ export async function initTrickStateFromCloud(
 		const remote = await loadTrickStateFromCloud(supabase);
 		if (remote.status === 'error') return false; // cloud truth unknown — do not merge or push
 		if (gen !== getScopeGeneration()) return false; // user switched mid-flight
+		// Normalize BOTH sides before merging: the union-style merge would
+		// otherwise resurrect legacy variant keys from a stale cloud row or an
+		// old-code device forever (see trick-state-migrations.ts).
 		const merged = mergeTrickState(
-			snapshotLocalTrickState(),
-			remote.status === 'ok' ? remote.data : emptyTrickState()
+			migrateTrickState(snapshotLocalTrickState()),
+			migrateTrickState(remote.status === 'ok' ? remote.data : emptyTrickState())
 		);
 		if (gen !== getScopeGeneration()) return false;
 		saveLocalTrickState(merged);
@@ -329,9 +361,10 @@ export async function flushTrickStateToCloud(
 	const remote = await loadTrickStateFromCloud(supabase);
 	if (gen !== getScopeGeneration()) return; // user switched mid-flight
 	if (remote.status === 'error') throw new Error('trick state read failed — deferring push');
+	// Same both-sides normalization as initTrickStateFromCloud (see there).
 	const merged = mergeTrickState(
-		snapshotLocalTrickState(),
-		remote.status === 'ok' ? remote.data : emptyTrickState()
+		migrateTrickState(snapshotLocalTrickState()),
+		migrateTrickState(remote.status === 'ok' ? remote.data : emptyTrickState())
 	);
 	if (gen !== getScopeGeneration()) return; // switched during merge — do not persist/push
 	saveLocalTrickState(merged);

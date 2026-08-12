@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { phraseToAbc, midiToDisplayName } from '$lib/music/notation';
+import { phraseToAbc, midiToDisplayName, durationToAbc } from '$lib/music/notation';
 import type { Phrase, PitchClass } from '$lib/types/music';
 
 /** Build a minimal phrase with a single note for testing ABC output. */
@@ -574,5 +574,82 @@ describe('phraseToAbc chord-aware enharmonic spelling', () => {
 		const line = noteLine(phraseToAbc(phraseWithChord(73, 'D', 'Bb', 'min7')));
 		expect(line).not.toContain('_D');
 		expect(line).toContain('c');
+	});
+});
+
+describe('generated trick anacrusis rendering', () => {
+	// The full enclosure drill figure begins mid-way through a leading bar.
+	// With no leading rest before the first note, the renderer emits a TRUE
+	// partial pickup bar (barlines are only inserted between notes) — the
+	// same emergent behavior major-chord-pickup-001 relies on, previously
+	// untested. Regression pin for the 4-bars-plus-pickup figure design.
+	function trickContext(): import('$lib/types/tricks').TrickContext {
+		return {
+			chordRoot: 'C',
+			chordQuality: 'maj7',
+			scaleId: 'major.ionian',
+			key: 'C',
+			timeSignature: [4, 4],
+			level: 50,
+			tempo: 120
+		};
+	}
+
+	function bodyBars(abc: string): string[] {
+		return noteLine(abc)
+			.replace(/\s*\|\]\s*$/, '')
+			.split('|')
+			.map((bar) => bar.trim())
+			.filter((bar) => bar.length > 0);
+	}
+
+	it('renders the full enclosure figure as a partial pickup bar plus 4 content bars', async () => {
+		const { enclosuresTrick } = await import('$lib/tricks/devices/enclosures');
+		const phrase = enclosuresTrick.generateExample(
+			{ noteCount: '2', shape: 'above-below', targetTone: 'third', beatPlacement: 'downbeat', type: 'major' },
+			trickContext()
+		);
+		expect(phrase).not.toBeNull();
+
+		const bars = bodyBars(phraseToAbc(phrase!));
+		expect(bars).toHaveLength(5);
+		// Bar 0 holds ONLY the two approach notes — no rest padding, no target.
+		expect(bars[0]).toBe('F^D');
+		// Every content bar opens on the ringing target chord tone...
+		for (const bar of bars.slice(1, 4)) {
+			expect(bar.startsWith('E')).toBe(true);
+		}
+		// ...and the figure closes on the held final target alone.
+		expect(bars[4]).toBe('E4');
+	});
+
+	it('ring-residue rests render inside content bars, never in the pickup bar', async () => {
+		const { enclosuresTrick } = await import('$lib/tricks/devices/enclosures');
+		// k=1: the dotted-half ring leaves an eighth before each next approach,
+		// bridged by an explicit generator rest.
+		const phrase = enclosuresTrick.generateExample(
+			{ noteCount: '1', shape: 'scale-above', targetTone: 'third', beatPlacement: 'downbeat', type: 'major' },
+			trickContext()
+		);
+		expect(phrase).not.toBeNull();
+
+		const bars = bodyBars(phraseToAbc(phrase!));
+		expect(bars).toHaveLength(5);
+		expect(bars[0]).not.toContain('z');
+		for (const bar of bars.slice(1, 4)) {
+			expect(bar).toContain('z');
+		}
+	});
+});
+
+describe('durationToAbc general-case reduction', () => {
+	it('renders a dotted half at L:1/8 as 6, not 24/4', () => {
+		expect(durationToAbc([3, 4], [1, 8])).toBe('6');
+	});
+
+	it('reduces arbitrary ratios to lowest terms', () => {
+		expect(durationToAbc([7, 8], [1, 8])).toBe('7');
+		expect(durationToAbc([5, 8], [1, 8])).toBe('5');
+		expect(durationToAbc([3, 16], [1, 8])).toBe('3/2');
 	});
 });

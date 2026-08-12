@@ -62,7 +62,10 @@ beforeEach(() => {
 	__resetNamespaceCacheForTests();
 });
 
-const V1 = 'enclosures:beatPlacement=downbeat,noteCount=1,shape=chromatic-below,targetTone=root';
+// A modern (typed) variant key: the init/flush merge seams normalize legacy
+// typeless enclosure keys (see trick-state-migrations.test.ts), so tri-state
+// fixtures here use the post-migration form.
+const V1 = 'enclosures:beatPlacement=downbeat,noteCount=1,shape=chromatic-below,targetTone=root,type=major';
 
 describe('practice progress', () => {
 	it('loads an empty record when nothing is stored', () => {
