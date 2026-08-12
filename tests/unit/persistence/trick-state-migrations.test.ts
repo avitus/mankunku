@@ -99,6 +99,23 @@ describe('migrateEnclosureVariantKey', () => {
 			expect(migrateEnclosureVariantKey(bad)).toBe(bad);
 		}
 	});
+
+	it('only rewrites the exact legacy parameter set — anything else passes through', () => {
+		for (const notLegacy of [
+			// Unknown parameter name.
+			'enclosures:foo=bar',
+			// Subset of the legacy set (real stores only ever held full keys).
+			'enclosures:noteCount=1,shape=chromatic-below',
+			// Superset with an extra unknown parameter.
+			`${LEGACY_E1},extra=1`,
+			// Duplicate parameter name (never produced by normalizeParameterSignature).
+			'enclosures:beatPlacement=downbeat,noteCount=1,noteCount=2,shape=chromatic-below,targetTone=root',
+			// Empty parameter value.
+			'enclosures:beatPlacement=downbeat,noteCount=,shape=chromatic-below,targetTone=root'
+		]) {
+			expect(migrateEnclosureVariantKey(notLegacy)).toBe(notLegacy);
+		}
+	});
 });
 
 describe('migrateTrickState', () => {

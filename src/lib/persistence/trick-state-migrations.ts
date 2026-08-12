@@ -32,9 +32,18 @@ import type { SyncableTrickState } from './sync';
 const MAX_HISTORY_POINTS = 500;
 
 /**
- * Re-key one variant key: a well-formed typeless enclosure signature gains
- * `type=major`; everything else — other tricks, already-typed keys, and
- * anything malformed — passes through untouched. Idempotent.
+ * The exact parameter set every pre-`type` enclosure ladder variant carried.
+ * Only signatures with precisely these names are legacy keys; anything else
+ * (unknown/missing/duplicate names, empty values) was never produced by the
+ * old ladder and must pass through unchanged.
+ */
+const LEGACY_ENCLOSURE_PARAMS = ['beatPlacement', 'noteCount', 'shape', 'targetTone'] as const;
+
+/**
+ * Re-key one variant key: a signature matching the exact legacy enclosure
+ * schema gains `type=major`; everything else — other tricks, already-typed
+ * keys, and anything malformed or foreign — passes through untouched.
+ * Idempotent.
  */
 export function migrateEnclosureVariantKey(key: string): string {
 	const sep = key.indexOf(':');
@@ -42,13 +51,20 @@ export function migrateEnclosureVariantKey(key: string): string {
 	const signature = key.slice(sep + 1);
 	if (signature.length === 0) return key;
 
+	const pairs = signature.split(',');
 	const params: Record<string, string> = {};
-	for (const pair of signature.split(',')) {
+	for (const pair of pairs) {
 		const eq = pair.indexOf('=');
-		if (eq <= 0) return key; // malformed pair — leave the key alone
+		if (eq <= 0 || eq === pair.length - 1) return key; // malformed / empty value
 		params[pair.slice(0, eq)] = pair.slice(eq + 1);
 	}
-	if ('type' in params) return key;
+	if ('type' in params) return key; // already migrated
+	const names = Object.keys(params);
+	const isLegacySchema =
+		pairs.length === LEGACY_ENCLOSURE_PARAMS.length && // no duplicate names
+		names.length === LEGACY_ENCLOSURE_PARAMS.length &&
+		LEGACY_ENCLOSURE_PARAMS.every((name) => name in params);
+	if (!isLegacySchema) return key;
 	return trickVariantKey('enclosures', { ...params, type: 'major' });
 }
 

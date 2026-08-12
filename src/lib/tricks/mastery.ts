@@ -131,12 +131,20 @@ const ENCLOSURE_STEPS: EnclosureStepDef[] = [
 const enclosureLadder: TrickVariantDefinition[] = [];
 for (const family of ENCLOSURE_TYPES) {
 	const byId = new Map<string, TrickVariantDefinition>();
+	// Steps may only reference ids declared EARLIER in ENCLOSURE_STEPS; a
+	// forward or unknown reference must fail module load, not silently build
+	// a malformed prerequisite clause that gates on a nonexistent key.
+	const resolve = (id: string): TrickVariantDefinition => {
+		const prior = byId.get(id);
+		if (!prior) throw new Error(`Enclosure step '${id}' referenced before it is defined`);
+		return prior;
+	};
 	for (const step of ENCLOSURE_STEPS) {
 		const variant = defineVariant(
 			'enclosures',
 			{ ...step.params, type: family.value },
 			`${step.label} — ${family.label.toLowerCase()}`,
-			step.needs.map((ids) => needs(ids.map((id) => byId.get(id)!)))
+			step.needs.map((ids) => needs(ids.map(resolve)))
 		);
 		byId.set(step.id, variant);
 		enclosureLadder.push(variant);
