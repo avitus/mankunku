@@ -142,6 +142,20 @@
 	let bottomQuote = $state('');
 
 	/**
+	 * Publish a take's score to the visible strip (and refresh the rotating
+	 * quote at its 10-attempt boundary). Called once per take with the FINAL
+	 * score — the authoritative replay rescore when one runs, the provisional
+	 * live score only when no replay score exists — so the number on screen
+	 * never changes after it appears.
+	 */
+	function revealScore(score: Score) {
+		persistentScore = score;
+		if ((scoredAttemptCount - 1) % 10 === 0) {
+			bottomQuote = getGradeCaption(score.grade);
+		}
+	}
+
+	/**
 	 * Transient, very subtle acknowledgement of a level change. Set when the
 	 * current scale's proficiency level moves during recordAttempt(), then
 	 * cleared after the fade-out completes. Carries the scale name + the level
@@ -546,11 +560,7 @@
 		session.lastScore = result.chosen;
 
 		if (session.lastScore) {
-			persistentScore = session.lastScore;
 			scoredAttemptCount++;
-			if ((scoredAttemptCount - 1) % 10 === 0) {
-				bottomQuote = getGradeCaption(persistentScore.grade);
-			}
 			// The daily session is scale-focused, so report the current scale's
 			// proficiency level: compare it before/after the attempt and surface
 			// the actual level reached (up or down).
@@ -578,9 +588,14 @@
 		// Save audio recording in the background, then re-score from the
 		// saved blob. The replay path is deterministic (no rAF jitter,
 		// no AudioWorklet scheduling); live readings drift across runs even
-		// on identical audio, so the replay score is authoritative. UI
-		// shows the provisional live score immediately and swaps to the
-		// authoritative one when replay resolves (~200–500 ms).
+		// on identical audio, so the replay score is authoritative. The UI
+		// holds the previous take's score until the replay resolves
+		// (~200–500 ms) and shows only the authoritative result — the
+		// provisional score used to render first and then silently change
+		// under the user's eyes when the rescore landed. The provisional
+		// score is still what gets persisted immediately (recordAttempt
+		// above; corrected by updateSessionScore) and is the fallback
+		// display whenever the replay can't produce a score.
 		if (recorderHandle) {
 			const handle = recorderHandle;
 			const sessionId = progress.sessions[0]?.id;
@@ -596,6 +611,13 @@
 			const provisionalBleedLog = $state.snapshot(session.bleedFilterLog);
 			const rescoreId = ++latestRescoreId;
 			recorderHandle = null;
+			// Shows the provisional live score when the authoritative replay
+			// never produces one (empty blob, decode/save failure, silent
+			// replay). Guarded on rescoreId so a slow old take can't clobber
+			// a newer take's strip.
+			const revealProvisionalFallback = () => {
+				if (rescoreId === latestRescoreId && provisionalScore) revealScore(provisionalScore);
+			};
 			handle.stop().then(async (blob) => {
 				handle.dispose();
 				if (blob.size > 0 && sessionId) {
@@ -635,7 +657,7 @@
 						supabase,
 						userId: user?.id
 					});
-					rescoreFromBlob(
+					const produced = await rescoreFromBlob(
 						blob,
 						phraseForRescore,
 						tempoForRescore,
@@ -647,9 +669,24 @@
 						sessionId,
 						baseMetadata,
 						rescoreId
-					).catch((err) => console.warn('post-hoc rescore failed', err));
+					).catch((err) => {
+						console.warn('post-hoc rescore failed', err);
+						return false;
+					});
+					if (!produced) revealProvisionalFallback();
+				} else {
+					revealProvisionalFallback();
 				}
-			}).catch(console.error);
+			}).catch((err) => {
+				console.error(err);
+				revealProvisionalFallback();
+			});
+		} else if (session.lastScore) {
+			// No recorder → no rescore is coming; the live score IS the final
+			// one. Bump the id so a still-in-flight rescore chain from an
+			// earlier take goes stale rather than clobbering this reveal.
+			++latestRescoreId;
+			revealScore(session.lastScore);
 		}
 
 		if (looping && session.lastScore) {
@@ -702,11 +739,11 @@
 	}
 
 	/**
-	 * Replay the saved recording through the offline pipeline and overwrite
-	 * the live score. Deterministic, so identical recordings always yield
-	 * identical scores. If replay fails (decode error, no onsets, etc.) we
-	 * keep the provisional live score and log a warning — the user sees no
-	 * visible regression.
+	 * Replay the saved recording through the offline pipeline and publish the
+	 * result as the take's one visible score. Deterministic, so identical
+	 * recordings always yield identical scores. Returns whether a score was
+	 * produced — `false` (silent replay) or a rejection tells the caller to
+	 * fall back to revealing the provisional live score instead.
 	 */
 	async function rescoreFromBlob(
 		blob: Blob,
@@ -720,7 +757,7 @@
 		sessionId: string | null = null,
 		baseMetadata: import('$lib/persistence/audio-store').RecordingMetadata | null = null,
 		rescoreId: number = latestRescoreId
-	) {
+	): Promise<boolean> {
 		const { replayFromBlob } = await import('$lib/audio/replay');
 		const { getAudioContext, isAudioInitialized } = await import('$lib/audio/audio-context');
 		const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
@@ -744,7 +781,7 @@
 				const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
 				await updateRecordingMetadata(sessionId, { ...baseMetadata, backingBleedOnsets });
 			}
-			return;
+			return false;
 		}
 
 		const baseOnsets = resolveOnsets(replay.onsets, replay.readings);
@@ -787,36 +824,38 @@
 			session.bleedFilterLog = result.bleedLog;
 			session.recordedNotes = authoritativeNotes;
 			session.lastScore = result.chosen;
-			persistentScore = result.chosen;
-			// If this attempt was a quote-refresh boundary, the provisional
-			// grade may have driven a now-stale caption — re-pull from the
-			// authoritative grade so the bottom band matches what's shown.
-			if ((scoredAttemptCount - 1) % 10 === 0) {
-				bottomQuote = getGradeCaption(persistentScore.grade);
+			revealScore(result.chosen);
+		}
+
+		// Past this point the score is on screen — a persistence failure must
+		// not escape as a rejection, or the caller would read it as "no score
+		// produced" and flip the display back to the provisional value.
+		try {
+			// Align the persisted session entry with the authoritative score so
+			// the progress page matches what the user just saw on screen. Keyed
+			// by id (not the live UI), so a stale rescore that finishes after a
+			// newer take still correctly fixes its own session entry — same
+			// rationale as the recording-metadata update below.
+			if (sessionId) {
+				updateSessionScore(sessionId, result.chosen, supabase);
 			}
-		}
 
-		// Align the persisted session entry with the authoritative score so
-		// the progress page matches what the user just saw on screen. Keyed
-		// by id (not the live UI), so a stale rescore that finishes after a
-		// newer take still correctly fixes its own session entry — same
-		// rationale as the recording-metadata update below.
-		if (sessionId) {
-			updateSessionScore(sessionId, result.chosen, supabase);
+			if (sessionId && baseMetadata) {
+				const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
+				await updateRecordingMetadata(sessionId, {
+					...baseMetadata,
+					score: result.chosen,
+					detectedNotes: authoritativeNotes,
+					bleedFilterLog: result.bleedLog,
+					// Recording-relative backing onsets so /diagnostics replays this
+					// recording with the same bleed evidence the live path used.
+					backingBleedOnsets
+				});
+			}
+		} catch (err) {
+			console.warn('post-rescore persistence failed', err);
 		}
-
-		if (sessionId && baseMetadata) {
-			const { updateRecordingMetadata } = await import('$lib/persistence/audio-store');
-			await updateRecordingMetadata(sessionId, {
-				...baseMetadata,
-				score: result.chosen,
-				detectedNotes: authoritativeNotes,
-				bleedFilterLog: result.bleedLog,
-				// Recording-relative backing onsets so /diagnostics replays this
-				// recording with the same bleed evidence the live path used.
-				backingBleedOnsets
-			});
-		}
+		return true;
 	}
 
 	// ─── Navigation ──────────────────────────────────────────

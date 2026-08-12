@@ -410,10 +410,10 @@ export function recordAttempt(
  * Update the score-derived fields of a previously-recorded session.
  *
  * The ear-training page calls `recordAttempt` with the provisional live score
- * and then runs a deterministic post-hoc rescore from the saved blob. When
- * the rescore finishes (~200–500 ms later) the on-screen score swaps to the
- * authoritative value, but without this helper the persisted session entry
- * keeps the stale provisional score — producing a visible mismatch between
+ * and then runs a deterministic post-hoc rescore from the saved blob. The
+ * rescore's authoritative value (~200–500 ms later) is the only score the
+ * page reveals, but without this helper the persisted session entry keeps
+ * the never-shown provisional score — producing a visible mismatch between
  * the score the user just saw and what the progress page later shows.
  *
  * Adaptive state, per-key/scale proficiency, category averages, and the
