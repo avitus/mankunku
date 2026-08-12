@@ -80,15 +80,11 @@ describe('trickContextFor', () => {
 		}
 	});
 
-	it('is the same derivation the drill uses, so preview and drill cannot drift', () => {
-		// The session builds its C-rooted context through this exact call.
-		for (const family of TRIAD_PAIR_FAMILIES) {
-			const params = { pair: family.value };
-			const drill = trickContextFor(triadPairs, params, 'C', 120);
-			const preview = trickContextFor(triadPairs, params, 'C', 120);
-			expect(preview).toEqual(drill);
-		}
-	});
+	// The drill-vs-preview no-drift guarantee is pinned from the SESSION side:
+	// trick-session.test.ts starts real sessions and asserts the stored
+	// item.trickContext equals trickContextFor(...) with full equality. (A
+	// previous test here compared trickContextFor with itself — a tautology
+	// that would pass even if startTrickSession derived its own context.)
 
 	it('produces an example whose harmony matches the context', () => {
 		for (const family of TRIAD_PAIR_FAMILIES) {

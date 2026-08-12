@@ -27,7 +27,7 @@ import {
 	getLickBars
 } from '$lib/state/lick-practice.svelte';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
-import { getTrickById } from '$lib/tricks';
+import { getTrickById, trickContextFor } from '$lib/tricks';
 import {
 	loadTrickPracticeProgress,
 	saveTrickPracticeProgress,
@@ -150,6 +150,10 @@ describe('startTrickSession', () => {
 			key: 'C'
 		});
 		expect(item.phrase!.harmony[0].chord.quality).toBe('min7');
+		// Full equality against the shared derivation (see the triad-pair test).
+		expect(item.trickContext).toEqual(
+			trickContextFor(getTrickById('enclosures')!, { ...E1_PARAMS, type: 'minor' }, 'C', TRICK_DEFAULT_TEMPO)
+		);
 		// Progress/tempo key under the minor chain's own variant key.
 		expect(item.phraseId).toBe(trickVariantKey('enclosures', { ...E1_PARAMS, type: 'minor' }));
 
@@ -176,6 +180,12 @@ describe('startTrickSession', () => {
 			scaleId: 'major.mixolydian',
 			key: 'C'
 		});
+		// The stored session context IS the shared derivation — full equality,
+		// so the trick page's preview (which calls trickContextFor directly)
+		// provably cannot drift from what the drill schedules.
+		expect(item.trickContext).toEqual(
+			trickContextFor(getTrickById('triad-pairs')!, { pair: 'minor-b9' }, 'C', TRICK_DEFAULT_TEMPO)
+		);
 		expect(item.phrase!.key).toBe('C');
 		expect(item.phrase!.harmony[0].chord.quality).toBe('7');
 
