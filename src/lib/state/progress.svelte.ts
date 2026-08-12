@@ -416,10 +416,13 @@ export function recordAttempt(
  * the never-shown provisional score — producing a visible mismatch between
  * the score the user just saw and what the progress page later shows.
  *
- * Adaptive state, per-key/scale proficiency, category averages, and the
- * daily summary intentionally retain their original (provisional) inputs:
- * the per-attempt drift is small, and partially undoing those aggregates
- * here would risk amplifying transient races between successive rescores.
+ * Adaptive state, per-key/scale proficiency, and category averages
+ * intentionally retain their original (provisional) inputs: the per-attempt
+ * drift is small, and partially undoing those incremental aggregates here
+ * would risk amplifying transient races between successive rescores. The
+ * daily summary is different — it is a pure derivation of the source tables
+ * (derive-on-write), so re-deriving the session's day is idempotent and
+ * must happen on every write to `progress.sessions`.
  */
 export function updateSessionScore(
 	sessionId: string,
@@ -428,7 +431,7 @@ export function updateSessionScore(
 ): void {
 	const idx = progress.sessions.findIndex((s) => s.id === sessionId);
 	if (idx === -1) return;
-	progress.sessions[idx] = {
+	const updated = {
 		...progress.sessions[idx],
 		pitchAccuracy: score.pitchAccuracy,
 		rhythmAccuracy: score.rhythmAccuracy,
@@ -439,9 +442,16 @@ export function updateSessionScore(
 		noteResults: score.noteResults,
 		timing: score.timing
 	};
+	progress.sessions[idx] = updated;
+	// Persist before recomputing — the recompute reads the sessions table
+	// from localStorage, so the corrected score must be on disk first.
 	saveProgress();
+	// No complexity snapshot: a score correction doesn't move adaptive
+	// state, so the summary keeps the snapshot recordAttempt captured.
+	const summary = recomputeDailySummary(localDateStr(new Date(updated.timestamp)));
 	if (supabase) {
 		queueProgressSync(supabase);
+		if (summary) enqueue('dailySummaries');
 	}
 }
 
