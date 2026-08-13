@@ -144,16 +144,27 @@
 	});
 
 
-	// Onboarding auto-triggers only on the practice surfaces where the
-	// instrument choice and mic permission actually matter. Everywhere else
-	// (/, /docs, /licks, /tunes, /scales, community pages) must render clean
-	// for a fresh profile: Googlebot both reads the SSR HTML and renders the
-	// page with empty localStorage, so an unconditional overlay used to be
+	// Onboarding auto-triggers only on the mic-driven practice surfaces where
+	// the instrument choice and mic permission actually matter. Everywhere
+	// else (/, /docs, /licks, /tunes, /scales, community pages) must render
+	// clean for a fresh profile: Googlebot both reads the SSR HTML and renders
+	// the page with empty localStorage, so an unconditional overlay used to be
 	// the entire visible content of every URL on the site.
-	const ONBOARDING_ROUTE_PREFIXES = ['/ear-training', '/lick-practice', '/tricks'];
-	const isOnboardingRoute = $derived(
-		ONBOARDING_ROUTE_PREFIXES.some((prefix) => (page.url?.pathname ?? '/').startsWith(prefix))
-	);
+	const ONBOARDING_ROUTE_PREFIXES = [
+		'/ear-training',
+		'/lick-practice',
+		'/tricks',
+		'/licks/record'
+	];
+	const isOnboardingRoute = $derived.by(() => {
+		const path = page.url?.pathname ?? '/';
+		return (
+			ONBOARDING_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
+			// Tune practice is a scored mic surface too, but lives under the
+			// otherwise-browsable /tunes tree, so it can't ride a prefix.
+			/^\/tunes\/[^/]+\/practice/.test(path)
+		);
+	});
 
 	// The overlay may only mount AFTER hydration: `settings.onboardingComplete`
 	// comes from localStorage, which the server can't read, so consulting it
