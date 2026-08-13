@@ -1,4 +1,4 @@
-import { test as base, type ConsoleMessage } from '@playwright/test';
+import { test as base, type ConsoleMessage, type Page, type Response } from '@playwright/test';
 
 /**
  * Patterns we choose to ignore in the console-error fixture.
@@ -75,9 +75,12 @@ export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
 	// deliberately NOT caught: every spec navigates to app routes (including
 	// error pages, which render inside the root layout), so a missing marker
 	// means hydration itself broke — fail loudly here, not confusingly later.
-	page: async ({ page }, use) => {
+	page: async ({ page }, use: (page: Page) => Promise<void>): Promise<void> => {
 		const originalGoto = page.goto.bind(page);
-		page.goto = (async (url: string, options?: Parameters<typeof originalGoto>[1]) => {
+		page.goto = (async (
+			url: string,
+			options?: Parameters<Page['goto']>[1]
+		): Promise<Response | null> => {
 			const response = await originalGoto(url, options);
 			await page
 				.locator('[data-hydrated="true"]')
