@@ -9,7 +9,11 @@ import {
 	getLickAlignmentOffset,
 	resolveQualityRoleEntry
 } from '$lib/data/progressions';
-import { suggestLicksForProgression, type LickMatcherDeps } from '$lib/tunes/lick-matcher';
+import {
+	suggestLicksForProgression,
+	type LickMatcherDeps,
+	type MasteryTier
+} from '$lib/tunes/lick-matcher';
 import { baseLickId } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
 import { getVariantsForTrick } from '$lib/tricks/mastery';
@@ -66,6 +70,7 @@ function makeDeps(
 		selectedTrickVariants?: ReadonlySet<string>;
 		practiceLickIds?: Set<string>;
 		getTrickUnlockedKeyCount?: (variantKey: string) => number;
+		trickEntryKey?: PitchClass;
 	} = {}
 ): LickMatcherDeps {
 	return {
@@ -77,7 +82,8 @@ function makeDeps(
 		practiceLickIds: args.practiceLickIds ?? new Set(),
 		trickProgress: args.trickProgress,
 		selectedTrickVariants: args.selectedTrickVariants,
-		getTrickUnlockedKeyCount: args.getTrickUnlockedKeyCount
+		getTrickUnlockedKeyCount: args.getTrickUnlockedKeyCount,
+		trickEntryKey: args.trickEntryKey
 	};
 }
 
@@ -335,6 +341,28 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 		expect(tier({ [E1.key]: { F: { currentTempo: 80, lastPracticedAt: 1, passCount: 1 } } })).toBe(
 			'known'
 		);
+	});
+
+	it('anchors the unlock ramp at deps.trickEntryKey (transposing instruments)', () => {
+		// A tenor player's drills anchor at concert Bb (their written C). With
+		// two unlocks the ramp is Bb, F — so F reads "learning" from Bb-anchored
+		// progress, while the concert-C default ramp (C, G) would call it unknown.
+		const progress: TrickPracticeProgress = {
+			[E1.key]: { Bb: { currentTempo: 80, lastPracticedAt: 1, passCount: 2 } }
+		};
+		const tierInF = (trickEntryKey?: PitchClass): MasteryTier =>
+			suggestLicksForProgression(
+				vampDetection('major-vamp', 'F'),
+				makeDeps({
+					selectedTrickVariants: new Set([E1.key]),
+					trickProgress: progress,
+					getTrickUnlockedKeyCount: () => 2,
+					trickEntryKey
+				})
+			).suggestions[0].masteryTier;
+
+		expect(tierInF('Bb')).toBe('learning');
+		expect(tierInF(undefined)).toBe('unknown');
 	});
 
 	it('a variant practiced only in C is unknown in Db until the unlock ramp reaches it', () => {

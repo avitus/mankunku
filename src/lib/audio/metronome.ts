@@ -23,13 +23,24 @@ async function getTone(): Promise<ToneModule> {
 	return tone;
 }
 
+/**
+ * Output trim applied under the user's volume knob. The knob value (0–1,
+ * default 0.5) is a mix position, not a raw gain: untrimmed, a mid knob puts
+ * the synthesized ride on level terms with the horn, and the click should sit
+ * under the music, not beside it. 0.6 ≈ −4.4 dB across the whole knob range.
+ */
+const METRONOME_TRIM = 0.6;
+
+/** Knob value assumed before setMetronomeVolume is first called. */
+const DEFAULT_METRONOME_VOLUME = 0.5;
+
 async function ensureSynths(): Promise<void> {
 	if (rideSynth) return;
 	const Tone = await getTone();
 
 	// Route metronome through master gain for global volume control
 	const master = getMasterGain();
-	gainNode = new Tone.Gain(0.6);
+	gainNode = new Tone.Gain(DEFAULT_METRONOME_VOLUME * METRONOME_TRIM);
 	gainNode.connect(master);
 
 	// Ride cymbal: bright filtered noise, longer decay
@@ -135,12 +146,12 @@ export async function scheduleMetronome(
 	}
 }
 
-/** Set metronome volume (0-1) */
+/** Set metronome volume from the settings knob (0-1); METRONOME_TRIM applies underneath. */
 export async function setMetronomeVolume(volume: number): Promise<void> {
 	if (!gainNode) {
 		await ensureSynths();
 	}
-	gainNode!.gain.value = Math.max(0, Math.min(1, volume));
+	gainNode!.gain.value = Math.max(0, Math.min(1, volume)) * METRONOME_TRIM;
 }
 
 /** Stop and dispose the metronome sequence */

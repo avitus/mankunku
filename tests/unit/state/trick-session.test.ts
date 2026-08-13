@@ -8,12 +8,15 @@
  *
  *   1. `startTrickSession` builds a one-item, C-rooted, major-vamp plan from
  *      `config.trickId`/`trickParameters` and fails cleanly on bad config.
+ *      The KEY ROTATION anchors at the player's WRITTEN C (concert Bb on the
+ *      default tenor sax) while the generation context stays concert C — the
+ *      example transposes per key exactly like a C-stored lick.
  *   2. `recordKeyAttempt` on a trick item writes passes to the trick store
  *      and leaves the lick store untouched.
  *   3. `advanceSingleLickRound` refill path bumps the trick unlock count
  *      FIRST (clearing the rotation IS the trick unlock path), refills the
- *      circle from C, persists the bumped tempo per key to the trick store,
- *      and appends a progress-history point.
+ *      circle from the written-C anchor, persists the bumped tempo per key to
+ *      the trick store, and appends a progress-history point.
  *   4. Both round paths regenerate the disposable example phrase.
  */
 
@@ -33,9 +36,11 @@ import {
 	saveTrickPracticeProgress,
 	updateTrickKeyProgress,
 	getTrickUnlockedKeyCount,
+	bumpTrickUnlockedKeyCount,
 	getTrickProgressHistory,
 	TRICK_DEFAULT_TEMPO
 } from '$lib/persistence/trick-practice-store';
+import { settings } from '$lib/state/settings.svelte';
 import { clampTempo } from '$lib/persistence/lick-practice-store';
 import {
 	nextCycleTempo,
@@ -92,6 +97,9 @@ beforeEach(() => {
 	lickPractice.config.trickId = 'enclosures';
 	lickPractice.config.trickParameters = { ...E1_PARAMS };
 	lickPractice.config.tempoBumpPercent = undefined;
+	// Explicit anchor for the key pins below: on the tenor (a Bb horn) the
+	// player's written C is concert Bb, so the drill rotation starts there.
+	settings.instrumentId = 'tenor-sax';
 });
 
 describe('startTrickSession', () => {
@@ -114,8 +122,9 @@ describe('startTrickSession', () => {
 		expect(item.phraseId).toBe(E1_KEY);
 		expect(item.phraseName).toContain(getTrickById('enclosures')!.name);
 		expect(item.progressionType).toBe('major-vamp');
-		// Fresh store → one unlocked key, the C entry key.
-		expect(item.keys).toEqual(['C']);
+		// Fresh store → one unlocked key: the player's written C, which on the
+		// tenor is concert Bb. The generation context below stays concert C.
+		expect(item.keys).toEqual(['Bb']);
 		expect(item.trickId).toBe('enclosures');
 		expect(item.trickParameters).toEqual(E1_PARAMS);
 		expect(item.trickContext).toMatchObject({
@@ -198,6 +207,38 @@ describe('startTrickSession', () => {
 		expect(lickPractice.plan[0].trickContext!.chordQuality).toBe('min7');
 	});
 
+	it('anchors the rotation at the player\'s written C, per instrument', () => {
+		// Concert-pitch instrument: written C IS concert C.
+		settings.instrumentId = 'concert';
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.plan[0].keys).toEqual(['C']);
+		// The generation context is unaffected — examples always realize in
+		// concert C and transpose per key like a C-stored lick.
+		expect(lickPractice.plan[0].trickContext).toMatchObject({ chordRoot: 'C', key: 'C' });
+
+		// Alto sax (Eb horn): written C = concert Eb.
+		resetSession();
+		lickPractice.config.trickId = 'enclosures';
+		lickPractice.config.trickParameters = { ...E1_PARAMS };
+		settings.instrumentId = 'alto-sax';
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.plan[0].keys).toEqual(['Eb']);
+	});
+
+	it('orders the unlocked keys along the circle of 4ths from the anchor', () => {
+		// Three unlocks under tenor: the RAMP earns concert Bb, F, Eb (written
+		// C, G, F — easiest first by accidental count), but the session rotation
+		// runs them in circle-of-4ths order from the anchor: Bb → Eb → F
+		// (written C → F → G), matching lick practice.
+		bumpTrickUnlockedKeyCount(E1_KEY);
+		bumpTrickUnlockedKeyCount(E1_KEY);
+		expect(getTrickUnlockedKeyCount(E1_KEY)).toBe(3);
+
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.plan[0].keys).toEqual(['Bb', 'Eb', 'F']);
+		expect(lickPractice.sessionKeys).toEqual(['Bb', 'Eb', 'F']);
+	});
+
 	it('clamps a corrupt stored tempo — mirrors resolveLickTempo', () => {
 		// A bad cloud merge or hand-edited localStorage could leave an absurd
 		// tempo in the trick store; the session must start within clamp bounds.
@@ -222,8 +263,8 @@ describe('recordKeyAttempt on a trick item', () => {
 		expect(lickPractice.progress).toEqual({});
 
 		const trickProgress = loadTrickPracticeProgress();
-		expect(trickProgress[E1_KEY]?.C?.passCount).toBe(1);
-		expect(trickProgress[E1_KEY]?.C?.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
+		expect(trickProgress[E1_KEY]?.Bb?.passCount).toBe(1);
+		expect(trickProgress[E1_KEY]?.Bb?.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
 
 		expect(lickPractice.keyResults).toHaveLength(1);
 		expect(lickPractice.keyResults[0].passed).toBe(true);
@@ -242,22 +283,22 @@ describe('recordKeyAttempt on a trick item', () => {
 });
 
 describe('advanceSingleLickRound on a trick item', () => {
-	it('refill path: bumps unlock count first, refills from C, persists tempo to the trick store', () => {
+	it('refill path: bumps unlock count first, refills from the written-C anchor, persists tempo to the trick store', () => {
 		expect(startTrickSession()).toBe(true);
 		const phraseIdBefore = lickPractice.plan[0].phrase!.id;
 
 		// Master the only unlocked key so the rotation clears.
 		recordKeyAttempt(makeScore(0.96));
-		expect(lickPractice.masteredThisRound).toEqual(['C']);
+		expect(lickPractice.masteredThisRound).toEqual(['Bb']);
 
 		advanceSingleLickRound();
 
 		const item = lickPractice.plan[0];
 		// Clearing the rotation IS the trick unlock path: count bumps to 2 and
-		// the refilled circle includes the newly earned key (G, the first
-		// sharp-side neighbour of C).
+		// the refilled circle includes the newly earned key (F, the first
+		// sharp-side neighbour of the concert-Bb anchor — written G on tenor).
 		expect(getTrickUnlockedKeyCount(E1_KEY)).toBe(2);
-		expect(item.keys).toEqual(['C', 'G']);
+		expect(item.keys).toEqual(['Bb', 'F']);
 
 		// Default 1% bump (rounded up to a whole BPM), persisted per refilled
 		// key to the TRICK store. Tricks DO persist, unlike deep lick practice:
@@ -266,8 +307,8 @@ describe('advanceSingleLickRound on a trick item', () => {
 		const bumped = nextCycleTempo(TRICK_DEFAULT_TEMPO, DEFAULT_TEMPO_BUMP_PERCENT);
 		expect(lickPractice.currentTempo).toBe(bumped);
 		const trickProgress = loadTrickPracticeProgress();
-		expect(trickProgress[E1_KEY]?.C?.currentTempo).toBe(bumped);
-		expect(trickProgress[E1_KEY]?.G?.currentTempo).toBe(bumped);
+		expect(trickProgress[E1_KEY]?.Bb?.currentTempo).toBe(bumped);
+		expect(trickProgress[E1_KEY]?.F?.currentTempo).toBe(bumped);
 		// The lick store never sees the variant key.
 		expect(lickPractice.progress).toEqual({});
 
@@ -287,12 +328,12 @@ describe('advanceSingleLickRound on a trick item', () => {
 		expect(startTrickSession()).toBe(true);
 		const phraseIdBefore = lickPractice.plan[0].phrase!.id;
 
-		// Passing but below the 0.95 mastery bar → C survives the round.
+		// Passing but below the 0.95 mastery bar → the anchor key survives.
 		recordKeyAttempt(makeScore(0.9));
 		advanceSingleLickRound();
 
 		const item = lickPractice.plan[0];
-		expect(item.keys).toEqual(['C']);
+		expect(item.keys).toEqual(['Bb']);
 		expect(getTrickUnlockedKeyCount(E1_KEY)).toBe(1);
 		expect(lickPractice.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
 		expect(getTrickProgressHistory(E1_KEY)).toHaveLength(0);
