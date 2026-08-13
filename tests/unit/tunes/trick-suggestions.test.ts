@@ -9,7 +9,11 @@ import {
 	getLickAlignmentOffset,
 	resolveQualityRoleEntry
 } from '$lib/data/progressions';
-import { suggestLicksForProgression, type LickMatcherDeps } from '$lib/tunes/lick-matcher';
+import {
+	suggestLicksForProgression,
+	type LickMatcherDeps,
+	type MasteryTier
+} from '$lib/tunes/lick-matcher';
 import { baseLickId } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
 import { getVariantsForTrick } from '$lib/tricks/mastery';
@@ -346,7 +350,7 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 		const progress: TrickPracticeProgress = {
 			[E1.key]: { Bb: { currentTempo: 80, lastPracticedAt: 1, passCount: 2 } }
 		};
-		const tierInF = (trickEntryKey?: PitchClass) =>
+		const tierInF = (trickEntryKey?: PitchClass): MasteryTier =>
 			suggestLicksForProgression(
 				vampDetection('major-vamp', 'F'),
 				makeDeps({
