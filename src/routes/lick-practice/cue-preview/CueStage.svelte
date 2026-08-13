@@ -9,6 +9,7 @@
 	// would resolve by drawing inside ChordChart itself.
 	import { onMount } from 'svelte';
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
+	import { phaseTabView, PHASE_LEAD_BEATS } from '$lib/state/lick-practice-phase';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { displayPitchClass } from '$lib/music/notation';
 	import type { InstrumentConfig } from '$lib/types/instruments';
@@ -53,32 +54,19 @@
 		return displayPitchClass(written, written);
 	}
 
-	const arm = $derived(frame.cue.countdown > 0 ? (5 - frame.cue.countdown) / 5 : 0);
+	const arm = $derived(
+		frame.cue.countdown > 0
+			? (PHASE_LEAD_BEATS + 1 - frame.cue.countdown) / (PHASE_LEAD_BEATS + 1)
+			: 0
+	);
 	const straightIn = $derived(frame.nextEntry !== null && !frame.nextEntry.demo);
 
 	// ——— Option A: row tab state ———
-	interface TabView {
-		kind: 'listen' | 'listen-in' | 'play-in' | 'play' | 'rest';
-		text: string;
-		count?: number;
-	}
-	const tab: TabView = $derived.by(() => {
-		const { cue } = frame;
-		const headKey = keyLabel(frame.rows[0].key);
-		if (cue.countdown > 0 && cue.next === 'play') {
-			return {
-				kind: 'play-in',
-				count: cue.countdown,
-				text: straightIn ? `Straight in — ${headKey}` : `Play ${headKey} in`
-			};
-		}
-		if (cue.countdown > 0 && cue.next === 'listen') {
-			return { kind: 'listen-in', count: cue.countdown, text: 'Listen in' };
-		}
-		if (cue.phase === 'play') return { kind: 'play', text: 'Play' };
-		if (frame.isDemoing || cue.phase === 'listen') return { kind: 'listen', text: 'Listen' };
-		return { kind: 'rest', text: 'Rest' };
-	});
+	// Option A is what production runs, so it must render through the real
+	// mapping — a preview-local re-derivation drifts (it once flipped to
+	// listen-in during an open play window, the exact early flip phaseTabView
+	// forbids).
+	const tab = $derived(phaseTabView(frame.cue, keyLabel(frame.rows[0].key)));
 
 	// ——— Option B: surface wash opacities ———
 	const listenWash = $derived.by(() => {
