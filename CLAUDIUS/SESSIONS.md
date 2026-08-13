@@ -1635,3 +1635,36 @@ artifact, the same hole opens.
 Numbers: 4135 unit/integration green (35 expected-fail), 4 new tests
 (instrument-driven anchor, circle-of-4ths rotation order, matcher anchor dep,
 deps-assembly pin), svelte-check clean.
+
+## 2026-08-13 — A new key buys headroom: 10% tempo drop on unlock
+
+User rule: during the learning climb, every key added should drop the lick's
+tempo 10%. The old behaviour was quietly backwards — the unlock gate only
+opens on a strong session (avg ≥ 0.90), so the score-weighted delta on an
+unlock session was always +1/+2, and the brand-new key arrived FASTER than
+the tempo that earned it. Now `startInterLickTransition` computes the unlock
+decision first and branches the tempo write: unlock → `tempoAfterKeyUnlock`
+(round(t × 0.9), clamped at MIN_TEMPO 50, new pure helper in
+lick-practice-store.ts beside the delta formula); no unlock → the usual
+`computeAutoTempoAdjustment` path, unchanged.
+
+Scoping fell out of the existing structure rather than needing a gate:
+lick keys are only ever added in `startInterLickTransition` (standard +
+Daily), and only while unlockedCount < 12 — so "learning phase" is exactly
+when the rule can fire, twelfth key included. Deep Practice never bumps
+lick unlock counts and tricks keep their rotation-clear ladder; both
+untouched. The progress chart needed nothing either: the history sample
+already records post-adjustment bpm with the post-bump key count, so unlock
+markers now sit honestly at the dipped tempo and the line reads as the
+sawtooth the practice actually is — climb, unlock, dip, re-earn.
+
+Worth keeping: the design choice was replace-the-delta, not stack-on-top —
+"a new key resets your headroom" is one legible rule, and the forfeited
++1/+2 is noise against −10%. Also a small TDD note: the control test
+pinning the NON-unlock path at +1 passed from the start, which is exactly
+what a control is for — the five siblings around it failed red first.
+
+Numbers: 4141 unit/integration green (35 expected-fail), 6 new/extended
+assertions in tempo-adjustment.test.ts, svelte-check clean. Docs updated on
+both prose surfaces (user-guide tempo bullet + unlock section, CLAUDE.md
+tempo rule).

@@ -77,6 +77,7 @@ import {
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo,
+	tempoAfterKeyUnlock,
 	updateRollingScore,
 	getRollingScore,
 	KEY_PROFICIENT_THRESHOLD,
@@ -1617,6 +1618,9 @@ export function advance(): 'next-key' | 'end-of-lick' {
  * adjustment (average score across attempted keys → signed delta via
  * computeAutoTempoAdjustment, clamped, persisted to every key in the lick),
  * and either advances currentLickIndex or marks the session complete.
+ * A session that unlocks a new key skips the score-weighted delta and drops
+ * the tempo 10% instead (tempoAfterKeyUnlock) — the new key starts with
+ * headroom rather than at the speed that earned it.
  * Called by the scheduler at the start of the 2-bar inter-lick rest.
  *
  * If the lick had no scored keys (e.g. session ended before any attempt
@@ -1661,14 +1665,20 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				item.phraseId,
 				newestKey
 			).passCount;
-			if (
+			const unlocked =
 				!floorBreached &&
-				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount })
-			) {
+				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount });
+			if (unlocked) {
 				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);
 			}
 
-			const newTempo = clampTempo(lickPractice.currentTempo + delta);
+			// An unlock trades the score-weighted bump for a 10% drop: the gate
+			// only opens on a strong session, so the delta would otherwise be
+			// +1/+2 and the brand-new key would arrive faster than the session
+			// just played. The drop gives the unfamiliar key headroom instead.
+			const newTempo = unlocked
+				? tempoAfterKeyUnlock(lickPractice.currentTempo)
+				: clampTempo(lickPractice.currentTempo + delta);
 			const now = Date.now();
 			for (const key of item.keys) {
 				lickPractice.progress = updateKeyProgress(
