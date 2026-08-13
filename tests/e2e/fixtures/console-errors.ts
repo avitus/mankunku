@@ -71,8 +71,10 @@ export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
 	// before Svelte attaches handlers and silently do nothing (that race cost
 	// account.spec its delete-account toggle on CI). The root layout stamps
 	// data-hydrated="true" from its onMount; waiting for it here fixes the
-	// class for every spec instead of sprinkling per-test waits. The catch
-	// keeps non-app navigations (if any ever appear) from hanging a test.
+	// class for every spec instead of sprinkling per-test waits. The wait is
+	// deliberately NOT caught: every spec navigates to app routes (including
+	// error pages, which render inside the root layout), so a missing marker
+	// means hydration itself broke — fail loudly here, not confusingly later.
 	page: async ({ page }, use) => {
 		const originalGoto = page.goto.bind(page);
 		page.goto = (async (url: string, options?: Parameters<typeof originalGoto>[1]) => {
@@ -80,8 +82,7 @@ export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
 			await page
 				.locator('[data-hydrated="true"]')
 				.first()
-				.waitFor({ state: 'attached', timeout: 15000 })
-				.catch(() => {});
+				.waitFor({ state: 'attached', timeout: 15000 });
 			return response;
 		}) as typeof page.goto;
 		await use(page);
