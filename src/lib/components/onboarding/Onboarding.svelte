@@ -111,7 +111,10 @@
 	}
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)] p-4">
+<div
+	data-testid="onboarding-overlay"
+	class="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)] p-4"
+>
 	<div class="w-full max-w-md space-y-6">
 		<!-- Progress dots — 4 dots when cloud data detected, 3 otherwise -->
 		<div class="flex justify-center gap-2">

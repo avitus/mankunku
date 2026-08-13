@@ -144,6 +144,25 @@
 	});
 
 
+	// Onboarding auto-triggers only on the practice surfaces where the
+	// instrument choice and mic permission actually matter. Everywhere else
+	// (/, /docs, /licks, /tunes, /scales, community pages) must render clean
+	// for a fresh profile: Googlebot both reads the SSR HTML and renders the
+	// page with empty localStorage, so an unconditional overlay used to be
+	// the entire visible content of every URL on the site.
+	const ONBOARDING_ROUTE_PREFIXES = ['/ear-training', '/lick-practice', '/tricks'];
+	const isOnboardingRoute = $derived(
+		ONBOARDING_ROUTE_PREFIXES.some((prefix) => (page.url?.pathname ?? '/').startsWith(prefix))
+	);
+
+	// The overlay may only mount AFTER hydration: `settings.onboardingComplete`
+	// comes from localStorage, which the server can't read, so consulting it
+	// during SSR/hydration would either bake the overlay into every page's
+	// server HTML (it did) or create a hydration mismatch. SSR renders the
+	// branch false, hydration agrees, and the overlay appears as a plain
+	// post-mount state change.
+	let hydrated = $state(false);
+
 	// Track whether cloud tour state has been merged in. Without this, the
 	// welcome banner can render on a fresh device using stale local state
 	// before the cloud merge resolves — letting someone who already
@@ -183,6 +202,7 @@
 	);
 
 	onMount(() => {
+		hydrated = true;
 		applyTheme();
 
 
@@ -244,7 +264,7 @@
 	<meta property="og:url" content={canonicalUrl} />
 </svelte:head>
 
-{#if !settings.onboardingComplete}
+{#if hydrated && isOnboardingRoute && !settings.onboardingComplete}
 	<Onboarding {supabase} {session} {user} />
 {/if}
 
