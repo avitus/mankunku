@@ -1552,3 +1552,47 @@ NOT verified: visual abcjs rendering (Chrome extension unavailable) — eyeball
 /tricks/enclosures previews per type (watch k=1/k=3 rest-filled bars and the
 dotted-half ring), drill each type end-to-end, and a legacy-localStorage reload
 for the migration.
+
+## 2026-08-12 — The feather tongue: a third rescue shape for the on-beat click collision
+
+Two ear-training takes (bbn-032_Bb "Slide Back Down", bbn-010_Bb "Blue Note
+Roll-Off") merged a repeated Eb tongued with the lightest possible legato
+articulation and scored the second note MISSED. Same phrase shape, same
+symptom, same fingerprint in the readings — hfRms 0.02 → 0.070 (≈3.5×) for
+five frames, rms and band floor perfectly flat — and yet **two different
+gates were responsible**: slide-back-down cleared the HF tier's corroborators
+but died in the click-suppression window (the device's ~265–290 ms
+output→capture latency drapes the scheduled click's +0.28 s tail over a
+tongue played ON the beat), while blue-note-roll-off was never suppressed so
+much as disbelieved — a 0.064 st fundamental wobble against the 0.1 gate
+built to reject key clicks. One symptom, two root causes, one missing
+evidence class.
+
+The fix is the third tongue signature the click suppression can trust,
+completing a family: `bandFloorDips`' in-span dip (down-to-the-third: the
+stop silences the horn *during* the spike), its pre-spike stop-and-recover
+(curl-to-the-floor: the stop precedes the spike), and now
+`feathersTongueShape` — the doodle tongue that never interrupts the air at
+all, invisible in every energy measure, but visible as a SHALLOW banded
+cycle-to-cycle shape break (0.80–0.92) on a clean-baseline run. The
+measurement pass over every HF spike span in the corpus is what made the
+band trustworthy: every metronome click either nulls shapeBreak outright
+(the burst destroys period tracking) or drives it ≤ 0.60; hard tongue stops
+are equally deep; the only shallow impostors are single-frame attack
+residues (excluded by a ≥ 2-frame floor) and a 0.956 flicker on a tied note
+(excluded by the 0.92 ceiling). The nearest multi-frame impostor sits at
+0.762 against the 0.80 floor.
+
+Method note worth keeping: rather than reasoning thresholds from the two new
+takes, I instrumented the HF pass behind a `globalThis` hook, ran the two
+audio suites, and let the existing fixtures produce the impostor population
+(~50 spans) before placing a single constant. The corpus IS the spec — the
+same reason the diagnostics-to-fixtures rule exists. Also pinned: the shape
+path takes the established 0.85 true-re-attack energy floor rather than the
+perturbation path's 0.9, because slide-back-down measures 0.89 — the swung
+eighth decays a little before the tap — and every decay impostor the 0.9
+floor was built for is already outside the shape band.
+
+Numbers: 4132 unit/integration tests green (35 expected-fail), 6 new
+regression tests across the two fixtures (trim, split, full-score), corpus
+unregressed, svelte-check clean.

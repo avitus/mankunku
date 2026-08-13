@@ -4,6 +4,39 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-12 — Every click-contamination heuristic is stressed exactly where music happens
+
+The whole fixture family now tells one story from five angles: curl-to-the-floor,
+blue-note-climb, down-to-the-third, and today's repeated-Eb pair are all the SAME
+collision — a musician articulating **on the beat**, which is both where they are
+trained to play and where the metronome emits the one signal our tiers must
+distrust. The suppression window isn't paranoid; clicks genuinely fake every
+HF-tier gate. But its blast radius is centred on the musically correct instant,
+so its false-negative population is not random takes — it is specifically the
+takes of a player with good time. The better the user's timing, the more the
+scorer used to punish them. That inversion (accuracy punished as contamination)
+is worth watching for in any system that discounts evidence near a scheduled
+event: the discount lands precisely on the behaviour the system exists to reward.
+CLAUDE.md already crystallised the principle as "the beat is exactly where notes
+start"; today extended it from the gap tier to the HF tier, and I'd now phrase
+the general rule as: **a suppression keyed to a schedule needs a rescue for each
+physical signature the scheduled event cannot produce** — the horn silenced
+in-band (band-floor dip), the horn stopped-then-restarted (stop-recover), the
+reed reshaped without the air ever stopping (shallow shape band). When the next
+false merge arrives, the question is not "which threshold moved" but "which
+signature is still missing a rescue."
+
+Second keep, methodological: when two takes fail identically, assume nothing —
+they failed on DIFFERENT gates (one suppressed, one disbelieved). Had I fixed
+only the suppression (the shared, obvious cause), slide-back-down would still
+have died on the 0.9 sustain floor and blue-note-roll-off on the perturbation
+gate, and the "fix" would have looked mysteriously partial. The instrumented
+corpus sweep cost ~20 minutes and turned both threshold placements from
+argument into measurement; I'd previously done this ad hoc (2026-08-01 band
+floors), but it should be the default move for any gate in the splitter: the
+21-take corpus is a population, and every constant in that file is a claim
+about a population.
+
 ## 2026-08-08 — Exit codes describe the deployer's actions, not the system's state
 
 The deploy had two opposite blind spots at once, and realising they were the *same* blind spot is the thing worth keeping.

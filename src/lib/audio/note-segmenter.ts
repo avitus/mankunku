@@ -1540,6 +1540,67 @@ const HF_RE_ARTICULATION_MIN_PITCH_PERTURB = 0.1;
 const HF_RE_ARTICULATION_MIN_RMS_SUSTAIN = 0.9;
 
 /**
+ * Shape-corroborated "feather tongue" acceptance for the HF tier — the third
+ * tongue signature, after the in-span band-floor dip (down-to-the-third) and
+ * the pre-spike stop-and-recover (curl-to-the-floor): a doodle tongue so
+ * light the airflow never falters. It leaves no band-floor dent for
+ * `bandFloorDips` to find and may not wobble the fundamental at all, so both
+ * the click-suppression rescue and the reed-reset corroborator reject it —
+ * the 2026-08-13 repeated-Eb pair (slide-back-down / blue-note-roll-off)
+ * merged on exactly those two gates (the first suppressed at 0.13 st
+ * perturbation, the second's perturbation only 0.06 st).
+ *
+ * What it does leave is the shape tier's signature at a depth that tier's
+ * SHAPE_MIN_PERIODICITY floor refuses: the reed is damped and restarts, so
+ * cycle-to-cycle similarity dips SHALLOWLY and recovers, while the airflow
+ * (rms, band floor) holds. The acceptance is a band, not a threshold,
+ * because both neighbours are impostors — measured across every HF spike
+ * span in the fixture corpus (2026-08-13):
+ *
+ *   metronome clicks (root-frame, step-up, blue-step-down)  null (tracking lost)
+ *   thumps, octave flips, releases, hard tongue stops ....  0.30 – 0.65
+ *   flat-five held-Eb wobble (must NOT split) ............  0.762
+ *   blues-curl-down true tongue ..........................  0.804
+ *   slide-back-down / blue-note-roll-off true tongues ....  0.848 / 0.877
+ *   tied-E shallow flicker (must NOT split, 1 frame) .....  0.956
+ *
+ * A click is disqualified twice over: its burst destroys period tracking
+ * (shapeBreak null on the spike frames — every measured click) or, when
+ * tracking survives, drives similarity deep. Hence: every span frame must
+ * carry a measurable shapeBreak, the minimum must land inside
+ * [FLOOR, CEILING], the span must be ≥ MIN_FRAMES (single-frame residues —
+ * pent-run attack tail 0.79, tied-E 0.956 — are categorically out), and the
+ * run's own shape baseline must clear SHAPE_CLEAN_BASELINE (the shape
+ * signal's precision precondition; breathy tones measure noise, not reeds).
+ *
+ * Energy floor for this path is RE_ARTICULATION_GAP_SUSTAIN (0.85), the
+ * established true-re-attack vs decaying-note cut, not the perturbation
+ * path's 0.9: slide-back-down measures 0.89 (the swung eighth decays a
+ * little before the tap), and the decay impostors this floor exists for
+ * measure ≤ 0.78 — all of them already outside the shape band anyway.
+ */
+const HF_SHAPE_TONGUE_FLOOR = 0.8;
+const HF_SHAPE_TONGUE_CEILING = 0.92;
+const HF_SHAPE_TONGUE_MIN_FRAMES = 2;
+
+/** Whether the HF spike span [from, to) carries the feather-tongue shape signature. */
+function feathersTongueShape(stable: PitchReading[], from: number, to: number): boolean {
+	if (to - from < HF_SHAPE_TONGUE_MIN_FRAMES) return false;
+	const runShapes: number[] = [];
+	for (const r of stable) {
+		if (r.shapeBreak != null) runShapes.push(r.shapeBreak);
+	}
+	if (runShapes.length === 0 || median(runShapes) < SHAPE_CLEAN_BASELINE) return false;
+	let minShape = Infinity;
+	for (let p = from; p < to; p++) {
+		const s = stable[p].shapeBreak;
+		if (s == null) return false;
+		if (s < minShape) minShape = s;
+	}
+	return minShape >= HF_SHAPE_TONGUE_FLOOR && minShape <= HF_SHAPE_TONGUE_CEILING;
+}
+
+/**
  * Waveform-shape ("reed reset") re-articulation tier — the last resort, for a
  * legato tongue that leaves NO energy evidence whatsoever.
  *
@@ -1967,6 +2028,11 @@ function findReArticulationsInSegment(
 				// window (see HF_BLEED_SUPPRESS_*). The 2026-07-25 "root-frame"
 				// diagnostic is the reference: the click at 2.74 s on the held G
 				// split it in two and dropped a clean take to "try-again".
+				// Two rescues, for two tongue shapes a click cannot fake: a
+				// band-floor dip (the stop silenced the horn — bandFloorDips)
+				// and a shallow-banded shape break (the feather tongue that
+				// never stops the air — feathersTongueShape).
+				const shapeTongue = feathersTongueShape(stable, k, j);
 				if (
 					sortedBleed.length > 0 &&
 					sortedBleed.some(
@@ -1974,7 +2040,8 @@ function findReArticulationsInSegment(
 							stable[k].time <= b + HF_BLEED_SUPPRESS_AFTER &&
 							stable[j - 1].time >= b - HF_BLEED_SUPPRESS_BEFORE
 					) &&
-					!bandFloorDips(stable, k, j)
+					!bandFloorDips(stable, k, j) &&
+					!shapeTongue
 				) {
 					k = j;
 					continue;
@@ -2005,7 +2072,14 @@ function findReArticulationsInSegment(
 				const postRms = meanRms(stable, j, j + RE_ARTICULATION_PRE_CONTEXT_FRAMES);
 				const sustainsEnergy =
 					preRms > 0 && postRms >= preRms * HF_RE_ARTICULATION_MIN_RMS_SUSTAIN;
-				if (maxPerturb >= HF_RE_ARTICULATION_MIN_PITCH_PERTURB && sustainsEnergy) {
+				// The shape-corroborated path accepts the RE_ARTICULATION_GAP_SUSTAIN
+				// true-re-attack floor instead — see HF_SHAPE_TONGUE_FLOOR.
+				const featherSustains =
+					preRms > 0 && postRms >= preRms * RE_ARTICULATION_GAP_SUSTAIN;
+				if (
+					(maxPerturb >= HF_RE_ARTICULATION_MIN_PITCH_PERTURB && sustainsEnergy) ||
+					(shapeTongue && featherSustains)
+				) {
 					const onsetTime = stable[peak].time - RE_ARTICULATION_ATTACK_LATENCY;
 					if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 						onsets.push(onsetTime);
