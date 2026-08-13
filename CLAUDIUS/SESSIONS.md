@@ -1557,10 +1557,12 @@ for the migration.
 
 Two ear-training takes (bbn-032_Bb "Slide Back Down", bbn-010_Bb "Blue Note
 Roll-Off") merged a repeated Eb tongued with the lightest possible legato
-articulation and scored the second note MISSED. Same phrase shape, same
-symptom, same fingerprint in the readings — hfRms 0.02 → 0.070 (≈3.5×) for
-five frames, rms and band floor perfectly flat — and yet **two different
-gates were responsible**: slide-back-down cleared the HF tier's corroborators
+articulation and scored the second note MISSED. (The takes were recorded and
+exported on 2026-08-13 UTC — the fixture filenames carry that date; this
+heading is the local session date.) Same phrase shape, same symptom, same
+fingerprint in the readings — hfRms 0.02 → 0.070 (peak ratios 3.78 / 3.48
+over the run median) for five frames, rms and band floor perfectly flat —
+and yet **two different gates were responsible**: slide-back-down cleared the HF tier's corroborators
 but died in the click-suppression window (the device's ~265–290 ms
 output→capture latency drapes the scheduled click's +0.28 s tail over a
 tongue played ON the beat), while blue-note-roll-off was never suppressed so

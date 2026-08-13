@@ -2244,15 +2244,42 @@ describe('pitch replay regression: pent run, metronome click on the held G (2026
  * click can neither create (it only adds energy) nor mask (nothing it emits
  * reaches the 250–5000 Hz band).
  */
+/**
+ * The authoritative ear-training rescore path for post-pre-arm fixtures,
+ * metronome bleed included: replay → trim → bleed schedule → base onsets →
+ * re-articulations → segment. Every fixture block below shares it; the
+ * `segmentNotes` positional arguments live in exactly one place.
+ */
+async function replayEarTrainingTake(file: string, transportSeconds: number, tempo: number) {
+	const wav = loadWavFixture(file);
+	const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
+	const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
+	const bleedOnsets = getMetronomeBleedOnsets(
+		transportSeconds + trimmed.offset,
+		tempo,
+		trimmed.duration
+	);
+	const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
+	const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
+	const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+	const detected = segmentNotes(
+		trimmed.readings,
+		onsets,
+		trimmed.duration,
+		undefined,
+		undefined,
+		undefined,
+		trimmed.workletOnsets,
+		bleedOnsets,
+		articulationOnsets
+	);
+	return { trimmed, articulationOnsets, detected };
+}
+
 describe('pitch replay regression: Curl to the Floor pre-spike tongue stop under a click (concert G, 2026-08-11)', () => {
 	const TRANSPORT_SECONDS = 72.94741496598644;
 	const TEMPO = 105;
 	const SWING = 0.6;
-
-	function loadFixture(): FakeAudioBuffer {
-		const wav = loadWavFixture('recordings/2026-08-11-curl-to-the-floor.wav');
-		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
-	}
 
 	const expectedPhrase: Phrase = {
 		id: 'bbn-019_G',
@@ -2273,31 +2300,8 @@ describe('pitch replay regression: Curl to the Floor pre-spike tongue stop under
 		source: 'curated'
 	};
 
-	/** The authoritative ear-training rescore path, metronome bleed included. */
-	async function replayPipeline() {
-		const raw = await replayFromAudioBuffer(loadFixture());
-		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
-		const bleedOnsets = getMetronomeBleedOnsets(
-			TRANSPORT_SECONDS + trimmed.offset,
-			TEMPO,
-			trimmed.duration
-		);
-		const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
-		const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(
-			trimmed.readings,
-			onsets,
-			trimmed.duration,
-			undefined,
-			undefined,
-			undefined,
-			trimmed.workletOnsets,
-			bleedOnsets,
-			articulationOnsets
-		);
-		return { trimmed, articulationOnsets, detected };
-	}
+	const replayPipeline = () =>
+		replayEarTrainingTake('recordings/2026-08-11-curl-to-the-floor.wav', TRANSPORT_SECONDS, TEMPO);
 
 	it('trims the pre-armed lead-in back to the performance', async () => {
 		// First corpus recording captured AFTER the capture pre-arm shipped:
@@ -2360,11 +2364,6 @@ describe('pitch replay regression: Blue Note Climb on-beat tongued halves (conce
 	const TEMPO = 105;
 	const SWING = 0.6;
 
-	function loadFixture(): FakeAudioBuffer {
-		const wav = loadWavFixture('recordings/2026-08-11-blue-note-climb.wav');
-		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
-	}
-
 	const expectedPhrase: Phrase = {
 		id: 'bbn-001_G',
 		name: 'Blue Note Climb',
@@ -2382,30 +2381,8 @@ describe('pitch replay regression: Blue Note Climb on-beat tongued halves (conce
 		source: 'curated'
 	};
 
-	async function replayPipeline() {
-		const raw = await replayFromAudioBuffer(loadFixture());
-		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
-		const bleedOnsets = getMetronomeBleedOnsets(
-			TRANSPORT_SECONDS + trimmed.offset,
-			TEMPO,
-			trimmed.duration
-		);
-		const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
-		const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(
-			trimmed.readings,
-			onsets,
-			trimmed.duration,
-			undefined,
-			undefined,
-			undefined,
-			trimmed.workletOnsets,
-			bleedOnsets,
-			articulationOnsets
-		);
-		return { trimmed, articulationOnsets, detected };
-	}
+	const replayPipeline = () =>
+		replayEarTrainingTake('recordings/2026-08-11-blue-note-climb.wav', TRANSPORT_SECONDS, TEMPO);
 
 	it('trims the pre-armed lead-in back to the performance', async () => {
 		const { trimmed } = await replayPipeline();
@@ -2451,18 +2428,19 @@ describe('pitch replay regression: Blue Note Climb on-beat tongued halves (conce
  * 4/5 and 3/4 hit).
  *
  * The articulation's only evidence is the HF tier's home turf — hfRms spikes
- * 0.02 → 0.070 (≈3.3×) across five frames with energy sustained, no reading
- * gap, no envelope dip, no instrument-band floor dip at all (the airflow
- * never falters; band floor stays ≥ 0.17 throughout) — and in both takes it
- * is thrown away one gate short, for two DIFFERENT reasons:
+ * 0.02 → 0.070 (peak ratios 3.78 / 3.48 over the run median) across five
+ * frames with energy sustained, no reading gap, no envelope dip, no
+ * instrument-band floor dip at all (the airflow never falters; band floor
+ * stays ≥ 0.17 throughout) — and in both takes it is thrown away one gate
+ * short, for two DIFFERENT reasons:
  *
- *   - slide-back-down clears every HF gate (fundamental perturbs 0.14 st)
+ *   - slide-back-down clears every HF gate (fundamental perturbs 0.133 st)
  *     but the tongue landed on the beat: the device's ~290 ms output→capture
  *     latency places the scheduled click's suppression window over the
  *     spike, and neither `bandFloorDips` shape can rescue evidence that
  *     never touches the band floor.
  *   - blue-note-roll-off is so light the fundamental never wobbles
- *     (max perturbation 0.024 st against the 0.1 gate) — the corroborator
+ *     (max perturbation 0.064 st against the 0.1 gate) — the corroborator
  *     built to reject key clicks rejects the tongue itself.
  *
  * What both takes DO carry is the reed-reset signature the shape tier
@@ -2471,7 +2449,8 @@ describe('pitch replay regression: Blue Note Climb on-beat tongued halves (conce
  * DEEP (root-frame metronome click 0.54, Blue Monk thump 0.33). The fix
  * accepts a shallow-banded shape dip as (a) a click-suppression rescue and
  * (b) an alternative reed-reset corroborator alongside the pitch
- * perturbation — see HF_SHAPE_CORROBORATION_* in note-segmenter.ts.
+ * perturbation — see HF_SHAPE_TONGUE_FLOOR / HF_SHAPE_TONGUE_CEILING /
+ * HF_SHAPE_TONGUE_MIN_FRAMES in note-segmenter.ts.
  */
 describe('pitch replay regression: feather-tongued repeated Eb on the beat (concert Bb, 2026-08-13)', () => {
 	const TEMPO = 105;
@@ -2539,36 +2518,7 @@ describe('pitch replay regression: feather-tongued repeated Eb on the beat (conc
 
 	for (const c of cases) {
 		describe(c.name, () => {
-			function loadFixture(): FakeAudioBuffer {
-				const wav = loadWavFixture(c.file);
-				return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
-			}
-
-			/** The authoritative ear-training rescore path, metronome bleed included. */
-			async function replayPipeline() {
-				const raw = await replayFromAudioBuffer(loadFixture());
-				const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
-				const bleedOnsets = getMetronomeBleedOnsets(
-					c.transportSeconds + trimmed.offset,
-					TEMPO,
-					trimmed.duration
-				);
-				const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
-				const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
-				const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-				const detected = segmentNotes(
-					trimmed.readings,
-					onsets,
-					trimmed.duration,
-					undefined,
-					undefined,
-					undefined,
-					trimmed.workletOnsets,
-					bleedOnsets,
-					articulationOnsets
-				);
-				return { trimmed, articulationOnsets, detected };
-			}
+			const replayPipeline = () => replayEarTrainingTake(c.file, c.transportSeconds, TEMPO);
 
 			it('trims the pre-armed lead-in back to the performance', async () => {
 				const { trimmed } = await replayPipeline();

@@ -1547,8 +1547,8 @@ const HF_RE_ARTICULATION_MIN_RMS_SUSTAIN = 0.9;
  * `bandFloorDips` to find and may not wobble the fundamental at all, so both
  * the click-suppression rescue and the reed-reset corroborator reject it —
  * the 2026-08-13 repeated-Eb pair (slide-back-down / blue-note-roll-off)
- * merged on exactly those two gates (the first suppressed at 0.13 st
- * perturbation, the second's perturbation only 0.06 st).
+ * merged on exactly those two gates (the first suppressed at 0.133 st
+ * perturbation, the second's perturbation only 0.064 st).
  *
  * What it does leave is the shape tier's signature at a depth that tier's
  * SHAPE_MIN_PERIODICITY floor refuses: the reed is damped and restarts, so
