@@ -13,6 +13,8 @@
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
 	import BrassPlayGlyph from '$lib/components/jazz/BrassPlayGlyph.svelte';
+	import HomeLanding from '$lib/components/home/HomeLanding.svelte';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
 
@@ -110,6 +112,18 @@
 	const pct = (n: number) => Math.round(n * 100);
 </script>
 
+<SeoHead
+	title="Mankunku — Jazz Ear Training in the Browser"
+	description="Free browser-based jazz ear training: the app plays a phrase, you play it back on your instrument, and pitch and rhythm are scored in real time. Licks, tunes, and backing tracks included."
+/>
+
+<!-- Signed-out visitors (and crawlers) get the descriptive landing page; the
+     dashboard below assumes a session. Branching on `isAuthenticated` is
+     hydration-safe: it derives from server-validated layout data, identical
+     during SSR and on the client. -->
+{#if !isAuthenticated}
+	<HomeLanding />
+{:else}
 <div class="space-y-6">
 	<!-- Greeting strip — tagline beneath evokes the Mankunku / Yakhal' Inkomo heritage -->
 	<div class="space-y-1">
@@ -120,7 +134,7 @@
 					class="text-[var(--color-text-secondary)]"> — what'll it be?</span
 				>
 			</h1>
-			{#if isAuthenticated && progress.streakDays > 0}
+			{#if progress.streakDays > 0}
 				<span
 					data-tour="streak-counter"
 					class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]"
@@ -131,13 +145,6 @@
 					<span class="smallcaps">day streak</span>
 					<TooltipHint text={tooltips.home.streak.text} position="bottom" />
 				</span>
-			{:else if !isAuthenticated}
-				<a
-					href="/auth"
-					class="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
-				>
-					Sign in to sync &rarr;
-				</a>
 			{/if}
 		</div>
 		<div class="jazz-rule mt-2 max-w-xs"></div>
@@ -322,3 +329,4 @@
 		</a>
 	</div>
 </div>
+{/if}
