@@ -228,6 +228,14 @@
 	description="Browse jazz licks shared by other players and adopt the ones worth stealing into your own book."
 />
 
+<svelte:head>
+	<!-- Anonymous visitors see only a sign-in prompt here — keep that thin
+	     state out of the index. `session` is SSR-stable layout data. -->
+	{#if !session}
+		<meta name="robots" content="noindex" />
+	{/if}
+</svelte:head>
+
 <div class="space-y-6">
 	<a
 		href="/licks"

@@ -70,6 +70,23 @@ if ! sudo nginx -t; then
     exit 1
 fi
 
+# Warn (never block) when a server_name in the new config is not covered by
+# the certificate it references — e.g. the www vhost before `certbot --expand`
+# has added the www SAN. Blocking here would couple every future nginx deploy
+# to a manual cert step; the vhost merely answers with a name mismatch until
+# the cert catches up, while the apex keeps working either way.
+echo "==> Preflight: certificate SAN coverage (warning-only)"
+CERT_PATH="$(grep -Eh '^[[:space:]]*ssl_certificate[[:space:]]' "$LIVE_CONFIG" | head -1 | awk '{print $2}' | tr -d ';')"
+if [[ -n "$CERT_PATH" ]] && sudo test -r "$CERT_PATH"; then
+    CERT_TEXT="$(sudo openssl x509 -in "$CERT_PATH" -noout -text 2>/dev/null || true)"
+    while read -r host; do
+        [[ -z "$host" ]] && continue
+        if ! grep -q "DNS:${host}" <<<"$CERT_TEXT"; then
+            echo "WARNING: server_name ${host} is not in the SANs of ${CERT_PATH} — https://${host} will fail TLS validation until the certificate is expanded (see nginx/mankunku.conf)." >&2
+        fi
+    done < <(grep -Eh '^[[:space:]]*server_name[[:space:]]' "$LIVE_CONFIG" | sed -E 's/^[[:space:]]*server_name[[:space:]]+//; s/;.*$//' | tr ' ' '\n' | sort -u)
+fi
+
 echo "==> Reloading nginx"
 sudo systemctl reload nginx
 

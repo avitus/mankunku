@@ -5,6 +5,9 @@ const SITE = 'https://mankunkujazz.com';
 // Docs pages outrank the app surfaces here on purpose: for a crawler (fresh
 // profile, no local data) the practice routes render as near-empty shells,
 // while /docs/** is real server-rendered prose — the site's indexable content.
+// The community browse pages are deliberately absent: they render only a
+// sign-in prompt for anonymous visitors (and emit noindex in that state), so
+// advertising them to crawlers would be a soft-404 farm.
 const TOP_LEVEL_ROUTES: { path: string; priority: string; changefreq: string }[] = [
 	{ path: '/', priority: '1.0', changefreq: 'weekly' },
 	{ path: '/docs', priority: '0.9', changefreq: 'monthly' },
@@ -13,9 +16,7 @@ const TOP_LEVEL_ROUTES: { path: string; priority: string; changefreq: string }[]
 	{ path: '/tricks', priority: '0.6', changefreq: 'monthly' },
 	{ path: '/licks', priority: '0.5', changefreq: 'monthly' },
 	{ path: '/tunes', priority: '0.5', changefreq: 'monthly' },
-	{ path: '/scales', priority: '0.5', changefreq: 'monthly' },
-	{ path: '/licks/community', priority: '0.5', changefreq: 'weekly' },
-	{ path: '/tunes/community', priority: '0.5', changefreq: 'weekly' }
+	{ path: '/scales', priority: '0.5', changefreq: 'monthly' }
 ];
 
 export const prerender = true;

@@ -190,6 +190,14 @@
 	description="Browse full jazz song forms shared by other players — melody and changes — and adopt them into your own tune book."
 />
 
+<svelte:head>
+	<!-- Anonymous visitors see only a sign-in prompt here — keep that thin
+	     state out of the index. `session` is SSR-stable layout data. -->
+	{#if !session}
+		<meta name="robots" content="noindex" />
+	{/if}
+</svelte:head>
+
 <div class="space-y-6">
 	<a
 		href="/tunes"

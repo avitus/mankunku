@@ -182,8 +182,8 @@
 					Scales
 				</a>
 				<p class="text-sm text-[var(--color-text-secondary)]">
-					A reference for every scale the app practices, in notation, transposed for your
-					instrument.
+					A reference for every scale the app practices, organized by family with the scale
+					degrees of each.
 				</p>
 			</div>
 		</div>

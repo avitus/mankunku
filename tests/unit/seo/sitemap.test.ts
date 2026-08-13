@@ -43,9 +43,17 @@ describe('sitemap.xml', () => {
 
 	it('includes the routes added for discovery', async () => {
 		const body = await sitemapBody();
-		for (const path of ['/tricks', '/tunes', '/tunes/community']) {
+		for (const path of ['/tricks', '/tunes']) {
 			expect(body).toContain(`<loc>https://mankunkujazz.com${path}</loc>`);
 		}
+	});
+
+	it('excludes the session-gated community routes', async () => {
+		// Anonymous renders of these are a sign-in prompt (and emit noindex);
+		// pointing crawlers at them would advertise soft-404s.
+		const body = await sitemapBody();
+		expect(body).not.toContain('/licks/community');
+		expect(body).not.toContain('/tunes/community');
 	});
 
 	it('emits no lastmod', async () => {

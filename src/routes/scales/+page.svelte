@@ -8,7 +8,7 @@
 
 <SeoHead
 	title="Scales — Mankunku"
-	description="A reference for every scale Mankunku practices, engraved in notation and transposed for concert, B♭, and E♭ instruments."
+	description="A reference for every scale Mankunku practices, organized by family with the scale degrees of each."
 />
 
 <div class="space-y-6">
