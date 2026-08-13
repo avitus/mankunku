@@ -479,6 +479,17 @@ export function clampTempo(tempo: number): number {
 	return Math.max(MIN_TEMPO, Math.min(MAX_TEMPO, tempo));
 }
 
+/**
+ * Tempo after a session unlocks a new key: a 10% drop, replacing the
+ * score-weighted bump for that session. The unlock gate requires a strong
+ * session, so without this the brand-new key would arrive at a FASTER tempo
+ * than the one just played — the drop hands the unfamiliar key headroom
+ * instead, and the player earns the tempo back while consolidating it.
+ */
+export function tempoAfterKeyUnlock(tempo: number): number {
+	return clampTempo(Math.round(tempo * 0.9));
+}
+
 // ── Unlocked-key count ──────────────────────────────────────
 //
 // Cloud-synced via the unlock_counts column on user_lick_metadata
