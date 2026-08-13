@@ -461,13 +461,15 @@ describe('startInterLickTransition — 10% tempo drop when a key unlocks', () =>
 	});
 
 	it("writes the dropped tempo to all of the lick's keys, not just the scored ones", () => {
+		// D is planned but never scored (session rolled over before it played).
+		// It sits mid-list so the newest-key gate still reads G's passCount.
 		setupLick({
 			currentTempo: 100,
 			results: [
 				{ key: 'C', score: 0.95 },
 				{ key: 'G', score: 0.95 }
 			],
-			plannedKeys: ['C', 'G']
+			plannedKeys: ['C', 'D', 'G']
 		});
 		lickPractice.progress = {
 			[LICK_ID]: {
@@ -478,6 +480,7 @@ describe('startInterLickTransition — 10% tempo drop when a key unlocks', () =>
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
 		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(90);
+		expect(lickPractice.progress[LICK_ID]?.D?.currentTempo).toBe(90);
 		expect(lickPractice.progress[LICK_ID]?.G?.currentTempo).toBe(90);
 	});
 
