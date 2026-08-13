@@ -688,7 +688,7 @@ describe('tuneToAbc — golden guard (byte-identical output)', () => {
 		const hdr34 =
 			'X:1\nT:Test Tune\nM:3/4\nL:1/8\n%%partsbox 1\n%%measurenb 0\n%%stretchlast 0\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n';
 		expect(tuneToAbc(threeFourSheet())).toBe(
-			hdr34 + `P:A\n[V:M]C2 D2 E2 | ${slash34} |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"x24/4 |\n`
+			hdr34 + `P:A\n[V:M]C2 D2 E2 | ${slash34} |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"x6 |\n`
 		);
 	});
 });

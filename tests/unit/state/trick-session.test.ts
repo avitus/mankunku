@@ -23,10 +23,11 @@ import {
 	startTrickSession,
 	recordKeyAttempt,
 	advanceSingleLickRound,
-	resetSession
+	resetSession,
+	getLickBars
 } from '$lib/state/lick-practice.svelte';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
-import { getTrickById } from '$lib/tricks';
+import { getTrickById, trickContextFor } from '$lib/tricks';
 import {
 	loadTrickPracticeProgress,
 	saveTrickPracticeProgress,
@@ -55,12 +56,13 @@ vi.stubGlobal('localStorage', {
 	clear: vi.fn(() => store.clear())
 });
 
-// First rung of the enclosures ladder — always unlocked.
+// First rung of the enclosures major chain — always unlocked.
 const E1_PARAMS: TrickParameters = {
 	noteCount: '1',
 	shape: 'chromatic-below',
 	targetTone: 'root',
-	beatPlacement: 'downbeat'
+	beatPlacement: 'downbeat',
+	type: 'major'
 };
 const E1_KEY = trickVariantKey('enclosures', E1_PARAMS);
 
@@ -134,6 +136,34 @@ describe('startTrickSession', () => {
 		expect(lickPractice.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
 	});
 
+	it('drills a minor-type enclosure over the minor vamp with a 5-bar window', () => {
+		lickPractice.config.trickParameters = { ...E1_PARAMS, type: 'minor' };
+		expect(startTrickSession()).toBe(true);
+
+		const item = lickPractice.plan[0];
+		// The type parameter picks the bed; the C context mirrors its chord/scale.
+		expect(item.progressionType).toBe('minor-vamp');
+		expect(item.trickContext).toMatchObject({
+			chordRoot: 'C',
+			chordQuality: 'min7',
+			scaleId: 'major.dorian',
+			key: 'C'
+		});
+		expect(item.phrase!.harmony[0].chord.quality).toBe('min7');
+		// Full equality against the shared derivation (see the triad-pair test).
+		expect(item.trickContext).toEqual(
+			trickContextFor(getTrickById('enclosures')!, { ...E1_PARAMS, type: 'minor' }, 'C', TRICK_DEFAULT_TEMPO)
+		);
+		// Progress/tempo key under the minor chain's own variant key.
+		expect(item.phraseId).toBe(trickVariantKey('enclosures', { ...E1_PARAMS, type: 'minor' }));
+
+		// The full drill figure: anacrusis + 4 content bars stretches the
+		// 2-bar vamp to a 5-bar per-key window.
+		expect(item.phrase!.difficulty.lengthBars).toBe(5);
+		expect(item.phrase!.difficulty.pickupBars).toBe(1);
+		expect(getLickBars(item.phrase!, item.progressionType, false)).toBe(5);
+	});
+
 	it('drills a quality-specific triad-pair family over its own vamp', () => {
 		// The altered pair belongs on a dominant chord; the C-rooted context
 		// mirrors the dominant vamp's chord + scale so the example, the
@@ -150,6 +180,12 @@ describe('startTrickSession', () => {
 			scaleId: 'major.mixolydian',
 			key: 'C'
 		});
+		// The stored session context IS the shared derivation — full equality,
+		// so the trick page's preview (which calls trickContextFor directly)
+		// provably cannot drift from what the drill schedules.
+		expect(item.trickContext).toEqual(
+			trickContextFor(getTrickById('triad-pairs')!, { pair: 'minor-b9' }, 'C', TRICK_DEFAULT_TEMPO)
+		);
 		expect(item.phrase!.key).toBe('C');
 		expect(item.phrase!.harmony[0].chord.quality).toBe('7');
 

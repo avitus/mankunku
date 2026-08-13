@@ -4,21 +4,41 @@
  * Slot construction only; judging delegates to the shared conformance engine
  * and previews delegate to the shared example generator.
  *
- * Figure design (positions in grid units — eighths, or quarters at content
- * tiers whose profile lacks eighths):
+ * Two figures share one parameter set, selected by `TrickContext.figure`
+ * (both `scoreConformance` and `generateExample` dispatch through
+ * `buildEnclosureFigure`, so the judged spec always matches the demo):
  *
- *   position 0        opening chord-tone statement (keeps the figure at
- *                     ≥5 pitched notes even for a single approach note)
- *   positions 4−k..3  enclosure group 1 approaches (k = noteCount)
- *   position 4        target 1 (beat 3 in eighths mode)
- *   positions 8−k..7  enclosure group 2 approaches
- *   position 8        target 2 (bar 2 beat 1 in eighths mode), quarter note
+ * FULL (default — the drill figure). Positions in grid units (eighths, or
+ * quarters at content tiers whose profile lacks eighths; den = units/bar):
  *
- * `beatPlacement: 'offbeat'` shifts the whole figure one grid unit later, so
- * targets land an eighth after the strong beats. In eighths mode the figure
- * spans 1-2 bars with targets on strong beats {3, 1}; in the quarter fallback
- * (tiers 1-2) the same structure stretches proportionally (documented
- * deviation: preserving two groups and ≥5 notes was chosen over bar count).
+ *   groups g = 0..3, anchor A = den + shift:
+ *     positions A+g·den−k .. A+g·den−1   approach notes (k = noteCount)
+ *     position  A+g·den                  target — the downbeat of content
+ *                                        bar g+1 (or its "and" when offbeat)
+ *
+ * The first group is a true anacrusis: bar 0 is a partial pickup bar holding
+ * only approach notes (`pickupBars: 1`), and each later group's approaches
+ * fill the tail of the preceding bar. Non-final targets ring with the
+ * largest clean printable duration ≤ den−k grid units (any residual gap is
+ * bridged with explicit rests by the example generator); the final target is
+ * a half note, so the figure spans a pickup bar + 4 content bars = 5 bars on
+ * both grids. Edge case: offbeat with a single approach would put that
+ * approach ON the bar-1 downbeat leaving bar 0 empty, so the whole figure
+ * rebases back one bar (starts at offset 0, `pickupBars: 0`, 4 bars).
+ *
+ * COMPACT (`figure: 'compact'` — the tune-insertion gesture): the legacy
+ * 2-bar layout. Position 0 states the target chord tone, then two enclosure
+ * groups target grid positions {4, 8} (beats 3 and 5 in eighths mode); the
+ * final target is a quarter note. Tune windows are sized by the detected
+ * progression span, which the 5-bar drill figure cannot fit.
+ *
+ * `beatPlacement: 'offbeat'` shifts either figure one grid unit later, so
+ * targets land an eighth after the strong beats.
+ *
+ * The `type` parameter (major/minor/dominant) never reaches slot
+ * construction — it selects the practice bed and tune-alignment qualities
+ * via `practiceBed`/`compatibleQualitiesFor` (see ENCLOSURE_TYPES), and the
+ * chord quality/scale arrive here through the context.
  *
  * Approach-note pcs: above-side approaches are scale neighbours from the
  * context scale realized at the chord root (with chromatic fills when the
@@ -37,9 +57,11 @@
  *   noteCount 2-3: chromatic-below → double-chromatic; scale-above →
  *     above-below
  */
-import type { Fraction } from '$lib/types/music';
+import type { ChordQuality, Fraction } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
+// Type-only, mirroring types/tricks.ts — erased at runtime, so no cycle.
+import type { ChordProgressionType } from '$lib/types/lick-practice';
 import { chordTones } from '$lib/music/chords';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
@@ -58,10 +80,43 @@ const SHAPES = [
 ] as const;
 const TARGET_TONES = ['root', 'third', 'fifth', 'seventh'] as const;
 const BEAT_PLACEMENTS = ['downbeat', 'offbeat'] as const;
+const TYPE_VALUES = ['major', 'minor', 'dominant'] as const;
 
 type NoteCount = (typeof NOTE_COUNTS)[number];
 type Shape = (typeof SHAPES)[number];
 type TargetTone = (typeof TARGET_TONES)[number];
+type EnclosureType = (typeof TYPE_VALUES)[number];
+
+/** One chord-type family: the drill bed and the qualities it belongs on. */
+export interface EnclosureTypeFamily {
+	value: EnclosureType;
+	label: string;
+	/** One-chord vamp this type is drilled over */
+	bed: ChordProgressionType;
+	/** Tune-alignment qualities, most characteristic first */
+	qualities: ChordQuality[];
+}
+
+/**
+ * The three enclosure chord types. Dominant deliberately excludes '7alt'
+ * (no natural 5th to target); the natural-5 extended dominants are included
+ * because chordTones supplies real tones for them.
+ */
+export const ENCLOSURE_TYPES: readonly EnclosureTypeFamily[] = [
+	{ value: 'major', label: 'Major', bed: 'major-vamp', qualities: ['maj7', 'maj6'] },
+	{ value: 'minor', label: 'Minor', bed: 'minor-vamp', qualities: ['min7', 'min6', 'minMaj7'] },
+	{
+		value: 'dominant',
+		label: 'Dominant',
+		bed: 'dominant-vamp',
+		qualities: ['7', '7b9', '7#9', '7#11', '7b13']
+	}
+];
+
+function typeFor(params: TrickParameters): EnclosureTypeFamily {
+	const value = pick(params, 'type', TYPE_VALUES, 'major');
+	return ENCLOSURE_TYPES.find((t) => t.value === value)!;
+}
 
 /** Chord-tone index per target tone (clamped to the tones the quality has). */
 const TONE_INDEX: Record<TargetTone, number> = { root: 0, third: 1, fifth: 2, seventh: 3 };
@@ -198,7 +253,19 @@ function sidePatternPcs(target: number, side: 'above' | 'below', exactPc: number
 	return pcs;
 }
 
-export function buildEnclosureSlots(parameters: TrickParameters, context: TrickContext): TrickSlotSpec[] {
+/** Everything both figures need: resolved params, pcs, and the grid. */
+interface FigureIngredients {
+	targetPc: number;
+	otherChordPcs: number[];
+	approaches: ApproachNote[];
+	/** Grid units per bar: 8 (eighths) or 4 (quarter fallback) */
+	den: number;
+	/** 1 when beatPlacement is 'offbeat', else 0 */
+	shift: number;
+	unit: Fraction;
+}
+
+function figureIngredients(parameters: TrickParameters, context: TrickContext): FigureIngredients {
 	const noteCount = pick(parameters, 'noteCount', NOTE_COUNTS, '2');
 	const shape = coerceShape(noteCount, pick(parameters, 'shape', SHAPES, 'above-below'));
 	const targetTone = pick(parameters, 'targetTone', TARGET_TONES, 'third');
@@ -212,12 +279,93 @@ export function buildEnclosureSlots(parameters: TrickParameters, context: TrickC
 
 	const scalePcs = contextScalePcs(context);
 	const approaches = approachNotes(shape, noteCount, targetPc, scalePcs);
-	const k = approaches.length;
 
 	// Eighth-note grid, or quarters at tiers whose profile lacks eighths.
 	const den = getProfileForLevel(context.level).rhythmTypes.includes('eighth') ? 8 : 4;
 	const shift = beatPlacement === 'offbeat' ? 1 : 0;
-	const unit: Fraction = [1, den];
+
+	return { targetPc, otherChordPcs, approaches, den, shift, unit: [1, den] };
+}
+
+function approachSlot(
+	{ targetPc, den, unit }: FigureIngredients,
+	approach: ApproachNote,
+	pos: number
+): TrickSlotSpec {
+	return {
+		offset: reduceFraction(pos, den),
+		duration: unit,
+		exactPcs: [approach.pc],
+		patternPcs: sidePatternPcs(targetPc, approach.side, approach.pc),
+		generatePc: approach.pc,
+		role: approach.side === 'above' ? 'approach-above' : 'chromatic-below'
+	};
+}
+
+function targetSlot(
+	{ targetPc, otherChordPcs, den }: FigureIngredients,
+	pos: number,
+	duration: Fraction
+): TrickSlotSpec {
+	return {
+		offset: reduceFraction(pos, den),
+		duration,
+		exactPcs: [targetPc],
+		patternPcs: otherChordPcs,
+		generatePc: targetPc,
+		role: 'target'
+	};
+}
+
+/** Largest clean printable duration ≤ `units` grid units (never a 5- or 7-unit note). */
+function ringDuration(units: number, den: number): Fraction {
+	const palette = den === 8 ? [8, 6, 4, 3, 2, 1] : [4, 3, 2, 1];
+	return reduceFraction(palette.find((u) => u <= units) ?? 1, den);
+}
+
+/** A device figure plus the placement metadata the generator stamps on the phrase. */
+export interface EnclosureFigure {
+	slots: TrickSlotSpec[];
+	/** Whole leading bars of anacrusis before the figure's first full bar */
+	pickupBars: 0 | 1;
+}
+
+/** The 5-bar drill figure: anacrusis + four groups targeting content-bar downbeats. */
+export function buildFullEnclosureFigure(
+	parameters: TrickParameters,
+	context: TrickContext
+): EnclosureFigure {
+	const ingredients = figureIngredients(parameters, context);
+	const { approaches, den, shift } = ingredients;
+	const k = approaches.length;
+	const anchor = den + shift;
+
+	// Offbeat single-approach edge: the lone approach would land ON the bar-1
+	// downbeat (pos = den), leaving the pickup bar empty — rebase the whole
+	// figure back one bar instead (starts at offset 0, no pickup).
+	const rebase = anchor - k >= den ? den : 0;
+	const nonFinalRing = ringDuration(den - k, den);
+
+	const slots: TrickSlotSpec[] = [];
+	for (let g = 0; g < 4; g++) {
+		const targetPos = anchor + g * den - rebase;
+		approaches.forEach((approach, i) => {
+			slots.push(approachSlot(ingredients, approach, targetPos - k + i));
+		});
+		slots.push(targetSlot(ingredients, targetPos, g === 3 ? [1, 2] : nonFinalRing));
+	}
+
+	return { slots, pickupBars: rebase > 0 ? 0 : 1 };
+}
+
+/** The legacy 2-bar gesture used inside tune-practice insertion windows. */
+export function buildEnclosureCompactSlots(
+	parameters: TrickParameters,
+	context: TrickContext
+): TrickSlotSpec[] {
+	const ingredients = figureIngredients(parameters, context);
+	const { targetPc, otherChordPcs, approaches, den, shift, unit } = ingredients;
+	const k = approaches.length;
 
 	const slots: TrickSlotSpec[] = [];
 
@@ -233,26 +381,30 @@ export function buildEnclosureSlots(parameters: TrickParameters, context: TrickC
 
 	for (const targetPos of [4, 8]) {
 		approaches.forEach((approach, i) => {
-			slots.push({
-				offset: reduceFraction(targetPos - k + i + shift, den),
-				duration: unit,
-				exactPcs: [approach.pc],
-				patternPcs: sidePatternPcs(targetPc, approach.side, approach.pc),
-				generatePc: approach.pc,
-				role: approach.side === 'above' ? 'approach-above' : 'chromatic-below'
-			});
+			slots.push(approachSlot(ingredients, approach, targetPos - k + i + shift));
 		});
-		slots.push({
-			offset: reduceFraction(targetPos + shift, den),
-			duration: targetPos === 8 ? [1, 4] : unit,
-			exactPcs: [targetPc],
-			patternPcs: otherChordPcs,
-			generatePc: targetPc,
-			role: 'target'
-		});
+		slots.push(targetSlot(ingredients, targetPos + shift, targetPos === 8 ? [1, 4] : unit));
 	}
 
 	return slots;
+}
+
+/** Figure dispatch on the context hint — the single seam scoring and demos share. */
+export function buildEnclosureFigure(
+	parameters: TrickParameters,
+	context: TrickContext
+): EnclosureFigure {
+	if (context.figure === 'compact') {
+		return { slots: buildEnclosureCompactSlots(parameters, context), pickupBars: 0 };
+	}
+	return buildFullEnclosureFigure(parameters, context);
+}
+
+export function buildEnclosureSlots(
+	parameters: TrickParameters,
+	context: TrickContext
+): TrickSlotSpec[] {
+	return buildEnclosureFigure(parameters, context).slots;
 }
 
 export const enclosuresTrick: Trick = {
@@ -262,8 +414,14 @@ export const enclosuresTrick: Trick = {
 		'Surround a chord tone with scale and chromatic neighbours before landing on it — the bebop way to make targets feel inevitable.',
 	category: 'enclosures',
 	tags: ['trick', 'enclosure'],
-	compatibleQualities: ['maj7', 'min7', '7', 'maj6', 'min6', 'minMaj7'],
+	compatibleQualities: [...new Set(ENCLOSURE_TYPES.flatMap((t) => t.qualities))],
 	parameters: [
+		{
+			name: 'type',
+			label: 'Chord type',
+			values: [...TYPE_VALUES],
+			valueLabels: Object.fromEntries(ENCLOSURE_TYPES.map((t) => [t.value, t.label]))
+		},
 		{
 			name: 'noteCount',
 			label: 'Approach notes',
@@ -295,6 +453,12 @@ export const enclosuresTrick: Trick = {
 			valueLabels: { downbeat: 'On the beat', offbeat: 'Off the beat' }
 		}
 	],
+	practiceBed(parameters) {
+		return typeFor(parameters).bed;
+	},
+	compatibleQualitiesFor(parameters) {
+		return [...typeFor(parameters).qualities];
+	},
 	scoreConformance(played, parameters, context) {
 		return scoreConformanceAgainstSpec(played, buildEnclosureSlots(parameters, context), context);
 	},
@@ -302,12 +466,14 @@ export const enclosuresTrick: Trick = {
 		const noteCount = pick(parameters, 'noteCount', NOTE_COUNTS, '2');
 		const shape = coerceShape(noteCount, pick(parameters, 'shape', SHAPES, 'above-below'));
 		const targetTone = pick(parameters, 'targetTone', TARGET_TONES, 'third');
+		const figure = buildEnclosureFigure(parameters, context);
 		return realizeTrickExample({
 			trickId: 'enclosures',
 			name: `Enclosure: ${shape} → ${TONE_LABEL[targetTone]}`,
 			category: 'enclosures',
 			tags: ['trick', 'enclosure'],
-			slots: buildEnclosureSlots(parameters, context),
+			slots: figure.slots,
+			pickupBars: figure.pickupBars,
 			parameters,
 			context
 		});

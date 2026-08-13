@@ -71,8 +71,10 @@
 
 	// Preview over the harmony the variant is ACTUALLY drilled on — the same
 	// derivation the practice session uses, so the chord above the staff and
-	// the notes under it match what you will hear. Previously pinned to maj7,
-	// which misrepresented five of the eight triad-pair families.
+	// the notes under it match what you will hear (a minor-type enclosure
+	// previews over min7/dorian, an altered triad pair over its dominant
+	// vamp). Previously pinned to maj7, which misrepresented five of the
+	// eight triad-pair families.
 	const exampleContext = $derived<TrickContext | null>(
 		trick && selectedVariant
 			? trickContextFor(trick, selectedVariant.params, concertKey, 120)
@@ -121,7 +123,13 @@
 					: `Two chromatic steps from below into the ${target}`
 			};
 			const body = shapeText[params.shape ?? ''] ?? `Enclose the ${target} with neighbour tones`;
-			return `${body}, ${landing}.`;
+			const chordType: Record<string, string> = {
+				major: 'a major chord',
+				minor: 'a minor chord',
+				dominant: 'a dominant chord'
+			};
+			const over = chordType[params.type ?? ''] ?? 'a major chord';
+			return `${body}, ${landing}, over ${over}.`;
 		}
 		if (t.id === 'triad-pairs') {
 			const family = getTriadPairFamily(params.pair ?? '');

@@ -2244,15 +2244,42 @@ describe('pitch replay regression: pent run, metronome click on the held G (2026
  * click can neither create (it only adds energy) nor mask (nothing it emits
  * reaches the 250–5000 Hz band).
  */
+/**
+ * The authoritative ear-training rescore path for post-pre-arm fixtures,
+ * metronome bleed included: replay → trim → bleed schedule → base onsets →
+ * re-articulations → segment. Every fixture block below shares it; the
+ * `segmentNotes` positional arguments live in exactly one place.
+ */
+async function replayEarTrainingTake(file: string, transportSeconds: number, tempo: number) {
+	const wav = loadWavFixture(file);
+	const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
+	const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
+	const bleedOnsets = getMetronomeBleedOnsets(
+		transportSeconds + trimmed.offset,
+		tempo,
+		trimmed.duration
+	);
+	const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
+	const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
+	const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+	const detected = segmentNotes(
+		trimmed.readings,
+		onsets,
+		trimmed.duration,
+		undefined,
+		undefined,
+		undefined,
+		trimmed.workletOnsets,
+		bleedOnsets,
+		articulationOnsets
+	);
+	return { trimmed, articulationOnsets, detected };
+}
+
 describe('pitch replay regression: Curl to the Floor pre-spike tongue stop under a click (concert G, 2026-08-11)', () => {
 	const TRANSPORT_SECONDS = 72.94741496598644;
 	const TEMPO = 105;
 	const SWING = 0.6;
-
-	function loadFixture(): FakeAudioBuffer {
-		const wav = loadWavFixture('recordings/2026-08-11-curl-to-the-floor.wav');
-		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
-	}
 
 	const expectedPhrase: Phrase = {
 		id: 'bbn-019_G',
@@ -2273,31 +2300,8 @@ describe('pitch replay regression: Curl to the Floor pre-spike tongue stop under
 		source: 'curated'
 	};
 
-	/** The authoritative ear-training rescore path, metronome bleed included. */
-	async function replayPipeline() {
-		const raw = await replayFromAudioBuffer(loadFixture());
-		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
-		const bleedOnsets = getMetronomeBleedOnsets(
-			TRANSPORT_SECONDS + trimmed.offset,
-			TEMPO,
-			trimmed.duration
-		);
-		const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
-		const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(
-			trimmed.readings,
-			onsets,
-			trimmed.duration,
-			undefined,
-			undefined,
-			undefined,
-			trimmed.workletOnsets,
-			bleedOnsets,
-			articulationOnsets
-		);
-		return { trimmed, articulationOnsets, detected };
-	}
+	const replayPipeline = () =>
+		replayEarTrainingTake('recordings/2026-08-11-curl-to-the-floor.wav', TRANSPORT_SECONDS, TEMPO);
 
 	it('trims the pre-armed lead-in back to the performance', async () => {
 		// First corpus recording captured AFTER the capture pre-arm shipped:
@@ -2360,11 +2364,6 @@ describe('pitch replay regression: Blue Note Climb on-beat tongued halves (conce
 	const TEMPO = 105;
 	const SWING = 0.6;
 
-	function loadFixture(): FakeAudioBuffer {
-		const wav = loadWavFixture('recordings/2026-08-11-blue-note-climb.wav');
-		return makeFakeAudioBuffer(wav.channel, wav.sampleRate);
-	}
-
 	const expectedPhrase: Phrase = {
 		id: 'bbn-001_G',
 		name: 'Blue Note Climb',
@@ -2382,30 +2381,8 @@ describe('pitch replay regression: Blue Note Climb on-beat tongued halves (conce
 		source: 'curated'
 	};
 
-	async function replayPipeline() {
-		const raw = await replayFromAudioBuffer(loadFixture());
-		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
-		const bleedOnsets = getMetronomeBleedOnsets(
-			TRANSPORT_SECONDS + trimmed.offset,
-			TEMPO,
-			trimmed.duration
-		);
-		const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
-		const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(
-			trimmed.readings,
-			onsets,
-			trimmed.duration,
-			undefined,
-			undefined,
-			undefined,
-			trimmed.workletOnsets,
-			bleedOnsets,
-			articulationOnsets
-		);
-		return { trimmed, articulationOnsets, detected };
-	}
+	const replayPipeline = () =>
+		replayEarTrainingTake('recordings/2026-08-11-blue-note-climb.wav', TRANSPORT_SECONDS, TEMPO);
 
 	it('trims the pre-armed lead-in back to the performance', async () => {
 		const { trimmed } = await replayPipeline();
@@ -2440,4 +2417,142 @@ describe('pitch replay regression: Blue Note Climb on-beat tongued halves (conce
 		expect(result.chosen.pitchAccuracy).toBe(1);
 		expect(result.chosen.overall).toBeGreaterThan(0.9);
 	});
+});
+
+/**
+ * 2026-08-13 pair: "Slide Back Down" (bbn-032_Bb) and "Blue Note Roll-Off"
+ * (bbn-010_Bb) — concert Bb on Bb tenor, 105 BPM, swing 0.6, metronome on.
+ * Both phrases repeat an Eb4 (MIDI 63), both takes tongued the repeat with a
+ * feather-light legato "doodle" tongue ON the beat, and both merged the pair
+ * into one long Eb with the second scored MISSED (saved 0.755 / 0.711,
+ * 4/5 and 3/4 hit).
+ *
+ * The articulation's only evidence is the HF tier's home turf — hfRms spikes
+ * 0.02 → 0.070 (peak ratios 3.78 / 3.48 over the run median) across five
+ * frames with energy sustained, no reading gap, no envelope dip, no
+ * instrument-band floor dip at all (the airflow never falters; band floor
+ * stays ≥ 0.17 throughout) — and in both takes it is thrown away one gate
+ * short, for two DIFFERENT reasons:
+ *
+ *   - slide-back-down clears every HF gate (fundamental perturbs 0.133 st)
+ *     but the tongue landed on the beat: the device's ~290 ms output→capture
+ *     latency places the scheduled click's suppression window over the
+ *     spike, and neither `bandFloorDips` shape can rescue evidence that
+ *     never touches the band floor.
+ *   - blue-note-roll-off is so light the fundamental never wobbles
+ *     (max perturbation 0.064 st against the 0.1 gate) — the corroborator
+ *     built to reject key clicks rejects the tongue itself.
+ *
+ * What both takes DO carry is the reed-reset signature the shape tier
+ * documents: shapeBreak dips shallowly (minima 0.848 / 0.877) and recovers,
+ * while every impulsive contaminant measured in the corpus collapses it
+ * DEEP (root-frame metronome click 0.54, Blue Monk thump 0.33). The fix
+ * accepts a shallow-banded shape dip as (a) a click-suppression rescue and
+ * (b) an alternative reed-reset corroborator alongside the pitch
+ * perturbation — see HF_SHAPE_TONGUE_FLOOR / HF_SHAPE_TONGUE_CEILING /
+ * HF_SHAPE_TONGUE_MIN_FRAMES in note-segmenter.ts.
+ */
+describe('pitch replay regression: feather-tongued repeated Eb on the beat (concert Bb, 2026-08-13)', () => {
+	const TEMPO = 105;
+	const SWING = 0.6;
+
+	interface RepeatCase {
+		name: string;
+		file: string;
+		transportSeconds: number;
+		/** The saved diagnostic's captureTrimSeconds, re-derived by the replay. */
+		expectedTrim: number;
+		phrase: Phrase;
+		expectedMidis: number[];
+		/** [minOnset, maxOnset] window for the recovered second Eb. */
+		secondEbWindow: [number, number];
+		savedOverall: number;
+	}
+
+	const mkPhrase = (id: string, name: string, notes: Phrase['notes']): Phrase => ({
+		id,
+		name,
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes,
+		harmony: [],
+		difficulty: { level: 7, pitchComplexity: 11, rhythmComplexity: 3, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	});
+
+	const cases: RepeatCase[] = [
+		{
+			name: 'slide-back-down',
+			file: 'recordings/2026-08-13-slide-back-down.wav',
+			transportSeconds: 239.7871201814059,
+			expectedTrim: 1.9,
+			phrase: mkPhrase('bbn-032_Bb', 'Slide Back Down', [
+				{ pitch: 65, duration: [1, 8], offset: [0, 1] }, // F4
+				{ pitch: 63, duration: [1, 8], offset: [1, 8] }, // Eb4
+				{ pitch: 63, duration: [1, 8], offset: [1, 4] }, // Eb4
+				{ pitch: 61, duration: [1, 8], offset: [3, 8] }, // Db4
+				{ pitch: 58, duration: [1, 4], offset: [1, 2] }  // Bb3
+			]),
+			expectedMidis: [65, 63, 63, 61, 58],
+			secondEbWindow: [0.78, 0.95],
+			savedOverall: 0.755
+		},
+		{
+			name: 'blue-note-roll-off',
+			file: 'recordings/2026-08-13-blue-note-roll-off.wav',
+			transportSeconds: 16.91854875283447,
+			expectedTrim: 0.167,
+			phrase: mkPhrase('bbn-010_Bb', 'Blue Note Roll-Off', [
+				{ pitch: 65, duration: [1, 8], offset: [0, 1] }, // F4
+				{ pitch: 63, duration: [1, 8], offset: [1, 8] }, // Eb4
+				{ pitch: 63, duration: [1, 4], offset: [1, 4] }, // Eb4
+				{ pitch: 61, duration: [1, 2], offset: [1, 2] }  // Db4
+			]),
+			expectedMidis: [65, 63, 63, 61],
+			secondEbWindow: [0.78, 0.95],
+			savedOverall: 0.711
+		}
+	];
+
+	for (const c of cases) {
+		describe(c.name, () => {
+			const replayPipeline = () => replayEarTrainingTake(c.file, c.transportSeconds, TEMPO);
+
+			it('trims the pre-armed lead-in back to the performance', async () => {
+				const { trimmed } = await replayPipeline();
+				expect(trimmed.offset).toBeCloseTo(c.expectedTrim, 2);
+			});
+
+			it('splits the feather-tongued Eb pair despite the on-beat click window', async () => {
+				const { detected } = await replayPipeline();
+				expect(detected.map((n) => n.midi)).toEqual(c.expectedMidis);
+				const [min, max] = c.secondEbWindow;
+				expect(detected[2].onsetTime).toBeGreaterThan(min);
+				expect(detected[2].onsetTime).toBeLessThan(max);
+			});
+
+			it('scores every note hit (the saved take had the second Eb MISSED)', async () => {
+				const { detected } = await replayPipeline();
+				const result = runScorePipeline({
+					detected,
+					phrase: c.phrase,
+					tempo: TEMPO,
+					transportSeconds: c.transportSeconds,
+					swing: SWING,
+					bleedFilterEnabled: false
+				});
+
+				for (const nr of result.chosen.noteResults) {
+					expect(nr.missed).toBe(false);
+					expect(nr.extra).toBe(false);
+				}
+				expect(result.chosen.notesHit).toBe(c.phrase.notes.length);
+				expect(result.chosen.pitchAccuracy).toBe(1);
+				expect(result.chosen.overall).toBeGreaterThan(c.savedOverall);
+				expect(result.chosen.overall).toBeGreaterThan(0.9);
+			});
+		});
+	}
 });

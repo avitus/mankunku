@@ -915,8 +915,8 @@ export function startTrickSession(): boolean {
 	const tempo = clampTempo(getTrickTempo(loadTrickPracticeProgress(), variantKey));
 
 	// The device picks the vamp its selected variant sounds correct over
-	// (e.g. altered triad pairs drill on the dominant vamp); default
-	// major-vamp for devices without a preference (enclosures).
+	// (altered triad pairs on the dominant vamp, minor-type enclosures on the
+	// minor vamp); major-vamp only for a device with no practiceBed hook.
 	const progressionType = trickPracticeBed(trick, trickParameters);
 
 	// C-rooted context mirroring that vamp's chord + scale, so examples and

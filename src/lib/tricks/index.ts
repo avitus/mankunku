@@ -51,10 +51,12 @@ export function trickBedHarmony(
 
 /**
  * The progression a variant drills over. The `'major-vamp'` fallback for
- * devices with no `practiceBed` (enclosures) lives HERE and nowhere else —
- * the session needs the id to schedule the rhythm section while the preview
- * needs only the harmony, and having each derive the default separately is
- * the drift this module exists to prevent.
+ * devices with no `practiceBed` lives HERE and nowhere else — the session
+ * needs the id to schedule the rhythm section while the preview needs only
+ * the harmony, and having each derive the default separately is the drift
+ * this module exists to prevent. (Both current devices declare beds —
+ * triad pairs per family, enclosures per chord type — so the fallback is
+ * purely defensive today.)
  */
 export function trickPracticeBed(
 	trick: Trick,

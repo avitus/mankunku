@@ -56,6 +56,15 @@ export interface TrickContext {
 	 * Scoring ignores it (all styles are always accepted).
 	 */
 	exampleStyle?: string;
+	/**
+	 * Figure span hint: 'compact' = the short insertion gesture used inside
+	 * tune-practice windows; absent or 'full' = the full drill figure. Unlike
+	 * exampleStyle, BOTH generateExample AND scoreConformance honor it, so the
+	 * judged spec always matches the demonstrated phrase. Like exampleStyle it
+	 * is context, never a parameter — it must not enter the variant key.
+	 * Devices without a span distinction (triad-pairs) ignore it.
+	 */
+	figure?: 'full' | 'compact';
 }
 
 /**

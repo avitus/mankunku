@@ -1502,3 +1502,99 @@ with rationale: patching byte-identical vendored LEGATO files (quirks
 documented in VENDORED.md instead), and CodeRabbit's cross-page index claim —
 commitBuffer materializes the buffer verbatim, so base+index arithmetic is
 exact post-commit.
+
+## 2026-08-11 — Enclosures grow up: 4-bar figure with a real pickup, three chord types, 24-variant ladder
+
+The enclosure drill was musically wrong in a way the user could hear: the figure
+started cold on the "and of 1" (silence on the downbeat, then approaches), and it
+only knew maj7. Three approved changes: 4 full bars of content with the first
+group's approach notes as a TRUE anacrusis (partial pickup bar, 5-bar window);
+a `type` parameter (major/minor/dominant) as a real variant axis mirroring
+TRIAD_PAIR_FAMILIES (bed + qualities table, practiceBed/compatibleQualitiesFor
+hooks); and the mastery ladder as three parallel self-contained 8-step chains —
+all three e1s unlocked from day one, no cross-type gating.
+
+What made this clean rather than scary:
+
+- **The pickup lives INSIDE the response window.** Negative offsets are a dead
+  end on four independent layers (humanizeTiming clamps ticks ≥ 0, Tone.Part
+  can't schedule before start, capture windows discard pre-open audio, the
+  scorer's origin is recording-start ≡ offset 0). The sanctioned idiom —
+  offsets ≥ 0, notes starting mid-way through a leading bar, explicit
+  `difficulty.pickupBars` — needed ZERO engine changes: `getLickBars` stretches
+  the vamp window to 5 bars by itself and conformance scoring is bar-blind.
+  `major-chord-pickup-001` was the proof-of-existence precedent.
+
+- **`figure: 'compact'` is context, not a parameter.** Tune insertion windows
+  can't host 5 bars, and `trickForWindow` judges against the same stored
+  context that generated the demo — so the span hint must be honored by BOTH
+  contracts or scoring silently diverges from what the user heard. Same
+  reasoning that made exampleStyle context-not-parameter.
+
+- **Migration runs at the merge seam, not just behind a marker.** The cloud
+  merge unions variant keys, so a marker-only migration would let any stale
+  cloud row or old-code device resurrect legacy keys forever. `migrateTrickState`
+  now normalizes BOTH sides of every init/flush merge; the `enclosure-type-v1`
+  marker only gates the local pass (which is itself gated on hydrate success —
+  the 2026-07-13 rule). trick-migration markers existed since the store was
+  built but had zero consumers; this is their first real use.
+
+- **The notation renderer could already draw an anacrusis** — emergent, since
+  barlines are only emitted between notes — but nothing pinned it, and notation
+  does NOT synthesize rests for gaps, so the generator now bridges internal
+  ring residues with explicit rests (never before the first note, which would
+  turn the partial bar into a full rest-padded one). First regression tests for
+  partial-bar rendering added. Bonus find: `durationToAbc`'s general case never
+  reduced (dotted half at L:1/8 printed `24/4`); fixed, one golden re-pinned.
+
+Numbers: 4071 unit tests green (35 expected-fail), svelte-check clean.
+NOT verified: visual abcjs rendering (Chrome extension unavailable) — eyeball
+/tricks/enclosures previews per type (watch k=1/k=3 rest-filled bars and the
+dotted-half ring), drill each type end-to-end, and a legacy-localStorage reload
+for the migration.
+
+## 2026-08-12 — The feather tongue: a third rescue shape for the on-beat click collision
+
+Two ear-training takes (bbn-032_Bb "Slide Back Down", bbn-010_Bb "Blue Note
+Roll-Off") merged a repeated Eb tongued with the lightest possible legato
+articulation and scored the second note MISSED. (The takes were recorded and
+exported on 2026-08-13 UTC — the fixture filenames carry that date; this
+heading is the local session date.) Same phrase shape, same symptom, same
+fingerprint in the readings — hfRms 0.02 → 0.070 (peak ratios 3.78 / 3.48
+over the run median) for five frames, rms and band floor perfectly flat —
+and yet **two different gates were responsible**: slide-back-down cleared the HF tier's corroborators
+but died in the click-suppression window (the device's ~265–290 ms
+output→capture latency drapes the scheduled click's +0.28 s tail over a
+tongue played ON the beat), while blue-note-roll-off was never suppressed so
+much as disbelieved — a 0.064 st fundamental wobble against the 0.1 gate
+built to reject key clicks. One symptom, two root causes, one missing
+evidence class.
+
+The fix is the third tongue signature the click suppression can trust,
+completing a family: `bandFloorDips`' in-span dip (down-to-the-third: the
+stop silences the horn *during* the spike), its pre-spike stop-and-recover
+(curl-to-the-floor: the stop precedes the spike), and now
+`feathersTongueShape` — the doodle tongue that never interrupts the air at
+all, invisible in every energy measure, but visible as a SHALLOW banded
+cycle-to-cycle shape break (0.80–0.92) on a clean-baseline run. The
+measurement pass over every HF spike span in the corpus is what made the
+band trustworthy: every metronome click either nulls shapeBreak outright
+(the burst destroys period tracking) or drives it ≤ 0.60; hard tongue stops
+are equally deep; the only shallow impostors are single-frame attack
+residues (excluded by a ≥ 2-frame floor) and a 0.956 flicker on a tied note
+(excluded by the 0.92 ceiling). The nearest multi-frame impostor sits at
+0.762 against the 0.80 floor.
+
+Method note worth keeping: rather than reasoning thresholds from the two new
+takes, I instrumented the HF pass behind a `globalThis` hook, ran the two
+audio suites, and let the existing fixtures produce the impostor population
+(~50 spans) before placing a single constant. The corpus IS the spec — the
+same reason the diagnostics-to-fixtures rule exists. Also pinned: the shape
+path takes the established 0.85 true-re-attack energy floor rather than the
+perturbation path's 0.9, because slide-back-down measures 0.89 — the swung
+eighth decays a little before the tap — and every decay impostor the 0.9
+floor was built for is already outside the shape band.
+
+Numbers: 4132 unit/integration tests green (35 expected-fail), 6 new
+regression tests across the two fixtures (trim, split, full-score), corpus
+unregressed, svelte-check clean.

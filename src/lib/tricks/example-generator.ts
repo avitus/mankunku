@@ -20,7 +20,12 @@ import { trickVariantKey } from '$lib/types/tricks';
 import { chordSymbol, chordTones } from '$lib/music/chords';
 import { getScale, getScalesForChord } from '$lib/music/scales';
 import { realizeScaleMidi } from '$lib/music/keys';
-import { fractionToFloat } from '$lib/music/intervals';
+import {
+	addFractions,
+	compareFractions,
+	fractionToFloat,
+	subtractFractions
+} from '$lib/music/intervals';
 import { getProfileForLevel } from '$lib/difficulty/params';
 import { calculateDifficulty } from '$lib/difficulty/calculate';
 import { validatePhrase } from '$lib/phrases/validator';
@@ -39,6 +44,13 @@ export interface TrickExampleArgs {
 	context: TrickContext;
 	rangeLow?: number; // default 44
 	rangeHigh?: number; // default 75
+	/**
+	 * Whole leading bars of anacrusis before the figure's first full bar,
+	 * stamped onto `difficulty.pickupBars` (calculateDifficulty never sets it).
+	 * Explicit rather than detected: `detectPickupBars` keys on integer-offset
+	 * downbeat notes, which offbeat figures may not have.
+	 */
+	pickupBars?: number;
 }
 
 /**
@@ -159,11 +171,26 @@ export function realizeTrickExample(args: TrickExampleArgs): Phrase | null {
 	const pitches = realizePitches(slots, context, low, high);
 	if (!pitches) return null;
 
-	const notes: Note[] = slots.map((slot, i) => ({
-		pitch: pitches[i],
-		duration: slot.duration,
-		offset: slot.offset
-	}));
+	// Bridge internal gaps between slots with explicit rests: notation emits
+	// tokens purely by offset and does NOT synthesize rests for gaps, so a
+	// gapped bar would render underfull. Never pad before the first note —
+	// a leading rest would defeat the partial-bar anacrusis rendering — and
+	// never after the last (nothing follows to misalign).
+	const notes: Note[] = [];
+	slots.forEach((slot, i) => {
+		if (i > 0) {
+			const prev = slots[i - 1];
+			const prevEnd = addFractions(prev.offset, prev.duration);
+			if (compareFractions(slot.offset, prevEnd) > 0) {
+				notes.push({
+					pitch: null,
+					duration: subtractFractions(slot.offset, prevEnd),
+					offset: prevEnd
+				});
+			}
+		}
+		notes.push({ pitch: pitches[i], duration: slot.duration, offset: slot.offset });
+	});
 
 	// One harmonic segment spans the whole example, rounded up to whole notes
 	const totalWholeNotes = Math.max(
@@ -193,6 +220,9 @@ export function realizeTrickExample(args: TrickExampleArgs): Phrase | null {
 		source: 'generated'
 	};
 	phrase.difficulty = calculateDifficulty(phrase);
+	if (args.pickupBars !== undefined) {
+		phrase.difficulty = { ...phrase.difficulty, pickupBars: args.pickupBars };
+	}
 
 	// Tricks are legitimately leapy and chromatic: a triad-pair cell is
 	// wall-to-wall leaps and an enclosure leans on chromatic neighbours, so
