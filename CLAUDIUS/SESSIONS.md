@@ -1668,3 +1668,41 @@ Numbers: 4141 unit/integration green (35 expected-fail), 6 new/extended
 assertions in tempo-adjustment.test.ts, svelte-check clean. Docs updated on
 both prose surfaces (user-guide tempo bullet + unlock section, CLAUDE.md
 tempo rule).
+
+## 2026-08-13 — The 5-bar enclosure window found ChordChart's dead wrap path
+
+User report: after the enclosure drill's 4 content bars, a chord symbol is
+"left in the middle of the screen". Root cause was a first-execution of
+dead code, not a logic error in the new figure: the 5-bar drill window
+(pickup + 4 content, d7d550a) is the first harmony in lick practice ever
+to exceed 4 bars — every progression template is ≤ 4 bars and the old
+enclosure figures were ≤ 3 — so ChordChart's MAX_BARS_PER_ROW = 4 wrap
+logic ran for the first time and pushed the 5th one-bar cell onto a
+second full-width chart row. UpcomingKeysDisplay sizes every key row at a
+fixed 105px ("tuned to fit a single chord-chart row"), so that lone cell
+overflowed the row box and painted over the key below it, right as the
+beat highlight reached it at the end of bar 4.
+
+Fix: wrapping is categorically wrong in this host — a second row never
+has room to render, it can only overflow. The cell math moved to a pure
+module (`src/lib/ui/chord-chart-layout.ts`, chart-geometry pattern:
+Node-testable, DOM-free) and the component renders every cell on ONE
+structural flex row with proportional widths; long windows get narrower
+cells, not more rows. TDD note: the red test was written against the
+extracted wrap logic verbatim (5-bar harmony → expected 1 row, got 2),
+then the wrap was deleted. I first kept a `chordChartRows()` returning
+`[{cells}]` unconditionally so the pin would survive — that's the
+tautological-assertion shape a15b71a specifically retired, so the rows
+API went away entirely and the test pins the non-trivial part (per-bar
+cell split, equal weights, start beats).
+
+Worth keeping: "first harmony to exceed N bars" is a class, not an
+instance. Any future long figure (6-bar devices, extended user licks over
+a 2-bar vamp) now just narrows cells, but the chord symbols at text-2xl
+will get cramped on narrow phones somewhere past 5-6 cells — if a wider
+figure lands, the symbol type size needs to scale with cell count.
+The user said the drill changes "messed up a lot" — this was the one
+named symptom; others may follow.
+
+Numbers: 4144 unit/integration green (35 expected-fail), 3 new tests in
+tests/unit/ui/chord-chart-layout.test.ts, svelte-check clean.
