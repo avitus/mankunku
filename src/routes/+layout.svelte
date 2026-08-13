@@ -279,8 +279,15 @@
 	<Onboarding {supabase} {session} {user} />
 {/if}
 
+<!-- data-hydrated flips to "true" once the layout has mounted. The e2e
+     fixtures' goto() waits on it before returning: until PR #229 the SSR'd
+     onboarding overlay covered every page and incidentally blocked Playwright
+     clicks until hydration removed it — without that accidental barrier, a
+     click fired straight after navigation can land before handlers attach
+     and silently do nothing (the delete-account race on /settings). -->
 <div
 	data-domain={dataDomain}
+	data-hydrated={hydrated}
 	class="grain-overlay min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]"
 >
 	<!-- Domain accent stripe — peripheral cue that the user is inside a

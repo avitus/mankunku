@@ -64,6 +64,28 @@ export interface ConsoleCollector {
 }
 
 export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
+	// goto() additionally waits for the app to hydrate before returning.
+	// Until PR #229 the SSR'd onboarding overlay covered every page and
+	// incidentally blocked clicks until hydration tore it down; with the
+	// overlay gone from SSR, a click fired straight after navigation can land
+	// before Svelte attaches handlers and silently do nothing (that race cost
+	// account.spec its delete-account toggle on CI). The root layout stamps
+	// data-hydrated="true" from its onMount; waiting for it here fixes the
+	// class for every spec instead of sprinkling per-test waits. The catch
+	// keeps non-app navigations (if any ever appear) from hanging a test.
+	page: async ({ page }, use) => {
+		const originalGoto = page.goto.bind(page);
+		page.goto = (async (url: string, options?: Parameters<typeof originalGoto>[1]) => {
+			const response = await originalGoto(url, options);
+			await page
+				.locator('[data-hydrated="true"]')
+				.first()
+				.waitFor({ state: 'attached', timeout: 15000 })
+				.catch(() => {});
+			return response;
+		}) as typeof page.goto;
+		await use(page);
+	},
 	consoleCollector: async ({ page }, use, testInfo): Promise<void> => {
 		const errors: string[] = [];
 		const warnings: string[] = [];
