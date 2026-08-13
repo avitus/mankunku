@@ -1,6 +1,9 @@
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
+	import { phaseTabView, PHASE_LEAD_BEATS, type PhaseCue } from '$lib/state/lick-practice-phase';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { displayPitchClass } from '$lib/music/notation';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import type { PitchClass } from '$lib/types/music';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
@@ -21,11 +24,12 @@
 		/** True while the current key's recording window is open. */
 		isRecording: boolean;
 		/**
-		 * True while the app is playing a continuous-mode demo before the
-		 * user starts. The active row's chip switches from "Now" to "Listen"
-		 * to signal that the user should listen, not play.
+		 * Listen/play cue for the phase tab pinned to the active row: brass
+		 * LISTEN while the app plays, on-air PLAY (with a countdown and the
+		 * entry key) while the user does, "Straight in" through a turnaround
+		 * that opens with no demo. Omit to render no tab.
 		 */
-		isDemoing?: boolean;
+		cue?: PhaseCue | null;
 		/**
 		 * True through the lead-in bar before the user's recording window
 		 * opens. Pre-lights the active row's ring so the eye is already on the
@@ -49,7 +53,7 @@
 		currentBeat,
 		isPlaying,
 		isRecording,
-		isDemoing = false,
+		cue = null,
 		isArming = false,
 		scoreFlash = null,
 		instrument
@@ -72,7 +76,27 @@
 	const visualCurrentRow = $derived(
 		Math.min(plannedKeys.length - 1, Math.max(0, Math.floor(scrollFraction)))
 	);
+
+	// The tab names the key of the row it sits on — that row is always the one
+	// about to be played (the turnaround has already swapped the stack).
+	const activeKeyLabel = $derived.by(() => {
+		const key = plannedKeys[visualCurrentRow]?.key;
+		if (!key) return '';
+		const written = concertKeyToWritten(key, instrument);
+		return displayPitchClass(written, written);
+	});
+	const tab = $derived(cue ? phaseTabView(cue, activeKeyLabel) : null);
+	const tabArm = $derived(
+		tab && tab.count > 0 ? (PHASE_LEAD_BEATS + 1 - tab.count) / (PHASE_LEAD_BEATS + 1) : 0
+	);
 </script>
+
+<!-- Persistent live region: the visible tab is destroyed and recreated when
+     the stack swaps rows, and screen readers don't announce content that
+     arrives by insertion — so the announcement lives on one stable element. -->
+<span class="sr-only" role="status" aria-live="polite">
+	{tab && tab.kind !== 'hidden' ? tab.text : ''}
+</span>
 
 <div class="viewport" style="height: {ROW_HEIGHT * VISIBLE_ROWS}px;">
 	<div class="stack" style="transform: translateY({translateYpx}px);">
@@ -85,9 +109,6 @@
 			>
 				{#if i === 0}
 				<div class="row-label">
-					{#if isCurrent && isDemoing}
-						<span class="listen-tag">Listen</span>
-					{/if}
 					<span class="lick-name">{pk.lickName}</span>
 				</div>
 				{/if}
@@ -119,6 +140,44 @@
 								{Math.round(scoreFlash.score * 100)}%
 							</div>
 						{/key}
+					{/if}
+					<!-- Phase tab: the booth sign for the row the user is reading.
+					     It rides the scroll for free (the row is its positioning
+					     context) and covers the chart's "Changes" label, which is
+					     the line the eye crosses on the way into the chords. -->
+					{#if isCurrent && tab && tab.kind !== 'hidden'}
+						<div class="phase-tab" data-kind={tab.kind} style="--arm: {tabArm};">
+							<span class="tab-lamp" class:lit={tab.kind === 'play'} aria-hidden="true"></span>
+							{#if tab.kind === 'play' || tab.kind === 'play-in'}
+								<svg class="tab-glyph" viewBox="0 0 16 16" aria-hidden="true">
+									<rect x="6" y="1.5" width="4" height="7.5" rx="2" fill="currentColor" />
+									<path
+										d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.3"
+										stroke-linecap="round"
+									/>
+								</svg>
+							{:else if tab.kind === 'listen' || tab.kind === 'listen-in'}
+								<svg class="tab-glyph" viewBox="0 0 16 16" aria-hidden="true">
+									<path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor" />
+									<path
+										d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6 6 0 0 1 0 9"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.3"
+										stroke-linecap="round"
+									/>
+								</svg>
+							{/if}
+							<span class="smallcaps" aria-hidden="true">{tab.text}</span>
+							{#if tab.count > 0}
+								{#key tab.count}
+									<span class="tab-count" aria-hidden="true">{tab.count}</span>
+								{/key}
+							{/if}
+						</div>
 					{/if}
 				</div>
 			</div>
@@ -200,15 +259,117 @@
 		align-items: center;
 		gap: 0.5rem;
 	}
-	.listen-tag {
-		font-size: 0.65rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--color-text-secondary);
-	}
 	.lick-name {
 		font-size: 0.75rem;
 		color: var(--color-text-secondary);
+	}
+
+	/* Phase tab — the listen/play booth sign pinned to the active row. Brass
+	   is the band's colour (the app playing), on-air red is the live mic; the
+	   solid background is deliberate so the tab owns its corner of the chart. */
+	.phase-tab {
+		position: absolute;
+		top: 0;
+		left: 0;
+		z-index: 2;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.18rem 0.55rem;
+		border-radius: 0.45rem;
+		border: 1px solid transparent;
+		background: var(--color-bg);
+		color: var(--color-text-secondary);
+		transition:
+			color 200ms ease,
+			background-color 200ms ease,
+			border-color 200ms ease;
+	}
+	/* Lead-in wash: opacity tracks the countdown via --arm, same idiom the
+	   score components use — felt a bar early, read on the downbeat. */
+	.phase-tab::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		pointer-events: none;
+		opacity: 0;
+		transition: opacity 200ms linear;
+	}
+	.phase-tab > * {
+		position: relative;
+	}
+	.phase-tab[data-kind='listen'],
+	.phase-tab[data-kind='listen-in'] {
+		color: color-mix(in srgb, var(--color-brass) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-brass) 16%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-brass) 40%, transparent);
+	}
+	.phase-tab[data-kind='play-in'] {
+		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-onair) 10%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-onair) 40%, transparent);
+	}
+	.phase-tab[data-kind='play-in']::before {
+		background: color-mix(in srgb, var(--color-onair) 22%, transparent);
+		opacity: var(--arm);
+	}
+	.phase-tab[data-kind='play'] {
+		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-onair) 50%, transparent);
+	}
+	.tab-lamp {
+		flex: none;
+		width: 7px;
+		height: 7px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
+		box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.6);
+		transition:
+			background-color 150ms ease,
+			box-shadow 150ms ease;
+	}
+	.tab-lamp.lit {
+		background: var(--color-onair);
+		box-shadow:
+			0 0 6px color-mix(in srgb, var(--color-onair) 80%, transparent),
+			inset 0 0 1px rgba(255, 255, 255, 0.4);
+	}
+	.tab-glyph {
+		flex: none;
+		width: 0.85rem;
+		height: 0.85rem;
+	}
+	.tab-count {
+		display: inline-block;
+		min-width: 0.9rem;
+		text-align: center;
+		font-size: 1.05rem;
+		font-weight: 800;
+		line-height: 1;
+		font-variant-numeric: tabular-nums;
+		animation: tab-tick 220ms ease-out;
+	}
+	@keyframes tab-tick {
+		from {
+			opacity: 0.4;
+			transform: scale(1.35);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.phase-tab,
+		.phase-tab::before,
+		.tab-lamp {
+			transition: none;
+		}
+		.tab-count {
+			animation: none;
+		}
 	}
 </style>

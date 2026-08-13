@@ -301,8 +301,10 @@ Scrolling preview strip showing the current, next, and upcoming key chord charts
 | `currentBeat` | `number` | Active beat in the currently-playing key |
 | `isPlaying` | `boolean` | Session running |
 | `isRecording` | `boolean` | Current key's recording window is open |
-| `isDemoing` | `boolean?` | Continuous-mode demo active — swaps the "Now" chip for "Listen" |
-| `instrument` | `InstrumentConfig` | Used for written-pitch chord labels |
+| `cue` | `PhaseCue?` | Drives the phase tab on the active row (brass LISTEN / on-air PLAY with countdown + entry key / "Straight in" turnaround). Omit for no tab |
+| `isArming` | `boolean?` | Lead-in bar before the recording window — dashes the active row's ring |
+| `scoreFlash` | `{ key, score, at }?` | Tier-colored score chip flashed on the matching key's row |
+| `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
 
 ### `SessionTimer.svelte`
 

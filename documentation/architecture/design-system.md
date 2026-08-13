@@ -242,7 +242,7 @@ Every component that uses `var(--color-accent)` flips for free when the domain c
 - **Primary CTA buttons** on `/ear-training`, `/lick-practice`, session reports
 - **`KeyProgressRing`** (current key indicator)
 - **`ChordChart`** (active cell highlight, beat dots, progress bar)
-- **`UpcomingKeysDisplay`** ("Now"/"Listen" chip, recording-pulse shadow)
+- **`UpcomingKeysDisplay`** (phase tab on the active row — brass LISTEN / on-air PLAY / "Straight in" turnaround announcement — plus the recording ring)
 - **`SessionTimer`** progress bar fill
 - **`LickCard`** play button and progression-tag chips
 - **`PracticeSetup`** / `CategoryFilter` selected state
