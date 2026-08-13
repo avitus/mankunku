@@ -1,4 +1,4 @@
-import { test as base, type ConsoleMessage } from '@playwright/test';
+import { test as base, type ConsoleMessage, type Page, type Response } from '@playwright/test';
 
 /**
  * Patterns we choose to ignore in the console-error fixture.
@@ -64,6 +64,32 @@ export interface ConsoleCollector {
 }
 
 export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
+	// goto() additionally waits for the app to hydrate before returning.
+	// Until PR #229 the SSR'd onboarding overlay covered every page and
+	// incidentally blocked clicks until hydration tore it down; with the
+	// overlay gone from SSR, a click fired straight after navigation can land
+	// before Svelte attaches handlers and silently do nothing (that race cost
+	// account.spec its delete-account toggle on CI). The root layout stamps
+	// data-hydrated="true" from its onMount; waiting for it here fixes the
+	// class for every spec instead of sprinkling per-test waits. The wait is
+	// deliberately NOT caught: every spec navigates to app routes (including
+	// error pages, which render inside the root layout), so a missing marker
+	// means hydration itself broke — fail loudly here, not confusingly later.
+	page: async ({ page }, use: (page: Page) => Promise<void>): Promise<void> => {
+		const originalGoto = page.goto.bind(page);
+		page.goto = (async (
+			url: string,
+			options?: Parameters<Page['goto']>[1]
+		): Promise<Response | null> => {
+			const response = await originalGoto(url, options);
+			await page
+				.locator('[data-hydrated="true"]')
+				.first()
+				.waitFor({ state: 'attached', timeout: 15000 });
+			return response;
+		}) as typeof page.goto;
+		await use(page);
+	},
 	consoleCollector: async ({ page }, use, testInfo): Promise<void> => {
 		const errors: string[] = [];
 		const warnings: string[] = [];

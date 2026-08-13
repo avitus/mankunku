@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import TrickCard from '$lib/components/tricks/TrickCard.svelte';
 	import { TRICKS } from '$lib/tricks';
 </script>
 
-<svelte:head>
-	<title>Tricks — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Tricks — Mankunku"
+	description="Practice melodic devices — enclosures and triad pairs — for fluency in every key, scored for conformance to the pattern rather than exact reproduction."
+/>
 
 <div class="space-y-8">
 	<div>

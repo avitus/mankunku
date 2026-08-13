@@ -4,33 +4,45 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="theme-color" content="#0f172a" />
-		<title>Mankunku · Jazz Practice</title>
-		<meta
-			name="description"
-			content="Browser-based jazz ear training and lick practice. Play with your instrument, the app listens, and your pitch and rhythm are scored in real time."
-		/>
+		<!-- No title/description in this shell: every page route emits its own
+		     via svelte:head (see SeoHead.svelte). A static pair here would
+		     duplicate them in SSR output, and crawlers take the FIRST title in
+		     the document — which made every page present identically to Google. -->
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
 		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
 
 		<meta property="og:type" content="website" />
 		<meta property="og:site_name" content="Mankunku" />
-		<meta property="og:title" content="Mankunku · Jazz Practice" />
-		<meta
-			property="og:description"
-			content="Browser-based jazz ear training and lick practice. Play with your instrument, the app listens, and your pitch and rhythm are scored in real time."
-		/>
 		<meta property="og:image" content="https://mankunkujazz.com/og-image.png" />
 		<meta property="og:image:width" content="1200" />
 		<meta property="og:image:height" content="630" />
 		<meta property="og:image:alt" content="Mankunku — Jazz Practice" />
 
 		<meta name="twitter:card" content="summary_large_image" />
-		<meta name="twitter:title" content="Mankunku · Jazz Practice" />
-		<meta
-			name="twitter:description"
-			content="Browser-based jazz ear training and lick practice. Score your pitch and rhythm in real time."
-		/>
 		<meta name="twitter:image" content="https://mankunkujazz.com/og-image.png" />
+
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@graph": [
+					{
+						"@type": "WebSite",
+						"@id": "https://mankunkujazz.com/#website",
+						"url": "https://mankunkujazz.com/",
+						"name": "Mankunku",
+						"description": "Browser-based jazz ear training and lick practice. Play with your instrument, the app listens, and your pitch and rhythm are scored in real time."
+					},
+					{
+						"@type": "SoftwareApplication",
+						"name": "Mankunku",
+						"url": "https://mankunkujazz.com/",
+						"applicationCategory": "EducationalApplication",
+						"operatingSystem": "Web",
+						"offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+					}
+				]
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

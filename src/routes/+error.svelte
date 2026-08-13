@@ -15,6 +15,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{page.status === 404 ? 'Page not found' : 'Something went wrong'} — Mankunku</title>
+</svelte:head>
+
 <div class="flex flex-col items-center gap-4 py-16 text-center">
 	<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-text)]">
 		{page.status === 404 ? 'Page not found' : 'Something went wrong'}

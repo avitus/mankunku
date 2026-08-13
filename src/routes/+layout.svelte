@@ -144,6 +144,36 @@
 	});
 
 
+	// Onboarding auto-triggers only on the mic-driven practice surfaces where
+	// the instrument choice and mic permission actually matter. Everywhere
+	// else (/, /docs, /licks, /tunes, /scales, community pages) must render
+	// clean for a fresh profile: Googlebot both reads the SSR HTML and renders
+	// the page with empty localStorage, so an unconditional overlay used to be
+	// the entire visible content of every URL on the site.
+	const ONBOARDING_ROUTE_PREFIXES = [
+		'/ear-training',
+		'/lick-practice',
+		'/tricks',
+		'/licks/record'
+	];
+	const isOnboardingRoute = $derived.by(() => {
+		const path = page.url?.pathname ?? '/';
+		return (
+			ONBOARDING_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
+			// Tune practice is a scored mic surface too, but lives under the
+			// otherwise-browsable /tunes tree, so it can't ride a prefix.
+			/^\/tunes\/[^/]+\/practice/.test(path)
+		);
+	});
+
+	// The overlay may only mount AFTER hydration: `settings.onboardingComplete`
+	// comes from localStorage, which the server can't read, so consulting it
+	// during SSR/hydration would either bake the overlay into every page's
+	// server HTML (it did) or create a hydration mismatch. SSR renders the
+	// branch false, hydration agrees, and the overlay appears as a plain
+	// post-mount state change.
+	let hydrated = $state(false);
+
 	// Track whether cloud tour state has been merged in. Without this, the
 	// welcome banner can render on a fresh device using stale local state
 	// before the cloud merge resolves — letting someone who already
@@ -183,6 +213,7 @@
 	);
 
 	onMount(() => {
+		hydrated = true;
 		applyTheme();
 
 
@@ -244,12 +275,19 @@
 	<meta property="og:url" content={canonicalUrl} />
 </svelte:head>
 
-{#if !settings.onboardingComplete}
+{#if hydrated && isOnboardingRoute && !settings.onboardingComplete}
 	<Onboarding {supabase} {session} {user} />
 {/if}
 
+<!-- data-hydrated flips to "true" once the layout has mounted. The e2e
+     fixtures' goto() waits on it before returning: until PR #229 the SSR'd
+     onboarding overlay covered every page and incidentally blocked Playwright
+     clicks until hydration removed it — without that accidental barrier, a
+     click fired straight after navigation can land before handlers attach
+     and silently do nothing (the delete-account race on /settings). -->
 <div
 	data-domain={dataDomain}
+	data-hydrated={hydrated}
 	class="grain-overlay min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]"
 >
 	<!-- Domain accent stripe — peripheral cue that the user is inside a

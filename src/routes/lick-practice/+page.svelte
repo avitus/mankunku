@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { page } from '$app/state';
 	import PracticeSetup from '$lib/components/lick-practice/PracticeSetup.svelte';
 	import {
@@ -95,9 +96,10 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Lick Practice — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Lick Practice — Mankunku"
+	description="Drill jazz licks through all twelve keys over a generated rhythm section — walking bass, comping, and drums — with tempo that adapts as you master each key."
+/>
 
 <div class="space-y-5">
 	<div class="flex items-end justify-between flex-wrap gap-3">

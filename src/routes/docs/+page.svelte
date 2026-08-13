@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { DOC_TREE } from '$lib/docs/structure';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 </script>
 
-<svelte:head>
-	<title>Documentation — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Documentation — Mankunku"
+	description="How Mankunku works: practice guides, the scoring algorithm, the audio pipeline, the daily key system, and a glossary of jazz terms."
+/>
 
 <div class="space-y-8">
 	<div>

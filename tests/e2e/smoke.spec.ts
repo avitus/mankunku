@@ -93,6 +93,16 @@ test.describe('smoke: every route renders cleanly', () => {
 			// this smoke layer should catch.
 			await expect(page.locator('main')).toBeVisible();
 
+			// The shell (app.html) deliberately carries no <title>: each route
+			// must emit exactly one of its own (SeoHead or a bare svelte:head
+			// title). Zero means a new route shipped without one — there is no
+			// fallback anymore — and two would hand crawlers whichever comes
+			// first in the document.
+			await expect(
+				page.locator('head title'),
+				`${route.path} must emit exactly one <title>`
+			).toHaveCount(1);
+
 			if (route.expectText) {
 				await expect(page.getByText(route.expectText).first()).toBeVisible();
 			}

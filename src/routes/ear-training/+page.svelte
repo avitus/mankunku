@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
 	import { GRADE_COLORS } from '$lib/ui/score-colors';
 	import { TEST_PHRASES } from '$lib/data/test-phrases';
@@ -867,9 +868,10 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Ear Training — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Ear Training — Mankunku"
+	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
+/>
 
 <div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
 	<div class="absolute right-4 top-2">

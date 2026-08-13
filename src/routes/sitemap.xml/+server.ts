@@ -2,14 +2,21 @@ import { ALL_PAGES } from '$lib/docs/structure';
 
 const SITE = 'https://mankunkujazz.com';
 
+// Docs pages outrank the app surfaces here on purpose: for a crawler (fresh
+// profile, no local data) the practice routes render as near-empty shells,
+// while /docs/** is real server-rendered prose — the site's indexable content.
+// The community browse pages are deliberately absent: they render only a
+// sign-in prompt for anonymous visitors (and emit noindex in that state), so
+// advertising them to crawlers would be a soft-404 farm.
 const TOP_LEVEL_ROUTES: { path: string; priority: string; changefreq: string }[] = [
 	{ path: '/', priority: '1.0', changefreq: 'weekly' },
-	{ path: '/ear-training', priority: '0.9', changefreq: 'weekly' },
-	{ path: '/lick-practice', priority: '0.9', changefreq: 'weekly' },
-	{ path: '/licks', priority: '0.8', changefreq: 'weekly' },
-	{ path: '/docs', priority: '0.8', changefreq: 'monthly' },
-	{ path: '/scales', priority: '0.7', changefreq: 'monthly' },
-	{ path: '/licks/community', priority: '0.6', changefreq: 'weekly' }
+	{ path: '/docs', priority: '0.9', changefreq: 'monthly' },
+	{ path: '/ear-training', priority: '0.6', changefreq: 'monthly' },
+	{ path: '/lick-practice', priority: '0.6', changefreq: 'monthly' },
+	{ path: '/tricks', priority: '0.6', changefreq: 'monthly' },
+	{ path: '/licks', priority: '0.5', changefreq: 'monthly' },
+	{ path: '/tunes', priority: '0.5', changefreq: 'monthly' },
+	{ path: '/scales', priority: '0.5', changefreq: 'monthly' }
 ];
 
 export const prerender = true;
@@ -24,16 +31,17 @@ function escapeXml(unsafe: string): string {
 }
 
 export function GET(): Response {
-	const lastmod = new Date().toISOString().slice(0, 10);
-
+	// No <lastmod>: this route is prerendered, so a build-time date would
+	// claim every URL changed on every deploy — a signal crawlers learn to
+	// distrust. Omitting it is valid; priorities/changefreq carry the hints.
 	const urls = [
 		...TOP_LEVEL_ROUTES.map(
 			(r) =>
-				`	<url>\n		<loc>${escapeXml(`${SITE}${r.path}`)}</loc>\n		<lastmod>${lastmod}</lastmod>\n		<changefreq>${r.changefreq}</changefreq>\n		<priority>${r.priority}</priority>\n	</url>`
+				`	<url>\n		<loc>${escapeXml(`${SITE}${r.path}`)}</loc>\n		<changefreq>${r.changefreq}</changefreq>\n		<priority>${r.priority}</priority>\n	</url>`
 		),
 		...ALL_PAGES.map(
 			(p) =>
-				`	<url>\n		<loc>${escapeXml(`${SITE}/docs/${p.slug}`)}</loc>\n		<lastmod>${lastmod}</lastmod>\n		<changefreq>monthly</changefreq>\n		<priority>0.5</priority>\n	</url>`
+				`	<url>\n		<loc>${escapeXml(`${SITE}/docs/${p.slug}`)}</loc>\n		<changefreq>monthly</changefreq>\n		<priority>0.8</priority>\n	</url>`
 		)
 	].join('\n');
 

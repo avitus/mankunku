@@ -70,6 +70,40 @@ if ! sudo nginx -t; then
     exit 1
 fi
 
+# Warn (never block) when a server_name in the new config is not covered by
+# the certificate it references — e.g. the www vhost before `certbot --expand`
+# has added the www SAN. Blocking here would couple every future nginx deploy
+# to a manual cert step; the vhost merely answers with a name mismatch until
+# the cert catches up, while the apex keeps working either way.
+echo "==> Preflight: certificate SAN coverage (warning-only)"
+# `|| true` on the extraction pipelines: under set -e + pipefail, a config
+# with no ssl_certificate (or no server_name) would otherwise abort the
+# script here — after install, before reload — leaving a half-done deploy.
+CERT_PATH="$(grep -Eh '^[[:space:]]*ssl_certificate[[:space:]]' "$LIVE_CONFIG" | head -1 | awk '{print $2}' | tr -d ';' || true)"
+if [[ -n "$CERT_PATH" ]] && sudo test -r "$CERT_PATH"; then
+    # Compare exact SAN tokens (openssl prints "DNS:a, DNS:b"), not
+    # substrings: substring matching would let DNS:host.evil satisfy host,
+    # and would miss wildcard SANs entirely.
+    SAN_LIST="$(sudo openssl x509 -in "$CERT_PATH" -noout -ext subjectAltName 2>/dev/null \
+        | tr ',' '\n' | sed -n 's/.*DNS:[[:space:]]*//p' || true)"
+    while read -r host; do
+        [[ -z "$host" ]] && continue
+        covered=0
+        while read -r san; do
+            [[ -z "$san" ]] && continue
+            if [[ "$san" == "$host" ]]; then covered=1; break; fi
+            # A wildcard SAN covers exactly one leftmost label.
+            if [[ "$san" == \*.* && "$host" == *.* && "${san#\*.}" == "${host#*.}" ]]; then
+                covered=1
+                break
+            fi
+        done <<<"$SAN_LIST"
+        if [[ "$covered" -eq 0 ]]; then
+            echo "WARNING: server_name ${host} is not covered by the SANs of ${CERT_PATH} — https://${host} will fail TLS validation until the certificate is expanded (see nginx/mankunku.conf)." >&2
+        fi
+    done < <(grep -Eh '^[[:space:]]*server_name[[:space:]]' "$LIVE_CONFIG" | sed -E 's/^[[:space:]]*server_name[[:space:]]+//; s/;.*$//' | tr '[:space:]' '\n' | sort -u || true)
+fi
+
 echo "==> Reloading nginx"
 sudo systemctl reload nginx
 

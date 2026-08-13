@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import TuneCard from '$lib/components/tunes/TuneCard.svelte';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
@@ -77,9 +78,10 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Tunes — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Tunes — Mankunku"
+	description="Your jazz songbook: chart tunes by hand or import from iReal Pro, Band-in-a-Box, MuseScore, or PDF, then practice your vocabulary over the changes."
+/>
 
 <div class="space-y-8">
 	<div class="flex flex-wrap items-end justify-between gap-4">
