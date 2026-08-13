@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { page } from '$app/state';
 	import { CATEGORY_LABELS, type Phrase, type PhraseCategory } from '$lib/types/music';
 	import { community } from '$lib/state/community.svelte';
@@ -222,9 +223,10 @@
 	];
 </script>
 
-<svelte:head>
-	<title>Community Licks — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Community Licks — Mankunku"
+	description="Browse jazz licks shared by other players and adopt the ones worth stealing into your own book."
+/>
 
 <div class="space-y-6">
 	<a

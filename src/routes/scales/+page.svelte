@@ -1,13 +1,15 @@
 <script lang="ts">
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { SCALE_CATALOG, getMvpScales } from '$lib/music/scales';
 
 	const mvpScales = getMvpScales();
 	const families = [...new Set(mvpScales.map((s) => s.family))];
 </script>
 
-<svelte:head>
-	<title>Scales — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Scales — Mankunku"
+	description="A reference for every scale Mankunku practices, engraved in notation and transposed for concert, B♭, and E♭ instruments."
+/>
 
 <div class="space-y-6">
 	<div>

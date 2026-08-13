@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onDestroy } from 'svelte';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import CommunityTuneCard from '$lib/components/tunes/CommunityTuneCard.svelte';
 	import {
 		listCommunityTunes,
@@ -184,9 +185,10 @@
 	];
 </script>
 
-<svelte:head>
-	<title>Community Tunes — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Community Tunes — Mankunku"
+	description="Browse full jazz song forms shared by other players — melody and changes — and adopt them into your own tune book."
+/>
 
 <div class="space-y-6">
 	<a

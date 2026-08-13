@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import LickCard from '$lib/components/licks/LickCard.svelte';
 	import { licks } from '$lib/state/licks.svelte';
 	import { settings } from '$lib/state/settings.svelte';
@@ -253,9 +254,10 @@
 	});
 </script>
 
-<svelte:head>
-	<title>Your Licks — Mankunku</title>
-</svelte:head>
+<SeoHead
+	title="Your Licks — Mankunku"
+	description="Your personal jazz lick book: record licks, write them in the step editor, or adopt them from the community, then send them to multi-key practice."
+/>
 
 {#snippet lickGrid(licks: Phrase[], opts: { toggleLabel?: 'add' | 'remove' })}
 	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
