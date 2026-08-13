@@ -160,3 +160,51 @@ function cue(
 		countdown: beatsUntilNext > 0 && beatsUntilNext <= leadBeats ? beatsUntilNext : 0
 	};
 }
+
+/** What the on-chart phase tab renders for one cue. */
+export interface PhaseTabView {
+	kind: 'listen' | 'listen-in' | 'play-in' | 'play' | 'rest' | 'hidden';
+	/** Smallcaps label; the countdown numeral renders separately from `count`. */
+	text: string;
+	/** Countdown numeral (leadBeats..1), or 0 when none shows. */
+	count: number;
+}
+
+/**
+ * Map a cue to the row tab pinned on the active chart.
+ *
+ * The one rule that must never regress: a countdown into `play` from a
+ * `transition` or `count-in` announces itself as "Straight in" with the entry
+ * key. That is the skipped-demo turnaround — the cycle where nothing sounds
+ * before the user's entrance — and it is exactly the moment the timeline
+ * cannot express as a `listen` block, so the tab is its only warning.
+ *
+ * `keyLabel` is the written-pitch name of the active row's key. The active
+ * row is always the row about to be played: continuous mode demos and then
+ * answers in the head key, call-response answers in the current key, and the
+ * turnaround has already swapped the stack to the next rotation.
+ *
+ * An open play window always reads `play` — a countdown into the app's next
+ * half (call-response: `play` → `listen`) must NOT flip the tab early, or it
+ * tells the user their turn is over a bar before the mic closes. Countdowns
+ * exist to warn the user to START, never to stop.
+ */
+export function phaseTabView(cue: PhaseCue, keyLabel: string): PhaseTabView {
+	if (cue.phase === 'idle') return { kind: 'hidden', text: '', count: 0 };
+	if (cue.countdown > 0 && cue.next === 'play') {
+		const straightIn = cue.phase === 'transition' || cue.phase === 'count-in';
+		return {
+			kind: 'play-in',
+			count: cue.countdown,
+			text: straightIn ? `Straight in — ${keyLabel}` : `Play ${keyLabel} in`
+		};
+	}
+	if (cue.phase === 'play') return { kind: 'play', text: 'Play', count: 0 };
+	if (cue.countdown > 0 && cue.next === 'listen') {
+		return { kind: 'listen-in', count: cue.countdown, text: 'Listen in' };
+	}
+	if (cue.phase === 'listen' || cue.phase === 'count-in') {
+		return { kind: 'listen', text: 'Listen', count: 0 };
+	}
+	return { kind: 'rest', text: 'Rest', count: 0 };
+}

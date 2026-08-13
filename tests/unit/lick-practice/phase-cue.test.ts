@@ -16,7 +16,9 @@ import { planCycleWindows, type CycleWindowPlan } from '$lib/state/lick-practice
 import {
 	buildPhaseTimeline,
 	phaseCueAt,
-	PHASE_LEAD_BEATS
+	phaseTabView,
+	PHASE_LEAD_BEATS,
+	type PhaseCue
 } from '$lib/state/lick-practice-phase';
 
 const PPQ = 192;
@@ -180,5 +182,86 @@ describe('phaseCueAt', () => {
 		expect(cue.next).toBeNull();
 		expect(cue.beatsUntilNext).toBeNull();
 		expect(cue.countdown).toBe(0);
+	});
+});
+
+describe('phaseTabView', () => {
+	const at = (partial: Partial<PhaseCue>): PhaseCue => ({
+		phase: 'play',
+		next: null,
+		beatsUntilNext: null,
+		countdown: 0,
+		...partial
+	});
+
+	it('reads LISTEN through a demo and steady PLAY through the merged block', () => {
+		expect(phaseTabView(at({ phase: 'listen', next: 'play', beatsUntilNext: 8 }), 'F')).toEqual({
+			kind: 'listen',
+			text: 'Listen',
+			count: 0
+		});
+		expect(phaseTabView(at({ phase: 'play', next: 'transition' }), 'F')).toEqual({
+			kind: 'play',
+			text: 'Play',
+			count: 0
+		});
+	});
+
+	it('counts into the entrance with the key named, from the demo last bar', () => {
+		const view = phaseTabView(
+			at({ phase: 'listen', next: 'play', beatsUntilNext: 3, countdown: 3 }),
+			'Eb'
+		);
+		expect(view).toEqual({ kind: 'play-in', text: 'Play Eb in', count: 3 });
+	});
+
+	it('announces "Straight in" through a turnaround that opens with no demo', () => {
+		// The skipped-demo cycle: the timeline has NO listen segment, so this
+		// tab is the only warning the user gets before their entrance. The
+		// straight-in wording (vs a plain countdown) must never regress.
+		const view = phaseTabView(
+			at({ phase: 'transition', next: 'play', beatsUntilNext: 4, countdown: 4 }),
+			'F'
+		);
+		expect(view).toEqual({ kind: 'play-in', text: 'Straight in — F', count: 4 });
+	});
+
+	it('holds PLAY through an open window even while counting into the app half', () => {
+		// Call-response: every user window except the last is followed by a
+		// listen segment, so its final bar carries a countdown into `listen`.
+		// The tab must NOT flip early — the mic is still open, and flipping
+		// tells the user their turn is over a bar before it is.
+		const view = phaseTabView(
+			at({ phase: 'play', next: 'listen', beatsUntilNext: 3, countdown: 3 }),
+			'F'
+		);
+		expect(view).toEqual({ kind: 'play', text: 'Play', count: 0 });
+	});
+
+	it('counts into a demo cycle as LISTEN IN, from turnaround or count-in alike', () => {
+		const fromTurnaround = phaseTabView(
+			at({ phase: 'transition', next: 'listen', beatsUntilNext: 2, countdown: 2 }),
+			'F'
+		);
+		expect(fromTurnaround).toEqual({ kind: 'listen-in', text: 'Listen in', count: 2 });
+
+		const fromCountIn = phaseTabView(
+			at({ phase: 'count-in', next: 'listen', beatsUntilNext: 4, countdown: 4 }),
+			'F'
+		);
+		expect(fromCountIn).toEqual({ kind: 'listen-in', text: 'Listen in', count: 4 });
+	});
+
+	it('rests quietly in a long transition and hides when idle', () => {
+		// Standard mode's 2-bar inter-lick rest: the first bar is beyond the
+		// countdown lead, so the tab shows a calm Rest rather than a number.
+		expect(
+			phaseTabView(at({ phase: 'transition', next: 'listen', beatsUntilNext: 8 }), 'F')
+		).toEqual({ kind: 'rest', text: 'Rest', count: 0 });
+		expect(phaseTabView(at({ phase: 'idle' }), 'F')).toEqual({
+			kind: 'hidden',
+			text: '',
+			count: 0
+		});
 	});
 });
