@@ -11,6 +11,7 @@ import {
 	type LickMatcherDeps
 } from '$lib/tunes/lick-matcher';
 import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import {
 	saveLickPracticeProgress,
 	saveUserLickTags,
@@ -423,7 +424,11 @@ describe('buildLickMatcherDeps — live store assembly, strictly read-only', () 
 
 		vi.clearAllMocks();
 
-		const deps = buildLickMatcherDeps({ timeSignature: [4, 4] });
+		const deps = buildLickMatcherDeps({ timeSignature: [4, 4] }, INSTRUMENTS.concert);
+		// The trick ramp anchors at the player's written C — concert C here,
+		// concert Bb for a Bb horn.
+		expect(deps.trickEntryKey).toBe('C');
+		expect(buildLickMatcherDeps({ timeSignature: [4, 4] }, INSTRUMENTS['tenor-sax']).trickEntryKey).toBe('Bb');
 		const result = suggestLicksForProgression(detectShortInC(), deps, { limit: 5 });
 
 		const seeded = result.suggestions.find((s) => baseLickId(s.lickId) === lickId);

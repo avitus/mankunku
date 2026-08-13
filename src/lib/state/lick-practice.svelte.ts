@@ -99,7 +99,7 @@ import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
 import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
-import { exampleStyleForRound, getTrickById, trickContextFor, trickPracticeBed } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById, trickContextFor, trickEntryKey, trickPracticeBed } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	loadTrickPracticeProgress,
@@ -894,7 +894,11 @@ export function startSingleLickSession(
  * The plan item is a `kind: 'trick'` item whose `phraseId` is the composite
  * variant key and whose `phrase` is a generated example built in a C-rooted
  * context — key 'C', over the chord/scale of the device's preferred vamp —
- * so the existing per-key transposition path works unchanged. All progress reads/writes go to the TRICK store
+ * so the existing per-key transposition path works unchanged. The KEY
+ * ROTATION anchors elsewhere: at `trickEntryKey`, the player's written C in
+ * concert pitch, so the drill starts on the key the player reads as C and
+ * grows outward exactly like a lick entered in written C (a lick's anchor is
+ * its stored concert `key`; tricks have none, so it is derived here). All progress reads/writes go to the TRICK store
  * (recordKeyAttempt / advanceSingleLickRound branch on `kind`); tricks never
  * touch `lickPractice.progress`.
  *
@@ -934,7 +938,10 @@ export function startTrickSession(): boolean {
 	const variantLabel =
 		getVariantByKey(variantKey)?.label ?? normalizeParameterSignature(trickParameters);
 
-	const trickCircle = unlockedCircleFrom('C', getTrickUnlockedKeyCount(variantKey));
+	const trickCircle = unlockedCircleFrom(
+		trickEntryKey(getInstrument()),
+		getTrickUnlockedKeyCount(variantKey)
+	);
 	lickPractice.plan = [
 		{
 			kind: 'trick',
@@ -1762,7 +1769,7 @@ export function advanceSingleLickRound(): void {
 			// the TRICK store — item.phraseId is a variant key, so the lick
 			// store must never see it.
 			const newCount = bumpTrickUnlockedKeyCount(item.phraseId);
-			const fullCircle = unlockedCircleFrom('C', newCount);
+			const fullCircle = unlockedCircleFrom(trickEntryKey(getInstrument()), newCount);
 			let trickProgress = loadTrickPracticeProgress();
 			for (const key of fullCircle) {
 				trickProgress = updateTrickKeyProgress(trickProgress, item.phraseId, key, {

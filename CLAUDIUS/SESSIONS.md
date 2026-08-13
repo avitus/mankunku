@@ -1598,3 +1598,40 @@ floor was built for is already outside the shape band.
 Numbers: 4132 unit/integration tests green (35 expected-fail), 6 new
 regression tests across the two fixtures (trim, split, full-score), corpus
 unregressed, svelte-check clean.
+
+## 2026-08-13 — Trick drills learn what "C" means to the player
+
+User report: enclosure/triad-pair drills should start on C *in the
+instrument's key* and run their rounds in the same circle-of-4ths order lick
+practice uses — instead the keys came out in a "strange order."
+
+The strange order was one concert/written confusion expressed three ways.
+`startTrickSession` and the trick refill in `advanceSingleLickRound` anchored
+`unlockedCircleFrom` at concert `'C'`, and the tune-practice mastery-tier
+mirror in `lick-matcher.ts` pinned the same `'C'`. For a tenor player,
+concert C is *written D* — so the drill opened on D and the rotation read as
+D → G → A in the pitch world the player actually lives in. Lick practice
+never had the bug, but not because anyone handled it: a lick entered in
+written C is *stored* at concert Bb, so `lick.key` carried the instrument
+transposition implicitly. Tricks have no stored home key — the anchor had to
+be derived, and the derivation didn't exist.
+
+Fix: `trickEntryKey(instrument)` in `$lib/tricks` — `writtenKeyToConcert('C',
+instrument)` — used at both drill sites; the matcher gets it as a new
+`LickMatcherDeps.trickEntryKey` (default `'C'`, correct only for concert
+instruments) supplied by `buildLickMatcherDeps`, which now takes the
+instrument as a required param so a future call site can't silently fall back
+to concert C. Generation context deliberately stays concert C: examples
+realize in C and transpose per key exactly like a C-stored lick, so only the
+rotation anchor moved.
+
+Worth keeping: the asymmetry between licks and tricks here is a nice case of
+an invariant maintained *by data* in one subsystem needing to be maintained
+*by code* in its sibling. The lick path encodes "written C" in what the user
+saved; the trick path has to re-derive it per session because nothing is
+saved. Anywhere else a "stored home key" gets replaced by a generated
+artifact, the same hole opens.
+
+Numbers: 4135 unit/integration green (35 expected-fail), 4 new tests
+(instrument-driven anchor, circle-of-4ths rotation order, matcher anchor dep,
+deps-assembly pin), svelte-check clean.
