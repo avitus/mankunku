@@ -343,7 +343,9 @@
 		if (!playbackModule || !reviewPhrase) return;
 		await playbackModule.playPhrase(reviewPhrase, {
 			tempo,
-			swing: 0.5,
+			// Swung eighths are NOTATED straight, so the review must re-apply
+			// the user's feel or the playback won't sound like the take.
+			swing: settings.swing,
 			countInBeats: 0,
 			metronomeEnabled: false,
 			metronomeVolume: 0.6

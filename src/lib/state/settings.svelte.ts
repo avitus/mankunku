@@ -34,7 +34,12 @@ const defaultSettings = {
 	backingInstrument: 'piano' as BackingInstrument,
 	backingTrackVolume: 0.6,
 	backingStyle: 'swing' as BackingStyle,
-	swing: 0.5,
+	// Default to a moderate jazz swing rather than straight: melody demos and
+	// the expected scoring grid should swing out of the box. Note 0.5 is also
+	// resolveBackingSwing's "let the band follow the tempo curve" sentinel, so
+	// with this default the band pins to the knob; dialing back to exactly
+	// 0.50 restores the tempo-curve behaviour.
+	swing: 0.62,
 	theme: 'dark' as 'dark' | 'light',
 	onboardingComplete: false,
 	/** User override for daily tonality. null = use auto-selected daily tonality. */
