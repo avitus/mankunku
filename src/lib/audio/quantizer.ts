@@ -1,21 +1,63 @@
 /**
- * Rhythmic quantization: converts DetectedNote[] to Note[] with Fraction offsets/durations.
+ * Rhythmic quantization: converts DetectedNote[] to Note[] with Fraction
+ * offsets/durations.
  *
- * Uses a 1/48 whole-note grid (LCM of 4, 8, 16, 6, 12, 24) to support both
- * straight and triplet subdivisions. Disambiguates swing vs. straight by
- * trying multiple grids and picking the one with lowest total snap error.
+ * Jazz-aware by design: swung eighths are WRITTEN straight, so a lone upbeat
+ * landing anywhere in the swing range (straight 0.5 through MAX_SWING, which
+ * includes the 2/3 "triplet swing" point) is notated as a straight off-beat
+ * eighth. What distinguishes a genuine triplet from a swung pair is never the
+ * upbeat itself — it is the onset PATTERN of the beat: only a triplet figure
+ * puts a note near the 1/3 point, because no swing feel ever places an upbeat
+ * that early. Classification is therefore per beat, not per take, so a bar can
+ * mix swung eighths with a real triplet.
+ *
+ * The output vocabulary per quarter-note beat is {0, 1/3, 1/2, 2/3} on a
+ * 48-ticks-per-whole-note grid. Deliberately absent, per how the feature is
+ * used (a player recording their own jazz lick over a click):
+ * - Sixteenths and finer. A played sixteenth degrades to the nearest allowed
+ *   position rather than producing garbage.
+ * - Pickup notes ahead of the entrance downbeat: anything surviving the
+ *   capture's rebase tolerance clamps to beat 0.
+ * The swing-eighth logic assumes a quarter-note beat; the only production
+ * caller records in 4/4. The time signature affects only the 8-bar cap.
  */
 
 import type { DetectedNote } from '$lib/types/audio';
 import type { Note, Fraction, PitchClass } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { gcd } from '$lib/music/intervals';
+import { MAX_SWING } from '$lib/music/swing';
 
 /** Grid resolution: 48 ticks per whole note */
 const GRID = 48;
 
 /** Maximum bars to allow */
 const MAX_BARS = 8;
+
+const BEAT_TICKS = 12;
+const EIGHTH_TICKS = 6;
+const TRIPLET_EIGHTH_TICKS = 4;
+
+/**
+ * Beat-fraction zone boundaries — nearest-neighbour midpoints of the allowed
+ * vocabulary, except the last, which is a musical judgment: an upbeat heavier
+ * than MAX_SWING (plus jitter) is more plausibly a rushed next downbeat than
+ * a swing feel the settings knob cannot even express.
+ */
+const DOWNBEAT_MAX_FRAC = 1 / 6; // midpoint(0, 1/3)
+const TRIPLET_MID_MAX_FRAC = 5 / 12; // midpoint(1/3, 1/2)
+const TRIPLET_LAST_MIN_FRAC = 7 / 12; // midpoint(1/2, 2/3)
+const OFFBEAT_MAX_FRAC = MAX_SWING + 0.05;
+
+type OnsetKind = 'down' | 'trip1' | 'offbeat';
+
+interface LabeledOnset {
+	/** Beat the onset counts toward (a ≥ OFFBEAT_MAX_FRAC onset targets k+1). */
+	beat: number;
+	kind: OnsetKind;
+	/** Fraction within the ORIGINAL beat; meaningful for 'offbeat' only. */
+	frac: number;
+}
 
 /** Simplify a fraction using GCD */
 function simplify(num: number, den: number): Fraction {
@@ -24,20 +66,56 @@ function simplify(num: number, den: number): Fraction {
 	return [num / g, den / g];
 }
 
-/** Snap a time (in seconds) to a grid of given subdivision */
-function snapToGrid(timeSec: number, wholeNoteSec: number, gridSize: number): number {
-	return Math.round((timeSec / wholeNoteSec) * gridSize);
+function labelOnset(onsetTime: number, beatSec: number): LabeledOnset {
+	const exactBeat = onsetTime / beatSec;
+	const k = Math.floor(exactBeat);
+	const frac = exactBeat - k;
+
+	if (frac < DOWNBEAT_MAX_FRAC) return { beat: k, kind: 'down', frac };
+	if (frac < TRIPLET_MID_MAX_FRAC) return { beat: k, kind: 'trip1', frac };
+	if (frac < OFFBEAT_MAX_FRAC) return { beat: k, kind: 'offbeat', frac };
+	return { beat: k + 1, kind: 'down', frac };
 }
 
-/** Total snap error for a set of notes against a grid */
-function gridError(detected: DetectedNote[], wholeNoteSec: number, gridSize: number): number {
-	let totalError = 0;
-	for (const note of detected) {
-		const exact = (note.onsetTime / wholeNoteSec) * gridSize;
-		const snapped = Math.round(exact);
-		totalError += Math.abs(exact - snapped);
+/**
+ * Decide which beats are triplet beats. A beat is a triplet beat iff:
+ * 1. it contains a trip1 onset — only triplet figures (full, or with the
+ *    first note tied/rested) put anything near 1/3; or
+ * 2. its upbeat sits in the 2/3 sub-window AND the NEXT beat is a triplet
+ *    beat with no downbeat onset of its own — the quarter-note-triplet
+ *    continuation (onsets at 0, 2/3, 4/3 …), which is why the walk runs
+ *    right to left.
+ */
+function classifyTripletBeats(onsets: LabeledOnset[]): Set<number> {
+	const hasTrip1 = new Set<number>();
+	const hasDown = new Set<number>();
+	const lateOffbeat = new Set<number>();
+	for (const o of onsets) {
+		if (o.kind === 'trip1') hasTrip1.add(o.beat);
+		if (o.kind === 'down') hasDown.add(o.beat);
+		if (o.kind === 'offbeat' && o.frac >= TRIPLET_LAST_MIN_FRAC) lateOffbeat.add(o.beat);
 	}
-	return totalError;
+
+	const tripletBeats = new Set<number>(hasTrip1);
+	const beatsDesc = [...new Set(onsets.map((o) => o.beat))].sort((a, b) => b - a);
+	for (const k of beatsDesc) {
+		if (tripletBeats.has(k)) continue;
+		if (lateOffbeat.has(k) && tripletBeats.has(k + 1) && !hasDown.has(k + 1)) {
+			tripletBeats.add(k);
+		}
+	}
+	return tripletBeats;
+}
+
+function onsetTick(o: LabeledOnset, tripletBeats: Set<number>): number {
+	if (o.kind === 'down') return o.beat * BEAT_TICKS;
+	if (o.kind === 'trip1') return o.beat * BEAT_TICKS + TRIPLET_EIGHTH_TICKS;
+	if (tripletBeats.has(o.beat)) {
+		// On a triplet beat the ambiguity resolves to the triplet grid.
+		return o.beat * BEAT_TICKS + (o.frac < 0.5 ? TRIPLET_EIGHTH_TICKS : 2 * TRIPLET_EIGHTH_TICKS);
+	}
+	// The swung-pair collapse: 0.5 through MAX_SWING all notate straight.
+	return o.beat * BEAT_TICKS + EIGHTH_TICKS;
 }
 
 /**
@@ -55,41 +133,21 @@ export function quantizeNotes(
 ): Note[] {
 	if (detected.length === 0) return [];
 
-	const wholeNoteSec = 240 / tempo;
+	const beatSec = 60 / tempo;
 	const beatsPerBar = timeSignature[0];
 	const beatUnit = timeSignature[1];
 	// Whole notes per bar: e.g. 4/4 = 1, 3/4 = 0.75
 	const wholeNotesPerBar = beatsPerBar / beatUnit;
 	const maxGridPos = MAX_BARS * GRID * wholeNotesPerBar;
 
-	// Disambiguate: try straight (1/16 = grid 12), triplet (1/12 = grid 16), combined (grid 48)
-	const grids = [
-		{ size: 12, label: 'straight-16' },
-		{ size: 16, label: 'triplet-12' },
-		{ size: GRID, label: 'combined' }
-	];
+	const labeled = detected.map((n) => labelOnset(n.onsetTime, beatSec));
+	const tripletBeats = classifyTripletBeats(labeled);
 
-	let bestGrid = GRID;
-	let bestError = Infinity;
-	for (const g of grids) {
-		const err = gridError(detected, wholeNoteSec, g.size);
-		if (err < bestError) {
-			bestError = err;
-			bestGrid = g.size;
-		}
-	}
-
-	// Snap all onsets to the best grid, then convert to 1/48 space
-	const scaleFactor = GRID / bestGrid;
-	const gridPositions: number[] = detected.map((note) => {
-		const pos = snapToGrid(note.onsetTime, wholeNoteSec, bestGrid) * scaleFactor;
-		return Math.max(0, Math.min(pos, maxGridPos));
-	});
-
-	// Clamp first note to 0
-	if (gridPositions.length > 0 && gridPositions[0] < 0) {
-		gridPositions[0] = 0;
-	}
+	// Out-of-scope input (e.g. two sixteenths inside one zone) can collide on
+	// one position; the zero-duration skip below then drops the earlier note.
+	const gridPositions: number[] = labeled.map((o) =>
+		Math.max(0, Math.min(onsetTick(o, tripletBeats), maxGridPos))
+	);
 
 	const notes: Note[] = [];
 
@@ -101,10 +159,12 @@ export function quantizeNotes(
 		if (i < detected.length - 1) {
 			gridDuration = gridPositions[i + 1] - gridPos;
 		} else {
-			// Last note: snap detected duration to grid
-			gridDuration = Math.max(1,
-				Math.round((detected[i].duration / wholeNoteSec) * bestGrid) * scaleFactor
-			);
+			// Last note: round the detected duration to its beat's own unit, so
+			// a short swung final note still reads as a full eighth rather than
+			// leaking sub-vocabulary ticks like 1/48.
+			const unit = tripletBeats.has(labeled[i].beat) ? TRIPLET_EIGHTH_TICKS : EIGHTH_TICKS;
+			const durTicks = (detected[i].duration / beatSec) * BEAT_TICKS;
+			gridDuration = Math.max(unit, Math.round(durTicks / unit) * unit);
 		}
 
 		// Skip zero-duration notes
