@@ -15,9 +15,11 @@ import { describe, it, expect } from 'vitest';
 import { planCycleWindows, type CycleWindowPlan } from '$lib/state/lick-practice-rotation';
 import {
 	buildPhaseTimeline,
+	buildOpenEndedTimeline,
 	phaseCueAt,
 	phaseTabView,
 	PHASE_LEAD_BEATS,
+	OPEN_ENDED_TICK,
 	type PhaseCue
 } from '$lib/state/lick-practice-phase';
 
@@ -263,5 +265,46 @@ describe('phaseTabView', () => {
 			text: '',
 			count: 0
 		});
+	});
+});
+
+describe('buildOpenEndedTimeline', () => {
+	const timeline = buildOpenEndedTimeline({
+		audioStartTick: 8 * PPQ,
+		ticksPerBar: TICKS_PER_BAR,
+		countInBars: 2
+	});
+
+	it('is a 2-bar count-in straight into one open-ended play block', () => {
+		expect(timeline).toEqual([
+			{ phase: 'count-in', startTick: 0, endTick: 8 * PPQ },
+			{ phase: 'play', startTick: 8 * PPQ, endTick: OPEN_ENDED_TICK }
+		]);
+	});
+
+	it('shows no countdown during the settle bar', () => {
+		// Bar 1 of the count-in: 8..5 beats out, beyond PHASE_LEAD_BEATS.
+		const cue = phaseCueAt(1 * PPQ, timeline, PPQ);
+		expect(cue.phase).toBe('count-in');
+		expect(cue.next).toBe('play');
+		expect(cue.countdown).toBe(0);
+	});
+
+	it('walks the countdown 4→1 across the second bar', () => {
+		const counts = [4, 5, 6, 7].map(
+			(beat) => phaseCueAt(beat * PPQ, timeline, PPQ).countdown
+		);
+		expect(counts).toEqual([4, 3, 2, 1]);
+	});
+
+	it('stays PLAY with no next phase from the entrance onward', () => {
+		for (const tick of [8 * PPQ, 9 * PPQ, 1000 * PPQ]) {
+			expect(phaseCueAt(tick, timeline, PPQ)).toEqual({
+				phase: 'play',
+				next: null,
+				beatsUntilNext: null,
+				countdown: 0
+			});
+		}
 	});
 });

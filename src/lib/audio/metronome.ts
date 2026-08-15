@@ -15,8 +15,10 @@ let hihatSynth: InstanceType<ToneModule['NoiseSynth']> | null = null;
 let kickSynth: InstanceType<ToneModule['MembraneSynth']> | null = null;
 let rideFilter: InstanceType<ToneModule['Filter']> | null = null;
 let hihatFilter: InstanceType<ToneModule['Filter']> | null = null;
+let woodblockSynth: InstanceType<ToneModule['MembraneSynth']> | null = null;
 let gainNode: InstanceType<ToneModule['Gain']> | null = null;
 let sequence: import('tone').Sequence<number> | null = null;
+let countInSequence: import('tone').Sequence<number> | null = null;
 
 async function getTone(): Promise<ToneModule> {
 	if (!tone) tone = await import('tone');
@@ -52,6 +54,15 @@ async function ensureSynths(): Promise<void> {
 		octaves: 6,
 		envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 }
 	}).connect(gainNode);
+
+	// Count-in "woodblock": a high, dead-short membrane tock. Deliberately
+	// nothing like the kit above — the switch from this to ride/kick/hi-hat
+	// is the audible "your entrance" cue in record-a-lick.
+	woodblockSynth = new Tone.MembraneSynth({
+		pitchDecay: 0.008,
+		octaves: 2,
+		envelope: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.02 }
+	}).connect(gainNode);
 }
 
 /**
@@ -70,10 +81,13 @@ export async function warmUpMetronome(): Promise<void> {
  *
  * @param beatsPerBar - Beats per bar (typically 4)
  * @param bars - Number of bars (null = loop indefinitely)
+ * @param startAt - Transport time of the first beat (e.g. '2m' to leave the
+ *   first two bars to `scheduleCountInClicks`)
  */
 export async function scheduleMetronome(
 	beatsPerBar: number,
-	bars: number | null
+	bars: number | null,
+	startAt: string | number = 0
 ): Promise<void> {
 	await ensureSynths();
 	const Tone = await getTone();
@@ -130,9 +144,40 @@ export async function scheduleMetronome(
 			pattern,
 			'4n'
 		);
-		sequence.start(0);
+		sequence.start(startAt);
 		sequence.loop = true;
 	}
+}
+
+/**
+ * Schedule a finite run of count-in clicks from transport 0: woodblock tocks,
+ * downbeats accented. A distinct voice on purpose — pair with
+ * `scheduleMetronome(beatsPerBar, bars, '<countInBars>m')` so the kit enters
+ * exactly where the tocks stop and the texture change marks the entrance.
+ * Must be called before Transport.start(). Clicks stay on the same quarter
+ * grid as the kit, so `getMetronomeBleedOnsets` needs no special casing.
+ */
+export async function scheduleCountInClicks(beatsPerBar: number, bars: number): Promise<void> {
+	await ensureSynths();
+	const Tone = await getTone();
+
+	if (countInSequence) {
+		countInSequence.dispose();
+		countInSequence = null;
+	}
+
+	const totalBeats = beatsPerBar * bars;
+	const allBeats = Array.from({ length: totalBeats }, (_, i) => i % beatsPerBar);
+
+	countInSequence = new Tone.Sequence(
+		(time, beat) => {
+			woodblockSynth!.triggerAttackRelease(beat === 0 ? 'A5' : 'E5', '32n', time, beat === 0 ? 0.9 : 0.6);
+		},
+		allBeats,
+		'4n'
+	);
+	countInSequence.start(0);
+	countInSequence.loop = false;
 }
 
 /** Set metronome volume (0-1) */
@@ -143,10 +188,14 @@ export async function setMetronomeVolume(volume: number): Promise<void> {
 	gainNode!.gain.value = Math.max(0, Math.min(1, volume));
 }
 
-/** Stop and dispose the metronome sequence */
+/** Stop and dispose the metronome sequences (kit and count-in) */
 export function disposeMetronome(): void {
 	if (sequence) {
 		sequence.dispose();
 		sequence = null;
+	}
+	if (countInSequence) {
+		countInSequence.dispose();
+		countInSequence = null;
 	}
 }
