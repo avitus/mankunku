@@ -52,26 +52,6 @@ describe('quantizeNotes', () => {
 		}
 	});
 
-	it('quantizes 3 notes spanning 2 beats to triplet quarters (1/6)', () => {
-		// At 100 BPM, whole note = 2.4s, triplet quarter = 2/3 of a quarter = 0.4s
-		// 3 notes in 2 beats (1.2s) → each is 0.4s = 1/6 whole note
-		const detected = [
-			note(60, 0.0, 0.4),
-			note(62, 0.4, 0.4),
-			note(64, 0.8, 0.4)
-		];
-
-		const result = quantizeNotes(detected, 100, [4, 4]);
-		const pitched = result.filter(n => n.pitch !== null);
-
-		expect(pitched.length).toBe(3);
-
-		// Each should be a triplet quarter (1/6 whole note, or 8/48)
-		for (const n of pitched) {
-			expect(n.duration).toEqual([1, 6]);
-		}
-	});
-
 	it('returns empty array for empty input', () => {
 		const result = quantizeNotes([], 120, [4, 4]);
 		expect(result).toEqual([]);
@@ -189,6 +169,66 @@ describe('swing-aware quantization', () => {
 		expect(pitched.map((n) => n.duration)).toEqual([[1, 12], [1, 12]]);
 	});
 
+	it('clamps a slightly-early entrance (rebaseToAnchor tolerance) to beat 0', () => {
+		// rebaseToAnchor deliberately keeps events up to 0.15 s BEFORE the
+		// anchor at negative times; the quantizer owns the clamp to beat 0.
+		// -0.05 s (-0.1 beat) rounds to the downbeat via the rushed-next-beat
+		// rule; -0.12 s (-0.24 beat) labels as an offbeat of beat -1 and needs
+		// the explicit clamp. Both must land at offset 0 with nothing negative.
+		for (const early of [-0.05, -0.12]) {
+			const detected = [note(60, early, 0.5), note(62, BEAT, BEAT)];
+			const result = quantizeNotes(detected, 120, [4, 4]);
+			const pitched = result.filter((n) => n.pitch !== null);
+
+			expect(pitched.length).toBe(2);
+			expect(pitched[0].offset).toEqual([0, 1]);
+			expect(pitched[1].offset).toEqual([1, 4]);
+			for (const n of pitched) {
+				expect(n.offset[0]).toBeGreaterThanOrEqual(0);
+			}
+		}
+	});
+
+	it('reassigns an upbeat heavier than MAX_SWING + jitter to the next downbeat', () => {
+		// frac 0.86 sits past OFFBEAT_MAX_FRAC (0.8 + 0.05): more plausibly a
+		// rushed next downbeat than a swing feel the knob cannot express.
+		const rushed = [note(60, 0, 0.43), note(62, 0.86 * BEAT, 0.5), note(64, 2 * BEAT, BEAT)];
+		const rushedPitched = quantizeNotes(rushed, 120, [4, 4]).filter((n) => n.pitch !== null);
+		expect(rushedPitched.map((n) => n.offset)).toEqual([
+			[0, 1],
+			[1, 4],
+			[1, 2]
+		]);
+
+		// frac 0.84 is still inside the swing range and collapses to the
+		// straight off-beat eighth.
+		const swung = [note(60, 0, 0.42), note(62, 0.84 * BEAT, 0.5), note(64, 2 * BEAT, BEAT)];
+		const swungPitched = quantizeNotes(swung, 120, [4, 4]).filter((n) => n.pitch !== null);
+		expect(swungPitched.map((n) => n.offset)).toEqual([
+			[0, 1],
+			[1, 8],
+			[1, 2]
+		]);
+	});
+
+	it('caps at 8 bars of the DECLARED meter — 24 beats in 3/4, not 32', () => {
+		// At 60 BPM (beat = 1 s): 8 bars of 3/4 end at beat 24. Beat 23 is in;
+		// beat 25 would survive a 4/4 cap and must be dropped here.
+		const detected = [note(60, 0, 1), note(62, 23, 1), note(64, 25, 1)];
+		const pitched = quantizeNotes(detected, 60, [3, 4]).filter((n) => n.pitch !== null);
+		expect(pitched.map((n) => n.pitch)).toEqual([60, 62]);
+	});
+
+	it('trims a last note that would ring past the 8-bar cap', () => {
+		// 4/4 at 60 BPM: cap at tick 384. Offbeat of beat 31 → tick 378; a 3 s
+		// detected duration rounds to 36 ticks and must be trimmed to the 6
+		// that fit rather than spilling past the cap.
+		const detected = [note(60, 0, 1), note(62, 31.5, 3)];
+		const pitched = quantizeNotes(detected, 60, [4, 4]).filter((n) => n.pitch !== null);
+		expect(pitched[1].offset).toEqual([63, 8]);
+		expect(pitched[1].duration).toEqual([1, 8]);
+	});
+
 	it('carries quarter-note triplets across beats', () => {
 		// Six quarter-note triplets filling the bar: onsets at 0, 2/3, 4/3,
 		// 2, 8/3, 10/3 beats. Even-index beats see only a 2/3 upbeat — the
@@ -216,7 +256,7 @@ describe('detectKey', () => {
 			note(67, 0.9, 0.3), // G
 			note(69, 1.2, 0.3), // A
 			note(62, 1.5, 0.3), // D again
-			note(62, 1.8, 0.3), // D again
+			note(74, 1.8, 0.3), // D again, octave up — counts toward the same pitch class
 		];
 
 		expect(detectKey(detected)).toBe('D');

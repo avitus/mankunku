@@ -159,4 +159,18 @@ describe('rebaseToAnchor', () => {
 		expect(ANCHOR_EARLY_TOLERANCE_SECONDS).toBeGreaterThan(0.08);
 		expect(ANCHOR_EARLY_TOLERANCE_SECONDS).toBeLessThan(60 / 240);
 	});
+
+	it('honors an explicit tolerance argument', () => {
+		// The same event survives a wide tolerance and is dropped by a tight
+		// one — pins that the parameter actually reaches the cutoff.
+		const readings = run(60, 4.7, 5.0);
+		const wide = rebaseToAnchor(readings, [4.7], 4.8, 0.2);
+		const tight = rebaseToAnchor(readings, [4.7], 4.8, 0.05);
+
+		expect(wide.workletOnsets).toEqual([expect.closeTo(-0.1, 10)]);
+		expect(tight.workletOnsets).toHaveLength(0);
+		expect(tight.readings.length).toBeGreaterThan(0);
+		expect(tight.readings.length).toBeLessThan(wide.readings.length);
+		expect(Math.min(...tight.readings.map((r) => r.time))).toBeGreaterThanOrEqual(-0.05 - 1e-9);
+	});
 });
