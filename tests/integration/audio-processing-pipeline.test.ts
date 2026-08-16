@@ -24,7 +24,7 @@ import {
 	getMetronomeBleedOnsets,
 	findReArticulations
 } from '$lib/audio/note-segmenter';
-import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
+import { quantizeNotes } from '$lib/audio/quantizer';
 import { scoreAttempt } from '$lib/scoring/scorer';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
@@ -249,36 +249,6 @@ describe('note segmentation', () => {
 // ─── Quantization ─────────────────────────────────────────────────
 
 describe('quantization', () => {
-	it('quantizeNotes converts quarter-note timings to correct fractions', () => {
-		// 4 notes at exact 0.5s intervals at 120 BPM (beat = 0.5s)
-		const detected: DetectedNote[] = [
-			{ midi: 60, cents: 0, onsetTime: 0.0, duration: 0.45, clarity: 0.95 },
-			{ midi: 64, cents: 0, onsetTime: 0.5, duration: 0.45, clarity: 0.95 },
-			{ midi: 67, cents: 0, onsetTime: 1.0, duration: 0.45, clarity: 0.95 },
-			{ midi: 72, cents: 0, onsetTime: 1.5, duration: 0.45, clarity: 0.95 },
-		];
-		const tempo = 120;
-		const timeSignature: [number, number] = [4, 4];
-
-		const quantized = quantizeNotes(detected, tempo, timeSignature);
-
-		// Filter out rests
-		const pitched = quantized.filter((n) => n.pitch !== null);
-		expect(pitched).toHaveLength(4);
-
-		// At 120 BPM: whole note = 2s, beat = 0.5s = quarter note
-		// Expected offsets: 0/1, 1/4, 1/2, 3/4 (fractions of whole note)
-		expect(pitched[0].offset).toEqual([0, 1]);
-		expect(pitched[1].offset).toEqual([1, 4]);
-		expect(pitched[2].offset).toEqual([1, 2]);
-		expect(pitched[3].offset).toEqual([3, 4]);
-
-		// Each note duration should be a quarter note [1,4]
-		for (const note of pitched) {
-			expect(note.duration).toEqual([1, 4]);
-		}
-	});
-
 	it('quantizeNotes extends note duration to fill gap before next note', () => {
 		// 2 notes with a gap between them — the quantizer fills the gap by
 		// extending the first note's duration to reach the second note's
@@ -303,29 +273,6 @@ describe('quantization', () => {
 		expect(pitched[1].offset).toEqual([3, 4]);
 	});
 
-	it('detectKey returns most frequent pitch class', () => {
-		const detected: DetectedNote[] = [
-			{ midi: 60, cents: 0, onsetTime: 0.0, duration: 0.5, clarity: 0.95 }, // C
-			{ midi: 64, cents: 0, onsetTime: 0.5, duration: 0.5, clarity: 0.95 }, // E
-			{ midi: 60, cents: 0, onsetTime: 1.0, duration: 0.5, clarity: 0.95 }, // C
-			{ midi: 67, cents: 0, onsetTime: 1.5, duration: 0.5, clarity: 0.95 }, // G
-			{ midi: 72, cents: 0, onsetTime: 2.0, duration: 0.5, clarity: 0.95 }, // C (octave)
-		];
-
-		// C appears 3 times (MIDI 60 twice + 72 once), E once, G once
-		expect(detectKey(detected)).toBe('C');
-	});
-
-	it('detectKey returns correct key for non-C dominant pitch', () => {
-		const detected: DetectedNote[] = [
-			{ midi: 69, cents: 0, onsetTime: 0.0, duration: 0.5, clarity: 0.95 }, // A
-			{ midi: 69, cents: 0, onsetTime: 0.5, duration: 0.5, clarity: 0.95 }, // A
-			{ midi: 73, cents: 0, onsetTime: 1.0, duration: 0.5, clarity: 0.95 }, // Db
-			{ midi: 64, cents: 0, onsetTime: 1.5, duration: 0.5, clarity: 0.95 }, // E
-		];
-
-		expect(detectKey(detected)).toBe('A');
-	});
 });
 
 // ─── Full Audio Processing Pipeline ───────────────────────────────

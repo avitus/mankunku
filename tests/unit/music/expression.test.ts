@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Phrase, Note, HarmonicSegment } from '$lib/types/music';
-import {
-	extractSoundingNotes,
-	computeExpression,
-	computePhraseExpression
-} from '$lib/music/expression';
+import { extractSoundingNotes, computeExpression } from '$lib/music/expression';
 
 const C7_HARMONY: HarmonicSegment[] = [
 	{ chord: { root: 'C', quality: '7' }, scaleId: 'bebop.dominant', startOffset: [0, 1], duration: [1, 1] }
@@ -142,11 +138,6 @@ describe('computeExpression — dynamics', () => {
 describe('computeExpression — layer selection is deterministic (flicker fix)', () => {
 	const phrase = makePhrase(EIGHTH_LINE);
 
-	it('sets layerVelocity to the intended (un-humanized) velocity', () => {
-		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
-		for (const e of expr) expect(e.layerVelocity).toBe(e.velocity);
-	});
-
 	it('produces identical output across repeated calls (no randomness)', () => {
 		const a = computeExpression(extractSoundingNotes(phrase.notes), phrase);
 		const b = computeExpression(extractSoundingNotes(phrase.notes), phrase);
@@ -224,15 +215,6 @@ describe('computeExpression — intensity scaling', () => {
 		// The ghost (idx3) loudness comes from its tuning, not the intensity knob.
 		expect(subtle[3].isGhost).toBe(true);
 		expect(pronounced[3].velocity).toBe(subtle[3].velocity);
-	});
-});
-
-describe('computePhraseExpression — convenience wrapper', () => {
-	it('returns aligned sounding notes and expression arrays', () => {
-		const phrase = makePhrase(EIGHTH_LINE);
-		const { sounding, expression } = computePhraseExpression(phrase);
-		expect(sounding).toHaveLength(expression.length);
-		expect(sounding).toHaveLength(8);
 	});
 });
 

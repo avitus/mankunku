@@ -98,6 +98,7 @@ describe('fraction utilities', () => {
 	it('fractionToFloat converts correctly', () => {
 		expect(fractionToFloat([1, 4])).toBe(0.25);
 		expect(fractionToFloat([3, 8])).toBe(0.375);
+		expect(fractionToFloat([0, 1])).toBe(0);
 	});
 
 	it('addFractions adds and simplifies', () => {

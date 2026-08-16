@@ -24,17 +24,12 @@ export interface LibraryQuery {
 	scaleType?: ScaleType;
 }
 
-/** Pre-built indexes for fast querying */
-const byCategory = new Map<PhraseCategory, Phrase[]>();
+/** Pre-built index for fast querying */
 const byId = new Map<string, Phrase>();
 
-// Build indexes on module load
+// Build index on module load
 for (const lick of ALL_CURATED_LICKS) {
 	byId.set(lick.id, lick);
-
-	const arr = byCategory.get(lick.category) ?? [];
-	arr.push(lick);
-	byCategory.set(lick.category, arr);
 }
 
 /** Get all licks in the library (curated + user-recorded + stolen-from-community) */
@@ -99,25 +94,6 @@ export function getBaseLickFromId(id: string): Phrase | undefined {
 	if (direct) return direct;
 	const base = baseLickId(id);
 	return base === id ? undefined : getLickById(base);
-}
-
-/** Get all licks in a category */
-export function getLicksByCategory(category: PhraseCategory): Phrase[] {
-	const curated = byCategory.get(category) ?? [];
-	if (category === 'user') return getUserLicksLocal();
-	return curated;
-}
-
-/** Get all available categories with their lick counts */
-export function getCategories(): { category: PhraseCategory; count: number }[] {
-	const all = getAllLicks();
-	const counts = new Map<PhraseCategory, number>();
-	for (const lick of all) {
-		counts.set(lick.category, (counts.get(lick.category) ?? 0) + 1);
-	}
-	return Array.from(counts.entries())
-		.map(([category, count]) => ({ category, count }))
-		.sort((a, b) => b.count - a.count);
 }
 
 /** Query licks with multiple filters */

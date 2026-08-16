@@ -1,17 +1,16 @@
 /**
  * Integration tests for the scoring pipeline.
  *
- * Tests the full flow: Phrase + DetectedNote[] → scoreAttempt() → Score
- * covering DTW alignment, pitch scoring, rhythm scoring, grade assignment,
- * latency correction, and timing diagnostics.
+ * Tests the full flow: Phrase + DetectedNote[] → scoreAttempt() → Score —
+ * latency correction, rest filtering, extra-note handling, timing
+ * diagnostics, and tempo edge cases — plus the alignNotes cases with no
+ * unit equivalent. Per-function coverage (scorePitch / scoreRhythm /
+ * scoreToGrade / alignNotes basics) lives in tests/unit/scoring/.
  */
 
 import { describe, it, expect } from 'vitest';
 import { scoreAttempt } from '../../src/lib/scoring/scorer';
 import { alignNotes } from '../../src/lib/scoring/alignment';
-import { scorePitch } from '../../src/lib/scoring/pitch-scoring';
-import { scoreRhythm } from '../../src/lib/scoring/rhythm-scoring';
-import { scoreToGrade } from '../../src/lib/scoring/grades';
 import type { Phrase, Note } from '../../src/lib/types/music';
 import type { DetectedNote } from '../../src/lib/types/audio';
 
@@ -212,86 +211,12 @@ describe('scoring pipeline — end-to-end', () => {
 		expect(score.timing.perNoteOffsetMs.length).toBeGreaterThan(0);
 	});
 
-	it('composite score is 60% pitch + 40% rhythm', () => {
-		const notes = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-		];
-		const phrase = makePhrase(notes);
-
-		const detected = [
-			makeDetected(60, 0.0, 0),
-			makeDetected(64, 0.5, 0),
-		];
-
-		const score = scoreAttempt(phrase, detected, tempo);
-
-		const expectedOverall = score.pitchAccuracy * 0.6 + score.rhythmAccuracy * 0.4;
-		expect(score.overall).toBeCloseTo(expectedOverall, 5);
-	});
 });
 
 // ─── DTW Alignment ─────────────────────────────────────────────
 
 describe('DTW alignment integration', () => {
 	const tempo = 120;
-
-	it('aligns identical sequences perfectly', () => {
-		const expected = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-			makeNote(67, [1, 2]),
-		];
-
-		const detected = [
-			makeDetected(60, 0.0),
-			makeDetected(64, 0.5),
-			makeDetected(67, 1.0),
-		];
-
-		const pairs = alignNotes(expected, detected, tempo);
-
-		// All pairs should be matched
-		expect(pairs.length).toBe(3);
-		pairs.forEach(p => {
-			expect(p.expectedIndex).not.toBeNull();
-			expect(p.detectedIndex).not.toBeNull();
-		});
-	});
-
-	it('marks missed notes when detected is shorter', () => {
-		const expected = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-			makeNote(67, [1, 2]),
-		];
-
-		const detected = [
-			makeDetected(60, 0.0),
-		];
-
-		const pairs = alignNotes(expected, detected, tempo);
-
-		const missed = pairs.filter(p => p.detectedIndex === null);
-		expect(missed.length).toBe(2);
-	});
-
-	it('marks extra notes when detected is longer', () => {
-		const expected = [
-			makeNote(60, [0, 1]),
-		];
-
-		const detected = [
-			makeDetected(60, 0.0),
-			makeDetected(64, 0.5),
-			makeDetected(67, 1.0),
-		];
-
-		const pairs = alignNotes(expected, detected, tempo);
-
-		const extra = pairs.filter(p => p.expectedIndex === null);
-		expect(extra.length).toBe(2);
-	});
 
 	it('returns empty for all-rest expected', () => {
 		const expected = [
@@ -325,90 +250,6 @@ describe('DTW alignment integration', () => {
 		expect(pairs[0].detectedIndex).toBe(0);
 		expect(pairs[1].expectedIndex).toBe(1);
 		expect(pairs[1].detectedIndex).toBe(1);
-	});
-});
-
-// ─── Pitch Scoring ─────────────────────────────────────────────
-
-describe('pitch scoring integration', () => {
-	it('returns 1.0 + intonation bonus for perfect pitch', () => {
-		const expected = makeNote(60, [0, 1]);
-		const detected = makeDetected(60, 0.0, 0);
-
-		const score = scorePitch(expected, detected);
-		expect(score).toBeCloseTo(1.1); // 1.0 + 0.1 bonus for 0 cents
-	});
-
-	it('returns 0 for wrong MIDI note', () => {
-		const expected = makeNote(60, [0, 1]);
-		const detected = makeDetected(61, 0.0, 0);
-
-		expect(scorePitch(expected, detected)).toBe(0);
-	});
-
-	it('reduces intonation bonus as cents deviation increases', () => {
-		const expected = makeNote(60, [0, 1]);
-
-		const perfect = scorePitch(expected, makeDetected(60, 0, 0));
-		const slight = scorePitch(expected, makeDetected(60, 0, 25));
-		const poor = scorePitch(expected, makeDetected(60, 0, 50));
-
-		expect(perfect).toBeGreaterThan(slight);
-		expect(slight).toBeGreaterThan(poor);
-		expect(poor).toBeCloseTo(1.0); // no bonus at 50 cents
-	});
-
-	it('returns 1.0 for rests regardless of detected note', () => {
-		const rest = makeNote(null, [0, 1]);
-		const detected = makeDetected(60, 0.0, 0);
-
-		expect(scorePitch(rest, detected)).toBe(1.0);
-	});
-});
-
-// ─── Rhythm Scoring ────────────────────────────────────────────
-
-describe('rhythm scoring integration', () => {
-	it('returns 1.0 for perfectly timed note', () => {
-		const expected = makeNote(60, [0, 1]);
-		const detected = makeDetected(60, 0.0);
-
-		expect(scoreRhythm(expected, detected, 120)).toBeCloseTo(1.0);
-	});
-
-	it('penalizes late notes proportionally', () => {
-		const expected = makeNote(60, [0, 1]);
-
-		const onTime = scoreRhythm(expected, makeDetected(60, 0.0), 120);
-		const late = scoreRhythm(expected, makeDetected(60, 0.2), 120);
-		const veryLate = scoreRhythm(expected, makeDetected(60, 0.5), 120);
-
-		expect(onTime).toBeGreaterThan(late);
-		expect(late).toBeGreaterThan(veryLate);
-	});
-
-	it('returns 1.0 for rests', () => {
-		const rest = makeNote(null, [0, 1]);
-		const detected = makeDetected(60, 0.5);
-
-		expect(scoreRhythm(rest, detected, 120)).toBe(1.0);
-	});
-});
-
-// ─── Grade Assignment ──────────────────────────────────────────
-
-describe('grade thresholds', () => {
-	it('assigns correct grades at boundary values', () => {
-		expect(scoreToGrade(0.95)).toBe('perfect');
-		expect(scoreToGrade(1.0)).toBe('perfect');
-		expect(scoreToGrade(0.94)).toBe('great');
-		expect(scoreToGrade(0.85)).toBe('great');
-		expect(scoreToGrade(0.84)).toBe('good');
-		expect(scoreToGrade(0.70)).toBe('good');
-		expect(scoreToGrade(0.69)).toBe('fair');
-		expect(scoreToGrade(0.55)).toBe('fair');
-		expect(scoreToGrade(0.54)).toBe('try-again');
-		expect(scoreToGrade(0.0)).toBe('try-again');
 	});
 });
 

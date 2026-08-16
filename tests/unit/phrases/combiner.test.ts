@@ -51,6 +51,11 @@ describe('realizeScalePattern', () => {
 		expect(realizeScalePattern([0, 1, 2], 'nonexistent.scale', 'C')).toBeNull();
 	});
 
+	it('returns null for out-of-range degrees', () => {
+		// Extreme degrees that would exceed the realized pitch pool
+		expect(realizeScalePattern([0, 50], 'major.ionian', 'C')).toBeNull();
+	});
+
 	it('works with non-C keys', () => {
 		// G major: G(0) A(1) B(2) C(3) D(4)... root near G3=55 or G4=67
 		// Root closest to 60 → G3=55 (dist 5) vs G4=67 (dist 7) → picks G3

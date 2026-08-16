@@ -431,13 +431,3 @@ export function computeExpression(
 	});
 }
 
-/**
- * Convenience: extract sounding notes and compute their expression in one call.
- */
-export function computePhraseExpression(
-	phrase: Phrase,
-	opts: ExpressionOptions = {}
-): { sounding: SoundingNote[]; expression: NoteExpression[] } {
-	const sounding = extractSoundingNotes(phrase.notes);
-	return { sounding, expression: computeExpression(sounding, phrase, opts) };
-}
