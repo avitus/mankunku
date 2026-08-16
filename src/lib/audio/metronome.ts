@@ -125,7 +125,7 @@ export async function scheduleMetronome(
 			allBeats,
 			'4n'
 		);
-		sequence.start(0);
+		sequence.start(startAt);
 		sequence.loop = false;
 	} else {
 		// Infinite loop for recording phase
@@ -169,10 +169,10 @@ export async function scheduleCountInClicks(beatsPerBar: number, bars: number): 
 	}
 
 	const totalBeats = beatsPerBar * bars;
-	const allBeats = Array.from({ length: totalBeats }, (_, i) => i % beatsPerBar);
+	const allBeats = Array.from({ length: totalBeats }, (_: unknown, i: number) => i % beatsPerBar);
 
 	countInSequence = new Tone.Sequence(
-		(time, beat) => {
+		(time: number, beat: number) => {
 			woodblockSynth!.triggerAttackRelease(beat === 0 ? 'A5' : 'E5', '32n', time, beat === 0 ? 0.9 : 0.6);
 		},
 		allBeats,

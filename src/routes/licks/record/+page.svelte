@@ -291,10 +291,12 @@
 
 		pitchDetector?.stop();
 
-		// Compute recording duration
+		// Compute recording duration. The rebase keeps readings down to
+		// -tolerance, so a take whose last reading precedes the anchor would
+		// otherwise hand segmentation a negative duration.
 		const lastReading = readings[readings.length - 1];
 		const recordingDuration = lastReading
-			? lastReading.time + 0.1
+			? Math.max(0, lastReading.time + 0.1)
 			: 0;
 
 		if (readings.length === 0) {

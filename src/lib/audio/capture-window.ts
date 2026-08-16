@@ -143,8 +143,10 @@ export function rebaseToAnchor(
 	const cutoff = anchorOffset - tolerance;
 	return {
 		readings: readings
-			.filter((r) => r.time >= cutoff)
-			.map((r) => ({ ...r, time: r.time - anchorOffset })),
-		workletOnsets: workletOnsets.filter((t) => t >= cutoff).map((t) => t - anchorOffset)
+			.filter((r: PitchReading) => r.time >= cutoff)
+			.map((r: PitchReading) => ({ ...r, time: r.time - anchorOffset })),
+		workletOnsets: workletOnsets
+			.filter((t: number) => t >= cutoff)
+			.map((t: number) => t - anchorOffset)
 	};
 }
