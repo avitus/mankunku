@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { page, updated } from '$app/state';
+	import { isOnboardingRoute } from '$lib/state/onboarding-routes';
 	import { settings, applyTheme } from '$lib/state/settings.svelte';
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
@@ -144,27 +145,10 @@
 	});
 
 
-	// Onboarding auto-triggers only on the mic-driven practice surfaces where
-	// the instrument choice and mic permission actually matter. Everywhere
-	// else (/, /docs, /licks, /tunes, /scales, community pages) must render
-	// clean for a fresh profile: Googlebot both reads the SSR HTML and renders
-	// the page with empty localStorage, so an unconditional overlay used to be
-	// the entire visible content of every URL on the site.
-	const ONBOARDING_ROUTE_PREFIXES = [
-		'/ear-training',
-		'/lick-practice',
-		'/tricks',
-		'/licks/record'
-	];
-	const isOnboardingRoute = $derived.by(() => {
-		const path = page.url?.pathname ?? '/';
-		return (
-			ONBOARDING_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
-			// Tune practice is a scored mic surface too, but lives under the
-			// otherwise-browsable /tunes tree, so it can't ride a prefix.
-			/^\/tunes\/[^/]+\/practice/.test(path)
-		);
-	});
+	// Onboarding auto-triggers only on the mic-driven practice surfaces —
+	// the route rule and its rationale live in state/onboarding-routes.ts,
+	// where a table-driven test pins the prefix boundaries.
+	const onboardingRoute = $derived.by(() => isOnboardingRoute(page.url?.pathname ?? '/'));
 
 	// The overlay may only mount AFTER hydration: `settings.onboardingComplete`
 	// comes from localStorage, which the server can't read, so consulting it
@@ -275,7 +259,7 @@
 	<meta property="og:url" content={canonicalUrl} />
 </svelte:head>
 
-{#if hydrated && isOnboardingRoute && !settings.onboardingComplete}
+{#if hydrated && onboardingRoute && !settings.onboardingComplete}
 	<Onboarding {supabase} {session} {user} />
 {/if}
 
