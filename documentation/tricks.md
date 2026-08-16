@@ -24,7 +24,7 @@ You choose five things:
 | **Target tone** | Root, 3rd, 5th, 7th |
 | **Target lands** | On the beat, Off the beat |
 
-Approaches from above are scale neighbours; approaches from below are chromatic — and both are drawn from the chord type's own scale and tones, so enclosing the 3rd of a minor chord is a genuinely different set of notes than enclosing the 3rd of a dominant. The drill figure starts with a real **pickup**: the approach notes sit in a partial bar before the first full bar, resolve onto its downbeat, and then the figure does the same thing three more times — four landings on four consecutive downbeats, the last one held. "Off the beat" shifts the whole thing an eighth later, which is where it actually lives in most bebop lines. (Inside tune practice the app uses a compact two-bar version of the same figure, sized to fit an insertion window.)
+Approaches from above are scale neighbours; approaches from below are chromatic — and both are drawn from the chord type's own scale and tones, so enclosing the 3rd of a minor chord is a genuinely different set of notes than enclosing the 3rd of a dominant. The drill figure normally starts with a real **pickup**: the approach notes sit in a partial bar before the first full bar, resolve onto its downbeat, and then the figure does the same thing three more times — four landings on four consecutive downbeats, the last one held. "Off the beat" shifts the whole thing an eighth later, which is where it actually lives in most bebop lines. (One exception: a single approach note landing off the beat has no pickup bar — the figure starts on the downbeat and runs four bars.) (Inside tune practice the app uses a compact two-bar version of the same figure, sized to fit an insertion window.)
 
 ### Triad Pairs
 

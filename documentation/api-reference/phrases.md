@@ -84,8 +84,7 @@ interface LibraryQuery {
 |---|---|---|
 | `getAllLicks` | `() → Phrase[]` | All licks: ~923 curated (452 hand-written + ~470 combinatorial) plus the user's own and adopted-community licks |
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) lookup by ID |
-| `getLicksByCategory` | `(category) → Phrase[]` | Pre-built category index |
-| `getCategories` | `() → { category, count }[]` | Categories sorted by count (descending) |
+| `getBaseLickFromId` | `(id) → Phrase \| undefined` | Lookup that also resolves a retry-suffixed id to its base lick |
 | `queryLicks` | `(query) → Phrase[]` | Multi-filter query |
 
 ### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`

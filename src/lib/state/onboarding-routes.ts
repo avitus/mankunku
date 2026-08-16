@@ -19,11 +19,18 @@ export const ONBOARDING_ROUTE_PREFIXES = [
 	'/licks/record'
 ] as const;
 
+/** Whole-segment prefix match: `/licks/record` matches `/licks/record/x`, never `/licks/recording`. */
+function matchesRoutePrefix(pathname: string, prefix: string): boolean {
+	return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 export function isOnboardingRoute(pathname: string): boolean {
 	return (
-		ONBOARDING_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+		ONBOARDING_ROUTE_PREFIXES.some((prefix: string): boolean =>
+			matchesRoutePrefix(pathname, prefix)
+		) ||
 		// Tune practice is a scored mic surface too, but lives under the
 		// otherwise-browsable /tunes tree, so it can't ride a prefix.
-		/^\/tunes\/[^/]+\/practice/.test(pathname)
+		/^\/tunes\/[^/]+\/practice(?:\/|$)/.test(pathname)
 	);
 }

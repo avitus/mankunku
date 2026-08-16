@@ -42,4 +42,11 @@ describe('isOnboardingRoute', () => {
 	])('browsable surface %s renders clean', (path) => {
 		expect(isOnboardingRoute(path)).toBe(false);
 	});
+
+	it.each(['/licks/recording', '/ear-training-preview', '/tunes/abc123/practice-preview'])(
+		'segment boundaries hold — %s shares a stem with a practice route but renders clean',
+		(path) => {
+			expect(isOnboardingRoute(path)).toBe(false);
+		}
+	);
 });

@@ -30,7 +30,10 @@ interface Triggered {
 /** Every triggerAttackRelease call across all synths, in order. */
 let triggered: Triggered[] = [];
 
-function fakeSynth(name: string) {
+function fakeSynth(name: string): {
+	connect: () => unknown;
+	triggerAttackRelease: (...args: unknown[]) => void;
+} {
 	const synth: { connect: () => unknown; triggerAttackRelease: (...args: unknown[]) => void } = {
 		connect: () => synth,
 		triggerAttackRelease: (...args: unknown[]) => {
