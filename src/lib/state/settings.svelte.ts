@@ -29,7 +29,7 @@ const defaultSettings = {
 	defaultTempo: 100,
 	masterVolume: 0.8,
 	metronomeEnabled: true,
-	metronomeVolume: 0.7,
+	metronomeVolume: 0.5,
 	backingTrackEnabled: true,
 	backingInstrument: 'piano' as BackingInstrument,
 	backingTrackVolume: 0.6,

@@ -1502,3 +1502,169 @@ with rationale: patching byte-identical vendored LEGATO files (quirks
 documented in VENDORED.md instead), and CodeRabbit's cross-page index claim —
 commitBuffer materializes the buffer verbatim, so base+index arithmetic is
 exact post-commit.
+
+## 2026-08-11 — Enclosures grow up: 4-bar figure with a real pickup, three chord types, 24-variant ladder
+
+The enclosure drill was musically wrong in a way the user could hear: the figure
+started cold on the "and of 1" (silence on the downbeat, then approaches), and it
+only knew maj7. Three approved changes: 4 full bars of content with the first
+group's approach notes as a TRUE anacrusis (partial pickup bar, 5-bar window);
+a `type` parameter (major/minor/dominant) as a real variant axis mirroring
+TRIAD_PAIR_FAMILIES (bed + qualities table, practiceBed/compatibleQualitiesFor
+hooks); and the mastery ladder as three parallel self-contained 8-step chains —
+all three e1s unlocked from day one, no cross-type gating.
+
+What made this clean rather than scary:
+
+- **The pickup lives INSIDE the response window.** Negative offsets are a dead
+  end on four independent layers (humanizeTiming clamps ticks ≥ 0, Tone.Part
+  can't schedule before start, capture windows discard pre-open audio, the
+  scorer's origin is recording-start ≡ offset 0). The sanctioned idiom —
+  offsets ≥ 0, notes starting mid-way through a leading bar, explicit
+  `difficulty.pickupBars` — needed ZERO engine changes: `getLickBars` stretches
+  the vamp window to 5 bars by itself and conformance scoring is bar-blind.
+  `major-chord-pickup-001` was the proof-of-existence precedent.
+
+- **`figure: 'compact'` is context, not a parameter.** Tune insertion windows
+  can't host 5 bars, and `trickForWindow` judges against the same stored
+  context that generated the demo — so the span hint must be honored by BOTH
+  contracts or scoring silently diverges from what the user heard. Same
+  reasoning that made exampleStyle context-not-parameter.
+
+- **Migration runs at the merge seam, not just behind a marker.** The cloud
+  merge unions variant keys, so a marker-only migration would let any stale
+  cloud row or old-code device resurrect legacy keys forever. `migrateTrickState`
+  now normalizes BOTH sides of every init/flush merge; the `enclosure-type-v1`
+  marker only gates the local pass (which is itself gated on hydrate success —
+  the 2026-07-13 rule). trick-migration markers existed since the store was
+  built but had zero consumers; this is their first real use.
+
+- **The notation renderer could already draw an anacrusis** — emergent, since
+  barlines are only emitted between notes — but nothing pinned it, and notation
+  does NOT synthesize rests for gaps, so the generator now bridges internal
+  ring residues with explicit rests (never before the first note, which would
+  turn the partial bar into a full rest-padded one). First regression tests for
+  partial-bar rendering added. Bonus find: `durationToAbc`'s general case never
+  reduced (dotted half at L:1/8 printed `24/4`); fixed, one golden re-pinned.
+
+Numbers: 4071 unit tests green (35 expected-fail), svelte-check clean.
+NOT verified: visual abcjs rendering (Chrome extension unavailable) — eyeball
+/tricks/enclosures previews per type (watch k=1/k=3 rest-filled bars and the
+dotted-half ring), drill each type end-to-end, and a legacy-localStorage reload
+for the migration.
+
+## 2026-08-12 — The feather tongue: a third rescue shape for the on-beat click collision
+
+Two ear-training takes (bbn-032_Bb "Slide Back Down", bbn-010_Bb "Blue Note
+Roll-Off") merged a repeated Eb tongued with the lightest possible legato
+articulation and scored the second note MISSED. (The takes were recorded and
+exported on 2026-08-13 UTC — the fixture filenames carry that date; this
+heading is the local session date.) Same phrase shape, same symptom, same
+fingerprint in the readings — hfRms 0.02 → 0.070 (peak ratios 3.78 / 3.48
+over the run median) for five frames, rms and band floor perfectly flat —
+and yet **two different gates were responsible**: slide-back-down cleared the HF tier's corroborators
+but died in the click-suppression window (the device's ~265–290 ms
+output→capture latency drapes the scheduled click's +0.28 s tail over a
+tongue played ON the beat), while blue-note-roll-off was never suppressed so
+much as disbelieved — a 0.064 st fundamental wobble against the 0.1 gate
+built to reject key clicks. One symptom, two root causes, one missing
+evidence class.
+
+The fix is the third tongue signature the click suppression can trust,
+completing a family: `bandFloorDips`' in-span dip (down-to-the-third: the
+stop silences the horn *during* the spike), its pre-spike stop-and-recover
+(curl-to-the-floor: the stop precedes the spike), and now
+`feathersTongueShape` — the doodle tongue that never interrupts the air at
+all, invisible in every energy measure, but visible as a SHALLOW banded
+cycle-to-cycle shape break (0.80–0.92) on a clean-baseline run. The
+measurement pass over every HF spike span in the corpus is what made the
+band trustworthy: every metronome click either nulls shapeBreak outright
+(the burst destroys period tracking) or drives it ≤ 0.60; hard tongue stops
+are equally deep; the only shallow impostors are single-frame attack
+residues (excluded by a ≥ 2-frame floor) and a 0.956 flicker on a tied note
+(excluded by the 0.92 ceiling). The nearest multi-frame impostor sits at
+0.762 against the 0.80 floor.
+
+Method note worth keeping: rather than reasoning thresholds from the two new
+takes, I instrumented the HF pass behind a `globalThis` hook, ran the two
+audio suites, and let the existing fixtures produce the impostor population
+(~50 spans) before placing a single constant. The corpus IS the spec — the
+same reason the diagnostics-to-fixtures rule exists. Also pinned: the shape
+path takes the established 0.85 true-re-attack energy floor rather than the
+perturbation path's 0.9, because slide-back-down measures 0.89 — the swung
+eighth decays a little before the tap — and every decay impostor the 0.9
+floor was built for is already outside the shape band.
+
+Numbers: 4132 unit/integration tests green (35 expected-fail), 6 new
+regression tests across the two fixtures (trim, split, full-score), corpus
+unregressed, svelte-check clean.
+
+## 2026-08-13 — Trick drills learn what "C" means to the player
+
+User report: enclosure/triad-pair drills should start on C *in the
+instrument's key* and run their rounds in the same circle-of-4ths order lick
+practice uses — instead the keys came out in a "strange order."
+
+The strange order was one concert/written confusion expressed three ways.
+`startTrickSession` and the trick refill in `advanceSingleLickRound` anchored
+`unlockedCircleFrom` at concert `'C'`, and the tune-practice mastery-tier
+mirror in `lick-matcher.ts` pinned the same `'C'`. For a tenor player,
+concert C is *written D* — so the drill opened on D and the rotation read as
+D → G → A in the pitch world the player actually lives in. Lick practice
+never had the bug, but not because anyone handled it: a lick entered in
+written C is *stored* at concert Bb, so `lick.key` carried the instrument
+transposition implicitly. Tricks have no stored home key — the anchor had to
+be derived, and the derivation didn't exist.
+
+Fix: `trickEntryKey(instrument)` in `$lib/tricks` — `writtenKeyToConcert('C',
+instrument)` — used at both drill sites; the matcher gets it as a new
+`LickMatcherDeps.trickEntryKey` (default `'C'`, correct only for concert
+instruments) supplied by `buildLickMatcherDeps`, which now takes the
+instrument as a required param so a future call site can't silently fall back
+to concert C. Generation context deliberately stays concert C: examples
+realize in C and transpose per key exactly like a C-stored lick, so only the
+rotation anchor moved.
+
+Worth keeping: the asymmetry between licks and tricks here is a nice case of
+an invariant maintained *by data* in one subsystem needing to be maintained
+*by code* in its sibling. The lick path encodes "written C" in what the user
+saved; the trick path has to re-derive it per session because nothing is
+saved. Anywhere else a "stored home key" gets replaced by a generated
+artifact, the same hole opens.
+
+Numbers: 4135 unit/integration green (35 expected-fail), 4 new tests
+(instrument-driven anchor, circle-of-4ths rotation order, matcher anchor dep,
+deps-assembly pin), svelte-check clean.
+
+## 2026-08-13 — A new key buys headroom: 10% tempo drop on unlock
+
+User rule: during the learning climb, every key added should drop the lick's
+tempo 10%. The old behaviour was quietly backwards — the unlock gate only
+opens on a strong session (avg ≥ 0.90), so the score-weighted delta on an
+unlock session was always +1/+2, and the brand-new key arrived FASTER than
+the tempo that earned it. Now `startInterLickTransition` computes the unlock
+decision first and branches the tempo write: unlock → `tempoAfterKeyUnlock`
+(round(t × 0.9), clamped at MIN_TEMPO 50, new pure helper in
+lick-practice-store.ts beside the delta formula); no unlock → the usual
+`computeAutoTempoAdjustment` path, unchanged.
+
+Scoping fell out of the existing structure rather than needing a gate:
+lick keys are only ever added in `startInterLickTransition` (standard +
+Daily), and only while unlockedCount < 12 — so "learning phase" is exactly
+when the rule can fire, twelfth key included. Deep Practice never bumps
+lick unlock counts and tricks keep their rotation-clear ladder; both
+untouched. The progress chart needed nothing either: the history sample
+already records post-adjustment bpm with the post-bump key count, so unlock
+markers now sit honestly at the dipped tempo and the line reads as the
+sawtooth the practice actually is — climb, unlock, dip, re-earn.
+
+Worth keeping: the design choice was replace-the-delta, not stack-on-top —
+"a new key resets your headroom" is one legible rule, and the forfeited
++1/+2 is noise against −10%. Also a small TDD note: the control test
+pinning the NON-unlock path at +1 passed from the start, which is exactly
+what a control is for — the five siblings around it failed red first.
+
+Numbers: 4141 unit/integration green (35 expected-fail), 6 new/extended
+assertions in tempo-adjustment.test.ts, svelte-check clean. Docs updated on
+both prose surfaces (user-guide tempo bullet + unlock section, CLAUDE.md
+tempo rule).

@@ -77,6 +77,7 @@ import {
 	NEW_LICK_DEFAULT_TEMPO,
 	computeAutoTempoAdjustment,
 	clampTempo,
+	tempoAfterKeyUnlock,
 	updateRollingScore,
 	getRollingScore,
 	KEY_PROFICIENT_THRESHOLD,
@@ -99,7 +100,7 @@ import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
 import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
-import { exampleStyleForRound, getTrickById, trickContextFor, trickPracticeBed } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById, trickContextFor, trickEntryKey, trickPracticeBed } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	loadTrickPracticeProgress,
@@ -894,7 +895,11 @@ export function startSingleLickSession(
  * The plan item is a `kind: 'trick'` item whose `phraseId` is the composite
  * variant key and whose `phrase` is a generated example built in a C-rooted
  * context — key 'C', over the chord/scale of the device's preferred vamp —
- * so the existing per-key transposition path works unchanged. All progress reads/writes go to the TRICK store
+ * so the existing per-key transposition path works unchanged. The KEY
+ * ROTATION anchors elsewhere: at `trickEntryKey`, the player's written C in
+ * concert pitch, so the drill starts on the key the player reads as C and
+ * grows outward exactly like a lick entered in written C (a lick's anchor is
+ * its stored concert `key`; tricks have none, so it is derived here). All progress reads/writes go to the TRICK store
  * (recordKeyAttempt / advanceSingleLickRound branch on `kind`); tricks never
  * touch `lickPractice.progress`.
  *
@@ -915,8 +920,8 @@ export function startTrickSession(): boolean {
 	const tempo = clampTempo(getTrickTempo(loadTrickPracticeProgress(), variantKey));
 
 	// The device picks the vamp its selected variant sounds correct over
-	// (e.g. altered triad pairs drill on the dominant vamp); default
-	// major-vamp for devices without a preference (enclosures).
+	// (altered triad pairs on the dominant vamp, minor-type enclosures on the
+	// minor vamp); major-vamp only for a device with no practiceBed hook.
 	const progressionType = trickPracticeBed(trick, trickParameters);
 
 	// C-rooted context mirroring that vamp's chord + scale, so examples and
@@ -934,7 +939,10 @@ export function startTrickSession(): boolean {
 	const variantLabel =
 		getVariantByKey(variantKey)?.label ?? normalizeParameterSignature(trickParameters);
 
-	const trickCircle = unlockedCircleFrom('C', getTrickUnlockedKeyCount(variantKey));
+	const trickCircle = unlockedCircleFrom(
+		trickEntryKey(getInstrument()),
+		getTrickUnlockedKeyCount(variantKey)
+	);
 	lickPractice.plan = [
 		{
 			kind: 'trick',
@@ -1610,6 +1618,9 @@ export function advance(): 'next-key' | 'end-of-lick' {
  * adjustment (average score across attempted keys → signed delta via
  * computeAutoTempoAdjustment, clamped, persisted to every key in the lick),
  * and either advances currentLickIndex or marks the session complete.
+ * A session that unlocks a new key skips the score-weighted delta and drops
+ * the tempo 10% instead (tempoAfterKeyUnlock) — the new key starts with
+ * headroom rather than at the speed that earned it.
  * Called by the scheduler at the start of the 2-bar inter-lick rest.
  *
  * If the lick had no scored keys (e.g. session ended before any attempt
@@ -1654,14 +1665,20 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				item.phraseId,
 				newestKey
 			).passCount;
-			if (
+			const unlocked =
 				!floorBreached &&
-				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount })
-			) {
+				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount });
+			if (unlocked) {
 				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);
 			}
 
-			const newTempo = clampTempo(lickPractice.currentTempo + delta);
+			// An unlock trades the score-weighted bump for a 10% drop: the gate
+			// only opens on a strong session, so the delta would otherwise be
+			// +1/+2 and the brand-new key would arrive faster than the session
+			// just played. The drop gives the unfamiliar key headroom instead.
+			const newTempo = unlocked
+				? tempoAfterKeyUnlock(lickPractice.currentTempo)
+				: clampTempo(lickPractice.currentTempo + delta);
 			const now = Date.now();
 			for (const key of item.keys) {
 				lickPractice.progress = updateKeyProgress(
@@ -1762,7 +1779,7 @@ export function advanceSingleLickRound(): void {
 			// the TRICK store — item.phraseId is a variant key, so the lick
 			// store must never see it.
 			const newCount = bumpTrickUnlockedKeyCount(item.phraseId);
-			const fullCircle = unlockedCircleFrom('C', newCount);
+			const fullCircle = unlockedCircleFrom(trickEntryKey(getInstrument()), newCount);
 			let trickProgress = loadTrickPracticeProgress();
 			for (const key of fullCircle) {
 				trickProgress = updateTrickKeyProgress(trickProgress, item.phraseId, key, {

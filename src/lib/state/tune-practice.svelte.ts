@@ -11,6 +11,7 @@ import { buildLickMatcherDeps, suggestLicksForProgression } from '$lib/tunes/lic
 import { transposeTune } from '$lib/tunes/book-loader';
 import { getAllLicks, getBaseLickFromId, isCuratedLickId, transposeLick } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
+import { getInstrument } from '$lib/state/settings.svelte';
 import {
 	getEffectivePracticeLickIds,
 	hasLickProgress,
@@ -217,7 +218,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPrevi
 	let uncategorizedCount = 0;
 	const detections = selectNonOverlapping(detectProgressions(notationFlat, sheet));
 	if (detections.length > 0) {
-		const deps = buildLickMatcherDeps(sheet);
+		const deps = buildLickMatcherDeps(sheet, getInstrument());
 		uncategorizedCount = suggestLicksForProgression(detections[0], deps).uncategorized.length;
 	}
 
@@ -237,7 +238,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 			: transposeTune(sheet, tunePractice.config.concertKey);
 	const { phrase, flat } = tuneToPhraseWithFlat(transposed, { expandRepeats: true });
 	const notationFlat = flattenTune(transposed);
-	const matcherDeps = buildLickMatcherDeps(transposed);
+	const matcherDeps = buildLickMatcherDeps(transposed, getInstrument());
 
 	// A head chorus needs a melody — chords-only charts (iReal imports and
 	// most community tunes) would otherwise open with a full silent chorus.

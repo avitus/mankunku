@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getTrickById, trickBedHarmony, trickContextFor } from '$lib/tricks';
+import { ENCLOSURE_TYPES } from '$lib/tricks/devices/enclosures';
 import { TRIAD_PAIR_FAMILIES } from '$lib/tricks/devices/triad-pairs';
 import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 
@@ -41,11 +42,29 @@ describe('trickBedHarmony', () => {
 	});
 
 	it('falls back to the major vamp for a device with no practiceBed', () => {
-		expect(enclosures.practiceBed).toBeUndefined();
+		// No real device lacks the hook anymore (enclosures gained one with the
+		// type parameter), so pin the fallback with a synthetic hook-less trick.
+		const hookless = { ...enclosures, practiceBed: undefined };
 		const bed = PROGRESSION_TEMPLATES['major-vamp'].harmony[0];
-		expect(trickBedHarmony(enclosures, { targetTone: 'third' })).toEqual({
+		expect(trickBedHarmony(hookless, { targetTone: 'third' })).toEqual({
 			chordQuality: bed.chord.quality,
 			scaleId: bed.scaleId
+		});
+	});
+
+	it('gives each enclosure type the harmony its own vamp declares', () => {
+		for (const family of ENCLOSURE_TYPES) {
+			const bed = PROGRESSION_TEMPLATES[family.bed].harmony[0];
+			expect(trickBedHarmony(enclosures, { type: family.value })).toEqual({
+				chordQuality: bed.chord.quality,
+				scaleId: bed.scaleId
+			});
+		}
+		// Typeless params default to the major chain's bed.
+		const major = PROGRESSION_TEMPLATES['major-vamp'].harmony[0];
+		expect(trickBedHarmony(enclosures, {})).toEqual({
+			chordQuality: major.chord.quality,
+			scaleId: major.scaleId
 		});
 	});
 });
@@ -61,15 +80,11 @@ describe('trickContextFor', () => {
 		}
 	});
 
-	it('is the same derivation the drill uses, so preview and drill cannot drift', () => {
-		// The session builds its C-rooted context through this exact call.
-		for (const family of TRIAD_PAIR_FAMILIES) {
-			const params = { pair: family.value };
-			const drill = trickContextFor(triadPairs, params, 'C', 120);
-			const preview = trickContextFor(triadPairs, params, 'C', 120);
-			expect(preview).toEqual(drill);
-		}
-	});
+	// The drill-vs-preview no-drift guarantee is pinned from the SESSION side:
+	// trick-session.test.ts starts real sessions and asserts the stored
+	// item.trickContext equals trickContextFor(...) with full equality. (A
+	// previous test here compared trickContextFor with itself — a tautology
+	// that would pass even if startTrickSession derived its own context.)
 
 	it('produces an example whose harmony matches the context', () => {
 		for (const family of TRIAD_PAIR_FAMILIES) {

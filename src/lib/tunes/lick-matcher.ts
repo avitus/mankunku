@@ -5,6 +5,7 @@ import type {
 	LickPracticeProgress
 } from '$lib/types/lick-practice';
 import type { TrickContext, TrickParameters, TrickPracticeProgress } from '$lib/types/tricks';
+import type { InstrumentConfig } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
 import type { DetectedProgression, DetectedSlot } from './progression-detector';
 import { trickVariantKey } from '$lib/types/tricks';
@@ -21,7 +22,7 @@ import {
 import { compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { planUnlockedKeys } from '$lib/music/key-ordering';
 import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
-import { getTrickById } from '$lib/tricks';
+import { getTrickById, trickEntryKey } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	getEffectivePracticeLickIds,
@@ -111,6 +112,13 @@ export interface LickMatcherDeps {
 	selectedTrickVariants?: ReadonlySet<string>;
 	/** Per-variant unlocked-key count (1-12) — the trick unlock ramp; absent = 1. */
 	getTrickUnlockedKeyCount?: (variantKey: string) => number;
+	/**
+	 * Concert anchor of the trick unlock ramp — the player's written C
+	 * (`trickEntryKey(instrument)`); absent = 'C', correct for concert-pitch
+	 * instruments only. Must match what the drill itself anchors on, or the
+	 * mastery tiers here claim keys the drill never rotated through.
+	 */
+	trickEntryKey?: PitchClass;
 }
 
 export interface SuggestLicksOptions {
@@ -261,10 +269,10 @@ export function suggestLicksForProgression(
 			// progression chord matching one of the variant's qualities — most
 			// characteristic first — and transpose to THAT chord's root, so an
 			// altered pair lands re-rooted on the V bar of a long ii-V-I while
-			// a diatonic pair takes the I. No matching full-bar chord ⇒ the
-			// variant does not belong on this progression at all. Devices
-			// without the hook keep the category-registration alignment and the
-			// local key (enclosures adapt to any quality via chord tones).
+			// a diatonic pair takes the I, and a minor-type enclosure lands on
+			// a full-bar min7 chord. No matching full-bar chord ⇒ the variant
+			// does not belong on this progression at all. Devices without the
+			// hook keep the category-registration alignment and the local key.
 			let templateAlignmentOffset: Fraction;
 			let targetKey: PitchClass;
 			const variantQualities = trick.compatibleQualitiesFor?.(variant.params);
@@ -310,15 +318,20 @@ export function suggestLicksForProgression(
 				timeSignature: deps.timeSignature,
 				level: 50,
 				tempo: options.sessionTempo ?? 120,
-				swing: 0.5
+				swing: 0.5,
+				// Tune windows are sized by the detected progression span, so
+				// devices with a span distinction demo AND score their short
+				// insertion gesture here — never the multi-bar drill figure.
+				figure: 'compact'
 			};
 			// A null preview must not produce an unplayable window — skip the variant.
 			const phrase = trick.generateExample(variant.params, context);
 			if (!phrase) continue;
 
-			// Mirror classifyMasteryTier's per-key rule (tricks pin the entry key
-			// to 'C'): a variant practiced only in C is NOT "learning" in Db
-			// unless the unlock ramp has reached it.
+			// Mirror classifyMasteryTier's per-key rule (tricks anchor the entry
+			// key at the player's written C — `deps.trickEntryKey`): a variant
+			// practiced only at its anchor is NOT "learning" in Db unless the
+			// unlock ramp has reached it.
 			const perKey = trickProgress[variantKey];
 			const atKey = perKey?.[targetKey];
 			const unlockedCount = deps.getTrickUnlockedKeyCount?.(variantKey) ?? 1;
@@ -328,7 +341,7 @@ export function suggestLicksForProgression(
 					: 'learning'
 				: perKey &&
 					  Object.keys(perKey).length > 0 &&
-					  planUnlockedKeys('C', unlockedCount).includes(targetKey)
+					  planUnlockedKeys(deps.trickEntryKey ?? 'C', unlockedCount).includes(targetKey)
 					? 'learning'
 					: 'unknown';
 
@@ -410,9 +423,14 @@ export function suggestLicksForTune(
 
 /**
  * Live deps assembler — reads the lick pool and practice stores once. Strictly
- * read-only: loaders only, never setters (setters enqueue cloud pushes).
+ * read-only: loaders only, never setters (setters enqueue cloud pushes). The
+ * instrument is passed in (not read here) because this module stays free of
+ * state imports; it anchors the trick ramp at the player's written C.
  */
-export function buildLickMatcherDeps(tune: Pick<Tune, 'timeSignature'>): LickMatcherDeps {
+export function buildLickMatcherDeps(
+	tune: Pick<Tune, 'timeSignature'>,
+	instrument: InstrumentConfig
+): LickMatcherDeps {
 	const licks = getAllLicks();
 	return {
 		licks,
@@ -423,6 +441,7 @@ export function buildLickMatcherDeps(tune: Pick<Tune, 'timeSignature'>): LickMat
 		practiceLickIds: getEffectivePracticeLickIds(licks),
 		trickProgress: loadTrickPracticeProgress(),
 		selectedTrickVariants: new Set(loadSelectedTrickVariants()),
-		getTrickUnlockedKeyCount
+		getTrickUnlockedKeyCount,
+		trickEntryKey: trickEntryKey(instrument)
 	};
 }

@@ -9,7 +9,11 @@ import {
 	getLickAlignmentOffset,
 	resolveQualityRoleEntry
 } from '$lib/data/progressions';
-import { suggestLicksForProgression, type LickMatcherDeps } from '$lib/tunes/lick-matcher';
+import {
+	suggestLicksForProgression,
+	type LickMatcherDeps,
+	type MasteryTier
+} from '$lib/tunes/lick-matcher';
 import { baseLickId } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
 import { getVariantsForTrick } from '$lib/tricks/mastery';
@@ -43,8 +47,10 @@ beforeEach(() => {
 });
 
 // Pinned mastery-ladder positions (contract e1/e2 and the t-stage families).
-const E1 = getVariantsForTrick('enclosures')[0];
+const E1 = getVariantsForTrick('enclosures')[0]; // major chain
 const E2 = getVariantsForTrick('enclosures')[1];
+const E1_MINOR = getVariantsForTrick('enclosures')[8]; // minor chain head
+const E1_DOM = getVariantsForTrick('enclosures')[16]; // dominant chain head
 const T1 = getVariantsForTrick('triad-pairs')[0]; // major-whole — broad (maj + dom)
 const T2 = getVariantsForTrick('triad-pairs')[1]; // major-minor — major only
 const T4 = getVariantsForTrick('triad-pairs')[3]; // major-tritone — natural-5 dominants
@@ -64,6 +70,7 @@ function makeDeps(
 		selectedTrickVariants?: ReadonlySet<string>;
 		practiceLickIds?: Set<string>;
 		getTrickUnlockedKeyCount?: (variantKey: string) => number;
+		trickEntryKey?: PitchClass;
 	} = {}
 ): LickMatcherDeps {
 	return {
@@ -75,7 +82,8 @@ function makeDeps(
 		practiceLickIds: args.practiceLickIds ?? new Set(),
 		trickProgress: args.trickProgress,
 		selectedTrickVariants: args.selectedTrickVariants,
-		getTrickUnlockedKeyCount: args.getTrickUnlockedKeyCount
+		getTrickUnlockedKeyCount: args.getTrickUnlockedKeyCount,
+		trickEntryKey: args.trickEntryKey
 	};
 }
 
@@ -241,7 +249,9 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 		expect(s.substitution).toBeNull();
 		expect(s.inPracticeSet).toBe(true);
 
-		// Trick payload + generated example, already in the target key.
+		// Trick payload + generated example, already in the target key. The
+		// compact figure hint is part of the stored context so the demo phrase
+		// AND the conformance spec both stay within the insertion window.
 		expect(s.trick).toEqual({
 			trickId: 'enclosures',
 			parameters: E1.params,
@@ -253,13 +263,16 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 				timeSignature: [4, 4],
 				level: 50,
 				tempo: 120,
-				swing: 0.5
+				swing: 0.5,
+				figure: 'compact'
 			}
 		});
 		expect(s.phrase).toBeDefined();
 		expect(s.phrase!.key).toBe('F');
 		expect(s.phrase!.harmony[0].chord.root).toBe('F');
 		expect(s.phrase!.notes.some((n) => n.pitch !== null)).toBe(true);
+		// The insertion example is the ≤2-bar compact gesture, never the 5-bar drill.
+		expect(s.phrase!.difficulty.lengthBars).toBeLessThanOrEqual(2);
 		expect(s.difficultyLevel).toBe(s.phrase!.difficulty.level);
 	});
 
@@ -286,14 +299,15 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 			makeDeps({ selectedTrickVariants: new Set([E1.key, T1.key]) })
 		);
 		expect(trickSuggestions(blues)).toHaveLength(0);
-		// minor-vamp registers triad-pairs, but the major-whole family's
-		// qualities (maj7/maj6/7) have no match on a min7 vamp → quality gate.
+		// minor-vamp registers both trick categories, but neither variant's
+		// qualities match a min7 vamp: the major-whole pair family is
+		// maj7/maj6/7, and a major-type enclosure is maj7/maj6 — quality gate.
+		// (The minor enclosure chain DOES surface here — pinned below.)
 		const minor = suggestLicksForProgression(
 			vampDetection('minor-vamp', 'D'),
 			makeDeps({ selectedTrickVariants: new Set([E1.key, T1.key]) })
 		);
-		const ids = trickSuggestions(minor).map((s) => s.lickId);
-		expect(ids).toEqual([`${TRICK_PREFIX}${E1.key}`]);
+		expect(trickSuggestions(minor)).toHaveLength(0);
 	});
 
 	it('derives masteryTier from trick progress: known / learning / unknown', () => {
@@ -327,6 +341,28 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 		expect(tier({ [E1.key]: { F: { currentTempo: 80, lastPracticedAt: 1, passCount: 1 } } })).toBe(
 			'known'
 		);
+	});
+
+	it('anchors the unlock ramp at deps.trickEntryKey (transposing instruments)', () => {
+		// A tenor player's drills anchor at concert Bb (their written C). With
+		// two unlocks the ramp is Bb, F — so F reads "learning" from Bb-anchored
+		// progress, while the concert-C default ramp (C, G) would call it unknown.
+		const progress: TrickPracticeProgress = {
+			[E1.key]: { Bb: { currentTempo: 80, lastPracticedAt: 1, passCount: 2 } }
+		};
+		const tierInF = (trickEntryKey?: PitchClass): MasteryTier =>
+			suggestLicksForProgression(
+				vampDetection('major-vamp', 'F'),
+				makeDeps({
+					selectedTrickVariants: new Set([E1.key]),
+					trickProgress: progress,
+					getTrickUnlockedKeyCount: () => 2,
+					trickEntryKey
+				})
+			).suggestions[0].masteryTier;
+
+		expect(tierInF('Bb')).toBe('learning');
+		expect(tierInF(undefined)).toBe('unknown');
 	});
 
 	it('a variant practiced only in C is unknown in Db until the unlock ramp reaches it', () => {
@@ -442,6 +478,52 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 			'l-maj',
 			`${TRICK_PREFIX}${E1.key}`
 		]);
+	});
+});
+
+describe('per-type quality gating (enclosures)', () => {
+	it('the minor chain surfaces on a minor vamp with the min7 context', () => {
+		const result = suggestLicksForProgression(
+			vampDetection('minor-vamp', 'D'),
+			makeDeps({ selectedTrickVariants: new Set([E1_MINOR.key]) })
+		);
+		const ids = trickSuggestions(result).map((s) => s.lickId);
+		expect(ids).toEqual([`${TRICK_PREFIX}${E1_MINOR.key}`]);
+		const s = result.suggestions[0];
+		expect(s.targetKey).toBe('D');
+		expect(s.trick!.context.chordQuality).toBe('min7');
+		expect(s.trick!.context.scaleId).toBe('major.dorian');
+	});
+
+	it('each chain lands on its own bar of a long major ii-V-I, re-rooted', () => {
+		const result = suggestLicksForProgression(
+			longIiVIDetection('ii-V-I-major-long', 'C', 8),
+			makeDeps({ selectedTrickVariants: new Set([E1.key, E1_MINOR.key, E1_DOM.key]) })
+		);
+		const byId = new Map(trickSuggestions(result).map((s) => [s.lickId, s]));
+		// Major type takes the I bar in the local key.
+		const major = byId.get(`${TRICK_PREFIX}${E1.key}`)!;
+		expect(major.templateAlignmentOffset).toEqual([2, 1]);
+		expect(major.targetKey).toBe('C');
+		expect(major.trick!.context.chordQuality).toBe('maj7');
+		// Minor type re-roots on the full-bar ii chord.
+		const minor = byId.get(`${TRICK_PREFIX}${E1_MINOR.key}`)!;
+		expect(minor.templateAlignmentOffset).toEqual([0, 1]);
+		expect(minor.targetKey).toBe('D');
+		expect(minor.trick!.context.chordQuality).toBe('min7');
+		// Dominant type re-roots on the V bar.
+		const dom = byId.get(`${TRICK_PREFIX}${E1_DOM.key}`)!;
+		expect(dom.templateAlignmentOffset).toEqual([1, 1]);
+		expect(dom.targetKey).toBe('G');
+		expect(dom.trick!.context.chordQuality).toBe('7');
+	});
+
+	it('the minor chain skips the short ii-V-I (its ii spans only half a bar)', () => {
+		const result = suggestLicksForProgression(
+			shortIiVIDetection('C', 4),
+			makeDeps({ selectedTrickVariants: new Set([E1_MINOR.key]) })
+		);
+		expect(trickSuggestions(result)).toHaveLength(0);
 	});
 });
 

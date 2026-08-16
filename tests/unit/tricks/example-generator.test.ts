@@ -192,6 +192,50 @@ describe('realizeTrickExample', () => {
 	});
 });
 
+describe('pickupBars metadata', () => {
+	it('stamps difficulty.pickupBars when provided, including an explicit 0', () => {
+		expect(realizeTrickExample(makeArgs({ pickupBars: 1 }))!.difficulty.pickupBars).toBe(1);
+		expect(realizeTrickExample(makeArgs({ pickupBars: 0 }))!.difficulty.pickupBars).toBe(0);
+	});
+
+	it('leaves difficulty.pickupBars absent when the arg is omitted', () => {
+		expect(realizeTrickExample(makeArgs())!.difficulty.pickupBars).toBeUndefined();
+	});
+});
+
+describe('internal-gap rest fill', () => {
+	it('bridges a gap between slots with an explicit rest', () => {
+		// Eighth at 0, gap of an eighth, eighth at 1/4.
+		const slots = [makeSlot(0, [0, 1], [1, 8]), makeSlot(7, [1, 4], [1, 8])];
+		const phrase = realizeTrickExample(makeArgs({ slots }));
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes).toHaveLength(3);
+		const rest = phrase!.notes[1];
+		expect(rest.pitch).toBeNull();
+		expect(rest.offset).toEqual([1, 8]);
+		expect(rest.duration).toEqual([1, 8]);
+		// Neighbours are the realized slot notes, untouched.
+		expect(phrase!.notes[0].pitch).not.toBeNull();
+		expect(phrase!.notes[2].pitch).not.toBeNull();
+	});
+
+	it('adds no rests when slots are contiguous', () => {
+		const phrase = realizeTrickExample(makeArgs());
+		expect(phrase!.notes.every((n) => n.pitch !== null)).toBe(true);
+	});
+
+	it('never pads before the first note — the anacrusis stays a true partial bar', () => {
+		// A pickup figure: first note at beat 4 of bar 0, target on bar 1.
+		const slots = [makeSlot(11, [3, 4], [1, 4]), makeSlot(0, [1, 1], [1, 4])];
+		const phrase = realizeTrickExample(makeArgs({ slots, pickupBars: 1 }));
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes[0].pitch).not.toBeNull();
+		expect(phrase!.notes[0].offset).toEqual([3, 4]);
+		// ...and never after the last note either.
+		expect(phrase!.notes.at(-1)!.pitch).not.toBeNull();
+	});
+});
+
 describe('allowedSubdivisions', () => {
 	it('returns the level profile rhythm types', () => {
 		expect(allowedSubdivisions(1)).toEqual(['quarter']);

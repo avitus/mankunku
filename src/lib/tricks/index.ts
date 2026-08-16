@@ -5,7 +5,9 @@
 import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
 import type { PitchClass } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
+import type { InstrumentConfig } from '$lib/types/instruments';
 import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+import { writtenKeyToConcert } from '$lib/music/transposition';
 import { enclosuresTrick } from './devices/enclosures';
 import { triadPairsTrick } from './devices/triad-pairs';
 
@@ -13,6 +15,19 @@ export const TRICKS: readonly Trick[] = [enclosuresTrick, triadPairsTrick];
 
 export function getTrickById(id: string): Trick | undefined {
 	return TRICKS.find((trick) => trick.id === id);
+}
+
+/**
+ * Concert anchor of a trick drill's key rotation: the player's WRITTEN C
+ * (concert Bb on a Bb horn, concert Eb on an Eb horn). Tricks have no stored
+ * home key — examples generate in a concert-C context and transpose per key —
+ * so the unlock ramp and the circle-of-4ths rotation grow from the key the
+ * player reads as C, exactly like a lick entered in written C would. The
+ * drill sites and the tune-practice mastery-tier mirror must all resolve the
+ * anchor through this function or they drift.
+ */
+export function trickEntryKey(instrument: InstrumentConfig): PitchClass {
+	return writtenKeyToConcert('C', instrument);
 }
 
 /**
@@ -51,10 +66,12 @@ export function trickBedHarmony(
 
 /**
  * The progression a variant drills over. The `'major-vamp'` fallback for
- * devices with no `practiceBed` (enclosures) lives HERE and nowhere else —
- * the session needs the id to schedule the rhythm section while the preview
- * needs only the harmony, and having each derive the default separately is
- * the drift this module exists to prevent.
+ * devices with no `practiceBed` lives HERE and nowhere else — the session
+ * needs the id to schedule the rhythm section while the preview needs only
+ * the harmony, and having each derive the default separately is the drift
+ * this module exists to prevent. (Both current devices declare beds —
+ * triad pairs per family, enclosures per chord type — so the fallback is
+ * purely defensive today.)
  */
 export function trickPracticeBed(
 	trick: Trick,

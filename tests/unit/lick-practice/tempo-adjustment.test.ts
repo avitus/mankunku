@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	clampTempo,
+	tempoAfterKeyUnlock,
 	NEW_LICK_DEFAULT_TEMPO,
 	loadUnlockCounts
 } from '$lib/persistence/lick-practice-store';
@@ -427,6 +428,92 @@ describe('startInterLickTransition — unlock count bump', () => {
 	});
 });
 
+describe('tempoAfterKeyUnlock — 10% drop on key unlock', () => {
+	it('drops the tempo 10%, rounded to a whole BPM', () => {
+		expect(tempoAfterKeyUnlock(100)).toBe(90);
+		expect(tempoAfterKeyUnlock(200)).toBe(180);
+		// 62 * 0.9 = 55.8 → 56
+		expect(tempoAfterKeyUnlock(62)).toBe(56);
+	});
+
+	it('never drops below MIN_TEMPO = 50', () => {
+		// 54 * 0.9 = 48.6 → 49 → clamped to 50
+		expect(tempoAfterKeyUnlock(54)).toBe(50);
+		expect(tempoAfterKeyUnlock(50)).toBe(50);
+	});
+});
+
+describe('startInterLickTransition — 10% tempo drop when a key unlocks', () => {
+	it('replaces the score-weighted bump with a 10% drop on an unlock session', () => {
+		// avg 0.92 + passCount 3 → unlock fires. Without the drop this session
+		// would land at 101 (+1 BPM); the new key instead buys headroom: 90.
+		setupLick({
+			currentTempo: 100,
+			results: [{ key: 'C', score: 0.92 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(90);
+	});
+
+	it("writes the dropped tempo to all of the lick's keys, not just the scored ones", () => {
+		// D is planned but never scored (session rolled over before it played).
+		// It sits mid-list so the newest-key gate still reads G's passCount.
+		setupLick({
+			currentTempo: 100,
+			results: [
+				{ key: 'C', score: 0.95 },
+				{ key: 'G', score: 0.95 }
+			],
+			plannedKeys: ['C', 'D', 'G']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: {
+				C: { currentTempo: 100, lastPracticedAt: 0, passCount: 5 },
+				G: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 }
+			}
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(90);
+		expect(lickPractice.progress[LICK_ID]?.D?.currentTempo).toBe(90);
+		expect(lickPractice.progress[LICK_ID]?.G?.currentTempo).toBe(90);
+	});
+
+	it('does not drop the tempo on a strong session that stops short of the unlock gate', () => {
+		// avg 0.92 but passCount 2 → no unlock → the normal +1 bump applies.
+		setupLick({
+			currentTempo: 100,
+			results: [{ key: 'C', score: 0.92 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 2 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(101);
+	});
+
+	it('clamps the drop at MIN_TEMPO = 50 for a slow lick', () => {
+		setupLick({
+			currentTempo: 54,
+			results: [{ key: 'C', score: 0.92 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 54, lastPracticedAt: 0, passCount: 3 } }
+		};
+		startInterLickTransition();
+		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(50);
+	});
+});
+
 describe('startInterLickTransition — slowed unlock cadence (brand-new lick walk-through)', () => {
 	it('three consecutive strong sessions produce exactly one unlock at session 3', () => {
 		// Session 1: brand-new lick, first time on the entry key C.
@@ -470,6 +557,9 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+		// The unlock trades the +1 bump for a 10% drop: 62 * 0.9 = 55.8 → 56.
+		// The freshly-earned key arrives with headroom instead of at speed.
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(56);
 	});
 
 	it('a single ≥0.95 session does not unlock on a brand-new lick', () => {
