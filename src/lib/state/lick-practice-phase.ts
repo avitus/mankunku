@@ -103,6 +103,35 @@ export function buildPhaseTimeline(args: {
 	return segments;
 }
 
+/**
+ * Sentinel close tick for a window with no scheduled end. A `play` segment
+ * ending here is effectively open — `phaseCueAt` reports it with no `next`
+ * and no countdown for as long as the transport runs.
+ */
+export const OPEN_ENDED_TICK = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Timeline for the simplest capture shape: a count-in straight into one
+ * open-ended play window (record-a-lick — recording runs until the user
+ * stops, so there is nothing to count down INTO after the entrance). Built
+ * through `buildPhaseTimeline` so there is exactly one segment-construction
+ * path.
+ */
+export function buildOpenEndedTimeline(args: {
+	/** Transport tick of the entrance (end of the count-in). */
+	audioStartTick: number;
+	ticksPerBar: number;
+	countInBars: number;
+}): PhaseSegment[] {
+	const { audioStartTick, ticksPerBar, countInBars } = args;
+	return buildPhaseTimeline({
+		audioStartTick,
+		windows: { opens: [audioStartTick], closes: [OPEN_ENDED_TICK], cycleEndTick: OPEN_ENDED_TICK },
+		ticksPerBar,
+		countInBars
+	});
+}
+
 /** Append, merging into the previous segment when the phase is unchanged. */
 function push(segments: PhaseSegment[], segment: PhaseSegment): void {
 	const prev = segments[segments.length - 1];

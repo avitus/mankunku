@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
 	trimToPerformance,
-	PERFORMANCE_PREROLL_SECONDS
+	rebaseToAnchor,
+	PERFORMANCE_PREROLL_SECONDS,
+	ANCHOR_EARLY_TOLERANCE_SECONDS
 } from '$lib/audio/capture-window';
 import type { PitchReading } from '$lib/audio/pitch-frame';
 
@@ -108,5 +110,53 @@ describe('trimToPerformance', () => {
 		// the ~250 ms where DTW alignment starts flipping. See capture-window.ts.
 		expect(PERFORMANCE_PREROLL_SECONDS).toBeGreaterThan(4096 / 44100 + 1 / 60);
 		expect(PERFORMANCE_PREROLL_SECONDS).toBeLessThan(0.5);
+	});
+});
+
+describe('rebaseToAnchor', () => {
+	it('discards the count-in and re-origins the take on the anchor', () => {
+		// Detector running from the top of a 2-bar count-in; entrance at 4.8 s.
+		const readings = [...run(64, 1.0, 1.5), ...run(60, 5.0, 6.0)];
+		const result = rebaseToAnchor(readings, [1.02, 5.01], 4.8);
+
+		expect(result.readings[0].midi).toBe(60);
+		expect(result.readings[0].time).toBeCloseTo(5.0 - 4.8, 10);
+		expect(result.workletOnsets).toEqual([expect.closeTo(0.21, 10)]);
+	});
+
+	it('keeps an attack just ahead of the anchor at a negative time', () => {
+		// An on-the-downbeat entrance: the worklet fires on the transient a
+		// hair before the scheduled beat. Kept, not clipped — the quantizer
+		// clamps it to beat 0.
+		const readings = run(60, 4.78, 5.5);
+		const result = rebaseToAnchor(readings, [4.75], 4.8);
+
+		expect(result.workletOnsets).toEqual([expect.closeTo(-0.05, 10)]);
+		expect(result.readings[0].time).toBeCloseTo(-0.02, 10);
+	});
+
+	it('drops events beyond the early tolerance', () => {
+		const readings = run(60, 5.0, 5.5);
+		const early = 4.8 - ANCHOR_EARLY_TOLERANCE_SECONDS - 0.01;
+		const result = rebaseToAnchor(readings, [early, 5.02], 4.8);
+
+		expect(result.workletOnsets).toHaveLength(1);
+		expect(result.workletOnsets[0]).toBeCloseTo(0.22, 10);
+	});
+
+	it('lands an event exactly on the anchor at time zero', () => {
+		const result = rebaseToAnchor([makeReading(60, 4.8)], [4.8], 4.8);
+
+		expect(result.readings[0].time).toBe(0);
+		expect(result.workletOnsets).toEqual([0]);
+	});
+
+	it('passes empty captures through', () => {
+		expect(rebaseToAnchor([], [], 4.8)).toEqual({ readings: [], workletOnsets: [] });
+	});
+
+	it('keeps the tolerance above attack scale and under a beat at 240 BPM', () => {
+		expect(ANCHOR_EARLY_TOLERANCE_SECONDS).toBeGreaterThan(0.08);
+		expect(ANCHOR_EARLY_TOLERANCE_SECONDS).toBeLessThan(60 / 240);
 	});
 });
