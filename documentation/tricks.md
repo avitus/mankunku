@@ -14,16 +14,17 @@ There are exactly two, and they're the two that pay the most rent in a bebop voc
 
 > Surround a chord tone with scale and chromatic neighbours before landing on it — the bebop way to make targets feel inevitable.
 
-You choose four things:
+You choose five things:
 
 | Control | Choices |
 |---|---|
+| **Chord type** | Major, Minor, Dominant |
 | **Approach notes** | One, Two, Three |
 | **Shape** | Chromatic from below, Scale tone from above, Above then below, Below then above, Double chromatic |
 | **Target tone** | Root, 3rd, 5th, 7th |
 | **Target lands** | On the beat, Off the beat |
 
-Approaches from above are scale neighbours; approaches from below are chromatic. The figure runs two bars: state the chord tone, wrap it and land on it in the middle of the phrase, then wrap it and land on it again at the top of bar two. "Off the beat" shifts the whole thing an eighth later, which is where it actually lives in most bebop lines.
+Approaches from above are scale neighbours; approaches from below are chromatic — and both are drawn from the chord type's own scale and tones, so enclosing the 3rd of a minor chord is a genuinely different set of notes than enclosing the 3rd of a dominant. The drill figure starts with a real **pickup**: the approach notes sit in a partial bar before the first full bar, resolve onto its downbeat, and then the figure does the same thing three more times — four landings on four consecutive downbeats, the last one held. "Off the beat" shifts the whole thing an eighth later, which is where it actually lives in most bebop lines. (Inside tune practice the app uses a compact two-bar version of the same figure, sized to fit an insertion window.)
 
 ### Triad Pairs
 
@@ -46,11 +47,11 @@ The default shape is eight eighth notes in a bar: triad A up, triad B up, then t
 
 ## The mastery ladder
 
-You don't get all eight variants on day one. Each device is a ladder, and you start on the bottom rung: *Single chromatic approach* for enclosures, *Major pair a whole step apart* for triad pairs.
+You don't get every variant on day one. Each device is a ladder, and you start on the bottom rung: *Single chromatic approach* for enclosures, *Major pair a whole step apart* for triad pairs.
 
 **A rung unlocks when you've cleared 3 passes of its prerequisite.** A "pass" is one recorded key attempt scoring **90% or better** in a Trick Drill. Passes are counted across every key, so three good takes in C will do it — they don't have to be in three different keys. Only Trick Drill counts; a trick you play inside tune practice earns nothing toward the ladder.
 
-The triad-pair ladder is a straight line: clear each family and the next one opens, walking you from diatonic pairs through the altered colours to whole tone. The enclosure ladder branches — clearing *Enclose the 3rd, above then below* opens four rungs at once (the 5th, the three-note version, the double chromatic, and the off-beat version), and the last rung wants three passes each of two different prerequisites.
+The triad-pair ladder is a straight line: clear each family and the next one opens, walking you from diatonic pairs through the altered colours to whole tone. Enclosures give you **three parallel ladders — one per chord type** (major, minor, dominant), each with the same eight rungs, and all three start open at the bottom: progress on the major chain earns you nothing on the minor one, because the notes really are different. Within a chain the ladder branches — clearing *Enclose the 3rd, above then below* opens four rungs at once (the 5th, the three-note version, the double chromatic, and the off-beat version), and the last rung wants three passes each of two different prerequisites.
 
 Open a trick from the Tricks page and the **Mastery path** at the bottom lays the whole ladder out: a tick and a pass count on what you've unlocked, a lock and the prerequisite spelled out on what you haven't, and a **next up** chip on whatever is one step away.
 
@@ -60,11 +61,11 @@ Tapping a trick card opens its page. Top to bottom:
 
 - **Variant** pills — one per rung, in ladder order. Locked ones show a padlock.
 - **Practice this variant** and a **☆ Suggest in tunes** star (more on the star below).
-- A **Preview key** row, and underneath it **The formula** — one plain sentence describing the variant ("Approach the 3rd from above (scale) then below (chromatic), landing on the downbeat") and a notated example.
+- A **Preview key** row, and underneath it **The formula** — one plain sentence describing the variant ("Approach the 3rd from above (scale) then below (chromatic), landing on the downbeat, over a minor chord.") and a notated example.
 - The **Mastery path**.
 - **Your progress** — a tempo-over-time chart, once you have any.
 
-One thing to know about that page: the **Preview key** pills only re-notate the example so you can read it in your own key. They don't set the drill key — a drill always starts in concert C and grows outward along the circle of fifths. The example itself is drawn over the same harmony the drill uses, so an altered or whole-tone triad pair is notated over a dominant chord, not a major one.
+One thing to know about that page: the **Preview key** pills only re-notate the example so you can read it in your own key. They don't set the drill key — a drill always starts on *your written C* (concert B♭ on tenor, concert E♭ on alto) and grows outward along the circle of fifths. The example itself is drawn over the same harmony the drill uses, so an altered or whole-tone triad pair is notated over a dominant chord, not a major one.
 
 **Practice this variant** doesn't start a session. It carries your choice over to the Lick Practice page and leaves you at the setup screen, where you still have to press **Start Trick Drill**. (You can also get there directly: pick **Tricks** as the Session Type on the Lick Practice page and choose the device and its parameters there. Values you haven't earned are disabled with "Locked — earn it on the mastery ladder", and a *Next unlock* line tells you what's next.)
 
@@ -72,11 +73,11 @@ One thing to know about that page: the **Preview key** pills only re-notate the 
 
 It runs on the same engine as [single-lick Deep Practice](./user-guide.md#single-lick-deep-practice), so it's continuous — no rest bars, no round-complete card, nothing to dismiss. It goes until you press **End Session**.
 
-- **The bed.** Two bars of one chord, vamping. Enclosures always drill over a **major** vamp. Triad pairs use whatever their family wants: major for the three diatonic pairs, **dominant** for the altered and whole-tone ones, **minor** for the melodic-minor pair. The chip in the session header names it.
-- **The key.** A new variant starts with one key — concert C — and earns more the way licks do, spreading outward around the circle. Keys are displayed in your written pitch.
+- **The bed.** Two bars of one chord, vamping. Enclosures drill over the vamp their **chord type** names: major type over a major vamp, minor over minor, dominant over dominant. Triad pairs use whatever their family wants: major for the three diatonic pairs, **dominant** for the altered and whole-tone ones, **minor** for the melodic-minor pair. The chip in the session header names it.
+- **The key.** A new variant starts with one key — **your written C** (concert B♭ on tenor), so the first key is the one you read as C — and earns more the way licks do, spreading outward around the circle. Keys are displayed in your written pitch.
 - **The tempo.** 60 BPM to start. Clear every key in the rotation and it goes up by whatever the Tempo Bump knob is set to — 1% by default — rounded up to a whole BPM, so at least 1 BPM and more as you get faster. In a Trick Drill the tempo **only ever goes up** — a bad round costs you the round, not the tempo — and unlike Deep Practice it **is** saved, because clearing the rotation is the only way a variant advances at all.
-- **Every round opens with the demo.** Two bars of the app playing an example in the current key, then you answer. Unlike Deep Practice, the demo never gets dropped, because the figure is regenerated fresh every round — there's always something new to hear.
-- **Two bars per key**, back to back, with your percentage flashing on the chart row as each window closes. Keys you score **95% or better** on drop out of the rotation for the rest of the session, so the cycle keeps getting shorter and lands on what's still shaky.
+- **Every round opens with the demo.** The app plays an example in the current key, then you answer. Unlike Deep Practice, the demo never gets dropped, because the figure is regenerated fresh every round — there's always something new to hear.
+- **One window per key**, back to back, sized to the figure — two bars for a triad-pair cell, longer for the full enclosure figure with its pickup — with your percentage flashing on the chart row as each window closes. Keys you score **95% or better** on drop out of the rotation for the rest of the session, so the cycle keeps getting shorter and lands on what's still shaky.
 - **One bar of turnaround** joins the rounds, and then it starts again.
 
 On screen you get the trick and variant name, the vamp chip, the key you're in, a scrolling chord chart, and the key ring with your current BPM. You do **not** get notation of the figure while you're playing — that's deliberate. You looked at it on the trick page; now play it.
@@ -125,7 +126,7 @@ Where they show up:
 
 - Only over **vamps and ii-V-Is** (major and minor, short and long). Never over a turnaround, a iii-VI-ii-V-I, or blues.
 - They're ranked **below** licks written for that progression, so a real ii-V-I lick always gets named first.
-- **Triad pairs need a chord to sit on.** The app looks for a full bar of a chord whose quality suits the family, and re-roots the pair on *that* chord — so an altered pair lands on the V of a long ii-V-I rather than on the tonic. If no bar in the progression matches, that pair is quietly skipped.
+- **A device needs a chord to sit on.** The app looks for a full bar of a chord whose quality suits the variant — the triad-pair family, or the enclosure's chord type — and re-roots the figure on *that* chord: an altered pair lands on the V of a long ii-V-I rather than on the tonic, and a dominant-type enclosure finds the dominant bar. If no bar in the progression matches, the variant is quietly skipped.
 - In **Suggest** mode two extra filters apply: variants you've never passed in that key are dropped, and so is anything whose practiced tempo is below the tune's tempo. **Points** mode doesn't filter — everything eligible appears in the pick card.
 
 On the chart it reads as a band labelled with the device and the variant. It's scored on fluency, the same as a drill, and it counts toward your points and your streak — but it writes **nothing** back to the trick: no passes, no key unlocks, no tempo. Tune practice is where you find out whether the device is available to you; the drill is where you earn it.

@@ -51,12 +51,14 @@ export const settings = $state({
   defaultTempo: 100,                          // BPM
   masterVolume: 0.8,                          // 0-1
   metronomeEnabled: true,
-  metronomeVolume: 0.7,                       // 0-1
+  metronomeVolume: 0.5,                       // 0-1 mix position; METRONOME_TRIM (0.6) applies underneath
   backingTrackEnabled: true,
   backingInstrument: 'piano' as BackingInstrument,
   backingTrackVolume: 0.6,                    // 0-1
   backingStyle: 'swing' as BackingStyle,      // 'swing' | 'bossa-nova' | 'ballad' | 'straight'
-  swing: 0.5,                                 // Swing ratio (0.5 = straight, 0.8 = heavy)
+  swing: 0.62,                                // Swing ratio (0.5 = straight, 0.8 = heavy). Default is a
+                                              // moderate jazz swing, not straight; exactly 0.50 is also
+                                              // resolveBackingSwing's "band follows the tempo curve" sentinel
   theme: 'dark' as 'dark' | 'light',
   onboardingComplete: false,
   tonalityOverride: null as Tonality | null,  // override for daily tonality

@@ -35,7 +35,7 @@ Side B is **depth-first**. It assumes the line is already in your ear and your j
 
 The third scored mode, in the nav under **Tricks**. It drills a *formula* rather than a phrase: enclosures and triad pairs, the two devices that generate most of what a bebop player actually improvises.
 
-- Each device has a **mastery ladder** of eight variants — for enclosures, from a single chromatic approach to a double-chromatic wrap landing off the beat; for triad pairs, from diatonic neighbours through the altered colours to whole tone. A rung opens once you've cleared 3 attempts at ≥ 90% on its prerequisite.
+- Each device has a **mastery ladder** — for enclosures, eight rungs from a single chromatic approach to a double-chromatic wrap landing off the beat, run as three parallel ladders (one per chord type: major, minor, dominant); for triad pairs, eight families from diatonic neighbours through the altered colours to whole tone. A rung opens once you've cleared 3 attempts at ≥ 90% on its prerequisite.
 - A drill runs like Deep Practice: continuous cycles over a two-bar vamp (major, dominant, or minor, whichever the variant wants), starting in C at 60 BPM and earning keys and tempo as you clear them.
 - It plays you an example every round — but **you are not being asked to play the example back**. You're being asked to play the device. Score it and the app checks whether your notes belong to the formula, not whether they match the demo. Triad pairs go further: play the pair as the demo cell, as alternating triplets, or as four eighths per triad, and the app takes the best of the three readings.
 
