@@ -7,7 +7,7 @@
  * deploy.
  */
 import { describe, it, expect } from 'vitest';
-import { GET } from '../../../src/routes/sitemap.xml/+server';
+import { GET, _escapeXml as escapeXml } from '../../../src/routes/sitemap.xml/+server';
 import { ALL_PAGES } from '$lib/docs/structure';
 
 async function sitemapBody(): Promise<string> {
@@ -59,5 +59,14 @@ describe('sitemap.xml', () => {
 	it('emits no lastmod', async () => {
 		const body = await sitemapBody();
 		expect(body).not.toContain('<lastmod>');
+	});
+
+	it('escapeXml covers the five XML metacharacters', () => {
+		// No current slug needs escaping, so the sitemap body can't exercise
+		// this — a future docs slug with an ampersand would otherwise emit
+		// invalid XML undetected.
+		expect(escapeXml(`bebop & "blues" <all> of 'em`)).toBe(
+			'bebop &amp; &quot;blues&quot; &lt;all&gt; of &apos;em'
+		);
 	});
 });
