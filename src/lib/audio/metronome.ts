@@ -81,8 +81,10 @@ export async function warmUpMetronome(): Promise<void> {
  *
  * @param beatsPerBar - Beats per bar (typically 4)
  * @param bars - Number of bars (null = loop indefinitely)
- * @param startAt - Transport time of the first beat (e.g. '2m' to leave the
- *   first two bars to `scheduleCountInClicks`)
+ * @param startAt - Transport time of the first beat. Prefer tick notation
+ *   (e.g. `` `${8 * transport.PPQ}i` ``) over '2m': bar-based times convert
+ *   through the STICKY global Transport.timeSignature, which a prior
+ *   playback in another meter may have left at 3.
  */
 export async function scheduleMetronome(
 	beatsPerBar: number,

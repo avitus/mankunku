@@ -70,6 +70,18 @@
 	let cueAnimFrame: number | null = null;
 	let toneModule: typeof import('tone') | null = null;
 	const isArming = $derived(phaseCue.countdown > 0 && phaseCue.next === 'play');
+	// Setup (Tone import, tone.start(), detector creation) runs for a moment
+	// after the state flips to counting-in but before the transport — and thus
+	// the cue tracker — starts. Show "Count in" instead of an empty pill.
+	const PRE_TRANSPORT_CUE: PhaseCue = {
+		phase: 'count-in',
+		next: 'play',
+		beatsUntilNext: null,
+		countdown: 0
+	};
+	const displayCue = $derived.by(() =>
+		recordState === 'counting-in' && phaseCue.phase === 'idle' ? PRE_TRANSPORT_CUE : phaseCue
+	);
 
 	// Review
 	let reviewPhrase: Phrase | null = $state(null);
@@ -143,6 +155,7 @@
 	// ─── Count-in + Recording ───────────────────────────────
 
 	async function startRecording() {
+		if (recordState !== 'idle') return;
 		if (!(await ensureMicCapture())) return;
 		if (!playbackModule || !pitchModule) return;
 
@@ -162,13 +175,18 @@
 		transport.position = 0;
 		transport.cancel();
 		transport.bpm.value = tempo;
+		// The transport timeSignature is sticky global state (a prior 3/4 tune
+		// playback leaves it at 3) and everything below assumes 4/4 — pin it.
+		transport.timeSignature = 4;
 
 		// Schedule metronome AFTER transport reset so it isn't cancelled.
 		// Count-in bars get their own woodblock voice; the jazz kit enters at
-		// bar 3 — the texture change is the audible entrance cue.
+		// bar 3 — the texture change is the audible entrance cue. The start
+		// offset is in TICKS so it can't drift from the schedule callback,
+		// phase timeline and bleed grid, which are all tick/beat-based.
 		const { scheduleMetronome, scheduleCountInClicks } = await import('$lib/audio/metronome');
 		await scheduleCountInClicks(4, 2);
-		await scheduleMetronome(4, null, '2m');
+		await scheduleMetronome(4, null, `${8 * transport.PPQ}i`);
 
 		// Start the pitch detector for the whole session — it must already be
 		// running at the entrance, or an on-the-downbeat attack loses its
@@ -503,7 +521,7 @@
 			<!-- Count-in + take: one continuous view. The cue bar carries the
 			     timing — Count in, then Play in 4…1, then on-air Play. -->
 			<div class="w-64 max-w-full">
-				<PhaseCueBar cue={phaseCue} />
+				<PhaseCueBar cue={displayCue} />
 			</div>
 
 			<div class="text-center">
