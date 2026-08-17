@@ -1,8 +1,11 @@
 /**
- * Integration tests for settings cloud hydration.
+ * Integration tests for settings cloud hydration and the shipped defaults.
  *
  * Verifies that loadSettingsFromCloud fetches fresh data on every call
- * (no stale guard) and correctly merges cloud settings into reactive state.
+ * (no stale guard) and correctly merges cloud settings into reactive state,
+ * plus the boot defaults (swing 0.62 above the 0.50 tempo-curve sentinel,
+ * metronomeVolume 0.5) and their parity with the e2e SETTINGS_ONBOARDED
+ * fixture.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -48,6 +51,40 @@ function mockSupabase() {
 		from: vi.fn()
 	};
 }
+
+describe('shipped defaults', () => {
+	it('boots with swing 0.62 and metronomeVolume 0.5 on empty storage', () => {
+		expect(settingsModule.settings.swing).toBe(0.62);
+		expect(settingsModule.settings.metronomeVolume).toBe(0.5);
+	});
+
+	it('default swing pins the band to the knob; exactly 0.50 is the tempo-curve sentinel', async () => {
+		// 0.5 doubles as resolveBackingSwing's "follow the tempo curve"
+		// sentinel, so the shipped default must sit ABOVE it or the band
+		// ignores the knob out of the box.
+		const { resolveBackingSwing } = await import('$lib/audio/backing-generation');
+		const { BACKING_STYLES } = await import('$lib/audio/backing-styles');
+		const { swingForTempo, STRAIGHT_SWING } = await import('$lib/music/swing');
+		const style = BACKING_STYLES.swing;
+
+		expect(settingsModule.settings.swing).toBeGreaterThan(STRAIGHT_SWING);
+		for (const tempo of [60, 140, 240]) {
+			expect(resolveBackingSwing(settingsModule.settings.swing, style, tempo)).toBe(0.62);
+			expect(resolveBackingSwing(STRAIGHT_SWING, style, tempo)).toBe(swingForTempo(tempo));
+		}
+	});
+
+	it('the e2e SETTINGS_ONBOARDED fixture matches the shipped defaults', async () => {
+		// The fixture claims "Shape matches defaultSettings" — and it once
+		// drifted (swing 0.5 / metronomeVolume 0.7), which meant NO test,
+		// unit or e2e, ever ran with the real defaults. Compare every field;
+		// only onboardingComplete may differ (the fixture's whole point).
+		const { SETTINGS_ONBOARDED } = await import('../e2e/fixtures/storage');
+		const defaults = { ...settingsModule.settings } as Record<string, unknown>;
+		const fixture = { ...SETTINGS_ONBOARDED, onboardingComplete: defaults.onboardingComplete };
+		expect(fixture).toEqual(defaults);
+	});
+});
 
 describe('loadSettingsFromCloud', () => {
 	it('merges cloud settings into reactive state', async () => {

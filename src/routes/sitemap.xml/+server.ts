@@ -21,6 +21,13 @@ const TOP_LEVEL_ROUTES: { path: string; priority: string; changefreq: string }[]
 
 export const prerender = true;
 
+/**
+ * Exposed to tests as `_escapeXml` (SvelteKit endpoints only allow extra
+ * exports with a `_` prefix): no current slug needs escaping, so only a
+ * direct test can keep this honest.
+ */
+export { escapeXml as _escapeXml };
+
 function escapeXml(unsafe: string): string {
 	return unsafe
 		.replace(/&/g, '&amp;')

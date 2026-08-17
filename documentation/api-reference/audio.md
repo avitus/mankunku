@@ -159,6 +159,30 @@ Read current input level (RMS) from the analyser. Returns `0–1`. Computes RMS 
 
 ---
 
+## capture-window.ts
+
+Pure trims for pre-armed captures. Both flows arm the detectors *before* the user's entrance — a capture triggered by its own first note can never hold that note's attack, because the trigger (a confident pitch reading) needs most of an analyser window (~93 ms) of the note first — and then discard the lead-in afterwards. Two counterparts, one per entrance style:
+
+### `trimToPerformance(readings, workletOnsets, duration, preroll?): TrimmedCapture`
+
+For **reacted** entrances (ear training — the user comes in on their own reaction time). Drops everything more than `preroll` ahead of the first confident reading and rebases what survives to the new origin. `PERFORMANCE_PREROLL_SECONDS` (0.35) is bounded on both sides: it must exceed the ~190 ms detection lag it undoes, and stay under the ~250 ms where DTW alignment starts to flip (`rhythmDistance` saturates at one beat; 12 of the 21 scored diagnostic fixtures change grade between a 0.25 s and 0.5 s lead-in). Deliberately a **pure function of the capture** — first reading minus a constant — so the live path, the authoritative replay rescore and /diagnostics all derive the same offset without persisting one. Returns `{ readings, workletOnsets, duration, offset }`; `offset` is the seconds removed from the front (add it to `recordingTransportSeconds` to keep bleed evidence on the beat grid). Captures with no readings, or recorded before pre-arming existed (first reading already at ~0), come back untouched.
+
+### `rebaseToAnchor(readings, workletOnsets, anchorOffset, tolerance?): RebasedCapture`
+
+For **scheduled** entrances (record-a-lick — the entrance is the bar-3 downbeat, known in advance). The detectors run from the top of the count-in; once the take ends, this discards the count-in and re-origins everything on the anchor. No reaction time means no preroll — instead `ANCHOR_EARLY_TOLERANCE_SECONDS` (0.15) keeps events slightly **before** the anchor, because an attack played exactly on the downbeat starts sounding before either detector can report it. The tolerance sits above attack-transient scale (~50–80 ms) and below one beat at 240 BPM (250 ms), so the previous count-in click never survives. Events inside the tolerance come out at slightly negative times on purpose; the quantizer clamps them to beat 0. `anchorOffset` is the entrance in the capture's own timebase — anchor context time minus the detectors' shared epoch.
+
+---
+
+## record-transcription.ts
+
+The record-a-lick transcription tail, extracted from `/licks/record` so the whole pipeline is one pure, Node-testable function. The page owns audio plumbing and UI state; this owns everything from raw capture to `Phrase`.
+
+### `transcribeTake({ readings, workletOnsets, anchorOffset, tempo }): Phrase | null`
+
+Rebases the raw capture onto the scheduled entrance (`rebaseToAnchor`), computes the take duration (guarded to ≥ 0 — the rebase keeps readings down to −tolerance), runs the same segmentation pipeline as ear training with the count-in click grid as bleed evidence (`RECORD_COUNT_IN_BEATS = 8` beats of transport offset), quantizes in 4/4, and normalizes to concert C (`detectKey` → shift, `key: 'C'`) with `calculateDifficulty` stamped. Returns `null` when no readings survive the anchor or nothing survives segmentation — the page returns to idle. The phrase comes back with an empty `name` and `id`; the page assigns the name, and the id is stamped when the lick is saved (`saveUserLick`).
+
+---
+
 ## pitch-detector.ts
 
 Pitch detection using [Pitchy](https://github.com/ianprime0509/pitchy) (McLeod Pitch Method).
@@ -353,7 +377,7 @@ Synthesized jazz metronome using Tone.js synths.
 
 Pre-create the metronome synths so the audio graph is stable before the first beat fires. Call during instrument loading, well before the first `playPhrase()`.
 
-### `scheduleMetronome(beatsPerBar, bars): Promise<void>`
+### `scheduleMetronome(beatsPerBar, bars, startAt?): Promise<void>`
 
 Schedule a jazz metronome pattern.
 
@@ -361,6 +385,7 @@ Schedule a jazz metronome pattern.
 |---|---|---|
 | `beatsPerBar` | `number` | Typically 4 |
 | `bars` | `number \| null` | Number of bars, or `null` for infinite loop. `playPhrase` passes `1` — the count-in bar only — whenever the backing track will play, so the synthesized kit never doubles the real one |
+| `startAt` | `string \| number` | Transport time of the first beat (default `0`). Prefer tick notation (e.g. `` `${8 * transport.PPQ}i` ``) over bar notation like `'2m'`: bar-based times convert through the **sticky global** `Transport.timeSignature`, which a prior playback in another meter may have left at 3 |
 
 **Pattern:**
 - **Kick drum** (beat 1): `MembraneSynth` at C1 for a short membrane thump marking the downbeat
@@ -369,13 +394,17 @@ Schedule a jazz metronome pattern.
 
 Must be called before `Transport.start()`.
 
+### `scheduleCountInClicks(beatsPerBar, bars): Promise<void>`
+
+Schedule a finite run of count-in clicks from transport 0: high, dead-short woodblock tocks (`MembraneSynth`), downbeats accented. Deliberately nothing like the kit — record-a-lick pairs this with `scheduleMetronome(4, null, startAt)` so the kit enters exactly where the tocks stop, and the **texture change is the audible "your entrance" cue**. The tocks stay on the same quarter grid as the kit, so `getMetronomeBleedOnsets` needs no special-casing. Must be called before `Transport.start()`.
+
 ### `setMetronomeVolume(volume): Promise<void>`
 
-Set metronome volume (`0–1`).
+Set metronome volume from the settings knob (`0–1`). The knob value is a **mix position, not a raw gain**: `METRONOME_TRIM` (0.6, ≈ −4.4 dB) applies underneath the whole knob range so the synthesized click sits under the music rather than beside it. The knob's shipped default is 0.5.
 
 ### `disposeMetronome(): void`
 
-Stop and dispose the metronome sequence.
+Stop and dispose the metronome sequences (kit and count-in).
 
 ---
 
@@ -407,7 +436,7 @@ Fans out both sources into a `MediaStreamDestinationNode` without disturbing exi
 
 ## quantizer.ts
 
-Rhythmic quantization: converts `DetectedNote[]` into `Note[]` with fraction-based offsets and durations on a 1/48 whole-note grid.
+Rhythmic quantization: converts `DetectedNote[]` into `Note[]` with fraction-based offsets and durations on a 1/48 whole-note grid. Jazz-aware by design: **swung eighths are WRITTEN straight**, so the output vocabulary per quarter-note beat is only {0, 1/3, 1/2, 2/3} — sixteenths and finer degrade to the nearest allowed position, and anything surviving the capture's rebase tolerance ahead of the entrance downbeat clamps to beat 0. The swing-eighth logic assumes a quarter-note beat; the only production caller (record-a-lick) records in 4/4, and the time signature affects only the 8-bar cap.
 
 ### `quantizeNotes(detected, tempo, timeSignature): Note[]`
 
@@ -417,12 +446,13 @@ Rhythmic quantization: converts `DetectedNote[]` into `Note[]` with fraction-bas
 | `tempo` | `number` | BPM |
 | `timeSignature` | `[number, number]` | e.g. `[4, 4]` |
 
-**Algorithm:**
-1. Try multiple sub-grids (straight-16 = 12/whole, triplet-12 = 16/whole, combined = 48/whole) and pick the one with lowest total snap error — disambiguates straight vs. triplet feels.
-2. Snap each onset to the winning grid, then rescale into 1/48 space.
-3. Durations are measured as the distance to the next onset (last note uses its detected duration snapped to grid).
-4. Insert a rest when the gap between the previous note's end and the current onset exceeds 1.5 grid ticks.
-5. Cap at `MAX_BARS = 8` bars; notes beyond that are truncated or dropped.
+**Algorithm (per-beat swing classification):**
+1. Label each onset by its fraction within its quarter-note beat: *downbeat* (< 1/6), *first-triplet* (1/6–5/12), *offbeat* (5/12 up to `MAX_SWING` + 0.05 jitter). An upbeat heavier than that last boundary is more plausibly a rushed next downbeat than a swing feel the settings knob can't even express, so it counts toward beat k+1.
+2. Classify **triplet beats, per beat** — never per take, so one bar can mix swung eighths with a genuine triplet. A beat is a triplet beat iff it contains a first-triplet onset (only triplet figures put anything near 1/3 — no swing feel places an upbeat that early), or its late upbeat (≥ 7/12) continues a quarter-note-triplet from the next beat (which must itself be a triplet beat with no downbeat onset of its own — the walk runs right to left).
+3. Snap: downbeats to 0, first-triplet onsets to 1/3; upbeats resolve to the triplet grid (1/3 or 2/3) on triplet beats, and otherwise collapse to the straight eighth — the **swung-pair collapse**: straight 0.5 through `MAX_SWING` (which includes the 2/3 "triplet swing" point) all notate as a straight off-beat eighth.
+4. Durations are measured as the distance to the next onset; the last note rounds its detected duration to its beat's own unit (eighth, or triplet eighth on a triplet beat), so a short swung final note reads as a full eighth rather than leaking sub-vocabulary ticks like 1/48.
+5. Insert a rest when the gap between the previous note's end and the current onset exceeds 1.5 grid ticks.
+6. Cap at `MAX_BARS = 8` bars; notes beyond that are truncated or dropped.
 
 ### `detectKey(detected): PitchClass`
 

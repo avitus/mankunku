@@ -25,18 +25,9 @@ import {
 	midiToFrequency,
 	intervalSize,
 	semitoneDistance,
-	fractionToFloat,
 	quantizePitch
 } from '../../src/lib/music/intervals';
-import {
-	transpose,
-	transposePitchClass,
-	concertToWritten,
-	writtenToConcert,
-	concertKeyToWritten,
-	writtenKeyToConcert,
-	pitchClassInterval
-} from '../../src/lib/music/transposition';
+import { transpose, transposePitchClass } from '../../src/lib/music/transposition';
 import { PITCH_CLASSES, type PitchClass } from '../../src/lib/types/music';
 
 // ─── Scale Catalog ─────────────────────────────────────────────
@@ -55,13 +46,6 @@ describe('scale catalog integrity', () => {
 		}
 	});
 
-	it('getScale retrieves scales by id', () => {
-		const ionian = getScale('major.ionian');
-		expect(ionian).toBeDefined();
-		expect(ionian!.name).toContain('Ionian');
-		expect(ionian!.family).toBe('major');
-	});
-
 	it('catalogs 35+ scales across all families', () => {
 		expect(SCALE_CATALOG.length).toBeGreaterThanOrEqual(30);
 
@@ -73,14 +57,6 @@ describe('scale catalog integrity', () => {
 // ─── Scale Realization ─────────────────────────────────────────
 
 describe('scale realization', () => {
-	it('C major scale produces correct pitch classes', () => {
-		const ionian = getScale('major.ionian')!;
-		const pcs = realizeScale('C', ionian.intervals);
-
-		// C major: C(0), D(2), E(4), F(5), G(7), A(9), B(11)
-		expect(pcs).toEqual([0, 2, 4, 5, 7, 9, 11]);
-	});
-
 	it('realizeScaleMidi produces notes within the given range', () => {
 		const ionian = getScale('major.ionian')!;
 		const notes = realizeScaleMidi('C', ionian.intervals, 48, 72);
@@ -124,31 +100,6 @@ describe('scale realization', () => {
 		const majorPent = getScale('pentatonic.major')!;
 		const pcs = realizeScale('C', majorPent.intervals);
 		expect(pcs).toHaveLength(5);
-	});
-});
-
-// ─── Chord Tones ───────────────────────────────────────────────
-
-describe('chord tones', () => {
-	it('chord tones are subset of compatible scale in same key', () => {
-		// Cmaj7 chord tones should all be in C Ionian
-		const ionian = getScale('major.ionian')!;
-		const scalePcs = new Set(realizeScale('C', ionian.intervals));
-		const chordMidi = chordTones(60, 'maj7');
-
-		for (const midi of chordMidi) {
-			expect(scalePcs.has(midiToPitchClass(midi))).toBe(true);
-		}
-	});
-
-	it('Dm7 chord tones are in D Dorian', () => {
-		const dorian = getScale('major.dorian')!;
-		const scalePcs = new Set(realizeScale('D', dorian.intervals));
-		const chordMidi = chordTones(62, 'min7'); // D4
-
-		for (const midi of chordMidi) {
-			expect(scalePcs.has(midiToPitchClass(midi))).toBe(true);
-		}
 	});
 });
 
@@ -198,12 +149,6 @@ describe('interval calculations', () => {
 		expect(intervalSize(67, 60)).toBe(7);
 	});
 
-	it('fractionToFloat converts correctly', () => {
-		expect(fractionToFloat([1, 4])).toBe(0.25);
-		expect(fractionToFloat([1, 8])).toBe(0.125);
-		expect(fractionToFloat([3, 4])).toBe(0.75);
-		expect(fractionToFloat([0, 1])).toBe(0);
-	});
 });
 
 // ─── Transposition ─────────────────────────────────────────────
@@ -215,61 +160,6 @@ describe('transposition', () => {
 
 	it('transpose up an octave', () => {
 		expect(transpose(60, 12)).toBe(72);
-	});
-
-	it('transposePitchClass wraps around', () => {
-		expect(transposePitchClass('C', 7)).toBe('G');
-		expect(transposePitchClass('G', 5)).toBe('C');
-
-		// Full circle
-		expect(transposePitchClass('C', 12)).toBe('C');
-	});
-
-	it('pitchClassInterval returns ascending interval', () => {
-		expect(pitchClassInterval('C', 'G')).toBe(7);
-		expect(pitchClassInterval('G', 'C')).toBe(5);
-		expect(pitchClassInterval('C', 'C')).toBe(0);
-	});
-
-	it('concert ↔ written round-trip for Bb instruments', () => {
-		const bbTenorSax = {
-			id: 'tenor-sax',
-			name: 'Tenor Sax',
-			key: 'Bb' as const,
-			transpositionSemitones: 2,
-			concertRangeLow: 44,
-			concertRangeHigh: 75,
-			clef: 'treble' as const,
-			gmProgram: 66,
-			highNotePresets: [78, 77, 76, 75, 74, 72]
-		};
-
-		// Concert C4 → Written D4 (tenor sax is in Bb, written is 2 semitones higher)
-		const written = concertToWritten(60, bbTenorSax);
-		expect(written).toBe(62);
-
-		const concert = writtenToConcert(written, bbTenorSax);
-		expect(concert).toBe(60);
-	});
-
-	it('concert key ↔ written key round-trip', () => {
-		const bbInstrument = {
-			id: 'bb-instrument',
-			name: 'Bb',
-			key: 'Bb' as const,
-			transpositionSemitones: 2,
-			concertRangeLow: 44,
-			concertRangeHigh: 75,
-			clef: 'treble' as const,
-			gmProgram: 56,
-			highNotePresets: [78, 77, 76, 75, 74, 72]
-		};
-
-		const writtenKey = concertKeyToWritten('C', bbInstrument);
-		expect(writtenKey).toBe('D');
-
-		const backToConcert = writtenKeyToConcert(writtenKey, bbInstrument);
-		expect(backToConcert).toBe('C');
 	});
 
 	it('transposition round-trip for all 12 keys', () => {

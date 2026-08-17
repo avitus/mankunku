@@ -83,6 +83,10 @@ describe('pitchClassInterval', () => {
 	it('G to C = 5 semitones (ascending)', () => {
 		expect(pitchClassInterval('G', 'C')).toBe(5);
 	});
+
+	it('C to C = 0', () => {
+		expect(pitchClassInterval('C', 'C')).toBe(0);
+	});
 });
 
 describe('isInRange', () => {

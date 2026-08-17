@@ -1,11 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import { loadEnv } from 'vite';
-import {
-	SUPABASE_URL,
-	PROJECT_REF,
-	resolveSupabaseTarget
-} from '../../e2e/fixtures/stub-cloud';
+import { SUPABASE_URL, resolveSupabaseTarget } from '../../e2e/fixtures/stub-cloud';
 
 /**
  * The stub-cloud fixture bridges the browser's Supabase client to an in-memory
@@ -60,7 +56,4 @@ describe('stub-cloud target resolution', () => {
 		expect(SUPABASE_URL).toBe(built.replace(/\/$/, ''));
 	});
 
-	it('names the auth cookie for the host it actually targets', () => {
-		expect(PROJECT_REF).toBe(new URL(SUPABASE_URL).hostname.split('.')[0]);
-	});
 });

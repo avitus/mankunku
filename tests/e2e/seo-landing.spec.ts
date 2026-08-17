@@ -55,6 +55,16 @@ anonTest.describe('anonymous visitor (crawler-equivalent)', () => {
 		await page.goto('/ear-training');
 		await expect(page.getByTestId('onboarding-overlay')).toBeVisible();
 	});
+
+	anonTest('the browsable licks book renders clean despite sharing the /licks/record stem', async ({
+		page
+	}) => {
+		// The gate's riskiest boundary: '/licks/record' triggers, '/licks'
+		// must not — a prefix regression here blankets the book in the
+		// overlay for every crawler and first-time visitor.
+		await page.goto('/licks');
+		await expect(page.getByTestId('onboarding-overlay')).not.toBeVisible();
+	});
 });
 
 authTest.describe('signed-in visitor', () => {

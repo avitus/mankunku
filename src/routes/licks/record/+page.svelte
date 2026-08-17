@@ -2,22 +2,14 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import { midiToNoteName } from '$lib/music/intervals';
-	import { PITCH_CLASSES, type Phrase, type PitchClass } from '$lib/types/music';
-	import { quantizeNotes, detectKey } from '$lib/audio/quantizer';
-	import {
-		segmentNotes,
-		resolveOnsets,
-		findReArticulations,
-		getMetronomeBleedOnsets
-	} from '$lib/audio/note-segmenter';
-	import { rebaseToAnchor } from '$lib/audio/capture-window';
+	import type { Phrase } from '$lib/types/music';
+	import { transcribeTake, RECORD_COUNT_IN_BEATS } from '$lib/audio/record-transcription';
 	import {
 		buildOpenEndedTimeline,
 		phaseCueAt,
 		type PhaseCue,
 		type PhaseSegment
 	} from '$lib/state/lick-practice-phase';
-	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
@@ -30,7 +22,6 @@
 	import type { PitchDetectorHandle } from '$lib/audio/pitch-detector';
 	import type { MicCapture } from '$lib/audio/capture';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
-	import type { DetectedNote } from '$lib/types/audio';
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
 	let captureModule: typeof import('$lib/audio/capture') | null = null;
@@ -183,10 +174,14 @@
 		// Count-in bars get their own woodblock voice; the jazz kit enters at
 		// bar 3 — the texture change is the audible entrance cue. The start
 		// offset is in TICKS so it can't drift from the schedule callback,
-		// phase timeline and bleed grid, which are all tick/beat-based.
+		// phase timeline and bleed grid, which are all tick/beat-based —
+		// everything derives from RECORD_COUNT_IN_BEATS, which also drives
+		// the bleed grid inside transcribeTake, so the two can't desync.
+		const countInBars = RECORD_COUNT_IN_BEATS / 4;
+		const entranceTick = RECORD_COUNT_IN_BEATS * transport.PPQ;
 		const { scheduleMetronome, scheduleCountInClicks } = await import('$lib/audio/metronome');
-		await scheduleCountInClicks(4, 2);
-		await scheduleMetronome(4, null, `${8 * transport.PPQ}i`);
+		await scheduleCountInClicks(4, countInBars);
+		await scheduleMetronome(4, null, `${entranceTick}i`);
 
 		// Start the pitch detector for the whole session — it must already be
 		// running at the entrance, or an on-the-downbeat attack loses its
@@ -208,15 +203,15 @@
 		onsetDetector?.reset(pitchStartContextTime);
 
 		phaseTimeline = buildOpenEndedTimeline({
-			audioStartTick: 8 * transport.PPQ,
+			audioStartTick: entranceTick,
 			ticksPerBar: 4 * transport.PPQ,
-			countInBars: 2
+			countInBars
 		});
 
 		// 2-bar count-in, then transition to recording on bar 3
 		transport.schedule((time) => {
 			beginActiveRecording(time);
-		}, `${8 * transport.PPQ}i`);
+		}, `${entranceTick}i`);
 
 		transport.start('+0.1');
 		startCueTracking();
@@ -272,12 +267,10 @@
 		if (silenceTimeout) { clearTimeout(silenceTimeout); silenceTimeout = null; }
 		stopCueTracking();
 
-		// Collect and re-origin the capture on the bar-3 downbeat, discarding
-		// the count-in the detectors ran through.
+		// Collect the raw capture before tearing the audio graph down.
 		const rawReadings = pitchDetector?.getReadings() ?? [];
 		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
 		const anchorOffset = anchorContextTime - pitchStartContextTime;
-		const { readings, workletOnsets } = rebaseToAnchor(rawReadings, rawWorkletOnsets, anchorOffset);
 
 		// Stop transport + metronome
 		const tone = await import('tone');
@@ -291,66 +284,24 @@
 
 		pitchDetector?.stop();
 
-		// Compute recording duration. The rebase keeps readings down to
-		// -tolerance, so a take whose last reading precedes the anchor would
-		// otherwise hand segmentation a negative duration.
-		const lastReading = readings[readings.length - 1];
-		const recordingDuration = lastReading
-			? Math.max(0, lastReading.time + 0.1)
-			: 0;
+		// Rebase onto the bar-3 downbeat and run the shared segmentation →
+		// quantize → concert-C pipeline (record-transcription.ts).
+		const phrase = transcribeTake({
+			readings: rawReadings,
+			workletOnsets: rawWorkletOnsets,
+			anchorOffset,
+			tempo
+		});
 
-		if (readings.length === 0) {
+		if (!phrase) {
 			recordState = 'idle';
 			return;
 		}
-
-		// Segment → quantize → build phrase, through the same pipeline as
-		// ear-training and lick-practice. The metronome clicks through the
-		// whole take, so the segmenter MUST get the click grid as bleed
-		// evidence — dropping it silently restores phantom-onset splits.
-		// Transport ran from 0 with a 2-bar count-in, so the take starts
-		// exactly 8 beats in: the analytic grid getMetronomeBleedOnsets walks.
-		const recordingTransportSeconds = 8 * (60 / tempo);
-		const baseOnsets = resolveOnsets(workletOnsets, readings);
-		const bleedOnsets = getMetronomeBleedOnsets(recordingTransportSeconds, tempo, recordingDuration);
-		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
-		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected: DetectedNote[] = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
-
-		if (detected.length === 0) {
-			recordState = 'idle';
-			return;
-		}
-
-		const notes = quantizeNotes(detected, tempo, [4, 4]);
-		const key = detectKey(detected);
-
-		// Normalize to concert C: shift all pitches by -indexOf(key)
-		const shift = -PITCH_CLASSES.indexOf(key);
-		const normalizedNotes = notes.map(n => ({
-			...n,
-			pitch: n.pitch !== null ? n.pitch + shift : null
-		}));
 
 		const userLickCount = getUserLicksLocal().length;
 		const defaultName = `My Lick #${userLickCount + 1}`;
 		lickName = defaultName;
-
-		const phrase: Phrase = {
-			id: '',
-			name: defaultName,
-			timeSignature: [4, 4],
-			key: 'C',
-			notes: normalizedNotes,
-			harmony: [],
-			difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
-			category: 'user',
-			tags: ['user-recorded'],
-			source: 'user-recorded'
-		};
-
-		// Calculate difficulty
-		phrase.difficulty = calculateDifficulty(phrase);
+		phrase.name = defaultName;
 
 		reviewPhrase = phrase;
 		savedConfirmation = false;

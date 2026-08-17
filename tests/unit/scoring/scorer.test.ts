@@ -67,10 +67,12 @@ describe('scoreAttempt', () => {
 	});
 
 	it('uses 60/40 weighting for pitch/rhythm', () => {
-		const phrase = makePhrase([makeNote(60, [0, 1])]);
-		const detected = [makeDetected(60, 0)];
+		const phrase = makePhrase([makeNote(60, [0, 1]), makeNote(62, [1, 8])]);
+		// Perfect rhythm, one wrong pitch — the accuracies must DIVERGE, or
+		// any weight pair summing to 1 passes and the split goes untested.
+		const detected = [makeDetected(60, 0), makeDetected(61, 0.25)];
 		const score = scoreAttempt(phrase, detected, TEMPO);
-		// With perfect pitch and rhythm, overall = pitch*0.6 + rhythm*0.4
+		expect(score.pitchAccuracy).toBeLessThan(score.rhythmAccuracy);
 		const expected = score.pitchAccuracy * 0.6 + score.rhythmAccuracy * 0.4;
 		expect(score.overall).toBeCloseTo(expected, 5);
 	});

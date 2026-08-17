@@ -38,12 +38,13 @@ const defaultSettings = {
   defaultTempo: 100,
   masterVolume: 0.8,
   metronomeEnabled: true,
-  metronomeVolume: 0.7,
+  metronomeVolume: 0.5,      // mix position — METRONOME_TRIM (0.6) applies underneath
   backingTrackEnabled: true,
   backingInstrument: 'piano' as BackingInstrument,
   backingTrackVolume: 0.6,
   backingStyle: 'swing' as BackingStyle,
-  swing: 0.5,
+  swing: 0.62,               // moderate jazz swing out of the box; exactly 0.50 doubles as
+                             // resolveBackingSwing's "band follows the tempo curve" sentinel
   theme: 'dark' as 'dark' | 'light',
   onboardingComplete: false,
   tonalityOverride: null as Tonality | null,   // null = auto-selected daily tonality

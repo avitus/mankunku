@@ -51,6 +51,12 @@ describe('scoreRhythm — unit', () => {
 		expect(scoreRhythm(note, det, 120)).toBeCloseTo(1.0, 5);
 	});
 
+	it('gives 1.0 for rests regardless of detected timing', () => {
+		const rest: Note = { pitch: null, duration: [1, 4], offset: [0, 1] };
+		const det: DetectedNote = { midi: 60, cents: 0, onsetTime: 0.5, duration: 0.4, clarity: 0.95 };
+		expect(scoreRhythm(rest, det, 120)).toBe(1.0);
+	});
+
 	it('gives ~0.55 when half a beat off at 120 BPM', () => {
 		const note: Note = { pitch: 60, duration: [1, 4], offset: [1, 4] };
 		const det: DetectedNote = { midi: 60, cents: 0, onsetTime: 0.75, duration: 0.4, clarity: 0.95 };

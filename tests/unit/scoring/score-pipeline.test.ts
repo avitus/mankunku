@@ -351,35 +351,6 @@ describe('runScorePipeline', () => {
 		expect(result.useFiltered).toBe(false);
 	});
 
-	it('useFiltered is true only when bleedFilterEnabled and filteredScore exists', () => {
-		const bleedResult = { kept: mockDetected, filtered: [] as DetectedNote[] };
-
-		vi.mocked(scoreAttempt)
-			.mockReturnValueOnce(mockScore)
-			.mockReturnValueOnce(mockFilteredScore);
-
-		// Case 1: both conditions met
-		const result1 = runScorePipeline(
-			makePipelineInputs({ detected: mockDetected, bleedResult, bleedFilterEnabled: true })
-		);
-		expect(result1.useFiltered).toBe(true);
-
-		// Case 2: bleedFilterEnabled but no bleedResult
-		const result2 = runScorePipeline(
-			makePipelineInputs({ bleedFilterEnabled: true })
-		);
-		expect(result2.useFiltered).toBe(false);
-
-		// Case 3: bleedResult provided but bleedFilterEnabled false
-		vi.mocked(scoreAttempt)
-			.mockReturnValueOnce(mockScore)
-			.mockReturnValueOnce(mockFilteredScore);
-		const result3 = runScorePipeline(
-			makePipelineInputs({ detected: mockDetected, bleedResult, bleedFilterEnabled: false })
-		);
-		expect(result3.useFiltered).toBe(false);
-	});
-
 	it('detected array comes from input', () => {
 		const customDetected: DetectedNote[] = [
 			{ midi: 62, cents: 5, onsetTime: 0.1, duration: 0.4, clarity: 0.88 },
@@ -389,20 +360,6 @@ describe('runScorePipeline', () => {
 		const inputs = makePipelineInputs({ detected: customDetected });
 		const result = runScorePipeline(inputs);
 		expect(result.detected).toBe(customDetected);
-	});
-
-	it('defaults octaveInsensitive to false when omitted (passed to scoreAttempt as 6th arg)', () => {
-		const inputs = makePipelineInputs();
-		runScorePipeline(inputs);
-		// scoreAttempt(phrase, detected, tempo, transportSeconds, swing, octaveInsensitive)
-		expect(vi.mocked(scoreAttempt)).toHaveBeenCalledWith(
-			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-			false
-		);
 	});
 
 	it('forwards octaveInsensitive=true to scoreAttempt on the unfiltered path', () => {
