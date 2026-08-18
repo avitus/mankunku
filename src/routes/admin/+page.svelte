@@ -172,6 +172,7 @@
 								</label>
 								<input
 									id="confirm-{row.id}"
+									name="confirm"
 									type="text"
 									autocomplete="off"
 									bind:value={confirmText}

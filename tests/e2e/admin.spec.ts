@@ -64,8 +64,18 @@ adminTest.describe('admin — dashboard', () => {
 		).toBeVisible();
 	});
 
-	adminTest('admins get the Admin link in the account menu', async ({ signedInPage }) => {
+	adminTest('the Admin link navigates and closes the account dropdown', async ({
+		signedInPage
+	}) => {
 		await signedInPage.goto('/');
-		await expect(signedInPage.locator('a[href="/admin"]')).toHaveCount(1);
+		const adminLink = signedInPage.locator('a[href="/admin"]');
+		await expect(adminLink).toHaveCount(1);
+
+		await signedInPage.locator('details summary').click();
+		await adminLink.click();
+		await expect(signedInPage).toHaveURL(/\/admin$/);
+		// Client-side nav keeps the layout mounted — the link must close the
+		// native <details> or the menu lingers over the admin page.
+		await expect(signedInPage.locator('details[open]')).toHaveCount(0);
 	});
 });

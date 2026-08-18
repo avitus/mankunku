@@ -52,8 +52,6 @@ export interface AdminTotals {
 	activeThisWeek: number;
 }
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
 /** UTC YYYY-MM-DD of `now` minus 6 days — 7 calendar days including today. */
 export function weekCutoffDateStr(now: Date): string {
 	return new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -120,14 +118,16 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 }
 
 export function buildAdminTotals(rows: AdminUserRow[], now: Date): AdminTotals {
-	const signupCutoff = now.getTime() - WEEK_MS;
-	const activeCutoff = weekCutoffDateStr(now);
+	// Both "this week" counts share the same 7-calendar-day UTC window so the
+	// two tiles answer the same question. (Supabase timestamps are UTC ISO
+	// strings, so slicing the date prefix yields the UTC calendar day.)
+	const cutoff = weekCutoffDateStr(now);
 
 	let signupsThisWeek = 0;
 	let activeThisWeek = 0;
 	for (const row of rows) {
-		if (row.createdAt && Date.parse(row.createdAt) >= signupCutoff) signupsThisWeek++;
-		if (row.lastActiveDate && row.lastActiveDate >= activeCutoff) activeThisWeek++;
+		if (row.createdAt && row.createdAt.slice(0, 10) >= cutoff) signupsThisWeek++;
+		if (row.lastActiveDate && row.lastActiveDate >= cutoff) activeThisWeek++;
 	}
 
 	return { totalUsers: rows.length, signupsThisWeek, activeThisWeek };

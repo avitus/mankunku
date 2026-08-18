@@ -344,6 +344,11 @@
 								{#if isAdmin}
 									<a
 										href="/admin"
+										onclick={(e) => {
+											// Client-side nav doesn't unmount the layout, so the native
+											// <details> would stay open over the admin page.
+											e.currentTarget.closest('details')?.removeAttribute('open');
+										}}
 										class="block w-full rounded px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
 									>
 										Admin

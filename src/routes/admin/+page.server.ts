@@ -14,10 +14,12 @@ import { deleteUserAccount } from '$lib/server/account-deletion';
 import {
 	buildAdminUserRows,
 	buildAdminTotals,
+	type AdminAuthUser,
 	type AdminStatsInput,
 	type AdminUserRow,
 	type AdminTotals
 } from '$lib/server/admin-stats';
+import { selectAllRows } from '$lib/server/select-all';
 import type { HealthSnapshot } from '$lib/server/health';
 
 /**
@@ -44,7 +46,7 @@ interface AdminPageData {
 async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 	const admin = createAdminClient();
 
-	const authUsers = [];
+	const authUsers: AdminAuthUser[] = [];
 	let truncated = false;
 	for (let page = 1; page <= LIST_USERS_MAX_PAGES; page++) {
 		const { data, error } = await admin.auth.admin.listUsers({
@@ -54,29 +56,51 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 		if (error) throw error;
 		authUsers.push(...data.users);
 		if (data.users.length < LIST_USERS_PER_PAGE) break;
-		if (page === LIST_USERS_MAX_PAGES) truncated = true;
+		if (page === LIST_USERS_MAX_PAGES) {
+			// A full final page doesn't prove there are more users — probe the
+			// next page (same perPage: page numbers are offsets in perPage units)
+			// so the truncation banner never shows at exactly the cap.
+			const { data: probe, error: probeError } = await admin.auth.admin.listUsers({
+				page: page + 1,
+				perPage: LIST_USERS_PER_PAGE
+			});
+			truncated = !probeError && probe.users.length > 0;
+		}
 	}
 
-	// Service-role selects (RLS bypassed). Each result's row count is subject
-	// to PostgREST's max-rows cap — fine at current scale, revisit with growth.
-	const [profiles, summaries, licks, tunes, settings] = await Promise.all([
-		admin.from('user_profiles').select('id, display_name, is_admin'),
-		admin.from('daily_summaries').select('user_id, date, session_count, practice_minutes'),
-		admin.from('user_licks').select('user_id').is('deleted_at', null),
-		admin.from('tunes').select('user_id').is('deleted_at', null),
-		admin.from('user_settings').select('user_id, updated_at')
+	// Service-role selects (RLS bypassed), each range-paginated past
+	// PostgREST's max_rows cap so grown tables can't silently under-report
+	// sums. The .order() calls make the pagination windows stable.
+	const [profiles, summaries, lickOwners, tuneOwners, settings] = await Promise.all([
+		selectAllRows((from, to) =>
+			admin.from('user_profiles').select('id, display_name, is_admin').order('id').range(from, to)
+		),
+		selectAllRows((from, to) =>
+			admin
+				.from('daily_summaries')
+				.select('user_id, date, session_count, practice_minutes')
+				.order('user_id')
+				.order('date')
+				.range(from, to)
+		),
+		selectAllRows((from, to) =>
+			admin.from('user_licks').select('user_id').is('deleted_at', null).order('id').range(from, to)
+		),
+		selectAllRows((from, to) =>
+			admin.from('tunes').select('user_id').is('deleted_at', null).order('id').range(from, to)
+		),
+		selectAllRows((from, to) =>
+			admin.from('user_settings').select('user_id, updated_at').order('user_id').range(from, to)
+		)
 	]);
-	for (const result of [profiles, summaries, licks, tunes, settings]) {
-		if (result.error) throw result.error;
-	}
 
 	const input: AdminStatsInput = {
 		authUsers,
-		profiles: profiles.data ?? [],
-		summaries: summaries.data ?? [],
-		lickOwners: (licks.data ?? []).map((row) => row.user_id),
-		tuneOwners: (tunes.data ?? []).map((row) => row.user_id),
-		settings: settings.data ?? []
+		profiles,
+		summaries,
+		lickOwners: lickOwners.map((row) => row.user_id),
+		tuneOwners: tuneOwners.map((row) => row.user_id),
+		settings
 	};
 
 	const users = buildAdminUserRows(input);
@@ -109,6 +133,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const userId = formData.get('userId');
+		const confirm = formData.get('confirm');
 		if (typeof userId !== 'string' || userId.length === 0) {
 			return fail(400, { error: 'Missing user id.' });
 		}
@@ -125,6 +150,18 @@ export const actions: Actions = {
 		} catch (err) {
 			console.error('Failed to create admin client:', err);
 			return fail(500, { error: 'Admin client unavailable.' });
+		}
+
+		// Verify the typed confirmation SERVER-SIDE against the target's real
+		// email (fetched here — a client-posted expected value would verify
+		// nothing). The UI's disabled-button gating is UX, not a control.
+		const { data: target, error: targetError } = await admin.auth.admin.getUserById(userId);
+		if (targetError || !target?.user) {
+			return fail(404, { error: 'User not found.' });
+		}
+		const expectedPhrase = target.user.email ?? userId;
+		if (confirm !== expectedPhrase) {
+			return fail(400, { error: 'Confirmation text does not match.' });
 		}
 
 		const { error: deleteError } = await deleteUserAccount(admin, userId);

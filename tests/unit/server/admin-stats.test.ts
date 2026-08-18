@@ -144,14 +144,12 @@ describe('buildAdminTotals', () => {
 		});
 	});
 
-	it('counts signups within a rolling 7x24h window', () => {
-		const justInside = new Date(NOW.getTime() - 7 * 24 * 60 * 60 * 1000 + 1000).toISOString();
-		const justOutside = new Date(NOW.getTime() - 7 * 24 * 60 * 60 * 1000 - 1000).toISOString();
+	it('counts signups in the same 7-calendar-day UTC window as activity', () => {
 		const rows = buildAdminUserRows({
 			...emptyInput(),
 			authUsers: [
-				{ id: 'in', created_at: justInside },
-				{ id: 'out', created_at: justOutside },
+				{ id: 'in', created_at: '2026-08-12T00:00:01Z' }, // on the cutoff day
+				{ id: 'out', created_at: '2026-08-11T23:59:59Z' }, // the day before
 				{ id: 'undated' }
 			]
 		});
