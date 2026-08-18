@@ -100,3 +100,53 @@ export function trimToPerformance(
 		offset
 	};
 }
+
+/**
+ * How far ahead of a fixed entrance the capture window opens.
+ *
+ * `rebaseToAnchor` keeps events slightly BEFORE the anchor because an attack
+ * played exactly on the downbeat starts sounding before either detector can
+ * report it at the anchor itself — the onset worklet fires on the transient
+ * and a confident pitch reading needs most of an analyser window after that.
+ * The tolerance must sit above attack-transient scale (the segmenter's own
+ * attack windows are ~50-80 ms) and below one beat at the fastest supported
+ * tempo (250 ms at 240 BPM), so the previous count-in click never survives.
+ */
+export const ANCHOR_EARLY_TOLERANCE_SECONDS = 0.15;
+
+export interface RebasedCapture {
+	readings: PitchReading[];
+	workletOnsets: number[];
+}
+
+/**
+ * Rebase a running capture onto a known entrance time.
+ *
+ * The counterpart of `trimToPerformance` for flows where the entrance is
+ * scheduled rather than reacted to: record-a-lick keeps the pitch and onset
+ * detectors running from the top of the count-in (arming at the downbeat
+ * would clip the first attack — see the module header) and then, once the
+ * take ends, discards the count-in and re-origins everything on the bar-3
+ * downbeat. There is no reaction-time lead-in to trim, so no preroll; events
+ * inside the small tolerance window come out at slightly negative times on
+ * purpose, and the quantizer clamps them to the first beat.
+ *
+ * `anchorOffset` is the entrance in the capture's own timebase — anchor
+ * context time minus the detectors' shared epoch.
+ */
+export function rebaseToAnchor(
+	readings: PitchReading[],
+	workletOnsets: number[],
+	anchorOffset: number,
+	tolerance: number = ANCHOR_EARLY_TOLERANCE_SECONDS
+): RebasedCapture {
+	const cutoff = anchorOffset - tolerance;
+	return {
+		readings: readings
+			.filter((r: PitchReading) => r.time >= cutoff)
+			.map((r: PitchReading) => ({ ...r, time: r.time - anchorOffset })),
+		workletOnsets: workletOnsets
+			.filter((t: number) => t >= cutoff)
+			.map((t: number) => t - anchorOffset)
+	};
+}

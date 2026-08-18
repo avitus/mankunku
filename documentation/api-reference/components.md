@@ -301,8 +301,20 @@ Scrolling preview strip showing the current, next, and upcoming key chord charts
 | `currentBeat` | `number` | Active beat in the currently-playing key |
 | `isPlaying` | `boolean` | Session running |
 | `isRecording` | `boolean` | Current key's recording window is open |
-| `isDemoing` | `boolean?` | Continuous-mode demo active — swaps the "Now" chip for "Listen" |
-| `instrument` | `InstrumentConfig` | Used for written-pitch chord labels |
+| `cue` | `PhaseCue?` | Drives the phase tab on the active row (brass LISTEN / on-air PLAY with countdown + entry key / "Straight in" turnaround). Omit for no tab |
+| `isArming` | `boolean?` | Lead-in bar before the recording window — dashes the active row's ring |
+| `scoreFlash` | `{ key, score, at }?` | Tier-colored score chip flashed on the matching key's row |
+| `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
+
+### `PhaseCueBar.svelte`
+
+**Path:** `src/lib/components/lick-practice/PhaseCueBar.svelte`
+
+Standalone listen/play cue pill: a lamp, a speaker/microphone glyph, the phase label (*Count in* / *Listen* / *Play* / *Rest*), and a countdown during the lead-in bar. During a countdown into `listen`/`play` the bar tints toward its incoming phase (`--arm` strength `(5 − countdown)/5`, ramping across the 4-beat lead-in bar to 4/5 on the final beat) so the switch is felt before it is read; counting into a rest is deliberately not announced. Used by the cue-preview dev route and the record-a-lick page (`/licks/record`), where it carries the whole count-in → *Play in 4…1* → on-air sequence; the lick-practice session renders the same `PhaseCue` data as a tab pinned to the active `UpcomingKeysDisplay` row instead.
+
+| Prop | Type | Description |
+|---|---|---|
+| `cue` | `PhaseCue` | From `phaseCueAt(transport.ticks, timeline, PPQ)` (`src/lib/state/lick-practice-phase.ts`) |
 
 ### `SessionTimer.svelte`
 
@@ -383,7 +395,7 @@ Pitch-name buttons (`C`–`B`), accidental toggles (`[` flat, `]` sharp), octave
 
 **Path:** `src/lib/components/onboarding/Onboarding.svelte`
 
-Four-state first-run onboarding flow.
+Four-state first-run onboarding flow. The root layout mounts it **only on mic-driven practice routes** (`/ear-training`, `/lick-practice`, `/tricks`, `/licks/record`, `/tunes/<id>/practice`) and only **post-hydration** — everywhere else (`/`, `/docs`, `/licks`, `/tunes`, community pages) must render clean for a fresh profile, because crawlers render with empty localStorage and an unconditional overlay used to be the entire visible content of every URL on the site.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -400,6 +412,27 @@ When all three auth props are provided, the component checks Supabase for existi
 4. **Ready** — Welcome message with "Start Practicing" and "Go to Dashboard" links
 
 The progress-dot UI shows 4 dots when cloud data is detected, 3 otherwise. Completion sets `settings.onboardingComplete = true` and saves.
+
+---
+
+## Home & SEO Components
+
+### `HomeLanding.svelte`
+
+**Path:** `src/lib/components/home/HomeLanding.svelte`
+
+Descriptive landing page rendered by `/` for **signed-out** visitors (signed-in users get the practice dashboard): what the app is, the practice modes, and sign-in/get-started calls to action. Exists so the home URL carries real crawlable content instead of an empty shell behind the onboarding overlay.
+
+### `SeoHead.svelte`
+
+**Path:** `src/lib/components/seo/SeoHead.svelte`
+
+Per-page `<title>` + `meta description`, plus the matching OG/Twitter pairs. Canonical URL and `og:url` are **not** emitted here — the root layout derives them per route, and duplicating them would produce conflicting tags. `app.html` deliberately carries no title/description of its own: SSR output must contain exactly one of each, and first-in-document wins for crawlers (an e2e smoke test guards the single-title invariant).
+
+| Prop | Type | Description |
+|---|---|---|
+| `title` | `string` | Page title |
+| `description` | `string` | Meta description |
 
 ---
 

@@ -6,7 +6,6 @@
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
 	import UpcomingKeysDisplay from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
 	import LickBreatherCard from '$lib/components/lick-practice/LickBreatherCard.svelte';
-	import PhaseCueBar from '$lib/components/lick-practice/PhaseCueBar.svelte';
 	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
 	import {
 		lickPractice,
@@ -169,12 +168,6 @@
 		confirmingResetId = null;
 		resetLickIds = [];
 	}
-
-	// True while the app is playing the demo of a continuous-mode lick's
-	// first key (before the user starts playing). Set at lick start in
-	// continuous mode; cleared when the first user recording window opens.
-	// Drives the "Listen…" status text and the chip on the active row.
-	let isDemoing = $state(false);
 
 	// Continuous-scroll preview state. plannedKeysForLick is set at lick
 	// start; scrollFraction is updated each animation frame from
@@ -532,9 +525,6 @@
 		// left over from the previous lick so the breather card cross-fades
 		// back to the sliding chart.
 		inScoreHold = false;
-		// "Demo" state until the first user recording window opens — only when
-		// this cycle actually carries a demo block.
-		isDemoing = demoBars > 0;
 
 		if (isFirstLick) {
 			isSessionRunning = true;
@@ -979,12 +969,6 @@
 		const key = item.keys[keyIdx];
 		const phrase = currentPhraseForKey(lickIdx, keyIdx);
 		if (!phrase) return;
-
-		// First user window of a continuous-mode lick → the demo phase is
-		// over. Subsequent calls in the same lick are no-ops for this flag.
-		if (keyIdx === 0) {
-			isDemoing = false;
-		}
 
 		const transportSecondsAtOpen = playback.getTransportSeconds();
 		const readings = pitchDetector.getReadings();
@@ -1454,7 +1438,6 @@
 	function resetPageLocalSessionState(): void {
 		plannedKeysForLick = [];
 		scrollFraction = 0;
-		isDemoing = false;
 		currentBeat = 0;
 		lickStartTick = 0;
 		lickAudioStartTick = 0;
@@ -1809,11 +1792,6 @@
 			{substitutionLabel}
 		/>
 
-		<!-- Listen / play cue. Sits directly above the scrolling chart because
-		     that is where the eyes already are, and counts the user into every
-		     entrance so a switch is anticipated rather than discovered. -->
-		<PhaseCueBar cue={phaseCue} />
-
 		<!-- Continuous chord-block scroll: the lick's full key stack drifts
 		     upward at exactly one row per key duration. During the inter-lick
 		     score-hold bar the frozen last-key chart cross-fades out and the
@@ -1832,7 +1810,7 @@
 					{currentBeat}
 					isPlaying={isSessionRunning}
 					{isRecording}
-					{isDemoing}
+					cue={phaseCue}
 					{isArming}
 					{scoreFlash}
 					{instrument}

@@ -84,11 +84,16 @@ test.describe('lick-practice session flow', () => {
 		const ring = page.locator('svg').filter({ hasText: 'BPM' });
 		await expect(ring.locator('text', { hasText: /^180$/ })).toBeVisible();
 
-		// Round phase 1 — the demo cycle: the active row chips "Listen" while
-		// the app plays the lick. The instrument samples are served by the
-		// CDN stub, so the old 45s WebKit cold-load (PR #205) is gone; the
-		// generous timeout stays as headroom for shared-runner contention.
-		await expect(page.locator('.listen-tag')).toBeVisible({ timeout: 90_000 });
+		// Round phase 1 — the demo cycle: the phase tab on the active row reads
+		// LISTEN (or LISTEN IN through the count-in — the prefix match covers
+		// both, because with a short seeded lick the plain-listen window is a
+		// single bar and polling could miss it). The instrument samples are
+		// served by the CDN stub, so the old 45s WebKit cold-load (PR #205) is
+		// gone; the generous timeout stays as headroom for shared-runner
+		// contention.
+		await expect(page.locator('.phase-tab[data-kind^="listen"]')).toBeVisible({
+			timeout: 90_000
+		});
 
 		// Round phase 2 — the user window: the active chart flags recording
 		// while the mocked mic captures the response.
@@ -160,11 +165,15 @@ test.describe('lick-practice session flow', () => {
 			timeout: 20_000
 		});
 
-		// Cycle 1 opens with the session's one guaranteed demo (Listen chip),
-		// then the user window. Samples come from the CDN stub; the generous
-		// first wait is headroom for shared-runner contention.
-		await expect(page.locator('.listen-tag')).toBeVisible({ timeout: 90_000 });
+		// Cycle 1 opens with the session's one guaranteed demo (LISTEN phase
+		// tab), then the user window — where the tab flips to PLAY. Samples
+		// come from the CDN stub; the generous first wait is headroom for
+		// shared-runner contention.
+		await expect(page.locator('.phase-tab[data-kind^="listen"]')).toBeVisible({
+			timeout: 90_000
+		});
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 30_000 });
+		await expect(page.locator('.phase-tab[data-kind="play"]')).toBeVisible({ timeout: 10_000 });
 
 		// The window closes and scores silently: the tier-colored flash is the
 		// only feedback — no breather card, no pause. (The mocked mic scores

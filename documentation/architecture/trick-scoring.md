@@ -137,9 +137,29 @@ at the right eighth note?"* — asked of all three spec variants (see
 
 `src/lib/tricks/devices/enclosures.ts`
 
-The figure is: opening chord-tone statement, then twice over — k approach
-notes resolving into the target (targets land on beat 3 and bar-2 beat 1 in
-eighths mode; a quarter-note grid is used at content tiers without eighths).
+Two figures share one parameter set, selected by `TrickContext.figure` (both
+`scoreConformance` and `generateExample` dispatch through
+`buildEnclosureFigure`, so the judged spec always matches the demo):
+
+- **Full** (default — the drill figure): a true anacrusis of k approach
+  notes in a partial pickup bar, then four groups, each resolving onto the
+  downbeat of the next content bar (or its "and" when the placement is
+  offbeat) — a pickup bar + 4 content bars, final target a half note. The
+  offbeat single-approach edge case rebases the whole figure back one bar —
+  no pickup bar, 4 content bars — because the lone approach would otherwise
+  land ON the bar-1 downbeat, leaving the pickup bar empty.
+- **Compact** (`figure: 'compact'` — the tune-insertion gesture): the legacy
+  2-bar layout — opening chord-tone statement, then twice over, k approach
+  notes resolving into the target on beat 3 and bar-2 beat 1 in eighths
+  mode. Tune windows are sized by the detected progression span, which the
+  5-bar drill figure cannot fit.
+
+Both use an eighth grid, or quarters at content tiers without eighths. The
+`type` parameter (major/minor/dominant) never reaches slot construction — it
+selects the practice bed and tune-alignment qualities via `ENCLOSURE_TYPES`
+(major → `major-vamp` over maj7/maj6; minor → `minor-vamp` over
+min7/min6/minMaj7; dominant → `dominant-vamp` over the natural-5 dominants,
+deliberately excluding `7alt`, which has no natural 5th to target).
 
 Approach slots have `exactPcs` = **the one specific approach note** (scale
 neighbour from above, chromatic from below). Their `patternPcs` are the
@@ -159,8 +179,14 @@ in a clause needs `totalVariantPasses >= passes` (default `DEFAULT_PASSES =
 `trickVariantKey(trickId, params)` from the parameter objects themselves, so
 they cannot drift from the device's parameters.
 
-The two ladders have different shapes. Enclosures is a branching graph of 8
-hand-written variants (the last one requires two prerequisites at once).
+The two ladders have different shapes. Enclosures is **three parallel
+self-contained chains** — one per chord type in `ENCLOSURE_TYPES`
+(major/minor/dominant) — each a branching graph of the same 8 hand-written
+steps (`ENCLOSURE_STEPS`: e3 fans out into four rungs, e8 requires e5 and e6
+at once). There is **no cross-type gating**: each chain's first rung starts
+unlocked, so all three types are selectable from day one, and pre-`type`
+progress was re-keyed to the major chain by the `enclosure-type-v1`
+migration (`src/lib/persistence/trick-state-migrations.ts`).
 Triad pairs is a **strict linear chain** built by looping the 8 families
 pinned in `TRIAD_PAIR_FAMILIES` — diatonic pairs, then altered pairs, then
 whole-tone — so stage *n+1* opens after three passes of stage *n*:

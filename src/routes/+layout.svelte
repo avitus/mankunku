@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { page, updated } from '$app/state';
+	import { isOnboardingRoute } from '$lib/state/onboarding-routes';
 	import { settings, applyTheme } from '$lib/state/settings.svelte';
 	import Onboarding from '$lib/components/onboarding/Onboarding.svelte';
 	import TourBanner from '$lib/components/ui/TourBanner.svelte';
@@ -144,6 +145,19 @@
 	});
 
 
+	// Onboarding auto-triggers only on the mic-driven practice surfaces —
+	// the route rule and its rationale live in state/onboarding-routes.ts,
+	// where a table-driven test pins the prefix boundaries.
+	const onboardingRoute = $derived.by(() => isOnboardingRoute(page.url?.pathname ?? '/'));
+
+	// The overlay may only mount AFTER hydration: `settings.onboardingComplete`
+	// comes from localStorage, which the server can't read, so consulting it
+	// during SSR/hydration would either bake the overlay into every page's
+	// server HTML (it did) or create a hydration mismatch. SSR renders the
+	// branch false, hydration agrees, and the overlay appears as a plain
+	// post-mount state change.
+	let hydrated = $state(false);
+
 	// Track whether cloud tour state has been merged in. Without this, the
 	// welcome banner can render on a fresh device using stale local state
 	// before the cloud merge resolves — letting someone who already
@@ -183,6 +197,7 @@
 	);
 
 	onMount(() => {
+		hydrated = true;
 		applyTheme();
 
 
@@ -244,12 +259,19 @@
 	<meta property="og:url" content={canonicalUrl} />
 </svelte:head>
 
-{#if !settings.onboardingComplete}
+{#if hydrated && onboardingRoute && !settings.onboardingComplete}
 	<Onboarding {supabase} {session} {user} />
 {/if}
 
+<!-- data-hydrated flips to "true" once the layout has mounted. The e2e
+     fixtures' goto() waits on it before returning: until PR #229 the SSR'd
+     onboarding overlay covered every page and incidentally blocked Playwright
+     clicks until hydration removed it — without that accidental barrier, a
+     click fired straight after navigation can land before handlers attach
+     and silently do nothing (the delete-account race on /settings). -->
 <div
 	data-domain={dataDomain}
+	data-hydrated={hydrated}
 	class="grain-overlay min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]"
 >
 	<!-- Domain accent stripe — peripheral cue that the user is inside a

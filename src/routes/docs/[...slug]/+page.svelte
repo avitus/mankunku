@@ -1,5 +1,6 @@
 <script lang="ts">
 	import MarkdownRenderer from '$lib/components/docs/MarkdownRenderer.svelte';
+	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import type { PageData } from './$types';
 
@@ -20,9 +21,11 @@
 	});
 </script>
 
-<svelte:head>
-	<title>{data.page.title} — Mankunku Docs</title>
-</svelte:head>
+<SeoHead
+	title="{data.page.title} — Mankunku Docs"
+	description={data.page.blurb ??
+		'Mankunku documentation — jazz ear training, lick practice, and how the app listens and scores.'}
+/>
 
 <article class="space-y-4">
 	<!-- Breadcrumbs -->

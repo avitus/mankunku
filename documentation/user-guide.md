@@ -6,7 +6,7 @@ This page walks through the practice flow as it actually feels in the room — w
 
 ## The dashboard
 
-When you open the app you land on the home page. It's the front cover of the LP. From here you can:
+When you open the app signed in, you land on the home page. It's the front cover of the LP. (Signed out, the same URL shows a descriptive landing page about the app instead — sign in and the dashboard below takes its place.) From here you can:
 
 - Jump straight into **Side A** (Ear Training) or **Side B** (Lick Practice).
 - See your **streak** — consecutive days you've practiced. Skip a day and it resets to 1; the longest streak you've ever held is preserved separately.
@@ -26,9 +26,9 @@ This is the call-and-response loop.
 1. **Pick up your horn.** The page is deliberately bare — today's key and scale, one big button, and a score. Nothing to configure at the last second.
 2. **Press the big button once.** That starts a *loop*, not a single phrase. The app plays a phrase through your speakers (or headphones) with a metronome ticking underneath, then hands the beat to you, then scores you, then goes straight into the next one. You press the button again (it becomes a stop icon) when you want out.
 3. **Listen all the way through.** Don't start playing along. The phrase usually sits inside one or two bars; let the whole thing land in your ear before you reach for it. There is **no sheet music on this page** — that's the point. It's ear training, not reading.
-4. **Play it back.** When the phrase finishes, the metronome keeps going so you have a beat to lean on. Play the phrase as you heard it. The app starts recording the moment your first note registers.
+4. **Play it back.** When the phrase finishes, the metronome keeps going so you have a beat to lean on. Play the phrase as you heard it. The app is already listening when your turn starts — so your first note's attack is always captured cleanly — and the take is trimmed back to just before your entrance, so taking a moment to come in costs you nothing.
 5. **Stop playing.** After about two seconds of silence, the app decides you're done.
-6. **Read the score.** Your overall percentage lands next to the button, coloured by its grade — Perfect, Great, Good, Fair, or Try Again — with **Pitch** and **Rhythm** broken out underneath it. A liner-note caption sits at the bottom of the screen quoting the giants ("right in the pocket," "cookin'," "take it again from the top," and so on). The score stays put until the next one replaces it.
+6. **Read the score.** Your overall percentage lands next to the button, coloured by its grade — Perfect, Great, Good, Fair, or Try Again — with **Pitch** and **Rhythm** broken out underneath it. It takes a beat to appear: the number you see is the *definitive* re-score of the actual recording, not a live estimate (or the live score, in the rare case the recording can't be replayed), and once it's up it never changes. A liner-note caption sits at the bottom of the screen quoting the giants ("right in the pocket," "cookin'," "take it again from the top," and so on). The score stays put until the next one replaces it.
 7. **Move on, or retry.** Above 70% counts as a pass and the loop rolls on to a new phrase. Below that, the *same* phrase comes round again so you can take another swing — you don't have to do anything.
 
 When your level moves, a small cue flashes under the status line: *↑ Blues · Lv 23*. That's the adaptive system telling you it's noticed.
@@ -41,7 +41,7 @@ Ear Training has no in-page settings panel — everything it uses comes from the
 |---|---|
 | **Key Center** and **Scale Type** | Override today's automatic pick with any *unlocked* key + scale combination. Locked ones are visible but disabled, with a tooltip naming the proficiency they require. A **Reset to daily** link appears once you've overridden, and a counter underneath shows how many keys and scales you've unlocked so far. |
 | **Tempo** | 60–200 BPM, in steps of 5. This is the starting tempo for new practice sessions. Most players start in the 80–110 range. |
-| **Swing** | 0.50 (straight eighths) to 0.80 (heavy). 0.67 is the usual triplet swing. |
+| **Swing** | 0.50 (straight eighths) to 0.80 (heavy). 0.67 is the usual triplet swing; the app ships at 0.62, a moderate jazz swing. At exactly 0.50 the band stops following the knob and swings by tempo instead — slower tunes lope harder, fast ones straighten out. |
 | **Metronome** | On/off, plus a level knob when it's on. |
 | **Backing** | On/off, the comping voice (Piano or Organ), and a level knob. Despite living in this section, these apply to the *backing track* — Lick Practice and Tune Practice — not to Ear Training, which never plays one. |
 
@@ -54,7 +54,7 @@ The screen is intentionally almost empty:
 - **Today's key**, the scale name, and how many notes that scale has ("5 notes", "7 notes") — the palette you're drawing from.
 - The **big button**: play when idle, stop when running, a spinner while the instrument samples load ("Tuning up…").
 - The **score** from your last take, held until the next one lands.
-- The **status text**, which is your metronome for the loop: *Listen…* while the phrase plays, *Your turn — play!* once it ends, *Listening…* once your first note hits and recording starts.
+- The **status text**, which is your metronome for the loop: *Listen…* while the phrase plays, *Your turn — play!* once it ends, *Listening…* once your first note hits.
 - A discreet **practice timer** in the top-left corner, counting the time you've actually spent in the loop.
 
 There's no pitch meter or input-level meter on this page. If you want to see what the detector is hearing — cents sharp or flat, clarity, the notes it segmented — that lives on the diagnostics page, not in the practice loop.
@@ -285,8 +285,8 @@ The settings page is laid out as a studio console — knobs, rocker switches, an
 
 Two ways in.
 
-- **The editor** (`/licks/editor`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (sharp, flat, or natural), and the cursor moves on. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓, delete it with Backspace/Delete, or flip its spelling with `\`, all without retyping the rest. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
-- **Record** (`/licks/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out.
+- **The editor** (`/licks/editor`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (sharp, flat, or natural), and the cursor moves on. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓, delete it with Backspace/Delete, or flip its spelling with `\`, all without retyping the rest. Rests are selectable and deletable the same way (MuseScore-style); pitch operations on a rest simply do nothing. Add rests, set the bar count, save the phrase, and tag it for practice if you want to drill it.
+- **Record** (`/licks/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out. Set the tempo first, then press record: you get a **two-bar count-in** of woodblock tocks with a cue pill counting you down (*Count in*, then *Play in 4…3…2…1*), and the full jazz kit takes over exactly where the tocks stop — that texture change is your entrance, so **come in on that downbeat**. Play the lick, then stop with the button or just go quiet for a couple of seconds. The transcription understands jazz time: swung eighths come out written as straight eighths (the convention on every lead sheet), and a genuine triplet is still recognised beat by beat, so one bar can hold both. On the review screen, playback re-applies your Swing setting so the take sounds the way you played it, not the way it's spelled.
 
 Either way, your lick joins your book alongside your other licks — ones you recorded, wrote, or adopted from the community — and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
 

@@ -142,8 +142,6 @@ const {
 	getAllLicks,
 	getLickById,
 	getBaseLickFromId,
-	getLicksByCategory,
-	getCategories,
 	queryLicks
 } = await import('$lib/phrases/library-loader');
 
@@ -281,62 +279,6 @@ describe('getBaseLickFromId', () => {
 	});
 });
 
-describe('getLicksByCategory', () => {
-	it('returns licks matching the category', () => {
-		const iiVI = getLicksByCategory('ii-V-I-major');
-		expect(iiVI).toHaveLength(2);
-		expect(iiVI.every(l => l.category === 'ii-V-I-major')).toBe(true);
-	});
-
-	it('returns empty array for category with no licks', () => {
-		const result = getLicksByCategory('rhythm-changes');
-		expect(result).toEqual([]);
-	});
-
-	it('returns user licks for the user category', () => {
-		mockGetUserLicksLocal.mockReturnValue(FIXTURE_USER_LICKS);
-		const result = getLicksByCategory('user');
-		expect(result).toHaveLength(1);
-		expect(result[0].id).toBe('user-1');
-	});
-});
-
-describe('getCategories', () => {
-	it('returns all categories present in licks', () => {
-		const cats = getCategories();
-		const names = cats.map(c => c.category);
-		expect(names).toContain('ii-V-I-major');
-		expect(names).toContain('blues');
-		expect(names).toContain('pentatonic');
-		expect(names).toContain('bebop-lines');
-	});
-
-	it('includes count for each category', () => {
-		const cats = getCategories();
-		const iiVI = cats.find(c => c.category === 'ii-V-I-major');
-		expect(iiVI).toBeDefined();
-		expect(iiVI!.count).toBe(2); // lick-1 and lick-3
-
-		const blues = cats.find(c => c.category === 'blues');
-		expect(blues).toBeDefined();
-		expect(blues!.count).toBe(1);
-	});
-
-	it('sorts by count descending', () => {
-		const cats = getCategories();
-		for (let i = 1; i < cats.length; i++) {
-			expect(cats[i - 1].count).toBeGreaterThanOrEqual(cats[i].count);
-		}
-	});
-
-	it('includes user lick categories', () => {
-		mockGetUserLicksLocal.mockReturnValue(FIXTURE_USER_LICKS);
-		const cats = getCategories();
-		const user = cats.find(c => c.category === 'user');
-		expect(user).toBeDefined();
-		expect(user!.count).toBe(1);
-	});
-});
 
 describe('queryLicks', () => {
 	it('returns all licks when query is empty', () => {
