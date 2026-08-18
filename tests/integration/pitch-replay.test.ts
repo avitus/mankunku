@@ -2578,9 +2578,11 @@ describe('pitch replay regression: feather-tongued repeated Eb on the beat (conc
  *     holds ≥ 0.95× through the event);
  *   - the clarity pass needs a 30% RMS drop that a crescendo never shows;
  *   - the shape tier sees the dip but its deepest frame (0.062) is below
- *     SHAPE_MIN_PERIODICITY, the depth band reserved for clicks and thumps —
- *     and the beat-coincident metronome click's suppression window covers
- *     the break time anyway.
+ *     SHAPE_MIN_PERIODICITY, the depth band reserved for clicks and thumps.
+ *     The beat-coincident click never even reaches the break time: it
+ *     arrives ~5 ms after it, and the suppression-window edge misses it by
+ *     1 ms — schedule geometry decides nothing here; the depth floor alone
+ *     rejects it.
  *
  * What a click cannot fake here is the ORDER of the evidence: the deep
  * shape break and clarity dip begin on readings whose analysis windows
