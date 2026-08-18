@@ -59,12 +59,15 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 		if (page === LIST_USERS_MAX_PAGES) {
 			// A full final page doesn't prove there are more users — probe the
 			// next page (same perPage: page numbers are offsets in perPage units)
-			// so the truncation banner never shows at exactly the cap.
+			// so the truncation banner never shows at exactly the cap. A probe
+			// failure throws like any other listUsers failure: guessing at
+			// completeness would let partial data masquerade as the full picture.
 			const { data: probe, error: probeError } = await admin.auth.admin.listUsers({
 				page: page + 1,
 				perPage: LIST_USERS_PER_PAGE
 			});
-			truncated = !probeError && probe.users.length > 0;
+			if (probeError) throw probeError;
+			truncated = probe.users.length > 0;
 		}
 	}
 
@@ -104,7 +107,14 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 	};
 
 	const users = buildAdminUserRows(input);
-	return { unavailable: false, truncated, users, totals: buildAdminTotals(users, new Date()) };
+	return {
+		unavailable: false,
+		truncated,
+		users,
+		// A truncated user list must not be labeled as totals — the tiles are
+		// withheld and the truncation notice explains why.
+		totals: truncated ? null : buildAdminTotals(users, new Date())
+	};
 }
 
 export const load: PageServerLoad = async ({ locals, fetch }) => {

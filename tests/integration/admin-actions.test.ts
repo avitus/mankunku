@@ -1,28 +1,32 @@
 /**
- * Integration tests for the /admin deleteUser form action.
+ * Integration tests for the /admin server route: the deleteUser form action
+ * and the load function.
  *
  * The admin client is mocked (same seam as account-deletion tests); locals
  * follow the requireAdmin contract. The action must re-verify admin, block
  * self-deletion, and verify the typed confirmation SERVER-SIDE against the
- * target's email (the client-side gating is UX, not a control).
+ * target's email (the client-side gating is UX, not a control). The load must
+ * never label partial data as totals.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Mock } from 'vitest';
 
 const mockAdminAuth = {
 	admin: {
 		deleteUser: vi.fn(),
-		getUserById: vi.fn()
+		getUserById: vi.fn(),
+		listUsers: vi.fn()
 	}
 };
 const mockAdminStorage = { from: vi.fn() };
-const mockAdmin = { auth: mockAdminAuth, storage: mockAdminStorage };
+const mockAdmin = { auth: mockAdminAuth, storage: mockAdminStorage, from: vi.fn() };
 
 vi.mock('$lib/supabase/admin', () => ({
 	createAdminClient: () => mockAdmin
 }));
 
-import { actions } from '../../src/routes/admin/+page.server';
+import { actions, load } from '../../src/routes/admin/+page.server';
 
 const ADMIN_ID = 'admin-1';
 const TARGET_ID = 'user-2';
@@ -41,7 +45,12 @@ beforeEach(() => {
 	});
 });
 
-function makeLocals(isAdmin: boolean) {
+interface MockLocals {
+	supabase: { from: Mock };
+	safeGetSession: Mock;
+}
+
+function makeLocals(isAdmin: boolean): MockLocals {
 	const single = vi.fn().mockResolvedValue({ data: { is_admin: isAdmin }, error: null });
 	const eq = vi.fn().mockReturnValue({ single });
 	const select = vi.fn().mockReturnValue({ eq });
@@ -61,7 +70,10 @@ function makeRequest(fields: Record<string, string>): Request {
 	return { formData: async () => formData } as unknown as Request;
 }
 
-async function runDelete(fields: Record<string, string>, isAdmin = true) {
+function runDelete(
+	fields: Record<string, string>,
+	isAdmin: boolean = true
+): ReturnType<typeof actions.deleteUser> {
 	return actions.deleteUser({
 		locals: makeLocals(isAdmin),
 		request: makeRequest(fields)
@@ -129,5 +141,94 @@ describe('/admin deleteUser action', () => {
 		mockAdminAuth.admin.deleteUser.mockResolvedValue({ error: { message: 'nope' } });
 		const result = await runDelete({ userId: TARGET_ID, confirm: TARGET_EMAIL });
 		expect(result).toMatchObject({ status: 500 });
+	});
+});
+
+// ─── load ──────────────────────────────────────────────────────
+
+const PER_PAGE = 1000;
+
+/** Thenable query-builder stub: select/is/order/range chain, resolves rows. */
+function makeQueryMock(rows: unknown[]): Record<string, unknown> {
+	const builder: Record<string, unknown> = {};
+	for (const method of ['select', 'is', 'order', 'range']) {
+		builder[method] = vi.fn().mockReturnValue(builder);
+	}
+	builder.then = (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+		Promise.resolve({ data: rows, error: null }).then(resolve);
+	return builder;
+}
+
+function fullAuthPage(page: number): { id: string; email: string; created_at: string }[] {
+	return Array.from({ length: PER_PAGE }, (_, i) => ({
+		id: `u-${page}-${i}`,
+		email: `u${page}-${i}@example.com`,
+		created_at: '2026-01-01T00:00:00Z'
+	}));
+}
+
+type AdminLoadResult = Exclude<Awaited<ReturnType<typeof load>>, void>;
+
+async function runLoad(): Promise<AdminLoadResult> {
+	const fetch = vi.fn().mockResolvedValue({
+		ok: true,
+		json: async () => ({ status: 'ok' })
+	});
+	const result = await load({ locals: makeLocals(true), fetch } as never);
+	if (!result) throw new Error('load returned no data');
+	return result;
+}
+
+describe('/admin load', () => {
+	beforeEach(() => {
+		mockAdmin.from.mockImplementation(() => makeQueryMock([]));
+	});
+
+	it('returns joined users and totals when the auth list is complete', async () => {
+		mockAdminAuth.admin.listUsers.mockResolvedValue({
+			data: {
+				users: [
+					{ id: 'u1', email: 'one@example.com', created_at: '2026-01-01T00:00:00Z' },
+					{ id: 'u2', email: 'two@example.com', created_at: '2026-02-01T00:00:00Z' }
+				]
+			},
+			error: null
+		});
+
+		const result = await runLoad();
+
+		expect(result.unavailable).toBe(false);
+		expect(result.truncated).toBe(false);
+		expect(result.users).toHaveLength(2);
+		expect(result.totals).toMatchObject({ totalUsers: 2 });
+	});
+
+	it('withholds totals when a sixth page proves the user list is truncated', async () => {
+		mockAdminAuth.admin.listUsers.mockImplementation(async ({ page }: { page: number }) => ({
+			data: { users: page <= 5 ? fullAuthPage(page) : fullAuthPage(page).slice(0, 1) },
+			error: null
+		}));
+
+		const result = await runLoad();
+
+		expect(result.unavailable).toBe(false);
+		expect(result.truncated).toBe(true);
+		expect(result.users).toHaveLength(5 * PER_PAGE);
+		// Partial data must never be labeled as totals.
+		expect(result.totals).toBeNull();
+	});
+
+	it('reports unavailable when the truncation probe itself fails', async () => {
+		mockAdminAuth.admin.listUsers.mockImplementation(async ({ page }: { page: number }) =>
+			page <= 5
+				? { data: { users: fullAuthPage(page) }, error: null }
+				: { data: { users: [] }, error: { message: 'rate limited' } }
+		);
+
+		const result = await runLoad();
+
+		expect(result.unavailable).toBe(true);
+		expect(result.users).toHaveLength(0);
+		expect(result.totals).toBeNull();
 	});
 });

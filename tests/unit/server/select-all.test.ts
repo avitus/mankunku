@@ -4,9 +4,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { selectAllRows } from '../../../src/lib/server/select-all';
 
-function pagedSource(rows: number[], serverPageSize: number) {
+function pagedSource(rows: number[], serverPageSize: number): Mock {
 	return vi.fn(async (from: number, to: number) => ({
 		data: rows.slice(from, Math.min(to + 1, from + serverPageSize)),
 		error: null

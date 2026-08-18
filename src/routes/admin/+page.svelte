@@ -112,7 +112,8 @@
 		{:else}
 			{#if data.truncated}
 				<div class="rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
-					Showing the first {data.users.length} users; the list was truncated.
+					Showing the first {data.users.length} users — the list was truncated, so the
+					totals tiles are withheld rather than reporting partial counts.
 				</div>
 			{/if}
 			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
