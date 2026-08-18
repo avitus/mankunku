@@ -204,6 +204,12 @@ Audit direction matters: enumerate the product from `src/routes` + `src/lib` and
 - **Hybrid import shipped (2026-08-10)**: the import page fuses an attached `.omr.json` (melody, via `src/lib/tunes/import/omr-transcription.ts` → the same `ModelBar` seam Claude fills) with text-layer chords + geometry bars; covered systems make ZERO API calls, and keyless servers can import via OMR alone. Recorded vs MuseScore refs: melody 0.887/0.956/1.0 (Claude floors were 0.55/0.6/0.5), chords exact-position 2/3, A-Train full form strict. The fused-fixture recorder is COMMITTED and env-gated (`RECORD_OMR_FIXTURES=1`) — never let it run un-gated in CI, it writes fixtures. OMR floors live as `omrFloors`/`omrKnownDefects` in `tests/helpers/leadsheet-corpus.ts`.
 - Watch list for the LEGATO 2 release + definition-of-ready: `docs/omr/legato2.md`.
 
+### Admin page: dormant infra now live; deletion has a bucket inventory (2026-08-18)
+`/admin` (owner-only) ships on the long-dormant substrate: `user_profiles.is_admin` (flip manually via SQL — no UI grants it), `createAdminClient()` service-role factory, `PageData.isAdmin`. Guard is `requireAdmin(locals)` in `$lib/server/admin-guard.ts` — 404 on all refusals (stealth), 503 only on `degraded`. Assembly logic is pure in `$lib/server/admin-stats.ts`; activity truth is `daily_summaries` (`last_sign_in_at` never refreshes for long-lived PWA sessions). The `PLAYWRIGHT=1` gate in `admin/+page.server.ts` is load-bearing: local e2e inherits the real service-role key and server loads are uninterceptable, so the page must self-disable under test.
+
+- **`USER_STORAGE_BUCKETS` in `$lib/server/account-deletion.ts` is the inventory of everywhere user bytes live** (`recordings`, `tunes`). Account deletion had orphaned tune PDFs since lead sheets shipped because the list was implicit. Any new per-user bucket MUST be added there — both the self-service and admin delete paths clean from it.
+- **WebKit reloads every hydrated 404 page once** (auth invalidation → `__data.json` refetch → "access control checks" pageerror → SvelteKit hard-nav fallback). Pre-existing, cosmetic, NOT the stale-chunk recovery (its `stale-chunk-reload-url` sessionStorage marker never appears). In e2e, never follow a 404 assertion with another `goto()` in the same test — split tests instead (see `tests/e2e/admin.spec.ts`).
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

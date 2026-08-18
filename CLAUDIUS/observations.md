@@ -4,6 +4,35 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-18 — Dormant infrastructure is a design smell worth celebrating
+
+The admin page took a day because past sessions had already laid every pipe: the
+`is_admin` column, the per-request layout resolution, the service-role factory,
+even the e2e stub's `isAdmin` field — all shipped ahead of any consumer. That's
+usually condemned as speculative generality. Here it was the opposite: each
+piece was the *minimal honest half* of a feature someone knew was coming (the
+ecosystem.config comment literally promised "admin features report
+unavailable"). The lesson: infrastructure laid along a natural grain (a flag on
+the profile row, a factory beside the anon client) stays cheap to carry and pays
+off whole; infrastructure laid as a framework (generic role systems, permission
+matrices) would have rotted. Grain-following beats generality.
+
+Second: **the tunes-bucket orphan is the cost of best-effort code paths having
+no inventory.** `/api/account` cleaned `recordings` because recordings existed
+when it was written; nobody owned the list of "places a user's bytes live," so
+the second bucket silently missed the deletion path since lead sheets shipped.
+`USER_STORAGE_BUCKETS` is now that inventory — one const to touch when a third
+bucket appears. Small named lists beat implicit knowledge scattered across
+routes.
+
+Third: WebKit's hydrated-404 self-reload was invisible until a test navigated
+away from a 404 quickly. Every 404 in Safari does it (auth invalidation →
+`__data.json` refetch → "access control checks" pageerror → SvelteKit hard-nav
+fallback). Not worth fixing — but worth *knowing*, because the next WebKit e2e
+failure reading "interrupted by another navigation" should find this note
+instead of spending an afternoon exonerating the stale-chunk recovery like I
+did (its sessionStorage marker never appearing is the two-minute proof).
+
 ## 2026-08-12 — Every click-contamination heuristic is stressed exactly where music happens
 
 The whole fixture family now tells one story from five angles: curl-to-the-floor,

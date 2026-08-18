@@ -22,12 +22,13 @@
 			supabase: import('@supabase/supabase-js').SupabaseClient;
 			session: import('@supabase/supabase-js').Session | null;
 			user: import('@supabase/supabase-js').User | null;
+			isAdmin: boolean;
 		};
 	}
 
 	let { children, data }: Props = $props();
 	let mobileMenuOpen = $state(false);
-	let { supabase, session, user } = $derived(data);
+	let { supabase, session, user, isAdmin } = $derived(data);
 
 	// Proactive stale-chunk guard (Sentry MANKUNKU-8). `kit.version.pollInterval`
 	// (svelte.config.js) polls for a new deployment; when one goes live,
@@ -340,6 +341,14 @@
 							<div
 								class="absolute right-0 top-full z-20 mt-1 min-w-[120px] rounded-md border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-1 shadow-md"
 							>
+								{#if isAdmin}
+									<a
+										href="/admin"
+										class="block w-full rounded px-3 py-1.5 text-left text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
+									>
+										Admin
+									</a>
+								{/if}
 								<form method="POST" action="/auth/logout" onsubmit={handleSignOut}>
 									<button
 										type="submit"
@@ -412,6 +421,17 @@
 						>
 							{emailPrefix}
 						</div>
+						{#if isAdmin}
+							<a
+								href="/admin"
+								onclick={() => {
+									mobileMenuOpen = false;
+								}}
+								class="block w-full rounded px-3 py-2 text-left text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
+							>
+								Admin
+							</a>
+						{/if}
 						<form method="POST" action="/auth/logout" onsubmit={handleSignOut}>
 							<button
 								type="submit"
