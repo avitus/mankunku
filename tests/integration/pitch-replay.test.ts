@@ -2556,3 +2556,92 @@ describe('pitch replay regression: feather-tongued repeated Eb on the beat (conc
 		});
 	}
 });
+
+/**
+ * 2026-08-18 "Blues Curl Up" (bc-041_D) — concert D on Bb tenor, 105 BPM,
+ * swing 0.6, metronome on. D4 quarter, F4 quarter, F4 half; the player
+ * tongued the repeated F ON the beat, crescendoing through it, and the pair
+ * merged into one 2.96 s F with the second scored MISSED (saved 0.543,
+ * "try-again", 2/3 hit).
+ *
+ * The articulation's evidence in the saved readings: clarity dips
+ * 0.999 → 0.842, pitch tracking drops for ~84 ms (a short gap with true
+ * silence), and shapeBreak collapses 0.997 → 0.062 starting a frame BEFORE
+ * the hole, recovering in a multi-frame ramp (0.73 / 0.90 / 0.91) after it.
+ * Every tier rejects it:
+ *
+ *   - short-gap step-up measures 1.12 against the 1.2 floor (the player
+ *     crescendoed, so there is no trough for the bloom path either: the
+ *     resumption level is already ABOVE the pre-gap mean);
+ *   - no hfRms spike (soft single tongue, ratio ~1.1 against the 3.0 gate);
+ *   - no envelope or band-floor dip (the airflow never stopped — rmsMin
+ *     holds ≥ 0.95× through the event);
+ *   - the clarity pass needs a 30% RMS drop that a crescendo never shows;
+ *   - the shape tier sees the dip but its deepest frame (0.062) is below
+ *     SHAPE_MIN_PERIODICITY, the depth band reserved for clicks and thumps —
+ *     and the beat-coincident metronome click's suppression window covers
+ *     the break time anyway.
+ *
+ * What a click cannot fake here is the ORDER of the evidence: the deep
+ * shape break and clarity dip begin on readings whose analysis windows
+ * close before the scheduled click can have sounded, and the break is a
+ * multi-frame dip-and-recover ramp on a clean baseline, where every
+ * measured click is a cliff (root-frame 0.54 with no ramp, Blue Monk 0.33).
+ */
+describe('pitch replay regression: hard-tongued repeated F under a crescendo on the beat (concert D, 2026-08-18)', () => {
+	const TRANSPORT_SECONDS = 208.929410430839;
+	const TEMPO = 105;
+	const SWING = 0.6;
+
+	const expectedPhrase: Phrase = {
+		id: 'bc-041_D',
+		name: 'Blues Curl Up',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 62, duration: [1, 4], offset: [0, 1] }, // D4
+			{ pitch: 65, duration: [1, 4], offset: [1, 4] }, // F4
+			{ pitch: 65, duration: [1, 2], offset: [1, 2] }  // F4
+		],
+		harmony: [],
+		difficulty: { level: 7, pitchComplexity: 11, rhythmComplexity: 3, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	const replayPipeline = () =>
+		replayEarTrainingTake('recordings/2026-08-18-blues-curl-up.wav', TRANSPORT_SECONDS, TEMPO);
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(0.183, 2);
+	});
+
+	it('splits the tongued F pair despite the on-beat click inside the reading hole', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([62, 65, 65]);
+		expect(detected[2].onsetTime).toBeGreaterThan(1.3);
+		expect(detected[2].onsetTime).toBeLessThan(1.6);
+	});
+
+	it('scores all three notes hit (the saved take had the second F MISSED at 0.543)', async () => {
+		const { detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+});

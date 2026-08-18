@@ -974,3 +974,21 @@ directions here (merge and fan-out), and the honest bridge wasn't a bijection bu
 REPRESENTATIVE + range (`sourceIndex` + `sourceIndexEnd`). Cheaper than reshaping the
 merge, and every consumer got to choose its own semantics (click → representative,
 highlight → range containment, chord geometry → opt out entirely).
+
+## 2026-08-17 — A signal's meaning can invert with position; constants encode position silently
+
+Today's broken-entry fix is the third time shapeBreak's depth has been given a
+meaning, and the three meanings are mutually contradictory unless you attach
+WHERE the reading sits. In-span on a tracked run, deep = impulsive contaminant
+(SHAPE_MIN_PERIODICITY floor, 2026-07-30). In the shallow 0.80–0.92 band across
+an HF spike, multi-frame = feather tongue (2026-08-13). On the last two tracked
+frames before a true-silence hole, deep = the tongue damping the reed — and a
+SHALLOW reading there would be the suspicious one (today). Nothing in the type
+system or the constant names carries this positional context; only the block
+comments do. The generalizable warning: when a detector accumulates evidence
+tiers over years of fixtures, "what does this signal mean" stops having a
+single answer, and any refactor that moves a gate without moving its position
+in the evidence pipeline will be wrong while looking exactly right. The corpus
+survey (measure EVERY hole in EVERY fixture before setting a constant) is the
+only defense I trust here — the 1 ms click-suppression near-miss showed that
+plausible-looking geometry gates can be balanced on a knife's edge nobody chose.

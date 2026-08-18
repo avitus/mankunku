@@ -1706,3 +1706,47 @@ named symptom; others may follow.
 
 Numbers: 4144 unit/integration green (35 expected-fail), 3 new tests in
 tests/unit/ui/chord-chart-layout.test.ts, svelte-check clean.
+
+## 2026-08-17 — The crescendo tongue: a re-articulation with no energy story at all
+
+User report: the 2026-08-18 "Blues Curl Up" export (concert D, tenor, 105
+BPM, metronome) scored 0.543 "try-again" with the second F of the repeated
+pair MISSED — "as so often happens, it missed the subtle articulation
+between the same two notes." Same lick family as the 2026-06-24 fixture
+that set the 1.2 step-up floor.
+
+The take is the hostile corner of the space: the player tongued the repeat
+ON the beat (click arrival ~5 ms after the waveform break, the schedule's
+suppression edge missing the break time by 1 ms) while CRESCENDOING through
+it. Every energy-domain tier fails by construction, not by mistuning: the
+short-gap step-up measures 1.120 — exactly the mid-sustain-dropout ceiling
+the 1.2 floor was cut against (blue-note-climb's 1.883 s dropout is also
+1.120) — and the bloom path needs a trough, but the resumption level sits
+ABOVE the pre-gap mean, so a crescendo can never form one. No HF spike, no
+rmsMin dip (the airflow never faltered), and the shape tier rejects the
+break as below SHAPE_MIN_PERIODICITY — the depth band reserved for clicks.
+
+The discriminator came from surveying every same-MIDI true-silence hole in
+the corpus (21 fixtures, ~30 holes): the tongue DAMPS the reed progressively,
+so shapeBreak collapses (0.06/0.17) across the last TWO still-tracked frames
+before the hole, clarity dipped but confident. Every impulsive contaminant
+that leaves a tracked reading measures ≥ 0.33 there, and the one thump with
+two deep tracked frames (Blue Monk, 0.07/0.08) hides behind a warmup-BRIDGED
+hole the tier's silence gate already rejects. An impulse abrupt enough to
+blank tracking gets at most ONE straddling tracked window — down-to-the-third's
+kick measures −0.18 preceded by 0.99. Hence the broken-entry path: both
+pre-hole frames ≤ 0.25 shapeBreak + energy sustained across the hole at the
+existing 0.85 true-re-attack floor. Additive acceptance path; no existing
+fixture's behaviour changes (full suite 4147 green, was 4144 + 3 new).
+
+Worth keeping: the SAME measurement inverts meaning with position. In-span,
+deep shapeBreak = click (SHAPE_MIN_PERIODICITY floor); on the ENTRY frames
+of a true-silence hole, deep = tongue, and it's the *shallow* readings that
+would be suspect. Depth alone is meaningless — depth × where-tracking-died
+is the signal. Also: the click schedule was deliberately NOT consulted (the
+1 ms suppression-edge miss shows how brittle schedule geometry is when the
+player is rhythmically accurate); evidence ORDER did the work instead.
+
+Numbers: 4147 unit/integration green (35 expected-fail), 3 new tests in
+pitch-replay.test.ts (2026-08-18 fixture pair copied into the corpus),
+svelte-check clean.

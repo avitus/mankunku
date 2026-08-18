@@ -1400,6 +1400,51 @@ const BAND_FLOOR_STOP_MIN_SUSTAIN = 0.02;
 const RE_ARTICULATION_GAP_SUSTAIN = 0.85;
 
 /**
+ * Broken-entry acceptance for the short-gap tier: the tongue that DAMPS the
+ * reed before the hole. The step-up and bloom paths both read the energy
+ * envelope, and a player who crescendos through the articulation defeats
+ * both: the 2026-08-18 "blues-curl-up" fixture (concert D, 105 BPM, repeated
+ * F4 tongued ON the beat) measures 1.12 across the hole — exactly the
+ * mid-sustain-dropout ceiling the 1.2 step-up floor was cut against
+ * (blue-note-climb's 1.883 s dropout: 1.120) — and its resumption level sits
+ * ABOVE the pre-gap mean, so the bloom trough can never form. The energy
+ * envelope is simply the wrong instrument for this articulation.
+ *
+ * What the tongue does leave is a waveform-shape collapse on the frames
+ * BEFORE the hole, while pitch is still tracked: damping is progressive, so
+ * shapeBreak falls to 0.06/0.17 across the last TWO stable readings (clarity
+ * 0.88/0.84 — dipped but confident) before the stop+attack transient blanks
+ * tracking. Both frames must be that deep:
+ *
+ *   DEPTH  every impulsive contaminant measured in the corpus that leaves a
+ *          TRACKED reading sits at ≥ 0.33 (Blue Monk thump 0.33, root-frame
+ *          click 0.54, pent-run click edge 0.69, blue-note-climb 0.75 s
+ *          anomaly 0.37, curl-to-the-floor's post-collapse turbulence
+ *          0.40–0.46) — a click or thump superimposes on an intact tone and
+ *          only partially decorrelates it, while the tongue collapses the
+ *          periodic waveform itself. The 0.25 ceiling sits between this
+ *          fixture's 0.17 and the 0.41 turbulence impostor.
+ *   TWO FRAMES  an impulse abrupt enough to blank tracking gets at most ONE
+ *          tracked straddling window before the blank — down-to-the-third's
+ *          downbeat kick measures −0.18 preceded by 0.99. The one measured
+ *          contaminant with two deep tracked frames (the Blue Monk thump,
+ *          0.07/0.08) sits behind a warmup-BRIDGED hole, which the tier's
+ *          silence gate already rejects — this path lives strictly on the
+ *          true-silence branch.
+ *   SUSTAIN  energy must hold across the hole at the bare-gap tier's
+ *          true-re-attack floor (RE_ARTICULATION_GAP_SUSTAIN, 0.85): a
+ *          release flutter or decaying note that happens to break shape
+ *          loses energy through its hole (corpus non-re-attacks with a deep
+ *          pre-edge frame: 0.69–0.82).
+ *
+ * The scheduled-click schedule is deliberately NOT consulted: this take's
+ * click arrives ~5 ms after the shape break (the player re-attacked on the
+ * beat), and the suppression-window edge misses the break time by 1 ms —
+ * evidence-order, not schedule geometry, is what separates the two here.
+ */
+const RE_ARTICULATION_BROKEN_ENTRY_SHAPE = 0.25;
+
+/**
  * Energy floor the bare-gap tier demands instead when a scheduled click sits
  * INSIDE the hole — the note must have got louder across it, not merely held.
  *
@@ -1991,7 +2036,20 @@ function findReArticulationsInSegment(
 					bloomMax >= resumeRms * RE_ARTICULATION_GAP_BLOOM_RISE &&
 					bloomMax >= preRms * RE_ARTICULATION_GAP_BLOOM_EXCEED;
 			}
-			if (!stepsUp && !blooms) continue;
+			// Broken-entry path: the reed was audibly damped on the way INTO the
+			// hole — see the RE_ARTICULATION_BROKEN_ENTRY_SHAPE block comment.
+			let brokenEntry = false;
+			if (!stepsUp && !blooms && g >= 2) {
+				const s1 = stable[g - 1].shapeBreak;
+				const s2 = stable[g - 2].shapeBreak;
+				brokenEntry =
+					s1 != null &&
+					s2 != null &&
+					s1 <= RE_ARTICULATION_BROKEN_ENTRY_SHAPE &&
+					s2 <= RE_ARTICULATION_BROKEN_ENTRY_SHAPE &&
+					postRms >= preRms * RE_ARTICULATION_GAP_SUSTAIN;
+			}
+			if (!stepsUp && !blooms && !brokenEntry) continue;
 		}
 		const onsetTime = stable[g].time - RE_ARTICULATION_ATTACK_LATENCY;
 		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
