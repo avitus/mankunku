@@ -30,6 +30,9 @@ export interface ChordChartCell {
  * never has room to render legitimately. Windows longer than 4 bars (the
  * 5-bar enclosure drill was the first) get narrower cells instead.
  */
+/** Beat-count slack treated as float dust rather than a real remainder. */
+const BEAT_EPSILON = 1e-6;
+
 export function chordChartCells(
 	harmony: HarmonicSegment[],
 	timeSignature: [number, number]
@@ -41,14 +44,23 @@ export function chordChartCells(
 		const durationBeats = fractionToFloat(seg.duration) * beatUnit;
 
 		if (durationBeats > beatsPerBar) {
-			const numBars = Math.round(durationBeats / beatsPerBar);
-			for (let b = 0; b < numBars; b++) {
+			// Whole bars become full cells; a partial final bar becomes one
+			// proportional remainder cell (rounding it up to a full bar gave
+			// the segment more chart width than it has beats). The epsilon
+			// absorbs fraction→float dust so a whole-bar count never emits a
+			// sliver remainder.
+			let remainingBeats = durationBeats;
+			let cellStartBeat = startBeat;
+			while (remainingBeats > BEAT_EPSILON) {
+				const cellDurationBeats = Math.min(remainingBeats, beatsPerBar);
 				result.push({
 					segmentIndex,
-					startBeat: startBeat + b * beatsPerBar,
-					durationBeats: beatsPerBar,
-					widthWeight: 1
+					startBeat: cellStartBeat,
+					durationBeats: cellDurationBeats,
+					widthWeight: cellDurationBeats / beatsPerBar
 				});
+				remainingBeats -= cellDurationBeats;
+				cellStartBeat += cellDurationBeats;
 			}
 		} else {
 			result.push({

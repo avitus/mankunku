@@ -49,4 +49,31 @@ describe('chordChartCells', () => {
 		expect(cells.map((c) => c.startBeat)).toEqual([0, 4, 8, 12, 16]);
 		expect(cells.every((c) => c.widthWeight === 1)).toBe(true);
 	});
+
+	// A multi-bar segment need not end on a barline. Rounding 1.5 bars up to
+	// two full cells gave the chord 8 beats of chart width for 6 beats of
+	// harmony — the final cell's dots and progress bar ran past the segment.
+	// Whole bars split as full cells; the remainder becomes one proportional
+	// cell, exactly as a sub-bar segment would.
+	test('a partial final bar becomes a proportional remainder cell', () => {
+		const cells = chordChartCells([segment(0, 1.5)], FOUR_FOUR);
+		expect(cells).toHaveLength(2);
+		expect(cells.map((c) => c.startBeat)).toEqual([0, 4]);
+		expect(cells.map((c) => c.durationBeats)).toEqual([4, 2]);
+		expect(cells.map((c) => c.widthWeight)).toEqual([1, 0.5]);
+	});
+
+	// Guard against float dust: a duration that is a whole bar count up to
+	// rounding error must not emit a sliver remainder cell.
+	test('float error near a whole bar count does not add a sliver cell', () => {
+		const seg: HarmonicSegment = {
+			chord: { root: 'C', quality: 'maj7' },
+			scaleId: 'major.ionian',
+			startOffset: [0, 1],
+			duration: [6000000000001, 3000000000000] // 2 bars + 1e-12 of a whole note
+		};
+		const cells = chordChartCells([seg], FOUR_FOUR);
+		expect(cells).toHaveLength(2);
+		expect(cells.every((c) => c.widthWeight === 1)).toBe(true);
+	});
 });
