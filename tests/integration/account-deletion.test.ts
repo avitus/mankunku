@@ -2,8 +2,9 @@
  * Integration tests for the account deletion endpoint.
  *
  * Tests DELETE /api/account with mocked Supabase:
- * authentication checks, paginated storage cleanup,
- * auth user deletion with cascade, and error handling.
+ * authentication checks, paginated storage cleanup across BOTH user
+ * storage buckets (recordings + tunes PDFs), auth user deletion with
+ * cascade, and error handling.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -79,31 +80,45 @@ describe('account deletion — authentication', () => {
 
 // ─── Storage Cleanup ───────────────────────────────────────────
 
-describe('account deletion — storage cleanup', () => {
-	it('lists and deletes recordings for the user', async () => {
-		const listMock = vi.fn().mockResolvedValue({
-			data: [
-				{ name: 'recording1.webm' },
-				{ name: 'recording2.webm' }
-			],
-			error: null
-		});
-		const removeMock = vi.fn().mockResolvedValue({ error: null });
+/**
+ * Per-bucket mock: serves the given non-empty pages in order, then empty
+ * pages forever (the always-offset-0 loop re-lists until a page is empty).
+ */
+function makeBucketMock(pages: { name: string }[][]) {
+	let call = 0;
+	const list = vi.fn().mockImplementation(async () => ({
+		data: pages[call++] ?? [],
+		error: null
+	}));
+	const remove = vi.fn().mockResolvedValue({ error: null });
+	return { list, remove };
+}
 
-		mockAdminStorage.from.mockReturnValue({
-			list: listMock,
-			remove: removeMock
-		});
+describe('account deletion — storage cleanup', () => {
+	it('lists and deletes files for the user in BOTH buckets (recordings + tunes)', async () => {
+		const recordings = makeBucketMock([
+			[{ name: 'recording1.webm' }, { name: 'recording2.webm' }]
+		]);
+		const tunes = makeBucketMock([[{ name: 'tune1.pdf' }]]);
+		const buckets: Record<string, ReturnType<typeof makeBucketMock>> = {
+			recordings,
+			tunes
+		};
+
+		mockAdminStorage.from.mockImplementation((bucket: string) => buckets[bucket]);
 
 		const locals = createMockLocals(true);
 		await DELETE({ locals } as any);
 
 		expect(mockAdminStorage.from).toHaveBeenCalledWith('recordings');
-		expect(listMock).toHaveBeenCalledWith('user-123', { limit: 100, offset: 0 });
-		expect(removeMock).toHaveBeenCalledWith([
+		expect(mockAdminStorage.from).toHaveBeenCalledWith('tunes');
+		expect(recordings.list).toHaveBeenCalledWith('user-123', { limit: 100, offset: 0 });
+		expect(recordings.remove).toHaveBeenCalledWith([
 			'user-123/recording1.webm',
 			'user-123/recording2.webm'
 		]);
+		expect(tunes.list).toHaveBeenCalledWith('user-123', { limit: 100, offset: 0 });
+		expect(tunes.remove).toHaveBeenCalledWith(['user-123/tune1.pdf']);
 	});
 
 	it('paginates storage listing', async () => {
@@ -120,30 +135,31 @@ describe('account deletion — storage cleanup', () => {
 			name: `recording${100 + i}.webm`
 		}));
 
-		const listMock = vi.fn()
-			.mockResolvedValueOnce({ data: files100, error: null })
-			.mockResolvedValueOnce({ data: files50, error: null })
-			.mockResolvedValueOnce({ data: [], error: null }); // empty page → stop
-		const removeMock = vi.fn().mockResolvedValue({ error: null });
-
-		mockAdminStorage.from.mockReturnValue({
-			list: listMock,
-			remove: removeMock
-		});
+		const recordings = makeBucketMock([files100, files50]);
+		const tunes = makeBucketMock([]);
+		mockAdminStorage.from.mockImplementation((bucket: string) =>
+			bucket === 'recordings' ? recordings : tunes
+		);
 
 		const locals = createMockLocals(true);
 		await DELETE({ locals } as any);
 
 		// Three list calls, EVERY one at offset 0 (never an advancing cursor).
-		expect(listMock).toHaveBeenCalledTimes(3);
-		for (const call of listMock.mock.calls) {
+		expect(recordings.list).toHaveBeenCalledTimes(3);
+		for (const call of recordings.list.mock.calls) {
 			expect(call).toEqual(['user-123', { limit: 100, offset: 0 }]);
 		}
 
 		// Both non-empty pages were removed — all 150 files across pages.
-		expect(removeMock).toHaveBeenCalledTimes(2);
-		expect(removeMock).toHaveBeenNthCalledWith(1, files100.map((f) => `user-123/${f.name}`));
-		expect(removeMock).toHaveBeenNthCalledWith(2, files50.map((f) => `user-123/${f.name}`));
+		expect(recordings.remove).toHaveBeenCalledTimes(2);
+		expect(recordings.remove).toHaveBeenNthCalledWith(
+			1,
+			files100.map((f) => `user-123/${f.name}`)
+		);
+		expect(recordings.remove).toHaveBeenNthCalledWith(
+			2,
+			files50.map((f) => `user-123/${f.name}`)
+		);
 	});
 
 	it('continues with auth deletion even if storage listing fails', async () => {
@@ -222,25 +238,28 @@ describe('account deletion — full flow', () => {
 	it('executes complete deletion sequence: auth check → storage → delete user', async () => {
 		const callOrder: string[] = [];
 
-		// One non-empty page, then an empty page so the always-offset-0 loop
-		// terminates (each pass re-lists offset 0 after deleting what it listed).
-		const listMock = vi.fn()
-			.mockImplementationOnce(async () => {
-				callOrder.push('list-storage');
-				return { data: [{ name: 'file.webm' }], error: null };
-			})
-			.mockImplementationOnce(async () => {
-				callOrder.push('list-storage');
-				return { data: [], error: null };
-			});
-		const removeMock = vi.fn().mockImplementation(async () => {
-			callOrder.push('remove-storage');
-			return { error: null };
-		});
-		mockAdminStorage.from.mockReturnValue({
-			list: listMock,
-			remove: removeMock
-		});
+		// Recordings: one non-empty page, then an empty page so the
+		// always-offset-0 loop terminates (each pass re-lists offset 0 after
+		// deleting what it listed). Tunes: empty from the start.
+		const pagesByBucket: Record<string, { name: string }[][]> = {
+			recordings: [[{ name: 'file.webm' }]],
+			tunes: []
+		};
+		const bucketMocks: Record<string, { list: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> }> = {};
+		for (const bucket of ['recordings', 'tunes']) {
+			let call = 0;
+			bucketMocks[bucket] = {
+				list: vi.fn().mockImplementation(async () => {
+					callOrder.push(`list-${bucket}`);
+					return { data: pagesByBucket[bucket][call++] ?? [], error: null };
+				}),
+				remove: vi.fn().mockImplementation(async () => {
+					callOrder.push(`remove-${bucket}`);
+					return { error: null };
+				})
+			};
+		}
+		mockAdminStorage.from.mockImplementation((bucket: string) => bucketMocks[bucket]);
 
 		mockAdminAuth.admin.deleteUser.mockImplementation(async () => {
 			callOrder.push('delete-user');
@@ -260,9 +279,10 @@ describe('account deletion — full flow', () => {
 
 		expect(callOrder).toEqual([
 			'auth-check',
-			'list-storage', // page 1 (one file)
-			'remove-storage',
-			'list-storage', // page 2 (empty → loop exits; each pass re-lists offset 0)
+			'list-recordings', // page 1 (one file)
+			'remove-recordings',
+			'list-recordings', // page 2 (empty → loop exits; each pass re-lists offset 0)
+			'list-tunes', // tunes bucket cleaned next (empty immediately)
 			'delete-user'
 		]);
 		expect(response.status).toBe(200);
