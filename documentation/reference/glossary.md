@@ -154,7 +154,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Detected note** — A note the app heard through your microphone. Each detected note has a pitch, an onset time, a duration, and a clarity score.
 
-**Deep Practice** — The single-lick drill launched from a lick's Practice button (or as a session type on the Lick Practice page). Continuous cycles through that lick's unlocked keys, worst key first, joined by a one-bar turnaround, with keys dropping out as you clear them at 95%.
+**Deep Practice** — The single-lick drill launched from a lick's Practice button (or as a session type on the Lick Practice page). Continuous cycles through that lick's unlocked keys, worst key first, joined by a one-bar turnaround, with keys dropping out as you clear them at 95%. Launched from the report's *Drill <key>* recommendation it runs the **focus drill** instead: that key alone on a tempo staircase until it's back at the lick's saved tempo, then the other keys re-admitted one per cleared rotation, weakest first.
 
 **Difficulty band** — The 10-color name for a difficulty range. Beginner, Elementary, Easy, Moderate, Intermediate, Challenging, Advanced, Expert, Master, Virtuoso.
 

@@ -118,6 +118,13 @@ The GraphQL `reviewThreads` query only returns inline diff comments. CodeRabbit 
 
 **How to apply:** Use multiple API calls covering all comment locations, or ask the user to paste any missed comments.
 
+### CodeRabbit rate limits: never trigger into one, never stop because of one (2026-08-21)
+When CodeRabbit answers "Review rate limited" / the walkthrough shows "Review limit reached", do not post `@coderabbitai review` — check first, wait out the ETA plus margin, then trigger ONCE. And do not stop or hand back: on rejection, back off and wait for the next ETA; keep going until the review runs. Every attempt counts toward the 7-day Fair-Usage total (a push's automatic attempt included) and lowers the hourly allowance, so blind retries lengthen the lockout — but persistence is the user's explicit choice.
+
+**Why:** PR #238 (2026-08-21): four rejected triggers in one night took the allowance from 2/h to 1/h; I then stopped and offered alternatives, and the user's answer was "always wait for the rate limit to expire and then resume."
+
+**How to apply:** arm a persistent waiter (ETA relative to the walkthrough's `updated_at` + growing margin → one trigger → on rejection, repeat); never exit it on a rejection; report each attempt.
+
 ### Proactively autofix CodeRabbit comments after every push, and keep iterating until clean
 After any `git push` to a PR branch — including the autofix commits themselves — automatically wait for CodeRabbit's review to complete (~2-5 min), fetch ALL comment sources, and fix the valid ones. After pushing the fixes, **wait for CodeRabbit's next review pass and repeat**; CodeRabbit will often have follow-on comments triggered by the previous fix or duplicates it didn't surface in the first round. Continue until a review pass produces no actionable comments.
 
@@ -210,6 +217,15 @@ Audit direction matters: enumerate the product from `src/routes` + `src/lib` and
 - **`USER_STORAGE_BUCKETS` in `$lib/server/account-deletion.ts` is the inventory of everywhere user bytes live** (`recordings`, `tunes`). Account deletion had orphaned tune PDFs since lead sheets shipped because the list was implicit. Any new per-user bucket MUST be added there — both the self-service and admin delete paths clean from it.
 - **WebKit reloads every hydrated 404 page once** (auth invalidation → `__data.json` refetch → "access control checks" pageerror → SvelteKit hard-nav fallback). Pre-existing, cosmetic, NOT the stale-chunk recovery (its `stale-chunk-reload-url` sessionStorage marker never appears). In e2e, never follow a 404 assertion with another `goto()` in the same test — split tests instead (see `tests/e2e/admin.spec.ts`).
 - **Env sourcing rule for server factories (2026-08-18 prod incident):** production's `shared/runtime.env` provisions ONLY secrets (`ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — no `PUBLIC_*` vars. `admin.ts` originally read `PUBLIC_SUPABASE_URL` via `$env/dynamic/private` and therefore threw in prod ("service-role connection could not be reached" on /admin; `/api/account` deletion had been silently 500ing the same way). Rule: `PUBLIC_*` config comes from `$env/static/public` (build-time, like client.ts/server.ts); only true secrets go through `$env/dynamic/private`. Pinned by `tests/unit/supabase/admin-client.test.ts`. Diagnosis path: `ssh mankunku`, grep `/home/deploy/.pm2/logs/mankunku-error-0.log` (PM2 runs as root there; the app logs `Failed to load admin data: <cause>`).
+
+### Deep Practice focus ramp (2026-08-20)
+The report's weak-key recommendation (`drill-weak-key` in `lick-practice-next-steps.ts`) launches Deep Practice with `{ focusKey }` → `lickPractice.ramp` (`FocusRamp`): that key ALONE at `focusStartTempo` (10% under the saved tempo — the unlock dip), staircased per attempt (clear ≥ 0.95 → `nextCycleTempo`; sub-floor < 0.75 → `focusStepDownTempo`, 3× the bump; else hold) until a clear lands back at `targetTempo` (clamped to it on overshoot, so rebuild holds at exactly the saved tempo); then the other unlocked keys re-admitted one per cleared rotation, worst first, tempo held; then ordinary clear-bump-refill. Pure policy `planFocusRamp`/`resolveRampCycle` in `lick-practice-rotation.ts`, pinned in `rotation.test.ts` + `focus-ramp.test.ts`. One rule per phase: focus earns tempo, rebuild earns keys, a full rotation earns tempo again.
+
+- **Report-CTA-only by decision** (2026-08-20): the lick detail page and the setup page still start on the full worst-first circle. Don't auto-detect a weak key there without asking.
+- **Session-local like everything in deep practice** — the live `FocusRamp` state, the staircased session tempo and the rotation are never persisted and the lick's stored **tempo** is untouched; `recordKeyAttempt` still writes rolling score, pass count and recency per attempt as in every session (`deep-practice-tempo.test.ts` + `focus-ramp.test.ts` are the contract). What outlives the session is the report: its usual single-lick fields (`finalTempo`, `keysMasteredByRound`) plus the derived `FocusRampSummary` (focus key, target, `lowestTempo`, milestone rounds), kept by the session log like any other report field — hence the `splitReportByProgression` copy below.
+- `sessionKeys` stays the full circle in ramp mode (the ring shows waiting keys as empty dots); `LickHeader`'s `statusLabel` replaces "Key n/N" while the ramp is live (`data-testid="focus-ramp"`, asserted by the daily e2e after clicking the CTA).
+- `startSingleLickSession(lick, options)`: an omitted `tempoBumpPercent` falls back to the config knob (it used to reset the knob to 1% on every CTA launch). `splitReportByProgression` copies `SessionReport.ramp` explicitly — any new single-lick report field must be added there too.
+- The user guide's Next-card paragraph was missing entirely until this change — the four-surfaces audit direction (code → docs) is the only thing that finds that.
 
 ## Reference map
 

@@ -57,6 +57,7 @@
 		LickBreatherInfo,
 		NextStepAction
 	} from '$lib/state/lick-practice.svelte';
+	import type { FocusRampSummary } from '$lib/types/lick-practice';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
@@ -299,6 +300,31 @@
 	const currentPhrase = $derived(getCurrentPhrase());
 	const currentProgressionType = $derived(getCurrentProgressionType());
 	const instrument = $derived(getInstrument());
+
+	// Focus-ramp status for the lick header's key-count slot. "Key 1/1" on a
+	// one-dot ring reads as a bug, so while the ramp is live the slot says
+	// what is actually happening. Written pitch, never concert.
+	const rampStatusLabel = $derived.by(() => {
+		const ramp = lickPractice.ramp;
+		if (lickPractice.mode !== 'single-lick' || !ramp || ramp.phase === 'complete') return null;
+		if (ramp.phase === 'focus') {
+			const key = concertKeyToWritten(ramp.focusKey, instrument);
+			return `Focus · ${key} · ${lickPractice.currentTempo} → ${ramp.targetTempo} BPM`;
+		}
+		return `Rebuilding · ${ramp.admitted.length} of ${lickPractice.sessionKeys.length} keys`;
+	});
+
+	/** One sentence telling a focus ramp's story on the report. */
+	function rampSummaryText(ramp: FocusRampSummary, openingTempo: number): string {
+		const key = concertKeyToWritten(ramp.focusKey, instrument);
+		const parts = [`Focus drill on ${key}: opened at ${openingTempo} BPM`];
+		if (ramp.lowestTempo < openingTempo) parts.push(`dipped to ${ramp.lowestTempo}`);
+		if (ramp.upToSpeedRound != null) parts.push(`back up to speed in round ${ramp.upToSpeedRound}`);
+		else parts.push(`still under the saved ${ramp.targetTempo}`);
+		if (ramp.rebuiltRound != null) parts.push(`full rotation by round ${ramp.rebuiltRound}`);
+		else if (ramp.upToSpeedRound != null) parts.push('rotation still rebuilding');
+		return `${parts.join(', ')}.`;
+	}
 	// Countdown total = how long the PLAN takes, not the duration budget. A
 	// standard session plays its plan once and stops; with a typical book the
 	// plan runs out well before the budget does, so counting down from
@@ -1499,13 +1525,17 @@
 		});
 	}
 
-	// Tee up the report's single recommendation. Deep practice aims itself:
-	// it sorts the rotation worst-first by rolling score and demos the head
-	// key while it is below proficient, so no key argument is needed. The
-	// plan item's resolved Phrase is preferred over the bare id because
-	// `getLickById` misses for user/community licks.
+	// Tee up the report's single recommendation. A weak-key step carries the
+	// key as a focus key, so the drill opens on it ALONE and works it back up
+	// to speed before the other keys return (the focus ramp); a weak-lick
+	// step carries none and deep practice aims itself — worst-first rotation,
+	// demo while the head key is below proficient. The plan item's resolved
+	// Phrase is preferred over the bare id because `getLickById` misses for
+	// user/community licks. The tempo-bump knob applies through config.
 	async function handleStartNextStep(action: NextStepAction) {
-		await restartInPlace(() => startSingleLickSession(action.phrase ?? action.lickId));
+		await restartInPlace(() =>
+			startSingleLickSession(action.phrase ?? action.lickId, { focusKey: action.focusKey })
+		);
 	}
 
 	const RELATIVE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -1612,7 +1642,11 @@
 				</div>
 				{#if savedTempo != null}
 					<p class="text-xs text-[var(--color-text-secondary)]">
-						Deep practice starts just under your saved tempo and ramps from there.
+						{#if sessionReport.ramp}
+							{rampSummaryText(sessionReport.ramp, sl.tempo)}
+						{:else}
+							Deep practice starts just under your saved tempo and ramps from there.
+						{/if}
 						{sl.lickName} stays saved at <span class="tabular-nums">{savedTempo}</span> BPM
 						for daily practice.
 					</p>
@@ -1790,6 +1824,7 @@
 			keyIndex={lickPractice.currentKeyIndex}
 			totalKeys={currentItem.keys.length}
 			{substitutionLabel}
+			statusLabel={rampStatusLabel}
 		/>
 
 		<!-- Continuous chord-block scroll: the lick's full key stack drifts

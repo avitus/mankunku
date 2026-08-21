@@ -69,7 +69,9 @@ export interface LickPracticeConfig {
 	 * `DEFAULT_TEMPO_BUMP_PERCENT` and `nextCycleTempo` in
 	 * `state/lick-practice-rotation.ts`. A percentage rather than a fixed BPM
 	 * so the same knob reads the same at 60 BPM and at 200. Governs trick
-	 * drills too: they ride the same round loop.
+	 * drills too: they ride the same round loop — and it sizes the focus
+	 * ramp's staircase (one step up per clear, `FOCUS_STEP_DOWN_MULTIPLIER`
+	 * steps down per sub-floor attempt; see `FocusRamp`).
 	 *
 	 * The session tempo it ramps is NOT the lick's stored tempo — deep
 	 * practice deliberately leaves that where it found it.
@@ -190,6 +192,51 @@ export interface SingleLickRoundEntry {
 	keys: PitchClass[];
 }
 
+/**
+ * Single-lick focus ramp — the drill the report's weak-key recommendation
+ * launches. The live state is session-local and never persisted — same
+ * contract as the rest of the deep-practice tempo ramp; the lick's stored
+ * TEMPO is untouched (rolling score, pass count and recency are still
+ * recorded per attempt by `recordKeyAttempt`, as in every session). Only its
+ * `FocusRampSummary` on the session report outlives the session, logged like
+ * any other report field. Pure
+ * policy in `state/lick-practice-rotation.ts` (`planFocusRamp`,
+ * `resolveRampCycle`).
+ *
+ * Three phases, one rule each:
+ * - `focus` — the rotation is `focusKey` alone; the tempo staircases on it
+ *   (clear → up by the bump percent, sub-floor → down by three times it,
+ *   in between → hold) until a clear lands at or above `targetTempo`.
+ * - `rebuild` — every full clear of the admitted set admits the next queued
+ *   key (worst first); tempo held. Ends when the queue drains.
+ * - `complete` — ordinary deep practice from here on (clear → bump → refill
+ *   from the full unlocked circle).
+ */
+export interface FocusRamp {
+	focusKey: PitchClass;
+	/** The lick's saved tempo when the session opened — the focus phase's target. */
+	targetTempo: number;
+	phase: 'focus' | 'rebuild' | 'complete';
+	/** Refill set during rebuild: the focus key plus every key admitted so far, in admission order. */
+	admitted: PitchClass[];
+	/** Keys not yet admitted, worst-first. */
+	queue: PitchClass[];
+	/** Round at which the focus key got back up to speed (null until it has). */
+	upToSpeedRound: number | null;
+	/** Round at which the last key was re-admitted (null until it has). */
+	rebuiltRound: number | null;
+}
+
+/** What the session report keeps of a focus ramp. */
+export interface FocusRampSummary {
+	focusKey: PitchClass;
+	targetTempo: number;
+	/** Lowest session tempo the staircase reached. */
+	lowestTempo: number;
+	upToSpeedRound: number | null;
+	rebuiltRound: number | null;
+}
+
 export type LickPracticePhase =
 	| 'setup'
 	| 'count-in'
@@ -248,4 +295,6 @@ export interface SessionReport {
 	finalTempo?: number;
 	/** Single-lick mode only: which keys cleared in each round and at what tempo. */
 	keysMasteredByRound?: SingleLickRoundEntry[];
+	/** Single-lick mode only: present when the session ran the focus ramp. */
+	ramp?: FocusRampSummary;
 }

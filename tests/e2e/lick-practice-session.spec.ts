@@ -123,6 +123,18 @@ test.describe('lick-practice session flow', () => {
 
 		// The report offers the restart path.
 		await expect(page.getByRole('button', { name: /new session/i })).toBeVisible();
+
+		// The one attempt scored silence (0%), so the report's Next card names
+		// the key and offers Deep Practice on it. That CTA is the ONLY entry
+		// to the focus ramp: the drill must open on that key ALONE, which the
+		// lick header announces in place of its "Key n/N" slot. This pins the
+		// handleStartNextStep → focusKey → startSingleLickSession wiring that
+		// no unit test can reach.
+		await expect(page.getByText(/^Drill /)).toBeVisible();
+		await page.getByRole('button', { name: /start deep practice/i }).click();
+		await expect(page.getByTestId('focus-ramp')).toContainText(/^Focus · /, { timeout: 30_000 });
+		await expect(page.getByTestId('focus-ramp')).toContainText(/→ \d+ BPM$/);
+		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
 	});
 
 	/**

@@ -13,16 +13,24 @@ import {
 	sortKeysWorstFirst,
 	shouldDemoHeadKey,
 	resolveNextCycleStart,
-	planCycleWindows
+	planCycleWindows,
+	nextCycleTempo,
+	focusStartTempo,
+	focusStepDownTempo,
+	planFocusRamp,
+	resolveRampCycle,
+	FOCUS_START_DISCOUNT,
+	FOCUS_STEP_DOWN_MULTIPLIER
 } from '$lib/state/lick-practice-rotation';
 import type { PitchClass } from '$lib/types/music';
+import type { FocusRamp } from '$lib/types/lick-practice';
+
+const rollingFrom =
+	(scores: Partial<Record<PitchClass, number>>) =>
+	(key: PitchClass): number | undefined =>
+		scores[key];
 
 describe('sortKeysWorstFirst', () => {
-	const rollingFrom =
-		(scores: Partial<Record<PitchClass, number>>) =>
-		(key: PitchClass): number | undefined =>
-			scores[key];
-
 	it('orders keys ascending by rolling score', () => {
 		const keys: PitchClass[] = ['C', 'F', 'Bb'];
 		const sorted = sortKeysWorstFirst(keys, rollingFrom({ C: 0.95, F: 0.6, Bb: 0.8 }));
@@ -152,5 +160,328 @@ describe('planCycleWindows', () => {
 		});
 		expect(plan.opens).toEqual([2 * ticksPerBar, 4 * ticksPerBar + 2 * ticksPerBar]);
 		expect(plan.closes).toEqual([4 * ticksPerBar, 8 * ticksPerBar]);
+	});
+});
+
+// ── Focus ramp ─────────────────────────────────────────────
+//
+// The report's "Drill <key>" recommendation launches Deep Practice on that
+// key ALONE, works it back up to the lick's saved tempo on a staircase, then
+// re-admits the other keys one per clear, worst first, at a held tempo. The
+// policy is pure so every transition below is pinned without audio.
+
+describe('focusStartTempo', () => {
+	it('opens 10% below the saved tempo, rounded — the same dip as a key unlock', () => {
+		expect(FOCUS_START_DISCOUNT).toBe(0.1);
+		expect(focusStartTempo(100)).toBe(90);
+		expect(focusStartTempo(120)).toBe(108);
+		expect(focusStartTempo(200)).toBe(180);
+	});
+
+	it('always steps down by at least 1 BPM', () => {
+		for (const bpm of [51, 52, 55, 60, 74]) {
+			expect(focusStartTempo(bpm)).toBeLessThan(bpm);
+		}
+	});
+
+	it('clamps at MIN_TEMPO rather than stepping below it', () => {
+		expect(focusStartTempo(50)).toBe(50);
+		expect(focusStartTempo(52)).toBe(50);
+	});
+});
+
+describe('focusStepDownTempo', () => {
+	it('steps down by three times the bump percent, rounded up to a whole BPM', () => {
+		expect(FOCUS_STEP_DOWN_MULTIPLIER).toBe(3);
+		expect(focusStepDownTempo(100, 1)).toBe(97);
+		expect(focusStepDownTempo(90, 1)).toBe(87); // 2.7 → 3
+		expect(focusStepDownTempo(60, 1)).toBe(58); // 1.8 → 2
+	});
+
+	it('honours a non-default bump percent from the setup knob', () => {
+		expect(focusStepDownTempo(100, 5)).toBe(85);
+		expect(focusStepDownTempo(120, 0.5)).toBe(118); // 1.8 → 2
+	});
+
+	it('clamps at MIN_TEMPO', () => {
+		expect(focusStepDownTempo(51, 1)).toBe(50);
+		expect(focusStepDownTempo(50, 1)).toBe(50);
+	});
+
+	it('is asymmetric with the step up: one sub-floor attempt costs three clears', () => {
+		let tempo = focusStepDownTempo(90, 1); // 87
+		tempo = nextCycleTempo(tempo, 1);
+		tempo = nextCycleTempo(tempo, 1);
+		expect(tempo).toBeLessThan(90);
+		tempo = nextCycleTempo(tempo, 1);
+		expect(tempo).toBe(90);
+	});
+});
+
+describe('planFocusRamp', () => {
+	const CIRCLE: PitchClass[] = ['C', 'F', 'Bb', 'Eb'];
+
+	it('starts on the focus key alone with every other key queued worst-first', () => {
+		const ramp = planFocusRamp(CIRCLE, 'Bb', 100, rollingFrom({ C: 0.9, F: 0.6 }));
+		expect(ramp).toEqual({
+			focusKey: 'Bb',
+			targetTempo: 100,
+			phase: 'focus',
+			admitted: ['Bb'],
+			// Eb was never practiced (undefined → worst), then F, then C.
+			queue: ['Eb', 'F', 'C'],
+			upToSpeedRound: null,
+			rebuiltRound: null
+		});
+	});
+
+	it('returns null when the focus key is not in the unlocked circle', () => {
+		expect(planFocusRamp(CIRCLE, 'A', 100, () => undefined)).toBeNull();
+	});
+
+	it('queues nothing for a one-key circle', () => {
+		expect(planFocusRamp(['C'], 'C', 60, () => undefined)?.queue).toEqual([]);
+	});
+});
+
+describe('resolveRampCycle', () => {
+	const focus = (over: Partial<FocusRamp> = {}): FocusRamp => ({
+		focusKey: 'D',
+		targetTempo: 100,
+		phase: 'focus',
+		admitted: ['D'],
+		queue: ['A', 'E', 'B'],
+		upToSpeedRound: null,
+		rebuiltRound: null,
+		...over
+	});
+
+	describe('focus phase', () => {
+		it('a clear below the target steps the tempo up and keeps the focus key alone', () => {
+			const out = resolveRampCycle({
+				ramp: focus(),
+				survivors: [],
+				tempo: 90,
+				bumpPercent: 1,
+				focusScore: 0.97,
+				round: 1
+			});
+			expect(out.tempo).toBe(91);
+			expect(out.rotation).toEqual(['D']);
+			expect(out.ramp.phase).toBe('focus');
+			expect(out.ramp.upToSpeedRound).toBeNull();
+		});
+
+		it('a sub-floor attempt steps the tempo down', () => {
+			const out = resolveRampCycle({
+				ramp: focus(),
+				survivors: ['D'],
+				tempo: 90,
+				bumpPercent: 1,
+				focusScore: 0.6,
+				round: 1
+			});
+			expect(out.tempo).toBe(87);
+			expect(out.rotation).toEqual(['D']);
+			expect(out.ramp.phase).toBe('focus');
+		});
+
+		it('an attempt in the 75–94% band holds the tempo', () => {
+			for (const score of [0.75, 0.8, 0.94]) {
+				const out = resolveRampCycle({
+					ramp: focus(),
+					survivors: ['D'],
+					tempo: 90,
+					bumpPercent: 1,
+					focusScore: score,
+					round: 1
+				});
+				expect(out.tempo).toBe(90);
+				expect(out.rotation).toEqual(['D']);
+			}
+		});
+
+		it('holds when the focus key was not scored this round', () => {
+			const out = resolveRampCycle({
+				ramp: focus(),
+				survivors: ['D'],
+				tempo: 90,
+				bumpPercent: 1,
+				focusScore: undefined,
+				round: 1
+			});
+			expect(out.tempo).toBe(90);
+		});
+
+		it('the clear that reaches the target ends focus: admits the next-worst key and stamps the round', () => {
+			const out = resolveRampCycle({
+				ramp: focus(),
+				survivors: [],
+				tempo: 99,
+				bumpPercent: 1,
+				focusScore: 0.97,
+				round: 14
+			});
+			expect(out.tempo).toBe(100);
+			expect(out.ramp.phase).toBe('rebuild');
+			expect(out.ramp.admitted).toEqual(['D', 'A']);
+			expect(out.ramp.queue).toEqual(['E', 'B']);
+			expect(out.rotation).toEqual(['D', 'A']);
+			expect(out.ramp.upToSpeedRound).toBe(14);
+			expect(out.ramp.rebuiltRound).toBeNull();
+		});
+
+		it('a bump that overshoots the target is clamped to it — rebuild holds at the saved tempo, not above', () => {
+			// 99 + 5% would be 104; the saved tempo is the promise, so the clear
+			// that gets there lands exactly on it.
+			const out = resolveRampCycle({
+				ramp: focus(),
+				survivors: [],
+				tempo: 99,
+				bumpPercent: 5,
+				focusScore: 0.97,
+				round: 2
+			});
+			expect(out.tempo).toBe(100);
+			expect(out.ramp.phase).toBe('rebuild');
+		});
+
+		it('a bump below the target is never clamped', () => {
+			const out = resolveRampCycle({
+				ramp: focus(),
+				survivors: [],
+				tempo: 90,
+				bumpPercent: 5,
+				focusScore: 0.97,
+				round: 2
+			});
+			expect(out.tempo).toBe(95);
+			expect(out.ramp.phase).toBe('focus');
+		});
+
+		it('with nothing queued, reaching the target completes the ramp outright', () => {
+			const out = resolveRampCycle({
+				ramp: focus({ queue: [] }),
+				survivors: [],
+				tempo: 99,
+				bumpPercent: 1,
+				focusScore: 0.97,
+				round: 3
+			});
+			expect(out.ramp.phase).toBe('complete');
+			expect(out.ramp.upToSpeedRound).toBe(3);
+			expect(out.ramp.rebuiltRound).toBe(3);
+			expect(out.rotation).toEqual(['D']);
+		});
+
+		it('reaching the target with one key queued admits it and completes in the same step', () => {
+			const out = resolveRampCycle({
+				ramp: focus({ queue: ['A'] }),
+				survivors: [],
+				tempo: 99,
+				bumpPercent: 1,
+				focusScore: 0.97,
+				round: 5
+			});
+			expect(out.ramp.phase).toBe('complete');
+			expect(out.ramp.admitted).toEqual(['D', 'A']);
+			expect(out.ramp.queue).toEqual([]);
+			expect(out.ramp.upToSpeedRound).toBe(5);
+			expect(out.ramp.rebuiltRound).toBe(5);
+		});
+	});
+
+	describe('rebuild phase', () => {
+		const rebuild = (over: Partial<FocusRamp> = {}): FocusRamp =>
+			focus({
+				phase: 'rebuild',
+				admitted: ['D', 'A'],
+				queue: ['E', 'B'],
+				upToSpeedRound: 14,
+				...over
+			});
+
+		it('a full clear admits the next-worst key and holds the tempo', () => {
+			const out = resolveRampCycle({
+				ramp: rebuild(),
+				survivors: [],
+				tempo: 100,
+				bumpPercent: 1,
+				focusScore: undefined,
+				round: 20
+			});
+			expect(out.tempo).toBe(100);
+			expect(out.ramp.phase).toBe('rebuild');
+			expect(out.ramp.admitted).toEqual(['D', 'A', 'E']);
+			expect(out.ramp.queue).toEqual(['B']);
+			expect(out.rotation).toEqual(['D', 'A', 'E']);
+			expect(out.ramp.rebuiltRound).toBeNull();
+		});
+
+		it('survivors keep cycling at the held tempo without admitting anyone', () => {
+			const out = resolveRampCycle({
+				ramp: rebuild(),
+				survivors: ['A'],
+				tempo: 100,
+				bumpPercent: 1,
+				// Even a sub-floor score does not step down outside the focus phase.
+				focusScore: 0.6,
+				round: 20
+			});
+			expect(out.tempo).toBe(100);
+			expect(out.rotation).toEqual(['A']);
+			expect(out.ramp.admitted).toEqual(['D', 'A']);
+			expect(out.ramp.queue).toEqual(['E', 'B']);
+		});
+
+		it('admitting the last queued key completes the ramp and stamps the round', () => {
+			const out = resolveRampCycle({
+				ramp: rebuild({ queue: ['B'] }),
+				survivors: [],
+				tempo: 100,
+				bumpPercent: 1,
+				focusScore: undefined,
+				round: 27
+			});
+			expect(out.ramp.phase).toBe('complete');
+			expect(out.ramp.rebuiltRound).toBe(27);
+			expect(out.ramp.admitted).toEqual(['D', 'A', 'B']);
+			expect(out.ramp.queue).toEqual([]);
+			expect(out.rotation).toEqual(['D', 'A', 'B']);
+		});
+	});
+
+	it('never mutates the input ramp', () => {
+		const ramp = focus();
+		const snapshot = structuredClone(ramp);
+		resolveRampCycle({
+			ramp,
+			survivors: [],
+			tempo: 99,
+			bumpPercent: 1,
+			focusScore: 0.97,
+			round: 1
+		});
+		expect(ramp).toEqual(snapshot);
+	});
+
+	it('leaves a completed ramp and its tempo alone', () => {
+		const ramp = focus({
+			phase: 'complete',
+			admitted: ['D', 'A', 'E', 'B'],
+			queue: [],
+			upToSpeedRound: 14,
+			rebuiltRound: 27
+		});
+		const out = resolveRampCycle({
+			ramp,
+			survivors: [],
+			tempo: 100,
+			bumpPercent: 1,
+			focusScore: undefined,
+			round: 30
+		});
+		expect(out.ramp).toEqual(ramp);
+		expect(out.tempo).toBe(100);
 	});
 });

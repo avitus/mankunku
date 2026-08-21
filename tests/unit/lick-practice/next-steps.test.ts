@@ -431,3 +431,59 @@ describe('buildNextStep — shape invariants', () => {
 		});
 	}
 });
+
+// ── Focus key plumbing ─────────────────────────────────────
+//
+// The weak-key step launches Deep Practice on THAT key alone (the focus
+// ramp); the weak-lick step wants the whole rotation and passes no key.
+
+describe('buildNextStep — focus key', () => {
+	it('hands the weak key to the start path as the focus key', () => {
+		const report = makeReport([
+			makeLickReport({
+				lickId: 'lick-a',
+				keys: [
+					{ key: 'C', score: 0.6 },
+					{ key: 'F', score: 0.95 }
+				]
+			})
+		]);
+		const step = buildNextStep({ report, plan: planFor(report) });
+		expect(step?.kind).toBe('drill-weak-key');
+		expect(step?.action?.focusKey).toBe('C');
+	});
+
+	it('explains the focus drill in the reason, naming the key through the written-pitch formatter', () => {
+		const report = makeReport([
+			makeLickReport({
+				lickId: 'lick-a',
+				keys: [
+					{ key: 'C', score: 0.6 },
+					{ key: 'F', score: 0.95 }
+				]
+			})
+		]);
+		const step = buildNextStep({
+			report,
+			plan: planFor(report),
+			formatKey: (k) => `written-${k}`
+		});
+		expect(step?.reason).toContain('starts on written-C alone');
+		expect(step?.reason).not.toContain('on C alone');
+	});
+
+	it('passes no focus key for the weakest-lick step — the whole rotation is the drill', () => {
+		const report = makeReport([
+			makeLickReport({
+				lickId: 'lick-a',
+				keys: [
+					{ key: 'C', score: 0.8 },
+					{ key: 'F', score: 0.85 }
+				]
+			})
+		]);
+		const step = buildNextStep({ report, plan: planFor(report) });
+		expect(step?.kind).toBe('drill-weak-lick');
+		expect(step?.action?.focusKey).toBeUndefined();
+	});
+});
