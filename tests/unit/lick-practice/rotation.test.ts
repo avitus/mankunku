@@ -25,12 +25,12 @@ import {
 import type { PitchClass } from '$lib/types/music';
 import type { FocusRamp } from '$lib/types/lick-practice';
 
-describe('sortKeysWorstFirst', () => {
-	const rollingFrom =
-		(scores: Partial<Record<PitchClass, number>>) =>
-		(key: PitchClass): number | undefined =>
-			scores[key];
+const rollingFrom =
+	(scores: Partial<Record<PitchClass, number>>) =>
+	(key: PitchClass): number | undefined =>
+		scores[key];
 
+describe('sortKeysWorstFirst', () => {
 	it('orders keys ascending by rolling score', () => {
 		const keys: PitchClass[] = ['C', 'F', 'Bb'];
 		const sorted = sortKeysWorstFirst(keys, rollingFrom({ C: 0.95, F: 0.6, Bb: 0.8 }));
@@ -169,11 +169,6 @@ describe('planCycleWindows', () => {
 // key ALONE, works it back up to the lick's saved tempo on a staircase, then
 // re-admits the other keys one per clear, worst first, at a held tempo. The
 // policy is pure so every transition below is pinned without audio.
-
-const rollingFrom =
-	(scores: Partial<Record<PitchClass, number>>) =>
-	(key: PitchClass): number | undefined =>
-		scores[key];
 
 describe('focusStartTempo', () => {
 	it('opens 10% below the saved tempo, rounded — the same dip as a key unlock', () => {
@@ -336,7 +331,9 @@ describe('resolveRampCycle', () => {
 			expect(out.ramp.rebuiltRound).toBeNull();
 		});
 
-		it('overshooting the target on a big bump still ends focus', () => {
+		it('a bump that overshoots the target is clamped to it — rebuild holds at the saved tempo, not above', () => {
+			// 99 + 5% would be 104; the saved tempo is the promise, so the clear
+			// that gets there lands exactly on it.
 			const out = resolveRampCycle({
 				ramp: focus(),
 				survivors: [],
@@ -345,8 +342,21 @@ describe('resolveRampCycle', () => {
 				focusScore: 0.97,
 				round: 2
 			});
-			expect(out.tempo).toBe(104);
+			expect(out.tempo).toBe(100);
 			expect(out.ramp.phase).toBe('rebuild');
+		});
+
+		it('a bump below the target is never clamped', () => {
+			const out = resolveRampCycle({
+				ramp: focus(),
+				survivors: [],
+				tempo: 90,
+				bumpPercent: 5,
+				focusScore: 0.97,
+				round: 2
+			});
+			expect(out.tempo).toBe(95);
+			expect(out.ramp.phase).toBe('focus');
 		});
 
 		it('with nothing queued, reaching the target completes the ramp outright', () => {

@@ -208,7 +208,9 @@ export interface RampCycleOutput {
  *
  * - focus, cleared: step up; at or above the target that clear ends focus
  *   and admits the first queued key in the same step (or completes the ramp
- *   outright when nothing is queued).
+ *   outright when nothing is queued). The tempo is clamped to the target on
+ *   that clear — a 5% knob from 99 would otherwise open rebuild at 104, and
+ *   "held at the saved tempo" is the promise.
  * - focus, not cleared: step down on a sub-floor score, hold otherwise.
  * - rebuild, cleared: admit the next queued key; the last admission
  *   completes the ramp. Tempo held.
@@ -231,8 +233,11 @@ export function resolveRampCycle(input: RampCycleInput): RampCycleOutput {
 		if (tempo < ramp.targetTempo) {
 			return { ramp: cloneRamp(ramp), rotation: [ramp.focusKey], tempo };
 		}
-		// Up to speed. Leave focus and admit the first queued key now — the
-		// user just cleared at speed; there is nothing left to prove alone.
+		// Up to speed — land exactly on the saved tempo (a bump rounds/overshoots;
+		// rebuild holds at the target, never above it). Leave focus and admit the
+		// first queued key now: the user just cleared at speed; there is nothing
+		// left to prove alone.
+		tempo = ramp.targetTempo;
 		return {
 			...admitNext({ ...cloneRamp(ramp), phase: 'rebuild', upToSpeedRound: round }, round),
 			tempo

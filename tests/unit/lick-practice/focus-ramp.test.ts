@@ -108,8 +108,10 @@ function seedKeys(
 
 /**
  * A fully-unlocked lick saved at 100 BPM whose D is the wreck (0.4), A the
- * next-worst (0.7), E after that (0.8) and every other key comfortably
- * proficient (0.9) — so the worst-first admission order is deterministic.
+ * next-worst (0.5), E after that (0.8) and every other key comfortably
+ * proficient (0.9) — so both the worst-first admission order AND the
+ * worst-first sort of the live rotation are deterministic with clear margins
+ * (D's EWMA climbs past 0.96 over ten clears; A's stays well under E's).
  */
 function seedTwelveKeyLick(): Phrase {
 	const lick = makeLick('C', LICK_ID);
@@ -117,7 +119,7 @@ function seedTwelveKeyLick(): Phrase {
 	const entries: Partial<Record<PitchClass, { tempo?: number; rolling?: number }>> = {};
 	for (const key of FULL_CIRCLE) entries[key] = { tempo: SAVED_TEMPO, rolling: 0.9 };
 	entries.D = { tempo: SAVED_TEMPO, rolling: 0.4 };
-	entries.A = { tempo: SAVED_TEMPO, rolling: 0.7 };
+	entries.A = { tempo: SAVED_TEMPO, rolling: 0.5 };
 	entries.E = { tempo: SAVED_TEMPO, rolling: 0.8 };
 	seedKeys(LICK_ID, entries);
 	return lick;
@@ -137,8 +139,9 @@ function clearRotation(): void {
 	advanceSingleLickRound();
 }
 
+/** The live rotation in its actual (worst-first) order — never sorted here. */
 function rotation(): PitchClass[] {
-	return [...lickPractice.plan[0].keys].sort();
+	return [...lickPractice.plan[0].keys];
 }
 
 beforeEach(() => {
@@ -254,6 +257,8 @@ describe('focus phase staircase', () => {
 		expect(lickPractice.ramp?.phase).toBe('rebuild');
 		expect(lickPractice.ramp?.upToSpeedRound).toBe(10);
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A']);
+		// Worst-first: A (0.5) now ranks below D, whose rolling score climbed
+		// past 0.96 over the ten clears — so the demo and first answer land on A.
 		expect(rotation()).toEqual(['A', 'D']);
 	});
 
@@ -286,12 +291,14 @@ describe('rebuild phase', () => {
 
 		clearRotation();
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A', 'E']);
-		expect(rotation()).toEqual(['A', 'D', 'E']);
+		// A ≈ 0.69 after one clear, E enters at 0.8, D ≈ 0.97.
+		expect(rotation()).toEqual(['A', 'E', 'D']);
 		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
 
 		clearRotation();
-		expect(lickPractice.ramp?.admitted).toHaveLength(4);
-		expect(lickPractice.plan[0].keys).toHaveLength(4);
+		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A', 'E', 'C']);
+		// A ≈ 0.80, E ≈ 0.87, C enters at 0.9, D ≈ 0.97.
+		expect(rotation()).toEqual(['A', 'E', 'C', 'D']);
 		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
 	});
 
@@ -309,7 +316,8 @@ describe('rebuild phase', () => {
 		// Clearing the survivor completes the round and admits the next key.
 		clearRotation();
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A', 'E']);
-		expect(rotation()).toEqual(['A', 'D', 'E']);
+		// A ≈ 0.71 after the 0.6 and the clear, E enters at 0.8, D ≈ 0.97.
+		expect(rotation()).toEqual(['A', 'E', 'D']);
 	});
 
 	it('admitting the last key completes the ramp; the next clear bumps and refills like plain deep practice', () => {
