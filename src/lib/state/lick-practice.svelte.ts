@@ -40,7 +40,8 @@
  * recommendation it runs the **focus ramp** instead (`lickPractice.ramp`,
  * policy in `lick-practice-rotation.ts`): that key alone on a tempo
  * staircase until it is back at the saved tempo, then the other keys
- * re-admitted one per clear, worst first — still nothing persisted.
+ * re-admitted one per clear, worst first — still no tempo or progress
+ * written; only the report's `FocusRampSummary` is logged with the session.
  */
 
 import { untrack } from 'svelte';
@@ -254,7 +255,8 @@ export const lickPractice = $state<{
 	/**
 	 * Single-lick mode: the focus ramp, when the session was launched from
 	 * the report's weak-key recommendation — null for every other session.
-	 * Session-local and never persisted; see `FocusRamp`.
+	 * Live state, session-local and never persisted (the report keeps a
+	 * `FocusRampSummary` of it); see `FocusRamp`.
 	 */
 	ramp: FocusRamp | null;
 }>({
@@ -1793,7 +1795,8 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
  * ramp is live: `resolveRampCycle` decides the next rotation and tempo
  * (focus staircase, then one-key-per-clear rebuild at a held tempo) and the
  * clear-bump-refill rule only resumes once the ramp is `complete`. Same
- * persistence contract — nothing written.
+ * persistence contract — no tempo or progress written (the report's
+ * `FocusRampSummary` is the only trace that outlives the session).
  *
  * Mutates `plan[0].keys` so `buildLickSuperPhrase` and `getCurrentPhrase`
  * see the updated active-key list on the next cycle.
