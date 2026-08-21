@@ -4,6 +4,21 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-21 — "Nothing persisted" is a claim against every write path, not a description of intent
+
+Four review rounds on PR #238 were one sentence being falsified repeatedly. I wrote
+"session-local, nothing persisted" meaning "the deep-practice tempo rule is
+unchanged" — true as intent, false as a statement, because a reviewer reads it as a
+universal over every write the code path can reach: the session log keeping the
+report's `FocusRampSummary`, `recordKeyAttempt` writing rolling score / pass count /
+recency on every attempt. Each narrowing exposed the next overstatement, and while
+fixing one I re-introduced another ("tempo/progress untouched"). The stable form
+named the single thing actually withheld — the lick's stored TEMPO — and listed what
+is written. Lesson: a negative persistence claim must be phrased as the positive
+complement ("only X is withheld; A, B, C are written as always"), because the
+negative form invites an exhaustive search I hadn't done. Same shape as the
+four-surfaces docs lesson: absence claims are the hardest to make true.
+
 ## 2026-08-20 — "Up to speed" had no referent until the engine was given a target
 
 The user's phrasing — "works it up to speed" — sounded like a requirement but was
