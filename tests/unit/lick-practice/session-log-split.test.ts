@@ -144,7 +144,14 @@ describe('splitReportByProgression', () => {
 			elapsedMinutes: 9,
 			roundsCompleted: 3,
 			finalTempo: 130,
-			keysMasteredByRound: [{ round: 1, tempo: 120, keys: ['C'] }]
+			keysMasteredByRound: [{ round: 1, tempo: 120, keys: ['C'] }],
+			ramp: {
+				focusKey: 'D',
+				targetTempo: 100,
+				lowestTempo: 87,
+				upToSpeedRound: 14,
+				rebuiltRound: null
+			}
 		};
 
 		const slices = splitReportByProgression(report, plan);
@@ -154,6 +161,13 @@ describe('splitReportByProgression', () => {
 			expect(slice.report.roundsCompleted).toBe(3);
 			expect(slice.report.finalTempo).toBe(130);
 			expect(slice.report.keysMasteredByRound).toEqual([{ round: 1, tempo: 120, keys: ['C'] }]);
+			expect(slice.report.ramp).toEqual({
+				focusKey: 'D',
+				targetTempo: 100,
+				lowestTempo: 87,
+				upToSpeedRound: 14,
+				rebuiltRound: null
+			});
 		}
 	});
 

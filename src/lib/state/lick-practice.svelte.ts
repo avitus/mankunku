@@ -36,7 +36,11 @@
  * per cleared rotation — 1% by default, 0.5–5% from the setup knob — entirely
  * in session state. It writes no tempo and no progress-history sample, so a
  * hard drill session can't hand Daily Practice a lick ramped far past the
- * tempo its grades were earned at.
+ * tempo its grades were earned at. Launched from the report's weak-key
+ * recommendation it runs the **focus ramp** instead (`lickPractice.ramp`,
+ * policy in `lick-practice-rotation.ts`): that key alone on a tempo
+ * staircase until it is back at the saved tempo, then the other keys
+ * re-admitted one per clear, worst first — still nothing persisted.
  */
 
 import { untrack } from 'svelte';
@@ -50,7 +54,9 @@ import type {
 	LickPracticeKeyResult,
 	LickReport,
 	SessionReport,
-	SingleLickRoundEntry
+	SingleLickRoundEntry,
+	FocusRamp,
+	FocusRampSummary
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
 import { addFractions } from '$lib/music/intervals';
@@ -88,6 +94,9 @@ import {
 	shouldDemoHeadKey,
 	deepPracticeStartTempo,
 	nextCycleTempo,
+	focusStartTempo,
+	planFocusRamp,
+	resolveRampCycle,
 	DEFAULT_TEMPO_BUMP_PERCENT
 } from './lick-practice-rotation';
 import {
@@ -242,6 +251,12 @@ export const lickPractice = $state<{
 	 * a refill picks up a newly unlocked key).
 	 */
 	sessionKeys: PitchClass[];
+	/**
+	 * Single-lick mode: the focus ramp, when the session was launched from
+	 * the report's weak-key recommendation — null for every other session.
+	 * Session-local and never persisted; see `FocusRamp`.
+	 */
+	ramp: FocusRamp | null;
 }>({
 	config: {
 		// Daily Practice is the front door: it rotates every progression the
@@ -270,7 +285,8 @@ export const lickPractice = $state<{
 	roundHistory: [],
 	demoNextCycle: true,
 	latestKeyResults: {},
-	sessionKeys: []
+	sessionKeys: [],
+	ramp: null
 });
 
 /**
@@ -820,16 +836,37 @@ function resolveSingleLickProgression(lick: Phrase): ChordProgressionType {
  * Practice is a dozen licks cold. Letting the drill's ramp set the daily
  * tempo hands the user a materially harder exercise than the one their
  * progress was graded on.
+ *
+ * With `options.focusKey` (the report's weak-key recommendation) the session
+ * runs the **focus ramp** instead: that key alone, `focusStartTempo` under
+ * the saved tempo, staircased back up to it, then the other keys re-admitted
+ * one per clear — see `FocusRamp`. A focus key the lick hasn't unlocked is
+ * ignored and the ordinary start runs.
  */
+export interface SingleLickSessionOptions {
+	/**
+	 * Percent added per cleared rotation (and the focus staircase's step
+	 * size). Omitted → the setup knob (`config.tempoBumpPercent`), else
+	 * `DEFAULT_TEMPO_BUMP_PERCENT` — so a caller that doesn't know about the
+	 * knob doesn't reset it.
+	 */
+	tempoBumpPercent?: number;
+	/** Open on this key alone and run the focus ramp. */
+	focusKey?: PitchClass;
+}
+
 export function startSingleLickSession(
 	lickOrId: string | Phrase,
-	tempoBumpPercent: number = DEFAULT_TEMPO_BUMP_PERCENT
+	options: SingleLickSessionOptions = {}
 ): boolean {
 	const lick = typeof lickOrId === 'string' ? getLickById(lickOrId) : lickOrId;
 	if (!lick) return false;
 
 	lickPractice.config.singleLickId = lick.id;
-	lickPractice.config.tempoBumpPercent = tempoBumpPercent;
+	lickPractice.config.tempoBumpPercent =
+		options.tempoBumpPercent ??
+		lickPractice.config.tempoBumpPercent ??
+		DEFAULT_TEMPO_BUMP_PERCENT;
 
 	// Deep Practice drills one chosen lick, so the backing progression must be
 	// derived from that lick rather than inherited from `config.progressionType`
@@ -839,6 +876,13 @@ export function startSingleLickSession(
 
 	const unlockedCount = getUnlockedKeyCount(lickPractice.progress, lick.id);
 	const circle = unlockedCircleFrom(lick.key, unlockedCount);
+	const rollingFor = (k: PitchClass) => getRollingScore(lickPractice.progress, lick.id, k);
+	const savedTempo = resolveLickTempo(lickPractice.progress, lick.id);
+	// The focus ramp opens on ONE key (the other unlocked keys queue up
+	// worst-first behind it); everything else opens on the whole circle.
+	const ramp = options.focusKey
+		? planFocusRamp(circle, options.focusKey, savedTempo, rollingFor)
+		: null;
 	lickPractice.plan = [
 		{
 			phraseId: lick.id,
@@ -848,9 +892,7 @@ export function startSingleLickSession(
 			// Worst-first from the persisted rolling scores, so keys[0] — the
 			// key the demo plays and the user answers first — is the one the
 			// user struggles with most. No rolling data → stable circle order.
-			keys: sortKeysWorstFirst(circle, (k) =>
-				getRollingScore(lickPractice.progress, lick.id, k)
-			),
+			keys: ramp ? [ramp.focusKey] : sortKeysWorstFirst(circle, rollingFor),
 			progressionType,
 			// Persist the resolved Phrase so the helpers below survive a
 			// `getLickById` miss for user/community licks not (yet) indexed
@@ -874,13 +916,16 @@ export function startSingleLickSession(
 	// when every key is already proficient.
 	lickPractice.demoNextCycle = true;
 	lickPractice.latestKeyResults = {};
+	// The ring's anchor is the full circle either way: in a focus ramp the
+	// not-yet-admitted keys sit as empty dots, which is the picture.
 	lickPractice.sessionKeys = circle;
+	lickPractice.ramp = ramp;
 	// Ease in below the stored tempo. Applied HERE and not inside
 	// `resolveLickTempo`, which every other session type also calls — a
 	// discount buried in the shared resolver would quietly slow Daily too.
-	lickPractice.currentTempo = deepPracticeStartTempo(
-		resolveLickTempo(lickPractice.progress, lick.id)
-	);
+	lickPractice.currentTempo = ramp
+		? focusStartTempo(savedTempo)
+		: deepPracticeStartTempo(savedTempo);
 
 	lickPractice.phase = 'count-in';
 	return true;
@@ -978,6 +1023,7 @@ export function startTrickSession(): boolean {
 	lickPractice.demoNextCycle = true;
 	lickPractice.latestKeyResults = {};
 	lickPractice.sessionKeys = trickCircle;
+	lickPractice.ramp = null;
 	lickPractice.currentTempo = tempo;
 
 	lickPractice.phase = 'count-in';
@@ -1743,6 +1789,12 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
  * the ramp is session-local so returning to Daily Practice finds the lick at
  * the tempo it was actually graded at.
  *
+ * A lick session launched with a focus key takes a third arm while its
+ * ramp is live: `resolveRampCycle` decides the next rotation and tempo
+ * (focus staircase, then one-key-per-clear rebuild at a held tempo) and the
+ * clear-bump-refill rule only resumes once the ramp is `complete`. Same
+ * persistence contract — nothing written.
+ *
  * Mutates `plan[0].keys` so `buildLickSuperPhrase` and `getCurrentPhrase`
  * see the updated active-key list on the next cycle.
  */
@@ -1750,8 +1802,12 @@ export function advanceSingleLickRound(): void {
 	const item = lickPractice.plan[0];
 	if (!item) return;
 
+	// Snapshot this round's results before archiving — the focus ramp reads
+	// the focus key's score from it, and `keyResults` is reassigned below.
+	const roundResults = [...lickPractice.keyResults];
+
 	// Archive results for the session report.
-	lickPractice.allAttempts.push([...lickPractice.keyResults]);
+	lickPractice.allAttempts.push(roundResults);
 	lickPractice.keyResults = [];
 
 	// Capture which keys cleared this round (in their original rotation order)
@@ -1765,8 +1821,26 @@ export function advanceSingleLickRound(): void {
 
 	// Drop mastered keys from the active rotation.
 	const survivors = item.keys.filter(k => !lickPractice.masteredThisRound.includes(k));
+	const ramp = item.kind === 'trick' ? null : lickPractice.ramp;
 
-	if (survivors.length === 0) {
+	if (ramp && ramp.phase !== 'complete') {
+		// Focus ramp: the rotation and tempo follow the staircase / rebuild
+		// policy instead of clear-bump-refill. Session-local like the rest of
+		// deep practice — `recordKeyAttempt` already wrote rolling scores and
+		// recency for every key played; nothing else is persisted here.
+		const focusResult = [...roundResults].reverse().find((r) => r.key === ramp.focusKey);
+		const next = resolveRampCycle({
+			ramp,
+			survivors,
+			tempo: lickPractice.currentTempo,
+			bumpPercent: lickPractice.config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT,
+			focusScore: focusResult?.score,
+			round: lickPractice.roundNumber
+		});
+		lickPractice.ramp = next.ramp;
+		lickPractice.currentTempo = next.tempo;
+		item.keys = next.rotation;
+	} else if (survivors.length === 0) {
 		// Whole unlocked set cleared at the current tempo — bump and refill.
 		const bumpPercent = lickPractice.config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT;
 		const newTempo = nextCycleTempo(lickPractice.currentTempo, bumpPercent);
@@ -1892,6 +1966,7 @@ export function resetSession(): void {
 	lickPractice.demoNextCycle = true;
 	lickPractice.latestKeyResults = {};
 	lickPractice.sessionKeys = [];
+	lickPractice.ramp = null;
 	lickPractice.config.singleLickId = undefined;
 }
 
@@ -2018,6 +2093,23 @@ function buildSingleLickReport(allLickResults: LickPracticeKeyResult[][]): Sessi
 	// (clamped at 0 if the user exits before the first round wraps).
 	const roundsCompleted = Math.max(0, lickPractice.roundNumber - 1);
 
+	// A focus ramp's story: the key, the target, how low the staircase went,
+	// and which rounds hit the two milestones (null while still ahead).
+	const ramp = lickPractice.ramp;
+	const rampSummary: FocusRampSummary | undefined = ramp
+		? {
+				focusKey: ramp.focusKey,
+				targetTempo: ramp.targetTempo,
+				lowestTempo: Math.min(
+					startTempo,
+					finalTempo,
+					...lickPractice.roundHistory.map((r) => r.tempo)
+				),
+				upToSpeedRound: ramp.upToSpeedRound,
+				rebuiltRound: ramp.rebuiltRound
+			}
+		: undefined;
+
 	return {
 		licks,
 		overallAverage: averageScore,
@@ -2026,6 +2118,7 @@ function buildSingleLickReport(allLickResults: LickPracticeKeyResult[][]): Sessi
 		elapsedMinutes: Math.round(lickPractice.elapsedSeconds / 60),
 		roundsCompleted,
 		finalTempo,
-		keysMasteredByRound: [...lickPractice.roundHistory]
+		keysMasteredByRound: [...lickPractice.roundHistory],
+		...(rampSummary ? { ramp: rampSummary } : {})
 	};
 }

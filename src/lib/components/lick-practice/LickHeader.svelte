@@ -15,6 +15,12 @@
 		totalKeys: number;
 		/** Optional label shown when the current lick is playing via substitution (e.g. "Minor over V"). */
 		substitutionLabel?: string | null;
+		/**
+		 * Replaces the "Key n/N" slot while a deep-practice focus ramp is live
+		 * ("Focus · D · 87 → 100 BPM", "Rebuilding · 4 of 12 keys") — "Key 1/1"
+		 * on a one-dot ring reads as a bug, not a drill.
+		 */
+		statusLabel?: string | null;
 	}
 
 	let {
@@ -24,7 +30,8 @@
 		progressionType,
 		keyIndex,
 		totalKeys,
-		substitutionLabel = null
+		substitutionLabel = null,
+		statusLabel = null
 	}: Props = $props();
 
 	const progressionName = $derived(PROGRESSION_TEMPLATES[progressionType].shortName);
@@ -56,7 +63,11 @@
 					{substitutionLabel}
 				</span>
 			{/if}
-			<span>Key {keyIndex + 1}/{totalKeys}</span>
+			{#if statusLabel}
+				<span data-testid="focus-ramp">{statusLabel}</span>
+			{:else}
+				<span>Key {keyIndex + 1}/{totalKeys}</span>
+			{/if}
 		</div>
 	</div>
 	<div class="text-center">

@@ -398,7 +398,7 @@
 							<Knob
 								label="Tempo Bump"
 								ariaLabel="Tempo bump per cleared rotation"
-								helpText="Percent added each time you clear the whole rotation, rounded up to a whole BPM. Deep Practice starts 2% below the lick's saved tempo and leaves it there — it never changes the tempo your daily practice uses. This knob also governs Trick Drills, which do save their bumps."
+								helpText="Percent added each time you clear the whole rotation, rounded up to a whole BPM. Deep Practice starts 2% below the lick's saved tempo and leaves it there — it never changes the tempo your daily practice uses. It also sizes the focus drill the report's Drill-a-key suggestion launches: one step up per clear, three steps down per attempt under 75%. This knob also governs Trick Drills, which do save their bumps."
 								value={config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT}
 								min={0.5}
 								max={5}

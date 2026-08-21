@@ -2,6 +2,21 @@
 
 Newest at the top.
 
+## 2026-08-20 — The focus ramp: Deep Practice that starts on the key that failed
+
+Opened with a report from daily practice: *"It came in at 41% — one key under 75% blocks both the tempo bump and your next key"*, then **Start deep practice** dropped the user into a 12-key rotation where almost no time landed on that key. The user offered two shapes — (a) drill the failing key only, (b) start on it, work it up to speed, then add the rest in reverse order of expertise — and leaned (b). I argued for (b) too, for a reason the user hadn't named: what failed was D *inside a 12-key rotation*, under context-switch load; (a) fixes the notes but never re-tests them under load, (b) rebuilds the load progressively. It is the app's own unlock ladder in miniature, with expertise replacing circle-of-fifths adjacency as the admission order.
+
+Decisions (one AskUserQuestion round): trigger = **report CTA only**; focus tempo = **adaptive staircase** (their pick over my fixed 10%); rebuild = **one key per clear, tempo held**.
+
+- **Built**: `FocusRamp` on the rune + pure policy in `lick-practice-rotation.ts` — `focusStartTempo` (10% under, the unlock dip), `focusStepDownTempo` (3× the bump — the standard rule's −3/+1 asymmetry), `planFocusRamp`, `resolveRampCycle` (the whole transition matrix, non-mutating). `advanceSingleLickRound` grew a third arm guarded on `ramp.phase !== 'complete'`; the worst-first sort and demo decision stay shared. `startSingleLickSession` takes an options object (`{ tempoBumpPercent?, focusKey? }`); `drill-weak-key` passes the key. `LickHeader`'s "Key n/N" slot shows *Focus · D · 87 → 100 BPM* / *Rebuilding · 4 of 12 keys*; the report gets a one-sentence ramp story; `splitReportByProgression` carries the summary.
+- **Pre-existing bug fixed en route**: `startSingleLickSession` overwrote `config.tempoBumpPercent` with the default whenever the caller omitted it — the report CTA silently reset a 2–5% knob to 1% on every launch. Now omitted → config → default. Pinned.
+- **Seams that did NOT need changing** (a read-only Plan subagent checked before building): nothing in the session page or components assumes the rotation is the full circle or only shrinks — 1-key rotations already exist for new licks and refills already grow `item.keys`. `sessionKeys` stays the full circle so the ring shows the waiting keys as empty dots, which is the right picture.
+- **Docs**: the report's Next card was entirely undocumented in the user guide (four-surfaces lesson again — absence is invisible from the docs side); now described alongside the focus drill. Glossary, overview, state-management, api-reference/state (whose rotation table was also missing `deepPracticeStartTempo`/`nextCycleTempo`), CLAUDE.md.
+
+Worth keeping: the question "what does *up to speed* mean" had no answer in the engine — deep practice knew the saved tempo only as a thing to stay 2% under, never as a target. Making it a target (`targetTempo`) is what turned (b) from a vague sequence into three one-rule phases: focus earns tempo, rebuild earns keys, a full rotation earns tempo again.
+
+Numbers: RED 42 → GREEN; 4282 unit/integration green (35 expected-fail), svelte-check 0 errors, `lick-practice-session` e2e 2/2 on chromium (the daily test now clicks the CTA and asserts the focus label).
+
 ## 2026-08-18 — The admin page that was already wired, and a Safari 404 that reloads itself
 
 Opened as "Users are slowly starting to sign up for the application. I need a basic admin page." The striking discovery from exploration: **the entire admin substrate already existed, dormant.** `user_profiles.is_admin` (migration 00007) is resolved on every request in `+layout.server.ts` and typed on `App.PageData`, the service-role `createAdminClient()` is configured in dev and production, the e2e stub already models `isAdmin` on its test-user cookie, and the `user_licks` DELETE policy already trusts the flag — yet not one line of UI consumed any of it. The feature was a route and a guard away the whole time.

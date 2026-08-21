@@ -213,8 +213,8 @@
 
 	function practiceThis() {
 		if (!lick) return;
-		// Undefined falls through to the function's own default (1%).
-		if (startSingleLickSession(lick, lickPractice.config.tempoBumpPercent))
+		// The setup page's tempo-bump knob applies through config; no knob here.
+		if (startSingleLickSession(lick))
 			goto('/lick-practice/session');
 	}
 

@@ -82,7 +82,7 @@
 			if (!singleLickId) return;
 			// Undefined falls through to the function's own default, so the
 			// 1% figure lives in exactly one place.
-			const ok = startSingleLickSession(singleLickId, tempoBumpPercent);
+			const ok = startSingleLickSession(singleLickId, { tempoBumpPercent });
 			if (ok) goto('/lick-practice/session');
 			return;
 		}

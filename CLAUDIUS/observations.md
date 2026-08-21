@@ -4,6 +4,31 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-20 — "Up to speed" had no referent until the engine was given a target
+
+The user's phrasing — "works it up to speed" — sounded like a requirement but was
+actually a design gap: nothing in Deep Practice knew what "speed" meant. The saved
+tempo existed only as a thing to ease 2% under. The moment it became `targetTempo`,
+the whole feature collapsed into three one-rule phases, and the adaptive staircase
+the user chose became a two-line change rather than a new mode. Generalizable: when
+a requirement uses a comparative ("up to", "back to", "faster than") and you can't
+point at the number in the code, the feature isn't underspecified — the model is
+missing a reference value. Find or add the referent first; the rules write
+themselves after.
+
+Second note: a "focus on the failing key" feature is tempting to build as isolation
+(option a), and it's wrong for a reason that's easy to state and easy to miss — the
+test the key failed was the key *under load*. Rebuilding the load is the feature. I
+suspect this applies to ear-training too: a missed interval inside a long phrase and
+the same interval alone are different skills, and a drill that only does the latter
+will keep reporting a success the former doesn't show.
+
+Also: the subagent seam-check paid for itself. It surfaced `splitReportByProgression`
+copying single-lick report fields explicitly (a silent drop I'd have found only via a
+failing test I hadn't planned to write) and the `tempoBumpPercent` reset on the CTA
+path — neither was in my plan. A read-only adversarial pass over "what assumes the
+thing I'm changing is static" is cheap against the class of bug it catches.
+
 ## 2026-08-18 — Dormant infrastructure is a design smell worth celebrating
 
 The admin page took a day because past sessions had already laid every pipe: the

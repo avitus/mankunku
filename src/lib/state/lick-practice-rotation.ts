@@ -25,10 +25,27 @@
  * ramp: a session eases in below the lick's stored tempo and climbs back by
  * a percentage of wherever it currently sits, so the same rule reads the
  * same at 60 BPM and at 200.
+ *
+ * The focus ramp (`planFocusRamp`, `resolveRampCycle`) is the drill the
+ * report's weak-key recommendation launches. Instead of the whole unlocked
+ * circle it opens on the failing key ALONE, `focusStartTempo` under the
+ * lick's saved tempo, and staircases that one key (clear → up, sub-floor →
+ * `focusStepDownTempo`, in between → hold) until a clear lands back at the
+ * saved tempo — "up to speed". Then it re-admits the other keys one per
+ * cleared rotation, worst first, at a held tempo, and once the full set is
+ * back hands over to the ordinary clear → bump → refill rule. One rule per
+ * phase: focus earns tempo, rebuild earns keys, a full rotation earns tempo
+ * again. It is the unlock ladder in miniature, with expertise standing in
+ * for circle-of-fifths adjacency as the admission order.
  */
 
 import type { PitchClass } from '$lib/types/music';
-import { KEY_PROFICIENT_THRESHOLD, clampTempo } from '$lib/persistence/lick-practice-store';
+import type { FocusRamp } from '$lib/types/lick-practice';
+import {
+	KEY_FLOOR_THRESHOLD,
+	KEY_PROFICIENT_THRESHOLD,
+	clampTempo
+} from '$lib/persistence/lick-practice-store';
 
 /**
  * Order keys ascending by rolling score, never-practiced (undefined) first.
@@ -96,6 +113,159 @@ export function deepPracticeStartTempo(persisted: number): number {
  */
 export function nextCycleTempo(current: number, percent: number): number {
 	return clampTempo(current + Math.ceil(current * (percent / 100)));
+}
+
+// ── Focus ramp ─────────────────────────────────────────────
+
+/**
+ * How far under the lick's saved tempo a focus ramp opens. Ten percent is
+ * the same dip a key unlock applies (`tempoAfterKeyUnlock`): a key that just
+ * failed is, for drilling purposes, a new key — it resets your headroom. The
+ * 2% deep-practice ease-in is a courtesy for a key that nearly made it; it
+ * is meaningless for one that came in at 41%.
+ */
+export const FOCUS_START_DISCOUNT = 0.1;
+
+/**
+ * A sub-floor attempt in the focus phase steps the tempo down by this many
+ * times the bump percent. Mirrors the standard session's −3/+1 asymmetry
+ * (`computeAutoTempoAdjustment`): one failure costs three clears, so the
+ * staircase settles quickly on a tempo the key can actually be played at
+ * and climbs back only as fast as it is earned.
+ */
+export const FOCUS_STEP_DOWN_MULTIPLIER = 3;
+
+/**
+ * Opening tempo for a focus ramp, given the lick's saved tempo. Same ≥ 1 BPM
+ * guarantee as `deepPracticeStartTempo`, clamped at MIN_TEMPO.
+ */
+export function focusStartTempo(persisted: number): number {
+	const eased = Math.round(persisted * (1 - FOCUS_START_DISCOUNT));
+	return clampTempo(Math.min(persisted - 1, eased));
+}
+
+/**
+ * Tempo after a sub-floor attempt in the focus phase. Rounded UP like
+ * `nextCycleTempo`, for the same reason — a step that rounds to zero would
+ * read as working while doing nothing — and clamped at MIN_TEMPO.
+ */
+export function focusStepDownTempo(current: number, percent: number): number {
+	return clampTempo(
+		current - Math.ceil(current * ((percent * FOCUS_STEP_DOWN_MULTIPLIER) / 100))
+	);
+}
+
+/**
+ * Build the opening ramp state: the focus key alone, every other unlocked
+ * key queued worst-first (never-practiced first, via `sortKeysWorstFirst`).
+ * Returns null when the focus key is not in the unlocked circle — the caller
+ * falls back to an ordinary full-rotation start rather than drilling a key
+ * the lick hasn't earned.
+ */
+export function planFocusRamp(
+	circle: readonly PitchClass[],
+	focusKey: PitchClass,
+	targetTempo: number,
+	rollingFor: (key: PitchClass) => number | undefined
+): FocusRamp | null {
+	if (!circle.includes(focusKey)) return null;
+	return {
+		focusKey,
+		targetTempo,
+		phase: 'focus',
+		admitted: [focusKey],
+		queue: sortKeysWorstFirst(
+			circle.filter((k) => k !== focusKey),
+			rollingFor
+		),
+		upToSpeedRound: null,
+		rebuiltRound: null
+	};
+}
+
+export interface RampCycleInput {
+	ramp: FocusRamp;
+	/** Keys left in the rotation after this round's masteries dropped out. */
+	survivors: readonly PitchClass[];
+	tempo: number;
+	bumpPercent: number;
+	/** The focus key's score this round; only the focus phase reads it. */
+	focusScore: number | undefined;
+	/** The 1-based round just completed — stamps the milestones. */
+	round: number;
+}
+
+export interface RampCycleOutput {
+	ramp: FocusRamp;
+	/** Next cycle's rotation, unsorted — the caller applies worst-first. */
+	rotation: PitchClass[];
+	tempo: number;
+}
+
+/**
+ * One cycle boundary of a focus ramp. Pure and non-mutating: returns the
+ * next ramp state, the next rotation and the next tempo.
+ *
+ * - focus, cleared: step up; at or above the target that clear ends focus
+ *   and admits the first queued key in the same step (or completes the ramp
+ *   outright when nothing is queued).
+ * - focus, not cleared: step down on a sub-floor score, hold otherwise.
+ * - rebuild, cleared: admit the next queued key; the last admission
+ *   completes the ramp. Tempo held.
+ * - rebuild, not cleared: survivors keep cycling. Tempo held.
+ * - complete: untouched — the caller runs the ordinary rule.
+ */
+export function resolveRampCycle(input: RampCycleInput): RampCycleOutput {
+	const { ramp, survivors, bumpPercent, focusScore, round } = input;
+	const cleared = survivors.length === 0;
+	let tempo = input.tempo;
+
+	if (ramp.phase === 'focus') {
+		if (!cleared) {
+			if (focusScore !== undefined && focusScore < KEY_FLOOR_THRESHOLD) {
+				tempo = focusStepDownTempo(tempo, bumpPercent);
+			}
+			return { ramp: cloneRamp(ramp), rotation: [ramp.focusKey], tempo };
+		}
+		tempo = nextCycleTempo(tempo, bumpPercent);
+		if (tempo < ramp.targetTempo) {
+			return { ramp: cloneRamp(ramp), rotation: [ramp.focusKey], tempo };
+		}
+		// Up to speed. Leave focus and admit the first queued key now — the
+		// user just cleared at speed; there is nothing left to prove alone.
+		return {
+			...admitNext({ ...cloneRamp(ramp), phase: 'rebuild', upToSpeedRound: round }, round),
+			tempo
+		};
+	}
+
+	if (ramp.phase === 'rebuild') {
+		if (!cleared) return { ramp: cloneRamp(ramp), rotation: [...survivors], tempo };
+		return { ...admitNext(cloneRamp(ramp), round), tempo };
+	}
+
+	return { ramp: cloneRamp(ramp), rotation: [...survivors], tempo };
+}
+
+function cloneRamp(ramp: FocusRamp): FocusRamp {
+	return { ...ramp, admitted: [...ramp.admitted], queue: [...ramp.queue] };
+}
+
+/** Move the head of the queue into the admitted set; an empty queue completes the ramp. */
+function admitNext(ramp: FocusRamp, round: number): { ramp: FocusRamp; rotation: PitchClass[] } {
+	const [next, ...queue] = ramp.queue;
+	const admitted = next === undefined ? [...ramp.admitted] : [...ramp.admitted, next];
+	const complete = queue.length === 0;
+	return {
+		ramp: {
+			...ramp,
+			admitted,
+			queue,
+			phase: complete ? 'complete' : 'rebuild',
+			rebuiltRound: complete ? round : ramp.rebuiltRound
+		},
+		rotation: [...admitted]
+	};
 }
 
 /**

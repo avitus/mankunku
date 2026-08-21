@@ -15,10 +15,13 @@
  *    thing that makes it worse, so this is exclusive — nothing else is
  *    considered.
  * 2. **The one recommendation.** The weakest key under the floor if there is
- *    one, otherwise the weakest lick. Both tee up Deep Practice, which sorts
- *    its rotation worst-first by rolling score and demos the head key while it
- *    is below proficient — so it lands on the offending key by itself, with
- *    the reference played. That is why no key argument is passed.
+ *    one, otherwise the weakest lick. Both tee up Deep Practice. The weak-key
+ *    step hands over the key as a **focus key**: the drill opens on that key
+ *    alone and works it back up to speed before the other keys return (the
+ *    focus ramp — `FocusRamp`). The weak-lick step passes no key: deep
+ *    practice already sorts the whole rotation worst-first by rolling score
+ *    and demos the head key while it is below proficient, so it lands on the
+ *    offending key by itself, with the reference played.
  * 3. **Nothing worth flagging.** Every lick at or above
  *    `KEY_PROFICIENT_THRESHOLD` — by the engine's own definition the session
  *    earned its unlocks and tempo — so we say so and get out of the way.
@@ -70,6 +73,11 @@ export interface NextStepAction {
 	 * licks — passing the Phrase is what keeps those startable.
 	 */
 	phrase?: Phrase;
+	/**
+	 * Key to open the drill on ALONE — the focus ramp. Set by the weak-key
+	 * step only; the weak-lick step wants the whole rotation.
+	 */
+	focusKey?: PitchClass;
 	/** Button copy. */
 	label: string;
 }
@@ -147,8 +155,9 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 			headline: `Drill ${formatKey(key.key)} on ${lick.lickName}.`,
 			reason:
 				`It came in at ${pct(key.score)}% — one key under ${pct(KEY_FLOOR_THRESHOLD)}% blocks both the tempo bump and your next key.` +
-				(timing ? " It's the time, not the notes." : ''),
-			action: deepAction(lick.lickId, plan)
+				(timing ? " It's the time, not the notes." : '') +
+				` Deep practice starts on ${formatKey(key.key)} alone and brings the other keys back once it's up to speed.`,
+			action: deepAction(lick.lickId, plan, key.key)
 		};
 	}
 
@@ -178,10 +187,20 @@ function doneStep(report: SessionReport): NextStep {
 	};
 }
 
-function deepAction(lickId: string, plan: readonly LickPracticePlanItem[]): NextStepAction {
+function deepAction(
+	lickId: string,
+	plan: readonly LickPracticePlanItem[],
+	focusKey?: PitchClass
+): NextStepAction {
 	// A report entry always has a plan item in practice; tolerate a miss rather
 	// than dropping the recommendation, since the bare id still resolves for
 	// every curated lick.
 	const item = plan.find((p) => p.phraseId === lickId && p.kind !== 'trick');
-	return { kind: 'deep', lickId, phrase: item?.phrase, label: 'Start deep practice' };
+	return {
+		kind: 'deep',
+		lickId,
+		phrase: item?.phrase,
+		...(focusKey ? { focusKey } : {}),
+		label: 'Start deep practice'
+	};
 }

@@ -149,6 +149,7 @@ export function splitReportByProgression(
 		if (report.finalTempo !== undefined) sliced.finalTempo = report.finalTempo;
 		if (report.keysMasteredByRound !== undefined)
 			sliced.keysMasteredByRound = report.keysMasteredByRound;
+		if (report.ramp !== undefined) sliced.ramp = report.ramp;
 		slices.push({ progressionType, report: sliced });
 	}
 
