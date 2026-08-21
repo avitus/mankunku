@@ -118,6 +118,13 @@ The GraphQL `reviewThreads` query only returns inline diff comments. CodeRabbit 
 
 **How to apply:** Use multiple API calls covering all comment locations, or ask the user to paste any missed comments.
 
+### CodeRabbit rate limits: never trigger into one, never stop because of one (2026-08-21)
+When CodeRabbit answers "Review rate limited" / the walkthrough shows "Review limit reached", do not post `@coderabbitai review` — check first, wait out the ETA plus margin, then trigger ONCE. And do not stop or hand back: on rejection, back off and wait for the next ETA; keep going until the review runs. Every attempt counts toward the 7-day Fair-Usage total (a push's automatic attempt included) and lowers the hourly allowance, so blind retries lengthen the lockout — but persistence is the user's explicit choice.
+
+**Why:** PR #238 (2026-08-21): four rejected triggers in one night took the allowance from 2/h to 1/h; I then stopped and offered alternatives, and the user's answer was "always wait for the rate limit to expire and then resume."
+
+**How to apply:** arm a persistent waiter (ETA relative to the walkthrough's `updated_at` + growing margin → one trigger → on rejection, repeat); never exit it on a rejection; report each attempt.
+
 ### Proactively autofix CodeRabbit comments after every push, and keep iterating until clean
 After any `git push` to a PR branch — including the autofix commits themselves — automatically wait for CodeRabbit's review to complete (~2-5 min), fetch ALL comment sources, and fix the valid ones. After pushing the fixes, **wait for CodeRabbit's next review pass and repeat**; CodeRabbit will often have follow-on comments triggered by the previous fix or duplicates it didn't surface in the first round. Continue until a review pass produces no actionable comments.
 
