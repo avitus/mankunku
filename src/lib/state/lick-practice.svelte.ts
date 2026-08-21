@@ -40,8 +40,10 @@
  * recommendation it runs the **focus ramp** instead (`lickPractice.ramp`,
  * policy in `lick-practice-rotation.ts`): that key alone on a tempo
  * staircase until it is back at the saved tempo, then the other keys
- * re-admitted one per clear, worst first — still no tempo or progress
- * written; only the report's `FocusRampSummary` is logged with the session.
+ * re-admitted one per clear, worst first — still no tempo written
+ * (`recordKeyAttempt` records rolling score, pass count and recency per
+ * attempt as always); the report's `FocusRampSummary` is logged with the
+ * session.
  */
 
 import { untrack } from 'svelte';
@@ -1795,8 +1797,9 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
  * ramp is live: `resolveRampCycle` decides the next rotation and tempo
  * (focus staircase, then one-key-per-clear rebuild at a held tempo) and the
  * clear-bump-refill rule only resumes once the ramp is `complete`. Same
- * persistence contract — no tempo or progress written (the report's
- * `FocusRampSummary` is the only trace that outlives the session).
+ * persistence contract — this arm writes nothing; the attempt's rolling
+ * score and recency were already recorded by `recordKeyAttempt`, the tempo
+ * never is, and the report's `FocusRampSummary` is the ramp's only trace.
  *
  * Mutates `plan[0].keys` so `buildLickSuperPhrase` and `getCurrentPhrase`
  * see the updated active-key list on the next cycle.

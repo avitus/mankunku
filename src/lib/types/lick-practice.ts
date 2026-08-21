@@ -196,8 +196,10 @@ export interface SingleLickRoundEntry {
  * Single-lick focus ramp — the drill the report's weak-key recommendation
  * launches. The live state is session-local and never persisted — same
  * contract as the rest of the deep-practice tempo ramp; the lick's stored
- * tempo/progress are untouched. Only its `FocusRampSummary` on the session
- * report outlives the session, logged like any other report field. Pure
+ * TEMPO is untouched (rolling score, pass count and recency are still
+ * recorded per attempt by `recordKeyAttempt`, as in every session). Only its
+ * `FocusRampSummary` on the session report outlives the session, logged like
+ * any other report field. Pure
  * policy in `state/lick-practice-rotation.ts` (`planFocusRamp`,
  * `resolveRampCycle`).
  *
