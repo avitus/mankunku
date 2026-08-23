@@ -93,12 +93,12 @@ Never add `Co-Authored-By: Claude…`, "Generated with Claude Code", or any simi
 
 **How to apply:** Strip attribution from default commit/PR templates before posting. Applies to `gh issue create`, `gh pr create`, `gh pr comment`, `git commit`, etc.
 
-### Create PRs from the current branch
-When the user asks to create a PR, base it on the branch they're currently on. Don't create a new branch.
+### Create PRs from the current branch — and only when asked
+When the user asks to create a PR, base it on the branch they're currently on. Don't create a new branch. **Never open a PR unsolicited** (2026-08-22: I opened PR #239 on my own initiative and was told "Never open a PR unless I ask you to").
 
-**Why:** The user prefers to stay on their working branch.
+**Why:** The user prefers to stay on their working branch, and PR creation is their call — the dev → PR → main convention is not standing permission.
 
-**How to apply:** "Commit and create a PR" → commit on current branch, push, open PR from that branch. Only create a new branch if explicitly asked.
+**How to apply:** commit + push on the current branch is routine; stop there and say a PR can be opened on request. "Commit and create a PR" → commit on current branch, push, open PR from that branch. Only create a new branch if explicitly asked.
 
 ### Skip redundant git checks; chain add, commit, and push
 When changes are already known from the current conversation, skip `git diff` / `git log` and chain `add`, `commit`, and `push` in a single Bash call.
