@@ -67,5 +67,19 @@ test('a user switch in one tab reloads the other open tab', async ({ page, brows
 	}, OTHER_UID);
 
 	await tab2Reloaded;
+
+	// The re-homed tab reloads a SECOND time: the e2e cookie still says Alice,
+	// so the reconcile step flips `__active` back to her and reloads once more
+	// (in production the cookie would follow the switch and there is only one).
+	// Closing a page mid-navigation races Chromium's target teardown — close()
+	// hung ~28 s into the 30 s test budget, 3/3 on CI — so wait for the realm
+	// to settle (pointer back on Alice, reload guard cleared) before closing.
+	await tab2.waitForFunction(
+		(uid) =>
+			localStorage.getItem('mankunku:__active') === JSON.stringify(uid) &&
+			sessionStorage.getItem('mankunku:reload-target') === null,
+		USER_A.id,
+		{ timeout: 10_000 }
+	);
 	await tab2.close();
 });
