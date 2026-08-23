@@ -125,6 +125,8 @@ When CodeRabbit answers "Review rate limited" / the walkthrough shows "Review li
 
 **How to apply:** arm a persistent waiter (ETA relative to the walkthrough's `updated_at` + growing margin → one trigger → on rejection, repeat); never exit it on a rejection; report each attempt.
 
+**The allowance is SHARED across the account (2026-08-23).** Other agents working on other projects consume the same Fair-Usage allowance, so a stale "Next review available in N minutes" block on THIS PR proves nothing once the ETA has passed. Before any trigger — a push to a PR branch counts — **ask CodeRabbit: post `@coderabbitai rate limit` on the PR.** It replies with the remaining allowance and when the next review becomes available, WITHOUT consuming a review (docs.coderabbit.ai/reference/review-commands). If it says exhausted, wait for the time it names plus margin and ask again before triggering. One trigger per window; on rejection ask `rate limit` again rather than counting down.
+
 ### Proactively autofix CodeRabbit comments after every push, and keep iterating until clean
 After any `git push` to a PR branch — including the autofix commits themselves — automatically wait for CodeRabbit's review to complete (~2-5 min), fetch ALL comment sources, and fix the valid ones. After pushing the fixes, **wait for CodeRabbit's next review pass and repeat**; CodeRabbit will often have follow-on comments triggered by the previous fix or duplicates it didn't surface in the first round. Continue until a review pass produces no actionable comments.
 
