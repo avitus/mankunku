@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { keyLabelLong } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -8,7 +9,8 @@
 		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
 		adjustSelectedNotePitch, flipSelectedNoteSpelling, enterTiedNote, getCurrentPhrase,
 		getPaddedNotes, getCurrentBarAndBeat, getRemainingCapacity,
-		selectNote, selectPrev, selectNext
+		selectNote, selectPrev, selectNext,
+		setCategory
 	} from '$lib/state/step-entry.svelte';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
@@ -460,7 +462,7 @@
 		>
 			<span class="flex items-center gap-3">
 				<span class="smallcaps text-[11px] text-[var(--color-text-secondary)]">Setup</span>
-				<span>Key {stepEntry.phraseKey}</span>
+				<span>Key {keyLabelLong(stepEntry.phraseKey, stepEntry.phraseMode)}</span>
 				<span class="text-[var(--color-text-secondary)]">·</span>
 				<span>{stepEntry.barCount} bar{stepEntry.barCount === 1 ? '' : 's'}</span>
 			</span>
@@ -499,7 +501,7 @@
 				<div class="flex flex-wrap items-center gap-1.5">
 					{#each ENTRY_CATEGORIES as { value, label }}
 						<button
-							onclick={() => { stepEntry.category = value; }}
+							onclick={() => setCategory(value)}
 							class="rounded-full px-2.5 py-0.5 text-xs transition-colors
 								{stepEntry.category === value
 									? 'bg-[var(--color-accent)] text-white'

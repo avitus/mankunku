@@ -19,7 +19,9 @@ import {
 	progressionHasSubstitutionTargets,
 	getChordQualityAtOffset,
 	getTransitionCadenceChords,
-	detectPickupBars
+	detectPickupBars,
+	progressionMode,
+	MINOR_CADENCE
 } from '$lib/data/progressions';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import { PITCH_CLASSES, type Note, type PitchClass } from '$lib/types/music';
@@ -322,7 +324,7 @@ describe('getSubstitutionCategories', () => {
 		expect(getSubstitutionCategories('turnaround', true)).toContain('minor-chord');
 	});
 
-	it('omits minor-chord for minor ii-V-I (V is 7alt, not 7)', () => {
+	it('omits minor-chord for minor ii-V-I (V is 7b9, not 7)', () => {
 		expect(getSubstitutionCategories('ii-V-I-minor', true)).not.toContain('minor-chord');
 		expect(getSubstitutionCategories('ii-V-I-minor-long', true)).not.toContain('minor-chord');
 	});
@@ -405,7 +407,7 @@ describe('getSubstitutionAlignmentOffset', () => {
 	});
 
 	it('returns null when progression has no matching target quality', () => {
-		// Minor ii-V-I uses 7alt, not 7 — no match.
+		// Minor ii-V-I uses 7b9, not 7 — no match.
 		expect(getSubstitutionAlignmentOffset('ii-V-I-minor', 'minor-chord')).toBeNull();
 		expect(getSubstitutionAlignmentOffset('ii-V-I-minor-long', 'minor-chord')).toBeNull();
 	});
@@ -502,7 +504,7 @@ describe('getActiveSubstitution', () => {
 	});
 
 	it('returns null when the progression has no matching target chord', () => {
-		// ii-V-I-minor uses 7alt for V, not 7 — rule does not fire.
+		// ii-V-I-minor uses 7b9 for V, not 7 — rule does not fire.
 		expect(getActiveSubstitution('ii-V-I-minor', 'minor-chord', true)).toBeNull();
 	});
 
@@ -519,7 +521,7 @@ describe('progressionHasSubstitutionTargets', () => {
 		expect(progressionHasSubstitutionTargets('blues')).toBe(true);
 	});
 
-	it('is false for progressions whose only dominant is 7alt', () => {
+	it('is false for progressions whose only dominant is 7b9', () => {
 		expect(progressionHasSubstitutionTargets('ii-V-I-minor')).toBe(false);
 		expect(progressionHasSubstitutionTargets('ii-V-I-minor-long')).toBe(false);
 	});
@@ -617,10 +619,10 @@ describe('getTransitionCadenceChords', () => {
 		]);
 	});
 
-	it('builds iiø7-V7 into a minor-tonic key', () => {
+	it('builds iiø7-V7b9 into a minor-tonic key', () => {
 		expect(getTransitionCadenceChords('minor-vamp', 'C')).toEqual([
 			{ root: 'D', quality: 'min7b5' },
-			{ root: 'G', quality: '7' }
+			{ root: 'G', quality: '7b9' }
 		]);
 	});
 
@@ -630,7 +632,7 @@ describe('getTransitionCadenceChords', () => {
 		// minor-style cadence, transposed to the target key.
 		expect(getTransitionCadenceChords('ii-V-I-minor', 'F')).toEqual([
 			{ root: 'G', quality: 'min7b5' },
-			{ root: 'C', quality: '7' }
+			{ root: 'C', quality: '7b9' }
 		]);
 		// ...and the major template's Cmaj7 tonic yields the major-style ii.
 		expect(getTransitionCadenceChords('ii-V-I-major-long', 'F')).toEqual([
@@ -656,7 +658,7 @@ describe('getTransitionCadenceChords', () => {
 				const keyNum = PITCH_CLASSES.indexOf(key);
 				expect(PITCH_CLASSES.indexOf(cadence[0].root)).toBe((keyNum + 2) % 12);
 				expect(PITCH_CLASSES.indexOf(cadence[1].root)).toBe((keyNum + 7) % 12);
-				expect(cadence[1].quality).toBe('7');
+				expect(cadence[1].quality).toBe(progressionMode(type) === 'minor' ? '7b9' : '7');
 			}
 		}
 	});
@@ -689,5 +691,52 @@ describe('iii-VI-ii-V-I progression', () => {
 		expect(cats).toContain('major-chord');
 		// I (maj7) lands on bar 2
 		expect(getLickAlignmentOffset('iii-VI-ii-V-I', 'major-chord')).toEqual([2, 1]);
+	});
+});
+
+describe('progressionMode', () => {
+	it('reads minor from a minor tonic (the segment rooted on C) and major otherwise', () => {
+		const expected: Record<ChordProgressionType, 'major' | 'minor'> = {
+			'minor-vamp': 'minor',
+			'major-vamp': 'major',
+			'dominant-vamp': 'major',
+			'ii-V-I-major': 'major',
+			'ii-V-I-minor': 'minor',
+			'ii-V-I-major-long': 'major',
+			'ii-V-I-minor-long': 'minor',
+			turnaround: 'major',
+			'iii-VI-ii-V-I': 'major',
+			blues: 'major'
+		};
+		for (const type of Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[]) {
+			expect(progressionMode(type), type).toBe(expected[type]);
+		}
+	});
+});
+
+describe('minor ii-V-i templates — ii-7b5 · V7b9 · i-7', () => {
+	it('both minor templates take their ii and V from MINOR_CADENCE', () => {
+		expect(MINOR_CADENCE.ii).toEqual({ quality: 'min7b5', scaleId: 'harmonic-minor.locrian-sharp6' });
+		expect(MINOR_CADENCE.V).toEqual({ quality: '7b9', scaleId: 'harmonic-minor.phrygian-dominant' });
+		for (const type of ['ii-V-I-minor', 'ii-V-I-minor-long'] as const) {
+			const [ii, V, i] = PROGRESSION_TEMPLATES[type].harmony;
+			expect(ii.chord, type).toEqual({ root: 'D', quality: 'min7b5' });
+			expect(ii.scaleId).toBe(MINOR_CADENCE.ii.scaleId);
+			expect(V.chord, type).toEqual({ root: 'G', quality: '7b9' });
+			expect(V.scaleId).toBe(MINOR_CADENCE.V.scaleId);
+			expect(i.chord, type).toEqual({ root: 'C', quality: 'min7' });
+		}
+	});
+
+	it('keeps the short/long geometry: ½·½·1 and 1·1·2 bars', () => {
+		const short = PROGRESSION_TEMPLATES['ii-V-I-minor'].harmony;
+		expect(short.map((s) => fractionToFloat(s.duration))).toEqual([0.5, 0.5, 1]);
+		const long = PROGRESSION_TEMPLATES['ii-V-I-minor-long'].harmony;
+		expect(long.map((s) => fractionToFloat(s.duration))).toEqual([1, 1, 2]);
+	});
+
+	it('in D the long template reads E-7b5 | A7b9 | D-7', () => {
+		const inD = transposeProgression(PROGRESSION_TEMPLATES['ii-V-I-minor-long'].harmony, 'D');
+		expect(inD.map((s) => `${s.chord.root}${s.chord.quality}`)).toEqual(['Emin7b5', 'A7b9', 'Dmin7']);
 	});
 });

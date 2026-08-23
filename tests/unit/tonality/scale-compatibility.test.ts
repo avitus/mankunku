@@ -115,13 +115,21 @@ describe('progression category compatibility', () => {
 		expect(compat).not.toContain('blues');
 	});
 
-	it('ii-V-I-minor lick is compatible with minor, dorian, melodic-minor, altered', () => {
+	it('ii-V-I-minor lick is compatible with minor, dorian, melodic-minor — not altered', () => {
 		const lick = makeLick({ scaleId: 'major.dorian', category: 'ii-V-I-minor' });
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toContain('minor');
 		expect(compat).toContain('dorian');
 		expect(compat).toContain('melodic-minor');
-		expect(compat).toContain('altered');
+		// Altered is a dominant-only context: with no snapping, a ii-V-i's ii and
+		// i bars sit outside the advertised scale.
+		expect(compat).not.toContain('altered');
+		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'major.dorian', category: 'short-ii-V-I-minor' }))).not.toContain('altered');
+	});
+
+	it('V-I licks use category compatibility (not their altered first segment)', () => {
+		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'melodic-minor.altered', category: 'V-I-minor' }))).toEqual(['minor', 'dorian', 'melodic-minor']);
+		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'major.mixolydian', category: 'V-I-major' }))).toEqual(['major', 'mixolydian', 'lydian']);
 	});
 
 	it('rhythm-changes lick is compatible with major and mixolydian', () => {

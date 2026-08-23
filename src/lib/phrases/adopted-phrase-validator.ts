@@ -87,6 +87,10 @@ export function validateAdoptedPhrase(input: unknown): AdoptedPhraseValidation {
 	if (typeof p.key !== 'string' || !PITCH_CLASSES.includes(p.key as PitchClass)) {
 		errors.push('invalid or missing key');
 	}
+	// Optional: absent/null = not stated (resolved by harmony inference).
+	if (p.mode !== undefined && p.mode !== null && p.mode !== 'major' && p.mode !== 'minor') {
+		errors.push('invalid mode');
+	}
 
 	if (!isValidFraction(p.timeSignature, { allowZeroNumerator: false })) {
 		errors.push('invalid timeSignature');

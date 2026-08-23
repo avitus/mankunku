@@ -41,7 +41,9 @@ vi.stubGlobal('localStorage', {
 
 // Real lick IDs from `src/lib/data/licks/` — picked so each is tagged for a
 // different progression by default. The tests below explicitly add
-// `prog:*` tags so the picker has unambiguous candidates.
+// `prog:*` tags so the picker has unambiguous candidates. II_V_LICK is a
+// 1|1|1-bar ii-V-I, so the template it FITS is the long one (the picker
+// skips tagged templates the lick's own shape doesn't fit).
 const II_V_LICK = 'ii-V-I-maj-001';
 const BLUES_LICK = 'blues-001';
 const MINOR_LICK = 'minor-chord-001';
@@ -101,7 +103,7 @@ describe('getDailyPracticeLicks', () => {
 
 	it('returns practice-tagged licks regardless of their progression tags', () => {
 		togglePracticeTag(II_V_LICK);
-		toggleProgressionTag(II_V_LICK, 'ii-V-I-major');
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
 		togglePracticeTag(BLUES_LICK);
 		toggleProgressionTag(BLUES_LICK, 'blues');
 
@@ -112,7 +114,7 @@ describe('getDailyPracticeLicks', () => {
 
 	it('skips stranded licks (practice-tagged but no prog:* tag)', () => {
 		togglePracticeTag(II_V_LICK);
-		toggleProgressionTag(II_V_LICK, 'ii-V-I-major');
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
 		togglePracticeTag(BLUES_LICK);
 		// BLUES_LICK has no prog:* tag → stranded → excluded.
 
@@ -125,20 +127,20 @@ describe('getDailyPracticeLicks', () => {
 describe('buildDailyPracticePlan', () => {
 	it('pools licks across progressions and stamps each with its own progressionType', () => {
 		togglePracticeTag(II_V_LICK);
-		toggleProgressionTag(II_V_LICK, 'ii-V-I-major');
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
 		togglePracticeTag(BLUES_LICK);
 		toggleProgressionTag(BLUES_LICK, 'blues');
 
 		buildDailyPracticePlan();
 
 		const byId = new Map(lickPractice.plan.map((item) => [item.phraseId, item]));
-		expect(byId.get(II_V_LICK)?.progressionType).toBe('ii-V-I-major');
+		expect(byId.get(II_V_LICK)?.progressionType).toBe('ii-V-I-major-long');
 		expect(byId.get(BLUES_LICK)?.progressionType).toBe('blues');
 	});
 
 	it('orders plan items by least-recently-practiced lick', () => {
 		togglePracticeTag(II_V_LICK);
-		toggleProgressionTag(II_V_LICK, 'ii-V-I-major');
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
 		togglePracticeTag(BLUES_LICK);
 		toggleProgressionTag(BLUES_LICK, 'blues');
 		togglePracticeTag(MINOR_LICK);
@@ -179,7 +181,7 @@ describe('buildDailyPracticePlan', () => {
 
 	it('stops appending licks once the time budget is exhausted', () => {
 		togglePracticeTag(II_V_LICK);
-		toggleProgressionTag(II_V_LICK, 'ii-V-I-major');
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
 		togglePracticeTag(BLUES_LICK);
 		toggleProgressionTag(BLUES_LICK, 'blues');
 		togglePracticeTag(MINOR_LICK);
@@ -215,7 +217,7 @@ describe('getCurrentProgressionType', () => {
 	// active plan item's progressionType.
 	it("returns the current plan item's progressionType, not the session-wide config", () => {
 		togglePracticeTag(II_V_LICK);
-		toggleProgressionTag(II_V_LICK, 'ii-V-I-major');
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
 		togglePracticeTag(BLUES_LICK);
 		toggleProgressionTag(BLUES_LICK, 'blues');
 

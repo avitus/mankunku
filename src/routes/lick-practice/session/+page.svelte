@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
@@ -36,7 +37,8 @@
 	import {
 		getActiveSubstitution,
 		getTransitionCadenceChords,
-		PROGRESSION_TEMPLATES
+		PROGRESSION_TEMPLATES,
+		progressionMode
 	} from '$lib/data/progressions';
 	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
 	import { resolveNextCycleStart, planCycleWindows } from '$lib/state/lick-practice-rotation';
@@ -308,7 +310,7 @@
 		const ramp = lickPractice.ramp;
 		if (lickPractice.mode !== 'single-lick' || !ramp || ramp.phase === 'complete') return null;
 		if (ramp.phase === 'focus') {
-			const key = concertKeyToWritten(ramp.focusKey, instrument);
+			const key = keyLabel(concertKeyToWritten(ramp.focusKey, instrument), progressionMode(currentProgressionType));
 			return `Focus · ${key} · ${lickPractice.currentTempo} → ${ramp.targetTempo} BPM`;
 		}
 		return `Rebuilding · ${ramp.admitted.length} of ${lickPractice.sessionKeys.length} keys`;
@@ -316,7 +318,7 @@
 
 	/** One sentence telling a focus ramp's story on the report. */
 	function rampSummaryText(ramp: FocusRampSummary, openingTempo: number): string {
-		const key = concertKeyToWritten(ramp.focusKey, instrument);
+		const key = keyLabel(concertKeyToWritten(ramp.focusKey, instrument), progressionMode(currentProgressionType));
 		const parts = [`Focus drill on ${key}: opened at ${openingTempo} BPM`];
 		if (ramp.lowestTempo < openingTempo) parts.push(`dipped to ${ramp.lowestTempo}`);
 		if (ramp.upToSpeedRound != null) parts.push(`back up to speed in round ${ramp.upToSpeedRound}`);
@@ -1664,7 +1666,7 @@
 									{:else}
 										{#each r.keys as k}
 											<span class="rounded bg-[var(--color-success)]/20 px-1.5 py-0.5 text-[var(--color-success)]">
-												{concertKeyToWritten(k, instrument)}
+												{keyLabel(concertKeyToWritten(k, instrument), progressionMode(currentProgressionType))}
 											</span>
 										{/each}
 									{/if}
@@ -1713,7 +1715,7 @@
 								? ''
 								: `background: color-mix(in srgb, ${tier.color} 13%, transparent); color: ${tier.color}`}
 						>
-							<span class="font-bold">{concertKeyToWritten(k.key, instrument)}</span>
+							<span class="font-bold">{keyLabel(concertKeyToWritten(k.key, instrument), progressionMode(lick.progressionType ?? currentProgressionType))}</span>
 							<span class="tabular-nums">{pct(k.score)}%</span>
 						</div>
 					{/each}
@@ -1867,6 +1869,7 @@
 		<div class="flex justify-center">
 			<KeyProgressRing
 				keys={ringKeys}
+				mode={progressionMode(currentProgressionType)}
 				currentKeyIndex={lickPractice.currentKeyIndex}
 				currentKey={lickPractice.mode === 'single-lick' ? currentKey : undefined}
 				keyResults={ringResults}

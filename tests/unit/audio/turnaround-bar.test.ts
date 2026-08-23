@@ -44,10 +44,12 @@ describe('turnaroundHarmony', () => {
 		expect(fractionToFloat(segs[1].duration)).toBeCloseTo(0.5, 10);
 	});
 
-	it('uses the minor cadence (half-diminished ii, altered V) for a minor target', () => {
+	it('uses the minor cadence (half-diminished ii, b9 dominant V) for a minor target', () => {
 		const segs = turnaroundHarmony('ii-V-I-minor', 'A', 4);
 		expect(segs[0].chord).toMatchObject({ root: 'B', quality: 'min7b5' });
-		expect(segs[1].chord).toMatchObject({ root: 'E', quality: '7alt' });
+		expect(segs[0].scaleId).toBe('harmonic-minor.locrian-sharp6');
+		expect(segs[1].chord).toMatchObject({ root: 'E', quality: '7b9' });
+		expect(segs[1].scaleId).toBe('harmonic-minor.phrygian-dominant');
 	});
 
 	it('spans exactly one bar in any meter', () => {

@@ -28,6 +28,7 @@ export const V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Altered Descent to Minor',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// G7alt: G-Ab-Bb-B (altered tensions)
 			{ pitch: 67, duration: [1, 8], offset: [0, 1] },
@@ -52,6 +53,7 @@ export const V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Minor Resolution',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// G7alt: G-Bb-Db-F (diminished arpeggio hint)
 			{ pitch: 67, duration: [1, 4], offset: [0, 1] },

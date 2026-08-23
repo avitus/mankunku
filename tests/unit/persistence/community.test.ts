@@ -295,6 +295,7 @@ describe('listCommunityLicks', () => {
 						user_id: 'a1',
 						name: 'One',
 						key: 'C',
+						mode: 'minor',
 						time_signature: [4, 4],
 						notes: [],
 						harmony: [],
@@ -334,6 +335,9 @@ describe('listCommunityLicks', () => {
 
 		const results = await listCommunityLicks(sb, {}, 0);
 		expect(results).toHaveLength(2);
+		// The mode column rides the row → Phrase mapping; a null column leaves the key absent.
+		expect(results.find((r) => r.phrase.id === 'lick-1')!.phrase.mode).toBe('minor');
+		expect('mode' in results.find((r) => r.phrase.id === 'lick-2')!.phrase).toBe(false);
 		const one = results.find((r) => r.phrase.id === 'lick-1')!;
 		expect(one.authorName).toBe('Alice');
 		expect(one.favoriteCount).toBe(3);

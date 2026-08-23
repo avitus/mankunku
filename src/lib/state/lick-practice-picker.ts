@@ -11,9 +11,7 @@ import type {
 	LickPracticeProgress
 } from '$lib/types/lick-practice';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
-import {
-	PROGRESSION_TEMPLATES
-} from '$lib/data/progressions';
+import { PROGRESSION_TEMPLATES, progressionFitsLick } from '$lib/data/progressions';
 import { getLickLastPracticed } from '$lib/persistence/lick-practice-store';
 
 export interface UpcomingLickEntry {
@@ -25,10 +23,12 @@ export interface UpcomingLickEntry {
 export const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
 
 /**
- * True when a practice-tagged lick has at least one explicit `prog:*` tag.
+ * True when a practice-tagged lick has at least one explicit `prog:*` tag
+ * that its own chord shape FITS (`progressionFitsLick`).
  * Category compatibility alone no longer counts: every practice-eligible
  * lick must carry the progressions it should play under as user tags
- * (seeded by the setup-time backfill and `updateLickCategory`). Licks
+ * (seeded by `updateLickCategory` from the templates the lick's own harmony
+ * fits, pruned of misfits on hydrate, or hand-toggled on the pills). Licks
  * failing this test are "stranded" — kept in the practice set so user
  * intent isn't lost, but skipped by the picker and the session-time
  * `getPracticeLicks` filter so they can't starve eligible candidates.
@@ -37,7 +37,12 @@ function hasFittingProgression(
 	lick: Phrase,
 	getProgressionTags: (lickId: string) => ChordProgressionType[]
 ): boolean {
-	return getProgressionTags(lick.id).length > 0;
+	// A tag that the lick's own chord shape doesn't fit is inert everywhere
+	// else (picker, session filter, prune), so it must not count here either —
+	// otherwise a lick whose only tag is stale is "eligible" yet unpickable.
+	return getProgressionTags(lick.id).some(
+		(type: ChordProgressionType): boolean => progressionFitsLick(lick, type).fits
+	);
 }
 
 /**
@@ -59,13 +64,22 @@ export function pickProgressionForLick(args: {
 	lickId: string;
 	progressionTags: ChordProgressionType[];
 	sessionLog: LickPracticeSessionLogEntry[];
+	/**
+	 * When given, tagged progressions the lick does not FIT (its own chord
+	 * shape vs the template — `progressionFitsLick`) are skipped, so a stale
+	 * or cross-device tag can never serve a 3-bar ii-V-i over the half-bar
+	 * short template. Callers that omit it keep today's tag-only behaviour.
+	 */
+	lick?: Phrase;
 }): ChordProgressionType | null {
-	const { progressionTags, sessionLog } = args;
+	const { progressionTags, sessionLog, lick } = args;
 	if (progressionTags.length === 0) return null;
 
 	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
 	const userTags = new Set(progressionTags);
-	const fits = order.filter((p) => userTags.has(p));
+	const fits = order.filter(
+		(p: ChordProgressionType): boolean => userTags.has(p) && (!lick || progressionFitsLick(lick, p).fits)
+	);
 	if (fits.length === 0) return null;
 
 	const lastPracticed = new Map<ChordProgressionType, number>();
@@ -127,6 +141,7 @@ export function selectInitialProgression(args: {
 
 	return pickProgressionForLick({
 		lickId: neglected.id,
+		lick: neglected,
 		progressionTags: getProgressionTags(neglected.id),
 		sessionLog
 	}) ?? DEFAULT_PROGRESSION;
@@ -160,10 +175,15 @@ export function buildUpcomingLicks(args: {
 		const set = new Set<ChordProgressionType>(getProgressionTags(lick.id));
 		if (set.size === 0) continue;
 
+		// Only progressions the lick actually fits are actionable CTAs.
+		const progressions = order.filter(
+			(t: ChordProgressionType): boolean => set.has(t) && progressionFitsLick(lick, t).fits
+		);
+		if (progressions.length === 0) continue;
 		entries.push({
 			lick,
 			lastPracticedAt: getLickLastPracticed(progress, lick.id),
-			progressions: order.filter((t) => set.has(t))
+			progressions
 		});
 	}
 

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
-	import { midiToDisplayName } from '$lib/music/notation';
+	import type { Fraction, HarmonicSegment, Mode, PitchClass } from '$lib/types/music';
+	import { midiToDisplayName, resolveUseFlats, spellingContextAt } from '$lib/music/notation';
+	import { fractionToFloat } from '$lib/music/intervals';
 	import { accuracyTier } from '$lib/ui/score-colors';
 
 	interface Props {
@@ -9,14 +11,53 @@
 		transpositionSemitones?: number;
 		/** Written-pitch key (e.g. "B" for an A-concert tenor session); drives accidental spelling. */
 		displayKey?: string;
+		/**
+		 * The phrase's harmony (CONCERT pitch, as stored) so each note is
+		 * spelled against the chord that governed it — exactly what the chart
+		 * showed. Without it, `displayScaleId` frames the key; without that a
+		 * key with no signature spells every black key sharp, which is how a
+		 * written-C blues listed its b7 as A#.
+		 */
+		harmony?: readonly HarmonicSegment[] | null;
+		/**
+		 * Scale the session was played in (a `ScaleDefinition.id`, e.g.
+		 * 'blues.minor'), rooted at `displayKey`. The fallback frame when no
+		 * chord governs a note.
+		 */
+		displayScaleId?: string;
+		/** Major/minor reading of `displayKey` (a minor session's notes are spelled against its relative major). */
+		displayMode?: Mode;
 		/** Timing diagnostics from scorer */
 		timing?: TimingDiagnostics;
 	}
 
-	let { noteResults, transpositionSemitones = 0, displayKey, timing }: Props = $props();
+	let {
+		noteResults,
+		transpositionSemitones = 0,
+		displayKey,
+		harmony = null,
+		displayScaleId,
+		displayMode = 'major',
+		timing
+	}: Props = $props();
 
-	function displayNote(midi: number): string {
-		return midiToDisplayName(midi + transpositionSemitones, displayKey ?? true);
+	/**
+	 * Name a CONCERT midi the way the chart spells it at `offset` — the
+	 * expected note's position, so a matched "played" note is read against
+	 * the same chord as the note it answered.
+	 */
+	function displayNote(midi: number, offset: Fraction): string {
+		const written = midi + transpositionSemitones;
+		if (!displayKey) return midiToDisplayName(written, true);
+		const ctx = spellingContextAt({
+			displayKey: displayKey as PitchClass,
+			harmony,
+			offset: fractionToFloat(offset),
+			transpositionSemitones,
+			scaleId: displayScaleId,
+			mode: displayMode
+		});
+		return midiToDisplayName(written, resolveUseFlats(written, ctx));
 	}
 
 	// Filter to only show matched and missed notes (not extras)
@@ -81,13 +122,13 @@
 				{@const offsetMs = timing?.perNoteOffsetMs[i] ?? null}
 				<span class="tabular-nums text-[var(--color-text-secondary)]">{i + 1}</span>
 				<span class="font-mono">
-					{result.expected.pitch !== null ? displayNote(result.expected.pitch) : 'rest'}
+					{result.expected.pitch !== null ? displayNote(result.expected.pitch, result.expected.offset) : 'rest'}
 				</span>
 				<span class="font-mono" style="color: {pitchColor(result)}">
 					{#if result.missed}
 						--
 					{:else if result.detected}
-						{displayNote(result.detected.midi)}
+						{displayNote(result.detected.midi, result.expected.offset)}
 					{/if}
 				</span>
 				<span class="text-right tabular-nums" style="color: {pitchColor(result)}">

@@ -165,7 +165,8 @@ function rowToPhrase(row: UserLickRow): Phrase {
 		difficulty: row.difficulty as unknown as DifficultyMetadata,
 		category: row.category as PhraseCategory,
 		tags: row.tags ?? [],
-		source: row.source
+		source: row.source,
+		...(row.mode === 'major' || row.mode === 'minor' ? { mode: row.mode } : {})
 	};
 }
 

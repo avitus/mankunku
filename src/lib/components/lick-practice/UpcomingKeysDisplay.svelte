@@ -3,7 +3,8 @@
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { phaseTabView, PHASE_LEAD_BEATS, type PhaseCue } from '$lib/state/lick-practice-phase';
 	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { displayPitchClass } from '$lib/music/notation';
+	import { keyLabel } from '$lib/music/notation';
+	import { lickMode } from '$lib/music/mode';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import type { PitchClass } from '$lib/types/music';
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
@@ -83,7 +84,7 @@
 		const key = plannedKeys[visualCurrentRow]?.key;
 		if (!key) return '';
 		const written = concertKeyToWritten(key, instrument);
-		return displayPitchClass(written, written);
+		return keyLabel(written, lickMode(plannedKeys[visualCurrentRow].phrase));
 	});
 	const tab = $derived(cue ? phaseTabView(cue, activeKeyLabel) : null);
 	const tabArm = $derived(
@@ -127,6 +128,7 @@
 						timeSignature={[4, 4]}
 						isPlaying={isCurrent && isPlaying}
 						key={pk.key}
+						mode={lickMode(pk.phrase)}
 						{instrument}
 					/>
 					{#if scoreFlash && scoreFlash.key === pk.key}

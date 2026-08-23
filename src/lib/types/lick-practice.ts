@@ -264,6 +264,12 @@ export interface LickPracticeKeyResult {
 export interface LickReport {
 	lickId: string;
 	lickName: string;
+	/**
+	 * Progression this lick was drilled over — Daily Practice varies it per
+	 * lick, and the report's key chips read their mode from it ("Dm").
+	 * Optional for reports persisted before the field existed.
+	 */
+	progressionType?: ChordProgressionType;
 	tempo: number;
 	/** Tempo after auto-adjust/increment (null if no change was applied) */
 	newTempo: number | null;

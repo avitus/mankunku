@@ -22,6 +22,7 @@ export const MINOR_CHORD_LICKS: Phrase[] = [
 		name: 'Minor Arpeggio',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 60, duration: [1, 4], offset: [0, 1] }, // C
 			{ pitch: 63, duration: [1, 4], offset: [1, 4] }, // Eb
@@ -39,6 +40,7 @@ export const MINOR_CHORD_LICKS: Phrase[] = [
 		name: 'Dorian Line',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 60, duration: [1, 8], offset: [0, 1] }, // C
 			{ pitch: 62, duration: [1, 8], offset: [1, 8] }, // D
@@ -60,6 +62,7 @@ export const MINOR_CHORD_LICKS: Phrase[] = [
 		name: 'Minor 7 Enclosure',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 65, duration: [1, 8], offset: [0, 1] }, // F (approach)
 			{ pitch: 62, duration: [1, 8], offset: [1, 8] }, // D

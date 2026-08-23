@@ -89,6 +89,9 @@ describe('getSessionReport — sessionId round-trip', () => {
 		const report = getSessionReport();
 
 		expect(report.licks).toHaveLength(1);
+		// The report carries the progression each lick was drilled over (its
+		// key chips read their mode from it).
+		expect(report.licks[0].progressionType).toBe('ii-V-I-major');
 		const keys = report.licks[0].keys;
 		expect(keys).toHaveLength(2);
 		expect(keys[0].sessionId).toBe('rec-c-1');

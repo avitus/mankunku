@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { keyLabel } from '$lib/music/notation';
 	import type { PitchClass } from '$lib/types/music';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { PROGRESSION_TEMPLATES, progressionMode } from '$lib/data/progressions';
 	import { progressionColor } from '$lib/music/progression-display';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getInstrument } from '$lib/state/settings.svelte';
@@ -37,7 +38,10 @@
 	const progressionName = $derived(PROGRESSION_TEMPLATES[progressionType].shortName);
 	const progressionHue = $derived(progressionColor(progressionType));
 	const instrument = $derived(getInstrument());
-	const writtenKey = $derived(concertKeyToWritten(currentKey, instrument));
+	// The label reads in the PROGRESSION's mode: a minor ii-V-i in D is "Dm".
+	const writtenKey = $derived(
+		keyLabel(concertKeyToWritten(currentKey, instrument), progressionMode(progressionType))
+	);
 </script>
 
 <div class="flex items-center justify-between gap-4">

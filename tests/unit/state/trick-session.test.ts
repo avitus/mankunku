@@ -27,7 +27,9 @@ import {
 	recordKeyAttempt,
 	advanceSingleLickRound,
 	resetSession,
-	getLickBars
+	getLickBars,
+	getDemoBars,
+	getKeyBars
 } from '$lib/state/lick-practice.svelte';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
 import { getTrickById, trickContextFor } from '$lib/tricks';
@@ -340,5 +342,65 @@ describe('advanceSingleLickRound on a trick item', () => {
 
 		expect(item.phrase).toBeDefined();
 		expect(item.phrase!.id).not.toBe(phraseIdBefore);
+	});
+});
+
+
+describe('trick demo policy — Listen only when there is something new to hear', () => {
+	beforeEach(() => {
+		store.clear();
+		resetSession();
+		lickPractice.config.trickId = 'enclosures';
+		lickPractice.config.trickParameters = E1_PARAMS;
+		lickPractice.config.practiceMode = 'continuous';
+	});
+
+	it('an enclosure session demos its first cycle and never again', () => {
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.demoNextCycle).toBe(true);
+		expect(getDemoBars(0)).toBe(getKeyBars());
+
+		// Survivor path (nothing cleared): round 2 — same single style, no demo.
+		lickPractice.masteredThisRound = [];
+		advanceSingleLickRound();
+		expect(lickPractice.roundNumber).toBe(2);
+		expect(lickPractice.demoNextCycle).toBe(false);
+		expect(getDemoBars(0)).toBe(0);
+
+		// Refill path (whole rotation cleared → unlock + refill): still no demo.
+		lickPractice.masteredThisRound = [...lickPractice.plan[0].keys];
+		advanceSingleLickRound();
+		expect(lickPractice.roundNumber).toBe(3);
+		expect(lickPractice.demoNextCycle).toBe(false);
+		expect(getDemoBars(0)).toBe(0);
+	});
+
+	it('a triad-pair session demos once per example style, then never again', () => {
+		lickPractice.config.trickId = 'triad-pairs';
+		lickPractice.config.trickParameters = { pair: 'major-whole' };
+		expect(startTrickSession()).toBe(true);
+		const styles = getTrickById('triad-pairs')!.exampleStyles!;
+		expect(styles.length).toBe(3);
+
+		// Round 1 (cell) demos; rounds 2 and 3 introduce triplets and four
+		// eighths — each demos; round 4 cycles back to cell — no demo, ever after.
+		expect(lickPractice.demoNextCycle).toBe(true);
+		const expected = [true, true, false, false, false];
+		for (const demo of expected) {
+			lickPractice.masteredThisRound = [];
+			advanceSingleLickRound();
+			expect(lickPractice.demoNextCycle).toBe(demo);
+			expect(getDemoBars(0)).toBe(demo ? getKeyBars() : 0);
+		}
+		expect(lickPractice.roundNumber).toBe(6);
+	});
+
+	it('call-and-response keeps its own per-key call and never adds the upfront demo', () => {
+		lickPractice.config.practiceMode = 'call-response';
+		expect(startTrickSession()).toBe(true);
+		expect(getDemoBars(0)).toBe(0);
+		lickPractice.masteredThisRound = [];
+		advanceSingleLickRound();
+		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 });

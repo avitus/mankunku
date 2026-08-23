@@ -1,4 +1,7 @@
-import type { ChordQuality, Fraction, HarmonicSegment, Note, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { ChordQuality, Fraction, HarmonicSegment, Note, PhraseCategory, PitchClass, Mode, Phrase } from '$lib/types/music';
+import { MINOR_TONIC_QUALITIES } from '$lib/music/mode';
+import { DOMINANT_QUALITIES, MAJOR_TONIC_QUALITIES } from './progression-shapes';
+import { fractionToFloat } from '$lib/music/intervals';
 import type { ChordProgressionType, ChordSubstitutionRule } from '$lib/types/lick-practice';
 import { PITCH_CLASSES } from '$lib/types/music';
 
@@ -79,16 +82,31 @@ const II_V_I_MAJOR_LONG: HarmonicSegment[] = [
 	}
 ];
 
+/**
+ * The minor cadence, shared by both minor templates, the 1-bar turnaround
+ * cue (`audio/turnaround-bar.ts`) and `getTransitionCadenceChords` so the
+ * three can't drift: iiø7 from the locrian ♮6 mode and a V7(b9) from the
+ * phrygian-dominant mode — modes 2 and 5 of the SAME harmonic-minor parent,
+ * the way the major template's dorian/mixolydian/ionian share one major
+ * scale. The b9 dominant (not 7alt) is the idiomatic minor ii-V7-i; its
+ * degrees spell the b9 and b13 flat, which the chart's spelling tier and the
+ * backing bass read.
+ */
+export const MINOR_CADENCE = {
+	ii: { quality: 'min7b5' as ChordQuality, scaleId: 'harmonic-minor.locrian-sharp6' },
+	V: { quality: '7b9' as ChordQuality, scaleId: 'harmonic-minor.phrygian-dominant' }
+} as const;
+
 const II_V_I_MINOR_SHORT: HarmonicSegment[] = [
 	{
-		chord: { root: 'D', quality: 'min7b5' },
-		scaleId: 'harmonic-minor.locrian-sharp6',
+		chord: { root: 'D', quality: MINOR_CADENCE.ii.quality },
+		scaleId: MINOR_CADENCE.ii.scaleId,
 		startOffset: [0, 1],
 		duration: [1, 2]
 	},
 	{
-		chord: { root: 'G', quality: '7alt' },
-		scaleId: 'melodic-minor.altered',
+		chord: { root: 'G', quality: MINOR_CADENCE.V.quality },
+		scaleId: MINOR_CADENCE.V.scaleId,
 		startOffset: [1, 2],
 		duration: [1, 2]
 	},
@@ -102,14 +120,14 @@ const II_V_I_MINOR_SHORT: HarmonicSegment[] = [
 
 const II_V_I_MINOR_LONG: HarmonicSegment[] = [
 	{
-		chord: { root: 'D', quality: 'min7b5' },
-		scaleId: 'harmonic-minor.locrian-sharp6',
+		chord: { root: 'D', quality: MINOR_CADENCE.ii.quality },
+		scaleId: MINOR_CADENCE.ii.scaleId,
 		startOffset: [0, 1],
 		duration: [1, 1]
 	},
 	{
-		chord: { root: 'G', quality: '7alt' },
-		scaleId: 'melodic-minor.altered',
+		chord: { root: 'G', quality: MINOR_CADENCE.V.quality },
+		scaleId: MINOR_CADENCE.V.scaleId,
 		startOffset: [1, 1],
 		duration: [1, 1]
 	},
@@ -752,6 +770,19 @@ export function getChordRootAtOffset(
 }
 
 /**
+ * Major or minor reading of a progression: templates are written in C, so
+ * the tonic is the segment rooted on C; a minor-tonic quality (min7, min6,
+ * minMaj7) makes the progression minor. Drives the session's key labels
+ * ("Dm"), the super-phrase's `mode`, and the mode-matched transition cadence.
+ */
+export function progressionMode(progressionType: ChordProgressionType): Mode {
+	const tonic = PROGRESSION_TEMPLATES[progressionType]?.harmony.find(
+		(seg: HarmonicSegment): boolean => seg.chord.root === 'C'
+	);
+	return tonic && MINOR_TONIC_QUALITIES.has(tonic.chord.quality) ? 'minor' : 'major';
+}
+
+/**
  * Two-chord ii-V cadence resolving to `key`, mode-matched to the
  * progression's tonic quality: iiø7–V7 when the tonic is minor,
  * iim7–V7 otherwise (dominant and blues tonics take the major-style
@@ -763,15 +794,174 @@ export function getTransitionCadenceChords(
 	progressionType: ChordProgressionType,
 	key: PitchClass
 ): Array<{ root: PitchClass; quality: ChordQuality }> {
-	// Templates are written in C, so the tonic segment is the one rooted on C.
-	const tonic = PROGRESSION_TEMPLATES[progressionType]?.harmony.find(
-		seg => seg.chord.root === 'C'
-	);
-	const minor = tonic?.chord.quality.startsWith('min') ?? false;
+	const minor = progressionMode(progressionType) === 'minor';
 	const root = PITCH_CLASSES.indexOf(key);
 	const pc = (semitones: number): PitchClass => PITCH_CLASSES[(root + semitones) % 12];
 	return [
-		{ root: pc(2), quality: minor ? 'min7b5' : 'min7' },
-		{ root: pc(7), quality: '7' }
+		{ root: pc(2), quality: minor ? MINOR_CADENCE.ii.quality : 'min7' },
+		{ root: pc(7), quality: minor ? MINOR_CADENCE.V.quality : '7' }
 	];
+}
+
+// ─── Fit: which progressions a lick can actually be played over ───────────────
+
+/**
+ * Cadence families: licks whose OWN harmony is a ii-V(-I) with fixed chord
+ * durations, so a template either reproduces that shape at the alignment
+ * offset or it doesn't. `rhythm-changes` is deliberately not here — its
+ * curated harmony is two chords per bar against the one-per-bar
+ * `turnaround`, and a strict geometry rule would strand the category.
+ */
+export const CADENCE_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<PhraseCategory>([
+	'ii-V-I-major',
+	'ii-V-I-minor',
+	'short-ii-V-I-major',
+	'short-ii-V-I-minor',
+	'V-I-major',
+	'V-I-minor'
+]);
+
+export type ProgressionFitReason = 'shape' | 'length' | 'chord-role' | 'mode';
+export type ProgressionFit = { fits: true } | { fits: false; reason: ProgressionFitReason };
+
+type ChordFamily = 'maj' | 'min' | 'halfdim' | 'dom' | 'dim' | 'other';
+
+/** Coarse chord family for role matching; dominant alterations never change a chord's role. */
+function chordFamily(quality: ChordQuality): ChordFamily {
+	if (quality === 'min7b5') return 'halfdim';
+	if (quality === 'dim7' || quality === 'dim') return 'dim';
+	if (DOMINANT_QUALITIES.includes(quality)) return 'dom';
+	if (MINOR_TONIC_QUALITIES.has(quality)) return 'min';
+	if (MAJOR_TONIC_QUALITIES.includes(quality) || quality === 'maj7' || quality === 'maj6') return 'maj';
+	return 'other';
+}
+
+const CHORD_QUALITY_FAMILIES: Partial<Record<PhraseCategory, readonly ChordFamily[]>> = {
+	'major-chord': ['maj'],
+	'minor-chord': ['min'],
+	'dominant-chord': ['dom'],
+	'diminished-chord': ['halfdim', 'dim']
+};
+
+/** The lick's harmony re-rooted so its tonic is C, like the templates. */
+function lickHarmonyRelativeToC(lick: Phrase): HarmonicSegment[] {
+	const idx = PITCH_CLASSES.indexOf(lick.key);
+	return transposeProgression(lick.harmony, PITCH_CLASSES[(12 - idx) % 12]);
+}
+
+function segmentStartingAt(harmony: HarmonicSegment[], at: Fraction): HarmonicSegment | undefined {
+	return harmony.find((seg) => fractionsEqual(seg.startOffset, at));
+}
+
+function addFractionsLocal(a: Fraction, b: Fraction): Fraction {
+	return [a[0] * b[1] + b[0] * a[1], a[1] * b[1]];
+}
+
+/**
+ * Does this lick fit over this progression? — the rule behind the
+ * detail-page pills, the picker, the focused-session filter, category
+ * seeding and the hydrate-time prune, so a lick is never served over
+ * changes that don't resemble its own.
+ *
+ * - Cadence categories WITH harmony: every lick segment must land on a
+ *   template segment at the alignment offset with the same root and chord
+ *   family; inner segments must match duration exactly, the last may be
+ *   shorter (or sit on the template's final segment, which the engine
+ *   tail-extends). A 1|1|1-bar ii-V-i therefore fits the long template
+ *   only; a ½|½|1 one fits the short template (and the iii-VI-ii-V-I's
+ *   second bar); nothing cadential fits a vamp or a blues.
+ * - Cadence categories WITHOUT harmony (editor licks): a native entry in
+ *   the category table, and `lengthBars` must fit after the offset.
+ * - Chord-quality categories: the chord in the lick's slot must be of the
+ *   category's family.
+ * - Everything else fits wherever the user tagged it — explicit intent —
+ *   unless an EXPLICIT mode (the lick's own `mode` field, or `opts.mode`)
+ *   contradicts the slot chord's mode.
+ */
+export function progressionFitsLick(
+	lick: Phrase,
+	type: ChordProgressionType,
+	opts?: { mode?: Mode | null }
+): ProgressionFit {
+	const template = PROGRESSION_TEMPLATES[type];
+	if (!template) return { fits: false, reason: 'shape' };
+	const offset = resolveLickAlignmentOffset(type, lick.category, false);
+
+	if (CADENCE_CATEGORIES.has(lick.category)) {
+		if (lick.harmony.length >= 2) {
+			const segs = lickHarmonyRelativeToC(lick);
+			for (let i = 0; i < segs.length; i++) {
+				const seg = segs[i];
+				const at = addFractionsLocal(offset, seg.startOffset);
+				const t = segmentStartingAt(template.harmony, at);
+				if (!t) return { fits: false, reason: 'shape' };
+				if (t.chord.root !== seg.chord.root || chordFamily(t.chord.quality) !== chordFamily(seg.chord.quality)) {
+					return { fits: false, reason: 'chord-role' };
+				}
+				const last = i === segs.length - 1;
+				const isTemplateLast = t === template.harmony[template.harmony.length - 1];
+				const tDur = fractionToFloat(t.duration);
+				const sDur = fractionToFloat(seg.duration);
+				if (!last && Math.abs(tDur - sDur) > 1e-9) return { fits: false, reason: 'shape' };
+				if (last && tDur + 1e-9 < sDur && !isTemplateLast) return { fits: false, reason: 'shape' };
+			}
+			return { fits: true };
+		}
+		// Harmony-less cadence lick: a native home, long enough for the lick.
+		const native = PROGRESSION_LICK_CATEGORIES[type]?.some((e) => e.category === lick.category);
+		if (!native) return { fits: false, reason: 'shape' };
+		const room = template.bars - Math.ceil(fractionToFloat(offset) - 1e-9);
+		if (lick.difficulty.lengthBars > room) return { fits: false, reason: 'length' };
+		return { fits: true };
+	}
+
+	const slot = segmentStartingAt(template.harmony, offset);
+	const slotFamily = slot ? chordFamily(slot.chord.quality) : 'other';
+
+	const families = CHORD_QUALITY_FAMILIES[lick.category];
+	if (families) {
+		return families.includes(slotFamily) ? { fits: true } : { fits: false, reason: 'chord-role' };
+	}
+
+	// Only an EXPLICIT mode gates (the lick's own stated field, or an override);
+	// an inferred mode never does — a harmony-less user lick tagged onto a
+	// major vamp is the user's call.
+	const mode = opts?.mode ?? lick.mode;
+	if (mode === 'minor' && slotFamily === 'maj') return { fits: false, reason: 'mode' };
+	if (mode === 'major' && slotFamily === 'min') return { fits: false, reason: 'mode' };
+	return { fits: true };
+}
+
+/** Every template the lick fits, in `PROGRESSION_TEMPLATES` order. */
+export function fittingProgressionsForLick(
+	lick: Phrase,
+	opts?: { mode?: Mode | null }
+): ChordProgressionType[] {
+	return (Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[]).filter(
+		(t: ChordProgressionType): boolean => progressionFitsLick(lick, t, opts).fits
+	);
+}
+
+/** The seeding set: the category's progressions, filtered by the lick's own fit. */
+export function getProgressionsForLick(
+	lick: Phrase,
+	opts?: { mode?: Mode | null }
+): ChordProgressionType[] {
+	return getProgressionsForCategory(lick.category).filter(
+		(t: ChordProgressionType): boolean => progressionFitsLick(lick, t, opts).fits
+	);
+}
+
+/** Tooltip copy for a greyed-out pill. */
+export function fitReasonLabel(reason: ProgressionFitReason): string {
+	switch (reason) {
+		case 'shape':
+			return "Doesn't match this lick's chord changes";
+		case 'length':
+			return 'Too long for this progression';
+		case 'chord-role':
+			return "Wrong chord for this lick's role";
+		case 'mode':
+			return "Wrong mode for this lick's key";
+	}
 }

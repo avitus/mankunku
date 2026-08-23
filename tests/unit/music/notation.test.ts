@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { phraseToAbc, midiToDisplayName, durationToAbc } from '$lib/music/notation';
+import {
+	phraseToAbc,
+	midiToDisplayName,
+	durationToAbc,
+	scaleSpellingPreference,
+	spellingContextAt,
+	resolveUseFlats,
+	keyLabel,
+	keyLabelLong,
+	abcKeyField,
+	signatureAccidentalsFor,
+	signatureFlatsFor,
+	displayPitchClass
+} from '$lib/music/notation';
+import { INSTRUMENTS } from '$lib/types/instruments';
+import type { HarmonicSegment } from '$lib/types/music';
 import type { Phrase, PitchClass } from '$lib/types/music';
 
 /** Build a minimal phrase with a single note for testing ABC output. */
@@ -510,6 +525,49 @@ describe('midiToDisplayName key-aware spelling', () => {
 		// C is not in FLAT_KEYS, so default behavior is sharps.
 		expect(midiToDisplayName(61, 'C')).toBe('C#4');
 	});
+
+	// 2026-08-22: the session-recording note list showed A# for the b7 of a
+	// written-C blues. With the tonality's scale supplied, the name follows
+	// the scale's degrees (and the chord the scale implies), not the bare
+	// sharp-side default of a key with no signature.
+	describe('with a scale', () => {
+		it('spells the blues b3, b5 and b7 as flats in written C', () => {
+			expect(midiToDisplayName(63, 'C', 'blues.minor')).toBe('Eb4');
+			expect(midiToDisplayName(66, 'C', 'blues.minor')).toBe('Gb4');
+			expect(midiToDisplayName(70, 'C', 'blues.minor')).toBe('Bb4');
+		});
+
+		it('spells the blues degrees as flats in a sharp key too', () => {
+			// G blues on tenor reading a concert-F blues: Bb, Db, F.
+			expect(midiToDisplayName(70, 'G', 'blues.minor')).toBe('Bb4');
+			expect(midiToDisplayName(61, 'G', 'blues.minor')).toBe('Db4');
+		});
+
+		it('follows sharp-side degrees even in a flat key', () => {
+			expect(midiToDisplayName(66, 'C', 'major.lydian')).toBe('F#4');
+			// The #5 of F whole-tone is C#; F's key-side default alone would say Db.
+			expect(midiToDisplayName(61, 'F', 'symmetric.whole-tone')).toBe('C#4');
+		});
+
+		it('keeps an unambiguous chord tone over a theoretical degree label', () => {
+			// Altered labels the major third "b4"; the third of E7alt is G#.
+			expect(midiToDisplayName(68, 'E', 'melodic-minor.altered')).toBe('G#4');
+			// …but its #9 follows the scale's b3: Bb over G7alt, not A#.
+			expect(midiToDisplayName(70, 'G', 'melodic-minor.altered')).toBe('Bb4');
+		});
+
+		it('spells a chromatic note outside the scale against the tonic chord', () => {
+			// Db is not in C major; as the b9 of the tonic it is spelled flat.
+			expect(midiToDisplayName(61, 'C', 'major.ionian')).toBe('Db4');
+			// F# is not in C major either; as the #11 it is spelled sharp.
+			expect(midiToDisplayName(66, 'C', 'major.ionian')).toBe('F#4');
+		});
+
+		it('falls back to the key default when the scale id is unknown', () => {
+			expect(midiToDisplayName(61, 'C', 'no-such-scale')).toBe('C#4');
+			expect(midiToDisplayName(61, 'F', 'no-such-scale')).toBe('Db4');
+		});
+	});
 });
 
 describe('phraseToAbc tie suffix', () => {
@@ -574,6 +632,273 @@ describe('phraseToAbc chord-aware enharmonic spelling', () => {
 		const line = noteLine(phraseToAbc(phraseWithChord(73, 'D', 'Bb', 'min7')));
 		expect(line).not.toContain('_D');
 		expect(line).toContain('c');
+	});
+});
+
+describe('phraseToAbc scale-aware enharmonic spelling', () => {
+	function phraseOver(
+		midi: number,
+		key: PitchClass,
+		root: PitchClass,
+		quality: '7' | 'min7' | 'maj7' | '7alt',
+		scaleId: string
+	): Phrase {
+		const p = singleNotePhrase(midi, key);
+		p.harmony = [{ chord: { root, quality }, scaleId, startOffset: [0, 1], duration: [1, 1] }];
+		return p;
+	}
+
+	// 2026-08-22 user report: in a written-C blues the chart (and the session
+	// recording's note list) spelled the blue notes as the #9 / #11 of C7 —
+	// ^D, ^F — and the b7 as A#. A line declared over the blues scale is
+	// spelled with that scale's degrees: Eb, Gb, Bb.
+	it('spells the blue third over C7 as Eb when the segment declares the blues scale', () => {
+		const line = noteLine(phraseToAbc(phraseOver(63, 'C', 'C', '7', 'blues.minor')));
+		expect(line).toContain('_E');
+		expect(line).not.toContain('^D');
+	});
+
+	it('spells the blue fifth over C7 as Gb under the blues scale', () => {
+		const line = noteLine(phraseToAbc(phraseOver(66, 'C', 'C', '7', 'blues.minor')));
+		expect(line).toContain('_G');
+		expect(line).not.toContain('^F');
+	});
+
+	it('keeps the b7 over C7 flat under the blues scale', () => {
+		expect(noteLine(phraseToAbc(phraseOver(70, 'C', 'C', '7', 'blues.minor')))).toContain('_B');
+	});
+
+	it('still spells the same pitch as the #9 / #11 when the declared scale has no say', () => {
+		// Mixolydian has neither a b3 nor a b5, so the chord tier decides as before.
+		expect(noteLine(phraseToAbc(phraseOver(63, 'C', 'C', '7', 'major.mixolydian')))).toContain('^D');
+		expect(noteLine(phraseToAbc(phraseOver(66, 'C', 'C', '7', 'major.mixolydian')))).toContain('^F');
+	});
+
+	it('follows a sharp-side scale degree: the #4 of C lydian is F#', () => {
+		const line = noteLine(phraseToAbc(phraseOver(66, 'C', 'C', 'maj7', 'major.lydian')));
+		expect(line).toContain('^F');
+		expect(line).not.toContain('_G');
+	});
+
+	it('lets the altered scale spell the #9 of G7alt as Bb (its b3)', () => {
+		const line = noteLine(phraseToAbc(phraseOver(70, 'C', 'G', '7alt', 'melodic-minor.altered')));
+		expect(line).toContain('_B');
+		expect(line).not.toContain('^A');
+	});
+
+	it('never lets a theoretical degree label respell an unambiguous chord tone', () => {
+		// The altered scale labels the major third "b4" (Ab over E7alt); the
+		// third of E7 is G#. The scale only settles the chord tier's three
+		// ambiguous degrees (b3/#9, b5/#11, #5/b13).
+		const line = noteLine(phraseToAbc(phraseOver(68, 'C', 'E', '7alt', 'melodic-minor.altered')));
+		expect(line).toContain('^G');
+		expect(line).not.toContain('_A');
+	});
+
+	it('keeps the key-signature spelling ahead of the scale preference', () => {
+		// Written D#5 in E major is IN the signature; a blues-scale segment on
+		// C (b3 = Eb) must not force an explicit flat.
+		const line = noteLine(phraseToAbc(phraseOver(75, 'E', 'C', '7', 'blues.minor')));
+		expect(line).not.toContain('_e');
+		expect(line).toContain('d');
+	});
+});
+
+describe('scaleSpellingPreference', () => {
+	const BLUES = ['1', 'b3', '4', 'b5', '5', 'b7'];
+	const ALTERED = ['1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7'];
+	const WHOLE_TONE = ['1', '2', '3', '#4', '#5', 'b7'];
+
+	it('settles the b3 and b5 of a blues scale as flats', () => {
+		expect(scaleSpellingPreference(63, 'C', BLUES)).toBe('flat');
+		expect(scaleSpellingPreference(66, 'C', BLUES)).toBe('flat');
+	});
+
+	it('abstains on degrees the chord tier spells unambiguously (b7, b2)', () => {
+		expect(scaleSpellingPreference(70, 'C', BLUES)).toBeNull();
+		expect(scaleSpellingPreference(61, 'C', ALTERED)).toBeNull();
+	});
+
+	it('abstains on pitches outside the scale and on white keys', () => {
+		expect(scaleSpellingPreference(61, 'C', BLUES)).toBeNull(); // Db not in C blues
+		expect(scaleSpellingPreference(65, 'D', BLUES)).toBeNull(); // b3 of D is F natural
+	});
+
+	it('abstains on the altered scale b4 (a double-accidental or chord-tone respelling)', () => {
+		expect(scaleSpellingPreference(68, 'E', ALTERED)).toBeNull(); // 3rd of E, labelled b4
+	});
+
+	it('follows sharp-side labels (#4, #5)', () => {
+		expect(scaleSpellingPreference(66, 'C', WHOLE_TONE)).toBe('sharp');
+		expect(scaleSpellingPreference(68, 'C', WHOLE_TONE)).toBe('sharp');
+	});
+
+	it('reads the root letter from a display spelling', () => {
+		// Gb blues: b3 = Bbb (white A) → abstain; b5 = Dbb (white C) → abstain.
+		expect(scaleSpellingPreference(69, 'Gb', BLUES)).toBeNull();
+		// F# blues: b3 = A natural → abstain; b5 = C natural → abstain.
+		expect(scaleSpellingPreference(69, 'F#', BLUES)).toBeNull();
+		// Eb blues: b3 = Gb, b5 = Bbb (white A) → flat / abstain.
+		expect(scaleSpellingPreference(66, 'Eb', BLUES)).toBe('flat');
+		expect(scaleSpellingPreference(69, 'Eb', BLUES)).toBeNull();
+	});
+});
+
+describe('spellingContextAt — the chart\'s spelling frame for one note', () => {
+	const C_BLUES: HarmonicSegment[] = [
+		{ chord: { root: 'C', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }
+	];
+	const II_V_I_C: HarmonicSegment[] = [
+		{ chord: { root: 'D', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [1, 2] },
+		{ chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [1, 2], duration: [1, 2] },
+		{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [1, 1], duration: [1, 1] }
+	];
+	const name = (midi: number, ctx: ReturnType<typeof spellingContextAt>): string =>
+		midiToDisplayName(midi, resolveUseFlats(midi, ctx));
+
+	it('spells the session\'s blues notes through its harmony the way the chart did', () => {
+		const ctx = spellingContextAt({ displayKey: 'C', harmony: C_BLUES, offset: 0 });
+		expect(name(63, ctx)).toBe('Eb4');
+		expect(name(66, ctx)).toBe('Gb4');
+		expect(name(70, ctx)).toBe('Bb4');
+	});
+
+	it('picks the chord governing the note\'s offset', () => {
+		// Eb is the b13 of G7 (flat) but the #9 of Cmaj7 (sharp).
+		expect(name(63, spellingContextAt({ displayKey: 'C', harmony: II_V_I_C, offset: 0.5 }))).toBe('Eb4');
+		expect(name(63, spellingContextAt({ displayKey: 'C', harmony: II_V_I_C, offset: 1 }))).toBe('D#4');
+	});
+
+	it('transposes the harmony to written pitch before judging the chord', () => {
+		// Concert Bb7 blues read by a Bb instrument: written C7 blues, so the
+		// written Bb (midi 70) is the b7 — flat, not A#.
+		const concertBbBlues: HarmonicSegment[] = [
+			{ chord: { root: 'Bb', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }
+		];
+		const ctx = spellingContextAt({
+			displayKey: 'C',
+			harmony: concertBbBlues,
+			offset: 0,
+			transpositionSemitones: 2
+		});
+		expect(name(70, ctx)).toBe('Bb4');
+		expect(name(63, ctx)).toBe('Eb4');
+	});
+
+	it('falls back to the scale rooted at the key when no chord governs', () => {
+		expect(name(70, spellingContextAt({ displayKey: 'C', harmony: [], offset: 0, scaleId: 'blues.minor' }))).toBe('Bb4');
+		expect(name(70, spellingContextAt({ displayKey: 'C', harmony: null, scaleId: 'blues.minor' }))).toBe('Bb4');
+	});
+
+	it('falls back to the key-side default with neither harmony nor scale', () => {
+		expect(name(70, spellingContextAt({ displayKey: 'C' }))).toBe('A#4');
+		expect(name(70, spellingContextAt({ displayKey: 'F' }))).toBe('Bb4');
+	});
+
+	it('honours the note\'s explicit spelling above everything', () => {
+		expect(name(70, spellingContextAt({ displayKey: 'C', harmony: C_BLUES, offset: 0, explicit: 'sharp' }))).toBe('A#4');
+	});
+});
+
+describe('minor keys — labels and signatures', () => {
+	it('labels the twelve minor tonics with conventional jazz spellings', () => {
+		expect(keyLabel('D', 'minor')).toBe('Dm');
+		expect(keyLabel('Bb', 'minor')).toBe('Bbm');
+		expect(keyLabel('Eb', 'minor')).toBe('Ebm'); // six flats, not D#m
+		expect(keyLabel('Ab', 'minor')).toBe('G#m'); // five sharps
+		expect(keyLabel('Db', 'minor')).toBe('C#m'); // four sharps
+		expect(keyLabel('F#', 'minor')).toBe('F#m');
+		expect(keyLabel('D')).toBe('D');
+		expect(keyLabel('D', 'major')).toBe('D');
+		expect(keyLabelLong('D', 'minor')).toBe('D minor');
+		expect(keyLabelLong('Ab', 'minor')).toBe('G# minor');
+		expect(keyLabelLong('F', 'major')).toBe('F major');
+	});
+
+	it('abcKeyField matches the label (abcjs reads K:Dm, K:Ebm, K:G#m, K:C#m)', () => {
+		expect(abcKeyField('D', 'minor')).toBe('Dm');
+		expect(abcKeyField('Eb', 'minor')).toBe('Ebm');
+		expect(abcKeyField('Ab', 'minor')).toBe('G#m');
+		expect(abcKeyField('D', 'major')).toBe('D');
+	});
+
+	it('draws the relative-major signature for a minor key, six flats for Eb minor', () => {
+		expect(signatureAccidentalsFor('D', 'minor')).toEqual({ B: '_' });
+		expect(signatureAccidentalsFor('A', 'minor')).toEqual({});
+		expect(signatureAccidentalsFor('E', 'minor')).toEqual({ F: '^' });
+		expect(signatureAccidentalsFor('Ab', 'minor')).toEqual({ F: '^', C: '^', G: '^', D: '^', A: '^' });
+		expect(signatureAccidentalsFor('Eb', 'minor')).toEqual({ B: '_', E: '_', A: '_', D: '_', G: '_', C: '_' });
+		expect(signatureAccidentalsFor('D', 'major')).toEqual({ F: '^', C: '^' });
+		expect(signatureFlatsFor('D', 'minor')).toBe(true);
+		expect(signatureFlatsFor('Eb', 'minor')).toBe(true);
+		expect(signatureFlatsFor('E', 'minor')).toBe(false);
+		expect(signatureFlatsFor('A', 'minor')).toBe(false);
+		expect(signatureFlatsFor('D', 'major')).toBe(false);
+	});
+
+	it('respells chord roots against the minor key\'s signature', () => {
+		expect(displayPitchClass('F#', 'D', 'minor')).toBe('Gb'); // one flat: Gb not F#
+		expect(displayPitchClass('Db', 'Ab', 'minor')).toBe('C#'); // G# minor: five sharps
+		expect(displayPitchClass('Db', 'Eb', 'minor')).toBe('Db'); // Eb minor keeps the flats
+		expect(displayPitchClass('F#', 'Eb', 'minor')).toBe('Gb');
+		expect(displayPitchClass('Db', 'D', 'major')).toBe('C#'); // unchanged major behaviour: diatonic to D
+	});
+});
+
+describe('phraseToAbc in a minor key', () => {
+	function minorPhrase(notes: number[], key: PitchClass, extra: Partial<Phrase> = {}): Phrase {
+		return {
+			...multiNotePhrase(notes, key),
+			mode: 'minor',
+			...extra
+		};
+	}
+
+	it('prints K:Dm with one flat: Bb needs no accidental, B natural does', () => {
+		const abc = phraseToAbc(minorPhrase([70, 71], 'D'));
+		expect(abc).toContain('K:Dm');
+		expect(abc).not.toContain('K:D\n');
+		const line = noteLine(abc);
+		expect(line).toMatch(/^_?B/); // no explicit flat needed (B is flat in the signature)
+		expect(line).not.toContain('^A');
+		expect(line).toContain('=B');
+	});
+
+	it('spells a harmony-less minor lick in its harmonic-minor frame: C# leading tone, Bb flat', () => {
+		const line = noteLine(phraseToAbc(minorPhrase([73, 70], 'D')));
+		expect(line).toContain('^c');
+		expect(line).not.toContain('_d');
+	});
+
+	it('prints K:Ebm with six flats and K:G#m for Ab minor', () => {
+		expect(phraseToAbc(minorPhrase([63], 'Eb'))).toContain('K:Ebm');
+		expect(phraseToAbc(minorPhrase([68], 'Ab'))).toContain('K:G#m');
+	});
+
+	it('infers minor from a tonic harmony segment when the field is absent', () => {
+		const p = multiNotePhrase([70], 'C');
+		p.harmony = [{ chord: { root: 'C', quality: 'min7' }, scaleId: 'major.aeolian', startOffset: [0, 1], duration: [1, 1] }];
+		expect(phraseToAbc(p)).toContain('K:Cm');
+	});
+
+	it('transposes the minor tonic for a Bb instrument and keeps the mode: concert D minor reads K:Em', () => {
+		const abc = phraseToAbc(minorPhrase([62], 'D'), INSTRUMENTS['tenor-sax']);
+		expect(abc).toContain('K:Em');
+	});
+
+	it('keeps the explicit spelling and chord tiers ahead of the minor frame', () => {
+		const p = minorPhrase([73], 'D');
+		p.notes[0].spelling = 'flat';
+		expect(noteLine(phraseToAbc(p))).toContain('_d');
+	});
+});
+
+describe('midiToDisplayName in a minor key', () => {
+	it('names the b6 and leading tone of D minor flat and sharp respectively', () => {
+		expect(midiToDisplayName(70, 'D', undefined, 'minor')).toBe('Bb4');
+		expect(midiToDisplayName(73, 'D', undefined, 'minor')).toBe('C#5');
+		// Major D still reads its two sharps.
+		expect(midiToDisplayName(70, 'D')).toBe('A#4');
 	});
 });
 

@@ -971,6 +971,20 @@ describe('syncUserLicksToCloud', () => {
 		);
 	});
 
+	it('writes the mode column (null when the lick never stated one)', async () => {
+		const mock = createMockSupabase();
+
+		await syncUserLicksToCloud(mock as any, [TEST_LICK, { ...TEST_LICK, id: 'minor-lick', mode: 'minor' }]);
+
+		expect(mock._upsertFn).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({ id: TEST_LICK.id, mode: null }),
+				expect.objectContaining({ id: 'minor-lick', mode: 'minor' })
+			]),
+			expect.any(Object)
+		);
+	});
+
 	it('includes updated_at timestamp in each lick row', async () => {
 		const mock = createMockSupabase();
 

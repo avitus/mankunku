@@ -93,12 +93,12 @@ Never add `Co-Authored-By: Claude…`, "Generated with Claude Code", or any simi
 
 **How to apply:** Strip attribution from default commit/PR templates before posting. Applies to `gh issue create`, `gh pr create`, `gh pr comment`, `git commit`, etc.
 
-### Create PRs from the current branch
-When the user asks to create a PR, base it on the branch they're currently on. Don't create a new branch.
+### Create PRs from the current branch — and only when asked
+When the user asks to create a PR, base it on the branch they're currently on. Don't create a new branch. **Never open a PR unsolicited** (2026-08-22: I opened PR #239 on my own initiative and was told "Never open a PR unless I ask you to").
 
-**Why:** The user prefers to stay on their working branch.
+**Why:** The user prefers to stay on their working branch, and PR creation is their call — the dev → PR → main convention is not standing permission.
 
-**How to apply:** "Commit and create a PR" → commit on current branch, push, open PR from that branch. Only create a new branch if explicitly asked.
+**How to apply:** commit locally and stop — the user batches fixes on `dev` and decides when to push and when a PR opens ("Don't push any more yet. I had more fixes which is why I didn't want to open a PR"). Push when told; after a push, say a PR can be opened on request. "Commit and create a PR" → commit on current branch, push, open PR from that branch. Only create a new branch if explicitly asked.
 
 ### Skip redundant git checks; chain add, commit, and push
 When changes are already known from the current conversation, skip `git diff` / `git log` and chain `add`, `commit`, and `push` in a single Bash call.
@@ -124,6 +124,8 @@ When CodeRabbit answers "Review rate limited" / the walkthrough shows "Review li
 **Why:** PR #238 (2026-08-21): four rejected triggers in one night took the allowance from 2/h to 1/h; I then stopped and offered alternatives, and the user's answer was "always wait for the rate limit to expire and then resume."
 
 **How to apply:** arm a persistent waiter (ETA relative to the walkthrough's `updated_at` + growing margin → one trigger → on rejection, repeat); never exit it on a rejection; report each attempt.
+
+**The allowance is SHARED across the account (2026-08-23).** Other agents working on other projects consume the same Fair-Usage allowance, so a stale "Next review available in N minutes" block on THIS PR proves nothing once the ETA has passed. Before any trigger — a push to a PR branch counts — **ask CodeRabbit: post `@coderabbitai rate limit` on the PR.** It replies with the remaining allowance and when the next review becomes available, WITHOUT consuming a review (docs.coderabbit.ai/reference/review-commands). If it says exhausted, wait for the time it names plus margin and ask again before triggering. One trigger per window; on rejection ask `rate limit` again rather than counting down.
 
 ### Proactively autofix CodeRabbit comments after every push, and keep iterating until clean
 After any `git push` to a PR branch — including the autofix commits themselves — automatically wait for CodeRabbit's review to complete (~2-5 min), fetch ALL comment sources, and fix the valid ones. After pushing the fixes, **wait for CodeRabbit's next review pass and repeat**; CodeRabbit will often have follow-on comments triggered by the previous fix or duplicates it didn't surface in the first round. Continue until a review pass produces no actionable comments.
@@ -226,6 +228,20 @@ The report's weak-key recommendation (`drill-weak-key` in `lick-practice-next-st
 - `sessionKeys` stays the full circle in ramp mode (the ring shows waiting keys as empty dots); `LickHeader`'s `statusLabel` replaces "Key n/N" while the ramp is live (`data-testid="focus-ramp"`, asserted by the daily e2e after clicking the CTA).
 - `startSingleLickSession(lick, options)`: an omitted `tempoBumpPercent` falls back to the config knob (it used to reset the knob to 1% on every CTA launch). `splitReportByProgression` copies `SessionReport.ramp` explicitly — any new single-lick report field must be added there too.
 - The user guide's Next-card paragraph was missing entirely until this change — the four-surfaces audit direction (code → docs) is the only thing that finds that.
+
+### Enharmonic spelling is ONE shared chain (2026-08-22)
+`music/notation.ts` owns the policy: `spellingContextAt` + `resolveUseFlats` — explicit `Note.spelling` › the enharmonic the key signature already covers › the segment's declared scale (settles ONLY the chord tier's three ambiguous degrees b3/#9, b5/#11, #5/b13 — the altered scale's "b4" must never respell the third of E7alt) › governing chord (`chordSpellingPreference`) › key-side default. The chart's `renderNote`, `midiToDisplayName(midi, key, scaleId?)` and `NoteComparison` (via `harmony` + `displayScaleId`) all run it, so a session's note list spells what its chart showed.
+
+**Why:** 2026-08-22 report — a written-C blues session listed its b7 as A#: the comparison spelled by a flats-iff-FLAT_KEYS bit while the chart used the chord; and the chart itself spelled the blue third/fifth as the #9/#11 of C7 because nothing read the segment's `scaleId`. A key with no signature is *silent* about accidentals, not sharp-side — the scale speaks for it.
+
+**How to apply:** never spell a pitch by key alone when a chord or scale is reachable; pass `harmony` (concert) + offset, or at least the scale id, and let the chain decide. Lead sheets (`tune-notation.ts`) still run the chord tier without the scale tier — their segment scales are synthesized from quality, so it would only move the #9 of 7alt; revisit if a lead-sheet spelling report lands.
+
+### Minor keys for licks: `Phrase.mode`, one fit rule, tonic-keyed transposition (2026-08-22)
+`Phrase.key` is the TONIC; `Phrase.mode` ('major'|'minor', optional) says how to read it. `lickMode` (music/mode.ts) = explicit › harmony's tonic segment › major — NEVER the category (legacy user licks in minor categories were entered with key = relative major and would be relabelled). Curated minor files are stamped. Notation draws the relative major's signature (Eb minor six flats → "Ebm"; Ab/Db minor → "G#m"/"C#m"), `K:Dm`, `keyLabel` everywhere. Minor templates = `MINOR_CADENCE` (ii-7b5 · V7b9 phrygian-dominant · i-7). `progressionFitsLick` gates pills/picker/filter/seeding/hydrate-prune (cadence licks only; rhythm-changes deliberately ungated). Ear training: minor cadence licks transpose tonic → tonality root, never snapped.
+
+**Why:** 2026-08-22 report — a D-minor ii-V-i had to be entered and viewed as F major everywhere, and was served over the half-bar short template (and, in ear training, hopped to F minor via the parent-major rule).
+
+**How to apply:** never add a key selector/label without passing the mode; never infer mode from category; when gating heuristics, scope the gate to the ambiguity it can adjudicate.
 
 ## Reference map
 

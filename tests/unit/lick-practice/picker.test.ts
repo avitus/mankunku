@@ -12,6 +12,7 @@ import type {
 } from '$lib/types/lick-practice';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
 import type { Phrase, PhraseCategory } from '$lib/types/music';
+import { ALL_CURATED_LICKS } from '$lib/data/licks';
 
 function lick(id: string, category: PhraseCategory): Phrase {
 	return {
@@ -424,5 +425,65 @@ describe('findStrandedLicks', () => {
 			getProgressionTags: tagsFromMap({ lk: ['ii-V-I-major-long'] })
 		});
 		expect(got).toEqual([]);
+	});
+});
+
+describe('pickProgressionForLick — fit filtering', () => {
+	const FULL_MINOR = ALL_CURATED_LICKS.find((l) => l.id === 'ii-V-I-min-001')!;
+
+	it('skips tagged progressions the lick does not fit, even when least recently practiced', () => {
+		const got = pickProgressionForLick({
+			lickId: FULL_MINOR.id,
+			lick: FULL_MINOR,
+			progressionTags: ['ii-V-I-minor', 'ii-V-I-minor-long'],
+			// The short template was practised long ago; without the fit filter it wins.
+			sessionLog: [session('ii-V-I-minor', 10), session('ii-V-I-minor-long', 9000)]
+		});
+		expect(got).toBe('ii-V-I-minor-long');
+	});
+
+	it('returns null when every tagged progression is incompatible', () => {
+		expect(
+			pickProgressionForLick({
+				lickId: FULL_MINOR.id,
+				lick: FULL_MINOR,
+				progressionTags: ['ii-V-I-minor', 'blues'],
+				sessionLog: []
+			})
+		).toBeNull();
+	});
+
+	it('keeps today\'s behaviour when no lick is supplied', () => {
+		expect(
+			pickProgressionForLick({
+				lickId: FULL_MINOR.id,
+				progressionTags: ['ii-V-I-minor'],
+				sessionLog: []
+			})
+		).toBe('ii-V-I-minor');
+	});
+});
+
+describe('eligibility requires a FITTING progression tag', () => {
+	const FULL_MINOR = ALL_CURATED_LICKS.find((l) => l.id === 'ii-V-I-min-001')!;
+
+	it('selectInitialProgression skips a lick whose only tags are unfit instead of falling to DEFAULT', () => {
+		// FULL_MINOR is never practiced (most neglected) but its sole tag is the
+		// short template it does not fit; the other candidate must be chosen.
+		const got = selectInitialProgression({
+			candidates: [FULL_MINOR, lick('lk-blues', 'blues')],
+			progress: progressForLick('lk-blues', { C: 5000 }),
+			sessionLog: [],
+			getProgressionTags: tagsFromMap({ [FULL_MINOR.id]: ['ii-V-I-minor'], 'lk-blues': ['blues'] })
+		});
+		expect(got).toBe('blues');
+	});
+
+	it('findStrandedLicks reports a lick whose every tag is unfit', () => {
+		const stranded = findStrandedLicks({
+			candidates: [FULL_MINOR, lick('lk-blues', 'blues')],
+			getProgressionTags: tagsFromMap({ [FULL_MINOR.id]: ['ii-V-I-minor'], 'lk-blues': ['blues'] })
+		});
+		expect(stranded.map((l) => l.id)).toEqual([FULL_MINOR.id]);
 	});
 });

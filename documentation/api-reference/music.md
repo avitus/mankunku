@@ -144,7 +144,11 @@ Return the key at the given position in the circle of fourths. The index wraps a
 
 ### `relativeMajor(minorKey): PitchClass`
 
+The relative major of a minor tonic (D → F). Used by the minor key-signature table and the editor's "Read as relative key" relabel.
+
 ### `relativeMinor(majorKey): PitchClass`
+
+The relative minor of a major key (F → D).
 
 ### `realizeScale(root, intervals): number[]`
 
@@ -178,6 +182,7 @@ Generate an ABC notation string.
 - ABC header: `X:`, `T:`, `M:`, `L:`, `K:` fields
 - Notes with proper ABC octave conventions (uppercase C4, lowercase c5, apostrophes/commas)
 - **Key-signature-aware accidentals**: Notes matching the key signature (e.g., F# in D major) omit the accidental symbol. Natural signs (`=`) are emitted when a note cancels a key signature accidental. Chromatic alterations outside the key signature display as before.
+- **Enharmonic spelling follows one shared policy** (`resolveUseFlats` / `spellingContextAt`, below): the note's explicit `spelling` › the enharmonic the key signature already covers › the segment's declared scale › the governing chord › the key-side default. The chord and scale are judged at written pitch.
 - Duration modifiers relative to `L:` value
 - Final barline `|]`
 
@@ -197,13 +202,31 @@ export interface PitchedNoteAnchor {
 }
 ```
 
-### `displayPitchClass(pc, keyContext): string`
+### `displayPitchClass(pc, keyContext, mode?): string`
 
-Return a pitch class name spelled for a given key context. Only special-cases `F#` → `Gb` when `keyContext` is a flat key; all other pitch classes pass through unchanged. Used by UI chips that show the current scale's notes.
+Return a pitch class name spelled for a given key context (major by default). In flat keys `F#` reads `Gb`; in sharp keys a canonical flat name that is DIATONIC to the key is spelled the key's way (`G#` in A, `D#` in E) while chromatic roots keep their flat names. With `mode: 'minor'` the context is the minor key's DRAWN signature — the relative major's, or six flats for Eb minor, where every flat name is kept and only `F#` → `Gb`. Used by chord charts and the UI chips that show the current scale's notes.
 
-### `midiToDisplayName(midi, useFlats?): string`
+### Enharmonic spelling policy
 
-Convert MIDI to display name (e.g. `60 → 'C4'`, `58 → 'Bb3'`). Defaults to flats.
+One chain decides sharp-vs-flat for every named pitch — the chart renderer and every note-name display call it — so a session's note list spells exactly what its chart showed.
+
+| Function | Description |
+|---|---|
+| `chordSpellingPreference(midi, root, quality)` | `'sharp' \| 'flat' \| null` — proper interval spelling against the governing chord (the third of A7 is C#, the minor third of C-7 is Eb). Letter steps from the chord root; the quality guesses the three ambiguous degrees (b3 vs #9, b5 vs #11, #5 vs b13). Abstains for white keys and double accidentals. |
+| `scaleSpellingPreference(midi, root, degrees)` | `'sharp' \| 'flat' \| null` — the declared scale's answer for **only** those three ambiguous degrees: a blues line over C7 carries Eb and Gb, not the #9/#11 the dominant quality suggests. Abstains everywhere else, so a theoretical mode label (the altered scale's "b4") never respells an unambiguous chord tone. |
+| `signatureSpelling(pc, sig)` | The enharmonic already in the key signature (a C# in D major must not print as Db), or null. |
+| `resolveUseFlats(midi, ctx: SpellingContext)` | The chain: `explicit` › signature › scale › chord › `defaultFlats` (the drawn signature's side — `signatureFlatsFor(key, mode)`: flats iff the display key is in `FLAT_KEYS`, or its relative major is, or it is Eb minor). |
+| `spellingContextAt({ displayKey, mode?, harmony?, offset?, transpositionSemitones?, scaleId?, explicit? })` | Builds the `SpellingContext` the chart uses for one note (`mode` = major/minor reading of `displayKey`, default major — a minor key draws the relative major's signature and, with no chord and no `scaleId`, frames itself in harmonic minor at the tonic): the chord governing `offset` (concert harmony, roots shifted to written pitch and respelled for the key) with its declared scale; or, when no chord governs, `scaleId` rooted at the key with the chord it implies (`chordApplications[0]`). |
+
+The scale fallback is what makes a key with no signature spell "true to the key": written C alone says nothing about Bb vs A#, but C blues does (2026-08-22 user report — a written-C blues session listed its b7 as A#).
+
+### Minor keys — `signatureAccidentalsFor`, `signatureFlatsFor`, `keyLabel`, `keyLabelLong`, `abcKeyField`
+
+A lick's `key` is its TONIC; `Phrase.mode` (resolved by `lickMode` in `music/mode.ts` — explicit › harmony's tonic segment › major, never the category) says how to read it. `signatureAccidentalsFor(key, mode)` draws the relative major's signature for a minor key — six flats for Eb minor, whose relative major the canonical pitch-class map spells F# — and `signatureFlatsFor` gives the key-side flat/sharp default. Labels: `keyLabel('D','minor')` → `Dm`, `keyLabel('Eb','minor')` → `Ebm`, `keyLabel('Ab','minor')` → `G#m`, `keyLabel('Db','minor')` → `C#m` (sharp-side names for the two tonics whose relative majors are sharp keys, so label and drawn signature agree); `keyLabelLong` → `D minor`; `abcKeyField` → the `K:` field (`Dm`, `Ebm`, `G#m`, `C#m` — all read by abcjs). `phraseToAbcWithMap` reads `lickMode(phrase)`, prints `K:Dm`, and passes `mode` into `spellingContextAt`, where a minor key with no governing chord and no scale frames itself in harmonic minor rooted at the tonic (leading tone sharp, b6 flat). `displayPitchClass(pc, keyContext, mode?)` respells chord roots against the minor key's drawn signature.
+
+### `midiToDisplayName(midi, useFlatsOrKey?, scaleId?, mode?): string`
+
+Convert MIDI to display name (e.g. `60 → 'C4'`, `58 → 'Bb3'`). The second argument is either an explicit `useFlats` boolean (default `true`) or a written key name, in which case the name goes through the spelling policy above — key signature, then the optional `scaleId` rooted at the key, then the key-side default. `midiToDisplayName(70, 'C')` is `'A#4'`; `midiToDisplayName(70, 'C', 'blues.minor')` is `'Bb4'`.
 
 ---
 

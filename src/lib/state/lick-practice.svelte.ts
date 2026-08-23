@@ -90,7 +90,8 @@ import {
 	updateRollingScore,
 	getRollingScore,
 	KEY_PROFICIENT_THRESHOLD,
-	KEY_FLOOR_THRESHOLD
+	KEY_FLOOR_THRESHOLD,
+	pruneIncompatibleProgressionTags
 } from '$lib/persistence/lick-practice-store';
 import {
 	sortKeysWorstFirst,
@@ -112,7 +113,7 @@ import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import type { TrickContext } from '$lib/types/tricks';
 import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
-import { exampleStyleForRound, getTrickById, trickContextFor, trickEntryKey, trickPracticeBed } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById, trickContextFor, trickEntryKey, trickPracticeBed, trickRoundIntroducesStyle } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	loadTrickPracticeProgress,
@@ -133,7 +134,10 @@ import {
 	transposeProgression,
 	applyPickupBarShift,
 	detectPickupBars,
-	extendHarmonyTail
+	extendHarmonyTail,
+	progressionMode,
+	progressionFitsLick,
+	getProgressionsForLick
 } from '$lib/data/progressions';
 import { getAllLicks, getLickById, transposeLick } from '$lib/phrases/library-loader';
 import { getLickTagOverrides } from '$lib/persistence/user-licks';
@@ -238,7 +242,9 @@ export const lickPractice = $state<{
 	 * Single-lick mode: should the next cycle open with the app playing the
 	 * lick in the head (worst) key? True for the first cycle of every session;
 	 * afterwards true only while the head key's rolling score is below
-	 * proficient (continuous mode; tricks always demo).
+	 * proficient (continuous mode). Tricks: true only for a round whose
+	 * example STYLE is new to the session (`trickRoundIntroducesStyle`) —
+	 * enclosures demo once, triad pairs once per style.
 	 */
 	demoNextCycle: boolean;
 	/**
@@ -330,6 +336,15 @@ export async function hydrateLickPracticeProgress(
 		// Migrate legacy 'practice' markers from lick.tags + tag overrides
 		// into the new user-lick-tags store so getPracticeLicks can find them.
 		backfillPracticeTags(getAllLicks(), getLickTagOverrides());
+		// Drop `prog:*` tags the lick's own harmony doesn't fit (a 3-bar ii-V-i
+		// tagged for the half-bar short template, a cadence lick on a vamp).
+		// Idempotent and write-on-change only, so it can run on every successful
+		// hydrate — per-id LWW can resurrect a stale tag from an old-code
+		// device, and re-pruning folds it. Same cloudOk gate as the backfill.
+		pruneIncompatibleProgressionTags(
+			getAllLicks(),
+			(l: Phrase, t: ChordProgressionType): boolean => progressionFitsLick(l, t).fits
+		);
 		// One-time: seed the per-lick progress-history graph from the local
 		// session log. Gated on cloud success for the same reason as the
 		// backfill above (don't push a partial blob over the intact cloud row).
@@ -365,9 +380,9 @@ export async function hydrateLickPracticeProgress(
  *
  * Category compatibility alone is no longer an inclusion path — every lick
  * is expected to carry an explicit `prog:*` tag for every progression it
- * should play under. The setup-time backfill in `lick-practice-store` seeds
- * those tags from `getProgressionsForCategory(lick.category)` for legacy
- * licks, and `updateLickCategory` auto-adds them on every new category set.
+ * should play under. `updateLickCategory` seeds them from the templates the
+ * lick's own harmony FITS (`getProgressionsForLick`), the hydrate-time prune
+ * drops misfits, and this filter re-checks fit at read time.
  */
 export function getPracticeLicks(): Phrase[] {
 	const allLicks = getAllLicks();
@@ -382,7 +397,11 @@ export function getPracticeLicks(): Phrase[] {
 
 	return allLicks.filter(lick => {
 		if (!taggedIds.has(lick.id)) return false;
-		const matchesByProgressionTag = isTaggedForProgression(lick.id, progressionType);
+		// The read-time safety net: a tag that survived a cloud merge from an
+		// old-code device is inert unless the lick actually fits the template.
+		const matchesByProgressionTag =
+			isTaggedForProgression(lick.id, progressionType) &&
+			progressionFitsLick(lick, progressionType).fits;
 		const matchesBySubstitution = substitutionCategories.includes(lick.category);
 		return matchesByProgressionTag || matchesBySubstitution;
 	});
@@ -667,6 +686,7 @@ export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 		const lick = sorted[i];
 		const progressionType = pickProgressionForLick({
 			lickId: lick.id,
+			lick,
 			progressionTags: getProgressionTags(lick.id),
 			sessionLog
 		});
@@ -811,12 +831,13 @@ function unlockedCircleFrom(entryKey: PitchClass, unlockedCount: number): PitchC
 function resolveSingleLickProgression(lick: Phrase): ChordProgressionType {
 	const tagged = pickProgressionForLick({
 		lickId: lick.id,
+		lick,
 		progressionTags: getProgressionTags(lick.id),
 		sessionLog: loadLickPracticeSessions()
 	});
 	if (tagged) return tagged;
 
-	const compatible = getProgressionsForCategory(lick.category);
+	const compatible = getProgressionsForLick(lick);
 	return compatible[0] ?? DEFAULT_PROGRESSION;
 }
 
@@ -1022,8 +1043,9 @@ export function startTrickSession(): boolean {
 	lickPractice.roundNumber = 1;
 	lickPractice.masteredThisRound = [];
 	lickPractice.roundHistory = [];
-	// Tricks demo every cycle: the example phrase regenerates each round, so
-	// the ear reference is always new.
+	// First cycle always demos — the session's one ear reference for the
+	// figure. Later cycles demo only when the round's example style is new
+	// to the session (see the trick branch of advanceSingleLickRound).
 	lickPractice.demoNextCycle = true;
 	lickPractice.latestKeyResults = {};
 	lickPractice.sessionKeys = trickCircle;
@@ -1183,8 +1205,16 @@ function buildPhraseFor(
 		}));
 
 	// The session's "key" is driven by the progression, not the chord-quality
-	// lick's transposition target, so restore it on the returned phrase.
-	return { ...transposed, key, notes: alignedNotes, harmony: progressionHarmony };
+	// lick's transposition target, so restore it on the returned phrase — and
+	// read it in the PROGRESSION's mode (a D-minor ii-V-i prints K:Dm even
+	// for a major lick drilled over it).
+	return {
+		...transposed,
+		key,
+		mode: progressionMode(progressionType),
+		notes: alignedNotes,
+		harmony: progressionHarmony
+	};
 }
 
 /**
@@ -1290,11 +1320,11 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 
 	const progressionType = item.progressionType;
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
-	const mode = lickPractice.config.practiceMode;
+	const practiceMode = lickPractice.config.practiceMode;
 	// Per-lick cycle length: equals the progression's bar count for licks
 	// that fit, otherwise extends to host a long lick's pickup + tail.
 	const lickBars = getLickBars(baseLick, progressionType, enableSubstitutions);
-	const keyBars = mode === 'call-response' ? lickBars * 2 : lickBars;
+	const keyBars = practiceMode === 'call-response' ? lickBars * 2 : lickBars;
 	const demoBars = demoBarsForItem(item, lickBars);
 	const instrument = getInstrument();
 	const highestNote = getEffectiveHighestNote();
@@ -1370,7 +1400,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 				startOffset: addFractions(seg.startOffset, keyOffsetWhole)
 			});
 		}
-		if (mode === 'call-response') {
+		if (practiceMode === 'call-response') {
 			const userBarsOffset: Fraction = [i * keyBars + lickBars, 1];
 			for (const seg of keyHarmony) {
 				superHarmony.push({
@@ -1384,7 +1414,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		// first half of each key's window. In continuous mode the only melody
 		// notes are the demo notes added above the loop — the user keys here
 		// don't emit notes because the user plays them.
-		if (mode === 'call-response') {
+		if (practiceMode === 'call-response') {
 			const transposed = transposeLick(
 				baseLick,
 				targetFor(key),
@@ -1404,7 +1434,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	}
 
 	return {
-		id: `${baseLick.id}:super:${mode}`,
+		id: `${baseLick.id}:super:${practiceMode}`,
 		name: `${baseLick.name} (all keys)`,
 		timeSignature: baseLick.timeSignature,
 		key: item.keys[0],
@@ -1496,18 +1526,15 @@ function harmonyForLick(
 /**
  * How many demo bars a plan item's next cycle carries. Continuous mode
  * normally opens every lick/round with a `lickBars`-long demo of keys[0];
- * deep-practice lick cycles drop it (0 bars) once the head key is
- * proficient (`demoNextCycle` false), so strong cycles flow back-to-back.
- * Tricks and standard sessions always demo; call-response never does
+ * single-lick cycles drop it (0 bars) when `demoNextCycle` is false — for
+ * licks once the head key is proficient, for tricks once the round's
+ * example style has already been heard — so strong cycles flow
+ * back-to-back. Standard sessions always demo; call-response never does
  * (each key embeds its own app half).
  */
 function demoBarsForItem(item: LickPracticePlanItem, lickBars: number): number {
 	if (lickPractice.config.practiceMode !== 'continuous') return 0;
-	if (
-		lickPractice.mode === 'single-lick' &&
-		item.kind !== 'trick' &&
-		!lickPractice.demoNextCycle
-	) {
+	if (lickPractice.mode === 'single-lick' && !lickPractice.demoNextCycle) {
 		return 0;
 	}
 	return lickBars;
@@ -1905,9 +1932,17 @@ export function advanceSingleLickRound(): void {
 	}
 
 	if (item.kind === 'trick') {
-		// Tricks demo every cycle (fresh example each round) and keep their
-		// rotation order — the worst-first policy is a lick concept.
-		lickPractice.demoNextCycle = true;
+		// Tricks keep their rotation order — worst-first is a lick concept —
+		// and demo only when the next round has something NEW to hear: an
+		// example style the session hasn't demoed yet (enclosures: never
+		// after round 1; triad pairs: once per style). A regenerated
+		// realization of the same figure is not new to the ear. Call-response
+		// has its own per-key call, so never demos here either.
+		const trick = item.trickId ? getTrickById(item.trickId) : undefined;
+		lickPractice.demoNextCycle =
+			lickPractice.config.practiceMode === 'continuous' &&
+			trick !== undefined &&
+			trickRoundIntroducesStyle(trick, lickPractice.roundNumber + 1);
 	} else {
 		// Sort the next cycle worst-first from the rolling scores — which at
 		// this point already include this cycle's attempts — so the demo (and
@@ -2029,6 +2064,7 @@ export function getSessionReport(): SessionReport {
 		licks.push({
 			lickId: item.phraseId,
 			lickName: item.phraseName,
+			progressionType: item.progressionType,
 			tempo,
 			newTempo,
 			keys,
@@ -2086,6 +2122,7 @@ function buildSingleLickReport(allLickResults: LickPracticeKeyResult[][]): Sessi
 				{
 					lickId: item.phraseId,
 					lickName: item.phraseName,
+					progressionType: item.progressionType,
 					tempo: startTempo,
 					newTempo: finalTempo !== startTempo ? finalTempo : null,
 					keys,

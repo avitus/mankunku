@@ -224,13 +224,13 @@ The search box filters across all three groups by name or tag. A **progression f
 Tap a lick to see:
 
 - Sheet music in your instrument's key.
-- A **key selector** so you can preview the lick in any of the 12 keys before tagging it.
+- A **key selector** so you can preview the lick in any of the 12 keys before tagging it. The pills are tonics in the lick's own mode — a minor lick reads *Dm · Gm · Cm …* and its chart carries the minor key signature (D minor shows one flat, written `K:Dm`), so you never have to think in the relative major.
 - Category, difficulty, bar count, and tags.
 - A **progress chart** once you've drilled it — your tempo on this line over time, banded by [phase of expertise](#phases-of-expertise), with a small key marking every session that unlocked a new key. The x-axis is scaled by real elapsed time, so a three-month gap reads as a gap rather than as one step.
 - A play button so you can hear it without dropping into a session.
 - A **practice star** — tap to tag the lick for Side B.
 - A **Practice** button to drop straight into single-lick Deep Practice.
-- **Practice over** pills — the progression tags telling Side B which backing tracks this lick is eligible for. Tap to add or remove.
+- **Practice over** pills — the progression tags telling Side B which backing tracks this lick is eligible for. Tap to add or remove. Pills the lick can't play over are greyed out with the reason (a 3-bar ii-V-i doesn't fit the half-bar *Short ii-V-I* template; a cadence lick doesn't fit a vamp); setting a category seeds only the progressions the lick's own chord changes fit, and a stale tag that no longer fits is marked ⚠ so you can remove it — Side B never serves a lick over changes that don't resemble its own. The minor ii-V-I templates play **ii-7b5 → V7(b9) → i-7** (E-7b5 | A7b9 | D-7 in D minor).
 - An **Edit** button (step-entered, owned licks only) to reopen the lick in the staff editor.
 - A **↺ Reset progress** action once you've actually drilled the lick — wipes scores and unlock count back to a fresh start. See [Side B above](#when-a-lick-keeps-beating-you).
 - A **Delete** button for licks you authored. If the delete is blocked (a community copy of someone else's, for example), the page now tells you *why* inline instead of just hiding the button.
@@ -258,7 +258,7 @@ The Progress page is the back cover. It tells you what's been happening over tim
 - **Calendar heatmap** — every day you practiced, lit by session count. Skipped days are dim.
 - **Scale Proficiency** — a breakdown per scale type, and the adaptive-difficulty detail behind your level.
 - **By Key grid** — your average score in each key, so you can see which keys still need work.
-- **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade.
+- **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade. Expand one for the note-by-note list; note names are spelled the way the chart spelled them (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#).
 
 Tricks and Side B sessions count toward your streak and the calendar, but the Progress page has no per-trick view — that lives on each trick's own page.
 
@@ -293,6 +293,10 @@ Two ways in.
 - **Record** (`/licks/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out. Set the tempo first, then press record: you get a **two-bar count-in** of woodblock tocks with a cue pill counting you down (*Count in*, then *Play in 4…3…2…1*), and the full jazz kit takes over exactly where the tocks stop — that texture change is your entrance, so **come in on that downbeat**. Play the lick, then stop with the button or just go quiet for a couple of seconds. The transcription understands jazz time: swung eighths come out written as straight eighths (the convention on every lead sheet), and a genuine triplet is still recognised beat by beat, so one bar can hold both. On the review screen, playback re-applies your Swing setting so the take sounds the way you played it, not the way it's spelled.
 
 Either way, your lick joins your book alongside your other licks — ones you recorded, wrote, or adopted from the community — and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
+
+### Minor licks in the editor
+
+The Setup row has a **Major | Minor** toggle beside the key. Pick *D* and *Minor* and the staff draws one flat, typing **B** gives B♭ and typing **C** stays natural — no more entering a D-minor line "in F". The mode follows the category you choose (a ii-V-I minor lick turns minor on its own) until you set it yourself, and it's saved with the lick, so the detail page, the practice session and the progress page all read it as *D minor*. A lick you entered in the relative major before this existed: open it and tap **Read as D minor** — the key relabels and the notes stay exactly where they are (changing the key with *Move notes* on would transpose them a third).
 
 ### Editing a step-entered lick
 

@@ -4,6 +4,89 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-23 — A stale countdown is not a state; ask the system that owns the budget
+
+The CodeRabbit waiter I built first was a countdown from a per-PR ETA. It was
+wrong in a way that looked right: the ETA had passed, so the push "should"
+have been accepted, and it was rejected — because the budget is account-wide
+and other activity had spent it. A free live query (`@coderabbitai rate
+limit`) replaced the countdown and every attempt after that was accepted.
+The general form: when a remote system rations something, derive your
+decision from ITS current answer, not from your cached model of its
+schedule; and prefer the cheapest query it offers over any inference.
+
+The second lesson is about observability of my own loop: I resolved review
+threads when the fix was committed (honest — the reply cited the commit),
+but the verdict checker reads "unresolved threads: 0" on whatever head the
+PR has, so it declared DONE on the unpushed head. A checker that cannot see
+the local state must be gated on the remote state it CAN see (the PR head
+equals the fix sha) before its verdict means anything.
+
+## 2026-08-22 (night) — Two conventions on one field, and why inference must refuse the obvious signal
+
+The minor-key work kept turning up the same shape: `Phrase.key` meant "tonic" in
+the curated files and "the major key whose signature I want drawn" in the
+editor, and nothing in the type distinguished them. Both readings were
+internally consistent; the collision was only visible at the boundary where a
+user-entered lick met curated data in the same practice set. The fix was not to
+pick a winner but to add the missing dimension (`mode`) and then make the
+RESOLVER conservative: `lickMode` will read the harmony but never the
+category, because category is exactly the signal that would have relabelled
+the user's own relative-major-entered licks as F minor. A strong, obvious
+inference signal was the wrong one *because of data written under the old
+convention* — the same reader-writer-asymmetry lesson as the phantom Gb key,
+from the other side: here the reader must NOT trust a column that the old
+writer populated with a different meaning.
+
+Second: "served over nonsensical progressions" was four defects wearing one
+symptom — template V quality, dual short/long seeding, unfiltered pills, tag
+accretion — plus a fifth in ear training (the parent-major hop) that the user
+may never have separated out. The explorers' most valuable output was the
+NEGATIVE finding: the template anchoring, the first suspect, was correct. I
+notice I'd have gone straight at the templates without it.
+
+Third, on the fit rule: I nearly made it stricter than the data could bear.
+`rhythm-changes` has two chords per bar against the one-per-bar turnaround; a
+geometry gate would have stranded the whole category. The rule's narrowness
+(cadence categories only; everything else honours the tag) is what makes it
+safe — a recurring pattern now (scale tier settles only the ambiguous degrees;
+fit settles only cadence shapes): when adding a gate over heuristics, scope it
+to the ambiguity you can actually adjudicate.
+
+## 2026-08-22 — A binary where the data carried a richer answer; and "no signature" means silent, not sharp
+
+The A#-for-Bb bug was a *projection* bug: three-valued information (the scale,
+the chord, the key) was being collapsed to one bit (`FLAT_KEYS.includes(key)`)
+at the display edge, while the same information was fully available two
+function calls away — every `HarmonicSegment` carries a `scaleId`, every
+ear-training session carries a `scaleType`, and the progress page already
+re-resolved the whole phrase for its play button. The component wasn't
+missing data; it was discarding it. Worth generalising: when a display-layer
+helper takes a *key* and returns a *spelling*, ask what else the caller knows
+that the helper is being denied. The cheapest fixes in this codebase have been
+"stop projecting" rather than "add data".
+
+Second, the chart's own chord tier had a blind spot that nobody had reported:
+D# and F# for the blue third and fifth over C7. It was right *by interval
+theory* (#9, #11 of a dominant) and wrong *by idiom* (the blues scale is
+spelled with flats everywhere). The repair was not to override the chord
+tier but to recognise which of its decisions were guesses: a chord quality
+can't tell b3 from #9, b5 from #11, #5 from b13 — everything else it derives
+unambiguously. So the scale tier settles exactly those three and abstains
+otherwise. That narrowness was load-bearing, not timidity: the altered scale
+labels the major third "b4", and a scale tier that trusted every label would
+have turned the third of E7alt into Ab. The general shape: when adding a
+higher-priority tier to a heuristic chain, scope it to the *ambiguity* the
+lower tier actually has, not to everything the new source has an opinion on.
+
+Third, the user's wording "true to the key" — and the existing test literally
+named "treats C major as sharp-keyed" — exposed a framing error baked into
+the code. C has no signature; that makes it *silent* about accidentals, not
+sharp-side. The binary default had to pick something and picked sharps, and
+the test enshrined the arbitrary choice as a property. Defaults that must
+pick something should be written so the reader knows they are arbitrary; this
+one read as a rule.
+
 ## 2026-08-21 — "Nothing persisted" is a claim against every write path, not a description of intent
 
 Four review rounds on PR #238 were one sentence being falsified repeatedly. I wrote

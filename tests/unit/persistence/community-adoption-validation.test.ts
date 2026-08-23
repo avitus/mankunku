@@ -149,6 +149,19 @@ describe('validateAdoptedPhrase', () => {
 		expect(result.errors.join(' ')).toMatch(/timeSignature/i);
 	});
 
+	it('accepts an explicit major/minor mode and tolerates its absence', () => {
+		expect(validateAdoptedPhrase({ ...makePhrase(), mode: 'minor' }).valid).toBe(true);
+		expect(validateAdoptedPhrase({ ...makePhrase(), mode: 'major' }).valid).toBe(true);
+		expect(validateAdoptedPhrase({ ...makePhrase(), mode: null }).valid).toBe(true);
+		expect(validateAdoptedPhrase(makePhrase()).valid).toBe(true); // absent
+	});
+
+	it('rejects a mode outside major/minor', () => {
+		const result = validateAdoptedPhrase({ ...makePhrase(), mode: 'dorian' });
+		expect(result.valid).toBe(false);
+		expect(result.errors).toContain('invalid mode');
+	});
+
 	it('tolerates an unknown category (falls back at render time)', () => {
 		// Unknown categories are not a steal-time failure: the library UI
 		// already treats any unfamiliar category as "user".

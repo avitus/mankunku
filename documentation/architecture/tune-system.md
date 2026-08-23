@@ -11,7 +11,7 @@ interface Tune {
   id: string;
   title: string;
   composer?: string;
-  key: PitchClass;              // CONCERT — unlike licks, which are all stored in C
+  key: PitchClass;              // CONCERT — unlike curated licks, which are all stored in C (C minor for minor licks)
   timeSignature: [number, number];
   style?: string;               // 'Medium Swing', 'Ballad', …
   tags: string[];
@@ -34,7 +34,7 @@ interface TuneSection {
 
 Two decisions carry most of the weight:
 
-**Tunes store their real concert key.** A lick is stored in C and transposed to wherever it's needed. A tune in F is stored in F — transposing a whole chart on save would throw away the composer's spelling. `transposeTune` (book-loader) shifts to any target key at query time, and `HarmonicSegment.symbol` carries the raw chord text so display never loses the chart's own fidelity.
+**Tunes store their real concert key.** A curated lick is stored in C (its TONIC — C minor for minor licks, with `Phrase.mode`) and transposed to wherever it's needed; user licks keep their entered key. A tune in F is stored in F — transposing a whole chart on save would throw away the composer's spelling. `transposeTune` (book-loader) shifts to any target key at query time, and `HarmonicSegment.symbol` carries the raw chord text so display never loses the chart's own fidelity.
 
 **Section offsets are section-local.** Sections are self-contained, which is what makes repeat expansion and section reordering tractable. Nothing downstream consumes sections directly — everything goes through the flatten.
 

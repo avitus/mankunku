@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { chordChartCells } from '$lib/ui/chord-chart-layout';
+import { chordChartCells, chordChartSymbol } from '$lib/ui/chord-chart-layout';
 import type { HarmonicSegment } from '$lib/types/music';
 
 const FOUR_FOUR: [number, number] = [4, 4];
@@ -75,5 +75,27 @@ describe('chordChartCells', () => {
 		const cells = chordChartCells([seg], FOUR_FOUR);
 		expect(cells).toHaveLength(2);
 		expect(cells.every((c) => c.widthWeight === 1)).toBe(true);
+	});
+});
+
+describe('chordChartSymbol — MuseScore-Jazz stacked parts for a chart cell', () => {
+	const seg = (quality: HarmonicSegment['chord']['quality']): HarmonicSegment => ({
+		chord: { root: 'C', quality },
+		scaleId: 'major.ionian',
+		startOffset: [0, 1],
+		duration: [1, 1]
+	});
+
+	test('a b9 dominant stacks its alteration to the right of the quality', () => {
+		expect(chordChartSymbol(seg('7b9'), 'A')).toEqual({ root: 'A', quality: '7', alterations: ['b9'], bass: null });
+	});
+
+	test('half-diminished and minor sevenths carry no alteration column', () => {
+		expect(chordChartSymbol(seg('min7b5'), 'E')).toMatchObject({ root: 'E', quality: '-7b5', alterations: [] });
+		expect(chordChartSymbol(seg('min7'), 'D')).toMatchObject({ root: 'D', quality: '-7', alterations: [] });
+	});
+
+	test('an altered dominant keeps "alt" as its single stacked token', () => {
+		expect(chordChartSymbol(seg('7alt'), 'G')).toMatchObject({ root: 'G', quality: '7', alterations: ['alt'] });
 	});
 });

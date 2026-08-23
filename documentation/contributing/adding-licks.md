@@ -4,7 +4,7 @@ Step-by-step guide to adding new curated licks to Mankunku's catalog.
 
 ## Overview
 
-Curated licks are stored as TypeScript arrays in `src/lib/data/licks/`. All licks are written in **concert C** — the library loader handles transposition to other keys at query time.
+Curated licks are stored as TypeScript arrays in `src/lib/data/licks/`. All licks are written in **concert C** — on the TONIC: a minor lick is C minor, `key: 'C'` with `mode: 'minor'` on the literal (never its relative major). The library loader handles transposition to other keys at query time. Every lick in a minor category must resolve `lickMode(lick) === 'minor'` (pinned by `tests/unit/data/curated-minor-mode.test.ts`); the cadence and minor-chord files carry the field explicitly because a short ii-V has no tonic segment to infer from.
 
 ## Step 1: Choose a File
 

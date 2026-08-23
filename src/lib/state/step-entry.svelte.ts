@@ -1,10 +1,13 @@
-import type { Note, Fraction, PitchClass, Phrase, PhraseCategory } from '$lib/types/music';
+import type { Note, Fraction, PitchClass, Phrase, PhraseCategory, Mode } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { BaseDurationId } from '$lib/step-entry/durations';
 import { DOTTED_BASES, TRIPLET_BASES, getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
 import { concertKeyToWritten, transposePitchClass } from '$lib/music/transposition';
+import { relativeMajor, relativeMinor } from '$lib/music/keys';
+import { signatureAccidentalsFor, signatureFlatsFor } from '$lib/music/notation';
+import { lickMode, MINOR_CATEGORIES } from '$lib/music/mode';
 import { getInstrument } from '$lib/state/settings.svelte';
 
 /**
@@ -24,27 +27,18 @@ const PC_TO_LETTER: Record<number, string> = {
 	0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B'
 };
 
-/** Key signature adjustments: key → letter → semitone delta */
-const KEY_SIG_ADJUSTMENTS: Record<string, Record<string, number>> = {
-	'C': {},
-	'G': { F: 1 },
-	'D': { F: 1, C: 1 },
-	'A': { F: 1, C: 1, G: 1 },
-	'E': { F: 1, C: 1, G: 1, D: 1 },
-	'B': { F: 1, C: 1, G: 1, D: 1, A: 1 },
-	'F#': { F: 1, C: 1, G: 1, D: 1, A: 1, E: 1 },
-	'F': { B: -1 },
-	'Bb': { B: -1, E: -1 },
-	'Eb': { B: -1, E: -1, A: -1 },
-	'Ab': { B: -1, E: -1, A: -1, D: -1 },
-	'Db': { B: -1, E: -1, A: -1, D: -1, G: -1 },
-};
-
-/** Apply key signature to a natural pitch class (e.g. F→F# in G major) */
-function applyKeySig(pitchClass: number, key: PitchClass): number {
+/**
+ * Apply the drawn key signature to a natural pitch class (F→F# in G major,
+ * B→Bb in D MINOR). The signature comes from the same table the notation
+ * draws (`signatureAccidentalsFor`), so what the user types is what the
+ * staff shows — in minor, the relative major's accidentals (six flats for
+ * Eb minor), never the tonic's major signature.
+ */
+function applyKeySig(pitchClass: number, key: PitchClass, mode: Mode): number {
 	const letter = PC_TO_LETTER[pitchClass];
 	if (!letter) return pitchClass;
-	const delta = KEY_SIG_ADJUSTMENTS[key]?.[letter] ?? 0;
+	const acc = signatureAccidentalsFor(key, mode)[letter as keyof ReturnType<typeof signatureAccidentalsFor>];
+	const delta = acc === '^' ? 1 : acc === '_' ? -1 : 0;
 	return ((pitchClass + delta) % 12 + 12) % 12;
 }
 
@@ -61,6 +55,9 @@ export const stepEntry = $state({
 	enteredNotes: [] as Note[],
 	barCount: 2,
 	phraseKey: 'C' as PitchClass,
+	/** Major or minor reading of `phraseKey`. Follows the category until the user touches the mode control. */
+	phraseMode: 'major' as Mode,
+	modeTouched: false,
 	phraseName: '',
 	category: 'user' as PhraseCategory,
 	practiceTag: false,
@@ -136,6 +133,8 @@ export function getCurrentPhrase(): Phrase {
 		name: stepEntry.phraseName || 'Untitled',
 		timeSignature: [4, 4],
 		key: concertKey,
+		// Always stated for user licks — explicit beats inference; legacy rows stay unstated.
+		mode: stepEntry.phraseMode,
 		notes: [...stepEntry.enteredNotes],
 		harmony: [],
 		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: stepEntry.barCount },
@@ -180,7 +179,7 @@ export function resolveEntryPitch(
 	// The user types note letters as they appear on their sheet music,
 	// so these adjustments happen in written-pitch space.
 	const adjustedPc = accidental === 'natural'
-		? applyKeySig(pitchClass, stepEntry.phraseKey)
+		? applyKeySig(pitchClass, stepEntry.phraseKey, stepEntry.phraseMode)
 		: applyAccidental(pitchClass, accidental);
 
 	const trans = entryTransposition();
@@ -381,11 +380,48 @@ export function enterTiedNote(): boolean {
 	return true;
 }
 
+/** Set the major/minor reading of the key. Never moves notes; stops category-follow. */
+export function setPhraseMode(mode: Mode): void {
+	stepEntry.phraseMode = mode;
+	stepEntry.modeTouched = true;
+}
+
+/**
+ * Set the save category. Until the user has touched the mode control, the
+ * mode follows the category — picking "ii-V-I minor" reads the key as minor.
+ */
+export function setCategory(category: PhraseCategory): void {
+	stepEntry.category = category;
+	if (!stepEntry.modeTouched) {
+		stepEntry.phraseMode = MINOR_CATEGORIES.has(category) ? 'minor' : 'major';
+	}
+}
+
+/**
+ * Relabel the lick as its relative key — F major ↔ D minor — without moving a
+ * note. The one-click path for licks that were entered in the relative major
+ * because the editor's key signature used to be major-only; the manual route
+ * (toggle minor, then change key with "Move notes" OFF) transposes the notes
+ * a minor third if the checkbox is forgotten.
+ */
+export function switchToRelativeKey(): void {
+	if (stepEntry.phraseMode === 'minor') {
+		stepEntry.phraseKey = relativeMajor(stepEntry.phraseKey);
+		stepEntry.phraseMode = 'major';
+	} else {
+		stepEntry.phraseKey = relativeMinor(stepEntry.phraseKey);
+		stepEntry.phraseMode = 'minor';
+	}
+	stepEntry.modeTouched = true;
+}
+
 export function reset(): void {
 	stepEntry.enteredNotes = [];
 	stepEntry.phraseName = '';
 	stepEntry.accidental = 'natural';
 	stepEntry.category = 'user';
+	stepEntry.phraseMode = 'major';
+	stepEntry.modeTouched = false;
 	stepEntry.practiceTag = false;
 	stepEntry.selectedNoteIndex = null;
 	stepEntry.editingId = null;
@@ -409,6 +445,10 @@ export function loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void
 	reset();
 	stepEntry.enteredNotes = lick.notes.map((n) => ({ ...n }));
 	stepEntry.phraseKey = concertKeyToWritten(lick.key, instrument);
+	// An explicitly stored mode survives later category changes; an inferred
+	// one keeps following the category until the user touches the control.
+	stepEntry.phraseMode = lickMode(lick);
+	stepEntry.modeTouched = lick.mode !== undefined;
 	stepEntry.phraseName = lick.name;
 	stepEntry.category = lick.category;
 	stepEntry.barCount = Math.max(1, Math.min(4, lick.difficulty.lengthBars));
@@ -503,9 +543,6 @@ export function adjustOctave(delta: number): void {
 /** Chromatic pitch classes that have enharmonic equivalents (black keys) */
 const CHROMATIC_PCS = new Set([1, 3, 6, 8, 10]);
 
-/** Keys that conventionally use flats */
-const FLAT_KEYS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db']);
-
 /** Toggle the enharmonic spelling of the selected note (or last pitched note). */
 export function flipSelectedNoteSpelling(): void {
 	const notes = stepEntry.enteredNotes;
@@ -521,7 +558,8 @@ export function flipSelectedNoteSpelling(): void {
 	if (note.spelling) {
 		note.spelling = note.spelling === 'sharp' ? 'flat' : 'sharp';
 	} else {
-		note.spelling = FLAT_KEYS.has(stepEntry.phraseKey) ? 'sharp' : 'flat';
+		// Default spelling follows the drawn signature (minor → relative major's side).
+		note.spelling = signatureFlatsFor(stepEntry.phraseKey, stepEntry.phraseMode) ? 'sharp' : 'flat';
 	}
 }
 

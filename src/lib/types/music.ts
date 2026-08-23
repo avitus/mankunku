@@ -1,6 +1,9 @@
 /** Pitch classes in chromatic order (concert pitch) */
 export type PitchClass = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'F#' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
 
+/** Major or minor reading of a key. A lick's `key` is always the TONIC; `mode` says how to read it. */
+export type Mode = 'major' | 'minor';
+
 /** All 12 pitch classes in order */
 export const PITCH_CLASSES: PitchClass[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
@@ -108,8 +111,20 @@ export interface Phrase {
 	id: string;
 	name: string;
 	timeSignature: [number, number];
-	/** Concert pitch key */
+	/**
+	 * Concert-pitch TONIC. For a minor lick this is the minor tonic (`'D'` +
+	 * `mode: 'minor'` = D minor), never the relative major. Curated licks are
+	 * stored in C (C minor for minor licks) and transposed at query time; user
+	 * licks keep the concert key they were entered in.
+	 */
 	key: PitchClass;
+	/**
+	 * Major or minor reading of `key`. Absent = not stated (legacy rows,
+	 * curated licks that rely on their harmony) — resolve with `lickMode()`
+	 * in music/mode.ts, which infers from the tonic harmony segment and never
+	 * from the category.
+	 */
+	mode?: Mode;
 	notes: Note[];
 	harmony: HarmonicSegment[];
 	difficulty: DifficultyMetadata;

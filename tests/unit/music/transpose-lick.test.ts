@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { transposeLick, transposeLickForTonality, snapLickToScale } from '$lib/phrases/library-loader';
 import type { Phrase } from '$lib/types/music';
+import { ALL_CURATED_LICKS } from '$lib/data/licks';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
 function makePhrase(pitches: (number | null)[], category: string = 'pentatonic'): Phrase {
@@ -174,11 +175,21 @@ describe('transposeLickForTonality — progression licks use parent key', () => 
 		expect(result.key).toBe('D');
 	});
 
-	it('A Dorian ii-V-I minor: also uses parent key', () => {
+	it('A Dorian ii-V-I minor: a MINOR cadence lick is keyed by its tonic, so it transposes tonic → A', () => {
+		// The parent-major hop assumes lick.key is the parent major; a minor
+		// cadence lick's key is its tonic minor, so C minor → A minor (+9).
+		const phrase: Phrase = { ...makePhrase([60, 64], 'ii-V-I-minor'), mode: 'minor' };
+		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
+		expect(result.notes.map(n => n.pitch)).toEqual([69, 73]);
+		expect(result.key).toBe('A');
+		expect(result.mode).toBe('minor');
+	});
+
+	it('a ii-V-I-minor-category lick that is NOT minor (legacy, relative-major keyed) keeps the parent-key rule', () => {
+		// makePhrase's harmony is Cmaj7 on the key root → lickMode major.
 		const phrase = makePhrase([60, 64], 'ii-V-I-minor');
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
 		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
-		expect(result.key).toBe('A');
 	});
 
 	it('rhythm-changes lick uses parent key', () => {
@@ -186,5 +197,38 @@ describe('transposeLickForTonality — progression licks use parent key', () => 
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
 		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
 		expect(result.key).toBe('A');
+	});
+});
+
+describe('minor cadence licks under minor tonalities — tonic → tonality root, never snapped', () => {
+	const full = ALL_CURATED_LICKS.find((l) => l.id === 'ii-V-I-min-001')!;
+	const short = ALL_CURATED_LICKS.find((l) => l.id === 'short-ii-V-min-001')!;
+	const roots = (p: Phrase): string[] => p.harmony.map((h) => h.chord.root);
+
+	it('D minor (aeolian): the C-minor ii-V-i lands on D — E-7b5 A7 D-7, resolving to D', () => {
+		const r = transposeLickForTonality(full, 'D', 'major.aeolian');
+		expect(r.key).toBe('D');
+		expect(roots(r)).toEqual(['E', 'A', 'D']);
+		expect(r.harmony[2].chord.quality).toBe('min7');
+		const last = r.notes[r.notes.length - 1].pitch!;
+		expect(last % 12).toBe(2);
+	});
+
+	it('D dorian: same answer (the lick carries its own harmony; the mode of the daily scale is not a parent hop)', () => {
+		expect(roots(transposeLickForTonality(full, 'D', 'major.dorian'))).toEqual(['E', 'A', 'D']);
+		expect(roots(transposeLickForTonality(full, 'A', 'major.dorian'))).toEqual(['B', 'E', 'A']);
+	});
+
+	it('melodic-minor / altered tonalities no longer snap the cadence into the scale', () => {
+		for (const scaleId of ['melodic-minor.melodic-minor', 'melodic-minor.altered']) {
+			const r = transposeLickForTonality(full, 'Eb', scaleId);
+			const plain = transposeLick(full, 'Eb');
+			expect(r.notes.map((n) => n.pitch), scaleId).toEqual(plain.notes.map((n) => n.pitch));
+			expect(roots(r)).toEqual(['F', 'Bb', 'Eb']);
+		}
+	});
+
+	it('short ii-V minor: F minor → G-7b5 C7', () => {
+		expect(roots(transposeLickForTonality(short, 'F', 'major.aeolian'))).toEqual(['G', 'C']);
 	});
 });

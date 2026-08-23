@@ -316,7 +316,7 @@ export interface PlannedKey {
 
   **Focus ramp.** With `options.focusKey` (set only by the report's `drill-weak-key` next step) the plan's rotation is that key ALONE, `lickPractice.ramp` is `planFocusRamp(circle, focusKey, savedTempo, rollingFor)` (every other unlocked key queued worst-first) and the session opens at `focusStartTempo(savedTempo)` — 10% under. `advanceSingleLickRound` then routes the lick branch through `resolveRampCycle` while `ramp.phase !== 'complete'`: focus staircase (clear → `nextCycleTempo`; sub-floor → `focusStepDownTempo`; else hold) until a clear lands at or above `targetTempo` — that clear is clamped to the target, so rebuild holds at exactly the saved tempo — then one-key-per-clear rebuild at a held tempo, then the ordinary rule. `sessionKeys` is still the full circle. A focus key the lick hasn't unlocked is ignored (ordinary start). The report carries a `ramp` summary (`FocusRampSummary`: focus key, target, lowest tempo, the up-to-speed and rebuilt rounds), which `splitReportByProgression` preserves.
 
-- `startTrickSession(): boolean` — Trick entry, driven by `config.trickId` + `config.trickParameters`. Resolves the device from the `TRICKS` catalog, picks its practice bed (`trick.practiceBed?.(params) ?? 'major-vamp'`), builds a C-rooted `TrickContext` from that vamp's first harmony segment, and generates the round-1 example phrase. The plan item is a single `kind: 'trick'` entry whose `phraseId` **is the composite variant key** — `getLickById` misses on it by design and every helper falls back to the item's `phrase`. Trick items always demo, are never re-sorted worst-first, and never write to the lick store.
+- `startTrickSession(): boolean` — Trick entry, driven by `config.trickId` + `config.trickParameters`. Resolves the device from the `TRICKS` catalog, picks its practice bed (`trick.practiceBed?.(params) ?? 'major-vamp'`), builds a C-rooted `TrickContext` from that vamp's first harmony segment, and generates the round-1 example phrase. The plan item is a single `kind: 'trick'` entry whose `phraseId` **is the composite variant key** — `getLickById` misses on it by design and every helper falls back to the item's `phrase`. Trick items demo on the first cycle and then only on rounds whose example style is new to the session (`trickRoundIntroducesStyle`), are never re-sorted worst-first, and never write to the lick store.
 
 ### Cursor accessors
 
@@ -418,7 +418,9 @@ export const stepEntry = $state({
   accidental: 'natural' as 'sharp' | 'flat' | 'natural',
   enteredNotes: [] as Note[],
   barCount: 2,                                    // 1–4
-  phraseKey: 'C' as PitchClass,                   // Written key for the user's instrument
+  phraseKey: 'C' as PitchClass,                   // Written key for the user's instrument (the TONIC)
+  phraseMode: 'major' as Mode,                    // Major/minor reading; follows the category until touched
+  modeTouched: false,
   phraseName: '',
   category: 'user' as PhraseCategory,
   practiceTag: false,
@@ -469,7 +471,8 @@ export const stepEntry = $state({
 
 ### Edit mode
 
-- `loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void` — Hydrate the editor from an existing lick: copies the notes straight across in concert pitch, converts the lick's key back to written pitch via `concertKeyToWritten` (using the `instrument` arg) for the `phraseKey` dropdown, restores bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/licks/editor` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the book detail page), and redirect to `/licks/<id>` after saving.
+- `setPhraseMode(mode)` — Major/minor reading of `phraseKey`; never moves notes; stops category-follow. `setCategory(category)` — sets the save category and, until the mode control is touched, the mode follows it (minor categories → minor). `switchToRelativeKey()` — relabels F major ↔ D minor (`relativeMinor`/`relativeMajor`) with the notes untouched: the one-click path for licks entered in the relative major when the editor's key signature was major-only. Typed naturals take the DRAWN signature (`signatureAccidentalsFor(phraseKey, phraseMode)`: D minor gives Bb, not C#), and `getCurrentPhrase()` stamps `mode` on every saved lick.
+- `loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void` — Hydrate the editor from an existing lick (`phraseMode = lickMode(lick)`; an explicitly stored mode hydrates as touched, an inferred one keeps following the category): copies the notes straight across in concert pitch, converts the lick's key back to written pitch via `concertKeyToWritten` (using the `instrument` arg) for the `phraseKey` dropdown, restores bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/licks/editor` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the book detail page), and redirect to `/licks/<id>` after saving.
 
 ---
 

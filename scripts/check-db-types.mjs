@@ -33,6 +33,16 @@ const COMMITTED = join(ROOT, 'src/lib/supabase/types.ts');
  * Each needs a reason — if you add one, say why the generator is wrong.
  */
 const DELIBERATE_OVERRIDES = {
+	'user_licks.mode': {
+		committed: "'major' | 'minor' | null",
+		generated: 'string | null',
+		reason:
+			'The column is TEXT with a CHECK (mode IS NULL OR mode IN (major, minor)); ' +
+			'the generator cannot see CHECK constraints and emits string | null. The ' +
+			'narrowed union keeps a bad literal from reaching the database boundary ' +
+			'(Phrase.mode is already this union) and lets cloudRowToPhrase spread it ' +
+			'straight onto the Phrase.'
+	},
 	'public_lick_authors.id': {
 		committed: 'string',
 		generated: 'string | null',

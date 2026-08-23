@@ -20,7 +20,7 @@
 import type { PitchClass, HarmonicSegment } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { BackingStyle } from '$lib/types/instruments';
-import { PROGRESSION_TEMPLATES, transposeProgression } from '$lib/data/progressions';
+import { transposeProgression, progressionMode, MINOR_CADENCE } from '$lib/data/progressions';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
 import { generateBacking, resolveBackingSwing } from './backing-generation';
 
@@ -48,25 +48,23 @@ export function turnaroundHarmony(
 	targetKey: PitchClass,
 	beatsPerBar: number
 ): HarmonicSegment[] {
-	// Templates are written in C; the tonic segment is the one rooted on C
-	// (same detection as getTransitionCadenceChords).
-	const tonic = PROGRESSION_TEMPLATES[progressionType]?.harmony.find(
-		(seg) => seg.chord.root === 'C'
-	);
-	const minor = tonic?.chord.quality.startsWith('min') ?? false;
+	// Mode-matched to the progression's tonic (same rule as
+	// getTransitionCadenceChords); the minor cadence is MINOR_CADENCE so the
+	// cue, the templates and the transition chords can't drift.
+	const minor = progressionMode(progressionType) === 'minor';
 
 	const half: [number, number] = [beatsPerBar, 8];
 	const cRooted: HarmonicSegment[] = minor
 		? [
 				{
-					chord: { root: 'D', quality: 'min7b5' },
-					scaleId: 'harmonic-minor.locrian-sharp6',
+					chord: { root: 'D', quality: MINOR_CADENCE.ii.quality },
+					scaleId: MINOR_CADENCE.ii.scaleId,
 					startOffset: [0, 1],
 					duration: half
 				},
 				{
-					chord: { root: 'G', quality: '7alt' },
-					scaleId: 'melodic-minor.altered',
+					chord: { root: 'G', quality: MINOR_CADENCE.V.quality },
+					scaleId: MINOR_CADENCE.V.scaleId,
 					startOffset: half,
 					duration: half
 				}

@@ -76,7 +76,7 @@ It runs on the same engine as [single-lick Deep Practice](./user-guide.md#single
 - **The bed.** Two bars of one chord, vamping. Enclosures drill over the vamp their **chord type** names: major type over a major vamp, minor over minor, dominant over dominant. Triad pairs use whatever their family wants: major for the three diatonic pairs, **dominant** for the altered and whole-tone ones, **minor** for the melodic-minor pair. The chip in the session header names it.
 - **The key.** A new variant starts with one key — **your written C** (concert B♭ on tenor), so the first key is the one you read as C — and earns more the way licks do, spreading outward around the circle. Keys are displayed in your written pitch.
 - **The tempo.** 60 BPM to start. Clear every key in the rotation and it goes up by whatever the Tempo Bump knob is set to — 1% by default — rounded up to a whole BPM, so at least 1 BPM and more as you get faster. In a Trick Drill the tempo **only ever goes up** — a bad round costs you the round, not the tempo — and unlike Deep Practice it **is** saved, because clearing the rotation is the only way a variant advances at all.
-- **Every round opens with the demo.** The app plays an example in the current key, then you answer. Unlike Deep Practice, the demo never gets dropped, because the figure is regenerated fresh every round — there's always something new to hear.
+- **The demo plays when there's something new to hear.** The first round opens with the app playing an example in the current key, then you answer. After that a round only opens with a demo if its example *style* is one you haven't heard this session — enclosures have one style, so you hear the demo once, at the very beginning, and then the rounds run straight into each other; triad pairs rotate three styles, so you hear each of those once. A freshly regenerated figure in a style you've already heard is not a new thing to listen to, so it doesn't earn another Listen.
 - **One window per key**, back to back, sized to the figure — two bars for a triad-pair cell, longer for the full enclosure figure with its pickup — with your percentage flashing on the chart row as each window closes. Keys you score **95% or better** on drop out of the rotation for the rest of the session, so the cycle keeps getting shorter and lands on what's still shaky.
 - **One bar of turnaround** joins the rounds, and then it starts again.
 
@@ -112,7 +112,7 @@ A triad pair isn't one lick, so the app accepts three readings of it and **score
 - **Alternating triplets** — twelve notes, one triplet group per beat, A-B-A-B.
 - **Four eighths each** — four notes of A, four of B, with a root-3rd-5th-3rd contour.
 
-You don't pick one. Play the pair however you like and the app takes the best of the three. The demo rotates through them round by round — cell, triplets, four eighths — which is the only place the app shows you they exist.
+You don't pick one. Play the pair however you like and the app takes the best of the three. The demo introduces them one round each — cell, then triplets, then four eighths — which is the only place the app shows you they exist; once all three have played, the rounds open without a demo.
 
 ### What you actually see
 

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { lickMode } from '$lib/music/mode';
+	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
 	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, getTonalMastery } from '$lib/state/progress.svelte';
 	import { difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
@@ -16,7 +18,7 @@
 	import { dailySummaries } from '$lib/state/history.svelte';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { CATEGORY_LABELS, PITCH_CLASSES, type PitchClass, type Phrase } from '$lib/types/music';
+	import { CATEGORY_LABELS, PITCH_CLASSES, type HarmonicSegment, type PitchClass, type Phrase } from '$lib/types/music';
 	import { getBaseLickFromId, transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import type { SessionResult } from '$lib/types/progress';
@@ -27,7 +29,7 @@
 		clearLickPracticeSessions,
 		type LickPracticeSessionLogEntry
 	} from '$lib/persistence/lick-practice-sessions';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { PROGRESSION_TEMPLATES, progressionMode } from '$lib/data/progressions';
 	import type { LickPracticeMode } from '$lib/types/lick-practice';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
@@ -153,6 +155,17 @@
 			}
 		}
 		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh);
+	}
+
+	/**
+	 * The harmony the user practised a lick over in `key` — the lick's own
+	 * changes transposed the way the session transposed them — so the per-key
+	 * note list spells each note against its chord. Null when the lick is no
+	 * longer in the book (or was a trick variant, which has no stored lick).
+	 */
+	function findLickHarmonyInKey(lickId: string, key: PitchClass): HarmonicSegment[] | null {
+		const base = getBaseLickFromId(lickId);
+		return base ? transposeLick(base, key).harmony : null;
 	}
 
 	async function togglePlayLick(s: SessionResult): Promise<void> {
@@ -391,7 +404,8 @@
 
 							<!-- Expanded detail view -->
 							{#if expandedSessionId === s.id}
-								{@const lickAvailable = !!findPhraseForSession(s)}
+								{@const sessionPhrase = findPhraseForSession(s)}
+								{@const lickAvailable = !!sessionPhrase}
 								<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
 									<!-- Audio playback -->
 									{#if recordingIds.has(s.id) || lickAvailable}
@@ -476,6 +490,9 @@
 											noteResults={s.noteResults}
 											transpositionSemitones={instrument.transpositionSemitones}
 											displayKey={concertKeyToWritten(s.key as PitchClass, instrument)}
+											harmony={sessionPhrase?.harmony ?? null}
+											displayMode={sessionPhrase ? lickMode(sessionPhrase) : 'major'}
+											displayScaleId={s.scaleType ? SCALE_TYPE_TO_SCALE_ID[s.scaleType] : undefined}
 											timing={s.timing}
 										/>
 									{/if}
@@ -561,7 +578,7 @@
 															class:outline-transparent={!isOpen}
 															style="background: color-mix(in srgb, {color} 13%, transparent); color: {color};"
 														>
-															<span class="font-bold">{concertKeyToWritten(k.key as PitchClass, instrument)}</span>
+															<span class="font-bold">{keyLabel(concertKeyToWritten(k.key as PitchClass, instrument), progressionMode(lick.progressionType ?? ls.progressionType))}</span>
 															<span class="tabular-nums">{pct(k.score)}%</span>
 														</button>
 													{/each}
@@ -574,6 +591,8 @@
 														displayKey={expandedKey
 															? concertKeyToWritten(expandedKey as PitchClass, instrument)
 															: undefined}
+														harmony={expandedKey ? findLickHarmonyInKey(lick.lickId, expandedKey as PitchClass) : null}
+														displayMode={progressionMode(lick.progressionType ?? ls.progressionType)}
 													/>
 												{/if}
 											</div>

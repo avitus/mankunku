@@ -853,6 +853,7 @@ export async function syncUserLicksToCloud(
 			category: lick.category as string,
 			tags: lick.tags,
 			source: lick.source as string,
+			mode: lick.mode ?? null,
 			audio_url: null as string | null,
 			updated_at: new Date().toISOString()
 		});
