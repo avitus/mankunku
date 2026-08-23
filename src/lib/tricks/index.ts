@@ -42,6 +42,26 @@ export function exampleStyleForRound(trick: Trick, roundNumber: number): string 
 }
 
 /**
+ * Does practice round `roundNumber` have something NEW to hear — an example
+ * style no earlier round of this session has demoed? Round 1 always does.
+ * A trick with no declared styles (enclosures) therefore demos once, at the
+ * very beginning; a trick whose styles rotate (triad pairs: cell, triplets,
+ * four eighths — the demo is the only place the app shows they exist) demos
+ * once per style and then never again. Tricks used to demo EVERY cycle on
+ * the grounds that the example regenerates each round; a fresh realization
+ * of the same figure is not new to the ear, and the Listen bars piled up
+ * (2026-08-22 user report, enclosures).
+ */
+export function trickRoundIntroducesStyle(trick: Trick, roundNumber: number): boolean {
+	const round = Math.max(1, roundNumber);
+	const style = exampleStyleForRound(trick, round);
+	for (let earlier = 1; earlier < round; earlier++) {
+		if (exampleStyleForRound(trick, earlier) === style) return false;
+	}
+	return true;
+}
+
+/**
  * The harmony a variant is actually drilled over: the device picks the vamp
  * its selected variant sounds correct on (altered triad pairs → the dominant
  * vamp, the melodic-minor family → the minor vamp), defaulting to the major

@@ -98,7 +98,7 @@ When the user asks to create a PR, base it on the branch they're currently on. D
 
 **Why:** The user prefers to stay on their working branch, and PR creation is their call — the dev → PR → main convention is not standing permission.
 
-**How to apply:** commit + push on the current branch is routine; stop there and say a PR can be opened on request. "Commit and create a PR" → commit on current branch, push, open PR from that branch. Only create a new branch if explicitly asked.
+**How to apply:** commit locally and stop — the user batches fixes on `dev` and decides when to push and when a PR opens ("Don't push any more yet. I had more fixes which is why I didn't want to open a PR"). Push when told; after a push, say a PR can be opened on request. "Commit and create a PR" → commit on current branch, push, open PR from that branch. Only create a new branch if explicitly asked.
 
 ### Skip redundant git checks; chain add, commit, and push
 When changes are already known from the current conversation, skip `git diff` / `git log` and chain `add`, `commit`, and `push` in a single Bash call.

@@ -2,6 +2,14 @@
 
 Newest at the top.
 
+## 2026-08-22 (later) — Enclosure drills: Listen only when there's something new to hear
+
+User: *"There are too many 'listen' demonstrations when I'm practicing enclosures. One demo only at the very beginning is sufficient."* Trick sessions demoed EVERY cycle — `demoBarsForItem` exempted `kind: 'trick'` from the `demoNextCycle` gate and the cycle boundary re-armed the flag for tricks on the stated grounds that "the example regenerates each round, so the ear reference is always new." The user is telling us that premise is wrong for enclosures: a fresh realization of the same figure is not new to the ear.
+
+Built: `trickRoundIntroducesStyle(trick, round)` in `tricks/index.ts` — round 1 always; a later round only if its example STYLE hasn't been demoed this session. Enclosures declare no styles → one demo, then none; triad pairs rotate three (`tricks.md` says the demo is the only place they're shown) → rounds 1–3, then none. The trick exemption in `demoBarsForItem` is gone; the cycle boundary sets `demoNextCycle` from the helper + continuous mode. C&R untouched. Tests: helper unit, the two pins that encoded "always demo" flipped, real enclosure and triad-pair sessions through five advances. Docs on all four surfaces.
+
+Worth keeping: the old comment stated a rationale ("always new") that was really a design assumption, and the user's report falsified it — the style-aware rule is the SAME rationale made honest ("new to hear" = new style, not new realization). I offered the strictly-one-demo reading for triad pairs too; chose the style rule because the doc had explicitly given the rotating demo a job.
+
 ## 2026-08-22 — "Not true to the key": one spelling policy, not two
 
 User report: in the ear-training session recordings, *"the expected notes are not true to the key. In C blues, a Bb (the flat 7th) is shown as A#."*

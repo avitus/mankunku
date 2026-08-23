@@ -7,8 +7,11 @@
  *   from the rolling scores — which by then include this cycle's attempts —
  *   and decides `demoNextCycle`: demo only while the head (worst) key is
  *   below proficient, and only in continuous mode.
- * - Tricks are exempt: single-key-family drills with a regenerated phrase
- *   each round keep their every-cycle demo and their rotation order.
+ * - Tricks keep their rotation order (worst-first is a lick concept) but
+ *   follow the same demo gate: `advanceSingleLickRound` demos a trick cycle
+ *   only when its example STYLE is new to the session (enclosures: round 1
+ *   only; triad pairs: one round per style) — see tests/unit/tricks/
+ *   demo-round-policy.test.ts and tests/unit/state/trick-session.test.ts.
  * - `getDemoBars` is the single source for the demo block's length: the
  *   super-phrase builder and the session page must agree on 0 bars for a
  *   skipped demo, else windows and audio desync.
@@ -166,7 +169,7 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
-	it('leaves trick rotations unsorted and always demoing', () => {
+	it('leaves trick rotations unsorted and drops the demo after the first cycle', () => {
 		setUnlockedCount('trick-host', 3);
 		startSingleLickSession(makeLick('C', 'trick-host'));
 		lickPractice.plan[0].kind = 'trick';
@@ -177,7 +180,9 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 		advanceSingleLickRound();
 
 		expect(lickPractice.plan[0].keys).toEqual(['C', 'G']);
-		expect(lickPractice.demoNextCycle).toBe(true);
+		// A synthetic trick item with no device resolves to a single example
+		// style: nothing new to hear after round 1, so no demo.
+		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 });
 
@@ -200,11 +205,12 @@ describe('getDemoBars', () => {
 		expect(getDemoBars(0)).toBe(0);
 	});
 
-	it('always returns the demo block for trick items', () => {
+	it('gates trick items by demoNextCycle exactly like licks', () => {
 		startSingleLickSession(LICK_ID);
 		lickPractice.plan[0].kind = 'trick';
-		lickPractice.demoNextCycle = false;
 		expect(getDemoBars(0)).toBe(getKeyBars());
+		lickPractice.demoNextCycle = false;
+		expect(getDemoBars(0)).toBe(0);
 	});
 
 	it('always returns the demo block in standard mode (unchanged behavior)', () => {
