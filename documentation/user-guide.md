@@ -258,7 +258,7 @@ The Progress page is the back cover. It tells you what's been happening over tim
 - **Calendar heatmap** — every day you practiced, lit by session count. Skipped days are dim.
 - **Scale Proficiency** — a breakdown per scale type, and the adaptive-difficulty detail behind your level.
 - **By Key grid** — your average score in each key, so you can see which keys still need work.
-- **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade.
+- **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade. Expand one for the note-by-note list; note names are spelled the way the chart spelled them (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#).
 
 Tricks and Side B sessions count toward your streak and the calendar, but the Progress page has no per-trick view — that lives on each trick's own page.
 

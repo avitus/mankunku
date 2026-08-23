@@ -154,9 +154,11 @@ Per-note comparison grid showing expected vs played notes.
 | `noteResults` | `NoteResult[]` | Per-note scoring results |
 | `transpositionSemitones` | `number?` | Semitones added for written-pitch display (e.g. `14` for tenor sax). Defaults to `0`. |
 | `displayKey` | `string?` | Written-pitch key (e.g. `"B"` for an A-concert tenor session); drives accidental spelling |
+| `harmony` | `HarmonicSegment[]?` | The phrase's harmony (concert pitch) so each note is spelled against the chord that governed it — exactly what the chart showed. The progress page re-resolves it (`findPhraseForSession` for ear-training rows, the lick transposed to the key for lick-practice rows). |
+| `displayScaleId` | `string?` | Fallback frame when no chord governs a note: the session's scale (e.g. `'blues.minor'`) rooted at `displayKey`. Without either, a key with no signature spells every black key sharp — a written-C blues listed its b7 as A#. |
 | `timing` | `TimingDiagnostics?` | Timing diagnostics from the scorer; drives the Offset column and footer |
 
-Filters out extra notes (only shows matched and missed). Columns: index, expected note name, played note name (colored by accuracy), pitch %, rhythm %, and per-note timing offset in ms (colored by lateness/earliness). When `timing` is present, a footer below the grid also shows overall bias, spread, and latency correction.
+Filters out extra notes (only shows matched and missed). Columns: index, expected note name, played note name (colored by accuracy), pitch %, rhythm %, and per-note timing offset in ms (colored by lateness/earliness). Names go through the shared enharmonic policy (`spellingContextAt` + `resolveUseFlats` in `music/notation.ts`); a played note is read against the chord of the expected note it answered. When `timing` is present, a footer below the grid also shows overall bias, spread, and latency correction.
 
 ### `ScoreStrip.svelte`
 

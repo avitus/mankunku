@@ -4,6 +4,40 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-22 — A binary where the data carried a richer answer; and "no signature" means silent, not sharp
+
+The A#-for-Bb bug was a *projection* bug: three-valued information (the scale,
+the chord, the key) was being collapsed to one bit (`FLAT_KEYS.includes(key)`)
+at the display edge, while the same information was fully available two
+function calls away — every `HarmonicSegment` carries a `scaleId`, every
+ear-training session carries a `scaleType`, and the progress page already
+re-resolved the whole phrase for its play button. The component wasn't
+missing data; it was discarding it. Worth generalising: when a display-layer
+helper takes a *key* and returns a *spelling*, ask what else the caller knows
+that the helper is being denied. The cheapest fixes in this codebase have been
+"stop projecting" rather than "add data".
+
+Second, the chart's own chord tier had a blind spot that nobody had reported:
+D# and F# for the blue third and fifth over C7. It was right *by interval
+theory* (#9, #11 of a dominant) and wrong *by idiom* (the blues scale is
+spelled with flats everywhere). The repair was not to override the chord
+tier but to recognise which of its decisions were guesses: a chord quality
+can't tell b3 from #9, b5 from #11, #5 from b13 — everything else it derives
+unambiguously. So the scale tier settles exactly those three and abstains
+otherwise. That narrowness was load-bearing, not timidity: the altered scale
+labels the major third "b4", and a scale tier that trusted every label would
+have turned the third of E7alt into Ab. The general shape: when adding a
+higher-priority tier to a heuristic chain, scope it to the *ambiguity* the
+lower tier actually has, not to everything the new source has an opinion on.
+
+Third, the user's wording "true to the key" — and the existing test literally
+named "treats C major as sharp-keyed" — exposed a framing error baked into
+the code. C has no signature; that makes it *silent* about accidentals, not
+sharp-side. The binary default had to pick something and picked sharps, and
+the test enshrined the arbitrary choice as a property. Defaults that must
+pick something should be written so the reader knows they are arbitrary; this
+one read as a rule.
+
 ## 2026-08-21 — "Nothing persisted" is a claim against every write path, not a description of intent
 
 Four review rounds on PR #238 were one sentence being falsified repeatedly. I wrote

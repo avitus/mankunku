@@ -2,6 +2,20 @@
 
 Newest at the top.
 
+## 2026-08-22 — "Not true to the key": one spelling policy, not two
+
+User report: in the ear-training session recordings, *"the expected notes are not true to the key. In C blues, a Bb (the flat 7th) is shown as A#."*
+
+Root cause, traced rather than guessed: `NoteComparison` named pitches through `midiToDisplayName(midi, displayKey)`, whose only rule was "flats iff the key is in `FLAT_KEYS`" — so written C and every sharp key spelled every black key sharp, whatever the scale or chord. The chart (`phraseToAbcWithMap`) had a richer chain (explicit › key signature › governing chord › key default), which is why the chart showed Bb over C7 and the list beneath it A#. A probe of the real `Blues Call` lick then showed the chart was only half right itself: `^D2F2 G2_B2` — the blue third rendered as the #9 of C7 and the b5 as the #11, because nothing consulted the segment's declared `scaleId: 'blues.minor'`.
+
+- **Built**: a shared chain in `music/notation.ts` — `scaleSpellingPreference` (the declared scale settles ONLY the chord tier's three ambiguous degrees b3/#9, b5/#11, #5/b13; abstains everywhere else so the altered scale's "b4" can never respell the third of E7alt), `resolveUseFlats` (explicit › signature › scale › chord › default), `spellingContextAt` (builds the frame from concert harmony + offset + transposition, or falls back to a scale rooted at the key with the chord it implies). The chart's `renderNote` and `midiToDisplayName(midi, key, scaleId?)` both run it. `NoteComparison` takes `harmony` + `displayScaleId`; the progress page passes the re-resolved session phrase's harmony for ear-training rows (`findPhraseForSession` already existed for the play button) and the lick transposed to the key for lick-practice rows (`findLickHarmonyInKey`), with the session's `scaleType` as the fallback frame.
+- **Chart behaviour change, deliberate**: blues/pentatonic/half-whole lines over a dominant now print Eb/Gb rather than D#/F#, and the #9 over a 7alt prints as the altered scale's b3 (Bb over G7alt). No pinned ABC anywhere in the suite disagreed.
+- **Not done**: `tune-notation.ts` (lead sheets) still runs the chord tier without the scale tier — its segment scales are synthesized from quality (`scaleIdForQuality`), so the tier would only move the #9 of 7alt there; left alone, noted. The unused `FeedbackPanel` still calls `NoteComparison` with no key (concert flats).
+
+Worth keeping: the user's phrase "true to the key" was more precise than it sounded — a key with no signature is not "sharp-keyed", it is *silent*, and the thing that speaks for it is the scale. The fix was to stop making a binary decision where the data carried a richer answer all along (every `HarmonicSegment` has a `scaleId`; every ear-training session has a `scaleType`). Also: "spell what the chart showed" is only achievable by sharing the function, not by re-implementing the rule in the component — and the chart was itself wrong, so the shared function fixed both at once.
+
+Numbers: RED 14+6 → GREEN; 4309 unit/integration green (35 expected-fail; +6 files' worth of new cases in notation.test.ts), svelte-check 0 errors.
+
 ## 2026-08-20 — The focus ramp: Deep Practice that starts on the key that failed
 
 Opened with a report from daily practice: *"It came in at 41% — one key under 75% blocks both the tempo bump and your next key"*, then **Start deep practice** dropped the user into a 12-key rotation where almost no time landed on that key. The user offered two shapes — (a) drill the failing key only, (b) start on it, work it up to speed, then add the rest in reverse order of expertise — and leaned (b). I argued for (b) too, for a reason the user hadn't named: what failed was D *inside a 12-key rotation*, under context-switch load; (a) fixes the notes but never re-tests them under load, (b) rebuilds the load progressively. It is the app's own unlock ladder in miniature, with expertise replacing circle-of-fifths adjacency as the admission order.

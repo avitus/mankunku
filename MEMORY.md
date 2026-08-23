@@ -227,6 +227,13 @@ The report's weak-key recommendation (`drill-weak-key` in `lick-practice-next-st
 - `startSingleLickSession(lick, options)`: an omitted `tempoBumpPercent` falls back to the config knob (it used to reset the knob to 1% on every CTA launch). `splitReportByProgression` copies `SessionReport.ramp` explicitly — any new single-lick report field must be added there too.
 - The user guide's Next-card paragraph was missing entirely until this change — the four-surfaces audit direction (code → docs) is the only thing that finds that.
 
+### Enharmonic spelling is ONE shared chain (2026-08-22)
+`music/notation.ts` owns the policy: `spellingContextAt` + `resolveUseFlats` — explicit `Note.spelling` › the enharmonic the key signature already covers › the segment's declared scale (settles ONLY the chord tier's three ambiguous degrees b3/#9, b5/#11, #5/b13 — the altered scale's "b4" must never respell the third of E7alt) › governing chord (`chordSpellingPreference`) › key-side default. The chart's `renderNote`, `midiToDisplayName(midi, key, scaleId?)` and `NoteComparison` (via `harmony` + `displayScaleId`) all run it, so a session's note list spells what its chart showed.
+
+**Why:** 2026-08-22 report — a written-C blues session listed its b7 as A#: the comparison spelled by a flats-iff-FLAT_KEYS bit while the chart used the chord; and the chart itself spelled the blue third/fifth as the #9/#11 of C7 because nothing read the segment's `scaleId`. A key with no signature is *silent* about accidentals, not sharp-side — the scale speaks for it.
+
+**How to apply:** never spell a pitch by key alone when a chord or scale is reachable; pass `harmony` (concert) + offset, or at least the scale id, and let the chain decide. Lead sheets (`tune-notation.ts`) still run the chord tier without the scale tier — their segment scales are synthesized from quality, so it would only move the #9 of 7alt; revisit if a lead-sheet spelling report lands.
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

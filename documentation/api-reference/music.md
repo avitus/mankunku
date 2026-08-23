@@ -178,6 +178,7 @@ Generate an ABC notation string.
 - ABC header: `X:`, `T:`, `M:`, `L:`, `K:` fields
 - Notes with proper ABC octave conventions (uppercase C4, lowercase c5, apostrophes/commas)
 - **Key-signature-aware accidentals**: Notes matching the key signature (e.g., F# in D major) omit the accidental symbol. Natural signs (`=`) are emitted when a note cancels a key signature accidental. Chromatic alterations outside the key signature display as before.
+- **Enharmonic spelling follows one shared policy** (`resolveUseFlats` / `spellingContextAt`, below): the note's explicit `spelling` › the enharmonic the key signature already covers › the segment's declared scale › the governing chord › the key-side default. The chord and scale are judged at written pitch.
 - Duration modifiers relative to `L:` value
 - Final barline `|]`
 
@@ -201,9 +202,23 @@ export interface PitchedNoteAnchor {
 
 Return a pitch class name spelled for a given key context. Only special-cases `F#` → `Gb` when `keyContext` is a flat key; all other pitch classes pass through unchanged. Used by UI chips that show the current scale's notes.
 
-### `midiToDisplayName(midi, useFlats?): string`
+### Enharmonic spelling policy
 
-Convert MIDI to display name (e.g. `60 → 'C4'`, `58 → 'Bb3'`). Defaults to flats.
+One chain decides sharp-vs-flat for every named pitch — the chart renderer and every note-name display call it — so a session's note list spells exactly what its chart showed.
+
+| Function | Description |
+|---|---|
+| `chordSpellingPreference(midi, root, quality)` | `'sharp' \| 'flat' \| null` — proper interval spelling against the governing chord (the third of A7 is C#, the minor third of C-7 is Eb). Letter steps from the chord root; the quality guesses the three ambiguous degrees (b3 vs #9, b5 vs #11, #5 vs b13). Abstains for white keys and double accidentals. |
+| `scaleSpellingPreference(midi, root, degrees)` | `'sharp' \| 'flat' \| null` — the declared scale's answer for **only** those three ambiguous degrees: a blues line over C7 carries Eb and Gb, not the #9/#11 the dominant quality suggests. Abstains everywhere else, so a theoretical mode label (the altered scale's "b4") never respells an unambiguous chord tone. |
+| `signatureSpelling(pc, sig)` | The enharmonic already in the key signature (a C# in D major must not print as Db), or null. |
+| `resolveUseFlats(midi, ctx: SpellingContext)` | The chain: `explicit` › signature › scale › chord › `defaultFlats` (flats iff the display key is in `FLAT_KEYS`). |
+| `spellingContextAt({ displayKey, harmony?, offset?, transpositionSemitones?, scaleId?, explicit? })` | Builds the `SpellingContext` the chart uses for one note: the chord governing `offset` (concert harmony, roots shifted to written pitch and respelled for the key) with its declared scale; or, when no chord governs, `scaleId` rooted at the key with the chord it implies (`chordApplications[0]`). |
+
+The scale fallback is what makes a key with no signature spell "true to the key": written C alone says nothing about Bb vs A#, but C blues does (2026-08-22 user report — a written-C blues session listed its b7 as A#).
+
+### `midiToDisplayName(midi, useFlatsOrKey?, scaleId?): string`
+
+Convert MIDI to display name (e.g. `60 → 'C4'`, `58 → 'Bb3'`). The second argument is either an explicit `useFlats` boolean (default `true`) or a written key name, in which case the name goes through the spelling policy above — key signature, then the optional `scaleId` rooted at the key, then the key-side default. `midiToDisplayName(70, 'C')` is `'A#4'`; `midiToDisplayName(70, 'C', 'blues.minor')` is `'Bb4'`.
 
 ---
 

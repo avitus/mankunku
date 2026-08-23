@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Score } from '$lib/types/scoring';
+	import type { HarmonicSegment } from '$lib/types/music';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import { GRADE_LABELS, getGradeCaption } from '$lib/scoring/grades';
 	import { GRADE_COLORS } from '$lib/ui/score-colors';
@@ -10,11 +11,13 @@
 		instrument: InstrumentConfig;
 		/** Written-pitch key for accidental spelling in the per-note comparison. */
 		displayKey?: string;
+		/** The practised phrase's harmony (concert pitch) so notes are spelled against their chord. */
+		harmony?: readonly HarmonicSegment[] | null;
 		/** Notify parent that a recording lookup failed so it can disable the chip. */
 		onmissing?: () => void;
 	}
 
-	let { sessionId, instrument, displayKey, onmissing }: Props = $props();
+	let { sessionId, instrument, displayKey, harmony = null, onmissing }: Props = $props();
 
 	let loading = $state(true);
 	let score: Score | null = $state(null);
@@ -109,6 +112,7 @@
 			noteResults={score.noteResults}
 			transpositionSemitones={instrument.transpositionSemitones}
 			{displayKey}
+			{harmony}
 			timing={score.timing}
 		/>
 	{:else}

@@ -4,6 +4,7 @@ import type { InstrumentConfig } from '$lib/types/instruments';
 import { midiToPitchClass, midiToOctave, fractionToFloat, gcd } from './intervals';
 import { concertToWritten, concertKeyToWritten, transposePitchClass } from './transposition';
 import { noteArticulationPrefix } from './articulation-abc';
+import { getScale } from './scales';
 
 /** Note letter names A–G */
 type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
@@ -86,12 +87,169 @@ export function chordSpellingPreference(
 	return null;
 }
 
+/** Semitones above the root for each diatonic degree 1–7 (major-scale frame). */
+const DEGREE_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+
+/**
+ * The three intervals the chord tier cannot spell from the quality alone —
+ * b3 vs #9, b5 vs #11, #5 vs b13. `chordSpellingPreference` guesses them
+ * from quality sets; a declared scale settles them.
+ */
+const AMBIGUOUS_CHORD_INTERVALS: ReadonlySet<number> = new Set([3, 6, 8]);
+
+/**
+ * Preferred enharmonic spelling of a chromatic note under the SCALE a
+ * segment declares, rooted where the chord is. The chord tier spells
+ * every interval from the root by letter arithmetic, but three degrees
+ * are ambiguous by quality alone (b3/#9, b5/#11, #5/b13) and it guesses
+ * them. A declared scale is the author's answer to exactly that
+ * question — a blues line over C7 carries Eb and Gb, not the #9 and #11
+ * the dominant quality would suggest — so this tier settles ONLY those
+ * three degrees and abstains (null) everywhere else: white keys, pitches
+ * outside the scale, any other interval, and degree labels whose letter
+ * would need a double accidental. It deliberately never lets a
+ * theoretical mode label respell an unambiguous chord tone: the altered
+ * scale calls the major third "b4", and the third of E7alt is still G#.
+ *
+ * `root` is a display spelling ('Gb', 'F#', 'Eb'), read letter-first like
+ * `chordSpellingPreference`, so the degree letters follow what the reader
+ * sees.
+ */
+export function scaleSpellingPreference(
+	midi: number,
+	root: string,
+	degrees: readonly string[]
+): 'sharp' | 'flat' | null {
+	const pc = midiToPitchClass(midi);
+	if (pc !== 1 && pc !== 3 && pc !== 6 && pc !== 8 && pc !== 10) return null;
+
+	const rootLetter = root[0] as NoteLetter;
+	const rootNatural = LETTER_NATURAL_PC[rootLetter];
+	if (rootNatural === undefined) return null;
+	const rootAccidental = root[1] === '#' ? 1 : root[1] === 'b' ? -1 : 0;
+	const rootPc = (rootNatural + rootAccidental + 12) % 12;
+	const interval = (pc - rootPc + 12) % 12;
+	if (!AMBIGUOUS_CHORD_INTERVALS.has(interval)) return null;
+
+	for (const label of degrees) {
+		const m = /^([b#]*)([1-7])$/.exec(label);
+		if (!m) continue;
+		const degree = Number(m[2]);
+		let alter = 0;
+		for (const c of m[1]) alter += c === '#' ? 1 : -1;
+		if ((DEGREE_SEMITONES[degree - 1] + alter + 12) % 12 !== interval) continue;
+
+		// The label's letter decides: a single sharp or flat of it spells the
+		// pitch; a natural or double accidental means the scale has no
+		// single-accidental name for it here, so the chord tier keeps the call.
+		const letter = LETTER_SEQUENCE[(LETTER_SEQUENCE.indexOf(rootLetter) + degree - 1) % 7];
+		const diff = (pc - LETTER_NATURAL_PC[letter] + 12) % 12;
+		if (diff === 1) return 'sharp';
+		if (diff === 11) return 'flat';
+		return null;
+	}
+	return null;
+}
+
+/** Everything the enharmonic policy consults for one pitch. */
+export interface SpellingContext {
+	/** The note's own override (`Note.spelling`). */
+	explicit?: 'sharp' | 'flat';
+	/** Key signature of the DISPLAY key. */
+	keySig: KeySigMap;
+	/** Declared scale, rooted at the chord (or at the key when there is no chord). */
+	scale?: { root: string; degrees: readonly string[] } | null;
+	/** Governing chord, root as a display spelling. */
+	chord?: { root: string; quality: ChordQuality } | null;
+	/** Key-side default: flats in flat keys. */
+	defaultFlats: boolean;
+}
+
+/**
+ * The single enharmonic policy, shared by the chart renderer and the
+ * note-name display so a session's note list spells what its chart showed.
+ * Priority: explicit choice > the enharmonic the key signature already
+ * covers (no accidental needed — a C# in D major must not print as Db) >
+ * the declared scale (settles b3/#9, b5/#11, #5/b13) > diatonic-to-the-
+ * governing-chord > key-side default.
+ */
+export function resolveUseFlats(midi: number, ctx: SpellingContext): boolean {
+	if (ctx.explicit === 'flat') return true;
+	if (ctx.explicit === 'sharp') return false;
+	const sigPref = signatureSpelling(midiToPitchClass(midi), ctx.keySig);
+	if (sigPref) return sigPref === 'flat';
+	const scalePref = ctx.scale ? scaleSpellingPreference(midi, ctx.scale.root, ctx.scale.degrees) : null;
+	if (scalePref) return scalePref === 'flat';
+	const chordPref = ctx.chord ? chordSpellingPreference(midi, ctx.chord.root, ctx.chord.quality) : null;
+	if (chordPref) return chordPref === 'flat';
+	return ctx.defaultFlats;
+}
+
+export interface SpellingContextArgs {
+	/** Written-pitch key the names are read in. */
+	displayKey: PitchClass;
+	/** Phrase harmony in CONCERT pitch; the chord governing `offset` spells the note. */
+	harmony?: readonly HarmonicSegment[] | null;
+	/** Phrase-relative offset in whole notes; omit when no chord applies. */
+	offset?: number | null;
+	/** Concert → written shift for chord roots (0 for concert instruments). */
+	transpositionSemitones?: number;
+	/**
+	 * Tonal frame when no chord governs: this scale rooted at the key, with
+	 * the chord it implies (its first `chordApplications` entry). This is what
+	 * lets a key with no signature spell "true to the key".
+	 */
+	scaleId?: string | null;
+	/** The note's own override (`Note.spelling`). */
+	explicit?: 'sharp' | 'flat';
+}
+
+/**
+ * The spelling frame the chart uses for one note, built from the same
+ * inputs wherever a pitch is named — so a session's note list spells what
+ * its chart showed. The chord and its declared scale are judged at WRITTEN
+ * pitch (roots shifted by `transpositionSemitones`, then respelled for the
+ * display key), matching the printed chord symbols.
+ */
+export function spellingContextAt(args: SpellingContextArgs): SpellingContext {
+	const { displayKey, explicit } = args;
+	const keySig: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
+	const defaultFlats = FLAT_KEYS.includes(displayKey);
+
+	const seg =
+		args.harmony && args.offset != null ? governingSegment(args.harmony, args.offset) : null;
+	if (seg) {
+		const root = displayPitchClass(
+			transposePitchClass(seg.chord.root, args.transpositionSemitones ?? 0),
+			displayKey
+		);
+		const scaleDef = getScale(seg.scaleId);
+		return {
+			explicit,
+			keySig,
+			scale: scaleDef ? { root, degrees: scaleDef.degrees } : null,
+			chord: { root, quality: seg.chord.quality },
+			defaultFlats
+		};
+	}
+
+	const scaleDef = args.scaleId ? getScale(args.scaleId) : undefined;
+	const impliedQuality = scaleDef?.chordApplications[0];
+	return {
+		explicit,
+		keySig,
+		scale: scaleDef ? { root: displayKey, degrees: scaleDef.degrees } : null,
+		chord: impliedQuality ? { root: displayKey, quality: impliedQuality } : null,
+		defaultFlats
+	};
+}
+
 /**
  * The chord governing a note offset: the last change at or before it.
  * Segments are change points — a chord rules until the next one.
  */
 export function governingSegment(
-	harmony: HarmonicSegment[],
+	harmony: readonly HarmonicSegment[],
 	offset: number
 ): HarmonicSegment | null {
 	let governing: HarmonicSegment | null = null;
@@ -583,28 +741,20 @@ export function phraseToAbcWithMap(
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-		// Spelling priority: explicit choice > the enharmonic that is IN the
-		// key signature (no accidental needed — a C# in D major must not
-		// print as Db) > chord-diatonic preference > key-side default.
-		const seg = governingSegment(phrase.harmony, fractionToFloat(note.offset));
-		const chordPref = seg
-			? chordSpellingPreference(
-					midi,
-					displayPitchClass(
-						instrument ? concertKeyToWritten(seg.chord.root, instrument) : seg.chord.root,
-						displayKey
-					),
-					seg.chord.quality
-				)
-			: null;
-		const sigPref = signatureSpelling(((midi % 12) + 12) % 12, keySigAccidentals);
-		const noteUseFlats = note.spelling === 'flat' ? true
-			: note.spelling === 'sharp' ? false
-			: sigPref === 'flat' ? true
-			: sigPref === 'sharp' ? false
-			: chordPref === 'flat' ? true
-			: chordPref === 'sharp' ? false
-			: useFlats;
+		// Spelling follows the shared policy (`resolveUseFlats`): explicit >
+		// key signature > the segment's declared scale > governing chord >
+		// key-side default. The chord and scale are judged at WRITTEN pitch
+		// so transposed display stays consistent with the printed symbols.
+		const noteUseFlats = resolveUseFlats(
+			midi,
+			spellingContextAt({
+				displayKey,
+				harmony: phrase.harmony,
+				offset: fractionToFloat(note.offset),
+				transpositionSemitones: instrument?.transpositionSemitones ?? 0,
+				explicit: note.spelling
+			})
+		);
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const art = noteArticulationPrefix(note);
 		const tieSuffix = note.tied ? '-' : '';
@@ -803,19 +953,32 @@ export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): strin
  *
  * Second argument controls accidental spelling:
  *   - boolean → explicit `useFlats` (true = "Db", false = "C#")
- *   - string  → a key name (e.g. "A", "Bb"); flats are used iff the key
- *               is in `FLAT_KEYS`, so notes are spelled per the key signature.
+ *   - string  → a key name (e.g. "A", "Bb"); spelled through the shared
+ *               policy (`resolveUseFlats`) — key signature, then the
+ *               optional `scaleId`'s degrees and the chord that scale
+ *               implies (its first `chordApplications` entry, rooted at
+ *               the key), then the key-side default (flats iff the key is
+ *               in `FLAT_KEYS`).
+ *
+ * The scale is what makes a key with no signature spell "true to the
+ * key": written C alone says nothing about Bb vs A#, but C blues does.
  */
 export function midiToDisplayName(
 	midi: number,
 	useFlatsOrKey: boolean | string = true,
+	scaleId?: string
 ): string {
 	const NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 	const NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-	const useFlats =
-		typeof useFlatsOrKey === 'boolean'
-			? useFlatsOrKey
-			: FLAT_KEYS.includes(useFlatsOrKey as PitchClass);
+	let useFlats: boolean;
+	if (typeof useFlatsOrKey === 'boolean') {
+		useFlats = useFlatsOrKey;
+	} else {
+		useFlats = resolveUseFlats(
+			midi,
+			spellingContextAt({ displayKey: useFlatsOrKey as PitchClass, scaleId })
+		);
+	}
 	const names = useFlats ? NAMES_FLAT : NAMES_SHARP;
 	return `${names[midiToPitchClass(midi)]}${midiToOctave(midi)}`;
 }
