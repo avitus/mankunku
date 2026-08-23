@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import { PITCH_CLASSES, type Mode, type PitchClass } from '$lib/types/music';
 	import { stepEntry, setBarCount, setPhraseMode, switchToRelativeKey } from '$lib/state/step-entry.svelte';
 	import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { transposeNotesForKeyChange } from '$lib/step-entry/transpose';
 	import { keyLabel, keyLabelLong } from '$lib/music/notation';
 	import { relativeMajor, relativeMinor } from '$lib/music/keys';
+
+	const MODES: Mode[] = ['major', 'minor'];
 
 	// The relative key the one-click relabel would switch to ("Read as D minor").
 	const relativeLabel = $derived(
@@ -49,7 +51,7 @@
 			{/each}
 		</select>
 		<div class="flex overflow-hidden rounded border border-[var(--color-bg-tertiary)] text-xs" role="group" aria-label="Key mode">
-			{#each ['major', 'minor'] as const as mode}
+			{#each MODES as mode}
 				<button
 					type="button"
 					onclick={() => setPhraseMode(mode)}

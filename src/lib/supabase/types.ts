@@ -763,7 +763,7 @@ export type Database = {
           /** Concert pitch key as PitchClass value */
           key: string
           /** 'major' | 'minor' | null — null = not stated (legacy); the client resolves via lickMode */
-          mode: string | null
+          mode: 'major' | 'minor' | null
           /** PostgreSQL INTEGER[2] storing time signature tuple (e.g. [4, 4]) */
           time_signature: number[]
           /** JSONB storing Note[] array — the lick's note sequence */
@@ -798,7 +798,7 @@ export type Database = {
           user_id: string
           name: string
           key: string
-          mode?: string | null
+          mode?: 'major' | 'minor' | null
           /** PostgreSQL INTEGER[2] — required, stores time signature tuple */
           time_signature: number[]
           /** JSONB — required, stores Note[] */
@@ -828,7 +828,7 @@ export type Database = {
           user_id?: string
           name?: string
           key?: string
-          mode?: string | null
+          mode?: 'major' | 'minor' | null
           time_signature?: number[]
           notes?: Json
           harmony?: Json

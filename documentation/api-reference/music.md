@@ -202,9 +202,9 @@ export interface PitchedNoteAnchor {
 }
 ```
 
-### `displayPitchClass(pc, keyContext): string`
+### `displayPitchClass(pc, keyContext, mode?): string`
 
-Return a pitch class name spelled for a given key context. Only special-cases `F#` → `Gb` when `keyContext` is a flat key; all other pitch classes pass through unchanged. Used by UI chips that show the current scale's notes.
+Return a pitch class name spelled for a given key context (major by default). In flat keys `F#` reads `Gb`; in sharp keys a canonical flat name that is DIATONIC to the key is spelled the key's way (`G#` in A, `D#` in E) while chromatic roots keep their flat names. With `mode: 'minor'` the context is the minor key's DRAWN signature — the relative major's, or six flats for Eb minor, where every flat name is kept and only `F#` → `Gb`. Used by chord charts and the UI chips that show the current scale's notes.
 
 ### Enharmonic spelling policy
 

@@ -153,6 +153,7 @@ describe('validateAdoptedPhrase', () => {
 		expect(validateAdoptedPhrase({ ...makePhrase(), mode: 'minor' }).valid).toBe(true);
 		expect(validateAdoptedPhrase({ ...makePhrase(), mode: 'major' }).valid).toBe(true);
 		expect(validateAdoptedPhrase({ ...makePhrase(), mode: null }).valid).toBe(true);
+		expect(validateAdoptedPhrase(makePhrase()).valid).toBe(true); // absent
 	});
 
 	it('rejects a mode outside major/minor', () => {

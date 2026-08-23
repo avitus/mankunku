@@ -852,7 +852,7 @@ export function getProgressionTags(phraseId: string): ChordProgressionType[] {
 		// A stale schema or a cross-device merge can carry a `prog:` tag that
 		// names no template; validate here so nothing downstream indexes
 		// PROGRESSION_TEMPLATES with it.
-		.filter((t): t is ChordProgressionType => Object.hasOwn(PROGRESSION_TEMPLATES, t));
+		.filter((t: string): t is ChordProgressionType => Object.hasOwn(PROGRESSION_TEMPLATES, t));
 }
 
 /**
@@ -867,14 +867,14 @@ export function pruneIncompatibleProgressionTags(
 	fits: (lick: Phrase, type: ChordProgressionType) => boolean
 ): Record<string, ChordProgressionType[]> {
 	const tags = loadUserLickTags();
-	const byId = new Map(licks.map((l) => [l.id, l] as const));
+	const byId = new Map(licks.map((l: Phrase): readonly [string, Phrase] => [l.id, l] as const));
 	const removed: Record<string, ChordProgressionType[]> = {};
 	let changed = false;
 	for (const [id, current] of Object.entries(tags)) {
 		const lick = byId.get(id);
 		if (!lick) continue;
 		const dropped: ChordProgressionType[] = [];
-		const kept = current.filter((t) => {
+		const kept = current.filter((t: string): boolean => {
 			if (!t.startsWith(PROG_TAG_PREFIX)) return true;
 			const type = t.slice(PROG_TAG_PREFIX.length);
 			if (!Object.hasOwn(PROGRESSION_TEMPLATES, type)) return true; // validated on read; not ours to judge here

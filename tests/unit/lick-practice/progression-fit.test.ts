@@ -144,6 +144,15 @@ describe('everything else honours explicit intent', () => {
 		}
 	});
 
+	it('a lick\'s own explicit mode vetoes a wrong-mode slot without any option', () => {
+		const minorUser = userLick('user', { mode: 'minor' });
+		expect(progressionFitsLick(minorUser, 'major-vamp')).toEqual({ fits: false, reason: 'mode' });
+		expect(progressionFitsLick(minorUser, 'minor-vamp').fits).toBe(true);
+		expect(progressionFitsLick(minorUser, 'dominant-vamp').fits).toBe(true);
+		// An inferred (not stated) mode never gates — only the explicit field.
+		expect(progressionFitsLick(userLick('user'), 'major-vamp').fits).toBe(true);
+	});
+
 	it('an EXPLICIT mode can still veto a wrong-mode slot', () => {
 		expect(progressionFitsLick(userLick('pentatonic'), 'major-vamp', { mode: 'minor' })).toEqual({ fits: false, reason: 'mode' });
 		expect(progressionFitsLick(userLick('pentatonic'), 'minor-vamp', { mode: 'major' })).toEqual({ fits: false, reason: 'mode' });

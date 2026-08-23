@@ -777,7 +777,7 @@ export function getChordRootAtOffset(
  */
 export function progressionMode(progressionType: ChordProgressionType): Mode {
 	const tonic = PROGRESSION_TEMPLATES[progressionType]?.harmony.find(
-		(seg) => seg.chord.root === 'C'
+		(seg: HarmonicSegment): boolean => seg.chord.root === 'C'
 	);
 	return tonic && MINOR_TONIC_QUALITIES.has(tonic.chord.quality) ? 'minor' : 'major';
 }
@@ -875,7 +875,8 @@ function addFractionsLocal(a: Fraction, b: Fraction): Fraction {
  * - Chord-quality categories: the chord in the lick's slot must be of the
  *   category's family.
  * - Everything else fits wherever the user tagged it — explicit intent —
- *   unless an EXPLICIT `opts.mode` contradicts the slot chord's mode.
+ *   unless an EXPLICIT mode (the lick's own `mode` field, or `opts.mode`)
+ *   contradicts the slot chord's mode.
  */
 export function progressionFitsLick(
 	lick: Phrase,
@@ -922,8 +923,12 @@ export function progressionFitsLick(
 		return families.includes(slotFamily) ? { fits: true } : { fits: false, reason: 'chord-role' };
 	}
 
-	if (opts?.mode === 'minor' && slotFamily === 'maj') return { fits: false, reason: 'mode' };
-	if (opts?.mode === 'major' && slotFamily === 'min') return { fits: false, reason: 'mode' };
+	// Only an EXPLICIT mode gates (the lick's own stated field, or an override);
+	// an inferred mode never does — a harmony-less user lick tagged onto a
+	// major vamp is the user's call.
+	const mode = opts?.mode ?? lick.mode;
+	if (mode === 'minor' && slotFamily === 'maj') return { fits: false, reason: 'mode' };
+	if (mode === 'major' && slotFamily === 'min') return { fits: false, reason: 'mode' };
 	return { fits: true };
 }
 
@@ -933,7 +938,7 @@ export function fittingProgressionsForLick(
 	opts?: { mode?: Mode | null }
 ): ChordProgressionType[] {
 	return (Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[]).filter(
-		(t) => progressionFitsLick(lick, t, opts).fits
+		(t: ChordProgressionType): boolean => progressionFitsLick(lick, t, opts).fits
 	);
 }
 
@@ -943,7 +948,7 @@ export function getProgressionsForLick(
 	opts?: { mode?: Mode | null }
 ): ChordProgressionType[] {
 	return getProgressionsForCategory(lick.category).filter(
-		(t) => progressionFitsLick(lick, t, opts).fits
+		(t: ChordProgressionType): boolean => progressionFitsLick(lick, t, opts).fits
 	);
 }
 

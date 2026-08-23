@@ -463,3 +463,27 @@ describe('pickProgressionForLick — fit filtering', () => {
 		).toBe('ii-V-I-minor');
 	});
 });
+
+describe('eligibility requires a FITTING progression tag', () => {
+	const FULL_MINOR = ALL_CURATED_LICKS.find((l) => l.id === 'ii-V-I-min-001')!;
+
+	it('selectInitialProgression skips a lick whose only tags are unfit instead of falling to DEFAULT', () => {
+		// FULL_MINOR is never practiced (most neglected) but its sole tag is the
+		// short template it does not fit; the other candidate must be chosen.
+		const got = selectInitialProgression({
+			candidates: [FULL_MINOR, lick('lk-blues', 'blues')],
+			progress: progressForLick('lk-blues', { C: 5000 }),
+			sessionLog: [],
+			getProgressionTags: tagsFromMap({ [FULL_MINOR.id]: ['ii-V-I-minor'], 'lk-blues': ['blues'] })
+		});
+		expect(got).toBe('blues');
+	});
+
+	it('findStrandedLicks reports a lick whose every tag is unfit', () => {
+		const stranded = findStrandedLicks({
+			candidates: [FULL_MINOR, lick('lk-blues', 'blues')],
+			getProgressionTags: tagsFromMap({ [FULL_MINOR.id]: ['ii-V-I-minor'], 'lk-blues': ['blues'] })
+		});
+		expect(stranded.map((l) => l.id)).toEqual([FULL_MINOR.id]);
+	});
+});

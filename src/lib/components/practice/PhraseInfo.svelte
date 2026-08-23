@@ -14,8 +14,18 @@
 
 	let { phrase, instrument }: Props = $props();
 
+	// Chord roots follow the key line: written pitch when an instrument is given,
+	// concert otherwise — a transposing player never sees a written key over
+	// concert chord symbols.
 	const chordDisplay = $derived(
-		phrase.harmony.map((h) => chordSymbol(h.chord.root, h.chord.quality)).join(' | ')
+		phrase.harmony
+			.map((h) =>
+				chordSymbol(
+					instrument ? concertKeyToWritten(h.chord.root, instrument) : h.chord.root,
+					h.chord.quality
+				)
+			)
+			.join(' | ')
 	);
 
 	const keyDisplay = $derived(

@@ -23,7 +23,8 @@ export interface UpcomingLickEntry {
 export const DEFAULT_PROGRESSION: ChordProgressionType = 'ii-V-I-major';
 
 /**
- * True when a practice-tagged lick has at least one explicit `prog:*` tag.
+ * True when a practice-tagged lick has at least one explicit `prog:*` tag
+ * that its own chord shape FITS (`progressionFitsLick`).
  * Category compatibility alone no longer counts: every practice-eligible
  * lick must carry the progressions it should play under as user tags
  * (seeded by `updateLickCategory` from the templates the lick's own harmony
@@ -36,7 +37,12 @@ function hasFittingProgression(
 	lick: Phrase,
 	getProgressionTags: (lickId: string) => ChordProgressionType[]
 ): boolean {
-	return getProgressionTags(lick.id).length > 0;
+	// A tag that the lick's own chord shape doesn't fit is inert everywhere
+	// else (picker, session filter, prune), so it must not count here either —
+	// otherwise a lick whose only tag is stale is "eligible" yet unpickable.
+	return getProgressionTags(lick.id).some(
+		(type: ChordProgressionType): boolean => progressionFitsLick(lick, type).fits
+	);
 }
 
 /**
@@ -71,7 +77,9 @@ export function pickProgressionForLick(args: {
 
 	const order = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
 	const userTags = new Set(progressionTags);
-	const fits = order.filter((p) => userTags.has(p) && (!lick || progressionFitsLick(lick, p).fits));
+	const fits = order.filter(
+		(p: ChordProgressionType): boolean => userTags.has(p) && (!lick || progressionFitsLick(lick, p).fits)
+	);
 	if (fits.length === 0) return null;
 
 	const lastPracticed = new Map<ChordProgressionType, number>();
@@ -168,7 +176,9 @@ export function buildUpcomingLicks(args: {
 		if (set.size === 0) continue;
 
 		// Only progressions the lick actually fits are actionable CTAs.
-		const progressions = order.filter((t) => set.has(t) && progressionFitsLick(lick, t).fits);
+		const progressions = order.filter(
+			(t: ChordProgressionType): boolean => set.has(t) && progressionFitsLick(lick, t).fits
+		);
 		if (progressions.length === 0) continue;
 		entries.push({
 			lick,

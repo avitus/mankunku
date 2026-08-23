@@ -341,7 +341,10 @@ export async function hydrateLickPracticeProgress(
 		// Idempotent and write-on-change only, so it can run on every successful
 		// hydrate — per-id LWW can resurrect a stale tag from an old-code
 		// device, and re-pruning folds it. Same cloudOk gate as the backfill.
-		pruneIncompatibleProgressionTags(getAllLicks(), (l, t) => progressionFitsLick(l, t).fits);
+		pruneIncompatibleProgressionTags(
+			getAllLicks(),
+			(l: Phrase, t: ChordProgressionType): boolean => progressionFitsLick(l, t).fits
+		);
 		// One-time: seed the per-lick progress-history graph from the local
 		// session log. Gated on cloud success for the same reason as the
 		// backfill above (don't push a partial blob over the intact cloud row).
