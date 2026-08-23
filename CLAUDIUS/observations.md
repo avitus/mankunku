@@ -4,6 +4,24 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-23 — A stale countdown is not a state; ask the system that owns the budget
+
+The CodeRabbit waiter I built first was a countdown from a per-PR ETA. It was
+wrong in a way that looked right: the ETA had passed, so the push "should"
+have been accepted, and it was rejected — because the budget is account-wide
+and other activity had spent it. A free live query (`@coderabbitai rate
+limit`) replaced the countdown and every attempt after that was accepted.
+The general form: when a remote system rations something, derive your
+decision from ITS current answer, not from your cached model of its
+schedule; and prefer the cheapest query it offers over any inference.
+
+The second lesson is about observability of my own loop: I resolved review
+threads when the fix was committed (honest — the reply cited the commit),
+but the verdict checker reads "unresolved threads: 0" on whatever head the
+PR has, so it declared DONE on the unpushed head. A checker that cannot see
+the local state must be gated on the remote state it CAN see (the PR head
+equals the fix sha) before its verdict means anything.
+
 ## 2026-08-22 (night) — Two conventions on one field, and why inference must refuse the obvious signal
 
 The minor-key work kept turning up the same shape: `Phrase.key` meant "tonic" in
