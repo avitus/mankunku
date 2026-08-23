@@ -23,7 +23,7 @@ The counts below are aggregate totals across the whole curated set (`ALL_CURATED
 | **Blues** | 12-bar blues vocabulary. Major-blues and minor-blues licks, blue notes (the b5), call-and-response shapes. | 257 |
 | **Pentatonic** | Pentatonic-based vocabulary that works over multiple harmonic contexts. | 160 |
 | **ii-V-I Major** | The signature jazz cadence (Dm7 → G7 → Cmaj7 in C). Different rhythmic shapes, different melodic strategies — chord-tone arpeggios, scale runs, enclosures. | 120 |
-| **ii-V-I Minor** | The minor counterpart (Dm7b5 → G7alt → Cm7 in C). Altered-dominant lines, melodic-minor color. | 83 |
+| **ii-V-I Minor** | The minor counterpart (Dm7b5 → G7alt → Cm7 in C minor — keyed by the TONIC, `mode: 'minor'`; the lick-practice template plays the V as G7b9). Altered-dominant lines, melodic-minor color. | 83 |
 | **Bebop Lines** | Long lines in the bebop vocabulary. Bebop scale runs, chromatic approaches, characteristic shapes from Bird, Dizzy, Bud Powell. | 79 |
 | **Short ii-V-I Major** | Compact two-bar ii-V-I major cells. | 60 |
 | **Short ii-V-I Minor** | Compact two-bar ii-V-I minor cells. | 57 |
@@ -57,7 +57,7 @@ Storing in C makes a few things much easier:
 - **Transposition is a single operation.** Shift every note's MIDI number by the interval from C to your target key, shift the chord roots by the same interval, and the lick is in your target key.
 - **Octave centering** can keep the result on your horn (more on this below).
 
-The "stored in C" rule also applies to the combinatorial generator. It works in C and the same transposition pipeline carries the result to your active key.
+"Stored in C" means stored on the TONIC: minor licks are C minor (`mode: 'minor'`), never Eb major. User-entered licks are the exception — they keep the concert key (and mode) they were entered in. The rule also applies to the combinatorial generator. It works in C and the same transposition pipeline carries the result to your active key.
 
 ## Octave centering — keeping licks on the horn
 
@@ -77,6 +77,7 @@ You can override the comfortable range in Settings ("Highest note") so the app r
 For practice sessions, the transposition logic gets one more layer of nuance. Different scale types have different parent-key relationships:
 
 - **Major modes with multi-chord progressions** (ii-V-I, turnarounds, rhythm changes) transpose to the **parent major key**. So an A Dorian ii-V-I doesn't transpose so the lick literally starts on A — it transposes to G major, the parent of A Dorian, so the chord progression Am7 → D7 → Gmaj7 still works as a real ii-V-I.
+- **Minor cadence licks** (`lickMode` minor + a progression category — the curated ii-V-i, short ii-V, V-i minor files) are keyed by their TONIC, not the parent major, so they transpose **tonic → tonality root** under any minor tonality (minor, Dorian, melodic minor) and are never snapped: the lick's own harmony is the context. Before this rule a C-minor ii-V-i under a "D minor" daily tonality was hopped to F minor (parent F major) and labelled D.
 - **Major modes with single-chord licks** transpose directly to the modal root. A Dorian lick over Dm7 transposes so it starts on D.
 - **Non-major scales** (blues, pentatonic, melodic minor, harmonic minor) transpose to the key, then **snap any out-of-scale notes to the nearest scale tone**, preferring flats when equidistant. This handles the case where a chromatic passing tone in the original would land on a sharp seventh in the new key — the snap nudges it to the actual scale member.
 

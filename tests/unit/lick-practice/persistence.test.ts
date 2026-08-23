@@ -22,12 +22,14 @@ import {
 	hasProgressionTag,
 	getProgressionTags,
 	backfillPracticeTags,
+	pruneIncompatibleProgressionTags,
 	getUnlockedKeyCount,
 	bumpUnlockedKeyCount,
 	loadUnlockCounts
 } from '$lib/persistence/lick-practice-store';
 import type { LickPracticeProgress, LickPracticeKeyProgress } from '$lib/types/lick-practice';
-import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+import { PITCH_CLASSES, type PitchClass, type Phrase } from '$lib/types/music';
+import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 // Mock localStorage
 const store: Record<string, string> = {};
@@ -600,5 +602,50 @@ describe('lick progress reset', () => {
 		const after = resetLickPersistence(progress, 'lick-1');
 		expect(hasLickProgress(after, 'lick-2')).toBe(true);
 		expect(loadLickPracticeProgress()['lick-2']).toBeDefined();
+	});
+});
+
+describe('progression tag hygiene', () => {
+	const lick = (id: string): Phrase => ({
+		id,
+		name: id,
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [],
+		harmony: [],
+		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'user',
+		tags: [],
+		source: 'test'
+	});
+
+	it('getProgressionTags drops prog:* tags that name no template', () => {
+		saveUserLickTags({ l1: ['prog:blues', 'prog:bogus', 'practice'] });
+		expect(getProgressionTags('l1')).toEqual(['blues']);
+	});
+
+	it('prune removes only non-fitting prog tags, reports them, and is idempotent', () => {
+		saveUserLickTags({
+			a: ['practice', 'prog:blues', 'prog:minor-vamp'],
+			b: ['prog:blues'],
+			ghost: ['prog:blues', 'prog:turnaround']
+		});
+		const fits = (l: Phrase, t: ChordProgressionType) => !(l.id === 'a' && t === 'minor-vamp');
+		const removed = pruneIncompatibleProgressionTags([lick('a'), lick('b')], fits);
+		expect(removed).toEqual({ a: ['minor-vamp'] });
+		const after = loadUserLickTags();
+		expect(after.a).toEqual(['practice', 'prog:blues']);
+		expect(after.b).toEqual(['prog:blues']);
+		// Unresolvable ids are left alone.
+		expect(after.ghost).toEqual(['prog:blues', 'prog:turnaround']);
+		// Second run: nothing to do.
+		expect(pruneIncompatibleProgressionTags([lick('a'), lick('b')], fits)).toEqual({});
+	});
+
+	it('prune keeps an emptied array rather than deleting the id (LWW over a stale copy)', () => {
+		saveUserLickTags({ a: ['prog:blues'] });
+		const removed = pruneIncompatibleProgressionTags([lick('a')], () => false);
+		expect(removed).toEqual({ a: ['blues'] });
+		expect(loadUserLickTags().a).toEqual([]);
 	});
 });

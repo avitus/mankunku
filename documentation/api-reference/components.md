@@ -115,11 +115,12 @@ Shows "No phrase loaded" placeholder when both `phrase` and `tune` are null.
 
 **Path:** `src/lib/components/practice/PhraseInfo.svelte`
 
-Compact display of the phrase's chord symbols.
+Compact display of the phrase's key and chord symbols.
 
 | Prop | Type | Description |
 |---|---|---|
 | `phrase` | `Phrase` | The phrase |
+| `instrument` | `InstrumentConfig?` | When given, a key line shows the tonic in WRITTEN pitch with its mode ("Key: D minor", via `keyLabelLong` + `lickMode`) |
 
 Shows a pipe-separated list of chord symbols derived from `phrase.harmony` (via `chordSymbol`), rendered only when at least one chord is present.
 
@@ -156,6 +157,7 @@ Per-note comparison grid showing expected vs played notes.
 | `displayKey` | `string?` | Written-pitch key (e.g. `"B"` for an A-concert tenor session); drives accidental spelling |
 | `harmony` | `HarmonicSegment[]?` | The phrase's harmony (concert pitch) so each note is spelled against the chord that governed it — exactly what the chart showed. The progress page re-resolves it (`findPhraseForSession` for ear-training rows, the lick transposed to the key for lick-practice rows). |
 | `displayScaleId` | `string?` | Fallback frame when no chord governs a note: the session's scale (e.g. `'blues.minor'`) rooted at `displayKey`. Without either, a key with no signature spells every black key sharp — a written-C blues listed its b7 as A#. |
+| `displayMode` | `Mode?` | Major/minor reading of `displayKey` (the progression's mode for lick-practice rows, the re-resolved phrase's `lickMode` for ear-training rows); a minor session's notes are spelled against its relative major's signature. Default `'major'`. |
 | `timing` | `TimingDiagnostics?` | Timing diagnostics from the scorer; drives the Offset column and footer |
 
 Filters out extra notes (only shows matched and missed). Columns: index, expected note name, played note name (colored by accuracy), pitch %, rhythm %, and per-note timing offset in ms (colored by lateness/earliness). Names go through the shared enharmonic policy (`spellingContextAt` + `resolveUseFlats` in `music/notation.ts`); a played note is read against the chord of the expected note it answered. When `timing` is present, a footer below the grid also shows overall bias, spread, and latency correction.
@@ -251,13 +253,13 @@ Pre-session configuration screen: chord progression, backing style, mode, durati
 
 **Path:** `src/lib/components/lick-practice/LickHeader.svelte`
 
-Current-lick header: name, number in the session, key index, and progression label.
+Current-lick header: name, number in the session, key index, and progression label. The big key label is written pitch in the PROGRESSION's mode — a minor ii-V-i in D reads "Dm" (`keyLabel` + `progressionMode`).
 
 | Prop | Type | Description |
 |---|---|---|
 | `phraseNumber` | `number` | 1-based index of the active lick in the session |
 | `phraseName` | `string` | Display name |
-| `currentKey` | `PitchClass` | Concert-pitch key (converted to written for display) |
+| `currentKey` | `PitchClass` | Concert-pitch key (converted to written for display, labelled in the progression's mode) |
 | `progressionType` | `ChordProgressionType` | Active progression |
 | `keyIndex` | `number` | 0-based index of current key within the 12-key cycle |
 | `totalKeys` | `number` | Usually 12 |
@@ -274,6 +276,7 @@ Circular progress visualization of the 12-key cycle with passed/failed/current/p
 | `currentKeyIndex` | `number` | Active key index |
 | `keyResults` | `LickPracticeKeyResult[]` | Results so far |
 | `tempo` | `number` | Displayed at the centre of the ring |
+| `mode` | `Mode?` | Major/minor reading of the dot labels (the progression's mode): "Dm" for a minor drill. Default `'major'`. |
 
 ### `ChordChart.svelte`
 
@@ -289,12 +292,15 @@ Chord chart for the current progression, with the active cell highlighted in tim
 | `isPlaying` | `boolean` | Drives highlight |
 | `instrument` | `InstrumentConfig?` | Transposes chord roots to written pitch when provided |
 | `key` | `PitchClass?` | Concert-pitch key, drives sharp/flat chord spelling |
+| `mode` | `Mode?` | Major/minor reading of `key` — minor keys spell roots against the relative major's signature. Default `'major'`. |
+
+Each cell prints its symbol MuseScore-Jazz style (`chordChartSymbol` in `ui/chord-chart-layout.ts` → `layoutChordParts`): root + quality on the baseline and alterations as a raised column to the right — "A7" with "b9" above-right for the minor templates' V — with the flat text ("A7b9") as the cell's `title`/`aria-label`.
 
 ### `UpcomingKeysDisplay.svelte`
 
 **Path:** `src/lib/components/lick-practice/UpcomingKeysDisplay.svelte`
 
-Scrolling preview strip showing the current, next, and upcoming key chord charts. Scrolls continuously in sync with transport position.
+Scrolling preview strip showing the current, next, and upcoming key chord charts. Scrolls continuously in sync with transport position. Row key labels read in each planned phrase's mode (`keyLabel(written, lickMode(pk.phrase))` — "Dm" on a minor drill) and the embedded `ChordChart` gets the same `mode`.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -373,7 +379,7 @@ Rendered by `/licks/editor` and `/licks/add`. All three components read and muta
 
 **Path:** `src/lib/components/step-entry/EntryConfig.svelte`
 
-Key (`stepEntry.phraseKey`) and bar-count (1–4 via `setBarCount`) selectors.
+Key (`stepEntry.phraseKey`, options labelled in the current mode — "Dm" when minor), a **Major | Minor** toggle (`setPhraseMode`; never moves notes), a **Read as {relative key}** button (`switchToRelativeKey` — F major ↔ D minor with the notes untouched), the "Move notes" checkbox for key changes, and the bar-count (1–4 via `setBarCount`) selector.
 
 ### `DurationSelector.svelte`
 
@@ -675,7 +681,7 @@ Inline "Need help? Take the tour" link.
 | `LickProgressChart.svelte` | `licks/` | One SVG tempo panel over an x-axis **scaled by real elapsed time**, so a months-long gap reads wider than a same-day one. Washed with the lick's [phase bands](../../src/lib/difficulty/lick-phase.ts) — horizontal for the tempo phases, a vertical era for `new` (key-count-driven, so it precedes them) — and marked with a key glyph at each unlock, collapsing when they'd overlap. Takes `points: LickProgressPoint[]` |
 | `CommunityLickCard.svelte` | `licks/` | Browse card for `/licks/community` |
 | `LickBreatherCard.svelte` | `lick-practice/` | The inter-lick score-hold card: finished lick's name, percentage in its accuracy-tier colour, and the next lick. Presentational only — the session page snapshots its content when the last key scores |
-| `LickKeyDetail.svelte` | `progress/` | Expandable per-key detail on the progress page, with per-note comparison and replay |
+| `LickKeyDetail.svelte` | `progress/` | Expandable per-key detail on the progress page, with per-note comparison and replay; takes `harmony` and `displayMode` (the progression's mode) so the note list spells as the session chart did |
 | `PrivacyDisclosure.svelte` | `community/` | One-time acknowledgement that saved licks appear in the community browse |
 | `SuggestionCard.svelte` | `step-entry/` | Attribution name suggestions in the lick editor, from `lick-suggestions` state |
 | `BrassPlayGlyph.svelte` | `jazz/` | Decorative brass play glyph |

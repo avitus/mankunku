@@ -144,7 +144,11 @@ Return the key at the given position in the circle of fourths. The index wraps a
 
 ### `relativeMajor(minorKey): PitchClass`
 
+The relative major of a minor tonic (D → F). Used by the minor key-signature table and the editor's "Read as relative key" relabel.
+
 ### `relativeMinor(majorKey): PitchClass`
+
+The relative minor of a major key (F → D).
 
 ### `realizeScale(root, intervals): number[]`
 
@@ -216,7 +220,11 @@ One chain decides sharp-vs-flat for every named pitch — the chart renderer and
 
 The scale fallback is what makes a key with no signature spell "true to the key": written C alone says nothing about Bb vs A#, but C blues does (2026-08-22 user report — a written-C blues session listed its b7 as A#).
 
-### `midiToDisplayName(midi, useFlatsOrKey?, scaleId?): string`
+### Minor keys — `signatureAccidentalsFor`, `signatureFlatsFor`, `keyLabel`, `keyLabelLong`, `abcKeyField`
+
+A lick's `key` is its TONIC; `Phrase.mode` (resolved by `lickMode` in `music/mode.ts` — explicit › harmony's tonic segment › major, never the category) says how to read it. `signatureAccidentalsFor(key, mode)` draws the relative major's signature for a minor key — six flats for Eb minor, whose relative major the canonical pitch-class map spells F# — and `signatureFlatsFor` gives the key-side flat/sharp default. Labels: `keyLabel('D','minor')` → `Dm`, `keyLabel('Eb','minor')` → `Ebm`, `keyLabel('Ab','minor')` → `G#m`, `keyLabel('Db','minor')` → `C#m` (sharp-side names for the two tonics whose relative majors are sharp keys, so label and drawn signature agree); `keyLabelLong` → `D minor`; `abcKeyField` → the `K:` field (`Dm`, `Ebm`, `G#m`, `C#m` — all read by abcjs). `phraseToAbcWithMap` reads `lickMode(phrase)`, prints `K:Dm`, and passes `mode` into `spellingContextAt`, where a minor key with no governing chord and no scale frames itself in harmonic minor rooted at the tonic (leading tone sharp, b6 flat). `displayPitchClass(pc, keyContext, mode?)` respells chord roots against the minor key's drawn signature.
+
+### `midiToDisplayName(midi, useFlatsOrKey?, scaleId?, mode?): string`
 
 Convert MIDI to display name (e.g. `60 → 'C4'`, `58 → 'Bb3'`). The second argument is either an explicit `useFlats` boolean (default `true`) or a written key name, in which case the name goes through the spelling policy above — key signature, then the optional `scaleId` rooted at the key, then the key-side default. `midiToDisplayName(70, 'C')` is `'A#4'`; `midiToDisplayName(70, 'C', 'blues.minor')` is `'Bb4'`.
 

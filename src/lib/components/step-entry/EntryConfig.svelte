@@ -1,8 +1,17 @@
 <script lang="ts">
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
-	import { stepEntry, setBarCount } from '$lib/state/step-entry.svelte';
+	import { stepEntry, setBarCount, setPhraseMode, switchToRelativeKey } from '$lib/state/step-entry.svelte';
 	import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { transposeNotesForKeyChange } from '$lib/step-entry/transpose';
+	import { keyLabel, keyLabelLong } from '$lib/music/notation';
+	import { relativeMajor, relativeMinor } from '$lib/music/keys';
+
+	// The relative key the one-click relabel would switch to ("Read as D minor").
+	const relativeLabel = $derived(
+		stepEntry.phraseMode === 'minor'
+			? keyLabelLong(relativeMajor(stepEntry.phraseKey), 'major')
+			: keyLabelLong(relativeMinor(stepEntry.phraseKey), 'minor')
+	);
 
 	// When on (default), changing the key transposes the entered notes into the
 	// new key, octave-fitted to the instrument. When off, the key change only
@@ -36,9 +45,29 @@
 				border border-transparent focus:border-[var(--color-accent)] focus:outline-none"
 		>
 			{#each PITCH_CLASSES as pc}
-				<option value={pc}>{pc}</option>
+				<option value={pc}>{keyLabel(pc, stepEntry.phraseMode)}</option>
 			{/each}
 		</select>
+		<div class="flex overflow-hidden rounded border border-[var(--color-bg-tertiary)] text-xs" role="group" aria-label="Key mode">
+			{#each ['major', 'minor'] as const as mode}
+				<button
+					type="button"
+					onclick={() => setPhraseMode(mode)}
+					aria-pressed={stepEntry.phraseMode === mode}
+					title="Major or minor reading of the key — never moves notes"
+					class="px-2 py-1 capitalize transition-colors
+						{stepEntry.phraseMode === mode
+							? 'bg-[var(--color-accent)] text-white'
+							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+				>{mode}</button>
+			{/each}
+		</div>
+		<button
+			type="button"
+			onclick={switchToRelativeKey}
+			title="Relabel as the relative key without moving any notes"
+			class="text-xs text-[var(--color-text-secondary)] underline-offset-2 hover:underline"
+		>Read as {relativeLabel}</button>
 		{#if stepEntry.enteredNotes.length > 0}
 			<label
 				class="flex cursor-pointer select-none items-center gap-1 text-xs text-[var(--color-text-secondary)]"

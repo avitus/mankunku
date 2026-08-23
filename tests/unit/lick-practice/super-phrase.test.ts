@@ -630,3 +630,16 @@ describe('pickupBars auto-detection — user/community licks without explicit fi
 		expect(getLickBars(lick, 'ii-V-I-major', false)).toBe(4);
 	});
 });
+
+describe('planned phrase mode follows the PROGRESSION', () => {
+	it('a major lick drilled over a minor ii-V-i carries mode minor; over a major ii-V-I, major', () => {
+		lickPractice.config.progressionType = 'ii-V-I-minor';
+		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C', 'F'] });
+		expect(getPlannedKey(0)?.phrase.mode).toBe('minor');
+		expect(getPlannedKey(0)?.phrase.key).toBe('C');
+
+		lickPractice.config.progressionType = 'ii-V-I-major';
+		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C', 'F'] });
+		expect(getPlannedKey(0)?.phrase.mode).toBe('major');
+	});
+});

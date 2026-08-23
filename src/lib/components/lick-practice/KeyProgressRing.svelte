@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { PitchClass } from '$lib/types/music';
+	import type { PitchClass, Mode } from '$lib/types/music';
 	import type { LickPracticeKeyResult } from '$lib/types/lick-practice';
 	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { keyLabel } from '$lib/music/notation';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
@@ -17,9 +18,11 @@
 		currentKey?: PitchClass;
 		keyResults: LickPracticeKeyResult[];
 		tempo: number;
+		/** Major/minor reading of the key labels (the progression's mode): "Dm" for a minor drill. */
+		mode?: Mode;
 	}
 
-	let { keys, currentKeyIndex, currentKey = undefined, keyResults, tempo }: Props = $props();
+	let { keys, currentKeyIndex, currentKey = undefined, keyResults, tempo, mode = 'major' }: Props = $props();
 
 	function isCurrent(key: PitchClass): boolean {
 		return currentKey !== undefined ? key === currentKey : keys.indexOf(key) === currentKeyIndex;
@@ -144,7 +147,7 @@
 		{#each keys as key, i (key)}
 			{@const pos = getKeyPosition(i)}
 			{@const visual = getKeyVisual(key)}
-			{@const displayKey = concertKeyToWritten(key, instrument)}
+			{@const displayKey = keyLabel(concertKeyToWritten(key, instrument), mode)}
 
 			<g>
 				{#if visual.kind === 'current'}

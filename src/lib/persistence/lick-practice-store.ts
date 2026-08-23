@@ -18,6 +18,8 @@ import { getLickTagOverrides } from './user-licks';
 import { loadLickPracticeSessions } from './lick-practice-sessions';
 import { MAX_HISTORY_POINTS } from './limits';
 import { MAX_UNLOCKED_KEYS } from '$lib/music/key-ordering';
+import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+import type { Phrase } from '$lib/types/music';
 
 const STORAGE_KEY = 'lick-practice-progress';
 const TAGS_KEY = 'user-lick-tags';
@@ -846,7 +848,51 @@ export function getProgressionTags(phraseId: string): ChordProgressionType[] {
 	const current = tags[phraseId] ?? [];
 	return current
 		.filter(t => t.startsWith(PROG_TAG_PREFIX))
-		.map(t => t.slice(PROG_TAG_PREFIX.length) as ChordProgressionType);
+		.map(t => t.slice(PROG_TAG_PREFIX.length))
+		// A stale schema or a cross-device merge can carry a `prog:` tag that
+		// names no template; validate here so nothing downstream indexes
+		// PROGRESSION_TEMPLATES with it.
+		.filter((t): t is ChordProgressionType => Object.hasOwn(PROGRESSION_TEMPLATES, t));
+}
+
+/**
+ * Remove `prog:*` tags a lick's own chord shape doesn't fit. Runs on every
+ * successful hydrate (idempotent; writes + stamps mtime ONLY for ids that
+ * changed; keeps an emptied array rather than deleting the id, like
+ * `toggleProgressionTag`, so the cleared state wins the per-id LWW). Ids with
+ * no resolvable lick are left untouched. Returns id → removed types.
+ */
+export function pruneIncompatibleProgressionTags(
+	licks: readonly Phrase[],
+	fits: (lick: Phrase, type: ChordProgressionType) => boolean
+): Record<string, ChordProgressionType[]> {
+	const tags = loadUserLickTags();
+	const byId = new Map(licks.map((l) => [l.id, l] as const));
+	const removed: Record<string, ChordProgressionType[]> = {};
+	let changed = false;
+	for (const [id, current] of Object.entries(tags)) {
+		const lick = byId.get(id);
+		if (!lick) continue;
+		const dropped: ChordProgressionType[] = [];
+		const kept = current.filter((t) => {
+			if (!t.startsWith(PROG_TAG_PREFIX)) return true;
+			const type = t.slice(PROG_TAG_PREFIX.length);
+			if (!Object.hasOwn(PROGRESSION_TEMPLATES, type)) return true; // validated on read; not ours to judge here
+			if (fits(lick, type as ChordProgressionType)) return true;
+			dropped.push(type as ChordProgressionType);
+			return false;
+		});
+		if (dropped.length === 0) continue;
+		tags[id] = kept;
+		removed[id] = dropped;
+		stampMergeMeta('tags', id);
+		changed = true;
+	}
+	if (changed) {
+		saveUserLickTags(tags);
+		syncLickTagsToCloud();
+	}
+	return removed;
 }
 
 /** Check if a lick is tagged for a specific progression. */

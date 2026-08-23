@@ -57,6 +57,17 @@ The result: a single per-lick cycle whose length is *just enough* to host the li
 
 Without this split, a chord-quality `major-chord` lick with `pickupBars: 1` on long ii-V-I would transpose to G7 (the V) instead of Cmaj7 (the I), shifting every note up a fifth.
 
+## Fit: which progressions a lick may be played over
+
+Alignment says *where* a lick lands in a template; fit says *whether* it belongs there at all. `progressionFitsLick(lick, type)` (`data/progressions.ts`) is one pure rule applied in five places — the detail-page pills (greyed with `fitReasonLabel`; a tagged-but-unfit pill stays removable), `pickProgressionForLick` (skips unfit tags when given the lick), `getPracticeLicks` (read-time safety net), `updateLickCategory` seeding (`getProgressionsForLick` = the category's templates filtered by fit), and `pruneIncompatibleProgressionTags` on every successful hydrate — so a lick is never served over changes that don't resemble its own:
+
+- **Cadence categories with harmony** (ii-V-I / short ii-V / V-I, major and minor): every lick segment, re-rooted to C, must land on a template segment at the alignment offset with the same root and chord family; inner segments match duration exactly, the last may be shorter (or sit on the template's final segment, which the engine tail-extends). A 1|1|1-bar ii-V-i fits the long template only — on the short one the ½-bar ii and V are over by beat 4 while the lick is still on its ii; a ½|½|1 lick fits the short template (and the iii-VI-ii-V-I's second bar); nothing cadential fits a vamp or a blues.
+- **Cadence categories without harmony** (editor licks): a native entry in `PROGRESSION_LICK_CATEGORIES` and `lengthBars` that fits after the offset.
+- **Chord-quality categories**: the chord in the lick's slot must be of the category's family.
+- **Everything else** fits wherever the user tagged it — explicit intent — unless an EXPLICIT lick `mode` contradicts the slot chord's mode. `rhythm-changes` is deliberately not geometry-gated (its two-chords-per-bar curated harmony vs the one-per-bar `turnaround`).
+
+The category table (`PROGRESSION_LICK_CATEGORIES`) stays as-is; fit is the per-lick refinement over it. Pinned by `tests/unit/lick-practice/progression-fit.test.ts` (table-driven over every curated cadence lick × every template).
+
 ## Worked example
 
 The 3-bar `major-chord-pickup-001` lick (triplet pickup → bulk → resolution, `lengthBars: 3`, `pickupBars: 1`):

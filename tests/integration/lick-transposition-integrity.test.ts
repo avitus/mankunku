@@ -258,6 +258,37 @@ describe('transposeLickForTonality', () => {
 	});
 });
 
+describe('minor cadence licks × minor tonalities × 12 keys — tonic-keyed, never snapped', () => {
+	const MINOR_CADENCE_CATEGORIES = new Set(['ii-V-I-minor', 'short-ii-V-I-minor', 'V-I-minor']);
+	const licks = ALL_CURATED_LICKS.filter((l) => MINOR_CADENCE_CATEGORIES.has(l.category));
+	const scales = ['major.aeolian', 'major.dorian', 'melodic-minor.melodic-minor'];
+
+	it('has licks to sweep', () => {
+		expect(licks.length).toBeGreaterThan(10);
+	});
+
+	it('keeps the tonality key, shifts every chord root by the same interval, and never moves a pitch class', () => {
+		for (const lick of licks) {
+			const fromIdx = PITCH_CLASSES.indexOf(lick.key);
+			for (const scaleId of scales) {
+				for (const key of PITCH_CLASSES) {
+					const result = transposeLickForTonality(lick, key, scaleId, RANGE_LOW, RANGE_HIGH);
+					const plain = transposeLick(lick, key, RANGE_LOW, RANGE_HIGH);
+					const shift = (PITCH_CLASSES.indexOf(key) - fromIdx + 12) % 12;
+					expect(result.key, `${lick.id} ${scaleId} ${key}`).toBe(key);
+					expect(result.harmony.map((h) => h.chord.root)).toEqual(
+						lick.harmony.map((h) => PITCH_CLASSES[(PITCH_CLASSES.indexOf(h.chord.root) + shift) % 12])
+					);
+					expect(pitchedNotes(result).map((n) => n.pitch! % 12)).toEqual(
+						pitchedNotes(plain).map((n) => n.pitch! % 12)
+					);
+					for (const n of pitchedNotes(result)) expect(n.pitch!).toBeLessThanOrEqual(RANGE_HIGH);
+				}
+			}
+		}
+	});
+});
+
 // ─── Scale snapping ──────────────────────────────────────────────
 
 describe('snapLickToScale', () => {

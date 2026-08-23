@@ -418,7 +418,9 @@ export const stepEntry = $state({
   accidental: 'natural' as 'sharp' | 'flat' | 'natural',
   enteredNotes: [] as Note[],
   barCount: 2,                                    // 1–4
-  phraseKey: 'C' as PitchClass,                   // Written key for the user's instrument
+  phraseKey: 'C' as PitchClass,                   // Written key for the user's instrument (the TONIC)
+  phraseMode: 'major' as Mode,                    // Major/minor reading; follows the category until touched
+  modeTouched: false,
   phraseName: '',
   category: 'user' as PhraseCategory,
   practiceTag: false,
@@ -469,7 +471,8 @@ export const stepEntry = $state({
 
 ### Edit mode
 
-- `loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void` — Hydrate the editor from an existing lick: copies the notes straight across in concert pitch, converts the lick's key back to written pitch via `concertKeyToWritten` (using the `instrument` arg) for the `phraseKey` dropdown, restores bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/licks/editor` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the book detail page), and redirect to `/licks/<id>` after saving.
+- `setPhraseMode(mode)` — Major/minor reading of `phraseKey`; never moves notes; stops category-follow. `setCategory(category)` — sets the save category and, until the mode control is touched, the mode follows it (minor categories → minor). `switchToRelativeKey()` — relabels F major ↔ D minor (`relativeMinor`/`relativeMajor`) with the notes untouched: the one-click path for licks entered in the relative major when the editor's key signature was major-only. Typed naturals take the DRAWN signature (`signatureAccidentalsFor(phraseKey, phraseMode)`: D minor gives Bb, not C#), and `getCurrentPhrase()` stamps `mode` on every saved lick.
+- `loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void` — Hydrate the editor from an existing lick (`phraseMode = lickMode(lick)`; an explicitly stored mode hydrates as touched, an inferred one keeps following the category): copies the notes straight across in concert pitch, converts the lick's key back to written pitch via `concertKeyToWritten` (using the `instrument` arg) for the `phraseKey` dropdown, restores bar count/name/category, and sets `editingId` / `editingSource` / `editingTags` / `editingCategory`. The `/licks/editor` route branches on `editingId !== null` to swap the Save button label to **Update**, skip the duplicate-detection self-match, route category writes through `updateLickCategory` (so `prog:*` seeding stays consistent with the book detail page), and redirect to `/licks/<id>` after saving.
 
 ---
 

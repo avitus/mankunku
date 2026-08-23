@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { HarmonicSegment, PitchClass } from '$lib/types/music';
+	import type { HarmonicSegment, Mode, PitchClass } from '$lib/types/music';
 	import type { InstrumentConfig } from '$lib/types/instruments';
 	import { chordSymbol } from '$lib/music/chords';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { displayPitchClass } from '$lib/music/notation';
-	import { chordChartCells } from '$lib/ui/chord-chart-layout';
+	import { chordChartCells, chordChartSymbol } from '$lib/ui/chord-chart-layout';
 
 	interface Props {
 		harmony: HarmonicSegment[];
@@ -19,21 +19,30 @@
 		instrument?: InstrumentConfig;
 		/** Concert-pitch key of the phrase, used to choose sharp/flat chord spelling */
 		key?: PitchClass;
+		/** Major/minor reading of `key` — minor keys spell roots against the relative major's signature. */
+		mode?: Mode;
 	}
 
-	let { harmony, currentBeat, timeSignature, isPlaying, instrument, key }: Props = $props();
+	let { harmony, currentBeat, timeSignature, isPlaying, instrument, key, mode = 'major' }: Props = $props();
 
 	function displayRoot(root: PitchClass): string {
 		const written = instrument ? concertKeyToWritten(root, instrument) : root;
 		const keyContext = key && instrument ? concertKeyToWritten(key, instrument) : (key ?? written);
-		return displayPitchClass(written, keyContext);
+		return displayPitchClass(written, keyContext, mode);
 	}
 
 	const cells = $derived(chordChartCells(harmony, timeSignature));
 
+	/** Flat text ("A7b9") for the accessible name / title. */
 	function cellSymbol(segmentIndex: number): string {
 		const seg = harmony[segmentIndex];
 		return chordSymbol(displayRoot(seg.chord.root), seg.chord.quality);
+	}
+
+	/** Stacked MuseScore-Jazz parts: baseline root + quality, raised alteration column. */
+	function cellParts(segmentIndex: number) {
+		const seg = harmony[segmentIndex];
+		return chordChartSymbol(seg, displayRoot(seg.chord.root));
 	}
 
 	const currentCellIndex = $derived.by(() => {
@@ -68,6 +77,7 @@
 			{@const isActive = cellIdx === currentCellIndex}
 			{@const isPast = currentCellIndex >= 0 && cellIdx < currentCellIndex}
 			{@const numBeats = Math.round(cell.durationBeats)}
+			{@const parts = cellParts(cell.segmentIndex)}
 			<div
 				class="relative flex flex-col items-center justify-center border border-[var(--color-bg-tertiary)] px-3 py-5
 					   {isActive ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]' : ''}
@@ -75,10 +85,25 @@
 				style="flex: {cell.widthWeight}"
 			>
 				<span
-					class="font-display text-2xl font-bold tracking-tight transition-colors
+					class="font-display inline-flex items-start text-2xl font-bold tracking-tight transition-colors
 						   {isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}"
+					title={cellSymbol(cell.segmentIndex)}
+					aria-label={cellSymbol(cell.segmentIndex)}
 				>
-					{cellSymbol(cell.segmentIndex)}
+					<span>{parts.root}{parts.quality}</span>
+					{#if parts.alterations.length > 0}
+						<!-- MuseScore-Jazz stacking: alterations as a raised column to the
+						     right of the quality — "A7" with "b9" above-right, never
+						     parenthesised on the baseline. -->
+						<span class="ml-0.5 inline-flex flex-col text-[0.55em] leading-none" aria-hidden="true">
+							{#each parts.alterations as alt}
+								<span>{alt}</span>
+							{/each}
+						</span>
+					{/if}
+					{#if parts.bass}
+						<span class="text-[0.7em]" aria-hidden="true">/{parts.bass}</span>
+					{/if}
 				</span>
 
 				<!-- Beat dots — one per actual beat in this cell -->

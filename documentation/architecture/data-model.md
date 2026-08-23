@@ -103,7 +103,7 @@ interface Phrase {
 }
 ```
 
-The central data structure. Curated licks are stored in concert C and transposed at runtime.
+The central data structure. Curated licks are stored in concert C — the TONIC, so a minor lick is `key: 'C'` + `mode: 'minor'` (C minor), never its relative major — and transposed at runtime. User licks keep the concert key they were entered in. `mode` is optional: absent means "not stated" and `lickMode()` (music/mode.ts) infers from the harmony's tonic segment (never the category — legacy user licks in minor categories were entered with key = relative major).
 
 ### ScaleDefinition
 
@@ -168,7 +168,7 @@ A full song form: melody plus complete harmony, organized into labeled sections 
 
 Two properties differ from `Phrase` and matter downstream:
 
-- **Tunes store their real concert key**, unlike licks, which are all stored in concert C and transposed at runtime.
+- **Tunes store their real concert key**, unlike curated licks, which are all stored in concert C (C minor for minor licks) and transposed at runtime; user licks keep their entered key.
 - **Section offsets are section-local.** Nothing consumes sections directly — `flattenTune` (`$lib/tunes/flatten`) produces the continuous form that the notation renderer and backing-track engine read, in either notation order or playback order.
 
 `pdfUrl` round-trips through the cloud row so reconcile never clobbers it.

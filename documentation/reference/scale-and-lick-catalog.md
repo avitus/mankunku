@@ -151,7 +151,7 @@ Long lines built on bebop scales, chromatic passing tones, and characteristic sh
 
 ### ii-V-I Minor (15 licks)
 
-The minor counterpart to ii-V-I Major. In C minor: Dm7b5 → G7alt → Cm7. Different scales — Locrian Natural 2, Altered, Aeolian — and a darker, more chromatic color.
+The minor counterpart to ii-V-I Major. In C minor: Dm7b5 → G7alt → Cm7 (the curated lines; the lick-practice backing plays the V as G7b9 from the phrygian-dominant mode). Different scales — Locrian Natural 2, Altered, Aeolian — and a darker, more chromatic color.
 
 - **Levels 25–40**: Basic minor ii-V resolutions.
 - **Levels 40–55**: Altered-scale vocabulary.

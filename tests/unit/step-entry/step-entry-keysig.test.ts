@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	stepEntry, addNote, adjustLastNotePitch, reset,
-	getCurrentPhrase
+	getCurrentPhrase, setPhraseMode
 } from '$lib/state/step-entry.svelte';
 import { settings } from '$lib/state/settings.svelte';
 import { phraseToAbc } from '$lib/music/notation';
@@ -23,6 +23,41 @@ beforeEach(() => {
 });
 
 describe('key signature applied on note entry', () => {
+	describe('key of D minor (Bb)', () => {
+		beforeEach(() => { stepEntry.phraseKey = 'D'; setPhraseMode('minor'); });
+
+		it('pressing B enters Bb; C and F stay natural', () => {
+			addNote(11, 4, 'natural'); // B → Bb4
+			addNote(0, 5, 'natural');  // C natural (no C# — that is D MAJOR)
+			addNote(5, 4, 'natural');  // F natural
+			expect(stepEntry.enteredNotes[0].pitch).toBe(70);
+			// Later notes land in the nearest octave; only the pitch classes matter here.
+			expect(stepEntry.enteredNotes.map((n) => n.pitch! % 12)).toEqual([10, 0, 5]);
+		});
+
+		it('prints K:Dm and a raised Bb as =B', () => {
+			addNote(11, 4, 'natural'); // Bb4
+			adjustLastNotePitch(1);    // → B4 natural
+			const abc = phraseToAbc(getCurrentPhrase());
+			expect(abc).toContain('K:Dm');
+			expect(noteLine()).toContain('=B');
+		});
+
+		it('stamps the mode on the phrase', () => {
+			expect(getCurrentPhrase().mode).toBe('minor');
+		});
+	});
+
+	describe('key of E minor (F#)', () => {
+		beforeEach(() => { stepEntry.phraseKey = 'E'; setPhraseMode('minor'); });
+
+		it('pressing F enters F#; C stays natural', () => {
+			addNote(5, 4, 'natural');
+			addNote(0, 4, 'natural');
+			expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([66, 60]);
+		});
+	});
+
 	describe('key of D (F#, C#)', () => {
 		beforeEach(() => { stepEntry.phraseKey = 'D'; });
 

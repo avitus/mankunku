@@ -22,7 +22,8 @@ import { save, load } from './storage';
 import { getScopeGeneration, getLastUserId } from './user-scope';
 import { enqueue } from './outbox';
 import { getStolenLicksLocal } from './community';
-import { getProgressionsForCategory } from '$lib/data/progressions';
+import { getProgressionsForCategory, getProgressionsForLick } from '$lib/data/progressions';
+import { ALL_CURATED_LICKS } from '$lib/data/licks';
 import {
 	ensureProgressionTag,
 	stampTagOverrideMtime,
@@ -178,7 +179,10 @@ function cloudRowToPhrase(row: Database['public']['Tables']['user_licks']['Row']
 		difficulty: row.difficulty as unknown as DifficultyMetadata,
 		category: row.category as PhraseCategory,
 		tags: row.tags ?? [],
-		source: row.source
+		source: row.source,
+		// NULL = not stated: leave the key absent so lickMode can infer from the
+		// harmony instead of seeing an explicit major.
+		...(row.mode === 'major' || row.mode === 'minor' ? { mode: row.mode } : {})
 	};
 }
 
@@ -200,6 +204,10 @@ function phraseToRow(
 		category: lick.category as string,
 		tags: lick.tags,
 		source: lick.source as string,
+		// Whole-row LWW: a mapper that forgot this column would write NULL and
+		// erase the mode on the next pull — every row→Phrase / Phrase→row site
+		// must carry it (user-licks, community, sync).
+		mode: lick.mode ?? null,
 		audio_url: null,
 		deleted_at: null,
 		client_mtime: mtime,
@@ -522,14 +530,22 @@ export function updateLickCategory(
 	}
 
 	// Auto-add a `prog:*` tag for every progression the new category is
-	// compatible with. Session inclusion is opt-in only, so a fresh
-	// category write needs to seed all the progressions the user could
+	// compatible with AND the lick's own chord shape fits (a 3-bar ii-V-i
+	// seeds the long template only). Session inclusion is opt-in only, so a
+	// fresh category write needs to seed all the progressions the user could
 	// reasonably want to practice this lick under. Idempotent —
 	// `ensureProgressionTag` no-ops on duplicates, and we deliberately
 	// don't remove tags from prior categories so the user's accumulated
-	// intent persists across edits.
+	// intent persists across edits (the hydrate-time prune handles misfits).
 	if (applied) {
-		for (const prog of getProgressionsForCategory(category)) {
+		const resolved: Phrase | undefined =
+			(idx !== -1 ? licks[idx] : undefined) ??
+			ALL_CURATED_LICKS.find((l) => l.id === id) ??
+			getStolenLicksLocal().find((l) => l.id === id);
+		const seeds = resolved
+			? getProgressionsForLick({ ...resolved, category })
+			: getProgressionsForCategory(category);
+		for (const prog of seeds) {
 			ensureProgressionTag(id, prog);
 		}
 	}

@@ -127,7 +127,7 @@ describe('estimatePlanSeconds', () => {
 		togglePracticeTag('bc-041');
 		toggleProgressionTag('bc-041', 'blues');
 		togglePracticeTag('ii-V-I-min-001');
-		toggleProgressionTag('ii-V-I-min-001', 'ii-V-I-minor');
+		toggleProgressionTag('ii-V-I-min-001', 'ii-V-I-minor-long');
 		buildDailyPracticePlan();
 		expect(lickPractice.plan.length).toBe(2);
 

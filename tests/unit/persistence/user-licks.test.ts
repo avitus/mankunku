@@ -133,6 +133,7 @@ describe('saveUserLick', () => {
 			id: 'mutate',
 			name: 'After',
 			key: 'G',
+			mode: 'minor',
 			category: 'blues',
 			tags: ['user-entered', 'practice', 'edited'],
 			source: 'user-entered',
@@ -147,6 +148,7 @@ describe('saveUserLick', () => {
 			id: 'mutate',
 			name: 'After',
 			key: 'G',
+			mode: 'minor',
 			category: 'blues',
 			tags: ['user-entered', 'practice', 'edited']
 		});
@@ -196,6 +198,22 @@ describe('updateLickCategory', () => {
 		);
 	});
 
+	it('seeds only the templates a curated lick\'s own harmony fits', () => {
+		// ii-V-I-min-001 is a 1|1|1-bar ii-V-i: the half-bar short template is the
+		// wrong shape, so only the long one is seeded. min-006 is ½|½|1 → short only.
+		updateLickCategory('ii-V-I-min-001', 'ii-V-I-minor');
+		expect(getProgressionTags('ii-V-I-min-001')).toEqual(['ii-V-I-minor-long']);
+		updateLickCategory('ii-V-I-min-006', 'ii-V-I-minor');
+		expect(getProgressionTags('ii-V-I-min-006')).toEqual(['ii-V-I-minor']);
+	});
+
+	it('seeds the full category set for a harmony-less user lick that fits everywhere', () => {
+		saveUserLick(makePhrase({ id: 'lick-vi2', category: 'user' }));
+		updateLickCategory('lick-vi2', 'ii-V-I-minor');
+		// lengthBars 2 fits both minor templates.
+		expect(new Set(getProgressionTags('lick-vi2'))).toEqual(new Set(['ii-V-I-minor', 'ii-V-I-minor-long']));
+	});
+
 	it('does not remove a previously-added prog:* tag when re-categorizing', () => {
 		saveUserLick(makePhrase({ id: 'lick-edit', category: 'user' }));
 		updateLickCategory('lick-edit', 'V-I-major');
@@ -221,7 +239,9 @@ describe('initUserLicksFromCloud', () => {
 			difficulty: l.difficulty ?? { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
 			category: l.category ?? 'user',
 			tags: l.tags ?? [],
-			source: l.source ?? 'user-entered'
+			source: l.source ?? 'user-entered',
+			// Nullable column — legacy rows (and majors that never stated it) carry null.
+			mode: l.mode ?? null
 		}));
 
 		const eqMock = vi.fn().mockReturnValue({ data: rows, error: null, then: undefined });
@@ -267,6 +287,29 @@ describe('initUserLicksFromCloud', () => {
 		expect(getUserLicksLocal()).toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: 'local-1' })])
 		);
+	});
+
+	it('carries the mode column both ways: pushed rows state it, pulled rows restore it', async () => {
+		// Push: a local minor lick must reach the cloud with mode 'minor' — the
+		// reconcile is whole-row LWW, so a mapper that forgot the column would
+		// write NULL and erase the mode on the next pull.
+		saveUserLick(makePhrase({ id: 'local-min', name: 'Local minor', mode: 'minor' }));
+		const supabase = createMockSupabase([
+			{ id: 'cloud-min', name: 'Cloud minor', mode: 'minor' },
+			{ id: 'cloud-legacy', name: 'Cloud legacy' }
+		]);
+		await initUserLicksFromCloud(supabase);
+
+		expect(supabase.__upsertMock).toHaveBeenCalledWith(
+			expect.arrayContaining([expect.objectContaining({ id: 'local-min', mode: 'minor' })]),
+			expect.objectContaining({ onConflict: 'id' })
+		);
+		const local = getUserLicksLocal();
+		expect(local.find((l) => l.id === 'cloud-min')?.mode).toBe('minor');
+		// A null column means "not stated": no `mode` key at all, so lickMode
+		// can fall back to harmony inference rather than see an explicit major.
+		const legacy = local.find((l) => l.id === 'cloud-legacy')!;
+		expect('mode' in legacy).toBe(false);
 	});
 
 	it('pulls cloud-only licks from other devices', async () => {

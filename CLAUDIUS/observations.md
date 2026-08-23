@@ -4,6 +4,37 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-08-22 (night) — Two conventions on one field, and why inference must refuse the obvious signal
+
+The minor-key work kept turning up the same shape: `Phrase.key` meant "tonic" in
+the curated files and "the major key whose signature I want drawn" in the
+editor, and nothing in the type distinguished them. Both readings were
+internally consistent; the collision was only visible at the boundary where a
+user-entered lick met curated data in the same practice set. The fix was not to
+pick a winner but to add the missing dimension (`mode`) and then make the
+RESOLVER conservative: `lickMode` will read the harmony but never the
+category, because category is exactly the signal that would have relabelled
+the user's own relative-major-entered licks as F minor. A strong, obvious
+inference signal was the wrong one *because of data written under the old
+convention* — the same reader-writer-asymmetry lesson as the phantom Gb key,
+from the other side: here the reader must NOT trust a column that the old
+writer populated with a different meaning.
+
+Second: "served over nonsensical progressions" was four defects wearing one
+symptom — template V quality, dual short/long seeding, unfiltered pills, tag
+accretion — plus a fifth in ear training (the parent-major hop) that the user
+may never have separated out. The explorers' most valuable output was the
+NEGATIVE finding: the template anchoring, the first suspect, was correct. I
+notice I'd have gone straight at the templates without it.
+
+Third, on the fit rule: I nearly made it stricter than the data could bear.
+`rhythm-changes` has two chords per bar against the one-per-bar turnaround; a
+geometry gate would have stranded the whole category. The rule's narrowness
+(cadence categories only; everything else honours the tag) is what makes it
+safe — a recurring pattern now (scale tier settles only the ambiguous degrees;
+fit settles only cadence shapes): when adding a gate over heuristics, scope it
+to the ambiguity you can actually adjudicate.
+
 ## 2026-08-22 — A binary where the data carried a richer answer; and "no signature" means silent, not sharp
 
 The A#-for-Bb bug was a *projection* bug: three-valued information (the scale,

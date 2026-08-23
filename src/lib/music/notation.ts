@@ -1,10 +1,12 @@
-import type { ChordQuality, HarmonicSegment, Note, Phrase, PitchClass } from '$lib/types/music';
+import type { ChordQuality, HarmonicSegment, Mode, Note, Phrase, PitchClass } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { midiToPitchClass, midiToOctave, fractionToFloat, gcd } from './intervals';
 import { concertToWritten, concertKeyToWritten, transposePitchClass } from './transposition';
 import { noteArticulationPrefix } from './articulation-abc';
 import { getScale } from './scales';
+import { relativeMajor } from './keys';
+import { lickMode } from './mode';
 
 /** Note letter names A–G */
 type NoteLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
@@ -202,6 +204,8 @@ export interface SpellingContextArgs {
 	scaleId?: string | null;
 	/** The note's own override (`Note.spelling`). */
 	explicit?: 'sharp' | 'flat';
+	/** Major or minor reading of `displayKey` (default major). */
+	mode?: Mode;
 }
 
 /**
@@ -213,15 +217,17 @@ export interface SpellingContextArgs {
  */
 export function spellingContextAt(args: SpellingContextArgs): SpellingContext {
 	const { displayKey, explicit } = args;
-	const keySig: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
-	const defaultFlats = FLAT_KEYS.includes(displayKey);
+	const mode: Mode = args.mode ?? 'major';
+	const keySig: KeySigMap = signatureAccidentalsFor(displayKey, mode);
+	const defaultFlats = signatureFlatsFor(displayKey, mode);
 
 	const seg =
 		args.harmony && args.offset != null ? governingSegment(args.harmony, args.offset) : null;
 	if (seg) {
 		const root = displayPitchClass(
 			transposePitchClass(seg.chord.root, args.transpositionSemitones ?? 0),
-			displayKey
+			displayKey,
+			mode
 		);
 		const scaleDef = getScale(seg.scaleId);
 		return {
@@ -233,7 +239,13 @@ export function spellingContextAt(args: SpellingContextArgs): SpellingContext {
 		};
 	}
 
-	const scaleDef = args.scaleId ? getScale(args.scaleId) : undefined;
+	// No chord governs. A minor key with no declared scale still has a tonal
+	// frame — harmonic minor rooted at the tonic (chordApplications[0] is
+	// minMaj7), which spells the leading tone sharp and the b6 flat. The major
+	// path has no implied frame, so no existing major spelling moves.
+	const frameScaleId =
+		args.scaleId ?? (mode === 'minor' ? 'harmonic-minor.harmonic-minor' : undefined);
+	const scaleDef = frameScaleId ? getScale(frameScaleId) : undefined;
 	const impliedQuality = scaleDef?.chordApplications[0];
 	return {
 		explicit,
@@ -293,6 +305,51 @@ export const KEY_SIG_ACCIDENTALS: Partial<Record<PitchClass, KeySigMap>> = {
 	'Ab': { B: '_', E: '_', A: '_', D: '_' },
 	'Db': { B: '_', E: '_', A: '_', D: '_', G: '_' },
 };
+
+/**
+ * Eb minor is drawn with SIX FLATS (its relative major is Gb, which the
+ * canonical pitch-class map spells F#). The other eleven minor tonics use
+ * their relative major's signature straight from `KEY_SIG_ACCIDENTALS`.
+ */
+const EB_MINOR_SIGNATURE: KeySigMap = { B: '_', E: '_', A: '_', D: '_', G: '_', C: '_' };
+
+/** Minor tonics whose conventional name is the sharp-side spelling (G# minor, C# minor). */
+const MINOR_TONIC_RESPELL: Partial<Record<PitchClass, string>> = { Ab: 'G#', Db: 'C#' };
+
+/** The key signature drawn for `key` read in `mode`. */
+export function signatureAccidentalsFor(key: PitchClass, mode: Mode = 'major'): KeySigMap {
+	if (mode === 'minor') {
+		if (key === 'Eb') return EB_MINOR_SIGNATURE;
+		return KEY_SIG_ACCIDENTALS[relativeMajor(key)] ?? {};
+	}
+	return KEY_SIG_ACCIDENTALS[key] ?? {};
+}
+
+/** Key-side default: flats iff the drawn signature is a flat signature. */
+export function signatureFlatsFor(key: PitchClass, mode: Mode = 'major'): boolean {
+	if (mode === 'minor') {
+		if (key === 'Eb') return true;
+		return FLAT_KEYS.includes(relativeMajor(key));
+	}
+	return FLAT_KEYS.includes(key);
+}
+
+/** Short key label for pills, chips and ABC: "D", "Dm", "Ebm", "G#m", "C#m". */
+export function keyLabel(writtenKey: PitchClass, mode: Mode = 'major'): string {
+	if (mode === 'minor') return `${MINOR_TONIC_RESPELL[writtenKey] ?? writtenKey}m`;
+	return writtenKey;
+}
+
+/** Prose key label: "D minor", "G# minor", "F major". */
+export function keyLabelLong(writtenKey: PitchClass, mode: Mode = 'major'): string {
+	const tonic = mode === 'minor' ? (MINOR_TONIC_RESPELL[writtenKey] ?? writtenKey) : writtenKey;
+	return `${tonic} ${mode}`;
+}
+
+/** The ABC `K:` field — abcjs reads "Dm", "Ebm" (via Gb), "G#m", "C#m". */
+export function abcKeyField(writtenKey: PitchClass, mode: Mode = 'major'): string {
+	return keyLabel(writtenKey, mode);
+}
 
 /** Black-key pitch class → the letter each enharmonic spelling uses. */
 export const SHARP_LETTER: Record<number, keyof KeySigMap> = { 1: 'C', 3: 'D', 6: 'F', 8: 'G', 10: 'A' };
@@ -719,9 +776,10 @@ export function phraseToAbcWithMap(
 	const displayKey = instrument
 		? concertKeyToWritten(phrase.key, instrument)
 		: phrase.key;
-
-	const useFlats = FLAT_KEYS.includes(displayKey);
-	const keySigAccidentals: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
+	// Minor licks are keyed by their TONIC; the mode decides the drawn
+	// signature (relative major, six flats for Eb minor) and the K: field.
+	const mode = lickMode(phrase);
+	const keySigAccidentals: KeySigMap = signatureAccidentalsFor(displayKey, mode);
 
 	const beatsPerBar = phrase.timeSignature[0];
 	const beatUnit = phrase.timeSignature[1];
@@ -749,6 +807,7 @@ export function phraseToAbcWithMap(
 			midi,
 			spellingContextAt({
 				displayKey,
+				mode,
 				harmony: phrase.harmony,
 				offset: fractionToFloat(note.offset),
 				transpositionSemitones: instrument?.transpositionSemitones ?? 0,
@@ -767,7 +826,7 @@ export function phraseToAbcWithMap(
 		`T:${phrase.name}`,
 		`M:${phrase.timeSignature[0]}/${phrase.timeSignature[1]}`,
 		`L:${defaultLength[0]}/${defaultLength[1]}`,
-		`K:${displayKey}`,
+		`K:${abcKeyField(displayKey, mode)}`,
 	];
 
 	// Body assembly: each token-and-anchor pair lets us compute the final
@@ -940,7 +999,12 @@ function isDiatonic(pc: PitchClass, key: PitchClass): boolean {
 	return MAJOR_SCALE_STEPS.some((s) => (keyPc + s) % 12 === target);
 }
 
-export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): string {
+export function displayPitchClass(pc: PitchClass, keyContext: PitchClass, mode: Mode = 'major'): string {
+	if (mode === 'minor') {
+		// Eb minor is drawn with six flats: keep every flat name, respell F# → Gb.
+		if (keyContext === 'Eb') return pc === 'F#' ? 'Gb' : pc;
+		keyContext = relativeMajor(keyContext);
+	}
 	if (pc === 'F#' && FLAT_KEYS.includes(keyContext)) return 'Gb';
 	const sharp = SHARP_RESPELL[pc];
 	if (sharp && isSharpKey(keyContext) && isDiatonic(pc, keyContext)) return sharp;
@@ -966,7 +1030,8 @@ export function displayPitchClass(pc: PitchClass, keyContext: PitchClass): strin
 export function midiToDisplayName(
 	midi: number,
 	useFlatsOrKey: boolean | string = true,
-	scaleId?: string
+	scaleId?: string,
+	mode?: Mode
 ): string {
 	const NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 	const NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -976,7 +1041,7 @@ export function midiToDisplayName(
 	} else {
 		useFlats = resolveUseFlats(
 			midi,
-			spellingContextAt({ displayKey: useFlatsOrKey as PitchClass, scaleId })
+			spellingContextAt({ displayKey: useFlatsOrKey as PitchClass, scaleId, mode })
 		);
 	}
 	const names = useFlats ? NAMES_FLAT : NAMES_SHARP;

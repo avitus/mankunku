@@ -14,6 +14,7 @@ import { getUserLicksLocal } from '$lib/persistence/user-licks';
 import { getStolenLicksLocal } from '$lib/persistence/community';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
+import { lickMode } from '$lib/music/mode';
 
 export interface LibraryQuery {
 	category?: PhraseCategory;
@@ -248,6 +249,14 @@ export const PROGRESSION_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<Phras
 /**
  * Transpose a lick for a given tonality (key + scale).
  *
+ * Minor cadence licks (a `PROGRESSION_CATEGORIES` lick whose `lickMode` is
+ * minor) are keyed by their TONIC — curated ii-V-i licks are written in C
+ * MINOR — so they transpose tonic → tonality root under any tonality and are
+ * never snapped: the lick's own harmony is the context. (The parent-major
+ * hop below assumes `lick.key` is the parent major, which is true for modal
+ * licks stored in C but sent a C-minor lick to F MINOR under a "D minor"
+ * tonality.)
+ *
  * For major-family modes with multi-chord progressions (ii-V-I, V-I, rhythm
  * changes), transposes to the parent major key so chord relationships are
  * preserved. E.g. A Dorian ii-V-I → parent G major.
@@ -269,7 +278,11 @@ export function transposeLickForTonality(
 	const scaleDef = getScale(scaleId);
 	let result: Phrase;
 
-	if (scaleDef?.family === 'major' && scaleDef.mode !== null) {
+	if (PROGRESSION_CATEGORIES.has(lick.category) && lickMode(lick) === 'minor') {
+		// Tonic-keyed minor cadence: tonic → tonality root, no snap.
+		const transposed = transposeLick(lick, key, rangeLow, rangeHigh);
+		result = { ...transposed, id: `${lick.id}_${key}`, key };
+	} else if (scaleDef?.family === 'major' && scaleDef.mode !== null) {
 		if (PROGRESSION_CATEGORIES.has(lick.category)) {
 			// Multi-chord progressions: transpose to parent major key
 			const keyIdx = PITCH_CLASSES.indexOf(key);

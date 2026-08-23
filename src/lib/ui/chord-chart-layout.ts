@@ -7,6 +7,8 @@
  */
 import type { HarmonicSegment } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
+import { chordSymbol } from '$lib/music/chords';
+import { layoutChordParts, type ChordLayoutParts } from '$lib/music/chord-layout';
 
 export interface ChordChartCell {
 	/** Segment index into the source harmony — the component derives the
@@ -72,4 +74,15 @@ export function chordChartCells(
 		}
 	});
 	return result;
+}
+
+/**
+ * The chart cell's symbol as MuseScore-Jazz stacked parts — root + quality on
+ * the baseline, alterations as a raised column to the right ("A7" with "b9"
+ * above-right), the same engraving the tune charts use. `displayRoot` is the
+ * already-respelled written root (the component owns instrument transposition
+ * and key context), so no keyContext is passed to the layout.
+ */
+export function chordChartSymbol(seg: HarmonicSegment, displayRoot: string): ChordLayoutParts {
+	return layoutChordParts(chordSymbol(displayRoot, seg.chord.quality));
 }

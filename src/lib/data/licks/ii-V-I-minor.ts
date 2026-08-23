@@ -1,6 +1,6 @@
 /**
  * Curated ii-V-I minor licks — all in concert C minor.
- * Harmony: Dm7b5 → G7alt → Cm(maj7)
+ * Harmony: Dm7b5 → G7alt → Cm7
  *
  * Transposed at runtime to any key.
  */
@@ -54,6 +54,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Minor Arpeggio Walk',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 62, duration: [1, 4], offset: [0, 1] },     // D4
 			{ pitch: 65, duration: [1, 4], offset: [1, 4] },     // F4
@@ -76,6 +77,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Natural Minor Descent',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 68, duration: [1, 8], offset: [0, 1] },     // Ab4
 			{ pitch: 67, duration: [1, 8], offset: [1, 8] },     // G4
@@ -102,6 +104,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Harmonic Minor Climb',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 62, duration: [1, 8], offset: [0, 1] },     // D4
 			{ pitch: 63, duration: [1, 8], offset: [1, 8] },     // Eb4
@@ -129,6 +132,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Altered Scale Run',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 65, duration: [1, 8], offset: [0, 1] },     // F4
 			{ pitch: 68, duration: [1, 8], offset: [1, 8] },     // Ab4
@@ -157,6 +161,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Minor Enclosure',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: enclosure around Ab
 			{ pitch: 67, duration: [1, 8], offset: [0, 1] },     // G4
@@ -185,6 +190,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Quick Minor ii-V',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5 (2 beats)
 			{ pitch: 68, duration: [1, 8], offset: [0, 1] },     // Ab4
@@ -210,6 +216,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Melodic Minor Approach',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 62, duration: [1, 8], offset: [0, 1] },     // D4
 			{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
@@ -239,6 +246,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Diminished Passing',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: diminished arpeggio
 			{ pitch: 62, duration: [1, 8], offset: [0, 1] },     // D4
@@ -269,6 +277,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Simple Minor Guide',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 65, duration: [1, 4], offset: [0, 1] },     // F4
 			{ pitch: 63, duration: [1, 4], offset: [1, 4] },     // Eb4
@@ -291,6 +300,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Chromatic Minor Line',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5
 			{ pitch: 68, duration: [1, 8], offset: [1, 8] },     // Ab4
@@ -320,6 +330,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Minor Pentatonic Vamp',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 63, duration: [1, 8], offset: [0, 1] },     // Eb4
 			{ pitch: 65, duration: [1, 8], offset: [1, 8] },     // F4
@@ -344,6 +355,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Tritone Sub Minor',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			{ pitch: 65, duration: [1, 8], offset: [0, 1] },     // F4
 			{ pitch: 68, duration: [1, 8], offset: [1, 8] },     // Ab4
@@ -375,6 +387,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Woody Shaw Minor',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Woody Shaw style: wide intervals over minor
 			{ pitch: 62, duration: [1, 8], offset: [0, 1] },     // D4
@@ -406,6 +419,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Joe Henderson Minor',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Joe Henderson style: angular, intervallic
 			{ pitch: 68, duration: [1, 8], offset: [0, 1] },     // Ab4
@@ -436,6 +450,7 @@ export const II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Quick Minor Chromatic',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5 (2 beats)
 			{ pitch: 72, duration: [1, 8], offset: [0, 1] },     // C5

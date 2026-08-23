@@ -90,7 +90,7 @@ Once a tonality is active, the app filters the lick catalog to only licks that f
 - **Bebop Dominant licks** fit Bebop Dominant, Mixolydian, and major sessions.
 - **Melodic minor licks** fit melodic minor, altered, and Lydian Dominant sessions (these scales share the melodic minor parent).
 
-For multi-chord licks (ii-V-I patterns, turnarounds, rhythm changes), compatibility is broader because the lick uses the full key context, not a single scale.
+For multi-chord licks (ii-V-I patterns, turnarounds, rhythm changes), compatibility is broader because the lick uses the full key context, not a single scale. Minor cadence licks (ii-V-i, short ii-V, V-i minor) are keyed by their TONIC and transpose tonic → tonality root under minor, Dorian and melodic-minor sessions — never snapped, and no longer offered under Altered (a dominant-only context where the ii and i bars would sit outside the scale). V-I licks use this category table too, not their first chord's scale.
 
 The reasoning: a 7-note major lick squashed into a 5-note pentatonic session would lose two of its notes and stop sounding like itself. Filtering ahead of time means the app never asks you to play something that's been mangled.
 

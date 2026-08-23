@@ -576,19 +576,22 @@ describe('per-family quality gating (triad pairs)', () => {
 		expect(diatonic.trick!.context.chordQuality).toBe('maj7');
 	});
 
-	it('the minor-long V (7alt) admits the altered family but not the tritone pair', () => {
+	it('the minor-long V (7b9) admits the altered family AND the tritone pair', () => {
 		const result = suggestLicksForProgression(
 			longIiVIDetection('ii-V-I-minor-long', 'C', 4),
 			makeDeps({ selectedTrickVariants: new Set([T4.key, T5.key, T7.key]) })
 		);
 		const byId = new Map(trickSuggestions(result).map((s) => [s.lickId, s]));
-		// major-tritone keeps its natural 5 — no place on an altered V.
-		expect(byId.has(`${TRICK_PREFIX}${T4.key}`)).toBe(false);
+		// A b9 dominant keeps its natural 5, so the major-tritone pair has a
+		// place on it (it lists 7b9 among its qualities), unlike the old 7alt V.
+		const tritone = byId.get(`${TRICK_PREFIX}${T4.key}`)!;
+		expect(tritone).toBeDefined();
+		expect(tritone.templateAlignmentOffset).toEqual([1, 1]);
 		const altered = byId.get(`${TRICK_PREFIX}${T5.key}`)!;
 		expect(altered.templateAlignmentOffset).toEqual([1, 1]);
 		expect(altered.targetKey).toBe('G');
-		expect(altered.trick!.context.chordQuality).toBe('7alt');
-		expect(altered.trick!.context.scaleId).toBe('melodic-minor.altered');
+		expect(altered.trick!.context.chordQuality).toBe('7b9');
+		expect(altered.trick!.context.scaleId).toBe('harmonic-minor.phrygian-dominant');
 		// The tonic-minor family lands on the min7 I bar.
 		const tonic = byId.get(`${TRICK_PREFIX}${T7.key}`)!;
 		expect(tonic.templateAlignmentOffset).toEqual([2, 1]);

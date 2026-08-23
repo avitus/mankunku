@@ -208,6 +208,19 @@ describe('lick edit round-trip', () => {
 		expect(after.tags).toContain('practice');
 	});
 
+	it('a minor lick keeps its mode through load → edit → save', () => {
+		saveUserLick(basePhrase({ id: 'lick-min', key: 'D', mode: 'minor' }));
+		const stored = getUserLicksLocal().find((l) => l.id === 'lick-min')!;
+		loadFromPhrase(stored, INSTRUMENTS['concert']);
+		expect(stepEntry.phraseKey).toBe('D');
+		expect(stepEntry.phraseMode).toBe('minor');
+		const phrase = getCurrentPhrase();
+		phrase.id = stored.id;
+		expect(phrase.mode).toBe('minor');
+		saveUserLick(phrase);
+		expect(getUserLicksLocal().find((l) => l.id === 'lick-min')!.mode).toBe('minor');
+	});
+
 	it('Bb instrument: written key in dropdown round-trips back to original concert key on save', () => {
 		settings.instrumentId = 'tenor-sax';
 		const tenor = INSTRUMENTS['tenor-sax'];

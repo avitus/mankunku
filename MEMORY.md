@@ -234,6 +234,13 @@ The report's weak-key recommendation (`drill-weak-key` in `lick-practice-next-st
 
 **How to apply:** never spell a pitch by key alone when a chord or scale is reachable; pass `harmony` (concert) + offset, or at least the scale id, and let the chain decide. Lead sheets (`tune-notation.ts`) still run the chord tier without the scale tier — their segment scales are synthesized from quality, so it would only move the #9 of 7alt; revisit if a lead-sheet spelling report lands.
 
+### Minor keys for licks: `Phrase.mode`, one fit rule, tonic-keyed transposition (2026-08-22)
+`Phrase.key` is the TONIC; `Phrase.mode` ('major'|'minor', optional) says how to read it. `lickMode` (music/mode.ts) = explicit › harmony's tonic segment › major — NEVER the category (legacy user licks in minor categories were entered with key = relative major and would be relabelled). Curated minor files are stamped. Notation draws the relative major's signature (Eb minor six flats → "Ebm"; Ab/Db minor → "G#m"/"C#m"), `K:Dm`, `keyLabel` everywhere. Minor templates = `MINOR_CADENCE` (ii-7b5 · V7b9 phrygian-dominant · i-7). `progressionFitsLick` gates pills/picker/filter/seeding/hydrate-prune (cadence licks only; rhythm-changes deliberately ungated). Ear training: minor cadence licks transpose tonic → tonality root, never snapped.
+
+**Why:** 2026-08-22 report — a D-minor ii-V-i had to be entered and viewed as F major everywhere, and was served over the half-bar short template (and, in ear training, hopped to F minor via the parent-major rule).
+
+**How to apply:** never add a key selector/label without passing the mode; never infer mode from category; when gating heuristics, scope the gate to the ambiguity it can adjudicate.
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

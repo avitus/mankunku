@@ -31,11 +31,18 @@ const SCALE_ID_COMPATIBILITY: Record<string, ScaleType[]> = {
 
 // ── Category-level compatibility (multi-chord progressions) ──────────
 
+// Minor cadence licks transpose tonic → tonality root and are never snapped
+// (`transposeLickForTonality`), so `altered` — a dominant-only context — is
+// not offered: the ii and i bars would sit outside the advertised scale.
+// V-I licks are listed here so they use category compatibility rather than
+// their first segment's (altered/mixolydian) scaleId.
 const CATEGORY_COMPATIBILITY: Partial<Record<PhraseCategory, ScaleType[]>> = {
 	'ii-V-I-major': ['major', 'dorian', 'mixolydian', 'lydian'],
-	'ii-V-I-minor': ['minor', 'dorian', 'melodic-minor', 'altered'],
+	'ii-V-I-minor': ['minor', 'dorian', 'melodic-minor'],
 	'short-ii-V-I-major': ['major', 'dorian', 'mixolydian', 'lydian'],
-	'short-ii-V-I-minor': ['minor', 'dorian', 'melodic-minor', 'altered'],
+	'short-ii-V-I-minor': ['minor', 'dorian', 'melodic-minor'],
+	'V-I-major': ['major', 'mixolydian', 'lydian'],
+	'V-I-minor': ['minor', 'dorian', 'melodic-minor'],
 	'rhythm-changes': ['major', 'mixolydian'],
 };
 

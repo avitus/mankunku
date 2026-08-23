@@ -18,6 +18,8 @@
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
+	import { keyLabel } from '$lib/music/notation';
+	import { lickMode } from '$lib/music/mode';
 	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
 	import {
 		isInPracticeSet,
@@ -29,7 +31,7 @@
 		getLickProgressHistory,
 		NEW_LICK_DEFAULT_TEMPO
 	} from '$lib/persistence/lick-practice-store';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { PROGRESSION_TEMPLATES, progressionFitsLick, fitReasonLabel } from '$lib/data/progressions';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
@@ -200,6 +202,9 @@
 
 	function handleToggleProgressionTag(type: ChordProgressionType) {
 		if (!baseLick) return;
+		// A progression the lick can't play over can be REMOVED (a stale tag)
+		// but never added.
+		if (!progressionFitsLick(baseLick, type).fits && !progressionTags.includes(type)) return;
 		toggleProgressionTag(baseLick.id, type);
 		progressionTags = getProgressionTags(baseLick.id);
 	}
@@ -492,7 +497,9 @@
 								? 'bg-[var(--color-accent)] text-white'
 								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
 					>
-						{pc}
+						<!-- Pills are TONICS: a minor lick reads Dm · Gm · … and the
+						     selected pill transposes the tonic (mode rides along). -->
+						{keyLabel(pc, baseLick ? lickMode(baseLick) : 'major')}
 					</button>
 				{/each}
 			</div>
@@ -504,14 +511,23 @@
 			<div class="mt-1.5 flex flex-wrap gap-1.5">
 				{#each ALL_PROGRESSION_TYPES as prog (prog.type)}
 					{@const isTagged = progressionTags.includes(prog.type)}
+					{@const fit = baseLick ? progressionFitsLick(baseLick, prog.type) : { fits: true as const }}
+					{@const unfitReason = fit.fits ? null : fitReasonLabel(fit.reason)}
+					<!-- Pills the lick can't play over (wrong chord shape, too long,
+					     wrong chord role) are greyed with the reason; a tagged-but-unfit
+					     pill stays enabled so the stale tag can be removed. -->
 					<button
 						onclick={() => handleToggleProgressionTag(prog.type)}
+						disabled={unfitReason !== null && !isTagged}
+						title={unfitReason ?? undefined}
+						aria-disabled={unfitReason !== null && !isTagged}
 						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
 							{isTagged
 								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}
+							{unfitReason !== null && !isTagged ? 'cursor-not-allowed opacity-40 hover:bg-[var(--color-bg-tertiary)]' : ''}"
 					>
-						{prog.shortName}
+						{prog.shortName}{#if unfitReason !== null && isTagged}<span class="ml-1" title="Doesn't fit this lick — remove it" aria-hidden="true">⚠</span>{/if}
 					</button>
 				{/each}
 			</div>
@@ -521,7 +537,7 @@
 		<NotationDisplay phrase={lick} instrument={getInstrument()} />
 
 		<!-- Phrase info -->
-		<PhraseInfo phrase={lick} />
+		<PhraseInfo phrase={lick} instrument={getInstrument()} />
 
 		<!-- Progress over time -->
 		{#if progressHistory.length > 0}

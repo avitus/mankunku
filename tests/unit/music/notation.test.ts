@@ -5,8 +5,15 @@ import {
 	durationToAbc,
 	scaleSpellingPreference,
 	spellingContextAt,
-	resolveUseFlats
+	resolveUseFlats,
+	keyLabel,
+	keyLabelLong,
+	abcKeyField,
+	signatureAccidentalsFor,
+	signatureFlatsFor,
+	displayPitchClass
 } from '$lib/music/notation';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import type { HarmonicSegment } from '$lib/types/music';
 import type { Phrase, PitchClass } from '$lib/types/music';
 
@@ -790,6 +797,108 @@ describe('spellingContextAt — the chart\'s spelling frame for one note', () =>
 
 	it('honours the note\'s explicit spelling above everything', () => {
 		expect(name(70, spellingContextAt({ displayKey: 'C', harmony: C_BLUES, offset: 0, explicit: 'sharp' }))).toBe('A#4');
+	});
+});
+
+describe('minor keys — labels and signatures', () => {
+	it('labels the twelve minor tonics with conventional jazz spellings', () => {
+		expect(keyLabel('D', 'minor')).toBe('Dm');
+		expect(keyLabel('Bb', 'minor')).toBe('Bbm');
+		expect(keyLabel('Eb', 'minor')).toBe('Ebm'); // six flats, not D#m
+		expect(keyLabel('Ab', 'minor')).toBe('G#m'); // five sharps
+		expect(keyLabel('Db', 'minor')).toBe('C#m'); // four sharps
+		expect(keyLabel('F#', 'minor')).toBe('F#m');
+		expect(keyLabel('D')).toBe('D');
+		expect(keyLabel('D', 'major')).toBe('D');
+		expect(keyLabelLong('D', 'minor')).toBe('D minor');
+		expect(keyLabelLong('Ab', 'minor')).toBe('G# minor');
+		expect(keyLabelLong('F', 'major')).toBe('F major');
+	});
+
+	it('abcKeyField matches the label (abcjs reads K:Dm, K:Ebm, K:G#m, K:C#m)', () => {
+		expect(abcKeyField('D', 'minor')).toBe('Dm');
+		expect(abcKeyField('Eb', 'minor')).toBe('Ebm');
+		expect(abcKeyField('Ab', 'minor')).toBe('G#m');
+		expect(abcKeyField('D', 'major')).toBe('D');
+	});
+
+	it('draws the relative-major signature for a minor key, six flats for Eb minor', () => {
+		expect(signatureAccidentalsFor('D', 'minor')).toEqual({ B: '_' });
+		expect(signatureAccidentalsFor('A', 'minor')).toEqual({});
+		expect(signatureAccidentalsFor('E', 'minor')).toEqual({ F: '^' });
+		expect(signatureAccidentalsFor('Ab', 'minor')).toEqual({ F: '^', C: '^', G: '^', D: '^', A: '^' });
+		expect(signatureAccidentalsFor('Eb', 'minor')).toEqual({ B: '_', E: '_', A: '_', D: '_', G: '_', C: '_' });
+		expect(signatureAccidentalsFor('D', 'major')).toEqual({ F: '^', C: '^' });
+		expect(signatureFlatsFor('D', 'minor')).toBe(true);
+		expect(signatureFlatsFor('Eb', 'minor')).toBe(true);
+		expect(signatureFlatsFor('E', 'minor')).toBe(false);
+		expect(signatureFlatsFor('A', 'minor')).toBe(false);
+		expect(signatureFlatsFor('D', 'major')).toBe(false);
+	});
+
+	it('respells chord roots against the minor key\'s signature', () => {
+		expect(displayPitchClass('F#', 'D', 'minor')).toBe('Gb'); // one flat: Gb not F#
+		expect(displayPitchClass('Db', 'Ab', 'minor')).toBe('C#'); // G# minor: five sharps
+		expect(displayPitchClass('Db', 'Eb', 'minor')).toBe('Db'); // Eb minor keeps the flats
+		expect(displayPitchClass('F#', 'Eb', 'minor')).toBe('Gb');
+		expect(displayPitchClass('Db', 'D', 'major')).toBe('C#'); // unchanged major behaviour: diatonic to D
+	});
+});
+
+describe('phraseToAbc in a minor key', () => {
+	function minorPhrase(notes: number[], key: PitchClass, extra: Partial<Phrase> = {}): Phrase {
+		return {
+			...multiNotePhrase(notes, key),
+			mode: 'minor',
+			...extra
+		};
+	}
+
+	it('prints K:Dm with one flat: Bb needs no accidental, B natural does', () => {
+		const abc = phraseToAbc(minorPhrase([70, 71], 'D'));
+		expect(abc).toContain('K:Dm');
+		expect(abc).not.toContain('K:D\n');
+		const line = noteLine(abc);
+		expect(line).toMatch(/^_?B/); // no explicit flat needed (B is flat in the signature)
+		expect(line).not.toContain('^A');
+		expect(line).toContain('=B');
+	});
+
+	it('spells a harmony-less minor lick in its harmonic-minor frame: C# leading tone, Bb flat', () => {
+		const line = noteLine(phraseToAbc(minorPhrase([73, 70], 'D')));
+		expect(line).toContain('^c');
+		expect(line).not.toContain('_d');
+	});
+
+	it('prints K:Ebm with six flats and K:G#m for Ab minor', () => {
+		expect(phraseToAbc(minorPhrase([63], 'Eb'))).toContain('K:Ebm');
+		expect(phraseToAbc(minorPhrase([68], 'Ab'))).toContain('K:G#m');
+	});
+
+	it('infers minor from a tonic harmony segment when the field is absent', () => {
+		const p = multiNotePhrase([70], 'C');
+		p.harmony = [{ chord: { root: 'C', quality: 'min7' }, scaleId: 'major.aeolian', startOffset: [0, 1], duration: [1, 1] }];
+		expect(phraseToAbc(p)).toContain('K:Cm');
+	});
+
+	it('transposes the minor tonic for a Bb instrument and keeps the mode: concert D minor reads K:Em', () => {
+		const abc = phraseToAbc(minorPhrase([62], 'D'), INSTRUMENTS['tenor-sax']);
+		expect(abc).toContain('K:Em');
+	});
+
+	it('keeps the explicit spelling and chord tiers ahead of the minor frame', () => {
+		const p = minorPhrase([73], 'D');
+		p.notes[0].spelling = 'flat';
+		expect(noteLine(phraseToAbc(p))).toContain('_d');
+	});
+});
+
+describe('midiToDisplayName in a minor key', () => {
+	it('names the b6 and leading tone of D minor flat and sharp respectively', () => {
+		expect(midiToDisplayName(70, 'D', undefined, 'minor')).toBe('Bb4');
+		expect(midiToDisplayName(73, 'D', undefined, 'minor')).toBe('C#5');
+		// Major D still reads its two sharps.
+		expect(midiToDisplayName(70, 'D')).toBe('A#4');
 	});
 });
 

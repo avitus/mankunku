@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
-	import type { Fraction, HarmonicSegment, PitchClass } from '$lib/types/music';
+	import type { Fraction, HarmonicSegment, Mode, PitchClass } from '$lib/types/music';
 	import { midiToDisplayName, resolveUseFlats, spellingContextAt } from '$lib/music/notation';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { accuracyTier } from '$lib/ui/score-colors';
@@ -25,6 +25,8 @@
 		 * chord governs a note.
 		 */
 		displayScaleId?: string;
+		/** Major/minor reading of `displayKey` (a minor session's notes are spelled against its relative major). */
+		displayMode?: Mode;
 		/** Timing diagnostics from scorer */
 		timing?: TimingDiagnostics;
 	}
@@ -35,6 +37,7 @@
 		displayKey,
 		harmony = null,
 		displayScaleId,
+		displayMode = 'major',
 		timing
 	}: Props = $props();
 
@@ -51,7 +54,8 @@
 			harmony,
 			offset: fractionToFloat(offset),
 			transpositionSemitones,
-			scaleId: displayScaleId
+			scaleId: displayScaleId,
+			mode: displayMode
 		});
 		return midiToDisplayName(written, resolveUseFlats(written, ctx));
 	}

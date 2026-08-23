@@ -99,8 +99,9 @@ The octave shift algorithm evaluates -3 to +3 octave shifts, maximizing notes in
 
 ### `transposeLickForTonality(lick, key, scaleId): Phrase`
 
-Transpose a lick for a specific tonality (key + scale). Handles three cases:
+Transpose a lick for a specific tonality (key + scale). Handles four cases:
 
+0. **Minor cadence licks** (a progression category whose `lickMode` is minor — the curated ii-V-i, short ii-V and V-i minor files, keyed by their TONIC): transposes tonic → tonality root under any tonality, never snapped (the lick's own harmony is the context)
 1. **Major-family progressions** (ii-V-I, turnarounds, rhythm changes): Transposes to the parent major key to preserve chord relationships
 2. **Major-family single-chord licks**: Transposes to the modal root, snaps to scale
 3. **Non-major scales** (blues, pentatonic, melodic minor): Transposes to key, snaps out-of-scale notes to nearest scale tone

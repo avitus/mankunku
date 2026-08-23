@@ -37,13 +37,13 @@ export function getKeyAtIndex(index: number): PitchClass {
 	return CIRCLE_OF_FOURTHS[((index % 12) + 12) % 12];
 }
 
-/** Get the relative minor of a major key */
+/** Get the relative major of a minor key (D minor → F). */
 export function relativeMajor(minorKey: PitchClass): PitchClass {
 	const idx = PITCH_CLASSES.indexOf(minorKey);
 	return PITCH_CLASSES[(idx + 3) % 12];
 }
 
-/** Get the relative major of a minor key */
+/** Get the relative minor of a major key (F → D minor). */
 export function relativeMinor(majorKey: PitchClass): PitchClass {
 	const idx = PITCH_CLASSES.indexOf(majorKey);
 	return PITCH_CLASSES[(idx + 9) % 12];

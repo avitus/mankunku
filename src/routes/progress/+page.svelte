@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { lickMode } from '$lib/music/mode';
+	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
 	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, getTonalMastery } from '$lib/state/progress.svelte';
 	import { difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
@@ -27,7 +29,7 @@
 		clearLickPracticeSessions,
 		type LickPracticeSessionLogEntry
 	} from '$lib/persistence/lick-practice-sessions';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { PROGRESSION_TEMPLATES, progressionMode } from '$lib/data/progressions';
 	import type { LickPracticeMode } from '$lib/types/lick-practice';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
@@ -489,6 +491,7 @@
 											transpositionSemitones={instrument.transpositionSemitones}
 											displayKey={concertKeyToWritten(s.key as PitchClass, instrument)}
 											harmony={sessionPhrase?.harmony ?? null}
+											displayMode={sessionPhrase ? lickMode(sessionPhrase) : 'major'}
 											displayScaleId={s.scaleType ? SCALE_TYPE_TO_SCALE_ID[s.scaleType] : undefined}
 											timing={s.timing}
 										/>
@@ -575,7 +578,7 @@
 															class:outline-transparent={!isOpen}
 															style="background: color-mix(in srgb, {color} 13%, transparent); color: {color};"
 														>
-															<span class="font-bold">{concertKeyToWritten(k.key as PitchClass, instrument)}</span>
+															<span class="font-bold">{keyLabel(concertKeyToWritten(k.key as PitchClass, instrument), progressionMode(lick.progressionType ?? ls.progressionType))}</span>
 															<span class="tabular-nums">{pct(k.score)}%</span>
 														</button>
 													{/each}
@@ -589,6 +592,7 @@
 															? concertKeyToWritten(expandedKey as PitchClass, instrument)
 															: undefined}
 														harmony={expandedKey ? findLickHarmonyInKey(lick.lickId, expandedKey as PitchClass) : null}
+														displayMode={progressionMode(lick.progressionType ?? ls.progressionType)}
 													/>
 												{/if}
 											</div>

@@ -157,7 +157,7 @@ Worst-first ordering comes from a per-key `rollingScore` — an EWMA (alpha 0.4)
 
 The pure policy — `sortKeysWorstFirst`, `shouldDemoHeadKey`, `resolveNextCycleStart`, `planCycleWindows`, and the focus ramp's `focusStartTempo`, `focusStepDownTempo`, `planFocusRamp`, `resolveRampCycle` — lives in `state/lick-practice-rotation.ts` so it can be tested without a transport.
 
-A practice-tagged lick is only eligible for a session if it also carries an explicit `prog:<progressionType>` tag for that progression. Those tags are added automatically when the lick's curated category matches the progression (e.g. `ii-V-I-major` licks get `prog:ii-V-I-major`), and the user can add/remove them by hand to drill a lick over a non-default progression.
+A practice-tagged lick is only eligible for a session if it also carries an explicit `prog:<progressionType>` tag for that progression. Those tags are added automatically when the lick's category is set — for the templates the lick's own harmony FITS (`progressionFitsLick` in `data/progressions.ts`: a 1|1|1-bar ii-V-I gets the long template only, a ½|½|1 one the short; cadence licks never fit a vamp) — and the user can add/remove them by hand; the detail page greys pills the lick can't play over (a tagged-but-unfit pill stays removable), the picker and `getPracticeLicks` skip unfit tags at read time, and `pruneIncompatibleProgressionTags` drops misfits on every successful hydrate. The minor templates are ii-7b5 · V7b9 · i-7 (`MINOR_CADENCE`).
 
 **Key functions:**
 - `hydrateLickPracticeProgress(supabase?)` — Async: pulls cloud metadata when signed in, loads persisted progress, backfills legacy practice tags.

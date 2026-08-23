@@ -29,6 +29,7 @@ export const SHORT_II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Minor ii-V Arpeggios',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: D-F
 			{ pitch: 62, duration: [1, 8], offset: [0, 1] },
@@ -48,6 +49,7 @@ export const SHORT_II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Half-Dim to Altered Roots',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: D-Ab (root-b5)
 			{ pitch: 62, duration: [1, 4], offset: [0, 1] },
@@ -68,6 +70,7 @@ export const SHORT_II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Descending Minor ii-V',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: F-Eb-D-C
 			{ pitch: 65, duration: [1, 8], offset: [0, 1] },
@@ -91,6 +94,7 @@ export const SHORT_II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Ascending Minor ii-V',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: D-E-F-Ab
 			{ pitch: 62, duration: [1, 8], offset: [0, 1] },
@@ -115,6 +119,7 @@ export const SHORT_II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Chromatic Minor ii-V',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: Ab-G-F-E
 			{ pitch: 68, duration: [1, 8], offset: [0, 1] },
@@ -138,6 +143,7 @@ export const SHORT_II_V_I_MINOR_LICKS: Phrase[] = [
 		name: 'Enclosure Minor ii-V',
 		timeSignature: [4, 4],
 		key: 'C',
+		mode: 'minor',
 		notes: [
 			// Dm7b5: C#-E-D (enclosure), Ab
 			{ pitch: 61, duration: [1, 8], offset: [0, 1] },
