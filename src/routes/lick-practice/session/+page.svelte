@@ -1616,7 +1616,18 @@
 						<div class="smallcaps text-[var(--color-brass)]">
 							{lickPractice.plan[0]?.kind === 'trick' ? 'Trick Drill' : 'Deep Practice'}
 						</div>
-						<div class="text-base font-medium">{sl.lickName}</div>
+						<div class="text-base font-medium">
+							{#if isTrick}
+								{sl.lickName}
+							{:else}
+								<a
+									href="/licks/{sl.lickId}"
+									class="hover:text-[var(--color-accent)] hover:underline transition-colors"
+								>
+									{sl.lickName}
+								</a>
+							{/if}
+						</div>
 					</div>
 					<div class="flex gap-6 text-right tabular-nums">
 						<div>
@@ -1683,7 +1694,18 @@
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-2">
 				<div class="flex items-center justify-between">
 					<div>
-						<span class="font-medium">{lick.lickName}</span>
+						<!-- A trick entry's lickId is a composite variant key, not a
+						     lick id — no detail page to link to. -->
+						{#if isTrickReportEntry(lick.lickId)}
+							<span class="font-medium">{lick.lickName}</span>
+						{:else}
+							<a
+								href="/licks/{lick.lickId}"
+								class="font-medium hover:text-[var(--color-accent)] hover:underline transition-colors"
+							>
+								{lick.lickName}
+							</a>
+						{/if}
 						<span class="ml-2 text-xs text-[var(--color-text-secondary)]">
 							{#if lick.newTempo != null}
 								{@const delta = lick.newTempo - lick.tempo}

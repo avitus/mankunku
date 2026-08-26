@@ -1936,3 +1936,21 @@ Numbers: 4426 unit green (13 new model tests, 5 rewritten tspan tests, 4
 rewritten chart tests), svelte-check 0/0, full chromium e2e 152/152,
 verified visually in-app (Mankunku Blues leadsheet: E⁷⁽♭⁹⁾, D♭°⁷, A-⁷, G⁶;
 cue-preview chart: G-⁷ C⁷ FΔ⁷).
+
+## 2026-08-26 — Session report links back to the lick
+
+Small navigation gap, closed: the post-session report named licks but gave
+no way to reach them. Both name surfaces (the Deep Practice header card and
+the per-lick breakdown cards) now link to `/licks/<id>` with the app's
+hover-accent affordance. Trick entries stay plain text — their `lickId` is
+a composite variant key, not a lick id, and `isTrickReportEntry` (already
+guarding the reset button for exactly this reason) now guards the link too.
+That guard keeps earning its keep: any report feature keyed by `lickId`
+must ask it first.
+
+TDD at feature scale: the e2e assertion (link role + href) went in first,
+failed on the un-changed page, then passed after the markup edit. Asserting
+the href instead of clicking keeps the spec's downstream ramp-CTA flow
+intact — the report is session state, and navigating away tears it down.
+
+Numbers: svelte-check 0/0, both lick-practice-session chromium specs green.

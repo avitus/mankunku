@@ -115,6 +115,13 @@ test.describe('lick-practice session flow', () => {
 		// The lick name renders in the per-lick breakdown and again inside the
 		// "Upcoming Licks" collapsible — assert the breakdown copy (first).
 		await expect(page.getByText('Test Bebop Line').first()).toBeVisible();
+		// The breakdown name links through to the lick's detail page. Assert the
+		// href rather than clicking — navigating away would tear down the report
+		// this test's remaining assertions (ramp CTA) still need.
+		await expect(page.getByRole('link', { name: 'Test Bebop Line' })).toHaveAttribute(
+			'href',
+			'/licks/e2e-user-lick-bebop'
+		);
 		await expect(page.getByText(/[01]\/1 · \d+%/)).toBeVisible();
 
 		// Tempo UI on the report: the per-lick row shows the lick's BPM (with
