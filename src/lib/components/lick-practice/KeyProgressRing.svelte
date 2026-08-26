@@ -2,7 +2,7 @@
 	import type { PitchClass, Mode } from '$lib/types/music';
 	import type { LickPracticeKeyResult } from '$lib/types/lick-practice';
 	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { keyLabel } from '$lib/music/notation';
+	import { keyChipLabel } from '$lib/music/notation';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
@@ -18,7 +18,7 @@
 		currentKey?: PitchClass;
 		keyResults: LickPracticeKeyResult[];
 		tempo: number;
-		/** Major/minor reading of the key labels (the progression's mode): "Dm" for a minor drill. */
+		/** Major/minor reading of the key labels (the progression's mode): "D-" for a minor drill. */
 		mode?: Mode;
 	}
 
@@ -147,7 +147,7 @@
 		{#each keys as key, i (key)}
 			{@const pos = getKeyPosition(i)}
 			{@const visual = getKeyVisual(key)}
-			{@const displayKey = keyLabel(concertKeyToWritten(key, instrument), mode)}
+			{@const displayKey = keyChipLabel(concertKeyToWritten(key, instrument), mode)}
 
 			<g>
 				{#if visual.kind === 'current'}

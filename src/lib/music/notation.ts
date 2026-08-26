@@ -340,6 +340,12 @@ export function keyLabel(writtenKey: PitchClass, mode: Mode = 'major'): string {
 	return writtenKey;
 }
 
+/** Chord-symbol-style key chip: "D", "D-", "Eb-", "G#-" — minor takes the jazz "-" suffix. */
+export function keyChipLabel(writtenKey: PitchClass, mode: Mode = 'major'): string {
+	if (mode === 'minor') return `${MINOR_TONIC_RESPELL[writtenKey] ?? writtenKey}-`;
+	return writtenKey;
+}
+
 /** Prose key label: "D minor", "G# minor", "F major". */
 export function keyLabelLong(writtenKey: PitchClass, mode: Mode = 'major'): string {
 	const tonic = mode === 'minor' ? (MINOR_TONIC_RESPELL[writtenKey] ?? writtenKey) : writtenKey;

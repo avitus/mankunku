@@ -1876,3 +1876,23 @@ tests (7 series builder, 5 snapshot persistence, 3 sync mapper, 1 derive,
 1 recordAttempt pass-through, e2e popover test red-green proven), 6/6 e2e on
 the spec across all three browsers, svelte-check 0/0, migration applied
 locally, feature verified visually via seeded Playwright screenshots.
+
+## 2026-08-25 — The key ring speaks chord-symbol, not theory-book
+
+One-line-of-substance fix with a scoping decision worth recording: minor keys
+on the lick-practice circle-of-fifths ring showed "Am"; Andy wants the jazz
+chord-symbol convention "A-". The ring's dots read as chord chips sitting next
+to a session chart that already prints C-7/A-7 (chord-symbol.ts's minor
+family), so "Am" was the one theory-book label in a chord-symbol neighborhood.
+
+The interesting constraint: keyLabel can't simply change, because abcKeyField
+delegates to it and abcjs only understands "Dm"/"G#m" in the K: field. So the
+split is now explicit: keyLabel stays the ABC/prose-adjacent spelling,
+keyChipLabel (new, same MINOR_TONIC_RESPELL so G#-/C#- still respell) is the
+chord-symbol-style display form. Only the ring adopted it — header, rows,
+report, and progress page still say "Dm"; if Andy wants the convention
+everywhere, it's a one-import swap per surface, and the two-function split
+means that choice is now a real decision rather than an accident of sharing.
+
+TDD: red on missing export, green, 4412 unit green, svelte-check 0/0. No e2e
+pinned the old label. Pushed to dev (no open PR — no CodeRabbit trigger).
