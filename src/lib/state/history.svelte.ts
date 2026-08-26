@@ -27,9 +27,23 @@ import type {
 	UserProgress
 } from '$lib/types/progress';
 import type { Grade } from '$lib/types/scoring';
+import type { ScaleType } from '$lib/tonality/tonality';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
 import { save, load, remove } from '$lib/persistence/storage';
 import { scoreToGrade } from '$lib/scoring/grades';
+
+/**
+ * Point-in-time values a summary carries that are NOT derivable from the
+ * source tables — adaptive complexity, tonal mastery, and per-scale levels.
+ * Supplied by the write path that owns them (recordAttempt); recomputes
+ * without a fresh snapshot preserve whatever the stored summary already has.
+ */
+export interface ComplexitySnapshot {
+	pitch?: number;
+	rhythm?: number;
+	tonalMastery?: number;
+	scaleLevels?: Partial<Record<ScaleType, number>>;
+}
 
 const SUMMARIES_KEY = 'daily-summaries';
 const META_KEY = 'progress-meta';
@@ -48,12 +62,8 @@ function gradeKey(grade: Grade): keyof GradeDistribution {
 	return grade as keyof GradeDistribution;
 }
 
-export function localDateStr(d: Date): string {
-	const year = d.getFullYear();
-	const month = String(d.getMonth() + 1).padStart(2, '0');
-	const day = String(d.getDate()).padStart(2, '0');
-	return `${year}-${month}-${day}`;
-}
+import { localDateStr } from '$lib/util/local-date';
+export { localDateStr };
 
 function dateKey(timestamp: number): string {
 	return localDateStr(new Date(timestamp));
@@ -89,7 +99,7 @@ export function deriveDailySummary(
 	date: string,
 	earSessions: SessionResult[],
 	lickEntries: LickPracticeSessionLogEntry[],
-	preservedComplexity?: { pitch?: number; rhythm?: number; tonalMastery?: number }
+	preservedComplexity?: ComplexitySnapshot
 ): DailySummary | null {
 	const dayEar = earSessions.filter((s) => dateKey(s.timestamp) === date);
 	const dayLick = lickEntries.filter((e) => dateKey(e.timestamp) === date);
@@ -161,6 +171,8 @@ export function deriveDailySummary(
 		summary.rhythmComplexity = preservedComplexity.rhythm;
 	if (preservedComplexity?.tonalMastery !== undefined)
 		summary.tonalMastery = preservedComplexity.tonalMastery;
+	if (preservedComplexity?.scaleLevels !== undefined)
+		summary.scaleLevels = preservedComplexity.scaleLevels;
 
 	return summary;
 }
@@ -216,7 +228,16 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		// bestScore is a personal best — always the max of both sides, independent
 		// of which side has more attempts (a higher best can live on the side with
 		// fewer sessions).
-		bestScore: Math.max(existing.bestScore, derived.bestScore)
+		bestScore: Math.max(existing.bestScore, derived.bestScore),
+		// Snapshot fields aren't derivable, so an absent value means "this side
+		// never knew", not "cleared" — a cloud row mapped from NULL columns
+		// carries them as present-but-undefined, which a plain spread would copy
+		// over a real local snapshot. Reset clears the whole cache, so nothing
+		// legitimate ever needs to erase one here.
+		pitchComplexity: derived.pitchComplexity ?? existing.pitchComplexity,
+		rhythmComplexity: derived.rhythmComplexity ?? existing.rhythmComplexity,
+		tonalMastery: derived.tonalMastery ?? existing.tonalMastery,
+		scaleLevels: derived.scaleLevels ?? existing.scaleLevels
 	};
 	// Notes / averages prefer the source with more total attempts on record.
 	const derivedTotal = (derived.earTrainingSessions ?? 0) + (derived.lickPracticeSessions ?? 0);
@@ -246,7 +267,7 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
  *   override any preserved value for that date.
  */
 export function recomputeAllDailySummaries(
-	complexitySnapshots?: Map<string, { pitch: number; rhythm: number; tonalMastery?: number }>
+	complexitySnapshots?: Map<string, ComplexitySnapshot>
 ): DailySummary[] {
 	const earSessions = load<UserProgress>(PROGRESS_KEY)?.sessions ?? [];
 	const lickEntries = load<LickPracticeSessionLogEntry[]>(LICK_SESSIONS_KEY) ?? [];
@@ -265,7 +286,8 @@ export function recomputeAllDailySummaries(
 				? {
 						pitch: existing.pitchComplexity,
 						rhythm: existing.rhythmComplexity,
-						tonalMastery: existing.tonalMastery
+						tonalMastery: existing.tonalMastery,
+						scaleLevels: existing.scaleLevels
 					}
 				: undefined);
 
@@ -308,7 +330,7 @@ export function recomputeAllDailySummaries(
  */
 export function recomputeDailySummary(
 	date: string,
-	complexitySnapshot?: { pitch: number; rhythm: number; tonalMastery?: number }
+	complexitySnapshot?: ComplexitySnapshot
 ): DailySummary | null {
 	const earSessions = load<UserProgress>(PROGRESS_KEY)?.sessions ?? [];
 	const lickEntries = load<LickPracticeSessionLogEntry[]>(LICK_SESSIONS_KEY) ?? [];
@@ -320,7 +342,8 @@ export function recomputeDailySummary(
 			? {
 					pitch: existing.pitchComplexity,
 					rhythm: existing.rhythmComplexity,
-					tonalMastery: existing.tonalMastery
+					tonalMastery: existing.tonalMastery,
+					scaleLevels: existing.scaleLevels
 				}
 			: undefined);
 

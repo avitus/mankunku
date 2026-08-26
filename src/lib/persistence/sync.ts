@@ -448,6 +448,7 @@ function dailySummaryToRow(
 		pitch_complexity: s.pitchComplexity ?? null,
 		rhythm_complexity: s.rhythmComplexity ?? null,
 		tonal_mastery: s.tonalMastery ?? null,
+		scale_levels: (s.scaleLevels as unknown as Json) ?? null,
 		updated_at: new Date().toISOString()
 	};
 }
@@ -469,6 +470,7 @@ function rowToDailySummary(row: {
 	pitch_complexity: number | null;
 	rhythm_complexity: number | null;
 	tonal_mastery: number | null;
+	scale_levels: Json | null;
 }): DailySummary {
 	return {
 		date: row.date,
@@ -486,7 +488,8 @@ function rowToDailySummary(row: {
 		categories: (row.categories ?? {}) as unknown as Record<string, number>,
 		pitchComplexity: row.pitch_complexity ?? undefined,
 		rhythmComplexity: row.rhythm_complexity ?? undefined,
-		tonalMastery: row.tonal_mastery ?? undefined
+		tonalMastery: row.tonal_mastery ?? undefined,
+		scaleLevels: (row.scale_levels as DailySummary['scaleLevels']) ?? undefined
 	};
 }
 

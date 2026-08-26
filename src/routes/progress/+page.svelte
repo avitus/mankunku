@@ -13,6 +13,9 @@
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
 	import PracticeCalendar from '$lib/components/progress/PracticeCalendar.svelte';
 	import TrendChart from '$lib/components/progress/TrendChart.svelte';
+	import ScaleTrendChart from '$lib/components/progress/ScaleTrendChart.svelte';
+	import { buildScaleLevelSeries } from '$lib/state/scale-trend';
+	import { localDateStr } from '$lib/util/local-date';
 	import PeriodCompare from '$lib/components/progress/PeriodCompare.svelte';
 	import LickKeyDetail from '$lib/components/progress/LickKeyDetail.svelte';
 	import { dailySummaries } from '$lib/state/history.svelte';
@@ -233,6 +236,42 @@
 			.map(st => ({ scaleType: st, prof: progress.scaleProficiency[st]! }))
 			.sort((a, b) => b.prof.level - a.prof.level)
 	);
+
+	// Scale-trend popover: hovering a row (mouse) previews it; click/tap/focus
+	// pins it, so touch devices — which have no hover — get the same chart.
+	let hoveredScale: ScaleType | null = $state(null);
+	let pinnedScale: ScaleType | null = $state(null);
+	// $derived.by with an explicit return type: as a top-level expression the
+	// initializer would flow-narrow both still-null lets to plain `null`, and
+	// const narrowing carries that into every closure reading openScale.
+	const openScale = $derived.by((): ScaleType | null => pinnedScale ?? hoveredScale);
+	const openScaleSeries = $derived.by(() => {
+		const scaleType = openScale;
+		if (!scaleType) return [];
+		return buildScaleLevelSeries({
+			scaleType,
+			sessions: progress.sessions,
+			summaries: dailySummaries,
+			currentLevel: progress.scaleProficiency[scaleType]?.level ?? 1,
+			today: localDateStr(new Date())
+		});
+	});
+
+	function toggleScalePin(scaleType: ScaleType): void {
+		if (pinnedScale === scaleType) {
+			// Clear hover too, or the popover a touch tap opened would stay up —
+			// touch fires pointerenter without ever firing pointerleave.
+			pinnedScale = null;
+			hoveredScale = null;
+		} else {
+			pinnedScale = scaleType;
+		}
+	}
+
+	function closeScaleTrend(): void {
+		pinnedScale = null;
+		hoveredScale = null;
+	}
 
 	const keyEntries = $derived(
 		(Object.entries(progress.keyProgress) as [PitchClass, { attempts: number; averageScore: number }][])
@@ -695,26 +734,63 @@
 		<!-- Scale Proficiency breakdown -->
 		{#if scaleProfEntries.length > 0}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 text-lg font-semibold">Scale Proficiency</h2>
+				<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
+					Scale Proficiency
+					<TooltipHint
+						text={tooltips.progress.scaleProficiency.text}
+						learnMore={tooltips.progress.scaleProficiency.learnMore}
+						position="right"
+					/>
+				</h2>
 				<div class="space-y-3">
 					{#each scaleProfEntries as { scaleType, prof }}
 						{@const disp = masteryDisplay(prof.level)}
-						<div>
-							<div class="flex items-center justify-between text-sm">
-								<span>{SCALE_TYPE_NAMES[scaleType]}</span>
-								<span class="tabular-nums font-medium" style="color: {disp.color}">
-									Lv {prof.level}
-								</span>
-							</div>
-							<div class="mt-1 h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+						{@const open = openScale === scaleType}
+						<div
+							class="relative"
+							role="group"
+							onpointerenter={(e) => { if (e.pointerType === 'mouse') hoveredScale = scaleType; }}
+							onpointerleave={(e) => { if (e.pointerType === 'mouse' && hoveredScale === scaleType) hoveredScale = null; }}
+						>
+							<button
+								type="button"
+								class="block w-full cursor-pointer rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+								aria-expanded={open}
+								aria-label="{SCALE_TYPE_NAMES[scaleType]} proficiency trend"
+								onclick={() => toggleScalePin(scaleType)}
+								onfocus={() => { hoveredScale = scaleType; }}
+								onblur={() => { if (hoveredScale === scaleType) hoveredScale = null; }}
+								onkeydown={(e) => { if (e.key === 'Escape') closeScaleTrend(); }}
+							>
+								<div class="flex items-center justify-between text-sm">
+									<span>{SCALE_TYPE_NAMES[scaleType]}</span>
+									<span class="tabular-nums font-medium" style="color: {disp.color}">
+										Lv {prof.level}
+									</span>
+								</div>
+								<div class="mt-1 h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+									<div
+										class="h-full rounded-full transition-all"
+										style="width: {prof.level}%; background-color: {disp.color}"
+									></div>
+								</div>
+								<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+									{prof.totalAttempts} attempts
+								</div>
+							</button>
+							{#if open}
 								<div
-									class="h-full rounded-full transition-all"
-									style="width: {prof.level}%; background-color: {disp.color}"
-								></div>
-							</div>
-							<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-								{prof.totalAttempts} attempts
-							</div>
+									class="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-lg border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-3 shadow-xl"
+								>
+									<div class="mb-1 flex items-baseline justify-between text-xs text-[var(--color-text-secondary)]">
+										<span>{SCALE_TYPE_NAMES[scaleType]} · level over time</span>
+										<span class="tabular-nums font-medium" style="color: {disp.color}">
+											Lv {prof.level}
+										</span>
+									</div>
+									<ScaleTrendChart points={openScaleSeries} color={disp.color} />
+								</div>
+							{/if}
 						</div>
 					{/each}
 				</div>

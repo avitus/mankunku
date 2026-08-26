@@ -85,3 +85,65 @@ test('trend chart renders mastery only', async ({ page, consoleCollector: _c }) 
 
 	await chart.screenshot({ path: 'test-results/trend-chart.png' });
 });
+
+function proficiency(level: number, attempts: number) {
+	return {
+		level,
+		recentScores: [0.9, 0.85],
+		attemptsAtLevel: 2,
+		attemptsSinceChange: 2,
+		totalAttempts: attempts
+	};
+}
+
+test('scale proficiency rows reveal a level-over-time popover on hover, pin on click', async ({
+	page,
+	consoleCollector: _c
+}) => {
+	await page.clock.install({ time: NOW });
+
+	await seedStorage(page, {
+		settings: SETTINGS_ONBOARDED,
+		'tour-state': TOUR_DISMISSED,
+		progress: {
+			sessions: [],
+			scaleProficiency: { major: proficiency(14, 30), dorian: proficiency(4, 9) }
+		},
+		'daily-summaries': [
+			{ ...summary('2026-06-20', 17), scaleLevels: { major: 8, dorian: 2 } },
+			{ ...summary('2026-06-27', 21), scaleLevels: { major: 10, dorian: 3 } },
+			{ ...summary('2026-07-04', 24), scaleLevels: { major: 11, dorian: 3 } },
+			{ ...summary('2026-07-11', 29), scaleLevels: { major: 13, dorian: 4 } }
+		]
+	});
+
+	await page.goto('/progress');
+
+	const majorRow = page.getByRole('button', { name: 'Major proficiency trend' });
+	await expect(majorRow).toBeVisible();
+
+	// Hover reveals the trend popover with a chart ending at the live level.
+	await majorRow.hover();
+	const popover = page.getByText('Major · level over time').locator('..').locator('..');
+	await expect(popover).toBeVisible();
+	await expect(popover).toContainText('Lv 14');
+	await expect(popover.locator('svg polyline')).toHaveCount(1);
+	await expect(majorRow).toHaveAttribute('aria-expanded', 'true');
+
+	// Moving away closes it. Leave DOWNWARD (the popover opens above the row):
+	// exiting through the popover would unmount it under the moving cursor,
+	// which Firefox's automation harness reports as a spurious console error.
+	const below = page.getByRole('heading', { name: 'Adaptive Difficulty' });
+	await below.hover();
+	await expect(page.getByText('Major · level over time')).toBeHidden();
+
+	// Click pins: the popover survives the pointer leaving the row.
+	const dorianRow = page.getByRole('button', { name: 'Dorian proficiency trend' });
+	await dorianRow.click();
+	await below.hover();
+	await expect(page.getByText('Dorian · level over time')).toBeVisible();
+
+	// Escape dismisses the pin.
+	await dorianRow.press('Escape');
+	await expect(page.getByText('Dorian · level over time')).toBeHidden();
+});

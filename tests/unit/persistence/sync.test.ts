@@ -1090,6 +1090,17 @@ describe('syncDailySummaryToCloud', () => {
 		const [row] = mock._upsertFn.mock.calls[0];
 		expect(row.pitch_complexity).toBeNull();
 		expect(row.rhythm_complexity).toBeNull();
+		expect(row.scale_levels).toBeNull();
+	});
+
+	it('encodes the per-scale level snapshot (a forgotten mapper column would erase it on the next pull)', async () => {
+		const mock = createMockSupabase();
+		await syncDailySummaryToCloud(mock as any, {
+			...TEST_SUMMARY,
+			scaleLevels: { major: 14, dorian: 3 }
+		});
+		const [row] = mock._upsertFn.mock.calls[0];
+		expect(row.scale_levels).toEqual({ major: 14, dorian: 3 });
 	});
 
 	it('skips when unauthenticated', async () => {
@@ -1191,6 +1202,22 @@ describe('loadDailySummariesFromCloud', () => {
 		const out = await loadDailySummariesFromCloud(mock as any);
 		expect(out![0].pitchComplexity).toBeUndefined();
 		expect(out![0].rhythmComplexity).toBeUndefined();
+		expect(out![0].scaleLevels).toBeUndefined();
+	});
+
+	it('round-trips the per-scale level snapshot through the row mappers', async () => {
+		const mock = createMockSupabase();
+		await syncDailySummaryToCloud(mock as any, {
+			...TEST_SUMMARY,
+			scaleLevels: { major: 14 }
+		});
+		const [pushed] = mock._upsertFn.mock.calls[0];
+
+		const readMock = createMockSupabase({
+			tableResults: { daily_summaries: { data: [pushed], error: null } }
+		});
+		const out = await loadDailySummariesFromCloud(readMock as any);
+		expect(out![0].scaleLevels).toEqual({ major: 14 });
 	});
 
 	it('returns null when unauthenticated', async () => {

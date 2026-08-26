@@ -192,6 +192,17 @@ describe('deriveDailySummary', () => {
 		expect(result?.tonalMastery).toBe(8.33);
 	});
 
+	it('carries the per-scale level snapshot when supplied', () => {
+		const ts = new Date('2025-05-13T12:00').getTime();
+		const ear = [makeEarSession({ timestamp: ts })];
+		const result = historyModule.deriveDailySummary('2025-05-13', ear, [], {
+			pitch: 42,
+			rhythm: 51,
+			scaleLevels: { major: 14, dorian: 3 }
+		});
+		expect(result?.scaleLevels).toEqual({ major: 14, dorian: 3 });
+	});
+
 	it('leaves tonalMastery undefined when no snapshot is supplied', () => {
 		const ts = new Date('2025-05-13T12:00').getTime();
 		const ear = [makeEarSession({ timestamp: ts })];

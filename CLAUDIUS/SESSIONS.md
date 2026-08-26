@@ -1827,3 +1827,52 @@ player is rhythmically accurate); evidence ORDER did the work instead.
 Numbers: 4147 unit/integration green (35 expected-fail), 3 new tests in
 pitch-replay.test.ts (2026-08-18 fixture pair copied into the corpus),
 svelte-check clean.
+
+## 2026-08-25 — Scale-proficiency trend popover: the snapshot exception to derive-on-write
+
+User request: hover any row of the /progress Scale Proficiency table and see
+that scale's proficiency over time. The data didn't exist — scaleProficiency
+holds only the current level, and the sole time dimension (progress.sessions)
+is pruned at 100 entries, so a session-replay series would erode to weeks and
+keep eroding. Followed TrendChart's own precedent: tonalMastery solved this
+exact problem by snapshotting into DailySummary at write time.
+
+Design: `DailySummary.scaleLevels` (all attempted scales' levels, stamped by
+recordAttempt beside tonalMastery; new jsonb column + both sync mappers +
+hand-edited types.ts, db:types:check green) + `state/scale-trend.ts`, a pure
+builder that merges snapshot points with a BACKFILL for pre-snapshot dates:
+replay surviving sessions through the real processScaleAttempt, take each
+day's closing level, then anchor-shift the whole replay so its endpoint meets
+the first known real level. The shift is the honest part — pruned older
+sessions raised the true level beyond what a from-initial replay reaches, so
+an unshifted line would understate every point. Series always ends at
+(today, currentLevel) so the chart agrees with the row's Lv number.
+
+Found and fixed a real pre-existing bug on the way: mergeWithExisting spreads
+the derived/cloud side wholesale, and rowToDailySummary emits NULL snapshot
+columns as present-but-undefined keys — which Object.assign copies, silently
+erasing a local tonalMastery (and would have erased scaleLevels). Invisible
+with object literals that merely LACK the key; my first reconcile test passed
+trivially until I made the cloud row mirror the mapper's exact output. Merge
+now prefers defined snapshot values; CLAUDE.md documents the snapshot
+exception to derive-on-write.
+
+Two lessons worth keeping:
+- TS definite-assignment narrowing bit the page: at a top-level `$derived(a ?? b)`
+  where both lets are still provably null, the EXPRESSION narrows to `null`,
+  const-narrowing carries that into every closure, and the downstream guard
+  leaves `never`. Annotating the const does nothing (the narrowing is on the
+  initializer). Fix: compute inside `$derived.by` with an explicit return type —
+  function bodies discard outer flow-narrowing of captured lets.
+- Firefox + Playwright logs NS_ERROR_NOT_INITIALIZED from "debugger eval code"
+  whenever a pointer move's hit-target check races DOM that mounts/unmounts
+  under the cursor — i.e. every hover-revealed popover. Bisected to the move
+  itself (bare move: clean; move with popover unmounting: 1 error per move),
+  no pageerror, chromium/webkit clean. Allowlisted in console-errors.ts pinned
+  to the injected-script source so real app NS_ERRORs still fail.
+
+Numbers: 4411 unit/integration green (35 expected-fail, was 4396), 13 new
+tests (7 series builder, 5 snapshot persistence, 3 sync mapper, 1 derive,
+1 recordAttempt pass-through, e2e popover test red-green proven), 6/6 e2e on
+the spec across all three browsers, svelte-check 0/0, migration applied
+locally, feature verified visually via seeded Playwright screenshots.
