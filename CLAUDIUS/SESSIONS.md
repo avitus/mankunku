@@ -1896,3 +1896,43 @@ means that choice is now a real decision rather than an accident of sharing.
 
 TDD: red on missing export, green, 4412 unit green, svelte-check 0/0. No e2e
 pinned the old label. Pushed to dev (no open PR — no CodeRabbit trigger).
+
+## 2026-08-26 — Chord Faces: the whole app learns one chord voice
+
+The chord-typography session, and the most satisfying kind of find: the fix
+exposed a defect nobody had reported. While auditing glyph coverage for the
+font showcase I found MuseJazzText — the leadsheet chord face since the
+beginning — has NO Δ at U+0394. Its triangle lives at PUA U+E18A (which is
+exactly why pdf-text-chords.ts maps 0xe18a → 'Δ' on IMPORT). Every CΔ7 the
+app ever drew got its triangle from 'Segoe Print'/Comic Sans fallback. The
+incoherence Andy sensed was real and measurable.
+
+Process worth repeating: before proposing anything I built a self-contained
+showcase artifact — four candidate faces embedded as data URIs, every chord
+form at three sizes on paper/slate panels, live toggles for the open
+conventions, and a "Your pick" bar that composes the answer sentence. Andy
+answered in exactly that sentence: Fraunces (D) · sup 0.58 · ♭/♯ glyphs ·
+°7 · +7 · 7sus4. The surprise: he picked the app's own display serif over
+both jazz hands — the Real Book look lost to typographic coherence with the
+rest of the UI. Fraunces lacks Δ ♭ ♯, so Edwin (MuseScore's engraved face,
+OFL, added to static/fonts) rides second in the stack; Fraunces'
+unicode-range already excludes what Edwin must supply, so the fallthrough is
+structural, not luck.
+
+Architecture: `chordDisplayModel` in chord-layout.ts is now the ONE
+convention (baseline root+minus, sup run, supStack, bass), consumed by the
+SVG tspan engraver, ChordChart's HTML, and a new ChordSymbolText for chord
+lists. The old ChordLayoutParts stacking (alterations as a bare raised
+column) is gone from every surface. Canonical strings stay ASCII-plus-Δ —
+the round-trip invariant and the editable chord input never see ø/°/♭.
+
+One pre-existing flake fixed along the way (memory: pre-existing bugs are in
+scope): tune-practice's session-start helper budgeted 20s for Tone.start +
+sample decode + transport spin-up, which the full parallel suite reliably
+starved (fails on baseline too; solo ~5s). Budget now 45s, outer clocks
+150s per the spec's own outer>sum rule.
+
+Numbers: 4426 unit green (13 new model tests, 5 rewritten tspan tests, 4
+rewritten chart tests), svelte-check 0/0, full chromium e2e 152/152,
+verified visually in-app (Mankunku Blues leadsheet: E⁷⁽♭⁹⁾, D♭°⁷, A-⁷, G⁶;
+cue-preview chart: G-⁷ C⁷ FΔ⁷).

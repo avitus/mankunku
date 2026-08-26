@@ -93,8 +93,11 @@ async function setTempoMax(page: Page): Promise<void> {
 async function startPracticeSession(page: Page): Promise<void> {
 	await page.getByRole('button', { name: /^start$/i }).click();
 	// "End" only exists once the session leaves setup — stronger than the bare
-	// chart viewport testid, which the setup preview also mounts.
-	await expect(page.getByRole('button', { name: /^end$/i })).toBeVisible({ timeout: 20_000 });
+	// chart viewport testid, which the setup preview also mounts. Session start
+	// runs Tone.start() + sample decode + transport spin-up in real time; on a
+	// box saturated by the full parallel suite that reliably starved a 20s
+	// budget (solo runs finish in ~5s), so the budget covers the loaded case.
+	await expect(page.getByRole('button', { name: /^end$/i })).toBeVisible({ timeout: 45_000 });
 	await expect(page.locator('[data-testid="chart-scroll-viewport"].following')).toBeVisible();
 	await expectChartVisibleInFollowViewport(page);
 }
@@ -180,7 +183,8 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
 
-		test.setTimeout(90_000);
+		// Outer clock > sum of inner budgets (45s start + 75s window + 10s end).
+		test.setTimeout(150_000);
 
 		await seedOnboardedAnonymous(page);
 		await installAudioMock(page);
@@ -222,7 +226,8 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
 
-		test.setTimeout(90_000);
+		// Outer clock > sum of inner budgets (45s start + 75s window + 10s end).
+		test.setTimeout(150_000);
 
 		const autumnLeaves = {
 			...autumnLeavesFixture,

@@ -39,7 +39,7 @@
 		type RectSpec
 	} from '$lib/notation/abcjs-adapter';
 	import {
-		layoutChordParts,
+		chordDisplayModelFromText,
 		chordTspanSpecs,
 		alterationStackX
 	} from '$lib/music/chord-layout';
@@ -244,9 +244,11 @@
 					chordSlotAnchors: []
 				};
 		const { abc, noteAnchors, barAnchors, chordSlotAnchors } = rendered;
-		// Engraving house style: wider staff, jazz chord face, Real Book masthead
-		// fonts. jazzchords is intentionally OFF — its superscript markers
-		// mis-parse ASCII flats ("Bb7" → B + b7); MuseJazzText handles the look.
+		// Engraving house style: wider staff, the app chord face, Real Book
+		// masthead fonts. jazzchords is intentionally OFF — its superscript
+		// markers mis-parse ASCII flats ("Bb7" → B + b7); structureChordSymbols
+		// does the superscript engraving after render. gchordfont only feeds
+		// abcjs's width estimation; the painted face is the --chord-font CSS.
 		const [visualObj] = abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
 			staffwidth: CHART_STAFF_WIDTH,
@@ -256,7 +258,7 @@
 			paddingright: 12,
 			add_classes: true,
 			format: {
-				gchordfont: { face: 'MuseJazzText', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
+				gchordfont: { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
 				partsfont: {
 					face: 'Fraunces, Georgia, "Times New Roman", serif',
@@ -806,45 +808,54 @@
 	}
 
 	/**
-	 * MuseScore Jazz–style chord rewrite:
-	 *   E7  b9
-	 *       #11
+	 * Superscript chord engraving — the app-wide pretty convention:
+	 *   G⁷⁽♭⁹⁾   C-⁷   Dø⁷   with two+ alterations as a raised column in
+	 *   one tall paren pair.
 	 *
-	 * Root + quality flow on the main baseline. Alterations form a vertical
-	 * column whose LEFT edge sits just past the measured main-line width.
+	 * Root and the minor "-" flow full-size on the baseline; the sup run
+	 * flows right after them, small and raised (absolute y, flowing x). A
+	 * multi-alteration stack chains left→right at the measured right edge:
+	 * "(", the column, ")".
 	 *
 	 * Critical: abcjs chords use text-anchor="middle". Absolute tspan `x` is
-	 * then the CENTER of that chunk, so alts placed at mainRight paint half
-	 * their width back over the quality (the "E7 with #11/b9 on the 7" bug).
-	 * We switch the element to text-anchor="start" and re-home `x` to the
-	 * painted left edge so the chord stays put and the stack grows right.
+	 * then the CENTER of that chunk, so a stack placed at mainRight paints
+	 * half its width back over the sup run. We switch the element to
+	 * text-anchor="start" and re-home `x` to the painted left edge so the
+	 * chord stays put and the stack grows right.
 	 */
 	function structureChordSymbols(container: HTMLDivElement): void {
 		for (const svg of container.querySelectorAll('svg')) {
 			for (const el of svg.querySelectorAll<SVGTextElement>('text.abcjs-chord')) {
 				const raw = (el.textContent ?? '').trim();
 				if (!raw) continue;
-				const parts = layoutChordParts(raw);
-				if (!parts.quality && parts.alterations.length === 0 && !parts.bass) continue;
+				const model = chordDisplayModelFromText(raw);
+				const bare =
+					!model.baselineQuality && !model.sup && !model.supStack && !model.bass;
+				// Unparseable text (root === raw) keeps abcjs's own rendering;
+				// a parseable bare root may still need its accidental prettified.
+				if (bare && model.root === raw) continue;
 
-				const specs = chordTspanSpecs(parts);
+				const specs = chordTspanSpecs(model);
 				const baseSize = Number.parseFloat(el.getAttribute('font-size') ?? '') || 15;
 				const baseY = Number.parseFloat(el.getAttribute('y') ?? '0');
 
 				while (el.firstChild) el.removeChild(el.firstChild);
 
-				// ── Main line: root + quality (flowing tspans) ─────────────
-				const mainSpecs = specs.filter((s) => s.role === 'root' || s.role === 'quality');
-				for (const spec of mainSpecs) {
+				// ── Main line: root + minus + sup run (flowing tspans) ─────
+				for (const spec of specs.filter((s) => !s.stackRight && s.role !== 'bass')) {
 					const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
 					tspan.setAttribute('font-size', (baseSize * spec.size).toFixed(2));
+					// The sup run rises via absolute y; x keeps flowing.
+					if (spec.dyEm !== 0) {
+						tspan.setAttribute('y', (baseY + spec.dyEm * baseSize).toFixed(2));
+					}
 					tspan.setAttribute('data-chord-part', spec.role);
 					tspan.textContent = spec.text;
 					el.appendChild(tspan);
 				}
 
 				// Measure painted main line, then convert middle→start anchoring
-				// so absolute alt `x` means "left edge of stack", not center.
+				// so absolute stack `x` means "left edge", not center.
 				let mainLeft = Number.parseFloat(el.getAttribute('x') ?? '0');
 				let stackX = mainLeft + baseSize * 1.4;
 				try {
@@ -855,7 +866,7 @@
 						mainLeft = mainBox.x;
 						stackX = alterationStackX(mainBox, baseSize);
 						// Re-home: start-anchor at the previous painted left edge
-						// so E7 does not jump when we drop text-anchor="middle".
+						// so the chord does not jump when we drop "middle".
 						el.setAttribute('x', mainLeft.toFixed(2));
 						el.setAttribute('text-anchor', 'start');
 					} else {
@@ -866,18 +877,40 @@
 					el.setAttribute('text-anchor', 'start');
 				}
 
-				// ── Alteration column (start-anchored at stackX) ───────────
-				const altSpecs = specs.filter((s) => s.role === 'alteration');
-				for (const spec of altSpecs) {
-					const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-					tspan.setAttribute('x', stackX.toFixed(2));
-					tspan.setAttribute('y', (baseY + spec.dyEm * baseSize).toFixed(2));
-					tspan.setAttribute('font-size', (baseSize * spec.size).toFixed(2));
-					// Explicit start so inherited middle cannot re-center a chunk.
-					tspan.setAttribute('text-anchor', 'start');
-					tspan.setAttribute('data-chord-part', 'alteration');
-					tspan.textContent = spec.text;
-					el.appendChild(tspan);
+				// ── Paren-wrapped alteration stack, chained left→right ─────
+				// "(" at stackX → column rows share one x after it → ")" at the
+				// widest row's right edge. Widths come from the painted glyphs,
+				// with per-glyph estimates when measurement is unavailable.
+				const stackSpecs = specs.filter((s) => s.stackRight);
+				if (stackSpecs.length > 0) {
+					const place = (spec: (typeof stackSpecs)[number], x: number): number => {
+						const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+						tspan.setAttribute('x', x.toFixed(2));
+						tspan.setAttribute('y', (baseY + spec.dyEm * baseSize).toFixed(2));
+						tspan.setAttribute('font-size', (baseSize * spec.size).toFixed(2));
+						// Explicit start so inherited middle cannot re-center a chunk.
+						tspan.setAttribute('text-anchor', 'start');
+						tspan.setAttribute('data-chord-part', spec.role);
+						tspan.textContent = spec.text;
+						el.appendChild(tspan);
+						let width = baseSize * spec.size * (spec.role === 'paren' ? 0.33 : 1.0);
+						try {
+							const painted = tspan.getComputedTextLength();
+							if (Number.isFinite(painted) && painted > 0) width = painted;
+						} catch {
+							// keep the estimate
+						}
+						return width;
+					};
+					const openParen = stackSpecs[0];
+					const closeParen = stackSpecs[stackSpecs.length - 1];
+					const rows = stackSpecs.slice(1, -1);
+					const columnX = stackX + place(openParen, stackX);
+					let columnRight = columnX;
+					for (const row of rows) {
+						columnRight = Math.max(columnRight, columnX + place(row, columnX));
+					}
+					place(closeParen, columnRight);
 				}
 
 				// ── Slash bass below the main symbol ──────────────────────
@@ -1245,12 +1278,12 @@
 		stroke: color-mix(in srgb, var(--color-text) 88%, transparent) !important;
 		fill: color-mix(in srgb, var(--color-text) 88%, transparent) !important;
 	}
-	/* Chord symbols + section labels: heavier than staff ink. */
+	/* Chord symbols: the app-wide chord face (Fraunces + Edwin glyphs). */
 	.chart-practice :global(svg text.abcjs-chord),
 	.chart-practice :global(svg .abcjs-chord) {
 		fill: var(--color-text) !important;
-		font-family: MuseJazzText, 'Segoe Print', 'Comic Sans MS', cursive !important;
-		font-weight: 600;
+		font-family: var(--chord-font) !important;
+		font-weight: var(--chord-font-weight);
 	}
 	/* Rehearsal marks — bold letter + hollow square (abcjs path box). */
 	.chart-practice :global(svg text.abcjs-part),
@@ -1330,8 +1363,8 @@
 	}
 	.chart-print :global(svg text.abcjs-chord),
 	.chart-print :global(svg .abcjs-chord) {
-		font-family: MuseJazzText, 'Segoe Print', 'Comic Sans MS', cursive !important;
-		font-weight: 600;
+		font-family: var(--chord-font) !important;
+		font-weight: var(--chord-font-weight);
 	}
 	.chart-print :global(svg text.abcjs-title) {
 		font-family: Fraunces, Georgia, 'Times New Roman', serif !important;
@@ -1372,12 +1405,9 @@
 	.notation-container :global(svg g.abcjs-ending-align g.abcjs-ending line) {
 		vector-effect: non-scaling-stroke;
 	}
-	/* Structured chord parts — stacked alterations sit right of the quality. */
-	.notation-container :global(svg text.abcjs-chord tspan[data-chord-part='quality']) {
-		font-weight: 500;
-	}
-	.notation-container :global(svg text.abcjs-chord tspan[data-chord-part='alteration']) {
-		font-weight: 500;
+	/* Structured chord parts — root/minus on the baseline, the rest raised. */
+	.notation-container :global(svg text.abcjs-chord tspan[data-chord-part='paren']) {
+		opacity: 0.85;
 	}
 	.notation-container :global(svg text.abcjs-chord tspan[data-chord-part='bass']) {
 		opacity: 0.9;

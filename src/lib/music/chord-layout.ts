@@ -105,6 +105,98 @@ export function chordAbcAnnotation(displayText: string, keyContext?: PitchClass)
 }
 
 /**
+ * Pretty display parts — the ONE convention every chord surface renders
+ * (leadsheet SVG, practice chart, chord lists). Display-only: canonical and
+ * serialized strings stay ASCII-plus-Δ (`formatChordSymbol`), this layer maps
+ * them to what the reader sees.
+ *
+ * Conventions (chosen 2026-08-26):
+ * - root and the minor "-" sit full-size on the baseline
+ * - everything after them is one superscript run: extensions, Δ, ø, °, +,
+ *   sus, and a single alteration parenthesized — G⁷⁽♭⁹⁾, Dø⁷, C-⁷, F♯°⁷
+ * - two or more alterations become `supStack`, one tall paren pair around a
+ *   vertical column (the renderer draws the parens)
+ * - accidentals are real glyphs: B♭, F♯, ♭9, ♯11 (ASCII stays in aria/title
+ *   attributes and editable inputs)
+ */
+export interface ChordDisplayModel {
+	/** Root as displayed: "C", "B♭", "F♯". Baseline, full size. */
+	root: string;
+	/** The minor "-" (also min-maj), or "" — baseline, full size. */
+	baselineQuality: '' | '-';
+	/** Superscript run: "7", "Δ7", "ø7", "°7", "+7", "7sus4", "7(♭9)", "7alt", "". */
+	sup: string;
+	/** Two+ alterations as a stacked column ("♭9", "♯11"), else null. */
+	supStack: string[] | null;
+	/** Slash bass without the slash ("G", "B♭"), or null. */
+	bass: string | null;
+}
+
+/** Trailing ASCII accidental → glyph: "Bb" → "B♭", "F#" → "F♯". */
+function prettyPitch(s: string): string {
+	return s.replace(/b$/, '♭').replace(/#$/, '♯');
+}
+
+/** Leading ASCII accidental → glyph: "b9" → "♭9", "#11" → "♯11". */
+function prettyAlteration(s: string): string {
+	return s.replace(/^b/, '♭').replace(/^#/, '♯');
+}
+
+/**
+ * Canonical quality string (formatChordSymbol minus root/alterations) → the
+ * baseline/superscript split plus glyph substitutions (ø, °, +).
+ */
+function displayQualityParts(quality: string): { baselineQuality: '' | '-'; sup: string } {
+	const halfdim = quality.match(/^-(\d+)b5$/);
+	if (halfdim) return { baselineQuality: '', sup: `ø${halfdim[1]}` };
+	if (quality.startsWith('-')) return { baselineQuality: '-', sup: quality.slice(1) };
+	const dim = quality.match(/^dim(\d*)$/);
+	if (dim) return { baselineQuality: '', sup: `°${dim[1]}` };
+	const aug = quality.match(/^aug(\d*)$/);
+	if (aug) return { baselineQuality: '', sup: `+${aug[1]}` };
+	return { baselineQuality: '', sup: quality };
+}
+
+/** Pretty display parts from a structured ChordSymbol. */
+export function chordDisplayModel(cs: ChordSymbol, keyContext?: PitchClass): ChordDisplayModel {
+	const parts = layoutFromChordSymbol(cs, keyContext);
+	const { baselineQuality, sup } = displayQualityParts(parts.quality);
+
+	// Accidental alterations get parens (one) or the stack (two+); word
+	// tokens like "alt" / "add9" append bare — jazz never parenthesizes them.
+	const accidentals = parts.alterations.filter((a) => /^[b#]/.test(a));
+	const words = parts.alterations.filter((a) => !/^[b#]/.test(a));
+	let supRun = sup;
+	let supStack: string[] | null = null;
+	if (accidentals.length === 1) supRun += `(${prettyAlteration(accidentals[0])})`;
+	else if (accidentals.length > 1) supStack = accidentals.map(prettyAlteration);
+	supRun += words.join('');
+
+	return {
+		root: prettyPitch(parts.root),
+		baselineQuality,
+		sup: supRun,
+		supStack,
+		bass: parts.bass ? prettyPitch(parts.bass) : null
+	};
+}
+
+/**
+ * Pretty display parts from raw chord text. Unparseable strings return the
+ * text as a bare root so the engraver never drops ink.
+ */
+export function chordDisplayModelFromText(
+	displayText: string,
+	keyContext?: PitchClass
+): ChordDisplayModel {
+	const parsed = parseChordSymbol(displayText);
+	if (!parsed) {
+		return { root: displayText, baselineQuality: '', sup: '', supStack: null, bass: null };
+	}
+	return chordDisplayModel(parsed, keyContext);
+}
+
+/**
  * Pure layout numbers for stacked chord engraving. The renderer measures the
  * main-line width, then places the alteration column at mainRight + gap.
  *
@@ -119,68 +211,76 @@ export interface ChordTspanSpec {
 	size: number;
 	/**
 	 * Vertical offset in em relative to the main baseline.
-	 * Negative = above, positive = below. Alterations use a centered stack.
+	 * Negative = above, positive = below.
 	 */
 	dyEm: number;
-	role: 'root' | 'quality' | 'alteration' | 'bass';
+	role: 'root' | 'quality' | 'sup' | 'alteration' | 'paren' | 'bass';
 	/**
-	 * When true, the renderer must position this tspan at the right edge of
-	 * the main line (root+quality), not as a flowing continuation.
+	 * When true, the renderer must position this tspan past the right edge of
+	 * the flowing main line, not as a flowing continuation. Paren/alteration
+	 * groups chain left→right in spec order (paren, column, paren).
 	 */
 	stackRight: boolean;
 }
 
+/** Superscript run size as a fraction of the root size (showcase-approved). */
+export const CHORD_SUP_SIZE_EM = 0.58;
+/** Superscript baseline rise in root-em (top lands near the root cap height). */
+export const CHORD_SUP_RISE_EM = -0.42;
+
 /**
- * MuseScore Jazz stack geometry:
- * - One alteration → slight superscript to the right of quality (same column).
- * - Two+ alterations → vertical column centered on the main baseline, top→bottom.
- *
- * Line spacing for the stack is ~0.85em of the alteration size.
+ * Superscript engraving geometry:
+ * - root and the minor "-" flow on the baseline at full size
+ * - the sup run (extension, glyph quality, single parenthesized alteration)
+ *   flows right after them, small and raised
+ * - a two+ alteration stack is a raised column wrapped in one tall paren
+ *   pair, positioned by the renderer at the measured right edge
+ * - slash bass hangs below
  */
-export function chordTspanSpecs(parts: ChordLayoutParts): ChordTspanSpec[] {
+export function chordTspanSpecs(model: ChordDisplayModel): ChordTspanSpec[] {
 	const specs: ChordTspanSpec[] = [
-		{ text: parts.root, size: 1, dyEm: 0, role: 'root', stackRight: false }
+		{ text: model.root, size: 1, dyEm: 0, role: 'root', stackRight: false }
 	];
-	if (parts.quality) {
+	if (model.baselineQuality) {
+		specs.push({ text: model.baselineQuality, size: 1, dyEm: 0, role: 'quality', stackRight: false });
+	}
+	if (model.sup) {
 		specs.push({
-			text: parts.quality,
-			size: 0.88,
-			dyEm: 0,
-			role: 'quality',
+			text: model.sup,
+			size: CHORD_SUP_SIZE_EM,
+			dyEm: CHORD_SUP_RISE_EM,
+			role: 'sup',
 			stackRight: false
 		});
 	}
 
-	const alts = parts.alterations;
-	const n = alts.length;
-	if (n > 0) {
-		// Alteration size relative to root; stack step in root-em units.
-		const altSize = 0.58;
-		const stepEm = 0.85 * altSize; // ~0.49 root-em between alt baselines
-		// Center the stack on the main baseline: first alt above, last below
-		// (or a single alt slightly above like a superscript).
-		const topOffset = n === 1 ? -0.35 * altSize : -((n - 1) / 2) * stepEm;
+	if (model.supStack) {
+		const n = model.supStack.length;
+		const altSize = 0.56;
+		const stepEm = 0.85 * altSize;
+		// Raised column: centered on the sup rise so the stack reads as one
+		// superscript unit beside the extension.
+		const centerEm = -0.35;
+		const topOffset = centerEm - ((n - 1) / 2) * stepEm;
+		// Tall parens: a full-size glyph whose optical center (~0.3em above its
+		// baseline) sits on the stack center.
+		const parenSize = 0.62 + 0.32 * n;
+		const parenDy = centerEm + 0.3 * parenSize;
+		specs.push({ text: '(', size: parenSize, dyEm: parenDy, role: 'paren', stackRight: true });
 		for (let i = 0; i < n; i++) {
 			specs.push({
-				text: alts[i],
+				text: model.supStack[i],
 				size: altSize,
 				dyEm: topOffset + i * stepEm,
 				role: 'alteration',
 				stackRight: true
 			});
 		}
+		specs.push({ text: ')', size: parenSize, dyEm: parenDy, role: 'paren', stackRight: true });
 	}
 
-	if (parts.bass) {
-		// Below the main symbol; stack clears multi-alt columns.
-		const bassDy = n > 1 ? 0.55 + ((n - 1) / 2) * 0.5 : 0.55;
-		specs.push({
-			text: `/${parts.bass}`,
-			size: 0.72,
-			dyEm: bassDy,
-			role: 'bass',
-			stackRight: false
-		});
+	if (model.bass) {
+		specs.push({ text: `/${model.bass}`, size: 0.72, dyEm: 0.55, role: 'bass', stackRight: false });
 	}
 
 	return specs;
