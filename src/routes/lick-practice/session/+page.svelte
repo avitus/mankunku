@@ -60,6 +60,7 @@
 		NextStepAction
 	} from '$lib/state/lick-practice.svelte';
 	import type { FocusRampSummary } from '$lib/types/lick-practice';
+	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { session } from '$lib/state/session.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
@@ -363,6 +364,7 @@
 	});
 
 	onMount(async () => {
+		void acquireScreenWakeLock();
 		playback = await import('$lib/audio/playback');
 		captureModule = await import('$lib/audio/capture');
 		pitchModule = await import('$lib/audio/pitch-detector');
@@ -380,6 +382,7 @@
 	});
 
 	onDestroy(() => {
+		releaseScreenWakeLock();
 		stopAll();
 	});
 

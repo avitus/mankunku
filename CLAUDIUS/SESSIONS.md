@@ -1954,3 +1954,31 @@ the href instead of clicking keeps the spec's downstream ramp-CTA flow
 intact — the report is session state, and navigating away tears it down.
 
 Numbers: svelte-check 0/0, both lick-practice-session chromium specs green.
+
+## 2026-08-26 — Screen wake lock for practice sessions
+
+User report: the macOS screensaver fires mid-Daily-Practice — hands are on
+the horn, so nothing touches the keyboard for minutes, the OS calls that
+idle, and the display cuts out right as a familiar lick comes around. Mic
+capture and Web Audio don't count as display activity; the app had never
+asked for a wake lock.
+
+Fix is the standard one, kept minimal per the over-engineering feedback:
+`src/lib/util/wake-lock.ts` wraps `navigator.wakeLock.request('screen')`
+behind `acquireScreenWakeLock`/`releaseScreenWakeLock`. Three behaviors
+worth the wrapper: re-request on visibilitychange→visible (the browser
+silently drops the lock on tab switch), a release-while-request-in-flight
+race guard (release the sentinel the moment the stale promise resolves),
+and silent no-op on unsupported/refused — a wake lock must never break
+practice. Wired into onMount/onDestroy of all four mic-driven surfaces
+(lick-practice/session, ear-training, tunes/[id]/practice, licks/record);
+acquire goes first in onMount so the lock doesn't wait on the dynamic
+audio imports.
+
+TDD: 9 unit tests with stubbed navigator/document (vi.stubGlobal +
+resetModules per test, since the module holds state). Caveat noted in
+design: the lock only holds while the tab is visible — it can't stop the
+screensaver if the practice tab is backgrounded, which is not the failure
+mode reported.
+
+Numbers: 9/9 new tests, full vitest 277 files green, svelte-check 0/0.

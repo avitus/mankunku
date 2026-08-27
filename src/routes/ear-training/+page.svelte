@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, untrack } from 'svelte';
+	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
 	import { GRADE_COLORS } from '$lib/ui/score-colors';
@@ -253,6 +254,7 @@
 	session.tempo = settings.defaultTempo;
 
 	onMount(async () => {
+		void acquireScreenWakeLock();
 		playback = await import('$lib/audio/playback');
 		captureModule = await import('$lib/audio/capture');
 		pitchModule = await import('$lib/audio/pitch-detector');
@@ -261,6 +263,7 @@
 	});
 
 	onDestroy(() => {
+		releaseScreenWakeLock();
 		stopDetection();
 		stopRecording();
 		if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
