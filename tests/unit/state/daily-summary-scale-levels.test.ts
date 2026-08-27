@@ -190,6 +190,48 @@ describe('DailySummary.scaleLevels through cloud reconcile', () => {
 		expect(after?.scaleLevels).toEqual({ major: 14, dorian: 4 });
 	});
 
+	it('pushes an aged-out date whose merged snapshot has a local-only scale key (equal counters)', async () => {
+		const D = '2026-06-10';
+		// No sessions seeded: the date is aged out, so the push filter is the
+		// only way the merged union reaches the cloud. Counters match, so a
+		// counters-only filter would strand the local-only `major` key here.
+		const history = await setupHistory({
+			summaries: [makeSummary(D, 1, { scaleLevels: { major: 14 } })]
+		});
+
+		const toPush = history.reconcileCloudSummaries([
+			makeSummary(D, 1, { scaleLevels: { dorian: 4 } })
+		]);
+
+		expect(toPush.find((s) => s.date === D)?.scaleLevels).toEqual({ major: 14, dorian: 4 });
+	});
+
+	it('pushes an aged-out date whose scalar snapshot the cloud row predates (equal counters)', async () => {
+		const D = '2026-06-10';
+		const history = await setupHistory({
+			summaries: [makeSummary(D, 1, { tonalMastery: 6.5 })]
+		});
+
+		const toPush = history.reconcileCloudSummaries([makeSummary(D, 1)]);
+
+		expect(toPush.find((s) => s.date === D)?.tonalMastery).toBe(6.5);
+	});
+
+	it('does not re-push an aged-out date once cloud and local snapshots agree', async () => {
+		const D = '2026-06-10';
+		const history = await setupHistory({
+			summaries: [makeSummary(D, 1, { scaleLevels: { major: 14 }, tonalMastery: 6.5 })]
+		});
+
+		const toPush = history.reconcileCloudSummaries([
+			makeSummary(D, 1, { scaleLevels: { major: 14 }, tonalMastery: 6.5 })
+		]);
+
+		// Convergence: the union was already pushed once, so an agreeing cloud
+		// row must not keep the date in the push set forever.
+		expect(toPush.find((s) => s.date === D)).toBeUndefined();
+	});
+
 	it('adopts a cloud row carrying scaleLevels for a date this device has never seen', async () => {
 		const D = '2026-06-01';
 		const history = await setupHistory({ sessions: [makeSession('2026-06-10')] });

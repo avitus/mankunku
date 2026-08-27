@@ -489,13 +489,27 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 		// when aggregate session totals differ. Two devices' same-day activity
 		// can net equal totals while the per-source decomposition (or notes/best)
 		// is richer locally, which the cloud must still learn.
+		//
+		// Snapshot fields ride the same push: the merge keeps local snapshot
+		// values the cloud row predates (a local-only scale key, a scalar the
+		// cloud lacks), and equal counters would otherwise filter the date out
+		// so the cloud never learns them. Shared keys hold the cloud's value
+		// after the merge, so these checks fire only on genuine local-only
+		// enrichment and go quiet once the union has been pushed.
+		const scaleLevelsEnriched = Object.entries(merged.scaleLevels ?? {}).some(
+			([scale, level]) => cs.scaleLevels?.[scale as ScaleType] !== level
+		);
 		if (
 			merged.sessionCount > cs.sessionCount ||
 			(merged.earTrainingSessions ?? 0) > (cs.earTrainingSessions ?? 0) ||
 			(merged.lickPracticeSessions ?? 0) > (cs.lickPracticeSessions ?? 0) ||
 			merged.bestScore > cs.bestScore ||
 			merged.notesTotal > cs.notesTotal ||
-			merged.notesHit > cs.notesHit
+			merged.notesHit > cs.notesHit ||
+			scaleLevelsEnriched ||
+			merged.pitchComplexity !== cs.pitchComplexity ||
+			merged.rhythmComplexity !== cs.rhythmComplexity ||
+			merged.tonalMastery !== cs.tonalMastery
 		) {
 			localWinners.add(existing.date);
 		}
