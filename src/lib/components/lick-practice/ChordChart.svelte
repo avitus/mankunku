@@ -33,16 +33,23 @@
 
 	const cells = $derived(chordChartCells(harmony, timeSignature));
 
-	/** Flat text ("A7b9") for the accessible name / title. */
-	function cellSymbol(segmentIndex: number): string {
-		const seg = harmony[segmentIndex];
-		return chordSymbol(displayRoot(seg.chord.root), seg.chord.quality);
+	/** Slash bass respelled like the root, when the segment carries one. */
+	function displayBass(seg: HarmonicSegment): string | undefined {
+		return seg.chord.bass ? displayRoot(seg.chord.bass) : undefined;
 	}
 
-	/** Stacked MuseScore-Jazz parts: baseline root + quality, raised alteration column. */
+	/** Flat text ("A7b9/E") for the accessible name / title. */
+	function cellSymbol(segmentIndex: number): string {
+		const seg = harmony[segmentIndex];
+		const base = chordSymbol(displayRoot(seg.chord.root), seg.chord.quality);
+		const bass = displayBass(seg);
+		return bass ? `${base}/${bass}` : base;
+	}
+
+	/** Pretty display model: baseline root + minus, superscript run (G⁷⁽♭⁹⁾, Dø⁷). */
 	function cellParts(segmentIndex: number) {
 		const seg = harmony[segmentIndex];
-		return chordChartSymbol(seg, displayRoot(seg.chord.root));
+		return chordChartSymbol(seg, displayRoot(seg.chord.root), displayBass(seg));
 	}
 
 	const currentCellIndex = $derived.by(() => {
@@ -85,24 +92,29 @@
 				style="flex: {cell.widthWeight}"
 			>
 				<span
-					class="font-display inline-flex items-start text-2xl font-bold tracking-tight transition-colors
+					class="chord-symbol text-2xl tracking-tight transition-colors
 						   {isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}"
 					title={cellSymbol(cell.segmentIndex)}
 					aria-label={cellSymbol(cell.segmentIndex)}
 				>
-					<span>{parts.root}{parts.quality}</span>
-					{#if parts.alterations.length > 0}
-						<!-- MuseScore-Jazz stacking: alterations as a raised column to the
-						     right of the quality — "A7" with "b9" above-right, never
-						     parenthesised on the baseline. -->
-						<span class="ml-0.5 inline-flex flex-col text-[0.55em] leading-none" aria-hidden="true">
-							{#each parts.alterations as alt}
-								<span>{alt}</span>
-							{/each}
+					<span>{parts.root}{parts.baselineQuality}</span>
+					{#if parts.sup}
+						<span class="chord-sup" aria-hidden="true">{parts.sup}</span>
+					{/if}
+					{#if parts.supStack}
+						<!-- Two+ alterations: a raised column in one tall paren pair. -->
+						<span class="chord-stack" aria-hidden="true">
+							<span class="chord-stack-paren">(</span>
+							<span class="chord-stack-col">
+								{#each parts.supStack as alt}
+									<span>{alt}</span>
+								{/each}
+							</span>
+							<span class="chord-stack-paren">)</span>
 						</span>
 					{/if}
 					{#if parts.bass}
-						<span class="text-[0.7em]" aria-hidden="true">/{parts.bass}</span>
+						<span class="chord-bass" aria-hidden="true">/{parts.bass}</span>
 					{/if}
 				</span>
 
@@ -130,3 +142,46 @@
 		{/each}
 	</div>
 </div>
+
+<style>
+	/* The app-wide chord voice (see --chord-font in app.css) with the
+	   superscript engraving the tune charts draw in SVG: root + "-" on the
+	   baseline, everything after raised at 0.58× — G⁷⁽♭⁹⁾, Dø⁷, C-⁷. */
+	.chord-symbol {
+		font-family: var(--chord-font);
+		font-weight: var(--chord-font-weight);
+		display: inline-flex;
+		align-items: baseline;
+		white-space: nowrap;
+	}
+	.chord-sup {
+		font-size: 0.58em;
+		position: relative;
+		top: -0.72em; /* −0.42 root-em ÷ 0.58 */
+		letter-spacing: 0.01em;
+	}
+	.chord-stack {
+		display: inline-flex;
+		align-items: center;
+		position: relative;
+		top: -0.35em;
+	}
+	.chord-stack-col {
+		display: inline-flex;
+		flex-direction: column;
+		font-size: 0.56em;
+		line-height: 0.98;
+	}
+	.chord-stack-paren {
+		font-size: 0.62em;
+		transform: scaleY(1.85) scaleX(0.7);
+		transform-origin: center;
+		opacity: 0.85;
+	}
+	.chord-bass {
+		font-size: 0.72em;
+		position: relative;
+		top: 0.3em;
+		opacity: 0.9;
+	}
+</style>

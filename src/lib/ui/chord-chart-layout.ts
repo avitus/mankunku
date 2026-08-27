@@ -8,7 +8,7 @@
 import type { HarmonicSegment } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
 import { chordSymbol } from '$lib/music/chords';
-import { layoutChordParts, type ChordLayoutParts } from '$lib/music/chord-layout';
+import { chordDisplayModelFromText, type ChordDisplayModel } from '$lib/music/chord-layout';
 
 export interface ChordChartCell {
 	/** Segment index into the source harmony — the component derives the
@@ -77,12 +77,18 @@ export function chordChartCells(
 }
 
 /**
- * The chart cell's symbol as MuseScore-Jazz stacked parts — root + quality on
- * the baseline, alterations as a raised column to the right ("A7" with "b9"
- * above-right), the same engraving the tune charts use. `displayRoot` is the
+ * The chart cell's symbol as the app-wide pretty display model — root and the
+ * minor "-" on the baseline, everything after them superscript (G⁷⁽♭⁹⁾, Dø⁷),
+ * the same engraving the tune charts use. `displayRoot` is the
  * already-respelled written root (the component owns instrument transposition
- * and key context), so no keyContext is passed to the layout.
+ * and key context), so no keyContext is passed to the layout; `displayBass`
+ * is the slash bass respelled the same way, when the segment carries one.
  */
-export function chordChartSymbol(seg: HarmonicSegment, displayRoot: string): ChordLayoutParts {
-	return layoutChordParts(chordSymbol(displayRoot, seg.chord.quality));
+export function chordChartSymbol(
+	seg: HarmonicSegment,
+	displayRoot: string,
+	displayBass?: string
+): ChordDisplayModel {
+	const symbol = chordSymbol(displayRoot, seg.chord.quality);
+	return chordDisplayModelFromText(displayBass ? `${symbol}/${displayBass}` : symbol);
 }

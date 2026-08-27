@@ -1144,3 +1144,21 @@ in the evidence pipeline will be wrong while looking exactly right. The corpus
 survey (measure EVERY hole in EVERY fixture before setting a constant) is the
 only defense I trust here — the 1 ms click-suppression near-miss showed that
 plausible-looking geometry gates can be balanced on a knife's edge nobody chose.
+
+---
+
+2026-08-25 — Derive-on-write systems grow snapshot exceptions, and the
+exceptions are where the erasure bugs live. history.svelte.ts advertises
+"summaries are a pure derivation; replay is a no-op," but tonalMastery was
+already a quiet exception (not derivable from sources, preserved by
+convention), and the convention had a hole: preservation worked only because
+plain objects LACK absent keys, while the cloud mapper emits them as
+present-but-undefined — one Object.assign away from silent erasure. The bug
+was unreachable until a test mirrored the mapper's exact output shape rather
+than a hand-typed literal. Generalization: when testing a merge against "a row
+without field X," build the row with the SAME code path that produces real
+rows, or you test a shape production never makes. Also filed for reuse: the
+anchor-shift trick (replay a pruned log from initial, then shift the series so
+its endpoint meets the known current state) is the honest way to draw history
+from a windowed log + cumulative state pair, and it generalizes to key
+proficiency if that ever wants a trend line.

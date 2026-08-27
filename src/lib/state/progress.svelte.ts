@@ -396,7 +396,8 @@ export function recordAttempt(
 	const summary = recomputeDailySummary(today, {
 		pitch: progress.adaptive.pitchComplexity,
 		rhythm: progress.adaptive.rhythmComplexity,
-		tonalMastery: getTonalMastery().overall
+		tonalMastery: getTonalMastery().overall,
+		scaleLevels: currentScaleLevels()
 	});
 
 	// Queue cloud sync via the durable outbox (does not block UI).
@@ -543,6 +544,18 @@ function updateScaleProficiency(scaleType: ScaleType, score: Score): void {
 function updateKeyProficiency(key: PitchClass, score: Score): void {
 	const current = progress.keyProficiency[key] ?? createInitialKeyProficiency();
 	progress.keyProficiency[key] = processKeyAttempt(current, score.overall);
+}
+
+/**
+ * Every attempted scale's current proficiency level — the per-scale snapshot
+ * stored on each day's summary for the Scale Proficiency trend chart.
+ */
+function currentScaleLevels(): Partial<Record<ScaleType, number>> {
+	const levels: Partial<Record<ScaleType, number>> = {};
+	for (const [k, v] of Object.entries(progress.scaleProficiency) as [ScaleType, ScaleProficiency][]) {
+		levels[k] = v.level;
+	}
+	return levels;
 }
 
 /**

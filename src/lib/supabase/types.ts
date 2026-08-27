@@ -533,6 +533,8 @@ export type Database = {
           rhythm_complexity: number | null
           /** Snapshot of Tonal Mastery (avg proficiency across scales + keys, 0-100). Nullable. */
           tonal_mastery: number | null
+          /** JSONB Partial<Record<ScaleType, number>> — per-scale proficiency levels at end of day. Nullable. */
+          scale_levels: Json | null
           /** Last modification timestamp — used for sync conflict resolution */
           updated_at: string
         }
@@ -554,6 +556,7 @@ export type Database = {
           pitch_complexity?: number | null
           rhythm_complexity?: number | null
           tonal_mastery?: number | null
+          scale_levels?: Json | null
           updated_at?: string
         }
         Update: {
@@ -574,6 +577,7 @@ export type Database = {
           pitch_complexity?: number | null
           rhythm_complexity?: number | null
           tonal_mastery?: number | null
+          scale_levels?: Json | null
           updated_at?: string
         }
         Relationships: [

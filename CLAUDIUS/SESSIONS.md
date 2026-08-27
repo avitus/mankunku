@@ -1827,3 +1827,192 @@ player is rhythmically accurate); evidence ORDER did the work instead.
 Numbers: 4147 unit/integration green (35 expected-fail), 3 new tests in
 pitch-replay.test.ts (2026-08-18 fixture pair copied into the corpus),
 svelte-check clean.
+
+## 2026-08-25 — Scale-proficiency trend popover: the snapshot exception to derive-on-write
+
+User request: hover any row of the /progress Scale Proficiency table and see
+that scale's proficiency over time. The data didn't exist — scaleProficiency
+holds only the current level, and the sole time dimension (progress.sessions)
+is pruned at 100 entries, so a session-replay series would erode to weeks and
+keep eroding. Followed TrendChart's own precedent: tonalMastery solved this
+exact problem by snapshotting into DailySummary at write time.
+
+Design: `DailySummary.scaleLevels` (all attempted scales' levels, stamped by
+recordAttempt beside tonalMastery; new jsonb column + both sync mappers +
+hand-edited types.ts, db:types:check green) + `state/scale-trend.ts`, a pure
+builder that merges snapshot points with a BACKFILL for pre-snapshot dates:
+replay surviving sessions through the real processScaleAttempt, take each
+day's closing level, then anchor-shift the whole replay so its endpoint meets
+the first known real level. The shift is the honest part — pruned older
+sessions raised the true level beyond what a from-initial replay reaches, so
+an unshifted line would understate every point. Series always ends at
+(today, currentLevel) so the chart agrees with the row's Lv number.
+
+Found and fixed a real pre-existing bug on the way: mergeWithExisting spreads
+the derived/cloud side wholesale, and rowToDailySummary emits NULL snapshot
+columns as present-but-undefined keys — which Object.assign copies, silently
+erasing a local tonalMastery (and would have erased scaleLevels). Invisible
+with object literals that merely LACK the key; my first reconcile test passed
+trivially until I made the cloud row mirror the mapper's exact output. Merge
+now prefers defined snapshot values; CLAUDE.md documents the snapshot
+exception to derive-on-write.
+
+Two lessons worth keeping:
+- TS definite-assignment narrowing bit the page: at a top-level `$derived(a ?? b)`
+  where both lets are still provably null, the EXPRESSION narrows to `null`,
+  const-narrowing carries that into every closure, and the downstream guard
+  leaves `never`. Annotating the const does nothing (the narrowing is on the
+  initializer). Fix: compute inside `$derived.by` with an explicit return type —
+  function bodies discard outer flow-narrowing of captured lets.
+- Firefox + Playwright logs NS_ERROR_NOT_INITIALIZED from "debugger eval code"
+  whenever a pointer move's hit-target check races DOM that mounts/unmounts
+  under the cursor — i.e. every hover-revealed popover. Bisected to the move
+  itself (bare move: clean; move with popover unmounting: 1 error per move),
+  no pageerror, chromium/webkit clean. Allowlisted in console-errors.ts pinned
+  to the injected-script source so real app NS_ERRORs still fail.
+
+Numbers: 4411 unit/integration green (35 expected-fail, was 4396), 13 new
+tests (7 series builder, 5 snapshot persistence, 3 sync mapper, 1 derive,
+1 recordAttempt pass-through, e2e popover test red-green proven), 6/6 e2e on
+the spec across all three browsers, svelte-check 0/0, migration applied
+locally, feature verified visually via seeded Playwright screenshots.
+
+## 2026-08-25 — The key ring speaks chord-symbol, not theory-book
+
+One-line-of-substance fix with a scoping decision worth recording: minor keys
+on the lick-practice circle-of-fifths ring showed "Am"; Andy wants the jazz
+chord-symbol convention "A-". The ring's dots read as chord chips sitting next
+to a session chart that already prints C-7/A-7 (chord-symbol.ts's minor
+family), so "Am" was the one theory-book label in a chord-symbol neighborhood.
+
+The interesting constraint: keyLabel can't simply change, because abcKeyField
+delegates to it and abcjs only understands "Dm"/"G#m" in the K: field. So the
+split is now explicit: keyLabel stays the ABC/prose-adjacent spelling,
+keyChipLabel (new, same MINOR_TONIC_RESPELL so G#-/C#- still respell) is the
+chord-symbol-style display form. Only the ring adopted it — header, rows,
+report, and progress page still say "Dm"; if Andy wants the convention
+everywhere, it's a one-import swap per surface, and the two-function split
+means that choice is now a real decision rather than an accident of sharing.
+
+TDD: red on missing export, green, 4412 unit green, svelte-check 0/0. No e2e
+pinned the old label. Pushed to dev (no open PR — no CodeRabbit trigger).
+
+## 2026-08-26 — Chord Faces: the whole app learns one chord voice
+
+The chord-typography session, and the most satisfying kind of find: the fix
+exposed a defect nobody had reported. While auditing glyph coverage for the
+font showcase I found MuseJazzText — the leadsheet chord face since the
+beginning — has NO Δ at U+0394. Its triangle lives at PUA U+E18A (which is
+exactly why pdf-text-chords.ts maps 0xe18a → 'Δ' on IMPORT). Every CΔ7 the
+app ever drew got its triangle from 'Segoe Print'/Comic Sans fallback. The
+incoherence Andy sensed was real and measurable.
+
+Process worth repeating: before proposing anything I built a self-contained
+showcase artifact — four candidate faces embedded as data URIs, every chord
+form at three sizes on paper/slate panels, live toggles for the open
+conventions, and a "Your pick" bar that composes the answer sentence. Andy
+answered in exactly that sentence: Fraunces (D) · sup 0.58 · ♭/♯ glyphs ·
+°7 · +7 · 7sus4. The surprise: he picked the app's own display serif over
+both jazz hands — the Real Book look lost to typographic coherence with the
+rest of the UI. Fraunces lacks Δ ♭ ♯, so Edwin (MuseScore's engraved face,
+OFL, added to static/fonts) rides second in the stack; Fraunces'
+unicode-range already excludes what Edwin must supply, so the fallthrough is
+structural, not luck.
+
+Architecture: `chordDisplayModel` in chord-layout.ts is now the ONE
+convention (baseline root+minus, sup run, supStack, bass), consumed by the
+SVG tspan engraver, ChordChart's HTML, and a new ChordSymbolText for chord
+lists. The old ChordLayoutParts stacking (alterations as a bare raised
+column) is gone from every surface. Canonical strings stay ASCII-plus-Δ —
+the round-trip invariant and the editable chord input never see ø/°/♭.
+
+One pre-existing flake fixed along the way (memory: pre-existing bugs are in
+scope): tune-practice's session-start helper budgeted 20s for Tone.start +
+sample decode + transport spin-up, which the full parallel suite reliably
+starved (fails on baseline too; solo ~5s). Budget now 45s, outer clocks
+150s per the spec's own outer>sum rule.
+
+Numbers: 4426 unit green (13 new model tests, 5 rewritten tspan tests, 4
+rewritten chart tests), svelte-check 0/0, full chromium e2e 152/152,
+verified visually in-app (Mankunku Blues leadsheet: E⁷⁽♭⁹⁾, D♭°⁷, A-⁷, G⁶;
+cue-preview chart: G-⁷ C⁷ FΔ⁷).
+
+## 2026-08-26 — Session report links back to the lick
+
+Small navigation gap, closed: the post-session report named licks but gave
+no way to reach them. Both name surfaces (the Deep Practice header card and
+the per-lick breakdown cards) now link to `/licks/<id>` with the app's
+hover-accent affordance. Trick entries stay plain text — their `lickId` is
+a composite variant key, not a lick id, and `isTrickReportEntry` (already
+guarding the reset button for exactly this reason) now guards the link too.
+That guard keeps earning its keep: any report feature keyed by `lickId`
+must ask it first.
+
+TDD at feature scale: the e2e assertion (link role + href) went in first,
+failed on the un-changed page, then passed after the markup edit. Asserting
+the href instead of clicking keeps the spec's downstream ramp-CTA flow
+intact — the report is session state, and navigating away tears it down.
+
+Numbers: svelte-check 0/0, both lick-practice-session chromium specs green.
+
+## 2026-08-26 — Screen wake lock for practice sessions
+
+User report: the macOS screensaver fires mid-Daily-Practice — hands are on
+the horn, so nothing touches the keyboard for minutes, the OS calls that
+idle, and the display cuts out right as a familiar lick comes around. Mic
+capture and Web Audio don't count as display activity; the app had never
+asked for a wake lock.
+
+Fix is the standard one, kept minimal per the over-engineering feedback:
+`src/lib/util/wake-lock.ts` wraps `navigator.wakeLock.request('screen')`
+behind `acquireScreenWakeLock`/`releaseScreenWakeLock`. Three behaviors
+worth the wrapper: re-request on visibilitychange→visible (the browser
+silently drops the lock on tab switch), a release-while-request-in-flight
+race guard (release the sentinel the moment the stale promise resolves),
+and silent no-op on unsupported/refused — a wake lock must never break
+practice. Wired into onMount/onDestroy of all four mic-driven surfaces
+(lick-practice/session, ear-training, tunes/[id]/practice, licks/record);
+acquire goes first in onMount so the lock doesn't wait on the dynamic
+audio imports.
+
+TDD: 9 unit tests with stubbed navigator/document (vi.stubGlobal +
+resetModules per test, since the module holds state). Caveat noted in
+design: the lock only holds while the tab is visible — it can't stop the
+screensaver if the practice tab is backgrounded, which is not the failure
+mode reported.
+
+Numbers: 9/9 new tests, full vitest 277 files green, svelte-check 0/0.
+
+## 2026-08-26 — PR #240 (dev → main) + CodeRabbit round 1
+
+Opened the release PR (wake lock, pretty chord voice, scale-trend popover,
+report links, minor ring labels). CodeRabbit returned 7 findings; 6 were
+real, 1 rejected (Stylelint casing — the repo runs no Stylelint, and the
+suggested lowercase `fraunces` would contradict the file's own @font-face
+declarations).
+
+The two that mattered were both in the daily-summary sync path, and both
+the 2026-07-13 incident class wearing a new coat:
+
+- **Push-side nulling**: `dailySummaryToRow` encoded absent snapshot
+  fields (`scale_levels`, and the three older scalar snapshots) as
+  explicit NULL, so a device that never knew a snapshot would erase
+  another device's on the (user_id,date) conflict update. The pull-side
+  merge had been hardened against exactly this shape (present-but-
+  undefined), but the push side hadn't. Fixed by omitting absent keys +
+  `defaultToNull: false`, and — the subtle part — batching the bulk flush
+  by identical key shape, because supabase-js unions bulk payload keys and
+  would quietly refill the omitted columns for mixed batches.
+- **Whole-map replacement**: `mergeWithExisting` replaced the entire
+  `scaleLevels` map when the incoming side had any. Per-scale maps are
+  partial per device, so union by key, incoming wins shared keys.
+
+Also: wake-lock in-flight race hardened one notch further (release →
+re-acquire before the first request resolves could strand a sentinel —
+the `!held` check alone wasn't enough, `sentinel` already set means a
+newer request won), 3-alteration stacks lift their center so no row dips
+below the baseline, the session chart keeps slash basses (reachable —
+progressions.ts transposes `chord.bass` through), and the Firefox
+NS_ERROR e2e ignore is now URL-aware.
+
+Numbers: 8 red → green (TDD), full vitest 277 files, svelte-check 0/0.

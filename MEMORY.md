@@ -243,6 +243,13 @@ The report's weak-key recommendation (`drill-weak-key` in `lick-practice-next-st
 
 **How to apply:** never add a key selector/label without passing the mode; never infer mode from category; when gating heuristics, scope the gate to the ambiguity it can adjudicate.
 
+### Pretty chord symbols: one display model, one font token (2026-08-26)
+`chordDisplayModel` (music/chord-layout.ts) is THE display convention, chosen by Andy from a live font showcase: root + minor "-" full-size on the baseline; everything after superscript at 0.58× (rise −0.42 root-em); half-dim = `ø7` (the b5 vanishes), dim = `°7`, aug = `+7`, sus = `7sus4`; ONE accidental alteration parenthesized into the sup run (`7(♭9)`), 2+ stacked in one tall paren pair; real glyphs ♭ ♯ in roots/alterations/bass. Font = `--chord-font`/`--chord-font-weight` (app.css): Fraunces with Edwin (added, OFL) supplying Δ ♭ ♯ via font-stack fallthrough — Fraunces' `unicode-range` already excludes them. Consumers: NotationDisplay `structureChordSymbols` (SVG tspans, roles root/quality/sup/alteration/paren/bass), ChordChart (HTML), `ChordSymbolText.svelte` (chord lists).
+
+**Why:** minor-progression drills printed `C7b9` flat and tune leadsheets drew a detached tiny "b9"; MuseJazzText (the old leadsheet face) has NO Δ at U+0394 — the triangle was silently rendered by a fallback font all along (it lives at PUA U+E18A).
+
+**How to apply:** prettiness is DISPLAY-ONLY — `formatChordSymbol`, `CHORD_DEFINITIONS`, ABC text, aria/title, and editable chord inputs stay canonical ASCII-plus-Δ (parse(format(x))===x and the chord-input round-trip e2e depend on it). Never emit ø/°/♭ into anything serialized. New chord surfaces render through `chordDisplayModel` + `--chord-font`, never a hand-rolled span.
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

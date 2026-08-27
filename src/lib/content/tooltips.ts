@@ -95,6 +95,10 @@ export const tooltips = {
 			text: 'The adaptive system looks at your last N sessions, not your all-time average. Recent form drives next-phrase difficulty.',
 			learnMore: '/docs/architecture/adaptive-difficulty'
 		},
+		scaleProficiency: {
+			text: 'Your level in each scale you have practiced, 1–100. Hover or tap a scale to see how its level has moved over time.',
+			learnMore: '/docs/architecture/adaptive-difficulty'
+		},
 		streak: {
 			text: 'Consecutive days with at least one practice session. Resets if you skip a day.'
 		}

@@ -78,7 +78,7 @@ describe('chordChartCells', () => {
 	});
 });
 
-describe('chordChartSymbol — MuseScore-Jazz stacked parts for a chart cell', () => {
+describe('chordChartSymbol — pretty display model for a chart cell', () => {
 	const seg = (quality: HarmonicSegment['chord']['quality']): HarmonicSegment => ({
 		chord: { root: 'C', quality },
 		scaleId: 'major.ionian',
@@ -86,16 +86,45 @@ describe('chordChartSymbol — MuseScore-Jazz stacked parts for a chart cell', (
 		duration: [1, 1]
 	});
 
-	test('a b9 dominant stacks its alteration to the right of the quality', () => {
-		expect(chordChartSymbol(seg('7b9'), 'A')).toEqual({ root: 'A', quality: '7', alterations: ['b9'], bass: null });
+	test('a b9 dominant carries its parenthesized alteration in the sup run', () => {
+		expect(chordChartSymbol(seg('7b9'), 'A')).toEqual({
+			root: 'A',
+			baselineQuality: '',
+			sup: '7(♭9)',
+			supStack: null,
+			bass: null
+		});
 	});
 
-	test('half-diminished and minor sevenths carry no alteration column', () => {
-		expect(chordChartSymbol(seg('min7b5'), 'E')).toMatchObject({ root: 'E', quality: '-7b5', alterations: [] });
-		expect(chordChartSymbol(seg('min7'), 'D')).toMatchObject({ root: 'D', quality: '-7', alterations: [] });
+	test('half-diminished reads ø7; minor keeps the minus on the baseline', () => {
+		expect(chordChartSymbol(seg('min7b5'), 'E')).toMatchObject({
+			root: 'E',
+			baselineQuality: '',
+			sup: 'ø7'
+		});
+		expect(chordChartSymbol(seg('min7'), 'D')).toMatchObject({
+			root: 'D',
+			baselineQuality: '-',
+			sup: '7'
+		});
 	});
 
-	test('an altered dominant keeps "alt" as its single stacked token', () => {
-		expect(chordChartSymbol(seg('7alt'), 'G')).toMatchObject({ root: 'G', quality: '7', alterations: ['alt'] });
+	test('an altered dominant keeps "alt" bare in the sup run', () => {
+		expect(chordChartSymbol(seg('7alt'), 'G')).toMatchObject({ root: 'G', sup: '7alt' });
+	});
+
+	test('flat roots display the real flat glyph', () => {
+		expect(chordChartSymbol(seg('min7'), 'Bb').root).toBe('B♭');
+	});
+
+	test('a slash chord keeps its bass in the display model', () => {
+		// Native lick harmony carries slash basses through transposition
+		// (data/progressions.ts), so the session chart must not drop them.
+		expect(chordChartSymbol(seg('maj7'), 'C', 'E')).toMatchObject({
+			root: 'C',
+			bass: 'E'
+		});
+		expect(chordChartSymbol(seg('maj7'), 'C', 'Eb').bass).toBe('E♭');
+		expect(chordChartSymbol(seg('maj7'), 'C').bass).toBeNull();
 	});
 });

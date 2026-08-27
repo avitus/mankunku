@@ -8,6 +8,7 @@ import {
 	resolveUseFlats,
 	keyLabel,
 	keyLabelLong,
+	keyChipLabel,
 	abcKeyField,
 	signatureAccidentalsFor,
 	signatureFlatsFor,
@@ -813,6 +814,15 @@ describe('minor keys — labels and signatures', () => {
 		expect(keyLabelLong('D', 'minor')).toBe('D minor');
 		expect(keyLabelLong('Ab', 'minor')).toBe('G# minor');
 		expect(keyLabelLong('F', 'major')).toBe('F major');
+	});
+
+	it('keyChipLabel writes minor with the jazz "-" suffix', () => {
+		expect(keyChipLabel('A', 'minor')).toBe('A-');
+		expect(keyChipLabel('Eb', 'minor')).toBe('Eb-');
+		expect(keyChipLabel('Ab', 'minor')).toBe('G#-'); // conventional sharp-side tonics still respell
+		expect(keyChipLabel('Db', 'minor')).toBe('C#-');
+		expect(keyChipLabel('D')).toBe('D');
+		expect(keyChipLabel('D', 'major')).toBe('D');
 	});
 
 	it('abcKeyField matches the label (abcjs reads K:Dm, K:Ebm, K:G#m, K:C#m)', () => {

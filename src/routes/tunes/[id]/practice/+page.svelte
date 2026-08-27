@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
@@ -338,6 +339,7 @@
 	});
 
 	onMount(async () => {
+		void acquireScreenWakeLock();
 		playback = await import('$lib/audio/playback');
 		captureModule = await import('$lib/audio/capture');
 		pitchModule = await import('$lib/audio/pitch-detector');
@@ -375,6 +377,7 @@
 	});
 
 	onDestroy(() => {
+		releaseScreenWakeLock();
 		mounted = false;
 		stopAll();
 	});

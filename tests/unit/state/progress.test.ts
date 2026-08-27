@@ -199,3 +199,18 @@ describe('getTonalMastery (end-to-end via recordAttempt)', () => {
 		expect(after.keysStarted).toBe(before.keysStarted);
 	});
 });
+
+describe('recordAttempt daily-summary snapshot', () => {
+	it('passes the current per-scale levels to recomputeDailySummary alongside tonalMastery', async () => {
+		const { recomputeDailySummary } = await import('$lib/state/history.svelte');
+		progressModule.recordAttempt('p', 'P', 'modal', 'C', 120, 5, makeScore(0.9), 'dorian');
+
+		expect(recomputeDailySummary).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.objectContaining({
+				tonalMastery: expect.any(Number),
+				scaleLevels: { dorian: 1 }
+			})
+		);
+	});
+});

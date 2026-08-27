@@ -3,6 +3,8 @@ import {
 	layoutChordParts,
 	layoutFromChordSymbol,
 	chordDisplayLine,
+	chordDisplayModel,
+	chordDisplayModelFromText,
 	chordTspanSpecs,
 	formatAlterations,
 	alterationStackX,
@@ -67,49 +69,158 @@ describe('chordDisplayLine', () => {
 	});
 });
 
-describe('chordTspanSpecs — MuseScore Jazz stack', () => {
-	it('stacks multi-alts as stackRight column with vertical offsets', () => {
-		const specs = chordTspanSpecs({
-			root: 'E',
-			quality: '7',
-			alterations: ['b9', '#11'],
+describe('chordDisplayModel — pretty display parts', () => {
+	it('puts the dominant seventh and its parenthesized alteration in the sup run', () => {
+		expect(chordDisplayModelFromText('G7b9')).toEqual({
+			root: 'G',
+			baselineQuality: '',
+			sup: '7(♭9)',
+			supStack: null,
 			bass: null
 		});
-		expect(specs.map((s) => s.role)).toEqual(['root', 'quality', 'alteration', 'alteration']);
-		const alts = specs.filter((s) => s.role === 'alteration');
-		expect(alts.every((s) => s.stackRight)).toBe(true);
-		expect(alts[0].text).toBe('b9');
-		expect(alts[1].text).toBe('#11');
-		// Top alt above baseline, bottom alt below (centered stack).
-		expect(alts[0].dyEm).toBeLessThan(0);
-		expect(alts[1].dyEm).toBeGreaterThan(0);
-		// Main line does not stack-right.
-		expect(specs.filter((s) => !s.stackRight).map((s) => s.role)).toEqual(['root', 'quality']);
 	});
 
-	it('places a single alteration slightly above as a superscript column', () => {
-		const specs = chordTspanSpecs({
+	it('keeps the minor minus on the baseline with the extension raised', () => {
+		expect(chordDisplayModelFromText('C-7')).toEqual({
 			root: 'C',
-			quality: '7',
-			alterations: ['b9'],
+			baselineQuality: '-',
+			sup: '7',
+			supStack: null,
 			bass: null
 		});
-		const alt = specs.find((s) => s.role === 'alteration')!;
-		expect(alt.stackRight).toBe(true);
-		expect(alt.dyEm).toBeLessThan(0);
+	});
+
+	it('renders half-diminished as ø plus the extension — the b5 disappears', () => {
+		expect(chordDisplayModelFromText('D-7b5').sup).toBe('ø7');
+		expect(chordDisplayModelFromText('Dø').sup).toBe('ø7');
+		expect(chordDisplayModelFromText('D-9b5').sup).toBe('ø9');
+		expect(chordDisplayModelFromText('D-7b5').baselineQuality).toBe('');
+	});
+
+	it('renders diminished with the ring and augmented with the plus', () => {
+		expect(chordDisplayModelFromText('Cdim7').sup).toBe('°7');
+		expect(chordDisplayModelFromText('Cdim').sup).toBe('°');
+		expect(chordDisplayModelFromText('Caug7').sup).toBe('+7');
+		expect(chordDisplayModelFromText('Caug').sup).toBe('+');
+	});
+
+	it('keeps Δ, sus and alt forms in the sup run unparenthesized', () => {
+		expect(chordDisplayModelFromText('CΔ7').sup).toBe('Δ7');
+		expect(chordDisplayModelFromText('CΔ7').baselineQuality).toBe('');
+		expect(chordDisplayModelFromText('C-Δ7')).toMatchObject({ baselineQuality: '-', sup: 'Δ7' });
+		expect(chordDisplayModelFromText('C7sus4').sup).toBe('7sus4');
+		expect(chordDisplayModelFromText('Bb7alt')).toMatchObject({ root: 'B♭', sup: '7alt' });
+		expect(chordDisplayModelFromText('Cadd9').sup).toBe('add9');
+	});
+
+	it('spells accidentals with real glyphs in roots, alterations, and bass', () => {
+		expect(chordDisplayModelFromText('Bb7b9')).toMatchObject({ root: 'B♭', sup: '7(♭9)' });
+		expect(chordDisplayModelFromText('F#-7/Bb')).toMatchObject({ root: 'F♯', bass: 'B♭' });
+	});
+
+	it('moves two or more alterations into the sup stack, plain tokens prettified', () => {
+		expect(chordDisplayModelFromText('C7(b9,#11)')).toEqual({
+			root: 'C',
+			baselineQuality: '',
+			sup: '7',
+			supStack: ['♭9', '♯11'],
+			bass: null
+		});
+	});
+
+	it('carries the slash bass', () => {
+		expect(chordDisplayModelFromText('A-7/G')).toMatchObject({
+			baselineQuality: '-',
+			sup: '7',
+			bass: 'G'
+		});
+	});
+
+	it('respells the root for a key context before prettifying', () => {
+		expect(chordDisplayModelFromText('F#7', 'F').root).toBe('G♭');
+	});
+
+	it('falls back to root-only for unparseable symbols — never drops ink', () => {
+		expect(chordDisplayModelFromText('C(mystery)')).toEqual({
+			root: 'C(mystery)',
+			baselineQuality: '',
+			sup: '',
+			supStack: null,
+			bass: null
+		});
+	});
+
+	it('accepts a parsed ChordSymbol directly', () => {
+		const cs = parseChordSymbol('D-7b5')!;
+		expect(chordDisplayModel(cs).sup).toBe('ø7');
+	});
+});
+
+describe('chordTspanSpecs — superscript engraving', () => {
+	it('puts a single-alteration chord entirely in the flowing sup run', () => {
+		const specs = chordTspanSpecs(chordDisplayModelFromText('G7b9'));
+		expect(specs.map((s) => s.role)).toEqual(['root', 'sup']);
+		const sup = specs[1];
+		expect(sup.text).toBe('7(♭9)');
+		expect(sup.size).toBeCloseTo(0.58);
+		expect(sup.dyEm).toBeLessThan(0);
+		expect(sup.stackRight).toBe(false);
+	});
+
+	it('keeps the minor minus at full size on the baseline before the sup run', () => {
+		const specs = chordTspanSpecs(chordDisplayModelFromText('C-7'));
+		expect(specs.map((s) => s.role)).toEqual(['root', 'quality', 'sup']);
+		expect(specs[1]).toMatchObject({ text: '-', size: 1, dyEm: 0, stackRight: false });
+	});
+
+	it('wraps a two-alteration stack in one tall paren pair, all raised', () => {
+		const specs = chordTspanSpecs(chordDisplayModelFromText('E7(b9,#11)'));
+		expect(specs.map((s) => s.role)).toEqual([
+			'root',
+			'sup',
+			'paren',
+			'alteration',
+			'alteration',
+			'paren'
+		]);
+		const alts = specs.filter((s) => s.role === 'alteration');
+		expect(alts.map((s) => s.text)).toEqual(['♭9', '♯11']);
+		// The whole stack is superscript: every row sits above the baseline.
+		expect(alts.every((s) => s.dyEm < 0)).toBe(true);
+		expect(alts[0].dyEm).toBeLessThan(alts[1].dyEm);
+		// Stack and parens position at the measured right edge, not flowing.
+		expect(specs.filter((s) => s.stackRight).map((s) => s.role)).toEqual([
+			'paren',
+			'alteration',
+			'alteration',
+			'paren'
+		]);
+		expect(specs.filter((s) => s.role === 'paren').map((s) => s.text)).toEqual(['(', ')']);
+	});
+
+	it('keeps a three-alteration stack entirely above the baseline', () => {
+		const specs = chordTspanSpecs(chordDisplayModelFromText('C7(b9,#11,b13)'));
+		const alts = specs.filter((s) => s.role === 'alteration');
+		expect(alts.map((s) => s.text)).toEqual(['♭9', '♯11', '♭13']);
+		// The fixed two-row center would drop the third row below the
+		// baseline; the center lifts instead so the stack stays superscript.
+		expect(alts.every((s) => s.dyEm < 0)).toBe(true);
+		expect(alts[0].dyEm).toBeLessThan(alts[1].dyEm);
+		expect(alts[1].dyEm).toBeLessThan(alts[2].dyEm);
 	});
 
 	it('hangs slash bass below the main symbol', () => {
-		const specs = chordTspanSpecs({
-			root: 'D',
-			quality: '-7',
-			alterations: [],
-			bass: 'C'
-		});
+		const specs = chordTspanSpecs(chordDisplayModelFromText('D-7/C'));
 		const bass = specs.find((s) => s.role === 'bass')!;
 		expect(bass.text).toBe('/C');
 		expect(bass.dyEm).toBeGreaterThan(0);
 		expect(bass.stackRight).toBe(false);
+	});
+
+	it('emits only the root for an unparseable symbol', () => {
+		expect(chordTspanSpecs(chordDisplayModelFromText('C(mystery)')).map((s) => s.role)).toEqual([
+			'root'
+		]);
 	});
 });
 

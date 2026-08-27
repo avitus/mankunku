@@ -170,6 +170,13 @@ export interface DailySummary {
 	 * at end of day. Set on ear-training only; the primary line in the trend chart.
 	 */
 	tonalMastery?: number;
+	/**
+	 * Snapshot of every attempted scale's proficiency level (1-100) at end of
+	 * day. Set on ear-training only; drives the per-scale trend chart, which
+	 * needs a durable series because `progress.sessions` is pruned at
+	 * MAX_SESSIONS while proficiency accumulates forever.
+	 */
+	scaleLevels?: Partial<Record<ScaleType, number>>;
 }
 
 export interface ProgressMeta {

@@ -349,8 +349,39 @@ html {
 }
 
 /* -------------------------------------------------------------------- */
+/* Edwin — MuseScore's engraved text face (SIL OFL 1.1). The chord-font  */
+/* companion: Fraunces has no Δ ♭ ♯ of its own, so those glyphs fall     */
+/* through the stack to Edwin. Roman + Bold only (no italics needed).    */
+/* -------------------------------------------------------------------- */
+
+@font-face {
+	font-family: Edwin;
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/fonts/Edwin-Roman.otf') format('opentype');
+}
+
+@font-face {
+	font-family: Edwin;
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('/fonts/Edwin-Bold.otf') format('opentype');
+}
+
+/* -------------------------------------------------------------------- */
 /* Jazz design utilities.                                                */
 /* -------------------------------------------------------------------- */
+
+/* The ONE chord-symbol face, everywhere a chord is drawn (leadsheet SVG,
+   practice chart, chord lists). Fraunces carries the letters; Edwin fills
+   the music glyphs (Δ ♭ ♯) Fraunces lacks. Chosen from the chord-font
+   showcase 2026-08-26; chord weight rides with it (Edwin at 500 → Roman). */
+:root {
+	--chord-font: Fraunces, Edwin, ui-serif, Georgia, serif;
+	--chord-font-weight: 500;
+}
 
 /* Display serif — page titles, wordmark, key/grade readouts, lick names. */
 .font-display {

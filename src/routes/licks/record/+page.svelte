@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import { midiToNoteName } from '$lib/music/intervals';
 	import type { Phrase } from '$lib/types/music';
@@ -85,6 +86,7 @@
 		: null);
 
 	onMount(async () => {
+		void acquireScreenWakeLock();
 		playbackModule = await import('$lib/audio/playback');
 		captureModule = await import('$lib/audio/capture');
 		pitchModule = await import('$lib/audio/pitch-detector');
@@ -92,6 +94,7 @@
 	});
 
 	onDestroy(() => {
+		releaseScreenWakeLock();
 		cleanup();
 	});
 
