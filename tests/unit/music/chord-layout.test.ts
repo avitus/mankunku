@@ -198,6 +198,17 @@ describe('chordTspanSpecs — superscript engraving', () => {
 		expect(specs.filter((s) => s.role === 'paren').map((s) => s.text)).toEqual(['(', ')']);
 	});
 
+	it('keeps a three-alteration stack entirely above the baseline', () => {
+		const specs = chordTspanSpecs(chordDisplayModelFromText('C7(b9,#11,b13)'));
+		const alts = specs.filter((s) => s.role === 'alteration');
+		expect(alts.map((s) => s.text)).toEqual(['♭9', '♯11', '♭13']);
+		// The fixed two-row center would drop the third row below the
+		// baseline; the center lifts instead so the stack stays superscript.
+		expect(alts.every((s) => s.dyEm < 0)).toBe(true);
+		expect(alts[0].dyEm).toBeLessThan(alts[1].dyEm);
+		expect(alts[1].dyEm).toBeLessThan(alts[2].dyEm);
+	});
+
 	it('hangs slash bass below the main symbol', () => {
 		const specs = chordTspanSpecs(chordDisplayModelFromText('D-7/C'));
 		const bass = specs.find((s) => s.role === 'bass')!;

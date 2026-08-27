@@ -156,6 +156,33 @@ describe('screen wake lock', () => {
 		expect(sentinel.release).toHaveBeenCalled();
 	});
 
+	it('a stale in-flight request cannot replace the sentinel after release → re-acquire', async () => {
+		const stale = makeFakeSentinel();
+		const fresh = makeFakeSentinel();
+		let resolveStale: (s: unknown) => void = () => {};
+		const request = vi
+			.fn()
+			.mockImplementationOnce(() => new Promise((resolve) => (resolveStale = resolve)))
+			.mockImplementationOnce(() => Promise.resolve(fresh));
+		vi.stubGlobal('navigator', { wakeLock: { request } });
+		const { acquireScreenWakeLock, releaseScreenWakeLock } = await loadModule();
+
+		const pending = acquireScreenWakeLock();
+		releaseScreenWakeLock();
+		await acquireScreenWakeLock();
+		resolveStale(stale);
+		await pending;
+
+		// The stale request resolved after the re-acquire installed its own
+		// sentinel: it must be released, not stored — otherwise the final
+		// release below would only free the overwriting lock and the stale one
+		// would keep the screen awake after practice ends.
+		expect(stale.release).toHaveBeenCalled();
+		expect(fresh.release).not.toHaveBeenCalled();
+		releaseScreenWakeLock();
+		expect(fresh.release).toHaveBeenCalled();
+	});
+
 	it('release without a prior acquire is a no-op', async () => {
 		vi.stubGlobal('navigator', {});
 		const { releaseScreenWakeLock } = await loadModule();

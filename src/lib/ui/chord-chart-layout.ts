@@ -81,8 +81,14 @@ export function chordChartCells(
  * minor "-" on the baseline, everything after them superscript (G⁷⁽♭⁹⁾, Dø⁷),
  * the same engraving the tune charts use. `displayRoot` is the
  * already-respelled written root (the component owns instrument transposition
- * and key context), so no keyContext is passed to the layout.
+ * and key context), so no keyContext is passed to the layout; `displayBass`
+ * is the slash bass respelled the same way, when the segment carries one.
  */
-export function chordChartSymbol(seg: HarmonicSegment, displayRoot: string): ChordDisplayModel {
-	return chordDisplayModelFromText(chordSymbol(displayRoot, seg.chord.quality));
+export function chordChartSymbol(
+	seg: HarmonicSegment,
+	displayRoot: string,
+	displayBass?: string
+): ChordDisplayModel {
+	const symbol = chordSymbol(displayRoot, seg.chord.quality);
+	return chordDisplayModelFromText(displayBass ? `${symbol}/${displayBass}` : symbol);
 }

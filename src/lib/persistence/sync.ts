@@ -430,7 +430,7 @@ function dailySummaryToRow(
 	userId: string,
 	s: DailySummary
 ): Database['public']['Tables']['daily_summaries']['Insert'] {
-	return {
+	const row: Database['public']['Tables']['daily_summaries']['Insert'] = {
 		user_id: userId,
 		date: s.date,
 		session_count: s.sessionCount,
@@ -445,12 +445,18 @@ function dailySummaryToRow(
 		notes_hit: s.notesHit,
 		grades: s.grades as unknown as Json,
 		categories: s.categories as unknown as Json,
-		pitch_complexity: s.pitchComplexity ?? null,
-		rhythm_complexity: s.rhythmComplexity ?? null,
-		tonal_mastery: s.tonalMastery ?? null,
-		scale_levels: (s.scaleLevels as unknown as Json) ?? null,
 		updated_at: new Date().toISOString()
 	};
+	// Snapshot columns aren't derivable, so absent means "this device never
+	// knew", not "cleared" — an explicit null would ride the (user_id,date)
+	// conflict update and erase another device's stored snapshot. Omit the
+	// key instead; with `defaultToNull: false` the upsert leaves the stored
+	// value untouched. Reset deletes rows, so nothing needs to null one here.
+	if (s.pitchComplexity !== undefined) row.pitch_complexity = s.pitchComplexity;
+	if (s.rhythmComplexity !== undefined) row.rhythm_complexity = s.rhythmComplexity;
+	if (s.tonalMastery !== undefined) row.tonal_mastery = s.tonalMastery;
+	if (s.scaleLevels !== undefined) row.scale_levels = s.scaleLevels as unknown as Json;
+	return row;
 }
 
 function rowToDailySummary(row: {
@@ -507,7 +513,10 @@ export async function syncDailySummaryToCloud(
 
 		const { error } = await supabase
 			.from('daily_summaries')
-			.upsert(dailySummaryToRow(userId, summary), { onConflict: 'user_id,date' });
+			.upsert(dailySummaryToRow(userId, summary), {
+				onConflict: 'user_id,date',
+				defaultToNull: false
+			});
 
 		if (error) {
 			console.warn('Failed to sync daily summary to cloud:', error);
@@ -530,13 +539,26 @@ export async function syncAllDailySummariesToCloud(
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return;
 
-		const rows = summaries.map((s) => dailySummaryToRow(userId, s));
-		const { error } = await supabase
-			.from('daily_summaries')
-			.upsert(rows, { onConflict: 'user_id,date' });
+		// Batch by identical key shape: supabase-js unions the keys of a bulk
+		// payload, so batching a snapshot-less day with a snapshot-bearing one
+		// would fill the missing snapshot keys back in (null or DEFAULT) and
+		// erase stored values on the conflict update.
+		const groups = new Map<string, ReturnType<typeof dailySummaryToRow>[]>();
+		for (const s of summaries) {
+			const row = dailySummaryToRow(userId, s);
+			const shape = Object.keys(row).sort().join(',');
+			const group = groups.get(shape);
+			if (group) group.push(row);
+			else groups.set(shape, [row]);
+		}
+		for (const rows of groups.values()) {
+			const { error } = await supabase
+				.from('daily_summaries')
+				.upsert(rows, { onConflict: 'user_id,date', defaultToNull: false });
 
-		if (error) {
-			console.warn('Failed to bulk-sync daily summaries to cloud:', error);
+			if (error) {
+				console.warn('Failed to bulk-sync daily summaries to cloud:', error);
+			}
 		}
 	} catch (error) {
 		console.warn('Failed to bulk-sync daily summaries to cloud:', error);

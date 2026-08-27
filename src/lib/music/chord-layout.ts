@@ -259,8 +259,11 @@ export function chordTspanSpecs(model: ChordDisplayModel): ChordTspanSpec[] {
 		const altSize = 0.56;
 		const stepEm = 0.85 * altSize;
 		// Raised column: centered on the sup rise so the stack reads as one
-		// superscript unit beside the extension.
-		const centerEm = -0.35;
+		// superscript unit beside the extension. Three+ rows would push the
+		// bottom row below the baseline from the fixed center, so it lifts
+		// just enough to keep every row superscript.
+		const lowestRowOffset = ((n - 1) / 2) * stepEm;
+		const centerEm = Math.min(-0.35, -lowestRowOffset - 0.01);
 		const topOffset = centerEm - ((n - 1) / 2) * stepEm;
 		// Tall parens: a full-size glyph whose optical center (~0.3em above its
 		// baseline) sits on the stack center.

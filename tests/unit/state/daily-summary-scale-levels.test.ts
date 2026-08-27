@@ -173,6 +173,23 @@ describe('DailySummary.scaleLevels through cloud reconcile', () => {
 		expect(after?.tonalMastery).toBe(6.5);
 	});
 
+	it('unions partial per-scale snapshots from two devices instead of replacing the map', async () => {
+		const D = '2026-06-10';
+		const history = await setupHistory({
+			sessions: [makeSession(D)],
+			summaries: [makeSummary(D, 1, { scaleLevels: { major: 14 } })]
+		});
+
+		// Device B only practiced dorian that day, so its cloud row carries a
+		// partial map. Whole-map replacement would erase this device's durable
+		// major trend point; the merge must union by scale key (incoming side
+		// wins shared keys, matching the field's LWW-ish semantics).
+		history.reconcileCloudSummaries([makeSummary(D, 1, { scaleLevels: { dorian: 4 } })]);
+
+		const after = history.dailySummaries.find((s) => s.date === D);
+		expect(after?.scaleLevels).toEqual({ major: 14, dorian: 4 });
+	});
+
 	it('adopts a cloud row carrying scaleLevels for a date this device has never seen', async () => {
 		const D = '2026-06-01';
 		const history = await setupHistory({ sessions: [makeSession('2026-06-10')] });

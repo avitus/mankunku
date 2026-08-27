@@ -237,7 +237,14 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		pitchComplexity: derived.pitchComplexity ?? existing.pitchComplexity,
 		rhythmComplexity: derived.rhythmComplexity ?? existing.rhythmComplexity,
 		tonalMastery: derived.tonalMastery ?? existing.tonalMastery,
-		scaleLevels: derived.scaleLevels ?? existing.scaleLevels
+		// Per-scale maps are partial per device (each device only snapshots
+		// the scales it practiced), so union by key — replacing the whole map
+		// would erase the other device's trend points for that date. Shared
+		// keys keep the derived side, like the scalar snapshots above.
+		scaleLevels:
+			derived.scaleLevels === undefined
+				? existing.scaleLevels
+				: { ...existing.scaleLevels, ...derived.scaleLevels }
 	};
 	// Notes / averages prefer the source with more total attempts on record.
 	const derivedTotal = (derived.earTrainingSessions ?? 0) + (derived.lickPracticeSessions ?? 0);

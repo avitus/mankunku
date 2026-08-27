@@ -1982,3 +1982,37 @@ screensaver if the practice tab is backgrounded, which is not the failure
 mode reported.
 
 Numbers: 9/9 new tests, full vitest 277 files green, svelte-check 0/0.
+
+## 2026-08-26 — PR #240 (dev → main) + CodeRabbit round 1
+
+Opened the release PR (wake lock, pretty chord voice, scale-trend popover,
+report links, minor ring labels). CodeRabbit returned 7 findings; 6 were
+real, 1 rejected (Stylelint casing — the repo runs no Stylelint, and the
+suggested lowercase `fraunces` would contradict the file's own @font-face
+declarations).
+
+The two that mattered were both in the daily-summary sync path, and both
+the 2026-07-13 incident class wearing a new coat:
+
+- **Push-side nulling**: `dailySummaryToRow` encoded absent snapshot
+  fields (`scale_levels`, and the three older scalar snapshots) as
+  explicit NULL, so a device that never knew a snapshot would erase
+  another device's on the (user_id,date) conflict update. The pull-side
+  merge had been hardened against exactly this shape (present-but-
+  undefined), but the push side hadn't. Fixed by omitting absent keys +
+  `defaultToNull: false`, and — the subtle part — batching the bulk flush
+  by identical key shape, because supabase-js unions bulk payload keys and
+  would quietly refill the omitted columns for mixed batches.
+- **Whole-map replacement**: `mergeWithExisting` replaced the entire
+  `scaleLevels` map when the incoming side had any. Per-scale maps are
+  partial per device, so union by key, incoming wins shared keys.
+
+Also: wake-lock in-flight race hardened one notch further (release →
+re-acquire before the first request resolves could strand a sentinel —
+the `!held` check alone wasn't enough, `sentinel` already set means a
+newer request won), 3-alteration stacks lift their center so no row dips
+below the baseline, the session chart keeps slash basses (reachable —
+progressions.ts transposes `chord.bass` through), and the Firefox
+NS_ERROR e2e ignore is now URL-aware.
+
+Numbers: 8 red → green (TDD), full vitest 277 files, svelte-check 0/0.

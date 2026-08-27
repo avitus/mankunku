@@ -116,4 +116,15 @@ describe('chordChartSymbol — pretty display model for a chart cell', () => {
 	test('flat roots display the real flat glyph', () => {
 		expect(chordChartSymbol(seg('min7'), 'Bb').root).toBe('B♭');
 	});
+
+	test('a slash chord keeps its bass in the display model', () => {
+		// Native lick harmony carries slash basses through transposition
+		// (data/progressions.ts), so the session chart must not drop them.
+		expect(chordChartSymbol(seg('maj7'), 'C', 'E')).toMatchObject({
+			root: 'C',
+			bass: 'E'
+		});
+		expect(chordChartSymbol(seg('maj7'), 'C', 'Eb').bass).toBe('E♭');
+		expect(chordChartSymbol(seg('maj7'), 'C').bass).toBeNull();
+	});
 });

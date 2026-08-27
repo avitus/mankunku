@@ -1069,7 +1069,7 @@ describe('syncDailySummaryToCloud', () => {
 		expect(mock._fromFn).toHaveBeenCalledWith('daily_summaries');
 		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
 		const [row, opts] = mock._upsertFn.mock.calls[0];
-		expect(opts).toEqual({ onConflict: 'user_id,date' });
+		expect(opts).toEqual({ onConflict: 'user_id,date', defaultToNull: false });
 		expect(row.user_id).toBe('test-user-id');
 		expect(row.date).toBe('2026-04-30');
 		expect(row.session_count).toBe(5);
@@ -1079,7 +1079,11 @@ describe('syncDailySummaryToCloud', () => {
 		expect(row.rhythm_complexity).toBe(12);
 	});
 
-	it('encodes a missing snapshot as null for nullable cloud columns', async () => {
+	it('omits absent snapshot columns so the upsert cannot null another device’s values', async () => {
+		// Snapshot fields aren't derivable — absent means "this device never
+		// knew", not "cleared". A null here would ride the (user_id,date)
+		// conflict update and erase the stored snapshot (the 2026-07-13
+		// incident class, push-side edition).
 		const mock = createMockSupabase();
 		const lickOnly: DailySummary = {
 			...TEST_SUMMARY,
@@ -1088,9 +1092,10 @@ describe('syncDailySummaryToCloud', () => {
 		};
 		await syncDailySummaryToCloud(mock as any, lickOnly);
 		const [row] = mock._upsertFn.mock.calls[0];
-		expect(row.pitch_complexity).toBeNull();
-		expect(row.rhythm_complexity).toBeNull();
-		expect(row.scale_levels).toBeNull();
+		expect(row).not.toHaveProperty('pitch_complexity');
+		expect(row).not.toHaveProperty('rhythm_complexity');
+		expect(row).not.toHaveProperty('tonal_mastery');
+		expect(row).not.toHaveProperty('scale_levels');
 	});
 
 	it('encodes the per-scale level snapshot (a forgotten mapper column would erase it on the next pull)', async () => {
@@ -1134,7 +1139,44 @@ describe('syncAllDailySummariesToCloud', () => {
 		const [rows, opts] = mock._upsertFn.mock.calls[0];
 		expect(Array.isArray(rows)).toBe(true);
 		expect(rows).toHaveLength(2);
-		expect(opts).toEqual({ onConflict: 'user_id,date' });
+		expect(opts).toEqual({ onConflict: 'user_id,date', defaultToNull: false });
+	});
+
+	it('splits mixed-shape batches so a row without snapshots cannot null another day’s (two-device flush)', async () => {
+		// supabase-js unions the keys of a bulk payload: batching a
+		// snapshot-less day with a snapshot-bearing one would re-introduce
+		// nulls (or DEFAULTs) for the missing keys on the conflict update.
+		// Rows must go up grouped by identical key shape.
+		const mock = createMockSupabase();
+		const withSnapshot: DailySummary = {
+			...TEST_SUMMARY,
+			date: '2026-04-28',
+			scaleLevels: { major: 14 },
+			tonalMastery: 6.5
+		};
+		const withoutSnapshot: DailySummary = {
+			...TEST_SUMMARY,
+			date: '2026-04-29',
+			pitchComplexity: undefined,
+			rhythmComplexity: undefined
+		};
+		await syncAllDailySummariesToCloud(mock as any, [withSnapshot, withoutSnapshot]);
+
+		expect(mock._upsertFn).toHaveBeenCalledTimes(2);
+		const batches = mock._upsertFn.mock.calls.map(([rows]) => rows);
+		const flat = batches.flat();
+		expect(flat).toHaveLength(2);
+		const snapRow = flat.find((r: { date: string }) => r.date === '2026-04-28');
+		const bareRow = flat.find((r: { date: string }) => r.date === '2026-04-29');
+		expect(snapRow.scale_levels).toEqual({ major: 14 });
+		expect(snapRow.tonal_mastery).toBe(6.5);
+		expect(bareRow).not.toHaveProperty('scale_levels');
+		expect(bareRow).not.toHaveProperty('pitch_complexity');
+		// The two shapes never share a batch.
+		for (const rows of batches) {
+			const shapes = new Set(rows.map((r: object) => Object.keys(r).sort().join()));
+			expect(shapes.size).toBe(1);
+		}
 	});
 
 	it('is a no-op on empty input', async () => {

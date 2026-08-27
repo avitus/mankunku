@@ -26,7 +26,10 @@ async function requestLock(): Promise<void> {
 	if (!api) return;
 	try {
 		const s = await api.request('screen');
-		if (!held) {
+		// `sentinel` set: a release → re-acquire happened while this request
+		// was in flight and the newer request already landed — storing this
+		// one would strand the newer sentinel un-releasable.
+		if (!held || sentinel) {
 			void s.release().catch(() => {});
 			return;
 		}

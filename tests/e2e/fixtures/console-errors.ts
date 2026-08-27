@@ -7,7 +7,9 @@ import { test as base, type ConsoleMessage, type Page, type Response } from '@pl
  * (e.g. dev tooling, third-party scripts whose warnings we cannot suppress)
  * AND benign in production. Every entry must have a comment explaining why.
  */
-const IGNORED_PATTERNS: RegExp[] = [
+type IgnoreRule = RegExp | ((text: string, url: string) => boolean);
+
+const IGNORED_PATTERNS: IgnoreRule[] = [
 	// Vite preview occasionally logs HMR-style messages even in preview mode.
 	/\[vite\]/i,
 	// Chrome DevTools Protocol noise that surfaces only via Playwright's
@@ -30,9 +32,12 @@ const IGNORED_PATTERNS: RegExp[] = [
 	// "debugger eval code" — logs this Gecko error. It fires 1:1 with mouse
 	// moves, never as a pageerror, never from an app bundle, and Chromium /
 	// WebKit runs of the same interactions are clean. Pinned to the injected-
-	// script source so a real app NS_ERROR (which carries an app file URL)
-	// still fails.
-	/NS_ERROR_NOT_INITIALIZED.*debugger eval code/
+	// script source on BOTH ends: the text must name it, and the message's
+	// own source URL must be absent or the eval source — a real app NS_ERROR
+	// (which carries an app file URL) still fails.
+	(text, url) =>
+		/NS_ERROR_NOT_INITIALIZED.*debugger eval code/.test(text) &&
+		(url === '' || /debugger eval code/.test(url))
 ];
 
 /**
@@ -61,7 +66,9 @@ function isBenignResourceFailure(text: string, url: string): boolean {
 }
 
 function isIgnored(text: string, url: string): boolean {
-	if (IGNORED_PATTERNS.some((pattern) => pattern.test(text))) return true;
+	const matches = (rule: IgnoreRule): boolean =>
+		rule instanceof RegExp ? rule.test(text) : rule(text, url);
+	if (IGNORED_PATTERNS.some(matches)) return true;
 	if (isBenignResourceFailure(text, url)) return true;
 	return false;
 }

@@ -33,16 +33,23 @@
 
 	const cells = $derived(chordChartCells(harmony, timeSignature));
 
-	/** Flat text ("A7b9") for the accessible name / title. */
+	/** Slash bass respelled like the root, when the segment carries one. */
+	function displayBass(seg: HarmonicSegment): string | undefined {
+		return seg.chord.bass ? displayRoot(seg.chord.bass) : undefined;
+	}
+
+	/** Flat text ("A7b9/E") for the accessible name / title. */
 	function cellSymbol(segmentIndex: number): string {
 		const seg = harmony[segmentIndex];
-		return chordSymbol(displayRoot(seg.chord.root), seg.chord.quality);
+		const base = chordSymbol(displayRoot(seg.chord.root), seg.chord.quality);
+		const bass = displayBass(seg);
+		return bass ? `${base}/${bass}` : base;
 	}
 
 	/** Pretty display model: baseline root + minus, superscript run (G⁷⁽♭⁹⁾, Dø⁷). */
 	function cellParts(segmentIndex: number) {
 		const seg = harmony[segmentIndex];
-		return chordChartSymbol(seg, displayRoot(seg.chord.root));
+		return chordChartSymbol(seg, displayRoot(seg.chord.root), displayBass(seg));
 	}
 
 	const currentCellIndex = $derived.by(() => {
