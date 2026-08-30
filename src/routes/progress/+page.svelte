@@ -237,16 +237,12 @@
 			.sort((a, b) => b.prof.level - a.prof.level)
 	);
 
-	// Scale-trend popover: hovering a row (mouse) previews it; click/tap/focus
-	// pins it, so touch devices — which have no hover — get the same chart.
-	let hoveredScale: ScaleType | null = $state(null);
-	let pinnedScale: ScaleType | null = $state(null);
-	// $derived.by with an explicit return type: as a top-level expression the
-	// initializer would flow-narrow both still-null lets to plain `null`, and
-	// const narrowing carries that into every closure reading openScale.
-	const openScale = $derived.by((): ScaleType | null => pinnedScale ?? hoveredScale);
+	// Scale-trend panel: click/tap a row to expand its chart in flow beneath
+	// the bar — one open at a time, like the session accordions below. In-flow
+	// expansion replaced a hover popover that overlaid the neighbouring rows.
+	let expandedScale: ScaleType | null = $state(null);
 	const openScaleSeries = $derived.by(() => {
-		const scaleType = openScale;
+		const scaleType = expandedScale;
 		if (!scaleType) return [];
 		return buildScaleLevelSeries({
 			scaleType,
@@ -257,20 +253,8 @@
 		});
 	});
 
-	function toggleScalePin(scaleType: ScaleType): void {
-		if (pinnedScale === scaleType) {
-			// Clear hover too, or the popover a touch tap opened would stay up —
-			// touch fires pointerenter without ever firing pointerleave.
-			pinnedScale = null;
-			hoveredScale = null;
-		} else {
-			pinnedScale = scaleType;
-		}
-	}
-
-	function closeScaleTrend(): void {
-		pinnedScale = null;
-		hoveredScale = null;
+	function toggleScaleTrend(scaleType: ScaleType): void {
+		expandedScale = expandedScale === scaleType ? null : scaleType;
 	}
 
 	const keyEntries = $derived(
@@ -745,49 +729,45 @@
 				<div class="space-y-3">
 					{#each scaleProfEntries as { scaleType, prof }}
 						{@const disp = masteryDisplay(prof.level)}
-						{@const open = openScale === scaleType}
-						<div
-							class="relative"
-							role="group"
-							onpointerenter={(e) => { if (e.pointerType === 'mouse') hoveredScale = scaleType; }}
-							onpointerleave={(e) => { if (e.pointerType === 'mouse' && hoveredScale === scaleType) hoveredScale = null; }}
-						>
+						{@const open = expandedScale === scaleType}
+						<div>
 							<button
 								type="button"
 								class="block w-full cursor-pointer rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
 								aria-expanded={open}
 								aria-label="{SCALE_TYPE_NAMES[scaleType]} proficiency trend"
-								onclick={() => toggleScalePin(scaleType)}
-								onfocus={() => { hoveredScale = scaleType; }}
-								onblur={() => { if (hoveredScale === scaleType) hoveredScale = null; }}
-								onkeydown={(e) => { if (e.key === 'Escape') closeScaleTrend(); }}
+								onclick={() => toggleScaleTrend(scaleType)}
+								onkeydown={(e) => { if (e.key === 'Escape') expandedScale = null; }}
 							>
-								<div class="flex items-center justify-between text-sm">
+								<span class="flex items-center justify-between text-sm">
 									<span>{SCALE_TYPE_NAMES[scaleType]}</span>
-									<span class="tabular-nums font-medium" style="color: {disp.color}">
-										Lv {prof.level}
-									</span>
-								</div>
-								<div class="mt-1 h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
-									<div
-										class="h-full rounded-full transition-all"
-										style="width: {prof.level}%; background-color: {disp.color}"
-									></div>
-								</div>
-								<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-									{prof.totalAttempts} attempts
-								</div>
-							</button>
-							{#if open}
-								<div
-									class="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-lg border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-3 shadow-xl"
-								>
-									<div class="mb-1 flex items-baseline justify-between text-xs text-[var(--color-text-secondary)]">
-										<span>{SCALE_TYPE_NAMES[scaleType]} · level over time</span>
+									<span class="flex items-center gap-2">
 										<span class="tabular-nums font-medium" style="color: {disp.color}">
 											Lv {prof.level}
 										</span>
-									</div>
+										<span class="text-xs text-[var(--color-text-secondary)]">
+											{open ? '▲' : '▼'}
+										</span>
+									</span>
+								</span>
+								<span class="mt-1 block h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+									<span
+										class="block h-full rounded-full transition-all"
+										style="width: {prof.level}%; background-color: {disp.color}"
+									></span>
+								</span>
+								<span class="mt-0.5 block text-xs text-[var(--color-text-secondary)]">
+									{prof.totalAttempts} attempts
+								</span>
+							</button>
+							{#if open}
+								<!-- No header: the scale name and level sit in the bar row directly
+								     above. bg-secondary, not tertiary: the chart's gridlines stroke
+								     with bg-tertiary and would vanish on a tertiary panel. -->
+								<div
+									data-testid="scale-trend-panel"
+									class="mt-2 rounded-lg border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-3"
+								>
 									<ScaleTrendChart points={openScaleSeries} color={disp.color} />
 								</div>
 							{/if}

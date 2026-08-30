@@ -96,7 +96,7 @@ function proficiency(level: number, attempts: number) {
 	};
 }
 
-test('scale proficiency rows reveal a level-over-time popover on hover, pin on click', async ({
+test('scale proficiency rows expand a level-over-time chart below the row', async ({
 	page,
 	consoleCollector: _c
 }) => {
@@ -121,29 +121,32 @@ test('scale proficiency rows reveal a level-over-time popover on hover, pin on c
 
 	const majorRow = page.getByRole('button', { name: 'Major proficiency trend' });
 	await expect(majorRow).toBeVisible();
+	await expect(majorRow).toHaveAttribute('aria-expanded', 'false');
 
-	// Hover reveals the trend popover with a chart ending at the live level.
-	await majorRow.hover();
-	const popover = page.getByText('Major · level over time').locator('..').locator('..');
-	await expect(popover).toBeVisible();
-	await expect(popover).toContainText('Lv 14');
-	await expect(popover.locator('svg polyline')).toHaveCount(1);
+	// Click expands an in-flow panel with a chart ending at the live level.
+	await majorRow.click();
+	const panel = page.getByTestId('scale-trend-panel');
+	await expect(panel).toBeVisible();
+	// No header inside the panel — the scale name and level already sit in
+	// the bar row directly above it.
+	await expect(panel).not.toContainText('level over time');
+	await expect(panel.locator('svg polyline')).toHaveCount(1);
 	await expect(majorRow).toHaveAttribute('aria-expanded', 'true');
 
-	// Moving away closes it. Leave DOWNWARD (the popover opens above the row):
-	// exiting through the popover would unmount it under the moving cursor,
-	// which Firefox's automation harness reports as a spurious console error.
-	const below = page.getByRole('heading', { name: 'Adaptive Difficulty' });
-	await below.hover();
-	await expect(page.getByText('Major · level over time')).toBeHidden();
-
-	// Click pins: the popover survives the pointer leaving the row.
+	// Expanding another row closes the first — one panel at a time.
 	const dorianRow = page.getByRole('button', { name: 'Dorian proficiency trend' });
 	await dorianRow.click();
-	await below.hover();
-	await expect(page.getByText('Dorian · level over time')).toBeVisible();
+	await expect(dorianRow).toHaveAttribute('aria-expanded', 'true');
+	await expect(majorRow).toHaveAttribute('aria-expanded', 'false');
+	await expect(panel).toHaveCount(1);
 
-	// Escape dismisses the pin.
+	// Re-click collapses.
+	await dorianRow.click();
+	await expect(panel).toBeHidden();
+
+	// Escape dismisses too.
+	await dorianRow.click();
+	await expect(panel).toBeVisible();
 	await dorianRow.press('Escape');
-	await expect(page.getByText('Dorian · level over time')).toBeHidden();
+	await expect(panel).toBeHidden();
 });
