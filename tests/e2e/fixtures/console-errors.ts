@@ -26,15 +26,15 @@ const IGNORED_PATTERNS: IgnoreRule[] = [
 	// users see this as a no-op because the page already moved on. Pinned to
 	// the /api/monitoring path so unrelated CORS regressions still fail.
 	/Fetch API cannot load .*\/api\/monitoring(?:[/?#].*)? due to access control checks/,
-	// Firefox-only Playwright artifact: when a pointer move's hit-target check
-	// races DOM that mounts/unmounts under the moving cursor (hover-revealed
-	// popovers), the harness's own injected script — Firefox names it
-	// "debugger eval code" — logs this Gecko error. It fires 1:1 with mouse
-	// moves, never as a pageerror, never from an app bundle, and Chromium /
-	// WebKit runs of the same interactions are clean. Pinned to the injected-
-	// script source on BOTH ends: the text must name it, and the message's
-	// own source URL must be absent or the eval source — a real app NS_ERROR
-	// (which carries an app file URL) still fails.
+	// Firefox-only Playwright artifact: when a pointer action's hit-target
+	// check races DOM that mounts/unmounts under the cursor (click-expanded
+	// panels; hover-revealed popovers before them), the harness's own injected
+	// script — Firefox names it "debugger eval code" — logs this Gecko error.
+	// It fires 1:1 with the racing actions, never as a pageerror, never from
+	// an app bundle, and Chromium / WebKit runs of the same interactions are
+	// clean. Pinned to the injected-script source on BOTH ends: the text must
+	// name it, and the message's own source URL must be absent or the eval
+	// source — a real app NS_ERROR (which carries an app file URL) still fails.
 	(text, url) =>
 		/NS_ERROR_NOT_INITIALIZED.*debugger eval code/.test(text) &&
 		(url === '' || /debugger eval code/.test(url))

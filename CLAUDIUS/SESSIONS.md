@@ -2016,3 +2016,37 @@ progressions.ts transposes `chord.bass` through), and the Firefox
 NS_ERROR e2e ignore is now URL-aware.
 
 Numbers: 8 red → green (TDD), full vitest 277 files, svelte-check 0/0.
+
+## 2026-08-29 — Scale-trend popover → in-flow expansion
+
+User report: the scale proficiency trend's hover reveal (shipped 6f95f99,
+four days ago) "does not work due to the size of the graph." Root cause was
+structural, not a tuning problem: the ~160px overlay opened `bottom-full`
+over rows spaced 12px apart, so an open panel sat on top of the neighbouring
+rows and churned their pointerenter/leave, and the top row's panel escaped
+the section container with no flip/clamp. The e2e spec had already been
+forced to exit the row *downward* to dodge the overlay — a tell worth
+remembering: when a test has to choreograph around a UI, the UI is the bug.
+
+Fix (direction confirmed with Andy: expansion over click-through): the
+overlay is gone; clicking/tapping a row expands the chart in flow beneath
+the bar, one open at a time, exactly the accordion shape the same file
+already uses three times. Hover preview removed entirely — it was
+mouse-only anyway, so touch loses nothing and mouse gains reliability.
+`hoveredScale`/`pinnedScale` collapsed into one `expandedScale`;
+chevron affordance copied from the lick-session rows; panel keeps the
+popover's bg-secondary+border palette because ScaleTrendChart's gridlines
+stroke with bg-tertiary and would vanish on a tertiary panel.
+
+Surprise finding: the Firefox NS_ERROR_NOT_INITIALIZED console artifact was
+NOT hover-specific. Removed the allowlist entry on the theory it was dead —
+Firefox promptly emitted it 1:1 with panel-toggling *clicks* (hit-target
+check racing DOM that mounts/unmounts under the cursor, regardless of what
+moved the cursor there). Entry restored with a corrected comment. The
+allowlist's own discipline (URL-gated to the injected script) held up: the
+app never logged anything.
+
+Numbers: e2e red→green across chromium/firefox/webkit; 41 progress-touching
+chromium e2e green; scale-trend units 7/7; svelte-check 0/0. Verified live
+in Chrome at full width and a 390px flow: top-row panel fully visible — the
+exact case the popover clipped.
