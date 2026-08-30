@@ -739,7 +739,7 @@
 								onclick={() => toggleScaleTrend(scaleType)}
 								onkeydown={(e) => { if (e.key === 'Escape') expandedScale = null; }}
 							>
-								<div class="flex items-center justify-between text-sm">
+								<span class="flex items-center justify-between text-sm">
 									<span>{SCALE_TYPE_NAMES[scaleType]}</span>
 									<span class="flex items-center gap-2">
 										<span class="tabular-nums font-medium" style="color: {disp.color}">
@@ -749,16 +749,16 @@
 											{open ? '▲' : '▼'}
 										</span>
 									</span>
-								</div>
-								<div class="mt-1 h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
-									<div
-										class="h-full rounded-full transition-all"
+								</span>
+								<span class="mt-1 block h-2 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+									<span
+										class="block h-full rounded-full transition-all"
 										style="width: {prof.level}%; background-color: {disp.color}"
-									></div>
-								</div>
-								<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+									></span>
+								</span>
+								<span class="mt-0.5 block text-xs text-[var(--color-text-secondary)]">
 									{prof.totalAttempts} attempts
-								</div>
+								</span>
 							</button>
 							{#if open}
 								<!-- No header: the scale name and level sit in the bar row directly
