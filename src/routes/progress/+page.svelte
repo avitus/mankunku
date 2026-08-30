@@ -761,18 +761,13 @@
 								</div>
 							</button>
 							{#if open}
-								<!-- bg-secondary, not tertiary: the chart's gridlines stroke with
-								     bg-tertiary and would vanish on a tertiary panel. -->
+								<!-- No header: the scale name and level sit in the bar row directly
+								     above. bg-secondary, not tertiary: the chart's gridlines stroke
+								     with bg-tertiary and would vanish on a tertiary panel. -->
 								<div
 									data-testid="scale-trend-panel"
 									class="mt-2 rounded-lg border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-3"
 								>
-									<div class="mb-1 flex items-baseline justify-between text-xs text-[var(--color-text-secondary)]">
-										<span>{SCALE_TYPE_NAMES[scaleType]} · level over time</span>
-										<span class="tabular-nums font-medium" style="color: {disp.color}">
-											Lv {prof.level}
-										</span>
-									</div>
 									<ScaleTrendChart points={openScaleSeries} color={disp.color} />
 								</div>
 							{/if}

@@ -2050,3 +2050,10 @@ Numbers: e2e red→green across chromium/firefox/webkit; 41 progress-touching
 chromium e2e green; scale-trend units 7/7; svelte-check 0/0. Verified live
 in Chrome at full width and a 390px flow: top-row panel fully visible — the
 exact case the popover clipped.
+
+Follow-up (2026-08-30): panel header removed on Andy's review — the scale
+name and level sit in the bar row directly above the expanded panel, so the
+"X · level over time / Lv N" line was pure duplication. The e2e now pins
+the absence (`not.toContainText('level over time')`) and leans on
+aria-expanded + the panel testid instead of header text for the
+one-at-a-time assertions. PR to main opened.

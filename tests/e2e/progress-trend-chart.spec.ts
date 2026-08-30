@@ -127,25 +127,26 @@ test('scale proficiency rows expand a level-over-time chart below the row', asyn
 	await majorRow.click();
 	const panel = page.getByTestId('scale-trend-panel');
 	await expect(panel).toBeVisible();
-	await expect(panel).toContainText('Major · level over time');
-	await expect(panel).toContainText('Lv 14');
+	// No header inside the panel — the scale name and level already sit in
+	// the bar row directly above it.
+	await expect(panel).not.toContainText('level over time');
 	await expect(panel.locator('svg polyline')).toHaveCount(1);
 	await expect(majorRow).toHaveAttribute('aria-expanded', 'true');
 
 	// Expanding another row closes the first — one panel at a time.
 	const dorianRow = page.getByRole('button', { name: 'Dorian proficiency trend' });
 	await dorianRow.click();
-	await expect(page.getByText('Dorian · level over time')).toBeVisible();
-	await expect(page.getByText('Major · level over time')).toBeHidden();
+	await expect(dorianRow).toHaveAttribute('aria-expanded', 'true');
 	await expect(majorRow).toHaveAttribute('aria-expanded', 'false');
+	await expect(panel).toHaveCount(1);
 
 	// Re-click collapses.
 	await dorianRow.click();
-	await expect(page.getByTestId('scale-trend-panel')).toBeHidden();
+	await expect(panel).toBeHidden();
 
 	// Escape dismisses too.
 	await dorianRow.click();
-	await expect(page.getByText('Dorian · level over time')).toBeVisible();
+	await expect(panel).toBeVisible();
 	await dorianRow.press('Escape');
-	await expect(page.getByText('Dorian · level over time')).toBeHidden();
+	await expect(panel).toBeHidden();
 });
