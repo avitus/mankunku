@@ -2,13 +2,21 @@
 	import { lickMode } from '$lib/music/mode';
 	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
-	import { progress, getRecentSessions, resetProgress, getPrimaryLevel, getTonalMastery } from '$lib/state/progress.svelte';
-	import { difficultyDisplay, masteryDisplay } from '$lib/difficulty/display';
+	import { progress, getRecentSessions, resetProgress, getUnlockContext, getTonalMastery } from '$lib/state/progress.svelte';
+	import { masteryDisplay } from '$lib/difficulty/display';
 	import { accuracyTier } from '$lib/ui/score-colors';
-	import { WINDOW_SIZE } from '$lib/difficulty/adaptive';
 	import { GRADE_LABELS, scoreToGrade } from '$lib/scoring/grades';
 	import { GRADE_COLORS } from '$lib/ui/score-colors';
-	import { SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID, SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
+	import {
+		SCALE_TYPE_NAMES,
+		SCALE_TYPE_TO_SCALE_ID,
+		SCALE_UNLOCK_ORDER,
+		KEY_UNLOCK_ORDER,
+		getUnlockedKeys,
+		getUnlockedScaleTypes,
+		nextKeyUnlock,
+		nextScaleUnlock
+	} from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
 	import PracticeCalendar from '$lib/components/progress/PracticeCalendar.svelte';
@@ -217,9 +225,15 @@
 	let tab = $state<'progress' | 'sessions'>('progress');
 	let sessionsSubtab = $state<'ear-training' | 'lick-practice'>('ear-training');
 	const recentSessions = $derived(getRecentSessions(100));
-	const primaryLevel = $derived(getPrimaryLevel());
-	const primaryLevelDisp = $derived(difficultyDisplay(primaryLevel));
 	const mastery = $derived(getTonalMastery());
+
+	// Key/scale unlock progress — the live difficulty system (per-scale
+	// proficiency gates ear-training content; unlocks gate the daily tonality).
+	const unlockCtx = $derived(getUnlockContext());
+	const unlockedKeyCount = $derived(getUnlockedKeys(unlockCtx).length);
+	const unlockedScaleCount = $derived(getUnlockedScaleTypes(unlockCtx).length);
+	const nextKey = $derived(nextKeyUnlock(unlockCtx));
+	const nextScale = $derived(nextScaleUnlock(unlockCtx));
 	// Full teal→brass ramp as a gradient for the mastery meter; the CSS vars
 	// re-step per theme (see app.css), so this stays legible in light + dark.
 	// Generated from the 10 difficultyBand steps so it can't drift from them.
@@ -777,75 +791,60 @@
 			</div>
 		{/if}
 
-		<!-- Adaptive difficulty detail -->
-		<div data-tour="adaptive-difficulty" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+		<!-- Key & scale unlock progress -->
+		<div data-tour="unlocks" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
 			<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
-				Adaptive Difficulty
+				Keys &amp; Scales
 				<TooltipHint
-					text={tooltips.progress.rollingWindow.text}
-					learnMore={tooltips.progress.rollingWindow.learnMore}
+					text={tooltips.progress.unlocks.text}
+					learnMore={tooltips.progress.unlocks.learnMore}
 					position="right"
 				/>
-				<span class="ml-auto text-sm font-normal tabular-nums" style="color: {primaryLevelDisp.color}">
-					Level {primaryLevel} <span class="text-xs text-[var(--color-text-secondary)]">({primaryLevelDisp.name})</span>
-				</span>
 			</h2>
 			<div class="grid grid-cols-2 gap-4 text-sm">
 				<div>
-					<div class="inline-flex items-center gap-1 text-[var(--color-text-secondary)]">
-						Pitch Complexity
-						<TooltipHint
-							text={tooltips.progress.pitchComplexity.text}
-							learnMore={tooltips.progress.pitchComplexity.learnMore}
-							position="top"
-						/>
-					</div>
+					<div class="text-[var(--color-text-secondary)]">Keys</div>
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
 								class="h-full rounded-full bg-[var(--color-accent)]"
-								style="width: {Math.round(progress.adaptive.pitchComplexity)}%"
+								style="width: {Math.round((unlockedKeyCount / KEY_UNLOCK_ORDER.length) * 100)}%"
 							></div>
 						</div>
-						<span class="font-medium">{progress.adaptive.pitchComplexity}/100</span>
+						<span class="font-medium tabular-nums">{unlockedKeyCount}/{KEY_UNLOCK_ORDER.length}</span>
+					</div>
+					<div class="mt-1 text-xs text-[var(--color-text-secondary)]">
+						{#if nextKey}
+							Next: {nextKey.key} — {nextKey.requirements
+								.map(r => `${r.key} ≥ ${r.level} (now ${r.current})`)
+								.join(' + ')}
+						{:else}
+							All {KEY_UNLOCK_ORDER.length} unlocked
+						{/if}
 					</div>
 				</div>
 				<div>
-					<div class="inline-flex items-center gap-1 text-[var(--color-text-secondary)]">
-						Rhythm Complexity
-						<TooltipHint
-							text={tooltips.progress.rhythmComplexity.text}
-							learnMore={tooltips.progress.rhythmComplexity.learnMore}
-							position="top"
-						/>
-					</div>
+					<div class="text-[var(--color-text-secondary)]">Scales</div>
 					<div class="mt-1 flex items-center gap-2">
 						<div class="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
 							<div
 								class="h-full rounded-full bg-[var(--color-brass)]"
-								style="width: {Math.round(progress.adaptive.rhythmComplexity)}%"
+								style="width: {Math.round((unlockedScaleCount / SCALE_UNLOCK_ORDER.length) * 100)}%"
 							></div>
 						</div>
-						<span class="font-medium">{progress.adaptive.rhythmComplexity}/100</span>
+						<span class="font-medium tabular-nums">{unlockedScaleCount}/{SCALE_UNLOCK_ORDER.length}</span>
+					</div>
+					<div class="mt-1 text-xs text-[var(--color-text-secondary)]">
+						{#if nextScale}
+							Next: {SCALE_TYPE_NAMES[nextScale.scaleType]} — {nextScale.requirements
+								.map(r => `${SCALE_TYPE_NAMES[r.scaleType]} ≥ ${r.level} (now ${r.current})`)
+								.join(' + ')}
+						{:else}
+							All {SCALE_UNLOCK_ORDER.length} unlocked
+						{/if}
 					</div>
 				</div>
 			</div>
-			{#if progress.adaptive.recentScores.length > 0}
-				{@const windowLen = progress.adaptive.recentScores.length}
-				{@const pitchScores = progress.adaptive.recentPitchScores ?? []}
-				{@const rhythmScores = progress.adaptive.recentRhythmScores ?? []}
-				<div class="mt-3 text-xs text-[var(--color-text-secondary)]">
-					{#if pitchScores.length === windowLen && rhythmScores.length === windowLen}
-						Pitch avg: {pct(pitchScores.reduce((a: number, b: number) => a + b, 0) / pitchScores.length)}%
-						| Rhythm avg: {pct(rhythmScores.reduce((a: number, b: number) => a + b, 0) / rhythmScores.length)}%
-						| Overall: {pct(progress.adaptive.recentScores.reduce((a, b) => a + b, 0) / windowLen)}%
-						({windowLen}/{WINDOW_SIZE} window)
-					{:else}
-						Recent avg: {pct(progress.adaptive.recentScores.reduce((a, b) => a + b, 0) / windowLen)}%
-						({windowLen}/{WINDOW_SIZE} window)
-					{/if}
-				</div>
-			{/if}
 		</div>
 
 		<!-- Key progress -->

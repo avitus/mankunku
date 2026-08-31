@@ -83,16 +83,8 @@ export const tooltips = {
 		trend: {
 			text: 'Tonal Mastery over time — your average proficiency across all 12 scales and all 12 keys. It climbs slowly by design: ground you have never covered counts as zero.'
 		},
-		pitchComplexity: {
-			text: 'How chromatic the licks you’re drilling are. Climbs as your pitch accuracy rises across consecutive sessions.',
-			learnMore: '/docs/architecture/adaptive-difficulty'
-		},
-		rhythmComplexity: {
-			text: 'How dense and syncopated the rhythms are. Climbs independently of pitch — you can be advancing in one and not the other.',
-			learnMore: '/docs/architecture/adaptive-difficulty'
-		},
-		rollingWindow: {
-			text: 'The adaptive system looks at your last N sessions, not your all-time average. Recent form drives next-phrase difficulty.',
+		unlocks: {
+			text: 'Keys and scales unlock as your proficiency grows — each new one needs a set level in its prerequisite. Ear training draws its material from what you have unlocked, so this is the difficulty frontier.',
 			learnMore: '/docs/architecture/adaptive-difficulty'
 		},
 		scaleProficiency: {
