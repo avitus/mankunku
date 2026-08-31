@@ -256,7 +256,8 @@ The Progress page is the back cover. It tells you what's been happening over tim
 - **This Period** — how the current window compares with the one before it, so you can see whether you're actually putting more in.
 - **Trend chart** — your Tonal Mastery (average proficiency across all 12 scales and 12 keys, with unattempted ones counting as zero; 0–100), plotted over the window.
 - **Calendar heatmap** — every day you practiced, lit by session count. Skipped days are dim.
-- **Scale Proficiency** — a breakdown per scale type, and the adaptive-difficulty detail behind your level.
+- **Scale Proficiency** — a breakdown per scale type; tap a scale to expand its level-over-time chart.
+- **Keys & Scales** — how many of the 12 keys and 12 scale types you've unlocked, and what the next unlock requires.
 - **By Key grid** — your average score in each key, so you can see which keys still need work.
 - **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade. Expand one for the note-by-note list; note names are spelled the way the chart spelled them (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#).
 

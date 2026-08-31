@@ -91,13 +91,13 @@ Toggles `.light` class on `<html>` based on `settings.theme`. No-op in SSR.
 
 ## progress.svelte.ts
 
-Session history and adaptive difficulty. **Persisted** to localStorage under key `mankunku:progress`.
+Session history and per-scale/per-key proficiency. **Persisted** to localStorage under key `mankunku:progress`.
 
 ### `progress`
 
 ```typescript
 export const progress = $state<UserProgress>({
-  adaptive: AdaptiveState;                                              // Adaptive difficulty state
+  adaptive: AdaptiveState;                                              // FROZEN legacy state (ratchet retired 2026-08-31; kept for sync compat)
   sessions: SessionResult[];                                            // Session history (max 100)
   categoryProgress: Record<string, CategoryProgress>;
   keyProgress: Partial<Record<PitchClass, {
@@ -117,14 +117,13 @@ export const progress = $state<UserProgress>({
 
 Record a completed attempt. `source` defaults to `'ear-training'`; pass `'lick-practice'` for lick-practice runs (those contribute to per-lick progress but skip the ear-training key stats). When a Supabase client is supplied, fire-and-forgets a cloud sync after persisting locally. This single function:
 1. Creates a `SessionResult` and prepends to `sessions` (bounded to 100)
-2. Updates adaptive state via `processAttempt()`
-3. Updates per-scale proficiency (ear-training only)
-4. Updates category progress (running average, best score)
-5. Updates per-lick progress
-6. Updates per-key proficiency + key progress (ear-training only)
-7. Updates streak (compares to yesterday's date)
-8. Re-derives today's daily summary via `recomputeDailySummary(today, {...})`, passing in the live adaptive snapshot (pitch/rhythm complexity + tonal mastery) that isn't reachable from `SessionResult`. This reads back from the source tables (`progress.sessions` + `lick-practice-sessions`), so lick-practice rows for that day are included.
-9. Auto-saves to localStorage (+ optional cloud sync)
+2. Updates per-scale proficiency (ear-training only)
+3. Updates category progress (running average, best score)
+4. Updates per-lick progress
+5. Updates per-key proficiency + key progress (ear-training only)
+6. Updates streak (compares to yesterday's date)
+7. Re-derives today's daily summary via `recomputeDailySummary(today, {...})`, passing in the snapshot values (tonal mastery + per-scale levels, plus the frozen legacy pitch/rhythm complexity kept for sync compatibility) that aren't reachable from `SessionResult`. This reads back from the source tables (`progress.sessions` + `lick-practice-sessions`), so lick-practice rows for that day are included.
+8. Auto-saves to localStorage (+ optional cloud sync)
 
 ### `initFromCloud(supabase): Promise<void>`
 
@@ -141,10 +140,6 @@ Returns category progress sorted by attempt count (descending).
 ### `getUnlockContext(): UnlockContext`
 
 Builds the `UnlockContext` used by the tonality / unlock model from current `scaleProficiency` and `keyProficiency`.
-
-### `getPrimaryLevel(): number`
-
-Returns `progress.adaptive.currentLevel` — the 1-100 player level shown in UI.
 
 ### `resetProgress(supabase?): void`
 

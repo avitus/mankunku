@@ -1,6 +1,6 @@
 # API Reference: Difficulty
 
-Adaptive difficulty algorithm and difficulty level profiles.
+Per-scale/per-key proficiency algorithm and difficulty level profiles.
 
 **Source:** `src/lib/difficulty/`
 
@@ -8,21 +8,30 @@ Adaptive difficulty algorithm and difficulty level profiles.
 
 ## adaptive.ts
 
-Adaptive difficulty algorithm that adjusts musical complexity based on performance.
+Proficiency advancement algorithm: a single-dimension window/cooldown rule applied per scale type and per key. These proficiencies gate ear-training content and drive key/scale unlocks.
 
-### Constants
+### Constants (module-internal)
 
 | Constant | Value | Description |
 |---|---|---|
 | `WINDOW_SIZE` | 25 | Number of recent scores per dimension |
 | `ADVANCE_THRESHOLD` | 0.85 | Average score to advance |
 | `RETREAT_THRESHOLD` | 0.50 | Average score to retreat |
-| `MIN_ATTEMPTS_BETWEEN_CHANGES` | 10 | Cooldown between difficulty adjustments (per dimension) |
-| `MAX_LEVEL` | 100 | Maximum player level |
+| `MIN_ATTEMPTS_BETWEEN_CHANGES` | 10 | Cooldown between difficulty adjustments |
+| `MAX_LEVEL` | 100 | Maximum proficiency level |
+
+### Per-scale / per-key proficiency
+
+| Function | Signature | Description |
+|---|---|---|
+| `createInitialScaleProficiency` | `() → ScaleProficiency` | Fresh scale proficiency state (level 1, empty window) |
+| `createInitialKeyProficiency` | `() → KeyProficiency` | Fresh key proficiency state (level 1, empty window) |
+| `processScaleAttempt` | `(state, overall) → ScaleProficiency` | Window average ≥ 85% → level +1; < 50% → level −1; 10-attempt cooldown between changes |
+| `processKeyAttempt` | `(state, overall) → KeyProficiency` | Same algorithm, for per-key tracking |
 
 ### `createInitialAdaptiveState(): AdaptiveState`
 
-Returns a fresh state with all values at their defaults (level 1, no scores).
+Returns a fresh legacy `AdaptiveState` (level 1, no scores). **The ratchet that mutated this state (`processAttempt`) was retired 2026-08-31** — nothing consumed its output after phrase selection moved to per-scale proficiency, so it only saturated at 100. The field survives, frozen, because `progress.adaptive` still round-trips localStorage hydrate, the cloud merge, and the `adaptive_state` sync column.
 
 ```typescript
 interface AdaptiveState {
@@ -38,32 +47,6 @@ interface AdaptiveState {
   rhythmAttemptsSinceChange: number;   // Attempts since last rhythm complexity change
 }
 ```
-
-### `processAttempt(state, overall, pitchAccuracy, rhythmAccuracy): AdaptiveState`
-
-Process a new attempt and return updated state.
-
-Pitch and rhythm are adjusted **independently** — each dimension has its own score window and cooldown (minimum 10 attempts between changes per dimension):
-
-1. **Pitch**: If pitch accuracy window average ≥ 85% → `pitchComplexity++`; if < 50% → `pitchComplexity--`
-2. **Rhythm**: If rhythm accuracy window average ≥ 85% → `rhythmComplexity++`; if < 50% → `rhythmComplexity--`
-3. **Hold** (50–85%): No change for that dimension
-4. `currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2)`
-
-### `getAdaptiveSummary(state): string`
-
-Human-readable summary using the current difficulty band name. E.g. `"Beginner 3 (Pitch: 3, Rhythm: 2) — Avg: 78%"`.
-
-### Per-scale / per-key proficiency
-
-Shared single-dimension advancement is also exposed for scale- and key-specific proficiency tracking (see `src/lib/types/progress.ts`).
-
-| Function | Signature | Description |
-|---|---|---|
-| `createInitialScaleProficiency` | `() → ScaleProficiency` | Fresh scale proficiency state (level 1, empty window) |
-| `createInitialKeyProficiency` | `() → KeyProficiency` | Fresh key proficiency state (level 1, empty window) |
-| `processScaleAttempt` | `(state, overall) → ScaleProficiency` | Same window + cooldown algorithm as `processAttempt`, single dimension |
-| `processKeyAttempt` | `(state, overall) → KeyProficiency` | Same as `processScaleAttempt`, for per-key tracking |
 
 ---
 

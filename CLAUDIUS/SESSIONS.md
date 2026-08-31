@@ -2057,3 +2057,52 @@ name and level sit in the bar row directly above the expanded panel, so the
 the absence (`not.toContainText('level over time')`) and leans on
 aria-expanded + the panel testid instead of header text for the
 one-at-a-time assertions. PR to main opened.
+
+## 2026-08-31 — Adaptive Difficulty card replaced by Keys & Scales; the dead ratchet retired
+
+**What happened:**
+
+- User: the Adaptive Difficulty section always shows Level 100 (Virtuoso),
+  100/100 pitch and rhythm complexity — "don't seem to signify anything
+  meaningful. Is it correct?" Both halves answered: the code was correct and
+  the metric was dead. `processAttempt` was an open-loop monotonic ratchet
+  (+1 per 10 attempts at ≥85% window average, −1 only below 50% — unreachable
+  for anyone who climbed) hard-capped at 100, and since c4ee4cc (2026-08-09,
+  the orphaned settings page + generator removal) NOTHING consumed its
+  output. Not a display bug; an absorbing state with a severed feedback loop.
+- Replaced the card with **Keys & Scales** (`data-tour="unlocks"`): keys and
+  scales unlocked out of 12 with bars in the old card's chrome, plus the
+  next-unlock frontier ("Next: D — G ≥ 10 (now 7)") from two new pure
+  helpers, `nextKeyUnlock`/`nextScaleUnlock` in tonality.ts (TDD, 7 unit
+  tests red→green). Andy chose this over grade-distribution/streak options —
+  it IS the live difficulty system, previously visible only on /settings.
+- Retired the ratchet surgically after Andy pushed back with "are you sure
+  the adaptive engine is no longer required?" — the check caught my own
+  imprecision: adaptive.ts is NOT all dead (processScaleAttempt/
+  processKeyAttempt are the live engine and share the constants). Deleted
+  only `processAttempt` + `getAdaptiveSummary` + the recordAttempt write +
+  `getPrimaryLevel`; `AdaptiveState`/`createInitialAdaptiveState` stay
+  because the frozen field round-trips hydrate, cloud merge, and the
+  `adaptive_state` column. No migration, no sync change.
+- Docs were claiming the dead system was live on many surfaces:
+  adaptive-difficulty.md fully rewritten around proficiency + unlocks (slug
+  kept — 4 tooltips link it); surgical truth-fixes in glossary (Adaptive
+  level + Pitch/Rhythm complexity entries removed, Tonal Mastery added),
+  overview, user-guide, api-reference/state + difficulty, algorithm-details,
+  testing-guide; pitch-rhythm-coupling.md status closed (its subject retired,
+  its scoring-coupling half still true). Tooltips pitchComplexity/
+  rhythmComplexity/rollingWindow deleted, `unlocks` added.
+- New e2e `progress-unlocks.spec.ts`: seeded mid-progress state pins counts
+  + both "Next:" lines + absence of the old card text; a fully-unlocked
+  state pins "All 12 unlocked" — the saturated case now reads as
+  completion, not as a number pretending to be a measurement.
+
+**Notes:**
+
+- check 0/0 (2743 files); vitest 277 files, 4415 passed; progress e2e 12/12
+  across all three browsers; smoke 33/33 + cloud-convergence chromium green.
+  Verified live in Chrome on the dev server: fresh-user state renders
+  Keys 1/12 "Next: G — C ≥ 10 (now 0)", Scales 1/12 "Next: Minor
+  Pentatonic — Major Pentatonic ≥ 15 (now 0)".
+- The 2026-07-19 judgment ("current-value bars are legitimate there") aged
+  badly in an instructive way — see observations.

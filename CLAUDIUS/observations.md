@@ -1162,3 +1162,13 @@ anchor-shift trick (replay a pruned log from initial, then shift the series so
 its endpoint meets the known current state) is the honest way to draw history
 from a windowed log + cumulative state pair, and it generalizes to key
 proficiency if that ever wants a trend line.
+
+---
+
+## 2026-08-31 — A metric dies when its last consumer does, and nobody attends the funeral
+
+Follow-up to 2026-07-19's "one placement lies and the other doesn't." I defended the Adaptive Difficulty card then on framing grounds: current-value bars make no progress claim, so showing the generator's setting is honest. That was right about the framing and wrong about the referent. On 2026-08-09 a cleanup commit deleted the orphaned settings page and the old phrase generator — the last two consumers of the adaptive state — and from that moment the "current setting" bars described a knob connected to nothing. The display didn't change; its meaning evaporated out from under it. Nobody noticed because deleting a *reader* never breaks the *writer*: the ratchet kept updating, the sync kept syncing, the card kept rendering, every test stayed green. **The truthfulness of a state readout is a property of the wiring, not the widget** — the same bars were honest in July and decorative in August with zero diff to the component.
+
+The second thing worth keeping: the ratchet was structurally doomed independent of the severed loop. Advance at ≥85%, retreat only below 50% — for any user good enough to climb, the retreat branch is unreachable, so the metric was monotone with a cap: an absorbing state at 100. Any bounded monotone metric eventually reports its bound and nothing else. The user's complaint ("always 100, doesn't signify anything") is the generic end-state of that shape. Design test for future metrics: ask what the display reads after a year of diligent use. If the answer is "its maximum, permanently," the metric measures accumulated exposure, not the thing it claims. The replacement (unlock counts + the exact next requirement) is also monotone-with-a-cap — but its cap state is *completion of an enumerable set*, which is a fact, not a pretend-measurement; and until then every pixel is actionable.
+
+Also filed under verification-pays: Andy's one-line challenge ("are you sure the adaptive engine is no longer required?") caught that my own option framing said "delete adaptive.ts + its tests" when the file's lower half IS the live proficiency engine sharing the upper half's constants. The Explore agent had the facts right; my summary had rounded them. Challenges that force a re-grep are cheap; shipping a plan whose nouns are one file too coarse is not.

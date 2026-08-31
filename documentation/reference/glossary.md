@@ -140,8 +140,6 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 ## App-specific
 
-**Adaptive level** — The 1–100 number that reflects how complex the material the app is feeding you is. Climbs when you're consistently above 85% accuracy in the rolling window; falls when you're consistently below 50%. See [Levels & Difficulty](../architecture/adaptive-difficulty.md).
-
 **Backing style** — Which band you practice with: Swing, Bossa Nova, Ballad, or Straight. Chosen per session on the Lick Practice and tune-practice setup screens (not in Settings). Ear Training never plays one.
 
 **Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at Guided and Standard strictness, and nothing else does. There is no user-facing toggle.
@@ -174,11 +172,11 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Progression colour** — Each of the ten progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
 
-**Pitch complexity / Rhythm complexity** — The two underlying numbers that average into your displayed level (a plain mean of the two). They climb (and fall) independently based on your accuracy in each dimension. See [Levels & Difficulty](../architecture/adaptive-difficulty.md).
-
 **Practice tag** — A star you can apply to a lick to add it to your Side B practice book. Tagged licks rotate through all 12 keys in Lick Practice sessions.
 
-**Proficiency** — Per-key and per-scale tracking that drives the unlocking system. Different from the displayed level — your level is one number; your proficiency is many numbers, one for each key and one for each scale type.
+**Proficiency** — Your 1–100 level in each key and each scale type, adjusted from a rolling window of your recent accuracy. Proficiency is what gates ear-training content and drives key/scale unlocks. See [Levels & Difficulty](../architecture/adaptive-difficulty.md).
+
+**Tonal Mastery** — Your average proficiency across all 12 scale types and all 12 keys, with never-attempted slots counted as zero. The headline progress number on the home and Progress pages.
 
 **Source** — Where a phrase came from: `curated` (hand-written), `generated` (algorithmic), `combined` (scale × rhythm pairing), or user-created (`user-entered` for step entry, `user-recorded` for recordings).
 

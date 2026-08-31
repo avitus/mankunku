@@ -163,7 +163,7 @@ Each reading's weight is `clarity²`, further scaled by `0.25` for warmup frames
 
 The cents deviation *is* a median, but only over the readings that already match the chosen MIDI (filtering out octave errors before computing intonation).
 
-## Adaptive Difficulty
+## Proficiency Advancement
 
 **Source:** `src/lib/difficulty/adaptive.ts`
 
@@ -180,15 +180,11 @@ The cents deviation *is* a median, but only over the readings that already match
                 RETREAT
 ```
 
-Transitions require at least 10 attempts since the last change per dimension, preventing oscillation.
+Transitions require at least 10 attempts since the last change, preventing oscillation.
 
-### Independent Axis Adjustment
+### Per-Scale / Per-Key Tracking
 
-Pitch and rhythm complexity are adjusted independently — each has its own 25-score accuracy window and its own 10-attempt cooldown counter:
+The same single-dimension rule runs independently for each scale type (`processScaleAttempt`) and each key (`processKeyAttempt`): a 25-score accuracy window, advance at ≥ 85% average, retreat at < 50%, 10-attempt cooldown, levels clamped to 1–100. These proficiencies gate ear-training content selection and drive key/scale unlocks.
 
-- **Pitch**: advances when pitch accuracy window average ≥ 85%, retreats when < 50%
-- **Rhythm**: advances when rhythm accuracy window average ≥ 85%, retreats when < 50%
-- `currentLevel = Math.round((pitchComplexity + rhythmComplexity) / 2)`
-
-This allows a player who is strong in rhythm but weak in pitch to progress their rhythm complexity while pitch stays at a comfortable level.
+The old global two-dimension variant (`processAttempt`, averaging a pitch and a rhythm complexity into a displayed level) was retired 2026-08-31 — nothing consumed its output, so it only ratcheted to 100.
 

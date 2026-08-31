@@ -1,38 +1,38 @@
 # Levels & Difficulty
 
-Mankunku has a level system that runs from 1 to 100. The number you see on your dashboard reflects how complex the material the app is currently feeding you is — not how good a musician you are in any absolute sense, just where the practice is meeting you on the difficulty curve.
+Mankunku tracks difficulty on a 1–100 scale — but not as one global number. Your level is tracked **per scale type and per key**: a proficiency in Blues, a proficiency in Dorian, a proficiency in the key of Eb, and so on. Those proficiencies are what decide which licks the app feeds you and which keys and scales unlock next.
 
-This page explains what the level represents, how it climbs as you improve, and what each tier of the curve actually adds musically.
+This page explains how a proficiency climbs, what it gates, and what each tier of the difficulty curve actually adds musically.
 
-## What the level number means
+## How a proficiency adjusts
 
-Your level is the average of two underlying numbers, both also on a 1–100 scale:
+The app keeps a rolling window of your last 25 attempts in each scale type (and separately in each key). After each ear-training attempt:
 
-- **Pitch complexity** — how chromatic, how wide-ranging, and how pitch-demanding the lines you're working on are.
-- **Rhythm complexity** — how dense, how syncopated, and how rhythmically demanding the lines are.
+- **If your average accuracy across those 25 attempts is ≥ 85%**, that proficiency ticks up by 1.
+- **If your average accuracy is < 50%**, it ticks down by 1.
+- **Between 50% and 85%**, it holds. The app has decided you're at the right level for now.
 
-A pitch-complexity of 35 paired with a rhythm-complexity of 35 gives you a level of 35. Strong rhythm but weak pitch (rhythm 60, pitch 20) gives you a level of 40 — and importantly, the underlying numbers stay separate. The next phrase the app generates can keep the rhythm at level 60 while pitching the melody at level 20, so you keep getting clean wins in pitch while the rhythm keeps challenging you.
-
-This is the central design choice: pitch and rhythm advance **independently**. If you've been a strong rhythm player your whole life but you're working on hearing fast bebop lines, the rhythm complexity stays high while the pitch complexity climbs at its own pace. The reverse holds too.
-
-## How the level adjusts
-
-The app keeps a rolling window of your last 25 attempts in each dimension. After each attempt:
-
-- **If your average pitch accuracy across those 25 attempts is ≥ 85%**, pitch complexity ticks up by 1.
-- **If your average pitch accuracy is < 50%**, pitch complexity ticks down by 1.
-- **Between 50% and 85%**, pitch complexity holds. The app has decided you're at the right level for now.
-- **The same logic runs independently** for rhythm complexity.
-
-There's a 10-attempt cooldown between adjustments per dimension — so once pitch complexity moves, it can't move again until you've played 10 more phrases. This prevents the level from oscillating on a noisy day.
+There's a 10-attempt cooldown between adjustments — once a proficiency moves, it can't move again until you've played 10 more phrases. This prevents the level from oscillating on a noisy day.
 
 The window of 25 is long enough to smooth out lucky guesses and unlucky stumbles. A single Try Again won't drop your level; a string of them across two or three sessions will.
 
-## What each level tier adds musically
+When a proficiency moves, a small cue flashes under the ear-training status line: *↑ Blues · Lv 23*. That's the system telling you it's noticed.
 
-The app groups levels into ten **content tiers** describing how difficulty opens up — which scale families come into play, which rhythms, what tempos and keys, and how many notes a phrase may run to.
+## What proficiency gates
 
-How that reaches you differs by mode. On **Side A**, the tier table is a description rather than a selector: every lick carries its own complexity rating, and Ear Training simply admits licks at or below your level in the active scale, then filters for scale fit and shuffles. So harder material surfaces as your level climbs, but nothing consults the tier directly. **Tricks** do read the tier — the profile for your level sets the rhythms, interval span and note counts a generated example may use.
+Three things, all of them the real levers of difficulty:
+
+1. **The phrase pool.** Ear training admits licks whose difficulty rating is at or below your proficiency in the active scale, then filters for scale fit and shuffles. As your Blues proficiency climbs, harder blues licks surface.
+2. **Key unlocks.** New keys open around the circle of fifths when their prerequisite key reaches a set level — G and F need C at 10; the last keys (Db, F#) need their neighbours at 15. See [The Daily Key](./tonality-system.md).
+3. **Scale unlocks.** New scale types open when their prerequisites are met — Dorian needs Minor Pentatonic at 20, Altered needs Melodic Minor at 40, and so on.
+
+The **Keys & Scales** card on the Progress page shows this frontier directly: how many of the 12 keys and 12 scale types you've unlocked, and exactly what the next unlock requires.
+
+## Lick ratings and content tiers
+
+Every lick carries its own difficulty rating (1–100), computed from its pitch demands (chromaticism, range, interval leaps) and rhythm demands (density, syncopation, tuplets). The app groups these ratings into ten **content tiers** describing how difficulty opens up — which scale families come into play, which rhythms, what tempos and keys, and how many notes a phrase may run to.
+
+How that reaches you differs by mode. On **Side A**, the tier table is a description rather than a selector: harder material surfaces as your proficiency climbs, but nothing consults the tier directly. **Tricks** do read the tier — the profile for your level sets the rhythms, interval span and note counts a generated example may use.
 
 Roughly:
 
@@ -51,44 +51,14 @@ Roughly:
 
 Every tier above tier 1 also raises the **interval ceiling** — the largest leap allowed between two consecutive notes — and the **rhythm density**, which controls how many notes fit per bar. So tier 4 isn't just "tier 1 plus syncopation"; the average note count per bar goes up, the average interval goes up, and the tempo range opens.
 
-## Why pitch and rhythm should diverge — but often don't
-
-In theory, pitch and rhythm complexity are independent dimensions. In practice, they tend to climb together. Here's why, and what to do about it:
-
-- **The current scoring algorithm penalizes missed and extra notes equally in both dimensions.** A note you skipped becomes a 0 in pitch *and* a 0 in rhythm, even though it's really a timing-and-detection failure. So two scores tend to move together more than they would if the underlying problem were really pitch-specific or rhythm-specific.
-- **Curated phrases don't deliberately stress one dimension.** A lick at level 50 has a single difficulty number, copied to both pitch and rhythm complexity for the generator and used as the cap for catalog filtering. The catalog doesn't say "this lick has hard pitch but easy rhythm" or vice versa, so the inputs to your two accuracy windows are correlated.
-- **The cap is the same on both sides** (≥ 85% advances, < 50% retreats), so even when the inputs *are* slightly different, the advancement rule treats them the same way.
-
-If you inspect your pitch and rhythm complexity numbers and they track nearly together, that's the reason. The system *will* let them diverge — there's a worked example below — but in normal usage they don't pull apart by much.
-
-The takeaway: **the level number is your best single summary of where you are**, but the two underlying numbers are useful when they *do* diverge. If you see your rhythm complexity climbing faster than your pitch complexity, the app is telling you to spend more practice time on hearing pitch (slow tonal exercises, scale work, transcription). If pitch is outpacing rhythm, focus on the metronome.
-
-## A worked example of divergence
-
-Suppose you can play perfect time but you've never trained your ear: you respond to every phrase with a single note (C, all eighth notes, perfectly in time, regardless of what the app played). Over many attempts:
-
-- Your pitch accuracy hovers near 25% (you happen to be right when the phrase starts and ends on C, wrong otherwise).
-- Your rhythm accuracy is near 100% (you're playing perfect eighth notes — the alignment finds rhythmic matches even when pitches are wrong).
-
-The system reads this correctly: rhythm complexity climbs steadily while pitch complexity stays at 1. The displayed level rises slowly as the average of (1, climbing rhythm). Over the course of hundreds of attempts, the rhythm number could end up at 100 while the pitch number is still floored at 1.
-
-Real practice doesn't usually look this extreme — but the machinery is built to handle it.
-
 ## What you'll see on the Progress page
 
-The trend chart on the Progress page plots a single line — **Tonal Mastery**, your average proficiency across the 12 scale types and 12 keys (0–100). Snapshots are forward-filled, so a lick-practice-only day inherits the prior day's value rather than dropping to zero.
-
-Pitch and rhythm complexity are deliberately *not* plotted here. They measure how hard the generated material is, not how well you play — they move on their own schedule and would read as progress when they aren't.
+- **Tonal Mastery** — your average proficiency across all 12 scale types and all 12 keys, with never-attempted slots counted as zero. It climbs slowly by design: ground you've never covered counts against the average until you cover it. The trend chart plots this single line over time. Snapshots are forward-filled, so a lick-practice-only day inherits the prior day's value rather than dropping to zero.
+- **Scale Proficiency** — your level in each scale you've practiced. Tap a scale to expand its level-over-time chart.
+- **Keys & Scales** — the unlock frontier: keys and scales unlocked out of 12, plus what the next unlock requires.
 
 Watch the slope, not the noise. Single sessions vary; the rolling window smooths most of that out, but a bad night can still nudge the line. The trend over a week is the reliable signal.
 
-The chart is daily for short periods and grouped by week or month for longer ranges. Each point is a point-in-time snapshot, not an average of the period.
+## A note on the old "level" number
 
-## The relationship between level and proficiency
-
-A subtle distinction worth knowing:
-
-- **Level (1–100)** is a content-difficulty number. It controls what the app feeds you.
-- **Per-key proficiency** and **per-scale proficiency** are separate trackers used by the unlocking system in [The Daily Key](./tonality-system.md). They count attempts and accuracy *per key* and *per scale type*.
-
-Your level can be 50 while your D Mixolydian proficiency is much lower (you just unlocked Mixolydian and haven't played in D Mix yet). Conversely, your overall level can be modest while your C Major proficiency is high (you've put a lot of clean reps into C Major specifically). The two systems live alongside each other — level steers difficulty, proficiency steers unlocks.
+Earlier versions showed a single global level — the average of a "pitch complexity" and a "rhythm complexity" that ratcheted up as you practiced accurately. That system was retired: nothing consumed its output once phrase selection moved to per-scale proficiency, so the number could only climb to 100 and sit there, telling you how much you'd practiced rather than how well you play. Per-scale and per-key proficiency — which can fall as well as rise, and which actually gate content and unlocks — are the numbers that mean something.

@@ -10,7 +10,7 @@ import type { Score } from '$lib/types/scoring';
 import type { PhraseCategory, PitchClass } from '$lib/types/music';
 import type { ScaleType } from '$lib/tonality/tonality';
 import { computeTonalMastery } from '$lib/tonality/mastery';
-import { createInitialAdaptiveState, processAttempt, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive';
+import { createInitialAdaptiveState, createInitialScaleProficiency, createInitialKeyProficiency, processScaleAttempt, processKeyAttempt } from '$lib/difficulty/adaptive';
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
@@ -354,14 +354,6 @@ export function recordAttempt(
 	// Add session (keep bounded)
 	progress.sessions = [session, ...progress.sessions].slice(0, MAX_SESSIONS);
 
-	// Update adaptive state
-	progress.adaptive = processAttempt(
-		progress.adaptive,
-		score.overall,
-		score.pitchAccuracy,
-		score.rhythmAccuracy
-	);
-
 	// Update per-scale proficiency (ear-training only, matching migration logic)
 	if (scaleType && source === 'ear-training') {
 		updateScaleProficiency(scaleType, score);
@@ -389,9 +381,10 @@ export function recordAttempt(
 	saveProgress();
 
 	// Re-derive today's summary from the source tables (progress.sessions +
-	// lick-practice-sessions). Captures the live adaptive snapshot for the
-	// TrendChart level line; that snapshot isn't reachable from SessionResult
-	// itself, so the caller passes it in here.
+	// lick-practice-sessions). The snapshot values aren't reachable from
+	// SessionResult itself, so they're passed in here. pitch/rhythm read the
+	// FROZEN legacy adaptive state (its ratchet was retired 2026-08-31) — the
+	// fields stay on DailySummary and in the cloud sync for row compatibility.
 	const today = localDateStr(new Date(session.timestamp));
 	const summary = recomputeDailySummary(today, {
 		pitch: progress.adaptive.pitchComplexity,
@@ -571,14 +564,6 @@ export function getUnlockContext(): UnlockContext {
 		keyProficiency[k] = { level: v.level };
 	}
 	return { scaleProficiency, keyProficiency };
-}
-
-/**
- * Get the primary display level from the adaptive difficulty state.
- * This is the average of pitchComplexity and rhythmComplexity.
- */
-export function getPrimaryLevel(): number {
-	return progress.adaptive.currentLevel;
 }
 
 /**
