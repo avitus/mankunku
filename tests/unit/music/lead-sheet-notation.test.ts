@@ -151,6 +151,34 @@ describe('leadSheetTuneFor', () => {
 		expect(tune.sections[0].notes).toHaveLength(1); // the bar-5 note falls outside
 	});
 
+	it('extends the window to the bar a sustained note ends in', () => {
+		// 12-bar cycle; one note starts in bar 9 (0-based 8) and holds for two
+		// bars. The window must cover both, not just the bar it starts in.
+		const blues: HarmonicSegment[] = Array.from({ length: 12 }, (_, bar) =>
+			seg('C', '7', [bar, 1], [1, 1])
+		);
+		const p = phrase({ notes: [note(60, 64, 16)], harmony: blues });
+		const { startBar, bars, tune } = leadSheetTuneFor(p);
+		expect(startBar).toBe(8);
+		expect(bars).toBe(2);
+		expect(tune.sections[0].notes[0].duration).toEqual([2, 1]);
+	});
+
+	it('clips a note that would sound past the capped window', () => {
+		// Melody spans bars 0–5 of an 8-bar cycle; the window is the first four
+		// bars, and the note that starts in bar 3 and holds for two bars must
+		// end at the window's edge rather than overhang the row.
+		const eightBars: HarmonicSegment[] = Array.from({ length: 8 }, (_, bar) =>
+			seg('C', 'maj7', [bar, 1], [1, 1])
+		);
+		const p = phrase({ notes: [note(60, 0), note(62, 24, 16)], harmony: eightBars });
+		const { bars, tune } = leadSheetTuneFor(p, 4);
+		expect(bars).toBe(4);
+		expect(tune.sections[0].notes).toHaveLength(2);
+		expect(tune.sections[0].notes[1].offset).toEqual([3, 1]);
+		expect(tune.sections[0].notes[1].duration).toEqual([1, 1]);
+	});
+
 	it('produces the row options: minor mode from the phrase, one system, stretched, unnumbered', () => {
 		const p = phrase({ key: 'D', mode: 'minor', harmony: SHORT_II_V_I });
 		expect(leadSheetAbcOptions(p, 2)).toEqual({

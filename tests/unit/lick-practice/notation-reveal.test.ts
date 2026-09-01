@@ -17,6 +17,7 @@ import {
 	recordKeyAttempt,
 	advanceSingleLickRound,
 	getCurrentKey,
+	getPlannedKey,
 	getPlannedKeysForLick,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
@@ -123,11 +124,35 @@ describe('planned rows carry the reveal decision', () => {
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 	});
 
+	it('keeps a row\'s reveal decision fixed within a cycle even after a score lands', () => {
+		// A score write updates the rolling score before the key advances, so
+		// the getters must not recompute from live progress mid-cycle — a row
+		// changing height while the stack is up would jump the layout. The
+		// decision is taken when the rotation is built and refreshed only at
+		// the cycle boundary.
+		setUnlockedCount('lick-f', 2);
+		seedRolling('lick-f', { G: 0.9 });
+		startSingleLickSession(makeLick('C', 'lick-f'));
+		expect(getPlannedKeysForLick(0).map((pk) => [pk.key, pk.reveal])).toEqual([
+			['C', false],
+			['G', false]
+		]);
+		// C fails (rolling 0.3); G's persisted score is dragged under the floor
+		// by a failed attempt too — but neither row may change until the boundary.
+		recordKeyAttempt(makeScore(0.3));
+		expect(getPlannedKeysForLick(0).map((pk) => pk.reveal)).toEqual([false, false]);
+		expect(getPlannedKey(0)?.reveal).toBe(false);
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ key: 'C', reveal: true });
+	});
+
 	it('treats the floor itself as recovered', () => {
 		seedRolling('fresh-lick', { C: 0.75 });
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		// Decisions are per rotation: re-seed, then rebuild the rotation.
 		seedRolling('fresh-lick', { C: 0.749 });
+		advanceSingleLickRound();
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 	});
 

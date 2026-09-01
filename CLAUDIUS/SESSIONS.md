@@ -2237,3 +2237,20 @@ one-at-a-time assertions. PR to main opened.
   to the colours. Both its tests are flow tests that never assert audible
   output, so they now opt into `stubCdnInstrumentSamples` like the other
   practice specs.
+
+## 2026-09-01 — PR #242 (dev → main), CodeRabbit round 1
+
+Five findings, all adopted. The major one was right about the CONTRACT even
+though the rendered stack was already safe: `getPlannedKeysForLick` /
+`getPlannedKey` recomputed `reveal` from live progress, and `recordKeyAttempt`
+writes the rolling score before the key advances — the route snapshots the
+rows once per lick so nothing on screen flipped, but any other caller would
+have seen a row change height mid-cycle. Decisions are now memoized per
+rotation array (a WeakMap keyed by `item.keys`, which every rebuild replaces
+rather than mutates), pinned by a test that scores mid-cycle and asserts the
+row holds until the boundary. Also real: a sustained note could overhang the
+lead-sheet window (window now runs to the bar the last note ENDS in, and an
+overhanging note is clipped at the cap). Docs: `PlannedKey.reveal` and the
+three `TuneAbcOptions` fields were missing from the API references; the
+memory note said 196 px for a 178 px row; "over the line" became "back to
+75% or higher" (the threshold is inclusive).

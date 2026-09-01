@@ -59,9 +59,14 @@ export function leadSheetTuneFor(phrase: Phrase, maxBars: number = LEAD_SHEET_MA
 	let harmony: HarmonicSegment[] = phrase.harmony;
 
 	if (cycleBars > maxBars) {
-		const noteBars = phrase.notes.map((n) => Math.floor(fractionToFloat(n.offset) / barLength + 1e-9));
-		const firstBar = noteBars.length ? Math.min(...noteBars) : 0;
-		const lastBar = noteBars.length ? Math.max(...noteBars) : firstBar;
+		// The window runs from the bar the melody starts in to the bar it ENDS
+		// in — a note sustained across a bar line belongs to both bars.
+		const startBars = phrase.notes.map((n) => Math.floor(fractionToFloat(n.offset) / barLength + 1e-9));
+		const endBars = phrase.notes.map((n) =>
+			Math.floor(fractionToFloat(endOf(n.offset, n.duration)) / barLength - 1e-9)
+		);
+		const firstBar = startBars.length ? Math.min(...startBars) : 0;
+		const lastBar = endBars.length ? Math.max(firstBar, ...endBars) : firstBar;
 		startBar = firstBar;
 		bars = Math.min(maxBars, lastBar - firstBar + 1);
 
@@ -71,7 +76,17 @@ export function leadSheetTuneFor(phrase: Phrase, maxBars: number = LEAD_SHEET_MA
 			.filter(
 				(n) => compareFractions(n.offset, windowStart) >= 0 && compareFractions(n.offset, windowEnd) < 0
 			)
-			.map((n) => ({ ...n, offset: subtractFractions(n.offset, windowStart) }));
+			.map((n) => {
+				// A note that would sound past the capped window is clipped at its
+				// edge, so the row never claims fewer bars than it engraves.
+				const end = endOf(n.offset, n.duration);
+				const clippedEnd = compareFractions(end, windowEnd) > 0 ? windowEnd : end;
+				return {
+					...n,
+					offset: subtractFractions(n.offset, windowStart),
+					duration: subtractFractions(clippedEnd, n.offset)
+				};
+			});
 		harmony = phrase.harmony.flatMap((h) => {
 			const segEnd = endOf(h.startOffset, h.duration);
 			if (compareFractions(segEnd, windowStart) <= 0 || compareFractions(h.startOffset, windowEnd) >= 0) return [];

@@ -1299,16 +1299,37 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 }
 
 /**
+ * Reveal decisions, keyed by the rotation array they were taken for. A
+ * rotation (`item.keys`) is REPLACED — never mutated — whenever it is rebuilt
+ * (plan build, worst-first re-sort, mastered-key drop, refill, ramp
+ * admission), so decisions live exactly one cycle: `recordKeyAttempt` writes
+ * the rolling score before the key advances, and a getter that re-read live
+ * progress would flip a row's notation — and its height — while the stack is
+ * on screen. Session-local; nothing to reset, the arrays are garbage-collected
+ * with the plan.
+ */
+const revealDecisions = new WeakMap<readonly PitchClass[], Map<PitchClass, boolean>>();
+
+/**
  * Does a row for `key` engrave the sheet music? The key's persisted rolling
  * score is defined and under the floor (`shouldRevealNotation` — an unknown
  * score never reveals: the first attempt is by ear), and the item is a lick
- * (a trick's regenerated figure is drilled for fluency, not read).
+ * (a trick's regenerated figure is drilled for fluency, not read). Decided
+ * once per rotation — see `revealDecisions`.
  */
 function revealFor(item: LickPracticePlanItem, key: PitchClass): boolean {
-	return (
+	let decisions = revealDecisions.get(item.keys);
+	if (!decisions) {
+		decisions = new Map();
+		revealDecisions.set(item.keys, decisions);
+	}
+	const cached = decisions.get(key);
+	if (cached !== undefined) return cached;
+	const reveal =
 		item.kind !== 'trick' &&
-		shouldRevealNotation(getRollingScore(lickPractice.progress, item.phraseId, key))
-	);
+		shouldRevealNotation(getRollingScore(lickPractice.progress, item.phraseId, key));
+	decisions.set(key, reveal);
+	return reveal;
 }
 
 /**

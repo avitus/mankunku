@@ -266,8 +266,15 @@ Render a full song form: chord symbols above the staff, section letters, repeat 
 interface TuneAbcOptions {
   defaultLength?: Fraction;   // ABC L: field
   barsPerLine?: number;       // Bars per system before a line break
+  mode?: Mode;                // How to read sheet.key: 'minor' draws the relative
+                              // major's signature and prints K:Dm (default 'major')
+  stretchLast?: boolean;      // Stretch the last system to the full staff width
+                              // (default false — short systems stay short)
+  measureNumbers?: boolean;   // Measure number at each system start (default true)
 }
 ```
+
+`mode`, `stretchLast` and `measureNumbers` were added for the lick-practice lead-sheet row (`lead-sheet.ts`); every default is unchanged, so existing output is byte-identical.
 
 The chart is emitted as two voices: **M** (melody) and **H** (the chord line). Any `"` or control character in an imported `HarmonicSegment.symbol` is stripped before emission — ABC delimits chord annotations with double quotes, so a raw imported symbol containing one would break the whole voice-line's parse. Legitimate chord text never contains them, so this is lossless in practice.
 

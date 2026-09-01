@@ -290,6 +290,10 @@ export interface PlannedKey {
   harmony: HarmonicSegment[];
   lickName: string;
   lickId: string;
+  /** Engrave this row as a lead sheet: the key's persisted rolling score is
+   *  defined and under KEY_FLOOR_THRESHOLD (never for trick items). Decided
+   *  once per rotation, so a row's height cannot change mid-cycle. */
+  reveal: boolean;
 }
 ```
 
