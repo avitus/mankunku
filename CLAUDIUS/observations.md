@@ -1246,3 +1246,39 @@ element renders smaller than expected, suspect invisible reserved space
 before suspecting the scale. And I measured the row with
 getBoundingClientRect instead of trusting my pixel budget; the budget was
 37 px short. Budgets are hypotheses.
+
+---
+
+## 2026-09-01 (third pass) — A metric that averages over the frame cannot see a small thing flickering
+
+I declared "no continuous flicker" from a whole-frame mean-luma difference.
+The staff occupied a tenth of the frame; its lines pulsing by tens of
+levels moved the frame mean by a fraction of a level, under my threshold.
+Andy's eye integrates differently: it locks onto the thing it is reading.
+The second measurement — a thresholded pixel-change count over the stack
+region only — put the number at 4–7% of pixels per frame, every frame,
+against under 2% for chord rows. Same video, opposite verdict. The rule I
+want to keep: when a person reports a perceptual artifact in a region,
+measure that region, and count changed pixels rather than averaging
+brightness — averaging is exactly the operation that erases a small
+flicker. And the confirmation came from a probe that could distinguish the
+two live hypotheses (DOM mutations = re-render; fractional transform =
+resampling), not from another look at the video.
+
+The mechanism is worth a line too: the fix was not in the notation code at
+all. It was `Math.round` in the scroll math. The staff exposed a shimmer
+the chord boxes had always had; nobody reads chord boxes closely enough
+to see it. New surfaces re-open old rendering questions — second time this
+session.
+
+Addendum, an hour later: the pixel-change count was also wrong, in the
+opposite direction. Snapping the transform to whole pixels left it at
+4–7%, because a crisp staff moving one pixel per frame changes exactly as
+many pixels as a blurred one — the metric counts motion. What it could not
+tell me is that the motion IS the flicker: five one-pixel lines scrolling
+vertically are a moving grating, which the eye reads as strobing however
+they are rasterized. The right fix was to stop moving the thing being
+read. Three measurements, three partial truths; the decisive evidence was
+the probe that ruled out re-rendering and left only the transform, plus
+thinking about what a scrolling staff looks like to a person. A metric
+answers the question you encoded, not the one you meant.

@@ -76,11 +76,13 @@
 	const LEAD_STAFF_WIDTH = 1000;
 	const VISIBLE_ROWS = 3;
 
-	// The current key starts one slot below the top and slides up by exactly
-	// that slot over its duration, so it is fully visible throughout and the
-	// next key starts where it ends — `keyStackLayout` keeps that invariant
-	// for mixed heights. At session start, the slot above row 0 is empty
-	// until the first key boundary populates it.
+	// The current key HOLDS one slot below the top for its whole duration —
+	// the previous row (and its score flash) fully visible above it — and the
+	// stack steps one row at each key change, eased by the CSS transition on
+	// `.stack`. It does not drift: a staff crawling upward a pixel per frame
+	// strobes. `keyStackLayout` owns the math for mixed heights. At session
+	// start, the slot above row 0 is empty until the first key boundary
+	// populates it.
 	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	const layout = $derived(keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS));
 	const translateYpx = $derived(layout.translateY);
@@ -261,6 +263,9 @@
 		display: flex;
 		flex-direction: column;
 		will-change: transform;
+		/* One eased step per key change; the rest of the time the stack is
+		   perfectly still so the staff can be read. */
+		transition: transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
 	}
 	.row {
 		position: relative;
@@ -458,6 +463,7 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
+		.stack,
 		.phase-tab,
 		.phase-tab::before,
 		.tab-lamp {

@@ -2188,3 +2188,27 @@ one-at-a-time assertions. PR to main opened.
 - Open: on a 390 px phone the height-fit SVG letterboxes to ~40 px at the
   top of its box (abcjs pins it top-left) — legible but small; a per-width
   row height is the follow-up if phones matter for sessions.
+
+## 2026-09-01 (third pass) — "Still a lot of flickering": sub-pixel shimmer
+
+- Andy: still flickering. My whole-frame mean-luma diff had said "no
+  continuous change"; a region-restricted pixel-change COUNT said 4–7% of
+  the stack's pixels change on every frame while a lead-sheet row is up
+  (chord rows: <2%). An in-page probe: zero childList mutations in the
+  engraving over 2 s (no re-render), five attribute mutations (the cursor),
+  and the stack transform stepping 91.81 → 91.53 → 91.05 px. Consecutive
+  zoomed frames showed the staff lines changing weight frame to frame.
+  Sub-pixel resampling of one-pixel lines under a fractional translate.
+- Fix: `keyStackLayout` snaps `translateY` to whole pixels (TDD: integer
+  assertion + the fixed-height golden values rounded). One pixel every
+  frame or two at practice tempos — teleprompter-smooth, rasterized
+  identically every frame. The chord-block rows shimmered the same way
+  before; the staff made it visible.
+- Snapping did NOT fix it: re-measured 3.8% / 6.4% vs 4.3% / 5.6% — the
+  pixel-change count was measuring MOTION, not flicker. The flicker is the
+  drift itself: an engraved staff crawling upward a pixel per frame is a
+  moving grating. Replaced the continuous drift with a held row + one eased
+  step per key change (`keyStackLayout` holds at the slot; `.stack` gets a
+  420 ms transform transition; reduced-motion disables it). Tests rewritten
+  for the hold/step contract. Docs: the user guide's "drifting upward at
+  exactly one row per key" is now "holds still … steps up one row".

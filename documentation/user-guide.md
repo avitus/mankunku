@@ -111,7 +111,7 @@ Two things about **swing feel** are worth knowing:
 The session opens with a **one-bar count-in** — a metronome bar with a thump on 1 and a hi-hat chick on 2 and 4 — and then the click stops and the band takes over. (Layering a synthetic click on top of a sampled kit was the loudest fake thing in the mix, so it goes away once there's a real drummer.) You see:
 
 - A header with the current **lick name**, the **key** you're playing it in, its progression, and where you are in the rotation ("Key 3 of 7").
-- A **scrolling stack of chord blocks** — one row per upcoming key, drifting upward at exactly one row per key so the row you're playing is always in the same place. The active row carries the beat, a recording ring while your window is open, a *Listen* tag while the app is demoing, and your score the moment the window closes. A key you're holding under 75% gets a taller row — the line as a lead sheet, chords above the staff (see below).
+- A **stack of chord blocks** — one row per upcoming key. The row you're playing holds still in the same place for the whole key, with the row you just played above it, and the stack steps up one row at each key change. The active row carries the beat, a recording ring while your window is open, a *Listen* tag while the app is demoing, and your score the moment the window closes. A key you're holding under 75% gets a taller row — the line as a lead sheet, chords above the staff (see below).
 - A **key progress ring** with your current tempo in the middle, colouring each key as you score it.
 - A **session timer** with a progress bar (standard and daily sessions only — Deep Practice and Tricks have no time budget, so there's no countdown).
 - An **End Session** button.
