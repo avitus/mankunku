@@ -2106,3 +2106,46 @@ one-at-a-time assertions. PR to main opened.
   Pentatonic — Major Pentatonic ≥ 15 (now 0)".
 - The 2026-07-19 judgment ("current-value bars are legitimate there") aged
   badly in an instructive way — see observations.
+
+## 2026-09-01 — Sheet music when a key is under the floor (lick practice)
+
+**What happened:**
+
+- Andy: learning a lick by ear stalls into "endless failed attempts" — when a
+  new lick (or a known lick in a new key) is beating the player, show its
+  sheet music in the session. Plan mode; four decisions asked once (trigger /
+  withdrawal / controls / scoring) and all four landed on the recommended
+  option: reveal while the key's persisted rolling score is DEFINED and under
+  75%, same rule both ways (no session override), automatic only with a
+  caption, scoring untouched. Assumptions stated in the plan: tricks excluded,
+  nothing persisted, no cursor.
+- Built the smallest version: `shouldRevealNotation` beside `shouldDemoHeadKey`
+  in the rotation module (unknown → false — the one inversion of the demo
+  gate, so the first attempt in any key is by ear); `getNotationReveal()` in
+  session state (trick items excluded, returns `{key, rolling}` and NO phrase
+  so the route gates its memoized `currentPhrase` on a primitive — abcjs
+  re-engraves on identity, and every attempt reassigns `progress`);
+  `NotationReveal.svelte` = NotationDisplay + a `titleArea` caption whose
+  percentage is read from `KEY_FLOOR_THRESHOLD`; mounted under the chord
+  stack, hidden during the standard-mode score hold. No new settings, no
+  persisted fields, no sync change.
+- TDD end to end: 4 rotation cases + 7 state cases red → green; the trick
+  guard proven load-bearing by removing it (that case alone fails); e2e red
+  (both specs die on the missing testid) → green. Docs on all four surfaces
+  (user guide's "no sheet music during a session" sentence rewritten as the
+  exception; state-management, state + components API refs, README changelog,
+  tour step) plus CLAUDE.md.
+- Visual check done from the e2e seed with a temporary screenshot line, NOT
+  from Andy's live Chrome: a silent deep-practice attempt there would have
+  written a real 0 into his progress. Desktop reads well; at 390px a one-bar
+  lick engraves tiny because a short phrase fills a quarter of the 750-unit
+  staff — identical to the lick detail page, so flagged as a follow-up rather
+  than patched inside this change.
+
+**Notes:**
+
+- check 0/0 (2745 files); vitest 278 files, 4426 passed; lick-practice e2e
+  2/2 chromium (9.5s / 12.2s).
+- Deferred: a playhead cursor on the revealed staff (`cursorIndex` /
+  `playheadBarFraction` exist); short-phrase staff sizing (a `staffwidth`
+  knob on NotationDisplay would also help the detail page on phones).

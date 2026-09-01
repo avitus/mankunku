@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	sortKeysWorstFirst,
 	shouldDemoHeadKey,
+	shouldRevealNotation,
 	resolveNextCycleStart,
 	planCycleWindows,
 	nextCycleTempo,
@@ -82,6 +83,26 @@ describe('shouldDemoHeadKey', () => {
 	it('accepts a threshold override', () => {
 		expect(shouldDemoHeadKey(0.8, 0.75)).toBe(false);
 		expect(shouldDemoHeadKey(0.7, 0.75)).toBe(true);
+	});
+});
+
+describe('shouldRevealNotation', () => {
+	it('reveals the sheet below the floor', () => {
+		expect(shouldRevealNotation(0.74)).toBe(true);
+	});
+
+	it('hides the sheet at or above the floor', () => {
+		expect(shouldRevealNotation(0.75)).toBe(false);
+		expect(shouldRevealNotation(0.9)).toBe(false);
+	});
+
+	it('never reveals a never-attempted key — the first attempt is by ear', () => {
+		expect(shouldRevealNotation(undefined)).toBe(false);
+	});
+
+	it('accepts a floor override', () => {
+		expect(shouldRevealNotation(0.8, 0.9)).toBe(true);
+		expect(shouldRevealNotation(0.8, 0.75)).toBe(false);
 	});
 });
 

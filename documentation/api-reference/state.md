@@ -318,6 +318,7 @@ export interface PlannedKey {
 - `getCurrentPlanItem(): LickPracticePlanItem | null`
 - `getCurrentKey(): PitchClass | null`
 - `getCurrentPhrase(): Phrase | null` — Current lick transposed to the current key with progression harmony substituted.
+- `getNotationReveal(): NotationReveal | null` — `{ key, rolling }` for the current key while its rolling score is defined and under `KEY_FLOOR_THRESHOLD`; null otherwise, and always for trick items. Drives the session's sheet-music panel; returns no phrase so the route can gate its memoized `currentPhrase` on the key.
 - `getCurrentHarmony(): HarmonicSegment[]` — Progression template transposed to current key.
 - `getPhraseFor(lickIdx, keyIdx): Phrase | null` — Pure variant for scoring keys that have already advanced.
 - `getPlannedKey(offset): PlannedKey | null` — Lookahead across lick boundaries.
@@ -366,6 +367,7 @@ Pure cycle policy behind single-lick Deep Practice. Plain module (no rune, no st
 |---|---|---|
 | `sortKeysWorstFirst` | `(keys, rollingFor) → PitchClass[]` | Ascending by rolling score, with an **unknown score coerced to −1** so a never-practiced key sorts worst and gets demoed. Copies the input; relies on a stable sort, so ties keep incoming circle-of-4ths order. |
 | `shouldDemoHeadKey` | `(headRolling, threshold = KEY_PROFICIENT_THRESHOLD) → boolean` | Demo while the head key is unknown or **strictly below** 0.90. At 0.90+ the demo is skipped — the user answers in the struggling key immediately. |
+| `shouldRevealNotation` | `(rolling, floor = KEY_FLOOR_THRESHOLD) → rolling is number` | Show the current key's sheet music while its rolling score is **defined and strictly below** 0.75. Unknown → `false` (the first attempt is by ear) — the one deliberate inversion of `shouldDemoHeadKey`'s unknown rule. Same rule both ways, so the sheet withdraws once the EWMA recovers. |
 | `resolveNextCycleStart` | `(idealStartTick, currentTick, ticksPerBar, minLeadTicks) → number` | Pushes the start forward **by whole bars** until it is at least `minLeadTicks` ahead. A late callback stretches the turnaround; it never schedules audio in the past and never leaves the bar grid. |
 | `planCycleWindows` | `({ audioStartTick, demoBars, keyBars, ticksPerBar, keyCount, userBarsOffsetTicks }) → CycleWindowPlan` | Per-key recording `opens[]` / `closes[]` plus `cycleEndTick`. `userBarsOffsetTicks` is non-zero only in call-and-response, where the app plays the first half of each key slot. |
 | `deepPracticeStartTempo` | `(persisted) → number` | Deep practice's opening tempo: 2% under the saved tempo, rounded, **always at least 1 BPM down**, clamped at `MIN_TEMPO`. |

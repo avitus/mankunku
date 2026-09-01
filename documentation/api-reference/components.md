@@ -314,6 +314,18 @@ Scrolling preview strip showing the current, next, and upcoming key chord charts
 | `scoreFlash` | `{ key, score, at }?` | Tier-colored score chip flashed on the matching key's row |
 | `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
 
+### `NotationReveal.svelte`
+
+**Path:** `src/lib/components/lick-practice/NotationReveal.svelte`
+
+The session's conditional sheet music: a `NotationDisplay` (practice variant) of the current key's transposed phrase, captioned *Shown while D is under 75%*. Presentational — the session route mounts it under the chord stack whenever `getNotationReveal()` names a key and hides it during the inter-lick score hold. The key label reads in written pitch and the phrase's mode (`keyLabel(concertKeyToWritten(key, instrument), lickMode(phrase))`), and the percentage is derived from `KEY_FLOOR_THRESHOLD` so the copy can't drift from the rule. Root carries `data-testid="notation-reveal"`.
+
+| Prop | Type | Description |
+|---|---|---|
+| `phrase` | `Phrase` | The current key's phrase — pass the route's memoized reference; a new object re-renders abcjs |
+| `key` | `PitchClass` | Concert key being played (converted for the caption) |
+| `instrument` | `InstrumentConfig` | Written-pitch conversion for the staff and the caption |
+
 ### `PhaseCueBar.svelte`
 
 **Path:** `src/lib/components/lick-practice/PhaseCueBar.svelte`

@@ -13,6 +13,11 @@
  * - The demo itself is conditional (`shouldDemoHeadKey`): it plays only
  *   while the head key's rolling score is below proficient, so strong
  *   cycles run back-to-back with no listening interlude.
+ * - The sheet music is conditional too (`shouldRevealNotation`): the
+ *   session shows the current key's notation only while that key's rolling
+ *   score is below the floor, and never for a key that has not been
+ *   attempted yet — the first pass is always by ear. Same rule in every
+ *   session type, not just deep practice.
  *
  * The timing helpers keep the boundary robust: the cycle boundary fires at
  * the last key's close tick, leaving exactly the turnaround bar of
@@ -74,6 +79,22 @@ export function shouldDemoHeadKey(
 	threshold: number = KEY_PROFICIENT_THRESHOLD
 ): boolean {
 	return headRolling === undefined || headRolling < threshold;
+}
+
+/**
+ * Should the session show the sheet music for the key being played? Yes
+ * while that key's rolling score is below the floor — the player is
+ * failing it on balance, and reading the line beats another blind miss.
+ * The one deliberate difference from `shouldDemoHeadKey`: an UNKNOWN score
+ * never reveals, because the first attempt in a key is always by ear. The
+ * rule is the same in both directions, so the sheet withdraws on its own
+ * once the rolling score recovers over the floor.
+ */
+export function shouldRevealNotation(
+	rolling: number | undefined,
+	floor: number = KEY_FLOOR_THRESHOLD
+): rolling is number {
+	return rolling !== undefined && rolling < floor;
 }
 
 /**

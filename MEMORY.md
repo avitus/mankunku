@@ -250,6 +250,12 @@ The report's weak-key recommendation (`drill-weak-key` in `lick-practice-next-st
 
 **How to apply:** prettiness is DISPLAY-ONLY — `formatChordSymbol`, `CHORD_DEFINITIONS`, ABC text, aria/title, and editable chord inputs stay canonical ASCII-plus-Δ (parse(format(x))===x and the chord-input round-trip e2e depend on it). Never emit ø/°/♭ into anything serialized. New chord surfaces render through `chordDisplayModel` + `--chord-font`, never a hand-rolled span.
 
+### Sheet music when a key is under the floor (2026-09-01)
+Lick-practice sessions show the current key's notation (`NotationReveal.svelte`, a `NotationDisplay` of the route's memoized `currentPhrase`) while that key's persisted `rollingScore` is DEFINED and under `KEY_FLOOR_THRESHOLD`; same rule both ways, so it withdraws once the EWMA recovers. `getNotationReveal()` (state) → `shouldRevealNotation` (rotation module). Decided with Andy: unknown score never reveals (first attempt is by ear — the one inversion of `shouldDemoHeadKey`), automatic only (no setting, no hide), scoring untouched, tricks excluded, nothing persisted.
+
+- **Never verify a practice flow in Andy's live Chrome profile.** A silent deep-practice "attempt" is a real attempt: it writes rolling score, recency and a session-log row into the same store he practices against. Use the e2e seed (`seedOnboardedAnonymous` + `installAudioMock`) with a throwaway screenshot line instead.
+- Open follow-ups: playhead cursor on the revealed staff; a one-bar phrase engraves at a quarter of the 750-unit staff and scales down with it on phones (same as the detail page) — a `staffwidth` knob on NotationDisplay is the likely fix.
+
 ## Reference map
 
 - **Design system spec**: `documentation/architecture/design-system.md`

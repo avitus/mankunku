@@ -96,6 +96,7 @@ import {
 import {
 	sortKeysWorstFirst,
 	shouldDemoHeadKey,
+	shouldRevealNotation,
 	deepPracticeStartTempo,
 	nextCycleTempo,
 	focusStartTempo,
@@ -1099,6 +1100,32 @@ export function getCurrentPhrase(): Phrase | null {
 	const key = getCurrentKey();
 	if (!item || !key) return null;
 	return buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
+}
+
+/** The key whose sheet music the session is showing, and the score that earned it. */
+export interface NotationReveal {
+	key: PitchClass;
+	rolling: number;
+}
+
+/**
+ * Should the session show the current key's sheet music? Names the key
+ * while its persisted rolling score is defined and under the floor
+ * (`shouldRevealNotation`), null otherwise — same rule both ways, so the
+ * sheet appears after a sub-floor attempt and withdraws once the EWMA
+ * recovers. Stateless: `recordKeyAttempt` reassigns `lickPractice.progress`
+ * on every attempt, so a `$derived` over this re-evaluates once per score.
+ * Returns no phrase on purpose — the route gates its already-memoized
+ * current phrase on the key, so abcjs re-renders only when the key changes.
+ * Trick rounds never reveal: a regenerated device figure is drilled for
+ * fluency, not learned from the page.
+ */
+export function getNotationReveal(): NotationReveal | null {
+	const item = getCurrentPlanItem();
+	const key = getCurrentKey();
+	if (!item || !key || item.kind === 'trick') return null;
+	const rolling = getRollingScore(lickPractice.progress, item.phraseId, key);
+	return shouldRevealNotation(rolling) ? { key, rolling } : null;
 }
 
 /**

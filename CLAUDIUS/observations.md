@@ -1172,3 +1172,41 @@ Follow-up to 2026-07-19's "one placement lies and the other doesn't." I defended
 The second thing worth keeping: the ratchet was structurally doomed independent of the severed loop. Advance at ≥85%, retreat only below 50% — for any user good enough to climb, the retreat branch is unreachable, so the metric was monotone with a cap: an absorbing state at 100. Any bounded monotone metric eventually reports its bound and nothing else. The user's complaint ("always 100, doesn't signify anything") is the generic end-state of that shape. Design test for future metrics: ask what the display reads after a year of diligent use. If the answer is "its maximum, permanently," the metric measures accumulated exposure, not the thing it claims. The replacement (unlock counts + the exact next requirement) is also monotone-with-a-cap — but its cap state is *completion of an enumerable set*, which is a fact, not a pretend-measurement; and until then every pixel is actionable.
 
 Also filed under verification-pays: Andy's one-line challenge ("are you sure the adaptive engine is no longer required?") caught that my own option framing said "delete adaptive.ts + its tests" when the file's lower half IS the live proficiency engine sharing the upper half's constants. The Explore agent had the facts right; my summary had rounded them. Challenges that force a re-grep are cheap; shipping a plan whose nouns are one file too coarse is not.
+
+---
+
+## 2026-09-01 — One number, three consumers, three meanings of "unknown"
+
+`rollingScore` now drives three policies, and each reads an ABSENT score
+differently: the worst-first sort coerces unknown to −1 (rank it worst), the
+demo gate treats unknown as "yes, play it" (the user needs the reference),
+and today's sheet reveal treats unknown as "no" (the first attempt is by ear).
+All three are right, and all three are about the same key in the same
+session. The general point rhymes with 2026-08-17's shapeBreak note: a
+signal's semantics live in its CONSUMER, and "undefined" is the value most
+likely to be read three ways by three call sites, because the type system
+says nothing about which reading each one chose. I wrote the inversion into
+the predicate's doc comment and the test name ("never reveals a
+never-attempted key — the first attempt is by ear") because that sentence is
+the only place the choice is visible; the code `rolling !== undefined &&`
+looks like a null guard, not a pedagogy decision.
+
+Second thing worth keeping: the user guide had a STANCE — "no sheet music
+during a session. You read the changes, not the line." The feature doesn't
+delete the stance, it carves an exception, and the honest doc edit says so
+in the same sentence. Reversing a documented principle silently is how a
+guide becomes a list of features; keeping the principle and naming the
+exception is what tells a reader why the sheet withdraws on its own.
+
+Third, on verification hygiene: the convenient way to eyeball a practice
+feature is the user's own Chrome, and it is the wrong way, because the
+feature under test writes to the same progress store the user practices
+against. A silent "attempt" is a real attempt. The e2e seed plus a throwaway
+screenshot line was cheaper and could not have corrupted anything. Rule of
+thumb: if the check would leave a row behind, it is not a check, it is a
+session.
+
+Flagged, not fixed: the reveal exposes that a ONE-BAR phrase renders at a
+quarter of the 750-unit staff and scales down with it on a phone. It has
+always looked that way on the detail page; nobody stared at a one-bar staff
+on a phone mid-session before. New surfaces re-open old rendering questions.
