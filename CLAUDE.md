@@ -65,6 +65,8 @@ Mankunku is a jazz ear training PWA. It plays a phrase, the user plays it back o
 
 ### Key design decisions
 
+**Practice-phase colours are two aliases.** `--color-phase-play` (brass) and `--color-phase-listen` (on-air red) in app.css: the user PLAYS in brass and LISTENS in red because red reads as "stop". Every listen/play indicator (phase tab + lamp + recording ring in `UpcomingKeysDisplay`, `PhaseCueBar`, ear-training's status line, tune practice's head/your-turn captions and open window, record-a-lick's live readout) uses the aliases; stop/record BUTTONS, the console LED and rocker legend stay on `--color-onair`; decorative brass (labels, rules, the all-clear halo) stays `--color-brass`. `design-token-consistency.test.ts` pins the mapping and sweeps the phase surfaces for raw palette tokens.
+
 **Concert pitch canonical.** All MIDI note numbers, scale data, and lick data use concert pitch internally. Transposition to written pitch (Bb/Eb instruments) happens only at display time in `phraseToAbc()` (notation.ts) and `concertToWritten()` (transposition.ts).
 
 **Fraction-based rhythm.** Durations use `[numerator, denominator]` tuples (e.g., `[1, 8]` = eighth note, `[1, 12]` = triplet eighth). Conversion to seconds happens only at audio scheduling time.

@@ -74,7 +74,7 @@ The neutral domain inherits the secondary text color as its accent so that nothi
 
 ## Decorative brass palette
 
-Alongside the functional domain accent, a second palette drawing from Blue Note Records cover art provides chrome and warmth. Brass tokens are **always decorative** — they never replace the functional domain accent or signal interactivity.
+Alongside the functional domain accent, a second palette drawing from Blue Note Records cover art provides chrome and warmth. Brass tokens are decorative — they never replace the functional domain accent or signal interactivity — with one semantic borrowing: the practice-phase alias `--color-phase-play` resolves to brass (see [Practice-phase colours](#practice-phase-colours)).
 
 | Token                 | Dark hex  | Light hex | Usage                                                                      |
 | --------------------- | --------- | --------- | -------------------------------------------------------------------------- |
@@ -84,12 +84,23 @@ Alongside the functional domain accent, a second palette drawing from Blue Note 
 
 ### On-air red
 
-A vintage recording-booth red used for the active / stop state of the practice and record buttons. Intentionally desaturated compared to `--color-error` so it reads as jazz-era rather than alert red.
+A vintage recording-booth red used for the active / stop state of the practice and record buttons, and (through the alias below) for the LISTEN phase. Intentionally desaturated compared to `--color-error` so it reads as jazz-era rather than alert red.
 
 | Token                 | Dark hex  | Light hex | Usage                                                          |
 | --------------------- | --------- | --------- | -------------------------------------------------------------- |
 | `--color-onair`       | `#a8463a` | `#8a3328` | "Recording" / "stop" state on practice and record buttons      |
 | `--color-onair-hover` | `#8a3428` | `#6a2418` | Hover                                                          |
+
+### Practice-phase colours
+
+Every listen/play indicator — the phase tab and its lamp on the lick-practice stack, the recording ring, the cue pill on record-a-lick, the ear-training status line, tune practice's head / your-turn captions and the open insertion window — reads two semantic aliases, never the palette tokens directly:
+
+| Token                  | Resolves to      | Meaning                                                                 |
+| ---------------------- | ---------------- | ----------------------------------------------------------------------- |
+| `--color-phase-listen` | `--color-onair`  | The app is playing; the user must not. Red reads as "stop" to most people. |
+| `--color-phase-play`   | `--color-brass`  | The user's turn: live mic, PLAY tab, count-in into the user's window.   |
+
+The aliases are defined once in `:root`, so each theme's brass / on-air values flow through. A future swap is those two lines and nothing else; `tests/unit/ui/design-token-consistency.test.ts` pins the mapping and sweeps the phase surfaces for raw palette tokens. What stays on `--color-onair` directly: the stop / record **buttons** (transport bars, audition play/stop, the record page's stop control, the console rocker's ON legend and LED) — "press this to stop" is exactly the meaning red should keep.
 
 ### Feedback tokens
 
@@ -242,7 +253,7 @@ Every component that uses `var(--color-accent)` flips for free when the domain c
 - **Primary CTA buttons** on `/ear-training`, `/lick-practice`, session reports
 - **`KeyProgressRing`** (current key indicator)
 - **`ChordChart`** (active cell highlight, beat dots, progress bar)
-- **`UpcomingKeysDisplay`** (phase tab on the active row — brass LISTEN / on-air PLAY / "Straight in" turnaround announcement — plus the recording ring)
+- **`UpcomingKeysDisplay`** (phase tab on the active row — LISTEN in on-air red / PLAY in brass via the phase aliases / "Straight in" turnaround announcement — plus the recording ring)
 - **`SessionTimer`** progress bar fill
 - **`LickCard`** play button and progression-tag chips
 - **`PracticeSetup`** / `CategoryFilter` selected state
@@ -306,6 +317,6 @@ For each page confirm:
 3. Current-state highlights (selected pill, current key chip, active beat)
 4. The peripheral accent stripe is present on ear-training and lick-practice pages, hidden on neutral
 5. Brass chrome (wordmark, jazz rules) is unchanged across domains
-6. The on-air red only appears on active practice/record buttons
+6. The on-air red appears only on active practice/record buttons and on LISTEN-phase indicators (via `--color-phase-listen`); PLAY-phase indicators are brass (`--color-phase-play`)
 
 Check both light and dark modes.

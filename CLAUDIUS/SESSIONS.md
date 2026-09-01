@@ -2216,3 +2216,24 @@ one-at-a-time assertions. PR to main opened.
   Removed from the row (LEAD_ROW_HEIGHT 196 → 178), the e2e, and the docs.
   The original "automatic with a caption saying why" decision is superseded:
   the engraving is the message.
+
+## 2026-09-01 (fourth pass) — Listen/play colours swapped app-wide
+
+- Andy: swap the colours — PLAY was on-air red, LISTEN brass; red means
+  "stop" to most people. Applied consistently: two semantic aliases in
+  app.css (`--color-phase-play: var(--color-brass)`, `--color-phase-listen:
+  var(--color-onair)`), and every phase-semantic site retokened — the stack's
+  phase tab/lamp/recording ring, PhaseCueBar (which had NO colour for
+  LISTEN and used the domain accent for its lead-in — both now the listen
+  token), tune practice (was self-contradictory: open window brass, caption
+  red), ear-training's status line (was accent / red / grey), record-a-lick's
+  live readout + arming ring, the cue-preview dev route. Left on red by
+  design: every stop/record BUTTON, the console LED and rocker ON legend.
+- TDD: token-mapping test + a negative sweep over the three phase surfaces
+  (raw brass/on-air tokens forbidden) — red before the retoken, green after.
+- Docs: design-system.md gains "Practice-phase colours"; components.md,
+  tech-stack.md excerpt, README changelog, CLAUDE.md, MEMORY.md.- Incidental: `ear-training.spec.ts` loaded the piano sample from the live
+  CDN and failed on a CORS refusal during the parallel e2e run — unrelated
+  to the colours. Both its tests are flow tests that never assert audible
+  output, so they now opt into `stubCdnInstrumentSamples` like the other
+  practice specs.

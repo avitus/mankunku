@@ -1508,7 +1508,7 @@
 		fill-opacity: 0.08;
 	}
 	.notation-container :global(svg .range-marker.marker-active) {
-		fill: var(--color-brass);
+		fill: var(--color-phase-play);
 		fill-opacity: 0.18;
 	}
 	.notation-container :global(svg .range-marker.marker-hit) {
@@ -1565,7 +1565,7 @@
 		fill: var(--color-accent) !important;
 	}
 	.notation-container :global(svg text.range-marker-label.marker-label-active) {
-		fill: var(--color-brass) !important;
+		fill: var(--color-phase-play) !important;
 	}
 	.notation-container :global(svg text.range-marker-label.marker-label-hit) {
 		fill: var(--color-success) !important;

@@ -68,6 +68,9 @@ Mankunku uses **Tailwind CSS v4** with CSS custom properties for theming:
   --color-paper: #1a1410;
   /* Vintage recording-booth red for the active/stop state */
   --color-onair: #a8463a;
+  /* Practice-phase semantics: the player PLAYS in brass, LISTENS in red */
+  --color-phase-play: var(--color-brass);
+  --color-phase-listen: var(--color-onair);
   /* ... */
 }
 [data-domain='lick-practice'] {

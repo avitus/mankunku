@@ -24,17 +24,17 @@
 		{
 			variant: 'row-tab',
 			name: 'A — Row tab',
-			note: 'A booth-sign tab pinned to the row you are reading, riding the scroll: brass LISTEN while the band plays, on-air PLAY with the countdown and the key you enter in. The turnaround announces "Straight in" or "Listen first".'
+			note: 'A booth-sign tab pinned to the row you are reading, riding the scroll: LISTEN in on-air red while the band plays, PLAY in brass with the countdown and the key you enter in. The turnaround announces "Straight in" or "Listen first".'
 		},
 		{
 			variant: 'surface',
 			name: 'B — Stage lighting',
-			note: 'The chart surface itself switches: brass wash and speaker watermark while the band demos, on-air red wash and mic watermark while your mic is live. No reading required — the room changes color.'
+			note: 'The chart surface itself switches: on-air red wash and speaker watermark while the band demos, brass wash and mic watermark while your mic is live. No reading required — the room changes color.'
 		},
 		{
 			variant: 'cursor',
 			name: 'C — Cursor handoff',
-			note: 'The beat cursor carries the signal: a brass note while the app plays, a red mic when it is your turn, and the 4-3-2-1 count lands in bar 1 — exactly where your entrance is.'
+			note: 'The beat cursor carries the signal: a red note while the app plays, a brass mic when it is your turn, and the 4-3-2-1 count lands in bar 1 — exactly where your entrance is.'
 		}
 	];
 

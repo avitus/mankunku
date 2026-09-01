@@ -1282,3 +1282,20 @@ read. Three measurements, three partial truths; the decisive evidence was
 the probe that ruled out re-rendering and left only the transform, plus
 thinking about what a scrolling staff looks like to a person. A metric
 answers the question you encoded, not the one you meant.
+
+---
+
+## 2026-09-01 (fourth pass) — The inventory found three inconsistencies the swap request never mentioned
+
+Asked to swap two colours "consistently across the application", the
+first thing the sweep turned up was that the application had never been
+consistent: the cue pill on the record page coloured PLAY but left LISTEN
+grey and tinted its lead-in with the domain accent; tune practice painted
+the open window brass and its caption red at the same moment; ear
+training used a third colour (the accent) for "your turn". Each surface
+had reached for whatever token was nearest when it was written. The swap
+was the occasion, not the cause, of fixing that — and the fix was not the
+new colours but the indirection: two semantic aliases and a sweep test
+that forbids the palette tokens on the phase surfaces. The next colour
+opinion is a two-line change; the previous one took a 60-tool inventory.
+Semantics belong in a name, not in a hex.

@@ -29,10 +29,11 @@
 		/** True while the current key's recording window is open. */
 		isRecording: boolean;
 		/**
-		 * Listen/play cue for the phase tab pinned to the active row: brass
-		 * LISTEN while the app plays, on-air PLAY (with a countdown and the
-		 * entry key) while the user does, "Straight in" through a turnaround
-		 * that opens with no demo. Omit to render no tab.
+		 * Listen/play cue for the phase tab pinned to the active row: LISTEN
+		 * (in the on-air red — red reads as "stop", i.e. don't play yet) while
+		 * the app plays, PLAY (in brass, with a countdown and the entry key)
+		 * while the user does, "Straight in" through a turnaround that opens
+		 * with no demo. Omit to render no tab.
 		 */
 		cue?: PhaseCue | null;
 		/**
@@ -272,14 +273,14 @@
 		position: relative;
 		border-radius: 0.5rem;
 	}
-	/* Live mic — the recording-booth red the rest of the app uses for "on air". */
+	/* Live mic — the play-phase colour (brass): it is the user's turn. */
 	.chart-wrap.recording {
-		box-shadow: 0 0 0 2px var(--color-onair);
+		box-shadow: 0 0 0 2px var(--color-phase-play);
 	}
 	/* Lead-in: same ring, dashed and dimmed, so the row the user is about to
 	   play is already marked a bar before the switch. */
 	.chart-wrap.arming {
-		outline: 2px dashed color-mix(in srgb, var(--color-onair) 55%, transparent);
+		outline: 2px dashed color-mix(in srgb, var(--color-phase-play) 55%, transparent);
 		outline-offset: 0;
 	}
 	/* Lead-sheet row: the staff is sized by HEIGHT so the row's pixel height
@@ -348,9 +349,11 @@
 		color: var(--color-text-secondary);
 	}
 
-	/* Phase tab — the listen/play booth sign pinned to the active row. Brass
-	   is the band's colour (the app playing), on-air red is the live mic; the
-	   solid background is deliberate so the tab owns its corner of the chart. */
+	/* Phase tab — the listen/play booth sign pinned to the active row. The
+	   phase tokens decide the colours (app.css): LISTEN in on-air red — red
+	   reads as "stop", so it marks the phase in which the user must not play —
+	   and PLAY in brass, the user's turn. The solid background is deliberate
+	   so the tab owns its corner of the chart. */
 	.phase-tab {
 		position: absolute;
 		top: 0;
@@ -385,39 +388,39 @@
 	}
 	.phase-tab[data-kind='listen'],
 	.phase-tab[data-kind='listen-in'] {
-		color: color-mix(in srgb, var(--color-brass) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-brass) 16%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-brass) 40%, transparent);
+		color: color-mix(in srgb, var(--color-phase-listen) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-listen) 16%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-listen) 40%, transparent);
 	}
 	.phase-tab[data-kind='play-in'] {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-onair) 10%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-onair) 40%, transparent);
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-play) 10%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-play) 40%, transparent);
 	}
 	.phase-tab[data-kind='play-in']::before {
-		background: color-mix(in srgb, var(--color-onair) 22%, transparent);
+		background: color-mix(in srgb, var(--color-phase-play) 22%, transparent);
 		opacity: var(--arm);
 	}
 	.phase-tab[data-kind='play'] {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-onair) 50%, transparent);
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-play) 18%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-play) 50%, transparent);
 	}
 	.tab-lamp {
 		flex: none;
 		width: 7px;
 		height: 7px;
 		border-radius: 999px;
-		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
+		background: color-mix(in srgb, var(--color-phase-play) 18%, var(--color-bg));
 		box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.6);
 		transition:
 			background-color 150ms ease,
 			box-shadow 150ms ease;
 	}
 	.tab-lamp.lit {
-		background: var(--color-onair);
+		background: var(--color-phase-play);
 		box-shadow:
-			0 0 6px color-mix(in srgb, var(--color-onair) 80%, transparent),
+			0 0 6px color-mix(in srgb, var(--color-phase-play) 80%, transparent),
 			inset 0 0 1px rgba(255, 255, 255, 0.4);
 	}
 	.tab-glyph {

@@ -986,11 +986,11 @@
 		{#if session.isLoadingInstrument}
 			<span class="italic text-[var(--color-text-secondary)]">Tuning up&hellip;</span>
 		{:else if awaitingInput}
-			<span class="font-medium text-[var(--color-accent)]">Your turn — play!</span>
+			<span class="font-medium text-[var(--color-phase-play)]">Your turn — play!</span>
 		{:else if session.isRecording}
-			<span class="font-medium text-[var(--color-onair)]">Listening&hellip;</span>
+			<span class="font-medium text-[var(--color-phase-play)]">Listening&hellip;</span>
 		{:else if session.engineState === 'playing'}
-			<span class="text-[var(--color-text-secondary)]">Listen&hellip;</span>
+			<span class="font-medium text-[var(--color-phase-listen)]">Listen&hellip;</span>
 		{:else if !isActive && session.micPermission !== 'granted'}
 			<span class="text-[var(--color-text-secondary)]">Tap to start — mic access required</span>
 		{/if}

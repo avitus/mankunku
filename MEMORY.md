@@ -71,6 +71,8 @@ Durable principles (won't go stale as values evolve):
 
 **Spec status (2026-04-20):** `documentation/architecture/design-system.md` was rewritten to match the current implementation — three-domain palette (peacock teal / terracotta / slate), brass decorative tokens, on-air red, Fraunces display serif, `.jazz-rule`/`.smallcaps`/`.grain-overlay` utilities. Before making design changes, still read `src/app.css` and `src/routes/+layout.svelte` — they remain ground truth.
 
+**Practice-phase colours (2026-09-01):** the player PLAYS in brass and LISTENS in on-air red — Andy: red means "stop" to most people, so it belongs on the phase where the user must not play. Every listen/play indicator reads `--color-phase-play` / `--color-phase-listen` (aliases in app.css), never the palette tokens; the stop/record BUTTONS, the console LED and rocker ON legend stay on `--color-onair` ("press this to stop"). Pinned + swept by `tests/unit/ui/design-token-consistency.test.ts`. Never colour a new listen/play surface with `--color-brass`/`--color-onair` directly.
+
 ### Never leave a bug unfixed — failing test first, then fix (TDD is a core tenet)
 
 Every bug found during a session gets fixed in that session. The required order is **test first**: write a test that fails *because of the bug*, watch it fail, then fix and watch it pass. Then revert the fix once to confirm the test is load-bearing — a test that passes without the fix proves nothing.
