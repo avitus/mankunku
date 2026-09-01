@@ -1,6 +1,11 @@
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
+	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
+	import { keyStackLayout } from '$lib/ui/key-stack-layout';
+	import { noteIndexAtBeat } from '$lib/music/beat-cursor';
+	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
+	import { KEY_FLOOR_THRESHOLD } from '$lib/persistence/lick-practice-store';
 	import { phaseTabView, PHASE_LEAD_BEATS, type PhaseCue } from '$lib/state/lick-practice-phase';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { keyLabel } from '$lib/music/notation';
@@ -60,23 +65,43 @@
 		instrument
 	}: Props = $props();
 
-	// Each row is a fixed pixel height so the scroll math is simple.
-	// Tuned to fit a single chord-chart row + padding.
+	// Rows are fixed pixel heights so the scroll math is pure: one
+	// chord-chart row, or the taller lead-sheet row a struggling key gets
+	// (staff with chords above it, the beat strip and a caption beneath).
 	const ROW_HEIGHT = 105;
+	// Lead-sheet row budget: row padding 12 + tab clearance 26 + staff 110 +
+	// beat strip 24 + caption 18. The staff box is clipped to its height so
+	// the row can never overflow into the next one.
+	const LEAD_ROW_HEIGHT = 196;
+	const LEAD_STAFF_WIDTH = 1000;
 	const VISIBLE_ROWS = 3;
 
-	// One-row offset so the current key starts at viewport row 1 (one row
-	// down from the top) and finishes its duration at viewport row 0. This
-	// guarantees the chart for the active key is fully visible throughout
-	// its entire duration — the previous key sits above it, sliding out
-	// as the current key slides up. At session start, viewport row 0 is
-	// empty until the first key boundary populates it with key 0.
-	const translateYpx = $derived(
-		(1 - Math.max(0, scrollFraction)) * ROW_HEIGHT
+	// The current key starts one slot below the top and slides up by exactly
+	// that slot over its duration, so it is fully visible throughout and the
+	// next key starts where it ends — `keyStackLayout` keeps that invariant
+	// for mixed heights. At session start, the slot above row 0 is empty
+	// until the first key boundary populates it.
+	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
+	const layout = $derived(keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS));
+	const translateYpx = $derived(layout.translateY);
+	const visualCurrentRow = $derived(layout.currentRow);
+
+	// Lead sheets are built ONCE per stack (plannedKeys is set at lick/cycle
+	// start), so each revealed row hands NotationDisplay the same tune and
+	// options objects for its whole life — abcjs re-engraves on identity, and
+	// a per-frame rebuild would redraw the staff sixty times a second.
+	const leadSheets = $derived(
+		plannedKeys.map((pk) => {
+			if (!pk.reveal) return null;
+			const sheet = leadSheetTuneFor(pk.phrase);
+			return { ...sheet, options: leadSheetAbcOptions(pk.phrase, sheet.bars) };
+		})
 	);
-	const visualCurrentRow = $derived(
-		Math.min(plannedKeys.length - 1, Math.max(0, Math.floor(scrollFraction)))
-	);
+	const floorPct = Math.round(KEY_FLOOR_THRESHOLD * 100);
+
+	function rowKeyLabel(pk: PlannedKey): string {
+		return keyLabel(concertKeyToWritten(pk.key, instrument), lickMode(pk.phrase));
+	}
 
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
@@ -99,14 +124,15 @@
 	{tab && tab.kind !== 'hidden' ? tab.text : ''}
 </span>
 
-<div class="viewport" style="height: {ROW_HEIGHT * VISIBLE_ROWS}px;">
+<div class="viewport" style="height: {layout.viewportHeight}px;">
 	<div class="stack" style="transform: translateY({translateYpx}px);">
 		{#each plannedKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
 			{@const isCurrent = i === visualCurrentRow}
+			{@const sheet = leadSheets[i]}
 			<div
 				class="row"
 				class:current={isCurrent}
-				style="height: {ROW_HEIGHT}px;"
+				style="height: {rowHeights[i]}px;"
 			>
 				{#if i === 0}
 				<div class="row-label">
@@ -122,15 +148,53 @@
 					class:recording={isCurrent && isRecording}
 					class:arming={isCurrent && isArming && !isRecording}
 				>
-					<ChordChart
-						harmony={pk.harmony}
-						currentBeat={isCurrent ? currentBeat : 0}
-						timeSignature={[4, 4]}
-						isPlaying={isCurrent && isPlaying}
-						key={pk.key}
-						mode={lickMode(pk.phrase)}
-						{instrument}
-					/>
+					{#if sheet}
+						<!-- Lead-sheet row: the key is under the floor, so the line is
+						     engraved against its changes — chords above the staff, one
+						     full-width system — with the beat strip beneath. The cursor
+						     lights the note the band is at. -->
+						{@const beatsPerBar = pk.phrase.timeSignature[0]}
+						{@const cursor = isCurrent
+							? noteIndexAtBeat(
+									sheet.tune.sections[0].notes,
+									currentBeat - sheet.startBar * beatsPerBar,
+									pk.phrase.timeSignature
+								)
+							: null}
+						<div class="lead-sheet" data-testid="lead-sheet-row">
+							<NotationDisplay
+								tune={sheet.tune}
+								tuneOptions={sheet.options}
+								{instrument}
+								frameless
+								staffWidth={LEAD_STAFF_WIDTH}
+								cursorIndex={cursor}
+							/>
+						</div>
+						<ChordChart
+							harmony={pk.harmony}
+							currentBeat={isCurrent ? currentBeat : 0}
+							timeSignature={[4, 4]}
+							isPlaying={isCurrent && isPlaying}
+							key={pk.key}
+							mode={lickMode(pk.phrase)}
+							{instrument}
+							dotsOnly
+						/>
+						<div class="lead-caption">
+							Sheet music while {rowKeyLabel(pk)} is under {floorPct}%
+						</div>
+					{:else}
+						<ChordChart
+							harmony={pk.harmony}
+							currentBeat={isCurrent ? currentBeat : 0}
+							timeSignature={[4, 4]}
+							isPlaying={isCurrent && isPlaying}
+							key={pk.key}
+							mode={lickMode(pk.phrase)}
+							{instrument}
+						/>
+					{/if}
 					{#if scoreFlash && scoreFlash.key === pk.key}
 						{@const tier = accuracyTierInfo(scoreFlash.score)}
 						{#key scoreFlash.at}
@@ -220,6 +284,35 @@
 	.chart-wrap.arming {
 		outline: 2px dashed color-mix(in srgb, var(--color-onair) 55%, transparent);
 		outline-offset: 0;
+	}
+	/* Lead-sheet row: the staff is sized by HEIGHT so the row's pixel height
+	   is fixed for the scroll math; a wide staff (LEAD_STAFF_WIDTH) makes the
+	   single system span the row at that height, and on a narrow screen the
+	   width cap letterboxes it smaller rather than taller. The box is clipped
+	   so nothing can spill into the next row. The top padding keeps the phase
+	   tab (pinned to the chart-wrap corner) off the clef and key signature.
+	   abcjs's responsive mode sets the SVG to 100% width inline, hence the
+	   !important. */
+	.lead-sheet {
+		box-sizing: border-box;
+		height: 136px;
+		padding: 26px 0.25rem 0;
+		overflow: hidden;
+	}
+	.lead-sheet :global(svg) {
+		display: block;
+		height: 110px !important;
+		width: auto !important;
+		max-width: 100%;
+	}
+	.lead-caption {
+		height: 18px;
+		line-height: 18px;
+		padding-left: 0.25rem;
+		font-size: 0.7rem;
+		color: var(--color-text-secondary);
+		white-space: nowrap;
+		overflow: hidden;
 	}
 	/* Transient per-key score chip: fades in over the just-scored row, holds,
 	   fades out — sized and placed to never obscure the chord boxes' text. */

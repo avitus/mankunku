@@ -1,13 +1,12 @@
 /**
- * In-session sheet-music reveal, wired into session state:
- *
- * `getNotationReveal()` names the CURRENT key while its persisted rolling
- * score is defined and below the floor (`KEY_FLOOR_THRESHOLD`), and returns
- * null otherwise. The rule is the same in both directions — the sheet
- * appears after a sub-floor attempt and withdraws on its own once the
- * EWMA recovers — and a never-attempted key never reveals, so the first
- * pass in any key is by ear. Trick rounds never reveal: a regenerated
- * device figure is drilled for fluency, not learned from the page.
+ * In-session sheet-music reveal, wired into session state: every planned
+ * row of the key stack is stamped `reveal` when it is built (lick or cycle
+ * start) from the key's persisted rolling score — defined and below the
+ * floor (`shouldRevealNotation`) — so a struggling key's row engraves as a
+ * lead sheet. Decided once per stack, never re-derived mid-cycle (a row's
+ * height must not change while the stack scrolls); the same rule in both
+ * directions, so the sheet withdraws once the EWMA recovers; a never
+ * attempted key never reveals (first pass by ear); trick rows never.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -18,7 +17,7 @@ import {
 	recordKeyAttempt,
 	advanceSingleLickRound,
 	getCurrentKey,
-	getNotationReveal,
+	getPlannedKeysForLick,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
 import { bumpUnlockedKeyCount, updateKeyProgress } from '$lib/persistence/lick-practice-store';
@@ -103,70 +102,52 @@ beforeEach(() => {
 	lickPractice.progress = {};
 });
 
-describe('getNotationReveal', () => {
-	it('is null for a key that has never been attempted — the first pass is by ear', () => {
+describe('planned rows carry the reveal decision', () => {
+	it('does not reveal a never-attempted key — the first pass is by ear', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
-		expect(getNotationReveal()).toBeNull();
+		expect(getPlannedKeysForLick(0).map((pk) => pk.reveal)).toEqual([false]);
 	});
 
-	it('names the current key once a sub-floor attempt lands', () => {
+	it('reveals the head key on the next cycle after a sub-floor attempt, and withdraws once it recovers', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
 		recordKeyAttempt(makeScore(0.6));
-		expect(getNotationReveal()).toEqual({ key: 'C', rolling: 0.6 });
-	});
-
-	it('withdraws only when the rolling score recovers over the floor — same rule both ways', () => {
-		startSingleLickSession(makeLick('C', 'fresh-lick'));
-		recordKeyAttempt(makeScore(0.6));
-		// One clean pass lifts 0.6 to 0.74 — still under the floor, still shown.
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(lickPractice.demoNextCycle).toBe(true);
+		// One clean pass lifts 0.6 to 0.74 — still shown; a second clears it.
 		recordKeyAttempt(makeScore(0.95));
-		expect(getNotationReveal()?.rolling).toBeCloseTo(0.74, 5);
-		// A second one clears it (0.824) and the sheet goes away.
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 		recordKeyAttempt(makeScore(0.95));
-		expect(getNotationReveal()).toBeNull();
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 	});
 
 	it('treats the floor itself as recovered', () => {
 		seedRolling('fresh-lick', { C: 0.75 });
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
-		expect(getNotationReveal()).toBeNull();
-
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 		seedRolling('fresh-lick', { C: 0.749 });
-		expect(getNotationReveal()?.key).toBe('C');
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 	});
 
-	it('follows the current key of the rotation', () => {
+	it('stamps each planned row with its reveal flag when the stack is built', () => {
 		setUnlockedCount('lick-f', 3);
-		// Unknown C sorts first, then G (0.5), then F (0.9).
 		seedRolling('lick-f', { G: 0.5, F: 0.9 });
 		startSingleLickSession(makeLick('C', 'lick-f'));
-		expect(lickPractice.plan[0].keys).toEqual(['C', 'G', 'F']);
-
-		expect(getNotationReveal()).toBeNull();
-		lickPractice.currentKeyIndex = 1;
-		expect(getNotationReveal()).toEqual({ key: 'G', rolling: 0.5 });
-		lickPractice.currentKeyIndex = 2;
-		expect(getNotationReveal()).toBeNull();
+		const rows = getPlannedKeysForLick(0);
+		expect(rows.map((pk) => pk.key)).toEqual(['C', 'G', 'F']);
+		expect(rows.map((pk) => pk.reveal)).toEqual([false, true, false]);
 	});
 
-	it('is up for the next cycle demo after a failed head key', () => {
-		startSingleLickSession(makeLick('C', 'fresh-lick'));
-		recordKeyAttempt(makeScore(0.3));
-		advanceSingleLickRound();
-		expect(getNotationReveal()).toEqual({ key: 'C', rolling: 0.3 });
-		expect(lickPractice.demoNextCycle).toBe(true);
-	});
-
-	it('never reveals in a trick round, even with a sub-floor score under the variant key', () => {
+	it('never stamps a reveal on a trick round\'s rows', () => {
 		lickPractice.config.trickId = 'enclosures';
 		lickPractice.config.trickParameters = { ...E1_PARAMS };
 		settings.instrumentId = 'tenor-sax';
 		expect(startTrickSession()).toBe(true);
-		const key = getCurrentKey();
-		expect(key).not.toBeNull();
-		// Contrived: the lick store never holds trick scores, but the guard must
-		// be structural, not an accident of where progress happens to be written.
-		seedRolling(trickVariantKey('enclosures', E1_PARAMS), { [key as PitchClass]: 0.2 });
-		expect(getNotationReveal()).toBeNull();
+		const rows = getPlannedKeysForLick(0);
+		expect(rows.length).toBeGreaterThan(0);
+		seedRolling(trickVariantKey('enclosures', E1_PARAMS), { [rows[0].key]: 0.2 });
+		expect(getPlannedKeysForLick(0).every((pk) => pk.reveal === false)).toBe(true);
 	});
 });

@@ -94,6 +94,9 @@ Renders either a single-phrase staff or a full multi-system tune chart, using [a
 | `onBarClick` | `(pos: { sectionIdx, bar }) => void` | Fires on a bar's empty space, a rest, or a chord symbol; enables the per-bar hit rects |
 | `chordEditor` | `{ textAt, commit, clear }` | Inline on-chart chord editing. Enables per-beat hit rects above the staff; `commit` returning `false` flashes the input and keeps it open, blank input calls `clear` |
 | `titleArea` | `Snippet` | Custom header rendered above the staff |
+| `tuneOptions` | `TuneAbcOptions?` | Engraving options for the `tune` path — `mode` (minor prints `K:Dm` and the relative major's signature), `barsPerLine`, `stretchLast`, `measureNumbers` |
+| `frameless` | `boolean?` | No chrome: drops the "Chart" liner, padding and panel background so the staff sits inside a host that owns its own frame (the lick-practice key stack) |
+| `staffWidth` | `number?` | abcjs staff width in SVG units (default `CHART_STAFF_WIDTH`); a host that sizes the SVG by height asks for a wider staff so one system spans its row |
 
 **Behavior:**
 - Lazy-loads `abcjs` on mount.
@@ -293,6 +296,7 @@ Chord chart for the current progression, with the active cell highlighted in tim
 | `instrument` | `InstrumentConfig?` | Transposes chord roots to written pitch when provided |
 | `key` | `PitchClass?` | Concert-pitch key, drives sharp/flat chord spelling |
 | `mode` | `Mode?` | Major/minor reading of `key` — minor keys spell roots against the relative major's signature. Default `'major'`. |
+| `dotsOnly` | `boolean?` | Beat clock only: no "Changes" label and no chord names (kept for assistive tech) — the lead-sheet row engraves the chords above its staff and keeps this strip for the beat dots and cell progress |
 
 Each cell prints its symbol MuseScore-Jazz style (`chordChartSymbol` in `ui/chord-chart-layout.ts` → `layoutChordParts`): root + quality on the baseline and alterations as a raised column to the right — "A7" with "b9" above-right for the minor templates' V — with the flat text ("A7b9") as the cell's `title`/`aria-label`.
 
@@ -301,6 +305,8 @@ Each cell prints its symbol MuseScore-Jazz style (`chordChartSymbol` in `ui/chor
 **Path:** `src/lib/components/lick-practice/UpcomingKeysDisplay.svelte`
 
 Scrolling preview strip showing the current, next, and upcoming key chord charts. Scrolls continuously in sync with transport position. Row key labels read in each planned phrase's mode (`keyLabel(written, lickMode(pk.phrase))` — "Dm" on a minor drill) and the embedded `ChordChart` gets the same `mode`.
+
+A row whose `PlannedKey.reveal` is set (the key's rolling score is under the floor) renders as a **lead-sheet row** (`data-testid="lead-sheet-row"`): `leadSheetTuneFor` (`music/lead-sheet.ts`) wraps the row's phrase as a one-section Tune for `NotationDisplay` (`frameless`, `staffWidth` 1000, `tuneOptions` from `leadSheetAbcOptions` — the phrase's mode, one stretched system, no bar number), the note at the current beat lit via `cursorIndex` (`noteIndexAtBeat`, `music/beat-cursor.ts`), a `dotsOnly` `ChordChart` beneath as the beat strip, and a caption *Sheet music while A is under 75%* (written pitch, percentage from `KEY_FLOOR_THRESHOLD`). Lead sheets are built once per stack so abcjs engraves each row once. Rows are fixed heights (105 px chord row, 196 px lead row; the staff box is clipped) and `keyStackLayout` (`ui/key-stack-layout.ts`) keeps the active row fully visible for mixed heights and reserves the viewport for two tall rows, so the ring below never moves.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -313,18 +319,6 @@ Scrolling preview strip showing the current, next, and upcoming key chord charts
 | `isArming` | `boolean?` | Lead-in bar before the recording window — dashes the active row's ring |
 | `scoreFlash` | `{ key, score, at }?` | Tier-colored score chip flashed on the matching key's row |
 | `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
-
-### `NotationReveal.svelte`
-
-**Path:** `src/lib/components/lick-practice/NotationReveal.svelte`
-
-The session's conditional sheet music: a `NotationDisplay` (practice variant) of the current key's transposed phrase, captioned *Shown while D is under 75%*. Presentational — the session route mounts it under the chord stack whenever `getNotationReveal()` names a key and hides it during the inter-lick score hold. The key label reads in written pitch and the phrase's mode (`keyLabel(concertKeyToWritten(key, instrument), lickMode(phrase))`), and the percentage is derived from `KEY_FLOOR_THRESHOLD` so the copy can't drift from the rule. Root carries `data-testid="notation-reveal"`.
-
-| Prop | Type | Description |
-|---|---|---|
-| `phrase` | `Phrase` | The current key's phrase — pass the route's memoized reference; a new object re-renders abcjs |
-| `key` | `PitchClass` | Concert key being played (converted for the caption) |
-| `instrument` | `InstrumentConfig` | Written-pitch conversion for the staff and the caption |
 
 ### `PhaseCueBar.svelte`
 

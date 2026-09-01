@@ -9,7 +9,8 @@
 		tuneToAbcWithMap,
 		CHART_STAFF_WIDTH,
 		type BarAnchor,
-		type ChordSlotAnchor
+		type ChordSlotAnchor,
+		type TuneAbcOptions
 	} from '$lib/music/tune-notation';
 	import { alignStackedEndingsInContainer } from '$lib/notation/ending-align-dom';
 	import { barZones, chordZones, clipBarSpanX, type ChordZone } from '$lib/notation/chart-geometry';
@@ -147,6 +148,24 @@
 			clear: (pos: BeatPos) => void;
 		};
 		titleArea?: Snippet;
+		/**
+		 * Engraving options for the `tune` path (mode, bars per system, stretch,
+		 * measure numbers). A lead-sheet row passes its phrase's mode and a
+		 * single full-width system; every other chart takes the defaults.
+		 */
+		tuneOptions?: TuneAbcOptions;
+		/**
+		 * No chrome: drops the "Chart" liner, padding and panel background so
+		 * the staff sits inside a host that owns its own frame (the lick-practice
+		 * key stack). Ink styling of the variant is unchanged.
+		 */
+		frameless?: boolean;
+		/**
+		 * abcjs staff width in SVG units (default `CHART_STAFF_WIDTH`). A host
+		 * that sizes the SVG by HEIGHT (a fixed-height row) asks for a wider
+		 * staff so the single system spans the row.
+		 */
+		staffWidth?: number;
 	}
 
 	let {
@@ -163,7 +182,10 @@
 		onSelect,
 		onBarClick,
 		chordEditor,
-		titleArea
+		titleArea,
+		tuneOptions,
+		frameless = false,
+		staffWidth
 	}: Props = $props();
 
 	/** Print charts show abcjs's own title/composer/style masthead. */
@@ -237,7 +259,7 @@
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
 		} = tune
-			? tuneToAbcWithMap(tune, instrument)
+			? tuneToAbcWithMap(tune, instrument, tuneOptions)
 			: {
 					...phraseToAbcWithMap(phrase!, instrument),
 					barAnchors: [],
@@ -251,7 +273,7 @@
 		// abcjs's width estimation; the painted face is the --chord-font CSS.
 		const [visualObj] = abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
-			staffwidth: CHART_STAFF_WIDTH,
+			staffwidth: staffWidth ?? CHART_STAFF_WIDTH,
 			paddingtop: showEngravedMasthead ? 8 : 12,
 			paddingbottom: 16,
 			paddingleft: 12,
@@ -1151,7 +1173,7 @@
 </script>
 
 <div
-	class="notation-container rounded-lg p-4"
+	class="notation-container {frameless ? 'frameless' : 'rounded-lg p-4'}"
 	class:chart-practice={variant === 'practice'}
 	class:chart-print={variant === 'print'}
 	class:has-custom-title={!!titleArea || variant === 'practice'}
@@ -1160,7 +1182,7 @@
 >
 	<!-- "Chart" liner — practice chrome only; print mode lets the engraved
 	     masthead own the top of the page. -->
-	{#if variant === 'practice'}
+	{#if variant === 'practice' && !frameless}
 		<div class="mb-4 flex items-center gap-2">
 			<span class="smallcaps text-[var(--color-brass)]">Chart</span>
 			<div class="jazz-rule flex-1"></div>
@@ -1233,6 +1255,10 @@
 	/* ── Practice (dark): hierarchical ink, not flat recolor ─────────────── */
 	.chart-practice {
 		background: var(--color-bg-secondary);
+	}
+	/* A frameless chart lives inside its host's frame — no panel of its own. */
+	.notation-container.frameless {
+		background: transparent;
 	}
 	/* Staff lines: lighter than noteheads so the music reads first. */
 	.chart-practice :global(svg .abcjs-staff path),

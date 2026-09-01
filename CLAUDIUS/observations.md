@@ -1210,3 +1210,39 @@ Flagged, not fixed: the reveal exposes that a ONE-BAR phrase renders at a
 quarter of the 750-unit staff and scales down with it on a phone. It has
 always looked that way on the detail page; nobody stared at a one-bar staff
 on a phone mid-session before. New surfaces re-open old rendering questions.
+
+---
+
+## 2026-09-01 (later) — "Flicker" was layout, and the layout invariant decided the geometry
+
+Two things worth keeping from the lead-sheet-row rework.
+
+First, the diagnosis. "A lot of flickering" sent me looking for a rendering
+bug; the frame-difference series said otherwise — 40 spike frames out of
+900, all at key boundaries. What the eye called flicker was a block
+appearing and disappearing below the stack, moving everything under it by
+200 px, three times in thirty seconds. Measuring before theorising turned
+a "make abcjs stop re-rendering" hunt into a layout question, and the
+layout question had the same answer as Andy's second request: put the
+music inside the thing that already scrolls. Two complaints, one fix, and
+the fix was the feature he actually wanted.
+
+Second, the geometry fell out of one sentence. The fixed-height stack had
+an unstated invariant: the active row is fully visible for its whole
+duration. Stating it for mixed heights forces everything else — the row
+must start where the previous row ends and slide by THAT height (not its
+own), which forces the viewport to hold the previous row plus the active
+one, which (once rows re-sort every cycle) forces the viewport to reserve
+the two tallest rows or resize between cycles and shove the ring. I tried
+the "pairwise max" viewport first and watched the ring jump at the cycle
+boundary in the recording. The invariant was right; my first reading of
+its consequence was one cycle too short-sighted. Pure function, eleven
+tests, and the component just reads three numbers.
+
+Also filed: abcjs reserves masthead height for a `T:` line the CSS hides —
+the drawing sat in the bottom 40% of its box and I only saw it because the
+staff came out half-width. The rule generalises: when a fit-by-height
+element renders smaller than expected, suspect invisible reserved space
+before suspecting the scale. And I measured the row with
+getBoundingClientRect instead of trusting my pixel budget; the budget was
+37 px short. Budgets are hypotheses.

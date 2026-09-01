@@ -184,6 +184,13 @@ export interface PlannedKey {
 	harmony: HarmonicSegment[];
 	lickName: string;
 	lickId: string;
+	/**
+	 * Does this row show the sheet music? Decided ONCE, when the stack is
+	 * built at lick/cycle start, from the key's persisted rolling score
+	 * (`shouldRevealNotation`) — never re-derived mid-cycle, so a row's
+	 * height cannot change while the stack is scrolling. Trick rows never.
+	 */
+	reveal: boolean;
 }
 
 /**
@@ -1102,32 +1109,6 @@ export function getCurrentPhrase(): Phrase | null {
 	return buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
 }
 
-/** The key whose sheet music the session is showing, and the score that earned it. */
-export interface NotationReveal {
-	key: PitchClass;
-	rolling: number;
-}
-
-/**
- * Should the session show the current key's sheet music? Names the key
- * while its persisted rolling score is defined and under the floor
- * (`shouldRevealNotation`), null otherwise — same rule both ways, so the
- * sheet appears after a sub-floor attempt and withdraws once the EWMA
- * recovers. Stateless: `recordKeyAttempt` reassigns `lickPractice.progress`
- * on every attempt, so a `$derived` over this re-evaluates once per score.
- * Returns no phrase on purpose — the route gates its already-memoized
- * current phrase on the key, so abcjs re-renders only when the key changes.
- * Trick rounds never reveal: a regenerated device figure is drilled for
- * fluency, not learned from the page.
- */
-export function getNotationReveal(): NotationReveal | null {
-	const item = getCurrentPlanItem();
-	const key = getCurrentKey();
-	if (!item || !key || item.kind === 'trick') return null;
-	const rolling = getRollingScore(lickPractice.progress, item.phraseId, key);
-	return shouldRevealNotation(rolling) ? { key, rolling } : null;
-}
-
 /**
  * Pure variant of getCurrentPhrase that takes explicit indices instead
  * of reading currentLickIndex/currentKeyIndex.  Use this when scoring
@@ -1266,7 +1247,8 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 				phrase,
 				harmony: phrase.harmony,
 				lickName: item.phraseName,
-				lickId: item.phraseId
+				lickId: item.phraseId,
+				reveal: revealFor(item, key)
 			};
 		}
 		keyIdx -= item.keys.length;
@@ -1309,10 +1291,24 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 			phrase,
 			harmony: phrase.harmony,
 			lickName: item.phraseName,
-			lickId: item.phraseId
+			lickId: item.phraseId,
+			reveal: revealFor(item, key)
 		});
 	}
 	return result;
+}
+
+/**
+ * Does a row for `key` engrave the sheet music? The key's persisted rolling
+ * score is defined and under the floor (`shouldRevealNotation` — an unknown
+ * score never reveals: the first attempt is by ear), and the item is a lick
+ * (a trick's regenerated figure is drilled for fluency, not read).
+ */
+function revealFor(item: LickPracticePlanItem, key: PitchClass): boolean {
+	return (
+		item.kind !== 'trick' &&
+		shouldRevealNotation(getRollingScore(lickPractice.progress, item.phraseId, key))
+	);
 }
 
 /**

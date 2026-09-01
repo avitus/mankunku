@@ -2149,3 +2149,42 @@ one-at-a-time assertions. PR to main opened.
 - Deferred: a playhead cursor on the revealed staff (`cursorIndex` /
   `playheadBarFraction` exist); short-phrase staff sizing (a `staffwidth`
   knob on NotationDisplay would also help the detail page on phones).
+
+## 2026-09-01 (later) — The sheet moves INTO the chord stack: lead-sheet row
+
+**What happened:**
+
+- Andy watched the 3-key demo: "a lot of flickering" and "display the music
+  within the chord progression". Frame-diffing the recording showed no
+  continuous flicker — the spikes were the panel mounting/unmounting per key
+  (shoving the ring ±200 px) and the staff re-engraving on each key change.
+  So the second request was also the fix for the first.
+- Chose (with Andy, from three previews) the **lead-sheet row**: a struggling
+  key's row in `UpcomingKeysDisplay` grows into chords-over-staff, engraved
+  once per stack, beat strip beneath, caption; other rows stay chord blocks;
+  fixed viewport so nothing below moves.
+- Built: `keyStackLayout` (pure; active row starts where the previous row
+  ends and slides by THAT height; viewport = two tallest rows, stable across
+  cycles), `noteIndexAtBeat` (cursor), `leadSheetTuneFor` +
+  `leadSheetAbcOptions` (phrase → untitled one-section Tune through
+  `tuneToAbc`, windowed to ≤ 4 bars for long cycles), three additive
+  `TuneAbcOptions` (`mode`, `stretchLast`, `measureNumbers` — tune goldens
+  byte-identical), NotationDisplay `tuneOptions`/`frameless`/`staffWidth`,
+  ChordChart `dotsOnly`, `PlannedKey.reveal` stamped once per stack (no
+  mid-scroll height changes). Deleted the panel, `NotationReveal.svelte`
+  and `getNotationReveal`.
+- Measured, not guessed, the row: the first cut overflowed (content 265 px
+  in a 228 px row → the A row's dots spilled into the G row) and the staff
+  spanned half the row (fit-by-height + abcjs reserving masthead space for
+  a CSS-hidden `T:`). Fixes: `title: ''`, `staffWidth` 1000 so the
+  height-fit system spans the row, a clipped 136 px staff box, row 196 px.
+  Playwright `getBoundingClientRect` report: row 196, content 176, SVG
+  967 × 110 in a 976 px row, viewport 392.
+
+**Notes:**
+
+- check 0/0; vitest 281 files / 4445 passed; lick-practice e2e 2/2 chromium
+  (rerun after the sizing fix); demo re-recorded and sent.
+- Open: on a 390 px phone the height-fit SVG letterboxes to ~40 px at the
+  top of its box (abcjs pins it top-left) — legible but small; a per-width
+  row height is the follow-up if phones matter for sessions.

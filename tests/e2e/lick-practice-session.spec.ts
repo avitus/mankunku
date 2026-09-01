@@ -99,12 +99,17 @@ test.describe('lick-practice session flow', () => {
 			timeout: 20_000
 		});
 
-		// The seeded key is under the floor, so its sheet music is up as soon as
-		// the row is active — through the demo and the user window alike. The
-		// caption names the threshold; concert C is written D on the tenor.
-		const reveal = page.getByTestId('notation-reveal');
+		// The seeded key is under the floor, so its row in the stack is a
+		// lead-sheet system — chords engraved above the staff — from the first
+		// paint, through the demo and the user window alike. The caption names
+		// the threshold; concert C is written D on the tenor.
+		const reveal = page.getByTestId('lead-sheet-row');
 		await expect(reveal).toBeVisible({ timeout: 20_000 });
-		await expect(reveal).toContainText(/Shown while D is under 75%/);
+		await expect(reveal.locator('.abcjs-container svg .abcjs-notehead').first()).toBeVisible({
+			timeout: 10_000
+		});
+		await expect(reveal.locator('.abcjs-container svg text.abcjs-chord').first()).toBeVisible();
+		await expect(page.getByText(/Sheet music while D is under 75%/)).toBeVisible();
 
 		// Tempo UI: the progress ring centers on the current tempo, resolved
 		// from the seeded key-C progress (the slowest stored key tempo).
@@ -219,8 +224,8 @@ test.describe('lick-practice session flow', () => {
 			timeout: 90_000
 		});
 		// No rolling score is seeded, so the key has never been attempted and
-		// cycle 1 is by ear: no sheet music.
-		const reveal = page.getByTestId('notation-reveal');
+		// cycle 1 is by ear: chord blocks only, no lead-sheet row.
+		const reveal = page.getByTestId('lead-sheet-row');
 		await expect(reveal).toHaveCount(0);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 30_000 });
 		await expect(page.locator('.phase-tab[data-kind="play"]')).toBeVisible({ timeout: 10_000 });
@@ -232,14 +237,16 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.locator('.score-flash')).toBeVisible({ timeout: 10_000 });
 
 		// The silent attempt scored 0, so the key's rolling score is now under
-		// the floor and the boundary re-pointed the session at it: its sheet
-		// music appears for the turnaround and the cycle-2 demo, with an actual
-		// engraved staff (abcjs noteheads), captioned in written pitch.
+		// the floor and the boundary rebuilt the stack with it: the row is a
+		// lead-sheet system for the turnaround and the cycle-2 demo — an
+		// engraved staff (abcjs noteheads) with the changes above it,
+		// captioned in written pitch.
 		await expect(reveal).toBeVisible({ timeout: 10_000 });
-		await expect(reveal).toContainText(/Shown while D is under 75%/);
 		await expect(reveal.locator('.abcjs-container svg .abcjs-notehead').first()).toBeVisible({
 			timeout: 10_000
 		});
+		await expect(reveal.locator('.abcjs-container svg text.abcjs-chord').first()).toBeVisible();
+		await expect(page.getByText(/Sheet music while D is under 75%/)).toBeVisible();
 
 		// The boundary must have scheduled cycle 2 on its own: a new recording
 		// window opens with zero interaction. This is the no-stoppage proof —

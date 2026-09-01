@@ -108,6 +108,7 @@
 			key: r.key,
 			phrase: stubPhrase(r),
 			harmony: r.harmony,
+			reveal: false,
 			lickName: 'Preview lick',
 			lickId: 'cue-preview'
 		}))

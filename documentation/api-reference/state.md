@@ -318,12 +318,11 @@ export interface PlannedKey {
 - `getCurrentPlanItem(): LickPracticePlanItem | null`
 - `getCurrentKey(): PitchClass | null`
 - `getCurrentPhrase(): Phrase | null` — Current lick transposed to the current key with progression harmony substituted.
-- `getNotationReveal(): NotationReveal | null` — `{ key, rolling }` for the current key while its rolling score is defined and under `KEY_FLOOR_THRESHOLD`; null otherwise, and always for trick items. Drives the session's sheet-music panel; returns no phrase so the route can gate its memoized `currentPhrase` on the key.
 - `getCurrentHarmony(): HarmonicSegment[]` — Progression template transposed to current key.
 - `getPhraseFor(lickIdx, keyIdx): Phrase | null` — Pure variant for scoring keys that have already advanced.
 - `getPlannedKey(offset): PlannedKey | null` — Lookahead across lick boundaries.
 - `getUpcomingKeys(): { current; next; afterNext }` — Three-row preview helper.
-- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview).
+- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview). Each `PlannedKey` carries `reveal`: the key's persisted rolling score is defined and under `KEY_FLOOR_THRESHOLD` (`shouldRevealNotation`; unknown → false; never for trick items), decided when the stack is built so a row's height never changes mid-scroll — the stack engraves a revealed row as a lead sheet.
 
 ### Phrase assembly
 

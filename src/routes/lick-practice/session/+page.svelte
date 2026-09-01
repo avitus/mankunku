@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
-	import { fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
 	import UpcomingKeysDisplay from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
 	import LickBreatherCard from '$lib/components/lick-practice/LickBreatherCard.svelte';
-	import NotationReveal from '$lib/components/lick-practice/NotationReveal.svelte';
 	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
 	import {
 		lickPractice,
@@ -16,7 +14,6 @@
 		getCurrentProgressionType,
 		getCurrentKey,
 		getCurrentPhrase,
-		getNotationReveal,
 		getPhraseFor,
 		getPlannedKeysForLick,
 		buildLickSuperPhrase,
@@ -306,18 +303,6 @@
 	const currentPhrase = $derived(getCurrentPhrase());
 	const currentProgressionType = $derived(getCurrentProgressionType());
 	const instrument = $derived(getInstrument());
-
-	// Conditional sheet music: the current key's notation while its rolling
-	// score is under the floor — the state getter owns the rule. `revealKey`
-	// is a primitive so the per-attempt progress write (which re-evaluates
-	// `notationReveal`) can't churn `revealPhrase`; that hands NotationDisplay
-	// the SAME memoized `currentPhrase` reference until the key actually
-	// changes, and abcjs re-engraves only on identity. Hidden through the
-	// standard-mode score hold, where the chord stack is already faded out
-	// under the breather card (never set in single-lick mode).
-	const notationReveal = $derived(getNotationReveal());
-	const revealKey = $derived(notationReveal?.key ?? null);
-	const revealPhrase = $derived(revealKey && !inScoreHold ? currentPhrase : null);
 
 	// Focus-ramp status for the lick header's key-count slot. "Key 1/1" on a
 	// one-dot ring reads as a bug, so while the ramp is live the slot says
@@ -1870,7 +1855,8 @@
 		/>
 
 		<!-- Continuous chord-block scroll: the lick's full key stack drifts
-		     upward at exactly one row per key duration. During the inter-lick
+		     upward one row per key duration (a struggling key's row is a taller
+		     lead-sheet system — chords over the staff). During the inter-lick
 		     score-hold bar the frozen last-key chart cross-fades out and the
 		     breather card fades in over the same reserved space, so nothing
 		     below jumps. -->
@@ -1904,15 +1890,6 @@
 				</div>
 			{/if}
 		</div>
-
-		<!-- Conditional sheet music: the current key's notation while its
-		     rolling score is under the floor. Below the stack so the row the
-		     eye tracks never moves; the ring shifts down instead. -->
-		{#if revealPhrase && notationReveal}
-			<div transition:fade={{ duration: 200 }}>
-				<NotationReveal phrase={revealPhrase} key={notationReveal.key} {instrument} />
-			</div>
-		{/if}
 
 		<!-- Key progress ring -->
 		<div class="flex justify-center">

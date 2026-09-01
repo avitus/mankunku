@@ -1,4 +1,4 @@
-import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
+import type { Mode, Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
 import { fractionToFloat } from './intervals';
@@ -18,8 +18,7 @@ import {
 	type EndingPlacement
 } from './ending-layout';
 import {
-	FLAT_KEYS,
-	KEY_SIG_ACCIDENTALS,
+	abcKeyField,
 	approxToFraction,
 	chordSpellingPreference,
 	displayPitchClass,
@@ -32,6 +31,8 @@ import {
 	midiToAbcPitch,
 	sameDuration,
 	shorterFraction,
+	signatureAccidentalsFor,
+	signatureFlatsFor,
 	signatureSpelling,
 	type KeySigMap,
 	type NoteAnchor
@@ -66,6 +67,16 @@ export interface TuneAbcOptions {
 	defaultLength?: Fraction;
 	/** Bars per system before a line break. */
 	barsPerLine?: number;
+	/**
+	 * How to read `sheet.key`: minor draws the relative major's signature and
+	 * prints `K:Dm` (as `phraseToAbc` does for a minor lick). Default major —
+	 * a Tune carries no mode of its own.
+	 */
+	mode?: Mode;
+	/** Stretch the last system to the full staff width (default: leave short systems short). */
+	stretchLast?: boolean;
+	/** Print a measure number at the start of each system (default true). */
+	measureNumbers?: boolean;
 }
 
 /**
@@ -197,8 +208,9 @@ export function tuneToAbcWithMap(
 	const barsPerLine = options.barsPerLine ?? suggestBarsPerLine(sheet);
 
 	const displayKey = instrument ? concertKeyToWritten(sheet.key, instrument) : sheet.key;
-	const useFlats = FLAT_KEYS.includes(displayKey);
-	const keySigAccidentals: KeySigMap = KEY_SIG_ACCIDENTALS[displayKey] ?? {};
+	const mode: Mode = options.mode ?? 'major';
+	const useFlats = signatureFlatsFor(displayKey, mode);
+	const keySigAccidentals: KeySigMap = signatureAccidentalsFor(displayKey, mode);
 
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
 	// Melody-silent bars engrave as beat-aligned rhythm slashes (jazz chart
@@ -218,16 +230,17 @@ export function tuneToAbcWithMap(
 		// so section letters never read as chord symbols.
 		`%%partsbox 1`,
 		// Measure numbers at the start of every system (abcjs: 0 = each line).
-		`%%measurenb 0`,
+		...(options.measureNumbers === false ? [] : [`%%measurenb 0`]),
 		// Don't stretch short systems (esp. stacked [2] endings) to full width —
-		// empty space under a full-width volta reads as a layout bug.
-		`%%stretchlast 0`,
+		// empty space under a full-width volta reads as a layout bug. A
+		// one-system lead-sheet row asks for the stretch so its bars span the row.
+		`%%stretchlast ${options.stretchLast ? 1 : 0}`,
 		// Two voices merged onto ONE staff: M carries the melody (and the
 		// reader's rests / slashes / multi-rests); H is an invisible spacer
 		// voice that only positions chord symbols — never draws rests — so
 		// mid-bar chords never force a melody note to split or stack.
 		`%%score (M H)`,
-		`K:${displayKey}`,
+		`K:${abcKeyField(displayKey, mode)}`,
 		`V:M`,
 		// The explicit stem= on H keeps abcjs's createVoice from splicing a
 		// forced stem-up into the MELODY (its two-real-voices convention,
