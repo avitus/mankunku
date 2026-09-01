@@ -2212,3 +2212,7 @@ one-at-a-time assertions. PR to main opened.
   420 ms transform transition; reduced-motion disables it). Tests rewritten
   for the hold/step contract. Docs: the user guide's "drifting upward at
   exactly one row per key" is now "holds still … steps up one row".
+- Andy: remove the "Sheet music while A is under 75%" caption — clutter.
+  Removed from the row (LEAD_ROW_HEIGHT 196 → 178), the e2e, and the docs.
+  The original "automatic with a caption saying why" decision is superseded:
+  the engraving is the message.

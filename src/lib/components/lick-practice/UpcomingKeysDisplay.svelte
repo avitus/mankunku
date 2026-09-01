@@ -5,7 +5,6 @@
 	import { keyStackLayout } from '$lib/ui/key-stack-layout';
 	import { noteIndexAtBeat } from '$lib/music/beat-cursor';
 	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
-	import { KEY_FLOOR_THRESHOLD } from '$lib/persistence/lick-practice-store';
 	import { phaseTabView, PHASE_LEAD_BEATS, type PhaseCue } from '$lib/state/lick-practice-phase';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { keyLabel } from '$lib/music/notation';
@@ -70,9 +69,10 @@
 	// (staff with chords above it, the beat strip and a caption beneath).
 	const ROW_HEIGHT = 105;
 	// Lead-sheet row budget: row padding 12 + tab clearance 26 + staff 110 +
-	// beat strip 24 + caption 18. The staff box is clipped to its height so
-	// the row can never overflow into the next one.
-	const LEAD_ROW_HEIGHT = 196;
+	// beat strip 22 + slack. The staff box is clipped to its height so the
+	// row can never overflow into the next one. No caption: the engraving
+	// itself is the message, and a line of prose under it was clutter.
+	const LEAD_ROW_HEIGHT = 178;
 	const LEAD_STAFF_WIDTH = 1000;
 	const VISIBLE_ROWS = 3;
 
@@ -99,12 +99,6 @@
 			return { ...sheet, options: leadSheetAbcOptions(pk.phrase, sheet.bars) };
 		})
 	);
-	const floorPct = Math.round(KEY_FLOOR_THRESHOLD * 100);
-
-	function rowKeyLabel(pk: PlannedKey): string {
-		return keyLabel(concertKeyToWritten(pk.key, instrument), lickMode(pk.phrase));
-	}
-
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
 	const activeKeyLabel = $derived.by(() => {
@@ -154,7 +148,8 @@
 						<!-- Lead-sheet row: the key is under the floor, so the line is
 						     engraved against its changes — chords above the staff, one
 						     full-width system — with the beat strip beneath. The cursor
-						     lights the note the band is at. -->
+						     lights the note the band is at. No caption by decision: the
+						     engraving is the message. -->
 						{@const beatsPerBar = pk.phrase.timeSignature[0]}
 						{@const cursor = isCurrent
 							? noteIndexAtBeat(
@@ -183,9 +178,6 @@
 							{instrument}
 							dotsOnly
 						/>
-						<div class="lead-caption">
-							Sheet music while {rowKeyLabel(pk)} is under {floorPct}%
-						</div>
 					{:else}
 						<ChordChart
 							harmony={pk.harmony}
@@ -310,15 +302,7 @@
 		width: auto !important;
 		max-width: 100%;
 	}
-	.lead-caption {
-		height: 18px;
-		line-height: 18px;
-		padding-left: 0.25rem;
-		font-size: 0.7rem;
-		color: var(--color-text-secondary);
-		white-space: nowrap;
-		overflow: hidden;
-	}
+
 	/* Transient per-key score chip: fades in over the just-scored row, holds,
 	   fades out — sized and placed to never obscure the chord boxes' text. */
 	.score-flash {
