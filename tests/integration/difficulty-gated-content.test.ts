@@ -1,5 +1,5 @@
 /**
- * Integration tests: adaptive difficulty system gates content.
+ * Integration tests: difficulty levels gate content.
  *
  * Verifies that level changes actually affect content profiles,
  * validator rules, and tier boundaries. All functions under test
@@ -7,12 +7,6 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-	createInitialAdaptiveState,
-	processAttempt,
-	getAdaptiveSummary,
-	WINDOW_SIZE
-} from '../../src/lib/difficulty/adaptive';
 import {
 	getProfileForLevel,
 	getProfileForTier,
@@ -22,7 +16,6 @@ import {
 import { rulesForDifficulty } from '../../src/lib/phrases/validator';
 import { calculateDifficulty } from '../../src/lib/difficulty/calculate';
 import type { Phrase, Note, Fraction } from '../../src/lib/types/music';
-import type { AdaptiveState } from '../../src/lib/types/progress';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -44,21 +37,6 @@ function makePhrase(notes: Note[]): Phrase {
 
 function note(pitch: number | null, dur: Fraction, offset: Fraction): Note {
 	return { pitch, duration: dur, offset };
-}
-
-/** Process N identical attempts on a state. */
-function processN(
-	state: AdaptiveState,
-	n: number,
-	overall: number,
-	pitch: number,
-	rhythm: number
-): AdaptiveState {
-	let s = state;
-	for (let i = 0; i < n; i++) {
-		s = processAttempt(s, overall, pitch, rhythm);
-	}
-	return s;
 }
 
 // ─── Content Tier Profiles ────────────────────────────────────────
@@ -204,96 +182,6 @@ describe('validator rules by difficulty', () => {
 		for (let i = 1; i < ratios.length; i++) {
 			expect(ratios[i]).toBeLessThanOrEqual(ratios[i - 1]);
 		}
-	});
-});
-
-// ─── Adaptive State Advancement ──────────────────────────────────
-
-describe('adaptive state advancement', () => {
-	it('25 attempts at 90% overall advances the level', () => {
-		const initial = createInitialAdaptiveState();
-		const result = processN(initial, 25, 0.90, 0.90, 0.90);
-
-		expect(result.currentLevel).toBeGreaterThan(initial.currentLevel);
-		expect(result.pitchComplexity).toBeGreaterThan(initial.pitchComplexity);
-		expect(result.rhythmComplexity).toBeGreaterThan(initial.rhythmComplexity);
-	});
-
-	it('25 attempts at 40% overall retreats the level', () => {
-		// Start at level 20 by setting pitch and rhythm complexity high
-		let state: AdaptiveState = {
-			...createInitialAdaptiveState(),
-			currentLevel: 20,
-			pitchComplexity: 20,
-			rhythmComplexity: 20
-		};
-
-		state = processN(state, 25, 0.40, 0.40, 0.40);
-
-		expect(state.pitchComplexity).toBeLessThan(20);
-		expect(state.rhythmComplexity).toBeLessThan(20);
-		expect(state.currentLevel).toBeLessThan(20);
-	});
-
-	it('pitch and rhythm track independently', () => {
-		const initial = createInitialAdaptiveState();
-		// High pitch accuracy, low rhythm accuracy
-		const result = processN(initial, 25, 0.70, 0.95, 0.40);
-
-		// Pitch should advance (avg 0.95 >= 0.85 threshold)
-		expect(result.pitchComplexity).toBeGreaterThan(initial.pitchComplexity);
-		// Rhythm stays at 1 (can't retreat below 1, and avg 0.40 < 0.50 threshold)
-		expect(result.rhythmComplexity).toBe(1);
-	});
-
-	it('cooldown prevents rapid level changes', () => {
-		const initial = createInitialAdaptiveState();
-
-		// 10 good attempts — triggers first advancement (cooldown resets to 0)
-		let state = processN(initial, 10, 0.95, 0.95, 0.95);
-		const levelAfterAdvance = state.currentLevel;
-		const pitchAfterAdvance = state.pitchComplexity;
-		const rhythmAfterAdvance = state.rhythmComplexity;
-		expect(levelAfterAdvance).toBeGreaterThan(1);
-
-		// Immediately send 5 bad attempts — not enough to pass the 10-attempt cooldown
-		state = processN(state, 5, 0.20, 0.20, 0.20);
-
-		// Complexity should NOT have retreated because cooldown hasn't elapsed
-		expect(state.pitchComplexity).toBe(pitchAfterAdvance);
-		expect(state.rhythmComplexity).toBe(rhythmAfterAdvance);
-	});
-
-	it('getAdaptiveSummary returns human-readable string', () => {
-		let state = createInitialAdaptiveState();
-		state = processN(state, 5, 0.80, 0.85, 0.75);
-
-		const summary = getAdaptiveSummary(state);
-		expect(typeof summary).toBe('string');
-		expect(summary.length).toBeGreaterThan(0);
-		expect(summary).toContain('Pitch');
-		expect(summary).toContain('Rhythm');
-		// Should include the percentage
-		expect(summary).toMatch(/\d+%/);
-	});
-
-	it('window size is 25', () => {
-		expect(WINDOW_SIZE).toBe(25);
-	});
-
-	it('high pitch + low rhythm diverges complexity dimensions', () => {
-		let state: AdaptiveState = {
-			...createInitialAdaptiveState(),
-			currentLevel: 10,
-			pitchComplexity: 10,
-			rhythmComplexity: 10
-		};
-
-		// 25 attempts: pitch excels, rhythm struggles
-		state = processN(state, 25, 0.70, 0.95, 0.30);
-
-		expect(state.pitchComplexity).toBeGreaterThan(10);
-		expect(state.rhythmComplexity).toBeLessThan(10);
 	});
 });
 

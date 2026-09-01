@@ -21,9 +21,24 @@
 		key?: PitchClass;
 		/** Major/minor reading of `key` — minor keys spell roots against the relative major's signature. */
 		mode?: Mode;
+		/**
+		 * Beat clock only: no "Changes" label and no chord names — the host draws
+		 * the chords itself (a lead-sheet row engraves them above the staff) and
+		 * keeps this strip for the beat dots and the cell progress bar.
+		 */
+		dotsOnly?: boolean;
 	}
 
-	let { harmony, currentBeat, timeSignature, isPlaying, instrument, key, mode = 'major' }: Props = $props();
+	let {
+		harmony,
+		currentBeat,
+		timeSignature,
+		isPlaying,
+		instrument,
+		key,
+		mode = 'major',
+		dotsOnly = false
+	}: Props = $props();
 
 	function displayRoot(root: PitchClass): string {
 		const written = instrument ? concertKeyToWritten(root, instrument) : root;
@@ -73,8 +88,10 @@
 	});
 </script>
 
-<div class="chord-chart flex flex-col gap-0">
-	<div class="smallcaps mb-1 text-[var(--color-brass)]">Changes</div>
+<div class="chord-chart flex flex-col gap-0" class:dots-only={dotsOnly}>
+	{#if !dotsOnly}
+		<div class="smallcaps mb-1 text-[var(--color-brass)]">Changes</div>
+	{/if}
 	<!-- One structural row, never wrapped: the host (UpcomingKeysDisplay)
 	     sizes each key row to exactly one chart row, so a second row could
 	     only overflow it and paint over the key below. Long windows get
@@ -86,7 +103,7 @@
 			{@const numBeats = Math.round(cell.durationBeats)}
 			{@const parts = cellParts(cell.segmentIndex)}
 			<div
-				class="relative flex flex-col items-center justify-center border border-[var(--color-bg-tertiary)] px-3 py-5
+				class="relative flex flex-col items-center justify-center border border-[var(--color-bg-tertiary)] px-3 {dotsOnly ? 'py-1.5' : 'py-5'}
 					   {isActive ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]' : ''}
 					   {isPast ? 'opacity-40' : ''}"
 				style="flex: {cell.widthWeight}"
@@ -94,6 +111,7 @@
 				<span
 					class="chord-symbol text-2xl tracking-tight transition-colors
 						   {isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}"
+					class:sr-only={dotsOnly}
 					title={cellSymbol(cell.segmentIndex)}
 					aria-label={cellSymbol(cell.segmentIndex)}
 				>
@@ -119,7 +137,7 @@
 				</span>
 
 				<!-- Beat dots — one per actual beat in this cell -->
-				<div class="mt-2 flex gap-1.5">
+				<div class="flex gap-1.5 {dotsOnly ? '' : 'mt-2'}">
 					{#each Array(numBeats) as _, b}
 						{@const isBeatActive = isActive && b === beatInCell}
 						<div

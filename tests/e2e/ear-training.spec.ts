@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { test, expect, type ConsoleCollector } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
-import { installAudioMock } from './fixtures/audio';
+import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 /**
  * Regression: clicking the start button twice in quick succession used to
@@ -39,6 +39,9 @@ test.describe('ear-training: double-start guard', () => {
 
 		await seedOnboardedAnonymous(page);
 		await installAudioMock(page);
+		// Flow test, never asserts audible output: serve the piano/sax samples
+		// locally so a CDN CORS hiccup can't fail it (see fixtures/audio.ts).
+		await stubCdnInstrumentSamples(page);
 
 		await page.addInitScript((): void => {
 			(window as unknown as { __gumCount: number }).__gumCount = 0;
@@ -110,6 +113,9 @@ test.describe('ear-training: practice-time counter', () => {
 	}): Promise<void> => {
 		await seedOnboardedAnonymous(page);
 		await installAudioMock(page);
+		// Flow test, never asserts audible output: serve the piano/sax samples
+		// locally so a CDN CORS hiccup can't fail it (see fixtures/audio.ts).
+		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/ear-training', { waitUntil: 'networkidle' });
 		await expect(page.locator('main')).toBeVisible();

@@ -21,6 +21,26 @@ const SEEDED_PROGRESS = {
 };
 
 /**
+ * The same seed with a sub-floor rolling score on C — a key the player has
+ * been failing. The session shows that key's sheet music while its rolling
+ * score is under the floor (`getNotationReveal`), so with this seed the
+ * panel is up from the first row. `lick-practice-next-steps.ts` never reads
+ * `rollingScore`, so the report's Drill CTA below is unaffected.
+ */
+const SUB_FLOOR_PROGRESS = {
+	'lick-practice-progress': {
+		'e2e-user-lick-bebop': {
+			C: {
+				currentTempo: FAST_TEMPO,
+				lastPracticedAt: 1754000000000,
+				passCount: 0,
+				rollingScore: 0.5
+			}
+		}
+	}
+};
+
+/**
  * Full lick-practice session flow.
  *
  * Seeds one practice-tagged lick (`practice` + `prog:ii-V-I-major` in the
@@ -60,7 +80,7 @@ test.describe('lick-practice session flow', () => {
 		await seedUserLicks(page);
 		await seedStorage(page, {
 			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
-			...SEEDED_PROGRESS
+			...SUB_FLOOR_PROGRESS
 		});
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
@@ -78,6 +98,16 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible({
 			timeout: 20_000
 		});
+
+		// The seeded key is under the floor, so its row in the stack is a
+		// lead-sheet system — chords engraved above the staff — from the first
+		// paint, through the demo and the user window alike.
+		const reveal = page.getByTestId('lead-sheet-row');
+		await expect(reveal).toBeVisible({ timeout: 20_000 });
+		await expect(reveal.locator('.abcjs-container svg .abcjs-notehead').first()).toBeVisible({
+			timeout: 10_000
+		});
+		await expect(reveal.locator('.abcjs-container svg text.abcjs-chord').first()).toBeVisible();
 
 		// Tempo UI: the progress ring centers on the current tempo, resolved
 		// from the seeded key-C progress (the slowest stored key tempo).
@@ -191,6 +221,10 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.locator('.phase-tab[data-kind^="listen"]')).toBeVisible({
 			timeout: 90_000
 		});
+		// No rolling score is seeded, so the key has never been attempted and
+		// cycle 1 is by ear: chord blocks only, no lead-sheet row.
+		const reveal = page.getByTestId('lead-sheet-row');
+		await expect(reveal).toHaveCount(0);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 30_000 });
 		await expect(page.locator('.phase-tab[data-kind="play"]')).toBeVisible({ timeout: 10_000 });
 
@@ -200,11 +234,23 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.locator('.chart-wrap.recording')).toBeHidden({ timeout: 60_000 });
 		await expect(page.locator('.score-flash')).toBeVisible({ timeout: 10_000 });
 
+		// The silent attempt scored 0, so the key's rolling score is now under
+		// the floor and the boundary rebuilt the stack with it: the row is a
+		// lead-sheet system for the turnaround and the cycle-2 demo — an
+		// engraved staff (abcjs noteheads) with the changes above it.
+		await expect(reveal).toBeVisible({ timeout: 10_000 });
+		await expect(reveal.locator('.abcjs-container svg .abcjs-notehead').first()).toBeVisible({
+			timeout: 10_000
+		});
+		await expect(reveal.locator('.abcjs-container svg text.abcjs-chord').first()).toBeVisible();
+
 		// The boundary must have scheduled cycle 2 on its own: a new recording
 		// window opens with zero interaction. This is the no-stoppage proof —
 		// under the old flow 2 rest bars + a breather card sat here; under a
 		// boundary regression nothing would ever open again.
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
+		// ...and the sheet stays up through the user's window in that key.
+		await expect(reveal).toBeVisible();
 
 		// Endless by design: still running, no report, no round card.
 		await expect(page.getByRole('heading', { name: /session report/i })).not.toBeVisible();

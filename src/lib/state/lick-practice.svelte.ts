@@ -96,6 +96,7 @@ import {
 import {
 	sortKeysWorstFirst,
 	shouldDemoHeadKey,
+	shouldRevealNotation,
 	deepPracticeStartTempo,
 	nextCycleTempo,
 	focusStartTempo,
@@ -183,6 +184,13 @@ export interface PlannedKey {
 	harmony: HarmonicSegment[];
 	lickName: string;
 	lickId: string;
+	/**
+	 * Does this row show the sheet music? Decided ONCE, when the stack is
+	 * built at lick/cycle start, from the key's persisted rolling score
+	 * (`shouldRevealNotation`) — never re-derived mid-cycle, so a row's
+	 * height cannot change while the stack is scrolling. Trick rows never.
+	 */
+	reveal: boolean;
 }
 
 /**
@@ -1239,7 +1247,8 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 				phrase,
 				harmony: phrase.harmony,
 				lickName: item.phraseName,
-				lickId: item.phraseId
+				lickId: item.phraseId,
+				reveal: revealFor(item, key)
 			};
 		}
 		keyIdx -= item.keys.length;
@@ -1282,10 +1291,45 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 			phrase,
 			harmony: phrase.harmony,
 			lickName: item.phraseName,
-			lickId: item.phraseId
+			lickId: item.phraseId,
+			reveal: revealFor(item, key)
 		});
 	}
 	return result;
+}
+
+/**
+ * Reveal decisions, keyed by the rotation array they were taken for. A
+ * rotation (`item.keys`) is REPLACED — never mutated — whenever it is rebuilt
+ * (plan build, worst-first re-sort, mastered-key drop, refill, ramp
+ * admission), so decisions live exactly one cycle: `recordKeyAttempt` writes
+ * the rolling score before the key advances, and a getter that re-read live
+ * progress would flip a row's notation — and its height — while the stack is
+ * on screen. Session-local; nothing to reset, the arrays are garbage-collected
+ * with the plan.
+ */
+const revealDecisions = new WeakMap<readonly PitchClass[], Map<PitchClass, boolean>>();
+
+/**
+ * Does a row for `key` engrave the sheet music? The key's persisted rolling
+ * score is defined and under the floor (`shouldRevealNotation` — an unknown
+ * score never reveals: the first attempt is by ear), and the item is a lick
+ * (a trick's regenerated figure is drilled for fluency, not read). Decided
+ * once per rotation — see `revealDecisions`.
+ */
+function revealFor(item: LickPracticePlanItem, key: PitchClass): boolean {
+	let decisions = revealDecisions.get(item.keys);
+	if (!decisions) {
+		decisions = new Map();
+		revealDecisions.set(item.keys, decisions);
+	}
+	const cached = decisions.get(key);
+	if (cached !== undefined) return cached;
+	const reveal =
+		item.kind !== 'trick' &&
+		shouldRevealNotation(getRollingScore(lickPractice.progress, item.phraseId, key));
+	decisions.set(key, reveal);
+	return reveal;
 }
 
 /**

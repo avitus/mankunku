@@ -62,7 +62,7 @@ Its takes are deliberately **not written into progress**: no streak, no adaptive
 
 - **The licks are shared.** Side A queries the catalog for variety; Side B picks the specific licks you've tagged in your book.
 - **The daily key** rotates once per day (more on this in [The Daily Key](./tonality-system.md)). Side A defaults to today's key but lets you override; Side B and Tricks ignore the daily pick and run their own per-item key ladders, earning more keys toward the full 12 across successive sessions.
-- **Difficulty** climbs from your performance on Side A and Side B. Pitch complexity and rhythm complexity rise (or fall) on the same scale — see [Levels & Difficulty](./adaptive-difficulty.md).
+- **Difficulty** climbs from your performance on Side A. Per-scale and per-key proficiency rise (or fall) with your accuracy, gating which licks surface and which keys and scales unlock — see [Levels & Difficulty](./adaptive-difficulty.md).
 - **Scoring** shares the machinery: the same forgiving alignment, the same latency correction, the same grade boundaries. Only the weighting differs — a lick is pitch at 60% and rhythm at 40%; a trick is formula-conformance at 70% and rhythm at 30%. The full breakdown is in [How Scoring Works](./scoring-algorithm.md).
 - **Progress and history** roll up across all three drilling modes — your streak counts a Side B or Tricks session the same as a Side A session.
 - **The band is shared** too: Side B, Tricks, and Tune Practice all use the same generated rhythm section, in whichever of the four styles you pick.

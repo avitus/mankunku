@@ -1854,8 +1854,10 @@
 			statusLabel={rampStatusLabel}
 		/>
 
-		<!-- Continuous chord-block scroll: the lick's full key stack drifts
-		     upward at exactly one row per key duration. During the inter-lick
+		<!-- Stepped chord-block stack: the active row holds still for its key
+		     and the stack steps up one row at each key change (a struggling
+		     key's row is a taller lead-sheet system — chords over the staff,
+		     which is why it must not drift). During the inter-lick
 		     score-hold bar the frozen last-key chart cross-fades out and the
 		     breather card fades in over the same reserved space, so nothing
 		     below jumps. -->

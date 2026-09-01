@@ -183,6 +183,56 @@ export function getKeyUnlockRequirements(key: PitchClass): { key: PitchClass; le
 	return KEY_UNLOCK_PREREQUISITES[key];
 }
 
+// ── Next-unlock queries ─────────────────────────────────────────────
+
+export interface NextKeyUnlock {
+	key: PitchClass;
+	requirements: { key: PitchClass; level: number; current: number }[];
+}
+
+export interface NextScaleUnlock {
+	scaleType: ScaleType;
+	requirements: { scaleType: ScaleType; level: number; current: number }[];
+}
+
+/**
+ * The first key in unlock order still locked, with each prerequisite's
+ * required and current proficiency level. Null when all keys are unlocked.
+ */
+export function nextKeyUnlock(ctx: UnlockContext): NextKeyUnlock | null {
+	const key = KEY_UNLOCK_ORDER.find(k => !isKeyUnlocked(k, ctx));
+	if (key === undefined) return null;
+	return {
+		key,
+		requirements: KEY_UNLOCK_PREREQUISITES[key].map(p => ({
+			key: p.key,
+			level: p.level,
+			current: ctx.keyProficiency[p.key]?.level ?? 0
+		}))
+	};
+}
+
+/**
+ * The first scale type in unlock order still locked, with each prerequisite
+ * scale's required and current proficiency level (multi-scale prerequisite
+ * entries flattened to one requirement per scale). Null when all scales are
+ * unlocked.
+ */
+export function nextScaleUnlock(ctx: UnlockContext): NextScaleUnlock | null {
+	const scaleType = SCALE_UNLOCK_ORDER.find(st => !isScaleTypeUnlocked(st, ctx));
+	if (scaleType === undefined) return null;
+	return {
+		scaleType,
+		requirements: SCALE_PREREQUISITES[scaleType].flatMap(p =>
+			p.scales.map(s => ({
+				scaleType: s,
+				level: p.level,
+				current: ctx.scaleProficiency[s]?.level ?? 0
+			}))
+		)
+	};
+}
+
 // ── All tonalities with unlock info ─────────────────────────────────
 
 /** Build the full list of tonalities with their unlock status */

@@ -11,6 +11,8 @@ import {
 	tonalitiesEqual,
 	getScaleUnlockRequirements,
 	getKeyUnlockRequirements,
+	nextKeyUnlock,
+	nextScaleUnlock,
 	KEY_UNLOCK_ORDER,
 	SCALE_UNLOCK_ORDER,
 	SCALE_PREREQUISITES,
@@ -251,6 +253,66 @@ describe('unlock requirement helpers', () => {
 	it('returns correct prereqs for D key', () => {
 		const reqs = getKeyUnlockRequirements('D');
 		expect(reqs).toEqual([{ key: 'G', level: 10 }]);
+	});
+});
+
+describe('next unlock queries', () => {
+	it('new user: next key is G, needing C at 10 (currently 0)', () => {
+		expect(nextKeyUnlock(EMPTY_CTX)).toEqual({
+			key: 'G',
+			requirements: [{ key: 'C', level: 10, current: 0 }]
+		});
+	});
+
+	it('new user: next scale is minor-pentatonic, needing major-pentatonic at 15 (currently 0)', () => {
+		expect(nextScaleUnlock(EMPTY_CTX)).toEqual({
+			scaleType: 'minor-pentatonic',
+			requirements: [{ scaleType: 'major-pentatonic', level: 15, current: 0 }]
+		});
+	});
+
+	it('mid-progress key: reports the first locked key in unlock order with live levels', () => {
+		// C ≥ 10 unlocks G and F; D (needs G ≥ 10) is the frontier.
+		const c = ctx({}, { C: 12, G: 7 });
+		expect(nextKeyUnlock(c)).toEqual({
+			key: 'D',
+			requirements: [{ key: 'G', level: 10, current: 7 }]
+		});
+	});
+
+	it('mid-progress scale: reports the first locked scale in unlock order with live levels', () => {
+		// Unlocked: major-pent, minor-pent, major, blues, dorian, minor.
+		// Mixolydian (needs major ≥ 20) is the frontier at major = 18.
+		const c = ctx({ 'major-pentatonic': 15, 'minor-pentatonic': 20, major: 18, dorian: 25 });
+		expect(nextScaleUnlock(c)).toEqual({
+			scaleType: 'mixolydian',
+			requirements: [{ scaleType: 'major', level: 20, current: 18 }]
+		});
+	});
+
+	it('flattens multi-prerequisite scales into one requirement per scale', () => {
+		// Everything through lydian unlocked; melodic-minor needs major ≥ 30 AND minor ≥ 25.
+		const c = ctx({
+			'major-pentatonic': 15, 'minor-pentatonic': 20,
+			major: 25, dorian: 25, minor: 25
+		});
+		expect(nextScaleUnlock(c)).toEqual({
+			scaleType: 'melodic-minor',
+			requirements: [
+				{ scaleType: 'major', level: 30, current: 25 },
+				{ scaleType: 'minor', level: 25, current: 25 }
+			]
+		});
+	});
+
+	it('returns null when every key is unlocked', () => {
+		const keys = Object.fromEntries(KEY_UNLOCK_ORDER.map(k => [k, 15]));
+		expect(nextKeyUnlock(ctx({}, keys))).toBeNull();
+	});
+
+	it('returns null when every scale is unlocked', () => {
+		const scales = Object.fromEntries(SCALE_UNLOCK_ORDER.map(s => [s, 40]));
+		expect(nextScaleUnlock(ctx(scales))).toBeNull();
 	});
 });
 

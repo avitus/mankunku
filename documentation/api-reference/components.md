@@ -94,6 +94,9 @@ Renders either a single-phrase staff or a full multi-system tune chart, using [a
 | `onBarClick` | `(pos: { sectionIdx, bar }) => void` | Fires on a bar's empty space, a rest, or a chord symbol; enables the per-bar hit rects |
 | `chordEditor` | `{ textAt, commit, clear }` | Inline on-chart chord editing. Enables per-beat hit rects above the staff; `commit` returning `false` flashes the input and keeps it open, blank input calls `clear` |
 | `titleArea` | `Snippet` | Custom header rendered above the staff |
+| `tuneOptions` | `TuneAbcOptions?` | Engraving options for the `tune` path — `mode` (minor prints `K:Dm` and the relative major's signature), `barsPerLine`, `stretchLast`, `measureNumbers` |
+| `frameless` | `boolean?` | No chrome: drops the "Chart" liner, padding and panel background so the staff sits inside a host that owns its own frame (the lick-practice key stack) |
+| `staffWidth` | `number?` | abcjs staff width in SVG units (default `CHART_STAFF_WIDTH`); a host that sizes the SVG by height asks for a wider staff so one system spans its row |
 
 **Behavior:**
 - Lazy-loads `abcjs` on mount.
@@ -293,6 +296,7 @@ Chord chart for the current progression, with the active cell highlighted in tim
 | `instrument` | `InstrumentConfig?` | Transposes chord roots to written pitch when provided |
 | `key` | `PitchClass?` | Concert-pitch key, drives sharp/flat chord spelling |
 | `mode` | `Mode?` | Major/minor reading of `key` — minor keys spell roots against the relative major's signature. Default `'major'`. |
+| `dotsOnly` | `boolean?` | Beat clock only: no "Changes" label and no chord names (kept for assistive tech) — the lead-sheet row engraves the chords above its staff and keeps this strip for the beat dots and cell progress |
 
 Each cell prints its symbol MuseScore-Jazz style (`chordChartSymbol` in `ui/chord-chart-layout.ts` → `layoutChordParts`): root + quality on the baseline and alterations as a raised column to the right — "A7" with "b9" above-right for the minor templates' V — with the flat text ("A7b9") as the cell's `title`/`aria-label`.
 
@@ -300,7 +304,9 @@ Each cell prints its symbol MuseScore-Jazz style (`chordChartSymbol` in `ui/chor
 
 **Path:** `src/lib/components/lick-practice/UpcomingKeysDisplay.svelte`
 
-Scrolling preview strip showing the current, next, and upcoming key chord charts. Scrolls continuously in sync with transport position. Row key labels read in each planned phrase's mode (`keyLabel(written, lickMode(pk.phrase))` — "Dm" on a minor drill) and the embedded `ChordChart` gets the same `mode`.
+Stepped preview strip showing the previous, current, and upcoming key chord charts. The current row holds one slot below the top for its whole key (the just-played row and its score flash stay visible above it) and the stack steps by that row's height at each key change, eased by a CSS transition — it never drifts, because an engraved staff crawling a pixel per frame strobes. Row key labels read in each planned phrase's mode (`keyLabel(written, lickMode(pk.phrase))` — "Dm" on a minor drill) and the embedded `ChordChart` gets the same `mode`.
+
+A row whose `PlannedKey.reveal` is set (the key's rolling score is under the floor) renders as a **lead-sheet row** (`data-testid="lead-sheet-row"`): `leadSheetTuneFor` (`music/lead-sheet.ts`) wraps the row's phrase as a one-section Tune for `NotationDisplay` (`frameless`, `staffWidth` 1000, `tuneOptions` from `leadSheetAbcOptions` — the phrase's mode, one stretched system, no bar number), the note at the current beat lit via `cursorIndex` (`noteIndexAtBeat`, `music/beat-cursor.ts`), and a `dotsOnly` `ChordChart` beneath as the beat strip — no caption, by decision. Lead sheets are built once per stack so abcjs engraves each row once. Rows are fixed heights (105 px chord row, 178 px lead row; the staff box is clipped) and `keyStackLayout` (`ui/key-stack-layout.ts`) holds the active row one slot below the top for mixed heights and reserves the viewport for two tall rows so the ring below never moves.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -309,7 +315,7 @@ Scrolling preview strip showing the current, next, and upcoming key chord charts
 | `currentBeat` | `number` | Active beat in the currently-playing key |
 | `isPlaying` | `boolean` | Session running |
 | `isRecording` | `boolean` | Current key's recording window is open |
-| `cue` | `PhaseCue?` | Drives the phase tab on the active row (brass LISTEN / on-air PLAY with countdown + entry key / "Straight in" turnaround). Omit for no tab |
+| `cue` | `PhaseCue?` | Drives the phase tab on the active row (LISTEN in on-air red / PLAY in brass — the `--color-phase-*` aliases — with countdown + entry key / "Straight in" turnaround). Omit for no tab |
 | `isArming` | `boolean?` | Lead-in bar before the recording window — dashes the active row's ring |
 | `scoreFlash` | `{ key, score, at }?` | Tier-colored score chip flashed on the matching key's row |
 | `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
@@ -318,7 +324,7 @@ Scrolling preview strip showing the current, next, and upcoming key chord charts
 
 **Path:** `src/lib/components/lick-practice/PhaseCueBar.svelte`
 
-Standalone listen/play cue pill: a lamp, a speaker/microphone glyph, the phase label (*Count in* / *Listen* / *Play* / *Rest*), and a countdown during the lead-in bar. During a countdown into `listen`/`play` the bar tints toward its incoming phase (`--arm` strength `(5 − countdown)/5`, ramping across the 4-beat lead-in bar to 4/5 on the final beat) so the switch is felt before it is read; counting into a rest is deliberately not announced. Used by the cue-preview dev route and the record-a-lick page (`/licks/record`), where it carries the whole count-in → *Play in 4…1* → on-air sequence; the lick-practice session renders the same `PhaseCue` data as a tab pinned to the active `UpcomingKeysDisplay` row instead.
+Standalone listen/play cue pill: a lamp, a speaker/microphone glyph, the phase label (*Count in* / *Listen* / *Play* / *Rest*), and a countdown during the lead-in bar. During a countdown into `listen`/`play` the bar tints toward its incoming phase (`--arm` strength `(5 − countdown)/5`, ramping across the 4-beat lead-in bar to 4/5 on the final beat) so the switch is felt before it is read; counting into a rest is deliberately not announced. Used by the cue-preview dev route and the record-a-lick page (`/licks/record`), where it carries the whole count-in → *Play in 4…1* → live-mic sequence (count-in and *Listen* in the listen-phase red, *Play* in the play-phase brass); the lick-practice session renders the same `PhaseCue` data as a tab pinned to the active `UpcomingKeysDisplay` row instead.
 
 | Prop | Type | Description |
 |---|---|---|

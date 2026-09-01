@@ -211,17 +211,17 @@ it('returns 0.0 for wrong MIDI note', () => {
 });
 ```
 
-### Testing Adaptive Difficulty
+### Testing Proficiency Advancement
 
 ```typescript
-import { createInitialAdaptiveState, processAttempt } from '$lib/difficulty/adaptive.ts';
+import { createInitialScaleProficiency, processScaleAttempt } from '$lib/difficulty/adaptive.ts';
 
 it('advances after consistent high scores', () => {
-  let state = createInitialAdaptiveState();
-  for (let i = 0; i < 10; i++) {
-    state = processAttempt(state, 0.90, 0.90, 0.90);
+  let state = createInitialScaleProficiency();
+  for (let i = 0; i < 11; i++) {
+    state = processScaleAttempt(state, 0.90);
   }
-  expect(state.currentLevel).toBeGreaterThan(1);
+  expect(state.level).toBeGreaterThan(1);
 });
 ```
 

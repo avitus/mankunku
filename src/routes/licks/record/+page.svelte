@@ -484,7 +484,7 @@
 				{#if pitchName}
 					<div
 						class="font-display text-5xl font-bold
-							{phaseCue.phase === 'play' ? 'text-[var(--color-onair)]' : 'text-[var(--color-text)]'}"
+							{phaseCue.phase === 'play' ? 'text-[var(--color-phase-play)]' : 'text-[var(--color-text)]'}"
 					>
 						{pitchName}
 					</div>
@@ -494,7 +494,7 @@
 					</div>
 				{/if}
 				{#if phaseCue.phase === 'play'}
-					<p class="mt-2 text-sm italic text-[var(--color-onair)]">On tape&hellip;</p>
+					<p class="mt-2 text-sm italic text-[var(--color-phase-play)]">On tape&hellip;</p>
 				{:else}
 					<p class="mt-2 text-sm italic text-[var(--color-text-secondary)]">
 						Two-bar count-in &mdash; come in on the downbeat
@@ -539,7 +539,7 @@
 	/* Lead-in: same ring the live take gets, dashed and dimmed — the stop
 	   button is marked as the arming target through the countdown bar. */
 	button.arming {
-		outline: 2px dashed color-mix(in srgb, var(--color-onair) 55%, transparent);
+		outline: 2px dashed color-mix(in srgb, var(--color-phase-play) 55%, transparent);
 		outline-offset: 4px;
 	}
 </style>

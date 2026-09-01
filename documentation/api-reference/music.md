@@ -164,6 +164,22 @@ Returns all pitch classes in a scale.
 
 ---
 
+## lead-sheet.ts
+
+### `leadSheetTuneFor(phrase, maxBars = LEAD_SHEET_MAX_BARS): { tune, startBar, bars }`
+
+A lick as a one-system lead sheet for the lick-practice key stack: wraps the phrase as a single unlabelled, untitled `Tune` section (a phrase is one section, so offsets drop in unchanged) so `tuneToAbc` engraves chords above the staff and slashes melody-silent bars. Long cycles (a 12-bar blues under a 2-bar lick) are windowed to the bars the melody occupies, capped at `maxBars` (4) from its first bar, with notes rebased and harmony clipped to the window.
+
+### `leadSheetAbcOptions(phrase, bars): TuneAbcOptions`
+
+The row's engraving options: `mode: lickMode(phrase)`, `barsPerLine: bars` (one system), `stretchLast: true`, `measureNumbers: false`. These three options were added to `TuneAbcOptions` (`tune-notation.ts`) for this; every default is unchanged, so the tune goldens stay byte-identical.
+
+## beat-cursor.ts
+
+### `noteIndexAtBeat(notes, beat, timeSignature): number | null`
+
+Index of the note sounding at a beat position (started, not yet ended); null before the first note, during a rest, for a negative (parked) beat, or an empty phrase. Drives the lead-sheet row's `cursorIndex`.
+
 ## notation.ts
 
 ABC notation generation from `Phrase` data. Used by `NotationDisplay.svelte` to render sheet music via [abcjs](https://paulrosen.github.io/abcjs/).
@@ -250,8 +266,15 @@ Render a full song form: chord symbols above the staff, section letters, repeat 
 interface TuneAbcOptions {
   defaultLength?: Fraction;   // ABC L: field
   barsPerLine?: number;       // Bars per system before a line break
+  mode?: Mode;                // How to read sheet.key: 'minor' draws the relative
+                              // major's signature and prints K:Dm (default 'major')
+  stretchLast?: boolean;      // Stretch the last system to the full staff width
+                              // (default false — short systems stay short)
+  measureNumbers?: boolean;   // Measure number at each system start (default true)
 }
 ```
+
+`mode`, `stretchLast` and `measureNumbers` were added for the lick-practice lead-sheet row (`lead-sheet.ts`); every default is unchanged, so existing output is byte-identical.
 
 The chart is emitted as two voices: **M** (melody) and **H** (the chord line). Any `"` or control character in an imported `HarmonicSegment.symbol` is stripped before emission — ABC delimits chord annotations with double quotes, so a raw imported symbol containing one would break the whole voice-line's parse. Legitimate chord text never contains them, so this is lossless in practice.
 

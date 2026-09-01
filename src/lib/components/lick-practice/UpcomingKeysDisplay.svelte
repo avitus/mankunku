@@ -1,6 +1,10 @@
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
+	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
+	import { keyStackLayout } from '$lib/ui/key-stack-layout';
+	import { noteIndexAtBeat } from '$lib/music/beat-cursor';
+	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
 	import { phaseTabView, PHASE_LEAD_BEATS, type PhaseCue } from '$lib/state/lick-practice-phase';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { keyLabel } from '$lib/music/notation';
@@ -25,10 +29,11 @@
 		/** True while the current key's recording window is open. */
 		isRecording: boolean;
 		/**
-		 * Listen/play cue for the phase tab pinned to the active row: brass
-		 * LISTEN while the app plays, on-air PLAY (with a countdown and the
-		 * entry key) while the user does, "Straight in" through a turnaround
-		 * that opens with no demo. Omit to render no tab.
+		 * Listen/play cue for the phase tab pinned to the active row: LISTEN
+		 * (in the on-air red — red reads as "stop", i.e. don't play yet) while
+		 * the app plays, PLAY (in brass, with a countdown and the entry key)
+		 * while the user does, "Straight in" through a turnaround that opens
+		 * with no demo. Omit to render no tab.
 		 */
 		cue?: PhaseCue | null;
 		/**
@@ -60,24 +65,41 @@
 		instrument
 	}: Props = $props();
 
-	// Each row is a fixed pixel height so the scroll math is simple.
-	// Tuned to fit a single chord-chart row + padding.
+	// Rows are fixed pixel heights so the scroll math is pure: one
+	// chord-chart row, or the taller lead-sheet row a struggling key gets
+	// (staff with chords above it, the beat strip and a caption beneath).
 	const ROW_HEIGHT = 105;
+	// Lead-sheet row budget: row padding 12 + tab clearance 26 + staff 110 +
+	// beat strip 22 + slack. The staff box is clipped to its height so the
+	// row can never overflow into the next one. No caption: the engraving
+	// itself is the message, and a line of prose under it was clutter.
+	const LEAD_ROW_HEIGHT = 178;
+	const LEAD_STAFF_WIDTH = 1000;
 	const VISIBLE_ROWS = 3;
 
-	// One-row offset so the current key starts at viewport row 1 (one row
-	// down from the top) and finishes its duration at viewport row 0. This
-	// guarantees the chart for the active key is fully visible throughout
-	// its entire duration — the previous key sits above it, sliding out
-	// as the current key slides up. At session start, viewport row 0 is
-	// empty until the first key boundary populates it with key 0.
-	const translateYpx = $derived(
-		(1 - Math.max(0, scrollFraction)) * ROW_HEIGHT
-	);
-	const visualCurrentRow = $derived(
-		Math.min(plannedKeys.length - 1, Math.max(0, Math.floor(scrollFraction)))
-	);
+	// The current key HOLDS one slot below the top for its whole duration —
+	// the previous row (and its score flash) fully visible above it — and the
+	// stack steps one row at each key change, eased by the CSS transition on
+	// `.stack`. It does not drift: a staff crawling upward a pixel per frame
+	// strobes. `keyStackLayout` owns the math for mixed heights. At session
+	// start, the slot above row 0 is empty until the first key boundary
+	// populates it.
+	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
+	const layout = $derived(keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS));
+	const translateYpx = $derived(layout.translateY);
+	const visualCurrentRow = $derived(layout.currentRow);
 
+	// Lead sheets are built ONCE per stack (plannedKeys is set at lick/cycle
+	// start), so each revealed row hands NotationDisplay the same tune and
+	// options objects for its whole life — abcjs re-engraves on identity, and
+	// a per-frame rebuild would redraw the staff sixty times a second.
+	const leadSheets = $derived(
+		plannedKeys.map((pk) => {
+			if (!pk.reveal) return null;
+			const sheet = leadSheetTuneFor(pk.phrase);
+			return { ...sheet, options: leadSheetAbcOptions(pk.phrase, sheet.bars) };
+		})
+	);
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
 	const activeKeyLabel = $derived.by(() => {
@@ -99,14 +121,15 @@
 	{tab && tab.kind !== 'hidden' ? tab.text : ''}
 </span>
 
-<div class="viewport" style="height: {ROW_HEIGHT * VISIBLE_ROWS}px;">
+<div class="viewport" style="height: {layout.viewportHeight}px;">
 	<div class="stack" style="transform: translateY({translateYpx}px);">
 		{#each plannedKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
 			{@const isCurrent = i === visualCurrentRow}
+			{@const sheet = leadSheets[i]}
 			<div
 				class="row"
 				class:current={isCurrent}
-				style="height: {ROW_HEIGHT}px;"
+				style="height: {rowHeights[i]}px;"
 			>
 				{#if i === 0}
 				<div class="row-label">
@@ -122,15 +145,51 @@
 					class:recording={isCurrent && isRecording}
 					class:arming={isCurrent && isArming && !isRecording}
 				>
-					<ChordChart
-						harmony={pk.harmony}
-						currentBeat={isCurrent ? currentBeat : 0}
-						timeSignature={[4, 4]}
-						isPlaying={isCurrent && isPlaying}
-						key={pk.key}
-						mode={lickMode(pk.phrase)}
-						{instrument}
-					/>
+					{#if sheet}
+						<!-- Lead-sheet row: the key is under the floor, so the line is
+						     engraved against its changes — chords above the staff, one
+						     full-width system — with the beat strip beneath. The cursor
+						     lights the note the band is at. No caption by decision: the
+						     engraving is the message. -->
+						{@const beatsPerBar = pk.phrase.timeSignature[0]}
+						{@const cursor = isCurrent
+							? noteIndexAtBeat(
+									sheet.tune.sections[0].notes,
+									currentBeat - sheet.startBar * beatsPerBar,
+									pk.phrase.timeSignature
+								)
+							: null}
+						<div class="lead-sheet" data-testid="lead-sheet-row">
+							<NotationDisplay
+								tune={sheet.tune}
+								tuneOptions={sheet.options}
+								{instrument}
+								frameless
+								staffWidth={LEAD_STAFF_WIDTH}
+								cursorIndex={cursor}
+							/>
+						</div>
+						<ChordChart
+							harmony={pk.harmony}
+							currentBeat={isCurrent ? currentBeat : 0}
+							timeSignature={[4, 4]}
+							isPlaying={isCurrent && isPlaying}
+							key={pk.key}
+							mode={lickMode(pk.phrase)}
+							{instrument}
+							dotsOnly
+						/>
+					{:else}
+						<ChordChart
+							harmony={pk.harmony}
+							currentBeat={isCurrent ? currentBeat : 0}
+							timeSignature={[4, 4]}
+							isPlaying={isCurrent && isPlaying}
+							key={pk.key}
+							mode={lickMode(pk.phrase)}
+							{instrument}
+						/>
+					{/if}
 					{#if scoreFlash && scoreFlash.key === pk.key}
 						{@const tier = accuracyTierInfo(scoreFlash.score)}
 						{#key scoreFlash.at}
@@ -197,6 +256,9 @@
 		display: flex;
 		flex-direction: column;
 		will-change: transform;
+		/* One eased step per key change; the rest of the time the stack is
+		   perfectly still so the staff can be read. */
+		transition: transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
 	}
 	.row {
 		position: relative;
@@ -211,16 +273,37 @@
 		position: relative;
 		border-radius: 0.5rem;
 	}
-	/* Live mic — the recording-booth red the rest of the app uses for "on air". */
+	/* Live mic — the play-phase colour (brass): it is the user's turn. */
 	.chart-wrap.recording {
-		box-shadow: 0 0 0 2px var(--color-onair);
+		box-shadow: 0 0 0 2px var(--color-phase-play);
 	}
 	/* Lead-in: same ring, dashed and dimmed, so the row the user is about to
 	   play is already marked a bar before the switch. */
 	.chart-wrap.arming {
-		outline: 2px dashed color-mix(in srgb, var(--color-onair) 55%, transparent);
+		outline: 2px dashed color-mix(in srgb, var(--color-phase-play) 55%, transparent);
 		outline-offset: 0;
 	}
+	/* Lead-sheet row: the staff is sized by HEIGHT so the row's pixel height
+	   is fixed for the scroll math; a wide staff (LEAD_STAFF_WIDTH) makes the
+	   single system span the row at that height, and on a narrow screen the
+	   width cap letterboxes it smaller rather than taller. The box is clipped
+	   so nothing can spill into the next row. The top padding keeps the phase
+	   tab (pinned to the chart-wrap corner) off the clef and key signature.
+	   abcjs's responsive mode sets the SVG to 100% width inline, hence the
+	   !important. */
+	.lead-sheet {
+		box-sizing: border-box;
+		height: 136px;
+		padding: 26px 0.25rem 0;
+		overflow: hidden;
+	}
+	.lead-sheet :global(svg) {
+		display: block;
+		height: 110px !important;
+		width: auto !important;
+		max-width: 100%;
+	}
+
 	/* Transient per-key score chip: fades in over the just-scored row, holds,
 	   fades out — sized and placed to never obscure the chord boxes' text. */
 	.score-flash {
@@ -266,9 +349,11 @@
 		color: var(--color-text-secondary);
 	}
 
-	/* Phase tab — the listen/play booth sign pinned to the active row. Brass
-	   is the band's colour (the app playing), on-air red is the live mic; the
-	   solid background is deliberate so the tab owns its corner of the chart. */
+	/* Phase tab — the listen/play booth sign pinned to the active row. The
+	   phase tokens decide the colours (app.css): LISTEN in on-air red — red
+	   reads as "stop", so it marks the phase in which the user must not play —
+	   and PLAY in brass, the user's turn. The solid background is deliberate
+	   so the tab owns its corner of the chart. */
 	.phase-tab {
 		position: absolute;
 		top: 0;
@@ -303,39 +388,39 @@
 	}
 	.phase-tab[data-kind='listen'],
 	.phase-tab[data-kind='listen-in'] {
-		color: color-mix(in srgb, var(--color-brass) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-brass) 16%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-brass) 40%, transparent);
+		color: color-mix(in srgb, var(--color-phase-listen) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-listen) 16%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-listen) 40%, transparent);
 	}
 	.phase-tab[data-kind='play-in'] {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-onair) 10%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-onair) 40%, transparent);
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-play) 10%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-play) 40%, transparent);
 	}
 	.phase-tab[data-kind='play-in']::before {
-		background: color-mix(in srgb, var(--color-onair) 22%, transparent);
+		background: color-mix(in srgb, var(--color-phase-play) 22%, transparent);
 		opacity: var(--arm);
 	}
 	.phase-tab[data-kind='play'] {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-onair) 50%, transparent);
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-play) 18%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-play) 50%, transparent);
 	}
 	.tab-lamp {
 		flex: none;
 		width: 7px;
 		height: 7px;
 		border-radius: 999px;
-		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
+		background: color-mix(in srgb, var(--color-phase-play) 18%, var(--color-bg));
 		box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.6);
 		transition:
 			background-color 150ms ease,
 			box-shadow 150ms ease;
 	}
 	.tab-lamp.lit {
-		background: var(--color-onair);
+		background: var(--color-phase-play);
 		box-shadow:
-			0 0 6px color-mix(in srgb, var(--color-onair) 80%, transparent),
+			0 0 6px color-mix(in srgb, var(--color-phase-play) 80%, transparent),
 			inset 0 0 1px rgba(255, 255, 255, 0.4);
 	}
 	.tab-glyph {
@@ -365,6 +450,7 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
+		.stack,
 		.phase-tab,
 		.phase-tab::before,
 		.tab-lamp {

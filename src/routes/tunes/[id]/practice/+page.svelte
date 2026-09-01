@@ -984,15 +984,15 @@
 					{#if tunePractice.phase === 'count-in'}
 						Count-in…
 					{:else if tunePractice.phase === 'head'}
-						<span class="font-medium text-[var(--color-brass)]">Head</span> — melody once
+						<span class="font-medium text-[var(--color-phase-listen)]">Head</span> — melody once
 						through, then it's yours
 					{:else if tunePractice.config.mode === 'freestyle'}
-						<span class="font-medium text-[var(--color-brass)]">Your solo</span> —
+						<span class="font-medium text-[var(--color-phase-play)]">Your solo</span> —
 						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
 							? ''
 							: 's'} heard
 					{:else if tunePractice.windowOpen}
-						<span class="font-medium text-[var(--color-onair)]">Your turn — play the lick!</span>
+						<span class="font-medium text-[var(--color-phase-play)]">Your turn — play the lick!</span>
 					{:else}
 						Comping — insertion {Math.min(tunePractice.currentIndex + 1, tunePractice.plan.length)}
 						of {tunePractice.plan.length} coming up

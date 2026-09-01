@@ -101,30 +101,33 @@
 	.cue > * {
 		position: relative;
 	}
-	/* "Your turn" reads in the recording-booth red the rest of the app uses
-	   for a live mic; everything else stays quiet chrome. The TEXT is pulled
+	/* "Your turn" reads in the play-phase colour (brass), "Listen" and the
+	   count-in in the listen-phase colour (on-air red — red reads as "stop",
+	   i.e. don't play yet); the rest stays quiet chrome. The TEXT is pulled
 	   toward --color-text so it clears 4.5:1 on its own tinted background in
-	   both themes — the pure token is tuned for fills, not small type. */
+	   both themes — the pure tokens are tuned for fills, not small type. */
 	.cue[data-phase='play'] {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-onair) 12%, transparent);
-		border-color: color-mix(in srgb, var(--color-onair) 35%, transparent);
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-play) 12%, transparent);
+		border-color: color-mix(in srgb, var(--color-phase-play) 35%, transparent);
 	}
 	.cue[data-phase='listen'],
 	.cue[data-phase='count-in'] {
-		color: var(--color-text-secondary);
+		color: color-mix(in srgb, var(--color-phase-listen) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-listen) 12%, transparent);
+		border-color: color-mix(in srgb, var(--color-phase-listen) 35%, transparent);
 	}
 	/* Lead-in: the wash deepens over the four beats before the switch, so the
 	   change is felt a bar early rather than read a beat late. */
 	.cue[data-lead='play']::before {
-		background: color-mix(in srgb, var(--color-onair) 22%, transparent);
+		background: color-mix(in srgb, var(--color-phase-play) 22%, transparent);
 		opacity: var(--arm);
 	}
 	.cue[data-lead='play'] {
-		border-color: color-mix(in srgb, var(--color-onair) 30%, transparent);
+		border-color: color-mix(in srgb, var(--color-phase-play) 30%, transparent);
 	}
 	.cue[data-lead='listen']::before {
-		background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+		background: color-mix(in srgb, var(--color-phase-listen) 22%, transparent);
 		opacity: var(--arm);
 	}
 
@@ -133,16 +136,16 @@
 		width: 7px;
 		height: 7px;
 		border-radius: 999px;
-		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
+		background: color-mix(in srgb, var(--color-phase-play) 18%, var(--color-bg));
 		box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.6);
 		transition:
 			background-color 150ms ease,
 			box-shadow 150ms ease;
 	}
 	.lamp.lit {
-		background: var(--color-onair);
+		background: var(--color-phase-play);
 		box-shadow:
-			0 0 6px color-mix(in srgb, var(--color-onair) 80%, transparent),
+			0 0 6px color-mix(in srgb, var(--color-phase-play) 80%, transparent),
 			inset 0 0 1px rgba(255, 255, 255, 0.4);
 	}
 
@@ -169,7 +172,7 @@
 	}
 	.cue[data-lead='play'] .lead-word,
 	.cue[data-lead='play'] .lead-count {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
 	}
 	.lead-count {
 		display: inline-block;

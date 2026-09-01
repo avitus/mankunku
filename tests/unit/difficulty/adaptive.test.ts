@@ -1,41 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import {
 	createInitialAdaptiveState,
-	processAttempt,
-	getAdaptiveSummary,
 	createInitialScaleProficiency,
 	createInitialKeyProficiency,
 	processScaleAttempt,
-	processKeyAttempt,
-	WINDOW_SIZE
+	processKeyAttempt
 } from '$lib/difficulty/adaptive';
-import type { AdaptiveState } from '$lib/types/progress';
-
-/** Feed N attempts with the same score for all dimensions. */
-function feedAttempts(count: number, score: number): AdaptiveState {
-	let state = createInitialAdaptiveState();
-	for (let i = 0; i < count; i++) {
-		state = processAttempt(state, score, score, score);
-	}
-	return state;
-}
-
-/** Feed N attempts with different pitch and rhythm scores. */
-function feedSplitAttempts(
-	count: number,
-	pitchScore: number,
-	rhythmScore: number,
-	initial?: AdaptiveState
-): AdaptiveState {
-	const overall = pitchScore * 0.6 + rhythmScore * 0.4;
-	let state = initial ?? createInitialAdaptiveState();
-	for (let i = 0; i < count; i++) {
-		state = processAttempt(state, overall, pitchScore, rhythmScore);
-	}
-	return state;
-}
 
 describe('createInitialAdaptiveState', () => {
+	// The ratchet that mutated this state (processAttempt) was retired
+	// 2026-08-31; the initial shape is still pinned because the frozen
+	// `progress.adaptive` field round-trips hydrate, merge, and cloud sync.
 	it('starts at level 1 with empty scores', () => {
 		const state = createInitialAdaptiveState();
 		expect(state.currentLevel).toBe(1);
@@ -46,116 +21,6 @@ describe('createInitialAdaptiveState', () => {
 		expect(state.recentRhythmScores).toEqual([]);
 		expect(state.pitchAttemptsSinceChange).toBe(0);
 		expect(state.rhythmAttemptsSinceChange).toBe(0);
-	});
-});
-
-describe('processAttempt', () => {
-	it('adds scores to all three windows', () => {
-		const state = createInitialAdaptiveState();
-		const next = processAttempt(state, 0.8, 0.85, 0.75);
-		expect(next.recentScores).toEqual([0.8]);
-		expect(next.recentPitchScores).toEqual([0.85]);
-		expect(next.recentRhythmScores).toEqual([0.75]);
-	});
-
-	it('caps all windows at WINDOW_SIZE', () => {
-		const state = feedAttempts(WINDOW_SIZE + 5, 0.7);
-		expect(state.recentScores).toHaveLength(WINDOW_SIZE);
-		expect(state.recentPitchScores).toHaveLength(WINDOW_SIZE);
-		expect(state.recentRhythmScores).toHaveLength(WINDOW_SIZE);
-	});
-
-	it('advances when avg >= 85% after enough attempts', () => {
-		const state = feedAttempts(11, 0.95);
-		expect(state.currentLevel).toBeGreaterThan(1);
-	});
-
-	it('does not advance before MIN_ATTEMPTS_BETWEEN_CHANGES', () => {
-		const state = feedAttempts(9, 0.95);
-		expect(state.currentLevel).toBe(1);
-	});
-
-	it('retreats when avg < 50% after enough attempts', () => {
-		let state = feedAttempts(11, 0.95);
-		const levelBefore = state.currentLevel;
-		for (let i = 0; i < 30; i++) {
-			state = processAttempt(state, 0.3, 0.3, 0.3);
-		}
-		expect(state.currentLevel).toBeLessThan(levelBefore);
-	});
-
-	it('pitch advances independently when pitch scores are high', () => {
-		// High pitch, mediocre rhythm
-		const state = feedSplitAttempts(11, 0.95, 0.60);
-		expect(state.pitchComplexity).toBeGreaterThan(1);
-		expect(state.rhythmComplexity).toBe(1);
-	});
-
-	it('rhythm advances independently when rhythm scores are high', () => {
-		// Mediocre pitch, high rhythm
-		const state = feedSplitAttempts(11, 0.60, 0.95);
-		expect(state.rhythmComplexity).toBeGreaterThan(1);
-		expect(state.pitchComplexity).toBe(1);
-	});
-
-	it('both advance when both dimensions score high', () => {
-		const state = feedAttempts(11, 0.95);
-		expect(state.pitchComplexity).toBeGreaterThan(1);
-		expect(state.rhythmComplexity).toBeGreaterThan(1);
-	});
-
-	it('pitch retreats while rhythm stays when only pitch is weak', () => {
-		// Start at elevated levels
-		let state: AdaptiveState = {
-			...createInitialAdaptiveState(),
-			pitchComplexity: 5,
-			rhythmComplexity: 5,
-			currentLevel: 5
-		};
-		// Feed weak pitch, decent rhythm
-		state = feedSplitAttempts(11, 0.30, 0.70, state);
-		expect(state.pitchComplexity).toBeLessThan(5);
-		expect(state.rhythmComplexity).toBe(5);
-	});
-
-	it('dimensions can diverge significantly', () => {
-		// 30 attempts: great pitch, mediocre rhythm
-		const state = feedSplitAttempts(30, 0.95, 0.60);
-		// Pitch should have advanced multiple times, rhythm should not
-		expect(state.pitchComplexity).toBeGreaterThan(2);
-		expect(state.rhythmComplexity).toBe(1);
-	});
-
-	it('currentLevel equals round of average of pitch and rhythm', () => {
-		const state = feedSplitAttempts(30, 0.95, 0.60);
-		expect(state.currentLevel).toBe(
-			Math.round((state.pitchComplexity + state.rhythmComplexity) / 2)
-		);
-	});
-
-	it('each dimension has independent cooldown', () => {
-		const state = feedSplitAttempts(11, 0.95, 0.60);
-		// Pitch just advanced, so its cooldown is reset
-		expect(state.pitchAttemptsSinceChange).toBeLessThan(11);
-		// Rhythm never changed, so its cooldown keeps counting
-		expect(state.rhythmAttemptsSinceChange).toBe(11);
-	});
-
-	it('resets attemptsSinceChange to min of dimension cooldowns', () => {
-		const state = feedAttempts(11, 0.95);
-		// Both advanced, so attemptsSinceChange should reflect the most recent change
-		expect(state.attemptsSinceChange).toBe(
-			Math.min(state.pitchAttemptsSinceChange, state.rhythmAttemptsSinceChange)
-		);
-	});
-});
-
-describe('getAdaptiveSummary', () => {
-	it('returns a string with level info', () => {
-		const state = createInitialAdaptiveState();
-		const summary = getAdaptiveSummary(state);
-		expect(typeof summary).toBe('string');
-		expect(summary).toContain('1');
 	});
 });
 

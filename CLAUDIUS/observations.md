@@ -1162,3 +1162,140 @@ anchor-shift trick (replay a pruned log from initial, then shift the series so
 its endpoint meets the known current state) is the honest way to draw history
 from a windowed log + cumulative state pair, and it generalizes to key
 proficiency if that ever wants a trend line.
+
+---
+
+## 2026-08-31 — A metric dies when its last consumer does, and nobody attends the funeral
+
+Follow-up to 2026-07-19's "one placement lies and the other doesn't." I defended the Adaptive Difficulty card then on framing grounds: current-value bars make no progress claim, so showing the generator's setting is honest. That was right about the framing and wrong about the referent. On 2026-08-09 a cleanup commit deleted the orphaned settings page and the old phrase generator — the last two consumers of the adaptive state — and from that moment the "current setting" bars described a knob connected to nothing. The display didn't change; its meaning evaporated out from under it. Nobody noticed because deleting a *reader* never breaks the *writer*: the ratchet kept updating, the sync kept syncing, the card kept rendering, every test stayed green. **The truthfulness of a state readout is a property of the wiring, not the widget** — the same bars were honest in July and decorative in August with zero diff to the component.
+
+The second thing worth keeping: the ratchet was structurally doomed independent of the severed loop. Advance at ≥85%, retreat only below 50% — for any user good enough to climb, the retreat branch is unreachable, so the metric was monotone with a cap: an absorbing state at 100. Any bounded monotone metric eventually reports its bound and nothing else. The user's complaint ("always 100, doesn't signify anything") is the generic end-state of that shape. Design test for future metrics: ask what the display reads after a year of diligent use. If the answer is "its maximum, permanently," the metric measures accumulated exposure, not the thing it claims. The replacement (unlock counts + the exact next requirement) is also monotone-with-a-cap — but its cap state is *completion of an enumerable set*, which is a fact, not a pretend-measurement; and until then every pixel is actionable.
+
+Also filed under verification-pays: Andy's one-line challenge ("are you sure the adaptive engine is no longer required?") caught that my own option framing said "delete adaptive.ts + its tests" when the file's lower half IS the live proficiency engine sharing the upper half's constants. The Explore agent had the facts right; my summary had rounded them. Challenges that force a re-grep are cheap; shipping a plan whose nouns are one file too coarse is not.
+
+---
+
+## 2026-09-01 — One number, three consumers, three meanings of "unknown"
+
+`rollingScore` now drives three policies, and each reads an ABSENT score
+differently: the worst-first sort coerces unknown to −1 (rank it worst), the
+demo gate treats unknown as "yes, play it" (the user needs the reference),
+and today's sheet reveal treats unknown as "no" (the first attempt is by ear).
+All three are right, and all three are about the same key in the same
+session. The general point rhymes with 2026-08-17's shapeBreak note: a
+signal's semantics live in its CONSUMER, and "undefined" is the value most
+likely to be read three ways by three call sites, because the type system
+says nothing about which reading each one chose. I wrote the inversion into
+the predicate's doc comment and the test name ("never reveals a
+never-attempted key — the first attempt is by ear") because that sentence is
+the only place the choice is visible; the code `rolling !== undefined &&`
+looks like a null guard, not a pedagogy decision.
+
+Second thing worth keeping: the user guide had a STANCE — "no sheet music
+during a session. You read the changes, not the line." The feature doesn't
+delete the stance, it carves an exception, and the honest doc edit says so
+in the same sentence. Reversing a documented principle silently is how a
+guide becomes a list of features; keeping the principle and naming the
+exception is what tells a reader why the sheet withdraws on its own.
+
+Third, on verification hygiene: the convenient way to eyeball a practice
+feature is the user's own Chrome, and it is the wrong way, because the
+feature under test writes to the same progress store the user practices
+against. A silent "attempt" is a real attempt. The e2e seed plus a throwaway
+screenshot line was cheaper and could not have corrupted anything. Rule of
+thumb: if the check would leave a row behind, it is not a check, it is a
+session.
+
+Flagged, not fixed: the reveal exposes that a ONE-BAR phrase renders at a
+quarter of the 750-unit staff and scales down with it on a phone. It has
+always looked that way on the detail page; nobody stared at a one-bar staff
+on a phone mid-session before. New surfaces re-open old rendering questions.
+
+---
+
+## 2026-09-01 (later) — "Flicker" was layout, and the layout invariant decided the geometry
+
+Two things worth keeping from the lead-sheet-row rework.
+
+First, the diagnosis. "A lot of flickering" sent me looking for a rendering
+bug; the frame-difference series said otherwise — 40 spike frames out of
+900, all at key boundaries. What the eye called flicker was a block
+appearing and disappearing below the stack, moving everything under it by
+200 px, three times in thirty seconds. Measuring before theorising turned
+a "make abcjs stop re-rendering" hunt into a layout question, and the
+layout question had the same answer as Andy's second request: put the
+music inside the thing that already scrolls. Two complaints, one fix, and
+the fix was the feature he actually wanted.
+
+Second, the geometry fell out of one sentence. The fixed-height stack had
+an unstated invariant: the active row is fully visible for its whole
+duration. Stating it for mixed heights forces everything else — the row
+must start where the previous row ends and slide by THAT height (not its
+own), which forces the viewport to hold the previous row plus the active
+one, which (once rows re-sort every cycle) forces the viewport to reserve
+the two tallest rows or resize between cycles and shove the ring. I tried
+the "pairwise max" viewport first and watched the ring jump at the cycle
+boundary in the recording. The invariant was right; my first reading of
+its consequence was one cycle too short-sighted. Pure function, eleven
+tests, and the component just reads three numbers.
+
+Also filed: abcjs reserves masthead height for a `T:` line the CSS hides —
+the drawing sat in the bottom 40% of its box and I only saw it because the
+staff came out half-width. The rule generalises: when a fit-by-height
+element renders smaller than expected, suspect invisible reserved space
+before suspecting the scale. And I measured the row with
+getBoundingClientRect instead of trusting my pixel budget; the budget was
+37 px short. Budgets are hypotheses.
+
+---
+
+## 2026-09-01 (third pass) — A metric that averages over the frame cannot see a small thing flickering
+
+I declared "no continuous flicker" from a whole-frame mean-luma difference.
+The staff occupied a tenth of the frame; its lines pulsing by tens of
+levels moved the frame mean by a fraction of a level, under my threshold.
+Andy's eye integrates differently: it locks onto the thing it is reading.
+The second measurement — a thresholded pixel-change count over the stack
+region only — put the number at 4–7% of pixels per frame, every frame,
+against under 2% for chord rows. Same video, opposite verdict. The rule I
+want to keep: when a person reports a perceptual artifact in a region,
+measure that region, and count changed pixels rather than averaging
+brightness — averaging is exactly the operation that erases a small
+flicker. And the confirmation came from a probe that could distinguish the
+two live hypotheses (DOM mutations = re-render; fractional transform =
+resampling), not from another look at the video.
+
+The mechanism is worth a line too: the fix was not in the notation code at
+all. It was `Math.round` in the scroll math. The staff exposed a shimmer
+the chord boxes had always had; nobody reads chord boxes closely enough
+to see it. New surfaces re-open old rendering questions — second time this
+session.
+
+Addendum, an hour later: the pixel-change count was also wrong, in the
+opposite direction. Snapping the transform to whole pixels left it at
+4–7%, because a crisp staff moving one pixel per frame changes exactly as
+many pixels as a blurred one — the metric counts motion. What it could not
+tell me is that the motion IS the flicker: five one-pixel lines scrolling
+vertically are a moving grating, which the eye reads as strobing however
+they are rasterized. The right fix was to stop moving the thing being
+read. Three measurements, three partial truths; the decisive evidence was
+the probe that ruled out re-rendering and left only the transform, plus
+thinking about what a scrolling staff looks like to a person. A metric
+answers the question you encoded, not the one you meant.
+
+---
+
+## 2026-09-01 (fourth pass) — The inventory found three inconsistencies the swap request never mentioned
+
+Asked to swap two colours "consistently across the application", the
+first thing the sweep turned up was that the application had never been
+consistent: the cue pill on the record page coloured PLAY but left LISTEN
+grey and tinted its lead-in with the domain accent; tune practice painted
+the open window brass and its caption red at the same moment; ear
+training used a third colour (the accent) for "your turn". Each surface
+had reached for whatever token was nearest when it was written. The swap
+was the occasion, not the cause, of fixing that — and the fix was not the
+new colours but the indirection: two semantic aliases and a sweep test
+that forbids the palette tokens on the phase surfaces. The next colour
+opinion is a two-line change; the previous one took a 60-tool inventory.
+Semantics belong in a name, not in a hex.

@@ -2057,3 +2057,200 @@ name and level sit in the bar row directly above the expanded panel, so the
 the absence (`not.toContainText('level over time')`) and leans on
 aria-expanded + the panel testid instead of header text for the
 one-at-a-time assertions. PR to main opened.
+
+## 2026-08-31 — Adaptive Difficulty card replaced by Keys & Scales; the dead ratchet retired
+
+**What happened:**
+
+- User: the Adaptive Difficulty section always shows Level 100 (Virtuoso),
+  100/100 pitch and rhythm complexity — "don't seem to signify anything
+  meaningful. Is it correct?" Both halves answered: the code was correct and
+  the metric was dead. `processAttempt` was an open-loop monotonic ratchet
+  (+1 per 10 attempts at ≥85% window average, −1 only below 50% — unreachable
+  for anyone who climbed) hard-capped at 100, and since c4ee4cc (2026-08-09,
+  the orphaned settings page + generator removal) NOTHING consumed its
+  output. Not a display bug; an absorbing state with a severed feedback loop.
+- Replaced the card with **Keys & Scales** (`data-tour="unlocks"`): keys and
+  scales unlocked out of 12 with bars in the old card's chrome, plus the
+  next-unlock frontier ("Next: D — G ≥ 10 (now 7)") from two new pure
+  helpers, `nextKeyUnlock`/`nextScaleUnlock` in tonality.ts (TDD, 7 unit
+  tests red→green). Andy chose this over grade-distribution/streak options —
+  it IS the live difficulty system, previously visible only on /settings.
+- Retired the ratchet surgically after Andy pushed back with "are you sure
+  the adaptive engine is no longer required?" — the check caught my own
+  imprecision: adaptive.ts is NOT all dead (processScaleAttempt/
+  processKeyAttempt are the live engine and share the constants). Deleted
+  only `processAttempt` + `getAdaptiveSummary` + the recordAttempt write +
+  `getPrimaryLevel`; `AdaptiveState`/`createInitialAdaptiveState` stay
+  because the frozen field round-trips hydrate, cloud merge, and the
+  `adaptive_state` column. No migration, no sync change.
+- Docs were claiming the dead system was live on many surfaces:
+  adaptive-difficulty.md fully rewritten around proficiency + unlocks (slug
+  kept — 4 tooltips link it); surgical truth-fixes in glossary (Adaptive
+  level + Pitch/Rhythm complexity entries removed, Tonal Mastery added),
+  overview, user-guide, api-reference/state + difficulty, algorithm-details,
+  testing-guide; pitch-rhythm-coupling.md status closed (its subject retired,
+  its scoring-coupling half still true). Tooltips pitchComplexity/
+  rhythmComplexity/rollingWindow deleted, `unlocks` added.
+- New e2e `progress-unlocks.spec.ts`: seeded mid-progress state pins counts
+  + both "Next:" lines + absence of the old card text; a fully-unlocked
+  state pins "All 12 unlocked" — the saturated case now reads as
+  completion, not as a number pretending to be a measurement.
+
+**Notes:**
+
+- check 0/0 (2743 files); vitest 277 files, 4415 passed; progress e2e 12/12
+  across all three browsers; smoke 33/33 + cloud-convergence chromium green.
+  Verified live in Chrome on the dev server: fresh-user state renders
+  Keys 1/12 "Next: G — C ≥ 10 (now 0)", Scales 1/12 "Next: Minor
+  Pentatonic — Major Pentatonic ≥ 15 (now 0)".
+- The 2026-07-19 judgment ("current-value bars are legitimate there") aged
+  badly in an instructive way — see observations.
+
+## 2026-09-01 — Sheet music when a key is under the floor (lick practice)
+
+**What happened:**
+
+- Andy: learning a lick by ear stalls into "endless failed attempts" — when a
+  new lick (or a known lick in a new key) is beating the player, show its
+  sheet music in the session. Plan mode; four decisions asked once (trigger /
+  withdrawal / controls / scoring) and all four landed on the recommended
+  option: reveal while the key's persisted rolling score is DEFINED and under
+  75%, same rule both ways (no session override), automatic only with a
+  caption, scoring untouched. Assumptions stated in the plan: tricks excluded,
+  nothing persisted, no cursor.
+- Built the smallest version: `shouldRevealNotation` beside `shouldDemoHeadKey`
+  in the rotation module (unknown → false — the one inversion of the demo
+  gate, so the first attempt in any key is by ear); `getNotationReveal()` in
+  session state (trick items excluded, returns `{key, rolling}` and NO phrase
+  so the route gates its memoized `currentPhrase` on a primitive — abcjs
+  re-engraves on identity, and every attempt reassigns `progress`);
+  `NotationReveal.svelte` = NotationDisplay + a `titleArea` caption whose
+  percentage is read from `KEY_FLOOR_THRESHOLD`; mounted under the chord
+  stack, hidden during the standard-mode score hold. No new settings, no
+  persisted fields, no sync change.
+- TDD end to end: 4 rotation cases + 7 state cases red → green; the trick
+  guard proven load-bearing by removing it (that case alone fails); e2e red
+  (both specs die on the missing testid) → green. Docs on all four surfaces
+  (user guide's "no sheet music during a session" sentence rewritten as the
+  exception; state-management, state + components API refs, README changelog,
+  tour step) plus CLAUDE.md.
+- Visual check done from the e2e seed with a temporary screenshot line, NOT
+  from Andy's live Chrome: a silent deep-practice attempt there would have
+  written a real 0 into his progress. Desktop reads well; at 390px a one-bar
+  lick engraves tiny because a short phrase fills a quarter of the 750-unit
+  staff — identical to the lick detail page, so flagged as a follow-up rather
+  than patched inside this change.
+
+**Notes:**
+
+- check 0/0 (2745 files); vitest 278 files, 4426 passed; lick-practice e2e
+  2/2 chromium (9.5s / 12.2s).
+- Deferred: a playhead cursor on the revealed staff (`cursorIndex` /
+  `playheadBarFraction` exist); short-phrase staff sizing (a `staffwidth`
+  knob on NotationDisplay would also help the detail page on phones).
+
+## 2026-09-01 (later) — The sheet moves INTO the chord stack: lead-sheet row
+
+**What happened:**
+
+- Andy watched the 3-key demo: "a lot of flickering" and "display the music
+  within the chord progression". Frame-diffing the recording showed no
+  continuous flicker — the spikes were the panel mounting/unmounting per key
+  (shoving the ring ±200 px) and the staff re-engraving on each key change.
+  So the second request was also the fix for the first.
+- Chose (with Andy, from three previews) the **lead-sheet row**: a struggling
+  key's row in `UpcomingKeysDisplay` grows into chords-over-staff, engraved
+  once per stack, beat strip beneath, caption; other rows stay chord blocks;
+  fixed viewport so nothing below moves.
+- Built: `keyStackLayout` (pure; active row starts where the previous row
+  ends and slides by THAT height; viewport = two tallest rows, stable across
+  cycles), `noteIndexAtBeat` (cursor), `leadSheetTuneFor` +
+  `leadSheetAbcOptions` (phrase → untitled one-section Tune through
+  `tuneToAbc`, windowed to ≤ 4 bars for long cycles), three additive
+  `TuneAbcOptions` (`mode`, `stretchLast`, `measureNumbers` — tune goldens
+  byte-identical), NotationDisplay `tuneOptions`/`frameless`/`staffWidth`,
+  ChordChart `dotsOnly`, `PlannedKey.reveal` stamped once per stack (no
+  mid-scroll height changes). Deleted the panel, `NotationReveal.svelte`
+  and `getNotationReveal`.
+- Measured, not guessed, the row: the first cut overflowed (content 265 px
+  in a 228 px row → the A row's dots spilled into the G row) and the staff
+  spanned half the row (fit-by-height + abcjs reserving masthead space for
+  a CSS-hidden `T:`). Fixes: `title: ''`, `staffWidth` 1000 so the
+  height-fit system spans the row, a clipped 136 px staff box, row 196 px.
+  Playwright `getBoundingClientRect` report: row 196, content 176, SVG
+  967 × 110 in a 976 px row, viewport 392.
+
+**Notes:**
+
+- check 0/0; vitest 281 files / 4445 passed; lick-practice e2e 2/2 chromium
+  (rerun after the sizing fix); demo re-recorded and sent.
+- Open: on a 390 px phone the height-fit SVG letterboxes to ~40 px at the
+  top of its box (abcjs pins it top-left) — legible but small; a per-width
+  row height is the follow-up if phones matter for sessions.
+
+## 2026-09-01 (third pass) — "Still a lot of flickering": sub-pixel shimmer
+
+- Andy: still flickering. My whole-frame mean-luma diff had said "no
+  continuous change"; a region-restricted pixel-change COUNT said 4–7% of
+  the stack's pixels change on every frame while a lead-sheet row is up
+  (chord rows: <2%). An in-page probe: zero childList mutations in the
+  engraving over 2 s (no re-render), five attribute mutations (the cursor),
+  and the stack transform stepping 91.81 → 91.53 → 91.05 px. Consecutive
+  zoomed frames showed the staff lines changing weight frame to frame.
+  Sub-pixel resampling of one-pixel lines under a fractional translate.
+- Fix: `keyStackLayout` snaps `translateY` to whole pixels (TDD: integer
+  assertion + the fixed-height golden values rounded). One pixel every
+  frame or two at practice tempos — teleprompter-smooth, rasterized
+  identically every frame. The chord-block rows shimmered the same way
+  before; the staff made it visible.
+- Snapping did NOT fix it: re-measured 3.8% / 6.4% vs 4.3% / 5.6% — the
+  pixel-change count was measuring MOTION, not flicker. The flicker is the
+  drift itself: an engraved staff crawling upward a pixel per frame is a
+  moving grating. Replaced the continuous drift with a held row + one eased
+  step per key change (`keyStackLayout` holds at the slot; `.stack` gets a
+  420 ms transform transition; reduced-motion disables it). Tests rewritten
+  for the hold/step contract. Docs: the user guide's "drifting upward at
+  exactly one row per key" is now "holds still … steps up one row".
+- Andy: remove the "Sheet music while A is under 75%" caption — clutter.
+  Removed from the row (LEAD_ROW_HEIGHT 196 → 178), the e2e, and the docs.
+  The original "automatic with a caption saying why" decision is superseded:
+  the engraving is the message.
+
+## 2026-09-01 (fourth pass) — Listen/play colours swapped app-wide
+
+- Andy: swap the colours — PLAY was on-air red, LISTEN brass; red means
+  "stop" to most people. Applied consistently: two semantic aliases in
+  app.css (`--color-phase-play: var(--color-brass)`, `--color-phase-listen:
+  var(--color-onair)`), and every phase-semantic site retokened — the stack's
+  phase tab/lamp/recording ring, PhaseCueBar (which had NO colour for
+  LISTEN and used the domain accent for its lead-in — both now the listen
+  token), tune practice (was self-contradictory: open window brass, caption
+  red), ear-training's status line (was accent / red / grey), record-a-lick's
+  live readout + arming ring, the cue-preview dev route. Left on red by
+  design: every stop/record BUTTON, the console LED and rocker ON legend.
+- TDD: token-mapping test + a negative sweep over the three phase surfaces
+  (raw brass/on-air tokens forbidden) — red before the retoken, green after.
+- Docs: design-system.md gains "Practice-phase colours"; components.md,
+  tech-stack.md excerpt, README changelog, CLAUDE.md, MEMORY.md.- Incidental: `ear-training.spec.ts` loaded the piano sample from the live
+  CDN and failed on a CORS refusal during the parallel e2e run — unrelated
+  to the colours. Both its tests are flow tests that never assert audible
+  output, so they now opt into `stubCdnInstrumentSamples` like the other
+  practice specs.
+
+## 2026-09-01 — PR #242 (dev → main), CodeRabbit round 1
+
+Five findings, all adopted. The major one was right about the CONTRACT even
+though the rendered stack was already safe: `getPlannedKeysForLick` /
+`getPlannedKey` recomputed `reveal` from live progress, and `recordKeyAttempt`
+writes the rolling score before the key advances — the route snapshots the
+rows once per lick so nothing on screen flipped, but any other caller would
+have seen a row change height mid-cycle. Decisions are now memoized per
+rotation array (a WeakMap keyed by `item.keys`, which every rebuild replaces
+rather than mutates), pinned by a test that scores mid-cycle and asserts the
+row holds until the boundary. Also real: a sustained note could overhang the
+lead-sheet window (window now runs to the bar the last note ENDS in, and an
+overhanging note is clipped at the cap). Docs: `PlannedKey.reveal` and the
+three `TuneAbcOptions` fields were missing from the API references; the
+memory note said 196 px for a 178 px row; "over the line" became "back to
+75% or higher" (the threshold is inclusive).

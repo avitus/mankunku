@@ -53,6 +53,16 @@
 	   --color-error so it reads as jazz-era rather than alert-red. */
 	--color-onair: #a8463a;
 	--color-onair-hover: #8a3428;
+	/* Practice-phase semantics, aliased so each theme's brass / on-air values
+	   flow through. The player PLAYS in brass and LISTENS in on-air red: red
+	   reads as "stop" to most people, so it marks the phase in which the user
+	   must not play (the app's demo), and brass marks the user's turn — the
+	   PLAY tab, the live-mic ring and lamp, the count-in into the user's
+	   window. Every listen/play indicator uses these two tokens, never the
+	   palette tokens directly; decorative brass (labels, rules, the all-clear
+	   halo) and the red stop/record BUTTONS keep the palette tokens. */
+	--color-phase-play: var(--color-brass);
+	--color-phase-listen: var(--color-onair);
 	/* Tonal Mastery ramp — a Blue Note teal→brass sequential scale used for
 	   proficiency/mastery surfaces (mastery meter, per-scale bars). "From the
 	   ear-training teal to the brass you're earning." Distinct from the

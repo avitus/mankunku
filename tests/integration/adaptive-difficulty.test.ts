@@ -1,20 +1,20 @@
 /**
- * Integration tests for the adaptive difficulty system.
+ * Integration tests for the adaptive difficulty system: scale/key
+ * proficiency tracking (the live engine that gates content and unlocks),
+ * plus the level→tier profile mapping and difficulty display bands.
  *
- * Tests the full loop: score → processAttempt → state update → level
- * advancement/retreat, scale/key proficiency tracking,
- * and the interaction between scoring results and difficulty adjustment.
+ * The global pitch/rhythm complexity ratchet (`processAttempt`) was retired
+ * 2026-08-31 — nothing consumed its output. Only the frozen initial-state
+ * shape is still pinned, because `progress.adaptive` round-trips sync.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
 	createInitialAdaptiveState,
-	processAttempt,
 	createInitialScaleProficiency,
 	createInitialKeyProficiency,
 	processScaleAttempt,
-	processKeyAttempt,
-	getAdaptiveSummary
+	processKeyAttempt
 } from '../../src/lib/difficulty/adaptive';
 import { getProfileForTier, levelToContentTier, DIFFICULTY_PROFILES } from '../../src/lib/difficulty/params';
 import { difficultyBand, difficultyDisplay } from '../../src/lib/difficulty/display';
@@ -51,187 +51,6 @@ describe('adaptive difficulty — initial state', () => {
 		expect(prof.level).toBe(1);
 		expect(prof.recentScores).toEqual([]);
 		expect(prof.totalAttempts).toBe(0);
-	});
-});
-
-// ─── Score Window ──────────────────────────────────────────────
-
-describe('adaptive difficulty — score window', () => {
-	it('accumulates scores in all three windows', () => {
-		let state = createInitialAdaptiveState();
-
-		state = processAttempt(state, 0.72, 0.8, 0.6);
-		expect(state.recentScores).toHaveLength(1);
-		expect(state.recentPitchScores).toHaveLength(1);
-		expect(state.recentRhythmScores).toHaveLength(1);
-
-		state = processAttempt(state, 0.82, 0.9, 0.7);
-		expect(state.recentScores).toHaveLength(2);
-		expect(state.recentPitchScores).toHaveLength(2);
-		expect(state.recentRhythmScores).toHaveLength(2);
-	});
-
-	it('caps window at 25 scores', () => {
-		let state = createInitialAdaptiveState();
-
-		for (let i = 0; i < 30; i++) {
-			state = processAttempt(state, 0.72, 0.8, 0.6);
-		}
-
-		expect(state.recentScores).toHaveLength(25);
-		expect(state.recentPitchScores).toHaveLength(25);
-		expect(state.recentRhythmScores).toHaveLength(25);
-	});
-
-	it('oldest score is removed when window is full', () => {
-		let state = createInitialAdaptiveState();
-
-		// Fill with 0.5 scores
-		for (let i = 0; i < 25; i++) {
-			state = processAttempt(state, 0.5, 0.5, 0.5);
-		}
-
-		// Add a 0.9 score
-		state = processAttempt(state, 0.9, 0.9, 0.9);
-
-		// Window should contain twenty-four 0.5s and one 0.9
-		expect(state.recentScores).toHaveLength(25);
-		expect(state.recentScores[24]).toBe(0.9);
-		expect(state.recentScores[0]).toBe(0.5);
-
-		expect(state.recentPitchScores).toHaveLength(25);
-		expect(state.recentPitchScores[24]).toBe(0.9);
-		expect(state.recentPitchScores[0]).toBe(0.5);
-
-		expect(state.recentRhythmScores).toHaveLength(25);
-		expect(state.recentRhythmScores[24]).toBe(0.9);
-		expect(state.recentRhythmScores[0]).toBe(0.5);
-	});
-});
-
-// ─── Level Advancement ─────────────────────────────────────────
-
-describe('adaptive difficulty — level advancement', () => {
-	it('advances when both dimensions average > 85% with enough attempts', () => {
-		let state = createInitialAdaptiveState();
-
-		for (let i = 0; i < 11; i++) {
-			state = processAttempt(state, 0.95, 0.95, 0.95);
-		}
-
-		expect(state.currentLevel).toBeGreaterThan(1);
-		expect(state.pitchComplexity).toBeGreaterThan(1);
-		expect(state.rhythmComplexity).toBeGreaterThan(1);
-	});
-
-	it('does NOT advance before minimum 10 attempts', () => {
-		let state = createInitialAdaptiveState();
-
-		for (let i = 0; i < 9; i++) {
-			state = processAttempt(state, 0.95, 0.95, 0.95);
-		}
-
-		expect(state.currentLevel).toBe(1);
-	});
-
-	it('advances pitch independently when only pitch scores are high', () => {
-		let state = createInitialAdaptiveState();
-
-		// High pitch, mediocre rhythm
-		for (let i = 0; i < 11; i++) {
-			state = processAttempt(state, 0.81, 0.95, 0.60);
-		}
-
-		expect(state.pitchComplexity).toBeGreaterThan(1);
-		expect(state.rhythmComplexity).toBe(1);
-	});
-
-	it('advances rhythm independently when only rhythm scores are high', () => {
-		let state = createInitialAdaptiveState();
-
-		for (let i = 0; i < 11; i++) {
-			state = processAttempt(state, 0.74, 0.60, 0.95);
-		}
-
-		expect(state.rhythmComplexity).toBeGreaterThan(1);
-		expect(state.pitchComplexity).toBe(1);
-	});
-
-	it('retreats only the weak dimension', () => {
-		let state = createInitialAdaptiveState();
-		state = {
-			...state,
-			currentLevel: 5,
-			pitchComplexity: 5,
-			rhythmComplexity: 5,
-		};
-
-		// Low pitch accuracy, decent rhythm (overall = 0.2*0.6 + 0.7*0.4 = 0.40)
-		for (let i = 0; i < 11; i++) {
-			state = processAttempt(state, 0.40, 0.2, 0.7);
-		}
-
-		expect(state.pitchComplexity).toBeLessThan(5);
-		expect(state.rhythmComplexity).toBe(5);
-	});
-
-	it('stays stable in the 50-85% range', () => {
-		let state = createInitialAdaptiveState();
-
-		for (let i = 0; i < 10; i++) {
-			state = processAttempt(state, 0.7, 0.7, 0.7);
-		}
-
-		expect(state.currentLevel).toBe(1);
-	});
-
-	it('dimensions can diverge significantly over many attempts', () => {
-		let state = createInitialAdaptiveState();
-
-		// 50 attempts with great pitch, mediocre rhythm
-		for (let i = 0; i < 50; i++) {
-			state = processAttempt(state, 0.81, 0.95, 0.60);
-		}
-
-		expect(state.pitchComplexity).toBeGreaterThan(3);
-		expect(state.rhythmComplexity).toBe(1);
-		expect(state.currentLevel).toBe(
-			Math.round((state.pitchComplexity + state.rhythmComplexity) / 2)
-		);
-	});
-
-	it('resets only the advancing dimension cooldown', () => {
-		let state = createInitialAdaptiveState();
-
-		// High pitch, mediocre rhythm (overall = 0.95*0.6 + 0.60*0.4 = 0.81)
-		// Advance fires on attempt 10 (cooldown hits 10), resetting pitch cooldown to 0
-		for (let i = 0; i < 10; i++) {
-			state = processAttempt(state, 0.81, 0.95, 0.60);
-		}
-
-		expect(state.pitchComplexity).toBeGreaterThan(1);
-		expect(state.pitchAttemptsSinceChange).toBe(0);
-		// Rhythm never changed, cooldown keeps counting
-		expect(state.rhythmComplexity).toBe(1);
-		expect(state.rhythmAttemptsSinceChange).toBe(10);
-	});
-
-	it('resets per-dimension cooldown after a level change', () => {
-		let state = createInitialAdaptiveState();
-
-		for (let i = 0; i < 10; i++) {
-			state = processAttempt(state, 0.95, 0.95, 0.95);
-		}
-
-		// Both advanced and reset their cooldowns
-		expect(state.currentLevel).toBeGreaterThan(1);
-		expect(state.pitchAttemptsSinceChange).toBe(0);
-		expect(state.rhythmAttemptsSinceChange).toBe(0);
-
-		// One more attempt — cooldowns are 1
-		state = processAttempt(state, 0.95, 0.95, 0.95);
-		expect(state.pitchAttemptsSinceChange).toBe(1);
-		expect(state.rhythmAttemptsSinceChange).toBe(1);
 	});
 });
 
@@ -360,38 +179,5 @@ describe('difficulty display', () => {
 		expect(display.label).toBe('41-50');
 		expect(display.color).toBeTruthy();
 		expect(display.name).toBeTruthy();
-	});
-});
-
-// ─── Full Session Loop ─────────────────────────────────────────
-
-describe('full session → adaptive state loop', () => {
-	it('simulates multiple sessions progressing through levels', () => {
-		let state = createInitialAdaptiveState();
-		// Simulate 50 practice sessions with improving scores
-		for (let i = 0; i < 50; i++) {
-			// Score improves over time: 0.7 → 0.95
-			const progress = i / 50;
-			const overall = 0.7 + progress * 0.25;
-
-			state = processAttempt(state, overall, overall, overall);
-		}
-
-		// After consistently high scores, level should have advanced
-		expect(state.currentLevel).toBeGreaterThan(1);
-		expect(state.recentScores).toHaveLength(25);
-		expect(state.recentPitchScores).toHaveLength(25);
-		expect(state.recentRhythmScores).toHaveLength(25);
-	});
-
-	it('getAdaptiveSummary returns human-readable text', () => {
-		let state = createInitialAdaptiveState();
-		state = processAttempt(state, 0.85, 0.9, 0.8);
-
-		const summary = getAdaptiveSummary(state);
-		expect(typeof summary).toBe('string');
-		expect(summary.length).toBeGreaterThan(0);
-		expect(summary).toContain('Pitch');
-		expect(summary).toContain('Rhythm');
 	});
 });

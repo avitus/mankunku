@@ -1,6 +1,6 @@
 # Independent in Theory, Coupled in Practice: Pitch vs Rhythm Complexity
 
-**Status:** open investigation — revisit when redesigning scoring or adaptive difficulty.
+**Status:** closed for the adaptive machinery — the global pitch/rhythm complexity ratchet (`processAttempt`) was retired 2026-08-31, because nothing consumed its output and the coupling analysed here meant it only ratcheted to 100. Coupling source (1) — missed/extra notes zeroing both accuracy dimensions — still applies to the scorer's paired pitch/rhythm accuracies shown in reports and period comparisons; revisit this document when redesigning scoring.
 
 ## The observation
 

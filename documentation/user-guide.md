@@ -111,12 +111,12 @@ Two things about **swing feel** are worth knowing:
 The session opens with a **one-bar count-in** — a metronome bar with a thump on 1 and a hi-hat chick on 2 and 4 — and then the click stops and the band takes over. (Layering a synthetic click on top of a sampled kit was the loudest fake thing in the mix, so it goes away once there's a real drummer.) You see:
 
 - A header with the current **lick name**, the **key** you're playing it in, its progression, and where you are in the rotation ("Key 3 of 7").
-- A **scrolling stack of chord blocks** — one row per upcoming key, drifting upward at exactly one row per key so the row you're playing is always in the same place. The active row carries the beat, a recording ring while your window is open, a *Listen* tag while the app is demoing, and your score the moment the window closes.
+- A **stack of chord blocks** — one row per upcoming key. The row you're playing holds still in the same place for the whole key, with the row you just played above it, and the stack steps up one row at each key change. The active row carries the beat, a recording ring while your window is open, a *Listen* tag while the app is demoing, and your score the moment the window closes. A key you're holding under 75% gets a taller row — the line as a lead sheet, chords above the staff (see below).
 - A **key progress ring** with your current tempo in the middle, colouring each key as you score it.
 - A **session timer** with a progress bar (standard and daily sessions only — Deep Practice and Tricks have no time budget, so there's no countdown).
 - An **End Session** button.
 
-There's **no sheet music during a session**. You read the changes, not the line. If you need to look at the notation, do it on the lick's page before you start.
+There's **no sheet music during a session** — you read the changes, not the line — with one exception: a key that's beating you. Once your rolling score in a key drops under 75%, that key's row in the stack turns into a lead sheet: the line engraved with its changes above the staff, in your instrument's written pitch, the note the band is at lit as it goes, the beat dots beneath. It stays for as long as the key does; bring it back to 75% or higher and the row goes back to chord blocks on its own. A key you've never played is always by ear first — the sheet only ever answers a miss. There's nothing to switch on or off. If you'd rather study the line before you start, it's still on the lick's page.
 
 You play the lick once per key, with no retries. After all of that lick's keys play through, two things happen:
 
@@ -148,6 +148,7 @@ How a cycle works:
 - The rotation is the lick's own currently-unlocked keys — a brand-new lick starts at its entry key and grows as you earn it, exactly as in a standard session.
 - **The worst key comes first.** Each cycle is re-sorted so the key you've been scoring lowest on over your whole history with this lick sits at the top. Keys you've never played sit ahead of everything.
 - **The demo is conditional.** While that head key is still below 90%, the cycle opens with the app playing the lick to you in it — call and response on precisely the key that needs ear work. Once you're consistently at 90% or better in it, the demo is dropped and cycles run straight into each other. So the app stops talking as soon as you stop needing it to.
+- **The sheet music is conditional too.** While the head key is under 75%, its row is the lead-sheet row through the demo and your answer, and goes back to chord blocks once the key climbs back over the floor. It's the same rule as any session — Deep Practice just makes it land on the key you're drilling.
 - Keys you score ≥ 95% on are **mastered** for the round and drop out of the rotation, so each cycle gets shorter and concentrates on what's left.
 - When the last key clears, the round completes: tempo bumps by 1% of where it currently sits, rounded up to a whole BPM (adjustable on the setup screen), and the rotation refills with the full unlocked set.
 - **The session starts 2% below the lick's saved tempo, and never changes it.** You usually arrive here from the report, on the lick that just graded worst — dropping straight back in at the tempo it failed at just repeats the failure, so the drill eases in and you earn the difference back over the first couple of clears. And however far you ramp during the drill, the lick's saved tempo is exactly where you left it when you next meet it in Daily Practice. That's deliberate: one lick with a demo and your worst key first is a different exercise from a dozen licks cold, and a tempo you can hold in the first shouldn't decide the second.
@@ -158,6 +159,8 @@ How a cycle works:
 The end-of-session report is where the rounds show up: how many you completed, your final tempo and how far it moved, and a line per round listing which keys you mastered at which BPM.
 
 ### When a lick keeps beating you
+
+The session already does the gentle thing on its own: any key you're holding under 75% shows its sheet music while you play it (see [What happens during a session](#what-happens-during-a-session)). Reset is for when reading the line isn't the problem.
 
 Side B is happy to grow with you. It's less helpful when a single lick has slipped so far that its current state — the keys it's unlocked, the tempo it's anchored to — doesn't match where you are anymore.
 
@@ -256,7 +259,8 @@ The Progress page is the back cover. It tells you what's been happening over tim
 - **This Period** — how the current window compares with the one before it, so you can see whether you're actually putting more in.
 - **Trend chart** — your Tonal Mastery (average proficiency across all 12 scales and 12 keys, with unattempted ones counting as zero; 0–100), plotted over the window.
 - **Calendar heatmap** — every day you practiced, lit by session count. Skipped days are dim.
-- **Scale Proficiency** — a breakdown per scale type, and the adaptive-difficulty detail behind your level.
+- **Scale Proficiency** — a breakdown per scale type; tap a scale to expand its level-over-time chart.
+- **Keys & Scales** — how many of the 12 keys and 12 scale types you've unlocked, and what the next unlock requires.
 - **By Key grid** — your average score in each key, so you can see which keys still need work.
 - **Recent sessions** — last few attempts with phrase, key, tempo, score, and grade. Expand one for the note-by-note list; note names are spelled the way the chart spelled them (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#).
 

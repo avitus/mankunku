@@ -262,16 +262,16 @@
 	.wash-listen {
 		background: linear-gradient(
 			90deg,
-			color-mix(in srgb, var(--color-brass) 14%, transparent),
-			color-mix(in srgb, var(--color-brass) 5%, transparent)
+			color-mix(in srgb, var(--color-phase-listen) 14%, transparent),
+			color-mix(in srgb, var(--color-phase-listen) 5%, transparent)
 		);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brass) 35%, transparent);
-		color: var(--color-brass);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-phase-listen) 35%, transparent);
+		color: var(--color-phase-listen);
 	}
 	.wash-play {
-		background: color-mix(in srgb, var(--color-onair) 11%, transparent);
-		box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-onair) 60%, transparent);
-		color: var(--color-onair);
+		background: color-mix(in srgb, var(--color-phase-play) 11%, transparent);
+		box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-phase-play) 60%, transparent);
+		color: var(--color-phase-play);
 	}
 	.wash :global(.watermark) {
 		position: absolute;
@@ -290,23 +290,23 @@
 		width: 2px;
 		margin-left: -1px;
 		border-radius: 1px;
-		background: var(--color-brass);
+		background: var(--color-phase-listen);
 		pointer-events: none;
 	}
 	.cursor-line.live {
-		background: var(--color-onair);
+		background: var(--color-phase-play);
 	}
 	.surface-caption {
 		position: absolute;
 		top: 0.3rem;
 		right: 0.6rem;
 		z-index: 2;
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
 	}
 	/* Shape redundancy for the straight-in bar: same dashed on-air outline the
 	   shipped arming ring uses, so the state reads without relying on colour. */
 	.chart-wrap.straight-arming {
-		outline: 2px dashed color-mix(in srgb, var(--color-onair) 55%, transparent);
+		outline: 2px dashed color-mix(in srgb, var(--color-phase-play) 55%, transparent);
 	}
 
 	/* ——— Option C: cursor handoff ——— */
@@ -329,10 +329,10 @@
 		left: -0.75px;
 		width: 1.5px;
 		border-radius: 1px;
-		background: color-mix(in srgb, var(--color-brass) 65%, transparent);
+		background: color-mix(in srgb, var(--color-phase-listen) 65%, transparent);
 	}
 	.c-line.live {
-		background: color-mix(in srgb, var(--color-onair) 75%, transparent);
+		background: color-mix(in srgb, var(--color-phase-play) 75%, transparent);
 	}
 	.c-face {
 		position: absolute;
@@ -349,17 +349,17 @@
 		height: 1.15rem;
 	}
 	.c-note {
-		color: var(--color-brass);
+		color: var(--color-phase-listen);
 	}
 	.c-mic {
-		color: var(--color-onair);
+		color: var(--color-phase-play);
 	}
 	.c-lamp {
 		width: 5px;
 		height: 5px;
 		border-radius: 999px;
-		background: var(--color-onair);
-		box-shadow: 0 0 5px color-mix(in srgb, var(--color-onair) 80%, transparent);
+		background: var(--color-phase-play);
+		box-shadow: 0 0 5px color-mix(in srgb, var(--color-phase-play) 80%, transparent);
 	}
 	/* The count lands where the entrance lands: over bar 1 of the row about to
 	   be played, at the beat-dot line. */
@@ -374,10 +374,10 @@
 		gap: 0.45rem;
 	}
 	.c-count[data-into='play'] {
-		color: color-mix(in srgb, var(--color-onair) 75%, var(--color-text));
+		color: color-mix(in srgb, var(--color-phase-play) 75%, var(--color-text));
 	}
 	.c-count[data-into='listen'] {
-		color: color-mix(in srgb, var(--color-brass) 75%, var(--color-text));
+		color: color-mix(in srgb, var(--color-phase-listen) 75%, var(--color-text));
 	}
 	.c-count :global(.c-count-glyph) {
 		width: 0.85rem;
@@ -445,39 +445,39 @@
 	}
 	.tab[data-kind='listen'],
 	.tab[data-kind='listen-in'] {
-		color: color-mix(in srgb, var(--color-brass) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-brass) 16%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-brass) 40%, transparent);
+		color: color-mix(in srgb, var(--color-phase-listen) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-listen) 16%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-listen) 40%, transparent);
 	}
 	.tab[data-kind='play-in'] {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-onair) 10%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-onair) 40%, transparent);
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-play) 10%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-play) 40%, transparent);
 	}
 	.tab[data-kind='play-in']::before {
-		background: color-mix(in srgb, var(--color-onair) 22%, transparent);
+		background: color-mix(in srgb, var(--color-phase-play) 22%, transparent);
 		opacity: var(--arm);
 	}
 	.tab[data-kind='play'] {
-		color: color-mix(in srgb, var(--color-onair) 70%, var(--color-text));
-		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
-		border-color: color-mix(in srgb, var(--color-onair) 50%, transparent);
+		color: color-mix(in srgb, var(--color-phase-play) 70%, var(--color-text));
+		background: color-mix(in srgb, var(--color-phase-play) 18%, var(--color-bg));
+		border-color: color-mix(in srgb, var(--color-phase-play) 50%, transparent);
 	}
 	.tab-lamp {
 		flex: none;
 		width: 7px;
 		height: 7px;
 		border-radius: 999px;
-		background: color-mix(in srgb, var(--color-onair) 18%, var(--color-bg));
+		background: color-mix(in srgb, var(--color-phase-play) 18%, var(--color-bg));
 		box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.6);
 		transition:
 			background-color 150ms ease,
 			box-shadow 150ms ease;
 	}
 	.tab-lamp.lit {
-		background: var(--color-onair);
+		background: var(--color-phase-play);
 		box-shadow:
-			0 0 6px color-mix(in srgb, var(--color-onair) 80%, transparent),
+			0 0 6px color-mix(in srgb, var(--color-phase-play) 80%, transparent),
 			inset 0 0 1px rgba(255, 255, 255, 0.4);
 	}
 	.tab :global(.tab-glyph) {
