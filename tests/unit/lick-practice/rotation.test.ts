@@ -13,6 +13,8 @@ import {
 	sortKeysWorstFirst,
 	shouldDemoHeadKey,
 	shouldRevealNotation,
+	newestUnlockedKey,
+	LEAD_SHEET_PASSES,
 	resolveNextCycleStart,
 	planCycleWindows,
 	nextCycleTempo,
@@ -86,23 +88,61 @@ describe('shouldDemoHeadKey', () => {
 	});
 });
 
-describe('shouldRevealNotation', () => {
-	it('reveals the sheet below the floor', () => {
-		expect(shouldRevealNotation(0.74)).toBe(true);
+describe('newestUnlockedKey', () => {
+	it('is the entry key itself while only one key is unlocked', () => {
+		expect(newestUnlockedKey('C', 1)).toBe('C');
 	});
 
-	it('hides the sheet at or above the floor', () => {
-		expect(shouldRevealNotation(0.75)).toBe(false);
-		expect(shouldRevealNotation(0.9)).toBe(false);
+	it('walks the alternating circle-of-fifths ramp: C → G, F, D, Bb …', () => {
+		expect(newestUnlockedKey('C', 2)).toBe('G');
+		expect(newestUnlockedKey('C', 3)).toBe('F');
+		expect(newestUnlockedKey('C', 4)).toBe('D');
+		expect(newestUnlockedKey('C', 5)).toBe('Bb');
+	});
+
+	it('is null once every key is unlocked — nothing is "newest" any more', () => {
+		expect(newestUnlockedKey('C', 12)).toBeNull();
+		expect(newestUnlockedKey('C', 13)).toBeNull();
+	});
+});
+
+describe('shouldRevealNotation', () => {
+	// Three keys unlocked from C: C, G, F — F is the one being learned.
+	const learning = { entryKey: 'C' as const, unlockedCount: 3 };
+
+	it('reveals the newest unlocked key while it is under the floor', () => {
+		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: 0.74 })).toBe(true);
+	});
+
+	it('hides the newest key at or above the floor', () => {
+		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: 0.75 })).toBe(false);
+		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: 0.9 })).toBe(false);
 	});
 
 	it('never reveals a never-attempted key — the first attempt is by ear', () => {
-		expect(shouldRevealNotation(undefined)).toBe(false);
+		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: undefined })).toBe(false);
+	});
+
+	it('never reveals an earlier key, however badly it is going — those are memorised by now', () => {
+		expect(shouldRevealNotation({ ...learning, key: 'C', rolling: 0.2 })).toBe(false);
+		expect(shouldRevealNotation({ ...learning, key: 'G', rolling: 0.2 })).toBe(false);
+	});
+
+	it('reveals the entry key while it is the only key unlocked', () => {
+		expect(
+			shouldRevealNotation({ entryKey: 'C', unlockedCount: 1, key: 'C', rolling: 0.5 })
+		).toBe(true);
+	});
+
+	it('never reveals once all twelve keys are unlocked', () => {
+		expect(
+			shouldRevealNotation({ entryKey: 'C', unlockedCount: 12, key: 'F#', rolling: 0.1 })
+		).toBe(false);
 	});
 
 	it('accepts a floor override', () => {
-		expect(shouldRevealNotation(0.8, 0.9)).toBe(true);
-		expect(shouldRevealNotation(0.8, 0.75)).toBe(false);
+		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: 0.8 }, 0.9)).toBe(true);
+		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: 0.8 }, 0.75)).toBe(false);
 	});
 });
 
@@ -181,6 +221,69 @@ describe('planCycleWindows', () => {
 		});
 		expect(plan.opens).toEqual([2 * ticksPerBar, 4 * ticksPerBar + 2 * ticksPerBar]);
 		expect(plan.closes).toEqual([4 * ticksPerBar, 8 * ticksPerBar]);
+	});
+
+	it('maps one window per key, all final, when no passes are given', () => {
+		const plan = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 0,
+			keyBars: 2,
+			ticksPerBar,
+			keyCount: 3,
+			userBarsOffsetTicks: 0
+		});
+		expect(plan.keyIndex).toEqual([0, 1, 2]);
+		expect(plan.finalPass).toEqual([true, true, true]);
+	});
+
+	it('gives a multi-pass key abutting windows, one per pass, in the same rotation slot', () => {
+		// Keys [C, G, F]; G (the newest, revealed) runs LEAD_SHEET_PASSES times.
+		const plan = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 2,
+			keyBars: 2,
+			ticksPerBar,
+			keyCount: 3,
+			passes: [1, LEAD_SHEET_PASSES, 1],
+			userBarsOffsetTicks: 0
+		});
+		const keyTicks = 2 * ticksPerBar;
+		const start = 2 * ticksPerBar;
+		expect(LEAD_SHEET_PASSES).toBe(3);
+		expect(plan.opens).toEqual([0, 1, 2, 3, 4].map((slot) => start + slot * keyTicks));
+		expect(plan.closes).toEqual([1, 2, 3, 4, 5].map((slot) => start + slot * keyTicks));
+		expect(plan.keyIndex).toEqual([0, 1, 1, 1, 2]);
+		expect(plan.finalPass).toEqual([true, false, false, true, true]);
+		// The cycle boundary is the LAST window's close.
+		expect(plan.cycleEndTick).toBe(start + 5 * keyTicks);
+	});
+
+	it('applies the call-response entry offset to every pass', () => {
+		const plan = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 0,
+			keyBars: 4,
+			ticksPerBar,
+			keyCount: 1,
+			passes: [2],
+			userBarsOffsetTicks: 2 * ticksPerBar
+		});
+		expect(plan.opens).toEqual([2 * ticksPerBar, 6 * ticksPerBar]);
+		expect(plan.closes).toEqual([4 * ticksPerBar, 8 * ticksPerBar]);
+	});
+
+	it('rejects a passes list that does not match the key count', () => {
+		expect(() =>
+			planCycleWindows({
+				audioStartTick: 0,
+				demoBars: 0,
+				keyBars: 2,
+				ticksPerBar,
+				keyCount: 2,
+				passes: [1],
+				userBarsOffsetTicks: 0
+			})
+		).toThrow();
 	});
 });
 

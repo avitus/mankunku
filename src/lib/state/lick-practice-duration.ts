@@ -77,16 +77,20 @@ export function barsToSeconds(bars: number, beatsPerBar: number, tempo: number):
  * `buildLickSuperPhrase` builds and `scheduleLickWindows` schedules windows
  * over. Continuous mode opens with a `lickBars` demo cycle and gives each key
  * one `lickBars` window; call-response has no upfront demo but doubles every
- * key window (app half, then user half).
+ * key window (app half, then user half). `extraWindows` are the additional
+ * whole key windows the lead-sheet passes add (a revealed key plays three
+ * times, not once).
  */
 export function lickAudioBars(args: {
 	keyCount: number;
 	lickBars: number;
 	mode: LickPracticeMode;
+	/** Extra key windows beyond one per key (lead-sheet passes). Default 0. */
+	extraWindows?: number;
 }): number {
 	const keyBars = args.mode === 'call-response' ? args.lickBars * 2 : args.lickBars;
 	const demoBars = args.mode === 'continuous' ? args.lickBars : 0;
-	return args.keyCount * keyBars + demoBars;
+	return (args.keyCount + (args.extraWindows ?? 0)) * keyBars + demoBars;
 }
 
 /**

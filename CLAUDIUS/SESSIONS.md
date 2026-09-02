@@ -2254,3 +2254,68 @@ overhanging note is clipped at the cap). Docs: `PlannedKey.reveal` and the
 three `TuneAbcOptions` fields were missing from the API references; the
 memory note said 196 px for a 178 px row; "over the line" became "back to
 75% or higher" (the threshold is inclusive).
+
+## 2026-09-01 (fifth pass) — Lead-sheet row, round two: the key being learned, three passes, a bigger staff with an aligned marker
+
+**What happened:**
+
+- Andy play-tested PR #242's lead-sheet row and found four problems: the
+  sheet showed for ANY sub-floor key when it is only needed for the key
+  being learned (the most recently unlocked one) and never once all 12 are
+  unlocked; the engraving was too small; the beat strip's equal-width bars
+  did not sit under abcjs's density-spaced bars; and one pass per cycle is
+  not enough to memorise a line from the page — "play it through three
+  times". Plan mode; three forks asked once (reveal gate / shape of the
+  three / what counts) and all three landed on the recommended option:
+  keep the under-75% gate narrowed to the newest key, three back-to-back
+  play windows after the cycle's one demo, only the last pass counts.
+- Design points that decided the shape: (1) the unlock state is a single
+  per-lick COUNT and the ramp is pure, so "newest key" is
+  `planUnlockedKeys(entryKey, count).at(-1)` — no timestamp, no new
+  persisted field; (2) the three passes are ONE held row, not three rows —
+  the previous pass's whole flicker lesson was "stop moving the thing being
+  read", and three identical rows stepping past would move it twice; so
+  windows became per PASS while keys stayed per SLOT (`planCycleWindows`
+  `passes` → `keyIndex`/`finalPass`; `rowScrollFraction` maps slot scroll
+  to row units; `item.keys` stays deduplicated so nothing keyed by pitch
+  class changes); (3) the marker moved INTO the staff — NotationDisplay's
+  existing `playhead` range marker draws from abcjs's own bar geometry, so
+  the alignment problem disappears rather than gets solved; the strip is
+  gone; (4) size by width and cap by height, so `staffWidth` is the zoom.
+- A Plan-agent review of the design caught six real holes before any code:
+  the scroll clamp used row count not slot count (would freeze a [3,1,1]
+  stack at row 1); pass counts must index the rotation, not the rows;
+  rehearsal windows would have saved orphan recordings; the marker array
+  had to be derived off an INTEGER bar or churn the DOM at 60 fps; the
+  cost model needed the extra windows for the Daily budget; C&R would have
+  replayed the app's half three times (passes are continuous-mode only).
+- TDD end to end: rotation (newest key, reveal input, per-window plan)
+  10 red → green; reveal suite 10 red → green (one of my seeds tripped the
+  0.95 mastery drop — a test fix, not a code fix); super-phrase 2 + duration
+  2 red → green; key-stack-layout 5 red → green (one expectation of mine was
+  wrong: the three-row floor of 315 px beats 200 + 105); phase-cue pin
+  added. Route + component by svelte-check (0/0). Then a throwaway
+  Playwright spec measured the row with `getBoundingClientRect` at 1024 and
+  375 px and screenshotted the stack mid-play: the brass bar sits exactly
+  under bar 1 then bar 2, the staff is 46 px tall (was ~30), the tab reads
+  "PLAY · 1/3". The box clamped the natural height by 1 px → widened to
+  200 (row 212). Docs on all surfaces + CLAUDE.md + MEMORY.md.
+
+**Notes:**
+
+- vitest 281 files, 4475 passed / 35 expected-fail; lick-practice e2e 2/2
+  chromium + the measurement spec; svelte-check 0/0.
+- Not done, by decision: per-width row height for phones (57 px SVG at
+  375 px — larger than before, still small); the empty slot above row 0 on
+  a one-key session leaves the top of the viewport blank until the first
+  boundary (pre-existing).
+
+Follow-up (same day, after the 3-bar demo): Andy — "we don't need the
+highlighting on the notes. The bar below is sufficient." The lit-note
+cursor came off the lead-sheet row; `music/beat-cursor.ts` had no other
+consumer and was deleted with its test and its API-reference section. The
+e2e pin had to be a per-frame SAMPLE through the opening of a pass: a
+retrying `toHaveCount(0)` passed on the first rest and never went red.
+Demo recorded from a throwaway spec (3-bar bebop line over the short
+ii-V-I → 3-bar cycle, 120 BPM, Playwright video → ffmpeg mp4), sent and
+opened in Chrome.

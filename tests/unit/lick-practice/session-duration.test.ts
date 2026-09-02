@@ -65,7 +65,8 @@ import {
 import {
 	togglePracticeTag,
 	toggleProgressionTag,
-	bumpUnlockedKeyCount
+	bumpUnlockedKeyCount,
+	updateKeyProgress
 } from '$lib/persistence/lick-practice-store';
 import { getAllLicks } from '$lib/phrases/library-loader';
 
@@ -106,6 +107,13 @@ describe('lick-practice-duration (pure cost model)', () => {
 		expect(lickAudioBars({ keyCount: 3, lickBars: 2, mode: 'continuous' })).toBe(8);
 	});
 
+	it('charges extra lead-sheet passes as whole key windows', () => {
+		// A revealed key runs three windows instead of one: two extra slots.
+		expect(
+			lickAudioBars({ keyCount: 3, lickBars: 2, mode: 'continuous', extraWindows: 2 })
+		).toBe(12);
+	});
+
 	it('reads beats-per-bar from the phrase rather than assuming 4/4', () => {
 		expect(barsToSeconds(4, 3, 120)).toBeCloseTo(6, 6);
 		expect(barsToSeconds(4, 4, 120)).toBeCloseTo(8, 6);
@@ -141,6 +149,33 @@ describe('estimatePlanSeconds', () => {
 				((audioBars + INTER_LICK_REST_BARS) * superPhrase!.timeSignature[0] * 60) / tempo;
 		}
 
+		expect(estimatePlanSeconds(lickPractice.plan)).toBeCloseTo(expected, 6);
+	});
+
+	it('charges the lead-sheet passes of a revealed newest key', () => {
+		// bc-041 with two keys unlocked (C, G); G under the floor reveals and
+		// runs three windows — the estimate must follow the super phrase.
+		togglePracticeTag('bc-041');
+		toggleProgressionTag('bc-041', 'blues');
+		bumpUnlockedKeyCount(lickPractice.progress, 'bc-041');
+		lickPractice.progress = updateKeyProgress(lickPractice.progress, 'bc-041', 'G', {
+			lastPracticedAt: 1,
+			rollingScore: 0.5
+		});
+		buildDailyPracticePlan();
+		expect(lickPractice.plan.length).toBe(1);
+		const superPhrase = buildLickSuperPhrase(0)!;
+		const plain = lickAudioBars({
+			keyCount: 2,
+			lickBars: getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false),
+			mode: 'continuous'
+		});
+		// Two extra windows of one cycle each.
+		expect(superPhrase.difficulty.lengthBars).toBe(plain + 2 * getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false));
+		const tempo = resolveLickTempo(lickPractice.progress, 'bc-041');
+		const expected =
+			((superPhrase.difficulty.lengthBars + INTER_LICK_REST_BARS) * superPhrase.timeSignature[0] * 60) /
+			tempo;
 		expect(estimatePlanSeconds(lickPractice.plan)).toBeCloseTo(expected, 6);
 	});
 });

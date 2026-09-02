@@ -7,12 +7,16 @@
  *   duration, with the previous row fully visible above it; the stack steps
  *   at each key boundary (the component animates the step). It does not
  *   drift: a staff crawling upward a pixel per frame strobes;
- * - the viewport reserves two of the tallest rows, so it never resizes
- *   between cycles, and is never shorter than the fixed-height stack was.
+ * - the viewport reserves the tallest row plus its neighbour, so it never
+ *   resizes between cycles, and is never shorter than the fixed-height
+ *   stack was;
+ * - a row can span several uniform time slots (a revealed key plays three
+ *   passes in one held row), so `rowScrollFraction` maps the transport's
+ *   slot-unit scroll onto row units before the layout sees it.
  */
 
 import { describe, it, expect } from 'vitest';
-import { keyStackLayout } from '$lib/ui/key-stack-layout';
+import { keyStackLayout, rowScrollFraction } from '$lib/ui/key-stack-layout';
 
 const SLOT = 105;
 const VISIBLE = 3;
@@ -61,14 +65,21 @@ describe('keyStackLayout', () => {
 		expect(next.translateY + SLOT + TALL).toBe(TALL);
 	});
 
-	it('reserves the viewport for TWO of the tallest rows whenever any row is tall', () => {
-		// A row and its predecessor are both on screen while it plays, and the
-		// height must not depend on where the tall rows sit — the next cycle
-		// re-sorts them, and a viewport that resized per cycle would shove the ring.
-		const TALL = 200;
-		expect(keyStackLayout([SLOT, TALL, SLOT], 0, SLOT, VISIBLE).viewportHeight).toBe(2 * TALL);
+	it('reserves the viewport for the tallest row plus its neighbour, wherever they sit', () => {
+		// A row and its predecessor are both on screen while it plays: the tall
+		// row under a standard one, then the next standard row under the tall
+		// one. The height must not depend on where the tall row sits — the next
+		// cycle re-sorts the rows, and a viewport that resized per cycle would
+		// shove the ring.
+		// (Taller than the fixed-height stack's floor of SLOT × VISIBLE = 315.)
+		const TALL = 260;
+		expect(keyStackLayout([SLOT, TALL, SLOT], 0, SLOT, VISIBLE).viewportHeight).toBe(TALL + SLOT);
+		expect(keyStackLayout([TALL, SLOT], 0, SLOT, VISIBLE).viewportHeight).toBe(TALL + SLOT);
+		expect(keyStackLayout([SLOT, TALL], 0, SLOT, VISIBLE).viewportHeight).toBe(TALL + SLOT);
+		// A lone tall row still needs the empty slot above it.
+		expect(keyStackLayout([TALL], 0, SLOT, VISIBLE).viewportHeight).toBe(TALL + SLOT);
+		// Two tall rows (not a shape the session builds, but the math is general).
 		expect(keyStackLayout([TALL, TALL], 0, SLOT, VISIBLE).viewportHeight).toBe(2 * TALL);
-		expect(keyStackLayout([TALL, SLOT], 0, SLOT, VISIBLE).viewportHeight).toBe(2 * TALL);
 		// Never shorter than the fixed-height stack was.
 		expect(keyStackLayout([SLOT, 120, SLOT], 0, SLOT, VISIBLE).viewportHeight).toBe(SLOT * VISIBLE);
 	});
@@ -79,5 +90,39 @@ describe('keyStackLayout', () => {
 			currentRow: 0,
 			viewportHeight: SLOT * VISIBLE
 		});
+	});
+});
+
+describe('rowScrollFraction', () => {
+	it('is the identity when every row spans one slot', () => {
+		expect(rowScrollFraction(0, [1, 1, 1])).toBe(0);
+		expect(rowScrollFraction(1.5, [1, 1, 1])).toBe(1.5);
+		expect(rowScrollFraction(2.25, [1, 1, 1])).toBe(2.25);
+	});
+
+	it('holds a multi-pass row for all its slots, advancing within the row', () => {
+		// Row 1 plays three passes: slots 1, 2 and 3 all belong to it.
+		const spans = [1, 3, 1];
+		expect(rowScrollFraction(1, spans)).toBe(1);
+		expect(rowScrollFraction(2.5, spans)).toBe(1.5);
+		expect(rowScrollFraction(3.99, spans)).toBeCloseTo(1 + 2.99 / 3, 9);
+		// The row after it starts at slot 4.
+		expect(rowScrollFraction(4, spans)).toBe(2);
+		expect(rowScrollFraction(4.5, spans)).toBe(2.5);
+	});
+
+	it('reports the pass a multi-pass row is on through its fraction', () => {
+		const spans = [3];
+		// Pass n = floor(fraction × passes) + 1.
+		expect(Math.floor((rowScrollFraction(0.2, spans) % 1) * 3) + 1).toBe(1);
+		expect(Math.floor((rowScrollFraction(1.2, spans) % 1) * 3) + 1).toBe(2);
+		expect(Math.floor((rowScrollFraction(2.9, spans) % 1) * 3) + 1).toBe(3);
+	});
+
+	it('clamps a pre-start scroll to the first row and a past-the-end scroll to the row count', () => {
+		expect(rowScrollFraction(-0.4, [1, 3])).toBe(0);
+		expect(rowScrollFraction(4, [1, 3])).toBe(2);
+		expect(rowScrollFraction(9, [1, 3])).toBe(2);
+		expect(rowScrollFraction(2, [])).toBe(0);
 	});
 });

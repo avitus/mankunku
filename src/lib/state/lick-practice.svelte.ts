@@ -97,6 +97,7 @@ import {
 	sortKeysWorstFirst,
 	shouldDemoHeadKey,
 	shouldRevealNotation,
+	LEAD_SHEET_PASSES,
 	deepPracticeStartTempo,
 	nextCycleTempo,
 	focusStartTempo,
@@ -191,6 +192,12 @@ export interface PlannedKey {
 	 * height cannot change while the stack is scrolling. Trick rows never.
 	 */
 	reveal: boolean;
+	/**
+	 * Consecutive play windows this row gets in the cycle: `LEAD_SHEET_PASSES`
+	 * for a revealed row in continuous mode (read it, read it again, play it
+	 * from memory), otherwise 1. Stamped with `reveal`, same lifetime.
+	 */
+	passes: number;
 }
 
 /**
@@ -519,7 +526,8 @@ function timingSpecForItem(item: LickPracticePlanItem): LickTimingSpec | null {
 		audioBars: lickAudioBars({
 			keyCount: item.keys.length,
 			lickBars,
-			mode: lickPractice.config.practiceMode
+			mode: lickPractice.config.practiceMode,
+			extraWindows: leadSheetExtraWindows(item.phraseId, lick.key, item.keys)
 		}),
 		beatsPerBar: lick.timeSignature[0],
 		tempo: resolveLickTempo(lickPractice.progress, item.phraseId)
@@ -594,7 +602,8 @@ export function computeSessionPlan(): LickPracticePlanItem[] {
 			audioBars: lickAudioBars({
 				keyCount: keys.length,
 				lickBars: getLickBars(lick, progressionType, enableSubstitutions),
-				mode: lickPractice.config.practiceMode
+				mode: lickPractice.config.practiceMode,
+				extraWindows: leadSheetExtraWindows(lick.id, lick.key, keys)
 			}),
 			beatsPerBar: lick.timeSignature[0],
 			tempo
@@ -720,7 +729,8 @@ export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 			audioBars: lickAudioBars({
 				keyCount: keys.length,
 				lickBars: getLickBars(lick, progressionType, enableSubstitutions),
-				mode: lickPractice.config.practiceMode
+				mode: lickPractice.config.practiceMode,
+				extraWindows: leadSheetExtraWindows(lick.id, lick.key, keys)
 			}),
 			beatsPerBar: lick.timeSignature[0],
 			tempo
@@ -1248,7 +1258,8 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 				harmony: phrase.harmony,
 				lickName: item.phraseName,
 				lickId: item.phraseId,
-				reveal: revealFor(item, key)
+				reveal: revealFor(item, key),
+				passes: passesFor(item, key)
 			};
 		}
 		keyIdx -= item.keys.length;
@@ -1292,7 +1303,8 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 			harmony: phrase.harmony,
 			lickName: item.phraseName,
 			lickId: item.phraseId,
-			reveal: revealFor(item, key)
+			reveal: revealFor(item, key),
+			passes: passesFor(item, key)
 		});
 	}
 	return result;
@@ -1311,25 +1323,96 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 const revealDecisions = new WeakMap<readonly PitchClass[], Map<PitchClass, boolean>>();
 
 /**
- * Does a row for `key` engrave the sheet music? The key's persisted rolling
- * score is defined and under the floor (`shouldRevealNotation` — an unknown
- * score never reveals: the first attempt is by ear), and the item is a lick
- * (a trick's regenerated figure is drilled for fluency, not read). Decided
- * once per rotation — see `revealDecisions`.
+ * The reveal rule applied to one lick's key list — the single place
+ * `shouldRevealNotation` is fed from progress: the lick's own key is the
+ * ramp origin, the unlock count is read ONCE per call (it parses storage),
+ * and each key's persisted rolling score is looked up. Shared by the
+ * per-rotation decisions below and the plan-time cost model, so the session
+ * and its estimate can never disagree about which key reveals.
  */
-function revealFor(item: LickPracticePlanItem, key: PitchClass): boolean {
-	let decisions = revealDecisions.get(item.keys);
-	if (!decisions) {
-		decisions = new Map();
-		revealDecisions.set(item.keys, decisions);
+function decideReveals(
+	phraseId: string,
+	entryKey: PitchClass,
+	keys: readonly PitchClass[]
+): Map<PitchClass, boolean> {
+	const unlockedCount = getUnlockedKeyCount(lickPractice.progress, phraseId);
+	const decisions = new Map<PitchClass, boolean>();
+	for (const key of keys) {
+		decisions.set(
+			key,
+			shouldRevealNotation({
+				key,
+				entryKey,
+				unlockedCount,
+				rolling: getRollingScore(lickPractice.progress, phraseId, key)
+			})
+		);
 	}
-	const cached = decisions.get(key);
-	if (cached !== undefined) return cached;
-	const reveal =
-		item.kind !== 'trick' &&
-		shouldRevealNotation(getRollingScore(lickPractice.progress, item.phraseId, key));
-	decisions.set(key, reveal);
-	return reveal;
+	return decisions;
+}
+
+/**
+ * The rotation's reveal decisions, taken the first time the rotation is
+ * asked about and held until it is replaced. A trick's regenerated figure is
+ * drilled for fluency, not read, so trick rows never reveal; a lick that can
+ * no longer be resolved (deleted mid-plan) has no entry key and never
+ * reveals either.
+ */
+function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean> {
+	let decisions = revealDecisions.get(item.keys);
+	if (decisions) return decisions;
+	const entryKey = item.kind === 'trick' ? undefined : resolveLickFor(item)?.key;
+	decisions = entryKey ? decideReveals(item.phraseId, entryKey, item.keys) : new Map();
+	revealDecisions.set(item.keys, decisions);
+	return decisions;
+}
+
+/** Does a row for `key` engrave the sheet music? See `revealDecisionsFor`. */
+function revealFor(item: LickPracticePlanItem, key: PitchClass): boolean {
+	return revealDecisionsFor(item).get(key) ?? false;
+}
+
+/**
+ * Play windows a key gets in the cycle: `LEAD_SHEET_PASSES` for a revealed
+ * key in continuous mode, else one. Call-response keeps one — each of its
+ * windows already replays the app's half, so three would be three demos.
+ */
+function passesFor(item: LickPracticePlanItem, key: PitchClass): number {
+	return revealFor(item, key) && lickPractice.config.practiceMode === 'continuous'
+		? LEAD_SHEET_PASSES
+		: 1;
+}
+
+/**
+ * Pass counts for the plan item at `lickIdx`, one per rotation slot (indexed
+ * like `item.keys`, NOT like the planned rows, which skip a key whose phrase
+ * fails to build) — the single source `buildLickSuperPhrase` and the session
+ * page's window scheduler share, so the backing and the windows stay in
+ * lockstep, exactly as `getDemoBars` does for the demo block.
+ */
+export function getKeyPasses(lickIdx: number): number[] {
+	const item = lickPractice.plan[lickIdx];
+	if (!item) return [];
+	return item.keys.map((key) => passesFor(item, key));
+}
+
+/**
+ * Extra windows the lead-sheet passes add to a lick's cycle at PLAN time,
+ * before a plan item exists: `LEAD_SHEET_PASSES − 1` for each key that
+ * reveals (at most one — the newest). Feeds `lickAudioBars` so the Daily
+ * budget fill and the setup estimate charge the passes the session plays.
+ */
+function leadSheetExtraWindows(
+	phraseId: string,
+	entryKey: PitchClass,
+	keys: readonly PitchClass[]
+): number {
+	if (lickPractice.config.practiceMode !== 'continuous') return 0;
+	let extra = 0;
+	for (const reveal of decideReveals(phraseId, entryKey, keys).values()) {
+		if (reveal) extra += LEAD_SHEET_PASSES - 1;
+	}
+	return extra;
 }
 
 /**
@@ -1427,51 +1510,51 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		}
 	}
 
+	// One slot per PASS: a revealed key (the newest, under the floor) runs
+	// `LEAD_SHEET_PASSES` windows back to back, so its changes — and in C&R
+	// its call — are laid out once per pass. `getKeyPasses` is the same
+	// source the session page schedules the recording windows from.
+	const passes = getKeyPasses(lickIdx);
+	let slot = 0;
 	for (let i = 0; i < item.keys.length; i++) {
 		const key = item.keys[i];
-		// Continuous mode shifts user keys by `demoBars` to leave room for the
-		// demo at the start. C&R mode is unaffected (demoBars = 0).
-		const keyOffsetWhole: Fraction = [i * keyBars + demoBars, 1];
 		const keyHarmony = harmonyForLick(baseLick, key, progressionType, enableSubstitutions);
-
-		// Harmony for the full keyBars span of this key. In continuous mode
-		// this is just the transposed progression. In call-response mode we
-		// need harmony for both the app bars AND the user bars, so the
-		// backing keeps playing — we add the progression twice.
-		for (const seg of keyHarmony) {
-			superHarmony.push({
-				...seg,
-				startOffset: addFractions(seg.startOffset, keyOffsetWhole)
-			});
-		}
-		if (practiceMode === 'call-response') {
-			const userBarsOffset: Fraction = [i * keyBars + lickBars, 1];
-			for (const seg of keyHarmony) {
-				superHarmony.push({
-					...seg,
-					startOffset: addFractions(seg.startOffset, userBarsOffset)
-				});
-			}
-		}
-
 		// Melody: in call-response mode the app plays the lick during the
 		// first half of each key's window. In continuous mode the only melody
 		// notes are the demo notes added above the loop — the user keys here
 		// don't emit notes because the user plays them.
-		if (practiceMode === 'call-response') {
-			const transposed = transposeLick(
-				baseLick,
-				targetFor(key),
-				instrument.concertRangeLow,
-				highestNote
-			);
-			for (const note of transposed.notes) {
+		const callNotes =
+			practiceMode === 'call-response'
+				? transposeLick(baseLick, targetFor(key), instrument.concertRangeLow, highestNote).notes
+				: [];
+		for (let pass = 0; pass < (passes[i] ?? 1); pass++, slot++) {
+			// Continuous mode shifts user keys by `demoBars` to leave room for the
+			// demo at the start. C&R mode is unaffected (demoBars = 0).
+			const keyOffsetWhole: Fraction = [slot * keyBars + demoBars, 1];
+
+			// Harmony for the full keyBars span of this slot. In continuous mode
+			// this is just the transposed progression. In call-response mode we
+			// need harmony for both the app bars AND the user bars, so the
+			// backing keeps playing — we add the progression twice.
+			for (const seg of keyHarmony) {
+				superHarmony.push({
+					...seg,
+					startOffset: addFractions(seg.startOffset, keyOffsetWhole)
+				});
+			}
+			if (practiceMode === 'call-response') {
+				const userBarsOffset: Fraction = [slot * keyBars + lickBars, 1];
+				for (const seg of keyHarmony) {
+					superHarmony.push({
+						...seg,
+						startOffset: addFractions(seg.startOffset, userBarsOffset)
+					});
+				}
+			}
+			for (const note of callNotes) {
 				superNotes.push({
 					...note,
-					offset: addFractions(
-						addFractions(note.offset, alignmentOffset),
-						keyOffsetWhole
-					)
+					offset: addFractions(addFractions(note.offset, alignmentOffset), keyOffsetWhole)
 				});
 			}
 		}
@@ -1486,7 +1569,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		harmony: superHarmony,
 		difficulty: {
 			...baseLick.difficulty,
-			lengthBars: item.keys.length * keyBars + demoBars
+			lengthBars: slot * keyBars + demoBars
 		},
 		category: baseLick.category,
 		tags: baseLick.tags,

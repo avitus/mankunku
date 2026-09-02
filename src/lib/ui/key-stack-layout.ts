@@ -5,7 +5,8 @@
  *
  * The stack STEPS, it does not drift. The active row holds one slot below
  * the top — the previous row's height, or the standard slot before row 0 —
- * for its whole duration, so the previous row (and its score flash) stays
+ * for its whole duration (a revealed row's duration is all of its passes,
+ * see `rowScrollFraction`), so the previous row (and its score flash) stays
  * fully visible above it and the row being read never moves; at each key
  * boundary the translate jumps by the finished row's height and the
  * component animates the step. The original stack drifted continuously
@@ -49,9 +50,42 @@ export function keyStackLayout(
 	// Row `currentRow` sits at y = prevHeight for its whole key: top + translateY.
 	const translateY = prevHeight - top;
 
+	// The tallest row plus its neighbour: while a row plays, the row before
+	// it is on screen above it — a standard row (or the empty slot) above the
+	// one tall row, then the tall row above the next standard one. General
+	// over any heights, and independent of WHERE the tall row sits, since the
+	// next cycle re-sorts the rows.
 	let tallest = 0;
-	for (const h of heights) tallest = Math.max(tallest, h);
-	const viewportHeight = Math.max(slotHeight * visibleRows, 2 * tallest);
+	let second = 0;
+	for (const h of heights) {
+		if (h > tallest) {
+			second = tallest;
+			tallest = h;
+		} else if (h > second) {
+			second = h;
+		}
+	}
+	const viewportHeight = Math.max(slotHeight * visibleRows, tallest + Math.max(slotHeight, second));
 
 	return { translateY, currentRow, viewportHeight };
+}
+
+/**
+ * Map the transport's scroll in uniform SLOT units (one key window each —
+ * `ticks / ticksPerKey`) onto ROW units for `keyStackLayout`, where a row
+ * can span several slots: a revealed key plays `LEAD_SHEET_PASSES` windows
+ * back to back in ONE held row, so the staff being read never moves between
+ * passes. `spans[i]` is the slots row i occupies. Clamped to `[0, rows]`.
+ *
+ * The fraction within a multi-slot row also says which pass it is on:
+ * `floor(frac × spans[row]) + 1`.
+ */
+export function rowScrollFraction(slotScroll: number, spans: readonly number[]): number {
+	let remaining = Math.max(0, slotScroll);
+	for (let row = 0; row < spans.length; row++) {
+		const span = Math.max(1, spans[row]);
+		if (remaining < span) return row + remaining / span;
+		remaining -= span;
+	}
+	return spans.length;
 }

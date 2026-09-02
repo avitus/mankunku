@@ -14,10 +14,14 @@
  *   while the head key's rolling score is below proficient, so strong
  *   cycles run back-to-back with no listening interlude.
  * - The sheet music is conditional too (`shouldRevealNotation`): the
- *   session shows the current key's notation only while that key's rolling
- *   score is below the floor, and never for a key that has not been
- *   attempted yet — the first pass is always by ear. Same rule in every
- *   session type, not just deep practice.
+ *   session shows notation only for the key the player is LEARNING — the
+ *   most recently unlocked one (`newestUnlockedKey`) — while that key's
+ *   rolling score is below the floor, never for an earlier key (memorised by
+ *   the time the next one unlocks), never once all twelve are unlocked, and
+ *   never for a key that has not been attempted yet — the first pass is
+ *   always by ear. A revealed key runs `LEAD_SHEET_PASSES` windows in a row
+ *   so the line can be memorised from the page. Same rule in every session
+ *   type, not just deep practice.
  *
  * The timing helpers keep the boundary robust: the cycle boundary fires at
  * the last key's close tick, leaving exactly the turnaround bar of
@@ -46,6 +50,7 @@
 
 import type { PitchClass } from '$lib/types/music';
 import type { FocusRamp } from '$lib/types/lick-practice';
+import { MAX_UNLOCKED_KEYS, planUnlockedKeys } from '$lib/music/key-ordering';
 import {
 	KEY_FLOOR_THRESHOLD,
 	KEY_PROFICIENT_THRESHOLD,
@@ -82,19 +87,52 @@ export function shouldDemoHeadKey(
 }
 
 /**
- * Should the session show the sheet music for the key being played? Yes
- * while that key's rolling score is below the floor — the player is
- * failing it on balance, and reading the line beats another blind miss.
+ * Consecutive play windows a revealed key gets in one cycle: enough to read
+ * the line, read it again, and then play it from memory.
+ */
+export const LEAD_SHEET_PASSES = 3;
+
+/**
+ * The key a lick's player is currently learning: the most recently unlocked
+ * one. Derivable with no timestamp because the unlock state is a single
+ * per-lick count and the ramp (`planUnlockedKeys`) is a pure function of the
+ * entry key — the newest key is simply the ramp's last entry. Null once every
+ * key is unlocked: nothing is "newest" any more.
+ */
+export function newestUnlockedKey(entryKey: PitchClass, unlockedCount: number): PitchClass | null {
+	if (unlockedCount >= MAX_UNLOCKED_KEYS) return null;
+	const ramp = planUnlockedKeys(entryKey, unlockedCount);
+	return ramp[ramp.length - 1] ?? null;
+}
+
+export interface NotationRevealInput {
+	/** The key of the row being decided. */
+	key: PitchClass;
+	/** The lick's own key — the origin of its unlock ramp. */
+	entryKey: PitchClass;
+	/** Keys unlocked for the lick so far (1–12). */
+	unlockedCount: number;
+	/** The key's persisted rolling score; undefined = never attempted here. */
+	rolling: number | undefined;
+}
+
+/**
+ * Should the session show the sheet music for this key? Only for the key
+ * being learned — the newest unlocked one — and only while its rolling score
+ * is below the floor: the player is failing it on balance, and reading the
+ * line beats another blind miss. Earlier keys never reveal (they were learned
+ * before the next one unlocked), and nothing reveals at twelve of twelve.
  * The one deliberate difference from `shouldDemoHeadKey`: an UNKNOWN score
  * never reveals, because the first attempt in a key is always by ear. The
  * rule is the same in both directions, so the sheet withdraws on its own
  * once the rolling score recovers over the floor.
  */
 export function shouldRevealNotation(
-	rolling: number | undefined,
+	input: NotationRevealInput,
 	floor: number = KEY_FLOOR_THRESHOLD
-): rolling is number {
-	return rolling !== undefined && rolling < floor;
+): boolean {
+	if (input.key !== newestUnlockedKey(input.entryKey, input.unlockedCount)) return false;
+	return input.rolling !== undefined && input.rolling < floor;
 }
 
 /**
@@ -316,18 +354,24 @@ export function resolveNextCycleStart(
 }
 
 export interface CycleWindowPlan {
-	/** Per-key recording-window open ticks, in rotation order. */
+	/** Per-window recording-window open ticks, in playing order. */
 	opens: number[];
-	/** Per-key recording-window close ticks, in rotation order. */
+	/** Per-window recording-window close ticks, in playing order. */
 	closes: number[];
-	/** Tick where the last key's window closes — the cycle boundary. */
+	/** Rotation slot (index into the key list) each window belongs to. */
+	keyIndex: number[];
+	/** True on a key's last window — the attempt of record; earlier passes are rehearsals. */
+	finalPass: boolean[];
+	/** Tick where the last window closes — the cycle boundary. */
 	cycleEndTick: number;
 }
 
 /**
  * Lay out a cycle's recording windows: an optional demo block of
- * `demoBars`, then `keyCount` back-to-back windows of `keyBars` each.
- * `userBarsOffsetTicks` delays each window's open within its key slot
+ * `demoBars`, then one window of `keyBars` per pass, back to back — every
+ * key gets one pass unless `passes` says otherwise (a revealed key gets
+ * `LEAD_SHEET_PASSES`, abutting, in its own rotation slot).
+ * `userBarsOffsetTicks` delays each window's open within its slot
  * (call-response mode, where the app plays the first half).
  */
 export function planCycleWindows(args: {
@@ -336,19 +380,34 @@ export function planCycleWindows(args: {
 	keyBars: number;
 	ticksPerBar: number;
 	keyCount: number;
+	/** Windows per key, in rotation order; defaults to one each. Must match `keyCount`. */
+	passes?: readonly number[];
 	userBarsOffsetTicks: number;
 }): CycleWindowPlan {
 	const { audioStartTick, demoBars, keyBars, ticksPerBar, keyCount, userBarsOffsetTicks } = args;
+	const passes = args.passes ?? Array.from({ length: keyCount }, () => 1);
+	if (passes.length !== keyCount) {
+		throw new Error(`planCycleWindows: ${passes.length} pass counts for ${keyCount} keys`);
+	}
 	const keyTicks = keyBars * ticksPerBar;
 	const cycleStartTick = audioStartTick + demoBars * ticksPerBar;
 
 	const opens: number[] = [];
 	const closes: number[] = [];
+	const keyIndex: number[] = [];
+	const finalPass: boolean[] = [];
+	let slot = 0;
 	for (let i = 0; i < keyCount; i++) {
-		const keyStartTick = cycleStartTick + i * keyTicks;
-		opens.push(keyStartTick + userBarsOffsetTicks);
-		closes.push(keyStartTick + keyTicks);
+		const count = Math.max(1, passes[i]);
+		for (let pass = 0; pass < count; pass++) {
+			const slotStartTick = cycleStartTick + slot * keyTicks;
+			opens.push(slotStartTick + userBarsOffsetTicks);
+			closes.push(slotStartTick + keyTicks);
+			keyIndex.push(i);
+			finalPass.push(pass === count - 1);
+			slot++;
+		}
 	}
 
-	return { opens, closes, cycleEndTick: cycleStartTick + keyCount * keyTicks };
+	return { opens, closes, keyIndex, finalPass, cycleEndTick: cycleStartTick + slot * keyTicks };
 }

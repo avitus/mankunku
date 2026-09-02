@@ -1,9 +1,10 @@
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
-	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import NotationDisplay, {
+		type RangeMarker
+	} from '$lib/components/notation/NotationDisplay.svelte';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { keyStackLayout } from '$lib/ui/key-stack-layout';
-	import { noteIndexAtBeat } from '$lib/music/beat-cursor';
 	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
 	import { phaseTabView, PHASE_LEAD_BEATS, type PhaseCue } from '$lib/state/lick-practice-phase';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -17,9 +18,12 @@
 		/** All keys for the current lick, in playback order. */
 		plannedKeys: PlannedKey[];
 		/**
-		 * Continuous scroll position in "key units": 0 at the start of the
-		 * first key, 1 at the start of the second key, etc. Updated each
-		 * animation frame from transport.seconds.
+		 * Scroll position in ROW units: the integer part is the row being
+		 * played, the fraction the position within it (for a multi-pass row,
+		 * `floor(fraction × passes) + 1` is the pass). The session converts the
+		 * transport's slot-unit progress with `rowScrollFraction` before passing
+		 * it, so a three-pass row holds through all its passes — raw key units
+		 * would move that row after its first pass. Updated each animation frame.
 		 */
 		scrollFraction: number;
 		/** Active beat in the currently-playing key (drives chord-box highlight). */
@@ -66,16 +70,23 @@
 	}: Props = $props();
 
 	// Rows are fixed pixel heights so the scroll math is pure: one
-	// chord-chart row, or the taller lead-sheet row a struggling key gets
-	// (staff with chords above it, the beat strip and a caption beneath).
+	// chord-chart row, or the taller lead-sheet row the key being learned
+	// gets (staff with chords above it, the current bar marked on the staff).
 	const ROW_HEIGHT = 105;
-	// Lead-sheet row budget: row padding 12 + tab clearance 26 + staff 110 +
-	// beat strip 22 + slack. The staff box is clipped to its height so the
-	// row can never overflow into the next one. No caption: the engraving
-	// itself is the message, and a line of prose under it was clutter.
-	const LEAD_ROW_HEIGHT = 178;
-	const LEAD_STAFF_WIDTH = 1000;
+	// Lead-sheet row budget: row padding 12 + the staff box. The box is the
+	// tab clearance (26) plus the engraving at full row width (measured:
+	// 976 × 171 px for a 664 × 116.5 viewBox at LEAD_STAFF_WIDTH below),
+	// clipped to its height so the row can never overflow into the next one.
+	// No caption: the engraving itself is the message, and a line of prose
+	// under it was clutter.
+	const LEAD_STAFF_BOX = 200;
+	const LEAD_ROW_HEIGHT = LEAD_STAFF_BOX + 12;
+	// abcjs staff width in SVG units. The SVG is sized by WIDTH, so this is
+	// the zoom: a 960 px row over a ~664-unit viewBox engraves at ~1.45× —
+	// readable from a music stand, where the old 1000-unit staff was not.
+	const LEAD_STAFF_WIDTH = 640;
 	const VISIBLE_ROWS = 3;
+	const NO_MARKERS: RangeMarker[] = [];
 
 	// The current key HOLDS one slot below the top for its whole duration —
 	// the previous row (and its score flash) fully visible above it — and the
@@ -109,6 +120,34 @@
 		return keyLabel(written, lickMode(plannedKeys[visualCurrentRow].phrase));
 	});
 	const tab = $derived(cue ? phaseTabView(cue, activeKeyLabel) : null);
+	// Which pass of a multi-pass (revealed) row is playing: the row spans its
+	// passes as equal slots, so the fraction within the row says which one.
+	const activePass = $derived.by(() => {
+		const pk = plannedKeys[visualCurrentRow];
+		if (!pk || pk.passes <= 1) return null;
+		const frac = Math.max(0, scrollFraction) - visualCurrentRow;
+		return { index: Math.min(pk.passes, Math.floor(frac * pk.passes) + 1), total: pk.passes };
+	});
+
+	// Current bar of the active row's lead sheet (0-based within the
+	// engraved window), or -1 when the active row has no sheet or nothing is
+	// playing. An INTEGER derived, so the marker array below only changes
+	// identity when the bar changes — NotationDisplay redraws its playhead
+	// rects on identity, and a per-frame array would churn the DOM at 60 fps.
+	const activeBar = $derived.by(() => {
+		const pk = plannedKeys[visualCurrentRow];
+		const sheet = leadSheets[visualCurrentRow];
+		if (!pk || !sheet || !isPlaying || currentBeat < 0) return -1;
+		return Math.floor(currentBeat / pk.phrase.timeSignature[0]) - sheet.startBar;
+	});
+	// The playback marker, drawn ON the staff from abcjs's own bar geometry
+	// (NotationDisplay's playhead range marker) — so it sits exactly under the
+	// bar being played, whatever spacing the engraver chose.
+	const activeMarkers = $derived<RangeMarker[]>(
+		activeBar < 0
+			? NO_MARKERS
+			: [{ id: 'playhead', startBar: activeBar, endBarExclusive: activeBar + 1, status: 'playhead' }]
+	);
 	const tabArm = $derived(
 		tab && tab.count > 0 ? (PHASE_LEAD_BEATS + 1 - tab.count) / (PHASE_LEAD_BEATS + 1) : 0
 	);
@@ -145,40 +184,28 @@
 					class:recording={isCurrent && isRecording}
 					class:arming={isCurrent && isArming && !isRecording}
 				>
-					{#if sheet}
-						<!-- Lead-sheet row: the key is under the floor, so the line is
-						     engraved against its changes — chords above the staff, one
-						     full-width system — with the beat strip beneath. The cursor
-						     lights the note the band is at. No caption by decision: the
-						     engraving is the message. -->
-						{@const beatsPerBar = pk.phrase.timeSignature[0]}
-						{@const cursor = isCurrent
-							? noteIndexAtBeat(
-									sheet.tune.sections[0].notes,
-									currentBeat - sheet.startBar * beatsPerBar,
-									pk.phrase.timeSignature
-								)
-							: null}
-						<div class="lead-sheet" data-testid="lead-sheet-row">
-							<NotationDisplay
-								tune={sheet.tune}
-								tuneOptions={sheet.options}
-								{instrument}
-								frameless
-								staffWidth={LEAD_STAFF_WIDTH}
-								cursorIndex={cursor}
-							/>
-						</div>
-						<ChordChart
-							harmony={pk.harmony}
-							currentBeat={isCurrent ? currentBeat : 0}
-							timeSignature={[4, 4]}
-							isPlaying={isCurrent && isPlaying}
-							key={pk.key}
-							mode={lickMode(pk.phrase)}
-							{instrument}
-							dotsOnly
-						/>
+						{#if sheet}
+							<!-- Lead-sheet row: the key being learned is under the floor, so
+							     the line is engraved against its changes — chords above the
+							     staff, one full-width system. The playhead under the staff
+							     marks the bar, placed by the engraver's own geometry; it is
+							     the only playback indication (a lit-note cursor was tried and
+							     dropped as redundant). No caption by decision: the engraving
+							     is the message. -->
+							<div
+								class="lead-sheet"
+								data-testid="lead-sheet-row"
+								style="--lead-staff-box: {LEAD_STAFF_BOX}px;"
+							>
+								<NotationDisplay
+									tune={sheet.tune}
+									tuneOptions={sheet.options}
+									{instrument}
+									frameless
+									staffWidth={LEAD_STAFF_WIDTH}
+									rangeMarkers={isCurrent ? activeMarkers : NO_MARKERS}
+								/>
+							</div>
 					{:else}
 						<ChordChart
 							harmony={pk.harmony}
@@ -207,7 +234,12 @@
 					     context) and covers the chart's "Changes" label, which is
 					     the line the eye crosses on the way into the chords. -->
 					{#if isCurrent && tab && tab.kind !== 'hidden'}
-						<div class="phase-tab" data-kind={tab.kind} style="--arm: {tabArm};">
+							<div
+								class="phase-tab"
+								data-kind={tab.kind}
+								data-pass={tab.kind === 'play' && activePass ? activePass.index : undefined}
+								style="--arm: {tabArm};"
+							>
 							<span class="tab-lamp" class:lit={tab.kind === 'play'} aria-hidden="true"></span>
 							{#if tab.kind === 'play' || tab.kind === 'play-in'}
 								<svg class="tab-glyph" viewBox="0 0 16 16" aria-hidden="true">
@@ -233,6 +265,13 @@
 								</svg>
 							{/if}
 							<span class="smallcaps" aria-hidden="true">{tab.text}</span>
+								{#if tab.kind === 'play' && activePass}
+									<!-- Pass n of the revealed key's three: read it, read it
+									     again, then from memory. -->
+									<span class="tab-pass" aria-hidden="true">
+										· {activePass.index}/{activePass.total}
+									</span>
+								{/if}
 							{#if tab.count > 0}
 								{#key tab.count}
 									<span class="tab-count" aria-hidden="true">{tab.count}</span>
@@ -283,25 +322,32 @@
 		outline: 2px dashed color-mix(in srgb, var(--color-phase-play) 55%, transparent);
 		outline-offset: 0;
 	}
-	/* Lead-sheet row: the staff is sized by HEIGHT so the row's pixel height
-	   is fixed for the scroll math; a wide staff (LEAD_STAFF_WIDTH) makes the
-	   single system span the row at that height, and on a narrow screen the
-	   width cap letterboxes it smaller rather than taller. The box is clipped
-	   so nothing can spill into the next row. The top padding keeps the phase
-	   tab (pinned to the chart-wrap corner) off the clef and key signature.
-	   abcjs's responsive mode sets the SVG to 100% width inline, hence the
-	   !important. */
+	/* Lead-sheet row: the staff is sized by WIDTH like every other chart, so
+	   LEAD_STAFF_WIDTH is the zoom — and never taller than the box, so a
+	   phrase with ledger lines scales down (left-aligned, xMinYMin meet)
+	   rather than clipping. The box is a fixed height for the scroll math and
+	   clipped so nothing can spill into the next row. The top padding keeps
+	   the phase tab (pinned to the chart-wrap corner) off the clef and key
+	   signature. abcjs's responsive mode sets the SVG absolute inside an
+	   aspect-ratio padding box, all inline — hence the !important on every
+	   override. */
 	.lead-sheet {
 		box-sizing: border-box;
-		height: 136px;
-		padding: 26px 0.25rem 0;
+		height: var(--lead-staff-box);
+		padding: 26px 0 0;
 		overflow: hidden;
 	}
+	.lead-sheet :global(.abcjs-container) {
+		display: block !important;
+		padding-bottom: 0 !important;
+		overflow: visible !important;
+	}
 	.lead-sheet :global(svg) {
+		position: static !important;
 		display: block;
-		height: 110px !important;
-		width: auto !important;
-		max-width: 100%;
+		width: 100% !important;
+		height: auto !important;
+		max-height: calc(var(--lead-staff-box) - 26px);
 	}
 
 	/* Transient per-key score chip: fades in over the just-scored row, holds,
@@ -427,6 +473,12 @@
 		flex: none;
 		width: 0.85rem;
 		height: 0.85rem;
+	}
+	.tab-pass {
+		font-size: 0.8rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		opacity: 0.85;
 	}
 	.tab-count {
 		display: inline-block;
