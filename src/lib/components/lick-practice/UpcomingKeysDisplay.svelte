@@ -18,9 +18,12 @@
 		/** All keys for the current lick, in playback order. */
 		plannedKeys: PlannedKey[];
 		/**
-		 * Continuous scroll position in "key units": 0 at the start of the
-		 * first key, 1 at the start of the second key, etc. Updated each
-		 * animation frame from transport.seconds.
+		 * Scroll position in ROW units: the integer part is the row being
+		 * played, the fraction the position within it (for a multi-pass row,
+		 * `floor(fraction × passes) + 1` is the pass). The session converts the
+		 * transport's slot-unit progress with `rowScrollFraction` before passing
+		 * it, so a three-pass row holds through all its passes — raw key units
+		 * would move that row after its first pass. Updated each animation frame.
 		 */
 		scrollFraction: number;
 		/** Active beat in the currently-playing key (drives chord-box highlight). */

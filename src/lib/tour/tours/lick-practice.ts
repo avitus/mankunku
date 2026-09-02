@@ -26,7 +26,7 @@ export const lickPracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Gradual 12-key unlock',
 			description:
-				"Each tagged lick starts in just one key — its home key — and earns the next key once you've passed it three times cleanly (avg session score ≥ 90%, and no key below 75% in the session that earns it). Keys come in easiest-to-hardest order, one accidental at a time, alternating sharps and flats from home. You'll have all 12 in time; for now you only practice what you've earned. If the key you're learning — the newest one — drops under 75%, its sheet music appears in the session and you play it three times in a row, until you bring it back to 75% or higher.",
+				"Each tagged lick starts in just one key — its home key — and earns the next key once you've passed it three times cleanly (avg session score ≥ 90%, and no key below 75% in the session that earns it). Keys come in easiest-to-hardest order, one accidental at a time, alternating sharps and flats from home. You'll have all 12 in time; for now you only practice what you've earned. If the key you're learning — the newest one — drops under 75%, its sheet music appears in the session — and in continuous mode you play it three times in a row — until you bring it back to 75% or higher.",
 			align: 'center'
 		}
 	},
