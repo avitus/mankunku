@@ -5,7 +5,6 @@
 	} from '$lib/components/notation/NotationDisplay.svelte';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { keyStackLayout } from '$lib/ui/key-stack-layout';
-	import { noteIndexAtBeat } from '$lib/music/beat-cursor';
 	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
 	import { phaseTabView, PHASE_LEAD_BEATS, type PhaseCue } from '$lib/state/lick-practice-phase';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -185,18 +184,11 @@
 						{#if sheet}
 							<!-- Lead-sheet row: the key being learned is under the floor, so
 							     the line is engraved against its changes — chords above the
-							     staff, one full-width system. The cursor lights the note the
-							     band is at and the playhead marks the bar, both placed by the
-							     engraver's own geometry. No caption by decision: the engraving
+							     staff, one full-width system. The playhead under the staff
+							     marks the bar, placed by the engraver's own geometry; it is
+							     the only playback indication (a lit-note cursor was tried and
+							     dropped as redundant). No caption by decision: the engraving
 							     is the message. -->
-							{@const beatsPerBar = pk.phrase.timeSignature[0]}
-							{@const cursor = isCurrent
-								? noteIndexAtBeat(
-										sheet.tune.sections[0].notes,
-										currentBeat - sheet.startBar * beatsPerBar,
-										pk.phrase.timeSignature
-									)
-								: null}
 							<div
 								class="lead-sheet"
 								data-testid="lead-sheet-row"
@@ -208,7 +200,6 @@
 									{instrument}
 									frameless
 									staffWidth={LEAD_STAFF_WIDTH}
-									cursorIndex={cursor}
 									rangeMarkers={isCurrent ? activeMarkers : NO_MARKERS}
 								/>
 							</div>

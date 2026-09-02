@@ -267,6 +267,20 @@ test.describe('lick-practice session flow', () => {
 		await expect(playTab).toContainText('1/3');
 		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
 		await expect(playTab).toHaveAttribute('data-pass', '2', { timeout: 30_000 });
+		// The bar marker is the only playback indication on the staff — no
+		// lit-note cursor (Andy: "the bar below is sufficient"). Sampled every
+		// frame through the opening of pass 2, where the line's first notes
+		// sound: a retrying count-of-zero would pass on the first rest.
+		const litDuringPass = await page.evaluate(async () => {
+			const row = document.querySelector('[data-testid="lead-sheet-row"]');
+			const end = performance.now() + 1500;
+			while (performance.now() < end) {
+				if (row?.querySelector('.cursor-note')) return true;
+				await new Promise((r) => requestAnimationFrame(r));
+			}
+			return false;
+		});
+		expect(litDuringPass).toBe(false);
 		await expect(playTab).toHaveAttribute('data-pass', '3', { timeout: 30_000 });
 		await expect(reveal).toBeVisible();
 

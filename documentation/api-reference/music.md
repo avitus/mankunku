@@ -174,12 +174,6 @@ A lick as a one-system lead sheet for the lick-practice key stack: wraps the phr
 
 The row's engraving options: `mode: lickMode(phrase)`, `barsPerLine: bars` (one system), `stretchLast: true`, `measureNumbers: false`. These three options were added to `TuneAbcOptions` (`tune-notation.ts`) for this; every default is unchanged, so the tune goldens stay byte-identical.
 
-## beat-cursor.ts
-
-### `noteIndexAtBeat(notes, beat, timeSignature): number | null`
-
-Index of the note sounding at a beat position (started, not yet ended); null before the first note, during a rest, for a negative (parked) beat, or an empty phrase. Drives the lead-sheet row's `cursorIndex`.
-
 ## notation.ts
 
 ABC notation generation from `Phrase` data. Used by `NotationDisplay.svelte` to render sheet music via [abcjs](https://paulrosen.github.io/abcjs/).

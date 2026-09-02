@@ -2309,3 +2309,13 @@ memory note said 196 px for a 178 px row; "over the line" became "back to
   375 px — larger than before, still small); the empty slot above row 0 on
   a one-key session leaves the top of the viewport blank until the first
   boundary (pre-existing).
+
+Follow-up (same day, after the 3-bar demo): Andy — "we don't need the
+highlighting on the notes. The bar below is sufficient." The lit-note
+cursor came off the lead-sheet row; `music/beat-cursor.ts` had no other
+consumer and was deleted with its test and its API-reference section. The
+e2e pin had to be a per-frame SAMPLE through the opening of a pass: a
+retrying `toHaveCount(0)` passed on the first rest and never went red.
+Demo recorded from a throwaway spec (3-bar bebop line over the short
+ii-V-I → 3-bar cycle, 120 BPM, Playwright video → ffmpeg mp4), sent and
+opened in Chrome.
