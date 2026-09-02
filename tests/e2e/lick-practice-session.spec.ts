@@ -22,9 +22,10 @@ const SEEDED_PROGRESS = {
 
 /**
  * The same seed with a sub-floor rolling score on C — a key the player has
- * been failing. The session shows that key's sheet music while its rolling
- * score is under the floor (`getNotationReveal`), so with this seed the
- * panel is up from the first row. `lick-practice-next-steps.ts` never reads
+ * been failing. C is the lick's only unlocked key, hence the one being
+ * learned, so the session engraves its row as a lead sheet while the rolling
+ * score is under the floor (`shouldRevealNotation` → `PlannedKey.reveal`) and
+ * runs it for three passes. `lick-practice-next-steps.ts` never reads
  * `rollingScore`, so the report's Drill CTA below is unaffected.
  */
 const SUB_FLOOR_PROGRESS = {
@@ -126,10 +127,15 @@ test.describe('lick-practice session flow', () => {
 		});
 
 		// Round phase 2 — the user window: the active chart flags recording
-		// while the mocked mic captures the response.
+		// while the mocked mic captures the response. The revealed key plays
+		// three passes; the PLAY tab numbers them.
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 30_000 });
+		await expect(page.locator('.phase-tab[data-kind="play"]')).toHaveAttribute(
+			'data-pass',
+			/^[123]$/
+		);
 
-		// Round completes: the window closes, the attempt is scored, and the
+		// Round completes: the last pass closes, the attempt is scored, and the
 		// single-key plan exhausts into the report — no clicks in between.
 		await expect(page.getByRole('heading', { name: /session report/i })).toBeVisible({
 			timeout: 90_000
@@ -194,10 +200,11 @@ test.describe('lick-practice session flow', () => {
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
 
-		// Two full cycles (demo + user window + turnaround) at the seeded
-		// tempo — same budget shape as the daily test. Deep practice eases
-		// in 2% under the lick's stored tempo, so it opens at 176 rather
-		// than the seeded 180; the budget absorbs the difference.
+		// Two full cycles (demo + user window(s) + turnaround) at the seeded
+		// tempo — same budget shape as the daily test; cycle 2 runs the
+		// revealed key's three passes. Deep practice eases in 2% under the
+		// lick's stored tempo, so it opens at 176 rather than the seeded 180;
+		// the budget absorbs the difference.
 		test.setTimeout(240_000);
 
 		await seedOnboardedAnonymous(page);
@@ -249,7 +256,18 @@ test.describe('lick-practice session flow', () => {
 		// under the old flow 2 rest bars + a breather card sat here; under a
 		// boundary regression nothing would ever open again.
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
-		// ...and the sheet stays up through the user's window in that key.
+		// ...and the sheet stays up through the user's windows in that key: the
+		// revealed key plays THREE passes back to back, one held row, the PLAY
+		// tab counting them (the windows abut, so the recording ring never
+		// blinks between passes — the tab is the observable), with the current
+		// bar marked ON the staff by the engraver's own geometry.
+		await expect(reveal).toBeVisible();
+		const playTab = page.locator('.phase-tab[data-kind="play"]');
+		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 10_000 });
+		await expect(playTab).toContainText('1/3');
+		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
+		await expect(playTab).toHaveAttribute('data-pass', '2', { timeout: 30_000 });
+		await expect(playTab).toHaveAttribute('data-pass', '3', { timeout: 30_000 });
 		await expect(reveal).toBeVisible();
 
 		// Endless by design: still running, no report, no round card.

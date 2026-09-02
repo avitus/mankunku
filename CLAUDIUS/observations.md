@@ -1299,3 +1299,35 @@ new colours but the indirection: two semantic aliases and a sweep test
 that forbids the palette tokens on the phase surfaces. The next colour
 opinion is a two-line change; the previous one took a 60-tool inventory.
 Semantics belong in a name, not in a hex.
+
+---
+
+## 2026-09-01 (fifth pass) — The alignment problem that disappeared, and the state that was already there
+
+Two things from the lead-sheet rework worth keeping.
+
+First: "the bars should align with the bars of the playback marker" reads
+as a geometry task — measure the engraved bars, lay the strip's cells to
+match — and I had half-designed that (export `barZones` from
+NotationDisplay, absolutely position the cells) before noticing the
+codebase already draws a bar-level playhead ON the staff for tune practice,
+from the engraver's own layout. Passing one range marker made the
+alignment exact by construction and deleted the strip. The general shape:
+when two things must agree, look for a way to make one of them the other's
+source before building a bridge between them. A bridge is a second thing
+that can drift.
+
+Second: "most recently unlocked key" sounded like it needed a timestamp,
+and the store has none — but the unlock state is a single count and the
+ramp is a pure function of the entry key, so the newest key is the ramp's
+last entry. Derivable state beats recorded state every time it is
+available: nothing to migrate, nothing to sync, nothing to be stale. The
+question to ask of any "we need to remember X" is whether X is already a
+function of what is remembered.
+
+A smaller one on reviewing my own plan: the Plan-agent pass found six real
+holes, and every one of them was a place where a NEW shape (per-window
+plans, rehearsal windows, a per-frame array) met an OLD assumption (rows ==
+slots, every window persists, the marker effect redraws on identity). None
+were in the parts I had thought hardest. The risk in a design is where the
+new thing touches the existing thing, not inside the new thing.

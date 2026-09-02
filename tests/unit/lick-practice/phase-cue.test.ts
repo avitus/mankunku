@@ -56,6 +56,25 @@ describe('buildPhaseTimeline', () => {
 		]);
 	});
 
+	it('folds a revealed key\'s three passes into the same single play block', () => {
+		// The passes abut, so the cue never counts down between them — the
+		// user plays straight through all three.
+		const windows = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 4,
+			keyBars: 4,
+			ticksPerBar: TICKS_PER_BAR,
+			keyCount: 3,
+			passes: [3, 1, 1],
+			userBarsOffsetTicks: 0
+		});
+		const timeline = buildPhaseTimeline({ audioStartTick: 0, windows, ticksPerBar: TICKS_PER_BAR });
+		expect(timeline).toEqual([
+			{ phase: 'listen', startTick: 0, endTick: 4 * TICKS_PER_BAR },
+			{ phase: 'play', startTick: 4 * TICKS_PER_BAR, endTick: 24 * TICKS_PER_BAR }
+		]);
+	});
+
 	it('omits the listen block entirely when the demo is skipped', () => {
 		const timeline = buildPhaseTimeline({
 			audioStartTick: 0,

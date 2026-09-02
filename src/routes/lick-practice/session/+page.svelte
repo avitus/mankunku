@@ -19,6 +19,7 @@
 		buildLickSuperPhrase,
 		getKeyBars,
 		getDemoBars,
+	getKeyPasses,
 		recordKeyAttempt,
 		advance,
 		startInterLickTransition,
@@ -42,6 +43,7 @@
 	} from '$lib/data/progressions';
 	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
 	import { resolveNextCycleStart, planCycleWindows } from '$lib/state/lick-practice-rotation';
+import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 	import {
 		INTER_LICK_REST_BARS,
 		SCORE_HOLD_BARS
@@ -211,6 +213,9 @@
 	// shown first row doesn't animate before its demo starts.
 	let lickAudioStartTick = 0;
 	let ticksPerKey = 0;
+	// Slots (key windows) each planned row spans — 1, or the lead-sheet passes
+	// for a revealed row, which holds through all of them.
+	let rowSpans: number[] = [];
 	// Beat-wrap length for the chord chart highlight. Updated on every lick
 	// boundary so licks with different progression lengths wrap correctly.
 	let beatLoopBeats = 0;
@@ -271,6 +276,14 @@
 		recordingTransportSeconds: number;
 		micStartTime: number;
 		readingsStartCount: number;
+		/**
+		 * The key's last window this cycle — the attempt of record. A revealed
+		 * key plays `LEAD_SHEET_PASSES` windows; the earlier ones are rehearsals:
+		 * scored and flashed, never persisted, no recording kept.
+		 */
+		finalPass: boolean;
+		/** Windows this key gets in the cycle (1, or the lead-sheet passes). */
+		passes: number;
 	}
 	let currentWindow: RecordingWindow | null = null;
 
@@ -547,6 +560,7 @@
 		// resets cleanly when a new lick starts (and adapts to a possible
 		// tempo change at the same time).
 		plannedKeysForLick = getPlannedKeysForLick(lickIdx);
+		rowSpans = plannedKeysForLick.map((pk) => pk.passes);
 		ticksPerKey = keyBars * ticksPerBar;
 		beatLoopBeats = lickBars * beatsPerBar;
 
@@ -665,12 +679,16 @@
 		// users play the full window.
 		const userBarsOffset = mode === 'call-response' ? lickBars * ticksPerBar : 0;
 
+		// Windows per key: one, or the lead-sheet passes for a revealed key.
+		// Same source buildLickSuperPhrase laid the backing out from.
+		const passes = getKeyPasses(lickIdx);
 		const windows = planCycleWindows({
 			audioStartTick,
 			demoBars,
 			keyBars,
 			ticksPerBar,
 			keyCount: item.keys.length,
+			passes,
 			userBarsOffsetTicks: userBarsOffset
 		});
 		const lickEndTick = windows.cycleEndTick;
@@ -690,26 +708,28 @@
 				lickPractice.mode === 'single-lick' ? TURNAROUND_BARS : INTER_LICK_REST_BARS
 		});
 
-		for (let i = 0; i < item.keys.length; i++) {
-			const keyIndexForCallback = i;
-			const isLastKey = i === item.keys.length - 1;
+		for (let w = 0; w < windows.opens.length; w++) {
+			const keyIndexForCallback = windows.keyIndex[w];
+			const finalPass = windows.finalPass[w];
+			const passCount = passes[keyIndexForCallback] ?? 1;
+			const isLastWindow = w === windows.opens.length - 1;
 
 			const openId = transport.scheduleOnce((time: number) => {
-				openRecordingWindow(lickIdx, keyIndexForCallback, time);
-			}, `${windows.opens[i]}i`);
+				openRecordingWindow(lickIdx, keyIndexForCallback, finalPass, passCount, time);
+			}, `${windows.opens[w]}i`);
 			scheduledEventIds.push(openId);
 
 			const closeId = transport.scheduleOnce((time: number) => {
 				closeAndScoreWindow(time);
 				// Single-lick: the cycle boundary runs HERE — synchronously
-				// after the last key scores, from the scheduled callback
+				// after the last window scores, from the scheduled callback
 				// rather than inside closeAndScoreWindow's guarded body, so a
 				// scoring early-return can never leave the session hanging
 				// with no next cycle scheduled.
-				if (isLastKey && lickPractice.mode === 'single-lick') {
+				if (isLastWindow && lickPractice.mode === 'single-lick') {
 					handleSingleLickCycleBoundary(lickEndTick, ticksPerBar);
 				}
-			}, `${windows.closes[i]}i`);
+			}, `${windows.closes[w]}i`);
 			scheduledEventIds.push(closeId);
 		}
 
@@ -967,7 +987,10 @@
 					scrollTicks > 0 && ticksPerKey > 0
 						? scrollTicks / ticksPerKey
 						: 0;
-				scrollFraction = Math.min(rawScroll, plannedKeysForLick.length);
+				// Slot units → row units: a revealed row spans its three passes and
+				// holds through them. Clamped to the row count inside, so the
+				// display never scrolls past the last row into phantom rows.
+				scrollFraction = rowScrollFraction(rawScroll, rowSpans);
 			}
 			beatAnimFrame = requestAnimationFrame(tick);
 		}
@@ -988,7 +1011,13 @@
 	 * because the whole lick's backing is scheduled at once), and the mic
 	 * start time so the scorer can align the readings to the beat grid.
 	 */
-	function openRecordingWindow(lickIdx: number, keyIdx: number, _transportTime: number) {
+	function openRecordingWindow(
+		lickIdx: number,
+		keyIdx: number,
+		finalPass: boolean,
+		passes: number,
+		_transportTime: number
+	) {
 		if (!playback || !backingTrack || !pitchDetector) return;
 
 		// Derive the actual phrase for this key (transposed + progression
@@ -1022,14 +1051,18 @@
 			schedule: schedule ?? null,
 			recordingTransportSeconds: transportSecondsAtOpen,
 			micStartTime: micCapture?.context.currentTime ?? 0,
-			readingsStartCount: readings.length
+			readingsStartCount: readings.length,
+			finalPass,
+			passes
 		};
 
 		// Spin up a recorder that mixes mic + master (metronome + backing)
 		// exactly as ear-training does, so /diagnostics can replay what the
 		// user heard alongside what they played. A failed recorder init is
 		// non-fatal — scoring and progress still work without the audio blob.
-		if (micCapture) {
+		// A rehearsal pass keeps no recording: nothing in keyResults would
+		// reference it, and /diagnostics would list an orphan take.
+		if (micCapture && finalPass) {
 			let tmpRecorder: RecorderHandle | null = null;
 			try {
 				tmpRecorder = createRecorder(
@@ -1178,15 +1211,22 @@
 			//      derives from, so upserting per key gives the calendar
 			//      per-key durability.
 			// Wrapped independently so a throw in (1) can't suppress (2).
-			try {
-				recordKeyAttempt(score, window.sessionId);
-			} catch (err) {
-				console.warn('[lick-practice] recordKeyAttempt failed:', err);
+			// Both only on the key's FINAL pass — a rehearsal pass of a revealed
+			// key is scored for the flash below and nothing else.
+			if (window.finalPass) {
+				try {
+					recordKeyAttempt(score, window.sessionId);
+				} catch (err) {
+					console.warn('[lick-practice] recordKeyAttempt failed:', err);
+				}
 			}
-			// Single-lick inline feedback: flash the scored key's tier + percent
-			// on its chart row. Replaces the per-round breather card — the flow
-			// never stops, so feedback rides the scroll instead of pausing it.
-			if (lickPractice.mode === 'single-lick') {
+			// Inline feedback: flash the scored key's tier + percent on its chart
+			// row. In single-lick flow it replaces the per-round breather card —
+			// the flow never stops, so feedback rides the scroll instead of
+			// pausing it. A multi-pass (revealed) key flashes every pass in
+			// every mode: the passes exist to improve across, so each needs its
+			// number.
+			if (lickPractice.mode === 'single-lick' || window.passes > 1) {
 				scoreFlash = { key: window.key, score: score.overall, at: Date.now() };
 				if (scoreFlashTimeout) clearTimeout(scoreFlashTimeout);
 				scoreFlashTimeout = setTimeout(() => {
@@ -1194,7 +1234,7 @@
 					scoreFlashTimeout = null;
 				}, 2200);
 			}
-			try {
+			if (window.finalPass) try {
 				// Split the running report into per-progression slices so the
 				// session log records each progression actually practiced. For
 				// standard sessions (one progressionType across the whole plan)
@@ -1277,6 +1317,10 @@
 					handle.dispose();
 				});
 		}
+
+		// A rehearsal pass leaves the key where it is: the next window is the
+		// same key again, already scheduled.
+		if (!window.finalPass) return;
 
 		// Advance the key index. The scheduler has already scheduled the
 		// next key's window open callback, so the UI just needs to update.
@@ -1473,6 +1517,7 @@
 		lickStartTick = 0;
 		lickAudioStartTick = 0;
 		ticksPerKey = 0;
+		rowSpans = [];
 		beatLoopBeats = 0;
 		lickEndFreezeTick = null;
 		phaseTimeline = [];

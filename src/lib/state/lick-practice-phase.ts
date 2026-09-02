@@ -126,7 +126,13 @@ export function buildOpenEndedTimeline(args: {
 	const { audioStartTick, ticksPerBar, countInBars } = args;
 	return buildPhaseTimeline({
 		audioStartTick,
-		windows: { opens: [audioStartTick], closes: [OPEN_ENDED_TICK], cycleEndTick: OPEN_ENDED_TICK },
+		windows: {
+			opens: [audioStartTick],
+			closes: [OPEN_ENDED_TICK],
+			keyIndex: [0],
+			finalPass: [true],
+			cycleEndTick: OPEN_ENDED_TICK
+		},
 		ticksPerBar,
 		countInBars
 	});

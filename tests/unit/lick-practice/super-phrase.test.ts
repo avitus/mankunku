@@ -4,19 +4,37 @@
  * call-response practice sessions across all 12 keys.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// localStorage stub — the lead-sheet pass cases seed unlock counts and
+// rolling scores through the persistence store.
+const store = new Map<string, string>();
+vi.stubGlobal('localStorage', {
+	getItem: vi.fn((key: string) => store.get(key) ?? null),
+	setItem: vi.fn((key: string, val: string) => store.set(key, val)),
+	removeItem: vi.fn((key: string) => store.delete(key)),
+	key: vi.fn((i: number) => [...store.keys()][i] ?? null),
+	get length() {
+		return store.size;
+	},
+	clear: vi.fn(() => store.clear())
+});
+
 import {
 	lickPractice,
 	getPlannedKey,
 	getUpcomingKeys,
 	buildLickSuperPhrase,
 	getKeyBars,
+	getKeyPasses,
 	getLickBars,
 	getProgressionBars,
 	advance,
 	startInterLickTransition,
 	recordKeyAttempt
 } from '$lib/state/lick-practice.svelte';
+import { LEAD_SHEET_PASSES } from '$lib/state/lick-practice-rotation';
+import { bumpUnlockedKeyCount, updateKeyProgress } from '$lib/persistence/lick-practice-store';
 import type { Phrase } from '$lib/types/music';
 import type { LickPracticePlanItem } from '$lib/types/lick-practice';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -38,6 +56,8 @@ function plan(...items: Array<{ id: string; keys: string[] }>): LickPracticePlan
 }
 
 beforeEach(() => {
+	store.clear();
+	lickPractice.progress = {};
 	lickPractice.config.progressionType = 'ii-V-I-major';
 	lickPractice.config.practiceMode = 'continuous';
 	lickPractice.currentLickIndex = 0;
@@ -219,6 +239,46 @@ describe('buildLickSuperPhrase — continuous mode', () => {
 		const sp = buildLickSuperPhrase(0);
 		// 3 user keys × 2 bars + 2 demo bars = 8
 		expect(sp?.difficulty.lengthBars).toBe(8);
+	});
+});
+
+describe('buildLickSuperPhrase — lead-sheet passes', () => {
+	// Three keys unlocked from C: C, G, F — F is the newest. The plan runs
+	// [C, F, Bb]; F under the floor reveals and gets LEAD_SHEET_PASSES windows.
+	beforeEach(() => {
+		bumpUnlockedKeyCount(lickPractice.progress, SHORT_LICK_ID);
+		bumpUnlockedKeyCount(lickPractice.progress, SHORT_LICK_ID);
+		lickPractice.progress = updateKeyProgress(lickPractice.progress, SHORT_LICK_ID, 'F', {
+			lastPracticedAt: 1,
+			rollingScore: 0.5
+		});
+		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C', 'F', 'Bb'] });
+	});
+
+	it('lays the revealed key\'s harmony once per pass, in consecutive slots', () => {
+		expect(getKeyPasses(0)).toEqual([1, LEAD_SHEET_PASSES, 1]);
+		const sp = buildLickSuperPhrase(0)!;
+		const segsPerKey = 3;
+		// demo (C) + C + F ×3 + Bb = 6 slots × 3 segments
+		expect(sp.harmony.length).toBe(6 * segsPerKey);
+		// Slots are 2 bars each after the 2-bar demo: C@2, F@4, F@6, F@8, Bb@10.
+		const slotStarts = [1, 2, 3, 4, 5].map((slot) =>
+			fractionToFloat(sp.harmony[slot * segsPerKey].startOffset)
+		);
+		expect(slotStarts).toEqual([2, 4, 6, 8, 10]);
+		const slotRoots = [1, 2, 3, 4, 5].map((slot) => sp.harmony[slot * segsPerKey].chord.root);
+		// ii of C = D, ii of F = G (three times), ii of Bb = C
+		expect(slotRoots).toEqual(['D', 'G', 'G', 'G', 'C']);
+	});
+
+	it('extends the total length by the extra passes', () => {
+		const sp = buildLickSuperPhrase(0)!;
+		// 2 demo + (1 + 3 + 1) × 2 = 12 bars
+		expect(sp.difficulty.lengthBars).toBe(12);
+	});
+
+	it('still plays the demo exactly once', () => {
+		expect(buildLickSuperPhrase(0)!.notes.length).toBe(4);
 	});
 });
 

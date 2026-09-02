@@ -109,6 +109,7 @@
 			phrase: stubPhrase(r),
 			harmony: r.harmony,
 			reveal: false,
+			passes: 1,
 			lickName: 'Preview lick',
 			lickId: 'cue-preview'
 		}))

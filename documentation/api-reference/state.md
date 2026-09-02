@@ -290,10 +290,14 @@ export interface PlannedKey {
   harmony: HarmonicSegment[];
   lickName: string;
   lickId: string;
-  /** Engrave this row as a lead sheet: the key's persisted rolling score is
-   *  defined and under KEY_FLOOR_THRESHOLD (never for trick items). Decided
-   *  once per rotation, so a row's height cannot change mid-cycle. */
+  /** Engrave this row as a lead sheet: the key is the lick's most recently
+   *  unlocked one (never at 12/12) AND its persisted rolling score is defined
+   *  and under KEY_FLOOR_THRESHOLD (never for trick items). Decided once per
+   *  rotation, so a row's height cannot change mid-cycle. */
   reveal: boolean;
+  /** Consecutive play windows this row gets: LEAD_SHEET_PASSES (3) for a
+   *  revealed row in continuous mode, else 1. */
+  passes: number;
 }
 ```
 
@@ -326,7 +330,8 @@ export interface PlannedKey {
 - `getPhraseFor(lickIdx, keyIdx): Phrase | null` — Pure variant for scoring keys that have already advanced.
 - `getPlannedKey(offset): PlannedKey | null` — Lookahead across lick boundaries.
 - `getUpcomingKeys(): { current; next; afterNext }` — Three-row preview helper.
-- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview). Each `PlannedKey` carries `reveal`: the key's persisted rolling score is defined and under `KEY_FLOOR_THRESHOLD` (`shouldRevealNotation`; unknown → false; never for trick items), decided when the stack is built so a row's height never changes mid-scroll — the stack engraves a revealed row as a lead sheet.
+- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview). Each `PlannedKey` carries `reveal` — the key is the most recently unlocked one and its persisted rolling score is defined and under `KEY_FLOOR_THRESHOLD` (`shouldRevealNotation`; unknown → false; never at 12/12; never for trick items) — and `passes`, decided when the stack is built so a row's height never changes mid-scroll — the stack engraves a revealed row as a lead sheet and holds it for its passes.
+- `getKeyPasses(lickIdx): number[]` — Play windows per rotation slot (indexed like `item.keys`, not like the planned rows): `LEAD_SHEET_PASSES` for a revealed key in continuous mode, else 1. The single source `buildLickSuperPhrase` and the session page's window scheduler share, as `getDemoBars` is for the demo block.
 
 ### Phrase assembly
 
@@ -370,9 +375,11 @@ Pure cycle policy behind single-lick Deep Practice. Plain module (no rune, no st
 |---|---|---|
 | `sortKeysWorstFirst` | `(keys, rollingFor) → PitchClass[]` | Ascending by rolling score, with an **unknown score coerced to −1** so a never-practiced key sorts worst and gets demoed. Copies the input; relies on a stable sort, so ties keep incoming circle-of-4ths order. |
 | `shouldDemoHeadKey` | `(headRolling, threshold = KEY_PROFICIENT_THRESHOLD) → boolean` | Demo while the head key is unknown or **strictly below** 0.90. At 0.90+ the demo is skipped — the user answers in the struggling key immediately. |
-| `shouldRevealNotation` | `(rolling, floor = KEY_FLOOR_THRESHOLD) → rolling is number` | Show the current key's sheet music while its rolling score is **defined and strictly below** 0.75. Unknown → `false` (the first attempt is by ear) — the one deliberate inversion of `shouldDemoHeadKey`'s unknown rule. Same rule both ways, so the sheet withdraws once the EWMA recovers. |
+| `newestUnlockedKey` | `(entryKey, unlockedCount) → PitchClass \| null` | The key being learned: the last entry of the `planUnlockedKeys` ramp for the lick's unlock count (count 1 → the entry key). `null` at `MAX_UNLOCKED_KEYS` — nothing is "newest" once every key is unlocked. |
+| `shouldRevealNotation` | `({ key, entryKey, unlockedCount, rolling }, floor = KEY_FLOOR_THRESHOLD) → boolean` | Show the sheet music for `key` only when it IS the newest unlocked key AND its rolling score is **defined and strictly below** 0.75. Unknown → `false` (the first attempt is by ear) — the one deliberate inversion of `shouldDemoHeadKey`'s unknown rule; earlier keys and a fully unlocked lick → `false`. Same rule both ways, so the sheet withdraws once the EWMA recovers. |
+| `LEAD_SHEET_PASSES` | `3` | Consecutive play windows a revealed key gets in one cycle: read it, read it again, then from memory. |
 | `resolveNextCycleStart` | `(idealStartTick, currentTick, ticksPerBar, minLeadTicks) → number` | Pushes the start forward **by whole bars** until it is at least `minLeadTicks` ahead. A late callback stretches the turnaround; it never schedules audio in the past and never leaves the bar grid. |
-| `planCycleWindows` | `({ audioStartTick, demoBars, keyBars, ticksPerBar, keyCount, userBarsOffsetTicks }) → CycleWindowPlan` | Per-key recording `opens[]` / `closes[]` plus `cycleEndTick`. `userBarsOffsetTicks` is non-zero only in call-and-response, where the app plays the first half of each key slot. |
+| `planCycleWindows` | `({ audioStartTick, demoBars, keyBars, ticksPerBar, keyCount, passes?, userBarsOffsetTicks }) → CycleWindowPlan` | Per-WINDOW recording `opens[]` / `closes[]` with a parallel `keyIndex[]` (rotation slot) and `finalPass[]` (the key's last window — the attempt of record), plus `cycleEndTick` (the last window's close). `passes` gives windows per key (default one each, must match `keyCount`); a revealed key's passes abut in its own slot. `userBarsOffsetTicks` is non-zero only in call-and-response, where the app plays the first half of each window. |
 | `deepPracticeStartTempo` | `(persisted) → number` | Deep practice's opening tempo: 2% under the saved tempo, rounded, **always at least 1 BPM down**, clamped at `MIN_TEMPO`. |
 | `nextCycleTempo` | `(current, percent) → number` | Tempo after a cleared rotation: `current + ceil(current × percent/100)`, clamped at `MAX_TEMPO`. Rounded UP so a 1% bump under 100 BPM can never round to a no-op. |
 | `focusStartTempo` | `(persisted) → number` | Focus ramp's opening tempo: `FOCUS_START_DISCOUNT` (10%, the unlock dip) under the saved tempo, same ≥ 1 BPM guard and `MIN_TEMPO` clamp. |
