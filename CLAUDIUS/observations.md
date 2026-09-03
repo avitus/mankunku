@@ -4,6 +4,62 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-03 (second pass) — A lazy import is only cheap if somebody starts it early
+
+The abcjs chunk was lazy for a good reason — most routes never engrave —
+and the laziness was correct everywhere except the one place a staff is
+needed on a clock. "Lazy" answers WHETHER to load; it says nothing about
+WHEN, and the default WHEN (first component mount) was the worst possible
+moment on the Daily path. The fix is not to make it eager; it is to give
+the decision a home: one loader, and the route that knows it will need the
+engine says so at mount. The general shape: a dynamic import inside a
+component ties the fetch to the render, and a render that happens on a
+schedule (a count-in, an animation frame budget) needs the fetch untied
+from it.
+
+On the test: the first red was wrong in an instructive way. With a seed
+that never reveals, the old code never fetched at all, so the assertion
+that fired was "never requested", not "requested too late". Same
+conclusion, worse message — and a weaker proof, because it would also
+pass a detection bug. Choosing the seed so the OLD behaviour produces the
+request and fails on order made the test say what the fix does.
+
+---
+
+## 2026-09-03 — A layout that parks the active thing is not a layout that shows the next one
+
+The lead-sheet row was verified twice on 09-01 and both times it was row 0,
+where the demo and the turnaround give it seconds on screen before anyone
+has to read it. Every seed we had unlocked one key. The rule underneath —
+"the active row holds one slot below the top" — was written for the row
+being played, and it said nothing about the row being read next; a sheet
+queued under a chord row straddled the viewport and only became whole on
+the tick its window opened. Daily practice, which puts the newest key LAST,
+hit it every time. Two lessons.
+
+First, the row-0 verification was a verification of the happy path only,
+and the happy path was the one the demo pads. When a feature has a "first
+position" that gets extra lead time by construction, the test seed must put
+it somewhere else. A seed's shape is an assumption; the assumption was
+"one key".
+
+Second, the fix was again not in the notation code. A pure function with
+three lines changed, plus one CSS class. The three explorers I sent out
+came back with the abcjs pipeline in exhaustive detail — cold dynamic
+import, a permanent font-metrics cache, six synchronous DOM passes — and
+none of it was the cause. Worth keeping the inventory (it's in the session
+log), but the decisive evidence was the layout probe: five lines of
+arithmetic that put the sheet's box at 210..422 in a 317 px viewport. When
+a report says "not completely displayed", measure where the thing IS before
+asking how it is drawn.
+
+Also: Playwright's `toBeVisible` is not visibility. It passed on a row that
+was two-thirds hidden by an ancestor's overflow. Geometry assertions from
+`getBoundingClientRect`, taken in one `evaluate` so every field describes
+the same frame, were the only way to make the bug fail a test.
+
+---
+
 ## 2026-08-23 — A stale countdown is not a state; ask the system that owns the budget
 
 The CodeRabbit waiter I built first was a countdown from a per-PR ETA. It was

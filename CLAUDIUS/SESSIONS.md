@@ -2319,3 +2319,80 @@ retrying `toHaveCount(0)` passed on the first rest and never went red.
 Demo recorded from a throwaway spec (3-bar bebop line over the short
 ii-V-I → 3-bar cycle, 120 BPM, Playwright video → ffmpeg mp4), sent and
 opened in Chrome.
+
+## 2026-09-03 — Lead sheet readable a key ahead
+
+**What happened:**
+
+- Andy: the lead-sheet row "is working well, but the sheet music is not
+  completely displayed by the time the user has to play it." Plan mode;
+  three explorers (stack layout, NotationDisplay pipeline, cycle timeline)
+  converged on the layout, not the engraving: `keyStackLayout` parks the
+  ACTIVE row one slot below the top and never looks at the NEXT row's
+  height, so a 212 px sheet queued under a 105 px chord row straddles the
+  317 px viewport (107 px showing, at 35% opacity) and only steps fully
+  into view — 420 ms transform, 250 ms fade — on the very transport tick
+  its play window opens (`planCycleWindows` opens slot k where the scroll
+  reaches k; continuous mode has no listen gap). Reproduced with the pure
+  function alone: `[105,105,212]` @1.5 → sheet at 210..422.
+- Why Andy hit it now and not on the 09-01 play-test: Daily/Focused play
+  keys in ramp order and the revealed key is the ramp's LAST entry, so the
+  sheet is always the last row, never has a demo, and always arrives this
+  way; deep practice puts it at row 0 (fully visible through turnaround +
+  demo) unless an older key scores worse. Every seed we had verified was
+  one unlocked key — row 0 — where the demo hides the gap.
+- Fix (the Plan agent validated every number before code): the active row
+  parks at the TOP when the next row is taller than the slot and the three
+  would not fit (`readAhead`), so the sheet is wholly on screen for the
+  whole preceding key and the stack does not move at the sheet's own
+  downbeat (`[105,105,212]`: −105 at scroll 1 AND 2). Viewport unchanged.
+  The upcoming sheet row is lit (`.row.ahead`, opacity only — playhead,
+  beat, ring stay `.current`-gated). Accepted costs, documented: the row
+  played two keys before the sheet scrolls out with its flash (the ring
+  keeps the score); the lick name above row 0 is clipped from the start
+  in a two-key stack.
+- TDD: 8 unit cases red (4 failing on exactly the predicted numbers) →
+  green; e2e third spec (two unlocked keys, G revealed as row 1) measured
+  geometrically in one `evaluate` — red on opacity 0.35 → green after the
+  class; then run once with the layout stashed to prove it fails on the
+  geometry too (it timed out never seeing the ahead state). Throwaway
+  screenshot spec (deleted): C row at the top with the ring, full staff lit
+  under it, no playhead; at G pass 1 nothing moved and the brass marker
+  sits under bar 1. Docs on all five surfaces + CLAUDE.md + MEMORY.md.
+
+**Notes:**
+
+- vitest 280 files, 4479 passed / 35 expected-fail; svelte-check 0/0;
+  lick-practice e2e chromium 3/3.
+- Not done, by decision (noted in the plan for follow-up): NotationDisplay's
+  `await import('abcjs')` is cold on the Daily path (508 KB / 124 KB br,
+  requested at count-in — masked today by the sheet being last); the stack's
+  `{#each}` key includes the row index, so a worst-first re-sort remounts
+  and re-engraves the sheet each cycle boundary; the viewport moves 315↔317
+  between reveal and no-reveal cycles.
+
+## 2026-09-03 (second pass) — Notation engine fetched during session setup
+
+- Andy: "Fix the abcjs issue" — the follow-up from the morning: abcjs is
+  the second-largest chunk (508 KB raw / 124 KB brotli) and NotationDisplay
+  imported it from its own `onMount`, so on the Daily path (no notation
+  anywhere before the session) the first lead-sheet row issued the fetch at
+  the moment the count-in started.
+- Fix: `notation/abcjs-loader.ts` — `createAbcjsLoader(importer)` with a
+  memoised `load()` (one in-flight promise for every caller, a failed
+  fetch retried rather than cached) and a synchronous `loaded()`;
+  `NotationDisplay` seeds its `$state` from `loaded()` and falls back to
+  `load()` on mount; the session route calls `load()` first thing in
+  `onMount`, before the six sequential audio-module imports and the
+  mic/sample/detector awaits. No preload on the setup page — the session
+  route is the one point every entry path passes through.
+- TDD: three loader unit tests red (module missing) → green; a fourth
+  lick-practice e2e observes, in this process, the request for the chunk
+  carrying abcjs's own version banner versus the first CDN sample request
+  (`initializeSession` awaits the samples before `startLick`) — red by
+  190 ms the wrong way, green after. First attempt at the red used the
+  no-reveal seed and timed out on "never requested" instead; switched to
+  the sub-floor seed so the failure names the ORDER. svelte-check caught
+  the test's fake module not satisfying `typeof import('abcjs')` — cast it.
+- vitest 281 files, 4482 passed / 35 expected-fail; svelte-check 0/0;
+  24 e2e on chromium (lick-practice ×4 + every notation-heavy tune spec).

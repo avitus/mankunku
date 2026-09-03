@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
+	import { abcjsLoader, type AbcjsModule } from '$lib/notation/abcjs-loader';
 	import type { Snippet } from 'svelte';
 	import type { Phrase } from '$lib/types/music';
 	import type { Tune } from '$lib/types/tune';
@@ -196,7 +197,11 @@
 	let viewportEl = $state<HTMLDivElement | undefined>(undefined);
 	/** Playback-follow vertical offset (px) applied to the chart; 0 = top. */
 	let followOffsetPx = $state(0);
-	let abcjs = $state<typeof import('abcjs') | null>(null);
+	// The engine comes from the shared loader: a route that will engrave
+	// starts the fetch at mount (lick practice does, during setup), and an
+	// instance mounting after it resolved gets the module synchronously —
+	// it engraves in its first effect flush rather than one microtask later.
+	let abcjs = $state<AbcjsModule | null>(abcjsLoader.loaded());
 
 	// ── Inline chord editor state ────────────────────────────────────────────
 	let chordEdit: BeatPos | null = $state(null);
@@ -237,7 +242,7 @@
 	}
 
 	onMount(async () => {
-		abcjs = await import('abcjs');
+		if (!abcjs) abcjs = await abcjsLoader.load();
 	});
 
 	$effect(() => () => {

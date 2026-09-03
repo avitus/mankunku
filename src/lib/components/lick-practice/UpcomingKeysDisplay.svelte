@@ -95,6 +95,17 @@
 	// strobes. `keyStackLayout` owns the math for mixed heights. At session
 	// start, the slot above row 0 is empty until the first key boundary
 	// populates it.
+	//
+	// Read-ahead: when the NEXT row is the lead sheet, the layout parks the
+	// current row at the top instead, so the whole sheet is on screen for the
+	// preceding key and nothing moves at its downbeat — a sheet is read, and
+	// half a staff sliding in as the mic opens was the "not completely
+	// displayed" report. That row is lit (`.ahead`) on the same condition; it
+	// stays `.current`-gated for the playhead, beat and ring, which must wait
+	// for its key. Costs, accepted: the row played two keys before the sheet
+	// scrolls out with its score flash (the ring keeps the score), and the
+	// lick name above row 0 is clipped from the start when row 1 is the sheet
+	// (it is clipped after the first key in every session anyway).
 	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	const layout = $derived(keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS));
 	const translateYpx = $derived(layout.translateY);
@@ -165,9 +176,11 @@
 		{#each plannedKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
 			{@const isCurrent = i === visualCurrentRow}
 			{@const sheet = leadSheets[i]}
+			{@const isAhead = !!sheet && i === visualCurrentRow + 1}
 			<div
 				class="row"
 				class:current={isCurrent}
+				class:ahead={isAhead}
 				style="height: {rowHeights[i]}px;"
 			>
 				{#if i === 0}
@@ -305,7 +318,8 @@
 		opacity: 0.35;
 		transition: opacity 250ms ease;
 	}
-	.row.current {
+	.row.current,
+	.row.ahead {
 		opacity: 1;
 	}
 	.chart-wrap {

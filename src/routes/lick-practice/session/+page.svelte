@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { keyLabel } from '$lib/music/notation';
+	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
@@ -378,6 +379,12 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 
 	onMount(async () => {
 		void acquireScreenWakeLock();
+		// Fetch the notation engine now, alongside the audio setup below (mic,
+		// samples, detector), so a lead-sheet row — the first lick's in a Daily
+		// session, or any later cycle's — engraves from a warm module instead
+		// of paying a ~125 KB download during the count-in. A failed fetch is
+		// not fatal here: NotationDisplay retries on mount.
+		abcjsLoader.load().catch(() => {});
 		playback = await import('$lib/audio/playback');
 		captureModule = await import('$lib/audio/capture');
 		pitchModule = await import('$lib/audio/pitch-detector');

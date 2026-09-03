@@ -154,6 +154,7 @@ Layout policy lives in pure modules beside it:
 - **`abcjs-adapter.ts`** — adapts abcjs' returned `visualObj` onto those pure shapes. abcjs types are deliberately *not* imported; the interfaces structurally describe only what's consumed.
 - **`follow-scroll.ts`** — teleprompter math: fractional bar position → translateY, keeping the music near a fixed reading line.
 - **`ending-align-dom.ts`** — applies the ending-layout transform to rendered SVG.
+- **`abcjs-loader.ts`** — the one dynamic import of abcjs, memoised (`load()` shared by every caller, `loaded()` synchronous once resolved, a failed fetch retried rather than cached). `NotationDisplay` reads from it; a route that will engrave calls `load()` early — the lick-practice session at mount — so the first staff never pays the chunk download at the moment it must be read.
 
 `NotationDisplay.svelte` is the single component behind all of it, taking either `phrase` or `tune`, with `variant: 'print' | 'practice'`, `cursorIndex`, `rangeMarkers`, `autoScrollPlayhead` + `playheadBarFraction`, and optional `onSelect` / `onBarClick` / `chordEditor` wiring for the editor. Note the deliberate asymmetry: changing `selectedIndex` re-renders, changing `cursorIndex` or a marker's status only swaps CSS classes and overlay rects — so playback can drive them per-note without re-engraving the chart.
 
