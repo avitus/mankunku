@@ -407,4 +407,68 @@ test.describe('lick-practice session flow', () => {
 		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
 		expect(await measure()).toEqual({ ...ahead, currentIndex: 1, playhead: true });
 	});
+
+	/**
+	 * The notation engine (abcjs, the second-largest chunk in the bundle) is a
+	 * dynamic import that nothing on the Daily path touches before the session
+	 * — so the first lead-sheet row used to issue the fetch from its own mount,
+	 * which is the moment the count-in starts. The session must request it
+	 * during SETUP instead: before the instrument samples, which `initializeSession`
+	 * awaits (after the mic, before the pitch detector) ahead of the first
+	 * count-in. Both timestamps are taken in this process, from the requests
+	 * themselves, so the ordering is not a race against the page. The seed
+	 * reveals the one key, so a session that only fetched on engrave still
+	 * fetches — and fails on the ORDER, not on a missing request.
+	 */
+	test('fetches the notation engine during session setup, before the count-in', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(120_000);
+
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...SUB_FLOOR_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		// Observers go on AFTER the stubs so they run first and fall through.
+		// The engine's chunk has a hashed name; it is the one that carries the
+		// library's own version banner.
+		let abcjsRequestedAt: number | null = null;
+		let samplesRequestedAt: number | null = null;
+		await page.route('**/_app/immutable/chunks/*.js', async (route) => {
+			const at = Date.now();
+			const response = await route.fetch();
+			const body = await response.text();
+			if (abcjsRequestedAt === null && body.includes('abcjs-basic v')) abcjsRequestedAt = at;
+			await route.fulfill({ response, body });
+		});
+		const noteSamples = async (route: import('@playwright/test').Route) => {
+			samplesRequestedAt ??= Date.now();
+			await route.fallback();
+		};
+		await page.route('https://smpldsnds.github.io/**', noteSamples);
+		await page.route('https://gleitz.github.io/**', noteSamples);
+
+		await page.goto('/lick-practice');
+		const startBtn = page.getByRole('button', { name: /start daily practice/i });
+		await expect(startBtn).toBeEnabled();
+		await startBtn.click();
+		await expect(page).toHaveURL(/\/lick-practice\/session$/);
+		// The stack exists once setup is done and the count-in has begun.
+		await expect(page.locator('.chart-wrap').first()).toBeVisible({ timeout: 60_000 });
+		await expect.poll(() => abcjsRequestedAt, { timeout: 20_000 }).not.toBeNull();
+
+		expect(samplesRequestedAt).not.toBeNull();
+		expect(abcjsRequestedAt!).toBeLessThan(samplesRequestedAt!);
+	});
 });

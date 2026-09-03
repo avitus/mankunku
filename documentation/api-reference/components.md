@@ -99,7 +99,7 @@ Renders either a single-phrase staff or a full multi-system tune chart, using [a
 | `staffWidth` | `number?` | abcjs staff width in SVG units (default `CHART_STAFF_WIDTH`); a host that sizes the SVG by height asks for a wider staff so one system spans its row |
 
 **Behavior:**
-- Lazy-loads `abcjs` on mount.
+- Takes `abcjs` from the shared `abcjsLoader` (`notation/abcjs-loader.ts`): a resolved module synchronously at init, else `load()` on mount. The engine is still a dynamic import, but a route that will engrave starts the fetch itself — the lick-practice session does at mount, during audio setup — so the first staff of a session does not pay the ~125 KB download at the count-in.
 - Phrases convert via `phraseToAbcWithMap()`; tunes via `tuneToAbcWithMap()`, which also returns bar and chord-slot anchors.
 - Responsive rendering (`responsive: 'resize'`); dark-mode support overrides SVG path/text colors via CSS.
 - Clicking a pitched notehead calls `onSelect` with the note's source-array index (resolved through the anchor map). Rests are not selectable.

@@ -2370,3 +2370,29 @@ opened in Chrome.
   `{#each}` key includes the row index, so a worst-first re-sort remounts
   and re-engraves the sheet each cycle boundary; the viewport moves 315↔317
   between reveal and no-reveal cycles.
+
+## 2026-09-03 (second pass) — Notation engine fetched during session setup
+
+- Andy: "Fix the abcjs issue" — the follow-up from the morning: abcjs is
+  the second-largest chunk (508 KB raw / 124 KB brotli) and NotationDisplay
+  imported it from its own `onMount`, so on the Daily path (no notation
+  anywhere before the session) the first lead-sheet row issued the fetch at
+  the moment the count-in started.
+- Fix: `notation/abcjs-loader.ts` — `createAbcjsLoader(importer)` with a
+  memoised `load()` (one in-flight promise for every caller, a failed
+  fetch retried rather than cached) and a synchronous `loaded()`;
+  `NotationDisplay` seeds its `$state` from `loaded()` and falls back to
+  `load()` on mount; the session route calls `load()` first thing in
+  `onMount`, before the six sequential audio-module imports and the
+  mic/sample/detector awaits. No preload on the setup page — the session
+  route is the one point every entry path passes through.
+- TDD: three loader unit tests red (module missing) → green; a fourth
+  lick-practice e2e observes, in this process, the request for the chunk
+  carrying abcjs's own version banner versus the first CDN sample request
+  (`initializeSession` awaits the samples before `startLick`) — red by
+  190 ms the wrong way, green after. First attempt at the red used the
+  no-reveal seed and timed out on "never requested" instead; switched to
+  the sub-floor seed so the failure names the ORDER. svelte-check caught
+  the test's fake module not satisfying `typeof import('abcjs')` — cast it.
+- vitest 281 files, 4482 passed / 35 expected-fail; svelte-check 0/0;
+  24 e2e on chromium (lick-practice ×4 + every notation-heavy tune spec).
