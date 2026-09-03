@@ -13,6 +13,17 @@
  * (a pixel or so per frame); a chord box survives that, an engraved staff
  * does not — five one-pixel lines crawling upward strobe, whether the
  * translate is fractional (resampled) or snapped (each line hopping a row).
+ *
+ * One exception — READ-AHEAD. A lead-sheet row is read, not glanced at, so
+ * it must be wholly on screen a key BEFORE it is played; parked under the
+ * usual slot it straddles the viewport (107 of 212 px) and only slides into
+ * place at its own downbeat, which is when the player must already be
+ * reading it. So when the NEXT row is taller than the slot and the three
+ * rows would not fit, the active row parks at the TOP instead: the sheet
+ * sits fully inside the viewport for the whole preceding key, and the
+ * stack does not move at all when the sheet's key arrives. The cost is the
+ * just-played row scrolling out (its score flash is only glimpsed during the
+ * step; the ring keeps the score). A tall ACTIVE row keeps its usual slot.
  */
 
 export interface KeyStackLayout {
@@ -44,12 +55,6 @@ export function keyStackLayout(
 	const s = Math.max(0, scrollFraction);
 	const currentRow = n === 0 ? 0 : Math.min(n - 1, Math.floor(s));
 
-	let top = 0;
-	for (let i = 0; i < currentRow; i++) top += heights[i];
-	const prevHeight = currentRow === 0 ? slotHeight : heights[currentRow - 1];
-	// Row `currentRow` sits at y = prevHeight for its whole key: top + translateY.
-	const translateY = prevHeight - top;
-
 	// The tallest row plus its neighbour: while a row plays, the row before
 	// it is on screen above it — a standard row (or the empty slot) above the
 	// one tall row, then the tall row above the next standard one. General
@@ -66,6 +71,20 @@ export function keyStackLayout(
 		}
 	}
 	const viewportHeight = Math.max(slotHeight * visibleRows, tallest + Math.max(slotHeight, second));
+
+	let top = 0;
+	for (let i = 0; i < currentRow; i++) top += heights[i];
+	const prevHeight = currentRow === 0 ? slotHeight : heights[currentRow - 1];
+	const current = heights[currentRow] ?? 0;
+	const next = currentRow + 1 < n ? heights[currentRow + 1] : 0;
+	// Read-ahead: a lead-sheet row NEXT would straddle the viewport under the
+	// usual slot, so the active row parks at the top and the sheet sits fully
+	// on screen a key early. The component lights that row (`.ahead`) on the
+	// same condition — a taller-than-slot row is the one lead sheet per stack.
+	const readAhead = next > slotHeight && prevHeight + current + next > viewportHeight;
+	// Row `currentRow` sits at y = activeTop for its whole key: top + translateY.
+	const activeTop = readAhead ? 0 : prevHeight;
+	const translateY = activeTop - top;
 
 	return { translateY, currentRow, viewportHeight };
 }

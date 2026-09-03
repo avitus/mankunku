@@ -42,6 +42,27 @@ const SUB_FLOOR_PROGRESS = {
 };
 
 /**
+ * Two unlocked keys — C (the entry key) and G (the newest, `planUnlockedKeys`
+ * order) — with G under the floor, so the Daily stack is a chord row over a
+ * lead-sheet row: `[C, G]`, G revealed. The unlock count is a separate store
+ * (`lick-unlock-count`), so C's pass count is decorative.
+ */
+const LEAD_AHEAD_PROGRESS = {
+	'lick-practice-progress': {
+		'e2e-user-lick-bebop': {
+			C: { currentTempo: FAST_TEMPO, lastPracticedAt: 1754000000000, passCount: 3 },
+			G: {
+				currentTempo: FAST_TEMPO,
+				lastPracticedAt: 1754000000000,
+				passCount: 0,
+				rollingScore: 0.5
+			}
+		}
+	},
+	'lick-unlock-count': { 'e2e-user-lick-bebop': 2 }
+};
+
+/**
  * Full lick-practice session flow.
  *
  * Seeds one practice-tagged lick (`practice` + `prog:ii-V-I-major` in the
@@ -288,5 +309,102 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.getByRole('heading', { name: /session report/i })).not.toBeVisible();
 		await expect(page.getByText(/keep going/i)).not.toBeVisible();
 		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
+	});
+
+	/**
+	 * Read-ahead: the lead sheet is READ, so it must be wholly on screen and
+	 * lit a key BEFORE it is played, not slide into the viewport at its own
+	 * downbeat. A Daily session plays keys in ramp order, so the revealed
+	 * (newest) key is the LAST row — the shape that used to arrive half-clipped
+	 * and dimmed exactly when the mic opened. Playwright's `toBeVisible` does
+	 * not see clipping by an ancestor's `overflow: hidden`, so the assertions
+	 * are geometric: the row's box inside the viewport's box, measured in one
+	 * evaluate so every field describes the same frame.
+	 */
+	test('lead sheet is fully on screen and lit a key before it is played', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(120_000);
+
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...LEAD_AHEAD_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		await page.goto('/lick-practice');
+		const startBtn = page.getByRole('button', { name: /start daily practice/i });
+		await expect(startBtn).toBeEnabled();
+		await startBtn.click();
+		await expect(page).toHaveURL(/\/lick-practice\/session$/);
+		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible({
+			timeout: 20_000
+		});
+
+		const reveal = page.getByTestId('lead-sheet-row');
+		await expect(reveal).toBeVisible({ timeout: 20_000 });
+		await expect(reveal.locator('.abcjs-container svg .abcjs-notehead').first()).toBeVisible({
+			timeout: 10_000
+		});
+
+		// One frame's worth of facts about the stack, from the sheet outward so
+		// no bare class selector can catch some other component's viewport.
+		const measure = () =>
+			page.evaluate(() => {
+				const lead = document.querySelector('[data-testid="lead-sheet-row"]');
+				const leadRow = lead?.closest('.row');
+				const stack = lead?.closest('.stack');
+				const viewport = lead?.closest('.viewport');
+				if (!lead || !leadRow || !stack || !viewport) return null;
+				const rows = [...stack.querySelectorAll(':scope > .row')];
+				const v = viewport.getBoundingClientRect();
+				const l = lead.getBoundingClientRect();
+				return {
+					currentIndex: rows.findIndex((r) => r.classList.contains('current')),
+					leadIndex: rows.indexOf(leadRow),
+					leadInside: l.top >= v.top && l.bottom <= v.bottom && l.left >= v.left && l.right <= v.right,
+					leadRowOpacity: getComputedStyle(leadRow).opacity,
+					transform: getComputedStyle(stack).transform,
+					playhead: !!lead.querySelector('.playhead-under-bar')
+				};
+			});
+
+		// From the first paint, through the count-in, the demo and C's window:
+		// row 0 (C) is current, the sheet (row 1) sits wholly inside the
+		// viewport at full ink, with no playhead yet, and the stack has not
+		// moved. (Under the old parking the sheet's box straddled the
+		// viewport's bottom edge at 35% opacity.)
+		const ahead = {
+			currentIndex: 0,
+			leadIndex: 1,
+			leadInside: true,
+			leadRowOpacity: '1',
+			transform: 'matrix(1, 0, 0, 1, 0, 0)',
+			playhead: false
+		};
+		await expect.poll(measure, { timeout: 10_000 }).toEqual(ahead);
+
+		// C's own window: the ring on row 0, a PLAY tab with no pass counter (C
+		// plays once), and the sheet exactly where it was.
+		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
+		const playTab = page.locator('.phase-tab[data-kind="play"]');
+		await expect(playTab).toBeVisible();
+		await expect(playTab).not.toHaveAttribute('data-pass');
+		expect(await measure()).toEqual(ahead);
+
+		// G's first pass: the row becomes current and gets its playhead, and
+		// NOTHING moves — the transform is the identity it has been all along.
+		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 30_000 });
+		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
+		expect(await measure()).toEqual({ ...ahead, currentIndex: 1, playhead: true });
 	});
 });
